@@ -185,8 +185,8 @@ function InfoPill({ label, value }: { label: string; value: string }) {
         border: '1px solid var(--po-hover)',
       }}
     >
-      <span style={{ color: 'var(--po-text-subtle)', fontSize: 11, flexShrink: 0 }}>{label}</span>
-      <span style={{ color: 'var(--po-text-muted)', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <span style={{ color: 'var(--po-text-subtle)', fontSize: 10, flexShrink: 0 }}>{label}</span>
+      <span style={{ color: 'var(--po-text-muted)', fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {value}
       </span>
     </div>
@@ -239,12 +239,12 @@ function CopyPromptButton({
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ color, fontSize: 12, fontWeight: 600, lineHeight: 1.35 }}>{title}</div>
-          <div style={{ color: 'var(--po-text-subtle)', fontSize: 11, lineHeight: 1.45, marginTop: 2 }}>{description}</div>
+          <div style={{ color: 'var(--po-text-subtle)', fontSize: 10, lineHeight: 1.45, marginTop: 2 }}>{description}</div>
         </div>
         <span style={{
           flexShrink: 0,
           color: copied ? 'var(--po-success)' : 'var(--po-text-muted)',
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: 500,
           border: `1px solid ${copied ? 'color-mix(in srgb, var(--po-success) 24%, transparent)' : 'var(--po-border)'}`,
           borderRadius: 999,
@@ -293,7 +293,7 @@ export function AccessPointsListPanel({
             borderRadius: 999,
             background: 'var(--po-border)',
             color: 'var(--po-text-muted)',
-            fontSize: 11,
+            fontSize: 10,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -307,7 +307,7 @@ export function AccessPointsListPanel({
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--po-canvas)' }}>
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '12px 12px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
           {entries.length === 0 ? (
-            <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--po-text-subtle)', fontSize: 13, lineHeight: 1.6 }}>
+            <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--po-text-subtle)', fontSize: 12, lineHeight: 1.6 }}>
               Access points created from folder link buttons will appear here.
             </div>
           ) : (
@@ -372,7 +372,7 @@ export function AccessPointsListPanel({
                       </div>
                       <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
                         <span style={{
-                          fontSize: 13,
+                          fontSize: 12,
                           fontWeight: 500,
                           lineHeight: 1.3,
                           color: hovered || expanded ? 'var(--po-text)' : 'var(--po-text)',
@@ -411,7 +411,7 @@ export function AccessPointsListPanel({
                           <InfoPill label="Key" value={maskSecret(ep.accessKey || ep.syncId)} />
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                          <div style={{ color: 'var(--po-text-subtle)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          <div style={{ color: 'var(--po-text-subtle)', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                             Copy Prompt
                           </div>
                           <CopyPromptButton

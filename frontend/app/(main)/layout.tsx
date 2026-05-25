@@ -26,7 +26,9 @@ const WelcomeModal = dynamic(
 // stays inside the linter cap.
 const _PROJECT_VIEWS: ReadonlyArray<readonly [string, string]> = [
   ['/toolkit', 'toolkit'],
-  ['/history', 'history'],
+  ['/changes', 'changes'],
+  ['/history', 'changes'],
+  ['/conflicts', 'changes'],
   ['/access', 'access'],
   ['/monitor', 'monitor'],
   ['/settings', 'settings'],

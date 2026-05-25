@@ -24,6 +24,14 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
+# Path syntactic validation lives in the L4 adapter
+# (``ProductOperationAdapter.*`` → ``validate_path``). Per the
+# architecture doc, "syntactic cleanup, content serialization, default
+# messages, and Git pack parsing are adapter-local implementation
+# details, not a separate architecture layer," so request schemas stay
+# minimal — they describe the wire shape only.
+
+
 # ============================================================
 # Tree API request schemas
 # ============================================================
@@ -198,6 +206,13 @@ class FileVersionInfo(BaseModel):
     scope_hash: str = ""
     scope_path: str = ""
     created_at: datetime | None = None
+    # Free-form metadata the engine stamped at commit time. Frontend
+    # uses it to render "risky operation" warnings (mass delete /
+    # bulk rename) and to surface operation-type hints in the
+    # history timeline. Closes PUP-5 Gap G2 — the data has always
+    # been stored on ``version_transactions``; this just plumbs it
+    # back out through the read API.
+    audit_detail: dict | None = None
 
 
 class VersionHistoryResponse(BaseModel):

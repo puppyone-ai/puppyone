@@ -23,6 +23,18 @@ BlobMode = Literal["included", "omitted"]
 
 @dataclass(frozen=True)
 class GitViewCacheKey:
+    """Composite identity for one durable Git view cache.
+
+    Architecture doc 05-git-remote-accesspoint.md lists six components
+    (``project_id + scope_path + scope_excludes + projection_version +
+    history_mode + object_store_namespace``). We carry a seventh —
+    ``blob_mode`` — because clone/fetch needs the cache with reachable
+    blobs and receive-pack advertisement does not; sharing the same
+    bare repo for both would force one direction to over-fetch. The
+    extra component is a cache-efficiency optimization, not a semantic
+    change to view identity; doc should be updated to match.
+    """
+
     project_id: str
     object_store: str
     scope_path: str

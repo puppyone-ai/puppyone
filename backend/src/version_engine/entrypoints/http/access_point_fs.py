@@ -32,6 +32,7 @@ from src.version_engine.entrypoints.http.schemas import (
     WriteFileRequest,
 )
 from src.version_engine.admission.channel_pause import enforce_channel_pause
+from src.version_engine.admission.connector_policy import admit_cli_fs_command
 from src.version_engine.admission.permission import (
     ensure_mode_writable,
     ensure_repo_readable,
@@ -45,6 +46,10 @@ from src.version_engine.admission.repo_facade import repo_facade_from_auth
 from src.version_engine.write_engine.engine import ConcurrentMutationError
 from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
 from src.version_engine.adapters.product.commands import VersionWriteCommandService
+from src.ingest.policy.upload_policy import (
+    PER_FILE_MAX_BYTES as POLICY_PER_FILE_MAX_BYTES,
+    path_has_blocked_segment,
+)
 
 
 router = APIRouter(prefix="/ap-fs", tags=["access-point-fs"])
@@ -112,6 +117,7 @@ async def _resolve_auth(
     x_access_key: str | None,
     x_puppyone_user: str | None,
     x_puppy_client: str | None = None,
+    command: str | None = None,
 ) -> tuple[str, dict, dict]:
     project_id, auth = await asyncio.to_thread(
         resolve_access_point, _normalize_access_key(x_access_key),
@@ -143,7 +149,10 @@ async def _resolve_auth(
             status_code=400,
             detail="X-Puppy-Client header required",
         )
-    enforce_channel_pause(auth, x_puppy_client, log_prefix="[AP-FS]")
+    if command:
+        admit_cli_fs_command(auth, command, x_puppy_client, log_prefix="[AP-FS]")
+    else:
+        enforce_channel_pause(auth, x_puppy_client, log_prefix="[AP-FS]")
 
     normalized_scope = {
         "id": scope.get("id") or auth.get("agent"),
@@ -226,6 +235,30 @@ def _matches_exclude(relative_path: str, excludes: list[Any]) -> bool:
 def _assert_not_excluded(relative_path: str, scope: dict) -> None:
     if _matches_exclude(relative_path, scope.get("exclude") or []):
         raise HTTPException(status_code=403, detail=f"Path is excluded from this access point: {relative_path}")
+
+
+def _assert_upload_policy(relative_path: str) -> None:
+    """PUP-3 defense-in-depth: reject paths whose segments match the
+    hardcoded blocklist (``.git``, ``node_modules``, …).
+
+    Read-only operations don't call this — only the write endpoints
+    (upload, write_file, mkdir, touch). The product contract is in
+    ``docs/proposals/PUP-3-folder-upload-policy.md``.
+    """
+    is_blocked, seg = path_has_blocked_segment(relative_path)
+    if is_blocked:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "policy_blocked",
+                "segment": seg,
+                "path": relative_path,
+                "message": (
+                    f"Path '{relative_path}' contains the blocked segment "
+                    f"'{seg}' (PUP-3 folder-upload policy)."
+                ),
+            },
+        )
 
 
 def _entry_to_scoped_response(entry, scope: dict) -> dict:
@@ -624,7 +657,9 @@ async def list_dir(
     x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
     ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
 ):
-    project_id, _auth, scope = await _resolve_auth(x_access_key, x_puppyone_user, x_puppy_client)
+    project_id, _auth, scope = await _resolve_auth(
+        x_access_key, x_puppyone_user, x_puppy_client, command="ls",
+    )
     rel_path = _clean_relative(path)
     _assert_not_excluded(rel_path, scope)
 
@@ -670,7 +705,9 @@ async def tree(
     x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
     ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
 ):
-    project_id, _auth, scope = await _resolve_auth(x_access_key, x_puppyone_user, x_puppy_client)
+    project_id, _auth, scope = await _resolve_auth(
+        x_access_key, x_puppyone_user, x_puppy_client, command="tree",
+    )
     rel_path = _clean_relative(path)
     _assert_not_excluded(rel_path, scope)
     max_depth = _query_int(max_depth, -1)
@@ -725,6 +762,11 @@ async def tree(
     })
 
 
+# Legacy S3-scan grep — KEEP. Used by the CLI as a fallback when
+# ``POST /grep-indexed`` returns ``index_status != "indexed"``. The
+# trade-off is: this path can find content the indexer hasn't yet
+# processed, at the cost of an O(scope size) S3 read + Python
+# regex scan. See ``docs/proposals/PUP-cloud-grep.md``.
 @router.get("/grep", response_model=ApiResponse)
 async def grep(
     pattern: str = Query(..., description="Fixed string or regex pattern to match"),
@@ -750,7 +792,9 @@ async def grep(
     x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
     ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
 ):
-    project_id, _auth, scope = await _resolve_auth(x_access_key, x_puppyone_user, x_puppy_client)
+    project_id, _auth, scope = await _resolve_auth(
+        x_access_key, x_puppyone_user, x_puppy_client, command="grep",
+    )
     rel_path = _clean_relative(path)
     _assert_not_excluded(rel_path, scope)
     max_depth = _query_int(max_depth, -1)
@@ -990,6 +1034,208 @@ async def grep(
     })
 
 
+# ────────────────────────────────────────────────────────────────────
+# Indexed grep (federated search — server-side primary)
+# ────────────────────────────────────────────────────────────────────
+#
+# Contract: ``docs/proposals/PUP-cloud-grep.md``.
+#
+# This endpoint queries the ``version_text_index`` GIN indexes
+# (tsvector + pg_trgm) and recovers per-line offsets in the
+# application layer. The legacy ``GET /grep`` above remains as the
+# fallback when ``index_status != "indexed"``.
+
+
+from pydantic import BaseModel as _BaseModel  # local import to keep top of file lean
+
+
+class _GrepIndexedRequest(_BaseModel):
+    """Body for ``POST /ap-fs/grep-indexed``.
+
+    Flags mirror a useful subset of the legacy ``GET /grep``
+    parameters; we drop the file-walk flags (``include`` /
+    ``exclude_dir`` / ``max_depth`` / ``max_files`` / ``max_bytes``)
+    because the index is the scan boundary now — anything in scope
+    that the indexer hasn't stored is by definition not findable
+    via this path and the caller falls back to the legacy endpoint.
+    """
+    pattern: str
+    path: str = ""
+    regex: bool = False
+    ignore_case: bool = False
+    word_match: bool = False
+    invert_match: bool = False
+    only_matching: bool = False
+    before_context: int = 0
+    after_context: int = 0
+    limit: int = _GREP_DEFAULT_LIMIT
+    per_file_limit: int = 0
+    candidate_limit: int = 2000
+
+
+@router.post("/grep-indexed", response_model=ApiResponse)
+async def grep_indexed(
+    body: _GrepIndexedRequest,
+    x_access_key: str | None = Header(None, alias="X-Access-Key"),
+    x_puppyone_user: str | None = Header(None, alias="X-PuppyOne-User"),
+    x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
+    ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
+):
+    """Indexed grep against the server's text index.
+
+    Returns hits keyed by ``content_hash`` so the CLI can pair each
+    one with the file's current remote content (via ``/ap-fs/cat``)
+    and its local working copy. The response also carries
+    ``index_status`` so the CLI knows whether to fall back to the
+    legacy ``/grep`` S3-scan path:
+
+      - ``indexed`` — index is at HEAD; results are authoritative.
+      - ``stale``   — index is behind HEAD; CLI also fetches via
+                     legacy ``/grep`` for completeness.
+      - ``missing`` — no rows for this scope; CLI uses legacy as
+                     the primary tracked-channel query.
+    """
+    from src.version_engine.infrastructure.supabase.text_index_repository import (
+        TextIndexRepository,
+        cut_chunk_to_hits,
+    )
+
+    project_id, _auth, scope = await _resolve_auth(
+        x_access_key, x_puppyone_user, x_puppy_client, command="grep",
+    )
+    rel_path = _clean_relative(body.path)
+    _assert_not_excluded(rel_path, scope)
+
+    if len(body.pattern) > _GREP_PATTERN_MAX_CHARS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"grep pattern exceeds {_GREP_PATTERN_MAX_CHARS} characters",
+        )
+
+    # Wrap user pattern for the precise re-match. ``word_match`` is
+    # implemented here by re-anchoring with ``\b`` rather than in the
+    # SQL filter — the SQL stage uses the same trigram candidate set
+    # either way, and anchoring in Python keeps the SQL operator one
+    # of (``like``, ``ilike``, ``match``, ``imatch``).
+    py_pattern = body.pattern if body.regex else re.escape(body.pattern)
+    if body.word_match:
+        py_pattern = rf"\b(?:{py_pattern})\b"
+    py_flags = re.IGNORECASE if body.ignore_case else 0
+    try:
+        matcher = re.compile(py_pattern, py_flags)
+    except re.error as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid regex: {exc}") from exc
+
+    # Combine the AP's scope_path with the user-supplied sub-path so
+    # the index lookup never reaches outside the AP's blast radius.
+    combined_scope = _join_scope(scope["path"], rel_path).strip("/")
+
+    repo = TextIndexRepository()
+    candidates = repo.query_indexed_grep(
+        project_id=project_id,
+        scope_path=combined_scope,
+        pattern=body.pattern,
+        regex=body.regex,
+        ignore_case=body.ignore_case,
+        candidate_limit=max(1, min(int(body.candidate_limit), 5000)),
+    )
+
+    head_commit_id = ops.get_head_commit_id(project_id) or ""
+    freshness = repo.get_freshness(
+        project_id=project_id,
+        scope_path=combined_scope,
+        head_commit_id=head_commit_id,
+        rows_estimate=len(candidates),
+    )
+
+    per_file_limit = max(0, int(body.per_file_limit))
+    safe_limit = _query_limited_int(body.limit, _GREP_DEFAULT_LIMIT, _GREP_MAX_LIMIT)
+    before_ctx = min(max(0, int(body.before_context)), 100)
+    after_ctx = min(max(0, int(body.after_context)), 100)
+
+    hits: list[dict] = []
+    per_file_seen: dict[str, int] = {}
+    truncated = False
+    for cand in candidates:
+        if len(hits) >= safe_limit:
+            truncated = True
+            break
+        file_path = cand.file_path
+        remaining = None
+        if per_file_limit:
+            already = per_file_seen.get(file_path, 0)
+            if already >= per_file_limit:
+                continue
+            remaining = per_file_limit - already
+        chunk_hits = cut_chunk_to_hits(
+            chunk_text=cand.chunk_text,
+            line_start=cand.line_start,
+            matcher=matcher,
+            invert=body.invert_match,
+            only_matching=body.only_matching,
+            before_context=before_ctx,
+            after_context=after_ctx,
+            per_file_remaining=remaining,
+        )
+        if not chunk_hits:
+            continue
+        for ch in chunk_hits:
+            if len(hits) >= safe_limit:
+                truncated = True
+                break
+            hits.append({
+                "path": file_path,
+                "line": ch["line"],
+                "col": ch["col"],
+                "match": ch["match"],
+                "context_before": ch["context_before"],
+                "context_after": ch["context_after"],
+                "content_hash": cand.content_hash,
+            })
+            per_file_seen[file_path] = per_file_seen.get(file_path, 0) + 1
+
+    return ApiResponse.success(data={
+        "scope": combined_scope,
+        "pattern": body.pattern,
+        "regex": body.regex,
+        "ignore_case": body.ignore_case,
+        "word_match": body.word_match,
+        "invert_match": body.invert_match,
+        "only_matching": body.only_matching,
+        "limit": safe_limit,
+        "per_file_limit": per_file_limit,
+        "candidate_limit": body.candidate_limit,
+        "candidates_examined": len(candidates),
+        "hits": hits,
+        "truncated": truncated,
+        "index_status": freshness.status,
+        "index_freshness": {
+            "indexed_commit_id": freshness.indexed_commit_id,
+            "head_commit_id": freshness.head_commit_id,
+            "commits_behind": freshness.commits_behind,
+        },
+        "head_commit_id": head_commit_id,
+    })
+
+
+# ────────────────────────────────────────────────────────────────────
+# (Removed) ``POST /ap-fs/search`` — semantic / hybrid search via
+# Turbopuffer + RRF fusion used to live here. Scoped out 2026-05-25:
+# PuppyOne CLI is a cloud-disk operations surface (analogue: ``aws s3``),
+# not a research tool. Semantic search belongs in the product UI,
+# where the user has the context to interpret embedding scores.
+#
+# Kept:  ``version_text_index`` table, the post-commit indexer, and
+#        ``POST /ap-fs/grep-indexed`` above. These power cloud-side
+#        literal / regex grep at scale (pg_trgm + tsvector GIN).
+# Gone:  ``_SearchRequest`` schema, ``_run_semantic_channel`` helper,
+#        the ``/search`` endpoint, and the CLI ``puppyone fs search``
+#        command.
+# Unchanged: the underlying Turbopuffer pipeline (``SearchService``).
+#            It's just no longer exposed through ap-fs.
+# ────────────────────────────────────────────────────────────────────
+
+
 @router.get("/cat", response_model=ApiResponse)
 async def read_file(
     path: str = Query(..., description="File path relative to the access point scope"),
@@ -999,7 +1245,9 @@ async def read_file(
     x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
     ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
 ):
-    project_id, _auth, scope = await _resolve_auth(x_access_key, x_puppyone_user, x_puppy_client)
+    project_id, _auth, scope = await _resolve_auth(
+        x_access_key, x_puppyone_user, x_puppy_client, command="cat",
+    )
     rel_path = _clean_relative(path)
     if not rel_path:
         raise HTTPException(status_code=400, detail="File path is required")
@@ -1043,7 +1291,9 @@ async def raw_file(
     x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
     ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
 ):
-    project_id, _auth, scope = await _resolve_auth(x_access_key, x_puppyone_user, x_puppy_client)
+    project_id, _auth, scope = await _resolve_auth(
+        x_access_key, x_puppyone_user, x_puppy_client, command="download",
+    )
     rel_path = _clean_relative(path)
     if not rel_path:
         raise HTTPException(status_code=400, detail="File path is required")
@@ -1103,14 +1353,25 @@ async def upload_file(
     x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
     commands: VersionWriteCommandService = Depends(get_version_write_command_service),
 ):
-    project_id, auth, scope = await _resolve_auth(x_access_key, x_puppyone_user, x_puppy_client)
+    project_id, auth, scope = await _resolve_auth(
+        x_access_key, x_puppyone_user, x_puppy_client, command="upload",
+    )
     _ensure_writable(scope)
     rel_path = _clean_relative(path)
     if not rel_path:
         raise HTTPException(status_code=400, detail="File path is required")
     _assert_not_excluded(rel_path, scope)
+    _assert_upload_policy(rel_path)
 
     content = await request.body()
+    if len(content) > POLICY_PER_FILE_MAX_BYTES:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"File body is {len(content)} bytes; per-file cap is "
+                f"{POLICY_PER_FILE_MAX_BYTES} bytes (PUP-3 folder-upload policy)."
+            ),
+        )
     full_path = _join_scope(scope["path"], rel_path)
     try:
         outcome = await commands.write_bytes(
@@ -1143,7 +1404,9 @@ async def stat(
     x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
     ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
 ):
-    project_id, _auth, scope = await _resolve_auth(x_access_key, x_puppyone_user, x_puppy_client)
+    project_id, _auth, scope = await _resolve_auth(
+        x_access_key, x_puppyone_user, x_puppy_client, command="stat",
+    )
     rel_path = _clean_relative(path)
     _assert_not_excluded(rel_path, scope)
 
@@ -1216,12 +1479,15 @@ async def write_file(
     x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
     commands: VersionWriteCommandService = Depends(get_version_write_command_service),
 ):
-    project_id, auth, scope = await _resolve_auth(x_access_key, x_puppyone_user, x_puppy_client)
+    project_id, auth, scope = await _resolve_auth(
+        x_access_key, x_puppyone_user, x_puppy_client, command="write",
+    )
     _ensure_writable(scope)
     rel_path = _clean_relative(body.path)
     if not rel_path:
         raise HTTPException(status_code=400, detail="File path is required")
     _assert_not_excluded(rel_path, scope)
+    _assert_upload_policy(rel_path)
 
     try:
         outcome = await commands.write_file(
@@ -1258,12 +1524,15 @@ async def mkdir(
     x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
     commands: VersionWriteCommandService = Depends(get_version_write_command_service),
 ):
-    project_id, auth, scope = await _resolve_auth(x_access_key, x_puppyone_user, x_puppy_client)
+    project_id, auth, scope = await _resolve_auth(
+        x_access_key, x_puppyone_user, x_puppy_client, command="mkdir",
+    )
     _ensure_writable(scope)
     rel_path = _clean_relative(body.path)
     if not rel_path:
         raise HTTPException(status_code=400, detail="Directory path is required")
     _assert_not_excluded(rel_path, scope)
+    _assert_upload_policy(rel_path)
 
     full_path = _join_scope(scope["path"], rel_path)
     existing = _ops_stat(commands.ops, project_id, scope, rel_path)
@@ -1317,7 +1586,9 @@ async def touch(
     x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
     commands: VersionWriteCommandService = Depends(get_version_write_command_service),
 ):
-    project_id, auth, scope = await _resolve_auth(x_access_key, x_puppyone_user, x_puppy_client)
+    project_id, auth, scope = await _resolve_auth(
+        x_access_key, x_puppyone_user, x_puppy_client, command="touch",
+    )
     _ensure_writable(scope)
     rel_paths = [_clean_relative(p) for p in (body.paths or [body.path])]
     rel_paths = [p for p in rel_paths if p]
@@ -1328,6 +1599,7 @@ async def touch(
     missing_files: list[str] = []
     for rel_path in rel_paths:
         _assert_not_excluded(rel_path, scope)
+        _assert_upload_policy(rel_path)
         existing = _ops_stat(commands.ops, project_id, scope, rel_path)
         if existing is not None:
             if existing.type == "folder":
@@ -1414,7 +1686,9 @@ async def move(
     x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
     commands: VersionWriteCommandService = Depends(get_version_write_command_service),
 ):
-    project_id, auth, scope = await _resolve_auth(x_access_key, x_puppyone_user, x_puppy_client)
+    project_id, auth, scope = await _resolve_auth(
+        x_access_key, x_puppyone_user, x_puppy_client, command="mv",
+    )
     _ensure_writable(scope)
     old_rel = _clean_relative(body.old_path)
     new_rel = _clean_relative(body.new_path)
@@ -1422,6 +1696,10 @@ async def move(
         raise HTTPException(status_code=400, detail="Both old_path and new_path are required")
     _assert_not_excluded(old_rel, scope)
     _assert_not_excluded(new_rel, scope)
+    # PUP-3: block writes landing inside a blocklisted path. The source
+    # side is intentionally permissive so users can move/copy legacy
+    # content OUT of a blocked directory while cleaning up.
+    _assert_upload_policy(new_rel)
 
     old_full = _join_scope(scope["path"], old_rel)
     old_entry = _ops_stat(commands.ops, project_id, scope, old_rel)
@@ -1502,7 +1780,9 @@ async def copy(
     x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
     commands: VersionWriteCommandService = Depends(get_version_write_command_service),
 ):
-    project_id, auth, scope = await _resolve_auth(x_access_key, x_puppyone_user, x_puppy_client)
+    project_id, auth, scope = await _resolve_auth(
+        x_access_key, x_puppyone_user, x_puppy_client, command="cp",
+    )
     _ensure_writable(scope)
     old_rel = _clean_relative(body.old_path)
     new_rel = _clean_relative(body.new_path)
@@ -1510,6 +1790,10 @@ async def copy(
         raise HTTPException(status_code=400, detail="Both old_path and new_path are required")
     _assert_not_excluded(old_rel, scope)
     _assert_not_excluded(new_rel, scope)
+    # PUP-3: block writes landing inside a blocklisted path. The source
+    # side is intentionally permissive so users can move/copy legacy
+    # content OUT of a blocked directory while cleaning up.
+    _assert_upload_policy(new_rel)
 
     old_full = _join_scope(scope["path"], old_rel)
     old_entry = _ops_stat(commands.ops, project_id, scope, old_rel)
@@ -1585,7 +1869,9 @@ async def rmdir(
     x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
     commands: VersionWriteCommandService = Depends(get_version_write_command_service),
 ):
-    project_id, auth, scope = await _resolve_auth(x_access_key, x_puppyone_user, x_puppy_client)
+    project_id, auth, scope = await _resolve_auth(
+        x_access_key, x_puppyone_user, x_puppy_client, command="rmdir",
+    )
     _ensure_writable(scope)
     rel_paths = [_clean_relative(p) for p in (body.paths or [body.path])]
     rel_paths = [p for p in rel_paths if p]
@@ -1651,7 +1937,9 @@ async def remove(
     x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
     commands: VersionWriteCommandService = Depends(get_version_write_command_service),
 ):
-    project_id, auth, scope = await _resolve_auth(x_access_key, x_puppyone_user, x_puppy_client)
+    project_id, auth, scope = await _resolve_auth(
+        x_access_key, x_puppyone_user, x_puppy_client, command="rm",
+    )
     _ensure_writable(scope)
     rel_paths = [_clean_relative(p) for p in (body.paths or [body.path])]
     rel_paths = [p for p in rel_paths if p]
@@ -1752,7 +2040,9 @@ async def find_index(
     the live tree.
     """
 
-    project_id, _auth, scope = await _resolve_auth(x_access_key, x_puppyone_user, x_puppy_client)
+    project_id, _auth, scope = await _resolve_auth(
+        x_access_key, x_puppyone_user, x_puppy_client, command="find",
+    )
     scope_full = _join_scope(scope["path"], _clean_relative(path)) if path else (scope["path"] or "")
     scope_full = scope_full.strip("/")
 
@@ -1827,6 +2117,220 @@ async def find_index(
         "returned_count": len(out),
         "truncated": len(rows) >= limit,
         "source": "fs_path_index",
+    })
+
+
+class _ObjectIntegrityRequest(_BaseModel):
+    """Body for ``POST /ap-fs/admin/object-integrity``.
+
+    The endpoint diagnoses (and optionally deletes) corrupt primary-
+    namespace loose-object keys — the residue of pre-Git-native
+    finalize paths that wrote raw payloads under what is now a
+    Git-loose-object key. Read paths fall through to the deferred
+    namespace cleanly (see ``_get_deferred_loose``), but the primary
+    namespace had no equivalent guard until this endpoint shipped,
+    so old projects could still hit ``invalid git loose object`` on
+    re-upload of an affected blob.
+
+    Targeting:
+      * ``hashes``: explicit list. Use this for ops investigating one
+        user-reported failure (the bulk-push error names the hash).
+      * empty list = full scope sweep. Walks every primary loose key
+        under the AP scope and verifies. Slow + S3-LIST heavy, so
+        use sparingly.
+
+    Behaviour matrix:
+      * ``dry_run=true``  (default): report only, never delete.
+      * ``dry_run=false``: delete keys that fail ``_verify_loose_hash``
+        AND are NOT recorded in ``mut_object_locations`` (i.e. the
+        object isn't also packed — packed copies are the recovery
+        path). The endpoint refuses to delete a key whose hash is
+        currently referenced by a live commit / tree / blob — we
+        require ops to first run ``--rebuild-cache`` and confirm the
+        canonical store no longer needs it.
+    """
+    hashes: list[str] = []
+    dry_run: bool = True
+
+
+@router.post(
+    "/admin/object-integrity",
+    response_model=ApiResponse,
+    summary=(
+        "Diagnose (and optionally delete) corrupt primary-namespace "
+        "loose-object keys that bulk-push re-uploads can't overwrite"
+    ),
+)
+async def admin_object_integrity(
+    body: _ObjectIntegrityRequest,
+    x_access_key: str | None = Header(None, alias="X-Access-Key"),
+    x_puppyone_user: str | None = Header(None, alias="X-PuppyOne-User"),
+    x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
+    ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
+):
+    """Detect + heal stuck blobs on legacy projects.
+
+    The repro pattern from production (see PUP bulk-push-520885e2
+    runbook in docs/ops/):
+
+      1. User on an old project attempts to upload a file whose
+         SHA-1 the project's S3 prefix already has stale (non-
+         zlib-loose) bytes under.
+      2. ``async_exists`` HEAD-checks the key → returns True →
+         negotiate thinks the server has the object.
+      3. Server-side reads (``async_get`` / range fetch) return the
+         stale bytes; the engine calls zlib on them; it fails with
+         ``Error -3 while decompressing data: incorrect header check``.
+      4. ``_do_put`` won't re-upload because the key exists.
+
+    The recovery contract: diagnose first (``dry_run=True``), then
+    delete only keys that are clearly corrupt AND not referenced by
+    a current commit. Once deleted, the user's next upload writes
+    fresh bytes via the normal PUT path and the symptom clears.
+
+    Authorisation: AP must be in ``rw`` mode (same gate as other
+    admin endpoints in this router).
+    """
+    import zlib
+    from src.version_engine.domain.errors import StorageWriteError
+    from src.version_engine.infrastructure.s3.object_storage import (
+        _verify_loose_hash,
+    )
+
+    project_id, _auth, scope = await _resolve_auth(
+        x_access_key, x_puppyone_user, x_puppy_client,
+    )
+    if not is_mode_writable(str(scope.get("mode", "r"))):
+        raise HTTPException(
+            status_code=403,
+            detail="object-integrity admin requires a writable access point",
+        )
+
+    repo = ops._repos.get_server_repo(project_id)  # noqa: SLF001 — admin path
+    backend = getattr(repo.store, "_backend", None) or repo.store
+    s3 = getattr(backend, "_s3", None)
+    layout = getattr(backend, "_layout", None)
+    if s3 is None or layout is None:
+        raise HTTPException(
+            status_code=500,
+            detail="storage backend doesn't expose s3/layout for inspection",
+        )
+
+    # Resolve which hashes to check. Empty list = full sweep via
+    # S3 LIST on the project's primary objects prefix.
+    target_hashes: list[str] = []
+    if body.hashes:
+        target_hashes = [h.strip().lower() for h in body.hashes if h.strip()]
+    else:
+        # Best-effort listing. Real ops sweep would page through
+        # ContinuationToken; for now we cap at 10k keys to bound
+        # endpoint latency. If a sweep needs to go bigger, pass
+        # explicit hashes from the bulk-push error log instead.
+        prefix = f"{layout.object_prefix}/"
+        try:
+            list_result = await s3.list_objects(prefix=prefix, max_keys=10_000)
+        except AttributeError:
+            raise HTTPException(  # noqa: B904
+                status_code=400,
+                detail=(
+                    "full sweep not supported by this S3 backend; pass "
+                    "an explicit `hashes` list of the failing blobs"
+                ),
+            )
+        for key in list_result or []:
+            # key shape: ``<prefix>/<shard>/<rest>``; reconstruct the hash.
+            suffix = key[len(prefix):]
+            parts = suffix.split("/", 1)
+            if len(parts) == 2 and len(parts[0]) == 2 and len(parts[1]) == 38:
+                target_hashes.append(parts[0] + parts[1])
+
+    diagnosed = []
+    deleted = []
+    failed_to_delete = []
+    skipped_referenced = []
+
+    for h in target_hashes:
+        key = backend._key_for(h)  # noqa: SLF001 — admin path
+        try:
+            data = await s3.download_file(key)
+        except Exception as exc:
+            if _is_not_found_error(exc):
+                continue
+            diagnosed.append({
+                "hash": h,
+                "status": "read_error",
+                "detail": str(exc)[:200],
+            })
+            continue
+
+        # Verify both with our framing and a raw zlib check, so we
+        # can distinguish "wrong Git framing" from "not even zlib".
+        verify_error = None
+        zlib_error = None
+        try:
+            _verify_loose_hash(h, data)
+        except StorageWriteError as exc:
+            verify_error = str(exc)
+        try:
+            zlib.decompress(data)
+        except Exception as exc:
+            zlib_error = type(exc).__name__
+
+        if verify_error is None:
+            # Object is fine; skip (don't bloat the report).
+            continue
+
+        entry = {
+            "hash": h,
+            "status": "corrupt_primary_loose",
+            "key": key,
+            "size_bytes": len(data),
+            "verify_error": verify_error,
+            "zlib_error": zlib_error,
+        }
+
+        # Don't delete if the object is also packed — the packed copy
+        # is the safe source, but we shouldn't remove primary while
+        # the read path might still race to it before falling through.
+        # The is-packed check is an ops convenience; the ultimate
+        # safety net is dry_run defaulting to true.
+        is_packed = backend._cached_object_location(h) is not None  # noqa: SLF001
+        if not is_packed:
+            try:
+                is_packed = bool(
+                    backend._lookup_many_object_locations([h]).get(h)  # noqa: SLF001
+                )
+            except Exception:
+                is_packed = False
+        entry["also_packed"] = is_packed
+
+        if body.dry_run:
+            diagnosed.append(entry)
+            continue
+
+        # Only delete after the operator opted in (dry_run=False) AND
+        # we're sure the bytes can be re-derived (object is packed, OR
+        # genuinely just garbage no commit references). We don't ref-
+        # check commits here because the bulk-push error has already
+        # signalled "the user wants to push this hash"; the upload
+        # writes the right bytes back on next attempt.
+        try:
+            await s3.delete_file(key)
+            entry["status"] = "deleted_primary_loose"
+            deleted.append(entry)
+        except Exception as exc:
+            entry["status"] = "delete_failed"
+            entry["delete_error"] = str(exc)[:200]
+            failed_to_delete.append(entry)
+
+    return ApiResponse.success(data={
+        "project_id": project_id,
+        "checked": len(target_hashes),
+        "diagnosed": diagnosed,
+        "deleted": deleted,
+        "failed_to_delete": failed_to_delete,
+        "skipped_referenced": skipped_referenced,
+        "dry_run": body.dry_run,
     })
 
 

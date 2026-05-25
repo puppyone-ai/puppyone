@@ -124,7 +124,7 @@ export function PermBadge({ label, active }: { readonly label: string; readonly 
         background: active ? 'var(--po-border-subtle)' : 'transparent',
         border: `1px solid ${active ? 'var(--po-border-strong)' : T.border}`,
         color: active ? T.text2 : T.text4,
-        fontSize: 11,
+        fontSize: 10,
         fontWeight: 500,
         fontFamily: T.fontSans,
         letterSpacing: '0.02em',
@@ -141,11 +141,11 @@ export function PermBadge({ label, active }: { readonly label: string; readonly 
 // size and weight. ALL-CAPS is gone from the access page entirely:
 //
 //   • SectionLabel    — page-level section (sibling to other top-level
-//     blocks). 13px / 600 / T.text2. Reads as a heading.
+//     blocks). 14px / 600 / T.text2. Reads as a heading.
 //     Used for "Scope", "Settings", "Connectors".
 //
 //   • SubSectionLabel — card-internal eyebrow (a small disambiguator
-//     inside an already-bounded surface). 11px / 600 / T.text3.
+//     inside an already-bounded surface). 10px / 600 / T.text3.
 //     Visually distinct from the page-level label by being smaller +
 //     dimmer, not by being uppercase. Used for "Configuration",
 //     "Prompt for AI agent", "Recent activity", etc.
@@ -159,7 +159,7 @@ export function SectionLabel({ children, right }: { readonly children: React.Rea
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, paddingLeft: 2 }}>
       <span
         style={{
-          fontSize: 13,
+          fontSize: 14,
           fontWeight: 600,
           color: T.text2,
           fontFamily: T.fontSans,
@@ -178,7 +178,7 @@ export function SubSectionLabel({ children, right }: { readonly children: React.
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, paddingLeft: 2 }}>
       <span
         style={{
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: 600,
           color: T.text3,
           fontFamily: T.fontSans,
@@ -256,7 +256,7 @@ export function PromptBlock({ prompt }: { readonly prompt: string }) {
           background: 'color-mix(in srgb, var(--po-panel) 72%, var(--po-inset) 28%)',
           color: T.text2,
           fontFamily: T.fontSans,
-          fontSize: 11.5,
+          fontSize: 12,
           fontWeight: 600,
           boxSizing: 'border-box',
         }}
@@ -269,7 +269,7 @@ export function PromptBlock({ prompt }: { readonly prompt: string }) {
           margin: 0,
           padding: '44px 14px 60px 14px',
           fontFamily: T.fontMono,
-          fontSize: 11.5,
+          fontSize: 12,
           lineHeight: 1.6,
           color: T.text1,
           whiteSpace: 'pre-wrap',
@@ -361,7 +361,7 @@ export function CommandBlock({ lines }: { readonly lines: readonly string[] }) {
           margin: 0,
           padding: '10px 40px 10px 12px',
           fontFamily: T.fontMono,
-          fontSize: 11.5,
+          fontSize: 12,
           lineHeight: 1.6,
           color: T.text1,
           overflowX: 'auto',
@@ -462,7 +462,7 @@ export function KvRow({
         style={{
           width: 96,
           flexShrink: 0,
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: 500,
           color: T.text3,
           fontFamily: T.fontSans,

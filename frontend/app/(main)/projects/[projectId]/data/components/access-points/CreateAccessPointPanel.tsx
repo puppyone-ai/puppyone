@@ -240,7 +240,7 @@ export function CreateAccessPointPanel({
               </div>
               <div
                 style={{
-                  fontSize: 11,
+                  fontSize: 10,
                   lineHeight: 1.5,
                   color: COLOR_FG_DIM,
                   overflow: 'hidden',
@@ -294,7 +294,7 @@ export function CreateAccessPointPanel({
                 border: `1px solid ${COLOR_BORDER}`,
                 borderRadius: 6,
                 color: COLOR_FG,
-                fontSize: 13,
+                fontSize: 12,
                 padding: '8px 10px',
                 outline: 'none',
               }}
@@ -308,11 +308,11 @@ export function CreateAccessPointPanel({
               // make this collide warning fire at the same user who
               // just created it.  `creating` stays true through the
               // unmount, so this branch is unreachable in that window.
-              <span style={{ fontSize: 11, color: COLOR_DANGER_FAINT }}>
+              <span style={{ fontSize: 10, color: COLOR_DANGER_FAINT }}>
                 An access point already exists at this path.
               </span>
             ) : (
-              <span style={{ fontSize: 11, color: COLOR_FG_DIM }}>
+              <span style={{ fontSize: 10, color: COLOR_FG_DIM }}>
                 Leading slashes are optional. Leave empty to target the
                 workspace root.
               </span>
@@ -390,7 +390,7 @@ export function CreateAccessPointPanel({
           {error && (
             <div
               style={{
-                fontSize: 11,
+                fontSize: 10,
                 color: COLOR_DANGER_FAINT,
                 padding: '0 2px',
               }}

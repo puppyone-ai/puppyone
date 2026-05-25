@@ -342,7 +342,28 @@ async def app_lifespan(app: FastAPI):
 
     from src.version_engine.bootstrap.container import build_version_engine_container
 
-    app.state.version_engine = build_version_engine_container()
+    # probe=True at process boot — fail fast on misconfigured S3 /
+    # Supabase rather than crashing the first user write.
+    app.state.version_engine = build_version_engine_container(probe=True)
+
+    # Wire the outbox → agent-resolver bridge. Until a real runner
+    # is installed via ``AgentResolverDispatcher.install(...)`` the
+    # outbox hook gracefully defers agent-kind pending rows (logging
+    # the deferral) — agent_review / agent_auto_resolve policies
+    # still queue conflicts but they'll wait for a human in the
+    # interim. The hook itself is a thin router; install your agent
+    # backend wherever you boot model integration (typically in the
+    # workers, e.g. ARQ ``WorkerSettings.on_startup``).
+    from src.version_engine.derived.outbox import register_pending_conflict_hook
+    from src.version_engine.derived.agent_resolver import (
+        AgentResolverDispatcher,
+        NoopAgentRunner,
+        agent_resolver_outbox_hook,
+    )
+    register_pending_conflict_hook(agent_resolver_outbox_hook)
+    if AgentResolverDispatcher.get() is None:
+        AgentResolverDispatcher.install(NoopAgentRunner())
+
     _log_import_times()
 
     await _init_mcp_health_check()

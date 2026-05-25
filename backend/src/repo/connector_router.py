@@ -41,6 +41,7 @@ def _to_out(c: Connector) -> ConnectorOut:
         name=c.name,
         direction=c.direction,                    # type: ignore[arg-type]
         config=c.config,
+        policy=c.policy,
         oauth_connection_id=c.oauth_connection_id,
         trigger=c.trigger,
         status=c.status,
@@ -91,6 +92,7 @@ def create_connector(
             direction=payload.direction,
             name=payload.name,
             config=payload.config,
+            policy=payload.policy,
             oauth_connection_id=payload.oauth_connection_id,
             trigger=(payload.trigger.model_dump() if payload.trigger else None),
             created_by=current_user.user_id,

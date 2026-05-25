@@ -51,26 +51,30 @@ def _health_reason(view: GitViewHead) -> str:
 
 
 def _recommended_actions(view: GitViewHead) -> list[dict[str, str]]:
+    """Per-state recovery hints for the health endpoint.
+
+    Every health state returns SOMETHING, even if it's just "make a
+    commit" for ``empty`` — the client can choose to surface or hide
+    it. Returning an empty list for some states made the payload
+    inconsistent: a UI parsing the field had to defensively check
+    both "missing" and "empty list" semantics.
+    """
     if view.health == "current_corrupt":
         return [
-            {
-                "type": "restore_version",
-                "label": "Restore a healthy version",
-            },
-            {
-                "type": "repair_storage",
-                "label": "Repair missing or damaged current objects",
-            },
+            {"type": "restore_version", "label": "Restore a healthy version"},
+            {"type": "repair_storage", "label": "Repair missing or damaged current objects"},
+            {"type": "rebuild_cache", "label": "Rebuild the Git view cache from canonical facts"},
         ]
     if view.health == "history_degraded":
         return [
-            {
-                "type": "continue",
-                "label": "Continue with truncated Git history",
-            },
-            {
-                "type": "repair_history",
-                "label": "Repair legacy history objects",
-            },
+            {"type": "continue", "label": "Continue with truncated Git history"},
+            {"type": "repair_history", "label": "Repair legacy history objects"},
         ]
-    return []
+    if view.health == "empty":
+        return [
+            {"type": "first_commit", "label": "Push or write the first commit to initialize this view"},
+        ]
+    # healthy
+    return [
+        {"type": "none", "label": "No action required — view is healthy"},
+    ]

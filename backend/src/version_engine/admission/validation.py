@@ -14,7 +14,6 @@ from fastapi import HTTPException
 
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
 MAX_FILES_PER_PUSH = 1000
-MAX_TREE_DEPTH = 20
 MAX_PATH_LENGTH = 500
 MAX_PUSH_BODY_SIZE = 200 * 1024 * 1024  # 200 MB total push payload
 
@@ -75,13 +74,6 @@ def validate_path(path: str) -> str:
                 raise HTTPException(400, "Path contains invalid characters")
 
     return clean
-
-
-def validate_depth(max_depth: int) -> int:
-    """Clamp max_depth to safe range."""
-    if max_depth < 0:
-        return MAX_TREE_DEPTH
-    return min(max_depth, MAX_TREE_DEPTH)
 
 
 def validate_limit(limit: int, default: int = 100, maximum: int = 1000) -> int:

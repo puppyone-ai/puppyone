@@ -123,12 +123,12 @@ def delete_gateway(
     response_model=ApiResponse[GatewayOut],
     summary="Refresh OAuth token for a gateway",
 )
-def refresh_token(
+async def refresh_token(
     gateway_id: str,
     current_user: CurrentUser = Depends(get_current_user),
     svc: GatewayService = Depends(_get_service),
 ):
-    row = svc.refresh_token(gateway_id)
+    row = await svc.refresh_token(gateway_id)
     return ApiResponse.success(
         data=GatewayService._to_out(row),
         message="Token refreshed",

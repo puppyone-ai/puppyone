@@ -86,3 +86,40 @@ export async function createSyncConnection(
 ): Promise<CreateSyncResult> {
   return post<CreateSyncResult>('/api/v1/sync/syncs', body);
 }
+
+/**
+ * Row shape returned by ``GET /api/v1/sync/failed-runs?project_id=…``.
+ * Mirrors the backend ``FailedSyncRunItem`` model — newest-first,
+ * limited; includes the access-point name/path so the Needs Action
+ * row can render without a second fetch.
+ */
+export interface FailedSyncRunRow {
+  id: string;
+  access_point_id: string;
+  access_point_name?: string | null;
+  access_point_path?: string | null;
+  provider: string;
+  direction: string;
+  started_at?: string | null;
+  finished_at?: string | null;
+  duration_ms?: number | null;
+  error?: string | null;
+  result_summary?: string | null;
+  trigger_type?: string | null;
+}
+
+export async function listFailedSyncRuns(
+  projectId: string,
+  limit: number = 50,
+): Promise<FailedSyncRunRow[]> {
+  return get<FailedSyncRunRow[]>(
+    `/api/v1/sync/failed-runs?project_id=${encodeURIComponent(projectId)}&limit=${limit}`,
+  );
+}
+
+export async function retrySyncAccessPoint(syncId: string): Promise<unknown> {
+  // The backend exposes "resume" as the closest semantic verb — it
+  // un-pauses + kicks off a run (see ``/sync/syncs/{id}/resume``). For
+  // a failed-but-still-active sync the call also re-queues.
+  return post<unknown>(`/api/v1/sync/syncs/${encodeURIComponent(syncId)}/resume`, {});
+}

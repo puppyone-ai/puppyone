@@ -41,7 +41,7 @@ export function ActivationCard({
         gap: 10,
       }}
     >
-      <div style={{ fontSize: 13, color: COLOR_FG, fontWeight: 600 }}>{title}</div>
+      <div style={{ fontSize: 12, color: COLOR_FG, fontWeight: 600 }}>{title}</div>
       <div style={{ fontSize: 12, color: COLOR_FG_MUTED, lineHeight: 1.55 }}>{body}</div>
       <button
         type="button"
@@ -63,7 +63,7 @@ export function ActivationCard({
         {actionLabel}
       </button>
       {error && (
-        <div style={{ fontSize: 11, color: COLOR_DANGER_FAINT, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 10, color: COLOR_DANGER_FAINT, lineHeight: 1.5 }}>
           {error}
         </div>
       )}

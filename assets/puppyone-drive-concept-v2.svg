@@ -1,0 +1,142 @@
+<svg width="1600" height="900" viewBox="0 0 1600 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .bg { fill: #fbfcfd; }
+    .window { fill: #ffffff; stroke: #d5dbe3; stroke-width: 2; }
+    .panel { fill: #ffffff; stroke: #e0e5eb; stroke-width: 1.5; }
+    .card { fill: #ffffff; stroke: #d9dfe7; stroke-width: 2; }
+    .line { stroke: #a8b0bc; stroke-width: 2.4; }
+    .label-pill { fill: #ffffff; stroke: #cbd3dd; stroke-width: 1.5; }
+    .title { fill: #111827; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 34px; font-weight: 700; }
+    .section { fill: #111827; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 24px; font-weight: 700; }
+    .body { fill: #1f2937; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 19px; font-weight: 500; }
+    .muted { fill: #6b7280; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 17px; font-weight: 500; }
+    .small { fill: #6b7280; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 15px; font-weight: 500; }
+    .green { fill: #15803d; }
+    .green-stroke { stroke: #15803d; }
+    .label { fill: #15803d; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 16px; font-weight: 700; }
+    .endpoint-title { fill: #111827; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 21px; font-weight: 700; }
+    .endpoint-sub { fill: #6b7280; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 15px; font-weight: 500; }
+  </style>
+
+  <rect class="bg" width="1600" height="900"/>
+
+  <!-- Central product window -->
+  <rect class="window" x="210" y="58" width="1180" height="494" rx="18"/>
+  <rect x="210" y="58" width="1180" height="74" rx="18" fill="#f8fafc"/>
+  <path d="M210 132H1390" stroke="#d5dbe3" stroke-width="2"/>
+  <circle cx="244" cy="96" r="8" fill="#ef4444"/>
+  <circle cx="270" cy="96" r="8" fill="#f59e0b"/>
+  <circle cx="296" cy="96" r="8" fill="#22c55e"/>
+  <rect x="687" y="78" width="34" height="34" rx="8" fill="#15803d"/>
+  <text x="700" y="103" fill="#ffffff" font-family="Inter, ui-sans-serif, system-ui" font-size="25" font-weight="800">p</text>
+  <text class="title" x="742" y="105">Puppyone Drive</text>
+
+  <!-- Three product sections -->
+  <path d="M604 132V486" stroke="#d5dbe3" stroke-width="1.5"/>
+  <path d="M996 132V486" stroke="#d5dbe3" stroke-width="1.5"/>
+  <path d="M210 486H1390" stroke="#d5dbe3" stroke-width="1.5"/>
+
+  <text class="section" x="250" y="182">Files</text>
+  <rect class="panel" x="250" y="206" width="314" height="222" rx="10"/>
+  <path d="M250 260H564M250 314H564M250 368H564" stroke="#e5e9ef" stroke-width="1"/>
+  <path class="green" d="M280 242h22l7 8h29c6 0 10 4 10 10v16c0 6-4 10-10 10h-58c-6 0-10-4-10-10v-24c0-6 4-10 10-10z"/>
+  <text class="body" x="372" y="275">docs/</text>
+  <path class="green" d="M280 296h22l7 8h29c6 0 10 4 10 10v16c0 6-4 10-10 10h-58c-6 0-10-4-10-10v-24c0-6 4-10 10-10z"/>
+  <text class="body" x="372" y="329">research/</text>
+  <path d="M280 350h34l22 22v35h-56z" fill="#ffffff" stroke="#6b7280" stroke-width="2"/>
+  <path d="M314 350v22h22" stroke="#6b7280" stroke-width="2"/>
+  <text class="body" x="372" y="383">roadmap.md</text>
+  <path d="M286 403c-9 0-14 6-14 15v10c0 9-4 14-12 14 8 0 12 5 12 14v10c0 9 5 15 14 15" stroke="#6b7280" stroke-width="2.4" stroke-linecap="round"/>
+  <path d="M322 403c9 0 14 6 14 15v10c0 9 4 14 12 14-8 0-12 5-12 14v10c0 9-5 15-14 15" stroke="#6b7280" stroke-width="2.4" stroke-linecap="round"/>
+  <text class="body" x="372" y="438">customer-notes.json</text>
+
+  <text class="section" x="640" y="182">Agent access</text>
+  <path d="M640 206H958M640 276H958M640 346H958" stroke="#e0e5eb" stroke-width="1.5"/>
+  <rect x="646" y="226" width="38" height="38" rx="9" fill="#111827"/>
+  <text x="660" y="253" fill="#ffffff" font-family="Inter, ui-sans-serif, system-ui" font-size="24" font-weight="800">C</text>
+  <text class="body" x="704" y="252">Claude Code</text>
+  <text class="body" x="846" y="252">/docs</text>
+  <text class="label" x="936" y="252">rw</text>
+  <rect x="646" y="296" width="38" height="38" rx="9" fill="#3b82f6"/>
+  <text x="660" y="323" fill="#ffffff" font-family="Inter, ui-sans-serif, system-ui" font-size="24" font-weight="800">C</text>
+  <text class="body" x="704" y="322">Cursor</text>
+  <text class="body" x="846" y="322">/repo</text>
+  <text class="label" x="936" y="322">rw</text>
+  <rect x="646" y="366" width="38" height="38" rx="9" fill="#64748b"/>
+  <path d="M665 377v-8M654 386h22M656 386v18h18v-18M660 393h2M668 393h2" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+  <text class="body" x="704" y="392">Review Bot</text>
+  <text class="body" x="846" y="392">/research</text>
+  <text class="label" x="946" y="392">r</text>
+
+  <text class="section" x="1032" y="182">Changes</text>
+  <path d="M1032 206H1354M1032 286H1354M1032 366H1354" stroke="#e0e5eb" stroke-width="1.5"/>
+  <path d="M1050 226h32l20 20v42h-52z" fill="#ffffff" stroke="#6b7280" stroke-width="2"/>
+  <path d="M1082 226v20h20" stroke="#6b7280" stroke-width="2"/>
+  <path d="M1076 270l20-20 10 10-20 20h-10z" fill="#ffffff" stroke="#15803d" stroke-width="2"/>
+  <text class="body" x="1132" y="262">edited roadmap.md</text>
+  <text class="label" x="1288" y="262">View diff</text>
+  <path d="M1050 306h32l20 20v42h-52z" fill="#ffffff" stroke="#6b7280" stroke-width="2"/>
+  <path d="M1082 306v20h20" stroke="#6b7280" stroke-width="2"/>
+  <circle cx="1101" cy="354" r="9" fill="#15803d"/>
+  <path d="M1096 354h10M1101 349v10" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+  <text class="body" x="1132" y="342">added api-notes.md</text>
+  <text class="label" x="1284" y="342">Roll back</text>
+
+  <text class="body" x="508" y="526">Git-style history</text>
+  <circle cx="676" cy="520" r="3.5" fill="#15803d"/>
+  <text class="body" x="700" y="526">scoped access</text>
+  <circle cx="850" cy="520" r="3.5" fill="#15803d"/>
+  <text class="body" x="874" y="526">audit</text>
+  <circle cx="946" cy="520" r="3.5" fill="#15803d"/>
+  <text class="body" x="970" y="526">rollback</text>
+
+  <!-- Connection lines and access-method labels -->
+  <path class="line" d="M400 552V604C400 620 386 626 370 626H242C226 626 212 640 212 656V686"/>
+  <rect class="label-pill" x="332" y="590" width="122" height="34" rx="17"/>
+  <text class="label" x="354" y="613">Git remote</text>
+
+  <path class="line" d="M620 552V626C620 642 606 650 590 650H516C500 650 486 664 486 680V686"/>
+  <rect class="label-pill" x="564" y="626" width="116" height="34" rx="17"/>
+  <text class="label" x="589" y="649">CLI / Bash</text>
+
+  <path class="line" d="M800 552V686"/>
+  <rect class="label-pill" x="752" y="616" width="96" height="34" rx="17"/>
+  <text class="label" x="782" y="639">MCP</text>
+
+  <path class="line" d="M980 552V626C980 642 994 650 1010 650H1084C1100 650 1114 664 1114 680V686"/>
+  <rect class="label-pill" x="926" y="626" width="126" height="34" rx="17"/>
+  <text class="label" x="956" y="649">Sandbox</text>
+
+  <path class="line" d="M1200 552V604C1200 620 1214 626 1230 626H1358C1374 626 1388 640 1388 656V686"/>
+  <rect class="label-pill" x="1136" y="590" width="168" height="34" rx="17"/>
+  <text class="label" x="1160" y="613">Upload / Download</text>
+
+  <!-- Endpoint scenario cards -->
+  <rect class="card" x="120" y="686" width="244" height="142" rx="16"/>
+  <path d="M184 738h114v60H184z" fill="#f8fafc" stroke="#15803d" stroke-width="3" rx="6"/>
+  <path d="M210 798h62M228 814h26" stroke="#15803d" stroke-width="3" stroke-linecap="round"/>
+  <text class="endpoint-title" x="176" y="758">Developer laptop</text>
+  <text class="endpoint-sub" x="191" y="789">local repo sync</text>
+
+  <rect class="card" x="424" y="686" width="244" height="142" rx="16"/>
+  <rect x="486" y="730" width="64" height="44" rx="8" fill="#f8fafc" stroke="#15803d" stroke-width="3"/>
+  <path d="M504 744l14 10-14 10M526 764h16" stroke="#15803d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <text class="endpoint-title" x="486" y="758">Terminal agent</text>
+  <text class="endpoint-sub" x="484" y="789">OpenCode / custom</text>
+
+  <rect class="card" x="728" y="686" width="244" height="142" rx="16"/>
+  <path d="M842 724v34M820 758h44M820 758c0 18 12 30 30 30s30-12 30-30" stroke="#15803d" stroke-width="3" stroke-linecap="round"/>
+  <text class="endpoint-title" x="788" y="758">MCP client</text>
+  <text class="endpoint-sub" x="782" y="789">Cursor / Claude</text>
+
+  <rect class="card" x="1032" y="686" width="244" height="142" rx="16"/>
+  <path d="M1154 724l42 24v48l-42 24-42-24v-48z" fill="#f8fafc" stroke="#15803d" stroke-width="3"/>
+  <path d="M1112 748l42 24 42-24M1154 772v48" stroke="#15803d" stroke-width="3"/>
+  <text class="endpoint-title" x="1102" y="758">24/7 agent</text>
+  <text class="endpoint-sub" x="1098" y="789">OpenClaw / Hermes</text>
+
+  <rect class="card" x="1336" y="686" width="244" height="142" rx="16"/>
+  <path d="M1458 724v54M1458 724l-18 18M1458 724l18 18M1496 796v-54M1496 796l-18-18M1496 796l18-18" stroke="#15803d" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <text class="endpoint-title" x="1412" y="758">Human team</text>
+  <text class="endpoint-sub" x="1406" y="789">upload and download</text>
+</svg>

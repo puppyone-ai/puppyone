@@ -154,8 +154,43 @@ def run_post_push_hook(
                 for p in deleted_paths
             ]
 
+        # Move detection — the L4 move op stashes
+        # ``{old_path, new_path}`` in ``audit_detail`` so the hook can
+        # dispatch ``post_commit_move`` (rename ``repo_scopes`` rows
+        # under the old prefix to the new one) instead of treating the
+        # delete+put pair as a real delete. Without this, the
+        # ``deleted_paths`` filter below would invoke
+        # ``post_commit_delete`` and the affected scopes would be
+        # left orphaned despite the user just renaming the folder.
+        audit_detail = entry.get("audit_detail") or {}
+        if isinstance(audit_detail, str):
+            try:
+                import json as _json
+                audit_detail = _json.loads(audit_detail)
+            except Exception:
+                audit_detail = {}
+        move_old_path = ""
+        move_new_path = ""
+        if isinstance(audit_detail, dict):
+            move_old_path = str(audit_detail.get("old_path") or "")
+            move_new_path = str(audit_detail.get("new_path") or "")
+        is_move = bool(move_old_path and move_new_path and move_old_path != move_new_path)
+        if is_move:
+            # Strip the delete side of the move from ``deleted_paths``
+            # so ``post_commit_delete`` doesn't ALSO fire for the
+            # rename's old path — that would race the move's rename
+            # of repo_scopes rows and produce inconsistent state.
+            move_old_full = (
+                f"{scope_path}/{move_old_path.strip('/')}"
+                if scope_path else move_old_path.strip("/")
+            )
+            deleted_paths = [p for p in deleted_paths if p != move_old_full]
+
         with _projection_locks(project_id, {"", scope_path}):
             _update_global_root(repo, result_for_graft)
+
+            if is_move:
+                post_commit_move(project_id, move_old_path, move_new_path)
 
             if deleted_paths:
                 post_commit_delete(project_id, deleted_paths)
@@ -412,6 +447,43 @@ def run_post_project_update_hook(
         ]
         if deleted_paths:
             post_commit_delete(project_id, deleted_paths)
+
+        # Federated grep / search — populate the text index for the
+        # paths this commit added or updated. Failure here MUST NOT
+        # propagate; the index is a read-side accelerator, not a
+        # write-side invariant. See
+        # ``docs/proposals/PUP-cloud-grep.md``.
+        try:
+            from src.infra.search.text_indexer import index_commit_delta
+            from src.version_engine.bootstrap.dependencies import (
+                build_worker_version_engine_container,
+            )
+            container = build_worker_version_engine_container()
+            ops = container.product_operations()
+
+            def _read_blob(path: str) -> bytes | None:
+                try:
+                    return ops.read_file(project_id, path)
+                except FileNotFoundError:
+                    return None
+                except Exception as read_err:  # noqa: BLE001
+                    log_warning(
+                        f"[PostCommit] text indexer read_file({path}) "
+                        f"failed: {read_err}"
+                    )
+                    return None
+
+            index_commit_delta(
+                project_id=project_id,
+                commit_id=commit_id,
+                changes=changes,
+                read_blob=_read_blob,
+            )
+        except Exception as text_idx_err:  # noqa: BLE001
+            log_warning(
+                f"[PostCommit] text indexer failed for commit "
+                f"{commit_id[:12]}: {text_idx_err}"
+            )
 
         changed_paths = [
             normalize_path(c.get("path", ""))
@@ -747,6 +819,15 @@ def _broadcast_commit_update(project_id: str, entry: dict, changes: list[dict]) 
     try:
         from src.version_engine.derived.notifications import NotificationManager
         manager = NotificationManager.get()
+        # ``pusher_client_id`` came in via the request header
+        # ``X-PuppyOne-Client-Id`` (when present) and was stashed into
+        # ``audit_detail`` by the L1 router. NotificationManager uses
+        # it to suppress echo to the exact tab/device that fired the
+        # write while still echoing to that user's other devices.
+        audit_detail = entry.get("audit_detail") or {}
+        pusher_client_id = ""
+        if isinstance(audit_detail, dict):
+            pusher_client_id = str(audit_detail.get("pusher_client_id") or "")
         coro = manager.broadcast_commit_update(
             project_id=project_id,
             scope_path=(entry.get("scope_path") or ""),
@@ -755,6 +836,7 @@ def _broadcast_commit_update(project_id: str, entry: dict, changes: list[dict]) 
             message=entry.get("message", ""),
             scope_hash=entry.get("scope_hash", ""),
             changes=changes,
+            pusher_client_id=pusher_client_id,
         )
         try:
             loop = asyncio.get_running_loop()

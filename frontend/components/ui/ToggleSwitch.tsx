@@ -1,6 +1,7 @@
 'use client';
 
 import type { CSSProperties, KeyboardEvent, MouseEvent } from 'react';
+import { PulseGrid } from '@/components/loading';
 
 type ToggleSwitchSize = 'xs' | 'sm' | 'md';
 type ToggleSwitchElement = 'button' | 'span';
@@ -42,6 +43,24 @@ export function ToggleSwitch({
   const dims = SWITCH_SIZES[size];
   const disabledOrPending = disabled || pending || !onCheckedChange;
   const thumbTravel = dims.width - dims.thumb - dims.inset * 2;
+
+  const loadingStyle: CSSProperties = {
+    width: dims.width,
+    height: dims.height,
+    borderRadius: 999,
+    border: '1px solid transparent',
+    background: 'transparent',
+    cursor: pending ? 'wait' : disabled ? 'not-allowed' : 'pointer',
+    opacity: disabled ? 0.5 : 1,
+    flexShrink: 0,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    boxSizing: 'border-box',
+    verticalAlign: 'middle',
+    padding: 0,
+    ...style,
+  };
 
   const trackStyle: CSSProperties = {
     width: dims.width,
@@ -89,6 +108,60 @@ export function ToggleSwitch({
     }
     onCheckedChange?.(!checked);
   };
+
+  if (pending) {
+    const loader = <PulseGrid size="xs" ariaLabel="Saving" />;
+
+    if (as === 'span') {
+      return (
+        <span
+          role="switch"
+          aria-checked={checked}
+          aria-disabled
+          aria-busy
+          aria-label={ariaLabel}
+          title={title ?? ariaLabel}
+          tabIndex={-1}
+          onClick={toggle}
+          onKeyDown={(event) => {
+            if (stopPropagation) {
+              event.stopPropagation();
+            }
+          }}
+          style={{
+            ...loadingStyle,
+            outline: 'none',
+          }}
+        >
+          {loader}
+        </span>
+      );
+    }
+
+    return (
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        aria-busy
+        aria-label={ariaLabel}
+        title={title ?? ariaLabel}
+        disabled
+        onClick={toggle}
+        onKeyDown={(event) => {
+          if (stopPropagation) {
+            event.stopPropagation();
+          }
+        }}
+        style={{
+          ...loadingStyle,
+          appearance: 'none',
+        }}
+      >
+        {loader}
+      </button>
+    );
+  }
 
   if (as === 'span') {
     return (

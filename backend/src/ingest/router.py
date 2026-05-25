@@ -42,6 +42,12 @@ from src.ingest.file.dependencies import get_etl_service
 from src.ingest.file.exceptions import RuleNotFoundError
 from src.ingest.file.service import ETLService
 from src.ingest.file.tasks.models import ETLTaskStatus
+from src.ingest.policy.upload_policy import (
+    PER_BATCH_MAX_BYTES,
+    PER_BATCH_MAX_FILES,
+    PER_FILE_MAX_BYTES as POLICY_PER_FILE_MAX_BYTES,
+    path_has_blocked_segment,
+)
 from src.ingest.schemas import (
     BatchQueryRequest,
     BatchTaskResponse,
@@ -497,6 +503,31 @@ async def init_multipart_upload(
             detail=f"chunk_size must be >= {_MIN_CHUNK_SIZE} bytes (AWS minimum)",
         )
 
+    # ── PUP-3 batch caps ───────────────────────────────────────────
+    # Defense-in-depth (Q8): the client also enforces these but a
+    # third-party tool / future SDK / curl request could bypass the
+    # client. The numbers come from the policy module
+    # (``src.ingest.policy.upload_policy``); see
+    # ``docs/proposals/PUP-3-folder-upload-policy.md`` Q4.
+    if len(request.files) > PER_BATCH_MAX_FILES:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Batch exceeds {PER_BATCH_MAX_FILES} files "
+                f"(requested {len(request.files)}). Split into smaller "
+                f"uploads or use the CLI for bulk ingestion."
+            ),
+        )
+    total_bytes = sum(f.size for f in request.files)
+    if total_bytes > PER_BATCH_MAX_BYTES:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Batch total {total_bytes} bytes exceeds "
+                f"{PER_BATCH_MAX_BYTES} bytes. Split into smaller uploads."
+            ),
+        )
+
     # Validate every file FIRST, synchronously. Range / part-count
     # errors are deterministic; we want the request to fail with
     # 400 before we go and create any S3 multiparts that we'd then
@@ -505,6 +536,20 @@ async def init_multipart_upload(
     # can reach gather.
     prepared_files: list[dict] = []
     for f in request.files:
+        # The per-file policy cap (50 MB, PUP-3) is the stricter of
+        # the two; ``_MAX_FILE_SIZE`` (5 GiB) is the legacy multipart
+        # ceiling kept for the chunk-count check below. Enforce the
+        # policy cap first so users see the policy-level message,
+        # not the larger S3-multipart message.
+        if f.size > POLICY_PER_FILE_MAX_BYTES:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"File '{f.filename}' is {f.size} bytes; per-file "
+                    f"cap is {POLICY_PER_FILE_MAX_BYTES} bytes "
+                    f"(see PUP-3 folder-upload policy)."
+                ),
+            )
         if f.size > _MAX_FILE_SIZE:
             raise HTTPException(
                 status_code=400,
@@ -542,6 +587,28 @@ async def init_multipart_upload(
             if parent_path
             else original_basename
         )
+
+        # PUP-3 hardcoded blocklist (Q1, Q8): reject any segment of
+        # the resulting mount_path that matches a blocked name (``.git``,
+        # ``node_modules``, etc.). Clients are supposed to filter these
+        # before they ever hit /upload/init; this is the defense-in-
+        # depth wall that closes the regression / third-party-client
+        # bypass risk.
+        is_blocked, blocked_seg = path_has_blocked_segment(mount_path)
+        if is_blocked:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "policy_blocked",
+                    "segment": blocked_seg,
+                    "path": mount_path,
+                    "message": (
+                        f"Path '{mount_path}' contains the blocked segment "
+                        f"'{blocked_seg}' (PUP-3 folder-upload policy). "
+                        f"Adjust the source or override on the client."
+                    ),
+                },
+            )
 
         # Tag S3 metadata so back-fill / debug tooling can recover the
         # original filename (which may contain non-ASCII chars S3

@@ -1,10 +1,14 @@
 """
-VersionAdminService — Server-level admin and history operations for version tree.
+VersionAdminService — Server-level read operations for the version tree.
 
 Handles:
-  - Tree initialization (init_tree)
   - Commit history queries (get_commit_history, get_commit_content)
   - Commit diff (compute_diff)
+
+Project bootstrap (initial empty root) is owned by ``VersionWriteEngine``
+— see ``engine.initialize_project_tree``. The legacy ``init_tree`` entry
+point on this class is kept as a thin delegate so existing callers keep
+working without dragging write logic into the read path.
 
 All writes (including rollback) go through ProductOperationAdapter → Write Engine handlers.
 Commits are identified by 40-hex SHA-1 git commit-object IDs (the
@@ -21,10 +25,8 @@ import json
 from src.version_engine.write_engine.diff import diff_trees
 from src.version_engine.write_engine.object_store import ObjectStore
 from src.version_engine.write_engine.tree import read_tree
-from src.version_engine.write_engine.git_object_format import EMPTY_TREE_SHA1
 
 from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
-from src.utils.logger import log_info, log_warning
 
 
 _SCOPE_PROMOTE_TRAILER = "PuppyOne-Source: scope-promote"
@@ -42,32 +44,23 @@ class VersionAdminService:
         self._repos = repo_manager
 
     # ================================================================
-    # Initialization
+    # Initialization (delegated — write happens in L5)
     # ================================================================
 
     async def init_tree(self, project_id: str) -> str:
         """Initialize an empty version tree for a project.
 
-        If the project already has a root_hash and the blob exists in S3,
-        no action is taken (idempotent). Returns the root_hash.
+        Thin delegate to ``VersionWriteEngine.initialize_project_tree``.
+        Kept here so existing callers (project router, demo seeding,
+        startup) don't need to learn a new entry point, but the actual
+        ref write lives in the write engine where it belongs.
         """
-        repo = self._repos.get_repo(project_id)
-        existing = repo.history.get_root_hash()
+        # Local import avoids a cycle: write_engine imports from
+        # infrastructure, which imports from this package's __init__.
+        from src.version_engine.write_engine.engine import VersionWriteEngine
 
-        if existing:
-            if existing == EMPTY_TREE_SHA1:
-                return existing
-            backend = repo.store._backend
-            if hasattr(backend, "async_exists") and await backend.async_exists(existing):
-                return existing
-            log_warning(
-                f"[VersionAdmin] root_hash {existing} set in PG but missing in S3, re-initializing"
-            )
-
-        repo.history.set_root_hash(EMPTY_TREE_SHA1)
-
-        log_info(f"[VersionAdmin] Initialized empty tree for project {project_id}")
-        return EMPTY_TREE_SHA1
+        engine = VersionWriteEngine(self._repos)
+        return await engine.initialize_project_tree(project_id)
 
     # ================================================================
     # Commit history queries (hash-identity)

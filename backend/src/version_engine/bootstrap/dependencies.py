@@ -15,6 +15,7 @@ from src.version_engine.bootstrap.container import (
 from src.version_engine.read.admin import VersionAdminService
 from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
 from src.version_engine.adapters.product.commands import VersionWriteCommandService
+from src.version_engine.write_engine.engine import VersionWriteEngine
 
 
 def _get_supabase_client() -> SupabaseClient:
@@ -55,10 +56,29 @@ def get_version_write_command_service(
     return container.write_commands()
 
 
-def build_worker_version_engine_container() -> VersionEngineContainer:
-    """Explicit bootstrap for scheduler jobs, ARQ workers, and CLI scripts."""
+def get_version_write_engine(
+    container: VersionEngineContainer = Depends(get_version_engine_container),
+) -> VersionWriteEngine:
+    """L5 publish authority. Routers that need to re-enter the engine
+    (conflict resolution, admin replays) pull it from here rather than
+    instantiating ``VersionWriteEngine(repo_manager)`` ad-hoc."""
 
-    return build_version_engine_container()
+    return container.write_engine()
+
+
+def build_worker_version_engine_container(
+    *, probe: bool = False,
+) -> VersionEngineContainer:
+    """Explicit bootstrap for scheduler jobs, ARQ workers, and CLI scripts.
+
+    Long-lived worker processes should pass ``probe=True`` at boot so a
+    misconfigured deploy surfaces immediately rather than on the first
+    queued task. Short-lived per-call rebuilds keep the default
+    (``False``) — they reuse the same long-lived Supabase/S3 services
+    so a fresh probe per call would add latency without adding signal.
+    """
+
+    return build_version_engine_container(probe=probe)
 
 
 def build_request_version_engine_container(

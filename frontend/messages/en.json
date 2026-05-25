@@ -16,10 +16,12 @@
   },
   "nav": {
     "home": "Home",
-    "context": "Context",
+    "context": "Files",
+    "changes": "Changes",
     "access": "Access",
     "history": "History",
     "monitor": "Monitor",
+    "conflicts": "Conflicts",
     "integrations": "Integrations",
     "settings": "Settings",
     "team": "Team",

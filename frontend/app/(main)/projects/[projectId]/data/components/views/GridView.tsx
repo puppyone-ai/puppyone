@@ -367,6 +367,7 @@ export interface GridViewProps {
   onMove?: (id: string, name: string, version_path?: string) => void;
   onMoveNode?: (nodeId: string, targetFolderId: string | null, sourceParentId?: string | null) => Promise<void>;
   onCreateTool?: (id: string, name: string, type: string) => void;
+  onShareWithAI?: (path: string) => void;
   loading?: boolean;
   agentResources?: AgentResource[];
   highlightNodeId?: string | null;
@@ -389,6 +390,7 @@ function GridItem({
   onMove,
   onMoveNode,
   onCreateTool,
+  onShareWithAI,
   isHighlighted,
   isSelected,
   selectionActive,
@@ -406,6 +408,7 @@ function GridItem({
   onMove?: (id: string, name: string, version_path?: string) => void;
   onMoveNode?: (nodeId: string, targetFolderId: string | null, sourceParentId?: string | null) => Promise<void>;
   onCreateTool?: (id: string, name: string, type: string) => void;
+  onShareWithAI?: (path: string) => void;
   isHighlighted?: boolean;
   isSelected?: boolean;
   selectionActive?: boolean;
@@ -550,6 +553,41 @@ function GridItem({
         {getTypeIcon()}
       </div>
 
+      {isFolder && onShareWithAI && !isPlaceholder && !isSelected && (
+        <button
+          type="button"
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onShareWithAI(item.id);
+          }}
+          className="opacity-0 group-hover:opacity-100 transition-opacity"
+          style={{
+            position: 'absolute',
+            top: 6,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            height: 24,
+            padding: '0 9px',
+            borderRadius: 6,
+            border: '1px solid var(--po-border)',
+            background: 'var(--po-panel-raised)',
+            color: 'var(--po-text-muted)',
+            boxShadow: '0 8px 22px var(--po-shadow)',
+            fontSize: 11,
+            fontWeight: 600,
+            fontFamily: 'var(--po-font-sans)',
+            whiteSpace: 'nowrap',
+            cursor: 'pointer',
+            zIndex: 22,
+          }}
+          title={`Share ${item.name} with AI`}
+          aria-label={`Share ${item.name} with AI`}
+        >
+          Share with AI
+        </button>
+      )}
+
       {/* Action Menu - 右上角 (absolute 定位相对于 GridItem).
           Hidden while the item is selected so the checkmark badge
           can occupy the corner without overlapping. */}
@@ -685,6 +723,7 @@ export function GridView({
   onMove,
   onMoveNode,
   onCreateTool,
+  onShareWithAI,
   loading,
   agentResources,
   highlightNodeId,
@@ -737,6 +776,7 @@ export function GridView({
             onMove={onMove}
             onMoveNode={onMoveNode}
             onCreateTool={onCreateTool}
+            onShareWithAI={onShareWithAI}
             isHighlighted={highlightNodeId === item.id}
             isSelected={selectedIds?.has(item.id)}
             selectionActive={selectionActive}

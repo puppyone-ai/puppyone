@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 
 from src.common_schemas import ApiResponse
 from src.version_engine.bootstrap.dependencies import get_version_write_command_service
@@ -32,6 +32,7 @@ async def write_file_endpoint(
     body: WriteFileRequest,
     commands: VersionWriteCommandService = Depends(get_version_write_command_service),
     current_user: CurrentUser = Depends(get_current_user),
+    x_puppyone_client_id: str | None = Header(default=None, alias="X-PuppyOne-Client-Id"),
 ):
     trace = VersionTrace(
         "content.write",
@@ -64,6 +65,7 @@ async def write_file_endpoint(
                     default_message_prefix="edit",
                     base_commit_id=body.base_commit_id,
                     project_write_state=write_state,
+                    pusher_client_id=x_puppyone_client_id or "",
                 )
                 result = outcome.result
                 trace.mark(

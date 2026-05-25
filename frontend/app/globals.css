@@ -8,14 +8,16 @@
   --po-font-sans: var(--font-geist-sans);
   --po-font-mono: var(--font-geist-mono);
 
+  /* Type scale: keep rendered UI text on 10 / 12 / 14 / 16 / 20 only.
+     Some semantic aliases intentionally resolve to the same size. */
   --po-text-size-micro: 10px;
-  --po-text-size-caption: 11px;
+  --po-text-size-caption: 10px;
   --po-text-size-meta: 12px;
-  --po-text-size-body: 13px;
+  --po-text-size-body: 12px;
   --po-text-size-body-lg: 14px;
   --po-text-size-title: 16px;
   --po-text-size-page-title: 20px;
-  --po-text-size-display: 24px;
+  --po-text-size-display: 20px;
 
   --po-text-weight-regular: 400;
   --po-text-weight-medium: 500;
@@ -65,9 +67,10 @@
   --po-switch-border-off: rgba(73, 55, 35, 0.14);
   --po-switch-thumb: #fffaf1;
   --po-switch-thumb-shadow: rgba(73, 55, 35, 0.24);
-  --po-access-active-bg: rgba(2, 132, 199, 0.18);
-  --po-access-active-hover: rgba(2, 132, 199, 0.26);
-  --po-access-active-text: #0369a1;
+  --po-access-active-bg: rgba(2, 132, 199, 0.28);
+  --po-access-active-hover: rgba(2, 132, 199, 0.36);
+  --po-access-active-border: rgba(2, 132, 199, 0.34);
+  --po-access-active-text: #075985;
   --po-focus-ring: rgba(37, 99, 235, 0.35);
   --po-shadow: rgba(73, 55, 35, 0.16);
   --po-backdrop: rgba(47, 42, 35, 0.24);
@@ -155,8 +158,9 @@
   --po-switch-border-off: rgba(255, 255, 255, 0.10);
   --po-switch-thumb: #f8fafc;
   --po-switch-thumb-shadow: rgba(0, 0, 0, 0.42);
-  --po-access-active-bg: rgba(34, 211, 238, 0.14);
-  --po-access-active-hover: rgba(34, 211, 238, 0.22);
+  --po-access-active-bg: rgba(34, 211, 238, 0.20);
+  --po-access-active-hover: rgba(34, 211, 238, 0.30);
+  --po-access-active-border: rgba(34, 211, 238, 0.32);
   --po-access-active-text: #67e8f9;
   --po-focus-ring: rgba(96, 165, 250, 0.45);
   --po-shadow: rgba(0, 0, 0, 0.45);

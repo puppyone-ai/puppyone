@@ -30,6 +30,7 @@ interface FileViewerHeaderActionsProps {
   onHtmlModeChange: (mode: HtmlArtifactMode) => void;
   csvViewMode: CsvViewMode;
   onCsvViewModeChange: (mode: CsvViewMode) => void;
+  actionsSlot?: ReactNode;
 }
 
 interface ModeOption<TMode extends string> {
@@ -75,15 +76,19 @@ export function FileViewerHeaderActions({
   onHtmlModeChange,
   csvViewMode,
   onCsvViewModeChange,
+  actionsSlot,
 }: FileViewerHeaderActionsProps) {
   if (!viewerId) return null;
+
+  const actions =
+    actionsSlot !== undefined ? actionsSlot : <FileActionsMenu projectId={projectId} filePath={filePath} />;
 
   if (viewerId === 'markdown-editor') {
     return (
       <HeaderActionGroup>
         {editable && <EditorSaveButton status={saveStatus} onSave={onSave} />}
         <ModePicker mode={markdownViewMode} onChange={onMarkdownViewModeChange} options={MARKDOWN_OPTIONS} />
-        <FileActionsMenu projectId={projectId} filePath={filePath} />
+        {actions}
       </HeaderActionGroup>
     );
   }
@@ -92,7 +97,7 @@ export function FileViewerHeaderActions({
     return (
       <HeaderActionGroup>
         {editable && <EditorSaveButton status={saveStatus} onSave={onSave} />}
-        <FileActionsMenu projectId={projectId} filePath={filePath} />
+        {actions}
       </HeaderActionGroup>
     );
   }
@@ -102,7 +107,7 @@ export function FileViewerHeaderActions({
       <HeaderActionGroup>
         {editable && <EditorSaveButton status={saveStatus} onSave={onSave} />}
         <ModePicker mode={csvViewMode} onChange={onCsvViewModeChange} options={CSV_OPTIONS} />
-        <FileActionsMenu projectId={projectId} filePath={filePath} />
+        {actions}
       </HeaderActionGroup>
     );
   }
@@ -111,7 +116,7 @@ export function FileViewerHeaderActions({
     return (
       <HeaderActionGroup>
         <ModePicker mode={editorType} onChange={onEditorTypeChange} options={JSON_OPTIONS} />
-        <FileActionsMenu projectId={projectId} filePath={filePath} />
+        {actions}
       </HeaderActionGroup>
     );
   }
@@ -129,14 +134,14 @@ export function FileViewerHeaderActions({
           Scripts disabled
         </span>
         <ModePicker mode={htmlMode} onChange={onHtmlModeChange} options={HTML_OPTIONS} />
-        <FileActionsMenu projectId={projectId} filePath={filePath} />
+        {actions}
       </HeaderActionGroup>
     );
   }
 
   return (
     <HeaderActionGroup>
-      <FileActionsMenu projectId={projectId} filePath={filePath} />
+      {actions}
     </HeaderActionGroup>
   );
 }

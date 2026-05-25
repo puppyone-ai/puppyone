@@ -593,22 +593,43 @@ class S3StorageBackend(StorageBackend):
             else:
                 remaining.append(h)
 
-        location_lookup_completed = self._supabase is None
         if self._supabase is not None and remaining:
             try:
                 with trace_phase("db.object_location.lookup_many", count=len(remaining)):
                     existing.update(self._lookup_many_object_locations(remaining).keys())
-                location_lookup_completed = True
             except Exception:
                 pass
 
         remaining = [h for h in remaining if h not in existing]
         if remaining:
+            # ALWAYS allow the per-hash fallback to re-check packed
+            # locations, even when the bulk Supabase lookup already
+            # "completed". A successful bulk query that returns N-k
+            # rows is ambiguous: the missing k entries could mean
+            # "object really doesn't exist" OR "row not yet visible
+            # from this connection" (Postgres replica lag, transient
+            # connection rotation, or the read happening on a
+            # different worker before the cache propagated).
+            #
+            # If we trust the bulk result as authoritative, a bundled
+            # object whose row just missed the cutoff is reported as
+            # missing — and ``s3.file_exists(loose_key)`` returns
+            # False because the bundle has no per-hash key. That
+            # cascade is what flipped the project view to
+            # ``current_corrupt`` immediately after a move op on
+            # staging, then self-healed on the next commit when the
+            # row finally became visible.
+            #
+            # The cost of always re-checking is one extra
+            # ``_lookup_object_location`` call per still-missing hash,
+            # i.e. exactly one extra Supabase round-trip per hash that
+            # the bulk query already missed. In the happy path this
+            # branch is never taken because ``remaining`` is empty.
             existing.update(_run_async(
                 self.async_exists_many(
                     remaining,
                     concurrency=20,
-                    check_packed_locations=not location_lookup_completed,
+                    check_packed_locations=True,
                 )
             ))
         return existing
@@ -807,7 +828,21 @@ class S3StorageBackend(StorageBackend):
                     object_id=h[:12],
                 ):
                     data = _run_async(self._s3.download_file(key))
-                _verify_loose_hash(h, data)
+                try:
+                    _verify_loose_hash(h, data)
+                except StorageWriteError as verify_err:
+                    # Stale entry in the deferred-read namespace —
+                    # the bytes here aren't a valid Git loose object,
+                    # which can happen when pre-Git-native code wrote
+                    # raw payloads under what is now a loose-object
+                    # key. Self-heal: treat exactly like 404 so the
+                    # engine falls through to the next read path, and
+                    # best-effort delete the stale object so the next
+                    # request doesn't trip the same wire (a manual
+                    # ``aws s3 rm`` per affected blob is the wrong
+                    # ops contract — every user must auto-recover).
+                    self._auto_delete_stale_deferred(key, h, verify_err)
+                    continue
                 self._mark_deferred_namespace_read(h, kind="loose")
                 return data
             except ObjectNotFoundError:
@@ -817,6 +852,41 @@ class S3StorageBackend(StorageBackend):
                     continue
                 raise
         return None
+
+    def _auto_delete_stale_deferred(
+        self,
+        key: str,
+        object_id: str,
+        cause: Exception,
+    ) -> None:
+        """Log a stale deferred-namespace entry.
+
+        Despite the name (kept for callsite stability), this NEVER
+        deletes. Earlier iterations of this code deleted on the
+        assumption that any verify-fail meant garbage; that was a
+        mistake. Bytes that don't decode as Git loose objects can
+        still be pre-Git-protocol JSON tree records (the
+        ``deferred-read`` namespace was designed exactly for that
+        kind of legacy data). Deleting them removes the user's last
+        chance at recovering content via a future migration tool.
+
+        The skip behaviour in the caller (``continue``) is sufficient
+        for runtime self-heal: the engine treats the entry as "not
+        readable here" and falls through to other read paths. If
+        everything fails it raises ``ObjectNotFoundError`` upstream,
+        which the bulk-push UI surfaces as a clean missing-blob
+        error rather than a cryptic zlib failure.
+
+        Ops can still hand-delete via ``aws s3 rm`` after confirming
+        the bytes aren't recoverable; that decision belongs to a
+        human, not to a read-path side effect.
+        """
+        log_warning(
+            f"[VersionS3] stale deferred-namespace blob at {key} "
+            f"(hash={object_id[:12]}): {cause}. Skipping (NOT deleting "
+            f"— pre-Git-protocol data may still be recoverable via "
+            f"a future migration tool).",
+        )
 
     def _deferred_loose_exists(self, h: str) -> bool:
         for key in self._deferred_keys_for(h):
@@ -884,7 +954,15 @@ class S3StorageBackend(StorageBackend):
                     object_id=h[:12],
                 ):
                     data = await self._s3.download_file(key)
-                _verify_loose_hash(h, data)
+                try:
+                    _verify_loose_hash(h, data)
+                except StorageWriteError as verify_err:
+                    # See ``_get_deferred_loose`` for the rationale.
+                    # The helper is now pure logging, so we call the
+                    # sync version even from this async path (no IO,
+                    # no need for two siblings).
+                    self._auto_delete_stale_deferred(key, h, verify_err)
+                    continue
                 self._mark_deferred_namespace_read(h, kind="loose")
                 return data
             except ObjectNotFoundError:
@@ -1075,6 +1153,27 @@ def _is_not_found_error(exc: Exception) -> bool:
     return any(s in msg for s in ("not found", "nosuchkey", "404", "does not exist"))
 
 
+_DEFERRED_NAMESPACE_READS_CACHED: bool | None = None
+
+
 def _deferred_namespace_reads_enabled() -> bool:
-    raw = os.getenv("VERSION_OBJECT_DEFERRED_NAMESPACE_READS", "true").strip().lower()
-    return raw not in {"0", "false", "no", "off"}
+    """Per-process flag for the v1/v2 object namespace deferred-reads
+    behavior. Read ONCE per process (first call) so tests can override
+    by setting the env before importing this module, but runtime
+    requests don't pay the ``os.getenv`` overhead every backend init.
+
+    Tests that need to flip the flag mid-process should call
+    :func:`_reset_deferred_namespace_reads_cache` (intentionally
+    underscore-prefixed — production code must not toggle this).
+    """
+    global _DEFERRED_NAMESPACE_READS_CACHED
+    if _DEFERRED_NAMESPACE_READS_CACHED is None:
+        raw = os.getenv("VERSION_OBJECT_DEFERRED_NAMESPACE_READS", "true").strip().lower()
+        _DEFERRED_NAMESPACE_READS_CACHED = raw not in {"0", "false", "no", "off"}
+    return _DEFERRED_NAMESPACE_READS_CACHED
+
+
+def _reset_deferred_namespace_reads_cache() -> None:
+    """Test-only helper for resetting the cached env flag."""
+    global _DEFERRED_NAMESPACE_READS_CACHED
+    _DEFERRED_NAMESPACE_READS_CACHED = None

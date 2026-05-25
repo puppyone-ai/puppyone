@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from src.version_engine.infrastructure.supabase.db_names import CONFLICTS_TABLE, VERSION_OUTBOX_TABLE
-from src.utils.logger import log_warning
+from src.utils.logger import log_error
 
 
 class SupabaseVersionTransactionLedger:
@@ -71,7 +71,7 @@ class SupabaseVersionTransactionLedger:
         actor: str,
         transaction_id: int | None = None,
     ) -> None:
-        resolver_kind = _resolver_kind_for(source_channel)
+        resolver_kind = _resolver_kind_for(source_channel, policy)
         payload = {
             "pending_conflict_id": pending_conflict_id,
             "project_id": project_id,
@@ -94,6 +94,13 @@ class SupabaseVersionTransactionLedger:
             payload, on_conflict="pending_conflict_id",
         ).execute()
 
+        # The conflict row was just written; the outbox row is what gets
+        # the resolver UI / notification dispatch / agent escalation
+        # rolling. Swallowing this error would leave a "silent" pending
+        # conflict that no derived worker will ever see. Log loud and
+        # raise so the engine's CAS-retry loop can either retry on the
+        # next attempt or fail loud — far better than data sitting in
+        # the conflict table with no consumer.
         try:
             self._client.table(VERSION_OUTBOX_TABLE).insert({
                 "project_id": project_id,
@@ -110,10 +117,12 @@ class SupabaseVersionTransactionLedger:
                 },
             }).execute()
         except Exception as exc:
-            log_warning(
+            log_error(
                 f"[version_engine] failed to enqueue pending_conflict_created "
-                f"outbox for {pending_conflict_id[:12]}: {exc}",
+                f"outbox for {pending_conflict_id[:12]}: {exc}; "
+                f"propagating so the conflict row is not orphaned",
             )
+            raise
 
     def load_pending_conflict(
         self,
@@ -166,7 +175,21 @@ class SupabaseVersionTransactionLedger:
         ).execute()
 
 
-def _resolver_kind_for(source_channel: str) -> str:
+def _resolver_kind_for(source_channel: str, policy: str = "") -> str:
+    """Decide who the pending conflict should be routed to.
+
+    The policy name takes precedence — ``agent_review`` and
+    ``agent_auto_resolve`` ALWAYS route to the agent dispatch hook
+    regardless of which channel originated the write (a human user
+    can deliberately opt their commit into agent merge by selecting
+    the policy via admin rules).
+
+    When no agent policy is in play, fall back to the channel-based
+    routing: agent / sync channels keep their existing "agent" path,
+    everything else goes to human review.
+    """
+    if policy in {"agent_review", "agent_auto_resolve"}:
+        return "agent"
     if source_channel in {"agent", "sync"}:
         return "agent"
     return "human"
@@ -176,4 +199,3 @@ def _now_iso() -> str:
     from datetime import datetime, timezone
 
     return datetime.now(timezone.utc).isoformat()
-

@@ -9,14 +9,15 @@ and DB CAS only.
 
 from __future__ import annotations
 
-import fcntl
 import subprocess
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Literal
 
+from src.version_engine.adapters.git._filelock import file_exclusive_lock
 from src.version_engine.adapters.git.protocol import (
+    ACCESS_POINT_MAIN_REF,
     ZERO_ID,
     is_object_id,
     run_git,
@@ -81,31 +82,27 @@ def transport_bare_repo(
     cache_dir = cache_key.cache_dir()
     cache_dir.mkdir(parents=True, exist_ok=True)
     lock_path = cache_dir / "cache.lock"
-    with lock_path.open("a+b") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
-        try:
-            bare_dir = cache_dir / "repo.git"
-            _ensure_bare_repo(bare_dir)
-            head = view_head.head
-            copy_reachable_objects_to_bare(
-                repo,
-                bare_dir,
-                [head],
-                follow_history=follow_history,
-                include_blobs=include_blobs,
-            )
-            _write_main_ref(bare_dir, head)
-            write_git_view_cache_metadata(
-                cache_dir,
-                cache_key,
-                head=head,
-                view_health=view_head.health,
-                canonical_head=view_head.canonical_head,
-                health_reason=view_head.reason,
-                history_cut=view_head.history_cut,
-            )
-        finally:
-            fcntl.flock(lock, fcntl.LOCK_UN)
+    with file_exclusive_lock(lock_path):
+        bare_dir = cache_dir / "repo.git"
+        _ensure_bare_repo(bare_dir)
+        head = view_head.head
+        copy_reachable_objects_to_bare(
+            repo,
+            bare_dir,
+            [head],
+            follow_history=follow_history,
+            include_blobs=include_blobs,
+        )
+        _write_main_ref(bare_dir, head)
+        write_git_view_cache_metadata(
+            cache_dir,
+            cache_key,
+            head=head,
+            view_health=view_head.health,
+            canonical_head=view_head.canonical_head,
+            health_reason=view_head.reason,
+            history_cut=view_head.history_cut,
+        )
     yield bare_dir
 
 
@@ -706,7 +703,9 @@ def _get_loose_many(store, object_ids: list[str]) -> dict[str, bytes]:
 def _ensure_bare_repo(bare_dir: Path) -> None:
     if not (bare_dir / "objects").exists():
         run_git(["init", "--bare", str(bare_dir)])
-    (bare_dir / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+    (bare_dir / "HEAD").write_text(
+        f"ref: {ACCESS_POINT_MAIN_REF}\n", encoding="utf-8"
+    )
 
 
 def _write_main_ref(bare_dir: Path, head: str) -> None:

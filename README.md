@@ -1,11 +1,10 @@
 <div align="center">
-  <img src="assets/puppyone.svg" alt="Puppyone Logo" width="120" height="120" />
+  <img src="assets/puppyone.svg" alt="Puppyone Logo" width="72" height="72" />
   
   <h1>Puppyone</h1>
   
-  <p><b>File system built for AI agents</b></p>
-  <p>Puppyone provides the storage infrastructure for your agent harness.<br/>
-  Connect, host, govern, backup, version control, and distribute your context.</p>
+  <p><b>Git-native Context Drive for AI agents.</b></p>
+  <p>Puppyone is the open-source context infrastructure for AI agents. It connects any source, versions every change Git-style, and scopes access per agent.</p>
 
   <p>
     <a href="https://www.puppyone.ai"><img src="https://img.shields.io/badge/Website-puppyone.ai-39BC66?style=flat-square" alt="Website" /></a>
@@ -17,27 +16,46 @@
 
 ---
 
-## What exactly is Puppyone?
+## What is Puppyone?
 
-Is Puppyone a runtime or a sandbox? No.  
-Is it a vector database for semantic search? No.  
+Puppyone turns agent context into a shared, permissioned file tree.
 
-Puppyone is the storage layer in agent harness engineering. 
+Each project is a Context Drive. Each agent or tool gets an Access Point: a scoped view of the files it can read or write. Some agents work through Git, some through CLI, some through MCP, sandboxes, REST, or the web. Underneath, they all operate on the same context and the same Git-native version history.
 
-If your agents' data is structured as files, you need a **puppyone: file system built for AI agents**.
+```mermaid
+flowchart LR
+  subgraph Clients["Agents, tools, and humans"]
+    Git["Git remote<br/>clone / fetch / push"]
+    CLI["puppyone CLI<br/>fs ls / cat / write"]
+    MCP["MCP clients<br/>Cursor / Claude Desktop"]
+    Sandbox["Sandboxes<br/>Docker / E2B"]
+    Web["Web app + REST API"]
+    Connectors["Connectors<br/>GitHub / Gmail / Drive / URLs"]
+  end
 
-## The Storage Layer of Agent Harness: Old World vs New World
+  subgraph Access["Access Points"]
+    Scope["Scoped view<br/>path + permission + access key"]
+  end
 
-Developers typically store agent context in local file systems backed by Git. But these were built for *humans*, not AI agents. With these problems:
+  subgraph Drive["Puppyone Context Drive"]
+    Files["Shared file tree<br/>Markdown / JSON / code / assets"]
+    Version["Git-native Version Engine<br/>commits / diffs / conflicts"]
+    Govern["History / audit / rollback"]
+  end
 
-<img src="assets/old-vs-new-world.png" alt="Old World vs New World architecture" width="100%" />
+  Git --> Scope
+  CLI --> Scope
+  MCP --> Scope
+  Sandbox --> Scope
+  Web --> Scope
+  Connectors --> Scope
 
-|  | Local File System + Git | Puppyone |
-|--|------------------------|----------|
-| **Backup** | Relies on agent to `git commit`. Forget once, data is gone. | Every modification auto-snapshotted. One-click rollback. |
-| **Permissions** | OS user logins only. All agents share everything, or fully isolated sandboxes with no collaboration. | File Level Security (FLS). Shared context space, per-agent scoped views. |
-| **Access Channels** | Local Bash only. Need custom APIs for anything else. | Native MCP, REST API, CLI, Bash, Sandbox out of the box. |
-| **Data Sources** | Manual integration for each platform. | 15+ built-in connectors (Notion, GitHub, Drive, etc.) auto-sync as files. |
+  Scope --> Files
+  Files --> Version
+  Version --> Govern
+```
+
+The access method can change from agent to agent. The context stays unified, scoped, and versioned.
 
 
 ---

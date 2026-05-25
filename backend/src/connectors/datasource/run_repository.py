@@ -121,6 +121,28 @@ class SyncRunRepository:
         )
         return [self._to_model(r) for r in response.data]
 
+    def list_failed_for_access_points(
+        self, access_point_ids: List[str], limit: int = 50,
+    ) -> List[SyncRun]:
+        """List failed runs across multiple access points, newest first.
+
+        Powers the "Failed sync" group in the Needs Action sidebar
+        (PUP-5 §4 follow-up — fills gap G1 by exposing failed runs to
+        the frontend without a per-access-point fan-out).
+        """
+        if not access_point_ids:
+            return []
+        response = (
+            self.client.table(self.TABLE)
+            .select("*")
+            .in_("access_point_id", access_point_ids)
+            .eq("status", "failed")
+            .order("started_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        return [self._to_model(r) for r in (response.data or [])]
+
     def count_by_sync(self, sync_id: str) -> int:
         response = (
             self.client.table(self.TABLE)

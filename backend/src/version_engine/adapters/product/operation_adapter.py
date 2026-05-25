@@ -124,6 +124,7 @@ class ProductOperationAdapter:
         policy: str = "",
         source_channel: str = "papi",
         project_write_state: ProjectWriteState | None = None,
+        pusher_client_id: str = "",
     ):
         intent = OperationWriteIntent(
             project_id=project_id,
@@ -138,6 +139,7 @@ class ProductOperationAdapter:
             defer_projection=defer_projection,
             policy_override=policy,
             project_write_state=project_write_state,
+            pusher_client_id=pusher_client_id,
         )
         if scope:
             return await self._engine.apply_operation(intent, splice_fn)
@@ -160,6 +162,7 @@ class ProductOperationAdapter:
         policy: str = "",
         source_channel: str = "papi",
         project_write_state: ProjectWriteState | None = None,
+        pusher_client_id: str = "",
     ) -> WriteResult:
         """Write a single file (create or update).
 
@@ -192,6 +195,7 @@ class ProductOperationAdapter:
             policy=policy,
             source_channel=source_channel,
             project_write_state=project_write_state,
+            pusher_client_id=pusher_client_id,
         )
         return _to_result(result, [path])
 
@@ -414,21 +418,11 @@ class ProductOperationAdapter:
             project_write_state=project_write_state,
         )
 
-        # Best-effort secondary index update — keeps repo_scopes pointing
-        # at the new path. Failures here are
-        # logged but don't fail the move.
-        try:
-            from src.version_engine.derived.hooks import post_commit_move
-
-            post_commit_move(project_id, old_path, new_path)
-        except Exception as e:
-            from src.utils.logger import log_error
-
-            log_error(
-                f"[ProductOperationAdapter] post-commit move hook failed "
-                f"for project={project_id}: {e}",
-            )
-
+        # ``post_commit_move`` (rename of ``repo_scopes`` rows under
+        # the old prefix) is now dispatched by ``run_post_push_hook``
+        # itself — the L4 layer stashed ``{old_path, new_path}`` into
+        # ``audit_detail`` above and the hook reads it back from the
+        # committed history entry. L4 no longer reaches into L6.
         return _to_result(result, [old_path, new_path])
 
     async def copy(
@@ -1048,37 +1042,6 @@ class ProductOperationAdapter:
 
         run_post_push_hook(project_id, self._repos, push_result)
         return push_result
-
-    def _run_post_push_hook(
-        self, project_id: str, push_result: dict,
-    ) -> None:
-        """Best-effort post-push hook — log on failure, never re-raise.
-
-        The Write Engine already does this internally,
-        so internal typed ops don't reach here. This shim exists for
-        external callers (and tests) that want the same resilience
-        without writing the try/except themselves.
-        """
-        try:
-            from src.version_engine.derived.hooks import run_post_push_hook
-
-            run_post_push_hook(project_id, self._repos, push_result)
-        except Exception as e:
-            import traceback
-
-            from src.utils.logger import log_error
-
-            commit_id = (
-                push_result.get("commit_id")
-                or push_result.get("new_commit_id")
-            )
-            log_error(
-                f"[ProductOperationAdapter] post-push hook failed for project={project_id} "
-                f"commit={commit_id} "
-                f"scope={push_result.get('scope_path', '?')} "
-                f"status={push_result.get('status', '?')} "
-                f"error={type(e).__name__}: {e}\n{traceback.format_exc()}",
-            )
 
     # ══════════════════════════════════════════════
     # Scope routing helpers

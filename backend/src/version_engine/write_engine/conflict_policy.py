@@ -56,6 +56,21 @@ _SAFE_CONTENT_STRATEGIES = [
     LineMergeStrategy(),
 ]
 
+# Policy names that route the conflict to a resolver (human or agent)
+# rather than resolving in-engine. Lookup is hot-path so we keep it
+# as a frozenset.
+QUEUE_POLICIES = frozenset({"manual_review", "agent_review", "agent_auto_resolve"})
+# Backwards-compat private alias — existing call sites in this module
+# import the local name. Module-public name is ``QUEUE_POLICIES``.
+_QUEUE_POLICIES = QUEUE_POLICIES
+_REVIEW_KIND_AGENT = "agent merge required"
+_REVIEW_KIND_HUMAN = "manual review required"
+
+
+def _review_kind_for(policy_name: str) -> str:
+    """Pick the human-readable resolver hint for a queue-policy."""
+    return _REVIEW_KIND_AGENT if policy_name.startswith("agent_") else _REVIEW_KIND_HUMAN
+
 
 def select_conflict_policy(
     *,
@@ -121,6 +136,32 @@ def merge_file_sets_for_policy(
          and the parent content differs from both sides, the parent wins
          and the loser is recorded as ``superseded_by_parent``.
       3. otherwise apply the configured policy (LWW or manual_review).
+
+    Output invariant for ``merged_files``:
+
+      * ``path in merged_files`` AND value is ``bytes`` → publish that
+        content at ``path``.
+      * ``path in merged_files`` AND value is ``None`` → an explicit
+        "delete this path" marker. Used by manual_review paths that
+        need to record an intent to delete without losing the path
+        from the changeset.
+      * ``path not in merged_files`` → the path is not part of the
+        merged tree. The CAS-retry splice in
+        ``engine._merge_on_cas_retry`` walks the union of base/current/
+        incoming and emits an explicit ``rm`` for any path that was
+        considered but did not land in ``merged_files``. This is how
+        LWW honoring an incoming delete is expressed without having to
+        carry a ``None`` sentinel through the file dict — keeping the
+        type pure ``dict[str, bytes]``.
+
+    Tests that go through this function and then through
+    ``engine._merge_on_cas_retry`` rely on the splice step to translate
+    "absent" into "rm". Standalone callers (e.g. ``three_way_merge``
+    in ``merge.py``) have their own convention — they keep ours on
+    modify/delete rather than expressing a delete. The two functions
+    serve different code paths (CAS-retry vs. Git submission) and the
+    divergence is intentional, but documented here so a future refactor
+    doesn't silently re-introduce a delete-resurrection bug.
     """
 
     merged: dict[str, bytes] = {}
@@ -281,15 +322,25 @@ def _apply_policy_to_unsafe_conflict(
     *,
     unsafe_detail: list[ConflictRecord] | None = None,
 ) -> None:
-    if policy.policy == "manual_review":
+    # ``manual_review`` and ``agent_*`` policies share the same code
+    # path: queue the conflict (so a resolver can act on it) and keep
+    # ``ours`` in the merged tree so the file isn't lost while the
+    # resolver thinks. The difference between them is purely the
+    # ``resolver_kind`` written on the pending row by the ledger
+    # (computed via ``_resolver_kind_for``) — that field is what
+    # routes the outbox dispatch hook to a human reviewer UI vs an
+    # agent runner.
+    if policy.policy in _QUEUE_POLICIES:
+        strategy_label = policy.policy
+        review_kind = _review_kind_for(policy.policy)
         if unsafe_detail:
             manual_conflicts.extend([
                 ConflictRecord(
                     path=record.path,
-                    strategy="manual_review",
+                    strategy=strategy_label,
                     detail=(
                         f"unsafe automatic strategy {record.strategy!r} "
-                        f"requires manual review: {record.detail}"
+                        f"{review_kind}: {record.detail}"
                     ),
                     kept="pending",
                     lost_content=record.lost_content,
@@ -300,14 +351,13 @@ def _apply_policy_to_unsafe_conflict(
         else:
             manual_conflicts.append(ConflictRecord(
                 path=path,
-                strategy="manual_review",
-                detail="both sides modified; manual review required",
+                strategy=strategy_label,
+                detail=f"both sides modified; {review_kind}",
                 kept="pending",
             ))
         merged[path] = ours
         return
 
-    # last_write_wins / reject / agent_*: take incoming and audit the loss.
     if policy.policy == "reject":
         manual_conflicts.append(ConflictRecord(
             path=path,
@@ -344,13 +394,20 @@ def _resolve_delete_modify(
     lww_records: list[ConflictRecord],
     merged: dict[str, bytes],
 ) -> None:
-    if policy.policy == "manual_review":
+    if policy.policy in _QUEUE_POLICIES:
+        review_kind = _review_kind_for(policy.policy)
         manual_conflicts.append(ConflictRecord(
             path=path,
             strategy="delete_modify",
-            detail="server deleted, incoming modified; manual review required",
+            detail=f"server deleted, incoming modified; {review_kind}",
             kept="pending",
         ))
+        # NOT setting ``merged[path]`` is intentional — current state has
+        # this path deleted, so the merged tree mirrors current until a
+        # human/agent resolves the conflict. Asymmetric with modify_delete
+        # (which keeps ours) because the surviving side there is server
+        # content; here the surviving side would be the *incoming* modify
+        # we declined to apply.
         return
     lww_records.append(ConflictRecord(
         path=path,
@@ -369,18 +426,24 @@ def _resolve_modify_delete(
     lww_records: list[ConflictRecord],
     merged: dict[str, bytes],
 ) -> None:
-    if policy.policy == "manual_review":
+    if policy.policy in _QUEUE_POLICIES:
+        review_kind = _review_kind_for(policy.policy)
         manual_conflicts.append(ConflictRecord(
             path=path,
             strategy="modify_delete",
-            detail="incoming deleted, server modified; manual review required",
+            detail=f"incoming deleted, server modified; {review_kind}",
             kept="pending",
         ))
         merged[path] = ours
         return
-    # LWW means the incoming write wins, including an incoming delete. The
-    # server copy is preserved in the conflict ledger so recovery remains
-    # possible, but it is not kept in the authoritative tree.
+    # LWW: incoming wins, including an incoming delete. The server copy
+    # is preserved in the conflict ledger so recovery is possible, but
+    # it is NOT kept in the merged tree. We intentionally do NOT write
+    # ``merged[path]`` here — the caller (``engine._merge_on_cas_retry``)
+    # walks the union of base/current/incoming and emits an explicit
+    # ``rm`` for any path absent from ``merged_files`` but present in
+    # current. That is the invariant documented at
+    # ``merge_file_sets_for_policy`` — see its docstring.
     lww_records.append(ConflictRecord(
         path=path,
         strategy="lww",

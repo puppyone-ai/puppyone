@@ -33,14 +33,13 @@ from pydantic import BaseModel, Field, model_validator
 from src.common_schemas import ApiResponse
 from src.infra.supabase.client import SupabaseClient
 from src.version_engine.write_engine.engine import VersionWriteEngine
-from src.version_engine.bootstrap.dependencies import get_repo_manager
+from src.version_engine.bootstrap.dependencies import get_version_write_engine
 from src.version_engine.domain.intents import ConflictResolutionIntent
 from src.version_engine.infrastructure.supabase.db_names import CONFLICTS_TABLE
 from src.version_engine.entrypoints.http.content_helpers import (
     ensure_project_access,
     ensure_write_access,
 )
-from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
 from src.platform.project.dependencies import get_project_service
@@ -152,7 +151,7 @@ async def resolve_pending_conflict(
     project_id: str,
     pending_conflict_id: str,
     body: ResolveConflictRequest,
-    repo_manager: VersionRepoManager = Depends(get_repo_manager),
+    engine: VersionWriteEngine = Depends(get_version_write_engine),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -202,7 +201,6 @@ async def resolve_pending_conflict(
         resolution_message=body.resolution_message or "",
         decision=body.decision,
     )
-    engine = VersionWriteEngine(repo_manager)
     try:
         result = await engine.resolve(intent)
     except ValueError as exc:

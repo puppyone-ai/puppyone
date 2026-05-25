@@ -1,10 +1,14 @@
 
-from fastapi import APIRouter, Depends, status
+import os
+from urllib.parse import urlsplit, urlunsplit
+
+from fastapi import APIRouter, Depends, Request, status
 
 from src.common_schemas import ApiResponse
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
 from src.platform.organization.dependencies import get_org_service
+from src.platform.organization.models import OrgInvitation
 from src.platform.organization.schemas import (
     CreateOrganization,
     InviteMember,
@@ -14,7 +18,63 @@ from src.platform.organization.schemas import (
     UpdateMemberRole,
     UpdateOrganization,
 )
-from src.platform.organization.service import OrganizationService
+from src.platform.organization.service import InviteEmailResult, OrganizationService
+
+
+def _resolve_frontend_origin(request: Request) -> str:
+    """Return the public origin where ``/invite/{token}`` lives.
+
+    Priority order:
+      1. ``FRONTEND_URL`` env var — explicit, set per deployment.
+      2. ``Origin`` request header — covers same-origin browser calls.
+      3. ``Referer`` request header (scheme://host) — last-ditch when
+         the browser sent Referer but stripped Origin (rare, but
+         happens behind certain CORS reverse proxies).
+
+    Falls back to a sentinel ``http://localhost:3000`` so dev still
+    produces a clickable URL when nothing is configured; ops will
+    notice immediately and set ``FRONTEND_URL`` in env.
+    """
+    explicit = (os.environ.get("FRONTEND_URL") or "").strip()
+    if explicit:
+        return explicit.rstrip("/")
+    origin = request.headers.get("origin")
+    if origin:
+        return origin.rstrip("/")
+    referer = request.headers.get("referer")
+    if referer:
+        parts = urlsplit(referer)
+        if parts.scheme and parts.netloc:
+            return urlunsplit((parts.scheme, parts.netloc, "", "", "")).rstrip("/")
+    return "http://localhost:3000"
+
+
+def _invitation_to_out(
+    inv: OrgInvitation,
+    *,
+    invite_url: str | None = None,
+    include_token: bool = False,
+    email_result: InviteEmailResult | None = None,
+) -> OrgInvitationOut:
+    """Common projection from the domain model to the API schema.
+
+    ``include_token`` gates the (semi-secret) token field so we only
+    emit it on the owner-only routes that need it; the (already
+    owner-only) listing endpoint also returns it because admins use it
+    to copy/share links after the original "send" response is gone.
+    """
+    return OrgInvitationOut(
+        id=inv.id,
+        email=inv.email,
+        role=inv.role,
+        status=inv.status,
+        expires_at=inv.expires_at.isoformat(),
+        created_at=inv.created_at.isoformat(),
+        token=inv.token if include_token else None,
+        invite_url=invite_url,
+        email_sent=email_result.sent if email_result else False,
+        email_error=email_result.error if email_result else None,
+    )
 
 router = APIRouter(
     prefix="/organizations",
@@ -155,17 +215,28 @@ def leave_organization(
 def invite_member(
     org_id: str,
     payload: InviteMember,
+    request: Request,
     org_service: OrganizationService = Depends(get_org_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     invitation = org_service.invite(
         org_id, payload.email, payload.role, current_user.user_id
     )
+    invite_url = f"{_resolve_frontend_origin(request)}/invite/{invitation.token}"
+
+    # Best-effort email dispatch. Failures don't roll back the
+    # invitation — the inviter still gets the URL back to share
+    # manually. The response carries ``email_sent`` so the UI can
+    # adjust messaging accordingly.
+    org = org_service.get_by_id(org_id)
+    email_result = org_service.send_invite_email(invitation, invite_url, org.name)
+
     return ApiResponse.success(
-        data=OrgInvitationOut(
-            id=invitation.id, email=invitation.email, role=invitation.role,
-            status=invitation.status, expires_at=invitation.expires_at.isoformat(),
-            created_at=invitation.created_at.isoformat(),
+        data=_invitation_to_out(
+            invitation,
+            invite_url=invite_url,
+            include_token=True,
+            email_result=email_result,
         )
     )
 
@@ -173,26 +244,61 @@ def invite_member(
 @router.get("/{org_id}/invitations", response_model=ApiResponse[list[OrgInvitationOut]])
 def list_invitations(
     org_id: str,
+    request: Request,
     org_service: OrganizationService = Depends(get_org_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     invitations = org_service.list_invitations(org_id, current_user.user_id)
+    origin = _resolve_frontend_origin(request)
     result = [
-        OrgInvitationOut(
-            id=inv.id, email=inv.email, role=inv.role,
-            status=inv.status, expires_at=inv.expires_at.isoformat(),
-            created_at=inv.created_at.isoformat(),
+        _invitation_to_out(
+            inv,
+            invite_url=f"{origin}/invite/{inv.token}",
+            include_token=True,
         )
         for inv in invitations
     ]
     return ApiResponse.success(data=result)
 
 
-@router.post("/invitations/{token}/accept", response_model=ApiResponse[None])
+@router.delete("/{org_id}/invitations/{invitation_id}", response_model=ApiResponse[None])
+def revoke_invitation(
+    org_id: str,
+    invitation_id: str,
+    org_service: OrganizationService = Depends(get_org_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """Cancel a pending invitation so its link stops working.
+
+    Owner-only. Idempotent: revoking a non-existent / already-revoked
+    invitation returns 200 with the same shape (the caller's goal is
+    "this invite is gone").
+    """
+    org_service.revoke_invitation(org_id, invitation_id, current_user.user_id)
+    return ApiResponse.success(message="Invitation revoked")
+
+
+@router.post("/invitations/{token}/accept", response_model=ApiResponse[dict])
 def accept_invitation(
     token: str,
     org_service: OrganizationService = Depends(get_org_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    org_service.accept_invitation(token, current_user.user_id)
-    return ApiResponse.success(message="Invitation accepted")
+    """Accept the invitation and return the joined org details.
+
+    Returning the org name + slug lets the frontend show
+    "Joined {name}" and bounce the user into their new workspace
+    without a second round-trip. Idempotent if the user is already
+    a member of the org (the service returns the existing membership).
+    """
+    member, org = org_service.accept_invitation(token, current_user.user_id)
+    return ApiResponse.success(
+        data={
+            "member_id": member.id,
+            "org_id": org.id,
+            "org_name": org.name,
+            "org_slug": org.slug,
+            "role": member.role,
+        },
+        message="Invitation accepted",
+    )

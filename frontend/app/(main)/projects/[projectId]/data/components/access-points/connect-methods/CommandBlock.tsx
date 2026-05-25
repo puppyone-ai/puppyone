@@ -32,7 +32,7 @@ export function CommandBlock({
           margin: 0,
           padding: '10px 36px 10px 12px',
           fontFamily: FONT_MONO,
-          fontSize: 11.5,
+          fontSize: 12,
           lineHeight: 1.55,
           color: 'var(--po-text-muted)',
           overflowX: 'auto',

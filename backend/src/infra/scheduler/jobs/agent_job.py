@@ -55,6 +55,16 @@ async def _execute_agent_task_async(agent_id: str) -> dict:
             log_error(f"Agent {agent_id} not found")
             return {"status": "failed", "error": "Agent not found"}
 
+        # Pause is a hard "skip this scheduled tick" toggle that mirrors
+        # the connector-level pause used by chat / CLI access (see
+        # ``chat/service._enforce_agent_not_paused``). Reporting
+        # ``skipped`` instead of ``failed`` keeps the agent's
+        # execution-log history clean — a paused agent should not
+        # accumulate failure rows.
+        if agent.get("status") == "paused":
+            log_info(f"⏸  Agent {agent_id} is paused; skipping scheduled run")
+            return {"status": "skipped", "reason": "agent_paused"}
+
         config = agent.get("config") or {}
         project_data = agent.get("project")
         project_id = agent.get("project_id")

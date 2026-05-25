@@ -29,5 +29,14 @@ class Project(BaseModel):
     created_by: str | None = Field(None, description="Creator user ID")
     created_at: datetime = Field(..., description="Creation time")
     updated_at: datetime | None = Field(None, description="Last update time")
+    share_token: str | None = Field(
+        default=None,
+        description=(
+            "URL-safe token. Holder can join this project as ``viewer`` "
+            "via the share-link join endpoint. Rotate to revoke "
+            "outstanding links. Owner/admin-only field — the API only "
+            "emits it on the dedicated share endpoint."
+        ),
+    )
 
     model_config = ConfigDict(from_attributes=True)

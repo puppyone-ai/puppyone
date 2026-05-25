@@ -1,11 +1,18 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   resolveDataTransferSnapshot,
   snapshotDataTransfer,
 } from '@/lib/dropFiles';
 import { resolveFormat } from '@/lib/fileFormats';
+import {
+  applyPolicy,
+  collectIgnoreRulesFromDrop,
+  PER_FILE_MAX_BYTES,
+  type BatchPolicyResult,
+  type IgnoreRule,
+} from '@/lib/uploadPolicy';
 import { ActionButton } from './ui/ActionButton';
 import { DialogBody, DialogFooter, DialogHeader, DialogRoot, DialogSurface } from './ui/Dialog';
 import { BUTTON_HEIGHT } from './ui/buttonTokens';
@@ -23,6 +30,22 @@ interface FileImportDialogProps {
 /**
  * 统一的文件导入对话框
  *
+ * Applies the PUP-3 folder-upload policy (``lib/uploadPolicy.ts``) on
+ * the added files BEFORE forwarding them to the parent's ``onConfirm``.
+ * The flow:
+ *   1. User adds files (drop / picker). The dialog also scans the
+ *      added set for ``.gitignore`` / ``.puppyignore`` to feed into
+ *      the policy.
+ *   2. ``applyPolicy`` partitions into ``accepted`` + ``skipped``,
+ *      tracking reasons (blocklist / gitignored / hidden / too_large).
+ *   3. The dialog shows a preflight summary when:
+ *      - any file was skipped, OR
+ *      - the count/size crosses the preflight thresholds (Q4: 50 files
+ *        / 50 MB).
+ *   4. Override checkboxes (include hidden / .gitignored /
+ *      default-blocked) re-evaluate the policy on toggle.
+ *   5. ``Import N Files`` commits the accepted subset.
+ *
  * OCR/Smart Parse is temporarily hidden. File imports are stored as-is.
  */
 export function FileImportDialog({
@@ -35,15 +58,17 @@ export function FileImportDialog({
   const [files, setFiles] = useState<File[]>(initialFiles || []);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  // Separate folder picker. The browser exposes ``webkitdirectory``
-  // only on dedicated inputs — toggling it on a single shared input
-  // would force the user to pick one mode at dialog mount time and
-  // we'd lose the per-click choice. With two hidden inputs the
-  // visible UI gets both buttons and each click opens the right
-  // picker. ``handleFileSelect`` works for both: when the user
-  // picks a folder, every File in the resulting FileList carries
-  // a non-empty ``webkitRelativePath`` set by the browser.
   const folderInputRef = useRef<HTMLInputElement>(null);
+
+  // .gitignore / .puppyignore rules harvested from the dropped set.
+  const [ignoreRules, setIgnoreRules] = useState<IgnoreRule[]>([]);
+
+  // Override toggles. All start false — the policy defaults skip
+  // hidden / blocked / ignored files unless the user explicitly opts
+  // in.
+  const [includeHidden, setIncludeHidden] = useState(false);
+  const [includeIgnored, setIncludeIgnored] = useState(false);
+  const [includeBlocklist, setIncludeBlocklist] = useState(false);
 
   // 同步初始文件
   useEffect(() => {
@@ -52,10 +77,39 @@ export function FileImportDialog({
     }
   }, [initialFiles]);
 
-  // Analyze files using the file-format registry as the single
-  // source of truth — no more local hardcoded extension list. The
-  // category split is text-like (markdown / text / code / structured
-  // text data) vs everything else (image / pdf / archive / binary).
+  // Re-scan ignore rules whenever the file set changes. Async because
+  // ``collectIgnoreRulesFromDrop`` reads file text.
+  useEffect(() => {
+    let cancelled = false;
+    void collectIgnoreRulesFromDrop(files).then((rules) => {
+      if (!cancelled) setIgnoreRules(rules);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [files]);
+
+  // Live policy evaluation. Returns ``accepted`` (what we'd send),
+  // ``skipped`` (with reasons), counts, and a ``shouldPreflight`` flag.
+  const policyResult: BatchPolicyResult = useMemo(
+    () =>
+      applyPolicy({
+        files,
+        rules: ignoreRules,
+        options: {
+          includeHidden,
+          includeIgnored,
+          includeBlocklist,
+        },
+      }),
+    [files, ignoreRules, includeHidden, includeIgnored, includeBlocklist],
+  );
+
+  const { accepted, skipped, totalAcceptedBytes, reasonCounts, shouldPreflight } = policyResult;
+
+  // File-format breakdown is computed off ``accepted`` (what will
+  // actually upload), not the full input — otherwise the chip line
+  // claims you're sending content you're not.
   const fileStats = React.useMemo(() => {
     let textCount = 0;
     let binaryCount = 0;
@@ -63,7 +117,7 @@ export function FileImportDialog({
 
     const TEXT_LIKE_CATEGORIES = new Set(['markdown', 'text', 'code', 'data']);
 
-    files.forEach((f) => {
+    accepted.forEach((f) => {
       const ext = f.name.split('.').pop()?.toLowerCase() || '';
       extensions.add(ext);
       const fmt = resolveFormat({ name: f.name, mimeType: f.type || null });
@@ -75,7 +129,7 @@ export function FileImportDialog({
     });
 
     return { textCount, binaryCount, extensions: Array.from(extensions) };
-  }, [files]);
+  }, [accepted]);
 
   // 重置状态
   useEffect(() => {
@@ -84,6 +138,9 @@ export function FileImportDialog({
         setFiles([]);
       }
       setIsDragging(false);
+      setIncludeHidden(false);
+      setIncludeIgnored(false);
+      setIncludeBlocklist(false);
     }
   }, [isOpen, initialFiles]);
 
@@ -97,7 +154,6 @@ export function FileImportDialog({
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    // 只有离开整个 dropzone 时才重置
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX;
     const y = e.clientY;
@@ -116,9 +172,6 @@ export function FileImportDialog({
     e.stopPropagation();
     setIsDragging(false);
 
-    // Snapshot synchronously — see lib/dropFiles.ts. If the user
-    // dropped a folder, ``e.dataTransfer.files`` would lie and
-    // report a single 0-byte "file" with the folder's name.
     const snapshot = snapshotDataTransfer(e.nativeEvent);
     void resolveDataTransferSnapshot(snapshot).then((droppedFiles) => {
       if (droppedFiles.length > 0) {
@@ -132,7 +185,6 @@ export function FileImportDialog({
     if (selectedFiles && selectedFiles.length > 0) {
       setFiles(prev => [...prev, ...Array.from(selectedFiles)]);
     }
-    // 重置 input 以便再次选择相同文件
     e.target.value = '';
   }, []);
 
@@ -141,11 +193,45 @@ export function FileImportDialog({
   }, []);
 
   const handleConfirm = useCallback(() => {
-    if (files.length === 0) return;
-    onConfirm(files, 'raw');
-  }, [files, onConfirm]);
+    if (accepted.length === 0) return;
+    onConfirm(accepted, 'raw');
+  }, [accepted, onConfirm]);
 
   if (!isOpen) return null;
+
+  const totalSkipped = skipped.length;
+  const skippedRows: { label: string; count: number; toggle?: () => void; toggleValue?: boolean }[] = [];
+  if (reasonCounts.blocklist > 0) {
+    skippedRows.push({
+      label: 'in blocklisted folders (.git, node_modules, …)',
+      count: reasonCounts.blocklist,
+      toggle: () => setIncludeBlocklist((v) => !v),
+      toggleValue: includeBlocklist,
+    });
+  }
+  if (reasonCounts.gitignore > 0) {
+    skippedRows.push({
+      label: 'matched .gitignore / .puppyignore',
+      count: reasonCounts.gitignore,
+      toggle: () => setIncludeIgnored((v) => !v),
+      toggleValue: includeIgnored,
+    });
+  }
+  if (reasonCounts.hidden > 0) {
+    skippedRows.push({
+      label: 'hidden files (start with .)',
+      count: reasonCounts.hidden,
+      toggle: () => setIncludeHidden((v) => !v),
+      toggleValue: includeHidden,
+    });
+  }
+  if (reasonCounts.tooLarge > 0) {
+    // No override — per-file size cap is a hard limit. Surface only.
+    skippedRows.push({
+      label: `larger than ${formatBytes(PER_FILE_MAX_BYTES)} per file`,
+      count: reasonCounts.tooLarge,
+    });
+  }
 
   return (
     <DialogRoot onClose={onClose}>
@@ -184,22 +270,10 @@ export function FileImportDialog({
             onChange={handleFileSelect}
             style={{ display: 'none' }}
           />
-          {/* Folder picker — separate hidden input. When the user
-              clicks the "Browse folder" link below, the browser's
-              native folder picker opens and every selected File
-              gets a ``webkitRelativePath`` reflecting the folder
-              hierarchy. The upload pipeline (lib/uploadApi.ts ->
-              deriveFileParentPath) reads that path to preserve
-              the structure on the server. */}
           <input
             ref={folderInputRef}
             type="file"
             multiple
-            // ``webkitdirectory`` / ``directory`` are non-standard
-            // attributes shipped by every Chromium / Firefox /
-            // Safari we target; React's TS types don't know about
-            // them, so we spread them through ``any`` (matches the
-            // pattern in GetStartedPanel and TableManageDialog).
             {...({ webkitdirectory: '', directory: '' } as Record<string, string>)}
             onChange={handleFileSelect}
             style={{ display: 'none' }}
@@ -267,16 +341,17 @@ export function FileImportDialog({
               </div>
             ) : (
               <>
-                {/* File List */}
+                {/* File List — preview of ACCEPTED files only. Skipped
+                    files appear in the preflight section below. */}
                 <div style={{ marginBottom: 12 }}>
-                  {files.slice(0, 5).map((file, index) => (
+                  {accepted.slice(0, 5).map((file, index) => (
                     <div
                       key={`${file.name}-${index}`}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
                         padding: '6px 0',
-                        borderBottom: index < Math.min(files.length, 5) - 1 ? '1px solid var(--po-border-subtle)' : 'none',
+                        borderBottom: index < Math.min(accepted.length, 5) - 1 ? '1px solid var(--po-border-subtle)' : 'none',
                       }}
                     >
                       <span style={{
@@ -287,7 +362,7 @@ export function FileImportDialog({
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
                       }}>
-                        {file.name}
+                        {(file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name}
                       </span>
                       <span style={{ fontSize: 11, color: 'var(--po-text-subtle)', marginRight: 8 }}>
                         {(file.size / 1024).toFixed(0)} KB
@@ -296,7 +371,11 @@ export function FileImportDialog({
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          removeFile(index);
+                          // Remove from the source list. Index in the
+                          // ``files`` array is what's mutable; map
+                          // the accepted entry back.
+                          const original = files.indexOf(file);
+                          if (original >= 0) removeFile(original);
                         }}
                         style={{
                           background: 'transparent',
@@ -317,9 +396,14 @@ export function FileImportDialog({
                       </button>
                     </div>
                   ))}
-                  {files.length > 5 && (
+                  {accepted.length > 5 && (
                     <div style={{ fontSize: 12, color: 'var(--po-text-subtle)', paddingTop: 8 }}>
-                      + {files.length - 5} more files
+                      + {accepted.length - 5} more files
+                    </div>
+                  )}
+                  {accepted.length === 0 && (
+                    <div style={{ fontSize: 12, color: 'var(--po-text-subtle)', padding: '4px 0' }}>
+                      No files will be uploaded with the current settings.
                     </div>
                   )}
                 </div>
@@ -356,8 +440,75 @@ export function FileImportDialog({
             )}
           </div>
 
-          {/* File Stats */}
-          {files.length > 0 && (
+          {/* Preflight panel — only renders when there's something
+              worth surfacing: any skipped file OR the accepted set
+              crosses the preflight threshold. */}
+          {files.length > 0 && (shouldPreflight || totalSkipped > 0) && (
+            <div
+              style={{
+                background: 'var(--po-control)',
+                padding: '10px 14px',
+                borderRadius: 6,
+                marginBottom: 12,
+                fontSize: 12,
+                color: 'var(--po-text-muted)',
+              }}
+            >
+              <div style={{ marginBottom: skippedRows.length > 0 ? 8 : 0 }}>
+                <span style={{ color: 'var(--po-text)', fontWeight: 500 }}>
+                  {accepted.length}
+                </span>{' '}
+                file{accepted.length === 1 ? '' : 's'} ·{' '}
+                <span style={{ color: 'var(--po-text)' }}>
+                  {formatBytes(totalAcceptedBytes)}
+                </span>{' '}
+                will upload
+                {totalSkipped > 0 && (
+                  <>
+                    {' '}·{' '}
+                    <span style={{ color: 'var(--po-warning)' }}>
+                      {totalSkipped} skipped
+                    </span>
+                  </>
+                )}
+              </div>
+              {skippedRows.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {skippedRows.map((row, i) => (
+                    <label
+                      key={i}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        cursor: row.toggle ? 'pointer' : 'default',
+                        opacity: row.toggle ? 1 : 0.7,
+                      }}
+                    >
+                      {row.toggle ? (
+                        <input
+                          type="checkbox"
+                          checked={!!row.toggleValue}
+                          onChange={row.toggle}
+                          style={{ margin: 0 }}
+                        />
+                      ) : (
+                        <span style={{ width: 13, display: 'inline-block' }} />
+                      )}
+                      <span style={{ flex: 1 }}>{row.label}</span>
+                      <span style={{ color: 'var(--po-text-subtle)' }}>
+                        {row.count}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Compact stats — only when at least one accepted file
+              exists. Hidden when the user has filtered everything out. */}
+          {accepted.length > 0 && (
             <div style={{
               background: 'var(--po-control)',
               padding: '10px 14px',
@@ -369,7 +520,7 @@ export function FileImportDialog({
               alignItems: 'center',
             }}>
               <div>
-                <span style={{ color: 'var(--po-text)', fontWeight: 500 }}>{files.length}</span> files
+                <span style={{ color: 'var(--po-text)', fontWeight: 500 }}>{accepted.length}</span> files
                 <span style={{ margin: '0 8px', opacity: 0.3 }}>•</span>
                 <span style={{ color: 'var(--po-text)' }}>{fileStats.textCount}</span> text
                 <span style={{ margin: '0 8px', opacity: 0.3 }}>•</span>
@@ -408,16 +559,23 @@ export function FileImportDialog({
             </ActionButton>
             <ActionButton
               onClick={handleConfirm}
-              disabled={files.length === 0}
+              disabled={accepted.length === 0}
               variant='primary'
             >
-              {files.length > 0 ? `Import ${files.length} File${files.length > 1 ? 's' : ''}` : 'Select Files'}
+              {accepted.length > 0 ? `Import ${accepted.length} File${accepted.length > 1 ? 's' : ''}` : 'Select Files'}
             </ActionButton>
           </div>
         </DialogFooter>
       </DialogSurface>
     </DialogRoot>
   );
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
 const dropzoneActionButton: React.CSSProperties = {

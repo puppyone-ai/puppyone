@@ -264,7 +264,7 @@ export function ScopedConnectorsListPanel({
       <span>Access</span>
       <span
         style={{
-          fontSize: 13,
+          fontSize: 12,
           fontWeight: 400,
           color: COLOR_FG_DIM,
           fontVariantNumeric: 'tabular-nums',
@@ -291,7 +291,7 @@ export function ScopedConnectorsListPanel({
         width: 30,
         height: 30,
         padding: 0,
-        fontSize: 13,
+        fontSize: 12,
         fontWeight: 500,
         color: COLOR_FG_DIM,
         background: 'var(--po-hover)',
@@ -375,7 +375,7 @@ export function ScopedConnectorsListPanel({
                 >
                   <div
                     style={{
-                      fontSize: 13,
+                      fontSize: 12,
                       fontWeight: 500,
                       color: COLOR_FG_DIM,
                     }}
@@ -461,7 +461,7 @@ function EmptyIntegrationsSlot({ onClick }: { readonly onClick: () => void }) {
         <div style={{ minWidth: 0 }}>
           <div
             style={{
-              fontSize: 13,
+              fontSize: 12,
               fontWeight: 500,
               lineHeight: 1.35,
               color: COLOR_FG,
@@ -575,7 +575,7 @@ function ScopeMetaLabel({ children }: { readonly children: ReactNode }) {
   return (
     <div
       style={{
-        fontSize: 13,
+        fontSize: 12,
         fontWeight: 500,
         color: COLOR_FG_DIM,
         lineHeight: 1.25,
@@ -614,7 +614,7 @@ function ScopePathTrail({
               style={{
                 flexShrink: 0,
                 color: COLOR_FG_DIM,
-                fontSize: 13,
+                fontSize: 12,
                 lineHeight: 1,
               }}
             >
@@ -629,7 +629,7 @@ function ScopePathTrail({
               minWidth: 0,
               flexShrink: index === items.length - 1 ? 1 : 0,
               color: index === items.length - 1 ? COLOR_FG : COLOR_FG_DIM,
-              fontSize: 13,
+              fontSize: 12,
               fontWeight: index === items.length - 1 ? 600 : 500,
               lineHeight: 1.2,
               whiteSpace: 'nowrap',
