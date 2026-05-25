@@ -1,6 +1,6 @@
 """Text indexer — populates ``version_text_index`` from new commits.
 
-Contract: ``docs/proposals/PUP-federated-search.md`` (§6).
+Contract: ``docs/proposals/PUP-cloud-grep.md`` (§6).
 
 This module is intentionally agnostic about *when* it gets called:
 

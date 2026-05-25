@@ -26,31 +26,63 @@ read another user's shadow snapshots without an explicit opt-in.
 
 ---
 
-## 2. Storage shape (`local_shadow_snapshots`)
+## 2. Storage shape
+
+A snapshot is split across two stores so the row stays cheap to query
+while the manifest body has no practical size ceiling:
+
+### 2.1 Supabase row (`local_shadow_snapshots`)
 
 One row per `(project_id, user_id, machine_id, ref_name)` — unique
 together. Columns:
 
 | Column | Meaning |
 |---|---|
-| `id` UUID | Surrogate primary key (cheap join target). |
+| `id` UUID | Surrogate primary key. Also the S3 path segment for this snapshot's manifest object. |
 | `project_id` | The project the snapshot belongs to. RLS bounded. |
 | `user_id` | The owner of the snapshot. **Always** the authenticated user; the API rejects spoofing. |
 | `machine_id` | Optional client-side hostname / device id so a user can have multiple machines pushing snapshots. |
 | `ref_name` | The Git ref (typically `main` or a feature branch) the snapshot represents. |
-| `manifest` JSONB | The array of entries (see §3). |
 | `tree_hash` | Optional: SHA-1 of the Git tree the client built locally. Filled when the client computed it; we never trust the client for canonical commits — it's a fast lookup key. |
-| `blob_hashes` JSONB | Flat array of distinct blob hashes in the manifest, for cheap "do you have blob X" queries. |
-| `file_count`, `total_bytes` | Pre-computed for dashboards. |
-| `previews` JSONB | Optional map `{path: short text}` so the server can answer `puppyone fs grep --ref local:` without the actual blob bytes on the server. |
+| `file_count`, `total_bytes` | Pre-computed for dashboards (`GET /local-snapshots` list endpoint, etc.). |
 | `created_at`, `updated_at` | Standard timestamps. |
+
+The previous JSONB columns (`manifest`, `previews`, `blob_hashes`)
+have been **removed**. They were capped at 8 MiB combined because
+larger payloads pressed against Postgres TOAST + JSONB performance,
+which broke large-monorepo onboarding. The whole document now lives
+in S3 (see §2.2).
 
 The table is service-role-only at the RLS level for V1; user-scoped
 reads go through the authenticated API endpoint (§5).
 
+### 2.2 S3 manifest object
+
+S3 key: `shadow-snapshots/{project_id}/{snapshot_id}/manifest.json`
+
+A single JSON document carrying all three logical chunks at once:
+
+```jsonc
+{
+  "version": 1,
+  "snapshot_id": "<uuid>",
+  "manifest":     [ { "path": "src/main.py", "mode": "100644", "blob_hash": "...", "size": 4231, "preview": "…" }, ... ],
+  "previews":     { "path/to/file.md": "first 200 bytes…", ... },
+  "blob_hashes":  [ "<sha1>", "<sha1>", ... ]  // distinct hashes for cheap presence lookups
+}
+```
+
+One PUT per upsert (overwrite-in-place at the same key), one GET per
+read, one DELETE per snapshot delete. The manifest is overwritable
+because it's authoritative client-side state — not content-addressed.
+
+Writes are S3-first then DB-upsert, so a transient DB failure leaves
+a harmless S3 object that the next successful upsert overwrites, but
+never an orphan DB row pointing at a non-existent manifest.
+
 ---
 
-## 3. Manifest format (`manifest` JSONB)
+## 3. Manifest format (S3 manifest object, `manifest` key)
 
 A JSON array of one object per tracked file:
 
@@ -75,14 +107,16 @@ Constraints the server enforces:
   `40000`). Submodules (`160000`) are rejected for V1.
 - `blob_hash` must be a 40-hex SHA-1. The server does **not** require
   the blob to be present in its object store — see §4.
-- `size` must be non-negative and `≤ 50 MiB` per file (V1 cap).
+- `size` must be non-negative and `≤ 50 MiB` per file.
 
-Per-snapshot caps:
-- `≤ 100_000` entries (sized for typical monorepos)
-- total manifest size `≤ 8 MiB` (after JSON encoding)
+Per-snapshot cap:
+- `≤ 100_000` entries (sanity bound — far above any typical project;
+  the Linux kernel is ~80k tracked files). A snapshot past this is
+  rejected with HTTP 413 + structured detail naming the cap.
 
-A snapshot that exceeds these caps is rejected with HTTP 413 and a
-message naming the limit so the client can split or skip.
+The old "manifest JSON byte size ≤ 8 MiB" cap is gone — S3 has no
+relevant ceiling for our use, and the per-file + entry-count caps
+already bound total upload work.
 
 ---
 

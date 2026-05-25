@@ -3,7 +3,6 @@ import { registerCpCommand } from "./commands/cp.js";
 import { registerDownloadCommand } from "./commands/download.js";
 import { registerFindCommand } from "./commands/find.js";
 import { registerGrepCommand } from "./commands/grep.js";
-import { registerSearchCommand } from "./commands/search.js";
 import { registerHeadCommand } from "./commands/head.js";
 import { registerLsCommand } from "./commands/ls.js";
 import { registerMkdirCommand } from "./commands/mkdir.js";
@@ -60,7 +59,6 @@ export function registerFsCommands(fs) {
   registerTreeCommand(fs);
   registerFindCommand(fs);
   registerGrepCommand(fs);
-  registerSearchCommand(fs);
   registerCatCommand(fs);
   registerHeadCommand(fs);
   registerTailCommand(fs);

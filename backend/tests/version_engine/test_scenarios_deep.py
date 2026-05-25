@@ -749,8 +749,16 @@ class TestPermission:
 
 
 # ════════════════════════════════════════════════════════════════
-# J. Shadow snapshot caps (8 MiB / 413)
+# J. Shadow snapshot caps (entry count → 413)
 # ════════════════════════════════════════════════════════════════
+#
+# The previous "manifest JSON byte size" cap was retired when the
+# manifest moved from a Supabase JSONB column to S3 (one object per
+# snapshot). S3 has no relevant size ceiling for our purposes, so the
+# remaining caps are sanity bounds: entry count (so the server isn't
+# DoS'd by a 10M-row manifest) and per-file size (so individual blob
+# upload paths stay sane). Both raise HTTPException(413) directly now;
+# no domain-specific exception type to import.
 
 
 class TestShadowSnapshotCaps:
@@ -772,22 +780,30 @@ class TestShadowSnapshotCaps:
 
     def test_small_manifest_passes(self):
         from src.version_engine.entrypoints.http.shadow_snapshot import (
-            _enforce_snapshot_caps,
+            _enforce_entry_count,
         )
         req = self._request([self._entry()])
-        _enforce_snapshot_caps(req)  # no raise
+        _enforce_entry_count(req)  # no raise
 
-    def test_oversize_manifest_raises_413_marker(self):
+    def test_oversize_entry_count_raises_413(self):
+        from fastapi import HTTPException
         from src.version_engine.entrypoints.http.shadow_snapshot import (
-            _enforce_snapshot_caps, SnapshotPayloadTooLargeError,
+            _enforce_entry_count, _MAX_FILES_PER_SNAPSHOT,
         )
-        # 20 MB preview blows the 8 MB cap.
-        big = "x" * (20 * 1024 * 1024)
-        req = self._request([self._entry(preview=big)])
-        with pytest.raises(SnapshotPayloadTooLargeError) as exc:
-            _enforce_snapshot_caps(req)
-        assert "manifest JSON size" in exc.value.limit_name
-        assert exc.value.actual > exc.value.cap
+        # Build a manifest one entry past the cap. Use unique paths so
+        # pydantic doesn't reject duplicates before we hit the cap check.
+        oversize = [
+            self._entry(path=f"f{i}.txt") for i in range(_MAX_FILES_PER_SNAPSHOT + 1)
+        ]
+        req = self._request(oversize)
+        with pytest.raises(HTTPException) as exc:
+            _enforce_entry_count(req)
+        assert exc.value.status_code == 413
+        # Detail body names which cap was hit so the client can decide
+        # to split / skip / upgrade.
+        detail = exc.value.detail
+        assert detail["limit"] == "manifest entry count"
+        assert detail["actual"] > detail["cap"]
 
     def test_entry_traversal_rejected(self):
         from pydantic import ValidationError
