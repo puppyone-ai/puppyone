@@ -6,6 +6,7 @@ on:
       - newmu
     paths:
       - "supabase/migrations/**"
+      - ".github/workflows/migrate-staging.yml"
   workflow_dispatch:
 
 jobs:
@@ -37,14 +38,22 @@ jobs:
           PGHOST: db.${{ secrets.STAGING_PROJECT_ID }}.supabase.co
         run: |
           set -euo pipefail
+          # Direct DB smoke tests need the database password secret; migration push itself does not.
+          if [ -z "${PGPASSWORD:-}" ]; then
+            echo "::warning::STAGING_DB_PASSWORD is not configured; skipping direct database smoke test."
+            exit 0
+          fi
+
           command -v dig >/dev/null || sudo apt-get update -qq && sudo apt-get install -y -qq dnsutils
           IPV4=$(dig +short A "$PGHOST" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -n1 || true)
-          if [ -z "$IPV4" ]; then
-            echo "::error::Could not resolve IPv4 A record for ${PGHOST}"
-            exit 1
+          if [ -n "$IPV4" ]; then
+            psql "hostaddr=${IPV4} host=${PGHOST} port=5432 dbname=postgres user=postgres sslmode=require" \
+              -f supabase/tests/smoke_test_triggers.sql
+          else
+            echo "::warning::Could not resolve IPv4 A record for ${PGHOST}; falling back to normal DNS resolution."
+            psql "host=${PGHOST} port=5432 dbname=postgres user=postgres sslmode=require" \
+              -f supabase/tests/smoke_test_triggers.sql
           fi
-          psql "hostaddr=${IPV4} host=${PGHOST} port=5432 dbname=postgres user=postgres sslmode=require" \
-            -f supabase/tests/smoke_test_triggers.sql
 
       - name: Detect schema drift
         run: |
