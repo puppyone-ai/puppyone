@@ -37,6 +37,7 @@ from src.version_engine.write_engine.engine import (
 from src.version_engine.write_engine.path_utils import normalize_path
 from src.version_engine.write_engine.tree_objects import is_path_excluded
 from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
+from src.utils.logger import log_error
 
 
 class ReceiveCommand:
@@ -396,10 +397,12 @@ async def receive_pack_response_from_path(
             stderr_lines=_NON_FAST_FORWARD_REMOTE_LINES,
         )
     except Exception as exc:
+        log_error(f"[GitReceivePack] submission failed: {type(exc).__name__}: {exc!r}")
+        error_text = str(exc) or type(exc).__name__
         return receive_pack_result(
             command.ref,
             outcome="rejected",
-            message=f"puppyone-rejected: {exc}",
+            message=f"puppyone-rejected: {error_text}",
             capabilities=command.capabilities,
         )
 

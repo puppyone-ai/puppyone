@@ -50,7 +50,10 @@ class SupabaseClient:
                 url,
                 key,
                 options=ClientOptions(
-                    postgrest_client_timeout=10,
+                    # Version-engine pushes can upsert hundreds of object
+                    # location rows after S3 upload. Ten seconds is too tight
+                    # for large Git remotes on staging/local networks.
+                    postgrest_client_timeout=60,
                     storage_client_timeout=30,
                     schema="public",
                     httpx_client=httpx.Client(trust_env=trust_env_proxy),

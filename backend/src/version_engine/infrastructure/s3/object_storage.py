@@ -41,22 +41,25 @@ from src.version_engine.infrastructure.supabase.db_names import OBJECT_LOCATIONS
 from src.version_engine.write_engine.trace import trace_mark, trace_phase
 from src.utils.logger import log_error, log_warning
 
-# Single-blob S3 download budget. Used by the sync→async bridge below
-# to bound how long `store.get(blob_hash)` can block. The previous 30s
-# was tight: when ProductOperationAdapter does a full clone-on-write, every blob in the
-# scope is fetched serially, and large imports (e.g. Gmail messages
-# with attachments, multi-MB documents) routinely exceed it — symptom
-# was every mkdir / write_file / create_sync raising `TimeoutError`
-# from `future.result(timeout=...)` in `_run_async`. Bumped to 300s to
-# match the boto3 client's `read_timeout` (see infra/s3/service.py),
-# so the bridge timeout doesn't bite before S3 itself does.
-_ASYNC_BRIDGE_TIMEOUT_SECS = 300
+# Sync callers use this bridge for object flushes and reads. Large Git pushes
+# can legitimately fan out into many S3 writes plus location-index upserts; if
+# this budget is too small, the client sees a reject while the async task may
+# still be finishing in the background. Keep it above per-call S3 read_timeout.
+_ASYNC_BRIDGE_TIMEOUT_SECS = 1800
 _HASH_PREFIX_LEN = 2
 _MAX_LIST_KEYS = 10000
 _BUNDLE_MAGIC = b"POB1"
 _BUNDLE_HEADER_LEN_BYTES = 8
 _CANONICAL_STORAGE_NAMESPACE = "version"
 _DEFERRED_STORAGE_NAMESPACE = "".join(("m", "ut"))
+_CHUNKED_PACK_PREFIX = "chunked:"
+# Keep each physical S3 object below S3Service's multipart threshold. Supabase
+# Storage's S3-compatible multipart path is materially slower and can fail on
+# large Git pushes; small immutable bundle/chunk objects are more predictable.
+_OBJECT_BUNDLE_TARGET_BYTES = 8 * 1024 * 1024
+_OBJECT_CHUNK_BYTES = 8 * 1024 * 1024
+_OBJECT_UPLOAD_CONCURRENCY = 8
+_OBJECT_LOCATION_UPSERT_BATCH_SIZE = 200
 
 _BRIDGE_LOOP: asyncio.AbstractEventLoop | None = None
 _BRIDGE_LOCK = threading.Lock()
@@ -515,6 +518,15 @@ class S3StorageBackend(StorageBackend):
         digest = hashlib.sha256(bundle_bytes).hexdigest()
         return f"{self._bundle_prefix}/{digest[:_HASH_PREFIX_LEN]}/{digest}.pob"
 
+    def _chunk_manifest_key_for(self, h: str) -> str:
+        return f"{self._bundle_prefix}/chunked/{h[:_HASH_PREFIX_LEN]}/{h}.json"
+
+    def _chunk_part_key_for(self, h: str, index: int) -> str:
+        return (
+            f"{self._bundle_prefix}/chunked/{h[:_HASH_PREFIX_LEN]}/{h}/"
+            f"part-{index:06d}"
+        )
+
     # ── Sync methods called by ObjectStore ──
 
     def get(self, h: str) -> bytes:
@@ -733,6 +745,9 @@ class S3StorageBackend(StorageBackend):
         return data[start:end], len(data)
 
     async def async_put(self, h: str, data: bytes) -> None:
+        if self._supabase is not None and len(data) > _OBJECT_BUNDLE_TARGET_BYTES:
+            await self._async_put_chunked_object(h, data)
+            return
         await self._do_put(self._key_for(h), data)
 
     async def async_exists(self, h: str) -> bool:
@@ -776,13 +791,16 @@ class S3StorageBackend(StorageBackend):
         """
         import asyncio
         if len(objects) > 1 and self._supabase is not None:
-            await self._async_put_bundle(objects)
+            await self._async_put_bundled_or_chunked(objects)
             return
 
         sem = asyncio.Semaphore(concurrency)
 
         async def _upload(h: str, data: bytes):
             async with sem:
+                if self._supabase is not None and len(data) > _OBJECT_BUNDLE_TARGET_BYTES:
+                    await self._async_put_chunked_object(h, data)
+                    return
                 key = self._key_for(h)
                 if skip_exists:
                     await self._s3.upload_file(key, data, content_type="application/octet-stream")
@@ -901,6 +919,8 @@ class S3StorageBackend(StorageBackend):
         return False
 
     def _get_packed_object_at(self, h: str, location: ObjectLocation) -> bytes:
+        if location.pack_key.startswith(_CHUNKED_PACK_PREFIX):
+            return _run_async(self._async_get_chunked_object_at(h, location))
         try:
             with trace_phase(
                 "s3.pack.get",
@@ -990,6 +1010,8 @@ class S3StorageBackend(StorageBackend):
         h: str,
         location: ObjectLocation,
     ) -> bytes:
+        if location.pack_key.startswith(_CHUNKED_PACK_PREFIX):
+            return await self._async_get_chunked_object_at(h, location)
         try:
             with trace_phase(
                 "s3.pack.get",
@@ -1009,6 +1031,65 @@ class S3StorageBackend(StorageBackend):
             if _is_not_found_error(exc):
                 raise ObjectNotFoundError(
                     f"packed object not found in S3: {h}",
+                ) from exc
+            raise
+
+    async def _async_get_chunked_object_at(
+        self,
+        h: str,
+        location: ObjectLocation,
+    ) -> bytes:
+        manifest_key = location.pack_key.removeprefix(_CHUNKED_PACK_PREFIX)
+        try:
+            with trace_phase(
+                "s3.chunked.get",
+                object_id=h[:12],
+                size_bytes=location.size_bytes,
+            ):
+                manifest_raw = await self._s3.download_file(manifest_key)
+                manifest = json.loads(manifest_raw.decode("utf-8"))
+                if manifest.get("version") != 1 or manifest.get("object_id") != h:
+                    raise StorageWriteError(f"invalid chunk manifest for {h}")
+                chunks = manifest.get("chunks")
+                if not isinstance(chunks, list):
+                    raise StorageWriteError(f"invalid chunk list for {h}")
+                ordered_chunks = sorted(
+                    chunks,
+                    key=lambda item: int(item.get("offset_bytes", 0)),
+                )
+                sem = asyncio.Semaphore(_OBJECT_UPLOAD_CONCURRENCY)
+
+                async def download_one(chunk: dict) -> tuple[int, bytes]:
+                    key = str(chunk.get("key") or "")
+                    offset = int(chunk.get("offset_bytes") or 0)
+                    expected_size = int(chunk.get("size_bytes") or 0)
+                    async with sem:
+                        part = await self._s3.download_file(key)
+                    if len(part) != expected_size:
+                        raise StorageWriteError(
+                            f"chunk size mismatch for {h}: {key}",
+                        )
+                    return offset, part
+
+                fetched_parts = await asyncio.gather(
+                    *[download_one(chunk) for chunk in ordered_chunks],
+                )
+                parts = [
+                    part
+                    for _offset, part in sorted(
+                        fetched_parts,
+                        key=lambda item: item[0],
+                    )
+                ]
+                data = b"".join(parts)
+            if len(data) != int(manifest.get("size_bytes") or location.size_bytes):
+                raise StorageWriteError(f"chunked object size mismatch for {h}")
+            _verify_loose_hash(h, data)
+            return data
+        except Exception as exc:
+            if _is_not_found_error(exc):
+                raise ObjectNotFoundError(
+                    f"chunked object not found in S3: {h}",
                 ) from exc
             raise
 
@@ -1062,18 +1143,70 @@ class S3StorageBackend(StorageBackend):
         return found
 
     async def _async_put_bundle(self, objects: dict[str, bytes]) -> None:
-        bundle, entries = _encode_object_bundle(objects)
-        pack_key = self._bundle_key_for(bundle)
+        uploads, rows = self._bundle_upload_plan(objects)
         with trace_phase(
             "s3.pack.put",
             count=len(objects),
-            bytes=len(bundle),
+            bytes=sum(len(data) for _key, data, _content_type in uploads),
         ):
-            await self._s3.upload_file(
-                pack_key,
-                bundle,
-                content_type="application/octet-stream",
-            )
+            await self._async_upload_physical_objects(uploads)
+        await self._async_upsert_object_locations(rows)
+
+    async def _async_put_bundled_or_chunked(self, objects: dict[str, bytes]) -> None:
+        pending: dict[str, bytes] = {}
+        pending_size = 0
+        uploads: list[tuple[str, bytes, str]] = []
+        rows: list[dict] = []
+
+        async def flush_pending() -> None:
+            nonlocal pending, pending_size
+            if not pending:
+                return
+            bundle_uploads, bundle_rows = self._bundle_upload_plan(pending)
+            uploads.extend(bundle_uploads)
+            rows.extend(bundle_rows)
+            pending = {}
+            pending_size = 0
+
+        for object_id, data in sorted(objects.items()):
+            if len(data) > _OBJECT_BUNDLE_TARGET_BYTES:
+                await flush_pending()
+                chunk_uploads, chunk_row = self._chunked_object_upload_plan(object_id, data)
+                uploads.extend(chunk_uploads)
+                rows.append(chunk_row)
+                continue
+            if pending and pending_size + len(data) > _OBJECT_BUNDLE_TARGET_BYTES:
+                await flush_pending()
+            pending[object_id] = data
+            pending_size += len(data)
+        await flush_pending()
+
+        with trace_phase(
+            "s3.pack.batch_put",
+            object_count=len(objects),
+            physical_count=len(uploads),
+            bytes=sum(len(data) for _key, data, _content_type in uploads),
+        ):
+            await self._async_upload_physical_objects(uploads)
+        await self._async_upsert_object_locations(rows)
+
+    async def _async_put_chunked_object(self, h: str, data: bytes) -> None:
+        uploads, row = self._chunked_object_upload_plan(h, data)
+        with trace_phase(
+            "s3.chunked.put",
+            object_id=h[:12],
+            size_bytes=len(data),
+            physical_count=len(uploads),
+        ):
+            await self._async_upload_physical_objects(uploads)
+        await self._async_upsert_object_locations([row])
+
+    def _bundle_upload_plan(
+        self,
+        objects: dict[str, bytes],
+    ) -> tuple[list[tuple[str, bytes, str]], list[dict]]:
+        bundle, entries = _encode_object_bundle(objects)
+        pack_key = self._bundle_key_for(bundle)
         rows = [
             {
                 "project_id": self._project_id,
@@ -1084,17 +1217,89 @@ class S3StorageBackend(StorageBackend):
             }
             for entry in entries
         ]
+        return [(pack_key, bundle, "application/octet-stream")], rows
+
+    def _chunked_object_upload_plan(
+        self,
+        h: str,
+        data: bytes,
+    ) -> tuple[list[tuple[str, bytes, str]], dict]:
+        uploads: list[tuple[str, bytes, str]] = []
+        chunks: list[dict] = []
+        for index, offset in enumerate(range(0, len(data), _OBJECT_CHUNK_BYTES), start=1):
+            chunk = data[offset:offset + _OBJECT_CHUNK_BYTES]
+            key = self._chunk_part_key_for(h, index)
+            uploads.append((key, chunk, "application/octet-stream"))
+            chunks.append({
+                "key": key,
+                "offset_bytes": offset,
+                "size_bytes": len(chunk),
+            })
+
+        manifest_key = self._chunk_manifest_key_for(h)
+        manifest = json.dumps(
+            {
+                "version": 1,
+                "object_id": h,
+                "size_bytes": len(data),
+                "chunks": chunks,
+            },
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+        uploads.append((manifest_key, manifest, "application/json"))
+        row = {
+            "project_id": self._project_id,
+            "object_id": h,
+            "pack_key": f"{_CHUNKED_PACK_PREFIX}{manifest_key}",
+            "offset_bytes": 0,
+            "size_bytes": len(data),
+        }
+        return uploads, row
+
+    async def _async_upload_physical_objects(
+        self,
+        uploads: list[tuple[str, bytes, str]],
+    ) -> None:
+        sem = asyncio.Semaphore(_OBJECT_UPLOAD_CONCURRENCY)
+
+        async def upload_one(key: str, data: bytes, content_type: str) -> None:
+            async with sem:
+                await self._s3.upload_file(
+                    key,
+                    data,
+                    content_type=content_type,
+                )
+
+        results = await asyncio.gather(
+            *[
+                upload_one(key, data, content_type)
+                for key, data, content_type in uploads
+            ],
+            return_exceptions=True,
+        )
+        errors = [item for item in results if isinstance(item, Exception)]
+        if errors:
+            raise errors[0]
+
+    async def _async_upsert_object_locations(self, rows: list[dict]) -> None:
+        if not rows:
+            return
         with trace_phase("db.object_location.upsert", count=len(rows)):
-            await asyncio.to_thread(
-                lambda: self._supabase.client.table(OBJECT_LOCATIONS_TABLE).upsert(
-                    rows,
-                    on_conflict="project_id,object_id",
-                ).execute()
-            )
+            for offset in range(0, len(rows), _OBJECT_LOCATION_UPSERT_BATCH_SIZE):
+                chunk = rows[offset:offset + _OBJECT_LOCATION_UPSERT_BATCH_SIZE]
+                await asyncio.to_thread(
+                    lambda batch=chunk: self._supabase.client.table(
+                        OBJECT_LOCATIONS_TABLE
+                    ).upsert(
+                        batch,
+                        on_conflict="project_id,object_id",
+                    ).execute()
+                )
         with self._location_lock:
             for row in rows:
                 self._location_cache[row["object_id"]] = ObjectLocation(
-                    pack_key=pack_key,
+                    pack_key=row["pack_key"],
                     offset_bytes=int(row["offset_bytes"]),
                     size_bytes=int(row["size_bytes"]),
                 )

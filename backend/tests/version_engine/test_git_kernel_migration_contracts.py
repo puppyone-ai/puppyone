@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import random
 import re
 import subprocess
 from contextlib import contextmanager
@@ -31,6 +32,7 @@ from src.version_engine.write_engine.object_store import ObjectStore, StorageBac
 from src.version_engine.write_engine.path_utils import normalize_path
 from src.version_engine.adapters.git.object_quarantine import GitObjectQuarantine
 from src.version_engine.admission.repo_facade import repo_facade_from_auth
+import src.version_engine.infrastructure.s3.object_storage as s3_object_storage
 from src.version_engine.infrastructure.s3.object_storage import S3StorageBackend
 from src.version_engine.infrastructure.supabase.db_names import OBJECT_LOCATIONS_TABLE
 
@@ -377,6 +379,115 @@ async def test_object_batch_writes_one_bundle_with_location_index() -> None:
     }
     assert supabase.select_calls == 1
     assert s3.file_exists_keys == []
+
+
+@pytest.mark.asyncio
+async def test_object_batch_chunks_large_objects_below_storage_object_cap(monkeypatch) -> None:
+    monkeypatch.setattr(s3_object_storage, "_OBJECT_BUNDLE_TARGET_BYTES", 1024)
+    monkeypatch.setattr(s3_object_storage, "_OBJECT_CHUNK_BYTES", 512)
+
+    rng = random.Random(0)
+    large_id, large_loose = encode_object(
+        "blob",
+        bytes(rng.randrange(256) for _ in range(4096)),
+    )
+    small_id, small_loose = encode_object("blob", b"small\n")
+
+    class _FakeS3:
+        def __init__(self):
+            self.uploads: dict[str, bytes] = {}
+            self.upload_sizes: list[int] = []
+
+        async def upload_file(self, key, content, content_type=None, metadata=None):
+            self.upload_sizes.append(len(content))
+            if len(content) > 4096:
+                raise AssertionError(f"physical S3 object too large: {len(content)}")
+            self.uploads[key] = content
+            return SimpleNamespace(key=key)
+
+        async def download_file(self, key):
+            if key not in self.uploads:
+                raise FileNotFoundError("not found")
+            return self.uploads[key]
+
+        async def download_file_range(self, key, start=0, limit=None):
+            if key not in self.uploads:
+                raise FileNotFoundError("not found")
+            content = self.uploads[key]
+            end = len(content) if limit is None else min(len(content), start + limit)
+            return content[start:end], len(content)
+
+        async def file_exists(self, key):
+            return key in self.uploads
+
+    class _FakeTable:
+        def __init__(self, db):
+            self.db = db
+            self.filters = {}
+            self._upsert_rows = None
+
+        def upsert(self, rows, on_conflict=None):
+            self._upsert_rows = rows
+            return self
+
+        def select(self, *_args):
+            return self
+
+        def eq(self, key, value):
+            self.filters[key] = value
+            return self
+
+        def in_(self, key, values):
+            self.filters[key] = list(values)
+            return self
+
+        def execute(self):
+            if self._upsert_rows is not None:
+                for row in self._upsert_rows:
+                    self.db.rows[(row["project_id"], row["object_id"])] = row
+                return SimpleNamespace(data=self._upsert_rows)
+            project_id = self.filters.get("project_id")
+            object_ids = self.filters.get("object_id")
+            if isinstance(object_ids, list):
+                return SimpleNamespace(data=[
+                    row
+                    for oid in object_ids
+                    if (row := self.db.rows.get((project_id, oid))) is not None
+                ])
+            row = self.db.rows.get((project_id, object_ids))
+            return SimpleNamespace(data=[row] if row else [])
+
+    class _FakeSupabase:
+        def __init__(self):
+            self.client = self
+            self.rows = {}
+
+        def table(self, name):
+            assert name == OBJECT_LOCATIONS_TABLE
+            return _FakeTable(self)
+
+    s3 = _FakeS3()
+    supabase = _FakeSupabase()
+    backend = S3StorageBackend(s3, "proj", supabase=supabase)
+
+    await backend.async_put_many({
+        large_id: large_loose,
+        small_id: small_loose,
+    }, skip_exists=True)
+
+    large_location = supabase.rows[("proj", large_id)]
+    small_location = supabase.rows[("proj", small_id)]
+    assert large_location["pack_key"].startswith("chunked:")
+    assert "/object-bundles/" in small_location["pack_key"]
+    assert small_location["pack_key"].endswith(".pob")
+    assert any("/chunked/" in key and "/part-" in key for key in s3.uploads)
+
+    cold_backend = S3StorageBackend(s3, "proj", supabase=supabase)
+    assert cold_backend.get(large_id) == large_loose
+    assert cold_backend.get(small_id) == small_loose
+    large_slice, large_total = await cold_backend.async_get_range(large_id, 10, 25)
+    assert large_total == len(large_loose)
+    assert large_slice == large_loose[10:35]
 
 
 def test_s3_backend_reads_deferred_namespace_but_writes_final_namespace() -> None:
