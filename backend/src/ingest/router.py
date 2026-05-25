@@ -536,7 +536,7 @@ async def init_multipart_upload(
     # can reach gather.
     prepared_files: list[dict] = []
     for f in request.files:
-        # The per-file policy cap (50 MB, PUP-3) is the stricter of
+        # The per-file policy cap (100 MB, PUP-3) is the stricter of
         # the two; ``_MAX_FILE_SIZE`` (5 GiB) is the legacy multipart
         # ceiling kept for the chunk-count check below. Enforce the
         # policy cap first so users see the policy-level message,

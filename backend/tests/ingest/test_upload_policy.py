@@ -153,7 +153,7 @@ class TestThresholds:
         #   - frontend/lib/uploadPolicy.ts
         #   - cli/src/commands/fs/lib/upload-policy.js
         #   - docs/proposals/PUP-3-folder-upload-policy.md (§2.5)
-        assert PER_FILE_MAX_BYTES == 50 * 1024 * 1024
+        assert PER_FILE_MAX_BYTES == 100 * 1024 * 1024
         assert PER_BATCH_MAX_FILES == 5000
         assert PER_BATCH_MAX_BYTES == 1024 * 1024 * 1024
 
