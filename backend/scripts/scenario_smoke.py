@@ -646,10 +646,14 @@ def scenario_i_target_admission_factory():
 
 
 def scenario_j_shadow_snapshot_caps():
-    _section("J. Shadow snapshot: 8 MiB cap returns structured 413")
+    _section("J. Shadow snapshot: entry-count cap returns structured 413")
+    # The old byte-size cap on the manifest JSON column went away when
+    # manifests moved to S3; only the entry-count + per-file caps
+    # remain. Both raise HTTPException(413) directly now.
+    from fastapi import HTTPException
     from src.version_engine.entrypoints.http.shadow_snapshot import (
         UpsertShadowSnapshotRequest, ShadowSnapshotEntry,
-        _enforce_snapshot_caps, SnapshotPayloadTooLargeError,
+        _enforce_entry_count, _MAX_FILES_PER_SNAPSHOT,
     )
 
     # Small payload: passes
@@ -657,23 +661,28 @@ def scenario_j_shadow_snapshot_caps():
         project_id=PROJECT_ID,
         manifest=[ShadowSnapshotEntry(path="a.txt", blob_hash="a" * 40)],
     )
-    _enforce_snapshot_caps(small)
+    _enforce_entry_count(small)
     _info("small manifest accepted")
 
-    # Oversize: catches with structured info
-    big_preview = "x" * (20 * 1024 * 1024)
+    # Oversize entry count: structured 413 body.
     big = UpsertShadowSnapshotRequest(
         project_id=PROJECT_ID,
-        manifest=[ShadowSnapshotEntry(
-            path="huge.txt", blob_hash="a" * 40, preview=big_preview,
-        )],
+        manifest=[
+            ShadowSnapshotEntry(path=f"f{i}.txt", blob_hash="a" * 40)
+            for i in range(_MAX_FILES_PER_SNAPSHOT + 1)
+        ],
     )
     try:
-        _enforce_snapshot_caps(big)
-        raise AssertionError("should have caught oversize")
-    except SnapshotPayloadTooLargeError as exc:
-        _info(f"caught: limit_name={exc.limit_name}, actual={exc.actual}, cap={exc.cap}")
-        _ok("oversize manifest → SnapshotPayloadTooLargeError ready for HTTP 413")
+        _enforce_entry_count(big)
+        raise AssertionError("should have caught oversize entry count")
+    except HTTPException as exc:
+        assert exc.status_code == 413
+        detail = exc.detail or {}
+        _info(
+            f"caught: limit={detail.get('limit')}, "
+            f"actual={detail.get('actual')}, cap={detail.get('cap')}"
+        )
+        _ok("oversize entry count → HTTP 413 with structured detail")
 
 
 def scenario_k_health_recommendations():

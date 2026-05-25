@@ -120,7 +120,6 @@ def _patch_auth(monkeypatch, scope_path: str = ""):
             "grep",
             {"body": apfs._GrepIndexedRequest(pattern="needle")},
         ),
-        ("search", "semantics", {"body": apfs._SearchRequest(query="needle")}),
         ("read_file", "cat", {"path": "notes.md"}),
         ("raw_file", "download", {"path": "notes.md"}),
         ("upload_file", "upload", {"request": None, "path": "notes.md"}),

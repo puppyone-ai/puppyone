@@ -4,7 +4,7 @@
 --
 -- Backs ``POST /ap-fs/grep-indexed`` and ``POST /ap-fs/search``.
 -- Implementation contract is in
--- ``docs/proposals/PUP-federated-search.md``.
+-- ``docs/proposals/PUP-cloud-grep.md``.
 --
 -- Why two GIN indexes instead of one:
 --   * ``tsvector`` (``to_tsvector('simple', text)``) — word-aware

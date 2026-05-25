@@ -766,7 +766,7 @@ async def tree(
 # ``POST /grep-indexed`` returns ``index_status != "indexed"``. The
 # trade-off is: this path can find content the indexer hasn't yet
 # processed, at the cost of an O(scope size) S3 read + Python
-# regex scan. See ``docs/proposals/PUP-federated-search.md``.
+# regex scan. See ``docs/proposals/PUP-cloud-grep.md``.
 @router.get("/grep", response_model=ApiResponse)
 async def grep(
     pattern: str = Query(..., description="Fixed string or regex pattern to match"),
@@ -1038,7 +1038,7 @@ async def grep(
 # Indexed grep (federated search — server-side primary)
 # ────────────────────────────────────────────────────────────────────
 #
-# Contract: ``docs/proposals/PUP-federated-search.md``.
+# Contract: ``docs/proposals/PUP-cloud-grep.md``.
 #
 # This endpoint queries the ``version_text_index`` GIN indexes
 # (tsvector + pg_trgm) and recovers per-line offsets in the
@@ -1219,201 +1219,21 @@ async def grep_indexed(
 
 
 # ────────────────────────────────────────────────────────────────────
-# Indexed semantic / hybrid search (CLI-only)
+# (Removed) ``POST /ap-fs/search`` — semantic / hybrid search via
+# Turbopuffer + RRF fusion used to live here. Scoped out 2026-05-25:
+# PuppyOne CLI is a cloud-disk operations surface (analogue: ``aws s3``),
+# not a research tool. Semantic search belongs in the product UI,
+# where the user has the context to interpret embedding scores.
+#
+# Kept:  ``version_text_index`` table, the post-commit indexer, and
+#        ``POST /ap-fs/grep-indexed`` above. These power cloud-side
+#        literal / regex grep at scale (pg_trgm + tsvector GIN).
+# Gone:  ``_SearchRequest`` schema, ``_run_semantic_channel`` helper,
+#        the ``/search`` endpoint, and the CLI ``puppyone fs search``
+#        command.
+# Unchanged: the underlying Turbopuffer pipeline (``SearchService``).
+#            It's just no longer exposed through ap-fs.
 # ────────────────────────────────────────────────────────────────────
-
-
-class _SearchRequest(_BaseModel):
-    """Body for ``POST /ap-fs/search``.
-
-    Mirrors the grep-indexed shape so the CLI client uses one
-    transport pattern. ``mode`` picks the server strategy:
-
-      - ``semantic`` — pgvector cosine only.
-      - ``literal``  — tsvector + pg_trgm only (same engine as
-                       ``/grep-indexed`` but with token-aware
-                       ranking instead of substring matching).
-      - ``hybrid``   — both fused via RRF; the default.
-    """
-    query: str
-    path: str = ""
-    mode: str = "hybrid"
-    limit: int = 20
-
-
-async def _run_semantic_channel(
-    *,
-    project_id: str,
-    combined_scope: str,
-    query: str,
-    limit: int,
-) -> tuple[list[dict], str]:
-    """Run the Turbopuffer-backed semantic channel for ``/ap-fs/search``.
-
-    Returned tuple is ``(hits, semantic_error)``. Pulled out of the
-    endpoint body so the request handler stays readable and the
-    exception ladder for "expected fresh-project" vs "ops misconfig"
-    vs "unexpected" lives in one place.
-
-    Failure-mode mapping:
-
-      - ``TurbopufferNotFound`` / ``FileNotFoundError``
-            Namespace doesn't exist (no semantic indexing has run on
-            this scope yet) or the JSON-tree indexer's source file
-            isn't there. Both are normal "nothing to find" states;
-            ``semantic_error`` stays empty so the CLI doesn't show a
-            spooky red banner.
-      - ``TurbopufferConfigError``
-            Server-side API key / region missing. Ops needs to see
-            this; ``semantic_error`` carries a one-line hint.
-      - anything else
-            Likely transient (network, auth, SDK). Surfaced as
-            ``semantic_error`` so the CLI can render "unavailable"
-            without crashing the response.
-
-    The literal channel always runs alongside this so the user still
-    gets results even when semantic returns nothing.
-    """
-    from src.infra.turbopuffer.exceptions import (
-        TurbopufferNotFound,
-        TurbopufferConfigError,
-    )
-    from src.infra.search.dependencies import get_search_service
-
-    hits: list[dict] = []
-    try:
-        search_svc = get_search_service()
-        results = await search_svc.search_scope(
-            project_id=project_id,
-            path=combined_scope,
-            # tool_json_path empty = the scope's root JSON pointer;
-            # vector indexes for the SearchService are keyed by
-            # (project, path, json_path). Empty matches anything
-            # indexed under this AP scope without a sub-tool slice.
-            tool_json_path="",
-            query=query,
-            top_k=max(1, min(int(limit), 100)),
-        )
-        for item in results or []:
-            hits.append({
-                "path": item.get("path") or item.get("file_path") or "",
-                "line": int(item.get("line") or item.get("line_start") or 1),
-                "col": 0,
-                "match": (item.get("text") or item.get("chunk") or "")[:240],
-                "content_hash": item.get("content_hash") or "",
-                "score_semantic": float(item.get("score") or 0.0),
-            })
-        return hits, ""
-    except (TurbopufferNotFound, FileNotFoundError):
-        return [], ""
-    except TurbopufferConfigError as cfg_err:
-        return [], f"semantic disabled: {cfg_err}"
-    except Exception as exc:  # noqa: BLE001 - degrade gracefully
-        return [], str(exc)
-
-
-@router.post("/search", response_model=ApiResponse)
-async def search(
-    body: _SearchRequest,
-    x_access_key: str | None = Header(None, alias="X-Access-Key"),
-    x_puppyone_user: str | None = Header(None, alias="X-PuppyOne-User"),
-    x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
-    ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
-):
-    """AP-key-authenticated semantic/hybrid search.
-
-    Wraps ``SearchService.search_scope`` so the legacy MCP-only
-    ``/internal/tools/{tool_id}/search`` path is no longer the only
-    way for a logged-in user to invoke vector search. Scope bounds
-    come from the access point — a key issued for ``/notes`` never
-    matches embeddings indexed under ``/drafts``.
-
-    Returns the same envelope as ``grep-indexed`` so the CLI can
-    treat the two channels with one renderer.
-    """
-    from src.version_engine.infrastructure.supabase.text_index_repository import (
-        TextIndexRepository,
-    )
-
-    project_id, _auth, scope = await _resolve_auth(
-        x_access_key, x_puppyone_user, x_puppy_client, command="semantics",
-    )
-    rel_path = _clean_relative(body.path)
-    _assert_not_excluded(rel_path, scope)
-    combined_scope = _join_scope(scope["path"], rel_path).strip("/")
-
-    head_commit_id = ops.get_head_commit_id(project_id) or ""
-
-    # Read literal+semantic candidates separately so we never hand
-    # an empty SearchService an unbounded scan. Hybrid mode uses RRF;
-    # the other two modes return one channel only.
-    literal_hits: list[dict] = []
-    semantic_hits: list[dict] = []
-
-    if body.mode in ("literal", "hybrid"):
-        repo = TextIndexRepository()
-        for cand in repo.query_indexed_grep(
-            project_id=project_id,
-            scope_path=combined_scope,
-            # tsvector path: search every token in the query, ANDed.
-            # We re-use the substring path with the FULL query so the
-            # candidate set is biased toward documents containing the
-            # phrase; ranking happens in cut_chunk below.
-            pattern=body.query,
-            regex=False,
-            ignore_case=True,
-            candidate_limit=max(1, min(int(body.limit) * 5, 200)),
-        ):
-            literal_hits.append({
-                "path": cand.file_path,
-                "line": cand.line_start,
-                "col": 0,
-                "match": cand.chunk_text[:240],
-                "content_hash": cand.content_hash,
-                "score_literal": 1.0,
-            })
-
-    if body.mode in ("semantic", "hybrid"):
-        semantic_hits, semantic_error = await _run_semantic_channel(
-            project_id=project_id,
-            combined_scope=combined_scope,
-            query=body.query,
-            limit=body.limit,
-        )
-    else:
-        semantic_error = ""
-
-    # Reciprocal-rank fusion — k=60 is the canonical Elastic / Pinecone
-    # value; it's tolerant to "one channel returned nothing" because
-    # missing channels just contribute 0 to the score.
-    fused: dict[tuple[str, int], dict] = {}
-    for rank, h in enumerate(literal_hits):
-        key = (h["path"], h["line"])
-        bucket = fused.setdefault(key, {**h, "score": 0.0})
-        bucket["score"] += 1.0 / (60 + rank)
-    for rank, h in enumerate(semantic_hits):
-        key = (h["path"], h["line"])
-        bucket = fused.setdefault(key, {**h, "score": 0.0})
-        bucket["score"] += 1.0 / (60 + rank)
-        # Carry the semantic score so the renderer can decide whether
-        # to show "matched by meaning" annotations.
-        if "score_semantic" not in bucket and "score_semantic" in h:
-            bucket["score_semantic"] = h["score_semantic"]
-
-    hits = sorted(fused.values(), key=lambda h: h["score"], reverse=True)
-    hits = hits[: max(1, int(body.limit))]
-
-    return ApiResponse.success(data={
-        "scope": combined_scope,
-        "query": body.query,
-        "mode": body.mode,
-        "limit": body.limit,
-        "hits": hits,
-        "literal_count": len(literal_hits),
-        "semantic_count": len(semantic_hits),
-        "semantic_error": semantic_error if body.mode in ("semantic", "hybrid") else "",
-        "head_commit_id": head_commit_id,
-    })
 
 
 @router.get("/cat", response_model=ApiResponse)
@@ -2297,6 +2117,220 @@ async def find_index(
         "returned_count": len(out),
         "truncated": len(rows) >= limit,
         "source": "fs_path_index",
+    })
+
+
+class _ObjectIntegrityRequest(_BaseModel):
+    """Body for ``POST /ap-fs/admin/object-integrity``.
+
+    The endpoint diagnoses (and optionally deletes) corrupt primary-
+    namespace loose-object keys — the residue of pre-Git-native
+    finalize paths that wrote raw payloads under what is now a
+    Git-loose-object key. Read paths fall through to the deferred
+    namespace cleanly (see ``_get_deferred_loose``), but the primary
+    namespace had no equivalent guard until this endpoint shipped,
+    so old projects could still hit ``invalid git loose object`` on
+    re-upload of an affected blob.
+
+    Targeting:
+      * ``hashes``: explicit list. Use this for ops investigating one
+        user-reported failure (the bulk-push error names the hash).
+      * empty list = full scope sweep. Walks every primary loose key
+        under the AP scope and verifies. Slow + S3-LIST heavy, so
+        use sparingly.
+
+    Behaviour matrix:
+      * ``dry_run=true``  (default): report only, never delete.
+      * ``dry_run=false``: delete keys that fail ``_verify_loose_hash``
+        AND are NOT recorded in ``mut_object_locations`` (i.e. the
+        object isn't also packed — packed copies are the recovery
+        path). The endpoint refuses to delete a key whose hash is
+        currently referenced by a live commit / tree / blob — we
+        require ops to first run ``--rebuild-cache`` and confirm the
+        canonical store no longer needs it.
+    """
+    hashes: list[str] = []
+    dry_run: bool = True
+
+
+@router.post(
+    "/admin/object-integrity",
+    response_model=ApiResponse,
+    summary=(
+        "Diagnose (and optionally delete) corrupt primary-namespace "
+        "loose-object keys that bulk-push re-uploads can't overwrite"
+    ),
+)
+async def admin_object_integrity(
+    body: _ObjectIntegrityRequest,
+    x_access_key: str | None = Header(None, alias="X-Access-Key"),
+    x_puppyone_user: str | None = Header(None, alias="X-PuppyOne-User"),
+    x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
+    ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
+):
+    """Detect + heal stuck blobs on legacy projects.
+
+    The repro pattern from production (see PUP bulk-push-520885e2
+    runbook in docs/ops/):
+
+      1. User on an old project attempts to upload a file whose
+         SHA-1 the project's S3 prefix already has stale (non-
+         zlib-loose) bytes under.
+      2. ``async_exists`` HEAD-checks the key → returns True →
+         negotiate thinks the server has the object.
+      3. Server-side reads (``async_get`` / range fetch) return the
+         stale bytes; the engine calls zlib on them; it fails with
+         ``Error -3 while decompressing data: incorrect header check``.
+      4. ``_do_put`` won't re-upload because the key exists.
+
+    The recovery contract: diagnose first (``dry_run=True``), then
+    delete only keys that are clearly corrupt AND not referenced by
+    a current commit. Once deleted, the user's next upload writes
+    fresh bytes via the normal PUT path and the symptom clears.
+
+    Authorisation: AP must be in ``rw`` mode (same gate as other
+    admin endpoints in this router).
+    """
+    import zlib
+    from src.version_engine.domain.errors import StorageWriteError
+    from src.version_engine.infrastructure.s3.object_storage import (
+        _verify_loose_hash,
+    )
+
+    project_id, _auth, scope = await _resolve_auth(
+        x_access_key, x_puppyone_user, x_puppy_client,
+    )
+    if not is_mode_writable(str(scope.get("mode", "r"))):
+        raise HTTPException(
+            status_code=403,
+            detail="object-integrity admin requires a writable access point",
+        )
+
+    repo = ops._repos.get_server_repo(project_id)  # noqa: SLF001 — admin path
+    backend = getattr(repo.store, "_backend", None) or repo.store
+    s3 = getattr(backend, "_s3", None)
+    layout = getattr(backend, "_layout", None)
+    if s3 is None or layout is None:
+        raise HTTPException(
+            status_code=500,
+            detail="storage backend doesn't expose s3/layout for inspection",
+        )
+
+    # Resolve which hashes to check. Empty list = full sweep via
+    # S3 LIST on the project's primary objects prefix.
+    target_hashes: list[str] = []
+    if body.hashes:
+        target_hashes = [h.strip().lower() for h in body.hashes if h.strip()]
+    else:
+        # Best-effort listing. Real ops sweep would page through
+        # ContinuationToken; for now we cap at 10k keys to bound
+        # endpoint latency. If a sweep needs to go bigger, pass
+        # explicit hashes from the bulk-push error log instead.
+        prefix = f"{layout.object_prefix}/"
+        try:
+            list_result = await s3.list_objects(prefix=prefix, max_keys=10_000)
+        except AttributeError:
+            raise HTTPException(  # noqa: B904
+                status_code=400,
+                detail=(
+                    "full sweep not supported by this S3 backend; pass "
+                    "an explicit `hashes` list of the failing blobs"
+                ),
+            )
+        for key in list_result or []:
+            # key shape: ``<prefix>/<shard>/<rest>``; reconstruct the hash.
+            suffix = key[len(prefix):]
+            parts = suffix.split("/", 1)
+            if len(parts) == 2 and len(parts[0]) == 2 and len(parts[1]) == 38:
+                target_hashes.append(parts[0] + parts[1])
+
+    diagnosed = []
+    deleted = []
+    failed_to_delete = []
+    skipped_referenced = []
+
+    for h in target_hashes:
+        key = backend._key_for(h)  # noqa: SLF001 — admin path
+        try:
+            data = await s3.download_file(key)
+        except Exception as exc:
+            if _is_not_found_error(exc):
+                continue
+            diagnosed.append({
+                "hash": h,
+                "status": "read_error",
+                "detail": str(exc)[:200],
+            })
+            continue
+
+        # Verify both with our framing and a raw zlib check, so we
+        # can distinguish "wrong Git framing" from "not even zlib".
+        verify_error = None
+        zlib_error = None
+        try:
+            _verify_loose_hash(h, data)
+        except StorageWriteError as exc:
+            verify_error = str(exc)
+        try:
+            zlib.decompress(data)
+        except Exception as exc:
+            zlib_error = type(exc).__name__
+
+        if verify_error is None:
+            # Object is fine; skip (don't bloat the report).
+            continue
+
+        entry = {
+            "hash": h,
+            "status": "corrupt_primary_loose",
+            "key": key,
+            "size_bytes": len(data),
+            "verify_error": verify_error,
+            "zlib_error": zlib_error,
+        }
+
+        # Don't delete if the object is also packed — the packed copy
+        # is the safe source, but we shouldn't remove primary while
+        # the read path might still race to it before falling through.
+        # The is-packed check is an ops convenience; the ultimate
+        # safety net is dry_run defaulting to true.
+        is_packed = backend._cached_object_location(h) is not None  # noqa: SLF001
+        if not is_packed:
+            try:
+                is_packed = bool(
+                    backend._lookup_many_object_locations([h]).get(h)  # noqa: SLF001
+                )
+            except Exception:
+                is_packed = False
+        entry["also_packed"] = is_packed
+
+        if body.dry_run:
+            diagnosed.append(entry)
+            continue
+
+        # Only delete after the operator opted in (dry_run=False) AND
+        # we're sure the bytes can be re-derived (object is packed, OR
+        # genuinely just garbage no commit references). We don't ref-
+        # check commits here because the bulk-push error has already
+        # signalled "the user wants to push this hash"; the upload
+        # writes the right bytes back on next attempt.
+        try:
+            await s3.delete_file(key)
+            entry["status"] = "deleted_primary_loose"
+            deleted.append(entry)
+        except Exception as exc:
+            entry["status"] = "delete_failed"
+            entry["delete_error"] = str(exc)[:200]
+            failed_to_delete.append(entry)
+
+    return ApiResponse.success(data={
+        "project_id": project_id,
+        "checked": len(target_hashes),
+        "diagnosed": diagnosed,
+        "deleted": deleted,
+        "failed_to_delete": failed_to_delete,
+        "skipped_referenced": skipped_referenced,
+        "dry_run": body.dry_run,
     })
 
 

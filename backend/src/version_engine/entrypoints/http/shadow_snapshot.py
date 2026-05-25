@@ -7,70 +7,81 @@ its working-tree manifest:
 
   POST   /api/v1/local-snapshots                upsert a snapshot for the caller
   GET    /api/v1/local-snapshots                list the caller's snapshots
-  GET    /api/v1/local-snapshots/{snapshot_id}  one snapshot
+  GET    /api/v1/local-snapshots/{snapshot_id}  one snapshot (manifest pulled from S3)
   DELETE /api/v1/local-snapshots/{snapshot_id}  drop one snapshot
+  POST   /api/v1/local-snapshots/{snapshot_id}/blobs    upload referenced blobs (I3)
+  POST   /api/v1/local-snapshots/{snapshot_id}/promote  promote to a real commit (I5)
 
 The endpoint refuses spoofing: ``user_id`` is always taken from the
 authenticated JWT, never from the request body.
 
-V1 scope:
-  * Only path + size + mime + optional preview text — no blob upload.
-    Object storage for shadow blobs is on the I3 roadmap.
-  * No TTL / GC. Snapshots persist until the user (or the project)
-    deletes them.
-  * No promote-to-commit. Once eager blob upload (I3) exists the
-    promote endpoint becomes a thin orchestrator on top of
-    ``engine.submit_version`` and lands as I5.
+Storage layout:
+
+  Supabase ``local_shadow_snapshots`` row    — lightweight identity +
+                                                statistics (id, project_id,
+                                                user_id, machine_id,
+                                                ref_name, tree_hash,
+                                                file_count, total_bytes,
+                                                timestamps). NO manifest
+                                                JSON, no previews, no
+                                                blob_hashes — those moved
+                                                to S3.
+
+  S3 ``shadow-snapshots/{project_id}/{snapshot_id}/manifest.json``
+                                              — one document with
+                                                ``{manifest[], previews{},
+                                                blob_hashes[]}``. Single
+                                                PUT covers all three; one
+                                                GET retrieves them.
+
+Why the move: the JSONB columns were capped at 8 MiB after encoding
+because larger payloads pressed against Postgres TOAST + JSONB
+performance. The cap broke large-monorepo onboarding (100k+ files
+with previews easily blow past 8 MiB). S3 has effectively no size
+ceiling for our purposes; we keep only the per-file and entry-count
+sanity checks.
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
+import uuid
 from datetime import datetime, timezone
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, model_validator
 
 from src.common_schemas import ApiResponse
+from src.infra.s3.exceptions import S3FileNotFoundError
+from src.infra.s3.service import get_s3_service_instance
 from src.infra.supabase.client import SupabaseClient
-from src.version_engine.entrypoints.http.content_helpers import ensure_project_access
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
 from src.platform.project.dependencies import get_project_service
 from src.platform.project.service import ProjectService
 from src.utils.logger import log_warning
+from src.version_engine.entrypoints.http.content_helpers import ensure_project_access
 
 
 router = APIRouter()
 
 
-# ── Limits enforced by the server (see 08-shadow-snapshots.md §3) ──
+# ── Sanity caps (see 08-shadow-snapshots.md §3) ──
+#
+# The JSONB total-size cap is gone — manifests live in S3 now. We
+# keep the entry-count and per-file caps because they bound what
+# the server has to JSON-encode in one request and what an individual
+# blob upload is later going to be allowed to push (50 MiB ÷ entry =
+# a rough denominator for upload-flow sizing).
 
 
 _MAX_FILES_PER_SNAPSHOT = 100_000
 _MAX_BYTES_PER_FILE = 50 * 1024 * 1024
-# 08-shadow-snapshots.md §3 — "total manifest size ≤ 8 MiB (after JSON
-# encoding)". Bigger payloads would push against Postgres JSONB limits
-# and degrade upsert latency long before the technical cap is hit.
-_MAX_MANIFEST_JSON_BYTES = 8 * 1024 * 1024
 _VALID_FILE_MODES = frozenset({"100644", "100755", "120000", "40000"})
 
-
-class SnapshotPayloadTooLargeError(Exception):
-    """Raised when a shadow snapshot violates a documented size cap.
-
-    Wraps the limit name so the HTTP layer can translate to a 413 with
-    a message naming WHICH cap was hit (08-shadow-snapshots.md §3).
-    """
-
-    def __init__(self, limit_name: str, actual: int, cap: int):
-        self.limit_name = limit_name
-        self.actual = actual
-        self.cap = cap
-        super().__init__(
-            f"shadow snapshot exceeds {limit_name} "
-            f"(got {actual}, cap {cap})",
-        )
+_MANIFEST_S3_CONTENT_TYPE = "application/json"
 
 
 # ── Schemas ────────────────────────────────────────────────────
@@ -112,32 +123,25 @@ class UpsertShadowSnapshotRequest(BaseModel):
     previews: dict[str, str] = Field(default_factory=dict)
 
 
-def _enforce_snapshot_caps(req: UpsertShadowSnapshotRequest) -> None:
-    """Apply the documented size caps.
+def _enforce_entry_count(req: UpsertShadowSnapshotRequest) -> None:
+    """Reject manifests with too many entries.
 
-    Lives outside the pydantic model_validator so we can raise the
-    domain-specific ``SnapshotPayloadTooLargeError`` and have the
-    endpoint translate it to HTTP 413 (which pydantic would otherwise
-    swallow into a generic 422).
+    The 100k cap is well above any normal project (Linux kernel is
+    ~80k tracked files) and below the size where PostgREST request
+    parsing or our JSON-encoding step becomes painful.
     """
     if len(req.manifest) > _MAX_FILES_PER_SNAPSHOT:
-        raise SnapshotPayloadTooLargeError(
-            "manifest entry count",
-            actual=len(req.manifest),
-            cap=_MAX_FILES_PER_SNAPSHOT,
-        )
-    # Serialize-and-measure once. Subtle: we measure the manifest only,
-    # not the full payload — previews/tree_hash etc. are bounded
-    # elsewhere. This matches "manifest size ≤ 8 MiB (after JSON
-    # encoding)" — the cap is on the JSONB column, not the HTTP body.
-    manifest_bytes = len(json.dumps(
-        [e.model_dump() for e in req.manifest],
-    ).encode("utf-8"))
-    if manifest_bytes > _MAX_MANIFEST_JSON_BYTES:
-        raise SnapshotPayloadTooLargeError(
-            "manifest JSON size",
-            actual=manifest_bytes,
-            cap=_MAX_MANIFEST_JSON_BYTES,
+        raise HTTPException(
+            status_code=413,
+            detail={
+                "limit": "manifest entry count",
+                "actual": len(req.manifest),
+                "cap": _MAX_FILES_PER_SNAPSHOT,
+                "message": (
+                    f"shadow snapshot has {len(req.manifest)} entries; "
+                    f"limit is {_MAX_FILES_PER_SNAPSHOT}"
+                ),
+            },
         )
 
 
@@ -158,6 +162,83 @@ class UpsertShadowSnapshotResponse(ShadowSnapshotResponse):
     blob_hashes_missing_on_server: list[str] = Field(default_factory=list)
 
 
+# ── S3 helpers ─────────────────────────────────────────────────
+
+
+def _manifest_s3_key(project_id: str, snapshot_id: str) -> str:
+    """Path inside the shared S3 bucket where the snapshot's manifest
+    document lives. Stable for the snapshot's lifetime — overwriting
+    the same key on every upsert is the intended pattern."""
+    return f"shadow-snapshots/{project_id}/{snapshot_id}/manifest.json"
+
+
+async def _put_manifest_to_s3(
+    *,
+    project_id: str,
+    snapshot_id: str,
+    manifest: list[dict],
+    previews: dict[str, str],
+    blob_hashes: list[str],
+) -> None:
+    """Serialise the three logical chunks as one JSON document and PUT
+    it. Single object + single PUT keeps the upsert atomic on the S3
+    side (no partial states with manifest present but previews
+    missing, etc.)."""
+    document = {
+        "version": 1,
+        "snapshot_id": snapshot_id,
+        "manifest": manifest,
+        "previews": previews,
+        "blob_hashes": blob_hashes,
+    }
+    body = json.dumps(document, separators=(",", ":")).encode("utf-8")
+    s3 = get_s3_service_instance()
+    await s3.upload_file(
+        key=_manifest_s3_key(project_id, snapshot_id),
+        content=body,
+        content_type=_MANIFEST_S3_CONTENT_TYPE,
+    )
+
+
+async def _get_manifest_from_s3(
+    project_id: str, snapshot_id: str,
+) -> dict[str, Any] | None:
+    """Inverse of ``_put_manifest_to_s3``. Returns the parsed JSON
+    dict or ``None`` if the manifest is missing.
+
+    ``None`` is a legitimate state — a row created without a manifest
+    upload, or one whose S3 object got deleted out-of-band. Callers
+    decide how to surface that (404, empty array, etc.)."""
+    s3 = get_s3_service_instance()
+    try:
+        raw = await s3.download_file(_manifest_s3_key(project_id, snapshot_id))
+    except S3FileNotFoundError:
+        return None
+    try:
+        return json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        log_warning(
+            f"[shadow-snapshot] manifest at "
+            f"{_manifest_s3_key(project_id, snapshot_id)} is unreadable: {exc}"
+        )
+        return None
+
+
+async def _delete_manifest_from_s3(project_id: str, snapshot_id: str) -> None:
+    """Best-effort: a missing object is fine, any other failure is
+    logged but doesn't fail the DELETE endpoint (the DB row is the
+    authoritative existence signal; an orphan S3 object is cheap to
+    GC later)."""
+    s3 = get_s3_service_instance()
+    try:
+        await s3.delete_file(_manifest_s3_key(project_id, snapshot_id))
+    except Exception as exc:  # noqa: BLE001
+        log_warning(
+            f"[shadow-snapshot] delete manifest failed for "
+            f"{project_id}/{snapshot_id}: {exc}"
+        )
+
+
 # ── Endpoints ──────────────────────────────────────────────────
 
 
@@ -175,46 +256,61 @@ async def upsert_snapshot(
     ``(project_id, user_id, machine_id, ref_name)`` — the same client
     can update its row over and over without rotating IDs.
 
-    Size violations come back as HTTP 413 with a body naming the
-    specific cap (entry count or manifest JSON bytes) so clients can
-    decide whether to split, skip, or upgrade their tier — see
-    08-shadow-snapshots.md §3.
+    Flow:
+      1. Resolve an existing ``snapshot_id`` via the natural key (or
+         mint a fresh UUID4 for first upload). Stable id = stable S3
+         key for the manifest.
+      2. PUT the manifest document to S3 (overwrite in place).
+      3. UPSERT the lightweight row in Supabase.
+
+    On S3 failure we surface a 502 with no DB write — the caller can
+    safely retry. On DB failure post-S3 we leave the S3 object as an
+    orphan; the next successful upsert overwrites it and a periodic
+    janitor (out of scope here) can sweep dead keys.
     """
 
     ensure_project_access(project_service, current_user, body.project_id)
-
-    try:
-        _enforce_snapshot_caps(body)
-    except SnapshotPayloadTooLargeError as exc:
-        raise HTTPException(
-            status_code=413,
-            detail={
-                "limit": exc.limit_name,
-                "actual": exc.actual,
-                "cap": exc.cap,
-                "message": str(exc),
-            },
-        )
+    _enforce_entry_count(body)
 
     file_count = len(body.manifest)
     total_bytes = sum(e.size for e in body.manifest)
     blob_hashes = sorted({e.blob_hash for e in body.manifest})
 
+    client = SupabaseClient().client
+    natural_key_match = (
+        client.table("local_shadow_snapshots")
+        .select("id")
+        .eq("project_id", body.project_id)
+        .eq("user_id", current_user.user_id)
+        .eq("machine_id", body.machine_id or "")
+        .eq("ref_name", body.ref_name or "main")
+        .maybe_single()
+        .execute()
+    )
+    existing = getattr(natural_key_match, "data", None)
+    snapshot_id = (existing or {}).get("id") or str(uuid.uuid4())
+
+    # S3-first: if this fails we have nothing in DB pointing at it,
+    # so the caller's retry is safe.
+    await _put_manifest_to_s3(
+        project_id=body.project_id,
+        snapshot_id=snapshot_id,
+        manifest=[e.model_dump() for e in body.manifest],
+        previews=body.previews or {},
+        blob_hashes=blob_hashes,
+    )
+
     payload = {
+        "id": snapshot_id,
         "project_id": body.project_id,
         "user_id": current_user.user_id,
         "machine_id": body.machine_id or "",
         "ref_name": body.ref_name or "main",
         "tree_hash": body.tree_hash or "",
-        "manifest": [e.model_dump() for e in body.manifest],
-        "blob_hashes": blob_hashes,
         "file_count": file_count,
         "total_bytes": total_bytes,
-        "previews": body.previews or {},
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
-
-    client = SupabaseClient().client
     resp = (
         client.table("local_shadow_snapshots")
         .upsert(payload, on_conflict="project_id,user_id,machine_id,ref_name")
@@ -222,13 +318,12 @@ async def upsert_snapshot(
     )
     row = (resp.data or [{}])[0]
 
-    # Best-effort: figure out which blob hashes the server already has,
-    # so the client knows what to upload (once I3 lands). For V1 this is
-    # informational only.
+    # Best-effort: tell the client which blob hashes the server already
+    # has so the I3 upload step knows what's missing.
     present, missing = _split_blobs_by_presence(body.project_id, blob_hashes)
 
     return ApiResponse.success(data=UpsertShadowSnapshotResponse(
-        snapshot_id=row.get("id", ""),
+        snapshot_id=row.get("id", snapshot_id),
         project_id=body.project_id,
         user_id=current_user.user_id,
         machine_id=body.machine_id or "",
@@ -252,6 +347,8 @@ async def list_snapshots(
     machine_id: str = Query("", description="Filter by machine (optional)"),
     current_user: CurrentUser = Depends(get_current_user),
 ):
+    """List metadata only — no manifest content. Cheap; touches DB
+    only. Use ``GET /local-snapshots/{id}`` for the manifest body."""
     client = SupabaseClient().client
     builder = (
         client.table("local_shadow_snapshots")
@@ -284,12 +381,17 @@ async def list_snapshots(
 
 @router.get(
     "/local-snapshots/{snapshot_id}",
-    summary="Read one shadow snapshot (manifest included)",
+    summary="Read one shadow snapshot (manifest pulled from S3)",
 )
 async def get_snapshot(
     snapshot_id: str,
     current_user: CurrentUser = Depends(get_current_user),
 ):
+    """Returns the full snapshot document: row metadata merged with
+    the manifest JSON downloaded from S3. Missing manifest object is
+    returned with empty ``manifest`` / ``previews`` / ``blob_hashes``
+    rather than 500'ing — the DB row is the authoritative existence
+    signal."""
     client = SupabaseClient().client
     resp = (
         client.table("local_shadow_snapshots")
@@ -302,7 +404,20 @@ async def get_snapshot(
     row = getattr(resp, "data", None)
     if not row:
         raise HTTPException(status_code=404, detail="snapshot not found")
-    return ApiResponse.success(data=row)
+
+    manifest_doc = await _get_manifest_from_s3(row["project_id"], snapshot_id)
+    merged = dict(row)
+    if manifest_doc is None:
+        merged["manifest"] = []
+        merged["previews"] = {}
+        merged["blob_hashes"] = []
+        merged["manifest_status"] = "missing"
+    else:
+        merged["manifest"] = manifest_doc.get("manifest") or []
+        merged["previews"] = manifest_doc.get("previews") or {}
+        merged["blob_hashes"] = manifest_doc.get("blob_hashes") or []
+        merged["manifest_status"] = "ok"
+    return ApiResponse.success(data=merged)
 
 
 @router.delete(
@@ -313,17 +428,38 @@ async def delete_snapshot(
     snapshot_id: str,
     current_user: CurrentUser = Depends(get_current_user),
 ):
+    """Removes the DB row and the S3 manifest. The S3 delete is
+    best-effort: the DB row going away is what makes the snapshot
+    'gone' from the user's perspective."""
     client = SupabaseClient().client
+    # Read the project_id BEFORE deleting so we know which S3 key to
+    # remove. Selecting + deleting is two round-trips, but a snapshot
+    # delete is rare and we'd rather over-pay than orphan-leak.
     resp = (
+        client.table("local_shadow_snapshots")
+        .select("project_id")
+        .eq("id", snapshot_id)
+        .eq("user_id", current_user.user_id)
+        .maybe_single()
+        .execute()
+    )
+    row = getattr(resp, "data", None)
+    if not row:
+        raise HTTPException(status_code=404, detail="snapshot not found")
+    project_id = row["project_id"]
+
+    deleted_resp = (
         client.table("local_shadow_snapshots")
         .delete()
         .eq("id", snapshot_id)
         .eq("user_id", current_user.user_id)
         .execute()
     )
-    deleted = len(resp.data or [])
+    deleted = len(deleted_resp.data or [])
     if deleted == 0:
         raise HTTPException(status_code=404, detail="snapshot not found")
+
+    await _delete_manifest_from_s3(project_id, snapshot_id)
     return ApiResponse.success(data={"deleted": True})
 
 
@@ -334,12 +470,10 @@ class _BlobUploadEntry(BaseModel):
     """One blob the client wants the server to absorb.
 
     ``content`` is base64-encoded bytes; the API accepts JSON so we
-    can't ship raw octets. For multi-megabyte payloads the client
-    should split into multiple POSTs of ≤ 8 MiB each (matches the
-    manifest cap). ``blob_hash`` MUST be the SHA-1 the client claims —
-    the server verifies by re-hashing the decoded bytes and rejects
-    with HTTP 400 on mismatch (preventing hash-poisoning where a bad
-    client tells us "this is blob X" but ships Y's bytes).
+    can't ship raw octets. ``blob_hash`` MUST be the SHA-1 the client
+    claims — the server verifies by re-hashing the decoded bytes and
+    rejects with HTTP 400 on mismatch (preventing hash-poisoning where
+    a bad client tells us "this is blob X" but ships Y's bytes).
     """
     blob_hash: str
     content: str
@@ -376,21 +510,15 @@ async def upload_snapshot_blobs(
 ):
     """Stream a batch of blob bodies into the project object store.
 
-    Per ``08-shadow-snapshots.md §4`` (Object availability), V1 was
-    "opt-in and lazy" — the manifest could reference blob hashes the
-    server had never seen. Promotion to a real commit was blocked
-    until those bytes landed.
+    Per ``08-shadow-snapshots.md §4`` (Object availability): the
+    manifest can reference blob hashes the server has never seen;
+    promotion to a real commit is blocked until those bytes land.
+    This endpoint is the I3 piece — push the missing blobs ahead of
+    time, then call ``/promote`` (I5) to land them as a Git commit
+    through the engine.
 
-    This endpoint is the I3 piece: a client can push the missing
-    blobs ahead of time, then call ``/promote`` (I5) to land them as
-    a Git commit through the engine.
-
-    Auth: the snapshot's owner only (by user_id). The blobs land in
-    the project's canonical object store (same store everyone else
-    reads), so we must not let an unrelated user write blobs into
-    someone else's project.
+    Auth: the snapshot's owner only (by user_id).
     """
-    import asyncio
     import base64
     import hashlib
 
@@ -412,10 +540,7 @@ async def upload_snapshot_blobs(
     # the security gate: a user can only push blobs to a project they
     # already created a snapshot for. The snapshot creation path
     # ran ``ensure_project_access`` so the project_id is necessarily
-    # one the user has access to. We don't re-run the check here
-    # because (a) it would require threading ProjectService through
-    # and (b) revocation while a snapshot exists is a rare edge case
-    # that the snapshot creation gate already handled.
+    # one the user has access to.
 
     from src.version_engine.bootstrap.dependencies import (
         build_worker_version_engine_container,
@@ -432,10 +557,6 @@ async def upload_snapshot_blobs(
             rejected.append(entry.blob_hash)
             continue
         # Hash-verify so a malicious client can't poison blob_hash → bytes.
-        # Git uses SHA-1 over ``blob <size>\0<data>``; for the shadow
-        # path we accept the loose-content SHA-1 (the same hash the
-        # client computed). Different hashing conventions across clients
-        # would re-fail this check.
         computed = hashlib.sha1(  # noqa: S324 — Git uses SHA-1 by convention
             f"blob {len(data)}\0".encode() + data,
         ).hexdigest()
@@ -443,20 +564,11 @@ async def upload_snapshot_blobs(
             rejected.append(entry.blob_hash)
             continue
         try:
-            # ObjectStore.put_blob(data) -> sha1 is the canonical write
-            # path for raw blob bytes (frames as a Git loose blob and
-            # writes through the backend with the right hash). The
-            # alternative ``put_loose(sha1, framed_bytes)`` would
-            # require us to zlib-frame here; ``put_blob`` does it for
-            # us and returns the same hash we already verified above.
-            # asyncio.to_thread: ObjectStore.put_blob ultimately calls
-            # S3StorageBackend.put which blocks via future.result() on
-            # the sync→async bridge, so we run it off the event loop.
+            # ``put_blob`` frames + zlib-wraps + writes through the
+            # canonical Git ObjectStore; returns the hash it stored at.
+            # asyncio.to_thread because put_blob ultimately goes through
+            # the sync S3 bridge.
             written_hash = await asyncio.to_thread(store.put_blob, data)
-            # Defensive: re-check the engine's hash matches the
-            # client-asserted hash. We hashed identically above, so a
-            # mismatch here would indicate a backend that diverged
-            # from Git's loose-object framing.
             if written_hash != entry.blob_hash:
                 log_warning(
                     f"[shadow-blob] hash divergence: client={entry.blob_hash[:8]} "
@@ -472,9 +584,11 @@ async def upload_snapshot_blobs(
             )
             rejected.append(entry.blob_hash)
 
-    # Re-check presence of the whole manifest so the client sees an
-    # updated missing list.
-    manifest_blobs = (snap_row.get("blob_hashes") or [])
+    # Re-check the full manifest's blob presence so the client sees an
+    # updated missing list. The manifest now lives in S3 — pull it
+    # down once and pluck ``blob_hashes`` from there.
+    manifest_doc = await _get_manifest_from_s3(project_id, snapshot_id)
+    manifest_blobs = (manifest_doc or {}).get("blob_hashes") or []
     present, _missing = _split_blobs_by_presence(project_id, manifest_blobs)
 
     return ApiResponse.success(data=_BlobUploadResponse(
@@ -518,13 +632,12 @@ async def promote_snapshot(
     missing); promotion fails otherwise rather than landing a commit
     that references unreachable blobs.
 
-    The promotion routes through ``VersionWriteEngine.submit_version``
-    using a ``VersionSubmissionIntent`` — i.e. the same path a real
-    Git push uses — so conflict policy, scope validation, audit, and
-    outbox dispatch all fire normally. The snapshot row is deleted
-    after a successful promote to signal the bridge has closed.
+    Routes through ``VersionWriteEngine.submit_version`` using a
+    ``VersionSubmissionIntent`` — i.e. the same path a real Git push
+    uses — so conflict policy, scope validation, audit, and outbox
+    dispatch all fire normally. The snapshot row + S3 manifest are
+    deleted after a successful promote to signal the bridge closed.
     """
-    import base64 as _base64  # noqa: F401 — kept for future per-blob bytes pull-up
     from src.version_engine.adapters.git.submission import submit_git_tree
     from src.version_engine.bootstrap.dependencies import (
         build_worker_version_engine_container,
@@ -545,15 +658,15 @@ async def promote_snapshot(
         raise HTTPException(status_code=404, detail="snapshot not found")
 
     project_id = snap_row["project_id"]
-    manifest = snap_row.get("manifest") or []
+    manifest_doc = await _get_manifest_from_s3(project_id, snapshot_id)
+    manifest = (manifest_doc or {}).get("manifest") or []
     if not manifest:
         raise HTTPException(
             status_code=400,
-            detail="snapshot manifest is empty; nothing to promote",
+            detail="snapshot manifest is empty or missing; nothing to promote",
         )
 
-    # Check every referenced blob is on the server BEFORE committing.
-    blob_hashes = sorted({entry.get("blob_hash") for entry in manifest if entry.get("blob_hash")})
+    blob_hashes = sorted({e.get("blob_hash") for e in manifest if e.get("blob_hash")})
     present, missing = _split_blobs_by_presence(project_id, blob_hashes)
     if missing:
         raise HTTPException(
@@ -571,14 +684,9 @@ async def promote_snapshot(
             },
         )
 
-    # Build the canonical tree from the manifest, then submit.
     container = build_worker_version_engine_container()
     repo = container.repo_manager.get_server_repo(project_id)
 
-    # The manifest entries point at blob_hashes already on the server
-    # (verified above). Read the bytes back so build_tree_from_files
-    # can canonicalize the tree — the canonical store is content-
-    # addressable, so we can re-derive the tree hash deterministically.
     files: dict[str, bytes] = {}
     for entry in manifest:
         path = entry.get("path", "")
@@ -601,10 +709,6 @@ async def promote_snapshot(
     actor = f"user:{current_user.user_id}"
     base_commit_id = repo.get_scope_head_commit_id(scope_path) or ""
 
-    # Construct a client_commit_id so the submission flow has something
-    # to reference — same shape as a real Git push. We use the engine's
-    # build_git_commit helper because the canonical hash must match
-    # what Git would compute.
     from src.version_engine.write_engine.git_commit import build_git_commit
     promoted_message = body.message or (
         f"shadow snapshot promote ({snap_row.get('machine_id') or 'local'} "
@@ -632,9 +736,6 @@ async def promote_snapshot(
     )
 
     if submission_result.status not in {"ok", "merged"}:
-        # The submission landed in pending / conflict / rejected. Don't
-        # consume the snapshot — the user might want to retry after
-        # resolving the conflict.
         raise HTTPException(
             status_code=409,
             detail={
@@ -648,17 +749,18 @@ async def promote_snapshot(
             },
         )
 
-    # Promotion succeeded — clean up the snapshot row so the local
-    # daemon stops re-uploading it. Best-effort: failure here just
-    # leaves a stale row that the user can delete manually.
+    # Promotion succeeded — clean up DB row + S3 manifest. Both are
+    # best-effort: a stale row or orphan S3 object can be cleaned up
+    # manually, but a half-deleted snapshot shouldn't block the user.
     try:
         client.table("local_shadow_snapshots").delete().eq("id", snapshot_id).execute()
     except Exception as exc:
         log_warning(
             f"[shadow-promote] snapshot {snapshot_id} promoted to "
-            f"commit {submission_result.commit_id} but cleanup delete "
+            f"commit {submission_result.commit_id} but DB cleanup "
             f"failed: {exc}",
         )
+    await _delete_manifest_from_s3(project_id, snapshot_id)
 
     return ApiResponse.success(data=_PromoteResponse(
         snapshot_id=snapshot_id,
