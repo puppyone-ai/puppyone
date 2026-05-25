@@ -2,6 +2,7 @@
 
 import type { Connector, RepoScope } from '@/lib/repoApi';
 import { AccessPointRow } from './AccessPointRow';
+import { ACCESS_PANEL_TYPOGRAPHY, COLOR_FG, COLOR_FG_DIM } from './tokens';
 import type { ProviderIconLookup } from './types';
 
 const EMPTY_CONNECTORS: readonly Connector[] = Object.freeze([]);
@@ -28,20 +29,61 @@ export function AllAccessPointsList({
   readonly currentScopePath: string;
   readonly onSelectScope: (scopeId: string) => void;
 }) {
-  if (scopes.length === 0) return null;
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      {scopes.map((s) => (
-        <AccessPointRow
-          key={s.id}
-          scope={s}
-          connectors={connectorsByScope.get(s.id) ?? EMPTY_CONNECTORS}
-          providerIcons={providerIcons}
-          isCurrent={s.path === currentScopePath}
-          onClick={() => onSelectScope(s.id)}
-        />
-      ))}
-    </div>
+    <section style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0 2px',
+          gap: 10,
+        }}
+      >
+        <div style={{ ...ACCESS_PANEL_TYPOGRAPHY.title, color: COLOR_FG }}>
+          Active access points
+        </div>
+        <div
+          style={{
+            ...ACCESS_PANEL_TYPOGRAPHY.label,
+            color: COLOR_FG_DIM,
+            fontVariantNumeric: 'tabular-nums',
+          }}
+        >
+          {scopes.length}
+        </div>
+      </div>
+
+      {scopes.length === 0 ? (
+        <div
+          style={{
+            minHeight: 66,
+            display: 'flex',
+            alignItems: 'center',
+            padding: '0 12px',
+            borderRadius: 8,
+            border: '1px solid var(--po-border-subtle)',
+            background: 'color-mix(in srgb, var(--po-control) 30%, transparent)',
+            color: COLOR_FG_DIM,
+            ...ACCESS_PANEL_TYPOGRAPHY.body,
+          }}
+        >
+          No active access points yet.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+          {scopes.map((s) => (
+            <AccessPointRow
+              key={s.id}
+              scope={s}
+              connectors={connectorsByScope.get(s.id) ?? EMPTY_CONNECTORS}
+              providerIcons={providerIcons}
+              isCurrent={s.path === currentScopePath}
+              onClick={() => onSelectScope(s.id)}
+            />
+          ))}
+        </div>
+      )}
+    </section>
   );
 }

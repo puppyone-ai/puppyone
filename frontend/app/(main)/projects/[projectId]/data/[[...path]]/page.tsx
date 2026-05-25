@@ -53,7 +53,9 @@ import { useExternalFileDropCatcher } from '@/lib/hooks/useExternalFileDropCatch
 // Extracted components
 import { DataWorkspaceSurface } from '../components/DataWorkspaceSurface';
 import { ProjectUnavailableShell } from '../components/ProjectUnavailableShell';
+import { AccessPointsHeaderButton } from '../components/access-points';
 import { DataAccessModalHost } from '../components/access-points/DataAccessModalHost';
+import { DataSyncCreateModalHost } from '../components/DataSyncCreateModalHost';
 import type { EditorTarget } from '../components/right-panel';
 import { useDataCreateFlow } from '../hooks/useDataCreateFlow';
 import { useAccessPointEntries } from '../hooks/useAccessPointEntries';
@@ -135,6 +137,7 @@ export default function DataPage({ params }: DataPageProps) {
   // ───── Custom Hooks ─────
 
   const {
+    path: routePath,
     currentFolderId,
     folderBreadcrumbs,
     isResolvingPath,
@@ -232,9 +235,11 @@ export default function DataPage({ params }: DataPageProps) {
     accessHeaderSubtitle,
     showAccessHeaderBack,
     rootGitRemoteUrl,
+    accessOverviewOpen,
     quickAccessScope,
     quickAccessConnectors,
     createAccessInitialPath,
+    syncCreateInitialPath,
     refreshRepoAndAgents,
     closeRightPanel,
     handleAccessHeaderBack,
@@ -242,9 +247,13 @@ export default function DataPage({ params }: DataPageProps) {
     openSyncCreatePanel,
     openRootGitRemotePanel,
     openShareWithAI,
+    openAccessOverviewModal,
+    openQuickAccessModal,
     openCreateAccessModal,
+    closeAccessOverviewModal,
     closeQuickAccessModal,
     closeCreateAccessModal,
+    closeSyncCreateModal,
     handleDataAccessCreated,
     openAccessFullSettings,
   } = useDataPanelController({
@@ -266,6 +275,13 @@ export default function DataPage({ params }: DataPageProps) {
     refreshCurrentNodes();
     openPanel({ type: 'sync_config', nodeId });
   }, [mutateSyncStatus, refreshCurrentNodes, openPanel]);
+
+  const handleSyncCreatedInModal = useCallback(async () => {
+    await mutateSyncStatus();
+    await mutateRepo();
+    refreshCurrentNodes();
+    closeSyncCreateModal();
+  }, [closeSyncCreateModal, mutateRepo, mutateSyncStatus, refreshCurrentNodes]);
 
   const {
     tableTools,
@@ -412,14 +428,15 @@ export default function DataPage({ params }: DataPageProps) {
     const segments: BreadcrumbSegment[] = [];
     const projectName =
       activeProject?.name ?? <SkeletonBlock width={120} height={10} radius={3} />;
-    const hasSubContent = path.length > 0 || currentFolderId || activeNodeId;
+    const hasSubContent = routePath.length > 0 || currentFolderId || activeNodeId;
     segments.push({
       label: projectName,
       href: hasSubContent ? `/projects/${projectId}/data` : undefined,
+      onClick: hasSubContent ? () => navigateTo([]) : undefined,
     });
 
-    if (isResolvingPath && path.length > 0 && folderBreadcrumbs.length === 0) {
-      path.forEach(() => {
+    if (isResolvingPath && routePath.length > 0 && folderBreadcrumbs.length === 0) {
+      routePath.forEach(() => {
         segments.push({ label: <SkeletonBlock width={72} height={10} radius={3} /> });
       });
     } else {
@@ -430,6 +447,9 @@ export default function DataPage({ params }: DataPageProps) {
         segments.push({
           label: folder.name,
           href: !isLast || activeNodeId ? `/projects/${projectId}/data/${folderUrlPath}` : undefined,
+          onClick: !isLast || activeNodeId
+            ? () => navigateTo(folder.id.split('/').filter(Boolean), 'folder')
+            : undefined,
         });
       });
       if (activeNodeId) {
@@ -437,7 +457,7 @@ export default function DataPage({ params }: DataPageProps) {
       }
     }
     return segments;
-  }, [activeProject, projectId, folderBreadcrumbs, currentFolderId, activeNodeId, activeNodeDisplayName, currentTableData?.name, isResolvingPath, path]);
+  }, [activeProject, projectId, folderBreadcrumbs, currentFolderId, activeNodeId, activeNodeDisplayName, currentTableData?.name, isResolvingPath, routePath, navigateTo]);
 
   const activeNodeListing = useMemo(
     () => contentNodes.find((node) => node.path === activeNodeId),
@@ -477,12 +497,36 @@ export default function DataPage({ params }: DataPageProps) {
   ]);
 
   const headerCommandMenu = (
-    <DataHeaderActions
-      target={headerActionTarget}
-      onRename={nodeActions.handleRename}
-      onDelete={nodeActions.handleDelete}
-      onDownload={nodeActions.handleDownload}
-    />
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <DataHeaderActions
+        target={headerActionTarget}
+        onRename={nodeActions.handleRename}
+        onDelete={nodeActions.handleDelete}
+        onDownload={nodeActions.handleDownload}
+        onExpose={openShareWithAI}
+      />
+      <AccessPointsHeaderButton
+        scopeCount={scopes.length}
+        isOpen={
+          isAccessPanelOpen ||
+          accessOverviewOpen ||
+          quickAccessScope !== null ||
+          createAccessInitialPath !== null
+        }
+        onClick={() => {
+          const onlyScope = scopes[0];
+          if (scopes.length === 1 && onlyScope) {
+            openQuickAccessModal(onlyScope);
+            return;
+          }
+          if (scopes.length > 0) {
+            openAccessOverviewModal();
+            return;
+          }
+          openCreateAccessModal(currentFolderId);
+        }}
+      />
+    </div>
   );
 
   const headerActionSlot = activeFormat ? (
@@ -677,7 +721,7 @@ export default function DataPage({ params }: DataPageProps) {
       header={{
         pathSegments,
         projectId: activeProject?.id ?? null,
-        accessPointCount: accessPoints.length,
+        accessPointCount: scopes.length,
         actionSlot: headerActionSlot,
       }}
       accessHeader={{
@@ -711,6 +755,9 @@ export default function DataPage({ params }: DataPageProps) {
           onCreateSync: (_event, nodeId) => openShareWithAI(nodeId),
           onOpenAccess: (_endpoints, nodeId) => openShareWithAI(nodeId),
           endpointByNodeId: nodeEndpointMap,
+          onRename: nodeActions.handleRename,
+          onDelete: nodeActions.handleDelete,
+          onDownload: nodeActions.handleDownload,
           onFilesDrop: fileImport.openFileImportForTarget,
           onMoveNode: nodeActions.handleMoveNode,
           activeSyncNodeId:
@@ -800,6 +847,8 @@ export default function DataPage({ params }: DataPageProps) {
         onAccessPointHover: setHoverHighlightNodeId,
         onScopeMutated: refreshRepoAndAgents,
         onOpenPanel: openPanel,
+        onCreateAccessPoint: openCreateAccessModal,
+        onCreateIntegration: openSyncCreatePanel,
         onOpenSyncSetting: openSyncSetting,
         onDataUpdate: async () => {
           if (shouldLoadStructuredTableData) await refreshTable();
@@ -809,19 +858,31 @@ export default function DataPage({ params }: DataPageProps) {
         onAccessPanelNavigationGuardChange: setAccessPanelNavigationGuard,
       }}
       accessModalSlot={
-        <DataAccessModalHost
-          projectId={projectId}
-          quickAccessScope={quickAccessScope}
-          quickAccessConnectors={quickAccessConnectors}
-          createAccessInitialPath={createAccessInitialPath}
-          existingScopes={scopes}
-          connectorsByScope={connectorsByScope}
-          onCloseQuickAccess={closeQuickAccessModal}
-          onCreateAccess={openCreateAccessModal}
-          onOpenFullSettings={openAccessFullSettings}
-          onCloseCreateAccess={closeCreateAccessModal}
-          onCreated={handleDataAccessCreated}
-        />
+        <>
+          <DataAccessModalHost
+            projectId={projectId}
+            accessOverviewOpen={accessOverviewOpen}
+            quickAccessScope={quickAccessScope}
+            quickAccessConnectors={quickAccessConnectors}
+            createAccessInitialPath={createAccessInitialPath}
+            existingScopes={scopes}
+            connectorsByScope={connectorsByScope}
+            providerIcons={providerIcons}
+            onCloseAccessOverview={closeAccessOverviewModal}
+            onOpenExistingAccess={openQuickAccessModal}
+            onCloseQuickAccess={closeQuickAccessModal}
+            onCreateAccess={openCreateAccessModal}
+            onOpenFullSettings={openAccessFullSettings}
+            onCloseCreateAccess={closeCreateAccessModal}
+            onCreated={handleDataAccessCreated}
+          />
+          <DataSyncCreateModalHost
+            projectId={projectId}
+            initialPath={syncCreateInitialPath}
+            onClose={closeSyncCreateModal}
+            onSyncCreated={handleSyncCreatedInModal}
+          />
+        </>
       }
     />
   );

@@ -5,7 +5,16 @@ import type { MouseEvent, ReactNode } from 'react';
 import { ItemContextMenu } from './ExplorerRowMenus';
 import type { ExplorerSidebarProps, ExplorerCreateMenuAction, SyncEndpointInfo } from './types';
 
-type RowActionButtonVariant = 'default' | 'createActive' | 'accessActive';
+export const EXPLORER_ROW_ACTION_LAYER_WIDTH = 50;
+const EXPLORER_ROW_ACCESS_ACTION_WIDTH = 26;
+
+export function getExplorerRowActionLayerWidth(hasAccessPoint: boolean): number {
+  return hasAccessPoint
+    ? EXPLORER_ROW_ACTION_LAYER_WIDTH + EXPLORER_ROW_ACCESS_ACTION_WIDTH
+    : EXPLORER_ROW_ACTION_LAYER_WIDTH;
+}
+
+type RowActionButtonVariant = 'default' | 'createActive' | 'accessConfigured';
 
 function rowActionButtonClass(variant: RowActionButtonVariant) {
   const base =
@@ -15,8 +24,8 @@ function rowActionButtonClass(variant: RowActionButtonVariant) {
     return `${base} bg-[var(--po-selected)] text-[var(--po-text)]`;
   }
 
-  if (variant === 'accessActive') {
-    return `${base} border-[var(--po-access-active-border)] bg-[var(--po-access-active-bg)] text-[var(--po-access-active-text)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.16)] hover:bg-[var(--po-access-active-hover)] hover:text-[var(--po-access-active-text)]`;
+  if (variant === 'accessConfigured') {
+    return `${base} border-[color-mix(in_srgb,var(--po-accent)_34%,transparent)] bg-[color-mix(in_srgb,var(--po-accent)_18%,var(--po-control)_58%)] text-[var(--po-accent-text)] hover:border-[color-mix(in_srgb,var(--po-accent)_46%,transparent)] hover:bg-[color-mix(in_srgb,var(--po-accent)_25%,var(--po-control)_52%)] hover:text-[var(--po-accent)]`;
   }
 
   return `${base} bg-transparent text-[var(--po-text-subtle)] hover:bg-[var(--po-hover)] hover:text-[var(--po-text)]`;
@@ -31,17 +40,18 @@ function PlusIcon() {
   );
 }
 
-function LinkIcon() {
+function AccessChainIcon({ size = 13 }: { size?: number }) {
   return (
     <svg
-      width="13"
-      height="13"
+      width={size}
+      height={size}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2"
+      strokeWidth="2.45"
       strokeLinecap="round"
       strokeLinejoin="round"
+      aria-hidden="true"
     >
       <path d="M9 17H7A5 5 0 0 1 7 7h2" />
       <path d="M15 7h2a5 5 0 1 1 0 10h-2" />
@@ -71,7 +81,19 @@ function RowActionButton({
       title={title}
       aria-label={ariaLabel}
       aria-pressed={active || undefined}
-      onClick={onClick}
+      onPointerDown={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      }}
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onClick(event);
+      }}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      }}
       className={rowActionButtonClass(variant)}
     >
       {children}
@@ -111,90 +133,45 @@ export function ExplorerRowActions({
   onDownload?: ExplorerSidebarProps['onDownload'];
 }) {
   const [isContextMenuOpen, setIsContextMenuOpen] = useState(false);
-  const [isAccessControlActive, setIsAccessControlActive] = useState(false);
 
   const isCreateMenuOpen = openMenuAction === 'create';
   const isAccessMenuOpen = openMenuAction === 'access';
-  // Aggregate "is any popover anchored to this row open?". This is
-  // the lock that pins the row's geometry — once any menu is open,
-  // we don't let the peer slots collapse just because the mouse
-  // wandered off the row, otherwise the popover ends up floating
-  // over a partially-empty row and the buttons "teleport" when the
-  // user dismisses the menu.
   const isAnyMenuOpen =
     isCreateMenuOpen || isContextMenuOpen || isAccessMenuOpen;
   const endpointCount = endpoints.length;
-  const hasAccessPoint = endpointCount > 0;
-  const shareMethodLabel = endpointCount === 1 ? 'share method' : 'share methods';
-  const suppressPeerActions = isAccessControlActive || isAccessMenuOpen;
+  const hasAccessPoint = isFolder && endpointCount > 0;
+  const peerVisibility = isAnyMenuOpen ? 'flex' : 'hidden group-hover/row:flex';
+  const hasObjectMenu = !!(onRename || onDelete || onDownload || (isFolder && onCreateSync));
+  const hasCreateButton = !!(isFolder && onCreate);
+  const hasAccessButton = !!(hasAccessPoint && onOpenAccess);
 
-  // Visibility primitives.
-  //
-  //   • `hidden`     →  `display: none`  → element takes no layout space
-  //   • `flex`       →  `display: flex`  → element takes its natural width
-  //   • `invisible`  →  `visibility: hidden` → element takes space, hidden visually
-  //
-  // The earlier version used `invisible` for the rest state, which
-  // meant the `+` / `…` / `link` buttons each reserved ~22px of
-  // layout even when they weren't drawn — so a 240px sidebar was
-  // effectively ~166px after subtracting indent + icon + reserved
-  // actions, and that's why "02-vendors" truncated to "02-ve…"
-  // while there was visibly empty space to the right.
-  //
-  // The current rules:
-  //
-  //   1. Rest state (no row hover, no open menu): `hidden` — peers
-  //      take zero layout space, file name gets the full width.
-  //   2. Row hover, no menu open: `flex` — peers fade in, name
-  //      reflows naturally to make room.
-  //   3. Any menu anchored to this row is open: `flex` — peers stay
-  //      in their natural slot regardless of mouse position. The
-  //      button whose menu is open shows its active variant; the
-  //      others stay in default ghost state (visible but not
-  //      highlighted) so the row geometry is locked while the user
-  //      navigates the popover.
-  //   4. Hovering the access button while no menu is open: peers
-  //      go `flex invisible` instead of `hidden`, so the name
-  //      doesn't expand-then-snap-back as the mouse crosses the
-  //      access slot. Skipped when (3) applies.
-  const peerVisibility = isAnyMenuOpen
-    ? 'flex'
-    : suppressPeerActions
-      ? 'hidden group-hover/row:flex group-hover/row:invisible'
-      : 'hidden group-hover/row:flex';
-  const accessVisibility =
-    hasAccessPoint || isAnyMenuOpen
-      ? 'flex'
-      : 'hidden group-hover/row:flex';
-  const accessActive = hasAccessPoint || isAccessMenuOpen;
-
-  if (!onCreate && !onCreateSync && !onRename && !onDelete && !onDownload) return null;
+  if (!hasObjectMenu && !hasCreateButton && !hasAccessButton) return null;
 
   return (
-    <div className="ml-auto flex flex-shrink-0 items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
-      {isFolder && onCreate && (
-        <div className={peerVisibility}>
-          <RowActionButton
-            title="New item"
-            ariaLabel="New item"
-            active={isCreateMenuOpen}
-            variant={isCreateMenuOpen ? 'createActive' : 'default'}
-            onClick={(e) => {
-              e.stopPropagation();
-              onCreate(e, createParentId);
-            }}
-          >
-            <PlusIcon />
-          </RowActionButton>
-        </div>
-      )}
-
-      {(onRename || onDelete || onDownload) && (
+    <div
+      className={`${hasAccessButton ? 'flex' : peerVisibility} absolute top-1/2 z-20 -translate-y-1/2 items-center gap-0.5`}
+      onClick={(e) => e.stopPropagation()}
+      onContextMenu={(e) => e.stopPropagation()}
+      style={{ right: 4 }}
+    >
+      {hasObjectMenu && (
         <div className={peerVisibility}>
           <ItemContextMenu
             itemId={nodeId}
             itemName={itemName}
             isSynced={isSynced}
+            exposeLabel={hasAccessPoint ? 'Manage Access' : 'Expose as...'}
+            onExpose={
+              isFolder && onCreateSync
+                ? (event) => {
+                    if (hasAccessPoint && onOpenAccess) {
+                      onOpenAccess(endpoints, accessPath);
+                      return;
+                    }
+                    onCreateSync(event, accessPath);
+                  }
+                : undefined
+            }
             onRename={onRename}
             onDelete={onDelete}
             onDownload={onDownload}
@@ -203,35 +180,33 @@ export function ExplorerRowActions({
         </div>
       )}
 
-      {isFolder && onCreateSync && (
-        <div
-          className={accessVisibility}
-          onMouseEnter={() => setIsAccessControlActive(true)}
-          onMouseLeave={() => setIsAccessControlActive(false)}
-          onFocus={() => setIsAccessControlActive(true)}
-          onBlur={() => setIsAccessControlActive(false)}
-        >
+      {hasCreateButton && (
+        <div className={peerVisibility}>
           <RowActionButton
-            title={
-              hasAccessPoint
-                ? `${endpointCount} ${shareMethodLabel} on this folder`
-                : 'Share with AI'
-            }
-            ariaLabel="Share with AI"
-            active={accessActive}
-            variant={accessActive ? 'accessActive' : 'default'}
+            title="New item"
+            ariaLabel="New item"
+            active={isCreateMenuOpen}
+            variant={isCreateMenuOpen ? 'createActive' : 'default'}
             onClick={(e) => {
-              e.stopPropagation();
-              if (hasAccessPoint && onOpenAccess) {
-                onOpenAccess(endpoints, accessPath);
-                return;
-              }
-              onCreateSync(e, accessPath);
+              onCreate(e, createParentId);
             }}
           >
-            <LinkIcon />
+            <PlusIcon />
           </RowActionButton>
         </div>
+      )}
+
+      {hasAccessButton && (
+        <RowActionButton
+          title={`${endpointCount} configured Access ${endpointCount === 1 ? 'point' : 'points'}`}
+          ariaLabel="Manage Access"
+          variant="accessConfigured"
+          onClick={() => {
+            onOpenAccess?.(endpoints, accessPath);
+          }}
+        >
+          <AccessChainIcon />
+        </RowActionButton>
       )}
     </div>
   );

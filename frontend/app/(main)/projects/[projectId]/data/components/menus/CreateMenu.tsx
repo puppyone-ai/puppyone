@@ -21,9 +21,9 @@ export interface CreateMenuProps {
   // Upload sections entirely and renders the access-provider list
   // (Notion, Gmail, Calendar, …, Machine Folder, Chat Agent, etc.)
   // as the top-level menu — flat, no `New Access >` submenu trigger.
-  // This is what the per-folder plug button uses: the user already
-  // expressed the intent "create access for this folder" by clicking
-  // the plug, so the picker shouldn't make them traverse a nested
+  // This is what the sidebar row `Expose as...` command uses: the
+  // user already expressed the intent "create access for this folder",
+  // so the picker shouldn't make them traverse a nested
   // submenu to *get* to the access list.
   accessOnly?: boolean;
   onCreateFolder: () => void;
@@ -51,7 +51,7 @@ interface MenuItemProps {
   label: string;
   sublabel?: string;
   onClick?: (e: ReactMouseEvent) => void;
-  onMouseEnter?: (e: ReactMouseEvent<HTMLDivElement>) => void;
+  onMouseEnter?: (e: ReactMouseEvent<HTMLButtonElement>) => void;
   isActive?: boolean;
   hasSubmenu?: boolean;
   disabled?: boolean;
@@ -59,13 +59,28 @@ interface MenuItemProps {
 
 function MenuItem({ icon, label, sublabel, onClick, onMouseEnter, isActive, hasSubmenu, disabled }: MenuItemProps) {
   return (
-    <div
-      onClick={disabled ? undefined : onClick}
+    <button
+      type="button"
+      role="menuitem"
+      disabled={disabled}
+      onPointerDown={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!disabled) onClick?.(e);
+      }}
       style={{
         display: 'flex',
         alignItems: 'center',
         gap: 8,
+        width: 'calc(100% - 8px)',
         height: 32,
+        border: 'none',
+        appearance: 'none',
+        fontFamily: 'inherit',
         padding: '0 12px',
         cursor: disabled ? 'default' : 'pointer',
         color: disabled ? 'var(--po-text-disabled)' : 'var(--po-text)',
@@ -81,6 +96,7 @@ function MenuItem({ icon, label, sublabel, onClick, onMouseEnter, isActive, hasS
         margin: '0 4px',
         position: 'relative',
         opacity: disabled ? 0.55 : 1,
+        textAlign: 'left',
       }}
       onMouseEnter={(e) => {
         if (!disabled) e.currentTarget.style.background = 'var(--po-hover)';
@@ -106,7 +122,7 @@ function MenuItem({ icon, label, sublabel, onClick, onMouseEnter, isActive, hasS
           <polyline points="9 18 15 12 9 6" />
         </svg>
       )}
-    </div>
+    </button>
   );
 }
 
@@ -120,7 +136,7 @@ const iconColor = 'var(--po-text-muted)';
 
 const FolderIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-    <path d="M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z" fill="var(--po-accent)" fillOpacity="0.45" />
+    <path d="M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z" fill="currentColor" fillOpacity="0.34" />
   </svg>
 );
 
@@ -276,6 +292,13 @@ export function CreateMenu({
   return (
     <div
       ref={menuRef}
+      role="menu"
+      onPointerDown={(e) => {
+        e.stopPropagation();
+      }}
+      onClick={(e) => {
+        e.stopPropagation();
+      }}
       style={{
         position: 'fixed',
         top: position?.top ?? y,
@@ -316,7 +339,7 @@ export function CreateMenu({
           hover-triggered MenuItem that opened the integrations
           submenu. We removed it from the visible menu because:
             1. Every node in the explorer already exposes a
-               chain/link affordance on its row that opens the
+               scoped `Expose as...` command that opens the
                same integrations panel scoped to that node, so
                this entry was a duplicate path.
             2. The visual treatment (chevron + nested floating
@@ -325,7 +348,7 @@ export function CreateMenu({
 
           We deliberately keep the submenu *content* below mounted —
           it's the canonical "all integrations" picker we still
-          render in `accessOnly` mode (the per-folder plug button
+          render in `accessOnly` mode (the sidebar row `Expose as...`
           uses CreateMenu with accessOnly=true and renders this
           block flat at the top level). Removing the content here
           would also delete that picker, which is a real product
@@ -333,7 +356,7 @@ export function CreateMenu({
 
           The integrations picker is intentionally hidden from the
           regular Create menu. It renders only in `accessOnly` mode,
-          which is opened by the per-folder plug button after the user
+          which is opened by the sidebar row `Expose as...` command after the user
           has already expressed "create access here".
         */}
         {accessOnly && (
@@ -413,9 +436,9 @@ export function CreateMenu({
 
             {/* "More Sources…" is the open-the-empty-picker fallback
                 — useful from `+ → New Access` when the user is
-                exploring, but pointless from the per-folder plug
-                button (the user has already declared intent by
-                clicking the plug, an empty picker is a step
+                exploring, but pointless from a scoped `Expose as...`
+                command (the user has already declared intent against
+                a specific folder, so an empty picker is a step
                 backwards).  Hide it in accessOnly mode. */}
             {!accessOnly && (
               <>

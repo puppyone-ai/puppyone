@@ -3,18 +3,14 @@
 import { useState } from 'react';
 import { CHROME_LABEL_TYPOGRAPHY } from '@/lib/uiTypography';
 
-// The chip lives in the same visual language as the sidebar's row-level
-// access-active button. The
-// header surface is the same accent family, scaled up: a leading chain
-// glyph (the project's recurring "access" mark, also used in the file
-// tree's per-row chip) + the literal word "Access" + a count of access
-// points in this project.
+// The chip keeps Access discoverable in the page header: a leading
+// chain glyph + the literal word "Access" + a count of access points in
+// this project.
 //
 // 2026-05-08 redesign:
 //   - Renamed from "Add access" → "Access". The button doesn't *create*
-//     anything; clicking it opens the management surface (Pp.1
-//     Overview), where creation is one click away. The verb framing
-//     was misleading.
+//     directly; clicking it opens the modal-owned Access surface where
+//     creation is one click away. The verb framing was misleading.
 //   - Count is now project-wide scope count, not per-scope integration
 //     count. The button is a global entry point — its number should
 //     reflect the project's total access surface, not whatever scope
@@ -113,9 +109,9 @@ export function AccessPointsHeaderButton({
   );
 }
 
-// Mirrors the chain glyph used by ExplorerRowActions' RowActionButton so
-// the header chip and the per-row access toggles read as the same
-// concept at different scales.
+// Mirrors the chain glyph used across the access surfaces so the header
+// chip, scope list rows, and expose menus read as the same concept at
+// different scales.
 function ChainIcon({ stroke }: { stroke: string }) {
   return (
     <span
@@ -139,11 +135,9 @@ function ChainIcon({ stroke }: { stroke: string }) {
         strokeLinecap="round"
         strokeLinejoin="round"
       >
-        {/* Lucide `link-2` (horizontal). Same geometry the explorer
-            sidebar's per-row access button uses, and the same the
-            Overview's per-row chain stamp uses, so the user reads
-            ALL three surfaces (sidebar chip, header chip, list row)
-            as the same recurring "access" sigil at different scales.
+        {/* Lucide `link-2` (horizontal). Same geometry the Overview's
+            per-row chain stamp uses, so the user reads the header chip
+            and list row as the same recurring "access" sigil.
             Per 2026-05-08 UX feedback: unify the access mark across
             the system or it stops feeling like an identity. */}
         <path d="M9 17H7A5 5 0 0 1 7 7h2" />

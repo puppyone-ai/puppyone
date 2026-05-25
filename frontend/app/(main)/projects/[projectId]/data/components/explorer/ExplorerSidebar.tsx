@@ -11,8 +11,15 @@ import {
 import type { ContentType } from '../views/GridView';
 import type { FileImportTarget } from '../../hooks/useFileImport';
 import { ensureExpandedBatch, usePendingActiveId } from './explorerState';
-import { ExplorerTreeMetaRow, ExplorerTreeRow, FolderIcon } from './ExplorerTreeRow';
-import { ExplorerRowActions } from './ExplorerRowActions';
+import {
+  ExplorerTreeMetaRow,
+  ExplorerTreeRow,
+  FolderIcon,
+} from './ExplorerTreeRow';
+import {
+  ExplorerRowActions,
+  getExplorerRowActionLayerWidth,
+} from './ExplorerRowActions';
 import type { ExplorerSidebarProps, MillerColumnItem } from './types';
 import { Dots } from '@/components/loading';
 import { SIDEBAR_ROW_TYPOGRAPHY } from '@/lib/uiTypography';
@@ -86,6 +93,7 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
   const isRootAccessPointHighlight = isRootHighlighted && highlightVariant === 'access-point';
   const rootOpenMenuAction = createMenuOpenForId === '__root__' ? createMenuOpenAction ?? null : null;
   const rootEndpoints = endpointByNodeId?.get('') ?? [];
+  const rootHasConfiguredAccess = rootEndpoints.length > 0 && !!onOpenAccess;
   const isRootFileDropTarget = isExternalFileDraggingInSidebar && activeFileDropTarget?.path === null;
   const rootHasSpecialBg = isRootDropTarget || isRootFileDropTarget || isRootHighlighted || isRootActive || rootOpenMenuAction !== null;
   const [isRootHovered, setIsRootHovered] = useState(false);
@@ -145,6 +153,7 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
 
   return (
     <div
+      data-explorer-sidebar-root="true"
       className={className}
       onDragEnterCapture={handleSidebarDragEnterCapture}
       onDragLeaveCapture={handleSidebarDragLeaveCapture}
@@ -236,7 +245,9 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
                 height: '100%',
                 boxSizing: 'border-box',
                 paddingLeft: 8,
-                paddingRight: 6,
+                paddingRight: (onCreate || onCreateSync || rootHasConfiguredAccess)
+                  ? getExplorerRowActionLayerWidth(rootHasConfiguredAccess) + 10
+                  : 6,
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0, width: 16, height: 16, justifyContent: 'center' }}>
@@ -256,7 +267,7 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
                 Root
               </span>
 
-              {(onCreate || onCreateSync) && (
+              {(onCreate || onCreateSync || rootHasConfiguredAccess) && (
                 <ExplorerRowActions
                   nodeId=""
                   createParentId={null}

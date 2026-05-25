@@ -48,6 +48,44 @@ export function useIsExpanded(id: string): boolean {
   return useSyncExternalStore(expandedSubscribe, getSnapshot, getSnapshot);
 }
 
+const pendingCreatingKeys = new Set<string>();
+const pendingCreatingListeners = new Set<() => void>();
+
+function pendingCreatingKey(projectId: string, path: string) {
+  return `${projectId}\u0000${path}`;
+}
+
+function pendingCreatingSubscribe(cb: () => void) {
+  pendingCreatingListeners.add(cb);
+  return () => pendingCreatingListeners.delete(cb);
+}
+
+function notifyPendingCreating() {
+  pendingCreatingListeners.forEach((cb) => cb());
+}
+
+export function addPendingCreatingPath(projectId: string, path: string) {
+  const key = pendingCreatingKey(projectId, path);
+  if (pendingCreatingKeys.has(key)) return;
+  pendingCreatingKeys.add(key);
+  notifyPendingCreating();
+}
+
+export function removePendingCreatingPath(projectId: string, path: string) {
+  const key = pendingCreatingKey(projectId, path);
+  if (!pendingCreatingKeys.has(key)) return;
+  pendingCreatingKeys.delete(key);
+  notifyPendingCreating();
+}
+
+export function useIsPendingCreatingPath(projectId: string, path: string): boolean {
+  const getSnapshot = useCallback(
+    () => pendingCreatingKeys.has(pendingCreatingKey(projectId, path)),
+    [projectId, path],
+  );
+  return useSyncExternalStore(pendingCreatingSubscribe, getSnapshot, getSnapshot);
+}
+
 let pendingActiveId: string | null = null;
 let pendingVersion = 0;
 const pendingListeners = new Set<() => void>();

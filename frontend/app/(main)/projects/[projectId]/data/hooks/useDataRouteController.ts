@@ -1,7 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useState } from 'react';
 import { usePathResolver } from './usePathResolver';
 
 type FolderBreadcrumb = { id: string; name: string };
@@ -24,15 +23,52 @@ function buildFolderBreadcrumbs(segments: string[]): FolderBreadcrumb[] {
   }));
 }
 
+function safeDecodePathSegment(segment: string): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+}
+
+function readDataLocation(projectId: string): { path: string[]; typeHint: string } {
+  if (typeof window === 'undefined') {
+    return { path: [], typeHint: '' };
+  }
+
+  const prefix = `/projects/${projectId}/data`;
+  const pathname = window.location.pathname;
+  const rawPath = pathname.startsWith(prefix)
+    ? pathname.slice(prefix.length).replace(/^\/+/, '')
+    : '';
+
+  return {
+    path: rawPath
+      ? rawPath.split('/').filter(Boolean).map(safeDecodePathSegment)
+      : [],
+    typeHint: new URLSearchParams(window.location.search).get('type') ?? '',
+  };
+}
+
+function buildDataUrl(projectId: string, nextPath: string[], typeHint?: string): string {
+  const encoded = nextPath.map((s) => encodeURIComponent(s)).join('/');
+  const basePath = `/projects/${projectId}/data${encoded ? `/${encoded}` : ''}`;
+  return typeHint ? `${basePath}?type=${encodeURIComponent(typeHint)}` : basePath;
+}
+
 export function useDataRouteController({
   projectId,
   path,
 }: UseDataRouteControllerArgs) {
-  const router = useRouter();
-  const routePathKey = path.join('/');
+  const propPathKey = path.join('/');
+  // Keep routine Data navigation inside this mounted client tree. Using the
+  // app router for every file click remounts the catch-all page, which makes
+  // the explorer sidebar replay its whole expansion tree.
+  const [clientPath, setClientPath] = useState(path);
+  const [clientTypeHint, setClientTypeHint] = useState(() => readDataLocation(projectId).typeHint);
+  const routePathKey = clientPath.join('/');
   const [pendingFolderNavigation, setPendingFolderNavigation] =
     useState<PendingFolderNavigation | null>(null);
-  const [isRouteTransitionPending, startRouteTransition] = useTransition();
 
   const {
     currentFolderId: resolvedCurrentFolderId,
@@ -49,11 +85,11 @@ export function useDataRouteController({
     isLoadingText,
     markdownViewMode,
     setMarkdownViewMode,
-  } = usePathResolver(projectId, path);
+  } = usePathResolver(projectId, clientPath, clientTypeHint);
 
   const shouldUsePendingFolderNavigation =
     pendingFolderNavigation !== null &&
-    (isRouteTransitionPending || pendingFolderNavigation.pathKey === routePathKey);
+    pendingFolderNavigation.pathKey === routePathKey;
 
   const currentFolderId = shouldUsePendingFolderNavigation
     ? pendingFolderNavigation.path
@@ -71,9 +107,7 @@ export function useDataRouteController({
     if (!pendingFolderNavigation) return;
 
     if (pendingFolderNavigation.pathKey !== routePathKey) {
-      if (!isRouteTransitionPending) {
-        setPendingFolderNavigation(null);
-      }
+      setPendingFolderNavigation(null);
       return;
     }
 
@@ -85,7 +119,6 @@ export function useDataRouteController({
       setPendingFolderNavigation(null);
     }
   }, [
-    isRouteTransitionPending,
     pendingFolderNavigation,
     resolvedActiveNodeId,
     resolvedCurrentFolderId,
@@ -93,11 +126,30 @@ export function useDataRouteController({
     routePathKey,
   ]);
 
+  useEffect(() => {
+    setClientPath(path);
+    setClientTypeHint(readDataLocation(projectId).typeHint);
+    setPendingFolderNavigation(null);
+  }, [projectId, propPathKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const next = readDataLocation(projectId);
+      setClientPath(next.path);
+      setClientTypeHint(next.typeHint);
+      setPendingFolderNavigation(null);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [projectId]);
+
   const navigateTo = useCallback((nextPath: string[], typeHint?: string) => {
-    const encoded = nextPath.map((s) => encodeURIComponent(s)).join('/');
-    const basePath = `/projects/${projectId}/data${encoded ? `/${encoded}` : ''}`;
-    const url = typeHint ? `${basePath}?type=${encodeURIComponent(typeHint)}` : basePath;
+    const url = buildDataUrl(projectId, nextPath, typeHint);
     const nextPathKey = nextPath.join('/');
+
+    setClientPath(nextPath);
+    setClientTypeHint(typeHint ?? '');
 
     if (typeHint === 'folder') {
       setPendingFolderNavigation({
@@ -109,12 +161,11 @@ export function useDataRouteController({
       setPendingFolderNavigation(null);
     }
 
-    startRouteTransition(() => {
-      router.push(url);
-    });
-  }, [projectId, router, startRouteTransition]);
+    window.history.pushState({ puppyoneDataPath: nextPathKey }, '', url);
+  }, [projectId]);
 
   return {
+    path: clientPath,
     currentFolderId,
     folderBreadcrumbs,
     isResolvingPath,

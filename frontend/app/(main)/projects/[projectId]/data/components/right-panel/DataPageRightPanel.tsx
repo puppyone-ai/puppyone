@@ -13,7 +13,6 @@ import type { Tool } from '@/lib/mcpApi';
 import type { TableData } from '@/lib/projectsApi';
 import { PanelShell } from '../PanelShell';
 import {
-  CreateAccessPointPanel,
   ScopedConnectorsListPanel,
   type EndpointEntry,
   type ProviderIconLookup,
@@ -91,6 +90,8 @@ interface DataPageRightPanelProps {
    *  completion). */
   onScopeMutated: () => Promise<unknown>;
   onOpenPanel: (panel: PanelState) => void;
+  onCreateAccessPoint: (folderPath: string | null | undefined) => void;
+  onCreateIntegration: (scopePath?: string | null) => void;
   onOpenSyncSetting: (
     syncId: string,
     resource: { path: string; nodeName: string; nodeType: 'folder'; readonly: boolean },
@@ -127,6 +128,8 @@ export function DataPageRightPanel({
   onAccessPointHover,
   onScopeMutated,
   onOpenPanel,
+  onCreateAccessPoint,
+  onCreateIntegration,
   onOpenSyncSetting,
   onDataUpdate,
   panelWidth,
@@ -149,34 +152,32 @@ export function DataPageRightPanel({
 
   // ── access_list view resolution ────────────────────────────────────
   //
-  // The Access surface is a 3-page hierarchy (per 2026-05-08 UX spec):
+  // The Access surface is a 3-page hierarchy (per 2026-05-08 UX spec),
+  // with creation delegated to the shared modal:
   //
   //   Pp.1 Overview      — list of all scopes, project-wide.
   //   Pp.2a Scope Detail — per-scope connect methods + integrations.
   //   Pp.2s Settings     — selected scope's configuration page.
-  //   Pp.2b Create New   — dedicated form to promote a folder.
   //
   // Three signals drive which page renders:
   //
   //   1. `panelState.view`            — explicit user choice from a
   //                                     trigger (header → overview,
-  //                                     row → detail, sidebar chain
-  //                                     on non-scope → create, etc.).
+  //                                     row → detail, etc.).
   //   2. `panelState.selectedScopeId` — drill-down target id.
   //   3. `currentScopePath`           — file tree's current folder.
   //
   // Resolution precedence:
-  //   - view === 'create'               → Create page (Pp.2b).
   //   - view === 'overview'             → Overview (Pp.1), hard.
   //   - view === 'settings' + scope     → Settings page (Pp.2s).
   //   - selectedScopeId is set          → Detail of that scope.
   //   - currentScopePath matches scope  → Detail of that scope (auto).
   //   - otherwise                       → Overview (Pp.1).
   //
-  // The user always has a way OUT of any Pp.2 sub-page: PanelShell's
-  // back chevron resolves to view='overview' for both Detail and
-  // Create — a single, predictable affordance back to the management
-  // surface. Settings backs up one level to Detail.
+  // Creation starts from this panel, but the actual form, loading,
+  // validation, and success/error states live in CreateAccessModal.
+  // That keeps the sidebar as management/discovery chrome instead of
+  // a second create workflow.
   //
   // No parent-child inheritance per the redesign Q1 decision
   // (2026-05-03) — exact match only.
@@ -187,11 +188,9 @@ export function DataPageRightPanel({
   const folderScope = matchScopeForPath(panelScopePath, scopes);
   const resolvedScope = drilledScope ?? folderScope;
 
-  const accessListView: 'overview' | 'detail' | 'settings' | 'create' =
-    panelState.type === 'access_list' && panelState.view === 'create'
-      ? 'create'
-      : panelState.type === 'access_list' && panelState.view === 'settings' && resolvedScope
-        ? 'settings'
+  const accessListView: 'overview' | 'detail' | 'settings' =
+    panelState.type === 'access_list' && panelState.view === 'settings' && resolvedScope
+      ? 'settings'
       : panelState.type === 'access_list' && panelState.view === 'overview'
         ? 'overview'
         : resolvedScope
@@ -206,24 +205,14 @@ export function DataPageRightPanel({
     ? connectorsByScope.get(currentScope.id) || []
     : [];
 
-  // For Pp.2b Create, the prefill comes from `panelState.nodeId` (set
-  // by whichever trigger opened the form), not from `currentScopePath`
-  // — the file tree's cursor is independent of which folder the user
-  // clicked the chain icon on.  Falls back to the file tree path when
-  // the trigger didn't set one (e.g. Overview's "+ Create new" CTA
-  // when the user is at the workspace root).
-  const createPrefillPath =
-    panelState.type === 'access_list' && panelState.view === 'create'
-      ? panelState.nodeId ?? currentScopePath
-      : currentScopePath;
-
   // File-tree navigation resets the panel's drill-down so the panel
   // resumes auto-following the explorer's cursor — but ONLY for
-  // detail-mode drill-downs.  Pp.1 Overview and Pp.2b Create are
-  // explicit user destinations: yanking them out from under the user
+  // detail-mode drill-downs. Pp.1 Overview is an explicit user
+  // destination: yanking it out from under the user
   // because they happened to click a folder in the file tree would be
-  // a surprise. They stay sticky until the user explicitly navigates
-  // away (back button / close).
+  // a surprise. It stays sticky until the user explicitly navigates
+  // away (back button / close). Create is modal-owned, so file-tree
+  // navigation cannot move an in-sidebar form anymore.
   //
   // We only reset when the path actually changes (skip the initial
   // mount via the `prevPathRef` guard) and only when `access_list` is
@@ -236,7 +225,6 @@ export function DataPageRightPanel({
       if (
         panelState.type === 'access_list' &&
         panelState.view !== 'overview' &&
-        panelState.view !== 'create' &&
         panelState.view !== 'settings' &&
         (panelState.view !== undefined ||
           panelState.selectedScopeId !== undefined)
@@ -334,7 +322,7 @@ export function DataPageRightPanel({
                     nodeType: 'folder',
                     readonly: true,
                   });
-                  onOpenPanel({ type: 'sync_create', nodeId });
+                  onCreateIntegration(nodeId);
                 }}
                 style={{
                   height: 30, padding: '0 14px', fontSize: 12, fontWeight: 500,
@@ -363,30 +351,7 @@ export function DataPageRightPanel({
         />
       )}
 
-      {!editorTarget && panelState.type === 'access_list' && accessListView === 'create' && (
-        <CreateAccessPointPanel
-          prefillPath={createPrefillPath}
-          scopes={scopes}
-          projectId={projectId}
-          onClose={onClose}
-          // Pp.2b Create → Pp.1 Overview. Both Cancel button and the
-          // PanelShell back chevron route through here so the user
-          // always lands on the management surface, not back into
-          // whatever previous panel state preceded the create flow.
-          onBack={() => onOpenPanel({ type: 'access_list', view: 'overview' })}
-          // On successful create, immediately drill into Pp.2a Detail
-          // of the newly-created scope so the user sees the result of
-          // their action without having to scan the Overview list for
-          // the new row.
-          onCreated={(scope) =>
-            onOpenPanel({ type: 'access_list', view: 'detail', selectedScopeId: scope.id })
-          }
-          onMutated={onScopeMutated}
-          hideHeader={isAccessPanel}
-        />
-      )}
-
-      {!editorTarget && panelState.type === 'access_list' && accessListView !== 'create' && (
+      {!editorTarget && panelState.type === 'access_list' && (
         <ScopedConnectorsListPanel
           scope={currentScope}
           scopes={scopes}
@@ -405,13 +370,12 @@ export function DataPageRightPanel({
           onSelectScope={(scopeId) =>
             onOpenPanel({ type: 'access_list', view: 'detail', selectedScopeId: scopeId })
           }
-          // Overview's "+ Create new access point" CTA → Pp.2b Create.
-          // Pre-fills the form with the current file-tree folder so
-          // the typical "I'm here, give me access to here" flow is one
-          // click. The user can still edit the path on the create
-          // page if they meant somewhere else.
+          // Overview's "+ Create new access point" CTA opens the same
+          // CreateAccessModal used by folder row actions. The sidebar
+          // remains a discovery/management surface; it does not own a
+          // parallel create form or duplicate create state.
           onCreateRequested={() =>
-            onOpenPanel({ type: 'access_list', view: 'create', nodeId: panelScopePath })
+            onCreateAccessPoint(panelScopePath)
           }
           // Detail → Overview pop. Always present in Detail mode,
           // regardless of how the user landed there (drill-down OR
@@ -443,10 +407,14 @@ export function DataPageRightPanel({
           }
           onNavigationGuardChange={onAccessPanelNavigationGuardChange}
           onAddRequested={() => {
-            // "+ Add integration" opens the create panel pre-filled with
-            // the current scope path. Will route through the new
-            // connectors endpoint once the create flow is migrated.
-            onOpenPanel({ type: 'sync_create', nodeId: panelScopePath });
+            const segs = panelScopePath.split('/').filter(Boolean);
+            onOpenSyncSetting('_generic', {
+              path: panelScopePath,
+              nodeName: segs.length > 0 ? segs[segs.length - 1] : 'Root',
+              nodeType: 'folder',
+              readonly: false,
+            });
+            onCreateIntegration(panelScopePath);
           }}
           onConnectorClick={(c) => {
             // After the 2026-05-06 redesign, ConnectMethodsBlock owns
