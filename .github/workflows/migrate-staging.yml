@@ -38,6 +38,7 @@ jobs:
           PGHOST: db.${{ secrets.STAGING_PROJECT_ID }}.supabase.co
         run: |
           set -euo pipefail
+          # Direct DB smoke tests need the database password secret; migration push itself does not.
           if [ -z "${PGPASSWORD:-}" ]; then
             echo "::warning::STAGING_DB_PASSWORD is not configured; skipping direct database smoke test."
             exit 0
