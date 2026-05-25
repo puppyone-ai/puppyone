@@ -33,20 +33,10 @@ export interface ExplorerSidebarProps {
     targetFolderId: string | null,
     sourceParentId?: string | null,
   ) => Promise<void>;
-  // Open the per-folder access-provider menu, anchored at the
-  // event's currentTarget, with `folderPath` stashed as the target
-  // that gets pre-bound on the panel after the user picks a
-  // provider from the menu.  Two surfaces invoke it:
-  //   - per-folder row plug button (hover-revealed, next to +)
-  //     → passes that row's own folder id, so the user creates
-  //     for that exact folder without navigating first
-  //   - the Root row's hover plug button → passes '' (project
-  //     root scope)
-  // The flow is: plug click → access-only menu of
-  // providers/agents/endpoints → user picks one → panel opens
-  // already-selected on that provider's config view, with the
-  // folder pre-bound as the target chip.  Avoids the "open empty
-  // panel + drag folder from sidebar" anti-pattern entirely.
+  // Open the access/expose flow for a specific folder path. Sidebar
+  // folder rows call this from their object menu (`Expose as...`);
+  // configured folders also expose an inline Access status/action.
+  // The row body itself remains a disclosure-only click target.
   onCreateSync?: (event: MouseEvent<Element>, folderPath: string) => void;
   onOpenAccess?: (endpoints: readonly SyncEndpointInfo[], nodeId: string) => void;
   endpointByNodeId?: ReadonlyMap<string, readonly SyncEndpointInfo[]>;

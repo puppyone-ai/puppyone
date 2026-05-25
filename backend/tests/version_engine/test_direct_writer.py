@@ -26,7 +26,7 @@ from unittest.mock import MagicMock
 import pytest
 from src.version_engine.write_engine import tree as tree_mod
 from src.version_engine.write_engine.git_object_format import encode_commit, encode_tree
-from src.version_engine.write_engine.object_store import ObjectStore
+from src.version_engine.storage.object_store import ObjectStore
 
 from src.version_engine.write_engine.engine import ConcurrentMutationError
 from src.version_engine.adapters.product.operation_adapter import BlobRef, MissingBlobError, ProductOperationAdapter

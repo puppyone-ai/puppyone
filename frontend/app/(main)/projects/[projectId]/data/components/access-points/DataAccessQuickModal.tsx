@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react';
 import { ArrowLeft, BookOpen, Check, ChevronRight, Copy, ExternalLink, Plus } from 'lucide-react';
+import { PulseGrid } from '@/components/loading';
 import { DialogBody, DialogHeader, DialogRoot, DialogSurface } from '@/components/ui/Dialog';
 import { ModalPortal } from '@/components/ui/ModalPortal';
 import {
@@ -216,13 +217,20 @@ function AccessMethodsPanel({
     return (
       <div
         style={{
+          minHeight: 172,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 10,
           padding: '18px 14px',
           color: T.text3,
           fontSize: FONT_BODY,
           fontFamily: T.fontSans,
         }}
       >
-        Access methods are still preparing.
+        <PulseGrid size="sm" />
+        <span>Preparing access methods</span>
       </div>
     );
   }

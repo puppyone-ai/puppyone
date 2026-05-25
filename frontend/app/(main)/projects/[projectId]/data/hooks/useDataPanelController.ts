@@ -51,9 +51,11 @@ export function useDataPanelController({
   const [rightPanelWidth, setRightPanelWidth] = useState(450);
   const [accessPanelNavigationGuard, setAccessPanelNavigationGuard] =
     useState<AccessPanelNavigationGuard | null>(null);
+  const [accessOverviewOpen, setAccessOverviewOpen] = useState(false);
   const [quickAccessScopeId, setQuickAccessScopeId] = useState<string | null>(null);
   const [quickAccessScopeFallback, setQuickAccessScopeFallback] = useState<RepoScope | null>(null);
   const [createAccessInitialPath, setCreateAccessInitialPath] = useState<string | null>(null);
+  const [syncCreateInitialPath, setSyncCreateInitialPath] = useState<string | null>(null);
 
   const activeSyncNodeId = panelState.type === 'sync_config' ? panelState.nodeId ?? null : null;
   const activeSyncId = activeSyncNodeId !== null
@@ -67,11 +69,9 @@ export function useDataPanelController({
     : null;
   const accessFolderScope = matchScopeForPath(accessPanelScopePath, scopes);
   const accessResolvedScope = accessDrilledScope ?? accessFolderScope;
-  const accessListView: 'overview' | 'detail' | 'settings' | 'create' =
-    isAccessPanelOpen && panelState.view === 'create'
-      ? 'create'
-      : isAccessPanelOpen && panelState.view === 'settings' && accessResolvedScope
-        ? 'settings'
+  const accessListView: 'overview' | 'detail' | 'settings' =
+    isAccessPanelOpen && panelState.view === 'settings' && accessResolvedScope
+      ? 'settings'
       : isAccessPanelOpen && panelState.view === 'overview'
         ? 'overview'
         : accessResolvedScope
@@ -82,9 +82,7 @@ export function useDataPanelController({
       ? accessResolvedScope
       : null;
   const accessHeaderTitle =
-    accessListView === 'create'
-      ? 'Create access point'
-      : accessListView === 'settings'
+    accessListView === 'settings'
         ? 'Settings'
         : accessHeaderScope
           ? accessHeaderScope.name
@@ -92,9 +90,7 @@ export function useDataPanelController({
   const accessHeaderSubtitle = undefined;
   const showAccessHeaderBack =
     isAccessPanelOpen &&
-    (accessListView === 'create' ||
-      accessListView === 'detail' ||
-      accessListView === 'settings');
+    (accessListView === 'detail' || accessListView === 'settings');
 
   const rootScope = useMemo(() => matchScopeForPath('', scopes), [scopes]);
   const rootGitRemoteUrl = useMemo(() => {
@@ -146,15 +142,13 @@ export function useDataPanelController({
   const openSyncCreatePanel = useCallback((targetScopePath?: string | null) => {
     setEditorTarget(null);
     setIsEditorFullScreen(false);
-    openPanel({
-      type: 'sync_create',
-      nodeId: targetScopePath ?? currentFolderId ?? undefined,
-    });
-  }, [currentFolderId, openPanel, setEditorTarget, setIsEditorFullScreen]);
+    setSyncCreateInitialPath(normalizeAccessPath(targetScopePath ?? currentFolderId ?? ''));
+  }, [currentFolderId, setEditorTarget, setIsEditorFullScreen]);
 
   const openCreateAccessModal = useCallback((folderPath: string | null | undefined) => {
     setEditorTarget(null);
     setIsEditorFullScreen(false);
+    setAccessOverviewOpen(false);
     setQuickAccessScopeId(null);
     setQuickAccessScopeFallback(null);
     setCreateAccessInitialPath(normalizeAccessPath(folderPath));
@@ -163,10 +157,21 @@ export function useDataPanelController({
   const openQuickAccessModal = useCallback((scope: RepoScope) => {
     setEditorTarget(null);
     setIsEditorFullScreen(false);
+    setAccessOverviewOpen(false);
     setCreateAccessInitialPath(null);
     setQuickAccessScopeFallback(scope);
     setQuickAccessScopeId(scope.id);
   }, [setEditorTarget, setIsEditorFullScreen]);
+
+  const openAccessOverviewModal = useCallback(() => {
+    setEditorTarget(null);
+    setIsEditorFullScreen(false);
+    setQuickAccessScopeId(null);
+    setQuickAccessScopeFallback(null);
+    setCreateAccessInitialPath(null);
+    setAccessOverviewOpen(true);
+    if (panelState.type === 'access_list') closePanel();
+  }, [closePanel, panelState.type, setEditorTarget, setIsEditorFullScreen]);
 
   const openRootGitRemotePanel = useCallback(() => {
     setEditorTarget(null);
@@ -197,6 +202,10 @@ export function useDataPanelController({
     openCreateAccessModal(normalizedPath);
   }, [openCreateAccessModal, openQuickAccessModal, scopes]);
 
+  const closeAccessOverviewModal = useCallback(() => {
+    setAccessOverviewOpen(false);
+  }, []);
+
   const closeQuickAccessModal = useCallback(() => {
     setQuickAccessScopeId(null);
     setQuickAccessScopeFallback(null);
@@ -206,10 +215,17 @@ export function useDataPanelController({
     setCreateAccessInitialPath(null);
   }, []);
 
+  const closeSyncCreateModal = useCallback(() => {
+    setSyncCreateInitialPath(null);
+  }, []);
+
   const handleDataAccessCreated = useCallback(async (scope: RepoScope) => {
-    setQuickAccessScopeFallback(scope);
-    setQuickAccessScopeId(scope.id);
-    await refreshRepoAndAgents();
+    try {
+      await refreshRepoAndAgents();
+    } finally {
+      setQuickAccessScopeFallback(scope);
+      setQuickAccessScopeId(scope.id);
+    }
   }, [refreshRepoAndAgents]);
 
   const openAccessFullSettings = useCallback((scopeId: string) => {
@@ -233,9 +249,11 @@ export function useDataPanelController({
     accessHeaderSubtitle,
     showAccessHeaderBack,
     rootGitRemoteUrl,
+    accessOverviewOpen,
     quickAccessScope,
     quickAccessConnectors,
     createAccessInitialPath,
+    syncCreateInitialPath,
     refreshRepoAndAgents,
     closeRightPanel,
     handleAccessHeaderBack,
@@ -243,9 +261,13 @@ export function useDataPanelController({
     openSyncCreatePanel,
     openRootGitRemotePanel,
     openShareWithAI,
+    openAccessOverviewModal,
+    openQuickAccessModal,
     openCreateAccessModal,
+    closeAccessOverviewModal,
     closeQuickAccessModal,
     closeCreateAccessModal,
+    closeSyncCreateModal,
     handleDataAccessCreated,
     openAccessFullSettings,
   };

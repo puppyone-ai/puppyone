@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import {
+  ACCESS_PANEL_TYPOGRAPHY,
   COLOR_BORDER,
   COLOR_BORDER_HOVER,
   COLOR_FG,
@@ -9,18 +10,18 @@ import {
 } from './tokens';
 
 /**
- * CreateAccessPointCTACard — Overview's entry point to Pp.2b Create.
+ * CreateAccessPointCTACard — Overview's entry point to the shared
+ * create modal.
  *
  * A single dashed-card click target that mirrors the geometry of the
  * scope rows above it (so the Overview reads as a coherent list with
  * a "+ new" affordance at the bottom), but its only job is to fire
- * `onCreate()` — the actual create form lives in `CreateAccessPointPanel`
- * and is rendered as a Pp.2b sub-page with its own back button.
+ * `onCreate()` — the actual create flow lives in the shared
+ * CreateAccessModal.
  *
- * Keeping this as a navigation-only card (no form) is a deliberate
- * 2026-05-08 redesign decision: surfacing the form inline made the
- * Overview do double duty (list + create), which the user described
- * as "very awkward". The 3-page hierarchy keeps each surface focused.
+ * Keeping this as an entry card (no form) is deliberate: surfacing
+ * create inline made the Overview do double duty (list + create).
+ * The sidebar is management/discovery; the modal owns create state.
  */
 export function CreateAccessPointCTACard({
   onCreate,
@@ -37,13 +38,12 @@ export function CreateAccessPointCTACard({
           tag like the previous design. */}
       <div
         style={{
-          fontSize: 12,
-          fontWeight: 500,
+          ...ACCESS_PANEL_TYPOGRAPHY.title,
           color: COLOR_FG_MUTED,
           padding: '0 2px',
         }}
       >
-        Create new
+        Create new access point
       </div>
       <button
         type="button"
@@ -54,7 +54,7 @@ export function CreateAccessPointCTACard({
           display: 'flex',
           alignItems: 'center',
           gap: 10,
-          minHeight: 52,
+          minHeight: 58,
           padding: '10px 12px',
           borderRadius: 8,
           border: `1px dashed ${hovered ? COLOR_BORDER_HOVER : COLOR_BORDER}`,
@@ -72,21 +72,32 @@ export function CreateAccessPointCTACard({
         <div
           style={{
             display: 'flex',
+            flexDirection: 'column',
             flex: 1,
             minWidth: 0,
           }}
         >
           <div
             style={{
-              fontSize: 12,
-              fontWeight: 500,
-              lineHeight: 1.3,
+              ...ACCESS_PANEL_TYPOGRAPHY.title,
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
             }}
           >
-            Promote a folder to an access point
+            New access point
+          </div>
+          <div
+            style={{
+              marginTop: 3,
+              ...ACCESS_PANEL_TYPOGRAPHY.body,
+              color: COLOR_FG_MUTED,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Choose a folder to share with AI and tools
           </div>
         </div>
         <ChevronRightIcon hovered={hovered} />

@@ -20,7 +20,7 @@ type AccessHeaderProps = {
   title: string;
   subtitle?: string;
   showBack: boolean;
-  listView: 'overview' | 'detail' | 'settings' | 'create';
+  listView: 'overview' | 'detail' | 'settings';
   scopeCount: number;
   scope: { id: string } | null;
   onBack: () => void;
@@ -263,7 +263,16 @@ export function DataWorkspaceSurface({
                   ) : content.showEmptyWorkspace ? (
                     <EmptyWorkspaceState {...content.emptyWorkspaceProps} />
                   ) : (
-                    <GridView {...content.gridViewProps} />
+                    <>
+                      {/*
+                        Folder/root Finder-style main-area grid is paused for now.
+                        Keep the implementation wired in props/components so we can
+                        reintroduce a deliberate folder surface later without making
+                        sidebar navigation feel like selecting a file editor object.
+
+                        <GridView {...content.gridViewProps} />
+                      */}
+                    </>
                   )}
                 </div>
               )}

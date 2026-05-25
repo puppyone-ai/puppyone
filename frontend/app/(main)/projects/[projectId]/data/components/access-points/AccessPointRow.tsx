@@ -7,11 +7,13 @@ import { connectorAsEndpointShape, providerLabel } from './labels';
 import { AccessPointProviderIcon } from './AccessPointProviderIcon';
 import { ProviderIcon } from '../../../access/components/icons';
 import {
+  ACCESS_PANEL_TYPOGRAPHY,
   COLOR_BORDER,
   COLOR_BORDER_HOVER,
   COLOR_FG,
   COLOR_FG_DIM,
   COLOR_FG_MUTED,
+  FONT_MONO,
 } from './tokens';
 import type { ProviderIconLookup } from './types';
 
@@ -23,18 +25,18 @@ import type { ProviderIconLookup } from './types';
 const INTEGRATION_VISIBLE_CAP = 5;
 
 /** Inline provider signal size. These sit on the second line beside
- *  the path, so they should read as small status marks rather than
- *  primary actions. */
-const CHIP_SIZE = 18;
+ *  the title line, so they should read as small status marks rather
+ *  than primary actions while still using the shared 11px meta type. */
+const CHIP_SIZE = 20;
 
 const ROW_BG =
-  'color-mix(in srgb, var(--po-control) 46%, transparent)';
+  'color-mix(in srgb, var(--po-control) 42%, transparent)';
 const ROW_BG_HOVER =
-  'color-mix(in srgb, var(--po-control) 64%, transparent)';
+  'color-mix(in srgb, var(--po-control) 62%, transparent)';
 const ROW_BG_CURRENT =
-  'var(--po-selected)';
+  'color-mix(in srgb, var(--po-accent) 10%, var(--po-control) 42%)';
 const ROW_BORDER_CURRENT =
-  'color-mix(in srgb, var(--po-text) 24%, var(--po-border) 76%)';
+  'color-mix(in srgb, var(--po-accent) 30%, var(--po-border) 70%)';
 
 /**
  * AccessPointRow — one access-point row in the overview list.
@@ -105,8 +107,17 @@ export function AccessPointRow({
 
   const background = isCurrent ? ROW_BG_CURRENT : hovered ? ROW_BG_HOVER : ROW_BG;
   const borderColor = isCurrent ? ROW_BORDER_CURRENT : hovered ? COLOR_BORDER_HOVER : COLOR_BORDER;
-  const permissionLabel = scope.mode === 'rw' ? 'Read & Write' : 'Read-only';
   const active = connectors.some((c) => c.status === 'active' || c.status === 'syncing');
+  const activeMethodCount =
+    Number(cliActive) +
+    Number(filesystemActive) +
+    Number(AI_AGENT_ENABLED && agentActive) +
+    visibleIntegrations.length +
+    hiddenIntegrations;
+  const methodSummary =
+    activeMethodCount === 0
+      ? 'No active connectors'
+      : `${activeMethodCount} active ${activeMethodCount === 1 ? 'connector' : 'connectors'}`;
 
   return (
     <button
@@ -120,10 +131,10 @@ export function AccessPointRow({
         textAlign: 'left',
         display: 'flex',
         alignItems: 'center',
-        gap: 10,
+        gap: 11,
         minWidth: 0,
-        minHeight: 58,
-        padding: '8px 10px',
+        minHeight: 66,
+        padding: '9px 11px',
         borderRadius: 8,
         border: `1px solid ${borderColor}`,
         background,
@@ -141,27 +152,17 @@ export function AccessPointRow({
           alignItems: 'center',
           justifyContent: 'center',
           flexShrink: 0,
-          width: 16,
-          height: 16,
+          width: 34,
         }}
       >
-        <span
-          aria-hidden
-          style={{
-            width: 7,
-            height: 7,
-            borderRadius: '50%',
-            background: active ? 'var(--po-success)' : COLOR_FG_DIM,
-            boxShadow: active ? '0 0 6px color-mix(in srgb, var(--po-success) 40%, transparent)' : 'none',
-          }}
-        />
+        <ScopeGlyph active={active} selected={isCurrent} />
       </div>
 
       <div
         style={{
           display: 'flex',
           flexDirection: 'column',
-          gap: 4,
+          gap: 6,
           flex: '1 1 auto',
           minWidth: 0,
         }}
@@ -170,76 +171,38 @@ export function AccessPointRow({
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 6,
+            gap: 10,
             minWidth: 0,
           }}
         >
           <span
             style={{
               minWidth: 0,
+              flex: '1 1 auto',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
-              fontSize: 12,
-              fontWeight: isCurrent ? 600 : 500,
-              lineHeight: 1.2,
+              ...ACCESS_PANEL_TYPOGRAPHY.title,
               color: COLOR_FG,
             }}
           >
             {displayName}
           </span>
-          <span
-            style={{
-              flexShrink: 0,
-              fontSize: 12,
-              fontWeight: 500,
-              color: COLOR_FG_DIM,
-              lineHeight: 1.2,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            · {permissionLabel}
-          </span>
-        </div>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            minWidth: 0,
-          }}
-        >
-          <span
-            style={{
-              flex: '1 1 auto',
-              minWidth: 0,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              fontSize: 12,
-              lineHeight: 1.25,
-              color: isCurrent ? COLOR_FG_MUTED : COLOR_FG_DIM,
-              fontFamily: 'var(--po-font-mono)',
-            }}
-          >
-            {pathDisplay}
-          </span>
-
           {/* Provider signals — built-ins first in fixed order, then
-              active third-party integrations, then a `+N` overflow.
-              They intentionally live on the path line so the row reads
-              as one access-point element instead of a row plus actions. */}
+              active third-party integrations, then a `+N` overflow. */}
           <div
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: 3,
+              gap: 4,
+              minWidth: 0,
               flexShrink: 0,
             }}
           >
             {cliActive && (
               <ProviderSignal
                 provider="cli"
+                label="CLI"
                 selected={isCurrent}
                 title="Puppyone CLI · active"
               />
@@ -247,6 +210,7 @@ export function AccessPointRow({
             {filesystemActive && (
               <ProviderSignal
                 provider="filesystem"
+                label="Git"
                 selected={isCurrent}
                 title="Git Remote · active"
               />
@@ -258,6 +222,7 @@ export function AccessPointRow({
             {AI_AGENT_ENABLED && agentActive && (
               <ProviderSignal
                 provider="agent"
+                label="AI"
                 selected={isCurrent}
                 title="AI Agent · active"
               />
@@ -278,9 +243,8 @@ export function AccessPointRow({
                   justifyContent: 'center',
                   minWidth: CHIP_SIZE,
                   height: CHIP_SIZE,
-                  padding: '0 4px',
-                  fontSize: 10,
-                  fontWeight: 600,
+                  padding: '0 5px',
+                  ...ACCESS_PANEL_TYPOGRAPHY.meta,
                   borderRadius: 5,
                   color: COLOR_FG_MUTED,
                   background: 'transparent',
@@ -294,8 +258,114 @@ export function AccessPointRow({
             )}
           </div>
         </div>
+
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            minWidth: 0,
+          }}
+        >
+          <span
+            style={{
+              flex: '1 1 auto',
+              minWidth: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              ...ACCESS_PANEL_TYPOGRAPHY.body,
+              color: isCurrent ? COLOR_FG_MUTED : COLOR_FG_DIM,
+              fontFamily: FONT_MONO,
+            }}
+          >
+            {pathDisplay}
+          </span>
+          <span
+            style={{
+              flexShrink: 0,
+              ...ACCESS_PANEL_TYPOGRAPHY.body,
+              color: COLOR_FG_DIM,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {methodSummary}
+          </span>
+        </div>
       </div>
+
+      <span
+        aria-hidden
+        style={{
+          alignSelf: 'center',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: 24,
+          height: 24,
+          borderRadius: 6,
+          color: hovered || isCurrent ? COLOR_FG_MUTED : COLOR_FG_DIM,
+          transition: 'color 0.15s, transform 0.15s',
+          transform: hovered ? 'translateX(2px)' : 'translateX(0)',
+          flexShrink: 0,
+        }}
+      >
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="9 18 15 12 9 6" />
+        </svg>
+      </span>
     </button>
+  );
+}
+
+function ScopeGlyph({
+  active,
+  selected,
+}: {
+  readonly active: boolean;
+  readonly selected: boolean;
+}) {
+  return (
+    <span
+      aria-hidden
+      style={{
+        position: 'relative',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 32,
+        height: 32,
+        borderRadius: 8,
+        border: `1px solid ${selected ? ROW_BORDER_CURRENT : COLOR_BORDER}`,
+        background: selected
+          ? 'color-mix(in srgb, var(--po-accent) 10%, transparent)'
+          : 'color-mix(in srgb, var(--po-control) 46%, transparent)',
+        color: selected ? 'var(--po-accent)' : COLOR_FG_MUTED,
+        flexShrink: 0,
+      }}
+    >
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M9 17H7A5 5 0 0 1 7 7h2" />
+        <path d="M15 7h2a5 5 0 1 1 0 10h-2" />
+        <line x1="8" y1="12" x2="16" y2="12" />
+      </svg>
+      <span
+        style={{
+          position: 'absolute',
+          right: -2,
+          bottom: -2,
+          width: 8,
+          height: 8,
+          borderRadius: '50%',
+          background: active ? 'var(--po-success)' : COLOR_FG_DIM,
+          border: '2px solid var(--po-canvas)',
+          boxSizing: 'border-box',
+          boxShadow: active
+            ? '0 0 6px color-mix(in srgb, var(--po-success) 35%, transparent)'
+            : 'none',
+        }}
+      />
+    </span>
   );
 }
 
@@ -306,10 +376,12 @@ export function AccessPointRow({
  */
 function ProviderSignal({
   provider,
+  label,
   selected,
   title,
 }: {
   readonly provider: string;
+  readonly label: string;
   readonly selected: boolean;
   readonly title: string;
 }) {
@@ -323,8 +395,10 @@ function ProviderSignal({
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
-        width: CHIP_SIZE,
+        gap: 4,
+        minWidth: CHIP_SIZE,
         height: CHIP_SIZE,
+        padding: '0 6px',
         borderRadius: 5,
         background: selected
           ? 'var(--po-hover)'
@@ -341,6 +415,9 @@ function ProviderSignal({
         size={isGit ? 13 : 10}
         variant="mono"
       />
+      <span style={{ ...ACCESS_PANEL_TYPOGRAPHY.meta, lineHeight: 1 }}>
+        {label}
+      </span>
     </span>
   );
 }

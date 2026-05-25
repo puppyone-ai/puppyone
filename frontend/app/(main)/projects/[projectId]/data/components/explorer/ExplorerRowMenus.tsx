@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 import { APP_Z_INDEX } from '@/lib/zIndex';
 import type { SyncEndpointInfo } from './types';
@@ -75,6 +76,8 @@ export function ItemContextMenu({
   itemId,
   itemName,
   isSynced,
+  exposeLabel,
+  onExpose,
   onRename,
   onDelete,
   onDownload,
@@ -83,6 +86,8 @@ export function ItemContextMenu({
   itemId: string;
   itemName: string;
   isSynced?: boolean;
+  exposeLabel?: string;
+  onExpose?: (event: ReactMouseEvent<Element>) => void;
   onRename?: (id: string, name: string) => void;
   onDelete?: (id: string, name: string) => void;
   onDownload?: (id: string, name: string) => void;
@@ -137,6 +142,7 @@ export function ItemContextMenu({
   }, [open, setOpen, updatePosition]);
 
   const handleToggle = (e: ReactMouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
     e.stopPropagation();
 
     if (open) {
@@ -155,6 +161,13 @@ export function ItemContextMenu({
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
+        onPointerDown={(e) => {
+          e.stopPropagation();
+        }}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
         onClick={handleToggle}
         style={{
           display: 'flex',
@@ -188,10 +201,16 @@ export function ItemContextMenu({
         </svg>
       </button>
 
-      {open && pos && (
+      {open && pos && typeof document !== 'undefined' && createPortal(
         <div
           ref={menuRef}
           role="menu"
+          onPointerDown={(e) => {
+            e.stopPropagation();
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+          }}
           style={{
             position: 'fixed',
             top: pos.y,
@@ -219,6 +238,32 @@ export function ItemContextMenu({
               onClick={() => {
                 setOpen(false);
                 onRename(itemId, itemName);
+              }}
+            />
+          )}
+
+          {onExpose && (
+            <RowMenuItem
+              label={exposeLabel ?? 'Expose as...'}
+              icon={
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M9 17H7A5 5 0 0 1 7 7h2" />
+                  <path d="M15 7h2a5 5 0 1 1 0 10h-2" />
+                  <line x1="8" y1="12" x2="16" y2="12" />
+                </svg>
+              }
+              onClick={(event) => {
+                setOpen(false);
+                onExpose(event);
               }}
             />
           )}
@@ -256,7 +301,8 @@ export function ItemContextMenu({
               }}
             />
           )}
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

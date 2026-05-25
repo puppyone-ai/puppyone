@@ -65,7 +65,11 @@ function safeDecode(s: string): string {
   try { return decodeURIComponent(s); } catch { return s; }
 }
 
-export function usePathResolver(projectId: string, rawPath: string[]) {
+export function usePathResolver(
+  projectId: string,
+  rawPath: string[],
+  typeHintOverride?: string,
+) {
   const path = rawPath.map(safeDecode);
   const searchParams = useSearchParams();
   const [currentFolderPath, setCurrentFolderPath] = useState<string | null>(null);
@@ -87,7 +91,7 @@ export function usePathResolver(projectId: string, rawPath: string[]) {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const pathKey = path.join('/');
-  const typeHint = searchParams.get('type') ?? '';
+  const typeHint = typeHintOverride ?? searchParams.get('type') ?? '';
 
   useEffect(() => {
     let cancelled = false;

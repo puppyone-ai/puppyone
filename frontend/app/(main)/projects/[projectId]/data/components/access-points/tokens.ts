@@ -37,3 +37,30 @@ export const FONT_MONO =
   "var(--po-font-mono)";
 
 export const PANEL_BG = 'var(--po-canvas)';
+
+export const ACCESS_PANEL_TYPOGRAPHY = {
+  title: {
+    fontSize: 13,
+    lineHeight: '18px',
+    fontWeight: 600,
+    letterSpacing: 0,
+  },
+  label: {
+    fontSize: 12,
+    lineHeight: '16px',
+    fontWeight: 500,
+    letterSpacing: 0,
+  },
+  body: {
+    fontSize: 12,
+    lineHeight: '16px',
+    fontWeight: 400,
+    letterSpacing: 0,
+  },
+  meta: {
+    fontSize: 11,
+    lineHeight: '14px',
+    fontWeight: 500,
+    letterSpacing: 0,
+  },
+} as const;

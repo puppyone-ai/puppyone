@@ -2,11 +2,21 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
-import { mutate as swrMutate } from 'swr';
-import { mkdir, writeFile, listDir, sortNodes, type NodeInfo, type NodeType } from '@/lib/contentTreeApi';
+import { useSWRConfig } from 'swr';
+import { mkdir, writeFile, listDir, type NodeInfo, type NodeType } from '@/lib/contentTreeApi';
+import {
+  optimisticInsertDirectoryNode,
+  optimisticRemoveDirectoryNode,
+  optimisticSeedEmptyDirectory,
+  readCachedDirectoryNodes,
+} from '@/lib/dataTreeCache';
 import { refreshFolderNodes, refreshProjectHistory } from '@/lib/hooks/useData';
 import type { AccessResource } from '@/contexts/AgentContext';
-import { ensureExpanded } from '../components/explorer';
+import {
+  addPendingCreatingPath,
+  ensureExpanded,
+  removePendingCreatingPath,
+} from '../components/explorer';
 
 /**
  * Build a placeholder NodeInfo for optimistic insertion into the tree
@@ -54,36 +64,6 @@ function buildOptimisticNode(
     created_at: nowIso,
     updated_at: nowIso,
   };
-}
-
-/** SWR cache key shape from `useTreeDir` — must match exactly. */
-function treeKey(projectId: string, dirPath: string): readonly [string, string, string] {
-  return ['tree', projectId, dirPath];
-}
-
-/**
- * Insert ``node`` into the cached directory listing for ``parentPath``.
- *
- * Local cache mutation only (``revalidate: false``) — caller is responsible
- * for triggering a background refresh after the real backend call returns,
- * which will replace the optimistic node with the canonical server view.
- */
-function optimisticInsert(
-  projectId: string,
-  parentPath: string,
-  node: NodeInfo,
-): void {
-  swrMutate(
-    treeKey(projectId, parentPath),
-    (prev?: NodeInfo[]) => {
-      const existing = prev ?? [];
-      // Idempotency guard: don't double-insert if a previous click for the
-      // same name is still in flight (rare but possible on rapid double-click).
-      if (existing.some((n) => n.path === node.path)) return existing;
-      return sortNodes([...existing, node]);
-    },
-    { revalidate: false },
-  );
 }
 
 export interface CreateMenuPosition {
@@ -154,13 +134,14 @@ export function useDataCreateFlow({
   openFileImportDialogForTarget,
   showToast,
 }: UseDataCreateFlowOptions) {
+  const { cache } = useSWRConfig();
   const [createTableOpen, setCreateTableOpen] = useState(false);
   const [defaultStartOption, setDefaultStartOption] = useState<'documents' | 'url'>('documents');
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [createMenuPosition, setCreateMenuPosition] = useState<CreateMenuPosition | null>(null);
   const [createInFolderId, setCreateInFolderId] = useState<string | null | undefined>(undefined);
-  // Two pieces of state for the per-folder plug-button flow.  When
-  // a user clicks the plug, we open the same CreateMenu instance
+  // Two pieces of state for the scoped expose flow.  When a user
+  // chooses `Expose as...`, we open the same CreateMenu instance
   // but flip it into accessOnly mode (only renders the New Access
   // submenu content, flat) and stash the folder path that should
   // be pre-filled as the target on whichever provider the user
@@ -438,17 +419,21 @@ export function useDataCreateFlow({
       baseName: string,
       extension: string = '',
     ): Promise<string> => {
-      let siblings: NodeInfo[];
-      try {
-        const listing = await listDir(projectId, targetFolderPath ?? '');
-        siblings = listing.nodes;
-      } catch (err) {
-        // If we can't reach the tree endpoint, fall back to the
-        // base name and let the create call surface its own error.
-        // Worse than the dedup-aware path but no worse than the
-        // pre-fix behaviour.
-        console.warn('treeList lookup failed, skipping dedup:', err);
-        return `${baseName}${extension}`;
+      const parentPath = targetFolderPath ?? '';
+      let siblings = readCachedDirectoryNodes(cache, projectId, parentPath);
+
+      if (!siblings) {
+        try {
+          const listing = await listDir(projectId, parentPath);
+          siblings = listing.nodes;
+        } catch (err) {
+          // If we can't reach the tree endpoint, fall back to the
+          // base name and let the create call surface its own error.
+          // Worse than the dedup-aware path but no worse than the
+          // pre-fix behaviour.
+          console.warn('treeList lookup failed, skipping dedup:', err);
+          return `${baseName}${extension}`;
+        }
       }
       const existing = new Set(siblings.map((e) => e.name));
       const canonical = `${baseName}${extension}`;
@@ -475,27 +460,30 @@ export function useDataCreateFlow({
           : folderName;
         const parentPath = targetFolderPath ?? '';
 
-        optimisticInsert(
+        addPendingCreatingPath(projectId, folderPath);
+        optimisticInsertDirectoryNode(
           projectId,
           parentPath,
           buildOptimisticNode({
             projectId, path: folderPath, name: folderName, type: 'folder',
           }),
         );
+        optimisticSeedEmptyDirectory(projectId, folderPath);
         if (targetFolderPath) ensureExpanded(targetFolderPath);
-        ensureExpanded(folderPath);
-        highlightCreatedNode(folderPath);
 
         try {
           showToast?.(`Creating "${folderName}"...`, 'loading', null);
           await mkdir(projectId, folderPath);
-          await refreshFolderNodes(projectId, parentPath);
+          await refreshFolderNodes(projectId, parentPath, folderPath);
           void refreshProjectHistory(projectId);
           showToast?.(`Created "${folderName}"`);
         } catch (err) {
           console.error('Failed to create folder:', err);
+          optimisticRemoveDirectoryNode(projectId, parentPath, folderPath);
           await refreshFolderNodes(projectId, parentPath);
           showToast?.(`Failed to create "${folderName}"`, 'error');
+        } finally {
+          removePendingCreatingPath(projectId, folderPath);
         }
       },
       onCreateBlankJson: async () => {
@@ -510,7 +498,7 @@ export function useDataCreateFlow({
           : fileName;
         const parentPath = targetFolderPath ?? '';
 
-        optimisticInsert(
+        optimisticInsertDirectoryNode(
           projectId,
           parentPath,
           buildOptimisticNode({
@@ -545,7 +533,7 @@ export function useDataCreateFlow({
           : fileName;
         const parentPath = targetFolderPath ?? '';
 
-        optimisticInsert(
+        optimisticInsertDirectoryNode(
           projectId,
           parentPath,
           buildOptimisticNode({
@@ -601,7 +589,7 @@ export function useDataCreateFlow({
       // (see CreateMenu's accessOnly branch) — there's no
       // sensible "I don't know what kind of access I want" path
       // when the user already committed by clicking a specific
-      // folder's plug.  Keep the callback defined for the `+` menu
+      // folder's `Expose as...` command. Keep the callback defined for the `+` menu
       // path; the no-op-on-prefilled-target branch is just safety.
       onImportFromSaas: () => {
         if (accessTargetPath !== null) {
@@ -612,7 +600,7 @@ export function useDataCreateFlow({
       },
       // All concrete-provider entries route through handleAccessSelect,
       // which decides — based on whether the menu was opened by the
-      // plug button or by `+` — whether to prefill the user's target
+      // scoped expose command or by `+` — whether to prefill the user's target
       // folder or to mint a new sync node first.
       onImportNotion: () => handleAccessSelect('notion'),
       onImportGitHub: () => handleAccessSelect('github'),
@@ -629,6 +617,7 @@ export function useDataCreateFlow({
     };
   }, [
     accessTargetPath,
+    cache,
     closeCreateMenu,
     createInFolderId,
     currentFolderId,

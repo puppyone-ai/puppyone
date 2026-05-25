@@ -61,14 +61,14 @@ maintain a second version-control protocol.
 ## Canonical Layered Flow Map
 
 This is the current routing map. Protocol surfaces stay separate, while command
-construction, transaction semantics, object storage, audit, conflict, and
-derived views converge below the protocol boundary.
+construction, transaction semantics, audit, conflict, write-system follow-up, and
+physical object storage converge below the protocol boundary.
 
 ```text
 Legend:
   [P] Product root write/read        [A] Access Point scoped write/read
   [G] Git-native transport          [B] Batch/internal tool write
-  ---> synchronous request path      - - > async derived path
+  ---> synchronous request path      - - > post-commit follow-up
 
                                       L0 Client / Caller
        +--------------------+     +--------------------+     +--------------------+     +--------------------+
@@ -120,46 +120,53 @@ Legend:
                                                  |
                                                  v
 
-                                          L5 Write Engine
-       +-----------------------------------------------------------------------------------+
-       | Goal: land one admitted write as durable Git-native version facts.                |
-       |                                                                                   |
-       | Inputs from L4:                                                                   |
-       |   Product/AP/batch -> OperationWriteIntent + TreePatch/splice_fn                  |
-       |   Git push         -> VersionSubmissionIntent + proposed Git tree                 |
-       |                                                                                   |
-       | Main path:                                                                        |
-       |   Read current head/root                                                          |
-       |     -> Build candidate version                                                    |
-       |     -> Store immutable blob/tree/commit objects                                   |
-       |     -> Try conditional publish                                                    |
-       |                                                                                   |
-       | Conditional publish result:                                                       |
-       |   accepted:                                                                       |
-       |     write history/audit/ledger/outbox; return status=ok                           |
-       |   rejected because head/root moved:                                               |
-       |     read latest; resolve conflicts; loop to Main path                             |
-       |   conflicts cannot be resolved synchronously:                                     |
-       |     write pending conflict; return status=pending                                 |
-       |   rejected because caller supplied stale expected head:                           |
-       |     return status=conflict/409                                                    |
-       |   rejected after retry budget is exhausted:                                       |
-       |     fail loud                                                                     |
-       | Conflict facts are created here, before any derived UI/index work.                |
-       |                                                                                   |
-       | Object store and publish gate are write-engine internals on this path.            |
-       | Transport cache is protocol cache only, not source of truth.                      |
-       +-----------------------------------------------------------------------------------+
-                                                 |
-                                                 | published facts drive derived work
-                                                 v
+                                          L5 Write System
+       +------------------------------------------------------------+----------------------+
+       | L5 Core Write Engine                                      | L5 Follow-up / Repair |
+       |                                                            |                      |
+       | Goal: land one admitted write as durable Git-native        | Consumes committed   |
+       | version facts.                                             | facts from L5 Core.  |
+       |                                                            |                      |
+       | Inputs from L4:                                            | - hooks and durable  |
+       |   Product/AP/batch -> OperationWriteIntent +               |   outbox consumers   |
+       |     TreePatch/splice_fn                                    | - scope->root and    |
+       |   Git push -> VersionSubmissionIntent + proposed Git tree  |   root->AP derived   |
+       |                                                            |   refs               |
+       | Main path:                                                 | - Git view cache     |
+       |   Read current head/root                                   |   warming/repair     |
+       |     -> Build candidate version                             | - path/search        |
+       |     -> Store immutable blob/tree/commit objects            |   indexes            |
+       |     -> Try conditional publish                             | - websocket/read     |
+       |                                                            |   model refresh      |
+       | Conditional publish result:                                | - search event       |
+       |   accepted:                                                |   dispatch           |
+       |     write history/audit/ledger/outbox; return status=ok    | - object GC          |
+       |   rejected because head/root moved:                        | - committed-version  |
+       |     read latest; resolve conflicts; loop to Main path      |   repair             |
+       |   conflicts cannot be resolved synchronously:              |                      |
+       |     write pending conflict; return status=pending          | Must not publish     |
+       |   rejected because caller supplied stale expected head:    | refs or decide       |
+       |     return status=conflict/409                             | merge policy.        |
+       |   rejected after retry budget is exhausted:                |                      |
+       |     fail loud                                              |                      |
+       | Conflict facts are created here, before any derived         |                      |
+       | UI/index work.                                             |                      |
+       |                                                            |                      |
+       | Object-store calls and publish gate are write-engine        |                      |
+       | internals on this path. Physical bytes live in L6.           |                      |
+       | Transport cache is protocol cache only, not source of truth. |                      |
+       +-----------------------------+------------------------------+----------+-----------+
+                                     |                                         |
+                                     | object bytes + object-location index    | may read/repair/GC
+                                     +---------------------------+-------------+
+                                                                 |
+                                                                 v
 
-                                  L6 Async Derived Work / Repair
+                                  L6 Storage Substrate
        +-----------------------------------------------------------------------------------+
-       | hooks, durable outbox, scope->root projection, root->AP derived refs              |
-       | Git view cache warming/repair, path/search indexes, search event dispatch         |
-       | websocket/read-model refresh                                                     |
-       | object GC and committed-version repair                                            |
+       | ObjectStore abstraction, S3/Supabase physical backends, bundle/chunk layout,      |
+       | object-location index, hash verification, storage compatibility shims, raw bytes. |
+       | L6 has no product policy, merge policy, ref authority, or protocol semantics.     |
        +-----------------------------------------------------------------------------------+
 ```
 
@@ -173,14 +180,18 @@ Updates from the previous diagram:
   Product, AP-FS, and batch file writes may use that command helper inside the
   Product/AP/batch adapter. Git push has its own adapter path: receive-pack,
   quarantine, proposed tree, and changed-path extraction.
-- Git object writes and conditional publish are shown inside L5 because they
-  are part of the write loop. There is no separate downstream publish stage
+- Git object writes and conditional publish are shown inside L5 Core because
+  they are part of the write loop. There is no separate downstream publish stage
   that can "return" to the engine; a moved head/root loops back to the Main
   path with the latest state, while unresolved conflicts return `pending`.
+- L5 is now the write system, with L5 Core on the left and L5 Follow-up / Repair
+  on the right. The left side remains the semantic write authority; the right
+  side consumes committed facts and performs repairable follow-up work.
 - Conflicts belong to L5. The Write Engine compares base/current/incoming
   trees, reaches a `resolve conflicts` checkpoint, and either produces a new
-  candidate tree or writes a pending-conflict fact. L6 only surfaces, notifies,
-  indexes, and repairs those committed facts.
+  candidate tree or writes a pending-conflict fact. L5 Follow-up may surface,
+  notify, index, and repair those committed facts, but it must not decide merge
+  policy or advance refs.
 - L2 is one auth/identity layer with four adjacent resolver partitions. Protocol
   adapters still extract different credential shapes, but all of them resolve
   to the same `AuthContext` contract.
@@ -196,9 +207,10 @@ Updates from the previous diagram:
 - `VersionEngineContainer` is the app/worker bootstrap boundary. Routers depend
   on FastAPI-provided services; workers build an explicit container at
   bootstrap instead of importing hidden singletons.
-- L6 is strictly derived work. Git view caches, search events, path indexes,
-  websocket refresh, object GC, and repair run from committed facts and must
-  not publish refs.
+- L6 is the storage substrate below the write system. ObjectStore backends,
+  S3/Supabase physical layout, object-location indexes, bundle/chunk storage,
+  hash verification, and storage compatibility shims live here. L6 does not
+  perform auth, permission, merge/conflict policy, or ref publication.
 - Git smart HTTP must expose exactly one Git-visible ref state per Access Point
   view. Clone/fetch, receive-pack advertisement, receive quarantine, and push
   fast-forward checks all use the same `GitViewHead` resolver. If current content
@@ -221,17 +233,19 @@ Correctness boundaries:
   cleanup, content serialization, default messages, and Git pack parsing are
   adapter-local implementation details, not a separate architecture layer.
 - L5 is the write convergence zone. No route, connector, CLI handler, Git adapter,
-  worker, or MCP tool may publish refs, history, audit, conflicts, object
-  locations, or outbox rows outside the Write Engine.
+  worker, or MCP tool may publish refs, history, audit, conflicts, or outbox rows
+  outside the Write Engine.
+- L6 owns object bytes and object-location persistence as a substrate for L5.
+  Callers above L5 must not treat L6 as a write-authority bypass.
 - Conflict decisions must be made in L5. Read surfaces may display conflicts,
   and async jobs may notify or repair conflict views, but they must not decide
   merge policy or advance refs.
 - The `resolve conflicts` checkpoint may use policy-driven last-write-wins,
   agent-assisted merge, or manual human resolution. The architecture diagram
   intentionally treats these as strategies behind one checkpoint.
-- L6 is the final write-system follow-up layer. It may lag briefly, but every
-  derived view must be repairable from committed version facts. Read APIs and
-  frontend screens are consumers outside the write pipeline.
+- L5 Follow-up / Repair is the final write-system follow-up area. It may lag
+  briefly, but every derived view must be repairable from committed version
+  facts. Read APIs and frontend screens are consumers outside the write pipeline.
 
 ## Rules
 
@@ -242,10 +256,12 @@ Correctness boundaries:
    an explicit access point or connector scope is being used.
 4. Git view caches are protocol caches only. They are not authority. They are
    durable per-view derived resources consumed by L1/L4 Git transport and
-   repairable from L5 committed facts.
+   repairable from L5 committed facts by L5 Follow-up / Repair.
 5. Search and indexing consume committed events and views; they never decide
    merge/conflict behavior.
-6. Runtime code must not import the old external version package or public old
+6. L6 storage substrate is a physical persistence boundary, not a product
+   policy boundary.
+7. Runtime code must not import the old external version package or public old
    wire protocol. Git helpers are PuppyOne-owned.
 
 ## Folder Layout
@@ -304,7 +320,7 @@ backend/src/version_engine/
       in_process_client.py
 
   write_engine/
-    engine.py                     # L5 write authority
+    engine.py                     # L5 Core write authority
     conflict_policy.py
     diff.py
     git_commit.py
@@ -312,14 +328,21 @@ backend/src/version_engine/
     hash_utils.py
     ledger.py                     # persistence contract
     merge.py
-    object_store.py
     path_utils.py
     scope.py
     trace.py
     tree.py
     tree_objects.py
 
+  storage/
+    # L6 Storage Substrate
+    object_store.py               # L5-facing ObjectStore / StorageBackend boundary
+    io_strategy.py                # route logical objects to loose/bundle/chunked IO layouts
+    backends/
+      s3.py                       # S3/Supabase physical backend and location index
+
   derived/
+    # L5 Follow-up / Repair
     git_transport_cache.py
     hooks.py
     notifications.py
@@ -338,7 +361,7 @@ backend/src/version_engine/
 
   infrastructure/
     s3/
-      object_storage.py
+      object_storage.py           # compatibility shim; new code imports storage/backends/s3.py
     supabase/
       __init__.py                 # safe_data helper
       audit_backend.py
@@ -349,7 +372,7 @@ backend/src/version_engine/
       scope_manager.py
       scope_repository.py
       server_repo.py
-      transaction_ledger.py       # Supabase implementation of ledger.py
+      transaction_ledger.py       # L5 persistence for ledger.py
 ```
 
 ## Persistent DB Names

@@ -28,12 +28,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from src.version_engine.write_engine.merge import ConflictResolver
-from src.version_engine.write_engine.object_store import ObjectStore
+from src.version_engine.storage.object_store import ObjectStore
 from src.infra.s3.service import S3Service
 from src.infra.supabase.client import SupabaseClient
 from src.version_engine.domain.intents import ProjectWriteState
 from src.version_engine.infrastructure.supabase import safe_data
-from src.version_engine.infrastructure.s3.object_storage import CachedStorageBackend, S3StorageBackend
+from src.version_engine.storage.backends.s3 import CachedStorageBackend, S3StorageBackend
 from src.version_engine.infrastructure.supabase.audit_backend import SupabaseAuditManager
 from src.version_engine.infrastructure.supabase.history_repository import SupabaseHistoryManager
 from src.version_engine.infrastructure.supabase.scope_repository import SupabaseScopeBackend

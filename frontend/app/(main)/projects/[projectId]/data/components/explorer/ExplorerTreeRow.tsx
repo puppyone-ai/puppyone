@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 import { getNodeTypeConfig, getSyncSource, getSyncSourceIcon, isSyncedType, isFolderType } from '@/lib/nodeTypeConfig';
 import { useExplorerTreeDir } from '@/lib/hooks/useData';
@@ -12,8 +12,15 @@ import {
 } from '@/lib/dropFiles';
 import type { ContentType } from '../views/GridView';
 import type { FileImportTarget } from '../../hooks/useFileImport';
-import { ensureExpanded, toggleExpanded, useIsExpanded } from './explorerState';
-import { ExplorerRowActions } from './ExplorerRowActions';
+import {
+  toggleExpanded,
+  useIsExpanded,
+  useIsPendingCreatingPath,
+} from './explorerState';
+import {
+  ExplorerRowActions,
+  getExplorerRowActionLayerWidth,
+} from './ExplorerRowActions';
 import type { ExplorerSidebarProps, MillerColumnItem } from './types';
 import { Dots } from '@/components/loading';
 import { FileGlyphIcon } from '@/lib/fileIcons';
@@ -39,6 +46,10 @@ const EXPLORER_TREE_LINE_HEIGHT =
 const EXPLORER_TREE_HOOK_Y =
   EXPLORER_TREE_LINE_OVERDRAW + EXPLORER_TREE_ROW_HEIGHT / 2;
 const EXPLORER_TREE_META_OFFSET = 14;
+const SUBTREE_MOTION_MIN_MS = 170;
+const SUBTREE_MOTION_MAX_MS = 340;
+const SUBTREE_MOTION_PX_FACTOR = 0.28;
+const SUBTREE_MOTION_EASE = 'cubic-bezier(0.25, 0.1, 0.25, 1)';
 
 function getFolderLoadErrorLabel(error: unknown): string {
   const detail =
@@ -90,15 +101,15 @@ export const FolderIcon = ({ expanded }: { expanded?: boolean }) => {
   if (expanded) {
     return (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-        <path d="M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z" fill="var(--po-accent)" fillOpacity="0.25" />
-        <path d="M 9.5 10 L 23 10 Q 24 10 23.5 11 L 19.5 19 Q 19 20 18 20 L 4.5 20 Q 3.5 20 4 19 L 8 11 Q 8.5 10 9.5 10 Z" fill="var(--po-accent)" fillOpacity="0.55" />
+        <path d="M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z" fill="#93C5FD" fillOpacity="0.58" />
+        <path d="M 9.5 10 L 23 10 Q 24 10 23.5 11 L 19.5 19 Q 19 20 18 20 L 4.5 20 Q 3.5 20 4 19 L 8 11 Q 8.5 10 9.5 10 Z" fill="#60A5FA" fillOpacity="0.82" />
       </svg>
     );
   }
 
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-      <path d="M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z" fill="var(--po-accent)" fillOpacity="0.45" />
+      <path d="M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z" fill="#8DB5F9" fillOpacity="0.78" />
     </svg>
   );
 };
@@ -464,6 +475,126 @@ export function ExplorerTreeMetaRow({
   );
 }
 
+function getSubtreeMotionDurationMs(fromHeight: number, toHeight: number): number {
+  const distance = Math.abs(toHeight - fromHeight);
+  return Math.round(
+    Math.min(
+      SUBTREE_MOTION_MAX_MS,
+      Math.max(
+        SUBTREE_MOTION_MIN_MS,
+        SUBTREE_MOTION_MIN_MS + distance * SUBTREE_MOTION_PX_FACTOR,
+      ),
+    ),
+  );
+}
+
+function ExplorerSubtreeMotion({
+  visible,
+  onExited,
+  children,
+}: {
+  visible: boolean;
+  onExited: () => void;
+  children: ReactNode;
+}) {
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const rafRef = useRef<number | null>(null);
+  const onExitedRef = useRef(onExited);
+  const [height, setHeight] = useState<number | 'auto'>(0);
+  const [durationMs, setDurationMs] = useState(SUBTREE_MOTION_MIN_MS);
+
+  const cancelFrame = useCallback(() => {
+    if (rafRef.current === null) return;
+    window.cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
+  }, []);
+
+  useEffect(() => cancelFrame, [cancelFrame]);
+
+  useEffect(() => {
+    onExitedRef.current = onExited;
+  }, [onExited]);
+
+  useLayoutEffect(() => {
+    const wrapper = wrapperRef.current;
+    const content = contentRef.current;
+    if (!wrapper || !content) return;
+
+    cancelFrame();
+
+    const currentHeight = wrapper.getBoundingClientRect().height;
+    const nextHeight = visible ? content.scrollHeight : 0;
+
+    if (!visible && Math.abs(currentHeight - nextHeight) < 1) {
+      setHeight(0);
+      onExitedRef.current();
+      return;
+    }
+
+    setDurationMs(getSubtreeMotionDurationMs(currentHeight, nextHeight));
+    setHeight(currentHeight);
+    rafRef.current = window.requestAnimationFrame(() => {
+      setHeight(nextHeight);
+      rafRef.current = null;
+    });
+  }, [cancelFrame, visible]);
+
+  useEffect(() => {
+    if (!visible || height === 'auto' || typeof ResizeObserver === 'undefined') {
+      return undefined;
+    }
+
+    const wrapper = wrapperRef.current;
+    const content = contentRef.current;
+    if (!wrapper || !content) return undefined;
+
+    let previousHeight = content.scrollHeight;
+    const observer = new ResizeObserver(() => {
+      const nextHeight = content.scrollHeight;
+      if (Math.abs(nextHeight - previousHeight) < 1) return;
+      previousHeight = nextHeight;
+
+      cancelFrame();
+      const currentHeight = wrapper.getBoundingClientRect().height;
+      setDurationMs(getSubtreeMotionDurationMs(currentHeight, nextHeight));
+      setHeight(currentHeight);
+      rafRef.current = window.requestAnimationFrame(() => {
+        setHeight(nextHeight);
+        rafRef.current = null;
+      });
+    });
+
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, [cancelFrame, height, visible]);
+
+  return (
+    <div
+      ref={wrapperRef}
+      onTransitionEnd={(event) => {
+        if (event.target !== event.currentTarget) return;
+        if (event.propertyName !== 'height') return;
+        if (!visible) {
+          onExitedRef.current();
+          return;
+        }
+        setHeight('auto');
+      }}
+      style={{
+        height: height === 'auto' ? 'auto' : `${Math.max(0, height)}px`,
+        overflow: 'hidden',
+        transition: `height ${durationMs}ms ${SUBTREE_MOTION_EASE}`,
+        willChange: 'height',
+      }}
+    >
+      <div ref={contentRef} style={{ minHeight: 0, overflow: 'hidden' }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 interface ExplorerTreeRowProps {
   item: MillerColumnItem;
   depth: number;
@@ -524,18 +655,23 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
   const isFolder = isFolderType(item.type);
   const isDamagedNode = item.integrity_status === 'damaged';
   const isSynced = item.is_synced;
-  const expanded = useIsExpanded(item.id) && isFolder;
+  const isExpanded = useIsExpanded(item.id);
+  const isPendingCreating = useIsPendingCreatingPath(projectId, item.id);
+  const expanded = isExpanded && isFolder && !isPendingCreating;
+  const [renderSubtree, setRenderSubtree] = useState(expanded);
   const rowRef = useRef<HTMLDivElement>(null);
   const [isHovered, setIsHovered] = useState(false);
-  const isHighlighted = highlightNodeId === item.id;
+  const isHighlighted = !isPendingCreating && highlightNodeId === item.id;
   const openMenuAction = createMenuOpenForId === item.id ? createMenuOpenAction ?? null : null;
   const isAnyCreateMenuOpen = openMenuAction !== null;
   const endpoints = endpointByNodeId?.get(item.id) ?? [];
+  const hasConfiguredAccess = isFolder && !isPendingCreating && endpoints.length > 0 && !!onOpenAccess;
+  const shouldRenderSubtree = expanded || renderSubtree;
 
   const { isDropTarget, dropHandlers } = useNodeDrop({
     targetFolderId: item.id,
     onMoveNode,
-    disabled: !isFolder,
+    disabled: !isFolder || isPendingCreating,
   });
   const fileDropTarget = isFolder
     ? { path: item.id, name: item.name }
@@ -547,36 +683,47 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
     }
   }, [isHighlighted]);
 
+  useLayoutEffect(() => {
+    if (expanded) {
+      setRenderSubtree(true);
+    }
+  }, [expanded]);
+
   const {
     nodes: children,
     isLoading: loading,
     isValidating,
     error: loadError,
   } = useExplorerTreeDir(
-    expanded ? projectId : '',
-    expanded ? item.id : undefined,
+    shouldRenderSubtree ? projectId : '',
+    shouldRenderSubtree ? item.id : undefined,
   );
 
   const handleClick = useCallback(
     (e: ReactMouseEvent) => {
       e.stopPropagation();
-      if (isFolder) ensureExpanded(item.id);
+      if (isPendingCreating) return;
+      if (isFolder) {
+        toggleExpanded(item.id);
+        return;
+      }
       onNavigate(item);
     },
-    [isFolder, item, onNavigate],
+    [isFolder, isPendingCreating, item, onNavigate],
   );
 
   const handleToggleExpand = useCallback(
     (e: ReactMouseEvent) => {
       e.stopPropagation();
+      if (isPendingCreating) return;
       toggleExpanded(item.id);
     },
-    [item.id],
+    [isPendingCreating, item.id],
   );
 
   const isActive = activeId === item.id;
   const isSyncActive = activeSyncNodeId === item.id;
-  const isRowActive = isActive || isSyncActive;
+  const isRowActive = !isPendingCreating && (isActive || isSyncActive);
   const isAccessPointHighlight = isHighlighted && highlightVariant === 'access-point';
   const isFileDropTarget = isFolder && activeFileDropTargetPath === item.id;
   const isInsideActiveFileDropScope =
@@ -611,7 +758,11 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
       : 'var(--po-text-muted)';
   const isSoftHovered = isHovered && !hasSpecialBg;
   const rowBackground = isSoftHovered ? 'var(--po-hover)' : staticBg;
-  const rowColor = isSoftHovered ? 'var(--po-text-muted)' : staticColor;
+  const rowColor = isPendingCreating
+    ? 'var(--po-text-subtle)'
+    : isSoftHovered
+      ? 'var(--po-text-muted)'
+      : staticColor;
 
   const childItems: MillerColumnItem[] = useMemo(
     () =>
@@ -626,18 +777,25 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
       })),
     [children, item.id],
   );
-  const isChildLoadInFlight = (loading || isValidating) && childItems.length === 0;
+  const isChildLoadInFlight =
+    (loading || isValidating || isPendingCreating) && childItems.length === 0;
 
-  const hasActions = !!(onCreate || onCreateSync || onRename || onDelete || onDownload);
+  const hasInlineActions =
+    !isPendingCreating &&
+    !!((isFolder && (onCreate || onCreateSync || hasConfiguredAccess)) || onRename || onDelete || onDownload);
+  const rowActionLayerWidth = hasInlineActions
+    ? getExplorerRowActionLayerWidth(hasConfiguredAccess)
+    : 0;
 
   const activateFileDropTarget = useCallback((event: ReactDragEvent<HTMLDivElement>) => {
+    if (isPendingCreating) return false;
     if (!hasExternalFiles(event)) return false;
     event.preventDefault();
     event.stopPropagation();
     event.dataTransfer.dropEffect = 'copy';
     onFileDragTarget?.(fileDropTarget);
     return true;
-  }, [fileDropTarget, onFileDragTarget]);
+  }, [fileDropTarget, isPendingCreating, onFileDragTarget]);
 
   const handleExternalFileDrop = useCallback((event: ReactDragEvent<HTMLDivElement>) => {
     if (!hasExternalFiles(event)) return false;
@@ -659,7 +817,7 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
   }, [fileDropTarget, onFileDragTarget, onFilesDrop]);
 
   return (
-    <div>
+    <div style={{ position: 'relative' }}>
       <div
         ref={rowRef}
         data-menu-host="true"
@@ -670,9 +828,9 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
         // Any product node can be a move source. Only folder rows become
         // drop targets, so this enables file -> folder moves without allowing
         // file -> file drops.
-        draggable={Boolean(onMoveNode)}
+        draggable={Boolean(onMoveNode) && !isPendingCreating}
         onDragStart={(e) => {
-          if (!onMoveNode) {
+          if (!onMoveNode || isPendingCreating) {
             e.preventDefault();
             return;
           }
@@ -710,15 +868,16 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
           color: rowColor,
           ...SIDEBAR_ROW_TYPOGRAPHY,
           userSelect: 'none',
-          transition: 'background 0.1s, color 0.1s',
+          transition: 'background 0.14s, color 0.14s, opacity 0.18s',
           boxShadow: isDropTarget || isFileDropTarget
             ? `inset 0 0 0 1px ${FILE_DROP_TARGET_BORDER}`
             : isInsideActiveFileDropScope
               ? `inset 1px 0 0 0 ${FILE_DROP_SCOPE_BORDER}`
-            : isAccessPointHighlight
+              : isAccessPointHighlight
               ? 'inset 2px 0 0 0 color-mix(in srgb, var(--po-success) 90%, transparent)'
               : 'none',
-          cursor: 'pointer',
+          opacity: isPendingCreating ? 0.92 : 1,
+          cursor: isPendingCreating ? 'progress' : 'pointer',
           position: 'relative',
         }}
       >
@@ -758,7 +917,7 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
             height: '100%',
             boxSizing: 'border-box',
             paddingLeft: EXPLORER_TREE_CONTENT_INSET + depth * EXPLORER_TREE_INDENT,
-            paddingRight: 6,
+            paddingRight: hasInlineActions ? rowActionLayerWidth + 10 : 6,
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -776,26 +935,12 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
               position: 'relative',
             }}
           >
-            {isFolder ? (
-              <>
-                <div className="flex items-center justify-center group-hover/row:hidden">
-                  <FolderIcon expanded={expanded} />
-                </div>
-                <div className="hidden items-center justify-center group-hover/row:flex" style={{ width: 18, height: 18, borderRadius: 3 }}>
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    style={{
-                      transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)',
-                      transition: 'transform 0.15s ease',
-                    }}
-                  >
-                    <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </div>
-              </>
+            {isFolder && isPendingCreating ? (
+              <div className="flex items-center justify-center">
+                <FolderIcon expanded={false} />
+              </div>
+            ) : isFolder ? (
+              <FolderIcon expanded={expanded} />
             ) : (() => {
               const arrow = getSyncDirectionArrow(item.type);
 
@@ -812,13 +957,38 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
             })()}
           </div>
 
-          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>
-            {item.name}
+          <span
+            className={isPendingCreating ? 'animate-pulse' : undefined}
+            style={{
+              flex: 1,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              minWidth: 0,
+              fontStyle: isPendingCreating ? 'italic' : 'normal',
+            }}
+          >
+            {isPendingCreating ? 'Creating folder' : item.name}
             {!isFolder && !hasFileExtension(item.name) && (() => {
               const ext = getTypeExtension(item.type);
               return ext ? <span style={{ color: 'var(--po-text-disabled)', fontSize: 11 }}>{ext}</span> : null;
             })()}
           </span>
+
+          {isPendingCreating && (
+            <span
+              title="Creating folder"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 18,
+                flexShrink: 0,
+                color: 'var(--po-text-subtle)',
+              }}
+            >
+              <Dots size="xs" />
+            </span>
+          )}
 
           {isDamagedNode && (
             <span
@@ -833,7 +1003,7 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
             </span>
           )}
 
-          {hasActions && (
+          {hasInlineActions && (
             <ExplorerRowActions
               nodeId={item.id}
               createParentId={item.id}
@@ -851,15 +1021,20 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
               onDownload={onDownload}
             />
           )}
+
         </div>
       </div>
 
-      {expanded && (
-        // `position: relative` so the continuation line below can
-        // absolute-position itself against the wrapper's full
-        // height, threading my elbow column down through every
-        // descendant row (and their sub-subtree wrappers).
+      {shouldRenderSubtree && (
+        <ExplorerSubtreeMotion
+          visible={expanded}
+          onExited={() => setRenderSubtree(false)}
+        >
         <div style={{ position: 'relative' }}>
+          {/* `position: relative` so the continuation line below can
+              absolute-position itself against the wrapper's full
+              height, threading my elbow column down through every
+              descendant row (and their sub-subtree wrappers). */}
           {/* Continuation line — the structural complement to the
               per-row elbow above.  When *I* am not the last sibling,
               my elbow column needs to keep going down through my
@@ -925,7 +1100,7 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
                 onFileDragTarget={onFileDragTarget}
               />
             ))
-          ) : loadError ? (
+          ) : !isPendingCreating && loadError ? (
             <ExplorerTreeMetaRow depth={depth + 1}>
               <span
                 title={getFolderLoadErrorTitle(loadError)}
@@ -950,6 +1125,7 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
             </ExplorerTreeMetaRow>
           ) : null}
         </div>
+        </ExplorerSubtreeMotion>
       )}
     </div>
   );

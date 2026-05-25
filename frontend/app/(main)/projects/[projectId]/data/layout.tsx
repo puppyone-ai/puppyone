@@ -142,7 +142,7 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
     }
 
     // Project connectors+scopes data into the per-row endpoint view so the
-    // plug button and connection-list affordances use the canonical model.
+    // object menu and connection-list affordances use the canonical model.
     // cli connectors map
     // to `filesystem` (matching the boss-era
     // provider taxonomy that AccessPointProviderIcon / setup-snippet code

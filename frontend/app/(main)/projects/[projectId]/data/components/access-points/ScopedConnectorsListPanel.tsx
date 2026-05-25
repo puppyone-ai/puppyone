@@ -98,10 +98,9 @@ interface Props {
    *  when the user is currently *in* a drill-down (selectedScopeId set);
    *  the natural folder-driven detail view has no back. */
   readonly onBack?: () => void;
-  /** Navigate from Overview → Pp.2b Create page. Wired at page level
-   *  to set `view='create'` with the current folder as `nodeId`, so
-   *  the create form lands pre-filled and the user is one click from
-   *  promoting a folder. */
+  /** Open the shared create modal from Overview. The panel provides
+   *  the entry point, but the modal owns folder selection, connector
+   *  setup, loading, and error handling. */
   readonly onCreateRequested: () => void;
   readonly hideHeader?: boolean;
   readonly settingsPage?: boolean;
@@ -405,12 +404,10 @@ export function ScopedConnectorsListPanel({
             // Pp.1 Overview body:
             //   1. AllAccessPointsList — every scope in the project,
             //      click a row to drill into Pp.2a Detail.
-            //   2. CreateAccessPointCTACard — sits beneath the list,
-            //      navigates to Pp.2b Create on click. The actual
-            //      create form lives there as a dedicated sub-page
-            //      (back button → Overview), per the 2026-05-08
-            //      3-page hierarchy. No inline form here so the
-            //      Overview stays scannable.
+            //   2. CreateAccessPointCTACard — sits beneath the list
+            //      and opens the shared create modal. No inline form
+            //      here so the Overview stays scannable and create
+            //      state has one owner.
             <>
               <AllAccessPointsList
                 scopes={scopes}

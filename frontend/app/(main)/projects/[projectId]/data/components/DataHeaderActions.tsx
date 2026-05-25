@@ -7,6 +7,7 @@ import {
   Copy,
   Download,
   EllipsisVertical,
+  Link2,
   Pencil,
   Trash2,
 } from 'lucide-react';
@@ -26,6 +27,7 @@ type DataHeaderActionsProps = {
   onRename: (id: string, currentName: string) => void;
   onDelete: (id: string, name: string) => void;
   onDownload: (id: string, name: string) => void;
+  onExpose?: (id: string) => void;
 };
 
 export function DataHeaderActions({
@@ -33,6 +35,7 @@ export function DataHeaderActions({
   onRename,
   onDelete,
   onDownload,
+  onExpose,
 }: DataHeaderActionsProps) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
@@ -74,8 +77,6 @@ export function DataHeaderActions({
       window.removeEventListener('scroll', onReposition, true);
     };
   }, [open]);
-
-  if (target.isRoot) return null;
 
   const handleCopyPath = async () => {
     setOpen(false);
@@ -135,7 +136,7 @@ export function DataHeaderActions({
             zIndex: APP_Z_INDEX.popover,
           }}
         >
-          {!target.isSynced && (
+          {!target.isRoot && !target.isSynced && (
             <ActionMenuItem
               label="Rename"
               icon={<Pencil size={14} />}
@@ -146,14 +147,27 @@ export function DataHeaderActions({
             />
           )}
 
-          <ActionMenuItem
-            label="Download"
-            icon={<Download size={14} />}
-            onClick={() => {
-              setOpen(false);
-              onDownload(target.id, target.name);
-            }}
-          />
+          {target.isFolder && onExpose && (
+            <ActionMenuItem
+              label="Expose as..."
+              icon={<Link2 size={14} />}
+              onClick={() => {
+                setOpen(false);
+                onExpose(target.id);
+              }}
+            />
+          )}
+
+          {!target.isRoot && (
+            <ActionMenuItem
+              label="Download"
+              icon={<Download size={14} />}
+              onClick={() => {
+                setOpen(false);
+                onDownload(target.id, target.name);
+              }}
+            />
+          )}
 
           <ActionMenuItem
             label="Copy path"
@@ -161,17 +175,19 @@ export function DataHeaderActions({
             onClick={handleCopyPath}
           />
 
-          <MenuDivider />
+          {!target.isRoot && <MenuDivider />}
 
-          <ActionMenuItem
-            label="Delete"
-            icon={<Trash2 size={14} />}
-            destructive
-            onClick={() => {
-              setOpen(false);
-              onDelete(target.id, target.name);
-            }}
-          />
+          {!target.isRoot && (
+            <ActionMenuItem
+              label="Delete"
+              icon={<Trash2 size={14} />}
+              destructive
+              onClick={() => {
+                setOpen(false);
+                onDelete(target.id, target.name);
+              }}
+            />
+          )}
         </div>,
         document.body,
       )}
