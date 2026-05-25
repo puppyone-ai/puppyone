@@ -52,7 +52,7 @@ export function PromptBlock({
           margin: 0,
           padding: '12px 14px 58px 14px',
           fontFamily: FONT_MONO,
-          fontSize: 11,
+          fontSize: 10,
           lineHeight: 1.6,
           color: COLOR_FG_MUTED,
           opacity: 0.82,

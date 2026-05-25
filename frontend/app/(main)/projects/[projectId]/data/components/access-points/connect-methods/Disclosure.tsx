@@ -40,7 +40,7 @@ export function Disclosure({
           background: 'transparent',
           border: 'none',
           color: hovered || open ? COLOR_FG : COLOR_FG_DIM,
-          fontSize: 13,
+          fontSize: 12,
           fontWeight: 500,
           cursor: 'pointer',
           transition: 'color 0.12s',

@@ -21,6 +21,25 @@ _channel_pause_cache: dict[tuple[str, str], tuple[float, str | None, str | None]
 _channel_pause_cache_lock = threading.Lock()
 
 
+def clear_channel_pause_cache(scope_id: str | None = None, channel: str | None = None) -> None:
+    """Clear cached connector pause state after connector status changes."""
+
+    normalized_channel = (channel or "").strip().lower()
+    with _channel_pause_cache_lock:
+        if scope_id and normalized_channel:
+            _channel_pause_cache.pop((scope_id, normalized_channel), None)
+        elif scope_id:
+            for key in list(_channel_pause_cache):
+                if key[0] == scope_id:
+                    _channel_pause_cache.pop(key, None)
+        elif normalized_channel:
+            for key in list(_channel_pause_cache):
+                if key[1] == normalized_channel:
+                    _channel_pause_cache.pop(key, None)
+        else:
+            _channel_pause_cache.clear()
+
+
 def _get_cached_channel_pause(scope_id: str, channel: str) -> tuple[str | None, str | None] | None:
     now = time.monotonic()
     key = (scope_id, channel)

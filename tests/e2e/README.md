@@ -9,4 +9,3 @@ Current E2E entry points:
 - Browser/product E2E: `e2e/run.mjs`
 - Backend service E2E: `backend/tests/e2e/`
 - Version Engine contracts: `backend/tests/version_engine/`
-

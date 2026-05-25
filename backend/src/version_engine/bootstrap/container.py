@@ -100,4 +100,3 @@ def _probe_dependencies(s3_svc: S3Service, supa: SupabaseClient) -> None:
         ) from exc
 
     log_info("[version_engine][bootstrap] S3 + Supabase probes OK")
-

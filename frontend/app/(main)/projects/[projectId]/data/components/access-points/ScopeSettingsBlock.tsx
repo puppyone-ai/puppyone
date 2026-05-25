@@ -1,15 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   deleteScope,
   regenerateScopeKey,
   updateScope,
   type RepoScope,
-  type ScopeMode,
 } from '@/lib/repoApi';
 import { Dots } from '@/components/loading';
-import { PathBreadcrumb } from './PathBreadcrumb';
 import {
   COLOR_BG_CARD,
   COLOR_BG_SUNKEN,
@@ -28,24 +26,9 @@ import {
 /**
  * ScopeSettingsBlock — the full Settings panel for an access point.
  *
- * 2026-05-08 redesign: this used to be a small inline edit form behind
- * an [Edit] button — most of the scope-level config (mode, exclude,
- * access_key rotate, delete) was hidden until you found that button,
- * and `regenerateScopeKey` had no UI surface at all. Per the user
- * feedback "把所有 access 配置都展示出来供用户配置" the block now
- * surfaces every editable scope field, organized by safety / frequency:
- *
- *   1. Permissions (R/W)         ★ Most critical, top of the panel.
- *                                  Boundary that gates Terminal CLI,
- *                                  Git Remote, AI Agent, and every
- *                                  third-party integration.
- *   2. Excluded paths              Path-pattern blacklist. Applied at
- *                                  the scope access layer.
- *   3. Access key                  Git/API credential. Show / Copy / Rotate.
- *                                  Rotate invalidates current clients.
- *   4. Name                        Free-form display name (root locked).
- *   5. Identity (read-only)        path / root flag / created date.
- *   6. Danger zone                 Delete (root protected, two-click).
+ * Keep this page lightweight. Connector-level capabilities now own the
+ * detailed permission story, so Settings only keeps scope identity,
+ * credential management, and deletion.
  *
  * The block renders as the dedicated Settings sub-page for a scope.
  * When dirty, a Save / Discard footer appears at the bottom so the
@@ -79,8 +62,6 @@ export function ScopeSettingsBlock({
   readonly onDirtyChange?: (dirty: boolean) => void;
 }) {
   const [name, setName] = useState(scope.name);
-  const [mode, setMode] = useState<ScopeMode>(scope.mode);
-  const [excludes, setExcludes] = useState<string[]>(scope.exclude || []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -95,33 +76,17 @@ export function ScopeSettingsBlock({
   const [keyCopied, setKeyCopied] = useState(false);
 
   // Reset everything when the user navigates to a different scope so a
-  // half-typed exclude or an armed Delete doesn't leak across.
+  // half-armed destructive action doesn't leak across.
   useEffect(() => {
     setName(scope.name);
-    setMode(scope.mode);
-    setExcludes(scope.exclude || []);
     setError(null);
     setConfirmDelete(false);
     setConfirmRotate(false);
     setKeyRevealed(false);
     setKeyCopied(false);
-  }, [scope.id, scope.name, scope.mode, scope.exclude, scope.access_key]);
+  }, [scope.id, scope.name, scope.access_key]);
 
-  // Strip empty exclude entries from comparison to avoid stale-dirty
-  // when the user added then deleted a blank row.
-  const cleanedExcludes = useMemo(
-    () => excludes.map((s) => s.trim()).filter((s) => s !== ''),
-    [excludes],
-  );
-  const sourceExcludes = useMemo(
-    () => (scope.exclude || []).map((s) => s.trim()).filter((s) => s !== ''),
-    [scope.exclude],
-  );
-
-  const dirty =
-    name.trim() !== scope.name ||
-    mode !== scope.mode ||
-    JSON.stringify(cleanedExcludes) !== JSON.stringify(sourceExcludes);
+  const dirty = name.trim() !== scope.name;
 
   // Push dirty up. Effect runs after render so consumers see consistent
   // state. The dependency on `onDirtyChange` itself is fine because
@@ -141,8 +106,6 @@ export function ScopeSettingsBlock({
         // Root scope name is locked at the DB layer; sending the
         // original value is a no-op but keeps the patch consistent.
         name: scope.is_root ? scope.name : (name.trim() || scope.name),
-        mode,
-        exclude: cleanedExcludes,
       });
       await onMutated();
       // Stays mounted; SWR refresh will re-pass scope props and the
@@ -153,14 +116,12 @@ export function ScopeSettingsBlock({
     } finally {
       setSaving(false);
     }
-  }, [projectId, scope.id, scope.is_root, scope.name, name, mode, cleanedExcludes, onMutated]);
+  }, [projectId, scope.id, scope.is_root, scope.name, name, onMutated]);
 
   const handleDiscard = useCallback(() => {
     setName(scope.name);
-    setMode(scope.mode);
-    setExcludes(scope.exclude || []);
     setError(null);
-  }, [scope.name, scope.mode, scope.exclude]);
+  }, [scope.name]);
 
   const handleDelete = useCallback(async () => {
     if (!confirmDelete) {
@@ -219,21 +180,6 @@ export function ScopeSettingsBlock({
 
   // ── Render helpers ────────────────────────────────────────────────────
 
-  const formatTimestamp = (iso: string) => {
-    try {
-      const d = new Date(iso);
-      const now = Date.now();
-      const diffMs = now - d.getTime();
-      const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-      if (days < 1) return 'today';
-      if (days === 1) return 'yesterday';
-      if (days < 30) return `${days} days ago`;
-      return d.toLocaleDateString();
-    } catch {
-      return iso;
-    }
-  };
-
   const maskedKey = scope.access_key
     ? `${scope.access_key.slice(0, 4)}${'•'.repeat(Math.max(0, scope.access_key.length - 8))}${scope.access_key.slice(-4)}`
     : '—';
@@ -246,116 +192,33 @@ export function ScopeSettingsBlock({
         gap: 10,
       }}
     >
-      {/* ① Permissions — top, prominent. The single most consequential
-          knob in this panel: flips R/W for Terminal CLI, Git Remote,
-          AI Agent, and every integration bound to this scope, all at
-          once. Rendered as side-by-side option cards rather than a
-          plain radio group so the choice reads as a deliberate pick,
-          not a checkbox. */}
       <Card>
-        <FieldLabel>Permissions</FieldLabel>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <PermissionOption
-            active={mode === 'r'}
-            onClick={() => setMode('r')}
-            label="Read-only"
-            hint="Browse content, no writes."
-            icon={<EyeIcon />}
-          />
-          <PermissionOption
-            active={mode === 'rw'}
-            onClick={() => setMode('rw')}
-            label="Read & Write"
-            hint="Full read and write access."
-            icon={<PencilIcon />}
-          />
-        </div>
-        <FieldHelp>
-          Applies to all connect methods (Terminal, Git Remote, AI Agent) and
-          integrations bound to this access point.
-        </FieldHelp>
-      </Card>
-
-      {/* ② Excluded paths — second, frequently-touched safety control. */}
-      <Card>
-        <FieldLabel>Excluded paths</FieldLabel>
-        <FieldHelp>
-          Paths matching these patterns are skipped by every connect method
-          and integration. Examples: <CodeChip>secrets/</CodeChip>,{' '}
-          <CodeChip>.env</CodeChip>.
-        </FieldHelp>
-        {excludes.length === 0 ? (
-          <div style={{ fontSize: 13, color: COLOR_FG_DIM, padding: '2px 0' }}>
-            None — all files in this scope are included.
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {excludes.map((p, i) => (
-              // eslint-disable-next-line react/no-array-index-key
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <input
-                  type="text"
-                  value={p}
-                  placeholder="e.g. secrets/ or .env"
-                  onChange={(e) => {
-                    const next = [...excludes];
-                    next[i] = e.target.value;
-                    setExcludes(next);
-                  }}
-                  style={{
-                    flex: 1,
-                    background: COLOR_BG_SUNKEN,
-                    border: `1px solid ${COLOR_BORDER}`,
-                    borderRadius: 6,
-                    color: COLOR_FG,
-                    fontSize: 13,
-                    fontFamily: FONT_MONO,
-                    padding: '6px 8px',
-                    outline: 'none',
-                  }}
-                />
-                <IconButton
-                  ariaLabel="Remove exclude path"
-                  onClick={() =>
-                    setExcludes(excludes.filter((_, idx) => idx !== i))
-                  }
-                >
-                  <CrossIcon />
-                </IconButton>
-              </div>
-            ))}
-          </div>
-        )}
-        <button
-          type="button"
-          onClick={() => setExcludes([...excludes, ''])}
+        <FieldLabel>Name</FieldLabel>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          disabled={scope.is_root}
           style={{
-            alignSelf: 'flex-start',
-            height: 30,
-            padding: '0 10px',
-            fontSize: 13,
-            fontWeight: 500,
-            color: COLOR_FG_MUTED,
-            background: 'transparent',
-            border: `1px dashed ${COLOR_BORDER_HOVER}`,
+            background: COLOR_BG_SUNKEN,
+            border: `1px solid ${COLOR_BORDER}`,
             borderRadius: 6,
-            cursor: 'pointer',
-            marginTop: 2,
+            color: COLOR_FG,
+            fontSize: 12,
+            padding: '6px 10px',
+            outline: 'none',
+            opacity: scope.is_root ? 0.6 : 1,
           }}
-        >
-          + Add path
-        </button>
+        />
+        {scope.is_root && (
+          <FieldHelp>Root access keeps the project name.</FieldHelp>
+        )}
       </Card>
 
-      {/* ③ Access key — version credential. Default masked; reveal toggles
-          plaintext. Rotate is two-click destructive: regenerating
-          invalidates every existing CLI / Git session
-          immediately. */}
       <Card>
         <FieldLabel>Access key</FieldLabel>
         <FieldHelp>
-          Access key shared by Git Remote, Terminal CLI, and integrations. Reveal to copy;
-          rotate to invalidate current clients.
+          Included in copied prompts and connector setup. Regenerate only if it leaked.
         </FieldHelp>
         <div
           style={{
@@ -373,7 +236,7 @@ export function ScopeSettingsBlock({
               flex: 1,
               minWidth: 0,
               fontFamily: FONT_MONO,
-              fontSize: 13,
+              fontSize: 12,
               color: scope.access_key ? COLOR_FG : COLOR_FG_DIM,
               overflow: 'hidden',
               textOverflow: 'ellipsis',
@@ -407,7 +270,7 @@ export function ScopeSettingsBlock({
             style={{
               height: 30,
               padding: '0 12px',
-              fontSize: 13,
+              fontSize: 12,
               fontWeight: 500,
               color: confirmRotate ? COLOR_DANGER_FAINT : COLOR_FG,
               background: confirmRotate
@@ -433,70 +296,14 @@ export function ScopeSettingsBlock({
                 : 'Regenerate'}
           </button>
           {confirmRotate && !rotating && (
-            <span style={{ fontSize: 13, color: COLOR_DANGER_FAINT }}>
+            <span style={{ fontSize: 12, color: COLOR_DANGER_FAINT }}>
               Will invalidate all current CLI / Sync clients.
             </span>
           )}
         </div>
       </Card>
 
-      {/* ④ Name — low-frequency edit, kept here so it's together with
-          the other identity controls but below the security/safety
-          ones. Root scope name is locked. */}
-      <Card>
-        <FieldLabel>Name</FieldLabel>
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          disabled={scope.is_root}
-          style={{
-            background: COLOR_BG_SUNKEN,
-            border: `1px solid ${COLOR_BORDER}`,
-            borderRadius: 6,
-            color: COLOR_FG,
-            fontSize: 13,
-            padding: '6px 10px',
-            outline: 'none',
-            opacity: scope.is_root ? 0.6 : 1,
-          }}
-        />
-        {scope.is_root && (
-          <FieldHelp>Root scope name is fixed.</FieldHelp>
-        )}
-      </Card>
-
-      {/* ⑤ Identity (read-only) — reference info so the user knows what
-          they're configuring. Path is immutable post-create. */}
-      <Card>
-        <FieldLabel>Identity</FieldLabel>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <ReadOnlyRow label="Path">
-            <div style={{ fontSize: 13, color: COLOR_FG }}>
-              <PathBreadcrumb path={scope.path} isRoot={scope.is_root} muted={false} />
-            </div>
-          </ReadOnlyRow>
-          <ReadOnlyRow label="Type">
-            <span style={{ fontSize: 13, color: COLOR_FG_MUTED }}>
-              {scope.is_root ? 'Root scope' : 'Subtree scope'}
-            </span>
-          </ReadOnlyRow>
-          <ReadOnlyRow label="Created">
-            <span style={{ fontSize: 13, color: COLOR_FG_MUTED }}>
-              {formatTimestamp(scope.created_at)}
-            </span>
-          </ReadOnlyRow>
-          {scope.updated_at !== scope.created_at && (
-            <ReadOnlyRow label="Updated">
-              <span style={{ fontSize: 13, color: COLOR_FG_MUTED }}>
-                {formatTimestamp(scope.updated_at)}
-              </span>
-            </ReadOnlyRow>
-          )}
-        </div>
-      </Card>
-
-      {/* ⑥ Danger zone — delete, isolated at the bottom so a stray
+      {/* Danger zone — delete, isolated at the bottom so a stray
           click on the way out can't catch it. Two-click confirm; root
           hard-disabled (DB enforces "exactly one root per project"). */}
       <Card danger>
@@ -514,7 +321,7 @@ export function ScopeSettingsBlock({
             alignSelf: 'flex-start',
             height: 30,
             padding: '0 12px',
-            fontSize: 13,
+            fontSize: 12,
             fontWeight: 500,
             color: scope.is_root
               ? COLOR_FG_DIM
@@ -553,7 +360,7 @@ export function ScopeSettingsBlock({
       {error && (
         <div
           style={{
-            fontSize: 13,
+            fontSize: 12,
             color: COLOR_DANGER_FAINT,
             padding: '8px 12px',
             borderRadius: 6,
@@ -581,7 +388,7 @@ export function ScopeSettingsBlock({
             border: `1px solid ${COLOR_BORDER_HOVER}`,
           }}
         >
-          <span style={{ fontSize: 13, color: COLOR_FG_MUTED, flex: 1 }}>
+          <span style={{ fontSize: 12, color: COLOR_FG_MUTED, flex: 1 }}>
             Unsaved changes
           </span>
           <button
@@ -591,7 +398,7 @@ export function ScopeSettingsBlock({
             style={{
               height: 30,
               padding: '0 12px',
-              fontSize: 13,
+              fontSize: 12,
               color: COLOR_FG,
               background: 'var(--po-hover)',
               border: `1px solid ${COLOR_BORDER_HOVER}`,
@@ -608,7 +415,7 @@ export function ScopeSettingsBlock({
             style={{
               height: 30,
               padding: '0 14px',
-              fontSize: 13,
+              fontSize: 12,
               fontWeight: 600,
               color: 'var(--po-inset)',
               background: saving ? COLOR_BORDER_HOVER : COLOR_FG,
@@ -668,7 +475,7 @@ function FieldLabel({
   return (
     <div
       style={{
-        fontSize: 13,
+        fontSize: 14,
         fontWeight: 600,
         color: danger ? COLOR_DANGER_FAINT : COLOR_FG,
       }}
@@ -682,116 +489,13 @@ function FieldHelp({ children }: { readonly children: React.ReactNode }) {
   return (
     <div
       style={{
-        fontSize: 13,
+        fontSize: 12,
         lineHeight: 1.45,
         color: COLOR_FG_DIM,
       }}
     >
       {children}
     </div>
-  );
-}
-
-function CodeChip({ children }: { readonly children: React.ReactNode }) {
-  return (
-    <code
-      style={{
-        fontFamily: FONT_MONO,
-        fontSize: 13,
-        padding: '1px 5px',
-        borderRadius: 3,
-        background: COLOR_BG_SUNKEN,
-        color: COLOR_FG_MUTED,
-        border: `1px solid ${COLOR_BORDER}`,
-      }}
-    >
-      {children}
-    </code>
-  );
-}
-
-function ReadOnlyRow({
-  label,
-  children,
-}: {
-  readonly label: string;
-  readonly children: React.ReactNode;
-}) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-      <span
-        style={{
-          width: 64,
-          flexShrink: 0,
-          fontSize: 13,
-          color: COLOR_FG_DIM,
-        }}
-      >
-        {label}
-      </span>
-      <div style={{ flex: 1, minWidth: 0 }}>{children}</div>
-    </div>
-  );
-}
-
-function PermissionOption({
-  active,
-  onClick,
-  label,
-  hint,
-  icon,
-}: {
-  readonly active: boolean;
-  readonly onClick: () => void;
-  readonly label: string;
-  readonly hint: string;
-  readonly icon: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      style={{
-        flex: 1,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        minHeight: 54,
-        padding: '8px 10px',
-        borderRadius: 7,
-        border: `1px solid ${active ? COLOR_BORDER_HOVER : COLOR_BORDER}`,
-        background: active ? 'var(--po-panel)' : 'transparent',
-        textAlign: 'left',
-        cursor: 'pointer',
-        transition: 'border-color 150ms ease, background 150ms ease',
-      }}
-    >
-      <span
-        aria-hidden
-        style={{
-          flexShrink: 0,
-          marginTop: 1,
-          color: active ? COLOR_FG : COLOR_FG_MUTED,
-        }}
-      >
-        {icon}
-      </span>
-      <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-        <span
-          style={{
-            fontSize: 13,
-            fontWeight: 600,
-            color: COLOR_FG,
-          }}
-        >
-          {label}
-        </span>
-        <span style={{ fontSize: 13, color: COLOR_FG_DIM, lineHeight: 1.4 }}>
-          {hint}
-        </span>
-      </span>
-    </button>
   );
 }
 
@@ -865,14 +569,6 @@ function EyeOffIcon() {
   );
 }
 
-function PencilIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-    </svg>
-  );
-}
-
 function CopyIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -897,14 +593,6 @@ function RotateIcon() {
       <path d="M21 3v5h-5" />
       <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
       <path d="M3 21v-5h5" />
-    </svg>
-  );
-}
-
-function CrossIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden>
-      <path d="M5 5L11 11M11 5L5 11" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
     </svg>
   );
 }

@@ -67,10 +67,10 @@ export function ConnectorCard({
     >
       <AccessPointProviderIcon ep={iconEp} providerIcons={providerIcons} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 500, color: COLOR_FG, lineHeight: 1.3 }}>
+        <div style={{ fontSize: 12, fontWeight: 500, color: COLOR_FG, lineHeight: 1.3 }}>
           {displayName}
         </div>
-        <div style={{ fontSize: 11, color: COLOR_FG_DIM, lineHeight: 1.4, marginTop: 2 }}>
+        <div style={{ fontSize: 10, color: COLOR_FG_DIM, lineHeight: 1.4, marginTop: 2 }}>
           {providerLabel(connector.provider)} · {directionLabel(connector.direction)}
         </div>
       </div>

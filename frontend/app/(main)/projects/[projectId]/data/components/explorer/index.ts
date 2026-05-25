@@ -1,3 +1,4 @@
+export { DataExplorerPane } from './DataExplorerPane';
 export { ExplorerSidebar } from './ExplorerSidebar';
 export { FolderIcon } from './ExplorerTreeRow';
 export { EndpointIconRenderer } from './ExplorerRowMenus';

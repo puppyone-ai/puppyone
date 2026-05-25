@@ -105,6 +105,54 @@ def _patch_auth(monkeypatch, scope_path: str = ""):
             },
         ),
     )
+    monkeypatch.setattr(apfs, "admit_cli_fs_command", lambda *_args, **_kwargs: None)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("handler_name", "expected_command", "kwargs"),
+    [
+        ("list_dir", "ls", {}),
+        ("tree", "tree", {}),
+        ("grep", "grep", {"pattern": "needle"}),
+        (
+            "grep_indexed",
+            "grep",
+            {"body": apfs._GrepIndexedRequest(pattern="needle")},
+        ),
+        ("read_file", "cat", {"path": "notes.md"}),
+        ("raw_file", "download", {"path": "notes.md"}),
+        ("upload_file", "upload", {"request": None, "path": "notes.md"}),
+        ("stat", "stat", {"path": "notes.md"}),
+        ("write_file", "write", {"body": apfs.WriteFileRequest(path="notes.md", content="hi")}),
+        ("mkdir", "mkdir", {"body": apfs.MkdirRequest(path="docs")}),
+        ("touch", "touch", {"body": apfs.TouchRequest(path="notes.md")}),
+        ("move", "mv", {"body": apfs.MoveRequest(old_path="a.md", new_path="b.md")}),
+        ("copy", "cp", {"body": apfs.CopyRequest(old_path="a.md", new_path="b.md")}),
+        ("rmdir", "rmdir", {"body": apfs.RmdirRequest(path="docs")}),
+        ("remove", "rm", {"body": apfs.RemoveRequest(path="notes.md")}),
+        ("find_index", "find", {"name": "*.md"}),
+    ],
+)
+async def test_ap_fs_handlers_admit_expected_cli_command(
+    monkeypatch,
+    handler_name,
+    expected_command,
+    kwargs,
+):
+    seen_commands = []
+
+    async def _capture_auth(*_args, **auth_kwargs):
+        seen_commands.append(auth_kwargs.get("command"))
+        raise HTTPException(status_code=499, detail="stop after auth")
+
+    monkeypatch.setattr(apfs, "_resolve_auth", _capture_auth)
+
+    with pytest.raises(HTTPException) as exc:
+        await getattr(apfs, handler_name)(**kwargs)
+
+    assert exc.value.status_code == 499
+    assert seen_commands == [expected_command]
 
 
 class _FakeOps:

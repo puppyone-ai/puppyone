@@ -40,11 +40,11 @@ export function NeedsActionGroup({
   if (items.length === 0) return null;
 
   return (
-    <div style={{ marginBottom: 4 }}>
+    <div>
       <button
         type="button"
         onClick={() => setCollapsed((c) => !c)}
-        className="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left transition-colors hover:bg-[var(--po-hover)]"
+        className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-[var(--po-hover)]"
       >
         {collapsed ? (
           <ChevronRight size={12} strokeWidth={2} style={{ color: 'var(--po-text-subtle)' }} />
@@ -62,7 +62,7 @@ export function NeedsActionGroup({
           }}
         />
         <span className="text-[12px] font-medium text-[var(--po-text)]">{def.label}</span>
-        <span className="ml-auto text-[11px] font-medium text-[var(--po-text-subtle)]">
+        <span className="ml-auto rounded-full bg-[var(--po-control)] px-1.5 text-[11px] font-medium text-[var(--po-text-subtle)]">
           {items.length}
         </span>
       </button>

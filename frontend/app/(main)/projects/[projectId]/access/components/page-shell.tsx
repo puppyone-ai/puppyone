@@ -14,10 +14,17 @@
 import { PageLoading } from '@/components/loading';
 import { CHROME_LABEL_TYPOGRAPHY } from '@/lib/uiTypography';
 import { T } from '../lib/tokens';
+import { Plus } from 'lucide-react';
 
 // ─── Header ──────────────────────────────────────────────────────────
 
-export function AccessHeader({ count }: { readonly count: number }) {
+export function AccessHeader({
+  count,
+  onCreate,
+}: {
+  readonly count: number;
+  readonly onCreate: () => void;
+}) {
   return (
     <div
       style={{
@@ -37,7 +44,7 @@ export function AccessHeader({ count }: { readonly count: number }) {
         <span style={{ ...CHROME_LABEL_TYPOGRAPHY, color: T.text1 }}>Access</span>
         <span
           style={{
-            fontSize: 11,
+            fontSize: 10,
             fontFamily: T.fontSans,
             padding: '1px 7px',
             borderRadius: 999,
@@ -48,6 +55,40 @@ export function AccessHeader({ count }: { readonly count: number }) {
           {count}
         </span>
       </div>
+      <button
+        type="button"
+        onClick={onCreate}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 6,
+          height: 30,
+          padding: '0 12px',
+          borderRadius: 6,
+          border: `1px solid ${T.border}`,
+          background: 'transparent',
+          color: T.text2,
+          fontSize: 12,
+          fontWeight: 500,
+          fontFamily: T.fontSans,
+          cursor: 'pointer',
+          transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = 'var(--po-hover)';
+          e.currentTarget.style.borderColor = 'var(--po-border-strong)';
+          e.currentTarget.style.color = T.text1;
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = 'transparent';
+          e.currentTarget.style.borderColor = T.border;
+          e.currentTarget.style.color = T.text2;
+        }}
+      >
+        <Plus size={14} strokeWidth={2.1} />
+        New access
+      </button>
     </div>
   );
 }
@@ -74,11 +115,10 @@ export function NoConnectorsState({ onCreateScope }: { readonly onCreateScope: (
         fontFamily: T.fontSans,
       }}
     >
-      <div style={{ fontSize: 13, fontWeight: 500, color: T.text2 }}>No access points yet.</div>
+      <div style={{ fontSize: 12, fontWeight: 500, color: T.text2 }}>No access points yet.</div>
       <div style={{ fontSize: 12, lineHeight: 1.6, maxWidth: 420, color: T.text3 }}>
-        Access points let agents, CLIs, and third-party services read or write
-        your workspace. Open the Data view to bind a folder as a scope and add
-        your first integration.
+        Access points let Git remotes, CLIs, and integrations read or write
+        one selected path in this project.
       </div>
       <button
         type="button"
@@ -111,7 +151,7 @@ export function NoConnectorsState({ onCreateScope }: { readonly onCreateScope: (
           e.currentTarget.style.color = T.text2;
         }}
       >
-        Open Data view
+        New access
       </button>
     </div>
   );

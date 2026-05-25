@@ -34,14 +34,16 @@
  * between them sees one consistent shape.
  */
 
-import { use } from 'react';
-import { useRouter } from 'next/navigation';
+import { use, useCallback, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { T } from './lib/tokens';
 import { useAccessData } from './hooks/useAccessData';
 import { AccessHeader, LoadingState, NoConnectorsState } from './components/page-shell';
 import { ScopeSidebar } from './components/ScopeSidebar';
 import { ScopeDetailPanel } from './components/ScopeDetailPanel';
+import { CreateAccessModal } from './components/CreateAccessModal';
 import { ResizableSidebarColumn } from '@/components/sidebar/ResizableSidebarColumn';
+import type { RepoScope } from '@/lib/repoApi';
 
 /**
  * The page is *scope-keyed*: the sidebar lists each mount point (path)
@@ -60,10 +62,14 @@ export default function AccessPointsPage({
 }) {
   const { projectId } = use(params);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createInitialPath, setCreateInitialPath] = useState<string | null>(null);
 
   const {
     loading,
     noScopes,
+    allScopes,
     sortedScopes,
     connectorsByScope,
     selectedScope,
@@ -78,14 +84,44 @@ export default function AccessPointsPage({
     clearScopeSelection,
   } = useAccessData(projectId);
 
+  const openCreate = useCallback((path?: string | null) => {
+    setCreateInitialPath(path ?? null);
+    setCreateOpen(true);
+  }, []);
+
+  const closeCreate = useCallback(() => {
+    setCreateOpen(false);
+    setCreateInitialPath(null);
+    if (searchParams.get('create')) {
+      router.replace(`/projects/${projectId}/access`, { scroll: false });
+    }
+  }, [projectId, router, searchParams]);
+
+  const handleCreated = useCallback(async (scope: RepoScope) => {
+    await refresh();
+    setSelectedScopeId(scope.id);
+  }, [refresh, setSelectedScopeId]);
+
+  useEffect(() => {
+    const createMode = searchParams.get('create');
+    if (createMode !== 'share-with-ai') return;
+    openCreate(searchParams.get('path') ?? '');
+  }, [openCreate, searchParams]);
+
+  useEffect(() => {
+    const scopeId = searchParams.get('scope');
+    if (!scopeId) return;
+    setSelectedScopeId(scopeId);
+  }, [searchParams, setSelectedScopeId]);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--po-canvas)' }}>
-      <AccessHeader count={loading ? 0 : sortedScopes.length} />
+      <AccessHeader count={loading ? 0 : sortedScopes.length} onCreate={() => openCreate()} />
 
       {loading ? (
         <LoadingState />
       ) : noScopes ? (
-        <NoConnectorsState onCreateScope={() => router.push(`/projects/${projectId}/data`)} />
+        <NoConnectorsState onCreateScope={() => openCreate()} />
       ) : (
         <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
           {/* Left sidebar — flat list, one row per mount point.
@@ -125,6 +161,16 @@ export default function AccessPointsPage({
           )}
         </div>
       )}
+      {createOpen ? (
+        <CreateAccessModal
+          projectId={projectId}
+          existingScopes={allScopes}
+          connectorsByScope={connectorsByScope}
+          initialPath={createInitialPath}
+          onClose={closeCreate}
+          onCreated={handleCreated}
+        />
+      ) : null}
     </div>
   );
 }

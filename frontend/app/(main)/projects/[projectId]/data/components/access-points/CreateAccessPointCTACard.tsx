@@ -78,7 +78,7 @@ export function CreateAccessPointCTACard({
         >
           <div
             style={{
-              fontSize: 13,
+              fontSize: 12,
               fontWeight: 500,
               lineHeight: 1.3,
               overflow: 'hidden',

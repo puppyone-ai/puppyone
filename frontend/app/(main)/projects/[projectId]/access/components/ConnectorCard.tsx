@@ -25,10 +25,10 @@ import {
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import type { Connector, RepoScope } from '@/lib/repoApi';
 import { APP_Z_INDEX } from '@/lib/zIndex';
 import { T } from '../lib/tokens';
@@ -236,6 +236,7 @@ export function ConnectorDetailBody({
       {inline ? (
         <ConnectorConfigPanel
           connector={connector}
+          scope={scope}
           isBuiltin={isBuiltin}
           onUpdate={onUpdate}
           pending={pending}
@@ -250,6 +251,7 @@ export function ConnectorDetailBody({
           />
           <ConnectorConfigPanel
             connector={connector}
+            scope={scope}
             isBuiltin={isBuiltin}
             onUpdate={onUpdate}
             pending={pending}
@@ -430,7 +432,7 @@ function NameField({
       {error ? (
         <span
           style={{
-            fontSize: 11,
+            fontSize: 10,
             color: 'var(--po-danger)',
             fontFamily: T.fontSans,
             paddingLeft: 1,
@@ -441,7 +443,7 @@ function NameField({
       ) : (
         <span
           style={{
-            fontSize: 11,
+            fontSize: 10,
             color: T.text4,
             fontFamily: T.fontSans,
             paddingLeft: 1,
@@ -573,7 +575,7 @@ function ConnectorActionMenu({
         top: '100%',
         right: 0,
         marginTop: 6,
-        fontSize: 10.5,
+        fontSize: 10,
         fontWeight: 500,
         color: T.text1,
         fontFamily: T.fontSans,
@@ -714,7 +716,7 @@ function MenuItem({
         height: 30,
         padding: '0 9px',
         borderRadius: 6,
-        fontSize: 12.5,
+        fontSize: 12,
         color: danger ? 'var(--po-danger)' : T.text1,
         background: hovered
           ? danger
@@ -782,10 +784,10 @@ function PausedBanner({
     >
       <PauseIcon size={11} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 500, color: T.text1, lineHeight: 1.4 }}>
+        <div style={{ fontSize: 12, fontWeight: 500, color: T.text1, lineHeight: 1.4 }}>
           {label} is disabled
         </div>
-        <div style={{ fontSize: 11.5, color: T.text2, lineHeight: 1.5, marginTop: 2 }}>
+        <div style={{ fontSize: 12, color: T.text2, lineHeight: 1.5, marginTop: 2 }}>
           New requests through this channel are rejected. Click Resume to re-enable.
         </div>
       </div>
@@ -800,41 +802,572 @@ function PausedBanner({
   );
 }
 
-// ─── Configuration table ─────────────────────────────────────────────
+// ─── CLI command permissions ────────────────────────────────────────
 //
-// Two flavours of row:
-//   • Read-only metadata — Provider, Last run, Connector ID, Created.
-//     These are server-managed (the user can't change `created_at`).
-//   • Editable settings  — Direction, Trigger.  Built-in connectors
-//     keep them locked (cli/agent/filesystem are fixed two-way and
-//     don't have a meaningful schedule). Third-party gets inline
-//     <select> dropdowns that PATCH on change.
+// Keep this deliberately plain: the user is choosing which concrete
+// `puppyone fs` commands this connector may expose. Scope mode remains
+// the upper bound; a read-only scope locks mutating commands off here.
+
+type CliCommandKind = 'read' | 'write';
+type CliCommandSpec = {
+  readonly key: string;
+  readonly kind: CliCommandKind;
+  readonly defaultAllowed: boolean;
+};
+
+const CLI_PERMISSION_CONFIG_KEY = 'command_permissions';
+const CLI_COMMAND_SPECS: readonly CliCommandSpec[] = [
+  { key: 'semantics', kind: 'read', defaultAllowed: true },
+  { key: 'ls', kind: 'read', defaultAllowed: true },
+  { key: 'tree', kind: 'read', defaultAllowed: true },
+  { key: 'find', kind: 'read', defaultAllowed: true },
+  { key: 'grep', kind: 'read', defaultAllowed: true },
+  { key: 'stat', kind: 'read', defaultAllowed: true },
+  { key: 'cat', kind: 'read', defaultAllowed: true },
+  { key: 'head', kind: 'read', defaultAllowed: true },
+  { key: 'tail', kind: 'read', defaultAllowed: true },
+  { key: 'download', kind: 'read', defaultAllowed: true },
+  { key: 'write', kind: 'write', defaultAllowed: true },
+  { key: 'mkdir', kind: 'write', defaultAllowed: true },
+  { key: 'touch', kind: 'write', defaultAllowed: true },
+  { key: 'upload', kind: 'write', defaultAllowed: true },
+  { key: 'cp', kind: 'write', defaultAllowed: true },
+  { key: 'mv', kind: 'write', defaultAllowed: true },
+  { key: 'rm', kind: 'write', defaultAllowed: false },
+  { key: 'rmdir', kind: 'write', defaultAllowed: false },
+];
+
+const CLI_COMMAND_ORDER = new Map(CLI_COMMAND_SPECS.map((command, index) => [command.key, index]));
+const CLI_VALID_COMMANDS = new Set(CLI_COMMAND_SPECS.map((command) => command.key));
+const CLI_DEFAULT_ALLOWED = CLI_COMMAND_SPECS
+  .filter((command) => command.defaultAllowed)
+  .map((command) => command.key);
+const PERMISSION_CHECK_COLOR = 'var(--po-accent)';
+const PERMISSION_CHECK_MARK_COLOR = 'var(--po-text-inverse)';
+
+function CliCommandPermissionsRow({
+  connector,
+  scope,
+  onUpdate,
+  pending,
+  variant = 'default',
+  isFirst,
+}: {
+  readonly connector: Connector;
+  readonly scope: RepoScope | undefined;
+  readonly onUpdate: (patch: ConnectorEditPatch) => Promise<void>;
+  readonly pending: boolean;
+  readonly variant?: ConfigPanelVariant;
+  readonly isFirst?: boolean;
+}) {
+  const allowedCommands = useMemo(
+    () => parseCliCommandPermissions(connector.config),
+    [connector.config],
+  );
+  const scopeReadOnly = scope?.mode === 'r';
+  const readCommands = CLI_COMMAND_SPECS.filter((command) => command.kind === 'read');
+  const modifyCommands = CLI_COMMAND_SPECS.filter((command) => command.kind === 'write' && command.defaultAllowed);
+  const deleteCommands = CLI_COMMAND_SPECS.filter((command) => command.kind === 'write' && !command.defaultAllowed);
+
+  const writeAllowedCommands = useCallback(
+    async (next: Set<string>) => {
+      await onUpdate({
+        config: {
+          ...connector.config,
+          [CLI_PERMISSION_CONFIG_KEY]: {
+            allowed: Array.from(next).sort(sortCliCommands),
+          },
+        },
+      });
+    },
+    [connector.config, onUpdate],
+  );
+
+  const setCommandAllowed = useCallback(
+    async (command: CliCommandSpec, checked: boolean) => {
+      if (scopeReadOnly && command.kind === 'write') return;
+      const next = new Set(allowedCommands);
+      if (checked) {
+        next.add(command.key);
+      } else {
+        next.delete(command.key);
+      }
+      await writeAllowedCommands(next);
+    },
+    [allowedCommands, scopeReadOnly, writeAllowedCommands],
+  );
+
+  const setCommandsAllowed = useCallback(
+    async (commands: readonly CliCommandSpec[], checked: boolean) => {
+      if (scopeReadOnly && commands.some((command) => command.kind === 'write')) return;
+      const next = new Set(allowedCommands);
+      if (checked) {
+        commands.forEach((command) => next.add(command.key));
+      } else {
+        commands.forEach((command) => next.delete(command.key));
+      }
+      await writeAllowedCommands(next);
+    },
+    [allowedCommands, scopeReadOnly, writeAllowedCommands],
+  );
+
+  const readEnabled = readCommands.every((command) => allowedCommands.has(command.key));
+  const modifyEnabled = !scopeReadOnly && modifyCommands.every((command) => allowedCommands.has(command.key));
+  const deleteEnabled = !scopeReadOnly && deleteCommands.every((command) => allowedCommands.has(command.key));
+  const readAllowedCount = readCommands.filter((command) => allowedCommands.has(command.key)).length;
+  const modifyAllowedCount = scopeReadOnly
+    ? 0
+    : modifyCommands.filter((command) => allowedCommands.has(command.key)).length;
+  const deleteAllowedCount = scopeReadOnly
+    ? 0
+    : deleteCommands.filter((command) => allowedCommands.has(command.key)).length;
+
+  return (
+    <div
+      style={{
+        minWidth: 0,
+        padding: variant === 'inline' ? '14px 14px 16px' : '14px 12px 16px',
+        borderTop: isFirst ? 'none' : `1px solid ${T.cardBorder}`,
+      }}
+    >
+      <div
+        style={{
+          minWidth: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 10,
+        }}
+      >
+        <div
+          style={{
+            fontFamily: T.fontSans,
+            fontSize: 14,
+            lineHeight: '18px',
+            color: T.text2,
+            fontWeight: 600,
+          }}
+        >
+          Permissions
+        </div>
+        <div
+          style={{
+            minWidth: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            borderRadius: 7,
+            border: `1px solid ${T.cardBorder}`,
+            background: 'color-mix(in srgb, var(--po-control) 42%, transparent)',
+            overflow: 'hidden',
+          }}
+        >
+          <CommandPermissionGroup
+            title='Read files'
+            commands={readCommands}
+            allowedCommands={allowedCommands}
+            allowedCount={readAllowedCount}
+            groupEnabled={readEnabled}
+            disabled={pending}
+            onToggleAll={(checked) => setCommandsAllowed(readCommands, checked)}
+            onToggleCommand={setCommandAllowed}
+            isFirst
+          />
+          <CommandPermissionGroup
+            title='Modify files'
+            commands={modifyCommands}
+            allowedCommands={allowedCommands}
+            allowedCount={modifyAllowedCount}
+            groupEnabled={modifyEnabled}
+            disabled={pending || scopeReadOnly}
+            muted={scopeReadOnly}
+            onToggleAll={(checked) => setCommandsAllowed(modifyCommands, checked)}
+            onToggleCommand={setCommandAllowed}
+          />
+          <CommandPermissionGroup
+            title='Delete files'
+            commands={deleteCommands}
+            allowedCommands={allowedCommands}
+            allowedCount={deleteAllowedCount}
+            groupEnabled={deleteEnabled}
+            disabled={pending || scopeReadOnly}
+            muted={scopeReadOnly}
+            danger
+            onToggleAll={(checked) => setCommandsAllowed(deleteCommands, checked)}
+            onToggleCommand={setCommandAllowed}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CommandPermissionGroup({
+  title,
+  commands,
+  allowedCommands,
+  allowedCount,
+  groupEnabled,
+  disabled,
+  muted = false,
+  danger = false,
+  onToggleAll,
+  onToggleCommand,
+  isFirst,
+}: {
+  readonly title: string;
+  readonly commands: readonly CliCommandSpec[];
+  readonly allowedCommands: ReadonlySet<string>;
+  readonly allowedCount: number;
+  readonly groupEnabled: boolean;
+  readonly disabled: boolean;
+  readonly muted?: boolean;
+  readonly danger?: boolean;
+  readonly onToggleAll: (checked: boolean) => Promise<void>;
+  readonly onToggleCommand: (command: CliCommandSpec, checked: boolean) => Promise<void>;
+  readonly isFirst?: boolean;
+}) {
+  const commandCount = commands.length;
+  const anyEnabled = allowedCount > 0;
+  const statusLabel = groupEnabled
+    ? 'Allowed'
+    : allowedCount > 0
+      ? `${allowedCount}/${commandCount} allowed`
+      : 'Off';
+  const metaLabel = muted ? 'Blocked by scope' : `${statusLabel} · ${commandCount} commands`;
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+        minWidth: 0,
+        padding: '10px 12px',
+        borderTop: isFirst ? 'none' : `1px solid ${T.cardBorder}`,
+        opacity: muted ? 0.62 : 1,
+      }}
+    >
+      <div
+        style={{
+          minWidth: 0,
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0, 1fr) auto',
+          gap: 12,
+          alignItems: 'center',
+        }}
+      >
+        <div
+          style={{
+            minWidth: 0,
+            display: 'flex',
+            alignItems: 'baseline',
+            gap: 8,
+          }}
+        >
+          <span
+            style={{
+              fontFamily: T.fontSans,
+              fontSize: 12,
+              lineHeight: CONFIG_LINE_HEIGHT,
+              fontWeight: 500,
+              color: T.text1,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {title}
+          </span>
+          <span
+            style={{
+              minWidth: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              fontFamily: T.fontSans,
+              fontSize: 12,
+              lineHeight: '16px',
+              fontWeight: 400,
+              color: T.text2,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {metaLabel}
+          </span>
+        </div>
+        <PermissionGroupToggle
+          checked={groupEnabled && !muted}
+          partial={anyEnabled && !groupEnabled && !muted}
+          disabled={disabled}
+          onToggle={() => { void onToggleAll(!anyEnabled); }}
+        />
+      </div>
+      <div
+        style={{
+          minWidth: 0,
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          gap: 6,
+        }}
+      >
+        {commands.map((command) => (
+          <CommandPermissionPill
+            key={command.key}
+            command={command}
+            enabled={allowedCommands.has(command.key) && !muted}
+            disabled={disabled}
+            danger={danger}
+            onToggle={(checked) => onToggleCommand(command, checked)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PermissionGroupToggle({
+  checked,
+  partial,
+  disabled,
+  onToggle,
+}: {
+  readonly checked: boolean;
+  readonly partial: boolean;
+  readonly disabled: boolean;
+  readonly onToggle: () => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <button
+      type='button'
+      disabled={disabled}
+      aria-pressed={checked}
+      onClick={onToggle}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        height: 24,
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '0 6px',
+        border: 'none',
+        borderRadius: 5,
+        background: hovered && !disabled ? 'var(--po-hover)' : 'transparent',
+        color: disabled ? T.text3 : T.text2,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.54 : 1,
+        fontFamily: T.fontSans,
+        fontSize: 12,
+        lineHeight: '16px',
+        fontWeight: 400,
+        transition: `background 0.12s ${T.ease}, opacity 0.12s ${T.ease}`,
+      }}
+    >
+      <span
+        aria-hidden
+        style={{
+          width: 13,
+          height: 13,
+          borderRadius: 3,
+          border: `1px solid ${checked || partial ? PERMISSION_CHECK_COLOR : T.border}`,
+          background: checked || partial ? PERMISSION_CHECK_COLOR : 'transparent',
+          color: PERMISSION_CHECK_MARK_COLOR,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+        }}
+      >
+        {checked ? <CheckGlyph size={9} /> : partial ? <MinusGlyph size={9} /> : null}
+      </span>
+      All
+    </button>
+  );
+}
+
+function CommandPermissionPill({
+  command,
+  enabled,
+  disabled,
+  danger = false,
+  onToggle,
+}: {
+  readonly command: CliCommandSpec;
+  readonly enabled: boolean;
+  readonly disabled: boolean;
+  readonly danger?: boolean;
+  readonly onToggle: (checked: boolean) => Promise<void>;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const activeBorder = danger
+    ? 'color-mix(in srgb, var(--po-danger) 34%, var(--po-border-strong))'
+    : 'var(--po-border-strong)';
+  const activeBackground = danger
+    ? 'color-mix(in srgb, var(--po-danger) 7%, transparent)'
+    : 'color-mix(in srgb, var(--po-text) 5%, transparent)';
+  return (
+    <button
+      type='button'
+      aria-pressed={enabled}
+      disabled={disabled}
+      title={`puppyone fs ${command.key}`}
+      onClick={() => { void onToggle(!enabled); }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        height: 26,
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '0 9px',
+        borderRadius: 6,
+        border: `1px solid ${
+          enabled
+            ? activeBorder
+            : hovered && !disabled
+              ? 'var(--po-border-strong)'
+              : T.cardBorder
+        }`,
+        background: enabled
+          ? activeBackground
+          : hovered && !disabled
+            ? 'var(--po-hover)'
+            : 'transparent',
+        color: enabled ? T.text1 : T.text3,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.52 : 1,
+        fontFamily: T.fontSans,
+        fontSize: 12,
+        lineHeight: '16px',
+        fontWeight: 400,
+        transition: `background 0.12s ${T.ease}, border-color 0.12s ${T.ease}, color 0.12s ${T.ease}, opacity 0.12s ${T.ease}`,
+      }}
+    >
+      <span
+        aria-hidden
+        style={{
+          width: 12,
+          height: 12,
+          borderRadius: 3,
+          background: enabled ? PERMISSION_CHECK_COLOR : 'transparent',
+          border: enabled ? `1px solid ${PERMISSION_CHECK_COLOR}` : `1px solid ${T.border}`,
+          color: PERMISSION_CHECK_MARK_COLOR,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+        }}
+      >
+        {enabled ? <CheckGlyph size={9} /> : null}
+      </span>
+      {command.key}
+    </button>
+  );
+}
+
+const CheckGlyph = ({ size = 10 }: { readonly size?: number }) => (
+  <svg width={size} height={size} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='3' strokeLinecap='round' strokeLinejoin='round' aria-hidden>
+    <polyline points='20 6 9 17 4 12' />
+  </svg>
+);
+
+const MinusGlyph = ({ size = 10 }: { readonly size?: number }) => (
+  <svg width={size} height={size} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='3' strokeLinecap='round' strokeLinejoin='round' aria-hidden>
+    <line x1='6' y1='12' x2='18' y2='12' />
+  </svg>
+);
+
+function parseCliCommandPermissions(config: Record<string, unknown>): ReadonlySet<string> {
+  const raw = config[CLI_PERMISSION_CONFIG_KEY];
+  if (!isRecord(raw)) {
+    return new Set(CLI_DEFAULT_ALLOWED);
+  }
+
+  const allowed = readCommandArray(raw.allowed)
+    ?? readCommandArray(raw.allowed_commands);
+  if (allowed) {
+    return new Set(allowed);
+  }
+
+  if (isRecord(raw.commands)) {
+    const commandMap = raw.commands;
+    return new Set(
+      CLI_COMMAND_SPECS
+        .filter((command) => commandMap[command.key] === true)
+        .map((command) => command.key),
+    );
+  }
+
+  if (isRecord(raw.groups)) {
+    return parseLegacyCliGroups(raw.groups);
+  }
+
+  return new Set(CLI_DEFAULT_ALLOWED);
+}
+
+function parseLegacyCliGroups(groups: Record<string, unknown>): ReadonlySet<string> {
+  const allowed = new Set<string>();
+  const addByKind = (kind: CliCommandKind) => {
+    CLI_COMMAND_SPECS
+      .filter((command) => command.kind === kind)
+      .forEach((command) => allowed.add(command.key));
+  };
+  if (groups.read !== false) addByKind('read');
+  if (groups.write === true) {
+    ['write', 'mkdir', 'touch', 'upload'].forEach((command) => allowed.add(command));
+  }
+  if (groups.move === true) {
+    ['cp', 'mv'].forEach((command) => allowed.add(command));
+  }
+  if (groups.delete === true) {
+    ['rm', 'rmdir'].forEach((command) => allowed.add(command));
+  }
+  return allowed;
+}
+
+function readCommandArray(value: unknown): string[] | null {
+  if (!Array.isArray(value)) return null;
+  return value.filter((item): item is string => typeof item === 'string' && CLI_VALID_COMMANDS.has(item));
+}
+
+function sortCliCommands(a: string, b: string): number {
+  return (CLI_COMMAND_ORDER.get(a) ?? 999) - (CLI_COMMAND_ORDER.get(b) ?? 999);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+// ─── Connector details ───────────────────────────────────────────────
 //
-// Provider-specific config (`connector.config` JSONB) is exposed as a
-// disclosure block at the bottom for third-party integrations — for
-// now read-only JSON, but it makes the surface honest about how much
-// configurable state lives behind each AP.
+// This expanded row should feel like management, not database metadata.
+// Keep only the facts that help the user: when it was last used, when
+// it was created, and any current error.
 
 function ConnectorConfigPanel({
   connector,
-  isBuiltin,
+  scope,
   onUpdate,
-  pending,
+  pending = false,
   showLabel = true,
   variant = 'default',
 }: {
   readonly connector: Connector;
-  readonly isBuiltin: boolean;
-  readonly onUpdate: (patch: ConnectorEditPatch) => Promise<void>;
-  readonly pending: boolean;
+  readonly scope?: RepoScope;
+  readonly isBuiltin?: boolean;
+  readonly onUpdate?: (patch: ConnectorEditPatch) => Promise<void>;
+  readonly pending?: boolean;
   readonly showLabel?: boolean;
   readonly variant?: ConfigPanelVariant;
 }) {
   const inline = variant === 'inline';
+  const showCliCommands = connector.provider === 'cli' && !!onUpdate;
+  const showError = !!connector.error_message;
+
+  if (!showCliCommands && !showError) {
+    return null;
+  }
 
   return (
     <div style={{ marginBottom: inline ? 0 : 14 }}>
-      {showLabel ? <SubSectionLabel>Configuration</SubSectionLabel> : null}
+      {showLabel && !showCliCommands ? <SubSectionLabel>Details</SubSectionLabel> : null}
       <div
         style={{
           background: inline ? 'transparent' : 'var(--po-canvas)',
@@ -843,74 +1376,31 @@ function ConnectorConfigPanel({
           overflow: 'hidden',
         }}
       >
-        <ConfigRow
-          label='Provider'
-          isFirst
-          value={PROVIDER_LABELS[connector.provider] ?? connector.provider}
-          variant={variant}
-        />
-        <ConfigRowDirection
-          connector={connector}
-          isBuiltin={isBuiltin}
-          onUpdate={onUpdate}
-          pending={pending}
-          variant={variant}
-        />
-        <ConfigRowTrigger
-          connector={connector}
-          isBuiltin={isBuiltin}
-          onUpdate={onUpdate}
-          pending={pending}
-          variant={variant}
-        />
-        <ConfigRow
-          label='OAuth'
-          value={
-            connector.oauth_connection_id != null
-              ? `Connected · #${connector.oauth_connection_id}`
-              : 'Not used'
-          }
-          muted={connector.oauth_connection_id == null}
-          mono={connector.oauth_connection_id != null}
-          variant={variant}
-        />
-        <ConfigRow
-          label='Last run'
-          value={
-            connector.last_run_at
-              ? `${timeAgo(connector.last_run_at)} (${connector.last_run_id ? connector.last_run_id.slice(0, 8) : '—'})`
-              : 'Never'
-          }
-          muted={!connector.last_run_at}
-          mono={!!connector.last_run_at}
-          variant={variant}
-        />
-        <ConfigRow label='Connector ID' value={connector.id} mono variant={variant} />
-        <ConfigRow
-          label='Created'
-          value={
-            connector.created_at
-              ? new Date(connector.created_at).toLocaleString()
-              : '—'
-          }
-          muted={!connector.created_at}
-          variant={variant}
-        />
+        {showCliCommands ? (
+          <CliCommandPermissionsRow
+            connector={connector}
+            scope={scope}
+            onUpdate={onUpdate}
+            pending={pending}
+            variant={variant}
+            isFirst
+          />
+        ) : null}
         {connector.error_message ? (
-          <ConfigRow label='Error' value={connector.error_message} variant={variant} />
+          <ConfigRow
+            label='Error'
+            value={connector.error_message}
+            isFirst={!showCliCommands}
+            variant={variant}
+          />
         ) : null}
       </div>
-
-      {!isBuiltin ? (
-        <ProviderConfigDisclosure connector={connector} />
-      ) : null}
     </div>
   );
 }
 
 type ConfigPanelVariant = 'default' | 'inline';
 const CONFIG_LABEL_WIDTH = 112;
-const CONFIG_FONT_SIZE = 12.5;
 const CONFIG_LINE_HEIGHT = '18px';
 
 // Plain row — value is a string (read-only metadata). Keeps the same
@@ -938,7 +1428,7 @@ function ConfigRow({
         style={{
           flex: 1,
           minWidth: 0,
-          fontSize: CONFIG_FONT_SIZE,
+          fontSize: 12,
           lineHeight: CONFIG_LINE_HEIGHT,
           color: muted ? T.text2 : T.text1,
           fontFamily: mono ? T.fontMono : T.fontSans,
@@ -957,11 +1447,13 @@ function RowShell({
   isFirst,
   children,
   variant = 'default',
+  align = 'center',
 }: {
   readonly label: string;
   readonly isFirst?: boolean;
   readonly children: ReactNode;
   readonly variant?: ConfigPanelVariant;
+  readonly align?: 'center' | 'start';
 }) {
   const inline = variant === 'inline';
   return (
@@ -969,7 +1461,7 @@ function RowShell({
       style={{
         display: inline ? 'grid' : 'flex',
         gridTemplateColumns: inline ? `${CONFIG_LABEL_WIDTH}px minmax(0, 1fr)` : undefined,
-        alignItems: 'center',
+        alignItems: align === 'start' ? 'flex-start' : 'center',
         gap: inline ? 12 : 14,
         minHeight: inline ? 42 : 38,
         padding: inline ? '0' : '7px 12px',
@@ -980,7 +1472,7 @@ function RowShell({
         style={{
           width: CONFIG_LABEL_WIDTH,
           flexShrink: 0,
-          fontSize: CONFIG_FONT_SIZE,
+          fontSize: 12,
           lineHeight: CONFIG_LINE_HEIGHT,
           color: T.text2,
           fontFamily: T.fontSans,
@@ -990,343 +1482,6 @@ function RowShell({
         {label}
       </span>
       {children}
-    </div>
-  );
-}
-
-// Direction dropdown — third-party only. Built-ins display a small
-// "(locked)" hint instead, so the field's presence isn't mysteriously
-// missing — the user sees it and understands why it can't be changed.
-function ConfigRowDirection({
-  connector,
-  isBuiltin,
-  onUpdate,
-  pending,
-  variant = 'default',
-}: {
-  readonly connector: Connector;
-  readonly isBuiltin: boolean;
-  readonly onUpdate: (patch: ConnectorEditPatch) => Promise<void>;
-  readonly pending: boolean;
-  readonly variant?: ConfigPanelVariant;
-}) {
-  const directionLabel: Record<string, string> = {
-    bidirectional: 'Two-way (read & write)',
-    inbound: 'Inbound (import to workspace)',
-    outbound: 'Outbound (export from workspace)',
-  };
-  if (isBuiltin) {
-    return (
-      <RowShell label='Direction' variant={variant}>
-        <span
-          style={{
-            flex: 1,
-            minWidth: 0,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            fontSize: CONFIG_FONT_SIZE,
-            lineHeight: CONFIG_LINE_HEIGHT,
-            color: T.text1,
-            fontFamily: T.fontSans,
-          }}
-        >
-          <span>{directionLabel[connector.direction] ?? connector.direction}</span>
-          <span
-            style={{
-              fontSize: CONFIG_FONT_SIZE,
-              lineHeight: CONFIG_LINE_HEIGHT,
-              color: T.text2,
-              fontFamily: T.fontSans,
-              fontStyle: 'normal',
-            }}
-          >
-            · Built-in (locked)
-          </span>
-        </span>
-      </RowShell>
-    );
-  }
-  return (
-    <RowShell label='Direction' variant={variant}>
-      <InlineSelect
-        value={connector.direction}
-        disabled={pending}
-        options={[
-          { value: 'inbound', label: 'Inbound (import to workspace)' },
-          { value: 'outbound', label: 'Outbound (export from workspace)' },
-          { value: 'bidirectional', label: 'Two-way (read & write)' },
-        ]}
-        onChange={async (next) => {
-          if (next !== connector.direction) {
-            await onUpdate({ direction: next as 'inbound' | 'outbound' | 'bidirectional' });
-          }
-        }}
-      />
-    </RowShell>
-  );
-}
-
-// Trigger row — for third-party we expose two cells: type
-// (manual/scheduled/on_change) and a config summary. Built-ins ride
-// custom event paths (CLI/Agent/Filesystem) that aren't user-tunable,
-// so we render a static label for them too.
-function ConfigRowTrigger({
-  connector,
-  isBuiltin,
-  onUpdate,
-  pending,
-  variant = 'default',
-}: {
-  readonly connector: Connector;
-  readonly isBuiltin: boolean;
-  readonly onUpdate: (patch: ConnectorEditPatch) => Promise<void>;
-  readonly pending: boolean;
-  readonly variant?: ConfigPanelVariant;
-}) {
-  const t = (connector.trigger ?? {}) as Record<string, unknown>;
-  const triggerType = (t.type as string | undefined) ?? 'manual';
-  const summary = (() => {
-    if (typeof t.cron === 'string') return `cron: ${t.cron}`;
-    if (typeof t.interval === 'string') return `every ${t.interval}`;
-    if (typeof t.mode === 'string') return `mode: ${t.mode}`;
-    return null;
-  })();
-
-  if (isBuiltin) {
-    return (
-      <RowShell label='Trigger' variant={variant}>
-        <span
-          style={{
-            flex: 1,
-            minWidth: 0,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            fontSize: CONFIG_FONT_SIZE,
-            lineHeight: CONFIG_LINE_HEIGHT,
-            color: T.text1,
-            fontFamily: T.fontSans,
-          }}
-        >
-          <span>{summary ?? 'Event-driven'}</span>
-          <span
-            style={{
-              fontSize: CONFIG_FONT_SIZE,
-              lineHeight: CONFIG_LINE_HEIGHT,
-              color: T.text2,
-              fontFamily: T.fontSans,
-              fontStyle: 'normal',
-            }}
-          >
-            · Built-in (locked)
-          </span>
-        </span>
-      </RowShell>
-    );
-  }
-
-  return (
-    <RowShell label='Trigger' variant={variant}>
-      <div
-        style={{
-          flex: 1,
-          minWidth: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 4,
-        }}
-      >
-        <InlineSelect
-          value={triggerType}
-          disabled={pending}
-          options={[
-            { value: 'manual', label: 'Manual (run on demand)' },
-            { value: 'scheduled', label: 'Scheduled (cron / interval)' },
-            { value: 'on_change', label: 'On change (event-driven)' },
-          ]}
-          onChange={async (next) => {
-            if (next !== triggerType) {
-              // Preserve existing trigger.config if any so cron/interval
-              // settings aren't accidentally wiped when toggling the
-              // type — ideal would be a fuller editor for the config
-              // payload, which lives in a follow-up.
-              await onUpdate({
-                trigger: {
-                  type: next as 'manual' | 'scheduled' | 'on_change',
-                  config: (t.config as Record<string, unknown> | undefined) ?? undefined,
-                },
-              });
-            }
-          }}
-        />
-        {summary ? (
-          <span
-            style={{
-              fontSize: CONFIG_FONT_SIZE,
-              color: T.text2,
-              fontFamily: T.fontMono,
-              lineHeight: CONFIG_LINE_HEIGHT,
-            }}
-          >
-            {summary}
-          </span>
-        ) : null}
-      </div>
-    </RowShell>
-  );
-}
-
-// Inline <select> styled to read like the surrounding row text plus a
-// chevron hint. Native <select> is intentional — it gives keyboard
-// navigation, mobile pickers, and screen-reader semantics for free,
-// and the styling is restrained enough to feel native to the card.
-function InlineSelect({
-  value,
-  options,
-  onChange,
-  disabled,
-}: {
-  readonly value: string;
-  readonly options: ReadonlyArray<{ value: string; label: string }>;
-  readonly onChange: (next: string) => void | Promise<void>;
-  readonly disabled?: boolean;
-}) {
-  const [hovered, setHovered] = useState(false);
-  const baseStyle: CSSProperties = {
-    appearance: 'none',
-    WebkitAppearance: 'none',
-    MozAppearance: 'none',
-    fontSize: CONFIG_FONT_SIZE,
-    lineHeight: CONFIG_LINE_HEIGHT,
-    fontFamily: T.fontSans,
-    color: T.text1,
-    background: hovered ? 'var(--po-hover)' : 'transparent',
-    border: `1px solid ${hovered ? 'var(--po-border-strong)' : 'var(--po-hover)'}`,
-    borderRadius: 6,
-    padding: '4px 26px 4px 8px',
-    margin: 0,
-    width: '100%',
-    cursor: disabled ? 'wait' : 'pointer',
-    outline: 'none',
-    transition: 'background 0.12s ease, border-color 0.12s ease',
-    opacity: disabled ? 0.55 : 1,
-  };
-  return (
-    <span style={{ position: 'relative', flex: 1, minWidth: 0, display: 'inline-block' }}>
-      <select
-        value={value}
-        disabled={disabled}
-        onChange={(e) => { void onChange(e.target.value); }}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        onFocus={() => setHovered(true)}
-        onBlur={() => setHovered(false)}
-        style={baseStyle}
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value} style={{ background: 'var(--po-overlay)', color: T.text1 }}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-      <span
-        aria-hidden
-        style={{
-          position: 'absolute',
-          right: 8,
-          top: '50%',
-          transform: 'translateY(-50%)',
-          color: T.text3,
-          pointerEvents: 'none',
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <ChevronDownIcon size={10} />
-      </span>
-    </span>
-  );
-}
-
-const ChevronDownIcon = ({ size = 10 }: { readonly size?: number }) => (
-  <svg width={size} height={size} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.2' strokeLinecap='round' strokeLinejoin='round'>
-    <polyline points='6 9 12 15 18 9' />
-  </svg>
-);
-
-// ─── Provider config (third-party only, read-only JSON for now) ─────
-//
-// Surfaces `connector.config` so the user knows there's *more* under
-// the hood than the few canonical rows above. Keeping it collapsed
-// by default avoids dumping an opaque JSON blob into the layout — but
-// keeping it visible (as a closed disclosure) makes the existence of
-// these settings discoverable, which is precisely what the user
-// flagged as missing.
-
-function ProviderConfigDisclosure({ connector }: { readonly connector: Connector }) {
-  const [open, setOpen] = useState(false);
-  const json = useMemo(() => {
-    try {
-      return JSON.stringify(connector.config ?? {}, null, 2);
-    } catch {
-      return '{}';
-    }
-  }, [connector.config]);
-  const isEmpty = json.trim() === '{}';
-
-  return (
-    <div style={{ marginTop: 10 }}>
-      <button
-        type='button'
-        onClick={() => setOpen((v) => !v)}
-        style={{
-          all: 'unset',
-          cursor: 'pointer',
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 6,
-          fontSize: 11.5,
-          color: T.text3,
-          fontFamily: T.fontSans,
-          height: 30,
-          padding: '0',
-        }}
-      >
-        <span
-          aria-hidden
-          style={{
-            display: 'inline-flex',
-            transform: open ? 'rotate(90deg)' : 'rotate(0deg)',
-            transition: 'transform 0.12s ease',
-            color: T.text3,
-          }}
-        >
-          <ChevronRightIcon size={10} />
-        </span>
-        <span>Provider config ({connector.provider}{isEmpty ? ' · empty' : ''})</span>
-      </button>
-      {open ? (
-        <pre
-          style={{
-            margin: '6px 0 0',
-            padding: '10px 12px',
-            background: 'var(--po-canvas)',
-            border: `1px solid ${T.cardBorder}`,
-            borderRadius: 6,
-            fontSize: 11.5,
-            lineHeight: 1.55,
-            color: T.text2,
-            fontFamily: T.fontMono,
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
-            overflowX: 'auto',
-          }}
-        >
-          {isEmpty ? '— No provider-specific configuration set.' : json}
-        </pre>
-      ) : null}
     </div>
   );
 }

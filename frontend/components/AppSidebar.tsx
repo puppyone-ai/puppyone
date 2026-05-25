@@ -76,10 +76,10 @@ export const AppSidebar = memo(function AppSidebar({
     { revalidateOnFocus: false, dedupingInterval: 60000 },
   );
 
-  // Pending conflicts count — drives the badge on the Conflicts nav
-  // item. 30s revalidation strikes a balance between freshness and
-  // not hammering the API; once a conflict lands the user can also
-  // click Conflicts to force a refresh inside the page.
+  // Pending conflicts count — drives the badge on Changes. Conflicts
+  // are one kind of change that needs review, not a separate page.
+  // 30s revalidation strikes a balance between freshness and not
+  // hammering the API.
   const { data: pendingConflicts, isLoading: pendingConflictsLoading } = useSWR(
     activeProjectFromList ? ['sidebar-pending-conflicts', activeProjectFromList.id] : null,
     () => listPendingConflicts(activeProjectFromList!.id),
@@ -105,6 +105,20 @@ export const AppSidebar = memo(function AppSidebar({
         ),
       },
       {
+        id: 'changes',
+        label: t('changes'),
+        icon: (
+          <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+            <circle cx='6' cy='6' r='3' />
+            <circle cx='18' cy='18' r='3' />
+            <path d='M6 9v6a3 3 0 0 0 3 3h6' />
+            <path d='M18 15V9a3 3 0 0 0-3-3h-2' />
+          </svg>
+        ),
+        badge: pendingConflictCount > 0 ? pendingConflictCount : undefined,
+        badgeLoading: pendingConflictsLoading,
+      },
+      {
         id: 'access',
         // Chain-link glyph — diagonal / 45°-rotated variant of the
         // Lucide `link` icon. The earlier horizontal version only
@@ -112,9 +126,7 @@ export const AppSidebar = memo(function AppSidebar({
         // thin and the icon as "too wide" next to its siblings (folder
         // / clock / monitor / gear all fill ~18×18). The rotated path
         // shares the same square footprint as those four, so the rail
-        // reads as one consistent family. Kept in sync with `ChainIcon`
-        // in `AccessPointsHeaderButton.tsx` so both surfaces (sidebar
-        // and Data page header chip) draw the same mark.
+        // reads as one consistent family.
         label: t('access'),
         icon: (
           <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
@@ -122,35 +134,7 @@ export const AppSidebar = memo(function AppSidebar({
             <path d='M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71' />
           </svg>
         ),
-      },
-      {
-        id: 'history',
-        label: t('history'),
-        icon: (
-          <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
-            <circle cx='12' cy='12' r='9' />
-            <polyline points='12 6 12 12 16 14' />
-          </svg>
-        ),
-      },
-      {
-        id: 'conflicts',
-        label: t('conflicts'),
-        icon: (
-          // Two arrows colliding — read as "merge conflict". Same
-          // 18×18 footprint as the other nav glyphs so the rail family
-          // stays consistent (closed outline + interior strokes).
-          <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
-            <path d='M7 7l4 4-4 4' />
-            <path d='M17 7l-4 4 4 4' />
-            <line x1='11' y1='11' x2='13' y2='13' />
-          </svg>
-        ),
-        // Show pending count when nonzero — the rail glyph reads
-        // calmer when nothing is queued, and a number rather than a
-        // dot lets reviewers prioritize.
-        badge: pendingConflictCount > 0 ? pendingConflictCount : undefined,
-        badgeLoading: pendingConflictsLoading,
+        groupEnd: true,
       },
       {
         id: 'monitor',
@@ -228,12 +212,12 @@ export const AppSidebar = memo(function AppSidebar({
             router.push(`/projects/${activeProject.id}/data`);
           } else if (viewId === 'data') {
             router.push(`/projects/${activeProject.id}/data`);
+          } else if (viewId === 'changes') {
+            router.push(`/projects/${activeProject.id}/changes`);
           } else if (viewId === 'access') {
             router.push(`/projects/${activeProject.id}/access`);
           } else if (viewId === 'history') {
             router.push(`/projects/${activeProject.id}/history`);
-          } else if (viewId === 'conflicts') {
-            router.push(`/projects/${activeProject.id}/conflicts`);
           } else if (viewId === 'monitor') {
             router.push(`/projects/${activeProject.id}/monitor`);
           } else if (viewId === 'toolkit') {
@@ -246,9 +230,9 @@ export const AppSidebar = memo(function AppSidebar({
           const id = activeProject.id;
           const pathMap: Record<string, string> = {
             data: `/projects/${id}/data`,
+            changes: `/projects/${id}/changes`,
             access: `/projects/${id}/access`,
             history: `/projects/${id}/history`,
-            conflicts: `/projects/${id}/conflicts`,
             monitor: `/projects/${id}/monitor`,
             toolkit: `/projects/${id}/toolkit`,
             settings: `/projects/${id}/settings`,
