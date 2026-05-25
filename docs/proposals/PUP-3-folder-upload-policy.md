@@ -55,7 +55,7 @@ history of this file.
 | Q1 | Default ignore policy | **Hardcoded blocklist + `.gitignore` + `.puppyignore`** layered. Hardcoded minimum: `.git/`, `.DS_Store`, `Thumbs.db`, `node_modules/`, `__pycache__/`, `.venv/`, `.next/`, `dist/`, `build/`. `.gitignore` and `.puppyignore` (new) layered on top for project-specific opt-out. |
 | Q2 | Dotfile (`.env`, `.aws/`, …) policy | **Skip by default + "include hidden files" toggle** in the preflight dialog. Count + paths surfaced as "N hidden files skipped" so users have consent. |
 | Q3 | Preflight UI on Web | **Threshold-triggered modal.** Small drops (≤ Q4 thresholds) upload immediately like today. Above threshold a summary modal shows "N files / X MB / K skipped (.git/, hidden, …) — confirm / cancel". No tree-view, no per-file checkboxes. |
-| Q4 | Hard thresholds | **Per-file: 50 MB** (matches `_MAX_BYTES_PER_FILE` in [shadow_snapshot.py:50](../../backend/src/version_engine/entrypoints/http/shadow_snapshot.py#L50)) · **Per-batch count: 5000** (matches existing truncation) · **Per-batch total: 1 GB** (new; backend bundle compaction degrades above this). **Preflight modal triggers at 50 files OR 50 MB.** |
+| Q4 | Hard thresholds | **Per-file: 100 MB** · **Per-batch count: 5000** (matches existing truncation) · **Per-batch total: 1 GB** (new; backend bundle compaction degrades above this). **Preflight modal triggers at 50 files OR 100 MB.** |
 | Q5 | CLI vs Web parity | **Identical defaults** + CLI escape hatches: `--include-hidden`, `--no-default-ignores`, `--ignore-file <path>`. CLI must not have surprising silent behavior — it's wired into automation. |
 | Q6 | Git push vs folder upload | **Fully decoupled.** Git push (`/git/...`) keeps Git's social contract (only `git add`-ed content). Folder upload (web + CLI) follows the Puppyone import policy defined here. Two distinct user intentions, two distinct contracts. |
 | Q7 | Override mechanism | **Per-upload checkboxes in the preflight modal** (`include hidden` / `include .gitignored` / `include default-blocked`) **+ future org-admin lock** preserves the interface for enterprise. No per-project setting (overkill). |
@@ -72,7 +72,7 @@ in order:
 3. Dotfile rule            — skip by default; include via toggle/flag
 ```
 
-If any of the three stages fires and **either** ≥ 50 files **or** ≥ 50 MB
+If any of the three stages fires and **either** ≥ 50 files **or** ≥ 100 MB
 remain after filtering, the web client shows a **preflight modal** with:
 
 - Count + total size of files that will be uploaded.
@@ -102,10 +102,10 @@ Implementation will land in 4 PRs to keep blast radius small. Order matters
 - `backend/src/ingest/policy/upload_policy.py` — single source of truth
   for default blocklist + threshold constants. Exports:
   - `DEFAULT_BLOCKLIST_SEGMENTS: frozenset[str]` (Q1 hardcoded set)
-  - `PER_FILE_MAX_BYTES = 50 * 1024 * 1024`
+  - `PER_FILE_MAX_BYTES = 100 * 1024 * 1024`
   - `PER_BATCH_MAX_FILES = 5000`
   - `PER_BATCH_MAX_BYTES = 1024 * 1024 * 1024`
-  - `PREFLIGHT_FILE_THRESHOLD = 50` / `PREFLIGHT_BYTES_THRESHOLD = 50 * 1024 * 1024`
+  - `PREFLIGHT_FILE_THRESHOLD = 50` / `PREFLIGHT_BYTES_THRESHOLD = 100 * 1024 * 1024`
   - `is_blocked_segment(name: str) -> bool`
 - `frontend/lib/uploadPolicy.ts` — mirrors the same constants and exposes
   `applyPolicy(files, options) -> { accepted, skipped: { blocklist, ignored, hidden }, totalBytes }`.

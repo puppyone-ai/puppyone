@@ -41,7 +41,7 @@ interface FileImportDialogProps {
  *   3. The dialog shows a preflight summary when:
  *      - any file was skipped, OR
  *      - the count/size crosses the preflight thresholds (Q4: 50 files
- *        / 50 MB).
+ *        / 100 MB).
  *   4. Override checkboxes (include hidden / .gitignored /
  *      default-blocked) re-evaluate the policy on toggle.
  *   5. ``Import N Files`` commits the accepted subset.
