@@ -44,11 +44,11 @@ export const DEFAULT_BLOCKLIST_SEGMENTS: ReadonlySet<string> = new Set([
 ]);
 
 // ── Thresholds (Q4) ────────────────────────────────────────────────
-export const PER_FILE_MAX_BYTES = 50 * 1024 * 1024; // 50 MB
+export const PER_FILE_MAX_BYTES = 100 * 1024 * 1024; // 100 MB
 export const PER_BATCH_MAX_FILES = 5000;
 export const PER_BATCH_MAX_BYTES = 1024 * 1024 * 1024; // 1 GB
 export const PREFLIGHT_FILE_THRESHOLD = 50;
-export const PREFLIGHT_BYTES_THRESHOLD = 50 * 1024 * 1024; // 50 MB
+export const PREFLIGHT_BYTES_THRESHOLD = 100 * 1024 * 1024; // 100 MB
 
 // ── Public helpers ─────────────────────────────────────────────────
 

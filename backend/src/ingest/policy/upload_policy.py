@@ -59,11 +59,11 @@ DEFAULT_BLOCKLIST_SEGMENTS: frozenset[str] = frozenset({
 })
 
 # ── Thresholds (Q4) ────────────────────────────────────────────────
-PER_FILE_MAX_BYTES: int = 50 * 1024 * 1024              # 50 MB
+PER_FILE_MAX_BYTES: int = 100 * 1024 * 1024             # 100 MB
 PER_BATCH_MAX_FILES: int = 5000
 PER_BATCH_MAX_BYTES: int = 1024 * 1024 * 1024           # 1 GB
 PREFLIGHT_FILE_THRESHOLD: int = 50
-PREFLIGHT_BYTES_THRESHOLD: int = 50 * 1024 * 1024       # 50 MB
+PREFLIGHT_BYTES_THRESHOLD: int = 100 * 1024 * 1024      # 100 MB
 
 
 # ── Public helpers ─────────────────────────────────────────────────

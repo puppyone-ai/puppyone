@@ -818,7 +818,7 @@ class TestShadowSnapshotCaps:
     def test_oversize_per_file_rejected(self):
         from pydantic import ValidationError
         with pytest.raises(ValidationError):
-            self._entry(size=200 * 1024 * 1024)  # 200 MB > 50 MB cap
+            self._entry(size=200 * 1024 * 1024)  # 200 MB > 100 MB cap
 
 
 # ════════════════════════════════════════════════════════════════

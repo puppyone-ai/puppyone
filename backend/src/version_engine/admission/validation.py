@@ -12,10 +12,10 @@ from fastapi import HTTPException
 
 # ── Limits ──
 
-MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
+MAX_FILE_SIZE = 100 * 1024 * 1024  # 100 MB
 MAX_FILES_PER_PUSH = 1000
 MAX_PATH_LENGTH = 500
-MAX_PUSH_BODY_SIZE = 200 * 1024 * 1024  # 200 MB total push payload
+MAX_PUSH_BODY_SIZE = 2 * 1024 * 1024 * 1024  # 2 GB total push payload
 
 
 # ── Helpers ──
@@ -30,12 +30,12 @@ def _format_size(num_bytes: int) -> str:
 
 
 _SINGLE_FILE_HINT = (
-    "Single file exceeds the 50 MB ceiling. Split the file (e.g. "
-    "`split -b 40m large.bin part-`) before committing, or remove it from "
+    "Single file exceeds the 100 MB ceiling. Split the file (e.g. "
+    "`split -b 80m large.bin part-`) before committing, or remove it from "
     "this push and store it via the file-upload API instead."
 )
 _TOTAL_BODY_HINT = (
-    "Total push payload exceeds 200 MB. Split into smaller commits "
+    "Total push payload exceeds 2 GB. Split into smaller commits "
     "(e.g. `git commit <subset>` then `git push`, repeat) or push "
     "binary blobs separately via the file-upload API."
 )
