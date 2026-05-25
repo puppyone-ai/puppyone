@@ -452,7 +452,7 @@ def run_post_project_update_hook(
         # paths this commit added or updated. Failure here MUST NOT
         # propagate; the index is a read-side accelerator, not a
         # write-side invariant. See
-        # ``docs/proposals/PUP-federated-search.md``.
+        # ``docs/proposals/PUP-cloud-grep.md``.
         try:
             from src.infra.search.text_indexer import index_commit_delta
             from src.version_engine.bootstrap.dependencies import (

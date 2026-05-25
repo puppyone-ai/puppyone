@@ -4,7 +4,7 @@ table that powers ``/ap-fs/grep-indexed`` and ``/ap-fs/search``.
 Schema is defined in
 ``supabase/migrations/20260526000000_version_text_index.sql``;
 the design rationale lives in
-``docs/proposals/PUP-federated-search.md``.
+``docs/proposals/PUP-cloud-grep.md``.
 
 The query surface is intentionally narrow:
 

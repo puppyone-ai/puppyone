@@ -1,29 +1,25 @@
 #!/usr/bin/env node
 /**
- * Federated grep / search — end-to-end test against the deployed
- * qubits backend.
+ * Cloud-side grep — end-to-end test against the deployed qubits backend.
  *
- * Contract: docs/proposals/PUP-federated-search.md
+ * Contract: docs/proposals/PUP-cloud-grep.md
  *
  * What it does:
  *   1. Pulls credentials from a ``.env`` file (path via ``--env-file``).
- *   2. Calls ``GET /api/v1/projects/{pid}/access-point`` with the
- *      user-level JWT to discover the root scope's access_key.
- *   3. Creates a unique sub-folder ``__pup-fed-test-<ts>__/`` under
+ *   2. (JWT flow) Calls ``GET /api/v1/projects/{pid}/access-point`` with
+ *      the user JWT to discover the root scope's access_key. (AP-key
+ *      flow skips this.)
+ *   3. Creates a unique sub-folder ``__pup-grep-test-<ts>__/`` under
  *      the AP scope and writes 3 tracked test files there.
- *   4. Writes a local-only file under that subfolder, ``.puppyignore``-d.
- *   5. Polls ``/ap-fs/grep-indexed`` until ``index_status === 'indexed'``
- *      (or 90s timeout — the legacy fallback path still validates the
- *      core contract, just without the indexed assertion).
- *   6. Runs the test suite:
- *        T1 — tracked grep returns 3 hits (one per tracked file)
- *        T2 — --remote-only excludes the local-only hit
- *        T3 — --local-only returns ONLY the local-only hit
- *        T4 — dualFetch surfaces local modifications as diff_status=differ
- *        T5 — semantic search returns hits (best-effort; allow zero if
- *             embeddings are not configured server-side)
- *        T6 — pattern that doesn't exist returns zero hits
- *   7. Deletes the remote test folder + local temp files.
+ *   4. Polls ``/ap-fs/grep-indexed`` until ``index_status === 'indexed'``
+ *      (or 90s timeout — legacy fallback would still validate T2 even
+ *      if the index is slow).
+ *   5. Runs the test suite (3 scenarios — cloud-only grep, no
+ *      federation, no semantic mode — see PUP-cloud-grep.md):
+ *        T1 — indexed grep returns the tracked TODO files
+ *        T2 — legacy /ap-fs/grep S3-walk fallback also finds them
+ *        T3 — pattern that doesn't exist returns zero hits cleanly
+ *   6. Deletes the remote test folder + local temp files.
  *
  * Required env vars (loaded from --env-file or process.env):
  *   PUPPYONE_API_URL    e.g. https://qubits-api.puppyone.ai
@@ -44,9 +40,9 @@
  *       needs a fresh token every run.
  *
  * Usage:
- *   node cli/tests/federated-search-e2e.mjs --env-file .env
- *   node cli/tests/federated-search-e2e.mjs --env-file .env --keep   # don't cleanup
- *   node cli/tests/federated-search-e2e.mjs --env-file .env --verbose
+ *   node cli/tests/cloud-grep-e2e.mjs --env-file .env
+ *   node cli/tests/cloud-grep-e2e.mjs --env-file .env --keep   # don't cleanup
+ *   node cli/tests/cloud-grep-e2e.mjs --env-file .env --verbose
  */
 
 import { readFile, writeFile, mkdir, rm } from "node:fs/promises";
@@ -150,7 +146,7 @@ function assert(name, cond, detail = "") {
 // ─────────────────────────────────────────────────────────────
 
 const TEST_RUN_ID = `${Date.now()}`;
-const REMOTE_TEST_DIR = `__pup-fed-test-${TEST_RUN_ID}__`;
+const REMOTE_TEST_DIR = `__pup-grep-test-${TEST_RUN_ID}__`;
 let LOCAL_ROOT = null;     // tmp directory for the "local" working copy
 let CLEANUP_REMOTE = [];   // list of paths to ``rm`` on the remote at end
 
@@ -213,12 +209,11 @@ async function main() {
       headers: { ...apHeaders, ...(opts.headers || {}) },
     });
 
-  // ── 2. build local working copy with fixture files ──────
-  LOCAL_ROOT = await mkdir(
-    join(tmpdir(), `pup-fed-test-${TEST_RUN_ID}`),
-    { recursive: true },
-  );
-  LOCAL_ROOT = join(tmpdir(), `pup-fed-test-${TEST_RUN_ID}`);
+  // ── 2. build a tmp staging dir with fixture files ───────
+  // We don't need a "working copy" — the grep is cloud-only now.
+  // The tmp dir is just a scratch space to read fixture content
+  // before uploading; we delete it on teardown.
+  LOCAL_ROOT = join(tmpdir(), `pup-grep-test-${TEST_RUN_ID}`);
   await mkdir(join(LOCAL_ROOT, REMOTE_TEST_DIR), { recursive: true });
 
   const fixtures = {
@@ -230,14 +225,6 @@ async function main() {
   for (const [name, content] of Object.entries(fixtures)) {
     await writeFile(join(LOCAL_ROOT, REMOTE_TEST_DIR, name), content);
   }
-  // Local-only file (not uploaded). The CLI's localScan would .puppyignore-skip it
-  // ONLY when the user adds it to .puppyignore; for THIS test we just leave it
-  // off the upload list so it never reaches the server. The localScan filter
-  // will pick it up because it's not in trackedPaths.
-  await writeFile(
-    join(LOCAL_ROOT, REMOTE_TEST_DIR, "local-only.md"),
-    "# Local only\nTODO: secret-local-marker do not commit.\n",
-  );
 
   // ── 3. upload tracked files via /ap-fs/write ────────────
   for (const [name, content] of Object.entries(fixtures)) {
@@ -323,68 +310,7 @@ async function main() {
     );
   }
 
-  // T3: dualFetch shape — call /ap-fs/cat for one of the hit files
-  // and compare with the local fixture content. The server returns
-  // the bytes; we verify content matches what we uploaded.
-  {
-    const path = `${REMOTE_TEST_DIR}/tracked-1.md`;
-    const params = new URLSearchParams({ path });
-    const res = await apFetch(`/ap-fs/cat?${params.toString()}`);
-    const remoteText = res.content_text || res.content || "";
-    const localText = await readFile(join(LOCAL_ROOT, path), "utf8");
-    assert(
-      "T3 /ap-fs/cat returns the uploaded bytes (dualFetch remote leg)",
-      remoteText === localText,
-      `(remote_len=${remoteText.length}, local_len=${localText.length})`,
-    );
-  }
-
-  // T4: simulate local drift — modify local copy, re-fetch remote,
-  // verify the contents differ (this is the diff_status='differ' case).
-  {
-    const path = `${REMOTE_TEST_DIR}/tracked-1.md`;
-    const localPath = join(LOCAL_ROOT, path);
-    const original = await readFile(localPath, "utf8");
-    await writeFile(localPath, original + "\nLOCAL DRIFT MARKER\n");
-    const params = new URLSearchParams({ path });
-    const res = await apFetch(`/ap-fs/cat?${params.toString()}`);
-    const remoteText = res.content_text || res.content || "";
-    const localText = await readFile(localPath, "utf8");
-    assert(
-      "T4 dualFetch detects local drift (remote ≠ local)",
-      remoteText !== localText && localText.includes("LOCAL DRIFT MARKER"),
-    );
-    // Restore so cleanup doesn't behave weirdly.
-    await writeFile(localPath, original);
-  }
-
-  // T5: semantic search — best-effort. Allow zero hits if the
-  // embeddings provider is not configured server-side; in that case
-  // the server emits ``semantic_error`` and we just verify the
-  // envelope shape rather than insisting on hits.
-  {
-    const res = await apFetch("/ap-fs/search", {
-      method: "POST",
-      body: JSON.stringify({
-        query: "ship the indexer",
-        path: REMOTE_TEST_DIR,
-        mode: "hybrid",
-        limit: 10,
-      }),
-    });
-    const hasShape =
-      typeof res === "object" &&
-      Array.isArray(res.hits) &&
-      typeof res.literal_count === "number" &&
-      typeof res.semantic_count === "number";
-    assert(
-      "T5 /ap-fs/search returns the federated envelope shape",
-      hasShape,
-      `(literal_count=${res?.literal_count}, semantic_count=${res?.semantic_count}, semantic_error="${res?.semantic_error || ""}", hits=${(res?.hits || []).length})`,
-    );
-  }
-
-  // T6: pattern with no match → zero hits, no error.
+  // T3: pattern with no match → zero hits, no error.
   {
     const res = await apFetch("/ap-fs/grep-indexed", {
       method: "POST",
@@ -395,23 +321,9 @@ async function main() {
       }),
     });
     assert(
-      "T6 nonexistent pattern returns zero hits cleanly",
+      "T3 nonexistent pattern returns zero hits cleanly",
       Array.isArray(res.hits) && res.hits.length === 0,
       `(hits=${(res.hits || []).length})`,
-    );
-  }
-
-  // T7: untracked path NOT in tracked tree.
-  // The local-only file was never uploaded, so the server tree under
-  // REMOTE_TEST_DIR must NOT contain it.
-  {
-    const params = new URLSearchParams({ path: REMOTE_TEST_DIR });
-    const res = await apFetch(`/ap-fs/tree?${params.toString()}`);
-    const treePaths = new Set((res.entries || []).map(e => e.path));
-    assert(
-      "T7 untracked local file is not in the server tree",
-      !treePaths.has(`${REMOTE_TEST_DIR}/local-only.md`),
-      `(server_paths=${[...treePaths].slice(0, 5).join(",")}${treePaths.size > 5 ? "…" : ""})`,
     );
   }
 
