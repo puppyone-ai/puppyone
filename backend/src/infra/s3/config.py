@@ -17,8 +17,9 @@ class S3Settings(BaseSettings):
     S3_ACCESS_KEY_ID: str = "test"  # Default for local development
     S3_SECRET_ACCESS_KEY: str = "test"  # Default for local development
 
-    # S3 file size limit configuration
-    S3_MAX_FILE_SIZE: int = 100 * 1024 * 1024  # 100MB (bytes)
+    # Raw S3 object cap. Product upload policy is stricter elsewhere; this
+    # needs room for internal Git/object-store bundles from large pushes.
+    S3_MAX_FILE_SIZE: int = 2 * 1024 * 1024 * 1024  # 2GB (bytes)
     # Lower the multipart upload threshold to avoid SSL errors from single large uploads
     S3_MULTIPART_THRESHOLD: int = 10 * 1024 * 1024  # 10MB (bytes) - use multipart upload above 10MB
     S3_MULTIPART_CHUNKSIZE: int = 5 * 1024 * 1024  # 5MB (bytes)

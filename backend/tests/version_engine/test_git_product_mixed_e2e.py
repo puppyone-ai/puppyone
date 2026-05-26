@@ -11,7 +11,7 @@ import pytest
 from fastapi import FastAPI, Header
 
 from src.version_engine.entrypoints.git.router import router as git_router
-from src.version_engine.write_engine.object_store import ObjectStore
+from src.version_engine.storage.object_store import ObjectStore
 from src.version_engine.bootstrap.dependencies import get_repo_manager, get_version_write_command_service
 from src.version_engine.domain.intents import ProjectWriteState
 from src.version_engine.entrypoints.http.content_write import write_router

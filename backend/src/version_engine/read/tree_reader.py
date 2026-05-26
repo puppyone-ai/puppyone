@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 from src.version_engine.write_engine import tree as tree_mod
 from src.version_engine.domain.errors import ObjectNotFoundError, PathNotFoundError
-from src.version_engine.write_engine.object_store import ObjectStore
+from src.version_engine.storage.object_store import ObjectStore
 
 from src.infra.file_formats import detect_mime, detect_node_type
 from src.version_engine.write_engine.path_utils import normalize_path

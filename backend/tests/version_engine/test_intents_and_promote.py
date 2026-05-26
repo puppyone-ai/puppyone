@@ -137,7 +137,7 @@ class _RecordingRepo:
     def __init__(self):
         self._scopes = {"": ""}  # root scope only
         self.publish_calls: list[dict] = []
-        from src.version_engine.write_engine.object_store import ObjectStore
+        from src.version_engine.storage.object_store import ObjectStore
         from pathlib import Path
         import tempfile
         self._tmp = tempfile.mkdtemp()

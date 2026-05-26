@@ -14,6 +14,7 @@ export type ViewType = 'grid' | 'list' | 'explorer';
 export type BreadcrumbSegment = {
   label: ReactNode;
   href?: string;
+  onClick?: () => void;
 };
 
 type ProjectsHeaderProps = {
@@ -100,23 +101,48 @@ export function ProjectsHeader({
                   <span style={{ margin: '0 8px', color: 'var(--po-text-disabled)' }}>/</span>
                 )}
                 {segment.href && !isLast ? (
-                  <Link
-                    href={segment.href}
-                    style={{
-                      ...pathStyle,
-                      color: 'var(--po-text-muted)',
-                      cursor: 'pointer',
-                      transition: 'color 0.15s',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.color = 'var(--po-text)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.color = 'var(--po-text-muted)';
-                    }}
-                  >
-                    {segment.label}
-                  </Link>
+                  segment.onClick ? (
+                    <a
+                      href={segment.href}
+                      style={{
+                        ...pathStyle,
+                        color: 'var(--po-text-muted)',
+                        cursor: 'pointer',
+                        transition: 'color 0.15s',
+                        textDecoration: 'none',
+                      }}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        segment.onClick?.();
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.color = 'var(--po-text)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = 'var(--po-text-muted)';
+                      }}
+                    >
+                      {segment.label}
+                    </a>
+                  ) : (
+                    <Link
+                      href={segment.href}
+                      style={{
+                        ...pathStyle,
+                        color: 'var(--po-text-muted)',
+                        cursor: 'pointer',
+                        transition: 'color 0.15s',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.color = 'var(--po-text)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = 'var(--po-text-muted)';
+                      }}
+                    >
+                      {segment.label}
+                    </Link>
+                  )
                 ) : (
                   <span
                     style={{

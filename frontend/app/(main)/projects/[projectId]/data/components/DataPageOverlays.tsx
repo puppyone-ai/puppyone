@@ -10,7 +10,7 @@ interface DataPageOverlaysProps {
   toast: DataPageToast | null;
   createMenuOpen: boolean;
   createMenuPosition: CreateMenuPosition | null;
-  // When the menu was opened by a per-folder plug button rather
+  // When the menu was opened by a scoped `Expose as...` command rather
   // than the regular `+`, this flag flips CreateMenu into its
   // `accessOnly` rendering — flat list of providers / agents /
   // endpoints, no Create Blank / Upload sections.  Same menu

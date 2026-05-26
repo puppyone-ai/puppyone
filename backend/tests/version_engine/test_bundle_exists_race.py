@@ -38,7 +38,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.version_engine.infrastructure.s3.object_storage import (
+from src.version_engine.storage.backends.s3 import (
     CachedStorageBackend,
     ObjectLocation,
     S3StorageBackend,

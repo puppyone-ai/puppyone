@@ -275,9 +275,9 @@ function CreateView({
   // CRITICAL: handleSelect*/handleBack must NOT clear draftResources.
   // The previous version called `setDraftResources([])` on every
   // provider/endpoint pick, which silently wiped any target
-  // pre-filled by an external caller (sidebar Connect button, per-row
-  // plug button, etc.).  Symptom: user clicked the plug on a folder
-  // row, panel opened with that folder set as target, user clicked a
+  // pre-filled by an external caller (sidebar `Expose as...`, header
+  // expose, etc.).  Symptom: user exposed a folder from the sidebar,
+  // panel opened with that folder set as target, user clicked a
   // provider → target zone snapped back to "Drag a folder into this
   // zone" and the panel looked broken.  Switching providers within
   // the same panel session is NOT a "I want a different target" gesture

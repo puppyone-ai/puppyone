@@ -32,7 +32,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from src.version_engine.domain.errors import ObjectNotFoundError
-from src.version_engine.infrastructure.s3.object_storage import (
+from src.version_engine.storage.backends.s3 import (
     S3StorageBackend,
     _DEFERRED_STORAGE_NAMESPACE,
 )

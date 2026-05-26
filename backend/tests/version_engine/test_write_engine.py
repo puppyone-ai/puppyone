@@ -29,7 +29,7 @@ from fastapi.testclient import TestClient
 from src.config import settings
 from src.version_engine.write_engine import tree as tree_mod
 from src.version_engine.write_engine.git_object_format import decode_commit, encode_commit
-from src.version_engine.write_engine.object_store import ObjectStore
+from src.version_engine.storage.object_store import ObjectStore
 
 # Sentinel preserved so older tests that send a request body keep working;
 # the engine no longer reads a wire-protocol version.

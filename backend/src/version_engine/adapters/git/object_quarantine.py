@@ -37,7 +37,7 @@ from src.version_engine.write_engine.git_object_format import (
     decode_tree,
     encode_object,
 )
-from src.version_engine.write_engine.object_store import stage_object_writes
+from src.version_engine.storage.object_store import stage_object_writes
 from src.version_engine.write_engine.trace import trace_mark, trace_phase
 
 

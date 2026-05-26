@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from src.version_engine.write_engine import tree as tree_mod
-from src.version_engine.write_engine.object_store import ObjectStore
+from src.version_engine.storage.object_store import ObjectStore
 
 
 def diff_trees(store: ObjectStore, h1: str, h2: str, prefix: str = "") -> list[dict]:

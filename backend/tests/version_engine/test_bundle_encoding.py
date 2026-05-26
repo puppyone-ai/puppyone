@@ -13,7 +13,7 @@ silently regress this.
 
 import hashlib
 
-from src.version_engine.infrastructure.s3.object_storage import (
+from src.version_engine.storage.backends.s3 import (
     _encode_object_bundle,
 )
 

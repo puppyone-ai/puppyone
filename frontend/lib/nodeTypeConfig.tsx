@@ -130,7 +130,7 @@ export const NODE_TYPE_CONFIG: Record<string, NodeTypeConfig> = {
   // === 原生类型 ===
   'folder': {
     iconCategory: 'folder',
-    color: 'var(--po-accent)',
+    color: 'var(--po-file-accent-default)',
     label: 'Folder',
     isReadOnly: false,
   },

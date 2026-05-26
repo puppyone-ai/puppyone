@@ -1,26 +1,16 @@
 'use client';
 
 /**
- * CreateAccessPointPanel — Pp.2b in the 3-page Access hierarchy.
+ * CreateAccessPointPanel — legacy sidebar create page.
  *
- *   Pp.1 Overview         (list of all scopes + entry to Pp.2b)
- *   Pp.2a Scope Detail    (per-scope settings + connect methods)
- *   Pp.2b Create New      ← THIS FILE
+ * The Data page no longer routes Access creation through this panel.
+ * Sidebar/header/folder-row entries open the shared CreateAccessModal
+ * so folder selection, validation, loading, and error handling have
+ * one owner. Keep this file while the migration settles, but do not
+ * export it from the access-points barrel or wire new entry points to it.
  *
- * Trigger map (per 2026-05-08 UX spec):
- *
- *   - Top-right "Add access" header button     → Pp.1 Overview
- *   - Sidebar chain icon on EXISTING scope     → Pp.2a Scope Detail
- *   - Sidebar chain icon on NON-scope folder   → Pp.2b Create (this)
- *   - Overview's "+ Create new" CTA            → Pp.2b Create (this)
- *
- * The path is pre-filled from `panelState.nodeId` (set by whichever
- * trigger opened the page) so the user lands on a one-click "Create"
- * for the folder they actually meant. Path remains editable in case
- * they want to override the target.
- *
- * On success: transitions the panel to Pp.2a Detail of the new scope
- * via `onCreated(scope)` so the user immediately sees what they made.
+ * Existing implementation is retained instead of deleted to avoid
+ * mixing a UX architecture change with a larger component cleanup.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';

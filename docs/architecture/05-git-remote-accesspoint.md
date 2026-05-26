@@ -39,7 +39,7 @@ git push
 ```
 
 The Git view cache and quarantine repo are never authoritative. The view cache
-is a durable L6 per-view bare repo under `GIT_VIEW_CACHE_DIR`
+is a durable L5 Follow-up per-view bare repo under `GIT_VIEW_CACHE_DIR`
 (`~/.puppyone/git-view-cache` by default); the quarantine repo remains per-push
 and temporary. Puppyone's canonical source of truth remains the Version Engine
 object store plus database refs/history/audit. Product-level rejections that
@@ -84,8 +84,8 @@ GET /git/ap/<access_key>.git/health
 It returns the same `GitViewHead` resolution used by clone/fetch/push, including
 `health`, `git_head`, `canonical_head`, `history_cut`, Git usability booleans,
 and recommended recovery actions. This route is a read/diagnostic path; cache
-warming belongs to L6 background work after Access Point creation or after a
-version commit, not to the first user's clone request.
+warming belongs to L5 Follow-up background work after Access Point creation or
+after a version commit, not to the first user's clone request.
 
 ## Product/API Save
 

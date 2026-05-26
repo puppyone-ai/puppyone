@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 
 import pytest
-from src.version_engine.write_engine.object_store import ObjectStore
+from src.version_engine.storage.object_store import ObjectStore
 from src.version_engine.write_engine.tree import tree_to_flat
 from src.version_engine.infrastructure.supabase.scope_manager import ScopeManager
 
