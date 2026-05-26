@@ -304,9 +304,13 @@ async def test_git_fast_forward_push_uses_tree_diff_not_full_flatten(
         defer_projection=True,
     )
 
-    assert result.commit_id == next_commit
+    # Root-first scoped Git writes publish a canonical project-root commit
+    # while keeping the client's commit as the scope/AP Git head.
+    assert result.commit_id != next_commit
+    assert server_repo.get_scope_head_commit_id("docs") == next_commit
     assert result.changes == [{"path": "docs/a.md", "action": "update"}]
     assert server_repo.get_scope_hash("docs") == next_tree
+    assert server_repo.get_root_hash() != next_tree
 
 
 @pytest.mark.asyncio
@@ -1028,20 +1032,25 @@ class TestGitNativeHardeningContracts:
 
         def fake_publish(**kwargs):
             calls.append(kwargs)
-            assert server_repo.history.cas_update_scope_hash(
-                kwargs["scope_path"],
-                kwargs["old_scope_hash"],
-                kwargs["new_scope_hash"],
-                kwargs["commit_id"],
+            assert server_repo.history.cas_update_root_hash(
+                kwargs["old_root_hash"],
+                kwargs["new_root_hash"],
             )
+            scope_path = (kwargs.get("scope_path") or "").strip("/")
+            scope_hash = kwargs.get("scope_hash") or kwargs["new_root_hash"]
+            server_repo.history.set_scope_hash("", kwargs["new_root_hash"])
+            server_repo.history.set_scope_head_commit_id("", kwargs["commit_id"])
+            server_repo.history.set_scope_hash(scope_path, scope_hash)
+            server_repo.history.set_scope_head_commit_id(scope_path, kwargs["commit_id"])
             server_repo.history.record(
                 kwargs["commit_id"],
                 kwargs["who"],
                 kwargs["message"],
-                kwargs["scope_path"],
+                scope_path,
                 kwargs["changes"],
                 kwargs["conflicts"],
-                scope_hash=kwargs["new_scope_hash"],
+                root_hash=kwargs["new_root_hash"],
+                scope_hash=scope_hash,
                 created_at_iso=kwargs["created_at_iso"],
             )
             server_repo.audit.record(
@@ -1051,7 +1060,7 @@ class TestGitNativeHardeningContracts:
             )
             return True, None
 
-        server_repo.publish_scope_update = fake_publish
+        server_repo.publish_project_update = fake_publish
         server_repo.record_history = MagicMock(side_effect=AssertionError("bypassed publish"))
         server_repo.record_audit = MagicMock(side_effect=AssertionError("bypassed publish"))
 
@@ -1072,6 +1081,8 @@ class TestGitNativeHardeningContracts:
         assert len(calls) == 1
         assert calls[0]["audit_event_type"] == "git_push"
         assert calls[0]["commit_id"] == commit_id
+        assert calls[0]["new_root_hash"] == tree_id
+        assert calls[0]["scope_hash"] == tree_id
 
     @pytest.mark.asyncio
     async def test_project_operation_publish_does_not_wait_for_sync_projection(
@@ -1171,7 +1182,7 @@ class TestGitNativeHardeningContracts:
         tree_id = build_tree_from_files(server_repo.store, {"README.md": b"docs"})
         client_commit = _make_client_commit(server_repo, tree_id, message="docs")
 
-        await submit_git_tree(
+        result = await submit_git_tree(
             repo_manager,
             project_id="test-proj",
             scope_path="docs",
@@ -1180,6 +1191,20 @@ class TestGitNativeHardeningContracts:
             proposed_tree_id=tree_id,
             client_commit_id=client_commit,
             message="docs",
+        )
+
+        from src.version_engine.derived.hooks import run_post_project_update_hook
+
+        run_post_project_update_hook(
+            "test-proj",
+            repo_manager,
+            {
+                "status": "ok",
+                "commit_id": result.commit_id,
+                "root": server_repo.get_root_hash(),
+                "scope_path": "docs",
+                "scope_hash": result.new_scope_hash,
+            },
         )
 
         indexed = server_repo.history._version_index[-1]
@@ -2650,8 +2675,11 @@ def test_real_git_cli_scope_exclude_visible_push_preserves_hidden_files(
         assert (verify / "README.md").read_text(encoding="utf-8") == "visible changed\n"
         assert not (verify / "secret").exists()
 
-    canonical_head = server_repo.get_scope_head_commit_id("docs")
-    assert canonical_head not in {seeded_commit, client_commit}
+    # Root-first keeps the canonical scope tree (including hidden files) in
+    # scope_hash/root, while the Access Point ref can remain the Git-visible
+    # client commit for normal clone/pull continuity.
+    assert server_repo.get_scope_head_commit_id("docs") == client_commit
+    assert server_repo.get_scope_hash("docs") != commit_tree_id(server_repo, client_commit)
     assert _files_for_scope(server_repo, "docs") == {
         "README.md": b"visible changed\n",
         "secret/old.md": b"hidden\n",

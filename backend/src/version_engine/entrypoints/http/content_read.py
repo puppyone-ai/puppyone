@@ -13,7 +13,11 @@ from zipstream import ZipStream
 
 from src.common_schemas import ApiResponse
 from src.version_engine.bootstrap.dependencies import get_product_operation_adapter
-from src.version_engine.domain.errors import ObjectNotFoundError, PathNotFoundError
+from src.version_engine.domain.errors import (
+    ObjectNotFoundError,
+    PathNotFoundError,
+    VersionReadError,
+)
 from src.version_engine.entrypoints.http.content_helpers import ensure_project_access, entry_to_response
 from src.version_engine.entrypoints.http.download_token import (
     DEFAULT_TTL_SECONDS,
@@ -64,6 +68,18 @@ def _raise_directory_not_found(path: str, exc: PathNotFoundError) -> None:
     ) from exc
 
 
+def _raise_version_read_error(path: str, exc: VersionReadError) -> None:
+    target = path or "project root"
+    raise HTTPException(
+        status_code=502,
+        detail={
+            "code": "VERSION_READ_UNAVAILABLE",
+            "message": f"Version tree temporarily unavailable while reading {target}.",
+            "path": path,
+        },
+    ) from exc
+
+
 @read_router.get(
     "/{project_id}/ls",
     response_model=ApiResponse[ListDirResponse],
@@ -85,6 +101,8 @@ def list_dir(
         _raise_storage_integrity_error(clean_path, exc)
     except PathNotFoundError as exc:
         _raise_directory_not_found(clean_path, exc)
+    except VersionReadError as exc:
+        _raise_version_read_error(clean_path, exc)
     head_commit_id = ops.get_head_commit_id(project_id)
 
     return ApiResponse.success(data=ListDirResponse(
@@ -508,6 +526,8 @@ def download(
             _raise_storage_integrity_error(clean_path, exc)
         except PathNotFoundError as exc:
             _raise_directory_not_found(clean_path, exc)
+        except VersionReadError as exc:
+            _raise_version_read_error(clean_path, exc)
 
         def chunks():
             # zipstream-ng's add()/mkdir() *queue* entries; all_files()
@@ -657,6 +677,8 @@ def full_tree(
         _raise_storage_integrity_error(clean_path, exc)
     except PathNotFoundError as exc:
         _raise_directory_not_found(clean_path, exc)
+    except VersionReadError as exc:
+        _raise_version_read_error(clean_path, exc)
     head_commit_id = ops.get_head_commit_id(project_id)
 
     return ApiResponse.success(data=TreeResponse(

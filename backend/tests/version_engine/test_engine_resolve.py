@@ -272,7 +272,7 @@ async def test_resolve_landing_pending_keeps_row_resolving(
         )
     monkeypatch.setattr(
         VersionWriteEngine,
-        "_submit_version_optimistic",
+        "_submit_version_root_first",
         fake_submit,
     )
 

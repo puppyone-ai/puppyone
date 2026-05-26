@@ -9,15 +9,22 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from src.version_engine.write_engine import tree as tree_mod
-from src.version_engine.domain.errors import ObjectNotFoundError, PathNotFoundError
+from src.version_engine.domain.errors import (
+    ObjectNotFoundError,
+    PathNotFoundError,
+    VersionReadError,
+)
 from src.version_engine.storage.object_store import ObjectStore
+from src.version_engine.write_engine.git_object_format import EMPTY_TREE_SHA1, decode_tree
 
 from src.infra.file_formats import detect_mime, detect_node_type
 from src.version_engine.write_engine.path_utils import normalize_path
-from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
-from src.utils.logger import log_error
+from src.utils.logger import log_error, log_warning
+
+if TYPE_CHECKING:
+    from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
 
 # `detect_type` is re-exported (alias of `detect_node_type`) so the
 # many existing imports of `tree_reader.detect_type` keep working.
@@ -86,14 +93,15 @@ class VersionTreeReader:
         *,
         include_size: bool = False,
     ) -> list[VersionEntry]:
-        """List from a scope head directly, bypassing project-root projection."""
+        """List a scope-relative directory from the canonical project root."""
 
         try:
-            repo = self._repos.get_server_repo(project_id)
-            root_hash = repo.get_scope_hash(normalize_path(scope_path)) or ""
+            repo, root_hash = self._scope_root_for_read(project_id, scope_path)
         except Exception as e:
-            log_error(f"[VersionTreeReader] Failed to get scope hash for {project_id}: {e}")
-            return []
+            log_error(f"[VersionTreeReader] Failed to get scope root for {project_id}: {e}")
+            raise VersionReadError(
+                f"failed to read scope head for project {project_id}"
+            ) from e
         if not root_hash:
             return []
 
@@ -102,18 +110,17 @@ class VersionTreeReader:
         if rel_path:
             tree_hash = self._navigate_to_subtree(repo.store, root_hash, rel_path)
             if not tree_hash:
-                return []
+                raise PathNotFoundError(f"directory not found: {rel_path}")
 
         try:
             entries = _read_tree(repo.store, tree_hash)
         except ObjectNotFoundError as exc:
-            if _is_missing_object_error(exc):
-                raise
-            log_error(f"[VersionTreeReader] Invalid scope tree at {path}: {exc}")
-            return []
+            raise
         except Exception as e:
             log_error(f"[VersionTreeReader] Failed to read scope tree at {path}: {e}")
-            return []
+            raise VersionReadError(
+                f"failed to read scope tree at {path or scope_path or 'root'}"
+            ) from e
 
         integrity_by_hash = self._blob_integrity_statuses(repo.store, entries)
         display_path = _join_scope_path(scope_path, rel_path)
@@ -130,11 +137,10 @@ class VersionTreeReader:
         return result
 
     def read_file_in_scope(self, project_id: str, scope_path: str, path: str) -> bytes:
-        """Read a scope-relative file from the canonical scope head."""
+        """Read a scope-relative file from the canonical project root."""
 
         try:
-            repo = self._repos.get_server_repo(project_id)
-            root_hash = repo.get_scope_hash(normalize_path(scope_path)) or ""
+            repo, root_hash = self._scope_root_for_read(project_id, scope_path)
         except Exception as e:
             raise FileNotFoundError(f"Project {project_id} is not initialized: {e}")
         if not root_hash:
@@ -157,8 +163,7 @@ class VersionTreeReader:
         """Read a byte range from a scope-relative file."""
 
         try:
-            repo = self._repos.get_server_repo(project_id)
-            root_hash = repo.get_scope_hash(normalize_path(scope_path)) or ""
+            repo, root_hash = self._scope_root_for_read(project_id, scope_path)
         except Exception as e:
             raise FileNotFoundError(f"Project {project_id} is not initialized: {e}")
         if not root_hash:
@@ -193,13 +198,12 @@ class VersionTreeReader:
         *,
         include_size: bool = False,
     ) -> VersionEntry | None:
-        """Stat a scope-relative path from the canonical scope head."""
+        """Stat a scope-relative path from the canonical project root."""
 
         scope_norm = normalize_path(scope_path)
         rel_path = normalize_path(path)
         try:
-            repo = self._repos.get_server_repo(project_id)
-            root_hash = repo.get_scope_hash(scope_norm) or ""
+            repo, root_hash = self._scope_root_for_read(project_id, scope_norm)
         except Exception as e:
             log_error(f"[VersionTreeReader] Failed to get scope hash for stat: {e}")
             return None
@@ -267,14 +271,15 @@ class VersionTreeReader:
         include_size: bool = False,
         max_entries: int | None = None,
     ) -> list[VersionEntry]:
-        """Recursively list from a scope head directly."""
+        """Recursively list a scope from the canonical project root."""
 
         try:
-            repo = self._repos.get_server_repo(project_id)
-            root_hash = repo.get_scope_hash(normalize_path(scope_path)) or ""
+            repo, root_hash = self._scope_root_for_read(project_id, scope_path)
         except Exception as e:
             log_error(f"[VersionTreeReader] Failed to get scope hash for list_tree: {e}")
-            return []
+            raise VersionReadError(
+                f"failed to read scope head for project {project_id}"
+            ) from e
         if not root_hash:
             return []
 
@@ -283,7 +288,7 @@ class VersionTreeReader:
         if rel_path:
             tree_hash = self._navigate_to_subtree(repo.store, root_hash, rel_path)
             if not tree_hash:
-                return []
+                raise PathNotFoundError(f"directory not found: {rel_path}")
 
         result: list[VersionEntry] = []
         self._walk_tree(
@@ -307,11 +312,12 @@ class VersionTreeReader:
         Empty path = project root directory.
         """
         try:
-            repo = self._repos.get_repo(project_id)
-            root_hash = repo.history.get_root_hash()
+            repo, root_hash = self._project_root_for_read(project_id)
         except Exception as e:
             log_error(f"[VersionTreeReader] Failed to get root hash for {project_id}: {e}")
-            return []
+            raise VersionReadError(
+                f"failed to read project root for project {project_id}"
+            ) from e
         if not root_hash:
             return []
 
@@ -324,13 +330,12 @@ class VersionTreeReader:
         try:
             entries = _read_tree(repo.store, tree_hash)
         except ObjectNotFoundError as exc:
-            if _is_missing_object_error(exc):
-                raise
-            log_error(f"[VersionTreeReader] Invalid tree at {path}: {exc}")
-            return []
+            raise
         except Exception as e:
             log_error(f"[VersionTreeReader] Failed to read tree at {path}: {e}")
-            return []
+            raise VersionReadError(
+                f"failed to read tree at {path or 'project root'}"
+            ) from e
 
         integrity_by_hash = self._blob_integrity_statuses(repo.store, entries)
         result = [
@@ -381,8 +386,7 @@ class VersionTreeReader:
     def read_file(self, project_id: str, path: str) -> bytes:
         """Read file content."""
         try:
-            repo = self._repos.get_repo(project_id)
-            root_hash = repo.history.get_root_hash()
+            repo, root_hash = self._project_root_for_read(project_id)
         except Exception as e:
             raise FileNotFoundError(f"Project {project_id} is not initialized: {e}")
         if not root_hash:
@@ -409,8 +413,7 @@ class VersionTreeReader:
         callers would receive slices of zlib-framed object data.
         """
         try:
-            repo = self._repos.get_repo(project_id)
-            root_hash = repo.history.get_root_hash()
+            repo, root_hash = self._project_root_for_read(project_id)
         except Exception as e:
             raise FileNotFoundError(f"Project {project_id} is not initialized: {e}")
         if not root_hash:
@@ -444,8 +447,7 @@ class VersionTreeReader:
     ) -> VersionEntry | None:
         """Get information for a single entry (similar to stat)."""
         try:
-            repo = self._repos.get_repo(project_id)
-            root_hash = repo.history.get_root_hash()
+            repo, root_hash = self._project_root_for_read(project_id)
         except Exception as e:
             log_error(f"[VersionTreeReader] Failed to get root hash for stat: {e}")
             return None
@@ -520,11 +522,12 @@ class VersionTreeReader:
         scopes from unbounded recursive walks.
         """
         try:
-            repo = self._repos.get_repo(project_id)
-            root_hash = repo.history.get_root_hash()
+            repo, root_hash = self._project_root_for_read(project_id)
         except Exception as e:
             log_error(f"[VersionTreeReader] Failed to get root hash for list_tree: {e}")
-            return []
+            raise VersionReadError(
+                f"failed to read project root for project {project_id}"
+            ) from e
         if not root_hash:
             return []
 
@@ -549,8 +552,8 @@ class VersionTreeReader:
     def get_root_hash(self, project_id: str) -> str:
         """Get the current root hash of the project."""
         try:
-            repo = self._repos.get_repo(project_id)
-            return repo.history.get_root_hash() or ""
+            _repo, root_hash = self._project_root_for_read(project_id)
+            return root_hash or ""
         except Exception as e:
             log_error(f"[VersionTreeReader] Failed to get root hash: {e}")
             return ""
@@ -569,6 +572,109 @@ class VersionTreeReader:
 
     # ── Internal helpers ──
 
+    def _project_root_for_read(self, project_id: str):
+        """Return the canonical project root hash for reads.
+
+        Root is the source of truth. The repair branch is legacy-only: older
+        scoped pushes could land scope_state before root projection completed.
+        Reads repair that historical shape once rather than treating
+        scope_state as a second authority.
+        """
+
+        get_repo = getattr(self._repos, "get_repo", None)
+        if callable(get_repo):
+            repo = get_repo(project_id)
+        else:
+            repo = self._repos.get_server_repo(project_id)
+        history = getattr(repo, "history", None)
+        root_hash = history.get_root_hash() if history is not None else ""
+        root_hash = root_hash or ""
+        if root_hash and root_hash != EMPTY_TREE_SHA1:
+            return repo, root_hash
+
+        repaired = self._repair_project_root_from_scope_state(
+            project_id,
+            root_hash,
+        )
+        return repo, repaired or root_hash
+
+    def _scope_root_for_read(self, project_id: str, scope_path: str):
+        """Return the tree hash for ``scope_path`` derived from project root."""
+
+        repo, project_root = self._project_root_for_read(project_id)
+        scope_norm = normalize_path(scope_path)
+        if not scope_norm:
+            return repo, project_root
+
+        if project_root:
+            scope_tree = self._navigate_to_subtree(repo.store, project_root, scope_norm)
+            if scope_tree:
+                return repo, scope_tree
+
+        # Legacy fallback only. This covers pre-root-first projects whose root
+        # has not been repaired yet; new writes must keep this cache in sync
+        # with the accepted root.
+        get_server_repo = getattr(self._repos, "get_server_repo", None)
+        if callable(get_server_repo):
+            try:
+                server_repo = get_server_repo(project_id)
+                legacy_hash = server_repo.get_scope_hash(scope_norm) or ""
+                if legacy_hash:
+                    return server_repo, legacy_hash
+            except Exception:
+                pass
+        return repo, ""
+
+    def _repair_project_root_from_scope_state(
+        self,
+        project_id: str,
+        current_root_hash: str,
+    ) -> str:
+        get_server_repo = getattr(self._repos, "get_server_repo", None)
+        if not callable(get_server_repo):
+            return ""
+
+        try:
+            server_repo = get_server_repo(project_id)
+            scope_hashes = server_repo.get_all_scope_hashes()
+        except Exception as exc:
+            log_warning(
+                f"[VersionTreeReader] could not load scope state for "
+                f"root repair project={project_id}: {exc}",
+            )
+            return ""
+
+        if not any(scope_hashes.values()):
+            return ""
+
+        try:
+            from src.version_engine.derived.projection import build_root_from_scope_state
+
+            derived_root = build_root_from_scope_state(server_repo, "", "")
+        except Exception as exc:
+            log_warning(
+                f"[VersionTreeReader] root repair build failed "
+                f"project={project_id}: {exc}",
+            )
+            return ""
+
+        if not derived_root or derived_root == current_root_hash:
+            return ""
+
+        try:
+            cas_update = getattr(server_repo, "cas_update_root_hash", None)
+            if callable(cas_update):
+                cas_update(current_root_hash or "", derived_root)
+        except Exception as exc:
+            # A CAS loser can still serve the derived root for this read; the
+            # next request will either observe the winner or try repair again.
+            log_warning(
+                f"[VersionTreeReader] root repair CAS failed "
+                f"project={project_id}: {exc}",
+            )
+
+        return derived_root
+
     def _navigate_to_subtree(
         self, store: ObjectStore, root_hash: str, path: str
     ) -> str | None:
@@ -578,11 +684,11 @@ class VersionTreeReader:
             try:
                 entries = _read_tree(store, current)
             except ObjectNotFoundError as exc:
-                if _is_missing_object_error(exc):
-                    raise
-                return None
-            except Exception:
-                return None
+                raise
+            except Exception as exc:
+                raise VersionReadError(
+                    f"failed to navigate tree path {path}"
+                ) from exc
             if part not in entries:
                 return None
             typ, h = entries[part]
@@ -707,7 +813,11 @@ class VersionTreeReader:
             if _is_missing_object_error(exc):
                 raise
             return
-        except Exception:
+        except Exception as exc:
+            if depth == 0:
+                raise VersionReadError(
+                    f"failed to read tree at {prefix or 'project root'}"
+                ) from exc
             return
 
         for name, (typ, hash_val) in sorted(entries.items()):
@@ -762,7 +872,13 @@ def _read_tree(store: ObjectStore, tree_hash: str) -> dict:
     """Read a canonical Git tree object."""
     if not tree_hash:
         return {}
-    return tree_mod.read_tree(store, tree_hash)
+    obj_type, content = store.get_object(tree_hash)
+    if obj_type != "tree":
+        raise ValueError(f"object {tree_hash} is a {obj_type}, expected tree")
+    return {
+        entry.name: ["T" if entry.is_dir else "B", entry.sha1_hex]
+        for entry in decode_tree(content)
+    }
 
 
 def _read_blob(store: ObjectStore, blob_hash: str) -> bytes:

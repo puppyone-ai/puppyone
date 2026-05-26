@@ -87,17 +87,38 @@ def git_view_head_commit(
     scope_norm = normalize_path(scope_path)
     excludes = [normalize_path(item) for item in (scope_excludes or [])]
     if scope_norm:
+        scope_tree = _scope_tree_from_root(repo, scope_norm)
+        if scope_tree:
+            if excludes:
+                files = flatten_tree_to_bytes(repo.store, scope_tree)
+                filtered = {
+                    rel_path: content
+                    for rel_path, content in files.items()
+                    if not is_path_excluded(f"{scope_norm}/{rel_path}", excludes)
+                }
+                scope_tree = build_tree_from_files(repo.store, filtered)
+            head = repo.get_scope_head_commit_id(scope_norm) or ""
+            if head:
+                try:
+                    if commit_tree_id(repo, head) == scope_tree:
+                        return git_compatible_head_commit(repo, head)
+                except Exception:
+                    pass
+            return build_git_commit(
+                repo,
+                tree_sha=scope_tree,
+                parent_sha="",
+                who="puppyone-scope-view",
+                message="Puppyone scope view",
+                created_at_iso="1970-01-01T00:00:00+00:00",
+            )
+
         head = repo.get_scope_head_commit_id(scope_norm) or ""
         if not head or not excludes:
             return git_compatible_head_commit(repo, head)
         filtered_tree = filtered_commit_tree(repo, head, scope_norm, excludes)
         if not filtered_tree:
             return git_compatible_head_commit(repo, head)
-        try:
-            if commit_tree_id(repo, head) == filtered_tree:
-                return git_compatible_head_commit(repo, head)
-        except Exception:
-            pass
         return build_git_commit(
             repo,
             tree_sha=filtered_tree,
@@ -151,6 +172,30 @@ def git_view_head_commit(
         )
 
     return git_compatible_head_commit(repo, candidate) if candidate else ""
+
+
+def _scope_tree_from_root(repo, scope_path: str) -> str:
+    try:
+        root_hash = repo.get_root_hash() or ""
+    except Exception:
+        return ""
+    if not root_hash:
+        return ""
+    if not scope_path:
+        return root_hash
+    from src.version_engine.write_engine import tree as tree_mod
+
+    current = root_hash
+    for part in [p for p in normalize_path(scope_path).split("/") if p]:
+        try:
+            entries = tree_mod.read_tree(repo.store, current)
+        except Exception:
+            return ""
+        typ, child = entries.get(part, (None, None))
+        if typ != "T" or not child:
+            return ""
+        current = child
+    return current
 
 
 def _canonical_git_head_candidate(repo, scope_path: str) -> str:

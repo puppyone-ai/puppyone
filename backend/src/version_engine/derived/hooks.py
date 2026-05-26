@@ -406,9 +406,9 @@ def run_post_project_update_hook(
     *,
     raise_errors: bool = False,
 ) -> None:
-    """Finalize a product-root transaction.
+    """Finalize a root-authoritative transaction.
 
-    Product API writes already CAS-updated the materialized project root.
+    Product/API/Git scoped writes already CAS-updated the canonical root.
     The hook therefore does not rebuild the project root from child
     scopes. Instead it derives child-scope refs from the accepted root
     so scoped Git/AP clients see the new product state without creating
@@ -427,11 +427,13 @@ def run_post_project_update_hook(
         )
 
         try:
+            entry_scope_path = normalize_path(entry.get("scope_path") or "")
+            entry_scope_hash = entry.get("scope_hash") or root_hash
             record_project_view_index_for_commit(
                 repo=repo,
                 entry=entry,
-                scope_path="",
-                scope_hash=root_hash,
+                scope_path=entry_scope_path,
+                scope_hash=entry_scope_hash,
                 project_root_hash=root_hash,
                 source_commit_id=commit_id,
             )
@@ -860,7 +862,12 @@ def _update_global_root(repo, push_result: dict) -> None:
     worker still call it by name.
     """
 
-    rebuild_project_root_after_commit(repo, push_result)
+    if not rebuild_project_root_after_commit(repo, push_result):
+        commit_id = push_result.get("commit_id") or push_result.get("new_commit_id") or ""
+        raise RuntimeError(
+            "project-root projection did not publish"
+            + (f" for commit {commit_id[:12]}" if commit_id else "")
+        )
 
 
 def _sync_child_scope_refs_from_project_root(

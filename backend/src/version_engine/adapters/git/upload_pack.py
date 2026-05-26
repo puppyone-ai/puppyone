@@ -9,10 +9,12 @@ from src.version_engine.adapters.git.object_quarantine import (
     GitViewCurrentCorruptError,
     receive_pack_advertisement_bare_repo,
     transport_bare_repo,
+    upload_pack_bare_repo,
 )
 from src.version_engine.adapters.git.protocol import (
     flush_pkt,
     git_service_command,
+    is_object_id,
     pkt_line,
     run_git,
 )
@@ -70,7 +72,12 @@ def upload_pack_response(
     body: bytes,
 ) -> Response:
     try:
-        with transport_bare_repo(repo, scope_path, scope_excludes) as bare_dir:
+        with upload_pack_bare_repo(
+            repo,
+            scope_path,
+            scope_excludes,
+            wants=_upload_pack_wants(body),
+        ) as bare_dir:
             output = run_git([
                 "upload-pack",
                 "--stateless-rpc",
@@ -89,3 +96,28 @@ def upload_pack_response(
         media_type="application/x-git-upload-pack-result",
         headers={"Cache-Control": "no-cache"},
     )
+
+
+def _upload_pack_wants(body: bytes) -> list[str]:
+    wants: list[str] = []
+    offset = 0
+    while offset + 4 <= len(body):
+        header = body[offset:offset + 4]
+        offset += 4
+        try:
+            size = int(header.decode("ascii"), 16)
+        except ValueError:
+            break
+        if size == 0:
+            continue
+        if size < 4:
+            break
+        payload_size = size - 4
+        payload = body[offset:offset + payload_size]
+        offset += payload_size
+        if not payload.startswith(b"want "):
+            continue
+        parts = payload.decode("ascii", errors="ignore").strip().split()
+        if len(parts) >= 2 and is_object_id(parts[1]):
+            wants.append(parts[1])
+    return wants

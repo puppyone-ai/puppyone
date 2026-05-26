@@ -5,8 +5,8 @@ Backed by S3 ObjectStore + Supabase History/Audit/Scope instead of a local
 filesystem.
 
 Key design:
-  - All reads go through root_hash (global tree) for cross-scope visibility
-  - CAS on scope_hash for concurrency control (no application-level locks)
+  - Project root is the canonical tree and write CAS boundary.
+  - Scope/access state is a path-bounded cache over that root, not authority.
   - Commits are identified by a 40-hex SHA-1 commit_id (the git
     ``commit`` object's hash, stored as a loose object in the project
     ObjectStore). Linear history is preserved by ordering commits on
@@ -34,8 +34,8 @@ from src.version_engine.infrastructure.supabase.history_repository import Supaba
 class PuppyOneServerRepo:
     """Version repository adapter backed by S3 + Supabase.
 
-    All reads go through root_hash for cross-scope visibility.
-    CAS on scope_hash for concurrency control — no application-level locks.
+    All canonical reads go through root_hash for cross-scope visibility.
+    Scope rows are maintained for protocol views and legacy compatibility.
     """
 
     # Process-wide cache for ``list_scope_files`` results, keyed by
@@ -297,13 +297,17 @@ class PuppyOneServerRepo:
         client_commit_id: str = "",
         proposed_tree_id: str = "",
         intent_type: str = "operation",
+        scope_path: str = "",
+        scope_hash: str = "",
+        scope_head_commit_id: str = "",
     ) -> tuple[bool, int | None]:
         """Publish a product-level root transaction.
 
-        Frontend/product API writes use this path: one project-root CAS,
+        Frontend/product API writes and scoped access writes use this path:
+        one project-root CAS,
         one history row, one transaction row, one audit row, one outbox row.
-        Scope heads are derived afterwards by the projection hook; they are
-        not the user-visible commit boundary for product operations.
+        Scope heads are updated inside the same transaction as derived caches;
+        they are not the source of truth.
         """
 
         publish = getattr(self.history, "publish_project_update", None)
@@ -316,6 +320,9 @@ class PuppyOneServerRepo:
         return publish(
             old_root_hash=old_root_hash,
             new_root_hash=new_root_hash,
+            scope_path=scope_path,
+            scope_hash=scope_hash,
+            scope_head_commit_id=scope_head_commit_id,
             commit_id=commit_id,
             who=who,
             message=message,
@@ -381,15 +388,11 @@ class PuppyOneServerRepo:
     # ── File operations (Merkle tree based) ──
 
     def list_scope_files(self, scope: dict) -> dict[str, bytes]:
-        """Read the canonical files owned by this ObjectStore scope.
+        """Read the files visible to a scope from the canonical root.
 
-        Write Engine handlers compare and commit against ``scope_hash``.
-        Reading from the materialized project ``root_hash`` here would leak
-        grafted child-scope content into the root scope's working set. A
-        later root push could then re-commit those child files into root, or
-        a root delete could accidentally rewrite a snapshot that no longer
-        matches the canonical scope boundary. Frontend reads still use the
-        global root through ``VersionTreeReader``; protocol reads stay scope-local.
+        Root-first architecture makes the project root the source of truth.
+        ``mut_scope_state`` is kept as a protocol/cache hint, so it is used only
+        as a legacy fallback when the root has not yet been migrated.
 
         Cached on (project_id, scope_path, scope_hash). The cost we're
         avoiding is one ``read_tree`` per tree node plus one ``store.get``
@@ -398,7 +401,9 @@ class PuppyOneServerRepo:
         Cache hits return in microseconds.
         """
         scope_path = normalize_path(scope.get("path", ""))
-        scope_hash = self.get_scope_hash(scope_path)
+        scope_hash = self._scope_tree_hash_from_root(scope_path)
+        if not scope_hash:
+            scope_hash = self.get_scope_hash(scope_path)
 
         if scope_hash:
             cache_key = (self._project_id, scope_path, scope_hash)
@@ -479,18 +484,13 @@ class PuppyOneServerRepo:
             return tree_hash
 
         scope_path = normalize_path(scope.get("path", ""))
+        subtree_hash = self._scope_tree_hash_from_root(scope_path)
+        if subtree_hash:
+            return subtree_hash
+
         scope_hash = self.get_scope_hash(scope_path)
         if scope_hash and self.store.exists(scope_hash):
             return scope_hash
-
-        root_hash = self.get_root_hash()
-        if root_hash:
-            if scope_path:
-                subtree_hash = self._navigate_to_subtree(root_hash, scope_path)
-                if subtree_hash:
-                    return subtree_hash
-            else:
-                return root_hash
 
         return self.store.put_tree(encode_tree([]))
 
@@ -501,14 +501,12 @@ class PuppyOneServerRepo:
             prefix = scope_path.strip("/") if scope_path else ""
             if not prefix:
                 return scope_tree_hash
-            parts = prefix.split("/")
-            current = scope_tree_hash
-            for part in reversed(parts):
-                # Wrap the inner tree in a directory entry — git tree
-                # binary format ``<mode> <name>\x00<sha1_bytes>`` per entry.
-                entry = TreeEntry(name=part, mode=MODE_DIR, sha1_hex=current)
-                current = self.store.put_tree(encode_tree([entry]))
-            return current
+            root = self.get_root_hash()
+            if not root or not self.store.exists(root):
+                root = self.store.put_tree(encode_tree([]))
+            from src.version_engine.derived.projection import graft_subtree
+
+            return graft_subtree(self.store, root, prefix, scope_tree_hash)
 
         root = self.get_root_hash()
         if root:
@@ -534,6 +532,15 @@ class PuppyOneServerRepo:
                 return None
             current = h
         return current
+
+    def _scope_tree_hash_from_root(self, scope_path: str) -> str:
+        root_hash = self.get_root_hash()
+        if not root_hash:
+            return ""
+        if not scope_path:
+            return root_hash if self.store.exists(root_hash) else ""
+        subtree_hash = self._navigate_to_subtree(root_hash, scope_path)
+        return subtree_hash or ""
 
     def _build_tree_from_files(self, files: dict[str, bytes]) -> str:
         nested: dict = {}

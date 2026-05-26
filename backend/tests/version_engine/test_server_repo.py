@@ -249,22 +249,33 @@ class FakeHistoryManager:
         client_commit_id: str = "",
         proposed_tree_id: str = "",
         intent_type: str = "operation",
+        scope_path: str = "",
+        scope_hash: str = "",
+        scope_head_commit_id: str = "",
     ) -> tuple[bool, int | None]:
         with self._lock:
             if self._root_hash != old_root_hash:
                 return False, None
+            norm = scope_path.strip("/")
+            accepted_scope_hash = scope_hash or new_root_hash
             self._root_hash = new_root_hash
             self._scope_hashes[""] = new_root_hash
             self._scope_head_commit_ids[""] = commit_id
+            self._scope_hashes[norm] = accepted_scope_hash
+            self._scope_head_commit_ids[norm] = (
+                scope_head_commit_id
+                if norm and scope_head_commit_id
+                else client_commit_id if norm and client_commit_id else commit_id
+            )
             self.record(
                 commit_id,
                 who,
                 message,
-                "",
+                norm,
                 changes,
                 conflicts,
                 root_hash=new_root_hash,
-                scope_hash=new_root_hash,
+                scope_hash=accepted_scope_hash,
                 created_at_iso=created_at_iso,
             )
             self._head_commit_id = commit_id
@@ -439,7 +450,7 @@ class TestListScopeFiles:
         assert files == {}
 
     def test_with_scope_hash(self, server_repo, memory_store):
-        """list_scope_files prefers scope_hash when available."""
+        """list_scope_files uses scope_hash as a legacy fallback when root is absent."""
         blob_hash = memory_store.put_blob(b"hello world")
         tree_hash = memory_store.put_tree(encode_tree([
             TreeEntry(name="readme.md", mode=MODE_FILE, sha1_hex=blob_hash),
@@ -452,8 +463,8 @@ class TestListScopeFiles:
         assert "readme.md" in files
         assert files["readme.md"] == b"hello world"
 
-    def test_root_scope_ignores_grafted_child_scope_files(self, server_repo, memory_store):
-        """Root protocol clone must not import materialized child-scope files."""
+    def test_root_scope_reads_canonical_root_tree(self, server_repo, memory_store):
+        """Root protocol clone reads the same canonical root as the product UI."""
         root_blob = memory_store.put_blob(b"root")
         child_blob = memory_store.put_blob(b"child")
         root_scope_hash = memory_store.put_tree(encode_tree([
@@ -475,7 +486,10 @@ class TestListScopeFiles:
             "id": "root", "path": "", "exclude": [], "mode": "rw",
         })
 
-        assert files == {"root.txt": b"root"}
+        assert files == {
+            "root.txt": b"root",
+            "folder1/child.txt": b"child",
+        }
 
 
 class TestWriteAndBuildScopeTree:
