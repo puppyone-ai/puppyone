@@ -761,11 +761,19 @@ class S3StorageBackend(StorageBackend):
     async def async_exists(self, h: str) -> bool:
         if self._lookup_object_location(h) is not None:
             return True
-        if await self._s3.file_exists(self._key_for(h)):
-            return True
-        if await self._async_deferred_loose_exists(h):
-            return True
-        return self._lookup_object_location(h) is not None
+        try:
+            if await self._s3.file_exists(self._key_for(h)):
+                return True
+            if await self._async_deferred_loose_exists(h):
+                return True
+            return self._lookup_object_location(h) is not None
+        except Exception as exc:
+            if _is_not_found_error(exc):
+                return (
+                    await self._async_deferred_loose_exists(h)
+                    or self._lookup_object_location(h) is not None
+                )
+            raise
 
     async def async_get_many(self, hashes: list[str], concurrency: int = 20) -> dict[str, bytes]:
         """Fetch multiple objects in parallel. Returns {hash: bytes}."""
@@ -1347,7 +1355,11 @@ class S3StorageBackend(StorageBackend):
                 if exists:
                     existing.add(h)
 
-        await asyncio.gather(*[_check(h) for h in hashes], return_exceptions=True)
+        # Do not use ``return_exceptions=True`` here. A transient Supabase/S3
+        # failure is not the same thing as "object is missing"; swallowing the
+        # exception makes callers mark healthy tree entries as ``damaged`` until
+        # the next refresh happens to succeed.
+        await asyncio.gather(*[_check(h) for h in hashes])
         return existing
 
     async def _do_put(self, key: str, data: bytes) -> None:
