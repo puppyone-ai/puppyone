@@ -299,6 +299,187 @@ Correctness boundaries:
   empty or stale, reads must repair it from the canonical root or fail loud; they
   must not translate derived failure into an empty project.
 
+## L5 Scope And Branch Convergence
+
+L5 is the only place where different product views, Access Point views, and
+Git-visible heads converge into one project history. A scope may look like a
+small repository to a user, but it is not an independent source of truth.
+
+```text
+Canonical project state
+=======================
+
+  root head R10
+  root tree T10
+      |
+      +-- docs/                 subtree D10
+      +-- product/              subtree P10
+      +-- New Folder (2)/       subtree N10
+
+Derived Git-visible scope state
+===============================
+
+  /docs scope head S10
+      tree(S10) == D10
+
+  /New Folder (2) scope head G10
+      tree(G10) == N10
+
+Invariant
+=========
+
+  root is authority.
+  scope heads are view heads.
+  tree(scope head) must match subtree(root tree, scope_path)
+  when the view is healthy.
+```
+
+The word "branch" in this section means a user-visible write lane or Git-visible
+view lane. Puppyone scope remotes currently expose a single normal Git branch
+for the view, while L5 keeps the semantic merge point at the project root.
+
+### Root Write Affecting Child Scopes
+
+When a product/root write changes files under one or more child scopes, the
+write belongs to the root lane. The child scopes do not claim ownership of the
+write; they receive refreshed derived views.
+
+```text
+Root write changes:
+  docs/a.md
+  docs/b.md
+  product/pricing.md
+
+L5 Core:
+  T10 + root patch
+    -> T11
+    -> root commit R11
+    -> root CAS publish
+
+L5 Follow-up / Repair:
+  changed paths select affected scopes: docs, product
+  docs    D10 -> D11 -> derived scope-view head S11
+  product P10 -> P11 -> derived scope-view head P11
+```
+
+This refresh happens once per affected scope, not once per file. If five changed
+files all live under `/docs`, L5 Follow-up computes one target `/docs` subtree
+and one new `/docs` scope-view head.
+
+Root-originated changes are parent-authoritative for overlapping paths inside
+child views: when the root write and a child view touch the same relative path,
+the root version wins. Independent child paths are preserved during repair or
+stale follow-up so a delayed projection does not erase a newer scoped write.
+
+### Scoped Write Grafted Back To Root
+
+When a scoped Access Point or Git remote receives a write, L5 treats the incoming
+tree as a candidate replacement for that scope subtree, then grafts it back into
+the canonical project root.
+
+```text
+User clones /docs at scope head S10
+User commits S11
+  tree(S11) == D11
+
+L5 Core:
+  read current root T10
+  read current /docs subtree D10 from T10
+  validate base/head/excludes/path bounds
+  graft /docs := D11 into T10
+    -> T11
+  create root commit R11 with tree T11
+  root CAS publish
+
+Published result:
+  root head  = R11
+  /docs head = S11 for native Git pushes
+             = generated scope-view commit for non-Git scoped writes
+```
+
+For native Git remotes, the source scope keeps the user's Git client commit as
+the scope head when that commit tree is the accepted scope subtree. L5 Follow-up
+must not re-derive that source scope head after the transaction; doing so would
+replace a normal Git fast-forward chain with a synthetic view commit.
+
+Other affected scopes are still refreshed from the new root. For example, a
+write to `/docs/api` may refresh `/docs` and `/docs/api`, but it must not refresh
+unrelated scopes.
+
+### Root CAS And Merge Loop
+
+All lanes meet at the root CAS publish boundary.
+
+```text
+attempt:
+  latest root = Rn / Tn
+  scope base  = subtree(Tn, scope_path)
+  incoming    = proposed scope tree or root patch
+  candidate   = graft/patch result
+  publish     = CAS(root_hash == Tn, new_root_hash = candidate)
+
+CAS accepted:
+  write commit/history/audit/transaction/outbox
+
+CAS lost:
+  read newer root
+  recompute candidate
+  auto merge if safe
+  write pending conflict if unsafe
+  retry until budget exhausted
+```
+
+This is why scope remotes can be concurrent without becoming separate truths.
+Two scoped writes to unrelated paths can both land by retrying against the newest
+root. Two writes to the same path go through L5 conflict policy.
+
+### Performance Shape
+
+Root-first does not require flattening the whole project for every scoped write.
+The normal scoped write path works on Git tree hashes:
+
+- extract the current subtree hash at `scope_path`;
+- validate changed relative paths against the admitted scope and excludes;
+- replace that subtree hash under the root by rebuilding only the ancestor path;
+- publish the new root hash with CAS.
+
+In tree terms, replacing `/docs/api` rebuilds `api`, then `docs`, then root. It
+does not read and rewrite every file in unrelated root directories.
+
+Follow-up derived work is also bounded by changed paths:
+
+- only scopes intersecting the committed changed paths are candidates;
+- each affected scope is refreshed at most once for the commit;
+- scope-state rows and Git view caches are materialized views;
+- caches may be rebuilt from committed root facts and object storage.
+
+Current implementation note: some child-scope follow-up merge paths materialize
+files inside the affected scope to preserve independent child edits. That work is
+limited to the affected scope, not the full project. If a single scope becomes
+very large, the intended optimization is to replace that flatten/merge step with
+tree-diff and path-patch operations behind the same L5 contract.
+
+### Failure And Repair Contract
+
+L5 Core must make the committed root facts durable before returning success. L5
+Follow-up / Repair may lag or retry, but it cannot be the only place where the
+project truth exists.
+
+If a follow-up step fails:
+
+- the canonical root remains correct;
+- source scope heads from the accepted transaction remain owned by that
+  transaction;
+- affected non-source scope caches may be stale;
+- reads may repair or synthesize a Git-visible scope view from the root;
+- durable outbox/repair jobs may rebuild scope-state, Git view caches, path
+  indexes, and search indexes;
+- stale follow-up jobs must use CAS and must not overwrite newer scope heads.
+
+A broken derived view must never become an empty project. If the root is healthy
+and a derived cache is missing, stale, or damaged, the system should rebuild from
+the root or fail loudly with a repairable error.
+
 ## Rules
 
 1. Git owns version facts: objects, trees, commits, refs, clone/fetch/push.
