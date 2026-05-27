@@ -21,7 +21,7 @@ File: [`supabase/migrations/20260525000000_version_table_aliases_phase1.sql`](..
 Pre-deploy work:
 
 1. Run the following query and capture exact signatures for the
-   six RPCs that need renaming:
+   active RPCs that need renaming:
    ```sql
    SELECT n.nspname || '.' || p.proname AS name,
           pg_get_function_arguments(p.oid) AS args,
@@ -29,7 +29,6 @@ Pre-deploy work:
    FROM pg_proc p
    JOIN pg_namespace n ON n.oid = p.pronamespace
    WHERE p.proname IN (
-     'publish_mut_scope_update',
      'publish_mut_project_update',
      'get_mut_project_write_state',
      'claim_mut_version_outbox_batch',

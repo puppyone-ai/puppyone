@@ -27,13 +27,14 @@ Views are read-only by default in PG, but the application only WRITES through RP
 
 ### Phase 2 — Renamed RPC wrappers
 
-For each `publish_mut_*` and `claim/complete/fail_mut_*`:
+For `publish_mut_project_update`, project-write-state, and
+`claim/complete/fail_mut_*`:
 
 ```sql
 -- Wrapper that calls the old RPC. Keep old RPC alive until Phase 4.
-CREATE OR REPLACE FUNCTION public.publish_version_scope_update(...)
+CREATE OR REPLACE FUNCTION public.publish_version_project_update(...)
 RETURNS ... AS $$
-  SELECT * FROM public.publish_mut_scope_update(...);
+  SELECT * FROM public.publish_mut_project_update(...);
 $$ LANGUAGE sql;
 ```
 
@@ -52,7 +53,6 @@ CONFLICTS_TABLE = "version_conflicts"
 PROJECT_ROOT_HASH_COLUMN = "version_root_hash"
 GITHUB_SYNC_VERSION_COLUMN = "version_commit_id"
 
-PUBLISH_SCOPE_UPDATE_RPC = "publish_version_scope_update"
 PUBLISH_PROJECT_UPDATE_RPC = "publish_version_project_update"
 PROJECT_WRITE_STATE_RPC = "get_version_project_write_state"
 CLAIM_OUTBOX_RPC = "claim_version_outbox_batch"
@@ -74,7 +74,6 @@ Column renames don't need a view alias because the views above hide them in the 
 After one stable release on the new names:
 
 ```sql
-DROP FUNCTION public.publish_mut_scope_update;
 DROP FUNCTION public.publish_mut_project_update;
 DROP FUNCTION public.get_mut_project_write_state;
 DROP FUNCTION public.claim_mut_version_outbox_batch;

@@ -596,7 +596,6 @@ backend/src/version_engine/
     object_gc.py
     object_gc_worker.py
     outbox.py
-    parent_scope_promote.py
     path_index.py
     projection.py
 
@@ -636,7 +635,6 @@ mut_object_locations
 mut_conflicts
 projects.mut_root_hash
 github_sync_log.mut_commit_id
-publish_mut_scope_update
 publish_mut_project_update
 get_mut_project_write_state
 claim/complete/fail_mut_version_outbox
@@ -709,3 +707,119 @@ repo_scopes row
 
 This keeps the GitHub-like external product model without creating one physical
 Git repository per scope and without creating one source of truth per scope.
+
+## 嵌套 Scope 拓扑 —— 用户行为对照表
+
+为了把"嵌套 scope 下用户能怎么写、我们怎么回应"讲清楚，下面用一个具体的拓扑
+做参照，把所有用户可能的提交行为列成对照表。
+
+### 参考拓扑
+
+```text
+Root
+├── /A         ← Scope A
+│   └── /A/C   ← Scope C
+└── /B         ← Scope B
+```
+
+下文"Root 直辖区"指 root 下面、**不在** `/A` 和 `/B` 任何一个挂载点里的位置
+（例如 `/README.md`、`/docs/intro.md`）。
+
+### 一、从 Root 入口提交
+
+入口包括产品 Web 保存、API、CLI 带 root access key、root scope 的 access
+point。Root 入口能看见整棵树，触达任意路径都是合法的。
+
+| # | 触达路径 | 我们怎么做 | 为什么 |
+|---|---|---|---|
+| 1 | 只动 Root 直辖区 | 接受 | 标准根写。 |
+| 2 | 只动 A 自己的地盘 | 接受，A 视图刷新 | Root 是父，对子 scope 有完全权限。 |
+| 3 | 只动 C 的地盘 | 接受，C 视图刷新 | 同上。 |
+| 4 | 只动 B 的地盘 | 接受，B 视图刷新 | 同上。 |
+| 5 | Root 直辖区 + A 自己 | 接受 | 一次根写，原子刷新所有受影响视图。 |
+| 6 | A 自己 + C | 接受 | A 和 C 视图都按 changed-paths 刷新。 |
+| 7 | A + B（跨兄弟） | 接受 | 跨兄弟改动的合法入口只有 Root。 |
+| 8 | C + B | 接受 | 同上。 |
+| 9 | Root 直辖区 + A + C + B 全开 | 接受 | "大重构"型提交；所有视图都会被刷新。 |
+
+实现说明：所有根写走 `apply_project_operation`；follow-up 用 changed-paths
+算出受影响的 scope 集合，从已接受的 canonical root 派生/刷新 scoped
+read views。这里不再合成 `scope-promote` 用户历史 commit；scope-state
+是缓存，不是另一个真理来源。
+
+### 二、从 Scope A 入口提交
+
+A 默认看不到 `/A/C/*`（已声明的子 scope 在父视图里自动隐藏）。下面是用户
+可能尝试的所有写法。
+
+| # | 触达路径 | 我们怎么做 | 为什么 |
+|---|---|---|---|
+| 1 | 只动 A 自己的地盘 | 接受 | 标准 scoped 写，graft 回 root，C 子树原样不动。 |
+| 2 | 只动 C 的地盘 | 拒绝 | A 视图根本看不见 C；这种 tree 一定是绕开默认视图手动构造的。拒绝信息提示："这些路径属于 Scope C，请用 C 的 access key push。" |
+| 3 | A 自己 + C 一起动 | 拒绝整次提交 | 不做"部分接受"，保证一次 push 的原子性。让用户要么拆成两次，要么把 C 那部分拿到 C 入口去 push。 |
+| 4 | 动 B 的地盘（跨兄弟） | 拒绝 | 越界，scope 之间没有兄弟权限。 |
+| 5 | 动 Root 直辖区（往父跑） | 拒绝 | 越界。要动父就用 root access key 或走产品 API。 |
+
+实现说明：以上判定都在 admission（L3）期就完成，请求不会进 Write Engine。
+错误码统一 `out_of_scope`，response 里带违规路径和"请去 Scope X push"的建议。
+
+### 三、从 Scope C 入口提交
+
+C 是最里层，没有更深的子 scope。
+
+| # | 触达路径 | 我们怎么做 | 为什么 |
+|---|---|---|---|
+| 1 | 只动 C 自己的地盘 | 接受 | 标准 scoped 写；graft 回 canonical root，再刷新受影响的 scope cache/read view。 |
+| 2 | 动 A 自己的地盘（往父跑） | 拒绝 | 越界。 |
+| 3 | C + A 一起动 | 拒绝整次提交 | 同上，不做"部分接受"。 |
+| 4 | 动 B / Root 直辖区 | 拒绝 | 彻底越界。 |
+
+### 四、从 Scope B 入口提交
+
+B 没有子 scope，和 A、C 互不相交。
+
+| # | 触达路径 | 我们怎么做 | 为什么 |
+|---|---|---|---|
+| 1 | 只动 B 自己的地盘 | 接受 | 标准 scoped 写。 |
+| 2 | 动 A / C / Root 直辖区 | 拒绝 | 越界。 |
+
+### 特殊行为
+
+下面这几类不属于"普通改动文件"，单列出来。
+
+| 场景 | 我们怎么做 |
+|---|---|
+| 从 Root 入口删掉整棵 `/A/C` 子树 | 接受。Scope C 的 `repo_scopes` 声明保留，C 视图变成空（clone 出来无 ref）。dashboard 弹一条告警："Scope C 的挂载点被根写清空。" C 的所有者可以继续 push 来重建。 |
+| 从 Root 入口把 `/A/C` 这个目录改成一个文件 | 走冲突策略。生成 pending conflict，归属 C；由 C 所有者或管理员决定是接受类型变更（C 之后变空）还是回滚。 |
+| 跨 scope 边界的 rename / move（如 `/A/x.md` → `/A/C/x.md`） | 子 scope 入口（A 或 C）都做不了：源或目标必有一端越界。这种动作只能从 Root 入口走。 |
+| 在已有内容上新声明一个子 scope（如新增 `/A/D` 的 `repo_scopes` 行） | 不搬动任何字节。声明落盘后 A 的下一次 push 触达 `/A/D/*` 会开始被拒；`/A/D` 作为 Scope D 自己可写。 |
+| 只读 scope（`mode = r`）上 push | 一律拒绝（403），不区分触达路径。 |
+| 子 scope push 与并发根写撞同一文件 | 走 L5 标准冲突策略。冲突行归属 = 路径的声明 scope（如 `/A/C/*` 归属 C）；`audit_detail.actor_source_scope` 留下写入者来源。 |
+
+### 设计原则总结
+
+上面表格里所有行的判断，背后只有两条用户记得住的原则：
+
+1. **从哪个 access point 进，只能动那个 scope 自己看得见的地盘。** 越界的
+   push 在 admission 期就被拒掉，不接受"半提交半拒绝"。
+2. **要一次跨多个 scope 改，只能从 Root 入口走。** 这是 root 作为唯一真理
+   来源最直接的体现。
+
+### 实现侧契约
+
+| 关注点 | 落点 |
+|---|---|
+| 计算 `carved_excludes_for(scope_path)`（把已声明的后代 scope 自动当作隐藏路径） | `admission/permission.py`、`admission/repo_facade.py` |
+| 把 carved excludes 注入 `TargetAdmission.scope_excludes` | `admission/target.py` |
+| admission 期拒绝越界路径并返回友好信息 | `admission/validation.py` |
+| graft 时把被隐藏的子 scope 子树原样钉回 | `write_engine/scope_view.py`、`write_engine/merge.py` |
+| 子 scope 写入后刷新祖先/后代可见性缓存 | `derived/projection.py`、`derived/hooks.py` |
+| 根写时按 changed-paths 刷新受影响后代 scope 视图 | `derived/projection.py`、`derived/hooks.py` |
+| 挂载点被清空时的 dashboard 告警 + view health | `derived/hooks.py`、`adapters/git/view_projection.py` |
+| 冲突行归属 = 路径的声明 scope | `write_engine/conflict_queue.py`、`write_engine/conflict_policy.py` |
+
+未来如果想在某个 scope 上 opt-in "透明可见"（子 scope 的内容能在父 view
+里看见、父 push 能写子的地盘），可以加一个
+`repo_scopes.nested_visibility = transparent` 设置。Transparent 模式下，
+"父入口写子地盘"要走对子 scope head 的 base-version 校验；该开关存在
+之前，所有嵌套 scope 都按上面表格里的方式处理。

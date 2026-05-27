@@ -7,19 +7,16 @@ visible version facts still enter through this facade.
 
 from __future__ import annotations
 
-import asyncio
 import time
 
 from src.version_engine.domain.intents import (
     ConflictResolutionIntent,
     OperationWriteIntent,
     RollbackIntent,
-    ScopePromoteIntent,
     TransactionResult,
     VersionSubmissionIntent,
 )
 from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
-from src.version_engine.write_engine.audit import now_iso as _now_iso
 from src.version_engine.write_engine.conflict_resolution_writer import (
     ConflictResolutionWriter,
 )
@@ -34,16 +31,12 @@ from src.version_engine.write_engine.ledger import (
 )
 from src.version_engine.write_engine.operation_writer import OperationWriter, SpliceFn
 from src.version_engine.write_engine.path_utils import normalize_path
-from src.version_engine.write_engine.publisher import (
-    publish_scope_update as _publish_scope_update,
-)
 from src.version_engine.write_engine.rollback_writer import RollbackWriter
 from src.version_engine.write_engine.submission_writer import SubmissionWriter
 from src.version_engine.write_engine.trace import (
     VersionTrace,
     active_version_trace,
     trace_mark,
-    trace_phase,
     use_version_trace,
 )
 from src.utils.logger import log_info, log_warning
@@ -101,45 +94,6 @@ class VersionWriteEngine:
         repo.history.set_root_hash(EMPTY_TREE_SHA1)
         log_info(f"[version_engine][init] project={project_id} initialized empty tree")
         return EMPTY_TREE_SHA1
-
-    async def publish_scope_promotion(
-        self,
-        intent: ScopePromoteIntent,
-    ) -> tuple[bool, int | None]:
-        """Publish a derived scope-promote commit through the L5 boundary."""
-
-        repo = self._repos.get_server_repo(intent.project_id)
-        scope_norm = normalize_path(intent.scope_path)
-        with trace_phase(
-            "db.publish_scope_update",
-            scope=scope_norm,
-            op="scope_promote",
-            commit_id=intent.commit_id[:12],
-        ):
-            result = await asyncio.to_thread(
-                repo.publish_scope_update,
-                scope_path=scope_norm,
-                old_scope_hash=intent.old_scope_hash,
-                new_scope_hash=intent.new_scope_hash,
-                commit_id=intent.commit_id,
-                who=intent.actor,
-                message=intent.message,
-                changes=list(intent.changes),
-                conflicts=None,
-                created_at_iso=_now_iso(),
-                audit_event_type="scope_promote",
-                audit_agent_id=intent.actor or "system",
-                audit_detail=dict(intent.audit_detail or {}),
-                source_channel=intent.source_channel,
-                policy="scope_promote",
-                base_commit_id=intent.base_commit_id,
-                client_commit_id="",
-                proposed_tree_id=intent.new_scope_hash,
-                intent_type="operation",
-            )
-        if isinstance(result, tuple):
-            return bool(result[0]), result[1]
-        return bool(result), None
 
     async def apply_operation(
         self,

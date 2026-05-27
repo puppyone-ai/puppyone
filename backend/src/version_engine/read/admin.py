@@ -236,12 +236,12 @@ def _path_relative_to_scope(path: str, scope_path: str) -> str | None:
 
 
 def _history_fetch_limit(limit: int) -> int:
-    """Fetch enough raw rows to keep technical projections out of UI history.
+    """Fetch enough raw rows to keep legacy projections out of UI history.
 
-    The history table intentionally contains internal projection commits such as
-    ``scope-promote`` because scoped Git refs need them. Product history does
-    not. If we fetched exactly ``limit`` raw rows and the newest rows were all
-    projections, the UI would look empty even though older user commits exist.
+    Older projects may contain internal ``scope-promote`` rows from the
+    pre-root-first writer. Product history does not show them. If we fetched
+    exactly ``limit`` raw rows and the newest rows were all projections, the UI
+    would look empty even though older user commits exist.
     """
     if limit <= 0:
         return 0

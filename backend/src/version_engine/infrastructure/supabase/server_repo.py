@@ -137,48 +137,13 @@ class PuppyOneServerRepo:
         )
 
     def get_all_scope_hashes(self) -> dict[str, str]:
-        """Snapshot of every scope's current hash for this project.
+        """Snapshot of materialized scope-cache hashes for this project.
 
-        Returned as ``{scope_path: scope_hash}``. Used by the post-push
-        graft (``services/hooks.py``) to rebuild the project root from
-        DB state — the canonical source of truth for "where does each
-        scope point right now" — instead of reading the previous root
-        tree from S3 (a derived artifact).
+        Returned as ``{scope_path: scope_hash}`` for protocol/read views.
+        The canonical write authority is the project root hash; scope rows
+        are derived caches over that root and may be rebuilt.
         """
         return self.history.get_all_scope_hashes()
-
-    def get_declared_scope_paths(self) -> set[str]:
-        """Set of every scope path DECLARED in the project (``repo_scopes``).
-
-        Unlike :meth:`get_all_scope_hashes`, which only returns scopes that
-        already have a commit / state row, this method returns the full
-        declared geometry — including scopes that exist as configuration
-        but have never received a write yet.
-
-        Used by ancestor-scope walks (scope-promote) so a newly-declared
-        empty parent still participates in promote routing for its
-        children. Without this, scope-promote skips empty declared
-        ancestors and propagates straight to ``""`` (global root),
-        leaving the intended intermediate ancestor's tree empty.
-        """
-
-        try:
-            from src.infra.supabase.client import SupabaseClient
-            from src.version_engine.write_engine.path_utils import normalize_path
-
-            sb = SupabaseClient().client
-            resp = (
-                sb.table("repo_scopes")
-                .select("path")
-                .eq("project_id", self._project_id)
-                .execute()
-            )
-            return {normalize_path(r.get("path") or "") for r in (resp.data or [])}
-        except Exception as exc:
-            raise RuntimeError(
-                "repo scope declarations are required for parent-scope "
-                "projection; apply the repo_scopes migration first"
-            ) from exc
 
     def cas_update_scope(
         self,
@@ -218,63 +183,6 @@ class PuppyOneServerRepo:
             commit_id, who, message, scope_path, changes, conflicts,
             root_hash=root_hash, scope_hash=scope_hash,
             created_at_iso=created_at_iso,
-        )
-
-    def publish_scope_update(
-        self,
-        *,
-        scope_path: str,
-        old_scope_hash: str,
-        new_scope_hash: str,
-        commit_id: str,
-        who: str,
-        message: str,
-        changes: list,
-        conflicts: list | None,
-        created_at_iso: str,
-        audit_event_type: str,
-        audit_agent_id: str,
-        audit_detail: dict,
-        source_channel: str = "",
-        policy: str = "",
-        base_commit_id: str = "",
-        client_commit_id: str = "",
-        proposed_tree_id: str = "",
-        intent_type: str = "operation",
-    ) -> tuple[bool, int | None]:
-        """Publish the accepted version transaction atomically.
-
-        Returns ``(published, transaction_id)`` so the engine can cross-link
-        downstream rows (audit metadata, projection mappings) to the
-        ``version_transactions`` row created in the same SQL transaction.
-        """
-
-        publish = getattr(self.history, "publish_scope_update", None)
-        if not callable(publish):
-            raise RuntimeError(
-                "history backend does not implement publish_scope_update; "
-                "scope writes require the atomic publish path"
-            )
-
-        return publish(
-            scope_path=scope_path,
-            old_scope_hash=old_scope_hash,
-            new_scope_hash=new_scope_hash,
-            commit_id=commit_id,
-            who=who,
-            message=message,
-            changes=changes,
-            conflicts=conflicts,
-            created_at_iso=created_at_iso,
-            audit_event_type=audit_event_type,
-            audit_agent_id=audit_agent_id,
-            audit_detail=audit_detail,
-            source_channel=source_channel,
-            policy=policy,
-            base_commit_id=base_commit_id,
-            client_commit_id=client_commit_id,
-            proposed_tree_id=proposed_tree_id,
-            intent_type=intent_type,
         )
 
     def publish_project_update(

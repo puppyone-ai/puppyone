@@ -112,15 +112,13 @@ def run_post_push_hook(
     *,
     raise_errors: bool = False,
 ) -> None:
-    """Inspect a push/rollback result and trigger relevant post-commit hooks.
+    """Legacy scope-publish repair hook.
 
-    Called by in-process write-back helpers after a successful publish.
-    Accepts both formats:
-      - push:     {"status": "ok",         "commit_id": "…", "root": "..."}
-      - rollback: {"status": "rolled-back","new_commit_id": "…", "root": "..."}
-
-    1. Grafts scope tree into the global root hash so tree_reader can see it
-    2. Extracts deleted paths from the commit entry and runs post_commit_delete
+    Current writes publish through ``run_post_project_update_hook`` after a
+    root-authoritative transaction. This function exists only for pre-root-first
+    in-process/outbox events that may still need a best-effort root visibility
+    repair, path index refresh, and notification fan-out. It must not create
+    new scope-promote commits or advance scope heads.
     """
     status = push_result.get("status", "")
     if status not in _SUCCESS_STATUSES:
@@ -195,24 +193,6 @@ def run_post_push_hook(
             if deleted_paths:
                 post_commit_delete(project_id, deleted_paths)
 
-            # Child-promotes-parent (07-version-engine-supplement.md §7.B).
-            # The promote step is best-effort: each ancestor's CAS happens
-            # independently, so a stale ancestor head triggers a retry but
-            # cannot block the just-landed child commit.
-            _promote_to_ancestor_scopes(repo, project_id, entry, scope_path)
-
-            # Parent-commit triggers child re-graft: when a non-promote
-            # commit lands on a scope that has declared children, re-apply
-            # each child's current tree on top of the parent's new tree.
-            # Without this, a parent edit (delete / rename / overwrite) at
-            # a child-territory path would persist in the parent's view
-            # until the child happens to commit again. V1 spec §7 says
-            # child-owned paths re-surface via graft; this is what makes
-            # that actually happen.
-            _regraft_children_into_committed_scope(
-                repo, project_id, entry, scope_path,
-            )
-
             # Refresh the materialised fs_path_index so the next
             # `puppyone fs find` / `stat` query sees the new files (H1).
             # Best-effort: a Supabase blip degrades fs queries to live S3
@@ -273,130 +253,6 @@ def _refresh_fs_path_index(
         )
     except Exception as exc:
         log_warning(f"[PostCommit] fs_path_index refresh failed: {exc}")
-
-
-def _regraft_children_into_committed_scope(
-    repo, project_id: str, entry: dict, scope_path: str,
-) -> None:
-    """After a non-promote commit on ``scope_path``, re-graft each
-    declared child scope (immediate descendants only) back into the
-    committed scope's view. Bounded so it never triggers itself:
-
-      * scope-promote commits skip via the message-trailer check
-      * each child re-graft is a one-hop call into ``promote_to_parents``
-        for THIS scope only — the descendant's own ancestors above us
-        are skipped via ``ancestor_filter``.
-    """
-
-    message = entry.get("message", "") or ""
-    if "PuppyOne-Source: scope-promote" in message:
-        return
-
-    try:
-        from src.version_engine.derived.parent_scope_promote import (
-            promote_to_one_parent,
-        )
-        from src.version_engine.write_engine.path_utils import normalize_path
-    except Exception as exc:
-        log_warning(f"[PostCommit] re-graft import failed: {exc}")
-        return
-
-    parent_norm = normalize_path(scope_path)
-    try:
-        declared = repo.get_declared_scope_paths()
-    except Exception:
-        return
-
-    # Immediate children: declared scopes whose first ancestor under
-    # ``declared`` is ``parent_norm``. We compare against the declared
-    # set so an intermediate non-declared path doesn't accidentally
-    # block recognition (e.g. ``foo/bar/leaf`` with only ``foo`` and
-    # ``foo/bar/leaf`` declared is still an "immediate" child of foo).
-    children: list[str] = []
-    for d in declared:
-        d_norm = normalize_path(d)
-        if not d_norm:
-            continue
-        if parent_norm and not d_norm.startswith(parent_norm + "/"):
-            continue
-        if parent_norm == d_norm:
-            continue
-        # Walk up from d to see if parent_norm is the nearest declared
-        # ancestor.
-        nearest = ""
-        parts = d_norm.split("/")
-        for i in range(len(parts) - 1, 0, -1):
-            anc = "/".join(parts[:i])
-            if anc in declared and anc != d_norm:
-                nearest = anc
-                break
-        if nearest == parent_norm:
-            children.append(d_norm)
-
-    if not children:
-        return
-
-    actor = f"system:regraft-after-{entry.get('who') or 'commit'}"
-    created_at_iso = entry.get("created_at", "") or ""
-
-    for child in children:
-        try:
-            scope_hash, head_commit = repo.get_scope_state(child)
-        except Exception:
-            continue
-        if not scope_hash or not head_commit:
-            continue
-        try:
-            promote_to_one_parent(
-                repo,
-                project_id=project_id,
-                parent_scope_path=parent_norm,
-                child_scope_path=child,
-                child_new_tree_hash=scope_hash,
-                child_commit_actor=actor,
-                child_commit_id=head_commit,
-                created_at_iso=created_at_iso,
-                trailer_extra="PuppyOne-Regraft: post-parent-commit\n",
-            )
-        except Exception as exc:
-            log_warning(
-                f"[PostCommit] re-graft of child {child!r} into "
-                f"{parent_norm or '/'} failed: {exc}",
-            )
-
-
-def _promote_to_ancestor_scopes(repo, project_id: str, entry: dict, scope_path: str) -> None:
-    """Run scope-promote projections for the child commit's ancestor scopes.
-
-    No-op for root-scope commits and for commits whose own message already
-    carries the ``scope-promote`` trailer (so the projection does not
-    recurse into itself when the parent scope is itself a child of a
-    further ancestor).
-    """
-
-    if not scope_path:
-        return
-    message = entry.get("message", "") or ""
-    if "PuppyOne-Source: scope-promote" in message:
-        return
-    new_tree_hash = entry.get("scope_hash") or ""
-    new_commit_id = entry.get("commit_id") or ""
-    if not new_tree_hash or not new_commit_id:
-        return
-
-    try:
-        from src.version_engine.derived.parent_scope_promote import promote_to_parents
-        promote_to_parents(
-            repo,
-            project_id=project_id,
-            child_scope_path=scope_path,
-            child_new_tree_hash=new_tree_hash,
-            child_commit_actor=entry.get("who", "") or "",
-            child_commit_id=new_commit_id,
-            created_at_iso=entry.get("created_at", "") or "",
-        )
-    except Exception as exc:
-        log_warning(f"[PostCommit] scope-promote failed: {exc}")
 
 
 def run_post_project_update_hook(
