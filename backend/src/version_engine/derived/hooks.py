@@ -533,6 +533,7 @@ def run_project_root_visibility_barrier(
             for c in changes
             if isinstance(c, dict) and c.get("path")
         ]
+        source_scope_path = normalize_path(entry.get("scope_path") or "")
         affected_scopes = _project_root_affected_scopes(repo, changed_paths)
         with _projection_locks(
             project_id,
@@ -569,6 +570,7 @@ def run_project_root_visibility_barrier(
                 changed_paths=changed_paths,
                 scopes=affected_scopes,
                 stale_project_root=stale_project_root,
+                source_scope_path=source_scope_path,
             )
     except Exception as e:
         log_error(
@@ -880,6 +882,7 @@ def _sync_child_scope_refs_from_project_root(
     changed_paths: list[str] | None = None,
     scopes: list[dict] | None = None,
     stale_project_root: bool = False,
+    source_scope_path: str = "",
 ) -> None:
     """Derive scoped access-point refs from an accepted project root."""
 
@@ -893,6 +896,12 @@ def _sync_child_scope_refs_from_project_root(
     for scope in scopes:
         scope_path = normalize_path(scope.get("path", ""))
         if not scope_path:
+            continue
+        if scope_path == normalize_path(source_scope_path):
+            # The source scope row is part of the accepted publish transaction.
+            # Re-deriving it here can silently replace the Git-visible client
+            # commit with a synthetic scope-view commit, breaking normal
+            # fast-forward pulls for native Git remotes.
             continue
         if changed_paths is not None and not _scope_intersects_paths(
             scope_path,

@@ -127,6 +127,7 @@ from src.version_engine.write_engine.engine import (
 )
 from src.version_engine.write_engine.tree_objects import build_tree_from_files, flatten_tree_to_bytes
 from src.version_engine.domain.intents import OperationWriteIntent, ProjectWriteState
+import src.version_engine.derived.hooks as derived_hooks
 from src.version_engine.derived.outbox import process_version_outbox_batch
 from src.version_engine.adapters.product.tree_patch import splice_put_blob
 from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
@@ -2111,6 +2112,182 @@ def test_real_git_cli_degraded_history_clones_and_pushes_from_projected_head(
         "canonical_base_commit_id"
     ] == current_commit
     assert _last_audit_event(server_repo, "git_push")["detail"]["git_view_history_cut"] is True
+
+
+def test_real_git_cli_root_derived_scope_without_scope_state_pushes(
+    monkeypatch, tmp_path, repo_manager, server_repo,
+):
+    """A root-first scope view can be valid before its cache row exists.
+
+    Git advertises a synthetic scope-view commit derived from the root tree.
+    Pushing from that advertised commit must not be translated to an empty
+    canonical scope head and rejected as non-fast-forward.
+    """
+
+    scope_path = "New Folder (2)"
+    server_repo.add_scope("new-folder-scope", f"/{scope_path}/")
+    scope_tree = build_tree_from_files(
+        server_repo.store,
+        {"README.md": b"root-derived scope\n"},
+    )
+    root_tree = build_tree_from_files(
+        server_repo.store,
+        {f"{scope_path}/README.md": b"root-derived scope\n"},
+    )
+    root_commit = _make_client_commit(
+        server_repo,
+        root_tree,
+        message="root contains scope",
+    )
+    server_repo.history.set_root_hash(root_tree)
+    server_repo.history.set_scope_hash("", root_tree)
+    server_repo.set_scope_head_commit_id("", root_commit)
+    projected = git_view_head_commit(server_repo, scope_path)
+    assert projected
+    assert commit_tree_id(server_repo, projected) == scope_tree
+    assert server_repo.get_scope_head_commit_id(scope_path) == ""
+
+    _patch_git_scope_auth(
+        monkeypatch,
+        {"test-key": ("new-folder-scope", f"/{scope_path}/", "rw")},
+    )
+    app = FastAPI()
+    app.include_router(git_router)
+    app.dependency_overrides[get_repo_manager] = lambda: repo_manager
+
+    with _serve_git_app(app) as base_url:
+        remote = f"{base_url}/git/ap/test-key.git"
+        work = tmp_path / "work"
+
+        _run_git(["clone", remote, str(work)], tmp_path)
+        assert _run_git(["rev-parse", "HEAD"], work).decode("ascii").strip() == projected
+        _configure_git_identity(work)
+        (work / "perf-git-access-point.md").write_text(
+            "root-derived access point push\n",
+            encoding="utf-8",
+        )
+        _run_git(["add", "perf-git-access-point.md"], work)
+        _run_git(["commit", "-m", "push from root-derived scope"], work)
+        pushed_head = _run_git(["rev-parse", "HEAD"], work).decode("ascii").strip()
+        _run_git(["push", "origin", "main"], work)
+
+    assert server_repo.get_scope_head_commit_id(scope_path) == pushed_head
+    assert server_repo.list_scope_files(
+        {"id": "new-folder-scope", "path": scope_path, "exclude": []}
+    ) == {
+        "README.md": b"root-derived scope\n",
+        "perf-git-access-point.md": b"root-derived access point push\n",
+    }
+    detail = _last_audit_event(server_repo, "git_push")["detail"]
+    assert detail["git_visible_old_commit_id"] == projected
+    assert detail["canonical_base_commit_id"] == ""
+    assert detail["engine_base_commit_id"] == projected
+
+
+def test_project_visibility_barrier_keeps_source_scope_head(
+    monkeypatch,
+    repo_manager,
+    server_repo,
+):
+    scope_path = "docs"
+    server_repo.add_scope("docs-scope", f"/{scope_path}/")
+
+    old_scope_tree = build_tree_from_files(
+        server_repo.store,
+        {"README.md": b"old\n"},
+    )
+    old_root_tree = build_tree_from_files(
+        server_repo.store,
+        {f"{scope_path}/README.md": b"old\n"},
+    )
+    old_root_commit = _make_client_commit(server_repo, old_root_tree)
+    server_repo.history.set_root_hash(old_root_tree)
+    server_repo.history.set_scope_hash("", old_root_tree)
+    server_repo.set_scope_head_commit_id("", old_root_commit)
+    server_repo.history.set_scope_hash(scope_path, old_scope_tree)
+    server_repo.set_scope_head_commit_id(
+        scope_path,
+        _make_client_commit(server_repo, old_scope_tree),
+    )
+
+    client_scope_tree = build_tree_from_files(
+        server_repo.store,
+        {
+            "README.md": b"new\n",
+            "guide.md": b"published from git\n",
+        },
+    )
+    client_commit = _make_client_commit(
+        server_repo,
+        client_scope_tree,
+        message="client scope commit",
+    )
+    new_root_tree = build_tree_from_files(
+        server_repo.store,
+        {
+            f"{scope_path}/README.md": b"new\n",
+            f"{scope_path}/guide.md": b"published from git\n",
+        },
+    )
+    root_commit = _make_client_commit(
+        server_repo,
+        new_root_tree,
+        parent_id=old_root_commit,
+        message="root commit",
+    )
+
+    published, _txn_id = server_repo.publish_project_update(
+        old_root_hash=old_root_tree,
+        new_root_hash=new_root_tree,
+        scope_path=scope_path,
+        scope_hash=client_scope_tree,
+        scope_head_commit_id=client_commit,
+        commit_id=root_commit,
+        who="git:user",
+        message="publish scoped git tree",
+        changes=[
+            {"path": f"{scope_path}/README.md", "action": "update"},
+            {"path": f"{scope_path}/guide.md", "action": "add"},
+        ],
+        conflicts=[],
+        created_at_iso="2026-01-01T00:00:00+00:00",
+        audit_event_type="git_push",
+        audit_agent_id="git:user",
+        audit_detail={},
+        source_channel="git",
+        base_commit_id=old_root_commit,
+        client_commit_id=client_commit,
+        proposed_tree_id=client_scope_tree,
+        intent_type="submission",
+    )
+    assert published
+
+    calls: list[str] = []
+    original_cas = derived_hooks._cas_or_set_scope_state
+
+    def spy_cas(repo, scope, old_hash, new_hash, head_commit_id):
+        calls.append(scope)
+        return original_cas(repo, scope, old_hash, new_hash, head_commit_id)
+
+    monkeypatch.setattr(derived_hooks, "_cas_or_set_scope_state", spy_cas)
+
+    derived_hooks.run_project_root_visibility_barrier(
+        "test-proj",
+        repo_manager,
+        {
+            "status": "ok",
+            "commit_id": root_commit,
+            "root": new_root_tree,
+            "old_root": old_root_tree,
+            "scope_path": scope_path,
+            "scope_hash": client_scope_tree,
+        },
+        raise_errors=True,
+    )
+
+    assert scope_path not in calls
+    assert server_repo.get_scope_head_commit_id(scope_path) == client_commit
+    assert server_repo.get_scope_hash(scope_path) == client_scope_tree
 
 
 def test_real_git_cli_first_push_to_empty_project_shell(
