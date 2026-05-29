@@ -199,11 +199,16 @@ class FakeHistoryManager:
         scope_path: str = "",
         scope_hash: str = "",
         scope_head_commit_id: str = "",
+        expected_scope_head_commit_id: str | None = None,
     ) -> tuple[bool, int | None]:
         with self._lock:
             if self._root_hash != old_root_hash:
                 return False, None
             norm = scope_path.strip("/")
+            if norm and expected_scope_head_commit_id is not None:
+                current_scope_head = self._scope_head_commit_ids.get(norm, "")
+                if current_scope_head != expected_scope_head_commit_id:
+                    return False, None
             accepted_scope_hash = scope_hash or new_root_hash
             self._root_hash = new_root_hash
             self._scope_hashes[""] = new_root_hash

@@ -21,6 +21,7 @@ import {
   type NeedsActionItem,
   type NeedsActionSummary,
 } from './components/NeedsActionSection';
+import { HistoryDetailViewport } from './components/HistoryDetailViewport';
 import type { NeedsActionSelection } from './components/NeedsActionSection';
 import type {
   NeedsActionRenderContext,
@@ -631,11 +632,31 @@ function HistoryMoreRow({
         <circle
           cx={HISTORY_LINE_X}
           cy={HISTORY_ROW_HEIGHT / 2}
-          r={2.5}
+          r={6}
           fill="var(--po-canvas)"
           stroke={hovered ? 'var(--po-text-subtle)' : 'var(--po-text-disabled)'}
-          strokeWidth={1.5}
+          strokeWidth={1.25}
         />
+        <line
+          x1={HISTORY_LINE_X - 3}
+          y1={HISTORY_ROW_HEIGHT / 2}
+          x2={HISTORY_LINE_X + 3}
+          y2={HISTORY_ROW_HEIGHT / 2}
+          stroke={hovered ? 'var(--po-text-muted)' : 'var(--po-text-subtle)'}
+          strokeWidth={1.5}
+          strokeLinecap="round"
+        />
+        {!expanded ? (
+          <line
+            x1={HISTORY_LINE_X}
+            y1={HISTORY_ROW_HEIGHT / 2 - 3}
+            x2={HISTORY_LINE_X}
+            y2={HISTORY_ROW_HEIGHT / 2 + 3}
+            stroke={hovered ? 'var(--po-text-muted)' : 'var(--po-text-subtle)'}
+            strokeWidth={1.5}
+            strokeLinecap="round"
+          />
+        ) : null}
       </svg>
       <span
         style={{
@@ -645,7 +666,7 @@ function HistoryMoreRow({
           fontWeight: 500,
         }}
       >
-        {expanded ? 'Show less' : `${count} more`}
+        {expanded ? 'Show less' : `Show ${count} more`}
       </span>
     </button>
   );
@@ -1244,6 +1265,7 @@ export default function HistoryPage({ params }: HistoryPageProps) {
 
   // Auto-select the HEAD commit when history first lands (or switches projects).
   useEffect(() => {
+    if (selectedNeedsAction) return;
     if (!selectedCommitId) {
       if (headCommitId) {
         setSelectedCommitId(headCommitId);
@@ -1251,9 +1273,10 @@ export default function HistoryPage({ params }: HistoryPageProps) {
         setSelectedCommitId(commits[0].commit_id);
       }
     }
-  }, [commits, selectedCommitId, headCommitId]);
+  }, [commits, selectedCommitId, headCommitId, selectedNeedsAction]);
 
   useEffect(() => {
+    if (selectedNeedsAction) return;
     if (filteredCommits.length === 0) {
       if (selectedCommitId) setSelectedCommitId(null);
       return;
@@ -1261,7 +1284,7 @@ export default function HistoryPage({ params }: HistoryPageProps) {
     if (!selectedCommitId || !filteredCommits.some(commit => commit.commit_id === selectedCommitId)) {
       setSelectedCommitId(filteredCommits[0].commit_id);
     }
-  }, [filteredCommits, selectedCommitId]);
+  }, [filteredCommits, selectedCommitId, selectedNeedsAction]);
 
   const selectedCommit = useMemo(
     () => commits.find(c => c.commit_id === selectedCommitId) ?? null,
@@ -1336,6 +1359,13 @@ export default function HistoryPage({ params }: HistoryPageProps) {
     activeScope ? formatScopeLabel(activeScope.scope) : null,
     activeActor ? formatOperatorLabel(activeActor.type) : null,
   ].filter(Boolean).join(' · ') || 'Filter history';
+  const activeDetailKey = selectedNeedsAction && selectedNeedsActionItem
+    ? `needs:${selectedNeedsAction.kind}:${selectedNeedsAction.itemId}`
+    : selectedCommit
+      ? `commit:${selectedCommit.commit_id}`
+      : commits.length === 0
+        ? 'empty:no-commits'
+        : 'empty:no-selection';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: 'var(--po-canvas)' }}>
@@ -1670,7 +1700,7 @@ export default function HistoryPage({ params }: HistoryPageProps) {
               commit detail. Needs Action wins when an item is
               selected (the page's selection handlers keep at most
               one of {commit, item} active). */}
-          <div className="flex-1 min-w-0 overflow-y-auto custom-scrollbar bg-[var(--po-canvas)]">
+          <HistoryDetailViewport activeKey={activeDetailKey}>
             {selectedNeedsAction && selectedNeedsActionItem ? (
               <NeedsActionDetailPane
                 projectId={projectId}
@@ -1709,7 +1739,7 @@ export default function HistoryPage({ params }: HistoryPageProps) {
                 )}
               </div>
             )}
-          </div>
+          </HistoryDetailViewport>
         </div>
       )}
     </div>

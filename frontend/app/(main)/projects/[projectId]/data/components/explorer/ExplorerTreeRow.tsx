@@ -15,14 +15,15 @@ import type { FileImportTarget } from '../../hooks/useFileImport';
 import {
   toggleExpanded,
   useIsExpanded,
-  useIsPendingCreatingPath,
+  usePendingCreatingInfo,
 } from './explorerState';
 import {
   ExplorerRowActions,
-  getExplorerRowActionLayerWidth,
+  getExplorerRowReservedActionWidth,
 } from './ExplorerRowActions';
 import type { ExplorerSidebarProps, MillerColumnItem } from './types';
 import { Dots } from '@/components/loading';
+import { TreeDisclosureMarker } from '@/components/ui/TreeDisclosureMarker';
 import { FileGlyphIcon } from '@/lib/fileIcons';
 import { SIDEBAR_META_TYPOGRAPHY, SIDEBAR_ROW_TYPOGRAPHY } from '@/lib/uiTypography';
 
@@ -39,7 +40,7 @@ export const EXPLORER_TREE_ROW_GAP = 2;
 export const EXPLORER_TREE_INDENT = 16;
 export const EXPLORER_TREE_ROW_MARGIN_X = 6;
 export const EXPLORER_TREE_CONTENT_INSET = 8;
-const EXPLORER_TREE_ROW_MARGIN_Y = EXPLORER_TREE_ROW_GAP / 2;
+export const EXPLORER_TREE_ROW_MARGIN_Y = EXPLORER_TREE_ROW_GAP / 2;
 const EXPLORER_TREE_LINE_OVERDRAW = 2;
 const EXPLORER_TREE_LINE_HEIGHT =
   EXPLORER_TREE_ROW_HEIGHT + EXPLORER_TREE_LINE_OVERDRAW * 2;
@@ -98,20 +99,7 @@ function getParentFileDropTarget(item: MillerColumnItem): FileImportTarget {
 }
 
 export const FolderIcon = ({ expanded }: { expanded?: boolean }) => {
-  if (expanded) {
-    return (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-        <path d="M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z" fill="#93C5FD" fillOpacity="0.58" />
-        <path d="M 9.5 10 L 23 10 Q 24 10 23.5 11 L 19.5 19 Q 19 20 18 20 L 4.5 20 Q 3.5 20 4 19 L 8 11 Q 8.5 10 9.5 10 Z" fill="#60A5FA" fillOpacity="0.82" />
-      </svg>
-    );
-  }
-
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-      <path d="M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z" fill="#8DB5F9" fillOpacity="0.78" />
-    </svg>
-  );
+  return <TreeDisclosureMarker expanded={expanded} />;
 };
 
 type SidebarFileKind =
@@ -582,13 +570,23 @@ function ExplorerSubtreeMotion({
         setHeight('auto');
       }}
       style={{
+        width: '100%',
+        boxSizing: 'border-box',
         height: height === 'auto' ? 'auto' : `${Math.max(0, height)}px`,
         overflow: 'hidden',
         transition: `height ${durationMs}ms ${SUBTREE_MOTION_EASE}`,
         willChange: 'height',
       }}
     >
-      <div ref={contentRef} style={{ minHeight: 0, overflow: 'hidden' }}>
+      <div
+        ref={contentRef}
+        style={{
+          width: '100%',
+          minHeight: 0,
+          overflow: 'hidden',
+          boxSizing: 'border-box',
+        }}
+      >
         {children}
       </div>
     </div>
@@ -656,7 +654,9 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
   const isDamagedNode = item.integrity_status === 'damaged';
   const isSynced = item.is_synced;
   const isExpanded = useIsExpanded(item.id);
-  const isPendingCreating = useIsPendingCreatingPath(projectId, item.id);
+  const pendingCreatingInfo = usePendingCreatingInfo(projectId, item.id);
+  const isPendingCreating = pendingCreatingInfo !== null;
+  const pendingCreatingLabel = pendingCreatingInfo?.label ?? 'Creating';
   const expanded = isExpanded && isFolder && !isPendingCreating;
   const [renderSubtree, setRenderSubtree] = useState(expanded);
   const rowRef = useRef<HTMLDivElement>(null);
@@ -780,11 +780,14 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
   const isChildLoadInFlight =
     (loading || isValidating || isPendingCreating) && childItems.length === 0;
 
+  const hasObjectMenu =
+    !isPendingCreating &&
+    !!(onRename || onDelete || onDownload || (isFolder && onCreateSync));
   const hasInlineActions =
     !isPendingCreating &&
-    !!((isFolder && (onCreate || onCreateSync || hasConfiguredAccess)) || onRename || onDelete || onDownload);
-  const rowActionLayerWidth = hasInlineActions
-    ? getExplorerRowActionLayerWidth(hasConfiguredAccess)
+    !!(hasObjectMenu || (isFolder && (onCreate || hasConfiguredAccess)));
+  const reservedActionWidth = hasInlineActions
+    ? getExplorerRowReservedActionWidth(hasConfiguredAccess, hasObjectMenu)
     : 0;
 
   const activateFileDropTarget = useCallback((event: ReactDragEvent<HTMLDivElement>) => {
@@ -817,7 +820,7 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
   }, [fileDropTarget, onFileDragTarget, onFilesDrop]);
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div style={{ position: 'relative', width: '100%', boxSizing: 'border-box' }}>
       <div
         ref={rowRef}
         data-menu-host="true"
@@ -917,7 +920,7 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
             height: '100%',
             boxSizing: 'border-box',
             paddingLeft: EXPLORER_TREE_CONTENT_INSET + depth * EXPLORER_TREE_INDENT,
-            paddingRight: hasInlineActions ? rowActionLayerWidth + 10 : 6,
+            paddingRight: reservedActionWidth > 0 ? reservedActionWidth + 6 : 6,
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -958,37 +961,52 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
           </div>
 
           <span
-            className={isPendingCreating ? 'animate-pulse' : undefined}
             style={{
               flex: 1,
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               minWidth: 0,
-              fontStyle: isPendingCreating ? 'italic' : 'normal',
+              fontStyle: 'normal',
             }}
           >
-            {isPendingCreating ? 'Creating folder' : item.name}
-            {!isFolder && !hasFileExtension(item.name) && (() => {
-              const ext = getTypeExtension(item.type);
-              return ext ? <span style={{ color: 'var(--po-text-disabled)', fontSize: 11 }}>{ext}</span> : null;
-            })()}
+            {isPendingCreating ? (
+              <span
+                title={pendingCreatingLabel}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  maxWidth: '100%',
+                  minWidth: 0,
+                }}
+              >
+                <span
+                  style={{
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  {pendingCreatingLabel}
+                </span>
+                <Dots
+                  size="xs"
+                  ariaLabel={pendingCreatingLabel}
+                  style={{
+                    flexShrink: 0,
+                    color: 'var(--po-text-muted)',
+                  }}
+                />
+              </span>
+            ) : (
+              <>
+                {item.name}
+                {!isFolder && !hasFileExtension(item.name) && (() => {
+                  const ext = getTypeExtension(item.type);
+                  return ext ? <span style={{ color: 'var(--po-text-disabled)', fontSize: 11 }}>{ext}</span> : null;
+                })()}
+              </>
+            )}
           </span>
-
-          {isPendingCreating && (
-            <span
-              title="Creating folder"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: 18,
-                flexShrink: 0,
-                color: 'var(--po-text-subtle)',
-              }}
-            >
-              <Dots size="xs" />
-            </span>
-          )}
 
           {isDamagedNode && (
             <span
@@ -1030,7 +1048,7 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
           visible={expanded}
           onExited={() => setRenderSubtree(false)}
         >
-        <div style={{ position: 'relative' }}>
+        <div style={{ position: 'relative', width: '100%', boxSizing: 'border-box' }}>
           {/* `position: relative` so the continuation line below can
               absolute-position itself against the wrapper's full
               height, threading my elbow column down through every

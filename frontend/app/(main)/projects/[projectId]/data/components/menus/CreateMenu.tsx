@@ -2,6 +2,7 @@
 
 import { useLayoutEffect, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
+import { FileGlyphIcon } from '@/lib/fileIcons';
 import { APP_Z_INDEX } from '@/lib/zIndex';
 
 export type CreateType =
@@ -135,28 +136,15 @@ const MENU_EDGE_PADDING = 12;
 const iconColor = 'var(--po-text-muted)';
 
 const FolderIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-    <path d="M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z" fill="currentColor" fillOpacity="0.34" />
-  </svg>
+  <FileGlyphIcon name="folder" type="folder" size={16} />
 );
 
 const JsonIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-    <path d="M4 4v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6H6a2 2 0 0 0-2 2z" stroke="var(--po-success)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M14 2v6h6" stroke="var(--po-success)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M10 12l-2 2 2 2" stroke="var(--po-success)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M14 12l2 2-2 2" stroke="var(--po-success)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
+  <FileGlyphIcon name="Untitled.json" type="json" size={16} />
 );
 
 const MarkdownIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-    <path d="M4 4v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6H6a2 2 0 0 0-2 2z" stroke="var(--po-text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M14 2v6h6" stroke="var(--po-text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M8 16v-4l2.5 2.5L13 12v4" stroke="var(--po-text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M16 16v-4h2v4" stroke="var(--po-text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M16 14h2" stroke="var(--po-text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
+  <FileGlyphIcon name="Untitled.md" type="markdown" size={16} />
 );
 
 const UploadIcon = () => (

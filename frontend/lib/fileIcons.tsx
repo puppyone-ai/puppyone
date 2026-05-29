@@ -1,4 +1,5 @@
 import React from 'react';
+import { TreeDisclosureMarker } from '@/components/ui/TreeDisclosureMarker';
 
 export type FileVisualKind =
   | 'folder'
@@ -419,7 +420,7 @@ export function FileGlyphIcon({
   const color = getFileAccent(kind);
 
   if (kind === 'folder') {
-    return <img src="/icons/folder.svg" alt="" width={size} height={size} style={{ display: 'block' }} />;
+    return <TreeDisclosureMarker size={Math.max(12, Math.min(13, size - 3))} />;
   }
 
   return (

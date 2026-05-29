@@ -1,7 +1,9 @@
 'use client';
 
+import type { ChangeEvent } from 'react';
 import { useState, useRef, useCallback } from 'react';
 import { uploadFiles } from '@/lib/uploadApi';
+import { pickDirectoryFiles } from '@/lib/directoryPicker';
 import {
   addPendingTasks,
   updateTaskStatusById,
@@ -112,6 +114,8 @@ export function useFileImport(
   const [fileImportDialogOpen, setFileImportDialogOpen] = useState(false);
   const [droppedFiles, setDroppedFiles] = useState<File[]>([]);
   const [fileImportTarget, setFileImportTarget] = useState<FileImportTarget>(ROOT_IMPORT_TARGET);
+  const filePickerInputRef = useRef<HTMLInputElement>(null);
+  const folderPickerInputRef = useRef<HTMLInputElement>(null);
   const latestTargetRef = useRef<FileImportTarget>(ROOT_IMPORT_TARGET);
 
   // Sidebar drag/drop = backend-proxied multipart upload, same path
@@ -235,6 +239,15 @@ export function useFileImport(
     setFileImportDialogOpen(true);
   }, []);
 
+  const openFilePickerForTarget = useCallback((target: FileImportTarget) => {
+    const path = normalizePath(target.path);
+    const normalizedTarget = path ? { ...target, path } : ROOT_IMPORT_TARGET;
+    setFileImportTarget(normalizedTarget);
+    latestTargetRef.current = normalizedTarget;
+    setDroppedFiles([]);
+    filePickerInputRef.current?.click();
+  }, []);
+
   const openFileImportForTarget = useCallback((files: File[], target: FileImportTarget) => {
     const path = normalizePath(target.path);
     const normalizedTarget = path ? { ...target, path } : ROOT_IMPORT_TARGET;
@@ -266,6 +279,37 @@ export function useFileImport(
     })();
   }, [uploadFilesToTarget, showToast]);
 
+  const openFolderPickerForTarget = useCallback(async (target: FileImportTarget) => {
+    const path = normalizePath(target.path);
+    const normalizedTarget = path ? { ...target, path } : ROOT_IMPORT_TARGET;
+    setFileImportTarget(normalizedTarget);
+    latestTargetRef.current = normalizedTarget;
+    setDroppedFiles([]);
+
+    const picked = await pickDirectoryFiles();
+    if (picked === null) {
+      folderPickerInputRef.current?.click();
+      return;
+    }
+    if (picked.length > 0) {
+      openFileImportForTarget(picked, normalizedTarget);
+    }
+  }, [openFileImportForTarget]);
+
+  const handleFilePickerChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = event.target.files ? Array.from(event.target.files) : [];
+    event.target.value = '';
+    if (selectedFiles.length === 0) return;
+    openFileImportForTarget(selectedFiles, latestTargetRef.current);
+  }, [openFileImportForTarget]);
+
+  const handleFolderPickerChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = event.target.files ? Array.from(event.target.files) : [];
+    event.target.value = '';
+    if (selectedFiles.length === 0) return;
+    openFileImportForTarget(selectedFiles, latestTargetRef.current);
+  }, [openFileImportForTarget]);
+
   const handleFileImportConfirm = useCallback(async (importFiles: File[], _mode: 'ocr_parse' | 'raw') => {
     setFileImportDialogOpen(false);
     setDroppedFiles([]);
@@ -283,7 +327,13 @@ export function useFileImport(
     fileImportDialogOpen,
     fileImportTarget,
     droppedFiles,
+    filePickerInputRef,
+    folderPickerInputRef,
+    handleFilePickerChange,
+    handleFolderPickerChange,
     openFileImportDialogForTarget,
+    openFilePickerForTarget,
+    openFolderPickerForTarget,
     openFileImportForTarget,
     handleFileImportConfirm,
     closeFileImportDialog,

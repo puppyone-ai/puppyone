@@ -10,6 +10,7 @@ from src.version_engine.write_engine.git_object_format import (
     encode_tree,
 )
 from src.version_engine.write_engine.path_utils import normalize_path
+from src.version_engine.write_engine.tree_delta import changes_from_file_maps
 
 
 def flatten_tree_to_bytes(store, tree_hash: str) -> dict[str, bytes]:
@@ -67,21 +68,7 @@ def compute_changeset(
 ) -> list[dict]:
     """Compute full project-root history changes for a scoped file map."""
 
-    scope_prefix = normalize_path(scope_path)
-    changes: list[dict] = []
-    for rel_path, new_data in sorted(new_files.items()):
-        full = join_scope_path(scope_prefix, rel_path)
-        if rel_path not in old_files:
-            changes.append({"path": full, "action": "add"})
-        elif old_files[rel_path] != new_data:
-            changes.append({"path": full, "action": "update"})
-    for rel_path in sorted(old_files):
-        if rel_path not in new_files:
-            changes.append({
-                "path": join_scope_path(scope_prefix, rel_path),
-                "action": "delete",
-            })
-    return changes
+    return changes_from_file_maps(scope_path, old_files, new_files)
 
 
 def build_full_changes(

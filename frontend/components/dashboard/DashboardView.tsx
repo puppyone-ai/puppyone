@@ -5,16 +5,18 @@ import { useTranslations } from 'next-intl';
 import {
   NewProjectCard,
   ProjectCard,
+  ProjectCardSkeleton,
   PROJECT_CARD_GAP,
   PROJECT_CARD_MIN_WIDTH,
 } from './ProjectCard';
-import { PageLoading } from '@/components/loading';
+import { SkeletonBlock } from '@/components/loading';
 import { OrganizationPageShell } from '@/components/organization/OrganizationPageShell';
 import type { ProjectInfo } from '@/lib/projectsApi';
 
 export interface DashboardViewProps {
   projects: ProjectInfo[];
   loading?: boolean;
+  creatingProject?: boolean;
   onProjectClick: (projectId: string) => void;
   onCreateClick: () => void;
 }
@@ -22,6 +24,7 @@ export interface DashboardViewProps {
 export function DashboardView({
   projects,
   loading,
+  creatingProject = false,
   onProjectClick,
   onCreateClick,
 }: DashboardViewProps) {
@@ -29,11 +32,7 @@ export function DashboardView({
   const tc = useTranslations('common');
 
   if (loading) {
-    return (
-      <div className='flex-1'>
-        <PageLoading variant='fill' label={tc('loading')} />
-      </div>
-    );
+    return <DashboardLoadingSkeleton label={tc('loading')} />;
   }
 
   if (projects.length === 0) {
@@ -41,6 +40,7 @@ export function DashboardView({
       <OrganizationPageShell title={t('title')}>
         <EmptyDashboard
           onCreateClick={onCreateClick}
+          creatingProject={creatingProject}
         />
       </OrganizationPageShell>
     );
@@ -65,15 +65,48 @@ export function DashboardView({
         ))}
         <NewProjectCard
           onClick={onCreateClick}
+          loading={creatingProject}
+          disabled={creatingProject}
         />
       </div>
     </OrganizationPageShell>
   );
 }
 
+export function DashboardLoadingSkeleton({
+  label = 'Loading...',
+}: Readonly<{ label?: string }>) {
+  return (
+    <div
+      className="flex-1 overflow-y-auto bg-[var(--po-canvas)]"
+      aria-busy="true"
+      aria-label={label}
+    >
+      <div className="mx-auto w-full max-w-[900px] px-8 py-8 pb-24">
+        <div className="mb-12">
+          <SkeletonBlock width={190} height={25} radius={4} />
+        </div>
+        <div
+          className="grid"
+          style={{
+            gridTemplateColumns: `repeat(auto-fill, minmax(${PROJECT_CARD_MIN_WIDTH}px, 1fr))`,
+            gap: PROJECT_CARD_GAP,
+            justifyItems: 'center',
+          }}
+        >
+          {[0, 1, 2].map((index) => (
+            <ProjectCardSkeleton key={index} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EmptyDashboard({
   onCreateClick,
-}: Readonly<{ onCreateClick: () => void }>) {
+  creatingProject,
+}: Readonly<{ onCreateClick: () => void; creatingProject: boolean }>) {
   const t = useTranslations('home');
   return (
     <div className='flex min-h-[420px] flex-col items-center justify-center px-8 py-12'>
@@ -85,6 +118,8 @@ function EmptyDashboard({
       <div className='w-full flex justify-center'>
         <NewProjectCard
           onClick={onCreateClick}
+          loading={creatingProject}
+          disabled={creatingProject}
         />
       </div>
     </div>

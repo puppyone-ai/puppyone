@@ -41,8 +41,7 @@ interface ModeOption<TMode extends string> {
 
 const MARKDOWN_OPTIONS: ModeOption<MarkdownViewMode>[] = [
   { value: 'wysiwyg', label: 'Live view', Icon: PencilIcon },
-  { value: 'source', label: 'Source', Icon: CodeIcon },
-  { value: 'preview', label: 'Read only', Icon: EyeIcon },
+  { value: 'source', label: 'Source code', Icon: CodeIcon },
 ];
 
 const JSON_OPTIONS: ModeOption<EditorType>[] = [
@@ -82,12 +81,14 @@ export function FileViewerHeaderActions({
 
   const actions =
     actionsSlot !== undefined ? actionsSlot : <FileActionsMenu projectId={projectId} filePath={filePath} />;
+  const resolvedMarkdownViewMode: MarkdownViewMode =
+    markdownViewMode === 'source' ? 'source' : 'wysiwyg';
 
   if (viewerId === 'markdown-editor') {
     return (
       <HeaderActionGroup>
         {editable && <EditorSaveButton status={saveStatus} onSave={onSave} />}
-        <ModePicker mode={markdownViewMode} onChange={onMarkdownViewModeChange} options={MARKDOWN_OPTIONS} />
+        <ModePicker mode={resolvedMarkdownViewMode} onChange={onMarkdownViewModeChange} options={MARKDOWN_OPTIONS} />
         {actions}
       </HeaderActionGroup>
     );

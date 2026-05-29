@@ -42,6 +42,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react';
 import useSWR from 'swr';
+import { AiHandoffButton } from '@/components/ui/AiHandoffButton';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import { DialogBody, DialogHeader, DialogRoot, DialogSurface } from '@/components/ui/Dialog';
 import { buildGitSyncPrompt, buildTerminalCliPrompt } from '@/lib/accessPointCliPrompt';
@@ -1579,37 +1580,17 @@ function MethodPromptPreview({ prompt }: { readonly prompt: string }) {
           pointerEvents: 'none',
         }}
       />
-      <button
-        type='button'
+      <AiHandoffButton
         disabled={!prompt}
         onClick={copyPrompt}
+        copied={copied}
         style={{
           position: 'absolute',
           left: '50%',
           top: '50%',
           transform: 'translate(-50%, -50%)',
-          height: 30,
-          borderRadius: 6,
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 6,
-          padding: '0 10px',
-          fontSize: 12,
-          fontWeight: 500,
-          fontFamily: T.fontSans,
-          cursor: prompt ? 'pointer' : 'default',
-          whiteSpace: 'nowrap',
-          color: copied ? 'var(--po-success)' : T.text2,
-          background: 'var(--po-panel)',
-          border: `1px solid ${copied ? 'color-mix(in srgb, var(--po-success) 42%, transparent)' : T.cardBorder}`,
-          boxShadow: '0 8px 18px color-mix(in srgb, var(--po-shadow) 24%, transparent)',
-          opacity: prompt ? 1 : 0.55,
         }}
-      >
-        <CopyIcon size={12} />
-        {copied ? 'Copied' : 'Copy prompt'}
-      </button>
+      />
     </div>
   );
 }

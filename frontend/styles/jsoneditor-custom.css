@@ -1013,13 +1013,18 @@ div.jsoneditor-tree::-webkit-scrollbar-track {
 }
 
 div.jsoneditor-tree::-webkit-scrollbar-thumb {
-  background: var(--po-scrollbar-thumb);
+  background: transparent;
   border-radius: 5px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 
-div.jsoneditor-tree::-webkit-scrollbar-thumb:hover {
+div.jsoneditor-tree.po-scrollbar-active::-webkit-scrollbar-thumb {
+  background: var(--po-scrollbar-thumb);
+  background-clip: padding-box;
+}
+
+div.jsoneditor-tree.po-scrollbar-active::-webkit-scrollbar-thumb:hover {
   background: var(--po-scrollbar-thumb-hover);
   background-clip: padding-box;
 }

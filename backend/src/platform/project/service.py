@@ -5,6 +5,7 @@ Handles business logic for Project
 """
 
 import logging
+import re
 from dataclasses import dataclass
 
 from src.exceptions import ErrorCode, NotFoundException, PermissionException
@@ -12,6 +13,50 @@ from src.platform.project.models import Project
 from src.platform.project.repository import ProjectRepositoryBase
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_PROJECT_NAME = "Untitled Project"
+DEFAULT_PROJECT_NAME_RE = re.compile(
+    r"^Untitled Project(?: (?:(\d+)|\((\d+)\)))?$",
+    re.IGNORECASE,
+)
+
+
+def _untitled_project_slot(name: str) -> int | None:
+    match = DEFAULT_PROJECT_NAME_RE.match(name.strip())
+    if not match:
+        return None
+    raw_index = match.group(1) or match.group(2)
+    if raw_index is None:
+        return 1
+    index = int(raw_index)
+    return index if index > 1 else None
+
+
+def _format_untitled_project_name(index: int) -> str:
+    return DEFAULT_PROJECT_NAME if index == 1 else f"{DEFAULT_PROJECT_NAME} {index}"
+
+
+def resolve_untitled_project_name(
+    requested_name: str,
+    existing_projects: list[Project],
+) -> str:
+    """Return a collision-free default project name for Untitled-style names."""
+    requested_slot = _untitled_project_slot(requested_name)
+    if requested_slot is None:
+        return requested_name
+
+    occupied = {
+        slot
+        for project in existing_projects
+        if (slot := _untitled_project_slot(project.name)) is not None
+    }
+    if requested_slot not in occupied:
+        return _format_untitled_project_name(requested_slot)
+
+    next_slot = 1
+    while next_slot in occupied:
+        next_slot += 1
+    return _format_untitled_project_name(next_slot)
 
 
 @dataclass
@@ -102,6 +147,7 @@ class ProjectService:
         Returns:
             Created Project object
         """
+        name = resolve_untitled_project_name(name, self.repo.get_by_org_id(org_id))
         project = self.repo.create(
             name=name,
             description=description,

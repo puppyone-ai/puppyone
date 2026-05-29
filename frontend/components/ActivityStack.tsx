@@ -1,10 +1,9 @@
 'use client';
 
 import { TaskStatusWidget } from './TaskStatusWidget';
-import { GettingStartedPanel } from './onboarding/GettingStartedPanel';
+import { ImportJobsWidget } from './ImportJobsWidget';
 
 interface ActivityStackProps {
-  showGettingStarted: boolean;
   projectId?: string;
 }
 
@@ -17,7 +16,6 @@ interface ActivityStackProps {
  * same screen corner.
  */
 export function ActivityStack({
-  showGettingStarted,
   projectId,
 }: Readonly<ActivityStackProps>) {
   return (
@@ -35,11 +33,9 @@ export function ActivityStack({
         pointerEvents: 'none',
       }}
     >
-      {showGettingStarted && (
-        <div style={{ pointerEvents: 'auto' }}>
-          <GettingStartedPanel projectId={projectId} inline />
-        </div>
-      )}
+      <div style={{ pointerEvents: 'auto' }}>
+        <ImportJobsWidget projectId={projectId} inline />
+      </div>
 
       <div style={{ pointerEvents: 'auto' }}>
         <TaskStatusWidget inline />

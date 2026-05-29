@@ -288,7 +288,7 @@ async def test_git_fast_forward_push_uses_tree_diff_not_full_flatten(
         raise AssertionError("git fast-forward path must not flatten whole trees")
 
     monkeypatch.setattr(
-        "src.version_engine.write_engine.engine.flatten_tree_to_bytes",
+        "src.version_engine.write_engine.submission_writer._scope_files_for_head",
         fail_flatten,
     )
 
@@ -378,7 +378,7 @@ async def test_stale_git_push_rejects_before_sparse_merge(
         raise AssertionError("stale Git push must reject before flattening trees")
 
     monkeypatch.setattr(
-        "src.version_engine.write_engine.engine.flatten_tree_to_bytes",
+        "src.version_engine.write_engine.submission_writer._scope_files_for_head",
         fail_flatten,
     )
 
@@ -742,6 +742,166 @@ class TestGitNativeSubmission:
         assert len(rejected) == 2
         assert len(_files_for_scope(server_repo)) == 1
         assert server_repo.get_scope_head_commit_id("") == winners[0].commit_id
+
+    @pytest.mark.asyncio
+    async def test_git_push_rechecks_source_scope_head_at_publish(
+        self, repo_manager, server_repo,
+    ):
+        scope_path = "docs"
+        server_repo.add_scope("docs-scope", f"/{scope_path}/")
+        base_scope_tree = build_tree_from_files(
+            server_repo.store,
+            {"readme.md": b"base\n"},
+        )
+        base_scope_commit = _make_client_commit(
+            server_repo,
+            base_scope_tree,
+            message="base scope",
+        )
+        base_root_tree = build_tree_from_files(
+            server_repo.store,
+            {f"{scope_path}/readme.md": b"base\n"},
+        )
+        base_root_commit = _make_client_commit(
+            server_repo,
+            base_root_tree,
+            message="base root",
+        )
+        server_repo.history.set_root_hash(base_root_tree)
+        server_repo.history.set_scope_hash("", base_root_tree)
+        server_repo.set_scope_head_commit_id("", base_root_commit)
+        server_repo.history.set_scope_hash(scope_path, base_scope_tree)
+        server_repo.set_scope_head_commit_id(scope_path, base_scope_commit)
+
+        incoming_tree = build_tree_from_files(
+            server_repo.store,
+            {"readme.md": b"client update\n"},
+        )
+        incoming_commit = _make_client_commit(
+            server_repo,
+            incoming_tree,
+            parent_id=base_scope_commit,
+            message="client update",
+        )
+        moved_scope_head = _make_client_commit(
+            server_repo,
+            base_scope_tree,
+            parent_id=base_scope_commit,
+            message="scope view moved",
+        )
+
+        original_publish = server_repo.publish_project_update
+        raced = False
+
+        def publish_after_scope_head_moves(**kwargs):
+            nonlocal raced
+            if not raced:
+                raced = True
+                server_repo.set_scope_head_commit_id(scope_path, moved_scope_head)
+            return original_publish(**kwargs)
+
+        server_repo.publish_project_update = publish_after_scope_head_moves
+
+        with pytest.raises(NonFastForwardSubmissionError):
+            await submit_git_tree(
+                repo_manager,
+                project_id="test-proj",
+                scope_path=scope_path,
+                actor="git:bob",
+                base_commit_id=base_scope_commit,
+                proposed_tree_id=incoming_tree,
+                client_commit_id=incoming_commit,
+                message="client update",
+            )
+
+        assert raced
+        assert server_repo.get_root_hash() == base_root_tree
+        assert server_repo.get_scope_head_commit_id(scope_path) == moved_scope_head
+        assert _files_for_scope(server_repo, scope_path) == {"readme.md": b"base\n"}
+
+    @pytest.mark.asyncio
+    async def test_server_merge_publishes_scope_view_commit_not_unmerged_client_sha(
+        self, repo_manager, server_repo,
+    ):
+        scope_path = "docs"
+        server_repo.add_scope("docs-scope", f"/{scope_path}/")
+        base_tree = build_tree_from_files(
+            server_repo.store,
+            {"index.md": b"v0\n"},
+        )
+        base_commit = _make_client_commit(
+            server_repo,
+            base_tree,
+            message="base docs",
+        )
+        base_root = build_tree_from_files(
+            server_repo.store,
+            {f"{scope_path}/index.md": b"v0\n"},
+        )
+        root_commit = _make_client_commit(
+            server_repo,
+            base_root,
+            message="base root",
+        )
+        server_repo.history.set_root_hash(base_root)
+        server_repo.history.set_scope_hash("", base_root)
+        server_repo.set_scope_head_commit_id("", root_commit)
+        server_repo.history.set_scope_hash(scope_path, base_tree)
+        server_repo.set_scope_head_commit_id(scope_path, base_commit)
+
+        engine = VersionWriteEngine(repo_manager)
+        alice_tree = build_tree_from_files(
+            server_repo.store,
+            {"index.md": b"v0\n", "alice.md": b"A\n"},
+        )
+        alice_commit = _make_client_commit(
+            server_repo,
+            alice_tree,
+            parent_id=base_commit,
+            message="alice",
+        )
+        await engine.submit_version(VersionSubmissionIntent(
+            project_id="test-proj",
+            scope_path=scope_path,
+            actor="papi:alice",
+            source_channel="papi",
+            base_commit_id=base_commit,
+            proposed_tree_id=alice_tree,
+            client_commit_id=alice_commit,
+            message="alice",
+        ))
+
+        bob_tree = build_tree_from_files(
+            server_repo.store,
+            {"index.md": b"v0\n", "bob.md": b"B\n"},
+        )
+        bob_commit = _make_client_commit(
+            server_repo,
+            bob_tree,
+            parent_id=base_commit,
+            message="bob from stale base",
+        )
+        result = await engine.submit_version(VersionSubmissionIntent(
+            project_id="test-proj",
+            scope_path=scope_path,
+            actor="papi:bob",
+            source_channel="papi",
+            base_commit_id=base_commit,
+            proposed_tree_id=bob_tree,
+            client_commit_id=bob_commit,
+            message="bob from stale base",
+        ))
+
+        assert result.status == "ok"
+        final_scope_hash = server_repo.get_scope_hash(scope_path)
+        final_scope_head = server_repo.get_scope_head_commit_id(scope_path)
+        assert final_scope_head != bob_commit
+        assert commit_tree_id(server_repo, final_scope_head) == final_scope_hash
+        assert _files_for_scope(server_repo, scope_path) == {
+            "index.md": b"v0\n",
+            "alice.md": b"A\n",
+            "bob.md": b"B\n",
+        }
 
     @pytest.mark.asyncio
     async def test_same_scope_operations_compute_in_parallel_and_cas_retry(
@@ -1219,6 +1379,37 @@ class TestGitNativeHardeningContracts:
         assert server_repo.get_root_hash() == empty_tree
         assert server_repo.get_head_commit_id() == ""
         assert git_view_head_commit(server_repo, "") == ""
+
+    def test_deleted_scope_path_does_not_resurrect_stale_scope_cache(
+        self,
+        server_repo,
+    ):
+        server_repo.add_scope("docs-scope", "/docs/")
+        stale_tree = build_tree_from_files(
+            server_repo.store,
+            {"old.md": b"stale cache\n"},
+        )
+        stale_commit = _make_client_commit(
+            server_repo,
+            stale_tree,
+            message="stale docs",
+        )
+        root_tree = build_tree_from_files(
+            server_repo.store,
+            {"README.md": b"root still exists\n"},
+        )
+        root_commit = _make_client_commit(
+            server_repo,
+            root_tree,
+            message="root without docs",
+        )
+        server_repo.history.set_root_hash(root_tree)
+        server_repo.history.set_scope_hash("", root_tree)
+        server_repo.set_scope_head_commit_id("", root_commit)
+        server_repo.history.set_scope_hash("docs", stale_tree)
+        server_repo.set_scope_head_commit_id("docs", stale_commit)
+
+        assert git_view_head_commit(server_repo, "docs") == ""
 
     def test_build_git_commit_rejects_non_git_parent(
         self, server_repo,
@@ -2290,6 +2481,107 @@ def test_project_visibility_barrier_keeps_source_scope_head(
     assert server_repo.get_scope_hash(scope_path) == client_scope_tree
 
 
+def test_project_visibility_barrier_refreshes_nested_scope_views(
+    repo_manager,
+    server_repo,
+):
+    server_repo.add_scope("docs-scope", "/docs/")
+    server_repo.add_scope("api-scope", "/docs/api/")
+    old_root = build_tree_from_files(
+        server_repo.store,
+        {
+            "docs/guide.md": b"guide v0\n",
+            "docs/api/ref.md": b"api v0\n",
+        },
+    )
+    old_docs = build_tree_from_files(
+        server_repo.store,
+        {
+            "guide.md": b"guide v0\n",
+            "api/ref.md": b"api v0\n",
+        },
+    )
+    old_api = build_tree_from_files(
+        server_repo.store,
+        {"ref.md": b"api v0\n"},
+    )
+    old_root_commit = _make_client_commit(server_repo, old_root, message="root v0")
+    docs_commit = _make_client_commit(server_repo, old_docs, message="docs v0")
+    api_commit = _make_client_commit(server_repo, old_api, message="api v0")
+    server_repo.history.set_root_hash(old_root)
+    server_repo.history.set_scope_hash("", old_root)
+    server_repo.set_scope_head_commit_id("", old_root_commit)
+    server_repo.history.set_scope_hash("docs", old_docs)
+    server_repo.set_scope_head_commit_id("docs", docs_commit)
+    server_repo.history.set_scope_hash("docs/api", old_api)
+    server_repo.set_scope_head_commit_id("docs/api", api_commit)
+
+    new_root = build_tree_from_files(
+        server_repo.store,
+        {
+            "docs/guide.md": b"guide v0\n",
+            "docs/api/ref.md": b"api v1\n",
+        },
+    )
+    new_root_commit = _make_client_commit(
+        server_repo,
+        new_root,
+        parent_id=old_root_commit,
+        message="root updates nested api",
+    )
+    published, _txn_id = server_repo.publish_project_update(
+        old_root_hash=old_root,
+        new_root_hash=new_root,
+        scope_path="",
+        scope_hash=new_root,
+        scope_head_commit_id="",
+        commit_id=new_root_commit,
+        who="web:user",
+        message="root updates nested api",
+        changes=[
+            {"path": "docs/api/ref.md", "action": "update"},
+        ],
+        conflicts=[],
+        created_at_iso="2026-01-01T00:00:00+00:00",
+        audit_event_type="web_push",
+        audit_agent_id="web:user",
+        audit_detail={},
+        source_channel="papi",
+        policy="lww",
+        base_commit_id=old_root_commit,
+        client_commit_id=new_root_commit,
+        proposed_tree_id=new_root,
+        intent_type="operation",
+    )
+    assert published
+
+    derived_hooks.run_project_root_visibility_barrier(
+        "test-proj",
+        repo_manager,
+        {
+            "status": "ok",
+            "commit_id": new_root_commit,
+            "root": new_root,
+            "old_root": old_root,
+        },
+        raise_errors=True,
+    )
+
+    assert _files_for_scope(server_repo, "docs") == {
+        "guide.md": b"guide v0\n",
+        "api/ref.md": b"api v1\n",
+    }
+    assert _files_for_scope(server_repo, "docs/api") == {
+        "ref.md": b"api v1\n",
+    }
+    docs_head = server_repo.get_scope_head_commit_id("docs")
+    api_head = server_repo.get_scope_head_commit_id("docs/api")
+    assert docs_head != docs_commit
+    assert api_head != api_commit
+    assert commit_tree_id(server_repo, docs_head) == server_repo.get_scope_hash("docs")
+    assert commit_tree_id(server_repo, api_head) == server_repo.get_scope_hash("docs/api")
+
+
 def test_real_git_cli_first_push_to_empty_project_shell(
     monkeypatch, tmp_path, repo_manager, server_repo,
 ):
@@ -2468,7 +2760,7 @@ def test_real_git_cli_stale_force_push_is_rejected_like_git_hosts(
         _run_git(["clone", remote, str(verify)], tmp_path)
 
     assert proc.returncode != 0
-    assert b"non-fast-forward" in proc.stderr
+    assert b"non-fast-forward" in proc.stderr or b"fetch first" in proc.stderr
     assert server_repo.get_scope_head_commit_id("docs") != stale_head
     assert _files_for_scope(server_repo, "docs") == {
         "a.txt": b"from first\n",
@@ -2861,6 +3153,71 @@ def test_real_git_cli_scope_exclude_visible_push_preserves_hidden_files(
         "README.md": b"visible changed\n",
         "secret/old.md": b"hidden\n",
     }
+
+
+def test_real_git_cli_scope_exclude_stale_push_is_non_fast_forward(
+    monkeypatch, tmp_path, repo_manager, server_repo,
+):
+    server_repo.add_scope("docs-scope", "/docs/", exclude=["/docs/secret/"])
+    _patch_git_scope_auth(
+        monkeypatch,
+        {"docs-key": ("docs-scope", "/docs/", "rw", ["/docs/secret/"])},
+    )
+
+    seeded_tree = build_tree_from_files(
+        server_repo.store,
+        {
+            "README.md": b"visible\n",
+            "secret/old.md": b"hidden\n",
+        },
+    )
+    seeded_commit = _make_client_commit(
+        server_repo,
+        seeded_tree,
+        message="legacy seeded docs",
+    )
+    server_repo.history.set_scope_hash("docs", seeded_tree)
+    server_repo.set_scope_head_commit_id("docs", seeded_commit)
+
+    app = FastAPI()
+    app.include_router(git_router)
+    app.dependency_overrides[get_repo_manager] = lambda: repo_manager
+
+    with _serve_git_app(app) as base_url:
+        remote = f"{base_url}/git/ap/docs-key.git"
+        first = tmp_path / "first"
+        second = tmp_path / "second"
+        verify = tmp_path / "verify"
+
+        _run_git(["clone", remote, str(first)], tmp_path)
+        _run_git(["clone", remote, str(second)], tmp_path)
+
+        _configure_git_identity(first)
+        (first / "README.md").write_text("first visible change\n", encoding="utf-8")
+        _run_git(["add", "README.md"], first)
+        _run_git(["commit", "-m", "first visible change"], first)
+        first_head = _run_git(["rev-parse", "HEAD"], first).decode("ascii").strip()
+        _run_git(["push", "origin", "main"], first)
+
+        _configure_git_identity(second)
+        (second / "notes.md").write_text("stale visible change\n", encoding="utf-8")
+        _run_git(["add", "notes.md"], second)
+        _run_git(["commit", "-m", "stale visible change"], second)
+        stale_head = _run_git(["rev-parse", "HEAD"], second).decode("ascii").strip()
+        proc = _run_git_raw(["push", "origin", "main"], second)
+
+        _run_git(["clone", remote, str(verify)], tmp_path)
+
+    assert proc.returncode != 0
+    assert b"non-fast-forward" in proc.stderr or b"fetch first" in proc.stderr
+    assert server_repo.get_scope_head_commit_id("docs") == first_head
+    assert server_repo.get_scope_head_commit_id("docs") != stale_head
+    assert _files_for_scope(server_repo, "docs") == {
+        "README.md": b"first visible change\n",
+        "secret/old.md": b"hidden\n",
+    }
+    assert (verify / "README.md").read_text(encoding="utf-8") == "first visible change\n"
+    assert not (verify / "notes.md").exists()
 
 
 def test_real_git_cli_scope_exclude_rejects_push_and_filters_clone(

@@ -8,13 +8,20 @@ protocol semantics, or publish authority.
 from __future__ import annotations
 
 from src.version_engine.adapters.product.tree_patch import splice_batch
-from src.version_engine.write_engine.diff import diff_trees
 from src.version_engine.write_engine.git_commit import commit_tree_id
-from src.version_engine.write_engine.git_object_format import encode_tree
 from src.version_engine.write_engine.path_utils import normalize_path
+from src.version_engine.write_engine.tree_delta import (
+    build_tree_delta,
+    changed_relative_paths,
+    changes_from_tree_delta,
+    paths_from_tree_delta,
+)
+from src.version_engine.write_engine.tree_delta.directory import (
+    expand_directory_changes,
+    expand_tree_path_if_directory,
+)
 from src.version_engine.write_engine.tree_objects import (
     flatten_tree_to_bytes,
-    join_scope_path,
 )
 
 
@@ -28,23 +35,8 @@ def scope_files_for_head(repo, scope_path: str, scope_hash: str) -> dict[str, by
         return {}
 
 
-def changed_relative_paths(
-    old_files: dict[str, bytes],
-    new_files: dict[str, bytes],
-) -> list[str]:
-    changed: list[str] = []
-    for path in sorted(set(old_files) | set(new_files)):
-        if old_files.get(path) != new_files.get(path):
-            changed.append(path)
-    return changed
-
-
 def changed_paths_from_tree_diff(repo, old_tree: str, new_tree: str) -> list[str]:
-    return [
-        normalize_path(change.get("path", ""))
-        for change in expanded_tree_diff(repo, old_tree, new_tree)
-        if normalize_path(change.get("path", ""))
-    ]
+    return paths_from_tree_delta(_expanded_tree_delta(repo, old_tree, new_tree))
 
 
 def changes_from_tree_diff(
@@ -53,62 +45,27 @@ def changes_from_tree_diff(
     old_tree: str,
     new_tree: str,
 ) -> list[dict]:
-    op_to_action = {
-        "added": "add",
-        "deleted": "delete",
-        "modified": "update",
-    }
-    scope_norm = normalize_path(scope_path)
-    changes: list[dict] = []
-    for change in expanded_tree_diff(repo, old_tree, new_tree):
-        rel_path = normalize_path(change.get("path", ""))
-        if not rel_path:
-            continue
-        changes.append({
-            "path": join_scope_path(scope_norm, rel_path),
-            "action": op_to_action.get(change.get("op"), "update"),
-        })
-    return changes
+    return changes_from_tree_delta(
+        _expanded_tree_delta(repo, old_tree, new_tree),
+        scope_path,
+    )
 
 
 def expanded_tree_diff(repo, old_tree: str, new_tree: str) -> list[dict]:
-    expanded: list[dict] = []
-    for change in raw_tree_diff(repo, old_tree, new_tree):
-        rel_path = normalize_path(change.get("path", ""))
-        op = change.get("op")
-        if op in {"added", "deleted"}:
-            source_tree = new_tree if op == "added" else old_tree
-            child_paths = expand_tree_path_if_directory(repo, source_tree, rel_path)
-            if child_paths:
-                expanded.extend({"path": path, "op": op} for path in child_paths)
-                continue
-        expanded.append(change)
-    return expanded
-
-
-def expand_tree_path_if_directory(repo, tree_hash: str, rel_path: str) -> list[str]:
-    entry = entry_at_tree_path(repo, tree_hash, rel_path)
-    if not entry or entry[0] != "T":
-        return []
-    from src.version_engine.write_engine import tree as tree_mod
-
-    flat = tree_mod.tree_to_flat(repo.store, entry[1])
-    if not flat:
-        return [rel_path]
-    return [
-        f"{rel_path}/{child}" if rel_path else child
-        for child in sorted(flat)
-    ]
+    return _expanded_tree_delta(repo, old_tree, new_tree).to_legacy_changes()
 
 
 def raw_tree_diff(repo, old_tree: str, new_tree: str) -> list[dict]:
-    if old_tree == new_tree:
-        return []
-    if not old_tree:
-        old_tree = repo.store.put_tree(encode_tree([]))
-    if not new_tree:
-        new_tree = repo.store.put_tree(encode_tree([]))
-    return diff_trees(repo.store, old_tree, new_tree)
+    return build_tree_delta(repo.store, old_tree, new_tree).to_legacy_changes()
+
+
+def _expanded_tree_delta(repo, old_tree: str, new_tree: str):
+    return expand_directory_changes(
+        repo,
+        build_tree_delta(repo.store, old_tree, new_tree),
+        old_tree,
+        new_tree,
+    )
 
 
 def tree_hash_at_commit(repo, scope_path: str, commit_id: str) -> str:

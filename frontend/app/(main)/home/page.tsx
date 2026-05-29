@@ -2,16 +2,13 @@
 
 import React, { useCallback, useEffect, Suspense, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { refreshProjects, upsertProjectCache, useProjects } from '@/lib/hooks/useData';
+import { refreshProjects, useProjects } from '@/lib/hooks/useData';
 import { useAuth } from '@/app/supabase/SupabaseAuthProvider';
 import { useOrganization } from '@/contexts/OrganizationContext';
-import { DashboardView } from '@/components/dashboard/DashboardView';
-import { PageLoading } from '@/components/loading';
+import { DashboardLoadingSkeleton, DashboardView } from '@/components/dashboard/DashboardView';
 import { useOnboarding } from '@/lib/hooks/useOnboarding';
+import { nextUntitledProjectName } from '@/lib/projectNames';
 import { createProject } from '@/lib/projectsApi';
-import type { ProjectInfo } from '@/lib/projectsApi';
-
-const PENDING_PROJECT_PREFIX = '__pending-project__';
 
 function DashboardPageContent() {
   const router = useRouter();
@@ -19,7 +16,7 @@ function DashboardPageContent() {
   const { isAuthReady } = useAuth();
   const { orgs, currentOrg, isLoading: orgsLoading } = useOrganization();
   const { projects, isLoading: projectsLoading } = useProjects(currentOrg?.id ?? null);
-  const [pendingProject, setPendingProject] = useState<ProjectInfo | null>(null);
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
   const creatingProjectRef = useRef(false);
   const handledCreateParamRef = useRef(false);
 
@@ -35,39 +32,24 @@ function DashboardPageContent() {
     if (creatingProjectRef.current) return;
 
     creatingProjectRef.current = true;
-    setPendingProject({
-      id: `${PENDING_PROJECT_PREFIX}-${Date.now()}`,
-      name: 'Untitled Project',
-      description: 'Preparing workspace...',
-      org_id: currentOrg?.id,
-      visibility: 'org',
-      updated_at: new Date().toISOString(),
-      access_point_count: 0,
-    });
+    setIsCreatingProject(true);
 
-    let navigated = false;
     try {
-      const created = await createProject('Untitled Project', '', currentOrg?.id, false);
+      const projectName = nextUntitledProjectName(projects);
+      const created = await createProject(projectName, '', currentOrg?.id, false);
       completeStep('project');
-      await upsertProjectCache(currentOrg?.id, created);
-      setPendingProject(null);
-      navigated = true;
       router.push(`/projects/${created.id}/data`);
       void refreshProjects(currentOrg?.id);
     } catch (error) {
-      setPendingProject(null);
+      creatingProjectRef.current = false;
+      setIsCreatingProject(false);
       console.error('Failed to create project:', error);
       alert(
         'Create project failed: ' +
           (error instanceof Error ? error.message : 'Unknown error')
       );
-    } finally {
-      creatingProjectRef.current = false;
-      if (!navigated) {
-        setPendingProject(null);
-      }
     }
-  }, [completeStep, currentOrg?.id, router]);
+  }, [completeStep, currentOrg?.id, projects, router]);
 
   // Handle ?create=true query param
   useEffect(() => {
@@ -84,24 +66,20 @@ function DashboardPageContent() {
   }, [searchParams, projectsLoading, router, handleCreateProject]);
 
   if (!isAuthReady || orgsLoading || (orgs.length > 0 && !currentOrg) || projectsLoading) {
-    return <PageLoading variant='fill' />;
+    return <DashboardLoadingSkeleton />;
   }
-
-  const displayProjects = pendingProject
-    ? [pendingProject, ...projects]
-    : projects;
 
   return (
     <div style={{ display: 'flex', width: '100%', height: '100%', backgroundColor: 'var(--po-canvas)' }}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', margin: 0, borderRadius: 0, border: 'none', background: 'var(--po-canvas)', overflow: 'hidden' }}>
         <DashboardView
-          projects={displayProjects}
+          projects={projects}
           loading={projectsLoading}
           onProjectClick={projectId => {
-            if (projectId.startsWith(PENDING_PROJECT_PREFIX)) return;
             router.push(`/projects/${projectId}/data`);
           }}
           onCreateClick={handleCreateProject}
+          creatingProject={isCreatingProject}
         />
       </div>
     </div>
@@ -110,7 +88,7 @@ function DashboardPageContent() {
 
 export default function DashboardPage() {
   return (
-    <Suspense fallback={<PageLoading variant='fill' />}>
+    <Suspense fallback={<DashboardLoadingSkeleton />}>
       <DashboardPageContent />
     </Suspense>
   );

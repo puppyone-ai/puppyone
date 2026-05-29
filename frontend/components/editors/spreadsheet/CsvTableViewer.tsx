@@ -1541,12 +1541,18 @@ const csvTableStyles = `
   .csv-table-viewer__scroll::-webkit-scrollbar-thumb {
     border: 3px solid transparent;
     border-radius: 999px;
+    background: transparent;
+    background-clip: padding-box;
+  }
+
+  .csv-table-viewer__top-scroll.po-scrollbar-active::-webkit-scrollbar-thumb,
+  .csv-table-viewer__scroll.po-scrollbar-active::-webkit-scrollbar-thumb {
     background: color-mix(in srgb, var(--po-text-muted) 42%, transparent);
     background-clip: padding-box;
   }
 
-  .csv-table-viewer__top-scroll::-webkit-scrollbar-thumb:hover,
-  .csv-table-viewer__scroll::-webkit-scrollbar-thumb:hover {
+  .csv-table-viewer__top-scroll.po-scrollbar-active::-webkit-scrollbar-thumb:hover,
+  .csv-table-viewer__scroll.po-scrollbar-active::-webkit-scrollbar-thumb:hover {
     background: color-mix(in srgb, var(--po-text-muted) 62%, transparent);
     background-clip: padding-box;
   }
