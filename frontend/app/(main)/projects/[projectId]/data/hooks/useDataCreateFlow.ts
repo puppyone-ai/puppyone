@@ -20,6 +20,7 @@ import {
 import { refreshFolderNodes, refreshProjectHistory } from '@/lib/hooks/useData';
 import type { AccessResource } from '@/contexts/AgentContext';
 import {
+  addPendingCreatingNode,
   addPendingCreatingPath,
   ensureExpanded,
   removePendingCreatingPath,
@@ -204,6 +205,7 @@ interface UseDataCreateFlowOptions {
   navigateTo: (nextPath: string[], typeHint?: string) => void;
   openSyncCreatePanel: (targetScopePath?: string | null) => void;
   openSyncSetting: (provider: string, target?: AccessResource) => void;
+  openFilePickerForTarget?: (target: { path: string | null; name: string }) => void;
   openFileImportDialogForTarget?: (target: { path: string | null; name: string }) => void;
   showToast?: (
     message: string,
@@ -233,6 +235,7 @@ export function useDataCreateFlow({
   navigateTo,
   openSyncCreatePanel,
   openSyncSetting,
+  openFilePickerForTarget,
   openFileImportDialogForTarget,
   showToast,
 }: UseDataCreateFlowOptions) {
@@ -618,6 +621,7 @@ export function useDataCreateFlow({
           : fileName;
         const parentPath = targetFolderPath ?? '';
 
+        addPendingCreatingNode(projectId, filePath, { label: 'Creating JSON' });
         optimisticInsertDirectoryNode(
           projectId,
           parentPath,
@@ -637,8 +641,11 @@ export function useDataCreateFlow({
           showToast?.(`Created "${fileName}"`);
         } catch (err) {
           console.error('Failed to create JSON:', err);
+          optimisticRemoveDirectoryNode(projectId, parentPath, filePath);
           await refreshFolderNodes(projectId, parentPath);
           showToast?.(`Failed to create "${fileName}"`, 'error');
+        } finally {
+          removePendingCreatingPath(projectId, filePath);
         }
       },
       onCreateBlankMarkdown: async () => {
@@ -653,6 +660,7 @@ export function useDataCreateFlow({
           : fileName;
         const parentPath = targetFolderPath ?? '';
 
+        addPendingCreatingNode(projectId, filePath, { label: 'Creating Markdown' });
         optimisticInsertDirectoryNode(
           projectId,
           parentPath,
@@ -672,17 +680,25 @@ export function useDataCreateFlow({
           showToast?.(`Created "${fileName}"`);
         } catch (err) {
           console.error('Failed to create markdown:', err);
+          optimisticRemoveDirectoryNode(projectId, parentPath, filePath);
           await refreshFolderNodes(projectId, parentPath);
           showToast?.(`Failed to create "${fileName}"`, 'error');
+        } finally {
+          removePendingCreatingPath(projectId, filePath);
         }
       },
       onImportFromFiles: () => {
         const targetFolderPath = getTargetFolderPath();
+        const target = {
+          path: targetFolderPath ?? null,
+          name: folderDisplayName(targetFolderPath ?? null),
+        };
         if (openFileImportDialogForTarget) {
-          openFileImportDialogForTarget({
-            path: targetFolderPath ?? null,
-            name: folderDisplayName(targetFolderPath ?? null),
-          });
+          openFileImportDialogForTarget(target);
+          return;
+        }
+        if (openFilePickerForTarget) {
+          openFilePickerForTarget(target);
           return;
         }
         setDefaultStartOption('documents');
@@ -746,6 +762,7 @@ export function useDataCreateFlow({
     navigateTo,
     openSyncCreatePanel,
     openSyncSetting,
+    openFilePickerForTarget,
     openFileImportDialogForTarget,
     projectId,
     showToast,

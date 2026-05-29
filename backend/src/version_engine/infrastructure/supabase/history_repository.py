@@ -311,6 +311,7 @@ class SupabaseHistoryManager:
         scope_path: str = "",
         scope_hash: str = "",
         scope_head_commit_id: str = "",
+        expected_scope_head_commit_id: str | None = None,
     ) -> tuple[bool, int | None]:
         """Atomically publish a root-authoritative transaction.
 
@@ -319,14 +320,14 @@ class SupabaseHistoryManager:
         the scope row is a cache for Git/AP views.
         """
 
-        try:
-            resp = self._client.rpc(PUBLISH_PROJECT_UPDATE_RPC, {
+        rpc_args = {
                 "p_project_id": self._project_id,
                 "p_old_root_hash": old_root_hash or "",
                 "p_new_root_hash": new_root_hash,
                 "p_scope_path": _normalize(scope_path),
                 "p_scope_hash": scope_hash or new_root_hash,
                 "p_scope_head_commit_id": scope_head_commit_id or "",
+                "p_expected_scope_head_commit_id": expected_scope_head_commit_id,
                 "p_head_commit_id": commit_id,
                 "p_who": who,
                 "p_message": message or "",
@@ -342,7 +343,10 @@ class SupabaseHistoryManager:
                 "p_client_commit_id": client_commit_id or "",
                 "p_proposed_tree_id": proposed_tree_id or "",
                 "p_intent_type": intent_type or "operation",
-            }).execute()
+        }
+
+        try:
+            resp = self._client.rpc(PUBLISH_PROJECT_UPDATE_RPC, rpc_args).execute()
             data = resp.data
             ok, txn_id = _decode_publish_table_result(data)
             if ok:

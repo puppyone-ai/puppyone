@@ -16,6 +16,7 @@ import type { ContentType, AgentResource } from './GridView';
 import { ItemActionMenu } from '@/components/ItemActionMenu';
 import { getNodeTypeConfig, isSyncedType, LockIcon } from '@/lib/nodeTypeConfig';
 import { InlineLoading, PageLoading } from '@/components/loading';
+import { FileGlyphIcon } from '@/lib/fileIcons';
 
 // === Types ===
 
@@ -57,41 +58,6 @@ export interface MillerColumnsViewProps {
 
 // === Icons ===
 
-const FolderIcon = () => (
-  <svg width='16' height='16' viewBox='0 0 24 24' fill='none'>
-    <path
-      d='M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z'
-      fill='currentColor'
-      fillOpacity='0.15'
-      stroke='currentColor'
-      strokeWidth='1.5'
-    />
-  </svg>
-);
-
-const JsonIcon = () => (
-  <svg width='16' height='16' viewBox='0 0 24 24' fill='none'>
-    <rect x='3' y='3' width='18' height='18' rx='2' stroke='currentColor' strokeWidth='1.5' fill='currentColor' fillOpacity='0.08' />
-    <path d='M3 9H21' stroke='currentColor' strokeWidth='1.5' />
-    <path d='M9 3V21' stroke='currentColor' strokeWidth='1.5' />
-  </svg>
-);
-
-const MarkdownIcon = () => (
-  <svg width='16' height='16' viewBox='0 0 24 24' fill='none'>
-    <path
-      d='M14 2H6C4.89543 2 4 2.89543 4 4V20C4 21.1046 4.89543 22 6 22H18C19.1046 22 20 21.1046 20 20V8L14 2Z'
-      stroke='currentColor'
-      strokeWidth='1.5'
-      fill='currentColor'
-      fillOpacity='0.08'
-    />
-    <path d='M14 2V8H20' stroke='currentColor' strokeWidth='1.5' />
-    <path d='M8 13H16' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' />
-    <path d='M8 17H12' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' />
-  </svg>
-);
-
 const ChevronRightIcon = () => (
   <svg width='12' height='12' viewBox='0 0 24 24' fill='none'>
     <path d='M9 6L15 12L9 18' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' />
@@ -111,11 +77,11 @@ function getIcon(type: string) {
   const config = getNodeTypeConfig(type);
   switch (config.iconCategory) {
     case 'folder':
-      return <FolderIcon />;
+      return <FileGlyphIcon name="folder" type="folder" size={16} />;
     case 'markdown':
-      return <MarkdownIcon />;
+      return <FileGlyphIcon name="document.md" type="markdown" size={16} />;
     default:
-      return <JsonIcon />;
+      return <FileGlyphIcon name="data.json" type="json" size={16} />;
   }
 }
 

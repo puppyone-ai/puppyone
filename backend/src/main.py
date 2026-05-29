@@ -117,6 +117,11 @@ from src.platform.profile.router import router as profile_router
 
 profile_router_duration = time.time() - profile_router_start
 
+imports_router_start = time.time()
+from src.platform.imports.router import router as imports_router
+
+imports_router_duration = time.time() - imports_router_start
+
 db_connector_router_start = time.time()
 from src.connectors.database.router import router as db_connector_router
 
@@ -162,6 +167,7 @@ routers_duration = (
     + content_router_duration
     + analytics_router_duration
     + profile_router_duration
+    + imports_router_duration
     + db_connector_router_duration
 )
 
@@ -185,7 +191,8 @@ def _log_import_times() -> None:
     log_info(f"  │  ├─ project_router: {project_router_duration * 1000:.2f}ms")
     log_info(f"  │  ├─ oauth_router: {oauth_router_duration * 1000:.2f}ms")
     log_info(f"  │  ├─ internal_router: {internal_router_duration * 1000:.2f}ms")
-    log_info(f"  │  └─ content_router: {content_router_duration * 1000:.2f}ms")
+    log_info(f"  │  ├─ content_router: {content_router_duration * 1000:.2f}ms")
+    log_info(f"  │  └─ imports_router: {imports_router_duration * 1000:.2f}ms")
     log_info(f"  └─ Total router time: {routers_duration * 1000:.2f}ms")
     log_info(f"📊 Total import time: {(time.time() - APP_START_TIME) * 1000:.2f}ms")
     log_info("")
@@ -474,6 +481,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router, prefix="/api/v1", tags=["auth"])
     app.include_router(analytics_router, tags=["analytics"])
     app.include_router(profile_router, tags=["profile"])
+    app.include_router(imports_router, prefix="/api/v1", tags=["imports"])
     app.include_router(db_connector_router, prefix="/api/v1", tags=["db-connector"])
     app.include_router(organization_router, prefix="/api/v1", tags=["organizations"])
     from src.connectors.mcp_endpoint.router import router as mcp_endpoint_router

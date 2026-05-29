@@ -1,11 +1,11 @@
 /**
- * Import API - SaaS/URL imports via Bootstrap + SyncEngine
+ * Import API - durable SaaS/URL import jobs
  *
- * The backend now processes imports synchronously through the unified
- * SyncEngine pipeline. No polling needed — submit returns completed status.
+ * User-triggered imports are backend-owned jobs. The frontend creates a job,
+ * then renders/polls job status; it never owns the import lifecycle.
  */
 
-import { getAccessToken } from './apiClient';
+import { del, get, getAccessToken, post } from './apiClient';
 
 // === Types ===
 
@@ -54,6 +54,52 @@ export interface ImportSubmitResponse {
   status: ImportStatus;
   import_type: ImportType;
   path?: string;
+}
+
+export type ImportJobStatus =
+  | 'queued'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
+
+export interface ImportJob {
+  id: string;
+  org_id?: string | null;
+  project_id: string;
+  created_by: string;
+  provider: ImportType | string;
+  source_url: string;
+  name?: string | null;
+  target_path: string;
+  config: Record<string, any>;
+  status: ImportJobStatus;
+  phase: string;
+  progress: number;
+  message?: string | null;
+  result_path?: string | null;
+  result_commit_id?: string | null;
+  error_message?: string | null;
+  worker_job_id?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ImportJobCreateRequest {
+  project_id: string;
+  source_url: string;
+  provider?: string;
+  name?: string;
+  target_path?: string;
+  crawl_options?: CrawlOptions;
+  config?: Record<string, any>;
+}
+
+export interface ImportJobListResponse {
+  jobs: ImportJob[];
+  total: number;
 }
 
 export interface ImportTaskResponse {
@@ -142,11 +188,57 @@ export function formatBytes(bytes: number): string {
 
 // === API Functions ===
 
+export function isImportJobTerminal(status: ImportJobStatus): boolean {
+  return status === 'completed' || status === 'failed' || status === 'cancelled';
+}
+
+export function createImportJob(request: ImportJobCreateRequest): Promise<ImportJob> {
+  return post<ImportJob>('/api/v1/imports', request);
+}
+
+export function getProjectImportJobs(
+  projectId: string,
+  options?: { activeOnly?: boolean; limit?: number },
+): Promise<ImportJobListResponse> {
+  const params = new URLSearchParams({ project_id: projectId });
+  if (options?.activeOnly) params.set('active_only', 'true');
+  if (options?.limit) params.set('limit', String(options.limit));
+  return get<ImportJobListResponse>(`/api/v1/imports?${params.toString()}`);
+}
+
+export function getImportJob(jobId: string): Promise<ImportJob> {
+  return get<ImportJob>(`/api/v1/imports/${encodeURIComponent(jobId)}`);
+}
+
+export function cancelImportJob(jobId: string): Promise<ImportJob> {
+  return del<ImportJob>(`/api/v1/imports/${encodeURIComponent(jobId)}`);
+}
+
 /**
- * Submit an import (synchronous — returns completed result directly).
+ * Submit an import job.
  */
 export async function submitImport(
-  request: ImportSubmitRequest
+  request: ImportSubmitRequest,
+): Promise<ImportSubmitResponse> {
+  const job = await createImportJob({
+    project_id: request.project_id,
+    source_url: request.url || '',
+    name: request.name,
+    crawl_options: request.crawl_options,
+  });
+  return {
+    task_id: job.id,
+    status: job.status === 'running' ? 'processing' : job.status === 'queued' ? 'pending' : job.status,
+    import_type: detectImportType(job.source_url),
+    path: job.result_path || undefined,
+  };
+}
+
+/**
+ * Legacy submit endpoint. Kept only for non-job-aware callers.
+ */
+export async function submitImportViaIngest(
+  request: ImportSubmitRequest,
 ): Promise<ImportSubmitResponse> {
   const accessToken = await getAccessToken();
   if (!accessToken) {
@@ -189,20 +281,20 @@ export async function submitImport(
 }
 
 /**
- * Import from URL — returns the created path.
+ * Import from URL — returns the durable job ID.
  */
 export async function importFromUrl(
   projectId: string,
   url: string,
   options?: { name?: string; crawlOptions?: CrawlOptions }
 ): Promise<string> {
-  const response = await submitImport({
+  const job = await createImportJob({
     project_id: projectId,
-    url,
+    source_url: url,
     name: options?.name,
     crawl_options: options?.crawlOptions,
   });
-  return response.path || response.task_id;
+  return job.id;
 }
 
 /**
@@ -238,39 +330,48 @@ export function supportsCrawlOptions(url: string): boolean {
   return detectImportType(trimmed) === 'web_page';
 }
 
-// === Deprecated stubs (kept for compatibility during migration) ===
+// === Backward-compatible helpers ===
 
-/** @deprecated Import is now synchronous, no polling needed. */
 export async function pollImportTask(
   taskId: string,
   onProgress?: (task: ImportTaskResponse) => void,
 ): Promise<ImportTaskResponse> {
-  const result: ImportTaskResponse = {
-    task_id: taskId,
-    source_type: 'saas',
-    ingest_type: 'url',
-    status: 'completed',
-    progress: 100,
+  const poll = async (): Promise<ImportTaskResponse> => {
+    const task = await getImportTask(taskId);
+    onProgress?.(task);
+    if (isTerminalStatus(task.status)) return task;
+    await new Promise(resolve => setTimeout(resolve, 2500));
+    return poll();
   };
-  onProgress?.(result);
-  return result;
+  return poll();
 }
 
-/** @deprecated Use submitImport directly. */
 export async function getImportTask(taskId: string): Promise<ImportTaskResponse> {
+  const job = await getImportJob(taskId);
   return {
-    task_id: taskId,
-    source_type: 'saas',
-    ingest_type: 'url',
-    status: 'completed',
-    progress: 100,
+    task_id: job.id,
+    source_type: job.provider === 'url' ? 'url' : 'saas',
+    ingest_type: detectImportType(job.source_url),
+    status: job.status === 'queued'
+      ? 'pending'
+      : job.status === 'running'
+        ? 'processing'
+        : job.status,
+    progress: job.progress,
+    message: job.message || undefined,
+    content_path: job.result_path || undefined,
+    path: job.result_path || undefined,
+    error: job.error_message || undefined,
+    created_at: job.created_at,
+    updated_at: job.updated_at,
+    completed_at: job.completed_at || undefined,
   };
 }
 
-/** @deprecated No longer supported. */
-export async function cancelImportTask(_taskId: string): Promise<void> {}
+export async function cancelImportTask(taskId: string): Promise<void> {
+  await cancelImportJob(taskId);
+}
 
-/** @deprecated No longer supported. */
 export async function listImportTasks(): Promise<ImportTaskResponse[]> {
   return [];
 }

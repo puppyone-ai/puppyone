@@ -75,6 +75,7 @@ const MarkdownEditorAdapter = dynamic<ViewerProps>(
     import('@/components/editors/markdown').then((mod) => {
       const { MarkdownEditor } = mod;
       const Adapter = ({
+        filePath,
         textContent,
         editable,
         onTextChange,
@@ -85,6 +86,7 @@ const MarkdownEditorAdapter = dynamic<ViewerProps>(
           content={textContent ?? ''}
           onChange={editable ? onTextChange : undefined}
           readOnly={!editable}
+          documentKey={filePath}
           viewMode={markdownViewMode}
           onViewModeChange={onMarkdownViewModeChange}
         />

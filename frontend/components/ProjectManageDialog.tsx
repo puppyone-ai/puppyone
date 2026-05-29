@@ -10,16 +10,15 @@ import {
 } from '../lib/projectsApi';
 import { refreshProjects } from '../lib/hooks/useData';
 import { useOrganization } from '@/contexts/OrganizationContext';
+import { nextUntitledProjectName } from '@/lib/projectNames';
 import { Dots } from './loading';
 import { ActionButton } from './ui/ActionButton';
 import { DangerNotice } from './ui/DangerNotice';
-import { DialogRoot, DialogSurface } from './ui/Dialog';
-import { Field, TextAreaField, TextField } from './ui/Field';
+import { DialogBody, DialogFooter, DialogHeader, DialogRoot, DialogSurface } from './ui/Dialog';
+import { Field, TextField } from './ui/Field';
 
 // ── Visual tokens ────────────────────────────────────────────
 const ACCENT = 'var(--po-success)';
-const BORDER = 'var(--po-border)';
-const BG = 'var(--po-panel)';
 type DialogMode = 'create' | 'edit' | 'delete';
 
 type ProjectManageDialogProps = {
@@ -41,15 +40,14 @@ export function ProjectManageDialog({
   const router = useRouter();
   const { currentOrg } = useOrganization();
   const project = projectId ? projects.find(p => p.id === projectId) : null;
+  const surfaceWidth = mode === 'create' ? 460 : 420;
 
   const [name, setName] = useState(project?.name || '');
-  const [description, setDescription] = useState(project?.description || '');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (project) {
       setName(project.name);
-      setDescription(project.description || '');
     }
   }, [project]);
 
@@ -65,12 +63,12 @@ export function ProjectManageDialog({
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    const finalName = name.trim() || 'Untitled Project';
+    const finalName = name.trim() || nextUntitledProjectName(projects);
 
     try {
       if (mode === 'edit' && projectId) {
         setLoading(true);
-        await updateProject(projectId, finalName, description);
+        await updateProject(projectId, { name: finalName });
         await refreshProjects(currentOrg?.id);
         onClose();
       } else {
@@ -117,17 +115,8 @@ export function ProjectManageDialog({
   };
 
   return (
-    <DialogRoot onClose={onClose} style={{ padding: 24 }}>
-      <DialogSurface
-        width={460}
-        maxWidth="100%"
-        style={{
-          background: BG,
-          border: `1px solid ${BORDER}`,
-          boxShadow:
-            '0 24px 56px var(--po-shadow), 0 0 0 1px var(--po-panel) inset',
-        }}
-      >
+    <DialogRoot onClose={onClose}>
+      <DialogSurface width={surfaceWidth}>
         {mode === 'delete' ? (
           <DeleteBody
             projectName={project?.name}
@@ -139,8 +128,6 @@ export function ProjectManageDialog({
           <EditBody
             name={name}
             setName={setName}
-            description={description}
-            setDescription={setDescription}
             onClose={onClose}
             onSubmit={handleSubmit}
             loading={loading}
@@ -177,36 +164,31 @@ function CreateBody({
   loading: boolean;
 }) {
   return (
-    <form onSubmit={onSubmit}>
-      <div
-        style={{
-          padding: '24px 22px 22px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 20,
-        }}
-      >
-        {/* ── name ── */}
-        <Field label="New project name">
-          <TextField
-            value={name}
-            onChange={e => setName(e.target.value)}
-            placeholder="Untitled"
-            autoFocus
-          />
-        </Field>
+    <>
+      <DialogHeader title="New Project" onClose={onClose} />
+      <form onSubmit={onSubmit}>
+        <DialogBody style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <Field label="New project name">
+            <TextField
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="Untitled"
+              autoFocus
+            />
+          </Field>
 
-        <Field label="Start">
-          <StartEmptyCard />
-        </Field>
-      </div>
+          <Field label="Start">
+            <StartEmptyCard />
+          </Field>
+        </DialogBody>
 
-      <FooterBar
-        onClose={onClose}
-        primaryLabel={loading ? 'Creating…' : 'Create Project'}
-        loading={loading}
-      />
-    </form>
+        <FooterBar
+          onClose={onClose}
+          primaryLabel={loading ? 'Creating…' : 'Create Project'}
+          loading={loading}
+        />
+      </form>
+    </>
   );
 }
 
@@ -277,47 +259,33 @@ function StartEmptyCard() {
 function EditBody({
   name,
   setName,
-  description,
-  setDescription,
   onClose,
   onSubmit,
   loading,
 }: {
   name: string;
   setName: (v: string) => void;
-  description: string;
-  setDescription: (v: string) => void;
   onClose: () => void;
   onSubmit: (e: FormEvent) => void;
   loading: boolean;
 }) {
   return (
-    <form onSubmit={onSubmit}>
-      <div
-        style={{
-          padding: '24px 22px 22px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 18,
-        }}
-      >
-        <Field label="Project name">
-          <TextField value={name} onChange={e => setName(e.target.value)} autoFocus />
-        </Field>
-        <Field label="Description" hint="Optional">
-          <TextAreaField
-            value={description}
-            onChange={e => setDescription(e.target.value)}
-            rows={3}
-          />
-        </Field>
-      </div>
-      <FooterBar
-        onClose={onClose}
-        primaryLabel={loading ? 'Saving…' : 'Save Changes'}
-        loading={loading}
-      />
-    </form>
+    <>
+      <DialogHeader title="Rename Project" onClose={onClose} />
+      <form onSubmit={onSubmit}>
+        <DialogBody>
+          <Field label="Project name">
+            <TextField value={name} onChange={e => setName(e.target.value)} autoFocus />
+          </Field>
+        </DialogBody>
+        <FooterBar
+          onClose={onClose}
+          primaryLabel={loading ? 'Saving…' : 'Save Changes'}
+          loading={loading}
+          primaryDisabled={!name.trim()}
+        />
+      </form>
+    </>
   );
 }
 
@@ -337,13 +305,14 @@ function DeleteBody({
   loading: boolean;
 }) {
   return (
-    <div>
-      <div style={{ padding: '24px 22px 22px' }}>
+    <>
+      <DialogHeader title="Delete Project" onClose={onClose} />
+      <DialogBody>
         <DangerNotice title={`Delete ${projectName ? `"${projectName}"` : 'this project'}?`}>
           This permanently deletes the project and every context node inside
           it. This action cannot be undone.
         </DangerNotice>
-      </div>
+      </DialogBody>
       <FooterBar
         onClose={onClose}
         loading={loading}
@@ -351,7 +320,7 @@ function DeleteBody({
         primaryDanger
         onPrimaryClick={onConfirm}
       />
-    </div>
+    </>
   );
 }
 
@@ -364,26 +333,18 @@ function FooterBar({
   primaryLabel,
   loading,
   primaryDanger,
+  primaryDisabled,
   onPrimaryClick,
 }: {
   onClose: () => void;
   primaryLabel: string;
   loading: boolean;
   primaryDanger?: boolean;
+  primaryDisabled?: boolean;
   onPrimaryClick?: () => void;
 }) {
   return (
-    <div
-      style={{
-        padding: '12px 16px',
-        background: 'var(--po-canvas)',
-        borderTop: `1px solid ${BORDER}`,
-        display: 'flex',
-        justifyContent: 'flex-end',
-        alignItems: 'center',
-        gap: 8,
-      }}
-    >
+    <DialogFooter>
       <ActionButton
         type="button"
         onClick={onClose}
@@ -395,10 +356,11 @@ function FooterBar({
         onClick={onPrimaryClick}
         variant={primaryDanger ? 'danger' : 'primary'}
         loading={loading}
+        disabled={primaryDisabled}
       >
         {loading && <Dots size="xs" />}
         {primaryLabel}
       </ActionButton>
-    </div>
+    </DialogFooter>
   );
 }

@@ -148,19 +148,26 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
           height: 6px;
         }
         .custom-scrollbar::-webkit-scrollbar-track {
-          background: var(--po-inset);
+          background: transparent;
           border-radius: 3px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: var(--po-control-hover);
+          background: transparent;
           border-radius: 3px;
         }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        .custom-scrollbar.po-scrollbar-active::-webkit-scrollbar-thumb {
+          background: var(--po-control-hover);
+        }
+        .custom-scrollbar.po-scrollbar-active::-webkit-scrollbar-thumb:hover {
           background: var(--po-border-strong);
         }
         .custom-scrollbar {
           scrollbar-width: thin;
-          scrollbar-color: var(--po-control-hover) var(--po-inset);
+          scrollbar-color: transparent transparent;
+          scrollbar-gutter: stable;
+        }
+        .custom-scrollbar.po-scrollbar-active {
+          scrollbar-color: var(--po-control-hover) transparent;
         }
       `}</style>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

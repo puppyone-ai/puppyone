@@ -3,7 +3,7 @@ Ingest Router - Unified entry point API.
 
 This router provides a unified interface for all data ingestion:
 - FILE: Local file upload → File Worker (ETL)
-- SAAS: SaaS platform sync → SyncEngine (synchronous execution)
+- SAAS: SaaS/URL import → durable ImportJob worker
 
 Dual-layer routing architecture:
 - Layer 1: mode (raw | ocr_parse)
@@ -43,9 +43,8 @@ from src.ingest.file.exceptions import RuleNotFoundError
 from src.ingest.file.service import ETLService
 from src.ingest.file.tasks.models import ETLTaskStatus
 from src.ingest.policy.upload_policy import (
-    PER_BATCH_MAX_BYTES,
-    PER_BATCH_MAX_FILES,
     PER_FILE_MAX_BYTES as POLICY_PER_FILE_MAX_BYTES,
+    evaluate_batch_limits,
     path_has_blocked_segment,
 )
 from src.ingest.schemas import (
@@ -73,6 +72,10 @@ from src.ingest.service import IngestService
 from src.ingest.shared.task.normalizers import detect_file_ingest_type
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
+from src.platform.imports.dependencies import get_import_job_service
+from src.platform.imports.provider import detect_import_provider, suggest_import_name
+from src.platform.imports.schemas import ImportJobCreateRequest
+from src.platform.imports.service import ImportJobService
 from src.platform.project.dependencies import get_project_service
 from src.platform.project.service import ProjectService
 
@@ -509,24 +512,24 @@ async def init_multipart_upload(
     # client. The numbers come from the policy module
     # (``src.ingest.policy.upload_policy``); see
     # ``docs/proposals/PUP-3-folder-upload-policy.md`` Q4.
-    if len(request.files) > PER_BATCH_MAX_FILES:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Batch exceeds {PER_BATCH_MAX_FILES} files "
-                f"(requested {len(request.files)}). Split into smaller "
-                f"uploads or use the CLI for bulk ingestion."
-            ),
-        )
-    total_bytes = sum(f.size for f in request.files)
-    if total_bytes > PER_BATCH_MAX_BYTES:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Batch total {total_bytes} bytes exceeds "
-                f"{PER_BATCH_MAX_BYTES} bytes. Split into smaller uploads."
-            ),
-        )
+    for violation in evaluate_batch_limits(f.size for f in request.files):
+        if violation.kind == "file_count":
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Batch exceeds {violation.limit} files "
+                    f"(requested {violation.actual}). Split into smaller "
+                    f"uploads or use the CLI for bulk ingestion."
+                ),
+            )
+        if violation.kind == "total_bytes":
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Batch total {violation.actual} bytes exceeds "
+                    f"{violation.limit} bytes. Split into smaller uploads."
+                ),
+            )
 
     # Validate every file FIRST, synchronously. Range / part-count
     # errors are deterministic; we want the request to fail with
@@ -559,7 +562,7 @@ async def init_multipart_upload(
                 ),
             )
 
-        num_parts = max(1, (f.size + chunk_size - 1) // chunk_size)
+        num_parts = 0 if f.size == 0 else max(1, (f.size + chunk_size - 1) // chunk_size)
         if num_parts > _MAX_PARTS_PER_UPLOAD:
             raise HTTPException(
                 status_code=400,
@@ -605,7 +608,8 @@ async def init_multipart_upload(
                     "message": (
                         f"Path '{mount_path}' contains the blocked segment "
                         f"'{blocked_seg}' (PUP-3 folder-upload policy). "
-                        f"Adjust the source or override on the client."
+                        f"Remove that folder from the upload, or use the Git "
+                        f"protocol if you need repository history."
                     ),
                 },
             )
@@ -652,15 +656,25 @@ async def init_multipart_upload(
         num_parts = prepared["num_parts"]
 
         async with sem:
-            upload_id = await s3_service.create_multipart_upload(
-                key=s3_key,
-                content_type=f.content_type,
-                metadata={
-                    "project_id": str(request.project_id),
-                    "user_id": str(current_user.user_id),
-                    "original_filename_b64": original_filename_b64,
-                },
-            )
+            s3_metadata = {
+                "project_id": str(request.project_id),
+                "user_id": str(current_user.user_id),
+                "original_filename_b64": original_filename_b64,
+            }
+            if f.size == 0:
+                await s3_service.upload_file(
+                    key=s3_key,
+                    content=b"",
+                    content_type=f.content_type,
+                    metadata=s3_metadata,
+                )
+                upload_id = ""
+            else:
+                upload_id = await s3_service.create_multipart_upload(
+                    key=s3_key,
+                    content_type=f.content_type,
+                    metadata=s3_metadata,
+                )
 
             try:
                 # ``create_pending_upload_task`` is sync (Supabase
@@ -684,14 +698,16 @@ async def init_multipart_upload(
                 # initiated the multipart upload, abort it so we
                 # don't leak an orphan eating bucket space (AWS
                 # keeps multiparts forever unless you have a
-                # lifecycle rule).
+                # lifecycle rule). Zero-byte files use a direct
+                # PutObject and have no multipart session to abort.
                 logger.error(
                     f"Failed to create pending upload task for "
                     f"{f.filename}: {e}",
                     exc_info=True,
                 )
                 try:
-                    await s3_service.abort_multipart_upload(s3_key, upload_id)
+                    if upload_id:
+                        await s3_service.abort_multipart_upload(s3_key, upload_id)
                 except Exception as abort_err:
                     logger.warning(
                         f"Failed to abort orphaned multipart "
@@ -740,7 +756,8 @@ async def init_multipart_upload(
             if not isinstance(r, UploadInitFileResponse):
                 return
             try:
-                await s3_service.abort_multipart_upload(r.s3_key, r.upload_id)
+                if r.upload_id:
+                    await s3_service.abort_multipart_upload(r.s3_key, r.upload_id)
             except Exception as abort_err:
                 logger.warning(
                     f"Failed to abort multipart upload after init "
@@ -950,38 +967,45 @@ async def complete_upload(
     parts = sorted(
         [(p.part_number, p.etag) for p in request.parts], key=lambda x: x[0]
     )
+    expected_size = task.metadata.get("size")
 
-    try:
-        await s3_service.complete_multipart_upload(
-            request.s3_key, request.upload_id, parts
+    if expected_size == 0 and not parts:
+        logger.info(
+            "Task %s is zero-byte; skipping multipart complete",
+            request.task_id,
         )
-    except Exception as e:
-        logger.error(
-            f"complete_multipart_upload failed for task {request.task_id}: {e}",
-            exc_info=True,
-        )
-        # Best-effort cleanup so we don't leave a half-assembled
-        # multipart upload on the bucket.
+    else:
         try:
-            await s3_service.abort_multipart_upload(
-                request.s3_key, request.upload_id
+            await s3_service.complete_multipart_upload(
+                request.s3_key, request.upload_id, parts
             )
-        except Exception:
-            pass
-        task.mark_failed(f"Failed to finalize multipart upload: {e}")
-        task.metadata["error_stage"] = "complete_multipart"
-        etl_service.task_repository.update_task(task)
-        raise HTTPException(
-            status_code=502, detail=f"S3 complete_multipart_upload failed: {e}"
-        )
+        except Exception as e:
+            logger.error(
+                f"complete_multipart_upload failed for task {request.task_id}: {e}",
+                exc_info=True,
+            )
+            # Best-effort cleanup so we don't leave a half-assembled
+            # multipart upload on the bucket.
+            try:
+                if request.upload_id:
+                    await s3_service.abort_multipart_upload(
+                        request.s3_key, request.upload_id
+                    )
+            except Exception:
+                pass
+            task.mark_failed(f"Failed to finalize multipart upload: {e}")
+            task.metadata["error_stage"] = "complete_multipart"
+            etl_service.task_repository.update_task(task)
+            raise HTTPException(
+                status_code=502, detail=f"S3 complete_multipart_upload failed: {e}"
+            )
 
     # Sanity-check that S3 sees the object at the expected size.
     # Mismatch is non-fatal but worth logging — could indicate a
     # client that lied about the file size or a part ETag mismatch.
-    expected_size = task.metadata.get("size")
     try:
         meta = await s3_service.get_file_metadata(request.s3_key)
-        if expected_size and meta.size != expected_size:
+        if expected_size is not None and meta.size != expected_size:
             logger.warning(
                 f"Task {request.task_id}: declared size {expected_size} "
                 f"differs from S3 size {meta.size}"
@@ -1142,38 +1166,45 @@ async def complete_upload_batch(
         parts = sorted(
             [(p.part_number, p.etag) for p in item.parts], key=lambda x: x[0]
         )
-        try:
-            await s3_service.complete_multipart_upload(
-                item.s3_key, item.upload_id, parts
+        expected_size = task.metadata.get("size")
+        if expected_size == 0 and not parts:
+            logger.info(
+                "Task %s is zero-byte; skipping multipart complete",
+                item.task_id,
             )
-        except Exception as e:
-            logger.error(
-                f"complete_multipart_upload failed for task {item.task_id}: {e}",
-                exc_info=True,
-            )
+        else:
             try:
-                await s3_service.abort_multipart_upload(
-                    item.s3_key, item.upload_id
+                await s3_service.complete_multipart_upload(
+                    item.s3_key, item.upload_id, parts
                 )
-            except Exception:
-                pass
-            task.mark_failed(f"Failed to finalize multipart upload: {e}")
-            task.metadata["error_stage"] = "complete_multipart"
-            etl_service.task_repository.update_task(task)
-            item_results[item.task_id] = UploadCompleteItemResult(
-                task_id=item.task_id,
-                status=IngestStatus.FAILED,
-                error=f"S3 complete_multipart_upload failed: {e}",
-            )
-            return
+            except Exception as e:
+                logger.error(
+                    f"complete_multipart_upload failed for task {item.task_id}: {e}",
+                    exc_info=True,
+                )
+                try:
+                    if item.upload_id:
+                        await s3_service.abort_multipart_upload(
+                            item.s3_key, item.upload_id
+                        )
+                except Exception:
+                    pass
+                task.mark_failed(f"Failed to finalize multipart upload: {e}")
+                task.metadata["error_stage"] = "complete_multipart"
+                etl_service.task_repository.update_task(task)
+                item_results[item.task_id] = UploadCompleteItemResult(
+                    task_id=item.task_id,
+                    status=IngestStatus.FAILED,
+                    error=f"S3 complete_multipart_upload failed: {e}",
+                )
+                return
 
         # Sanity-check size as a non-fatal warning (consistent with
         # the single-file endpoint). Failure here just logs — we don't
         # block the upload on a missing HEAD.
-        expected_size = task.metadata.get("size")
         try:
             meta = await s3_service.get_file_metadata(item.s3_key)
-            if expected_size and meta.size != expected_size:
+            if expected_size is not None and meta.size != expected_size:
                 logger.warning(
                     f"Task {item.task_id}: declared size {expected_size} "
                     f"differs from S3 size {meta.size}"
@@ -1290,18 +1321,19 @@ async def abort_upload(
     ):
         raise HTTPException(status_code=404, detail="Task not found")
 
-    try:
-        await s3_service.abort_multipart_upload(
-            request.s3_key, request.upload_id
-        )
-    except Exception as e:
-        # The most common reason this fails is "already aborted/
-        # completed", which is fine — we still want to flag the task
-        # as cancelled so the UI converges.
-        logger.warning(
-            f"abort_multipart_upload for task {request.task_id} "
-            f"raised (likely already gone): {e}"
-        )
+    if request.upload_id:
+        try:
+            await s3_service.abort_multipart_upload(
+                request.s3_key, request.upload_id
+            )
+        except Exception as e:
+            # The most common reason this fails is "already aborted/
+            # completed", which is fine — we still want to flag the task
+            # as cancelled so the UI converges.
+            logger.warning(
+                f"abort_multipart_upload for task {request.task_id} "
+                f"raised (likely already gone): {e}"
+            )
 
     if task.status == ETLTaskStatus.PENDING:
         task.mark_cancelled("Upload aborted by client")
@@ -1312,63 +1344,6 @@ async def abort_upload(
 
 # === SaaS/URL Submit Endpoint ===
 
-def _detect_provider_from_url(url: str) -> str:
-    from urllib.parse import urlparse
-
-    parsed = urlparse(url)
-    scheme = parsed.scheme.lower()
-    host = parsed.netloc.lower()
-
-    if scheme == "oauth":
-        oauth_type = host or parsed.path.strip("/")
-        mapping = {
-            "gmail": "gmail",
-            "drive": "google_drive",
-            "google-drive": "google_drive",
-            "calendar": "google_calendar",
-            "google-calendar": "google_calendar",
-        }
-        return mapping.get(oauth_type, "url")
-
-    if host in ("github.com", "www.github.com"):
-        return "github"
-    if host in ("notion.so", "www.notion.so") or "notion.site" in host:
-        return "notion"
-    if "airtable.com" in host:
-        return "airtable"
-    if "docs.google.com" in host and "/spreadsheets/" in url:
-        return "google_sheets"
-    if "docs.google.com" in host and "/document/" in url:
-        return "google_docs"
-    if "linear.app" in host:
-        return "linear"
-    if "drive.google.com" in host:
-        return "google_drive"
-
-    return "url"
-
-
-def _suggest_import_name(provider: str, url: str) -> str | None:
-    from urllib.parse import urlparse
-
-    parsed = urlparse(url)
-    if provider == "github":
-        parts = [part for part in parsed.path.strip("/").split("/") if part]
-        if len(parts) < 2:
-            return None
-        repo = parts[1][:-4] if parts[1].endswith(".git") else parts[1]
-        repo = repo.strip().strip("/")
-        return repo or None
-
-    if provider == "url":
-        host = parsed.netloc.lower()
-        if host.startswith("www."):
-            host = host[4:]
-        return host or None
-
-    return None
-
-
 @router.post("/submit/saas", response_model=IngestSubmitResponse, status_code=202)
 async def submit_saas_ingest(
     project_id: str = Form(..., description="Target project ID"),
@@ -1378,43 +1353,23 @@ async def submit_saas_ingest(
 
     # Dependencies
     project_service: ProjectService = Depends(get_project_service),
+    import_service: ImportJobService = Depends(get_import_job_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """
-    Submit SaaS/URL ingest — routes through Bootstrap + SyncEngine.
+    Submit SaaS/URL ingest as a durable one-time ImportJob.
 
-    All data writes go through Write Engine.
+    This compatibility route no longer runs connector fetch/write inside the
+    HTTP request. It creates a backend-owned job and lets the ARQ worker
+    perform the import.
     """
-    from src.connectors.datasource.dependencies import get_connector_registry
-    from src.connectors.datasource.engine import SyncEngine
-    from src.connectors.datasource.repository import SyncRepository
-    from src.connectors.datasource.service import SyncService
-    from src.infra.supabase.client import SupabaseClient
 
     if not project_service.verify_project_access(project_id, current_user.user_id):
         raise HTTPException(status_code=404, detail="Project not found")
 
-    provider = _detect_provider_from_url(url)
-
     try:
-        registry = get_connector_registry()
-        supabase = SupabaseClient()
-        sync_repo = SyncRepository(supabase)
-
-        sync_svc = SyncService(sync_repo=sync_repo)
-        for p in registry.providers():
-            connector = registry.get(p)
-            if connector:
-                sync_svc.register_connector(connector)
-
-        from src.connectors.datasource.run_repository import SyncRunRepository
-        engine = SyncEngine(
-            registry=registry,
-            sync_repo=sync_repo,
-            run_repo=SyncRunRepository(supabase),
-        )
-
-        config = {"source_url": url}
+        provider = detect_import_provider(url)
+        config = {}
         if name:
             config["name"] = name
         if provider == "url" and crawl_options:
@@ -1426,77 +1381,32 @@ async def submit_saas_ingest(
                 raise ValueError("crawl_options must be a JSON object")
             config["crawl_options"] = parsed_crawl_options
 
-        connector = registry.get(provider)
-        if not connector and provider == "notion":
-            # Until a dedicated Notion one-time connector exists, route pasted
-            # Notion page URLs through the generic URL importer instead of
-            # failing a visible import path.
-            provider = "url"
-            connector = registry.get(provider)
-        if not connector:
-            raise ValueError(f"Unknown import provider: {provider}")
-
-        spec = connector.spec()
-        if spec.creation_mode == "direct":
-            if not config.get("name"):
-                suggested_name = _suggest_import_name(provider, url)
-                if suggested_name:
-                    config["name"] = suggested_name
-            syncs = [
-                await sync_svc.create_sync(
-                    project_id=project_id,
-                    provider=provider,
-                    config=config,
-                    target_folder_path="",
-                    direction="inbound",
-                    sync_mode="import_once",
-                    trigger={"type": "import_once"},
-                    user_id=current_user.user_id,
-                )
-            ]
-        else:
-            syncs = await sync_svc.bootstrap(
+        job = await import_service.create(
+            ImportJobCreateRequest(
                 project_id=project_id,
+                source_url=url,
                 provider=provider,
+                name=name or suggest_import_name(provider, url),
                 config=config,
-                sync_mode="import_once",
-                trigger={"type": "import_once"},
-                user_id=current_user.user_id,
-            )
-
-        node_path = syncs[0].path if syncs else None
-        execution_errors: list[str] = []
-
-        for s in syncs:
-            try:
-                result = await engine.execute(s.id)
-                if result and result.get("path"):
-                    node_path = result["path"]
-            except Exception as exc:
-                logger.error(f"[SaaS ingest] First fetch failed for sync {s.id}: {exc}")
-                execution_errors.append(str(exc))
-                continue
-
-            refreshed = sync_repo.get_by_id(s.id)
-            if refreshed and refreshed.error_message:
-                execution_errors.append(refreshed.error_message)
-
-        if execution_errors:
-            raise ValueError(execution_errors[0])
+            ),
+            current_user.user_id,
+        )
 
         return IngestSubmitResponse(
             items=[
                 IngestSubmitItem(
-                    task_id=syncs[0].id if syncs else "",
+                    task_id=job.id,
                     source_type=SourceType.SAAS if provider != "url" else SourceType.URL,
                     ingest_type=_provider_to_ingest_type(provider),
-                    status=IngestStatus.COMPLETED,
-                    path=node_path,
+                    status=IngestStatus.PENDING,
+                    path=job.result_path,
                 )
             ],
             total=1,
         )
 
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:

@@ -34,9 +34,9 @@ const ROW_BG =
 const ROW_BG_HOVER =
   'color-mix(in srgb, var(--po-control) 62%, transparent)';
 const ROW_BG_CURRENT =
-  'color-mix(in srgb, var(--po-accent) 10%, var(--po-control) 42%)';
+  'color-mix(in srgb, var(--po-access-active-bg) 70%, var(--po-control) 30%)';
 const ROW_BORDER_CURRENT =
-  'color-mix(in srgb, var(--po-accent) 30%, var(--po-border) 70%)';
+  'color-mix(in srgb, var(--po-access-active-border) 70%, var(--po-border) 30%)';
 
 /**
  * AccessPointRow — one access-point row in the overview list.
@@ -337,10 +337,8 @@ function ScopeGlyph({
         height: 32,
         borderRadius: 8,
         border: `1px solid ${selected ? ROW_BORDER_CURRENT : COLOR_BORDER}`,
-        background: selected
-          ? 'color-mix(in srgb, var(--po-accent) 10%, transparent)'
-          : 'color-mix(in srgb, var(--po-control) 46%, transparent)',
-        color: selected ? 'var(--po-accent)' : COLOR_FG_MUTED,
+        background: selected ? 'var(--po-access-active-bg)' : 'color-mix(in srgb, var(--po-control) 46%, transparent)',
+        color: selected ? 'var(--po-access-active-text)' : COLOR_FG_MUTED,
         flexShrink: 0,
       }}
     >
@@ -357,11 +355,11 @@ function ScopeGlyph({
           width: 8,
           height: 8,
           borderRadius: '50%',
-          background: active ? 'var(--po-success)' : COLOR_FG_DIM,
+          background: active ? 'var(--po-access-action)' : COLOR_FG_DIM,
           border: '2px solid var(--po-canvas)',
           boxSizing: 'border-box',
           boxShadow: active
-            ? '0 0 6px color-mix(in srgb, var(--po-success) 35%, transparent)'
+            ? '0 0 6px var(--po-access-action-shadow)'
             : 'none',
         }}
       />

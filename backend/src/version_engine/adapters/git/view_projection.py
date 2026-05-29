@@ -87,6 +87,11 @@ def git_view_head_commit(
     scope_norm = normalize_path(scope_path)
     excludes = [normalize_path(item) for item in (scope_excludes or [])]
     if scope_norm:
+        root_hash = ""
+        try:
+            root_hash = repo.get_root_hash() or ""
+        except Exception:
+            root_hash = ""
         scope_tree = _scope_tree_from_root(repo, scope_norm)
         if scope_tree:
             if excludes:
@@ -112,6 +117,12 @@ def git_view_head_commit(
                 message="Puppyone scope view",
                 created_at_iso="1970-01-01T00:00:00+00:00",
             )
+
+        if root_hash:
+            # Root-first invariant: once a canonical project root exists,
+            # a missing subtree means this scope is currently empty/deleted.
+            # Do not resurrect stale scope-state cache rows as Git content.
+            return ""
 
         head = repo.get_scope_head_commit_id(scope_norm) or ""
         if not head or not excludes:

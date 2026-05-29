@@ -152,6 +152,9 @@ class RollbackWriter:
                 scope_path=scope_norm,
                 scope_hash=new_scope_hash,
                 scope_head_commit_id=scope_head_commit_id,
+                expected_scope_head_commit_id=(
+                    current_scope_head_id if scope_norm else None
+                ),
                 commit_id=commit_id,
                 actor=intent.actor,
                 message=intent.message or f"rollback to #{target_commit_id}",

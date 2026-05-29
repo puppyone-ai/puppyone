@@ -2,8 +2,9 @@
 
 Each OAuth `authorize` request inserts a fresh state row keyed by the random
 nonce. The matching `callback` consumes the row atomically (validate +
-delete) so the state can only be used once and only by the user it was
-issued to.
+delete) so the state can only be used once. The callback can recover the
+Puppyone user from that server-issued nonce; this avoids depending on the
+browser still having a fresh app JWT after the third-party redirect.
 
 Migration: 20260427000000_oauth_state_csrf.sql
 """
@@ -45,12 +46,11 @@ class OAuthStateRepository:
         }).execute()
         return state
 
-    def consume(self, state: str, user_id: str, provider: str) -> bool:
-        """Atomically validate + delete a state.
+    def consume_for_provider(self, state: str, provider: str) -> str | None:
+        """Atomically validate + delete a state and return its user_id.
 
-        Returns True iff:
+        Returns the issuing user_id iff:
           - state row exists
-          - row.user_id matches the calling user
           - row.provider matches the expected provider
           - row.expires_at is in the future
 
@@ -58,7 +58,7 @@ class OAuthStateRepository:
         with the same nonce is impossible.
         """
         if not state:
-            return False
+            return None
         rows = (
             self._client.table(self.TABLE)
             .select("user_id, provider, expires_at")
@@ -78,20 +78,32 @@ class OAuthStateRepository:
             # role inserts/deletes are durable.
             pass
 
-        if row.get("user_id") != user_id:
-            return False
         if row.get("provider") != provider:
-            return False
+            return None
         expires_at_raw = row.get("expires_at")
         if not expires_at_raw:
-            return False
+            return None
         try:
             expires_at = datetime.fromisoformat(expires_at_raw.replace("Z", "+00:00"))
         except (ValueError, AttributeError):
-            return False
+            return None
         if expires_at < datetime.now(timezone.utc):
+            return None
+        user_id = row.get("user_id")
+        return str(user_id) if user_id else None
+
+    def consume(self, state: str, user_id: str, provider: str) -> bool:
+        """Atomically validate + delete a state for a known app user.
+
+        This wrapper is kept for call sites/tests that already have an
+        authenticated app user. Browser-return OAuth callbacks should prefer
+        consume_for_provider() because the state itself is the callback's
+        user-binding proof.
+        """
+        consumed_user_id = self.consume_for_provider(state=state, provider=provider)
+        if consumed_user_id is None:
             return False
-        return True
+        return consumed_user_id == user_id
 
     def purge_expired(self) -> int:
         """Best-effort cleanup; the SQL function is preferred in cron."""

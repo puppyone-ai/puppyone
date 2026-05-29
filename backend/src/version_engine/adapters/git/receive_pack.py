@@ -248,10 +248,7 @@ async def receive_pack_response_from_path(
                     ],
                 )
             expected_old_id = "" if command.old_id == ZERO_ID else command.old_id
-            if (
-                not scope_excludes
-                and expected_old_id != (git_view_head.head or "")
-            ):
+            if expected_old_id != (git_view_head.head or ""):
                 return receive_pack_result(
                     command.ref,
                     outcome="rejected",
@@ -262,8 +259,7 @@ async def receive_pack_response_from_path(
                     stderr_lines=_NON_FAST_FORWARD_REMOTE_LINES,
                 )
             if (
-                not scope_excludes
-                and git_view_head.head
+                git_view_head.head
                 and not _is_fast_forward_commit(
                     quarantine,
                     git_view_head.head,

@@ -16,12 +16,13 @@ const MilkdownEditor = dynamic(() => import('./MilkdownEditor'), {
   loading: EditorLoader,
 });
 
-export type MarkdownViewMode = 'wysiwyg' | 'source' | 'preview';
+export type MarkdownViewMode = 'wysiwyg' | 'source';
 
 interface MarkdownEditorProps {
   content: string;
   onChange?: (content: string) => void;
   readOnly?: boolean;
+  documentKey?: string;
   defaultMode?: MarkdownViewMode;
   viewMode?: MarkdownViewMode;
   onViewModeChange?: (mode: MarkdownViewMode) => void;
@@ -31,13 +32,15 @@ export function MarkdownEditor({
   content,
   onChange,
   readOnly = false,
+  documentKey,
   defaultMode = 'wysiwyg',
   viewMode: controlledViewMode,
   onViewModeChange,
 }: MarkdownEditorProps) {
   const [internalViewMode, setInternalViewMode] = useState<MarkdownViewMode>(defaultMode);
   const isControlled = controlledViewMode !== undefined;
-  const viewMode = isControlled ? controlledViewMode : internalViewMode;
+  const rawViewMode = isControlled ? controlledViewMode : internalViewMode;
+  const viewMode: MarkdownViewMode = rawViewMode === 'source' ? 'source' : 'wysiwyg';
   const setViewMode = isControlled ? (mode: MarkdownViewMode) => onViewModeChange?.(mode) : setInternalViewMode;
   const [localContent, setLocalContent] = useState(content);
 
@@ -50,8 +53,7 @@ export function MarkdownEditor({
     if (onChange && !readOnly) onChange(newContent);
   }, [onChange, readOnly]);
 
-  const isPreview = viewMode === 'preview';
-  const effectiveReadOnly = readOnly || isPreview;
+  const canEdit = !readOnly && Boolean(onChange);
 
   return (
     <div
@@ -62,11 +64,12 @@ export function MarkdownEditor({
         background: 'var(--po-canvas)',
       }}
     >
-      {(viewMode === 'wysiwyg' || isPreview) && (
+      {viewMode === 'wysiwyg' && (
         <MilkdownEditor
+          key={documentKey ?? 'markdown-live-view'}
           content={localContent}
-          onChange={isPreview ? undefined : handleMilkdownChange}
-          readOnly={effectiveReadOnly}
+          onChange={canEdit ? handleMilkdownChange : undefined}
+          readOnly={!canEdit}
         />
       )}
 
@@ -112,7 +115,7 @@ export function MarkdownEditor({
               cursor: 'pointer',
               transition: 'all 0.15s ease',
             }}
-            title="WYSIWYG"
+            title="Live view"
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M12 20h9" />

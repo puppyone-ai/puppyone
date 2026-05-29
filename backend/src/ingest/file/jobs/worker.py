@@ -35,6 +35,9 @@ from src.ingest.file.jobs.jobs import (
 from src.ingest.file.ocr import get_ocr_provider
 from src.ingest.file.state.repository import ETLStateRepositoryRedis
 from src.ingest.file.tasks.repository import ETLTaskRepositorySupabase
+from src.platform.imports.jobs import execute_import_job
+from src.platform.imports.repository import ImportJobRepository
+from src.platform.imports.runner import OneTimeImportRunner
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +58,8 @@ async def startup(ctx: dict) -> None:
     ctx["mineru_client"] = ocr_provider
 
     ctx["task_repository"] = ETLTaskRepositorySupabase()
+    ctx["import_job_repository"] = ImportJobRepository()
+    ctx["one_time_import_runner"] = OneTimeImportRunner()
 
     # ETL Redis runtime state repo (shares same Redis as ARQ)
     ctx["state_repo"] = ETLStateRepositoryRedis(ctx["redis"])
@@ -76,7 +81,7 @@ class WorkerSettings:
     # repo, runtime state repo) and Redis queue. It's invoked after a
     # browser-direct-to-S3 upload completes; see
     # ``ingest.file.jobs.jobs.etl_finalize_upload_job`` for the flow.
-    functions = [etl_ocr_job, etl_postprocess_job, etl_finalize_upload_job]  # noqa: RUF012
+    functions = [etl_ocr_job, etl_postprocess_job, etl_finalize_upload_job, execute_import_job]  # noqa: RUF012
     on_startup = startup
     on_shutdown = shutdown
     redis_settings = RedisSettings.from_dsn(etl_config.etl_redis_url)

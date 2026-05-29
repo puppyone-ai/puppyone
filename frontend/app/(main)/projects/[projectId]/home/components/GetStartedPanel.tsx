@@ -16,6 +16,9 @@ import {
   resolveDataTransferSnapshot,
   snapshotDataTransfer,
 } from '@/lib/dropFiles';
+import { pickDirectoryFiles } from '@/lib/directoryPicker';
+import { applyPolicy, collectIgnoreRulesFromDrop } from '@/lib/uploadPolicy';
+import { FileImportDialog } from '@/components/FileImportDialog';
 import { T } from '../lib/tokens';
 import type { DashboardConnection } from '../lib/types';
 
@@ -85,17 +88,19 @@ export function GetStartedPanel({
   const { session } = useAuth();
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [pendingImportFiles, setPendingImportFiles] = useState<File[]>([]);
+  const [fileImportOpen, setFileImportOpen] = useState(false);
   const dragCounterRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
-  // ---- Upload pipeline (direct-to-S3, project root, no dialog) -----
+  // ---- Upload pipeline (direct-to-S3, project root) ----------------
   // Same pipeline as the explorer dialog and sidebar drag/drop: bytes
   // go browser -> S3 directly via presigned multipart URLs, the
   // worker commits them through the Version Engine, and the BackgroundTaskNotifier
-  // surfaces progress via the floating widget. No dialog asks the
-  // user about OCR vs raw because Smart Parse is paused server-side
-  // (see config.ENABLE_OCR).
+  // surfaces progress via the floating widget. Clean small drops can
+  // upload immediately; policy-skipped or oversized batches open the
+  // shared FileImportDialog first.
   const uploadFiles = useCallback(
     async (files: File[]) => {
       if (files.length === 0) return;
@@ -166,6 +171,25 @@ export function GetStartedPanel({
     [projectId, session?.access_token, onChanged],
   );
 
+  const handleCandidateFiles = useCallback(
+    async (files: File[]) => {
+      if (files.length === 0) return;
+      const rules = await collectIgnoreRulesFromDrop(files);
+      const policy = applyPolicy({ files, rules });
+      if (
+        policy.shouldPreflight ||
+        policy.skipped.length > 0 ||
+        policy.limitViolations.length > 0
+      ) {
+        setPendingImportFiles(files);
+        setFileImportOpen(true);
+        return;
+      }
+      await uploadFiles(policy.accepted);
+    },
+    [uploadFiles],
+  );
+
   // ---- Page-level drag handlers (panel root) ------------------------
   // Counter pattern (same as useFileImport) avoids the well-known
   // dragLeave-on-child flicker.  We only react to drags that carry
@@ -205,18 +229,29 @@ export function GetStartedPanel({
       // Snapshot synchronously: see lib/dropFiles.ts.
       const snapshot = snapshotDataTransfer(e.nativeEvent);
       const files = await resolveDataTransferSnapshot(snapshot);
-      if (files.length > 0) await uploadFiles(files);
+      await handleCandidateFiles(files);
     },
-    [uploadFiles],
+    [handleCandidateFiles],
   );
 
   const onFilePickerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const list = e.target.files;
     if (list && list.length > 0) {
-      void uploadFiles(Array.from(list));
+      void handleCandidateFiles(Array.from(list));
     }
     e.target.value = ''; // allow re-selecting the same file
   };
+
+  const onFolderPickerClick = useCallback(async () => {
+    const picked = await pickDirectoryFiles();
+    if (picked === null) {
+      folderInputRef.current?.click();
+      return;
+    }
+    if (picked.length > 0) {
+      await handleCandidateFiles(picked);
+    }
+  }, [handleCandidateFiles]);
 
   return (
     // No `alignItems: center` and no inner `maxWidth` — children
@@ -243,7 +278,9 @@ export function GetStartedPanel({
         isDraggingOver={isDraggingOver}
         uploading={uploading}
         onPickFiles={() => fileInputRef.current?.click()}
-        onPickFolder={() => folderInputRef.current?.click()}
+        onPickFolder={() => {
+          void onFolderPickerClick();
+        }}
       />
 
       <div style={{ marginTop: 32 }}>
@@ -296,6 +333,21 @@ export function GetStartedPanel({
         {...({ webkitdirectory: '', directory: '' } as any)}
         onChange={onFilePickerChange}
         style={{ display: 'none' }}
+      />
+
+      <FileImportDialog
+        isOpen={fileImportOpen}
+        onClose={() => {
+          setFileImportOpen(false);
+          setPendingImportFiles([]);
+        }}
+        onConfirm={(files) => {
+          setFileImportOpen(false);
+          setPendingImportFiles([]);
+          void uploadFiles(files);
+        }}
+        initialFiles={pendingImportFiles.length > 0 ? pendingImportFiles : undefined}
+        targetLabel="Root"
       />
 
       {/* Full-panel drag overlay.  Non-interactive; just paints a cyan

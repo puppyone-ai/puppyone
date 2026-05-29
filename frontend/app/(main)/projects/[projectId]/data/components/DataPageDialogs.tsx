@@ -1,4 +1,5 @@
 'use client';
+import type { ChangeEvent, RefObject } from 'react';
 import { TableManageDialog } from '@/components/TableManageDialog';
 import { FolderManageDialog } from '@/components/FolderManageDialog';
 import { FileImportDialog } from '@/components/FileImportDialog';
@@ -61,6 +62,10 @@ export interface DataPageDialogsProps {
   onFileImportConfirm: (files: File[], mode: 'ocr_parse' | 'raw') => void;
   droppedFiles: File[];
   fileImportTargetLabel: string;
+  filePickerInputRef: RefObject<HTMLInputElement>;
+  folderPickerInputRef: RefObject<HTMLInputElement>;
+  onFilePickerChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  onFolderPickerChange: (event: ChangeEvent<HTMLInputElement>) => void;
 }
 
 export function DataPageDialogs(props: DataPageDialogsProps) {
@@ -74,6 +79,7 @@ export function DataPageDialogs(props: DataPageDialogsProps) {
     supabaseConnectOpen, onCloseSupabaseConnect, onSupabaseConnected,
     supabaseSQLEditorOpen, supabaseConnectionId, onCloseSupabaseSQLEditor, onSupabaseSaved,
     fileImportDialogOpen, onCloseFileImport, onFileImportConfirm, droppedFiles, fileImportTargetLabel,
+    filePickerInputRef, folderPickerInputRef, onFilePickerChange, onFolderPickerChange,
   } = props;
 
   return (
@@ -169,6 +175,22 @@ export function DataPageDialogs(props: DataPageDialogsProps) {
           onSaved={onSupabaseSaved}
         />
       )}
+
+      <input
+        ref={filePickerInputRef}
+        type="file"
+        multiple
+        onChange={onFilePickerChange}
+        style={{ display: 'none' }}
+      />
+      <input
+        ref={folderPickerInputRef}
+        type="file"
+        multiple
+        {...({ webkitdirectory: '', directory: '' } as Record<string, string>)}
+        onChange={onFolderPickerChange}
+        style={{ display: 'none' }}
+      />
 
       {/* File Import (from drag-and-drop) */}
       <FileImportDialog

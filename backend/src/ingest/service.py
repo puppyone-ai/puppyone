@@ -1,29 +1,42 @@
 """
-Ingest Gateway Service - Routes to file ETL service.
+Ingest Gateway Service - Routes task status queries.
 
-SaaS imports now go through Bootstrap + SyncEngine (sync module).
-This service only handles file-related task queries.
+File uploads use the ETL service. SaaS/URL imports use durable ImportJob rows.
 """
 
 import asyncio
 import logging
 
 from src.ingest.schemas import (
+    IngestStatus,
     IngestTaskResponse,
+    IngestType,
     SourceType,
 )
 from src.ingest.shared.task.normalizers import (
     normalize_file_task,
 )
+from src.platform.imports.provider import detect_import_provider
+from src.platform.imports.repository import ImportJobRepository
+from src.platform.imports.schemas import ImportJobStatus
+from src.platform.project.service import ProjectService
 
 logger = logging.getLogger(__name__)
 
 
 class IngestService:
-    """File ingest service — routes to underlying ETL service."""
+    """Unified task status service for file and one-time import tasks."""
 
-    def __init__(self, file_service):
+    def __init__(self, file_service, project_service: ProjectService | None = None):
         self.file_service = file_service
+        self.project_service = project_service
+        self._import_job_repo: ImportJobRepository | None = None
+
+    @property
+    def import_job_repo(self) -> ImportJobRepository:
+        if self._import_job_repo is None:
+            self._import_job_repo = ImportJobRepository()
+        return self._import_job_repo
 
     async def get_task(
         self,
@@ -31,9 +44,9 @@ class IngestService:
         source_type: SourceType,
         user_id: str,
     ) -> IngestTaskResponse | None:
-        """Get file task status."""
+        """Get task status."""
         if source_type != SourceType.FILE:
-            return None
+            return self._get_import_task(task_id, user_id)
 
         # ``task_id`` from the DB is a UUID string (uploads.id is TEXT).
         # The previous ``int(task_id)`` cast was a holdover from the
@@ -52,8 +65,9 @@ class IngestService:
         tasks: list[dict],
         user_id: str,
     ) -> list[IngestTaskResponse]:
-        """Batch query file tasks."""
+        """Batch query file/import tasks."""
         file_tasks = [t for t in tasks if t.get("source_type") == SourceType.FILE.value]
+        import_tasks = [t for t in tasks if t.get("source_type") != SourceType.FILE.value]
 
         results = []
         if file_tasks:
@@ -62,6 +76,12 @@ class IngestService:
                 for t in file_tasks
             ], return_exceptions=True)
             results.extend([r for r in file_results if r and not isinstance(r, Exception)])
+        if import_tasks:
+            import_results = [
+                self._get_import_task(t["task_id"], user_id)
+                for t in import_tasks
+            ]
+            results.extend([r for r in import_results if r])
 
         return results
 
@@ -71,9 +91,19 @@ class IngestService:
         source_type: SourceType,
         user_id: str,
     ) -> bool:
-        """Cancel a file task."""
+        """Cancel a task."""
         if source_type != SourceType.FILE:
-            return False
+            job = self.import_job_repo.get(task_id)
+            if not job or not self._can_access_project(job.project_id, user_id):
+                return False
+            if job.status in {
+                ImportJobStatus.COMPLETED.value,
+                ImportJobStatus.FAILED.value,
+                ImportJobStatus.CANCELLED.value,
+            }:
+                return True
+            self.import_job_repo.mark_cancelled(task_id)
+            return True
         try:
             # See note in ``get_task``: task_id is a UUID string, not an int.
             task = await self.file_service.cancel_task(
@@ -84,3 +114,59 @@ class IngestService:
         except Exception as e:
             logger.error(f"Failed to cancel task {task_id}: {e}")
             return False
+
+    def _can_access_project(self, project_id: str, user_id: str) -> bool:
+        if not self.project_service:
+            return False
+        return bool(self.project_service.verify_project_access(project_id, user_id))
+
+    def _get_import_task(self, task_id: str, user_id: str) -> IngestTaskResponse | None:
+        job = self.import_job_repo.get(task_id)
+        if not job or not self._can_access_project(job.project_id, user_id):
+            return None
+
+        status_map = {
+            ImportJobStatus.QUEUED.value: IngestStatus.PENDING,
+            ImportJobStatus.RUNNING.value: IngestStatus.PROCESSING,
+            ImportJobStatus.COMPLETED.value: IngestStatus.COMPLETED,
+            ImportJobStatus.FAILED.value: IngestStatus.FAILED,
+            ImportJobStatus.CANCELLED.value: IngestStatus.CANCELLED,
+        }
+        provider = job.provider or detect_import_provider(job.source_url)
+
+        return IngestTaskResponse(
+            task_id=job.id,
+            source_type=SourceType.SAAS if provider != "url" else SourceType.URL,
+            ingest_type=_provider_to_ingest_type(provider),
+            status=status_map.get(job.status, IngestStatus.PENDING),
+            progress=job.progress,
+            message=job.message,
+            content_path=job.result_path,
+            error=job.error_message,
+            created_at=job.created_at,
+            updated_at=job.updated_at,
+            completed_at=job.completed_at,
+            filename=job.name,
+            metadata={
+                "provider": provider,
+                "source_url": job.source_url,
+                "phase": job.phase,
+                "result_commit_id": job.result_commit_id,
+            },
+        )
+
+
+def _provider_to_ingest_type(provider: str) -> IngestType:
+    mapping = {
+        "github": IngestType.GITHUB,
+        "notion": IngestType.NOTION,
+        "gmail": IngestType.GMAIL,
+        "google_drive": IngestType.GOOGLE_DRIVE,
+        "google_sheets": IngestType.GOOGLE_SHEETS,
+        "google_docs": IngestType.GOOGLE_DOCS,
+        "google_calendar": IngestType.GOOGLE_CALENDAR,
+        "airtable": IngestType.AIRTABLE,
+        "linear": IngestType.LINEAR,
+        "url": IngestType.WEB_PAGE,
+    }
+    return mapping.get(provider, IngestType.WEB_PAGE)

@@ -9,7 +9,7 @@
  *   /projects/{projectId}/data/{folderId}/{nodeId} -> Node editor
  */
 
-import { useEffect, useMemo, useState, useCallback, use } from 'react';
+import { useEffect, useMemo, useState, useCallback, use, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/app/supabase/SupabaseAuthProvider';
 import { useOrganization } from '@/contexts/OrganizationContext';
@@ -49,6 +49,8 @@ import { useMarkdownSave } from '../hooks/useMarkdownSave';
 import { useFileImport } from '../hooks/useFileImport';
 import { useNodeActions } from '../hooks/useNodeActions';
 import { useExternalFileDropCatcher } from '@/lib/hooks/useExternalFileDropCatcher';
+import { useProjectImportJobs } from '@/lib/hooks/useImportJobs';
+import { isImportJobTerminal } from '@/lib/importApi';
 
 // Extracted components
 import { DataWorkspaceSurface } from '../components/DataWorkspaceSurface';
@@ -153,6 +155,13 @@ export default function DataPage({ params }: DataPageProps) {
   } = useDataRouteController({ projectId, path });
 
   const { nodes: contentNodes, isLoading: contentNodesLoading, refresh: refreshCurrentNodes } = useContentNodes(projectId, currentFolderId);
+  const {
+    activeJob: activeImportJob,
+    latestJob: latestImportJob,
+    refresh: refreshImportJobs,
+    upsertJob: upsertImportJob,
+  } = useProjectImportJobs(projectId);
+  const seenTerminalImportJobsRef = useRef<Set<string>>(new Set());
 
   const activeFormat = useMemo(() => {
     if (!activeNodeId || activeNodeType === 'github') return null;
@@ -332,6 +341,7 @@ export default function DataPage({ params }: DataPageProps) {
     navigateTo,
     openSyncCreatePanel,
     openSyncSetting,
+    openFilePickerForTarget: fileImport.openFilePickerForTarget,
     openFileImportDialogForTarget: fileImport.openFileImportDialogForTarget,
     showToast: nodeActions.showToast,
   });
@@ -464,25 +474,16 @@ export default function DataPage({ params }: DataPageProps) {
     [activeNodeId, contentNodes],
   );
 
-  const headerActionTarget = useMemo<DataHeaderActionTarget>(() => {
-    if (activeNodeId) {
-      return {
-        id: activeNodeId,
-        name: currentTableData?.name ?? activeNodeListing?.name ?? activeNodeDisplayName,
-        type: activeNodeType || activeNodeListing?.type || 'file',
-        isFolder: false,
-        isRoot: false,
-        isSynced: activeNodeListing?.is_synced,
-      };
-    }
+  const headerActionTarget = useMemo<DataHeaderActionTarget | null>(() => {
+    if (!activeNodeId) return null;
 
-    const folder = folderBreadcrumbs.at(-1);
     return {
-      id: currentFolderId ?? '',
-      name: folder?.name ?? 'Root',
-      type: 'folder',
-      isFolder: true,
-      isRoot: !currentFolderId,
+      id: activeNodeId,
+      name: currentTableData?.name ?? activeNodeListing?.name ?? activeNodeDisplayName,
+      type: activeNodeType || activeNodeListing?.type || 'file',
+      isFolder: false,
+      isRoot: false,
+      isSynced: activeNodeListing?.is_synced,
     };
   }, [
     activeNodeDisplayName,
@@ -491,20 +492,19 @@ export default function DataPage({ params }: DataPageProps) {
     activeNodeListing?.name,
     activeNodeListing?.type,
     activeNodeType,
-    currentFolderId,
     currentTableData?.name,
-    folderBreadcrumbs,
   ]);
 
   const headerCommandMenu = (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <DataHeaderActions
-        target={headerActionTarget}
-        onRename={nodeActions.handleRename}
-        onDelete={nodeActions.handleDelete}
-        onDownload={nodeActions.handleDownload}
-        onExpose={openShareWithAI}
-      />
+      {headerActionTarget && (
+        <DataHeaderActions
+          target={headerActionTarget}
+          onRename={nodeActions.handleRename}
+          onDelete={nodeActions.handleDelete}
+          onDownload={nodeActions.handleDownload}
+        />
+      )}
       <AccessPointsHeaderButton
         scopeCount={scopes.length}
         isOpen={
@@ -514,11 +514,6 @@ export default function DataPage({ params }: DataPageProps) {
           createAccessInitialPath !== null
         }
         onClick={() => {
-          const onlyScope = scopes[0];
-          if (scopes.length === 1 && onlyScope) {
-            openQuickAccessModal(onlyScope);
-            return;
-          }
           if (scopes.length > 0) {
             openAccessOverviewModal();
             return;
@@ -565,12 +560,34 @@ export default function DataPage({ params }: DataPageProps) {
     !projectIdentityError && !isProjectIdentityReady && isProjectIdentityLoading;
   const isRootFolderView = isFolderView && !currentFolderId;
   const hasRootItems = items.length > 0;
+  const projectHasContentCommit = repoIdentity?.content_initialized === true;
+  const latestFailedImportJob = latestImportJob?.status === 'failed' ? latestImportJob : null;
+  const latestEmptyImportJob = activeImportJob || latestFailedImportJob;
+  const shouldSurfaceEmptyImportJob =
+    Boolean(latestEmptyImportJob) && items.length === 0 && !projectHasContentCommit;
   const isRootEmptyDecisionLoading =
     isRootFolderView && (isProjectIdentityLoading || isLoading || (!hasRootItems && repoIdentityLoading));
-  const projectHasContentCommit = repoIdentity?.content_initialized === true;
   const showEmptyWorkspace =
-    isRootFolderView && !isRootEmptyDecisionLoading && items.length === 0 && !projectHasContentCommit && !emptyProjectOpened;
+    isRootFolderView && !isRootEmptyDecisionLoading && (
+      shouldSurfaceEmptyImportJob ||
+      (items.length === 0 && !projectHasContentCommit && !emptyProjectOpened)
+    );
   const suppressExplorerSidebar = showEmptyWorkspace || isRootEmptyDecisionLoading;
+
+  useEffect(() => {
+    const job = latestImportJob;
+    if (!job || !isImportJobTerminal(job.status)) return;
+    if (seenTerminalImportJobsRef.current.has(job.id)) return;
+    seenTerminalImportJobsRef.current.add(job.id);
+    if (job.status === 'completed') {
+      void mutateSyncStatus();
+      void mutateRepo();
+      refreshCurrentNodes();
+      window.dispatchEvent(new CustomEvent('import-job-completed', {
+        detail: { jobId: job.id, projectId },
+      }));
+    }
+  }, [latestImportJob, mutateRepo, mutateSyncStatus, projectId, refreshCurrentNodes]);
 
   // ───── Render ─────
 
@@ -629,6 +646,10 @@ export default function DataPage({ params }: DataPageProps) {
     onFileImportConfirm: fileImport.handleFileImportConfirm,
     droppedFiles: fileImport.droppedFiles,
     fileImportTargetLabel: fileImport.fileImportTarget.name,
+    filePickerInputRef: fileImport.filePickerInputRef,
+    folderPickerInputRef: fileImport.folderPickerInputRef,
+    onFilePickerChange: fileImport.handleFilePickerChange,
+    onFolderPickerChange: fileImport.handleFolderPickerChange,
   };
 
   const editorAreaProps = activeProject ? {
@@ -792,7 +813,16 @@ export default function DataPage({ params }: DataPageProps) {
             fileImport.openFileImportForTarget(files, { path: null, name: 'Root' });
           },
           onImportGitHub: createMenuActions.onImportGitHub,
+          importJob: latestEmptyImportJob,
+          onImportJobCreated: async (job) => {
+            await upsertImportJob(job);
+            await refreshImportJobs();
+          },
           onOpenEmptyProject: handleOpenEmptyProject,
+        },
+        noFileSelectedProps: {
+          onCreateMarkdown: createMenuActions.onCreateBlankMarkdown,
+          onUploadClick: createMenuActions.onImportFromFiles,
         },
         gridViewProps: {
           items,

@@ -68,18 +68,25 @@ export function ErrorConsole({
             width: 8px;
           }
           .error-console-scroll::-webkit-scrollbar-track {
-            background: var(--po-inset);
+            background: transparent;
           }
           .error-console-scroll::-webkit-scrollbar-thumb {
-            background: var(--po-scrollbar-thumb);
+            background: transparent;
             border-radius: 4px;
           }
-          .error-console-scroll::-webkit-scrollbar-thumb:hover {
+          .error-console-scroll.po-scrollbar-active::-webkit-scrollbar-thumb {
+            background: var(--po-scrollbar-thumb);
+          }
+          .error-console-scroll.po-scrollbar-active::-webkit-scrollbar-thumb:hover {
             background: var(--po-scrollbar-thumb-hover);
           }
           .error-console-scroll {
             scrollbar-width: thin;
-            scrollbar-color: var(--po-scrollbar-thumb) var(--po-inset);
+            scrollbar-color: transparent transparent;
+            scrollbar-gutter: stable;
+          }
+          .error-console-scroll.po-scrollbar-active {
+            scrollbar-color: var(--po-scrollbar-thumb) transparent;
           }
         `,
         }}

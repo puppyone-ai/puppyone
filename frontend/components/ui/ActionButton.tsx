@@ -9,7 +9,7 @@ import {
 } from 'react';
 import { BUTTON_HEIGHT, BUTTON_RADIUS } from './buttonTokens';
 
-type ActionButtonVariant = 'primary' | 'secondary' | 'danger' | 'warning' | 'ghost';
+type ActionButtonVariant = 'primary' | 'secondary' | 'access' | 'danger' | 'warning' | 'ghost';
 type ActionButtonSize = 'sm' | 'md';
 
 type ActionButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'style'> & {
@@ -54,6 +54,15 @@ function variantStyle(
       border: '1px solid var(--po-text)',
       background: hovered ? 'color-mix(in srgb, var(--po-text) 88%, var(--po-panel) 12%)' : 'var(--po-text)',
       color: 'var(--po-text-inverse)',
+      cursor: 'pointer',
+    };
+  }
+
+  if (variant === 'access') {
+    return {
+      border: '1px solid var(--po-access-action-border)',
+      background: hovered ? 'var(--po-access-action-hover)' : 'var(--po-access-action)',
+      color: 'var(--po-access-action-contrast)',
       cursor: 'pointer',
     };
   }
@@ -137,7 +146,7 @@ export function ActionButton({
         ...SIZE_STYLES[size],
         width: fullWidth ? '100%' : undefined,
         borderRadius: BUTTON_RADIUS,
-        fontWeight: variant === 'primary' ? 600 : 500,
+        fontWeight: variant === 'primary' || variant === 'access' ? 600 : 500,
         fontFamily: 'inherit',
         lineHeight: 1,
         display: 'inline-flex',

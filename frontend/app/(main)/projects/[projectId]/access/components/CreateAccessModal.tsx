@@ -2,10 +2,10 @@
 
 import { useMemo, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
-import { Check, ChevronRight, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { DialogBody, DialogFooter, DialogHeader, DialogRoot, DialogSurface } from '@/components/ui/Dialog';
+import { TreeDisclosureMarker } from '@/components/ui/TreeDisclosureMarker';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
-import { useContentNodes } from '@/lib/hooks/useData';
 import {
   createConnector,
   createScope,
@@ -13,27 +13,36 @@ import {
   type ConnectorDirection,
   type RepoScope,
 } from '@/lib/repoApi';
-import { sortNodes, type NodeInfo } from '@/lib/contentTreeApi';
 import { T } from '../lib/tokens';
 import { PROVIDER_LABELS } from '../lib/constants';
-import { FileGlyph, FolderGlyph, ProviderIcon } from './icons';
+import { ProviderIcon } from './icons';
+import { FolderAccessTree } from './FolderAccessTree';
 
 type OptionalProvider = 'mcp' | 'sandbox';
+
+const ACCESS_MODAL_TYPE = {
+  body: 13,
+  meta: 12,
+  label: 11,
+} as const;
 
 const OPTIONAL_METHODS: Array<{
   readonly provider: OptionalProvider;
   readonly direction: ConnectorDirection;
   readonly description: string;
+  readonly supported: boolean;
 }> = [
   {
     provider: 'mcp',
     direction: 'inbound',
-    description: 'Let external AI tools connect to this folder through MCP.',
+    description: 'External AI tools connect through MCP.',
+    supported: false,
   },
   {
     provider: 'sandbox',
     direction: 'inbound',
-    description: 'Run tools in a sandbox with this folder mounted.',
+    description: 'Run tools with this folder mounted.',
+    supported: false,
   },
 ];
 
@@ -54,7 +63,6 @@ export function CreateAccessModal({
 }) {
   const normalizedInitialPath = normalizePath(initialPath ?? '');
   const initialSelectedPath = normalizedInitialPath === '' ? null : normalizedInitialPath;
-  const [browsePath, setBrowsePath] = useState(normalizedInitialPath);
   const [selectedPath, setSelectedPath] = useState<string | null>(initialSelectedPath);
   const [name, setName] = useState(
     initialSelectedPath === null ? '' : defaultScopeName(initialSelectedPath),
@@ -64,11 +72,6 @@ export function CreateAccessModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { nodes, isLoading, error: treeError } = useContentNodes(projectId, browsePath);
-  const entries = useMemo(
-    () => sortNodes(nodes),
-    [nodes],
-  );
   const existingPathSet = useMemo(
     () => new Set(existingScopes.map((scope) => normalizePath(scope.path))),
     [existingScopes],
@@ -89,11 +92,19 @@ export function CreateAccessModal({
     );
   }, [connectorsByScope, selectedExistingScope]);
   const optionalProvidersToCreate = useMemo(
-    () => Array.from(optionalProviders).filter((provider) => !existingProviders.has(provider)),
+    () => Array.from(optionalProviders).filter((provider) => {
+      const method = OPTIONAL_METHODS.find((item) => item.provider === provider);
+      return method?.supported === true && !existingProviders.has(provider);
+    }),
     [existingProviders, optionalProviders],
   );
-  const canCreate = !saving && normalizedSelected !== null && normalizedSelected !== '';
-  const selectedLabel = normalizedSelected === null ? 'Choose a folder' : formatPath(normalizedSelected);
+  const trimmedName = name.trim();
+  const canCreate =
+    !saving
+    && normalizedSelected !== null
+    && normalizedSelected !== ''
+    && (selectedExistingScope !== null || trimmedName.length > 0);
+  const selectedLabel = normalizedSelected === null ? 'Choose a path' : formatPath(normalizedSelected);
   const actionLabel = saving
     ? 'Saving...'
     : selectedExistingScope
@@ -147,7 +158,7 @@ export function CreateAccessModal({
 
   return (
     <DialogRoot open onClose={saving ? undefined : onClose} backdrop="strong" dismissOnBackdrop={!saving}>
-      <DialogSurface width={720} ariaLabel="Create access">
+      <DialogSurface width={760} ariaLabel="Create access">
         <DialogHeader
           title="New folder access"
           description="Choose a folder from Files. Git Remote and Puppyone CLI are enabled for that folder; the top-level workspace stays managed by Puppyone."
@@ -162,19 +173,42 @@ export function CreateAccessModal({
               alignItems: 'start',
             }}
           >
-            <PathPicker
-              browsePath={browsePath}
+            <FolderAccessTree
+              projectId={projectId}
               selectedPath={normalizedSelected}
-              entries={entries}
-              loading={isLoading}
-              errored={!!treeError}
               existingPathSet={existingPathSet}
-              onBrowse={setBrowsePath}
+              initialExpandedPath={initialSelectedPath}
               onSelect={selectPath}
             />
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0 }}>
-              <FieldLabel label="Folder">
+              <FieldLabel label="Access name" required>
+                <input
+                  value={name}
+                  onChange={(event) => {
+                    setNameTouched(true);
+                    setName(event.target.value);
+                  }}
+                  placeholder={normalizedSelected === null ? 'Choose a path first' : defaultScopeName(normalizedSelected)}
+                  disabled={saving}
+                  style={{
+                    width: '100%',
+                    height: 34,
+                    boxSizing: 'border-box',
+                    borderRadius: 7,
+                    border: `1px solid ${T.border}`,
+                    background: 'var(--po-control)',
+                    color: T.text1,
+                    padding: '0 10px',
+                    fontSize: ACCESS_MODAL_TYPE.body,
+                    fontFamily: T.fontSans,
+                    lineHeight: '18px',
+                    outline: 'none',
+                  }}
+                />
+              </FieldLabel>
+
+              <FieldLabel label="Path" required>
                 <div
                   title={selectedLabel}
                   style={{
@@ -187,48 +221,24 @@ export function CreateAccessModal({
                     border: `1px solid ${selectedExistingScope ? 'var(--po-border-strong)' : T.border}`,
                     background: 'var(--po-inset)',
                     color: normalizedSelected === null ? T.text4 : T.text2,
-                    fontFamily: T.fontMono,
-                    fontSize: 12,
+                    fontFamily: T.fontSans,
+                    fontSize: ACCESS_MODAL_TYPE.body,
+                    lineHeight: '18px',
                     overflow: 'hidden',
                   }}
                 >
                   <span style={{ flexShrink: 0, color: selectedExistingScope ? 'var(--po-success)' : T.text3 }}>
-                    <FolderGlyph size={14} />
+                    <TreeDisclosureMarker expanded={normalizedSelected !== null} />
                   </span>
                   <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {selectedLabel}
                   </span>
                 </div>
                 {selectedExistingScope ? (
-                  <div style={{ marginTop: 6, fontSize: 10, lineHeight: 1.5, color: T.text3 }}>
-                    This folder already has access. You can add share methods or open it.
+                  <div style={{ marginTop: 6, fontSize: ACCESS_MODAL_TYPE.meta, lineHeight: '17px', color: T.text3 }}>
+                    This path already has access. You can add share methods or open it.
                   </div>
                 ) : null}
-              </FieldLabel>
-
-              <FieldLabel label="Access name">
-                <input
-                  value={name}
-                  onChange={(event) => {
-                    setNameTouched(true);
-                    setName(event.target.value);
-                  }}
-                  placeholder={normalizedSelected === null ? 'Choose a folder first' : defaultScopeName(normalizedSelected)}
-                  disabled={saving}
-                  style={{
-                    width: '100%',
-                    height: 34,
-                    boxSizing: 'border-box',
-                    borderRadius: 7,
-                    border: `1px solid ${T.border}`,
-                    background: 'var(--po-control)',
-                    color: T.text1,
-                    padding: '0 10px',
-                    fontSize: 12,
-                    fontFamily: T.fontSans,
-                    outline: 'none',
-                  }}
-                />
               </FieldLabel>
 
               <div>
@@ -247,7 +257,8 @@ export function CreateAccessModal({
                       key={method.provider}
                       provider={method.provider}
                       description={method.description}
-                      checked={optionalProviders.has(method.provider) || existingProviders.has(method.provider)}
+                      checked={method.supported && (optionalProviders.has(method.provider) || existingProviders.has(method.provider))}
+                      disabled={!method.supported}
                       locked={existingProviders.has(method.provider)}
                       onCheckedChange={(checked) => toggleOptionalProvider(method.provider, checked)}
                     />
@@ -266,8 +277,8 @@ export function CreateAccessModal({
                 border: '1px solid color-mix(in srgb, var(--po-danger) 30%, transparent)',
                 background: 'color-mix(in srgb, var(--po-danger) 7%, transparent)',
                 color: 'var(--po-danger)',
-                fontSize: 12,
-                lineHeight: 1.5,
+                fontSize: ACCESS_MODAL_TYPE.meta,
+                lineHeight: '17px',
                 fontFamily: T.fontSans,
               }}
             >
@@ -303,298 +314,22 @@ export function CreateAccessModal({
   );
 }
 
-function PathPicker({
-  browsePath,
-  selectedPath,
-  entries,
-  loading,
-  errored,
-  existingPathSet,
-  onBrowse,
-  onSelect,
-}: {
-  readonly browsePath: string;
-  readonly selectedPath: string | null;
-  readonly entries: readonly NodeInfo[];
-  readonly loading: boolean;
-  readonly errored: boolean;
-  readonly existingPathSet: ReadonlySet<string>;
-  readonly onBrowse: (path: string) => void;
-  readonly onSelect: (path: string) => void;
-}) {
-  const isProjectRoot = browsePath === '';
-
-  return (
-    <div
-      style={{
-        minWidth: 0,
-        borderRadius: 8,
-        border: `1px solid ${T.cardBorder}`,
-        background: T.cardBg,
-        overflow: 'hidden',
-      }}
-    >
-      <div
-        style={{
-          minHeight: 42,
-          padding: '8px 10px',
-          borderBottom: `1px solid ${T.cardBorder}`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 10,
-        }}
-      >
-        <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
-          <div style={{ color: T.text4, fontSize: 10, fontWeight: 600, fontFamily: T.fontSans }}>
-            Choose from Files
-          </div>
-          <Breadcrumb path={browsePath} onBrowse={onBrowse} />
-        </div>
-        {isProjectRoot ? (
-          <span
-            style={{
-              flexShrink: 0,
-              height: 28,
-              display: 'inline-flex',
-              alignItems: 'center',
-              padding: '0 9px',
-              borderRadius: 6,
-              border: `1px solid ${T.cardBorder}`,
-              color: T.text4,
-              fontSize: 12,
-              fontWeight: 500,
-              fontFamily: T.fontSans,
-            }}
-          >
-            Choose a folder
-          </span>
-        ) : (
-          <button
-            type="button"
-            onClick={() => onSelect(browsePath)}
-            title={`Choose ${formatPath(browsePath)}`}
-            style={{
-              flexShrink: 0,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 5,
-              height: 28,
-              padding: '0 9px',
-              borderRadius: 6,
-              border: `1px solid ${selectedPath === browsePath ? 'var(--po-accent)' : T.border}`,
-              background: selectedPath === browsePath ? 'color-mix(in srgb, var(--po-accent) 13%, transparent)' : 'transparent',
-              color: selectedPath === browsePath ? T.text1 : T.text2,
-              fontSize: 12,
-              fontWeight: 500,
-              fontFamily: T.fontSans,
-              cursor: 'pointer',
-            }}
-          >
-            {selectedPath === browsePath ? <Check size={13} strokeWidth={2.4} /> : null}
-            {selectedPath === browsePath ? 'Chosen folder' : 'Choose this folder'}
-          </button>
-        )}
-      </div>
-
-      <div style={{ height: 326, overflow: 'auto', padding: 6 }}>
-        {loading ? (
-          <PathPickerMessage>Loading...</PathPickerMessage>
-        ) : errored ? (
-          <PathPickerMessage>Could not load this folder.</PathPickerMessage>
-        ) : entries.length === 0 ? (
-          <PathPickerMessage>This folder is empty.</PathPickerMessage>
-        ) : (
-          entries.map((entry) => (
-            <PickerEntryRow
-              key={entry.path}
-              entry={entry}
-              selected={entry.type === 'folder' && selectedPath === normalizePath(entry.path)}
-              alreadyExists={entry.type === 'folder' && existingPathSet.has(normalizePath(entry.path))}
-              onBrowse={() => onBrowse(normalizePath(entry.path))}
-              onSelect={() => onSelect(entry.path)}
-            />
-          ))
-        )}
-      </div>
-    </div>
-  );
-}
-
-function Breadcrumb({
-  path,
-  onBrowse,
-}: {
-  readonly path: string;
-  readonly onBrowse: (path: string) => void;
-}) {
-  const parts = path.split('/').filter(Boolean);
-
-  return (
-    <div
-      style={{
-        minWidth: 0,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 4,
-        color: T.text3,
-        fontSize: 12,
-        fontFamily: T.fontSans,
-        overflow: 'hidden',
-      }}
-    >
-      <button type="button" onClick={() => onBrowse('')} style={breadcrumbButtonStyle}>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <FolderGlyph size={15} />
-          Files
-        </span>
-      </button>
-      {parts.map((part, index) => {
-        const nextPath = parts.slice(0, index + 1).join('/');
-        return (
-          <span key={nextPath} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
-            <ChevronRight size={12} strokeWidth={2} style={{ flexShrink: 0, color: T.text4 }} />
-            <button
-              type="button"
-              onClick={() => onBrowse(nextPath)}
-              title={part}
-              style={{
-                ...breadcrumbButtonStyle,
-                maxWidth: 96,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {part}
-            </button>
-          </span>
-        );
-      })}
-    </div>
-  );
-}
-
-function PickerEntryRow({
-  entry,
-  selected,
-  alreadyExists,
-  onBrowse,
-  onSelect,
-}: {
-  readonly entry: NodeInfo;
-  readonly selected: boolean;
-  readonly alreadyExists: boolean;
-  readonly onBrowse: () => void;
-  readonly onSelect: () => void;
-}) {
-  const isFolder = entry.type === 'folder';
-
-  return (
-    <div
-      style={{
-        height: 36,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        padding: '0 6px 0 8px',
-        borderRadius: 6,
-        background: selected ? 'var(--po-selected)' : 'transparent',
-        color: selected ? T.text1 : isFolder ? T.text2 : T.text4,
-        fontFamily: T.fontSans,
-        opacity: isFolder ? 1 : 0.78,
-      }}
-    >
-      {isFolder ? (
-        <button
-          type="button"
-          onClick={onBrowse}
-          title={`Open ${formatPath(entry.path)}`}
-          style={{
-            flex: 1,
-            minWidth: 0,
-            height: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            border: 'none',
-            background: 'transparent',
-            color: 'inherit',
-            padding: 0,
-            cursor: 'pointer',
-            textAlign: 'left',
-            font: 'inherit',
-          }}
-        >
-          <FolderGlyph size={16} />
-          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {entry.name}
-          </span>
-        </button>
-      ) : (
-        <div
-          title={formatPath(entry.path)}
-          aria-disabled="true"
-          style={{
-            flex: 1,
-            minWidth: 0,
-            height: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-          }}
-        >
-          <FileGlyph size={15} />
-          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {entry.name}
-          </span>
-        </div>
-      )}
-      {isFolder ? (
-        <>
-          {alreadyExists ? (
-            <span style={{ flexShrink: 0, fontSize: 10, color: T.text4 }}>Has access</span>
-          ) : null}
-          <button
-            type="button"
-            onClick={onSelect}
-            style={{
-              flexShrink: 0,
-              height: 24,
-              padding: '0 8px',
-              borderRadius: 5,
-              border: `1px solid ${selected ? 'var(--po-border-strong)' : T.border}`,
-              background: selected ? 'color-mix(in srgb, var(--po-accent) 12%, transparent)' : 'transparent',
-              color: selected ? T.text1 : T.text3,
-              fontSize: 10,
-              fontWeight: 500,
-              fontFamily: T.fontSans,
-              cursor: 'pointer',
-            }}
-          >
-            {selected ? 'Chosen' : 'Choose'}
-          </button>
-        </>
-      ) : (
-        <span style={{ flexShrink: 0, fontSize: 10, color: T.text4 }}>File</span>
-      )}
-    </div>
-  );
-}
-
 function MethodRow({
   provider,
   description,
   locked = false,
+  disabled = false,
   checked = false,
   onCheckedChange,
 }: {
   readonly provider: string;
   readonly description: string;
   readonly locked?: boolean;
+  readonly disabled?: boolean;
   readonly checked?: boolean;
   readonly onCheckedChange?: (checked: boolean) => void;
 }) {
+  const inactive = disabled && !locked;
   const enabled = locked || checked;
 
   return (
@@ -607,8 +342,9 @@ function MethodRow({
         padding: '8px 10px',
         borderRadius: 8,
         border: `1px solid ${enabled ? 'var(--po-border-strong)' : T.cardBorder}`,
-        background: enabled ? 'var(--po-control)' : 'transparent',
+        background: enabled ? 'var(--po-control)' : inactive ? 'color-mix(in srgb, var(--po-panel) 72%, var(--po-canvas))' : 'transparent',
         boxSizing: 'border-box',
+        opacity: inactive ? 0.58 : 1,
       }}
     >
       <span
@@ -621,24 +357,45 @@ function MethodRow({
           alignItems: 'center',
           justifyContent: 'center',
           background: 'var(--po-hover)',
-          color: T.text2,
+          color: inactive ? T.text4 : T.text2,
         }}
       >
         <ProviderIcon provider={provider} size={16} />
       </span>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: T.text2, fontFamily: T.fontSans }}>
-          {PROVIDER_LABELS[provider] ?? provider}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          <span style={{ fontSize: ACCESS_MODAL_TYPE.body, fontWeight: 600, color: inactive ? T.text3 : T.text2, fontFamily: T.fontSans, lineHeight: '18px', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {PROVIDER_LABELS[provider] ?? provider}
+          </span>
+          {inactive ? (
+            <span
+              style={{
+                flexShrink: 0,
+                height: 18,
+                padding: '0 6px',
+                borderRadius: 999,
+                border: `1px solid ${T.cardBorder}`,
+                color: T.text4,
+                fontSize: ACCESS_MODAL_TYPE.label,
+                lineHeight: '16px',
+                fontWeight: 600,
+                fontFamily: T.fontSans,
+              }}
+            >
+              Soon
+            </span>
+          ) : null}
         </div>
-        <div style={{ marginTop: 2, fontSize: 10, lineHeight: 1.35, color: T.text3, fontFamily: T.fontSans }}>
+        <div style={{ marginTop: 2, fontSize: ACCESS_MODAL_TYPE.meta, lineHeight: '17px', color: inactive ? T.text4 : T.text3, fontFamily: T.fontSans, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {description}
         </div>
       </div>
       <ToggleSwitch
         checked={enabled}
-        onCheckedChange={locked ? undefined : onCheckedChange}
+        onCheckedChange={locked || disabled ? undefined : onCheckedChange}
+        disabled={disabled}
         ariaLabel={`${PROVIDER_LABELS[provider] ?? provider} ${enabled ? 'on' : 'off'}`}
-        title={locked ? 'Already enabled' : undefined}
+        title={locked ? 'Already enabled' : disabled ? 'Coming soon' : undefined}
         size="xs"
       />
     </div>
@@ -647,15 +404,29 @@ function MethodRow({
 
 function FieldLabel({
   label,
+  required = false,
   children,
 }: {
   readonly label: string;
+  readonly required?: boolean;
   readonly children: ReactNode;
 }) {
   return (
     <label style={{ display: 'block', minWidth: 0 }}>
-      <div style={{ marginBottom: 6, fontSize: 10, fontWeight: 600, color: T.text3, fontFamily: T.fontSans }}>
+      <div style={{ marginBottom: 8, fontSize: ACCESS_MODAL_TYPE.label, lineHeight: '14px', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--po-text-subtle)', fontFamily: T.fontSans, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
         {label}
+        {required ? (
+          <span
+            aria-hidden
+            style={{
+              width: 5,
+              height: 5,
+              borderRadius: 999,
+              background: 'var(--po-danger)',
+              display: 'inline-block',
+            }}
+          />
+        ) : null}
       </div>
       {children}
     </label>
@@ -664,25 +435,7 @@ function FieldLabel({
 
 function SectionHeading({ children }: { readonly children: ReactNode }) {
   return (
-    <div style={{ marginBottom: 7, fontSize: 10, fontWeight: 600, color: T.text3, fontFamily: T.fontSans }}>
-      {children}
-    </div>
-  );
-}
-
-function PathPickerMessage({ children }: { readonly children: ReactNode }) {
-  return (
-    <div
-      style={{
-        height: '100%',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: T.text4,
-        fontSize: 12,
-        fontFamily: T.fontSans,
-      }}
-    >
+    <div style={{ marginBottom: 8, fontSize: ACCESS_MODAL_TYPE.label, lineHeight: '14px', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--po-text-subtle)', fontFamily: T.fontSans }}>
       {children}
     </div>
   );
@@ -714,7 +467,8 @@ async function createOptionalConnectors(
 }
 
 function formatPath(path: string): string {
-  return path === '' ? 'Project files' : `/${path}`;
+  const parts = normalizePath(path).split('/').filter(Boolean);
+  return parts.length === 0 ? 'Root' : ['Root', ...parts].join(' / ');
 }
 
 function defaultScopeName(path: string): string {
@@ -732,17 +486,6 @@ function errorMessage(err: unknown): string {
   return 'Could not create access. Please try again.';
 }
 
-const breadcrumbButtonStyle: CSSProperties = {
-  border: 'none',
-  background: 'transparent',
-  color: T.text2,
-  padding: '2px 3px',
-  borderRadius: 4,
-  cursor: 'pointer',
-  fontSize: 12,
-  fontFamily: T.fontSans,
-};
-
 const secondaryButtonStyle: CSSProperties = {
   height: 32,
   padding: '0 12px',
@@ -750,9 +493,10 @@ const secondaryButtonStyle: CSSProperties = {
   border: `1px solid ${T.border}`,
   background: 'transparent',
   color: T.text2,
-  fontSize: 12,
+  fontSize: ACCESS_MODAL_TYPE.body,
   fontWeight: 500,
   fontFamily: T.fontSans,
+  lineHeight: 1,
   cursor: 'pointer',
 };
 
@@ -763,9 +507,10 @@ const primaryButtonStyle: CSSProperties = {
   border: '1px solid var(--po-accent)',
   background: 'var(--po-accent)',
   color: 'var(--po-text-inverse)',
-  fontSize: 12,
+  fontSize: ACCESS_MODAL_TYPE.body,
   fontWeight: 600,
   fontFamily: T.fontSans,
+  lineHeight: 1,
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',

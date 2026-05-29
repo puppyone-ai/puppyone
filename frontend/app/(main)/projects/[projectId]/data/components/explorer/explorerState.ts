@@ -48,7 +48,11 @@ export function useIsExpanded(id: string): boolean {
   return useSyncExternalStore(expandedSubscribe, getSnapshot, getSnapshot);
 }
 
-const pendingCreatingKeys = new Set<string>();
+export type PendingCreatingInfo = {
+  label: string;
+};
+
+const pendingCreating = new Map<string, PendingCreatingInfo>();
 const pendingCreatingListeners = new Set<() => void>();
 
 function pendingCreatingKey(projectId: string, path: string) {
@@ -65,22 +69,35 @@ function notifyPendingCreating() {
 }
 
 export function addPendingCreatingPath(projectId: string, path: string) {
+  addPendingCreatingNode(projectId, path, { label: 'Creating folder' });
+}
+
+export function addPendingCreatingNode(
+  projectId: string,
+  path: string,
+  info: PendingCreatingInfo,
+) {
   const key = pendingCreatingKey(projectId, path);
-  if (pendingCreatingKeys.has(key)) return;
-  pendingCreatingKeys.add(key);
+  const current = pendingCreating.get(key);
+  if (current?.label === info.label) return;
+  pendingCreating.set(key, info);
   notifyPendingCreating();
 }
 
 export function removePendingCreatingPath(projectId: string, path: string) {
   const key = pendingCreatingKey(projectId, path);
-  if (!pendingCreatingKeys.has(key)) return;
-  pendingCreatingKeys.delete(key);
+  if (!pendingCreating.has(key)) return;
+  pendingCreating.delete(key);
   notifyPendingCreating();
 }
 
 export function useIsPendingCreatingPath(projectId: string, path: string): boolean {
+  return usePendingCreatingInfo(projectId, path) !== null;
+}
+
+export function usePendingCreatingInfo(projectId: string, path: string): PendingCreatingInfo | null {
   const getSnapshot = useCallback(
-    () => pendingCreatingKeys.has(pendingCreatingKey(projectId, path)),
+    () => pendingCreating.get(pendingCreatingKey(projectId, path)) ?? null,
     [projectId, path],
   );
   return useSyncExternalStore(pendingCreatingSubscribe, getSnapshot, getSnapshot);

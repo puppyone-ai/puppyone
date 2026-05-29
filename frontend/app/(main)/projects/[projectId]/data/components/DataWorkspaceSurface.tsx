@@ -9,6 +9,7 @@ import { BulkDeleteDialog } from './BulkDeleteDialog';
 import { DataPageDialogs } from './DataPageDialogs';
 import { DataPageOverlays } from './DataPageOverlays';
 import { EditorArea } from './EditorArea';
+import { DataNoFileSelectedState } from './DataNoFileSelectedState';
 import { SelectionActionBar } from './SelectionActionBar';
 import { DataExplorerPane } from './explorer';
 import { DataPageRightPanel } from './right-panel';
@@ -55,6 +56,7 @@ type DataWorkspaceSurfaceProps = {
     showEmptyWorkspace: boolean;
     suppressExplorerSidebar: boolean;
     emptyWorkspaceProps: ComponentProps<typeof EmptyWorkspaceState>;
+    noFileSelectedProps: ComponentProps<typeof DataNoFileSelectedState>;
     gridViewProps: ComponentProps<typeof GridView>;
   };
   rightPanelProps: ComponentProps<typeof DataPageRightPanel>;
@@ -263,16 +265,7 @@ export function DataWorkspaceSurface({
                   ) : content.showEmptyWorkspace ? (
                     <EmptyWorkspaceState {...content.emptyWorkspaceProps} />
                   ) : (
-                    <>
-                      {/*
-                        Folder/root Finder-style main-area grid is paused for now.
-                        Keep the implementation wired in props/components so we can
-                        reintroduce a deliberate folder surface later without making
-                        sidebar navigation feel like selecting a file editor object.
-
-                        <GridView {...content.gridViewProps} />
-                      */}
-                    </>
+                    <DataNoFileSelectedState {...content.noFileSelectedProps} />
                   )}
                 </div>
               )}

@@ -45,6 +45,7 @@ async def publish_project_update(
     scope_path: str = "",
     scope_hash: str = "",
     scope_head_commit_id: str = "",
+    expected_scope_head_commit_id: str | None = None,
 ) -> TransactionResult | None:
     scope_norm = normalize_path(scope_path)
     accepted_scope_hash = scope_hash or new_root_hash
@@ -72,6 +73,7 @@ async def publish_project_update(
             scope_path=scope_norm,
             scope_hash=accepted_scope_hash,
             scope_head_commit_id=scope_head_commit_id,
+            expected_scope_head_commit_id=expected_scope_head_commit_id,
             commit_id=commit_id,
             who=actor,
             message=message,

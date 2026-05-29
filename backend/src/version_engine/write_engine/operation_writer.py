@@ -219,10 +219,12 @@ class OperationWriter:
                     await asyncio.to_thread(object_batch.flush)
 
             scope_head_commit_id = ""
+            expected_scope_head_commit_id: str | None = None
             if scope_norm:
                 _cached_scope_hash, previous_scope_head_id = _get_scope_state(
                     repo, scope_norm,
                 )
+                expected_scope_head_commit_id = previous_scope_head_id
                 scope_head_commit_id = await asyncio.to_thread(
                     _build_scope_view_commit,
                     repo,
@@ -248,6 +250,7 @@ class OperationWriter:
                 scope_path=scope_norm,
                 scope_hash=new_scope_hash,
                 scope_head_commit_id=scope_head_commit_id,
+                expected_scope_head_commit_id=expected_scope_head_commit_id,
                 commit_id=new_commit_id,
                 actor=intent.actor,
                 message=intent.message,

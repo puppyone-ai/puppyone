@@ -166,46 +166,65 @@ Legend:
                                                  v
 
                                           L5 Write System
-       +------------------------------------------------------------+----------------------+
-       | L5 Core Write Engine                                      | L5 Follow-up / Repair |
-       |                                                            |                      |
-       | Goal: land one admitted write as durable Git-native        | Consumes committed   |
-       | version facts.                                             | facts from L5 Core.  |
-       |                                                            |                      |
-       | Inputs from L4:                                            | - hooks and durable  |
-       |   Product/AP/batch -> OperationWriteIntent +               |   outbox consumers   |
-       |     TreePatch/splice_fn                                    | - scope caches and   |
-       |   Git push -> VersionSubmissionIntent + proposed Git tree  |   root->AP derived   |
-       |                                                            |   refs/views         |
-       | Main path:                                                 | - Git view cache     |
-       |   Read current head/root                                   |   warming/repair     |
-       |     -> Build candidate version                             | - path/search        |
-       |     -> Store immutable blob/tree/commit objects            |   indexes            |
-       |     -> Try conditional root publish                        | - websocket/read     |
-       |                                                            |   model refresh      |
-       | Conditional publish result:                                | - search event       |
-       |   accepted:                                                |   dispatch           |
-       |     write history/audit/ledger/outbox; return status=ok    | - object GC          |
-       |   rejected because head/root moved:                        | - committed-version  |
-       |     read latest; resolve conflicts; loop to Main path      |   repair             |
-       |   conflicts cannot be resolved synchronously:              |                      |
-       |     write pending conflict; return status=pending          | Must not publish     |
-       |   rejected because caller supplied stale expected head:    | refs or decide       |
-       |     return status=conflict/409                             | merge policy.        |
-       |   rejected after retry budget is exhausted:                |                      |
-       |     fail loud                                              |                      |
-       | Conflict facts are created here, before any derived         |                      |
-       | UI/index work.                                             |                      |
-       |                                                            |                      |
-       | Object-store calls and publish gate are write-engine        |                      |
-       | internals on this path. Physical bytes live in L6.           |                      |
-       | Transport cache is protocol cache only, not source of truth. |                      |
-       +-----------------------------+------------------------------+----------+-----------+
-                                     |                                         |
-                                     | object bytes + object-location index    | may read/repair/GC
-                                     +---------------------------+-------------+
-                                                                 |
-                                                                 v
+       +-----------------------------------------------------------------------------------+
+       | +-----------------------------------------------------------------------------+ |
+       | | L5 Core Write Engine                                                       | |
+       | |                                                                             | |
+       | | Goal: land one admitted write as durable Git-native                         | |
+       | | version facts.                                                              | |
+       | |                                                                             | |
+       | | Inputs from L4:                                                             | |
+       | |   Product/AP/batch -> OperationWriteIntent +                                | |
+       | |     TreePatch/splice_fn                                                     | |
+       | |   Git push -> VersionSubmissionIntent + proposed Git tree                   | |
+       | |                                                                             | |
+       | | Main path:                                                                  | |
+       | |   Read current head/root                                                    | |
+       | |     -> Build candidate version                                              | |
+       | |     -> Store immutable blob/tree/commit objects                             | |
+       | |     -> Try conditional root publish                                         | |
+       | |                                                                             | |
+       | | Conditional publish result:                                                 | |
+       | |   accepted:                                                                 | |
+       | |     write history/audit/ledger/outbox; return status=ok                     | |
+       | |   rejected because head/root moved:                                         | |
+       | |     read latest; resolve conflicts; loop to Main path                       | |
+       | |   conflicts cannot be resolved synchronously:                               | |
+       | |     write pending conflict; return status=pending                           | |
+       | |   rejected because caller supplied stale expected head:                     | |
+       | |     return status=conflict/409                                              | |
+       | |   rejected after retry budget is exhausted:                                 | |
+       | |     fail loud                                                               | |
+       | | Conflict facts are created here, before any derived                          | |
+       | | UI/index work.                                                              | |
+       | |                                                                             | |
+       | | Object-store calls and publish gate are write-engine                         | |
+       | | internals on this path. Physical bytes live in L6.                           | |
+       | | Transport cache is protocol cache only, not source of truth.                  | |
+       | +-----------------------------------------------------------------------------+ |
+       |                                                                                   |
+       | +---------------------------------------+   +-----------------------------------+ |
+       | | L5 Diff / TreeDelta                  |   | L5 Follow-up / Repair             | |
+       | | Structural write diff: path/tree/blob |   | Consumes committed facts from     | |
+       | | ChangeSets for scope checks, sparse  |   | L5 Core.                          | |
+       | | merge, conflict policy, changed      |   |                                   | |
+       | | paths, history facts, and audit.     |   | - hooks and durable outbox        | |
+       | | Not a human semantic diff.           |   | - scope caches and root->AP views | |
+       | |                                      |   | - Git view cache warming/repair   | |
+       | |                                      |   | - path/search indexes             | |
+       | |                                      |   | - websocket/read model refresh    | |
+       | |                                      |   | - search event dispatch           | |
+       | |                                      |   | - object GC                       | |
+       | |                                      |   | - committed-version repair        | |
+       | |                                      |   |                                   | |
+       | |                                      |   | Must not publish refs or decide   | |
+       | |                                      |   | merge policy.                     | |
+       | +---------------------------------------+   +-----------------------------------+ |
+       +--------------------------------------+--------------------------------------------+
+                                              |
+                                              | object bytes + object-location index;
+                                              | follow-up may read/repair/GC
+                                              v
 
                                   L6 Storage Substrate
        +-----------------------------------------------------------------------------------+
@@ -229,9 +248,20 @@ Updates from the previous diagram:
   they are part of the write loop. There is no separate downstream publish stage
   that can "return" to the engine; a moved head/root loops back to the Main
   path with the latest state, while unresolved conflicts return `pending`.
-- L5 is now the write system, with L5 Core on the left and L5 Follow-up / Repair
-  on the right. The left side remains the semantic write authority; the right
-  side consumes committed facts and performs repairable follow-up work.
+- L5 is now the write system, with L5 Core as the synchronous write authority,
+  L5 Diff / TreeDelta as the boxed structural write-diff module, and L5
+  Follow-up / Repair on the right. L5 Follow-up consumes committed facts and
+  performs repairable follow-up work.
+- L5 Diff / TreeDelta is always structural first: path, tree, blob, action, and
+  object identity. Optional content-aware inspectors such as JSON-key,
+  Markdown-region, or DOCX-part strategies may enrich conflict-policy inputs
+  through a registry, but they must not become the source of truth and must not
+  block the structural fallback.
+- New content-aware diff logic must be added as a strategy under
+  `write_engine/tree_delta/content/strategies/` or registered from a product
+  composition root. L5 Core must not grow file-extension branches for every
+  format. Strategies return bounded machine regions, never full user-facing
+  render diffs or large document bodies.
 - Conflicts belong to L5. The Write Engine compares base/current/incoming
   trees, reaches a `resolve conflicts` checkpoint, and either produces a new
   candidate tree or writes a pending-conflict fact. L5 Follow-up may surface,
@@ -338,100 +368,8 @@ The word "branch" in this section means a user-visible write lane or Git-visible
 view lane. Puppyone scope remotes currently expose a single normal Git branch
 for the view, while L5 keeps the semantic merge point at the project root.
 
-### Root Write Affecting Child Scopes
-
-When a product/root write changes files under one or more child scopes, the
-write belongs to the root lane. The child scopes do not claim ownership of the
-write; they receive refreshed derived views.
-
-```text
-Root write changes:
-  docs/a.md
-  docs/b.md
-  product/pricing.md
-
-L5 Core:
-  T10 + root patch
-    -> T11
-    -> root commit R11
-    -> root CAS publish
-
-L5 Follow-up / Repair:
-  changed paths select affected scopes: docs, product
-  docs    D10 -> D11 -> derived scope-view head S11
-  product P10 -> P11 -> derived scope-view head P11
-```
-
-This refresh happens once per affected scope, not once per file. If five changed
-files all live under `/docs`, L5 Follow-up computes one target `/docs` subtree
-and one new `/docs` scope-view head.
-
-Root-originated changes are parent-authoritative for overlapping paths inside
-child views: when the root write and a child view touch the same relative path,
-the root version wins. Independent child paths are preserved during repair or
-stale follow-up so a delayed projection does not erase a newer scoped write.
-
-### Scoped Write Grafted Back To Root
-
-When a scoped Access Point or Git remote receives a write, L5 treats the incoming
-tree as a candidate replacement for that scope subtree, then grafts it back into
-the canonical project root.
-
-```text
-User clones /docs at scope head S10
-User commits S11
-  tree(S11) == D11
-
-L5 Core:
-  read current root T10
-  read current /docs subtree D10 from T10
-  validate base/head/excludes/path bounds
-  graft /docs := D11 into T10
-    -> T11
-  create root commit R11 with tree T11
-  root CAS publish
-
-Published result:
-  root head  = R11
-  /docs head = S11 for native Git pushes
-             = generated scope-view commit for non-Git scoped writes
-```
-
-For native Git remotes, the source scope keeps the user's Git client commit as
-the scope head when that commit tree is the accepted scope subtree. L5 Follow-up
-must not re-derive that source scope head after the transaction; doing so would
-replace a normal Git fast-forward chain with a synthetic view commit.
-
-Other affected scopes are still refreshed from the new root. For example, a
-write to `/docs/api` may refresh `/docs` and `/docs/api`, but it must not refresh
-unrelated scopes.
-
-### Root CAS And Merge Loop
-
-All lanes meet at the root CAS publish boundary.
-
-```text
-attempt:
-  latest root = Rn / Tn
-  scope base  = subtree(Tn, scope_path)
-  incoming    = proposed scope tree or root patch
-  candidate   = graft/patch result
-  publish     = CAS(root_hash == Tn, new_root_hash = candidate)
-
-CAS accepted:
-  write commit/history/audit/transaction/outbox
-
-CAS lost:
-  read newer root
-  recompute candidate
-  auto merge if safe
-  write pending conflict if unsafe
-  retry until budget exhausted
-```
-
-This is why scope remotes can be concurrent without becoming separate truths.
-Two scoped writes to unrelated paths can both land by retrying against the newest
-root. Two writes to the same path go through L5 conflict policy.
+具体的根写 / 子 scope 写 / 并发处理流程见后面"嵌套 Scope 拓扑"与"并发场景与
+冲突解决"两节；这里只保留性能与修复契约。
 
 ### Performance Shape
 
@@ -564,7 +502,7 @@ backend/src/version_engine/
     cas_retry.py                  # CAS-retry convergence merge
     conflict_policy.py
     conflict_queue.py             # pending manual-review conflict persistence
-    diff.py
+    diff.py                       # compatibility wrapper for legacy dict diffs
     git_commit.py
     git_object_format.py
     hash_utils.py
@@ -578,7 +516,21 @@ backend/src/version_engine/
     submission_commit.py          # Git submission commit preservation/synthesis
     trace.py
     tree.py
-    tree_access.py                # tree lookup, diff expansion, sparse merge
+    tree_access.py                # tree lookup and sparse merge helpers
+    tree_delta/                   # L5 structural write diff / ChangeSet
+      models.py                   # TreeChange / TreeDelta contracts
+      builder.py                  # tree/file-map/manifest delta builders
+      directory.py                # directory add/delete expansion
+      projection.py               # changed paths and history/audit rows
+      content/                    # optional content-aware machine diff enrichment
+        models.py                 # ContentDelta contract
+        registry.py               # deterministic strategy routing + fallback
+        strategy.py               # ContentDeltaStrategy protocol
+        builtins.py               # default strategy composition root
+        strategies/
+          json.py                 # JSON key/path machine regions
+          text.py                 # text/Markdown line machine regions
+          docx.py                 # DOCX zip-package part machine regions
     tree_objects.py
 
   storage/
@@ -644,53 +596,6 @@ These names are storage compatibility, not architecture. Product code,
 frontend code, CLI code, logs, and API metadata should use Version Engine,
 Git Remote, Puppyone CLI, scope, conflict, and audit language.
 
-## Hot Path
-
-```text
-Frontend Save
-  -> content_write router
-  -> ProjectWriteState RPC
-  -> VersionWriteCommandService
-  -> ProductOperationAdapter
-  -> stage Git objects as one batch/bundle
-  -> Write Engine (VersionWriteEngine implementation)
-  -> publish project update RPC
-  -> schedule hooks/outbox
-  -> return to user
-```
-
-The request path must not:
-
-- clone or materialize a full transport repo;
-- walk deep parent history;
-- download unchanged blobs;
-- run search indexing synchronously;
-- silently fall back to scattered DB writes when required RPCs are missing.
-
-## Deployment Cutover
-
-The runtime has no fallback to the old object namespace or removed publish
-paths. Before deploying this branch to an environment that already has data:
-
-1. Apply the Supabase SQL migrations in `supabase/migrations/`.
-2. Copy or migrate existing object keys into `version/<project>/...`.
-3. Confirm `infrastructure/supabase/db_names.py` is the only runtime boundary
-   that mentions the deferred physical DB names.
-4. Run the Version Engine E2E suite against the target branch.
-
-## Conflict Path
-
-```text
-CAS lost or unsafe merge
-  -> three-way policy over base/current/incoming trees
-  -> auto merge, LWW with audit, manual-review pending row, or reject
-  -> pending rows are exposed through conflict_router
-  -> resolver accept/reject re-enters the Write Engine
-```
-
-Pending conflict rows do not advance refs. They pin enough object ids and
-metadata for a human or hosted resolver to make a later transaction.
-
 ## Access Point Model
 
 Each access point behaves externally like a repo endpoint, but internally it is
@@ -742,10 +647,37 @@ point。Root 入口能看见整棵树，触达任意路径都是合法的。
 | 8 | C + B | 接受 | 同上。 |
 | 9 | Root 直辖区 + A + C + B 全开 | 接受 | "大重构"型提交；所有视图都会被刷新。 |
 
-实现说明：所有根写走 `apply_project_operation`；follow-up 用 changed-paths
-算出受影响的 scope 集合，从已接受的 canonical root 派生/刷新 scoped
-read views。这里不再合成 `scope-promote` 用户历史 commit；scope-state
-是缓存，不是另一个真理来源。
+**接受时我们干啥（按顺序）：**
+
+1. 客户端提交的就是整棵 root 的新版本，**新 root 树直接拿来用**（不用 graft，root 入口就是站在 root 上写的）。
+2. build 一条新的 root commit `C_canon`，parent = 当前 root 的 head commit。
+3. 拿 `(旧 root_hash → 新 root_hash)` 去 CAS `projects.mut_root_hash`。撞车就拿新 root 重新 graft + rebuild commit 再 CAS，重试到上限为止。
+4. CAS 成功后**同一个数据库事务里**做完下面这些：
+   - 写 `mut_scope_state[scope_path='']`：`scope_hash = 新 root_hash`、`head_commit_id = C_canon`（这一行就是"root scope 的视图缓存"）。
+   - 写 `mut_commits` 一行（canonical commit 记录）。
+   - 写 `version_transactions` 一行（事务记录）。
+   - 写 `audit_logs` 一行。
+   - 写 `mut_version_outbox` 一行 `project_version_committed`（通知用）。
+5. 事务提交后，**按 changed_paths 一一处理被波及的子 scope 视图**：对每个声明过的 scope `S`（A、B、C 都要看），判断 `changed_paths` 跟"S 自己看得见的路径集合"（= S 自己的 path 子集 - S 已声明的孙 scope）有没有交集：
+   - 没交集 → 这个 scope 视图就不动，head 保持原值。
+   - 有交集 → 从新 root 按 `S.path` 派生出 `S` 的新 scope_hash；用这个 scope_hash build 一条**合成 commit**（author = `puppyone-scope-view`，message = `Puppyone scope view for <C_canon>`，parent = 该 scope 上一次的 head）；CAS 写 `mut_scope_state[S]` 一行 `(scope_hash, head=合成 commit)`。
+6. outbox 投递通知 → 受影响 scope 上挂着的 SSE / connector / Git client 拿到 push 通知，下一次 fetch 就看到新 head。
+
+**几个具体场景的差别**（接 上表行号）：
+
+| 行 | changed_paths 与 A 看得见的相交？ | 与 C？ | 与 B？ | 步骤 5 实际刷哪几个 |
+|---|---|---|---|---|
+| 1 | 否 | 否 | 否 | 不刷新 |
+| 2 | **是** | 否（C 被 A 把 /A/C carved 隐了，根改 /A 自己时 C 看不见） | 否 | 只刷 A |
+| 3 | 否（A 看不见 /A/C） | **是** | 否 | 只刷 C |
+| 4 | 否 | 否 | **是** | 只刷 B |
+| 5 | **是** | 否 | 否 | 只刷 A |
+| 6 | **是** | **是** | 否 | 刷 A 和 C |
+| 7 | **是** | 否 | **是** | 刷 A 和 B |
+| 8 | 否 | **是** | **是** | 刷 C 和 B |
+| 9 | **是** | **是** | **是** | A、B、C 都刷 |
+
+**为什么这样**：root 入口写没有"客户端原始 commit SHA 需要保留"的需求（用户从 Web/API/CLI 写时不存在一个跟服务端 commit 对应的 client SHA），所以 root 行和被波及 scope 行都用服务端 build 的 commit。源 scope 是 root 自己，所以"源 scope skip 派生"这条规则在这里等同于 root 行已经在步骤 4 写过、步骤 5 不重复处理 root。
 
 ### 二、从 Scope A 入口提交
 
@@ -760,8 +692,40 @@ A 默认看不到 `/A/C/*`（已声明的子 scope 在父视图里自动隐藏�
 | 4 | 动 B 的地盘（跨兄弟） | 拒绝 | 越界，scope 之间没有兄弟权限。 |
 | 5 | 动 Root 直辖区（往父跑） | 拒绝 | 越界。要动父就用 root access key 或走产品 API。 |
 
-实现说明：以上判定都在 admission（L3）期就完成，请求不会进 Write Engine。
-错误码统一 `out_of_scope`，response 里带违规路径和"请去 Scope X push"的建议。
+**拒绝的 4 行（#2~#5）怎么处理**：在 admission（L3）期就判完，请求**不进** Write
+Engine，没有任何 git object 落盘、没有 root_hash 改动、没有 mut_scope_state 改动。
+错误码统一 `out_of_scope`，response 带着违规路径和"请去 Scope X push"的建议。
+
+**接受的 #1（只动 A 自己）我们干啥（按顺序）：**
+
+假设客户端是 Git push，本地已经构造好 commit `C_client`（base = A scope 上一次的 head）。
+
+1. **splice 出 A 的新子树**：把客户端提交的 tree（A 视图下那棵树）作为 A 的新子树；C 子树在 A 视图里是 carved 隐藏的，**原样从老的 root 里钉回来**——也就是说客户端那棵树即使在 A 看不见的位置摸了 `/A/C/*`，我们也不让它进。
+2. **graft 回 root**：拿当前 root 的整棵树，把 `/A` 那一格替换成步骤 1 得到的 A 新子树，得到 candidate 新 root 树。
+3. build canonical root commit `C_canon`，parent = 当前 root 的 head commit。message trailer 里写 `PuppyOne-Original-Commit: C_client`，方便溯源。
+4. CAS `projects.mut_root_hash: 旧 → 新`。撞车就拿当时新的 root 重新 graft（步骤 2）+ 重新 build commit（步骤 3）再 CAS。重试期间客户端 SHA `C_client` 一直**不变**——只换 canonical root commit 的 parent。**但 publish 时必须同时带上 A 当前 head 的 expected base；如果 A 的 head 已经从客户端 base 前进了，整次事务失败并返回 `non-fast-forward`，不能继续把 `C_client` 写成 A 的 head。**
+5. CAS 成功后同一个事务里：
+   - 写 `mut_scope_state[scope_path='']`：`scope_hash = 新 root_hash`、`head = C_canon`（root 行用服务端 SHA）。
+   - 写 `mut_scope_state[scope_path='/A']`：`scope_hash = A 的新子树 hash`、`head = C_client`（**源 scope 行刻意沿用客户端 SHA**，这样 A 上 `git fetch` 是 fast-forward，客户端不需要 REWRITE 协议）。
+   - 写 `mut_commits` / `version_transactions` / `audit_logs` / `mut_version_outbox` 各一行（同根入口）。
+6. 事务提交后看 changed_paths（只在 A 自己的地盘里）：
+   - A 自己：源 scope，**显式跳过**，否则会把 A 行的 `C_client` 覆盖成合成 commit，fast-forward 链立刻断。
+   - C：A 写不到 /A/C/*（admission 拦了），所以与 C 视图必然不相交 → 不刷。
+   - B：跟 A 完全不相交 → 不刷。
+   - 结果：**没有任何派生 scope 需要刷新**。
+7. outbox → notify。
+
+**最终各 scope 上 `git ls-remote` 看到的 head**：
+
+| Scope | head | 来源 |
+|---|---|---|
+| Root | `C_canon` | 服务端 build |
+| /A | `C_client` | **客户端原 SHA**（fast-forward 友好） |
+| /A/C | 不变 | 没刷 |
+| /B | 不变 | 没刷 |
+
+**关键不变量**：从 Scope A 入口 Git push，A 上 server-blessed head SHA == client commit SHA。
+这是 puppyone 区别于 josh REWRITE 协议的核心选择。
 
 ### 三、从 Scope C 入口提交
 
@@ -774,6 +738,37 @@ C 是最里层，没有更深的子 scope。
 | 3 | C + A 一起动 | 拒绝整次提交 | 同上，不做"部分接受"。 |
 | 4 | 动 B / Root 直辖区 | 拒绝 | 彻底越界。 |
 
+**接受的 #1（只动 C 自己）我们干啥（按顺序）：**
+
+跟"二、Scope A 入口"差不多，但要注意 C 是 A 的子 scope，root 入口看 C 这里改了，
+**A 的视图也会跟着变**（因为 A 默认 carved 看不见 /A/C 的内容，但根上动了 /A/C 时
+要让 A 上看到一个"C 这块变了"的提示——具体策略见步骤 6）。
+
+1. **splice 出 C 的新子树**：客户端提交的 tree（C 视图下）就是 C 的新子树（C 没有更深子 scope，不用 carve）。
+2. **graft 回 root**：当前 root 的整棵树，把 `/A/C` 那一格替换成步骤 1 的 C 新子树，得到 candidate 新 root 树。注意这里换的是 root 里 `/A/C` 那一格，不是 `/A`——`/A` 那一格里其它内容（A 自己的文件）原样保留。
+3. build canonical root commit `C_canon`，parent = 当前 root head。trailer 写 `PuppyOne-Original-Commit: C_client`。
+4. CAS root_hash，撞车 rebase 重试（同 A 入口）。**但 publish 时必须同时带上 C 当前 head 的 expected base；如果 C 的 head 已经从客户端 base 前进了，整次事务失败并返回 `non-fast-forward`。**
+5. CAS 成功后同一个事务里：
+   - 写 `mut_scope_state[scope_path='']`，head = `C_canon`。
+   - 写 `mut_scope_state[scope_path='/A/C']`，head = `C_client`（**源 scope 用客户端 SHA**）。
+   - 写 commits / transactions / audit / outbox 各一行。
+6. 事务提交后看 changed_paths（都在 /A/C/* 里）跟各 scope 视图相交情况：
+   - C：源 scope，跳过。
+   - **A**：默认 carved 把 /A/C 当 hidden，A 视图里 /A/C 是空（或仅一个标记），所以 changed_paths 跟 A 视图实际上**不相交** → **A 不刷新**。
+   - B：完全不相交 → 不刷。
+
+   也就是说，**纯粹只动 /A/C/* 的写不会触发 A 的视图刷新**，A 上看到的 head 跟以前一样。这是 carved visibility 的直接结果。
+7. outbox → notify。
+
+**最终各 scope 上看到的 head**：
+
+| Scope | head | 来源 |
+|---|---|---|
+| Root | `C_canon` | 服务端 build |
+| /A | 不变 | A carved 看不见 /A/C，没刷 |
+| /A/C | `C_client` | 客户端原 SHA |
+| /B | 不变 | 无关 |
+
 ### 四、从 Scope B 入口提交
 
 B 没有子 scope，和 A、C 互不相交。
@@ -782,6 +777,23 @@ B 没有子 scope，和 A、C 互不相交。
 |---|---|---|---|
 | 1 | 只动 B 自己的地盘 | 接受 | 标准 scoped 写。 |
 | 2 | 动 A / C / Root 直辖区 | 拒绝 | 越界。 |
+
+**接受的 #1 我们干啥（按顺序）：**
+
+B 是最简单的形态——独立子树，没有子 scope，跟 A、C 都不相交。
+
+1. splice：客户端 tree 就是 B 的新子树（没有子 scope 要 carve）。
+2. graft：root 里 `/B` 那一格替换成新 B 子树，得到 candidate 新 root。
+3. build canonical commit `C_canon`，parent = 当前 root head，trailer 带 `C_client`。
+4. CAS root_hash，撞车 rebase 重试。**但 publish 时必须同时带上 B 当前 head 的 expected base；如果 B 的 head 已经从客户端 base 前进了，整次事务失败并返回 `non-fast-forward`。**
+5. 事务里：
+   - 写 `mut_scope_state['']`，head = `C_canon`。
+   - 写 `mut_scope_state['/B']`，head = `C_client`。
+   - commits / transactions / audit / outbox。
+6. changed_paths 都在 /B/* 里：B 是源 scope 跳过；A、C 完全不相交 → **没有任何派生 scope 需要刷新**。
+7. notify。
+
+**最终各 scope head**：Root = `C_canon`，B = `C_client`，A / C 不变。
 
 ### 特殊行为
 
@@ -817,6 +829,157 @@ B 没有子 scope，和 A、C 互不相交。
 | 根写时按 changed-paths 刷新受影响后代 scope 视图 | `derived/projection.py`、`derived/hooks.py` |
 | 挂载点被清空时的 dashboard 告警 + view health | `derived/hooks.py`、`adapters/git/view_projection.py` |
 | 冲突行归属 = 路径的声明 scope | `write_engine/conflict_queue.py`、`write_engine/conflict_policy.py` |
+
+### 并发场景与冲突解决
+
+PuppyOne 的并发处理建立在两条公理上：
+
+1. **真理串行化**：Project root_hash 用 CAS 保护，任意时刻只有一个写赢，其它写要么自动重试要么明确失败。
+2. **源 scope head 也要 CAS**：写源 scope 行时必须带上"客户端以为的 base"，与当前 head 不匹配就整事务失败。这条**必须有**——只 CAS root_hash 不够，下面有完整推导。
+
+带着这两条公理，下面把所有可能的并发情况挨条过一遍：谁先谁后、能不能自动合并、用户体感是什么。
+
+#### 一、同一源 scope 上的并发 push（关键情况）
+
+**例子**：Alice 和 Bob 都从 `H0` 出发，改 `/A/readme.md` 的不同行，几乎同时 push 到 scope A。
+
+**怎么解决**：
+
+- 第一个 push（设是 Alice）走完 splice + graft + root CAS + publish，scope A 的 head 从 `H0` 走到 `C_alice`。
+- 第二个 push（Bob）在 publish 时发现"我以为 base 是 `H0`，但服务端 A 现在 head 已经是 `C_alice`" → **整事务回滚**，回给 Bob 一个 `non-fast-forward` 错误。
+- Bob 收到错误后按 Git 习惯 `git pull --rebase`，把自己的改动重新建在 `C_alice` 之上变成 `C_bob'`（parent = `C_alice`），再 push，这次通过。
+
+**为什么不让 Bob 那次自动合并**：Bob 本地的 `C_bob` 这个 commit 对象，其 tree 只含 Bob 改的那行——客户端是基于 `H0` build 的，根本不知道 Alice 的改动。如果服务端在 root 层把 Alice + Bob 自动合并、却还把 scope A 的 head 写成 Bob 的客户端 SHA，那 A 上 `head_commit_id` 这个 commit 指的 tree（Bob-only）就**不等于** `scope_hash`（合并版）——head 指针和 scope_hash 不是同一棵树。后果是别人在 A 上 `git pull` 时，要么 Alice 的改动凭空消失，要么看到非 fast-forward 报错。这种状态不能进入数据库。
+
+**关键不变量**（必须始终成立）：
+
+> 任何一行 `mut_scope_state[scope].head_commit_id` 所指 commit 的 tree，必须等于该行的 `scope_hash`。
+
+这条不变量从根上禁止了"head 指针和 scope_hash 是两棵不同 tree"的状态。任何未来代码改动只要违反它就 publish 失败。
+
+**同一行也被同时改怎么办**：与不同行场景**走完全相同的路径**——第二个直接 `non-fast-forward`，让 Bob 自己 `git pull --rebase` 时再处理 textual conflict。**不要**把这种情况引到 hosted conflict review 里去——hosted conflict 是为跨 scope / 跨入口的真正产品级冲突准备的，同源 scope 的并发是 Git 协议层的事，混在一起两个修复路径都模糊。
+
+#### 二、不同 scope 之间的并发 push
+
+**例子**：Alice push 到 scope A 改 `/A/x`，Carol 同时 push 到 scope B 改 `/B/y`。
+
+**怎么解决**：
+
+- 谁先 root CAS 成功就先落地。
+- 输的那个 CAS retry：拿新的 root 作为底，把自己的子树 graft 回去——因为路径完全不相交，graft 没有冲突，build 出新的 canonical root commit 重新 CAS。
+- retry 时**源 scope 那行的 expected base 不变**——A push 看的是 A 上次的 head，B push 看的是 B 上次的 head——两个 scope 的 head 互不影响，两次 publish 的源 scope CAS 都会过。
+- 用户体感：两次都成功，互相不感知。
+
+#### 三、子 scope push 与根写撞同一路径
+
+**例子**：Alice 从 scope A 入口 push 改 `/A/readme.md`，与此同时管理员从 Root 入口 PAPI 写也改了 `/A/readme.md`。
+
+**怎么解决**：
+
+- 谁先 root CAS 成功就先落地——设根写先到，root_hash 走到 `R_1`。
+- Alice 的 CAS 失败 retry：把新 root `R_1` 作为底重新 graft。此时**路径相交检测发现 `/A/readme.md` 在双方都改了**。
+- 这是真正意义上的"两个入口对同一文件的语义冲突" → **进 hosted conflict 路径**，写一行 pending_conflict 归属 scope A，等人决断。
+- 用户体感：Alice 收到 `pending review`（不是 `non-fast-forward`），通过产品 UI 看冲突详情。
+
+**与情况一的关键区别**：情况一是**同一入口**两人改动，按 Git 协议本就该让客户端 rebase 解决；情况三是**两个不同入口**（一个 Git 客户端、一个 Web 编辑器/PAPI）对同一文件的并发，客户端层面没办法协调，必须由产品介入。两条路径不混用。
+
+#### 四、子 scope push 与根写不撞路径
+
+**例子**：Alice 从 scope C 入口 push 改 `/A/C/y`，根写改 `/B/z`。
+
+**怎么解决**：
+
+- 谁先到谁先赢 root CAS。
+- 输的那个 retry：路径不相交，自动 merge 完成，新 canonical commit build 出来。
+- 源 scope 行的 CAS：对 C 的写，expected 是 C 上次的 head——根写没动 C，所以 C 的 head 没变 → CAS 通过；对根写，expected 是根上次的 head——刚被前一次写动过，CAS 失败 → 它再 retry 一次，从更新后的 root 出发，再 publish，最终通过。
+- 用户体感：两次都成功，互相不感知。
+
+#### 五、连续两个根写（自动 merge 域）
+
+**例子**：管理员通过 PAPI 同时改 `/A/x` 和 `/B/y`，前后两次根写。
+
+**怎么解决**：
+
+- 第一次 CAS 成功落地。
+- 第二次 CAS 失败 → retry：从新 root 出发，重新合并，重新 CAS 直到通过或达到重试上限。
+- 因为根写是服务端构造的 canonical commit，每次 retry **服务端自己重新 build** 新的 commit object，head 指针和 tree 自然永远一致，不变量天然满足。
+- 用户体感：两次都成功，可能稍慢（retry 的开销）。
+
+#### 六、非 Git 入口（PAPI / CLI / connector）的并发
+
+非 Git 入口没有客户端原始 commit SHA。这些入口的源 scope CAS expected = "intent 进 L4 时读到的当前 scope head"。
+
+- 并发场景下 CAS 失败 = 服务端内部 retry：重读 base + 重走 splice + graft + 重新 build commit + 重新 CAS。这个 retry 对**调用方完全透明**——PAPI 客户端只看到一次返回。
+- 因为这条路径的源 scope commit 也是服务端 build 的 canonical commit，head 指针与 scope_hash 永远一致，不变量天然满足。
+- 唯一例外：retry 期间发生了**真正的产品语义冲突**（同一文件被两边改），那进情况三的 hosted conflict 路径。
+
+#### 七、Git push 与非 Git 写撞同一 scope
+
+**例子**：Alice 从 scope A push，与此同时 connector 把 ingest 进来的文件也想写进 scope A。
+
+**怎么解决**：
+
+- 谁先 root CAS 成功就先落地。
+- Git push 那次的 CAS 用 Alice 的 `H0` 作为 expected——connector 已经写过的话，A 的 head 已经动了 → Alice 拿 `non-fast-forward`。
+- Connector 那次的 CAS 用调度时读的 head 作为 expected——Alice 已经写过的话，connector 在内部 retry，重读 head、重 splice、再 CAS。
+- 用户体感：Git 用户被要求 rebase，connector 用户透明 retry。
+
+#### 八、Force push
+
+Git 原生 `git push --force` 允许非 fast-forward。puppyone 默认禁用，要开启需要在 scope 上 opt-in 一个权限位。
+
+- opt-in 后那一次 push 的源 scope CAS expected 用一个 sentinel（如 `*`）跳过相等校验。
+- **但 head 与 tree 一致性的不变量继续必须满足**——force push 只解除"必须 fast-forward"这一条，不解除"head 指针和 scope_hash 必须一致"。
+- 用户体感：A 的 head 可以跳到任意 commit，但不能跳到一个 tree 与 scope_hash 不符的 commit。
+
+#### 九、首次 push（scope 还没 head）
+
+新声明的 scope 第一次被 push，`mut_scope_state` 里压根没这行。
+
+- 源 scope CAS 的 expected = 空（或 null）。
+- publish 的 upsert 走 INSERT 分支——没有现存行可以比对，自动通过。
+- 用户体感：和正常 push 一样成功。
+
+#### 十、Derived sync 与后续直接 push 的竞争（次级 race）
+
+这是**次级 race**，目前实现里也存在，但影响轻于情况一。
+
+**例子**：根写 1 落地，post-commit hook 排队准备刷新 A 的视图；与此同时 A 自己来了一个 Git push 落地。
+
+**怎么解决**：
+
+- post-commit hook 计算 A 的 target_scope_hash 是基于**触发它的那个 root_hash**（旧）；而 A 上的直接 push 已经基于**新 root_hash** 写过 A 行了。
+- hook 的 CAS 不能盲目用"自己计算时刻"的派生结果去覆盖 A 当前的 head——必须带上 `root_hash` 版本号：如果数据库里 root_hash 已经超过 hook 触发时的版本，hook 应放弃这次同步，让后续更新的那次 root_write 的 hook 来收尾。
+- 用户体感：A 的 head 永远反映**最新一次写**，不会被过期 hook 抹掉。
+
+这条修复优先级低于情况一，但思路一致：**任何写源 scope 行的动作都要带版本，过期写不能覆盖**。
+
+#### 速查：每种并发的最终归宿
+
+| 并发类型 | 落到哪条路径 |
+|---|---|
+| 同源 scope 改不同文件（Git） | 第二个 `non-fast-forward`，client rebase |
+| 同源 scope 改同一文件（Git） | 第二个 `non-fast-forward`，client rebase（**不进 hosted conflict**） |
+| 不同 scope（Git/Git） | 自动 merge，都成功 |
+| 子 scope vs 根写 撞路径 | hosted conflict，pending review |
+| 子 scope vs 根写 不撞路径 | 自动 merge，都成功 |
+| 连续根写 | 自动 merge，都成功 |
+| 非 Git 入口之间 | 内部 retry，调用方透明 |
+| Git vs 非 Git 撞同 scope | Git 那次 `non-fast-forward`；非 Git 那次内部 retry |
+| Force push（opt-in） | 跳过 fast-forward 校验，仍守 head/tree 一致性 |
+| 首次 push | 通过 |
+| Derived sync vs 后续 push | 带 root 版本号的 CAS，老 hook 让位 |
+
+#### 紧扣的不变量
+
+整套并发处理底下只有两条不变量：
+
+1. **写源 scope 行必须带客户端 base（Git）或当时读到的 head（非 Git），CAS 不过整事务回滚。**
+2. **`mut_scope_state[scope].head_commit_id` 所指 commit 的 tree 必须等于该行的 `scope_hash`。**
+
+任何并发场景的正确性都从这两条推出来。**修复落地前，运维上对 Git 客户端用户文档加一条提示：并发 push 到同一 scope 可能出现 view drift；产品端短期把单 scope 写串行化（节流到 1 QPS/scope）。修复落地后这条提示可以撤掉。**
+
+---
 
 未来如果想在某个 scope 上 opt-in "透明可见"（子 scope 的内容能在父 view
 里看见、父 push 能写子的地盘），可以加一个
