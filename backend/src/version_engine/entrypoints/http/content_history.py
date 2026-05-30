@@ -178,11 +178,18 @@ async def diff_commits(
         # own http_status; surface that instead of an unhandled 500.
         raise HTTPException(status_code=getattr(e, "http_status", 500), detail=str(e))
 
+    # compute_diff/diff_trees emit {"path", "op"}; DiffResponse.DiffItem
+    # requires "change_type". Map op→change_type so the response validates
+    # (the raw shape was the actual source of the diff 500 — pydantic
+    # ValidationError on the missing change_type field).
     return ApiResponse.success(data=DiffResponse(
         project_id=project_id,
         from_commit_id=from_commit_id,
         to_commit_id=to_commit_id,
-        changes=changes,
+        changes=[
+            {"path": c["path"], "change_type": c.get("op", "modified")}
+            for c in changes
+        ],
     ))
 
 
