@@ -150,3 +150,54 @@ async def test_commit_content_prefers_project_root_when_available(tmp_path) -> N
     )
 
     assert content == b"project-root content"
+
+
+@pytest.mark.asyncio
+async def test_compute_diff_returns_changes_between_commits(tmp_path) -> None:
+    store = ObjectStore(tmp_path / "objects")
+    history = FakeHistoryManager()
+    blob_v1 = store.put_blob(b"v1")
+    blob_v2 = store.put_blob(b"v2")
+    root1 = store.put_tree(encode_tree([
+        TreeEntry(name="a.txt", mode=MODE_FILE, sha1_hex=blob_v1),
+    ]))
+    root2 = store.put_tree(encode_tree([
+        TreeEntry(name="a.txt", mode=MODE_FILE, sha1_hex=blob_v2),
+        TreeEntry(name="b.txt", mode=MODE_FILE, sha1_hex=blob_v1),
+    ]))
+    history.record(commit_id="c1", who="u", message="one", scope_path="",
+                   changes=[], root_hash=root1, scope_hash=root1)
+    history.record(commit_id="c2", who="u", message="two", scope_path="",
+                   changes=[], root_hash=root2, scope_hash=root2)
+    service = _service_with_repo(SimpleNamespace(history=history, store=store))
+
+    changes = await service.compute_diff("project-1", "c1", "c2")
+    ops = {c["path"]: c["op"] for c in changes}
+    assert ops == {"a.txt": "modified", "b.txt": "added"}
+
+
+@pytest.mark.asyncio
+async def test_compute_diff_tolerant_on_missing_tree_object(tmp_path) -> None:
+    """A commit whose tree object is missing/corrupt must not 500 the diff.
+
+    Regression for the deployed-version bug where compute_diff let an
+    ObjectNotFoundError from the storage read bubble into a 500. With tolerant
+    diffing the unreadable side is treated as empty and a best-effort diff is
+    returned (here: the present tree's entries show as deleted).
+    """
+    store = ObjectStore(tmp_path / "objects")
+    history = FakeHistoryManager()
+    blob = store.put_blob(b"present")
+    root_present = store.put_tree(encode_tree([
+        TreeEntry(name="kept.txt", mode=MODE_FILE, sha1_hex=blob),
+    ]))
+    missing_root = "0" * 40  # valid-looking hash with no object behind it
+    history.record(commit_id="present", who="u", message="p", scope_path="",
+                   changes=[], root_hash=root_present, scope_hash=root_present)
+    history.record(commit_id="gone", who="u", message="g", scope_path="",
+                   changes=[], root_hash=missing_root, scope_hash=missing_root)
+    service = _service_with_repo(SimpleNamespace(history=history, store=store))
+
+    # Must not raise; missing side is empty so kept.txt reads as deleted.
+    changes = await service.compute_diff("project-1", "present", "gone")
+    assert {c["path"]: c["op"] for c in changes} == {"kept.txt": "deleted"}

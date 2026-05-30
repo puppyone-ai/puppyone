@@ -25,8 +25,10 @@ import json
 from src.version_engine.write_engine.diff import diff_trees
 from src.version_engine.storage.object_store import ObjectStore
 from src.version_engine.write_engine.tree import read_tree
+from src.version_engine.domain.errors import ObjectNotFoundError, VersionEngineError
 
 from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
+from src.utils.logger import log_error
 
 
 _SCOPE_PROMOTE_TRAILER = "PuppyOne-Source: scope-promote"
@@ -153,7 +155,23 @@ class VersionAdminService:
         if not root1 or not root2:
             return []
 
-        return await asyncio.to_thread(diff_trees, repo.store, root1, root2)
+        # Tolerant mode: an unreadable tree object (missing/corrupt) is logged
+        # and treated as empty so the endpoint returns a best-effort diff
+        # instead of an unhandled 500. ObjectNotFoundError carries http_status
+        # 404; the HTTP layer maps VersionEngineError to it.
+        try:
+            return await asyncio.to_thread(
+                diff_trees, repo.store, root1, root2, tolerant=True
+            )
+        except VersionEngineError:
+            raise
+        except Exception as exc:  # noqa: BLE001 — never leak a raw 500 from diff
+            log_error(
+                f"[compute_diff] {project_id} {from_commit_id}..{to_commit_id} failed: {exc}"
+            )
+            raise ObjectNotFoundError(
+                f"diff unavailable for {from_commit_id}..{to_commit_id}: {exc}"
+            ) from exc
 
 
 def _resolve_entry_root(entry: dict) -> str:

@@ -654,9 +654,9 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
         return filtered;
       });
       
-      console.log('Agent deleted:', agentId);
     } catch (error) {
       console.error('Failed to delete agent:', error);
+      alert('Failed to delete agent. Please try again.');
     }
   }, [currentAgentId, selectAgent]);
 
@@ -671,9 +671,9 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
         a.id === agentId ? { ...a, name, icon } : a
       ));
       
-      console.log('Agent info updated:', agentId, name, icon);
     } catch (error) {
       console.error('Failed to update agent info:', error);
+      alert('Failed to update agent. Please try again.');
     }
   }, []);
 

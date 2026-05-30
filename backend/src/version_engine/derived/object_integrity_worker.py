@@ -71,8 +71,19 @@ def process_object_integrity_projects(
 
 def _scan_one_project(repos, project_id: str, *, heal: bool) -> IntegrityScanResult:
     repo = repos.get_server_repo(project_id)
+    # Unwrap decorator backends (e.g. CachedStorageBackend) to reach the
+    # concrete backend that implements the scan; otherwise every project is
+    # silently reported unsupported because the wrapper lacks the method.
     backend = getattr(repo.store, "_backend", None) or repo.store
     scan = getattr(backend, "async_scan_primary_loose_integrity", None)
+    for _ in range(8):  # bounded unwrap; guards against a cyclic _inner
+        if scan is not None:
+            break
+        inner = getattr(backend, "_inner", None)
+        if inner is None or inner is backend:
+            break
+        backend = inner
+        scan = getattr(backend, "async_scan_primary_loose_integrity", None)
     if scan is None:
         return IntegrityScanResult(project_id=project_id, supported=False)
 
