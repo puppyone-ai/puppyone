@@ -1,9 +1,9 @@
-"""DB-authoritative root projection and scope subtree grafting.
+"""Root-first subtree grafting and legacy scope-state repair.
 
-This module owns subtree grafting as an explicit application-layer primitive
-for Git-native writes. Scope heads are
-the source of truth; the materialized project root is a projection rebuilt from
-that registry.
+This module owns subtree grafting as an explicit application-layer primitive.
+The project root is the source of truth for new writes. The scope-state rebuild
+helpers remain for legacy rows and repair/migration paths where old scoped
+commits landed before the root projection did.
 """
 
 from __future__ import annotations
@@ -26,11 +26,12 @@ def build_root_from_scope_state(
     just_pushed_scope: str,
     just_pushed_hash: str,
 ) -> str:
-    """Build a complete root tree from DB scope state + the just-pushed hash.
+    """Build a complete root tree from legacy DB scope state.
 
-    The algorithm deliberately reads the DB scope-state registry rather than the
-    previous materialized root. That keeps the registry authoritative and avoids
-    data loss from partial object-store reads during concurrent scope pushes.
+    This is no longer the normal publish path. New writes CAS the project root
+    directly and update scope rows as derived caches. This helper is used only
+    to recover/migrate projects that still have authoritative historical
+    scope_state rows.
     """
 
     scopes = _valid_scope_tree_hashes(repo, repo.get_all_scope_hashes())
@@ -119,12 +120,11 @@ def graft_subtree(store, old_root_hash: str, scope_path: str, new_subtree_hash: 
 
 
 def rebuild_project_root_after_commit(repo, push_result: dict) -> bool:
-    """Rebuild the materialized project root from DB-authoritative scope state.
+    """Legacy repair: rebuild project root from old scope-state commits.
 
-    The project root is a *derived* projection over scope heads. This
-    function reads the scope-state registry (the source of truth), grafts the
-    just-pushed scope's tree at its path, and CAS-updates the
-    materialized root.
+    New root-first commits do not call this as their correctness path. They
+    already publish the canonical root in the SQL transaction. The function
+    stays for old scope-first outbox rows and one-shot repair flows.
 
     Concurrent pushes are naturally idempotent: every retry recomputes
     from the same registry shape, so CAS losers re-derive the same

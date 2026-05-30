@@ -74,9 +74,32 @@ export interface FailedSyncItem {
   };
 }
 
-/** Add new variants here as plugin kinds land (e.g. ``RiskyDeleteItem``,
+/** A commit whose ``audit_detail`` / ``changes`` show a mass deletion
+ *  (PUP-5 §4 "risky delete / mass edit", Gap G2). Sourced from version
+ *  history, not ``mut_conflicts`` — it's an after-the-fact heads-up with
+ *  an undo affordance, not a blocking resolution. */
+export interface RiskyDeleteItem {
+  kind: 'risky-delete';
+  id: string;            // the commit_id
+  scope_path: string;
+  created_at?: string;
+  source: {
+    commit_id: string;
+    who: string;
+    message: string;
+    deleted_count: number;
+    deleted_paths: string[];   // sample (may be capped)
+    root_hash: string;
+  };
+}
+
+/** Add new variants here as plugin kinds land (e.g.
  *  ``AgentStagedSessionItem``). */
-export type NeedsActionItem = PendingReviewItem | ConflictItem | FailedSyncItem;
+export type NeedsActionItem =
+  | PendingReviewItem
+  | ConflictItem
+  | FailedSyncItem
+  | RiskyDeleteItem;
 
 // ── Render context passed to row/detail renderers ────────────────────
 

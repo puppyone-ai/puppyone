@@ -56,7 +56,11 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
   className,
   style,
 }: ExplorerSidebarProps) {
-  const { rootNodes, isLoading: loading } = useExplorerRootNodes(projectId);
+  const {
+    rootNodes,
+    isLoading: loading,
+    error: rootLoadError,
+  } = useExplorerRootNodes(projectId);
   const sidebarFileDragCounterRef = useRef(0);
   const [isExternalFileDraggingInSidebar, setIsExternalFileDraggingInSidebar] = useState(false);
   const [activeFileDropTarget, setActiveFileDropTarget] = useState<FileImportTarget | null>(null);
@@ -98,6 +102,7 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
   const rootHasSpecialBg = isRootDropTarget || isRootFileDropTarget || isRootHighlighted || isRootActive || rootOpenMenuAction !== null;
   const [isRootHovered, setIsRootHovered] = useState(false);
   const isRootSoftHovered = isRootHovered && !rootHasSpecialBg;
+  const showRootLoadError = !!rootLoadError && rootItems.length === 0 && !loading;
 
   const handleSidebarDragEnterCapture = useCallback((event: DragEvent<HTMLDivElement>) => {
     if (!hasExternalFiles(event)) return;
@@ -284,7 +289,13 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
             </div>
           </div>
 
-          {loading && rootItems.length === 0 ? (
+          {showRootLoadError ? (
+            <ExplorerTreeMetaRow depth={1}>
+              <span title={rootLoadError instanceof Error ? rootLoadError.message : undefined}>
+                Unable to load folders. Retrying...
+              </span>
+            </ExplorerTreeMetaRow>
+          ) : loading && rootItems.length === 0 ? (
             <ExplorerTreeMetaRow depth={1}>
               <Dots size="xs" />
             </ExplorerTreeMetaRow>

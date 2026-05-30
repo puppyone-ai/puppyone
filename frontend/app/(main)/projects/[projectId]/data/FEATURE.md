@@ -6,6 +6,10 @@ contract in the same patch.
 
 ## Sidebar Folder Creation
 
+- Directory read failures must never be represented as an empty directory.
+  Backend `ls/tree` errors should surface as request failures so SWR keeps the
+  previous canonical cache; the sidebar may show a load-error row only when no
+  prior listing exists.
 - Clicking a folder `+` creates a single pending row in that folder.
 - The pending row is a closed folder row. It must not auto-expand.
 - The pending row label is loading copy (`Creating folder`) rather than the
@@ -15,8 +19,12 @@ contract in the same patch.
   row actions.
 - After the backend create succeeds, the pending state is removed and the row
   displays the real folder name from the canonical directory cache.
-- If the backend create fails, the optimistic row is removed and the parent
-  directory cache is refreshed.
+- If the backend definitively rejects the create, the optimistic row is removed
+  and the parent directory cache is refreshed.
+- If the request fails with an ambiguous network/timeout error, keep the
+  optimistic row pending and verify against the canonical directory listing.
+  Remove it only after the server is reachable and confirms the folder is
+  absent; clear pending when the canonical folder appears.
 
 ## Sidebar Folder Rows
 

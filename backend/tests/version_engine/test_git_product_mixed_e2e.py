@@ -256,7 +256,7 @@ def test_git_cli_and_frontend_native_writes_share_version_engine_under_concurren
     ]
     user_history_entries = [
         entry for entry in server_repo.history._entries
-        if "PuppyOne-Source: scope-promote" not in (entry.get("message") or "")
+        if entry.get("audit_event_type") != "projection"
     ]
     assert len(user_history_entries) == 4
     history_scopes_by_type = [

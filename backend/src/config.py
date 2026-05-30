@@ -282,6 +282,14 @@ class Settings(BaseSettings):
     VERSION_OBJECT_GC_MAX_PROJECTS_PER_RUN: int = 25
     VERSION_OBJECT_GC_MAX_DELETE_PER_PROJECT: int = 1000
 
+    # Background primary-loose-object integrity scan (runbook §8①).
+    # Disabled + diagnosis-only by default; ops flips _HEAL on after
+    # observing the dry-run "ticket" log lines.
+    VERSION_INTEGRITY_SCAN_ENABLED: bool = False
+    VERSION_INTEGRITY_SCAN_HEAL: bool = False
+    VERSION_INTEGRITY_SCAN_INTERVAL_SECONDS: int = 6 * 60 * 60
+    VERSION_INTEGRITY_SCAN_MAX_PROJECTS_PER_RUN: int = 25
+
     # DB Connector sensitive config encryption (AES-256-GCM)
     # Base64-encoded string of 32-byte key
     DB_CONNECTOR_ENCRYPTION_KEY: str = ""

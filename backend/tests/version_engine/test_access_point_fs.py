@@ -3,7 +3,7 @@ import json
 from types import SimpleNamespace
 
 import pytest
-from src.version_engine.domain.errors import ObjectNotFoundError
+from src.version_engine.domain.errors import ObjectNotFoundError, VersionReadError
 from src.version_engine.storage.object_store import ObjectStore, StorageBackend
 from src.version_engine.write_engine.git_object_format import MODE_DIR, MODE_FILE, TreeEntry, encode_tree
 
@@ -581,9 +581,32 @@ def test_tree_reader_rejects_non_git_tree_objects(tmp_path):
 
     reader = VersionTreeReader(_Repos())
 
-    assert reader.list_dir("project-id", include_size=True) == []
+    with pytest.raises(ObjectNotFoundError):
+        reader.list_dir("project-id", include_size=True)
     with pytest.raises(FileNotFoundError):
         reader.read_file("project-id", "old.txt")
+
+
+def test_tree_reader_list_dir_root_read_failure_is_not_empty(tmp_path):
+    class _History:
+        def get_root_hash(self):
+            raise RuntimeError("db timeout")
+
+    class _Repo:
+        pass
+
+    repo = _Repo()
+    repo.history = _History()
+    repo.store = ObjectStore(tmp_path / "objects")
+
+    class _Repos:
+        def get_repo(self, project_id):
+            return repo
+
+    reader = VersionTreeReader(_Repos())
+
+    with pytest.raises(VersionReadError):
+        reader.list_dir("project-id")
 
 
 def test_tree_reader_scope_methods_read_scope_head_without_root_projection(tmp_path):

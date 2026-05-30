@@ -46,7 +46,6 @@ from src.version_engine.infrastructure.supabase import safe_data as _safe_data
 from src.version_engine.infrastructure.supabase.db_names import (
     COMMIT_HISTORY_TABLE,
     PUBLISH_PROJECT_UPDATE_RPC,
-    PUBLISH_SCOPE_UPDATE_RPC,
     PROJECT_ROOT_HASH_COLUMN,
     SCOPE_STATE_TABLE as DB_SCOPE_STATE_TABLE,
     VERSION_INDEX_TABLE,
@@ -185,17 +184,12 @@ class SupabaseHistoryManager:
         self._upsert_scope_state(scope_path, scope_hash=h)
 
     def get_all_scope_hashes(self) -> dict[str, str]:
-        """Return ``{scope_path: scope_hash}`` for every scope in this project.
+        """Return persisted scope-cache rows for protocol/read views.
 
-        Used by the post-push graft path in ``services/hooks.py`` to rebuild
-        the materialized project root from authoritative DB state instead of
-        reading the previous root tree from S3 (which is itself a derived
-        artifact and the silent-overwrite vector that motivated the
-        DB-authoritative refactor).
-
-        Empty ``scope_hash`` rows are skipped: a scope that has never been
-        pushed contributes nothing to the root tree. ``scope_path`` is the
-        canonical (already-normalized) form stored in the table.
+        The project root hash is the only write authority. These rows are
+        materialized scope views maintained for Git/AP clients and legacy
+        compatibility; callers must not treat them as an independent source
+        of truth.
         """
         resp = (
             self._client.table(self.SCOPE_STATE_TABLE)
@@ -294,75 +288,6 @@ class SupabaseHistoryManager:
                 f"{e}"
             ) from e
 
-    def publish_scope_update(
-        self,
-        *,
-        scope_path: str,
-        old_scope_hash: str,
-        new_scope_hash: str,
-        commit_id: str,
-        who: str,
-        message: str,
-        changes: list,
-        conflicts: list | None,
-        created_at_iso: str,
-        audit_event_type: str,
-        audit_agent_id: str,
-        audit_detail: dict,
-        source_channel: str = "",
-        policy: str = "",
-        base_commit_id: str = "",
-        client_commit_id: str = "",
-        proposed_tree_id: str = "",
-        intent_type: str = "operation",
-    ) -> tuple[bool, int | None]:
-        """Atomically publish scope head, history, audit, transaction, outbox.
-
-        Returns ``(published, transaction_id)`` where ``transaction_id`` is
-        the newly-inserted ``version_transactions`` row id.
-        """
-
-        scope_path = _normalize(scope_path)
-        try:
-            resp = self._client.rpc(PUBLISH_SCOPE_UPDATE_RPC, {
-                "p_project_id": self._project_id,
-                "p_scope_path": scope_path,
-                "p_old_hash": old_scope_hash or "",
-                "p_new_hash": new_scope_hash,
-                "p_head_commit_id": commit_id,
-                "p_who": who,
-                "p_message": message or "",
-                "p_event_type": audit_event_type,
-                "p_changes": changes or [],
-                "p_conflicts": _serialize_conflicts(conflicts) if conflicts else None,
-                "p_created_at": created_at_iso or "",
-                "p_audit_agent_id": audit_agent_id,
-                "p_audit_detail": audit_detail or {},
-                "p_source_channel": source_channel or "",
-                "p_policy": policy or "",
-                "p_base_commit_id": base_commit_id or "",
-                "p_client_commit_id": client_commit_id or "",
-                "p_proposed_tree_id": proposed_tree_id or "",
-                "p_intent_type": intent_type or "operation",
-            }).execute()
-            data = resp.data
-            ok, txn_id = _decode_publish_table_result(data)
-            if ok:
-                for attr in ("_head_cid_cache", "_root_hash_cache"):
-                    if hasattr(self, attr):
-                        delattr(self, attr)
-            return ok, txn_id
-        except Exception as e:
-            log_error(
-                f"[Publish] {PUBLISH_SCOPE_UPDATE_RPC} RPC failed for "
-                f"scope='{scope_path}': {e}. Deploy the SQL migration first."
-            )
-            raise RuntimeError(
-                "atomic publish RPC not available — version writes require "
-                f"{PUBLISH_SCOPE_UPDATE_RPC}. Original error: "
-                f"{e}"
-            ) from e
-
     def publish_project_update(
         self,
         *,
@@ -383,14 +308,25 @@ class SupabaseHistoryManager:
         client_commit_id: str = "",
         proposed_tree_id: str = "",
         intent_type: str = "operation",
+        scope_path: str = "",
+        scope_hash: str = "",
+        scope_head_commit_id: str = "",
     ) -> tuple[bool, int | None]:
-        """Atomically publish a project-root product transaction."""
+        """Atomically publish a root-authoritative transaction.
+
+        ``scope_path``/``scope_hash`` annotate the user-facing access scope
+        that produced the commit. The root hash remains the CAS authority;
+        the scope row is a cache for Git/AP views.
+        """
 
         try:
             resp = self._client.rpc(PUBLISH_PROJECT_UPDATE_RPC, {
                 "p_project_id": self._project_id,
                 "p_old_root_hash": old_root_hash or "",
                 "p_new_root_hash": new_root_hash,
+                "p_scope_path": _normalize(scope_path),
+                "p_scope_hash": scope_hash or new_root_hash,
+                "p_scope_head_commit_id": scope_head_commit_id or "",
                 "p_head_commit_id": commit_id,
                 "p_who": who,
                 "p_message": message or "",

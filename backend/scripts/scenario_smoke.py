@@ -54,7 +54,7 @@ from src.version_engine.infrastructure.supabase.scope_manager import ScopeManage
 from src.version_engine.infrastructure.supabase.server_repo import PuppyOneServerRepo
 from src.version_engine.write_engine.engine import VersionWriteEngine
 from src.version_engine.write_engine.git_commit import build_git_commit
-from src.version_engine.write_engine.object_store import ObjectStore
+from src.version_engine.storage.object_store import ObjectStore
 from src.version_engine.write_engine.tree_objects import (
     build_tree_from_files,
     flatten_tree_to_bytes,
@@ -217,39 +217,25 @@ class FakeHistoryManager:
             self._root_hash = new_hash
             return True
 
-    def publish_scope_update(self, *, scope_path, old_scope_hash, new_scope_hash,
-                              commit_id, who, message, changes, conflicts,
-                              created_at_iso, audit_event_type, audit_agent_id,
-                              audit_detail, source_channel="", policy="",
-                              base_commit_id="", client_commit_id="",
-                              proposed_tree_id="", intent_type="operation"):
-        norm = scope_path.strip("/")
-        with self._lock:
-            if self._scope_hashes.get(norm, "") != old_scope_hash:
-                return False, None
-            self._scope_hashes[norm] = new_scope_hash
-            self._scope_head_commit_ids[norm] = commit_id
-            self.record(commit_id, who, message, norm, changes, conflicts,
-                        scope_hash=new_scope_hash, created_at_iso=created_at_iso)
-            self._head_commit_id = commit_id
-            if self._audit is not None:
-                self._audit.record(audit_event_type, audit_agent_id, audit_detail or {})
-            return True, None
-
     def publish_project_update(self, *, old_root_hash, new_root_hash, commit_id,
                                 who, message, changes, conflicts, created_at_iso,
                                 audit_event_type, audit_agent_id, audit_detail,
                                 source_channel="", policy="", base_commit_id="",
                                 client_commit_id="", proposed_tree_id="",
-                                intent_type="operation"):
+                                intent_type="operation", scope_path="",
+                                scope_hash="", scope_head_commit_id=""):
         with self._lock:
             if self._root_hash != old_root_hash:
                 return False, None
+            norm = scope_path.strip("/")
+            accepted_scope_hash = scope_hash or new_root_hash
             self._root_hash = new_root_hash
             self._scope_hashes[""] = new_root_hash
             self._scope_head_commit_ids[""] = commit_id
-            self.record(commit_id, who, message, "", changes, conflicts,
-                        root_hash=new_root_hash, scope_hash=new_root_hash,
+            self._scope_hashes[norm] = accepted_scope_hash
+            self._scope_head_commit_ids[norm] = scope_head_commit_id or commit_id
+            self.record(commit_id, who, message, norm, changes, conflicts,
+                        root_hash=new_root_hash, scope_hash=accepted_scope_hash,
                         created_at_iso=created_at_iso)
             self._head_commit_id = commit_id
             if self._audit is not None:

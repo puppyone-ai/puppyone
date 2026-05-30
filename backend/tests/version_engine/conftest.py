@@ -15,7 +15,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from src.version_engine.storage.object_store import ObjectStore
-from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
 
 
 @pytest.fixture
@@ -66,6 +65,9 @@ def server_repo(memory_store):
 
 @pytest.fixture
 def repo_manager(server_repo):
-    manager = MagicMock(spec=VersionRepoManager)
+    # Keep this fixture lightweight. Importing VersionRepoManager pulls in
+    # the HTTP/S3 application stack, which is irrelevant for in-memory
+    # version-engine unit tests and makes local test collection fragile.
+    manager = MagicMock()
     manager.get_server_repo.return_value = server_repo
     return manager

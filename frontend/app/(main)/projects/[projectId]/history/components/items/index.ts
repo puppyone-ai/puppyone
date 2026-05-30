@@ -11,3 +11,4 @@
 import './pendingReviewKind';
 import './conflictKind';
 import './failedSyncKind';
+import './riskyDeleteKind';

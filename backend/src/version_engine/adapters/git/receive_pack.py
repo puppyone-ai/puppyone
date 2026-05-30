@@ -284,9 +284,12 @@ async def receive_pack_response_from_path(
             promote_objects = quarantine.promote_reachable
             proposed_tree_id = tree_id
             # Git clients compare against the Git-visible projected HEAD. The
-            # write engine CAS still protects the canonical L5 scope head, so
-            # translate back to the current canonical commit before publishing.
-            engine_base_commit_id = current_head_commit_id
+            # write engine CAS still protects the root, but root-first scopes
+            # can be projected from the root tree before a scope-state cache
+            # row exists. In that case there is no canonical scope head yet, so
+            # keep the Git-visible base instead of translating it to "".
+            canonical_base_commit_id = current_head_commit_id
+            engine_base_commit_id = current_head_commit_id or expected_old_id
             if scope_excludes:
                 # The merged tree is built against the canonical scope tree
                 # (preserving hidden files) using the pushed blob hashes for
@@ -303,7 +306,7 @@ async def receive_pack_response_from_path(
                     tree_id,
                     changed_paths,
                 )
-                engine_base_commit_id = current_head_commit_id
+                engine_base_commit_id = current_head_commit_id or expected_old_id
 
             # E5: refuse LFS pointer blobs with a clear message before the
             # publish pipeline rather than silently committing them and
@@ -354,7 +357,8 @@ async def receive_pack_response_from_path(
                     "ref": command.ref,
                     "old_commit_id": command.old_id if command.old_id != ZERO_ID else "",
                     "git_visible_old_commit_id": expected_old_id,
-                    "canonical_base_commit_id": engine_base_commit_id,
+                    "canonical_base_commit_id": canonical_base_commit_id,
+                    "engine_base_commit_id": engine_base_commit_id,
                     "git_view_health": git_view_head.health,
                     "git_view_history_cut": git_view_head.history_cut,
                     "remote_commit_id": command.new_id,

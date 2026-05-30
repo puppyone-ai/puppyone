@@ -53,6 +53,7 @@ def transport_bare_repo(
     *,
     follow_history: bool = True,
     include_blobs: bool = True,
+    extra_roots: list[str] | None = None,
 ):
     """Yield an incrementally maintained bare repo for one Git view.
 
@@ -86,10 +87,14 @@ def transport_bare_repo(
         bare_dir = cache_dir / "repo.git"
         _ensure_bare_repo(bare_dir)
         head = view_head.head
+        additional_roots = [
+            root for root in (extra_roots or [])
+            if is_object_id(root) and root != ZERO_ID and root != head
+        ]
         copy_reachable_objects_to_bare(
             repo,
             bare_dir,
-            [head],
+            [head, *additional_roots],
             follow_history=follow_history,
             include_blobs=include_blobs,
         )
@@ -104,6 +109,52 @@ def transport_bare_repo(
             history_cut=view_head.history_cut,
         )
     yield bare_dir
+
+
+@contextmanager
+def upload_pack_bare_repo(
+    repo,
+    scope_path: str,
+    scope_excludes: list[str] | None = None,
+    *,
+    wants: list[str] | None = None,
+):
+    """Yield a request-local upload-pack repo.
+
+    Smart HTTP is stateless across ``info/refs`` and ``git-upload-pack``.
+    If the canonical view advances between those two HTTP requests, the
+    client can still legitimately ask for the head it just saw advertised.
+    Keep those requested ``want`` objects reachable through temporary refs
+    for this one upload-pack invocation without polluting the durable cache's
+    advertised ref namespace.
+    """
+
+    wanted_roots = [
+        want for want in (wants or [])
+        if is_object_id(want) and want != ZERO_ID
+    ]
+    with transport_bare_repo(
+        repo,
+        scope_path,
+        scope_excludes,
+        follow_history=True,
+        include_blobs=True,
+        extra_roots=wanted_roots,
+    ) as cache_bare:
+        with tempfile.TemporaryDirectory(prefix="puppyone-git-upload-pack-") as tmp:
+            bare_dir = Path(tmp) / "repo.git"
+            _ensure_bare_repo(bare_dir)
+            alternates = bare_dir / "objects" / "info" / "alternates"
+            alternates.parent.mkdir(parents=True, exist_ok=True)
+            alternates.write_text(
+                f"{(cache_bare / 'objects').resolve()}\n",
+                encoding="utf-8",
+            )
+            cache_ref = cache_bare / "refs" / "heads" / "main"
+            if cache_ref.exists():
+                _write_main_ref(bare_dir, cache_ref.read_text(encoding="ascii").strip())
+            _write_upload_pack_want_refs(bare_dir, wanted_roots)
+            yield bare_dir
 
 
 def warm_transport_bare_repo(
@@ -575,6 +626,15 @@ def _unpack_and_validate(bare_dir: Path, pack: bytes, roots: list[str]) -> None:
 
 def _write_quarantine_refs(bare_dir: Path, roots: list[str]) -> None:
     refs_dir = bare_dir / "refs" / "puppyone" / "quarantine"
+    for index, object_id in enumerate(roots):
+        if not is_object_id(object_id) or object_id == ZERO_ID:
+            continue
+        refs_dir.mkdir(parents=True, exist_ok=True)
+        (refs_dir / str(index)).write_text(f"{object_id}\n", encoding="ascii")
+
+
+def _write_upload_pack_want_refs(bare_dir: Path, roots: list[str]) -> None:
+    refs_dir = bare_dir / "refs" / "puppyone" / "upload-pack-wants"
     for index, object_id in enumerate(roots):
         if not is_object_id(object_id) or object_id == ZERO_ID:
             continue

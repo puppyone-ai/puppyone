@@ -113,39 +113,6 @@ class RollbackIntent:
     policy_override: str = ""
 
 
-@dataclass(frozen=True)
-class ScopePromoteIntent:
-    """A derived scope-promote publish — child commit lands on parent scope.
-
-    Triggered by ``derived/parent_scope_promote`` after a child scope's
-    commit lands; the parent ancestors graft the child tree into their
-    own tree and need to publish a new ``scope-promote`` commit so the
-    parent's Git view stays current. Conceptually this is a derived L6
-    work, but the actual ref-advancing call must go through L5 (the
-    engine) so all publishes share one audit / tracing / hardening
-    boundary.
-
-    Unlike ``OperationWriteIntent`` (engine builds the commit) and
-    ``VersionSubmissionIntent`` (Git push supplies a proposed tree),
-    scope-promote provides the FULLY-FORMED commit + tree — the engine
-    just runs the publish RPC + lifecycle bookkeeping. Cordon logic
-    (orphan-parent for damaged ancestry) is already applied to
-    ``commit_id`` by the caller; the engine doesn't re-validate.
-    """
-
-    project_id: str
-    scope_path: str
-    actor: str
-    source_channel: SourceChannel
-    old_scope_hash: str
-    new_scope_hash: str
-    commit_id: str
-    base_commit_id: str
-    message: str
-    audit_detail: dict = field(default_factory=dict)
-    changes: list = field(default_factory=list)
-
-
 ResolutionDecision = Literal["accept", "reject"]
 
 

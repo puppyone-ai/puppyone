@@ -18,7 +18,7 @@ Coverage:
   D. Multi-actor manual_review → resolve(reject) → unchanged
   E. CAS-retry merge: concurrent same-scope writers, both lands
   F. Project-root CAS-retry merge (our new fix from batch 1)
-  G. Cross-scope writes: parent + child, scope-promote graft
+  G. Cross-scope writes: parent + child, root-first graft
   H. Auth: revoked key, channel pause, JWT
   I. Permission: read-only mode rejects writes
   J. Shadow snapshot caps (413 with limit-name body)
@@ -509,20 +509,19 @@ class TestProjectRootCASRetryMerge:
 
 
 # ════════════════════════════════════════════════════════════════
-# G. Cross-scope writes — verify scope refs progress independently
+# G. Cross-scope writes — verify root-first scope views refresh
 # ════════════════════════════════════════════════════════════════
 
 
 class TestCrossScopeWrites:
     @pytest.mark.asyncio
-    async def test_writes_to_child_scope_promote_into_root(
+    async def test_writes_to_child_scope_graft_into_root(
         self, repo_manager, server_repo,
     ):
-        """Doc §7.B child-promotes-parent: a write to ``docs`` triggers a
-        scope-promote commit on root projecting the child tree into the
-        root view. The root head should ADVANCE (with a synthetic
-        scope-promote commit), and root's projected tree should contain
-        ``docs/new.md``.
+        """A child-scope write grafts into the canonical root.
+
+        No synthetic scope-promote commit is created; the root view derives
+        directly from the accepted project root.
         """
         await _seed_scope(server_repo, repo_manager, "", {"root.md": b"R"})
         await _seed_scope(server_repo, repo_manager, "docs", {"doc.md": b"D"})
@@ -550,8 +549,7 @@ class TestCrossScopeWrites:
 
         # docs scope advanced.
         assert server_repo.get_scope_head_commit_id("docs") != docs_head_before
-        # Root tree contains the docs subtree content via projection.
-        # (The root scope head advanced via scope-promote graft.)
+        # Root tree contains the docs subtree content via root-first graft.
         root_files = _scope_files(server_repo, "")
         assert root_files.get("docs/new.md") == b"docs-only", (
             f"root projection missing docs/new.md; root_files={list(root_files)}"

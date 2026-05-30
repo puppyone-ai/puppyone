@@ -181,7 +181,8 @@ class TodaySmoke:
         return "rejected node_modules"
 
     def upload_init_blocks_per_file_size(self):
-        """Per-file cap is 50 MB (PUP-3 Q4). A 60 MB file should 400."""
+        """Per-file cap is 100 MB (PUP-3 Q4, raised from 50 MB in #1276).
+        A 150 MB file should 400."""
         r = self.client.post(
             "/api/v1/ingest/upload/init",
             json={
@@ -190,7 +191,7 @@ class TodaySmoke:
                     {
                         "filename": "big.bin",
                         "parent_path": "data",
-                        "size": 60 * 1024 * 1024,
+                        "size": 150 * 1024 * 1024,
                         "content_type": "application/octet-stream",
                     }
                 ],
@@ -200,7 +201,7 @@ class TodaySmoke:
         detail = self._extract_policy_detail(r.json())
         msg = json.dumps(detail).lower()
         assert "per-file cap" in msg or "pup-3" in msg, f"got {detail}"
-        return "rejected 60MB file"
+        return "rejected 150MB file"
 
     def upload_init_accepts_clean_path(self):
         """Sanity: non-blocked paths still go through, get a real

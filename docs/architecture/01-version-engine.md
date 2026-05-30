@@ -29,8 +29,8 @@ maintain a second version-control protocol.
   | Version Engine: write_engine/engine.py                             |
   |                                                                  |
   | - validates actor, access point, scope, excludes, and base state  |
-  | - applies product splices or accepted Git trees                   |
-  | - retries with per-scope SQL CAS                                  |
+  | - applies product splices or accepted Git trees to root           |
+  | - retries with root CAS and path-conflict checks                  |
   | - runs merge policy: auto merge, LWW, manual review, reject       |
   | - creates canonical Git commit/tree/blob facts                    |
   | - atomically publishes refs, history, audit, transaction, outbox  |
@@ -43,7 +43,7 @@ maintain a second version-control protocol.
   | Git object storage        |       | Supabase control plane        |
   |                           |       |                               |
   | version/<project>/objects |       | repo_scopes                   |
-  | version/<project>/bundles |       | projects root column          |
+  | version/<project>/bundles |       | canonical projects root column|
   | blob/tree/commit bytes    |       | scope-state and commit rows   |
   | object-location index     |       | conflicts, transactions       |
   | transport cache           |       | audit logs, durable outbox    |
@@ -63,6 +63,51 @@ maintain a second version-control protocol.
 This is the current routing map. Protocol surfaces stay separate, while command
 construction, transaction semantics, audit, conflict, write-system follow-up, and
 physical object storage converge below the protocol boundary.
+
+## Source Of Truth
+
+The Version Engine's long-term invariant is root-first:
+
+```text
+Project canonical root = the single source of truth.
+Scopes = path-bounded access wrappers over that root.
+Scope-state rows = derived/cache/compatibility state, never authority.
+```
+
+Concretely, the project root hash column (`projects.mut_root_hash`, later
+`projects.version_root_hash`) is the canonical tree for the project. Product
+writes, Access Point writes, Git pushes, CLI FS writes, and connector writes all
+land by applying a path-scoped patch to that root and conditionally publishing a
+new root. `repo_scopes` defines who can touch which path; it does not define a
+separate project truth.
+
+This is the same architectural shape as Git-backed systems: one repository view
+has one current root tree, while permissions, remotes, branch views, search
+indexes, and UI caches are wrappers or derived views around that root. A derived
+view may lag or be rebuilt, but it must never make the project appear empty or
+replace the canonical root as truth.
+
+### Legacy Scope-State Compatibility
+
+Existing deployments still contain `mut_scope_state` and older scoped heads. That
+state is compatibility data during migration and may be used to rebuild or repair
+the canonical root for legacy projects, but new root-first writes must not treat
+per-scope heads as independent sources of truth.
+
+Allowed uses for scope-state after the root-first cutover:
+
+- fast lookup of the subtree hash under a scope path;
+- compatibility reads for old projects until they are migrated;
+- read-repair input when a legacy projection is missing or damaged;
+- migration tooling that folds historical scope heads into one canonical root.
+
+Forbidden uses:
+
+- deciding that the project is empty because a derived/root projection is empty;
+- publishing one scope head as authoritative without updating the canonical
+  project root;
+- letting a scope cache override a newer project root;
+- treating multiple scope heads as the steady-state data model for new projects.
 
 ```text
 Legend:
@@ -101,7 +146,7 @@ Legend:
        +--------------------+--------------------+--------------------+--------------------+
        | Product root       | AP/CLI scope       | Git remote scope   | Connector/job      |
        | role/can_write     | mode/excludes      | mode/excludes/ref  | target scope       |
-       | root hash/head     | connector status   | fetch/push allowed | batch policy       |
+       | canonical root     | connector status   | fetch/push allowed | batch policy       |
        +--------------------+--------------------+--------------------+--------------------+
        | Output: TargetAdmission = AuthContext + allowed target/actions/snapshot           |
        +-----------------------------------------------------------------------------------+
@@ -129,14 +174,14 @@ Legend:
        |                                                            |                      |
        | Inputs from L4:                                            | - hooks and durable  |
        |   Product/AP/batch -> OperationWriteIntent +               |   outbox consumers   |
-       |     TreePatch/splice_fn                                    | - scope->root and    |
+       |     TreePatch/splice_fn                                    | - scope caches and   |
        |   Git push -> VersionSubmissionIntent + proposed Git tree  |   root->AP derived   |
-       |                                                            |   refs               |
+       |                                                            |   refs/views         |
        | Main path:                                                 | - Git view cache     |
        |   Read current head/root                                   |   warming/repair     |
        |     -> Build candidate version                             | - path/search        |
        |     -> Store immutable blob/tree/commit objects            |   indexes            |
-       |     -> Try conditional publish                             | - websocket/read     |
+       |     -> Try conditional root publish                        | - websocket/read     |
        |                                                            |   model refresh      |
        | Conditional publish result:                                | - search event       |
        |   accepted:                                                |   dispatch           |
@@ -180,7 +225,7 @@ Updates from the previous diagram:
   Product, AP-FS, and batch file writes may use that command helper inside the
   Product/AP/batch adapter. Git push has its own adapter path: receive-pack,
   quarantine, proposed tree, and changed-path extraction.
-- Git object writes and conditional publish are shown inside L5 Core because
+- Git object writes and conditional root publish are shown inside L5 Core because
   they are part of the write loop. There is no separate downstream publish stage
   that can "return" to the engine; a moved head/root loops back to the Main
   path with the latest state, while unresolved conflicts return `pending`.
@@ -211,6 +256,9 @@ Updates from the previous diagram:
   S3/Supabase physical layout, object-location indexes, bundle/chunk storage,
   hash verification, and storage compatibility shims live here. L6 does not
   perform auth, permission, merge/conflict policy, or ref publication.
+- The canonical project root is the only source of truth for new writes. Scoped
+  heads and scope-state rows are compatibility/cache material and must be
+  rebuildable from the root, not the other way around.
 - Git smart HTTP must expose exactly one Git-visible ref state per Access Point
   view. Clone/fetch, receive-pack advertisement, receive quarantine, and push
   fast-forward checks all use the same `GitViewHead` resolver. If current content
@@ -246,6 +294,191 @@ Correctness boundaries:
 - L5 Follow-up / Repair is the final write-system follow-up area. It may lag
   briefly, but every derived view must be repairable from committed version
   facts. Read APIs and frontend screens are consumers outside the write pipeline.
+- The root-first invariant is a correctness boundary, not a performance
+  optimization. If a scope cache, Git view cache, path index, or projection is
+  empty or stale, reads must repair it from the canonical root or fail loud; they
+  must not translate derived failure into an empty project.
+
+## L5 Scope And Branch Convergence
+
+L5 is the only place where different product views, Access Point views, and
+Git-visible heads converge into one project history. A scope may look like a
+small repository to a user, but it is not an independent source of truth.
+
+```text
+Canonical project state
+=======================
+
+  root head R10
+  root tree T10
+      |
+      +-- docs/                 subtree D10
+      +-- product/              subtree P10
+      +-- New Folder (2)/       subtree N10
+
+Derived Git-visible scope state
+===============================
+
+  /docs scope head S10
+      tree(S10) == D10
+
+  /New Folder (2) scope head G10
+      tree(G10) == N10
+
+Invariant
+=========
+
+  root is authority.
+  scope heads are view heads.
+  tree(scope head) must match subtree(root tree, scope_path)
+  when the view is healthy.
+```
+
+The word "branch" in this section means a user-visible write lane or Git-visible
+view lane. Puppyone scope remotes currently expose a single normal Git branch
+for the view, while L5 keeps the semantic merge point at the project root.
+
+### Root Write Affecting Child Scopes
+
+When a product/root write changes files under one or more child scopes, the
+write belongs to the root lane. The child scopes do not claim ownership of the
+write; they receive refreshed derived views.
+
+```text
+Root write changes:
+  docs/a.md
+  docs/b.md
+  product/pricing.md
+
+L5 Core:
+  T10 + root patch
+    -> T11
+    -> root commit R11
+    -> root CAS publish
+
+L5 Follow-up / Repair:
+  changed paths select affected scopes: docs, product
+  docs    D10 -> D11 -> derived scope-view head S11
+  product P10 -> P11 -> derived scope-view head P11
+```
+
+This refresh happens once per affected scope, not once per file. If five changed
+files all live under `/docs`, L5 Follow-up computes one target `/docs` subtree
+and one new `/docs` scope-view head.
+
+Root-originated changes are parent-authoritative for overlapping paths inside
+child views: when the root write and a child view touch the same relative path,
+the root version wins. Independent child paths are preserved during repair or
+stale follow-up so a delayed projection does not erase a newer scoped write.
+
+### Scoped Write Grafted Back To Root
+
+When a scoped Access Point or Git remote receives a write, L5 treats the incoming
+tree as a candidate replacement for that scope subtree, then grafts it back into
+the canonical project root.
+
+```text
+User clones /docs at scope head S10
+User commits S11
+  tree(S11) == D11
+
+L5 Core:
+  read current root T10
+  read current /docs subtree D10 from T10
+  validate base/head/excludes/path bounds
+  graft /docs := D11 into T10
+    -> T11
+  create root commit R11 with tree T11
+  root CAS publish
+
+Published result:
+  root head  = R11
+  /docs head = S11 for native Git pushes
+             = generated scope-view commit for non-Git scoped writes
+```
+
+For native Git remotes, the source scope keeps the user's Git client commit as
+the scope head when that commit tree is the accepted scope subtree. L5 Follow-up
+must not re-derive that source scope head after the transaction; doing so would
+replace a normal Git fast-forward chain with a synthetic view commit.
+
+Other affected scopes are still refreshed from the new root. For example, a
+write to `/docs/api` may refresh `/docs` and `/docs/api`, but it must not refresh
+unrelated scopes.
+
+### Root CAS And Merge Loop
+
+All lanes meet at the root CAS publish boundary.
+
+```text
+attempt:
+  latest root = Rn / Tn
+  scope base  = subtree(Tn, scope_path)
+  incoming    = proposed scope tree or root patch
+  candidate   = graft/patch result
+  publish     = CAS(root_hash == Tn, new_root_hash = candidate)
+
+CAS accepted:
+  write commit/history/audit/transaction/outbox
+
+CAS lost:
+  read newer root
+  recompute candidate
+  auto merge if safe
+  write pending conflict if unsafe
+  retry until budget exhausted
+```
+
+This is why scope remotes can be concurrent without becoming separate truths.
+Two scoped writes to unrelated paths can both land by retrying against the newest
+root. Two writes to the same path go through L5 conflict policy.
+
+### Performance Shape
+
+Root-first does not require flattening the whole project for every scoped write.
+The normal scoped write path works on Git tree hashes:
+
+- extract the current subtree hash at `scope_path`;
+- validate changed relative paths against the admitted scope and excludes;
+- replace that subtree hash under the root by rebuilding only the ancestor path;
+- publish the new root hash with CAS.
+
+In tree terms, replacing `/docs/api` rebuilds `api`, then `docs`, then root. It
+does not read and rewrite every file in unrelated root directories.
+
+Follow-up derived work is also bounded by changed paths:
+
+- only scopes intersecting the committed changed paths are candidates;
+- each affected scope is refreshed at most once for the commit;
+- scope-state rows and Git view caches are materialized views;
+- caches may be rebuilt from committed root facts and object storage.
+
+Current implementation note: some child-scope follow-up merge paths materialize
+files inside the affected scope to preserve independent child edits. That work is
+limited to the affected scope, not the full project. If a single scope becomes
+very large, the intended optimization is to replace that flatten/merge step with
+tree-diff and path-patch operations behind the same L5 contract.
+
+### Failure And Repair Contract
+
+L5 Core must make the committed root facts durable before returning success. L5
+Follow-up / Repair may lag or retry, but it cannot be the only place where the
+project truth exists.
+
+If a follow-up step fails:
+
+- the canonical root remains correct;
+- source scope heads from the accepted transaction remain owned by that
+  transaction;
+- affected non-source scope caches may be stale;
+- reads may repair or synthesize a Git-visible scope view from the root;
+- durable outbox/repair jobs may rebuild scope-state, Git view caches, path
+  indexes, and search indexes;
+- stale follow-up jobs must use CAS and must not overwrite newer scope heads.
+
+A broken derived view must never become an empty project. If the root is healthy
+and a derived cache is missing, stale, or damaged, the system should rebuild from
+the root or fail loudly with a repairable error.
 
 ## Rules
 
@@ -254,14 +487,20 @@ Correctness boundaries:
    projections, and server-side transaction semantics.
 3. Frontend and Product API writes always target the root product scope unless
    an explicit access point or connector scope is being used.
-4. Git view caches are protocol caches only. They are not authority. They are
+4. Access-point and connector scopes are wrappers over the canonical project
+   root. A scoped write patches only its admitted path, then publishes a new
+   root; it does not create an independent source of truth.
+5. Git view caches are protocol caches only. They are not authority. They are
    durable per-view derived resources consumed by L1/L4 Git transport and
    repairable from L5 committed facts by L5 Follow-up / Repair.
-5. Search and indexing consume committed events and views; they never decide
+   Smart-HTTP fetch is stateless across `info/refs` and `git-upload-pack`, so
+   upload-pack may temporarily pin client `want` objects as request-local refs
+   when the canonical view advances between those two HTTP requests.
+6. Search and indexing consume committed events and views; they never decide
    merge/conflict behavior.
-6. L6 storage substrate is a physical persistence boundary, not a product
+7. L6 storage substrate is a physical persistence boundary, not a product
    policy boundary.
-7. Runtime code must not import the old external version package or public old
+8. Runtime code must not import the old external version package or public old
    wire protocol. Git helpers are PuppyOne-owned.
 
 ## Folder Layout
@@ -320,8 +559,11 @@ backend/src/version_engine/
       in_process_client.py
 
   write_engine/
-    engine.py                     # L5 Core write authority
+    engine.py                     # L5 Core facade / intent orchestration
+    audit.py                      # shared audit metadata + write logging
+    cas_retry.py                  # CAS-retry convergence merge
     conflict_policy.py
+    conflict_queue.py             # pending manual-review conflict persistence
     diff.py
     git_commit.py
     git_object_format.py
@@ -329,9 +571,14 @@ backend/src/version_engine/
     ledger.py                     # persistence contract
     merge.py
     path_utils.py
+    publisher.py                  # L5 CAS publish boundary + follow-up scheduling
+    root_state.py                 # root-first state, repair, and scope grafting
+    scope_view.py                 # scoped Git-view commit materialization
     scope.py
+    submission_commit.py          # Git submission commit preservation/synthesis
     trace.py
     tree.py
+    tree_access.py                # tree lookup, diff expansion, sparse merge
     tree_objects.py
 
   storage/
@@ -349,7 +596,6 @@ backend/src/version_engine/
     object_gc.py
     object_gc_worker.py
     outbox.py
-    parent_scope_promote.py
     path_index.py
     projection.py
 
@@ -389,7 +635,6 @@ mut_object_locations
 mut_conflicts
 projects.mut_root_hash
 github_sync_log.mut_commit_id
-publish_mut_scope_update
 publish_mut_project_update
 get_mut_project_write_state
 claim/complete/fail_mut_version_outbox
@@ -449,15 +694,132 @@ metadata for a human or hosted resolver to make a later transaction.
 ## Access Point Model
 
 Each access point behaves externally like a repo endpoint, but internally it is
-a scoped facade over the shared project object store:
+a scoped facade over the canonical project root:
 
 ```text
 repo_scopes row
   -> RepoFacade(project_id, repo_id, scope_path, excludes, mode, ref)
   -> Git transport / CLI FS scoped view
   -> Version Engine transaction
-  -> shared project object store + scope-state refs
+  -> shared project object store + canonical project root
+  -> optional scope-state / Git-view cache refresh
 ```
 
 This keeps the GitHub-like external product model without creating one physical
-Git repository per scope.
+Git repository per scope and without creating one source of truth per scope.
+
+## 嵌套 Scope 拓扑 —— 用户行为对照表
+
+为了把"嵌套 scope 下用户能怎么写、我们怎么回应"讲清楚，下面用一个具体的拓扑
+做参照，把所有用户可能的提交行为列成对照表。
+
+### 参考拓扑
+
+```text
+Root
+├── /A         ← Scope A
+│   └── /A/C   ← Scope C
+└── /B         ← Scope B
+```
+
+下文"Root 直辖区"指 root 下面、**不在** `/A` 和 `/B` 任何一个挂载点里的位置
+（例如 `/README.md`、`/docs/intro.md`）。
+
+### 一、从 Root 入口提交
+
+入口包括产品 Web 保存、API、CLI 带 root access key、root scope 的 access
+point。Root 入口能看见整棵树，触达任意路径都是合法的。
+
+| # | 触达路径 | 我们怎么做 | 为什么 |
+|---|---|---|---|
+| 1 | 只动 Root 直辖区 | 接受 | 标准根写。 |
+| 2 | 只动 A 自己的地盘 | 接受，A 视图刷新 | Root 是父，对子 scope 有完全权限。 |
+| 3 | 只动 C 的地盘 | 接受，C 视图刷新 | 同上。 |
+| 4 | 只动 B 的地盘 | 接受，B 视图刷新 | 同上。 |
+| 5 | Root 直辖区 + A 自己 | 接受 | 一次根写，原子刷新所有受影响视图。 |
+| 6 | A 自己 + C | 接受 | A 和 C 视图都按 changed-paths 刷新。 |
+| 7 | A + B（跨兄弟） | 接受 | 跨兄弟改动的合法入口只有 Root。 |
+| 8 | C + B | 接受 | 同上。 |
+| 9 | Root 直辖区 + A + C + B 全开 | 接受 | "大重构"型提交；所有视图都会被刷新。 |
+
+实现说明：所有根写走 `apply_project_operation`；follow-up 用 changed-paths
+算出受影响的 scope 集合，从已接受的 canonical root 派生/刷新 scoped
+read views。这里不再合成 `scope-promote` 用户历史 commit；scope-state
+是缓存，不是另一个真理来源。
+
+### 二、从 Scope A 入口提交
+
+A 默认看不到 `/A/C/*`（已声明的子 scope 在父视图里自动隐藏）。下面是用户
+可能尝试的所有写法。
+
+| # | 触达路径 | 我们怎么做 | 为什么 |
+|---|---|---|---|
+| 1 | 只动 A 自己的地盘 | 接受 | 标准 scoped 写，graft 回 root，C 子树原样不动。 |
+| 2 | 只动 C 的地盘 | 拒绝 | A 视图根本看不见 C；这种 tree 一定是绕开默认视图手动构造的。拒绝信息提示："这些路径属于 Scope C，请用 C 的 access key push。" |
+| 3 | A 自己 + C 一起动 | 拒绝整次提交 | 不做"部分接受"，保证一次 push 的原子性。让用户要么拆成两次，要么把 C 那部分拿到 C 入口去 push。 |
+| 4 | 动 B 的地盘（跨兄弟） | 拒绝 | 越界，scope 之间没有兄弟权限。 |
+| 5 | 动 Root 直辖区（往父跑） | 拒绝 | 越界。要动父就用 root access key 或走产品 API。 |
+
+实现说明：以上判定都在 admission（L3）期就完成，请求不会进 Write Engine。
+错误码统一 `out_of_scope`，response 里带违规路径和"请去 Scope X push"的建议。
+
+### 三、从 Scope C 入口提交
+
+C 是最里层，没有更深的子 scope。
+
+| # | 触达路径 | 我们怎么做 | 为什么 |
+|---|---|---|---|
+| 1 | 只动 C 自己的地盘 | 接受 | 标准 scoped 写；graft 回 canonical root，再刷新受影响的 scope cache/read view。 |
+| 2 | 动 A 自己的地盘（往父跑） | 拒绝 | 越界。 |
+| 3 | C + A 一起动 | 拒绝整次提交 | 同上，不做"部分接受"。 |
+| 4 | 动 B / Root 直辖区 | 拒绝 | 彻底越界。 |
+
+### 四、从 Scope B 入口提交
+
+B 没有子 scope，和 A、C 互不相交。
+
+| # | 触达路径 | 我们怎么做 | 为什么 |
+|---|---|---|---|
+| 1 | 只动 B 自己的地盘 | 接受 | 标准 scoped 写。 |
+| 2 | 动 A / C / Root 直辖区 | 拒绝 | 越界。 |
+
+### 特殊行为
+
+下面这几类不属于"普通改动文件"，单列出来。
+
+| 场景 | 我们怎么做 |
+|---|---|
+| 从 Root 入口删掉整棵 `/A/C` 子树 | 接受。Scope C 的 `repo_scopes` 声明保留，C 视图变成空（clone 出来无 ref）。dashboard 弹一条告警："Scope C 的挂载点被根写清空。" C 的所有者可以继续 push 来重建。 |
+| 从 Root 入口把 `/A/C` 这个目录改成一个文件 | 走冲突策略。生成 pending conflict，归属 C；由 C 所有者或管理员决定是接受类型变更（C 之后变空）还是回滚。 |
+| 跨 scope 边界的 rename / move（如 `/A/x.md` → `/A/C/x.md`） | 子 scope 入口（A 或 C）都做不了：源或目标必有一端越界。这种动作只能从 Root 入口走。 |
+| 在已有内容上新声明一个子 scope（如新增 `/A/D` 的 `repo_scopes` 行） | 不搬动任何字节。声明落盘后 A 的下一次 push 触达 `/A/D/*` 会开始被拒；`/A/D` 作为 Scope D 自己可写。 |
+| 只读 scope（`mode = r`）上 push | 一律拒绝（403），不区分触达路径。 |
+| 子 scope push 与并发根写撞同一文件 | 走 L5 标准冲突策略。冲突行归属 = 路径的声明 scope（如 `/A/C/*` 归属 C）；`audit_detail.actor_source_scope` 留下写入者来源。 |
+
+### 设计原则总结
+
+上面表格里所有行的判断，背后只有两条用户记得住的原则：
+
+1. **从哪个 access point 进，只能动那个 scope 自己看得见的地盘。** 越界的
+   push 在 admission 期就被拒掉，不接受"半提交半拒绝"。
+2. **要一次跨多个 scope 改，只能从 Root 入口走。** 这是 root 作为唯一真理
+   来源最直接的体现。
+
+### 实现侧契约
+
+| 关注点 | 落点 |
+|---|---|
+| 计算 `carved_excludes_for(scope_path)`（把已声明的后代 scope 自动当作隐藏路径） | `admission/permission.py`、`admission/repo_facade.py` |
+| 把 carved excludes 注入 `TargetAdmission.scope_excludes` | `admission/target.py` |
+| admission 期拒绝越界路径并返回友好信息 | `admission/validation.py` |
+| graft 时把被隐藏的子 scope 子树原样钉回 | `write_engine/scope_view.py`、`write_engine/merge.py` |
+| 子 scope 写入后刷新祖先/后代可见性缓存 | `derived/projection.py`、`derived/hooks.py` |
+| 根写时按 changed-paths 刷新受影响后代 scope 视图 | `derived/projection.py`、`derived/hooks.py` |
+| 挂载点被清空时的 dashboard 告警 + view health | `derived/hooks.py`、`adapters/git/view_projection.py` |
+| 冲突行归属 = 路径的声明 scope | `write_engine/conflict_queue.py`、`write_engine/conflict_policy.py` |
+
+未来如果想在某个 scope 上 opt-in "透明可见"（子 scope 的内容能在父 view
+里看见、父 push 能写子的地盘），可以加一个
+`repo_scopes.nested_visibility = transparent` 设置。Transparent 模式下，
+"父入口写子地盘"要走对子 scope head 的 base-version 校验；该开关存在
+之前，所有嵌套 scope 都按上面表格里的方式处理。
