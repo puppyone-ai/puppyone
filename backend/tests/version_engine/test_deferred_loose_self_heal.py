@@ -73,6 +73,23 @@ class _StubS3:
     async def upload_file(self, key: str, data: bytes, content_type: str = "") -> None:
         self.bytes_by_key[key] = data
 
+    async def list_files(
+        self,
+        prefix: str = "",
+        max_keys: int = 1000,
+        continuation_token: str | None = None,
+    ):
+        """Minimal single-page list for the integrity scan. Returns
+        ``(items, common_prefixes, next_token, is_truncated)`` matching
+        ``S3Service.list_files``; each item exposes ``.key``."""
+        from types import SimpleNamespace
+        items = [
+            SimpleNamespace(key=k)
+            for k in sorted(self.bytes_by_key)
+            if k.startswith(prefix)
+        ]
+        return items, [], None, False
+
 
 def _supabase_wrapper():
     """Return a no-op Supabase wrapper. The deferred-loose read path
@@ -256,3 +273,145 @@ class TestDeferredLooseSelfHealAsync:
             f"async read path must not delete; saw deletes={stub_s3.delete_calls}"
         )
         assert stale_key in stub_s3.bytes_by_key
+
+
+# ════════════════════════════════════════════════════════════════
+# Primary-namespace verify + hash-on-write (the 520885e2 residual
+# fix). Stale bytes squatting on a PRIMARY loose key used to be
+# returned to the caller unverified, so bulk push died with
+# "invalid git loose object" and a re-upload of the same file
+# never self-healed (``_do_put`` skipped because the key existed).
+# ════════════════════════════════════════════════════════════════
+
+
+def _valid_loose(content: bytes) -> tuple[str, bytes]:
+    """Return (sha1_hex, zlib-framed loose bytes) for ``content``."""
+    import hashlib
+    import zlib
+
+    framed = b"blob " + str(len(content)).encode() + b"\0" + content
+    return hashlib.sha1(framed).hexdigest(), zlib.compress(framed)
+
+
+class TestPrimaryNamespaceVerify:
+    """Read paths must verify primary-namespace bytes and fall through
+    corrupt ones instead of handing zlib garbage to the caller."""
+
+    def test_stale_primary_bytes_fall_through_to_404(
+        self, backend: S3StorageBackend, stub_s3: _StubS3, project_id: str,
+    ) -> None:
+        h = "520885e2ece1037b" + "0" * 24
+        # Garbage (not a valid zlib loose object) on the PRIMARY key.
+        stub_s3.bytes_by_key[_primary_loose_key(backend, h)] = b"raw json tree, not loose"
+        # Nothing in deferred / packed → clean ObjectNotFound, not a
+        # zlib explosion.
+        with pytest.raises(ObjectNotFoundError):
+            backend.get(h)
+
+    def test_stale_primary_falls_through_to_valid_deferred(
+        self, backend: S3StorageBackend, stub_s3: _StubS3, project_id: str,
+    ) -> None:
+        h, good = _valid_loose(b"the real content")
+        # Corrupt bytes on primary, valid bytes in deferred → caller
+        # gets the valid deferred copy.
+        stub_s3.bytes_by_key[_primary_loose_key(backend, h)] = b"corrupt"
+        stub_s3.bytes_by_key[_stale_deferred_key(project_id, h)] = good
+        assert backend.get(h) == good
+
+    def test_valid_primary_bytes_returned(
+        self, backend: S3StorageBackend, stub_s3: _StubS3, project_id: str,
+    ) -> None:
+        h, good = _valid_loose(b"healthy object")
+        stub_s3.bytes_by_key[_primary_loose_key(backend, h)] = good
+        assert backend.get(h) == good
+
+    @pytest.mark.asyncio
+    async def test_async_stale_primary_falls_through(
+        self, backend: S3StorageBackend, stub_s3: _StubS3, project_id: str,
+    ) -> None:
+        h = "5" + "c" * 39
+        stub_s3.bytes_by_key[_primary_loose_key(backend, h)] = b"not loose"
+        with pytest.raises(ObjectNotFoundError):
+            await backend.async_get(h)
+
+
+class TestHashOnWrite:
+    """``_do_put`` must overwrite stale bytes squatting on a primary
+    key instead of trusting the dedup skip — the write-side half of
+    the 520885e2 fix that makes re-upload self-heal."""
+
+    @pytest.mark.asyncio
+    async def test_put_overwrites_corrupt_resident_bytes(
+        self, backend: S3StorageBackend, stub_s3: _StubS3,
+    ) -> None:
+        h, good = _valid_loose(b"correct bytes")
+        key = _primary_loose_key(backend, h)
+        # Stale bytes already squatting on the key from a prior failed push.
+        stub_s3.bytes_by_key[key] = b"stale garbage"
+        await backend.async_put(h, good)
+        # The corrupt bytes were overwritten with the correct object.
+        assert stub_s3.bytes_by_key[key] == good
+
+    @pytest.mark.asyncio
+    async def test_put_skips_when_resident_bytes_already_valid(
+        self, backend: S3StorageBackend, stub_s3: _StubS3,
+    ) -> None:
+        h, good = _valid_loose(b"already here")
+        key = _primary_loose_key(backend, h)
+        stub_s3.bytes_by_key[key] = good
+        # No upload should happen — dedup skip stands for valid bytes.
+        before_uploads = list(stub_s3.bytes_by_key.items())
+        await backend.async_put(h, good)
+        assert list(stub_s3.bytes_by_key.items()) == before_uploads
+
+
+# ════════════════════════════════════════════════════════════════
+# Background integrity scan (runbook §8①) — sweep primary loose
+# objects, report corrupt ones, optionally heal (delete) them.
+# ════════════════════════════════════════════════════════════════
+
+
+class TestPrimaryLooseIntegrityScan:
+    @pytest.mark.asyncio
+    async def test_scan_reports_corrupt_without_healing_by_default(
+        self, backend: S3StorageBackend, stub_s3: _StubS3,
+    ) -> None:
+        good_h, good = _valid_loose(b"healthy")
+        bad_h = "5" + "d" * 39
+        stub_s3.bytes_by_key[_primary_loose_key(backend, good_h)] = good
+        bad_key = _primary_loose_key(backend, bad_h)
+        stub_s3.bytes_by_key[bad_key] = b"corrupt squatter"
+
+        result = await backend.async_scan_primary_loose_integrity(heal=False)
+        assert result["checked"] == 2
+        assert result["corrupt"] == [bad_h]
+        assert result["healed"] == 0
+        assert bad_key in stub_s3.bytes_by_key
+        assert stub_s3.delete_calls == []
+
+    @pytest.mark.asyncio
+    async def test_scan_heals_when_enabled(
+        self, backend: S3StorageBackend, stub_s3: _StubS3,
+    ) -> None:
+        bad_h = "5" + "e" * 39
+        bad_key = _primary_loose_key(backend, bad_h)
+        stub_s3.bytes_by_key[bad_key] = b"corrupt"
+
+        result = await backend.async_scan_primary_loose_integrity(heal=True)
+        assert result["corrupt"] == [bad_h]
+        assert result["healed"] == 1
+        assert bad_key not in stub_s3.bytes_by_key
+        assert bad_key in stub_s3.delete_calls
+
+    @pytest.mark.asyncio
+    async def test_scan_clean_project_reports_no_corruption(
+        self, backend: S3StorageBackend, stub_s3: _StubS3,
+    ) -> None:
+        h1, b1 = _valid_loose(b"one")
+        h2, b2 = _valid_loose(b"two")
+        stub_s3.bytes_by_key[_primary_loose_key(backend, h1)] = b1
+        stub_s3.bytes_by_key[_primary_loose_key(backend, h2)] = b2
+        result = await backend.async_scan_primary_loose_integrity()
+        assert result["checked"] == 2
+        assert result["corrupt"] == []
+        assert result["healed"] == 0

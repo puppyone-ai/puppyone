@@ -137,26 +137,40 @@ curl -sS -X POST "$API_URL/api/v1/ap-fs/admin/object-integrity" \
 
 Empty `hashes` array triggers an S3-LIST sweep of the project's primary objects prefix (capped at 10 000 keys per call). The response's `diagnosed` array lists every corrupt key found. Take that list, hand it to step 3.
 
-## 6. Why we don't auto-heal in the read / exists path
+## 6. What auto-heals now, and what stays ops-supervised
 
-Three candidates were considered and rejected:
+The residual was closed by three automatic mechanisms plus one
+ops-supervised tool. The design carefully avoids the expensive /
+destructive approaches that were rejected.
+
+**Automatic (no ops needed):**
+
+| Mechanism | Where | Cost |
+|---|---|---|
+| **Read-side verify + fall-through** | `get` / `async_get` verify primary-namespace bytes; corrupt ones fall through to the deferred/packed lookup (or clean 404) instead of reaching zlib | The read path already does the GET; verify adds only a decode + sha1 on bytes already in hand. The user-visible symptom (`invalid git loose object` zlib crash) is gone. |
+| **Hash-on-write self-heal** | `_do_put(expected_hash=)` — when a key already exists, verify the resident bytes; overwrite only if corrupt | Only on the `_do_put` exists-hit path, NOT the hot bulk path: the staged-flush bulk write uses `skip_exists=True` (unconditional overwrite, no verify), so a normal push of unchanged objects pays nothing extra. |
+| **Background integrity scan** | `object_integrity_worker` (runbook §8) — periodic full sweep, diagnoses (and optionally heals) corrupt primary loose objects | Off by default; bounded projects-per-run; diagnosis-only until ops flips the heal flag. |
+
+**Rejected approaches (and why):**
 
 | Approach | Why rejected |
 |---|---|
-| Verify bytes on every `async_get` / `async_exists` and treat verify-fail as missing | Performance: turns a free HEAD into a paid GET + zlib for every existence probe. Bulk push negotiates against thousands of hashes per call. |
-| Auto-delete corrupt bytes during read | We tried this on the deferred namespace and **destroyed a user's project root tree** (pre-Git-protocol JSON was misdiagnosed as garbage). Read paths must not have destructive side effects. |
-| Have `_do_put` always overwrite instead of skipping when key exists | Bulk push relies on the dedup optimisation for performance — a normal push uploads only the new blobs, not the entire commit's worth of unchanged objects. Disabling that would 10×+ ingest cost. |
+| Verify bytes on every `async_exists` HEAD | Turns a free HEAD into a paid GET + zlib for every existence probe — bulk push negotiates against thousands of hashes per call. We verify on *read* (already a GET) and *write-with-resident-bytes*, never on the exists probe. |
+| Auto-delete corrupt bytes during read | We tried this on the deferred namespace and **destroyed a user's project root tree** (pre-Git-protocol JSON misdiagnosed as garbage). Read paths must not have destructive side effects. Deletion stays human-gated. |
 
-The chosen path: **ops-supervised, opt-in, project-scoped, dry-run-first** cleanup via the admin endpoint. Slow path for a slow-burn problem.
+The ops-supervised tool (`/admin/object-integrity`) remains for targeted
+cleanup when a specific user reports a hash and ops wants explicit
+control over deletion.
 
 ## 7. Related code
 
 - Endpoint definition: [`backend/src/version_engine/entrypoints/http/access_point_fs.py`](../../backend/src/version_engine/entrypoints/http/access_point_fs.py) — `admin_object_integrity` + `_ObjectIntegrityRequest`.
-- Deferred-namespace self-heal (read-only, no delete): [`backend/src/version_engine/infrastructure/s3/object_storage.py`](../../backend/src/version_engine/infrastructure/s3/object_storage.py) — `_get_deferred_loose` + `_async_get_deferred_loose`.
+- Deferred-namespace self-heal + primary-namespace verify + hash-on-write: [`backend/src/version_engine/storage/backends/s3.py`](../../backend/src/version_engine/storage/backends/s3.py) — `_get_deferred_loose` / `_async_get_deferred_loose` (deferred), `get` / `async_get` (primary read verify), `_do_put` (hash-on-write self-heal).
 - The "do not delete on read" contract: [`backend/tests/version_engine/test_deferred_loose_self_heal.py`](../../backend/tests/version_engine/test_deferred_loose_self_heal.py) — 6 tests, including explicit `assert delete_calls == []`.
 
-## 8. Future hardening (not in scope for v1 of this runbook)
+## 8. Hardening status
 
-- Background scan: a periodic job that runs the full-sweep diagnosis across active projects and files a ticket per detected corruption, instead of waiting for users to report bulk-push failures.
-- Hash-on-write: optionally verify bytes immediately after `_do_put` so newly-written corrupt bytes are detected within the request that wrote them (the original bug source for some of these residues was probably exactly this — a partial write that left non-zlib bytes behind).
-- A `--force` flag on the upload path that lets a user bypass the dedup optimisation for one upload, so they can self-heal without ops involvement when the user OWNS the project.
+- **✅ Done — Hash-on-write:** `_do_put(expected_hash=)` verifies resident bytes when a key already exists and overwrites on mismatch, so newly-written corrupt bytes (or a re-upload over a stale squatter) self-heal within the request. See §6. Tests: `TestHashOnWrite` in `test_deferred_loose_self_heal.py`.
+- **✅ Done — Background scan:** `object_integrity_worker.process_object_integrity_projects` runs a periodic full sweep across active projects, logs a structured "ticket" line per corrupt project, and optionally heals. Scheduled via `VERSION_INTEGRITY_SCAN_ENABLED` (off by default) at `VERSION_INTEGRITY_SCAN_INTERVAL_SECONDS`. Tests: `TestPrimaryLooseIntegrityScan`.
+- **✅ Done — Read-side verify:** `get` / `async_get` verify primary bytes and fall through corrupt ones, so the user-visible zlib crash can no longer happen even before the bytes are healed. Tests: `TestPrimaryNamespaceVerify`.
+- **Obviated — `--force` upload flag:** originally proposed so a user could bypass the dedup skip to self-heal. No longer needed: product / AP / folder-upload writes flush with `skip_exists=True` (unconditional overwrite) and the non-staged `_do_put` path self-heals via hash-on-write. A re-upload of the same file now overwrites a stale squatter automatically — no manual flag. (Adding a no-op `--force` would imply a capability that does nothing, so it was deliberately NOT added.)

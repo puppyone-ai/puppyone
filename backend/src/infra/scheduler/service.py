@@ -17,6 +17,7 @@ from src.infra.scheduler.jobs import (
     execute_agent_task,
     execute_sync_pull,
     process_git_object_gc,
+    process_object_integrity_scan,
     process_version_outbox,
 )
 from src.infra.scheduler.jobs.sandbox_reaper import reap_idle_sandboxes
@@ -113,6 +114,17 @@ class SchedulerService:
                 ),
                 id="version-object-gc",
                 name="Version Engine Git Object GC",
+                replace_existing=True,
+            )
+
+        if settings.VERSION_INTEGRITY_SCAN_ENABLED:
+            self.scheduler.add_job(
+                process_object_integrity_scan,
+                trigger=IntervalTrigger(
+                    seconds=settings.VERSION_INTEGRITY_SCAN_INTERVAL_SECONDS,
+                ),
+                id="version-object-integrity-scan",
+                name="Version Engine Object Integrity Scan",
                 replace_existing=True,
             )
 

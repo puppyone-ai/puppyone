@@ -34,6 +34,30 @@ _TABLE = "version_text_index"
 _STATE_TABLE = "version_text_index_state"
 
 
+def _escape_like(value: str) -> str:
+    """Escape SQL ``LIKE`` wildcards so a literal ``%`` / ``_`` in the
+    user-supplied value isn't treated as a wildcard. Backslash first so
+    we don't double-escape our own escapes."""
+    return (
+        value.replace("\\", "\\\\")
+        .replace("%", r"\%")
+        .replace("_", r"\_")
+    )
+
+
+def _pgrst_or_quote(value: str) -> str:
+    """Wrap a value for safe interpolation into a PostgREST ``or=``
+    mini-language clause.
+
+    The ``or=`` grammar splits conditions on commas and treats ``.``,
+    ``(``, ``)`` as syntax, so any value carrying those (a path with a
+    dot or comma) would corrupt the filter. Double-quoting tells the
+    parser to treat the contents as a literal; embedded double quotes
+    are backslash-escaped."""
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
+
+
 @dataclass
 class IndexHit:
     """One matched line in the indexed grep response.
@@ -111,7 +135,7 @@ class TextIndexRepository:
         # value need URL-style escaping. Server-side substring search
         # is the hot path; encode ``%`` as ``\%`` so a literal "%"
         # the user types stays literal.
-        like_value = "%" + pattern.replace("%", r"\%").replace("_", r"\_") + "%"
+        like_value = "%" + _escape_like(pattern) + "%"
         query = (
             self._client.table(_TABLE)
             .select("file_path, content_hash, chunk_idx, line_start, text")
@@ -127,9 +151,19 @@ class TextIndexRepository:
             # ``notes/sub/y.md``. Two predicates (exact + prefix)
             # keep the planner from doing a sequential scan when the
             # scope is the project root.
+            #
+            # The value is interpolated into the PostgREST ``or=``
+            # mini-language, which splits conditions on commas and
+            # treats ``.``/``(``/``)`` as syntax. A scope_path with any
+            # of those (or a LIKE wildcard ``%``/``_``) would corrupt
+            # the filter, so: (a) escape LIKE wildcards for the prefix
+            # predicate, (b) wrap both values in double quotes so the
+            # mini-language parser treats them as literals.
+            exact_val = _pgrst_or_quote(scope_path)
+            prefix_val = _pgrst_or_quote(_escape_like(scope_path) + "/*")
             query = query.or_(
-                f"file_path.eq.{scope_path},"
-                f"file_path.like.{scope_path}/*"
+                f"file_path.eq.{exact_val},"
+                f"file_path.like.{prefix_val}"
             )
 
         if regex:

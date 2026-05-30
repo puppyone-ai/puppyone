@@ -160,8 +160,7 @@ class TestThresholds:
 
 class TestParity:
     """Catches drift between the backend module and the documented
-    blocklist. The full cross-language parity check (TS / JS mirrors)
-    runs in CI as a string comparison."""
+    blocklist."""
 
     def test_blocklist_includes_required_minimum(self) -> None:
         required = {
@@ -172,6 +171,113 @@ class TestParity:
         }
         missing = required - DEFAULT_BLOCKLIST_SEGMENTS
         assert not missing, f"blocklist missing required segments: {missing}"
+
+
+class TestCrossLanguageParity:
+    """Real cross-language parity check (replaces the comment that
+    *claimed* a CI string comparison existed but never did).
+
+    The upload policy is duplicated by hand in three files:
+      - backend/src/ingest/policy/upload_policy.py   (source of truth)
+      - frontend/lib/uploadPolicy.ts
+      - cli/src/commands/fs/lib/upload-policy.js
+
+    This test parses all three and asserts the blocklist segments and
+    the five thresholds are byte-for-byte identical. It runs as part of
+    pytest, so the parity guarantee is real and CI-enforced — change one
+    file without the others and this fails.
+    """
+
+    import re as _re
+    from pathlib import Path as _Path
+
+    _REPO_ROOT = _Path(__file__).resolve().parents[3]
+    _PY = _REPO_ROOT / "backend/src/ingest/policy/upload_policy.py"
+    _TS = _REPO_ROOT / "frontend/lib/uploadPolicy.ts"
+    _JS = _REPO_ROOT / "cli/src/commands/fs/lib/upload-policy.js"
+
+    _THRESHOLD_NAMES = (
+        "PER_FILE_MAX_BYTES",
+        "PER_BATCH_MAX_FILES",
+        "PER_BATCH_MAX_BYTES",
+        "PREFLIGHT_FILE_THRESHOLD",
+        "PREFLIGHT_BYTES_THRESHOLD",
+    )
+
+    @classmethod
+    def _eval_int_expr(cls, expr: str) -> int:
+        # Only digits, ``*`` and whitespace are allowed — a constrained
+        # arithmetic eval, never arbitrary code.
+        cleaned = expr.strip().rstrip(";").strip()
+        if not cls._re.fullmatch(r"[0-9*\s]+", cleaned):
+            raise ValueError(f"unexpected threshold expression: {expr!r}")
+        value = 1
+        for part in cleaned.split("*"):
+            value *= int(part.strip())
+        return value
+
+    @classmethod
+    def _extract_thresholds(cls, text: str) -> dict[str, int]:
+        out: dict[str, int] = {}
+        for name in cls._THRESHOLD_NAMES:
+            # Matches: ``NAME: int = 100 * 1024 * 1024`` (py) and
+            # ``export const NAME = 100 * 1024 * 1024;`` (ts/js).
+            m = cls._re.search(
+                rf"{name}\s*(?::\s*int)?\s*=\s*([0-9*\s]+?)\s*(?:;|#|//|$)",
+                text,
+                cls._re.MULTILINE,
+            )
+            assert m, f"threshold {name} not found"
+            out[name] = cls._eval_int_expr(m.group(1))
+        return out
+
+    @classmethod
+    def _extract_blocklist(cls, text: str) -> set[str]:
+        # Find the constructor call after the declaration —
+        # ``frozenset(...)`` (py) or ``new Set(...)`` (ts/js) — and
+        # paren-depth-match to its close. The contents are only string
+        # literals + commas + comments (no nested parens), so depth
+        # matching on ``(`` / ``)`` cleanly bounds the block. A plain
+        # regex trips on the ``[`` in the ``frozenset[str]`` annotation.
+        decl = text.index("DEFAULT_BLOCKLIST_SEGMENTS")
+        open_paren = text.index("(", decl)
+        depth = 0
+        end = open_paren
+        for i in range(open_paren, len(text)):
+            if text[i] == "(":
+                depth += 1
+            elif text[i] == ")":
+                depth -= 1
+                if depth == 0:
+                    end = i
+                    break
+        body = text[open_paren + 1:end]
+        # Strip comment lines so commented-out entries don't count.
+        lines = [
+            ln for ln in body.splitlines()
+            if not ln.strip().startswith(("#", "//"))
+        ]
+        return set(cls._re.findall(r"""['"]([^'"]+)['"]""", "\n".join(lines)))
+
+    def test_thresholds_identical_across_languages(self) -> None:
+        py = self._extract_thresholds(self._PY.read_text(encoding="utf-8"))
+        ts = self._extract_thresholds(self._TS.read_text(encoding="utf-8"))
+        js = self._extract_thresholds(self._JS.read_text(encoding="utf-8"))
+        assert py == ts, f"py vs ts threshold drift: {py} != {ts}"
+        assert py == js, f"py vs js threshold drift: {py} != {js}"
+        # And they match the imported Python constants (catches a parser
+        # that silently reads stale text).
+        assert py["PER_FILE_MAX_BYTES"] == PER_FILE_MAX_BYTES
+        assert py["PER_BATCH_MAX_FILES"] == PER_BATCH_MAX_FILES
+        assert py["PER_BATCH_MAX_BYTES"] == PER_BATCH_MAX_BYTES
+
+    def test_blocklist_identical_across_languages(self) -> None:
+        py = self._extract_blocklist(self._PY.read_text(encoding="utf-8"))
+        ts = self._extract_blocklist(self._TS.read_text(encoding="utf-8"))
+        js = self._extract_blocklist(self._JS.read_text(encoding="utf-8"))
+        assert py == ts, f"py vs ts blocklist drift: {py ^ ts}"
+        assert py == js, f"py vs js blocklist drift: {py ^ js}"
+        assert py == set(DEFAULT_BLOCKLIST_SEGMENTS)
 
 
 if __name__ == "__main__":

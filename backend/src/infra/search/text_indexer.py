@@ -162,6 +162,42 @@ def index_blobs(blobs: Iterable[IndexableBlob]) -> int:
     return total
 
 
+def reindex_blobs(
+    *,
+    project_id: str,
+    indexed_commit_id: str,
+    blobs: Iterable[IndexableBlob],
+) -> int:
+    """Bootstrap / admin reindex entry point.
+
+    Indexes a pre-resolved blob list (the caller walks the tree and
+    reads bytes) and bumps the project-root freshness watermark to
+    ``indexed_commit_id``. Used by the admin text-index rebuild
+    endpoint for projects that pre-date the post-commit indexer or
+    whose index fell behind. ``index_blobs`` is idempotent, so a
+    re-run is safe; the watermark write makes ``grep-indexed`` report
+    ``indexed`` for the scope afterwards.
+    """
+    written = index_blobs(blobs)
+    try:
+        from src.version_engine.infrastructure.supabase.text_index_repository import (
+            TextIndexRepository,
+        )
+        TextIndexRepository().set_scope_freshness(
+            project_id=project_id,
+            scope_path="",
+            indexed_commit_id=indexed_commit_id,
+        )
+    except Exception as exc:  # noqa: BLE001
+        log_warning(f"[TextIndexer] reindex watermark write failed: {exc}")
+    if written:
+        log_info(
+            f"[TextIndexer] reindexed {written} chunks for project "
+            f"{project_id} @ {indexed_commit_id[:12] or 'HEAD'}"
+        )
+    return written
+
+
 def index_commit_delta(
     *,
     project_id: str,
