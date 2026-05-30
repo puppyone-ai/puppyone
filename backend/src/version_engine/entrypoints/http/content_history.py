@@ -30,6 +30,7 @@ from src.version_engine.entrypoints.http.schemas import (
     VersionHistoryResponse,
 )
 from src.version_engine.read.admin import VersionAdminService
+from src.version_engine.domain.errors import VersionEngineError
 from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
 from src.version_engine.admission.validation import validate_path
 from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
@@ -172,6 +173,10 @@ async def diff_commits(
         changes = await version_admin.compute_diff(project_id, from_commit_id, to_commit_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except VersionEngineError as e:
+        # ObjectNotFoundError (unreadable commit tree) and friends carry their
+        # own http_status; surface that instead of an unhandled 500.
+        raise HTTPException(status_code=getattr(e, "http_status", 500), detail=str(e))
 
     return ApiResponse.success(data=DiffResponse(
         project_id=project_id,

@@ -2207,13 +2207,27 @@ async def admin_object_integrity(
         )
 
     repo = ops._repos.get_server_repo(project_id)  # noqa: SLF001 — admin path
+    # The store wraps the concrete backend in decorators (e.g.
+    # CachedStorageBackend) that don't carry the S3 client / layout. Walk the
+    # ``_inner`` chain to reach the backend that actually exposes them, instead
+    # of assuming ``store._backend`` is the S3 backend directly.
     backend = getattr(repo.store, "_backend", None) or repo.store
+    for _ in range(8):  # bounded unwrap; guards against a cyclic _inner
+        if getattr(backend, "_s3", None) is not None and getattr(backend, "_layout", None) is not None:
+            break
+        inner = getattr(backend, "_inner", None)
+        if inner is None or inner is backend:
+            break
+        backend = inner
     s3 = getattr(backend, "_s3", None)
     layout = getattr(backend, "_layout", None)
     if s3 is None or layout is None:
+        # Not a crash: this deployment's storage backend simply isn't S3-backed
+        # (e.g. filesystem backend in local/dev). 501 communicates "unsupported
+        # here" rather than masquerading as an internal error.
         raise HTTPException(
-            status_code=500,
-            detail="storage backend doesn't expose s3/layout for inspection",
+            status_code=501,
+            detail="object-integrity inspection requires an S3-backed store; this deployment's storage backend does not expose one",
         )
 
     # Resolve which hashes to check. Empty list = full sweep via

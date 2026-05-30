@@ -415,3 +415,55 @@ class TestPrimaryLooseIntegrityScan:
         assert result["checked"] == 2
         assert result["corrupt"] == []
         assert result["healed"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Regression: the background integrity worker (and the /admin/object-integrity
+# endpoint) must unwrap decorator backends (e.g. CachedStorageBackend) via the
+# ``_inner`` chain to reach the concrete backend that implements the scan.
+# Before the fix the wrapper hid the method and every project was reported
+# ``supported=False`` (worker) / 500'd (endpoint).
+# ---------------------------------------------------------------------------
+
+class _ScanCapableBackend:
+    def __init__(self):
+        self.called_with = None
+
+    async def async_scan_primary_loose_integrity(self, heal: bool = False):
+        self.called_with = heal
+        return {"checked": 3, "corrupt": [], "healed": 0, "truncated": False, "supported": True}
+
+
+class _CacheWrapper:
+    """Mimics CachedStorageBackend: holds ``_inner`` but lacks the scan method."""
+    def __init__(self, inner):
+        self._inner = inner
+
+
+def test_worker_unwraps_inner_chain_to_find_scan():
+    from types import SimpleNamespace
+    from src.version_engine.derived.object_integrity_worker import _scan_one_project
+
+    inner = _ScanCapableBackend()
+    store = SimpleNamespace(_backend=_CacheWrapper(inner))
+    repo = SimpleNamespace(store=store)
+    repos = SimpleNamespace(get_server_repo=lambda pid: repo)
+
+    result = _scan_one_project(repos, "proj-1", heal=True)
+
+    assert result.supported is True
+    assert result.checked == 3
+    assert inner.called_with is True  # reached the real backend, passed heal through
+
+
+def test_worker_reports_unsupported_when_no_scan_anywhere():
+    from types import SimpleNamespace
+    from src.version_engine.derived.object_integrity_worker import _scan_one_project
+
+    # A backend chain that never exposes the scan method (e.g. filesystem dev).
+    store = SimpleNamespace(_backend=SimpleNamespace())
+    repo = SimpleNamespace(store=store)
+    repos = SimpleNamespace(get_server_repo=lambda pid: repo)
+
+    result = _scan_one_project(repos, "proj-1", heal=False)
+    assert result.supported is False
