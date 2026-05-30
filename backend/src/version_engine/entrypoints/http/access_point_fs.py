@@ -2219,30 +2219,44 @@ async def admin_object_integrity(
     # Resolve which hashes to check. Empty list = full sweep via
     # S3 LIST on the project's primary objects prefix.
     target_hashes: list[str] = []
+    sweep_truncated = False
     if body.hashes:
         target_hashes = [h.strip().lower() for h in body.hashes if h.strip()]
     else:
-        # Best-effort listing. Real ops sweep would page through
-        # ContinuationToken; for now we cap at 10k keys to bound
-        # endpoint latency. If a sweep needs to go bigger, pass
-        # explicit hashes from the bulk-push error log instead.
-        prefix = f"{layout.object_prefix}/"
-        try:
-            list_result = await s3.list_objects(prefix=prefix, max_keys=10_000)
-        except AttributeError:
-            raise HTTPException(  # noqa: B904
+        # Full sweep: page through the project's primary objects prefix
+        # via ContinuationToken until exhausted, with a generous hard
+        # cap so a pathological project can't make this endpoint run
+        # unbounded. If the cap is hit we flag ``truncated`` in the
+        # response so ops knows to re-run with explicit hashes.
+        if not hasattr(s3, "list_files"):
+            raise HTTPException(
                 status_code=400,
                 detail=(
                     "full sweep not supported by this S3 backend; pass "
                     "an explicit `hashes` list of the failing blobs"
                 ),
             )
-        for key in list_result or []:
-            # key shape: ``<prefix>/<shard>/<rest>``; reconstruct the hash.
-            suffix = key[len(prefix):]
-            parts = suffix.split("/", 1)
-            if len(parts) == 2 and len(parts[0]) == 2 and len(parts[1]) == 38:
-                target_hashes.append(parts[0] + parts[1])
+        prefix = f"{layout.object_prefix}/"
+        _SWEEP_HARD_CAP = 1_000_000  # ~1M loose keys; far above any real project
+        continuation: str | None = None
+        while True:
+            files, _prefixes, next_token, is_truncated = await s3.list_files(
+                prefix=prefix,
+                max_keys=1000,
+                continuation_token=continuation,
+            )
+            for item in files:
+                # key shape: ``<prefix>/<shard>/<rest>``; reconstruct the hash.
+                suffix = item.key[len(prefix):]
+                parts = suffix.split("/", 1)
+                if len(parts) == 2 and len(parts[0]) == 2 and len(parts[1]) == 38:
+                    target_hashes.append(parts[0] + parts[1])
+            if len(target_hashes) >= _SWEEP_HARD_CAP:
+                sweep_truncated = True
+                break
+            if not is_truncated or not next_token:
+                break
+            continuation = next_token
 
     diagnosed = []
     deleted = []
@@ -2331,6 +2345,9 @@ async def admin_object_integrity(
         "failed_to_delete": failed_to_delete,
         "skipped_referenced": skipped_referenced,
         "dry_run": body.dry_run,
+        # True only on a full sweep that hit the 1M-key hard cap. Ops
+        # should then re-run targeting explicit hashes from the error log.
+        "sweep_truncated": sweep_truncated,
     })
 
 
@@ -2361,4 +2378,104 @@ async def rebuild_fs_index(
     return ApiResponse.success(data={
         "project_id": project_id,
         "rows_written": touched,
+    })
+
+
+@router.post("/admin/text-index/rebuild", response_model=ApiResponse)
+async def rebuild_text_index(
+    path: str = Query("", description="Subpath under the scope to reindex (default: whole scope)"),
+    x_access_key: str | None = Header(None, alias="X-Access-Key"),
+    x_puppyone_user: str | None = Header(None, alias="X-PuppyOne-User"),
+    x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
+    ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
+):
+    """Rebuild the grep text index (``version_text_index``) for this
+    AP scope by walking the current tree and re-indexing every text
+    file.
+
+    The post-commit indexer keeps the index fresh on the hot path, but
+    a project that pre-dates the indexer — or whose index fell behind /
+    got partially wiped — has no other way to catch up: ``grep-indexed``
+    would keep returning ``stale`` / ``missing`` and fall back to the
+    slow S3 scan forever. This endpoint is the bootstrap / repair path
+    referenced by ``text_indexer.reindex_blobs``.
+
+    Requires ``rw`` mode (same gate as any write). After it runs, the
+    project-root freshness watermark is bumped to current HEAD so
+    ``grep-indexed`` reports ``indexed`` for the scope.
+    """
+    from src.infra.search.text_indexer import IndexableBlob, reindex_blobs
+
+    # No ``command=`` — this is an admin rebuild gated by ``rw`` mode,
+    # same as the sibling ``/admin/fs-index/rebuild``. The CLI FS
+    # command allow-list has no "reindex" verb, and routing a write-side
+    # rebuild through the read-side ``grep`` allow-list would be a
+    # category error; the writable-mode check below is the real gate.
+    project_id, _auth, scope = await _resolve_auth(
+        x_access_key, x_puppyone_user, x_puppy_client,
+    )
+    if not is_mode_writable(str(scope.get("mode", "r"))):
+        raise HTTPException(
+            status_code=403,
+            detail="text-index rebuild requires a writable access point",
+        )
+    rel_path = _clean_relative(path)
+    _assert_not_excluded(rel_path, scope)
+
+    head_commit_id = ops.get_head_commit_id(project_id) or ""
+
+    # Walk the full tree under the scope, read every text file's bytes,
+    # and build the blob list. Mirrors the candidate-gathering in
+    # ``grep`` but with no pattern filter.
+    tree_entries = _filter_entries(
+        _ops_list_tree(
+            ops, project_id, scope, rel_path,
+            max_depth=-1, include_size=False,
+        ),
+        scope,
+        include_hidden=True,
+    )
+
+    def _build_blobs() -> tuple[list, int, int]:
+        blobs: list = []
+        scanned = 0
+        for entry in tree_entries:
+            if entry.type == "folder":
+                continue
+            if not _looks_text_entry(entry):
+                continue
+            rel_entry_path = _relative_to_scope(entry.path, scope["path"])
+            try:
+                data = _ops_read_file(ops, project_id, scope, rel_entry_path)
+            except FileNotFoundError:
+                continue
+            except Exception:
+                # Skip unreadable files; a reindex is best-effort and
+                # one bad blob shouldn't abort the whole rebuild.
+                continue
+            scanned += 1
+            blobs.append(IndexableBlob(
+                project_id=project_id,
+                # scope_path="" matches the query-side convention: the
+                # read path narrows by file_path prefix, not this column.
+                scope_path="",
+                file_path=entry.path,
+                content_hash=(getattr(entry, "content_hash", None) or f"{head_commit_id}:{entry.path}"),
+                data=data,
+            ))
+        written = reindex_blobs(
+            project_id=project_id,
+            indexed_commit_id=head_commit_id,
+            blobs=blobs,
+        )
+        return blobs, scanned, written
+
+    _blobs, scanned_files, chunks_written = await asyncio.to_thread(_build_blobs)
+
+    return ApiResponse.success(data={
+        "project_id": project_id,
+        "scope": _join_scope(scope["path"], rel_path).strip("/"),
+        "head_commit_id": head_commit_id,
+        "files_indexed": scanned_files,
+        "chunks_written": chunks_written,
     })

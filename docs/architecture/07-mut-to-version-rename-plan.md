@@ -1,6 +1,23 @@
 # Physical DB rename: `mut_*` → `version_*`
 
-Tracked in [07-version-engine-todo.md](07-version-engine-todo.md) and listed as P2 in the V2 audit. The doc says "intentionally deferred"; this file is the deploy-sequencing plan when we're ready.
+Tracked in [07-version-engine-todo.md](07-version-engine-todo.md) and listed as P2 in the V2 audit.
+
+> **Status (2026-05-26): implemented.** All three phases are written.
+> Phase 1 (compat views) was deployed earlier. Phase 2 (table renames +
+> reverse compat views + RPC rename + delegating wrappers) is
+> [`supabase/migrations/20260528000000_version_table_rename_phase2.sql`](../../supabase/migrations/20260528000000_version_table_rename_phase2.sql),
+> generated deterministically from the live RPC bodies (extract +
+> table-identifier substitution, no hand transcription). The paired
+> [`db_names.py`](../../backend/src/version_engine/infrastructure/supabase/db_names.py)
+> flip to `version_*` ships with it. Phase 3 (drop the compat shims) is
+> [`supabase/migrations/20260529000000_version_table_rename_phase3.sql`](../../supabase/migrations/20260529000000_version_table_rename_phase3.sql)
+> — run it only after the Phase-2 image is the sole running deploy.
+>
+> **Deferred from the rename:** the two product-table columns
+> `projects.mut_root_hash` and `github_sync_log.mut_commit_id` keep their
+> legacy names (they're not on the version-engine tables, and several RPC
+> bodies reference `mut_root_hash`). `db_names.PROJECT_ROOT_HASH_COLUMN` /
+> `GITHUB_SYNC_VERSION_COLUMN` stay legacy-valued.
 
 ## Why not done yet
 

@@ -542,13 +542,26 @@ class S3StorageBackend(StorageBackend):
             return self._get_packed_object_at(h, location)
         try:
             with trace_phase("s3.get", object_id=h[:12]):
-                return _run_async(self._s3.download_file(self._key_for(h)))
+                data = _run_async(self._s3.download_file(self._key_for(h)))
         except ObjectNotFoundError as exc:
             return self._get_deferred_loose_or_packed(h, cause=exc)
         except Exception as e:
             if _is_not_found_error(e):
                 return self._get_deferred_loose_or_packed(h, cause=e)
             raise
+        # Verify primary-namespace bytes; see ``async_get`` for the
+        # full rationale (520885e2 read-side fix). Stale bytes fall
+        # through to deferred/packed instead of reaching zlib.
+        try:
+            _verify_loose_hash(h, data)
+        except StorageWriteError as verify_err:
+            log_warning(
+                f"[VersionS3] stale primary-namespace bytes at "
+                f"{self._key_for(h)} (hash={h[:12]}): {verify_err}. "
+                f"Falling through to deferred/packed lookup.",
+            )
+            return self._get_deferred_loose_or_packed(h, cause=verify_err)
+        return data
 
     def get_range(self, h: str, start: int = 0, limit: int | None = None) -> tuple[bytes, int]:
         location = self._lookup_object_location(h)
@@ -556,21 +569,13 @@ class S3StorageBackend(StorageBackend):
             data = self._get_packed_object_at(h, location)
             end = len(data) if limit is None else min(len(data), start + limit)
             return data[start:end], len(data)
-        try:
-            return _run_async(
-                self._s3.download_file_range(
-                    self._key_for(h),
-                    start=start,
-                    limit=limit,
-                )
-            )
-        except ObjectNotFoundError as exc:
-            data = self._get_deferred_loose_or_packed(h, cause=exc)
-        except Exception as e:
-            if _is_not_found_error(e):
-                data = self._get_deferred_loose_or_packed(h, cause=e)
-            else:
-                raise
+        # Primary loose objects are small (< the bundle/chunk threshold),
+        # so we read the whole object through the verified ``get`` path
+        # and slice. A partial ``download_file_range`` could not be
+        # hash-verified, which would reopen the 520885e2 hole for range
+        # reads; reusing ``get`` keeps the verification + deferred/packed
+        # fall-through in one place.
+        data = self.get(h)
         end = len(data) if limit is None else min(len(data), start + limit)
         return data[start:end], len(data)
 
@@ -722,13 +727,30 @@ class S3StorageBackend(StorageBackend):
             return await self._async_get_packed_object_at(h, location)
         key = self._key_for(h)
         try:
-            return await self._s3.download_file(key)
+            data = await self._s3.download_file(key)
         except ObjectNotFoundError as exc:
             return await self._async_get_deferred_loose_or_packed(h, cause=exc)
         except Exception as e:
             if _is_not_found_error(e):
                 return await self._async_get_deferred_loose_or_packed(h, cause=e)
             raise
+        # Read-side half of the 520885e2 fix: verify the primary-namespace
+        # bytes decode to the hash we asked for. Stale pre-Git-protocol
+        # payloads (or a half-written object) can squat on a primary loose
+        # key; without this guard the caller zlib-decompresses garbage and
+        # bulk push dies with "invalid git loose object". On mismatch we
+        # treat it exactly like a 404 and fall through to the deferred /
+        # packed lookup, same contract as ``_async_get_deferred_loose``.
+        try:
+            _verify_loose_hash(h, data)
+        except StorageWriteError as verify_err:
+            log_warning(
+                f"[VersionS3] stale primary-namespace bytes at {key} "
+                f"(hash={h[:12]}): {verify_err}. Falling through to "
+                f"deferred/packed lookup.",
+            )
+            return await self._async_get_deferred_loose_or_packed(h, cause=verify_err)
+        return data
 
     async def async_get_range(
         self, h: str, start: int = 0, limit: int | None = None
@@ -738,16 +760,10 @@ class S3StorageBackend(StorageBackend):
             data = await self._async_get_packed_object_at(h, location)
             end = len(data) if limit is None else min(len(data), start + limit)
             return data[start:end], len(data)
-        key = self._key_for(h)
-        try:
-            return await self._s3.download_file_range(key, start=start, limit=limit)
-        except ObjectNotFoundError as exc:
-            data = await self._async_get_deferred_loose_or_packed(h, cause=exc)
-        except Exception as e:
-            if _is_not_found_error(e):
-                data = await self._async_get_deferred_loose_or_packed(h, cause=e)
-            else:
-                raise
+        # Primary loose objects are small; read the whole verified object
+        # via ``async_get`` and slice. A partial range read could not be
+        # hash-verified (see ``get_range`` for the same rationale).
+        data = await self.async_get(h)
         end = len(data) if limit is None else min(len(data), start + limit)
         return data[start:end], len(data)
 
@@ -756,7 +772,7 @@ class S3StorageBackend(StorageBackend):
         if route.layout is ObjectWriteLayout.CHUNKED:
             await self._async_put_chunked_object(h, data)
             return
-        await self._do_put(self._key_for(h), data)
+        await self._do_put(self._key_for(h), data, expected_hash=h)
 
     async def async_exists(self, h: str) -> bool:
         if self._lookup_object_location(h) is not None:
@@ -817,7 +833,7 @@ class S3StorageBackend(StorageBackend):
                 if skip_exists:
                     await self._s3.upload_file(key, data, content_type="application/octet-stream")
                 else:
-                    await self._do_put(key, data)
+                    await self._do_put(key, data, expected_hash=h)
 
         with trace_phase(
             "s3.put_many",
@@ -876,7 +892,7 @@ class S3StorageBackend(StorageBackend):
                     # request doesn't trip the same wire (a manual
                     # ``aws s3 rm`` per affected blob is the wrong
                     # ops contract — every user must auto-recover).
-                    self._auto_delete_stale_deferred(key, h, verify_err)
+                    self._log_stale_deferred(key, h, verify_err)
                     continue
                 self._mark_deferred_namespace_read(h, kind="loose")
                 return data
@@ -888,22 +904,21 @@ class S3StorageBackend(StorageBackend):
                 raise
         return None
 
-    def _auto_delete_stale_deferred(
+    def _log_stale_deferred(
         self,
         key: str,
         object_id: str,
         cause: Exception,
     ) -> None:
-        """Log a stale deferred-namespace entry.
+        """Log a stale deferred-namespace entry. Never deletes.
 
-        Despite the name (kept for callsite stability), this NEVER
-        deletes. Earlier iterations of this code deleted on the
-        assumption that any verify-fail meant garbage; that was a
-        mistake. Bytes that don't decode as Git loose objects can
-        still be pre-Git-protocol JSON tree records (the
-        ``deferred-read`` namespace was designed exactly for that
-        kind of legacy data). Deleting them removes the user's last
-        chance at recovering content via a future migration tool.
+        An earlier iteration deleted on the assumption that any
+        verify-fail meant garbage; that was a mistake. Bytes that don't
+        decode as Git loose objects can still be pre-Git-protocol JSON
+        tree records (the ``deferred-read`` namespace was designed
+        exactly for that kind of legacy data). Deleting them removes the
+        user's last chance at recovering content via a future migration
+        tool — so this path only logs.
 
         The skip behaviour in the caller (``continue``) is sufficient
         for runtime self-heal: the engine treats the entry as "not
@@ -998,7 +1013,7 @@ class S3StorageBackend(StorageBackend):
                     # The helper is now pure logging, so we call the
                     # sync version even from this async path (no IO,
                     # no need for two siblings).
-                    self._auto_delete_stale_deferred(key, h, verify_err)
+                    self._log_stale_deferred(key, h, verify_err)
                     continue
                 self._mark_deferred_namespace_read(h, kind="loose")
                 return data
@@ -1350,9 +1365,131 @@ class S3StorageBackend(StorageBackend):
         await asyncio.gather(*[_check(h) for h in hashes], return_exceptions=True)
         return existing
 
-    async def _do_put(self, key: str, data: bytes) -> None:
-        if not await self._s3.file_exists(key):
-            await self._s3.upload_file(key, data, content_type="application/octet-stream")
+    async def _do_put(self, key: str, data: bytes, expected_hash: str | None = None) -> None:
+        """Write ``data`` at ``key``, skipping the PUT when the object is
+        already present (content-addressed objects are immutable, so an
+        existing key normally means "already have it").
+
+        Hash-on-write self-heal (runbook bulk-push-520885e2 §8②): when
+        ``expected_hash`` is supplied AND a key already exists, we verify
+        the bytes ALREADY there decode to that hash. If they don't — i.e.
+        a stale pre-Git-protocol payload or a half-written object is
+        squatting on this key — we OVERWRITE with the correct bytes
+        instead of trusting the dedup skip. This is the write-side half
+        of the 520885e2 fix: it means re-uploading the same file to a
+        project that has corrupt bytes under its key self-heals on the
+        next push, with no ops intervention. The read-side half lives in
+        ``get`` / ``async_get`` (the read paths verify primary bytes and
+        fall through corrupt ones to the deferred/packed lookup).
+
+        ``expected_hash`` is omitted only by callers that genuinely don't
+        know it (none today); when omitted we keep the legacy skip-if-
+        exists behaviour.
+        """
+        if await self._s3.file_exists(key):
+            if expected_hash is None:
+                return
+            # Key exists — confirm the resident bytes are the object we
+            # think they are before trusting the dedup skip.
+            try:
+                existing = await self._s3.download_file(key)
+                _verify_loose_hash(expected_hash, existing)
+                return  # resident bytes are valid; dedup skip stands.
+            except StorageWriteError:
+                log_warning(
+                    f"[VersionS3] hash-on-write: stale/corrupt bytes at {key} "
+                    f"(expected {expected_hash[:12]}); overwriting with correct object",
+                )
+            except Exception as exc:  # noqa: BLE001 — read failure → re-PUT
+                if not _is_not_found_error(exc):
+                    log_warning(
+                        f"[VersionS3] hash-on-write: could not verify resident "
+                        f"bytes at {key} ({exc}); overwriting",
+                    )
+        await self._s3.upload_file(key, data, content_type="application/octet-stream")
+
+    async def async_scan_primary_loose_integrity(
+        self,
+        *,
+        hard_cap: int = 1_000_000,
+        heal: bool = False,
+    ) -> dict:
+        """Sweep this project's primary loose-object prefix, verify each
+        object's bytes, and report (optionally delete) corrupt ones.
+
+        This is the engine half of the runbook §8① background integrity
+        scan. It pages through the primary objects prefix, downloads each
+        loose object, and runs ``_verify_loose_hash``. Corrupt entries
+        (the 520885e2 class — stale pre-Git-protocol bytes squatting on a
+        loose key) are collected; when ``heal=True`` they're deleted so a
+        subsequent re-upload writes the correct bytes via the normal PUT
+        path.
+
+        Returns a summary dict; never raises for a single bad object — a
+        scan must survive individual failures to be useful.
+        """
+        if not hasattr(self._s3, "list_files"):
+            return {"supported": False, "checked": 0, "corrupt": [], "healed": 0}
+
+        prefix = f"{self._layout.object_prefix}/"
+        checked = 0
+        corrupt: list[str] = []
+        healed = 0
+        truncated = False
+        continuation: str | None = None
+        while True:
+            files, _prefixes, next_token, is_truncated = await self._s3.list_files(
+                prefix=prefix,
+                max_keys=1000,
+                continuation_token=continuation,
+            )
+            for item in files:
+                h = _hash_from_loose_key(item.key, prefix)
+                if h is None:
+                    continue
+                checked += 1
+                verdict = await self._diagnose_loose_key(item.key, h, heal=heal)
+                if verdict == "corrupt":
+                    corrupt.append(h)
+                elif verdict == "healed":
+                    corrupt.append(h)
+                    healed += 1
+                if checked >= hard_cap:
+                    truncated = True
+                    break
+            if truncated or not is_truncated or not next_token:
+                break
+            continuation = next_token
+
+        return {
+            "supported": True,
+            "checked": checked,
+            "corrupt": corrupt,
+            "healed": healed,
+            "truncated": truncated,
+        }
+
+    async def _diagnose_loose_key(self, key: str, h: str, *, heal: bool) -> str:
+        """Verify one primary loose key. Returns ``"ok"`` /
+        ``"corrupt"`` / ``"healed"`` / ``"skip"``."""
+        try:
+            data = await self._s3.download_file(key)
+            _verify_loose_hash(h, data)
+            return "ok"
+        except StorageWriteError:
+            if not heal:
+                return "corrupt"
+            try:
+                await self._s3.delete_file(key)
+                return "healed"
+            except Exception as exc:  # noqa: BLE001
+                log_warning(f"[integrity-scan] heal delete failed for {key}: {exc}")
+                return "corrupt"
+        except Exception as exc:  # noqa: BLE001
+            # Unreadable (transient S3 error / vanished key) — skip, not corrupt.
+            if not _is_not_found_error(exc):
+                log_warning(f"[integrity-scan] could not read {key}: {exc}")
+            return "skip"
 
     def _mark_deferred_namespace_read(self, h: str, *, kind: str) -> None:
         trace_mark(
@@ -1375,6 +1512,17 @@ def _is_not_found_error(exc: Exception) -> bool:
     """Detect S3 'object not found' errors across exception wrapper types."""
     msg = str(exc).lower()
     return any(s in msg for s in ("not found", "nosuchkey", "404", "does not exist"))
+
+
+def _hash_from_loose_key(key: str, prefix: str) -> str | None:
+    """Reconstruct the 40-hex object id from a loose S3 key shaped
+    ``{prefix}{shard2}/{rest38}``. Returns ``None`` for keys that don't
+    fit the loose layout (e.g. bundle / chunk / manifest keys)."""
+    suffix = key[len(prefix):]
+    parts = suffix.split("/", 1)
+    if len(parts) == 2 and len(parts[0]) == 2 and len(parts[1]) == 38:
+        return parts[0] + parts[1]
+    return None
 
 
 _DEFERRED_NAMESPACE_READS_CACHED: bool | None = None

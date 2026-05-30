@@ -54,7 +54,7 @@ from src.version_engine.infrastructure.supabase.scope_manager import ScopeManage
 from src.version_engine.infrastructure.supabase.server_repo import PuppyOneServerRepo
 from src.version_engine.write_engine.engine import VersionWriteEngine
 from src.version_engine.write_engine.git_commit import build_git_commit
-from src.version_engine.write_engine.object_store import ObjectStore
+from src.version_engine.storage.object_store import ObjectStore
 from src.version_engine.write_engine.tree_objects import (
     build_tree_from_files,
     flatten_tree_to_bytes,
