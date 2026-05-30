@@ -136,6 +136,15 @@ async def move(
     new_clean = commands.normalize_path(body.new_path)
     who = f"user:{current_user.user_id}"
 
+    # Honor no_clobber: the underlying move always overwrites, but MoveRequest
+    # advertises this POSIX-mv flag, so enforce "refuse to overwrite an existing
+    # destination" here rather than silently ignoring the field.
+    if body.no_clobber and commands.ops.stat(project_id, new_clean) is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Destination already exists: {new_clean} (no_clobber)",
+        )
+
     try:
         outcome = await commands.move(
             project_id,
