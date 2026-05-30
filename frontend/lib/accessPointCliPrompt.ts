@@ -128,7 +128,7 @@ export function buildTerminalCliPrompt({
     '--access-key-stdin',
   ].join(' ');
   const exploreLines = [
-    'puppyone fs semantics',
+    'puppyone fs grep <pattern>',
     'puppyone fs ls -la',
     'puppyone fs tree -L 2',
     'puppyone fs find --limit 200 . -maxdepth 2 -type f',

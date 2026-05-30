@@ -61,6 +61,7 @@ import { useDataCreateFlow } from '../hooks/useDataCreateFlow';
 import { useAccessPointEntries } from '../hooks/useAccessPointEntries';
 import { ProjectPageLoadingShell, SkeletonBlock } from '@/components/loading';
 import { resolveFormat } from '@/lib/fileFormats';
+import { writeFile } from '@/lib/contentTreeApi';
 import { DataHeaderActions, type DataHeaderActionTarget } from '../components/DataHeaderActions';
 import { FileViewerHeaderActions } from '../components/FileViewerHeaderActions';
 
@@ -414,6 +415,7 @@ export default function DataPage({ params }: DataPageProps) {
     currentFolderId,
     navigateTo,
     handleBulkDelete: nodeActions.handleBulkDelete,
+    refresh: refreshCurrentNodes,
   });
 
   // ───── Breadcrumbs ─────
@@ -833,10 +835,26 @@ export default function DataPage({ params }: DataPageProps) {
         repoIdentity,
         onClose: closeRightPanel,
         onEditorClose: () => { setEditorTarget(null); setIsEditorFullScreen(false); },
-        onEditorSave: (newValue) => {
-          console.log('Save document:', editorTarget?.path, newValue);
-          setEditorTarget(null);
-          setIsEditorFullScreen(false);
+        onEditorSave: async (newValue) => {
+          const target = editorTarget;
+          if (!target?.path) return;
+          // The right-panel document editor auto-saves on Raw→Preview switch.
+          // Persist to the content tree (previously this only console.log'd and
+          // closed the panel, silently discarding the edit). Markdown files keep
+          // their node type; everything else is a plain file node.
+          const nodeType = target.path.toLowerCase().endsWith('.md') ? 'markdown' : 'file';
+          try {
+            await writeFile(projectId, target.path, newValue, nodeType);
+            // Reflect the saved value so the editor's dirty state resets and the
+            // panel stays open in preview (do NOT close on every save).
+            setEditorTarget({ path: target.path, value: newValue });
+            refreshCurrentNodes();
+          } catch (e) {
+            nodeActions.showToast?.(
+              `Save failed: ${e instanceof Error ? e.message : String(e)}`,
+              'error',
+            );
+          }
         },
         onToggleEditorFullScreen: () => setIsEditorFullScreen(!isEditorFullScreen),
         onRollbackComplete: () => {

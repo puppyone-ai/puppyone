@@ -923,13 +923,16 @@ export async function getNodeAuditLogs(
   offset: number = 0
 ): Promise<AuditLogListResponse> {
   const params = new URLSearchParams({
-    path: filePath,
     project_id: projectId,
     limit: String(limit),
     offset: String(offset),
   });
+  // Backend route is GET /api/v1/nodes/{path:path}/audit-logs — the file path
+  // is a path segment (slashes preserved, each segment escaped), not a query
+  // param, and there is no per-node route under /content.
+  const encodedPath = filePath.split('/').map(encodeURIComponent).join('/');
   return treeRequest<AuditLogListResponse>(
-    `/api/v1/content/${projectId}/audit-logs?${params}`
+    `/api/v1/nodes/${encodedPath}/audit-logs?${params}`
   );
 }
 

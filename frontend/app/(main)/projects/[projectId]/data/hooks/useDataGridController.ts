@@ -11,11 +11,13 @@ export function useDataGridController({
   currentFolderId,
   navigateTo,
   handleBulkDelete,
+  refresh,
 }: {
   contentNodes: NodeInfo[];
   currentFolderId: string | null;
   navigateTo: (nextPath: string[], typeHint?: string) => void;
   handleBulkDelete: (paths: string[]) => Promise<void>;
+  refresh?: () => void;
 }) {
   const items = contentNodes.map((node) => ({
     id: node.path,
@@ -101,9 +103,12 @@ export function useDataGridController({
     navigateTo(item.id.split('/').filter(Boolean), item.type || undefined);
   }, [navigateTo]);
 
-  const handleRefresh = async (path: string) => {
-    alert(`Refresh not yet implemented for path: ${path}`);
-  };
+  const handleRefresh = useCallback(async (_path: string) => {
+    // Re-fetch the current view from the server. (Previously this only
+    // popped a "not yet implemented" alert.) Source re-pull for synced
+    // nodes is handled by the sync subsystem, not this grid action.
+    refresh?.();
+  }, [refresh]);
 
   return {
     items,

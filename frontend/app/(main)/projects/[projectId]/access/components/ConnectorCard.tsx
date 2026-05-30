@@ -817,7 +817,6 @@ type CliCommandSpec = {
 
 const CLI_PERMISSION_CONFIG_KEY = 'command_permissions';
 const CLI_COMMAND_SPECS: readonly CliCommandSpec[] = [
-  { key: 'semantics', kind: 'read', defaultAllowed: true },
   { key: 'ls', kind: 'read', defaultAllowed: true },
   { key: 'tree', kind: 'read', defaultAllowed: true },
   { key: 'find', kind: 'read', defaultAllowed: true },

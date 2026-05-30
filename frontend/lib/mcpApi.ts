@@ -379,7 +379,7 @@ export async function deleteMcpInstance(apiKey: string): Promise<void> {
  * 获取当前用户的所有 Tool
  */
 export async function getTools(skip = 0, limit = 100): Promise<Tool[]> {
-  return get<Tool[]>(`/api/v1/tools?skip=${skip}&limit=${limit}`);
+  return get<Tool[]>(`/api/v1/tools/?skip=${skip}&limit=${limit}`);
 }
 
 /**
@@ -413,7 +413,7 @@ export async function getTool(toolId: number): Promise<Tool> {
  * 创建 Tool
  */
 export async function createTool(request: ToolCreateRequest): Promise<Tool> {
-  return post<Tool>('/api/v1/tools', request);
+  return post<Tool>('/api/v1/tools/', request);
 }
 
 /**

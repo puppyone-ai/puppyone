@@ -256,6 +256,7 @@ export function VersionHistoryPanel({
 }: VersionHistoryPanelProps) {
   const [rollbackConfirm, setRollbackConfirm] = useState<string | null>(null);
   const [isRollingBack, setIsRollingBack] = useState(false);
+  const [rollbackError, setRollbackError] = useState<string | null>(null);
 
   const { data: history, error: historyError, mutate: refreshHistory } = useSWR(
     nodeId ? ['version-history', nodeId, projectId] : null,
@@ -265,13 +266,17 @@ export function VersionHistoryPanel({
 
   const handleRollback = useCallback(async (commitId: string) => {
     setIsRollingBack(true);
+    setRollbackError(null);
     try {
       await rollbackToVersion(commitId, projectId);
       setRollbackConfirm(null);
       await refreshHistory();
       onRollbackComplete?.();
     } catch (err) {
+      // Keep the confirm dialog open and show the failure instead of
+      // silently swallowing it (previously console.error only).
       console.error('Rollback failed:', err);
+      setRollbackError(err instanceof Error ? err.message : 'Rollback failed. Please try again.');
     } finally {
       setIsRollingBack(false);
     }
@@ -341,7 +346,7 @@ export function VersionHistoryPanel({
                 key={commit.commit_id}
                 commit={commit}
                 isCurrent={Boolean(headCommitId) && commit.commit_id === headCommitId}
-                onRollback={(cid) => setRollbackConfirm(cid)}
+                onRollback={(cid) => { setRollbackConfirm(cid); setRollbackError(null); }}
               />
             ))}
           </div>
@@ -382,9 +387,14 @@ export function VersionHistoryPanel({
               creating a new forward commit. Current head stays in history and can be
               re-applied later.
             </p>
+            {rollbackError && (
+              <p style={{ margin: '0 0 16px', fontSize: 12, color: 'var(--po-danger, #d64545)', lineHeight: 1.5 }}>
+                {rollbackError}
+              </p>
+            )}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <ActionButton
-                onClick={() => setRollbackConfirm(null)}
+                onClick={() => { setRollbackConfirm(null); setRollbackError(null); }}
                 disabled={isRollingBack}
               >
                 Cancel
