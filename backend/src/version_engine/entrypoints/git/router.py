@@ -25,7 +25,7 @@ from src.version_engine.adapters.git.receive_pack import (
 )
 from src.version_engine.adapters.git.upload_pack import (
     info_refs_response,
-    upload_pack_response,
+    upload_pack_streaming_response,
 )
 from src.version_engine.admission.repo_facade import repo_facade_from_auth
 from src.version_engine.admission.target import admit_target
@@ -420,7 +420,7 @@ async def git_upload_pack(
 
     auth = await resolve_git_project_auth(project_id, request, scope)
     repo = repo_manager.get_server_repo(project_id)
-    body = await request.body()
+    request_path = await _spool_git_request_body(request)
     actor = request_actor(request, auth)
     facade = repo_facade_from_auth(project_id, auth, kind="project_git_remote",
                                    scope_backend=repo_manager.get_scope_backend(project_id))
@@ -431,12 +431,18 @@ async def git_upload_pack(
         entry_point="project_git_remote",
         project_id=project_id,
     )
-    return upload_pack_response(
-        repo,
-        facade.scope_path,
-        list(facade.excludes),
-        body,
-    )
+    # The streaming response OWNS request_path and unlinks it when the pack
+    # finishes streaming. Only clean up here if we never reach that point.
+    try:
+        return upload_pack_streaming_response(
+            repo,
+            facade.scope_path,
+            list(facade.excludes),
+            request_path,
+        )
+    except BaseException:
+        _unlink_temp(request_path)
+        raise
 
 
 @router.post("/ap/{access_key}.git/git-upload-pack")
@@ -449,7 +455,7 @@ async def git_ap_upload_pack(
 
     project_id, auth = await resolve_git_access_point(access_key, request)
     repo = repo_manager.get_server_repo(project_id)
-    body = await request.body()
+    request_path = await _spool_git_request_body(request)
     actor = request_actor(request, auth)
     facade = repo_facade_from_auth(project_id, auth, kind="access_point",
                                    scope_backend=repo_manager.get_scope_backend(project_id))
@@ -460,9 +466,15 @@ async def git_ap_upload_pack(
         entry_point="access_key_git_remote",
         project_id=project_id,
     )
-    return upload_pack_response(
-        repo,
-        facade.scope_path,
-        list(facade.excludes),
-        body,
-    )
+    # The streaming response OWNS request_path and unlinks it when the pack
+    # finishes streaming. Only clean up here if we never reach that point.
+    try:
+        return upload_pack_streaming_response(
+            repo,
+            facade.scope_path,
+            list(facade.excludes),
+            request_path,
+        )
+    except BaseException:
+        _unlink_temp(request_path)
+        raise
