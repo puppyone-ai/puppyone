@@ -190,6 +190,23 @@ class SyncEngine:
                 "run_id": run.id if run else None,
             }
 
+        except NotImplementedError:
+            # A connector whose data plane lives outside the SyncEngine
+            # (e.g. the Filesystem connector, which syncs through the Git
+            # adapter / AP-FS API) declares PULL capability for the UI but
+            # does not implement fetch(). That is "not applicable here",
+            # NOT a failure — mark the run skipped, mirroring the push path
+            # (GAP-9). Treating it as an error used to flip the sync into a
+            # failed state and surface a spurious error to the user.
+            log_debug(f"[SyncEngine] fetch not implemented for {sync.provider}")
+            self.sync_repo.update_status(sync_id, "active")
+            if run and self.run_repo:
+                self.run_repo.complete(
+                    run.id, status="skipped",
+                    result_summary="Fetch not implemented (external data plane)",
+                )
+            return None
+
         except Exception as e:
             log_error(f"[SyncEngine] Failed for sync {sync_id}: {e}")
             self.sync_repo.update_error(sync_id, str(e))

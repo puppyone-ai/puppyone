@@ -308,6 +308,60 @@ class TextIndexRepository:
             return 0
         return len(resp.data or rows)
 
+    def delete_file(
+        self,
+        *,
+        project_id: str,
+        file_path: str,
+        include_subtree: bool = False,
+    ) -> int:
+        """Remove index rows attributed to ``file_path``.
+
+        Called by the commit-delta indexer in two cases (GAP-6):
+
+          - **delete** — a file (or, with ``include_subtree``, a whole
+            directory subtree) was removed in the commit, so its rows
+            must be purged or ``grep`` keeps returning the dead path.
+          - **modify** — a file's content changed; we clear its old
+            rows before re-indexing the new content so stale chunks
+            from the previous version aren't searchable, and so the
+            index stays bounded to the live working tree rather than
+            growing one row-set per historical content version.
+
+        ``include_subtree`` also removes rows whose ``file_path`` lives
+        under ``file_path/`` — used for directory deletes where the
+        change list carries the directory path, not each child.
+
+        Note: rows are content-addressed by ``content_hash`` with
+        ``file_path`` recording the last writer. In the rare case two
+        distinct paths share identical bytes, deleting one path can
+        drop the shared row and make the other temporarily unsearchable
+        until its next commit re-indexes it. That trade-off is inherent
+        to the "indexed exactly once" design in the table migration.
+
+        Returns a best-effort deleted row count.
+        """
+        try:
+            query = (
+                self._client.table(_TABLE)
+                .delete()
+                .eq("project_id", project_id)
+            )
+            if include_subtree:
+                exact_val = _pgrst_or_quote(file_path)
+                prefix_val = _pgrst_or_quote(_escape_like(file_path) + "/*")
+                query = query.or_(
+                    f"file_path.eq.{exact_val},"
+                    f"file_path.like.{prefix_val}"
+                )
+            else:
+                query = query.eq("file_path", file_path)
+            resp = query.execute()
+        except Exception as exc:
+            log_error(f"[TextIndex] delete_file({file_path}) failed: {exc}")
+            return 0
+        return len(resp.data or [])
+
     def set_scope_freshness(
         self,
         *,

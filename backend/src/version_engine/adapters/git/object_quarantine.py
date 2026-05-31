@@ -118,6 +118,7 @@ def upload_pack_bare_repo(
     scope_excludes: list[str] | None = None,
     *,
     wants: list[str] | None = None,
+    extra_refs: dict[str, str] | None = None,
 ):
     """Yield a request-local upload-pack repo.
 
@@ -127,11 +128,22 @@ def upload_pack_bare_repo(
     Keep those requested ``want`` objects reachable through temporary refs
     for this one upload-pack invocation without polluting the durable cache's
     advertised ref namespace.
+
+    ``extra_refs`` (GAP-3) is the scope's stored branch/tag refs
+    (``{full_ref_name: commit_id}``). They are written into THIS request's
+    bare repo — never the shared cache — so ``git clone`` / ``git fetch``
+    sees and can serve them, while the durable transport cache stays a pure
+    projection of the scope head.
     """
 
     wanted_roots = [
         want for want in (wants or [])
         if is_object_id(want) and want != ZERO_ID
+    ]
+    named_refs = _sanitize_named_refs(extra_refs or {})
+    ref_roots = [
+        commit_id for commit_id in named_refs.values()
+        if commit_id not in wanted_roots
     ]
     with transport_bare_repo(
         repo,
@@ -139,7 +151,7 @@ def upload_pack_bare_repo(
         scope_excludes,
         follow_history=True,
         include_blobs=True,
-        extra_roots=wanted_roots,
+        extra_roots=wanted_roots + ref_roots,
     ) as cache_bare:
         with tempfile.TemporaryDirectory(prefix="puppyone-git-upload-pack-") as tmp:
             bare_dir = Path(tmp) / "repo.git"
@@ -154,7 +166,39 @@ def upload_pack_bare_repo(
             if cache_ref.exists():
                 _write_main_ref(bare_dir, cache_ref.read_text(encoding="ascii").strip())
             _write_upload_pack_want_refs(bare_dir, wanted_roots)
+            _write_named_refs(bare_dir, named_refs)
             yield bare_dir
+
+
+def _sanitize_named_refs(extra_refs: dict[str, str]) -> dict[str, str]:
+    """Filter stored refs to the safe, advertisable set.
+
+    Defence in depth on top of the version_refs CHECK constraint: only
+    ``refs/heads/*`` and ``refs/tags/*`` (never the scope head main), valid
+    object ids, and no path-traversal segments are allowed to become files
+    in the per-request bare repo.
+    """
+    safe: dict[str, str] = {}
+    for ref_name, commit_id in extra_refs.items():
+        if not isinstance(ref_name, str) or not isinstance(commit_id, str):
+            continue
+        if ref_name == ACCESS_POINT_MAIN_REF:
+            continue
+        if not ref_name.startswith(("refs/heads/", "refs/tags/")):
+            continue
+        if ".." in ref_name or ref_name.endswith("/") or "//" in ref_name:
+            continue
+        if not is_object_id(commit_id) or commit_id == ZERO_ID:
+            continue
+        safe[ref_name] = commit_id
+    return safe
+
+
+def _write_named_refs(bare_dir: Path, named_refs: dict[str, str]) -> None:
+    for ref_name, commit_id in named_refs.items():
+        ref_path = bare_dir / Path(ref_name)
+        ref_path.parent.mkdir(parents=True, exist_ok=True)
+        ref_path.write_text(f"{commit_id}\n", encoding="ascii")
 
 
 def warm_transport_bare_repo(

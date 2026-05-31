@@ -389,6 +389,17 @@ class CachedStorageBackend(StorageBackend):
             self._cache.pop(h, None)
         return self._inner.delete(h)
 
+    def sweep_dead_bundles(self, dead_object_ids) -> tuple[int, list[str]]:
+        sweep = getattr(self._inner, "sweep_dead_bundles", None)
+        if not callable(sweep):
+            return 0, []
+        count, swept = sweep(dead_object_ids)
+        if swept:
+            with _cache_lock:
+                for object_id in swept:
+                    self._cache.pop(object_id, None)
+        return count, swept
+
     @contextmanager
     def stage_object_writes(self):
         batch = ObjectWriteBatch(self)
@@ -659,11 +670,23 @@ class S3StorageBackend(StorageBackend):
         return existing
 
     def all_hashes(self) -> list[str]:
+        # GC enumerates every stored object id. Loose objects live under
+        # the ``objects/`` prefix; bundled (.pob) and chunked objects have
+        # NO per-hash S3 key — their ids live only in the location index.
+        # Listing the loose prefix alone (the historical behaviour) hid
+        # every batch-written object from GC, so bundled orphans from
+        # CAS-race losers accumulated forever (GAP-2).
         try:
-            hashes = []
+            seen: set[str] = set()
+            hashes: list[str] = []
             for item in self._list_all_object_items():
                 object_id = self._hash_from_key(item.key)
-                if object_id:
+                if object_id and object_id not in seen:
+                    seen.add(object_id)
+                    hashes.append(object_id)
+            for object_id in self._all_packed_locations():
+                if object_id not in seen:
+                    seen.add(object_id)
                     hashes.append(object_id)
             return hashes
         except Exception as e:
@@ -671,7 +694,8 @@ class S3StorageBackend(StorageBackend):
             raise
 
     def all_hashes_with_metadata(self) -> dict[str, dict]:
-        """Return object ids and S3 metadata needed by conservative GC."""
+        """Return object ids and metadata (``last_modified``/``size``)
+        needed by conservative GC, across loose AND packed objects."""
         try:
             result: dict[str, dict] = {}
             for item in self._list_all_object_items():
@@ -681,10 +705,54 @@ class S3StorageBackend(StorageBackend):
                         "last_modified": item.last_modified,
                         "size": item.size,
                     }
+            # Packed objects: ``created_at`` is the age signal the
+            # retention window needs; the per-hash S3 listing can't see
+            # them because they share a pack file.
+            for object_id, meta in self._all_packed_locations().items():
+                result.setdefault(object_id, {
+                    "last_modified": meta.get("last_modified"),
+                    "size": meta.get("size", 0),
+                })
             return result
         except Exception as e:
             log_error(f"[VersionS3] Failed to list hash metadata: {e}")
             raise
+
+    def _all_packed_locations(self) -> dict[str, dict]:
+        """Every bundled/chunked object for this project, from the
+        location index. Returns ``{object_id: {pack_key, size,
+        last_modified}}``.
+
+        Loose objects are absent from this table (they have real S3
+        keys). Returns ``{}`` when no location index is configured (the
+        in-memory/test backends), preserving the loose-only behaviour.
+        """
+        if self._supabase is None:
+            return {}
+        out: dict[str, dict] = {}
+        page = 1000
+        start = 0
+        while True:
+            with trace_phase("db.object_location.list_all", start=start):
+                resp = (
+                    self._supabase.client.table(OBJECT_LOCATIONS_TABLE)
+                    .select("object_id, pack_key, size_bytes, created_at")
+                    .eq("project_id", self._project_id)
+                    .range(start, start + page - 1)
+                    .execute()
+                )
+            rows = safe_data(resp) or []
+            for row in rows:
+                object_id = str(row.get("object_id") or "")
+                if object_id:
+                    out[object_id] = {
+                        "pack_key": str(row.get("pack_key") or ""),
+                        "size": int(row.get("size_bytes") or 0),
+                        "last_modified": row.get("created_at"),
+                    }
+            if len(rows) < page:
+                return out
+            start += page
 
     def _list_all_object_items(self) -> list:
         items = []
@@ -708,16 +776,197 @@ class S3StorageBackend(StorageBackend):
         return parts[0] + parts[1]
 
     def count(self) -> tuple[int, int]:
-        hashes = self.all_hashes()
-        return len(hashes), 0
+        """Return ``(object_count, total_bytes)`` across loose AND packed
+        objects.
+
+        The byte total used to be hard-coded to ``0`` (GAP-15) even though
+        the object listing already carries per-object sizes. We now sum the
+        sizes ``all_hashes_with_metadata`` already collects — loose sizes
+        come from the S3 listing, packed sizes from the location index — so
+        the total is accurate at no extra cost over the count itself. (S3
+        has no O(1) count/size API for the loose prefix, so enumerating the
+        keys remains inherent; nothing on a hot path calls this.)
+        """
+        meta = self.all_hashes_with_metadata()
+        total_bytes = sum(int(m.get("size") or 0) for m in meta.values())
+        return len(meta), total_bytes
 
     def delete(self, h: str) -> bool:
+        """Delete one object. Routes by physical layout (GAP-2).
+
+        Loose objects delete their S3 key. Chunked objects are
+        standalone (own manifest + parts) so they delete cleanly.
+        Bundled (.pob) objects share a pack file with other objects and
+        CANNOT be removed individually without repacking — those are
+        refused here and collected only by ``sweep_dead_bundles`` when
+        the whole bundle is dead.
+        """
+        location = self._lookup_object_location(h)
+        if location is None:
+            return self._delete_loose(h)
+        if location.pack_key.startswith(_CHUNKED_PACK_PREFIX):
+            return self._delete_chunked(h, location)
+        log_warning(
+            f"[VersionS3] refusing per-object delete of bundled object "
+            f"{h[:12]} in pack {location.pack_key}; whole-bundle sweep "
+            f"handles shared bundles.",
+        )
+        return False
+
+    def _delete_loose(self, h: str) -> bool:
         try:
             _run_async(self._s3.delete_file(self._key_for(h)))
             return True
         except Exception as e:
+            if _is_not_found_error(e):
+                return False
             log_error(f"[VersionS3] Failed to delete {h}: {e}")
             raise
+
+    def _delete_chunked(self, h: str, location: "ObjectLocation") -> bool:
+        manifest_key = location.pack_key.removeprefix(_CHUNKED_PACK_PREFIX)
+        keys = self._chunked_keys_for(h, manifest_key)
+        deleted_any = False
+        for key in keys:
+            try:
+                _run_async(self._s3.delete_file(key))
+                deleted_any = True
+            except Exception as exc:  # noqa: BLE001
+                if not _is_not_found_error(exc):
+                    log_error(f"[VersionS3] delete chunk key {key}: {exc}")
+        self._delete_object_location_rows([h])
+        with self._location_lock:
+            self._location_cache.pop(h, None)
+        return deleted_any
+
+    def _chunked_keys_for(self, h: str, manifest_key: str) -> list[str]:
+        """All S3 keys backing a chunked object: the manifest plus every
+        part. Prefer the manifest's own chunk list; if it's gone, fall
+        back to listing the object's part prefix so a half-written object
+        still gets fully cleaned."""
+        keys = [manifest_key]
+        try:
+            manifest_raw = _run_async(self._s3.download_file(manifest_key))
+            manifest = json.loads(manifest_raw.decode("utf-8"))
+            for chunk in manifest.get("chunks") or []:
+                key = str(chunk.get("key") or "")
+                if key:
+                    keys.append(key)
+            return keys
+        except Exception:  # noqa: BLE001 — manifest unreadable; list parts.
+            part_prefix = (
+                f"{self._bundle_prefix}/chunked/"
+                f"{h[:_HASH_PREFIX_LEN]}/{h}/"
+            )
+            try:
+                token = None
+                while True:
+                    page, _, token, truncated = _run_async(
+                        self._s3.list_files(
+                            prefix=part_prefix,
+                            max_keys=_MAX_LIST_KEYS,
+                            continuation_token=token,
+                        )
+                    )
+                    keys.extend(item.key for item in page)
+                    if not truncated or not token:
+                        break
+            except Exception as exc:  # noqa: BLE001
+                log_warning(f"[VersionS3] list chunk parts for {h[:12]}: {exc}")
+            return keys
+
+    def sweep_dead_bundles(self, dead_object_ids) -> tuple[int, list[str]]:
+        """Delete whole ``.pob`` bundles all of whose members are dead.
+
+        ``dead_object_ids`` is the GC's eligible-for-deletion set. A
+        bundle packs many objects; we can only drop it when EVERY object
+        it contains is eligible — otherwise a live object would be lost.
+        Partially-dead bundles are kept (and logged); reclaiming their
+        dead members would require repacking, which is out of scope.
+
+        Returns ``(member_count_swept, swept_object_ids)``.
+        """
+        dead = set(dead_object_ids)
+        if self._supabase is None or not dead:
+            return 0, []
+        locations = self._lookup_many_object_locations(list(dead))
+        bundle_keys = {
+            loc.pack_key
+            for loc in locations.values()
+            if loc.pack_key and not loc.pack_key.startswith(_CHUNKED_PACK_PREFIX)
+        }
+        swept: list[str] = []
+        kept_partial = 0
+        for pack_key in bundle_keys:
+            members = self._object_ids_in_pack(pack_key)
+            if not members:
+                continue
+            if not all(member in dead for member in members):
+                kept_partial += 1
+                continue
+            if self._delete_whole_bundle(pack_key, members):
+                swept.extend(members)
+        if kept_partial:
+            log_warning(
+                f"[VersionS3] kept {kept_partial} partially-dead bundle(s) "
+                f"for project {self._project_id}; dead members remain "
+                f"packed until a repack reclaims them.",
+            )
+        return len(swept), swept
+
+    def _delete_whole_bundle(self, pack_key: str, members: list[str]) -> bool:
+        """Delete one fully-dead ``.pob`` and its members' location rows."""
+        try:
+            _run_async(self._s3.delete_file(pack_key))
+        except Exception as exc:  # noqa: BLE001
+            if not _is_not_found_error(exc):
+                log_error(f"[VersionS3] delete bundle {pack_key}: {exc}")
+                return False
+        self._delete_object_location_rows(members)
+        with self._location_lock:
+            for member in members:
+                self._location_cache.pop(member, None)
+        return True
+
+    def _object_ids_in_pack(self, pack_key: str) -> list[str]:
+        """All object ids stored in one pack, via the per-pack index."""
+        if self._supabase is None:
+            return []
+        ids: list[str] = []
+        page = 1000
+        start = 0
+        while True:
+            resp = (
+                self._supabase.client.table(OBJECT_LOCATIONS_TABLE)
+                .select("object_id")
+                .eq("project_id", self._project_id)
+                .eq("pack_key", pack_key)
+                .range(start, start + page - 1)
+                .execute()
+            )
+            rows = safe_data(resp) or []
+            ids.extend(str(r.get("object_id") or "") for r in rows if r.get("object_id"))
+            if len(rows) < page:
+                return ids
+            start += page
+
+    def _delete_object_location_rows(self, object_ids: list[str]) -> None:
+        if self._supabase is None or not object_ids:
+            return
+        for i in range(0, len(object_ids), 100):
+            chunk = [oid for oid in object_ids[i:i + 100] if oid]
+            if not chunk:
+                continue
+            try:
+                (
+                    self._supabase.client.table(OBJECT_LOCATIONS_TABLE)
+                    .delete()
+                    .eq("project_id", self._project_id)
+                    .in_("object_id", chunk)
+                    .execute()
+                )
+            except Exception as exc:  # noqa: BLE001
+                log_error(f"[VersionS3] delete location rows: {exc}")
 
     # ── Async methods (for direct use in async contexts) ──
 

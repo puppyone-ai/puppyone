@@ -37,6 +37,29 @@ def build_tree_from_files(store, files: dict[str, bytes]) -> str:
     return _write_nested_tree(store, nested)
 
 
+def build_tree_from_blob_ids(store, files: dict[str, str]) -> str:
+    """Build a Git tree object from a flat ``{path: blob_object_id}`` mapping.
+
+    Unlike :func:`build_tree_from_files`, the blobs already live in the
+    content-addressed store, so we reference their object ids directly
+    instead of re-uploading bytes. This lets callers rebuild a tree from
+    an OID-level file map (e.g. one derived from :func:`tree_mod.tree_to_flat`)
+    without ever downloading or re-putting blob contents.
+    """
+
+    nested: dict = {}
+    for path, blob_id in files.items():
+        clean = normalize_path(path)
+        if not clean or not blob_id:
+            continue
+        parts = [part for part in clean.split("/") if part]
+        node = nested
+        for part in parts[:-1]:
+            node = node.setdefault(part, {})
+        node[parts[-1]] = ("B", blob_id)
+    return _write_nested_tree(store, nested)
+
+
 def compute_changeset(
     scope_path: str,
     old_files: dict[str, bytes],

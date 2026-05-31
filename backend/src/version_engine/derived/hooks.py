@@ -886,34 +886,40 @@ def _merge_project_root_delta_into_child_scope(
     ):
         return new_subtree_hash
 
-    from src.version_engine.write_engine.tree_objects import (
-        build_tree_from_files,
-        flatten_tree_to_bytes,
-    )
+    from src.version_engine.write_engine.tree import tree_to_flat
+    from src.version_engine.write_engine.tree_objects import build_tree_from_blob_ids
 
+    # GAP-5: run the 3-way merge at the BLOB OBJECT-ID level, never on blob
+    # bytes. ``tree_to_flat`` returns ``{path: blob_oid}`` by reading only
+    # the (small, cached) tree objects; it does not download file content.
+    # Because the store is content-addressed, two paths have identical bytes
+    # iff their blob oids are equal, so OID comparison is exactly equivalent
+    # to the old byte comparison — but a large scope no longer pulls every
+    # blob (×3 subtrees) onto the request path. The rebuild references the
+    # existing blob oids directly instead of re-uploading bytes.
     old_subtree_hash = _tree_hash_at_path(
         repo.store,
         previous_project_root_hash,
         scope_path,
     ) if previous_project_root_hash else ""
-    old_files = flatten_tree_to_bytes(repo.store, old_subtree_hash)
-    new_files = flatten_tree_to_bytes(repo.store, new_subtree_hash)
-    current_files = flatten_tree_to_bytes(repo.store, current_scope_hash)
+    old_oids = tree_to_flat(repo.store, old_subtree_hash) if old_subtree_hash else {}
+    new_oids = tree_to_flat(repo.store, new_subtree_hash) if new_subtree_hash else {}
+    current_oids = tree_to_flat(repo.store, current_scope_hash) if current_scope_hash else {}
 
-    merged_files = dict(current_files)
-    for rel_path in set(old_files) | set(new_files):
-        before = old_files.get(rel_path)
-        after = new_files.get(rel_path)
+    merged_oids = dict(current_oids)
+    for rel_path in set(old_oids) | set(new_oids):
+        before = old_oids.get(rel_path)
+        after = new_oids.get(rel_path)
         if before == after:
             continue
-        if stale_project_root and current_files.get(rel_path) != before:
+        if stale_project_root and current_oids.get(rel_path) != before:
             continue
         if after is None:
-            merged_files.pop(rel_path, None)
+            merged_oids.pop(rel_path, None)
         else:
-            merged_files[rel_path] = after
+            merged_oids[rel_path] = after
 
-    return build_tree_from_files(repo.store, merged_files) if merged_files else ""
+    return build_tree_from_blob_ids(repo.store, merged_oids) if merged_oids else ""
 
 
 def _set_scope_state(repo, scope_path: str, scope_hash: str, head_commit_id: str) -> None:

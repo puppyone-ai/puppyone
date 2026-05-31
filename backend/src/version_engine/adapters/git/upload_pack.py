@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import subprocess
+import tempfile
+from pathlib import Path
+
 from fastapi import HTTPException
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 
 from src.version_engine.adapters.git.object_quarantine import (
     GitViewCurrentCorruptError,
@@ -18,6 +22,37 @@ from src.version_engine.adapters.git.protocol import (
     pkt_line,
     run_git,
 )
+from src.utils.logger import log_error
+
+
+# Chunk size for streaming the pack response off the git subprocess.
+# 64 KiB keeps per-read overhead low without holding much on the heap.
+_UPLOAD_PACK_STREAM_CHUNK = 64 * 1024
+
+
+def _scope_version_refs(repo, scope_path: str) -> dict[str, str]:
+    """Stored branch/tag refs for this scope as ``{ref_name: commit_id}``
+    (GAP-3). Empty (and behaviour-preserving) when there is no project id,
+    no refs, or the lookup fails — the advertise/serve paths then behave
+    exactly as the single-branch transport always has.
+    """
+    project_id = getattr(repo, "_project_id", "") or ""
+    if not project_id:
+        return {}
+    try:
+        from src.version_engine.infrastructure.supabase.version_ref_repository import (
+            VersionRefStore,
+        )
+
+        rows = VersionRefStore().list_refs(project_id, scope_path)
+        return {
+            r["ref_name"]: r["commit_id"]
+            for r in rows
+            if r.get("ref_name") and r.get("commit_id")
+        }
+    except Exception as exc:  # noqa: BLE001 — refs are additive; never break transport
+        log_error(f"[upload-pack] version_refs lookup failed: {exc}")
+        return {}
 
 
 def info_refs_response(
@@ -36,7 +71,16 @@ def info_refs_response(
             scope_excludes,
         )
     else:
-        repo_context = transport_bare_repo(repo, scope_path, scope_excludes)
+        # Advertise the scope head AND any stored branch/tag refs (GAP-3).
+        # upload_pack_bare_repo writes them into a per-request bare repo
+        # (never the shared cache); with no stored refs it advertises
+        # exactly refs/heads/main + HEAD as before.
+        repo_context = upload_pack_bare_repo(
+            repo,
+            scope_path,
+            scope_excludes,
+            extra_refs=_scope_version_refs(repo, scope_path),
+        )
 
     try:
         with repo_context as bare_dir:
@@ -65,24 +109,47 @@ def info_refs_response(
     )
 
 
-def upload_pack_response(
+def upload_pack_streaming_response(
     repo,
     scope_path: str,
     scope_excludes: list[str],
-    body: bytes,
+    request_path: Path,
 ) -> Response:
+    """Stream a Git fetch/clone pack straight from ``git upload-pack``.
+
+    The response pack for a large clone can be gigabytes. The previous
+    implementation captured it into a single ``bytes`` via ``run_git`` and
+    handed that to ``Response(content=...)``, so the whole pack sat on the
+    Python heap twice and risked OOM under concurrent clones (GAP-1/14).
+
+    Instead we drive ``git upload-pack`` with the request body fed from its
+    on-disk spool (``request_path``) and pipe stdout to the client in
+    chunks — neither the request nor the response is ever fully
+    materialised in memory.
+
+    On success ``request_path`` is owned by this response: the streaming
+    generator deletes it once the pack has been sent (or the transfer is
+    aborted). If this function RAISES before returning the response, the
+    caller still owns ``request_path`` and must clean it up.
+    """
+    # The upload-pack request is the (small) want/have negotiation; read it
+    # only to scope the bare repo to the requested tips. The large payload
+    # is the RESPONSE, which is what we must avoid buffering.
     try:
-        with upload_pack_bare_repo(
-            repo,
-            scope_path,
-            scope_excludes,
-            wants=_upload_pack_wants(body),
-        ) as bare_dir:
-            output = run_git([
-                "upload-pack",
-                "--stateless-rpc",
-                str(bare_dir),
-            ], input_data=body)
+        body = request_path.read_bytes()
+    except OSError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"unreadable upload-pack request: {exc}",
+        ) from exc
+
+    cm = upload_pack_bare_repo(
+        repo, scope_path, scope_excludes,
+        wants=_upload_pack_wants(body),
+        extra_refs=_scope_version_refs(repo, scope_path),
+    )
+    try:
+        bare_dir = cm.__enter__()
     except GitViewCurrentCorruptError as exc:
         raise HTTPException(
             status_code=409,
@@ -91,11 +158,69 @@ def upload_pack_response(
                 "message": str(exc),
             },
         ) from exc
-    return Response(
-        content=output,
+
+    return StreamingResponse(
+        _stream_upload_pack(cm, bare_dir, request_path),
         media_type="application/x-git-upload-pack-result",
         headers={"Cache-Control": "no-cache"},
     )
+
+
+def _stream_upload_pack(cm, bare_dir: Path, request_path: Path):
+    """Yield the pack bytes from ``git upload-pack``, then tear everything
+    down. Runs as the streaming-response body, so its ``finally`` is
+    guaranteed to run on completion, client disconnect, or error."""
+    proc = None
+    stdin_f = None
+    # stderr to a temp file, never a pipe: upload-pack can emit progress to
+    # stderr and a full pipe buffer would deadlock against our stdout reads.
+    stderr_f = tempfile.TemporaryFile()
+    try:
+        stdin_f = open(request_path, "rb")
+        proc = subprocess.Popen(
+            ["git", "upload-pack", "--stateless-rpc", str(bare_dir)],
+            stdin=stdin_f,
+            stdout=subprocess.PIPE,
+            stderr=stderr_f,
+        )
+        assert proc.stdout is not None
+        while True:
+            chunk = proc.stdout.read(_UPLOAD_PACK_STREAM_CHUNK)
+            if not chunk:
+                break
+            yield chunk
+        proc.wait()
+        if proc.returncode != 0:
+            # The response is already 200 with bytes on the wire, so we
+            # can't switch to an error status; log it server-side. The Git
+            # client surfaces the aborted/truncated transfer to the user.
+            stderr_f.seek(0)
+            err = stderr_f.read().decode("utf-8", errors="replace").strip()
+            log_error(f"[upload-pack] git exited {proc.returncode}: {err}")
+    finally:
+        if proc is not None:
+            if proc.stdout is not None:
+                try:
+                    proc.stdout.close()
+                except OSError:
+                    pass
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait()
+        if stdin_f is not None:
+            stdin_f.close()
+        stderr_f.close()
+        cm.__exit__(None, None, None)
+        _unlink(request_path)
+
+
+def _unlink(path: Path) -> None:
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        log_error(f"[upload-pack] failed to remove spool {path}: {exc}")
 
 
 def _upload_pack_wants(body: bytes) -> list[str]:

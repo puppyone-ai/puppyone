@@ -47,7 +47,7 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -61,7 +61,7 @@ from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
 from src.platform.project.dependencies import get_project_service
 from src.platform.project.service import ProjectService
-from src.utils.logger import log_warning
+from src.utils.logger import log_info, log_warning
 from src.version_engine.entrypoints.http.content_helpers import ensure_project_access
 
 
@@ -242,6 +242,75 @@ async def _delete_manifest_from_s3(project_id: str, snapshot_id: str) -> None:
             f"[shadow-snapshot] delete manifest failed for "
             f"{project_id}/{snapshot_id}: {exc}"
         )
+
+
+# ── TTL reaper (GAP-10) ─────────────────────────────────────────
+
+
+async def reap_stale_shadow_snapshots(
+    *,
+    ttl_seconds: int,
+    max_per_run: int = 500,
+) -> dict:
+    """Delete shadow snapshots not refreshed within ``ttl_seconds``.
+
+    Shadow snapshots are an ephemeral projection of a teammate's
+    un-pushed working tree (``08-shadow-snapshots.md``). Without a reaper
+    the ``local_shadow_snapshots`` rows and their S3 ``manifest.json``
+    objects accumulate forever (GAP-10). The referenced blobs live in the
+    shared content-addressed object store and are reclaimed separately by
+    the object GC, so this only removes the row + manifest — mirroring the
+    user-facing DELETE.
+
+    Manifest is deleted before the DB row so a crash mid-run is
+    self-healing: the surviving row is re-selected next run and its
+    already-gone manifest delete is a harmless no-op.
+
+    Returns ``{"scanned": N, "deleted": M}``.
+    """
+    cutoff = (
+        datetime.now(timezone.utc) - timedelta(seconds=max(0, ttl_seconds))
+    ).isoformat()
+    client = SupabaseClient().client
+    resp = (
+        client.table("local_shadow_snapshots")
+        .select("id, project_id")
+        .lt("updated_at", cutoff)
+        .limit(max(1, int(max_per_run)))
+        .execute()
+    )
+    rows = getattr(resp, "data", None) or []
+    if not rows:
+        return {"scanned": 0, "deleted": 0}
+
+    ids: list[str] = []
+    for row in rows:
+        snapshot_id = row.get("id")
+        project_id = row.get("project_id")
+        if not snapshot_id or not project_id:
+            continue
+        await _delete_manifest_from_s3(project_id, snapshot_id)
+        ids.append(snapshot_id)
+
+    deleted = 0
+    if ids:
+        try:
+            del_resp = (
+                client.table("local_shadow_snapshots")
+                .delete()
+                .in_("id", ids)
+                .execute()
+            )
+            deleted = len(getattr(del_resp, "data", None) or ids)
+        except Exception as exc:  # noqa: BLE001
+            log_warning(f"[shadow-snapshot] reaper bulk delete failed: {exc}")
+
+    if deleted:
+        log_info(
+            f"[shadow-snapshot] reaped {deleted} snapshot(s) older than "
+            f"{ttl_seconds}s (scanned {len(rows)})"
+        )
+    return {"scanned": len(rows), "deleted": deleted}
 
 
 # ── Endpoints ──────────────────────────────────────────────────
