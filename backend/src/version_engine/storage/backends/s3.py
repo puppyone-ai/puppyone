@@ -776,8 +776,20 @@ class S3StorageBackend(StorageBackend):
         return parts[0] + parts[1]
 
     def count(self) -> tuple[int, int]:
-        hashes = self.all_hashes()
-        return len(hashes), 0
+        """Return ``(object_count, total_bytes)`` across loose AND packed
+        objects.
+
+        The byte total used to be hard-coded to ``0`` (GAP-15) even though
+        the object listing already carries per-object sizes. We now sum the
+        sizes ``all_hashes_with_metadata`` already collects — loose sizes
+        come from the S3 listing, packed sizes from the location index — so
+        the total is accurate at no extra cost over the count itself. (S3
+        has no O(1) count/size API for the loose prefix, so enumerating the
+        keys remains inherent; nothing on a hot path calls this.)
+        """
+        meta = self.all_hashes_with_metadata()
+        total_bytes = sum(int(m.get("size") or 0) for m in meta.values())
+        return len(meta), total_bytes
 
     def delete(self, h: str) -> bool:
         """Delete one object. Routes by physical layout (GAP-2).

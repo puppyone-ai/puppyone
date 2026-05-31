@@ -23,7 +23,7 @@
 | GAP-12 | L2 frontend | MEDIUM | PUP-3 策略仅覆盖 FileImportDialog；drag-drop 路径无过滤 ✅ 已修复 |
 | GAP-13 | L5 core | MEDIUM | PUP-5 staged session / PR-like review 无后端原语 |
 | GAP-14 | L1 | MEDIUM | 同 GAP-1，upload-pack 内存风险具体说明 ✅ 已修复 |
-| GAP-15 | L6 | SMALL | `count()` 做全量 S3 LIST，O(n_objects) |
+| GAP-15 | L6 | SMALL | `count()` 做全量 S3 LIST，O(n_objects) ✅ 已修复（bytes 不再恒为 0） |
 
 ---
 

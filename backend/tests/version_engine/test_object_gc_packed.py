@@ -199,6 +199,20 @@ def test_no_supabase_falls_back_to_loose_only():
     assert backend.all_hashes() == [OID_LOOSE]
 
 
+def test_count_sums_loose_and_packed_bytes():
+    # GAP-15: count() used to return total_bytes=0. It now sums real sizes
+    # across loose (S3 listing) and packed (location index) objects.
+    backend, s3, supa = _make_backend()
+    s3.objects[_loose_key(OID_LOOSE)] = b"12345"           # 5 bytes loose
+    _add_location_row(supa, OID_BUNDLE_1, f"{_bundle_prefix()}/cc/b.pob", size=100)
+    _add_location_row(supa, OID_CHUNKED,
+                      f"{_CHUNKED_PACK_PREFIX}{_chunk_manifest_key(OID_CHUNKED)}", size=2000)
+
+    n, total = backend.count()
+    assert n == 3
+    assert total == 5 + 100 + 2000
+
+
 def test_delete_loose_object_removes_key():
     backend, s3, _supa = _make_backend()
     key = _loose_key(OID_LOOSE)
