@@ -13,8 +13,10 @@ import {
 import { PROJECT_CONTENT_RAIL_WIDTH } from '@/lib/layout';
 import { SIDEBAR_ROW_TYPOGRAPHY } from '@/lib/uiTypography';
 import { PageLoading } from '@/components/loading';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { ResizableSidebarColumn } from '@/components/sidebar/ResizableSidebarColumn';
 import { useCommitUpdates } from '@/contexts/VersionWebSocketContext';
+import { Clock3, GitCommitHorizontal } from 'lucide-react';
 import {
   NeedsActionSection,
   getKind as getNeedsActionKind,
@@ -1714,30 +1716,20 @@ export default function HistoryPage({ params }: HistoryPageProps) {
                 projectId={projectId}
                 parentCommitId={parentCommitId}
               />
+            ) : commits.length === 0 ? (
+              <EmptyState
+                icon={<Clock3 size={40} strokeWidth={1.35} />}
+                title="No changes yet"
+                description="Pending reviews and conflicts appear in Needs action."
+                style={{ flex: 1 }}
+              />
             ) : (
-              <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                height: '100%',
-                gap: 10,
-                color: 'var(--po-text-disabled)',
-                fontSize: 13,
-              }}>
-                {commits.length === 0 ? (
-                  <>
-                    <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.42 }}>
-                      <circle cx="12" cy="12" r="10" />
-                      <polyline points="12 6 12 12 16 14" />
-                    </svg>
-                    <span style={{ color: 'var(--po-text-subtle)' }}>No changes yet</span>
-                    <span style={{ fontSize: 12 }}>Pending reviews and conflicts appear in Needs action.</span>
-                  </>
-                ) : (
-                  'Select a commit'
-                )}
-              </div>
+              <EmptyState
+                icon={<GitCommitHorizontal size={40} strokeWidth={1.35} />}
+                title="Select a commit"
+                description="Choose a history item from the sidebar to inspect its changes."
+                style={{ flex: 1 }}
+              />
             )}
           </HistoryDetailViewport>
         </div>
