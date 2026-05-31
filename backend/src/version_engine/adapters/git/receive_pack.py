@@ -35,7 +35,10 @@ from src.version_engine.write_engine.engine import (
     NonFastForwardSubmissionError,
 )
 from src.version_engine.write_engine.path_utils import normalize_path
-from src.version_engine.write_engine.tree_objects import is_path_excluded
+from src.version_engine.write_engine.tree_objects import (
+    is_path_excluded,
+    validate_scope_bound_files,
+)
 from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
 from src.utils.logger import log_error
 
@@ -236,6 +239,32 @@ async def receive_pack_response_from_path(
             # record the pointer. Landing to the scope head is a separate
             # merge (push refs/heads/main).
             if command.ref != ACCESS_POINT_MAIN_REF:
+                # Branch/tag pushes must respect the same scope-ownership
+                # boundary as main (the main path enforces this inside the
+                # write engine via validate_scope_bound_files; the named-ref
+                # path skips submit, so check here). Otherwise a scoped
+                # client could promote objects for paths owned by a sibling/
+                # child scope under a branch ref. This subsumes the excludes
+                # check above (ownership + excludes).
+                out_of_scope = validate_scope_bound_files(
+                    repo, scope_path, changed_paths, scope_excludes,
+                )
+                if out_of_scope:
+                    return receive_pack_result(
+                        command.ref,
+                        outcome="rejected",
+                        message=(
+                            "puppyone-rejected: branch/tag push touches paths "
+                            "outside this scope or excluded: "
+                            f"{', '.join(out_of_scope[:3])}"
+                            f"{'…' if len(out_of_scope) > 3 else ''}"
+                        ),
+                        capabilities=command.capabilities,
+                        stderr_lines=[
+                            "PuppyOne: a branch/tag may only touch paths owned "
+                            "by the scope advertised by this remote.",
+                        ],
+                    )
                 return _store_named_ref(
                     quarantine=quarantine,
                     official=official,
