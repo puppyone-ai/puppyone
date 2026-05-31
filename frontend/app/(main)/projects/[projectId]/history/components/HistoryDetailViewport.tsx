@@ -36,9 +36,11 @@ export function HistoryDetailViewport({ activeKey, children }: HistoryDetailView
 
         .history-detail-surface {
           min-height: 100%;
+          min-width: 0;
           width: 100%;
           display: flex;
           flex-direction: column;
+          align-items: stretch;
           overflow-anchor: none;
           animation: history-detail-enter 120ms ease-out;
         }

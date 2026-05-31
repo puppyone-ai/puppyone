@@ -689,6 +689,8 @@ function DiffRow({ line }: { line: DiffLine }) {
         style={{
           display: 'flex',
           alignItems: 'center',
+          minWidth: 0,
+          width: '100%',
           height: 24,
           paddingLeft: 14,
           background: HISTORY_DIFF_HEADER_BG,
@@ -697,6 +699,9 @@ function DiffRow({ line }: { line: DiffLine }) {
           fontSize: 11,
           borderTop: '1px solid var(--po-hover)',
           borderBottom: '1px solid var(--po-hover)',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
         }}
       >
         {line.text}
@@ -719,6 +724,8 @@ function DiffRow({ line }: { line: DiffLine }) {
     <div
       style={{
         display: 'flex',
+        minWidth: 0,
+        width: '100%',
         background: bg,
         fontFamily: 'var(--po-font-sans)',
         fontSize: 11.5,
@@ -752,8 +759,12 @@ function DiffRow({ line }: { line: DiffLine }) {
       </span>
       <span
         style={{
+          flex: 1,
+          minWidth: 0,
           color: textColor,
-          whiteSpace: 'pre',
+          whiteSpace: 'pre-wrap',
+          overflowWrap: 'anywhere',
+          wordBreak: 'break-word',
           paddingLeft: 4,
           paddingRight: 12,
         }}
@@ -823,6 +834,8 @@ function FileDiffBlock({ change, projectId, commitId, parentCommitId }: FileDiff
   return (
     <div
       style={{
+        width: '100%',
+        minWidth: 0,
         marginBottom: 16,
         borderRadius: 8,
         overflow: 'hidden',
@@ -836,6 +849,7 @@ function FileDiffBlock({ change, projectId, commitId, parentCommitId }: FileDiff
           padding: '0 12px',
           display: 'flex',
           alignItems: 'center',
+          minWidth: 0,
           gap: 8,
           background: HISTORY_DIFF_HEADER_BG,
           borderBottom: '1px solid var(--po-border-subtle)',
@@ -861,6 +875,7 @@ function FileDiffBlock({ change, projectId, commitId, parentCommitId }: FileDiff
             color: 'var(--po-text-muted)',
             fontFamily: 'var(--po-font-sans)',
             flex: 1,
+            minWidth: 0,
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
@@ -910,7 +925,7 @@ function FileDiffBlock({ change, projectId, commitId, parentCommitId }: FileDiff
           {placeholder}
         </div>
       ) : lines && lines.length > 0 ? (
-        <div style={{ padding: '6px 0', background: 'var(--po-inset)' }}>
+        <div style={{ minWidth: 0, width: '100%', padding: '6px 0', background: 'var(--po-inset)' }}>
           {lines.map((line, j) => (
             <DiffRow key={j} line={line} />
           ))}
@@ -967,7 +982,14 @@ function CommitDetail({
   const opColor = opColors[type] || opColors.system;
 
   return (
-    <div className="p-6 md:p-8 mx-auto" style={{ maxWidth: PROJECT_CONTENT_RAIL_WIDTH }}>
+    <div
+      className="p-6 md:p-8 mx-auto"
+      style={{
+        width: '100%',
+        maxWidth: PROJECT_CONTENT_RAIL_WIDTH,
+        boxSizing: 'border-box',
+      }}
+    >
       <div className="flex flex-wrap items-center gap-4 mb-6">
         <div className="flex items-center gap-3">
           <span
