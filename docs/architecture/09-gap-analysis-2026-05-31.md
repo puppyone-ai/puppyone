@@ -17,7 +17,7 @@
 | GAP-6 | L5 follow-up | MEDIUM | text index 删文件不清行；dedup key 退化为非内容寻址 ✅ 已修复 |
 | GAP-7 | L5/L6 | SMALL | DB rename `mut_*`→`version_*` Phase 2/3 未做 |
 | GAP-8 | L4 | SMALL | Agent/MCP/Sandbox AP 用量在 dashboard 永远为 0 |
-| GAP-9 | L4 | SMALL | Filesystem connector `fetch()`/`push()` NotImplementedError |
+| GAP-9 | L4 | SMALL | Filesystem connector `fetch()`/`push()` NotImplementedError ✅ 已修复 |
 | GAP-10 | L5 follow-up | SMALL | Shadow snapshot 无 TTL reaper，无限积累 |
 | GAP-11 | L5 follow-up | MEDIUM | `--ref local:` shadow grep 完全未实现 |
 | GAP-12 | L2 frontend | MEDIUM | PUP-3 策略仅覆盖 FileImportDialog；drag-drop 路径无过滤 ✅ 已修复 |
