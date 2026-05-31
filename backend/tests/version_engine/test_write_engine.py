@@ -3101,7 +3101,7 @@ def test_real_git_cli_repeated_same_file_push_handles_thin_delta_base(
     assert (verify / "notes.md").read_text(encoding="utf-8") == updated
 
 
-def test_git_receive_pack_rejects_non_main_delete_multiple_and_malformed_requests(
+def test_git_receive_pack_stores_non_main_and_rejects_delete_multiple_malformed(
     monkeypatch, tmp_path, repo_manager, server_repo,
 ):
     server_repo.add_scope("docs-scope", "/docs/")
@@ -3109,6 +3109,22 @@ def test_git_receive_pack_rejects_non_main_delete_multiple_and_malformed_request
         monkeypatch,
         {"docs-key": ("docs-scope", "/docs/", "rw")},
     )
+    # GAP-3: a non-main branch/tag is now STORED in version_refs instead of
+    # being hard-rejected. Stub the store so this unit test doesn't need
+    # Supabase, and record what gets stored to prove the push was routed
+    # there rather than into the scope head.
+    import src.version_engine.infrastructure.supabase.version_ref_repository as _vrr
+    stored_refs = []
+
+    class _FakeRefStore:
+        def list_refs(self, *a, **k):
+            return []
+
+        def set_ref(self, **kw):
+            stored_refs.append(kw)
+            return True
+
+    monkeypatch.setattr(_vrr, "VersionRefStore", lambda *a, **k: _FakeRefStore())
     app = FastAPI()
     app.include_router(git_router)
     app.dependency_overrides[get_repo_manager] = lambda: repo_manager
@@ -3144,12 +3160,12 @@ def test_git_receive_pack_rejects_non_main_delete_multiple_and_malformed_request
             headers={"content-type": "application/x-git-receive-pack-request"},
         )
 
-    # E4: scope remotes only publish their materialized main ref. Feature
-    # branch refs must not pretend to work until they have separate ref
-    # storage and review semantics.
-    assert b"puppyone-rejected" in non_main_resp.content
-    assert b"only refs/heads/main" in non_main_resp.content
-    # E4: delete is still refused; new wording cites the rollback API.
+    # GAP-3: a non-main ref is accepted and stored as a named ref — NOT
+    # rejected, and crucially WITHOUT advancing the scope head.
+    assert b"puppyone-rejected" not in non_main_resp.content
+    assert b"refs/heads/side" in non_main_resp.content
+    assert any(r.get("ref_name") == "refs/heads/side" for r in stored_refs), stored_refs
+    # delete is still refused; wording cites the rollback API.
     assert b"puppyone-rejected: delete is not supported" in delete_resp.content
     assert multiple_resp.status_code == 400
     assert "one scope-bound ref update" in multiple_resp.json()["detail"]

@@ -160,7 +160,9 @@ async def receive_pack_response_from_path(
             scope_path,
             request_path,
             roots=[command.new_id],
-            exclude_roots=([command.old_id] if command.old_id != ZERO_ID else []),
+            exclude_roots=_named_ref_exclude_roots(
+                repo, project_id, scope_path, scope_excludes, command,
+            ),
             scope_excludes=scope_excludes,
         ) as official:
             official_ref_updated = official.ref_points_to(command.ref, command.new_id)
@@ -595,6 +597,46 @@ def _get_scope_state(repo, scope_path: str) -> tuple[str, str]:
         repo.get_scope_hash(scope_path) or "",
         repo.get_scope_head_commit_id(scope_path) or "",
     )
+
+
+def _named_ref_exclude_roots(repo, project_id, scope_path, scope_excludes, command):
+    """Already-promoted commit boundary for a branch/tag push (GAP-3).
+
+    A branch/tag almost always descends from the scope head and/or existing
+    stored refs, whose object closure is already promoted and therefore
+    ABSENT from the receive-pack quarantine (Git only sends the new
+    objects). Without an exclude boundary, ``promote_reachable`` walks from
+    the pushed commit straight into that shared history and fails with
+    "git cat-file: could not get object info". Excluding the scope head and
+    existing ref tips bounds the walk to exactly the new objects the client
+    sent — the same trick the fast-forward main push uses via ``old_id``.
+
+    For ``refs/heads/main`` this returns precisely the historical value
+    (``[old_id]`` when non-zero, else ``[]``), so the main path is
+    unchanged.
+    """
+    excludes: list[str] = []
+    if command.old_id != ZERO_ID and is_object_id(command.old_id):
+        excludes.append(command.old_id)
+    if command.ref == ACCESS_POINT_MAIN_REF:
+        return excludes
+    try:
+        gv = resolve_git_view_head(repo, scope_path, scope_excludes)
+        if gv and gv.head and is_object_id(gv.head):
+            excludes.append(gv.head)
+    except Exception as exc:  # noqa: BLE001 — bound best-effort; never block push setup
+        log_error(f"[GitReceivePack] scope-head exclude lookup failed: {exc}")
+    try:
+        from src.version_engine.infrastructure.supabase.version_ref_repository import (
+            VersionRefStore,
+        )
+        for row in VersionRefStore().list_refs(project_id, scope_path):
+            cid = row.get("commit_id")
+            if cid and is_object_id(cid):
+                excludes.append(cid)
+    except Exception as exc:  # noqa: BLE001
+        log_error(f"[GitReceivePack] version_refs exclude lookup failed: {exc}")
+    return list(dict.fromkeys(excludes))
 
 
 def _store_named_ref(
