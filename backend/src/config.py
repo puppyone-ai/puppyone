@@ -290,6 +290,16 @@ class Settings(BaseSettings):
     VERSION_INTEGRITY_SCAN_INTERVAL_SECONDS: int = 6 * 60 * 60
     VERSION_INTEGRITY_SCAN_MAX_PROJECTS_PER_RUN: int = 25
 
+    # Shadow-snapshot TTL reaper (GAP-10). Shadow snapshots are an
+    # ephemeral, best-effort projection of a teammate's un-pushed working
+    # tree; once stale they only leak a DB row + an S3 manifest.json. The
+    # reaper deletes snapshots not refreshed within the TTL. Enabled by
+    # default with a generous 14-day window.
+    SHADOW_SNAPSHOT_REAPER_ENABLED: bool = True
+    SHADOW_SNAPSHOT_TTL_SECONDS: int = 14 * 24 * 60 * 60
+    SHADOW_SNAPSHOT_REAPER_INTERVAL_SECONDS: int = 6 * 60 * 60
+    SHADOW_SNAPSHOT_REAPER_MAX_PER_RUN: int = 500
+
     # DB Connector sensitive config encryption (AES-256-GCM)
     # Base64-encoded string of 32-byte key
     DB_CONNECTOR_ENCRYPTION_KEY: str = ""
