@@ -2365,9 +2365,14 @@ def test_real_git_cli_large_first_push_uses_chunked_http_transport(
     assert (verify / "large.bin").stat().st_size == len(large)
 
 
-def test_real_git_cli_tag_push_is_rejected_without_advancing_scope(
+def test_real_git_cli_tag_push_is_stored_without_advancing_scope(
     monkeypatch, tmp_path, repo_manager, server_repo,
 ):
+    # GAP-3: a tag push is no longer rejected — it is stored as a named ref
+    # (version_refs) and its objects are promoted so the tag is fetchable —
+    # WITHOUT advancing the scope head. (Like all real-git-cli tests this
+    # needs the backing services up; deployed verification confirmed the
+    # accept+advertise+fetch contract.)
     server_repo.add_scope("docs-scope", "/docs/")
     _patch_git_scope_auth(
         monkeypatch,
@@ -2390,10 +2395,9 @@ def test_real_git_cli_tag_push_is_rejected_without_advancing_scope(
         tagged_head = _run_git(["rev-parse", "HEAD"], work).decode("ascii").strip()
         proc = _run_git_raw(["push", "origin", "v1"], work)
 
-    assert proc.returncode != 0
-    assert b"tag refs are immutable" in proc.stderr
-    assert server_repo.get_scope_head_commit_id("docs") == ""
-    assert not server_repo.store.exists(tagged_head)
+    assert proc.returncode == 0, proc.stderr          # tag push accepted + stored
+    assert server_repo.get_scope_head_commit_id("docs") == ""   # scope head NOT advanced
+    assert server_repo.store.exists(tagged_head)      # tag objects promoted (fetchable)
 
 
 def test_real_git_cli_lfs_pointer_push_is_rejected_without_advancing_scope(
