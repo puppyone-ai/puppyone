@@ -1038,7 +1038,9 @@ async def grep(
 
     # ``--ref local:<machine>/<branch>`` greps a teammate's un-pushed work
     # via its shadow snapshot instead of the server HEAD tree (GAP-11).
-    if (ref or "").startswith(_LOCAL_REF_PREFIX):
+    # ``isinstance`` guard: when this handler is called directly (tests /
+    # in-process), unset Query params arrive as FieldInfo, not ``str``.
+    if isinstance(ref, str) and ref.startswith(_LOCAL_REF_PREFIX):
         return ApiResponse.success(data=await _grep_shadow_snapshot(
             project_id=project_id,
             scope=scope,
