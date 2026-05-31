@@ -242,11 +242,21 @@ export interface BatchPolicySkippedReason {
   tooLarge: number;
 }
 
+export type BatchPolicyLimitKind = 'file_count' | 'total_bytes';
+
+export interface BatchPolicyLimitViolation {
+  kind: BatchPolicyLimitKind;
+  actual: number;
+  limit: number;
+}
+
 export interface BatchPolicyResult {
   accepted: File[];
   skipped: { file: File; reason: PolicyReason }[];
   totalAcceptedBytes: number;
   reasonCounts: BatchPolicySkippedReason;
+  /** Hard caps are evaluated after blocklist / ignore / hidden filtering. */
+  limitViolations: BatchPolicyLimitViolation[];
   /** True when the count or total bytes warrants a preflight modal. */
   shouldPreflight: boolean;
 }
@@ -298,12 +308,28 @@ export function applyPolicy({ files, options = {}, rules = [] }: ApplyPolicyArgs
     accepted.length >= PREFLIGHT_FILE_THRESHOLD ||
     totalAcceptedBytes >= PREFLIGHT_BYTES_THRESHOLD ||
     skipped.length > 0;
+  const limitViolations: BatchPolicyLimitViolation[] = [];
+  if (accepted.length > PER_BATCH_MAX_FILES) {
+    limitViolations.push({
+      kind: 'file_count',
+      actual: accepted.length,
+      limit: PER_BATCH_MAX_FILES,
+    });
+  }
+  if (totalAcceptedBytes > PER_BATCH_MAX_BYTES) {
+    limitViolations.push({
+      kind: 'total_bytes',
+      actual: totalAcceptedBytes,
+      limit: PER_BATCH_MAX_BYTES,
+    });
+  }
 
   return {
     accepted,
     skipped,
     totalAcceptedBytes,
     reasonCounts,
+    limitViolations,
     shouldPreflight,
   };
 }

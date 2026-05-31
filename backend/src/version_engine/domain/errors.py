@@ -49,6 +49,10 @@ class NetworkError(VersionEngineError):
     http_status = 502
 
 
+class VersionReadError(VersionEngineError):
+    http_status = 502
+
+
 class StorageWriteError(VersionEngineError):
     http_status = 502
 

@@ -697,6 +697,12 @@ export interface FileVersionInfo {
   root_hash: string;
   scope_path: string;
   created_at: string | null;
+  /** Free-form metadata the engine stamped at commit time (PUP-5 Gap
+   *  G2). Shapes vary by op: ``{paths: [...]}`` for bulk delete/touch,
+   *  ``{writes, deletes}`` for bulk write, ``{old_path, new_path}`` for
+   *  move. The Needs Action "risky delete" kind reads it to surface
+   *  mass-delete warnings. */
+  audit_detail?: Record<string, unknown> | null;
 }
 
 /**
@@ -841,6 +847,10 @@ export interface VersionCommitInfo {
   changes: VersionCommitChange[];
   conflicts: VersionCommitConflict[];
   created_at: string | null;
+  /** Same engine-stamped metadata as ``FileVersionInfo.audit_detail``
+   *  (PUP-5 Gap G2). The ``/commits`` endpoint returns it on each row;
+   *  the risky-delete Needs Action kind reads it via ``getProjectHistory``. */
+  audit_detail?: Record<string, unknown> | null;
 }
 
 export interface VersionProjectHistoryResponse {
@@ -913,13 +923,16 @@ export async function getNodeAuditLogs(
   offset: number = 0
 ): Promise<AuditLogListResponse> {
   const params = new URLSearchParams({
-    path: filePath,
     project_id: projectId,
     limit: String(limit),
     offset: String(offset),
   });
+  // Backend route is GET /api/v1/nodes/{path:path}/audit-logs — the file path
+  // is a path segment (slashes preserved, each segment escaped), not a query
+  // param, and there is no per-node route under /content.
+  const encodedPath = filePath.split('/').map(encodeURIComponent).join('/');
   return treeRequest<AuditLogListResponse>(
-    `/api/v1/content/${projectId}/audit-logs?${params}`
+    `/api/v1/nodes/${encodedPath}/audit-logs?${params}`
   );
 }
 

@@ -162,87 +162,23 @@ def index_blobs(blobs: Iterable[IndexableBlob]) -> int:
     return total
 
 
-def index_commit_delta(
+def reindex_blobs(
     *,
     project_id: str,
-    commit_id: str,
-    changes: list[dict],
-    read_blob,
+    indexed_commit_id: str,
+    blobs: Iterable[IndexableBlob],
 ) -> int:
-    """Index the file content for one commit.
+    """Bootstrap / admin reindex entry point.
 
-    Used by the post-commit hook. ``changes`` is the same list shape
-    the hook already builds (``{path, action, op, ...}``); ``read_blob``
-    is a callable that takes a path and returns bytes (the hook
-    passes a closure over its already-resolved repo).
-
-    Returns the count of rows written. Errors are caught internally —
-    the post-commit pipeline must NEVER fail because indexing failed.
+    Indexes a pre-resolved blob list (the caller walks the tree and
+    reads bytes) and bumps the project-root freshness watermark to
+    ``indexed_commit_id``. Used by the admin text-index rebuild
+    endpoint for projects that pre-date the post-commit indexer or
+    whose index fell behind. ``index_blobs`` is idempotent, so a
+    re-run is safe; the watermark write makes ``grep-indexed`` report
+    ``indexed`` for the scope afterwards.
     """
-    if not changes:
-        return 0
-
-    add_or_update = [
-        c for c in changes
-        if isinstance(c, dict)
-        and c.get("path")
-        and c.get("action") in (None, "add", "update")
-        and c.get("op") in (None, "added", "modified")
-    ]
-    if not add_or_update:
-        return 0
-
-    blobs: list[IndexableBlob] = []
-    for change in add_or_update:
-        path = change.get("path") or ""
-        # Derive the scope path from the file path — the indexer keys
-        # rows by the FILE's scope, which for the hot path is just
-        # "" (project root) because the hook fires on the project
-        # root. The query side narrows by the AP's scope_path at
-        # read time. Keeping scope_path = "" here means we don't have
-        # to re-resolve scopes inside the indexer.
-        try:
-            data = read_blob(path)
-        except FileNotFoundError:
-            # The file is gone by the time we get here. Index miss is
-            # not catastrophic — search just doesn't return it.
-            continue
-        except Exception as exc:  # noqa: BLE001
-            log_warning(
-                f"[TextIndexer] read_blob({path}) failed in commit "
-                f"{commit_id[:12]}: {exc}"
-            )
-            continue
-        if data is None:
-            continue
-        # The post-commit hook doesn't carry content_hash for every
-        # change today; fall back to ``commit_id:path`` as a stable
-        # surrogate. The natural-key dedupe still works because the
-        # surrogate is deterministic — re-running this commit upserts
-        # the same rows. When the hook is extended to carry
-        # ``content_hash`` per change, switch to that and the bootstrap
-        # tool will start sharing rows with the hot path.
-        content_hash = (
-            change.get("content_hash")
-            or change.get("new_hash")
-            or f"{commit_id}:{path}"
-        )
-        blobs.append(IndexableBlob(
-            project_id=project_id,
-            scope_path="",
-            file_path=path,
-            content_hash=content_hash,
-            data=data,
-        ))
-
-    if not blobs:
-        return 0
     written = index_blobs(blobs)
-
-    # Bump the project-root freshness watermark so query callers can
-    # tell "this commit is indexed." Per-scope watermarks are
-    # synthesised from the project-root one at query time when no
-    # per-scope row exists.
     try:
         from src.version_engine.infrastructure.supabase.text_index_repository import (
             TextIndexRepository,
@@ -250,14 +186,183 @@ def index_commit_delta(
         TextIndexRepository().set_scope_freshness(
             project_id=project_id,
             scope_path="",
+            indexed_commit_id=indexed_commit_id,
+        )
+    except Exception as exc:  # noqa: BLE001
+        log_warning(f"[TextIndexer] reindex watermark write failed: {exc}")
+    if written:
+        log_info(
+            f"[TextIndexer] reindexed {written} chunks for project "
+            f"{project_id} @ {indexed_commit_id[:12] or 'HEAD'}"
+        )
+    return written
+
+
+def _is_delete_change(change: dict) -> bool:
+    """True when a change record removes a path.
+
+    The write engine emits two vocabularies: ``op`` (``added`` /
+    ``modified`` / ``deleted``, from the tree diff) and ``action``
+    (``add`` / ``update`` / ``delete``, from the scoped writer). A
+    delete is signalled by either.
+    """
+    return change.get("action") == "delete" or change.get("op") == "deleted"
+
+
+def _commit_delta_content_hash(change: dict, data: bytes) -> str:
+    """Resolve the content-addressed key for an index row.
+
+    Prefers a hash the change already carries (keeps the hot path and
+    the bootstrap reindexer sharing rows). Otherwise computes the real
+    Git blob OID from the bytes — ``hash_object("blob", data)`` is the
+    same object id the kernel stores under, so identical content across
+    commits collapses to one row-set via the ``(project_id,
+    content_hash, chunk_idx)`` natural key.
+
+    The previous ``commit_id:path`` surrogate defeated that dedupe: it
+    was unique per commit, so every commit re-inserted a fresh row-set
+    and the index grew linearly with commit count (GAP-6).
+    """
+    from src.version_engine.write_engine.git_object_format import hash_object
+
+    carried = change.get("content_hash") or change.get("new_hash")
+    if carried:
+        return str(carried)
+    return hash_object("blob", data)
+
+
+def _reconcile_index_change(
+    repo, *, project_id: str, commit_id: str, path: str, change: dict, read_blob,
+) -> tuple["IndexableBlob | None", int]:
+    """Reconcile one changed path against the index.
+
+    Returns ``(blob_to_index_or_None, purged_row_count)``. A delete (or a
+    path that no longer resolves to a blob) purges its rows and yields no
+    blob; a live path has its old rows cleared and yields a blob to index.
+    """
+    if _is_delete_change(change):
+        # Directory deletes carry the directory path, not each child,
+        # so purge the whole subtree.
+        return None, repo.delete_file(
+            project_id=project_id, file_path=path, include_subtree=True,
+        )
+
+    # add / update / merge — read the current content.
+    try:
+        data = read_blob(path)
+    except FileNotFoundError:
+        data = None
+    except Exception as exc:  # noqa: BLE001
+        log_warning(
+            f"[TextIndexer] read_blob({path}) failed in commit "
+            f"{commit_id[:12]}: {exc}"
+        )
+        return None, 0
+
+    if data is None:
+        # The change wasn't tagged as a delete but the path no longer
+        # resolves to a blob (raced delete, or a directory entry). Clear
+        # any rows it had so search doesn't go stale.
+        return None, repo.delete_file(
+            project_id=project_id, file_path=path, include_subtree=True,
+        )
+
+    # Clear the previous version's rows before re-indexing so a content
+    # change can't leave stale chunks searchable. The scope path is ""
+    # (project root) because the hook fires at the root; the query side
+    # narrows by the AP's scope_path at read time.
+    repo.delete_file(project_id=project_id, file_path=path, include_subtree=False)
+    return (
+        IndexableBlob(
+            project_id=project_id,
+            scope_path="",
+            file_path=path,
+            content_hash=_commit_delta_content_hash(change, data),
+            data=data,
+        ),
+        0,
+    )
+
+
+def index_commit_delta(
+    *,
+    project_id: str,
+    commit_id: str,
+    changes: list[dict],
+    read_blob,
+) -> int:
+    """Reconcile the text index against one commit's changes.
+
+    Used by the post-commit hook. ``changes`` is the same list shape
+    the hook already builds (``{path, action, op, ...}``); ``read_blob``
+    is a callable that takes a path and returns bytes (the hook passes
+    a closure over its already-resolved repo).
+
+    For every changed path we **clear then re-index** (GAP-6):
+
+      - A deleted path (or a path that no longer resolves to a blob)
+        has its rows purged — otherwise ``grep`` keeps returning files
+        that were removed.
+      - A path that still has content has its previous-version rows
+        cleared and the current content re-indexed under the real
+        content hash. This keeps the index bounded to the live tree
+        instead of accumulating a row-set per historical version, and
+        means a modified file no longer surfaces its old contents.
+
+    Returns the count of rows written. Errors are caught internally —
+    the post-commit pipeline must NEVER fail because indexing failed.
+    """
+    if not changes:
+        return 0
+
+    from src.version_engine.infrastructure.supabase.text_index_repository import (
+        TextIndexRepository,
+    )
+
+    repo = TextIndexRepository()
+
+    # De-dup the change list by path (a commit can list a path twice via
+    # different scopes); keep the last record so a final delete wins.
+    by_path: dict[str, dict] = {}
+    for change in changes:
+        if isinstance(change, dict) and change.get("path"):
+            by_path[change["path"]] = change
+
+    blobs: list[IndexableBlob] = []
+    deleted_paths = 0
+    for path, change in by_path.items():
+        blob, purged = _reconcile_index_change(
+            repo,
+            project_id=project_id,
+            commit_id=commit_id,
+            path=path,
+            change=change,
+            read_blob=read_blob,
+        )
+        deleted_paths += purged
+        if blob is not None:
+            blobs.append(blob)
+
+    written = index_blobs(blobs) if blobs else 0
+
+    # Bump the project-root freshness watermark so query callers can tell
+    # "this commit is indexed." Always bump — even a delete-only commit
+    # advances the index, and leaving the watermark behind would mark the
+    # whole scope stale forever. Per-scope watermarks are synthesised
+    # from the project-root one at query time when no per-scope row exists.
+    try:
+        repo.set_scope_freshness(
+            project_id=project_id,
+            scope_path="",
             indexed_commit_id=commit_id,
         )
     except Exception as exc:  # noqa: BLE001
         log_warning(f"[TextIndexer] freshness watermark write failed: {exc}")
 
-    if written:
+    if written or deleted_paths:
         log_info(
-            f"[TextIndexer] indexed {written} chunks across "
-            f"{len(blobs)} files for commit {commit_id[:12]}"
+            f"[TextIndexer] commit {commit_id[:12]}: indexed {written} "
+            f"chunks across {len(blobs)} files, purged {deleted_paths} "
+            f"stale/deleted rows"
         )
     return written

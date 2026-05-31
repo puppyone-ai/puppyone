@@ -1,7 +1,9 @@
 'use client';
 
+import type { ChangeEvent } from 'react';
 import { useState, useRef, useCallback } from 'react';
 import { uploadFiles } from '@/lib/uploadApi';
+import { pickDirectoryFiles } from '@/lib/directoryPicker';
 import {
   addPendingTasks,
   updateTaskStatusById,
@@ -9,6 +11,11 @@ import {
   replaceTaskId,
 } from '@/components/BackgroundTaskNotifier';
 import { refreshFolderNodes, refreshProjectHistory } from '@/lib/hooks/useData';
+import {
+  applyPolicy,
+  collectIgnoreRulesFromDrop,
+  type BatchPolicyResult,
+} from '@/lib/uploadPolicy';
 
 export type FileImportTarget = {
   path: string | null;
@@ -81,6 +88,23 @@ function formatFileCount(count: number): string {
   return `${count} file${count === 1 ? '' : 's'}`;
 }
 
+/**
+ * Human-readable summary of what the upload policy dropped, e.g.
+ * "Skipped 4 files (2 blocked, 1 ignored, 1 hidden)". Returns null
+ * when nothing was skipped.
+ */
+function formatSkipSummary(result: BatchPolicyResult): string | null {
+  const { skipped, reasonCounts } = result;
+  if (skipped.length === 0) return null;
+  const parts: string[] = [];
+  if (reasonCounts.blocklist) parts.push(`${reasonCounts.blocklist} blocked`);
+  if (reasonCounts.gitignore) parts.push(`${reasonCounts.gitignore} ignored`);
+  if (reasonCounts.hidden) parts.push(`${reasonCounts.hidden} hidden`);
+  if (reasonCounts.tooLarge) parts.push(`${reasonCounts.tooLarge} too large`);
+  const detail = parts.length ? ` (${parts.join(', ')})` : '';
+  return `Skipped ${formatFileCount(skipped.length)}${detail}`;
+}
+
 export function useFileImport(
   projectId: string,
   accessToken: string | undefined,
@@ -90,6 +114,8 @@ export function useFileImport(
   const [fileImportDialogOpen, setFileImportDialogOpen] = useState(false);
   const [droppedFiles, setDroppedFiles] = useState<File[]>([]);
   const [fileImportTarget, setFileImportTarget] = useState<FileImportTarget>(ROOT_IMPORT_TARGET);
+  const filePickerInputRef = useRef<HTMLInputElement>(null);
+  const folderPickerInputRef = useRef<HTMLInputElement>(null);
   const latestTargetRef = useRef<FileImportTarget>(ROOT_IMPORT_TARGET);
 
   // Sidebar drag/drop = backend-proxied multipart upload, same path
@@ -213,6 +239,15 @@ export function useFileImport(
     setFileImportDialogOpen(true);
   }, []);
 
+  const openFilePickerForTarget = useCallback((target: FileImportTarget) => {
+    const path = normalizePath(target.path);
+    const normalizedTarget = path ? { ...target, path } : ROOT_IMPORT_TARGET;
+    setFileImportTarget(normalizedTarget);
+    latestTargetRef.current = normalizedTarget;
+    setDroppedFiles([]);
+    filePickerInputRef.current?.click();
+  }, []);
+
   const openFileImportForTarget = useCallback((files: File[], target: FileImportTarget) => {
     const path = normalizePath(target.path);
     const normalizedTarget = path ? { ...target, path } : ROOT_IMPORT_TARGET;
@@ -220,8 +255,60 @@ export function useFileImport(
     latestTargetRef.current = normalizedTarget;
     // Best-practice sidebar drop: dropping a local file into a folder is
     // an immediate raw upload, not a modal-driven OCR decision.
-    void uploadFilesToTarget(files, normalizedTarget);
-  }, [uploadFilesToTarget]);
+    //
+    // SECURITY (GAP-12): even on the immediate-upload path we MUST run the
+    // same default upload policy the modal applies — otherwise dropping a
+    // folder onto the sidebar silently uploads ``.git/``, ``node_modules/``,
+    // ``.env`` and other secrets/junk raw. Default options block the
+    // blocklist, hidden dotfiles, and .gitignore'd paths; the user can still
+    // opt those in via the explicit FileImportDialog (which surfaces toggles).
+    void (async () => {
+      const rules = await collectIgnoreRulesFromDrop(files);
+      const result = applyPolicy({ files, rules });
+      const summary = formatSkipSummary(result);
+      if (summary) {
+        // Loading-type toast first if we're still uploading something, else
+        // a plain notice. Either way the user learns what was dropped.
+        showToast?.(summary, result.accepted.length > 0 ? 'loading' : 'error');
+      }
+      if (result.accepted.length === 0) {
+        if (!summary) showToast?.('Nothing to upload', 'error');
+        return;
+      }
+      await uploadFilesToTarget(result.accepted, normalizedTarget);
+    })();
+  }, [uploadFilesToTarget, showToast]);
+
+  const openFolderPickerForTarget = useCallback(async (target: FileImportTarget) => {
+    const path = normalizePath(target.path);
+    const normalizedTarget = path ? { ...target, path } : ROOT_IMPORT_TARGET;
+    setFileImportTarget(normalizedTarget);
+    latestTargetRef.current = normalizedTarget;
+    setDroppedFiles([]);
+
+    const picked = await pickDirectoryFiles();
+    if (picked === null) {
+      folderPickerInputRef.current?.click();
+      return;
+    }
+    if (picked.length > 0) {
+      openFileImportForTarget(picked, normalizedTarget);
+    }
+  }, [openFileImportForTarget]);
+
+  const handleFilePickerChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = event.target.files ? Array.from(event.target.files) : [];
+    event.target.value = '';
+    if (selectedFiles.length === 0) return;
+    openFileImportForTarget(selectedFiles, latestTargetRef.current);
+  }, [openFileImportForTarget]);
+
+  const handleFolderPickerChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = event.target.files ? Array.from(event.target.files) : [];
+    event.target.value = '';
+    if (selectedFiles.length === 0) return;
+    openFileImportForTarget(selectedFiles, latestTargetRef.current);
+  }, [openFileImportForTarget]);
 
   const handleFileImportConfirm = useCallback(async (importFiles: File[], _mode: 'ocr_parse' | 'raw') => {
     setFileImportDialogOpen(false);
@@ -240,7 +327,13 @@ export function useFileImport(
     fileImportDialogOpen,
     fileImportTarget,
     droppedFiles,
+    filePickerInputRef,
+    folderPickerInputRef,
+    handleFilePickerChange,
+    handleFolderPickerChange,
     openFileImportDialogForTarget,
+    openFilePickerForTarget,
+    openFolderPickerForTarget,
     openFileImportForTarget,
     handleFileImportConfirm,
     closeFileImportDialog,

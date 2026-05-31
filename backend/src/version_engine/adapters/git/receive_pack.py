@@ -35,7 +35,10 @@ from src.version_engine.write_engine.engine import (
     NonFastForwardSubmissionError,
 )
 from src.version_engine.write_engine.path_utils import normalize_path
-from src.version_engine.write_engine.tree_objects import is_path_excluded
+from src.version_engine.write_engine.tree_objects import (
+    is_path_excluded,
+    validate_scope_bound_files,
+)
 from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
 from src.utils.logger import log_error
 
@@ -160,7 +163,9 @@ async def receive_pack_response_from_path(
             scope_path,
             request_path,
             roots=[command.new_id],
-            exclude_roots=([command.old_id] if command.old_id != ZERO_ID else []),
+            exclude_roots=_named_ref_exclude_roots(
+                repo, project_id, scope_path, scope_excludes, command,
+            ),
             scope_excludes=scope_excludes,
         ) as official:
             official_ref_updated = official.ref_points_to(command.ref, command.new_id)
@@ -226,6 +231,50 @@ async def receive_pack_response_from_path(
                     ],
                 )
 
+            # GAP-3: a push to any ref other than the scope head is stored as
+            # a named ref in version_refs WITHOUT advancing the scope head.
+            # An independent branch/tag is not fast-forward-comparable to main
+            # and does not go through the scope-head write engine; we just
+            # promote its objects (so the ref is durable + fetchable) and
+            # record the pointer. Landing to the scope head is a separate
+            # merge (push refs/heads/main).
+            if command.ref != ACCESS_POINT_MAIN_REF:
+                # Branch/tag pushes must respect the same scope-ownership
+                # boundary as main (the main path enforces this inside the
+                # write engine via validate_scope_bound_files; the named-ref
+                # path skips submit, so check here). Otherwise a scoped
+                # client could promote objects for paths owned by a sibling/
+                # child scope under a branch ref. This subsumes the excludes
+                # check above (ownership + excludes).
+                out_of_scope = validate_scope_bound_files(
+                    repo, scope_path, changed_paths, scope_excludes,
+                )
+                if out_of_scope:
+                    return receive_pack_result(
+                        command.ref,
+                        outcome="rejected",
+                        message=(
+                            "puppyone-rejected: branch/tag push touches paths "
+                            "outside this scope or excluded: "
+                            f"{', '.join(out_of_scope[:3])}"
+                            f"{'…' if len(out_of_scope) > 3 else ''}"
+                        ),
+                        capabilities=command.capabilities,
+                        stderr_lines=[
+                            "PuppyOne: a branch/tag may only touch paths owned "
+                            "by the scope advertised by this remote.",
+                        ],
+                    )
+                return _store_named_ref(
+                    quarantine=quarantine,
+                    official=official,
+                    official_ref_updated=official_ref_updated,
+                    project_id=project_id,
+                    scope_path=scope_path,
+                    actor=actor,
+                    command=command,
+                )
+
             current_scope_hash, current_head_commit_id = _get_scope_state(
                 repo,
                 scope_path,
@@ -248,10 +297,7 @@ async def receive_pack_response_from_path(
                     ],
                 )
             expected_old_id = "" if command.old_id == ZERO_ID else command.old_id
-            if (
-                not scope_excludes
-                and expected_old_id != (git_view_head.head or "")
-            ):
+            if expected_old_id != (git_view_head.head or ""):
                 return receive_pack_result(
                     command.ref,
                     outcome="rejected",
@@ -262,8 +308,7 @@ async def receive_pack_response_from_path(
                     stderr_lines=_NON_FAST_FORWARD_REMOTE_LINES,
                 )
             if (
-                not scope_excludes
-                and git_view_head.head
+                git_view_head.head
                 and not _is_fast_forward_commit(
                     quarantine,
                     git_view_head.head,
@@ -284,9 +329,12 @@ async def receive_pack_response_from_path(
             promote_objects = quarantine.promote_reachable
             proposed_tree_id = tree_id
             # Git clients compare against the Git-visible projected HEAD. The
-            # write engine CAS still protects the canonical L5 scope head, so
-            # translate back to the current canonical commit before publishing.
-            engine_base_commit_id = current_head_commit_id
+            # write engine CAS still protects the root, but root-first scopes
+            # can be projected from the root tree before a scope-state cache
+            # row exists. In that case there is no canonical scope head yet, so
+            # keep the Git-visible base instead of translating it to "".
+            canonical_base_commit_id = current_head_commit_id
+            engine_base_commit_id = current_head_commit_id or expected_old_id
             if scope_excludes:
                 # The merged tree is built against the canonical scope tree
                 # (preserving hidden files) using the pushed blob hashes for
@@ -303,7 +351,7 @@ async def receive_pack_response_from_path(
                     tree_id,
                     changed_paths,
                 )
-                engine_base_commit_id = current_head_commit_id
+                engine_base_commit_id = current_head_commit_id or expected_old_id
 
             # E5: refuse LFS pointer blobs with a clear message before the
             # publish pipeline rather than silently committing them and
@@ -354,7 +402,8 @@ async def receive_pack_response_from_path(
                     "ref": command.ref,
                     "old_commit_id": command.old_id if command.old_id != ZERO_ID else "",
                     "git_visible_old_commit_id": expected_old_id,
-                    "canonical_base_commit_id": engine_base_commit_id,
+                    "canonical_base_commit_id": canonical_base_commit_id,
+                    "engine_base_commit_id": engine_base_commit_id,
                     "git_view_health": git_view_head.health,
                     "git_view_history_cut": git_view_head.history_cut,
                     "remote_commit_id": command.new_id,
@@ -524,6 +573,15 @@ def _canonical_tree_for_excluded_scope_push(
         if current_scope_hash
         else {}
     )
+    # A1-1: carry blob modes so a visible-only push doesn't downgrade hidden
+    # OR changed executables/symlinks to 100644 when the canonical tree is
+    # rebuilt. Unchanged paths keep the canonical mode; changed paths take
+    # the mode from the client's pushed tree.
+    full_modes: dict[str, bytes] = (
+        tree_mod.tree_path_modes(repo.store, current_scope_hash)
+        if current_scope_hash
+        else {}
+    )
     for raw_path in changed_paths:
         path = normalize_path(raw_path)
         if not path:
@@ -531,12 +589,17 @@ def _canonical_tree_for_excluded_scope_push(
         blob_id = quarantine.blob_id_for_path(pushed_tree_id, path)
         if blob_id:
             full_blob_ids[path] = blob_id
+            full_modes[path] = quarantine.mode_for_path(pushed_tree_id, path)
         else:
             full_blob_ids.pop(path, None)
-    return _build_tree_from_blob_ids(repo.store, full_blob_ids)
+            full_modes.pop(path, None)
+    return _build_tree_from_blob_ids(repo.store, full_blob_ids, full_modes)
 
 
-def _build_tree_from_blob_ids(store, files: dict[str, str]) -> str:
+def _build_tree_from_blob_ids(
+    store, files: dict[str, str], modes: dict[str, bytes] | None = None,
+) -> str:
+    modes = modes or {}
     nested: dict = {}
     for path, blob_id in files.items():
         clean = normalize_path(path)
@@ -546,7 +609,9 @@ def _build_tree_from_blob_ids(store, files: dict[str, str]) -> str:
         node = nested
         for part in parts[:-1]:
             node = node.setdefault(part, {})
-        node[parts[-1]] = blob_id
+        # leaf carries (blob_id, mode) so executable/symlink modes survive
+        # the excluded-scope canonical rebuild (A1-1).
+        node[parts[-1]] = (blob_id, modes.get(path, MODE_FILE))
     return _write_blob_id_tree(store, nested)
 
 
@@ -560,7 +625,8 @@ def _write_blob_id_tree(store, node: dict) -> str:
                 sha1_hex=_write_blob_id_tree(store, value),
             ))
         else:
-            entries.append(TreeEntry(name=name, mode=MODE_FILE, sha1_hex=value))
+            blob_id, mode = value
+            entries.append(TreeEntry(name=name, mode=mode, sha1_hex=blob_id))
     return store.put_tree(encode_tree(entries))
 
 
@@ -575,23 +641,115 @@ def _get_scope_state(repo, scope_path: str) -> tuple[str, str]:
     )
 
 
-def _ref_writability(ref: str) -> tuple[bool, str]:
-    """Allow only the materialized scope ref.
+def _named_ref_exclude_roots(repo, project_id, scope_path, scope_excludes, command):
+    """Already-promoted commit boundary for a branch/tag push (GAP-3).
 
-    PuppyOne does not yet persist separate Git branch refs for an access
-    point. Accepting feature refs while publishing them to the scope head
-    would look GitHub-like at the CLI boundary but mutate ``main`` under the
-    hood, which is worse than a loud rejection. Keep the transport honest
-    until branch/MR storage is implemented explicitly.
+    A branch/tag almost always descends from the scope head and/or existing
+    stored refs, whose object closure is already promoted and therefore
+    ABSENT from the receive-pack quarantine (Git only sends the new
+    objects). Without an exclude boundary, ``promote_reachable`` walks from
+    the pushed commit straight into that shared history and fails with
+    "git cat-file: could not get object info". Excluding the scope head and
+    existing ref tips bounds the walk to exactly the new objects the client
+    sent — the same trick the fast-forward main push uses via ``old_id``.
+
+    For ``refs/heads/main`` this returns precisely the historical value
+    (``[old_id]`` when non-zero, else ``[]``), so the main path is
+    unchanged.
+    """
+    excludes: list[str] = []
+    if command.old_id != ZERO_ID and is_object_id(command.old_id):
+        excludes.append(command.old_id)
+    if command.ref == ACCESS_POINT_MAIN_REF:
+        return excludes
+    try:
+        gv = resolve_git_view_head(repo, scope_path, scope_excludes)
+        if gv and gv.head and is_object_id(gv.head):
+            excludes.append(gv.head)
+    except Exception as exc:  # noqa: BLE001 — bound best-effort; never block push setup
+        log_error(f"[GitReceivePack] scope-head exclude lookup failed: {exc}")
+    try:
+        from src.version_engine.infrastructure.supabase.version_ref_repository import (
+            VersionRefStore,
+        )
+        for row in VersionRefStore().list_refs(project_id, scope_path):
+            cid = row.get("commit_id")
+            if cid and is_object_id(cid):
+                excludes.append(cid)
+    except Exception as exc:  # noqa: BLE001
+        log_error(f"[GitReceivePack] version_refs exclude lookup failed: {exc}")
+    return list(dict.fromkeys(excludes))
+
+
+def _store_named_ref(
+    *,
+    quarantine,
+    official,
+    official_ref_updated: bool,
+    project_id: str,
+    scope_path: str,
+    actor: str,
+    command,
+):
+    """Persist a branch/tag push as a version_refs row (GAP-3 Phase 1b).
+
+    The commit's reachable objects are promoted into the canonical store
+    so the ref is durable and fetchable, then the pointer is recorded.
+    The scope head (``mut_scope_state``) is deliberately untouched.
+    """
+    from src.version_engine.infrastructure.supabase.version_ref_repository import (
+        VersionRefStore,
+    )
+
+    quarantine.promote_reachable()
+    stored = VersionRefStore().set_ref(
+        project_id=project_id,
+        scope_path=scope_path,
+        ref_name=command.ref,
+        commit_id=command.new_id,
+        created_by=actor,
+    )
+    if not stored:
+        return receive_pack_result(
+            command.ref,
+            outcome="rejected",
+            message="puppyone-rejected: failed to store named ref",
+            capabilities=command.capabilities,
+        )
+    if official_ref_updated and official.output:
+        return _official_receive_pack_response(official.output)
+    return receive_pack_result(
+        command.ref,
+        outcome="committed",
+        message=(
+            "puppyone-committed: stored as a named ref (not landed to the "
+            "scope head; push refs/heads/main to land)"
+        ),
+        capabilities=command.capabilities,
+    )
+
+
+def _ref_writability(ref: str) -> tuple[bool, str]:
+    """Decide whether a pushed ref is writable on this scope remote.
+
+    Three accepted shapes (GAP-3):
+      - ``refs/heads/main`` — the scope head; lands through the write
+        engine and advances ``mut_scope_state``.
+      - other ``refs/heads/*`` and ``refs/tags/*`` — stored as named refs
+        in ``version_refs`` WITHOUT advancing the scope head. A stored ref
+        is a durable, fetchable pointer to a promoted commit; landing it to
+        the scope head is a separate merge step (push ``main``).
+
+    Other namespaces (``refs/notes/*``, pseudo-refs, …) stay rejected.
     """
 
     if ref == ACCESS_POINT_MAIN_REF:
         return True, ""
-    if ref.startswith("refs/tags/"):
-        return False, "tag refs are immutable on this remote; tag through the project API"
+    if ref.startswith(("refs/heads/", "refs/tags/")):
+        return True, ""
     return False, (
         f"ref {ref!r} is not writable on this scope remote; "
-        f"only {ACCESS_POINT_MAIN_REF} is currently backed by an access-point ref"
+        f"only refs/heads/* and refs/tags/* are accepted."
     )
 
 

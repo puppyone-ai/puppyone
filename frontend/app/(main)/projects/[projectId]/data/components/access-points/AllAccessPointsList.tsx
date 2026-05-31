@@ -26,7 +26,7 @@ export function AllAccessPointsList({
    *  DataLayout and passed straight through. */
   readonly connectorsByScope: ReadonlyMap<string, Connector[]>;
   readonly providerIcons: ProviderIconLookup;
-  readonly currentScopePath: string;
+  readonly currentScopePath?: string | null;
   readonly onSelectScope: (scopeId: string) => void;
 }) {
   return (
@@ -78,7 +78,7 @@ export function AllAccessPointsList({
               scope={s}
               connectors={connectorsByScope.get(s.id) ?? EMPTY_CONNECTORS}
               providerIcons={providerIcons}
-              isCurrent={s.path === currentScopePath}
+              isCurrent={currentScopePath !== null && currentScopePath !== undefined && s.path === currentScopePath}
               onClick={() => onSelectScope(s.id)}
             />
           ))}

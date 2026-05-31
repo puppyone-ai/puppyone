@@ -432,7 +432,7 @@ function MilkdownEditorContent({ defaultValue, onChange, readOnly }: MilkdownEdi
   }, []);
 
   // Keep the running editor in sync when ``readOnly`` toggles
-  // (e.g. user flips Live view ↔ Read only via the picker). We
+  // (e.g. an editable file becomes locked by an outer workflow). We
   // call ``setProps`` so ProseMirror re-checks editable on the
   // next event, and refresh attributes so the cursor doesn't
   // remain on a now-locked surface.

@@ -124,23 +124,23 @@ def _register_oauth_provider(
     )
     async def callback(
         request: OAuthCallbackRequest,
-        current_user=Depends(get_current_user),
         service=Depends(dep),
     ):
         f"""Handle {name} OAuth callback."""
         try:
-            # SECURITY (M-2): validate the state nonce server-side. Reject any
-            # callback that doesn't carry a state we issued to this user for
-            # this provider. consume() is single-use — replay impossible.
+            # SECURITY (M-2): validate the state nonce server-side. The state
+            # was issued only after an authenticated authorize request, so the
+            # callback can recover the Puppyone user from it instead of
+            # depending on the browser still having a fresh app JWT after the
+            # third-party redirect. consume_for_provider() is single-use.
             state_repo = OAuthStateRepository()
-            if not state_repo.consume(
+            user_id = state_repo.consume_for_provider(
                 state=request.state or "",
-                user_id=current_user.user_id,
                 provider=slug,
-            ):
+            )
+            if not user_id:
                 log_warning(
-                    f"[OAuth] state validation failed user={current_user.user_id} "
-                    f"provider={slug}"
+                    f"[OAuth] state validation failed provider={slug}"
                 )
                 raise HTTPException(
                     status_code=400,
@@ -148,7 +148,7 @@ def _register_oauth_provider(
                 )
 
             success, message, connection_info = await service.handle_callback(
-                user_id=current_user.user_id, code=request.code,
+                user_id=user_id, code=request.code,
             )
             return ApiResponse.success(
                 data=OAuthCallbackResponse(

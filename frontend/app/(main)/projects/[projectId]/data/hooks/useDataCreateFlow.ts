@@ -3,7 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import { useSWRConfig } from 'swr';
-import { mkdir, writeFile, listDir, type NodeInfo, type NodeType } from '@/lib/contentTreeApi';
+import {
+  directChildrenOf,
+  mkdir,
+  writeFile,
+  listDir,
+  type NodeInfo,
+  type NodeType,
+} from '@/lib/contentTreeApi';
 import {
   optimisticInsertDirectoryNode,
   optimisticRemoveDirectoryNode,
@@ -13,20 +20,116 @@ import {
 import { refreshFolderNodes, refreshProjectHistory } from '@/lib/hooks/useData';
 import type { AccessResource } from '@/contexts/AgentContext';
 import {
+  addPendingCreatingNode,
   addPendingCreatingPath,
   ensureExpanded,
   removePendingCreatingPath,
 } from '../components/explorer';
 
+const CREATE_FOLDER_VERIFY_DELAYS_MS = [800, 1800, 3500, 7000];
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isAmbiguousWriteFailure(err: unknown): boolean {
+  const maybe = err as {
+    isNetworkError?: boolean;
+    code?: unknown;
+    status?: unknown;
+    name?: unknown;
+  } | null;
+
+  if (!maybe) return false;
+  return (
+    maybe.isNetworkError === true ||
+    maybe.code === 'NETWORK_ERROR' ||
+    maybe.status === 0 ||
+    maybe.name === 'AbortError' ||
+    err instanceof TypeError
+  );
+}
+
+async function parentContainsFolder(
+  projectId: string,
+  parentPath: string,
+  folderPath: string,
+): Promise<boolean> {
+  const listing = await listDir(projectId, parentPath, { timeoutMs: 10_000 });
+  return directChildrenOf(listing.nodes, parentPath).some(
+    (node) => node.path === folderPath && node.type === 'folder',
+  );
+}
+
+function recoverAmbiguousFolderCreate(args: {
+  readonly projectId: string;
+  readonly parentPath: string;
+  readonly folderPath: string;
+  readonly folderName: string;
+  readonly showToast?: (
+    message: string,
+    type?: 'success' | 'error' | 'loading',
+    durationMs?: number | null,
+  ) => void;
+}): void {
+  const { projectId, parentPath, folderPath, folderName, showToast } = args;
+  let settled = false;
+
+  const verify = async () => {
+    if (settled) return;
+    let reachedServerWithoutFolder = false;
+    for (const delay of CREATE_FOLDER_VERIFY_DELAYS_MS) {
+      await sleep(delay);
+      if (settled) return;
+      try {
+        if (await parentContainsFolder(projectId, parentPath, folderPath)) {
+          await refreshFolderNodes(projectId, parentPath, folderPath);
+          void refreshProjectHistory(projectId);
+          removePendingCreatingPath(projectId, folderPath);
+          showToast?.(`Created "${folderName}"`);
+          settled = true;
+          return;
+        }
+        reachedServerWithoutFolder = true;
+      } catch {
+        // Still offline or the backend is unreachable. Keep the optimistic row:
+        // the write may already have crossed the server's publish boundary.
+      }
+    }
+
+    if (reachedServerWithoutFolder) {
+      optimisticRemoveDirectoryNode(projectId, parentPath, folderPath);
+      await refreshFolderNodes(projectId, parentPath).catch(() => undefined);
+      removePendingCreatingPath(projectId, folderPath);
+      showToast?.(`Failed to create "${folderName}"`, 'error');
+      settled = true;
+      return;
+    }
+
+    showToast?.(`Still checking "${folderName}"...`, 'loading', 5000);
+  };
+
+  void verify();
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener(
+      'online',
+      () => {
+        if (!settled) void verify();
+      },
+      { once: true },
+    );
+  }
+}
+
 /**
  * Build a placeholder NodeInfo for optimistic insertion into the tree
  * before the backend write completes (instant feedback).
  *
- * After the write the caller issues refreshFolderNodes which
- * re-fetches just the affected parent folder listing. With the backend
- * root_hash cache TTL at 100 ms — shorter than any realistic write
- * round-trip — the re-fetch always sees the committed state, so the
- * placeholder is replaced with server-confirmed data without jitter.
+ * After the write the caller issues refreshFolderNodes which re-fetches just
+ * the affected parent folder listing. If the network drops after the server may
+ * have accepted the write, the caller keeps this row pending until a canonical
+ * listing confirms whether the folder exists.
  */
 function buildOptimisticNode(
   args: {
@@ -102,6 +205,7 @@ interface UseDataCreateFlowOptions {
   navigateTo: (nextPath: string[], typeHint?: string) => void;
   openSyncCreatePanel: (targetScopePath?: string | null) => void;
   openSyncSetting: (provider: string, target?: AccessResource) => void;
+  openFilePickerForTarget?: (target: { path: string | null; name: string }) => void;
   openFileImportDialogForTarget?: (target: { path: string | null; name: string }) => void;
   showToast?: (
     message: string,
@@ -131,6 +235,7 @@ export function useDataCreateFlow({
   navigateTo,
   openSyncCreatePanel,
   openSyncSetting,
+  openFilePickerForTarget,
   openFileImportDialogForTarget,
   showToast,
 }: UseDataCreateFlowOptions) {
@@ -471,6 +576,7 @@ export function useDataCreateFlow({
         optimisticSeedEmptyDirectory(projectId, folderPath);
         if (targetFolderPath) ensureExpanded(targetFolderPath);
 
+        let keepPendingForRecovery = false;
         try {
           showToast?.(`Creating "${folderName}"...`, 'loading', null);
           await mkdir(projectId, folderPath);
@@ -479,11 +585,28 @@ export function useDataCreateFlow({
           showToast?.(`Created "${folderName}"`);
         } catch (err) {
           console.error('Failed to create folder:', err);
+          if (isAmbiguousWriteFailure(err)) {
+            keepPendingForRecovery = true;
+            showToast?.(`Checking "${folderName}"...`, 'loading', 5000);
+            recoverAmbiguousFolderCreate({
+              projectId,
+              parentPath,
+              folderPath,
+              folderName,
+              showToast,
+            });
+            return;
+          }
           optimisticRemoveDirectoryNode(projectId, parentPath, folderPath);
           await refreshFolderNodes(projectId, parentPath);
           showToast?.(`Failed to create "${folderName}"`, 'error');
         } finally {
-          removePendingCreatingPath(projectId, folderPath);
+          // For definitive failures and successful creates, clear the pending
+          // state here. Ambiguous network failures let the recovery verifier
+          // clear pending only after it observes a canonical server result.
+          if (!keepPendingForRecovery) {
+            removePendingCreatingPath(projectId, folderPath);
+          }
         }
       },
       onCreateBlankJson: async () => {
@@ -498,6 +621,7 @@ export function useDataCreateFlow({
           : fileName;
         const parentPath = targetFolderPath ?? '';
 
+        addPendingCreatingNode(projectId, filePath, { label: 'Creating JSON' });
         optimisticInsertDirectoryNode(
           projectId,
           parentPath,
@@ -517,8 +641,11 @@ export function useDataCreateFlow({
           showToast?.(`Created "${fileName}"`);
         } catch (err) {
           console.error('Failed to create JSON:', err);
+          optimisticRemoveDirectoryNode(projectId, parentPath, filePath);
           await refreshFolderNodes(projectId, parentPath);
           showToast?.(`Failed to create "${fileName}"`, 'error');
+        } finally {
+          removePendingCreatingPath(projectId, filePath);
         }
       },
       onCreateBlankMarkdown: async () => {
@@ -533,6 +660,7 @@ export function useDataCreateFlow({
           : fileName;
         const parentPath = targetFolderPath ?? '';
 
+        addPendingCreatingNode(projectId, filePath, { label: 'Creating Markdown' });
         optimisticInsertDirectoryNode(
           projectId,
           parentPath,
@@ -552,17 +680,25 @@ export function useDataCreateFlow({
           showToast?.(`Created "${fileName}"`);
         } catch (err) {
           console.error('Failed to create markdown:', err);
+          optimisticRemoveDirectoryNode(projectId, parentPath, filePath);
           await refreshFolderNodes(projectId, parentPath);
           showToast?.(`Failed to create "${fileName}"`, 'error');
+        } finally {
+          removePendingCreatingPath(projectId, filePath);
         }
       },
       onImportFromFiles: () => {
         const targetFolderPath = getTargetFolderPath();
+        const target = {
+          path: targetFolderPath ?? null,
+          name: folderDisplayName(targetFolderPath ?? null),
+        };
         if (openFileImportDialogForTarget) {
-          openFileImportDialogForTarget({
-            path: targetFolderPath ?? null,
-            name: folderDisplayName(targetFolderPath ?? null),
-          });
+          openFileImportDialogForTarget(target);
+          return;
+        }
+        if (openFilePickerForTarget) {
+          openFilePickerForTarget(target);
           return;
         }
         setDefaultStartOption('documents');
@@ -626,6 +762,7 @@ export function useDataCreateFlow({
     navigateTo,
     openSyncCreatePanel,
     openSyncSetting,
+    openFilePickerForTarget,
     openFileImportDialogForTarget,
     projectId,
     showToast,

@@ -1268,7 +1268,7 @@ D_CASES = [
         description=(
             "Child scope writes ``docs/notes.md`` (a path inside its own "
             "territory). Parent scope doesn't touch that path. No conflict; "
-            "scope-promote produces a merge commit on the parent branch."
+            "the scoped write grafts into the canonical root."
         ),
         setup={
             "": {},
@@ -1282,7 +1282,7 @@ D_CASES = [
             writer_outcomes=("committed",),
             final_state={"docs/notes.md": b"child-content\n"},
             strategy="one_side_only",
-            notes="Verify scope-promote commit lands on root scope.",
+            notes="Verify the child write is visible through the root view.",
         ),
     ),
     ConflictCase(
@@ -1344,12 +1344,11 @@ D_CASES = [
     ConflictCase(
         id="D05",
         category="D",
-        title="scope-promote vs concurrent parent write",
+        title="child graft vs concurrent parent write",
         description=(
-            "Child scope writes ``docs/x.md`` (lands in child scope). "
-            "Before scope-promote runs on root, root scope receives a "
-            "concurrent write to a DIFFERENT path. Scope-promote rebases "
-            "and produces a clean commit on root."
+            "Child scope writes ``docs/x.md`` while root receives a "
+            "concurrent write to a different path. Root-first merge keeps "
+            "both edits in the canonical tree."
         ),
         setup={
             "": {"unrelated.txt": b"r0\n"},
@@ -1530,7 +1529,7 @@ D_CASES = [
             writer_outcomes=("committed",),
             final_state={"docs/notes.md": b"child-late\n"},
             notes="Runner pre-fires 10+ root commits to make the child's "
-                  "base ancient. Verify scope-promote succeeds.",
+                  "base ancient. Verify the root-first graft succeeds.",
         ),
     ),
     ConflictCase(

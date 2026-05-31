@@ -1,9 +1,9 @@
-"""Tests for the V1 outbox-worker event dispatch (B13b).
+"""Tests for root-first outbox-worker event dispatch.
 
 The outbox now carries two event types:
 
-  * ``version_committed`` — handled by ``run_post_push_hook`` exactly
-    as before; covered by the engine's existing tests.
+  * ``project_version_committed`` — handled by the root-first project hook.
+  * ``version_committed`` — legacy pre-root-first rows, still repairable.
   * ``pending_conflict_created`` — handed off to a registered hook for
     hosted-agent dispatch. The default is a no-op log.
 
@@ -146,11 +146,48 @@ def test_hook_failure_marks_row_failed(monkeypatch):
     assert processed == 0  # hook raised → row marked failed, not processed
 
 
-# ── version_committed still works as before ────────────────────
+# ── project_version_committed and legacy version_committed dispatch ──
 
 
-def test_version_committed_still_runs_post_push_hook(monkeypatch):
-    """The original happy path keeps working after the dispatch refactor."""
+def test_project_version_committed_runs_project_hook(monkeypatch):
+    """Root-first rows dispatch to the project update hook."""
+
+    called: dict[str, Any] = {}
+
+    def fake_hook(project_id, repos, result, raise_errors=False):
+        called["project_id"] = project_id
+        called["commit_id"] = result["commit_id"]
+        called["root"] = result["root"]
+
+    monkeypatch.setattr(version_outbox, "run_post_project_update_hook", fake_hook)
+
+    rows = [{
+        "id": 40,
+        "project_id": "proj_a",
+        "commit_id": "abc123",
+        "event_type": "project_version_committed",
+        "payload": {
+            "project_root_hash": "roothash",
+            "scope_hash": "scopehash",
+            "merged": False,
+            "conflicts": 0,
+        },
+        "attempts": 0,
+    }]
+    processed = version_outbox.process_version_outbox_batch(
+        repo_manager=MagicMock(),
+        client=_fake_client(rows),
+    )
+    assert processed == 1
+    assert called == {
+        "project_id": "proj_a",
+        "commit_id": "abc123",
+        "root": "roothash",
+    }
+
+
+def test_legacy_version_committed_still_runs_repair_hook(monkeypatch):
+    """Old rows remain repairable without being part of the new write path."""
 
     called: dict[str, Any] = {}
 

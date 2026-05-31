@@ -1,7 +1,6 @@
 'use client';
 
-import { useState } from 'react';
-import { CHROME_LABEL_TYPOGRAPHY } from '@/lib/uiTypography';
+import { ActionButton } from '@/components/ui/ActionButton';
 
 // The chip keeps Access discoverable in the page header: a leading
 // chain glyph + the literal word "Access" + a count of access points in
@@ -18,33 +17,10 @@ import { CHROME_LABEL_TYPOGRAPHY } from '@/lib/uiTypography';
 //   - Provider stack glyph dropped: it was a per-scope concern and
 //     conflicted with the new global semantic.
 //
-// 2026-05-09 pass — keep Access discoverable:
-//   Access scopes are the core product action on the Data page, so the
-//   header entry needs a visible resting state. Keep it understated:
-//   border + icon carry the signal, not a glowing CTA treatment.
-const STATES = {
-  resting: {
-    bg: 'var(--po-control)',
-    border: 'color-mix(in srgb, var(--po-accent) 20%, transparent)',
-    text: 'var(--po-text-muted)',
-    countText: 'var(--po-text-muted)',
-    iconStroke: 'var(--po-accent-text)',
-  },
-  hover: {
-    bg: 'var(--po-border-subtle)',
-    border: 'color-mix(in srgb, var(--po-accent) 30%, transparent)',
-    text: 'var(--po-text)',
-    countText: 'var(--po-text-muted)',
-    iconStroke: 'var(--po-accent)',
-  },
-  active: {
-    bg: 'var(--po-selected)',
-    border: 'color-mix(in srgb, var(--po-accent) 36%, transparent)',
-    text: 'var(--po-text)',
-    countText: 'var(--po-text-muted)',
-    iconStroke: 'var(--po-accent)',
-  },
-} as const;
+// 2026-05-28 pass — make Access read as a real action:
+//   Access is a project-level primary entry, not a pale status badge.
+//   Use the shared access button so it has a solid but muted sage-green
+//   surface and reads as "granted / connected" without screaming.
 
 export function AccessPointsHeaderButton({
   scopeCount,
@@ -61,58 +37,40 @@ export function AccessPointsHeaderButton({
   isOpen: boolean;
   onClick: () => void;
 }) {
-  const [hover, setHover] = useState(false);
-
-  const state = isOpen ? STATES.active : hover ? STATES.hover : STATES.resting;
-
   return (
-    <button
-      type="button"
+    <ActionButton
+      variant="access"
+      size="sm"
       onClick={onClick}
       title={`${scopeCount} access ${scopeCount === 1 ? 'point' : 'points'} in this project`}
       aria-label="Manage access points"
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
+      aria-pressed={isOpen}
+      leadingIcon={<ChainIcon />}
       style={{
-        ...CHROME_LABEL_TYPOGRAPHY,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        height: 30,
         padding: '0 12px 0 10px',
-        borderRadius: 8,
-        border: `1px solid ${state.border}`,
-        background: state.bg,
-        color: state.text,
-        cursor: 'pointer',
-        transition: 'background 0.15s ease, border-color 0.15s ease, color 0.15s ease',
-        whiteSpace: 'nowrap',
+        boxShadow: isOpen
+          ? '0 0 0 2px var(--po-access-active-hover)'
+          : 'none',
       }}
     >
-      <ChainIcon stroke={state.iconStroke} />
       <span>Access</span>
       <span
         style={{
-          // Same font-size as the label per 2026-05-08 spec ("用同样
-          // 的字号去做") — the count reads as the second word of the
-          // chip's two-word headline, not as a subordinate badge.
-          fontSize: CHROME_LABEL_TYPOGRAPHY.fontSize,
-          fontWeight: CHROME_LABEL_TYPOGRAPHY.fontWeight,
-          color: state.countText,
+          color: 'color-mix(in srgb, var(--po-access-action-contrast) 78%, transparent)',
           fontVariantNumeric: 'tabular-nums',
           transition: 'color 0.15s ease',
         }}
       >
         {scopeCount}
       </span>
-    </button>
+    </ActionButton>
   );
 }
 
 // Mirrors the chain glyph used across the access surfaces so the header
 // chip, scope list rows, and expose menus read as the same concept at
 // different scales.
-function ChainIcon({ stroke }: { stroke: string }) {
+function ChainIcon() {
   return (
     <span
       aria-hidden
@@ -122,7 +80,7 @@ function ChainIcon({ stroke }: { stroke: string }) {
         justifyContent: 'center',
         width: 14,
         height: 14,
-        color: stroke,
+        color: 'currentColor',
       }}
     >
       <svg

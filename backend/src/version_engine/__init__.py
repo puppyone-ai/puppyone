@@ -12,7 +12,8 @@ The package layout mirrors the write architecture:
   admission/       L2 identity plus L3 permission/target admission.
   adapters/        L4 request-to-intent adapters for product, Git, and batch.
   write_engine/    L5 write authority and Git object/tree/merge primitives.
-  derived/         L6 hooks, outbox, projection, indexes, repair, and GC.
+  derived/         L5 follow-up/repair: hooks, outbox, projections, indexes, GC.
+  storage/         L6 physical object-storage substrate.
   read/            Read models and read-side helpers outside the write path.
   infrastructure/  Supabase, S3, and Git transport-cache implementations.
   bootstrap/       App/worker containers and FastAPI dependency factories.

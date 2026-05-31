@@ -7,10 +7,10 @@ import {
   Copy,
   Download,
   EllipsisVertical,
-  Link2,
   Pencil,
   Trash2,
 } from 'lucide-react';
+import { IconButton } from '@/components/ui/IconButton';
 import { APP_Z_INDEX } from '@/lib/zIndex';
 
 export type DataHeaderActionTarget = {
@@ -27,7 +27,6 @@ type DataHeaderActionsProps = {
   onRename: (id: string, currentName: string) => void;
   onDelete: (id: string, name: string) => void;
   onDownload: (id: string, name: string) => void;
-  onExpose?: (id: string) => void;
 };
 
 export function DataHeaderActions({
@@ -35,11 +34,9 @@ export function DataHeaderActions({
   onRename,
   onDelete,
   onDownload,
-  onExpose,
 }: DataHeaderActionsProps) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
-  const [hovered, setHovered] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -87,11 +84,12 @@ export function DataHeaderActions({
     }
   };
 
+  if (target.isFolder || target.isRoot) return null;
+
   return (
     <>
-      <button
+      <IconButton
         ref={buttonRef}
-        type="button"
         title="Data actions"
         aria-label="Data actions"
         aria-haspopup="menu"
@@ -100,24 +98,17 @@ export function DataHeaderActions({
           if (!open) updatePosition();
           setOpen((value) => !value);
         }}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
         style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: 30,
-          height: 30,
-          borderRadius: 5,
-          background: open || hovered ? 'var(--po-hover)' : 'transparent',
-          border: 'none',
-          color: open || hovered ? 'var(--po-text-muted)' : 'var(--po-text-disabled)',
-          cursor: 'pointer',
-          transition: 'background 0.12s ease, color 0.12s ease',
+          ...(open
+            ? {
+                background: 'var(--po-hover)',
+                color: 'var(--po-text-muted)',
+              }
+            : {}),
         }}
       >
         <EllipsisVertical size={16} strokeWidth={2} />
-      </button>
+      </IconButton>
 
       {open && pos && typeof document !== 'undefined' && createPortal(
         <div
@@ -143,17 +134,6 @@ export function DataHeaderActions({
               onClick={() => {
                 setOpen(false);
                 onRename(target.id, target.name);
-              }}
-            />
-          )}
-
-          {target.isFolder && onExpose && (
-            <ActionMenuItem
-              label="Expose as..."
-              icon={<Link2 size={14} />}
-              onClick={() => {
-                setOpen(false);
-                onExpose(target.id);
               }}
             />
           )}

@@ -14,17 +14,16 @@ import type { SaveStatus } from '@/lib/hooks/useManualSave';
  *   non-clean states are tonal variants of that shape:
  *
  *     clean   → render nothing.
- *     dirty   → 💾 Save changes        (orange tint, button)
+ *     dirty   → 💾 Save changes        (solid warning button)
  *     saving  → ⏳ Saving…              (neutral tint, pill)
  *     saved   → ✓ Saved                (green tint, pill)
  *     error   → ⚠ Save failed — Retry  (red tint, button)
  *
- * Why tinted, not solid:
- *   The previous solid-orange CTA was visually heavier than
- *   anything else on the page chrome. A tinted pill keeps the
- *   brand orange as a colour anchor but drops the "primary
- *   product CTA" weight. All four states then share the same
- *   visual vocabulary — only the hue tells the story.
+ * Why solid only for dirty:
+ *   Dirty is the only state that needs the user to act. Saving /
+ *   saved / error stay in the compact chip family, but dirty must
+ *   read as a real button in the Data header so users don't miss
+ *   unsaved edits while the editor content has visual focus.
  *
  * Why no keyboard shortcut badge:
  *   Power users learn ``⌘S`` after one or two saves; baking the
@@ -136,16 +135,11 @@ interface TonePalette {
 }
 
 const TONE_PALETTE: Record<ChipTone, TonePalette> = {
-  // Brand-orange tint, not a fill. Background is a
-  // 14 % wash of the orange so the pill anchors itself in the page
-  // chrome instead of overpowering it. Hover steps the wash to
-  // 22 % then 30 % on press — the only motion is opacity. Text and
-  // icon ride the orange itself for a clear colour through-line.
   action: {
-    bg: 'color-mix(in srgb, var(--po-warning) 14%, transparent)',
-    bgHover: 'color-mix(in srgb, var(--po-warning) 22%, transparent)',
-    bgActive: 'color-mix(in srgb, var(--po-warning) 30%, transparent)',
-    text: 'var(--po-warning)',
+    bg: 'var(--po-warning)',
+    bgHover: 'color-mix(in srgb, var(--po-warning) 88%, var(--po-text) 12%)',
+    bgActive: 'color-mix(in srgb, var(--po-warning) 78%, var(--po-text) 22%)',
+    text: 'var(--po-canvas)',
   },
   // Neutral pill — used while a save is in flight. Same shape as
   // the action button so the transition reads as the same chip

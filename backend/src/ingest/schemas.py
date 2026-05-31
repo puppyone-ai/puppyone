@@ -12,8 +12,8 @@ from pydantic import BaseModel, Field
 class SourceType(str, Enum):
     """Data source type."""
     FILE = "file"      # → File Worker (ETL)
-    SAAS = "saas"      # → SyncEngine (synchronous execution)
-    URL = "url"        # → SyncEngine (synchronous execution)
+    SAAS = "saas"      # → ImportJob worker
+    URL = "url"        # → ImportJob worker
 
 
 class IngestType(str, Enum):
@@ -171,7 +171,7 @@ class BatchTaskResponse(BaseModel):
 class UploadInitFile(BaseModel):
     """One file's worth of metadata in an init request."""
     filename: str = Field(..., description="Original filename")
-    size: int = Field(..., gt=0, description="File size in bytes")
+    size: int = Field(..., ge=0, description="File size in bytes")
     content_type: str | None = Field(None, description="MIME type, optional")
     parent_path: str | None = Field(
         None,
@@ -210,8 +210,11 @@ class UploadInitFileResponse(BaseModel):
     upload_id: str
     chunk_size: int
     total_parts: int = Field(
-        ..., ge=1, le=10000,
-        description="Number of parts the client should PUT (ceil(size/chunk_size))",
+        ..., ge=0, le=10000,
+        description=(
+            "Number of parts the client should PUT. Zero means the backend "
+            "already staged a zero-byte object and the client should skip PUTs."
+        ),
     )
 
 
@@ -235,7 +238,7 @@ class UploadCompleteRequest(BaseModel):
     task_id: str
     s3_key: str
     upload_id: str
-    parts: list[UploadCompletePart] = Field(..., min_length=1)
+    parts: list[UploadCompletePart] = Field(..., min_length=0)
 
 
 class UploadCompleteResponse(BaseModel):
@@ -249,7 +252,7 @@ class UploadCompleteItem(BaseModel):
     task_id: str
     s3_key: str
     upload_id: str
-    parts: list[UploadCompletePart] = Field(..., min_length=1)
+    parts: list[UploadCompletePart] = Field(..., min_length=0)
 
 
 class UploadCompleteBatchRequest(BaseModel):

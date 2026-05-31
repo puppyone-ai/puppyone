@@ -53,6 +53,7 @@ def transport_bare_repo(
     *,
     follow_history: bool = True,
     include_blobs: bool = True,
+    extra_roots: list[str] | None = None,
 ):
     """Yield an incrementally maintained bare repo for one Git view.
 
@@ -86,10 +87,14 @@ def transport_bare_repo(
         bare_dir = cache_dir / "repo.git"
         _ensure_bare_repo(bare_dir)
         head = view_head.head
+        additional_roots = [
+            root for root in (extra_roots or [])
+            if is_object_id(root) and root != ZERO_ID and root != head
+        ]
         copy_reachable_objects_to_bare(
             repo,
             bare_dir,
-            [head],
+            [head, *additional_roots],
             follow_history=follow_history,
             include_blobs=include_blobs,
         )
@@ -104,6 +109,96 @@ def transport_bare_repo(
             history_cut=view_head.history_cut,
         )
     yield bare_dir
+
+
+@contextmanager
+def upload_pack_bare_repo(
+    repo,
+    scope_path: str,
+    scope_excludes: list[str] | None = None,
+    *,
+    wants: list[str] | None = None,
+    extra_refs: dict[str, str] | None = None,
+):
+    """Yield a request-local upload-pack repo.
+
+    Smart HTTP is stateless across ``info/refs`` and ``git-upload-pack``.
+    If the canonical view advances between those two HTTP requests, the
+    client can still legitimately ask for the head it just saw advertised.
+    Keep those requested ``want`` objects reachable through temporary refs
+    for this one upload-pack invocation without polluting the durable cache's
+    advertised ref namespace.
+
+    ``extra_refs`` (GAP-3) is the scope's stored branch/tag refs
+    (``{full_ref_name: commit_id}``). They are written into THIS request's
+    bare repo — never the shared cache — so ``git clone`` / ``git fetch``
+    sees and can serve them, while the durable transport cache stays a pure
+    projection of the scope head.
+    """
+
+    wanted_roots = [
+        want for want in (wants or [])
+        if is_object_id(want) and want != ZERO_ID
+    ]
+    named_refs = _sanitize_named_refs(extra_refs or {})
+    ref_roots = [
+        commit_id for commit_id in named_refs.values()
+        if commit_id not in wanted_roots
+    ]
+    with transport_bare_repo(
+        repo,
+        scope_path,
+        scope_excludes,
+        follow_history=True,
+        include_blobs=True,
+        extra_roots=wanted_roots + ref_roots,
+    ) as cache_bare:
+        with tempfile.TemporaryDirectory(prefix="puppyone-git-upload-pack-") as tmp:
+            bare_dir = Path(tmp) / "repo.git"
+            _ensure_bare_repo(bare_dir)
+            alternates = bare_dir / "objects" / "info" / "alternates"
+            alternates.parent.mkdir(parents=True, exist_ok=True)
+            alternates.write_text(
+                f"{(cache_bare / 'objects').resolve()}\n",
+                encoding="utf-8",
+            )
+            cache_ref = cache_bare / "refs" / "heads" / "main"
+            if cache_ref.exists():
+                _write_main_ref(bare_dir, cache_ref.read_text(encoding="ascii").strip())
+            _write_upload_pack_want_refs(bare_dir, wanted_roots)
+            _write_named_refs(bare_dir, named_refs)
+            yield bare_dir
+
+
+def _sanitize_named_refs(extra_refs: dict[str, str]) -> dict[str, str]:
+    """Filter stored refs to the safe, advertisable set.
+
+    Defence in depth on top of the version_refs CHECK constraint: only
+    ``refs/heads/*`` and ``refs/tags/*`` (never the scope head main), valid
+    object ids, and no path-traversal segments are allowed to become files
+    in the per-request bare repo.
+    """
+    safe: dict[str, str] = {}
+    for ref_name, commit_id in extra_refs.items():
+        if not isinstance(ref_name, str) or not isinstance(commit_id, str):
+            continue
+        if ref_name == ACCESS_POINT_MAIN_REF:
+            continue
+        if not ref_name.startswith(("refs/heads/", "refs/tags/")):
+            continue
+        if ".." in ref_name or ref_name.endswith("/") or "//" in ref_name:
+            continue
+        if not is_object_id(commit_id) or commit_id == ZERO_ID:
+            continue
+        safe[ref_name] = commit_id
+    return safe
+
+
+def _write_named_refs(bare_dir: Path, named_refs: dict[str, str]) -> None:
+    for ref_name, commit_id in named_refs.items():
+        ref_path = bare_dir / Path(ref_name)
+        ref_path.parent.mkdir(parents=True, exist_ok=True)
+        ref_path.write_text(f"{commit_id}\n", encoding="ascii")
 
 
 def warm_transport_bare_repo(
@@ -325,6 +420,32 @@ class GitObjectQuarantine:
             else:
                 return ""
         return ""
+
+    def mode_for_path(self, tree_id: str, path: str) -> bytes:
+        """Git blob mode of ``path`` in the quarantined tree (A1-1).
+
+        Lets the excluded-scope merge preserve the pushed file's mode
+        (executable/symlink/gitlink) instead of defaulting to 100644.
+        Returns ``MODE_FILE`` when the path is absent or a directory.
+        """
+        current = tree_id
+        parts = [part for part in path.split("/") if part]
+        for index, part in enumerate(parts):
+            obj_type, body = self.get_object(current)
+            if obj_type != "tree":
+                return MODE_FILE
+            for entry in decode_tree(body):
+                if entry.name != part:
+                    continue
+                if index == len(parts) - 1:
+                    return MODE_FILE if entry.mode == MODE_DIR else entry.mode
+                if entry.mode != MODE_DIR:
+                    return MODE_FILE
+                current = entry.sha1_hex
+                break
+            else:
+                return MODE_FILE
+        return MODE_FILE
 
     def flatten_tree_to_bytes(self, tree_id: str) -> dict[str, bytes]:
         out: dict[str, bytes] = {}
@@ -575,6 +696,15 @@ def _unpack_and_validate(bare_dir: Path, pack: bytes, roots: list[str]) -> None:
 
 def _write_quarantine_refs(bare_dir: Path, roots: list[str]) -> None:
     refs_dir = bare_dir / "refs" / "puppyone" / "quarantine"
+    for index, object_id in enumerate(roots):
+        if not is_object_id(object_id) or object_id == ZERO_ID:
+            continue
+        refs_dir.mkdir(parents=True, exist_ok=True)
+        (refs_dir / str(index)).write_text(f"{object_id}\n", encoding="ascii")
+
+
+def _write_upload_pack_want_refs(bare_dir: Path, roots: list[str]) -> None:
+    refs_dir = bare_dir / "refs" / "puppyone" / "upload-pack-wants"
     for index, object_id in enumerate(roots):
         if not is_object_id(object_id) or object_id == ZERO_ID:
             continue

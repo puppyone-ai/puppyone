@@ -242,3 +242,26 @@ When a user resolves something, the item must visibly leave the Needs Action gro
 - Notification routing (email/Slack on new pending review) — separate workstream.
 - Resolution analytics ("you resolved 12 conflicts this week") — separate workstream.
 - Modifying the History timeline's existing behaviour — should remain a no-op for users who only use the page as audit.
+
+---
+
+## 9. Item-kind status (as of 2026-05-26)
+
+The §4 taxonomy listed six candidate kinds. Current state:
+
+| Kind | Status | Notes |
+|---|---|---|
+| Pending review | ✅ shipped | `pendingReviewKind.tsx` |
+| Conflict | ✅ shipped | `conflictKind.tsx` |
+| Failed sync (G1) | ✅ shipped | `failedSyncKind.tsx` + backend `GET /sync/failed-runs` |
+| Risky delete / mass edit (G2) | ✅ shipped | `riskyDeleteKind.tsx` — reads `audit_detail` / `changes` from version history; flags commits deleting ≥10 files; shows affected paths + snooze. **Review-only, no inline undo:** undoing a delete means rolling back to the commit's *parent* (the delete commit itself still has the files gone) and the rollback endpoint is root-scope-only today — a one-click button here would target the wrong commit or 404 on sub-scopes, so undo is left to the History rollback UI which resolves scope correctly. (G2 `audit_detail` plumbing landed earlier on the history API.) |
+| **Agent staged session** | ⏳ **deferred — separate ticket** | Needs a new backend primitive: agents currently commit immediately, so there is no "staged session awaiting review" concept. Implementing this is a feature (new table + state machine + agent-runner change + review UI), not a registry plugin. **Do not bundle into Needs-Action maintenance.** |
+| **PR-like review unit** | ⏳ **deferred — separate ticket** | Same blocker: requires a draft/staged-commit primitive that doesn't exist. Design it alongside agent staged sessions (they share the "review before landing" backend concept). |
+
+**Why the last two are deferred (not just unfinished):** the registry
+pattern (§6 D5) makes adding a *kind* cheap, but these two need a
+backend capability — a commit that is *staged, not yet landed, awaiting
+human/agent review* — which the V1 engine doesn't have (writes land
+immediately, conflicts are the only "pending" state). Building that is a
+standalone design + implementation effort and is tracked as its own
+ticket, intentionally outside this Needs-Action workstream.

@@ -8,25 +8,49 @@ import { useAgent } from '@/contexts/AgentContext';
 import { useCommitUpdates } from '@/contexts/VersionWebSocketContext';
 import { listMcpEndpoints } from '@/lib/mcpEndpointsApi';
 import { listSandboxEndpoints } from '@/lib/sandboxEndpointsApi';
-import { listScopes, listConnectors, getRepoIdentity, type Connector } from '@/lib/repoApi';
+import {
+  getRepoIdentity,
+  isAccessSurfaceConnector,
+  listConnectors,
+  listScopes,
+  type Connector,
+} from '@/lib/repoApi';
 import {
   DataLayoutContext,
   type SyncEndpointInfo,
   type SyncStatusSync,
 } from './DataLayoutContext';
 
-/** Combine a scope-relative path with the scope path to get a
- *  project-root-relative path. Empty scope = root scope. */
-function _toRootRelative(scope: string, scopeRelativePath: string): string {
-  const file = scopeRelativePath.replaceAll(/^\/+|\/+$/g, '');
-  if (!scope) return file;
-  return file ? `${scope}/${file}` : scope;
+/** Normalize a path from commit_update into project-root-relative form.
+ *
+ * The current backend sends changed_files as project-root-relative paths. The
+ * scope fallback keeps older frames safe if they ever carried scope-relative
+ * paths.
+ */
+function _toRootRelative(scope: string, changedPath: string): string {
+  const file = changedPath.replaceAll(/^\/+|\/+$/g, '');
+  const cleanScope = normalizeEndpointPath(scope);
+  if (!cleanScope || !file) return file;
+  if (file === cleanScope || file.startsWith(`${cleanScope}/`)) return file;
+  return `${cleanScope}/${file}`;
 }
 
 /** Parent folder of a root-relative path (root = empty string). */
 function _parentFolder(rootRelativePath: string): string {
   const idx = rootRelativePath.lastIndexOf('/');
   return idx >= 0 ? rootRelativePath.slice(0, idx) : '';
+}
+
+function _ancestorFolders(folderPath: string): string[] {
+  const clean = normalizeEndpointPath(folderPath);
+  const out = [''];
+  if (!clean) return out;
+
+  const parts = clean.split('/').filter(Boolean);
+  for (let i = 1; i <= parts.length; i += 1) {
+    out.push(parts.slice(0, i).join('/'));
+  }
+  return out;
 }
 
 interface DataLayoutProps {
@@ -50,15 +74,17 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
   // the manual "user must refocus the tab" revalidation flow and closes
   // the §六 "侧栏永不刷新" bug class once and for all.
   //
-  // ``changed_files`` is scope-relative; we lift each path back to
-  // project-root, take its parent folder, dedupe, and revalidate only
-  // those folders' SWR caches via the existing ``refreshFolderNodes``
-  // helper (which also refreshes the sidebar's isolated explorer cache).
+  // ``changed_files`` is project-root-relative. Refresh the changed file's
+  // parent folder plus its ancestors so external Git/CLI pushes that create a
+  // new nested folder reveal the folder in the sidebar as soon as the event
+  // lands.
   const onCommitUpdate = useCallback((event: { scope: string; changed_files: string[] }) => {
     const folders = new Set<string>();
     for (const rel of event.changed_files || []) {
       const root = _toRootRelative(event.scope || '', rel);
-      folders.add(_parentFolder(root));
+      for (const folder of _ancestorFolders(_parentFolder(root))) {
+        folders.add(folder);
+      }
     }
     if (folders.size === 0) {
       // Commit had no path-bearing changes (e.g. metadata-only). Refresh
@@ -107,6 +133,7 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
   const connectorsByScope = useMemo(() => {
     const m = new Map<string, Connector[]>();
     for (const c of connectorsList || []) {
+      if (!isAccessSurfaceConnector(c)) continue;
       const list = m.get(c.scope_id) || [];
       list.push(c);
       m.set(c.scope_id, list);
@@ -151,6 +178,7 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
     // savedAgents loop below already populates them from AgentContext.
     const scopeById = new Map((scopes || []).map((s) => [s.id, s]));
     for (const c of connectorsList || []) {
+      if (!isAccessSurfaceConnector(c)) continue;
       if (c.provider === 'agent') continue;
       const scope = scopeById.get(c.scope_id);
       if (!scope) continue;

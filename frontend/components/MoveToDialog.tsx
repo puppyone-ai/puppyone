@@ -5,6 +5,7 @@ import { useTreeDir } from '@/lib/hooks/useData';
 import { Dots, PageLoading } from './loading';
 import { ActionButton } from './ui/ActionButton';
 import { DialogBody, DialogFooter, DialogHeader, DialogRoot, DialogSurface } from './ui/Dialog';
+import { TreeDisclosureMarker } from './ui/TreeDisclosureMarker';
 
 interface MoveToDialogProps {
   isOpen: boolean;
@@ -108,32 +109,8 @@ function FolderTreeItem({
             flexShrink: 0,
           }}
         >
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            style={{
-              transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)',
-              transition: 'transform 0.15s',
-            }}
-          >
-            <path
-              d="M9 6L15 12L9 18"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
+          <TreeDisclosureMarker expanded={expanded} />
         </button>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-          <path
-            d="M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z"
-            fill="var(--po-accent)"
-            fillOpacity="0.45"
-          />
-        </svg>
         <span
           style={{
             flex: 1,

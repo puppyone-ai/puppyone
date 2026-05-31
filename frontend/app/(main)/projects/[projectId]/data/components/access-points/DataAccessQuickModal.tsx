@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { ArrowLeft, BookOpen, Check, ChevronRight, Copy, ExternalLink, Plus } from 'lucide-react';
 import { PulseGrid } from '@/components/loading';
+import { AiHandoffButton } from '@/components/ui/AiHandoffButton';
 import { DialogBody, DialogHeader, DialogRoot, DialogSurface } from '@/components/ui/Dialog';
 import { ModalPortal } from '@/components/ui/ModalPortal';
 import {
@@ -504,35 +505,16 @@ function MethodPromptPreview({
           pointerEvents: 'none',
         }}
       />
-      <button
-        type="button"
+      <AiHandoffButton
+        copied={copied}
         onClick={onCopy}
         style={{
           position: 'absolute',
           left: '50%',
           top: '50%',
           transform: 'translate(-50%, -50%)',
-          height: 30,
-          borderRadius: 6,
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 6,
-          padding: '0 10px',
-          fontSize: FONT_META,
-          fontWeight: 600,
-          fontFamily: T.fontSans,
-          cursor: 'pointer',
-          whiteSpace: 'nowrap',
-          color: copied ? 'var(--po-success)' : T.text2,
-          background: 'var(--po-panel)',
-          border: `1px solid ${copied ? 'color-mix(in srgb, var(--po-success) 42%, transparent)' : T.cardBorder}`,
-          boxShadow: '0 8px 18px color-mix(in srgb, var(--po-shadow) 28%, transparent)',
         }}
-      >
-        {copied ? <Check size={12} /> : <Copy size={12} />}
-        {copied ? 'Copied' : 'Copy prompt'}
-      </button>
+      />
     </div>
   );
 }
@@ -711,30 +693,10 @@ function ManualWayRow({
           </span>
         </div>
       </div>
-      <button
-        type="button"
+      <AiHandoffButton
         onClick={copyPrompt}
-        style={{
-          height: 30,
-          borderRadius: 6,
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 6,
-          padding: '0 10px',
-          fontSize: FONT_META,
-          fontWeight: 600,
-          fontFamily: T.fontSans,
-          cursor: 'pointer',
-          whiteSpace: 'nowrap',
-          color: copied ? 'var(--po-success)' : T.text2,
-          background: 'transparent',
-          border: `1px solid ${copied ? 'color-mix(in srgb, var(--po-success) 42%, transparent)' : T.cardBorder}`,
-        }}
-      >
-        {copied ? <Check size={12} /> : <Copy size={12} />}
-        {copied ? 'Copied' : 'Copy prompt'}
-      </button>
+        copied={copied}
+      />
     </div>
   );
 }
@@ -1168,39 +1130,17 @@ function PromptPreview({ prompt }: { readonly prompt: string }) {
           pointerEvents: 'none',
         }}
       />
-      <button
-        type="button"
+      <AiHandoffButton
         onClick={copyPrompt}
+        copied={copied}
+        label="Copy setup prompt"
         style={{
           position: 'absolute',
           left: '50%',
           bottom: 9,
           transform: 'translateX(-50%)',
-          height: 30,
-          borderRadius: 6,
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 7,
-          padding: '0 12px',
-          fontSize: FONT_META,
-          fontWeight: 600,
-          fontFamily: T.fontSans,
-          cursor: 'pointer',
-          whiteSpace: 'nowrap',
-          color: copied ? 'var(--po-success-contrast)' : 'var(--po-success)',
-          background: copied
-            ? 'var(--po-success)'
-            : 'color-mix(in srgb, var(--po-success) 14%, var(--po-panel) 86%)',
-          border: copied
-            ? '1px solid var(--po-success)'
-            : '1px solid color-mix(in srgb, var(--po-success) 38%, transparent)',
-          boxShadow: 'none',
         }}
-      >
-        <Copy size={12} />
-        {copied ? 'Copied' : 'Copy setup prompt'}
-      </button>
+      />
     </div>
   );
 }

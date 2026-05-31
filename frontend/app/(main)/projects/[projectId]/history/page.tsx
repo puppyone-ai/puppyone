@@ -13,14 +13,17 @@ import {
 import { PROJECT_CONTENT_RAIL_WIDTH } from '@/lib/layout';
 import { SIDEBAR_ROW_TYPOGRAPHY } from '@/lib/uiTypography';
 import { PageLoading } from '@/components/loading';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { ResizableSidebarColumn } from '@/components/sidebar/ResizableSidebarColumn';
 import { useCommitUpdates } from '@/contexts/VersionWebSocketContext';
+import { Clock3, GitCommitHorizontal } from 'lucide-react';
 import {
   NeedsActionSection,
   getKind as getNeedsActionKind,
   type NeedsActionItem,
   type NeedsActionSummary,
 } from './components/NeedsActionSection';
+import { HistoryDetailViewport } from './components/HistoryDetailViewport';
 import type { NeedsActionSelection } from './components/NeedsActionSection';
 import type {
   NeedsActionRenderContext,
@@ -631,11 +634,31 @@ function HistoryMoreRow({
         <circle
           cx={HISTORY_LINE_X}
           cy={HISTORY_ROW_HEIGHT / 2}
-          r={2.5}
+          r={6}
           fill="var(--po-canvas)"
           stroke={hovered ? 'var(--po-text-subtle)' : 'var(--po-text-disabled)'}
-          strokeWidth={1.5}
+          strokeWidth={1.25}
         />
+        <line
+          x1={HISTORY_LINE_X - 3}
+          y1={HISTORY_ROW_HEIGHT / 2}
+          x2={HISTORY_LINE_X + 3}
+          y2={HISTORY_ROW_HEIGHT / 2}
+          stroke={hovered ? 'var(--po-text-muted)' : 'var(--po-text-subtle)'}
+          strokeWidth={1.5}
+          strokeLinecap="round"
+        />
+        {!expanded ? (
+          <line
+            x1={HISTORY_LINE_X}
+            y1={HISTORY_ROW_HEIGHT / 2 - 3}
+            x2={HISTORY_LINE_X}
+            y2={HISTORY_ROW_HEIGHT / 2 + 3}
+            stroke={hovered ? 'var(--po-text-muted)' : 'var(--po-text-subtle)'}
+            strokeWidth={1.5}
+            strokeLinecap="round"
+          />
+        ) : null}
       </svg>
       <span
         style={{
@@ -645,7 +668,7 @@ function HistoryMoreRow({
           fontWeight: 500,
         }}
       >
-        {expanded ? 'Show less' : `${count} more`}
+        {expanded ? 'Show less' : `Show ${count} more`}
       </span>
     </button>
   );
@@ -666,6 +689,8 @@ function DiffRow({ line }: { line: DiffLine }) {
         style={{
           display: 'flex',
           alignItems: 'center',
+          minWidth: 0,
+          width: '100%',
           height: 24,
           paddingLeft: 14,
           background: HISTORY_DIFF_HEADER_BG,
@@ -674,6 +699,9 @@ function DiffRow({ line }: { line: DiffLine }) {
           fontSize: 11,
           borderTop: '1px solid var(--po-hover)',
           borderBottom: '1px solid var(--po-hover)',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
         }}
       >
         {line.text}
@@ -696,6 +724,8 @@ function DiffRow({ line }: { line: DiffLine }) {
     <div
       style={{
         display: 'flex',
+        minWidth: 0,
+        width: '100%',
         background: bg,
         fontFamily: 'var(--po-font-sans)',
         fontSize: 11.5,
@@ -729,8 +759,12 @@ function DiffRow({ line }: { line: DiffLine }) {
       </span>
       <span
         style={{
+          flex: 1,
+          minWidth: 0,
           color: textColor,
-          whiteSpace: 'pre',
+          whiteSpace: 'pre-wrap',
+          overflowWrap: 'anywhere',
+          wordBreak: 'break-word',
           paddingLeft: 4,
           paddingRight: 12,
         }}
@@ -800,6 +834,8 @@ function FileDiffBlock({ change, projectId, commitId, parentCommitId }: FileDiff
   return (
     <div
       style={{
+        width: '100%',
+        minWidth: 0,
         marginBottom: 16,
         borderRadius: 8,
         overflow: 'hidden',
@@ -813,6 +849,7 @@ function FileDiffBlock({ change, projectId, commitId, parentCommitId }: FileDiff
           padding: '0 12px',
           display: 'flex',
           alignItems: 'center',
+          minWidth: 0,
           gap: 8,
           background: HISTORY_DIFF_HEADER_BG,
           borderBottom: '1px solid var(--po-border-subtle)',
@@ -838,6 +875,7 @@ function FileDiffBlock({ change, projectId, commitId, parentCommitId }: FileDiff
             color: 'var(--po-text-muted)',
             fontFamily: 'var(--po-font-sans)',
             flex: 1,
+            minWidth: 0,
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
@@ -887,7 +925,7 @@ function FileDiffBlock({ change, projectId, commitId, parentCommitId }: FileDiff
           {placeholder}
         </div>
       ) : lines && lines.length > 0 ? (
-        <div style={{ padding: '6px 0', background: 'var(--po-inset)' }}>
+        <div style={{ minWidth: 0, width: '100%', padding: '6px 0', background: 'var(--po-inset)' }}>
           {lines.map((line, j) => (
             <DiffRow key={j} line={line} />
           ))}
@@ -944,7 +982,14 @@ function CommitDetail({
   const opColor = opColors[type] || opColors.system;
 
   return (
-    <div className="p-6 md:p-8 mx-auto" style={{ maxWidth: PROJECT_CONTENT_RAIL_WIDTH }}>
+    <div
+      className="p-6 md:p-8 mx-auto"
+      style={{
+        width: '100%',
+        maxWidth: PROJECT_CONTENT_RAIL_WIDTH,
+        boxSizing: 'border-box',
+      }}
+    >
       <div className="flex flex-wrap items-center gap-4 mb-6">
         <div className="flex items-center gap-3">
           <span
@@ -1244,6 +1289,7 @@ export default function HistoryPage({ params }: HistoryPageProps) {
 
   // Auto-select the HEAD commit when history first lands (or switches projects).
   useEffect(() => {
+    if (selectedNeedsAction) return;
     if (!selectedCommitId) {
       if (headCommitId) {
         setSelectedCommitId(headCommitId);
@@ -1251,9 +1297,10 @@ export default function HistoryPage({ params }: HistoryPageProps) {
         setSelectedCommitId(commits[0].commit_id);
       }
     }
-  }, [commits, selectedCommitId, headCommitId]);
+  }, [commits, selectedCommitId, headCommitId, selectedNeedsAction]);
 
   useEffect(() => {
+    if (selectedNeedsAction) return;
     if (filteredCommits.length === 0) {
       if (selectedCommitId) setSelectedCommitId(null);
       return;
@@ -1261,7 +1308,7 @@ export default function HistoryPage({ params }: HistoryPageProps) {
     if (!selectedCommitId || !filteredCommits.some(commit => commit.commit_id === selectedCommitId)) {
       setSelectedCommitId(filteredCommits[0].commit_id);
     }
-  }, [filteredCommits, selectedCommitId]);
+  }, [filteredCommits, selectedCommitId, selectedNeedsAction]);
 
   const selectedCommit = useMemo(
     () => commits.find(c => c.commit_id === selectedCommitId) ?? null,
@@ -1336,6 +1383,13 @@ export default function HistoryPage({ params }: HistoryPageProps) {
     activeScope ? formatScopeLabel(activeScope.scope) : null,
     activeActor ? formatOperatorLabel(activeActor.type) : null,
   ].filter(Boolean).join(' · ') || 'Filter history';
+  const activeDetailKey = selectedNeedsAction && selectedNeedsActionItem
+    ? `needs:${selectedNeedsAction.kind}:${selectedNeedsAction.itemId}`
+    : selectedCommit
+      ? `commit:${selectedCommit.commit_id}`
+      : commits.length === 0
+        ? 'empty:no-commits'
+        : 'empty:no-selection';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: 'var(--po-canvas)' }}>
@@ -1670,7 +1724,7 @@ export default function HistoryPage({ params }: HistoryPageProps) {
               commit detail. Needs Action wins when an item is
               selected (the page's selection handlers keep at most
               one of {commit, item} active). */}
-          <div className="flex-1 min-w-0 overflow-y-auto custom-scrollbar bg-[var(--po-canvas)]">
+          <HistoryDetailViewport activeKey={activeDetailKey}>
             {selectedNeedsAction && selectedNeedsActionItem ? (
               <NeedsActionDetailPane
                 projectId={projectId}
@@ -1684,32 +1738,22 @@ export default function HistoryPage({ params }: HistoryPageProps) {
                 projectId={projectId}
                 parentCommitId={parentCommitId}
               />
+            ) : commits.length === 0 ? (
+              <EmptyState
+                icon={<Clock3 size={40} strokeWidth={1.35} />}
+                title="No changes yet"
+                description="Pending reviews and conflicts appear in Needs action."
+                style={{ flex: 1 }}
+              />
             ) : (
-              <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                height: '100%',
-                gap: 10,
-                color: 'var(--po-text-disabled)',
-                fontSize: 13,
-              }}>
-                {commits.length === 0 ? (
-                  <>
-                    <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.42 }}>
-                      <circle cx="12" cy="12" r="10" />
-                      <polyline points="12 6 12 12 16 14" />
-                    </svg>
-                    <span style={{ color: 'var(--po-text-subtle)' }}>No changes yet</span>
-                    <span style={{ fontSize: 12 }}>Pending reviews and conflicts appear in Needs action.</span>
-                  </>
-                ) : (
-                  'Select a commit'
-                )}
-              </div>
+              <EmptyState
+                icon={<GitCommitHorizontal size={40} strokeWidth={1.35} />}
+                title="Select a commit"
+                description="Choose a history item from the sidebar to inspect its changes."
+                style={{ flex: 1 }}
+              />
             )}
-          </div>
+          </HistoryDetailViewport>
         </div>
       )}
     </div>

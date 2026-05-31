@@ -126,7 +126,6 @@ const MainLayoutInner = memo(function MainLayoutInner({
       )}
 
       <ActivityStack
-        showGettingStarted={onboarding.hasSeenWelcome}
         projectId={activeBaseId || undefined}
       />
 

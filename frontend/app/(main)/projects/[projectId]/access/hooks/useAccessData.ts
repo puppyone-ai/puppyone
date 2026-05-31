@@ -23,6 +23,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import useSWR from 'swr';
 import {
   deleteConnector,
+  isAccessSurfaceConnector,
   listConnectors,
   listScopes,
   pauseConnector,
@@ -104,6 +105,7 @@ export function useAccessData(projectId: string): UseAccessDataResult {
   const connectorsByScope = useMemo(() => {
     const m = new Map<string, Connector[]>();
     (connectors ?? []).forEach((c) => {
+      if (!isAccessSurfaceConnector(c)) return;
       if (!AI_AGENT_ENABLED && c.provider === 'agent') return;
       if (!m.has(c.scope_id)) m.set(c.scope_id, []);
       m.get(c.scope_id)!.push(c);

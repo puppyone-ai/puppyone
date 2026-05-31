@@ -1,6 +1,7 @@
 'use client';
 
-import type { CSSProperties, MouseEvent, ReactNode } from 'react';
+import { useRef } from 'react';
+import type { CSSProperties, MouseEvent, PointerEvent, ReactNode } from 'react';
 import { ActivityIconButton } from '@/components/ActivityIconButton';
 import { APP_Z_INDEX } from '@/lib/zIndex';
 import { ModalPortal } from './ModalPortal';
@@ -33,18 +34,27 @@ export function DialogRoot({
   dismissOnBackdrop = true,
   style,
 }: DialogRootProps) {
+  const pointerStartedOnBackdropRef = useRef(false);
+
   if (!open) return null;
 
-  const handleBackdropClick = () => {
-    if (dismissOnBackdrop) {
+  const handleBackdropPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    pointerStartedOnBackdropRef.current = event.target === event.currentTarget;
+  };
+
+  const handleBackdropClick = (event: MouseEvent<HTMLDivElement>) => {
+    const clickedBackdrop = event.target === event.currentTarget;
+    if (dismissOnBackdrop && pointerStartedOnBackdropRef.current && clickedBackdrop) {
       onClose?.();
     }
+    pointerStartedOnBackdropRef.current = false;
   };
 
   return (
     <ModalPortal>
       <div
         role="presentation"
+        onPointerDown={handleBackdropPointerDown}
         onClick={handleBackdropClick}
         style={{
           position: 'fixed',

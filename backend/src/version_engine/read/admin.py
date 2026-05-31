@@ -25,8 +25,10 @@ import json
 from src.version_engine.write_engine.diff import diff_trees
 from src.version_engine.storage.object_store import ObjectStore
 from src.version_engine.write_engine.tree import read_tree
+from src.version_engine.domain.errors import ObjectNotFoundError, VersionEngineError
 
 from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
+from src.utils.logger import log_error
 
 
 _SCOPE_PROMOTE_TRAILER = "PuppyOne-Source: scope-promote"
@@ -153,7 +155,23 @@ class VersionAdminService:
         if not root1 or not root2:
             return []
 
-        return await asyncio.to_thread(diff_trees, repo.store, root1, root2)
+        # Tolerant mode: an unreadable tree object (missing/corrupt) is logged
+        # and treated as empty so the endpoint returns a best-effort diff
+        # instead of an unhandled 500. ObjectNotFoundError carries http_status
+        # 404; the HTTP layer maps VersionEngineError to it.
+        try:
+            return await asyncio.to_thread(
+                diff_trees, repo.store, root1, root2, tolerant=True
+            )
+        except VersionEngineError:
+            raise
+        except Exception as exc:  # noqa: BLE001 — never leak a raw 500 from diff
+            log_error(
+                f"[compute_diff] {project_id} {from_commit_id}..{to_commit_id} failed: {exc}"
+            )
+            raise ObjectNotFoundError(
+                f"diff unavailable for {from_commit_id}..{to_commit_id}: {exc}"
+            ) from exc
 
 
 def _resolve_entry_root(entry: dict) -> str:
@@ -236,12 +254,12 @@ def _path_relative_to_scope(path: str, scope_path: str) -> str | None:
 
 
 def _history_fetch_limit(limit: int) -> int:
-    """Fetch enough raw rows to keep technical projections out of UI history.
+    """Fetch enough raw rows to keep legacy projections out of UI history.
 
-    The history table intentionally contains internal projection commits such as
-    ``scope-promote`` because scoped Git refs need them. Product history does
-    not. If we fetched exactly ``limit`` raw rows and the newest rows were all
-    projections, the UI would look empty even though older user commits exist.
+    Older projects may contain internal ``scope-promote`` rows from the
+    pre-root-first writer. Product history does not show them. If we fetched
+    exactly ``limit`` raw rows and the newest rows were all projections, the UI
+    would look empty even though older user commits exist.
     """
     if limit <= 0:
         return 0

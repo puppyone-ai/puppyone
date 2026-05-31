@@ -1,8 +1,18 @@
 """
-SyncRunRepository — CRUD for sync execution history in the `sync_runs` table.
+SyncRunRepository — CRUD for connector execution history in the
+``connector_runs`` table.
 
-Each row records one invocation of SyncEngine.execute() for an access point,
+Each row records one invocation of SyncEngine.execute() for a connector,
 capturing status, duration, stdout, errors, and result summary.
+
+NOTE (GAP-8): migration ``20260502000400_sync_runs_rename`` renamed
+``sync_runs`` → ``connector_runs`` and the FK column ``access_point_id`` →
+``connector_id``. This repository still pointed at the old names, so every
+insert hit a non-existent table; the SyncEngine swallows that error, so
+run history (and the dashboard usage buckets that read ``connector_runs``)
+was silently empty for ALL connectors. Names are now aligned with the
+live schema. ``_to_model`` still tolerates the old column names so any
+legacy rows deserialize.
 """
 
 from dataclasses import dataclass
@@ -31,7 +41,7 @@ MAX_STDOUT_LEN = 100_000  # 100KB
 
 
 class SyncRunRepository:
-    TABLE = "sync_runs"
+    TABLE = "connector_runs"
 
     def __init__(self, supabase_client: SupabaseClient):
         self.client = supabase_client.client
@@ -43,7 +53,10 @@ class SyncRunRepository:
     def _to_model(self, row: dict) -> SyncRun:
         return SyncRun(
             id=row["id"],
-            access_point_id=row.get("access_point_id", row.get("sync_id", "")),
+            access_point_id=row.get(
+                "connector_id",
+                row.get("access_point_id", row.get("sync_id", "")),
+            ),
             status=row.get("status", "running"),
             started_at=row.get("started_at"),
             finished_at=row.get("finished_at"),
@@ -58,7 +71,7 @@ class SyncRunRepository:
 
     def create(self, sync_id: str, trigger_type: str = "manual") -> SyncRun:
         data = {
-            "access_point_id": sync_id,
+            "connector_id": sync_id,
             "status": "running",
             "trigger_type": trigger_type,
             "started_at": self._now(),
@@ -114,7 +127,7 @@ class SyncRunRepository:
         response = (
             self.client.table(self.TABLE)
             .select("*")
-            .eq("access_point_id", sync_id)
+            .eq("connector_id", sync_id)
             .order("started_at", desc=True)
             .range(offset, offset + limit - 1)
             .execute()
@@ -135,7 +148,7 @@ class SyncRunRepository:
         response = (
             self.client.table(self.TABLE)
             .select("*")
-            .in_("access_point_id", access_point_ids)
+            .in_("connector_id", access_point_ids)
             .eq("status", "failed")
             .order("started_at", desc=True)
             .limit(limit)
@@ -147,10 +160,10 @@ class SyncRunRepository:
         response = (
             self.client.table(self.TABLE)
             .select("id", count="exact")
-            .eq("access_point_id", sync_id)
+            .eq("connector_id", sync_id)
             .execute()
         )
         return response.count or 0
 
     def delete_by_sync(self, sync_id: str) -> None:
-        self.client.table(self.TABLE).delete().eq("access_point_id", sync_id).execute()
+        self.client.table(self.TABLE).delete().eq("connector_id", sync_id).execute()

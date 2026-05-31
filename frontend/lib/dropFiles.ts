@@ -35,6 +35,26 @@
  *     after. Otherwise dragend would race with our callback.
  */
 
+import { pathBlockedSegment } from './uploadPolicy';
+
+function attachRelativePath(file: File, path: string): File {
+  try {
+    Object.defineProperty(file, 'webkitRelativePath', {
+      value: path,
+      writable: false,
+      configurable: true,
+    });
+  } catch {
+    // keep file as-is
+  }
+  return file;
+}
+
+function makeSkippedMarker(path: string): File {
+  const name = path.split('/').pop() || '.puppyone-skipped';
+  return attachRelativePath(new File([], name), path);
+}
+
 /**
  * Snapshot the dropped DataTransfer's items into ``FileSystemEntry``
  * handles synchronously. Must be called from inside the drop event;
@@ -90,27 +110,20 @@ async function materializeEntry(
   pathPrefix: string,
   out: File[],
 ): Promise<void> {
+  const entryPath = pathPrefix + entry.name;
+  if (pathBlockedSegment(entryPath)) {
+    out.push(
+      makeSkippedMarker(entry.isDirectory ? `${entryPath}/.puppyone-skipped` : entryPath),
+    );
+    return;
+  }
+
   if (entry.isFile) {
     const fileEntry = entry as FileSystemFileEntry;
     await new Promise<void>((resolve, reject) => {
       fileEntry.file(
         (file) => {
-          const path = pathPrefix + file.name;
-          // ``File.webkitRelativePath`` is read-only on the
-          // standard interface, but Chromium and Firefox allow
-          // redefining it via ``Object.defineProperty``. If a
-          // hardened browser ever rejects this, we silently drop
-          // the path context — uploads still succeed, just flatly.
-          try {
-            Object.defineProperty(file, 'webkitRelativePath', {
-              value: path,
-              writable: false,
-              configurable: true,
-            });
-          } catch {
-            // keep file as-is
-          }
-          out.push(file);
+          out.push(attachRelativePath(file, entryPath));
           resolve();
         },
         (err) => reject(err),

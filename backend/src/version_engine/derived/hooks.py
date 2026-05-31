@@ -25,7 +25,11 @@ from src.version_engine.write_engine.git_commit import (
     build_git_commit,
     shallow_git_parent_or_empty,
 )
-from src.version_engine.write_engine.git_object_format import decode_commit, decode_tree
+from src.version_engine.write_engine.git_object_format import (
+    MODE_FILE,
+    decode_commit,
+    decode_tree,
+)
 from src.version_engine.write_engine.path_utils import normalize_path
 from src.utils.logger import log_error, log_info, log_warning
 
@@ -112,15 +116,13 @@ def run_post_push_hook(
     *,
     raise_errors: bool = False,
 ) -> None:
-    """Inspect a push/rollback result and trigger relevant post-commit hooks.
+    """Legacy scope-publish repair hook.
 
-    Called by in-process write-back helpers after a successful publish.
-    Accepts both formats:
-      - push:     {"status": "ok",         "commit_id": "…", "root": "..."}
-      - rollback: {"status": "rolled-back","new_commit_id": "…", "root": "..."}
-
-    1. Grafts scope tree into the global root hash so tree_reader can see it
-    2. Extracts deleted paths from the commit entry and runs post_commit_delete
+    Current writes publish through ``run_post_project_update_hook`` after a
+    root-authoritative transaction. This function exists only for pre-root-first
+    in-process/outbox events that may still need a best-effort root visibility
+    repair, path index refresh, and notification fan-out. It must not create
+    new scope-promote commits or advance scope heads.
     """
     status = push_result.get("status", "")
     if status not in _SUCCESS_STATUSES:
@@ -195,24 +197,6 @@ def run_post_push_hook(
             if deleted_paths:
                 post_commit_delete(project_id, deleted_paths)
 
-            # Child-promotes-parent (07-version-engine-supplement.md §7.B).
-            # The promote step is best-effort: each ancestor's CAS happens
-            # independently, so a stale ancestor head triggers a retry but
-            # cannot block the just-landed child commit.
-            _promote_to_ancestor_scopes(repo, project_id, entry, scope_path)
-
-            # Parent-commit triggers child re-graft: when a non-promote
-            # commit lands on a scope that has declared children, re-apply
-            # each child's current tree on top of the parent's new tree.
-            # Without this, a parent edit (delete / rename / overwrite) at
-            # a child-territory path would persist in the parent's view
-            # until the child happens to commit again. V1 spec §7 says
-            # child-owned paths re-surface via graft; this is what makes
-            # that actually happen.
-            _regraft_children_into_committed_scope(
-                repo, project_id, entry, scope_path,
-            )
-
             # Refresh the materialised fs_path_index so the next
             # `puppyone fs find` / `stat` query sees the new files (H1).
             # Best-effort: a Supabase blip degrades fs queries to live S3
@@ -275,130 +259,6 @@ def _refresh_fs_path_index(
         log_warning(f"[PostCommit] fs_path_index refresh failed: {exc}")
 
 
-def _regraft_children_into_committed_scope(
-    repo, project_id: str, entry: dict, scope_path: str,
-) -> None:
-    """After a non-promote commit on ``scope_path``, re-graft each
-    declared child scope (immediate descendants only) back into the
-    committed scope's view. Bounded so it never triggers itself:
-
-      * scope-promote commits skip via the message-trailer check
-      * each child re-graft is a one-hop call into ``promote_to_parents``
-        for THIS scope only — the descendant's own ancestors above us
-        are skipped via ``ancestor_filter``.
-    """
-
-    message = entry.get("message", "") or ""
-    if "PuppyOne-Source: scope-promote" in message:
-        return
-
-    try:
-        from src.version_engine.derived.parent_scope_promote import (
-            promote_to_one_parent,
-        )
-        from src.version_engine.write_engine.path_utils import normalize_path
-    except Exception as exc:
-        log_warning(f"[PostCommit] re-graft import failed: {exc}")
-        return
-
-    parent_norm = normalize_path(scope_path)
-    try:
-        declared = repo.get_declared_scope_paths()
-    except Exception:
-        return
-
-    # Immediate children: declared scopes whose first ancestor under
-    # ``declared`` is ``parent_norm``. We compare against the declared
-    # set so an intermediate non-declared path doesn't accidentally
-    # block recognition (e.g. ``foo/bar/leaf`` with only ``foo`` and
-    # ``foo/bar/leaf`` declared is still an "immediate" child of foo).
-    children: list[str] = []
-    for d in declared:
-        d_norm = normalize_path(d)
-        if not d_norm:
-            continue
-        if parent_norm and not d_norm.startswith(parent_norm + "/"):
-            continue
-        if parent_norm == d_norm:
-            continue
-        # Walk up from d to see if parent_norm is the nearest declared
-        # ancestor.
-        nearest = ""
-        parts = d_norm.split("/")
-        for i in range(len(parts) - 1, 0, -1):
-            anc = "/".join(parts[:i])
-            if anc in declared and anc != d_norm:
-                nearest = anc
-                break
-        if nearest == parent_norm:
-            children.append(d_norm)
-
-    if not children:
-        return
-
-    actor = f"system:regraft-after-{entry.get('who') or 'commit'}"
-    created_at_iso = entry.get("created_at", "") or ""
-
-    for child in children:
-        try:
-            scope_hash, head_commit = repo.get_scope_state(child)
-        except Exception:
-            continue
-        if not scope_hash or not head_commit:
-            continue
-        try:
-            promote_to_one_parent(
-                repo,
-                project_id=project_id,
-                parent_scope_path=parent_norm,
-                child_scope_path=child,
-                child_new_tree_hash=scope_hash,
-                child_commit_actor=actor,
-                child_commit_id=head_commit,
-                created_at_iso=created_at_iso,
-                trailer_extra="PuppyOne-Regraft: post-parent-commit\n",
-            )
-        except Exception as exc:
-            log_warning(
-                f"[PostCommit] re-graft of child {child!r} into "
-                f"{parent_norm or '/'} failed: {exc}",
-            )
-
-
-def _promote_to_ancestor_scopes(repo, project_id: str, entry: dict, scope_path: str) -> None:
-    """Run scope-promote projections for the child commit's ancestor scopes.
-
-    No-op for root-scope commits and for commits whose own message already
-    carries the ``scope-promote`` trailer (so the projection does not
-    recurse into itself when the parent scope is itself a child of a
-    further ancestor).
-    """
-
-    if not scope_path:
-        return
-    message = entry.get("message", "") or ""
-    if "PuppyOne-Source: scope-promote" in message:
-        return
-    new_tree_hash = entry.get("scope_hash") or ""
-    new_commit_id = entry.get("commit_id") or ""
-    if not new_tree_hash or not new_commit_id:
-        return
-
-    try:
-        from src.version_engine.derived.parent_scope_promote import promote_to_parents
-        promote_to_parents(
-            repo,
-            project_id=project_id,
-            child_scope_path=scope_path,
-            child_new_tree_hash=new_tree_hash,
-            child_commit_actor=entry.get("who", "") or "",
-            child_commit_id=new_commit_id,
-            created_at_iso=entry.get("created_at", "") or "",
-        )
-    except Exception as exc:
-        log_warning(f"[PostCommit] scope-promote failed: {exc}")
-
-
 def run_post_project_update_hook(
     project_id: str,
     repo_manager,
@@ -406,9 +266,9 @@ def run_post_project_update_hook(
     *,
     raise_errors: bool = False,
 ) -> None:
-    """Finalize a product-root transaction.
+    """Finalize a root-authoritative transaction.
 
-    Product API writes already CAS-updated the materialized project root.
+    Product/API/Git scoped writes already CAS-updated the canonical root.
     The hook therefore does not rebuild the project root from child
     scopes. Instead it derives child-scope refs from the accepted root
     so scoped Git/AP clients see the new product state without creating
@@ -427,11 +287,13 @@ def run_post_project_update_hook(
         )
 
         try:
+            entry_scope_path = normalize_path(entry.get("scope_path") or "")
+            entry_scope_hash = entry.get("scope_hash") or root_hash
             record_project_view_index_for_commit(
                 repo=repo,
                 entry=entry,
-                scope_path="",
-                scope_hash=root_hash,
+                scope_path=entry_scope_path,
+                scope_hash=entry_scope_hash,
                 project_root_hash=root_hash,
                 source_commit_id=commit_id,
             )
@@ -531,6 +393,7 @@ def run_project_root_visibility_barrier(
             for c in changes
             if isinstance(c, dict) and c.get("path")
         ]
+        source_scope_path = normalize_path(entry.get("scope_path") or "")
         affected_scopes = _project_root_affected_scopes(repo, changed_paths)
         with _projection_locks(
             project_id,
@@ -567,6 +430,7 @@ def run_project_root_visibility_barrier(
                 changed_paths=changed_paths,
                 scopes=affected_scopes,
                 stale_project_root=stale_project_root,
+                source_scope_path=source_scope_path,
             )
     except Exception as e:
         log_error(
@@ -860,7 +724,12 @@ def _update_global_root(repo, push_result: dict) -> None:
     worker still call it by name.
     """
 
-    rebuild_project_root_after_commit(repo, push_result)
+    if not rebuild_project_root_after_commit(repo, push_result):
+        commit_id = push_result.get("commit_id") or push_result.get("new_commit_id") or ""
+        raise RuntimeError(
+            "project-root projection did not publish"
+            + (f" for commit {commit_id[:12]}" if commit_id else "")
+        )
 
 
 def _sync_child_scope_refs_from_project_root(
@@ -873,6 +742,7 @@ def _sync_child_scope_refs_from_project_root(
     changed_paths: list[str] | None = None,
     scopes: list[dict] | None = None,
     stale_project_root: bool = False,
+    source_scope_path: str = "",
 ) -> None:
     """Derive scoped access-point refs from an accepted project root."""
 
@@ -886,6 +756,12 @@ def _sync_child_scope_refs_from_project_root(
     for scope in scopes:
         scope_path = normalize_path(scope.get("path", ""))
         if not scope_path:
+            continue
+        if scope_path == normalize_path(source_scope_path):
+            # The source scope row is part of the accepted publish transaction.
+            # Re-deriving it here can silently replace the Git-visible client
+            # commit with a synthetic scope-view commit, breaking normal
+            # fast-forward pulls for native Git remotes.
             continue
         if changed_paths is not None and not _scope_intersects_paths(
             scope_path,
@@ -1014,34 +890,51 @@ def _merge_project_root_delta_into_child_scope(
     ):
         return new_subtree_hash
 
-    from src.version_engine.write_engine.tree_objects import (
-        build_tree_from_files,
-        flatten_tree_to_bytes,
-    )
+    from src.version_engine.write_engine.tree import tree_to_flat, tree_path_modes
+    from src.version_engine.write_engine.tree_objects import build_tree_from_blob_ids
 
+    # GAP-5: run the 3-way merge at the BLOB OBJECT-ID level, never on blob
+    # bytes. ``tree_to_flat`` returns ``{path: blob_oid}`` by reading only
+    # the (small, cached) tree objects; it does not download file content.
+    # Because the store is content-addressed, two paths have identical bytes
+    # iff their blob oids are equal, so OID comparison is exactly equivalent
+    # to the old byte comparison — but a large scope no longer pulls every
+    # blob (×3 subtrees) onto the request path. The rebuild references the
+    # existing blob oids directly instead of re-uploading bytes.
+    #
+    # Blob MODES are merged alongside oids (A1-1): the merged mode follows
+    # the same source as the merged oid, so an executable/symlink kept from
+    # the child scope or taken from the parent isn't downgraded to 100644.
     old_subtree_hash = _tree_hash_at_path(
         repo.store,
         previous_project_root_hash,
         scope_path,
     ) if previous_project_root_hash else ""
-    old_files = flatten_tree_to_bytes(repo.store, old_subtree_hash)
-    new_files = flatten_tree_to_bytes(repo.store, new_subtree_hash)
-    current_files = flatten_tree_to_bytes(repo.store, current_scope_hash)
+    old_oids = tree_to_flat(repo.store, old_subtree_hash) if old_subtree_hash else {}
+    new_oids = tree_to_flat(repo.store, new_subtree_hash) if new_subtree_hash else {}
+    current_oids = tree_to_flat(repo.store, current_scope_hash) if current_scope_hash else {}
+    new_modes = tree_path_modes(repo.store, new_subtree_hash) if new_subtree_hash else {}
+    merged_modes = tree_path_modes(repo.store, current_scope_hash) if current_scope_hash else {}
 
-    merged_files = dict(current_files)
-    for rel_path in set(old_files) | set(new_files):
-        before = old_files.get(rel_path)
-        after = new_files.get(rel_path)
+    merged_oids = dict(current_oids)
+    for rel_path in set(old_oids) | set(new_oids):
+        before = old_oids.get(rel_path)
+        after = new_oids.get(rel_path)
         if before == after:
             continue
-        if stale_project_root and current_files.get(rel_path) != before:
+        if stale_project_root and current_oids.get(rel_path) != before:
             continue
         if after is None:
-            merged_files.pop(rel_path, None)
+            merged_oids.pop(rel_path, None)
+            merged_modes.pop(rel_path, None)
         else:
-            merged_files[rel_path] = after
+            merged_oids[rel_path] = after
+            merged_modes[rel_path] = new_modes.get(rel_path, MODE_FILE)
 
-    return build_tree_from_files(repo.store, merged_files) if merged_files else ""
+    return (
+        build_tree_from_blob_ids(repo.store, merged_oids, modes=merged_modes)
+        if merged_oids else ""
+    )
 
 
 def _set_scope_state(repo, scope_path: str, scope_hash: str, head_commit_id: str) -> None:

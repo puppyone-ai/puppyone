@@ -63,11 +63,22 @@ def list_connectors(
     scope_id: Optional[str] = Query(None),
     provider: Optional[str] = Query(None),
     direction: Optional[str] = Query(None),
+    include_non_access: bool = Query(
+        False,
+        description=(
+            "Include legacy import-only connector rows. The default response "
+            "contains only ongoing Access methods."
+        ),
+    ),
     project: Project = Depends(get_verified_project),
     service: ConnectorService = Depends(get_connector_service),
 ):
     items = service.list(
-        str(project.id), scope_id=scope_id, provider=provider, direction=direction,
+        str(project.id),
+        scope_id=scope_id,
+        provider=provider,
+        direction=direction,
+        access_surface_only=not include_non_access,
     )
     return ApiResponse.success(data=[_to_out(c) for c in items], message="Connectors listed")
 

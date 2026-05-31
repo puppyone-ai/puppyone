@@ -1,13 +1,15 @@
 """Durable repair loop for Git-native version post-commit side effects.
 
-Two event types travel through the persistent version outbox today:
+Event types travel through the persistent version outbox today:
 
-  ``version_committed``        the SQL scope-publish RPC
-                               always enqueues one per accepted write;
-                               the worker replays projection / graft /
-                               notification work as a durable fallback
-                               when the synchronous post-commit hook
-                               failed or never ran.
+  ``project_version_committed`` enqueued by the root-authoritative publish
+                                RPC. The worker derives read-side scope
+                                caches and notifications from the accepted
+                                project root.
+
+  ``version_committed``         legacy pre-root-first rows only. The worker
+                                can still run a repair hook for old rows, but
+                                new writes must not enqueue this event.
 
   ``pending_conflict_created`` enqueued by
                                ``_record_pending_conflict_row`` when an

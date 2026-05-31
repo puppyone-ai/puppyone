@@ -44,7 +44,6 @@ PRODUCT_WRITE_MODULES = (
     "src/version_engine/adapters/product/operation_adapter.py",
     "src/version_engine/write_engine/engine.py",
     "src/version_engine/derived/projection.py",
-    "src/version_engine/derived/parent_scope_promote.py",
     "src/version_engine/derived/hooks.py",
     "src/version_engine/entrypoints/http/content_write.py",
 )
@@ -762,6 +761,39 @@ def test_active_runtime_surfaces_do_not_reintroduce_removed_protocol_names() -> 
                 for label, pattern in banned_patterns:
                     if pattern.search(line):
                         offenders.append(f"{rel}:{line_no}:{label}")
+
+    assert offenders == []
+
+
+def test_runtime_no_longer_uses_scope_publish_path() -> None:
+    """Root-first writes must not regress to the old scope-authoritative RPC."""
+
+    banned = (
+        "publish_scope_update",
+        "publish_scope_promotion",
+        "PUBLISH_SCOPE_UPDATE_RPC",
+        "ScopePromoteIntent",
+        "parent_scope_promote",
+    )
+    suffixes = {".py"}
+    offenders: list[str] = []
+
+    for root in (
+        BACKEND_ROOT / "src",
+        BACKEND_ROOT / "scripts",
+        BACKEND_ROOT / "tests" / "version_engine",
+    ):
+        for path in root.rglob("*"):
+            if not path.is_file() or path.suffix not in suffixes:
+                continue
+            rel = path.relative_to(BACKEND_ROOT)
+            if rel == Path("tests/version_engine/test_git_kernel_migration_contracts.py"):
+                continue
+            text = path.read_text(encoding="utf-8")
+            for line_no, line in enumerate(text.splitlines(), start=1):
+                for token in banned:
+                    if token in line:
+                        offenders.append(f"{rel}:{line_no}:{token}")
 
     assert offenders == []
 

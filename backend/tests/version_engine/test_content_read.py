@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from fastapi import HTTPException
 
-from src.version_engine.domain.errors import PathNotFoundError
+from src.version_engine.domain.errors import PathNotFoundError, VersionReadError
 from src.version_engine.entrypoints.http import content_read
 from src.version_engine.read.tree_reader import VersionEntry
 from src.platform.auth.models import CurrentUser
@@ -42,6 +42,14 @@ class _MissingDirOps(_FakeOps):
 
     def list_tree(self, _project_id: str, _path: str, *, max_depth: int = -1):
         raise PathNotFoundError("directory not found: missing")
+
+
+class _ReadUnavailableOps(_FakeOps):
+    def list_dir(self, _project_id: str, _path: str):
+        raise VersionReadError("db timeout")
+
+    def list_tree(self, _project_id: str, _path: str, *, max_depth: int = -1):
+        raise VersionReadError("db timeout")
 
 
 def test_content_ls_includes_dotfiles_by_default():
@@ -109,4 +117,22 @@ def test_content_tree_missing_directory_returns_404_not_empty():
         "code": "DIRECTORY_NOT_FOUND",
         "message": "Directory not found: missing",
         "path": "missing",
+    }
+
+
+def test_content_ls_read_unavailable_returns_502_not_empty():
+    with pytest.raises(HTTPException) as exc:
+        content_read.list_dir(
+            "project-1",
+            path="",
+            ops=_ReadUnavailableOps(),
+            project_service=_FakeProjectService(),
+            current_user=_user(),
+        )
+
+    assert exc.value.status_code == 502
+    assert exc.value.detail == {
+        "code": "VERSION_READ_UNAVAILABLE",
+        "message": "Version tree temporarily unavailable while reading project root.",
+        "path": "",
     }

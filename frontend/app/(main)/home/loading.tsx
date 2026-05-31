@@ -6,8 +6,8 @@
  * stays mounted (it lives in the parent (main) layout), and only the
  * inner content area shows this loader.
  */
-import { PageLoading } from '@/components/loading';
+import { DashboardLoadingSkeleton } from '@/components/dashboard/DashboardView';
 
 export default function HomeLoading() {
-  return <PageLoading variant="fill" />;
+  return <DashboardLoadingSkeleton />;
 }

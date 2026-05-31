@@ -34,6 +34,30 @@ _TABLE = "version_text_index"
 _STATE_TABLE = "version_text_index_state"
 
 
+def _escape_like(value: str) -> str:
+    """Escape SQL ``LIKE`` wildcards so a literal ``%`` / ``_`` in the
+    user-supplied value isn't treated as a wildcard. Backslash first so
+    we don't double-escape our own escapes."""
+    return (
+        value.replace("\\", "\\\\")
+        .replace("%", r"\%")
+        .replace("_", r"\_")
+    )
+
+
+def _pgrst_or_quote(value: str) -> str:
+    """Wrap a value for safe interpolation into a PostgREST ``or=``
+    mini-language clause.
+
+    The ``or=`` grammar splits conditions on commas and treats ``.``,
+    ``(``, ``)`` as syntax, so any value carrying those (a path with a
+    dot or comma) would corrupt the filter. Double-quoting tells the
+    parser to treat the contents as a literal; embedded double quotes
+    are backslash-escaped."""
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
+
+
 @dataclass
 class IndexHit:
     """One matched line in the indexed grep response.
@@ -111,7 +135,7 @@ class TextIndexRepository:
         # value need URL-style escaping. Server-side substring search
         # is the hot path; encode ``%`` as ``\%`` so a literal "%"
         # the user types stays literal.
-        like_value = "%" + pattern.replace("%", r"\%").replace("_", r"\_") + "%"
+        like_value = "%" + _escape_like(pattern) + "%"
         query = (
             self._client.table(_TABLE)
             .select("file_path, content_hash, chunk_idx, line_start, text")
@@ -127,9 +151,19 @@ class TextIndexRepository:
             # ``notes/sub/y.md``. Two predicates (exact + prefix)
             # keep the planner from doing a sequential scan when the
             # scope is the project root.
+            #
+            # The value is interpolated into the PostgREST ``or=``
+            # mini-language, which splits conditions on commas and
+            # treats ``.``/``(``/``)`` as syntax. A scope_path with any
+            # of those (or a LIKE wildcard ``%``/``_``) would corrupt
+            # the filter, so: (a) escape LIKE wildcards for the prefix
+            # predicate, (b) wrap both values in double quotes so the
+            # mini-language parser treats them as literals.
+            exact_val = _pgrst_or_quote(scope_path)
+            prefix_val = _pgrst_or_quote(_escape_like(scope_path) + "/*")
             query = query.or_(
-                f"file_path.eq.{scope_path},"
-                f"file_path.like.{scope_path}/*"
+                f"file_path.eq.{exact_val},"
+                f"file_path.like.{prefix_val}"
             )
 
         if regex:
@@ -273,6 +307,60 @@ class TextIndexRepository:
             log_error(f"[TextIndex] upsert_chunks failed: {exc}")
             return 0
         return len(resp.data or rows)
+
+    def delete_file(
+        self,
+        *,
+        project_id: str,
+        file_path: str,
+        include_subtree: bool = False,
+    ) -> int:
+        """Remove index rows attributed to ``file_path``.
+
+        Called by the commit-delta indexer in two cases (GAP-6):
+
+          - **delete** — a file (or, with ``include_subtree``, a whole
+            directory subtree) was removed in the commit, so its rows
+            must be purged or ``grep`` keeps returning the dead path.
+          - **modify** — a file's content changed; we clear its old
+            rows before re-indexing the new content so stale chunks
+            from the previous version aren't searchable, and so the
+            index stays bounded to the live working tree rather than
+            growing one row-set per historical content version.
+
+        ``include_subtree`` also removes rows whose ``file_path`` lives
+        under ``file_path/`` — used for directory deletes where the
+        change list carries the directory path, not each child.
+
+        Note: rows are content-addressed by ``content_hash`` with
+        ``file_path`` recording the last writer. In the rare case two
+        distinct paths share identical bytes, deleting one path can
+        drop the shared row and make the other temporarily unsearchable
+        until its next commit re-indexes it. That trade-off is inherent
+        to the "indexed exactly once" design in the table migration.
+
+        Returns a best-effort deleted row count.
+        """
+        try:
+            query = (
+                self._client.table(_TABLE)
+                .delete()
+                .eq("project_id", project_id)
+            )
+            if include_subtree:
+                exact_val = _pgrst_or_quote(file_path)
+                prefix_val = _pgrst_or_quote(_escape_like(file_path) + "/*")
+                query = query.or_(
+                    f"file_path.eq.{exact_val},"
+                    f"file_path.like.{prefix_val}"
+                )
+            else:
+                query = query.eq("file_path", file_path)
+            resp = query.execute()
+        except Exception as exc:
+            log_error(f"[TextIndex] delete_file({file_path}) failed: {exc}")
+            return 0
+        return len(resp.data or [])
 
     def set_scope_freshness(
         self,

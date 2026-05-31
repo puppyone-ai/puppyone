@@ -842,6 +842,12 @@ export async function uploadFiles(
     const file = params.files[i];
 
     try {
+      if (initFile.total_parts === 0) {
+        callbacks.onAllPartsUploaded?.(initFile.task_id);
+        finalizeQueue.push({ initFile, parts: [] });
+        continue;
+      }
+
       const uploadedParts = await uploadParts(file, initFile, effectiveToken, {
         signal: callbacks.signal,
         onProgress: (loaded, total, percent) => {
@@ -972,14 +978,16 @@ export async function uploadFiles(
         status: 'aborted',
       });
       // Best-effort cleanup of the unstarted multipart on S3.
-      await abortMultipartUpload(
-        {
-          taskId: initFile.task_id,
-          s3Key: initFile.s3_key,
-          uploadId: initFile.upload_id,
-        },
-        effectiveToken,
-      );
+      if (initFile.upload_id) {
+        await abortMultipartUpload(
+          {
+            taskId: initFile.task_id,
+            s3Key: initFile.s3_key,
+            uploadId: initFile.upload_id,
+          },
+          effectiveToken,
+        );
+      }
     }
   }
 

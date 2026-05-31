@@ -10,6 +10,7 @@ from src.version_engine.write_engine.git_object_format import (
     encode_tree,
 )
 from src.version_engine.write_engine.path_utils import normalize_path
+from src.version_engine.write_engine.tree_delta import changes_from_file_maps
 
 
 def flatten_tree_to_bytes(store, tree_hash: str) -> dict[str, bytes]:
@@ -21,9 +22,19 @@ def flatten_tree_to_bytes(store, tree_hash: str) -> dict[str, bytes]:
     return {path: store.get(blob_hash) for path, blob_hash in flat_hashes.items()}
 
 
-def build_tree_from_files(store, files: dict[str, bytes]) -> str:
-    """Build a Git tree object from a flat ``{path: bytes}`` mapping."""
+def build_tree_from_files(
+    store, files: dict[str, bytes], *, modes: dict[str, bytes] | None = None,
+) -> str:
+    """Build a Git tree object from a flat ``{path: bytes}`` mapping.
 
+    ``modes`` (``{path: mode_bytes}``, e.g. from ``tree.tree_path_modes``)
+    preserves the original Git blob mode per path; absent paths default to
+    a regular file. Without it, every blob is written as ``100644`` —
+    silently dropping executable bits and turning symlinks into regular
+    files when a tree is rebuilt from a flatten.
+    """
+
+    modes = modes or {}
     nested: dict = {}
     for path, content in files.items():
         clean = normalize_path(path)
@@ -33,7 +44,36 @@ def build_tree_from_files(store, files: dict[str, bytes]) -> str:
         node = nested
         for part in parts[:-1]:
             node = node.setdefault(part, {})
-        node[parts[-1]] = ("B", store.put_blob(content))
+        node[parts[-1]] = ("B", store.put_blob(content), modes.get(path, MODE_FILE))
+    return _write_nested_tree(store, nested)
+
+
+def build_tree_from_blob_ids(
+    store, files: dict[str, str], *, modes: dict[str, bytes] | None = None,
+) -> str:
+    """Build a Git tree object from a flat ``{path: blob_object_id}`` mapping.
+
+    Unlike :func:`build_tree_from_files`, the blobs already live in the
+    content-addressed store, so we reference their object ids directly
+    instead of re-uploading bytes. This lets callers rebuild a tree from
+    an OID-level file map (e.g. one derived from :func:`tree_mod.tree_to_flat`)
+    without ever downloading or re-putting blob contents.
+
+    ``modes`` (``{path: mode_bytes}``) preserves the original blob mode;
+    absent paths default to a regular file.
+    """
+
+    modes = modes or {}
+    nested: dict = {}
+    for path, blob_id in files.items():
+        clean = normalize_path(path)
+        if not clean or not blob_id:
+            continue
+        parts = [part for part in clean.split("/") if part]
+        node = nested
+        for part in parts[:-1]:
+            node = node.setdefault(part, {})
+        node[parts[-1]] = ("B", blob_id, modes.get(path, MODE_FILE))
     return _write_nested_tree(store, nested)
 
 
@@ -44,21 +84,7 @@ def compute_changeset(
 ) -> list[dict]:
     """Compute full project-root history changes for a scoped file map."""
 
-    scope_prefix = normalize_path(scope_path)
-    changes: list[dict] = []
-    for rel_path, new_data in sorted(new_files.items()):
-        full = join_scope_path(scope_prefix, rel_path)
-        if rel_path not in old_files:
-            changes.append({"path": full, "action": "add"})
-        elif old_files[rel_path] != new_data:
-            changes.append({"path": full, "action": "update"})
-    for rel_path in sorted(old_files):
-        if rel_path not in new_files:
-            changes.append({
-                "path": join_scope_path(scope_prefix, rel_path),
-                "action": "delete",
-            })
-    return changes
+    return changes_from_file_maps(scope_path, old_files, new_files)
 
 
 def build_full_changes(
@@ -159,10 +185,14 @@ def _write_nested_tree(store, node: dict) -> str:
     entries: list[TreeEntry] = []
     for name, val in sorted(node.items()):
         if isinstance(val, tuple):
-            kind, sub_hash = val
+            # Leaf: ("B", sha[, mode]). The optional 3rd element carries the
+            # original blob mode (executable/symlink/gitlink); 2-tuples from
+            # older call sites default to a regular file.
+            kind, sub_hash = val[0], val[1]
+            mode = val[2] if len(val) > 2 else MODE_FILE
             entries.append(TreeEntry(
                 name=name,
-                mode=MODE_FILE if kind == "B" else MODE_DIR,
+                mode=mode if kind == "B" else MODE_DIR,
                 sha1_hex=sub_hash,
             ))
         else:

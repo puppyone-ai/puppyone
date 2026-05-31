@@ -6,12 +6,21 @@ import { ItemContextMenu } from './ExplorerRowMenus';
 import type { ExplorerSidebarProps, ExplorerCreateMenuAction, SyncEndpointInfo } from './types';
 
 export const EXPLORER_ROW_ACTION_LAYER_WIDTH = 50;
+const EXPLORER_ROW_MENU_ACTION_WIDTH = 26;
 const EXPLORER_ROW_ACCESS_ACTION_WIDTH = 26;
 
 export function getExplorerRowActionLayerWidth(hasAccessPoint: boolean): number {
   return hasAccessPoint
     ? EXPLORER_ROW_ACTION_LAYER_WIDTH + EXPLORER_ROW_ACCESS_ACTION_WIDTH
     : EXPLORER_ROW_ACTION_LAYER_WIDTH;
+}
+
+export function getExplorerRowReservedActionWidth(
+  hasAccessPoint: boolean,
+  hasObjectMenu: boolean,
+): number {
+  return (hasObjectMenu ? EXPLORER_ROW_MENU_ACTION_WIDTH : 0)
+    + (hasAccessPoint ? EXPLORER_ROW_ACCESS_ACTION_WIDTH : 0);
 }
 
 type RowActionButtonVariant = 'default' | 'createActive' | 'accessConfigured';
@@ -25,7 +34,7 @@ function rowActionButtonClass(variant: RowActionButtonVariant) {
   }
 
   if (variant === 'accessConfigured') {
-    return `${base} border-[color-mix(in_srgb,var(--po-accent)_34%,transparent)] bg-[color-mix(in_srgb,var(--po-accent)_18%,var(--po-control)_58%)] text-[var(--po-accent-text)] hover:border-[color-mix(in_srgb,var(--po-accent)_46%,transparent)] hover:bg-[color-mix(in_srgb,var(--po-accent)_25%,var(--po-control)_52%)] hover:text-[var(--po-accent)]`;
+    return `${base} bg-transparent text-[var(--po-access-active-text)] hover:bg-[var(--po-access-active-hover)] hover:text-[var(--po-access-active-text)]`;
   }
 
   return `${base} bg-transparent text-[var(--po-text-subtle)] hover:bg-[var(--po-hover)] hover:text-[var(--po-text)]`;
@@ -108,6 +117,7 @@ export function ExplorerRowActions({
   isFolder,
   endpoints,
   openMenuAction,
+  alwaysVisible = false,
   isSynced,
   itemName,
   onCreate,
@@ -123,6 +133,7 @@ export function ExplorerRowActions({
   isFolder: boolean;
   endpoints: readonly SyncEndpointInfo[];
   openMenuAction?: ExplorerCreateMenuAction | null;
+  alwaysVisible?: boolean;
   isSynced?: boolean;
   itemName: string;
   onCreate?: ExplorerSidebarProps['onCreate'];
@@ -140,7 +151,7 @@ export function ExplorerRowActions({
     isCreateMenuOpen || isContextMenuOpen || isAccessMenuOpen;
   const endpointCount = endpoints.length;
   const hasAccessPoint = isFolder && endpointCount > 0;
-  const peerVisibility = isAnyMenuOpen ? 'flex' : 'hidden group-hover/row:flex';
+  const peerVisibility = alwaysVisible || isAnyMenuOpen ? 'flex' : 'hidden group-hover/row:flex';
   const hasObjectMenu = !!(onRename || onDelete || onDownload || (isFolder && onCreateSync));
   const hasCreateButton = !!(isFolder && onCreate);
   const hasAccessButton = !!(hasAccessPoint && onOpenAccess);
@@ -154,6 +165,22 @@ export function ExplorerRowActions({
       onContextMenu={(e) => e.stopPropagation()}
       style={{ right: 4 }}
     >
+      {hasCreateButton && (
+        <div className={peerVisibility}>
+          <RowActionButton
+            title="New item"
+            ariaLabel="New item"
+            active={isCreateMenuOpen}
+            variant={isCreateMenuOpen ? 'createActive' : 'default'}
+            onClick={(e) => {
+              onCreate(e, createParentId);
+            }}
+          >
+            <PlusIcon />
+          </RowActionButton>
+        </div>
+      )}
+
       {hasObjectMenu && (
         <div className={peerVisibility}>
           <ItemContextMenu
@@ -177,22 +204,6 @@ export function ExplorerRowActions({
             onDownload={onDownload}
             onOpenChange={setIsContextMenuOpen}
           />
-        </div>
-      )}
-
-      {hasCreateButton && (
-        <div className={peerVisibility}>
-          <RowActionButton
-            title="New item"
-            ariaLabel="New item"
-            active={isCreateMenuOpen}
-            variant={isCreateMenuOpen ? 'createActive' : 'default'}
-            onClick={(e) => {
-              onCreate(e, createParentId);
-            }}
-          >
-            <PlusIcon />
-          </RowActionButton>
         </div>
       )}
 
