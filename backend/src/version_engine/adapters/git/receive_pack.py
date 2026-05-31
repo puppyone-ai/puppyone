@@ -577,6 +577,15 @@ def _canonical_tree_for_excluded_scope_push(
         if current_scope_hash
         else {}
     )
+    # A1-1: carry blob modes so a visible-only push doesn't downgrade hidden
+    # OR changed executables/symlinks to 100644 when the canonical tree is
+    # rebuilt. Unchanged paths keep the canonical mode; changed paths take
+    # the mode from the client's pushed tree.
+    full_modes: dict[str, bytes] = (
+        tree_mod.tree_path_modes(repo.store, current_scope_hash)
+        if current_scope_hash
+        else {}
+    )
     for raw_path in changed_paths:
         path = normalize_path(raw_path)
         if not path:
@@ -584,12 +593,17 @@ def _canonical_tree_for_excluded_scope_push(
         blob_id = quarantine.blob_id_for_path(pushed_tree_id, path)
         if blob_id:
             full_blob_ids[path] = blob_id
+            full_modes[path] = quarantine.mode_for_path(pushed_tree_id, path)
         else:
             full_blob_ids.pop(path, None)
-    return _build_tree_from_blob_ids(repo.store, full_blob_ids)
+            full_modes.pop(path, None)
+    return _build_tree_from_blob_ids(repo.store, full_blob_ids, full_modes)
 
 
-def _build_tree_from_blob_ids(store, files: dict[str, str]) -> str:
+def _build_tree_from_blob_ids(
+    store, files: dict[str, str], modes: dict[str, bytes] | None = None,
+) -> str:
+    modes = modes or {}
     nested: dict = {}
     for path, blob_id in files.items():
         clean = normalize_path(path)
@@ -599,7 +613,9 @@ def _build_tree_from_blob_ids(store, files: dict[str, str]) -> str:
         node = nested
         for part in parts[:-1]:
             node = node.setdefault(part, {})
-        node[parts[-1]] = blob_id
+        # leaf carries (blob_id, mode) so executable/symlink modes survive
+        # the excluded-scope canonical rebuild (A1-1).
+        node[parts[-1]] = (blob_id, modes.get(path, MODE_FILE))
     return _write_blob_id_tree(store, nested)
 
 
@@ -613,7 +629,8 @@ def _write_blob_id_tree(store, node: dict) -> str:
                 sha1_hex=_write_blob_id_tree(store, value),
             ))
         else:
-            entries.append(TreeEntry(name=name, mode=MODE_FILE, sha1_hex=value))
+            blob_id, mode = value
+            entries.append(TreeEntry(name=name, mode=mode, sha1_hex=blob_id))
     return store.put_tree(encode_tree(entries))
 
 

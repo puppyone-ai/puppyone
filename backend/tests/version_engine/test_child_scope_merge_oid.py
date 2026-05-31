@@ -137,6 +137,39 @@ def test_non_stale_root_overwrites_even_if_diverged(store):
     assert merged["a.txt"] == b"1-mod"
 
 
+def test_merge_preserves_blob_modes(store):
+    """A1-1: the OID merge must carry blob modes — a child-only executable
+    is kept, a parent-added executable is taken, neither downgraded to file."""
+    from src.version_engine.write_engine.git_object_format import (
+        MODE_EXECUTABLE, MODE_FILE,
+    )
+    from src.version_engine.write_engine.tree import tree_path_modes
+
+    scope = "docs"
+    cur_sub = build_tree_from_files(
+        store, {"keep.sh": b"#!/bin/sh\n", "a.txt": b"1"},
+        modes={"keep.sh": MODE_EXECUTABLE},
+    )
+    old_sub = build_tree_from_files(store, {"a.txt": b"1"})
+    new_sub = build_tree_from_files(
+        store, {"a.txt": b"1", "bin.sh": b"#!/bin/sh\nrun\n"},
+        modes={"bin.sh": MODE_EXECUTABLE},
+    )
+    merged = _merge_project_root_delta_into_child_scope(
+        repo=SimpleNamespace(store=store),
+        scope_path=scope,
+        previous_project_root_hash=_root_with_scope(store, scope, old_sub),
+        project_root_hash=_root_with_scope(store, scope, new_sub),
+        current_scope_hash=cur_sub,
+        changed_paths=[f"{scope}/bin.sh"],
+        stale_project_root=False,
+    )
+    modes = tree_path_modes(store, merged)
+    assert modes["keep.sh"] == MODE_EXECUTABLE   # child-only executable kept
+    assert modes["bin.sh"] == MODE_EXECUTABLE    # parent-added executable taken
+    assert modes["a.txt"] == MODE_FILE
+
+
 def test_oid_merge_matches_reference_byte_merge(store):
     """Exhaustive equivalence: the OID merge yields the same file set the
     old byte-level merge would have produced."""

@@ -51,7 +51,17 @@ def decode_object(loose_bytes: bytes) -> tuple[str, bytes]:
 
 
 MODE_FILE = b"100644"
+MODE_EXECUTABLE = b"100755"
+MODE_SYMLINK = b"120000"
+MODE_GITLINK = b"160000"
 MODE_DIR = b"40000"
+
+# Every blob mode Git can put in a tree, plus the directory mode. PuppyOne
+# owns the Git tree format, so it must round-trip executables (100755),
+# symlinks (120000), and submodule gitlinks (160000) — not just regular
+# files — or it corrupts/loses content the client pushed.
+_BLOB_MODES = (MODE_FILE, MODE_EXECUTABLE, MODE_SYMLINK, MODE_GITLINK)
+_ALLOWED_TREE_MODES = frozenset(_BLOB_MODES + (MODE_DIR,))
 
 
 class TreeEntry(NamedTuple):
@@ -85,7 +95,7 @@ def encode_tree(entries: Iterable[TreeEntry]) -> bytes:
     )
     out = bytearray()
     for entry in sorted_entries:
-        if entry.mode not in {MODE_FILE, MODE_DIR}:
+        if entry.mode not in _ALLOWED_TREE_MODES:
             raise ValueError(f"unsupported git tree mode: {entry.mode!r}")
         _validate_sha1_hex(entry.sha1_hex)
         out += (

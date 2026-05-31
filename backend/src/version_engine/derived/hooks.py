@@ -25,7 +25,11 @@ from src.version_engine.write_engine.git_commit import (
     build_git_commit,
     shallow_git_parent_or_empty,
 )
-from src.version_engine.write_engine.git_object_format import decode_commit, decode_tree
+from src.version_engine.write_engine.git_object_format import (
+    MODE_FILE,
+    decode_commit,
+    decode_tree,
+)
 from src.version_engine.write_engine.path_utils import normalize_path
 from src.utils.logger import log_error, log_info, log_warning
 
@@ -886,7 +890,7 @@ def _merge_project_root_delta_into_child_scope(
     ):
         return new_subtree_hash
 
-    from src.version_engine.write_engine.tree import tree_to_flat
+    from src.version_engine.write_engine.tree import tree_to_flat, tree_path_modes
     from src.version_engine.write_engine.tree_objects import build_tree_from_blob_ids
 
     # GAP-5: run the 3-way merge at the BLOB OBJECT-ID level, never on blob
@@ -897,6 +901,10 @@ def _merge_project_root_delta_into_child_scope(
     # to the old byte comparison — but a large scope no longer pulls every
     # blob (×3 subtrees) onto the request path. The rebuild references the
     # existing blob oids directly instead of re-uploading bytes.
+    #
+    # Blob MODES are merged alongside oids (A1-1): the merged mode follows
+    # the same source as the merged oid, so an executable/symlink kept from
+    # the child scope or taken from the parent isn't downgraded to 100644.
     old_subtree_hash = _tree_hash_at_path(
         repo.store,
         previous_project_root_hash,
@@ -905,6 +913,8 @@ def _merge_project_root_delta_into_child_scope(
     old_oids = tree_to_flat(repo.store, old_subtree_hash) if old_subtree_hash else {}
     new_oids = tree_to_flat(repo.store, new_subtree_hash) if new_subtree_hash else {}
     current_oids = tree_to_flat(repo.store, current_scope_hash) if current_scope_hash else {}
+    new_modes = tree_path_modes(repo.store, new_subtree_hash) if new_subtree_hash else {}
+    merged_modes = tree_path_modes(repo.store, current_scope_hash) if current_scope_hash else {}
 
     merged_oids = dict(current_oids)
     for rel_path in set(old_oids) | set(new_oids):
@@ -916,10 +926,15 @@ def _merge_project_root_delta_into_child_scope(
             continue
         if after is None:
             merged_oids.pop(rel_path, None)
+            merged_modes.pop(rel_path, None)
         else:
             merged_oids[rel_path] = after
+            merged_modes[rel_path] = new_modes.get(rel_path, MODE_FILE)
 
-    return build_tree_from_blob_ids(repo.store, merged_oids) if merged_oids else ""
+    return (
+        build_tree_from_blob_ids(repo.store, merged_oids, modes=merged_modes)
+        if merged_oids else ""
+    )
 
 
 def _set_scope_state(repo, scope_path: str, scope_hash: str, head_commit_id: str) -> None:
