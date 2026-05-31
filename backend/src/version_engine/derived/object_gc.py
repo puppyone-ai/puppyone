@@ -159,7 +159,30 @@ def collect_object_gc_roots(repo, *, errors: list[str] | None = None) -> set[str
     _add_version_index_roots(repo, add, out_errors)
     _add_outbox_roots(repo, add, out_errors)
     _add_pending_conflict_roots(repo, add, out_errors)
+    _add_version_ref_roots(repo, add, out_errors)
     return roots
+
+
+def _add_version_ref_roots(repo, add, errors: list[str]) -> None:
+    """Protect commits reachable only from stored branch/tag refs (GAP-3).
+
+    A version_refs row is a durable, fetchable pointer to a promoted
+    commit that never advances the scope head, so it is invisible to the
+    head/scope/history root sources above. Without this, GC reclaims a
+    branch/tag's objects after the retention window and serving that ref
+    breaks.
+    """
+    project_id = getattr(repo, "_project_id", "") or ""
+    if not project_id:
+        return
+    try:
+        from src.version_engine.infrastructure.supabase.version_ref_repository import (
+            VersionRefStore,
+        )
+        for commit_id in VersionRefStore().list_all_commit_ids(project_id):
+            add(commit_id)
+    except Exception as exc:  # noqa: BLE001
+        errors.append(f"version_ref roots: {exc}")
 
 
 def mark_reachable_objects(

@@ -167,3 +167,13 @@ def test_delete_ref(store):
     assert store.get_ref("p", "", "refs/heads/feat") is None
     # deleting again → False (nothing removed)
     assert store.delete_ref("p", "", "refs/heads/feat") is False
+
+
+def test_list_all_commit_ids_across_scopes(store):
+    # GC-root source: every stored ref's commit across all scopes
+    store.set_ref(project_id="p", scope_path="docs", ref_name="refs/heads/a", commit_id=COMMIT_A)
+    store.set_ref(project_id="p", scope_path="src", ref_name="refs/tags/v1", commit_id=COMMIT_B)
+    store.set_ref(project_id="other", scope_path="", ref_name="refs/heads/x", commit_id="e" * 40)
+    ids = set(store.list_all_commit_ids("p"))
+    assert ids == {COMMIT_A, COMMIT_B}            # only project p, both scopes
+    assert store.list_all_commit_ids("none") == []

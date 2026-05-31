@@ -328,6 +328,41 @@ def test_delete_eligible_uses_bundle_sweep_then_per_object():
     assert errors == []
 
 
+def test_version_refs_are_gc_roots(monkeypatch):
+    """GAP-3: commits reachable only from stored branch/tag refs must be GC
+    roots, or GC reclaims their objects after the retention window."""
+    from src.version_engine.derived.object_gc import _add_version_ref_roots
+    from src.version_engine.adapters.git.protocol import is_object_id, ZERO_ID
+    import src.version_engine.infrastructure.supabase.version_ref_repository as vrr
+
+    ref_commit = "f" * 40
+
+    class FakeStore:
+        def list_all_commit_ids(self, project_id):
+            assert project_id == "p1"
+            return [ref_commit, ZERO_ID, "nothex"]  # add() must filter the invalid ones
+
+    monkeypatch.setattr(vrr, "VersionRefStore", lambda *a, **k: FakeStore())
+
+    roots = set()
+    errors = []
+
+    def add(v):  # mirrors collect_object_gc_roots.add
+        if isinstance(v, str) and is_object_id(v) and v != ZERO_ID:
+            roots.add(v)
+
+    _add_version_ref_roots(SimpleNamespace(_project_id="p1"), add, errors)
+    assert roots == {ref_commit}
+    assert errors == []
+
+
+def test_version_ref_roots_no_project_id_noop(monkeypatch):
+    from src.version_engine.derived.object_gc import _add_version_ref_roots
+    roots, errors = set(), []
+    _add_version_ref_roots(SimpleNamespace(), roots.add, errors)
+    assert roots == set() and errors == []
+
+
 def test_delete_eligible_without_sweep_method_falls_back():
     """A backend with no sweep_dead_bundles (e.g. FileSystemBackend) still
     deletes per object."""
