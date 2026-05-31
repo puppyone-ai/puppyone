@@ -33,6 +33,11 @@ PROVIDERS_OAUTH_BACKED = frozenset({
     "github", "linear", "airtable",
 })
 
+# Providers whose rows represent import/integration history, not an ongoing
+# access method bound to a scope. GitHub repository import now lives under
+# ImportJob / project GitHub integration flows instead of Access connectors.
+PROVIDERS_IMPORT_ONLY = frozenset({"github"})
+
 # Self-auth providers (config carries credential / no oauth_connection_id needed).
 PROVIDERS_SELF_AUTH = frozenset({"url", "rest_api", "rss", "supabase"})
 
@@ -81,10 +86,14 @@ class ConnectorService:
         scope_id: Optional[str] = None,
         provider: Optional[str] = None,
         direction: Optional[str] = None,
+        access_surface_only: bool = True,
     ) -> list[Connector]:
-        return self._repo.list_by_project(
+        connectors = self._repo.list_by_project(
             project_id, scope_id=scope_id, provider=provider, direction=direction,
         )
+        if access_surface_only:
+            connectors = [c for c in connectors if c.is_access_surface]
+        return connectors
 
     def get(self, connector_id: str) -> Optional[Connector]:
         return self._repo.get(connector_id)
@@ -114,6 +123,12 @@ class ConnectorService:
             raise BusinessException(
                 f"'{provider}' connectors are auto-created per scope. "
                 "Edit the auto-created row instead of creating a new one."
+            )
+
+        if provider in PROVIDERS_IMPORT_ONLY or (trigger or {}).get("type") == "import_once":
+            raise BusinessException(
+                "One-time imports are not Access connectors. Create an import "
+                "job or sync binding instead of a repo connector."
             )
 
         # Direction validation.

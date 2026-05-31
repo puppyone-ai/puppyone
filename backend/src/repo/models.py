@@ -11,6 +11,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Optional
 
+IMPORT_ONLY_CONNECTOR_PROVIDERS = frozenset({"github"})
+
 
 # ──────────────────────────────────────────────────────────────────────────
 # Scope
@@ -76,6 +78,19 @@ class Connector:
         # Self-auth providers (raw URL, REST API with API key in config) carry
         # NULL oauth_connection_id; OAuth-backed providers carry a non-NULL one.
         return self.oauth_connection_id is not None
+
+    @property
+    def is_access_surface(self) -> bool:
+        """Whether this row represents an ongoing Access method.
+
+        Legacy datasource rows used the connectors table for one-shot imports.
+        Those rows are still useful history/debug state, but they are not
+        "ways into" a scope and should not be returned by Access endpoints by
+        default.
+        """
+        if self.provider in IMPORT_ONLY_CONNECTOR_PROVIDERS:
+            return False
+        return (self.trigger or {}).get("type") != "import_once"
 
 
 # ──────────────────────────────────────────────────────────────────────────
