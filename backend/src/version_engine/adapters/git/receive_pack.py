@@ -35,7 +35,10 @@ from src.version_engine.write_engine.engine import (
     NonFastForwardSubmissionError,
 )
 from src.version_engine.write_engine.path_utils import normalize_path
-from src.version_engine.write_engine.tree_objects import is_path_excluded
+from src.version_engine.write_engine.tree_objects import (
+    is_path_excluded,
+    validate_scope_bound_files,
+)
 from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
 from src.utils.logger import log_error
 
@@ -236,6 +239,32 @@ async def receive_pack_response_from_path(
             # record the pointer. Landing to the scope head is a separate
             # merge (push refs/heads/main).
             if command.ref != ACCESS_POINT_MAIN_REF:
+                # Branch/tag pushes must respect the same scope-ownership
+                # boundary as main (the main path enforces this inside the
+                # write engine via validate_scope_bound_files; the named-ref
+                # path skips submit, so check here). Otherwise a scoped
+                # client could promote objects for paths owned by a sibling/
+                # child scope under a branch ref. This subsumes the excludes
+                # check above (ownership + excludes).
+                out_of_scope = validate_scope_bound_files(
+                    repo, scope_path, changed_paths, scope_excludes,
+                )
+                if out_of_scope:
+                    return receive_pack_result(
+                        command.ref,
+                        outcome="rejected",
+                        message=(
+                            "puppyone-rejected: branch/tag push touches paths "
+                            "outside this scope or excluded: "
+                            f"{', '.join(out_of_scope[:3])}"
+                            f"{'…' if len(out_of_scope) > 3 else ''}"
+                        ),
+                        capabilities=command.capabilities,
+                        stderr_lines=[
+                            "PuppyOne: a branch/tag may only touch paths owned "
+                            "by the scope advertised by this remote.",
+                        ],
+                    )
                 return _store_named_ref(
                     quarantine=quarantine,
                     official=official,
@@ -544,6 +573,15 @@ def _canonical_tree_for_excluded_scope_push(
         if current_scope_hash
         else {}
     )
+    # A1-1: carry blob modes so a visible-only push doesn't downgrade hidden
+    # OR changed executables/symlinks to 100644 when the canonical tree is
+    # rebuilt. Unchanged paths keep the canonical mode; changed paths take
+    # the mode from the client's pushed tree.
+    full_modes: dict[str, bytes] = (
+        tree_mod.tree_path_modes(repo.store, current_scope_hash)
+        if current_scope_hash
+        else {}
+    )
     for raw_path in changed_paths:
         path = normalize_path(raw_path)
         if not path:
@@ -551,12 +589,17 @@ def _canonical_tree_for_excluded_scope_push(
         blob_id = quarantine.blob_id_for_path(pushed_tree_id, path)
         if blob_id:
             full_blob_ids[path] = blob_id
+            full_modes[path] = quarantine.mode_for_path(pushed_tree_id, path)
         else:
             full_blob_ids.pop(path, None)
-    return _build_tree_from_blob_ids(repo.store, full_blob_ids)
+            full_modes.pop(path, None)
+    return _build_tree_from_blob_ids(repo.store, full_blob_ids, full_modes)
 
 
-def _build_tree_from_blob_ids(store, files: dict[str, str]) -> str:
+def _build_tree_from_blob_ids(
+    store, files: dict[str, str], modes: dict[str, bytes] | None = None,
+) -> str:
+    modes = modes or {}
     nested: dict = {}
     for path, blob_id in files.items():
         clean = normalize_path(path)
@@ -566,7 +609,9 @@ def _build_tree_from_blob_ids(store, files: dict[str, str]) -> str:
         node = nested
         for part in parts[:-1]:
             node = node.setdefault(part, {})
-        node[parts[-1]] = blob_id
+        # leaf carries (blob_id, mode) so executable/symlink modes survive
+        # the excluded-scope canonical rebuild (A1-1).
+        node[parts[-1]] = (blob_id, modes.get(path, MODE_FILE))
     return _write_blob_id_tree(store, nested)
 
 
@@ -580,7 +625,8 @@ def _write_blob_id_tree(store, node: dict) -> str:
                 sha1_hex=_write_blob_id_tree(store, value),
             ))
         else:
-            entries.append(TreeEntry(name=name, mode=MODE_FILE, sha1_hex=value))
+            blob_id, mode = value
+            entries.append(TreeEntry(name=name, mode=mode, sha1_hex=blob_id))
     return store.put_tree(encode_tree(entries))
 
 

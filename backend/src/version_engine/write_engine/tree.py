@@ -85,6 +85,29 @@ def tree_to_flat(store: ObjectStore, tree_hash: str, prefix: str = "") -> dict:
     return result
 
 
+def tree_path_modes(store: ObjectStore, tree_hash: str, prefix: str = "") -> dict:
+    """Return ``{path: mode_bytes}`` for every FILE in a tree.
+
+    Companion to ``tree_to_flat`` so the flatten→filter→rebuild paths can
+    preserve the original Git blob mode (executable ``100755``, symlink
+    ``120000``, gitlink ``160000``) instead of downgrading every entry to
+    ``100644``. Only non-directory entries are returned.
+    """
+    result: dict = {}
+    if not tree_hash:
+        return result
+    stack = [(tree_hash, prefix)]
+    while stack:
+        th, pfx = stack.pop()
+        for entry in read_tree_entries(store, th):
+            path = f"{pfx}{entry.name}" if not pfx else f"{pfx}/{entry.name}"
+            if entry.is_dir:
+                stack.append((entry.sha1_hex, path))
+            else:
+                result[path] = entry.mode
+    return result
+
+
 def collect_reachable_hashes(store: ObjectStore, tree_hash: str) -> set:
     result: set = set()
     visited_trees: set[str] = set()

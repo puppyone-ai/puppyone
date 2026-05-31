@@ -56,8 +56,18 @@ async def record_pending_conflict(
     incoming_files: dict[str, bytes],
     manual_conflicts: list,
     policy_reason: str,
+    policy: str = "manual_review",
 ) -> TransactionResult:
-    """Persist a pending conflict for manual review."""
+    """Persist a pending conflict for review.
+
+    ``policy`` is the conflict policy actually selected (``manual_review``,
+    ``agent_review``, or ``agent_auto_resolve``). It MUST be recorded
+    faithfully: PUP-5's "Pending review" vs "Conflict" split is driven by
+    ``policy``/``resolver_kind``, and the ledger derives ``resolver_kind``
+    from it (an ``agent_*`` policy routes to the agent resolver regardless
+    of channel). Previously this was hardcoded to ``manual_review``, so
+    every agent-claimed conflict was mis-recorded as human manual review.
+    """
 
     paths = sorted({
         getattr(conflict, "path", "")
@@ -74,7 +84,7 @@ async def record_pending_conflict(
     audit = {
         "status": "pending_manual_review",
         "pending_conflict_id": conflict_id,
-        "policy": "manual_review",
+        "policy": policy,
         "policy_reason": policy_reason,
         "scope": scope_path,
         "base_commit_id": base_commit_id,
@@ -106,7 +116,7 @@ async def record_pending_conflict(
             actor=actor,
             intent_type="submission",
             status="pending_manual_review",
-            policy="manual_review",
+            policy=policy,
             base_commit_id=base_commit_id,
             client_commit_id=client_commit_id,
             proposed_tree_id=proposed_tree_id,
@@ -138,7 +148,7 @@ async def record_pending_conflict(
             conflict_records=[
                 conflict_to_dict(conflict) for conflict in manual_conflicts
             ],
-            policy="manual_review",
+            policy=policy,
             source_channel=source_channel,
             actor=actor,
             transaction_id=txn_id,

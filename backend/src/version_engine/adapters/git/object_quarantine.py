@@ -421,6 +421,32 @@ class GitObjectQuarantine:
                 return ""
         return ""
 
+    def mode_for_path(self, tree_id: str, path: str) -> bytes:
+        """Git blob mode of ``path`` in the quarantined tree (A1-1).
+
+        Lets the excluded-scope merge preserve the pushed file's mode
+        (executable/symlink/gitlink) instead of defaulting to 100644.
+        Returns ``MODE_FILE`` when the path is absent or a directory.
+        """
+        current = tree_id
+        parts = [part for part in path.split("/") if part]
+        for index, part in enumerate(parts):
+            obj_type, body = self.get_object(current)
+            if obj_type != "tree":
+                return MODE_FILE
+            for entry in decode_tree(body):
+                if entry.name != part:
+                    continue
+                if index == len(parts) - 1:
+                    return MODE_FILE if entry.mode == MODE_DIR else entry.mode
+                if entry.mode != MODE_DIR:
+                    return MODE_FILE
+                current = entry.sha1_hex
+                break
+            else:
+                return MODE_FILE
+        return MODE_FILE
+
     def flatten_tree_to_bytes(self, tree_id: str) -> dict[str, bytes]:
         out: dict[str, bytes] = {}
         self._flatten_tree(tree_id, "", out)

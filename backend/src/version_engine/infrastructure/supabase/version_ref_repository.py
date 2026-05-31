@@ -60,6 +60,30 @@ class VersionRefStore:
             return []
         return safe_data(resp) or []
 
+    def list_all_commit_ids(self, project_id: str) -> list[str]:
+        """Every commit id pointed at by a stored ref across ALL scopes.
+
+        Used by object GC (GAP-3): a commit reachable only from a stored
+        branch/tag ref must be a GC root, or its objects would be swept
+        after the retention window and ``git fetch`` of that ref would
+        break. Cheap — one indexed query per project.
+        """
+        try:
+            resp = (
+                self._client.table(_TABLE)
+                .select("commit_id")
+                .eq("project_id", project_id)
+                .execute()
+            )
+        except Exception as exc:  # noqa: BLE001
+            log_error(f"[VersionRefs] list_all_commit_ids failed: {exc}")
+            return []
+        return [
+            r["commit_id"]
+            for r in (safe_data(resp) or [])
+            if r.get("commit_id")
+        ]
+
     def get_ref(
         self, project_id: str, scope_path: str, ref_name: str,
     ) -> dict | None:

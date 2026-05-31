@@ -836,11 +836,17 @@ async def _grep_shadow_snapshot(
     )
 
     client = SupabaseClient().client
+    # Privacy (08-shadow-snapshots.md §1): shadow content is user-private by
+    # default. The cross-user ``--ref local:`` path may only read snapshots
+    # whose owner explicitly opted in (grep_shared = true). Without this the
+    # query matched by (project, machine, ref) alone, exposing any user's
+    # un-pushed working tree to any access-point holder for the project.
     query = (
         client.table("local_shadow_snapshots")
         .select("id, machine_id, ref_name, user_id, updated_at")
         .eq("project_id", project_id)
         .eq("ref_name", ref_name)
+        .eq("grep_shared", True)
     )
     if machine_id:
         query = query.eq("machine_id", machine_id)
@@ -1405,11 +1411,18 @@ async def grep_indexed(
     hits: list[dict] = []
     per_file_seen: dict[str, int] = {}
     truncated = False
+    scope_excludes = scope.get("exclude") or []
     for cand in candidates:
         if len(hits) >= safe_limit:
             truncated = True
             break
         file_path = cand.file_path
+        # Scope isolation: the candidate query narrows by file_path PREFIX
+        # but does not apply the AP's exclude rules. Mirror the live /grep
+        # per-hit exclude check (see the GET /grep loop) so excluded paths
+        # and declared child scopes never leak through the indexed path.
+        if _matches_exclude(_relative_to_scope(file_path, scope["path"]), scope_excludes):
+            continue
         remaining = None
         if per_file_limit:
             already = per_file_seen.get(file_path, 0)
@@ -2351,6 +2364,13 @@ async def find_index(
                 continue  # belt-and-braces: scope mismatch
         else:
             rel = full
+        # The SQL ``not like '{excl}%'`` above only catches full-path
+        # PREFIX excludes; the canonical matcher also honors segment
+        # excludes (bare ``secret`` hides any ``.../secret/...``). Apply it
+        # precisely here so find can't leak excluded paths that ls/grep/cat
+        # already hide (the SQL filter remains as a cheap pre-narrowing).
+        if _matches_exclude(rel, scope.get("exclude") or []):
+            continue
         out.append({
             "path": rel,
             "version_path": full,

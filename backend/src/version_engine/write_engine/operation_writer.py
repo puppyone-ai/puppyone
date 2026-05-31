@@ -158,6 +158,7 @@ class OperationWriter:
                             policy_reason=(merge_audit or {}).get(
                                 "policy_reason", "manual_review",
                             ),
+                            policy=merge_policy,
                         )
                     elif merged_tree is not None and merged_tree != new_scope_hash:
                         old_files = await asyncio.to_thread(
@@ -404,6 +405,7 @@ class OperationWriter:
                             policy_reason=(merge_audit or {}).get(
                                 "policy_reason", "manual_review",
                             ),
+                            policy=merge_policy,
                         )
                     elif merged_tree is not None and merged_tree != new_root_hash:
                         changes = await asyncio.to_thread(

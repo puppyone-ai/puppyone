@@ -358,14 +358,19 @@ class AgentService:
                     from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
                     from src.version_engine.adapters.batch.in_process_client import InProcessVersionClient
 
-                    modified_files = await _read_modified_files(
+                    # _read_modified_files returns (modified, deleted); the
+                    # chat path unpacks it but the schedule path used to assign
+                    # the whole 2-tuple to ``modified_files`` — so ``modified``
+                    # was a (dict, list) tuple (not a dict), deletions were
+                    # never applied, and the count/loop below were wrong.
+                    modified_files, deleted_files = await _read_modified_files(
                         sandbox_service,
                         sandbox_session_id,
                         {},
                         "/workspace",
                         "",
                     )
-                    if modified_files:
+                    if modified_files or deleted_files:
                         try:
                             repo_manager = build_worker_version_engine_container().repo_manager
                             scope_path = sandbox_data.root_path or ""
@@ -386,12 +391,13 @@ class AgentService:
                                 agent.project_id,
                                 repo_manager=repo_manager,
                                 modified=modified_files,
+                                deleted=deleted_files,
                                 message="Schedule Agent write-back",
                                 who=agent_identity,
                             )
                             logger.info(
                                 f"[ScheduleAgent] version push: commit={push_result.get('commit_id') or '(none)'} "
-                                f"files={len(modified_files)}"
+                                f"files={len(modified_files)} deleted={len(deleted_files)}"
                             )
                             for path in modified_files:
                                 result["updated_nodes"].append({
