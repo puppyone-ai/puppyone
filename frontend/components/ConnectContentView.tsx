@@ -669,20 +669,27 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
           height: 8px;
         }
         .connect-preview-scrollbar::-webkit-scrollbar-track {
-          background: var(--po-inset);
+          background: transparent;
           border-radius: 4px;
         }
         .connect-preview-scrollbar::-webkit-scrollbar-thumb {
-          background: var(--po-border-strong);
+          background: transparent;
           border-radius: 4px;
         }
-        .connect-preview-scrollbar::-webkit-scrollbar-thumb:hover {
+        .connect-preview-scrollbar.po-scrollbar-active::-webkit-scrollbar-thumb {
+          background: var(--po-border-strong);
+        }
+        .connect-preview-scrollbar.po-scrollbar-active::-webkit-scrollbar-thumb:hover {
           background: var(--po-scrollbar-thumb-hover);
         }
         /* For Firefox */
         .connect-preview-scrollbar {
-          scrollbar-color: var(--po-border-strong) var(--po-inset);
+          scrollbar-color: transparent transparent;
           scrollbar-width: thin;
+          scrollbar-gutter: stable;
+        }
+        .connect-preview-scrollbar.po-scrollbar-active {
+          scrollbar-color: var(--po-border-strong) transparent;
         }
       `}</style>
 

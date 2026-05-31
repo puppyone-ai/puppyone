@@ -37,7 +37,7 @@ export interface Connector {
   id: string;
   project_id: string;
   scope_id: string;
-  provider: string;            // 'cli' | 'agent' | 'notion' | 'gmail' | 'github' | ...
+  provider: string;            // 'cli' | 'agent' | 'notion' | 'gmail' | ...
   name: string;
   direction: ConnectorDirection;
   config: Record<string, unknown>;
@@ -116,12 +116,13 @@ export async function regenerateScopeKey(
 
 export async function listConnectors(
   projectId: string,
-  filter?: { scopeId?: string; provider?: string; direction?: string },
+  filter?: { scopeId?: string; provider?: string; direction?: string; includeNonAccess?: boolean },
 ): Promise<Connector[]> {
   const qs = new URLSearchParams();
   if (filter?.scopeId) qs.set('scope_id', filter.scopeId);
   if (filter?.provider) qs.set('provider', filter.provider);
   if (filter?.direction) qs.set('direction', filter.direction);
+  if (filter?.includeNonAccess) qs.set('include_non_access', 'true');
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
   return (await get<Connector[]>(`/api/v1/projects/${projectId}/connectors${suffix}`)) || [];
 }
@@ -255,6 +256,22 @@ export function isWithinScope(nodePath: string, scopePath: string): boolean {
  * then everything else in stable insertion order.
  */
 export const BUILTIN_PROVIDERS = ['cli', 'agent'] as const;
+
+const ACCESS_SURFACE_HIDDEN_PROVIDERS = new Set(['github']);
+
+/**
+ * Access surfaces are for ongoing ways into a scope: CLI, Git remote,
+ * in-app agent, MCP, sandbox, scheduled/manual integrations, and similar
+ * live methods. Legacy GitHub rows and `import_once` rows are one-shot
+ * import records, so they can exist in storage without belonging in
+ * "Access".
+ */
+export function isAccessSurfaceConnector(
+  connector: Pick<Connector, 'provider'> & Partial<Pick<Connector, 'trigger'>>,
+): boolean {
+  if (ACCESS_SURFACE_HIDDEN_PROVIDERS.has(connector.provider)) return false;
+  return connector.trigger?.type !== 'import_once';
+}
 
 export function sortConnectorsBuiltinFirst(connectors: readonly Connector[]): Connector[] {
   const order = (c: Connector) => {

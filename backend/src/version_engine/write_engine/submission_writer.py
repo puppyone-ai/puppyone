@@ -110,6 +110,9 @@ class SubmissionWriter:
             _cached_scope_hash, current_scope_head_id = _get_scope_state(
                 repo, scope_norm,
             )
+            expected_scope_head_commit_id = (
+                current_scope_head_id if scope_norm else None
+            )
             acceptable_git_heads: set[str] | None = None
             if intent.source_channel == "git":
                 if scope_norm:
@@ -426,7 +429,10 @@ class SubmissionWriter:
 
             scope_head_commit_id = ""
             if scope_norm:
-                if intent.client_commit_id:
+                if (
+                    intent.client_commit_id
+                    and new_scope_hash == intent.proposed_tree_id
+                ):
                     scope_head_commit_id = intent.client_commit_id
                 else:
                     scope_head_commit_id = await asyncio.to_thread(
@@ -452,6 +458,7 @@ class SubmissionWriter:
                 scope_path=scope_norm,
                 scope_hash=new_scope_hash,
                 scope_head_commit_id=scope_head_commit_id,
+                expected_scope_head_commit_id=expected_scope_head_commit_id,
                 commit_id=commit_id,
                 actor=intent.actor,
                 message=intent.message,

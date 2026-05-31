@@ -8,6 +8,7 @@ import { SupabaseAuthProvider } from './supabase/SupabaseAuthProvider';
 import { BackgroundTaskNotifier } from '../components/BackgroundTaskNotifier';
 import { SWRGlobalProvider } from './SWRProvider';
 import { ThemeProvider } from '../components/theme/ThemeProvider';
+import { ScrollbarActivity } from '../components/ScrollbarActivity';
 
 export const metadata = {
   title: 'puppyone | Context base for AI agents',
@@ -30,6 +31,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
           <ThemeProvider>
             <SWRGlobalProvider>
               <SupabaseAuthProvider>
+                <ScrollbarActivity />
                 {children}
                 <BackgroundTaskNotifier />
               </SupabaseAuthProvider>

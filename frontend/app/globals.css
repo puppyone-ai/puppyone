@@ -67,10 +67,15 @@
   --po-switch-border-off: rgba(73, 55, 35, 0.14);
   --po-switch-thumb: #fffaf1;
   --po-switch-thumb-shadow: rgba(73, 55, 35, 0.24);
-  --po-access-active-bg: rgba(2, 132, 199, 0.28);
-  --po-access-active-hover: rgba(2, 132, 199, 0.36);
-  --po-access-active-border: rgba(2, 132, 199, 0.34);
-  --po-access-active-text: #075985;
+  --po-access-action: var(--po-success);
+  --po-access-action-hover: color-mix(in srgb, var(--po-success) 88%, var(--po-panel) 12%);
+  --po-access-action-border: color-mix(in srgb, var(--po-success) 38%, transparent);
+  --po-access-action-contrast: #fffaf2;
+  --po-access-action-shadow: color-mix(in srgb, var(--po-success) 14%, transparent);
+  --po-access-active-bg: color-mix(in srgb, var(--po-success) 10%, transparent);
+  --po-access-active-hover: color-mix(in srgb, var(--po-success) 14%, transparent);
+  --po-access-active-border: color-mix(in srgb, var(--po-success) 34%, transparent);
+  --po-access-active-text: var(--po-success);
   --po-focus-ring: rgba(37, 99, 235, 0.35);
   --po-shadow: rgba(73, 55, 35, 0.16);
   --po-backdrop: rgba(47, 42, 35, 0.24);
@@ -92,16 +97,16 @@
   --po-file-icon-fold: #dfd4c6;
   --po-file-icon-stroke: rgba(73, 55, 35, 0.36);
   --po-file-icon-shadow: rgba(73, 55, 35, 0.18);
-  --po-file-accent-default: #81786c;
-  --po-file-accent-markdown: #77808a;
-  --po-file-accent-json: #8d821f;
+  --po-file-accent-default: #5f7068;
+  --po-file-accent-markdown: #3f6f9e;
+  --po-file-accent-json: #a16207;
   --po-file-accent-html: #bf6b2e;
   --po-file-accent-pdf: #c44b55;
   --po-file-accent-image: #8f69b0;
   --po-file-accent-audio: #8f69b0;
-  --po-file-accent-video: #4f86a4;
-  --po-file-accent-code: #4f86a4;
-  --po-file-accent-sheet: #6d8b4f;
+  --po-file-accent-video: #0f766e;
+  --po-file-accent-code: #0f766e;
+  --po-file-accent-sheet: #2f7d4f;
   --po-diff-added-bg: rgba(22, 163, 74, 0.10);
   --po-diff-added-text: #166534;
   --po-diff-removed-bg: rgba(220, 38, 38, 0.10);
@@ -158,10 +163,15 @@
   --po-switch-border-off: rgba(255, 255, 255, 0.10);
   --po-switch-thumb: #f8fafc;
   --po-switch-thumb-shadow: rgba(0, 0, 0, 0.42);
-  --po-access-active-bg: rgba(34, 211, 238, 0.20);
-  --po-access-active-hover: rgba(34, 211, 238, 0.30);
-  --po-access-active-border: rgba(34, 211, 238, 0.32);
-  --po-access-active-text: #67e8f9;
+  --po-access-action: var(--po-success);
+  --po-access-action-hover: color-mix(in srgb, var(--po-success) 88%, var(--po-panel) 12%);
+  --po-access-action-border: color-mix(in srgb, var(--po-success) 38%, transparent);
+  --po-access-action-contrast: #0a0a0a;
+  --po-access-action-shadow: color-mix(in srgb, var(--po-success) 16%, transparent);
+  --po-access-active-bg: color-mix(in srgb, var(--po-success) 12%, transparent);
+  --po-access-active-hover: color-mix(in srgb, var(--po-success) 18%, transparent);
+  --po-access-active-border: color-mix(in srgb, var(--po-success) 34%, transparent);
+  --po-access-active-text: var(--po-success);
   --po-focus-ring: rgba(96, 165, 250, 0.45);
   --po-shadow: rgba(0, 0, 0, 0.45);
   --po-backdrop: rgba(0, 0, 0, 0.65);
@@ -183,16 +193,16 @@
   --po-file-icon-fold: #2a2a2d;
   --po-file-icon-stroke: rgba(255, 255, 255, 0.18);
   --po-file-icon-shadow: rgba(0, 0, 0, 0.35);
-  --po-file-accent-default: #d4d7d6;
-  --po-file-accent-markdown: #a9b0ba;
-  --po-file-accent-json: #cbcb41;
-  --po-file-accent-html: #e37933;
-  --po-file-accent-pdf: #d85a62;
-  --po-file-accent-image: #a879c9;
-  --po-file-accent-audio: #a879c9;
-  --po-file-accent-video: #5aa2c0;
-  --po-file-accent-code: #5aa2c0;
-  --po-file-accent-sheet: #8dc149;
+  --po-file-accent-default: #b8c8c0;
+  --po-file-accent-markdown: #9ac7f0;
+  --po-file-accent-json: #facc15;
+  --po-file-accent-html: #fb923c;
+  --po-file-accent-pdf: #fb7185;
+  --po-file-accent-image: #c084fc;
+  --po-file-accent-audio: #c084fc;
+  --po-file-accent-video: #5eead4;
+  --po-file-accent-code: #5eead4;
+  --po-file-accent-sheet: #86efac;
   --po-diff-added-bg: rgba(34, 197, 94, 0.13);
   --po-diff-added-text: #86efac;
   --po-diff-removed-bg: rgba(239, 68, 68, 0.14);
@@ -228,7 +238,7 @@ body {
 /* ── Global theme-aware scrollbar ── */
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--po-scrollbar-thumb) transparent;
+  scrollbar-color: transparent transparent;
 }
 
 *::-webkit-scrollbar {
@@ -241,16 +251,31 @@ body {
 }
 
 *::-webkit-scrollbar-thumb {
-  background: var(--po-scrollbar-thumb);
+  background: transparent;
   border-radius: 3px;
+  transition: background-color 0.16s ease;
 }
 
-*::-webkit-scrollbar-thumb:hover {
+.po-scrollbar-active {
+  scrollbar-color: var(--po-scrollbar-thumb) transparent;
+}
+
+.po-scrollbar-active::-webkit-scrollbar-thumb {
+  background: var(--po-scrollbar-thumb);
+}
+
+.po-scrollbar-active::-webkit-scrollbar-thumb:hover {
   background: var(--po-scrollbar-thumb-hover);
 }
 
 *::-webkit-scrollbar-corner {
   background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *::-webkit-scrollbar-thumb {
+    transition: none;
+  }
 }
 
 #__next {

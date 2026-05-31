@@ -16,6 +16,7 @@ from src.ingest.policy.upload_policy import (
     PER_BATCH_MAX_FILES,
     PER_FILE_MAX_BYTES,
     PolicyOptions,
+    evaluate_batch_limits,
     evaluate_file,
     is_blocked_segment,
     is_dotfile_path,
@@ -156,6 +157,24 @@ class TestThresholds:
         assert PER_FILE_MAX_BYTES == 100 * 1024 * 1024
         assert PER_BATCH_MAX_FILES == 5000
         assert PER_BATCH_MAX_BYTES == 1024 * 1024 * 1024
+
+    def test_batch_limit_allows_exact_caps(self) -> None:
+        assert evaluate_batch_limits([PER_BATCH_MAX_BYTES]) == []
+        assert evaluate_batch_limits([0] * PER_BATCH_MAX_FILES) == []
+
+    def test_batch_limit_rejects_too_many_accepted_files(self) -> None:
+        violations = evaluate_batch_limits([0] * (PER_BATCH_MAX_FILES + 1))
+
+        assert [(v.kind, v.actual, v.limit) for v in violations] == [
+            ("file_count", PER_BATCH_MAX_FILES + 1, PER_BATCH_MAX_FILES),
+        ]
+
+    def test_batch_limit_rejects_too_many_accepted_bytes(self) -> None:
+        violations = evaluate_batch_limits([PER_BATCH_MAX_BYTES + 1])
+
+        assert [(v.kind, v.actual, v.limit) for v in violations] == [
+            ("total_bytes", PER_BATCH_MAX_BYTES + 1, PER_BATCH_MAX_BYTES),
+        ]
 
 
 class TestParity:

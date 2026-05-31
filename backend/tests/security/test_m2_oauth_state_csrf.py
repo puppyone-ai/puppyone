@@ -6,7 +6,8 @@ trick a logged-in victim into linking the attacker's third-party OAuth
 identity to the victim's account.
 
 Fix: every authorize call mints a state row in oauth_states; callback
-consumes it atomically (validate user + provider + expiry, then delete).
+consumes it atomically (validate provider + expiry, recover issuing user,
+then delete).
 
 These tests exercise OAuthStateRepository directly with a mocked
 Supabase client.
@@ -102,6 +103,18 @@ def test_consume_valid_state_returns_true_and_deletes():
     delete_chain.execute.assert_called()
 
 
+def test_consume_for_provider_returns_issuing_user_and_deletes():
+    row = {
+        "user_id": "u-1", "provider": "github", "expires_at": _future(),
+    }
+    repo, _, _, delete_chain = _make_repo(stored_row=row)
+
+    user_id = repo.consume_for_provider(state="abc", provider="github")
+
+    assert user_id == "u-1"
+    delete_chain.execute.assert_called()
+
+
 def test_consume_unknown_state_returns_false():
     repo, *_ = _make_repo(stored_row=None)
     assert repo.consume("does-not-exist", "u-1", "github") is False
@@ -123,6 +136,14 @@ def test_consume_blocks_provider_mismatch():
     }
     repo, *_ = _make_repo(stored_row=row)
     assert repo.consume("abc", user_id="u-1", provider="notion") is False
+
+
+def test_consume_for_provider_blocks_provider_mismatch():
+    row = {
+        "user_id": "u-1", "provider": "github", "expires_at": _future(),
+    }
+    repo, *_ = _make_repo(stored_row=row)
+    assert repo.consume_for_provider("abc", provider="notion") is None
 
 
 def test_consume_blocks_expired_state():

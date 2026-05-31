@@ -44,6 +44,17 @@ export function SupabaseAuthProvider({
   const [isAuthReady, setIsAuthReady] = useState(false);
 
   useEffect(() => {
+    // Connector OAuth callbacks also return to this origin with ?code=...
+    // Keep the Supabase login client out of those pages so it never mistakes
+    // a third-party connector code for a Puppyone sign-in callback.
+    if (
+      typeof window !== 'undefined' &&
+      window.location.pathname.startsWith('/oauth/')
+    ) {
+      setIsAuthReady(true);
+      return;
+    }
+
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 

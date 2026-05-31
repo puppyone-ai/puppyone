@@ -208,6 +208,7 @@ class PuppyOneServerRepo:
         scope_path: str = "",
         scope_hash: str = "",
         scope_head_commit_id: str = "",
+        expected_scope_head_commit_id: str | None = None,
     ) -> tuple[bool, int | None]:
         """Publish a product-level root transaction.
 
@@ -231,6 +232,7 @@ class PuppyOneServerRepo:
             scope_path=scope_path,
             scope_hash=scope_hash,
             scope_head_commit_id=scope_head_commit_id,
+            expected_scope_head_commit_id=expected_scope_head_commit_id,
             commit_id=commit_id,
             who=who,
             message=message,

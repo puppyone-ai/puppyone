@@ -8,7 +8,13 @@ import { useAgent } from '@/contexts/AgentContext';
 import { useCommitUpdates } from '@/contexts/VersionWebSocketContext';
 import { listMcpEndpoints } from '@/lib/mcpEndpointsApi';
 import { listSandboxEndpoints } from '@/lib/sandboxEndpointsApi';
-import { listScopes, listConnectors, getRepoIdentity, type Connector } from '@/lib/repoApi';
+import {
+  getRepoIdentity,
+  isAccessSurfaceConnector,
+  listConnectors,
+  listScopes,
+  type Connector,
+} from '@/lib/repoApi';
 import {
   DataLayoutContext,
   type SyncEndpointInfo,
@@ -127,6 +133,7 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
   const connectorsByScope = useMemo(() => {
     const m = new Map<string, Connector[]>();
     for (const c of connectorsList || []) {
+      if (!isAccessSurfaceConnector(c)) continue;
       const list = m.get(c.scope_id) || [];
       list.push(c);
       m.set(c.scope_id, list);
@@ -171,6 +178,7 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
     // savedAgents loop below already populates them from AgentContext.
     const scopeById = new Map((scopes || []).map((s) => [s.id, s]));
     for (const c of connectorsList || []) {
+      if (!isAccessSurfaceConnector(c)) continue;
       if (c.provider === 'agent') continue;
       const scope = scopeById.get(c.scope_id);
       if (!scope) continue;

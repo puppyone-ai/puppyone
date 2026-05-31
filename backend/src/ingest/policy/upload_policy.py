@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import fnmatch
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 # ── Hardcoded blocklist (Q1 minimum) ──────────────────────────────
@@ -250,6 +251,15 @@ class PolicyDecision:
     reason: str  # "ok", "blocklist:.git", "gitignore", "hidden", "too_large"
 
 
+@dataclass(frozen=True)
+class BatchLimitViolation:
+    """Hard batch cap violation, evaluated after upload filtering."""
+
+    kind: str  # "file_count" | "total_bytes"
+    actual: int
+    limit: int
+
+
 def evaluate_file(
     relative_path: str,
     size_bytes: int,
@@ -282,3 +292,34 @@ def evaluate_file(
         return PolicyDecision(accept=False, reason="hidden")
 
     return PolicyDecision(accept=True, reason="ok")
+
+
+def evaluate_batch_limits(file_sizes: Iterable[int]) -> list[BatchLimitViolation]:
+    """Evaluate per-batch hard caps on the files that will upload.
+
+    Callers should pass the post-policy accepted file sizes. The backend
+    route passes the request files directly because the web / CLI clients
+    already strip ignored and blocked files before calling ``/upload/init``;
+    direct API callers get the same protection on what they attempted to
+    upload.
+    """
+    count = 0
+    total_bytes = 0
+    for size in file_sizes:
+        count += 1
+        total_bytes += size
+
+    violations: list[BatchLimitViolation] = []
+    if count > PER_BATCH_MAX_FILES:
+        violations.append(BatchLimitViolation(
+            kind="file_count",
+            actual=count,
+            limit=PER_BATCH_MAX_FILES,
+        ))
+    if total_bytes > PER_BATCH_MAX_BYTES:
+        violations.append(BatchLimitViolation(
+            kind="total_bytes",
+            actual=total_bytes,
+            limit=PER_BATCH_MAX_BYTES,
+        ))
+    return violations

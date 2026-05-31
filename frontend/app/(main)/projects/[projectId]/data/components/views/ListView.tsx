@@ -40,37 +40,6 @@ export interface ListViewProps {
   agentResources?: AgentResource[];
 }
 
-// Icons
-const FolderIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-    <path d="M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z" fill="var(--po-accent)" fillOpacity="0.15" stroke="var(--po-accent)" strokeWidth="1.5" />
-  </svg>
-);
-
-const JsonIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-    <rect x="3" y="3" width="18" height="18" rx="2" stroke="var(--po-success)" strokeWidth="1.5" fill="var(--po-success)" fillOpacity="0.08" />
-    <path d="M3 9H21" stroke="var(--po-success)" strokeWidth="1.5" />
-    <path d="M9 3V21" stroke="var(--po-success)" strokeWidth="1.5" />
-  </svg>
-);
-
-const MarkdownIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-    <path d="M14 2H6C4.89543 2 4 2.89543 4 4V20C4 21.1046 4.89543 22 6 22H18C19.1046 22 20 21.1046 20 20V8L14 2Z" stroke="var(--po-text-muted)" strokeWidth="1.5" fill="var(--po-text-muted)" fillOpacity="0.08" />
-    <path d="M14 2V8H20" stroke="var(--po-text-muted)" strokeWidth="1.5" />
-    <path d="M8 13H16" stroke="var(--po-text-muted)" strokeWidth="1.5" strokeLinecap="round" />
-    <path d="M8 17H12" stroke="var(--po-text-muted)" strokeWidth="1.5" strokeLinecap="round" />
-  </svg>
-);
-
-const FileIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-    <path d="M14 2H6C4.89543 2 4 2.89543 4 4V20C4 21.1046 4.89543 22 6 22H18C19.1046 22 20 21.1046 20 20V8L14 2Z" stroke="var(--po-text-subtle)" strokeWidth="1.5" />
-    <path d="M14 2V8H20" stroke="var(--po-text-subtle)" strokeWidth="1.5" />
-  </svg>
-);
-
 const ChevronRightIcon = () => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
     <path d="M9 6L15 12L9 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />

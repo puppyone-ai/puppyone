@@ -183,6 +183,7 @@ const headerStyle: CSSProperties = {
 };
 
 const headerLeftStyle: CSSProperties = {
+  flex: '1 1 auto',
   display: 'flex',
   alignItems: 'center',
   gap: 12,

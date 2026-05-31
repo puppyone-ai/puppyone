@@ -3,9 +3,6 @@
 import { useState } from 'react';
 import {
   ACCESS_PANEL_TYPOGRAPHY,
-  COLOR_BORDER,
-  COLOR_BORDER_HOVER,
-  COLOR_FG,
   COLOR_FG_MUTED,
 } from './tokens';
 
@@ -13,9 +10,9 @@ import {
  * CreateAccessPointCTACard — Overview's entry point to the shared
  * create modal.
  *
- * A single dashed-card click target that mirrors the geometry of the
- * scope rows above it (so the Overview reads as a coherent list with
- * a "+ new" affordance at the bottom), but its only job is to fire
+ * A single list-shaped primary click target that mirrors the geometry
+ * of the scope rows above it (so the Overview reads as a coherent list
+ * with a clear "+ new" next step), but its only job is to fire
  * `onCreate()` — the actual create flow lives in the shared
  * CreateAccessModal.
  *
@@ -53,19 +50,22 @@ export function CreateAccessPointCTACard({
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 10,
-          minHeight: 58,
-          padding: '10px 12px',
+          gap: 11,
+          minHeight: 66,
+          padding: '9px 11px',
           borderRadius: 8,
-          border: `1px dashed ${hovered ? COLOR_BORDER_HOVER : COLOR_BORDER}`,
-          background: hovered
-            ? 'color-mix(in srgb, var(--po-control) 62%, transparent)'
-            : 'color-mix(in srgb, var(--po-control) 34%, transparent)',
-          color: COLOR_FG,
+          border: '1px dashed var(--po-access-action-border)',
+          background: hovered ? 'var(--po-access-active-hover)' : 'var(--po-access-active-bg)',
+          color: 'var(--po-access-active-text)',
           cursor: 'pointer',
           textAlign: 'left',
           width: '100%',
-          transition: 'background 0.15s ease, border-color 0.15s ease',
+          boxShadow: hovered
+            ? '0 8px 18px var(--po-access-action-shadow)'
+            : 'none',
+          transform: hovered ? 'translateY(-1px)' : 'translateY(0)',
+          transition:
+            'background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease',
         }}
       >
         <PlusIcon />
@@ -80,6 +80,7 @@ export function CreateAccessPointCTACard({
           <div
             style={{
               ...ACCESS_PANEL_TYPOGRAPHY.title,
+              color: 'inherit',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
@@ -91,7 +92,7 @@ export function CreateAccessPointCTACard({
             style={{
               marginTop: 3,
               ...ACCESS_PANEL_TYPOGRAPHY.body,
-              color: COLOR_FG_MUTED,
+              color: 'color-mix(in srgb, var(--po-access-active-text) 72%, var(--po-text-muted) 28%)',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
@@ -114,11 +115,11 @@ function PlusIcon() {
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
-        width: 30,
-        height: 30,
-        borderRadius: 6,
-        background: 'color-mix(in srgb, var(--po-control) 58%, transparent)',
-        color: COLOR_FG_MUTED,
+        width: 32,
+        height: 32,
+        borderRadius: 8,
+        background: 'color-mix(in srgb, var(--po-access-action) 16%, transparent)',
+        color: 'var(--po-access-active-text)',
         flexShrink: 0,
       }}
     >
@@ -145,7 +146,9 @@ function ChevronRightIcon({ hovered }: { hovered: boolean }) {
         justifyContent: 'center',
         width: 20,
         height: 20,
-        color: hovered ? 'var(--po-text-muted)' : 'var(--po-text-disabled)',
+        color: hovered
+          ? 'var(--po-access-active-text)'
+          : 'color-mix(in srgb, var(--po-access-active-text) 68%, transparent)',
         transition: 'color 0.15s ease, transform 0.15s ease',
         transform: hovered ? 'translateX(2px)' : 'translateX(0)',
         flexShrink: 0,

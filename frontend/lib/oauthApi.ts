@@ -55,8 +55,9 @@ async function oauthFetch<T>(
   path: string,
   method: 'GET' | 'POST' | 'DELETE',
   body?: Record<string, unknown>,
+  options?: { auth?: boolean },
 ): Promise<T> {
-  const token = await getApiAccessToken();
+  const token = options?.auth === false ? null : await getApiAccessToken();
   const response = await fetch(`${API_BASE_URL}/api/v1/oauth/${path}`, {
     method,
     headers: {
@@ -106,7 +107,7 @@ function createOAuthApi(slug: string): OAuthProviderApi {
       return url as string;
     },
     callback: (code, extra) =>
-      oauthFetch(`${slug}/callback`, 'POST', { code, ...extra }),
+      oauthFetch(`${slug}/callback`, 'POST', { code, ...extra }, { auth: false }),
     getStatus: () =>
       oauthFetchSafe<OAuthStatusResponse>(`${slug}/status`, { connected: false }),
     disconnect: () =>

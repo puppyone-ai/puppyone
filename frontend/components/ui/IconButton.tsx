@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  forwardRef,
   useState,
   type ButtonHTMLAttributes,
   type CSSProperties,
@@ -38,7 +39,7 @@ function toneColor(tone: IconButtonTone, hovered: boolean) {
   return 'var(--po-text-muted)';
 }
 
-export function IconButton({
+export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton({
   children,
   tone = 'default',
   size = 'md',
@@ -47,7 +48,7 @@ export function IconButton({
   onMouseEnter,
   onMouseLeave,
   ...props
-}: IconButtonProps) {
+}, ref) {
   const [hovered, setHovered] = useState(false);
 
   const handleMouseEnter = (event: MouseEvent<HTMLButtonElement>) => {
@@ -63,6 +64,7 @@ export function IconButton({
   return (
     <button
       {...props}
+      ref={ref}
       type={props.type ?? 'button'}
       disabled={disabled}
       onMouseEnter={handleMouseEnter}
@@ -86,4 +88,4 @@ export function IconButton({
       {children}
     </button>
   );
-}
+});
