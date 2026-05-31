@@ -187,21 +187,25 @@ S3 `shadow-snapshots/` 前缀和 DB 表无限积累。sandbox_reaper 存在但 s
 
 ```
 立即（安全 + 正确性）
-  GAP-12  dropFiles.ts 接入 applyPolicy（< 1 day）
-  GAP-6   text index 删除事件 + content_hash dedup 修正（~1 day）
+  ✅ GAP-12  dropFiles.ts 接入 applyPolicy（< 1 day）
+  ✅ GAP-6   text index 删除事件 + content_hash dedup 修正（~1 day）
 
 高（架构合约）
-  GAP-4   nested scope carved_excludes admission（~2–3 days）
-  GAP-2   GC 枚举 bundle/chunked 对象（~1 day）
+  ✅ GAP-4   nested scope carved_excludes admission（~2–3 days）
+  ✅ GAP-2   GC 枚举 bundle/chunked 对象（~1 day）
 
 中（性能）
-  GAP-5   child-scope merge 改 tree-diff + path-patch（~3–5 days）
-  GAP-1   upload-pack 磁盘 spool（~1 day）
+  ✅ GAP-5   child-scope merge 改 OID 级合并（消除 blob 下载）
+  ✅ GAP-1   upload-pack 流式响应 + 请求体磁盘 spool
 
-Roadmap（大型功能）
-  GAP-3   multi-branch Git refs（独立设计文档，weeks）
+Roadmap（大型功能 — 仍待排期）
+  GAP-3   multi-branch Git refs（独立设计文档，weeks；已写设计草案 + 改进拒绝信息）
   GAP-11  shadow grep --ref local:（需 snapshot index 原语）
   GAP-13  staged commits / PR-like review（独立设计文档）
+
+剩余 SMALL（纯运营 / 低优先）
+  GAP-7 (DB rename Phase 2/3)、GAP-8 (AP 用量统计)、GAP-9 (FS connector 契约)、
+  GAP-10 (shadow snapshot TTL reaper)、GAP-15 (count() 全量 LIST)
 ```
 
 ---
