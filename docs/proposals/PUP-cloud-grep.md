@@ -61,8 +61,15 @@ Target users have huge repos (enterprise monorepos, TB of text).
 Walking S3 blobs and running Python regex per file is O(repo size)
 per query — useless at scale. The DB index gives us:
 
-- **`tsvector` GIN** for word-aware match (``-w`` and default grep).
-- **`pg_trgm` GIN** for substring + regex match (``-E`` / ``-F``).
+- **`pg_trgm` GIN** for substring + regex match (``-E`` / ``-F``) — and,
+  in the shipped implementation, ALSO for default and ``-w`` word match:
+  the candidate query uses `LIKE`/`ILIKE`/`~`/`~*` for every mode and the
+  HTTP layer re-anchors word boundaries (`\b`) in Python. This is
+  deliberate — a `tsvector @@ to_tsquery` word channel would miss
+  substring hits *inside* a word (e.g. `foo` in `foobar`), which `grep`
+  must find. (Revised 2026-05-31: the originally-specified `tsvector` GIN
+  was never queried, so the `tsv` generated column and `idx_vti_tsv` index
+  were dropped — see migration `20260531020000`.)
 - Partitioned by ``(project_id, scope_path)`` so queries scan inside
   the AP's blast radius, not the whole project.
 - Content keyed by ``content_hash`` so the same blob across branches
@@ -89,11 +96,12 @@ CREATE TABLE public.version_text_index (
   chunk_idx       INT  NOT NULL,            -- 0-based chunk inside file
   line_start      INT  NOT NULL,            -- 1-based line of chunk[0]
   text            TEXT NOT NULL,            -- raw chunk text
-  tsv             tsvector GENERATED ALWAYS AS (to_tsvector('simple', text)) STORED,
+  -- NOTE: a `tsv tsvector GENERATED ... STORED` column was originally
+  -- specified here but never queried; dropped in migration
+  -- 20260531020000 (see §3). Candidate selection is pg_trgm-only.
   UNIQUE (project_id, content_hash, chunk_idx)
 );
 CREATE INDEX idx_vti_project_scope ON public.version_text_index (project_id, scope_path);
-CREATE INDEX idx_vti_tsv           ON public.version_text_index USING GIN (tsv);
 CREATE INDEX idx_vti_trgm          ON public.version_text_index USING GIN (text gin_trgm_ops);
 CREATE INDEX idx_vti_file_path     ON public.version_text_index (project_id, file_path);
 ```
