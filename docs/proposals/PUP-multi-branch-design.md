@@ -115,14 +115,28 @@ Tags are immutable after creation (no force-push).
 
 ---
 
-## Current state (2026-05-31)
+## Current state (2026-05-31) — Phase 1 IMPLEMENTED
 
-- `_ref_writability()` rejects non-main refs with a clear, actionable error
-  message directing users to merge locally before pushing.
-- The reject message for `refs/heads/<branch>` was improved to explain *why*
-  (multi-branch not yet implemented) and where to track progress.
-- The reject message for `refs/tags/*` was corrected (previously said
-  "tag through the project API" which does not exist).
+Phase 1 (branch/tag push + advertise, no merge UI) is now in place:
 
-No code changes beyond error messages are made until this design is approved
-and Phase 1 is scheduled as a tracked work item.
+- **Storage** (`version_refs` table + `VersionRefStore`): one row per
+  `(project_id, scope_path, ref_name)`. A ref points at an already-promoted
+  commit and never advances the scope head.
+- **Push routing** (`receive_pack._store_named_ref`): `_ref_writability()`
+  now accepts `refs/heads/*` and `refs/tags/*`. A non-`main` push promotes
+  its object closure (durable + fetchable) and records the pointer in
+  `version_refs` instead of running the scope-head write engine. `main`
+  lands exactly as before; merge commits (>1 parent) are still rejected
+  (linear branches in Phase 1).
+- **Advertise + serve** (`upload_pack_bare_repo(extra_refs=…)`): stored refs
+  are written into the PER-REQUEST bare repo (never the shared transport
+  cache) and their object closure is seeded into the cache via
+  `extra_roots`, so `git clone` / `git fetch` sees and serves them. With no
+  stored refs the advertise is byte-for-byte the previous single-branch
+  behaviour, and a refs lookup failure degrades to "no extra refs" rather
+  than breaking transport.
+
+**Not yet done (Phase 2+):** merge/landing API (`POST …/branches/{b}/merge`),
+annotated-tag objects (lightweight tags only today — an annotated tag object
+is rejected by the commit-type check), branch deletion (refs are
+append-only), and the PUP-5 PR-like review wrapper (GAP-13).

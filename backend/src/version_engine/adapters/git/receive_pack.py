@@ -226,6 +226,24 @@ async def receive_pack_response_from_path(
                     ],
                 )
 
+            # GAP-3: a push to any ref other than the scope head is stored as
+            # a named ref in version_refs WITHOUT advancing the scope head.
+            # An independent branch/tag is not fast-forward-comparable to main
+            # and does not go through the scope-head write engine; we just
+            # promote its objects (so the ref is durable + fetchable) and
+            # record the pointer. Landing to the scope head is a separate
+            # merge (push refs/heads/main).
+            if command.ref != ACCESS_POINT_MAIN_REF:
+                return _store_named_ref(
+                    quarantine=quarantine,
+                    official=official,
+                    official_ref_updated=official_ref_updated,
+                    project_id=project_id,
+                    scope_path=scope_path,
+                    actor=actor,
+                    command=command,
+                )
+
             current_scope_hash, current_head_commit_id = _get_scope_state(
                 repo,
                 scope_path,
@@ -579,39 +597,75 @@ def _get_scope_state(repo, scope_path: str) -> tuple[str, str]:
     )
 
 
-def _ref_writability(ref: str) -> tuple[bool, str]:
-    """Allow only the materialized scope ref.
+def _store_named_ref(
+    *,
+    quarantine,
+    official,
+    official_ref_updated: bool,
+    project_id: str,
+    scope_path: str,
+    actor: str,
+    command,
+):
+    """Persist a branch/tag push as a version_refs row (GAP-3 Phase 1b).
 
-    PuppyOne does not yet persist separate Git branch refs for an access
-    point. Accepting feature refs while publishing them to the scope head
-    would look GitHub-like at the CLI boundary but mutate ``main`` under the
-    hood, which is worse than a loud rejection. Keep the transport honest
-    until branch/MR storage is implemented explicitly.
+    The commit's reachable objects are promoted into the canonical store
+    so the ref is durable and fetchable, then the pointer is recorded.
+    The scope head (``mut_scope_state``) is deliberately untouched.
+    """
+    from src.version_engine.infrastructure.supabase.version_ref_repository import (
+        VersionRefStore,
+    )
+
+    quarantine.promote_reachable()
+    stored = VersionRefStore().set_ref(
+        project_id=project_id,
+        scope_path=scope_path,
+        ref_name=command.ref,
+        commit_id=command.new_id,
+        created_by=actor,
+    )
+    if not stored:
+        return receive_pack_result(
+            command.ref,
+            outcome="rejected",
+            message="puppyone-rejected: failed to store named ref",
+            capabilities=command.capabilities,
+        )
+    if official_ref_updated and official.output:
+        return _official_receive_pack_response(official.output)
+    return receive_pack_result(
+        command.ref,
+        outcome="committed",
+        message=(
+            "puppyone-committed: stored as a named ref (not landed to the "
+            "scope head; push refs/heads/main to land)"
+        ),
+        capabilities=command.capabilities,
+    )
+
+
+def _ref_writability(ref: str) -> tuple[bool, str]:
+    """Decide whether a pushed ref is writable on this scope remote.
+
+    Three accepted shapes (GAP-3):
+      - ``refs/heads/main`` — the scope head; lands through the write
+        engine and advances ``mut_scope_state``.
+      - other ``refs/heads/*`` and ``refs/tags/*`` — stored as named refs
+        in ``version_refs`` WITHOUT advancing the scope head. A stored ref
+        is a durable, fetchable pointer to a promoted commit; landing it to
+        the scope head is a separate merge step (push ``main``).
+
+    Other namespaces (``refs/notes/*``, pseudo-refs, …) stay rejected.
     """
 
     if ref == ACCESS_POINT_MAIN_REF:
         return True, ""
-    if ref.startswith("refs/tags/"):
-        # Tag storage is not yet implemented (GAP-3). There is no project API
-        # tag endpoint to redirect to — tell the user to use the PuppyOne UI
-        # for version labelling until native tag support lands.
-        return False, (
-            f"tag {ref!r} cannot be pushed: Git tag storage is not yet "
-            f"implemented on PuppyOne remotes. Use the project history UI to "
-            f"label versions, or push commits to {ACCESS_POINT_MAIN_REF} and "
-            f"tag locally for your own reference."
-        )
-    if ref.startswith("refs/heads/"):
-        branch = ref[len("refs/heads/"):]
-        return False, (
-            f"branch {branch!r} cannot be pushed: multi-branch support is not "
-            f"yet implemented (only {ACCESS_POINT_MAIN_REF} is accepted). "
-            f"Merge your work into the default branch before pushing, or track "
-            f"progress at https://github.com/puppyone-ai/puppyone/issues."
-        )
+    if ref.startswith(("refs/heads/", "refs/tags/")):
+        return True, ""
     return False, (
         f"ref {ref!r} is not writable on this scope remote; "
-        f"only {ACCESS_POINT_MAIN_REF} is currently accepted."
+        f"only refs/heads/* and refs/tags/* are accepted."
     )
 
 

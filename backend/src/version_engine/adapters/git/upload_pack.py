@@ -30,6 +30,31 @@ from src.utils.logger import log_error
 _UPLOAD_PACK_STREAM_CHUNK = 64 * 1024
 
 
+def _scope_version_refs(repo, scope_path: str) -> dict[str, str]:
+    """Stored branch/tag refs for this scope as ``{ref_name: commit_id}``
+    (GAP-3). Empty (and behaviour-preserving) when there is no project id,
+    no refs, or the lookup fails — the advertise/serve paths then behave
+    exactly as the single-branch transport always has.
+    """
+    project_id = getattr(repo, "_project_id", "") or ""
+    if not project_id:
+        return {}
+    try:
+        from src.version_engine.infrastructure.supabase.version_ref_repository import (
+            VersionRefStore,
+        )
+
+        rows = VersionRefStore().list_refs(project_id, scope_path)
+        return {
+            r["ref_name"]: r["commit_id"]
+            for r in rows
+            if r.get("ref_name") and r.get("commit_id")
+        }
+    except Exception as exc:  # noqa: BLE001 — refs are additive; never break transport
+        log_error(f"[upload-pack] version_refs lookup failed: {exc}")
+        return {}
+
+
 def info_refs_response(
     repo,
     service: str,
@@ -46,7 +71,16 @@ def info_refs_response(
             scope_excludes,
         )
     else:
-        repo_context = transport_bare_repo(repo, scope_path, scope_excludes)
+        # Advertise the scope head AND any stored branch/tag refs (GAP-3).
+        # upload_pack_bare_repo writes them into a per-request bare repo
+        # (never the shared cache); with no stored refs it advertises
+        # exactly refs/heads/main + HEAD as before.
+        repo_context = upload_pack_bare_repo(
+            repo,
+            scope_path,
+            scope_excludes,
+            extra_refs=_scope_version_refs(repo, scope_path),
+        )
 
     try:
         with repo_context as bare_dir:
@@ -110,7 +144,9 @@ def upload_pack_streaming_response(
         ) from exc
 
     cm = upload_pack_bare_repo(
-        repo, scope_path, scope_excludes, wants=_upload_pack_wants(body),
+        repo, scope_path, scope_excludes,
+        wants=_upload_pack_wants(body),
+        extra_refs=_scope_version_refs(repo, scope_path),
     )
     try:
         bare_dir = cm.__enter__()
