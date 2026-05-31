@@ -19,7 +19,7 @@
 | GAP-8 | L4 | SMALL | Agent/MCP/Sandbox AP 用量在 dashboard 永远为 0 ✅ 已修复（sync+agent；mcp/sandbox 无运行日志源） |
 | GAP-9 | L4 | SMALL | Filesystem connector `fetch()`/`push()` NotImplementedError ✅ 已修复 |
 | GAP-10 | L5 follow-up | SMALL | Shadow snapshot 无 TTL reaper，无限积累 ✅ 已修复 |
-| GAP-11 | L5 follow-up | MEDIUM | `--ref local:` shadow grep 完全未实现 |
+| GAP-11 | L5 follow-up | MEDIUM | `--ref local:` shadow grep 完全未实现 ✅ 已修复（V1：grep previews） |
 | GAP-12 | L2 frontend | MEDIUM | PUP-3 策略仅覆盖 FileImportDialog；drag-drop 路径无过滤 ✅ 已修复 |
 | GAP-13 | L5 core | MEDIUM | PUP-5 staged session / PR-like review 无后端原语 |
 | GAP-14 | L1 | MEDIUM | 同 GAP-1，upload-pack 内存风险具体说明 ✅ 已修复 |
@@ -198,14 +198,18 @@ S3 `shadow-snapshots/` 前缀和 DB 表无限积累。sandbox_reaper 存在但 s
   ✅ GAP-5   child-scope merge 改 OID 级合并（消除 blob 下载）
   ✅ GAP-1   upload-pack 流式响应 + 请求体磁盘 spool
 
+  ✅ GAP-11  shadow grep --ref local:（V1：server-side grep over previews）
+
+已完成 SMALL
+  ✅ GAP-8 (dashboard 用量桶：sync+agent)、✅ GAP-9 (FS connector fetch skip)、
+  ✅ GAP-10 (shadow snapshot TTL reaper)、✅ GAP-15 (count() bytes 修正)
+
 Roadmap（大型功能 — 仍待排期）
   GAP-3   multi-branch Git refs（独立设计文档，weeks；已写设计草案 + 改进拒绝信息）
-  GAP-11  shadow grep --ref local:（需 snapshot index 原语）
   GAP-13  staged commits / PR-like review（独立设计文档）
 
-剩余 SMALL（纯运营 / 低优先）
-  GAP-7 (DB rename Phase 2/3)、GAP-8 (AP 用量统计)、GAP-9 (FS connector 契约)、
-  GAP-10 (shadow snapshot TTL reaper)、GAP-15 (count() 全量 LIST)
+剩余 SMALL（纯运营，需 DB 迁移协调）
+  GAP-7 (DB rename mut_*→version_* Phase 2/3)
 ```
 
 ---
