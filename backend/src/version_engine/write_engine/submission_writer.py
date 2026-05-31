@@ -350,6 +350,7 @@ class SubmissionWriter:
                         incoming_files=incoming_files,
                         manual_conflicts=merge_result.manual_conflicts,
                         policy_reason=policy.reason,
+                        policy=policy.policy,
                     )
                     _log_done(
                         f"{intent.source_channel}_push_pending",
@@ -511,6 +512,7 @@ class SubmissionWriter:
         incoming_files: dict[str, bytes],
         manual_conflicts: list,
         policy_reason: str,
+        policy: str = "manual_review",
     ) -> TransactionResult:
         """Submission-intent shaped wrapper for conflict queue recording."""
 
@@ -533,4 +535,5 @@ class SubmissionWriter:
             incoming_files=incoming_files,
             manual_conflicts=manual_conflicts,
             policy_reason=policy_reason,
+            policy=policy,
         )
