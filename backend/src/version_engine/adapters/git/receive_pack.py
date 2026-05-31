@@ -592,10 +592,26 @@ def _ref_writability(ref: str) -> tuple[bool, str]:
     if ref == ACCESS_POINT_MAIN_REF:
         return True, ""
     if ref.startswith("refs/tags/"):
-        return False, "tag refs are immutable on this remote; tag through the project API"
+        # Tag storage is not yet implemented (GAP-3). There is no project API
+        # tag endpoint to redirect to — tell the user to use the PuppyOne UI
+        # for version labelling until native tag support lands.
+        return False, (
+            f"tag {ref!r} cannot be pushed: Git tag storage is not yet "
+            f"implemented on PuppyOne remotes. Use the project history UI to "
+            f"label versions, or push commits to {ACCESS_POINT_MAIN_REF} and "
+            f"tag locally for your own reference."
+        )
+    if ref.startswith("refs/heads/"):
+        branch = ref[len("refs/heads/"):]
+        return False, (
+            f"branch {branch!r} cannot be pushed: multi-branch support is not "
+            f"yet implemented (only {ACCESS_POINT_MAIN_REF} is accepted). "
+            f"Merge your work into the default branch before pushing, or track "
+            f"progress at https://github.com/puppyone-ai/puppyone/issues."
+        )
     return False, (
         f"ref {ref!r} is not writable on this scope remote; "
-        f"only {ACCESS_POINT_MAIN_REF} is currently backed by an access-point ref"
+        f"only {ACCESS_POINT_MAIN_REF} is currently accepted."
     )
 
 
