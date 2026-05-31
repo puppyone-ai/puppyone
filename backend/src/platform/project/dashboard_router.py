@@ -53,10 +53,11 @@ class DashboardConnection(BaseModel):
     error_message: str | None = None
     created_at: str | None = None
     # Per-day invocation count for the last N days (oldest → newest).
-    # Currently sourced from ``sync_runs`` (covers sync-style providers:
-    # gmail, google_sheets, notion, github, supabase, ...).  Output-style
-    # APs (agent / mcp / sandbox) don't write to ``sync_runs`` yet, so they
-    # get zero buckets until we wire in their usage table(s).
+    # Aggregated across each AP family's run-log table (GAP-8):
+    # ``connector_runs`` for sync/filesystem connectors and
+    # ``agent_execution_logs`` for scheduled agents. MCP / sandbox APs do
+    # not persist per-invocation runs yet, so they still report zeros until
+    # their execution paths are instrumented.
     usage_buckets: list[int] = []
 
 
@@ -271,11 +272,22 @@ def _fetch_connections(sb, project_id: str) -> list[DashboardConnection]:
 def _fetch_usage_buckets(
     sb, ap_ids: list[str], days: int = USAGE_BUCKET_DAYS,
 ) -> dict[str, list[int]]:
-    """Return per-connector daily invocation counts for the last ``days`` days.
+    """Return per-AP daily invocation counts for the last ``days`` days.
 
-    Source: ``connector_runs.connector_id`` + ``started_at``.  Buckets are aligned
-    oldest → newest (index 0 = ``today - (days-1)``, last index = today) in UTC.
-    Connectors with no runs in the window get a zero-filled list.
+    Different access-point families record runs in different tables
+    (GAP-8). We aggregate them all, keyed by the AP id:
+
+      - sync-style connectors (gmail, sheets, notion, github, …) and the
+        filesystem connector → ``connector_runs.connector_id``
+      - scheduled agent APs → ``agent_execution_logs.agent_id``
+
+    MCP and sandbox APs do not yet persist per-invocation runs anywhere,
+    so they still report zeros until their execution paths are
+    instrumented.
+
+    Buckets are aligned oldest → newest (index 0 = ``today - (days-1)``,
+    last index = today) in UTC. APs with no runs in the window get a
+    zero-filled list.
     """
     buckets: dict[str, list[int]] = {ap_id: [0] * days for ap_id in ap_ids}
     if not ap_ids:
@@ -286,22 +298,44 @@ def _fetch_usage_buckets(
     cutoff_day = cutoff.date()
     today = now.date()
 
+    # (table, id-column) pairs that record one row per AP invocation.
+    for table, id_col in (
+        ("connector_runs", "connector_id"),
+        ("agent_execution_logs", "agent_id"),
+    ):
+        _accumulate_run_buckets(
+            sb, table, id_col, ap_ids,
+            cutoff=cutoff, cutoff_day=cutoff_day, today=today,
+            days=days, buckets=buckets,
+        )
+
+    return buckets
+
+
+def _accumulate_run_buckets(
+    sb, table: str, id_col: str, ap_ids: list[str], *,
+    cutoff, cutoff_day, today, days: int, buckets: dict[str, list[int]],
+) -> None:
+    """Fold one run-log table's rows into ``buckets`` (in place).
+
+    A missing/erroring source is logged and skipped so one broken table
+    can't zero the whole dashboard."""
     try:
         rows = (
-            sb.table("connector_runs")
-            .select("connector_id, started_at")
-            .in_("connector_id", ap_ids)
+            sb.table(table)
+            .select(f"{id_col}, started_at")
+            .in_(id_col, ap_ids)
             .gte("started_at", cutoff.isoformat())
             .execute()
         ).data or []
     except Exception:
         logger.exception(
-            "[Dashboard] connector_runs aggregation failed; returning zero buckets"
+            f"[Dashboard] {table} aggregation failed; skipping that source"
         )
-        return buckets
+        return
 
     for r in rows:
-        ap_id = r.get("connector_id")
+        ap_id = r.get(id_col)
         started = r.get("started_at")
         if not ap_id or not started or ap_id not in buckets:
             continue
@@ -316,8 +350,6 @@ def _fetch_usage_buckets(
         idx = (run_day - cutoff_day).days
         if 0 <= idx < days:
             buckets[ap_id][idx] += 1
-
-    return buckets
 
 
 def _fetch_tools(sb, project_id: str) -> list[DashboardTool]:
