@@ -136,6 +136,14 @@ class VersionRepoManager:
             scopes=ScopeManager(scope_backend),
         )
 
+    def get_scope_backend(self, project_id: str) -> SupabaseScopeBackend:
+        """Return a lightweight ScopeBackend for listing a project's scopes.
+
+        Used by the admission layer to compute carved_excludes — the set of
+        child-scope paths that must be hidden from a parent scope's view.
+        """
+        return SupabaseScopeBackend(self._supabase, project_id)
+
     def get_project_write_state(
         self,
         project_id: str,

@@ -136,7 +136,13 @@ async def _resolve_auth(
                 detail="User identity mismatch: key is bound to a different user",
             )
 
-    facade = repo_facade_from_auth(project_id, auth, kind="access_point")
+    # Build scope_backend to compute carved_excludes (GAP-4 fix).
+    # SupabaseClient() is a singleton so this does not open a new connection.
+    from src.infra.supabase.client import SupabaseClient  # local import avoids circulars
+    from src.version_engine.infrastructure.supabase.scope_repository import SupabaseScopeBackend
+    scope_backend = SupabaseScopeBackend(SupabaseClient(), project_id)
+    facade = repo_facade_from_auth(project_id, auth, kind="access_point",
+                                   scope_backend=scope_backend)
     scope = auth.get("_scope") or {}
     scope_path = validate_path(facade.scope_path)
     mode = facade.mode

@@ -161,7 +161,8 @@ async def git_info_refs(
 
     auth = await resolve_git_project_auth(project_id, request, scope)
     repo = repo_manager.get_server_repo(project_id)
-    facade = repo_facade_from_auth(project_id, auth, kind="project_git_remote")
+    facade = repo_facade_from_auth(project_id, auth, kind="project_git_remote",
+                                   scope_backend=repo_manager.get_scope_backend(project_id))
     return info_refs_response(
         repo,
         service,
@@ -181,7 +182,8 @@ async def git_ap_info_refs(
 
     project_id, auth = await resolve_git_access_point(access_key, request)
     repo = repo_manager.get_server_repo(project_id)
-    facade = repo_facade_from_auth(project_id, auth, kind="access_point")
+    facade = repo_facade_from_auth(project_id, auth, kind="access_point",
+                                   scope_backend=repo_manager.get_scope_backend(project_id))
     return info_refs_response(
         repo,
         service,
@@ -200,7 +202,8 @@ async def git_ap_health(
 
     project_id, auth = await resolve_git_access_point(access_key, request)
     repo = repo_manager.get_server_repo(project_id)
-    facade = repo_facade_from_auth(project_id, auth, kind="access_point")
+    facade = repo_facade_from_auth(project_id, auth, kind="access_point",
+                                   scope_backend=repo_manager.get_scope_backend(project_id))
     return ApiResponse.success(
         data=git_view_health_payload(
             repo,
@@ -232,7 +235,8 @@ async def git_project_health(
 
     auth = await resolve_git_project_auth(project_id, request, scope)
     repo = repo_manager.get_server_repo(project_id)
-    facade = repo_facade_from_auth(project_id, auth, kind="project_git_remote")
+    facade = repo_facade_from_auth(project_id, auth, kind="project_git_remote",
+                                   scope_backend=repo_manager.get_scope_backend(project_id))
     return ApiResponse.success(
         data=git_view_health_payload(
             repo,
@@ -290,7 +294,8 @@ async def git_ap_rebuild_cache(
     """
     project_id, auth = await resolve_git_access_point(access_key, request)
     repo = repo_manager.get_server_repo(project_id)
-    facade = repo_facade_from_auth(project_id, auth, kind="access_point")
+    facade = repo_facade_from_auth(project_id, auth, kind="access_point",
+                                   scope_backend=repo_manager.get_scope_backend(project_id))
     admit_target(
         auth,
         facade,
@@ -317,7 +322,8 @@ async def git_project_rebuild_cache(
 
     auth = await resolve_git_project_auth(project_id, request, scope)
     repo = repo_manager.get_server_repo(project_id)
-    facade = repo_facade_from_auth(project_id, auth, kind="project_git_remote")
+    facade = repo_facade_from_auth(project_id, auth, kind="project_git_remote",
+                                   scope_backend=repo_manager.get_scope_backend(project_id))
     admit_target(
         auth,
         facade,
@@ -345,7 +351,8 @@ async def git_receive_pack(
     repo = repo_manager.get_server_repo(project_id)
     request_path = await _spool_git_request_body(request)
     actor = request_actor(request, auth)
-    facade = repo_facade_from_auth(project_id, auth, kind="project_git_remote")
+    facade = repo_facade_from_auth(project_id, auth, kind="project_git_remote",
+                                   scope_backend=repo_manager.get_scope_backend(project_id))
     try:
         return await receive_pack_response_from_path(
             repo_manager=repo_manager,
@@ -379,7 +386,8 @@ async def git_ap_receive_pack(
     repo = repo_manager.get_server_repo(project_id)
     request_path = await _spool_git_request_body(request)
     actor = request_actor(request, auth)
-    facade = repo_facade_from_auth(project_id, auth, kind="access_point")
+    facade = repo_facade_from_auth(project_id, auth, kind="access_point",
+                                   scope_backend=repo_manager.get_scope_backend(project_id))
     try:
         return await receive_pack_response_from_path(
             repo_manager=repo_manager,
@@ -414,7 +422,8 @@ async def git_upload_pack(
     repo = repo_manager.get_server_repo(project_id)
     body = await request.body()
     actor = request_actor(request, auth)
-    facade = repo_facade_from_auth(project_id, auth, kind="project_git_remote")
+    facade = repo_facade_from_auth(project_id, auth, kind="project_git_remote",
+                                   scope_backend=repo_manager.get_scope_backend(project_id))
     await _record_git_fetch_audit(
         repo=repo,
         auth=auth,
@@ -442,7 +451,8 @@ async def git_ap_upload_pack(
     repo = repo_manager.get_server_repo(project_id)
     body = await request.body()
     actor = request_actor(request, auth)
-    facade = repo_facade_from_auth(project_id, auth, kind="access_point")
+    facade = repo_facade_from_auth(project_id, auth, kind="access_point",
+                                   scope_backend=repo_manager.get_scope_backend(project_id))
     await _record_git_fetch_audit(
         repo=repo,
         auth=auth,
