@@ -104,12 +104,7 @@ def run_git_object_gc(
 
     deleted: list[str] = []
     if not dry_run:
-        for object_id in eligible:
-            try:
-                if _delete_object(repo, object_id):
-                    deleted.append(object_id)
-            except Exception as exc:  # noqa: BLE001 - GC must continue.
-                errors.append(f"delete {object_id}: {exc}")
+        deleted = _delete_eligible_objects(repo, eligible, errors=errors)
 
     return GitObjectGcResult(
         project_id=project_id,
@@ -401,6 +396,39 @@ def _object_is_old_enough(
     if last_modified.tzinfo is None:
         last_modified = last_modified.replace(tzinfo=timezone.utc)
     return (now - last_modified).total_seconds() >= retention_seconds
+
+
+def _delete_eligible_objects(repo, eligible: list[str], *, errors: list[str]) -> list[str]:
+    """Delete eligible orphans across all physical layouts (GAP-2).
+
+    Bundled objects share a ``.pob`` and can't be removed individually,
+    so we first run a whole-bundle sweep that drops only bundles whose
+    every member is eligible. Loose and chunked orphans (and any bundled
+    object whose bundle wasn't fully dead, which ``delete`` refuses) are
+    then handled per object.
+    """
+    deleted: list[str] = []
+    swept_ids: set[str] = set()
+
+    backend = getattr(repo.store, "_backend", None)
+    sweep = getattr(backend, "sweep_dead_bundles", None)
+    if callable(sweep):
+        try:
+            _count, swept = sweep(set(eligible))
+            swept_ids = set(swept)
+            deleted.extend(swept)
+        except Exception as exc:  # noqa: BLE001 - GC must continue.
+            errors.append(f"sweep_dead_bundles: {exc}")
+
+    for object_id in eligible:
+        if object_id in swept_ids:
+            continue
+        try:
+            if _delete_object(repo, object_id):
+                deleted.append(object_id)
+        except Exception as exc:  # noqa: BLE001 - GC must continue.
+            errors.append(f"delete {object_id}: {exc}")
+    return deleted
 
 
 def _delete_object(repo, object_id: str) -> bool:
