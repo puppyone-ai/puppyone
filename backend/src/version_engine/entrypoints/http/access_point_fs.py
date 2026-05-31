@@ -836,11 +836,17 @@ async def _grep_shadow_snapshot(
     )
 
     client = SupabaseClient().client
+    # Privacy (08-shadow-snapshots.md §1): shadow content is user-private by
+    # default. The cross-user ``--ref local:`` path may only read snapshots
+    # whose owner explicitly opted in (grep_shared = true). Without this the
+    # query matched by (project, machine, ref) alone, exposing any user's
+    # un-pushed working tree to any access-point holder for the project.
     query = (
         client.table("local_shadow_snapshots")
         .select("id, machine_id, ref_name, user_id, updated_at")
         .eq("project_id", project_id)
         .eq("ref_name", ref_name)
+        .eq("grep_shared", True)
     )
     if machine_id:
         query = query.eq("machine_id", machine_id)

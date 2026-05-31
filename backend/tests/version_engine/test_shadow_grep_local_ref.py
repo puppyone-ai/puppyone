@@ -18,11 +18,13 @@ import src.infra.supabase.client as supa_client
 class FakeQuery:
     def __init__(self, rows):
         self._rows = rows
+        self._eq = {}
 
     def select(self, *_a, **_k):
         return self
 
-    def eq(self, *_a, **_k):
+    def eq(self, col, val):
+        self._eq[col] = val
         return self
 
     def order(self, *_a, **_k):
@@ -32,7 +34,12 @@ class FakeQuery:
         return self
 
     def execute(self):
-        return SimpleNamespace(data=self._rows)
+        # honor eq filters so the grep_shared opt-in gate is actually tested
+        out = [
+            r for r in self._rows
+            if all(r.get(c) == v for c, v in self._eq.items())
+        ]
+        return SimpleNamespace(data=out)
 
 
 class FakeClient:
@@ -64,8 +71,10 @@ DOC = {
 
 @pytest.fixture
 def patched(monkeypatch):
-    rows = [{"id": "snap1", "machine_id": "alice-mbp", "ref_name": "main",
-             "user_id": "u-alice", "updated_at": "2026-05-30T00:00:00+00:00"}]
+    # grep_shared=True: owner opted this snapshot into cross-user grep.
+    rows = [{"id": "snap1", "project_id": "p1", "machine_id": "alice-mbp", "ref_name": "main",
+             "user_id": "u-alice", "grep_shared": True,
+             "updated_at": "2026-05-30T00:00:00+00:00"}]
     monkeypatch.setattr(supa_client, "SupabaseClient", lambda: FakeSupabase(rows))
 
     async def fake_get(_pid, _sid):
@@ -128,6 +137,25 @@ def test_local_ref_missing_snapshot_404(monkeypatch):
 
     async def fake_get(_pid, _sid):
         return {}
+
+    monkeypatch.setattr(ss, "_get_manifest_from_s3", fake_get)
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException) as ei:
+        _call({"path": "", "mode": "rw", "exclude": []})
+    assert ei.value.status_code == 404
+
+
+def test_local_ref_private_snapshot_not_shared_404(monkeypatch):
+    # Privacy default (08 §1): a snapshot NOT opted in (grep_shared=False)
+    # is invisible to --ref local: even though it matches project/machine/ref.
+    rows = [{"id": "snapP", "project_id": "p1", "machine_id": "alice-mbp", "ref_name": "main",
+             "user_id": "u-alice", "grep_shared": False,
+             "updated_at": "2026-05-30T00:00:00+00:00"}]
+    monkeypatch.setattr(supa_client, "SupabaseClient", lambda: FakeSupabase(rows))
+
+    async def fake_get(_pid, _sid):
+        return DOC
 
     monkeypatch.setattr(ss, "_get_manifest_from_s3", fake_get)
     from fastapi import HTTPException

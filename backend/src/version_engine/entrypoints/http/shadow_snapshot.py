@@ -121,6 +121,10 @@ class UpsertShadowSnapshotRequest(BaseModel):
     tree_hash: str = ""
     manifest: list[ShadowSnapshotEntry]
     previews: dict[str, str] = Field(default_factory=dict)
+    # Explicit opt-in (08-shadow-snapshots.md §1): shadow content is
+    # user-private by default. Only when the owner sets this true may the
+    # snapshot be read through the cross-user ``--ref local:`` grep path.
+    grep_shared: bool = False
 
 
 def _enforce_entry_count(req: UpsertShadowSnapshotRequest) -> None:
@@ -378,6 +382,7 @@ async def upsert_snapshot(
         "tree_hash": body.tree_hash or "",
         "file_count": file_count,
         "total_bytes": total_bytes,
+        "grep_shared": bool(body.grep_shared),
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
     resp = (
