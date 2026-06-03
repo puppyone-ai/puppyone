@@ -15,7 +15,7 @@ export interface DashboardNodeCounts {
   files: number;
 }
 
-/** Backend `connections.direction` (chk_syncs_direction CHECK constraint).
+/** Backend `connections.direction` (connections_direction_check constraint).
  *  - `inbound`       — data flows from external source INTO ContextBase
  *  - `outbound`      — data flows from ContextBase OUT to consumer (agent / mcp / sandbox)
  *  - `bidirectional` — both ways (Git Remote: local repo is source AND mirror)

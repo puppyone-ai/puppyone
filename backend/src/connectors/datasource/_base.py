@@ -132,8 +132,8 @@ class ConnectorSpec:
     config_schema: Optional[dict] = None
 
     # Dynamic UI and registry fields
-    supported_sync_modes: tuple[str, ...] = ("import_once", "manual", "scheduled")
-    default_sync_mode: str = "import_once"
+    supported_sync_modes: tuple[str, ...] = ("manual", "scheduled")
+    default_sync_mode: str = "manual"
     creation_mode: str = "direct"  # direct | bootstrap
     config_fields: tuple[ConfigField, ...] = ()
     icon: Optional[str] = None

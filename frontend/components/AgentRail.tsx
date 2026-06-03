@@ -39,7 +39,7 @@ export interface SavedAgent {
   capabilities: string[]; // Saved capability IDs (legacy)
   resources?: AccessResource[]; // 新：资源访问配置
   mcp_api_key?: string; // MCP API key for external access
-  /** Mirrors ``connectors.status`` (``active`` / ``paused``). When
+  /** Mirrors ``access_surfaces.status`` (``active`` / ``paused``). When
    *  ``paused`` the chat endpoint refuses to start sessions and the
    *  scheduler skips scheduled runs — the toggle in AgentDetailView
    *  drives both. */
@@ -61,4 +61,3 @@ const SERVICE_ICONS = ['⚡', '🧹', '📊', '🔍', '🚀', '🤖', '📝', '�
 // The actual UI component logic has been moved to ProjectsHeader.tsx or is deprecated.
 
 export { SERVICE_ICONS };
-

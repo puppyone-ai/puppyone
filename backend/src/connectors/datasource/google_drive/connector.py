@@ -61,7 +61,7 @@ class GoogleDriveConnector(BaseConnector):
             auth=AuthRequirement.OAUTH,
             oauth_type="drive",
             oauth_ui_type="google_drive",
-            supported_sync_modes=("import_once", "manual", "scheduled"),
+            supported_sync_modes=("manual", "scheduled"),
             default_sync_mode="manual",
             creation_mode="direct",
             description="Sync files from Drive",

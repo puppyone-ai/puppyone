@@ -1,9 +1,4 @@
-"""Agent connector repository.
-
-Agent configuration is stored in ``connectors`` with ``provider='agent'``.
-Scope bindings and MCP credentials live in ``connectors.config`` so the agent
-entry point follows the same product connector model as CLI and Git Remote.
-"""
+"""Agent access-surface repository."""
 
 from typing import List, Optional
 from datetime import datetime, timezone
@@ -15,12 +10,12 @@ from src.utils.id_generator import generate_uuid_v7
 
 
 AGENT_PROVIDER = "agent"
-CONNECTORS_TABLE = "connectors"
+ACCESS_SURFACES_TABLE = "access_surfaces"
 _NOW = "now()"
 
 
 def _scope_to_bash(agent_id: str, config: dict) -> list[AgentBash]:
-    """Derive AgentBash list from connector ``config.scope``."""
+    """Derive AgentBash list from access-surface ``config.scope``."""
     scope = config.get("scope")
     if not scope:
         return []
@@ -59,13 +54,9 @@ def generate_mcp_api_key() -> str:
 
 
 def _row_to_agent(row: dict) -> Agent:
-    """Convert a connectors row (provider='agent') to an Agent model.
-
-    The connector row carries ``name`` as a top-level display field and keeps
-    agent-specific settings in ``config``.
-    """
+    """Convert an access_surfaces row (kind='agent') to an Agent model."""
     config = row.get("config") or {}
-    trigger = row.get("trigger") or {}
+    trigger = config.get("trigger") or {}
     return Agent(
         id=row["id"],
         project_id=row["project_id"],
@@ -118,10 +109,9 @@ def _merge_agent_updates(
 
 
 class AgentRepository:
-    """Agent repository — reads from ``connectors`` (provider='agent')
-    and writes back to the same connector model."""
+    """Agent repository over ``access_surfaces``."""
 
-    TABLE = CONNECTORS_TABLE
+    TABLE = ACCESS_SURFACES_TABLE
 
     def __init__(self, supabase_client=None):
         if supabase_client is None:
@@ -130,11 +120,22 @@ class AgentRepository:
         else:
             self._client = supabase_client
 
+    def _project_org_id(self, project_id: str) -> str | None:
+        resp = (
+            self._client.table("projects")
+            .select("org_id")
+            .eq("id", project_id)
+            .limit(1)
+            .execute()
+        )
+        rows = resp.data or []
+        return rows[0].get("org_id") if rows else None
+
     def _query(self):
         return (
-            self._client.table(CONNECTORS_TABLE)
+            self._client.table(ACCESS_SURFACES_TABLE)
             .select("*")
-            .eq("provider", AGENT_PROVIDER)
+            .eq("kind", AGENT_PROVIDER)
         )
 
     def _scope_for_path(
@@ -165,22 +166,54 @@ class AgentRepository:
             "mode": scope.mode,
         }
 
-    def _agent_connector_for_scope(self, scope_id: str) -> dict:
+    def _agent_surface_for_scope(
+        self,
+        *,
+        project_id: str,
+        scope: dict,
+        name: str,
+        created_by: Optional[str],
+    ) -> dict:
         resp = (
             self._client.table(self.TABLE)
             .select("*")
-            .eq("scope_id", scope_id)
-            .eq("provider", AGENT_PROVIDER)
+            .eq("scope_id", scope["id"])
+            .eq("kind", AGENT_PROVIDER)
             .limit(1)
             .execute()
         )
         rows = resp.data or []
-        if not rows:
-            raise RuntimeError(
-                "agent connector invariant failed: repo scope exists without "
-                "its built-in agent connector"
-            )
-        return rows[0]
+        if rows:
+            surface = rows[0]
+            if surface.get("org_id") is None:
+                org_id = self._project_org_id(project_id)
+                if org_id is not None:
+                    self._client.table(self.TABLE).update(
+                        {"org_id": org_id}
+                    ).eq("id", surface["id"]).execute()
+                    surface["org_id"] = org_id
+            return surface
+
+        response = (
+            self._client.table(self.TABLE)
+            .insert({
+                "id": generate_uuid_v7(),
+                "org_id": self._project_org_id(project_id),
+                "project_id": project_id,
+                "scope_id": scope["id"],
+                "kind": AGENT_PROVIDER,
+                "name": name,
+                "status": "active",
+                "config": {
+                    "name": name,
+                    "scope": scope,
+                    "activated": False,
+                },
+                "created_by": created_by,
+            })
+            .execute()
+        )
+        return response.data[0]
 
     # ============================================
     # Agent CRUD
@@ -226,7 +259,7 @@ class AgentRepository:
 
         Visibility filter (security: M-1):
         Agents whose config.visibility == 'private' are only returned if
-        viewer_user_id matches the agent connector's owner.
+        viewer_user_id matches the agent surface owner.
         Pass viewer_user_id=None for internal callers that already gated
         access; pass the JWT user id from request handlers.
         """
@@ -251,7 +284,7 @@ class AgentRepository:
 
         agent_ids = [a.id for a in agents]
 
-        # Derive bash_accesses from connections.config.scope
+        # Derive bash_accesses from access_surfaces.config.scope
         config_by_id = {row["id"]: (row.get("config") or {}) for row in rows}
         bash_by_agent: dict[str, list[AgentBash]] = {}
         for aid, cfg in config_by_id.items():
@@ -288,9 +321,7 @@ class AgentRepository:
         return None
 
     def get_by_mcp_api_key(self, mcp_api_key: str) -> Optional[Agent]:
-        # mcp_api_key now lives in connectors.config (jsonb). Use postgrest
-        # .filter(path, op, value) — same convention as connector_repository
-        # and the migrated mcp/sandbox endpoint repos.
+        # mcp_api_key lives in access_surfaces.config (jsonb).
         response = (
             self._query()
             .filter("config->>mcp_api_key", "eq", mcp_api_key)
@@ -338,9 +369,18 @@ class AgentRepository:
             scope_path or "",
             readonly=scope_readonly,
         )
-        connector = self._agent_connector_for_scope(scope["id"])
-        existing_config = dict(connector.get("config") or {})
+        surface = self._agent_surface_for_scope(
+            project_id=project_id,
+            scope=scope,
+            name=name,
+            created_by=created_by,
+        )
+        existing_config = dict(surface.get("config") or {})
         mcp_api_key = existing_config.get("mcp_api_key") or generate_access_key(type)
+        trigger = {
+            "type": trigger_type or "manual",
+            "config": trigger_config,
+        }
 
         config = {
             "name": name,
@@ -349,6 +389,7 @@ class AgentRepository:
             "description": description,
             "is_default": is_default,
             "mcp_api_key": mcp_api_key,
+            "trigger": trigger,
             "task_content": task_content,
             "task_path": task_path,
             "external_config": external_config,
@@ -357,24 +398,18 @@ class AgentRepository:
             "scope": scope,
             "activated": True,
         }
-        trigger = {
-            "type": trigger_type or "manual",
-            "config": trigger_config,
-        }
 
         data = {
             "name": name,
-            "direction": "bidirectional",
             "config": config,
-            "trigger": trigger,
             "status": "active",
             "created_by": created_by,
         }
         response = (
             self._client.table(self.TABLE)
             .update(data)
-            .eq("id", connector["id"])
-            .eq("provider", AGENT_PROVIDER)
+            .eq("id", surface["id"])
+            .eq("kind", AGENT_PROVIDER)
             .execute()
         )
         return _row_to_agent(response.data[0])
@@ -403,16 +438,16 @@ class AgentRepository:
         # Rebuild config JSONB by merging updates
         response = (
             self._client.table(self.TABLE)
-            .select("config, trigger")
+            .select("config")
             .eq("id", agent_id)
-            .eq("provider", AGENT_PROVIDER)
+            .eq("kind", AGENT_PROVIDER)
             .execute()
         )
         if not response.data:
             return None
 
         config = dict(response.data[0].get("config") or {})
-        trigger = dict(response.data[0].get("trigger") or {})
+        trigger = dict(config.get("trigger") or {})
 
         config, trigger = _merge_agent_updates(
             config, trigger,
@@ -424,8 +459,9 @@ class AgentRepository:
         )
 
         update_data: dict = {
-            "config": config, "trigger": trigger, "updated_at": _NOW,
+            "config": config, "updated_at": _NOW,
         }
+        config["trigger"] = trigger
         if name is not None:
             update_data["name"] = name
         if mcp_api_key is not None:
@@ -435,7 +471,7 @@ class AgentRepository:
             self._client.table(self.TABLE)
             .update(update_data)
             .eq("id", agent_id)
-            .eq("provider", AGENT_PROVIDER)
+            .eq("kind", AGENT_PROVIDER)
             .execute()
         )
         if resp.data:
@@ -447,7 +483,7 @@ class AgentRepository:
             self._client.table(self.TABLE)
             .delete()
             .eq("id", agent_id)
-            .eq("provider", AGENT_PROVIDER)
+            .eq("kind", AGENT_PROVIDER)
             .execute()
         )
         return len(response.data) > 0
@@ -458,7 +494,7 @@ class AgentRepository:
         Two layers of checks (security: M-1):
         1. Project membership — user must belong to the agent's project's org.
         2. Visibility — if agent is marked private (config.visibility == 'private'),
-           only the agent connector's owner may read it.
+           only the agent surface owner may read it.
 
         Defaults to org-visibility when the field is missing.
         """
@@ -467,7 +503,7 @@ class AgentRepository:
             self._client.table(self.TABLE)
             .select("id, project_id, config, created_by")
             .eq("id", agent_id)
-            .eq("provider", AGENT_PROVIDER)
+            .eq("kind", AGENT_PROVIDER)
             .limit(1)
             .execute()
         )
@@ -504,7 +540,7 @@ class AgentRepository:
         return True
 
     # ============================================
-    # AgentBash CRUD — operates on connectors.config.scope (JSONB)
+    # AgentBash CRUD — operates on access_surfaces.config.scope (JSONB)
     # ============================================
 
     def _get_agent_config(self, agent_id: str) -> Optional[dict]:
@@ -513,7 +549,7 @@ class AgentRepository:
             self._client.table(self.TABLE)
             .select("config, project_id, scope_id")
             .eq("id", agent_id)
-            .eq("provider", AGENT_PROVIDER)
+            .eq("kind", AGENT_PROVIDER)
             .execute()
         )
         if resp.data:
@@ -525,21 +561,21 @@ class AgentRepository:
         return None
 
     def _update_scope(self, agent_id: str, scope: dict) -> None:
-        """Write scope back into connector ``config.scope``."""
+        """Write scope back into access surface ``config.scope``."""
         config = self._get_agent_config(agent_id)
         if config is None:
             return
         current_scope_id = config.pop("_scope_id", None)
         if current_scope_id and current_scope_id != scope["id"]:
             raise RuntimeError(
-                "Agent scope is immutable; activate the built-in agent "
-                "connector for the target scope instead."
+                "Agent scope is immutable; create an agent access surface "
+                "for the target scope instead."
             )
         config.pop("_project_id", None)
         config["scope"] = scope
         self._client.table(self.TABLE).update(
             {"config": config, "scope_id": scope["id"], "updated_at": _NOW}
-        ).eq("id", agent_id).eq("provider", AGENT_PROVIDER).execute()
+        ).eq("id", agent_id).eq("kind", AGENT_PROVIDER).execute()
 
     def get_bash_by_agent_id(self, agent_id: str) -> List[AgentBash]:
         config = self._get_agent_config(agent_id)

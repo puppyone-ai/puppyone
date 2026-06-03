@@ -1,4 +1,4 @@
-"""DB Connector Repository over connectors + repo_scopes."""
+"""DB Connector Repository over connections + repo_scopes."""
 
 from datetime import datetime, timezone
 from typing import Optional, List
@@ -16,9 +16,9 @@ DB_PROVIDER = "database"
 
 
 class DBConnectionRepository:
-    """Database connector CRUD over the canonical connectors table."""
+    """Database connector CRUD over the canonical Connect table."""
 
-    TABLE = "connectors"
+    TABLE = "connections"
 
     def __init__(self, supabase_client: SupabaseClient):
         self.client = supabase_client.client
@@ -26,19 +26,30 @@ class DBConnectionRepository:
     def _query(self):
         return self.client.table(self.TABLE).select("*").eq("provider", DB_PROVIDER)
 
+    def _project_org_id(self, project_id: str) -> str | None:
+        response = (
+            self.client.table("projects")
+            .select("org_id")
+            .eq("id", project_id)
+            .limit(1)
+            .execute()
+        )
+        rows = response.data or []
+        return rows[0].get("org_id") if rows else None
+
     def _row_to_model(self, row: dict) -> DBConnection:
         config = row.get("config") or {}
         db_config = config.get("db_config") or {}
         plain_config = decrypt_db_connection_config(db_config) if db_config else {}
         return DBConnection(
             id=str(row["id"]),
-            created_by=config.get("created_by"),
+            created_by=row.get("created_by") or config.get("created_by"),
             project_id=str(row["project_id"]),
-            name=config.get("name", ""),
+            name=row.get("name") or config.get("name", ""),
             provider=config.get("db_provider", "supabase"),
             config=plain_config,
             is_active=(row.get("status", "active") == "active"),
-            last_used_at=row.get("last_run_at"),
+            last_used_at=row.get("last_synced_at"),
             created_at=row["created_at"],
             updated_at=row["updated_at"],
         )
@@ -55,17 +66,20 @@ class DBConnectionRepository:
         scope = ScopeService().ensure_root_scope(project_id)
         data = {
             "id": generate_uuid_v7(),
+            "org_id": self._project_org_id(project_id),
             "project_id": project_id,
             "scope_id": scope.id,
             "provider": DB_PROVIDER,
             "name": name,
             "direction": "inbound",
             "status": "active",
+            "trigger_type": "manual",
+            "trigger_config": {},
+            "created_by": created_by,
             "config": {
                 "name": name,
                 "db_provider": provider,
                 "db_config": encrypted_config,
-                "created_by": created_by,
             },
         }
         response = self.client.table(self.TABLE).insert(data).execute()
@@ -95,7 +109,7 @@ class DBConnectionRepository:
 
     def update_last_used(self, connection_id: str) -> None:
         self.client.table(self.TABLE).update(
-            {"last_run_at": datetime.now(timezone.utc).isoformat()}
+            {"last_synced_at": datetime.now(timezone.utc).isoformat()}
         ).eq("id", connection_id).execute()
 
     def delete(self, connection_id: str) -> bool:

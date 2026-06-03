@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from src.utils.logger import log_info, log_error
 
 
-async def _execute_sync_pull_async(sync_id: str) -> dict:
+async def _execute_sync_pull_async(sync_id: str, trigger_type: str = "scheduled") -> dict:
     """
     Pull fresh data for a scheduled sync binding via SyncEngine.
     All writes go through CollaborationService (version management).
@@ -24,7 +24,7 @@ async def _execute_sync_pull_async(sync_id: str) -> dict:
 
     try:
         engine = create_sync_engine()
-        result = await engine.execute(sync_id)
+        result = await engine.execute(sync_id, trigger_type=trigger_type)
         elapsed_ms = int((datetime.now(timezone.utc) - started_at).total_seconds() * 1000)
 
         if result:
@@ -49,7 +49,7 @@ async def _execute_sync_pull_async(sync_id: str) -> dict:
         return {"status": "failed", "access_point_id": sync_id, "error": str(e)}
 
 
-def execute_sync_pull(sync_id: str):
+def execute_sync_pull(sync_id: str, trigger_type: str = "scheduled"):
     """
     Synchronous wrapper for APScheduler (runs in ThreadPoolExecutor).
     """
@@ -59,7 +59,7 @@ def execute_sync_pull(sync_id: str):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            return loop.run_until_complete(_execute_sync_pull_async(sync_id))
+            return loop.run_until_complete(_execute_sync_pull_async(sync_id, trigger_type))
         finally:
             loop.close()
     except Exception as e:

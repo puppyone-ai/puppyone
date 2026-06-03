@@ -1,12 +1,8 @@
-"""Unified access API.
+"""Workspace Access API.
 
-Single entry-point CRUD over the canonical connector model:
-
-    repo_scopes  -> subtree, credential, Git/FS auth boundary
-    connectors   -> provider binding attached to one scope
-
-This route exists for the older CLI/product surface, but it now resolves
-through the same connector/scope model as the rest of the product.
+Access manages scope-bound ways to enter or operate on a workspace:
+Git remote, CLI, local filesystem, agents, MCP endpoints, and sandboxes.
+External source relationships belong to Connect, not this router.
 """
 
 from __future__ import annotations
@@ -18,12 +14,12 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, status
 from pydantic import BaseModel, Field
 
 from src.common_schemas import ApiResponse
-from src.exceptions import AppException, ErrorCode, NotFoundException
+from src.exceptions import ErrorCode, NotFoundException
 from src.infra.supabase.client import SupabaseClient
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
 from src.platform.organization.dependencies import resolve_org_ids
-from src.repo.connector_service import ConnectorService
+from src.repo.access_surface_repository import AccessSurfaceRepository
 from src.repo.scope_service import ScopeService
 
 router = APIRouter(prefix="/access", tags=["access"])
@@ -73,7 +69,7 @@ def _normalize_scope_path(path: str | None) -> str:
     return value
 
 
-def _scope_rows_for_connectors(sb_client, rows: list[dict]) -> dict[str, dict]:
+def _scope_rows_for_surfaces(sb_client, rows: list[dict]) -> dict[str, dict]:
     scope_ids = sorted({r.get("scope_id") for r in rows if r.get("scope_id")})
     if not scope_ids:
         return {}
@@ -132,8 +128,8 @@ def _scope_for_path(
 
 def _access_key_for(row: dict, scope: dict | None) -> str | None:
     cfg = row.get("config") or {}
-    provider = row.get("provider", "")
-    if provider in {"cli", "filesystem"}:
+    provider = row.get("kind", row.get("provider", ""))
+    if provider in {"git_remote", "cli", "filesystem"}:
         return (scope or {}).get("access_key")
     if provider == "agent":
         return cfg.get("mcp_api_key") or cfg.get("access_key")
@@ -158,13 +154,14 @@ def _enrich(rows: list[dict], sb_client) -> list[ConnectionOut]:
     Auto-disambiguates duplicate display names by appending path or a counter,
     so users can tell apart multiple connections of the same provider type.
     """
-    scopes = _scope_rows_for_connectors(sb_client, rows)
+    scopes = _scope_rows_for_surfaces(sb_client, rows)
     # First pass: build raw entries
     entries = []
     for r in rows:
         cfg = r.get("config") or {}
         scope = scopes.get(r.get("scope_id"))
-        base_name = r.get("name") or cfg.get("name") or cfg.get("sync_url") or r.get("provider", "")
+        kind = r.get("kind", r.get("provider", ""))
+        base_name = r.get("name") or cfg.get("name") or cfg.get("sync_url") or kind
         node_path = _normalize_scope_path((scope or {}).get("path"))
         node_name = node_path.rsplit("/", 1)[-1] if node_path else None
         entries.append({
@@ -202,17 +199,17 @@ def _enrich(rows: list[dict], sb_client) -> list[ConnectionOut]:
         out.append(ConnectionOut(
             id=r["id"],
             project_id=r["project_id"],
-            provider=r["provider"],
+            provider=kind,
             name=name,
             path=node_path or None,
             node_name=e["node_name"],
-            direction=r.get("direction"),
+            direction=cfg.get("direction"),
             status=r.get("status", "active"),
             access_key=_access_key_for(r, e["scope"]),
             gateway_id=(e["cfg"].get("gateway_id") if isinstance(e["cfg"], dict) else None),
-            trigger=r.get("trigger"),
-            last_synced_at=_created_or_updated(r.get("last_run_at")),
-            error_message=r.get("error_message"),
+            trigger=cfg.get("trigger"),
+            last_synced_at=_created_or_updated(cfg.get("last_seen_at") or cfg.get("last_run_at")),
+            error_message=cfg.get("error_message"),
             config=e["cfg"],
             created_at=_created_or_updated(r.get("created_at")),
             updated_at=_created_or_updated(r.get("updated_at")),
@@ -266,7 +263,7 @@ def list_connections(
     if not project_ids:
         return ApiResponse.success(data=[], message="No access connections")
 
-    query = sb.table("connectors").select("*")
+    query = sb.table("access_surfaces").select("*")
 
     if len(project_ids) == 1:
         query = query.eq("project_id", project_ids[0])
@@ -274,7 +271,7 @@ def list_connections(
         query = query.in_("project_id", project_ids)
 
     if provider:
-        query = query.eq("provider", provider)
+        query = query.eq("kind", provider)
     if connection_status:
         query = query.eq("status", connection_status)
 
@@ -293,7 +290,7 @@ def get_connection(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     sb = _get_client()
-    resp = sb.table("connectors").select("*").eq("id", connection_id).execute()
+    resp = sb.table("access_surfaces").select("*").eq("id", connection_id).execute()
     if not resp.data:
         raise NotFoundException("Access connection not found", code=ErrorCode.NOT_FOUND)
 
@@ -321,7 +318,7 @@ async def update_connection(
     sb = _get_client()
 
     resp = (
-        sb.table("connectors")
+        sb.table("access_surfaces")
         .select("*")
         .eq("id", connection_id)
         .execute()
@@ -338,29 +335,18 @@ async def update_connection(
     fields: dict[str, Any] = {}
     if payload.status is not None:
         fields["status"] = payload.status
-    if payload.trigger is not None:
-        fields["trigger"] = payload.trigger
     if payload.config is not None:
-        fields["config"] = payload.config
-
-    try:
-        ConnectorService().update(connection_id, fields)
-    except AppException as e:
-        raise HTTPException(status_code=e.status_code, detail=e.message) from e
-
+        cfg = dict(row.get("config") or {})
+        cfg.update(payload.config)
+        fields["config"] = cfg
     if payload.trigger is not None:
-        try:
-            from src.infra.scheduler.service import get_scheduler_service
-            trigger_type = (payload.trigger or {}).get("type", "")
-            await get_scheduler_service().sync_trigger(
-                connection_id=connection_id,
-                provider=row.get("provider", ""),
-                trigger_config=payload.trigger if trigger_type == "scheduled" else None,
-            )
-        except Exception:
-            pass
+        cfg = dict(fields.get("config") or row.get("config") or {})
+        cfg["trigger"] = payload.trigger
+        fields["config"] = cfg
 
-    updated = sb.table("connectors").select("*").eq("id", connection_id).execute()
+    sb.table("access_surfaces").update(fields).eq("id", connection_id).execute()
+
+    updated = sb.table("access_surfaces").select("*").eq("id", connection_id).execute()
     return ApiResponse.success(data=_enrich(updated.data, sb)[0], message="Access connection updated")
 
 
@@ -376,7 +362,7 @@ async def delete_connection(
 ):
     sb = _get_client()
 
-    resp = sb.table("connectors").select("project_id").eq("id", connection_id).execute()
+    resp = sb.table("access_surfaces").select("project_id, kind").eq("id", connection_id).execute()
     if not resp.data:
         raise NotFoundException("Access connection not found", code=ErrorCode.NOT_FOUND)
 
@@ -385,16 +371,9 @@ async def delete_connection(
     if resp.data[0]["project_id"] not in pids:
         raise NotFoundException("Access connection not found", code=ErrorCode.NOT_FOUND)
 
-    try:
-        from src.infra.scheduler.service import get_scheduler_service
-        await get_scheduler_service().sync_trigger(connection_id)
-    except Exception:
-        pass
-
-    try:
-        ConnectorService().delete(connection_id)
-    except AppException as e:
-        raise HTTPException(status_code=e.status_code, detail=e.message) from e
+    if resp.data[0].get("kind") in {"git_remote", "cli", "filesystem"}:
+        raise HTTPException(status_code=400, detail="Built-in access surfaces cannot be deleted")
+    AccessSurfaceRepository().delete(connection_id)
     return ApiResponse.success(message="Access connection deleted")
 
 
@@ -415,7 +394,7 @@ def rename_connection(
         raise HTTPException(status_code=400, detail="name must not be empty")
 
     sb = _get_client()
-    resp = sb.table("connectors").select("*").eq("id", connection_id).execute()
+    resp = sb.table("access_surfaces").select("*").eq("id", connection_id).execute()
     if not resp.data:
         raise NotFoundException("Access connection not found", code=ErrorCode.NOT_FOUND)
 
@@ -427,12 +406,10 @@ def rename_connection(
 
     cfg = dict(row.get("config") or {})
     cfg["name"] = new_name
-    try:
-        ConnectorService().update(connection_id, {"name": new_name, "config": cfg})
-    except AppException as e:
-        raise HTTPException(status_code=e.status_code, detail=e.message) from e
+    cfg["name"] = new_name
+    sb.table("access_surfaces").update({"name": new_name, "config": cfg}).eq("id", connection_id).execute()
 
-    updated = sb.table("connectors").select("*").eq("id", connection_id).execute()
+    updated = sb.table("access_surfaces").select("*").eq("id", connection_id).execute()
     return ApiResponse.success(data=_enrich(updated.data, sb)[0], message="Access connection renamed")
 
 
@@ -448,7 +425,7 @@ def regenerate_key(
 ):
     sb = _get_client()
 
-    resp = sb.table("connectors").select("*").eq("id", connection_id).execute()
+    resp = sb.table("access_surfaces").select("*").eq("id", connection_id).execute()
     if not resp.data:
         raise NotFoundException("Access connection not found", code=ErrorCode.NOT_FOUND)
 
@@ -458,11 +435,22 @@ def regenerate_key(
     if row["project_id"] not in pids:
         raise NotFoundException("Access connection not found", code=ErrorCode.NOT_FOUND)
 
-    provider = row.get("provider", "")
-    if provider in {"cli", "filesystem"}:
+    provider = row.get("kind", row.get("provider", ""))
+    if provider in {"git_remote", "cli", "filesystem"}:
         new_key = ScopeService().regenerate_access_key(row["scope_id"])
         if not new_key:
             raise NotFoundException("Scope not found", code=ErrorCode.NOT_FOUND)
+        surfaces = (
+            sb.table("access_surfaces")
+            .select("*")
+            .eq("scope_id", row["scope_id"])
+            .in_("kind", ["git_remote", "cli", "filesystem"])
+            .execute()
+        ).data or []
+        for surface in surfaces:
+            cfg = dict(surface.get("config") or {})
+            cfg["access_key"] = new_key
+            sb.table("access_surfaces").update({"config": cfg}).eq("id", surface["id"]).execute()
         return ApiResponse.success(data={"access_key": new_key}, message="Key regenerated")
     if provider == "sandbox":
         prefix = "sbx"
@@ -477,10 +465,7 @@ def regenerate_key(
     new_key = f"{prefix}_{secrets.token_urlsafe(32)}"
     cfg = dict(row.get("config") or {})
     cfg[key_field] = new_key
-    try:
-        ConnectorService().update(connection_id, {"config": cfg})
-    except AppException as e:
-        raise HTTPException(status_code=e.status_code, detail=e.message) from e
+    sb.table("access_surfaces").update({"config": cfg}).eq("id", connection_id).execute()
 
     return ApiResponse.success(data={"access_key": new_key}, message="Key regenerated")
 
@@ -495,25 +480,35 @@ def regenerate_key(
 )
 def list_connection_types():
     """
-    Returns ALL available access types across the platform:
-    datasource connectors, agent, MCP endpoint, sandbox endpoint.
-
-    Frontend uses this single endpoint to render the unified creation panel.
+    Returns available workspace Access surface types.
     """
-    from src.connectors.datasource.dependencies import get_connector_registry
-
-    registry = get_connector_registry()
-    datasource_specs = registry.specs_to_dicts()
-
-    non_datasource_types = [
+    access_types = [
+        {
+            "provider": "direct",
+            "display_name": "Git Remote",
+            "description": "Scoped Git remote and CLI credentials",
+            "auth": "access_key",
+            "creation_mode": "direct",
+            "category": "access",
+            "icon": "git-branch",
+        },
+        {
+            "provider": "filesystem",
+            "display_name": "Local Folder Sync",
+            "description": "Local folder access using the scoped access key",
+            "auth": "access_key",
+            "creation_mode": "bootstrap",
+            "category": "access",
+            "icon": "folder-sync",
+        },
         {
             "provider": "agent",
             "display_name": "Chat Agent",
             "description": "Interactive AI assistant with data access",
             "auth": "none",
             "creation_mode": "direct",
-            "category": "agent",
-            "icon": "💬",
+            "category": "access",
+            "icon": "bot",
         },
         {
             "provider": "mcp",
@@ -521,8 +516,8 @@ def list_connection_types():
             "description": "Model Context Protocol endpoint",
             "auth": "none",
             "creation_mode": "direct",
-            "category": "endpoint",
-            "icon": "🔌",
+            "category": "access",
+            "icon": "plug",
         },
         {
             "provider": "sandbox",
@@ -530,15 +525,12 @@ def list_connection_types():
             "description": "Isolated script execution environment",
             "auth": "none",
             "creation_mode": "direct",
-            "category": "endpoint",
-            "icon": "📦",
+            "category": "access",
+            "icon": "box",
         },
     ]
 
-    for spec in datasource_specs:
-        spec["category"] = "datasource"
-
-    return ApiResponse.success(data=datasource_specs + non_datasource_types)
+    return ApiResponse.success(data=access_types)
 
 
 # ── Unified Create ─────────────────────────────────────────
@@ -557,7 +549,7 @@ class UnifiedConnectionCreate(BaseModel):
     direction: str | None = Field(None, description="Sync direction (datasource only)")
     trigger: dict | None = Field(None, description="Trigger config (datasource/agent)")
     credentials_ref: str | None = Field(None, description="OAuth credentials reference (datasource)")
-    sync_mode: str | None = Field(None, description="Sync mode: import_once, scheduled (datasource)")
+    sync_mode: str | None = Field(None, description="Sync mode: manual, scheduled, realtime (datasource)")
     conflict_strategy: str | None = Field(None, description="Conflict strategy (datasource)")
     accesses: list[dict] | None = Field(None, description="Node access bindings (agent/mcp)")
     tools_config: list[dict] | None = Field(None, description="Tool bindings (mcp)")
@@ -572,83 +564,6 @@ class UnifiedConnectionOut(BaseModel):
     gateway_id: str | None = None
     access_key: str | None = None
     ap_base: str | None = None
-
-
-DATASOURCE_PROVIDERS: set[str] = set()
-
-
-def _get_datasource_providers() -> set[str]:
-    """Lazily cache the set of registered datasource connector providers."""
-    global DATASOURCE_PROVIDERS
-    if not DATASOURCE_PROVIDERS:
-        from src.connectors.datasource.dependencies import get_connector_registry
-        registry = get_connector_registry()
-        DATASOURCE_PROVIDERS = set(registry.providers())
-    return DATASOURCE_PROVIDERS
-
-
-async def _create_datasource(payload: UnifiedConnectionCreate, user_id: str) -> UnifiedConnectionOut:
-    from src.connectors.datasource.dependencies import (
-        _build_sync_service,
-        get_connector_registry,
-    )
-
-    if not payload.path:
-        raise HTTPException(status_code=400, detail="path (target_folder_path) is required for datasource connectors")
-
-    registry = get_connector_registry()
-    sync_svc = _build_sync_service(registry)
-
-    sync_mode = payload.sync_mode or "import_once"
-    sync = await sync_svc.create_sync(
-        project_id=payload.project_id,
-        provider=payload.provider,
-        config=payload.config,
-        target_folder_path=payload.path,
-        credentials_ref=payload.credentials_ref,
-        direction=payload.direction or "inbound",
-        conflict_strategy=payload.conflict_strategy or "three_way_merge",
-        sync_mode=sync_mode,
-        trigger=payload.trigger,
-        user_id=user_id,
-    )
-
-    if sync_mode == "scheduled" and payload.trigger:
-        try:
-            from src.infra.scheduler.service import get_scheduler_service
-            await get_scheduler_service().sync_trigger(
-                connection_id=sync.id,
-                provider=payload.provider,
-                trigger_config=payload.trigger,
-            )
-        except Exception:
-            pass
-
-    # Keep gateway provenance on the connector config; gateway rows are not
-    # part of the canonical connector/scope write path.
-    if payload.gateway_id and sync.id:
-        sb = _get_client()
-        row_resp = (
-            sb.table("connectors")
-            .select("config")
-            .eq("id", sync.id)
-            .limit(1)
-            .execute()
-        )
-        if not row_resp.data:
-            raise RuntimeError(f"connector {sync.id} disappeared after creation")
-        cfg = dict(row_resp.data[0].get("config") or {})
-        cfg["gateway_id"] = payload.gateway_id
-        sb.table("connectors").update({"config": cfg}).eq("id", sync.id).execute()
-
-    return UnifiedConnectionOut(
-        id=sync.id,
-        project_id=sync.project_id,
-        provider=sync.provider,
-        name=payload.name or sync.provider,
-        status=sync.status,
-        gateway_id=payload.gateway_id,
-    )
 
 
 def _create_agent(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
@@ -803,27 +718,37 @@ def _create_direct(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
         exclude=list(exclude or []),
         mode=mode,
     )
-    connector_resp = (
-        sb.table("connectors")
+    surface_resp = (
+        sb.table("access_surfaces")
         .select("id, status")
         .eq("scope_id", scope_row["id"])
-        .eq("provider", "cli")
+        .eq("kind", "git_remote")
         .limit(1)
         .execute()
     )
-    if not connector_resp.data:
-        raise RuntimeError(
-            "direct connector invariant failed: repo scope exists without "
-            "its built-in cli connector"
+    if not surface_resp.data:
+        scope_model = ScopeService().get(scope_row["id"])
+        if scope_model is None:
+            raise RuntimeError("scope disappeared while creating direct access")
+        AccessSurfaceRepository().ensure_scope_defaults(scope_model)
+        surface_resp = (
+            sb.table("access_surfaces")
+            .select("id, status")
+            .eq("scope_id", scope_row["id"])
+            .eq("kind", "git_remote")
+            .limit(1)
+            .execute()
         )
-    connector = connector_resp.data[0]
+    if not surface_resp.data:
+        raise RuntimeError("git_remote access surface was not created")
+    surface = surface_resp.data[0]
 
     return UnifiedConnectionOut(
-        id=connector["id"],
+        id=surface["id"],
         project_id=payload.project_id,
         provider="direct",
         name=payload.name or "Direct Access",
-        status=connector.get("status", "active"),
+        status=surface.get("status", "active"),
         access_key=scope_row["access_key"],
         ap_base=f"/git/ap/{scope_row['access_key']}.git",
     )
@@ -840,13 +765,13 @@ async def create_connection(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """
-    Unified entry point for creating connector-backed access of any type.
+    Unified entry point for creating Access surfaces.
     Routes to the appropriate service based on `provider`.
 
-    - Datasource providers (gmail, github, url, ...): creates a sync binding
     - agent: creates a chat agent
     - mcp: creates an MCP endpoint
     - sandbox: creates a sandbox endpoint
+    - filesystem/direct: returns scoped access credentials
     """
     from src.platform.project.repository import ProjectRepositorySupabase
     project_repo = ProjectRepositorySupabase()
@@ -856,20 +781,20 @@ async def create_connection(
     provider = payload.provider.lower()
 
     # ── Duplicate detection ────────────────────────────────────────
-    # Block creation if an identical connector already exists.
+    # Block creation if an identical access surface already exists.
     # "Identical" = same project + provider + path + key config fields.
     sb = _get_client()
     existing = []
     existing_scopes: dict[str, dict] = {}
     if provider not in {"direct", "filesystem"}:
         existing = (
-            sb.table("connectors")
+            sb.table("access_surfaces")
             .select("*")
             .eq("project_id", payload.project_id)
-            .eq("provider", provider)
+            .eq("kind", provider)
             .execute()
         ).data or []
-        existing_scopes = _scope_rows_for_connectors(sb, existing)
+        existing_scopes = _scope_rows_for_surfaces(sb, existing)
 
     for ex in existing:
         ex_scope = existing_scopes.get(ex.get("scope_id")) or {}
@@ -882,22 +807,13 @@ async def create_connection(
         new_cfg = payload.config or {}
         is_dup = False
         if provider in ("agent", "mcp", "sandbox"):
-            # For structural connectors, same path = duplicate.
             is_dup = True
-        elif provider == "url":
-            is_dup = ex_cfg.get("source_url") == new_cfg.get("source_url")
-        else:
-            # Datasource: same external_resource_id / source URL
-            is_dup = (
-                ex_cfg.get("external_resource_id") == new_cfg.get("external_resource_id")
-                and new_cfg.get("external_resource_id")
-            ) or ex_cfg.get("source_url") == new_cfg.get("source_url")
         if is_dup:
             raise HTTPException(
                 status_code=409,
                 detail={
-                    "error": "duplicate_connector",
-                    "message": "A connector with the same configuration already exists.",
+                    "error": "duplicate_access_surface",
+                    "message": "An access surface with the same configuration already exists.",
                     "existing_id": ex["id"],
                 },
             )
@@ -913,18 +829,19 @@ async def create_connection(
             result = await _create_filesystem(payload, current_user.user_id)
         elif provider == "direct":
             result = _create_direct(payload)
-        elif provider in _get_datasource_providers():
-            result = await _create_datasource(payload, current_user.user_id)
         else:
             raise HTTPException(
                 status_code=400,
-                detail=f"Unknown provider: {provider}. Use GET /api/v1/access/types to see available types.",
+                detail=(
+                    f"Unknown access provider: {provider}. Use Connect APIs "
+                    "for external datasource connections."
+                ),
             )
     except HTTPException:
         raise
     except Exception as e:
         from src.utils.logger import log_error
-        log_error(f"Failed to create {provider} connection: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to create {provider} connection: {e}") from e
+        log_error(f"Failed to create {provider} access surface: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create {provider} access surface: {e}") from e
 
-    return ApiResponse.success(data=result, message=f"{provider} connection created")
+    return ApiResponse.success(data=result, message=f"{provider} access surface created")

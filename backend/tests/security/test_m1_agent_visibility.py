@@ -23,13 +23,13 @@ def _build_repo_with_rows(agent_rows: list[dict], project_org: str = "org-1"):
     """
     repo = AgentRepository.__new__(AgentRepository)
     repo._client = MagicMock()  # type: ignore[attr-defined]
-    repo.TABLE = "connectors"
+    repo.TABLE = "access_surfaces"
 
-    # Make .table('connectors').select(...).eq(...).limit().execute()
+    # Make .table('access_surfaces').select(...).eq(...).limit().execute()
     # return one of the given rows depending on the .eq() args.
     def fake_table(name):
         m = MagicMock()
-        if name == "connectors":
+        if name == "access_surfaces":
             chain = MagicMock()
             chain.select.return_value = chain
             chain.eq.return_value = chain

@@ -71,9 +71,9 @@ class AgentOut(BaseModel):
     type: str
     description: Optional[str]
     is_default: bool
-    # Mirrors ``connectors.status`` for the agent's connector row.
-    # Frontend pauses / resumes a schedule agent through the existing
-    # connector pause endpoints; surfacing the value here lets the UI
+    # Mirrors ``access_surfaces.status`` for the agent's surface row.
+    # Frontend pauses / resumes a schedule agent through the access
+    # surface pause endpoints; surfacing the value here lets the UI
     # render the right toggle state without a second fetch.
     status: str = "active"
     created_at: str

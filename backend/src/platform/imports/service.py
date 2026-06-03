@@ -11,6 +11,16 @@ from src.platform.imports.schemas import ImportJobCreateRequest, ImportJobStatus
 from src.platform.project.service import ProjectService
 
 
+def _infer_source_kind(provider: str) -> str:
+    if provider == "github":
+        return "repository"
+    if provider in {"url", "notion"}:
+        return "website"
+    if provider in {"google_docs", "google_sheets"}:
+        return "document"
+    return "other"
+
+
 class ImportJobService:
     def __init__(
         self,
@@ -35,7 +45,18 @@ class ImportJobService:
         config = dict(request.config or {})
         if request.crawl_options:
             config["crawl_options"] = request.crawl_options
+        source_ref = dict(request.source_ref or {})
+        source_ref.setdefault("url", request.source_url)
         name = request.name or suggest_import_name(provider, request.source_url)
+
+        if request.idempotency_key:
+            existing = self.repo.get_by_idempotency_key(
+                project_id=request.project_id,
+                provider=provider,
+                idempotency_key=request.idempotency_key,
+            )
+            if existing is not None:
+                return existing
 
         job = self.repo.create(
             org_id=project.org_id,
@@ -43,6 +64,9 @@ class ImportJobService:
             created_by=user_id,
             provider=provider,
             source_url=request.source_url,
+            source_kind=request.source_kind or _infer_source_kind(provider),
+            source_ref=source_ref,
+            idempotency_key=request.idempotency_key,
             name=name,
             target_path=request.target_path or "",
             config=config,

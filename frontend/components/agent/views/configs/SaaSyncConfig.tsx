@@ -421,7 +421,7 @@ export function SaaSyncConfig({
 
 // ── Sync Frequency Selector ─────────────────────────────────────
 
-const SELECTABLE_SYNC_MODES: SyncModeType[] = ['import_once', 'manual', 'scheduled', 'realtime'];
+const SELECTABLE_SYNC_MODES: SyncModeType[] = ['manual', 'scheduled', 'realtime'];
 
 function SyncFrequencySelector({ provider }: { provider: string }) {
   const {
@@ -438,14 +438,14 @@ function SyncFrequencySelector({ provider }: { provider: string }) {
   useEffect(() => {
     const preferred = policy.defaultMode;
     const normalized = preferred === 'realtime' ? 'manual' : preferred;
-    setDraftSyncMode(normalized as 'import_once' | 'manual' | 'scheduled');
+    setDraftSyncMode(normalized as 'manual' | 'scheduled');
   }, [policy.defaultMode, setDraftSyncMode]);
 
   const selected = options.find(o => o.value === draftSyncMode)
     || options[0]
     || { value: 'manual' as const, label: SYNC_MODE_META.manual.label, desc: SYNC_MODE_META.manual.desc };
 
-  const handleSelect = (mode: 'import_once' | 'manual' | 'scheduled' | 'realtime') => {
+  const handleSelect = (mode: 'manual' | 'scheduled' | 'realtime') => {
     if (mode === 'realtime') return;
     setDraftSyncMode(mode);
     setIsOpen(false);
@@ -530,7 +530,6 @@ function SyncFrequencySelector({ provider }: { provider: string }) {
 
       {/* Mode description */}
       <div style={{ fontSize: 12, color: 'var(--po-text-muted)', padding: '0 2px', lineHeight: 1.5 }}>
-        {draftSyncMode === 'import_once' && 'A sync binding will be created and imported once. To refresh later, change the mode to Manual or Scheduled.'}
         {draftSyncMode === 'manual' && 'A sync binding will be created. Click "Refresh" anytime to pull the latest data.'}
         {draftSyncMode === 'scheduled' && 'Data will be automatically refreshed on the schedule above.'}
       </div>

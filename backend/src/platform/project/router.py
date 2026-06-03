@@ -60,21 +60,27 @@ def _convert_to_project_out(
     )
 
 
-def _count_user_connectors(project_ids: list[str]) -> dict[str, int]:
-    """Count user-created integrations, excluding built-in connection methods."""
+def _count_user_access_points(project_ids: list[str]) -> dict[str, int]:
+    """Count user-created entry points, excluding built-in connection methods."""
 
     if not project_ids:
         return {}
     sb = get_supabase_client()
-    rows = (
-        sb.table("connectors")
-        .select("project_id, provider")
+    connection_rows = (
+        sb.table("connections")
+        .select("project_id")
         .in_("project_id", project_ids)
-        .not_.in_("provider", ["cli", "agent", "filesystem"])
+        .execute()
+    ).data or []
+    access_rows = (
+        sb.table("access_surfaces")
+        .select("project_id, kind")
+        .in_("project_id", project_ids)
+        .in_("kind", ["mcp", "sandbox"])
         .execute()
     ).data or []
     counts: dict[str, int] = {}
-    for row in rows:
+    for row in [*connection_rows, *access_rows]:
         pid = row["project_id"]
         counts[pid] = counts.get(pid, 0) + 1
     return counts
@@ -99,10 +105,10 @@ async def list_projects(
     for oid in oids:
         all_projects.extend(project_service.get_by_org_id(oid))
 
-    # Batch-fetch connection counts for all projects. Count only user-created
-    # integrations; CLI / Agent / Git Remote are built-in entry methods.
+    # Batch-fetch entry-point counts for all projects. Count only user-created
+    # integrations; CLI / Agent / Filesystem / Git Remote are built-in methods.
     project_ids = [str(p.id) for p in all_projects]
-    conn_counts = _count_user_connectors(project_ids)
+    conn_counts = _count_user_access_points(project_ids)
 
     result = []
     for p in all_projects:
@@ -139,7 +145,7 @@ def get_project(
     project: Project = Depends(get_verified_project),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    conn_count = _count_user_connectors([str(project.id)]).get(str(project.id), 0)
+    conn_count = _count_user_access_points([str(project.id)]).get(str(project.id), 0)
     return ApiResponse.success(
         data=_convert_to_project_out(project, access_point_count=conn_count),
         message="Project retrieved successfully",
@@ -171,8 +177,8 @@ async def create_project(
 
     await version_admin.init_tree(str(project.id))
 
-    # Ensure the canonical root scope exists before returning. The DB trigger
-    # synchronously creates built-in cli / agent / filesystem connector rows.
+    # Ensure the canonical root scope exists before returning. Scope creation
+    # creates built-in access surfaces for Git Remote / CLI / filesystem.
     from src.repo.scope_service import ScopeService
     ScopeService().ensure_root_scope(str(project.id))
 
@@ -193,7 +199,7 @@ async def create_project(
     return ApiResponse.success(
         data=_convert_to_project_out(
             project,
-            access_point_count=_count_user_connectors([str(project.id)]).get(str(project.id), 0),
+            access_point_count=_count_user_access_points([str(project.id)]).get(str(project.id), 0),
         ),
         message="Project created successfully",
     )

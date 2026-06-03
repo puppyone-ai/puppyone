@@ -46,7 +46,7 @@ export interface CreateSyncRequest {
   credentials_ref?: string;
   direction?: string;
   conflict_strategy?: string;
-  sync_mode?: 'import_once' | 'manual' | 'scheduled';
+  sync_mode?: 'manual' | 'scheduled' | 'realtime';
   trigger?: { type: string; schedule?: string; timezone?: string };
 }
 

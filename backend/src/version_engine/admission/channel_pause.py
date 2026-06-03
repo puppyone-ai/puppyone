@@ -75,12 +75,13 @@ def enforce_channel_pause(
     *,
     log_prefix: str = "[Auth]",
 ) -> None:
-    """Reject requests for paused built-in connectors.
+    """Reject requests for paused built-in access surfaces.
 
     Access keys resolve to a repo scope, while pause/resume is represented on
-    the scope-bound connector row. Keeping this gate in admission makes Git
+    the scope-bound access surface. Keeping this gate in admission makes Git
     smart HTTP, version WebSocket, and scoped AP-FS routes enforce the same
-    policy.
+    policy. The repository below is the legacy connector facade over
+    access_surfaces.
     """
 
     normalized_channel = (channel or "").strip().lower()

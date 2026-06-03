@@ -1,4 +1,4 @@
-"""MCP endpoint repository over connectors + repo_scopes."""
+"""MCP endpoint repository over access_surfaces + repo_scopes."""
 
 from typing import Dict, List, Optional
 import secrets
@@ -8,7 +8,7 @@ from src.repo.scope_service import ScopeService
 
 
 PROVIDER = "mcp"
-CONNECTORS_TABLE = "connectors"
+ACCESS_SURFACES_TABLE = "access_surfaces"
 SCOPES_TABLE = "repo_scopes"
 
 
@@ -17,7 +17,7 @@ def generate_mcp_api_key() -> str:
 
 
 def _row_to_endpoint(row: dict, scope_path: Optional[str] = None) -> dict:
-    """Reshape a connectors row into the endpoint dict the API exposes."""
+    """Reshape an access_surfaces row into the endpoint dict the API exposes."""
     config = row.get("config") or {}
     return {
         "id": row["id"],
@@ -39,7 +39,7 @@ def _row_to_endpoint(row: dict, scope_path: Optional[str] = None) -> dict:
 
 class McpEndpointRepository:
 
-    TABLE = CONNECTORS_TABLE
+    TABLE = ACCESS_SURFACES_TABLE
 
     def __init__(self, supabase_client=None):
         if supabase_client is None:
@@ -48,11 +48,22 @@ class McpEndpointRepository:
         else:
             self._client = supabase_client
 
+    def _project_org_id(self, project_id: str) -> str | None:
+        resp = (
+            self._client.table("projects")
+            .select("org_id")
+            .eq("id", project_id)
+            .limit(1)
+            .execute()
+        )
+        rows = resp.data or []
+        return rows[0].get("org_id") if rows else None
+
     def _query(self):
         return (
-            self._client.table(CONNECTORS_TABLE)
+            self._client.table(ACCESS_SURFACES_TABLE)
             .select("*")
-            .eq("provider", PROVIDER)
+            .eq("kind", PROVIDER)
         )
 
     def _scope_path_lookup(self, scope_ids: List[Optional[str]]) -> Dict[str, Optional[str]]:
@@ -97,7 +108,7 @@ class McpEndpointRepository:
         return rows[0] if rows else None
 
     def get_by_api_key(self, api_key: str) -> Optional[dict]:
-        # api_key now lives in connector.config (jsonb). Use postgrest-py's
+        # api_key lives in access_surfaces.config (jsonb). Use postgrest-py's
         # .filter(path, op, value) form for jsonb access — matches the
         # convention already used in src/repo/connector_repository.py.
         resp = self._query().filter("config->>api_key", "eq", api_key).execute()
@@ -149,11 +160,11 @@ class McpEndpointRepository:
         scope = self._scope_for_path(project_id, path)
         row = {
             "id": generate_uuid_v7(),
+            "org_id": self._project_org_id(project_id),
             "project_id": project_id,
             "scope_id": scope["id"],
-            "provider": PROVIDER,
+            "kind": PROVIDER,
             "name": name,
-            "direction": "bidirectional",
             "config": config,
             "status": "active",
         }

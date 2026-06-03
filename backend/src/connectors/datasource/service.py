@@ -62,7 +62,7 @@ class SyncService:
         credentials_ref: Optional[str] = None,
         direction: str = "bidirectional",
         conflict_strategy: str = "three_way_merge",
-        sync_mode: str = "import_once",
+        sync_mode: str = "manual",
         trigger: Optional[dict] = None,
         user_id: Optional[str] = None,
     ) -> List[Sync]:
@@ -70,9 +70,11 @@ class SyncService:
         First connect: scan external source, create files in PuppyOne,
         and create Sync rows for each binding.
 
-        sync_mode: 'import_once' | 'manual' | 'scheduled'
+        sync_mode: 'manual' | 'scheduled' | 'realtime'
         trigger: optional trigger config, e.g. {"type": "scheduled", "schedule": "0 9 * * *", "timezone": "Asia/Shanghai"}
         """
+        if sync_mode == "import_once":
+            raise ValueError("One-time imports must use ImportJob, not a durable sync connection")
         connector = self._get_connector(provider)
         if not connector:
             raise ValueError(f"No connector for provider: {provider}")
@@ -129,6 +131,7 @@ class SyncService:
                 credentials_ref=credentials_ref,
                 conflict_strategy=conflict_strategy,
                 trigger=trigger_data,
+                created_by=user_id,
             )
             created_syncs.append(sync)
             log_info(f"[L2.5] Bound {res.external_resource_id} → {conn_folder}/ (mode={sync_mode})")
@@ -146,7 +149,7 @@ class SyncService:
         credentials_ref: Optional[str] = None,
         direction: str = "inbound",
         conflict_strategy: str = "three_way_merge",
-        sync_mode: str = "import_once",
+        sync_mode: str = "manual",
         trigger: Optional[dict] = None,
         user_id: Optional[str] = None,
     ) -> Sync:
@@ -155,6 +158,8 @@ class SyncService:
         may later write either one aggregate file or a multi-file import under
         the created mount point.
         """
+        if sync_mode == "import_once":
+            raise ValueError("One-time imports must use ImportJob, not a durable sync connection")
         connector = self._get_connector(provider)
         if not connector:
             raise ValueError(f"No connector for provider: {provider}")
@@ -198,6 +203,7 @@ class SyncService:
             credentials_ref=credentials_ref,
             conflict_strategy=conflict_strategy,
             trigger=trigger_data,
+            created_by=user_id,
         )
         log_info(
             f"[L2.5] Direct sync created: {provider} → {conn_folder}/ "
@@ -212,7 +218,7 @@ class SyncService:
         """Create a connection folder with an empty data file in the version tree.
 
         Returns (folder_path, data_file) where:
-          - folder_path is stored in connections.path (the mount point)
+          - folder_path is stored on the connection's repo_scope
           - data_file is stored in connections.config.data_file (relative name)
         """
         base_folder = folder_path or ""

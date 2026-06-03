@@ -96,8 +96,8 @@ interface AgentContextValue {
   draftResources: AccessResource[];
   
   // Sync frequency mode
-  draftSyncMode: 'import_once' | 'manual' | 'scheduled';
-  setDraftSyncMode: (mode: 'import_once' | 'manual' | 'scheduled') => void;
+  draftSyncMode: 'manual' | 'scheduled';
+  setDraftSyncMode: (mode: 'manual' | 'scheduled') => void;
 
   // Schedule Agent draft 状态
   draftTriggerType: TriggerType;
@@ -129,7 +129,7 @@ interface AgentContextValue {
     direction: string;
     config?: Record<string, unknown>;
     credentialsRef?: string;
-    syncMode?: 'import_once' | 'manual' | 'scheduled';
+    syncMode?: 'manual' | 'scheduled';
     trigger?: { type: string; schedule?: string; timezone?: string };
     uiMode?: 'sidebar' | 'inline';
   }) => Promise<void>;
@@ -185,7 +185,7 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
   
   // Sync frequency mode
-  const [draftSyncMode, setDraftSyncMode] = useState<'import_once' | 'manual' | 'scheduled'>('import_once');
+  const [draftSyncMode, setDraftSyncMode] = useState<'manual' | 'scheduled'>('manual');
 
   // Schedule Agent 新增 draft 状态
   const [draftTriggerType, setDraftTriggerType] = useState<TriggerType>('manual');
@@ -541,7 +541,7 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
     direction: string;
     config?: Record<string, unknown>;
     credentialsRef?: string;
-    syncMode?: 'import_once' | 'manual' | 'scheduled';
+    syncMode?: 'manual' | 'scheduled';
     trigger?: { type: string; schedule?: string; timezone?: string };
     uiMode?: 'sidebar' | 'inline';
   }) => {
@@ -599,7 +599,7 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
           credentials_ref: params.credentialsRef,
           direction: params.direction,
           conflict_strategy: 'three_way_merge',
-          sync_mode: params.syncMode || 'import_once',
+          sync_mode: params.syncMode || 'manual',
           trigger: triggerPayload,
         });
       }
