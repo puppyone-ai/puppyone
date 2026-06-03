@@ -9,14 +9,12 @@ import {
   Check,
   Copy,
   FilePlus,
-  LoaderCircle,
   Terminal,
   Upload,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { ProjectInfo } from '@/lib/projectsApi';
-import { createImportJob, type ImportJob } from '@/lib/importApi';
-import { openOAuthPopup } from '@/lib/oauthApi';
+import type { ImportJob } from '@/lib/importApi';
 import { DialogBody, DialogHeader, DialogRoot, DialogSurface } from '@/components/ui/Dialog';
 import { AiHandoffButton } from '@/components/ui/AiHandoffButton';
 import {
@@ -25,6 +23,11 @@ import {
 } from '@/lib/dropFiles';
 import { pickDirectoryFiles } from '@/lib/directoryPicker';
 import { BUTTON_HEIGHT, BUTTON_ICON_SIZE } from '@/components/ui/buttonTokens';
+import {
+  GitHubMark,
+  GithubImportJobWorkspaceState,
+  GithubOneTimeImportDialog,
+} from './imports/github';
 
 interface EmptyWorkspaceStateProps {
   project: ProjectInfo | null;
@@ -170,7 +173,7 @@ export function EmptyWorkspaceState({
         style={{ maxWidth: EMPTY_WORKSPACE_RAIL_WIDTH }}
       >
         {importJob ? (
-          <ImportJobWorkspaceState
+          <GithubImportJobWorkspaceState
             job={importJob}
             onImportGitHub={projectId ? () => setShowGithubImportModal(true) : onImportGitHub}
             onOpenEmptyProject={onOpenEmptyProject}
@@ -210,7 +213,7 @@ export function EmptyWorkspaceState({
         )}
 
         {showGithubImportModal && projectId ? (
-          <GithubImportDialog
+          <GithubOneTimeImportDialog
             projectId={projectId}
             onClose={() => setShowGithubImportModal(false)}
             onImportJobCreated={onImportJobCreated}
@@ -233,90 +236,6 @@ export function EmptyWorkspaceState({
         ) : null}
       </div>
     </div>
-  );
-}
-
-function ImportJobWorkspaceState({
-  job,
-  onImportGitHub,
-  onOpenEmptyProject,
-}: {
-  job: ImportJob;
-  onImportGitHub?: () => void;
-  onOpenEmptyProject?: () => void;
-}) {
-  const isActive = job.status === 'queued' || job.status === 'running';
-  const isFailed = job.status === 'failed';
-  const progress = Math.max(0, Math.min(100, job.progress || (isActive ? 8 : 100)));
-  const sourceLabel = getSourceLabel(job.source_url);
-
-  return (
-    <section className="mx-auto flex w-full max-w-[560px] flex-col items-center text-center">
-      <div className="mb-5 inline-flex h-11 w-11 items-center justify-center rounded-lg border border-[var(--po-border-subtle)] bg-[color-mix(in_srgb,var(--po-panel)_52%,transparent)] text-[var(--po-text)]">
-        {isActive ? (
-          <LoaderCircle className="h-5 w-5 animate-spin" strokeWidth={1.8} />
-        ) : isFailed ? (
-          <span className="text-[18px] leading-none">!</span>
-        ) : (
-          <Check className="h-5 w-5" strokeWidth={1.9} />
-        )}
-      </div>
-      <h1 className="m-0 text-[22px] font-semibold leading-8 text-[var(--po-text)]">
-        {isActive ? 'Importing from GitHub' : isFailed ? 'GitHub import failed' : 'GitHub import finished'}
-      </h1>
-      <p className="mt-2 max-w-[460px] text-[13px] leading-5 text-[var(--po-text-muted)]">
-        {isActive
-          ? 'This import is running in the background. You can leave this page and come back later.'
-          : isFailed
-            ? job.error_message || 'The repository could not be imported.'
-            : 'The workspace will refresh with the imported files.'}
-      </p>
-
-      <div className="mt-6 w-full rounded-lg border border-[var(--po-border-subtle)] bg-[color-mix(in_srgb,var(--po-panel)_36%,transparent)] p-4 text-left">
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <div className="truncate text-[13px] font-medium leading-5 text-[var(--po-text)]" title={job.source_url}>
-              {job.name || sourceLabel}
-            </div>
-            <div className="mt-0.5 text-[12px] leading-5 text-[var(--po-text-muted)]">
-              {job.message || phaseLabel(job.phase)}
-            </div>
-          </div>
-          <div className="shrink-0 text-[12px] font-medium tabular-nums text-[var(--po-text-muted)]">
-            {progress}%
-          </div>
-        </div>
-        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[var(--po-border-subtle)]">
-          <div
-            className="h-full rounded-full bg-[var(--po-accent)] transition-[width] duration-200"
-            style={{ width: `${Math.max(4, progress)}%` }}
-          />
-        </div>
-      </div>
-
-      {isFailed ? (
-        <div className="mt-4 flex flex-wrap justify-center gap-2">
-          <button
-            type="button"
-            onClick={onImportGitHub}
-            disabled={!onImportGitHub}
-            className="inline-flex items-center rounded-md border border-[var(--po-text)] bg-[var(--po-text)] px-3.5 text-[12px] font-medium text-[var(--po-canvas)] transition-colors hover:bg-[var(--po-text-muted)] disabled:cursor-not-allowed disabled:opacity-45"
-            style={{ height: BUTTON_HEIGHT }}
-          >
-            Try another repository
-          </button>
-          <button
-            type="button"
-            onClick={onOpenEmptyProject}
-            disabled={!onOpenEmptyProject}
-            className="inline-flex items-center rounded-md border border-[var(--po-border-subtle)] bg-transparent px-3 text-[12px] font-medium text-[var(--po-text-muted)] transition-colors hover:border-[var(--po-border)] hover:bg-[var(--po-hover)] hover:text-[var(--po-text)] disabled:cursor-not-allowed disabled:opacity-45"
-            style={{ height: BUTTON_HEIGHT }}
-          >
-            Start blank
-          </button>
-        </div>
-      ) : null}
-    </section>
   );
 }
 
@@ -510,252 +429,6 @@ function InlineSourceButton({
   );
 }
 
-function GithubImportDialog({
-  projectId,
-  onClose,
-  onImportJobCreated,
-}: {
-  projectId: string;
-  onClose: () => void;
-  onImportJobCreated?: (job: ImportJob) => void | Promise<void>;
-}) {
-  const [repoUrl, setRepoUrl] = useState('');
-  const [isImporting, setIsImporting] = useState(false);
-  const [isAuthorizing, setIsAuthorizing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [authorizationNotice, setAuthorizationNotice] = useState<string | null>(null);
-  const normalizedUrl = normalizeGithubRepositoryUrl(repoUrl);
-  const busy = isImporting || isAuthorizing;
-
-  const handleImport = useCallback(async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!normalizedUrl) {
-      setError('Paste a valid GitHub repository URL.');
-      return;
-    }
-
-    setIsImporting(true);
-    setError(null);
-    try {
-      const job = await createImportJob({
-        project_id: projectId,
-        source_url: normalizedUrl,
-        provider: 'github',
-      });
-      await onImportJobCreated?.(job);
-      setIsImporting(false);
-      onClose();
-    } catch (err) {
-      setError(getImportErrorMessage(err));
-      setIsImporting(false);
-    }
-  }, [normalizedUrl, onClose, onImportJobCreated, projectId]);
-
-  const handleAuthorizeGithub = useCallback(async () => {
-    setIsAuthorizing(true);
-    setError(null);
-    setAuthorizationNotice(null);
-    try {
-      const completed = await openOAuthPopup('github');
-      setIsAuthorizing(false);
-      setAuthorizationNotice(
-        completed
-          ? 'GitHub window closed. Try importing the repository now.'
-          : 'GitHub authorization did not finish. Try again.',
-      );
-    } catch (err) {
-      setError(getImportErrorMessage(err));
-      setIsAuthorizing(false);
-    }
-  }, []);
-
-  return (
-    <DialogRoot onClose={busy ? undefined : onClose} backdrop="strong" dismissOnBackdrop={!busy}>
-      <DialogSurface width={560} maxHeight="min(560px, calc(100vh - 32px))" ariaLabel="Import from GitHub">
-        <DialogHeader
-          title="Import from GitHub"
-          description="Paste a repository URL. Puppyone copies it into this workspace once."
-          onClose={busy ? undefined : onClose}
-          leading={<GitHubMark className="h-4 w-4 text-[var(--po-text-muted)]" />}
-        />
-        <DialogBody style={{ padding: '10px 20px 20px' }}>
-          <form onSubmit={handleImport} className="space-y-4">
-            <label className="block">
-              <span className="mb-1 block text-[12px] font-medium leading-5 text-[var(--po-text)]">
-                Repository URL
-              </span>
-              <input
-                type="text"
-                inputMode="url"
-                value={repoUrl}
-                onChange={(event) => {
-                  setRepoUrl(event.target.value);
-                  setError(null);
-                  setAuthorizationNotice(null);
-                }}
-                placeholder="https://github.com/org/repo"
-                autoFocus
-                className="h-9 w-full rounded-md border border-[var(--po-border)] bg-[var(--po-panel)] px-3 text-[13px] text-[var(--po-text)] outline-none transition-colors placeholder:text-[var(--po-text-subtle)] focus:border-[var(--po-focus-ring)]"
-              />
-            </label>
-
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="m-0 text-[12px] leading-5 text-[var(--po-text-muted)]">
-                Public repositories import by URL. Private repositories require GitHub authorization.
-              </p>
-              <button
-                type="button"
-                onClick={handleAuthorizeGithub}
-                disabled={busy}
-                className="inline-flex items-center rounded-md border border-[var(--po-border-subtle)] bg-transparent px-2.5 text-[12px] font-medium text-[var(--po-text-muted)] transition-colors hover:border-[var(--po-border)] hover:bg-[var(--po-hover)] hover:text-[var(--po-text)] disabled:cursor-not-allowed disabled:opacity-45"
-                style={{ height: BUTTON_HEIGHT }}
-              >
-                {isAuthorizing ? 'Authorizing...' : 'Authorize GitHub'}
-              </button>
-            </div>
-
-            {isAuthorizing ? (
-              <div className="flex items-start gap-2 rounded-md border border-[var(--po-border-subtle)] bg-[color-mix(in_srgb,var(--po-panel)_42%,transparent)] px-3 py-2 text-[12px] leading-5 text-[var(--po-text-muted)]">
-                <LoaderCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-[var(--po-text)]" strokeWidth={1.8} />
-                <div>
-                  <div className="font-medium text-[var(--po-text)]">Authorizing GitHub</div>
-                  <div>Finish the GitHub window. This dialog stays open until authorization returns.</div>
-                </div>
-              </div>
-            ) : null}
-
-            {authorizationNotice ? (
-              <p className="m-0 rounded-md border border-[var(--po-border-subtle)] bg-[color-mix(in_srgb,var(--po-panel)_42%,transparent)] px-3 py-2 text-[12px] leading-5 text-[var(--po-text-muted)]">
-                {authorizationNotice}
-              </p>
-            ) : null}
-
-            {error ? (
-              <p role="alert" className="m-0 rounded-md border border-[color-mix(in_srgb,var(--po-danger)_42%,transparent)] bg-[color-mix(in_srgb,var(--po-danger)_8%,transparent)] px-3 py-2 text-[12px] leading-5 text-[var(--po-danger)]">
-                {error}
-              </p>
-            ) : null}
-
-            {isImporting ? (
-              <div className="flex items-start gap-2 rounded-md border border-[var(--po-border-subtle)] bg-[color-mix(in_srgb,var(--po-panel)_42%,transparent)] px-3 py-2 text-[12px] leading-5 text-[var(--po-text-muted)]">
-                <LoaderCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-[var(--po-text)]" strokeWidth={1.8} />
-                <div>
-                  <div className="font-medium text-[var(--po-text)]">Creating import job</div>
-                  <div>Puppyone will keep importing in the background after this dialog closes.</div>
-                </div>
-              </div>
-            ) : null}
-
-            <div className="flex items-center justify-end gap-2 pt-1">
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={busy}
-                className="inline-flex items-center rounded-md border border-[var(--po-border-subtle)] bg-transparent px-3 text-[12px] font-medium text-[var(--po-text-muted)] transition-colors hover:border-[var(--po-border)] hover:bg-[var(--po-hover)] hover:text-[var(--po-text)] disabled:cursor-not-allowed disabled:opacity-45"
-                style={{ height: BUTTON_HEIGHT }}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={!normalizedUrl || busy}
-                className="inline-flex items-center gap-2 rounded-md border border-[var(--po-text)] bg-[var(--po-text)] px-3.5 text-[12px] font-medium text-[var(--po-canvas)] transition-colors hover:bg-[var(--po-text-muted)] disabled:cursor-not-allowed disabled:opacity-45"
-                style={{ height: BUTTON_HEIGHT }}
-              >
-                {isImporting ? (
-                  <>
-                    <LoaderCircle className="h-3.5 w-3.5 animate-spin" strokeWidth={1.8} />
-                    Importing
-                  </>
-                ) : 'Import repository'}
-              </button>
-            </div>
-          </form>
-        </DialogBody>
-      </DialogSurface>
-    </DialogRoot>
-  );
-}
-
-function normalizeGithubRepositoryUrl(value: string): string | null {
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-
-  const sshMatch = trimmed.match(/^git@github\.com:([^/\s]+)\/(.+?)(?:\.git)?$/i);
-  if (sshMatch) {
-    const owner = sshMatch[1]?.trim();
-    const repo = sshMatch[2]?.replace(/\.git$/i, '').trim();
-    if (owner && repo) {
-      return `https://github.com/${owner}/${repo}`;
-    }
-  }
-
-  const candidate = /^(?:https?:\/\/)/i.test(trimmed)
-    ? trimmed
-    : /^(?:www\.)?github\.com\//i.test(trimmed)
-      ? `https://${trimmed}`
-      : trimmed;
-
-  try {
-    const parsed = new URL(candidate);
-    const host = parsed.hostname.toLowerCase();
-    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return null;
-    if (host !== 'github.com' && host !== 'www.github.com') return null;
-    const parts = parsed.pathname.split('/').filter(Boolean);
-    if (parts.length < 2) return null;
-    return parsed.toString();
-  } catch {
-    return null;
-  }
-}
-
-function getSourceLabel(sourceUrl: string): string {
-  try {
-    const url = new URL(sourceUrl);
-    return `${url.hostname}${url.pathname}`.replace(/\/$/, '');
-  } catch {
-    return sourceUrl;
-  }
-}
-
-function phaseLabel(phase: string): string {
-  switch (phase) {
-    case 'queued':
-      return 'Queued';
-    case 'validating':
-      return 'Preparing import';
-    case 'fetching':
-      return 'Fetching repository';
-    case 'writing':
-      return 'Writing files';
-    case 'completed':
-      return 'Completed';
-    case 'failed':
-      return 'Failed';
-    default:
-      return phase;
-  }
-}
-
-function getImportErrorMessage(error: unknown): string {
-  const fallback = 'Import failed. Check the repository URL and try again.';
-  const raw = error instanceof Error ? error.message : fallback;
-  const detailText = raw.startsWith('Import failed:')
-    ? raw.slice('Import failed:'.length).trim()
-    : raw;
-
-  try {
-    const parsed = JSON.parse(detailText) as { detail?: unknown };
-    if (typeof parsed.detail === 'string' && parsed.detail.trim()) {
-      return parsed.detail;
-    }
-  } catch {
-    // Keep the server message below.
-  }
-
-  return detailText || fallback;
-}
-
 function GitSetupDialog({
   hasRemote,
   copied,
@@ -917,22 +590,5 @@ function StartWithAgentCard({
         />
       </div>
     </section>
-  );
-}
-
-function GitHubMark({
-  className,
-}: {
-  className?: string;
-}) {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 16 16"
-      className={className}
-      fill="currentColor"
-    >
-      <path d="M8 0C3.58 0 0 3.67 0 8.2c0 3.63 2.29 6.7 5.47 7.79.4.08.55-.18.55-.4 0-.2-.01-.86-.01-1.56-2.01.38-2.53-.5-2.69-.96-.09-.24-.48-.96-.82-1.15-.28-.15-.68-.52-.01-.53.63-.01 1.08.59 1.23.83.72 1.24 1.87.89 2.33.68.07-.53.28-.89.51-1.1-1.78-.21-3.64-.91-3.64-4.04 0-.89.31-1.62.82-2.2-.08-.21-.36-1.04.08-2.17 0 0 .67-.22 2.2.84A7.4 7.4 0 0 1 8 3.96a7.4 7.4 0 0 1 2 .27c1.52-1.06 2.19-.84 2.19-.84.44 1.13.16 1.96.08 2.17.51.58.82 1.31.82 2.2 0 3.14-1.87 3.83-3.65 4.04.29.26.54.75.54 1.52 0 1.1-.01 1.98-.01 2.25 0 .22.15.48.55.4A8.13 8.13 0 0 0 16 8.2C16 3.67 12.42 0 8 0Z" />
-    </svg>
   );
 }
