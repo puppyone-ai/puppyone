@@ -4,7 +4,7 @@
   <h1>Puppyone</h1>
   
   <p><b>Git-native Context Drive for AI agents.</b></p>
-  <p>Puppyone is the open-source context infrastructure for AI agents. It connects any source, versions every change Git-style, and scopes access per agent.</p>
+  <p>Puppyone provides context hosting for AI agents, with Git version control and file-level scoped permissions for every agent.</p>
 
   <p>
     <a href="https://www.puppyone.ai"><img src="https://img.shields.io/badge/Website-puppyone.ai-39BC66?style=flat-square" alt="Website" /></a>
@@ -18,44 +18,15 @@
 
 ## What is Puppyone?
 
-Puppyone turns agent context into a shared, permissioned file tree.
+Puppyone provides context hosting for AI agents, with Git version control and file-level scoped permissions for every agent.
 
-Each project is a Context Drive. Each agent or tool gets an Access Point: a scoped view of the files it can read or write. Some agents work through Git, some through CLI, some through MCP, sandboxes, REST, or the web. Underneath, they all operate on the same context and the same Git-native version history.
+It supports CLI, MCP, Git, bash/SSH, and web app interactions through Access Points for different AI agents.
 
-```mermaid
-flowchart LR
-  subgraph Clients["Agents, tools, and humans"]
-    Git["Git remote<br/>clone / fetch / push"]
-    CLI["puppyone CLI<br/>fs ls / cat / write"]
-    MCP["MCP clients<br/>Cursor / Claude Desktop"]
-    Sandbox["Sandboxes<br/>Docker / E2B"]
-    Web["Web app + REST API"]
-    Connectors["Connectors<br/>GitHub / Gmail / Drive / URLs"]
-  end
+<p align="center">
+  <img src="assets/context-drive-access-diagram.png" alt="Puppyone Context Drive exposed through CLI, MCP, Git, and SSH access methods" width="100%" />
+</p>
 
-  subgraph Access["Access Points"]
-    Scope["Scoped view<br/>path + permission + access key"]
-  end
-
-  subgraph Drive["Puppyone Context Drive"]
-    Files["Shared file tree<br/>Markdown / JSON / code / assets"]
-    Version["Git-native Version Engine<br/>commits / diffs / conflicts"]
-    Govern["History / audit / rollback"]
-  end
-
-  Git --> Scope
-  CLI --> Scope
-  MCP --> Scope
-  Sandbox --> Scope
-  Web --> Scope
-  Connectors --> Scope
-
-  Scope --> Files
-  Files --> Version
-  Version --> Govern
-```
-
-The access method can change from agent to agent. The context stays unified, scoped, and versioned.
+<p align="center"><em>One shared Context Drive, multiple scoped Access Points for different agents and tools.</em></p>
 
 
 ---
@@ -105,7 +76,7 @@ cd docker
 docker compose up -d
 ```
 
-Optional: OAuth connectors such as GitHub, Gmail, and Google Drive require provider credentials in `docker/.env` (for example `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` and `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`).
+Optional: OAuth connectors such as GitHub, Gmail, and Google Drive require provider credentials in the backend environment. See `backend/.env.example` for the current variables.
 
 ### 2. First Run (for both cloud and self-host)
 
@@ -125,37 +96,38 @@ For self-hosted, choose `Local` at the prompt or pass `-u http://localhost:9090`
 
 The CLI stores sessions per target, so you can switch between Cloud and self-hosted without re-entering credentials (`puppyone auth targets switch <url>`).
 
-**1. Create your first Context Space**
+**1. Create your first Context Drive**
 
 ```bash
-puppyone init "My Project"
+puppyone project create "My Project"
+puppyone project use "My Project"
 ```
 
-This creates a project with starter guides and sets it as active. You can also create your first project directly from the web app.
+This creates a project and sets it as active. You can also create your first project directly from the web app.
 
 **2. Add your first content**
 
 Start with something that works immediately in both Cloud and self-hosted:
 
-| Source | Command |
-|--------|---------|
+| Source | Action |
+|--------|--------|
 | Webpage | `puppyone access add url https://example.com --scope /refs` |
-| Local folder | `puppyone access add folder ./my-docs --scope /docs` |
+| Files or folders | Upload directly from the web app |
 
-You can also upload files directly from the web app. Use `--folder` to organize synced content into any path in your Context Space.
+Use target folders to organize uploaded or synced content into any path in your Context Drive.
 
 ### 3. Optional: Enable More Features
 
 - **Agent chat** — In self-hosted deployments, add `ANTHROPIC_API_KEY` to `docker/.env` and restart the stack.
-- **OAuth connectors** — In self-hosted deployments, configure provider credentials before using GitHub, Gmail, Google Drive, and other OAuth-based connectors.
-- **Distribute via MCP** — Create an MCP endpoint when you want agents in Cursor, Claude Desktop, or other MCP clients to read your Context Space:
+- **OAuth connectors** — In self-hosted deployments, configure provider credentials in the backend environment before using GitHub, Gmail, Google Drive, and other OAuth-based sources.
+- **Distribute via MCP** — Create an MCP endpoint when you want agents in Cursor, Claude Desktop, or other MCP clients to read your Context Drive:
 
 ```bash
 puppyone access add mcp "My Context"
 # → outputs MCP endpoint URL and API key
 ```
 
-See the [full connector guide](https://www.puppyone.ai/doc) for all 15+ supported platforms and advanced setup details.
+See the [documentation](https://www.puppyone.ai/doc) for supported sources and advanced setup details.
 
 ---
 
@@ -165,9 +137,9 @@ See the [full connector guide](https://www.puppyone.ai/doc) for all 15+ supporte
 
 Connect context from SaaS tools, databases, and the web into agent-friendly files.
 
-Puppyone provides OAuth connectors for **15+ platforms** — including Notion, GitHub, Gmail, Google Drive, Linear, Airtable, Google Sheets, Google Calendar, and more. It also supports URL scraping, database connections, local folder sync, and custom scripts.
+Puppyone provides built-in source connectors for GitHub, Gmail, Google Drive, Google Docs, Google Sheets, Google Calendar, Google Search Console, web pages, local filesystem access, and Supabase databases.
 
-All data is transformed into agent-friendly formats (Markdown, JSON, raw files) and stored in your **Context Space** — a cloud file system that any agent can browse like a local directory.
+All data is transformed into agent-friendly formats (Markdown, JSON, raw files) and stored in your **Context Drive** — a cloud file system that any agent can browse like a local directory.
 
 <img src="assets/connect-demo.gif" alt="Connect data sources" width="100%" />
 
@@ -184,13 +156,13 @@ Agent-level auth, versioning, audit, and collaboration — built for agents, not
 
 ### Accessible
 
-One Context Space, many ways in. Your agents access it however they work best:
+One Context Drive, many ways in. Your agents access it however they work best:
 
 - **MCP (Model Context Protocol)** — Auto-generated MCP endpoints for each agent. Connect Cursor, Claude Desktop, Windsurf, Cline, or any MCP-compatible client in seconds.
 - **Sandbox** — Isolated Docker/E2B containers with only the authorized files mounted. Agents execute code securely without seeing anything they shouldn't.
 - **REST API** — Full programmatic access. Read, write, query, and manage everything.
 - **CLI** — Every operation available via `puppyone` command line, so AI coding tools like Claude Code can drive the platform directly.
-- **Local folder sync** — Real-time bidirectional sync between local directories and the cloud Context Space via the OpenClaw protocol.
+- **Local folder sync** — Real-time bidirectional sync between local directories and the cloud Context Drive via the OpenClaw protocol.
 
 ---
 

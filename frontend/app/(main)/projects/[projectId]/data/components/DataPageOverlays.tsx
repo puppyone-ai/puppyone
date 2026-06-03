@@ -84,7 +84,7 @@ export function DataPageOverlays({
             onImportFromUrl={createMenuActions.onImportFromUrl}
             onImportFromSaas={createMenuActions.onImportFromSaas}
             onImportNotion={createMenuActions.onImportNotion}
-            onImportGitHub={createMenuActions.onImportGitHub}
+            onConnectGitHub={createMenuActions.onConnectGitHub}
             onImportGmail={createMenuActions.onImportGmail}
             onImportDocs={createMenuActions.onImportDocs}
             onImportCalendar={createMenuActions.onImportCalendar}

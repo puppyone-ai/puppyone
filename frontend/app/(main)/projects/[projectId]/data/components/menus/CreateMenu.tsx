@@ -34,7 +34,7 @@ export interface CreateMenuProps {
   onImportFromUrl: () => void;
   onImportFromSaas: () => void;
   onImportNotion?: () => void;
-  onImportGitHub?: () => void;
+  onConnectGitHub?: () => void;
   onImportGmail?: () => void;
   onImportDocs?: () => void;
   onImportCalendar?: () => void;
@@ -239,7 +239,7 @@ export function CreateMenu({
   onImportFromUrl,
   onImportFromSaas,
   onImportNotion,
-  onImportGitHub,
+  onConnectGitHub,
   onImportGmail,
   onImportDocs,
   onImportCalendar,
@@ -355,7 +355,7 @@ export function CreateMenu({
             }}
           >
             <div style={{ padding: '6px 16px 2px', fontSize: 10, fontWeight: 600, color: 'var(--po-text-subtle)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Sync data from a source
+              Connect a source
             </div>
             {onImportNotion && <MenuItem icon={<NotionIcon />} label="Notion" sublabel="Pages" onClick={() => { onImportNotion(); onClose(); }} />}
             {onImportGmail && <MenuItem icon={<GmailIcon />} label="Gmail" sublabel="Emails" onClick={() => { onImportGmail(); onClose(); }} />}
@@ -375,12 +375,12 @@ export function CreateMenu({
               sublabel="URL"
               onClick={() => { onImportFromUrl(); onClose(); }}
             />
-            {onImportGitHub && (
+            {onConnectGitHub && (
               <MenuItem
                 icon={<GitHubIcon />}
-                label="GitHub"
-                sublabel="Repository"
-                onClick={() => { onImportGitHub(); onClose(); }}
+                label="Connect GitHub"
+                sublabel="Branch sync"
+                onClick={() => { onConnectGitHub(); onClose(); }}
               />
             )}
             <MenuItem icon={<SearchConsoleIcon />} label="Google Search Console" sublabel="Coming soon" disabled />
