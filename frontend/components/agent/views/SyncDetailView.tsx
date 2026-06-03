@@ -438,11 +438,11 @@ function PanelHeader({ title, icon, onClose }: { title: string; icon?: React.Rea
 // ============================================================
 
 function normalizeMode(raw?: string): SyncModeType {
-  if (!raw) return 'import_once';
+  if (!raw) return 'manual';
   if (raw === 'cli_push' || raw === 'realtime') return 'manual';
   if (raw === 'cron' || raw === 'scheduled') return 'scheduled';
   if (raw === 'manual') return 'manual';
-  return 'import_once';
+  return 'manual';
 }
 
 // ============================================================

@@ -42,9 +42,7 @@ class RepoScope:
 
 @dataclass
 class Connector:
-    """A data-flow channel bound to a scope. Built-in cli/agent rows are
-    auto-created by the DB trigger when a scope is INSERTed; third-party
-    rows (notion/gmail/…) are user-created."""
+    """Compatibility DTO for scope-bound Access surfaces."""
 
     id: str
     project_id: str
@@ -66,12 +64,9 @@ class Connector:
 
     @property
     def is_builtin(self) -> bool:
-        # Built-in connectors are auto-created by the DB trigger on every
-        # repo_scopes INSERT (see migrations/…_connectors_table.sql + the
-        # filesystem-builtin migration). They are protected from deletion
-        # via the API — users can pause/resume but not destroy them, since
-        # their lifecycle is tied to the scope itself.
-        return self.provider in ("cli", "agent", "filesystem")
+        # Built-in Access surfaces are tied to the scope lifecycle and cannot
+        # be deleted or manually run through the legacy connector API.
+        return self.provider in ("git_remote", "cli", "agent", "filesystem")
 
     @property
     def is_oauth_backed(self) -> bool:
@@ -83,7 +78,7 @@ class Connector:
     def is_access_surface(self) -> bool:
         """Whether this row represents an ongoing Access method.
 
-        Legacy datasource rows used the connectors table for one-shot imports.
+        Legacy datasource rows used connector-shaped DTOs for one-shot imports.
         Those rows are still useful history/debug state, but they are not
         "ways into" a scope and should not be returned by Access endpoints by
         default.

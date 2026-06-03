@@ -66,6 +66,14 @@ class ETLConfig(BaseSettings):
         default="etl", description="ARQ queue name for ETL jobs"
     )
 
+    import_arq_queue_name: str = Field(
+        default="imports", description="ARQ queue name for one-time import jobs"
+    )
+
+    import_task_timeout: int = Field(
+        default=900, description="Import job timeout in seconds"
+    )
+
     etl_ocr_max_attempts: int = Field(
         default=3, description="Maximum attempts for OCR stage"
     )

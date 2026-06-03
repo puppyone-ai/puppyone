@@ -13,6 +13,8 @@ Read in this order:
 6. [Git Remote Access Point Flow](architecture/05-git-remote-accesspoint.md)
 7. [Gateway And Access Boundary](architecture/06-gateway-access-point-split.md)
 8. [Shadow Snapshots](architecture/08-shadow-snapshots.md)
+9. [Context Entry Points](architecture/10-context-entrypoints.md)
+10. [Context Entry Point Data Model](architecture/11-context-entrypoint-data-model.md)
 
 For product onboarding (install CLI, first project), see the [root README](../README.md).
 

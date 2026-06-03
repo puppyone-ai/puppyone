@@ -53,11 +53,11 @@ class DashboardConnection(BaseModel):
     error_message: str | None = None
     created_at: str | None = None
     # Per-day invocation count for the last N days (oldest → newest).
-    # Aggregated across each AP family's run-log table (GAP-8):
-    # ``connector_runs`` for sync/filesystem connectors and
-    # ``agent_execution_logs`` for scheduled agents. MCP / sandbox APs do
-    # not persist per-invocation runs yet, so they still report zeros until
-    # their execution paths are instrumented.
+    # Aggregated across each entry-point family's run-log table:
+    # ``sync_runs`` for Connect rows and ``agent_execution_logs`` for
+    # scheduled agents. MCP / sandbox APs do not persist per-invocation runs
+    # yet, so they still report zeros until their execution paths are
+    # instrumented.
     usage_buckets: list[int] = []
 
 
@@ -200,62 +200,146 @@ def _compute_node_counts(ops: ProductOperationAdapter, project_id: str) -> Dashb
 USAGE_BUCKET_DAYS = 14
 
 
-def _connector_preview_key(cfg: dict, provider: str) -> str | None:
-    """Map redesign `connectors.config` to a single credential string for dashboard preview."""
+def _iso_string(value) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return str(value)
+
+
+def _scope_paths_and_keys_by_id(sb, scope_ids: list[str]) -> dict[str, dict]:
+    ids = sorted({sid for sid in scope_ids if sid})
+    if not ids:
+        return {}
+    try:
+        rows = (
+            sb.table("repo_scopes")
+            .select("id, path, access_key")
+            .in_("id", ids)
+            .execute()
+        ).data or []
+    except Exception:
+        logger.exception("[Dashboard] repo_scopes lookup failed")
+        return {}
+    return {
+        row["id"]: {
+            "path": row.get("path"),
+            "access_key": row.get("access_key"),
+        }
+        for row in rows
+    }
+
+
+def _path_from_scope(row: dict, cfg: dict, scopes: dict[str, dict]) -> str | None:
+    scope_id = row.get("scope_id")
+    if scope_id and scope_id in scopes:
+        path = scopes[scope_id].get("path")
+        return path if path not in (None, "") else None
+    scope = cfg.get("scope") or {}
+    path = scope.get("path")
+    return path if path not in (None, "") else None
+
+
+def _access_surface_preview_key(cfg: dict, kind: str, scope_key: str | None) -> str | None:
+    """Map access-surface config to one credential string for dashboard preview."""
     if not cfg:
-        return None
-    if provider == "agent":
+        cfg = {}
+    if kind == "agent":
         return cfg.get("mcp_api_key")
-    if provider == "mcp":
+    if kind == "mcp":
         return cfg.get("api_key")
-    if provider == "sandbox":
-        return cfg.get("access_key")
-    if provider == "filesystem":
-        return None
+    if kind == "sandbox":
+        return cfg.get("access_key") or scope_key
+    if kind in {"git_remote", "cli", "filesystem"}:
+        return cfg.get("access_key") or scope_key
     return None
 
 
 def _fetch_connections(sb, project_id: str) -> list[DashboardConnection]:
-    """Load dashboard rows from the canonical connectors table."""
-    conn_rows = (
-        sb.table("connectors")
+    """Load dashboard rows from canonical Connect and Access tables."""
+    sync_rows = (
+        sb.table("connections")
         .select(
-            "id, provider, name, direction, status, trigger, config, "
-            "error_message, created_at, last_run_at"
+            "id, provider, name, direction, status, trigger_type, "
+            "trigger_config, config, scope_id, external_resource_label, "
+            "external_url, last_synced_at, error_message, created_at"
+        )
+        .eq("project_id", project_id)
+        .order("created_at")
+        .execute()
+    ).data or []
+    access_rows = (
+        sb.table("access_surfaces")
+        .select(
+            "id, kind, name, status, config, scope_id, created_at, updated_at"
         )
         .eq("project_id", project_id)
         .order("created_at")
         .execute()
     ).data or []
 
+    scope_ids = [
+        *(row.get("scope_id") for row in sync_rows),
+        *(row.get("scope_id") for row in access_rows),
+    ]
+    scope_lookup = _scope_paths_and_keys_by_id(sb, scope_ids)
+
     connections: list[DashboardConnection] = []
-    for r in conn_rows:
+    for r in sync_rows:
         cfg = r.get("config") or {}
-        scope = cfg.get("scope") or {}
-        path_val = scope.get("path")
-        path = path_val if path_val not in (None, "") else None
-        name = r.get("name") or cfg.get("name") or cfg.get("sync_url") or r["provider"]
-        preview_key = _connector_preview_key(cfg, r["provider"])
-        last_run = r.get("last_run_at")
-        if last_run is None:
-            last_synced = None
-        elif isinstance(last_run, str):
-            last_synced = last_run
-        elif hasattr(last_run, "isoformat"):
-            last_synced = last_run.isoformat()
-        else:
-            last_synced = str(last_run)
+        provider = r["provider"]
+        trigger = dict(r.get("trigger_config") or {})
+        trigger["type"] = r.get("trigger_type") or "manual"
+        name = (
+            r.get("name")
+            or r.get("external_resource_label")
+            or cfg.get("name")
+            or cfg.get("sync_url")
+            or r.get("external_url")
+            or provider
+        )
         connections.append(DashboardConnection(
             id=r["id"],
-            provider=r["provider"],
+            provider=provider,
             name=name,
-            path=path,
+            path=_path_from_scope(r, cfg, scope_lookup),
             direction=r.get("direction"),
             status=r.get("status", "active"),
-            access_key=_mask_key(preview_key, r.get("provider")),
-            trigger=r.get("trigger"),
-            last_synced_at=last_synced,
+            access_key=None,
+            trigger=trigger,
+            last_synced_at=_iso_string(r.get("last_synced_at")),
             error_message=r.get("error_message"),
+            created_at=r.get("created_at"),
+        ))
+
+    for r in access_rows:
+        cfg = r.get("config") or {}
+        kind = r["kind"]
+        scope = scope_lookup.get(r.get("scope_id"), {})
+        trigger = cfg.get("trigger")
+        if isinstance(trigger, dict) and isinstance(trigger.get("config"), dict):
+            trigger = {"type": trigger.get("type"), **trigger["config"]}
+        preview_key = _access_surface_preview_key(
+            cfg,
+            kind,
+            scope.get("access_key"),
+        )
+        connections.append(DashboardConnection(
+            id=r["id"],
+            provider=kind,
+            name=r.get("name") or cfg.get("name") or kind,
+            path=_path_from_scope(r, cfg, scope_lookup),
+            direction=cfg.get("direction"),
+            status=r.get("status", "active"),
+            access_key=_mask_key(preview_key, kind),
+            trigger=trigger,
+            last_synced_at=_iso_string(
+                cfg.get("last_seen_at") or cfg.get("last_run_at")
+            ),
+            error_message=cfg.get("error_message"),
             created_at=r.get("created_at"),
         ))
 
@@ -274,16 +358,10 @@ def _fetch_usage_buckets(
 ) -> dict[str, list[int]]:
     """Return per-AP daily invocation counts for the last ``days`` days.
 
-    Different access-point families record runs in different tables
-    (GAP-8). We aggregate them all, keyed by the AP id:
-
-      - sync-style connectors (gmail, sheets, notion, github, …) and the
-        filesystem connector → ``connector_runs.connector_id``
-      - scheduled agent APs → ``agent_execution_logs.agent_id``
-
-    MCP and sandbox APs do not yet persist per-invocation runs anywhere,
-    so they still report zeros until their execution paths are
-    instrumented.
+    Connect rows record runs in ``sync_runs.connection_id``; scheduled
+    agents record runs in ``agent_execution_logs.agent_id``. MCP and sandbox
+    APs do not yet persist per-invocation runs anywhere, so they still report
+    zeros until their execution paths are instrumented.
 
     Buckets are aligned oldest → newest (index 0 = ``today - (days-1)``,
     last index = today) in UTC. APs with no runs in the window get a
@@ -300,7 +378,7 @@ def _fetch_usage_buckets(
 
     # (table, id-column) pairs that record one row per AP invocation.
     for table, id_col in (
-        ("connector_runs", "connector_id"),
+        ("sync_runs", "connection_id"),
         ("agent_execution_logs", "agent_id"),
     ):
         _accumulate_run_buckets(
@@ -430,7 +508,7 @@ def _fetch_uploads(sb, project_id: str) -> list[DashboardUpload]:
 def _mask_key(key: str | None, provider: str | None = None) -> str | None:
     if not key or len(key) < 8:
         return key
-    # Filesystem access keys are paste-and-run credentials the project
+    # Scope access keys are paste-and-run credentials the project
     # owner uses with their local Puppyone CLI: the home-page onboarding
     # block renders a connect command with the access URL and key, the
     # access page exposes a Copy button next to the key, and SyncDetail
@@ -442,7 +520,7 @@ def _mask_key(key: str | None, provider: str | None = None) -> str | None:
     # level — the mask only made sense for keys we hand out to
     # third-party callers (sandbox, mcp), where the dashboard is just
     # an "is it configured" preview.
-    if provider == "filesystem":
+    if provider in {"filesystem", "git_remote", "cli"}:
         return key
     prefix_end = key.index("_") + 1 if "_" in key else 4
     return key[:prefix_end] + "..." + key[-4:]

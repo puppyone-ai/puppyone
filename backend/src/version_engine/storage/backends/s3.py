@@ -223,7 +223,10 @@ class CachedStorageBackend(StorageBackend):
     Content-addressed objects are immutable by definition:
     same hash = same content, forever. No TTL needed.
 
-    The cache is process-wide and shared across all projects.
+    The cache object is process-wide, but entries are namespaced by
+    physical backend. S3 object paths are per-project, so a blob cached
+    after reading project A is not evidence that project B has the same
+    object in its own namespace.
     All cache access is protected by _cache_lock because
     cachetools.LRUCache is not thread-safe.
     """
@@ -231,6 +234,20 @@ class CachedStorageBackend(StorageBackend):
     def __init__(self, inner: StorageBackend):
         self._inner = inner
         self._cache = _get_global_cache()
+        self._cache_namespace = (
+            getattr(inner, "_cache_namespace", None)
+            or getattr(inner, "_prefix", None)
+            or getattr(inner, "_project_id", None)
+            or id(inner)
+        )
+
+    def _cache_key(self, h: str):
+        return (self._cache_namespace, h)
+
+    def _remember_cached(self, h: str, data: bytes) -> None:
+        if len(data) < _CACHEABLE_THRESHOLD:
+            with _cache_lock:
+                self._cache[self._cache_key(h)] = data
 
     def get(self, h: str) -> bytes:
         active_batch = _ACTIVE_WRITE_BATCH.get()
@@ -240,7 +257,7 @@ class CachedStorageBackend(StorageBackend):
                 trace_mark("object.cache.hit", object_id=h[:12], cache="write_batch")
                 return pending
         with _cache_lock:
-            cached = self._cache.get(h)
+            cached = self._cache.get(self._cache_key(h))
         if cached is not None:
             trace_mark(
                 "object.cache.hit",
@@ -251,15 +268,13 @@ class CachedStorageBackend(StorageBackend):
             return cached
         with trace_phase("object.cache.miss_remote_get", object_id=h[:12]):
             data = self._inner.get(h)
-        if len(data) < _CACHEABLE_THRESHOLD:
-            with _cache_lock:
-                self._cache[h] = data
+        self._remember_cached(h, data)
         return data
 
     def get_range(self, h: str, start: int = 0, limit: int | None = None) -> tuple[bytes, int]:
         """Return a byte range without forcing a full download when possible."""
         with _cache_lock:
-            cached = self._cache.get(h)
+            cached = self._cache.get(self._cache_key(h))
         if cached is not None:
             end = len(cached) if limit is None else min(len(cached), start + limit)
             return cached[start:end], len(cached)
@@ -276,28 +291,18 @@ class CachedStorageBackend(StorageBackend):
         return _run_async(self.async_get_many(hashes))
 
     def put(self, h: str, data: bytes) -> None:
-        # Content-addressed: if the hash is already in the cache,
-        # the inner backend has the same bytes (we put them there
-        # ourselves on a previous call). Skip the S3 HEAD round-trip.
-        # This is what makes repeated tree rebuilds that re-put already-known
-        # blobs effectively free.
-        with _cache_lock:
-            already_cached = h in self._cache
-        if already_cached:
-            trace_mark("object.cache.skip_put", object_id=h[:12], cache="memory")
-            return
+        # The memory cache is a read-through byte cache, not a durable
+        # existence proof. Writes must always reach the physical backend
+        # for this project namespace; otherwise cross-project cache hits
+        # or failed batch flushes can publish trees whose blobs were never
+        # materialized in S3.
         active_batch = _ACTIVE_WRITE_BATCH.get()
         if active_batch is not None and active_batch.backend is self:
             active_batch.put(h, data)
-            if len(data) < _CACHEABLE_THRESHOLD:
-                with _cache_lock:
-                    self._cache[h] = data
             return
         with trace_phase("object.remote_put", object_id=h[:12], size_bytes=len(data)):
             self._inner.put(h, data)
-        if len(data) < _CACHEABLE_THRESHOLD:
-            with _cache_lock:
-                self._cache[h] = data
+        self._remember_cached(h, data)
 
     def exists(self, h: str) -> bool:
         active_batch = _ACTIVE_WRITE_BATCH.get()
@@ -307,27 +312,21 @@ class CachedStorageBackend(StorageBackend):
             and active_batch.has(h)
         ):
             return True
-        with _cache_lock:
-            if h in self._cache:
-                return True
         return self._inner.exists(h)
 
     def exists_many(self, hashes: list[str]) -> set[str]:
         active_batch = _ACTIVE_WRITE_BATCH.get()
         existing: set[str] = set()
         remaining: list[str] = []
-        with _cache_lock:
-            for h in hashes:
-                if (
-                    active_batch is not None
-                    and active_batch.backend is self
-                    and active_batch.has(h)
-                ):
-                    existing.add(h)
-                elif h in self._cache:
-                    existing.add(h)
-                else:
-                    remaining.append(h)
+        for h in hashes:
+            if (
+                active_batch is not None
+                and active_batch.backend is self
+                and active_batch.has(h)
+            ):
+                existing.add(h)
+            else:
+                remaining.append(h)
         if remaining:
             existing.update(self._inner.exists_many(remaining))
         return existing
@@ -344,7 +343,7 @@ class CachedStorageBackend(StorageBackend):
                     if pending is not None:
                         results[h] = pending
                         continue
-                cached = self._cache.get(h)
+                cached = self._cache.get(self._cache_key(h))
                 if cached is not None:
                     results[h] = cached
                 else:
@@ -368,7 +367,7 @@ class CachedStorageBackend(StorageBackend):
         with _cache_lock:
             for h, data in fetched.items():
                 if len(data) < _CACHEABLE_THRESHOLD:
-                    self._cache[h] = data
+                    self._cache[self._cache_key(h)] = data
         results.update(fetched)
         return results
 
@@ -386,7 +385,7 @@ class CachedStorageBackend(StorageBackend):
 
     def delete(self, h: str) -> bool:
         with _cache_lock:
-            self._cache.pop(h, None)
+            self._cache.pop(self._cache_key(h), None)
         return self._inner.delete(h)
 
     def sweep_dead_bundles(self, dead_object_ids) -> tuple[int, list[str]]:
@@ -397,7 +396,7 @@ class CachedStorageBackend(StorageBackend):
         if swept:
             with _cache_lock:
                 for object_id in swept:
-                    self._cache.pop(object_id, None)
+                    self._cache.pop(self._cache_key(object_id), None)
         return count, swept
 
     @contextmanager
@@ -446,6 +445,8 @@ class ObjectWriteBatch:
             else:
                 for h, data in objects.items():
                     inner.put(h, data)
+        for h, data in objects.items():
+            self.backend._remember_cached(h, data)
         self._objects.clear()
 
 

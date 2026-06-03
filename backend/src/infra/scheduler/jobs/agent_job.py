@@ -42,10 +42,10 @@ async def _execute_agent_task_async(agent_id: str) -> dict:
         db_client = SupabaseClient().client
 
         agent_result = (
-            db_client.table("connectors")
+            db_client.table("access_surfaces")
             .select("*, project:project_id(created_by, org_id)")
             .eq("id", agent_id)
-            .eq("provider", "agent")
+            .eq("kind", "agent")
             .single()
             .execute()
         )
@@ -56,7 +56,7 @@ async def _execute_agent_task_async(agent_id: str) -> dict:
             return {"status": "failed", "error": "Agent not found"}
 
         # Pause is a hard "skip this scheduled tick" toggle that mirrors
-        # the connector-level pause used by chat / CLI access (see
+        # the access-surface pause used by chat / CLI access (see
         # ``chat/service._enforce_agent_not_paused``). Reporting
         # ``skipped`` instead of ``failed`` keeps the agent's
         # execution-log history clean — a paused agent should not
@@ -66,12 +66,13 @@ async def _execute_agent_task_async(agent_id: str) -> dict:
             return {"status": "skipped", "reason": "agent_paused"}
 
         config = agent.get("config") or {}
+        trigger = config.get("trigger") or {}
         project_data = agent.get("project")
         project_id = agent.get("project_id")
         # SECURITY (M-3): Pick the principal in priority order:
-        #   1. The connector owner (the user who CREATED the agent) —
+        #   1. The access-surface owner (the user who CREATED the agent) —
         #      this is the natural impersonation target.
-        #   2. The project creator — only for rows created before connector
+        #   2. The project creator — only for rows created before surface
         #      ownership was consistently recorded.
         # We then RE-VERIFY that this user still has project access at
         # execution time. Persisted IDs are stale: the user may have been
@@ -123,7 +124,7 @@ async def _execute_agent_task_async(agent_id: str) -> dict:
             "started_at": started_at.isoformat(),
             "input_snapshot": {
                 "task_content": task_content,
-                "trigger_config": (agent.get("trigger") or {}).get("config"),
+                "trigger_config": trigger.get("config"),
             }
         }
 

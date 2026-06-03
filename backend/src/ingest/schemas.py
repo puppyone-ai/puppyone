@@ -205,6 +205,7 @@ class UploadInitFileResponse(BaseModel):
     derived from ``chunk_size`` and the file size on the client.
     """
     task_id: str
+    upload_job_id: str | None = None
     filename: str
     s3_key: str
     upload_id: str
@@ -219,6 +220,7 @@ class UploadInitFileResponse(BaseModel):
 
 
 class UploadInitResponse(BaseModel):
+    upload_job_id: str | None = None
     files: list[UploadInitFileResponse]
 
 

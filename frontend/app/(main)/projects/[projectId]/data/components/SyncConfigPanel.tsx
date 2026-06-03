@@ -406,16 +406,14 @@ function CreateView({
           config,
           target_folder_path: target.path,
           direction: providerDef.direction,
-          sync_mode: draftSyncMode as 'import_once' | 'manual' | 'scheduled',
+          sync_mode: draftSyncMode as 'manual' | 'scheduled',
           trigger: draftSyncMode === 'scheduled'
             ? {
                 type: 'scheduled',
                 schedule: draftTriggerConfig?.schedule,
                 timezone: draftTriggerConfig?.timezone,
               }
-            : draftSyncMode === 'manual'
-              ? { type: 'manual' }
-              : { type: 'import_once' },
+            : { type: 'manual' },
         });
         createdNodeId = result.sync.path;
         if (!createdNodeId) {

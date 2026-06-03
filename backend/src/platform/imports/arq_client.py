@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class ImportArqClient:
-    """Small enqueue helper sharing the existing worker Redis/queue."""
+    """Small enqueue helper for one-time import jobs."""
 
     def __init__(
         self,
@@ -21,7 +21,7 @@ class ImportArqClient:
         queue_name: str | None = None,
     ):
         self.redis_url = redis_url or etl_config.etl_redis_url
-        self.queue_name = queue_name or etl_config.etl_arq_queue_name
+        self.queue_name = queue_name or etl_config.import_arq_queue_name
         self._pool: ArqRedis | None = None
 
     async def get_pool(self) -> ArqRedis:

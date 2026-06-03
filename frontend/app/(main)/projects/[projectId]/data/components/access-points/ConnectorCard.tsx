@@ -19,7 +19,7 @@ import {
 import type { ProviderIconLookup } from './types';
 
 /**
- * ConnectorCard — third-party-only connector row.
+ * ConnectorCard — third-party Connect row rendered in the access-point UI.
  *
  * cli + agent built-ins are NOT rendered here; ConnectMethodsBlock owns
  * those. This card just shows the provider icon, name, direction, status,

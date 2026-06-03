@@ -15,6 +15,7 @@ import secrets
 from typing import Optional
 
 from src.exceptions import AppException, BusinessException, ErrorCode, NotFoundException
+from src.repo.access_surface_repository import AccessSurfaceRepository
 from src.repo.models import RepoScope
 from src.repo.scope_repository import RepoScopeRepository
 from src.utils.logger import log_info, log_warning
@@ -55,6 +56,7 @@ def _mint_access_key() -> str:
 class ScopeService:
     def __init__(self, repository: Optional[RepoScopeRepository] = None):
         self._repo = repository or RepoScopeRepository()
+        self._access_surfaces = AccessSurfaceRepository()
 
     # ── Reads ────────────────────────────────────────────────────────────
 
@@ -116,7 +118,7 @@ class ScopeService:
                     ),
                 )
 
-        return self._repo.insert(
+        scope = self._repo.insert(
             project_id=project_id,
             name=name,
             path=canonical,
@@ -125,6 +127,8 @@ class ScopeService:
             is_root=False,
             access_key=_mint_access_key(),
         )
+        self._access_surfaces.ensure_scope_defaults(scope)
+        return scope
 
     def ensure_root_scope(self, project_id: str) -> RepoScope:
         """Idempotent: returns the existing root scope, or creates one if
@@ -135,7 +139,7 @@ class ScopeService:
         if existing:
             return existing
         log_info(f"[scope] auto-creating root scope for project={project_id}")
-        return self._repo.insert(
+        scope = self._repo.insert(
             project_id=project_id,
             name="Root",
             path="",
@@ -144,6 +148,8 @@ class ScopeService:
             is_root=True,
             access_key=_mint_access_key(),
         )
+        self._access_surfaces.ensure_scope_defaults(scope)
+        return scope
 
     def update(
         self,
@@ -168,9 +174,9 @@ class ScopeService:
         """Delete a non-root scope.
 
         has_bound_connectors: if True, raises 409 with a "delete connectors first"
-            hint. Caller passes the result of querying the connectors table —
+            hint. Caller passes the result of querying scope-bound entry points —
             we don't query it here to keep the service module decoupled from
-            connectors.
+            access surfaces and connections.
         """
         scope = self._repo.get(scope_id)
         if scope is None:

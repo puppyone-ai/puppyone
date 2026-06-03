@@ -1,43 +1,53 @@
-"""GAP-8: dashboard usage buckets must aggregate every AP family's run log.
+"""Dashboard usage buckets must aggregate every entry-point run log.
 
-Sync/filesystem connectors record runs in ``connector_runs`` (which the
-SyncRunRepository write path was previously mis-targeting at the renamed-
-away ``sync_runs`` table); scheduled agents record in
-``agent_execution_logs``. The dashboard now unions both, keyed by AP id.
+Connect rows record runs in ``sync_runs``; scheduled agents record in
+``agent_execution_logs``. The dashboard unions both, keyed by entry-point id.
 """
 from __future__ import annotations
 
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
-from src.platform.project.dashboard_router import _fetch_usage_buckets
+from src.platform.project.dashboard_router import _fetch_connections, _fetch_usage_buckets
 
 
 class FakeTable:
     def __init__(self, rows):
         self._rows = rows
-        self._col = None
-        self._ids = set()
-        self._since = ""
+        self._eq_filters = []
+        self._in_filters = []
+        self._gte_filters = []
+        self._order_col = None
 
     def select(self, _cols):
         return self
 
+    def eq(self, col, value):
+        self._eq_filters.append((col, value))
+        return self
+
     def in_(self, col, ids):
-        self._col = col
-        self._ids = set(ids)
+        self._in_filters.append((col, set(ids)))
         return self
 
     def gte(self, _col, val):
-        self._since = val
+        self._gte_filters.append((_col, val))
+        return self
+
+    def order(self, col, **_kwargs):
+        self._order_col = col
         return self
 
     def execute(self):
-        out = [
-            r for r in self._rows
-            if r.get(self._col) in self._ids
-            and str(r.get("started_at", "")) >= self._since
-        ]
+        out = list(self._rows)
+        for col, value in self._eq_filters:
+            out = [r for r in out if r.get(col) == value]
+        for col, values in self._in_filters:
+            out = [r for r in out if r.get(col) in values]
+        for col, value in self._gte_filters:
+            out = [r for r in out if str(r.get(col, "")) >= value]
+        if self._order_col:
+            out.sort(key=lambda r: r.get(self._order_col) or "")
         return SimpleNamespace(data=out)
 
 
@@ -56,9 +66,9 @@ def _today_iso() -> str:
 def test_usage_buckets_union_connector_and_agent_runs():
     today = _today_iso()
     sb = FakeSB({
-        "connector_runs": [
-            {"connector_id": "conn1", "started_at": today},
-            {"connector_id": "conn1", "started_at": today},
+        "sync_runs": [
+            {"connection_id": "conn1", "started_at": today},
+            {"connection_id": "conn1", "started_at": today},
         ],
         "agent_execution_logs": [
             {"agent_id": "agent1", "started_at": today},
@@ -76,6 +86,49 @@ def test_usage_buckets_union_connector_and_agent_runs():
     assert sum(buckets["mcp1"]) == 0
 
 
+def test_fetch_connections_reads_target_tables_and_scope_key():
+    today = _today_iso()
+    sb = FakeSB({
+        "connections": [{
+            "id": "sync1",
+            "project_id": "project-1",
+            "provider": "gmail",
+            "name": "Gmail",
+            "direction": "inbound",
+            "status": "active",
+            "trigger_type": "scheduled",
+            "trigger_config": {"schedule": "0 9 * * *"},
+            "config": {},
+            "scope_id": "scope-root",
+            "last_synced_at": today,
+            "created_at": today,
+        }],
+        "access_surfaces": [{
+            "id": "fs1",
+            "project_id": "project-1",
+            "kind": "filesystem",
+            "name": "Filesystem Sync",
+            "status": "active",
+            "config": {},
+            "scope_id": "scope-root",
+            "created_at": today,
+        }],
+        "repo_scopes": [{
+            "id": "scope-root",
+            "path": "",
+            "access_key": "cli_secretkey123456",
+        }],
+        "sync_runs": [{"connection_id": "sync1", "started_at": today}],
+    })
+
+    rows = _fetch_connections(sb, "project-1")
+
+    assert [row.provider for row in rows] == ["gmail", "filesystem"]
+    assert rows[0].trigger == {"schedule": "0 9 * * *", "type": "scheduled"}
+    assert rows[0].usage_buckets[-1] == 1
+    assert rows[1].access_key == "cli_secretkey123456"
+
+
 def test_usage_buckets_one_failing_source_does_not_zero_other():
     today = _today_iso()
 
@@ -90,11 +143,11 @@ def test_usage_buckets_one_failing_source_does_not_zero_other():
             return super().table(name)
 
     sb = PartialSB({
-        "connector_runs": [{"connector_id": "conn1", "started_at": today}],
+        "sync_runs": [{"connection_id": "conn1", "started_at": today}],
     })
 
     buckets = _fetch_usage_buckets(sb, ["conn1"])
-    # connector_runs still counted despite agent_execution_logs erroring
+    # sync_runs still counted despite agent_execution_logs erroring
     assert buckets["conn1"][-1] == 1
 
 

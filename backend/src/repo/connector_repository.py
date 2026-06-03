@@ -1,4 +1,9 @@
-"""Supabase repository for connectors."""
+"""Compatibility facade over the final ``access_surfaces`` table.
+
+Some runtime modules still import ``ConnectorRepository`` because the Python
+API name predates the product vocabulary split. The storage path is no longer
+the legacy ``connectors`` table; this facade delegates to Access surfaces.
+"""
 
 from __future__ import annotations
 
@@ -6,44 +11,15 @@ from datetime import datetime
 from typing import Any, Optional
 
 from src.infra.supabase.client import SupabaseClient
+from src.repo.access_surface_repository import AccessSurfaceRepository
 from src.repo.models import Connector
 
 
-def _row_to_connector(row: dict[str, Any]) -> Connector:
-    return Connector(
-        id=row["id"],
-        project_id=row["project_id"],
-        scope_id=row["scope_id"],
-        provider=row["provider"],
-        name=row["name"],
-        direction=row["direction"],
-        config=row.get("config") or {},
-        policy=row.get("policy") or {},
-        oauth_connection_id=row.get("oauth_connection_id"),
-        trigger=row.get("trigger") or {"type": "manual"},
-        status=row.get("status") or "active",
-        last_run_at=_parse_dt(row.get("last_run_at")),
-        last_run_id=row.get("last_run_id"),
-        error_message=row.get("error_message"),
-        created_by=row.get("created_by"),
-        created_at=_parse_dt(row["created_at"]),
-        updated_at=_parse_dt(row["updated_at"]),
-    )
-
-
-def _parse_dt(v: Any) -> Optional[datetime]:
-    if not v:
-        return None
-    if isinstance(v, datetime):
-        return v
-    return datetime.fromisoformat(str(v).replace("Z", "+00:00"))
-
-
 class ConnectorRepository:
-    TABLE = "connectors"
+    TABLE = "access_surfaces"
 
     def __init__(self, supabase_client: Optional[SupabaseClient] = None):
-        self._client = (supabase_client or SupabaseClient()).get_client()
+        self._repo = AccessSurfaceRepository(supabase_client)
 
     # ── Reads ────────────────────────────────────────────────────────────
 
@@ -55,79 +31,28 @@ class ConnectorRepository:
         provider: Optional[str] = None,
         direction: Optional[str] = None,
     ) -> list[Connector]:
-        q = self._client.table(self.TABLE).select("*").eq("project_id", project_id)
-        if scope_id:
-            q = q.eq("scope_id", scope_id)
-        if provider:
-            q = q.eq("provider", provider)
+        rows = self._repo.list_connectors_by_project(
+            project_id,
+            scope_id=scope_id,
+            kind=provider,
+        )
         if direction:
-            q = q.eq("direction", direction)
-        resp = q.order("created_at", desc=False).execute()
-        return [_row_to_connector(r) for r in (resp.data or [])]
+            rows = [row for row in rows if row.direction == direction]
+        return rows
 
     def get(self, connector_id: str) -> Optional[Connector]:
-        resp = (
-            self._client.table(self.TABLE)
-            .select("*").eq("id", connector_id).limit(1)
-            .execute()
-        )
-        rows = resp.data or []
-        return _row_to_connector(rows[0]) if rows else None
+        return self._repo.get_connector(connector_id)
 
     def get_agent_by_mcp_key(self, mcp_api_key: str) -> Optional[Connector]:
-        """Hot path: MCP service resolves an agent from its api key.
-
-        Resolves agent connectors by provider and config key. We look in
-        connectors with provider='agent' and config.mcp_api_key=<key>.
-        """
-        resp = (
-            self._client.table(self.TABLE)
-            .select("*")
-            .eq("provider", "agent")
-            .filter("config->>mcp_api_key", "eq", mcp_api_key)
-            .limit(1)
-            .execute()
-        )
-        rows = resp.data or []
-        return _row_to_connector(rows[0]) if rows else None
+        return self._repo.get_agent_connector_by_mcp_key(mcp_api_key)
 
     def get_by_scope_provider(
         self, scope_id: str, provider: str,
     ) -> Optional[Connector]:
-        """Hot path for the channel-aware version access check.
-
-        For built-in providers (cli, agent, filesystem) there's at most one
-        row per scope, enforced by the partial unique index
-        idx_connectors_builtin_one_per_scope. For third-party providers
-        this query may match multiple rows; we return the first by
-        creation time, but callers in the auth layer should only ever
-        invoke this with built-in providers.
-        """
-        resp = (
-            self._client.table(self.TABLE)
-            .select("*")
-            .eq("scope_id", scope_id)
-            .eq("provider", provider)
-            .order("created_at", desc=False)
-            .limit(1)
-            .execute()
-        )
-        rows = resp.data or []
-        return _row_to_connector(rows[0]) if rows else None
+        return self._repo.get_connector_by_scope_kind(scope_id, provider)
 
     def count_third_party_for_scope(self, scope_id: str) -> int:
-        """How many user-created (non-builtin) connectors are attached to
-        this scope. Used by scope deletion to refuse if non-zero. Built-in
-        providers (cli/agent/filesystem) are excluded since they are
-        auto-created and tied to the scope's lifecycle."""
-        resp = (
-            self._client.table(self.TABLE)
-            .select("id", count="exact")
-            .eq("scope_id", scope_id)
-            .not_.in_("provider", ["cli", "agent", "filesystem"])
-            .execute()
-        )
-        return resp.count or 0
+        return self._repo.count_bound_user_surfaces(scope_id)
 
     # ── Writes ───────────────────────────────────────────────────────────
 
@@ -145,46 +70,70 @@ class ConnectorRepository:
         trigger: dict,
         created_by: Optional[str],
     ) -> Connector:
-        resp = (
-            self._client.table(self.TABLE)
-            .insert({
-                "project_id": project_id,
-                "scope_id": scope_id,
-                "provider": provider,
-                "name": name,
-                "direction": direction,
-                "config": config,
-                "policy": policy,
-                "oauth_connection_id": oauth_connection_id,
-                "trigger": trigger,
-                "created_by": created_by,
-            })
-            .execute()
+        merged_config = dict(config or {})
+        merged_config["direction"] = direction
+        merged_config["policy"] = policy or {}
+        merged_config["trigger"] = trigger or {"type": "manual"}
+        if oauth_connection_id is not None:
+            merged_config["oauth_connection_id"] = oauth_connection_id
+        row = self._repo.insert(
+            project_id=project_id,
+            scope_id=scope_id,
+            kind=provider,
+            name=name,
+            config=merged_config,
+            created_by=created_by,
         )
-        return _row_to_connector(resp.data[0])
+        return self._repo.get_connector(row["id"])
 
     def update(self, connector_id: str, patch: dict[str, Any]) -> Optional[Connector]:
         if not patch:
             return self.get(connector_id)
-        resp = (
-            self._client.table(self.TABLE)
-            .update(patch).eq("id", connector_id).execute()
-        )
-        rows = resp.data or []
-        return _row_to_connector(rows[0]) if rows else None
+        current = self._repo.get(connector_id)
+        if current is None:
+            return None
+
+        update_data: dict[str, Any] = {}
+        config = dict(current.get("config") or {})
+        for key, value in patch.items():
+            if key == "name":
+                update_data["name"] = value
+                config["name"] = value
+            elif key == "status":
+                update_data["status"] = value
+            elif key == "config":
+                config.update(value or {})
+            elif key == "policy":
+                config["policy"] = value or {}
+            elif key == "trigger":
+                config["trigger"] = value or {"type": "manual"}
+            elif key == "direction":
+                config["direction"] = value
+            elif key == "error_message":
+                config["error_message"] = value
+            else:
+                config[key] = value
+
+        update_data["config"] = config
+        updated = self._repo.update(connector_id, update_data)
+        return self._repo.get_connector(updated["id"]) if updated else None
 
     def update_run_status(
-        self, connector_id: str, *, status: str, last_run_at: Optional[datetime] = None,
-        last_run_id: Optional[str] = None, error_message: Optional[str] = None,
+        self,
+        connector_id: str,
+        *,
+        status: str,
+        last_run_at: Optional[datetime] = None,
+        last_run_id: Optional[str] = None,
+        error_message: Optional[str] = None,
     ) -> None:
-        patch = {"status": status}
-        if last_run_at is not None:
-            patch["last_run_at"] = last_run_at.isoformat()
-        if last_run_id is not None:
-            patch["last_run_id"] = last_run_id
-        patch["error_message"] = error_message      # may be None to clear
-        self._client.table(self.TABLE).update(patch).eq("id", connector_id).execute()
+        self._repo.touch_run_status(
+            connector_id,
+            status=status,
+            last_run_at=last_run_at,
+            last_run_id=last_run_id,
+            error_message=error_message,
+        )
 
     def delete(self, connector_id: str) -> bool:
-        resp = self._client.table(self.TABLE).delete().eq("id", connector_id).execute()
-        return bool(resp.data)
+        return self._repo.delete(connector_id)

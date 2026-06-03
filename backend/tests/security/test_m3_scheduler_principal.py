@@ -36,8 +36,12 @@ async def test_principal_no_longer_member_aborts_with_principal_invalid():
         "id": "agent-1",
         "project_id": "proj-1",
         "created_by": "ex-employee",  # left the org
-        "config": {"name": "X", "type": "schedule", "task_content": "do stuff"},
-        "trigger": {},
+        "config": {
+            "name": "X",
+            "type": "schedule",
+            "task_content": "do stuff",
+            "trigger": {"type": "cron", "config": {}},
+        },
         "project": {"created_by": "ex-employee", "org_id": "org-1"},
     }
     sb = _stub_supabase_with_agent_row(agent_row)
@@ -64,8 +68,12 @@ async def test_principal_access_check_error_aborts():
         "id": "agent-1",
         "project_id": "proj-1",
         "created_by": "user-x",
-        "config": {"name": "X", "type": "schedule", "task_content": "stuff"},
-        "trigger": {},
+        "config": {
+            "name": "X",
+            "type": "schedule",
+            "task_content": "stuff",
+            "trigger": {"type": "cron", "config": {}},
+        },
         "project": {"created_by": "user-x", "org_id": "org-1"},
     }
     sb = _stub_supabase_with_agent_row(agent_row)
@@ -86,13 +94,17 @@ async def test_principal_access_check_error_aborts():
 
 @pytest.mark.asyncio
 async def test_no_user_id_at_all_aborts():
-    """Empty connector.created_by AND empty project.created_by ⇒ refuse."""
+    """Empty access_surface.created_by AND empty project.created_by ⇒ refuse."""
     agent_row = {
         "id": "agent-1",
         "project_id": "proj-1",
         "created_by": None,
-        "config": {"name": "X", "type": "schedule", "task_content": "stuff"},
-        "trigger": {},
+        "config": {
+            "name": "X",
+            "type": "schedule",
+            "task_content": "stuff",
+            "trigger": {"type": "cron", "config": {}},
+        },
         "project": {"created_by": None, "org_id": "org-1"},
     }
     sb = _stub_supabase_with_agent_row(agent_row)
@@ -106,14 +118,18 @@ async def test_no_user_id_at_all_aborts():
 
 @pytest.mark.asyncio
 async def test_agent_owner_preferred_over_project_creator():
-    """Agent connector created_by wins over project.created_by —
+    """Agent access-surface created_by wins over project.created_by —
     that's the natural impersonation principal for the agent."""
     agent_row = {
         "id": "agent-1",
         "project_id": "proj-1",
         "created_by": "agent-owner",
-        "config": {"name": "X", "type": "schedule", "task_content": "x"},
-        "trigger": {},
+        "config": {
+            "name": "X",
+            "type": "schedule",
+            "task_content": "x",
+            "trigger": {"type": "cron", "config": {}},
+        },
         "project": {"created_by": "different-creator", "org_id": "org-1"},
     }
     sb = _stub_supabase_with_agent_row(agent_row)

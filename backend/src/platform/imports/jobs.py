@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import traceback
 
@@ -97,6 +98,10 @@ async def execute_import_job(ctx: dict, job_id: str) -> dict:
     except ImportJobStopped as exc:
         logger.info("Import job stopped: %s status=%s", job_id, exc.status)
         return {"status": "skipped", "job_id": job_id, "job_status": exc.status}
+    except asyncio.CancelledError:
+        logger.error("Import job cancelled by worker timeout: %s", job_id)
+        repo.mark_failed(job_id, "Import worker was cancelled or timed out")
+        raise
     except Exception as exc:
         logger.error("Import job failed %s: %s\n%s", job_id, exc, traceback.format_exc())
         failed = repo.mark_failed(job_id, str(exc))

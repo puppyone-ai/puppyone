@@ -99,7 +99,7 @@ class BootstrapRequest(BaseModel):
     credentials_ref: Optional[str] = None
     direction: str = "bidirectional"
     conflict_strategy: str = "three_way_merge"
-    sync_mode: str = "import_once"
+    sync_mode: str = "manual"
     trigger: Optional[dict] = None
 
 
@@ -115,7 +115,7 @@ class CreateSyncRequest(BaseModel):
     credentials_ref: Optional[str] = None
     direction: str = "inbound"
     conflict_strategy: str = "three_way_merge"
-    sync_mode: str = "import_once"
+    sync_mode: str = "manual"
     trigger: Optional[dict] = None
 
 
@@ -132,6 +132,25 @@ class PullResponse(BaseModel):
 class PushResponse(BaseModel):
     pushed: int
     results: list[dict]
+
+
+def _connectable_specs(registry: ConnectorRegistry) -> list[dict]:
+    """Return provider specs that support durable Connect flows."""
+    connect_modes = {"manual", "scheduled", "realtime"}
+    specs: list[dict] = []
+    for spec in registry.specs_to_dicts():
+        modes = [
+            mode for mode in (spec.get("supported_sync_modes") or [])
+            if mode in connect_modes
+        ]
+        if not modes:
+            continue
+        spec["supported_sync_modes"] = modes
+        if spec.get("default_sync_mode") not in modes:
+            spec["default_sync_mode"] = modes[0]
+        spec["category"] = "datasource"
+        specs.append(spec)
+    return specs
 
 
 # --- CLI sync models ---
@@ -265,13 +284,7 @@ def list_connectors(
     Frontend uses this to dynamically render connector options
     instead of hardcoding SYNC_OPTIONS / SYNC_PROVIDER_SPECS.
     """
-    specs = registry.specs_to_dicts()
-    # ``/access/types`` stamps the same category on each datasource spec
-    # so the frontend ``ConnectorSpec.category`` is always defined; mirror
-    # that here so both endpoints return identically shaped objects.
-    for spec in specs:
-        spec["category"] = "datasource"
-    return ApiResponse.success(data=specs)
+    return ApiResponse.success(data=_connectable_specs(registry))
 
 
 # ============================================================
@@ -297,6 +310,11 @@ async def create_sync(
         )
 
     spec = connector.spec()
+    if body.sync_mode == "import_once":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="One-time imports must use ImportJob, not a durable sync connection.",
+        )
     if spec.creation_mode != "direct":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -409,7 +427,12 @@ async def update_sync_trigger(
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    """Update sync trigger mode (import_once, manual, scheduled)."""
+    """Update durable sync trigger mode (manual, scheduled, realtime)."""
+    if body.sync_mode == "import_once":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="One-time imports must use ImportJob, not a durable sync connection.",
+        )
     _get_sync_with_access(
         sync_id=sync_id,
         sync_svc=sync_svc,
@@ -474,7 +497,7 @@ async def refresh_sync(
         current_user=current_user,
     )
 
-    trigger_type = (sync.trigger or {}).get("type", "import_once")
+    trigger_type = (sync.trigger or {}).get("type", "manual")
     if trigger_type == "import_once":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -664,6 +687,11 @@ async def bootstrap(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Connector {body.provider} must be created via POST /sync/syncs",
+        )
+    if body.sync_mode == "import_once":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="One-time imports must use ImportJob, not a durable sync connection.",
         )
 
     syncs = await sync_svc.bootstrap(

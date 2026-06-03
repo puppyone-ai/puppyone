@@ -127,9 +127,8 @@ class RepoScopeRepository:
         is_root: bool,
         access_key: str,
     ) -> RepoScope:
-        """Insert a new scope. The DB trigger create_builtin_connectors_for_scope
-        runs synchronously inside this transaction, so on success the connectors
-        table also gets one cli + one agent row for this scope."""
+        """Insert a new scope. Access surfaces are created explicitly by
+        ScopeService after this row is persisted."""
         resp = (
             self._client.table(self.TABLE)
             .insert({
@@ -186,7 +185,7 @@ class RepoScopeRepository:
         return bool(resp.data)
 
     def delete(self, scope_id: str) -> bool:
-        """Hard delete. The DB cascades to connectors (FK ON DELETE CASCADE).
+        """Hard delete. The DB cascades scope-bound access surfaces.
         Service layer is responsible for refusing to delete root scopes."""
         resp = (
             self._client.table(self.TABLE)

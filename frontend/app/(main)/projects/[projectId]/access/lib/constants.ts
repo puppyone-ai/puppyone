@@ -51,10 +51,10 @@ export const STATUS_LABEL: Record<string, string> = {
 // The previous version exposed an `APGroupKey` ("cli/agent/mcp/sandbox/
 // integration") that drove a sidebar filter-tab strip — sliced the
 // access points by *provider type*. That was the wrong axis: scope
-// (the mount point a connector binds to) is the actual primary key
+// (the mount point an access point binds to) is the actual primary key
 // in our data model, and the user wants to manage "who can see
 // /docs?" not "where do my CLIs live?". The sidebar is now scope-keyed,
-// and provider type is shown only on each connector row inside the
+// and provider type is shown only on each access point inside the
 // detail panel as a small type-line. No filter tabs survive.
 
 // Within the right pane, every AP bound to the selected scope is
