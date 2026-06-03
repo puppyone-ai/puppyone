@@ -21,18 +21,18 @@ def _generate_session_title(first_message: str, max_len: int = 30) -> str:
 
 
 def _enforce_agent_not_paused(agent_id: str) -> None:
-    """Reject session creation if the agent connector is paused.
+    """Reject session creation if the agent access surface is paused.
 
-    `agent_id` here is the connectors row id (provider='agent') for the
-    chat agent the user is talking to. Pausing that row from the access
+    `agent_id` here is the access_surfaces row id (kind='agent') for the
+    chat agent the user is talking to. Pausing that surface from the access
     page is meant to act as a hard "this agent is offline" toggle —
     without this check it would only flip a label in the UI and the
     chat would continue to work, which contradicts the user-facing
     affordance.
 
     We deliberately swallow lookup failures (returning silently when
-    the connector can't be fetched) so transient DB issues don't lock
-    every chat session out; a missing-or-unreadable connector falls
+    the surface can't be fetched) so transient DB issues don't lock
+    every chat session out; a missing-or-unreadable surface falls
     back to the prior behaviour of "let the request through".
     """
     if not agent_id:

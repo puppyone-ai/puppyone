@@ -173,6 +173,7 @@ class ETLService:
         size: int,
         content_type: str | None,
         default_rule_id: int | None = None,
+        upload_job_id: str | None = None,
     ) -> ETLTask:
         """
         Create a ``pending`` task for a direct-to-S3 multipart upload.
@@ -221,6 +222,7 @@ class ETLService:
                 "size": size,
                 "content_type": content_type,
                 "upload_kind": "direct_s3_multipart",
+                "upload_job_id": upload_job_id,
             },
         )
 

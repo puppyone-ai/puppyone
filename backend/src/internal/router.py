@@ -801,9 +801,9 @@ async def get_agent_by_mcp_key(
 ):
     """Resolve an MCP API key to an agent's config + tools + accesses.
 
-    The canonical source of truth is ``connectors`` rows with
-    provider='agent' and ``config.mcp_api_key``. Missing or unhealthy
-    connector state fails loud instead of consulting historical tables.
+    The canonical source of truth is ``access_surfaces`` rows with
+    kind='agent' and ``config.mcp_api_key``. Missing or unhealthy
+    surface state fails loud instead of consulting historical tables.
     """
     return _resolve_agent_via_connectors(mcp_api_key)
 

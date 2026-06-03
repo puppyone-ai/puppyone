@@ -1,4 +1,4 @@
-"""Sandbox endpoint repository over connectors + repo_scopes."""
+"""Sandbox endpoint repository over access_surfaces + repo_scopes."""
 
 from typing import Dict, List, Optional
 import secrets
@@ -8,7 +8,7 @@ from src.repo.scope_service import ScopeService
 
 
 PROVIDER = "sandbox"
-CONNECTORS_TABLE = "connectors"
+ACCESS_SURFACES_TABLE = "access_surfaces"
 SCOPES_TABLE = "repo_scopes"
 
 
@@ -17,7 +17,7 @@ def generate_sandbox_access_key() -> str:
 
 
 def _row_to_endpoint(row: dict, scope_path: Optional[str] = None) -> dict:
-    """Reshape a connectors row into the sandbox endpoint API dict."""
+    """Reshape an access_surfaces row into the sandbox endpoint API dict."""
     config = row.get("config") or {}
     return {
         "id": row["id"],
@@ -38,7 +38,7 @@ def _row_to_endpoint(row: dict, scope_path: Optional[str] = None) -> dict:
 
 class SandboxEndpointRepository:
 
-    TABLE = CONNECTORS_TABLE
+    TABLE = ACCESS_SURFACES_TABLE
 
     def __init__(self, supabase_client=None):
         if supabase_client is None:
@@ -47,11 +47,22 @@ class SandboxEndpointRepository:
         else:
             self._client = supabase_client
 
+    def _project_org_id(self, project_id: str) -> str | None:
+        resp = (
+            self._client.table("projects")
+            .select("org_id")
+            .eq("id", project_id)
+            .limit(1)
+            .execute()
+        )
+        rows = resp.data or []
+        return rows[0].get("org_id") if rows else None
+
     def _query(self):
         return (
-            self._client.table(CONNECTORS_TABLE)
+            self._client.table(ACCESS_SURFACES_TABLE)
             .select("*")
-            .eq("provider", PROVIDER)
+            .eq("kind", PROVIDER)
         )
 
     def _scope_path_lookup(self, scope_ids: List[Optional[str]]) -> Dict[str, Optional[str]]:
@@ -96,7 +107,7 @@ class SandboxEndpointRepository:
         return rows[0] if rows else None
 
     def get_by_access_key(self, access_key: str) -> Optional[dict]:
-        # access_key now lives in connector.config (jsonb). Use
+        # access_key lives in access_surfaces.config (jsonb). Use
         # postgrest-py's .filter(path, op, value) form for jsonb access —
         # matches the convention already used elsewhere in this codebase.
         resp = self._query().filter("config->>access_key", "eq", access_key).execute()
@@ -152,11 +163,11 @@ class SandboxEndpointRepository:
         scope = self._scope_for_path(project_id, path)
         row = {
             "id": generate_uuid_v7(),
+            "org_id": self._project_org_id(project_id),
             "project_id": project_id,
             "scope_id": scope["id"],
-            "provider": PROVIDER,
+            "kind": PROVIDER,
             "name": name,
-            "direction": "bidirectional",
             "config": config,
             "status": "active",
         }

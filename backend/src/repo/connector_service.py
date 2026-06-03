@@ -1,13 +1,9 @@
 """Business logic for connectors.
 
 Responsibilities:
-  - Refuse to create cli/agent/filesystem connectors via the API (those are
-    auto-created by the DB trigger when a scope is INSERTed; this layer
-    enforces that they're "claim, don't create" from the user's perspective).
+  - Refuse to create built-in Access surfaces via the legacy API.
   - Default `name` from provider if not given.
-  - Validate direction against provider capabilities (cli/agent/filesystem
-    must be bidirectional; OAuth-backed providers must pick inbound or
-    outbound).
+  - Validate direction against provider capabilities.
   - Coordinate execution (Step 2-Run-Now): hand off to engine.execute().
 """
 
@@ -19,14 +15,14 @@ from src.repo.connector_repository import ConnectorRepository
 from src.repo.models import Connector
 
 
-PROVIDERS_BIDIRECTIONAL = frozenset({"cli", "agent", "filesystem"})
-# The three built-in connection methods that every scope ships with:
+PROVIDERS_BIDIRECTIONAL = frozenset({"git_remote", "cli", "agent", "filesystem"})
+# The built-in Access surfaces that every scope ships with:
+#   - git_remote  — scoped Git smart-HTTP remote
 #   - cli         — direct Puppyone CLI commands against the remote tree
 #   - agent       — in-app chat agent that can read/write the scope
 #   - filesystem  — local-folder bidirectional sync via the Write Engine
-# All three are auto-created by the DB trigger on repo_scopes INSERT and are
-# undeletable via the API (pause/resume only). OAuth-backed third-party
-# providers must pick inbound OR outbound at create time.
+# These are created with the scope and are undeletable via the legacy API
+# (pause/resume only).
 PROVIDERS_OAUTH_BACKED = frozenset({
     "notion", "gmail", "google_sheets", "google_docs",
     "google_calendar", "google_drive", "google_search_console",
@@ -117,12 +113,12 @@ class ConnectorService:
         trigger: Optional[dict[str, Any]],
         created_by: Optional[str],
     ) -> Connector:
-        # Built-in cli / agent / filesystem rows are auto-created by the DB
-        # trigger; the API never creates them.
+        # Built-in Access surfaces are created with the scope; this legacy API
+        # never creates them.
         if provider in PROVIDERS_BIDIRECTIONAL:
             raise BusinessException(
-                f"'{provider}' connectors are auto-created per scope. "
-                "Edit the auto-created row instead of creating a new one."
+                f"'{provider}' access surfaces are created per scope. "
+                "Edit the existing surface instead of creating a new one."
             )
 
         if provider in PROVIDERS_IMPORT_ONLY or (trigger or {}).get("type") == "import_once":
@@ -134,7 +130,7 @@ class ConnectorService:
         # Direction validation.
         if direction == "bidirectional":
             raise BusinessException(
-                "Only built-in 'cli', 'agent', and 'filesystem' connectors "
+                "Only built-in Access surfaces "
                 "are bidirectional. Third-party providers must choose "
                 "'inbound' (import) or 'outbound' (export)."
             )
@@ -186,13 +182,14 @@ class ConnectorService:
         return updated
 
     def activate_agent_connector(self, connector_id: str) -> Optional[Connector]:
-        """Activate the built-in chat Agent connector for a scope.
+        """Activate the built-in chat Agent access surface for a scope.
 
         The default AI Agent is an in-app chat runtime, not an external MCP
-        endpoint. Activation claims the auto-created ``provider='agent'``
-        connector by writing the chat-agent metadata and scope binding into
-        config. ``/agent-config`` then exposes the row as a normal saved
-        Agent, and the frontend can open ``agent_chat`` directly.
+        endpoint. Activation claims the auto-created ``kind='agent'`` surface
+        through the legacy connector facade by writing the chat-agent metadata
+        and scope binding into config. ``/agent-config`` then exposes the row
+        as a normal saved Agent, and the frontend can open ``agent_chat``
+        directly.
         """
         existing = self._repo.get(connector_id)
         if existing is None:
@@ -234,9 +231,9 @@ class ConnectorService:
             raise NotFoundException("Connector not found")
         if existing.is_builtin:
             raise BusinessException(
-                "Built-in cli/agent/filesystem connectors are managed by "
+                "Built-in Access surfaces are managed by "
                 "their scope. Delete the scope to remove them, or pause the "
-                "connector instead."
+                "surface instead."
             )
         self._repo.delete(connector_id)
 
@@ -268,7 +265,7 @@ class ConnectorService:
             raise NotFoundException("Connector not found")
         if connector.is_builtin:
             raise BusinessException(
-                "Built-in cli/agent/filesystem connectors don't have a "
+                "Built-in Access surfaces don't have a "
                 "manual run."
             )
         if connector.status == "paused":

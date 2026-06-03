@@ -24,7 +24,11 @@ def _connector(
         scope_id="scope-1",
         provider=provider,
         name=provider.title(),
-        direction="bidirectional" if provider in {"cli", "agent", "filesystem"} else "inbound",
+        direction=(
+            "bidirectional"
+            if provider in {"git_remote", "cli", "agent", "filesystem"}
+            else "inbound"
+        ),
         config={},
         policy={},
         oauth_connection_id=None,
@@ -63,10 +67,28 @@ class _FakeConnectorRepository:
     def insert(self, **_: object) -> Connector:
         raise AssertionError("import-only connector creation should fail before insert")
 
+    def get(self, connector_id: str) -> Connector | None:
+        for item in self.items:
+            if item.id == connector_id:
+                return item
+        return None
+
+    def update(self, connector_id: str, patch: dict) -> Connector | None:
+        item = self.get(connector_id)
+        if item is None:
+            return None
+        for key, value in patch.items():
+            setattr(item, key, value)
+        return item
+
+    def delete(self, connector_id: str) -> None:
+        self.items = [item for item in self.items if item.id != connector_id]
+
 
 def test_list_defaults_to_access_surface_connectors() -> None:
     service = ConnectorService(
         repository=_FakeConnectorRepository([
+            _connector("git_remote"),
             _connector("cli"),
             _connector("filesystem"),
             _connector("notion", trigger={"type": "manual"}),
@@ -76,7 +98,12 @@ def test_list_defaults_to_access_surface_connectors() -> None:
     )
 
     visible = service.list("project-1")
-    assert [item.provider for item in visible] == ["cli", "filesystem", "notion"]
+    assert [item.provider for item in visible] == [
+        "git_remote",
+        "cli",
+        "filesystem",
+        "notion",
+    ]
 
 
 def test_list_can_include_legacy_import_rows_for_migrations() -> None:
@@ -110,6 +137,24 @@ def test_create_rejects_github_access_connector() -> None:
         )
 
 
+def test_create_rejects_git_remote_connector() -> None:
+    service = ConnectorService(repository=_FakeConnectorRepository())
+
+    with pytest.raises(BusinessException, match="access surfaces are created per scope"):
+        service.create(
+            project_id="project-1",
+            scope_id="scope-1",
+            provider="git_remote",
+            direction="bidirectional",
+            name="Git Remote",
+            config={},
+            policy={},
+            oauth_connection_id=None,
+            trigger={"type": "manual"},
+            created_by="user-1",
+        )
+
+
 def test_create_rejects_import_once_connector() -> None:
     service = ConnectorService(repository=_FakeConnectorRepository())
 
@@ -126,3 +171,14 @@ def test_create_rejects_import_once_connector() -> None:
             trigger={"type": "import_once"},
             created_by="user-1",
         )
+
+
+def test_delete_rejects_git_remote_builtin_surface() -> None:
+    service = ConnectorService(
+        repository=_FakeConnectorRepository([
+            _connector("git_remote", connector_id="surface-git"),
+        ]),
+    )
+
+    with pytest.raises(BusinessException, match="Built-in Access surfaces"):
+        service.delete("surface-git")

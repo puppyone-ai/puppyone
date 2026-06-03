@@ -60,9 +60,9 @@ class Agent(BaseModel):
     llm_model: Optional[str] = Field(None)
     system_prompt: Optional[str] = Field(None)
 
-    # Mirrors ``connectors.status`` (``active`` / ``paused``). Agents
-    # are stored as a connector row with ``provider='agent'``; pause /
-    # resume is the existing connector-level toggle and is also what
+    # Mirrors ``access_surfaces.status`` (``active`` / ``paused``). Agents
+    # are stored as access-surface rows with ``kind='agent'``; pause /
+    # resume is the existing surface-level toggle and is also what
     # ``chat/service._enforce_agent_not_paused`` reads to refuse
     # sessions for a paused agent.
     status: str = Field(default="active")

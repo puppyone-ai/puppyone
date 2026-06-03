@@ -4,6 +4,7 @@ Scheduler service for managing scheduled agent executions.
 
 from typing import Optional
 from datetime import datetime
+from apscheduler.executors.asyncio import AsyncIOExecutor
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
@@ -62,9 +63,11 @@ class SchedulerService:
 
         log_info("⏰ Starting APScheduler...")
 
-        # Configure executors
+        # Configure executors. The default executor must remain asyncio-aware so
+        # APScheduler awaits coroutine jobs instead of running them in a thread.
         executors = {
-            "default": ThreadPoolExecutor(scheduler_settings.max_workers)
+            "default": AsyncIOExecutor(),
+            "threadpool": ThreadPoolExecutor(scheduler_settings.max_workers),
         }
 
         # Configure job defaults
@@ -107,6 +110,7 @@ class SchedulerService:
                 id="version-outbox",
                 name="Version Outbox Repair",
                 replace_existing=True,
+                executor="threadpool",
             )
 
         if settings.VERSION_OBJECT_GC_ENABLED:
@@ -118,6 +122,7 @@ class SchedulerService:
                 id="version-object-gc",
                 name="Version Engine Git Object GC",
                 replace_existing=True,
+                executor="threadpool",
             )
 
         if settings.VERSION_INTEGRITY_SCAN_ENABLED:
@@ -129,6 +134,7 @@ class SchedulerService:
                 id="version-object-integrity-scan",
                 name="Version Engine Object Integrity Scan",
                 replace_existing=True,
+                executor="threadpool",
             )
 
         if settings.SHADOW_SNAPSHOT_REAPER_ENABLED:
@@ -163,9 +169,9 @@ class SchedulerService:
             client = SupabaseClient().client
 
             result = (
-                client.table("connectors")
+                client.table("access_surfaces")
                 .select("*")
-                .eq("provider", "agent")
+                .eq("kind", "agent")
                 .eq("status", "active")
                 .execute()
             )
@@ -173,16 +179,17 @@ class SchedulerService:
             agents = [
                 row for row in (result.data or [])
                 if (row.get("config") or {}).get("type") == "schedule"
-                and (row.get("trigger") or {}).get("type") == "cron"
+                and ((row.get("config") or {}).get("trigger") or {}).get("type")
+                in {"cron", "scheduled"}
             ]
             log_info(f"📋 Found {len(agents)} schedule agents to load")
 
             for agent in agents:
                 config = agent.get("config") or {}
-                trigger = agent.get("trigger") or {}
+                trigger = config.get("trigger") or {}
                 await self.add_agent_job(
                     agent_id=agent["id"],
-                    trigger_config=trigger.get("config") or {},
+                    trigger_config=trigger.get("config") or trigger,
                     agent_name=config.get("name", "Unknown")
                 )
 
@@ -230,6 +237,7 @@ class SchedulerService:
             name=f"Agent: {agent_name or agent_id}",
             args=[agent_id],
             replace_existing=True,
+            executor="threadpool",
         )
 
         next_run = job.next_run_time.strftime("%Y-%m-%d %H:%M:%S") if job.next_run_time else "N/A"
@@ -245,10 +253,10 @@ class SchedulerService:
         provider: str = "",
         trigger_config: dict | None = None,
     ) -> Optional[Job]:
-        """Unified trigger registration for server-driven connectors.
+        """Unified trigger registration for scheduled Connect rows.
 
-        All connector routers should call this single method instead of
-        directly manipulating scheduler jobs.
+        Connect routers should call this single method instead of directly
+        manipulating scheduler jobs.
 
         Args:
             connection_id: The connection / sync row ID.
@@ -283,6 +291,7 @@ class SchedulerService:
             name=f"Sync: {provider} ({connection_id[:8]})",
             args=[connection_id],
             replace_existing=True,
+            executor="threadpool",
         )
 
         next_run = job.next_run_time.strftime("%Y-%m-%d %H:%M:%S") if job.next_run_time else "N/A"
@@ -301,13 +310,23 @@ class SchedulerService:
 
             client = SupabaseClient().client
             result = (
-                client.table("connectors")
-                .select("id, provider, trigger, status")
+                client.table("connections")
+                .select("id, provider, trigger_type, trigger_config, status")
                 .eq("status", "active")
                 .execute()
             )
 
-            syncs = result.data or []
+            syncs = [
+                {
+                    "id": row["id"],
+                    "provider": row.get("provider", ""),
+                    "trigger": {
+                        "type": row.get("trigger_type"),
+                        **(row.get("trigger_config") or {}),
+                    },
+                }
+                for row in (result.data or [])
+            ]
             scheduled = [
                 s for s in syncs
                 if (s.get("trigger") or {}).get("type") == "scheduled"

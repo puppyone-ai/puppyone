@@ -18,6 +18,8 @@ from src.connectors.datasource.github.connector import GithubConnector
 from src.platform.imports.jobs import execute_import_job
 from src.platform.imports.repository import ImportJob
 from src.platform.imports.runner import ImportRunResult, OneTimeImportRunner
+from src.platform.imports.schemas import ImportJobCreateRequest
+from src.platform.imports.service import ImportJobService
 
 
 def _zip_bytes(files: dict[str, bytes]) -> bytes:
@@ -368,3 +370,63 @@ async def test_execute_import_job_does_not_overwrite_cancelled_job():
     }
     assert repo.completed is None
     assert repo.job.status == "cancelled"
+
+
+class FakeProjectService:
+    def get_by_id_with_access_check(self, project_id, user_id):
+        assert project_id == "project-1"
+        assert user_id == "user-1"
+        return SimpleNamespace(org_id="org-1")
+
+
+class IdempotentImportRepo:
+    def __init__(self):
+        self.existing = ImportJob(
+            id="job-existing",
+            org_id="org-1",
+            project_id="project-1",
+            created_by="user-1",
+            provider="github",
+            source_url="https://github.com/acme/repo",
+            idempotency_key="idem-1",
+            name="repo",
+        )
+
+    def get_by_idempotency_key(self, *, project_id, provider, idempotency_key):
+        assert project_id == "project-1"
+        assert provider == "github"
+        assert idempotency_key == "idem-1"
+        return self.existing
+
+    def create(self, **_kwargs):
+        raise AssertionError("idempotent create must not insert a new job")
+
+    def mark_failed(self, *_args, **_kwargs):
+        raise AssertionError("idempotent create must not mark failures")
+
+
+class ExplodingImportArqClient:
+    async def enqueue_import(self, _job_id):
+        raise AssertionError("idempotent create must not enqueue a worker job")
+
+
+@pytest.mark.asyncio
+async def test_import_job_create_returns_existing_job_for_idempotency_key():
+    repo = IdempotentImportRepo()
+    service = ImportJobService(
+        repo=repo,
+        project_service=FakeProjectService(),
+        arq_client=ExplodingImportArqClient(),
+    )
+
+    result = await service.create(
+        ImportJobCreateRequest(
+            project_id="project-1",
+            source_url="https://github.com/acme/repo",
+            provider="github",
+            idempotency_key="idem-1",
+        ),
+        user_id="user-1",
+    )
+
+    assert result is repo.existing

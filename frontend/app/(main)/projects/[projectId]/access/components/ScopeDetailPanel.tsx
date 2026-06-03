@@ -98,8 +98,8 @@ export function ScopeDetailPanel({
    *  pick up an adjacent scope on the next render. */
   readonly onScopeDeleted: () => void;
 }) {
-  // Track the currently-expanded connector row. Defaults to collapsed
-  // so first-time users see the compact connector list before drilling
+  // Track the currently-expanded access point. Defaults to collapsed
+  // so first-time users see the compact access point list before drilling
   // into setup/configuration details.
   const [selectedConnectorId, setSelectedConnectorId] = useState<string | null>(null);
 
@@ -191,7 +191,7 @@ export function ScopeDetailPanel({
       >
         {/* PAGE HEADER — `scope.name` at h1 scale with aggregate status
             beneath. The right side stays intentionally light: settings
-            live here, while pause/resume belongs to each connector row. */}
+            live here, while pause/resume belongs to each access point. */}
         <ScopePageHeader
           scope={scope}
           connectors={connectors}

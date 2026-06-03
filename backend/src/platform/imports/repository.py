@@ -28,6 +28,9 @@ class ImportJob:
     created_by: str
     provider: str
     source_url: str
+    source_kind: str | None = None
+    source_ref: dict[str, Any] = field(default_factory=dict)
+    idempotency_key: str | None = None
     org_id: str | None = None
     name: str | None = None
     target_path: str = ""
@@ -54,6 +57,9 @@ class ImportJob:
             created_by=str(row["created_by"]),
             provider=str(row["provider"]),
             source_url=str(row["source_url"]),
+            source_kind=row.get("source_kind"),
+            source_ref=row.get("source_ref") or {},
+            idempotency_key=row.get("idempotency_key"),
             name=row.get("name"),
             target_path=row.get("target_path") or "",
             config=row.get("config") or {},
@@ -79,6 +85,9 @@ class ImportJob:
             "created_by": self.created_by,
             "provider": self.provider,
             "source_url": self.source_url,
+            "source_kind": self.source_kind,
+            "source_ref": self.source_ref,
+            "idempotency_key": self.idempotency_key,
             "name": self.name,
             "target_path": self.target_path,
             "config": self.config,
@@ -111,6 +120,9 @@ class ImportJobRepository:
         created_by: str,
         provider: str,
         source_url: str,
+        source_kind: str | None = None,
+        source_ref: dict[str, Any] | None = None,
+        idempotency_key: str | None = None,
         name: str | None = None,
         target_path: str = "",
         config: dict[str, Any] | None = None,
@@ -122,6 +134,9 @@ class ImportJobRepository:
             "created_by": created_by,
             "provider": provider,
             "source_url": source_url,
+            "source_kind": source_kind,
+            "source_ref": source_ref or {},
+            "idempotency_key": idempotency_key,
             "name": name,
             "target_path": target_path or "",
             "config": config or {},
@@ -138,6 +153,26 @@ class ImportJobRepository:
             self.client.table(self.TABLE)
             .select("*")
             .eq("id", job_id)
+            .limit(1)
+            .execute()
+        )
+        rows = resp.data or []
+        return ImportJob.from_row(rows[0]) if rows else None
+
+    def get_by_idempotency_key(
+        self,
+        *,
+        project_id: str,
+        provider: str,
+        idempotency_key: str,
+    ) -> ImportJob | None:
+        resp = (
+            self.client.table(self.TABLE)
+            .select("*")
+            .eq("project_id", project_id)
+            .eq("provider", provider)
+            .eq("idempotency_key", idempotency_key)
+            .order("created_at", desc=False)
             .limit(1)
             .execute()
         )

@@ -4,8 +4,8 @@ Manages CLI daemon connect / status / disconnect lifecycle.
 
 Data sync is **not** in this module's scope: the daemon uses stock
 ``git`` against the scope-bound URL (``/git/ap/<access_key>.git``)
-or the FS HTTP API (``/api/v1/ap-fs/*``). This service claims the
-built-in ``filesystem`` connector for a repo scope; the scope owns the
+or the FS HTTP API (``/api/v1/ap-fs/*``). This service creates or claims a
+``filesystem`` connection for a repo scope; the scope owns the
 credential that authenticates both surfaces.
 """
 
@@ -58,7 +58,7 @@ class FilesystemService:
     (``/api/v1/ap-fs/*``); shadow snapshots
     (``POST /api/v1/local-snapshots``) cover the local-↔-cloud bridge
     for tracked-but-unpushed files. This service only manages the
-    scope-bound filesystem connector that authorises all three surfaces.
+    scope-bound filesystem connection that authorises all three surfaces.
     """
 
     def __init__(
@@ -108,9 +108,15 @@ class FilesystemService:
             ensure_scope=True,
         )
         if sync is None:
-            raise RuntimeError(
-                "filesystem connector invariant failed: repo scope exists "
-                "without its built-in filesystem connector"
+            sync = self._sync_repo.create(
+                project_id=project_id,
+                path=path,
+                direction="bidirectional",
+                provider="filesystem",
+                authority="authoritative",
+                config={"name": "Filesystem Sync"},
+                trigger={"type": "manual"},
+                status="active",
             )
         log_info(f"[Filesystem] Bootstrapped connection #{sync.id} for path {path}")
         return sync

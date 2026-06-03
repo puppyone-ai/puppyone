@@ -1,9 +1,8 @@
 import type { ConnectorSpec } from './syncApi';
 
-export type SyncModeType = 'import_once' | 'manual' | 'scheduled' | 'realtime';
+export type SyncModeType = 'manual' | 'scheduled' | 'realtime';
 
 export const SYNC_MODE_META: Record<SyncModeType, { label: string; desc: string }> = {
-  import_once: { label: 'Import once', desc: 'Pull data once and stop' },
   manual: { label: 'Manual', desc: 'Sync on demand' },
   scheduled: { label: 'Scheduled', desc: 'Sync on a recurring schedule' },
   realtime: { label: 'Real-time', desc: 'Sync continuously as changes happen' },
@@ -18,13 +17,12 @@ interface TriggerPolicy {
 // or if the network request fails. API specs take priority when available.
 const PROVIDER_POLICIES: Record<string, TriggerPolicy> = {
   filesystem: { supportedModes: ['manual'], defaultMode: 'manual' },
-  gmail:      { supportedModes: ['import_once', 'manual', 'scheduled'], defaultMode: 'import_once' },
-  google_calendar: { supportedModes: ['import_once', 'manual', 'scheduled'], defaultMode: 'import_once' },
-  google_sheets:   { supportedModes: ['import_once', 'manual', 'scheduled'], defaultMode: 'import_once' },
-  google_docs:     { supportedModes: ['import_once', 'manual', 'scheduled'], defaultMode: 'import_once' },
-  github:          { supportedModes: ['import_once', 'manual', 'scheduled'], defaultMode: 'import_once' },
-  url:             { supportedModes: ['import_once', 'manual', 'scheduled'], defaultMode: 'import_once' },
-  google_drive:    { supportedModes: ['import_once', 'manual', 'scheduled'], defaultMode: 'manual' },
+  gmail:      { supportedModes: ['manual', 'scheduled'], defaultMode: 'manual' },
+  google_calendar: { supportedModes: ['manual', 'scheduled'], defaultMode: 'manual' },
+  google_sheets:   { supportedModes: ['manual', 'scheduled'], defaultMode: 'manual' },
+  google_docs:     { supportedModes: ['manual', 'scheduled'], defaultMode: 'manual' },
+  url:             { supportedModes: ['manual', 'scheduled'], defaultMode: 'manual' },
+  google_drive:    { supportedModes: ['manual', 'scheduled'], defaultMode: 'manual' },
   google_search_console: { supportedModes: ['manual', 'scheduled'], defaultMode: 'scheduled' },
 };
 
@@ -55,9 +53,13 @@ export function getSyncTriggerPolicy(
   if (specs && specs.length > 0) {
     const spec = specs.find(s => s.provider === provider);
     if (spec) {
+      const supportedModes = (spec.supported_sync_modes || [])
+        .filter((mode): mode is SyncModeType => mode === 'manual' || mode === 'scheduled' || mode === 'realtime');
       return {
-        supportedModes: spec.supported_sync_modes as SyncModeType[],
-        defaultMode: spec.default_sync_mode as SyncModeType,
+        supportedModes: supportedModes.length ? supportedModes : DEFAULT_POLICY.supportedModes,
+        defaultMode: supportedModes.includes(spec.default_sync_mode as SyncModeType)
+          ? spec.default_sync_mode as SyncModeType
+          : supportedModes[0] || DEFAULT_POLICY.defaultMode,
       };
     }
   }

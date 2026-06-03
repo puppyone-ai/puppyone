@@ -31,6 +31,9 @@ class ImportJobCreateRequest(BaseModel):
     project_id: str = Field(..., description="Target project ID")
     source_url: str = Field(..., min_length=1, description="External source URL")
     provider: str | None = Field(None, description="Optional provider override")
+    source_kind: str | None = Field(None, description="Structured source kind")
+    source_ref: dict[str, Any] = Field(default_factory=dict, description="Structured provider source identity")
+    idempotency_key: str | None = Field(None, description="Optional client idempotency key")
     name: str | None = Field(None, description="Optional import display/folder name")
     target_path: str | None = Field("", description="Optional target folder path")
     crawl_options: dict[str, Any] | None = Field(None, description="Web crawl options")
@@ -44,6 +47,9 @@ class ImportJobResponse(BaseModel):
     created_by: str
     provider: str
     source_url: str
+    source_kind: str | None = None
+    source_ref: dict[str, Any] = Field(default_factory=dict)
+    idempotency_key: str | None = None
     name: str | None = None
     target_path: str = ""
     config: dict[str, Any] = Field(default_factory=dict)

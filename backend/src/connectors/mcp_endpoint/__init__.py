@@ -1,6 +1,6 @@
 """
 MCP Endpoint — CRUD & API key management for MCP protocol endpoints.
 
-Stored as connector rows bound to repo scopes with provider='mcp'.
+Stored as access_surfaces rows bound to repo scopes with kind='mcp'.
 Migrated from src/endpoints/mcp/.
 """
