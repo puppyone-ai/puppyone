@@ -184,7 +184,7 @@ export interface DataCreateMenuActions {
   onImportFromUrl: () => void;
   onImportFromSaas: () => void;
   onImportNotion: () => void;
-  onImportGitHub: () => void;
+  onConnectGitHub: () => void;
   onImportGmail: () => void;
   onImportDocs: () => void;
   onImportCalendar: () => void;
@@ -734,12 +734,13 @@ export function useDataCreateFlow({
         openSyncSetting('_generic');
         openSyncCreatePanel();
       },
-      // All concrete-provider entries route through handleAccessSelect,
-      // which decides — based on whether the menu was opened by the
-      // scoped expose command or by `+` — whether to prefill the user's target
-      // folder or to mint a new sync node first.
+      // Concrete provider entries in the Data page are durable Connect
+      // flows. GitHub here means project/repository branch binding, never
+      // the one-time URL snapshot import shown on the empty-workspace screen.
+      // handleAccessSelect decides whether to prefill the scoped folder or
+      // mint a new sync node first.
       onImportNotion: () => handleAccessSelect('notion'),
-      onImportGitHub: () => handleAccessSelect('github'),
+      onConnectGitHub: () => handleAccessSelect('github'),
       onImportGmail: () => handleAccessSelect('gmail'),
       onImportDocs: () => handleAccessSelect('docs'),
       onImportCalendar: () => handleAccessSelect('calendar'),

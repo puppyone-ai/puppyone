@@ -69,11 +69,9 @@ const ENDPOINT_OPTIONS: EndpointOptionDef[] = [
 // Providers whose backend code exists but isn't production-ready yet.
 // Rendered as disabled "Coming soon" rows; remove an id here to re-enable.
 //
-// Note: the scope-level GitHub connector
-// (URL-based one-shot ZIP fetch via the ``connectors`` table) is now
-// re-enabled. The NEW project-level GitHub Integration with branch
-// binding + bidirectional import/export lives under
-// ``/projects/{id}/integrations`` and is unrelated to this list.
+// GitHub in this picker is a durable project/repository branch binding.
+// One-time GitHub repository snapshots live only in the empty-workspace
+// Import flow under projects/components/imports/github.
 const COMING_SOON_PROVIDERS: ReadonlySet<string> = new Set([
   'google_search_console',
 ]);
@@ -747,7 +745,7 @@ function CreateView({
   // Default: show provider picker.
   //
   // Three remaining sections after the 2026-05-08 cleanup:
-  //   1. Sync data from a source — third-party SaaS pulls (Gmail,
+  //   1. Connect a source — durable third-party pulls (Gmail,
   //      Notion, Google Docs, etc.). Filesystem isn't here even
   //      though it's `bidirectional` because it's a built-in.
   //   2. Connect via terminal — currently SSH-only "coming soon"
@@ -768,11 +766,11 @@ function CreateView({
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-          {/* 1. Sync data from a source */}
+          {/* 1. Connect a source */}
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <DirectionalSectionLabel
               type="inbound"
-              title="Sync data from a source"
+              title="Connect a source"
               hint="Gmail, Notion, GitHub..."
               isExpanded={expandedSections.inbound}
               onClick={() => toggleSection('inbound')}

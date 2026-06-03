@@ -814,7 +814,6 @@ export default function DataPage({ params }: DataPageProps) {
           onFilesDrop: (files: File[]) => {
             fileImport.openFileImportForTarget(files, { path: null, name: 'Root' });
           },
-          onImportGitHub: createMenuActions.onImportGitHub,
           importJob: latestEmptyImportJob,
           onImportJobCreated: async (job) => {
             await upsertImportJob(job);
