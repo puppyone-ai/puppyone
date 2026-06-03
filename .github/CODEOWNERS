@@ -1,0 +1,6 @@
+# Require the repository owner to review every protected-branch change.
+* @realGuantum
+
+# Keep workflow and ownership-rule changes under the same owner gate.
+/.github/ @realGuantum
+/.github/CODEOWNERS @realGuantum
