@@ -1,7 +1,7 @@
 """Supabase repository for workspace Access surfaces.
 
 Access surfaces are scope-bound ways to enter or operate on a workspace:
-Git remote, CLI, local filesystem, agents, MCP endpoints, and sandboxes.
+Git remote, CLI, agents, MCP endpoints, and sandboxes.
 They are not durable external data sources; those live in ``connections``.
 """
 
@@ -17,6 +17,8 @@ from src.repo.models import Connector, RepoScope
 ACCESS_SURFACE_KINDS = frozenset({
     "git_remote",
     "cli",
+    # Legacy local-filesystem surface. Keep it readable/deletable in APIs so
+    # old rows do not break, but do not create it as a default built-in.
     "filesystem",
     "agent",
     "mcp",
@@ -25,7 +27,6 @@ ACCESS_SURFACE_KINDS = frozenset({
 BUILTIN_SCOPE_SURFACES = (
     ("git_remote", "Git Remote"),
     ("cli", "CLI"),
-    ("filesystem", "Filesystem Sync"),
 )
 
 

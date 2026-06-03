@@ -24,8 +24,10 @@ import useSWR from 'swr';
 import {
   deleteConnector,
   isAccessSurfaceConnector,
+  isGitRemoteProvider,
   listConnectors,
   listScopes,
+  normalizeAccessSurfaceConnectors,
   pauseConnector,
   resumeConnector,
   updateConnector,
@@ -64,7 +66,7 @@ export interface UseAccessDataResult {
   handlePauseResume: (connectorId: string) => Promise<void>;
   /** PATCH a connector with the given partial; revalidates SWR on success. */
   handleUpdate: (connectorId: string, patch: ConnectorEditPatch) => Promise<void>;
-  /** DELETE a connector. Server rejects built-ins (cli/agent/filesystem); UI should hide the action for those. */
+  /** DELETE a connector. Server rejects built-ins (cli/git_remote/agent/filesystem); UI should hide the action for those. */
   handleDelete: (connectorId: string) => Promise<void>;
   /** Refresh both scopes + connectors. Used as the `onMutated` callback for the
    *  inline scope settings block (saving / rotating / etc.). Returning the
@@ -104,7 +106,7 @@ export function useAccessData(projectId: string): UseAccessDataResult {
   // to surface while the feature is hidden.
   const connectorsByScope = useMemo(() => {
     const m = new Map<string, Connector[]>();
-    (connectors ?? []).forEach((c) => {
+    normalizeAccessSurfaceConnectors(connectors ?? []).forEach((c) => {
       if (!isAccessSurfaceConnector(c)) return;
       if (!AI_AGENT_ENABLED && c.provider === 'agent') return;
       if (!m.has(c.scope_id)) m.set(c.scope_id, []);
@@ -112,7 +114,12 @@ export function useAccessData(projectId: string): UseAccessDataResult {
     });
     for (const list of m.values()) {
       list.sort((a, b) => {
-        const order = (c: Connector) => (c.provider === 'cli' ? 0 : c.provider === 'agent' ? 1 : 2);
+        const order = (c: Connector) => (
+          c.provider === 'cli' ? 0
+          : isGitRemoteProvider(c.provider) ? 1
+          : c.provider === 'agent' ? 2
+          : 3
+        );
         return order(a) - order(b) || a.created_at.localeCompare(b.created_at);
       });
     }

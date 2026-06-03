@@ -46,7 +46,7 @@ import { AiHandoffButton } from '@/components/ui/AiHandoffButton';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import { DialogBody, DialogHeader, DialogRoot, DialogSurface } from '@/components/ui/Dialog';
 import { buildGitSyncPrompt, buildTerminalCliPrompt } from '@/lib/accessPointCliPrompt';
-import type { Connector, RepoScope } from '@/lib/repoApi';
+import { isGitRemoteProvider, type Connector, type RepoScope } from '@/lib/repoApi';
 import { getProjectAuditLogs, type AuditLogItem } from '@/lib/contentTreeApi';
 import { PROJECT_CONTENT_RAIL_WIDTH } from '@/lib/layout';
 import { T } from '../lib/tokens';
@@ -1288,11 +1288,12 @@ function ConnectorListRow({
   const tile = getProviderTileStyle(connector.provider, selected);
   const tileSize = getProviderTileSize(connector.provider);
   const iconSize = getProviderIconSize(connector.provider);
+  const isGitRemote = isGitRemoteProvider(connector.provider);
   const setupPrompt = useMemo(
     () => buildConnectorSetupPrompt(connector, scope),
     [connector, scope],
   );
-  const showManualCommands = connector.provider === 'filesystem';
+  const showManualCommands = isGitRemote;
   const canConfigure = connector.provider === 'cli' || connector.status === 'error' || !!connector.error_message;
 
   return (
@@ -1334,7 +1335,7 @@ function ConnectorListRow({
           style={{
             height: tileSize,
             width: tileSize,
-            borderRadius: connector.provider === 'filesystem' ? 7 : 6,
+            borderRadius: isGitRemote ? 7 : 6,
             background: tile.background,
             border: `1px solid ${tile.border}`,
             color: tile.color,
@@ -1343,7 +1344,7 @@ function ConnectorListRow({
             justifyContent: 'center',
             flexShrink: 0,
             boxShadow: tile.shadow,
-            overflow: connector.provider === 'filesystem' ? 'hidden' : undefined,
+            overflow: isGitRemote ? 'hidden' : undefined,
           }}
         >
           <ProviderIcon provider={connector.provider} size={iconSize} />
@@ -1416,7 +1417,7 @@ function getConnectorMethodMeta(connector: Connector): {
       description: "Use Puppyone's scoped filesystem CLI to let an agent read and write this cloud drive without cloning it.",
     };
   }
-  if (connector.provider === 'filesystem') {
+  if (isGitRemoteProvider(connector.provider)) {
     return {
       title: 'Git Remote',
       description: 'Use a native Git remote for clone, pull, commit, and push workflows.',
@@ -1599,7 +1600,7 @@ function buildConnectorSetupPrompt(connector: Connector, scope: RepoScope | unde
   if (!scope) return '';
   const apiBase = getApiBase();
   const scopeName = scope.name || (scope.path === '' ? 'root' : scope.path || 'Root');
-  if (connector.provider === 'filesystem') {
+  if (isGitRemoteProvider(connector.provider)) {
     const gitUrl = `${apiBase}/git/ap/${scope.access_key || '<access-key>'}.git`;
     return buildGitSyncPrompt({
       gitUrl,
@@ -1620,7 +1621,7 @@ function buildConnectorSetupPrompt(connector: Connector, scope: RepoScope | unde
 
 function getConnectorDisplayName(connector: Connector): string {
   if (connector.provider === 'cli') return 'Puppyone CLI';
-  if (connector.provider === 'filesystem') return 'Git Remote';
+  if (isGitRemoteProvider(connector.provider)) return 'Git Remote';
   return connector.name || PROVIDER_LABELS[connector.provider] || connector.provider;
 }
 
@@ -1633,7 +1634,7 @@ function getProviderTileStyle(provider: string, selected: boolean) {
       shadow: '0 1px 2px var(--po-shadow)',
     };
   }
-  if (provider === 'filesystem') {
+  if (isGitRemoteProvider(provider)) {
     return {
       background: 'var(--po-text-inverse)',
       border: selected ? 'var(--po-border-strong)' : T.border,
@@ -1650,11 +1651,11 @@ function getProviderTileStyle(provider: string, selected: boolean) {
 }
 
 function getProviderTileSize(provider: string): number {
-  return provider === 'filesystem' ? 34 : 30;
+  return isGitRemoteProvider(provider) ? 34 : 30;
 }
 
 function getProviderIconSize(provider: string): number {
-  if (provider === 'filesystem') return 34;
+  if (isGitRemoteProvider(provider)) return 34;
   if (provider === 'cli') return 17;
   return 15;
 }
@@ -1790,7 +1791,7 @@ function ConnectorConnectDialog({
   const tile = getProviderTileStyle(connector.provider, false);
   const tileSize = getProviderTileSize(connector.provider);
   const iconSize = getProviderIconSize(connector.provider);
-  const isGitRemote = connector.provider === 'filesystem';
+  const isGitRemote = isGitRemoteProvider(connector.provider);
 
   return (
     <DialogRoot onClose={onClose}>
@@ -1809,14 +1810,14 @@ function ConnectorConnectDialog({
               style={{
                 width: tileSize,
                 height: tileSize,
-                borderRadius: connector.provider === 'filesystem' ? 7 : 6,
+                borderRadius: isGitRemote ? 7 : 6,
                 background: tile.background,
                 border: `1px solid ${tile.border}`,
                 color: tile.color,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                overflow: connector.provider === 'filesystem' ? 'hidden' : undefined,
+                overflow: isGitRemote ? 'hidden' : undefined,
               }}
             >
               <ProviderIcon provider={connector.provider} size={iconSize} />

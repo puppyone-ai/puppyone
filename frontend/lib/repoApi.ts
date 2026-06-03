@@ -7,7 +7,7 @@
  *   /api/v1/projects/{pid}/access-point — repo identity (URL + prompt + scope keys)
  *   /api/v1/projects/{pid}/permissions — team-plan per-user permissions
  *
- * Cli + agent are auto-created per scope by a DB trigger and
+ * CLI + Git remote are auto-created per scope by a DB trigger and
  * cannot be created via the API (the backend returns 400 if attempted).
  */
 
@@ -252,12 +252,16 @@ export function isWithinScope(nodePath: string, scopePath: string): boolean {
 }
 
 /**
- * Sort connectors so cli + agent (DB-trigger built-ins) come first,
+ * Sort connectors so CLI + Git remote + agent built-ins come first,
  * then everything else in stable insertion order.
  */
-export const BUILTIN_PROVIDERS = ['cli', 'agent'] as const;
+export const BUILTIN_PROVIDERS = ['cli', 'git_remote', 'filesystem', 'agent'] as const;
 
 const ACCESS_SURFACE_HIDDEN_PROVIDERS = new Set(['github']);
+
+export function isGitRemoteProvider(provider: string): boolean {
+  return provider === 'git_remote' || provider === 'filesystem';
+}
 
 /**
  * Access surfaces are for ongoing ways into a scope: CLI, Git remote,
@@ -273,11 +277,29 @@ export function isAccessSurfaceConnector(
   return connector.trigger?.type !== 'import_once';
 }
 
+/**
+ * `filesystem` is the legacy name for the Git Remote access surface. During
+ * the git_remote migration, old rows can coexist with the new built-in for the
+ * same scope. Keep legacy-only scopes working, but hide the duplicate when the
+ * canonical git_remote surface exists.
+ */
+export function normalizeAccessSurfaceConnectors(connectors: readonly Connector[]): Connector[] {
+  const scopesWithGitRemote = new Set(
+    connectors
+      .filter((connector) => connector.provider === 'git_remote')
+      .map((connector) => connector.scope_id),
+  );
+  return connectors.filter(
+    (connector) => !(connector.provider === 'filesystem' && scopesWithGitRemote.has(connector.scope_id)),
+  );
+}
+
 export function sortConnectorsBuiltinFirst(connectors: readonly Connector[]): Connector[] {
   const order = (c: Connector) => {
     if (c.provider === 'cli') return 0;
-    if (c.provider === 'agent') return 1;
-    return 2;
+    if (isGitRemoteProvider(c.provider)) return 1;
+    if (c.provider === 'agent') return 2;
+    return 3;
   };
   return [...connectors].sort((a, b) => order(a) - order(b) || a.created_at.localeCompare(b.created_at));
 }

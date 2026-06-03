@@ -29,7 +29,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
-import type { Connector, RepoScope } from '@/lib/repoApi';
+import { isGitRemoteProvider, type Connector, type RepoScope } from '@/lib/repoApi';
 import { APP_Z_INDEX } from '@/lib/zIndex';
 import { T } from '../lib/tokens';
 import {
@@ -57,12 +57,12 @@ import type { ConnectorEditPatch } from '../hooks/useAccessData';
 
 // ─── Built-in providers ──────────────────────────────────────────────
 //
-// Built-ins (cli / agent / filesystem) are auto-created by the DB
+// Built-ins (cli / Git remote / agent) are auto-created by the DB
 // trigger and undeletable through the API. The frontend mirrors that
 // rule by hiding the "Disconnect" menu item and the editable Direction
 // dropdown for these providers — built-ins are fixed bidirectional and
 // fixed presence, only `name` and `status` are user-controllable.
-const BUILTIN_PROVIDERS = new Set(['cli', 'agent', 'filesystem']);
+const BUILTIN_PROVIDERS = new Set(['cli', 'git_remote', 'filesystem', 'agent']);
 
 // ─── Connector card (one access point, expanded view) ────────────────
 
@@ -85,7 +85,7 @@ export function ConnectorCard({
   const action = getPrimaryAction(connector.status);
   const name =
     connector.provider === 'cli' ? 'Puppyone CLI'
-    : connector.provider === 'filesystem' ? 'Git Remote'
+    : isGitRemoteProvider(connector.provider) ? 'Git Remote'
     : connector.name || PROVIDER_LABELS[connector.provider] || connector.provider;
   const isBuiltin = BUILTIN_PROVIDERS.has(connector.provider);
 
@@ -765,6 +765,7 @@ function PausedBanner({
   const channelLabel: Record<string, string> = {
     cli: 'Puppyone CLI',
     agent: 'Agent',
+    git_remote: 'Git Remote',
     filesystem: 'Git Remote',
   };
   const label = channelLabel[provider] ?? PROVIDER_LABELS[provider] ?? provider;

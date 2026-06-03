@@ -8,7 +8,7 @@
  * 1498-1505, 1622-1653, 1671-1694, 1994-2000 in the legacy file).
  */
 
-import type { Connector } from '@/lib/repoApi';
+import { isGitRemoteProvider, type Connector } from '@/lib/repoApi';
 import type { NodeInfo } from '@/lib/contentTreeApi';
 import { accessPointProfileSlug } from '@/lib/accessPointCliPrompt';
 import {
@@ -74,6 +74,7 @@ export function scopePathToDataUrl(projectId: string, scopePath: string): string
 // ─── Connector descriptors ───────────────────────────────────────────
 
 export function getTypeLine(c: Connector): string {
+  if (isGitRemoteProvider(c.provider)) return 'Native Git clone/push';
   const direction =
     c.direction === 'bidirectional' ? 'Two-way'
     : c.direction === 'inbound' ? 'Import'
@@ -83,7 +84,6 @@ export function getTypeLine(c: Connector): string {
     case 'agent': return ['AI agent', direction].filter(Boolean).join(' · ');
     case 'mcp': return ['MCP server', direction].filter(Boolean).join(' · ');
     case 'sandbox': return ['Compute sandbox', direction].filter(Boolean).join(' · ');
-    case 'filesystem': return 'Native Git clone/push';
     default: return [`Third-party · ${PROVIDER_LABELS[c.provider] ?? c.provider}`, direction].filter(Boolean).join(' · ');
   }
 }
@@ -179,7 +179,7 @@ export function nodesToPreview(nodes: NodeInfo[], scopePath: string): ScopePrevi
 export function getConnectorGroup(provider: string): ConnectorGroupKey {
   if (provider === 'cli') return 'cli';
   if (provider === 'agent') return 'agent';
-  if (provider === 'filesystem') return 'filesystem';
+  if (isGitRemoteProvider(provider)) return 'filesystem';
   if (provider === 'mcp') return 'mcp';
   if (provider === 'sandbox') return 'sandbox';
   return 'integration';

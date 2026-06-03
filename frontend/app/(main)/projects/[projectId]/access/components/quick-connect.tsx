@@ -7,7 +7,7 @@
  * The data view's `ConnectMethods` already encoded this for us; we
  * mirror its split here:
  *
- *   • CLI / filesystem  → primary AI-agent setup prompt, with manual
+ *   • CLI / Git Remote  → primary AI-agent setup prompt, with manual
  *     terminal commands tucked behind a secondary disclosure.
  *   • agent             → ActivationCard (Activate / Open chat) — agents
  *     are Puppyone's in-app chat, never an externally-pasted prompt.
@@ -25,7 +25,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { buildGitSyncPrompt, buildTerminalCliPrompt } from '@/lib/accessPointCliPrompt';
-import { activateAgentConnector, type Connector, type RepoScope } from '@/lib/repoApi';
+import { activateAgentConnector, isGitRemoteProvider, type Connector, type RepoScope } from '@/lib/repoApi';
 import { AI_AGENT_ENABLED } from '@/lib/featureFlags';
 import { T } from '../lib/tokens';
 import { PROVIDER_LABELS } from '../lib/constants';
@@ -57,7 +57,7 @@ export function ConnectorAccessPanel({
   if (connector.provider === 'cli') {
     return <TerminalCliBody scope={scope} apiBase={apiBase} />;
   }
-  if (connector.provider === 'filesystem') {
+  if (isGitRemoteProvider(connector.provider)) {
     return <LocalSyncBody scope={scope} apiBase={apiBase} />;
   }
   if (connector.provider === 'agent') {

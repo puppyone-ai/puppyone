@@ -17,7 +17,7 @@
  */
 
 import { useState } from 'react';
-import type { Connector, RepoScope } from '@/lib/repoApi';
+import { isGitRemoteProvider, type Connector, type RepoScope } from '@/lib/repoApi';
 import { SIDEBAR_ROW_TYPOGRAPHY } from '@/lib/uiTypography';
 import { T } from '../lib/tokens';
 import { ProviderIcon } from './icons';
@@ -216,7 +216,7 @@ function ScopeSidebarRow({
   );
 }
 
-const SIDEBAR_BUILTIN_PROVIDERS = ['cli', 'filesystem'] as const;
+const SIDEBAR_BUILTIN_PROVIDERS = ['cli', 'git_remote', 'filesystem'] as const;
 
 function SidebarSignals({
   connectors,
@@ -262,7 +262,7 @@ function SidebarProviderChip({
   readonly provider: string;
   readonly selected: boolean;
 }) {
-  const isGit = provider === 'filesystem';
+  const isGit = isGitRemoteProvider(provider);
   const isCli = provider === 'cli';
   const title = isCli ? 'Puppyone CLI active' : isGit ? 'Git Remote active' : `${provider} active`;
 

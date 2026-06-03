@@ -10,6 +10,7 @@
 export const PROVIDER_LABELS: Record<string, string> = {
   cli: 'Puppyone CLI',
   agent: 'AI Agent',
+  git_remote: 'Git Remote',
   filesystem: 'Git Remote',
   gmail: 'Gmail',
   google_sheets: 'Google Sheets',
