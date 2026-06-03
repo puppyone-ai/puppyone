@@ -328,12 +328,11 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
               </span>
             </ExplorerTreeMetaRow>
           ) : (
-            rootItems.map((item, idx) => (
+            rootItems.map((item) => (
               <ExplorerTreeRow
                 key={item.id}
                 item={item}
                 depth={0}
-                isLastSibling={idx === rootItems.length - 1}
                 projectId={projectId}
                 activeId={activeId}
                 onNavigate={onNavigate}
