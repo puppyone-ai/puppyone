@@ -76,6 +76,32 @@ export interface UseAccessDataResult {
   clearScopeSelection: () => void;
 }
 
+// Built-in surfaces (git_remote / cli / filesystem) must be unique per scope.
+// A stale/partial backfill can leave a second, unconfigured row (no access_key
+// → renders as an extra "Access setup is preparing" card). Keep the configured
+// row (has access_key, else the most recently updated one) so only one shows.
+const BUILTIN_UNIQUE_PROVIDERS = new Set(['git_remote', 'cli', 'filesystem']);
+
+function _hasAccessKey(c: Connector): boolean {
+  const key = (c.config as { access_key?: unknown })?.access_key;
+  return typeof key === 'string' && key !== '';
+}
+
+function dedupeBuiltinSurfaces(list: Connector[]): Connector[] {
+  const chosen = new Map<string, Connector>();
+  const others: Connector[] = [];
+  for (const c of list) {
+    if (!BUILTIN_UNIQUE_PROVIDERS.has(c.provider)) { others.push(c); continue; }
+    const prev = chosen.get(c.provider);
+    if (!prev) { chosen.set(c.provider, c); continue; }
+    const better =
+      (_hasAccessKey(c) ? 1 : 0) - (_hasAccessKey(prev) ? 1 : 0)
+      || c.updated_at.localeCompare(prev.updated_at);
+    if (better > 0) chosen.set(c.provider, c);
+  }
+  return [...chosen.values(), ...others];
+}
+
 export function useAccessData(projectId: string): UseAccessDataResult {
   const { data: scopes, mutate: mutateScopes } = useSWR(
     projectId ? ['repo-scopes', projectId] : null,
@@ -110,6 +136,9 @@ export function useAccessData(projectId: string): UseAccessDataResult {
       if (!m.has(c.scope_id)) m.set(c.scope_id, []);
       m.get(c.scope_id)!.push(c);
     });
+    for (const [scopeId, list] of m) {
+      m.set(scopeId, dedupeBuiltinSurfaces(list));
+    }
     for (const list of m.values()) {
       list.sort((a, b) => {
         const order = (c: Connector) => (c.provider === 'cli' ? 0 : c.provider === 'agent' ? 1 : 2);
