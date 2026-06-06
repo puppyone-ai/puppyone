@@ -119,6 +119,7 @@ profile_router_duration = time.time() - profile_router_start
 
 imports_router_start = time.time()
 from src.platform.imports.router import router as imports_router
+from src.platform.activity.router import router as activity_router
 
 imports_router_duration = time.time() - imports_router_start
 
@@ -482,6 +483,7 @@ def create_app() -> FastAPI:
     app.include_router(analytics_router, tags=["analytics"])
     app.include_router(profile_router, tags=["profile"])
     app.include_router(imports_router, prefix="/api/v1", tags=["imports"])
+    app.include_router(activity_router, prefix="/api/v1", tags=["activity"])
     app.include_router(db_connector_router, prefix="/api/v1", tags=["db-connector"])
     app.include_router(organization_router, prefix="/api/v1", tags=["organizations"])
     from src.connectors.mcp_endpoint.router import router as mcp_endpoint_router
