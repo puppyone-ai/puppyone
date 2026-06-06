@@ -44,7 +44,8 @@ export function ProviderIcon({
       </svg>
     );
   }
-  if (provider === 'filesystem' || provider === 'git_remote') {
+  // Git Remote — native clone/pull/push. The branch glyph (commit graph).
+  if (provider === 'git_remote') {
     if (variant === 'mono') {
       return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -71,6 +72,30 @@ export function ProviderIcon({
         height={size}
         style={{ display: 'block', borderRadius: 5 }}
       />
+    );
+  }
+  // Local Folder Sync — keep a local folder bidirectionally in sync. A folder
+  // with two opposing arrows (exchange) reads as "two-way sync" and is clearly
+  // distinct from the Git Remote branch glyph. Same glyph for both variants.
+  if (provider === 'filesystem') {
+    return (
+      <svg
+        width={size}
+        height={size}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.85"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+      >
+        <path d="M3 7.5A1.5 1.5 0 0 1 4.5 6H9l2 2.2h8.5A1.5 1.5 0 0 1 21 9.7v8.8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z" />
+        <path d="M8.6 12.6h6.1" />
+        <path d="M12.8 10.7l2 1.9-2 1.9" />
+        <path d="M15.4 15.6H9.3" />
+        <path d="M11.2 13.7l-2 1.9 2 1.9" />
+      </svg>
     );
   }
   if (provider === 'agent') {
