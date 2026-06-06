@@ -282,6 +282,13 @@ class Settings(BaseSettings):
     VERSION_OBJECT_GC_MAX_PROJECTS_PER_RUN: int = 25
     VERSION_OBJECT_GC_MAX_DELETE_PER_PROJECT: int = 1000
 
+    # Post-commit tree-closure tripwire. When on, every product write verifies
+    # the freshly-published root resolves its entire subtree closure and fails
+    # loud (MissingBlobError) on a dangling tree. Off by default: the walk is
+    # O(tree) per write. Builders are proven complete by unit test; enable this
+    # for prod paranoia or incident triage. See ProductOperationAdapter.
+    VERSION_VERIFY_TREE_CLOSURE_ON_WRITE: bool = False
+
     # Background primary-loose-object integrity scan (runbook §8①).
     # Disabled + diagnosis-only by default; ops flips _HEAL on after
     # observing the dry-run "ticket" log lines.
