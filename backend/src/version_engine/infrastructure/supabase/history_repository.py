@@ -602,6 +602,86 @@ class SupabaseHistoryManager:
             f"for project {self._project_id}"
         )
 
+    def record_scope_sync(
+        self,
+        *,
+        scope_path: str,
+        committed_commit_id: str,
+        current_head_at_start: str,
+        source_commit_id: str,
+        actor: str,
+        source_channel: str = "scope-sync",
+    ) -> None:
+        """Record a derived scope-view sync as an auditable ledger + audit row.
+
+        When an accepted project-root commit is projected into a NON-source
+        scope's head (a derived sync, not a user write), the scope head
+        advances but no transaction/audit row is written for it — the change
+        is invisible in that scope's audit/transaction stream. This writes one
+        ``version_transactions`` row plus one ``audit_logs`` row on the synced
+        scope so the propagation is auditable, matching the column shape the
+        publish RPC uses for the source scope.
+
+        Attribution uses a NEUTRAL system identity (``actor``, e.g.
+        ``puppyone-scope-view``) — never another scope's auth. ``intent_type``
+        is recorded as ``operation`` because the version_transactions CHECK has
+        no dedicated ``scope_sync`` value; the sync is identified instead by
+        ``source_channel='scope-sync'`` + the system actor + ``metadata.kind``.
+
+        Best effort: the scope head has already advanced, so a failure here
+        must not break the projection — it is logged and swallowed.
+        """
+        scope_path = _normalize(scope_path)
+        audit_detail = {"kind": "scope_sync", "source_commit_id": source_commit_id}
+
+        txn_id = None
+        try:
+            from src.version_engine.infrastructure.supabase.transaction_ledger import (
+                SupabaseVersionTransactionLedger,
+            )
+
+            txn_id = SupabaseVersionTransactionLedger(
+                self._client
+            ).insert_version_transaction(
+                project_id=self._project_id,
+                scope_path=scope_path,
+                source_channel=source_channel,
+                actor=actor,
+                intent_type="operation",
+                status="committed",
+                current_head_at_start=current_head_at_start or "",
+                committed_commit_id=committed_commit_id,
+                message=f"Scope-view sync for {source_commit_id}",
+                audit_detail=audit_detail,
+            )
+        except Exception as exc:  # noqa: BLE001 — derived audit is best-effort
+            log_warning(
+                f"[PostCommit] scope-sync version_transactions insert failed "
+                f"for {scope_path!r}: {exc}"
+            )
+
+        try:
+            row: dict = {
+                "action": "scope_sync",
+                "operator_type": "system",
+                "operator_id": actor,
+                "project_id": self._project_id,
+                "metadata": audit_detail,
+                "canonical_commit_id": committed_commit_id,
+                "scope_path": scope_path,
+                "path": scope_path,
+                "source_channel": source_channel,
+                "status": "committed",
+            }
+            if txn_id is not None:
+                row["transaction_id"] = txn_id
+            self._client.table("audit_logs").insert(row).execute()
+        except Exception as exc:  # noqa: BLE001 — derived audit is best-effort
+            log_warning(
+                f"[PostCommit] scope-sync audit_logs insert failed "
+                f"for {scope_path!r}: {exc}"
+            )
+
     # ── Query ──
 
     def get_since(
