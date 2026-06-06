@@ -76,11 +76,24 @@ export interface UseAccessDataResult {
   clearScopeSelection: () => void;
 }
 
-// Built-in surfaces (git_remote / cli / filesystem) must be unique per scope.
-// A stale/partial backfill can leave a second, unconfigured row (no access_key
-// → renders as an extra "Access setup is preparing" card). Keep the configured
-// row (has access_key, else the most recently updated one) so only one shows.
-const BUILTIN_UNIQUE_PROVIDERS = new Set(['git_remote', 'cli', 'filesystem']);
+// Built-in surfaces must show one card per *display group* per scope.
+//
+// The context-entrypoint refactor left the Git Remote on two provider names:
+// the legacy `filesystem` surface (which the UI labels "Git Remote" and which
+// carries the working access key) and a newer, often-unconfigured `git_remote`
+// surface (no access key → renders as a second "Access setup is preparing"
+// card). They are different providers, so a (scope_id, kind) unique index
+// can't collapse them. Group both under "git_remote" and keep the configured
+// one so the scope shows a single Git Remote card. `cli` stays its own group.
+//
+// NOTE: this is a display-layer reconciliation of a backend model mismatch
+// (git_remote vs filesystem both meaning "Git Remote"); the canonical kind
+// should be settled server-side and the vestigial surface stopped/cleaned.
+function _builtinGroup(provider: string): string | null {
+  if (provider === 'git_remote' || provider === 'filesystem') return 'git_remote';
+  if (provider === 'cli') return 'cli';
+  return null;
+}
 
 function _hasAccessKey(c: Connector): boolean {
   const key = (c.config as { access_key?: unknown })?.access_key;
@@ -91,13 +104,14 @@ function dedupeBuiltinSurfaces(list: Connector[]): Connector[] {
   const chosen = new Map<string, Connector>();
   const others: Connector[] = [];
   for (const c of list) {
-    if (!BUILTIN_UNIQUE_PROVIDERS.has(c.provider)) { others.push(c); continue; }
-    const prev = chosen.get(c.provider);
-    if (!prev) { chosen.set(c.provider, c); continue; }
+    const group = _builtinGroup(c.provider);
+    if (!group) { others.push(c); continue; }
+    const prev = chosen.get(group);
+    if (!prev) { chosen.set(group, c); continue; }
     const better =
       (_hasAccessKey(c) ? 1 : 0) - (_hasAccessKey(prev) ? 1 : 0)
       || c.updated_at.localeCompare(prev.updated_at);
-    if (better > 0) chosen.set(c.provider, c);
+    if (better > 0) chosen.set(group, c);
   }
   return [...chosen.values(), ...others];
 }
