@@ -59,9 +59,9 @@ def compute_carved_excludes(
 ) -> tuple[str, ...]:
     """Compute the set of child-scope paths that must be hidden from a parent scope.
 
-    The V2 Star architecture requires that when scope A has sub-scopes B and C
-    (at paths ``A/B`` and ``A/C``), the parent-scope view auto-excludes ``A/B``
-    and ``A/C`` so:
+    The V2 Star architecture requires that when a NON-ROOT scope A has
+    sub-scopes B and C (at paths ``A/B`` and ``A/C``), the parent-scope view
+    auto-excludes ``A/B`` and ``A/C`` so:
     - A parent Git push cannot accidentally write into a child scope's territory.
     - A parent filesystem view does not show content owned by a child scope.
 
@@ -69,23 +69,36 @@ def compute_carved_excludes(
     the admission layer only enforces user-configured ``exclude`` lists, leaving
     cross-scope boundary violations silently allowed.
 
+    ROOT EXCEPTION (project-wide view): the root scope (``scope_path == ""``)
+    is the project's full view — it intentionally does NOT carve out sub-scopes.
+    Root can read, write, and bidirectionally sync all sub-scope content; a
+    write under root into a sub-scope's path projects into that sub-scope's
+    head (and vice-versa) via the project-root visibility barrier. Sub-scope
+    keys remain narrow (each sees only its own subtree), so this only widens
+    the root key — which already represents project-level access — not any
+    delegated sub-scope key.
+
     Args:
         scope_path: The normalized path of the current scope ("" = root scope).
         all_scopes: All scopes for this project, each with at least {"path": str}.
 
     Returns:
         A tuple of normalized child-scope path strings to add as exclusions.
+        Empty for the root scope.
     """
     clean = scope_path.strip("/")
-    prefix = (clean + "/") if clean else ""
+    if not clean:
+        # Root scope = project-wide view: see/write/sync everything. Only
+        # user-configured excludes apply (merged by the caller).
+        return ()
+    prefix = clean + "/"
     carved: list[str] = []
     for s in all_scopes:
         child_path = normalize_path(s.get("path", ""))
         if not child_path:
             continue
-        # Root scope (prefix="") hides every non-root scope.
         # Non-root scope hides descendants whose path starts with "scope_path/".
-        if not prefix or child_path.startswith(prefix):
+        if child_path.startswith(prefix):
             carved.append(child_path)
     return tuple(sorted(set(carved)))
 
