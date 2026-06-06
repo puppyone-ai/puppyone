@@ -69,6 +69,7 @@ def process_object_gc_projects(
                     f"young={result.kept_young_count} "
                     f"unknown_age={result.kept_unknown_age_count} "
                     f"protected_descendants={result.kept_protected_descendant_count} "
+                    f"skipped_for_safety={result.sweep_skipped_for_safety} "
                     f"errors={len(result.errors)}"
                 )
         except Exception as exc:  # noqa: BLE001 - one project must not stop the pass.
