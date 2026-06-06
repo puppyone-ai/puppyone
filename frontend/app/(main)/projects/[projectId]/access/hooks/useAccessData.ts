@@ -100,6 +100,15 @@ function _hasAccessKey(c: Connector): boolean {
   return typeof key === 'string' && key !== '';
 }
 
+// Within a built-in group, the `filesystem` surface is the one the UI knows
+// how to render as "Git Remote" (it's in PROVIDER_LABELS with a real prompt);
+// the parallel `git_remote` surface from the newer manager API has no UI card
+// (renders raw / "preparing"). Both usually carry the scope access key, so
+// prefer the renderable one rather than whichever was updated last.
+function _renderableRank(c: Connector): number {
+  return c.provider === 'filesystem' ? 1 : 0;
+}
+
 function dedupeBuiltinSurfaces(list: Connector[]): Connector[] {
   const chosen = new Map<string, Connector>();
   const others: Connector[] = [];
@@ -110,6 +119,7 @@ function dedupeBuiltinSurfaces(list: Connector[]): Connector[] {
     if (!prev) { chosen.set(group, c); continue; }
     const better =
       (_hasAccessKey(c) ? 1 : 0) - (_hasAccessKey(prev) ? 1 : 0)
+      || _renderableRank(c) - _renderableRank(prev)
       || c.updated_at.localeCompare(prev.updated_at);
     if (better > 0) chosen.set(group, c);
   }
