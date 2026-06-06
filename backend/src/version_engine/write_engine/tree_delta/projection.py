@@ -41,10 +41,6 @@ def changes_from_tree_delta(delta: TreeDelta, scope_path: str = "") -> list[dict
     ]
 
 
-def legacy_changes_from_tree_delta(delta: TreeDelta) -> list[dict]:
-    return delta.to_legacy_changes()
-
-
 def _join(scope_path: str, rel_path: str) -> str:
     rel = normalize_path(rel_path)
     if not scope_path:

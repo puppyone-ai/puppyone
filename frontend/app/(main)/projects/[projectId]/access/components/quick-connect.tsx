@@ -57,7 +57,9 @@ export function ConnectorAccessPanel({
   if (connector.provider === 'cli') {
     return <TerminalCliBody scope={scope} apiBase={apiBase} />;
   }
-  if (connector.provider === 'filesystem') {
+  // git_remote (Git Remote) and filesystem (Local Folder Sync) are both
+  // Git-transport built-ins, so they share the clone/publish/workflow body.
+  if (connector.provider === 'git_remote' || connector.provider === 'filesystem') {
     return <LocalSyncBody scope={scope} apiBase={apiBase} />;
   }
   if (connector.provider === 'agent') {

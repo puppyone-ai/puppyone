@@ -216,7 +216,7 @@ function ScopeSidebarRow({
   );
 }
 
-const SIDEBAR_BUILTIN_PROVIDERS = ['cli', 'filesystem'] as const;
+const SIDEBAR_BUILTIN_PROVIDERS = ['cli', 'git_remote'] as const;
 
 function SidebarSignals({
   connectors,
@@ -262,9 +262,13 @@ function SidebarProviderChip({
   readonly provider: string;
   readonly selected: boolean;
 }) {
-  const isGit = provider === 'filesystem';
-  const isCli = provider === 'cli';
-  const title = isCli ? 'Puppyone CLI active' : isGit ? 'Git Remote active' : `${provider} active`;
+  const isGit = provider === 'git_remote';
+  const CHIP_TITLES: Record<string, string> = {
+    cli: 'Puppyone CLI active',
+    git_remote: 'Git Remote active',
+    filesystem: 'Local Folder Sync active',
+  };
+  const title = CHIP_TITLES[provider] ?? `${provider} active`;
 
   return (
     <span
