@@ -166,6 +166,16 @@ class Settings(BaseSettings):
     # Large file streaming threshold (bytes); files exceeding this size use streaming transfer
     SANDBOX_LARGE_FILE_THRESHOLD: int = 50 * 1024 * 1024  # 50MB
 
+    # ── Scope-sandbox (V2 "sandbox as access point") provider selection ──
+    # Which long-lived, scope-keyed sandbox backend to use. Two versions:
+    #   "fly" — Fly.io Machines (managed Firecracker; native SSH; default)
+    #   "e2b" — E2B (Firecracker; self-hostable/compliance; SSH via wss tunnel)
+    # See docs/proposals/PUP-sandbox-access-point.md.
+    SCOPE_SANDBOX_PROVIDER: Literal["fly", "e2b"] = "fly"
+    SCOPE_SANDBOX_FLY_APP: str = ""
+    SCOPE_SANDBOX_FLY_TOKEN: str = ""
+    SCOPE_SANDBOX_FLY_IMAGE: str = ""
+
     # Workspace Provider configuration
     # - "auto": Auto-detect platform (macOS -> APFS Clone, Linux -> OverlayFS, other -> full copy)
     # - "apfs": Force APFS Clone (macOS only)

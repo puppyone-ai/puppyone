@@ -1,0 +1,278 @@
+"""ScopeSandboxManager — ties provider + session store + policy together.
+
+One sandbox per scope, shared across the scope's users. The manager owns the
+warm/cold lifecycle:
+
+  - ``acquire`` ensures a RUNNING sandbox for a (scope, user) and reports
+    whether that was a warm hit (REUSED), a cheap resume (RESUMED, disk kept),
+    or a cold create (CREATED, full pull) — the metric that justifies keeping
+    sandboxes warm.
+  - ``touch`` records activity (drives the policy's recency/frequency signals).
+  - ``release`` drops a user's connection (does not stop immediately — the
+    reaper decides based on the policy).
+  - ``reap`` applies the policy across all sessions (RUNNING-idle → STOP,
+    STOPPED-long-idle → DESTROY).
+  - ``revoke_user`` (offboarding) and ``kill_scope`` (admin) for governance.
+  - ``evict_to_capacity`` reclaims lowest-value sessions under pressure.
+
+Per-scope async locks serialize lifecycle ops so two concurrent acquires can't
+double-create. Durable state lives in the injected store.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import time
+from collections import defaultdict
+from dataclasses import dataclass
+from enum import Enum
+from typing import Callable
+
+from src.platform.scope_sandbox.policy import (
+    SessionDecision,
+    SessionPolicyConfig,
+    decide,
+    select_for_eviction,
+)
+from src.platform.scope_sandbox.provider import (
+    SandboxProvider,
+    SandboxSpec,
+    SandboxState,
+)
+from src.platform.scope_sandbox.registry import SandboxSession, SandboxSessionStore
+from src.utils.logger import log_info, log_warning
+
+
+class AcquiredVia(str, Enum):
+    REUSED = "reused"    # already RUNNING — warm hit, ~0 latency
+    RESUMED = "resumed"  # was STOPPED → start, disk kept → incremental fetch
+    CREATED = "created"  # none/destroyed → create — cold, full pull
+
+
+@dataclass
+class AcquireResult:
+    session: SandboxSession
+    via: AcquiredVia
+
+
+@dataclass
+class ReapSummary:
+    kept: int = 0
+    stopped: int = 0
+    destroyed: int = 0
+    errors: int = 0
+
+
+class ScopeSandboxManager:
+    def __init__(
+        self,
+        provider: SandboxProvider,
+        store: SandboxSessionStore,
+        config: SessionPolicyConfig | None = None,
+        *,
+        clock: Callable[[], float] = time.time,
+    ) -> None:
+        self._provider = provider
+        self._store = store
+        self._config = config or SessionPolicyConfig()
+        self._clock = clock
+        self._locks: dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
+
+    def _lock(self, scope_id: str) -> asyncio.Lock:
+        return self._locks[scope_id]
+
+    def _now(self, now: float | None) -> float:
+        return self._clock() if now is None else now
+
+    # ── activity bookkeeping (drives policy signals) ──────────────────
+
+    def _touch(self, session: SandboxSession, user_id: str, now: float) -> None:
+        session.last_active_at = now
+        session.activity_events.append(now)
+        # Prune to the frequency window (keep a little slack so the count is stable).
+        window = self._config.frequency_window_s
+        session.activity_events = [t for t in session.activity_events if now - t <= window]
+        session.recent_user_events[user_id] = now
+        ruw = self._config.recent_user_window_s
+        session.recent_user_events = {
+            u: t for u, t in session.recent_user_events.items() if now - t <= ruw
+        }
+
+    # ── acquire (the warm/cold path) ──────────────────────────────────
+
+    async def acquire(
+        self,
+        spec: SandboxSpec,
+        user_id: str,
+        *,
+        now: float | None = None,
+    ) -> AcquireResult:
+        scope_id = spec.scope_id
+        async with self._lock(scope_id):
+            now = self._now(now)
+            session = self._store.get(scope_id)
+
+            if session is None or session.state is SandboxState.DESTROYED:
+                info = await self._provider.create(spec)
+                session = SandboxSession(
+                    scope_id=scope_id,
+                    project_id=spec.project_id,
+                    provider=self._provider.capabilities().name,
+                    sandbox_id=info.sandbox_id,
+                    state=info.state,
+                    created_at=now,
+                    last_active_at=now,
+                    last_state_change_at=now,
+                    connection=info.connection,
+                )
+                via = AcquiredVia.CREATED
+            elif session.state is SandboxState.STOPPED:
+                info = await self._provider.start(session.sandbox_id)
+                session.state = info.state
+                session.connection = info.connection or session.connection
+                session.last_state_change_at = now
+                via = AcquiredVia.RESUMED
+            elif session.state in (SandboxState.RUNNING, SandboxState.PENDING):
+                via = AcquiredVia.REUSED
+            else:  # UNKNOWN — reconcile by recreating
+                info = await self._provider.create(spec)
+                session.sandbox_id = info.sandbox_id
+                session.state = info.state
+                session.connection = info.connection
+                session.last_state_change_at = now
+                via = AcquiredVia.CREATED
+
+            session.connected_users.add(user_id)
+            self._touch(session, user_id, now)
+            self._store.put(session)
+            return AcquireResult(session=session, via=via)
+
+    async def touch(self, scope_id: str, user_id: str, *, now: float | None = None) -> None:
+        async with self._lock(scope_id):
+            session = self._store.get(scope_id)
+            if session is None:
+                return
+            self._touch(session, user_id, self._now(now))
+            self._store.put(session)
+
+    async def release(self, scope_id: str, user_id: str, *, now: float | None = None) -> None:
+        """Drop a user's live connection. Does NOT stop the sandbox — the reaper
+        reclaims it once the policy says so (others may still be using it)."""
+        async with self._lock(scope_id):
+            session = self._store.get(scope_id)
+            if session is None:
+                return
+            session.connected_users.discard(user_id)
+            session.last_active_at = self._now(now)
+            self._store.put(session)
+
+    def record_pull_cost(self, scope_id: str, seconds: float, *, repo_size_bytes: int = 0) -> None:
+        """Caller reports the measured full-pull time after a CREATED acquire, so
+        the policy can keep pricier-to-rebuild scopes warm longer."""
+        session = self._store.get(scope_id)
+        if session is None:
+            return
+        session.last_full_pull_seconds = seconds
+        if repo_size_bytes:
+            session.repo_size_bytes = repo_size_bytes
+        self._store.put(session)
+
+    # ── governance ────────────────────────────────────────────────────
+
+    async def revoke_user(self, scope_id: str, user_id: str, *, now: float | None = None) -> int:
+        """Offboarding: drop a user from the shared sandbox's tracking. Returns
+        the number of users still connected. (Revoking the user's SSH
+        cert/access is the auth layer's job; here we just stop counting them so
+        the reaper can reclaim once the box is empty.)"""
+        async with self._lock(scope_id):
+            session = self._store.get(scope_id)
+            if session is None:
+                return 0
+            session.connected_users.discard(user_id)
+            session.recent_user_events.pop(user_id, None)
+            self._store.put(session)
+            return len(session.connected_users)
+
+    async def kill_scope(self, scope_id: str) -> bool:
+        """Admin force-reclaim of a scope's sandbox."""
+        async with self._lock(scope_id):
+            session = self._store.get(scope_id)
+            if session is None:
+                return False
+            try:
+                await self._provider.destroy(session.sandbox_id)
+            except Exception as exc:  # noqa: BLE001 - still drop the record
+                log_warning(f"[scope-sandbox] kill_scope destroy failed scope={scope_id}: {exc}")
+            self._store.delete(scope_id)
+            return True
+
+    # ── reaper ────────────────────────────────────────────────────────
+
+    async def reap(self, *, now: float | None = None) -> ReapSummary:
+        now = self._now(now)
+        summary = ReapSummary()
+        for snapshot in self._store.list_all():
+            scope_id = snapshot.scope_id
+            async with self._lock(scope_id):
+                session = self._store.get(scope_id)
+                if session is None:
+                    continue
+                decision = decide(session, now, self._config)
+                try:
+                    if decision is SessionDecision.STOP:
+                        await self._apply_stop(session, now)
+                        summary.stopped += 1
+                    elif decision is SessionDecision.DESTROY:
+                        await self._provider.destroy(session.sandbox_id)
+                        self._store.delete(scope_id)
+                        summary.destroyed += 1
+                    else:
+                        summary.kept += 1
+                except Exception as exc:  # noqa: BLE001 - one failure must not stop the sweep
+                    summary.errors += 1
+                    log_warning(f"[scope-sandbox] reap {decision} failed scope={scope_id}: {exc}")
+        if summary.stopped or summary.destroyed or summary.errors:
+            log_info(
+                f"[scope-sandbox] reap kept={summary.kept} stopped={summary.stopped} "
+                f"destroyed={summary.destroyed} errors={summary.errors}"
+            )
+        return summary
+
+    async def _apply_stop(self, session: SandboxSession, now: float) -> None:
+        """STOP keeps the disk on providers that support it; otherwise the only
+        way to stop billing is to destroy (next use pays a full pull)."""
+        if self._provider.capabilities().supports_stop_resume:
+            await self._provider.stop(session.sandbox_id)
+            session.state = SandboxState.STOPPED
+            session.last_state_change_at = now
+            self._store.put(session)
+        else:
+            await self._provider.destroy(session.sandbox_id)
+            self._store.delete(session.scope_id)
+
+    # ── capacity-pressure eviction ────────────────────────────────────
+
+    async def evict_to_capacity(self, max_active: int, *, now: float | None = None) -> list[str]:
+        """Stop the lowest-value idle sessions when the number of RUNNING
+        sandboxes exceeds ``max_active``. Returns the evicted scope ids."""
+        now = self._now(now)
+        running = [
+            s for s in self._store.list_all()
+            if s.state in (SandboxState.RUNNING, SandboxState.PENDING)
+        ]
+        excess = len(running) - max_active
+        if excess <= 0:
+            return []
+        victims = select_for_eviction(running, now, self._config, excess)
+        evicted: list[str] = []
+        for victim in victims:
+            async with self._lock(victim.scope_id):
+                session = self._store.get(victim.scope_id)
+                if session is None or session.connected_users:
+                    continue
+                try:
+                    await self._apply_stop(session, now)
+                    evicted.append(victim.scope_id)
+                except Exception as exc:  # noqa: BLE001
+                    log_warning(f"[scope-sandbox] evict failed scope={victim.scope_id}: {exc}")
+        return evicted
