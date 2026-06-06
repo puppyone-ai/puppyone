@@ -13,10 +13,9 @@ from src.version_engine.write_engine.git_object_format import (
 )
 from src.version_engine.write_engine.git_commit import build_git_commit, commit_tree_id
 from src.version_engine.write_engine.path_utils import normalize_path
-from src.version_engine.write_engine.tree import tree_path_modes
+from src.version_engine.write_engine.tree import tree_path_modes, tree_to_flat
 from src.version_engine.write_engine.tree_objects import (
-    build_tree_from_files,
-    flatten_tree_to_bytes,
+    build_tree_from_blob_ids,
     is_path_excluded,
 )
 
@@ -96,14 +95,17 @@ def git_view_head_commit(
         scope_tree = _scope_tree_from_root(repo, scope_norm)
         if scope_tree:
             if excludes:
-                files = flatten_tree_to_bytes(repo.store, scope_tree)
+                # OID-level filter: rebuild from blob ids, never downloading
+                # blob bytes. Faster (no O(N×S) blob fetch) and tolerant of a
+                # damaged leaf blob — we only read tree entries, not content.
+                oids = tree_to_flat(repo.store, scope_tree)
                 modes = tree_path_modes(repo.store, scope_tree)
                 filtered = {
-                    rel_path: content
-                    for rel_path, content in files.items()
+                    rel_path: oid
+                    for rel_path, oid in oids.items()
                     if not is_path_excluded(f"{scope_norm}/{rel_path}", excludes)
                 }
-                scope_tree = build_tree_from_files(repo.store, filtered, modes=modes)
+                scope_tree = build_tree_from_blob_ids(repo.store, filtered, modes=modes)
             head = repo.get_scope_head_commit_id(scope_norm) or ""
             if head:
                 try:
@@ -152,14 +154,14 @@ def git_view_head_commit(
     except Exception:
         root_hash = ""
     if root_hash and excludes:
-        files = flatten_tree_to_bytes(repo.store, root_hash)
+        oids = tree_to_flat(repo.store, root_hash)
         modes = tree_path_modes(repo.store, root_hash)
         filtered = {
-            path: content
-            for path, content in files.items()
+            path: oid
+            for path, oid in oids.items()
             if not is_path_excluded(path, excludes)
         }
-        root_hash = build_tree_from_files(repo.store, filtered, modes=modes)
+        root_hash = build_tree_from_blob_ids(repo.store, filtered, modes=modes)
 
     root_scope_head = repo.get_scope_head_commit_id("") or ""
     project_head = repo.get_head_commit_id() if hasattr(repo, "get_head_commit_id") else ""
@@ -386,14 +388,14 @@ def filtered_commit_tree(
     """
 
     tree_id = commit_tree_id(repo, commit_id)
-    files = flatten_tree_to_bytes(repo.store, tree_id)
+    oids = tree_to_flat(repo.store, tree_id)
     modes = tree_path_modes(repo.store, tree_id)
     filtered = {
-        rel_path: content
-        for rel_path, content in files.items()
+        rel_path: oid
+        for rel_path, oid in oids.items()
         if not is_path_excluded(
             f"{scope_path}/{rel_path}" if scope_path else rel_path,
             excludes,
         )
     }
-    return build_tree_from_files(repo.store, filtered, modes=modes)
+    return build_tree_from_blob_ids(repo.store, filtered, modes=modes)
