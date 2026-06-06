@@ -244,7 +244,8 @@ export function CreateAccessModal({
               <div>
                 <SectionHeading>Always included</SectionHeading>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <MethodRow provider="filesystem" description="Versioned read/write for this folder." locked />
+                  <MethodRow provider="git_remote" description="Native Git clone, pull, and push for this folder." locked />
+                  <MethodRow provider="filesystem" description="Keep a local folder bidirectionally in sync." locked />
                   <MethodRow provider="cli" description="Scoped command-line access to this folder." locked />
                 </div>
               </div>

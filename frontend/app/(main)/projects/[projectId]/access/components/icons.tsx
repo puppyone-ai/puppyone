@@ -44,7 +44,7 @@ export function ProviderIcon({
       </svg>
     );
   }
-  if (provider === 'filesystem') {
+  if (provider === 'filesystem' || provider === 'git_remote') {
     if (variant === 'mono') {
       return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>

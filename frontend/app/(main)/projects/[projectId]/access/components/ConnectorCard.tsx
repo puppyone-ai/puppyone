@@ -57,12 +57,12 @@ import type { ConnectorEditPatch } from '../hooks/useAccessData';
 
 // ─── Built-in providers ──────────────────────────────────────────────
 //
-// Built-ins (cli / agent / filesystem) are auto-created by the DB
-// trigger and undeletable through the API. The frontend mirrors that
+// Built-ins (cli / agent / git_remote / filesystem) are auto-created by the
+// DB trigger and undeletable through the API. The frontend mirrors that
 // rule by hiding the "Disconnect" menu item and the editable Direction
 // dropdown for these providers — built-ins are fixed bidirectional and
 // fixed presence, only `name` and `status` are user-controllable.
-const BUILTIN_PROVIDERS = new Set(['cli', 'agent', 'filesystem']);
+const BUILTIN_PROVIDERS = new Set(['cli', 'agent', 'git_remote', 'filesystem']);
 
 // ─── Connector card (one access point, expanded view) ────────────────
 
@@ -85,7 +85,8 @@ export function ConnectorCard({
   const action = getPrimaryAction(connector.status);
   const name =
     connector.provider === 'cli' ? 'Puppyone CLI'
-    : connector.provider === 'filesystem' ? 'Git Remote'
+    : connector.provider === 'git_remote' ? 'Git Remote'
+    : connector.provider === 'filesystem' ? 'Local Folder Sync'
     : connector.name || PROVIDER_LABELS[connector.provider] || connector.provider;
   const isBuiltin = BUILTIN_PROVIDERS.has(connector.provider);
 
@@ -765,7 +766,8 @@ function PausedBanner({
   const channelLabel: Record<string, string> = {
     cli: 'Puppyone CLI',
     agent: 'Agent',
-    filesystem: 'Git Remote',
+    git_remote: 'Git Remote',
+    filesystem: 'Local Folder Sync',
   };
   const label = channelLabel[provider] ?? PROVIDER_LABELS[provider] ?? provider;
   return (

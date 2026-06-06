@@ -76,55 +76,14 @@ export interface UseAccessDataResult {
   clearScopeSelection: () => void;
 }
 
-// Built-in surfaces must show one card per *display group* per scope.
-//
-// The context-entrypoint refactor left the Git Remote on two provider names:
-// the legacy `filesystem` surface (which the UI labels "Git Remote" and which
-// carries the working access key) and a newer, often-unconfigured `git_remote`
-// surface (no access key → renders as a second "Access setup is preparing"
-// card). They are different providers, so a (scope_id, kind) unique index
-// can't collapse them. Group both under "git_remote" and keep the configured
-// one so the scope shows a single Git Remote card. `cli` stays its own group.
-//
-// NOTE: this is a display-layer reconciliation of a backend model mismatch
-// (git_remote vs filesystem both meaning "Git Remote"); the canonical kind
-// should be settled server-side and the vestigial surface stopped/cleaned.
-function _builtinGroup(provider: string): string | null {
-  if (provider === 'git_remote' || provider === 'filesystem') return 'git_remote';
-  if (provider === 'cli') return 'cli';
-  return null;
-}
-
-function _hasAccessKey(c: Connector): boolean {
-  const key = (c.config as { access_key?: unknown })?.access_key;
-  return typeof key === 'string' && key !== '';
-}
-
-// Within a built-in group, the `filesystem` surface is the one the UI knows
-// how to render as "Git Remote" (it's in PROVIDER_LABELS with a real prompt);
-// the parallel `git_remote` surface from the newer manager API has no UI card
-// (renders raw / "preparing"). Both usually carry the scope access key, so
-// prefer the renderable one rather than whichever was updated last.
-function _renderableRank(c: Connector): number {
-  return c.provider === 'filesystem' ? 1 : 0;
-}
-
-function dedupeBuiltinSurfaces(list: Connector[]): Connector[] {
-  const chosen = new Map<string, Connector>();
-  const others: Connector[] = [];
-  for (const c of list) {
-    const group = _builtinGroup(c.provider);
-    if (!group) { others.push(c); continue; }
-    const prev = chosen.get(group);
-    if (!prev) { chosen.set(group, c); continue; }
-    const better =
-      (_hasAccessKey(c) ? 1 : 0) - (_hasAccessKey(prev) ? 1 : 0)
-      || _renderableRank(c) - _renderableRank(prev)
-      || c.updated_at.localeCompare(prev.updated_at);
-    if (better > 0) chosen.set(group, c);
-  }
-  return [...chosen.values(), ...others];
-}
+// NOTE: `git_remote` and `filesystem` are two DISTINCT built-in surfaces, not
+// duplicates — `git_remote` is the native Git clone/push remote, `filesystem`
+// is the local-folder bidirectional sync (OpenClaw). Both ride the same Git
+// transport and both are auto-created per scope, so a scope legitimately shows
+// "Git Remote" + "Local Folder Sync" as separate cards. We deliberately do NOT
+// collapse them (an earlier display-layer dedupe did, which hid Local Folder
+// Sync); the UI distinguishes them by label (see PROVIDER_LABELS). The
+// (scope_id, kind) unique index already guarantees one row per kind per scope.
 
 export function useAccessData(projectId: string): UseAccessDataResult {
   const { data: scopes, mutate: mutateScopes } = useSWR(
@@ -160,9 +119,6 @@ export function useAccessData(projectId: string): UseAccessDataResult {
       if (!m.has(c.scope_id)) m.set(c.scope_id, []);
       m.get(c.scope_id)!.push(c);
     });
-    for (const [scopeId, list] of m) {
-      m.set(scopeId, dedupeBuiltinSurfaces(list));
-    }
     for (const list of m.values()) {
       list.sort((a, b) => {
         const order = (c: Connector) => (c.provider === 'cli' ? 0 : c.provider === 'agent' ? 1 : 2);

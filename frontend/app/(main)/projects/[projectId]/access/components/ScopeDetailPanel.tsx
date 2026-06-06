@@ -55,7 +55,7 @@ import {
   STATUS_COLORS,
   STATUS_LABEL,
 } from '../lib/constants';
-import { getApiBase, profileSlug, timeAgo } from '../lib/format';
+import { getApiBase, isGitBuiltinProvider, profileSlug, timeAgo } from '../lib/format';
 import { CopyIcon, ProviderIcon, RetryIcon } from './icons';
 import { CommandBlock, NoAccessKeyNotice, SectionLabel } from './ui-blocks';
 import { ConnectorDetailBody } from './ConnectorCard';
@@ -1292,7 +1292,7 @@ function ConnectorListRow({
     () => buildConnectorSetupPrompt(connector, scope),
     [connector, scope],
   );
-  const showManualCommands = connector.provider === 'filesystem';
+  const showManualCommands = isGitBuiltinProvider(connector.provider);
   const canConfigure = connector.provider === 'cli' || connector.status === 'error' || !!connector.error_message;
 
   return (
@@ -1334,7 +1334,7 @@ function ConnectorListRow({
           style={{
             height: tileSize,
             width: tileSize,
-            borderRadius: connector.provider === 'filesystem' ? 7 : 6,
+            borderRadius: isGitBuiltinProvider(connector.provider) ? 7 : 6,
             background: tile.background,
             border: `1px solid ${tile.border}`,
             color: tile.color,
@@ -1343,7 +1343,7 @@ function ConnectorListRow({
             justifyContent: 'center',
             flexShrink: 0,
             boxShadow: tile.shadow,
-            overflow: connector.provider === 'filesystem' ? 'hidden' : undefined,
+            overflow: isGitBuiltinProvider(connector.provider) ? 'hidden' : undefined,
           }}
         >
           <ProviderIcon provider={connector.provider} size={iconSize} />
@@ -1416,10 +1416,16 @@ function getConnectorMethodMeta(connector: Connector): {
       description: "Use Puppyone's scoped filesystem CLI to let an agent read and write this cloud drive without cloning it.",
     };
   }
-  if (connector.provider === 'filesystem') {
+  if (connector.provider === 'git_remote') {
     return {
       title: 'Git Remote',
       description: 'Use a native Git remote for clone, pull, commit, and push workflows.',
+    };
+  }
+  if (connector.provider === 'filesystem') {
+    return {
+      title: 'Local Folder Sync',
+      description: 'Keep a local folder bidirectionally in sync with this scope.',
     };
   }
   return {
@@ -1599,7 +1605,7 @@ function buildConnectorSetupPrompt(connector: Connector, scope: RepoScope | unde
   if (!scope) return '';
   const apiBase = getApiBase();
   const scopeName = scope.name || (scope.path === '' ? 'root' : scope.path || 'Root');
-  if (connector.provider === 'filesystem') {
+  if (isGitBuiltinProvider(connector.provider)) {
     const gitUrl = `${apiBase}/git/ap/${scope.access_key || '<access-key>'}.git`;
     return buildGitSyncPrompt({
       gitUrl,
@@ -1620,7 +1626,8 @@ function buildConnectorSetupPrompt(connector: Connector, scope: RepoScope | unde
 
 function getConnectorDisplayName(connector: Connector): string {
   if (connector.provider === 'cli') return 'Puppyone CLI';
-  if (connector.provider === 'filesystem') return 'Git Remote';
+  if (connector.provider === 'git_remote') return 'Git Remote';
+  if (connector.provider === 'filesystem') return 'Local Folder Sync';
   return connector.name || PROVIDER_LABELS[connector.provider] || connector.provider;
 }
 
@@ -1633,7 +1640,7 @@ function getProviderTileStyle(provider: string, selected: boolean) {
       shadow: '0 1px 2px var(--po-shadow)',
     };
   }
-  if (provider === 'filesystem') {
+  if (isGitBuiltinProvider(provider)) {
     return {
       background: 'var(--po-text-inverse)',
       border: selected ? 'var(--po-border-strong)' : T.border,
@@ -1650,11 +1657,11 @@ function getProviderTileStyle(provider: string, selected: boolean) {
 }
 
 function getProviderTileSize(provider: string): number {
-  return provider === 'filesystem' ? 34 : 30;
+  return isGitBuiltinProvider(provider) ? 34 : 30;
 }
 
 function getProviderIconSize(provider: string): number {
-  if (provider === 'filesystem') return 34;
+  if (isGitBuiltinProvider(provider)) return 34;
   if (provider === 'cli') return 17;
   return 15;
 }
@@ -1790,7 +1797,7 @@ function ConnectorConnectDialog({
   const tile = getProviderTileStyle(connector.provider, false);
   const tileSize = getProviderTileSize(connector.provider);
   const iconSize = getProviderIconSize(connector.provider);
-  const isGitRemote = connector.provider === 'filesystem';
+  const isGitRemote = isGitBuiltinProvider(connector.provider);
 
   return (
     <DialogRoot onClose={onClose}>
@@ -1809,14 +1816,14 @@ function ConnectorConnectDialog({
               style={{
                 width: tileSize,
                 height: tileSize,
-                borderRadius: connector.provider === 'filesystem' ? 7 : 6,
+                borderRadius: isGitBuiltinProvider(connector.provider) ? 7 : 6,
                 background: tile.background,
                 border: `1px solid ${tile.border}`,
                 color: tile.color,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                overflow: connector.provider === 'filesystem' ? 'hidden' : undefined,
+                overflow: isGitBuiltinProvider(connector.provider) ? 'hidden' : undefined,
               }}
             >
               <ProviderIcon provider={connector.provider} size={iconSize} />
