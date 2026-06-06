@@ -185,12 +185,6 @@ class SearchService:
         pointer_hash = hashlib.md5(json_pointer.encode("utf-8")).hexdigest()[:12]
         return f"{file_path[:12]}_{pointer_hash}_{content_hash[:8]}_{chunk_index}"
 
-    async def ensure_namespace_schema(self, *, namespace: str) -> None:
-        # Kept for compatibility: current implementation no longer relies on turbopuffer BM25, so no schema needed.
-        # If BM25 is reintroduced in the future, update_schema can be restored here.
-        _ = namespace
-        return None
-
     async def index_scope(
         self,
         *,
@@ -854,7 +848,3 @@ class SearchService:
             )
 
         return out
-
-    @staticmethod
-    def now_iso() -> str:
-        return dt.datetime.now(tz=dt.timezone.utc).isoformat()
