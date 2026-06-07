@@ -28,9 +28,12 @@
 - ✅ **#2** E2B 超时续期 extend + acquire reconcile —— 实环境验证
 - ✅ **#3** Supabase 持久 session store + 迁移 `20260607000000_scope_sandbox_sessions.sql`(`SCOPE_SANDBOX_STORE=memory|supabase`)—— 单测(含 manager 跑在 DB store 上);**改 supabase 前需先应用迁移**
 - ✅ **#4** reaper loop(`reaper.py`)—— 单测;调度接入 app 待 manager 单例(现 #3 已就绪,可接)
+- ✅ **#5+#7** SSH 短期凭证签发/撤销 + per-user 身份(`ssh_credentials.py`)—— **实环境验证**:per-user public key 进 authorized_keys,带 `puppyone:user=<id>` 标签 + OpenSSH `expiry-time` 原生 TTL;grant=加行、revoke=删行(离职即失权)、过期=拒;per-user working tree `~/<user_id>` + git 身份。manager `revoke_hook` 接入 `revoke_user`(离职即撤 SSH,best-effort)。
+  - ⚠️ **安全发现 + 修复**:E2B 默认模板的 socket-activated sshd **接受 SSH `none` 认证方法**(任何人都能进,无视 authorized_keys),静默瓦解凭证治理。已硬化 `ssh_e2b`:释放 systemd socket 占用的 :22,启动我们自己的 publickey-only sshd(`AuthenticationMethods publickey` / `UsePAM no` / `PasswordAuthentication no`)。实测 grant→可连、过期→拒、revoke→拒,bootstrap key 全程可连(拒绝是 per-key)。
+- ✅ **#10(部分,只写不测)** Fly 侧代码补齐:`FlyMachinesProvider.exec`(Machines exec API,以 SSH 用户身份跑,使 `~`/属主一致 → 与 E2B 共用 `scope_provision`+`ssh_credentials`);Fly 镜像 `sandbox/scope-fly/`(Dockerfile 烤入 publickey-only sshd@2222 + git + CLI + `puppy` 用户;README + 参考 fly.toml)。Fly 原生 raw TCP,无需 websocat,`ConnectionInfo.proxy_command=None`。**未实连**(待绑支付 + 专用 IPv4)。
 - 另:E2B 全链路 + **SSH(VSCode Remote-SSH)实环境打通**(`ssh_e2b`);多用户协同实测(发现 **PuppyOne 强制线性历史 → rebase 工作流**)
 
-第一梯队完成。下一步(M2 试点):**#5+#7 SSH 短期凭证 + per-user 身份**(治理「离职即失权」);随后 #6 模板 / #8 可观测 / #9 API+UI / #10 Fly(待绑支付)/ #11 legacy 退役。
+第二梯队完成(#3+#4 外部化+reaper,#5+#7 凭证+per-user 身份;Fly 代码跟进)。下一步(M3):**#6 自定义 E2B 模板**(烤入 sshd+websocat,免每次运行时硬化/安装)→ **#8 可观测+调参** → **#9 API+UI** → **#10 Fly 实连**(待绑支付/IPv4)→ **#11 legacy 退役**。
 
 ## (历史)当前动手:#1 + #2(+ #4)
 理由:让"用户连进去就有一个能长期用、会自动省成本"的真 sandbox;三件都不大、风险低、可立即验证。

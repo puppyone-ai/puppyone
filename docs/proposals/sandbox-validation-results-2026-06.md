@@ -53,10 +53,11 @@
 
 - **E2B:✅ 已实环境打通(2026-06-07)。** 机制:sandbox 内 sshd:22 + websocat 服务(`ws-l:8081 → tcp:22`),客户端用 websocat 当 SSH `ProxyCommand` 经 `wss://8081-<id>.e2b.app` 隧道连入。本地 `ssh` 实连成功并执行命令(`hostname=e2b.local, user=user`)。VSCode Remote-SSH 用同一 `ProxyCommand`。固化在 `ssh_e2b.provision_e2b_ssh` + `scripts/e2b_ssh_demo.py`(create 0.92s + provision 6.67s)。默认模板(Debian13/非root+passwordless sudo/sshd预装),仅下载 websocat。
   - 生产优化:把 sshd+websocat **烤进自定义 E2B 模板**(免每次 6.7s 运行时安装)。
-- **Fly:⛔ 未做(等绑支付)。** `ConnectionInfo(host=app.fly.dev, port=22)` 是目标,需:① 镜像装 sshd(2222)② 专用 IPv4(raw TCP 22)③ 凭证。Fly 是 raw TCP,无需 websocat,理论上比 E2B 更直接。
-- **仍缺 SSH 凭证签发/撤销层**(治理「离职即失权」依赖它)。当前 demo 用一对手动生成的 ed25519 密钥注入 authorized_keys;生产要做"按 user→scope 权限签发短期密钥/证书 + 撤销"。
+  - ⚠️ **安全发现(2026-06-07)**:默认模板的 socket-activated sshd(systemd `ssh.socket`)**接受 SSH `none` 认证方法** —— 客户端无需任何密钥即可登录(`Authenticated using "none"`),authorized_keys 形同虚设。这会静默瓦解凭证治理(grant/revoke/expiry 全部无意义)。**已修复** `ssh_e2b.provision_steps`:先 `systemctl stop ssh.socket ssh.service` + `pkill sshd` 释放 :22,再 `mkdir /run/sshd` 并启动我们自己的硬化 sshd(`AuthenticationMethods publickey` / `UsePAM no` / `PasswordAuthentication no` / `PermitEmptyPasswords no`)。**踩坑**:① 默认 sshd 由 systemd socket 占着 :22,我们的 `sshd -f` 静默绑不上 → 必须先释放;② 停服务会清掉 `/run/sshd` privsep 目录,启动前要重建。
+- **Fly:⛔ 未实连(等绑支付 + 专用 IPv4),但代码已补齐(只写不测)。** `FlyMachinesProvider.exec`(Machines exec API,以 SSH 用户身份运行使 `~`/属主一致)+ 镜像 `sandbox/scope-fly/`(Dockerfile 烤入 publickey-only sshd@2222 + git + CLI + `puppy` 用户,README + 参考 fly.toml)。Fly 原生 raw TCP,无需 websocat,`proxy_command=None`;sshd 烤进镜像(非运行时硬化)。凭证/provision 与 E2B **共用** `ssh_credentials`+`scope_provision`(都走 `provider.exec`)。
+- **SSH 凭证签发/撤销层:✅ 已实现 + E2B 实环境验证(`ssh_credentials.py`)。** per-user public key 进 authorized_keys,带 `puppyone:user=<id>` 标签 + OpenSSH `expiry-time` 原生 TTL(短期);grant=加行/续期、revoke=删行(离职即失权)、过期=sshd 自动拒。per-user working tree `~/<user_id>` + git 身份(归属到人)。manager `revoke_hook` 接入。**实测**:valid→可连、expired→拒、revoke→拒,独立 bootstrap key 全程可连(证明拒绝是 per-key 而非 sshd 坏了)。
 
-→ **E2B 的 SSH 闭环已验证可用(含 VSCode 路径);Fly 待绑支付;凭证签发层待做。**
+→ **E2B 的 SSH 闭环 + 短期凭证签发/撤销已验证可用(含 VSCode 路径、离职即失权);Fly 代码已跟进待绑支付实连。**
 
 ---
 
