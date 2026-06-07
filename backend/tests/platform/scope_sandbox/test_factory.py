@@ -46,6 +46,18 @@ def test_unknown_provider_raises():
         build_provider("nope")
 
 
+def test_build_session_store_memory():
+    from src.platform.scope_sandbox.factory import build_session_store
+    from src.platform.scope_sandbox.registry import InMemorySandboxSessionStore
+    assert isinstance(build_session_store("memory"), InMemorySandboxSessionStore)
+
+
+def test_build_session_store_unknown_raises():
+    from src.platform.scope_sandbox.factory import build_session_store
+    with pytest.raises(ValueError):
+        build_session_store("redis")
+
+
 def test_provider_from_settings_picks_configured_default():
     settings = types.SimpleNamespace(
         SCOPE_SANDBOX_PROVIDER="fly",

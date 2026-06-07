@@ -173,10 +173,17 @@ class Settings(BaseSettings):
     # The env var below is only the DEFAULT/fallback for projects that haven't
     # chosen. The vars here hold the per-provider CREDENTIALS (always needed for
     # whichever provider a project selects). See docs/proposals/PUP-sandbox-access-point.md.
-    SCOPE_SANDBOX_PROVIDER: Literal["fly", "e2b"] = "fly"  # default only; UI choice overrides
+    # Default only; the per-project UI choice overrides. Defaults to "e2b" — the
+    # live-validated path (full SSH + credential round-trip proven). Fly is
+    # code-complete but not yet live (needs payment + dedicated IPv4), so it
+    # shouldn't be the silent fallback for projects that haven't chosen.
+    SCOPE_SANDBOX_PROVIDER: Literal["fly", "e2b"] = "e2b"
     SCOPE_SANDBOX_FLY_APP: str = ""
     SCOPE_SANDBOX_FLY_TOKEN: str = ""
     SCOPE_SANDBOX_FLY_IMAGE: str = ""
+    # Session store backend: "memory" (dev/single-process) or "supabase"
+    # (durable, multi-worker-visible — required for the reaper + multi-instance).
+    SCOPE_SANDBOX_STORE: Literal["memory", "supabase"] = "memory"
 
     # Workspace Provider configuration
     # - "auto": Auto-detect platform (macOS -> APFS Clone, Linux -> OverlayFS, other -> full copy)

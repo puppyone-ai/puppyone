@@ -11,10 +11,18 @@ from __future__ import annotations
 from src.platform.scope_sandbox.e2b_provider import E2BClient, E2BProvider, SdkE2BClient
 from src.platform.scope_sandbox.fly_provider import FlyMachinesProvider
 from src.platform.scope_sandbox.provider import SandboxProvider
+from src.platform.scope_sandbox.registry import (
+    InMemorySandboxSessionStore,
+    SandboxSessionStore,
+)
 
 PROVIDER_FLY = "fly"
 PROVIDER_E2B = "e2b"
 SUPPORTED_PROVIDERS = (PROVIDER_FLY, PROVIDER_E2B)
+
+STORE_MEMORY = "memory"
+STORE_SUPABASE = "supabase"
+SUPPORTED_STORES = (STORE_MEMORY, STORE_SUPABASE)
 
 
 def build_provider(
@@ -47,3 +55,18 @@ def provider_from_settings(settings, name: str | None = None) -> SandboxProvider
         fly_image=getattr(settings, "SCOPE_SANDBOX_FLY_IMAGE", ""),
         e2b_api_key=getattr(settings, "E2B_API_KEY", None),
     )
+
+
+def build_session_store(name: str) -> SandboxSessionStore:
+    """Build the session store backend. ``memory`` for dev/single-process;
+    ``supabase`` for durable, multi-worker-visible state (roadmap #3)."""
+    if name == STORE_MEMORY:
+        return InMemorySandboxSessionStore()
+    if name == STORE_SUPABASE:
+        from src.platform.scope_sandbox.supabase_store import SupabaseSandboxSessionStore
+        return SupabaseSandboxSessionStore()
+    raise ValueError(f"unknown scope-sandbox store {name!r}; expected one of {SUPPORTED_STORES}")
+
+
+def store_from_settings(settings) -> SandboxSessionStore:
+    return build_session_store(getattr(settings, "SCOPE_SANDBOX_STORE", STORE_MEMORY))

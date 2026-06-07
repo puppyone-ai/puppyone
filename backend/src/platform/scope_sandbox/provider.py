@@ -132,3 +132,12 @@ class SandboxProvider(ABC):
         raise NotImplementedError(
             f"{self.capabilities().name} provider does not support exec()"
         )
+
+    async def extend(self, sandbox_id: str) -> None:
+        """Push out the sandbox's own idle/auto-stop timeout (best-effort).
+
+        Default no-op for providers that don't self-time-out (e.g. Fly machines,
+        which only stop when we tell them to). E2B sandboxes auto-kill at their
+        timeout, so the E2B provider overrides this to keep active sessions alive.
+        """
+        return None

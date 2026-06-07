@@ -168,3 +168,37 @@ class FlyMachinesProvider(SandboxProvider):
             raise
         machine = resp.json()
         return SandboxInfo(sandbox_id, self._to_state(machine.get("state", "")), raw=machine)
+
+    # ── exec (provisioning / credentials / health) ────────────────────
+
+    async def exec(self, sandbox_id: str, command: str, *, timeout: int = 60) -> dict:
+        """Run a shell command via the Fly Machines exec API.
+
+        Fly exec runs as root; we re-enter as the SSH user (``self._username``) so
+        ``~`` and file ownership match the account VSCode logs into — that way the
+        SAME provider-agnostic helpers (scope_provision, ssh_credentials) work on
+        Fly as on E2B. The user has passwordless sudo (baked into the image), so
+        the few ``sudo`` steps still work. Raises on non-zero exit so provisioning
+        failures surface (mirrors the E2B provider).
+        """
+        wrapped = command
+        if self._username and self._username != "root":
+            esc = command.replace("'", "'\\''")
+            wrapped = f"su - {self._username} -c '{esc}'"
+        resp = await self._request(
+            "POST",
+            f"{self._machine_path(sandbox_id)}/exec",
+            json={"command": ["/bin/sh", "-c", wrapped], "timeout": timeout},
+        )
+        data = resp.json()
+        result = {
+            "stdout": data.get("stdout", ""),
+            "stderr": data.get("stderr", ""),
+            "exit_code": data.get("exit_code", 0),
+        }
+        if result["exit_code"] not in (0, None):
+            raise RuntimeError(
+                f"fly exec failed (rc={result['exit_code']}) on {sandbox_id}: "
+                f"{command!r}: {result['stderr'][:500]}"
+            )
+        return result

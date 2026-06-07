@@ -26,7 +26,7 @@ import time
 from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum
-from typing import Callable
+from typing import Awaitable, Callable
 
 from src.platform.scope_sandbox.policy import (
     SessionDecision,
@@ -71,11 +71,25 @@ class ScopeSandboxManager:
         config: SessionPolicyConfig | None = None,
         *,
         clock: Callable[[], float] = time.time,
+        bootstrap: "Callable[[SandboxProvider, str, SandboxSpec], Awaitable[None]] | None" = None,
+        revoke_hook: "Callable[[SandboxProvider, str, str], Awaitable[None]] | None" = None,
+        reconcile_after_s: float = 60.0,
     ) -> None:
         self._provider = provider
         self._store = store
         self._config = config or SessionPolicyConfig()
         self._clock = clock
+        # Called once after a sandbox is CREATED (cold path) to provision the
+        # scope workspace (clone + git config). See scope_provision.
+        self._bootstrap = bootstrap
+        # Called on revoke_user(provider, sandbox_id, user_id) so offboarding
+        # also pulls the user's SSH access from the box. See ssh_credentials.
+        self._revoke_hook = revoke_hook
+        # On a warm REUSE, only re-verify the provider's real state when the
+        # session has been idle longer than this (a stale record may have been
+        # stopped/killed out-of-band, e.g. E2B's own timeout). Recent activity
+        # ⇒ trust RUNNING and keep the warm hit instant.
+        self._reconcile_after_s = reconcile_after_s
         self._locks: dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
 
     def _lock(self, scope_id: str) -> asyncio.Lock:
@@ -112,42 +126,71 @@ class ScopeSandboxManager:
             now = self._now(now)
             session = self._store.get(scope_id)
 
-            if session is None or session.state is SandboxState.DESTROYED:
-                info = await self._provider.create(spec)
-                session = SandboxSession(
-                    scope_id=scope_id,
-                    project_id=spec.project_id,
-                    provider=self._provider.capabilities().name,
-                    sandbox_id=info.sandbox_id,
-                    state=info.state,
-                    created_at=now,
-                    last_active_at=now,
-                    last_state_change_at=now,
-                    connection=info.connection,
-                )
-                via = AcquiredVia.CREATED
+            if session is None or session.state in (SandboxState.DESTROYED, SandboxState.UNKNOWN):
+                session, via = await self._create_session(spec, now, prev=session)
             elif session.state is SandboxState.STOPPED:
-                info = await self._provider.start(session.sandbox_id)
-                session.state = info.state
-                session.connection = info.connection or session.connection
-                session.last_state_change_at = now
-                via = AcquiredVia.RESUMED
-            elif session.state in (SandboxState.RUNNING, SandboxState.PENDING):
-                via = AcquiredVia.REUSED
-            else:  # UNKNOWN — reconcile by recreating
-                info = await self._provider.create(spec)
-                session.sandbox_id = info.sandbox_id
-                session.state = info.state
-                session.connection = info.connection
-                session.last_state_change_at = now
-                via = AcquiredVia.CREATED
+                session, via = await self._resume_session(session, now)
+            else:  # RUNNING / PENDING
+                session, via = await self._reuse_or_reconcile(session, spec, now)
 
             session.connected_users.add(user_id)
             self._touch(session, user_id, now)
+            await self._extend(session)
             self._store.put(session)
             return AcquireResult(session=session, via=via)
 
+    async def _create_session(self, spec, now, prev=None):
+        info = await self._provider.create(spec)
+        session = SandboxSession(
+            scope_id=spec.scope_id,
+            project_id=spec.project_id,
+            provider=self._provider.capabilities().name,
+            sandbox_id=info.sandbox_id,
+            state=info.state,
+            created_at=now,
+            last_active_at=now,
+            last_state_change_at=now,
+            connection=info.connection,
+            # carry forward usage signals if we're recreating a dropped session
+            connected_users=prev.connected_users if prev else set(),
+            last_full_pull_seconds=prev.last_full_pull_seconds if prev else 0.0,
+        )
+        if self._bootstrap is not None:
+            await self._bootstrap(self._provider, session.sandbox_id, spec)
+        return session, AcquiredVia.CREATED
+
+    async def _resume_session(self, session, now):
+        info = await self._provider.start(session.sandbox_id)
+        session.state = info.state
+        session.connection = info.connection or session.connection
+        session.last_state_change_at = now
+        return session, AcquiredVia.RESUMED
+
+    async def _reuse_or_reconcile(self, session, spec, now):
+        idle = max(0.0, now - session.last_active_at)
+        if idle <= self._reconcile_after_s:
+            return session, AcquiredVia.REUSED  # fresh activity ⇒ trust it (fast warm hit)
+        # Stale record: verify the provider's real state before reusing, so an
+        # out-of-band stop/kill (e.g. E2B's own timeout) can't hand back a dead box.
+        info = await self._provider.status(session.sandbox_id)
+        if info.state in (SandboxState.RUNNING, SandboxState.PENDING):
+            return session, AcquiredVia.REUSED
+        if info.state is SandboxState.STOPPED:
+            return await self._resume_session(session, now)
+        return await self._create_session(spec, now, prev=session)  # gone ⇒ recreate
+
+    async def _extend(self, session: SandboxSession) -> None:
+        """Best-effort: push out the provider's own idle/auto-stop timeout so an
+        active session never gets reclaimed underneath the manager."""
+        try:
+            await self._provider.extend(session.sandbox_id)
+        except Exception as exc:  # noqa: BLE001 - extend is best-effort
+            log_warning(f"[scope-sandbox] extend failed scope={session.scope_id}: {exc}")
+
     async def touch(self, scope_id: str, user_id: str, *, now: float | None = None) -> None:
+        # Bookkeeping only — no provider call (touch is per-activity and hot).
+        # The provider timeout is (re)extended on acquire + via a generous
+        # create timeout; the reaper stops idle sessions before that anyway.
         async with self._lock(scope_id):
             session = self._store.get(scope_id)
             if session is None:
@@ -179,15 +222,20 @@ class ScopeSandboxManager:
 
     # ── governance ────────────────────────────────────────────────────
 
-    async def revoke_user(self, scope_id: str, user_id: str, *, now: float | None = None) -> int:
-        """Offboarding: drop a user from the shared sandbox's tracking. Returns
-        the number of users still connected. (Revoking the user's SSH
-        cert/access is the auth layer's job; here we just stop counting them so
-        the reaper can reclaim once the box is empty.)"""
+    async def revoke_user(self, scope_id: str, user_id: str) -> int:
+        """Offboarding: revoke a user's SSH access (via revoke_hook) and drop
+        them from the shared sandbox's tracking. Returns the number of users
+        still connected. The sandbox keeps running for the others; the reaper
+        reclaims it once empty."""
         async with self._lock(scope_id):
             session = self._store.get(scope_id)
             if session is None:
                 return 0
+            if self._revoke_hook is not None:
+                try:
+                    await self._revoke_hook(self._provider, session.sandbox_id, user_id)
+                except Exception as exc:  # noqa: BLE001 - revoke is best-effort; still drop tracking
+                    log_warning(f"[scope-sandbox] ssh revoke failed scope={scope_id} user={user_id}: {exc}")
             session.connected_users.discard(user_id)
             session.recent_user_events.pop(user_id, None)
             self._store.put(session)

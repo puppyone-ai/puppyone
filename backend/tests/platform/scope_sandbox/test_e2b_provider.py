@@ -44,6 +44,9 @@ class FakeE2BClient(E2BClient):
         self.calls.append(("exec", sandbox_id))
         return {"exit_code": 0, "stdout": f"ran:{command}", "stderr": ""}
 
+    def set_timeout(self, sandbox_id: str) -> None:
+        self.calls.append(("set_timeout", sandbox_id))
+
     def count(self, op: str) -> int:
         return sum(1 for o, _ in self.calls if o == op)
 
@@ -80,11 +83,28 @@ async def test_e2b_exec_delegates_to_client():
     assert client.count("exec") == 1
 
 
+async def test_e2b_extend_calls_set_timeout():
+    client = FakeE2BClient()
+    prov = E2BProvider(client)
+    created = await prov.create(_spec())
+    await prov.extend(created.sandbox_id)
+    assert client.count("set_timeout") == 1
+
+
 async def test_e2b_connection_is_wss_tunnel_not_native_tcp():
     info = await E2BProvider(FakeE2BClient()).create(_spec())
     conn = info.connection
     assert conn.proxy_command and "websocat" in conn.proxy_command
     assert info.sandbox_id in conn.extra["wss_url"]
+
+
+async def test_e2b_connection_login_user_matches_e2b_account():
+    # The E2B template's account is "user"; authorized_keys + the scope
+    # workspace live under /home/user, so the SSH login name must be "user"
+    # (a "puppy" default would break VSCode Remote-SSH on E2B).
+    from src.platform.scope_sandbox.ssh_e2b import DEFAULT_USER
+    info = await E2BProvider(FakeE2BClient()).create(_spec())
+    assert info.connection.username == "user" == DEFAULT_USER
 
 
 def test_e2b_capabilities():

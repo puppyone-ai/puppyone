@@ -108,6 +108,45 @@ async def test_status_404_is_destroyed_and_destroy_404_swallowed():
     await prov.destroy("gone")  # 404 on delete must not raise
 
 
+async def test_exec_posts_command_as_ssh_user_and_returns_result():
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json={"stdout": "hi\n", "stderr": "", "exit_code": 0})
+
+    out = await _provider(handler).exec("m1", "echo hi")
+    assert out == {"stdout": "hi\n", "stderr": "", "exit_code": 0}
+
+    req = seen[0]
+    assert req.method == "POST" and req.url.path == "/v1/apps/myapp/machines/m1/exec"
+    body = json.loads(req.content)
+    # runs through a shell, re-entered as the SSH user so ~ / ownership match
+    assert body["command"][0] == "/bin/sh" and body["command"][1] == "-c"
+    assert "su - puppy -c" in body["command"][2] and "echo hi" in body["command"][2]
+
+
+async def test_exec_raises_on_nonzero_exit():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"stdout": "", "stderr": "boom", "exit_code": 1})
+
+    with pytest.raises(RuntimeError, match="fly exec failed"):
+        await _provider(handler).exec("m1", "false")
+
+
+async def test_exec_single_quote_in_command_is_escaped():
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json={"stdout": "", "stderr": "", "exit_code": 0})
+
+    await _provider(handler).exec("m1", "git config user.name 'Al O''Brien'")
+    cmd = json.loads(seen[0].content)["command"][2]
+    # the su -c wrapper stays balanced: every embedded ' is '\'' escaped
+    assert "'\\''" in cmd
+
+
 def test_capabilities():
     caps = _provider(lambda r: httpx.Response(200, json={})).capabilities()
     assert caps.name == "fly"
