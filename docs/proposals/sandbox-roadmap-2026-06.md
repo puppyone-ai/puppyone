@@ -23,5 +23,14 @@
 - **第三梯队(M3)**:**#6 模板** → **#8 可观测+调参** → **#9 API+UI** → **#10 Fly**。
 - **最后**:**#11** legacy 退役。
 
-## 当前动手:#1 + #2(+ #4 reaper loop 先就绪,调度待 app manager/#3)
-理由:让"用户连进去就有一个能长期用、会自动省成本"的真 sandbox;三件都不大、风险低、可立即验证。#3/#5 等确定上 M2 试点再做。
+## 进度(2026-06-07)
+- ✅ **#1** in-sandbox provision + rebase 默认(`scope_provision` + manager bootstrap)—— 实环境验证
+- ✅ **#2** E2B 超时续期 extend + acquire reconcile —— 实环境验证
+- ✅ **#3** Supabase 持久 session store + 迁移 `20260607000000_scope_sandbox_sessions.sql`(`SCOPE_SANDBOX_STORE=memory|supabase`)—— 单测(含 manager 跑在 DB store 上);**改 supabase 前需先应用迁移**
+- ✅ **#4** reaper loop(`reaper.py`)—— 单测;调度接入 app 待 manager 单例(现 #3 已就绪,可接)
+- 另:E2B 全链路 + **SSH(VSCode Remote-SSH)实环境打通**(`ssh_e2b`);多用户协同实测(发现 **PuppyOne 强制线性历史 → rebase 工作流**)
+
+第一梯队完成。下一步(M2 试点):**#5+#7 SSH 短期凭证 + per-user 身份**(治理「离职即失权」);随后 #6 模板 / #8 可观测 / #9 API+UI / #10 Fly(待绑支付)/ #11 legacy 退役。
+
+## (历史)当前动手:#1 + #2(+ #4)
+理由:让"用户连进去就有一个能长期用、会自动省成本"的真 sandbox;三件都不大、风险低、可立即验证。
