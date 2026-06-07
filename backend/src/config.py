@@ -166,12 +166,14 @@ class Settings(BaseSettings):
     # Large file streaming threshold (bytes); files exceeding this size use streaming transfer
     SANDBOX_LARGE_FILE_THRESHOLD: int = 50 * 1024 * 1024  # 50MB
 
-    # ── Scope-sandbox (V2 "sandbox as access point") provider selection ──
-    # Which long-lived, scope-keyed sandbox backend to use. Two versions:
-    #   "fly" — Fly.io Machines (managed Firecracker; native SSH; default)
-    #   "e2b" — E2B (Firecracker; self-hostable/compliance; SSH via wss tunnel)
-    # See docs/proposals/PUP-sandbox-access-point.md.
-    SCOPE_SANDBOX_PROVIDER: Literal["fly", "e2b"] = "fly"
+    # ── Scope-sandbox (V2 "sandbox as access point") ──
+    # NOTE: the per-project/enterprise choice of "fly" vs "e2b" is a USER
+    # selection made in the frontend and persisted as a project setting; it is
+    # resolved at runtime via factory.provider_from_settings(settings, name=...).
+    # The env var below is only the DEFAULT/fallback for projects that haven't
+    # chosen. The vars here hold the per-provider CREDENTIALS (always needed for
+    # whichever provider a project selects). See docs/proposals/PUP-sandbox-access-point.md.
+    SCOPE_SANDBOX_PROVIDER: Literal["fly", "e2b"] = "fly"  # default only; UI choice overrides
     SCOPE_SANDBOX_FLY_APP: str = ""
     SCOPE_SANDBOX_FLY_TOKEN: str = ""
     SCOPE_SANDBOX_FLY_IMAGE: str = ""

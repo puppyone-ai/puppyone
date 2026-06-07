@@ -51,6 +51,7 @@ class E2BClient(Protocol):
     def resume(self, sandbox_id: str) -> None: ...
     def kill(self, sandbox_id: str) -> None: ...
     def get_state(self, sandbox_id: str) -> SandboxState: ...
+    def exec(self, sandbox_id: str, command: str) -> dict: ...
 
 
 class E2BProvider(SandboxProvider):
@@ -105,48 +106,60 @@ class E2BProvider(SandboxProvider):
         state = await asyncio.to_thread(self._client.get_state, sandbox_id)
         return SandboxInfo(sandbox_id, state)
 
+    async def exec(self, sandbox_id: str, command: str) -> dict:
+        return await asyncio.to_thread(self._client.exec, sandbox_id, command)
+
 
 class SdkE2BClient(E2BClient):
     """Real :class:`E2BClient` over ``e2b_code_interpreter``.
 
-    ⚠️ The SDK call shapes below follow E2B's v2 pause/resume docs but are NOT
-    exercised by unit tests (they require live credentials). VALIDATE against
-    the installed ``e2b-code-interpreter`` version before production — the
-    pause/resume/connect method names have changed across SDK versions. The SDK
-    reads ``E2B_API_KEY`` from the environment when ``api_key`` is None.
+    Validated against ``e2b-code-interpreter`` (the installed SDK) on
+    2026-06-07: ``kill``/``pause``/``connect``/``get_info`` are class-method
+    variants callable by sandbox id; there is NO ``resume`` — reconnecting via
+    ``Sandbox.connect(id)`` resumes a paused sandbox. The SDK reads
+    ``E2B_API_KEY`` from the environment (we don't pass it explicitly).
     """
 
     def __init__(self, api_key: str | None = None, *, timeout: int = 300) -> None:
         self._api_key = api_key
         self._timeout = timeout
 
-    def _kwargs(self) -> dict:
-        return {"api_key": self._api_key} if self._api_key else {}
-
     def create(self, spec: SandboxSpec) -> str:
         from e2b_code_interpreter import Sandbox  # lazy: keep import off the hot path
-        sbx = Sandbox.create(timeout=self._timeout, **self._kwargs())
+        sbx = Sandbox.create(timeout=self._timeout)
         return sbx.sandbox_id
 
     def pause(self, sandbox_id: str) -> None:
         from e2b_code_interpreter import Sandbox
-        Sandbox.connect(sandbox_id, **self._kwargs()).pause()
+        Sandbox.pause(sandbox_id)
 
     def resume(self, sandbox_id: str) -> None:
         from e2b_code_interpreter import Sandbox
-        Sandbox.resume(sandbox_id, timeout=self._timeout, **self._kwargs())
+        Sandbox.connect(sandbox_id, timeout=self._timeout)  # connect resumes a paused sandbox
 
     def kill(self, sandbox_id: str) -> None:
         from e2b_code_interpreter import Sandbox
-        Sandbox.connect(sandbox_id, **self._kwargs()).kill()
+        Sandbox.kill(sandbox_id)
 
     def get_state(self, sandbox_id: str) -> SandboxState:
         from e2b_code_interpreter import Sandbox
         try:
-            Sandbox.connect(sandbox_id, **self._kwargs())
-            return SandboxState.RUNNING
+            info = Sandbox.get_info(sandbox_id)
         except Exception:
-            # Paused or gone — the SDK can't cheaply distinguish without a list
-            # call; the manager's registry is the authoritative state, this is
-            # only a reconciliation hint.
-            return SandboxState.UNKNOWN
+            return SandboxState.DESTROYED  # not found / killed
+        state = str(getattr(info, "state", "")).lower()
+        if "run" in state:
+            return SandboxState.RUNNING
+        if "paus" in state:
+            return SandboxState.STOPPED
+        return SandboxState.UNKNOWN
+
+    def exec(self, sandbox_id: str, command: str) -> dict:
+        from e2b_code_interpreter import Sandbox
+        sbx = Sandbox.connect(sandbox_id, timeout=self._timeout)
+        result = sbx.commands.run(command)
+        return {
+            "exit_code": getattr(result, "exit_code", None),
+            "stdout": getattr(result, "stdout", ""),
+            "stderr": getattr(result, "stderr", ""),
+        }

@@ -40,6 +40,10 @@ class FakeE2BClient(E2BClient):
     def get_state(self, sandbox_id: str) -> SandboxState:
         return self.states.get(sandbox_id, SandboxState.UNKNOWN)
 
+    def exec(self, sandbox_id: str, command: str) -> dict:
+        self.calls.append(("exec", sandbox_id))
+        return {"exit_code": 0, "stdout": f"ran:{command}", "stderr": ""}
+
     def count(self, op: str) -> int:
         return sum(1 for o, _ in self.calls if o == op)
 
@@ -65,6 +69,15 @@ async def test_e2b_lifecycle_maps_to_pause_resume_kill():
     assert client.count("kill") == 1
 
     assert (await prov.status(created.sandbox_id)).state is SandboxState.DESTROYED
+
+
+async def test_e2b_exec_delegates_to_client():
+    client = FakeE2BClient()
+    prov = E2BProvider(client)
+    created = await prov.create(_spec())
+    out = await prov.exec(created.sandbox_id, "echo hi")
+    assert out["exit_code"] == 0 and "echo hi" in out["stdout"]
+    assert client.count("exec") == 1
 
 
 async def test_e2b_connection_is_wss_tunnel_not_native_tcp():
