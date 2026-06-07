@@ -98,6 +98,15 @@ async def test_e2b_connection_is_wss_tunnel_not_native_tcp():
     assert info.sandbox_id in conn.extra["wss_url"]
 
 
+async def test_e2b_connection_login_user_matches_e2b_account():
+    # The E2B template's account is "user"; authorized_keys + the scope
+    # workspace live under /home/user, so the SSH login name must be "user"
+    # (a "puppy" default would break VSCode Remote-SSH on E2B).
+    from src.platform.scope_sandbox.ssh_e2b import DEFAULT_USER
+    info = await E2BProvider(FakeE2BClient()).create(_spec())
+    assert info.connection.username == "user" == DEFAULT_USER
+
+
 def test_e2b_capabilities():
     caps = E2BProvider(FakeE2BClient()).capabilities()
     assert caps.name == "e2b"

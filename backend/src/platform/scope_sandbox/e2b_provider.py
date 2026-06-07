@@ -61,7 +61,10 @@ class E2BProvider(SandboxProvider):
         client: E2BClient,
         *,
         domain: str = "e2b.app",
-        username: str = "puppy",
+        # The E2B default template's account is "user" (non-root, passwordless
+        # sudo, /home/user). authorized_keys + the scope workspace live under it,
+        # so the SSH login name MUST be "user" — see ssh_e2b.DEFAULT_USER.
+        username: str = "user",
     ) -> None:
         self._client = client
         self._domain = domain
