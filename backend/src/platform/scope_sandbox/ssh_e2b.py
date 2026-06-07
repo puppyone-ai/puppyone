@@ -57,17 +57,34 @@ PermitRootLogin no
 """
 
 
-def provision_steps(public_key: str, *, forward_port: int, ssh_port: int) -> list[str]:
+def provision_steps(
+    public_key: str | None = None, *, forward_port: int, ssh_port: int
+) -> list[str]:
     """The ordered shell commands that turn a bare sandbox into an SSH target.
 
     Pure (no I/O) so it's unit-testable; the caller runs each via provider.exec.
     The last command starts the websocat forwarder detached (nohup &).
+
+    ``public_key`` is OPTIONAL and, when given, becomes a permanent UNTAGGED
+    authorized_keys entry that the per-user credential layer (ssh_credentials)
+    cannot grant/revoke/expire. Production should leave it None and let
+    ssh_credentials.grant_ssh_access own authorized_keys entirely (so every key
+    is revocable + short-lived); pass a key only for a break-glass/admin bootstrap
+    or a single-user demo. Either way ``~/.ssh/authorized_keys`` is created
+    (mode 600) so sshd + later grants have a file to work with.
     """
-    pk = public_key.strip().replace("'", "")  # authorized_keys is single-line; no quotes
     config = SSHD_HARDENED_CONFIG.format(port=ssh_port).replace("'", "")
+    if public_key and public_key.strip():
+        pk = public_key.strip().replace("'", "")  # authorized_keys is single-line; no quotes
+        seed_authorized_keys = (
+            f"printf '%s\\n' '{pk}' > ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+        )
+    else:
+        # No seed key: credential layer will populate it. Just ensure the file exists.
+        seed_authorized_keys = "touch ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
     return [
         "mkdir -p ~/.ssh && chmod 700 ~/.ssh",
-        f"printf '%s\\n' '{pk}' > ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys",
+        seed_authorized_keys,
         "sudo ssh-keygen -A && sudo mkdir -p /run/sshd",
         # publickey-only config (see SSHD_HARDENED_CONFIG): access == authorized_keys.
         f"printf '%s' '{config}' | sudo tee {SSHD_CONFIG_PATH} >/dev/null",
@@ -87,14 +104,17 @@ def provision_steps(public_key: str, *, forward_port: int, ssh_port: int) -> lis
 async def provision_e2b_ssh(
     provider,
     sandbox_id: str,
-    public_key: str,
+    public_key: str | None = None,
     *,
     forward_port: int = DEFAULT_FORWARD_PORT,
     ssh_port: int = DEFAULT_SSH_PORT,
 ) -> None:
     """Run the SSH setup inside ``sandbox_id`` via the provider's exec.
 
-    Raises if any step fails (provider.exec surfaces non-zero exits).
+    Sets up the hardened, publickey-only sshd + websocat tunnel. Leave
+    ``public_key`` None in production and grant per-user keys via
+    ssh_credentials (so all access is revocable + short-lived); pass a key only
+    for an admin break-glass or single-user demo. Raises if any step fails.
     """
     for cmd in provision_steps(public_key, forward_port=forward_port, ssh_port=ssh_port):
         await provider.exec(sandbox_id, cmd)

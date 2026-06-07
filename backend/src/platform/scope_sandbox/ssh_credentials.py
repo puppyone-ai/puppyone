@@ -31,8 +31,13 @@ AUTHORIZED_KEYS = "~/.ssh/authorized_keys"
 # ── pure helpers ──────────────────────────────────────────────────────
 
 def format_expiry(epoch: float) -> str:
-    """OpenSSH ``expiry-time`` stamp (UTC ``YYYYMMDDHHMMSS``)."""
-    return datetime.fromtimestamp(epoch, tz=timezone.utc).strftime("%Y%m%d%H%M%S")
+    """OpenSSH ``expiry-time`` stamp, UTC-explicit (``YYYYMMDDHHMMSSZ``).
+
+    The trailing ``Z`` makes sshd interpret the time as UTC instead of the box's
+    local time zone (OpenSSH parses bare stamps in local time) — so the TTL is
+    correct regardless of how the provider's image is configured. Supported by
+    modern OpenSSH (verified live against the E2B/Fly sshd we run)."""
+    return datetime.fromtimestamp(epoch, tz=timezone.utc).strftime("%Y%m%d%H%M%S") + "Z"
 
 
 def user_comment(user_id: str) -> str:

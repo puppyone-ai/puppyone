@@ -16,8 +16,8 @@ ED = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIabc123 alice@laptop"
 # ── pure helpers ──────────────────────────────────────────────────────
 
 def test_format_expiry_is_utc_yyyymmddhhmmss():
-    # 1780531200 == 2026-06-04T00:00:00Z
-    assert sc.format_expiry(1780531200.0) == "20260604000000"
+    # 1780531200 == 2026-06-04T00:00:00Z; trailing Z makes sshd read it as UTC.
+    assert sc.format_expiry(1780531200.0) == "20260604000000Z"
 
 
 def test_authorized_key_line_has_expiry_option_and_user_tag():

@@ -28,6 +28,20 @@ def test_provision_steps_order_and_content():
     assert "nohup" in steps[-1] and steps[-1].rstrip().endswith("forwarder-started")
 
 
+def test_provision_steps_without_key_seeds_empty_authorized_keys():
+    # Production path: no seed key — credential layer owns authorized_keys, so
+    # every key is revocable/short-lived. The file is still created for sshd.
+    steps = provision_steps(forward_port=8081, ssh_port=22)
+    assert any("touch ~/.ssh/authorized_keys" in s for s in steps)
+    # no public key got written as a permanent untagged line
+    assert not any("printf '%s\\n'" in s and "ssh-" in s for s in steps)
+
+
+def test_provision_steps_with_key_still_seeds_it():
+    steps = provision_steps(PUBKEY, forward_port=8081, ssh_port=22)
+    assert any(PUBKEY in s and "authorized_keys" in s for s in steps)
+
+
 def test_provision_steps_hardens_sshd_to_publickey_only():
     steps = provision_steps(PUBKEY, forward_port=8081, ssh_port=22)
     config_step = next(s for s in steps if SSHD_CONFIG_PATH in s and "sshd" not in s.split()[0])
