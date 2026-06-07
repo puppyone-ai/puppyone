@@ -52,6 +52,7 @@ class E2BClient(Protocol):
     def kill(self, sandbox_id: str) -> None: ...
     def get_state(self, sandbox_id: str) -> SandboxState: ...
     def exec(self, sandbox_id: str, command: str) -> dict: ...
+    def set_timeout(self, sandbox_id: str) -> None: ...
 
 
 class E2BProvider(SandboxProvider):
@@ -109,6 +110,11 @@ class E2BProvider(SandboxProvider):
     async def exec(self, sandbox_id: str, command: str) -> dict:
         return await asyncio.to_thread(self._client.exec, sandbox_id, command)
 
+    async def extend(self, sandbox_id: str) -> None:
+        # E2B sandboxes auto-kill at their timeout; reset it so an active
+        # session isn't reclaimed underneath us.
+        await asyncio.to_thread(self._client.set_timeout, sandbox_id)
+
 
 class SdkE2BClient(E2BClient):
     """Real :class:`E2BClient` over ``e2b_code_interpreter``.
@@ -163,3 +169,9 @@ class SdkE2BClient(E2BClient):
             "stdout": getattr(result, "stdout", ""),
             "stderr": getattr(result, "stderr", ""),
         }
+
+    def set_timeout(self, sandbox_id: str) -> None:
+        from e2b_code_interpreter import Sandbox
+        # connect attaches to the running sandbox; set_timeout resets its
+        # remaining lifetime to self._timeout from now.
+        Sandbox.connect(sandbox_id, timeout=self._timeout).set_timeout(self._timeout)

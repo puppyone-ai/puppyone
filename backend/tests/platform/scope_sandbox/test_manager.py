@@ -64,7 +64,12 @@ class FakeProvider(SandboxProvider):
         self.states[sandbox_id] = SandboxState.DESTROYED
 
     async def status(self, sandbox_id: str) -> SandboxInfo:
+        if "status" in self.fail_on:
+            raise RuntimeError("status boom")
         return SandboxInfo(sandbox_id, self.states.get(sandbox_id, SandboxState.UNKNOWN))
+
+    async def extend(self, sandbox_id: str) -> None:
+        self.calls.append(("extend", sandbox_id))
 
     def count(self, op: str) -> int:
         return sum(1 for o, _ in self.calls if o == op)
@@ -211,6 +216,56 @@ async def test_evict_to_capacity_stops_lowest_value():
     # over capacity by 2 → the two cheapest-to-rebuild evicted, "dear" kept warm
     assert set(evicted) == {"cheap", "mid"}
     assert prov.count("stop") == 2
+
+
+async def test_acquire_runs_bootstrap_only_on_create():
+    prov = FakeProvider()
+    calls: list[str] = []
+    async def bootstrap(provider, sandbox_id, spec):
+        calls.append(sandbox_id)
+    mgr = ScopeSandboxManager(prov, InMemorySandboxSessionStore(), CFG, bootstrap=bootstrap)
+    await mgr.acquire(_spec(), "u1", now=0)          # CREATED → bootstrap runs
+    await mgr.acquire(_spec(), "u2", now=10)         # REUSED → no bootstrap
+    assert len(calls) == 1                            # provisioned exactly once
+    await mgr.release("scope-1", "u1", now=10); await mgr.release("scope-1", "u2", now=10)
+    await mgr.reap(now=200)                           # STOP
+    await mgr.acquire(_spec(), "u1", now=300)        # RESUMED → no bootstrap (disk kept)
+    assert len(calls) == 1
+
+
+async def test_acquire_extends_provider_timeout():
+    mgr, prov = _mgr()
+    await mgr.acquire(_spec(), "u1", now=0)
+    assert prov.count("extend") == 1                  # active session keeps its box alive
+
+
+async def test_reuse_reconciles_when_stale_and_box_was_stopped_out_of_band():
+    # reconcile_after_s small so a stale REUSE re-verifies the provider.
+    prov = FakeProvider()
+    mgr = ScopeSandboxManager(prov, InMemorySandboxSessionStore(), CFG, reconcile_after_s=50)
+    r1 = await mgr.acquire(_spec(), "u1", now=0)
+    sid = r1.session.sandbox_id
+    # provider stopped it out-of-band (e.g. its own timeout); registry still says RUNNING
+    prov.states[sid] = SandboxState.STOPPED
+    r2 = await mgr.acquire(_spec(), "u2", now=1000)   # idle 1000 > 50 → reconcile
+    assert r2.via is AcquiredVia.RESUMED and prov.count("start") == 1
+
+
+async def test_reuse_reconciles_when_box_was_killed_out_of_band():
+    prov = FakeProvider()
+    mgr = ScopeSandboxManager(prov, InMemorySandboxSessionStore(), CFG, reconcile_after_s=50)
+    r1 = await mgr.acquire(_spec(), "u1", now=0)
+    prov.states[r1.session.sandbox_id] = SandboxState.DESTROYED
+    r2 = await mgr.acquire(_spec(), "u2", now=1000)   # gone → recreate
+    assert r2.via is AcquiredVia.CREATED and prov.count("create") == 2
+
+
+async def test_reuse_stays_fast_when_recently_active():
+    prov = FakeProvider()
+    mgr = ScopeSandboxManager(prov, InMemorySandboxSessionStore(), CFG, reconcile_after_s=50)
+    await mgr.acquire(_spec(), "u1", now=0)
+    r = await mgr.acquire(_spec(), "u2", now=10)      # idle 10 <= 50 → no status call
+    assert r.via is AcquiredVia.REUSED and prov.count("status") == 0
 
 
 async def test_record_pull_cost_extends_warm_window():
