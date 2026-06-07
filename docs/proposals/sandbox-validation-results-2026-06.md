@@ -49,15 +49,14 @@
 
 ---
 
-## 4. SSH 连接有效性 —— 诚实结论:**两者都还没真正打通**
+## 4. SSH 连接有效性
 
-我们目前只产出了 **`ConnectionInfo`(设计目标)**,SSH 端到端尚未可用:
+- **E2B:✅ 已实环境打通(2026-06-07)。** 机制:sandbox 内 sshd:22 + websocat 服务(`ws-l:8081 → tcp:22`),客户端用 websocat 当 SSH `ProxyCommand` 经 `wss://8081-<id>.e2b.app` 隧道连入。本地 `ssh` 实连成功并执行命令(`hostname=e2b.local, user=user`)。VSCode Remote-SSH 用同一 `ProxyCommand`。固化在 `ssh_e2b.provision_e2b_ssh` + `scripts/e2b_ssh_demo.py`(create 0.92s + provision 6.67s)。默认模板(Debian13/非root+passwordless sudo/sshd预装),仅下载 websocat。
+  - 生产优化:把 sshd+websocat **烤进自定义 E2B 模板**(免每次 6.7s 运行时安装)。
+- **Fly:⛔ 未做(等绑支付)。** `ConnectionInfo(host=app.fly.dev, port=22)` 是目标,需:① 镜像装 sshd(2222)② 专用 IPv4(raw TCP 22)③ 凭证。Fly 是 raw TCP,无需 websocat,理论上比 E2B 更直接。
+- **仍缺 SSH 凭证签发/撤销层**(治理「离职即失权」依赖它)。当前 demo 用一对手动生成的 ed25519 密钥注入 authorized_keys;生产要做"按 user→scope 权限签发短期密钥/证书 + 撤销"。
 
-- **Fly**:`ConnectionInfo(host=app.fly.dev, port=22)` 是目标,但需要:① 镜像里装 sshd(监听 2222)② 分配专用 IPv4(raw TCP 22)③ 短期 SSH 凭证签发。三者都未做 → 现在连不进。
-- **E2B**:`proxy_command=websocat … wss://8081-{id}.e2b.app` 是目标,但需要:① 模板里装 sshd+websocat ② 客户端 websocat ③ 凭证。未做 → 现在连不进。
-- **无 SSH 凭证签发/撤销层**(治理承诺的「离职即失权」依赖它)。
-
-→ **SSH 是已设计、未接线**。HTTP/生命周期已实环境可用;SSH 是下一阶段的主要工作。
+→ **E2B 的 SSH 闭环已验证可用(含 VSCode 路径);Fly 待绑支付;凭证签发层待做。**
 
 ---
 
