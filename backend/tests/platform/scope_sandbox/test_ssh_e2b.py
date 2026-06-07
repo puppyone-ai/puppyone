@@ -5,6 +5,7 @@ from __future__ import annotations
 from src.platform.scope_sandbox.ssh_e2b import (
     DEFAULT_FORWARD_PORT,
     DEFAULT_SSH_PORT,
+    SSHD_CONFIG_PATH,
     provision_steps,
     ssh_proxy_command,
     vscode_ssh_config_block,
@@ -15,13 +16,29 @@ PUBKEY = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITESTKEY puppyone"
 
 def test_provision_steps_order_and_content():
     steps = provision_steps(PUBKEY, forward_port=8081, ssh_port=22)
+    blob = "\n".join(steps)
     assert "authorized_keys" in steps[1] and PUBKEY in steps[1]
     assert "ssh-keygen -A" in steps[2]
-    assert "websocat" in steps[3]              # install (idempotent)
-    assert "/usr/sbin/sshd -p 22" in steps[4]
+    assert "websocat" in blob                   # install (idempotent)
+    # sshd must start from our hardened config, not the default (no "none" auth)
+    sshd = next(s for s in steps if "/usr/sbin/sshd" in s)
+    assert f"-f {SSHD_CONFIG_PATH}" in sshd and "-p 22" not in sshd
     # forwarder is last and detached, bridging the forward port → sshd
     assert "ws-l:0.0.0.0:8081" in steps[-1] and "tcp:127.0.0.1:22" in steps[-1]
     assert "nohup" in steps[-1] and steps[-1].rstrip().endswith("forwarder-started")
+
+
+def test_provision_steps_hardens_sshd_to_publickey_only():
+    steps = provision_steps(PUBKEY, forward_port=8081, ssh_port=22)
+    config_step = next(s for s in steps if SSHD_CONFIG_PATH in s and "sshd" not in s.split()[0])
+    # the written config must forbid every non-key auth path that "none" rides on
+    for directive in (
+        "AuthenticationMethods publickey",
+        "PasswordAuthentication no",
+        "PermitEmptyPasswords no",
+        "UsePAM no",
+    ):
+        assert directive in config_step
 
 
 def test_provision_steps_sanitizes_quotes_in_key():

@@ -72,6 +72,7 @@ class ScopeSandboxManager:
         *,
         clock: Callable[[], float] = time.time,
         bootstrap: "Callable[[SandboxProvider, str, SandboxSpec], Awaitable[None]] | None" = None,
+        revoke_hook: "Callable[[SandboxProvider, str, str], Awaitable[None]] | None" = None,
         reconcile_after_s: float = 60.0,
     ) -> None:
         self._provider = provider
@@ -81,6 +82,9 @@ class ScopeSandboxManager:
         # Called once after a sandbox is CREATED (cold path) to provision the
         # scope workspace (clone + git config). See scope_provision.
         self._bootstrap = bootstrap
+        # Called on revoke_user(provider, sandbox_id, user_id) so offboarding
+        # also pulls the user's SSH access from the box. See ssh_credentials.
+        self._revoke_hook = revoke_hook
         # On a warm REUSE, only re-verify the provider's real state when the
         # session has been idle longer than this (a stale record may have been
         # stopped/killed out-of-band, e.g. E2B's own timeout). Recent activity
@@ -218,15 +222,20 @@ class ScopeSandboxManager:
 
     # ── governance ────────────────────────────────────────────────────
 
-    async def revoke_user(self, scope_id: str, user_id: str, *, now: float | None = None) -> int:
-        """Offboarding: drop a user from the shared sandbox's tracking. Returns
-        the number of users still connected. (Revoking the user's SSH
-        cert/access is the auth layer's job; here we just stop counting them so
-        the reaper can reclaim once the box is empty.)"""
+    async def revoke_user(self, scope_id: str, user_id: str) -> int:
+        """Offboarding: revoke a user's SSH access (via revoke_hook) and drop
+        them from the shared sandbox's tracking. Returns the number of users
+        still connected. The sandbox keeps running for the others; the reaper
+        reclaims it once empty."""
         async with self._lock(scope_id):
             session = self._store.get(scope_id)
             if session is None:
                 return 0
+            if self._revoke_hook is not None:
+                try:
+                    await self._revoke_hook(self._provider, session.sandbox_id, user_id)
+                except Exception as exc:  # noqa: BLE001 - revoke is best-effort; still drop tracking
+                    log_warning(f"[scope-sandbox] ssh revoke failed scope={scope_id} user={user_id}: {exc}")
             session.connected_users.discard(user_id)
             session.recent_user_events.pop(user_id, None)
             self._store.put(session)

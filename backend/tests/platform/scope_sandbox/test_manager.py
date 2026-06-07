@@ -182,10 +182,39 @@ async def test_revoke_user_offboarding():
     mgr, _ = _mgr()
     await mgr.acquire(_spec(), "u1", now=0)
     await mgr.acquire(_spec(), "u2", now=0)
-    remaining = await mgr.revoke_user("scope-1", "u1", now=0)
+    remaining = await mgr.revoke_user("scope-1", "u1")
     assert remaining == 1
     session = mgr._store.get("scope-1")
     assert session.connected_users == {"u2"} and "u1" not in session.recent_user_events
+
+
+async def test_revoke_user_invokes_revoke_hook():
+    prov = FakeProvider()
+    seen: list[tuple[str, str]] = []
+
+    async def revoke_hook(provider, sandbox_id, user_id):
+        seen.append((sandbox_id, user_id))
+
+    mgr = ScopeSandboxManager(
+        prov, InMemorySandboxSessionStore(), CFG, revoke_hook=revoke_hook
+    )
+    res = await mgr.acquire(_spec(), "u1", now=0)
+    await mgr.revoke_user("scope-1", "u1")
+    assert seen == [(res.session.sandbox_id, "u1")]  # SSH access pulled on offboarding
+
+
+async def test_revoke_user_survives_hook_failure():
+    prov = FakeProvider()
+
+    async def boom(provider, sandbox_id, user_id):
+        raise RuntimeError("ssh box unreachable")
+
+    mgr = ScopeSandboxManager(prov, InMemorySandboxSessionStore(), CFG, revoke_hook=boom)
+    await mgr.acquire(_spec(), "u1", now=0)
+    await mgr.acquire(_spec(), "u2", now=0)
+    remaining = await mgr.revoke_user("scope-1", "u1")  # best-effort: still drops tracking
+    assert remaining == 1
+    assert mgr._store.get("scope-1").connected_users == {"u2"}
 
 
 async def test_kill_scope_destroys_and_drops_record():
