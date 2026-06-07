@@ -177,6 +177,9 @@ class Settings(BaseSettings):
     SCOPE_SANDBOX_FLY_APP: str = ""
     SCOPE_SANDBOX_FLY_TOKEN: str = ""
     SCOPE_SANDBOX_FLY_IMAGE: str = ""
+    # Session store backend: "memory" (dev/single-process) or "supabase"
+    # (durable, multi-worker-visible — required for the reaper + multi-instance).
+    SCOPE_SANDBOX_STORE: Literal["memory", "supabase"] = "memory"
 
     # Workspace Provider configuration
     # - "auto": Auto-detect platform (macOS -> APFS Clone, Linux -> OverlayFS, other -> full copy)
