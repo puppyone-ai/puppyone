@@ -92,6 +92,10 @@ class ScopeSandboxManager:
         self._reconcile_after_s = reconcile_after_s
         self._locks: dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
 
+    @property
+    def provider(self) -> SandboxProvider:
+        return self._provider
+
     def _lock(self, scope_id: str) -> asyncio.Lock:
         return self._locks[scope_id]
 
