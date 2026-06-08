@@ -1423,6 +1423,12 @@ function getConnectorMethodMeta(connector: Connector): {
       description: 'Use a native Git remote for clone, pull, commit, and push workflows.',
     };
   }
+  if (connector.provider === 'filesystem') {
+    return {
+      title: 'Local Folder Sync',
+      description: 'Keep a local folder bidirectionally in sync with this scope.',
+    };
+  }
   return {
     title: getConnectorDisplayName(connector),
     description: PROVIDER_LABELS[connector.provider] || connector.provider,
@@ -1651,6 +1657,7 @@ function getProviderTileStyle(provider: string, selected: boolean) {
 }
 
 function getProviderTileSize(provider: string): number {
+  return isGitRemoteProvider(provider) ? 34 : 30;
   return isGitRemoteProvider(provider) ? 34 : 30;
 }
 

@@ -186,11 +186,6 @@ class OverlayFSWorkspaceProvider(WorkspaceProvider):
             shutil.rmtree(ws_root, ignore_errors=True)
         log_info(f"[OverlayFS] Destroyed workspace {workspace_id}")
 
-    def destroy_workspace(self, workspace_id: str) -> None:
-        """Unmount and clean up a workspace (legacy interface)."""
-        self._registry.pop(workspace_id, None)
-        self._unmount_workspace(workspace_id)
-
     def get_workspace_path(self, workspace_id: str) -> str:
         """Return the merged directory path for a workspace."""
         return str(self._base / workspace_id / "merged")

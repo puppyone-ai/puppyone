@@ -207,6 +207,57 @@ def test_git_object_gc_honors_object_age_metadata(server_repo, monkeypatch):
     assert server_repo.store.exists(orphan_tree)
 
 
+def test_git_object_gc_fails_safe_when_reachability_walk_errors(server_repo, monkeypatch):
+    """A read failure mid-walk must NOT lead to deletion.
+
+    Reproduces the "Damaged folder" root cause: if a tree object in the live
+    closure is transiently unreadable during the mark phase, its children are
+    never marked reachable and would be mis-classified as orphans. GC must
+    fail safe — refuse to delete anything for the project — rather than sweep
+    those still-referenced objects.
+    """
+    from src.version_engine.write_engine.git_object_format import decode_tree
+
+    store = server_repo.store
+    root_tree = build_tree_from_files(
+        store, {"docs/guide.md": b"guide", "keep.txt": b"keep"},
+    )
+    root_commit = _commit_tree(server_repo, root_tree, "live")
+    _publish_root(server_repo, root_tree, root_commit)
+
+    docs_subtree = next(
+        entry.sha1_hex
+        for entry in decode_tree(store.get_object(root_tree)[1])
+        if entry.name == "docs"
+    )
+    guide_blob = tree_to_flat(store, root_tree)["docs/guide.md"]
+
+    # A genuine orphan that WOULD be swept if the closure were trusted.
+    orphan_tree = build_tree_from_files(store, {"drop.txt": b"drop"})
+    orphan_commit = _commit_tree(server_repo, orphan_tree, "orphan")
+
+    # Simulate a transient read failure on the docs/ subtree during the walk:
+    # its child blob then never gets marked reachable.
+    real_get_loose = store.get_loose
+
+    def flaky_get_loose(h):
+        if h == docs_subtree:
+            raise RuntimeError("transient object-store read error")
+        return real_get_loose(h)
+
+    monkeypatch.setattr(store, "get_loose", flaky_get_loose)
+
+    result = run_git_object_gc(server_repo, dry_run=False, retention_seconds=0)
+
+    assert result.sweep_skipped_for_safety is True
+    assert result.deleted_count == 0
+    assert any("closure incomplete" in err for err in result.errors)
+    # The live-but-mis-classified blob is NOT swept despite the walk gap …
+    assert store.exists(guide_blob)
+    # … and the genuine orphan is also kept (safety over reclamation).
+    assert store.exists(orphan_commit)
+
+
 def test_object_gc_worker_can_run_bounded_manual_project_list(server_repo, monkeypatch):
     manager = MagicMock(spec=VersionRepoManager)
     manager.get_server_repo.return_value = server_repo

@@ -166,6 +166,25 @@ class Settings(BaseSettings):
     # Large file streaming threshold (bytes); files exceeding this size use streaming transfer
     SANDBOX_LARGE_FILE_THRESHOLD: int = 50 * 1024 * 1024  # 50MB
 
+    # ── Scope-sandbox (V2 "sandbox as access point") ──
+    # NOTE: the per-project/enterprise choice of "fly" vs "e2b" is a USER
+    # selection made in the frontend and persisted as a project setting; it is
+    # resolved at runtime via factory.provider_from_settings(settings, name=...).
+    # The env var below is only the DEFAULT/fallback for projects that haven't
+    # chosen. The vars here hold the per-provider CREDENTIALS (always needed for
+    # whichever provider a project selects). See docs/proposals/PUP-sandbox-access-point.md.
+    # Default only; the per-project UI choice overrides. Defaults to "e2b" — the
+    # live-validated path (full SSH + credential round-trip proven). Fly is
+    # code-complete but not yet live (needs payment + dedicated IPv4), so it
+    # shouldn't be the silent fallback for projects that haven't chosen.
+    SCOPE_SANDBOX_PROVIDER: Literal["fly", "e2b"] = "e2b"
+    SCOPE_SANDBOX_FLY_APP: str = ""
+    SCOPE_SANDBOX_FLY_TOKEN: str = ""
+    SCOPE_SANDBOX_FLY_IMAGE: str = ""
+    # Session store backend: "memory" (dev/single-process) or "supabase"
+    # (durable, multi-worker-visible — required for the reaper + multi-instance).
+    SCOPE_SANDBOX_STORE: Literal["memory", "supabase"] = "memory"
+
     # Workspace Provider configuration
     # - "auto": Auto-detect platform (macOS -> APFS Clone, Linux -> OverlayFS, other -> full copy)
     # - "apfs": Force APFS Clone (macOS only)
@@ -281,6 +300,13 @@ class Settings(BaseSettings):
     VERSION_OBJECT_GC_RETENTION_SECONDS: int = 7 * 24 * 60 * 60
     VERSION_OBJECT_GC_MAX_PROJECTS_PER_RUN: int = 25
     VERSION_OBJECT_GC_MAX_DELETE_PER_PROJECT: int = 1000
+
+    # Post-commit tree-closure tripwire. When on, every product write verifies
+    # the freshly-published root resolves its entire subtree closure and fails
+    # loud (MissingBlobError) on a dangling tree. Off by default: the walk is
+    # O(tree) per write. Builders are proven complete by unit test; enable this
+    # for prod paranoia or incident triage. See ProductOperationAdapter.
+    VERSION_VERIFY_TREE_CLOSURE_ON_WRITE: bool = False
 
     # Background primary-loose-object integrity scan (runbook §8①).
     # Disabled + diagnosis-only by default; ops flips _HEAL on after

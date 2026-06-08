@@ -34,9 +34,6 @@ PROVIDERS_OAUTH_BACKED = frozenset({
 # ImportJob / project GitHub integration flows instead of Access connectors.
 PROVIDERS_IMPORT_ONLY = frozenset({"github"})
 
-# Self-auth providers (config carries credential / no oauth_connection_id needed).
-PROVIDERS_SELF_AUTH = frozenset({"url", "rest_api", "rss", "supabase"})
-
 
 def _provider_default_name(provider: str) -> str:
     return provider.replace("_", " ").title()

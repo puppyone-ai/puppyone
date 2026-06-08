@@ -1,0 +1,39 @@
+# Scope-Sandbox 实施 Roadmap(优先级 + 优缺点,2026-06-07)
+
+里程碑标尺:**M1 单用户可用 demo**(已达成,手动/脚本)· **M2 多用户受治理试点** · **M3 生产硬化**。
+优先级:**P0** 阻塞正确性/feature 成立 · **P1** M2/M3 重要 · **P2** 优化/后置。
+
+| # | 事项 | 优先级 | 价值 | 代价/风险 | 依赖 |
+|---|---|---|---|---|---|
+| 1 | in-sandbox git provision + rebase 默认 | **P0** | 让"连进去 scope 就在、协同正确"自动化(feature 本体)| 运行时安装慢、与 #6 模板重叠(现为临时版)| — |
+| 2 | E2B 超时续期 + acquire reconcile (5.1) | **P0** | 修 15min 自杀/会话漂移,会话真正长存 | 碰 E2B lifecycle,需实测 | — |
+| 3 | session 状态外部化 DB/Redis (5.3) | P0(生产)/P2(demo) | 多 worker/重启不丢会话 | schema 易返工(API 未定型) | — |
+| 4 | reaper 排程 (5.2) | **P0(成本)** | 自动 stop/destroy 省钱;reap 逻辑已就绪 | 生产正确性依赖 #3;需 app manager 单例 | 3 |
+| 5 | SSH 短期凭证签发/撤销 | P1(治理核心) | "离职即失权" + 审计到人 | 工作量大;demo 用静态 key 可绕 | — |
+| 6 | 自定义 E2B 模板(烤入 sshd+websocat) | P1 | 启动 6s→1s、resume 后 SSH 仍在 | 构建流水线;仅 E2B 侧 | 1 |
+| 7 | per-user working tree + 身份/auth | P1 | push 归属到人、协同归属正确 | 依赖凭证层 | 5 |
+| 8 | 可观测(写 sync_runs/GAP-8)+ 调参 | P1/P2 | 用量可见 + 调 session 策略 | 调参需真实数据量 | — |
+| 9 | HTTP API + 前端 provider 选择 | P1(产品化) | 用户能用的最后一公里 | 核心未稳前做=返工 | 1,2,5 |
+| 10 | Fly 路径(镜像+IPv4+SSH) | P1/P2 | 推荐默认、原生 TCP SSH、便宜 | 卡绑支付+计费;E2B 已可验证可缓 | — |
+| 11 | legacy 与 V2 退役 (5.7) | P2 | 少维护少混淆 | 现不冲突;过早合并牵扯 agent 用途 | — |
+
+## 推进顺序
+- **第一梯队(让 demo 变真功能 + 会话长存,单进程即见效)**:**#1 + #2**。
+- **第二梯队(M2 试点)**:**#3+#4**(外部化+reaper,后者依赖前者)、**#5+#7**(凭证+per-user 身份)。
+- **第三梯队(M3)**:**#6 模板** → **#8 可观测+调参** → **#9 API+UI** → **#10 Fly**。
+- **最后**:**#11** legacy 退役。
+
+## 进度(2026-06-07)
+- ✅ **#1** in-sandbox provision + rebase 默认(`scope_provision` + manager bootstrap)—— 实环境验证
+- ✅ **#2** E2B 超时续期 extend + acquire reconcile —— 实环境验证
+- ✅ **#3** Supabase 持久 session store + 迁移 `20260607000000_scope_sandbox_sessions.sql`(`SCOPE_SANDBOX_STORE=memory|supabase`)—— 单测(含 manager 跑在 DB store 上);**改 supabase 前需先应用迁移**
+- ✅ **#4** reaper loop(`reaper.py`)—— 单测;调度接入 app 待 manager 单例(现 #3 已就绪,可接)
+- ✅ **#5+#7** SSH 短期凭证签发/撤销 + per-user 身份(`ssh_credentials.py`)—— **实环境验证**:per-user public key 进 authorized_keys,带 `puppyone:user=<id>` 标签 + OpenSSH `expiry-time` 原生 TTL;grant=加行、revoke=删行(离职即失权)、过期=拒;per-user working tree `~/<user_id>` + git 身份。manager `revoke_hook` 接入 `revoke_user`(离职即撤 SSH,best-effort)。
+  - ⚠️ **安全发现 + 修复**:E2B 默认模板的 socket-activated sshd **接受 SSH `none` 认证方法**(任何人都能进,无视 authorized_keys),静默瓦解凭证治理。已硬化 `ssh_e2b`:释放 systemd socket 占用的 :22,启动我们自己的 publickey-only sshd(`AuthenticationMethods publickey` / `UsePAM no` / `PasswordAuthentication no`)。实测 grant→可连、过期→拒、revoke→拒,bootstrap key 全程可连(拒绝是 per-key)。
+- ✅ **#10(部分,只写不测)** Fly 侧代码补齐:`FlyMachinesProvider.exec`(Machines exec API,以 SSH 用户身份跑,使 `~`/属主一致 → 与 E2B 共用 `scope_provision`+`ssh_credentials`);Fly 镜像 `sandbox/scope-fly/`(Dockerfile 烤入 publickey-only sshd@2222 + git + CLI + `puppy` 用户;README + 参考 fly.toml)。Fly 原生 raw TCP,无需 websocat,`ConnectionInfo.proxy_command=None`。**未实连**(待绑支付 + 专用 IPv4)。
+- 另:E2B 全链路 + **SSH(VSCode Remote-SSH)实环境打通**(`ssh_e2b`);多用户协同实测(发现 **PuppyOne 强制线性历史 → rebase 工作流**)
+
+第二梯队完成(#3+#4 外部化+reaper,#5+#7 凭证+per-user 身份;Fly 代码跟进)。下一步(M3):**#6 自定义 E2B 模板**(烤入 sshd+websocat,免每次运行时硬化/安装)→ **#8 可观测+调参** → **#9 API+UI** → **#10 Fly 实连**(待绑支付/IPv4)→ **#11 legacy 退役**。
+
+## (历史)当前动手:#1 + #2(+ #4)
+理由:让"用户连进去就有一个能长期用、会自动省成本"的真 sandbox;三件都不大、风险低、可立即验证。
