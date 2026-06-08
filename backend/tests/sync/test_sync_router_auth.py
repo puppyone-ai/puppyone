@@ -27,7 +27,7 @@ class StubSyncRepo:
             project_id="project-allowed",
             path="node-1",
             direction="bidirectional",
-            provider="filesystem",
+            provider="mcp",
             config={},
             status="active",
             last_sync_commit_id="commit-allowed",
@@ -45,7 +45,7 @@ class StubSyncRepo:
             project_id="project-other",
             path="node-2",
             direction="bidirectional",
-            provider="filesystem",
+            provider="mcp",
             config={},
             status="active",
             last_sync_commit_id="commit-other",
@@ -134,7 +134,7 @@ def test_status_forbidden_without_project_access(current_user: CurrentUser):
     assert repo.list_by_project_calls == []
 
 
-def test_status_authorized_can_read_openclaw_access_key(current_user: CurrentUser):
+def test_status_authorized_can_read_mcp_access_key(current_user: CurrentUser):
     client, _, _ = _build_client(
         allowed_projects={"project-allowed"},
         current_user=current_user,

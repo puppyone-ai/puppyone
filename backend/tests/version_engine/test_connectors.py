@@ -3,13 +3,11 @@
 Covers:
   - BaseConnector pull() method
   - SyncEngine decoupling (fetch → compare → ProductOperationAdapter.write)
-  - Filesystem bootstrap with scope config
   - Unified connections manager routing by provider
 """
 
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
-from dataclasses import dataclass
+from unittest.mock import MagicMock
 
 from src.connectors.datasource._base import (
     BaseConnector, ConnectorSpec, FetchResult, Capability,
@@ -97,38 +95,6 @@ class TestPullableConnector:
         assert result.content == "pulled"
         assert result.content_hash == "h2"
 
-
-# ── Filesystem Bootstrap Tests ─────────────────────────────────
-
-class TestFilesystemBootstrapScope:
-    """Verify filesystem bootstrap creates proper scope config."""
-
-    def test_bootstrap_creates_scope_config(self):
-        """Simulated: verify the scope structure that would be created."""
-        # This tests the config dict structure, not actual DB writes
-        path = "docs/research"
-        scope = {
-            "id": f"fs-{path.replace('/', '-').strip('-') or 'root'}",
-            "path": path,
-            "exclude": [".git", "node_modules", ".DS_Store", "__pycache__"],
-            "mode": "rw",
-        }
-        assert scope["id"] == "fs-docs-research"
-        assert scope["path"] == "docs/research"
-        assert ".git" in scope["exclude"]
-        assert scope["mode"] == "rw"
-
-    def test_bootstrap_root_scope_id(self):
-        path = ""
-        scope_id = f"fs-{path.replace('/', '-').strip('-') or 'root'}"
-        assert scope_id == "fs-root"
-
-    def test_bootstrap_nested_scope_id(self):
-        path = "src/frontend/components"
-        scope_id = f"fs-{path.replace('/', '-').strip('-') or 'root'}"
-        assert scope_id == "fs-src-frontend-components"
-
-
 # ── Unified Manager Routing Tests ──────────────────────────────
 
 class TestManagerRouting:
@@ -136,21 +102,9 @@ class TestManagerRouting:
 
     def test_known_providers(self):
         """Verify all expected providers are handled in the routing logic."""
-        known_providers = {"agent", "mcp", "sandbox", "filesystem"}
+        known_providers = {"agent", "mcp", "sandbox", "direct"}
         assert len(known_providers) == 4
-        assert "filesystem" in known_providers
-
-    def test_filesystem_scope_in_config(self):
-        """Filesystem creation should pass scope config."""
-        cfg = {"scope": "/docs"}
-        scope_path = cfg.get("scope", "/")
-        assert scope_path == "/docs"
-
-    def test_filesystem_default_scope(self):
-        """Missing scope defaults to root."""
-        cfg = {}
-        scope_path = cfg.get("scope", "/")
-        assert scope_path == "/"
+        assert "direct" in known_providers
 
 
 # ── SyncEngine Decoupling Tests ────────────────────────────────
@@ -178,85 +132,6 @@ class TestSyncEngineDecoupling:
         source = inspect.getsource(BaseConnector)
         assert "ProductOperationAdapter" not in source
         assert "version_engine" not in source
-
-
-# ── Unified API Filesystem Output Contract ─────────────────────
-
-class TestUnifiedFilesystemOutput:
-    """`_create_filesystem` must surface access_key + ap_base.
-
-    These are required so the frontend `Add Filesystem` UI and the
-    `puppyone access add filesystem ... --link` flow can construct
-    the `puppyone connect` command from a single API response — without
-    a follow-up call to `/access/{id}/key`.
-    """
-
-    @pytest.mark.asyncio
-    async def test_returns_access_key_and_ap_base(self):
-        from src.connectors.manager.router import (
-            UnifiedConnectionCreate,
-            _create_filesystem,
-        )
-
-        @dataclass
-        class FakeSync:
-            id: str = "ap_42"
-            project_id: str = "proj_1"
-            status: str = "active"
-            access_key: str = "cli_secret_xyz"
-
-        fake_sync = FakeSync()
-
-        with patch("src.connectors.filesystem.service.FilesystemService") as svc_cls, \
-             patch("src.connectors.datasource.repository.SyncRepository"), \
-             patch("src.infra.supabase.client.SupabaseClient"):
-            svc_cls.return_value.bootstrap.return_value = fake_sync
-
-            payload = UnifiedConnectionCreate(
-                project_id="proj_1",
-                provider="filesystem",
-                name="My Folder",
-                config={"scope": {"path": "docs"}},
-            )
-
-            out = await _create_filesystem(payload, _user_id="user_1")
-
-        assert out.access_key == "cli_secret_xyz", \
-            "access_key must be returned so the UI can render the git remote URL"
-        assert out.ap_base == "/git/ap/cli_secret_xyz.git", \
-            "ap_base must point at the Git smart-HTTP URL for this access key"
-        assert out.id == "ap_42"
-        assert out.provider == "filesystem"
-
-    @pytest.mark.asyncio
-    async def test_ap_base_is_none_when_no_access_key(self):
-        """Defensive: if bootstrap somehow returned no key, ap_base stays None."""
-        from src.connectors.manager.router import (
-            UnifiedConnectionCreate,
-            _create_filesystem,
-        )
-
-        @dataclass
-        class KeylessSync:
-            id: str = "ap_x"
-            project_id: str = "proj_1"
-            status: str = "active"
-            access_key: str | None = None
-
-        with patch("src.connectors.filesystem.service.FilesystemService") as svc_cls, \
-             patch("src.connectors.datasource.repository.SyncRepository"), \
-             patch("src.infra.supabase.client.SupabaseClient"):
-            svc_cls.return_value.bootstrap.return_value = KeylessSync()
-
-            payload = UnifiedConnectionCreate(
-                project_id="proj_1",
-                provider="filesystem",
-                config={"scope": {"path": "/"}},
-            )
-            out = await _create_filesystem(payload, _user_id="user_1")
-
-        assert out.access_key is None
-        assert out.ap_base is None
 
 
 # ── Plugin Auto-Discovery Tests ────────────────────────────────

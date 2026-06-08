@@ -6,7 +6,7 @@ import { Disclosure } from './Disclosure';
 import { NumberedStep } from './NumberedStep';
 import { PromptBlock } from './PromptBlock';
 
-export function LocalSyncBody({
+export function GitRemoteBody({
   gitUrl,
   scopeName,
 }: {

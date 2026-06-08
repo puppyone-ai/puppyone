@@ -19,7 +19,6 @@ import { TreeRows, type RowVariant } from './components/TreeRows';
 import { HistoryCard } from './components/HistoryCard';
 import { GetStartedPanel } from './components/GetStartedPanel';
 import { ApChip } from './components/ApChip';
-import { AccessPointsListCard } from './components/AccessPointsListCard';
 import { ProjectPageLoadingShell } from '@/components/loading';
 import { ProjectGitHealthBadge } from '@/components/ProjectGitHealthBadge';
 
@@ -215,11 +214,7 @@ export default function HomePage({
       // backend can produce into a single key — '' — so downstream
       // consumers only have to look in one place:
       //
-      //   path === '/'   — filesystem bootstrap stores this for root
-      //                    (filesystem service.bootstrap is called
-      //                    with path='/' from the home onboarding
-      //                    panel and the access page's "root scope"
-      //                    button)
+      //   path === '/'   — root access surfaces may serialize this way
       //   path === null  — incomplete rows from before path-NOT-NULL was
       //                    enforced; still in some long-lived projects
       //   path === ''    — early hand-bootstrapped rows
@@ -685,7 +680,7 @@ export default function HomePage({
 
               Connections are passed in so the CLI card inside the panel
               can derive its `access_key` from server truth (the
-              existing root filesystem AP, if any) instead of relying on
+              existing root Git Remote AP, if any) instead of relying on
               local React state that vanishes on refresh.
               ============================================================ */}
 
@@ -917,8 +912,7 @@ export default function HomePage({
                   // for project-root APs in ConnectionsCanvas).
                   // Two reasons:
                   //   1.  AP visibility — root-attached access points
-                  //       (the default filesystem access point at
-                  //       `/`) had no anchor row in the Data card, so
+                  //       had no anchor row in the Data card, so
                   //       their presence was visible only in the
                   //       Connections canvas below.  Now the chip
                   //       renders directly on the root row, making
@@ -1037,17 +1031,6 @@ export default function HomePage({
                 gap: 16,
               }}
             >
-              {/* Access Points first — top of the rail because the
-                  user's typical work is "look at Data, then act on
-                  it via an AP".  Putting AP above History honors
-                  that reading order. */}
-              <AccessPointsListCard
-                projectId={projectId}
-                router={router}
-                connections={connections}
-                hoveredPath={hoveredPath}
-                onHoverPath={setHoveredPath}
-              />
               <HistoryCard
                 projectId={projectId}
                 router={router}

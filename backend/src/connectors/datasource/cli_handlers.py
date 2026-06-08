@@ -72,6 +72,7 @@ async def process_push_file(
             project_id, existing.path, content_bytes,
             actor=f"sync:cli:{body.external_resource_id}",
             message=f"push update {body.external_resource_id}",
+            source_channel="sync",
         )
         write_result = outcome.result
         commit_id = write_result.commit_id
@@ -111,6 +112,7 @@ async def process_push_file(
         project_id, file_path, content_bytes,
         actor=f"sync:cli:{body.external_resource_id}",
         message=f"push create {body.external_resource_id}",
+        source_channel="sync",
     )
     write_result = outcome.result
     commit_id = write_result.commit_id

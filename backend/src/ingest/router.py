@@ -321,8 +321,9 @@ async def submit_file_ingest(
             await commands.bulk_write(
                 project_id,
                 modified_files,
-                actor=f"ingest:{current_user.user_id}",
+                actor=f"upload:{current_user.user_id}",
                 message=f"Upload {len(modified_files)} file(s)",
+                source_channel="upload",
             )
         except Exception as e:
             logger.error(f"version push failed during file ingest: {e}", exc_info=True)

@@ -504,6 +504,7 @@ async def finalize_upload_to_version(
             actor=f"upload:{task.created_by or 'unknown'}",
             message=f"Upload {task.filename}",
             verify_blobs=False,
+            source_channel="upload",
         )
 
         processing_time = time.time() - started_at
@@ -836,6 +837,7 @@ async def finalize_uploads_to_version_batch(
             actor=who,
             message=message,
             verify_blobs=False,
+            source_channel="upload",
         )
     except Exception as e:
         # Whole-batch push failure → mark every survivor FAILED.
@@ -1082,6 +1084,7 @@ async def etl_postprocess_job(ctx: dict, task_id: str | int) -> dict:
                 json.dumps({}, ensure_ascii=False).encode("utf-8"),
                 actor=f"etl:{task_id}",
                 message=f"ETL auto-create for {task.filename}",
+                source_channel="upload",
             )
             task.metadata["mount_path"] = mount_path
             task.metadata["auto_node_created"] = True
@@ -1117,6 +1120,7 @@ async def etl_postprocess_job(ctx: dict, task_id: str | int) -> dict:
                     markdown_content.encode("utf-8"),
                     actor=f"etl:{task_id}",
                     message=f"OCR result for {task.filename}",
+                    source_channel="upload",
                 )
                 logger.info(f"ETL: Filled preview for pending node {mount_path}")
             else:
@@ -1145,6 +1149,7 @@ async def etl_postprocess_job(ctx: dict, task_id: str | int) -> dict:
                     json.dumps(existing_content, ensure_ascii=False, indent=2).encode("utf-8"),
                     actor=f"etl:{task_id}",
                     message=f"ETL mount for {task.filename}",
+                    source_channel="upload",
                 )
         except Exception as e:
             # Mount failure => task failed (output exists in S3, but contract is "completed means mounted")

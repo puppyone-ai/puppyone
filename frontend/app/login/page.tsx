@@ -473,8 +473,7 @@ function LoginPageInner() {
           {view === 'main' && (
             <div className="animate-fade-in">
               <div className="mb-8 text-center">
-                <h1 className="text-2xl font-semibold text-[var(--po-text)]">Welcome to Puppyone</h1>
-                <p className="mt-2 text-sm text-[var(--po-text-muted)]">The context hub for your agents.</p>
+                <h1 className="text-2xl font-semibold text-[var(--po-text)]">Sign in or sign up</h1>
               </div>
 
               <div className="flex flex-col gap-3">
@@ -496,7 +495,9 @@ function LoginPageInner() {
                 />
               </div>
 
-              <div className="mt-6">
+              <AuthDivider />
+
+              <div>
                 <form onSubmit={handleContinue} className="flex flex-col gap-3">
                   <InputField
                     label="Email"
@@ -686,13 +687,23 @@ function ProviderButton({
     <button
       onClick={onClick}
       disabled={disabled}
-      className="w-full h-10 px-4 rounded-md border border-[var(--po-border)] bg-[var(--po-control)] text-[var(--po-text)] cursor-pointer text-sm font-medium transition-all hover:bg-[var(--po-control-hover)] hover:border-[var(--po-border-strong)] disabled:opacity-50 disabled:cursor-not-allowed"
+      className="relative w-full h-10 px-4 rounded-md border border-[var(--po-border)] bg-[var(--po-control)] text-[var(--po-text)] cursor-pointer text-sm font-medium transition-all hover:bg-[var(--po-control-hover)] hover:border-[var(--po-border-strong)] disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center"
     >
-      <span className="flex items-center justify-center gap-2.5">
+      <span className="absolute left-4 top-1/2 -translate-y-1/2 inline-flex h-5 w-5 items-center justify-center">
         {icon}
-        <span>{isLoading ? loadingLabel : label}</span>
       </span>
+      <span>{isLoading ? loadingLabel : label}</span>
     </button>
+  );
+}
+
+function AuthDivider() {
+  return (
+    <div className="my-5 flex items-center gap-3 text-xs font-medium text-[var(--po-text-subtle)]">
+      <div className="h-px flex-1 bg-[var(--po-border)]" />
+      <span>or</span>
+      <div className="h-px flex-1 bg-[var(--po-border)]" />
+    </div>
   );
 }
 

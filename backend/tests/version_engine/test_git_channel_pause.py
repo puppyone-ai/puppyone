@@ -12,7 +12,7 @@ def _request(headers: dict[str, str] | None = None):
 
 
 @pytest.mark.asyncio
-async def test_git_ap_infers_filesystem_channel_without_custom_header(monkeypatch):
+async def test_git_ap_infers_git_remote_channel_without_custom_header(monkeypatch):
     calls = []
 
     monkeypatch.setattr(
@@ -29,11 +29,11 @@ async def test_git_ap_infers_filesystem_channel_without_custom_header(monkeypatc
     project_id, _auth = await git_router.resolve_git_access_point("access-key", _request())
 
     assert project_id == "project-1"
-    assert calls == ["filesystem"]
+    assert calls == ["git_remote"]
 
 
 @pytest.mark.asyncio
-async def test_git_project_auth_infers_filesystem_channel_without_custom_header(monkeypatch):
+async def test_git_project_auth_infers_git_remote_channel_without_custom_header(monkeypatch):
     calls = []
 
     class _Authenticator:
@@ -59,4 +59,4 @@ async def test_git_project_auth_infers_filesystem_channel_without_custom_header(
     )
 
     assert auth["_scope"]["path"] == "docs"
-    assert calls == ["filesystem"]
+    assert calls == ["git_remote"]

@@ -266,7 +266,6 @@ function SidebarProviderChip({
   const CHIP_TITLES: Record<string, string> = {
     cli: 'Puppyone CLI active',
     git_remote: 'Git Remote active',
-    filesystem: 'Local Folder Sync active',
   };
   const title = CHIP_TITLES[provider] ?? `${provider} active`;
 

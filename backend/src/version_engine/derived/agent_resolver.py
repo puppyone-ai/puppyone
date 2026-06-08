@@ -168,7 +168,7 @@ class AgentResolverDispatcher:
             pending_conflict_id=pending_id,
             scope_path=scope_path,
             resolver_actor=decision.resolver_actor or "agent:auto",
-            source_channel="agent",
+            source_channel="access_sandbox",
             resolution_tree_id=decision.resolution_tree_id,
             resolution_files=decision.resolution_files,
             resolution_message=(

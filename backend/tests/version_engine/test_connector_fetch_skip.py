@@ -1,5 +1,5 @@
-"""GAP-9: a connector whose data plane is external (Filesystem connector
-syncs via the Git adapter, not the SyncEngine) declares PULL/PUSH for the
+"""GAP-9: a connector whose data plane is external (outside SyncEngine)
+declares PULL/PUSH for the
 UI but raises NotImplementedError from fetch()/push(). The push path already
 treated that as "skipped"; the fetch path used to fall through to the
 generic error handler and flip the sync into a FAILED state. These tests
@@ -20,7 +20,7 @@ class ExternalDataPlaneConnector(BaseConnector):
 
     def spec(self) -> ConnectorSpec:
         return ConnectorSpec(
-            provider="filesystem-like",
+            provider="external-plane",
             display_name="External",
             capabilities=Capability.PULL | Capability.PUSH,
             supported_directions=["bidirectional"],
@@ -34,7 +34,7 @@ def _make_engine():
     sync = MagicMock()
     sync.id = "s1"
     sync.status = "active"
-    sync.provider = "filesystem-like"
+    sync.provider = "external-plane"
     sync.config = {}
     sync.created_by = "u1"
     sync.path = "docs"

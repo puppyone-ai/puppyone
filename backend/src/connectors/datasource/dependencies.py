@@ -38,7 +38,6 @@ def _get_supabase_client() -> SupabaseClient:
 
 _SCAN_PATHS: list[tuple[str, str]] = [
     ("connectors/datasource", "src.connectors.datasource"),
-    ("connectors/filesystem", "src.connectors.filesystem"),
 ]
 
 

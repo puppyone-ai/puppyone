@@ -182,15 +182,15 @@ function MethodIcon({
 }) {
   const provider = methodProvider(meta.id);
   const tile = getMethodProviderTile(provider, active);
-  const tileSize = provider === 'filesystem' ? 28 : 26;
-  const iconSize = provider === 'filesystem' ? 28 : provider === 'cli' ? 15 : 14;
+  const tileSize = 26;
+  const iconSize = provider === 'cli' ? 15 : 14;
 
   return (
     <div
       style={{
         width: tileSize,
         height: tileSize,
-        borderRadius: provider === 'filesystem' ? 6 : 6,
+        borderRadius: 6,
         background: tile.background,
         border: `1px solid ${tile.border}`,
         color: tile.color,
@@ -199,7 +199,6 @@ function MethodIcon({
         justifyContent: 'center',
         flexShrink: 0,
         opacity: active ? 1 : 0.62,
-        overflow: provider === 'filesystem' ? 'hidden' : undefined,
         boxShadow: active ? tile.shadow : 'none',
         transition: 'background 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s',
       }}
@@ -212,7 +211,7 @@ function MethodIcon({
 
 function methodProvider(id: MethodMeta['id']): string {
   if (id === 'terminal') return 'cli';
-  if (id === 'sync') return 'filesystem';
+  if (id === 'sync') return 'git_remote';
   return 'agent';
 }
 
@@ -233,7 +232,7 @@ function getMethodProviderTile(provider: string, active: boolean) {
       shadow: '0 1px 2px var(--po-shadow)',
     };
   }
-  if (provider === 'filesystem') {
+  if (provider === 'git_remote') {
     return {
       background: 'var(--po-text-inverse)',
       border: COLOR_BORDER_HOVER,

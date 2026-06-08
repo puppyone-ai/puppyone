@@ -2,8 +2,7 @@
 Sync execution job for scheduled sync tasks.
 
 APScheduler calls execute_sync_pull when a scheduled sync needs to refresh.
-Now uses SyncEngine (unified execution engine) instead of the legacy
-SyncService.pull_sync() path.
+Now uses IntegrationEngine instead of the legacy scope-bound sync path.
 """
 
 import asyncio
@@ -14,16 +13,15 @@ from src.utils.logger import log_info, log_error
 
 async def _execute_sync_pull_async(sync_id: str, trigger_type: str = "scheduled") -> dict:
     """
-    Pull fresh data for a scheduled sync binding via SyncEngine.
-    All writes go through CollaborationService (version management).
+    Pull fresh data for a scheduled Integration binding.
     """
-    from src.connectors.datasource.dependencies import create_sync_engine
+    from src.platform.integrations.dependencies import create_integration_engine
 
     started_at = datetime.now(timezone.utc)
     log_info(f"[sync-scheduler] Starting pull for sync {sync_id}")
 
     try:
-        engine = create_sync_engine()
+        engine = create_integration_engine()
         result = await engine.execute(sync_id, trigger_type=trigger_type)
         elapsed_ms = int((datetime.now(timezone.utc) - started_at).total_seconds() * 1000)
 
@@ -41,8 +39,8 @@ async def _execute_sync_pull_async(sync_id: str, trigger_type: str = "scheduled"
 
         try:
             from src.infra.supabase.client import SupabaseClient
-            from src.connectors.datasource.repository import SyncRepository
-            SyncRepository(SupabaseClient()).update_error(sync_id, str(e))
+            from src.platform.integrations.repository import IntegrationRepository
+            IntegrationRepository(SupabaseClient()).update_error(sync_id, str(e))
         except Exception:
             pass
 

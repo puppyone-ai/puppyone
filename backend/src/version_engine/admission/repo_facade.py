@@ -1,7 +1,7 @@
 """Repository facade facts for PuppyOne access surfaces.
 
 PuppyOne exposes several repo-like entry points: project Git remotes,
-Access Point Git remotes, and Access Point filesystem commands. Externally
+Access Point Git remotes, and Access Point FS CLI commands. Externally
 each one behaves like a small repository with its own auth, scope, ref, and
 CAS boundary. Internally those facades share the project's Git object store
 and publish through the same Write Engine.
@@ -63,7 +63,7 @@ def compute_carved_excludes(
     sub-scopes B and C (at paths ``A/B`` and ``A/C``), the parent-scope view
     auto-excludes ``A/B`` and ``A/C`` so:
     - A parent Git push cannot accidentally write into a child scope's territory.
-    - A parent filesystem view does not show content owned by a child scope.
+    - A parent scope view does not show content owned by a child scope.
 
     This is GAP-4 in the architecture gap analysis: without these auto-excludes
     the admission layer only enforces user-configured ``exclude`` lists, leaving

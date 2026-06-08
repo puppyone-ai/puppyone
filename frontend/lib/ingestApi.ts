@@ -1,11 +1,13 @@
 /**
- * Ingest API Client (Unified)
+ * Ingest API Client (compatibility facade)
  *
- * Single entry point for all data ingestion:
- * - File upload → File Worker (OCR, extraction)
- * - SaaS sync → SyncEngine (GitHub, Notion, Gmail, etc.)
+ * Product entry points are split:
+ * - File upload -> Upload service
+ * - SaaS/URL snapshot -> Import service
  *
- * Backend: /api/v1/ingest/*
+ * This module remains for legacy callers and task/ETL management APIs.
+ *
+ * Backend: /api/v1/upload/*, /api/v1/imports, and legacy /api/v1/ingest/*
  */
 
 import { apiRequest, getAccessToken } from './apiClient';
@@ -110,6 +112,13 @@ export interface SaaSIngestParams {
   projectId: string;
   url: string;
   name?: string;
+}
+
+interface ImportJobCompatResponse {
+  id: string;
+  source_url: string;
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+  result_path?: string | null;
 }
 
 // === Utility Functions ===
@@ -249,8 +258,9 @@ export async function submitFileIngest(
     formData.append('files', file);
   }
 
-  // Route through same-origin Next.js proxy to avoid CORS / system-proxy issues
-  const response = await fetch('/api/ingest?path=submit/file', {
+  // Route through the first-class Upload proxy to avoid CORS /
+  // system-proxy issues.
+  const response = await fetch('/api/upload?path=submit/file', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -266,39 +276,55 @@ export async function submitFileIngest(
   return await response.json();
 }
 
+function _detectSaaSIngestType(url: string): IngestType {
+  const lower = url.toLowerCase();
+  if (lower.includes('github.com')) return 'github';
+  if (lower.includes('notion.')) return 'notion';
+  if (lower.includes('drive.google.com')) return 'google_drive';
+  if (lower.includes('docs.google.com/spreadsheets')) return 'google_sheets';
+  if (lower.includes('docs.google.com/document')) return 'google_docs';
+  if (lower.includes('calendar.google.com')) return 'google_calendar';
+  if (lower.includes('gmail.com') || lower.includes('mail.google.com')) return 'gmail';
+  if (lower.includes('airtable.com')) return 'airtable';
+  if (lower.includes('linear.app')) return 'linear';
+  return 'web_page';
+}
+
+function _importJobStatusToIngestStatus(
+  status: ImportJobCompatResponse['status'],
+): IngestStatus {
+  if (status === 'queued') return 'pending';
+  if (status === 'running') return 'processing';
+  return status;
+}
+
 /**
- * Submit SaaS/URL ingest task
+ * Submit SaaS/URL import task.
+ *
+ * Kept under the old Ingest name for compatibility; internally this creates
+ * a first-class ImportJob.
  */
 export async function submitSaaSIngest(
   params: SaaSIngestParams
 ): Promise<IngestSubmitResponse> {
-  const accessToken = await getAccessToken();
-  if (!accessToken) {
-    throw new Error('Not authenticated');
-  }
-
-  const formData = new FormData();
-  formData.append('project_id', params.projectId);
-  formData.append('url', params.url);
-  if (params.name) {
-    formData.append('name', params.name);
-  }
-
-  // Route through same-origin Next.js proxy to avoid CORS / system-proxy issues
-  const response = await fetch('/api/ingest?path=submit/saas', {
+  const job = await apiRequest<ImportJobCompatResponse>('/api/v1/imports', {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-    body: formData,
+    body: JSON.stringify({
+      project_id: params.projectId,
+      source_url: params.url,
+      name: params.name,
+    }),
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`SaaS import failed: ${errorText}`);
-  }
-
-  return await response.json();
+  return {
+    items: [{
+      task_id: job.id,
+      source_type: 'url',
+      ingest_type: _detectSaaSIngestType(job.source_url || params.url),
+      status: _importJobStatusToIngestStatus(job.status),
+    }],
+    total: 1,
+  };
 }
 
 /**

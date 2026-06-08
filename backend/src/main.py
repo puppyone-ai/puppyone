@@ -80,7 +80,7 @@ from src.context_publish.router import router as context_publish_router
 
 context_publish_router_duration = time.time() - context_publish_router_start
 
-# Unified ingest router (file + SaaS imports)
+# Legacy ingest compatibility router (ETL/task management + old upload/import aliases)
 ingest_router_start = time.time()
 from src.ingest.router import router as ingest_router
 
@@ -440,8 +440,11 @@ def create_app() -> FastAPI:
     # public short link: /p/{publish_key}
     app.include_router(context_publish_public_router, tags=["publishes"])
 
-    # Unified ingest router (file + SaaS imports)
-    app.include_router(ingest_router, prefix="/api/v1", tags=["ingest"])
+    # Legacy ingest compatibility router. Product-level Upload and Import
+    # routes are registered separately below.
+    app.include_router(ingest_router, prefix="/api/v1", tags=["ingest-compat"])
+    from src.platform.upload.router import router as upload_router
+    app.include_router(upload_router, prefix="/api/v1", tags=["upload"])
 
     app.include_router(project_router, prefix="/api/v1", tags=["projects"])
     app.include_router(oauth_router, prefix="/api/v1", tags=["oauth"])
@@ -465,8 +468,10 @@ def create_app() -> FastAPI:
     app.include_router(ap_fs_router, prefix="/api/v1", tags=["access-point-fs"])
     from src.platform.workspace.router import router as workspace_router
     app.include_router(workspace_router, prefix="/api/v1", tags=["workspace"])
+    from src.platform.integrations.router import router as integrations_router
+    app.include_router(integrations_router, prefix="/api/v1", tags=["integrations"])
     from src.connectors.datasource.router import router as sync_router
-    app.include_router(sync_router, prefix="/api/v1", tags=["sync"])
+    app.include_router(sync_router, prefix="/api/v1", tags=["sync-compat"])
     # GitHub Integration: bind a project to a (repo, branch) pair, run
     # imports/exports, receive webhooks. Two routers because the webhook
     # callback isn't per-project.
@@ -476,8 +481,6 @@ def create_app() -> FastAPI:
     )
     app.include_router(github_integration_router, tags=["github-integration"])
     app.include_router(github_webhook_router, tags=["github-integration"])
-    from src.connectors.filesystem.router import router as filesystem_router
-    app.include_router(filesystem_router, tags=["filesystem"])
     from src.platform.auth.router import router as auth_router
     app.include_router(auth_router, prefix="/api/v1", tags=["auth"])
     app.include_router(analytics_router, tags=["analytics"])
@@ -492,7 +495,7 @@ def create_app() -> FastAPI:
     app.include_router(sandbox_endpoint_router, prefix="/api/v1", tags=["sandbox-endpoints"])
     from src.platform.project.dashboard_router import router as dashboard_router
     app.include_router(dashboard_router, prefix="/api/v1", tags=["projects"])
-    from src.connectors.manager.router import router as access_router
+    from src.platform.access.router import router as access_router
     app.include_router(access_router, prefix="/api/v1", tags=["access"])
     from src.connectors.gateway.router import router as gateway_router
     app.include_router(gateway_router, prefix="/api/v1", tags=["gateways"])

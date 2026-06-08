@@ -37,7 +37,7 @@ class AgentCreate(BaseModel):
     project_id: str = Field(..., description="Project ID")
     name: str = Field(..., min_length=1, max_length=100)
     icon: str = Field(default="✨")
-    type: Literal["chat", "devbox", "webhook", "schedule"] = Field(default="chat")
+    type: Literal["chat", "webhook", "schedule"] = Field(default="chat")
     description: Optional[str] = Field(None, max_length=500)
 
     trigger_type: Optional[Literal["manual", "cron", "webhook"]] = Field(default="manual")
@@ -52,7 +52,7 @@ class AgentCreate(BaseModel):
 class AgentUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     icon: Optional[str] = None
-    type: Optional[Literal["chat", "devbox", "webhook", "schedule"]] = None
+    type: Optional[Literal["chat", "webhook", "schedule"]] = None
     description: Optional[str] = Field(None, max_length=500)
     is_default: Optional[bool] = None
 

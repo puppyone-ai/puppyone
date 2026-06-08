@@ -45,8 +45,7 @@ def _row_to_tool(row: dict) -> AgentTool:
 
 
 def generate_access_key(agent_type: str = "chat") -> str:
-    prefix = "cli" if agent_type == "devbox" else "mcp"
-    return f"{prefix}_{secrets.token_urlsafe(32)}"
+    return f"mcp_{secrets.token_urlsafe(32)}"
 
 
 def generate_mcp_api_key() -> str:

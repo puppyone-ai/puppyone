@@ -7,31 +7,12 @@ import { parseAgentIcon } from '../lib/format';
 // Single source of truth for provider brand marks: `connector_specs` from
 // the backend, fetched via `useConnectorSpecs()`.  This mirrors the
 // access drawer (`data/components/SyncConfigPanel.tsx`):
-//   - `filesystem` → local `FolderMini` SVG (green machine-folder mark)
-//   - everything else → `<img src={spec.icon_url}>` painted directly
-//   - `agent` → emoji-on-chip avatar
+//   - providers with `icon_url` render that asset directly
+//   - `agent` renders an emoji-on-chip avatar
 // Any local hardcoded logo map drifts from the access surface the moment
 // the backend ships a new connector, so we deliberately do NOT keep one
 // here.  If a provider has no `icon_url`, we degrade to spec.icon (emoji)
 // then to a single-letter chip.
-
-function FolderMini({ size }: { size: number }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="var(--po-success)"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      style={{ display: 'block' }}
-    >
-      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-    </svg>
-  );
-}
 
 export function ProviderAvatar({
   provider, size = 20, icon,
@@ -54,10 +35,6 @@ export function ProviderAvatar({
         {parseAgentIcon(icon || null)}
       </div>
     );
-  }
-
-  if (provider === 'filesystem') {
-    return <FolderMini size={size} />;
   }
 
   const spec = specs.find(s => s.provider === provider);

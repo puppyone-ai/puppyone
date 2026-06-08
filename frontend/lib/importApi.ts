@@ -5,7 +5,7 @@
  * then renders/polls job status; it never owns the import lifecycle.
  */
 
-import { del, get, getAccessToken, post } from './apiClient';
+import { del, get, post } from './apiClient';
 
 // === Types ===
 
@@ -235,49 +235,13 @@ export async function submitImport(
 }
 
 /**
- * Legacy submit endpoint. Kept only for non-job-aware callers.
+ * Legacy function name kept for non-job-aware callers. It now uses the
+ * first-class Import service instead of the old Ingest compatibility route.
  */
 export async function submitImportViaIngest(
   request: ImportSubmitRequest,
 ): Promise<ImportSubmitResponse> {
-  const accessToken = await getAccessToken();
-  if (!accessToken) {
-    throw new Error('Not authenticated');
-  }
-
-  const formData = new FormData();
-  formData.append('project_id', request.project_id);
-  if (request.url) {
-    formData.append('url', request.url);
-  }
-  if (request.name) {
-    formData.append('name', request.name);
-  }
-  if (request.url && request.crawl_options && supportsCrawlOptions(request.url)) {
-    formData.append('crawl_options', JSON.stringify(request.crawl_options));
-  }
-
-  const response = await fetch('/api/ingest?path=submit/saas', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-    body: formData,
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Import failed: ${errorText}`);
-  }
-
-  const data = await response.json();
-  const item = data.items?.[0];
-  return {
-    task_id: item?.task_id || '',
-    status: item?.status || 'completed',
-    import_type: item?.ingest_type || 'url',
-    path: item?.path,
-  };
+  return submitImport(request);
 }
 
 /**

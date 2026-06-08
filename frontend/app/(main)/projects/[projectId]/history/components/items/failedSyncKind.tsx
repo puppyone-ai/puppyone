@@ -9,6 +9,7 @@ import {
   type NeedsActionRenderContext,
 } from '@/lib/needsActionRegistry';
 import { Dots } from '@/components/loading';
+import { PROJECT_CONTENT_RAIL_WIDTH } from '@/lib/layout';
 
 /**
  * Failed sync kind: a sync_run row with ``status='failed'``. Fills
@@ -136,121 +137,153 @@ function FailedSyncDetail({
   };
 
   const apName = item.source.access_point_name || item.source.provider;
+  const started = item.source.started_at ? formatDateTime(item.source.started_at) : '';
+  const finished = item.source.finished_at ? formatDateTime(item.source.finished_at) : '';
 
   return (
-    <div className="flex h-full flex-col">
-      <header
-        style={{
-          padding: '14px 20px',
-          borderBottom: '1px solid var(--po-divider)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          flexShrink: 0,
-        }}
-      >
-        <span
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '2px 8px',
-            borderRadius: 4,
-            fontSize: 11,
-            fontWeight: 600,
-            color: ACCENT_VAR,
-            background: `color-mix(in srgb, ${ACCENT_VAR} 10%, transparent)`,
-            border: `1px solid color-mix(in srgb, ${ACCENT_VAR} 25%, transparent)`,
-          }}
-        >
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: ACCENT_VAR }} />
-          {KIND_LABEL}
-        </span>
-        <span style={{ fontSize: 13, color: 'var(--po-text)' }}>{apName}</span>
-        <span style={{ fontSize: 12, color: 'var(--po-text-subtle)' }}>
-          #{item.id.slice(0, 8)}
-        </span>
-        {item.created_at && (
-          <span style={{ fontSize: 12, color: 'var(--po-text-subtle)' }}>
-            · {formatRelative(item.created_at)}
+    <div
+      className="p-6 md:p-8 mx-auto"
+      style={{
+        width: '100%',
+        maxWidth: PROJECT_CONTENT_RAIL_WIDTH,
+        boxSizing: 'border-box',
+      }}
+    >
+      <div className="flex flex-wrap items-center gap-4 mb-6">
+        <div className="flex min-w-0 items-center gap-3">
+          <span
+            className="text-lg font-medium text-[var(--po-text)] font-sans"
+            title={item.id}
+          >
+            {item.id.slice(0, 8)}
           </span>
-        )}
-      </header>
+          <span className="truncate text-sm text-[var(--po-text-muted)]">
+            Sync failed for {apName}
+          </span>
+        </div>
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar" style={{ padding: 20 }}>
-        <section style={{ marginBottom: 18 }}>
-          <h3 style={sectionTitleStyle}>Run details</h3>
-          <ul style={kvListStyle}>
-            <KV label="Provider" value={item.source.provider} />
-            <KV label="Direction" value={item.source.direction} />
-            {item.source.access_point_path && (
-              <KV label="Path" value={item.source.access_point_path} mono />
-            )}
-            {item.source.started_at && (
-              <KV label="Started" value={item.source.started_at} />
-            )}
-            {item.source.finished_at && (
-              <KV label="Finished" value={item.source.finished_at} />
-            )}
-            {item.source.duration_ms != null && (
-              <KV label="Duration" value={`${item.source.duration_ms} ms`} />
-            )}
-            {item.source.trigger_type && (
-              <KV label="Trigger" value={item.source.trigger_type} />
-            )}
-          </ul>
-        </section>
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <span
+            className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium"
+            style={{
+              color: ACCENT_VAR,
+              background: `color-mix(in srgb, ${ACCENT_VAR} 10%, transparent)`,
+              borderColor: `color-mix(in srgb, ${ACCENT_VAR} 20%, transparent)`,
+            }}
+          >
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: ACCENT_VAR }} />
+            Failed sync
+          </span>
 
-        {item.source.error && (
-          <section style={{ marginBottom: 18 }}>
-            <h3 style={sectionTitleStyle}>Error</h3>
-            <pre
-              style={{
-                margin: 0,
-                padding: 12,
-                fontSize: 12,
-                lineHeight: 1.5,
-                background: 'var(--po-canvas-subtle)',
-                color: 'var(--po-text)',
-                border: '1px solid var(--po-divider)',
-                borderRadius: 6,
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word',
-                maxHeight: 240,
-                overflow: 'auto',
-              }}
-            >
-              {item.source.error}
-            </pre>
-          </section>
-        )}
+          {item.created_at && (
+            <span className="text-xs font-medium text-[var(--po-text-subtle)]">
+              {formatRelative(item.created_at)}
+            </span>
+          )}
 
-        {item.source.result_summary && (
-          <section>
-            <h3 style={sectionTitleStyle}>Result summary</h3>
-            <div style={{ fontSize: 12, color: 'var(--po-text-muted)', whiteSpace: 'pre-wrap' }}>
-              {item.source.result_summary}
-            </div>
-          </section>
-        )}
-
-        {error && (
-          <div className="mt-3 text-[13px] text-[var(--po-danger)]" role="alert">
-            {error}
-          </div>
-        )}
+          <span className="rounded border border-[var(--po-border-subtle)] bg-[var(--po-control)] px-2 py-1 font-sans text-xs text-[var(--po-text-subtle)]">
+            {item.source.provider}
+          </span>
+        </div>
       </div>
 
-      <footer
+      <div
         style={{
-          padding: '12px 20px',
-          borderTop: '1px solid var(--po-divider)',
           display: 'flex',
-          gap: 8,
-          flexShrink: 0,
-          background: 'var(--po-canvas)',
+          alignItems: 'center',
+          gap: 12,
+          fontSize: 11,
+          fontFamily: 'var(--po-font-sans)',
+          color: 'var(--po-text-subtle)',
+          marginBottom: 16,
+          paddingBottom: 14,
+          borderBottom: '1px solid var(--po-border-subtle)',
         }}
       >
+        <span>1 failed run</span>
+        <span>Provider {item.source.provider}</span>
+        <span>Direction {item.source.direction}</span>
+        {item.source.duration_ms != null ? <span>{item.source.duration_ms} ms</span> : null}
+      </div>
+
+      <section
+        className="rounded-xl border p-4"
+        style={{
+          borderColor: 'var(--po-border-subtle)',
+          background: 'var(--po-canvas)',
+          marginBottom: 18,
+        }}
+      >
+        <div className="mb-3 text-xs font-medium text-[var(--po-text-muted)]">
+          Run details
+        </div>
+        <ul style={kvListStyle}>
+          <KV label="Provider" value={item.source.provider} />
+          <KV label="Direction" value={item.source.direction} />
+          {item.source.access_point_path && (
+            <KV label="Path" value={item.source.access_point_path} mono />
+          )}
+          {started && <KV label="Started" value={started} />}
+          {finished && <KV label="Finished" value={finished} />}
+          {item.source.duration_ms != null && (
+            <KV label="Duration" value={`${item.source.duration_ms} ms`} />
+          )}
+          {item.source.trigger_type && (
+            <KV label="Trigger" value={item.source.trigger_type} />
+          )}
+        </ul>
+      </section>
+
+      {item.source.error ? (
+        <section
+          className="rounded-xl border p-4"
+          style={{
+            borderColor: 'color-mix(in srgb, var(--po-danger) 18%, var(--po-border-subtle))',
+            background: 'color-mix(in srgb, var(--po-danger) 3%, var(--po-canvas))',
+            marginBottom: 18,
+          }}
+        >
+          <div
+            className="mb-3 text-xs font-medium"
+            style={{ color: 'color-mix(in srgb, var(--po-danger) 78%, var(--po-text-muted))' }}
+          >
+            Error
+          </div>
+          <pre
+            style={{
+              margin: 0,
+              fontSize: 12,
+              lineHeight: 1.55,
+              color: 'var(--po-text)',
+              fontFamily: 'var(--po-font-mono, ui-monospace, monospace)',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              overflow: 'auto',
+            }}
+          >
+            {item.source.error}
+          </pre>
+        </section>
+      ) : null}
+
+      {item.source.result_summary ? (
+        <section style={{ marginBottom: 18 }}>
+          <div className="mb-2 text-xs font-medium text-[var(--po-text-muted)]">
+            Result summary
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--po-text-muted)', whiteSpace: 'pre-wrap' }}>
+            {item.source.result_summary}
+          </div>
+        </section>
+      ) : null}
+
+      {error && (
+        <div className="mb-4 text-[13px] text-[var(--po-danger)]" role="alert">
+          {error}
+        </div>
+      )}
+
+      <div className="flex items-center gap-3 pt-1">
         <button
           type="button"
           onClick={handleRetry}
@@ -268,7 +301,7 @@ function FailedSyncDetail({
         >
           Snooze 24h
         </button>
-      </footer>
+      </div>
     </div>
   );
 }
@@ -300,14 +333,17 @@ function formatRelative(iso: string): string {
   return `${Math.floor(diff / 86_400_000)}d ago`;
 }
 
-const sectionTitleStyle: React.CSSProperties = {
-  fontSize: 12,
-  fontWeight: 600,
-  textTransform: 'uppercase',
-  letterSpacing: '0.04em',
-  color: 'var(--po-text-subtle)',
-  margin: '0 0 8px 0',
-};
+function formatDateTime(iso: string): string {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return iso;
+  return new Date(t).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+}
 
 const kvListStyle: React.CSSProperties = {
   margin: 0,

@@ -7,7 +7,7 @@ from typing import Optional, List, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 
-AgentType = Literal["chat", "devbox", "webhook", "schedule"]
+AgentType = Literal["chat", "webhook", "schedule"]
 TriggerType = Literal["manual", "cron", "webhook"]
 
 

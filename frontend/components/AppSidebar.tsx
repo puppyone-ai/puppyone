@@ -124,7 +124,7 @@ export const AppSidebar = memo(function AppSidebar({
         // Lucide `link` icon. The earlier horizontal version only
         // filled ~20×10 of the 24-grid which made the strokes read as
         // thin and the icon as "too wide" next to its siblings (folder
-        // / clock / monitor / gear all fill ~18×18). The rotated path
+        // / clock / code / gear all fill ~18×18). The rotated path
         // shares the same square footprint as those four, so the rail
         // reads as one consistent family.
         label: t('access'),
@@ -137,36 +137,13 @@ export const AppSidebar = memo(function AppSidebar({
         groupEnd: true,
       },
       {
-        id: 'monitor',
-        label: t('monitor'),
+        id: 'develop',
+        label: t('develop'),
         icon: (
-          // Logs glyph — three iterations on this:
-          //   v1 ECG line          → wrong semantic (looked like
-          //                          live metrics, not events).
-          //   v2 list-with-bullets → right semantic but bare horizontal
-          //                          lines felt thin next to the other
-          //                          four nav glyphs (folder · lock ·
-          //                          clock · gear), which are all
-          //                          `closed outline + interior detail`.
-          //   v3 rect + lines      → right visual weight but the bullets
-          //                          went away, so the icon read as a
-          //                          generic document rather than a
-          //                          bulleted log feed.
-          //
-          // This is v4: the closed-outline grammar of v3 (a 3–21
-          // rounded rect, same footprint as the History clock and
-          // Settings gear) wrapped around the bullet+line grammar of
-          // v2. Visual weight matches the family; semantic stays as
-          // "stream of bulleted log entries". Last entry is shorter so
-          // the list reads as "trailing off into the live tail".
           <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
-            <rect x='3' y='4' width='18' height='16' rx='2' />
-            <line x1='7' y1='9' x2='7.01' y2='9' />
-            <line x1='10' y1='9' x2='17' y2='9' />
-            <line x1='7' y1='13' x2='7.01' y2='13' />
-            <line x1='10' y1='13' x2='17' y2='13' />
-            <line x1='7' y1='17' x2='7.01' y2='17' />
-            <line x1='10' y1='17' x2='14' y2='17' />
+            <polyline points='16 18 22 12 16 6' />
+            <polyline points='8 6 2 12 8 18' />
+            <line x1='14' y1='4' x2='10' y2='20' />
           </svg>
         ),
       },
@@ -218,8 +195,8 @@ export const AppSidebar = memo(function AppSidebar({
             router.push(`/projects/${activeProject.id}/access`);
           } else if (viewId === 'history') {
             router.push(`/projects/${activeProject.id}/history`);
-          } else if (viewId === 'monitor') {
-            router.push(`/projects/${activeProject.id}/monitor`);
+          } else if (viewId === 'develop') {
+            router.push(`/projects/${activeProject.id}/develop/logs`);
           } else if (viewId === 'toolkit') {
             router.push(`/projects/${activeProject.id}/toolkit`);
           } else if (viewId === 'settings') {
@@ -233,7 +210,7 @@ export const AppSidebar = memo(function AppSidebar({
             changes: `/projects/${id}/changes`,
             access: `/projects/${id}/access`,
             history: `/projects/${id}/history`,
-            monitor: `/projects/${id}/monitor`,
+            develop: `/projects/${id}/develop/logs`,
             toolkit: `/projects/${id}/toolkit`,
             settings: `/projects/${id}/settings`,
           };
