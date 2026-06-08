@@ -201,6 +201,26 @@ class ScopeSandboxService:
         mgr = self._manager(session.provider)  # use the provider that owns this box
         return await mgr.revoke_user(scope_id, user_id)
 
+    async def reap(self, *, now: float | None = None):
+        """Sweep idle sessions across ALL providers present in the store (each
+        provider's manager reaps only its own sandboxes). Matches the reaper's
+        ``_Reapable`` protocol so it can be driven by ``reaper.start_reaper``."""
+        from src.platform.scope_sandbox.manager import ReapSummary
+
+        total = ReapSummary()
+        providers = {s.provider for s in self._store.list_all()}
+        for name in providers:
+            try:
+                mgr = self._manager(name)
+            except Exception:  # noqa: BLE001 - a misconfigured provider must not block others
+                continue
+            summary = await mgr.reap(now=now, only_provider=name)
+            total.kept += summary.kept
+            total.stopped += summary.stopped
+            total.destroyed += summary.destroyed
+            total.errors += summary.errors
+        return total
+
 
 def _ssh_config_block(
     scope_id: str, host: str, port: int, username: str, proxy_command: str | None,

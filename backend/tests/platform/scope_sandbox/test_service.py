@@ -171,6 +171,16 @@ async def test_revoke_drops_user_and_calls_provider():
     assert svc.status(project_id="proj-1", scope_id=SCOPE.id, user_id="u1")["connected"] is False
 
 
+async def test_reap_sweeps_per_provider():
+    prov = FakeProvider(tcp_ingress=False)
+    svc = _service(prov)
+    await _connect(svc, user="u1", now=0)
+    summary = await svc.reap(now=0)
+    # the connected session is swept under its provider's manager and kept
+    # (connected_users pins it RUNNING)
+    assert summary.kept == 1 and summary.stopped == 0
+
+
 async def test_connect_unknown_scope_raises():
     prov = FakeProvider(tcp_ingress=False)
     svc = _service(prov)

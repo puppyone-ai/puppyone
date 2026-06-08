@@ -143,9 +143,8 @@ class ScopeSandboxManager:
             self._store.put(session)
             return AcquireResult(session=session, via=via)
 
-    async def _create_session(self, spec, now, prev=None):
-        info = await self._provider.create(spec)
-        session = SandboxSession(
+    def _new_session(self, spec, now, info, prev=None) -> SandboxSession:
+        return SandboxSession(
             scope_id=spec.scope_id,
             project_id=spec.project_id,
             provider=self._provider.capabilities().name,
@@ -159,9 +158,52 @@ class ScopeSandboxManager:
             connected_users=prev.connected_users if prev else set(),
             last_full_pull_seconds=prev.last_full_pull_seconds if prev else 0.0,
         )
-        if self._bootstrap is not None:
-            await self._bootstrap(self._provider, session.sandbox_id, spec)
-        return session, AcquiredVia.CREATED
+
+    async def _create_session(self, spec, now, prev=None):
+        info = await self._provider.create(spec)
+        session = self._new_session(spec, now, info, prev)
+
+        # Recreating over a row we already own (reconcile found the box gone, or a
+        # DESTROYED record): we hold the per-scope lock and the row exists, so just
+        # replace it — the cross-instance create-race below is only for a brand-new
+        # scope (no row yet).
+        if prev is not None:
+            self._store.put(session)
+            if self._bootstrap is not None:
+                await self._bootstrap(self._provider, session.sandbox_id, spec)
+            return session, AcquiredVia.CREATED
+
+        # Brand-new scope. Atomic claim: across instances the scope_id PK lets only
+        # ONE writer win the create. If we lose, discard our just-created box and
+        # adopt the winner's (no double-active sandbox, no leak). Single-instance
+        # always wins here (the per-scope asyncio lock already serialized us).
+        if self._store.insert(session):
+            if self._bootstrap is not None:
+                await self._bootstrap(self._provider, session.sandbox_id, spec)
+            return session, AcquiredVia.CREATED
+
+        log_warning(
+            f"[scope-sandbox] create race scope={spec.scope_id}; "
+            f"reclaiming duplicate sandbox {session.sandbox_id}"
+        )
+        try:
+            await self._provider.destroy(session.sandbox_id)
+        except Exception as exc:  # noqa: BLE001 - reclaim is best-effort
+            log_warning(f"[scope-sandbox] reclaim destroy failed scope={spec.scope_id}: {exc}")
+
+        winner = self._store.get(spec.scope_id)
+        if winner is None or winner.state is SandboxState.DESTROYED:
+            # Winner vanished between insert-fail and read (extremely rare):
+            # provision fresh and upsert.
+            info = await self._provider.create(spec)
+            session = self._new_session(spec, now, info, prev)
+            if self._bootstrap is not None:
+                await self._bootstrap(self._provider, session.sandbox_id, spec)
+            self._store.put(session)
+            return session, AcquiredVia.CREATED
+        if winner.state is SandboxState.STOPPED:
+            return await self._resume_session(winner, now)
+        return winner, AcquiredVia.REUSED
 
     async def _resume_session(self, session, now):
         info = await self._provider.start(session.sandbox_id)
@@ -260,10 +302,16 @@ class ScopeSandboxManager:
 
     # ── reaper ────────────────────────────────────────────────────────
 
-    async def reap(self, *, now: float | None = None) -> ReapSummary:
+    async def reap(self, *, now: float | None = None, only_provider: str | None = None) -> ReapSummary:
+        """Apply the reclamation policy across sessions. ``only_provider`` limits
+        the sweep to sessions created by this provider — required when the shared
+        store holds mixed-provider sessions (this manager can only stop/destroy
+        its own provider's sandboxes)."""
         now = self._now(now)
         summary = ReapSummary()
         for snapshot in self._store.list_all():
+            if only_provider is not None and snapshot.provider != only_provider:
+                continue
             scope_id = snapshot.scope_id
             async with self._lock(scope_id):
                 session = self._store.get(scope_id)

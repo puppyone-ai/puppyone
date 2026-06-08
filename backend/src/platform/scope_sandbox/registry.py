@@ -63,6 +63,13 @@ class SandboxSessionStore(Protocol):
     def delete(self, scope_id: str) -> None: ...
     def list_all(self) -> list[SandboxSession]: ...
 
+    def insert(self, session: SandboxSession) -> bool:
+        """Atomically create the row for ``session.scope_id``. Returns False if a
+        row already exists (another writer won the create race) — the basis for
+        one-sandbox-per-scope across instances. ``put`` remains an upsert for
+        subsequent updates."""
+        ...
+
 
 class InMemorySandboxSessionStore:
     """Process-local store for tests / single-process dev."""
@@ -75,6 +82,12 @@ class InMemorySandboxSessionStore:
 
     def put(self, session: SandboxSession) -> None:
         self._sessions[session.scope_id] = session
+
+    def insert(self, session: SandboxSession) -> bool:
+        if session.scope_id in self._sessions:
+            return False
+        self._sessions[session.scope_id] = session
+        return True
 
     def delete(self, scope_id: str) -> None:
         self._sessions.pop(scope_id, None)
