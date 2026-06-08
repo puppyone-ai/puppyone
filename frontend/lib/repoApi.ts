@@ -255,12 +255,12 @@ export function isWithinScope(nodePath: string, scopePath: string): boolean {
  * Sort connectors so CLI + Git remote + agent built-ins come first,
  * then everything else in stable insertion order.
  */
-export const BUILTIN_PROVIDERS = ['cli', 'git_remote', 'filesystem', 'agent'] as const;
+export const BUILTIN_PROVIDERS = ['cli', 'git_remote', 'agent'] as const;
 
 const ACCESS_SURFACE_HIDDEN_PROVIDERS = new Set(['github', 'filesystem']);
 
 export function isGitRemoteProvider(provider: string): boolean {
-  return provider === 'git_remote' || provider === 'filesystem';
+  return provider === 'git_remote';
 }
 
 /**
@@ -278,19 +278,11 @@ export function isAccessSurfaceConnector(
 }
 
 /**
- * `filesystem` is the legacy name for the Git Remote access surface. Keep the
- * normalization helper for callers that still need to collapse old rows, while
- * `isAccessSurfaceConnector` hides filesystem from current Access UI surfaces.
+ * Drop legacy filesystem rows defensively. The database migration removes them,
+ * but hiding stale API data keeps current Access/Data UI on the Git Remote model.
  */
 export function normalizeAccessSurfaceConnectors(connectors: readonly Connector[]): Connector[] {
-  const scopesWithGitRemote = new Set(
-    connectors
-      .filter((connector) => connector.provider === 'git_remote')
-      .map((connector) => connector.scope_id),
-  );
-  return connectors.filter(
-    (connector) => !(connector.provider === 'filesystem' && scopesWithGitRemote.has(connector.scope_id)),
-  );
+  return connectors.filter((connector) => connector.provider !== 'filesystem');
 }
 
 export function sortConnectorsBuiltinFirst(connectors: readonly Connector[]): Connector[] {

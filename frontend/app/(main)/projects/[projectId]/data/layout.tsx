@@ -64,15 +64,6 @@ function normalizeEndpointPath(path: string | null | undefined): string {
   return path.replace(/^\/+|\/+$/g, '');
 }
 
-function normalizeConnectorForDataView(connector: Connector): Connector {
-  if (connector.provider !== 'git_remote') return connector;
-  return {
-    ...connector,
-    provider: 'filesystem',
-    name: connector.name || 'Git Remote',
-  };
-}
-
 export default function DataLayout({ children, params }: DataLayoutProps) {
   const { projectId } = use(params);
 
@@ -143,8 +134,7 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
   const accessConnectorsForDataView = useMemo(
     () =>
       normalizeAccessSurfaceConnectors(connectorsList || [])
-        .filter((connector) => isAccessSurfaceConnector(connector))
-        .map(normalizeConnectorForDataView),
+        .filter((connector) => isAccessSurfaceConnector(connector)),
     [connectorsList],
   );
 
