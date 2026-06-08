@@ -4,6 +4,7 @@ from src.platform.integrations.paths import (
     canonical_provider,
     plan_fetch_result,
 )
+from src.platform.integrations.repository import IntegrationRepository
 
 
 def _sync(path: str, config: dict | None = None) -> Sync:
@@ -74,3 +75,22 @@ def test_provider_aliases_are_canonicalized_at_boundary():
     assert canonical_provider("docs") == "google_docs"
     assert canonical_provider("calendar") == "google_calendar"
     assert canonical_provider("google_search_console") == "google_search_console"
+
+
+def test_connection_target_path_column_allows_project_root():
+    repo = IntegrationRepository.__new__(IntegrationRepository)
+
+    assert repo._target_path_from_row(
+        {"target_path": "", "config": {"target_path": "Docs"}},
+        {"path": "LegacyScope"},
+    ) == ""
+
+
+def test_update_config_can_clear_target_path_to_project_root():
+    repo = IntegrationRepository.__new__(IntegrationRepository)
+    patches = []
+    repo._update_connection = lambda _connection_id, patch: patches.append(patch)
+
+    repo.update_config("conn-1", {"target_path": ""})
+
+    assert patches == [{"config": {"target_path": ""}, "target_path": ""}]

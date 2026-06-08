@@ -80,11 +80,11 @@ class IntegrationRepository:
 
     def _target_path_from_row(self, row: dict, scope: dict | None = None) -> str:
         config = dict(row.get("config") or {})
-        target_path = (
-            row.get("target_path")
-            or config.get("target_path")
-            or config.get("path")
-        )
+        if "target_path" in row and row.get("target_path") is not None:
+            return normalize_path(row.get("target_path"))
+        target_path = config.get("target_path")
+        if target_path is None:
+            target_path = config.get("path")
         if target_path is None and scope:
             target_path = scope.get("path")
         return normalize_path(target_path)
@@ -386,7 +386,7 @@ class IntegrationRepository:
 
     def update_config(self, connection_id: str, config: dict) -> None:
         patch: dict[str, Any] = {"config": config}
-        if config.get("target_path"):
+        if "target_path" in config:
             patch["target_path"] = normalize_path(config.get("target_path"))
         if config.get("external_resource_id"):
             patch["external_resource_id"] = config.get("external_resource_id")
