@@ -44,8 +44,7 @@ export function ProviderIcon({
       </svg>
     );
   }
-  // Git Remote — native clone/pull/push. The branch glyph (commit graph).
-  if (provider === 'git_remote') {
+  if (provider === 'git_remote' || provider === 'filesystem') {
     if (variant === 'mono') {
       return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>

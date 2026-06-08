@@ -17,6 +17,9 @@ from src.repo.models import Connector, RepoScope
 ACCESS_SURFACE_KINDS = frozenset({
     "git_remote",
     "cli",
+    # Legacy local-filesystem surface. Keep it readable/deletable in APIs so
+    # old rows do not break, but do not create it as a default built-in.
+    "filesystem",
     "agent",
     "mcp",
     "sandbox",
@@ -45,7 +48,7 @@ def _row_to_connector(row: dict[str, Any]) -> Connector:
         provider=row["kind"],
         name=row["name"],
         direction=config.get("direction") or (
-            "bidirectional" if row["kind"] in {"git_remote", "cli"} else "inbound"
+            "bidirectional" if row["kind"] in {"git_remote", "cli", "filesystem"} else "inbound"
         ),
         config=config,
         policy=config.get("policy") or {},
@@ -246,7 +249,7 @@ class AccessSurfaceRepository:
             self._client.table(self.TABLE)
             .select("id", count="exact")
             .eq("scope_id", scope_id)
-            .not_.in_("kind", ["git_remote", "cli"])
+            .not_.in_("kind", ["git_remote", "cli", "filesystem"])
             .execute()
         )
         connection_resp = (

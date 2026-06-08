@@ -13,6 +13,7 @@ import {
   isAccessSurfaceConnector,
   listConnectors,
   listScopes,
+  normalizeAccessSurfaceConnectors,
   type Connector,
 } from '@/lib/repoApi';
 import {
@@ -61,6 +62,15 @@ interface DataLayoutProps {
 function normalizeEndpointPath(path: string | null | undefined): string {
   if (!path || path === '/') return '';
   return path.replace(/^\/+|\/+$/g, '');
+}
+
+function normalizeConnectorForDataView(connector: Connector): Connector {
+  if (connector.provider !== 'git_remote') return connector;
+  return {
+    ...connector,
+    provider: 'filesystem',
+    name: connector.name || 'Git Remote',
+  };
 }
 
 export default function DataLayout({ children, params }: DataLayoutProps) {
@@ -130,16 +140,23 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
     { revalidateOnFocus: false, dedupingInterval: 60000 },
   );
 
+  const accessConnectorsForDataView = useMemo(
+    () =>
+      normalizeAccessSurfaceConnectors(connectorsList || [])
+        .filter((connector) => isAccessSurfaceConnector(connector))
+        .map(normalizeConnectorForDataView),
+    [connectorsList],
+  );
+
   const connectorsByScope = useMemo(() => {
     const m = new Map<string, Connector[]>();
-    for (const c of connectorsList || []) {
-      if (!isAccessSurfaceConnector(c)) continue;
+    for (const c of accessConnectorsForDataView) {
       const list = m.get(c.scope_id) || [];
       list.push(c);
       m.set(c.scope_id, list);
     }
     return m;
-  }, [connectorsList]);
+  }, [accessConnectorsForDataView]);
 
   const mutateRepo = async () => {
     await Promise.all([mutateScopes(), mutateConnectors(), mutateIdentity()]);
@@ -174,8 +191,7 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
     // not the connector's. Agent connectors are skipped here because the
     // savedAgents loop below already populates them from AgentContext.
     const scopeById = new Map((scopes || []).map((s) => [s.id, s]));
-    for (const c of connectorsList || []) {
-      if (!isAccessSurfaceConnector(c)) continue;
+    for (const c of accessConnectorsForDataView) {
       if (c.provider === 'agent') continue;
       const scope = scopeById.get(c.scope_id);
       if (!scope) continue;
@@ -235,7 +251,7 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
     }
 
     return map;
-  }, [syncStatusData, savedAgents, mcpEndpoints, sandboxEndpoints, scopes, connectorsList]);
+  }, [syncStatusData, savedAgents, mcpEndpoints, sandboxEndpoints, scopes, accessConnectorsForDataView]);
 
   const syncEndpoints = useMemo(() => {
     const pickPriority = (provider: string): number => {
