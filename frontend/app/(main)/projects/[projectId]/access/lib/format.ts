@@ -102,7 +102,7 @@ export function getPrimaryAction(status: string): { label: string; icon: 'pause'
 // Puppyone's own in-app chat, they aren't driven by external prompts.
 // We deleted the helper and now render a per-provider body component
 // (`ConnectorAccessPanel`) instead, mirroring `ConnectMethods` in the
-// data view: cli + filesystem render a prompt + install steps; agent
+// data view: CLI + Git Remote render a prompt + install steps; agent
 // renders an Activate / Open chat card; mcp/sandbox/3p render the
 // minimal config they actually need.
 

@@ -78,14 +78,10 @@ export interface UseAccessDataResult {
   clearScopeSelection: () => void;
 }
 
-// NOTE: `git_remote` and `filesystem` are two DISTINCT built-in surfaces, not
-// duplicates — `git_remote` is the native Git clone/push remote, `filesystem`
-// is the local-folder bidirectional sync (OpenClaw). Both ride the same Git
-// transport and both are auto-created per scope, so a scope legitimately shows
-// "Git Remote" + "Local Folder Sync" as separate cards. We deliberately do NOT
-// collapse them (an earlier display-layer dedupe did, which hid Local Folder
-// Sync); the UI distinguishes them by label (see PROVIDER_LABELS). The
-// (scope_id, kind) unique index already guarantees one row per kind per scope.
+// NOTE: `filesystem` is a legacy name for the Git Remote access surface. New
+// scopes default to `git_remote`, but older rows can still exist. Keep
+// legacy-only scopes visible, and hide the legacy duplicate when the canonical
+// `git_remote` row exists for the same scope.
 
 export function useAccessData(projectId: string): UseAccessDataResult {
   const { data: scopes, mutate: mutateScopes } = useSWR(
