@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
+import { useRouter } from 'next/navigation';
 import { useSWRConfig } from 'swr';
 import {
   directChildrenOf,
@@ -195,6 +196,7 @@ export interface DataCreateMenuActions {
   onCreateAgent: () => void;
   onCreateMcp: () => void;
   onCreateSandbox: () => void;
+  onCreateSshTerminal: () => void;
 }
 
 export type CreateMenuActionSource = 'create' | 'access';
@@ -240,6 +242,7 @@ export function useDataCreateFlow({
   showToast,
 }: UseDataCreateFlowOptions) {
   const { cache } = useSWRConfig();
+  const router = useRouter();
   const [createTableOpen, setCreateTableOpen] = useState(false);
   const [defaultStartOption, setDefaultStartOption] = useState<'documents' | 'url'>('documents');
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
@@ -751,6 +754,15 @@ export function useDataCreateFlow({
       onCreateAgent: () => handleAccessSelect('chat'),
       onCreateMcp: () => handleAccessSelect('mcp'),
       onCreateSandbox: () => handleAccessSelect('sandbox'),
+      // SSH Terminal (Remote Dev) lives on the Access page as a scope-level
+      // card, not a connector panel — route there, preselecting the scope that
+      // matches the folder the user acted on (?path → matched in access page).
+      onCreateSshTerminal: () => {
+        closeCreateMenu();
+        const path = accessTargetPath ?? '';
+        const qs = new URLSearchParams({ remote: 'ssh', path });
+        router.push(`/projects/${projectId}/access?${qs.toString()}`);
+      },
     };
   }, [
     accessTargetPath,
@@ -766,6 +778,7 @@ export function useDataCreateFlow({
     openFilePickerForTarget,
     openFileImportDialogForTarget,
     projectId,
+    router,
     showToast,
   ]);
 
