@@ -38,7 +38,6 @@ export function useAccessPointEntries({
     if (syncStatusData?.syncs) {
       for (const sync of syncStatusData.syncs) {
         const providerLabels: Record<string, string> = {
-          filesystem: 'Local Sync',
           gmail: 'Gmail',
           google_calendar: 'Calendar',
           google_sheets: 'Sheets',

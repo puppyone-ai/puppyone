@@ -8,7 +8,7 @@ Maps PuppyOne's authentication system to the version access context:
 Supports:
   - Key revocation (revoked access points are rejected)
   - User identity binding via X-PuppyOne-User header
-  - Channel pause enforcement via X-Puppy-Client header (cli / filesystem):
+  - Channel pause enforcement via X-Puppy-Client header (cli):
     when present, the resolved scope's connector for that channel is
     consulted and the request is rejected with 403 if status='paused'.
 """
@@ -196,7 +196,7 @@ def get_version_auth(
       1. Resolve the Bearer token (JWT or access_key) → auth context with
          a scope binding. This is the existing identity check.
       2. If the request advertises a channel via X-Puppy-Client (e.g.
-         'cli', 'filesystem'), consult that channel's connector for the
+         'cli'), consult that channel's connector for the
          resolved scope and reject with 403 when status='paused'.
 
     Stage 2 is deliberately opt-in via the header so that older

@@ -12,7 +12,7 @@
 export const T = {
   // Page bg matches the surface painted by `(main)/layout.tsx` (var(--po-canvas)),
   // so this page sits flush inside the rounded main pane and visually
-  // aligns with /access /data /history /monitor /settings.
+  // aligns with /access /data /history /develop /settings.
   bg: 'var(--po-canvas)',
   surface: 'var(--po-panel)',
   border: 'var(--po-border)',
@@ -23,7 +23,7 @@ export const T = {
   // Active highlight when an AP is hovered: tints every row in the AP's
   // scope (the AP's `path` + all descendants).  Cyan-tinted bg keeps the
   // single-accent rule; the 2px left bar makes the affiliation unmistakable
-  // even when many rows light up at once (e.g. filesystem at root).
+  // even when many rows light up at once (e.g. root access surface).
   rowHighlight: 'color-mix(in srgb, var(--po-accent) 8%, transparent)',
   // Stronger tint reserved for the scope ROOT — the row that the AP is
   // actually pinned to (its `path`).  Bumping just this one row makes the

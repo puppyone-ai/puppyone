@@ -7,11 +7,10 @@ export const maxDuration = 300;
 const API_BASE_URL = getServerApiBaseUrl();
 
 /**
- * Proxy for ingest endpoints to the Python backend.
+ * Compatibility proxy for legacy ingest/ETL endpoints to the Python backend.
  *
- * The browser sends requests to this same-origin route, which forwards
- * them to the Python backend. This avoids CORS and system-proxy issues
- * that can break cross-origin multipart uploads.
+ * Upload uses /api/upload. Import uses /api/v1/imports. This proxy remains
+ * for ETL task/rule management and old callers that have not migrated yet.
  *
  * Usage:
  *   POST /api/ingest?path=submit/file   → POST backend/api/v1/ingest/submit/file

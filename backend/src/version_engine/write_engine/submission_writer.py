@@ -114,7 +114,7 @@ class SubmissionWriter:
                 current_scope_head_id if scope_norm else None
             )
             acceptable_git_heads: set[str] | None = None
-            if intent.source_channel == "git":
+            if intent.source_channel in {"git", "access_git"}:
                 if scope_norm:
                     canonical_scope_head_id = current_scope_head_id or ""
                     git_visible_head_id = str(
@@ -144,7 +144,7 @@ class SubmissionWriter:
                 or (project_head_commit_id if not scope_norm else "")
             )
 
-            if intent.source_channel == "git":
+            if intent.source_channel in {"git", "access_git"}:
                 acceptable_heads = acceptable_git_heads or {
                     head for head in (current_scope_head_id,) if head
                 }

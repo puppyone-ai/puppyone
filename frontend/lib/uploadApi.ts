@@ -2,7 +2,7 @@
  * Upload API — backend-proxied multipart uploads.
  *
  * Pipeline (all four steps go through the same-origin Next.js proxy
- * at ``/api/ingest`` to keep CORS out of the picture):
+ * at ``/api/upload`` to keep CORS out of the picture):
  *
  *   1. ``initMultipartUpload`` (POST /upload/init)
  *      Backend creates the S3 multipart session and a pending task.
@@ -282,7 +282,7 @@ export async function initMultipartUpload(
     ),
   };
 
-  const response = await fetch('/api/ingest?path=upload/init', {
+  const response = await fetch('/api/upload?path=init', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -340,7 +340,7 @@ export async function uploadParts(
   // required for HMR to pick up the new module.
   // eslint-disable-next-line no-console
   console.info(
-    `[upload] Starting ${file.name} via /api/ingest proxy: ` +
+    `[upload] Starting ${file.name} via /api/upload proxy: ` +
       `${total_parts} part(s), chunk_size=${chunk_size}, total=${total}`,
   );
 
@@ -383,7 +383,7 @@ export async function uploadParts(
     return new Promise<UploadedPart>((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       const url =
-        `/api/ingest?path=upload/part&task_id=${encodeURIComponent(task_id)}` +
+        `/api/upload?path=part&task_id=${encodeURIComponent(task_id)}` +
         `&part_number=${partNumber}`;
       xhr.open('PUT', url, true);
       xhr.setRequestHeader('Authorization', `Bearer ${accessToken}`);
@@ -565,7 +565,7 @@ export async function completeMultipartUpload(
   },
   accessToken: string,
 ): Promise<UploadCompleteResponse> {
-  const response = await fetch('/api/ingest?path=upload/complete', {
+  const response = await fetch('/api/upload?path=complete', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -610,7 +610,7 @@ export async function completeMultipartUploadBatch(
   }>,
   accessToken: string,
 ): Promise<UploadCompleteBatchResponse> {
-  const response = await fetch('/api/ingest?path=upload/complete-batch', {
+  const response = await fetch('/api/upload?path=complete-batch', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -644,7 +644,7 @@ export async function abortMultipartUpload(
   // there's nothing useful they can do with that info. The backend
   // logs the failure and the task transitions to CANCELLED anyway.
   try {
-    await fetch('/api/ingest?path=upload/abort', {
+    await fetch('/api/upload?path=abort', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

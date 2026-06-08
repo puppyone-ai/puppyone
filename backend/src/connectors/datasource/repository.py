@@ -328,29 +328,6 @@ class SyncRepository:
             return None
         return max(matches, key=lambda sync: len(_normalize_path(sync.path)))
 
-    def get_by_access_key(self, access_key: str) -> Optional[Sync]:
-        scope_resp = (
-            self.client.table(self.SCOPES)
-            .select("*")
-            .eq("access_key", access_key)
-            .is_("access_key_revoked_at", "null")
-            .limit(1)
-            .execute()
-        )
-        scope_rows = scope_resp.data or []
-        if not scope_rows:
-            return None
-        scope = scope_rows[0]
-        rows = (
-            self.client.table(self.CONNECTIONS)
-            .select("*")
-            .eq("scope_id", scope["id"])
-            .eq("provider", "filesystem")
-            .limit(1)
-            .execute()
-        ).data or []
-        return self._connection_to_model(rows[0], scope) if rows else None
-
     def find_by_config_key(
         self, provider: str, key: str, value: str,
     ) -> Optional[Sync]:

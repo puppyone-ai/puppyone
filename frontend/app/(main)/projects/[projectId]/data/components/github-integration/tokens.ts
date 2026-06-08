@@ -1,5 +1,5 @@
 /**
- * Local design tokens for the Integrations page. Mirrors the ``T``
+ * Local design tokens for the Workflow surface. Mirrors the ``T``
  * object in ``settings/page.tsx`` and ``access/lib/tokens.ts`` so this
  * surface reads as the same family.
  */

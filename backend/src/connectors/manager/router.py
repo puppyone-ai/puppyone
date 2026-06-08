@@ -1,8 +1,8 @@
 """Workspace Access API.
 
 Access manages scope-bound ways to enter or operate on a workspace:
-Git remote, CLI, local filesystem, agents, MCP endpoints, and sandboxes.
-External source relationships belong to Connect, not this router.
+Git remote, FS CLI, agents, MCP endpoints, and sandboxes.
+External source relationships belong to Integration, not this router.
 """
 
 from __future__ import annotations
@@ -129,7 +129,7 @@ def _scope_for_path(
 def _access_key_for(row: dict, scope: dict | None) -> str | None:
     cfg = row.get("config") or {}
     provider = row.get("kind", row.get("provider", ""))
-    if provider in {"git_remote", "cli", "filesystem"}:
+    if provider in {"git_remote", "cli"}:
         return (scope or {}).get("access_key")
     if provider == "agent":
         return cfg.get("mcp_api_key") or cfg.get("access_key")
@@ -371,7 +371,7 @@ async def delete_connection(
     if resp.data[0]["project_id"] not in pids:
         raise NotFoundException("Access connection not found", code=ErrorCode.NOT_FOUND)
 
-    if resp.data[0].get("kind") in {"git_remote", "cli", "filesystem"}:
+    if resp.data[0].get("kind") in {"git_remote", "cli"}:
         raise HTTPException(status_code=400, detail="Built-in access surfaces cannot be deleted")
     AccessSurfaceRepository().delete(connection_id)
     return ApiResponse.success(message="Access connection deleted")
@@ -436,7 +436,7 @@ def regenerate_key(
         raise NotFoundException("Access connection not found", code=ErrorCode.NOT_FOUND)
 
     provider = row.get("kind", row.get("provider", ""))
-    if provider in {"git_remote", "cli", "filesystem"}:
+    if provider in {"git_remote", "cli"}:
         new_key = ScopeService().regenerate_access_key(row["scope_id"])
         if not new_key:
             raise NotFoundException("Scope not found", code=ErrorCode.NOT_FOUND)
@@ -444,7 +444,7 @@ def regenerate_key(
             sb.table("access_surfaces")
             .select("*")
             .eq("scope_id", row["scope_id"])
-            .in_("kind", ["git_remote", "cli", "filesystem"])
+            .in_("kind", ["git_remote", "cli"])
             .execute()
         ).data or []
         for surface in surfaces:
@@ -491,15 +491,6 @@ def list_connection_types():
             "creation_mode": "direct",
             "category": "access",
             "icon": "git-branch",
-        },
-        {
-            "provider": "filesystem",
-            "display_name": "Local Folder Sync",
-            "description": "Local folder access using the scoped access key",
-            "auth": "access_key",
-            "creation_mode": "bootstrap",
-            "category": "access",
-            "icon": "folder-sync",
         },
         {
             "provider": "agent",
@@ -663,46 +654,6 @@ def _create_sandbox(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
     )
 
 
-async def _create_filesystem(
-    payload: UnifiedConnectionCreate, _user_id: str,
-) -> UnifiedConnectionOut:
-    """Claim the built-in filesystem connector for a scope."""
-    from src.connectors.datasource.repository import SyncRepository
-    from src.connectors.filesystem.service import FilesystemService
-    from src.infra.supabase.client import SupabaseClient
-
-    supabase = SupabaseClient()
-    sync_repo = SyncRepository(supabase)
-    service = FilesystemService(supabase=supabase, sync_repo=sync_repo)
-
-    cfg = payload.config
-    scope = cfg.get("scope", {})
-    if isinstance(scope, dict):
-        scope_path = scope.get("path", payload.path or "/")
-    else:
-        scope_path = str(scope) if scope else (payload.path or "/")
-
-    try:
-        sync = service.bootstrap(
-            project_id=payload.project_id,
-            path=scope_path,
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to create filesystem connector: {e}") from e
-
-    return UnifiedConnectionOut(
-        id=sync.id,
-        project_id=payload.project_id,
-        provider="filesystem",
-        name=payload.name or "Filesystem Sync",
-        status=sync.status or "active",
-        access_key=sync.access_key,
-        # Post-hash: the access_key now authorises Git smart-HTTP at
-        # /git/ap/<key>.git and the FS HTTP API at /api/v1/ap-fs/*.
-        ap_base=f"/git/ap/{sync.access_key}.git" if sync.access_key else None,
-    )
-
-
 def _create_direct(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
     """Return direct Git + FS HTTP API credentials for a scope."""
     sb = _get_client()
@@ -771,7 +722,7 @@ async def create_connection(
     - agent: creates a chat agent
     - mcp: creates an MCP endpoint
     - sandbox: creates a sandbox endpoint
-    - filesystem/direct: returns scoped access credentials
+    - direct: returns scoped Git Remote and FS CLI credentials
     """
     from src.platform.project.repository import ProjectRepositorySupabase
     project_repo = ProjectRepositorySupabase()
@@ -786,7 +737,7 @@ async def create_connection(
     sb = _get_client()
     existing = []
     existing_scopes: dict[str, dict] = {}
-    if provider not in {"direct", "filesystem"}:
+    if provider != "direct":
         existing = (
             sb.table("access_surfaces")
             .select("*")
@@ -825,15 +776,13 @@ async def create_connection(
             result = _create_mcp(payload)
         elif provider == "sandbox":
             result = _create_sandbox(payload)
-        elif provider == "filesystem":
-            result = await _create_filesystem(payload, current_user.user_id)
         elif provider == "direct":
             result = _create_direct(payload)
         else:
             raise HTTPException(
                 status_code=400,
                 detail=(
-                    f"Unknown access provider: {provider}. Use Connect APIs "
+                    f"Unknown access provider: {provider}. Use Integration APIs "
                     "for external datasource connections."
                 ),
             )

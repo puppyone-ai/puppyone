@@ -13,6 +13,11 @@ SourceChannel = Literal[
     "agent",
     "sync",
     "github",
+    "upload",
+    "import",
+    "access_git",
+    "access_cli",
+    "access_sandbox",
 ]
 
 

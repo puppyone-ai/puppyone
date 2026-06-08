@@ -227,7 +227,7 @@ class _FakeOps:
 
     async def write_file(
         self, project_id, path, content, *, who, message, scope="",
-        base_commit_id=None, defer_projection=False
+        base_commit_id=None, defer_projection=False, **_kwargs,
     ):
         self.writes.append({
             "project_id": project_id,
@@ -243,7 +243,7 @@ class _FakeOps:
 
     async def mkdir(
         self, project_id, path, *, who, message, scope="",
-        base_commit_id=None, defer_projection=False
+        base_commit_id=None, defer_projection=False, **_kwargs,
     ):
         self.mkdirs.append({
             "project_id": project_id,
@@ -258,7 +258,7 @@ class _FakeOps:
 
     async def move(
         self, project_id, old_path, new_path, *, who, message, scope="",
-        base_commit_id=None, defer_projection=False
+        base_commit_id=None, defer_projection=False, **_kwargs,
     ):
         self.moves.append({
             "project_id": project_id,
@@ -274,7 +274,7 @@ class _FakeOps:
 
     async def copy(
         self, project_id, old_path, new_path, *, who, message, scope="",
-        base_commit_id=None, defer_projection=False
+        base_commit_id=None, defer_projection=False, **_kwargs,
     ):
         self.copies.append({
             "project_id": project_id,
@@ -290,7 +290,7 @@ class _FakeOps:
 
     async def touch(
         self, project_id, paths, *, who, message, scope="",
-        base_commit_id=None, defer_projection=False
+        base_commit_id=None, defer_projection=False, **_kwargs,
     ):
         self.touches.append({
             "project_id": project_id,
@@ -305,7 +305,7 @@ class _FakeOps:
 
     async def delete(
         self, project_id, paths, *, who, message, scope="",
-        base_commit_id=None, defer_projection=False
+        base_commit_id=None, defer_projection=False, **_kwargs,
     ):
         self.deletes.append({
             "project_id": project_id,

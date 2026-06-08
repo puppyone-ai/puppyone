@@ -557,16 +557,7 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
       let syncId: string | null = null;
       let nodePath: string = targetNode.path;
 
-      if (params.provider === 'filesystem') {
-        const result = await post<{
-          access_point_id: string;
-          access_key: string;
-          path: string;
-          project_id: string;
-        }>(`/api/v1/filesystem/bootstrap?project_id=${projectId}&path=${nodePath}`);
-        syncId = result.access_point_id;
-        nodePath = result.path;
-      } else if (params.provider === 'mcp') {
+      if (params.provider === 'mcp') {
         const result = await post<{ id: string }>('/api/v1/mcp-endpoints', {
           project_id: projectId,
           path: nodePath,
@@ -591,7 +582,7 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
             ? { type: 'manual' }
             : undefined;
 
-        await post<{ syncs_created: number }>('/api/v1/sync/bootstrap', {
+        await post<{ syncs_created: number }>('/api/v1/integrations/bootstrap', {
           project_id: projectId,
           provider: params.provider,
           config: params.config || {},

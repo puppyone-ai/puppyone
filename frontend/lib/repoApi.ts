@@ -257,7 +257,7 @@ export function isWithinScope(nodePath: string, scopePath: string): boolean {
  */
 export const BUILTIN_PROVIDERS = ['cli', 'agent'] as const;
 
-const ACCESS_SURFACE_HIDDEN_PROVIDERS = new Set(['github']);
+const ACCESS_SURFACE_HIDDEN_PROVIDERS = new Set(['github', 'filesystem']);
 
 /**
  * Access surfaces are for ongoing ways into a scope: CLI, Git remote,

@@ -73,15 +73,8 @@ export function scopePathToDataUrl(projectId: string, scopePath: string): string
 
 // ─── Connector descriptors ───────────────────────────────────────────
 
-// `git_remote` and `filesystem` are both built-in surfaces that ride the
-// scope's Git smart-HTTP transport, so they share styling, icon, manual
-// commands, and the setup-prompt body. They differ only in product framing
-// (Git Remote = clone/push; Local Folder Sync = keep a local folder synced),
-// which is carried by the labels — never by the transport. Use this guard
-// for the "treat it like the Git built-in" branches; switch on the exact
-// provider for the label/description sites.
 export function isGitBuiltinProvider(provider: string): boolean {
-  return provider === 'git_remote' || provider === 'filesystem';
+  return provider === 'git_remote';
 }
 
 export function getTypeLine(c: Connector): string {
@@ -90,12 +83,11 @@ export function getTypeLine(c: Connector): string {
     : c.direction === 'inbound' ? 'Import'
     : c.direction === 'outbound' ? 'Export' : '';
   switch (c.provider) {
-    case 'cli': return ['Puppyone CLI', direction].filter(Boolean).join(' · ');
+    case 'cli': return ['FS CLI', direction].filter(Boolean).join(' · ');
     case 'agent': return ['AI agent', direction].filter(Boolean).join(' · ');
     case 'mcp': return ['MCP server', direction].filter(Boolean).join(' · ');
     case 'sandbox': return ['Compute sandbox', direction].filter(Boolean).join(' · ');
     case 'git_remote': return 'Native Git clone/push';
-    case 'filesystem': return 'Local folder sync';
     default: return [`Third-party · ${PROVIDER_LABELS[c.provider] ?? c.provider}`, direction].filter(Boolean).join(' · ');
   }
 }
@@ -114,7 +106,7 @@ export function getPrimaryAction(status: string): { label: string; icon: 'pause'
 // Puppyone's own in-app chat, they aren't driven by external prompts.
 // We deleted the helper and now render a per-provider body component
 // (`ConnectorAccessPanel`) instead, mirroring `ConnectMethods` in the
-// data view: cli + filesystem render a prompt + install steps; agent
+// data view: cli + git_remote render commands; agent
 // renders an Activate / Open chat card; mcp/sandbox/3p render the
 // minimal config they actually need.
 
@@ -192,7 +184,6 @@ export function getConnectorGroup(provider: string): ConnectorGroupKey {
   if (provider === 'cli') return 'cli';
   if (provider === 'agent') return 'agent';
   if (provider === 'git_remote') return 'git_remote';
-  if (provider === 'filesystem') return 'filesystem';
   if (provider === 'mcp') return 'mcp';
   if (provider === 'sandbox') return 'sandbox';
   return 'integration';

@@ -67,7 +67,7 @@ function DirectionGlyph({ direction }: { direction: 'inbound' | 'outbound' | 'bi
 // path shape per provider.  The host comes from NEXT_PUBLIC_API_URL
 // when set (build-time-baked backend host) and falls back to the
 // current page origin only when no env was provided — same pattern as
-// FilesystemDetailView / SyncDetailView / GetStartedPanel.
+// SyncDetailView / GetStartedPanel.
 function buildEndpointUrl(conn: DashboardConnection): string | null {
   if (!conn.access_key) return null;
   const apiBase =
@@ -76,8 +76,8 @@ function buildEndpointUrl(conn: DashboardConnection): string | null {
       : '';
 
   switch (conn.provider) {
-    case 'filesystem':
-      // Filesystem access keys authorise the Git smart-HTTP remote at
+    case 'git_remote':
+      // Git Remote access keys authorise the Git smart-HTTP remote at
       // /git/ap/<key>.git.
       return `${apiBase}/git/ap/${conn.access_key}.git`;
     case 'mcp':
@@ -95,13 +95,12 @@ function buildEndpointUrl(conn: DashboardConnection): string | null {
 }
 
 // Shell command users would actually paste, scoped per provider.
-// `null` means we don't render a command row for this provider —
-// today everything that isn't filesystem; their richer invocation
-// shapes (MCP server config blob, sandbox exec body, etc.) live on
-// the /access detail page.
+// `null` means we don't render a command row for this provider.
+// Non-Git invocation shapes (MCP server config blob, sandbox exec
+// body, etc.) live on the /access detail page.
 function buildCliCommand(conn: DashboardConnection, url: string | null): string | null {
   if (!url || !conn.access_key) return null;
-  if (conn.provider !== 'filesystem') return null;
+  if (conn.provider !== 'git_remote') return null;
   // Stock git clone is the canonical setup. The
   // user authenticates once via `git credential.helper store`; see the
   // detail panel's "Authenticate" step for the full one-line helper.
@@ -238,7 +237,7 @@ export function AccessPointsListCard({
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 13, fontWeight: 500, color: T.text2 }}>
-            Integrations
+            Workflows
           </span>
           <span
             style={{
@@ -260,42 +259,6 @@ export function AccessPointsListCard({
             {total}
           </span>
         </div>
-        <button
-          onClick={() => router.push(`/projects/${projectId}/access`)}
-          title="Manage integrations"
-          style={{
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            width: 30,
-            height: 30,
-            padding: 0,
-            fontSize: 12,
-            color: T.text2,
-            fontFamily: T.fontSans,
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 4,
-            transition: `color 200ms ${T.ease}`,
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.color = T.text1;
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = T.text2;
-          }}
-        >
-          Manage
-          <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-            <path
-              d="M4 2l4 4-4 4"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
       </div>
 
       <div style={{ padding: '6px 8px', minHeight: 60 }}>
@@ -310,7 +273,7 @@ export function AccessPointsListCard({
               fontSize: 12,
             }}
           >
-            No integrations configured.
+            No workflows configured.
           </div>
         ) : (
           // Flex column with generous vertical gap rather than 1px

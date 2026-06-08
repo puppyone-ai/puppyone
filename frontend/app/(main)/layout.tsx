@@ -30,7 +30,8 @@ const _PROJECT_VIEWS: ReadonlyArray<readonly [string, string]> = [
   ['/history', 'changes'],
   ['/conflicts', 'changes'],
   ['/access', 'access'],
-  ['/monitor', 'monitor'],
+  ['/develop', 'develop'],
+  ['/monitor', 'develop'],
   ['/settings', 'settings'],
   ['/data', 'data'],
 ];

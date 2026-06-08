@@ -92,6 +92,7 @@ class FakeOps:
         deleted=None,
         message="",
         defer_projection=False,
+        **_kwargs,
     ):
         self.bulk_write_call = {
             "project_id": project_id,

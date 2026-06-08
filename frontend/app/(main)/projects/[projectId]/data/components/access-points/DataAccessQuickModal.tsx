@@ -25,6 +25,10 @@ const FONT_META = 12;
 const HOVER_CARD_WIDTH = 372;
 const HOVER_CARD_HEIGHT = 196;
 
+function isGitRemoteMethodProvider(provider: string): boolean {
+  return provider === 'git_remote';
+}
+
 type DataAccessQuickModalProps = {
   readonly scope: RepoScope;
   readonly connectors: readonly Connector[];
@@ -41,13 +45,13 @@ export function DataAccessQuickModal({
   onOpenFullSettings,
 }: DataAccessQuickModalProps) {
   const [manualConnectorId, setManualConnectorId] = useState<string | null>(null);
-  const methods = useMemo(
-    () =>
-      sortConnectorsBuiltinFirst(connectors).filter(
-        (connector) => connector.provider === 'cli' || connector.provider === 'filesystem',
-      ),
-    [connectors],
-  );
+  const methods = useMemo(() => {
+    const sorted = sortConnectorsBuiltinFirst(connectors);
+    const cliMethods = sorted.filter((connector) => connector.provider === 'cli');
+    const gitRemote = sorted.find((connector) => connector.provider === 'git_remote');
+
+    return gitRemote ? [...cliMethods, gitRemote] : cliMethods;
+  }, [connectors]);
   const manualConnector = useMemo(
     () => methods.find((connector) => connector.id === manualConnectorId) ?? null,
     [manualConnectorId, methods],
@@ -262,7 +266,7 @@ function AccessMethodCard({
   const setup = useMemo(() => buildSetupGuide(connector, scope), [connector, scope]);
   const [copied, setCopied] = useState(false);
   const meta = accessMethodMeta(connector);
-  const showManualCommands = connector.provider === 'filesystem';
+  const showManualCommands = connector.provider === 'git_remote';
 
   const copyPrompt = async () => {
     try {
@@ -687,7 +691,7 @@ function ManualWayRow({
               whiteSpace: 'nowrap',
             }}
           >
-            {connector.provider === 'filesystem'
+            {isGitRemoteMethodProvider(connector.provider)
               ? 'For clone, pull, commit, and push workflows.'
               : getTypeLine(connector)}
           </span>
@@ -1147,15 +1151,16 @@ function PromptPreview({ prompt }: { readonly prompt: string }) {
 
 function ProviderTile({ provider }: { readonly provider: string }) {
   const tile = getProviderTileStyle(provider);
-  const tileSize = provider === 'filesystem' ? 34 : 30;
-  const iconSize = provider === 'filesystem' ? 34 : 17;
+  const isGitRemote = provider === 'git_remote';
+  const tileSize = isGitRemote ? 34 : 30;
+  const iconSize = isGitRemote ? 34 : 17;
 
   return (
     <div
       style={{
         width: tileSize,
         height: tileSize,
-        borderRadius: provider === 'filesystem' ? 7 : 6,
+        borderRadius: isGitRemote ? 7 : 6,
         background: tile.background,
         border: `1px solid ${tile.border}`,
         color: tile.color,
@@ -1164,7 +1169,7 @@ function ProviderTile({ provider }: { readonly provider: string }) {
         alignItems: 'center',
         justifyContent: 'center',
         flexShrink: 0,
-        overflow: provider === 'filesystem' ? 'hidden' : undefined,
+        overflow: isGitRemote ? 'hidden' : undefined,
       }}
     >
       <ProviderIcon provider={provider} size={iconSize} />
@@ -1174,7 +1179,7 @@ function ProviderTile({ provider }: { readonly provider: string }) {
 
 function buildSetupGuide(connector: Connector, scope: RepoScope) {
   const scopeName = scope.name || scope.path || 'Root';
-  if (connector.provider === 'filesystem') {
+  if (isGitRemoteMethodProvider(connector.provider)) {
     const gitUrl = `${getApiBase()}/git/ap/${scope.access_key || '<access-key>'}.git`;
     const guide = buildGitSyncPrompt({
       gitUrl,
@@ -1266,7 +1271,7 @@ function StatusCell({ status }: { readonly status: Connector['status'] }) {
 
 function connectorName(connector: Connector): string {
   if (connector.provider === 'cli') return 'Puppyone CLI';
-  if (connector.provider === 'filesystem') return 'Git Remote';
+  if (isGitRemoteMethodProvider(connector.provider)) return 'Git Remote';
   return connector.name || PROVIDER_LABELS[connector.provider] || connector.provider;
 }
 
@@ -1280,10 +1285,10 @@ function accessMethodMeta(connector: Connector): {
       title: 'Context Drive CLI',
       badge: 'Official',
       description:
-        'Use Puppyone\'s scoped filesystem CLI to let an agent read and write this cloud drive without cloning it.',
+        'Use Puppyone\'s scoped FS CLI to let an agent read and write this cloud drive without cloning it.',
     };
   }
-  if (connector.provider === 'filesystem') {
+  if (isGitRemoteMethodProvider(connector.provider)) {
     return {
       title: 'Git Remote',
       description: 'Use a native Git remote for clone, pull, commit, and push workflows.',

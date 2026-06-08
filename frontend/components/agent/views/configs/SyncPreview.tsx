@@ -88,12 +88,6 @@ function getProviderLogo(provider: string, size: number) {
         <defs><linearGradient id="sp0s" x1="53.9738" y1="54.974" x2="94.1635" y2="71.8295" gradientUnits="userSpaceOnUse"><stop stopColor="var(--po-success)"/><stop offset="1" stopColor="var(--po-success)"/></linearGradient></defs>
       </svg>
     );
-    case 'filesystem':
-      return (
-        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="var(--po-success)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="3" y="4" width="18" height="12" rx="2" /><path d="M2 20h20" />
-        </svg>
-      );
     case 'agent':
       return <span style={{ fontSize: size * 0.65 }}>💬</span>;
     case 'mcp':

@@ -23,14 +23,6 @@ export function StatusDot({ status, borderColor = 'var(--po-panel)' }: { status:
   );
 }
 
-function FolderMiniIcon() {
-  return (
-    <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="var(--po-success)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-    </svg>
-  );
-}
-
 function McpMiniIcon() {
   return (
     <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="var(--po-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -77,8 +69,6 @@ export function AccessPointProviderIcon({
   if (ep.provider.startsWith('agent:')) return <AgentMiniIcon />;
   if (ep.provider === 'mcp') return <McpMiniIcon />;
   if (ep.provider === 'sandbox') return <SandboxMiniIcon />;
-  if (ep.provider === 'filesystem') return <FolderMiniIcon />;
-
   const providerIcon = providerIcons[ep.provider];
   if (providerIcon?.iconUrl) {
     return <img src={providerIcon.iconUrl} alt="" width={16} height={16} style={{ display: 'block', borderRadius: 2 }} />;

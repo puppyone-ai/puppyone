@@ -1,7 +1,7 @@
 """Supabase repository for workspace Access surfaces.
 
 Access surfaces are scope-bound ways to enter or operate on a workspace:
-Git remote, CLI, local filesystem, agents, MCP endpoints, and sandboxes.
+Git remote, CLI, agents, MCP endpoints, and sandboxes.
 They are not durable external data sources; those live in ``connections``.
 """
 
@@ -17,15 +17,14 @@ from src.repo.models import Connector, RepoScope
 ACCESS_SURFACE_KINDS = frozenset({
     "git_remote",
     "cli",
-    "filesystem",
     "agent",
     "mcp",
     "sandbox",
 })
+ACCESS_SURFACE_KIND_LIST = sorted(ACCESS_SURFACE_KINDS)
 BUILTIN_SCOPE_SURFACES = (
     ("git_remote", "Git Remote"),
-    ("cli", "CLI"),
-    ("filesystem", "Filesystem Sync"),
+    ("cli", "FS CLI"),
 )
 
 
@@ -46,7 +45,7 @@ def _row_to_connector(row: dict[str, Any]) -> Connector:
         provider=row["kind"],
         name=row["name"],
         direction=config.get("direction") or (
-            "bidirectional" if row["kind"] in {"git_remote", "cli", "filesystem"} else "inbound"
+            "bidirectional" if row["kind"] in {"git_remote", "cli"} else "inbound"
         ),
         config=config,
         policy=config.get("policy") or {},
@@ -93,7 +92,11 @@ class AccessSurfaceRepository:
         if scope_id:
             query = query.eq("scope_id", scope_id)
         if kind:
+            if kind not in ACCESS_SURFACE_KINDS:
+                return []
             query = query.eq("kind", kind)
+        else:
+            query = query.in_("kind", ACCESS_SURFACE_KIND_LIST)
         resp = query.order("created_at", desc=False).execute()
         return resp.data or []
 
@@ -106,9 +109,14 @@ class AccessSurfaceRepository:
             .execute()
         )
         rows = resp.data or []
-        return rows[0] if rows else None
+        row = rows[0] if rows else None
+        if row and row.get("kind") not in ACCESS_SURFACE_KINDS:
+            return None
+        return row
 
     def get_by_scope_kind(self, scope_id: str, kind: str) -> Optional[dict[str, Any]]:
+        if kind not in ACCESS_SURFACE_KINDS:
+            return None
         resp = (
             self._client.table(self.TABLE)
             .select("*")
@@ -122,6 +130,8 @@ class AccessSurfaceRepository:
         return rows[0] if rows else None
 
     def get_by_config_key(self, kind: str, key: str, value: str) -> Optional[dict[str, Any]]:
+        if kind not in ACCESS_SURFACE_KINDS:
+            return None
         resp = (
             self._client.table(self.TABLE)
             .select("*")
@@ -218,7 +228,7 @@ class AccessSurfaceRepository:
                 "path": scope.path,
                 "mode": scope.mode,
             }
-            if kind in {"git_remote", "cli", "filesystem"}:
+            if kind in {"git_remote", "cli"}:
                 config["direction"] = "bidirectional"
             self.insert(
                 project_id=scope.project_id,
@@ -236,7 +246,7 @@ class AccessSurfaceRepository:
             self._client.table(self.TABLE)
             .select("id", count="exact")
             .eq("scope_id", scope_id)
-            .not_.in_("kind", ["git_remote", "cli", "filesystem"])
+            .not_.in_("kind", ["git_remote", "cli"])
             .execute()
         )
         connection_resp = (

@@ -1,17 +1,41 @@
 'use client';
 
-import { FileText } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { FileText, Upload } from 'lucide-react';
 import { BUTTON_HEIGHT } from '@/components/ui/buttonTokens';
 
+export type DataNoFileSelectedMode =
+  | 'has-content'
+  | 'empty-workspace'
+  | 'empty-folder';
+
 interface DataNoFileSelectedStateProps {
+  readonly mode: DataNoFileSelectedMode;
+  readonly folderName?: string;
   readonly onCreateMarkdown: () => void | Promise<void>;
   readonly onUploadClick: () => void;
 }
 
 export function DataNoFileSelectedState({
+  mode,
+  folderName,
   onCreateMarkdown,
   onUploadClick,
 }: DataNoFileSelectedStateProps) {
+  const isEmpty = mode !== 'has-content';
+  const title =
+    mode === 'empty-workspace'
+      ? 'This workspace is empty'
+      : mode === 'empty-folder'
+        ? 'This folder is empty'
+        : 'No file selected';
+  const description =
+    mode === 'empty-workspace'
+      ? 'Create a Markdown note or upload files to add context.'
+      : mode === 'empty-folder'
+        ? `${folderName ? `${folderName} is empty. ` : ''}Create a Markdown note or upload files here.`
+        : 'Choose a file from the sidebar to open it here.';
+
   return (
     <div
       style={{
@@ -26,7 +50,7 @@ export function DataNoFileSelectedState({
     >
       <div
         style={{
-          width: 'min(360px, 100%)',
+          width: isEmpty ? 'min(420px, 100%)' : 'min(300px, 100%)',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -36,103 +60,112 @@ export function DataNoFileSelectedState({
         <div
           aria-hidden
           style={{
-            width: 36,
-            height: 36,
-            borderRadius: 9,
+            width: isEmpty ? 34 : 28,
+            height: isEmpty ? 34 : 28,
+            borderRadius: isEmpty ? 8 : 7,
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            marginBottom: 12,
-            color: 'var(--po-text-muted)',
-            background: 'color-mix(in srgb, var(--po-control) 58%, transparent)',
-            border: '1px solid var(--po-border-subtle)',
+            marginBottom: isEmpty ? 12 : 10,
+            color: isEmpty ? 'var(--po-text-muted)' : 'var(--po-text-subtle)',
+            background: isEmpty
+              ? 'color-mix(in srgb, var(--po-control) 42%, transparent)'
+              : 'transparent',
+            border: `1px solid ${isEmpty ? 'var(--po-border-subtle)' : 'transparent'}`,
           }}
         >
-          <FileText size={16} strokeWidth={1.75} />
+          <FileText size={isEmpty ? 16 : 15} strokeWidth={1.75} />
         </div>
 
         <h2
           style={{
             margin: 0,
-            fontSize: 15,
-            lineHeight: '22px',
-            fontWeight: 600,
+            fontSize: isEmpty ? 15 : 14,
+            lineHeight: isEmpty ? '22px' : '20px',
+            fontWeight: isEmpty ? 600 : 500,
             letterSpacing: 0,
-            color: 'var(--po-text)',
+            color: isEmpty ? 'var(--po-text)' : 'var(--po-text-muted)',
           }}
         >
-          No file selected
+          {title}
         </h2>
         <p
           style={{
-            margin: '6px 0 0',
-            maxWidth: 360,
+            margin: isEmpty ? '6px 0 0' : '4px 0 0',
+            maxWidth: isEmpty ? 380 : 280,
             fontSize: 12,
             lineHeight: '18px',
             fontWeight: 400,
             letterSpacing: 0,
-            color: 'var(--po-text-muted)',
+            color: 'var(--po-text-subtle)',
           }}
         >
-          Select a file from the sidebar, or start a note.
+          {description}
         </p>
 
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 9,
-            marginTop: 16,
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => {
-              void onCreateMarkdown();
-            }}
+        {isEmpty && (
+          <div
             style={{
-              height: BUTTON_HEIGHT,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-              padding: '0 12px',
-              borderRadius: 7,
-              border: '1px solid var(--po-text)',
-              background: 'var(--po-text)',
-              color: 'var(--po-canvas)',
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: 'pointer',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+              gap: 10,
+              width: 'min(320px, 100%)',
+              marginTop: 18,
             }}
           >
-            <FileText size={14} strokeWidth={1.9} />
-            New note
-          </button>
-          <button
-            type="button"
-            onClick={onUploadClick}
-            style={{
-              height: 24,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '0 8px',
-              borderRadius: 5,
-              border: 0,
-              background: 'transparent',
-              color: 'var(--po-text-subtle)',
-              fontSize: 11,
-              fontWeight: 500,
-              cursor: 'pointer',
-            }}
-          >
-            Upload files
-          </button>
-        </div>
+            <EmptyActionButton
+              icon={<FileText size={14} strokeWidth={1.9} />}
+              label="New Markdown"
+              onClick={() => {
+                void onCreateMarkdown();
+              }}
+            />
+            <EmptyActionButton
+              icon={<Upload size={14} strokeWidth={1.9} />}
+              label="Upload files"
+              onClick={onUploadClick}
+            />
+          </div>
+        )}
       </div>
     </div>
+  );
+}
+
+function EmptyActionButton({
+  icon,
+  label,
+  onClick,
+}: {
+  icon: ReactNode;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        height: BUTTON_HEIGHT,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        minWidth: 0,
+        padding: '0 12px',
+        borderRadius: 7,
+        border: '1px solid var(--po-border-strong)',
+        background: 'color-mix(in srgb, var(--po-panel) 30%, transparent)',
+        color: 'var(--po-text)',
+        fontSize: 12,
+        fontWeight: 600,
+        cursor: 'pointer',
+      }}
+    >
+      {icon}
+      <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {label}
+      </span>
+    </button>
   );
 }

@@ -56,8 +56,7 @@ export function buildScopeMetaLine(scope: RepoScope): string {
 /** Build the endpoint-shaped value consumed by AccessPointProviderIcon. */
 export function connectorAsEndpointShape(c: Connector): SyncEndpointInfo {
   let iconProvider: string;
-  if (c.provider === 'cli') iconProvider = 'filesystem';
-  else if (c.provider === 'agent') iconProvider = 'agent:chat';
+  if (c.provider === 'agent') iconProvider = 'agent:chat';
   else iconProvider = c.provider;
   return {
     syncId: c.id,

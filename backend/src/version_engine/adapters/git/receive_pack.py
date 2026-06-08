@@ -396,7 +396,7 @@ async def receive_pack_response_from_path(
                 scope_excludes=scope_excludes,
                 defer_projection=True,
                 audit_detail={
-                    "source_channel": "git",
+                    "source_channel": "access_git",
                     "protocol": "git",
                     "service": "receive-pack",
                     "ref": command.ref,

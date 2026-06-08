@@ -3,7 +3,8 @@
 import type { ApDirection, DashboardConnection } from './types';
 
 export const PROVIDER_LABELS: Record<string, string> = {
-  filesystem: 'Desktop Sync', gmail: 'Gmail', google_sheets: 'Google Sheets',
+  git_remote: 'Git Remote', cli: 'FS CLI',
+  gmail: 'Gmail', google_sheets: 'Google Sheets',
   google_calendar: 'Google Calendar', google_docs: 'Google Docs', github: 'GitHub',
   supabase: 'Supabase', notion: 'Notion', linear: 'Linear',
   hackernews: 'Hacker News', posthog: 'PostHog',
@@ -12,7 +13,8 @@ export const PROVIDER_LABELS: Record<string, string> = {
 };
 
 export const PROVIDER_COLORS: Record<string, string> = {
-  agent: 'var(--po-file-accent-audio)', mcp: 'var(--po-accent)', sandbox: 'var(--po-warning)', filesystem: 'var(--po-success)',
+  agent: 'var(--po-file-accent-audio)', mcp: 'var(--po-accent)', sandbox: 'var(--po-warning)',
+  git_remote: 'var(--po-success)', cli: 'var(--po-accent)',
   gmail: 'var(--po-danger)', github: 'var(--po-text)', google_sheets: 'var(--po-success)', google_docs: 'var(--po-accent)',
   notion: 'var(--po-text)', supabase: 'var(--po-success)', url: 'var(--po-text-subtle)',
 };

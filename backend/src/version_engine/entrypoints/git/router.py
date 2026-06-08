@@ -54,11 +54,9 @@ async def resolve_git_access_point(access_key: str, request: Request) -> tuple[s
             status_code=401,
             detail="User identity mismatch: key is bound to a different user",
         )
-    # Native Git clients do not reliably send custom headers, but this
-    # endpoint is itself the Git Remote surface. Infer the built-in
-    # filesystem connector channel from the route instead of trusting
-    # X-Puppy-Client.
-    enforce_channel_pause(auth, "filesystem", log_prefix="[GitAP]")
+    # Native Git clients do not reliably send custom headers, so infer the
+    # Git Remote access surface from the route.
+    enforce_channel_pause(auth, "git_remote", log_prefix="[GitAP]")
     return project_id, auth
 
 
@@ -80,7 +78,7 @@ def _git_audit_detail(
     )
     scope = auth.get("_scope") or {}
     return {
-        "source_channel": "git",
+        "source_channel": "access_git",
         "protocol": "git",
         "entry_point": entry_point,
         "remote": (
@@ -300,7 +298,7 @@ async def git_ap_rebuild_cache(
         auth,
         facade,
         action="write",
-        source_channel="git",
+        source_channel="access_git",
         channel_header=request.headers.get("x-puppy-client"),
         log_prefix="[GitAP][rebuild]",
     )
@@ -328,7 +326,7 @@ async def git_project_rebuild_cache(
         auth,
         facade,
         action="write",
-        source_channel="git",
+        source_channel="access_git",
         channel_header=request.headers.get("x-puppy-client"),
         log_prefix="[GitProject][rebuild]",
     )

@@ -562,6 +562,13 @@ export default function DataPage({ params }: DataPageProps) {
     !projectIdentityError && !isProjectIdentityReady && isProjectIdentityLoading;
   const isRootFolderView = isFolderView && !currentFolderId;
   const hasRootItems = items.length > 0;
+  const noFileSelectedMode =
+    items.length === 0
+      ? isRootFolderView
+        ? 'empty-workspace'
+        : 'empty-folder'
+      : 'has-content';
+  const currentFolderName = folderBreadcrumbs.at(-1)?.name;
   const projectHasContentCommit = repoIdentity?.content_initialized === true;
   const latestFailedImportJob = latestImportJob?.status === 'failed' ? latestImportJob : null;
   const latestEmptyImportJob = activeImportJob || latestFailedImportJob;
@@ -822,6 +829,8 @@ export default function DataPage({ params }: DataPageProps) {
           onOpenEmptyProject: handleOpenEmptyProject,
         },
         noFileSelectedProps: {
+          mode: noFileSelectedMode,
+          folderName: currentFolderName,
           onCreateMarkdown: createMenuActions.onCreateBlankMarkdown,
           onUploadClick: createMenuActions.onImportFromFiles,
         },

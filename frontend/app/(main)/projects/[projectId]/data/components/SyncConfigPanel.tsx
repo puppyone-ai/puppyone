@@ -4,7 +4,6 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAgent } from '@/contexts/AgentContext';
 import { SyncDetailView } from '@/components/agent/views/SyncDetailView';
 import { ChatAgentConfig, type AgentConfigProps } from '@/components/agent/views/configs/ChatAgentConfig';
-import { FilesystemAgentConfig } from '@/components/agent/views/configs/FilesystemAgentConfig';
 import { SaaSyncConfig, type SaaSConfigField } from '@/components/agent/views/configs/SaaSyncConfig';
 import type { AcceptedNodeType } from '@/components/agent/views/configs/SyncPreview';
 import { SyncPreview } from '@/components/agent/views/configs/SyncPreview';
@@ -47,19 +46,9 @@ interface EndpointOptionDef {
    Provider & Agent Definitions
    ================================================================ */
 
-// NOTE (2026-05-08): The picker no longer offers "Chat Agent" or
-// "Machine Folder (filesystem)" as creatable connectors — both are
-// promoted to per-scope built-ins by the unified-access migration
-// (see `20260508000000_filesystem_builtin_connector.sql`). Each
-// scope auto-provisions one CLI / Sync / Agent connector via the DB
-// trigger, and the user reaches the agent / sync config from the
-// scope's detail panel (the Connect block's MethodCards) instead of
-// minting a new top-level connector here.
-//
-// The deeper config branches (`if selectedAgentType` and the
-// `selectedSyncProvider === 'filesystem'` branch) stay live to serve
-// `presetAgentType` and `pendingSyncProvider` deep-link paths set
-// upstream — the picker UI is what's gone, not the config code.
+// Git Remote and FS CLI are built-in Access surfaces managed from the
+// scope detail. This picker only creates user-added endpoints and SaaS
+// connections.
 
 const ENDPOINT_OPTIONS: EndpointOptionDef[] = [
   { id: 'mcp', label: 'MCP Server', description: 'Model Context Protocol endpoint', icon: <McpMini /> },
@@ -100,14 +89,6 @@ function SandboxMini() {
   );
 }
 
-function FolderMini() {
-  return (
-    <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="var(--po-success)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-    </svg>
-  );
-}
-
 /* ================================================================
    Config map for agent types
    ================================================================ */
@@ -129,7 +110,7 @@ interface SyncConfigPanelProps {
   onSyncCreated?: (nodeId: string) => void;
   /** When opened from a scope context, restricts drag-drop targets to
    *  paths inside this scope (see isWithinScope). Forwarded to all
-   *  inner config components (ChatAgentConfig / FilesystemAgentConfig /
+   *  inner config components (ChatAgentConfig /
    *  SaaSyncConfig). */
   scopeBoundary?: string;
   scopeBoundaryLabel?: string;
@@ -194,9 +175,7 @@ function CreateView({
     id: spec.provider,
     label: spec.display_name,
     description: spec.description || '',
-    icon: spec.provider === 'filesystem'
-      ? <FolderMini />
-      : spec.icon_url
+    icon: spec.icon_url
         ? <ProviderImg src={spec.icon_url} />
         : <span style={{ fontSize: 14 }}>{spec.icon || '📄'}</span>,
     oauthType: spec.oauth_ui_type ? spec.oauth_ui_type as SaasType : undefined,
@@ -226,7 +205,7 @@ function CreateView({
 
   // Picker section toggles. Keys correspond to the three remaining
   // sections (inbound SaaS sources / terminal / endpoint exposure) —
-  // the deprecated `sync` (Machine Folder) and `agent` (Chat Agent)
+  // the deprecated `agent` (Chat Agent)
   // sections were removed when those connectors became built-ins.
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     inbound: true,
@@ -364,9 +343,7 @@ function CreateView({
     if (!selectedSyncProvider || deploying) return;
     const providerDef = syncProviders.find(p => p.id === selectedSyncProvider);
 
-    const BOOTSTRAP_PROVIDERS: Record<string, { direction: 'inbound' | 'outbound' | 'bidirectional' }> = {
-      filesystem: { direction: 'bidirectional' },
-    };
+    const BOOTSTRAP_PROVIDERS: Record<string, { direction: 'inbound' | 'outbound' | 'bidirectional' }> = {};
     const bootstrapFallback = BOOTSTRAP_PROVIDERS[selectedSyncProvider];
 
     if (!providerDef && !bootstrapFallback) return;
@@ -495,7 +472,7 @@ function CreateView({
                 transition: 'all 0.2s',
               }}
             >
-              {deploying ? 'Adding…' : 'Add integration'}
+              {deploying ? 'Adding…' : 'Add workflow'}
             </button>
           </div>
         </div>
@@ -574,7 +551,7 @@ function CreateView({
                 transition: 'all 0.2s',
               }}
             >
-              {deploying ? 'Adding…' : 'Add integration'}
+              {deploying ? 'Adding…' : 'Add workflow'}
             </button>
           </div>
         </div>
@@ -586,83 +563,15 @@ function CreateView({
   if (selectedSyncProvider) {
   // GitHub is the project-level git-branch binding, not a scope-level
     // URL-import connector). It's surfaced under this same picker so all
-    // third-party flows live in one place, but the underlying API +
+    // third-party workflows live in one place, but the underlying API +
     // storage live in ``github_integrations``, not ``connectors``.
-    // Re-uses the panel wrapper from when this UI had its own top-level
-    // route at ``/projects/{id}/integrations`` (deleted 2026-05-10 in
-    // favour of this consolidated entry point).
+    // Re-uses the panel wrapper shared by the project-level workflow
+    // surface.
     if (selectedSyncProvider === 'github') {
       return (
         <PanelShell title="GitHub" onClose={onClose} onBack={handleBack}>
           <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px 24px' }}>
             <GithubIntegrationPanel projectId={projectId} />
-          </div>
-        </PanelShell>
-      );
-    }
-
-    if (selectedSyncProvider === 'filesystem') {
-      return (
-        <PanelShell title="Machine Folder" onClose={onClose} onBack={handleBack}>
-          <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-            <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px 24px' }}>
-              <SyncPreview
-                provider="filesystem"
-                providerLabel="Machine Folder"
-                direction="bidirectional"
-                targetName={draftResources[0]?.nodeName || null}
-                targetType="folder"
-                isActive={draftResources.length > 0}
-              />
-              <div style={{ marginTop: 12 }}>
-                <FilesystemAgentConfig
-                  scopeBoundary={scopeBoundary}
-                  scopeBoundaryLabel={scopeBoundaryLabel}
-                />
-              </div>
-            </div>
-
-            <div style={{
-              padding: '12px',
-              borderTop: '1px solid var(--po-border-subtle)',
-              background: 'var(--po-canvas)',
-              flexShrink: 0
-            }}>
-              {deployError && (
-                <div style={{
-                  display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 10,
-                  padding: '8px 10px', borderRadius: 6,
-                  background: 'color-mix(in srgb, var(--po-danger) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--po-danger) 26%, transparent)',
-                }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--po-danger)" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0, marginTop: 1 }}>
-                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-                  </svg>
-                  <span style={{ fontSize: 12, color: 'var(--po-danger)', flex: 1, lineHeight: 1.5 }}>{deployError}</span>
-                  <button
-                    onClick={() => setDeployError(null)}
-                    style={{ width: 30, height: 30, background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--po-danger)', flexShrink: 0, opacity: 0.7, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-                    onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
-                    onMouseLeave={e => (e.currentTarget.style.opacity = '0.7')}
-                  >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                  </button>
-                </div>
-              )}
-              <button
-                onClick={handleSyncDeploy}
-                disabled={deploying || draftResources.length === 0}
-                style={{
-                  width: '100%', height: 36,
-                  background: (deploying || draftResources.length === 0) ? 'var(--po-filetree-rail)' : 'var(--po-accent)',
-                  color: (deploying || draftResources.length === 0) ? 'var(--po-text-subtle)' : 'var(--po-text-inverse)',
-                  border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 500,
-                  cursor: (deploying || draftResources.length === 0) ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.2s',
-                }}
-              >
-                {deploying ? 'Adding…' : 'Add integration'}
-              </button>
-            </div>
           </div>
         </PanelShell>
       );
@@ -728,7 +637,7 @@ function CreateView({
               transition: 'all 0.2s',
             }}
           >
-            {deploying ? 'Adding…' : 'Add integration'}
+            {deploying ? 'Adding…' : 'Add workflow'}
           </button>
         </div>
       </div>
@@ -744,19 +653,15 @@ function CreateView({
 
   // Default: show provider picker.
   //
-  // Three remaining sections after the 2026-05-08 cleanup:
+  // Three remaining sections:
   //   1. Connect a source — durable third-party pulls (Gmail,
-  //      Notion, Google Docs, etc.). Filesystem isn't here even
-  //      though it's `bidirectional` because it's a built-in.
+  //      Notion, Google Docs, etc.).
   //   2. Connect via terminal — currently SSH-only "coming soon"
-  //      placeholder; the local CLI is auto-provisioned per scope.
+  //      placeholder; FS CLI is managed from the scope detail.
   //   3. Expose data — MCP / Sandbox endpoint placeholders ("coming
   //      soon").
   //
   // What we removed (and why):
-  //   - "Sync data with a folder / Machine Folder" — Machine Folder
-  //     was the filesystem connector; filesystem is now built-in
-  //     (one auto-provisioned per scope by the DB trigger).
   //   - "Share data with an AI Agent / Chat Agent" — agent is now
   //     built-in too. Users reach the chat runtime from the scope's
   //     detail page (the Connect block's "AI Agent" MethodCard),
@@ -882,9 +787,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 function DirectionalSectionLabel({ type, title, hint, isExpanded, onClick }: {
   // Picker post-cleanup: only `inbound` (SaaS pulls), `tools` (terminal),
-  // and `build` (endpoint exposure) remain. `sync` (Machine Folder) and
-  // `agent` (Chat Agent) sections were removed when those connectors
-  // were promoted to per-scope built-ins by the 2026-05-08 migration.
+  // and `build` (endpoint exposure) remain.
   type: 'inbound' | 'tools' | 'build',
   title: string,
   hint?: string,

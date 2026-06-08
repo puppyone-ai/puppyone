@@ -983,5 +983,5 @@ export async function getSyncChangelog(
     cursor: String(cursor),
     limit: String(limit),
   });
-  return apiRequest<SyncChangelogResponse>(`/api/v1/sync/changelog?${params}`);
+  return apiRequest<SyncChangelogResponse>(`/api/v1/integrations/changelog?${params}`);
 }

@@ -134,6 +134,7 @@ class OneTimeImportRunner:
                 files,
                 actor=actor,
                 message=result.summary or f"Import from {spec.display_name}",
+                source_channel="import",
             )
             written_path = mount_path
         else:
@@ -145,6 +146,7 @@ class OneTimeImportRunner:
                 _to_bytes(result.content),
                 actor=actor,
                 message=result.summary or f"Import from {spec.display_name}",
+                source_channel="import",
             )
             written_path = file_path
 

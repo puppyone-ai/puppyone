@@ -237,6 +237,7 @@ class SyncService:
         await commands.write_bytes(
             project_id, f"{conn_folder}/{data_file}", initial_content,
             actor=operator, message=f"Create sync target: {name}",
+            source_channel="sync",
         )
         return conn_folder, data_file
 

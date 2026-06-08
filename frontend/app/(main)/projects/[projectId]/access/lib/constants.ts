@@ -8,16 +8,9 @@
  */
 
 export const PROVIDER_LABELS: Record<string, string> = {
-  cli: 'Puppyone CLI',
+  cli: 'FS CLI',
   agent: 'AI Agent',
-  // `git_remote` and `filesystem` are two distinct built-in Access surfaces
-  // that both ride the scope's Git smart-HTTP transport: `git_remote` is the
-  // native clone/pull/push remote; `filesystem` is the local-folder
-  // bidirectional sync (OpenClaw). They are NOT duplicates — keep the labels
-  // distinct so a scope reads "Git Remote" + "Local Folder Sync", not two
-  // "Git Remote" cards. (Was: filesystem mislabelled "Git Remote" pre-refactor.)
   git_remote: 'Git Remote',
-  filesystem: 'Local Folder Sync',
   gmail: 'Gmail',
   google_sheets: 'Google Sheets',
   google_calendar: 'Google Calendar',
@@ -68,21 +61,19 @@ export const STATUS_LABEL: Record<string, string> = {
 // rendered as a card. We group those cards by provider type so each
 // access point reads as a first-class entity in the switcher chip.
 //
-// CLI, Git Remote, Local Folder Sync (and Agent) are the "built-in"
-// connection methods that get auto-created per scope by a DB trigger
-// (see migrations/…_connectors_table.sql + …_filesystem_builtin_connector.sql).
+// FS CLI, Git Remote, and Agent are the built-in connection methods
+// that get auto-created per scope.
 // MCP / Sandbox / Third-party are user-created.
 
 export const CONNECTOR_GROUP_LABELS: Record<ConnectorGroupKey, string> = {
-  cli: 'Puppyone CLI',
+  cli: 'FS CLI',
   agent: 'Agent',
   git_remote: 'Git Remote',
-  filesystem: 'Local Folder Sync',
   mcp: 'MCP server',
   sandbox: 'Sandbox',
   integration: 'Third-party',
 };
 
-export const CONNECTOR_GROUP_ORDER: readonly ConnectorGroupKey[] = ['cli', 'agent', 'git_remote', 'filesystem', 'mcp', 'sandbox', 'integration'] as const;
+export const CONNECTOR_GROUP_ORDER: readonly ConnectorGroupKey[] = ['cli', 'agent', 'git_remote', 'mcp', 'sandbox', 'integration'] as const;
 
-export type ConnectorGroupKey = 'cli' | 'agent' | 'git_remote' | 'filesystem' | 'mcp' | 'sandbox' | 'integration';
+export type ConnectorGroupKey = 'cli' | 'agent' | 'git_remote' | 'mcp' | 'sandbox' | 'integration';

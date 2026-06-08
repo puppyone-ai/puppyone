@@ -40,7 +40,7 @@ async def submit_git_tree(
             project_id=project_id,
             scope_path=scope_path,
             actor=actor,
-            source_channel="git",
+            source_channel="access_git",
             base_commit_id=base_commit_id,
             proposed_tree_id=proposed_tree_id,
             client_commit_id=client_commit_id,

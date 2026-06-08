@@ -26,7 +26,7 @@ def _connector(
         name=provider.title(),
         direction=(
             "bidirectional"
-            if provider in {"git_remote", "cli", "agent", "filesystem"}
+            if provider in {"git_remote", "cli", "agent"}
             else "inbound"
         ),
         config={},
@@ -101,7 +101,6 @@ def test_list_defaults_to_access_surface_connectors() -> None:
     assert [item.provider for item in visible] == [
         "git_remote",
         "cli",
-        "filesystem",
         "notion",
     ]
 
