@@ -1,7 +1,7 @@
 # PuppyOne V2 改动总结(2026-06-06 ~ 06-07)
 
 分支:`feat/context-entrypoints`(未合并)
-范围:**第一部分**(§0–7)Context 四大入口点收尾 · 父子 scope 同步 · Access 页 Git Remote 归一 · "Damaged folder" 数据完整性根因修复 + 工具 · 若干收尾清理;**第二部分**(§8–17)Sandbox 即访问面 V2 新功能 —— 需求/Provider 调研、E2B+Fly 实现、E2B SSH 实连与测试、SSH 短期凭证治理、bug 修复 + Fly 代码跟进
+范围:**第一部分**(§0–7)Context 四大入口点收尾 · 父子 scope 同步 · Access 页 Git Remote 归一 · "Damaged folder" 数据完整性根因修复 + 工具 · 若干收尾清理;**第二部分**(§8–17)Sandbox 即访问面 V2 新功能 —— 需求/Provider 调研、E2B+Fly 实现、E2B SSH 实连与测试、SSH 短期凭证治理、bug 修复 + Fly 代码跟进;**第三部分**(§18–23)前端接线产品化 —— HTTP API、Access 页 Remote Dev (SSH) 卡片、Data 菜单 "SSH Terminal"、reaper 调度 + 多 writer 安全、合并 qubits
 
 ---
 
@@ -282,3 +282,65 @@
 5. **#11** legacy(`infra/sandbox` + `connectors/sandbox_endpoint`)退役;
 6. **跨实例同 scope 竞争**:Supabase store 现为 last-write-wins + 进程内锁,多 writer 生产前需行锁/乐观版本;
 7. **合并**:同属 `feat/context-entrypoints`,未合并。
+
+---
+---
+
+# 第三部分:Sandbox 前端接线(产品化最后一公里,2026-06-08)
+
+> 之前 sandbox 功能是「后端库就绪 + 实环境验证,但前端只有 "Coming soon" 占位」。这一部分把它接成用户能点的真实流程:Access 页 scope 卡片直接连 SSH,Data 菜单的 "SSH Terminal" 也通了。配套补齐了后端 HTTP API(前端要调它)+ reaper 调度 + 多 writer 安全,并合并了 qubits 最新代码。
+
+## 18. 后端 HTTP API(前端契约,#9 backend)
+
+前端无端点可调,所以先补后端契约层(`b85faf28` 之后新增):
+- **`scope_sandbox/service.py`** `ScopeSandboxService` —— 进程级 manager(按 provider 缓存,共享持久 store),把 `scope → /git/ap/<access_key>.git` 解析好,编排 connect:acquire/复用 scope 的 sandbox(冷启动 bootstrap = E2B 装 sshd + clone scope)→ 建 per-user working tree + git 身份 → 签发短期可撤销 SSH 密钥 → 返回连接信息 + 可粘贴的 VSCode Remote-SSH config 块。
+- **`scope_sandbox/router.py`** —— `POST /api/v1/scope-sandboxes/connect`、`GET /status`、`POST /revoke`,JWT + 项目鉴权,provider 按请求选择(默认 `settings.SCOPE_SANDBOX_PROVIDER`)。
+- 注册进 `main.py`。**单测**:service 流程(E2B proxy / Fly direct TCP、复用、status、revoke)+ router(鉴权/信封/解析),fake 无实连。
+
+## 19. 前端接线(本次「前端改动」主体)
+
+**API client** —— `frontend/lib/scopeSandboxApi.ts`:
+- `connectScopeSandbox` / `getScopeSandboxStatus` / `revokeScopeSandbox` 三个类型化函数,打 `/api/v1/scope-sandboxes/*`(`apiClient` 自动拆 `{code,message,data}` 信封 → 返回 `data`)。
+
+**Access 页 scope 级卡片** —— `access/components/SandboxConnectCard.tsx`(注入 `ScopeDetailPanel` 连接器列表下方):
+- 这是一个 **scope 级卡片**(不是 connector 行 —— sandbox 会话按 scope keyed,access_surfaces 里没有它的行);
+- 流程:选 provider(E2B 默认 / Fly 标 "needs setup")→ **粘贴 SSH 公钥**(私钥永不离开本机)→ Connect;
+- 成功后展示:连接信息(host/port/user/过期时间)、**可粘贴的 `~/.ssh/config` 块**、`code --remote …` 提示、websocat 提示(E2B 隧道)、**Revoke 按钮**;
+- 用 SWR 拉实时 status;复用现有 `ui-blocks`(`KvBlock`/`CommandBlock`/`SectionLabel`)+ tokens,风格与其它 access 卡一致。
+
+**Data 菜单 "SSH Terminal"** —— 从 disabled "Coming soon" 变成真实入口:
+- 点击路由到 Access 页 `?remote=ssh&path=<folder>`,Access 页**按 folder 预选对应 scope**(root/first 兜底),用户直接落到该 scope 的 Remote Dev (SSH) 卡片;
+- 新 `onCreateSshTerminal` action 串过 `useDataCreateFlow → DataPageOverlays → CreateMenu`。
+
+**验证**:前端 `tsc --noEmit` **0 错误**。
+
+## 20. 配套后端:reaper 调度 + 多 writer 安全(#3)
+
+- **reaper 进 app**:`manager.reap(only_provider=…)`(共享 store 混 provider 各自回收)+ `ScopeSandboxService.reap()`(扫所有 provider)+ `main.py` lifespan 启停,由 **`SCOPE_SANDBOX_REAPER_ENABLED`(默认关,会真实 stop/destroy 计费)+ `_INTERVAL_S`** 控制。
+- **跨实例 create 竞争**:`store.insert()` 原子创建(InMemory dict;Supabase 靠 `scope_id` PK → 23505 唯一冲突 → False);`manager._create_session` 对全新 scope 用 insert 抢占,输了就销毁自己刚建的重复箱、改用赢家(reuse/resume)—— 不留双活、不泄漏;reconcile 重建路径(已持锁、行已存在)仍 upsert,带外 kill 恢复不受影响。
+
+## 21. 合并 qubits 最新代码
+
+`origin/qubits`(领先 17 commit)合并进 `feat/context-entrypoints`:
+- **唯一真冲突 `main.py`**:qubits 在 "local access" 改造里**删了整个 filesystem connector**(连带删了 `filesystem_router` 注册),我这边在它后面加了 `scope_sandbox_router`。**解决**:尊重 qubits 的删除(留着那个 import 会 ImportError),只保留 `scope_sandbox_router` 注册;其余 5 个重叠文件自动合并,我的 SSH 卡片/菜单/reaper/config 全部保留。
+- **关键依赖未受影响**:service clone 用的 `/git/ap/<key>.git` 仍由 `version_engine` git 协议路由(prefix `/git`)提供。
+- 合并后:**116 个 scope_sandbox 后端测试全绿**、前端 `tsc` 0 错误、无残留 filesystem 引用。
+
+## 22. 提交清单(第三部分)
+
+| 提交 | 主题 | 类别 |
+|---|---|---|
+| `d79fb76e` | scope-sandbox HTTP API(#9 backend)connect/status/revoke | 后端契约 |
+| `c937e520` | Access 页 Remote Dev (SSH) 卡片(#9 前端) | **前端** |
+| `c8736f57` | 启用 Data 菜单 "SSH Terminal" → 路由到 scope SSH 卡片(#2) | **前端** |
+| `a12be6ce` | reaper 调度 + 多 writer create-race 安全(#3) | 后端 |
+| `bb335886` | 合并 origin/qubits(解 main.py 冲突) | 合并 |
+
+## 23. 现状与剩余
+
+- **可用闭环**:用户在 Access 页 scope 卡片(或 Data 菜单 "SSH Terminal")粘贴公钥 → Connect → 拿到 VSCode Remote-SSH config → 连入;Revoke 可撤。后端 116 测试绿,前端 0 类型错误。
+- **剩余**:
+  1. **#1 实连验证**:启动后端、真账号点 Connect → E2B 真起箱 → VSCode 连入(会计费,未擅自跑);
+  2. **#10 Fly 实连**(待绑支付 + IPv4);
+  3. **与 qubits "local access" 模型的语义对齐复核**:本次合并在类型/测试层面兼容,但前端旧的 `sandboxEndpointsApi.ts` / `quick-connect.tsx` 里的 legacy sandbox/filesystem 分支是否需要跟进,待扫一轮;
+  4. **#6 自定义 E2B 模板** / **#8 可观测+调参** / **#11 legacy 退役**。
