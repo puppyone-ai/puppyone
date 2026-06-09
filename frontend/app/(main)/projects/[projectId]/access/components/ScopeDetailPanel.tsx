@@ -60,6 +60,7 @@ import { CopyIcon, ProviderIcon, RetryIcon } from './icons';
 import { CommandBlock, NoAccessKeyNotice, SectionLabel } from './ui-blocks';
 import { ConnectorDetailBody } from './ConnectorCard';
 import { ConnectorAccessPanel } from './quick-connect';
+import { SandboxConnectCard } from './SandboxConnectCard';
 // We deliberately reuse the existing ScopeSettingsBlock from /data —
 // it already implements every editable scope field (mode, exclude,
 // access-key rotate/copy, name, identity, danger zone) plus the
@@ -273,6 +274,10 @@ export function ScopeDetailPanel({
             No connectors bound to this scope yet.
           </div>
         )}
+
+        {/* Remote Dev (SSH) — scope-level sandbox-as-access-point surface.
+            Not a connector row; keyed by the scope itself. */}
+        {scope ? <SandboxConnectCard scope={scope} projectId={projectId} /> : null}
       </div>
 
       <style>{`

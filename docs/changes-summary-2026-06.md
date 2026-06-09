@@ -1,7 +1,7 @@
 # PuppyOne V2 改动总结(2026-06-06 ~ 06-07)
 
 分支:`feat/context-entrypoints`(未合并)
-范围:Context 四大入口点收尾 · 父子 scope 同步 · Access 页 Git Remote 归一 · "Damaged folder" 数据完整性根因修复 + 工具 · 若干收尾清理
+范围:**第一部分**(§0–7)Context 四大入口点收尾 · 父子 scope 同步 · Access 页 Git Remote 归一 · "Damaged folder" 数据完整性根因修复 + 工具 · 若干收尾清理;**第二部分**(§8–17)Sandbox 即访问面 V2 新功能 —— 需求/Provider 调研、E2B+Fly 实现、E2B SSH 实连与测试、SSH 短期凭证治理、bug 修复 + Fly 代码跟进
 
 ---
 
@@ -145,3 +145,140 @@
 2. **可选加固**:想要运行时实证,可临时设 `VERSION_VERIFY_TREE_CLOSURE_ON_WRITE=true` 一段时间——任何写入若产出 dangling tree 会当场报错 + 记日志(默认关因为有 O(tree) 开销)。
 3. **未能 100% 锁定当年确切元凶**(日志和对象都已不在),但已逐一排除所有当前还活着的删除路径,这是更强的保证。
 4. **合并**:本分支 `feat/context-entrypoints` 尚未合并;合并后部署即生效。
+
+---
+---
+
+# 第二部分:Sandbox 即访问面(Sandbox as Access Point)— V2 新功能(2026-06-07)
+
+> 与第一部分同分支 `feat/context-entrypoints`。这是一块**全新功能**的从 0 到可用:把 Access 面的 "Sandbox" 从 legacy 的 JSON-edit 一次性 exec,升级为**按 scope 共享的长存计算环境**——用户用 VSCode Remote-SSH 连进去,所有 git/CLI 在 sandbox 内跑(数据留服务端),会话长存且自动省成本,SSH 凭证短期可撤销。
+
+## 8. 需求与 Feature 梳理
+
+**目标场景**:企业受治理的"按 scope 的计算环境"。
+- 用户(已证明对该 scope 有权限)用 **VSCode Remote-SSH** 连入一个 scope 专属 sandbox;
+- **所有 git/CLI 在 sandbox 内执行**,scope 内容已就位(server 侧 clone),数据不落客户端;
+- sandbox **按 scope 共享**(同 scope 的多用户复用一个箱);
+- **会话管理**在「保温成本」与「冷重启成本」之间权衡:三态生命周期
+  - **RUNNING** 计算开、工作副本在(全价)
+  - **STOPPED** 计算关、**留盘**(只存储费;resume 是增量 `git fetch` 而非全量拉)
+  - **DESTROYED** 全回收($0;下次需全量重拉)
+- **治理**:短期 SSH 凭证签发/撤销(**离职即失权**)+ per-user 身份(**push 归属到人**)+ 全程审计;
+- **两个 provider 用户可选**:Fly + E2B。
+
+设计与调研文档(`docs/proposals/`):`PUP-sandbox-access-point.md`(主设计)、`sandbox-provider-comparison-2026-06.md`、`sandbox-vps-approach-2026-06.md`、`sandbox-roadmap-2026-06.md`、`sandbox-validation-results-2026-06.md`、`sandbox-collab-session-results-2026-06.md`。
+
+## 9. 多 sandbox / VPS 方案对比
+
+调研了 E2B / Modal / Cloudflare Containers / **Fly.io Machines** / 自建 VPS,结论:
+
+| 方案 | 隔离/形态 | SSH(VSCode)| 成本/运维 | 定位 |
+|---|---|---|---|---|
+| **Fly.io Machines** | 托管 Firecracker microVM,API 秒级开关、scale-to-zero | ✅ **原生**:sshd 跑内部 2222 → Fly Proxy 暴露成公网 TCP 22,官方有 sshd blueprint | 需专用 IPv4(~$3.60/mo)+ 计费;托管省心 | **推荐默认**(原生 TCP、最对口) |
+| **E2B** | Firecracker,pause/resume 优雅,**唯一可自托管** | ⚠️ **DIY**:无原生 TCP,自建 sshd + websocat over `wss://`,官方未文档化 VSCode 流程 | 不自托管 $150/mo 起;自托管免套餐费但要运维 | **自托管/数据主权/合规**选项 |
+| Modal / Cloudflare | 函数/容器优先 | 部分支持/DIY | — | 本场景不如上两者对口 |
+
+**决策**:两个 provider 都实现,**前端按项目/企业选择**(env 只作默认/兜底);Fly = 推荐(原生 SSH、便宜),E2B = 自托管/合规终局方案。
+
+## 10. 架构与模块(`backend/src/platform/scope_sandbox/`)
+
+刻意与 legacy `infra/sandbox`(JSON-edit)分开,是干净的 V2 抽象:
+
+- **`provider.py`** — `SandboxProvider` ABC:`capabilities / create / start / stop / destroy / status / exec / extend`;`SandboxState` 三态枚举、`SandboxSpec`、`ConnectionInfo`(host/port/username/**proxy_command**)、`ProviderCapabilities`(声明是否支持 stop-留盘 / 原生 TCP / 可自托管)。
+- **`policy.py`** — 纯函数会话策略:`decide()`(RUNNING-idle→STOP、STOPPED-长idle→DESTROY)、`adaptive_stop_timeout()`(按最近用户数/拉取成本/热度延长保温)、`eviction_score()` + `select_for_eviction()`(容量压力下淘汰最低价值会话)。完全可单测。
+- **`registry.py`** — `SandboxSession`(scope/用户/活动/时间/连接/拉取成本等)+ `SandboxSessionStore` Protocol + 内存实现。
+- **`supabase_store.py`** + 迁移 `20260607000000_scope_sandbox_sessions.sql` — 持久 session(一行一 scope,epoch 浮点时间),多 worker/重启不丢(roadmap #3)。
+- **`manager.py`** — `ScopeSandboxManager`:`acquire`(报告 REUSED/RESUMED/CREATED——量化保温价值)、`touch`、`release`、`reap`、`revoke_user`、`kill_scope`、`evict_to_capacity`;per-scope 异步锁防并发双创。
+- **`fly_provider.py` / `e2b_provider.py`** — 两个 provider 实现。
+- **`factory.py`** — provider/store 按配置选择;**`reaper.py`** — 回收循环(待接入 app 调度)。
+
+## 11. E2B 实现 + SSH 连接打通 + 实环境测试(本块重头)
+
+**Provider**:`E2BProvider` 包 e2b SDK(同步 SDK 全程 `asyncio.to_thread` 卸载)。修正了 SDK 真实调用——**SDK 无 `resume`,`Sandbox.connect(id)` 即 resume** 一个 paused 箱;`pause/kill/get_info` 是按 id 的类方法变体(`7925025c`)。
+
+**SSH(`ssh_e2b.py`)**:E2B 无原生 TCP ingress → 自建隧道:
+- sandbox 内 **sshd:22** + **websocat 转发**(`ws-l:8081 → tcp:127.0.0.1:22`);
+- 客户端用 websocat 当 SSH `ProxyCommand`,经 E2B 公网 wss 代理 `wss://8081-<id>.e2b.app` 连入;
+- VSCode Remote-SSH 用同一 `ProxyCommand`(`vscode_ssh_config_block` 生成 `~/.ssh/config` 块)。
+- **踩坑**:websocat 转发器必须 `nohup … &` 脱离(`background=True` 在 SDK 断开时会被杀,导致 502 Bad Gateway)。
+
+**实环境验证(2026-06-07,真连)**:
+- create ~1s、exec 亚秒、pause/resume 亚秒;**工作副本跨 stop/resume 存活**;
+- 本地 `ssh` + VSCode Remote-SSH 路径**实连成功**并执行命令;
+- **真实 PuppyOne git 往返**:从线上 repo clone 项目进 sandbox → 看到最初文件 → 在箱内改动 push → 对端 pull 看到改动;
+- **多用户协同实测**(`sandbox-collab-session-results`):发现 **PuppyOne git remote 强制线性历史**(拒非 ff + 拒 merge commit)→ 协同**必须 `git pull --rebase`**;固化为 provision 默认 `git config pull.rebase true`,rebase 工作流收敛、无数据丢失。
+
+**Roadmap #1–#4 落地**(`cdf72ab6` / `29579df4`):
+- **#1** in-sandbox provision(clone scope + rebase 默认 + per-scope git 身份)+ manager bootstrap;
+- **#2** E2B **超时续期 `extend`** + acquire **reconcile**(修 E2B 到 timeout 自动 kill / 会话漂移:idle 超阈值才校验 provider 真实状态);
+- **#3** Supabase 持久 store;
+- **#4** reaper 回收循环(单测;调度接入待 app manager 单例)。
+
+## 12. #5+#7 SSH 短期凭证 + per-user 身份(治理核心,实环境验证)
+
+**`ssh_credentials.py`**(`1b66bedb`):
+- 用户的 public key 进 `authorized_keys`,带 `puppyone:user=<id>` 标签 + OpenSSH **`expiry-time` 原生 TTL**;
+- **grant** = 加行/续期 · **revoke** = 删行(**离职即失权**)· **过期** = sshd 自动拒;
+- 纯 helper(`authorized_key_line / strip_user_lines / upsert_user_line / granted_users / format_expiry`)+ 运行时 grant/revoke/`provision_user_workspace`(走 `provider.exec`,base64 read-modify-write);
+- **#7**:per-user working tree `~/<user_id>` + per-user git 身份 → push 归属到真人;
+- manager **`revoke_hook`** 接入 `revoke_user`,离职时连 SSH 一并撤(best-effort,失败也照样摘除追踪)。
+
+**⚠️ 安全发现 + 修复(关键)**:E2B 默认模板的 **systemd socket-activated sshd 接受 SSH `none` 认证方法** —— 客户端**无需任何密钥**即可登录(`Authenticated using "none"`),`authorized_keys` 形同虚设,会**静默瓦解整个凭证治理**。修复 `ssh_e2b`:先 `systemctl stop ssh.socket ssh.service` + `pkill sshd` **释放 :22**,再启动我们自己的 **publickey-only sshd**(`AuthenticationMethods publickey` / `UsePAM no` / `PasswordAuthentication no` / `PermitEmptyPasswords no`)。两个踩坑:① 默认 sshd 由 systemd socket 占着 :22,我们的 `sshd -f` 静默绑不上 → 必须先释放;② 停服务会清掉 `/run/sshd` privsep 目录,启动前要重建。
+
+**实测**(`scripts/ssh_credentials_live.py`,真连真 sshd):`valid grant → 可连`、`expired grant → 拒`、`revoke → 拒`,独立 bootstrap key **全程可连** → 证明"拒绝是 per-key,而非 sshd 坏了"。
+
+## 13. Fly 版本代码跟进(只写不测,#10 代码)
+
+按设计文档补齐 Fly 侧代码(**不实测**,待绑支付 + 专用 IPv4):
+
+- **`FlyMachinesProvider.exec`**(`dca2246a`):走 Fly Machines exec API,**以 SSH 用户身份**(`su - <user> -c`)运行,使 `~`/属主与 VSCode 登录账号一致 → `scope_provision` + `ssh_credentials` 在 Fly 上**原样复用**;非零退出抛错(对齐 E2B)。
+- **镜像 `sandbox/scope-fly/`**:Dockerfile **烤入** publickey-only sshd@2222(与 E2B 实测倒逼出的同款硬化)+ git/CLI + 免密 sudo 的 `puppy` 用户;README(专用 IPv4 设置、build/push、provider 切换)+ 参考 `fly.toml`(22→2222 机器形态)。
+- Fly **原生 raw TCP**,**无需 websocat**,`ConnectionInfo.proxy_command=None`;sshd 烤进镜像(非运行时硬化)。
+
+## 14. 复查(bug / 死代码 / legacy)+ 修复
+
+对全模块做了一轮审计:
+
+- **实 bug(`39e76e14`)**:`E2BProvider` 默认 `ConnectionInfo.username="puppy"`,但 **E2B 账号是 `user`**(`/home/user` 下放 authorized_keys 与工作区)→ 经 `ConnectionInfo` 组的 VSCode Remote-SSH 会用 `User puppy` 连失败(demo 因直接传 `user="user"` 绕过未暴露)。改默认 `"user"`,加回归测试。
+- **加固三连(`daa9b009`)**:
+  1. **撤回不能鍵**:`provision_e2b_ssh` 的 `public_key` 改**可选**——本番留 None(仅建文件),authorized_keys 全交凭证层管理,**每把鍵都可撤销/短期**;传鍵仅用于 admin break-glass / 单用户 demo;
+  2. **`expiry-time` 时区依赖**:`format_expiry` 加 **`Z` 后缀(UTC 明示)**——OpenSSH 默认按箱**本地时区**解析裸时间戳,`Z` 钉死 UTC 使 TTL 与镜像 TZ 无关;**实 sshd(9.1p1)验证 honor**:valid-Z→可、expired-Z→拒;
+  3. **默认 provider** 改 `e2b`(已验证路径),避免未选择的项目静默落到未实连的 Fly。
+- **未配线的 seam(意图性,非有害死代码,保留)**:`factory.store_from_settings`、`scope_provision.provision_scope_workspace`、`reaper.start_reaper`、`manager.record_pull_cost/evict_to_capacity/touch` —— 均为 **#9(HTTP API + 前端选择)将配线的公开 API**,现仅无调用方。
+- **legacy**:scope_sandbox 内无旧代码;旧 `infra/sandbox` + `connectors/sandbox_endpoint`(JSON-edit/stateless)与 V2 并存,**按 #11 计划后续退役**,现不冲突。
+- **本地清理**:删除遗留的 `~/.ssh/config` puppy-e2b 块与 `.e2b_ssh_test/`,保留 websocat + flyctl;**线上测试项目按用户要求保留**。
+
+## 15. 提交清单(第二部分)
+
+| 提交 | 主题 | 类别 |
+|---|---|---|
+| `b85faf28` | 两个可选 provider(Fly + E2B)+ 会话管理骨架 | 架构 |
+| `62b29fca` | 设计 + provider 调研文档 | 文档 |
+| `7925025c` | 修正 `SdkE2BClient` 对齐真实 e2b SDK + exec(实证) | E2B |
+| `1f8255e0` | 实环境验证结果 + 代码分析文档 | 文档 |
+| `c0fdaf6d` | E2B SSH provision(sshd + websocat)— VSCode 实连验证 | E2B SSH |
+| `569c6a78` | 标记 E2B SSH 已验证 | 文档 |
+| `4032ad77` | 多用户协同 + 会话管理实测结果 | 文档 |
+| `cdf72ab6` | in-sandbox provision + E2B 续期/reconcile + reaper(#1/#2/#4) | Roadmap |
+| `29579df4` | Supabase 持久 session store(#3) | Roadmap |
+| `9574b57a` | 标记 roadmap #1–#4 完成 | 文档 |
+| `1b66bedb` | per-user 短期/可撤销 SSH 凭证(#5/#7)+ sshd 硬化 | 治理核心 |
+| `dca2246a` | Fly provider exec + 烤入式 publickey-only 镜像(#10 代码) | Fly |
+| `39e76e14` | 修复 E2B SSH 登录名应为 `user` | bug 修复 |
+| `daa9b009` | 关闭 3 个 SSH 治理加固缺口(撤回鍵/TZ/默认 provider) | 加固 |
+
+## 16. 测试与验证总结(第二部分)
+
+- **单测**:`backend/tests/platform/scope_sandbox/` **97 全绿**(policy/manager/两 provider/factory/scope_provision/ssh_e2b/ssh_credentials/reaper/supabase_store)。
+- **实环境(真 E2B + 真 sshd)**:全链路 create/exec/pause/resume/kill;SSH(VSCode Remote-SSH 路径);真实 PuppyOne git 往返;多用户 rebase 协同;**SSH 凭证 grant→expiry→revoke 多次端到端验证(含 `Z` 后缀复验)**。
+- **Fly**:代码完成、**未实连**(待支付 + 专用 IPv4)。
+
+## 17. 待办 / 边界(第二部分)
+
+1. **#6** 自定义 E2B 模板(烤入 sshd+websocat,免每次运行时硬化/安装,启动 6s→~1s);
+2. **#8** 可观测(写 `sync_runs` / 修 GAP-8)+ 用真实数据调 session 策略阈值(现为静态默认);
+3. **#9** HTTP API + 前端 provider 选择 + 项目设置存储 —— 配线现有 seam(`provider_from_settings`/`store_from_settings`/`provision_scope_workspace`/reaper 调度);
+4. **#10** Fly **实连**(绑支付 + `fly ips allocate-v4` + 推镜像后跑一轮基准:创建→exec→SSH 往返);
+5. **#11** legacy(`infra/sandbox` + `connectors/sandbox_endpoint`)退役;
+6. **跨实例同 scope 竞争**:Supabase store 现为 last-write-wins + 进程内锁,多 writer 生产前需行锁/乐观版本;
+7. **合并**:同属 `feat/context-entrypoints`,未合并。

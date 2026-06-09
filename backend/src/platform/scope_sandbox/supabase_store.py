@@ -107,6 +107,19 @@ class SupabaseSandboxSessionStore:
             session_to_row(session), on_conflict="scope_id",
         ).execute()
 
+    def insert(self, session: SandboxSession) -> bool:
+        """Atomic create. The scope_id PK makes a concurrent second create fail
+        with a unique violation (Postgres 23505) → return False so the caller
+        adopts the winning row instead of double-creating a sandbox."""
+        try:
+            self._client.table(TABLE).insert(session_to_row(session)).execute()
+            return True
+        except Exception as exc:  # noqa: BLE001
+            msg = str(getattr(exc, "message", "")) + " " + str(exc)
+            if "23505" in msg or "duplicate key" in msg.lower():
+                return False
+            raise
+
     def delete(self, scope_id: str) -> None:
         self._client.table(TABLE).delete().eq("scope_id", scope_id).execute()
 

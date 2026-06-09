@@ -38,6 +38,9 @@ class _Query:
     def upsert(self, payload, on_conflict=None):
         self._op = "upsert"; self._payload = payload; return self
 
+    def insert(self, payload):
+        self._op = "insert"; self._payload = payload; return self
+
     def delete(self):
         self._op = "delete"; return self
 
@@ -53,6 +56,12 @@ class _Query:
     def execute(self):
         if self._op == "upsert":
             self._rows[self._payload["scope_id"]] = dict(self._payload)
+            return _Resp([dict(self._payload)])
+        if self._op == "insert":
+            sid = self._payload["scope_id"]
+            if sid in self._rows:  # simulate Postgres PK unique violation
+                raise Exception('duplicate key value violates unique constraint (23505)')
+            self._rows[sid] = dict(self._payload)
             return _Resp([dict(self._payload)])
         if self._op == "delete":
             hit = [sid for sid, r in list(self._rows.items()) if self._match(r)]
@@ -127,6 +136,14 @@ def test_store_put_is_upsert():
     store.put(s)                       # second put updates, not duplicates
     assert len(store.list_all()) == 1
     assert store.get("s1").state is SandboxState.STOPPED
+
+
+def test_store_insert_is_atomic_create():
+    store = SupabaseSandboxSessionStore(FakeSupabase())
+    s = _full_session()
+    assert store.insert(s) is True            # first create wins
+    assert store.insert(s) is False           # PK conflict → caller adopts winner
+    assert len(store.list_all()) == 1
 
 
 async def test_manager_works_on_supabase_store():
