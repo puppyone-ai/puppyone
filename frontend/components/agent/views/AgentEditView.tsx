@@ -5,7 +5,6 @@ import { useAgent, AgentType } from '@/contexts/AgentContext';
 import type { Tool as DbTool } from '@/lib/mcpApi';
 import { ChatAgentConfig } from './configs/ChatAgentConfig';
 import { ScheduleAgentConfig } from './configs/ScheduleAgentConfig';
-import { FilesystemAgentConfig } from './configs/FilesystemAgentConfig';
 import type { AgentConfigProps } from './configs/ChatAgentConfig';
 import { ActivityIconButton } from '@/components/ActivityIconButton';
 
@@ -25,14 +24,12 @@ interface AgentEditViewProps {
 const AGENT_CONFIG_MAP: Record<AgentType, React.ComponentType<AgentConfigProps>> = {
   chat:     ChatAgentConfig,
   schedule: ScheduleAgentConfig,
-  devbox:   FilesystemAgentConfig,
   webhook:  ChatAgentConfig,
 };
 
 const AGENT_TYPE_LABELS: Record<AgentType, { label: string; icon: string }> = {
   chat:     { label: 'Chat Agent', icon: '💬' },
   schedule: { label: 'Schedule',   icon: '⏰' },
-  devbox:   { label: 'Machine Folder', icon: '💻' },
   webhook:  { label: 'N8N/Zapier', icon: '⚡' },
 };
 
@@ -57,7 +54,8 @@ export function AgentEditView({ projectTools }: AgentEditViewProps) {
 
   if (!editingAgent) return null;
 
-  const agentType = editingAgent.type || 'chat';
+  const rawType = editingAgent.type || 'chat';
+  const agentType: AgentType = rawType in AGENT_CONFIG_MAP ? rawType : 'chat';
   const typeInfo = AGENT_TYPE_LABELS[agentType];
   const ActiveConfig = AGENT_CONFIG_MAP[agentType];
   const displayName = draftName.trim() || editingAgent.name;

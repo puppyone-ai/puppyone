@@ -104,10 +104,10 @@ def test_fetch_connections_reads_target_tables_and_scope_key():
             "created_at": today,
         }],
         "access_surfaces": [{
-            "id": "fs1",
+            "id": "cli1",
             "project_id": "project-1",
-            "kind": "filesystem",
-            "name": "Filesystem Sync",
+            "kind": "cli",
+            "name": "FS CLI",
             "status": "active",
             "config": {},
             "scope_id": "scope-root",
@@ -123,7 +123,7 @@ def test_fetch_connections_reads_target_tables_and_scope_key():
 
     rows = _fetch_connections(sb, "project-1")
 
-    assert [row.provider for row in rows] == ["gmail", "filesystem"]
+    assert [row.provider for row in rows] == ["gmail", "cli"]
     assert rows[0].trigger == {"schedule": "0 9 * * *", "type": "scheduled"}
     assert rows[0].usage_buckets[-1] == 1
     assert rows[1].access_key == "cli_secretkey123456"

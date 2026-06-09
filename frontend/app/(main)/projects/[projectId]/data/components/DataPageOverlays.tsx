@@ -91,7 +91,6 @@ export function DataPageOverlays({
             onImportSheets={createMenuActions.onImportSheets}
             onConnectSupabase={createMenuActions.onConnectSupabase}
             onImportSearchConsole={createMenuActions.onImportSearchConsole}
-            onImportLocalFolder={createMenuActions.onImportLocalFolder}
             onCreateAgent={createMenuActions.onCreateAgent}
             onCreateMcp={createMenuActions.onCreateMcp}
             onCreateSandbox={createMenuActions.onCreateSandbox}

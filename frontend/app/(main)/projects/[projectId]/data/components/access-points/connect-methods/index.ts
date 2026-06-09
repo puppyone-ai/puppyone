@@ -1,5 +1,5 @@
 export { AiAgentBody } from './AiAgentBody';
-export { LocalSyncBody } from './LocalSyncBody';
+export { GitRemoteBody } from './GitRemoteBody';
 export { TerminalCliBody } from './TerminalCliBody';
 export {
   MethodCard,

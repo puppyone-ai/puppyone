@@ -178,7 +178,7 @@ async def create_project(
     await version_admin.init_tree(str(project.id))
 
     # Ensure the canonical root scope exists before returning. Scope creation
-    # creates built-in access surfaces for Git Remote / CLI / filesystem.
+    # creates built-in access surfaces for Git Remote / FS CLI.
     from src.repo.scope_service import ScopeService
     ScopeService().ensure_root_scope(str(project.id))
 

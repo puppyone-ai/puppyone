@@ -2,7 +2,7 @@
 
 **日期**:2026-06-06
 **分支**:`feat/context-entrypoints`(基于最新 `qubits` 起的隔离分支,**全程不改 qubits**)
-**目标**:核实"四大入口点"(Upload / Import / Connect / Access)新设计的实际落地程度,端到端验证,收尾真实边缘缺口。
+**目标**:核实"四大入口点"(Upload / Import / Integration / Access)新设计的实际落地程度,端到端验证,收尾真实边缘缺口。
 
 ---
 
@@ -19,11 +19,11 @@
 | 维度 | 文档目标 | 实际现状 | 证据 |
 |---|---|---|---|
 | **DB** | 7 张目标表/视图 + backfill | ✅ 已建齐 | 迁移 `20260602010000`:`upload_jobs`/`upload_items`/`connections`/`sync_runs`/`access_surfaces` + `context_activity_items`(视图);含三段 backfill(legacy connectors / repo_scopes → 新表) |
-| **Connect** | 走 `connections`+`sync_runs`,停 `import_once` | ✅ 已迁完 | `SyncRepository` 全程 `self.CONNECTIONS`;`SyncRunRepository` `NEW_TABLE="sync_runs"` 写新表 + 回填 `connections.last_sync_run_id`;`import_once` 四处**全是 `HTTPException(400)` 拒绝**并导向 ImportJob |
-| **Access** | 运行时读 `access_surfaces` | ✅ 权威源已切 | `AccessSurfaceRepository` 为权威;MCP/Sandbox/Agent 各自直读 `access_surfaces`;`ConnectorRepository` 仅剩薄 facade(`TABLE="access_surfaces"`) |
+| **Integration** | 走 `connections`+`sync_runs`,停 `import_once` | ✅ 已迁完 | `SyncRepository` 全程 `self.CONNECTIONS`;`SyncRunRepository` `NEW_TABLE="sync_runs"` 写新表 + 回填 `connections.last_sync_run_id`;`import_once` 四处**全是 `HTTPException(400)` 拒绝**并导向 ImportJob |
+| **Access** | 运行时读 `access_surfaces` | ✅ 权威源已切 | `AccessSurfaceRepository` 为权威;Sandbox 等运行时直读 `access_surfaces`;`ConnectorRepository` 仅剩薄 facade(`TABLE="access_surfaces"`) |
 | **Import** | `import_jobs` + 独立 worker | ✅ 完整 | `platform/imports/*` 整套 + 独立 ARQ 队列 `import_arq_queue_name` |
 | **Upload** | `upload_jobs`/`upload_items` + ETL | ✅ 完整 | `ingest/*` + `etl_arq_queue_name` + `etl_finalize_upload_job`(finalize 经 Version Engine) |
-| **前端 IA** | Add content / Connect / Access 分类 | ✅ 已对齐 | `CreateMenu.tsx`:`onImportFrom*` 与 `onConnect*` 命名分类、`UploadIcon`/`ConnectIcon` |
+| **前端 IA** | Add content / Integration / Access 分类 | ✅ 已对齐 | `CreateMenu.tsx`:`onImportFrom*` 与 `onConnect*` 命名分类、`UploadIcon`/`ConnectIcon`；`Connect` 是旧 UI 动词/代码名,产品分类应写 Integration |
 | **前端 Activity** | 统一 upload/import/sync 活动流 | ⚠️→✅ 本次补 | 原 `ActivityStack` 只有 Import+Upload widget,**sync 不显示**;现已加 `SyncJobsWidget` |
 
 ---

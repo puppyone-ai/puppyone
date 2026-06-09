@@ -108,7 +108,7 @@ def select_conflict_policy(
             resolver=dict(rule.resolver),
         )
 
-    if source_channel == "git" and actor_kind == "scope":
+    if source_channel in {"git", "access_git"} and actor_kind == "scope":
         return ConflictPolicyDecision(
             policy="manual_review",
             reason="default:scope_git_manual_review",

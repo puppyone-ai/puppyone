@@ -463,6 +463,8 @@ class VersionWriteCommandService:
         deleted: list[str] | None = None,
         message: str = "",
         verify_blobs: bool = True,
+        source_channel: str = "papi",
+        project_write_state: ProjectWriteState | None = None,
     ) -> WriteCommandOutcome:
         clean = {validate_path(path): ref for path, ref in file_refs.items()}
         clean_deleted = self.normalize_paths(deleted or [])
@@ -474,6 +476,8 @@ class VersionWriteCommandService:
             deleted=clean_deleted,
             message=message or f"bulk write {len(clean)} refs",
             verify_blobs=verify_blobs,
+            source_channel=source_channel,
+            project_write_state=project_write_state,
         )
         return WriteCommandOutcome(
             result=result,

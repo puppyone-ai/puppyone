@@ -737,6 +737,8 @@ class ProductOperationAdapter:
         deleted: list[str] | None = None,
         message: str = "",
         verify_blobs: bool = True,
+        source_channel: str = "papi",
+        project_write_state: ProjectWriteState | None = None,
     ) -> WriteResult:
         """Commit a tree update referencing already-staged blobs by hash.
 
@@ -771,6 +773,8 @@ class ProductOperationAdapter:
         if scope:
             return await self._bulk_write_refs_in_scope(
                 project_id, scope, clean, clean_del, who, message,
+                source_channel=source_channel,
+                project_write_state=project_write_state,
             )
 
         write_groups = self._group_paths_by_scope(
@@ -789,6 +793,8 @@ class ProductOperationAdapter:
             r = await self._bulk_write_refs_in_scope(
                 project_id, target_scope,
                 rel_refs, rel_dels, who, message,
+                source_channel=source_channel,
+                project_write_state=project_write_state,
             )
             first_result = first_result or r
         return first_result or WriteResult(
@@ -803,6 +809,9 @@ class ProductOperationAdapter:
         rel_dels: list[str],
         who: str,
         message: str,
+        *,
+        source_channel: str = "papi",
+        project_write_state: ProjectWriteState | None = None,
     ) -> WriteResult:
         ops: list[tuple] = []
         ops.extend(
@@ -826,6 +835,8 @@ class ProductOperationAdapter:
                 "deletes": len(rel_dels),
                 "total_size": total_size,
             },
+            source_channel=source_channel,
+            project_write_state=project_write_state,
         )
         full_paths = [
             self._join_scope_path(scope, p)

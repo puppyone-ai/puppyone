@@ -135,7 +135,7 @@ class PushResponse(BaseModel):
 
 
 def _connectable_specs(registry: ConnectorRegistry) -> list[dict]:
-    """Return provider specs that support durable Connect flows."""
+    """Return provider specs that support durable Integration flows."""
     connect_modes = {"manual", "scheduled", "realtime"}
     specs: list[dict] = []
     for spec in registry.specs_to_dicts():
@@ -258,7 +258,7 @@ async def get_project_sync_status(
             direction=s.direction,
             status=s.status,
             name=(s.config or {}).get("name"),
-            access_key=s.access_key if s.provider in ("filesystem", "mcp", "sandbox") else None,
+            access_key=s.access_key if s.provider in ("mcp", "sandbox") else None,
             trigger=s.trigger if s.trigger else None,
             last_synced_at=s.last_synced_at,
             error_message=s.error_message,
@@ -686,7 +686,7 @@ async def bootstrap(
     if connector.spec().creation_mode != "bootstrap":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Connector {body.provider} must be created via POST /sync/syncs",
+            detail=f"Connector {body.provider} must be created via POST /integrations/connections",
         )
     if body.sync_mode == "import_once":
         raise HTTPException(

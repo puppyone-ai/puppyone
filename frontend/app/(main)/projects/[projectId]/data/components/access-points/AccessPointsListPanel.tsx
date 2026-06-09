@@ -33,7 +33,7 @@ function getSetupSnippets(ep: SyncEndpointInfo, displayName: string, scopeName: 
   const apiBase = getApiBase();
   const accessKey = ep.accessKey || '';
 
-  if (ep.provider === 'filesystem' && accessKey) {
+  if (ep.provider === 'git_remote' && accessKey) {
     const gitUrl = `${apiBase}/git/ap/${accessKey}.git`;
     const profileName = accessPointProfileSlug(scopeName);
     const gitPrompt = buildGitSyncPrompt({
@@ -58,7 +58,7 @@ function getSetupSnippets(ep: SyncEndpointInfo, displayName: string, scopeName: 
       },
       secondary: {
         title: 'Puppyone FS CLI',
-        description: 'Use scoped filesystem commands without a local clone.',
+        description: 'Use scoped FS CLI commands without a local clone.',
         body: terminalPrompt,
         copyText: terminalPrompt,
       },
@@ -418,7 +418,7 @@ export function AccessPointsListPanel({
                             title={setup.primary.title}
                             description={setup.primary.description}
                             prompt={setup.primary.body}
-                            tone={ep.provider === 'filesystem' ? 'green' : 'neutral'}
+                            tone={ep.provider === 'git_remote' ? 'green' : 'neutral'}
                           />
                           {setup.secondary && (
                             <CopyPromptButton

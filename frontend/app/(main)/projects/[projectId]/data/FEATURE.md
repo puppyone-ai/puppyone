@@ -70,6 +70,10 @@ contract in the same patch.
 - Root-level children render as top-level tree rows without a redundant
   root-rail line at the far left. Child folders still draw their own rails
   once expanded.
+- Sidebar tree rails follow VS Code-style vertical indent guides. Do not draw
+  horizontal branch elbows, and do not stop a parent guide at the last sibling
+  row when that row is expanded; the guide must continue through the expanded
+  subtree, including loading, error, and `Empty folder` meta rows.
 - Root row actions (`...`, `+`, and configured Access) stay visible because
   Root has no hover disclosure marker and cannot be selected elsewhere.
 - Root and folder rows must not use selected/active styling just because the
@@ -101,14 +105,14 @@ contract in the same patch.
   the main workspace must show a neutral no-file-selected state instead of a
   blank canvas or a selected folder preview.
 - The no-file-selected state should name the state plainly (`No file selected`)
-  and avoid implying the current folder is empty.
-- It should provide one clear next action for starting lightweight context.
-- In the no-file-selected state, show one primary action: `New note`, which
-  creates a Markdown file because human-readable notes/specs are the default
-  context unit for the product.
-- `Upload files` may appear as a quiet secondary text action. Do not show JSON
-  or every create-menu option in the empty state; structured-data creation
-  stays in the sidebar/current-folder create menu.
+  and avoid implying the current folder is empty. When the current workspace or
+  folder already has items, this state stays quiet: no primary create button and
+  no upload prompt in the center of the editor pane.
+- Empty root and empty folder views are separate from no-file-selected. They
+  should say `This workspace is empty` or `This folder is empty` and provide two
+  balanced actions: create a Markdown note and upload files.
+- Do not show JSON or every create-menu option in the empty state;
+  structured-data creation stays in the sidebar/current-folder create menu.
 - This state is different from the empty-project onboarding surface. Empty
   project onboarding may hide the explorer and focus on bringing in first
   context; no-file-selected keeps the explorer visible because the project tree

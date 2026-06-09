@@ -1,0 +1,2 @@
+"""Access product resource."""
+

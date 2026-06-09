@@ -16,7 +16,6 @@ interface TriggerPolicy {
 // Static fallback — guarantees correct behaviour even before the API responds
 // or if the network request fails. API specs take priority when available.
 const PROVIDER_POLICIES: Record<string, TriggerPolicy> = {
-  filesystem: { supportedModes: ['manual'], defaultMode: 'manual' },
   gmail:      { supportedModes: ['manual', 'scheduled'], defaultMode: 'manual' },
   google_calendar: { supportedModes: ['manual', 'scheduled'], defaultMode: 'manual' },
   google_sheets:   { supportedModes: ['manual', 'scheduled'], defaultMode: 'manual' },
@@ -32,7 +31,6 @@ const DEFAULT_POLICY: TriggerPolicy = {
 };
 
 const PROVIDER_DISPLAY_LABELS: Record<string, string> = {
-  filesystem: 'Machine Folder',
   gmail: 'Gmail',
   google_calendar: 'Google Calendar',
   google_sheets: 'Google Sheets',

@@ -248,11 +248,11 @@ def test_git_cli_and_frontend_native_writes_share_version_engine_under_concurren
         assert (verify_repo / name).read_bytes() == body
 
     audit_types = [event["type"] for event in server_repo.audit.events]
-    assert audit_types.count("git_push") == 2
+    assert audit_types.count("access_git_push") == 2
     assert audit_types.count("write_file") == 2
     user_audit_events = [
         event for event in server_repo.audit.events
-        if event["type"] in {"git_push", "write_file"}
+        if event["type"] in {"access_git_push", "write_file"}
     ]
     user_history_entries = [
         entry for entry in server_repo.history._entries
@@ -275,7 +275,7 @@ def test_git_cli_and_frontend_native_writes_share_version_engine_under_concurren
             assert detail["project_root_operation"] is True
             assert detail["root_hash"] == detail["scope_hash"]
         else:
-            assert event["type"] == "git_push"
+            assert event["type"] == "access_git_push"
             assert detail["scope"] == "docs"
             assert "project_root_operation" not in detail
 

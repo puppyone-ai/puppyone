@@ -41,6 +41,7 @@ const OAUTH_PROVIDERS = {
   google_calendar: { slug: 'google-calendar' },
   google_sheets:   { slug: 'google-sheets' },
   google_docs:     { slug: 'google-docs' },
+  google_search_console: { slug: 'google-search-console' },
   linear:          { slug: 'linear' },
   airtable:        { slug: 'airtable' },
 } as const;
@@ -239,6 +240,12 @@ export const googleDocsCallback    = (code: string, state?: string) =>
   oauth.google_docs.callback(code, state ? { state } : undefined);
 export const getGoogleDocsStatus   = () => oauth.google_docs.getStatus();
 export const disconnectGoogleDocs  = () => oauth.google_docs.disconnect();
+
+// --- Google Search Console ---
+export const googleSearchConsoleCallback = (code: string, state?: string) =>
+  oauth.google_search_console.callback(code, state ? { state } : undefined);
+export const getGoogleSearchConsoleStatus = () => oauth.google_search_console.getStatus();
+export const disconnectGoogleSearchConsole = () => oauth.google_search_console.disconnect();
 
 // --- Linear ---
 export const linearCallback    = (code: string, state?: string) =>

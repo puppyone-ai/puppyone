@@ -7,7 +7,7 @@
  * The data view's `ConnectMethods` already encoded this for us; we
  * mirror its split here:
  *
- *   • CLI / filesystem  → primary AI-agent setup prompt, with manual
+ *   • CLI / Git Remote  → primary AI-agent setup prompt, with manual
  *     terminal commands tucked behind a secondary disclosure.
  *   • agent             → ActivationCard (Activate / Open chat) — agents
  *     are Puppyone's in-app chat, never an externally-pasted prompt.
@@ -57,10 +57,8 @@ export function ConnectorAccessPanel({
   if (connector.provider === 'cli') {
     return <TerminalCliBody scope={scope} apiBase={apiBase} />;
   }
-  // git_remote (Git Remote) and filesystem (Local Folder Sync) are both
-  // Git-transport built-ins, so they share the clone/publish/workflow body.
-  if (connector.provider === 'git_remote' || connector.provider === 'filesystem') {
-    return <LocalSyncBody scope={scope} apiBase={apiBase} />;
+  if (connector.provider === 'git_remote') {
+    return <GitRemoteBody scope={scope} apiBase={apiBase} />;
   }
   if (connector.provider === 'agent') {
     // Agent surface is gated on the AI_AGENT_ENABLED flag (see
@@ -123,7 +121,7 @@ function TerminalCliBody({
 
 // ─── Body: Git Remote ────────────────────────────────────────────────
 
-function LocalSyncBody({
+function GitRemoteBody({
   scope,
   apiBase,
 }: {

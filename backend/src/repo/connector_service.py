@@ -15,12 +15,11 @@ from src.repo.connector_repository import ConnectorRepository
 from src.repo.models import Connector
 
 
-PROVIDERS_BIDIRECTIONAL = frozenset({"git_remote", "cli", "agent", "filesystem"})
+PROVIDERS_BIDIRECTIONAL = frozenset({"git_remote", "cli", "agent"})
 # The built-in Access surfaces that every scope ships with:
 #   - git_remote  — scoped Git smart-HTTP remote
-#   - cli         — direct Puppyone CLI commands against the remote tree
+#   - cli         — FS CLI commands against the remote tree
 #   - agent       — in-app chat agent that can read/write the scope
-#   - filesystem  — local-folder bidirectional sync via the Write Engine
 # These are created with the scope and are undeletable via the legacy API
 # (pause/resume only).
 PROVIDERS_OAUTH_BACKED = frozenset({
@@ -249,10 +248,10 @@ class ConnectorService:
     async def run_now(self, connector_id: str) -> Optional[str]:
         """Manually trigger a connector run. Returns the connector_run_id.
 
-        Heavy lifting lives in connectors/datasource/engine.py — we just
+        Heavy lifting lives in platform/integrations/engine.py — we just
         kick it off here and return the run id.
 
-        Built-in cli/agent/filesystem connectors don't have a "run now"
+        Built-in cli/agent/git_remote connectors don't have a "run now"
         semantic — they're conduits for the user's own writes, not pollers.
         The engine returns None for those; we surface a clear 400 here so
         the UI doesn't render a useless run button.
@@ -271,7 +270,7 @@ class ConnectorService:
         # Lazy imports to avoid pulling the heavy engine module on
         # read-only routes. Use the non-DI factory because we may be
         # called from background contexts (scheduled triggers) too.
-        from src.connectors.datasource.dependencies import create_sync_engine
-        engine = create_sync_engine()
+        from src.platform.integrations.dependencies import create_integration_engine
+        engine = create_integration_engine()
         run_id = await engine.execute_for_connector(connector)
         return run_id

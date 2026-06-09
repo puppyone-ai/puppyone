@@ -2,7 +2,6 @@
 OpenClaw ↔ PuppyOne E2E Sync Tests (retired — needs Git Remote/AP-FS rewrite)
 
 These tests were written for the removed per-file FolderSyncService API.
-The filesystem connector now exposes Git Remote and AP-FS entry points.
 New E2E tests should exercise /git/ap/{access_key}.git and /api/v1/ap-fs.
 """
 
@@ -19,7 +18,6 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from src.connectors.filesystem.router import router as folder_router
 from src.version_engine.entrypoints.http.audit import router as audit_router
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser

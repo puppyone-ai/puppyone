@@ -192,7 +192,6 @@ export interface DataCreateMenuActions {
   onImportSheets: () => void;
   onConnectSupabase: () => void;
   onImportSearchConsole: () => void;
-  onImportLocalFolder: () => void;
   onCreateAgent: () => void;
   onCreateMcp: () => void;
   onCreateSandbox: () => void;
@@ -750,7 +749,6 @@ export function useDataCreateFlow({
       onImportSheets: () => handleAccessSelect('sheets'),
       onConnectSupabase: () => handleAccessSelect('supabase'),
       onImportSearchConsole: () => handleAccessSelect('google_search_console'),
-      onImportLocalFolder: () => handleAccessSelect('filesystem'),
       onCreateAgent: () => handleAccessSelect('chat'),
       onCreateMcp: () => handleAccessSelect('mcp'),
       onCreateSandbox: () => handleAccessSelect('sandbox'),

@@ -44,6 +44,7 @@ class GoogleSearchConsoleConnector(BaseConnector):
             default_node_type="json",
             auth=AuthRequirement.OAUTH,
             oauth_type="google_search_console",
+            oauth_ui_type="google_search_console",
             supported_sync_modes=("manual", "scheduled"),
             default_sync_mode="scheduled",
             creation_mode="direct",
@@ -155,4 +156,12 @@ class GoogleSearchConsoleConnector(BaseConnector):
 
 def setup(deps: "ConnectorDeps") -> "ConnectorSetup":
     from src.connectors.datasource._base import ConnectorSetup
-    return ConnectorSetup(connector=GoogleSearchConsoleConnector())
+    from src.connectors.datasource.oauth.google_search_console_service import (
+        GoogleSearchConsoleOAuthService,
+    )
+
+    oauth_svc = GoogleSearchConsoleOAuthService()
+    return ConnectorSetup(
+        connector=GoogleSearchConsoleConnector(),
+        oauth_bindings={"google_search_console": oauth_svc},
+    )

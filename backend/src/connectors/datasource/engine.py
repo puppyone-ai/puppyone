@@ -150,6 +150,7 @@ class SyncEngine:
                     actor=operator,
                     deleted=deleted,
                     message=result.summary or f"Import from {sync.provider}",
+                    source_channel="sync",
                 )
                 write_result = outcome.result
                 file_path = sync.path or result.node_name or ""
@@ -159,6 +160,7 @@ class SyncEngine:
                     sync.project_id, file_path, content_bytes,
                     actor=operator,
                     message=result.summary or f"Sync from {sync.provider}",
+                    source_channel="sync",
                 )
                 write_result = outcome.result
 

@@ -207,7 +207,7 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
                 // Translucent — see ExplorerTreeRow for the full
                 // rationale. tldr: opaque var(--po-border) was visually
                 // indistinguishable from the tree-line colour
-                // var(--po-tree-guide), so selecting a row "ate" the elbow.
+                // var(--po-tree-guide), so selecting a row "ate" the guide.
                 ? 'var(--po-selected)'
                 : 'transparent',
             color: isRootDropTarget || isRootFileDropTarget
@@ -328,12 +328,11 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
               </span>
             </ExplorerTreeMetaRow>
           ) : (
-            rootItems.map((item, idx) => (
+            rootItems.map((item) => (
               <ExplorerTreeRow
                 key={item.id}
                 item={item}
                 depth={0}
-                isLastSibling={idx === rootItems.length - 1}
                 projectId={projectId}
                 activeId={activeId}
                 onNavigate={onNavigate}

@@ -4,11 +4,8 @@
  * GithubIntegrationPanel — the project-level GitHub binding UI,
  * mounted inline inside the "Connect GitHub" flow.
  *
- * This is the same flow the now-deleted ``/projects/{id}/integrations``
- * top-level page used to drive; that route was removed in favour of
- * consolidating the GitHub binding under the same durable-source picker
- * that hosts Notion / Gmail / Google Docs / etc., per the 2026-05-10
- * UX consolidation.
+ * This is the project-level GitHub workflow used by the durable-source
+ * picker and the top-level Workflow surface.
  *
  * The binding itself is still **project-level** — it's not actually
  * scoped to whichever folder the user opened the picker from. We

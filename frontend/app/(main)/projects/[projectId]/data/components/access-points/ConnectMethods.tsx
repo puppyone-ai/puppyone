@@ -14,14 +14,14 @@
  *                     not rendered)
  *
  * Puppyone CLI and Git Remote are exposure mechanisms — they hand
- * external clients (Claude Desktop, Cursor, MCP, your local
- * filesystem) the credentials and setup prompts to read/write this
+ * external clients (Claude Desktop, Cursor, MCP, your local Git
+ * worktree) the credentials and setup prompts to read/write this
  * scope from outside Puppyone. AI Agent is a *consumer* of the same
  * data instead of an exposure path; it lives behind the feature flag
  * because the in-app chat surface conflicts with Puppyone's
  * "platform under every agent" positioning.
  *
- * cli + filesystem + agent are auto-INSERTed per scope by a DB trigger
+ * cli + git_remote + agent are auto-INSERTed per scope
  * (post-2026-05-08 migration), so the scope always has an access_key
  * plus three connector records — one for each method. Each connector's
  * `status` (`active` / `paused`) is the single source of truth for
@@ -50,7 +50,7 @@ import {
 import { AI_AGENT_ENABLED } from '@/lib/featureFlags';
 import {
   AiAgentBody,
-  LocalSyncBody,
+  GitRemoteBody,
   METHOD_META,
   MethodCard,
   NoAccessKeyNotice,
@@ -67,12 +67,10 @@ interface ConnectMethodsBlockProps {
    *  the body, it just stops the access key from authorising terminal
    *  access on the server side until resumed. */
   readonly cliConnector: Connector | undefined;
-  /** Auto-INSERTed filesystem connector (added by the 2026-05-08
-   *  migration). Drives the Git Remote card's on/off toggle for the
-   *  same reason as cli — body content is shared from the scope
-   *  access key, the connector status is what gates the server-side
-   *  authorisation for sync sessions. */
-  readonly filesystemConnector: Connector | undefined;
+  /** Auto-INSERTed Git Remote connector. Drives the Git Remote card's
+   *  on/off toggle; body content is derived from the scope access key,
+   *  while connector status gates server-side Git authorization. */
+  readonly gitRemoteConnector: Connector | undefined;
   /** Auto-INSERTed agent connector — also drives the in-card toggle,
    *  separately from the activation flow (`config.scope` is set
    *  during activation, `status` is set by pause/resume; both must
@@ -93,7 +91,7 @@ interface ConnectMethodsBlockProps {
 export function ConnectMethodsBlock({
   scope,
   cliConnector,
-  filesystemConnector,
+  gitRemoteConnector,
   agentConnector,
   projectId,
   apiBase,
@@ -105,18 +103,18 @@ export function ConnectMethodsBlock({
   // frame as the click, without waiting for the round-trip + parent
   // revalidate to land. Each `useEffect` re-syncs from props once the
   // parent's data refreshes. Same pattern as the existing
-  // `localAgentConnector` for activation — extended to cli + filesystem
+  // `localAgentConnector` for activation — extended to cli + git_remote
   // now that those are togglable too.
   const [localCli, setLocalCli] = useState<Connector | undefined>(cliConnector);
-  const [localFilesystem, setLocalFilesystem] = useState<Connector | undefined>(filesystemConnector);
+  const [localGitRemote, setLocalGitRemote] = useState<Connector | undefined>(gitRemoteConnector);
   const [localAgent, setLocalAgent] = useState<Connector | undefined>(agentConnector);
 
   useEffect(() => setLocalCli(cliConnector), [cliConnector]);
-  useEffect(() => setLocalFilesystem(filesystemConnector), [filesystemConnector]);
+  useEffect(() => setLocalGitRemote(gitRemoteConnector), [gitRemoteConnector]);
   useEffect(() => setLocalAgent(agentConnector), [agentConnector]);
 
   const [pendingCli, setPendingCli] = useState(false);
-  const [pendingFilesystem, setPendingFilesystem] = useState(false);
+  const [pendingGitRemote, setPendingGitRemote] = useState(false);
   const [pendingAgentToggle, setPendingAgentToggle] = useState(false);
 
   const [activatingAgent, setActivatingAgent] = useState(false);
@@ -137,7 +135,7 @@ export function ConnectMethodsBlock({
   // these flags is the single user-facing way to show or hide the
   // method's body.
   const cliActive = localCli?.status === 'active';
-  const filesystemActive = localFilesystem?.status === 'active';
+  const gitRemoteActive = localGitRemote?.status === 'active';
   const agentActive = localAgent?.status === 'active';
   const agentActivated = Boolean(localAgent?.config?.scope);
 
@@ -214,10 +212,10 @@ export function ConnectMethodsBlock({
     void toggleConnector(localCli, setLocalCli, setPendingCli);
   }, [localCli, pendingCli, toggleConnector]);
 
-  const handleToggleFilesystem = useCallback(() => {
-    if (!localFilesystem || pendingFilesystem) return;
-    void toggleConnector(localFilesystem, setLocalFilesystem, setPendingFilesystem);
-  }, [localFilesystem, pendingFilesystem, toggleConnector]);
+  const handleToggleGitRemote = useCallback(() => {
+    if (!localGitRemote || pendingGitRemote) return;
+    void toggleConnector(localGitRemote, setLocalGitRemote, setPendingGitRemote);
+  }, [localGitRemote, pendingGitRemote, toggleConnector]);
 
   const handleToggleAgent = useCallback(() => {
     if (!localAgent || pendingAgentToggle) return;
@@ -271,11 +269,11 @@ export function ConnectMethodsBlock({
       <MethodSection title={METHOD_META.sync.title}>
         <MethodCard
           meta={METHOD_META.sync}
-          active={filesystemActive}
-          togglePending={pendingFilesystem}
-          onToggle={localFilesystem ? handleToggleFilesystem : undefined}
+          active={gitRemoteActive}
+          togglePending={pendingGitRemote}
+          onToggle={localGitRemote ? handleToggleGitRemote : undefined}
         >
-          <LocalSyncBody
+          <GitRemoteBody
             gitUrl={gitUrl}
             scopeName={scopeName}
           />

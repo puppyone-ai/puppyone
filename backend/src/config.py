@@ -253,6 +253,7 @@ class Settings(BaseSettings):
     GOOGLE_DRIVE_REDIRECT_URI: str = "http://localhost:3000/oauth/google-drive/callback"
     GOOGLE_CALENDAR_REDIRECT_URI: str = "http://localhost:3000/oauth/google-calendar/callback"
     GOOGLE_DOCS_REDIRECT_URI: str = "http://localhost:3000/oauth/google-docs/callback"
+    GOOGLE_SEARCH_CONSOLE_REDIRECT_URI: str = "http://localhost:3000/oauth/google-search-console/callback"
 
     # Linear OAuth configuration
     LINEAR_CLIENT_ID: str = ""

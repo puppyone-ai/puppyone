@@ -234,6 +234,9 @@ def _scope_paths_and_keys_by_id(sb, scope_ids: list[str]) -> dict[str, dict]:
 
 
 def _path_from_scope(row: dict, cfg: dict, scopes: dict[str, dict]) -> str | None:
+    target_path = row.get("target_path") or cfg.get("target_path")
+    if target_path not in (None, ""):
+        return target_path
     scope_id = row.get("scope_id")
     if scope_id and scope_id in scopes:
         path = scopes[scope_id].get("path")
@@ -253,7 +256,7 @@ def _access_surface_preview_key(cfg: dict, kind: str, scope_key: str | None) -> 
         return cfg.get("api_key")
     if kind == "sandbox":
         return cfg.get("access_key") or scope_key
-    if kind in {"git_remote", "cli", "filesystem"}:
+    if kind in {"git_remote", "cli"}:
         return cfg.get("access_key") or scope_key
     return None
 
@@ -509,18 +512,18 @@ def _mask_key(key: str | None, provider: str | None = None) -> str | None:
     if not key or len(key) < 8:
         return key
     # Scope access keys are paste-and-run credentials the project
-    # owner uses with their local Puppyone CLI: the home-page onboarding
+    # owner uses with Git Remote / FS CLI: the home-page onboarding
     # block renders a connect command with the access URL and key, the
     # access page exposes a Copy button next to the key, and SyncDetail
     # in the data canvas does the same. Masking those broke every one
     # of those flows (the rendered command included literal `cli_...XXX`
     # which the backend can't resolve, so the connect command returned 401 /
     # not found). Dashboard is JWT-gated to project members already, so
-    # an owner seeing their own filesystem key is the right exposure
+    # an owner seeing their own scope key is the right exposure
     # level — the mask only made sense for keys we hand out to
     # third-party callers (sandbox, mcp), where the dashboard is just
     # an "is it configured" preview.
-    if provider in {"filesystem", "git_remote", "cli"}:
+    if provider in {"git_remote", "cli"}:
         return key
     prefix_end = key.index("_") + 1 if "_" in key else 4
     return key[:prefix_end] + "..." + key[-4:]

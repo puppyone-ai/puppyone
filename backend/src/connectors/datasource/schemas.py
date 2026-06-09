@@ -27,7 +27,7 @@ class Sync:
     project_id: str
     path: Optional[str] = None
     direction: str = "inbound"              # inbound | outbound | bidirectional
-    provider: str = ""                      # filesystem | github | notion | ...
+    provider: str = ""                      # github | notion | gmail | ...
     authority: str = "authoritative"        # authoritative | mirror
     config: Dict[str, Any] = field(default_factory=dict)
     credentials_ref: Optional[str] = None

@@ -3,8 +3,7 @@
 > Server-side spec for the manifest format the local PuppyOne client
 > daemon (or any equivalent integration) pushes to the cloud so the
 > server can answer queries about a user's *unpushed* working-tree
-> state. See [07-version-engine-supplement.md §5](07-version-engine-supplement.md)
-> for the product framing.
+> state.
 
 ---
 

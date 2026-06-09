@@ -143,20 +143,22 @@ export function ScopeDetailPanel({
     onScopeDeleted();
   }, [onScopeDeleted]);
 
+  const visibleConnectors = connectors;
+
   useEffect(() => {
-    if (connectors.length === 0) {
+    if (visibleConnectors.length === 0) {
       setSelectedConnectorId(null);
       return;
     }
     if (selectedConnectorId == null) return;
-    const stillExists = connectors.some((c) => c.id === selectedConnectorId);
+    const stillExists = visibleConnectors.some((c) => c.id === selectedConnectorId);
     if (!stillExists) setSelectedConnectorId(null);
-  }, [connectors, selectedConnectorId]);
+  }, [selectedConnectorId, visibleConnectors]);
 
   const selectedConnector = useMemo(
     () =>
-      connectors.find((c) => c.id === selectedConnectorId) ?? null,
-    [connectors, selectedConnectorId],
+      visibleConnectors.find((c) => c.id === selectedConnectorId) ?? null,
+    [selectedConnectorId, visibleConnectors],
   );
   const {
     data: auditData,
@@ -195,7 +197,7 @@ export function ScopeDetailPanel({
             live here, while pause/resume belongs to each access point. */}
         <ScopePageHeader
           scope={scope}
-          connectors={connectors}
+          connectors={visibleConnectors}
           settingsOpen={settingsOpen}
           settingsDirty={settingsDirty}
           onToggleSettings={handleToggleSettings}
@@ -220,7 +222,7 @@ export function ScopeDetailPanel({
             points" but the underlying entity in the data model (and in
             every API path / SQL table) is `connector`. Naming the UI
             section the same name eliminates the translation step. */}
-        {connectors.length > 0 ? (
+        {visibleConnectors.length > 0 ? (
           <>
             <SectionLabel
               right={
@@ -232,7 +234,7 @@ export function ScopeDetailPanel({
                     fontWeight: 400,
                   }}
                 >
-                  {connectors.length === 1 ? '1 way in' : `${connectors.length} ways in`}
+                  {visibleConnectors.length === 1 ? '1 way in' : `${visibleConnectors.length} ways in`}
                 </span>
               }
             >
@@ -240,7 +242,7 @@ export function ScopeDetailPanel({
             </SectionLabel>
             <ConnectorList
               scope={scope}
-              connectors={connectors}
+              connectors={visibleConnectors}
               selectedId={selectedConnector?.id ?? null}
               onSelect={handleSelectConnector}
               onPauseResume={onPauseResume}
@@ -294,7 +296,7 @@ export function ScopeDetailPanel({
 
 // ─── Access activity ─────────────────────────────────────────────────
 
-type ActivityProvider = 'cli' | 'filesystem' | 'agent' | 'generic';
+type ActivityProvider = 'cli' | 'git_remote' | 'agent' | 'generic';
 type ActivityTone = 'success' | 'pending' | 'error' | 'neutral';
 
 interface AccessActivityRow {
@@ -672,7 +674,7 @@ function getAuditProvider(action: string, log: AuditLogItem): ActivityProvider {
   const metadata = log.metadata ?? {};
   const source = readString(metadata.source_channel);
   if (source === 'git' || action.startsWith('git_') || action.includes('receive_pack') || action.includes('upload_pack')) {
-    return 'filesystem';
+    return 'git_remote';
   }
   if (log.operator_type === 'agent' || log.operator_id?.startsWith('agent:')) {
     return 'agent';
@@ -687,8 +689,8 @@ function getAuditProvider(action: string, log: AuditLogItem): ActivityProvider {
 }
 
 function formatAuditSource(log: AuditLogItem, provider: ActivityProvider): string {
-  if (provider === 'filesystem') return 'Git Remote';
-  if (provider === 'cli') return 'Puppyone CLI';
+  if (provider === 'git_remote') return 'Git Remote';
+  if (provider === 'cli') return 'FS CLI';
   if (provider === 'agent') return 'AI Agent';
   if (log.operator_type === 'user') return 'Puppyone';
   if (log.operator_type === 'sync') return 'Sync';
@@ -713,7 +715,7 @@ function formatAuditSourceDetail(log: AuditLogItem, provider: ActivityProvider):
     : entryPoint === 'project_cli' ? 'project CLI'
     : entryPoint === 'web_app' ? 'web app'
     : entryPoint === 'agent_runtime' ? 'agent runtime'
-    : provider === 'filesystem' ? 'Git protocol'
+    : provider === 'git_remote' ? 'Git protocol'
     : provider === 'cli' ? 'CLI protocol'
     : '';
   const actor = formatAuditActor(log);
@@ -817,7 +819,7 @@ function readStringArray(value: unknown): string[] {
 // ─── ScopePageHeader ─────────────────────────────────────────────────
 //
 // h1 of the right pane. Displays the scope's *name* (first-class
-// editable field independent of the filesystem path) and a tiny meta
+// editable field independent of the scope path) and a tiny meta
 // line summarizing aggregate health across the scope's connectors.
 //
 // The visual pattern mirrors `ConnectorCard`'s own header so the user
@@ -1418,19 +1420,13 @@ function getConnectorMethodMeta(connector: Connector): {
   if (connector.provider === 'cli') {
     return {
       title: 'Context Drive CLI',
-      description: "Use Puppyone's scoped filesystem CLI to let an agent read and write this cloud drive without cloning it.",
+      description: "Use Puppyone's scoped FS CLI to let an agent read and write this cloud drive without cloning it.",
     };
   }
   if (connector.provider === 'git_remote') {
     return {
       title: 'Git Remote',
       description: 'Use a native Git remote for clone, pull, commit, and push workflows.',
-    };
-  }
-  if (connector.provider === 'filesystem') {
-    return {
-      title: 'Local Folder Sync',
-      description: 'Keep a local folder bidirectionally in sync with this scope.',
     };
   }
   return {
@@ -1630,9 +1626,8 @@ function buildConnectorSetupPrompt(connector: Connector, scope: RepoScope | unde
 }
 
 function getConnectorDisplayName(connector: Connector): string {
-  if (connector.provider === 'cli') return 'Puppyone CLI';
+  if (connector.provider === 'cli') return 'FS CLI';
   if (connector.provider === 'git_remote') return 'Git Remote';
-  if (connector.provider === 'filesystem') return 'Local Folder Sync';
   return connector.name || PROVIDER_LABELS[connector.provider] || connector.provider;
 }
 

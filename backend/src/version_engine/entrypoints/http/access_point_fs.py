@@ -1,6 +1,6 @@
-"""Access Point scoped filesystem API.
+"""Access Point scoped FS CLI API.
 
-This router exposes POSIX-like filesystem operations through an access point
+This router exposes POSIX-like file operations through an access point
 credential. It is intentionally provider-agnostic: any access point with a
 valid ``config.scope`` can use it.
 """
@@ -148,17 +148,23 @@ async def _resolve_auth(
     mode = facade.mode
     ensure_repo_readable(facade)
 
-    # /ap-fs is the PuppyOne scoped filesystem command surface. The client
-    # channel is part of the auth contract so pause/resume checks are explicit.
-    if not x_puppy_client:
+    # /ap-fs is the PuppyOne FS CLI command surface. It is governed by the
+    # built-in CLI access surface.
+    normalized_client = (x_puppy_client or "").strip().lower()
+    if not normalized_client:
         raise HTTPException(
             status_code=400,
             detail="X-Puppy-Client header required",
         )
+    if normalized_client != "cli":
+        raise HTTPException(
+            status_code=400,
+            detail="AP-FS requires X-Puppy-Client: cli",
+        )
     if command:
-        admit_cli_fs_command(auth, command, x_puppy_client, log_prefix="[AP-FS]")
+        admit_cli_fs_command(auth, command, normalized_client, log_prefix="[AP-FS]")
     else:
-        enforce_channel_pause(auth, x_puppy_client, log_prefix="[AP-FS]")
+        enforce_channel_pause(auth, normalized_client, log_prefix="[AP-FS]")
 
     normalized_scope = {
         "id": scope.get("id") or auth.get("agent"),
@@ -1645,6 +1651,7 @@ async def upload_file(
             message=message or f"ap upload {rel_path}",
             base_commit_id=base_commit_id,
             defer_projection=True,
+            source_channel="access_cli",
         )
         result = outcome.result
     except ConcurrentMutationError as e:
@@ -1763,6 +1770,7 @@ async def write_file(
             default_message_prefix="ap write",
             base_commit_id=body.base_commit_id,
             defer_projection=True,
+            source_channel="access_cli",
         )
         result = outcome.result
     except ConcurrentMutationError as e:
@@ -1826,6 +1834,7 @@ async def mkdir(
             message=f"ap mkdir {rel_path}",
             base_commit_id=body.base_commit_id,
             defer_projection=True,
+            source_channel="access_cli",
         )
         result = outcome.result
     except ValueError as e:
@@ -1886,6 +1895,7 @@ async def touch(
                 ),
                 base_commit_id=body.base_commit_id,
                 defer_projection=True,
+                source_channel="access_cli",
             )
             result = outcome.result
             base_used = True
@@ -1916,6 +1926,7 @@ async def touch(
                 message=f"ap touch {rel_path}",
                 base_commit_id=body.base_commit_id if index == 0 and not base_used else None,
                 defer_projection=True,
+                source_channel="access_cli",
             )
             result = outcome.result
         except ConcurrentMutationError as e:
@@ -2014,6 +2025,7 @@ async def move(
             message=body.message or f"ap move {old_rel} -> {new_rel}",
             base_commit_id=body.base_commit_id,
             defer_projection=True,
+            source_channel="access_cli",
         )
         result = outcome.result
     except FileNotFoundError as e:
@@ -2103,6 +2115,7 @@ async def copy(
             message=body.message or f"ap copy {old_rel} -> {new_rel}",
             base_commit_id=body.base_commit_id,
             defer_projection=True,
+            source_channel="access_cli",
         )
         result = outcome.result
     except FileNotFoundError as e:
@@ -2168,6 +2181,7 @@ async def rmdir(
             ),
             base_commit_id=body.base_commit_id,
             defer_projection=True,
+            source_channel="access_cli",
         )
         result = outcome.result
     except FileNotFoundError as e:
@@ -2248,6 +2262,7 @@ async def remove(
             ),
             base_commit_id=body.base_commit_id,
             defer_projection=True,
+            source_channel="access_cli",
         )
         result = outcome.result
     except FileNotFoundError as e:
