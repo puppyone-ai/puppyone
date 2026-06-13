@@ -4,11 +4,12 @@ The image + Fly app for the **Fly provider** of the scope-sandbox feature. A use
 proven to hold scope permission connects with VSCode Remote-SSH to a long-lived,
 scope-keyed Fly Machine; all git/CLI runs inside (data stays server-side).
 
-> Status: **live-validated 2026-06-13** (app `puppyone-sandboxes`, region `sin`,
-> free tier) — full provider lifecycle + credential grant/revoke + SSH connect
-> (over `fly proxy`/WireGuard) all pass. The ONLY unvalidated piece is the public
-> raw-TCP `:22` ingress, which needs a paid dedicated IPv4. Switching providers is
-> a config flip (`SCOPE_SANDBOX_PROVIDER=fly`). See
+> Status: **live-validated 2026-06-13** (app `puppyone-sandboxes`, region `sin`)
+> — full provider lifecycle + credential grant/revoke + SSH connect over BOTH
+> the free `fly proxy`/WireGuard path AND the public raw-TCP `:22` ingress
+> (dedicated IPv4, allocated for the test then released). Only the VSCode IDE
+> walk-through remains. Switching providers is a config flip
+> (`SCOPE_SANDBOX_PROVIDER=fly`). See
 > `docs/proposals/sandbox-fly-validation-2026-06.md`.
 
 ## Why Fly differs from E2B

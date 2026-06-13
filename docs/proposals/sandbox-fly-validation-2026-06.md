@@ -13,9 +13,9 @@
 | revoke(删行) | ✅ |
 | 生命周期 stop → stopped → start → running → destroy | ✅(stop 是**异步**,见下) |
 | **SSH 实连**(经 `fly proxy` / WireGuard):grant→可连、revoke→拒 | ✅ **离职即失权** |
-| 公网 TCP `:22` 直连 | ⛔ 未做(需付费专用 IPv4,见下) |
+| **公网 TCP `:22` 直连**(专用 IPv4,生产形态):grant→可连、revoke→拒 | ✅(2026-06-13,IPv4 用毕即释放) |
 
-**结论:Fly provider 的代码 + 镜像 + 凭证治理全链路实环境通过(SSH 经 WireGuard 隧道)。** 唯一未覆盖的是公网 `:22` 入口(需付费 IPv4)。
+**结论:Fly provider 全链路实环境通过,包括公网 `:22` 入口。** raw-TCP SSH(`ssh puppy@<dedicated-ip>:22` → 机器 sshd :2222,经 Fly services 映射)实连成功,grant 可连、revoke 拒 —— 与 `fly proxy` 路径一致。专用 IPv4(`213.188.206.24`,$2/mo)**测完立即释放**,总花费控制在 $5 内。
 
 ## 环境
 
@@ -44,8 +44,14 @@
 
 3. **Fly `stop` 是异步的** —— `stop` 后机器经 `stopping`→`stopped`,立刻 `start` 会 412 `Precondition Failed`。manager 的 reap-stop 与下次 acquire-start 之间天然有间隔,生产不受影响;测试里轮询等 `stopped` 再 start 即可。(provider 未改;如需可在 `stop()` 里等 `stopped` 或让 `start()` 容忍 stopping,属后续硬化项。)
 
+## 公网 :22 验证细节(2026-06-13)
+
+- `fly ips allocate-v4 --yes -r sin` → 专用 IPv4 `213.188.206.24`($2/mo)。
+- `provider.create` 的 services 配置(公网 22 → 内部 2222)生效:`ssh puppy@213.188.206.24` 直连 sshd 成功(grant 后),revoke 后被拒。
+- **`<app>.fly.dev` 的 DNS A 记录滞后于 IPv4 分配**(几分钟),所以脚本直接连 IP 验证;生产里 `ConnectionInfo(host=<app>.fly.dev)` 待 DNS 生效后等价可用。
+- 测完 `fly ips release` 释放 IPv4,确认 0 IP / 0 机器。脚本:`backend/scripts/fly_ssh_public_e2e.py`。
+
 ## 待办
 
-- **公网 :22 实连**:绑支付 + `fly ips allocate-v4` 后跑一轮 `ssh puppy@<app>.fly.dev`(provider 的 `ConnectionInfo(host=<app>.fly.dev, port=22)` 即为此设计)。
-- **VSCode Remote-SSH 全流程**:把 `fly proxy` 当 `ProxyCommand`(或公网 :22)在 VSCode 里实连一次。
+- **VSCode Remote-SSH 全流程**:把 `fly proxy` 当 `ProxyCommand`(或公网 :22 + DNS)在 VSCode 里实连一次(连接机制已验证,差 IDE 端走一遍)。
 - provider `stop/start` 异步硬化(可选)。
