@@ -129,6 +129,14 @@ class FlyMachinesProvider(SandboxProvider):
             params={"state": state, "instance_id": instance_id, "timeout": self._wait_timeout_s},
         )
 
+    async def _wait_state(self, machine_id: str, state: str) -> None:
+        """Wait for ``machine_id`` to reach ``state`` (no instance_id needed)."""
+        await self._request(
+            "GET",
+            f"{self._machine_path(machine_id)}/wait",
+            params={"state": state, "timeout": self._wait_timeout_s},
+        )
+
     # ── lifecycle ─────────────────────────────────────────────────────
 
     async def create(self, spec: SandboxSpec) -> SandboxInfo:
@@ -145,7 +153,17 @@ class FlyMachinesProvider(SandboxProvider):
         )
 
     async def start(self, sandbox_id: str) -> SandboxInfo:
-        await self._request("POST", f"{self._machine_path(sandbox_id)}/start")
+        try:
+            await self._request("POST", f"{self._machine_path(sandbox_id)}/start")
+        except httpx.HTTPStatusError as exc:
+            # Fly `stop` is async: a start issued while the machine is still
+            # `stopping` returns 412. Wait for `stopped`, then retry once. (Our
+            # registry can record STOPPED before the box has fully settled, so a
+            # quick acquire→start hits this — see sandbox-fly-validation doc.)
+            if exc.response.status_code != 412:
+                raise
+            await self._wait_state(sandbox_id, "stopped")
+            await self._request("POST", f"{self._machine_path(sandbox_id)}/start")
         return SandboxInfo(sandbox_id, SandboxState.RUNNING, self._connection(22))
 
     async def stop(self, sandbox_id: str) -> SandboxInfo:

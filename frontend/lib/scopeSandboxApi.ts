@@ -28,12 +28,28 @@ export interface SandboxConnectInfo {
   connected_users: number;
 }
 
+export interface SandboxProviderInfo {
+  id: SandboxProvider;
+  label: string;
+  configured: boolean;   // credentials present server-side
+}
+
+export interface SandboxProviders {
+  default: SandboxProvider;
+  providers: SandboxProviderInfo[];
+}
+
 export interface SandboxStatus {
   state: string;                 // none | running | stopped | ...
   provider?: string;
   connected: boolean;            // is THIS user currently granted/connected
   connected_users: number;
   sandbox_id?: string;
+}
+
+/** Which providers this deployment offers + the default (drives the selector). */
+export async function getScopeSandboxProviders(): Promise<SandboxProviders> {
+  return get<SandboxProviders>('/api/v1/scope-sandboxes/providers');
 }
 
 /** Acquire/reuse the scope's sandbox and grant the caller SSH access. */

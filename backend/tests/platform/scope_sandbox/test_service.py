@@ -171,6 +171,24 @@ async def test_revoke_drops_user_and_calls_provider():
     assert svc.status(project_id="proj-1", scope_id=SCOPE.id, user_id="u1")["connected"] is False
 
 
+def test_available_providers_reflects_configured_creds(monkeypatch):
+    from src.config import settings
+    svc = _service(FakeProvider(tcp_ingress=False))
+    # E2B_API_KEY comes from the env (SDK reads it); Fly creds are Settings fields.
+    monkeypatch.setenv("E2B_API_KEY", "k")
+    monkeypatch.setattr(settings, "SCOPE_SANDBOX_FLY_APP", "")
+    monkeypatch.setattr(settings, "SCOPE_SANDBOX_FLY_TOKEN", "")
+    monkeypatch.setattr(settings, "SCOPE_SANDBOX_PROVIDER", "e2b")
+    out = svc.available_providers()
+    by = {p["id"]: p for p in out["providers"]}
+    assert out["default"] == "e2b"
+    assert by["e2b"]["configured"] is True and by["fly"]["configured"] is False
+
+    monkeypatch.setattr(settings, "SCOPE_SANDBOX_FLY_APP", "app")
+    monkeypatch.setattr(settings, "SCOPE_SANDBOX_FLY_TOKEN", "tok")
+    assert {p["id"] for p in svc.available_providers()["providers"] if p["configured"]} == {"e2b", "fly"}
+
+
 async def test_reap_sweeps_per_provider():
     prov = FakeProvider(tcp_ingress=False)
     svc = _service(prov)
