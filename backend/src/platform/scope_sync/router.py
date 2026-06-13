@@ -44,3 +44,19 @@ def get_policy(
     except LookupError:
         raise HTTPException(status_code=404, detail="Scope not found in project")
     return ApiResponse.success(data=data)
+
+
+@router.get("/events", response_model=ApiResponse)
+def get_events(
+    project_id: str = Query(...),
+    scope_id: str = Query(...),
+    cursor: int = Query(0, description="last event id the client has seen"),
+    current_user: CurrentUser = Depends(get_current_user),
+    project_service: ProjectService = Depends(get_project_service),
+    service: ScopeSyncService = Depends(get_scope_sync_service),
+):
+    """Path-scoped upstream events for a scope since ``cursor`` (M3). The sidecar
+    polls this and integrates/holds per the managed policy."""
+    _ensure_project_access(project_service, current_user, project_id)
+    return ApiResponse.success(data=service.poll_events(
+        project_id=project_id, scope_id=scope_id, cursor=cursor))

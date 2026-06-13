@@ -22,7 +22,10 @@ class _Scope:
     is_root: bool
 
 
-_LOOKUP = {"s1": _Scope("s1", "proj-1", "docs", False)}
+from src.platform.scope_sync.events import InMemoryEventStore
+
+_SCOPES = [_Scope("s1", "proj-1", "docs", False), _Scope("s-root", "proj-1", "", True)]
+_LOOKUP = {s.id: s for s in _SCOPES}
 
 
 class _FakeProjectService:
@@ -30,16 +33,23 @@ class _FakeProjectService:
         return {"id": project_id} if project_id == "proj-1" else None
 
 
-def _app() -> FastAPI:
+def _service() -> ScopeSyncService:
+    return ScopeSyncService(
+        scope_lookup=lambda sid: _LOOKUP.get(sid),
+        scopes_lister=lambda pid: [(s.id, s.path) for s in _SCOPES if s.project_id == pid],
+        event_store=InMemoryEventStore(),
+    )
+
+
+def _app(svc: ScopeSyncService | None = None) -> FastAPI:
+    svc = svc or _service()
     app = FastAPI()
     app.include_router(router)
     app.dependency_overrides[get_current_user] = lambda: CurrentUser(
         user_id="u1", email="u1@corp.com", role="authenticated", user_metadata={},
     )
     app.dependency_overrides[get_project_service] = lambda: _FakeProjectService()
-    app.dependency_overrides[get_scope_sync_service] = lambda: ScopeSyncService(
-        scope_lookup=lambda sid: _LOOKUP.get(sid),
-    )
+    app.dependency_overrides[get_scope_sync_service] = lambda: svc
     return app
 
 
@@ -63,4 +73,23 @@ def test_policy_forbidden_project_404():
 def test_policy_unknown_scope_404():
     client = TestClient(_app())
     resp = client.get("/api/v1/scope-sync/policy", params={"project_id": "proj-1", "scope_id": "ghost"})
+    assert resp.status_code == 404
+
+
+def test_events_endpoint_returns_fanned_out_events():
+    svc = _service()
+    svc.record_publish(project_id="proj-1", scope_path="docs", changed_paths=["a.md"],
+                       head_version="v1", origin_user="someone-else")
+    client = TestClient(_app(svc))
+    resp = client.get("/api/v1/scope-sync/events", params={
+        "project_id": "proj-1", "scope_id": "s1", "cursor": 0,
+    })
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["events"][0]["affected_paths"] == ["a.md"] and data["cursor"] >= 1
+
+
+def test_events_forbidden_project_404():
+    resp = TestClient(_app()).get("/api/v1/scope-sync/events", params={
+        "project_id": "OTHER", "scope_id": "s1"})
     assert resp.status_code == 404

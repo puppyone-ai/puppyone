@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from dataclasses import asdict
 
+from src.platform.scope_sync.events import EventStore, build_event_store
+from src.platform.scope_sync.fanout import fanout_targets, to_abs
 from src.platform.scope_sync.policy import (
     ClientKind,
     Persona,
@@ -41,8 +43,18 @@ class ScopeSyncService:
     """Resolves the managed :class:`SyncPolicyConfig` for a scope. Injectable
     scope lookup keeps it unit-testable without a DB."""
 
-    def __init__(self, *, scope_lookup=None) -> None:
+    def __init__(self, *, scope_lookup=None, scopes_lister=None, event_store: EventStore | None = None) -> None:
         self._scope_lookup = scope_lookup or (lambda sid: _scope_service().get(sid))
+        # lists a project's scopes as [(scope_id, scope_path), ...] for M4 fanout
+        self._scopes_lister = scopes_lister or self._default_scopes_lister
+        from src.config import settings
+        self._events = event_store or build_event_store(
+            getattr(settings, "SCOPE_SANDBOX_STORE", "memory"))
+
+    @staticmethod
+    def _default_scopes_lister(project_id: str) -> list[tuple[str, str]]:
+        scopes = _scope_service().list_for_project(project_id)
+        return [(s.id, getattr(s, "path", "") or "") for s in scopes]
 
     def _scope_role(self, project_id: str, scope_id: str) -> ScopeRole:
         scope = self._scope_lookup(scope_id)
@@ -70,6 +82,49 @@ class ScopeSyncService:
             "client_kind": ck.value,
             "scope_role": role.value,
             "policy": asdict(cfg),
+        }
+
+    # ── upstream event channel (M3) + parent/child fanout (M4) ────────
+
+    def record_publish(
+        self,
+        *,
+        project_id: str,
+        scope_path: str,
+        changed_paths: list[str],
+        head_version: str,
+        origin_user: str | None = None,
+    ) -> int:
+        """A version was published to ``scope_path`` touching ``changed_paths``.
+        Fan out a path-scoped upstream event to every project scope whose subtree
+        intersects the change (root + ancestors + the scope itself), translated
+        into each scope's coordinates. Returns the number of events emitted.
+        Best-effort: never raise into the publish path."""
+        try:
+            abs_paths = to_abs(scope_path, set(changed_paths))
+            targets = fanout_targets(abs_paths, self._scopes_lister(project_id))
+            for scope_id, paths in targets.items():
+                self._events.append(
+                    project_id=project_id, scope_id=scope_id, head_version=head_version,
+                    affected_paths=paths, source="publish", origin_user=origin_user,
+                )
+            return len(targets)
+        except Exception:  # noqa: BLE001 - eventing must not break a publish
+            return 0
+
+    def poll_events(self, *, project_id: str, scope_id: str, cursor: int) -> dict:
+        """Events for a scope since ``cursor`` (the sidecar's last seen id)."""
+        events = self._events.since(project_id, scope_id, cursor)
+        return {
+            "cursor": events[-1].id if events else cursor,
+            "events": [
+                {
+                    "id": e.id, "head_version": e.head_version,
+                    "affected_paths": list(e.affected_paths),
+                    "source": e.source, "origin_user": e.origin_user,
+                }
+                for e in events
+            ],
         }
 
 
