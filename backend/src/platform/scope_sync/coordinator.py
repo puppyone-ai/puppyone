@@ -82,6 +82,28 @@ class SyncCoordinator:
             return None
         return self._do_checkpoint(now)
 
+    def tick(self, *, now: float | None = None) -> tuple[SyncAction, ...]:
+        """Periodic tick (the sidecar calls this on an interval). Drives the two
+        time-based triggers: checkpoint cadence (debounce/max-interval) and
+        **quiescence → publish** (long idle with unpublished content). Keeping
+        both here means the real sidecar loop is just: inotify→note_edit,
+        timer→tick, signals→handle, upstream→on_upstream."""
+        now = self._now(now)
+        performed: list[SyncAction] = []
+        if self.maybe_checkpoint(now=now) is not None:
+            performed.append(SyncAction.CHECKPOINT)
+        # quiescence-publish: idle long enough AND the tree differs from what we
+        # last published (content-based, so it can't re-fire while still idle).
+        if (
+            self._policy.quiescence_publish_s > 0
+            and self._state.last_edit_at is not None
+            and now - self._state.last_edit_at >= self._policy.quiescence_publish_s
+            and self._wt.snapshot().tree_hash != self._state.last_published_tree_hash
+            and self.publish(now=now).outcome is PublishOutcome.PUBLISHED
+        ):
+            performed.append(SyncAction.PUBLISH)
+        return tuple(performed)
+
     def _do_checkpoint(self, now: float) -> Checkpoint:
         snap = self._wt.snapshot()
         parent = self._checkpoints.latest()
@@ -128,7 +150,7 @@ class SyncCoordinator:
 
     # ── upstream advance (lazy, path-scoped) ──────────────────────────
 
-    def on_upstream(self, affected_paths: set[str], *, now: float | None = None) -> tuple[SyncAction, ...]:
+    def on_upstream(self, affected_paths: set[str]) -> tuple[SyncAction, ...]:
         """Another version advanced touching ``affected_paths``. Auto-integrate if
         disjoint from the local dirty set; else hold + notify."""
         actions = decide_upstream(set(affected_paths), self._wt.dirty_paths(), self._policy)

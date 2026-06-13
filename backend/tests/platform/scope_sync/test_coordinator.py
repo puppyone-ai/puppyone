@@ -208,6 +208,44 @@ def test_upstream_overlap_holds_and_notifies():
     assert wt.integrated == [] and c.held_upstream() == {"docs/a.md"} and seen == [{"docs/a.md"}]
 
 
+# ── tick (time-driven: checkpoint cadence + quiescence publish) ───────
+
+def test_tick_checkpoints_on_debounce_no_publish_for_dev():
+    # dev: quiescence_publish_s == 0 → tick never publishes, only checkpoints
+    c, wt, cps, pub = _coord(Persona.DEV)
+    wt.set_dirty({"a"}, tree_hash="t1")
+    c.note_edit(now=100)
+    assert c.tick(now=110) == (SyncAction.CHECKPOINT,)     # 10s ≥ debounce(5)
+    assert pub.publishes == 0
+
+
+def test_tick_quiescence_publishes_for_non_dev_then_stops():
+    c, wt, cps, pub = _coord(Persona.NON_DEV)   # quiescence_publish_s == 120
+    wt.set_dirty({"a"}, tree_hash="t1")
+    c.note_edit(now=100)
+    # short idle → checkpoint only
+    assert c.tick(now=110) == (SyncAction.CHECKPOINT,)
+    assert pub.publishes == 0
+    # long idle (≥120s) + unpublished content → publish
+    actions = c.tick(now=240)
+    assert SyncAction.PUBLISH in actions and pub.publishes == 1
+    # idle continues, tree unchanged since publish → does NOT re-publish
+    assert SyncAction.PUBLISH not in c.tick(now=400)
+    assert pub.publishes == 1
+
+
+def test_tick_quiescence_refires_after_new_edits():
+    c, wt, cps, pub = _coord(Persona.NON_DEV)
+    wt.set_dirty({"a"}, tree_hash="t1")
+    c.note_edit(now=100)
+    c.tick(now=240)                                 # publishes t1
+    assert pub.publishes == 1
+    wt.set_dirty({"a"}, tree_hash="t2")             # new content
+    c.note_edit(now=300)
+    c.tick(now=460)                                 # idle again → publishes t2
+    assert pub.publishes == 2
+
+
 # ── rollback ──────────────────────────────────────────────────────────
 
 def test_rollback_restores_checkpoint():
