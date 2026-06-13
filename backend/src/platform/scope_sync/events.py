@@ -33,6 +33,10 @@ class EventStore(Protocol):
 
     def since(self, project_id: str, scope_id: str, cursor: int, *, limit: int = 200) -> list[UpstreamEvent]: ...
 
+    def recent(self, project_id: str, scope_id: str, *, limit: int = 20) -> list[UpstreamEvent]:
+        """Most recent events first (observability / activity feed)."""
+        ...
+
 
 class InMemoryEventStore:
     """Process-local store for dev/tests."""
@@ -55,6 +59,10 @@ class InMemoryEventStore:
             e for e in self._events
             if e.project_id == project_id and e.scope_id == scope_id and e.id > cursor
         ][:limit]
+
+    def recent(self, project_id, scope_id, *, limit=20) -> list[UpstreamEvent]:
+        scoped = [e for e in self._events if e.project_id == project_id and e.scope_id == scope_id]
+        return list(reversed(scoped))[:limit]
 
 
 @dataclass
@@ -127,6 +135,14 @@ class SupabaseEventStore:
             self._client.table(TABLE).select("*")
             .eq("project_id", project_id).eq("scope_id", scope_id).gt("id", cursor)
             .order("id").limit(limit).execute()
+        )
+        return [_row_to_event(r) for r in (resp.data or [])]
+
+    def recent(self, project_id, scope_id, *, limit=20) -> list[UpstreamEvent]:
+        resp = (
+            self._client.table(TABLE).select("*")
+            .eq("project_id", project_id).eq("scope_id", scope_id)
+            .order("id", desc=True).limit(limit).execute()
         )
         return [_row_to_event(r) for r in (resp.data or [])]
 

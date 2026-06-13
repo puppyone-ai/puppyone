@@ -137,6 +137,22 @@ class ScopeSyncService:
         except Exception:  # noqa: BLE001 - eventing must not break a publish
             return 0
 
+    def activity(self, *, project_id: str, scope_id: str, limit: int = 20) -> dict:
+        """Recent sync activity for a scope (observability, M6) — the publish/
+        projection event log, newest first + the latest head."""
+        events = self._events.recent(project_id, scope_id, limit=limit)
+        return {
+            "latest_head": events[0].head_version if events else None,
+            "recent": [
+                {
+                    "id": e.id, "head_version": e.head_version,
+                    "affected_paths": list(e.affected_paths),
+                    "source": e.source, "origin_user": e.origin_user, "created_at": e.created_at,
+                }
+                for e in events
+            ],
+        }
+
     def poll_events(self, *, project_id: str, scope_id: str, cursor: int) -> dict:
         """Events for a scope since ``cursor`` (the sidecar's last seen id)."""
         events = self._events.since(project_id, scope_id, cursor)

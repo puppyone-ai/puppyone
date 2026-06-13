@@ -93,6 +93,17 @@ def test_poll_events_cursor_advances():
     assert svc.poll_events(project_id="p1", scope_id="s-docs", cursor=c)["events"] == []
 
 
+def test_activity_returns_recent_events_newest_first():
+    svc = _svc()
+    svc.record_publish(project_id="p1", scope_path="docs", changed_paths=["a.md"],
+                       head_version="v1", origin_user="u1")
+    svc.record_publish(project_id="p1", scope_path="docs", changed_paths=["b.md"],
+                       head_version="v2", origin_user="u2")
+    act = svc.activity(project_id="p1", scope_id="s-docs", limit=10)
+    assert act["latest_head"] == "v2"                      # newest first
+    assert [e["head_version"] for e in act["recent"]] == ["v2", "v1"]
+
+
 def test_record_publish_is_best_effort_on_error():
     # a broken scopes_lister must not raise into the publish path
     svc = ScopeSyncService(scope_lookup=lambda sid: None,

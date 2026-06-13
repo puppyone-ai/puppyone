@@ -208,6 +208,23 @@ SoT 推进时(他人 publish,或父子投影),server 计算**受影响路径集*
 
 ---
 
+## 9.5 实现状态(2026-06-13)
+
+全部里程碑已实现并单测;E2B 实环境验证了核心 M1。代码在 `backend/src/platform/scope_sync/` + sidecar `sandbox/scope-sync-sidecar/`,**待部署到 qubits 实测**。
+
+| M | 内容 | 状态 |
+|---|---|---|
+| M1 | policy 引擎 + coordinator(checkpoint/publish/tick)+ git 适配器 + **sidecar 守护进程** | ✅ 单测 + **E2B 实环境 ALL PASS**(edit→checkpoint→quiescence-publish→disjoint integrate→overlap conflict) |
+| M2 | publish 流水线(fetch→rebase→ff push,冲突 abort+上报) | ✅ git 适配器实测 |
+| M3 | 上游事件通道(`scope_sync_events` 表 + 端点 + classify)+ sidecar 消费(`consume_events`) | ✅ 单测;emit 接入 version_engine post-push hook(best-effort) |
+| M4 | 父子传播路径范围 fanout(`fanout.py` + `record_publish`)→ 下游懒消费 | ✅ 单测;不相交 scope 不被打扰 |
+| M5 | 托管设置(`scope_sync_settings` 表 + persona/auto_sync 端点)+ 前端 "Remote sync" 开关 | ✅ 单测 + tsc clean |
+| M6 | 增量(sidecar 用 `git fetch` 非 clone;`scope_provision` 幂等 clone)+ 可观测(`/activity` 事件日志) | ✅ |
+
+**部署到 qubits 时需要**:① 应用两个迁移(`20260613000000_scope_sync_events`、`20260613001000_scope_sync_settings`);② `SCOPE_SANDBOX_STORE=supabase` 让事件/设置用持久库;③ sidecar 装进 sandbox 镜像 + 启动时带 `SYNC_*` 环境(尤其 `SYNC_EVENTS_URL/PROJECT_ID/SCOPE_ID/TOKEN` 开启事件消费);④ 验证 version_engine post-push 的 emit 真正 fan-out(查 `scope_sync_events` 表或 `/activity`)。
+
+> 70 个 scope_sync 单测全绿;E2B 端到端 ALL PASS。
+
 ## 10. 一句话总结
 
 **把"改动"和"版本"分成两速**:改动落进**私有、廉价、可撤回的 checkpoint(复用 shadow snapshot)**,绝不污染 SoT;只有少数**托管 trigger**(任务完成/长静默/显式)才**一次性 rebase-publish** 成版本。拉取改成**懒、按路径、通知优先**,父子传播下游消费同此规则。冲突因此只在 publish 罕见发生、优先交 agent 解决——常态零冲突,用户敢用。trigger 全部由我们按 persona 预设,用户不碰。

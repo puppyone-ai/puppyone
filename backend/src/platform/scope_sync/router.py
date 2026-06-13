@@ -63,6 +63,21 @@ def get_events(
         project_id=project_id, scope_id=scope_id, cursor=cursor))
 
 
+@router.get("/activity", response_model=ApiResponse)
+def get_activity(
+    project_id: str = Query(...),
+    scope_id: str = Query(...),
+    limit: int = Query(20, ge=1, le=100),
+    current_user: CurrentUser = Depends(get_current_user),
+    project_service: ProjectService = Depends(get_project_service),
+    service: ScopeSyncService = Depends(get_scope_sync_service),
+):
+    """Recent sync activity (publish/projection event log) for a scope (M6)."""
+    _ensure_project_access(project_service, current_user, project_id)
+    return ApiResponse.success(data=service.activity(
+        project_id=project_id, scope_id=scope_id, limit=limit))
+
+
 class SyncSettingsBody(BaseModel):
     project_id: str
     scope_id: str
