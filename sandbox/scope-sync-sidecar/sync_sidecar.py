@@ -23,11 +23,13 @@ Usage:
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
 import tempfile
 import time
+import urllib.request
 
 REPO = os.environ.get("SYNC_REPO", ".")
 REMOTE = os.environ.get("SYNC_REMOTE", "origin")
@@ -36,6 +38,20 @@ WORK = os.environ.get("SYNC_WORK", "work")
 DEBOUNCE_S = float(os.environ.get("SYNC_DEBOUNCE_S", "4"))
 QUIESCENCE_S = float(os.environ.get("SYNC_QUIESCENCE_S", "180"))
 POLL_S = float(os.environ.get("SYNC_POLL_S", "2"))
+# Upstream event channel (M3): poll PuppyOne for path-scoped "SoT advanced"
+# events and integrate lazily. Optional — unset → fall back to plain fetch.
+EVENTS_URL = os.environ.get("SYNC_EVENTS_URL", "")        # .../api/v1/scope-sync/events
+PROJECT_ID = os.environ.get("SYNC_PROJECT_ID", "")
+SCOPE_ID = os.environ.get("SYNC_SCOPE_ID", "")
+TOKEN = os.environ.get("SYNC_TOKEN", "")
+EVENTS_EVERY = int(os.environ.get("SYNC_EVENTS_EVERY", "3"))  # consume every N polls
+_CURSOR_FILE = "/tmp/puppy_sync_cursor"
+
+
+def _paths_overlap(a, b) -> bool:
+    na = {p.strip("/") for p in a}
+    nb = {p.strip("/") for p in b}
+    return any(x == y or x.startswith(y + "/") or y.startswith(x + "/") for x in na for y in nb)
 
 _ENV = {
     "GIT_AUTHOR_NAME": "puppyone-sync", "GIT_AUTHOR_EMAIL": "sync@puppyone.ai",
@@ -104,6 +120,36 @@ def integrate(paths: list[str]) -> None:
     git("checkout", f"{REMOTE}/{BRANCH}", "--", *paths)
 
 
+def consume_events() -> None:
+    """Poll the server for path-scoped upstream events and integrate lazily:
+    disjoint from the local dirty set → sparse-checkout those paths; overlap →
+    hold (skip; the next publish's rebase reconciles it). Optional/guarded."""
+    if not (EVENTS_URL and PROJECT_ID and SCOPE_ID):
+        return
+    try:
+        cursor = 0
+        if os.path.exists(_CURSOR_FILE):
+            cursor = int(open(_CURSOR_FILE).read().strip() or "0")
+        url = f"{EVENTS_URL}?project_id={PROJECT_ID}&scope_id={SCOPE_ID}&cursor={cursor}"
+        req = urllib.request.Request(url, headers={"Authorization": f"Bearer {TOKEN}"} if TOKEN else {})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            body = json.load(resp)
+        data = body.get("data", body)
+        for ev in data.get("events", []):
+            paths = ev.get("affected_paths", [])
+            if not paths:
+                continue
+            if _paths_overlap(paths, dirty_paths()):
+                print(f"[sidecar] upstream HOLD (overlap) {paths}", flush=True)
+            else:
+                integrate(paths)
+                print(f"[sidecar] integrated upstream {paths}", flush=True)
+        if data.get("cursor"):
+            open(_CURSOR_FILE, "w").write(str(data["cursor"]))
+    except Exception as exc:  # noqa: BLE001 - event polling is best-effort
+        print(f"[sidecar] event poll skipped: {exc}", flush=True)
+
+
 def status() -> str:
     n = git("rev-list", "--count", WORK, check=False)[1].strip() or "?"
     return f"dirty={sorted(dirty_paths())} work_commits={n}"
@@ -119,9 +165,13 @@ def watch() -> None:
     committed_tree = base       # content hash captured by the last checkpoint
     published_tree = base       # content hash last pushed to SoT
     last_activity = None
+    loops = 0
     print(f"[sidecar] watching {REPO} (debounce={DEBOUNCE_S}s quiescence={QUIESCENCE_S}s)", flush=True)
     while True:
         now = time.time()
+        loops += 1
+        if EVENTS_URL and loops % max(1, EVENTS_EVERY) == 0:
+            consume_events()
         cur = snapshot_tree()
         if cur != last_tree:                       # a real edit landed
             last_activity, last_tree = now, cur
