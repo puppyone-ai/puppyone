@@ -28,6 +28,11 @@ RUN apt-get update \
 # Non-root account VSCode logs in as. Passwordless sudo so in-box provisioning
 # (apt, etc.) works the same way it does on the E2B "user" account.
 RUN useradd -m -s /bin/bash puppy \
+ # A fresh useradd leaves the password '!' (LOCKED). OpenSSH 10 with UsePAM=no
+ # refuses key auth for a locked account ("account is locked"), so set the hash
+ # to '*' — not locked, but no password login possible (PasswordAuthentication
+ # is off anyway). This is the key-only-login unlock.
+ && usermod -p '*' puppy \
  && echo 'puppy ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/puppy \
  && chmod 0440 /etc/sudoers.d/puppy \
  && install -d -m 700 -o puppy -g puppy /home/puppy/.ssh \

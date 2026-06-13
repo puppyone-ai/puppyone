@@ -90,6 +90,16 @@ async def connect(
     return ApiResponse.success(data=asdict(info), message="Sandbox ready")
 
 
+@router.get("/providers", response_model=ApiResponse)
+def providers(
+    current_user: CurrentUser = Depends(get_current_user),
+    service: ScopeSandboxService = Depends(get_scope_sandbox_service),
+):
+    """Which sandbox providers this deployment offers + the default (for the
+    frontend's provider selector). Auth required, but not project-scoped."""
+    return ApiResponse.success(data=service.available_providers())
+
+
 @router.get("/status", response_model=ApiResponse)
 def status(
     project_id: str = Query(...),

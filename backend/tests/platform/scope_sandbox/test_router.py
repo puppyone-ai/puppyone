@@ -37,6 +37,12 @@ class _FakeService:
     def status(self, **kw):
         return {"state": "running", "connected": True, "connected_users": 1}
 
+    def available_providers(self):
+        return {"default": "e2b", "providers": [
+            {"id": "e2b", "label": "E2B", "configured": True},
+            {"id": "fly", "label": "Fly", "configured": False},
+        ]}
+
     async def revoke(self, **kw):
         return 0
 
@@ -100,6 +106,15 @@ def test_connect_unknown_scope_is_404():
         "project_id": "proj-1", "scope_id": "ghost", "public_key": "ssh-ed25519 AAAA u1",
     })
     assert resp.status_code == 404
+
+
+def test_providers_endpoint():
+    client = TestClient(_app(_FakeService()))
+    resp = client.get("/api/v1/scope-sandboxes/providers")
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["default"] == "e2b"
+    assert {p["id"] for p in data["providers"]} == {"e2b", "fly"}
 
 
 def test_status_endpoint():

@@ -1,8 +1,8 @@
 # Reference only. Scope-sandbox machines are created per-scope via the Machines
 # API (see backend/.../fly_provider.py `_machine_config`), NOT `fly deploy`.
 # This documents the equivalent machine shape and the raw-TCP :22 → :2222 map.
-app = "puppyone-scope-sandbox"
-primary_region = "iad"
+app = "puppyone-sandboxes"
+primary_region = "sin"   # iad/hkg deprecated for new resources; sin validated
 
 [build]
   dockerfile = "Dockerfile"

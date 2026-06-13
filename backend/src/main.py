@@ -512,6 +512,8 @@ def create_app() -> FastAPI:
     app.include_router(github_webhook_router, tags=["github-integration"])
     from src.platform.scope_sandbox.router import router as scope_sandbox_router
     app.include_router(scope_sandbox_router, tags=["scope-sandboxes"])
+    from src.platform.scope_sync.router import router as scope_sync_router
+    app.include_router(scope_sync_router, tags=["scope-sync"])
     from src.platform.auth.router import router as auth_router
     app.include_router(auth_router, prefix="/api/v1", tags=["auth"])
     app.include_router(analytics_router, tags=["analytics"])

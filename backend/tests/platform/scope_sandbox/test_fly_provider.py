@@ -108,6 +108,37 @@ async def test_status_404_is_destroyed_and_destroy_404_swallowed():
     await prov.destroy("gone")  # 404 on delete must not raise
 
 
+async def test_start_retries_after_412_while_still_stopping():
+    # Fly stop is async: a start while the machine is still `stopping` returns
+    # 412. The provider must wait for `stopped` then retry the start.
+    events: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path.endswith("/start"):
+            events.append("start")
+            # first start 412s (still stopping); second succeeds
+            if events.count("start") == 1:
+                return httpx.Response(412, json={"error": "machine not in stopped state"})
+            return httpx.Response(200, json={})
+        if path.endswith("/wait"):
+            events.append(f"wait:{request.url.params.get('state')}")
+            return httpx.Response(200, json={"ok": True})
+        return httpx.Response(200, json={})
+
+    info = await _provider(handler).start("m1")
+    assert info.state is SandboxState.RUNNING
+    assert events == ["start", "wait:stopped", "start"]  # 412 → wait stopped → retry
+
+
+async def test_start_propagates_non_412_errors():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(500, json={"error": "boom"})
+
+    with pytest.raises(httpx.HTTPStatusError):
+        await _provider(handler).start("m1")
+
+
 async def test_exec_posts_command_as_ssh_user_and_returns_result():
     seen: list[httpx.Request] = []
 

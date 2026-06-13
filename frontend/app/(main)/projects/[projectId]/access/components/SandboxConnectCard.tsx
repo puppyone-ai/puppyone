@@ -14,23 +14,26 @@
  * block + a Revoke button. See lib/scopeSandboxApi.ts + the backend router.
  */
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import useSWR from 'swr';
 import type { RepoScope } from '@/lib/repoApi';
 import {
   connectScopeSandbox,
+  getScopeSandboxProviders,
   getScopeSandboxStatus,
   revokeScopeSandbox,
   type SandboxConnectInfo,
   type SandboxProvider,
 } from '@/lib/scopeSandboxApi';
+import {
+  describeSyncPolicy,
+  getSyncPolicy,
+  putSyncSettings,
+  type SyncPersona,
+} from '@/lib/scopeSyncApi';
+import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import { T } from '../lib/tokens';
 import { CommandBlock, KvBlock, SectionLabel, SubSectionLabel } from './ui-blocks';
-
-const PROVIDERS: ReadonlyArray<{ id: SandboxProvider; label: string; note?: string }> = [
-  { id: 'e2b', label: 'E2B' },
-  { id: 'fly', label: 'Fly', note: 'needs setup' },
-];
 
 function fmtExpiry(epoch: number): string {
   try {
@@ -47,12 +50,28 @@ export function SandboxConnectCard({
   readonly scope: RepoScope;
   readonly projectId: string;
 }) {
-  const [provider, setProvider] = useState<SandboxProvider>('e2b');
+  const [provider, setProvider] = useState<SandboxProvider | null>(null);
   const [publicKey, setPublicKey] = useState('');
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<SandboxConnectInfo | null>(null);
   const [revoking, setRevoking] = useState(false);
+
+  // Providers this deployment actually offers (drives the selector + default).
+  const { data: providerInfo } = useSWR(
+    ['scope-sandbox-providers'],
+    getScopeSandboxProviders,
+    { revalidateOnFocus: false, dedupingInterval: 300000 },
+  );
+  const providerList = providerInfo?.providers ?? [
+    { id: 'e2b' as const, label: 'E2B', configured: true },
+    { id: 'fly' as const, label: 'Fly', configured: false },
+  ];
+  // Default to the server's configured default once known (until the user picks).
+  useEffect(() => {
+    if (provider === null && providerInfo?.default) setProvider(providerInfo.default);
+  }, [provider, providerInfo?.default]);
+  const effectiveProvider: SandboxProvider = provider ?? providerInfo?.default ?? 'e2b';
 
   const { data: status, mutate: mutateStatus } = useSWR(
     projectId && scope.id ? ['scope-sandbox-status', projectId, scope.id] : null,
@@ -71,7 +90,7 @@ export function SandboxConnectCard({
         projectId,
         scopeId: scope.id,
         publicKey: publicKey.trim(),
-        provider,
+        provider: effectiveProvider,
       });
       setInfo(result);
       await mutateStatus();
@@ -80,7 +99,7 @@ export function SandboxConnectCard({
     } finally {
       setConnecting(false);
     }
-  }, [connecting, keyLooksValid, projectId, scope.id, publicKey, provider, mutateStatus]);
+  }, [connecting, keyLooksValid, projectId, scope.id, publicKey, effectiveProvider, mutateStatus]);
 
   const handleRevoke = useCallback(async () => {
     if (revoking) return;
@@ -131,6 +150,8 @@ export function SandboxConnectCard({
           all git/CLI runs server-side. Your key is short-lived and revocable.
         </p>
 
+        <SyncSettingsSection scope={scope} projectId={projectId} />
+
         {info ? (
           <ConnectedView info={info} scopeId={scope.id} onRevoke={handleRevoke} revoking={revoking} />
         ) : (
@@ -139,13 +160,19 @@ export function SandboxConnectCard({
             <div>
               <SubSectionLabel>Provider</SubSectionLabel>
               <div style={{ display: 'flex', gap: 6 }}>
-                {PROVIDERS.map((p) => {
-                  const active = provider === p.id;
+                {providerList.map((p) => {
+                  const active = effectiveProvider === p.id;
+                  const disabled = !p.configured;
+                  let labelColor: string = T.text2;
+                  if (disabled) labelColor = T.text4;
+                  else if (active) labelColor = 'var(--po-text-inverse)';
                   return (
                     <button
                       key={p.id}
                       type="button"
-                      onClick={() => setProvider(p.id)}
+                      disabled={disabled}
+                      title={disabled ? 'Not configured on the server' : undefined}
+                      onClick={() => !disabled && setProvider(p.id)}
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
@@ -155,16 +182,17 @@ export function SandboxConnectCard({
                         fontSize: 12,
                         fontWeight: 600,
                         fontFamily: T.fontSans,
-                        color: active ? 'var(--po-text-inverse)' : T.text2,
+                        color: labelColor,
                         background: active ? 'var(--po-text)' : 'transparent',
                         border: `1px solid ${active ? 'var(--po-text)' : T.border}`,
                         borderRadius: 999,
-                        cursor: 'pointer',
+                        cursor: disabled ? 'not-allowed' : 'pointer',
+                        opacity: disabled ? 0.55 : 1,
                       }}
                     >
                       {p.label}
-                      {p.note ? (
-                        <span style={{ fontSize: 10, fontWeight: 500, opacity: 0.7 }}>· {p.note}</span>
+                      {disabled ? (
+                        <span style={{ fontSize: 10, fontWeight: 500, opacity: 0.7 }}>· not configured</span>
                       ) : null}
                     </button>
                   );
@@ -243,6 +271,82 @@ export function SandboxConnectCard({
           <div style={{ fontSize: 11, color: 'var(--po-danger)', lineHeight: 1.5 }}>{error}</div>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+const PUBLISH_TIMING: ReadonlyArray<{ id: SyncPersona; label: string }> = [
+  { id: 'non_dev', label: 'Autopilot (publish when a task finishes / on idle)' },
+  { id: 'dev', label: 'On save or when tests pass' },
+];
+
+function SyncSettingsSection({ scope, projectId }: { readonly scope: RepoScope; readonly projectId: string }) {
+  const { data: policy, mutate } = useSWR(
+    projectId && scope.id ? ['scope-sync-policy', projectId, scope.id] : null,
+    () => getSyncPolicy(projectId, scope.id),
+    { revalidateOnFocus: false },
+  );
+  const [saving, setSaving] = useState(false);
+
+  const update = useCallback(async (patch: { persona?: SyncPersona; auto_sync?: boolean }) => {
+    setSaving(true);
+    try {
+      await putSyncSettings(projectId, scope.id, patch);
+      await mutate();
+    } finally {
+      setSaving(false);
+    }
+  }, [projectId, scope.id, mutate]);
+
+  const autoSync = policy?.auto_sync ?? true;
+  // reviewer (root owner) timing isn't user-chosen here; show the two authoring modes
+  const timing: SyncPersona = policy?.persona === 'non_dev' ? 'non_dev' : 'dev';
+
+  return (
+    <div style={{
+      borderRadius: 8, border: `1px solid ${T.cardBorder}`, background: T.cardBg,
+      padding: 12, display: 'flex', flexDirection: 'column', gap: 10,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <SubSectionLabel>Remote sync</SubSectionLabel>
+        <ToggleSwitch
+          checked={autoSync}
+          disabled={saving || !policy}
+          ariaLabel="Auto-sync"
+          onCheckedChange={(v) => update({ auto_sync: v })}
+        />
+      </div>
+      {autoSync ? (
+        <div>
+          <div style={{ fontSize: 11, color: T.text3, marginBottom: 4 }}>Publish timing</div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {PUBLISH_TIMING.map((opt) => {
+              const active = timing === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  disabled={saving}
+                  onClick={() => update({ persona: opt.id })}
+                  style={{
+                    flex: 1, textAlign: 'left', padding: '6px 10px', fontSize: 11,
+                    fontFamily: T.fontSans, lineHeight: 1.3,
+                    color: active ? 'var(--po-text-inverse)' : T.text2,
+                    background: active ? 'var(--po-text)' : 'transparent',
+                    border: `1px solid ${active ? 'var(--po-text)' : T.border}`,
+                    borderRadius: 8, cursor: saving ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+      <p style={{ margin: 0, fontSize: 11, lineHeight: 1.5, color: T.text3 }}>
+        {policy ? describeSyncPolicy(policy) : 'Loading sync policy…'}
+      </p>
     </div>
   );
 }

@@ -16,6 +16,7 @@ the image) both flow through the same code; only ``ConnectionInfo`` differs.
 
 from __future__ import annotations
 
+import os
 import time
 from dataclasses import dataclass
 
@@ -200,6 +201,23 @@ class ScopeSandboxService:
             return 0
         mgr = self._manager(session.provider)  # use the provider that owns this box
         return await mgr.revoke_user(scope_id, user_id)
+
+    def available_providers(self) -> dict:
+        """Which providers this deployment can actually use (drives the frontend
+        selector) + the configured default. A provider is 'configured' iff its
+        credentials are present in settings."""
+        # E2B_API_KEY is read from the environment by the SDK (not a Settings
+        # field); Fly creds ARE Settings fields.
+        e2b = bool(os.environ.get("E2B_API_KEY") or getattr(settings, "E2B_API_KEY", None))
+        fly = bool(getattr(settings, "SCOPE_SANDBOX_FLY_APP", "")
+                   and getattr(settings, "SCOPE_SANDBOX_FLY_TOKEN", ""))
+        return {
+            "default": getattr(settings, "SCOPE_SANDBOX_PROVIDER", "e2b"),
+            "providers": [
+                {"id": "e2b", "label": "E2B", "configured": e2b},
+                {"id": "fly", "label": "Fly", "configured": fly},
+            ],
+        }
 
     async def reap(self, *, now: float | None = None):
         """Sweep idle sessions across ALL providers present in the store (each
