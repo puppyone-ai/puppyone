@@ -1,0 +1,46 @@
+"""HTTP API for the managed sync policy (#M5).
+
+GET /api/v1/scope-sync/policy → the resolved managed SyncPolicy for a scope
+(role-aware), for the sidecar + frontend. Users don't configure triggers; this
+returns the preset PuppyOne picked.
+"""
+
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+
+from src.common_schemas import ApiResponse
+from src.platform.auth.dependencies import get_current_user
+from src.platform.auth.models import CurrentUser
+from src.platform.project.dependencies import get_project_service
+from src.platform.project.service import ProjectService
+from src.platform.scope_sync.service import ScopeSyncService, get_scope_sync_service
+
+router = APIRouter(prefix="/api/v1/scope-sync", tags=["scope-sync"])
+
+
+def _ensure_project_access(project_service: ProjectService, current_user: CurrentUser, project_id: str):
+    project = project_service.get_by_id_with_access_check(project_id, current_user.user_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+
+@router.get("/policy", response_model=ApiResponse)
+def get_policy(
+    project_id: str = Query(...),
+    scope_id: str = Query(...),
+    persona: str | None = Query(None, description="non_dev | dev | reviewer (default dev)"),
+    client: str | None = Query(None, description="agent | vscode | cli | unknown"),
+    current_user: CurrentUser = Depends(get_current_user),
+    project_service: ProjectService = Depends(get_project_service),
+    service: ScopeSyncService = Depends(get_scope_sync_service),
+):
+    _ensure_project_access(project_service, current_user, project_id)
+    try:
+        data = service.resolve_policy(
+            project_id=project_id, scope_id=scope_id, persona=persona, client=client,
+        )
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Scope not found in project")
+    return ApiResponse.success(data=data)
