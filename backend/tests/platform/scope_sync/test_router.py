@@ -93,3 +93,19 @@ def test_events_forbidden_project_404():
     resp = TestClient(_app()).get("/api/v1/scope-sync/events", params={
         "project_id": "OTHER", "scope_id": "s1"})
     assert resp.status_code == 404
+
+
+def test_settings_put_then_get_roundtrip():
+    svc = _service()
+    client = TestClient(_app(svc))
+    put = client.put("/api/v1/scope-sync/settings", json={
+        "project_id": "proj-1", "scope_id": "s1", "persona": "non_dev", "auto_sync": False})
+    assert put.status_code == 200 and put.json()["data"]["persona"] == "non_dev"
+    got = client.get("/api/v1/scope-sync/settings", params={"project_id": "proj-1", "scope_id": "s1"})
+    assert got.json()["data"] == {"persona": "non_dev", "auto_sync": False}
+
+
+def test_settings_rejects_bad_persona():
+    resp = TestClient(_app()).put("/api/v1/scope-sync/settings", json={
+        "project_id": "proj-1", "scope_id": "s1", "persona": "wizard"})
+    assert resp.status_code == 400

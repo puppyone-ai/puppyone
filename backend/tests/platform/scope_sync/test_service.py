@@ -51,6 +51,25 @@ def test_invalid_persona_defaults_dev():
     assert out["persona"] == "dev"
 
 
+def test_settings_default_then_set_then_policy_uses_stored_persona():
+    svc = _svc()
+    # default
+    assert svc.get_settings(project_id="p1", scope_id="s-sub") == {"persona": "dev", "auto_sync": True}
+    # set persona → non_dev, auto_sync off
+    svc.set_settings(project_id="p1", scope_id="s-sub", persona="non_dev", auto_sync=False)
+    assert svc.get_settings(project_id="p1", scope_id="s-sub") == {"persona": "non_dev", "auto_sync": False}
+    # resolve_policy with NO explicit persona now uses the stored one
+    out = svc.resolve_policy(project_id="p1", scope_id="s-sub")
+    assert out["persona"] == "non_dev" and out["auto_sync"] is False
+    # explicit override still wins
+    assert svc.resolve_policy(project_id="p1", scope_id="s-sub", persona="dev")["persona"] == "dev"
+
+
+def test_set_settings_invalid_persona_normalized_to_dev():
+    svc = _svc()
+    assert svc.set_settings(project_id="p1", scope_id="s-sub", persona="wizard")["persona"] == "dev"
+
+
 def test_unknown_scope_raises():
     with pytest.raises(LookupError):
         _svc().resolve_policy(project_id="p1", scope_id="ghost")

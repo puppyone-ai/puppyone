@@ -12,6 +12,11 @@ from dataclasses import asdict
 
 from src.platform.scope_sync.events import EventStore, build_event_store
 from src.platform.scope_sync.fanout import fanout_targets, to_abs
+from src.platform.scope_sync.settings_store import (
+    SettingsStore,
+    SyncSettings,
+    build_settings_store,
+)
 from src.platform.scope_sync.policy import (
     ClientKind,
     Persona,
@@ -43,13 +48,16 @@ class ScopeSyncService:
     """Resolves the managed :class:`SyncPolicyConfig` for a scope. Injectable
     scope lookup keeps it unit-testable without a DB."""
 
-    def __init__(self, *, scope_lookup=None, scopes_lister=None, event_store: EventStore | None = None) -> None:
+    def __init__(self, *, scope_lookup=None, scopes_lister=None,
+                 event_store: EventStore | None = None,
+                 settings_store: SettingsStore | None = None) -> None:
         self._scope_lookup = scope_lookup or (lambda sid: _scope_service().get(sid))
         # lists a project's scopes as [(scope_id, scope_path), ...] for M4 fanout
         self._scopes_lister = scopes_lister or self._default_scopes_lister
         from src.config import settings
-        self._events = event_store or build_event_store(
-            getattr(settings, "SCOPE_SANDBOX_STORE", "memory"))
+        store_name = getattr(settings, "SCOPE_SANDBOX_STORE", "memory")
+        self._events = event_store or build_event_store(store_name)
+        self._settings = settings_store or build_settings_store(store_name)
 
     @staticmethod
     def _default_scopes_lister(project_id: str) -> list[tuple[str, str]]:
@@ -74,15 +82,32 @@ class ScopeSyncService:
         client: str | None = None,
     ) -> dict:
         role = self._scope_role(project_id, scope_id)
-        per = _parse_persona(persona)
+        stored = self._settings.get(project_id, scope_id)
+        # explicit override wins; else the stored persona; else default
+        per = _parse_persona(persona or (stored.persona if stored else None))
         ck = _parse_client(client)
         cfg = policy_for(per, ck, role)
         return {
             "persona": per.value,
             "client_kind": ck.value,
             "scope_role": role.value,
+            "auto_sync": stored.auto_sync if stored else True,
             "policy": asdict(cfg),
         }
+
+    def get_settings(self, *, project_id: str, scope_id: str) -> dict:
+        s = (self._settings.get(project_id, scope_id) or SyncSettings()).normalized()
+        return {"persona": s.persona, "auto_sync": s.auto_sync}
+
+    def set_settings(self, *, project_id: str, scope_id: str,
+                     persona: str | None = None, auto_sync: bool | None = None) -> dict:
+        cur = self._settings.get(project_id, scope_id) or SyncSettings()
+        new = SyncSettings(
+            persona=persona if persona is not None else cur.persona,
+            auto_sync=auto_sync if auto_sync is not None else cur.auto_sync,
+        ).normalized()
+        self._settings.put(project_id, scope_id, new)
+        return {"persona": new.persona, "auto_sync": new.auto_sync}
 
     # ── upstream event channel (M3) + parent/child fanout (M4) ────────
 

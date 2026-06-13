@@ -25,6 +25,13 @@ import {
   type SandboxConnectInfo,
   type SandboxProvider,
 } from '@/lib/scopeSandboxApi';
+import {
+  describeSyncPolicy,
+  getSyncPolicy,
+  putSyncSettings,
+  type SyncPersona,
+} from '@/lib/scopeSyncApi';
+import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import { T } from '../lib/tokens';
 import { CommandBlock, KvBlock, SectionLabel, SubSectionLabel } from './ui-blocks';
 
@@ -142,6 +149,8 @@ export function SandboxConnectCard({
           Open this scope in a cloud dev box over VSCode Remote-SSH. The scope is cloned inside;
           all git/CLI runs server-side. Your key is short-lived and revocable.
         </p>
+
+        <SyncSettingsSection scope={scope} projectId={projectId} />
 
         {info ? (
           <ConnectedView info={info} scopeId={scope.id} onRevoke={handleRevoke} revoking={revoking} />
@@ -262,6 +271,82 @@ export function SandboxConnectCard({
           <div style={{ fontSize: 11, color: 'var(--po-danger)', lineHeight: 1.5 }}>{error}</div>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+const PUBLISH_TIMING: ReadonlyArray<{ id: SyncPersona; label: string }> = [
+  { id: 'non_dev', label: 'Autopilot (publish when a task finishes / on idle)' },
+  { id: 'dev', label: 'On save or when tests pass' },
+];
+
+function SyncSettingsSection({ scope, projectId }: { readonly scope: RepoScope; readonly projectId: string }) {
+  const { data: policy, mutate } = useSWR(
+    projectId && scope.id ? ['scope-sync-policy', projectId, scope.id] : null,
+    () => getSyncPolicy(projectId, scope.id),
+    { revalidateOnFocus: false },
+  );
+  const [saving, setSaving] = useState(false);
+
+  const update = useCallback(async (patch: { persona?: SyncPersona; auto_sync?: boolean }) => {
+    setSaving(true);
+    try {
+      await putSyncSettings(projectId, scope.id, patch);
+      await mutate();
+    } finally {
+      setSaving(false);
+    }
+  }, [projectId, scope.id, mutate]);
+
+  const autoSync = policy?.auto_sync ?? true;
+  // reviewer (root owner) timing isn't user-chosen here; show the two authoring modes
+  const timing: SyncPersona = policy?.persona === 'non_dev' ? 'non_dev' : 'dev';
+
+  return (
+    <div style={{
+      borderRadius: 8, border: `1px solid ${T.cardBorder}`, background: T.cardBg,
+      padding: 12, display: 'flex', flexDirection: 'column', gap: 10,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <SubSectionLabel>Remote sync</SubSectionLabel>
+        <ToggleSwitch
+          checked={autoSync}
+          disabled={saving || !policy}
+          ariaLabel="Auto-sync"
+          onCheckedChange={(v) => update({ auto_sync: v })}
+        />
+      </div>
+      {autoSync ? (
+        <div>
+          <div style={{ fontSize: 11, color: T.text3, marginBottom: 4 }}>Publish timing</div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {PUBLISH_TIMING.map((opt) => {
+              const active = timing === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  disabled={saving}
+                  onClick={() => update({ persona: opt.id })}
+                  style={{
+                    flex: 1, textAlign: 'left', padding: '6px 10px', fontSize: 11,
+                    fontFamily: T.fontSans, lineHeight: 1.3,
+                    color: active ? 'var(--po-text-inverse)' : T.text2,
+                    background: active ? 'var(--po-text)' : 'transparent',
+                    border: `1px solid ${active ? 'var(--po-text)' : T.border}`,
+                    borderRadius: 8, cursor: saving ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+      <p style={{ margin: 0, fontSize: 11, lineHeight: 1.5, color: T.text3 }}>
+        {policy ? describeSyncPolicy(policy) : 'Loading sync policy…'}
+      </p>
     </div>
   );
 }

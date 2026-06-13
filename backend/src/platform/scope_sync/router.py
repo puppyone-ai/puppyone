@@ -8,6 +8,7 @@ returns the preset PuppyOne picked.
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 
 from src.common_schemas import ApiResponse
 from src.platform.auth.dependencies import get_current_user
@@ -60,3 +61,38 @@ def get_events(
     _ensure_project_access(project_service, current_user, project_id)
     return ApiResponse.success(data=service.poll_events(
         project_id=project_id, scope_id=scope_id, cursor=cursor))
+
+
+class SyncSettingsBody(BaseModel):
+    project_id: str
+    scope_id: str
+    persona: str | None = None     # non_dev | dev | reviewer
+    auto_sync: bool | None = None
+
+
+@router.get("/settings", response_model=ApiResponse)
+def get_settings(
+    project_id: str = Query(...),
+    scope_id: str = Query(...),
+    current_user: CurrentUser = Depends(get_current_user),
+    project_service: ProjectService = Depends(get_project_service),
+    service: ScopeSyncService = Depends(get_scope_sync_service),
+):
+    """The coarse, user-facing sync setting (persona + auto-sync) for a scope (M5)."""
+    _ensure_project_access(project_service, current_user, project_id)
+    return ApiResponse.success(data=service.get_settings(project_id=project_id, scope_id=scope_id))
+
+
+@router.put("/settings", response_model=ApiResponse)
+def put_settings(
+    body: SyncSettingsBody,
+    current_user: CurrentUser = Depends(get_current_user),
+    project_service: ProjectService = Depends(get_project_service),
+    service: ScopeSyncService = Depends(get_scope_sync_service),
+):
+    _ensure_project_access(project_service, current_user, body.project_id)
+    if body.persona is not None and body.persona not in ("non_dev", "dev", "reviewer"):
+        raise HTTPException(status_code=400, detail="persona must be non_dev | dev | reviewer")
+    data = service.set_settings(project_id=body.project_id, scope_id=body.scope_id,
+                                persona=body.persona, auto_sync=body.auto_sync)
+    return ApiResponse.success(data=data, message="Sync settings updated")
