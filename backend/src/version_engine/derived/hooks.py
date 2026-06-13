@@ -416,6 +416,11 @@ def run_post_project_update_hook(
             {"", *_project_root_affected_scope_paths(repo, changed_paths)},
         )
         _broadcast_commit_update(project_id, entry, changes)
+        # Scope-sync: fan out path-scoped "upstream advanced" events (M3/M4).
+        # This is the root-first publish path (git push + typed writes), so the
+        # changes are project-root-absolute → scope_path="" lets record_publish
+        # translate them into each affected scope's coordinates.
+        _emit_scope_sync_event(project_id, "", changes, commit_id, entry.get("who"))
 
     except Exception as e:
         log_error(
