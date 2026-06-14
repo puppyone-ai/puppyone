@@ -51,7 +51,8 @@ def test_marker_command_rejects_unknown_kind():
 
 def test_build_sidecar_env_maps_policy():
     policy = {"checkpoint_debounce_s": 3.0, "quiescence_publish_s": 120.0,
-              "checkpoint_chain_max": 50, "checkpoint_chain_ttl_s": 3600.0}
+              "checkpoint_chain_max": 50, "checkpoint_chain_ttl_s": 3600.0,
+              "conflict_policy": "agent_review"}
     env = build_sidecar_env(
         policy, repo_dir="/home/user/scope",
         events_url="https://api/x/scope-sync/events",
@@ -60,6 +61,7 @@ def test_build_sidecar_env_maps_policy():
     assert env["SYNC_REPO"] == "/home/user/scope"
     assert env["SYNC_DEBOUNCE_S"] == "3.0" and env["SYNC_QUIESCENCE_S"] == "120.0"
     assert env["SYNC_MAX_CHECKPOINTS"] == "50" and env["SYNC_CHECKPOINT_TTL_S"] == "3600.0"
+    assert env["SYNC_CONFLICT_POLICY"] == "agent_review"
     assert env["SYNC_EVENTS_URL"] == "https://api/x/scope-sync/events"
     assert env["SYNC_PROJECT_ID"] == "p1" and env["SYNC_SCOPE_ID"] == "s1" and env["SYNC_TOKEN"] == "tok"
 

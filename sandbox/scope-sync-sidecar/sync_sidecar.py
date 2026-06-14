@@ -70,6 +70,15 @@ _CURSOR_FILE = f"/tmp/puppy_sync_cursor.{_LANE_SAFE}"
 # Publish push-race: another end advanced SoT between our fetch and push. Re-fetch,
 # re-rebase (auto-merges its disjoint changes) and retry, with a small backoff.
 PUBLISH_ATTEMPTS = int(os.environ.get("SYNC_PUBLISH_ATTEMPTS", "5"))
+# Publish conflict routing (#7): true overlap at publish time → write a readable
+# report + route by the managed conflict_policy. agent_* → the in-sandbox agent
+# resolves with context (re-edit on a clean tree, guided by the report, then
+# re-publish); manual/other → surface for a human. The working tree is always
+# restored clean (rebase aborted) — nothing is lost, the publish is just HELD.
+CONFLICT_POLICY = os.environ.get("SYNC_CONFLICT_POLICY", "agent_auto_resolve")
+CONFLICT_DIR = os.environ.get("SYNC_CONFLICT_DIR", "/tmp")
+CONFLICT_JSON = os.path.join(CONFLICT_DIR, "puppy_sync_conflict.json")
+CONFLICT_MD = os.path.join(CONFLICT_DIR, "puppy_sync_conflict.md")
 # Agent task-boundary markers (M2): a PuppyOne-aware client appends a line here
 # (via the `signal` subcommand or an MCP tool that shells to it); the watch loop
 # drains + acts on it immediately, ahead of the quiescence heuristic.
@@ -281,6 +290,79 @@ def checkpoint() -> str | None:
         return git("rev-parse", "HEAD")[1].strip()
 
 
+def _extract_conflict_hunks(text: str) -> list[str]:
+    """Pull the <<<<<<< / ======= / >>>>>>> blocks out of a conflicted file."""
+    hunks, buf, inside = [], [], False
+    for line in text.splitlines():
+        if line.startswith("<<<<<<<"):
+            inside, buf = True, [line]
+        elif inside:
+            buf.append(line)
+            if line.startswith(">>>>>>>"):
+                hunks.append("\n".join(buf))
+                inside = False
+    return hunks
+
+
+def _conflict_report(paths: list[str]) -> tuple[dict, str]:
+    """Build a readable conflict explanation from the CURRENTLY-conflicted working
+    tree (called while the rebase is paused, before we abort). Writes JSON + a
+    human/agent-readable Markdown; returns (report, markdown)."""
+    entries = []
+    for p in paths:
+        try:
+            with open(os.path.join(REPO, p), encoding="utf-8", errors="replace") as f:
+                text = f.read()
+            hunks = _extract_conflict_hunks(text)
+        except OSError:
+            hunks = []
+        entries.append({"path": p, "conflict_hunks": hunks})
+    report = {
+        "lane": LANE, "branch": BRANCH, "policy": CONFLICT_POLICY,
+        "ts": int(time.time()), "paths": paths, "entries": entries,
+    }
+    agent = CONFLICT_POLICY.startswith("agent")
+    lines = [
+        "# PuppyOne sync — publish conflict",
+        "",
+        f"Your changes overlap changes already published to **{BRANCH}** by another "
+        "end. **Nothing is lost** — your work is safe as a local checkpoint; the "
+        "publish is held until the overlap is reconciled.",
+        "",
+        f"- Lane: `{LANE}`  ·  Policy: `{CONFLICT_POLICY}`  ·  Conflicting paths: "
+        f"{', '.join(paths) or '(none)'}",
+        "",
+        ("**Resolve (agent):** reconcile each file below — keep the intended result "
+         "of BOTH sides — then re-publish (`sync_sidecar.py publish`)." if agent else
+         "**Resolve (manual):** edit each file below to reconcile both sides, then "
+         "re-publish."),
+        "",
+    ]
+    for e in entries:
+        lines.append(f"## `{e['path']}`")
+        if e["conflict_hunks"]:
+            for h in e["conflict_hunks"]:
+                lines += ["```", h, "```", ""]
+        else:
+            lines += ["_(conflict in file mode / binary / rename — resolve manually)_", ""]
+    md = "\n".join(lines)
+    with contextlib.suppress(OSError):
+        os.makedirs(CONFLICT_DIR, exist_ok=True)
+        with open(CONFLICT_JSON, "w", encoding="utf-8") as f:
+            json.dump(report, f, indent=2)
+        with open(CONFLICT_MD, "w", encoding="utf-8") as f:
+            f.write(md)
+    return report, md
+
+
+def _route_conflict(paths: list[str]) -> str:
+    """Readable report + route by conflict_policy. Returns the publish status (the
+    caller logs it — keep this the single source so CLI stdout stays one line)."""
+    _conflict_report(paths)
+    tag = "agent" if CONFLICT_POLICY.startswith("agent") else "manual"
+    return f"CONFLICT:{tag} {' '.join(paths)} report={CONFLICT_MD}"
+
+
 def publish() -> str:
     with worktree_lock():
         checkpoint()  # capture current state first (revertible)
@@ -289,8 +371,9 @@ def publish() -> str:
             rc = git("rebase", f"{REMOTE}/{BRANCH}", check=False)[0]
             if rc != 0:
                 conflicted = git("diff", "--name-only", "--diff-filter=U", check=False)[1].split()
-                git("rebase", "--abort", check=False)
-                return f"CONFLICT {' '.join(conflicted)}"
+                status = _route_conflict(conflicted)    # readable report BEFORE abort
+                git("rebase", "--abort", check=False)    # restore the clean working tree
+                return status
             if git("push", REMOTE, f"HEAD:{BRANCH}", check=False)[0] == 0:
                 return f"PUBLISHED {git('rev-parse', 'HEAD')[1].strip()}"
             # another end won the push race → back off, then re-fetch+rebase+retry

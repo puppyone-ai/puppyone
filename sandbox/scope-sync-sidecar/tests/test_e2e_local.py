@@ -415,6 +415,41 @@ def test_checkpoint_chain_capped_by_ttl(world, tmp_path):
                      "SYNC_MAX_CHECKPOINTS", "SYNC_CHECKPOINT_TTL_S")
 
 
+def test_publish_conflict_writes_readable_report_and_routes(world, tmp_path):
+    """A true publish overlap writes a readable conflict report (both sides' hunks)
+    and routes by conflict_policy, while restoring a clean working tree (the local
+    edit is preserved, the publish is just HELD)."""
+    a, b = world["a"], world["b"]
+    cdir = tmp_path / "conf"
+
+    (b / "docs" / "intro.md").write_text("B PUBLISHED LINE\n")
+    assert _sidecar(b, "publish").startswith("PUBLISHED")
+
+    (a / "docs" / "intro.md").write_text("A LOCAL LINE\n")
+    res = _sidecar(a, "publish", env_extra={
+        "SYNC_CONFLICT_POLICY": "agent_auto_resolve", "SYNC_CONFLICT_DIR": str(cdir),
+    })
+    assert res.startswith("CONFLICT:agent") and "docs/intro.md" in res, res
+
+    # working tree restored clean (no rebase in progress); local edit preserved
+    assert not (a / ".git" / "rebase-merge").exists()
+    assert not (a / ".git" / "rebase-apply").exists()
+    assert (a / "docs" / "intro.md").read_text() == "A LOCAL LINE\n"
+
+    # readable report carries BOTH sides + the routing policy
+    md = (cdir / "puppy_sync_conflict.md").read_text()
+    assert "A LOCAL LINE" in md and "B PUBLISHED LINE" in md
+    rep = json.loads((cdir / "puppy_sync_conflict.json").read_text())
+    assert rep["policy"] == "agent_auto_resolve" and rep["paths"] == ["docs/intro.md"]
+    assert rep["entries"][0]["conflict_hunks"]            # at least one hunk captured
+
+    # the reviewer/manual policy routes to a human instead
+    res_m = _sidecar(a, "publish", env_extra={
+        "SYNC_CONFLICT_POLICY": "manual_review", "SYNC_CONFLICT_DIR": str(cdir),
+    })
+    assert res_m.startswith("CONFLICT:manual"), res_m
+
+
 def test_multi_end_publishes_converge_via_rebase(world):
     """Two ends (independent clones = independent lanes) publish DISJOINT changes;
     the second end's publish fetch→rebases onto the first (no conflict) and both
