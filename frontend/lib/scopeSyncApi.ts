@@ -58,6 +58,52 @@ export async function getSyncPolicy(
   return get<SyncPolicyResolved>(`/api/v1/scope-sync/policy?${qs.toString()}`);
 }
 
+// ── observability (M6): activity log + aggregate stats ────────────────
+
+export interface SyncActivityEvent {
+  id: number;
+  head_version: string | null;
+  affected_paths: string[];
+  source: string;          // "publish" | "projection" | …
+  origin_user: string | null;
+  created_at: number;      // epoch seconds
+}
+
+export interface SyncActivity {
+  latest_head: string | null;
+  recent: SyncActivityEvent[];
+}
+
+export interface SyncStats {
+  events_in_window: number;
+  window: number;
+  by_source: Record<string, number>;
+  distinct_origins: number;
+  distinct_paths: number;
+  latest_head: string | null;
+  last_event_at: number | null;
+}
+
+/** Recent sync activity (publish/projection log), newest first. */
+export async function getSyncActivity(
+  projectId: string,
+  scopeId: string,
+  limit = 20,
+): Promise<SyncActivity> {
+  const qs = new URLSearchParams({ project_id: projectId, scope_id: scopeId, limit: String(limit) });
+  return get<SyncActivity>(`/api/v1/scope-sync/activity?${qs.toString()}`);
+}
+
+/** Aggregate sync observability for a scope (publish volume, origins, paths). */
+export async function getSyncStats(
+  projectId: string,
+  scopeId: string,
+  window = 200,
+): Promise<SyncStats> {
+  const qs = new URLSearchParams({ project_id: projectId, scope_id: scopeId, window: String(window) });
+  return get<SyncStats>(`/api/v1/scope-sync/stats?${qs.toString()}`);
+}
+
 /** Plain-language summary of what the resolved policy does (for non-technical users). */
 export function describeSyncPolicy(p: SyncPolicyResolved): string {
   if (!p.auto_sync) return 'Auto-sync is off — changes stay local until you connect and publish manually.';

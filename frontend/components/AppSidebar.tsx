@@ -303,8 +303,6 @@ export const AppSidebar = memo(function AppSidebar({
       onNavigate={(viewId) => {
         if (viewId === 'home') {
           router.push('/home');
-        } else if (viewId === 'tools') {
-          router.push('/tools-and-server/tools-list');
         } else if (viewId === 'team') {
           router.push('/team');
         } else if (viewId === 'billing') {

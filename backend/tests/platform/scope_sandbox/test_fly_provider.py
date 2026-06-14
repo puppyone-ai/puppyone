@@ -183,3 +183,37 @@ def test_capabilities():
     assert caps.name == "fly"
     assert caps.supports_stop_resume and caps.supports_tcp_ingress
     assert not caps.self_hostable
+    # Fly exec is SSH-based: a setsid&-detached command survives, so the sidecar
+    # is started in-line (self-detach), NOT via background mode (that's E2B).
+    assert not caps.background_exec_required
+
+
+async def test_install_and_start_sidecar_command_survives_su_wrapping():
+    """install_and_start over the REAL Fly provider (#10 prep): the self-detach
+    sidecar start (setsid + single-quoted SYNC_* env) must survive the nested
+    `su - puppy -c '…'` quoting intact. This is the Fly path I can't run live until
+    the app has a public IPv4 — pin the exact command shape here instead."""
+    from src.platform.scope_sync.sidecar_provision import build_sidecar_env, install_and_start
+
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json={"stdout": "", "stderr": "", "exit_code": 0})
+
+    env = build_sidecar_env(
+        {"checkpoint_debounce_s": 5.0, "quiescence_publish_s": 0.0, "conflict_policy": "agent_review"},
+        repo_dir="/home/puppy/u1", events_url="https://q/api/v1/scope-sync/ap/events",
+        project_id="p1", scope_id="s1", token="cli_KEY123",
+    )
+    await install_and_start(_provider(handler), "m1", repo_dir="/home/puppy/u1",
+                            env=env, script_text="x=1\n")
+
+    exec_cmds = [json.loads(r.content)["command"][2] for r in seen if r.url.path.endswith("/exec")]
+    assert len(exec_cmds) == 2                          # Fly: install + ONE self-detach start
+    start = exec_cmds[1]
+    assert "su - puppy -c" in start                     # re-entered as the SSH user
+    assert "setsid python3" in start and "watch" in start and "echo sidecar-started" in start
+    # env values survive the _shq + su nested escaping
+    assert "/home/puppy/u1" in start and "cli_KEY123" in start
+    assert "'\\''" in start                             # quoting stayed balanced
