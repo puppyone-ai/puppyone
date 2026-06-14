@@ -70,10 +70,17 @@ function resolveUpstreamRedirect(response: Response, currentUrl: string): string
   }
 
   const nextUrl = new URL(location, currentUrl);
-  const apiOrigin = new URL(API_BASE_URL).origin;
-  if (nextUrl.origin !== apiOrigin) {
-    throw new Error(`Refusing backend redirect outside API origin: ${nextUrl.origin}`);
+  const apiUrl = new URL(API_BASE_URL);
+  // Compare HOST, not full origin. A backend behind a TLS-terminating reverse
+  // proxy commonly emits SAME-HOST redirects (e.g. FastAPI's trailing-slash
+  // 307/308) with the INTERNAL scheme `http`, even though we reached it over
+  // `https`. A strict origin check rejects that as "outside origin" and
+  // surfaces as a 502, breaking every endpoint that redirects. Allow same-host
+  // redirects and pin the scheme back to the API base so we never downgrade.
+  if (nextUrl.host !== apiUrl.host) {
+    throw new Error(`Refusing backend redirect outside API host: ${nextUrl.host}`);
   }
+  nextUrl.protocol = apiUrl.protocol;
   return nextUrl.toString();
 }
 
