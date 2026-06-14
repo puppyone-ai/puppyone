@@ -33,6 +33,8 @@ from __future__ import annotations
 import contextlib
 import json
 import os
+import re
+import socket
 import subprocess
 import sys
 import tempfile
@@ -57,7 +59,17 @@ PROJECT_ID = os.environ.get("SYNC_PROJECT_ID", "")
 SCOPE_ID = os.environ.get("SYNC_SCOPE_ID", "")
 TOKEN = os.environ.get("SYNC_TOKEN", "")
 EVENTS_EVERY = int(os.environ.get("SYNC_EVENTS_EVERY", "3"))  # consume every N polls
-_CURSOR_FILE = "/tmp/puppy_sync_cursor"
+
+# Multi-end same-scope (#6): each end (sandbox/session) is its OWN clone → its own
+# private checkpoint lane; publish reconciles all lanes at the shared SoT via
+# fetch→rebase→ff-push (disjoint edits auto-merge, only true overlap conflicts).
+# LANE labels the end for attribution (checkpoint trailer) + isolates its cursor.
+LANE = os.environ.get("SYNC_LANE", "") or socket.gethostname() or "end"
+_LANE_SAFE = re.sub(r"[^A-Za-z0-9_.-]", "_", LANE)[:64]
+_CURSOR_FILE = f"/tmp/puppy_sync_cursor.{_LANE_SAFE}"
+# Publish push-race: another end advanced SoT between our fetch and push. Re-fetch,
+# re-rebase (auto-merges its disjoint changes) and retry, with a small backoff.
+PUBLISH_ATTEMPTS = int(os.environ.get("SYNC_PUBLISH_ATTEMPTS", "5"))
 # Agent task-boundary markers (M2): a PuppyOne-aware client appends a line here
 # (via the `signal` subcommand or an MCP tool that shells to it); the watch loop
 # drains + acts on it immediately, ahead of the quiescence heuristic.
@@ -262,7 +274,9 @@ def checkpoint() -> str | None:
         if not dirty_paths():
             return None
         git("add", "-A")
-        git("commit", "--no-verify", "--allow-empty", "-m", f"checkpoint @{int(time.time())}")
+        # the Sync-Lane trailer survives rebase → SoT records which end published
+        git("commit", "--no-verify", "--allow-empty",
+            "-m", f"checkpoint @{int(time.time())}", "-m", f"Sync-Lane: {LANE}")
         _compact_checkpoints()           # keep the private chain bounded
         return git("rev-parse", "HEAD")[1].strip()
 
@@ -270,7 +284,7 @@ def checkpoint() -> str | None:
 def publish() -> str:
     with worktree_lock():
         checkpoint()  # capture current state first (revertible)
-        for _ in range(3):
+        for attempt in range(max(1, PUBLISH_ATTEMPTS)):
             git("fetch", REMOTE, BRANCH)
             rc = git("rebase", f"{REMOTE}/{BRANCH}", check=False)[0]
             if rc != 0:
@@ -279,6 +293,8 @@ def publish() -> str:
                 return f"CONFLICT {' '.join(conflicted)}"
             if git("push", REMOTE, f"HEAD:{BRANCH}", check=False)[0] == 0:
                 return f"PUBLISHED {git('rev-parse', 'HEAD')[1].strip()}"
+            # another end won the push race → back off, then re-fetch+rebase+retry
+            time.sleep(min(0.05 * (attempt + 1), 0.5))
         return "CONFLICT (push race)"
 
 

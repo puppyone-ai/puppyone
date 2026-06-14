@@ -204,7 +204,7 @@ SoT 推进时(他人 publish,或父子投影),server 计算**受影响路径集*
 - **checkpoint 体量**:高频 checkpoint 的 blob 去重(内容寻址天然去重)+ TTL/数量上限。**✅ 数量/TTL 上限已实现**:`SyncPolicyConfig.checkpoint_chain_max`(非 dev 50 / dev·reviewer 200)+ `checkpoint_chain_ttl_s`(非 dev 1h,其余 0=关),经 `build_sidecar_env` → `SYNC_MAX_CHECKPOINTS`/`SYNC_CHECKPOINT_TTL_S`;sidecar 每次 checkpoint 后 `_compact_checkpoints` 检查"领先上次 publish 的私有链"长度/最老节点年龄,超限即 `reset --soft` 折叠为一个(纯元数据,工作树/暂存区不动,绝不丢改动,仅丢超限的深层私有 undo)。blob 去重靠 git 内容寻址天然成立。
 - **"过早 publish 污染 SoT"**:宁可多 checkpoint、少 publish;非 dev 预设默认 publish 偏保守(任务完成 + 长静默双条件)。
 - **父子重叠的语义**:parent-scope-wins 是兜底,但要让用户/agent 看得懂"为什么我的改动被父级覆盖"——需可读的冲突说明(已有 `superseded_by_parent` 记录)。
-- **多 sandbox/多 client 同 scope**:checkpoint 是 per scope×user×session;同一用户多端需合并策略(可暂定"每端独立 lane,publish 时各自 rebase")。
+- **多 sandbox/多 client 同 scope**:checkpoint 是 per scope×user×session;同一用户多端需合并策略(可暂定"每端独立 lane,publish 时各自 rebase")。**✅ 已落地**:每端是独立 clone = 独立私有 checkpoint lane,publish 经 fetch→rebase→ff-push 在共享 SoT 汇合(不相交编辑自动合并,仅真重叠才冲突);`LANE`(默认 hostname,可 `SYNC_LANE` 覆盖)写入 checkpoint 的 `Sync-Lane:` trailer(经 rebase 保留 → SoT 可溯源是哪端发布)并隔离各端 cursor;publish 的 push-race 重试由固定 3 次改为 `SYNC_PUBLISH_ATTEMPTS`(默认 5)+ 退避。多端不相交并发 publish 汇合已端到端验证。
 
 ---
 

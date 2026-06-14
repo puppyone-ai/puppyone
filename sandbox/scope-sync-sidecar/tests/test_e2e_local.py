@@ -415,6 +415,27 @@ def test_checkpoint_chain_capped_by_ttl(world, tmp_path):
                      "SYNC_MAX_CHECKPOINTS", "SYNC_CHECKPOINT_TTL_S")
 
 
+def test_multi_end_publishes_converge_via_rebase(world):
+    """Two ends (independent clones = independent lanes) publish DISJOINT changes;
+    the second end's publish fetch→rebases onto the first (no conflict) and both
+    land on the shared SoT. Each end's Sync-Lane trailer is attributable on SoT."""
+    a, b, sot = world["a"], world["b"], world["sot"]
+
+    (a / "docs" / "a_only.md").write_text("from end A\n")
+    assert _sidecar(a, "publish", env_extra={"SYNC_LANE": "endA"}).startswith("PUBLISHED")
+
+    # B has NOT fetched A's publish; it edits a disjoint path and publishes
+    (b / "docs" / "b_only.md").write_text("from end B\n")
+    res_b = _sidecar(b, "publish", env_extra={"SYNC_LANE": "endB"})
+    assert res_b.startswith("PUBLISHED"), res_b
+
+    # SoT carries BOTH ends' work (disjoint → rebase auto-merged, no conflict)
+    assert _git(sot, "show", "main:docs/a_only.md") == "from end A"
+    assert _git(sot, "show", "main:docs/b_only.md") == "from end B"
+    bodies = _git(sot, "log", "--format=%b", "main")
+    assert "Sync-Lane: endA" in bodies and "Sync-Lane: endB" in bodies
+
+
 def test_consume_events_holds_on_overlap(world, tmp_path):
     """If the upstream path overlaps B's own dirty edit, the sidecar HOLDs (does
     not clobber B's working copy); the next publish's rebase reconciles it."""
