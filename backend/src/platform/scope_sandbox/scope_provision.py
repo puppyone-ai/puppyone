@@ -40,7 +40,9 @@ def provision_scope_steps(
     name = _safe(user_name)
     return [
         "command -v git >/dev/null 2>&1 || (sudo apt-get update -qq && sudo apt-get install -y -qq git)",
-        f"GIT_TERMINAL_PROMPT=0 git clone {url} ~/{wd}",
+        # idempotent: re-running provisioning on sandbox reuse must not fail on an
+        # existing clone (a user reconnecting hits this with the tree already there).
+        f"test -d ~/{wd}/.git || GIT_TERMINAL_PROMPT=0 git clone {url} ~/{wd}",
         # PuppyOne rejects merge commits → rebase is the only valid pull workflow.
         f"git -C ~/{wd} config pull.rebase true",
         f"git -C ~/{wd} config user.email '{email}'",

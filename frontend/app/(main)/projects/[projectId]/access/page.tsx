@@ -89,6 +89,20 @@ export default function AccessPointsPage({
     setSelectedScopeId(scopeId);
   }, [searchParams, setSelectedScopeId]);
 
+  // "SSH Terminal" from the data view routes here with ?remote=ssh&path=<folder>.
+  // Preselect the scope matching that folder so the user lands on its Remote Dev
+  // (SSH) card; fall back to root/first if the folder isn't its own scope.
+  useEffect(() => {
+    if (searchParams.get('remote') !== 'ssh') return;
+    if (sortedScopes.length === 0) return;
+    const path = searchParams.get('path') ?? '';
+    const match =
+      sortedScopes.find((s) => s.path === path) ??
+      sortedScopes.find((s) => s.is_root) ??
+      sortedScopes[0];
+    if (match) setSelectedScopeId(match.id);
+  }, [searchParams, sortedScopes, setSelectedScopeId]);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--po-canvas)' }}>
       <AccessHeader count={loading ? 0 : sortedScopes.length} onCreate={() => openCreate()} />

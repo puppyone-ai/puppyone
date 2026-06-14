@@ -12,7 +12,7 @@ from src.platform.scope_sandbox.provider import (
     SandboxSpec,
     SandboxState,
 )
-from src.platform.scope_sandbox.registry import InMemorySandboxSessionStore
+from src.platform.scope_sandbox.registry import InMemorySandboxSessionStore, SandboxSession
 
 
 class FakeProvider(SandboxProvider):
@@ -313,3 +313,53 @@ async def test_record_pull_cost_extends_warm_window():
     assert s.kept == 1 and prov.count("stop") == 0
     s2 = await mgr.reap(now=500)                  # 500 > 400 → stopped
     assert s2.stopped == 1
+
+
+async def test_create_race_adopts_winner_and_reclaims_duplicate():
+    # Simulate another instance having already created the scope's sandbox: the
+    # store.insert claim fails, so we destroy our just-created box and adopt the
+    # winner instead of leaving two active sandboxes.
+    prov = FakeProvider()
+    store = InMemorySandboxSessionStore()
+    mgr = ScopeSandboxManager(prov, store, CFG)
+    store.put(SandboxSession(
+        scope_id="scope-1", project_id="proj", provider="fake",
+        sandbox_id="winner-sb", state=SandboxState.RUNNING,
+        created_at=0, last_active_at=0, last_state_change_at=0,
+    ))
+    session, via = await mgr._create_session(_spec(), now=0)
+    assert via is AcquiredVia.REUSED
+    assert session.sandbox_id == "winner-sb"      # adopted the winner
+    assert prov.count("create") == 1              # we created one…
+    assert prov.count("destroy") == 1             # …then reclaimed the duplicate
+
+
+async def test_create_race_resumes_stopped_winner():
+    prov = FakeProvider()
+    store = InMemorySandboxSessionStore()
+    mgr = ScopeSandboxManager(prov, store, CFG)
+    store.put(SandboxSession(
+        scope_id="scope-1", project_id="proj", provider="fake",
+        sandbox_id="winner-sb", state=SandboxState.STOPPED,
+        created_at=0, last_active_at=0, last_state_change_at=0,
+    ))
+    _, via = await mgr._create_session(_spec(), now=0)
+    assert via is AcquiredVia.RESUMED and prov.count("start") == 1
+    assert prov.count("destroy") == 1             # our duplicate reclaimed
+
+
+async def test_reap_only_provider_skips_other_providers():
+    prov = FakeProvider()                          # capabilities().name == "fake"
+    store = InMemorySandboxSessionStore()
+    mgr = ScopeSandboxManager(prov, store, CFG)
+    await mgr.acquire(_spec("a"), "u", now=0)
+    await mgr.release("a", "u", now=0)
+    # a session owned by a DIFFERENT provider sharing the store
+    store.put(SandboxSession(
+        scope_id="b", project_id="p", provider="other",
+        sandbox_id="o", state=SandboxState.RUNNING,
+        created_at=0, last_active_at=0, last_state_change_at=0,
+    ))
+    summary = await mgr.reap(now=500, only_provider="fake")
+    assert summary.stopped == 1                    # only the "fake" session acted on
+    assert store.get("b") is not None              # "other" provider session untouched

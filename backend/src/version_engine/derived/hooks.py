@@ -248,11 +248,35 @@ def run_post_push_hook(
             project_id,
             _scope_commit_git_view_paths(repo, scope_path, changes),
         )
+        # Scope-sync: append path-scoped "upstream advanced" events so sandbox
+        # sidecars pull lazily (PUP-sync-trigger-architecture, M3/M4).
+        _emit_scope_sync_event(project_id, scope_path, changes, commit_id, entry.get("who"))
 
     except Exception as e:
         log_error(f"[PostCommit] post-push hook failed for project {project_id}: {e}")
         if raise_errors:
             raise
+
+
+def _emit_scope_sync_event(project_id, scope_path, changes, commit_id, who) -> None:
+    """Append path-scoped scope-sync upstream events for this publish (M3/M4).
+
+    Lazy import + fully guarded: scope-sync eventing must never affect a commit.
+    """
+    try:
+        paths = [c.get("path") for c in (changes or []) if isinstance(c, dict) and c.get("path")]
+        if not paths:
+            return
+        from src.platform.scope_sync.service import get_scope_sync_service
+        get_scope_sync_service().record_publish(
+            project_id=project_id,
+            scope_path=(scope_path or "").strip("/"),
+            changed_paths=paths,
+            head_version=commit_id,
+            origin_user=who or None,
+        )
+    except Exception as exc:  # noqa: BLE001
+        log_warning(f"[PostCommit] scope-sync event emit skipped: {exc}")
 
 
 def _refresh_fs_path_index(
@@ -392,6 +416,11 @@ def run_post_project_update_hook(
             {"", *_project_root_affected_scope_paths(repo, changed_paths)},
         )
         _broadcast_commit_update(project_id, entry, changes)
+        # Scope-sync: fan out path-scoped "upstream advanced" events (M3/M4).
+        # This is the root-first publish path (git push + typed writes), so the
+        # changes are project-root-absolute → scope_path="" lets record_publish
+        # translate them into each affected scope's coordinates.
+        _emit_scope_sync_event(project_id, "", changes, commit_id, entry.get("who"))
 
     except Exception as e:
         log_error(

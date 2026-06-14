@@ -47,6 +47,7 @@ import { getProjectAuditLogs } from '@/lib/contentTreeApi';
 import { PROJECT_CONTENT_RAIL_WIDTH } from '@/lib/layout';
 import { T } from '../lib/tokens';
 import { SectionLabel } from './ui-blocks';
+import { SandboxConnectCard } from './SandboxConnectCard';
 import { ScopeSettingsBlock } from '../../data/components/access-points/ScopeSettingsBlock';
 import type { ConnectorEditPatch } from '../hooks/useAccessData';
 import { AccessActivitySection, filterAccessActivityLogs } from './AccessActivity';
@@ -258,6 +259,10 @@ export function ScopeDetailPanel({
             No connectors bound to this scope yet.
           </div>
         )}
+
+        {/* Remote Dev (SSH) — scope-level sandbox-as-access-point surface.
+            Not a connector row; keyed by the scope itself. */}
+        {scope ? <SandboxConnectCard scope={scope} projectId={projectId} /> : null}
       </div>
 
       <style>{`
@@ -273,4 +278,3 @@ export function ScopeDetailPanel({
     </div>
   );
 }
-

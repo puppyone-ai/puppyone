@@ -184,6 +184,11 @@ class Settings(BaseSettings):
     # Session store backend: "memory" (dev/single-process) or "supabase"
     # (durable, multi-worker-visible — required for the reaper + multi-instance).
     SCOPE_SANDBOX_STORE: Literal["memory", "supabase"] = "memory"
+    # Background reaper: stop idle / destroy long-idle sandboxes to save cost.
+    # OFF by default — it makes real provider stop/destroy calls (billing), so
+    # it's opt-in per deployment. Interval is seconds between sweeps.
+    SCOPE_SANDBOX_REAPER_ENABLED: bool = False
+    SCOPE_SANDBOX_REAPER_INTERVAL_S: int = 120
 
     # Workspace Provider configuration
     # - "auto": Auto-detect platform (macOS -> APFS Clone, Linux -> OverlayFS, other -> full copy)

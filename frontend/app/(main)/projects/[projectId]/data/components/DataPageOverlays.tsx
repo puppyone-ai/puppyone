@@ -94,6 +94,7 @@ export function DataPageOverlays({
             onCreateAgent={createMenuActions.onCreateAgent}
             onCreateMcp={createMenuActions.onCreateMcp}
             onCreateSandbox={createMenuActions.onCreateSandbox}
+            onCreateSshTerminal={createMenuActions.onCreateSshTerminal}
           />
         </div>
       )}

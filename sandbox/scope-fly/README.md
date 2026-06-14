@@ -4,9 +4,13 @@ The image + Fly app for the **Fly provider** of the scope-sandbox feature. A use
 proven to hold scope permission connects with VSCode Remote-SSH to a long-lived,
 scope-keyed Fly Machine; all git/CLI runs inside (data stays server-side).
 
-> Status: **code-complete, not yet live-validated** (blocked on Fly payment +
-> dedicated IPv4). The E2B provider is the live-validated path. This mirrors that
-> design so switching providers is a config flip (`SCOPE_SANDBOX_PROVIDER=fly`).
+> Status: **live-validated 2026-06-13** (app `puppyone-sandboxes`, region `sin`)
+> — full provider lifecycle + credential grant/revoke + SSH connect over BOTH
+> the free `fly proxy`/WireGuard path AND the public raw-TCP `:22` ingress
+> (dedicated IPv4, allocated for the test then released). Only the VSCode IDE
+> walk-through remains. Switching providers is a config flip
+> (`SCOPE_SANDBOX_PROVIDER=fly`). See
+> `docs/proposals/sandbox-fly-validation-2026-06.md`.
 
 ## Why Fly differs from E2B
 
@@ -33,19 +37,33 @@ silently defeating per-user credentials. Don't relax this.
 ```sh
 fly auth login
 
-# 1. App to hold the scope-sandbox machines
-fly apps create puppyone-scope-sandbox
+# 1. App to hold the scope-sandbox machines (validated app: puppyone-sandboxes)
+fly apps create puppyone-sandboxes
 
-# 2. Dedicated IPv4 — required for raw TCP :22 (shared v4 only does HTTP).
-#    ~$3.60/mo. Without it, VSCode Remote-SSH over plain TCP won't reach the box.
-fly ips allocate-v4 -a puppyone-scope-sandbox
-fly ips allocate-v6 -a puppyone-scope-sandbox   # free
+# 2. Build + push the image via Fly's REMOTE builder (no local Docker needed).
+#    --build-only --push builds + pushes to registry.fly.io without releasing.
+fly deploy ./sandbox/scope-fly --build-only --push -a puppyone-sandboxes \
+  --image-label scope-sandbox --dockerfile ./sandbox/scope-fly/Dockerfile
 
-# 3. Build + push the image to Fly's registry
-fly auth docker
-docker build -t registry.fly.io/puppyone-scope-sandbox:scope-sandbox sandbox/scope-fly
-docker push  registry.fly.io/puppyone-scope-sandbox:scope-sandbox
+# 3. (Production only) Dedicated IPv4 for public raw TCP :22 (~$3.60/mo, needs a
+#    card; shared v4 only does HTTP). NOT needed for the free fly-proxy path below.
+fly ips allocate-v4 -a puppyone-sandboxes
+fly ips allocate-v6 -a puppyone-sandboxes   # free
 ```
+
+### Connecting without a dedicated IPv4 (free — used for validation)
+
+`fly proxy` tunnels a local port to the machine's internal `:2222` over
+6PN/WireGuard, so you can reach sshd with no public IP:
+
+```sh
+fly proxy 10022:2222 <machine-id>.vm.puppyone-sandboxes.internal -a puppyone-sandboxes
+ssh -p 10022 -i <your-key> -o IdentitiesOnly=yes puppy@localhost
+```
+
+This is exactly what `backend/scripts/fly_ssh_e2e.py` does. The public `:22`
+path (step 3 + `ssh puppy@<app>.fly.dev`) is the production form once an IPv4 is
+allocated; `ConnectionInfo(host=<app>.fly.dev, port=22)` already targets it.
 
 The provider creates machines via the **Machines API** (not `fly deploy`), one
 per scope, mapping internal `2222` → public TCP `22` (see
@@ -58,9 +76,9 @@ machine config the API sends.
 
 ```
 SCOPE_SANDBOX_PROVIDER=fly
-SCOPE_SANDBOX_FLY_APP=puppyone-scope-sandbox
+SCOPE_SANDBOX_FLY_APP=puppyone-sandboxes
 SCOPE_SANDBOX_FLY_TOKEN=<fly api token>     # fly tokens create deploy -a <app>
-SCOPE_SANDBOX_FLY_IMAGE=registry.fly.io/puppyone-scope-sandbox:scope-sandbox
+SCOPE_SANDBOX_FLY_IMAGE=registry.fly.io/puppyone-sandboxes:scope-sandbox
 ```
 
 ## Connection flow (what the user gets)
@@ -78,8 +96,8 @@ SCOPE_SANDBOX_FLY_IMAGE=registry.fly.io/puppyone-scope-sandbox:scope-sandbox
 ## Verifying the image locally (no Fly account)
 
 ```sh
-docker build -t puppyone-scope-sandbox sandbox/scope-fly
-docker run -d --name sb -p 2222:2222 puppyone-scope-sandbox
+docker build -t puppyone-sandboxes sandbox/scope-fly
+docker run -d --name sb -p 2222:2222 puppyone-sandboxes
 # add a key the way grant_ssh_access does, then:
 ssh -p 2222 -o IdentitiesOnly=yes -i <key> puppy@localhost echo OK
 # confirm hardening: a connection with NO key must be refused (no "none" auth)

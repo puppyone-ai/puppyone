@@ -312,6 +312,26 @@ async def _init_version_trees() -> None:
         log_error(f"❌ Version Engine tree initialization failed (took: {version_init_duration * 1000:.2f}ms): {e}")
 
 
+def _init_scope_sandbox_reaper(app: FastAPI) -> None:
+    """Start the scope-sandbox reaper (idle→stop, long-idle→destroy) if enabled.
+
+    Off by default — it makes real provider stop/destroy calls. Stored on
+    app.state so _shutdown_services can stop it cleanly."""
+    if not getattr(settings, "SCOPE_SANDBOX_REAPER_ENABLED", False):
+        return
+    from src.platform.scope_sandbox.reaper import start_reaper
+    from src.platform.scope_sandbox.service import get_scope_sandbox_service
+
+    service = get_scope_sandbox_service()
+    task, stop_event = start_reaper(
+        service, interval_s=settings.SCOPE_SANDBOX_REAPER_INTERVAL_S,
+    )
+    app.state.scope_sandbox_reaper = (task, stop_event)
+    log_info(
+        f"🧹 Scope-sandbox reaper started (every {settings.SCOPE_SANDBOX_REAPER_INTERVAL_S}s)"
+    )
+
+
 async def _shutdown_services() -> None:
     """Shutdown cleanup logic."""
     log_info("ContextBase API shutting down...")
@@ -379,6 +399,7 @@ async def app_lifespan(app: FastAPI):
     await _init_file_ingest()
     _init_connector_registry()
     await _init_version_trees()
+    _init_scope_sandbox_reaper(app)
 
     log_info("📁 Filesystem sync: client-side via Git smart-HTTP (no server init needed)")
 
@@ -392,6 +413,14 @@ async def app_lifespan(app: FastAPI):
     log_info("")
 
     yield
+    reaper = getattr(app.state, "scope_sandbox_reaper", None)
+    if reaper is not None:
+        task, stop_event = reaper
+        stop_event.set()
+        try:
+            await task
+        except Exception as e:  # noqa: BLE001
+            log_error(f"Scope-sandbox reaper shutdown error: {e}")
     await _shutdown_services()
 
 
@@ -479,6 +508,10 @@ def create_app() -> FastAPI:
     )
     app.include_router(github_integration_router, tags=["github-integration"])
     app.include_router(github_webhook_router, tags=["github-integration"])
+    from src.platform.scope_sandbox.router import router as scope_sandbox_router
+    app.include_router(scope_sandbox_router, tags=["scope-sandboxes"])
+    from src.platform.scope_sync.router import router as scope_sync_router
+    app.include_router(scope_sync_router, tags=["scope-sync"])
     from src.platform.auth.router import router as auth_router
     app.include_router(auth_router, prefix="/api/v1", tags=["auth"])
     app.include_router(analytics_router, tags=["analytics"])
