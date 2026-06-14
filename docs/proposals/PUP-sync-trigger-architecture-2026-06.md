@@ -200,7 +200,7 @@ SoT 推进时(他人 publish,或父子投影),server 计算**受影响路径集*
 ## 9. 风险 / 待定
 
 - **agent 任务边界识别**:纯 quiescence 兜底可能"过早 publish"或"过晚"。~~建议提供可选 MCP/CLI marker~~ **✅ 已实现**:sidecar `signal done|save|publish|checkpoint` 子命令 + watch 循环即时消费(`_handle_signals`,先于 quiescence);install 路径由 `sidecar_provision.marker_command(kind)` 统一(MCP `sync_signal` 工具 / SSH agent 都 shell 到它)。非感知 client 仍退化到 quiescence + explicit,两者叠加。
-- **sidecar 与 agent 写竞争**:集成 checkout 必须只动不相交路径;重叠一律 hold,绝不覆盖脏文件。需 working-tree 写锁/原子 checkout。
+- **sidecar 与 agent 写竞争**:集成 checkout 必须只动不相交路径;重叠一律 hold,绝不覆盖脏文件。~~需 working-tree 写锁/原子 checkout~~ **✅ 已实现**:`integrate` 改为**逐路径 just-in-time 脏检查**(锁内再查,TOCTOU-safe;脏路径 HOLD 不覆盖)+ **temp+rename 原子写**(二进制安全,agent 绝不会读到半截文件)+ 上游已删的路径 HOLD 不破坏性删除;并加**可重入跨进程 worktree 锁**(mkdir 原子,stale 回收 + 超时降级),让 watch 守护与手动 CLI 调用串行,避免争抢 git 自身 `index.lock` 把守护进程打挂。
 - **checkpoint 体量**:高频 checkpoint 的 blob 去重(内容寻址天然去重)+ TTL/数量上限。
 - **"过早 publish 污染 SoT"**:宁可多 checkpoint、少 publish;非 dev 预设默认 publish 偏保守(任务完成 + 长静默双条件)。
 - **父子重叠的语义**:parent-scope-wins 是兜底,但要让用户/agent 看得懂"为什么我的改动被父级覆盖"——需可读的冲突说明(已有 `superseded_by_parent` 记录)。

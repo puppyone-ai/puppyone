@@ -30,6 +30,7 @@ Usage:
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import subprocess
@@ -81,6 +82,115 @@ def git(*args: str, check: bool = True, env_extra: dict | None = None) -> tuple[
     return p.returncode, p.stdout, p.stderr
 
 
+def git_bytes(*args: str, check: bool = True) -> tuple[int, bytes, bytes]:
+    """git with raw bytes stdout — for binary-safe blob reads (`git show`)."""
+    env = {**os.environ, **_ENV}
+    p = subprocess.run(["git", "-C", REPO, *args], capture_output=True, env=env)
+    if check and p.returncode != 0:
+        raise SystemExit(f"git {' '.join(args)} failed: {p.stderr.decode(errors='replace').strip()}")
+    return p.returncode, p.stdout, p.stderr
+
+
+# ── working-tree lock ──────────────────────────────────────────────────
+# The watch daemon and any manually-invoked CLI op (an agent running
+# `sync_sidecar.py publish`) both mutate the same git index/worktree. Without
+# coordination they contend git's own index.lock — and our git() raises
+# SystemExit on failure, which would KILL the daemon. A re-entrant, cross-process
+# mkdir lock (atomic on POSIX + Windows) serializes our own mutators so git's
+# index.lock is never contended by us. Best-effort: a stale lock (dead holder) is
+# reclaimed, and a timeout degrades to "proceed" so sync never blocks forever.
+LOCK_DIR = os.environ.get("SYNC_LOCK", "/tmp/puppy_sync.lock")
+LOCK_TIMEOUT_S = float(os.environ.get("SYNC_LOCK_TIMEOUT_S", "30"))
+_lock_depth = 0
+
+
+def _pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except (ProcessLookupError, ValueError):
+        return False
+    except PermissionError:
+        return True          # exists, just not ours to signal
+    except OSError:
+        return True          # platform without os.kill(0) semantics → assume alive
+    return True
+
+
+def _force_unlock() -> None:
+    """Remove the lock dir AND its pid file (rmdir alone fails on a non-empty dir)."""
+    with contextlib.suppress(OSError):
+        os.remove(os.path.join(LOCK_DIR, "pid"))
+    with contextlib.suppress(OSError):
+        os.rmdir(LOCK_DIR)
+
+
+def _reclaim_if_stale() -> bool:
+    """If the lock is held by a dead process, remove it. Returns True if reclaimed."""
+    try:
+        with open(os.path.join(LOCK_DIR, "pid")) as f:
+            holder = int(f.read().strip() or "0")
+    except (OSError, ValueError):
+        return False
+    if holder and holder != os.getpid() and not _pid_alive(holder):
+        _force_unlock()
+        return True
+    return False
+
+
+@contextlib.contextmanager
+def worktree_lock():
+    """Serialize our own worktree mutations (re-entrant within a process)."""
+    global _lock_depth
+    if _lock_depth > 0:                      # already held here → re-enter
+        _lock_depth += 1
+        try:
+            yield
+        finally:
+            _lock_depth -= 1
+        return
+    deadline = time.time() + LOCK_TIMEOUT_S
+    while True:
+        try:
+            os.mkdir(LOCK_DIR)
+            break
+        except FileExistsError:
+            if _reclaim_if_stale():
+                continue
+            if time.time() >= deadline:
+                print("[sidecar] worktree lock timeout — reclaiming", flush=True)
+                _force_unlock()
+                continue
+            time.sleep(0.05)
+    _lock_depth += 1
+    with contextlib.suppress(OSError):
+        with open(os.path.join(LOCK_DIR, "pid"), "w") as f:
+            f.write(str(os.getpid()))
+    try:
+        yield
+    finally:
+        _lock_depth -= 1
+        with contextlib.suppress(OSError):
+            os.remove(os.path.join(LOCK_DIR, "pid"))
+        with contextlib.suppress(OSError):
+            os.rmdir(LOCK_DIR)
+
+
+def _atomic_write_bytes(abspath: str, data: bytes) -> None:
+    """Write via a temp file in the same dir + rename, so a reader (the agent)
+    never sees a half-written file. Atomic on the same filesystem."""
+    d = os.path.dirname(abspath) or "."
+    os.makedirs(d, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=d, prefix=".puppy-int-")
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(data)
+        os.replace(tmp, abspath)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.remove(tmp)
+        raise
+
+
 def dirty_paths() -> set[str]:
     out = git("status", "--porcelain")[1]
     paths = set()
@@ -105,32 +215,58 @@ def snapshot_tree() -> str:
 
 
 def checkpoint() -> str | None:
-    if not dirty_paths():
-        return None
-    git("add", "-A")
-    git("commit", "--no-verify", "--allow-empty", "-m", f"checkpoint @{int(time.time())}")
-    return git("rev-parse", "HEAD")[1].strip()
+    with worktree_lock():
+        if not dirty_paths():
+            return None
+        git("add", "-A")
+        git("commit", "--no-verify", "--allow-empty", "-m", f"checkpoint @{int(time.time())}")
+        return git("rev-parse", "HEAD")[1].strip()
 
 
 def publish() -> str:
-    checkpoint()  # capture current state first (revertible)
-    for _ in range(3):
-        git("fetch", REMOTE, BRANCH)
-        rc = git("rebase", f"{REMOTE}/{BRANCH}", check=False)[0]
-        if rc != 0:
-            conflicted = git("diff", "--name-only", "--diff-filter=U", check=False)[1].split()
-            git("rebase", "--abort", check=False)
-            return f"CONFLICT {' '.join(conflicted)}"
-        if git("push", REMOTE, f"HEAD:{BRANCH}", check=False)[0] == 0:
-            return f"PUBLISHED {git('rev-parse', 'HEAD')[1].strip()}"
-    return "CONFLICT (push race)"
+    with worktree_lock():
+        checkpoint()  # capture current state first (revertible)
+        for _ in range(3):
+            git("fetch", REMOTE, BRANCH)
+            rc = git("rebase", f"{REMOTE}/{BRANCH}", check=False)[0]
+            if rc != 0:
+                conflicted = git("diff", "--name-only", "--diff-filter=U", check=False)[1].split()
+                git("rebase", "--abort", check=False)
+                return f"CONFLICT {' '.join(conflicted)}"
+            if git("push", REMOTE, f"HEAD:{BRANCH}", check=False)[0] == 0:
+                return f"PUBLISHED {git('rev-parse', 'HEAD')[1].strip()}"
+        return "CONFLICT (push race)"
 
 
-def integrate(paths: list[str]) -> None:
+def integrate(paths: list[str], *, guard_dirty: bool = True) -> tuple[list[str], list[str]]:
+    """Sparse-pull upstream paths into the working tree. Returns (applied, held).
+
+    Hardened against agent write contention (the agent edits the same tree):
+      - per-path JUST-IN-TIME dirty re-check under the lock → never clobber a path
+        the agent is touching (TOCTOU-safe; overlap is HELD, not overwritten);
+      - write each file via temp + atomic rename (binary-safe) → the agent never
+        observes a half-written file;
+      - a path absent upstream (deleted) is HELD, not destructively removed."""
     if not paths:
-        return
-    git("fetch", REMOTE, BRANCH)
-    git("checkout", f"{REMOTE}/{BRANCH}", "--", *paths)
+        return [], []
+    applied: list[str] = []
+    held: list[str] = []
+    with worktree_lock():
+        git("fetch", REMOTE, BRANCH)
+        dirty = dirty_paths() if guard_dirty else set()
+        for p in paths:
+            norm = p.strip("/")
+            if guard_dirty and _paths_overlap([norm], dirty):
+                held.append(p)               # agent is editing this → hold
+                continue
+            rc, data, _ = git_bytes("show", f"{REMOTE}/{BRANCH}:{norm}", check=False)
+            if rc != 0:
+                held.append(p)               # not present upstream → don't delete
+                continue
+            _atomic_write_bytes(os.path.join(REPO, norm), data)
+            git("add", "--", norm)
+            applied.append(p)
+    return applied, held
 
 
 def consume_events() -> None:
@@ -154,11 +290,13 @@ def consume_events() -> None:
             paths = ev.get("affected_paths", [])
             if not paths:
                 continue
-            if _paths_overlap(paths, dirty_paths()):
-                print(f"[sidecar] upstream HOLD (overlap) {paths}", flush=True)
-            else:
-                integrate(paths)
-                print(f"[sidecar] integrated upstream {paths}", flush=True)
+            # integrate() does the per-path JIT dirty-guard + atomic write itself:
+            # disjoint paths are applied, overlapping/absent ones held.
+            applied, held = integrate(paths)
+            if applied:
+                print(f"[sidecar] integrated upstream {applied}", flush=True)
+            if held:
+                print(f"[sidecar] upstream HOLD (overlap) {held}", flush=True)
         if data.get("cursor"):
             open(_CURSOR_FILE, "w").write(str(data["cursor"]))
     except Exception as exc:  # noqa: BLE001 - event polling is best-effort
@@ -288,8 +426,8 @@ def main(argv: list[str]) -> int:
     elif cmd == "signal":
         print(f"signalled {signal(argv[2] if len(argv) > 2 else 'done')}")
     elif cmd == "integrate":
-        integrate(argv[2:])
-        print("integrated")
+        applied, held = integrate(argv[2:])
+        print(f"integrated={applied} held={held}")
     elif cmd == "rollback":
         git("reset", "--hard", argv[2])
         print(f"rolled back to {argv[2]}")

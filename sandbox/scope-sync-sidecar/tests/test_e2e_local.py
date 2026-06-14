@@ -265,6 +265,111 @@ def test_drain_signals_is_atomic_claim(tmp_path):
         sys.path.remove(str(SIDECAR.parent))
 
 
+def _import_sidecar(repo, tmp_path, **extra):
+    """Import sync_sidecar with env preset (its module globals read env at load)."""
+    import importlib
+    os.environ.update({
+        "SYNC_REPO": str(repo), "SYNC_BRANCH": "main", "SYNC_REMOTE": "origin",
+        "SYNC_LOCK": str(tmp_path / "lock"), **_GIT_ENV, **extra,
+    })
+    if str(SIDECAR.parent) not in sys.path:
+        sys.path.insert(0, str(SIDECAR.parent))
+    s = importlib.import_module("sync_sidecar")
+    importlib.reload(s)
+    return s
+
+
+def _cleanup_env(*keys):
+    for k in keys:
+        os.environ.pop(k, None)
+    p = str(SIDECAR.parent)
+    if p in sys.path:
+        sys.path.remove(p)
+
+
+def test_integrate_holds_dirty_path_just_in_time(world, tmp_path):
+    """integrate() is independently safe: a path the agent is editing (dirty) is
+    HELD and its working copy is NOT clobbered, even when passed directly without
+    consume_events' coarse overlap check."""
+    a, b = world["a"], world["b"]
+    (a / "extra.md").write_text("a\n")
+    # A publishes changes to BOTH intro.md and a new file
+    (a / "docs" / "intro.md").write_text("A upstream intro\n")
+    assert _sidecar(a, "publish").startswith("PUBLISHED")
+
+    s = _import_sidecar(b, tmp_path)
+    try:
+        # B has an uncommitted local edit to intro.md (agent mid-task)
+        (b / "docs" / "intro.md").write_text("B WORKING COPY do not clobber\n")
+        applied, held = s.integrate(["docs/intro.md", "extra.md"])
+        assert "docs/intro.md" in held            # dirty → held
+        assert "extra.md" in applied              # disjoint → applied
+        assert (b / "docs" / "intro.md").read_text() == "B WORKING COPY do not clobber\n"
+        assert (b / "extra.md").exists()
+    finally:
+        _cleanup_env("SYNC_REPO", "SYNC_BRANCH", "SYNC_REMOTE", "SYNC_LOCK")
+
+
+def test_integrate_is_binary_safe(world, tmp_path):
+    """A binary blob upstream integrates byte-exact (temp+rename, raw bytes)."""
+    a, b = world["a"], world["b"]
+    blob = bytes(range(256)) * 4
+    (a / "logo.bin").write_bytes(blob)
+    assert _sidecar(a, "publish").startswith("PUBLISHED")
+
+    s = _import_sidecar(b, tmp_path)
+    try:
+        applied, held = s.integrate(["logo.bin"])
+        assert applied == ["logo.bin"] and not held
+        assert (b / "logo.bin").read_bytes() == blob   # exact, not text-mangled
+    finally:
+        _cleanup_env("SYNC_REPO", "SYNC_BRANCH", "SYNC_REMOTE", "SYNC_LOCK")
+
+
+def test_integrate_holds_path_absent_upstream(world, tmp_path):
+    s = _import_sidecar(world["b"], tmp_path)
+    try:
+        applied, held = s.integrate(["does/not/exist.md"])
+        assert applied == [] and held == ["does/not/exist.md"]   # not destructively removed
+    finally:
+        _cleanup_env("SYNC_REPO", "SYNC_BRANCH", "SYNC_REMOTE", "SYNC_LOCK")
+
+
+def test_worktree_lock_reentrant_and_releases(world, tmp_path):
+    s = _import_sidecar(world["a"], tmp_path)
+    try:
+        lock_dir = os.environ["SYNC_LOCK"]
+        assert not os.path.exists(lock_dir)
+        with s.worktree_lock():
+            assert os.path.isdir(lock_dir)
+            with s.worktree_lock():                 # re-entrant: no deadlock
+                assert os.path.isdir(lock_dir)
+            assert os.path.isdir(lock_dir)          # inner exit keeps it held
+        assert not os.path.exists(lock_dir)         # outer exit releases
+    finally:
+        _cleanup_env("SYNC_REPO", "SYNC_BRANCH", "SYNC_REMOTE", "SYNC_LOCK")
+
+
+def test_worktree_lock_reclaims_stale(world, tmp_path):
+    """A lock left by a dead process is reclaimed (via staleness) rather than
+    blocking forever. _pid_alive is monkeypatched so the test is deterministic
+    cross-platform (os.kill(pid,0) liveness semantics differ on Windows)."""
+    s = _import_sidecar(world["a"], tmp_path, SYNC_LOCK_TIMEOUT_S="3")
+    orig = s._pid_alive
+    s._pid_alive = lambda pid: False                # the holder is dead
+    try:
+        lock_dir = os.environ["SYNC_LOCK"]
+        os.mkdir(lock_dir)
+        with open(os.path.join(lock_dir, "pid"), "w") as f:
+            f.write("999999")
+        with s.worktree_lock():                     # reclaims immediately (stale)
+            assert os.path.isdir(lock_dir)
+        assert not os.path.exists(lock_dir)
+    finally:
+        s._pid_alive = orig
+        _cleanup_env("SYNC_REPO", "SYNC_BRANCH", "SYNC_REMOTE", "SYNC_LOCK", "SYNC_LOCK_TIMEOUT_S")
+
+
 def test_consume_events_holds_on_overlap(world, tmp_path):
     """If the upstream path overlaps B's own dirty edit, the sidecar HOLDs (does
     not clobber B's working copy); the next publish's rebase reconciles it."""
