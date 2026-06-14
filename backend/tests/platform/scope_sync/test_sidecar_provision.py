@@ -8,6 +8,7 @@ from src.platform.scope_sync.sidecar_provision import (
     SIDECAR_REMOTE,
     build_sidecar_env,
     install_command,
+    marker_command,
     start_command,
     stop_command,
 )
@@ -35,6 +36,17 @@ def test_start_command_single_quotes_values_safely():
 
 def test_stop_command_uses_bracket_trick():
     assert "[s]ync_sidecar.py" in stop_command()
+
+
+def test_marker_command_targets_installed_sidecar():
+    cmd = marker_command("done")
+    assert cmd == f"python3 {SIDECAR_REMOTE} signal done"
+
+
+def test_marker_command_rejects_unknown_kind():
+    # an unknown/injected kind degrades to the safe default rather than passing through
+    assert marker_command("rm -rf /") == f"python3 {SIDECAR_REMOTE} signal done"
+    assert marker_command("checkpoint").endswith("signal checkpoint")
 
 
 def test_build_sidecar_env_maps_policy():

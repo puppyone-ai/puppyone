@@ -53,6 +53,20 @@ def stop_command() -> str:
     return "pkill -f '[s]ync_sidecar.py' 2>/dev/null; true"
 
 
+# Agent task-boundary markers (#3): the kinds the sidecar's watch loop acts on.
+# publish-kinds → publish now; checkpoint-kinds → checkpoint now. Both stack on
+# top of the quiescence fallback.
+MARKER_KINDS = ("done", "save", "publish", "verified", "checkpoint", "draft")
+
+
+def marker_command(kind: str = "done") -> str:
+    """Shell command a PuppyOne-aware client runs IN the sandbox to emit a precise
+    task-boundary marker (the MCP `sync_signal` tool shells to exactly this; an
+    agent over SSH can run it directly). One source of truth for the install path."""
+    safe = kind if kind in MARKER_KINDS else "done"
+    return f"python3 {SIDECAR_REMOTE} signal {safe}"
+
+
 def build_sidecar_env(
     policy: dict,
     *,

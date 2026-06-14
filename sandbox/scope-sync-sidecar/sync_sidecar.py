@@ -14,9 +14,16 @@ Config via env (the server hands these via the managed SyncPolicy):
   SYNC_REPO (required, repo dir) · SYNC_REMOTE=origin · SYNC_BRANCH=main
   SYNC_WORK=work · SYNC_DEBOUNCE_S=4 · SYNC_QUIESCENCE_S=180 (0 disables) · SYNC_POLL_S=2
 
+Precise task boundaries: a PuppyOne-aware client (MCP tool / CLI) can emit an
+explicit marker so the sidecar acts at the real end of a work unit instead of
+waiting out quiescence. `signal done|save|publish` → publish now; `signal
+checkpoint` → checkpoint now. Markers STACK on top of quiescence (the universal
+fallback for non-aware clients).
+
 Usage:
   sync_sidecar.py watch                 # the daemon loop
   sync_sidecar.py checkpoint|publish|status
+  sync_sidecar.py signal [done|save|publish|checkpoint]   # agent task-boundary marker
   sync_sidecar.py integrate <path>...   # sparse-pull disjoint upstream paths
   sync_sidecar.py rollback <commit>
 """
@@ -46,6 +53,12 @@ SCOPE_ID = os.environ.get("SYNC_SCOPE_ID", "")
 TOKEN = os.environ.get("SYNC_TOKEN", "")
 EVENTS_EVERY = int(os.environ.get("SYNC_EVENTS_EVERY", "3"))  # consume every N polls
 _CURSOR_FILE = "/tmp/puppy_sync_cursor"
+# Agent task-boundary markers (M2): a PuppyOne-aware client appends a line here
+# (via the `signal` subcommand or an MCP tool that shells to it); the watch loop
+# drains + acts on it immediately, ahead of the quiescence heuristic.
+SIGNAL_FILE = os.environ.get("SYNC_SIGNAL_FILE", "/tmp/puppy_sync_signal")
+_PUBLISH_SIGNALS = {"publish", "done", "save", "verified"}
+_CHECKPOINT_SIGNALS = {"checkpoint", "draft"}
 
 
 def _paths_overlap(a, b) -> bool:
@@ -152,44 +165,115 @@ def consume_events() -> None:
         print(f"[sidecar] event poll skipped: {exc}", flush=True)
 
 
+def signal(kind: str = "done") -> str:
+    """Record an agent task-boundary marker (CLI/MCP). Appends one line so the
+    watch loop drains + acts on it immediately, ahead of quiescence."""
+    kind = (kind or "done").strip().lower()
+    with open(SIGNAL_FILE, "a") as f:
+        f.write(kind + "\n")
+    return kind
+
+
+def _drain_signals() -> list[str]:
+    """Atomically claim pending markers: rename the file then read it, so any
+    marker written concurrently lands in a fresh file rather than being lost."""
+    if not os.path.exists(SIGNAL_FILE):
+        return []
+    claim = SIGNAL_FILE + ".claim"
+    try:
+        os.replace(SIGNAL_FILE, claim)   # atomic on POSIX; new writes start fresh
+    except OSError:
+        return []
+    try:
+        with open(claim) as f:
+            return [ln.strip().lower() for ln in f if ln.strip()]
+    finally:
+        try:
+            os.remove(claim)
+        except OSError:
+            pass
+
+
 def status() -> str:
     n = git("rev-list", "--count", WORK, check=False)[1].strip() or "?"
     return f"dirty={sorted(dirty_paths())} work_commits={n}"
 
 
-def watch() -> None:
+def _new_watch_state() -> dict:
     # Drive on the working-tree CONTENT hash, not dirty-vs-HEAD: a checkpoint
     # commits the change → the tree goes "clean", but the CONTENT is unchanged,
     # so the content hash is stable across our own commits (only a real edit
     # moves it). This is what makes quiescence-publish fire after a checkpoint.
     base = snapshot_tree()
-    last_tree = base            # last content hash we observed
-    committed_tree = base       # content hash captured by the last checkpoint
-    published_tree = base       # content hash last pushed to SoT
-    last_activity = None
-    loops = 0
+    return {
+        "last_tree": base,        # last content hash we observed
+        "committed_tree": base,   # content hash captured by the last checkpoint
+        "published_tree": base,   # content hash last pushed to SoT
+        "last_activity": None,
+        "loops": 0,
+    }
+
+
+def _do_publish(st: dict, cur: str, why: str) -> None:
+    res = publish()                                # publish() checkpoints first
+    print(f"[sidecar] publish → {res}{why}", flush=True)
+    if res.startswith("PUBLISHED"):
+        st["published_tree"] = st["committed_tree"] = cur
+
+
+def _do_checkpoint(st: dict, cur: str, why: str) -> None:
+    cp = checkpoint()
+    if cp:
+        print(f"[sidecar] checkpoint {cp[:10]}{why}", flush=True)
+    st["committed_tree"] = cur
+
+
+def _handle_signals(st: dict, cur: str, sigs: list[str]) -> bool:
+    """Act on an agent task-boundary marker immediately (ahead of quiescence).
+    Returns True if a marker was handled (the heuristic path is then skipped)."""
+    if not sigs:
+        return False
+    if any(s in _PUBLISH_SIGNALS for s in sigs):
+        _do_publish(st, cur, " (signal)")
+        return True
+    if any(s in _CHECKPOINT_SIGNALS for s in sigs):
+        _do_checkpoint(st, cur, " (signal)")
+        return True
+    return False
+
+
+def _watch_step(st: dict, now: float) -> None:
+    """One poll iteration (extracted for testability). Order: upstream events →
+    agent markers (precise, immediate) → debounced checkpoint → quiescence
+    publish (the universal fallback)."""
+    st["loops"] += 1
+    if EVENTS_URL and st["loops"] % max(1, EVENTS_EVERY) == 0:
+        consume_events()
+
+    sigs = _drain_signals()
+    cur = snapshot_tree()
+    if cur != st["last_tree"]:                     # a real edit landed
+        st["last_activity"], st["last_tree"] = now, cur
+
+    if _handle_signals(st, cur, sigs):
+        return
+    if st["last_activity"] is None:
+        return
+
+    idle = now - st["last_activity"]
+    # debounced checkpoint: uncheckpointed content + edits paused
+    if cur != st["committed_tree"] and idle >= DEBOUNCE_S:
+        _do_checkpoint(st, cur, "")
+    # quiescence publish: unpublished content + long idle (universal fallback)
+    if QUIESCENCE_S > 0 and cur != st["published_tree"] and idle >= QUIESCENCE_S:
+        _do_publish(st, cur, "")
+
+
+def watch() -> None:
+    st = _new_watch_state()
     print(f"[sidecar] watching {REPO} (debounce={DEBOUNCE_S}s quiescence={QUIESCENCE_S}s)", flush=True)
     while True:
-        now = time.time()
-        loops += 1
-        if EVENTS_URL and loops % max(1, EVENTS_EVERY) == 0:
-            consume_events()
-        cur = snapshot_tree()
-        if cur != last_tree:                       # a real edit landed
-            last_activity, last_tree = now, cur
-        if last_activity is not None:
-            # debounced checkpoint: uncheckpointed content + edits paused
-            if cur != committed_tree and now - last_activity >= DEBOUNCE_S:
-                cp = checkpoint()
-                if cp:
-                    print(f"[sidecar] checkpoint {cp[:10]}", flush=True)
-                committed_tree = cur
-            # quiescence publish: unpublished content + long idle
-            if QUIESCENCE_S > 0 and cur != published_tree and now - last_activity >= QUIESCENCE_S:
-                res = publish()
-                print(f"[sidecar] publish → {res}", flush=True)
-                if res.startswith("PUBLISHED"):
-                    published_tree = committed_tree = cur
+        _watch_step(st, time.time())
         time.sleep(POLL_S)
 
 
@@ -201,6 +285,8 @@ def main(argv: list[str]) -> int:
         print(checkpoint() or "clean")
     elif cmd == "publish":
         print(publish())
+    elif cmd == "signal":
+        print(f"signalled {signal(argv[2] if len(argv) > 2 else 'done')}")
     elif cmd == "integrate":
         integrate(argv[2:])
         print("integrated")

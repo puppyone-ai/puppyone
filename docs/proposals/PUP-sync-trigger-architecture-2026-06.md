@@ -199,7 +199,7 @@ SoT 推进时(他人 publish,或父子投影),server 计算**受影响路径集*
 
 ## 9. 风险 / 待定
 
-- **agent 任务边界识别**:纯 quiescence 兜底可能"过早 publish"或"过晚"。建议提供可选 MCP/CLI marker 让 PuppyOne-aware agent 精确报点;非感知 client 退化到 quiescence + explicit。
+- **agent 任务边界识别**:纯 quiescence 兜底可能"过早 publish"或"过晚"。~~建议提供可选 MCP/CLI marker~~ **✅ 已实现**:sidecar `signal done|save|publish|checkpoint` 子命令 + watch 循环即时消费(`_handle_signals`,先于 quiescence);install 路径由 `sidecar_provision.marker_command(kind)` 统一(MCP `sync_signal` 工具 / SSH agent 都 shell 到它)。非感知 client 仍退化到 quiescence + explicit,两者叠加。
 - **sidecar 与 agent 写竞争**:集成 checkout 必须只动不相交路径;重叠一律 hold,绝不覆盖脏文件。需 working-tree 写锁/原子 checkout。
 - **checkpoint 体量**:高频 checkpoint 的 blob 去重(内容寻址天然去重)+ TTL/数量上限。
 - **"过早 publish 污染 SoT"**:宁可多 checkpoint、少 publish;非 dev 预设默认 publish 偏保守(任务完成 + 长静默双条件)。
@@ -224,6 +224,16 @@ SoT 推进时(他人 publish,或父子投影),server 计算**受影响路径集*
 **部署到 qubits 时需要**:① 应用两个迁移(`20260613000000_scope_sync_events`、`20260613001000_scope_sync_settings`);② `SCOPE_SANDBOX_STORE=supabase` 让事件/设置用持久库;③ sidecar 装进 sandbox 镜像 + 启动时带 `SYNC_*` 环境(尤其 `SYNC_EVENTS_URL/PROJECT_ID/SCOPE_ID/TOKEN` 开启事件消费);④ 验证 version_engine post-push 的 emit 真正 fan-out(查 `scope_sync_events` 表或 `/activity`)。
 
 > 70 个 scope_sync 单测全绿;E2B 端到端 ALL PASS。
+
+### 9.6 P0 闭环接线 + 任务边界 marker(2026-06-14)
+
+- **connect → sidecar 自动启动**:`scope_sandbox.connect` 在授权后(best-effort、按 scope `auto_sync` 开关)调 `sidecar_provision.install_and_start`,把 sidecar 装进 box 并带上由 `build_sidecar_env` 从托管 policy 映射出的 `SYNC_*` 启动 watch。`sidecar_starter` 可注入,connect 单测保持 hermetic。
+- **access-key 事件端点**:新增 `GET /api/v1/scope-sync/ap/events`(`X-Access-Key` 鉴权,scope 从 key 反查),供 box 内 sidecar 用它克隆时已持有的 access_key 拉取上游事件——无需 JWT。`consume_events` 改发 `X-Access-Key`。
+- **agent 任务边界 marker(#3)**:见 §9 第一条。
+- **本地真 git 端到端**(无 E2B/网络):`sandbox/scope-sync-sidecar/tests/test_e2e_local.py` 用真实 git 世界(裸 SoT + 两个工作树 + localhost `/ap/events` stub)跑通 edit→checkpoint(私有)→publish(ff push)→integrate(稀疏拉取)、publish 冲突上报(非崩溃)、`consume_events` 经 `X-Access-Key` 集成不相交路径 / 重叠 HOLD、以及 marker 先于 quiescence 立即 publish。7 用例全绿。
+- **仍待实测**:真 E2B box 对真 qubits scope 的实环境跑通(被 ① QUBITS_TOKEN 过期 ② `/ap/events` 等新代码未部署 双重阻塞;两者就绪后一次性跑)。
+
+> 201 个 scope_sync + scope_sandbox 单测 + 7 个 sidecar 本地端到端全绿。
 
 ## 10. 一句话总结
 

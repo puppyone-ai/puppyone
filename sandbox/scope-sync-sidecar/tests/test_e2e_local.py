@@ -204,6 +204,67 @@ def test_consume_events_integrates_disjoint_path(world, tmp_path):
     assert cursor_file.read_text().strip() == "7"
 
 
+def test_signal_marker_publishes_ahead_of_quiescence(world, tmp_path):
+    """An agent task-boundary marker (`signal done`) makes the watch loop publish
+    immediately — without waiting out the (here very long) quiescence window —
+    stacking on top of the heuristic. Exercises signal/_drain_signals + _watch_step
+    against a real git world by importing the sidecar with the env preset."""
+    a, sot = world["a"], world["sot"]
+    import importlib
+
+    sig_file = tmp_path / "sig"
+    os.environ.update({
+        "SYNC_REPO": str(a), "SYNC_BRANCH": "main", "SYNC_REMOTE": "origin",
+        "SYNC_DEBOUNCE_S": "0", "SYNC_QUIESCENCE_S": "99999",  # quiescence effectively off
+        "SYNC_SIGNAL_FILE": str(sig_file),
+        **_GIT_ENV,
+    })
+    sys.path.insert(0, str(SIDECAR.parent))
+    try:
+        s = importlib.import_module("sync_sidecar")
+        importlib.reload(s)  # re-read env into module globals
+
+        before = _head(sot, "main")
+        (a / "docs" / "intro.md").write_text("edited, awaiting a marker\n")
+
+        st = s._new_watch_state()
+        # tick 1: edit observed, but no marker and quiescence is ~forever → no publish
+        s._watch_step(st, now=1.0)
+        assert _head(sot, "main") == before
+
+        # agent emits the task-boundary marker → next tick publishes immediately
+        assert s.signal("done") == "done"
+        assert sig_file.read_text() == "done\n"
+        s._watch_step(st, now=2.0)
+        assert _head(sot, "main") == _head(a)        # SoT advanced on the marker
+        assert _head(sot, "main") != before
+        assert not sig_file.exists()                 # marker drained (claimed)
+    finally:
+        for k in ("SYNC_REPO", "SYNC_BRANCH", "SYNC_REMOTE", "SYNC_DEBOUNCE_S",
+                  "SYNC_QUIESCENCE_S", "SYNC_SIGNAL_FILE"):
+            os.environ.pop(k, None)
+        sys.path.remove(str(SIDECAR.parent))
+
+
+def test_drain_signals_is_atomic_claim(tmp_path):
+    """_drain_signals renames-then-reads so it returns each marker once and a
+    concurrent append isn't lost (lands in a fresh file)."""
+    import importlib
+    sig_file = tmp_path / "sig"
+    os.environ["SYNC_SIGNAL_FILE"] = str(sig_file)
+    sys.path.insert(0, str(SIDECAR.parent))
+    try:
+        s = importlib.import_module("sync_sidecar")
+        importlib.reload(s)
+        assert s._drain_signals() == []             # nothing pending
+        s.signal("checkpoint"); s.signal("done")
+        assert s._drain_signals() == ["checkpoint", "done"]
+        assert s._drain_signals() == []             # claimed once, now empty
+    finally:
+        os.environ.pop("SYNC_SIGNAL_FILE", None)
+        sys.path.remove(str(SIDECAR.parent))
+
+
 def test_consume_events_holds_on_overlap(world, tmp_path):
     """If the upstream path overlaps B's own dirty edit, the sidecar HOLDs (does
     not clobber B's working copy); the next publish's rebase reconciles it."""
