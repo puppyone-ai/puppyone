@@ -181,6 +181,11 @@ class Settings(BaseSettings):
     SCOPE_SANDBOX_FLY_APP: str = ""
     SCOPE_SANDBOX_FLY_TOKEN: str = ""
     SCOPE_SANDBOX_FLY_IMAGE: str = ""
+    # Custom E2B template (roadmap #6) baking sshd+websocat+sidecar. When set,
+    # the provider launches this template and the bootstrap uses the FAST provision
+    # path (seed key + start pre-installed daemons). Unset → default template +
+    # full runtime install. Build via sandbox/scope-e2b/build.sh.
+    SCOPE_SANDBOX_E2B_TEMPLATE: str = ""
     # Session store backend: "memory" (dev/single-process) or "supabase"
     # (durable, multi-worker-visible — required for the reaper + multi-instance).
     SCOPE_SANDBOX_STORE: Literal["memory", "supabase"] = "memory"

@@ -6,6 +6,8 @@ from src.platform.scope_sandbox.ssh_e2b import (
     DEFAULT_FORWARD_PORT,
     DEFAULT_SSH_PORT,
     SSHD_CONFIG_PATH,
+    fast_provision_steps,
+    provision_e2b_ssh,
     provision_steps,
     ssh_proxy_command,
     vscode_ssh_config_block,
@@ -61,6 +63,36 @@ def test_provision_steps_sanitizes_quotes_in_key():
     # (the two pairs: '%s\n' and '<key>') — a stray quote would make 5+.
     steps = provision_steps("ssh-ed25519 ABC'; rm -rf / #", forward_port=1, ssh_port=2)
     assert steps[1].count("'") == 4
+
+
+def test_fast_provision_steps_skip_install_and_start_baked_daemons():
+    # custom-template path (roadmap #6): no download / keygen / config — only seed
+    # the key and start the pre-baked daemons via puppyone-ssh-up.
+    steps = fast_provision_steps(PUBKEY, forward_port=8081)
+    blob = "\n".join(steps)
+    assert "websocat" not in blob and "ssh-keygen" not in blob and "/usr/sbin/sshd" not in blob
+    assert PUBKEY in steps[1] and "authorized_keys" in steps[1]
+    assert steps[-1] == "puppyone-ssh-up 8081"
+
+
+def test_fast_provision_without_key_just_touches_authorized_keys():
+    steps = fast_provision_steps(forward_port=9000)
+    assert any("touch ~/.ssh/authorized_keys" in s for s in steps)
+    assert steps[-1] == "puppyone-ssh-up 9000"
+
+
+async def test_provision_e2b_ssh_baked_uses_fast_path():
+    calls: list[str] = []
+
+    class FakeProvider:
+        async def exec(self, sandbox_id, command):
+            calls.append(command)
+            return {"exit_code": 0}
+
+    await provision_e2b_ssh(FakeProvider(), "sb-1", baked=True)
+    blob = "\n".join(calls)
+    assert "puppyone-ssh-up" in blob
+    assert "websocat" not in blob and "ssh-keygen" not in blob   # nothing installed at runtime
 
 
 def test_ssh_proxy_command():

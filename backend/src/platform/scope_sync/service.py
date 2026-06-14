@@ -44,14 +44,21 @@ def _scope_service():
     return ScopeService()
 
 
+def _scope_by_access_key(access_key: str):
+    from src.repo.scope_repository import RepoScopeRepository
+    return RepoScopeRepository().get_by_access_key(access_key)
+
+
 class ScopeSyncService:
     """Resolves the managed :class:`SyncPolicyConfig` for a scope. Injectable
     scope lookup keeps it unit-testable without a DB."""
 
     def __init__(self, *, scope_lookup=None, scopes_lister=None,
                  event_store: EventStore | None = None,
-                 settings_store: SettingsStore | None = None) -> None:
+                 settings_store: SettingsStore | None = None,
+                 scope_by_access_key=None) -> None:
         self._scope_lookup = scope_lookup or (lambda sid: _scope_service().get(sid))
+        self._scope_by_access_key = scope_by_access_key or _scope_by_access_key
         # lists a project's scopes as [(scope_id, scope_path), ...] for M4 fanout
         self._scopes_lister = scopes_lister or self._default_scopes_lister
         from src.config import settings
@@ -152,6 +159,44 @@ class ScopeSyncService:
                 for e in events
             ],
         }
+
+    def stats(self, *, project_id: str, scope_id: str, window: int = 200) -> dict:
+        """Aggregate sync observability (#8) over the recent event log for a scope:
+        publish volume, distinct origins, per-source breakdown, last publish, and
+        the set of paths touched — the server-side counterpart to the sidecar's
+        own metrics."""
+        events = self._events.recent(project_id, scope_id, limit=window)
+        by_source: dict[str, int] = {}
+        origins: set[str] = set()
+        paths: set[str] = set()
+        for e in events:
+            by_source[e.source] = by_source.get(e.source, 0) + 1
+            if e.origin_user:
+                origins.add(e.origin_user)
+            paths.update(e.affected_paths)
+        latest = events[0] if events else None
+        return {
+            "events_in_window": len(events),
+            "window": window,
+            "by_source": by_source,
+            "distinct_origins": len(origins),
+            "distinct_paths": len(paths),
+            "latest_head": latest.head_version if latest else None,
+            "last_event_at": latest.created_at if latest else None,
+        }
+
+    def poll_events_by_access_key(self, *, access_key: str, cursor: int) -> dict:
+        """Sidecar-facing: resolve the scope from its access_key (no JWT) and
+        return its events since cursor. The access_key already authorizes git +
+        AP-FS for this scope, so it's the right credential for the in-sandbox
+        sidecar to poll its own scope's upstream events."""
+        scope = self._scope_by_access_key(access_key)
+        if scope is None:
+            raise LookupError("invalid access key")
+        out = self.poll_events(project_id=scope.project_id, scope_id=scope.id, cursor=cursor)
+        out["project_id"] = scope.project_id
+        out["scope_id"] = scope.id
+        return out
 
     def poll_events(self, *, project_id: str, scope_id: str, cursor: int) -> dict:
         """Events for a scope since ``cursor`` (the sidecar's last seen id)."""

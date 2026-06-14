@@ -101,6 +101,25 @@ def provision_steps(
     ]
 
 
+def fast_provision_steps(
+    public_key: str | None = None, *, forward_port: int = DEFAULT_FORWARD_PORT
+) -> list[str]:
+    """Provision steps for the CUSTOM template (roadmap #6), where sshd + websocat
+    + the hardened config + host keys are already baked. Skips the download,
+    keygen and config writes — only seeds authorized_keys (optional) and starts
+    the pre-installed daemons via the baked ``puppyone-ssh-up`` helper."""
+    steps = ["mkdir -p ~/.ssh && chmod 700 ~/.ssh"]
+    if public_key and public_key.strip():
+        pk = public_key.strip().replace("'", "")
+        steps.append(
+            f"printf '%s\\n' '{pk}' > ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+        )
+    else:
+        steps.append("touch ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys")
+    steps.append(f"puppyone-ssh-up {forward_port}")
+    return steps
+
+
 async def provision_e2b_ssh(
     provider,
     sandbox_id: str,
@@ -108,6 +127,7 @@ async def provision_e2b_ssh(
     *,
     forward_port: int = DEFAULT_FORWARD_PORT,
     ssh_port: int = DEFAULT_SSH_PORT,
+    baked: bool = False,
 ) -> None:
     """Run the SSH setup inside ``sandbox_id`` via the provider's exec.
 
@@ -115,8 +135,16 @@ async def provision_e2b_ssh(
     ``public_key`` None in production and grant per-user keys via
     ssh_credentials (so all access is revocable + short-lived); pass a key only
     for an admin break-glass or single-user demo. Raises if any step fails.
+
+    ``baked=True`` (custom template, roadmap #6) uses the FAST path — the heavy
+    install is already in the image, so only seed + start are run.
     """
-    for cmd in provision_steps(public_key, forward_port=forward_port, ssh_port=ssh_port):
+    steps = (
+        fast_provision_steps(public_key, forward_port=forward_port)
+        if baked
+        else provision_steps(public_key, forward_port=forward_port, ssh_port=ssh_port)
+    )
+    for cmd in steps:
         await provider.exec(sandbox_id, cmd)
 
 

@@ -26,7 +26,7 @@ from src.platform.scope_sandbox.factory import provider_from_settings, store_fro
 from src.platform.scope_sandbox.manager import AcquireResult, ScopeSandboxManager
 from src.platform.scope_sandbox.provider import SandboxProvider, SandboxSpec
 from src.platform.scope_sandbox.registry import SandboxSessionStore
-from src.utils.logger import log_info
+from src.utils.logger import log_info, log_warning
 
 # Env key carrying the scope's git remote URL into the sandbox (read by the
 # bootstrap to clone the scope on cold create). Server-side only; the access
@@ -69,12 +69,15 @@ class ScopeSandboxService:
         store: SandboxSessionStore | None = None,
         scope_lookup=None,
         manager_factory=None,
+        sidecar_starter=None,
     ) -> None:
         # Shared durable store across providers (one row per scope).
         self._store = store or store_from_settings(settings)
         # scope_id -> RepoScope-ish object with .project_id / .path / .access_key
         self._scope_lookup = scope_lookup or (lambda sid: _scope_service().get(sid))
         self._manager_factory = manager_factory or self._build_manager
+        # injectable so unit tests skip the (DB-touching) sync-sidecar start
+        self._sidecar_starter = sidecar_starter or self._maybe_start_sidecar
         self._managers: dict[str, ScopeSandboxManager] = {}
 
     # ── manager wiring ────────────────────────────────────────────────
@@ -102,8 +105,11 @@ class ScopeSandboxService:
         async def bootstrap(provider: SandboxProvider, sandbox_id: str, spec: SandboxSpec) -> None:
             # E2B has no native TCP ingress → provision sshd + websocat tunnel at
             # runtime (publickey-only). Fly bakes sshd into the image → skip.
+            # With the custom E2B template (roadmap #6) sshd+websocat are baked, so
+            # use the FAST path (seed + start only).
             if not provider.capabilities().supports_tcp_ingress:
-                await ssh_e2b.provision_e2b_ssh(provider, sandbox_id)  # no seed key
+                baked = bool(getattr(settings, "SCOPE_SANDBOX_E2B_TEMPLATE", ""))
+                await ssh_e2b.provision_e2b_ssh(provider, sandbox_id, baked=baked)  # no seed key
             git_url = spec.env.get(GIT_URL_ENV, "")
             if git_url:
                 await scope_provision.provision_scope_workspace(
@@ -163,6 +169,17 @@ class ScopeSandboxService:
         port = conn.port if conn else 22
         username = conn.username if conn else "user"
         proxy = conn.proxy_command if conn else None
+
+        # Start the in-sandbox sync sidecar (P0 closed loop): watch the user's
+        # working tree → checkpoint/publish + consume upstream events. Best-effort,
+        # gated on the scope's auto_sync setting. (Single sidecar per box for now;
+        # multi-user-per-scope sidecars are a follow-up.)
+        await self._sidecar_starter(
+            provider, sid, project_id=project_id, scope_id=scope_id,
+            user_id=user_id, username=username, access_key=scope.access_key,
+            public_base=public_base,
+        )
+
         log_info(
             f"[scope-sandbox] connect scope={scope_id} user={user_id} "
             f"via={result.via.value} provider={session.provider}"
@@ -180,6 +197,31 @@ class ScopeSandboxService:
             expires_at=expires_at,
             connected_users=len(session.connected_users),
         )
+
+    async def _maybe_start_sidecar(
+        self, provider, sandbox_id: str, *, project_id: str, scope_id: str,
+        user_id: str, username: str, access_key: str, public_base: str,
+    ) -> None:
+        """Install + start the scope-sync sidecar for this connection (best-effort,
+        gated on the scope's auto_sync setting). Never breaks connect."""
+        try:
+            from src.platform.scope_sync import sidecar_provision as sp
+            from src.platform.scope_sync.service import get_scope_sync_service
+
+            resolved = get_scope_sync_service().resolve_policy(
+                project_id=project_id, scope_id=scope_id)
+            if not resolved.get("auto_sync", True):
+                return
+            repo_dir = f"/home/{username}/{user_id}"
+            env = sp.build_sidecar_env(
+                resolved["policy"], repo_dir=repo_dir,
+                events_url=f"{public_base.rstrip('/')}/api/v1/scope-sync/ap/events",
+                project_id=project_id, scope_id=scope_id, token=access_key,
+            )
+            await sp.install_and_start(provider, sandbox_id, repo_dir=repo_dir, env=env)
+            log_info(f"[scope-sandbox] sync sidecar started scope={scope_id} repo={repo_dir}")
+        except Exception as exc:  # noqa: BLE001 - sidecar is best-effort
+            log_warning(f"[scope-sandbox] sidecar start skipped scope={scope_id}: {exc}")
 
     def status(self, *, project_id: str, scope_id: str, user_id: str) -> dict:
         session = self._store.get(scope_id)
