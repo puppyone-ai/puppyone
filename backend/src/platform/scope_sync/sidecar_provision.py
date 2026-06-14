@@ -12,10 +12,18 @@ from __future__ import annotations
 import base64
 from pathlib import Path
 
-# repo-root/sandbox/scope-sync-sidecar/sync_sidecar.py
-_SIDECAR_SRC = (
+# The sidecar script has TWO locations:
+#  - canonical (repo-root/sandbox/scope-sync-sidecar/) — source of truth, used in
+#    dev + by the E2B template build + the local E2E harness;
+#  - bundled (this package's _sidecar/) — a byte-identical copy that DOES ship with
+#    the deployed backend (the canonical lives outside backend/ and is absent from
+#    the deploy image). Kept in sync by test_sidecar_bundle_matches_canonical.
+# Prefer the canonical (always fresh in dev); fall back to the bundled copy so the
+# deployed backend can always install the sidecar.
+_SIDECAR_CANONICAL = (
     Path(__file__).resolve().parents[4] / "sandbox" / "scope-sync-sidecar" / "sync_sidecar.py"
 )
+_SIDECAR_BUNDLED = Path(__file__).resolve().parent / "_sidecar" / "sync_sidecar.py"
 
 INSTALL_DIR = "~/.puppyone"
 SIDECAR_REMOTE = f"{INSTALL_DIR}/sync_sidecar.py"
@@ -23,7 +31,12 @@ SIDECAR_LOG = "/tmp/puppy_sidecar.log"
 
 
 def load_sidecar_script() -> str:
-    return _SIDECAR_SRC.read_text(encoding="utf-8")
+    for src in (_SIDECAR_CANONICAL, _SIDECAR_BUNDLED):
+        if src.is_file():
+            return src.read_text(encoding="utf-8")
+    raise FileNotFoundError(
+        f"sidecar script not found at {_SIDECAR_CANONICAL} or {_SIDECAR_BUNDLED}"
+    )
 
 
 def install_command(script_text: str) -> str:
@@ -38,15 +51,27 @@ def _shq(v: str) -> str:
     return "'" + str(v).replace("'", "'\\''") + "'"
 
 
-def start_command(env: dict[str, str]) -> str:
-    """Start the sidecar's watch loop, fully detached (setsid + </dev/null) so the
-    exec returns instead of waiting on the long-runner."""
+def start_command(env: dict[str, str], *, self_detach: bool = True) -> str:
+    """Start the sidecar's watch loop after replacing any prior one.
+
+    ``self_detach=True`` (SSH-based providers like Fly): the command detaches
+    itself (setsid + & + echo) so the exec returns immediately.
+
+    ``self_detach=False`` (E2B): a FOREGROUND long-runner — E2B's ``commands.run``
+    kills the process tree on return, so a self-detaching ``&`` does NOT survive;
+    the caller must background it via ``provider.exec(..., background=True)``."""
     prefix = " ".join(f"{k}={_shq(v)}" for k, v in sorted(env.items()))
-    return (
-        f"pkill -f '[s]ync_sidecar.py' 2>/dev/null; "  # replace any prior sidecar
-        f"{prefix} setsid python3 {SIDECAR_REMOTE} watch </dev/null "
-        f">{SIDECAR_LOG} 2>&1 & echo sidecar-started"
-    )
+    if self_detach:
+        # SSH/Fly: one command — replace prior sidecar, then self-detach.
+        return (
+            f"pkill -f '[s]ync_sidecar.py' 2>/dev/null; true; "
+            f"{prefix} setsid python3 {SIDECAR_REMOTE} watch </dev/null "
+            f">{SIDECAR_LOG} 2>&1 & echo sidecar-started"
+        )
+    # E2B: a CLEAN foreground long-runner (no pkill-chain, no setsid/&) — chaining
+    # statements breaks E2B's background launch. The caller pkills separately (see
+    # install_and_start) and backgrounds this via exec(background=True).
+    return f"{prefix} python3 {SIDECAR_REMOTE} watch </dev/null >{SIDECAR_LOG} 2>&1"
 
 
 def stop_command() -> str:
@@ -103,9 +128,25 @@ async def install_and_start(
     env: dict[str, str],
     script_text: str | None = None,
 ) -> None:
-    """Install the sidecar script + start its watch loop in the sandbox."""
+    """Install the sidecar script + start its watch loop in the sandbox.
+
+    Some providers (E2B) kill a command's process tree when the exec returns, so a
+    self-detaching ``&`` does not survive — they advertise
+    ``background_exec_required`` and we launch the watch as a FOREGROUND command
+    via ``provider.exec(..., background=True)``. SSH-based providers (Fly) self-
+    detach instead."""
+    needs_bg = bool(getattr(provider.capabilities(), "background_exec_required", False))
     await provider.exec(sandbox_id, install_command(script_text or load_sidecar_script()))
-    await provider.exec(sandbox_id, start_command({**env, "SYNC_REPO": repo_dir}))
+    if needs_bg:
+        # E2B: pkill any prior sidecar in a SEPARATE foreground exec (chaining it
+        # into the backgrounded command breaks E2B's launch), then background a
+        # clean foreground watch.
+        await provider.exec(sandbox_id, stop_command())
+        await provider.exec(sandbox_id, start_command({**env, "SYNC_REPO": repo_dir},
+                                                       self_detach=False), background=True)
+    else:
+        await provider.exec(sandbox_id, start_command({**env, "SYNC_REPO": repo_dir},
+                                                       self_detach=True))
 
 
 async def stop(provider, sandbox_id: str) -> None:

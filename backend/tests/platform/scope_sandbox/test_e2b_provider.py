@@ -40,15 +40,15 @@ class FakeE2BClient(E2BClient):
     def get_state(self, sandbox_id: str) -> SandboxState:
         return self.states.get(sandbox_id, SandboxState.UNKNOWN)
 
-    def exec(self, sandbox_id: str, command: str) -> dict:
-        self.calls.append(("exec", sandbox_id))
+    def exec(self, sandbox_id: str, command: str, background: bool = False) -> dict:
+        self.calls.append(("exec", sandbox_id, background))
         return {"exit_code": 0, "stdout": f"ran:{command}", "stderr": ""}
 
     def set_timeout(self, sandbox_id: str) -> None:
         self.calls.append(("set_timeout", sandbox_id))
 
     def count(self, op: str) -> int:
-        return sum(1 for o, _ in self.calls if o == op)
+        return sum(1 for c in self.calls if c[0] == op)
 
 
 def _spec(scope="s1"):
@@ -112,6 +112,7 @@ def test_e2b_capabilities():
     assert caps.name == "e2b"
     assert caps.supports_stop_resume and caps.self_hostable
     assert not caps.supports_tcp_ingress   # SSH must be tunnelled
+    assert caps.background_exec_required    # long-runners need exec(background=True)
 
 
 # ── both providers plug into the manager (the two selectable versions) ──

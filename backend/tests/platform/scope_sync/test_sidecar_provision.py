@@ -72,17 +72,67 @@ def test_build_sidecar_env_defaults_checkpoint_bounds():
     assert env["SYNC_MAX_CHECKPOINTS"] == "100" and env["SYNC_CHECKPOINT_TTL_S"] == "0"
 
 
-async def test_install_and_start_runs_two_execs():
-    calls: list[str] = []
+from dataclasses import dataclass
 
-    class FakeProvider:
-        async def exec(self, sandbox_id, command):
-            calls.append(command)
-            return {"stdout": "", "exit_code": 0}
 
+@dataclass
+class _Caps:
+    background_exec_required: bool = False
+
+
+class _FakeProvider:
+    def __init__(self, *, background_exec_required=False):
+        self.calls: list[tuple[str, bool]] = []
+        self._caps = _Caps(background_exec_required)
+
+    def capabilities(self):
+        return self._caps
+
+    async def exec(self, sandbox_id, command, *, background=False):
+        self.calls.append((command, background))
+        return {"stdout": "", "exit_code": 0}
+
+
+async def test_install_and_start_ssh_provider_self_detaches():
+    # Fly-like (background_exec_required=False): start command self-detaches,
+    # exec runs normally (background=False).
+    prov = _FakeProvider(background_exec_required=False)
     from src.platform.scope_sync.sidecar_provision import install_and_start
-    await install_and_start(FakeProvider(), "sb-1", repo_dir="/home/user/scope",
+    await install_and_start(prov, "sb-1", repo_dir="/home/user/scope",
                             env={"SYNC_QUIESCENCE_S": "120"}, script_text="x=1\n")
-    assert len(calls) == 2
-    assert "base64 -d >" in calls[0]                          # install
-    assert "setsid python3" in calls[1] and "SYNC_REPO='/home/user/scope'" in calls[1]  # start
+    assert len(prov.calls) == 2
+    install_cmd, install_bg = prov.calls[0]
+    start_cmd, start_bg = prov.calls[1]
+    assert "base64 -d >" in install_cmd and install_bg is False
+    assert "setsid python3" in start_cmd and "& echo sidecar-started" in start_cmd
+    assert "SYNC_REPO='/home/user/scope'" in start_cmd and start_bg is False
+
+
+async def test_install_and_start_e2b_provider_backgrounds_foreground_runner():
+    # E2B-like (background_exec_required=True): start is a FOREGROUND command (no
+    # setsid/&), launched via exec(background=True) so it survives.
+    prov = _FakeProvider(background_exec_required=True)
+    from src.platform.scope_sync.sidecar_provision import install_and_start
+    await install_and_start(prov, "sb-1", repo_dir="/home/user/scope",
+                            env={"SYNC_QUIESCENCE_S": "120"}, script_text="x=1\n")
+    # install (fg) → pkill prior (fg) → clean foreground watch (background=True)
+    assert "base64 -d >" in prov.calls[0][0] and prov.calls[0][1] is False
+    pkill_cmd, pkill_bg = prov.calls[1]
+    assert "pkill" in pkill_cmd and pkill_bg is False                   # separate, NOT chained
+    start_cmd, start_bg = prov.calls[2]
+    assert start_bg is True
+    assert "setsid" not in start_cmd and "& echo" not in start_cmd      # not self-detaching
+    assert "pkill" not in start_cmd                                     # pkill not chained in
+    assert "python3" in start_cmd and "watch" in start_cmd and "SYNC_REPO='/home/user/scope'" in start_cmd
+
+
+def test_sidecar_bundle_matches_canonical():
+    # The bundled copy (shipped with backend) MUST be byte-identical to the
+    # canonical sidecar source — guards against drift when the canonical changes.
+    from src.platform.scope_sync.sidecar_provision import _SIDECAR_BUNDLED, _SIDECAR_CANONICAL
+    assert _SIDECAR_BUNDLED.is_file(), "bundled sidecar copy missing from backend package"
+    if _SIDECAR_CANONICAL.is_file():
+        assert _SIDECAR_BUNDLED.read_bytes() == _SIDECAR_CANONICAL.read_bytes(), (
+            "bundled sidecar drifted from canonical — re-copy "
+            "sandbox/scope-sync-sidecar/sync_sidecar.py into backend/.../_sidecar/"
+        )
