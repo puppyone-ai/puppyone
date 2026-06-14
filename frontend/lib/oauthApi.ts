@@ -52,6 +52,14 @@ export type SaasType = keyof typeof OAUTH_PROVIDERS;
 // Low-level fetch helpers
 // ---------------------------------------------------------------------------
 
+function oauthBackendUrl(path: string): string {
+  const normalizedPath = path.replace(/^\/+/, '');
+  if (typeof window !== 'undefined') {
+    return `/api/backend/api/v1/oauth/${normalizedPath}`;
+  }
+  return `${API_BASE_URL.replace(/\/+$/, '')}/api/v1/oauth/${normalizedPath}`;
+}
+
 async function oauthFetch<T>(
   path: string,
   method: 'GET' | 'POST' | 'DELETE',
@@ -59,7 +67,7 @@ async function oauthFetch<T>(
   options?: { auth?: boolean },
 ): Promise<T> {
   const token = options?.auth === false ? null : await getApiAccessToken();
-  const response = await fetch(`${API_BASE_URL}/api/v1/oauth/${path}`, {
+  const response = await fetch(oauthBackendUrl(path), {
     method,
     headers: {
       'Content-Type': 'application/json',
@@ -69,7 +77,7 @@ async function oauthFetch<T>(
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
   if (!response.ok) {
-    throw new Error(`OAuth request failed: ${method} ${path} → ${response.status}`);
+    throw new Error(`OAuth request failed: ${method} ${path} -> ${response.status}`);
   }
   const data = await response.json();
   return data.data ?? data;

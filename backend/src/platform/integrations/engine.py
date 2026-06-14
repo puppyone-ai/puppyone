@@ -11,7 +11,7 @@ from typing import Any, Optional
 from src.connectors.datasource._base import AuthRequirement, Capability
 from src.connectors.datasource.registry import ConnectorRegistry
 from src.connectors.datasource.run_repository import SyncRunRepository
-from src.platform.integrations.paths import plan_fetch_result
+from src.platform.integrations.paths import plan_fetch_result, plan_materialized_result
 from src.platform.integrations.repository import IntegrationRepository
 from src.utils.logger import log_debug, log_error, log_info
 
@@ -94,17 +94,28 @@ class IntegrationEngine:
                     )
                 return None
 
-            target_exists_as_file = self._target_exists_as_file(
-                connection.project_id,
-                connection.path,
+            materializer = self.registry.resolve_materializer(
+                connection.provider,
+                (connection.config or {}).get("materialization_schema"),
             )
-            write_plan = plan_fetch_result(
-                sync=connection,
-                result=result,
-                target_exists_as_file=target_exists_as_file,
-            )
+            if materializer is not None:
+                write_plan = plan_materialized_result(
+                    sync=connection,
+                    materialized=materializer.materialize(result, connection),
+                )
+            else:
+                target_exists_as_file = self._target_exists_as_file(
+                    connection.project_id,
+                    connection.path,
+                )
+                write_plan = plan_fetch_result(
+                    sync=connection,
+                    result=result,
+                    target_exists_as_file=target_exists_as_file,
+                )
 
-            external_resource_id = (connection.config or {}).get("external_resource_id", "")
+            source = (connection.config or {}).get("source") or {}
+            external_resource_id = source.get("resource_id", "")
             actor = f"integration:{connection.provider}:{external_resource_id}"
 
             from src.version_engine.bootstrap.dependencies import (

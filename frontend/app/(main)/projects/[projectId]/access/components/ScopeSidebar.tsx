@@ -1,28 +1,16 @@
 'use client';
 
-/**
- * ScopeSidebar — left rail of the access page.
- *
- * Sidebar shows one row per *mount point*, full stop. The mount point
- * is the access-point unit at this layer (everything bound to it is
- * "an access point at this path"). Provider categories — CLI, Agent,
- * Third-party — are a *detail-pane* concern, not a sidebar concern.
- *
- * Composition:
- *  - `ScopeSidebar`     wraps the scrollable column + header geometry.
- *  - `ScopeSidebarRow`  is one row in the list.
- *
- * Both live in this file because the row only exists to populate the
- * sidebar — there's no other consumer.
- */
-
 import { useState } from 'react';
 import type { Connector, RepoScope } from '@/lib/repoApi';
+import {
+  getAccessProviderDefinition,
+  SIDEBAR_SIGNAL_PROVIDER_IDS,
+  isGitRemoteProvider,
+  normalizeConnectorProvider,
+} from '@/lib/accessProviderRegistry';
 import { SIDEBAR_ROW_TYPOGRAPHY } from '@/lib/uiTypography';
 import { T } from '../lib/tokens';
 import { ProviderIcon } from './icons';
-
-// ─── Sidebar shell ───────────────────────────────────────────────────
 
 export function ScopeSidebar({
   scopes,
@@ -36,10 +24,6 @@ export function ScopeSidebar({
   readonly onSelect: (id: string) => void;
 }) {
   return (
-    // Width is owned by the parent `ResizableSidebarColumn` so the
-    // user can drag-resize this rail. We just fill 100% of whatever
-    // column container is given to us — same shape as the data
-    // view's `ExplorerSidebar`.
     <div
       style={{
         width: '100%',
@@ -52,16 +36,6 @@ export function ScopeSidebar({
         background: 'var(--po-canvas)',
       }}
     >
-      {/*
-        Two-layer wrapper that mirrors `ExplorerSidebar` to the
-        pixel — `paddingTop: 6` on the outer scroll container plus
-        `padding: '0 0 6px 0'` on the inner wrapper. Together with
-        each row's `marginTop: 2` this places the top edge of the
-        first row at 6 + 0 + 2 = 8px below the sidebar header,
-        exactly where the data view's "Root" row sits. Without this
-        pairing, switching between /data and /access shifted the
-        list down by 1px and the user could feel it.
-      */}
       <div
         style={{
           flex: 1,
@@ -72,13 +46,13 @@ export function ScopeSidebar({
         }}
       >
         <div style={{ padding: '0 0 6px 0', position: 'relative', boxSizing: 'border-box' }}>
-          {scopes.map((s) => (
+          {scopes.map((scope) => (
             <ScopeSidebarRow
-              key={s.id}
-              scope={s}
-              connectors={connectorsByScope.get(s.id) ?? []}
-              isSelected={s.id === selectedScopeId}
-              onClick={() => onSelect(s.id)}
+              key={scope.id}
+              scope={scope}
+              connectors={connectorsByScope.get(scope.id) ?? []}
+              isSelected={scope.id === selectedScopeId}
+              onClick={() => onSelect(scope.id)}
             />
           ))}
         </div>
@@ -86,13 +60,6 @@ export function ScopeSidebar({
     </div>
   );
 }
-
-// ─── Sidebar row ─────────────────────────────────────────────────────
-//
-// Two-line row: first line names the scope;
-// second line shows the path plus active built-in entry points. The
-// old pin/folder glyphs are deliberately gone — they duplicated
-// "scope-ness" without adding useful connection state.
 
 function ScopeSidebarRow({
   scope,
@@ -216,8 +183,6 @@ function ScopeSidebarRow({
   );
 }
 
-const SIDEBAR_BUILTIN_PROVIDERS = ['cli', 'git_remote'] as const;
-
 function SidebarSignals({
   connectors,
   isSelected,
@@ -225,9 +190,11 @@ function SidebarSignals({
   readonly connectors: readonly Connector[];
   readonly isSelected: boolean;
 }) {
-  const activeBuiltIns = SIDEBAR_BUILTIN_PROVIDERS
-    .map((provider) => connectors.find((c) => c.provider === provider && isConnectorActive(c)))
-    .filter((c): c is Connector => Boolean(c));
+  const activeBuiltIns = SIDEBAR_SIGNAL_PROVIDER_IDS
+    .map((provider) => connectors.find((connector) =>
+      normalizeConnectorProvider(connector.provider) === provider && isConnectorActive(connector),
+    ))
+    .filter((connector): connector is Connector => Boolean(connector));
   if (activeBuiltIns.length === 0) return null;
 
   return (
@@ -262,12 +229,10 @@ function SidebarProviderChip({
   readonly provider: string;
   readonly selected: boolean;
 }) {
-  const isGit = provider === 'git_remote';
-  const CHIP_TITLES: Record<string, string> = {
-    cli: 'Puppyone CLI active',
-    git_remote: 'Git Remote active',
-  };
-  const title = CHIP_TITLES[provider] ?? `${provider} active`;
+  const normalizedProvider = normalizeConnectorProvider(provider);
+  const isGit = isGitRemoteProvider(normalizedProvider);
+  const definition = getAccessProviderDefinition(normalizedProvider);
+  const title = `${definition.cardTitle || definition.label} active`;
 
   return (
     <span

@@ -408,11 +408,11 @@ function CreateView({
       console.error('Failed to create sync:', err);
       // User-friendly messages for known error types
       if (err?.isDuplicate || err?.status === 409 || err?.code === 409) {
-        setDeployError('该文件夹已有相同类型的 integration，请先删除已有的，或选择其他文件夹。');
+        setDeployError('This folder already has an integration of this type. Remove the existing one or choose a different folder.');
       } else if (err?.status === 403) {
-        setDeployError('无权限创建 integration，请确认项目访问权限。');
+        setDeployError('You do not have permission to create integrations in this project.');
       } else {
-        setDeployError(err instanceof Error ? err.message : '创建失败，请重试。');
+        setDeployError(err instanceof Error ? err.message : 'Creation failed. Please try again.');
       }
     } finally {
       setDeploying(false);

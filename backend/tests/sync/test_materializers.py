@@ -1,0 +1,227 @@
+from __future__ import annotations
+
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
+from src.connectors.datasource._base import BaseConnector, Capability, ConnectorSpec, FetchResult
+from src.connectors.datasource.materializers.base import MaterializationSchema, MaterializedOutput
+from src.connectors.datasource.materializers.providers import GmailMaterializer, GoogleSheetsMaterializer
+from src.connectors.datasource.registry import ConnectorRegistry
+from src.connectors.datasource.schemas import Sync
+from src.platform.integrations.engine import IntegrationEngine
+
+
+def _sync(provider: str = "gmail") -> Sync:
+    return Sync(
+        id="sync-1",
+        project_id="project-1",
+        path="Gmail",
+        provider=provider,
+        config={},
+    )
+
+
+def test_gmail_materializer_writes_threads_and_index():
+    result = FetchResult(
+        content={
+            "account": "user@example.com",
+            "synced_at": "2026-06-09T00:00:00+00:00",
+            "email_count": 1,
+            "query": "in:inbox",
+            "emails": [{
+                "id": "msg-1",
+                "thread_id": "thread-1",
+                "subject": "Roadmap",
+                "from": "A <a@example.com>",
+                "to": "B <b@example.com>",
+                "date": "2026-06-09T01:02:03+00:00",
+                "labels": ["INBOX"],
+                "body": "Hello",
+                "url": "https://mail.google.com/mail/u/0/#inbox/msg-1",
+            }],
+        },
+        content_hash="hash-1",
+        summary="Fetched 1 email",
+    )
+
+    output = GmailMaterializer().materialize(result, _sync())
+
+    assert "_meta/source.json" in output.files
+    assert "index.json" in output.files
+    assert "inbox/2026/06/thread_thread-1.md" in output.files
+    assert output.files["index.json"]["threads"][0]["path"] == "inbox/2026/06/thread_thread-1.md"
+    assert "Roadmap" in output.files["inbox/2026/06/thread_thread-1.md"]
+
+
+def test_google_sheets_materializer_writes_workbook_csv_and_schema():
+    result = FetchResult(
+        content={
+            "synced_at": "2026-06-09T00:00:00+00:00",
+            "spreadsheet_id": "sheet-1",
+            "spreadsheet_title": "Revenue Plan",
+            "sheets": [{
+                "name": "Q1",
+                "sheet_id": 123,
+                "headers": ["Month", "Revenue"],
+                "row_count": 1,
+                "rows": [{"Month": "Jan", "Revenue": "100"}],
+            }],
+        },
+        content_hash="hash-2",
+    )
+
+    output = GoogleSheetsMaterializer().materialize(result, _sync("google_sheets"))
+
+    assert "spreadsheets/Revenue Plan/workbook.json" in output.files
+    assert "spreadsheets/Revenue Plan/sheets/Q1.csv" in output.files
+    assert "spreadsheets/Revenue Plan/sheets/Q1.schema.json" in output.files
+    assert "Month,Revenue" in output.files["spreadsheets/Revenue Plan/sheets/Q1.csv"]
+    assert output.files["index.json"]["sheets"][0]["csv_path"] == "spreadsheets/Revenue Plan/sheets/Q1.csv"
+
+
+class _FakeConnector(BaseConnector):
+    def spec(self) -> ConnectorSpec:
+        return ConnectorSpec(
+            provider="gmail",
+            display_name="Gmail",
+            capabilities=Capability.PULL,
+            supported_directions=["inbound"],
+        )
+
+    async def fetch(self, config, credentials):
+        return FetchResult(content={}, content_hash="hash")
+
+
+def test_registry_serializes_materialization_schema():
+    registry = ConnectorRegistry()
+    registry.register(_FakeConnector())
+    registry.register_materializer(GmailMaterializer())
+
+    specs = registry.specs_to_dicts()
+
+    assert specs[0]["materialization_schema"]["id"] == "puppyone.gmail.thread_markdown"
+    assert specs[0]["materialization_schema"]["latest"] is True
+    assert specs[0]["materialization_schemas"][0]["version"] == 1
+    assert "index.json" in specs[0]["materialization_schema"]["preview_paths"]
+
+
+def test_registry_pins_and_resolves_materialization_schema():
+    registry = ConnectorRegistry()
+    registry.register(_FakeConnector())
+    registry.register_materializer(GmailMaterializer())
+
+    pinned = registry.pin_materialization_schema("gmail", {"query": "in:inbox"})
+
+    assert pinned["query"] == "in:inbox"
+    assert pinned["materialization_schema"] == {
+        "id": "puppyone.gmail.thread_markdown",
+        "version": 1,
+    }
+    assert registry.resolve_materializer("gmail", pinned["materialization_schema"]).schema.version == 1
+
+
+class _EngineConnector(BaseConnector):
+    def spec(self) -> ConnectorSpec:
+        return ConnectorSpec(
+            provider="engine_fake",
+            display_name="Engine Fake",
+            capabilities=Capability.PULL,
+            supported_directions=["inbound"],
+        )
+
+    async def fetch(self, config, credentials):
+        return FetchResult(content={"ok": True}, content_hash="hash-3", summary="Fetched")
+
+
+class _EngineMaterializer:
+    provider = "engine_fake"
+    schema = MaterializationSchema(
+        id="test.schema",
+        version=1,
+        label="Test",
+        description="Test schema",
+        preview_paths=("index.json",),
+    )
+
+    def materialize(self, result: FetchResult, sync: Sync) -> MaterializedOutput:
+        return MaterializedOutput(
+            files={
+                "index.json": {"ok": True},
+                "docs/item.md": "hello",
+            },
+            summary="Materialized",
+            primary_path="index.json",
+            content_hash=result.content_hash,
+        )
+
+
+class _EngineMaterializerV2:
+    provider = "engine_fake"
+    schema = MaterializationSchema(
+        id="test.schema",
+        version=2,
+        label="Test v2",
+        description="Test schema v2",
+        preview_paths=("v2/index.json",),
+    )
+
+    def materialize(self, result: FetchResult, sync: Sync) -> MaterializedOutput:
+        return MaterializedOutput(
+            files={"v2/index.json": {"ok": "v2"}},
+            summary="Materialized v2",
+            primary_path="v2/index.json",
+            content_hash=result.content_hash,
+        )
+
+
+@pytest.mark.asyncio
+async def test_integration_engine_uses_pinned_materializer(monkeypatch):
+    registry = ConnectorRegistry()
+    registry.register(_EngineConnector())
+    registry.register_materializer(_EngineMaterializer())
+    registry.register_materializer(_EngineMaterializerV2())
+
+    connection = _sync("engine_fake")
+    connection.path = "Integrations/Mount"
+    connection.config = {
+        "target_path": "Integrations/Mount",
+        "external_resource_id": "direct:fake",
+        "materialization_schema": {"id": "test.schema", "version": 1},
+    }
+
+    repository = MagicMock()
+    repository.get_by_id.return_value = connection
+
+    run = SimpleNamespace(id="run-1")
+    run_repo = MagicMock()
+    run_repo.create.return_value = run
+
+    write_result = SimpleNamespace(commit_id="commit-2")
+    commands = MagicMock()
+    commands.bulk_write = AsyncMock(return_value=SimpleNamespace(result=write_result))
+    commands.write_bytes = AsyncMock()
+
+    class _Container:
+        def write_commands(self):
+            return commands
+
+    import src.version_engine.bootstrap.dependencies as deps
+    monkeypatch.setattr(deps, "build_worker_version_engine_container", lambda: _Container())
+
+    result = await IntegrationEngine(registry, repository, run_repo).execute(connection.id)
+
+    commands.write_bytes.assert_not_called()
+    commands.bulk_write.assert_awaited_once()
+    call = commands.bulk_write.await_args
+    assert set(call.args[1]) == {
+        "Integrations/Mount/index.json",
+        "Integrations/Mount/docs/item.md",
+    }
+    assert result["path"] == "Integrations/Mount/index.json"
+    repository.update_sync_point.assert_called_once_with(
+        sync_id="sync-1",
+        last_sync_commit_id="commit-2",
+        remote_hash="hash-3",
+    )

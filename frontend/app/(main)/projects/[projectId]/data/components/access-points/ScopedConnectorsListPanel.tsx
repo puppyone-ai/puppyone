@@ -33,6 +33,12 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { GithubIcon, GmailIcon, NotionIcon } from '@/lib/nodeTypeConfig';
 import type { Connector, RepoScope } from '@/lib/repoApi';
+import {
+  isAgentProvider,
+  isBuiltInAccessProvider,
+  isCliProvider,
+  isGitRemoteProvider,
+} from '@/lib/accessProviderRegistry';
 import { PanelShell } from '../PanelShell';
 import { FolderIcon } from '../explorer';
 import { ConnectorCard } from './ConnectorCard';
@@ -133,15 +139,15 @@ export function ScopedConnectorsListPanel({
   onNavigationGuardChange,
 }: Props) {
   const cliConnector = useMemo(
-    () => connectors.find((c) => c.provider === 'cli'),
+    () => connectors.find((c) => isCliProvider(c.provider)),
     [connectors],
   );
   const gitRemoteConnector = useMemo(
-    () => connectors.find((c) => c.provider === 'git_remote'),
+    () => connectors.find((c) => isGitRemoteProvider(c.provider)),
     [connectors],
   );
   const agentConnector = useMemo(
-    () => connectors.find((c) => c.provider === 'agent'),
+    () => connectors.find((c) => isAgentProvider(c.provider)),
     [connectors],
   );
   // Workflows = third-party connectors. Built-ins
@@ -151,10 +157,7 @@ export function ScopedConnectorsListPanel({
   const integrations = useMemo(
     () =>
       connectors.filter(
-        (c) =>
-          c.provider !== 'cli' &&
-          c.provider !== 'agent' &&
-          c.provider !== 'git_remote',
+        (c) => !isBuiltInAccessProvider(c.provider),
       ),
     [connectors],
   );

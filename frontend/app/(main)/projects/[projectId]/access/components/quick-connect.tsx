@@ -26,9 +26,17 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { buildGitSyncPrompt, buildTerminalCliPrompt } from '@/lib/accessPointCliPrompt';
 import { activateAgentConnector, type Connector, type RepoScope } from '@/lib/repoApi';
+import {
+  getAccessProviderLabel,
+  isAgentProvider,
+  isCliProvider,
+  isGitRemoteProvider,
+  isMcpProvider,
+  isSandboxProvider,
+  normalizeConnectorProvider,
+} from '@/lib/accessProviderRegistry';
 import { AI_AGENT_ENABLED } from '@/lib/featureFlags';
 import { T } from '../lib/tokens';
-import { PROVIDER_LABELS } from '../lib/constants';
 import {
   getApiBase,
   profileSlug,
@@ -54,13 +62,14 @@ export function ConnectorAccessPanel({
   const apiBase = useMemo(() => getApiBase(), []);
   if (!scope) return null;
 
-  if (connector.provider === 'cli') {
-    return <TerminalCliBody scope={scope} apiBase={apiBase} />;
+  const provider = normalizeConnectorProvider(connector.provider);
+  if (isCliProvider(provider)) {
+    return <TerminalCliBody connector={connector} scope={scope} apiBase={apiBase} />;
   }
-  if (connector.provider === 'git_remote') {
-    return <GitRemoteBody scope={scope} apiBase={apiBase} />;
+  if (isGitRemoteProvider(provider)) {
+    return <GitRemoteBody connector={connector} scope={scope} apiBase={apiBase} />;
   }
-  if (connector.provider === 'agent') {
+  if (isAgentProvider(provider)) {
     // Agent surface is gated on the AI_AGENT_ENABLED flag (see
     // `frontend/lib/featureFlags.ts`). When hidden, fall through to
     // an empty render — callers should be filtering agent connectors
@@ -70,10 +79,10 @@ export function ConnectorAccessPanel({
     if (!AI_AGENT_ENABLED) return null;
     return <AgentBody connector={connector} scope={scope} />;
   }
-  if (connector.provider === 'mcp') {
+  if (isMcpProvider(provider)) {
     return <McpBody connector={connector} scope={scope} />;
   }
-  if (connector.provider === 'sandbox') {
+  if (isSandboxProvider(provider)) {
     return <SandboxBody scope={scope} />;
   }
   return <ThirdPartyBody connector={connector} scope={scope} />;
@@ -82,13 +91,15 @@ export function ConnectorAccessPanel({
 // ─── Body: Terminal CLI ──────────────────────────────────────────────
 
 function TerminalCliBody({
+  connector,
   scope,
   apiBase,
 }: {
+  readonly connector: Connector;
   readonly scope: RepoScope;
   readonly apiBase: string;
 }) {
-  const accessKey = scope.access_key || '';
+  const accessKey = scope.access_key || connector.access_key || '';
   const scopeName = scope.name || (scope.path === '' ? 'root' : scope.path);
   const profileName = profileSlug(scope.name || scope.path || 'root');
 
@@ -122,13 +133,15 @@ function TerminalCliBody({
 // ─── Body: Git Remote ────────────────────────────────────────────────
 
 function GitRemoteBody({
+  connector,
   scope,
   apiBase,
 }: {
+  readonly connector: Connector;
   readonly scope: RepoScope;
   readonly apiBase: string;
 }) {
-  const accessKey = scope.access_key || '';
+  const accessKey = scope.access_key || connector.access_key || '';
   const scopeName = scope.name || (scope.path === '' ? 'root' : scope.path);
   const gitUrl = `${apiBase}/git/ap/${accessKey || '<access-key>'}.git`;
   const {
@@ -428,7 +441,7 @@ function ThirdPartyBody({
   readonly scope: RepoScope;
 }) {
   const router = useRouter();
-  const providerLabel = PROVIDER_LABELS[connector.provider] ?? connector.provider;
+  const providerLabel = getAccessProviderLabel(connector.provider);
 
   const handleConfigure = useCallback(() => {
     router.push(scopePathToDataUrl(connector.project_id, scope.path) + `?ap=${connector.id}`);

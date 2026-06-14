@@ -5,8 +5,6 @@
 
 import { apiRequest, getApiAccessToken } from './apiClient';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090';
-
 // ============ Types ============
 
 export interface ChatSession {
@@ -89,7 +87,7 @@ export async function sendChatMessage(
   }
 ): Promise<Response> {
   const token = await getApiAccessToken();
-  return fetch(`${API_BASE_URL}/api/v1/agents`, {
+  return fetch('/api/agent', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

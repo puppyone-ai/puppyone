@@ -13,8 +13,8 @@ import {
   type ConnectorDirection,
   type RepoScope,
 } from '@/lib/repoApi';
+import { getAccessProviderLabel } from '@/lib/accessProviderRegistry';
 import { T } from '../lib/tokens';
-import { PROVIDER_LABELS } from '../lib/constants';
 import { ProviderIcon } from './icons';
 import { FolderAccessTree } from './FolderAccessTree';
 
@@ -365,7 +365,7 @@ function MethodRow({
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
           <span style={{ fontSize: ACCESS_MODAL_TYPE.body, fontWeight: 600, color: inactive ? T.text3 : T.text2, fontFamily: T.fontSans, lineHeight: '18px', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {PROVIDER_LABELS[provider] ?? provider}
+            {getAccessProviderLabel(provider)}
           </span>
           {inactive ? (
             <span
@@ -394,7 +394,7 @@ function MethodRow({
         checked={enabled}
         onCheckedChange={locked || disabled ? undefined : onCheckedChange}
         disabled={disabled}
-        ariaLabel={`${PROVIDER_LABELS[provider] ?? provider} ${enabled ? 'on' : 'off'}`}
+        ariaLabel={`${getAccessProviderLabel(provider)} ${enabled ? 'on' : 'off'}`}
         title={locked ? 'Already enabled' : disabled ? 'Coming soon' : undefined}
         size="xs"
       />
@@ -458,7 +458,7 @@ async function createOptionalConnectors(
         scope_id: scope.id,
         provider,
         direction: method.direction,
-        name: PROVIDER_LABELS[provider] ?? provider,
+        name: getAccessProviderLabel(provider),
         config: {},
         trigger: { type: 'manual' },
       });

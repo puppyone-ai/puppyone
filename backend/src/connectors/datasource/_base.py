@@ -44,12 +44,12 @@ class TriggerMode(str, Enum):
 
 
 # ============================================================
-# Credentials (passed to fetch by SyncEngine)
+# Credentials (passed to fetch by IntegrationEngine)
 # ============================================================
 
 @dataclass
 class Credentials:
-    """OAuth / API credentials resolved by SyncEngine, passed to fetch()."""
+    """OAuth / API credentials resolved by IntegrationEngine, passed to fetch()."""
     access_token: str = ""
     metadata: dict = field(default_factory=dict)
 
@@ -63,7 +63,7 @@ class FetchResult:
     """
     Returned by connector.fetch() — the data pulled from an external source.
 
-    SyncEngine uses content_hash to decide whether to write (compare with
+    IntegrationEngine uses content_hash to decide whether to write (compare with
     sync.remote_hash). If `files` is provided, the engine writes the
     returned path->bytes map through ProductOperationAdapter.bulk_write at the sync mount
     point. Otherwise it writes `content` as the connector's single output
@@ -75,6 +75,19 @@ class FetchResult:
     node_name: Optional[str] = None
     summary: Optional[str] = None
     files: Optional[dict[str, bytes]] = None
+
+
+@dataclass
+class SourceResource:
+    """Selectable external resource returned by provider resource pickers."""
+    id: str
+    type: str
+    name: str
+    url: Optional[str] = None
+    subtitle: Optional[str] = None
+    icon: Optional[str] = None
+    authorized: bool = True
+    metadata: dict = field(default_factory=dict)
 
 
 # ============================================================
@@ -116,9 +129,9 @@ class ConnectorSpec:
     """
     Static descriptor of a connector — declared once.
 
-    SyncEngine reads this to decide what operations are valid,
+    IntegrationEngine reads this to decide what operations are valid,
     what auth to check, and how to wire triggers.
-    Registry exposes this via GET /sync/connectors for frontend.
+    Registry exposes this via GET /integrations/connectors for frontend.
     """
     provider: str
     display_name: str
@@ -176,7 +189,7 @@ class BaseConnector(ABC):
 
         Args:
             config:      Connector-specific config (labels, max_results, etc.)
-            credentials: OAuth token + metadata, resolved by SyncEngine.
+            credentials: OAuth token + metadata, resolved by IntegrationEngine.
 
         Returns:
             FetchResult with content, content_hash, and node metadata.
@@ -184,20 +197,20 @@ class BaseConnector(ABC):
         The connector does NOT:
           - Know who triggered the fetch (manual / scheduler / webhook)
           - Know how data is stored (no node_service / collab_service)
-          - Manage OAuth token refresh (SyncEngine handles that)
+          - Manage OAuth token refresh (IntegrationEngine handles that)
         """
 
     async def pull(self, sync: "Sync") -> "FetchResult":
         """Pull latest data from external source.
 
-        Called by SyncService for pull-mode syncs. Default raises
+        Default raises
         NotImplementedError — connectors that support pull should
-        override this, or SyncEngine.execute() should be used instead
+        override this, or IntegrationEngine.execute() should be used instead
         (which calls fetch() with proper credentials).
         """
         raise NotImplementedError(
             f"{self.spec().provider} does not implement pull(); "
-            f"use SyncEngine.execute() instead"
+            f"use IntegrationEngine.execute() instead"
         )
 
     async def push(
@@ -210,6 +223,16 @@ class BaseConnector(ABC):
 
     async def list_resources(self, sync: "Sync") -> List["ResourceInfo"]:
         return []
+
+    async def list_source_resources(
+        self,
+        credentials: Credentials,
+        *,
+        query: str = "",
+        cursor: Optional[str] = None,
+        resource_type: Optional[str] = None,
+    ) -> tuple[list[SourceResource], Optional[str]]:
+        return [], None
 
     async def setup_trigger(self, sync: "Sync") -> Optional[Any]:
         return None

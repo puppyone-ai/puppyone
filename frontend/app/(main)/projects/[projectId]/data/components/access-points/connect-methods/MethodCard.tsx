@@ -2,6 +2,10 @@
 
 import { useState, type ReactNode } from 'react';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
+import {
+  isCliProvider,
+  isGitRemoteProvider,
+} from '@/lib/accessProviderRegistry';
 import { ProviderIcon } from '../../../../access/components/icons';
 import {
   COLOR_BORDER,
@@ -183,7 +187,7 @@ function MethodIcon({
   const provider = methodProvider(meta.id);
   const tile = getMethodProviderTile(provider, active);
   const tileSize = 26;
-  const iconSize = provider === 'cli' ? 15 : 14;
+  const iconSize = isCliProvider(provider) ? 15 : 14;
 
   return (
     <div
@@ -224,7 +228,7 @@ function getMethodProviderTile(provider: string, active: boolean) {
       shadow: 'none',
     };
   }
-  if (provider === 'cli') {
+  if (isCliProvider(provider)) {
     return {
       background: 'var(--po-accent)',
       border: 'var(--po-accent)',
@@ -232,7 +236,7 @@ function getMethodProviderTile(provider: string, active: boolean) {
       shadow: '0 1px 2px var(--po-shadow)',
     };
   }
-  if (provider === 'git_remote') {
+  if (isGitRemoteProvider(provider)) {
     return {
       background: 'var(--po-text-inverse)',
       border: COLOR_BORDER_HOVER,

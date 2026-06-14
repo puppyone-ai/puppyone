@@ -1,7 +1,11 @@
 'use client';
 
 import { useConnectorSpecs } from '@/lib/hooks/useData';
-import { PROVIDER_LABELS, PROVIDER_COLORS } from '../lib/constants';
+import {
+  getAccessProviderLabel,
+  normalizeConnectorProvider,
+} from '@/lib/accessProviderRegistry';
+import { PROVIDER_COLORS } from '../lib/constants';
 import { parseAgentIcon } from '../lib/format';
 
 // Single source of truth for provider brand marks: `connector_specs` from
@@ -69,8 +73,9 @@ export function ProviderAvatar({
 
   // Last-resort letter chip — only hit for unknown providers that the
   // backend hasn't surfaced via /connector_specs at all.
-  const color = PROVIDER_COLORS[provider] || 'var(--po-text-muted)';
-  const label = (PROVIDER_LABELS[provider] || provider).charAt(0).toUpperCase();
+  const normalizedProvider = normalizeConnectorProvider(provider);
+  const color = PROVIDER_COLORS[normalizedProvider] || 'var(--po-text-muted)';
+  const label = getAccessProviderLabel(normalizedProvider).charAt(0).toUpperCase();
   return (
     <div style={{
       width: size, height: size, borderRadius: '50%',

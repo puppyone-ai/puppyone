@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from src.connectors.datasource._base import FetchResult
+from src.connectors.datasource.materializers import MaterializedOutput
 from src.connectors.datasource.schemas import Sync
 
 
@@ -167,4 +168,42 @@ def plan_fetch_result(
         deleted=[],
         result_path=file_path,
         message=result.summary or f"Sync from {sync.provider}",
+    )
+
+
+def plan_materialized_result(
+    *,
+    sync: Sync,
+    materialized: MaterializedOutput,
+) -> IntegrationWritePlan:
+    """Mount materializer-owned relative files under an Integration target path."""
+
+    config = dict(sync.config or {})
+    target_path = normalize_path(
+        config.get("target_path") or sync.path or sync.provider
+    )
+    if not target_path:
+        target_path = safe_filename(sync.provider, "integration")
+
+    files = {
+        join_path(target_path, rel_path): to_bytes(content)
+        for rel_path, content in materialized.files.items()
+    }
+    deleted = [
+        join_path(target_path, rel_path)
+        for rel_path in materialized.deleted
+    ]
+
+    legacy_data_file = config.get("data_file")
+    if legacy_data_file:
+        placeholder = join_path(target_path, str(legacy_data_file))
+        if placeholder not in files and placeholder not in deleted:
+            deleted.append(placeholder)
+
+    primary_path = materialized.primary_path or "index.json"
+    return IntegrationWritePlan(
+        files=files,
+        deleted=deleted,
+        result_path=join_path(target_path, primary_path),
+        message=materialized.summary or f"Sync from {sync.provider}",
     )

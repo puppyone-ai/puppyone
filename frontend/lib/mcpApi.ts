@@ -729,7 +729,7 @@ export async function createToolsAndMcp(params: {
   const toolTypes = permissionsToRegisterTools(permissions);
 
   if (toolTypes.length === 0) {
-    throw new Error('至少需要选择一个工具权限');
+    throw new Error('Select at least one tool permission.');
   }
 
   const createdTools = await Promise.all(

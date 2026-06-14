@@ -3,6 +3,12 @@
 import { useMemo, useState } from 'react';
 import type { Connector, RepoScope } from '@/lib/repoApi';
 import { AI_AGENT_ENABLED } from '@/lib/featureFlags';
+import {
+  isAgentProvider,
+  isBuiltInAccessProvider,
+  isCliProvider,
+  isGitRemoteProvider,
+} from '@/lib/accessProviderRegistry';
 import { connectorAsEndpointShape, providerLabel } from './labels';
 import { AccessPointProviderIcon } from './AccessPointProviderIcon';
 import { ProviderIcon } from '../../../access/components/icons';
@@ -70,9 +76,9 @@ export function AccessPointRow({
   // one of each per scope, but we read them
   // defensively in case the trigger hasn't settled yet on a fresh
   // insert.
-  const cliConnector = connectors.find((c) => c.provider === 'cli');
-  const gitRemoteConnector = connectors.find((c) => c.provider === 'git_remote');
-  const agentConnector = connectors.find((c) => c.provider === 'agent');
+  const cliConnector = connectors.find((c) => isCliProvider(c.provider));
+  const gitRemoteConnector = connectors.find((c) => isGitRemoteProvider(c.provider));
+  const agentConnector = connectors.find((c) => isAgentProvider(c.provider));
 
   // Active flags for the chip-render gate. We hide a built-in chip
   // when its connector is paused — the strip is a positive
@@ -90,9 +96,7 @@ export function AccessPointRow({
     () =>
       connectors.filter(
         (c) =>
-          c.provider !== 'cli' &&
-          c.provider !== 'agent' &&
-          c.provider !== 'git_remote' &&
+          !isBuiltInAccessProvider(c.provider) &&
           c.status !== 'paused',
       ),
     [connectors],
@@ -383,7 +387,7 @@ function ProviderSignal({
   readonly selected: boolean;
   readonly title: string;
 }) {
-  const isGit = provider === 'git_remote';
+  const isGit = isGitRemoteProvider(provider);
 
   return (
     <span

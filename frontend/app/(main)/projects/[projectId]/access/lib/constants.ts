@@ -1,36 +1,19 @@
 /**
  * Domain constants for the access page.
  *
- * Provider display names, status colour map, status label map, and
- * the connector-group taxonomy used by the right-pane tab strip. All
- * pulled out of `page.tsx` so a new provider type or status change
- * is a one-file edit.
+ * Provider taxonomy now lives in `frontend/lib/accessProviderRegistry`.
+ * Keep only page-local status presentation here; re-export provider labels
+ * and group metadata for older access components while they migrate.
  */
 
-export const PROVIDER_LABELS: Record<string, string> = {
-  cli: 'FS CLI',
-  agent: 'AI Agent',
-  git_remote: 'Git Remote',
-  gmail: 'Gmail',
-  google_sheets: 'Google Sheets',
-  google_calendar: 'Google Calendar',
-  google_docs: 'Google Docs',
-  google_drive: 'Google Drive',
-  github: 'GitHub',
-  notion: 'Notion',
-  linear: 'Linear',
-  airtable: 'Airtable',
-  url: 'Web Page',
-  rss: 'RSS Feed',
-  rest_api: 'REST API',
-  supabase: 'Supabase',
-  mcp: 'MCP Server',
-  sandbox: 'Sandbox',
-  hackernews: 'Hacker News',
-  posthog: 'PostHog',
-  google_search_console: 'Google Search Console',
-  script: 'Custom Script',
-};
+import {
+  ACCESS_PROVIDER_GROUP_LABELS,
+  ACCESS_PROVIDER_GROUP_ORDER,
+  ACCESS_PROVIDER_LABELS,
+  type AccessProviderGroupKey,
+} from '@/lib/accessProviderRegistry';
+
+export const PROVIDER_LABELS = ACCESS_PROVIDER_LABELS;
 
 export const STATUS_COLORS: Record<string, string> = {
   active: 'var(--po-success)',
@@ -65,15 +48,8 @@ export const STATUS_LABEL: Record<string, string> = {
 // that get auto-created per scope.
 // MCP / Sandbox / Third-party are user-created.
 
-export const CONNECTOR_GROUP_LABELS: Record<ConnectorGroupKey, string> = {
-  cli: 'FS CLI',
-  agent: 'Agent',
-  git_remote: 'Git Remote',
-  mcp: 'MCP server',
-  sandbox: 'Sandbox',
-  integration: 'Third-party',
-};
+export const CONNECTOR_GROUP_LABELS = ACCESS_PROVIDER_GROUP_LABELS;
 
-export const CONNECTOR_GROUP_ORDER: readonly ConnectorGroupKey[] = ['cli', 'agent', 'git_remote', 'mcp', 'sandbox', 'integration'] as const;
+export const CONNECTOR_GROUP_ORDER = ACCESS_PROVIDER_GROUP_ORDER;
 
-export type ConnectorGroupKey = 'cli' | 'agent' | 'git_remote' | 'mcp' | 'sandbox' | 'integration';
+export type ConnectorGroupKey = AccessProviderGroupKey;

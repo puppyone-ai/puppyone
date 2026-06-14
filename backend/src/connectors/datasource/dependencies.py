@@ -1,10 +1,7 @@
-"""
-Sync Module — Dependency injection.
+"""Connector registry dependency injection.
 
 Provides:
   - ConnectorRegistry (application-level singleton, built once at startup)
-  - SyncEngine (unified execution engine)
-  - SyncService (lifecycle + bootstrap + push)
 
 Adding a new connector:
   1. Create  datasource/<provider>/connector.py  with a BaseConnector subclass
@@ -18,18 +15,10 @@ import importlib
 import pathlib
 from typing import Optional
 
-from fastapi import Depends
-from src.infra.supabase.client import SupabaseClient
 from src.connectors.datasource._base import ConnectorDeps, ConnectorSetup
 from src.connectors.datasource.registry import ConnectorRegistry
-from src.connectors.datasource.engine import SyncEngine
-from src.connectors.datasource.repository import SyncRepository
-from src.connectors.datasource.service import SyncService
+from src.connectors.datasource.materializers import DEFAULT_MATERIALIZERS
 from src.utils.logger import log_info, log_error
-
-
-def _get_supabase_client() -> SupabaseClient:
-    return SupabaseClient()
 
 
 # ============================================================
@@ -105,6 +94,10 @@ def _build_registry() -> ConnectorRegistry:
             provider = setup_result.connector.spec().provider
             log_error(f"[Registry] Failed to register {provider}: {e}")
 
+    for materializer in DEFAULT_MATERIALIZERS:
+        if registry.get(materializer.provider):
+            registry.register_materializer(materializer)
+
     return registry
 
 
@@ -128,69 +121,3 @@ def get_connector_registry() -> ConnectorRegistry:
     if _registry_instance is not None:
         return _registry_instance
     return init_registry()
-
-
-def get_sync_engine(
-    registry: ConnectorRegistry = Depends(get_connector_registry),
-    supabase: SupabaseClient = Depends(_get_supabase_client),
-) -> SyncEngine:
-    from src.connectors.datasource.run_repository import SyncRunRepository
-    return SyncEngine(
-        registry=registry,
-        sync_repo=SyncRepository(supabase),
-        run_repo=SyncRunRepository(supabase),
-    )
-
-
-def get_sync_service(
-    registry: ConnectorRegistry = Depends(get_connector_registry),
-    supabase: SupabaseClient = Depends(_get_supabase_client),
-) -> SyncService:
-    svc = SyncService(
-        sync_repo=SyncRepository(supabase),
-    )
-    for provider in registry.providers():
-        connector = registry.get(provider)
-        if connector:
-            svc.register_connector(connector)
-    return svc
-
-
-# ============================================================
-# Standalone factory (for scheduler jobs, ARQ workers)
-# ============================================================
-
-def _build_sync_service(registry: Optional[ConnectorRegistry] = None) -> SyncService:
-    """
-    Build a SyncService outside of FastAPI request context.
-    Used by the unified POST /api/v1/access endpoint and other non-DI callers.
-    """
-    if registry is None:
-        registry = get_connector_registry()
-    supabase = SupabaseClient()
-    svc = SyncService(
-        sync_repo=SyncRepository(supabase),
-    )
-    for provider in registry.providers():
-        connector = registry.get(provider)
-        if connector:
-            svc.register_connector(connector)
-    return svc
-
-
-def create_sync_engine() -> SyncEngine:
-    """
-    Build a SyncEngine outside of FastAPI request context.
-    Used by scheduler jobs and ARQ workers.
-    """
-    from src.connectors.datasource.run_repository import SyncRunRepository
-
-    registry = get_connector_registry()
-    supabase = SupabaseClient()
-    sync_repo = SyncRepository(supabase)
-
-    return SyncEngine(
-        registry=registry,
-        sync_repo=sync_repo,
-        run_repo=SyncRunRepository(supabase),
-    )

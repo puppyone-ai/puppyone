@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/app/supabase/SupabaseAuthProvider';
 import { get } from '@/lib/apiClient';
+import { isGitRemoteProvider } from '@/lib/accessProviderRegistry';
 import { uploadFiles as uploadFilesApi } from '@/lib/uploadApi';
 import {
   addPendingTasks,
@@ -505,7 +506,7 @@ function GitSyncBlock({
   const seededKey = useMemo(() => {
     const gitRemote = connections.find(
       (c) =>
-        c.provider === 'git_remote' &&
+        isGitRemoteProvider(c.provider) &&
         (c.path === '/' || c.path === null || c.path === '') &&
         !!c.access_key,
     );
@@ -540,7 +541,7 @@ function GitSyncBlock({
         if (cancelled) return;
         const root = rows.find(
           (c) =>
-            c.provider === 'git_remote' &&
+            isGitRemoteProvider(c.provider) &&
             (c.path === '/' || c.path === null || c.path === '') &&
             !!c.access_key,
         );

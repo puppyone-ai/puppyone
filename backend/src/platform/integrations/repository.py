@@ -1,8 +1,7 @@
 """Repository for project-root Integration connections.
 
-``connections.target_path`` is the product-level destination. ``scope_id`` is
-kept only as a rollout/legacy compatibility column and must not decide where an
-Integration writes.
+``connections.target_path`` is the product-level destination. ``scope_id`` may
+exist physically, but application code must not use it to derive write paths.
 """
 
 from __future__ import annotations
@@ -10,14 +9,6 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from src.connectors.datasource.repository import (
-    VALID_CONNECTION_TRIGGER_TYPES,
-    _columns_to_trigger,
-    _cursor_to_model,
-    _iso,
-    _parse_oauth_connection_id,
-    _trigger_to_columns,
-)
 from src.connectors.datasource.run_repository import (
     SyncRun as IntegrationRun,
     SyncRunRepository as IntegrationRunRepository,
@@ -26,6 +17,51 @@ from src.connectors.datasource.schemas import Sync as IntegrationConnection
 from src.infra.supabase.client import SupabaseClient
 from src.platform.integrations.paths import canonical_provider, normalize_path
 from src.repo.scope_service import ScopeService
+
+
+VALID_CONNECTION_TRIGGER_TYPES = {"manual", "scheduled", "webhook", "realtime"}
+
+
+def _iso(value: Any) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return str(value)
+
+
+def _parse_oauth_connection_id(credentials_ref: str | None) -> int | None:
+    if not credentials_ref:
+        return None
+    try:
+        return int(credentials_ref)
+    except (TypeError, ValueError):
+        return None
+
+
+def _trigger_to_columns(trigger: Optional[dict]) -> tuple[str, dict]:
+    trigger = dict(trigger or {})
+    trigger_type = str(trigger.pop("type", "manual") or "manual")
+    if trigger_type not in VALID_CONNECTION_TRIGGER_TYPES:
+        trigger_type = "manual"
+    return trigger_type, trigger
+
+
+def _columns_to_trigger(row: dict) -> dict:
+    trigger_type = row.get("trigger_type") or "manual"
+    trigger_config = dict(row.get("trigger_config") or {})
+    return {"type": trigger_type, **trigger_config}
+
+
+def _cursor_to_model(value: Any) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        value = value.get("value")
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 class IntegrationRepository:
@@ -50,59 +86,27 @@ class IntegrationRepository:
         rows = resp.data or []
         return rows[0].get("org_id") if rows else None
 
-    def _scope_by_id(self, scope_id: str | None) -> dict | None:
-        if not scope_id:
-            return None
-        resp = (
-            self.client.table(self.SCOPES)
-            .select("*")
-            .eq("id", scope_id)
-            .limit(1)
-            .execute()
-        )
-        rows = resp.data or []
-        return rows[0] if rows else None
-
-    def _scopes_by_project(self, project_id: str) -> dict[str, dict]:
-        resp = (
-            self.client.table(self.SCOPES)
-            .select("*")
-            .eq("project_id", project_id)
-            .execute()
-        )
-        return {row["id"]: row for row in (resp.data or [])}
-
     def _root_scope_id(self, project_id: str) -> str | None:
         try:
             return ScopeService().ensure_root_scope(project_id).id
         except Exception:
             return None
 
-    def _target_path_from_row(self, row: dict, scope: dict | None = None) -> str:
-        config = dict(row.get("config") or {})
-        if "target_path" in row and row.get("target_path") is not None:
-            return normalize_path(row.get("target_path"))
-        target_path = config.get("target_path")
-        if target_path is None:
-            target_path = config.get("path")
-        if target_path is None and scope:
-            target_path = scope.get("path")
-        return normalize_path(target_path)
+    def _target_path_from_row(self, row: dict) -> str:
+        return normalize_path(row.get("target_path"))
+
+    @staticmethod
+    def _source_from_config(config: dict[str, Any]) -> dict[str, Any]:
+        source = config.get("source")
+        return source if isinstance(source, dict) else {}
 
     def _connection_to_model(
-        self, row: dict, scope: dict | None = None,
+        self, row: dict,
     ) -> IntegrationConnection:
-        scope = scope or self._scope_by_id(row.get("scope_id")) or {}
         config = dict(row.get("config") or {})
-        target_path = self._target_path_from_row(row, scope)
+        target_path = self._target_path_from_row(row)
         if target_path:
             config.setdefault("target_path", target_path)
-        if row.get("external_resource_id"):
-            config.setdefault("external_resource_id", row.get("external_resource_id"))
-        if row.get("external_resource_label"):
-            config.setdefault("name", row.get("external_resource_label"))
-        if row.get("external_url"):
-            config.setdefault("external_url", row.get("external_url"))
 
         credentials_ref = row.get("credential_ref")
         if credentials_ref is None and row.get("oauth_connection_id") is not None:
@@ -143,36 +147,13 @@ class IntegrationRepository:
         return rows[0] if rows else None
 
     def _insert_connection(self, data: dict[str, Any]) -> dict:
-        try:
-            resp = self.client.table(self.CONNECTIONS).insert(data).execute()
-            return resp.data[0]
-        except Exception as exc:
-            # Rollout compatibility for databases that have not applied the
-            # target_path migration yet. The config fallback keeps new code
-            # correct while the physical column catches up.
-            if "target_path" not in str(exc):
-                raise
-            fallback = dict(data)
-            target_path = fallback.pop("target_path", None)
-            config = dict(fallback.get("config") or {})
-            if target_path:
-                config.setdefault("target_path", target_path)
-            fallback["config"] = config
-            resp = self.client.table(self.CONNECTIONS).insert(fallback).execute()
-            return resp.data[0]
+        resp = self.client.table(self.CONNECTIONS).insert(data).execute()
+        return resp.data[0]
 
     def _update_connection(self, connection_id: str, patch: dict[str, Any]) -> None:
         if not patch:
             return
-        try:
-            self.client.table(self.CONNECTIONS).update(patch).eq("id", connection_id).execute()
-        except Exception as exc:
-            if "target_path" not in str(exc) or "target_path" not in patch:
-                raise
-            fallback = dict(patch)
-            fallback.pop("target_path", None)
-            if fallback:
-                self.client.table(self.CONNECTIONS).update(fallback).eq("id", connection_id).execute()
+        self.client.table(self.CONNECTIONS).update(patch).eq("id", connection_id).execute()
 
     def create(
         self,
@@ -203,7 +184,10 @@ class IntegrationRepository:
 
         trigger_type, trigger_config = _trigger_to_columns(trigger)
         oauth_connection_id = _parse_oauth_connection_id(credentials_ref)
-        external_resource_id = integration_config.get("external_resource_id")
+        source = self._source_from_config(integration_config)
+        external_resource_id = source.get("resource_id")
+        external_resource_label = source.get("resource_name")
+        external_url = source.get("resource_url")
         canonical = canonical_provider(provider)
 
         row = self._insert_connection({
@@ -212,15 +196,11 @@ class IntegrationRepository:
             "scope_id": self._root_scope_id(project_id),
             "target_path": target_path,
             "provider": canonical,
-            "name": integration_config.get("name") or canonical.replace("_", " ").title(),
+            "name": external_resource_label or canonical.replace("_", " ").title(),
             "direction": direction,
             "external_resource_id": external_resource_id,
-            "external_resource_label": integration_config.get("name"),
-            "external_url": (
-                integration_config.get("source_url")
-                or integration_config.get("url")
-                or integration_config.get("external_url")
-            ),
+            "external_resource_label": external_resource_label,
+            "external_url": external_url,
             "oauth_connection_id": oauth_connection_id,
             "credential_ref": credentials_ref,
             "config": integration_config,
@@ -229,8 +209,7 @@ class IntegrationRepository:
             "status": status,
             "created_by": created_by,
         })
-        scope = self._scope_by_id(row.get("scope_id"))
-        return self._connection_to_model(row, scope)
+        return self._connection_to_model(row)
 
     def get_by_id(self, connection_id: str) -> Optional[IntegrationConnection]:
         row = self._connection_row(connection_id)
@@ -293,7 +272,6 @@ class IntegrationRepository:
         return self._connection_to_model(rows[0]) if rows else None
 
     def list_by_project(self, project_id: str) -> list[IntegrationConnection]:
-        scopes = self._scopes_by_project(project_id)
         rows = (
             self.client.table(self.CONNECTIONS)
             .select("*")
@@ -301,10 +279,7 @@ class IntegrationRepository:
             .order("created_at", desc=False)
             .execute()
         ).data or []
-        return [
-            self._connection_to_model(row, scopes.get(row.get("scope_id")))
-            for row in rows
-        ]
+        return [self._connection_to_model(row) for row in rows]
 
     def list_by_path(self, path: str) -> list[IntegrationConnection]:
         target = normalize_path(path)
@@ -318,24 +293,12 @@ class IntegrationRepository:
         if provider:
             query = query.eq("provider", canonical_provider(provider))
         rows = query.order("created_at", desc=False).execute().data or []
-
-        scopes_by_project: dict[str, dict[str, dict]] = {}
-        result: list[IntegrationConnection] = []
-        for row in rows:
-            project_scopes = scopes_by_project.setdefault(
-                row["project_id"],
-                self._scopes_by_project(row["project_id"]),
-            )
-            result.append(
-                self._connection_to_model(row, project_scopes.get(row.get("scope_id")))
-            )
-        return result
+        return [self._connection_to_model(row) for row in rows]
 
     def list_by_provider(
         self, project_id: str, provider: str,
     ) -> list[IntegrationConnection]:
         canonical = canonical_provider(provider)
-        scopes = self._scopes_by_project(project_id)
         rows = (
             self.client.table(self.CONNECTIONS)
             .select("*")
@@ -344,10 +307,7 @@ class IntegrationRepository:
             .order("created_at", desc=False)
             .execute()
         ).data or []
-        return [
-            self._connection_to_model(row, scopes.get(row.get("scope_id")))
-            for row in rows
-        ]
+        return [self._connection_to_model(row) for row in rows]
 
     def update(self, connection_id: str, **fields: Any) -> None:
         current = self.get_by_id(connection_id)
@@ -378,20 +338,22 @@ class IntegrationRepository:
             config = dict(current.config if current else {})
             config.update(config_patch)
             patch["config"] = config
-            if "external_resource_id" in config_patch:
-                patch["external_resource_id"] = config_patch["external_resource_id"]
-            if "name" in config_patch:
-                patch["external_resource_label"] = config_patch["name"]
+            source = self._source_from_config(config)
+            if source:
+                patch["external_resource_id"] = source.get("resource_id")
+                patch["external_resource_label"] = source.get("resource_name")
+                patch["external_url"] = source.get("resource_url")
         self._update_connection(connection_id, patch)
 
     def update_config(self, connection_id: str, config: dict) -> None:
         patch: dict[str, Any] = {"config": config}
         if "target_path" in config:
             patch["target_path"] = normalize_path(config.get("target_path"))
-        if config.get("external_resource_id"):
-            patch["external_resource_id"] = config.get("external_resource_id")
-        if config.get("name"):
-            patch["external_resource_label"] = config.get("name")
+        source = self._source_from_config(config)
+        if source:
+            patch["external_resource_id"] = source.get("resource_id")
+            patch["external_resource_label"] = source.get("resource_name")
+            patch["external_url"] = source.get("resource_url")
         self._update_connection(connection_id, patch)
 
     def update_status(self, connection_id: str, status: str) -> None:

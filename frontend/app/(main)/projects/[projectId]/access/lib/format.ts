@@ -9,10 +9,16 @@
  */
 
 import type { Connector } from '@/lib/repoApi';
+import {
+  getAccessProviderFixedTypeLine,
+  getAccessProviderGroup,
+  getAccessProviderLabel,
+  getAccessProviderTypeLineLabel,
+  isGitRemoteProvider,
+} from '@/lib/accessProviderRegistry';
 import type { NodeInfo } from '@/lib/contentTreeApi';
 import { accessPointProfileSlug } from '@/lib/accessPointCliPrompt';
 import {
-  PROVIDER_LABELS,
   type ConnectorGroupKey,
 } from './constants';
 import { SCOPE_ROWS_LIMIT } from './tokens';
@@ -74,22 +80,19 @@ export function scopePathToDataUrl(projectId: string, scopePath: string): string
 // ─── Connector descriptors ───────────────────────────────────────────
 
 export function isGitBuiltinProvider(provider: string): boolean {
-  return provider === 'git_remote';
+  return isGitRemoteProvider(provider);
 }
 
 export function getTypeLine(c: Connector): string {
+  const fixedTypeLine = getAccessProviderFixedTypeLine(c.provider);
+  if (fixedTypeLine) return fixedTypeLine;
+
   const direction =
     c.direction === 'bidirectional' ? 'Two-way'
     : c.direction === 'inbound' ? 'Import'
     : c.direction === 'outbound' ? 'Export' : '';
-  switch (c.provider) {
-    case 'cli': return ['FS CLI', direction].filter(Boolean).join(' · ');
-    case 'agent': return ['AI agent', direction].filter(Boolean).join(' · ');
-    case 'mcp': return ['MCP server', direction].filter(Boolean).join(' · ');
-    case 'sandbox': return ['Compute sandbox', direction].filter(Boolean).join(' · ');
-    case 'git_remote': return 'Native Git clone/push';
-    default: return [`Third-party · ${PROVIDER_LABELS[c.provider] ?? c.provider}`, direction].filter(Boolean).join(' · ');
-  }
+  const label = getAccessProviderTypeLineLabel(c.provider);
+  return [label, direction].filter(Boolean).join(' · ');
 }
 
 export function getPrimaryAction(status: string): { label: string; icon: 'pause' | 'play' | 'retry'; tone: 'neutral' | 'warn' } {
@@ -135,7 +138,7 @@ export function buildConfigRows(c: Connector): ConfigRow[] {
   })();
 
   const rows: ConfigRow[] = [
-    { label: 'Provider', value: PROVIDER_LABELS[c.provider] ?? c.provider, mono: false },
+    { label: 'Provider', value: getAccessProviderLabel(c.provider), mono: false },
     { label: 'Direction', value: direction },
     { label: 'Trigger', value: triggerSummary ?? 'Manual', muted: !triggerSummary },
     { label: 'OAuth', value: c.oauth_connection_id != null ? `connected · #${c.oauth_connection_id}` : 'Not used', muted: c.oauth_connection_id == null, mono: c.oauth_connection_id != null },
@@ -181,10 +184,5 @@ export function nodesToPreview(nodes: NodeInfo[], scopePath: string): ScopePrevi
 // ─── Connector group bucket ──────────────────────────────────────────
 
 export function getConnectorGroup(provider: string): ConnectorGroupKey {
-  if (provider === 'cli') return 'cli';
-  if (provider === 'agent') return 'agent';
-  if (provider === 'git_remote') return 'git_remote';
-  if (provider === 'mcp') return 'mcp';
-  if (provider === 'sandbox') return 'sandbox';
-  return 'integration';
+  return getAccessProviderGroup(provider);
 }
