@@ -23,6 +23,7 @@ class GoogleSheetsOAuthService:
     GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo"
     DEFAULT_SCOPES = [
         "https://www.googleapis.com/auth/spreadsheets.readonly",
+        "https://www.googleapis.com/auth/drive.metadata.readonly",
         "https://www.googleapis.com/auth/userinfo.email",
     ]
 

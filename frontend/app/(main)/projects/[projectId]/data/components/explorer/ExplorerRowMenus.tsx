@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
+import {
+  isMcpProvider,
+  isSandboxProvider,
+} from '@/lib/accessProviderRegistry';
 import { APP_Z_INDEX } from '@/lib/zIndex';
 import type { SyncEndpointInfo } from './types';
 
@@ -29,8 +33,8 @@ function SyncSourceIcon({ size = 16, isEmpty = false }: { size?: number; isEmpty
 
 export function EndpointIconRenderer({ ep, size = 14 }: { ep: SyncEndpointInfo; size?: number }) {
   const isAgent = ep.provider.startsWith('agent:');
-  const isMcp = ep.provider === 'mcp';
-  const isSandbox = ep.provider === 'sandbox';
+  const isMcp = isMcpProvider(ep.provider);
+  const isSandbox = isSandboxProvider(ep.provider);
   const color = 'var(--po-text-muted)';
   const dotColor =
     ep.status === 'error' ? 'var(--po-danger)' : ep.status === 'stopped' ? 'var(--po-text-subtle)' : 'var(--po-success)';

@@ -3,6 +3,10 @@
 import { use, useCallback, useMemo } from 'react';
 import useSWR from 'swr';
 import { get } from '@/lib/apiClient';
+import {
+  isMcpProvider,
+  isSandboxProvider,
+} from '@/lib/accessProviderRegistry';
 import { useProjectTools, refreshFolderNodes } from '@/lib/hooks/useData';
 import { useAgent } from '@/contexts/AgentContext';
 import { useCommitUpdates } from '@/contexts/VersionWebSocketContext';
@@ -246,8 +250,8 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
   const syncEndpoints = useMemo(() => {
     const pickPriority = (provider: string): number => {
       if (provider.startsWith('agent:')) return 1;
-      if (provider === 'mcp') return 2;
-      if (provider === 'sandbox') return 3;
+      if (isMcpProvider(provider)) return 2;
+      if (isSandboxProvider(provider)) return 3;
       return 4;
     };
 

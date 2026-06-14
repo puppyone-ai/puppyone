@@ -3,8 +3,9 @@
 import React, { useState } from 'react';
 import type { useRouter } from 'next/navigation';
 import { ArrowRight, ArrowLeft, ArrowLeftRight } from 'lucide-react';
+import { getAccessProviderLabel } from '@/lib/accessProviderRegistry';
 import { T } from '../lib/tokens';
-import { PROVIDER_LABELS, getApDirection } from '../lib/constants';
+import { getApDirection } from '../lib/constants';
 import type { DashboardConnection } from '../lib/types';
 import { ProviderAvatar } from './ProviderAvatar';
 
@@ -328,7 +329,7 @@ function ApListRow({
   const [isMouseOver, setIsMouseOver] = useState(false);
 
   const direction = getApDirection(conn);
-  const label = conn.name || PROVIDER_LABELS[conn.provider] || conn.provider;
+  const label = conn.name || getAccessProviderLabel(conn.provider);
   const rawPath = conn.path;
   const isRoot = rawPath === null || rawPath === '' || rawPath === '/';
   const displayScope = isRoot ? '/' : `/${rawPath}`;

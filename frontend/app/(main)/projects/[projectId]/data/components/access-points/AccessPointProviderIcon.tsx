@@ -1,6 +1,10 @@
 'use client';
 
 import type { SyncEndpointInfo } from '../explorer';
+import {
+  isMcpProvider,
+  isSandboxProvider,
+} from '@/lib/accessProviderRegistry';
 import type { ProviderIconLookup } from './types';
 
 export function StatusDot({ status, borderColor = 'var(--po-panel)' }: { status: string; borderColor?: string }) {
@@ -67,8 +71,8 @@ export function AccessPointProviderIcon({
   providerIcons: ProviderIconLookup;
 }) {
   if (ep.provider.startsWith('agent:')) return <AgentMiniIcon />;
-  if (ep.provider === 'mcp') return <McpMiniIcon />;
-  if (ep.provider === 'sandbox') return <SandboxMiniIcon />;
+  if (isMcpProvider(ep.provider)) return <McpMiniIcon />;
+  if (isSandboxProvider(ep.provider)) return <SandboxMiniIcon />;
   const providerIcon = providerIcons[ep.provider];
   if (providerIcon?.iconUrl) {
     return <img src={providerIcon.iconUrl} alt="" width={16} height={16} style={{ display: 'block', borderRadius: 2 }} />;

@@ -1,6 +1,7 @@
 'use client';
 
 import type { CSSProperties, ReactNode } from 'react';
+import { SelectField, TextField } from '@/components/ui/Field';
 import type { WorkflowConfigField, WorkflowProviderSpec } from '@/lib/workflowApi';
 import { labelize } from './workflowHelpers';
 import styles from './WorkflowPage.module.css';
@@ -55,10 +56,11 @@ export function StatusPill({ status }: { status: string }) {
 }
 
 export function ProviderMark({ provider }: { provider?: WorkflowProviderSpec }) {
-  if (provider?.icon_url) {
+  const iconSrc = providerIconSrc(provider);
+  if (iconSrc) {
     return (
       <img
-        src={provider.icon_url}
+        src={iconSrc}
         alt=""
         width={18}
         height={18}
@@ -69,31 +71,39 @@ export function ProviderMark({ provider }: { provider?: WorkflowProviderSpec }) 
   return <span className={styles.providerGlyph}>{provider?.icon || '*'}</span>;
 }
 
+function providerIconSrc(provider?: WorkflowProviderSpec): string | null {
+  if (provider?.provider === 'gmail') return '/icons/gmail.svg';
+  if (provider?.provider === 'google_calendar') return '/icons/google_calendar.svg';
+  return provider?.icon_url ?? null;
+}
+
 export function ConfigFieldInput({
   field,
   value,
+  invalid,
   onChange,
 }: {
   field: WorkflowConfigField;
   value: string;
+  invalid?: boolean;
   onChange: (value: string) => void;
 }) {
   if (field.type === 'select') {
     return (
-      <select value={value} onChange={(event) => onChange(event.target.value)} className={styles.input}>
+      <SelectField value={value} invalid={invalid} onChange={(event) => onChange(event.target.value)}>
         {(field.options ?? []).map((option) => (
           <option key={option.value} value={option.value}>{option.label}</option>
         ))}
-      </select>
+      </SelectField>
     );
   }
   return (
-    <input
+    <TextField
       value={value}
       type={field.type === 'number' ? 'number' : field.type === 'url' ? 'url' : 'text'}
       placeholder={field.placeholder ?? undefined}
+      invalid={invalid}
       onChange={(event) => onChange(event.target.value)}
-      className={styles.input}
     />
   );
 }

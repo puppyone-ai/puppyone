@@ -64,7 +64,8 @@ class IntegrationService:
             resolved = normalize_path(str(explicit))
             if resolved:
                 return resolved
-        name = config.get("name") or fallback_name or provider
+        source = config.get("source") if isinstance(config.get("source"), dict) else {}
+        name = source.get("resource_name") or fallback_name or provider
         return safe_filename(str(name), fallback=provider)
 
     async def bootstrap(
@@ -119,11 +120,18 @@ class IntegrationService:
                 target_folder_path=target_folder_path,
                 resource=resource,
             )
+            source = dict((config or {}).get("source") or {})
+            source.update({
+                "provider": canonical,
+                "resource_type": resource.node_type,
+                "resource_id": resource.external_resource_id,
+                "resource_name": resource.name,
+            })
             connection_config = {
                 **config,
+                "source": source,
+                "options": dict((config or {}).get("options") or {}),
                 "target_path": target_path,
-                "external_resource_id": resource.external_resource_id,
-                "name": resource.name,
             }
             if user_id:
                 connection_config["user_id"] = user_id
@@ -213,6 +221,7 @@ class IntegrationService:
             )
 
         connection_config = dict(config or {})
+        connection_config["options"] = dict(connection_config.get("options") or {})
         resolved_target_path = self._default_target_path(
             provider=canonical,
             config=connection_config,
@@ -220,11 +229,6 @@ class IntegrationService:
             target_folder_path=target_path,
         )
         connection_config["target_path"] = resolved_target_path
-        connection_config.setdefault(
-            "external_resource_id",
-            f"direct:{canonical}:{resolved_target_path}",
-        )
-        connection_config.setdefault("name", spec.display_name)
         if user_id:
             connection_config["user_id"] = user_id
 

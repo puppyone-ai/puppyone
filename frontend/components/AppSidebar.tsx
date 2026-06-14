@@ -134,6 +134,22 @@ export const AppSidebar = memo(function AppSidebar({
             <path d='M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71' />
           </svg>
         ),
+      },
+      {
+        id: 'integrations',
+        label: t('integrations'),
+        icon: (
+          <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+            <rect x='3' y='3' width='7' height='7' rx='1.5' />
+            <rect x='14' y='3' width='7' height='7' rx='1.5' />
+            <rect x='3' y='14' width='7' height='7' rx='1.5' />
+            <rect x='14' y='14' width='7' height='7' rx='1.5' />
+            <path d='M10 6.5h4' />
+            <path d='M6.5 10v4' />
+            <path d='M10 17.5h4' />
+            <path d='M17.5 10v4' />
+          </svg>
+        ),
         groupEnd: true,
       },
       {
@@ -193,6 +209,8 @@ export const AppSidebar = memo(function AppSidebar({
             router.push(`/projects/${activeProject.id}/changes`);
           } else if (viewId === 'access') {
             router.push(`/projects/${activeProject.id}/access`);
+          } else if (viewId === 'integrations') {
+            router.push(`/projects/${activeProject.id}/workflows`);
           } else if (viewId === 'history') {
             router.push(`/projects/${activeProject.id}/history`);
           } else if (viewId === 'develop') {
@@ -209,6 +227,7 @@ export const AppSidebar = memo(function AppSidebar({
             data: `/projects/${id}/data`,
             changes: `/projects/${id}/changes`,
             access: `/projects/${id}/access`,
+            integrations: `/projects/${id}/workflows`,
             history: `/projects/${id}/history`,
             develop: `/projects/${id}/develop/logs`,
             toolkit: `/projects/${id}/toolkit`,

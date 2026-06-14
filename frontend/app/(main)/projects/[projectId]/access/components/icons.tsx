@@ -14,6 +14,11 @@
  */
 
 import { T } from '../lib/tokens';
+import {
+  isCliProvider,
+  isGitRemoteProvider,
+  normalizeConnectorProvider,
+} from '@/lib/accessProviderRegistry';
 
 export function ProviderIcon({
   provider,
@@ -24,6 +29,7 @@ export function ProviderIcon({
   readonly size?: number;
   readonly variant?: 'brand' | 'mono';
 }) {
+  const normalizedProvider = normalizeConnectorProvider(provider);
   const logos: Record<string, string> = {
     gmail: 'https://www.gstatic.com/images/branding/product/1x/gmail_2020q4_32dp.png',
     google_sheets: 'https://www.gstatic.com/images/branding/product/1x/sheets_2020q4_32dp.png',
@@ -32,11 +38,11 @@ export function ProviderIcon({
     github: 'https://github.githubassets.com/favicons/favicon-dark.svg',
     notion: 'https://www.notion.so/images/favicon.ico',
   };
-  if (logos[provider]) {
+  if (logos[normalizedProvider]) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={logos[provider]} alt={provider} width={size} height={size} style={{ display: 'block', borderRadius: 2 }} />;
+    return <img src={logos[normalizedProvider]} alt={normalizedProvider} width={size} height={size} style={{ display: 'block', borderRadius: 2 }} />;
   }
-  if (provider === 'cli') {
+  if (isCliProvider(normalizedProvider)) {
     return (
       <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <polyline points="4 17 10 11 4 5" />
@@ -44,7 +50,7 @@ export function ProviderIcon({
       </svg>
     );
   }
-  if (provider === 'git_remote') {
+  if (isGitRemoteProvider(normalizedProvider)) {
     if (variant === 'mono') {
       return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -73,7 +79,7 @@ export function ProviderIcon({
       />
     );
   }
-  if (provider === 'agent') {
+  if (normalizedProvider === 'agent') {
     return (
       <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="var(--po-file-accent-audio)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="3" />
@@ -81,7 +87,7 @@ export function ProviderIcon({
       </svg>
     );
   }
-  if (provider === 'mcp') {
+  if (normalizedProvider === 'mcp') {
     return (
       <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="var(--po-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <rect x="2" y="3" width="20" height="14" rx="2" />
@@ -90,7 +96,7 @@ export function ProviderIcon({
       </svg>
     );
   }
-  if (provider === 'sandbox') {
+  if (normalizedProvider === 'sandbox') {
     return (
       <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="var(--po-warning)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <rect x="3" y="3" width="18" height="18" rx="2" />

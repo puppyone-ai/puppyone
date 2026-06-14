@@ -42,7 +42,7 @@ export function SupabaseSQLEditorDialog({ projectId, connectionId, onClose, onSa
       .catch(err => {
         const message = String(err);
         if (message.includes('ANON_INTROSPECTION_RESTRICTED')) {
-          setError('当前项目限制了 anon key 自动列出表。你仍可在下方手动输入表名并预览。');
+          setError('This project does not allow anon-key table introspection. You can still enter a table name manually below and preview it.');
         } else {
           setError(message);
         }

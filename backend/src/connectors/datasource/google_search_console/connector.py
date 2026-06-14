@@ -27,6 +27,7 @@ from src.connectors.datasource._base import (
     FetchResult,
     Credentials,
     ConfigField,
+    SourceResource,
 )
 
 GSC_API = "https://www.googleapis.com/webmasters/v3"
@@ -51,12 +52,6 @@ class GoogleSearchConsoleConnector(BaseConnector):
             description="Sync search performance data",
             accept_types=("folder",),
             config_fields=(
-                ConfigField(
-                    key="site_url",
-                    label="Site URL",
-                    required=True,
-                    placeholder="https://example.com or sc-domain:example.com",
-                ),
                 ConfigField(
                     key="date_range",
                     label="Date range",
@@ -91,13 +86,15 @@ class GoogleSearchConsoleConnector(BaseConnector):
         )
 
     async def fetch(self, config: dict, credentials: Credentials) -> FetchResult:
-        site_url = config.get("site_url", "")
+        source = config.get("source") or {}
+        options = config.get("options") or {}
+        site_url = source.get("resource_id", "")
         if not site_url:
-            raise ValueError("site_url is required")
+            raise ValueError("source.resource_id is required for Google Search Console")
 
-        date_range = config.get("date_range", "7d")
-        dimensions = config.get("dimensions", "query")
-        row_limit = min(int(config.get("row_limit", 500)), 25000)
+        date_range = options.get("date_range", "7d")
+        dimensions = options.get("dimensions", "query")
+        row_limit = min(int(options.get("row_limit", 500)), 25000)
 
         days_map = {"7d": 7, "28d": 28, "90d": 90}
         days = days_map.get(date_range, 7)
@@ -152,6 +149,39 @@ class GoogleSearchConsoleConnector(BaseConnector):
             node_name=f"GSC — {site_url} ({date_range})",
             summary=f"Fetched {len(records)} rows from Search Console ({start_date} to {end_date})",
         )
+
+    async def list_source_resources(
+        self,
+        credentials: Credentials,
+        *,
+        query: str = "",
+        cursor: str | None = None,
+        resource_type: str | None = None,
+    ) -> tuple[list[SourceResource], str | None]:
+        headers = {"Authorization": f"Bearer {credentials.access_token}"}
+        async with httpx.AsyncClient(timeout=30, headers=headers) as client:
+            response = await client.get(f"{GSC_API}/sites")
+            response.raise_for_status()
+            payload = response.json()
+
+        needle = query.strip().lower()
+        resources = []
+        for item in payload.get("siteEntry", []):
+            site_url = item.get("siteUrl", "")
+            if needle and needle not in site_url.lower():
+                continue
+            resources.append(
+                SourceResource(
+                    id=site_url,
+                    type="search_property",
+                    name=site_url,
+                    url=None if site_url.startswith("sc-domain:") else site_url,
+                    subtitle=item.get("permissionLevel"),
+                    icon="google_search_console",
+                    metadata={"permission_level": item.get("permissionLevel")},
+                )
+            )
+        return resources, None
 
 
 def setup(deps: "ConnectorDeps") -> "ConnectorSetup":

@@ -5,7 +5,7 @@ import pytest
 from src.infra.scheduler.jobs.sync_job import _execute_sync_pull_async
 
 
-class FakeSyncEngine:
+class FakeIntegrationEngine:
     def __init__(self):
         self.calls: list[tuple[str, str]] = []
 
@@ -16,11 +16,11 @@ class FakeSyncEngine:
 
 @pytest.mark.asyncio
 async def test_scheduled_sync_job_records_scheduled_trigger(monkeypatch):
-    engine = FakeSyncEngine()
+    engine = FakeIntegrationEngine()
 
-    import src.connectors.datasource.dependencies as deps
+    import src.platform.integrations.dependencies as deps
 
-    monkeypatch.setattr(deps, "create_sync_engine", lambda: engine)
+    monkeypatch.setattr(deps, "create_integration_engine", lambda: engine)
 
     result = await _execute_sync_pull_async("conn-1")
 

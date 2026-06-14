@@ -6,133 +6,100 @@ import {
   Loader2,
   Pause,
   Play,
-  Plus,
   Trash2,
 } from 'lucide-react';
+import { ActionButton } from '@/components/ui/ActionButton';
 import { IconButton, StatusPill } from './WorkflowPrimitives';
 import styles from './WorkflowPage.module.css';
 import { WorkflowFlow } from './WorkflowNodes';
 import { RecentRuns } from './WorkflowRuns';
-import type { WorkflowDetailProps } from './workflowTypes';
-import { dataPath } from './workflowHelpers';
+import type { WorkflowShellProps } from './workflowTypes';
+import { dataPath, providerName } from './workflowHelpers';
 
-export function WorkflowDetail(props: WorkflowDetailProps) {
-  if (!props.hasSelection) {
+export function WorkflowDetail({ model, actions }: WorkflowShellProps) {
+  if (!model.hasSelection) {
     return (
-      <main className={styles.detailPane}>
+      <section className={styles.detailPane}>
         <div className={styles.blankDetail}>
-          <Database size={24} />
-          <span>No workflow selected.</span>
+          <Database size={22} />
+          <span>No integration selected.</span>
         </div>
-      </main>
+      </section>
     );
   }
 
   return (
-    <main className={styles.detailPane}>
-      <DetailHeader {...props} />
-      {props.feedback ? (
-        <div className={props.feedback.type === 'error' ? `${styles.feedback} ${styles.feedbackError}` : `${styles.feedback} ${styles.feedbackSuccess}`}>
-          {props.feedback.text}
+    <section className={styles.detailPane}>
+      <DetailHeader model={model} actions={actions} />
+      {model.feedback ? (
+        <div className={model.feedback.type === 'error' ? `${styles.feedback} ${styles.feedbackError}` : `${styles.feedback} ${styles.feedbackSuccess}`}>
+          {model.feedback.text}
         </div>
       ) : null}
-      <WorkflowFlow {...props} />
-      {props.mode === 'detail' ? <RecentRuns {...props} /> : null}
-    </main>
+      <WorkflowFlow model={model} actions={actions} />
+      {model.mode === 'detail' ? <RecentRuns model={model} actions={actions} /> : null}
+    </section>
   );
 }
 
-function DetailHeader({
-  projectId,
-  mode,
-  selectedConnection,
-  detailTitle,
-  detailStatus,
-  selectedBusy,
-  paused,
-  usesOAuth,
-  canAuthorize,
-  authBusy,
-  creating,
-  missingRequired,
-  targetPath,
-  onAuthorize,
-  onCreate,
-  onConnectionAction,
-}: WorkflowDetailProps) {
-  const showHeaderCreate = mode !== 'new';
+function DetailHeader({ model, actions }: WorkflowShellProps) {
+  const sourceName = providerName(
+    model.detailProvider,
+    model.selectedConnection?.provider || 'Source',
+  );
+  const targetName = model.selectedConnection?.path || model.targetPath || 'Project root';
 
   return (
     <header className={styles.detailHeader}>
       <div className={styles.detailTitleBlock}>
         <div className={styles.detailTitleRow}>
-          <h2>{detailTitle}</h2>
-          <StatusPill status={detailStatus} />
+          <h2>{model.detailTitle}</h2>
+          <StatusPill status={model.detailStatus} />
+        </div>
+        <div className={styles.detailSubtitle}>
+          {model.mode === 'new' ? 'Configure a new sync' : `${sourceName} syncs into ${targetName}`}
         </div>
       </div>
-      <div className={styles.detailActions}>
-        {mode === 'detail' && selectedConnection ? (
-          <>
-            <button
-              type="button"
-              className={styles.secondaryButton}
-              disabled={selectedBusy !== null}
-              onClick={() => void onConnectionAction(selectedConnection.id, 'refresh')}
-            >
-              {selectedBusy === 'refresh' ? <Loader2 size={15} className={styles.spin} /> : <Play size={15} />}
-              <span>Run now</span>
-            </button>
-            <button
-              type="button"
-              className={styles.secondaryButton}
-              disabled={selectedBusy !== null}
-              onClick={() => void onConnectionAction(selectedConnection.id, paused ? 'resume' : 'pause')}
-            >
-              {selectedBusy === 'pause' || selectedBusy === 'resume'
-                ? <Loader2 size={15} className={styles.spin} />
-                : paused ? <Play size={15} /> : <Pause size={15} />}
-              <span>{paused ? 'Resume' : 'Pause'}</span>
-            </button>
-            <IconButton
-              title="Open in Files"
-              disabled={!selectedConnection.path}
-              onClick={() => window.location.assign(dataPath(projectId, selectedConnection.path))}
-            >
-              <ExternalLink size={15} />
-            </IconButton>
-            <IconButton
-              title="Delete"
-              disabled={selectedBusy !== null}
-              onClick={() => void onConnectionAction(selectedConnection.id, 'delete')}
-            >
-              {selectedBusy === 'delete' ? <Loader2 size={15} className={styles.spin} /> : <Trash2 size={15} />}
-            </IconButton>
-          </>
-        ) : showHeaderCreate ? (
-          <>
-            {usesOAuth && canAuthorize ? (
-              <button
-                type="button"
-                className={styles.secondaryButton}
-                onClick={() => void onAuthorize()}
-                disabled={authBusy}
-              >
-                {authBusy ? <Loader2 size={15} className={styles.spin} /> : <ExternalLink size={15} />}
-                <span>Authorize</span>
-              </button>
-            ) : null}
-            <button
-              type="button"
-              className={styles.primaryButton}
-              onClick={() => void onCreate()}
-              disabled={creating || missingRequired || !targetPath.trim()}
-            >
-              {creating ? <Loader2 size={15} className={styles.spin} /> : <Plus size={15} />}
-              <span>Create</span>
-            </button>
-          </>
-        ) : null}
-      </div>
+      {model.mode === 'detail' && model.selectedConnection ? (
+        <div className={styles.detailActions}>
+          <ActionButton
+            variant="secondary"
+            size="sm"
+            disabled={model.selectedBusy !== null}
+            loading={model.selectedBusy === 'refresh'}
+            leadingIcon={model.selectedBusy === 'refresh' ? <Loader2 size={15} className={styles.spin} /> : <Play size={15} />}
+            onClick={() => void actions.runAction(model.selectedConnection!.id, 'refresh')}
+          >
+            Run now
+          </ActionButton>
+          <ActionButton
+            variant="secondary"
+            size="sm"
+            disabled={model.selectedBusy !== null}
+            loading={model.selectedBusy === 'pause' || model.selectedBusy === 'resume'}
+            leadingIcon={model.selectedBusy === 'pause' || model.selectedBusy === 'resume'
+              ? <Loader2 size={15} className={styles.spin} />
+              : model.paused ? <Play size={15} /> : <Pause size={15} />}
+            onClick={() => void actions.runAction(model.selectedConnection!.id, model.paused ? 'resume' : 'pause')}
+          >
+            {model.paused ? 'Resume' : 'Pause'}
+          </ActionButton>
+          <IconButton
+            title="Open in Files"
+            disabled={!model.selectedConnection.path}
+            onClick={() => window.location.assign(dataPath(model.projectId, model.selectedConnection?.path))}
+          >
+            <ExternalLink size={15} />
+          </IconButton>
+          <IconButton
+            title="Delete"
+            disabled={model.selectedBusy !== null}
+            onClick={() => void actions.runAction(model.selectedConnection!.id, 'delete')}
+          >
+            {model.selectedBusy === 'delete' ? <Loader2 size={15} className={styles.spin} /> : <Trash2 size={15} />}
+          </IconButton>
+        </div>
+      ) : null}
     </header>
   );
 }

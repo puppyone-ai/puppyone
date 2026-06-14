@@ -9,33 +9,26 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from src.common_schemas import ApiResponse
-from src.connectors.datasource.cli_handlers import (
-    _notify_folder_source,
-    _sync_resp as _sync_resp_helper,
-    process_pull_files,
-    process_push_file,
-)
+from src.connectors.datasource._base import AuthRequirement
 from src.connectors.datasource.registry import ConnectorRegistry
-from src.connectors.datasource.router import (
-    AckPullRequest,
+from src.platform.integrations.config_contract import (
+    validate_bootstrap_config,
+    validate_structured_config,
+)
+from src.platform.integrations.schemas import (
     BootstrapResponse,
-    ChangelogItem,
-    ChangelogResponse,
     CreateSyncResponse,
     FailedSyncRunItem,
     ProjectSyncStatusResponse,
-    PullFileItem,
-    PullFilesResponse,
     PullResponse,
-    PushFileRequest,
-    PushFileResponse,
     PushResponse,
     SyncResponse,
     SyncRunResponse,
     SyncStatusItem,
+    connection_to_response,
 )
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
@@ -88,6 +81,29 @@ class UpdateIntegrationTriggerRequest(BaseModel):
     trigger: Optional[dict] = None
 
 
+class UpdateIntegrationConnectionRequest(BaseModel):
+    config: Optional[dict] = None
+    target_path: Optional[str] = None
+    direction: Optional[str] = None
+    conflict_strategy: Optional[str] = None
+
+
+class ProviderResourceItem(BaseModel):
+    id: str
+    type: str
+    name: str
+    url: Optional[str] = None
+    subtitle: Optional[str] = None
+    icon: Optional[str] = None
+    authorized: bool = True
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class ProviderResourcesResponse(BaseModel):
+    resources: list[ProviderResourceItem]
+    next_cursor: Optional[str] = None
+
+
 def _connectable_specs(registry: ConnectorRegistry) -> list[dict]:
     modes_allowed = {"manual", "scheduled", "realtime"}
     specs: list[dict] = []
@@ -136,7 +152,7 @@ def _get_connection_with_access(
 
 
 def _sync_resp(connection) -> SyncResponse:
-    return SyncResponse(**_sync_resp_helper(connection))
+    return SyncResponse(**connection_to_response(connection))
 
 
 def _target_from_request(body: CreateIntegrationRequest | BootstrapRequest) -> str | None:
@@ -161,7 +177,7 @@ async def get_project_sync_status(
             provider=c.provider,
             direction=c.direction,
             status=c.status,
-            name=(c.config or {}).get("name"),
+            name=((c.config or {}).get("source") or {}).get("resource_name"),
             access_key=None,
             trigger=c.trigger if c.trigger else None,
             last_synced_at=c.last_synced_at,
@@ -179,6 +195,62 @@ def list_connectors(
     registry: ConnectorRegistry = Depends(get_connector_registry),
 ):
     return ApiResponse.success(data=_connectable_specs(registry))
+
+
+@router.get("/providers/{provider}/resources", response_model=ApiResponse[ProviderResourcesResponse])
+async def list_provider_resources(
+    provider: str,
+    q: str = Query("", description="Optional provider resource search term"),
+    cursor: Optional[str] = Query(None, description="Provider pagination cursor"),
+    resource_type: Optional[str] = Query(None, description="Provider resource type filter"),
+    registry: ConnectorRegistry = Depends(get_connector_registry),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    canonical = canonical_provider(provider)
+    connector = registry.get(canonical)
+    if not connector:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Unknown integration provider: {provider}",
+        )
+
+    spec = connector.spec()
+    try:
+        credentials = await registry.resolve_credentials(
+            oauth_type=spec.oauth_type,
+            user_id=current_user.user_id,
+            required=spec.auth != AuthRequirement.OPTIONAL_OAUTH,
+        )
+        resources, next_cursor = await connector.list_source_resources(
+            credentials,
+            query=q,
+            cursor=cursor,
+            resource_type=resource_type,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(exc),
+        ) from exc
+
+    return ApiResponse.success(
+        data=ProviderResourcesResponse(
+            resources=[
+                ProviderResourceItem(
+                    id=item.id,
+                    type=item.type,
+                    name=item.name,
+                    url=item.url,
+                    subtitle=item.subtitle,
+                    icon=item.icon,
+                    authorized=item.authorized,
+                    metadata=item.metadata,
+                )
+                for item in resources
+            ],
+            next_cursor=next_cursor,
+        )
+    )
 
 
 @router.post("/connections", response_model=ApiResponse[CreateSyncResponse])
@@ -211,10 +283,12 @@ async def create_connection(
         )
 
     try:
+        config = registry.pin_materialization_schema(provider, body.config)
+        validate_structured_config(provider, connector.spec(), config)
         connection = await service.create_connection(
             project_id=body.project_id,
             provider=provider,
-            config=body.config,
+            config=config,
             target_path=_target_from_request(body),
             credentials_ref=body.credentials_ref,
             direction=body.direction,
@@ -290,7 +364,6 @@ async def delete_connection(
         project_service=project_service,
         current_user=current_user,
     )
-    _notify_folder_source("stop", connection_id)
     try:
         from src.infra.scheduler.service import get_scheduler_service
 
@@ -299,6 +372,69 @@ async def delete_connection(
         pass
     service.remove_sync(connection_id)
     return ApiResponse.success(message="Integration connection deleted")
+
+
+@router.patch("/connections/{connection_id}", response_model=ApiResponse[SyncResponse])
+async def update_connection(
+    connection_id: str,
+    body: UpdateIntegrationConnectionRequest,
+    service: IntegrationService = Depends(get_integration_service),
+    registry: ConnectorRegistry = Depends(get_connector_registry),
+    project_service: ProjectService = Depends(get_project_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    connection = _get_connection_with_access(
+        connection_id=connection_id,
+        service=service,
+        project_service=project_service,
+        current_user=current_user,
+    )
+    fields: dict[str, Any] = {}
+    if body.direction is not None:
+        fields["direction"] = body.direction
+    if body.target_path is not None:
+        fields["target_path"] = body.target_path
+    if body.conflict_strategy is not None:
+        fields["conflict_strategy"] = body.conflict_strategy
+    if body.config:
+        # Only merge product/provider config. System-owned identifiers remain
+        # owned by create/bootstrap/OAuth flows, not editable workflow settings.
+        blocked = {
+            "external_resource_id",
+            "materialization_schema",
+            "user_id",
+            "credentials_ref",
+            "access_key",
+        }
+        fields.update({
+            key: value
+            for key, value in body.config.items()
+            if key not in blocked
+        })
+        connector = registry.get(connection.provider)
+        if connector:
+            merged_config = dict(connection.config or {})
+            merged_config.update({
+                key: value
+                for key, value in body.config.items()
+                if key not in blocked
+            })
+            try:
+                validate_structured_config(
+                    connection.provider,
+                    connector.spec(),
+                    merged_config,
+                    allow_system_keys=True,
+                )
+            except ValueError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=str(exc),
+                ) from exc
+    if fields:
+        service.repository.update(connection_id, **fields)
+    refreshed = service.repository.get_by_id(connection_id) or connection
+    return ApiResponse.success(data=_sync_resp(refreshed))
 
 
 @router.patch("/connections/{connection_id}/trigger", response_model=ApiResponse)
@@ -351,7 +487,6 @@ def pause_connection(
         project_service=project_service,
         current_user=current_user,
     )
-    _notify_folder_source("stop", connection_id)
     service.pause_sync(connection_id)
     return ApiResponse.success(message="Integration paused")
 
@@ -395,7 +530,6 @@ async def resume_connection(
         current_user=current_user,
     )
     service.resume_sync(connection_id)
-    _notify_folder_source("start", connection_id)
     try:
         await engine.execute(connection_id)
     except Exception:
@@ -427,10 +561,11 @@ def list_failed_runs(
     items = []
     for run in runs:
         connection = by_id.get(run.access_point_id)
+        source = (connection.config or {}).get("source") if connection else {}
         items.append(FailedSyncRunItem(
             id=run.id,
             access_point_id=run.access_point_id,
-            access_point_name=(connection.config or {}).get("name") if connection else None,
+            access_point_name=source.get("resource_name") if isinstance(source, dict) else None,
             access_point_path=connection.path if connection else None,
             provider=connection.provider if connection else "",
             direction=connection.direction if connection else "",
@@ -523,18 +658,26 @@ async def bootstrap(
             detail=f"Connector {provider} must be created via POST /integrations/connections",
         )
 
-    connections = await service.bootstrap(
-        project_id=body.project_id,
-        provider=provider,
-        config=body.config,
-        target_folder_path=_target_from_request(body),
-        credentials_ref=body.credentials_ref,
-        direction=body.direction,
-        conflict_strategy=body.conflict_strategy,
-        sync_mode=body.sync_mode,
-        trigger=body.trigger,
-        user_id=current_user.user_id,
-    )
+    try:
+        config = registry.pin_materialization_schema(provider, body.config)
+        validate_bootstrap_config(config)
+        connections = await service.bootstrap(
+            project_id=body.project_id,
+            provider=provider,
+            config=config,
+            target_folder_path=_target_from_request(body),
+            credentials_ref=body.credentials_ref,
+            direction=body.direction,
+            conflict_strategy=body.conflict_strategy,
+            sync_mode=body.sync_mode,
+            trigger=body.trigger,
+            user_id=current_user.user_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        )
 
     if body.sync_mode == "scheduled" and body.trigger:
         try:
@@ -559,76 +702,15 @@ async def bootstrap(
     return ApiResponse.success(data=BootstrapResponse(syncs_created=len(connections)))
 
 
-@router.post("/connections/{connection_id}/push-file", response_model=ApiResponse[PushFileResponse])
-async def push_file(
-    connection_id: str,
-    body: PushFileRequest,
-    service: IntegrationService = Depends(get_integration_service),
-    current_user: CurrentUser = Depends(get_current_user),
-):
-    parent = service.repository.get_by_id(connection_id)
-    if not parent:
-        return ApiResponse.error(code=1004, message=f"Integration #{connection_id} not found")
-
-    from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
-
-    result = await process_push_file(
-        build_worker_version_engine_container().write_commands(),
-        project_id=parent.project_id,
-        body=body,
-        user_id=current_user.user_id,
-        sync_svc=service,
-        parent_sync=parent,
-    )
-    return ApiResponse.success(data=PushFileResponse(**result))
-
-
-@router.get("/connections/{connection_id}/pull-files", response_model=ApiResponse[PullFilesResponse])
-def pull_files(
-    connection_id: str,
-    service: IntegrationService = Depends(get_integration_service),
-    current_user: CurrentUser = Depends(get_current_user),
-):
-    parent = service.repository.get_by_id(connection_id)
-    if not parent:
-        return ApiResponse.error(code=1004, message=f"Integration #{connection_id} not found")
-
-    from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
-
-    files = process_pull_files(
-        build_worker_version_engine_container().product_operations(),
-        project_id=parent.project_id,
-        body=None,
-        sync_svc=service,
-        parent_sync=parent,
-    )
-    return ApiResponse.success(data=PullFilesResponse(
-        files=[PullFileItem(**item) for item in files],
-        total=len(files),
-    ))
-
-
-@router.post("/connections/{connection_id}/ack-pull", response_model=ApiResponse)
-def ack_pull(
-    connection_id: str,
-    body: AckPullRequest,
-    service: IntegrationService = Depends(get_integration_service),
-    current_user: CurrentUser = Depends(get_current_user),
-):
-    return ApiResponse.success(message=f"Acknowledged {len(body.items)} files")
-
-
 @router.post("/pull", response_model=ApiResponse[PullResponse])
 async def trigger_pull(
     connection_id: Optional[str] = Query(None, description="Connection ID. Omit to pull all."),
-    sync_id: Optional[str] = Query(None, description="Legacy sync ID alias."),
     provider: Optional[str] = Query(None),
     engine: IntegrationEngine = Depends(get_integration_engine),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    target_id = connection_id or sync_id
-    if target_id:
-        result = await engine.execute(target_id)
+    if connection_id:
+        result = await engine.execute(connection_id)
         results = [result] if result else []
     else:
         results = await engine.execute_all(provider)
@@ -670,50 +752,4 @@ async def trigger_push(
     return ApiResponse.success(data=PushResponse(
         pushed=1 if result else 0,
         results=[result] if result else [],
-    ))
-
-
-@router.get("/changelog", response_model=ApiResponse[ChangelogResponse])
-def get_integration_changelog(
-    project_id: str = Query(..., description=_PROJECT_ID_DESC),
-    cursor: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500),
-    service: IntegrationService = Depends(get_integration_service),
-    project_service: ProjectService = Depends(get_project_service),
-    current_user: CurrentUser = Depends(get_current_user),
-):
-    _ensure_project_access(project_service, current_user, project_id)
-
-    from src.connectors.datasource.changelog import SyncChangelogRepository
-    from src.infra.supabase.client import SupabaseClient
-
-    entries = SyncChangelogRepository(SupabaseClient()).list_since(
-        project_id,
-        cursor=cursor,
-        limit=limit + 1,
-    )
-    has_more = len(entries) > limit
-    if has_more:
-        entries = entries[:limit]
-    new_cursor = entries[-1].id if entries else cursor
-    items = [
-        ChangelogItem(
-            id=e.id,
-            project_id=e.project_id,
-            path=e.path,
-            action=e.action,
-            node_type=e.node_type,
-            version=e.version,
-            hash=e.hash,
-            size_bytes=e.size_bytes,
-            folder_id=e.folder_id,
-            filename=e.filename,
-            created_at=e.created_at,
-        )
-        for e in entries
-    ]
-    return ApiResponse.success(data=ChangelogResponse(
-        entries=items,
-        cursor=new_cursor,
-        has_more=has_more,
     ))

@@ -23,6 +23,12 @@ from src.connectors.datasource._base import (
     FetchResult,
     Credentials,
     ConfigField,
+    SourceResource,
+)
+from src.connectors.datasource.google_workspace.resources import (
+    DRIVE_FILES_URL as GOOGLE_DRIVE_FILES_URL,
+    GOOGLE_FOLDER_MIME_TYPE,
+    list_drive_source_resources,
 )
 from src.connectors.datasource.oauth.google_drive_service import GoogleDriveOAuthService
 from src.infra.s3.service import S3Service
@@ -31,7 +37,7 @@ from src.infra.s3.service import S3Service
 class GoogleDriveConnector(BaseConnector):
     """Connector for Google Drive imports."""
 
-    DRIVE_FILES_URL = "https://www.googleapis.com/drive/v3/files"
+    DRIVE_FILES_URL = GOOGLE_DRIVE_FILES_URL
     DRIVE_EXPORT_URL = "https://www.googleapis.com/drive/v3/files/{file_id}/export"
 
     # Google Docs MIME types that can be exported
@@ -69,13 +75,6 @@ class GoogleDriveConnector(BaseConnector):
             icon_url="https://www.gstatic.com/images/branding/product/1x/drive_2020q4_32dp.png",
             ui_visible=False,
             config_fields=(
-                ConfigField(
-                    key="source_url",
-                    label="Drive folder or file URL",
-                    type="url",
-                    placeholder="https://drive.google.com/drive/folders/...",
-                    hint="Leave empty to import recent files",
-                ),
                 ConfigField(key="max_results", label="Max files", type="number", default=50),
             ),
         )
@@ -93,25 +92,22 @@ class GoogleDriveConnector(BaseConnector):
 
     async def fetch(self, config: dict, credentials: Credentials) -> FetchResult:
         """Pull a JSON summary of folder/drive contents."""
+        source = config.get("source") or {}
+        options = config.get("options") or {}
         access_token = credentials.access_token
-        source_url = config.get("source_url", "")
+        resource_id = source.get("resource_id")
 
-        if source_url.startswith("oauth://"):
-            files = await self._list_recent_files(access_token, limit=config.get("max_results", 50))
-            folder_name = "Google Drive (recent)"
+        if not resource_id:
+            files = await self._list_recent_files(access_token, limit=options.get("max_results", 50))
+            folder_name = "Google Drive"
         else:
-            file_id = self._extract_file_id(source_url)
-            if file_id:
-                file_info = await self._get_file_info(access_token, file_id)
-                if file_info.get("mimeType") == "application/vnd.google-apps.folder":
-                    files = await self._list_folder_files(access_token, file_id)
-                    folder_name = file_info.get("name", "Google Drive Folder")
-                else:
-                    files = [file_info]
-                    folder_name = file_info.get("name", "Google Drive File")
+            file_info = await self._get_file_info(access_token, resource_id)
+            if file_info.get("mimeType") == GOOGLE_FOLDER_MIME_TYPE:
+                files = await self._list_folder_files(access_token, resource_id)
+                folder_name = file_info.get("name", "Google Drive Folder")
             else:
-                files = await self._list_recent_files(access_token, limit=50)
-                folder_name = "Google Drive (recent)"
+                files = [file_info]
+                folder_name = file_info.get("name", "Google Drive File")
 
         content = {
             "source_type": "google_drive",
@@ -137,6 +133,27 @@ class GoogleDriveConnector(BaseConnector):
             node_type="json",
             node_name=folder_name,
             summary=f"Google Drive '{folder_name}' with {len(files)} files",
+        )
+
+    async def list_source_resources(
+        self,
+        credentials: Credentials,
+        *,
+        query: str = "",
+        cursor: Optional[str] = None,
+        resource_type: Optional[str] = None,
+    ) -> tuple[list[SourceResource], Optional[str]]:
+        return await list_drive_source_resources(
+            self.client,
+            credentials.access_token,
+            query=query,
+            cursor=cursor,
+            icon="google_drive",
+            resource_type=(
+                lambda item: "drive_folder"
+                if item.get("mimeType") == GOOGLE_FOLDER_MIME_TYPE
+                else "drive_file"
+            ),
         )
 
     async def _list_recent_files(
@@ -193,24 +210,6 @@ class GoogleDriveConnector(BaseConnector):
         )
         response.raise_for_status()
         return response.json()
-
-    def _extract_file_id(self, url: str) -> Optional[str]:
-        """Extract file ID from Drive URL."""
-        import re
-
-        # Handle various Drive URL formats
-        patterns = [
-            r'/d/([a-zA-Z0-9_-]+)',  # /d/FILE_ID
-            r'id=([a-zA-Z0-9_-]+)',  # ?id=FILE_ID
-            r'/folders/([a-zA-Z0-9_-]+)',  # /folders/FOLDER_ID
-        ]
-
-        for pattern in patterns:
-            match = re.search(pattern, url)
-            if match:
-                return match.group(1)
-
-        return None
 
     async def close(self):
         """Close HTTP client."""

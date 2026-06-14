@@ -32,6 +32,10 @@ import {
   type Connector,
   type RepoScope,
 } from '@/lib/repoApi';
+import {
+  getAccessProviderSortRank,
+  isAgentProvider,
+} from '@/lib/accessProviderRegistry';
 import { AI_AGENT_ENABLED } from '@/lib/featureFlags';
 
 /**
@@ -106,13 +110,13 @@ export function useAccessData(projectId: string): UseAccessDataResult {
     const m = new Map<string, Connector[]>();
     (connectors ?? []).forEach((c) => {
       if (!isAccessSurfaceConnector(c)) return;
-      if (!AI_AGENT_ENABLED && c.provider === 'agent') return;
+      if (!AI_AGENT_ENABLED && isAgentProvider(c.provider)) return;
       if (!m.has(c.scope_id)) m.set(c.scope_id, []);
       m.get(c.scope_id)!.push(c);
     });
     for (const list of m.values()) {
       list.sort((a, b) => {
-        const order = (c: Connector) => (c.provider === 'cli' ? 0 : c.provider === 'agent' ? 1 : 2);
+        const order = (c: Connector) => getAccessProviderSortRank(c.provider);
         return order(a) - order(b) || a.created_at.localeCompare(b.created_at);
       });
     }

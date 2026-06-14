@@ -470,8 +470,6 @@ def create_app() -> FastAPI:
     app.include_router(workspace_router, prefix="/api/v1", tags=["workspace"])
     from src.platform.integrations.router import router as integrations_router
     app.include_router(integrations_router, prefix="/api/v1", tags=["integrations"])
-    from src.connectors.datasource.router import router as sync_router
-    app.include_router(sync_router, prefix="/api/v1", tags=["sync-compat"])
     # GitHub Integration: bind a project to a (repo, branch) pair, run
     # imports/exports, receive webhooks. Two routers because the webhook
     # callback isn't per-project.

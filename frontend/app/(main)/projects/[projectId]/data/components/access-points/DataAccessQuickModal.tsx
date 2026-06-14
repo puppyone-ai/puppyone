@@ -12,10 +12,17 @@ import {
   buildTerminalCliPrompt,
 } from '@/lib/accessPointCliPrompt';
 import { sortConnectorsBuiltinFirst, type Connector, type RepoScope } from '@/lib/repoApi';
+import {
+  getAccessProviderCardTitle,
+  getAccessProviderMethodMeta,
+  getAccessProviderPromptKind,
+  isCliProvider,
+  isGitRemoteProvider,
+} from '@/lib/accessProviderRegistry';
 import { APP_Z_INDEX } from '@/lib/zIndex';
 import { ProviderIcon } from '../../../access/components/icons';
 import { CommandBlock } from '../../../access/components/ui-blocks';
-import { PROVIDER_LABELS, STATUS_COLORS, STATUS_LABEL } from '../../../access/lib/constants';
+import { STATUS_COLORS, STATUS_LABEL } from '../../../access/lib/constants';
 import { getApiBase, getTypeLine, timeAgo } from '../../../access/lib/format';
 import { T } from '../../../access/lib/tokens';
 
@@ -24,10 +31,6 @@ const FONT_BODY = 13;
 const FONT_META = 12;
 const HOVER_CARD_WIDTH = 372;
 const HOVER_CARD_HEIGHT = 196;
-
-function isGitRemoteMethodProvider(provider: string): boolean {
-  return provider === 'git_remote';
-}
 
 type DataAccessQuickModalProps = {
   readonly scope: RepoScope;
@@ -47,8 +50,8 @@ export function DataAccessQuickModal({
   const [manualConnectorId, setManualConnectorId] = useState<string | null>(null);
   const methods = useMemo(() => {
     const sorted = sortConnectorsBuiltinFirst(connectors);
-    const cliMethods = sorted.filter((connector) => connector.provider === 'cli');
-    const gitRemote = sorted.find((connector) => connector.provider === 'git_remote');
+    const cliMethods = sorted.filter((connector) => isCliProvider(connector.provider));
+    const gitRemote = sorted.find((connector) => isGitRemoteProvider(connector.provider));
 
     return gitRemote ? [...cliMethods, gitRemote] : cliMethods;
   }, [connectors]);
@@ -266,7 +269,7 @@ function AccessMethodCard({
   const setup = useMemo(() => buildSetupGuide(connector, scope), [connector, scope]);
   const [copied, setCopied] = useState(false);
   const meta = accessMethodMeta(connector);
-  const showManualCommands = connector.provider === 'git_remote';
+  const showManualCommands = isGitRemoteProvider(connector.provider);
 
   const copyPrompt = async () => {
     try {
@@ -691,7 +694,7 @@ function ManualWayRow({
               whiteSpace: 'nowrap',
             }}
           >
-            {isGitRemoteMethodProvider(connector.provider)
+            {isGitRemoteProvider(connector.provider)
               ? 'For clone, pull, commit, and push workflows.'
               : getTypeLine(connector)}
           </span>
@@ -1151,7 +1154,7 @@ function PromptPreview({ prompt }: { readonly prompt: string }) {
 
 function ProviderTile({ provider }: { readonly provider: string }) {
   const tile = getProviderTileStyle(provider);
-  const isGitRemote = provider === 'git_remote';
+  const isGitRemote = isGitRemoteProvider(provider);
   const tileSize = isGitRemote ? 34 : 30;
   const iconSize = isGitRemote ? 34 : 17;
 
@@ -1179,7 +1182,8 @@ function ProviderTile({ provider }: { readonly provider: string }) {
 
 function buildSetupGuide(connector: Connector, scope: RepoScope) {
   const scopeName = scope.name || scope.path || 'Root';
-  if (isGitRemoteMethodProvider(connector.provider)) {
+  const promptKind = getAccessProviderPromptKind(connector.provider);
+  if (promptKind === 'git_remote') {
     const gitUrl = `${getApiBase()}/git/ap/${scope.access_key || '<access-key>'}.git`;
     const guide = buildGitSyncPrompt({
       gitUrl,
@@ -1222,7 +1226,7 @@ function buildSetupGuide(connector: Connector, scope: RepoScope) {
 }
 
 function getProviderTileStyle(provider: string) {
-  if (provider === 'cli') {
+  if (isCliProvider(provider)) {
     return {
       background: 'var(--po-accent)',
       border: 'var(--po-accent)',
@@ -1270,9 +1274,7 @@ function StatusCell({ status }: { readonly status: Connector['status'] }) {
 }
 
 function connectorName(connector: Connector): string {
-  if (connector.provider === 'cli') return 'Puppyone CLI';
-  if (isGitRemoteMethodProvider(connector.provider)) return 'Git Remote';
-  return connector.name || PROVIDER_LABELS[connector.provider] || connector.provider;
+  return getAccessProviderCardTitle(connector.provider, connector.name);
 }
 
 function accessMethodMeta(connector: Connector): {
@@ -1280,23 +1282,10 @@ function accessMethodMeta(connector: Connector): {
   readonly description: string;
   readonly badge?: string;
 } {
-  if (connector.provider === 'cli') {
-    return {
-      title: 'Context Drive CLI',
-      badge: 'Official',
-      description:
-        'Use Puppyone\'s scoped FS CLI to let an agent read and write this cloud drive without cloning it.',
-    };
-  }
-  if (isGitRemoteMethodProvider(connector.provider)) {
-    return {
-      title: 'Git Remote',
-      description: 'Use a native Git remote for clone, pull, commit, and push workflows.',
-    };
-  }
+  const meta = getAccessProviderMethodMeta(connector.provider, connector.name);
   return {
-    title: connectorName(connector),
-    description: getTypeLine(connector),
+    ...meta,
+    badge: isCliProvider(connector.provider) ? 'Official' : undefined,
   };
 }
 

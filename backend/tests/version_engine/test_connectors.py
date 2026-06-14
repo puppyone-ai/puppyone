@@ -2,7 +2,7 @@
 
 Covers:
   - BaseConnector pull() method
-  - SyncEngine decoupling (fetch → compare → ProductOperationAdapter.write)
+  - IntegrationEngine decoupling (fetch → compare → ProductOperationAdapter.write)
   - Unified connections manager routing by provider
 """
 
@@ -52,7 +52,7 @@ class TestBaseConnector:
         c = FakeConnector()
         mock_sync = MagicMock()
         mock_sync.config = {}
-        with pytest.raises(NotImplementedError, match="use SyncEngine"):
+        with pytest.raises(NotImplementedError, match="use IntegrationEngine"):
             await c.pull(mock_sync)
 
     @pytest.mark.asyncio
@@ -107,20 +107,20 @@ class TestManagerRouting:
         assert "direct" in known_providers
 
 
-# ── SyncEngine Decoupling Tests ────────────────────────────────
+# ── IntegrationEngine Decoupling Tests ─────────────────────────
 
-class TestSyncEngineDecoupling:
-    """Verify SyncEngine properly separates concerns."""
+class TestIntegrationEngineDecoupling:
+    """Verify IntegrationEngine properly separates concerns."""
 
     def test_engine_module_importable(self):
-        from src.connectors.datasource.engine import SyncEngine
-        assert hasattr(SyncEngine, "execute")
+        from src.platform.integrations.engine import IntegrationEngine
+        assert hasattr(IntegrationEngine, "execute")
 
     def test_engine_uses_version_write_commands(self):
-        """SyncEngine.execute() should enter writes through L3 command normalization."""
+        """IntegrationEngine.execute() should enter writes through L3 command normalization."""
         import inspect
-        from src.connectors.datasource.engine import SyncEngine
-        source = inspect.getsource(SyncEngine.execute)
+        from src.platform.integrations.engine import IntegrationEngine
+        source = inspect.getsource(IntegrationEngine.execute)
         assert "build_worker_version_engine_container" in source
         assert "write_commands" in source
         assert "commands.bulk_write" in source

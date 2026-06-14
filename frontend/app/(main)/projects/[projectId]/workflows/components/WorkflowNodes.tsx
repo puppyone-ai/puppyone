@@ -1,273 +1,241 @@
 'use client';
 
 import {
-  CalendarClock,
-  Check,
-  Clock3,
+  ArrowRight,
   ExternalLink,
   Folder,
   Loader2,
   Plus,
 } from 'lucide-react';
+import { ActionButton } from '@/components/ui/ActionButton';
+import { Field, SelectField } from '@/components/ui/Field';
 import { ConfigFieldInput, ProviderMark } from './WorkflowPrimitives';
+import { DestinationSettingsForm, ProjectFolderSelect, SourceSettingsForm } from './WorkflowNodeForms';
 import styles from './WorkflowPage.module.css';
 import {
   providerName,
   triggerLabel,
 } from './workflowHelpers';
-import type { WorkflowDetailProps } from './workflowTypes';
+import { WorkflowTriggerControl } from './WorkflowTriggerControl';
+import type { WorkflowShellProps } from './workflowTypes';
+import type { ReactNode } from 'react';
 
-export function WorkflowFlow(props: WorkflowDetailProps) {
-  if (props.mode === 'new') {
+export function WorkflowFlow(props: WorkflowShellProps) {
+  if (props.model.mode === 'new') {
     return <NewWorkflowBuilder {...props} />;
   }
 
   const sourceTitle = providerName(
-    props.detailProvider,
-    props.selectedConnection?.provider || 'Source',
+    props.model.detailProvider,
+    props.model.selectedConnection?.provider || 'Source',
   );
-  const targetTitle = props.selectedConnection?.path || 'Project root';
-  const triggerText = triggerLabel(props.detailTrigger.mode, props.detailTrigger.schedule);
+  const targetTitle = props.model.selectedConnection?.path || 'Project root';
+  const triggerText = triggerLabel(props.model.detailTrigger.mode, props.model.detailTrigger.schedule);
 
   return (
-    <section className={styles.flowSurface}>
-      <div className={styles.workflowCanvas}>
-        <div className={styles.workflowMap}>
-          <SourceFlowNode sourceTitle={sourceTitle} triggerText={triggerText} {...props} />
-          <div className={styles.flowConnector} aria-hidden="true">
-            <span className={styles.connectorLine} />
-          </div>
-          <TargetFlowNode targetTitle={targetTitle} {...props} />
-        </div>
-
+    <section className={styles.workflowPanel}>
+      <PanelHeader
+        title="Workflow"
+        subtitle={`${sourceTitle} to ${targetTitle}`}
+        triggerText={triggerText}
+        {...props}
+      />
+      <div className={styles.connectionGrid}>
+        <FlowNodeCard
+          tone="source"
+          icon={<ProviderMark provider={props.model.detailProvider} />}
+          label="Source"
+          title={sourceTitle}
+        >
+          <SourceSettingsForm {...props} />
+        </FlowNodeCard>
+        <FlowConnector />
+        <FlowNodeCard
+          tone="target"
+          icon={<Folder size={18} />}
+          label="Destination"
+          title={targetTitle}
+        >
+          <DestinationSettingsForm targetPath={props.model.selectedConnection?.path ?? ''} {...props} />
+        </FlowNodeCard>
       </div>
     </section>
   );
 }
 
-function NewWorkflowBuilder(props: WorkflowDetailProps) {
-  const triggerText = triggerLabel(props.detailTrigger.mode, props.detailTrigger.schedule);
-  const hasConfig = (props.selectedProvider?.config_fields ?? []).length > 0;
-  const createDisabled = props.creating || props.missingRequired || !props.targetPath.trim();
-  const createHint = props.visibleProviders.length === 0
+function NewWorkflowBuilder(props: WorkflowShellProps) {
+  const { model, actions } = props;
+  const triggerText = triggerLabel(model.detailTrigger.mode, model.detailTrigger.schedule);
+  const createDisabled = model.creating || model.missingRequired || !model.targetPath.trim() || Boolean(model.triggerError);
+  const createHint = model.visibleProviders.length === 0
     ? 'No providers available'
-    : !props.selectedProvider
+    : !model.selectedProvider
       ? 'Choose a provider'
-      : props.missingRequired
+      : model.missingRequired
         ? 'Fill required fields'
-        : !props.targetPath.trim()
+        : !model.targetPath.trim()
           ? 'Add a project path'
-          : 'Ready to create';
+          : model.triggerError || 'Ready to create';
 
   return (
-    <section className={styles.flowSurface}>
-      <div className={`${styles.workflowCanvas} ${styles.newWorkflowCanvas}`}>
-        <div className={styles.newWorkflowMap}>
-          <div className={`${styles.newWorkflowNode} ${styles.sourceFlowNode}`}>
-            <div className={styles.nodeIcon}>
-              <ProviderMark provider={props.selectedProvider} />
+    <section className={styles.workflowPanel}>
+      <PanelHeader
+        title="Create sync"
+        subtitle="Choose a source, destination path, and run mode."
+        triggerText={triggerText}
+        {...props}
+      />
+      <div className={styles.connectionGrid}>
+        <FlowNodeCard
+          tone="source"
+          icon={<ProviderMark provider={model.selectedProvider} />}
+          label="Source"
+          title={model.selectedProvider?.display_name || 'Provider'}
+        >
+          <div className={styles.nodeSettings}>
+            <div className={styles.settingsGrid}>
+              <Field label="Provider">
+                <SelectField
+                  value={model.selectedProviderId}
+                  onChange={(event) => actions.setSelectedProviderId(event.target.value)}
+                >
+                  {model.visibleProviders.length === 0 ? (
+                    <option value="">Provider</option>
+                  ) : null}
+                  {model.visibleProviders.map((provider) => (
+                    <option key={provider.provider} value={provider.provider}>{provider.display_name}</option>
+                  ))}
+                </SelectField>
+              </Field>
+              {model.configFields.map((field) => (
+                <Field
+                  key={field.key}
+                  label={`${field.label}${field.required ? ' *' : ''}`}
+                  hint={field.hint}
+                  error={model.configErrors[field.key]}
+                >
+                  <ConfigFieldInput
+                    field={field}
+                    value={model.configValues[field.key] ?? ''}
+                    invalid={Boolean(model.configErrors[field.key])}
+                    onChange={(value) => actions.setConfigValues((current) => ({ ...current, [field.key]: value }))}
+                  />
+                </Field>
+              ))}
             </div>
-            <label className={styles.nodeField}>
-              <span>Provider</span>
-              <select
-                className={styles.nodeSelect}
-                value={props.selectedProviderId}
-                onChange={(event) => props.setSelectedProviderId(event.target.value)}
-              >
-                {props.visibleProviders.length === 0 ? (
-                  <option value="">Provider</option>
-                ) : null}
-                {props.visibleProviders.map((provider) => (
-                  <option key={provider.provider} value={provider.provider}>{provider.display_name}</option>
-                ))}
-              </select>
-            </label>
-            <button
-              type="button"
-              className={props.triggerOpen ? `${styles.triggerChip} ${styles.triggerChipActive}` : styles.triggerChip}
-              onClick={props.onOpenTriggerEditor}
-            >
-              {props.detailTrigger.mode === 'scheduled' ? <CalendarClock size={14} /> : <Clock3 size={14} />}
-              <span>{triggerText}</span>
-            </button>
-            {props.triggerOpen ? <TriggerEditorOverlay {...props} /> : null}
           </div>
+        </FlowNodeCard>
 
-          <div className={styles.flowConnector} aria-hidden="true">
-            <span className={styles.connectorLine} />
-          </div>
+        <FlowConnector />
 
-          <div className={`${styles.newWorkflowNode} ${styles.targetFlowNode}`}>
-            <div className={styles.nodeIcon}>
-              <Folder size={18} />
+        <FlowNodeCard
+          tone="target"
+          icon={<Folder size={18} />}
+          label="Destination"
+          title={model.targetPath || 'Project folder'}
+        >
+          <div className={styles.nodeSettings}>
+            <div className={styles.settingsGrid}>
+              <Field label="Project folder" error={!model.targetPath.trim() ? 'Choose a folder' : undefined}>
+                <ProjectFolderSelect
+                  projectId={model.projectId}
+                  value={model.targetPath}
+                  invalid={!model.targetPath.trim()}
+                  onChange={actions.setTargetPath}
+                  missingLabel="new folder"
+                />
+              </Field>
             </div>
-            <label className={styles.nodeField}>
-              <span>Project path</span>
-              <input
-                className={styles.nodeInput}
-                value={props.targetPath}
-                onChange={(event) => props.setTargetPath(event.target.value)}
-                placeholder="Gmail"
-              />
-            </label>
           </div>
-        </div>
+        </FlowNodeCard>
+      </div>
 
-        {hasConfig ? <ProviderConfigFields {...props} /> : null}
-
-        <div className={styles.newWorkflowFooter}>
-          <span className={createDisabled ? styles.createHintMuted : styles.createHintReady}>{createHint}</span>
-          <div className={styles.newWorkflowActions}>
-            {props.usesOAuth && props.canAuthorize ? (
-              <button
-                type="button"
-                className={styles.secondaryButton}
-                onClick={() => void props.onAuthorize()}
-                disabled={props.authBusy}
-              >
-                {props.authBusy ? <Loader2 size={15} className={styles.spin} /> : <ExternalLink size={15} />}
-                <span>Authorize</span>
-              </button>
-            ) : null}
-            <button
-              type="button"
-              className={styles.primaryButton}
-              onClick={() => void props.onCreate()}
-              disabled={createDisabled}
+      <div className={styles.workflowPanelFooter}>
+        <span className={createDisabled ? styles.createHintMuted : styles.createHintReady}>
+          {createHint}
+        </span>
+        <div className={styles.newWorkflowActions}>
+          {model.usesOAuth && model.canAuthorize ? (
+            <ActionButton
+              variant="secondary"
+              size="sm"
+              leadingIcon={model.authBusy ? <Loader2 size={15} className={styles.spin} /> : <ExternalLink size={15} />}
+              onClick={() => void actions.authorize()}
+              loading={model.authBusy}
             >
-              {props.creating ? <Loader2 size={15} className={styles.spin} /> : <Plus size={15} />}
-              <span>Create workflow</span>
-            </button>
-          </div>
+              Authorize
+            </ActionButton>
+          ) : null}
+          <ActionButton
+            variant="primary"
+            size="sm"
+            leadingIcon={model.creating ? <Loader2 size={15} className={styles.spin} /> : <Plus size={15} />}
+            onClick={() => void actions.create()}
+            loading={model.creating}
+            disabled={createDisabled}
+          >
+            Create sync
+          </ActionButton>
         </div>
       </div>
     </section>
   );
 }
 
-function SourceFlowNode(props: WorkflowDetailProps & { sourceTitle: string; triggerText: string }) {
-  const {
-    detailProvider,
-    detailTrigger,
-    triggerOpen,
-    onOpenTriggerEditor,
-    sourceTitle,
-    triggerText,
-  } = props;
-
+function PanelHeader({
+  title,
+  subtitle,
+  triggerText,
+  ...props
+}: WorkflowShellProps & {
+  title: string;
+  subtitle: string;
+  triggerText: string;
+}) {
   return (
-    <div className={`${styles.flowNodeTile} ${styles.sourceFlowNode}`}>
+    <div className={styles.workflowPanelHeader}>
+      <div>
+        <h3>{title}</h3>
+        <p>{subtitle}</p>
+      </div>
+      <WorkflowTriggerControl triggerText={triggerText} {...props} />
+    </div>
+  );
+}
+
+function FlowNodeCard({
+  tone,
+  icon,
+  label,
+  title,
+  children,
+}: {
+  tone: 'source' | 'target';
+  icon: ReactNode;
+  label: string;
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className={`${styles.flowNodeCard} ${tone === 'source' ? styles.sourceFlowNode : styles.targetFlowNode}`}>
       <div className={styles.nodeMain}>
-        <div className={styles.nodeIcon}>
-          <ProviderMark provider={detailProvider} />
-        </div>
+        <div className={styles.nodeIcon}>{icon}</div>
         <div className={styles.nodeTitleBlock}>
-          <div className={styles.nodeTitle}>{sourceTitle}</div>
+          <div className={styles.nodeLabel}>{label}</div>
+          <div className={styles.nodeTitle}>{title}</div>
         </div>
-        <button
-          type="button"
-          className={triggerOpen ? `${styles.triggerChip} ${styles.triggerChipActive}` : styles.triggerChip}
-          onClick={onOpenTriggerEditor}
-        >
-          {detailTrigger.mode === 'scheduled' ? <CalendarClock size={14} /> : <Clock3 size={14} />}
-          <span>{triggerText}</span>
-        </button>
       </div>
-
-      {triggerOpen ? <TriggerEditorOverlay {...props} /> : null}
+      {children}
     </div>
   );
 }
 
-function TargetFlowNode({
-  targetTitle,
-}: WorkflowDetailProps & { targetTitle: string }) {
+function FlowConnector() {
   return (
-    <div className={`${styles.flowNodeTile} ${styles.targetFlowNode}`}>
-      <div className={styles.nodeMain}>
-        <div className={styles.nodeIcon}>
-          <Folder size={18} />
-        </div>
-        <div className={styles.nodeTitleBlock}>
-          <div className={styles.nodeTitle}>{targetTitle}</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ProviderConfigFields({
-  selectedProvider,
-  configValues,
-  setConfigValues,
-}: WorkflowDetailProps) {
-  return (
-    <div className={styles.newConfigGrid}>
-      {(selectedProvider?.config_fields ?? []).map((field) => (
-        <label className={styles.field} key={field.key}>
-          <span>{field.label}{field.required ? ' *' : ''}</span>
-          <ConfigFieldInput
-            field={field}
-            value={configValues[field.key] ?? ''}
-            onChange={(value) => setConfigValues((current) => ({ ...current, [field.key]: value }))}
-          />
-        </label>
-      ))}
-    </div>
-  );
-}
-
-function TriggerEditorOverlay({
-  triggerMode,
-  setTriggerMode,
-  schedule,
-  setSchedule,
-  timezone,
-  setTimezone,
-  savingTrigger,
-  onCloseTrigger,
-  onSaveTrigger,
-}: WorkflowDetailProps) {
-  return (
-    <div className={styles.triggerEditorOverlay}>
-      <div className={styles.popoverTitle}>Trigger</div>
-      <div className={styles.segmented}>
-        <button
-          type="button"
-          className={triggerMode === 'manual' ? styles.selected : ''}
-          onClick={() => setTriggerMode('manual')}
-        >
-          Manual
-        </button>
-        <button
-          type="button"
-          className={triggerMode === 'scheduled' ? styles.selected : ''}
-          onClick={() => setTriggerMode('scheduled')}
-        >
-          Scheduled
-        </button>
-      </div>
-      {triggerMode === 'scheduled' ? (
-        <div className={styles.popoverGrid}>
-          <label className={styles.field}>
-            <span>Cron</span>
-            <input className={styles.input} value={schedule} onChange={(event) => setSchedule(event.target.value)} />
-          </label>
-          <label className={styles.field}>
-            <span>Timezone</span>
-            <input className={styles.input} value={timezone} onChange={(event) => setTimezone(event.target.value)} />
-          </label>
-        </div>
-      ) : null}
-      <div className={styles.popoverActions}>
-        <button type="button" className={`${styles.secondaryButton} ${styles.compactButton}`} onClick={onCloseTrigger}>
-          Close
-        </button>
-        <button type="button" className={`${styles.primaryButton} ${styles.compactButton}`} onClick={() => void onSaveTrigger()} disabled={savingTrigger}>
-          {savingTrigger ? <Loader2 size={14} className={styles.spin} /> : <Check size={14} />}
-          <span>Save</span>
-        </button>
-      </div>
+    <div className={styles.flowConnector} aria-hidden="true">
+      <span className={styles.connectorLine} />
+      <ArrowRight size={15} />
+      <span className={styles.connectorLine} />
     </div>
   );
 }

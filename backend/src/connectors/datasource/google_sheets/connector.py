@@ -25,8 +25,9 @@ from src.connectors.datasource._base import (
     TriggerMode,
     FetchResult,
     Credentials,
-    ConfigField,
+    SourceResource,
 )
+from src.connectors.datasource.google_workspace.resources import list_drive_source_resources
 from src.connectors.datasource.oauth.google_sheets_service import GoogleSheetsOAuthService
 from src.infra.s3.service import S3Service
 from src.utils.logger import log_error
@@ -36,6 +37,7 @@ class GoogleSheetsConnector(BaseConnector):
     """Connector for Google Sheets imports - stores all data in single JSONB node."""
 
     SHEETS_API_URL = "https://sheets.googleapis.com/v4/spreadsheets"
+    SHEET_MIME_TYPE = "application/vnd.google-apps.spreadsheet"
 
     def spec(self) -> ConnectorSpec:
         return ConnectorSpec(
@@ -54,16 +56,6 @@ class GoogleSheetsConnector(BaseConnector):
             description="Sync spreadsheet data",
             accept_types=("folder",),
             icon_url="https://www.gstatic.com/images/branding/product/1x/sheets_2020q4_32dp.png",
-            config_fields=(
-                ConfigField(
-                    key="source_url",
-                    label="Google Sheets URL",
-                    type="url",
-                    required=True,
-                    placeholder="https://docs.google.com/spreadsheets/d/.../edit",
-                    hint="Paste the full URL of your Google Sheets document",
-                ),
-            ),
         )
 
     def __init__(
@@ -79,10 +71,10 @@ class GoogleSheetsConnector(BaseConnector):
 
     async def fetch(self, config: dict, credentials: Credentials) -> FetchResult:
         """Fetch Google Sheets data using the unified fetch interface."""
-        source_url = config.get("source_url", "")
-        spreadsheet_id = self._extract_spreadsheet_id(source_url)
+        source = config.get("source") or {}
+        spreadsheet_id = source.get("resource_id")
         if not spreadsheet_id:
-            raise ValueError(f"Could not extract spreadsheet ID from URL: {source_url}")
+            raise ValueError("source.resource_id is required for Google Sheets")
 
         access_token = credentials.access_token
 
@@ -119,7 +111,7 @@ class GoogleSheetsConnector(BaseConnector):
             "source": "google_sheets",
             "spreadsheet_id": spreadsheet_id,
             "spreadsheet_title": title,
-            "spreadsheet_url": source_url,
+            "spreadsheet_url": source.get("resource_url"),
             "sheet_count": len(sheets_data),
             "total_rows": total_rows,
             "sheets": sheets_data,
@@ -133,8 +125,27 @@ class GoogleSheetsConnector(BaseConnector):
             content=content,
             content_hash=content_hash,
             node_type="json",
-            node_name=config.get("name") or title[:100],
+            node_name=source.get("resource_name") or title[:100],
             summary=f"Fetched {len(sheets_data)} sheets, {total_rows} rows from '{title}'",
+        )
+
+    async def list_source_resources(
+        self,
+        credentials: Credentials,
+        *,
+        query: str = "",
+        cursor: Optional[str] = None,
+        resource_type: Optional[str] = None,
+    ) -> tuple[list[SourceResource], Optional[str]]:
+        return await list_drive_source_resources(
+            self.client,
+            credentials.access_token,
+            query=query,
+            cursor=cursor,
+            mime_type=self.SHEET_MIME_TYPE,
+            icon="google_sheets",
+            resource_type="spreadsheet",
+            default_name="Untitled spreadsheet",
         )
 
     async def _get_spreadsheet(self, access_token: str, spreadsheet_id: str) -> dict:
@@ -206,22 +217,6 @@ class GoogleSheetsConnector(BaseConnector):
             "truncated": len(values) - 1 > max_rows,
             "rows": rows,
         }
-
-    def _extract_spreadsheet_id(self, url: str) -> Optional[str]:
-        """Extract spreadsheet ID from URL."""
-        import re
-
-        patterns = [
-            r'/spreadsheets/d/([a-zA-Z0-9_-]+)',
-            r'spreadsheets/d/([a-zA-Z0-9_-]+)',
-        ]
-
-        for pattern in patterns:
-            match = re.search(pattern, url)
-            if match:
-                return match.group(1)
-
-        return None
 
     async def close(self):
         """Close HTTP client."""

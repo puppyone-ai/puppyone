@@ -1,11 +1,15 @@
 import type { PanelState } from '../../usePanelStore';
 import type { SyncEndpointInfo } from '../explorer';
+import {
+  isMcpProvider,
+  isSandboxProvider,
+} from '@/lib/accessProviderRegistry';
 import type { EndpointEntry, EndpointNameMap } from './types';
 
 export function endpointToPanelState(ep: SyncEndpointInfo, nodeId: string): PanelState {
   if (ep.provider.startsWith('agent:')) return { type: 'agent_chat', nodeId, agentId: ep.syncId };
-  if (ep.provider === 'mcp') return { type: 'mcp_config', nodeId, mcpEndpointId: ep.syncId };
-  if (ep.provider === 'sandbox') return { type: 'sandbox_config', nodeId, sandboxEndpointId: ep.syncId };
+  if (isMcpProvider(ep.provider)) return { type: 'mcp_config', nodeId, mcpEndpointId: ep.syncId };
+  if (isSandboxProvider(ep.provider)) return { type: 'sandbox_config', nodeId, sandboxEndpointId: ep.syncId };
   return { type: 'sync_config', nodeId };
 }
 
@@ -28,4 +32,3 @@ export function getEndpointEntries(
   }
   return Array.from(map.values());
 }
-

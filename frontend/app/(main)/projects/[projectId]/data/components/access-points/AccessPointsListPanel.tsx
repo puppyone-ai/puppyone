@@ -6,6 +6,11 @@ import {
   buildGitSyncPrompt,
   buildTerminalCliPrompt,
 } from '@/lib/accessPointCliPrompt';
+import {
+  isGitRemoteProvider,
+  isMcpProvider,
+  isSandboxProvider,
+} from '@/lib/accessProviderRegistry';
 import { PanelShell } from '../PanelShell';
 import { AccessPointProviderIcon, StatusDot } from './AccessPointProviderIcon';
 import type { SyncEndpointInfo } from '../explorer';
@@ -33,7 +38,7 @@ function getSetupSnippets(ep: SyncEndpointInfo, displayName: string, scopeName: 
   const apiBase = getApiBase();
   const accessKey = ep.accessKey || '';
 
-  if (ep.provider === 'git_remote' && accessKey) {
+  if (isGitRemoteProvider(ep.provider) && accessKey) {
     const gitUrl = `${apiBase}/git/ap/${accessKey}.git`;
     const profileName = accessPointProfileSlug(scopeName);
     const gitPrompt = buildGitSyncPrompt({
@@ -65,7 +70,7 @@ function getSetupSnippets(ep: SyncEndpointInfo, displayName: string, scopeName: 
     } as const;
   }
 
-  if (ep.provider === 'mcp' && accessKey) {
+  if (isMcpProvider(ep.provider) && accessKey) {
     const serverUrl = `${apiBase}/api/v1/mcp/proxy/${accessKey}`;
     const serverName = displayName.toLowerCase().replace(/\s+/g, '-') || 'puppyone-mcp';
     const config = `{\n  "mcpServers": {\n    "${serverName}": {\n      "url": "${serverUrl}",\n      "headers": { "X-API-KEY": "${accessKey}" }\n    }\n  }\n}`;
@@ -92,7 +97,7 @@ function getSetupSnippets(ep: SyncEndpointInfo, displayName: string, scopeName: 
     };
   }
 
-  if (ep.provider === 'sandbox' && accessKey) {
+  if (isSandboxProvider(ep.provider) && accessKey) {
     const execUrl = `${apiBase}/api/v1/sandbox-endpoints/${ep.syncId}/exec`;
     const command = `curl -X POST ${execUrl} \\\n  -H "X-Access-Key: ${accessKey}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"command": "ls /workspace"}'`;
     const prompt = [
@@ -418,7 +423,7 @@ export function AccessPointsListPanel({
                             title={setup.primary.title}
                             description={setup.primary.description}
                             prompt={setup.primary.body}
-                            tone={ep.provider === 'git_remote' ? 'green' : 'neutral'}
+                            tone={isGitRemoteProvider(ep.provider) ? 'green' : 'neutral'}
                           />
                           {setup.secondary && (
                             <CopyPromptButton

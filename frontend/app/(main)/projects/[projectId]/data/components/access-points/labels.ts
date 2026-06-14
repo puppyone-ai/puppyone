@@ -1,31 +1,13 @@
 import type { Connector, RepoScope } from '@/lib/repoApi';
+import {
+  getAccessProviderLabel,
+  isAgentProvider,
+  normalizeConnectorProvider,
+} from '@/lib/accessProviderRegistry';
 import type { SyncEndpointInfo } from '../explorer';
 
-const PROVIDER_LABELS: Record<string, string> = {
-  cli: 'Local CLI',
-  agent: 'AI Agent',
-  notion: 'Notion',
-  gmail: 'Gmail',
-  google_docs: 'Google Docs',
-  google_sheets: 'Google Sheets',
-  google_drive: 'Google Drive',
-  google_calendar: 'Google Calendar',
-  github: 'GitHub',
-  linear: 'Linear',
-  airtable: 'Airtable',
-  url: 'Web Page',
-  rss: 'RSS Feed',
-  rest_api: 'REST API',
-  supabase: 'Supabase',
-  mcp: 'MCP Server',
-  sandbox: 'Sandbox',
-};
-
 export function providerLabel(provider: string): string {
-  return (
-    PROVIDER_LABELS[provider] ||
-    provider.charAt(0).toUpperCase() + provider.slice(1)
-  );
+  return getAccessProviderLabel(provider);
 }
 
 export function directionLabel(direction: string): string {
@@ -56,8 +38,8 @@ export function buildScopeMetaLine(scope: RepoScope): string {
 /** Build the endpoint-shaped value consumed by AccessPointProviderIcon. */
 export function connectorAsEndpointShape(c: Connector): SyncEndpointInfo {
   let iconProvider: string;
-  if (c.provider === 'agent') iconProvider = 'agent:chat';
-  else iconProvider = c.provider;
+  if (isAgentProvider(c.provider)) iconProvider = 'agent:chat';
+  else iconProvider = normalizeConnectorProvider(c.provider);
   return {
     syncId: c.id,
     provider: iconProvider,

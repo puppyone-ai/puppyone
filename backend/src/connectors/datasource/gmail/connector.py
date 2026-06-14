@@ -28,6 +28,7 @@ from src.connectors.datasource._base import (
     FetchResult,
     Credentials,
     ConfigField,
+    SourceResource,
 )
 from src.connectors.datasource.oauth.gmail_service import GmailOAuthService
 from src.infra.s3.service import S3Service
@@ -100,11 +101,13 @@ class GmailConnector(BaseConnector):
 
     async def fetch(self, config: dict, credentials: Credentials) -> FetchResult:
         """Fetch Gmail emails using the unified fetch interface."""
+        source = config.get("source") or {}
+        options = config.get("options") or {}
         user_email = credentials.metadata.get("user", {}).get("email", "Gmail")
-        max_results = config.get("max_results", config.get("maxEmails", 50))
+        max_results = options.get("max_results", 50)
         if isinstance(max_results, str):
             max_results = int(max_results)
-        query = config.get("query", "")
+        query = options.get("query", "")
 
         email_ids = await self._fetch_email_ids(
             access_token=credentials.access_token,
@@ -140,9 +143,29 @@ class GmailConnector(BaseConnector):
             content=content,
             content_hash=content_hash,
             node_type="json",
-            node_name=config.get("name") or f"Gmail - {user_email}",
+            node_name=source.get("resource_name") or f"Gmail - {user_email}",
             summary=f"Fetched {len(emails)} emails from {user_email}",
         )
+
+    async def list_source_resources(
+        self,
+        credentials: Credentials,
+        *,
+        query: str = "",
+        cursor: Optional[str] = None,
+        resource_type: Optional[str] = None,
+    ) -> tuple[list[SourceResource], Optional[str]]:
+        user_email = credentials.metadata.get("user", {}).get("email", "")
+        return [
+            SourceResource(
+                id="me",
+                type="mailbox",
+                name="Gmail",
+                subtitle=user_email or None,
+                icon="gmail",
+                metadata={"account_label": user_email} if user_email else {},
+            )
+        ], None
 
     async def _fetch_email_ids(
         self,

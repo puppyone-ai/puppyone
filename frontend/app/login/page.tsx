@@ -22,8 +22,21 @@ const URL_SUCCESS_MESSAGES: Record<string, string> = {
 
 type AuthView = 'main' | 'signin' | 'signup' | 'verify-otp' | 'forgot';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090';
+const BACKEND_API_BASE = '/api/backend/api/v1';
 const RESEND_COOLDOWN_SECONDS = 300; // 5 minutes
+
+function backendApiUrl(path: string): string {
+  return `${BACKEND_API_BASE}${path.startsWith('/') ? path : `/${path}`}`;
+}
+
+function getBackendErrorMessage(payload: any, fallback: string): string {
+  const detail = payload?.detail;
+  if (typeof payload?.message === 'string' && payload.message) return payload.message;
+  if (typeof detail === 'string' && detail) return detail;
+  if (typeof detail?.message === 'string' && detail.message) return detail.message;
+  if (typeof payload?.error === 'string' && payload.error) return payload.error;
+  return fallback;
+}
 
 /**
  * Default export wraps the inner page in <Suspense> because
@@ -232,14 +245,14 @@ function LoginPageInner() {
     clearFeedback();
     setLoading('continue');
     try {
-      const resp = await fetch(`${API_BASE}/api/v1/auth/check-email`, {
+      const resp = await fetch(backendApiUrl('/auth/check-email'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
       });
       const json = await resp.json();
       if (resp.status === 429) throw new Error('Too many attempts. Please wait a moment and try again.');
-      if (!resp.ok) throw new Error(json.detail || 'Failed to check email');
+      if (!resp.ok) throw new Error(getBackendErrorMessage(json, 'Failed to check email'));
       const exists = json.data?.exists;
       setView(exists ? 'signin' : 'signup');
     } catch (e: unknown) {
@@ -333,7 +346,7 @@ function LoginPageInner() {
         try {
           const token = await getAccessToken();
           if (token) {
-            const res = await fetch(`${API_BASE}/api/v1/auth/initialize`, {
+            const res = await fetch(backendApiUrl('/auth/initialize'), {
               method: 'POST',
               headers: { Authorization: `Bearer ${token}` },
             });
@@ -380,7 +393,7 @@ function LoginPageInner() {
       try {
         const token = await getAccessToken();
         if (token) {
-          const res = await fetch(`${API_BASE}/api/v1/auth/initialize`, {
+          const res = await fetch(backendApiUrl('/auth/initialize'), {
             method: 'POST',
             headers: { Authorization: `Bearer ${token}` },
           });

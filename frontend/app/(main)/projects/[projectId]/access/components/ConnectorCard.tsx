@@ -31,9 +31,14 @@ import { createPortal } from 'react-dom';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import type { Connector, RepoScope } from '@/lib/repoApi';
 import { APP_Z_INDEX } from '@/lib/zIndex';
+import {
+  getAccessProviderCardTitle,
+  isBuiltInAccessProvider,
+  isCliProvider,
+  normalizeConnectorProvider,
+} from '@/lib/accessProviderRegistry';
 import { T } from '../lib/tokens';
 import {
-  PROVIDER_LABELS,
   STATUS_COLORS,
   STATUS_LABEL,
 } from '../lib/constants';
@@ -55,15 +60,6 @@ import { GhostButton, SubSectionLabel } from './ui-blocks';
 import { ConnectorAccessPanel } from './quick-connect';
 import type { ConnectorEditPatch } from '../hooks/useAccessData';
 
-// ─── Built-in providers ──────────────────────────────────────────────
-//
-// Built-ins (cli / agent / git_remote) are auto-created by the
-// DB trigger and undeletable through the API. The frontend mirrors that
-// rule by hiding the "Disconnect" menu item and the editable Direction
-// dropdown for these providers — built-ins are fixed bidirectional and
-// fixed presence, only `name` and `status` are user-controllable.
-const BUILTIN_PROVIDERS = new Set(['cli', 'agent', 'git_remote']);
-
 // ─── Connector card (one access point, expanded view) ────────────────
 
 export function ConnectorCard({
@@ -83,11 +79,9 @@ export function ConnectorCard({
 }) {
   const statusColor = STATUS_COLORS[connector.status] ?? T.text3;
   const action = getPrimaryAction(connector.status);
-  const name =
-    connector.provider === 'cli' ? 'Puppyone CLI'
-    : connector.provider === 'git_remote' ? 'Git Remote'
-    : connector.name || PROVIDER_LABELS[connector.provider] || connector.provider;
-  const isBuiltin = BUILTIN_PROVIDERS.has(connector.provider);
+  const provider = normalizeConnectorProvider(connector.provider);
+  const name = getAccessProviderCardTitle(provider, connector.name);
+  const isBuiltin = isBuiltInAccessProvider(provider);
 
   // Shared name-editing state, controlled from two surfaces:
   //   - Hover-pencil on the header name (direct entry).
@@ -221,7 +215,7 @@ export function ConnectorDetailBody({
   readonly pending: boolean;
   readonly variant?: 'full' | 'inline';
 }) {
-  const isBuiltin = BUILTIN_PROVIDERS.has(connector.provider);
+  const isBuiltin = isBuiltInAccessProvider(connector.provider);
   const inline = variant === 'inline';
 
   return (
@@ -762,12 +756,7 @@ function PausedBanner({
   readonly onResume: () => void;
   readonly pending: boolean;
 }) {
-  const channelLabel: Record<string, string> = {
-    cli: 'Puppyone CLI',
-    agent: 'Agent',
-    git_remote: 'Git Remote',
-  };
-  const label = channelLabel[provider] ?? PROVIDER_LABELS[provider] ?? provider;
+  const label = getAccessProviderCardTitle(provider);
   return (
     <div
       style={{
@@ -1357,7 +1346,7 @@ function ConnectorConfigPanel({
   readonly variant?: ConfigPanelVariant;
 }) {
   const inline = variant === 'inline';
-  const showCliCommands = connector.provider === 'cli' && !!onUpdate;
+  const showCliCommands = isCliProvider(connector.provider) && !!onUpdate;
   const showError = !!connector.error_message;
 
   if (!showCliCommands && !showError) {

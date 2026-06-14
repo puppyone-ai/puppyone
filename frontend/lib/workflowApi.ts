@@ -32,6 +32,37 @@ export interface WorkflowProviderSpec {
   accept_types?: string[];
   config_fields?: WorkflowConfigField[];
   icon_url?: string | null;
+  materialization_schema?: WorkflowMaterializationSchema | null;
+  materialization_schemas?: WorkflowMaterializationSchema[];
+}
+
+export interface WorkflowMaterializationSchema {
+  id: string;
+  version: number;
+  provider?: string | null;
+  label: string;
+  description: string;
+  preview_paths: string[];
+  managed: boolean;
+  latest?: boolean;
+  latest_version?: number;
+  upgrade_available?: boolean;
+}
+
+export interface WorkflowSourceResource {
+  id: string;
+  type: string;
+  name: string;
+  url?: string | null;
+  subtitle?: string | null;
+  icon?: string | null;
+  authorized: boolean;
+  metadata: Record<string, unknown>;
+}
+
+export interface WorkflowProviderResourcesResponse {
+  resources: WorkflowSourceResource[];
+  next_cursor?: string | null;
 }
 
 export interface CreateWorkflowRequest {
@@ -146,6 +177,20 @@ export async function getWorkflowProviderSpecs(): Promise<WorkflowProviderSpec[]
   return get<WorkflowProviderSpec[]>(`${WORKFLOW_BACKING_BASE}/connectors`);
 }
 
+export async function listWorkflowProviderResources(
+  provider: string,
+  params: { q?: string; cursor?: string | null; resource_type?: string | null } = {},
+): Promise<WorkflowProviderResourcesResponse> {
+  const query = new URLSearchParams();
+  if (params.q) query.set('q', params.q);
+  if (params.cursor) query.set('cursor', params.cursor);
+  if (params.resource_type) query.set('resource_type', params.resource_type);
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+  return get<WorkflowProviderResourcesResponse>(
+    `${WORKFLOW_BACKING_BASE}/providers/${encodeURIComponent(provider)}/resources${suffix}`,
+  );
+}
+
 export async function createWorkflow(
   body: CreateWorkflowRequest,
 ): Promise<CreateWorkflowResult> {
@@ -217,6 +262,21 @@ export async function updateWorkflowTrigger(
 ): Promise<unknown> {
   return patch<unknown>(
     `${WORKFLOW_BACKING_BASE}/connections/${encodeURIComponent(connectionId)}/trigger`,
+    body,
+  );
+}
+
+export async function updateWorkflowConnection(
+  connectionId: string,
+  body: {
+    config?: Record<string, unknown>;
+    target_path?: string;
+    direction?: string;
+    conflict_strategy?: string;
+  },
+): Promise<WorkflowConnection> {
+  return patch<WorkflowConnection>(
+    `${WORKFLOW_BACKING_BASE}/connections/${encodeURIComponent(connectionId)}`,
     body,
   );
 }
