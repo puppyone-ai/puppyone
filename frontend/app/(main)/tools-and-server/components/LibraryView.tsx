@@ -9,6 +9,7 @@ import {
 } from '@/lib/mcpApi';
 import { FONT, TOOL_TYPE_CONFIG } from '@/lib/toolConfig';
 import { Dots } from '@/components/loading';
+import { StatusDot } from '@/components/ui/StatusDot';
 
 // Header 高度 (包含 border)
 const HEADER_HEIGHT = 45;
@@ -437,16 +438,7 @@ export function LibraryView({
                                   'transparent')
                               }
                             >
-                              <div
-                                style={{
-                                  width: 6,
-                                  height: 6,
-                                  borderRadius: '50%',
-                                  background: mcp.status
-                                    ? 'var(--po-success)'
-                                    : 'var(--po-text-disabled)',
-                                }}
-                              />
+                              <StatusDot tone={mcp.status ? 'success' : 'muted'} />
                               <span
                                 style={{
                                   flex: 1,

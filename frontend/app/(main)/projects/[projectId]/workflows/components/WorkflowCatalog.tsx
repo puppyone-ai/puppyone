@@ -13,6 +13,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { ActionButton } from '@/components/ui/ActionButton';
+import { StatusIndicator, type StatusDotStatus } from '@/components/ui/StatusDot';
 import { oauth, openOAuthPopup, type OAuthStatusResponse } from '@/lib/oauthApi';
 import {
   DialogBody,
@@ -545,10 +546,11 @@ function NewSyncDialog({
                         </span>
                         <span className={styles.sourcePickerContent}>
                           <span className={styles.sourcePickerTitle}>{item.display_name}</span>
-                          <span className={authStatusClass(authState)}>
-                            <span className={styles.authStatusDot} aria-hidden="true" />
-                            {authState?.loading ? 'Checking authorization' : authState?.label ?? 'Not authorized'}
-                          </span>
+                          <StatusIndicator
+                            className={styles.authStatus}
+                            status={authStatusIndicator(authState)}
+                            label={authState?.loading ? 'Checking authorization' : authState?.label ?? 'Not authorized'}
+                          />
                         </span>
                         {needsAuth ? (
                           <span
@@ -804,11 +806,11 @@ function authStateFromStatus(status: OAuthStatusResponse): ProviderAuthState {
   };
 }
 
-function authStatusClass(authState?: ProviderAuthState): string {
-  if (authState?.loading) return `${styles.authStatus} ${styles.authStatusMuted}`;
-  if (authState?.error) return `${styles.authStatus} ${styles.authStatusDanger}`;
-  if (authState?.connected) return `${styles.authStatus} ${styles.authStatusConnected}`;
-  return `${styles.authStatus} ${styles.authStatusWarning}`;
+function authStatusIndicator(authState?: ProviderAuthState): StatusDotStatus {
+  if (authState?.loading) return 'inactive';
+  if (authState?.error) return 'error';
+  if (authState?.connected) return 'connected';
+  return 'warning';
 }
 
 function providerForId(

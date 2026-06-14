@@ -11,6 +11,7 @@ import {
   TOOL_TYPE_CONFIG,
   type ToolItem,
 } from './ToolsTable';
+import { StatusDot } from '@/components/ui/StatusDot';
 
 // Header 高度 (包含 border)
 const HEADER_HEIGHT = 45;
@@ -251,14 +252,7 @@ export function ServerView({
                 >
                   {server.name || 'Unnamed Server'}
                 </span>
-                <span
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: '50%',
-                    background: server.status ? 'var(--po-success)' : 'var(--po-text-disabled)',
-                  }}
-                />
+                <StatusDot tone={server.status ? 'success' : 'muted'} />
                 <span
                   onClick={() => onDeleteServer(server.api_key)}
                   style={{

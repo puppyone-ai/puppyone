@@ -28,6 +28,7 @@ import { SIDEBAR_ROW_TYPOGRAPHY } from '@/lib/uiTypography';
 import { getNodeTypeConfig, isFolderType } from '@/lib/nodeTypeConfig';
 import { PulseGrid, PageLoading, Dots } from '@/components/loading';
 import { ActionButton } from '@/components/ui/ActionButton';
+import { StatusIndicator, type StatusDotTone } from '@/components/ui/StatusDot';
 
 // ================= Types =================
 
@@ -238,22 +239,20 @@ function ToolRow({
   const color = config?.color || 'var(--po-text-subtle)';
 
   // Status Logic
-  let statusColor = 'var(--po-text-subtle)';
+  let statusTone: StatusDotTone = 'success';
   let statusText = 'Active';
 
   if (tool.type === 'search' && searchStatus) {
     if (searchStatus.status === 'ready') {
-      statusColor = 'var(--po-success)';
+      statusTone = 'success';
       statusText = 'Ready';
     } else if (searchStatus.status === 'indexing') {
-      statusColor = 'var(--po-warning)';
+      statusTone = 'warning';
       statusText = 'Indexing';
     } else if (searchStatus.status === 'error') {
-      statusColor = 'var(--po-danger)';
+      statusTone = 'danger';
       statusText = 'Error';
     }
-  } else {
-    statusColor = 'var(--po-success)';
   }
 
   return (
@@ -299,10 +298,7 @@ function ToolRow({
       </div>
 
       {/* Status */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <div style={{ width: 6, height: 6, borderRadius: '50%', background: statusColor }} />
-        <span style={{ fontSize: 11, color: statusColor }}>{statusText}</span>
-      </div>
+      <StatusIndicator tone={statusTone} label={statusText} style={{ fontSize: 11 }} />
 
       {/* Description */}
       <div style={{

@@ -50,6 +50,7 @@ class ConnectInfo:
     username: str
     proxy_command: str | None
     needs_websocat: bool     # True for E2B (ProxyCommand uses local websocat)
+    workspace_path: str      # Git working tree to open in VSCode/Cursor
     ssh_config_block: str
     expires_at: float
     connected_users: int
@@ -117,6 +118,15 @@ class ScopeSandboxService:
     def _git_url(public_base: str, access_key: str) -> str:
         return f"{public_base.rstrip('/')}/git/ap/{access_key}.git"
 
+    @staticmethod
+    def _workspace_path(username: str, workdir: str) -> str:
+        def clean(value: str, fallback: str) -> str:
+            return value.replace("'", "").replace('"', "").replace("\n", "").strip().strip("/") or fallback
+
+        user = clean(username, "user")
+        wd = clean(workdir, "scope")
+        return f"/home/{user}/{wd}"
+
     # ── connect / status / revoke ─────────────────────────────────────
 
     async def connect(
@@ -147,22 +157,24 @@ class ScopeSandboxService:
         provider = mgr.provider
         sid = session.sandbox_id
 
+        conn = session.connection
+        host = conn.host if conn else sid
+        port = conn.port if conn else 22
+        username = conn.username if conn else "user"
+        proxy = conn.proxy_command if conn else None
+
         # per-user working tree + git identity (#7): push attributes to the person
-        await ssh_credentials.provision_user_workspace(
+        workdir = await ssh_credentials.provision_user_workspace(
             provider, sid, user_id,
             git_url=git_url, user_email=user_email, user_name=user_name,
         )
+        workspace_path = self._workspace_path(username, workdir)
         # short-lived, revocable SSH grant (#5)
         expires_at = now + ttl_s
         await ssh_credentials.grant_ssh_access(
             provider, sid, user_id, public_key, expires_at=expires_at,
         )
 
-        conn = session.connection
-        host = conn.host if conn else sid
-        port = conn.port if conn else 22
-        username = conn.username if conn else "user"
-        proxy = conn.proxy_command if conn else None
         log_info(
             f"[scope-sandbox] connect scope={scope_id} user={user_id} "
             f"via={result.via.value} provider={session.provider}"
@@ -176,6 +188,7 @@ class ScopeSandboxService:
             username=username,
             proxy_command=proxy,
             needs_websocat=proxy is not None and "websocat" in proxy,
+            workspace_path=workspace_path,
             ssh_config_block=_ssh_config_block(scope_id, host, port, username, proxy),
             expires_at=expires_at,
             connected_users=len(session.connected_users),
@@ -185,12 +198,24 @@ class ScopeSandboxService:
         session = self._store.get(scope_id)
         if session is None or session.project_id != project_id:
             return {"state": "none", "connected": False, "connected_users": 0}
+        conn = session.connection
+        host = conn.host if conn else session.sandbox_id
+        port = conn.port if conn else 22
+        username = conn.username if conn else "user"
+        proxy = conn.proxy_command if conn else None
         return {
             "state": session.state.value,
             "provider": session.provider,
             "connected": user_id in session.connected_users,
             "connected_users": len(session.connected_users),
             "sandbox_id": session.sandbox_id,
+            "host": host,
+            "port": port,
+            "username": username,
+            "proxy_command": proxy,
+            "needs_websocat": proxy is not None and "websocat" in proxy,
+            "workspace_path": self._workspace_path(username, user_id),
+            "ssh_config_block": _ssh_config_block(scope_id, host, port, username, proxy),
         }
 
     async def revoke(self, *, project_id: str, scope_id: str, user_id: str) -> int:

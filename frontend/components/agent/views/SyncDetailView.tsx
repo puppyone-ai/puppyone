@@ -9,6 +9,7 @@ import { useConnectorSpecs } from '@/lib/hooks/useData';
 import { PanelShell } from '../../../app/(main)/projects/[projectId]/data/components/PanelShell';
 import { Dots } from '@/components/loading';
 import { ActivityIconButton } from '@/components/ActivityIconButton';
+import { StatusIndicator } from '@/components/ui/StatusDot';
 
 interface SyncDetail {
   id: string;
@@ -237,9 +238,8 @@ export function SyncDetailView({ syncId, projectId, onClose, onBack }: SyncDetai
   const isError = sync.status === 'error';
   const isPaused = sync.status === 'paused';
 
-  const statusColor = isError ? 'var(--po-danger)' : isActive ? 'var(--po-success)' : isPaused ? 'var(--po-warning)' : 'var(--po-text-disabled)';
   const statusLabel = isError ? 'Error' : sync.status === 'syncing' ? 'Syncing' : isActive ? 'Sync active' : isPaused ? 'Paused' : sync.status || 'Inactive';
-  const statusTextColor = isError ? 'var(--po-danger)' : isActive ? 'var(--po-text)' : 'var(--po-text-muted)';
+  const statusForIndicator = isError ? 'error' : sync.status === 'syncing' ? 'syncing' : isActive ? 'active' : isPaused ? 'paused' : 'inactive';
 
   const normalizedMode = normalizeMode(sync.trigger?.type);
 
@@ -306,13 +306,7 @@ export function SyncDetailView({ syncId, projectId, onClose, onBack }: SyncDetai
 
             {/* Status line */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, paddingTop: 2 }}>
-              <span style={{
-                width: 5, height: 5, borderRadius: '50%', background: statusColor,
-                display: 'inline-block', flexShrink: 0,
-              }} />
-              <span style={{ fontSize: 11, fontWeight: 500, color: statusTextColor }}>
-                {statusLabel}
-              </span>
+              <StatusIndicator status={statusForIndicator} label={statusLabel} style={{ fontSize: 11 }} />
               {sync.last_synced_at && (
                 <span style={{ fontSize: 11, color: 'var(--po-text-disabled)' }}>
                   · {relativeTime(sync.last_synced_at)}

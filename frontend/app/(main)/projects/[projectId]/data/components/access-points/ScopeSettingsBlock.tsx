@@ -50,11 +50,13 @@ export function ScopeSettingsBlock({
   onMutated,
   onScopeDeleted,
   onDirtyChange,
+  accessMethods,
 }: {
   readonly scope: RepoScope;
   readonly projectId: string;
   readonly onMutated: () => Promise<unknown>;
   readonly onScopeDeleted: () => void;
+  readonly accessMethods?: React.ReactNode;
   /** Lift dirty state to parent so the panel chrome ([⚙ Settings]
    *  toggle / [×] close) can confirm before discarding edits. Called
    *  on every dirty-change transition; the parent stores it as React
@@ -302,6 +304,8 @@ export function ScopeSettingsBlock({
           )}
         </div>
       </Card>
+
+      {accessMethods}
 
       {/* Danger zone — delete, isolated at the bottom so a stray
           click on the way out can't catch it. Two-click confirm; root

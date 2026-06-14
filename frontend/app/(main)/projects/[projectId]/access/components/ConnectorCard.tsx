@@ -28,6 +28,7 @@ import {
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { StatusIndicator } from '@/components/ui/StatusDot';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import type { Connector, RepoScope } from '@/lib/repoApi';
 import { APP_Z_INDEX } from '@/lib/zIndex';
@@ -39,7 +40,6 @@ import {
 } from '@/lib/accessProviderRegistry';
 import { T } from '../lib/tokens';
 import {
-  STATUS_COLORS,
   STATUS_LABEL,
 } from '../lib/constants';
 import {
@@ -77,7 +77,6 @@ export function ConnectorCard({
   readonly onDelete: () => Promise<void>;
   readonly pending: boolean;
 }) {
-  const statusColor = STATUS_COLORS[connector.status] ?? T.text3;
   const action = getPrimaryAction(connector.status);
   const provider = normalizeConnectorProvider(connector.provider);
   const name = getAccessProviderCardTitle(provider, connector.name);
@@ -142,21 +141,11 @@ export function ConnectorCard({
               {getTypeLine(connector)}
             </span>
             <span style={{ color: T.text4, flexShrink: 0 }}>·</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
-              <span
-                aria-hidden
-                style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: '50%',
-                  background: statusColor,
-                  boxShadow: `0 0 6px color-mix(in srgb, ${statusColor} 55%, transparent)`,
-                }}
-              />
-              <span style={{ color: statusColor, fontWeight: 500 }}>
-                {STATUS_LABEL[connector.status] ?? connector.status}
-              </span>
-            </div>
+            <StatusIndicator
+              status={connector.status}
+              label={STATUS_LABEL[connector.status] ?? connector.status}
+              style={{ flexShrink: 0 }}
+            />
             <span style={{ color: T.text4, flexShrink: 0 }}>·</span>
             <span style={{ color: T.text3, flexShrink: 0 }}>
               {timeAgo(connector.last_run_at)}

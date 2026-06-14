@@ -117,6 +117,7 @@ async def test_connect_e2b_provisions_ssh_clones_and_grants():
     assert info.needs_websocat is True
     assert info.proxy_command and "websocat" in info.proxy_command
     assert "ProxyCommand" in info.ssh_config_block and "HostName" in info.ssh_config_block
+    assert info.workspace_path == "/home/user/u1"
     assert info.expires_at > 0 and info.connected_users == 1
 
     blob = prov.exec_blob()
@@ -156,6 +157,8 @@ async def test_status_reflects_connection():
     await _connect(svc, user="u1")
     st = svc.status(project_id="proj-1", scope_id=SCOPE.id, user_id="u1")
     assert st["state"] == "running" and st["connected"] is True and st["connected_users"] == 1
+    assert st["workspace_path"] == "/home/user/u1"
+    assert "Host puppy-scope-12" in st["ssh_config_block"]
 
 
 async def test_revoke_drops_user_and_calls_provider():

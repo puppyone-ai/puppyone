@@ -1,16 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { Connector, RepoScope } from '@/lib/repoApi';
-import {
-  getAccessProviderDefinition,
-  SIDEBAR_SIGNAL_PROVIDER_IDS,
-  isGitRemoteProvider,
-  normalizeConnectorProvider,
-} from '@/lib/accessProviderRegistry';
+import { StatusDot } from '@/components/ui/StatusDot';
 import { SIDEBAR_ROW_TYPOGRAPHY } from '@/lib/uiTypography';
 import { T } from '../lib/tokens';
-import { ProviderIcon } from './icons';
+
+type ScopeFilter = 'all' | 'active' | 'inactive';
 
 export function ScopeSidebar({
   scopes,
@@ -23,6 +19,23 @@ export function ScopeSidebar({
   readonly selectedScopeId: string | undefined;
   readonly onSelect: (id: string) => void;
 }) {
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<ScopeFilter>('all');
+  const [filterOpen, setFilterOpen] = useState(false);
+
+  const filteredScopes = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return scopes.filter((scope) => {
+      const connectors = connectorsByScope.get(scope.id) ?? [];
+      const active = connectors.some(isConnectorActive);
+      if (filter === 'active' && !active) return false;
+      if (filter === 'inactive' && active) return false;
+      if (!q) return true;
+      const haystack = `${scope.name ?? ''} ${scope.path ?? ''} ${formatScopePath(scope)}`.toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [connectorsByScope, filter, query, scopes]);
+
   return (
     <div
       style={{
@@ -38,6 +51,117 @@ export function ScopeSidebar({
     >
       <div
         style={{
+          borderBottom: `1px solid ${T.cardBorder}`,
+          padding: '8px 8px 10px',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 34px', gap: 6 }}>
+          <label
+            style={{
+              height: 34,
+              borderRadius: 8,
+              border: `1px solid ${T.border}`,
+              background: 'var(--po-control)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '0 10px',
+              boxSizing: 'border-box',
+              minWidth: 0,
+            }}
+          >
+            <SearchGlyph size={14} />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder='Search scopes'
+              style={{
+                all: 'unset',
+                minWidth: 0,
+                flex: 1,
+                color: T.text1,
+                fontFamily: T.fontSans,
+                fontSize: 13,
+                lineHeight: '16px',
+              }}
+            />
+          </label>
+          <div style={{ position: 'relative' }}>
+            <button
+              type='button'
+              aria-label='Filter access'
+              aria-expanded={filterOpen}
+              onClick={() => setFilterOpen((v) => !v)}
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 8,
+                border: `1px solid ${filter !== 'all' || filterOpen ? 'var(--po-border-strong)' : T.border}`,
+                background: filter !== 'all' || filterOpen
+                  ? 'color-mix(in srgb, var(--po-control) 74%, var(--po-panel) 26%)'
+                  : 'var(--po-control)',
+                color: filter !== 'all' ? T.text1 : T.text2,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+              }}
+            >
+              <FilterGlyph size={14} />
+            </button>
+            {filterOpen ? (
+              <div
+                style={{
+                  position: 'absolute',
+                  zIndex: 5,
+                  top: 40,
+                  right: 0,
+                  width: 150,
+                  borderRadius: 8,
+                  border: `1px solid ${T.cardBorder}`,
+                  background: 'var(--po-panel)',
+                  boxShadow: '0 8px 24px color-mix(in srgb, var(--po-shadow) 18%, transparent)',
+                  padding: 4,
+                }}
+              >
+                {(['all', 'active', 'inactive'] as const).map((item) => (
+                  <button
+                    key={item}
+                    type='button'
+                    onClick={() => {
+                      setFilter(item);
+                      setFilterOpen(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      height: 30,
+                      border: 'none',
+                      borderRadius: 6,
+                      background: filter === item ? 'var(--po-selected)' : 'transparent',
+                      color: filter === item ? T.text1 : T.text2,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '0 8px',
+                      fontFamily: T.fontSans,
+                      fontSize: 12,
+                      fontWeight: filter === item ? 600 : 500,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <span>{item === 'all' ? 'All access' : item === 'active' ? 'Active' : 'Inactive'}</span>
+                    {filter === item ? <span aria-hidden>✓</span> : null}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+      <div
+        style={{
           flex: 1,
           overflow: 'auto',
           overflowX: 'hidden',
@@ -46,7 +170,7 @@ export function ScopeSidebar({
         }}
       >
         <div style={{ padding: '0 0 6px 0', position: 'relative', boxSizing: 'border-box' }}>
-          {scopes.map((scope) => (
+          {filteredScopes.map((scope) => (
             <ScopeSidebarRow
               key={scope.id}
               scope={scope}
@@ -55,6 +179,19 @@ export function ScopeSidebar({
               onClick={() => onSelect(scope.id)}
             />
           ))}
+          {filteredScopes.length === 0 ? (
+            <div
+              style={{
+                padding: '18px 14px',
+                color: T.text3,
+                fontFamily: T.fontSans,
+                fontSize: 12,
+                lineHeight: '18px',
+              }}
+            >
+              No matching access.
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
@@ -77,8 +214,9 @@ function ScopeSidebarRow({
   const displayName = isWorkspaceWide
     ? (scope.name || 'Workspace root')
     : (scope.name || scope.path.split('/').filter(Boolean).pop() || scope.path);
-  const subPath = isWorkspaceWide ? '/' : `/${scope.path}`;
+  const subPath = formatScopePath(scope);
   const active = connectors.some(isConnectorActive);
+  const accessPointCount = connectors.length + 1;
 
   return (
     <div
@@ -127,17 +265,7 @@ function ScopeSidebarRow({
             minWidth: 0,
           }}
         >
-          <span
-            aria-hidden
-            style={{
-              width: 7,
-              height: 7,
-              borderRadius: '50%',
-              flexShrink: 0,
-              background: active ? 'var(--po-success)' : T.text4,
-              boxShadow: active ? '0 0 6px color-mix(in srgb, var(--po-success) 40%, transparent)' : 'none',
-            }}
-          />
+          <StatusDot tone={active ? 'success' : 'muted'} />
           <span
             style={{
               flex: 1,
@@ -176,45 +304,30 @@ function ScopeSidebarRow({
           >
             {subPath}
           </span>
-          <SidebarSignals connectors={connectors} isSelected={isSelected} />
+          <span
+            title={`${accessPointCount} access points`}
+            style={{
+              height: 22,
+              minWidth: 22,
+              padding: '0 7px',
+              borderRadius: 999,
+              background: isSelected ? 'color-mix(in srgb, var(--po-text) 10%, var(--po-panel) 90%)' : 'var(--po-border-subtle)',
+              color: isSelected ? T.text1 : T.text3,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontFamily: T.fontSans,
+              fontSize: 12,
+              lineHeight: '16px',
+              fontWeight: 650,
+              flexShrink: 0,
+            }}
+          >
+            {accessPointCount}
+          </span>
         </div>
       </div>
     </div>
-  );
-}
-
-function SidebarSignals({
-  connectors,
-  isSelected,
-}: {
-  readonly connectors: readonly Connector[];
-  readonly isSelected: boolean;
-}) {
-  const activeBuiltIns = SIDEBAR_SIGNAL_PROVIDER_IDS
-    .map((provider) => connectors.find((connector) =>
-      normalizeConnectorProvider(connector.provider) === provider && isConnectorActive(connector),
-    ))
-    .filter((connector): connector is Connector => Boolean(connector));
-  if (activeBuiltIns.length === 0) return null;
-
-  return (
-    <span
-      style={{
-        flexShrink: 0,
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 4,
-        minWidth: 0,
-      }}
-    >
-      {activeBuiltIns.map((connector) => (
-        <SidebarProviderChip
-          key={connector.id}
-          provider={connector.provider}
-          selected={isSelected}
-        />
-      ))}
-    </span>
   );
 }
 
@@ -222,37 +335,22 @@ function isConnectorActive(connector: Connector): boolean {
   return connector.status === 'active' || connector.status === 'syncing';
 }
 
-function SidebarProviderChip({
-  provider,
-  selected,
-}: {
-  readonly provider: string;
-  readonly selected: boolean;
-}) {
-  const normalizedProvider = normalizeConnectorProvider(provider);
-  const isGit = isGitRemoteProvider(normalizedProvider);
-  const definition = getAccessProviderDefinition(normalizedProvider);
-  const title = `${definition.cardTitle || definition.label} active`;
-
-  return (
-    <span
-      title={title}
-      style={{
-        width: 18,
-        height: 18,
-        borderRadius: 5,
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexShrink: 0,
-        background: selected ? 'var(--po-hover)' : 'color-mix(in srgb, var(--po-hover) 55%, transparent)',
-        border: `1px solid ${selected ? 'var(--po-border-strong)' : T.border}`,
-        color: selected ? T.text2 : T.text3,
-        opacity: selected ? 1 : 0.9,
-        boxShadow: 'none',
-      }}
-    >
-      <ProviderIcon provider={provider} size={isGit ? 13 : 10} variant='mono' />
-    </span>
-  );
+function formatScopePath(scope: RepoScope): string {
+  if (scope.is_root || !scope.path) return '/';
+  return `/${scope.path}`;
 }
+
+const SearchGlyph = ({ size = 15 }: { readonly size?: number }) => (
+  <svg width={size} height={size} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' aria-hidden>
+    <circle cx='11' cy='11' r='7' />
+    <path d='M16.5 16.5 21 21' />
+  </svg>
+);
+
+const FilterGlyph = ({ size = 15 }: { readonly size?: number }) => (
+  <svg width={size} height={size} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' aria-hidden>
+    <path d='M4 7h16' />
+    <path d='M7 12h10' />
+    <path d='M10 17h4' />
+  </svg>
+);

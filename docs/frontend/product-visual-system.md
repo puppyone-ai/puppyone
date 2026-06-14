@@ -46,6 +46,29 @@ from these values before introducing local variants.
 - Do not replace Google/Gmail/GitHub provider marks with generic database or
   document glyphs when a provider is known.
 
+## Status Indicators
+
+Status indicators are the small green/yellow/red/gray lamps used to show
+runtime or authorization state: access scope status, connector state, OAuth
+authorization state, sync state, server connection state, project health, and
+similar live status.
+
+- Always render status lamps through `frontend/components/ui/StatusDot.tsx`.
+  Use `StatusDot` for dot-only UI and `StatusIndicator` for dot + label.
+- Canonical lamp size is 6px. Do not hand-roll 4px/5px/7px/8px variants.
+- Status lamps are flat. Do not add shadow, glow, blur, ping, or pulse effects.
+- Status lamps use semantic tones only:
+  - success: `active`, `ready`, `connected`, `success`, `completed`, `online`.
+  - accent: `syncing`, `processing`, `running`, `loading`.
+  - warning: `pending`, `warning`, `paused`, `queued`, `mixed`.
+  - danger: `error`, `failed`, `danger`, `blocked`, `needs attention`.
+  - muted: `inactive`, `disconnected`, `stopped`, unknown, or empty.
+- If the dot sits on top of an avatar or provider mark, the caller may add a
+  local border for separation, but the dot itself still comes from `StatusDot`.
+- Do not use status lamps for non-status decoration. Required-field red dots,
+  count badges, selection checkmarks, file warning badges, timeline markers,
+  loading dots, and onboarding decoration may keep their own visual treatment.
+
 ## Workflow Page
 
 - The Workflow page is a project-level resource surface, not Access.

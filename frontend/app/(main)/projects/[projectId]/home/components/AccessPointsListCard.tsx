@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import type { useRouter } from 'next/navigation';
 import { ArrowRight, ArrowLeft, ArrowLeftRight } from 'lucide-react';
+import { StatusDot } from '@/components/ui/StatusDot';
 import { getAccessProviderLabel } from '@/lib/accessProviderRegistry';
 import { T } from '../lib/tokens';
 import { getApDirection } from '../lib/constants';
@@ -53,8 +54,8 @@ function DirectionGlyph({ direction }: { direction: 'inbound' | 'outbound' | 'bi
   // data signals.  Direction is *metadata* (which way data flows
   // when this AP is used), not a status — the colour was over-
   // promising and contributed to the "everything is cyan" feel.
-  // Status freshness is communicated by the dot next to the AP
-  // name, which keeps its statusColor mapping (live / error / paused).
+  // Status freshness is communicated by the standard dot next to the
+  // AP name, so size / color mapping stays consistent product-wide.
   const Icon =
     direction === 'outbound'
       ? ArrowLeft
@@ -333,12 +334,6 @@ function ApListRow({
   const rawPath = conn.path;
   const isRoot = rawPath === null || rawPath === '' || rawPath === '/';
   const displayScope = isRoot ? '/' : `/${rawPath}`;
-  const isError = conn.status === 'error';
-  const statusColor = isError
-    ? T.err
-    : conn.status === 'paused'
-      ? T.warn
-      : T.live;
   const url = buildEndpointUrl(conn);
   const cmd = buildCliCommand(conn, url);
 
@@ -445,17 +440,7 @@ function ApListRow({
             >
               {label}
             </span>
-            <span
-              aria-hidden
-              style={{
-                width: 5,
-                height: 5,
-                borderRadius: '50%',
-                background: statusColor,
-                boxShadow: isError ? 'none' : `0 0 0 2px ${T.liveSoft}`,
-                flexShrink: 0,
-              }}
-            />
+            <StatusDot status={conn.status} />
           </div>
 
           {/* Direction + scope — pinned to the right, with scope

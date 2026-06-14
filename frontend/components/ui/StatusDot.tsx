@@ -1,9 +1,9 @@
 'use client';
 
-import type { CSSProperties } from 'react';
+import type { CSSProperties, MouseEventHandler } from 'react';
 
-type StatusDotTone = 'success' | 'warning' | 'danger' | 'accent' | 'muted';
-type StatusDotStatus =
+export type StatusDotTone = 'success' | 'warning' | 'danger' | 'accent' | 'muted';
+export type StatusDotStatus =
   | 'active'
   | 'ready'
   | 'connected'
@@ -24,13 +24,26 @@ type StatusDotStatus =
 type StatusDotProps = {
   tone?: StatusDotTone;
   status?: StatusDotStatus | string | null;
+  /**
+   * Kept only for backward compatibility. Product status lamps render at one
+   * canonical size so green/red/yellow indicators do not drift by page.
+   */
   size?: number;
   pulse?: boolean;
   title?: string;
   style?: CSSProperties;
 };
 
-function toneFromStatus(status: StatusDotStatus | string | null | undefined): StatusDotTone {
+type StatusIndicatorProps = StatusDotProps & {
+  label: string;
+  className?: string;
+  onClick?: MouseEventHandler<HTMLSpanElement>;
+  textStyle?: CSSProperties;
+};
+
+const STATUS_DOT_SIZE = 6;
+
+export function toneFromStatus(status: StatusDotStatus | string | null | undefined): StatusDotTone {
   if (!status) return 'muted';
   const normalized = status.toLowerCase();
 
@@ -42,18 +55,18 @@ function toneFromStatus(status: StatusDotStatus | string | null | undefined): St
     return 'accent';
   }
 
-  if (['pending', 'warning', 'paused', 'queued'].includes(normalized)) {
+  if (['pending', 'warning', 'paused', 'queued', 'mixed'].includes(normalized)) {
     return 'warning';
   }
 
-  if (['error', 'failed', 'danger', 'blocked'].includes(normalized)) {
+  if (['error', 'failed', 'danger', 'blocked', 'needs attention'].includes(normalized)) {
     return 'danger';
   }
 
   return 'muted';
 }
 
-function colorForTone(tone: StatusDotTone) {
+export function colorForTone(tone: StatusDotTone) {
   if (tone === 'success') return 'var(--po-success)';
   if (tone === 'warning') return 'var(--po-warning)';
   if (tone === 'danger') return 'var(--po-danger)';
@@ -64,8 +77,8 @@ function colorForTone(tone: StatusDotTone) {
 export function StatusDot({
   tone,
   status,
-  size = 6,
-  pulse = false,
+  size: _size,
+  pulse: _pulse = false,
   title,
   style,
 }: StatusDotProps) {
@@ -77,17 +90,51 @@ export function StatusDot({
       aria-hidden={!title}
       title={title}
       style={{
-        width: size,
-        height: size,
+        width: STATUS_DOT_SIZE,
+        height: STATUS_DOT_SIZE,
         borderRadius: '50%',
         background: color,
         display: 'inline-block',
         flexShrink: 0,
-        boxShadow: pulse
-          ? `0 0 0 4px color-mix(in srgb, ${color} 16%, transparent)`
-          : undefined,
         ...style,
       }}
     />
+  );
+}
+
+export function StatusIndicator({
+  label,
+  tone,
+  status,
+  pulse: _pulse = false,
+  title,
+  className,
+  onClick,
+  style,
+  textStyle,
+}: StatusIndicatorProps) {
+  const resolvedTone = tone ?? toneFromStatus(status);
+  const color = colorForTone(resolvedTone);
+
+  return (
+    <span
+      className={className}
+      title={title}
+      onClick={onClick}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        color,
+        fontSize: 12,
+        lineHeight: '16px',
+        fontWeight: resolvedTone === 'success' ? 500 : 400,
+        whiteSpace: 'nowrap',
+        ...style,
+      }}
+    >
+      <StatusDot tone={resolvedTone} />
+      <span style={textStyle}>{label}</span>
+    </span>
   );
 }

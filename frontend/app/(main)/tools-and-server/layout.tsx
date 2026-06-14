@@ -10,6 +10,7 @@ import {
 } from '@/lib/hooks/useData';
 import { createMcpV2 } from '@/lib/mcpApi';
 import { Dots } from '@/components/loading';
+import { StatusDot } from '@/components/ui/StatusDot';
 import { CHROME_LABEL_TYPOGRAPHY, FONT_SANS } from '@/lib/uiTypography';
 
 const MIN_WIDTH = 180;
@@ -641,18 +642,15 @@ function NavItem({ active, href, label, count, isServer, status }: any) {
               />
             </svg>
             {status !== undefined && (
-              <div
-                style={{
-                  position: 'absolute',
-                  bottom: -1,
-                  right: -1,
-                  width: 6,
-                  height: 6,
-                  borderRadius: '50%',
-                  background: status ? 'var(--po-success)' : 'var(--po-text-disabled)',
-                  border: '1.5px solid var(--po-overlay)',
-                }}
-              />
+        <StatusDot
+          tone={status ? 'success' : 'muted'}
+          style={{
+            position: 'absolute',
+            bottom: -1,
+            right: -1,
+            border: '1.5px solid var(--po-overlay)',
+          }}
+        />
             )}
           </>
         ) : (
@@ -732,15 +730,12 @@ function CollapsedNavItem({ active, href, title, icon, status }: any) {
     >
       {icon}
       {status !== undefined && (
-        <div
+        <StatusDot
+          tone={status ? 'success' : 'muted'}
           style={{
             position: 'absolute',
             bottom: 3,
             right: 3,
-            width: 6,
-            height: 6,
-            borderRadius: '50%',
-            background: status ? 'var(--po-success)' : 'var(--po-text-disabled)',
             border: '1.5px solid var(--po-overlay)',
           }}
         />

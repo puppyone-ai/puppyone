@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
+import { StatusIndicator } from '@/components/ui/StatusDot';
 import type { Connector, RepoScope } from '@/lib/repoApi';
 import { getAccessProviderMethodMeta, isCliProvider, normalizeConnectorProvider } from '@/lib/accessProviderRegistry';
 import { T } from '../lib/tokens';
@@ -43,18 +43,34 @@ export function ConnectorListRow({
 }) {
   const [hovered, setHovered] = useState(false);
   const meta = getConnectorMethodMeta(connector);
-  const dimmed = connector.status === 'paused';
+  const paused = connector.status === 'paused';
   const tile = getProviderTileStyle(connector.provider, selected);
   const tileSize = getProviderTileSize(connector.provider);
   const iconSize = getProviderIconSize(connector.provider);
   const provider = normalizeConnectorProvider(connector.provider);
-  const showManualCommands = isGitBuiltinProvider(connector.provider);
   const canConfigure = isCliProvider(provider) || connector.status === 'error' || !!connector.error_message;
-  const canOpen = canConfigure || showSettings;
+  const canOpen = true;
   const scopeLabel = showScopeLabel && scope ? getScopeChipLabel(scope) : null;
   const scopeTitle = scope ? formatScopePath(scope) : undefined;
   const compactDescription = getCompactConnectorDescription(meta.description, connector.provider);
   const previewOpen = selected || showPromptPreview;
+
+  if (paused && showPromptPreview) {
+    return (
+      <PausedConnectorPreview
+        connector={connector}
+        meta={meta}
+        compactDescription={compactDescription}
+        scopeLabel={scopeLabel}
+        scopeTitle={scopeTitle}
+        tile={tile}
+        tileSize={tileSize}
+        iconSize={iconSize}
+        pending={pending}
+        onTurnOn={onPauseResume}
+      />
+    );
+  }
 
   return (
     <div
@@ -72,25 +88,24 @@ export function ConnectorListRow({
       tabIndex={canOpen ? 0 : undefined}
       aria-pressed={canOpen ? selected : undefined}
       style={{
-        minHeight: previewOpen ? 116 : 76,
+        minHeight: previewOpen ? 132 : 84,
         minWidth: 0,
         display: 'grid',
-        gridTemplateColumns: previewOpen ? 'minmax(0, 1fr) max-content minmax(220px, 236px)' : 'minmax(0, 1fr) max-content',
+        gridTemplateColumns: previewOpen ? 'minmax(260px, 1fr) 148px minmax(280px, 320px)' : 'minmax(0, 1fr) max-content',
         alignItems: previewOpen ? 'stretch' : 'center',
-        gap: previewOpen ? 12 : 14,
-        padding: previewOpen ? '10px 12px' : '12px 14px',
+        gap: previewOpen ? 16 : 14,
+        padding: previewOpen ? '16px 18px' : '14px 16px',
         boxSizing: 'border-box',
         cursor: canOpen ? 'pointer' : 'default',
         background: selected
-          ? 'color-mix(in srgb, var(--po-control) 52%, var(--po-panel) 48%)'
+          ? 'color-mix(in srgb, var(--po-panel) 68%, var(--po-control) 32%)'
           : canOpen && hovered
-            ? 'color-mix(in srgb, var(--po-control) 34%, var(--po-panel) 66%)'
+            ? 'color-mix(in srgb, var(--po-panel) 78%, var(--po-control) 22%)'
             : 'transparent',
-        opacity: dimmed ? 0.76 : 1,
-        transition: `background 0.15s ${T.ease}, opacity 0.15s ${T.ease}`,
+        transition: `background 0.15s ${T.ease}`,
       }}
     >
-      <div style={{ display: 'flex', alignItems: previewOpen ? 'flex-start' : 'center', gap: previewOpen ? 10 : 12, minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: previewOpen ? 'flex-start' : 'center', gap: previewOpen ? 14 : 12, minWidth: 0 }}>
         <div
           style={{
             height: tileSize,
@@ -136,6 +151,7 @@ export function ConnectorListRow({
             >
               {meta.title}
             </span>
+            {previewOpen ? <ConnectorInlineStatus status={connector.status} /> : null}
             {scopeLabel ? (
               <>
                 <ConnectorScopeBadge label={scopeLabel} title={scopeTitle} />
@@ -170,26 +186,19 @@ export function ConnectorListRow({
           >
             {previewOpen ? meta.description : compactDescription}
           </div>
-          {previewOpen ? (
-            <ConnectorCardUtilities
-              selected={selected}
-              showManualCommands={showManualCommands}
-              showConfigure={canConfigure}
-              showSettings={showSettings}
-              settingsOpen={settingsOpen}
-              onManualCommands={onConnect}
-              onConfigure={onSelect}
-              onSettings={onSettings}
-            />
-          ) : null}
         </div>
       </div>
       {previewOpen ? (
         <>
-          <ConnectorAccessControl
+          <ConnectorPreviewActions
+            connector={connector}
             status={connector.status}
             pending={pending}
             onPauseResume={onPauseResume}
+            onConnect={onConnect}
+            onConfigure={onSelect}
+            canConfigure={canConfigure}
+            selected={selected}
           />
           <ConnectorMethodPrompt connector={connector} scope={scope} />
         </>
@@ -198,14 +207,147 @@ export function ConnectorListRow({
           connector={connector}
           scope={scope}
           status={connector.status}
-          pending={pending}
           showSettings={showSettings}
           settingsOpen={settingsOpen}
-          onPauseResume={onPauseResume}
           onSettings={onSettings}
           onOpen={onSelect}
         />
       )}
+    </div>
+  );
+}
+
+function PausedConnectorPreview({
+  connector,
+  meta,
+  compactDescription,
+  scopeLabel,
+  scopeTitle,
+  tile,
+  tileSize,
+  iconSize,
+  pending,
+  onTurnOn,
+}: {
+  readonly connector: Connector;
+  readonly meta: {
+    readonly title: string;
+    readonly description: string;
+  };
+  readonly compactDescription: string;
+  readonly scopeLabel: string | null;
+  readonly scopeTitle: string | undefined;
+  readonly tile: ReturnType<typeof getProviderTileStyle>;
+  readonly tileSize: number;
+  readonly iconSize: number;
+  readonly pending: boolean;
+  readonly onTurnOn: () => Promise<void> | void;
+}) {
+  return (
+    <div
+      style={{
+        minHeight: 72,
+        minWidth: 0,
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0, 1fr) max-content',
+        alignItems: 'center',
+        gap: 16,
+        padding: '14px 18px',
+        boxSizing: 'border-box',
+        background: 'transparent',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 14,
+          minWidth: 0,
+          opacity: 0.72,
+        }}
+      >
+        <div
+          style={{
+            height: tileSize,
+            width: tileSize,
+            borderRadius: isGitBuiltinProvider(connector.provider) ? 7 : 6,
+            background: tile.background,
+            border: `1px solid ${tile.border}`,
+            color: tile.color,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            boxShadow: tile.shadow,
+            overflow: isGitBuiltinProvider(connector.provider) ? 'hidden' : undefined,
+          }}
+        >
+          <ProviderIcon provider={connector.provider} size={iconSize} />
+        </div>
+        <div style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: 5 }}>
+          <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 7 }}>
+            <span
+              title={meta.title}
+              style={{
+                minWidth: 0,
+                color: T.text1,
+                fontFamily: T.fontSans,
+                fontSize: 14,
+                lineHeight: '18px',
+                fontWeight: 500,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {meta.title}
+            </span>
+            {scopeLabel ? (
+              <ConnectorScopeBadge label={scopeLabel} title={scopeTitle} />
+            ) : null}
+          </div>
+          <div
+            title={meta.description}
+            style={{
+              color: T.text2,
+              fontFamily: T.fontSans,
+              fontSize: 12,
+              lineHeight: '18px',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {compactDescription}
+          </div>
+        </div>
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          gap: 10,
+        }}
+      >
+        <span
+          style={{
+            color: T.text3,
+            fontFamily: T.fontSans,
+            fontSize: 12,
+            lineHeight: '16px',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          Off
+        </span>
+        <MethodOutlineButton
+          label={pending ? 'Turning on' : 'Turn On'}
+          tone='soft'
+          disabled={pending}
+          onClick={onTurnOn}
+        />
+      </div>
     </div>
   );
 }
@@ -250,20 +392,16 @@ function ConnectorCollapsedActions({
   connector,
   scope,
   status,
-  pending,
   showSettings,
   settingsOpen,
-  onPauseResume,
   onSettings,
   onOpen,
 }: {
   readonly connector: Connector;
   readonly scope: RepoScope | undefined;
   readonly status: string;
-  readonly pending: boolean;
   readonly showSettings: boolean;
   readonly settingsOpen: boolean;
-  readonly onPauseResume: () => Promise<void> | void;
   readonly onSettings?: () => void;
   readonly onOpen: () => void;
 }) {
@@ -278,11 +416,7 @@ function ConnectorCollapsedActions({
         minWidth: 0,
       }}
     >
-      <ConnectorAccessControl
-        status={status}
-        pending={pending}
-        onPauseResume={onPauseResume}
-      />
+      <ConnectorCompactStatus status={status} />
       <ConnectorMethodCopyButton
         connector={connector}
         scope={scope}
@@ -385,169 +519,159 @@ function getCompactConnectorDescription(description: string, providerName: strin
   return description;
 }
 
-function ConnectorCardUtilities({
-  selected,
-  showManualCommands,
-  showConfigure,
-  showSettings,
-  settingsOpen,
-  onManualCommands,
+function ConnectorPreviewActions({
+  connector,
+  status,
+  pending,
+  onPauseResume,
+  onConnect,
   onConfigure,
-  onSettings,
+  canConfigure,
+  selected,
 }: {
-  readonly selected: boolean;
-  readonly showManualCommands: boolean;
-  readonly showConfigure: boolean;
-  readonly showSettings: boolean;
-  readonly settingsOpen: boolean;
-  readonly onManualCommands: () => void;
+  readonly connector: Connector;
+  readonly status: string;
+  readonly pending: boolean;
+  readonly onPauseResume: () => Promise<void> | void;
+  readonly onConnect: () => void;
   readonly onConfigure: () => void;
-  readonly onSettings?: () => void;
+  readonly canConfigure: boolean;
+  readonly selected: boolean;
 }) {
+  const isGitRemote = isGitBuiltinProvider(connector.provider);
+  const isCli = isCliProvider(normalizeConnectorProvider(connector.provider));
+  const action = status === 'error'
+    ? null
+    : status === 'paused'
+      ? { label: pending ? 'Turning on' : 'Turn On', icon: undefined, onClick: onPauseResume, active: false, tone: 'soft' as const }
+      : isGitRemote
+      ? { label: 'View Git remote', icon: <ExternalLinkGlyph size={12} />, onClick: onConnect, active: false, tone: 'outline' as const }
+      : isCli || canConfigure
+        ? { label: selected ? 'Hide config' : 'Configure CLI', icon: <GearIcon size={12} />, onClick: onConfigure, active: selected, tone: 'outline' as const }
+        : null;
+  const paused = status === 'paused';
+
   return (
     <div
+      onClick={(event) => event.stopPropagation()}
       style={{
         display: 'flex',
-        alignItems: 'center',
+        minWidth: 0,
+        alignItems: paused ? 'center' : 'flex-end',
+        justifyContent: 'center',
+        flexDirection: 'column',
         gap: 12,
-        minHeight: 24,
-        flexWrap: 'wrap',
       }}
     >
-      {showManualCommands ? (
-        <ConnectorUtilityButton
-          label='Manual commands'
-          icon={<ChevronRightGlyph size={10} />}
-          onClick={onManualCommands}
+      {status === 'error' ? (
+        <RowActionButton
+          label='Retry'
+          icon={<RetryIcon size={10} />}
+          disabled={pending}
+          onClick={onPauseResume}
         />
-      ) : null}
-      {showConfigure ? (
-        <ConnectorUtilityButton
-          label='Configure'
-          icon={
-            <span
-              aria-hidden
-              style={{
-                display: 'inline-flex',
-                transform: selected ? 'rotate(180deg)' : 'rotate(0deg)',
-                transition: `transform 0.15s ${T.ease}`,
-              }}
-            >
-              <ChevronDownGlyph size={10} />
-            </span>
-          }
-          active={selected}
-          onClick={onConfigure}
-        />
-      ) : null}
-      {showSettings && onSettings ? (
-        <ConnectorUtilityButton
-          label='Settings'
-          icon={<GearIcon size={10} />}
-          active={settingsOpen}
-          onClick={onSettings}
+      ) : action ? (
+        <MethodOutlineButton
+          label={action.label}
+          icon={action.icon}
+          active={action.active}
+          tone={action.tone}
+          disabled={paused && pending}
+          onClick={action.onClick}
         />
       ) : null}
     </div>
   );
 }
 
-function ConnectorUtilityButton({
+function ConnectorInlineStatus({
+  status,
+}: {
+  readonly status: string;
+}) {
+  const label = status === 'active' ? 'Active' : STATUS_LABEL[status] ?? status;
+  return (
+    <>
+      <span aria-hidden style={{ color: T.text4, fontSize: 12, lineHeight: '16px' }}>·</span>
+      <StatusIndicator status={status} label={label} style={{ flexShrink: 0 }} />
+    </>
+  );
+}
+
+function ConnectorCompactStatus({
+  status,
+}: {
+  readonly status: string;
+}) {
+  const isOn = status === 'active' || status === 'syncing';
+  const label = isOn ? 'Active' : status === 'paused' ? 'Paused' : STATUS_LABEL[status] ?? status;
+  return <StatusIndicator status={status} label={label} />;
+}
+
+function MethodOutlineButton({
   label,
   icon,
   active = false,
+  tone = 'outline',
+  disabled = false,
   onClick,
 }: {
   readonly label: string;
-  readonly icon: ReactNode;
+  readonly icon?: ReactNode;
   readonly active?: boolean;
+  readonly tone?: 'outline' | 'primary' | 'soft';
+  readonly disabled?: boolean;
   readonly onClick: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
+  const primary = tone === 'primary';
+  const soft = tone === 'soft';
   return (
     <button
       type='button'
+      disabled={disabled}
       onClick={(event) => {
         event.stopPropagation();
+        if (disabled) return;
         onClick();
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        height: 24,
-        border: 'none',
-        borderRadius: 5,
-        background: active || hovered ? 'color-mix(in srgb, var(--po-control) 68%, transparent)' : 'transparent',
-        color: active ? T.text1 : T.text2,
+        height: soft ? 32 : 34,
+        minWidth: soft ? 96 : 132,
+        borderRadius: 7,
+        border: `1px solid ${primary ? T.text1 : active || hovered ? 'var(--po-border-strong)' : soft ? T.cardBorder : T.border}`,
+        background: primary
+          ? hovered && !disabled
+            ? 'color-mix(in srgb, var(--po-text) 90%, var(--po-canvas) 10%)'
+            : T.text1
+          : soft
+            ? hovered && !disabled
+              ? 'color-mix(in srgb, var(--po-control) 72%, var(--po-panel) 28%)'
+              : 'color-mix(in srgb, var(--po-control) 48%, var(--po-panel) 52%)'
+            : active || hovered
+              ? 'color-mix(in srgb, var(--po-panel) 72%, var(--po-control) 28%)'
+              : 'transparent',
+        color: primary ? T.bg : active || (soft && hovered && !disabled) ? T.text1 : T.text2,
         display: 'inline-flex',
         alignItems: 'center',
-        gap: 5,
-        padding: '0 6px',
+        justifyContent: 'center',
+        gap: 8,
+        padding: '0 12px',
         fontSize: 12,
         lineHeight: '16px',
-        fontWeight: 400,
+        fontWeight: 500,
         fontFamily: T.fontSans,
-        cursor: 'pointer',
+        cursor: disabled ? 'wait' : 'pointer',
+        opacity: disabled ? 0.58 : 1,
         whiteSpace: 'nowrap',
-        transition: `background 0.15s ${T.ease}, color 0.15s ${T.ease}`,
+        transition: `background 0.15s ${T.ease}, border-color 0.15s ${T.ease}, color 0.15s ${T.ease}, opacity 0.15s ${T.ease}`,
       }}
     >
-      {icon}
-      {label}
+      <span>{label}</span>
+      {icon ?? null}
     </button>
-  );
-}
-
-function ConnectorAccessControl({
-  status,
-  pending,
-  onPauseResume,
-}: {
-  readonly status: string;
-  readonly pending: boolean;
-  readonly onPauseResume: () => Promise<void> | void;
-}) {
-  if (status === 'error') {
-    return (
-      <RowActionButton
-        label='Retry'
-        icon={<RetryIcon size={10} />}
-        disabled={pending}
-        onClick={onPauseResume}
-      />
-    );
-  }
-
-  const isOn = status === 'active' || status === 'syncing';
-  return (
-    <div
-      onClick={(e) => e.stopPropagation()}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'flex-end',
-        gap: 8,
-        minWidth: 0,
-      }}
-    >
-      <span
-        style={{
-          fontSize: 12,
-          color: T.text2,
-          fontFamily: T.fontSans,
-          fontWeight: 400,
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {isOn ? 'On' : 'Paused'}
-      </span>
-      <ConnectorToggle
-        status={status}
-        on={isOn}
-        pending={pending}
-        onToggle={onPauseResume}
-      />
-    </div>
   );
 }
 
@@ -646,6 +770,7 @@ export function ConnectorExpandedDetail({
           connector={connector}
           pending={pending}
           onPauseResume={onPauseResume}
+          withDivider={showConfig}
         />
       ) : null}
       {showConfig ? (
@@ -666,20 +791,17 @@ function ConnectorManagementStrip({
   connector,
   pending,
   onPauseResume,
+  withDivider,
 }: {
   readonly connector: Connector;
   readonly pending: boolean;
   readonly onPauseResume: () => Promise<void> | void;
+  readonly withDivider?: boolean;
 }) {
-  const provider = normalizeConnectorProvider(connector.provider);
   const statusColor = STATUS_COLORS[connector.status] ?? T.text2;
   const statusLabel = STATUS_LABEL[connector.status] ?? connector.status;
   const description =
-    connector.status === 'paused'
-      ? 'New requests through this method are rejected.'
-      : connector.status === 'error'
-        ? connector.error_message || 'This method needs attention before it can be used.'
-        : 'Requests through this method are accepted.';
+    connector.error_message || 'This method needs attention before it can be used.';
 
   return (
     <div
@@ -688,8 +810,8 @@ function ConnectorManagementStrip({
         gridTemplateColumns: 'minmax(0, 1fr) max-content',
         alignItems: 'center',
         gap: 14,
-        padding: '12px 16px',
-        borderBottom: isCliProvider(provider) || connector.error_message ? `1px solid ${T.cardBorder}` : 'none',
+        padding: '14px 16px',
+        borderBottom: withDivider ? `1px solid ${T.cardBorder}` : 'none',
       }}
     >
       <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -723,63 +845,23 @@ function ConnectorManagementStrip({
           {description}
         </div>
       </div>
-      {connector.status === 'error' ? (
-        <RowActionButton
-          label='Retry'
-          icon={<RetryIcon size={10} />}
-          disabled={pending}
-          onClick={onPauseResume}
-        />
-      ) : (
-        <ConnectorAccessControl
-          status={connector.status}
-          pending={pending}
-          onPauseResume={onPauseResume}
-        />
-      )}
+      <RowActionButton
+        label='Retry'
+        icon={<RetryIcon size={10} />}
+        disabled={pending}
+        onClick={onPauseResume}
+      />
     </div>
   );
 }
 
-const ChevronDownGlyph = ({ size = 10 }: { readonly size?: number }) => (
-  <svg width={size} height={size} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.4' strokeLinecap='round' strokeLinejoin='round' aria-hidden>
-    <polyline points='6 9 12 15 18 9' />
+const ExternalLinkGlyph = ({ size = 12 }: { readonly size?: number }) => (
+  <svg width={size} height={size} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.1' strokeLinecap='round' strokeLinejoin='round' aria-hidden>
+    <path d='M14 3h7v7' />
+    <path d='M10 14 21 3' />
+    <path d='M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5' />
   </svg>
 );
-
-const ChevronRightGlyph = ({ size = 10 }: { readonly size?: number }) => (
-  <svg width={size} height={size} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.4' strokeLinecap='round' strokeLinejoin='round' aria-hidden>
-    <polyline points='9 6 15 12 9 18' />
-  </svg>
-);
-
-function ConnectorToggle({
-  status,
-  on,
-  pending,
-  onToggle,
-}: {
-  readonly status: string;
-  readonly on: boolean;
-  readonly pending: boolean;
-  readonly onToggle: () => Promise<void> | void;
-}) {
-  const ariaLabel = `${STATUS_LABEL[status] ?? status} — click to ${on ? 'pause' : 'resume'}`;
-
-  return (
-    <ToggleSwitch
-      checked={on}
-      pending={pending}
-      ariaLabel={ariaLabel}
-      title={ariaLabel}
-      size='xs'
-      stopPropagation
-      onCheckedChange={() => {
-        void onToggle();
-      }}
-    />
-  );
-}
 
 function getScopeChipLabel(scope: RepoScope): string {
   const path = formatScopePath(scope);

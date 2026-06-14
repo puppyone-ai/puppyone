@@ -30,7 +30,7 @@ import { useOrganization } from '@/contexts/OrganizationContext';
 import { Dots } from './loading';
 import { ToggleSwitch } from './ui/ToggleSwitch';
 import { ActionButton } from './ui/ActionButton';
-import { StatusDot } from './ui/StatusDot';
+import { StatusIndicator } from './ui/StatusDot';
 
 type ConnectContentViewProps = {
   onBack: () => void;
@@ -128,12 +128,6 @@ const getDefaultPlatformStates = (): Record<PlatformId, PlatformState> =>
     },
     {} as Record<PlatformId, PlatformState>
   );
-
-const statusColors: Record<PlatformStatusType, string> = {
-  connected: 'var(--po-success)',
-  disconnected: 'var(--po-text-disabled)',
-  error: 'var(--po-danger)',
-};
 
 export function ConnectContentView({ onBack }: ConnectContentViewProps) {
   const { currentOrg } = useOrganization();
@@ -776,8 +770,6 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
                 {platformConfigs.map(platform => {
                   const state = platformStates[platform.id];
                   const isConnected = state?.status === 'connected';
-                  const lampColor =
-                    statusColors[state?.status ?? 'disconnected'];
                   const isToggleDisabled =
                     !platform.isEnabled || state?.isLoading || isInitialLoading;
 
@@ -839,21 +831,10 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
                           justifyContent: 'flex-end',
                         }}
                       >
-                        <StatusDot
+                        <StatusIndicator
                           status={state?.status}
-                          size={12}
-                          pulse={state?.status === 'connected'}
+                          label={isInitialLoading ? 'Checking...' : state?.label ?? 'Disconnected'}
                         />
-                        <span
-                          style={{
-                            fontSize: 12,
-                            fontWeight: 500,
-                            color: lampColor,
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {isInitialLoading ? 'Checking...' : state?.label}
-                        </span>
                       </div>
 
                       <ToggleSwitch

@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { StatusIndicator } from '@/components/ui/StatusDot';
 
 export type AcceptedNodeType = 'folder' | 'json' | 'markdown' | 'file';
 type SyncDirection = 'inbound' | 'outbound' | 'bidirectional';
@@ -183,14 +184,11 @@ export function SyncPreview({ provider, providerLabel, direction, targetName, ta
 
       {/* Status line below the diagram */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, paddingTop: 2 }}>
-        <span style={{
-          width: 5, height: 5, borderRadius: '50%',
-          background: ready ? 'var(--po-success)' : 'var(--po-text-disabled)',
-          display: 'inline-block', flexShrink: 0,
-        }} />
-        <span style={{ fontSize: 11, fontWeight: 500, color: ready ? 'var(--po-text)' : 'var(--po-text-subtle)' }}>
-          {ready ? DIR_LABELS[direction] : !hasTarget ? 'Waiting for sync target' : 'Waiting for account'}
-        </span>
+        <StatusIndicator
+          status={ready ? 'active' : 'inactive'}
+          label={ready ? DIR_LABELS[direction] : !hasTarget ? 'Waiting for sync target' : 'Waiting for account'}
+          style={{ fontSize: 11 }}
+        />
       </div>
     </div>
   );
