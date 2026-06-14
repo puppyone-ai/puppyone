@@ -23,6 +23,8 @@ type AppSidebarProps = {
   sidebarWidth?: number;
   onSidebarWidthChange?: (width: number) => void;
   currentOrg?: OrganizationInfo | null;
+  organizations?: ReadonlyArray<{ id: string; name: string }>;
+  onSwitchOrg?: (orgId: string) => void;
   organizationIdentityLoading?: boolean;
   projectIdentityLoading?: boolean;
   userIdentityLoading?: boolean;
@@ -42,6 +44,8 @@ export const AppSidebar = memo(function AppSidebar({
   sidebarWidth,
   onSidebarWidthChange,
   currentOrg,
+  organizations,
+  onSwitchOrg,
   organizationIdentityLoading = false,
   projectIdentityLoading = false,
   userIdentityLoading = false,
@@ -298,6 +302,9 @@ export const AppSidebar = memo(function AppSidebar({
       projectsLoading={projectsLoading}
       onSelectProject={(projectId) => router.push(`/projects/${projectId}/data`)}
       onGoHome={() => router.push('/home')}
+      organizations={organizations}
+      currentOrgId={currentOrg?.id ?? null}
+      onSwitchOrg={onSwitchOrg}
       activeView={activeView}
       navItems={globalNavItems}
       onNavigate={(viewId) => {

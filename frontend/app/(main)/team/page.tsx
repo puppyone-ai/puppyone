@@ -51,11 +51,15 @@ function TeamMembersSkeleton() {
 
 export default function TeamPage() {
   const {
+    orgs,
     currentOrg,
     members,
     myRole,
+    isLoading: isOrgsLoading,
+    error: orgsError,
     isMembersLoading,
     refreshMembers,
+    refreshOrgs,
   } = useOrganization();
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<'member' | 'viewer'>('member');
@@ -205,10 +209,43 @@ export default function TeamPage() {
     }
   };
 
+  // No current org resolved yet. Distinguish the cases so this never spins
+  // forever: a failed org-list load (or an empty account) must show an
+  // actionable state, not an endless loader.
   if (!currentOrg) {
+    if (orgsError) {
+      return (
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
+          <div className="text-[14px] font-medium text-[var(--po-text)]">
+            Couldn’t load your organizations
+          </div>
+          <div className="max-w-md text-[13px] text-[var(--po-text-subtle)]">
+            {orgsError.message || 'The request failed. Your session may have expired — try again, or sign in if it keeps failing.'}
+          </div>
+          <button
+            onClick={() => { void refreshOrgs(); }}
+            className="flex h-8 items-center gap-2 rounded-md bg-[var(--po-text)] px-3 text-[14px] font-medium text-[var(--po-text-inverse)] transition-colors hover:opacity-90"
+          >
+            Retry
+          </button>
+        </div>
+      );
+    }
+    if (isOrgsLoading || orgs.length > 0) {
+      // still loading, or orgs are loaded and currentOrg is resolving this tick
+      return (
+        <div className="flex-1">
+          <PageLoading variant="fill" />
+        </div>
+      );
+    }
+    // Loaded, no error, no orgs → the account genuinely has no organization.
     return (
-      <div className="flex-1">
-        <PageLoading variant="fill" />
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
+        <div className="text-[14px] font-medium text-[var(--po-text)]">No organization yet</div>
+        <div className="max-w-md text-[13px] text-[var(--po-text-subtle)]">
+          You’re not a member of any organization. Create one or accept an invitation to get started.
+        </div>
       </div>
     );
   }

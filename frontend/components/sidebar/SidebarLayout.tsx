@@ -30,6 +30,11 @@ export type SidebarLayoutProps = {
   projectsLoading?: boolean;
   onSelectProject?: (projectId: string) => void;
   onGoHome?: () => void;
+  // Organization switcher (optional; passed in the global context). Forwarded
+  // to ProjectSwitcher, which renders an org list only when there's >1.
+  organizations?: ReadonlyArray<{ id: string; name: string }>;
+  currentOrgId?: string | null;
+  onSwitchOrg?: (orgId: string) => void;
 
   // Navigation State
   activeView?: string;
@@ -91,6 +96,9 @@ export function SidebarLayout({
   projectsLoading = false,
   onSelectProject,
   onGoHome,
+  organizations,
+  currentOrgId,
+  onSwitchOrg,
   activeView,
   navItems,
   onNavigate,
@@ -310,6 +318,9 @@ export function SidebarLayout({
                 onGoHome={onGoHome}
                 onHoverProject={onHoverProject}
                 identityLoading={titleLoading}
+                organizations={organizations}
+                currentOrgId={currentOrgId}
+                onSwitchOrg={onSwitchOrg}
                 // When `currentProjectId` is null we're in /home /
                 // /team / /billing / /settings — the `title` prop is
                 // the org name. Pass it down so the trigger glyph
