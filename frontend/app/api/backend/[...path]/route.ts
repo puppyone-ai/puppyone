@@ -132,11 +132,21 @@ async function proxy(request: NextRequest, method: string): Promise<Response> {
     });
   } catch (error: any) {
     console.error(`[backend proxy] ${method} ${backendUrl} failed:`, error?.message || error);
+    let upstreamOrigin = backendUrl;
+    try {
+      upstreamOrigin = new URL(backendUrl).origin;
+    } catch {
+      // keep the full string if it isn't a valid URL
+    }
+    const usingDefault = upstreamOrigin.includes('localhost:9090');
     return NextResponse.json(
       {
         code: 502,
         message:
-          'Unable to reach the backend API from the web app proxy. Check backend health and API_INTERNAL_URL/NEXT_PUBLIC_API_URL.',
+          `Unable to reach the backend API at ${upstreamOrigin} from the web app proxy` +
+          (usingDefault
+            ? ' — this is the localhost fallback, so API_INTERNAL_URL / NEXT_PUBLIC_API_URL is not set in the frontend deployment. Set API_INTERNAL_URL to the backend URL and redeploy.'
+            : '. Check the backend is up and reachable from the frontend (API_INTERNAL_URL).'),
         detail: {
           upstream: backendUrl,
           reason: error?.message || 'Unknown error',
