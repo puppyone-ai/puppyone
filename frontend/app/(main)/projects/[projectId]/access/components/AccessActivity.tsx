@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 import type { RepoScope } from '@/lib/repoApi';
 import type { AuditLogItem } from '@/lib/contentTreeApi';
+import { StatusDot } from '@/components/ui/StatusDot';
 import { T } from '../lib/tokens';
 import { timeAgo } from '../lib/format';
 import { ProviderIcon } from './icons';
@@ -301,15 +302,7 @@ function StatusPill({
         whiteSpace: 'nowrap',
       }}
     >
-      <span
-        aria-hidden
-        style={{
-          width: 5,
-          height: 5,
-          borderRadius: '50%',
-          background: color,
-        }}
-      />
+      <StatusDot style={{ background: color }} />
       {children}
     </span>
   );
@@ -537,4 +530,3 @@ function readStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
 }
-

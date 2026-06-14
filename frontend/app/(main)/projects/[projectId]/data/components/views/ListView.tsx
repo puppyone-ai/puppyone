@@ -7,6 +7,7 @@ import { getNodeTypeConfig, isSyncedType, LockIcon, getSyncSourceIcon, getSyncSo
 import { useNodeDrop } from '@/lib/hooks/useNodeDrop';
 import { PageLoading } from '@/components/loading';
 import { FileGlyphIcon } from '@/lib/fileIcons';
+import { StatusDot } from '@/components/ui/StatusDot';
 
 export interface ListViewItem {
   id: string;
@@ -254,16 +255,7 @@ function ListItem({
 
       {/* 占位符状态：小圆点提示 */}
       {isPlaceholder && (
-        <div
-          style={{
-            width: 8,
-            height: 8,
-            borderRadius: '50%',
-            background: 'var(--po-warning)',
-            flexShrink: 0,
-          }}
-          title="Click to connect"
-        />
+        <StatusDot status="warning" title="Click to connect" />
       )}
 
       {/* Read-only Lock Icon for synced items */}

@@ -9,6 +9,7 @@ import {
   isCliProvider,
   isGitRemoteProvider,
 } from '@/lib/accessProviderRegistry';
+import { StatusDot } from '@/components/ui/StatusDot';
 import { connectorAsEndpointShape, providerLabel } from './labels';
 import { AccessPointProviderIcon } from './AccessPointProviderIcon';
 import { ProviderIcon } from '../../../access/components/icons';
@@ -351,20 +352,16 @@ function ScopeGlyph({
         <path d="M15 7h2a5 5 0 1 1 0 10h-2" />
         <line x1="8" y1="12" x2="16" y2="12" />
       </svg>
-      <span
+      <StatusDot
+        status={active ? 'active' : 'inactive'}
         style={{
           position: 'absolute',
-          right: -2,
-          bottom: -2,
-          width: 8,
-          height: 8,
-          borderRadius: '50%',
-          background: active ? 'var(--po-access-action)' : COLOR_FG_DIM,
-          border: '2px solid var(--po-canvas)',
+          right: -1,
+          bottom: -1,
+          width: 6,
+          height: 6,
+          border: '1px solid var(--po-canvas)',
           boxSizing: 'border-box',
-          boxShadow: active
-            ? '0 0 6px var(--po-access-action-shadow)'
-            : 'none',
         }}
       />
     </span>

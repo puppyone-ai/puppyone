@@ -28,9 +28,10 @@ def _row_to_endpoint(row: dict, scope_path: Optional[str] = None) -> dict:
         "api_key": config.get("api_key", ""),
         "tools_config": config.get("tools_config", []),
         "accesses": config.get("accesses", []),
+        "created_by": row.get("created_by") or config.get("created_by"),
         "config": {k: v for k, v in config.items()
                    if k not in ("name", "description", "tools_config",
-                                "accesses", "api_key")},
+                                "accesses", "api_key", "created_by")},
         "status": row.get("status", "active"),
         "created_at": row.get("created_at", ""),
         "updated_at": row.get("updated_at", ""),
@@ -149,6 +150,7 @@ class McpEndpointRepository:
         description: Optional[str] = None,
         accesses: Optional[list] = None,
         tools_config: Optional[list] = None,
+        created_by: Optional[str] = None,
     ) -> dict:
         config = {
             "name": name,
@@ -156,6 +158,7 @@ class McpEndpointRepository:
             "api_key": generate_mcp_api_key(),
             "tools_config": tools_config or [],
             "accesses": accesses or [],
+            "created_by": created_by,
         }
         scope = self._scope_for_path(project_id, path)
         row = {
@@ -167,6 +170,7 @@ class McpEndpointRepository:
             "name": name,
             "config": config,
             "status": "active",
+            "created_by": created_by,
         }
         resp = self._client.table(self.TABLE).insert(row).execute()
         return _row_to_endpoint(resp.data[0], scope["path"])

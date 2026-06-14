@@ -64,6 +64,35 @@ class _FakeSessions:
 class _FakeRpc:
     def __init__(self):
         self.search_tool_query = AsyncMock(return_value={"results": [{"id": "r1"}]})
+        self.list_mcp_runtime_tools = AsyncMock(
+            return_value={
+                "tools": [
+                    {
+                        "name": "fs_ls",
+                        "title": "List Directory",
+                        "description": "List files",
+                        "inputSchema": {"type": "object", "properties": {}},
+                        "outputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "entries": {"type": "array"},
+                            },
+                            "additionalProperties": True,
+                        },
+                        "annotations": {
+                            "title": "List Directory",
+                            "readOnlyHint": True,
+                            "destructiveHint": False,
+                            "idempotentHint": True,
+                            "openWorldHint": False,
+                        },
+                    }
+                ]
+            }
+        )
+        self.call_mcp_runtime_tool = AsyncMock(
+            return_value={"structuredContent": {"entries": [{"path": "README.md"}]}}
+        )
         self.close = AsyncMock()
 
 
@@ -215,6 +244,79 @@ async def test_call_tool_custom_search_routes_to_rpc(server_env, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_list_tools_mcp_endpoint_routes_to_runtime(server_env, monkeypatch):
+    _app, fake_server, fake_rpc = server_env
+    monkeypatch.setattr(
+        server_module,
+        "load_mcp_config",
+        AsyncMock(
+            return_value={
+                "mode": "mcp_endpoint",
+                "agent": {"id": "endpoint-1", "project_id": "proj-1"},
+                "accesses": [],
+                "tools": [],
+            }
+        ),
+    )
+
+    tools = await fake_server._list_tools_fn()
+    assert [tool.name for tool in tools] == ["fs_ls"]
+    assert tools[0].title == "List Directory"
+    assert tools[0].outputSchema is not None
+    assert "entries" in tools[0].outputSchema["properties"]
+    assert tools[0].annotations is not None
+    assert tools[0].annotations.readOnlyHint is True
+    assert tools[0].annotations.destructiveHint is False
+    fake_rpc.list_mcp_runtime_tools.assert_awaited_once_with("mcp_key")
+
+
+@pytest.mark.asyncio
+async def test_call_tool_mcp_endpoint_routes_to_runtime(server_env, monkeypatch):
+    _app, fake_server, fake_rpc = server_env
+    monkeypatch.setattr(
+        server_module,
+        "load_mcp_config",
+        AsyncMock(
+            return_value={
+                "mode": "mcp_endpoint",
+                "agent": {"id": "endpoint-1", "project_id": "proj-1"},
+                "accesses": [],
+                "tools": [],
+            }
+        ),
+    )
+
+    out = await fake_server._call_tool_fn("fs_ls", {"path": ""})
+    assert out["entries"][0]["path"] == "README.md"
+    fake_rpc.call_mcp_runtime_tool.assert_awaited_once_with("mcp_key", "fs_ls", {"path": ""})
+
+
+@pytest.mark.asyncio
+async def test_call_tool_mcp_endpoint_returns_error_result(server_env, monkeypatch):
+    _app, fake_server, fake_rpc = server_env
+    fake_rpc.call_mcp_runtime_tool.return_value = {
+        "isError": True,
+        "error": {"code": "PERMISSION_DENIED", "message": "readonly"},
+    }
+    monkeypatch.setattr(
+        server_module,
+        "load_mcp_config",
+        AsyncMock(
+            return_value={
+                "mode": "mcp_endpoint",
+                "agent": {"id": "endpoint-1", "project_id": "proj-1"},
+                "accesses": [],
+                "tools": [],
+            }
+        ),
+    )
+
+    out = await fake_server._call_tool_fn("fs_write", {"path": "x.md", "content": "x"})
+    assert out.isError is True
+    assert "PERMISSION_DENIED" in out.content[0].text
+
+
+@pytest.mark.asyncio
 async def test_call_tool_builtin_permission_denied(server_env, monkeypatch):
     _app, fake_server, _fake_rpc = server_env
     monkeypatch.setattr(
@@ -261,4 +363,3 @@ async def test_call_tool_unknown_name_returns_error(server_env, monkeypatch):
 
     out = await fake_server._call_tool_fn("unknown_tool", {})
     assert "unknown tool name" in out[0].text
-

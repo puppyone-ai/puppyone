@@ -7,6 +7,7 @@ import {
   isMcpProvider,
   isSandboxProvider,
 } from '@/lib/accessProviderRegistry';
+import { StatusDot } from '@/components/ui/StatusDot';
 import { APP_Z_INDEX } from '@/lib/zIndex';
 import type { SyncEndpointInfo } from './types';
 
@@ -36,20 +37,11 @@ export function EndpointIconRenderer({ ep, size = 14 }: { ep: SyncEndpointInfo; 
   const isMcp = isMcpProvider(ep.provider);
   const isSandbox = isSandboxProvider(ep.provider);
   const color = 'var(--po-text-muted)';
-  const dotColor =
-    ep.status === 'error' ? 'var(--po-danger)' : ep.status === 'stopped' ? 'var(--po-text-subtle)' : 'var(--po-success)';
+  const status = ep.status === 'error' ? 'failed' : ep.status === 'stopped' ? 'inactive' : 'active';
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-      <div
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: '50%',
-          background: dotColor,
-          flexShrink: 0,
-        }}
-      />
+      <StatusDot status={status} />
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: size, height: size }}>
         {isAgent ? (

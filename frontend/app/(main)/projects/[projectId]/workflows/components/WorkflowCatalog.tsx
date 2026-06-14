@@ -259,13 +259,7 @@ function ConnectionCard({
   const sourceLabel = sourceConfigLabel(provider, connection);
   const statusLabel = labelize(status?.status || connection.status || 'active');
   const normalizedStatus = statusLabel.toLowerCase();
-  const statusTone = normalizedStatus === 'active' || normalizedStatus === 'syncing'
-    ? styles.statusSuccess
-    : normalizedStatus === 'paused'
-      ? styles.statusWarning
-      : normalizedStatus === 'error' || normalizedStatus === 'failed'
-        ? styles.statusDanger
-        : '';
+  const statusIndicator = workflowConnectionStatus(normalizedStatus);
   const lastSynced = status?.last_synced_at ? `Last synced ${formatDate(status.last_synced_at)}` : 'Never synced';
 
   return (
@@ -280,10 +274,7 @@ function ConnectionCard({
       </div>
       <div className={styles.connectionRight}>
         <div className={styles.connectionMeta}>
-          <span className={statusTone ? `${styles.statusMeta} ${statusTone}` : styles.statusMeta}>
-            <span className={styles.statusDot} aria-hidden="true" />
-            {statusLabel}
-          </span>
+          <StatusIndicator className={styles.statusMeta} status={statusIndicator} label={statusLabel} />
           <span className={styles.syncMetaText}>
             {triggerLabel(trigger.mode, trigger.schedule)}
             <span className={styles.metaDivider}>·</span>
@@ -811,6 +802,14 @@ function authStatusIndicator(authState?: ProviderAuthState): StatusDotStatus {
   if (authState?.error) return 'error';
   if (authState?.connected) return 'connected';
   return 'warning';
+}
+
+function workflowConnectionStatus(status: string): StatusDotStatus {
+  if (status === 'active') return 'active';
+  if (status === 'syncing') return 'syncing';
+  if (status === 'paused') return 'paused';
+  if (status === 'error' || status === 'failed') return 'failed';
+  return 'inactive';
 }
 
 function providerForId(

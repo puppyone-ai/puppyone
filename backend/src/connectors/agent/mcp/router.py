@@ -1,9 +1,8 @@
 """
-MCP V3 Router
+MCP runtime gateway.
 
-MCP API endpoints based on the Agent architecture:
-1. /mcp/agents/{agent_id}/... - Agent MCP configuration management
-2. /mcp/proxy/... - Proxy to MCP Server (recommended: Header X-MCP-API-Key, with legacy path key fallback)
+Agent-specific MCP management remains under /mcp/agents/*, while /mcp/proxy
+is the shared public gateway for Agent and standalone MCP endpoint keys.
 """
 
 from __future__ import annotations
@@ -22,9 +21,8 @@ from src.platform.auth.models import CurrentUser
 from src.common_schemas import ApiResponse
 from src.config import settings
 from src.exceptions import NotFoundException, ErrorCode
-from src.connectors.agent.config.models import Agent
 
-from .dependencies import get_mcp_v3_service, get_agent_by_mcp_api_key
+from .dependencies import McpRuntimePrincipal, get_mcp_v3_service, get_mcp_runtime_principal
 from .service import McpV3Service
 from .schemas import (
     McpBoundToolOut,
@@ -193,7 +191,7 @@ def unbind_tool(
 async def proxy_mcp_server(
     request: Request,
     path: str = "",
-    agent: Agent = Depends(get_agent_by_mcp_api_key),
+    principal: McpRuntimePrincipal = Depends(get_mcp_runtime_principal),
 ):
     """
     Proxy requests to MCP Server.
@@ -240,7 +238,7 @@ async def proxy_mcp_server(
     headers.pop("content-length", None)
     headers.pop("x-mcp-api-key", None)
     headers.pop("X-MCP-API-Key", None)
-    headers["X-API-KEY"] = agent.mcp_api_key  # Use the Agent's mcp_api_key
+    headers["X-API-KEY"] = principal.api_key
 
     # 4. Query parameters
     query_params = dict(request.query_params)

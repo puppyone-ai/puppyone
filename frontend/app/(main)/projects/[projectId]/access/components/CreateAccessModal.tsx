@@ -13,6 +13,7 @@ import {
   type ConnectorDirection,
   type RepoScope,
 } from '@/lib/repoApi';
+import { createMcpEndpoint } from '@/lib/mcpEndpointsApi';
 import { getAccessProviderLabel } from '@/lib/accessProviderRegistry';
 import { T } from '../lib/tokens';
 import { ProviderIcon } from './icons';
@@ -37,7 +38,7 @@ const OPTIONAL_METHODS: Array<{
     provider: 'mcp',
     direction: 'inbound',
     description: 'External AI tools connect through MCP.',
-    supported: false,
+    supported: true,
   },
   {
     provider: 'sandbox',
@@ -681,6 +682,14 @@ async function createOptionalConnectors(
     providers.map((provider) => {
       const method = OPTIONAL_METHODS.find((item) => item.provider === provider);
       if (!method) return Promise.resolve();
+      if (provider === 'mcp') {
+        return createMcpEndpoint({
+          project_id: projectId,
+          path: scope.path,
+          name: getAccessProviderLabel(provider),
+          accesses: [{ path: scope.path, json_path: '', readonly: scope.mode !== 'rw' }],
+        });
+      }
       return createConnector(projectId, {
         scope_id: scope.id,
         provider,

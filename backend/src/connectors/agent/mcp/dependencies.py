@@ -4,13 +4,22 @@ MCP V3 Dependency Injection
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from typing import Literal
+
 from fastapi import Header, HTTPException, Request
 
-from src.connectors.agent.config.models import Agent
 from src.connectors.agent.config.repository import AgentRepository
+from src.connectors.mcp_endpoint.repository import McpEndpointRepository
 from src.exceptions import NotFoundException, ErrorCode
 
 from .service import McpV3Service
+
+
+@dataclass(frozen=True)
+class McpRuntimePrincipal:
+    api_key: str
+    kind: Literal["agent", "mcp_endpoint"]
 
 
 # Singleton service instance
@@ -25,16 +34,16 @@ def get_mcp_v3_service() -> McpV3Service:
     return _mcp_v3_service
 
 
-def get_agent_by_mcp_api_key(
+def get_mcp_runtime_principal(
     request: Request,
     x_mcp_api_key: str | None = Header(
         default=None,
         alias="X-MCP-API-Key",
         description="MCP API Key (recommended: pass via Header)",
     ),
-) -> Agent:
+) -> McpRuntimePrincipal:
     """
-    Get Agent by MCP API Key (used for proxy routing).
+    Resolve an MCP runtime key for proxy routing.
 
     Supports two sources:
     1) Header: `X-MCP-API-Key` (recommended)
@@ -47,9 +56,14 @@ def get_agent_by_mcp_api_key(
 
     repo = AgentRepository()
     agent = repo.get_by_mcp_api_key_with_accesses(api_key)
-    if not agent:
-        raise NotFoundException(
-            "Agent not found for MCP API key",
-            code=ErrorCode.NOT_FOUND,
-        )
-    return agent
+    if agent:
+        return McpRuntimePrincipal(api_key=agent.mcp_api_key, kind="agent")
+
+    endpoint = McpEndpointRepository().get_by_api_key(api_key)
+    if endpoint and endpoint.get("status") == "active":
+        return McpRuntimePrincipal(api_key=api_key, kind="mcp_endpoint")
+
+    raise NotFoundException(
+        "MCP runtime not found for API key",
+        code=ErrorCode.NOT_FOUND,
+    )

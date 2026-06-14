@@ -303,25 +303,6 @@
   font-weight: var(--po-text-weight-regular);
 }
 
-.statusSuccess {
-  color: var(--po-success);
-}
-
-.statusWarning {
-  color: var(--po-warning);
-}
-
-.statusDanger {
-  color: var(--po-danger);
-}
-
-.statusDot {
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  background: currentColor;
-}
-
 .metaDivider {
   padding: 0 5px;
   color: var(--po-text-disabled);

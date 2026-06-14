@@ -84,7 +84,7 @@ function buildEndpointUrl(conn: DashboardConnection): string | null {
       return `${apiBase}/git/ap/${conn.access_key}.git`;
     case 'mcp':
     case 'agent':
-      return `${apiBase}/api/v1/mcp/proxy/${conn.access_key}`;
+      return `${apiBase}/api/v1/mcp/proxy`;
     case 'sandbox':
       // Sandbox uses endpoint.id rather than access_key for the
       // public exec route, but DashboardConnection only carries

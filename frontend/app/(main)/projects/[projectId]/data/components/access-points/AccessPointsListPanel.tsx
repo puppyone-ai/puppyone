@@ -71,16 +71,16 @@ function getSetupSnippets(ep: SyncEndpointInfo, displayName: string, scopeName: 
   }
 
   if (isMcpProvider(ep.provider) && accessKey) {
-    const serverUrl = `${apiBase}/api/v1/mcp/proxy/${accessKey}`;
+    const serverUrl = `${apiBase}/api/v1/mcp/proxy`;
     const serverName = displayName.toLowerCase().replace(/\s+/g, '-') || 'puppyone-mcp';
-    const config = `{\n  "mcpServers": {\n    "${serverName}": {\n      "url": "${serverUrl}",\n      "headers": { "X-API-KEY": "${accessKey}" }\n    }\n  }\n}`;
+    const config = `{\n  "mcpServers": {\n    "${serverName}": {\n      "url": "${serverUrl}",\n      "headers": { "X-MCP-API-Key": "${accessKey}" }\n    }\n  }\n}`;
     const prompt = [
       `Configure this MCP Access Point for my coding agent.`,
       ``,
       `Access Point: ${displayName}`,
       `Scope: ${scopeName}`,
       `Server URL: ${serverUrl}`,
-      `API Key: ${accessKey}`,
+      `Header: X-MCP-API-Key: ${accessKey}`,
       ``,
       `Use this MCP config:`,
       config,

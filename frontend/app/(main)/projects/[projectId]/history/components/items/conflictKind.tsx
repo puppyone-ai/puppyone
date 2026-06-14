@@ -16,6 +16,7 @@ import {
   type NeedsActionRenderContext,
 } from '@/lib/needsActionRegistry';
 import { Dots } from '@/components/loading';
+import { StatusDot } from '@/components/ui/StatusDot';
 
 /**
  * Conflict kind: human-required three-way conflict
@@ -95,16 +96,7 @@ function ConflictRow({ item, ctx }: { item: ConflictItem; ctx: NeedsActionRender
         ctx.isSelected ? 'bg-[var(--po-selected)]' : 'hover:bg-[var(--po-hover)]'
       }`}
     >
-      <span
-        aria-hidden
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: '50%',
-          background: ACCENT_VAR,
-          flexShrink: 0,
-        }}
-      />
+      <StatusDot style={{ background: ACCENT_VAR }} />
       <div className="min-w-0 flex-1">
         <div className="truncate text-[12px] font-medium text-[var(--po-text)]">
           {formatScope(item.scope_path)}
@@ -298,7 +290,7 @@ function ConflictDetail({ item, ctx }: { item: ConflictItem; ctx: NeedsActionRen
             border: `1px solid color-mix(in srgb, ${ACCENT_VAR} 28%, transparent)`,
           }}
         >
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: ACCENT_VAR }} />
+          <StatusDot style={{ background: ACCENT_VAR }} />
           {KIND_LABEL}
         </span>
         <span style={{ fontSize: 13, color: 'var(--po-text)' }}>

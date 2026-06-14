@@ -389,14 +389,14 @@ export function HistoryCard({
                     <span
                       aria-hidden
                       style={{
-                        width: isFirst ? 8 : 6,
-                        height: isFirst ? 8 : 6,
-                        borderRadius: '50%',
+                        width: 6,
+                        height: 6,
+                        borderRadius: 1.5,
                         background: isFirst ? T.live : 'transparent',
                         border: isFirst
                           ? `1px solid ${T.live}`
                           : `1px solid ${T.text3}`,
-                        boxShadow: isFirst ? `0 0 0 3px ${T.liveSoft}` : 'none',
+                        boxSizing: 'border-box',
                         marginTop: 5,
                         flexShrink: 0,
                       }}

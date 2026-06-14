@@ -45,7 +45,7 @@ export function McpConnectionView({ agent, onEdit, onDelete }: McpConnectionView
     : 'https://api.puppyone.com';
 
   const mcpUrl = agent.mcp_api_key
-    ? `${baseUrl}/api/v1/mcp/server/${agent.mcp_api_key}`
+    ? `${baseUrl}/api/v1/mcp/proxy`
     : null;
 
   const handleCopy = async (text: string, field: string) => {
@@ -58,7 +58,8 @@ export function McpConnectionView({ agent, onEdit, onDelete }: McpConnectionView
   const claudeConfig = mcpUrl ? JSON.stringify({
     "mcpServers": {
       [agent.name.toLowerCase().replace(/\s+/g, '-')]: {
-        "url": mcpUrl
+        "url": mcpUrl,
+        "headers": { "X-MCP-API-Key": agent.mcp_api_key }
       }
     }
   }, null, 2) : null;
@@ -68,7 +69,8 @@ export function McpConnectionView({ agent, onEdit, onDelete }: McpConnectionView
     "mcp": {
       "servers": {
         [agent.name.toLowerCase().replace(/\s+/g, '-')]: {
-          "url": mcpUrl
+          "url": mcpUrl,
+          "headers": { "X-MCP-API-Key": agent.mcp_api_key }
         }
       }
     }
@@ -381,7 +383,6 @@ export function McpConnectionView({ agent, onEdit, onDelete }: McpConnectionView
     </div>
   );
 }
-
 
 
 

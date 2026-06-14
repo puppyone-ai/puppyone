@@ -48,10 +48,10 @@ from these values before introducing local variants.
 
 ## Status Indicators
 
-Status indicators are the small green/yellow/red/gray lamps used to show
-runtime or authorization state: access scope status, connector state, OAuth
-authorization state, sync state, server connection state, project health, and
-similar live status.
+Status indicators are the small green/yellow/red/gray lamps or semantic markers
+used to show runtime, authorization, or action-needed state: access scope
+status, connector state, OAuth authorization state, sync state, server
+connection state, project health, Needs action rows, and similar live status.
 
 - Always render status lamps through `frontend/components/ui/StatusDot.tsx`.
   Use `StatusDot` for dot-only UI and `StatusIndicator` for dot + label.
@@ -65,9 +65,12 @@ similar live status.
   - muted: `inactive`, `disconnected`, `stopped`, unknown, or empty.
 - If the dot sits on top of an avatar or provider mark, the caller may add a
   local border for separation, but the dot itself still comes from `StatusDot`.
-- Do not use status lamps for non-status decoration. Required-field red dots,
-  count badges, selection checkmarks, file warning badges, timeline markers,
-  loading dots, and onboarding decoration may keep their own visual treatment.
+- Timeline/action-needed markers use the same square geometry when they encode
+  state. Required-field markers should also use the same 6px rounded-square
+  shape, even when they are implemented inline inside compact forms.
+- Do not use status lamps for non-status decoration. Count badges, selection
+  checkmarks, icon internals, loading dots, progress bars, and onboarding
+  decoration may keep their own visual treatment.
 
 ## Workflow Page
 

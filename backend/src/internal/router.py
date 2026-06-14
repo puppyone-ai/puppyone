@@ -836,7 +836,7 @@ async def get_mcp_endpoint_by_key(api_key: str):
             "tool_delete": not a.get("readonly", True),
             "json_path": a.get("json_path", ""),
             "node_name": a.get("path", ""),
-            "node_type": "",
+            "node_type": "folder",
         }
         accesses_data.append(entry)
 
@@ -864,6 +864,8 @@ async def get_mcp_endpoint_by_key(api_key: str):
             "id": endpoint["id"],
             "name": endpoint["name"],
             "project_id": endpoint["project_id"],
+            "type": "mcp_endpoint",
+            "user_id": endpoint.get("created_by") or "",
         },
         "accesses": accesses_data,
         "tools": tools_data,

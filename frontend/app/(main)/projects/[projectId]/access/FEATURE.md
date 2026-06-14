@@ -14,7 +14,7 @@
 - `Access name` appears before `Path` and is marked required.
 - `Path` is marked required and displayed as a readable breadcrumb, for example `Root / Company / Sales`.
 - Connector descriptions should stay one line in the modal; shorten copy before allowing awkward wraps.
-- Unsupported connector methods remain visible but disabled. MCP Server and Sandbox are gray, cannot be toggled, and must not be submitted until the backend support is ready.
+- Unsupported connector methods remain visible but disabled. MCP Server is supported and must create an MCP endpoint through `/api/v1/mcp-endpoints`; Sandbox remains disabled until its runtime is ready.
 - Modal typography uses three sizes only: 13px primary text/actions, 12px supporting text/status, and 11px uppercase labels/badges.
 
 ## AI Handoff CTA

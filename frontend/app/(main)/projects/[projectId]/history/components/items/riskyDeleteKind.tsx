@@ -8,6 +8,7 @@ import {
   type RiskyDeleteItem,
   type NeedsActionRenderContext,
 } from '@/lib/needsActionRegistry';
+import { StatusDot } from '@/components/ui/StatusDot';
 
 /**
  * Risky delete kind (PUP-5 §4 "risky delete / mass edit", Gap G2).
@@ -121,10 +122,7 @@ function RiskyDeleteRow({
         ctx.isSelected ? 'bg-[var(--po-selected)]' : 'hover:bg-[var(--po-hover)]'
       }`}
     >
-      <span
-        aria-hidden
-        style={{ width: 6, height: 6, borderRadius: '50%', background: ACCENT_VAR, flexShrink: 0 }}
-      />
+      <StatusDot style={{ background: ACCENT_VAR }} />
       <div className="min-w-0 flex-1">
         <div className="truncate text-[12px] font-medium text-[var(--po-text)]">
           {item.source.deleted_count} files deleted
@@ -182,7 +180,7 @@ function RiskyDeleteDetail({
             border: `1px solid color-mix(in srgb, ${ACCENT_VAR} 25%, transparent)`,
           }}
         >
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: ACCENT_VAR }} />
+          <StatusDot style={{ background: ACCENT_VAR }} />
           {KIND_LABEL}
         </span>
         <span style={{ fontSize: 13, color: 'var(--po-text)' }}>

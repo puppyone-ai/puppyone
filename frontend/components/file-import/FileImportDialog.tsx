@@ -4,6 +4,7 @@ import { useCallback } from 'react';
 import type { ChangeEvent, RefObject } from 'react';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { DialogBody, DialogFooter, DialogHeader, DialogRoot, DialogSurface } from '@/components/ui/Dialog';
+import { StatusDot } from '@/components/ui/StatusDot';
 import { FileImportPolicySummary } from './FileImportPolicySummary';
 import { FileImportPreviewTree } from './FileImportPreviewTree';
 import { FileImportSourcePicker } from './FileImportSourcePicker';
@@ -113,11 +114,7 @@ export function FileImportDialog({
             fontSize: 12,
             color: 'var(--po-text-muted)',
           }}>
-            <div style={{
-              width: 6, height: 6, borderRadius: '50%',
-              background: 'var(--po-text-subtle)',
-              marginRight: 6,
-            }} />
+            <StatusDot tone="muted" style={{ marginRight: 6 }} />
             Raw upload
           </div>
 

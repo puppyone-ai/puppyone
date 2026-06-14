@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useState, type ReactNode } from 'react';
-import { StatusIndicator } from '@/components/ui/StatusDot';
+import { StatusDot, StatusIndicator } from '@/components/ui/StatusDot';
 import type { Connector, RepoScope } from '@/lib/repoApi';
 import { T } from '../lib/tokens';
 import { STATUS_LABEL } from '../lib/constants';
@@ -294,16 +294,12 @@ function SettingsHeaderButton({
     >
       <GearIcon size={13} />
       {dirty ? (
-        <span
-          aria-hidden
+        <StatusDot
+          status="warning"
           style={{
             position: 'absolute',
             top: 5,
             right: 5,
-            width: 5,
-            height: 5,
-            borderRadius: '50%',
-            background: 'var(--po-warning)',
           }}
         />
       ) : null}

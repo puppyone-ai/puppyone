@@ -91,7 +91,7 @@ export function SyncTargetConfig({ accept, label, hint, maxItems = 1, defaultNew
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
         <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--po-text-subtle)' }}>{label}</label>
-        <span style={{ width: 5, height: 5, background: 'var(--po-danger)', borderRadius: '50%' }} title="Required" />
+        <span style={{ width: 6, height: 6, background: 'var(--po-danger)', borderRadius: 1.5 }} title="Required" />
         <span style={{ fontSize: 11, color: 'var(--po-text-disabled)', background: 'var(--po-panel-raised)', border: '1px solid var(--po-border)', borderRadius: 4, padding: '1px 6px', marginLeft: 'auto', whiteSpace: 'nowrap' }}>
           {hint}
         </span>

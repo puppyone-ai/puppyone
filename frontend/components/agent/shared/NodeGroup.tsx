@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { StatusDot } from '@/components/ui/StatusDot';
 import type { AccessOption } from '../../chat/ChatInputArea';
 
 const ToolIcon = () => (
@@ -142,7 +143,7 @@ export const NodeGroup = ({
                 </span>
               </div>
               {selectedAccess.has(tool.id) && (
-                <div style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--po-success)', flexShrink: 0 }} />
+                <StatusDot tone="success" />
               )}
             </div>
           ))}
@@ -151,7 +152,6 @@ export const NodeGroup = ({
     </div>
   );
 };
-
 
 
 

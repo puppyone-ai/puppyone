@@ -308,7 +308,7 @@ const UnifiedBrandedIcon = ({
             right: 0,
             width: 16,
           height: 16,
-          borderRadius: '50%',
+          borderRadius: 4,
           background: 'var(--po-warning)',
           border: '2px solid var(--po-panel)',
           display: 'flex',

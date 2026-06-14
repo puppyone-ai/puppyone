@@ -55,7 +55,8 @@ Linear-style dark UI. Dense, minimal, flat (no shadows, no gradients).
 
 ## Status Indicators
 
-Use `frontend/components/ui/StatusDot.tsx` for every runtime state lamp:
+Use `frontend/components/ui/StatusDot.tsx` for every runtime state lamp or
+action-needed semantic marker:
 
 - `StatusDot` for dot-only UI.
 - `StatusIndicator` for dot + text.
@@ -66,9 +67,12 @@ Use `frontend/components/ui/StatusDot.tsx` for every runtime state lamp:
   `active/ready/connected` → success, `syncing/processing/loading` → accent,
   `pending/warning/paused/mixed` → warning, `error/failed/blocked` → danger,
   `inactive/disconnected/stopped` → muted.
-- Do not use this rule for non-status dots such as required-field marks,
-  notification/count badges, selection marks, file warning badges, timeline
-  marks, or loading dots.
+- Timeline/action-needed markers and required-field marks should use the same
+  6px rounded-square geometry. Prefer `StatusDot` when the marker represents a
+  semantic status; use inline styles only when the form layout is too compact.
+- Do not use this rule for non-status marks such as notification/count badges,
+  selection marks, icon internals, loading dots, progress bars, or decorative
+  onboarding dots.
 
 ---
 

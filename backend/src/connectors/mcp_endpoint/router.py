@@ -36,6 +36,7 @@ def _to_out(row: dict) -> McpEndpointOut:
         api_key=row["api_key"],
         tools_config=row.get("tools_config", []),
         accesses=row.get("accesses", []),
+        created_by=row.get("created_by"),
         config=row.get("config", {}),
         status=row["status"],
         created_at=str(row["created_at"]),
@@ -107,6 +108,7 @@ def create_endpoint(
         description=payload.description,
         accesses=payload.accesses,
         tools_config=payload.tools_config,
+        created_by=current_user.user_id,
     )
     return ApiResponse.success(data=_to_out(row), message="MCP endpoint created")
 

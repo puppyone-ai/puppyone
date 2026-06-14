@@ -597,7 +597,7 @@ def _create_agent(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
     )
 
 
-def _create_mcp(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
+def _create_mcp(payload: UnifiedConnectionCreate, *, created_by: str | None = None) -> UnifiedConnectionOut:
     from src.connectors.mcp_endpoint.repository import McpEndpointRepository
     from src.connectors.mcp_endpoint.schemas import McpAccessItem, McpToolItem
     from src.connectors.mcp_endpoint.service import McpEndpointService
@@ -614,6 +614,7 @@ def _create_mcp(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
         description=payload.config.get("description"),
         accesses=accesses,
         tools_config=tools,
+        created_by=created_by,
     )
     return UnifiedConnectionOut(
         id=row["id"],
@@ -773,7 +774,7 @@ async def create_connection(
         if provider == "agent":
             result = _create_agent(payload)
         elif provider == "mcp":
-            result = _create_mcp(payload)
+            result = _create_mcp(payload, created_by=current_user.user_id)
         elif provider == "sandbox":
             result = _create_sandbox(payload)
         elif provider == "direct":

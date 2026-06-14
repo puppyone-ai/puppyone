@@ -97,7 +97,7 @@ export function ServerView({
 
   const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090';
-  const mcpUrl = `${API_BASE_URL}/api/v1/mcp/server/${server.api_key}`;
+  const mcpUrl = `${API_BASE_URL}/api/v1/mcp/proxy`;
   const serverName = nameValue || server.name || 'unnamed-server';
 
   const configText = useMemo(() => {
@@ -106,9 +106,8 @@ export function ServerView({
         {
           mcpServers: {
             [serverName]: {
-              command: 'npx',
-              args: ['-y', 'mcp-remote', mcpUrl],
-              env: {},
+              url: mcpUrl,
+              headers: { 'X-MCP-API-Key': server.api_key },
             },
           },
         },
@@ -118,13 +117,10 @@ export function ServerView({
     }
     return `mcpServers:
   ${serverName}:
-    command: npx
-    args:
-      - -y
-      - mcp-remote
-      - ${mcpUrl}
-    env: {}`;
-  }, [activeTab, serverName, mcpUrl]);
+    url: ${mcpUrl}
+    headers:
+      X-MCP-API-Key: ${server.api_key}`;
+  }, [activeTab, serverName, mcpUrl, server.api_key]);
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(configText);

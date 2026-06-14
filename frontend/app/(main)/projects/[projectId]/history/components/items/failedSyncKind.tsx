@@ -9,6 +9,7 @@ import {
   type NeedsActionRenderContext,
 } from '@/lib/needsActionRegistry';
 import { Dots } from '@/components/loading';
+import { StatusDot } from '@/components/ui/StatusDot';
 import { PROJECT_CONTENT_RAIL_WIDTH } from '@/lib/layout';
 
 /**
@@ -77,16 +78,7 @@ function FailedSyncRow({
         ctx.isSelected ? 'bg-[var(--po-selected)]' : 'hover:bg-[var(--po-hover)]'
       }`}
     >
-      <span
-        aria-hidden
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: '50%',
-          background: ACCENT_VAR,
-          flexShrink: 0,
-        }}
-      />
+      <StatusDot style={{ background: ACCENT_VAR }} />
       <div className="min-w-0 flex-1">
         <div className="truncate text-[12px] font-medium text-[var(--po-text)]">
           {apName}
@@ -171,7 +163,7 @@ function FailedSyncDetail({
               borderColor: `color-mix(in srgb, ${ACCENT_VAR} 20%, transparent)`,
             }}
           >
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: ACCENT_VAR }} />
+            <StatusDot style={{ background: ACCENT_VAR }} />
             Failed sync
           </span>
 

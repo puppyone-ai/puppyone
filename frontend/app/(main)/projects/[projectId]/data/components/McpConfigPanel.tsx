@@ -70,7 +70,7 @@ export function McpConfigPanel({ endpoint, onClose, onBack }: McpConfigPanelProp
   const apiBase = typeof window !== 'undefined'
     ? (process.env.NEXT_PUBLIC_API_URL || window.location.origin)
     : '';
-  const serverUrl = `${apiBase}/api/v1/mcp/proxy/${endpoint.api_key}`;
+  const serverUrl = `${apiBase}/api/v1/mcp/proxy`;
   const targetLabel = endpoint.accesses.length > 0
     ? endpoint.accesses[0].path
     : 'Workspace';
@@ -132,7 +132,7 @@ export function McpConfigPanel({ endpoint, onClose, onBack }: McpConfigPanelProp
   mcpServers: {
     [endpoint.name.toLowerCase().replace(/\s+/g, '-')]: {
       url: serverUrl,
-      headers: { 'X-API-KEY': endpoint.api_key },
+      headers: { 'X-MCP-API-Key': endpoint.api_key },
     }
   }
 }, null, 2)}

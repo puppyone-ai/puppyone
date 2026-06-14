@@ -92,7 +92,7 @@ export function StatusDot({
       style={{
         width: STATUS_DOT_SIZE,
         height: STATUS_DOT_SIZE,
-        borderRadius: '50%',
+        borderRadius: 1.5,
         background: color,
         display: 'inline-block',
         flexShrink: 0,

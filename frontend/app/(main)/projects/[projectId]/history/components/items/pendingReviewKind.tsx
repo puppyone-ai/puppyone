@@ -14,6 +14,7 @@ import {
   type PendingReviewItem,
 } from '@/lib/needsActionRegistry';
 import { Dots } from '@/components/loading';
+import { StatusDot } from '@/components/ui/StatusDot';
 
 /**
  * Pending review kind: a conflict where an agent already produced a
@@ -84,16 +85,7 @@ function PendingReviewRow({
         ctx.isSelected ? 'bg-[var(--po-selected)]' : 'hover:bg-[var(--po-hover)]'
       }`}
     >
-      <span
-        aria-hidden
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: '50%',
-          background: ACCENT_VAR,
-          flexShrink: 0,
-        }}
-      />
+      <StatusDot style={{ background: ACCENT_VAR }} />
       <div className="min-w-0 flex-1">
         <div className="truncate text-[12px] font-medium text-[var(--po-text)]">
           {formatScope(item.scope_path)}
@@ -208,7 +200,7 @@ function PendingReviewDetail({
             border: `1px solid color-mix(in srgb, ${ACCENT_VAR} 25%, transparent)`,
           }}
         >
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: ACCENT_VAR }} />
+          <StatusDot style={{ background: ACCENT_VAR }} />
           {KIND_LABEL}
         </span>
         <span style={{ fontSize: 13, color: 'var(--po-text)' }}>

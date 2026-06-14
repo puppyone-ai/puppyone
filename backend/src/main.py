@@ -480,6 +480,8 @@ def create_app() -> FastAPI:
     app.include_router(
         internal_router, tags=["internal"]
     )  # Internal API does not use /api/v1 prefix
+    from src.internal.mcp_runtime import router as mcp_runtime_router
+    app.include_router(mcp_runtime_router, tags=["internal-mcp-runtime"])
     from src.version_engine.entrypoints.http.content import router as content_router
     app.include_router(content_router, prefix="/api/v1", tags=["content"])
     from src.version_engine.entrypoints.http.audit import router as audit_router
