@@ -242,9 +242,9 @@ SoT 推进时(他人 publish,或父子投影),server 计算**受影响路径集*
   1. **打包**:`load_sidecar_script()` 读 repo-root/`sandbox/`(在 `backend/` 之外,部署镜像里没有)→ FileNotFoundError。修:把脚本 vendored 进 backend 包(`scope_sync/_sidecar/`),canonical 优先、bundled 兜底,drift-guard 测试保持一致。
   2. **E2B 后台启动**:`setsid … &` 自分离在 E2B `commands.run` 下不活(返回即杀进程树);`pkill…; <env> python3…` 链式命令也破坏 E2B 后台启动。修:`ProviderCapabilities.background_exec_required`(E2B=True)、`exec(background=True)`(E2B→`commands.run(background=True)`;Fly no-op)、`install_and_start` 对后台型 provider **单独** foreground pkill + 后台干净 watch。
   - 已用**真 E2B box + 真生产代码路径**(E2BProvider→SdkE2BClient.exec(background=True)→真 install_and_start)验证:sidecar 起来、marker 触发 publish、qubits SoT 推进+emit。✅
-- **仍待**:部署版 `connect` 端点自动起 sidecar —— 需带上修复 commit **再次重部署** 后,重跑 connect E2E 即可确认(代码侧已实环境证实正确)。
+- **✅ 部署版 connect 自动起 sidecar 已实环境验证(2026-06-14,带修复重部后)**:`POST /scope-sandboxes/connect` → qubits 真起 E2B box → 自动装(`~/.puppyone/sync_sidecar.py`,BUG1 修复=脚本随 backend 发布)+ 自动起 watch(进程在,BUG2 修复=E2B background 启动)+ 注入正确 `SYNC_*`(policy 映射)+ 已消费真 `/ap/events`;随后 box 内 edit→marker→publish 经部署端点闭环到真 qubits SoT(head 推进 + `/activity` 出事件)。**P0 闭环 100% 实环境闭合。**
 
-> 210 个 scope_sync + scope_sandbox 单测 + 18 个 sidecar 本地端到端全绿;sidecar↔qubits 全闭环 + E2B connect 自动起(修复后)均实环境验证。
+> 210 个 scope_sync + scope_sandbox 单测 + 18 个 sidecar 本地端到端全绿;sidecar↔qubits 全闭环 + **部署版 connect 自动起 sidecar** 均实环境验证。
 
 ## 10. 一句话总结
 
