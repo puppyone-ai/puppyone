@@ -105,7 +105,7 @@ const DatePickerDropdown = ({
               onMouseLeave={e => { if (!past && !sel) e.currentTarget.style.background = 'transparent'; }}
             >
               {cell.day}
-              {tod && !sel && <div style={{ position: 'absolute', bottom: 3, left: '50%', transform: 'translateX(-50%)', width: 4, height: 4, borderRadius: '50%', background: 'var(--po-accent)' }} />}
+              {tod && !sel && <div style={{ position: 'absolute', bottom: 3, left: '50%', transform: 'translateX(-50%)', width: 6, height: 6, borderRadius: 1.5, background: 'var(--po-accent)' }} />}
             </button>
           );
         })}
@@ -215,7 +215,7 @@ export const ScheduleTriggerSection = ({ draftTriggerConfig, setDraftTriggerConf
     <div style={{ marginBottom: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
         <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--po-text-muted)', display: 'block' }}>Schedule</label>
-        <span style={{ width: 5, height: 5, background: 'var(--po-danger)', borderRadius: '50%' }} title="Required" />
+        <span style={{ width: 6, height: 6, background: 'var(--po-danger)', borderRadius: 1.5 }} title="Required" />
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
@@ -344,7 +344,7 @@ const ScheduleTasksSection = ({
       <div style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
           <label style={labelStyle}>Tasks</label>
-          <span style={{ width: 5, height: 5, background: 'var(--po-danger)', borderRadius: '50%' }} title="Required" />
+          <span style={{ width: 6, height: 6, background: 'var(--po-danger)', borderRadius: 1.5 }} title="Required" />
         </div>
         <div style={{ ...taskRowStyle, background: newTaskText.trim() ? 'var(--po-panel)' : 'transparent', border: newTaskText.trim() ? '1px solid var(--po-border)' : '1px dashed var(--po-border)' }}>
           <div style={badgeStyle}>1</div>
@@ -363,7 +363,7 @@ const ScheduleTasksSection = ({
     <div style={{ marginBottom: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
         <label style={labelStyle}>Tasks</label>
-        <span style={{ width: 5, height: 5, background: 'var(--po-danger)', borderRadius: '50%' }} title="Required" />
+        <span style={{ width: 6, height: 6, background: 'var(--po-danger)', borderRadius: 1.5 }} title="Required" />
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {tasks.map((task, index) => (
@@ -483,7 +483,7 @@ export function ScheduleAgentConfig({ projectTools }: AgentConfigProps) {
       <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
           <label style={{ ...labelStyle, marginBottom: 0 }}>Agent's bash access</label>
-          <span style={{ width: 5, height: 5, background: 'var(--po-danger)', borderRadius: '50%' }} title="Required" />
+          <span style={{ width: 6, height: 6, background: 'var(--po-danger)', borderRadius: 1.5 }} title="Required" />
         </div>
         <div
           style={{ minHeight: 88, background: isDragging ? 'var(--po-hover)' : 'transparent', border: isDragging ? '1px dashed var(--po-text-disabled)' : '1px dashed var(--po-border)', borderRadius: 6, transition: 'all 0.15s' }}

@@ -53,6 +53,27 @@ Linear-style dark UI. Dense, minimal, flat (no shadows, no gradients).
 
 **Danger hover** — icon buttons that delete/disconnect use `color: #ef4444` on hover only, `#666` at rest.
 
+## Status Indicators
+
+Use `frontend/components/ui/StatusDot.tsx` for every runtime state lamp or
+action-needed semantic marker:
+
+- `StatusDot` for dot-only UI.
+- `StatusIndicator` for dot + text.
+- Do not hand-roll circular green/yellow/red/gray spans for status.
+- Canonical dot size is 6px.
+- No glow, shadow, blur, ping, or pulse for status lamps.
+- Map semantic state through the component instead of page-local color tables:
+  `active/ready/connected` → success, `syncing/processing/loading` → accent,
+  `pending/warning/paused/mixed` → warning, `error/failed/blocked` → danger,
+  `inactive/disconnected/stopped` → muted.
+- Timeline/action-needed markers and required-field marks should use the same
+  6px rounded-square geometry. Prefer `StatusDot` when the marker represents a
+  semantic status; use inline styles only when the form layout is too compact.
+- Do not use this rule for non-status marks such as notification/count badges,
+  selection marks, icon internals, loading dots, progress bars, or decorative
+  onboarding dots.
+
 ---
 
 ## Sizing

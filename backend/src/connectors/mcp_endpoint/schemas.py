@@ -40,6 +40,7 @@ class McpEndpointOut(BaseModel):
     api_key: str
     tools_config: list = Field(default_factory=list)
     accesses: list = Field(default_factory=list)
+    created_by: Optional[str] = None
     config: dict = Field(default_factory=dict)
     status: str
     created_at: str

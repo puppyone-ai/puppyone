@@ -393,10 +393,8 @@ function McpBody({
   readonly scope: RepoScope;
 }) {
   const apiBase = useMemo(() => getApiBase(), []);
-  // MCP endpoint URL — the actual binding lives in the connector's
-  // config; we surface the basics so the user can paste them into a
-  // Claude Desktop / Cursor MCP config.
-  const endpoint = `${apiBase}/mcp/${connector.id}`;
+  const apiKey = String(connector.access_key || connector.config?.api_key || '');
+  const endpoint = `${apiBase}/api/v1/mcp/proxy`;
   const scopeName = scope.name || (scope.path === '' ? 'root' : scope.path);
 
   return (
@@ -405,6 +403,7 @@ function McpBody({
       <KvBlock
         rows={[
           { label: 'URL', value: endpoint, mono: true, copyable: true },
+          { label: 'Header', value: `X-MCP-API-Key: ${apiKey || '<mcp-api-key>'}`, mono: true, copyable: true },
           { label: 'Scope', value: scopeName },
           { label: 'Mode', value: scope.mode === 'rw' ? 'Read & write' : 'Read-only' },
         ]}

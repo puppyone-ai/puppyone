@@ -404,7 +404,15 @@ export function CreateMenu({
             <div style={{ padding: '6px 16px 2px', fontSize: 10, fontWeight: 600, color: 'var(--po-text-subtle)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               Expose data
             </div>
-            <MenuItem icon={<McpIcon />} label="MCP Server" sublabel="Coming soon" disabled />
+            <MenuItem
+              icon={<McpIcon />}
+              label="MCP Server"
+              sublabel="Expose this folder to MCP clients"
+              onClick={() => {
+                onCreateMcp?.();
+                onClose();
+              }}
+            />
             <MenuItem icon={<SandboxIcon />} label="Sandbox" sublabel="Coming soon" disabled />
 
             {/* "More Sources…" is the open-the-empty-picker fallback

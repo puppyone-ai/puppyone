@@ -4,6 +4,7 @@ import React from 'react';
 import useSWR from 'swr';
 import { useTranslations, useFormatter } from 'next-intl';
 import { Dots, SkeletonBlock } from '@/components/loading';
+import { StatusDot } from '@/components/ui/StatusDot';
 import type { ProjectInfo } from '@/lib/projectsApi';
 import { listDir, sortNodes, type NodeInfo } from '@/lib/contentTreeApi';
 import { FilePreviewIcon } from '@/lib/fileIcons';
@@ -196,7 +197,10 @@ export function ProjectCard({ project, onClick }: Readonly<ProjectCardProps>) {
         {/* Commit bar */}
         <div className="absolute bottom-0 left-0 right-0 border-t border-[var(--po-divider)] bg-transparent px-3 py-1.5 h-[30px] flex items-center z-10 transition-colors duration-150">
           <div className="flex items-center gap-2 text-[10px] w-full">
-            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: connectionCount > 0 ? 'var(--po-accent)' : 'var(--po-border-strong)' }} />
+            <StatusDot
+              status={connectionCount > 0 ? 'connected' : 'inactive'}
+              style={{ backgroundColor: connectionCount > 0 ? 'var(--po-accent)' : 'var(--po-border-strong)' }}
+            />
             <span className="text-[var(--po-text-subtle)]">{isPending ? 'opening...' : lastUpdated}</span>
             {!isPending && connectionCount > 0 && (
               <>

@@ -1,9 +1,10 @@
 'use client';
 
 import { useCallback, useState, type ReactNode } from 'react';
+import { StatusDot, StatusIndicator } from '@/components/ui/StatusDot';
 import type { Connector, RepoScope } from '@/lib/repoApi';
 import { T } from '../lib/tokens';
-import { STATUS_COLORS, STATUS_LABEL } from '../lib/constants';
+import { STATUS_LABEL } from '../lib/constants';
 import { CopyIcon } from './icons';
 import { SectionLabel } from './ui-blocks';
 
@@ -31,26 +32,25 @@ import { SectionLabel } from './ui-blocks';
 interface ScopeAggregateStatus {
   readonly key: 'empty' | 'active' | 'syncing' | 'paused' | 'mixed' | 'error';
   readonly label: string;
-  readonly color: string;
 }
 
 function computeAggregate(connectors: readonly Connector[]): ScopeAggregateStatus {
   if (connectors.length === 0) {
-    return { key: 'empty', label: 'No connectors', color: T.text4 };
+    return { key: 'empty', label: 'No connectors' };
   }
   if (connectors.some((c) => c.status === 'error')) {
-    return { key: 'error', label: STATUS_LABEL.error, color: STATUS_COLORS.error };
+    return { key: 'error', label: STATUS_LABEL.error };
   }
   if (connectors.some((c) => c.status === 'syncing')) {
-    return { key: 'syncing', label: STATUS_LABEL.syncing, color: STATUS_COLORS.syncing };
+    return { key: 'syncing', label: STATUS_LABEL.syncing };
   }
   if (connectors.every((c) => c.status === 'active')) {
-    return { key: 'active', label: STATUS_LABEL.active, color: STATUS_COLORS.active };
+    return { key: 'active', label: STATUS_LABEL.active };
   }
   if (connectors.every((c) => c.status === 'paused')) {
-    return { key: 'paused', label: STATUS_LABEL.paused, color: STATUS_COLORS.paused };
+    return { key: 'paused', label: STATUS_LABEL.paused };
   }
-  return { key: 'mixed', label: 'Mixed', color: STATUS_COLORS.paused };
+  return { key: 'mixed', label: 'Mixed' };
 }
 
 export function ScopePageHeader({
@@ -112,28 +112,7 @@ export function ScopePageHeader({
               minWidth: 0,
             }}
           >
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                color: aggregate.color,
-                fontWeight: 400,
-                flexShrink: 0,
-              }}
-            >
-              <span
-                aria-hidden
-                style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: '50%',
-                  background: aggregate.color,
-                  boxShadow: `0 0 6px color-mix(in srgb, ${aggregate.color} 55%, transparent)`,
-                }}
-              />
-              {aggregate.label}
-            </span>
+            <StatusIndicator status={aggregate.key} label={aggregate.label} style={{ flexShrink: 0 }} />
             <span style={{ color: T.text4, flexShrink: 0 }}>·</span>
             <span style={{ color: T.text2, flexShrink: 0, fontWeight: 400 }}>
               {connectors.length === 1 ? '1 connector' : `${connectors.length} connectors`}
@@ -315,16 +294,12 @@ function SettingsHeaderButton({
     >
       <GearIcon size={13} />
       {dirty ? (
-        <span
-          aria-hidden
+        <StatusDot
+          status="warning"
           style={{
             position: 'absolute',
             top: 5,
             right: 5,
-            width: 5,
-            height: 5,
-            borderRadius: '50%',
-            background: 'var(--po-warning)',
           }}
         />
       ) : null}
@@ -365,4 +340,3 @@ export const GearIcon = ({ size = 13 }: { readonly size?: number }) => (
     <path d='M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8.92 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.14.3.22.63.22 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z' />
   </svg>
 );
-

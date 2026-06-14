@@ -18,6 +18,7 @@
 
 import { useState } from 'react';
 import type { Connector, RepoScope } from '@/lib/repoApi';
+import { StatusDot } from '@/components/ui/StatusDot';
 import {
   getAccessProviderDefinition,
   SIDEBAR_SIGNAL_PROVIDER_IDS,
@@ -166,17 +167,7 @@ function ScopeSidebarRow({
             minWidth: 0,
           }}
         >
-          <span
-            aria-hidden
-            style={{
-              width: 7,
-              height: 7,
-              borderRadius: '50%',
-              flexShrink: 0,
-              background: active ? 'var(--po-success)' : T.text4,
-              boxShadow: active ? '0 0 6px color-mix(in srgb, var(--po-success) 40%, transparent)' : 'none',
-            }}
-          />
+          <StatusDot tone={active ? 'success' : 'muted'} />
           <span
             style={{
               flex: 1,

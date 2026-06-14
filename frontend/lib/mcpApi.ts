@@ -292,4 +292,3 @@ export const TOOL_INFO: Record<
     appliesTo: ['folder', 'json', 'markdown', 'image'],
   },
 };
-

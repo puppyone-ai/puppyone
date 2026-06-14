@@ -1,6 +1,7 @@
 'use client';
 
 import type { SyncEndpointInfo } from '../explorer';
+import { StatusDot as BaseStatusDot } from '@/components/ui/StatusDot';
 import {
   isMcpProvider,
   isSandboxProvider,
@@ -8,19 +9,14 @@ import {
 import type { ProviderIconLookup } from './types';
 
 export function StatusDot({ status, borderColor = 'var(--po-panel)' }: { status: string; borderColor?: string }) {
-  const color = status === 'error' ? 'var(--po-danger)' : status === 'stopped' ? 'var(--po-text-subtle)' : 'var(--po-success)';
   return (
-    <span
-      aria-hidden
+    <BaseStatusDot
+      status={status}
       style={{
         position: 'absolute',
         right: -1,
         bottom: -1,
-        width: 8,
-        height: 8,
-        borderRadius: '50%',
-        background: color,
-        border: `2px solid ${borderColor}`,
+        border: `1px solid ${borderColor}`,
         boxSizing: 'border-box',
       }}
     />

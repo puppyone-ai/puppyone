@@ -1,6 +1,7 @@
 'use client';
 
 import type { CSSProperties, ReactNode } from 'react';
+import { StatusDot } from './StatusDot';
 
 type DangerNoticeTone = 'danger' | 'warning';
 
@@ -39,17 +40,7 @@ export function DangerNotice({
         ...style,
       }}
     >
-      <span
-        aria-hidden
-        style={{
-          width: 7,
-          height: 7,
-          borderRadius: '50%',
-          background: color,
-          flexShrink: 0,
-          marginTop: compact ? 5 : 6,
-        }}
-      />
+      <StatusDot style={{ background: color, marginTop: compact ? 5 : 6 }} />
       <div style={{ minWidth: 0 }}>
         {title && (
           <div

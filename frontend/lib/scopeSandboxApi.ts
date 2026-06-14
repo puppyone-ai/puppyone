@@ -23,6 +23,7 @@ export interface SandboxConnectInfo {
   username: string;
   proxy_command: string | null;  // set for E2B (websocat tunnel)
   needs_websocat: boolean;       // true → user must have websocat on PATH
+  workspace_path: string;        // Git working tree to open in VS Code/Cursor
   ssh_config_block: string;      // ready-to-paste ~/.ssh/config block
   expires_at: number;            // epoch seconds — when this grant expires
   connected_users: number;
@@ -45,6 +46,13 @@ export interface SandboxStatus {
   connected: boolean;            // is THIS user currently granted/connected
   connected_users: number;
   sandbox_id?: string;
+  host?: string;
+  port?: number;
+  username?: string;
+  proxy_command?: string | null;
+  needs_websocat?: boolean;
+  workspace_path?: string;
+  ssh_config_block?: string;
 }
 
 /** Which providers this deployment offers + the default (drives the selector). */

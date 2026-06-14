@@ -50,6 +50,7 @@ class ConnectInfo:
     username: str
     proxy_command: str | None
     needs_websocat: bool     # True for E2B (ProxyCommand uses local websocat)
+    workspace_path: str      # Git working tree to open in VSCode/Cursor
     ssh_config_block: str
     expires_at: float
     connected_users: int
@@ -123,6 +124,15 @@ class ScopeSandboxService:
     def _git_url(public_base: str, access_key: str) -> str:
         return f"{public_base.rstrip('/')}/git/ap/{access_key}.git"
 
+    @staticmethod
+    def _workspace_path(username: str, workdir: str) -> str:
+        def clean(value: str, fallback: str) -> str:
+            return value.replace("'", "").replace('"', "").replace("\n", "").strip().strip("/") or fallback
+
+        user = clean(username, "user")
+        wd = clean(workdir, "scope")
+        return f"/home/{user}/{wd}"
+
     # ── connect / status / revoke ─────────────────────────────────────
 
     async def connect(
@@ -153,22 +163,23 @@ class ScopeSandboxService:
         provider = mgr.provider
         sid = session.sandbox_id
 
-        # per-user working tree + git identity (#7): push attributes to the person
-        await ssh_credentials.provision_user_workspace(
-            provider, sid, user_id,
-            git_url=git_url, user_email=user_email, user_name=user_name,
-        )
-        # short-lived, revocable SSH grant (#5)
-        expires_at = now + ttl_s
-        await ssh_credentials.grant_ssh_access(
-            provider, sid, user_id, public_key, expires_at=expires_at,
-        )
-
         conn = session.connection
         host = conn.host if conn else sid
         port = conn.port if conn else 22
         username = conn.username if conn else "user"
         proxy = conn.proxy_command if conn else None
+
+        # per-user working tree + git identity (#7): push attributes to the person
+        workdir = await ssh_credentials.provision_user_workspace(
+            provider, sid, user_id,
+            git_url=git_url, user_email=user_email, user_name=user_name,
+        )
+        workspace_path = self._workspace_path(username, workdir)
+        # short-lived, revocable SSH grant (#5)
+        expires_at = now + ttl_s
+        await ssh_credentials.grant_ssh_access(
+            provider, sid, user_id, public_key, expires_at=expires_at,
+        )
 
         # Start the in-sandbox sync sidecar (P0 closed loop): watch the user's
         # working tree → checkpoint/publish + consume upstream events. Best-effort,
@@ -177,7 +188,7 @@ class ScopeSandboxService:
         await self._sidecar_starter(
             provider, sid, project_id=project_id, scope_id=scope_id,
             user_id=user_id, username=username, access_key=scope.access_key,
-            public_base=public_base,
+            public_base=public_base, repo_dir=workspace_path,
         )
 
         log_info(
@@ -193,6 +204,7 @@ class ScopeSandboxService:
             username=username,
             proxy_command=proxy,
             needs_websocat=proxy is not None and "websocat" in proxy,
+            workspace_path=workspace_path,
             ssh_config_block=_ssh_config_block(scope_id, host, port, username, proxy),
             expires_at=expires_at,
             connected_users=len(session.connected_users),
@@ -200,7 +212,7 @@ class ScopeSandboxService:
 
     async def _maybe_start_sidecar(
         self, provider, sandbox_id: str, *, project_id: str, scope_id: str,
-        user_id: str, username: str, access_key: str, public_base: str,
+        user_id: str, username: str, access_key: str, public_base: str, repo_dir: str,
     ) -> None:
         """Install + start the scope-sync sidecar for this connection (best-effort,
         gated on the scope's auto_sync setting). Never breaks connect."""
@@ -212,7 +224,6 @@ class ScopeSandboxService:
                 project_id=project_id, scope_id=scope_id)
             if not resolved.get("auto_sync", True):
                 return
-            repo_dir = f"/home/{username}/{user_id}"
             env = sp.build_sidecar_env(
                 resolved["policy"], repo_dir=repo_dir,
                 events_url=f"{public_base.rstrip('/')}/api/v1/scope-sync/ap/events",
@@ -227,12 +238,24 @@ class ScopeSandboxService:
         session = self._store.get(scope_id)
         if session is None or session.project_id != project_id:
             return {"state": "none", "connected": False, "connected_users": 0}
+        conn = session.connection
+        host = conn.host if conn else session.sandbox_id
+        port = conn.port if conn else 22
+        username = conn.username if conn else "user"
+        proxy = conn.proxy_command if conn else None
         return {
             "state": session.state.value,
             "provider": session.provider,
             "connected": user_id in session.connected_users,
             "connected_users": len(session.connected_users),
             "sandbox_id": session.sandbox_id,
+            "host": host,
+            "port": port,
+            "username": username,
+            "proxy_command": proxy,
+            "needs_websocat": proxy is not None and "websocat" in proxy,
+            "workspace_path": self._workspace_path(username, user_id),
+            "ssh_config_block": _ssh_config_block(scope_id, host, port, username, proxy),
         }
 
     async def revoke(self, *, project_id: str, scope_id: str, user_id: str) -> int:

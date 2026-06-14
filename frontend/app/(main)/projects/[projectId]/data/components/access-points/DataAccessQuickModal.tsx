@@ -6,6 +6,7 @@ import { PulseGrid } from '@/components/loading';
 import { AiHandoffButton } from '@/components/ui/AiHandoffButton';
 import { DialogBody, DialogHeader, DialogRoot, DialogSurface } from '@/components/ui/Dialog';
 import { ModalPortal } from '@/components/ui/ModalPortal';
+import { StatusIndicator } from '@/components/ui/StatusDot';
 import {
   accessPointProfileSlug,
   buildGitSyncPrompt,
@@ -22,7 +23,7 @@ import {
 import { APP_Z_INDEX } from '@/lib/zIndex';
 import { ProviderIcon } from '../../../access/components/icons';
 import { CommandBlock } from '../../../access/components/ui-blocks';
-import { STATUS_COLORS, STATUS_LABEL } from '../../../access/lib/constants';
+import { STATUS_LABEL } from '../../../access/lib/constants';
 import { getApiBase, getTypeLine, timeAgo } from '../../../access/lib/format';
 import { T } from '../../../access/lib/tokens';
 
@@ -1243,33 +1244,14 @@ function getProviderTileStyle(provider: string) {
 }
 
 function StatusCell({ status }: { readonly status: Connector['status'] }) {
-  const color = STATUS_COLORS[status] ?? T.text3;
   return (
-    <span
+    <StatusIndicator
+      status={status}
+      label={STATUS_LABEL[status] ?? status}
       style={{
         justifySelf: 'end',
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 6,
-        color,
-        fontSize: FONT_META,
-        fontWeight: 500,
-        fontFamily: T.fontSans,
-        whiteSpace: 'nowrap',
       }}
-    >
-      <span
-        aria-hidden
-        style={{
-          width: 7,
-          height: 7,
-          borderRadius: '50%',
-          background: color,
-          flexShrink: 0,
-        }}
-      />
-      {STATUS_LABEL[status] ?? status}
-    </span>
+    />
   );
 }
 

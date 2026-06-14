@@ -26,7 +26,7 @@ import { ThemeToggle } from './theme/ThemeToggle';
 import { ActionButton } from './ui/ActionButton';
 import { ToggleSwitch } from './ui/ToggleSwitch';
 import { ModalPortal } from './ui/ModalPortal';
-import { StatusDot } from './ui/StatusDot';
+import { StatusIndicator } from './ui/StatusDot';
 import { APP_VERSION_LABEL } from '@/lib/appVersion';
 import { APP_Z_INDEX } from '@/lib/zIndex';
 
@@ -148,12 +148,6 @@ const getDefaultPlatformStates = (): Record<PlatformId, PlatformState> =>
     },
     {} as Record<PlatformId, PlatformState>
   );
-
-const statusColors: Record<PlatformStatusType, string> = {
-  connected: T.success,
-  disconnected: T.text3,
-  error: T.danger,
-};
 
 export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
   const router = useRouter();
@@ -1097,22 +1091,12 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                                 textOverflow: 'ellipsis',
                               }}
                             >
-                              <StatusDot
+                              <StatusIndicator
                                 status={isError ? 'error' : state.status}
-                                pulse={isConnected}
+                                label={state.label}
                                 style={{ opacity: state.isLoading ? 0.5 : 1 }}
+                                textStyle={{ overflow: 'hidden', textOverflow: 'ellipsis' }}
                               />
-                              <span
-                                style={{
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  color: state.isLoading
-                                    ? T.text3
-                                    : statusColors[state.status],
-                                }}
-                              >
-                                {state.label}
-                              </span>
                             </div>
                           </div>
 

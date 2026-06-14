@@ -13,12 +13,14 @@ import {
   type ConnectorDirection,
   type RepoScope,
 } from '@/lib/repoApi';
+import { createMcpEndpoint } from '@/lib/mcpEndpointsApi';
 import { getAccessProviderLabel } from '@/lib/accessProviderRegistry';
 import { T } from '../lib/tokens';
 import { ProviderIcon } from './icons';
 import { FolderAccessTree } from './FolderAccessTree';
 
 type OptionalProvider = 'mcp' | 'sandbox';
+type AccessIntent = 'remote_workspace' | 'git_remote' | 'cli' | 'ai_agent';
 
 const ACCESS_MODAL_TYPE = {
   body: 13,
@@ -36,13 +38,50 @@ const OPTIONAL_METHODS: Array<{
     provider: 'mcp',
     direction: 'inbound',
     description: 'External AI tools connect through MCP.',
-    supported: false,
+    supported: true,
   },
   {
     provider: 'sandbox',
     direction: 'inbound',
     description: 'Run tools with this folder mounted.',
     supported: false,
+  },
+];
+
+const INTENT_OPTIONS: Array<{
+  readonly id: AccessIntent;
+  readonly label: string;
+  readonly provider: string;
+  readonly preview: string;
+  readonly chips: readonly string[];
+}> = [
+  {
+    id: 'remote_workspace',
+    label: 'Open editor',
+    provider: 'sandbox',
+    preview: 'Cursor opens a ready Git workspace',
+    chips: ['Editor', 'Git ready', 'No clone'],
+  },
+  {
+    id: 'git_remote',
+    label: 'Clone repo',
+    provider: 'git_remote',
+    preview: 'git clone https://.../access.git',
+    chips: ['Local files', 'Git flow'],
+  },
+  {
+    id: 'cli',
+    label: 'Use shell',
+    provider: 'cli',
+    preview: 'puppyone fs ls /company/sales',
+    chips: ['No clone', 'Scriptable'],
+  },
+  {
+    id: 'ai_agent',
+    label: 'Connect AI agent',
+    provider: 'mcp',
+    preview: 'Agent calls approved file tools',
+    chips: ['AI agent', 'Tool calls'],
   },
 ];
 
@@ -69,6 +108,7 @@ export function CreateAccessModal({
   );
   const [nameTouched, setNameTouched] = useState(initialSelectedPath !== null);
   const [optionalProviders, setOptionalProviders] = useState<ReadonlySet<OptionalProvider>>(() => new Set());
+  const [intent, setIntent] = useState<AccessIntent>('remote_workspace');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -161,10 +201,11 @@ export function CreateAccessModal({
       <DialogSurface width={760} ariaLabel="Create access">
         <DialogHeader
           title="New folder access"
-          description="Choose a folder from Files. Git Remote and Puppyone CLI are enabled for that folder; the top-level workspace stays managed by Puppyone."
+          description="Choose the job first, then bind it to a folder. Git Remote and Puppyone CLI are always included for the folder."
           onClose={saving ? undefined : onClose}
         />
         <DialogBody style={{ padding: '12px 20px 16px' }}>
+          <IntentPicker value={intent} onChange={setIntent} />
           <div
             style={{
               display: 'grid',
@@ -314,6 +355,181 @@ export function CreateAccessModal({
   );
 }
 
+function IntentPicker({
+  value,
+  onChange,
+}: {
+  readonly value: AccessIntent;
+  readonly onChange: (value: AccessIntent) => void;
+}) {
+  return (
+    <div
+      style={{
+        marginBottom: 16,
+        borderRadius: 12,
+        border: `1px solid ${T.cardBorder}`,
+        background: 'color-mix(in srgb, var(--po-control) 66%, var(--po-panel) 34%)',
+        padding: 12,
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          justifyContent: 'space-between',
+          gap: 12,
+          marginBottom: 10,
+        }}
+      >
+        <div>
+          <div
+            style={{
+              color: T.text3,
+              fontFamily: T.fontSans,
+              fontSize: ACCESS_MODAL_TYPE.label,
+              lineHeight: '14px',
+              fontWeight: 650,
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+              marginBottom: 4,
+            }}
+          >
+            Start with the job
+          </div>
+          <div
+            style={{
+              color: T.text1,
+              fontFamily: T.fontSans,
+              fontSize: 17,
+              lineHeight: '22px',
+              fontWeight: 650,
+            }}
+          >
+            What are you trying to do?
+          </div>
+        </div>
+        <span
+          style={{
+            color: T.text3,
+            fontFamily: T.fontSans,
+            fontSize: ACCESS_MODAL_TYPE.meta,
+            lineHeight: '17px',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          This helps pick the right way in.
+        </span>
+      </div>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+          gap: 8,
+        }}
+      >
+        {INTENT_OPTIONS.map((option) => {
+          const active = value === option.id;
+          return (
+            <button
+              key={option.id}
+              type="button"
+              onClick={() => onChange(option.id)}
+              style={{
+                minHeight: 104,
+                borderRadius: 10,
+                border: `1px solid ${active ? 'var(--po-border-strong)' : T.cardBorder}`,
+                background: active ? 'var(--po-panel)' : 'transparent',
+                boxShadow: active ? '0 1px 2px color-mix(in srgb, var(--po-shadow) 16%, transparent)' : 'none',
+                padding: 10,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-start',
+                gap: 8,
+                textAlign: 'left',
+                cursor: 'pointer',
+              }}
+            >
+              <span
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  minWidth: 0,
+                }}
+              >
+                <span
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: 7,
+                    background: providerTileBg(option.provider, active),
+                    border: `1px solid ${active ? 'var(--po-border-strong)' : T.border}`,
+                    color: providerTileColor(option.provider, active),
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <ProviderIcon provider={option.provider} size={option.provider === 'git_remote' ? 24 : 15} />
+                </span>
+                <span
+                  style={{
+                    color: T.text1,
+                    fontFamily: T.fontSans,
+                    fontSize: 13,
+                    lineHeight: '17px',
+                    fontWeight: 650,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {option.label}
+                </span>
+              </span>
+              <span
+                style={{
+                  color: T.text2,
+                  fontFamily: option.preview.includes(' ') && option.preview.includes('://') ? T.fontMono : T.fontSans,
+                  fontSize: 11,
+                  lineHeight: '16px',
+                  minHeight: 32,
+                }}
+              >
+                {option.preview}
+              </span>
+              <span style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                {option.chips.map((chip) => (
+                  <span
+                    key={chip}
+                    style={{
+                      height: 20,
+                      padding: '0 7px',
+                      borderRadius: 999,
+                      border: `1px solid ${T.cardBorder}`,
+                      background: 'color-mix(in srgb, var(--po-control) 70%, var(--po-panel) 30%)',
+                      color: T.text3,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      fontFamily: T.fontSans,
+                      fontSize: 10,
+                      lineHeight: '14px',
+                      fontWeight: 650,
+                    }}
+                  >
+                    {chip}
+                  </span>
+                ))}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function MethodRow({
   provider,
   description,
@@ -441,6 +657,18 @@ function SectionHeading({ children }: { readonly children: ReactNode }) {
   );
 }
 
+function providerTileBg(provider: string, active: boolean): string {
+  if (provider === 'cli') return active ? 'color-mix(in srgb, var(--po-accent) 92%, var(--po-panel) 8%)' : 'color-mix(in srgb, var(--po-accent) 14%, var(--po-panel) 86%)';
+  if (provider === 'git_remote') return active ? 'color-mix(in srgb, #ef4a37 18%, var(--po-panel) 82%)' : 'color-mix(in srgb, #ef4a37 9%, var(--po-panel) 91%)';
+  return active ? 'var(--po-panel)' : 'color-mix(in srgb, var(--po-control) 70%, var(--po-panel) 30%)';
+}
+
+function providerTileColor(provider: string, active: boolean): string {
+  if (provider === 'cli') return active ? 'var(--po-text-inverse)' : 'var(--po-accent)';
+  if (provider === 'git_remote') return '#d94939';
+  return active ? T.text1 : T.text2;
+}
+
 function normalizePath(path: string): string {
   return path.trim().replace(/^\/+|\/+$/g, '').replace(/\/+/g, '/');
 }
@@ -454,6 +682,14 @@ async function createOptionalConnectors(
     providers.map((provider) => {
       const method = OPTIONAL_METHODS.find((item) => item.provider === provider);
       if (!method) return Promise.resolve();
+      if (provider === 'mcp') {
+        return createMcpEndpoint({
+          project_id: projectId,
+          path: scope.path,
+          name: getAccessProviderLabel(provider),
+          accesses: [{ path: scope.path, json_path: '', readonly: scope.mode !== 'rw' }],
+        });
+      }
       return createConnector(projectId, {
         scope_id: scope.id,
         provider,

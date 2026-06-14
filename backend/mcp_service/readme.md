@@ -1,194 +1,157 @@
-# PuppyOne Context MCP Server
+# PuppyOne MCP Service
 
-一个基于MCP Python SDK的共享MCP Server服务，用于替代原有的多进程架构。
+Shared MCP protocol host for PuppyOne access endpoints.
 
-## Feature
+## Final Architecture
 
-- ✅ **单一服务多租户**：所有MCP实例共享一个服务，通过`X-API-KEY`实现隔离
-- ✅ **动态工具配置**：支持运行时配置工具名称和描述
-- ✅ **缓存优化**：使用cashews实现内存缓存，减少RPC调用
-- ✅ **健康检查**：提供`/healthz`端点用于监控
-- ✅ **工具通知**：支持工具列表变更通知（tools/list changed）
-
-## Architecture
-
-```
-客户端请求
-  └─> 主服务 (/api/v1/mcp/server/{api_key})
-       └─> 添加 X-API-KEY header
-            └─> 转发到 MCP Server (内网)
-                 ├─> 提取 api_key
-                 ├─> 查询缓存（如果命中）
-                 ├─> RPC调用主服务 /internal (如果缓存未命中)
-                 └─> 返回工具列表或调用结果
+```text
+MCP Client
+  -> Main Backend /api/v1/mcp/proxy
+     -> authenticates X-MCP-API-Key or legacy path key
+     -> proxies to internal mcp_service /mcp
+        -> handles MCP protocol, sessions, streaming, tool validation
+        -> calls Main Backend /internal/mcp-runtime/*
+           -> resolves endpoint scope and permissions
+           -> executes scoped_fs tools through Version Engine
 ```
 
-### Module/Responsibility Diagram (Current Implementation)
+`mcp_service` is a separate service by design. Do not embed the MCP protocol
+server directly into the main FastAPI backend. The main backend owns public
+auth, endpoint records, scopes, policy, and Version Engine execution. This
+service owns MCP transport/protocol concerns only.
 
-```mermaid
-flowchart TB
-  Client["客户端(MCP JSON-RPC)"] --> Main["主服务: /api/v1/mcp/server/{api_key}"]
-  Main -->|proxy + X-API-KEY| Mcp["mcp_service (共享MCP Server)"]
+## Responsibilities
 
-  subgraph Mcp["mcp_service"]
-    Server["server.py - build_starlette_app()"]
-    Core["core/*\n- auth.py\n- config_loader.py\n- tools_definition.py\n- session_registry.py"]
-    Rpc["rpc/client.py\nInternalApiClient"]
-    Cache["cache.py\nCacheManager"]
-    Tool["tool/table_tool.py\nTableToolImplementation"]
-    Server --> Core
-    Core --> Cache
-    Server --> Rpc
-    Server --> Tool
-  end
+- Host the MCP Streamable HTTP endpoint at `/mcp`.
+- Extract the runtime key from `X-API-KEY` after the main backend proxy.
+- Load dynamic runtime config from the main backend internal API.
+- List MCP tools from `/internal/mcp-runtime/tools` for standalone MCP endpoints.
+- Execute MCP tools through `/internal/mcp-runtime/call`.
+- Maintain MCP session state, event replay, cache invalidation, and health.
 
-  Rpc --> Internal["主服务 internal API\n/internal/mcp-instance/{api_key}\n/internal/table/{table_id}\n/internal/tables/{table_id}/context-*"]
+## Public Entry Point
+
+External clients should connect to the main backend, not directly to this
+service:
+
+```json
+{
+  "mcpServers": {
+    "puppyone": {
+      "url": "https://api.example.com/api/v1/mcp/proxy",
+      "headers": {
+        "X-MCP-API-Key": "mcp_..."
+      }
+    }
+  }
+}
 ```
 
-## 启动服务
+Legacy keyed-path URLs remain route-compatible during migration, but the
+header form above is the canonical product surface.
+
+## Service Configuration
+
+Main backend:
 
 ```bash
-# 推荐：与主服务一致的启动方式（uv run）
-uv run uvicorn mcp_service.server:app --host 0.0.0.0 --port 3090 --reload --log-level info
+MCP_SERVER_URL=http://mcp-service:3090
+INTERNAL_API_SECRET=...
+```
 
-# 兼容：使用 Python 模块入口（不推荐）
+MCP service:
+
+```bash
+MAIN_SERVICE_URL=http://main-backend:9090
+INTERNAL_API_SECRET=...
+PORT=3090
+```
+
+`INTERNAL_API_SECRET` must match on both services.
+
+## Start
+
+```bash
+uv run uvicorn mcp_service.server:app --host 0.0.0.0 --port 3090 --log-level info
+```
+
+For local compatibility:
+
+```bash
 python -m mcp_service
 ```
 
-## API端点
+## Internal Endpoints
 
-### MCP协议端点
+- `POST /mcp` - MCP protocol endpoint.
+- `GET /healthz` - service health.
+- `POST /cache/invalidate` - invalidate cached runtime config for an API key.
 
-- `POST /mcp` - MCP协议入口（支持SSE）
+## Current Standalone MCP Tools
 
-### 管理端点
+Standalone MCP endpoints expose scoped filesystem tools from
+`src.version_engine.scoped_fs`:
 
-- `GET /healthz` - 健康检查
-  ```bash
-  curl http://localhost:3090/healthz
-  ```
+- `fs_semantics`
+- `fs_ls`
+- `fs_tree`
+- `fs_find`
+- `fs_grep`
+- `fs_cat`
+- `fs_head`
+- `fs_tail`
+- `fs_stat`
+- `fs_write`
+- `fs_mkdir`
+- `fs_touch`
+- `fs_cp`
+- `fs_mv`
+- `fs_rmdir`
+- `fs_rm`
 
-- `POST /cache/invalidate` - 缓存失效通知
-  ```bash
-  curl -X POST http://localhost:3090/cache/invalidate \
-    -H "Content-Type: application/json" \
-    -d '{"api_key": "YOUR_API_KEY"}'
-  ```
+Read-only endpoint scopes only list read tools. Writable endpoint scopes list
+write/delete tools as well. Tool definitions include `title`, `description`,
+`inputSchema`, `outputSchema`, and MCP `annotations`.
 
-## 工具列表
+## Test Examples
 
-MCP Server根据api_key动态返回工具列表：
-
-### 基础工具
-
-- `get_data_schema` - 获取挂载点数据结构（不包含实际值）
-- `get_all_data` - 获取挂载点全部数据
-- `query_data` - 对挂载点数据执行JMESPath查询
-- `create_element` - 创建表格元素
-- `update_element` - 更新表格元素
-- `delete_element` - 删除表格元素
-
-### LLM Retrieve工具（需要配置preview_keys）
-
-- `preview_data` - 预览数据（轻量级）
-- `select_data` - 选择数据（根据字段匹配）
-
-## 测试
-
-### 1. 测试健康检查
+Health:
 
 ```bash
 curl http://localhost:3090/healthz
 ```
 
-### 2. 测试tools/list
+Tools list through the public proxy:
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/mcp/server/YOUR_API_KEY \
+curl -X POST http://localhost:9090/api/v1/mcp/proxy \
   -H "Content-Type: application/json" \
-  -d '{"jsonrpc": "2.0", "method": "tools/list", "id": 1}'
+  -H "X-MCP-API-Key: mcp_..." \
+  -d '{"jsonrpc":"2.0","method":"tools/list","id":1}'
 ```
 
-### 3. 测试tools/call
+Tool call through the public proxy:
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/mcp/server/YOUR_API_KEY \
+curl -X POST http://localhost:9090/api/v1/mcp/proxy \
   -H "Content-Type: application/json" \
+  -H "X-MCP-API-Key: mcp_..." \
   -d '{
     "jsonrpc": "2.0",
     "method": "tools/call",
     "params": {
-      "name": "get_all_data",
-      "arguments": {}
+      "name": "fs_ls",
+      "arguments": { "path": "" }
     },
     "id": 2
   }'
 ```
 
-## 缓存策略
+## Adding MCP Filesystem Capabilities
 
-- **缓存键**：`mcp:config:{api_key}`
-- **缓存内容**：MCP实例配置 + 表格元数据
-- **过期时间**：通过 `CACHE_TTL` 配置（默认15分钟）
-- **失效机制**：主服务更新数据时主动通知
+Add filesystem tools in this order:
 
-## 性能优化
-
-1. **缓存层**：减少对主服务的RPC调用
-2. **弱引用Session**：自动GC不活跃的连接
-3. **异步处理**：所有I/O操作均为异步
-4. **连接复用**：RPC客户端使用连接池
-
-## 监控
-
-### 查看缓存统计
-
-```bash
-curl http://localhost:3090/healthz
-```
-
-返回示例：
-
-```json
-{
-  "status": "healthy",
-  "service": "mcp-service",
-  "cache": {
-    "backend": "memory",
-    "ttl": 900
-  }
-}
-```
-
-## 开发
-
-### 项目结构
-
-```
-mcp_service/
-├── __init__.py
-├── __main__.py          # 兼容入口（python -m）
-├── server.py            # Starlette app + MCP 协议实现（导出 app）
-├── cache.py             # 缓存层
-├── core/                # 核心支撑模块（入口无关）
-│   ├── __init__.py
-│   ├── auth.py          # api_key 提取/解析
-│   ├── config_loader.py # load_mcp_config（cache + internal api）
-│   ├── session_registry.py
-│   └── tools_definition.py
-├── event_store.py       # 事件存储
-├── rpc/
-│   ├── __init__.py
-│   └── client.py        # RPC客户端
-└── tool/
-    ├── __init__.py
-    └── table_tool.py    # 工具实现
-```
-
-### 添加新工具
-
-1. 在 `core/tools_definition.py` 的 `tool_types` 中添加工具类型
-2. 在 `core/tools_definition.py` 的 `ToolDefinitionProvider` 中添加默认名称和描述
-3. 在 `core/tools_definition.py` 的 `build_tools_list` 中添加工具 schema
-4. 在 `server.py` 的 `call_tool` 中添加工具调用逻辑
-5. 在 `tool/table_tool.py` 中实现工具逻辑
+1. Define the tool contract in `src.version_engine.scoped_fs.registry`.
+2. Implement behavior in `src.version_engine.scoped_fs.service`.
+3. Keep MCP service as a thin protocol adapter.
+4. Add registry, internal runtime, and MCP server routing tests.

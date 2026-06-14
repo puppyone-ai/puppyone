@@ -64,7 +64,7 @@ const S_SPINNER: CSSProperties = {
 };
 
 const S_DOT_BASE: CSSProperties = {
-  width: 10, height: 10, borderRadius: '50%',
+  width: 10, height: 10, borderRadius: 2,
   display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
 };
 

@@ -1,0 +1,67 @@
+from __future__ import annotations
+
+from src.version_engine.scoped_fs.registry import build_mcp_tool_definitions
+
+
+def _tools(writable: bool) -> dict[str, dict]:
+    return {tool["name"]: tool for tool in build_mcp_tool_definitions(writable=writable)}
+
+
+def _tool_names(writable: bool) -> set[str]:
+    return set(_tools(writable))
+
+
+def test_readonly_endpoint_exposes_read_tools_only():
+    names = _tool_names(writable=False)
+
+    assert {
+        "fs_semantics",
+        "fs_ls",
+        "fs_tree",
+        "fs_find",
+        "fs_grep",
+        "fs_cat",
+        "fs_head",
+        "fs_tail",
+        "fs_stat",
+    }.issubset(names)
+    assert "fs_write" not in names
+    assert "fs_rm" not in names
+    assert "ls" not in names
+
+
+def test_writable_endpoint_exposes_each_fs_command_as_a_tool():
+    names = _tool_names(writable=True)
+
+    assert {
+        "fs_write",
+        "fs_mkdir",
+        "fs_touch",
+        "fs_cp",
+        "fs_mv",
+        "fs_rmdir",
+        "fs_rm",
+    }.issubset(names)
+    assert "fs_batch" not in names
+
+
+def test_tool_definitions_include_full_mcp_contract_fields():
+    tool = _tools(writable=True)["fs_ls"]
+
+    assert tool["title"] == "List Directory"
+    assert tool["description"]
+    assert tool["inputSchema"]["type"] == "object"
+    assert tool["outputSchema"]["type"] == "object"
+    assert "entries" in tool["outputSchema"]["properties"]
+    assert tool["annotations"]["readOnlyHint"] is True
+    assert tool["annotations"]["destructiveHint"] is False
+    assert tool["annotations"]["openWorldHint"] is False
+
+
+def test_write_and_delete_tools_carry_mutation_annotations():
+    tools = _tools(writable=True)
+
+    assert tools["fs_write"]["annotations"]["readOnlyHint"] is False
+    assert tools["fs_write"]["annotations"]["destructiveHint"] is True
+    assert tools["fs_rm"]["annotations"]["readOnlyHint"] is False
+    assert tools["fs_rm"]["annotations"]["destructiveHint"] is True

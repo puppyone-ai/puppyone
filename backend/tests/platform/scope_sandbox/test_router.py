@@ -30,12 +30,18 @@ class _FakeService:
             host="sb-1", port=22, username="user",
             proxy_command="websocat --binary -B 65536 - wss://8081-sb-1.e2b.app",
             needs_websocat=True,
+            workspace_path="/home/user/u1",
             ssh_config_block="Host puppy-scope\n    HostName sb-1\n",
             expires_at=1780531200.0, connected_users=1,
         )
 
     def status(self, **kw):
-        return {"state": "running", "connected": True, "connected_users": 1}
+        return {
+            "state": "running",
+            "connected": True,
+            "connected_users": 1,
+            "workspace_path": "/home/user/u1",
+        }
 
     def available_providers(self):
         return {"default": "e2b", "providers": [
@@ -72,6 +78,7 @@ def test_connect_happy_path():
     body = resp.json()
     assert body["code"] == 0
     assert body["data"]["needs_websocat"] is True
+    assert body["data"]["workspace_path"] == "/home/user/u1"
     assert "ProxyCommand" not in body["data"]["ssh_config_block"]  # fake block has none
     assert body["data"]["via"] == "created"
 

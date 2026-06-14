@@ -176,7 +176,7 @@ export function SaaSyncConfig({
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
             <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--po-text)', paddingLeft: 2 }}>Workspace Sync Target</label>
-            <span style={{ width: 5, height: 5, background: 'var(--po-danger)', borderRadius: '50%' }} title="Required" />
+            <span style={{ width: 6, height: 6, background: 'var(--po-danger)', borderRadius: 1.5 }} title="Required" />
           </div>
           <div style={{ color: 'var(--po-text-muted)', fontSize: 13, marginBottom: 12, lineHeight: 1.4, paddingLeft: 2 }}>
             Drag and drop a folder or database here to set it as the destination for this integration.
@@ -275,7 +275,7 @@ export function SaaSyncConfig({
           <>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: -2 }}>
               <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--po-text)' }}>{providerLabel} account</span>
-              {!oauthStatus?.connected && <span style={{ width: 5, height: 5, background: 'var(--po-danger)', borderRadius: '50%' }} title="Required" />}
+              {!oauthStatus?.connected && <span style={{ width: 6, height: 6, background: 'var(--po-danger)', borderRadius: 1.5 }} title="Required" />}
             </div>
 
             {oauthUnsupported ? (
@@ -357,7 +357,7 @@ export function SaaSyncConfig({
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--po-text)' }}>{field.label}</label>
                     {field.required ? (
-                      <span style={{ width: 5, height: 5, background: 'var(--po-danger)', borderRadius: '50%', flexShrink: 0 }} title="Required" />
+                      <span style={{ width: 6, height: 6, background: 'var(--po-danger)', borderRadius: 1.5, flexShrink: 0 }} title="Required" />
                     ) : !field.defaultValue ? (
                       <span style={{ fontSize: 11, color: 'var(--po-text-disabled)', fontWeight: 400 }}>optional</span>
                     ) : null}
@@ -461,7 +461,7 @@ function SyncFrequencySelector({ provider }: { provider: string }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--po-text)' }}>Sync frequency</label>
-        <span style={{ width: 5, height: 5, background: 'var(--po-danger)', borderRadius: '50%', flexShrink: 0 }} title="Required" />
+        <span style={{ width: 6, height: 6, background: 'var(--po-danger)', borderRadius: 1.5, flexShrink: 0 }} title="Required" />
       </div>
 
       <div style={{ position: 'relative' }}>

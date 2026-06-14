@@ -40,7 +40,7 @@ const ROW_HEIGHT = ROW_ITEM_HEIGHT + ROW_MARGIN_Y * 2;
 const GRAPH_WIDTH = 20;
 const DOT_X = GRAPH_WIDTH / 2;
 const DOT_Y = 16;
-const DOT_RADIUS = 3;
+const DOT_SIZE = 6;
 
 type KindSnapshot = {
   items: NeedsActionItem[];
@@ -381,10 +381,12 @@ function FlatNeedsActionRow({
               pointerEvents: 'none',
             }}
           >
-            <circle
-              cx={DOT_X}
-              cy={DOT_Y}
-              r={DOT_RADIUS}
+            <rect
+              x={DOT_X - DOT_SIZE / 2}
+              y={DOT_Y - DOT_SIZE / 2}
+              width={DOT_SIZE}
+              height={DOT_SIZE}
+              rx={1.5}
               fill={row.dotColor}
             />
           </svg>

@@ -9,6 +9,7 @@
  */
 
 import React, { use, useState, useMemo } from 'react';
+import { StatusDot } from '@/components/ui/StatusDot';
 import { get } from '@/lib/apiClient';
 import { PageLoading } from '@/components/loading';
 import { CHROME_LABEL_TYPOGRAPHY } from '@/lib/uiTypography';
@@ -255,11 +256,7 @@ export default function ProjectLogsPage({ params }: { params: Promise<{ projectI
           fontFamily: T.fontSans,
           letterSpacing: 0,
         }}>
-          <span style={{
-            width: 6, height: 6, borderRadius: '50%',
-            background: 'var(--po-success)',
-            animation: `puppyone-logs-pulse 1.6s ${T.ease} infinite`,
-          }} />
+          <StatusDot tone="success" />
           <span>Live</span>
           <span style={{ color: T.text4 }}>·</span>
           <span>{allLogs.length} event{allLogs.length === 1 ? '' : 's'}</span>
@@ -347,13 +344,7 @@ export default function ProjectLogsPage({ params }: { params: Promise<{ projectI
                       {log.time ? formatTimestamp(log.time) : '—'}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
-                      <span style={{
-                        width: 6,
-                        height: 6,
-                        borderRadius: '50%',
-                        background: dotColor,
-                        flexShrink: 0,
-                      }} />
+                      <StatusDot style={{ background: dotColor }} />
                       <span
                         style={{
                           color: actionColor,
@@ -451,12 +442,13 @@ export default function ProjectLogsPage({ params }: { params: Promise<{ projectI
               padding: '10px 16px', borderBottom: '1px solid var(--po-hover)',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                <span style={{
-                  width: 6, height: 6, borderRadius: '50%',
-                  background: selectedLog.status === 'error' ? 'var(--po-danger)'
-                    : selectedLog.status === 'warn' ? 'var(--po-warning)'
-                      : ACTION_COLORS[selectedLog.action] || 'var(--po-text-subtle)',
-                }} />
+                <StatusDot
+                  style={{
+                    background: selectedLog.status === 'error' ? 'var(--po-danger)'
+                      : selectedLog.status === 'warn' ? 'var(--po-warning)'
+                        : ACTION_COLORS[selectedLog.action] || 'var(--po-text-subtle)',
+                  }}
+                />
                 <span style={{
                   fontSize: 13, fontWeight: 500, color: 'var(--po-text)',
                   fontFamily: T.fontSans,
