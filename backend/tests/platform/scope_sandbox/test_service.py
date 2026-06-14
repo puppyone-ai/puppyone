@@ -86,6 +86,10 @@ class FakeProvider(SandboxProvider):
 SCOPE = _Scope(id="scope-123456789", project_id="proj-1", path="docs", access_key="AKEY")
 
 
+async def _noop_sidecar(*args, **kwargs):
+    return None
+
+
 def _service(provider: FakeProvider):
     store = InMemorySandboxSessionStore()
     svc = ScopeSandboxService(
@@ -95,6 +99,7 @@ def _service(provider: FakeProvider):
             provider, store, bootstrap=svc._make_bootstrap(),
             revoke_hook=ssh_credentials.revoke_ssh_access,
         ),
+        sidecar_starter=_noop_sidecar,   # keep connect tests hermetic (no DB/sidecar)
     )
     return svc
 

@@ -51,6 +51,7 @@ import { PROJECT_CONTENT_RAIL_WIDTH } from '@/lib/layout';
 import { T } from '../lib/tokens';
 import { STATUS_LABEL } from '../lib/constants';
 import { SandboxConnectCard } from './SandboxConnectCard';
+import { SyncActivityPanel } from './SyncActivityPanel';
 import { ScopeSettingsBlock } from '../../data/components/access-points/ScopeSettingsBlock';
 import type { ConnectorEditPatch } from '../hooks/useAccessData';
 import { AccessActivitySection, filterAccessActivityLogs } from './AccessActivity';
@@ -59,7 +60,7 @@ import { ScopePageHeader, SettingsSection } from './ScopeHeader';
 import { ProviderIcon } from './icons';
 import { getProviderIconSize, getProviderTileSize, getProviderTileStyle } from './connectorVisuals';
 
-const SHOW_ACCESS_ACTIVITY = false;
+const SHOW_ACCESS_ACTIVITY = true;
 
 // ─── Detail pane root ────────────────────────────────────────────────
 
@@ -256,6 +257,9 @@ export function ScopeDetailPanel({
             No connectors bound to this scope yet.
           </div>
         )}
+        {/* Sync activity + stats (M6 observability) — the managed-sync event
+            log for this scope. Self-hides when there's no sync history. */}
+        {scope ? <SyncActivityPanel scope={scope} projectId={projectId} /> : null}
       </div>
 
       <style>{`

@@ -189,8 +189,13 @@ class FlyMachinesProvider(SandboxProvider):
 
     # ── exec (provisioning / credentials / health) ────────────────────
 
-    async def exec(self, sandbox_id: str, command: str, *, timeout: int = 60) -> dict:
+    async def exec(self, sandbox_id: str, command: str, *, timeout: int = 60,
+                   background: bool = False) -> dict:
         """Run a shell command via the Fly Machines exec API.
+
+        ``background`` is accepted for interface parity but is a no-op: Fly exec is
+        SSH-based, so a self-detaching ``setsid … &`` command (see
+        ``sidecar_provision.start_command``) already survives the exec returning.
 
         Fly exec runs as root; we re-enter as the SSH user (``self._username``) so
         ``~`` and file ownership match the account VSCode logs into — that way the

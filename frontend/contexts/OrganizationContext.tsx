@@ -16,6 +16,10 @@ interface OrganizationContextValue {
   members: OrgMember[];
   myRole: 'owner' | 'member' | 'viewer' | null;
   isLoading: boolean;
+  /** Set when the org list failed to load — lets pages show an error/retry
+   *  state instead of spinning forever waiting for a `currentOrg` that will
+   *  never arrive. */
+  error: Error | null;
   isMembersLoading: boolean;
   switchOrg: (orgId: string) => void;
   refreshOrgs: () => Promise<void>;
@@ -31,6 +35,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   const {
     data: orgs = [],
     isLoading: isOrgsLoading,
+    error: orgsError,
     mutate: mutateOrgs,
   } = useSWR(
     session ? 'organizations' : null,
@@ -94,6 +99,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         members,
         myRole,
         isLoading: isOrgsLoading,
+        error: (orgsError as Error) ?? null,
         isMembersLoading,
         switchOrg,
         refreshOrgs,

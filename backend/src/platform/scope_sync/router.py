@@ -7,7 +7,7 @@ returns the preset PuppyOne picked.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel
 
 from src.common_schemas import ApiResponse
@@ -76,6 +76,40 @@ def get_activity(
     _ensure_project_access(project_service, current_user, project_id)
     return ApiResponse.success(data=service.activity(
         project_id=project_id, scope_id=scope_id, limit=limit))
+
+
+@router.get("/stats", response_model=ApiResponse)
+def get_stats(
+    project_id: str = Query(...),
+    scope_id: str = Query(...),
+    window: int = Query(200, ge=1, le=1000),
+    current_user: CurrentUser = Depends(get_current_user),
+    project_service: ProjectService = Depends(get_project_service),
+    service: ScopeSyncService = Depends(get_scope_sync_service),
+):
+    """Aggregate sync observability for a scope (#8): publish volume, distinct
+    origins, per-source breakdown, latest head — over the recent event window."""
+    _ensure_project_access(project_service, current_user, project_id)
+    return ApiResponse.success(data=service.stats(
+        project_id=project_id, scope_id=scope_id, window=window))
+
+
+@router.get("/ap/events", response_model=ApiResponse)
+def ap_events(
+    cursor: int = Query(0, description="last event id the sidecar has seen"),
+    x_access_key: str | None = Header(None, alias="X-Access-Key"),
+    service: ScopeSyncService = Depends(get_scope_sync_service),
+):
+    """Access-key-authenticated upstream events for the in-sandbox sidecar (no
+    JWT). The sidecar passes the scope's access_key (which it already holds in
+    its git remote). Scope + project are resolved from the key."""
+    if not x_access_key:
+        raise HTTPException(status_code=401, detail="X-Access-Key required")
+    try:
+        return ApiResponse.success(data=service.poll_events_by_access_key(
+            access_key=x_access_key, cursor=cursor))
+    except LookupError:
+        raise HTTPException(status_code=403, detail="Invalid access key")
 
 
 class SyncSettingsBody(BaseModel):

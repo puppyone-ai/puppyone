@@ -199,12 +199,12 @@ SoT 推进时(他人 publish,或父子投影),server 计算**受影响路径集*
 
 ## 9. 风险 / 待定
 
-- **agent 任务边界识别**:纯 quiescence 兜底可能"过早 publish"或"过晚"。建议提供可选 MCP/CLI marker 让 PuppyOne-aware agent 精确报点;非感知 client 退化到 quiescence + explicit。
-- **sidecar 与 agent 写竞争**:集成 checkout 必须只动不相交路径;重叠一律 hold,绝不覆盖脏文件。需 working-tree 写锁/原子 checkout。
-- **checkpoint 体量**:高频 checkpoint 的 blob 去重(内容寻址天然去重)+ TTL/数量上限。
+- **agent 任务边界识别**:纯 quiescence 兜底可能"过早 publish"或"过晚"。~~建议提供可选 MCP/CLI marker~~ **✅ 已实现**:sidecar `signal done|save|publish|checkpoint` 子命令 + watch 循环即时消费(`_handle_signals`,先于 quiescence);install 路径由 `sidecar_provision.marker_command(kind)` 统一(MCP `sync_signal` 工具 / SSH agent 都 shell 到它)。非感知 client 仍退化到 quiescence + explicit,两者叠加。
+- **sidecar 与 agent 写竞争**:集成 checkout 必须只动不相交路径;重叠一律 hold,绝不覆盖脏文件。~~需 working-tree 写锁/原子 checkout~~ **✅ 已实现**:`integrate` 改为**逐路径 just-in-time 脏检查**(锁内再查,TOCTOU-safe;脏路径 HOLD 不覆盖)+ **temp+rename 原子写**(二进制安全,agent 绝不会读到半截文件)+ 上游已删的路径 HOLD 不破坏性删除;并加**可重入跨进程 worktree 锁**(mkdir 原子,stale 回收 + 超时降级),让 watch 守护与手动 CLI 调用串行,避免争抢 git 自身 `index.lock` 把守护进程打挂。
+- **checkpoint 体量**:高频 checkpoint 的 blob 去重(内容寻址天然去重)+ TTL/数量上限。**✅ 数量/TTL 上限已实现**:`SyncPolicyConfig.checkpoint_chain_max`(非 dev 50 / dev·reviewer 200)+ `checkpoint_chain_ttl_s`(非 dev 1h,其余 0=关),经 `build_sidecar_env` → `SYNC_MAX_CHECKPOINTS`/`SYNC_CHECKPOINT_TTL_S`;sidecar 每次 checkpoint 后 `_compact_checkpoints` 检查"领先上次 publish 的私有链"长度/最老节点年龄,超限即 `reset --soft` 折叠为一个(纯元数据,工作树/暂存区不动,绝不丢改动,仅丢超限的深层私有 undo)。blob 去重靠 git 内容寻址天然成立。
 - **"过早 publish 污染 SoT"**:宁可多 checkpoint、少 publish;非 dev 预设默认 publish 偏保守(任务完成 + 长静默双条件)。
-- **父子重叠的语义**:parent-scope-wins 是兜底,但要让用户/agent 看得懂"为什么我的改动被父级覆盖"——需可读的冲突说明(已有 `superseded_by_parent` 记录)。
-- **多 sandbox/多 client 同 scope**:checkpoint 是 per scope×user×session;同一用户多端需合并策略(可暂定"每端独立 lane,publish 时各自 rebase")。
+- **父子重叠的语义**:parent-scope-wins 是兜底,但要让用户/agent 看得懂"为什么我的改动被父级覆盖"——需可读的冲突说明(已有 `superseded_by_parent` 记录)。**✅ publish 冲突的可读说明已实现**:sidecar publish 真冲突时,先在暂停的 rebase 状态下抽取每个路径的 `<<<<<<< / ======= / >>>>>>>` 冲突块、生成人/agent 可读的 JSON+Markdown 报告(双方内容 + 自然语言"你的改动没丢、publish 被 HELD")写到 `SYNC_CONFLICT_DIR`,再 abort 还原干净工作树;并按注入的 `conflict_policy` 路由(`agent_*` → 让 sandbox 内 agent 带上下文在干净树上重做并重发;`manual_review` 等 → 浮给人)。返回 `CONFLICT:agent|manual <paths> report=<md>`。(服务端 `outbox`+`agent_resolver` 仍服务于非 sidecar 的 typed-write 路径。)
+- **多 sandbox/多 client 同 scope**:checkpoint 是 per scope×user×session;同一用户多端需合并策略(可暂定"每端独立 lane,publish 时各自 rebase")。**✅ 已落地**:每端是独立 clone = 独立私有 checkpoint lane,publish 经 fetch→rebase→ff-push 在共享 SoT 汇合(不相交编辑自动合并,仅真重叠才冲突);`LANE`(默认 hostname,可 `SYNC_LANE` 覆盖)写入 checkpoint 的 `Sync-Lane:` trailer(经 rebase 保留 → SoT 可溯源是哪端发布)并隔离各端 cursor;publish 的 push-race 重试由固定 3 次改为 `SYNC_PUBLISH_ATTEMPTS`(默认 5)+ 退避。多端不相交并发 publish 汇合已端到端验证。
 
 ---
 
@@ -224,6 +224,27 @@ SoT 推进时(他人 publish,或父子投影),server 计算**受影响路径集*
 **部署到 qubits 时需要**:① 应用两个迁移(`20260613000000_scope_sync_events`、`20260613001000_scope_sync_settings`);② `SCOPE_SANDBOX_STORE=supabase` 让事件/设置用持久库;③ sidecar 装进 sandbox 镜像 + 启动时带 `SYNC_*` 环境(尤其 `SYNC_EVENTS_URL/PROJECT_ID/SCOPE_ID/TOKEN` 开启事件消费);④ 验证 version_engine post-push 的 emit 真正 fan-out(查 `scope_sync_events` 表或 `/activity`)。
 
 > 70 个 scope_sync 单测全绿;E2B 端到端 ALL PASS。
+
+### 9.6 P0 闭环接线 + 任务边界 marker(2026-06-14)
+
+- **connect → sidecar 自动启动**:`scope_sandbox.connect` 在授权后(best-effort、按 scope `auto_sync` 开关)调 `sidecar_provision.install_and_start`,把 sidecar 装进 box 并带上由 `build_sidecar_env` 从托管 policy 映射出的 `SYNC_*` 启动 watch。`sidecar_starter` 可注入,connect 单测保持 hermetic。
+- **access-key 事件端点**:新增 `GET /api/v1/scope-sync/ap/events`(`X-Access-Key` 鉴权,scope 从 key 反查),供 box 内 sidecar 用它克隆时已持有的 access_key 拉取上游事件——无需 JWT。`consume_events` 改发 `X-Access-Key`。
+- **agent 任务边界 marker(#3)**:见 §9 第一条。
+- **本地真 git 端到端**(无 E2B/网络):`sandbox/scope-sync-sidecar/tests/test_e2e_local.py` 用真实 git 世界(裸 SoT + 两个工作树 + localhost `/ap/events` stub)跑通 edit→checkpoint(私有)→publish(ff push)→integrate(稀疏拉取)、publish 冲突上报(非崩溃)、`consume_events` 经 `X-Access-Key` 集成不相交路径 / 重叠 HOLD、以及 marker 先于 quiescence 立即 publish。7 用例全绿。
+> 201 个 scope_sync + scope_sandbox 单测 + 7 个 sidecar 本地端到端全绿。
+
+### 9.7 真环境深度测试(2026-06-14,部署版 qubits + 真 E2B)
+
+新建测试 project(seed)取 root access_key,实环境跑通:
+- **Stage 1 sidecar→qubits publish 闭环**:真 sidecar 在克隆库里 edit→publish→push 到真 qubits SoT;qubits emit → `/activity`(event id+affected_paths+origin)、新 `/stats`(publish 量/distinct origins/paths)、新 `/ap/events`(`X-Access-Key`,scope 从 key 反查,无 JWT)全部命中。✅
+- **Stage 2 consume 闭环**:第二端 publish 一个不相交文件 → A 端真 sidecar 轮询真 `/ap/events`(cursor 推进)→ 稀疏 integrate 该文件。✅
+- **Stage 3 connect→E2B→sidecar(发现并修复 2 个真 bug)**:部署版 `connect` 真起了 E2B box(SSH+clone+per-user 工作树都在),但 **sidecar 没起**(`_maybe_start_sidecar` best-effort 静默失败)。两个 bug:
+  1. **打包**:`load_sidecar_script()` 读 repo-root/`sandbox/`(在 `backend/` 之外,部署镜像里没有)→ FileNotFoundError。修:把脚本 vendored 进 backend 包(`scope_sync/_sidecar/`),canonical 优先、bundled 兜底,drift-guard 测试保持一致。
+  2. **E2B 后台启动**:`setsid … &` 自分离在 E2B `commands.run` 下不活(返回即杀进程树);`pkill…; <env> python3…` 链式命令也破坏 E2B 后台启动。修:`ProviderCapabilities.background_exec_required`(E2B=True)、`exec(background=True)`(E2B→`commands.run(background=True)`;Fly no-op)、`install_and_start` 对后台型 provider **单独** foreground pkill + 后台干净 watch。
+  - 已用**真 E2B box + 真生产代码路径**(E2BProvider→SdkE2BClient.exec(background=True)→真 install_and_start)验证:sidecar 起来、marker 触发 publish、qubits SoT 推进+emit。✅
+- **✅ 部署版 connect 自动起 sidecar 已实环境验证(2026-06-14,带修复重部后)**:`POST /scope-sandboxes/connect` → qubits 真起 E2B box → 自动装(`~/.puppyone/sync_sidecar.py`,BUG1 修复=脚本随 backend 发布)+ 自动起 watch(进程在,BUG2 修复=E2B background 启动)+ 注入正确 `SYNC_*`(policy 映射)+ 已消费真 `/ap/events`;随后 box 内 edit→marker→publish 经部署端点闭环到真 qubits SoT(head 推进 + `/activity` 出事件)。**P0 闭环 100% 实环境闭合。**
+
+> 210 个 scope_sync + scope_sandbox 单测 + 18 个 sidecar 本地端到端全绿;sidecar↔qubits 全闭环 + **部署版 connect 自动起 sidecar** 均实环境验证。
 
 ## 10. 一句话总结
 

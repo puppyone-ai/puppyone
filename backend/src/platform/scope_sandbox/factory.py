@@ -32,6 +32,7 @@ def build_provider(
     fly_token: str = "",
     fly_image: str = "",
     e2b_api_key: str | None = None,
+    e2b_template: str = "",
     e2b_client: E2BClient | None = None,
 ) -> SandboxProvider:
     """Build a sandbox provider by name. Injectables (``e2b_client``) keep this
@@ -41,7 +42,9 @@ def build_provider(
             raise ValueError("Fly provider requires fly_app and fly_token")
         return FlyMachinesProvider(fly_app, fly_token, default_image=fly_image)
     if name == PROVIDER_E2B:
-        return E2BProvider(e2b_client or SdkE2BClient(api_key=e2b_api_key))
+        return E2BProvider(
+            e2b_client or SdkE2BClient(api_key=e2b_api_key, template=e2b_template)
+        )
     raise ValueError(f"unknown scope-sandbox provider {name!r}; expected one of {SUPPORTED_PROVIDERS}")
 
 
@@ -54,6 +57,7 @@ def provider_from_settings(settings, name: str | None = None) -> SandboxProvider
         fly_token=getattr(settings, "SCOPE_SANDBOX_FLY_TOKEN", ""),
         fly_image=getattr(settings, "SCOPE_SANDBOX_FLY_IMAGE", ""),
         e2b_api_key=getattr(settings, "E2B_API_KEY", None),
+        e2b_template=getattr(settings, "SCOPE_SANDBOX_E2B_TEMPLATE", ""),
     )
 
 

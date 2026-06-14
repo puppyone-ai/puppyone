@@ -95,6 +95,11 @@ class ProviderCapabilities:
     supports_tcp_ingress: bool
     # True if the sandbox can be run on the customer's own infrastructure.
     self_hostable: bool = False
+    # True if a long-running command must be launched via exec(background=True)
+    # because the provider kills a command's process tree when exec returns (E2B);
+    # a self-detaching `setsid … &` does NOT survive. SSH-based providers (Fly)
+    # leave this False (the command detaches itself).
+    background_exec_required: bool = False
 
 
 class SandboxProvider(ABC):
@@ -124,8 +129,12 @@ class SandboxProvider(ABC):
     async def status(self, sandbox_id: str) -> SandboxInfo:
         """Current provider-side state (used to reconcile drift)."""
 
-    async def exec(self, sandbox_id: str, command: str) -> dict:
+    async def exec(self, sandbox_id: str, command: str, *, background: bool = False) -> dict:
         """Run a command (used for warmup / health / incremental fetch).
+
+        ``background=True`` launches a long-running command detached and returns
+        immediately (no exit code) — needed by providers with
+        ``background_exec_required`` (see :class:`ProviderCapabilities`).
 
         Optional — providers that don't support out-of-band exec raise.
         """

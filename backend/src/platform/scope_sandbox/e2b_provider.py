@@ -51,7 +51,7 @@ class E2BClient(Protocol):
     def resume(self, sandbox_id: str) -> None: ...
     def kill(self, sandbox_id: str) -> None: ...
     def get_state(self, sandbox_id: str) -> SandboxState: ...
-    def exec(self, sandbox_id: str, command: str) -> dict: ...
+    def exec(self, sandbox_id: str, command: str, background: bool = False) -> dict: ...
     def set_timeout(self, sandbox_id: str) -> None: ...
 
 
@@ -77,6 +77,9 @@ class E2BProvider(SandboxProvider):
             supports_destroy=True,
             supports_tcp_ingress=False,   # no native public TCP — SSH via wss tunnel
             self_hostable=True,
+            # commands.run kills the process tree on return → long-runners (the
+            # sync sidecar) must be launched via exec(background=True).
+            background_exec_required=True,
         )
 
     def _connection(self, sandbox_id: str, spec_ssh_port: int = 22) -> ConnectionInfo:
@@ -110,8 +113,8 @@ class E2BProvider(SandboxProvider):
         state = await asyncio.to_thread(self._client.get_state, sandbox_id)
         return SandboxInfo(sandbox_id, state)
 
-    async def exec(self, sandbox_id: str, command: str) -> dict:
-        return await asyncio.to_thread(self._client.exec, sandbox_id, command)
+    async def exec(self, sandbox_id: str, command: str, *, background: bool = False) -> dict:
+        return await asyncio.to_thread(self._client.exec, sandbox_id, command, background)
 
     async def extend(self, sandbox_id: str) -> None:
         # E2B sandboxes auto-kill at their timeout; reset it so an active
@@ -129,13 +132,20 @@ class SdkE2BClient(E2BClient):
     ``E2B_API_KEY`` from the environment (we don't pass it explicitly).
     """
 
-    def __init__(self, api_key: str | None = None, *, timeout: int = 300) -> None:
+    def __init__(self, api_key: str | None = None, *, timeout: int = 300,
+                 template: str = "") -> None:
         self._api_key = api_key
         self._timeout = timeout
+        self._template = template or ""   # custom template id (roadmap #6); "" → default
 
     def create(self, spec: SandboxSpec) -> str:
         from e2b_code_interpreter import Sandbox  # lazy: keep import off the hot path
-        sbx = Sandbox.create(timeout=self._timeout)
+        # Launch the custom PuppyOne template (baked sshd+websocat+sidecar) when
+        # configured; otherwise the SDK default template.
+        if self._template:
+            sbx = Sandbox.create(self._template, timeout=self._timeout)
+        else:
+            sbx = Sandbox.create(timeout=self._timeout)
         return sbx.sandbox_id
 
     def pause(self, sandbox_id: str) -> None:
@@ -163,9 +173,14 @@ class SdkE2BClient(E2BClient):
             return SandboxState.STOPPED
         return SandboxState.UNKNOWN
 
-    def exec(self, sandbox_id: str, command: str) -> dict:
+    def exec(self, sandbox_id: str, command: str, background: bool = False) -> dict:
         from e2b_code_interpreter import Sandbox
         sbx = Sandbox.connect(sandbox_id, timeout=self._timeout)
+        if background:
+            # Detached long-runner: commands.run kills the process tree on return,
+            # so background=True keeps it alive. No exit code to wait on.
+            sbx.commands.run(command, background=True)
+            return {"exit_code": None, "stdout": "", "stderr": "", "background": True}
         result = sbx.commands.run(command)
         return {
             "exit_code": getattr(result, "exit_code", None),
