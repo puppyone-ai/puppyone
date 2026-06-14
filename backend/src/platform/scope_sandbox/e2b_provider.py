@@ -129,13 +129,20 @@ class SdkE2BClient(E2BClient):
     ``E2B_API_KEY`` from the environment (we don't pass it explicitly).
     """
 
-    def __init__(self, api_key: str | None = None, *, timeout: int = 300) -> None:
+    def __init__(self, api_key: str | None = None, *, timeout: int = 300,
+                 template: str = "") -> None:
         self._api_key = api_key
         self._timeout = timeout
+        self._template = template or ""   # custom template id (roadmap #6); "" → default
 
     def create(self, spec: SandboxSpec) -> str:
         from e2b_code_interpreter import Sandbox  # lazy: keep import off the hot path
-        sbx = Sandbox.create(timeout=self._timeout)
+        # Launch the custom PuppyOne template (baked sshd+websocat+sidecar) when
+        # configured; otherwise the SDK default template.
+        if self._template:
+            sbx = Sandbox.create(self._template, timeout=self._timeout)
+        else:
+            sbx = Sandbox.create(timeout=self._timeout)
         return sbx.sandbox_id
 
     def pause(self, sandbox_id: str) -> None:

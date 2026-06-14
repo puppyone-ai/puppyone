@@ -10,7 +10,7 @@
 | 3 | session 状态外部化 DB/Redis (5.3) | P0(生产)/P2(demo) | 多 worker/重启不丢会话 | schema 易返工(API 未定型) | — |
 | 4 | reaper 排程 (5.2) | **P0(成本)** | 自动 stop/destroy 省钱;reap 逻辑已就绪 | 生产正确性依赖 #3;需 app manager 单例 | 3 |
 | 5 | SSH 短期凭证签发/撤销 | P1(治理核心) | "离职即失权" + 审计到人 | 工作量大;demo 用静态 key 可绕 | — |
-| 6 | 自定义 E2B 模板(烤入 sshd+websocat) | P1 | 启动 6s→1s、resume 后 SSH 仍在 | 构建流水线;仅 E2B 侧 | 1 |
+| 6 | 自定义 E2B 模板(烤入 sshd+websocat+sidecar) | P1 | 启动 6s→1s、resume 后 SSH 仍在 | 构建流水线;仅 E2B 侧 | 1 | **✅ 代码就绪**:`sandbox/scope-e2b/`(e2b.Dockerfile+toml+build.sh)烤入 sshd(硬化)+websocat+python+sidecar+`puppyone-ssh-up` 启动器;设 `SCOPE_SANDBOX_E2B_TEMPLATE` → provider 用该模板 + bootstrap 走 `fast_provision_steps`(免运行时下载/keygen/配置)。**唯 `e2b template build` 是外部计费步,待人工执行** |
 | 7 | per-user working tree + 身份/auth | P1 | push 归属到人、协同归属正确 | 依赖凭证层 | 5 |
 | 8 | 可观测(写 sync_runs/GAP-8)+ 调参 | P1/P2 | 用量可见 + 调 session 策略 | 调参需真实数据量 | — |
 | 9 | HTTP API + 前端 provider 选择 | P1(产品化) | 用户能用的最后一公里 | 核心未稳前做=返工 | 1,2,5 |

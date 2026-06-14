@@ -105,8 +105,11 @@ class ScopeSandboxService:
         async def bootstrap(provider: SandboxProvider, sandbox_id: str, spec: SandboxSpec) -> None:
             # E2B has no native TCP ingress → provision sshd + websocat tunnel at
             # runtime (publickey-only). Fly bakes sshd into the image → skip.
+            # With the custom E2B template (roadmap #6) sshd+websocat are baked, so
+            # use the FAST path (seed + start only).
             if not provider.capabilities().supports_tcp_ingress:
-                await ssh_e2b.provision_e2b_ssh(provider, sandbox_id)  # no seed key
+                baked = bool(getattr(settings, "SCOPE_SANDBOX_E2B_TEMPLATE", ""))
+                await ssh_e2b.provision_e2b_ssh(provider, sandbox_id, baked=baked)  # no seed key
             git_url = spec.env.get(GIT_URL_ENV, "")
             if git_url:
                 await scope_provision.provision_scope_workspace(

@@ -36,6 +36,14 @@ def test_build_e2b_defaults_to_sdk_client_without_network():
     assert isinstance(prov, E2BProvider)
 
 
+def test_build_e2b_passes_custom_template_to_sdk_client():
+    # roadmap #6: the configured template id flows into the SDK client (used as
+    # Sandbox.create(template, …)); unset → default ("").
+    prov = build_provider("e2b", e2b_api_key="k", e2b_template="puppyone-tmpl-123")
+    assert prov._client._template == "puppyone-tmpl-123"
+    assert build_provider("e2b", e2b_api_key="k")._client._template == ""
+
+
 def test_fly_requires_app_and_token():
     with pytest.raises(ValueError):
         build_provider("fly", fly_app="", fly_token="")
@@ -65,7 +73,9 @@ def test_provider_from_settings_picks_configured_default():
         SCOPE_SANDBOX_FLY_TOKEN="tok",
         SCOPE_SANDBOX_FLY_IMAGE="img",
         E2B_API_KEY=None,
+        SCOPE_SANDBOX_E2B_TEMPLATE="tmpl-xyz",
     )
     assert isinstance(provider_from_settings(settings), FlyMachinesProvider)
-    # explicit override wins
-    assert isinstance(provider_from_settings(settings, name="e2b"), E2BProvider)
+    # explicit override wins, and the configured E2B template flows through
+    e2b = provider_from_settings(settings, name="e2b")
+    assert isinstance(e2b, E2BProvider) and e2b._client._template == "tmpl-xyz"
