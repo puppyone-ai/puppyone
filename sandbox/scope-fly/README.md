@@ -88,9 +88,17 @@ SCOPE_SANDBOX_FLY_IMAGE=registry.fly.io/puppyone-sandboxes:scope-sandbox
    `pull.rebase true`).
 2. Credential layer `grant_ssh_access(provider, machine_id, user_id, pubkey,
    expires_at=…)` adds the user's short-lived key.
-3. User connects: `ssh puppy@<app>.fly.dev` (or VSCode Remote-SSH) — direct TCP,
+3. **Sync sidecar auto-start** (best-effort, gated on the scope's `auto_sync`):
+   `connect` calls `sidecar_provision.install_and_start`, which installs
+   `~/.puppyone/sync_sidecar.py` and starts `watch`. On Fly this uses the
+   **self-detaching** form (`setsid … &`) since Fly exec is SSH-based and the
+   detached process survives the machine staying up — unlike E2B, which needs
+   `background_exec_required` + `exec(background=True)`. The exact wrapped command
+   (`su - puppy -c '… setsid python3 … &'`, with single-quoted `SYNC_*` env) is
+   quoting-verified in `test_install_and_start_sidecar_command_survives_su_wrapping`.
+4. User connects: `ssh puppy@<app>.fly.dev` (or VSCode Remote-SSH) — direct TCP,
    no `ProxyCommand`. `ConnectionInfo.proxy_command` is `None` for Fly.
-4. Offboarding / TTL: `revoke_ssh_access(...)` (or `manager.revoke_user`, wired
+5. Offboarding / TTL: `revoke_ssh_access(...)` (or `manager.revoke_user`, wired
    to the revoke_hook) removes the line; `expiry-time` also auto-expires it.
 
 ## Verifying the image locally (no Fly account)
