@@ -182,6 +182,52 @@ export async function getApiAccessToken(): Promise<string | null> {
 // Alias for backward compatibility
 export const getAccessToken = getApiAccessToken;
 
+// ── session recovery on 401 ───────────────────────────────────────────
+// A Supabase access token lives ~1h. When it lapses, the backend returns
+// 401 on every call; without recovery the UI just renders empty (orgs +
+// projects "disappear", pages stick on loading). On a 401 we force a
+// one-time token refresh and retry; if that fails the session is truly
+// dead and we redirect to /login instead of silently failing.
+let _inflightRefresh: Promise<string | null> | null = null;
+let _redirectingToLogin = false;
+
+/** Force-refresh the Supabase session (coalesced). Returns the new token or null. */
+async function refreshAuthToken(): Promise<string | null> {
+  _cachedToken = null;
+  _cacheValidUntilMs = 0;
+  if (_inflightRefresh) return _inflightRefresh;
+  _inflightRefresh = (async () => {
+    try {
+      const { data, error } = await getSupabase().auth.refreshSession();
+      if (error || !data.session) return null;
+      _setCacheFromSession(data.session as any);
+      return _cachedToken;
+    } catch {
+      return null;
+    } finally {
+      _inflightRefresh = null;
+    }
+  })();
+  return _inflightRefresh;
+}
+
+/** Session is unrecoverable: clear it and send the user to /login (once). */
+function handleAuthFailure(): void {
+  _cachedToken = null;
+  _cacheValidUntilMs = 0;
+  if (typeof window === 'undefined' || _redirectingToLogin) return;
+  if (window.location.pathname.startsWith('/login')) return;
+  _redirectingToLogin = true;
+  const go = () => {
+    window.location.href = '/login?session=expired';
+  };
+  try {
+    Promise.resolve(getSupabase().auth.signOut({ scope: 'local' })).finally(go);
+  } catch {
+    go();
+  }
+}
+
 interface ApiResponse<T> {
   code: number;
   message: string;
@@ -193,7 +239,8 @@ interface ApiResponse<T> {
  */
 export async function apiRequest<T>(
   endpoint: string,
-  options?: ApiRequestOptions
+  options?: ApiRequestOptions,
+  _isRetry = false
 ): Promise<T> {
   const token = await getAuthToken();
   const { timeoutMs = DEFAULT_API_TIMEOUT_MS, ...fetchOptions } = options ?? {};
@@ -234,6 +281,17 @@ export async function apiRequest<T>(
   }
 
   if (response.status === 401) {
+    // The access token likely expired. Try a one-time refresh + retry before
+    // giving up — this is what stops a long-open tab from silently showing an
+    // empty account once the ~1h token lapses.
+    if (!_isRetry && typeof window !== 'undefined') {
+      const refreshed = await refreshAuthToken();
+      if (refreshed) {
+        return apiRequest<T>(endpoint, options, true);
+      }
+    }
+    // Refresh failed (or we already retried) → the session is unrecoverable.
+    handleAuthFailure();
     const error: any = new Error('You are not signed in, or your session has expired.');
     error.response = response;
     error.code = 401;
