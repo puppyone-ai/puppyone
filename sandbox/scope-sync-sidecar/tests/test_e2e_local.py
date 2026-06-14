@@ -23,6 +23,7 @@ import os
 import subprocess
 import sys
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
@@ -368,6 +369,50 @@ def test_worktree_lock_reclaims_stale(world, tmp_path):
     finally:
         s._pid_alive = orig
         _cleanup_env("SYNC_REPO", "SYNC_BRANCH", "SYNC_REMOTE", "SYNC_LOCK", "SYNC_LOCK_TIMEOUT_S")
+
+
+def _count_ahead(repo):
+    return int(_git(repo, "rev-list", "--count", "origin/main..HEAD") or "0")
+
+
+def test_checkpoint_chain_capped_by_count(world, tmp_path):
+    """The private checkpoint chain is bounded: past the count cap it compacts to
+    one commit, and the working-tree content (latest edit) is never lost."""
+    a = world["a"]
+    s = _import_sidecar(a, tmp_path, SYNC_MAX_CHECKPOINTS="3", SYNC_CHECKPOINT_TTL_S="0")
+    try:
+        last = ""
+        for i in range(6):
+            last = f"draft revision {i}\n"
+            (a / "docs" / "intro.md").write_text(last)
+            s.checkpoint()
+            assert _count_ahead(a) <= 3            # never exceeds the cap
+        # the chain compacted at least once, content intact, and publishable
+        assert (a / "docs" / "intro.md").read_text() == last
+        assert s.publish().startswith("PUBLISHED")
+        assert _git(world["sot"], "show", "main:docs/intro.md") == last.strip()
+    finally:
+        _cleanup_env("SYNC_REPO", "SYNC_BRANCH", "SYNC_REMOTE", "SYNC_LOCK",
+                     "SYNC_MAX_CHECKPOINTS", "SYNC_CHECKPOINT_TTL_S")
+
+
+def test_checkpoint_chain_capped_by_ttl(world, tmp_path):
+    """With the count cap disabled, a checkpoint older than the TTL still triggers
+    compaction (so a slow trickle of edits doesn't accumulate forever)."""
+    a = world["a"]
+    s = _import_sidecar(a, tmp_path, SYNC_MAX_CHECKPOINTS="0", SYNC_CHECKPOINT_TTL_S="1")
+    try:
+        (a / "docs" / "intro.md").write_text("first\n")
+        s.checkpoint()
+        assert _count_ahead(a) == 1
+        time.sleep(1.2)                            # let the first checkpoint age past TTL
+        (a / "docs" / "intro.md").write_text("second\n")
+        s.checkpoint()                             # commit→2, then TTL-compact→1
+        assert _count_ahead(a) == 1
+        assert (a / "docs" / "intro.md").read_text() == "second\n"
+    finally:
+        _cleanup_env("SYNC_REPO", "SYNC_BRANCH", "SYNC_REMOTE", "SYNC_LOCK",
+                     "SYNC_MAX_CHECKPOINTS", "SYNC_CHECKPOINT_TTL_S")
 
 
 def test_consume_events_holds_on_overlap(world, tmp_path):

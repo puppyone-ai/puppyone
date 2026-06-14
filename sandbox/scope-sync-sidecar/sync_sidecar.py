@@ -46,6 +46,10 @@ WORK = os.environ.get("SYNC_WORK", "work")
 DEBOUNCE_S = float(os.environ.get("SYNC_DEBOUNCE_S", "4"))
 QUIESCENCE_S = float(os.environ.get("SYNC_QUIESCENCE_S", "180"))
 POLL_S = float(os.environ.get("SYNC_POLL_S", "2"))
+# Bound the private checkpoint chain (commits ahead of the last publish): too
+# many, or too old → compact to one (metadata-only; working tree never touched).
+MAX_CHECKPOINTS = int(os.environ.get("SYNC_MAX_CHECKPOINTS", "100"))
+CHECKPOINT_TTL_S = float(os.environ.get("SYNC_CHECKPOINT_TTL_S", "0"))
 # Upstream event channel (M3): poll PuppyOne for path-scoped "SoT advanced"
 # events and integrate lazily. Optional — unset → fall back to plain fetch.
 EVENTS_URL = os.environ.get("SYNC_EVENTS_URL", "")        # .../api/v1/scope-sync/events
@@ -214,12 +218,52 @@ def snapshot_tree() -> str:
         except OSError: pass
 
 
+def _chain_base() -> str | None:
+    """The last published commit = merge-base of the upstream branch and HEAD.
+    Private checkpoints are the commits in ``base..HEAD``."""
+    rc, out, _ = git("merge-base", f"{REMOTE}/{BRANCH}", "HEAD", check=False)
+    base = out.strip()
+    return base if rc == 0 and base else None
+
+
+def _compact_checkpoints() -> str | None:
+    """Collapse the private checkpoint chain into ONE commit when it exceeds the
+    count cap or its oldest commit is older than the TTL. Metadata-only:
+    ``reset --soft`` keeps the index + working tree, so no edit is ever lost — only
+    deep *private* undo points beyond the bound are discarded (publish is the
+    durable record). No-op when both bounds are disabled."""
+    if MAX_CHECKPOINTS <= 0 and CHECKPOINT_TTL_S <= 0:
+        return None
+    base = _chain_base()
+    if not base:
+        return None
+    rng = f"{base}..HEAD"
+    count = int(git("rev-list", "--count", rng)[1].strip() or "0")
+    if count <= 1:
+        return None
+    over_count = MAX_CHECKPOINTS > 0 and count > MAX_CHECKPOINTS
+    over_ttl = False
+    if CHECKPOINT_TTL_S > 0:
+        times = git("log", "--format=%ct", rng)[1].split()
+        if times:
+            over_ttl = (int(time.time()) - int(times[-1])) >= CHECKPOINT_TTL_S  # oldest
+    if not (over_count or over_ttl):
+        return None
+    git("reset", "--soft", base)        # collapse; index + working tree preserved
+    git("commit", "--no-verify", "--allow-empty",
+        "-m", f"checkpoint (compacted {count}) @{int(time.time())}")
+    head = git("rev-parse", "HEAD")[1].strip()
+    print(f"[sidecar] compacted {count} checkpoints → {head[:10]}", flush=True)
+    return head
+
+
 def checkpoint() -> str | None:
     with worktree_lock():
         if not dirty_paths():
             return None
         git("add", "-A")
         git("commit", "--no-verify", "--allow-empty", "-m", f"checkpoint @{int(time.time())}")
+        _compact_checkpoints()           # keep the private chain bounded
         return git("rev-parse", "HEAD")[1].strip()
 
 

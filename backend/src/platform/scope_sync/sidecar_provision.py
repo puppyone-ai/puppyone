@@ -85,6 +85,8 @@ def build_sidecar_env(
         "SYNC_BRANCH": branch,
         "SYNC_DEBOUNCE_S": str(policy.get("checkpoint_debounce_s", 4)),
         "SYNC_QUIESCENCE_S": str(policy.get("quiescence_publish_s", 0)),
+        "SYNC_MAX_CHECKPOINTS": str(policy.get("checkpoint_chain_max", 100)),
+        "SYNC_CHECKPOINT_TTL_S": str(policy.get("checkpoint_chain_ttl_s", 0)),
         "SYNC_EVENTS_URL": events_url,
         "SYNC_PROJECT_ID": project_id,
         "SYNC_SCOPE_ID": scope_id,

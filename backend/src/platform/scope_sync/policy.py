@@ -69,6 +69,12 @@ class SyncPolicyConfig:
     checkpoint_debounce_s: float = 4.0       # after edits stop this long → checkpoint
     checkpoint_max_interval_s: float = 60.0  # during sustained edits, ≥ this often
 
+    # checkpoint chain bound (private commits ahead of the last publish) — keep the
+    # safety buffer from growing unbounded between sparse publishes. Compaction is
+    # metadata-only (working tree is never touched); only deep private undo is lost.
+    checkpoint_chain_max: int = 100          # > this many → compact the chain to one
+    checkpoint_chain_ttl_s: float = 0.0      # checkpoints older than this → compact (0 disables)
+
     # publish triggers (the "version" lane) — kept deliberately sparse
     quiescence_publish_s: float = 180.0      # long idle → publish (0 disables)
     publish_on_agent_done: bool = True
@@ -92,6 +98,8 @@ class SyncPolicyConfig:
 _NON_DEV = SyncPolicyConfig(
     checkpoint_debounce_s=3.0,
     checkpoint_max_interval_s=45.0,
+    checkpoint_chain_max=50,         # autopilot churns micro-edits → compact sooner
+    checkpoint_chain_ttl_s=3600.0,   # collapse stale micro-checkpoints after 1h
     quiescence_publish_s=120.0,      # autopilot: publish a bit eagerly once work settles
     publish_on_agent_done=True,
     publish_on_explicit=True,
@@ -104,6 +112,7 @@ _NON_DEV = SyncPolicyConfig(
 _DEV = SyncPolicyConfig(
     checkpoint_debounce_s=5.0,
     checkpoint_max_interval_s=90.0,
+    checkpoint_chain_max=200,        # devs value fine-grained recent undo → keep more
     quiescence_publish_s=0.0,        # devs publish deliberately, not on idle
     publish_on_agent_done=True,
     publish_on_explicit=True,
@@ -116,6 +125,7 @@ _DEV = SyncPolicyConfig(
 _REVIEWER = SyncPolicyConfig(
     checkpoint_debounce_s=5.0,
     checkpoint_max_interval_s=120.0,
+    checkpoint_chain_max=200,
     quiescence_publish_s=0.0,
     publish_on_agent_done=False,
     publish_on_explicit=True,
