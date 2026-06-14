@@ -231,9 +231,20 @@ SoT 推进时(他人 publish,或父子投影),server 计算**受影响路径集*
 - **access-key 事件端点**:新增 `GET /api/v1/scope-sync/ap/events`(`X-Access-Key` 鉴权,scope 从 key 反查),供 box 内 sidecar 用它克隆时已持有的 access_key 拉取上游事件——无需 JWT。`consume_events` 改发 `X-Access-Key`。
 - **agent 任务边界 marker(#3)**:见 §9 第一条。
 - **本地真 git 端到端**(无 E2B/网络):`sandbox/scope-sync-sidecar/tests/test_e2e_local.py` 用真实 git 世界(裸 SoT + 两个工作树 + localhost `/ap/events` stub)跑通 edit→checkpoint(私有)→publish(ff push)→integrate(稀疏拉取)、publish 冲突上报(非崩溃)、`consume_events` 经 `X-Access-Key` 集成不相交路径 / 重叠 HOLD、以及 marker 先于 quiescence 立即 publish。7 用例全绿。
-- **仍待实测**:真 E2B box 对真 qubits scope 的实环境跑通(被 ① QUBITS_TOKEN 过期 ② `/ap/events` 等新代码未部署 双重阻塞;两者就绪后一次性跑)。
-
 > 201 个 scope_sync + scope_sandbox 单测 + 7 个 sidecar 本地端到端全绿。
+
+### 9.7 真环境深度测试(2026-06-14,部署版 qubits + 真 E2B)
+
+新建测试 project(seed)取 root access_key,实环境跑通:
+- **Stage 1 sidecar→qubits publish 闭环**:真 sidecar 在克隆库里 edit→publish→push 到真 qubits SoT;qubits emit → `/activity`(event id+affected_paths+origin)、新 `/stats`(publish 量/distinct origins/paths)、新 `/ap/events`(`X-Access-Key`,scope 从 key 反查,无 JWT)全部命中。✅
+- **Stage 2 consume 闭环**:第二端 publish 一个不相交文件 → A 端真 sidecar 轮询真 `/ap/events`(cursor 推进)→ 稀疏 integrate 该文件。✅
+- **Stage 3 connect→E2B→sidecar(发现并修复 2 个真 bug)**:部署版 `connect` 真起了 E2B box(SSH+clone+per-user 工作树都在),但 **sidecar 没起**(`_maybe_start_sidecar` best-effort 静默失败)。两个 bug:
+  1. **打包**:`load_sidecar_script()` 读 repo-root/`sandbox/`(在 `backend/` 之外,部署镜像里没有)→ FileNotFoundError。修:把脚本 vendored 进 backend 包(`scope_sync/_sidecar/`),canonical 优先、bundled 兜底,drift-guard 测试保持一致。
+  2. **E2B 后台启动**:`setsid … &` 自分离在 E2B `commands.run` 下不活(返回即杀进程树);`pkill…; <env> python3…` 链式命令也破坏 E2B 后台启动。修:`ProviderCapabilities.background_exec_required`(E2B=True)、`exec(background=True)`(E2B→`commands.run(background=True)`;Fly no-op)、`install_and_start` 对后台型 provider **单独** foreground pkill + 后台干净 watch。
+  - 已用**真 E2B box + 真生产代码路径**(E2BProvider→SdkE2BClient.exec(background=True)→真 install_and_start)验证:sidecar 起来、marker 触发 publish、qubits SoT 推进+emit。✅
+- **仍待**:部署版 `connect` 端点自动起 sidecar —— 需带上修复 commit **再次重部署** 后,重跑 connect E2E 即可确认(代码侧已实环境证实正确)。
+
+> 210 个 scope_sync + scope_sandbox 单测 + 18 个 sidecar 本地端到端全绿;sidecar↔qubits 全闭环 + E2B connect 自动起(修复后)均实环境验证。
 
 ## 10. 一句话总结
 
