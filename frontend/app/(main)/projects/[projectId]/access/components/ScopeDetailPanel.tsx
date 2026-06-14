@@ -48,13 +48,14 @@ import { PROJECT_CONTENT_RAIL_WIDTH } from '@/lib/layout';
 import { T } from '../lib/tokens';
 import { SectionLabel } from './ui-blocks';
 import { SandboxConnectCard } from './SandboxConnectCard';
+import { SyncActivityPanel } from './SyncActivityPanel';
 import { ScopeSettingsBlock } from '../../data/components/access-points/ScopeSettingsBlock';
 import type { ConnectorEditPatch } from '../hooks/useAccessData';
 import { AccessActivitySection, filterAccessActivityLogs } from './AccessActivity';
 import { ConnectorList } from './ConnectorMethodList';
 import { ScopePageHeader, SettingsSection } from './ScopeHeader';
 
-const SHOW_ACCESS_ACTIVITY = false;
+const SHOW_ACCESS_ACTIVITY = true;
 
 // ─── Detail pane root ────────────────────────────────────────────────
 
@@ -263,6 +264,10 @@ export function ScopeDetailPanel({
         {/* Remote Dev (SSH) — scope-level sandbox-as-access-point surface.
             Not a connector row; keyed by the scope itself. */}
         {scope ? <SandboxConnectCard scope={scope} projectId={projectId} /> : null}
+
+        {/* Sync activity + stats (M6 observability) — the managed-sync event
+            log for this scope. Self-hides when there's no sync history. */}
+        {scope ? <SyncActivityPanel scope={scope} projectId={projectId} /> : null}
       </div>
 
       <style>{`
