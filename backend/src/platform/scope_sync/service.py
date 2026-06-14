@@ -160,6 +160,31 @@ class ScopeSyncService:
             ],
         }
 
+    def stats(self, *, project_id: str, scope_id: str, window: int = 200) -> dict:
+        """Aggregate sync observability (#8) over the recent event log for a scope:
+        publish volume, distinct origins, per-source breakdown, last publish, and
+        the set of paths touched — the server-side counterpart to the sidecar's
+        own metrics."""
+        events = self._events.recent(project_id, scope_id, limit=window)
+        by_source: dict[str, int] = {}
+        origins: set[str] = set()
+        paths: set[str] = set()
+        for e in events:
+            by_source[e.source] = by_source.get(e.source, 0) + 1
+            if e.origin_user:
+                origins.add(e.origin_user)
+            paths.update(e.affected_paths)
+        latest = events[0] if events else None
+        return {
+            "events_in_window": len(events),
+            "window": window,
+            "by_source": by_source,
+            "distinct_origins": len(origins),
+            "distinct_paths": len(paths),
+            "latest_head": latest.head_version if latest else None,
+            "last_event_at": latest.created_at if latest else None,
+        }
+
     def poll_events_by_access_key(self, *, access_key: str, cursor: int) -> dict:
         """Sidecar-facing: resolve the scope from its access_key (no JWT) and
         return its events since cursor. The access_key already authorizes git +

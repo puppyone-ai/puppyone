@@ -471,6 +471,48 @@ def test_multi_end_publishes_converge_via_rebase(world):
     assert "Sync-Lane: endA" in bodies and "Sync-Lane: endB" in bodies
 
 
+def test_metrics_count_ops(world, tmp_path):
+    """Observability (#8): checkpoint/publish/integrate bump persistent counters
+    surfaced by metrics()/status, and chain_ahead reflects the private chain."""
+    a = world["a"]
+    mfile = tmp_path / "metrics.json"
+    s = _import_sidecar(a, tmp_path, SYNC_METRICS_FILE=str(mfile),
+                        SYNC_MAX_CHECKPOINTS="0", SYNC_CHECKPOINT_TTL_S="0")
+    try:
+        (a / "docs" / "intro.md").write_text("v1\n")
+        s.checkpoint()
+        (a / "docs" / "intro.md").write_text("v2\n")
+        s.checkpoint()
+        m = s.metrics()
+        assert m["checkpoints"] == 2 and m["lane"] and m["chain_ahead"] == 2
+        assert "last_checkpoint_ts" in m
+
+        assert s.publish().startswith("PUBLISHED")
+        m = s.metrics()
+        assert m["publishes"] == 1 and m["chain_ahead"] == 0   # published → chain reset
+        # status() is human-readable and carries the counters
+        st = s.status()
+        assert "checkpoints=2" in st and "publishes=1" in st and "lane=" in st
+    finally:
+        _cleanup_env("SYNC_REPO", "SYNC_BRANCH", "SYNC_REMOTE", "SYNC_LOCK",
+                     "SYNC_METRICS_FILE", "SYNC_MAX_CHECKPOINTS", "SYNC_CHECKPOINT_TTL_S")
+
+
+def test_metrics_count_integrations_and_holds(world, tmp_path):
+    a, b = world["a"], world["b"]
+    mfile = tmp_path / "m2.json"
+    (a / "docs" / "x.md").write_text("upstream x\n")
+    assert _sidecar(a, "publish").startswith("PUBLISHED")
+    s = _import_sidecar(b, tmp_path, SYNC_METRICS_FILE=str(mfile))
+    try:
+        (b / "docs" / "y.md").write_text("local dirty y\n")   # B editing y
+        s.integrate(["docs/x.md", "docs/y.md"])
+        m = s.metrics()
+        assert m["integrations"] == 1 and m["holds"] == 1
+    finally:
+        _cleanup_env("SYNC_REPO", "SYNC_BRANCH", "SYNC_REMOTE", "SYNC_LOCK", "SYNC_METRICS_FILE")
+
+
 def test_consume_events_holds_on_overlap(world, tmp_path):
     """If the upstream path overlaps B's own dirty edit, the sidecar HOLDs (does
     not clobber B's working copy); the next publish's rebase reconciles it."""

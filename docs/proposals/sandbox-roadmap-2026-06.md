@@ -12,7 +12,7 @@
 | 5 | SSH 短期凭证签发/撤销 | P1(治理核心) | "离职即失权" + 审计到人 | 工作量大;demo 用静态 key 可绕 | — |
 | 6 | 自定义 E2B 模板(烤入 sshd+websocat+sidecar) | P1 | 启动 6s→1s、resume 后 SSH 仍在 | 构建流水线;仅 E2B 侧 | 1 | **✅ 代码就绪**:`sandbox/scope-e2b/`(e2b.Dockerfile+toml+build.sh)烤入 sshd(硬化)+websocat+python+sidecar+`puppyone-ssh-up` 启动器;设 `SCOPE_SANDBOX_E2B_TEMPLATE` → provider 用该模板 + bootstrap 走 `fast_provision_steps`(免运行时下载/keygen/配置)。**唯 `e2b template build` 是外部计费步,待人工执行** |
 | 7 | per-user working tree + 身份/auth | P1 | push 归属到人、协同归属正确 | 依赖凭证层 | 5 |
-| 8 | 可观测(写 sync_runs/GAP-8)+ 调参 | P1/P2 | 用量可见 + 调 session 策略 | 调参需真实数据量 | — |
+| 8 | 可观测(写 sync_runs/GAP-8)+ 调参 | P1/P2 | 用量可见 + 调 session 策略 | 调参需真实数据量 | — | **✅ 可观测已实现**:sidecar 持久化计数器(checkpoints/publishes/conflicts/integrations/holds/compactions/push_races + last_*_ts + chain_ahead),`status`(人读)/`metrics`(JSON)子命令暴露;服务端 `GET /scope-sync/stats` 聚合事件日志(publish 量、distinct origins/paths、per-source、latest head)。**调参半待真实用量数据** |
 | 9 | HTTP API + 前端 provider 选择 | P1(产品化) | 用户能用的最后一公里 | 核心未稳前做=返工 | 1,2,5 |
 | 10 | Fly 路径(镜像+IPv4+SSH) | P1/P2 | 推荐默认、原生 TCP SSH、便宜 | 卡绑支付+计费;E2B 已可验证可缓 | — |
 | 11 | legacy 与 V2 退役 (5.7) | P2 | 少维护少混淆 | 现不冲突;过早合并牵扯 agent 用途 | — |

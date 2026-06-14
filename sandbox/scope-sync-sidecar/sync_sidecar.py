@@ -22,7 +22,7 @@ fallback for non-aware clients).
 
 Usage:
   sync_sidecar.py watch                 # the daemon loop
-  sync_sidecar.py checkpoint|publish|status
+  sync_sidecar.py checkpoint|publish|status|metrics
   sync_sidecar.py signal [done|save|publish|checkpoint]   # agent task-boundary marker
   sync_sidecar.py integrate <path>...   # sparse-pull disjoint upstream paths
   sync_sidecar.py rollback <commit>
@@ -85,6 +85,29 @@ CONFLICT_MD = os.path.join(CONFLICT_DIR, "puppy_sync_conflict.md")
 SIGNAL_FILE = os.environ.get("SYNC_SIGNAL_FILE", "/tmp/puppy_sync_signal")
 _PUBLISH_SIGNALS = {"publish", "done", "save", "verified"}
 _CHECKPOINT_SIGNALS = {"checkpoint", "draft"}
+# Observability (#8): persistent counters so the in-sandbox sync isn't a black box.
+# Updated best-effort by the ops; read by `status` / `metrics`.
+METRICS_FILE = os.environ.get("SYNC_METRICS_FILE", "") or f"/tmp/puppy_sync_metrics.{_LANE_SAFE}.json"
+
+
+def _metrics_read() -> dict:
+    try:
+        with open(METRICS_FILE, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def _metric_bump(key: str, n: int = 1, *, ts_key: str | None = None) -> None:
+    """Increment a counter (and optionally stamp a 'last' time). Best-effort."""
+    m = _metrics_read()
+    m[key] = int(m.get(key, 0)) + n
+    if ts_key:
+        m[ts_key] = int(time.time())
+    m["lane"] = LANE
+    with contextlib.suppress(OSError):
+        with open(METRICS_FILE, "w", encoding="utf-8") as f:
+            json.dump(m, f)
 
 
 def _paths_overlap(a, b) -> bool:
@@ -274,6 +297,7 @@ def _compact_checkpoints() -> str | None:
     git("commit", "--no-verify", "--allow-empty",
         "-m", f"checkpoint (compacted {count}) @{int(time.time())}")
     head = git("rev-parse", "HEAD")[1].strip()
+    _metric_bump("compactions")
     print(f"[sidecar] compacted {count} checkpoints → {head[:10]}", flush=True)
     return head
 
@@ -286,6 +310,7 @@ def checkpoint() -> str | None:
         # the Sync-Lane trailer survives rebase → SoT records which end published
         git("commit", "--no-verify", "--allow-empty",
             "-m", f"checkpoint @{int(time.time())}", "-m", f"Sync-Lane: {LANE}")
+        _metric_bump("checkpoints", ts_key="last_checkpoint_ts")
         _compact_checkpoints()           # keep the private chain bounded
         return git("rev-parse", "HEAD")[1].strip()
 
@@ -373,11 +398,16 @@ def publish() -> str:
                 conflicted = git("diff", "--name-only", "--diff-filter=U", check=False)[1].split()
                 status = _route_conflict(conflicted)    # readable report BEFORE abort
                 git("rebase", "--abort", check=False)    # restore the clean working tree
+                _metric_bump("conflicts", ts_key="last_conflict_ts")
                 return status
             if git("push", REMOTE, f"HEAD:{BRANCH}", check=False)[0] == 0:
+                _metric_bump("publishes", ts_key="last_publish_ts")
+                if attempt:
+                    _metric_bump("push_races", attempt)
                 return f"PUBLISHED {git('rev-parse', 'HEAD')[1].strip()}"
             # another end won the push race → back off, then re-fetch+rebase+retry
             time.sleep(min(0.05 * (attempt + 1), 0.5))
+        _metric_bump("push_race_exhausted")
         return "CONFLICT (push race)"
 
 
@@ -409,6 +439,10 @@ def integrate(paths: list[str], *, guard_dirty: bool = True) -> tuple[list[str],
             _atomic_write_bytes(os.path.join(REPO, norm), data)
             git("add", "--", norm)
             applied.append(p)
+    if applied:
+        _metric_bump("integrations", len(applied), ts_key="last_integrate_ts")
+    if held:
+        _metric_bump("holds", len(held))
     return applied, held
 
 
@@ -475,9 +509,27 @@ def _drain_signals() -> list[str]:
             pass
 
 
+def metrics() -> dict:
+    """Observable sync counters (#8): lane, lifetime op counts, last-op times, and
+    the current private chain depth (commits ahead of the last publish)."""
+    m = _metrics_read()
+    m.setdefault("lane", LANE)
+    base = _chain_base()
+    if base:
+        m["chain_ahead"] = int(git("rev-list", "--count", f"{base}..HEAD", check=False)[1].strip() or "0")
+    m["dirty"] = len(dirty_paths())
+    return m
+
+
 def status() -> str:
-    n = git("rev-list", "--count", WORK, check=False)[1].strip() or "?"
-    return f"dirty={sorted(dirty_paths())} work_commits={n}"
+    m = metrics()
+    counts = " ".join(
+        f"{k}={m[k]}" for k in
+        ("checkpoints", "publishes", "conflicts", "integrations", "holds", "compactions")
+        if k in m
+    )
+    return (f"lane={LANE} dirty={sorted(dirty_paths())} "
+            f"chain_ahead={m.get('chain_ahead', '?')} {counts}".rstrip())
 
 
 def _new_watch_state() -> dict:
@@ -574,6 +626,8 @@ def main(argv: list[str]) -> int:
     elif cmd == "rollback":
         git("reset", "--hard", argv[2])
         print(f"rolled back to {argv[2]}")
+    elif cmd == "metrics":
+        print(json.dumps(metrics(), indent=2))
     else:
         print(status())
     return 0

@@ -121,6 +121,28 @@ def test_ap_events_bad_key_403():
     assert resp.status_code == 403
 
 
+def test_stats_aggregates_recent_events():
+    svc = _service()
+    svc.record_publish(project_id="proj-1", scope_path="docs", changed_paths=["a.md"],
+                       head_version="v1", origin_user="alice")
+    svc.record_publish(project_id="proj-1", scope_path="docs", changed_paths=["b.md", "a.md"],
+                       head_version="v2", origin_user="bob")
+    resp = TestClient(_app(svc)).get("/api/v1/scope-sync/stats", params={
+        "project_id": "proj-1", "scope_id": "s1"})
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["events_in_window"] >= 2
+    assert data["distinct_origins"] == 2          # alice + bob
+    assert data["distinct_paths"] == 2            # a.md + b.md
+    assert data["latest_head"] == "v2"
+
+
+def test_stats_forbidden_project_404():
+    resp = TestClient(_app()).get("/api/v1/scope-sync/stats", params={
+        "project_id": "OTHER", "scope_id": "s1"})
+    assert resp.status_code == 404
+
+
 def test_events_forbidden_project_404():
     resp = TestClient(_app()).get("/api/v1/scope-sync/events", params={
         "project_id": "OTHER", "scope_id": "s1"})
