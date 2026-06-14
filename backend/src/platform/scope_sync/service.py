@@ -44,14 +44,21 @@ def _scope_service():
     return ScopeService()
 
 
+def _scope_by_access_key(access_key: str):
+    from src.repo.scope_repository import RepoScopeRepository
+    return RepoScopeRepository().get_by_access_key(access_key)
+
+
 class ScopeSyncService:
     """Resolves the managed :class:`SyncPolicyConfig` for a scope. Injectable
     scope lookup keeps it unit-testable without a DB."""
 
     def __init__(self, *, scope_lookup=None, scopes_lister=None,
                  event_store: EventStore | None = None,
-                 settings_store: SettingsStore | None = None) -> None:
+                 settings_store: SettingsStore | None = None,
+                 scope_by_access_key=None) -> None:
         self._scope_lookup = scope_lookup or (lambda sid: _scope_service().get(sid))
+        self._scope_by_access_key = scope_by_access_key or _scope_by_access_key
         # lists a project's scopes as [(scope_id, scope_path), ...] for M4 fanout
         self._scopes_lister = scopes_lister or self._default_scopes_lister
         from src.config import settings
@@ -152,6 +159,19 @@ class ScopeSyncService:
                 for e in events
             ],
         }
+
+    def poll_events_by_access_key(self, *, access_key: str, cursor: int) -> dict:
+        """Sidecar-facing: resolve the scope from its access_key (no JWT) and
+        return its events since cursor. The access_key already authorizes git +
+        AP-FS for this scope, so it's the right credential for the in-sandbox
+        sidecar to poll its own scope's upstream events."""
+        scope = self._scope_by_access_key(access_key)
+        if scope is None:
+            raise LookupError("invalid access key")
+        out = self.poll_events(project_id=scope.project_id, scope_id=scope.id, cursor=cursor)
+        out["project_id"] = scope.project_id
+        out["scope_id"] = scope.id
+        return out
 
     def poll_events(self, *, project_id: str, scope_id: str, cursor: int) -> dict:
         """Events for a scope since ``cursor`` (the sidecar's last seen id)."""

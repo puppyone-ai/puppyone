@@ -130,8 +130,10 @@ def consume_events() -> None:
         cursor = 0
         if os.path.exists(_CURSOR_FILE):
             cursor = int(open(_CURSOR_FILE).read().strip() or "0")
-        url = f"{EVENTS_URL}?project_id={PROJECT_ID}&scope_id={SCOPE_ID}&cursor={cursor}"
-        req = urllib.request.Request(url, headers={"Authorization": f"Bearer {TOKEN}"} if TOKEN else {})
+        # Sidecar authenticates with the scope access_key (X-Access-Key) against
+        # the /scope-sync/ap/events endpoint — same credential it clones with.
+        url = f"{EVENTS_URL}?cursor={cursor}"
+        req = urllib.request.Request(url, headers={"X-Access-Key": TOKEN} if TOKEN else {})
         with urllib.request.urlopen(req, timeout=10) as resp:
             body = json.load(resp)
         data = body.get("data", body)
