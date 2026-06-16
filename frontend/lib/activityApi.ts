@@ -33,9 +33,24 @@ export interface ActivityListResponse {
   total: number;
 }
 
-/** An item is in-progress until it has a completed_at timestamp. */
+const TERMINAL_ACTIVITY_STATUSES = new Set([
+  'completed',
+  'success',
+  'failed',
+  'cancelled',
+  'canceled',
+  'skipped',
+  'conflict',
+  'error',
+]);
+
+/** An item is in-progress until it has completed_at or a terminal status. */
 export function isActivityItemActive(item: ActivityItem): boolean {
-  return !item.completed_at;
+  const status = (item.status || '').toLowerCase();
+  const phase = (item.phase || '').toLowerCase();
+  return !item.completed_at
+    && !TERMINAL_ACTIVITY_STATUSES.has(status)
+    && !TERMINAL_ACTIVITY_STATUSES.has(phase);
 }
 
 export function getProjectActivity(

@@ -67,10 +67,12 @@ export function FileViewerHeaderActions({
 }: FileViewerHeaderActionsProps) {
   if (!viewerId) return null;
 
+  const saveButton = editable ? <EditorSaveButton status={saveStatus} onSave={onSave} /> : null;
+
   if (viewerId === 'markdown-editor') {
     return (
       <HeaderActionGroup>
-        {editable && <EditorSaveButton status={saveStatus} onSave={onSave} />}
+        {saveButton}
         <ModePicker mode={markdownViewMode} onChange={onMarkdownViewModeChange} options={MARKDOWN_OPTIONS} />
         <FileActionsMenu projectId={projectId} filePath={filePath} />
       </HeaderActionGroup>
@@ -80,7 +82,7 @@ export function FileViewerHeaderActions({
   if (viewerId === 'plain-text') {
     return (
       <HeaderActionGroup>
-        {editable && <EditorSaveButton status={saveStatus} onSave={onSave} />}
+        {saveButton}
         <FileActionsMenu projectId={projectId} filePath={filePath} />
       </HeaderActionGroup>
     );
@@ -115,6 +117,7 @@ export function FileViewerHeaderActions({
 
   return (
     <HeaderActionGroup>
+      {saveButton}
       <FileActionsMenu projectId={projectId} filePath={filePath} />
     </HeaderActionGroup>
   );

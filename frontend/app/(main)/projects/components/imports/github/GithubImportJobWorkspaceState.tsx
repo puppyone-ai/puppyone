@@ -1,4 +1,5 @@
-import { Check, LoaderCircle } from 'lucide-react';
+import { Check } from 'lucide-react';
+import { Dots } from '@/components/loading';
 import type { ImportJob } from '@/lib/importApi';
 import { BUTTON_HEIGHT } from '@/components/ui/buttonTokens';
 import {
@@ -26,7 +27,7 @@ export function GithubImportJobWorkspaceState({
     <section className="mx-auto flex w-full max-w-[560px] flex-col items-center text-center">
       <div className="mb-5 inline-flex h-11 w-11 items-center justify-center rounded-lg border border-[var(--po-border-subtle)] bg-[color-mix(in_srgb,var(--po-panel)_52%,transparent)] text-[var(--po-text)]">
         {isActive ? (
-          <LoaderCircle className="h-5 w-5 animate-spin" strokeWidth={1.8} />
+          <Dots size="sm" ariaLabel="Importing" />
         ) : isFailed ? (
           <span className="text-[18px] leading-none">!</span>
         ) : (

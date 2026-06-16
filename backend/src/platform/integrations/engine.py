@@ -13,6 +13,10 @@ from src.connectors.datasource.registry import ConnectorRegistry
 from src.connectors.datasource.run_repository import SyncRunRepository
 from src.platform.integrations.paths import plan_fetch_result, plan_materialized_result
 from src.platform.integrations.repository import IntegrationRepository
+from src.platform.integrations.version_write_port import (
+    IntegrationVersionWritePort,
+    VersionEngineWritePort,
+)
 from src.utils.logger import log_debug, log_error, log_info
 
 
@@ -22,10 +26,12 @@ class IntegrationEngine:
         registry: ConnectorRegistry,
         repository: IntegrationRepository,
         run_repo: Optional[SyncRunRepository] = None,
+        write_port: IntegrationVersionWritePort | None = None,
     ):
         self.registry = registry
         self.repository = repository
         self.run_repo = run_repo
+        self.write_port = write_port or VersionEngineWritePort()
 
     def _target_exists_as_file(self, project_id: str, target_path: str | None) -> bool:
         if not target_path:
@@ -42,14 +48,18 @@ class IntegrationEngine:
             return False
 
     async def execute(
-        self, connection_id: str, trigger_type: str = "manual",
+        self,
+        connection_id: str,
+        trigger_type: str = "manual",
+        *,
+        run_id: str | None = None,
     ) -> Optional[dict]:
         connection = self.repository.get_by_id(connection_id)
         if not connection:
             log_error(f"[IntegrationEngine] Connection not found: {connection_id}")
             return None
 
-        if connection.status not in ("active", "syncing"):
+        if connection.status not in ("active", "syncing", "error"):
             log_debug(
                 f"[IntegrationEngine] Skipping {connection_id} "
                 f"(status={connection.status})"
@@ -67,11 +77,44 @@ class IntegrationEngine:
         run = None
         if self.run_repo:
             try:
-                run = self.run_repo.create(connection.id, trigger_type=trigger_type)
+                if run_id:
+                    run = self.run_repo.get_by_id(run_id)
+                    if not run:
+                        log_error(f"[IntegrationEngine] Run not found: {run_id}")
+                        return None
+                    if run.status in {"success", "completed", "failed", "cancelled", "skipped"}:
+                        log_debug(
+                            f"[IntegrationEngine] Skipping run {run_id} "
+                            f"(status={run.status})"
+                        )
+                        return None
+                else:
+                    if hasattr(type(self.run_repo), "create_queued_single_lane"):
+                        run, created = self.run_repo.create_queued_single_lane(
+                            connection.id,
+                            trigger_type=trigger_type,
+                        )
+                        if not created:
+                            log_debug(
+                                f"[IntegrationEngine] Skipping {connection_id} "
+                                f"(active run={run.id} status={run.status})"
+                            )
+                            return None
+                    else:
+                        run = self.run_repo.create(connection.id, trigger_type=trigger_type)
             except Exception as exc:
-                log_debug(f"[IntegrationEngine] Could not create run record: {exc}")
+                log_debug(f"[IntegrationEngine] Could not prepare run record: {exc}")
 
         try:
+            if run and self.run_repo and getattr(run, "status", "running") != "running":
+                if hasattr(type(self.run_repo), "claim_running"):
+                    claimed = self.run_repo.claim_running(run.id)
+                    if not claimed:
+                        log_debug(f"[IntegrationEngine] Run not claimed: {run.id}")
+                        return None
+                    run = claimed
+                else:
+                    run = self.run_repo.mark_running(run.id) or run
             self.repository.update_status(connection.id, "syncing")
 
             spec = connector.spec()
@@ -118,33 +161,12 @@ class IntegrationEngine:
             external_resource_id = source.get("resource_id", "")
             actor = f"integration:{connection.provider}:{external_resource_id}"
 
-            from src.version_engine.bootstrap.dependencies import (
-                build_worker_version_engine_container,
+            outcome = await self.write_port.write_plan(
+                project_id=connection.project_id,
+                plan=write_plan,
+                actor=actor,
             )
-
-            commands = build_worker_version_engine_container().write_commands()
-
-            if len(write_plan.files) == 1 and not write_plan.deleted:
-                file_path, content = next(iter(write_plan.files.items()))
-                outcome = await commands.write_bytes(
-                    connection.project_id,
-                    file_path,
-                    content,
-                    actor=actor,
-                    message=write_plan.message,
-                    source_channel="sync",
-                )
-            else:
-                outcome = await commands.bulk_write(
-                    connection.project_id,
-                    write_plan.files,
-                    actor=actor,
-                    deleted=write_plan.deleted,
-                    message=write_plan.message,
-                    source_channel="sync",
-                )
-
-            commit_id = outcome.result.commit_id
+            commit_id = outcome.commit_id
             self.repository.update_sync_point(
                 sync_id=connection.id,
                 last_sync_commit_id=commit_id,

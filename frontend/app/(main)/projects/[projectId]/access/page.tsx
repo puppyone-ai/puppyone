@@ -8,7 +8,7 @@
  *     Selecting a path opens every connector bound to that path in the
  *     right pane.
  *   - The right pane owns access-point detail, scoped prompt / connect
- *     instructions, configuration, activity, and scope settings.
+ *     instructions, configuration, and scope settings.
  *   - Pause / Resume wired to the dedicated backend endpoints
  *     (`/connectors/:id/pause` and `/resume`), revalidating the SWR
  *     cache afterwards so the status pill flips immediately.

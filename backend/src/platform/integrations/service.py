@@ -254,37 +254,14 @@ class IntegrationService:
         return connection
 
     async def pull_sync(self, connection_id: str) -> Optional[dict]:
-        connection = self.repository.get_by_id(connection_id)
-        if not connection or connection.status != "active":
-            return None
-        if connection.direction == "outbound":
-            return None
-        connector = self._get_connector(connection.provider)
-        if not connector:
-            return None
-        return await self._pull_one(connection)
+        raise RuntimeError(
+            "Integration pull runs must be queued through the sync worker"
+        )
 
     async def pull_all(self, provider: Optional[str] = None) -> list[dict]:
-        results = []
-        for connection in self.repository.list_active(provider):
-            if connection.direction == "outbound":
-                continue
-            if not self._get_connector(connection.provider):
-                continue
-            result = await self._pull_one(connection)
-            if result:
-                results.append(result)
-        return results
-
-    async def _pull_one(self, connection: IntegrationConnection) -> Optional[dict]:
-        try:
-            from src.platform.integrations.dependencies import create_integration_engine
-
-            return await create_integration_engine().execute(connection.id)
-        except Exception as exc:
-            log_error(f"[Integration] Pull failed for {connection.path}: {exc}")
-            self.repository.update_error(connection.id, str(exc))
-            return None
+        raise RuntimeError(
+            "Integration pull runs must be queued through the sync worker"
+        )
 
     async def push_node(
         self,

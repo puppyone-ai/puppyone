@@ -18,6 +18,8 @@ from src.exceptions import ErrorCode, NotFoundException
 from src.infra.supabase.client import SupabaseClient
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
+from src.platform.entitlements.dependencies import get_entitlement_service
+from src.platform.entitlements.service import EntitlementService
 from src.platform.organization.dependencies import resolve_org_ids
 from src.repo.access_surface_repository import AccessSurfaceRepository
 from src.repo.scope_service import ScopeService
@@ -56,6 +58,17 @@ class ConnectionUpdate(BaseModel):
 
 def _get_client():
     return SupabaseClient().client
+
+
+def _count_user_access_surfaces_for_project(sb_client, project_id: str) -> int:
+    resp = (
+        sb_client.table("access_surfaces")
+        .select("id", count="exact")
+        .eq("project_id", project_id)
+        .not_.in_("kind", ["git_remote", "cli"])
+        .execute()
+    )
+    return resp.count or 0
 
 
 def _normalize_scope_path(path: str | None) -> str:
@@ -134,7 +147,7 @@ def _access_key_for(row: dict, scope: dict | None) -> str | None:
     if provider == "agent":
         return cfg.get("mcp_api_key") or cfg.get("access_key")
     if provider == "mcp":
-        return cfg.get("api_key")
+        return None
     if provider == "sandbox":
         return cfg.get("access_key")
     return cfg.get("access_key")
@@ -455,9 +468,23 @@ def regenerate_key(
     if provider == "sandbox":
         prefix = "sbx"
         key_field = "access_key"
-    elif provider in {"agent", "mcp"}:
+    elif provider == "mcp":
+        from src.connectors.mcp_endpoint.repository import McpEndpointRepository
+        from src.connectors.mcp_endpoint.service import McpEndpointService
+
+        endpoint = McpEndpointService(repository=McpEndpointRepository()).regenerate_key(connection_id)
+        if not endpoint or not endpoint.get("api_key"):
+            raise NotFoundException("MCP endpoint not found", code=ErrorCode.NOT_FOUND)
+        return ApiResponse.success(
+            data={
+                "access_key": endpoint["api_key"],
+                "access_key_hint": endpoint.get("api_key_hint"),
+            },
+            message="Key regenerated",
+        )
+    elif provider == "agent":
         prefix = "cli"
-        key_field = "mcp_api_key" if provider == "agent" else "api_key"
+        key_field = "mcp_api_key"
     else:
         prefix = "key"
         key_field = "access_key"
@@ -715,6 +742,7 @@ def _create_direct(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
 async def create_connection(
     payload: UnifiedConnectionCreate,
     current_user: CurrentUser = Depends(get_current_user),
+    entitlement_service: EntitlementService = Depends(get_entitlement_service),
 ):
     """
     Unified entry point for creating Access surfaces.
@@ -729,8 +757,19 @@ async def create_connection(
     project_repo = ProjectRepositorySupabase()
     if not project_repo.verify_project_access(payload.project_id, current_user.user_id):
         raise HTTPException(status_code=403, detail="Access denied to this project")
+    project = project_repo.get_by_id(payload.project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
 
     provider = payload.provider.lower()
+    if provider not in {"agent", "mcp", "sandbox", "direct"}:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Unknown access provider: {provider}. Use Integration APIs "
+                "for external datasource connections."
+            ),
+        )
 
     # ── Duplicate detection ────────────────────────────────────────
     # Block creation if an identical access surface already exists.
@@ -770,6 +809,19 @@ async def create_connection(
                 },
             )
 
+    if provider != "direct":
+        entitlement_service.require_allowed(
+            project.org_id,
+            "access_surface_kinds",
+            provider,
+        )
+        entitlement_service.require_feature(project.org_id, f"access_surface.{provider}")
+        entitlement_service.require_capacity(
+            project.org_id,
+            "access_surfaces.max_per_project",
+            current_count=_count_user_access_surfaces_for_project(sb, payload.project_id),
+        )
+
     try:
         if provider == "agent":
             result = _create_agent(payload)
@@ -779,14 +831,6 @@ async def create_connection(
             result = _create_sandbox(payload)
         elif provider == "direct":
             result = _create_direct(payload)
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"Unknown access provider: {provider}. Use Integration APIs "
-                    "for external datasource connections."
-                ),
-            )
     except HTTPException:
         raise
     except Exception as e:

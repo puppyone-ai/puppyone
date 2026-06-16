@@ -3,6 +3,7 @@
 import { use } from 'react';
 import { ProjectPageLoadingShell } from '@/components/loading';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { CountBadge } from '@/components/ui/CountBadge';
 import { useWorkflowController } from './hooks/useWorkflowController';
 import styles from './components/WorkflowPage.module.css';
 import { WorkflowCatalog } from './components/WorkflowCatalog';
@@ -24,7 +25,7 @@ export default function ProjectIntegrationsPage({ params }: IntegrationsPageProp
       <header className={styles.pageHeader}>
         <div className={styles.pageTitleGroup}>
           <span className={styles.pageTitle}>Integrations</span>
-          <span className={styles.countBadge}>{model.connections.length}</span>
+          <CountBadge value={model.connections.length} size="sm" tone="neutral" />
         </div>
       </header>
       <main className={styles.workflowCanvas}>

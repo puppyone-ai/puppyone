@@ -12,6 +12,7 @@ import {
   isSandboxProvider,
 } from '@/lib/accessProviderRegistry';
 import { PanelShell } from '../PanelShell';
+import { CountBadge } from '@/components/ui/CountBadge';
 import { AccessPointProviderIcon, StatusDot } from './AccessPointProviderIcon';
 import type { SyncEndpointInfo } from '../explorer';
 import type { EndpointEntry, ProviderIconLookup } from './types';
@@ -73,14 +74,14 @@ function getSetupSnippets(ep: SyncEndpointInfo, displayName: string, scopeName: 
   if (isMcpProvider(ep.provider) && accessKey) {
     const serverUrl = `${apiBase}/api/v1/mcp/proxy`;
     const serverName = displayName.toLowerCase().replace(/\s+/g, '-') || 'puppyone-mcp';
-    const config = `{\n  "mcpServers": {\n    "${serverName}": {\n      "url": "${serverUrl}",\n      "headers": { "X-MCP-API-Key": "${accessKey}" }\n    }\n  }\n}`;
+    const config = `{\n  "mcpServers": {\n    "${serverName}": {\n      "type": "http",\n      "url": "${serverUrl}",\n      "headers": { "Authorization": "Bearer ${accessKey}" }\n    }\n  }\n}`;
     const prompt = [
       `Configure this MCP Access Point for my coding agent.`,
       ``,
       `Access Point: ${displayName}`,
       `Scope: ${scopeName}`,
       `Server URL: ${serverUrl}`,
-      `Header: X-MCP-API-Key: ${accessKey}`,
+      `Header: Authorization: Bearer ${accessKey}`,
       ``,
       `Use this MCP config:`,
       config,
@@ -290,23 +291,11 @@ export function AccessPointsListPanel({
       title="Access Points"
       onClose={onClose}
       headerRight={
-        <span
-          style={{
-            minWidth: 18,
-            height: 18,
-            padding: '0 6px',
-            borderRadius: 999,
-            background: 'var(--po-border)',
-            color: 'var(--po-text-muted)',
-            fontSize: 10,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-          }}
-        >
-          {entries.length}
-        </span>
+        <CountBadge
+          value={entries.length}
+          size="md"
+          tone="neutral"
+        />
       }
     >
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--po-canvas)' }}>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { LoaderCircle } from 'lucide-react';
+import { Dots } from '@/components/loading';
 import {
   ACTIVITY_BG,
   ACTIVITY_BORDER,
@@ -60,11 +60,7 @@ export function SyncJobsWidget({ projectId, inline = false }: SyncJobsWidgetProp
       >
         <div style={activityHeaderStyle}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-            <LoaderCircle
-              size={13}
-              strokeWidth={1.8}
-              style={{ animation: 'sync-widget-spin 1s linear infinite' }}
-            />
+            <Dots size="xs" tone="info" ariaLabel="Syncing" />
             <span style={activityTitleStyle}>{title}</span>
           </div>
         </div>
@@ -129,13 +125,6 @@ export function SyncJobsWidget({ projectId, inline = false }: SyncJobsWidgetProp
             </div>
           ))}
         </div>
-
-        <style>{`
-          @keyframes sync-widget-spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-          }
-        `}</style>
       </div>
     </div>
   );

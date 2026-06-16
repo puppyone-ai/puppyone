@@ -4,11 +4,18 @@ import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
+import { EditorSaveButton } from '@/components/editors/EditorSaveButton';
+import type { SaveStatus } from '@/lib/hooks/useManualSave';
 
 interface DocumentEditorProps {
   path: string;
   value: string;
-  onSave: (newValue: string) => void;
+  dirty: boolean;
+  saveStatus: SaveStatus;
+  saveError?: string | null;
+  onChange: (newValue: string) => void;
+  onSave: () => void | Promise<void>;
+  onDiscard: () => void;
   onClose: () => void;
   isFullScreen?: boolean;
   onToggleFullScreen?: () => void;
@@ -17,19 +24,18 @@ interface DocumentEditorProps {
 export function DocumentEditor({
   path,
   value,
+  dirty,
+  saveStatus,
+  saveError,
+  onChange,
   onSave,
+  onDiscard,
   onClose,
   isFullScreen = false,
   onToggleFullScreen,
 }: DocumentEditorProps) {
   const [mode, setMode] = useState<'preview' | 'raw'>('preview');
-  const [editedValue, setEditedValue] = useState(value);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  // 同步外部值变化
-  useEffect(() => {
-    setEditedValue(value);
-  }, [value]);
 
   // Raw 模式时自动聚焦
   useEffect(() => {
@@ -38,13 +44,7 @@ export function DocumentEditor({
     }
   }, [mode]);
 
-  const hasChanges = editedValue !== value;
-
-  // 切换到 Preview 时自动保存（如果有改动）
   const handleModeChange = (newMode: 'preview' | 'raw') => {
-    if (mode === 'raw' && newMode === 'preview' && hasChanges) {
-      onSave(editedValue);
-    }
     setMode(newMode);
   };
 
@@ -205,7 +205,7 @@ export function DocumentEditor({
               }}
             >
               Raw
-              {hasChanges && mode === 'raw' && (
+              {dirty && mode === 'raw' && (
                 <span
                   style={{
                     width: 6,
@@ -221,26 +221,71 @@ export function DocumentEditor({
 
         {/* 右侧：字数统计 (关闭按钮已移至左侧) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <EditorSaveButton status={saveStatus} onSave={onSave} />
+          {dirty ? (
+            <button
+              type="button"
+              onClick={onDiscard}
+              style={{
+                height: 30,
+                padding: '0 10px',
+                borderRadius: 6,
+                border: 'none',
+                background: 'transparent',
+                color: 'var(--po-text-subtle)',
+                cursor: 'pointer',
+                fontSize: 12,
+                fontWeight: 500,
+              }}
+            >
+              Discard
+            </button>
+          ) : null}
           <span
             style={{ fontSize: 10, color: 'var(--po-text-disabled)', fontFamily: 'var(--po-font-sans)' }}
           >
-            {editedValue.length.toLocaleString()} chars
+            {value.length.toLocaleString()} chars
           </span>
         </div>
       </div>
+      {saveError ? (
+        <div
+          style={{
+            padding: '8px 16px',
+            borderBottom: '1px solid var(--po-border)',
+            color: 'var(--po-danger)',
+            fontSize: 12,
+            background: 'color-mix(in srgb, var(--po-danger) 8%, transparent)',
+          }}
+        >
+          {saveError}
+        </div>
+      ) : null}
 
       {/* 主体内容区 */}
-      <div style={{ flex: 1, overflow: 'auto', position: 'relative' }}>
+      <div
+        style={{
+          flex: 1,
+          overflow: 'auto',
+          position: 'relative',
+          background: 'var(--po-editor-bg)',
+        }}
+      >
         {mode === 'preview' ? (
           /* 预览模式 - 渲染 Markdown/HTML */
-          <div style={{ padding: '12px 16px' }}>
-            {editedValue ? (
+          <div
+            style={{
+              padding:
+                'var(--po-editor-compact-padding-block) var(--po-editor-compact-padding-inline) var(--po-editor-compact-padding-bottom)',
+            }}
+          >
+            {value ? (
               <div className='markdown-preview'>
                 <ReactMarkdown 
                   remarkPlugins={[remarkGfm]}
                   rehypePlugins={[rehypeRaw]}
                 >
-                  {editedValue}
+                  {value}
                 </ReactMarkdown>
                 <style jsx global>{`
                   .markdown-preview {
@@ -263,7 +308,7 @@ export function DocumentEditor({
                     background: var(--po-hover);
                     padding: 2px 6px;
                     border-radius: 4px;
-                    font-family: var(--po-font-sans);
+                    font-family: var(--po-font-mono);
                     font-size: 0.9em;
                     color: var(--po-accent);
                   }
@@ -329,12 +374,13 @@ export function DocumentEditor({
           /* Raw 模式 - 原始文本编辑 */
           <textarea
             ref={textareaRef}
-            value={editedValue}
-            onChange={e => setEditedValue(e.target.value)}
+            value={value}
+            onChange={e => onChange(e.target.value)}
             style={{
               width: '100%',
               height: '100%',
-              padding: '12px 16px',
+              padding:
+                'var(--po-editor-compact-padding-block) var(--po-editor-compact-padding-inline) var(--po-editor-compact-padding-bottom)',
               fontSize: 14,
               lineHeight: 1.6,
               color: 'var(--po-text)',
@@ -342,8 +388,7 @@ export function DocumentEditor({
               border: 'none',
               outline: 'none',
               resize: 'none',
-              fontFamily:
-                'var(--po-font-sans)',
+              fontFamily: 'var(--po-font-mono)',
               boxSizing: 'border-box',
             }}
             placeholder='Enter content...'

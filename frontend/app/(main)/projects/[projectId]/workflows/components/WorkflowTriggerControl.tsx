@@ -1,6 +1,6 @@
 'use client';
 
-import { CalendarClock, Check, Clock3, Loader2 } from 'lucide-react';
+import { CalendarClock, Check, Clock3 } from 'lucide-react';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { Field, TextField } from '@/components/ui/Field';
 import styles from './WorkflowPage.module.css';
@@ -77,7 +77,7 @@ function TriggerEditorOverlay({ model, actions }: WorkflowShellProps) {
           variant="primary"
           disabled={Boolean(model.triggerError)}
           loading={model.savingTrigger}
-          leadingIcon={model.savingTrigger ? <Loader2 size={14} className={styles.spin} /> : <Check size={14} />}
+          leadingIcon={<Check size={14} />}
           onClick={() => void actions.saveTrigger()}
         >
           Save

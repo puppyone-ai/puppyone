@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from 'react';
 import { StatusIndicator } from '@/components/ui/StatusDot';
 import type { Connector, RepoScope } from '@/lib/repoApi';
-import { getAccessProviderMethodMeta, isCliProvider, normalizeConnectorProvider } from '@/lib/accessProviderRegistry';
+import { getAccessProviderMethodMeta, isCliProvider, isMcpProvider, normalizeConnectorProvider } from '@/lib/accessProviderRegistry';
 import { T } from '../lib/tokens';
 import { STATUS_COLORS, STATUS_LABEL } from '../lib/constants';
 import { isGitBuiltinProvider } from '../lib/format';
@@ -91,7 +91,7 @@ export function ConnectorListRow({
         minHeight: previewOpen ? 132 : 84,
         minWidth: 0,
         display: 'grid',
-        gridTemplateColumns: previewOpen ? 'minmax(260px, 1fr) 148px minmax(280px, 320px)' : 'minmax(0, 1fr) max-content',
+        gridTemplateColumns: previewOpen ? 'minmax(0, 1fr) minmax(220px, 240px)' : 'minmax(0, 1fr) max-content',
         alignItems: previewOpen ? 'stretch' : 'center',
         gap: previewOpen ? 16 : 14,
         padding: previewOpen ? '16px 18px' : '14px 16px',
@@ -105,7 +105,15 @@ export function ConnectorListRow({
         transition: `background 0.15s ${T.ease}`,
       }}
     >
-      <div style={{ display: 'flex', alignItems: previewOpen ? 'flex-start' : 'center', gap: previewOpen ? 14 : 12, minWidth: 0 }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: previewOpen ? 'flex-start' : 'center',
+          gap: previewOpen ? 14 : 12,
+          minWidth: 0,
+          alignSelf: previewOpen ? 'stretch' : undefined,
+        }}
+      >
         <div
           style={{
             height: tileSize,
@@ -129,47 +137,58 @@ export function ConnectorListRow({
             minWidth: 0,
             display: 'flex',
             flexDirection: 'column',
-            gap: previewOpen ? 8 : 5,
+            gap: previewOpen ? 9 : 5,
+            flex: 1,
+            minHeight: previewOpen ? 96 : undefined,
           }}
         >
-          <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 7 }}>
-            <span
-              style={{
-                minWidth: 0,
-                display: 'inline-flex',
-                alignItems: 'center',
-                fontSize: 14,
-                lineHeight: '18px',
-                fontWeight: 500,
-                color: T.text1,
-                fontFamily: T.fontSans,
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-              title={meta.title}
-            >
-              {meta.title}
-            </span>
-            {previewOpen ? <ConnectorInlineStatus status={connector.status} /> : null}
-            {scopeLabel ? (
-              <>
-                <ConnectorScopeBadge label={scopeLabel} title={scopeTitle} />
-                {scopeTitle === '/' ? (
-                  <span
-                    style={{
-                      color: T.text3,
-                      fontSize: 12,
-                      lineHeight: '16px',
-                      fontFamily: T.fontMono,
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    /
-                  </span>
-                ) : null}
-              </>
-            ) : null}
+          <div
+            style={{
+              minWidth: 0,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 7,
+            }}
+          >
+            <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 7 }}>
+              <span
+                style={{
+                  minWidth: 0,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  fontSize: 14,
+                  lineHeight: '18px',
+                  fontWeight: 500,
+                  color: T.text1,
+                  fontFamily: T.fontSans,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+                title={meta.title}
+              >
+                {meta.title}
+              </span>
+              {previewOpen ? <ConnectorInlineStatus status={connector.status} /> : null}
+              {scopeLabel ? (
+                <>
+                  <ConnectorScopeBadge label={scopeLabel} title={scopeTitle} />
+                  {scopeTitle === '/' ? (
+                    <span
+                      style={{
+                        color: T.text3,
+                        fontSize: 12,
+                        lineHeight: '16px',
+                        fontFamily: T.fontMono,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      /
+                    </span>
+                  ) : null}
+                </>
+              ) : null}
+            </div>
           </div>
           <div
             style={{
@@ -186,22 +205,24 @@ export function ConnectorListRow({
           >
             {previewOpen ? meta.description : compactDescription}
           </div>
+          {previewOpen ? (
+            <div style={{ marginTop: 'auto', paddingTop: 10 }}>
+              <ConnectorPreviewActions
+                connector={connector}
+                status={connector.status}
+                pending={pending}
+                onPauseResume={onPauseResume}
+                onConnect={onConnect}
+                onConfigure={onSelect}
+                canConfigure={canConfigure}
+                selected={selected}
+              />
+            </div>
+          ) : null}
         </div>
       </div>
       {previewOpen ? (
-        <>
-          <ConnectorPreviewActions
-            connector={connector}
-            status={connector.status}
-            pending={pending}
-            onPauseResume={onPauseResume}
-            onConnect={onConnect}
-            onConfigure={onSelect}
-            canConfigure={canConfigure}
-            selected={selected}
-          />
-          <ConnectorMethodPrompt connector={connector} scope={scope} />
-        </>
+        <ConnectorMethodPrompt connector={connector} scope={scope} onConnect={onConnect} />
       ) : (
         <ConnectorCollapsedActions
           connector={connector}
@@ -211,6 +232,7 @@ export function ConnectorListRow({
           settingsOpen={settingsOpen}
           onSettings={onSettings}
           onOpen={onSelect}
+          onConnect={onConnect}
         />
       )}
     </div>
@@ -396,6 +418,7 @@ function ConnectorCollapsedActions({
   settingsOpen,
   onSettings,
   onOpen,
+  onConnect,
 }: {
   readonly connector: Connector;
   readonly scope: RepoScope | undefined;
@@ -404,7 +427,9 @@ function ConnectorCollapsedActions({
   readonly settingsOpen: boolean;
   readonly onSettings?: () => void;
   readonly onOpen: () => void;
+  readonly onConnect: () => void;
 }) {
+  const isMcp = isMcpProvider(connector.provider);
   return (
     <div
       onClick={(event) => event.stopPropagation()}
@@ -417,15 +442,24 @@ function ConnectorCollapsedActions({
       }}
     >
       <ConnectorCompactStatus status={status} />
-      <ConnectorMethodCopyButton
-        connector={connector}
-        scope={scope}
-        style={{
-          height: 32,
-          minWidth: 124,
-          boxShadow: 'none',
-        }}
-      />
+      {isMcp ? (
+        <CollapsedPillButton
+          label='Connect'
+          icon={<ConnectionGlyph size={11} />}
+          active={false}
+          onClick={onConnect}
+        />
+      ) : (
+        <ConnectorMethodCopyButton
+          connector={connector}
+          scope={scope}
+          style={{
+            height: 32,
+            minWidth: 124,
+            boxShadow: 'none',
+          }}
+        />
+      )}
       {showSettings && onSettings ? (
         <CollapsedPillButton
           label='Settings'
@@ -506,6 +540,24 @@ function CollapsedPillButton({
   );
 }
 
+const ConnectionGlyph = ({ size = 12 }: { readonly size?: number }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox='0 0 16 16'
+    fill='none'
+    stroke='currentColor'
+    strokeWidth='1.7'
+    strokeLinecap='round'
+    strokeLinejoin='round'
+    aria-hidden
+  >
+    <path d='M6.7 4.4l1-1a3 3 0 0 1 4.2 4.2l-1 1' />
+    <path d='M9.3 11.6l-1 1a3 3 0 0 1-4.2-4.2l1-1' />
+    <path d='M6.4 9.6l3.2-3.2' />
+  </svg>
+);
+
 export function getConnectorMethodMeta(connector: Connector): {
   readonly title: string;
   readonly description: string;
@@ -540,12 +592,15 @@ function ConnectorPreviewActions({
 }) {
   const isGitRemote = isGitBuiltinProvider(connector.provider);
   const isCli = isCliProvider(normalizeConnectorProvider(connector.provider));
+  const isMcp = isMcpProvider(connector.provider);
   const action = status === 'error'
     ? null
     : status === 'paused'
       ? { label: pending ? 'Turning on' : 'Turn On', icon: undefined, onClick: onPauseResume, active: false, tone: 'soft' as const }
       : isGitRemote
       ? { label: 'View Git remote', icon: <ExternalLinkGlyph size={12} />, onClick: onConnect, active: false, tone: 'outline' as const }
+      : isMcp
+        ? { label: selected ? 'Hide config' : 'Show config', icon: <ChevronDownGlyph size={12} rotated={selected} />, onClick: onConfigure, active: selected, tone: 'outline' as const }
       : isCli || canConfigure
         ? { label: selected ? 'Hide config' : 'Configure CLI', icon: <GearIcon size={12} />, onClick: onConfigure, active: selected, tone: 'outline' as const }
         : null;
@@ -557,10 +612,10 @@ function ConnectorPreviewActions({
       style={{
         display: 'flex',
         minWidth: 0,
-        alignItems: paused ? 'center' : 'flex-end',
-        justifyContent: 'center',
+        alignItems: 'flex-start',
+        justifyContent: 'flex-start',
         flexDirection: 'column',
-        gap: 12,
+        gap: 8,
       }}
     >
       {status === 'error' ? (
@@ -638,7 +693,7 @@ function MethodOutlineButton({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        height: soft ? 32 : 34,
+        height: 30,
         minWidth: soft ? 96 : 132,
         borderRadius: 7,
         border: `1px solid ${primary ? T.text1 : active || hovered ? 'var(--po-border-strong)' : soft ? T.cardBorder : T.border}`,
@@ -658,7 +713,7 @@ function MethodOutlineButton({
         alignItems: 'center',
         justifyContent: 'center',
         gap: 8,
-        padding: '0 12px',
+        padding: '0 11px',
         fontSize: 12,
         lineHeight: '16px',
         fontWeight: 500,
@@ -755,8 +810,8 @@ export function ConnectorExpandedDetail({
 }) {
   const provider = normalizeConnectorProvider(connector.provider);
   const showError = connector.status === 'error' || !!connector.error_message;
-  const showConfig = isCliProvider(provider);
-  if (!showError && !showConfig) return null;
+  const showInlineDetail = isCliProvider(provider) || isMcpProvider(provider);
+  if (!showError && !showInlineDetail) return null;
 
   return (
     <div
@@ -770,10 +825,10 @@ export function ConnectorExpandedDetail({
           connector={connector}
           pending={pending}
           onPauseResume={onPauseResume}
-          withDivider={showConfig}
+          withDivider={showInlineDetail}
         />
       ) : null}
-      {showConfig ? (
+      {showInlineDetail ? (
         <ConnectorDetailBody
           connector={connector}
           scope={scope}
@@ -786,6 +841,32 @@ export function ConnectorExpandedDetail({
     </div>
   );
 }
+
+const ChevronDownGlyph = ({
+  size = 12,
+  rotated = false,
+}: {
+  readonly size?: number;
+  readonly rotated?: boolean;
+}) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox='0 0 16 16'
+    fill='none'
+    stroke='currentColor'
+    strokeWidth='1.8'
+    strokeLinecap='round'
+    strokeLinejoin='round'
+    aria-hidden
+    style={{
+      transform: rotated ? 'rotate(180deg)' : 'rotate(0deg)',
+      transition: `transform 0.15s ${T.ease}`,
+    }}
+  >
+    <path d='M4 6l4 4 4-4' />
+  </svg>
+);
 
 function ConnectorManagementStrip({
   connector,

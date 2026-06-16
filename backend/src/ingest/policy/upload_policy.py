@@ -294,7 +294,12 @@ def evaluate_file(
     return PolicyDecision(accept=True, reason="ok")
 
 
-def evaluate_batch_limits(file_sizes: Iterable[int]) -> list[BatchLimitViolation]:
+def evaluate_batch_limits(
+    file_sizes: Iterable[int],
+    *,
+    max_files: int | None = None,
+    max_total_bytes: int | None = None,
+) -> list[BatchLimitViolation]:
     """Evaluate per-batch hard caps on the files that will upload.
 
     Callers should pass the post-policy accepted file sizes. The backend
@@ -310,16 +315,19 @@ def evaluate_batch_limits(file_sizes: Iterable[int]) -> list[BatchLimitViolation
         total_bytes += size
 
     violations: list[BatchLimitViolation] = []
-    if count > PER_BATCH_MAX_FILES:
+    file_limit = PER_BATCH_MAX_FILES if max_files is None else max_files
+    total_limit = PER_BATCH_MAX_BYTES if max_total_bytes is None else max_total_bytes
+
+    if count > file_limit:
         violations.append(BatchLimitViolation(
             kind="file_count",
             actual=count,
-            limit=PER_BATCH_MAX_FILES,
+            limit=file_limit,
         ))
-    if total_bytes > PER_BATCH_MAX_BYTES:
+    if total_bytes > total_limit:
         violations.append(BatchLimitViolation(
             kind="total_bytes",
             actual=total_bytes,
-            limit=PER_BATCH_MAX_BYTES,
+            limit=total_limit,
         ))
     return violations

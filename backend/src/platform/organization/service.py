@@ -140,14 +140,7 @@ class OrganizationService:
         self._require_owner(org_id, inviter_id)
 
         org = self.get_by_id(org_id)
-        current_count = self._repo.count_members(org_id)
-        if current_count >= org.seat_limit:
-            raise AppException(
-                code=ErrorCode.FORBIDDEN,
-                message=(
-                    f"Seat limit reached ({org.seat_limit}). Upgrade your plan."
-                ),
-            )
+        self._enforce_seat_capacity(org)
 
         if role not in ("member", "viewer"):
             raise AppException(
@@ -245,9 +238,10 @@ class OrganizationService:
             org = self.get_by_id(invitation.org_id)
             return existing, org
 
+        org = self.get_by_id(invitation.org_id)
+        self._enforce_seat_capacity(org)
         member = self._repo.add_member(invitation.org_id, user_id, invitation.role)
         self._repo.accept_invitation(invitation.id)
-        org = self.get_by_id(invitation.org_id)
         return member, org
 
     def list_invitations(self, org_id: str, user_id: str) -> list[OrgInvitation]:
@@ -277,3 +271,23 @@ class OrganizationService:
         if not member:
             raise ForbiddenException("Not a member of this organization")
         return member
+
+    def _seat_limit_for_org(self, org: Organization) -> int | None:
+        from src.platform.entitlements.service import EntitlementService
+
+        entitlement_service = EntitlementService()
+        limit = entitlement_service.limit_value(org.id, "seats.max")
+        if limit is None:
+            return None if entitlement_service.enabled else org.seat_limit
+        return int(limit)
+
+    def _enforce_seat_capacity(self, org: Organization) -> None:
+        seat_limit = self._seat_limit_for_org(org)
+        if seat_limit is None:
+            return
+        current_count = self._repo.count_members(org.id)
+        if current_count >= seat_limit:
+            raise AppException(
+                code=ErrorCode.FORBIDDEN,
+                message=f"Seat limit reached ({seat_limit}). Upgrade your plan.",
+            )

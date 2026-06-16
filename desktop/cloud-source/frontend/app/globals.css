@@ -104,8 +104,17 @@
   --po-diff-added-text: #166534;
   --po-diff-removed-bg: rgba(220, 38, 38, 0.10);
   --po-diff-removed-text: #991b1b;
-  --po-editor-bg: #fbf6ed;
+  --po-editor-bg: #f4ede3;
   --po-editor-line: rgba(73, 55, 35, 0.14);
+  --po-editor-padding-block: 40px;
+  --po-editor-padding-inline: 48px;
+  --po-editor-padding-bottom: 72px;
+  --po-editor-code-padding-block: 24px;
+  --po-editor-code-padding-inline: 28px;
+  --po-editor-code-padding-bottom: 56px;
+  --po-editor-compact-padding-block: 24px;
+  --po-editor-compact-padding-inline: 28px;
+  --po-editor-compact-padding-bottom: 44px;
   --po-json-key: #3f3a33;
   --po-json-string: #116329;
   --po-json-number: #8250df;
@@ -195,7 +204,7 @@
   --po-diff-added-text: #86efac;
   --po-diff-removed-bg: rgba(239, 68, 68, 0.14);
   --po-diff-removed-text: #fca5a5;
-  --po-editor-bg: #0e0e0e;
+  --po-editor-bg: #101010;
   --po-editor-line: rgba(255, 255, 255, 0.08);
   --po-json-key: #cbd5e1;
   --po-json-string: #7dd3fc;
@@ -221,6 +230,20 @@ body {
   font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'ss01';
   background: var(--po-canvas);
   color: var(--po-text);
+}
+
+@media (max-width: 640px) {
+  :root {
+    --po-editor-padding-block: 28px;
+    --po-editor-padding-inline: 24px;
+    --po-editor-padding-bottom: 52px;
+    --po-editor-code-padding-block: 20px;
+    --po-editor-code-padding-inline: 18px;
+    --po-editor-code-padding-bottom: 44px;
+    --po-editor-compact-padding-block: 22px;
+    --po-editor-compact-padding-inline: 20px;
+    --po-editor-compact-padding-bottom: 40px;
+  }
 }
 
 /* ── Global theme-aware scrollbar ── */

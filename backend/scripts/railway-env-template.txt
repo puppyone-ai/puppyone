@@ -9,9 +9,9 @@
 
 # ==================== 通用配置 (所有服务) ====================
 
-# Supabase 数据库 (必需)
+# Supabase 数据库 (必需；后端需要 service_role key)
 SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_KEY=your-supabase-anon-key
+SUPABASE_KEY=your-supabase-service-role-key
 
 # S3 存储 (必需)
 S3_ENDPOINT_URL=https://s3.amazonaws.com
@@ -33,9 +33,15 @@ APP_NAME=ContextBase
 VERSION=1.0.0
 ALLOWED_HOSTS=https://your-frontend.com
 PUBLIC_URL=https://your-api.railway.app
+INTERNAL_API_SECRET=your-shared-internal-secret
+ACCESS_CREDENTIAL_HASH_SECRET=your-stable-random-access-credential-hmac-secret
+ENTITLEMENTS_MODE=db
+BILLING_ENFORCEMENT=required
 
 # ==================== API 服务专用 ====================
 # SERVICE_ROLE=api  (或不设置，默认值)
+# 指向单独部署的 MCP Server 服务。生产建议使用 Railway private domain。
+MCP_SERVER_URL=https://your-mcp-service.up.railway.app
 
 # ==================== File Worker 专用 ====================
 # SERVICE_ROLE=file_worker
@@ -58,8 +64,20 @@ DEEPINFRA_API_KEY=your-deepinfra-api-key
 # ETL_TASK_TIMEOUT=600
 # ETL_ARQ_QUEUE_NAME=etl
 
-# ==================== MCP Server 专用 (可选) ====================
+# ==================== Import Worker 专用 ====================
+# SERVICE_ROLE=import_worker
+# IMPORT_ARQ_QUEUE_NAME=imports
+
+# ==================== Sync Worker 专用 ====================
+# SERVICE_ROLE=sync_worker
+# SYNC_ARQ_QUEUE_NAME=syncs
+# SYNC_TASK_TIMEOUT=900
+
+# ==================== MCP Server 专用 ====================
 # SERVICE_ROLE=mcp_server
+# MCP Server 不直接暴露给用户配置；用户只连接 API 服务的 /api/v1/mcp/proxy。
+# 这里指回主 API 服务，用同一个 INTERNAL_API_SECRET 调内部 runtime API。
+MAIN_SERVICE_URL=https://your-api.railway.app
 
 # ==================== OAuth 配置（按需启用）====================
 

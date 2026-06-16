@@ -9,6 +9,8 @@ interface McpEndpointData {
   id: string;
   name: string;
   api_key: string;
+  api_key_hint?: string;
+  api_key_revealed?: boolean;
   status: string;
   accesses: { path: string; json_path: string; readonly: boolean }[];
 }
@@ -123,7 +125,7 @@ export function McpConfigPanel({ endpoint, onClose, onBack }: McpConfigPanelProp
         </div>
         <div>
           <SectionLabel>API Key</SectionLabel>
-          <CodeBlock>{endpoint.api_key}</CodeBlock>
+          <CodeBlock>{endpoint.api_key || endpoint.api_key_hint || 'Regenerate the key to reveal it once.'}</CodeBlock>
         </div>
         <div>
           <SectionLabel>Cursor Config</SectionLabel>
@@ -131,8 +133,9 @@ export function McpConfigPanel({ endpoint, onClose, onBack }: McpConfigPanelProp
 {JSON.stringify({
   mcpServers: {
     [endpoint.name.toLowerCase().replace(/\s+/g, '-')]: {
+      type: 'http',
       url: serverUrl,
-      headers: { 'X-MCP-API-Key': endpoint.api_key },
+      headers: { Authorization: `Bearer ${endpoint.api_key || '<rotate-key-to-reveal>'}` },
     }
   }
 }, null, 2)}

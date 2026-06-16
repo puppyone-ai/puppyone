@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Any, Optional, List
 from pydantic import BaseModel, Field
 
 
@@ -19,7 +19,7 @@ class McpEndpointCreate(BaseModel):
     name: str = Field(default="MCP Endpoint", min_length=1, max_length=200)
     description: Optional[str] = Field(None, max_length=500)
     accesses: List[McpAccessItem] = Field(default_factory=list)
-    tools_config: List[McpToolItem] = Field(default_factory=list)
+    tools_config: Any = Field(default_factory=dict)
 
 
 class McpEndpointUpdate(BaseModel):
@@ -28,7 +28,7 @@ class McpEndpointUpdate(BaseModel):
     path: Optional[str] = None
     status: Optional[str] = None
     accesses: Optional[List[McpAccessItem]] = None
-    tools_config: Optional[List[McpToolItem]] = None
+    tools_config: Optional[Any] = None
 
 
 class McpEndpointOut(BaseModel):
@@ -37,8 +37,10 @@ class McpEndpointOut(BaseModel):
     path: Optional[str] = None
     name: str
     description: Optional[str] = None
-    api_key: str
-    tools_config: list = Field(default_factory=list)
+    api_key: str = ""
+    api_key_hint: str = ""
+    api_key_revealed: bool = False
+    tools_config: Any = Field(default_factory=dict)
     accesses: list = Field(default_factory=list)
     created_by: Optional[str] = None
     config: dict = Field(default_factory=dict)

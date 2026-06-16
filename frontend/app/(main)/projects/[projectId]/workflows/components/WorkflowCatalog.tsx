@@ -6,13 +6,13 @@ import {
   Check,
   ChevronRight,
   ExternalLink,
-  Loader2,
   Pause,
   Play,
   Plus,
   Trash2,
 } from 'lucide-react';
 import { ActionButton } from '@/components/ui/ActionButton';
+import { CountBadge } from '@/components/ui/CountBadge';
 import { StatusIndicator, type StatusDotStatus } from '@/components/ui/StatusDot';
 import { oauth, openOAuthPopup, type OAuthStatusResponse } from '@/lib/oauthApi';
 import {
@@ -52,6 +52,7 @@ import {
 import styles from './WorkflowIntegrations.module.css';
 import sharedStyles from './WorkflowPage.module.css';
 import type { WorkflowShellProps } from './workflowTypes';
+import { Dots, InlineLoading, PageLoading } from '@/components/loading';
 
 type ProviderAuthState = {
   loading: boolean;
@@ -88,7 +89,9 @@ export function WorkflowCatalog({ model, actions }: WorkflowShellProps) {
   return (
     <section className={styles.integrationCatalog}>
       {model.connectionsLoading ? (
-        <div className={sharedStyles.emptyState}>Loading integrations...</div>
+        <div className={sharedStyles.blankDetail}>
+          <PageLoading variant="fill" />
+        </div>
       ) : connections.length === 0 ? (
         <div className={styles.emptyCatalogPanel}>
           <h2>No syncs yet</h2>
@@ -213,7 +216,7 @@ function ProviderConnectionGroup({
     <section className={styles.providerGroup}>
       <div className={styles.providerGroupHeader}>
         <h3 className={styles.providerSummaryTitle}>{provider.display_name}</h3>
-        <span className={styles.providerCount}>{connections.length}</span>
+        <CountBadge value={connections.length} size="sm" tone="muted" />
       </div>
       <div className={styles.providerGroupBody}>
         <div className={styles.providerSummary} aria-label={`${provider.display_name} connections`}>
@@ -261,6 +264,8 @@ function ConnectionCard({
   const normalizedStatus = statusLabel.toLowerCase();
   const statusIndicator = workflowConnectionStatus(normalizedStatus);
   const lastSynced = status?.last_synced_at ? `Last synced ${formatDate(status.last_synced_at)}` : 'Never synced';
+  const errorMessage = status?.error_message || connection.error_message || '';
+  const statusTitle = errorMessage ? `${statusLabel}: ${errorMessage}` : statusLabel;
 
   return (
     <article className={selected ? `${styles.connectionCard} ${styles.selected}` : styles.connectionCard}>
@@ -274,7 +279,12 @@ function ConnectionCard({
       </div>
       <div className={styles.connectionRight}>
         <div className={styles.connectionMeta}>
-          <StatusIndicator className={styles.statusMeta} status={statusIndicator} label={statusLabel} />
+          <StatusIndicator
+            className={styles.statusMeta}
+            status={statusIndicator}
+            label={statusLabel}
+            title={statusTitle}
+          />
           <span className={styles.syncMetaText}>
             {triggerLabel(trigger.mode, trigger.schedule)}
             <span className={styles.metaDivider}>·</span>
@@ -340,7 +350,7 @@ function ManageSyncDialog({
             size="sm"
             disabled={model.selectedBusy !== null}
             loading={model.selectedBusy === 'refresh'}
-            leadingIcon={model.selectedBusy === 'refresh' ? <Loader2 size={15} className={sharedStyles.spin} /> : <Play size={15} />}
+            leadingIcon={<Play size={15} />}
             onClick={() => void actions.runAction(model.selectedConnection!.id, 'refresh')}
           >
             Run now
@@ -350,9 +360,7 @@ function ManageSyncDialog({
             size="sm"
             disabled={model.selectedBusy !== null}
             loading={model.selectedBusy === 'pause' || model.selectedBusy === 'resume'}
-            leadingIcon={model.selectedBusy === 'pause' || model.selectedBusy === 'resume'
-              ? <Loader2 size={15} className={sharedStyles.spin} />
-              : model.paused ? <Play size={15} /> : <Pause size={15} />}
+            leadingIcon={model.paused ? <Play size={15} /> : <Pause size={15} />}
             onClick={() => void actions.runAction(model.selectedConnection!.id, model.paused ? 'resume' : 'pause')}
           >
             {model.paused ? 'Resume' : 'Pause'}
@@ -369,7 +377,7 @@ function ManageSyncDialog({
             disabled={model.selectedBusy !== null}
             onClick={() => void actions.runAction(model.selectedConnection!.id, 'delete')}
           >
-            {model.selectedBusy === 'delete' ? <Loader2 size={15} className={sharedStyles.spin} /> : <Trash2 size={15} />}
+            {model.selectedBusy === 'delete' ? <Dots size="sm" ariaLabel="Deleting" /> : <Trash2 size={15} />}
           </IconButton>
         </DialogHeader>
         <SyncSettingsForm
@@ -499,18 +507,14 @@ function NewSyncDialog({
 
   return (
     <DialogRoot open onClose={onClose}>
-      <DialogSurface width={820} ariaLabel="New sync">
+      <DialogSurface width={step === 'configure' ? 860 : 820} ariaLabel="New sync">
         <DialogHeader
           title={step === 'source' ? 'Add sync' : `Configure ${provider.display_name}`}
           description={step === 'source'
             ? 'Choose an information source and confirm its authorization status.'
             : 'Choose what to import, where it lands, and how it runs.'}
           onClose={onClose}
-        >
-          {step === 'configure' ? (
-            <WorkflowTriggerControl triggerText={triggerText} model={model} actions={actions} />
-          ) : null}
-        </DialogHeader>
+        />
         <DialogBody style={{ padding: '12px 20px 20px' }}>
           <div className={styles.dialogBodyStack}>
             {model.feedback ? (
@@ -594,57 +598,12 @@ function NewSyncDialog({
               </>
             ) : (
               <>
-                <div className={styles.syncSettingsGrid}>
-                  <div className={styles.syncSettingsCard}>
-                    <div className={styles.syncSettingsTitle}>Source</div>
-                    <div className={sharedStyles.nodeSettings}>
-                      <div className={sharedStyles.settingsGrid}>
-                        {providerUsesOAuth(provider) && provider.provider !== 'url' ? (
-                          <ProviderResourcePicker
-                            provider={provider}
-                            selectedResources={model.selectedResources}
-                            onChange={actions.setSelectedResources}
-                          />
-                        ) : null}
-                        {model.configFields.length === 0 ? (
-                          providerUsesOAuth(provider) && provider.provider !== 'url' ? null : (
-                            <div className={sharedStyles.settingsEmpty}>No source settings required.</div>
-                          )
-                        ) : model.configFields.map((field) => (
-                          <Field
-                            key={field.key}
-                            label={`${field.label}${field.required ? ' *' : ''}`}
-                            hint={field.hint}
-                            error={model.configErrors[field.key]}
-                          >
-                            <ConfigFieldInput
-                              field={field}
-                              value={model.configValues[field.key] ?? ''}
-                              invalid={Boolean(model.configErrors[field.key])}
-                              onChange={(value) => actions.setConfigValues((current) => ({ ...current, [field.key]: value }))}
-                            />
-                          </Field>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  <div className={styles.syncSettingsCard}>
-                    <div className={styles.syncSettingsTitle}>Destination</div>
-                    <div className={sharedStyles.nodeSettings}>
-                      <div className={sharedStyles.settingsGrid}>
-                        <Field label="Project folder">
-                          <ProjectFolderSelect
-                            projectId={model.projectId}
-                            value={model.targetPath}
-                            invalid={!model.targetPath.trim()}
-                            onChange={actions.setTargetPath}
-                            missingLabel="new folder"
-                          />
-                        </Field>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <NewSyncWorkflowMap
+                  provider={provider}
+                  triggerText={triggerText}
+                  model={model}
+                  actions={actions}
+                />
                 <div className={sharedStyles.workflowPanelFooter}>
                   <span className={createDisabled ? sharedStyles.createHintMuted : sharedStyles.createHintReady}>{createHint}</span>
                   <div className={sharedStyles.newWorkflowActions}>
@@ -655,31 +614,122 @@ function NewSyncDialog({
                       <ActionButton
                         variant="secondary"
                         size="sm"
-                        leadingIcon={model.authBusy ? <Loader2 size={15} className={sharedStyles.spin} /> : <ExternalLink size={15} />}
+                        leadingIcon={<ExternalLink size={15} />}
                         onClick={() => void actions.authorize()}
                         loading={model.authBusy}
                       >
                         Authorize
                       </ActionButton>
                     ) : null}
-                  <ActionButton
-                    variant="primary"
-                    size="sm"
-                    leadingIcon={model.creating ? <Loader2 size={15} className={sharedStyles.spin} /> : <Check size={15} />}
-                    onClick={() => void actions.create()}
-                    loading={model.creating}
-                    disabled={createDisabled}
-                  >
-                    Create sync
-                  </ActionButton>
+                    <ActionButton
+                      variant="primary"
+                      size="sm"
+                      leadingIcon={<Check size={15} />}
+                      onClick={() => void actions.create()}
+                      loading={model.creating}
+                      disabled={createDisabled}
+                    >
+                      Create sync
+                    </ActionButton>
+                  </div>
                 </div>
-              </div>
               </>
             )}
           </div>
         </DialogBody>
       </DialogSurface>
     </DialogRoot>
+  );
+}
+
+function NewSyncWorkflowMap({
+  provider,
+  triggerText,
+  model,
+  actions,
+}: WorkflowShellProps & {
+  provider: WorkflowProviderSpec;
+  triggerText: string;
+}) {
+  const needsResourcePicker = providerUsesOAuth(provider) && provider.provider !== 'url';
+  const destinationSegments = normalizeProjectPathSegments(model.targetPath);
+  const destinationTitle = destinationSegments.length > 0
+    ? `/${destinationSegments.join('/')}`
+    : 'Project folder';
+
+  return (
+    <div className={sharedStyles.syncWorkflowMap}>
+      <section className={sharedStyles.syncWorkflowNode}>
+        <div className={sharedStyles.syncWorkflowNodeHeader}>
+          <span className={sharedStyles.syncWorkflowNodeIcon}>
+            <ProviderMark provider={provider} />
+          </span>
+          <span className={sharedStyles.syncWorkflowNodeText}>
+            <span className={sharedStyles.syncWorkflowNodeTitle}>{provider.display_name}</span>
+          </span>
+        </div>
+        <div className={sharedStyles.syncWorkflowNodeBody}>
+          <div className={sharedStyles.settingsGrid}>
+            {needsResourcePicker ? (
+              <ProviderResourcePicker
+                provider={provider}
+                selectedResources={model.selectedResources}
+                onChange={actions.setSelectedResources}
+              />
+            ) : null}
+            {model.configFields.length === 0 ? (
+              needsResourcePicker ? null : (
+                <div className={sharedStyles.settingsEmpty}>No source settings required.</div>
+              )
+            ) : model.configFields.map((field) => (
+              <Field
+                key={field.key}
+                label={`${field.label}${field.required ? ' *' : ''}`}
+                hint={field.hint}
+                error={model.configErrors[field.key]}
+              >
+                <ConfigFieldInput
+                  field={field}
+                  value={model.configValues[field.key] ?? ''}
+                  invalid={Boolean(model.configErrors[field.key])}
+                  onChange={(value) => actions.setConfigValues((current) => ({ ...current, [field.key]: value }))}
+                />
+              </Field>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <div className={sharedStyles.syncWorkflowConnector} aria-label="Sync trigger">
+        <span className={sharedStyles.syncWorkflowLine} />
+        <WorkflowTriggerControl triggerText={triggerText} model={model} actions={actions} />
+        <span className={sharedStyles.syncWorkflowLine} />
+        <span className={sharedStyles.syncWorkflowArrow}>
+          <ArrowRight size={16} />
+        </span>
+      </div>
+
+      <section className={sharedStyles.syncWorkflowNode}>
+        <div className={sharedStyles.syncWorkflowNodeHeader}>
+          <span className={sharedStyles.syncWorkflowNodeIcon}>
+            <img src="/icons/folder.svg" alt="" />
+          </span>
+          <span className={sharedStyles.syncWorkflowNodeText}>
+            <span className={sharedStyles.syncWorkflowNodeTitle}>{destinationTitle}</span>
+          </span>
+        </div>
+        <div className={sharedStyles.syncWorkflowNodeBody}>
+          <ProjectFolderSelect
+            projectId={model.projectId}
+            value={model.targetPath}
+            invalid={!model.targetPath.trim()}
+            onChange={actions.setTargetPath}
+            missingLabel="new folder"
+            showSelection={false}
+          />
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -750,7 +800,9 @@ function ProviderResourcePicker({
       />
       <div className={styles.resourceList}>
         {loading ? (
-          <div className={styles.resourceState}>Loading...</div>
+          <div className={styles.resourceState}>
+            <InlineLoading label="Loading" size="sm" />
+          </div>
         ) : error ? (
           <div className={styles.resourceState}>{error}</div>
         ) : resources.length === 0 ? (
@@ -765,7 +817,7 @@ function ProviderResourcePicker({
               onClick={() => toggleResource(resource)}
             >
               <span className={styles.resourceRowIcon}>
-                <ProviderMark provider={provider} />
+                <ProviderMark provider={provider} icon={resource.icon} />
               </span>
               <span className={styles.resourceRowText}>
                 <span className={styles.resourceRowTitle}>{resource.name}</span>

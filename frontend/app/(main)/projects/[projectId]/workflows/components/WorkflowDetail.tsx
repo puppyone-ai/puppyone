@@ -3,12 +3,12 @@
 import {
   Database,
   ExternalLink,
-  Loader2,
   Pause,
   Play,
   Trash2,
 } from 'lucide-react';
 import { ActionButton } from '@/components/ui/ActionButton';
+import { Dots } from '@/components/loading';
 import { IconButton, StatusPill } from './WorkflowPrimitives';
 import styles from './WorkflowPage.module.css';
 import { WorkflowFlow } from './WorkflowNodes';
@@ -67,7 +67,7 @@ function DetailHeader({ model, actions }: WorkflowShellProps) {
             size="sm"
             disabled={model.selectedBusy !== null}
             loading={model.selectedBusy === 'refresh'}
-            leadingIcon={model.selectedBusy === 'refresh' ? <Loader2 size={15} className={styles.spin} /> : <Play size={15} />}
+            leadingIcon={<Play size={15} />}
             onClick={() => void actions.runAction(model.selectedConnection!.id, 'refresh')}
           >
             Run now
@@ -77,9 +77,7 @@ function DetailHeader({ model, actions }: WorkflowShellProps) {
             size="sm"
             disabled={model.selectedBusy !== null}
             loading={model.selectedBusy === 'pause' || model.selectedBusy === 'resume'}
-            leadingIcon={model.selectedBusy === 'pause' || model.selectedBusy === 'resume'
-              ? <Loader2 size={15} className={styles.spin} />
-              : model.paused ? <Play size={15} /> : <Pause size={15} />}
+            leadingIcon={model.paused ? <Play size={15} /> : <Pause size={15} />}
             onClick={() => void actions.runAction(model.selectedConnection!.id, model.paused ? 'resume' : 'pause')}
           >
             {model.paused ? 'Resume' : 'Pause'}
@@ -96,7 +94,7 @@ function DetailHeader({ model, actions }: WorkflowShellProps) {
             disabled={model.selectedBusy !== null}
             onClick={() => void actions.runAction(model.selectedConnection!.id, 'delete')}
           >
-            {model.selectedBusy === 'delete' ? <Loader2 size={15} className={styles.spin} /> : <Trash2 size={15} />}
+            {model.selectedBusy === 'delete' ? <Dots size="xs" ariaLabel="Deleting" /> : <Trash2 size={15} />}
           </IconButton>
         </div>
       ) : null}

@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { StatusDot } from '@/components/ui/StatusDot';
+import { CountBadge } from '@/components/ui/CountBadge';
 import type { AccessOption } from '../../chat/ChatInputArea';
 
 const ToolIcon = () => (
@@ -87,16 +88,11 @@ export const NodeGroup = ({
             {nodeName}
           </span>
           {selectedCount > 0 && (
-            <span style={{
-              fontSize: 10,
-              padding: '1px 4px',
-              borderRadius: 3,
-              background: 'color-mix(in srgb, var(--po-success) 15%, transparent)',
-              color: 'var(--po-success)',
-              fontWeight: 600,
-            }}>
-              {selectedCount}
-            </span>
+            <CountBadge
+              value={selectedCount}
+              size="sm"
+              tone="success"
+            />
           )}
         </div>
       </div>
@@ -152,7 +148,5 @@ export const NodeGroup = ({
     </div>
   );
 };
-
-
 
 

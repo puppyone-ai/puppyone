@@ -22,6 +22,8 @@ from src.common_schemas import ApiResponse
 from src.config import settings
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
+from src.platform.entitlements.dependencies import get_entitlement_service
+from src.platform.entitlements.service import EntitlementService
 from src.platform.project.dependencies import get_project_service
 from src.platform.project.service import ProjectService
 from src.platform.scope_sandbox.service import (
@@ -66,10 +68,12 @@ async def connect(
     payload: ConnectRequest,
     request: Request,
     current_user: CurrentUser = Depends(get_current_user),
+    entitlement_service: EntitlementService = Depends(get_entitlement_service),
     project_service: ProjectService = Depends(get_project_service),
     service: ScopeSandboxService = Depends(get_scope_sandbox_service),
 ):
-    _ensure_project_access(project_service, current_user, payload.project_id)
+    project = _ensure_project_access(project_service, current_user, payload.project_id)
+    entitlement_service.require_feature(project.org_id, "scope_sandbox.connect")
     if not payload.public_key.strip():
         raise HTTPException(status_code=400, detail="public_key is required")
     if payload.provider and payload.provider not in ("fly", "e2b"):

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional, List
 
 from src.infra.supabase.client import SupabaseClient
@@ -11,6 +11,9 @@ from src.infra.supabase.client import SupabaseClient
 
 NEW_TABLE = "sync_runs"
 VALID_TRIGGER_TYPES = {"manual", "scheduled", "webhook", "realtime", "initial", "push"}
+ACTIVE_RUN_STATUSES = ("queued", "running")
+TERMINAL_RUN_STATUSES = ("completed", "failed", "cancelled", "skipped", "conflict")
+DEFAULT_RUN_LEASE_SECONDS = 30 * 60
 
 
 @dataclass
@@ -26,6 +29,9 @@ class SyncRun:
     error: Optional[str] = None
     trigger_type: str = "manual"
     result_summary: Optional[str] = None
+    worker_job_id: Optional[str] = None
+    heartbeat_at: Optional[str] = None
+    lease_expires_at: Optional[str] = None
     created_at: Optional[str] = None
     table_name: str = NEW_TABLE
 
@@ -56,6 +62,24 @@ class SyncRunRepository:
     def _now() -> str:
         return datetime.now(timezone.utc).isoformat()
 
+    @staticmethod
+    def _lease_expires_at(lease_seconds: int = DEFAULT_RUN_LEASE_SECONDS) -> str:
+        return (
+            datetime.now(timezone.utc) + timedelta(seconds=lease_seconds)
+        ).isoformat()
+
+    @staticmethod
+    def _parse_ts(value: str | None) -> datetime | None:
+        if not value:
+            return None
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                return parsed.replace(tzinfo=timezone.utc)
+            return parsed.astimezone(timezone.utc)
+        except (TypeError, ValueError):
+            return None
+
     def _connection_row(self, connection_id: str) -> dict | None:
         response = (
             self.client.table("connections")
@@ -80,31 +104,263 @@ class SyncRunRepository:
             error=row.get("error_message"),
             trigger_type=row.get("triggered_by", "manual"),
             result_summary=row.get("message"),
+            worker_job_id=row.get("worker_job_id"),
+            heartbeat_at=row.get("heartbeat_at"),
+            lease_expires_at=row.get("lease_expires_at"),
             created_at=row.get("created_at"),
             table_name=NEW_TABLE,
         )
 
-    def create(self, sync_id: str, trigger_type: str = "manual") -> SyncRun:
+    def create(
+        self,
+        sync_id: str,
+        trigger_type: str = "manual",
+        *,
+        status: str = "running",
+        message: str | None = None,
+        worker_job_id: str | None = None,
+        lease_seconds: int = DEFAULT_RUN_LEASE_SECONDS,
+    ) -> SyncRun:
         connection = self._connection_row(sync_id)
         if not connection:
             raise RuntimeError(f"Connection {sync_id} not found")
+        normalized_status = _status_for_new_table(status)
+        running = normalized_status == "running"
         data = {
             "connection_id": sync_id,
             "project_id": connection["project_id"],
             "triggered_by": _normalize_trigger_type(trigger_type),
             "direction": connection.get("direction") or "inbound",
-            "status": "running",
-            "phase": "running",
-            "progress": 0,
-            "message": "Sync running",
-            "started_at": self._now(),
+            "status": normalized_status,
+            "phase": normalized_status,
+            "progress": 5 if running else 0,
+            "message": message or ("Sync running" if running else "Queued"),
         }
+        if normalized_status in ACTIVE_RUN_STATUSES:
+            data["lease_expires_at"] = self._lease_expires_at(lease_seconds)
+        if running:
+            now = self._now()
+            data["started_at"] = now
+            data["heartbeat_at"] = now
+        if worker_job_id is not None:
+            data["worker_job_id"] = worker_job_id
         response = self.client.table(NEW_TABLE).insert(data).execute()
         run = self._to_model(response.data[0])
         self.client.table("connections").update({
             "last_sync_run_id": run.id,
         }).eq("id", sync_id).execute()
         return run
+
+    def create_queued(
+        self,
+        sync_id: str,
+        trigger_type: str = "manual",
+        *,
+        lease_seconds: int = DEFAULT_RUN_LEASE_SECONDS,
+    ) -> SyncRun:
+        return self.create(
+            sync_id,
+            trigger_type,
+            status="queued",
+            message="Queued",
+            lease_seconds=lease_seconds,
+        )
+
+    def is_stale(
+        self,
+        run: SyncRun,
+        *,
+        lease_seconds: int = DEFAULT_RUN_LEASE_SECONDS,
+        now: datetime | None = None,
+    ) -> bool:
+        """Return true when an active run no longer owns its sync lane."""
+        normalized = _status_for_new_table(run.status)
+        if normalized not in ACTIVE_RUN_STATUSES:
+            return False
+        now = now or datetime.now(timezone.utc)
+        lease_expires_at = self._parse_ts(run.lease_expires_at)
+        if lease_expires_at is not None:
+            return lease_expires_at <= now
+        fallback_ts = self._parse_ts(run.heartbeat_at or run.started_at or run.created_at)
+        if fallback_ts is None:
+            return False
+        return fallback_ts + timedelta(seconds=lease_seconds) <= now
+
+    def get_active_by_sync(self, sync_id: str) -> Optional[SyncRun]:
+        rows = (
+            self.client.table(NEW_TABLE)
+            .select("*")
+            .eq("connection_id", sync_id)
+            .in_("status", list(ACTIVE_RUN_STATUSES))
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        ).data or []
+        return self._to_model(rows[0]) if rows else None
+
+    def get_blocking_active_by_sync(
+        self,
+        sync_id: str,
+        *,
+        lease_seconds: int = DEFAULT_RUN_LEASE_SECONDS,
+    ) -> Optional[SyncRun]:
+        run = self.get_active_by_sync(sync_id)
+        if run and self.is_stale(run, lease_seconds=lease_seconds):
+            self.mark_stale(run.id)
+            return None
+        return run
+
+    def create_queued_single_lane(
+        self,
+        sync_id: str,
+        trigger_type: str = "manual",
+        *,
+        lease_seconds: int = DEFAULT_RUN_LEASE_SECONDS,
+    ) -> tuple[SyncRun, bool]:
+        """Create a queued run unless this connection already has one active.
+
+        Returns ``(run, created)``. The pre-check gives normal callers a cheap
+        idempotent path; the post-insert fallback handles the DB partial-unique
+        race when two API/scheduler processes queue the same connection at once.
+        """
+        existing = self.get_blocking_active_by_sync(
+            sync_id,
+            lease_seconds=lease_seconds,
+        )
+        if existing:
+            return existing, False
+        try:
+            return self.create_queued(
+                sync_id,
+                trigger_type,
+                lease_seconds=lease_seconds,
+            ), True
+        except Exception:
+            existing = self.get_blocking_active_by_sync(
+                sync_id,
+                lease_seconds=lease_seconds,
+            )
+            if existing:
+                return existing, False
+            raise
+
+    def set_worker_job_id(self, run_id: str, worker_job_id: str) -> None:
+        self.client.table(NEW_TABLE).update({
+            "worker_job_id": worker_job_id,
+        }).eq("id", run_id).execute()
+
+    def claim_running(
+        self,
+        run_id: str,
+        *,
+        message: str = "Sync running",
+        lease_seconds: int = DEFAULT_RUN_LEASE_SECONDS,
+    ) -> Optional[SyncRun]:
+        now = self._now()
+        response = (
+            self.client.table(NEW_TABLE)
+            .update({
+                "status": "running",
+                "phase": "running",
+                "progress": 5,
+                "message": message,
+                "started_at": now,
+                "heartbeat_at": now,
+                "lease_expires_at": self._lease_expires_at(lease_seconds),
+            })
+            .eq("id", run_id)
+            .eq("status", "queued")
+            .execute()
+        )
+        rows = response.data or []
+        return self._to_model(rows[0]) if rows else None
+
+    def renew_lease(
+        self,
+        run_id: str,
+        *,
+        lease_seconds: int = DEFAULT_RUN_LEASE_SECONDS,
+    ) -> bool:
+        now = self._now()
+        response = (
+            self.client.table(NEW_TABLE)
+            .update({
+                "heartbeat_at": now,
+                "lease_expires_at": self._lease_expires_at(lease_seconds),
+            })
+            .eq("id", run_id)
+            .eq("status", "running")
+            .execute()
+        )
+        return bool(response.data)
+
+    def mark_running(
+        self,
+        run_id: str,
+        *,
+        message: str = "Sync running",
+        lease_seconds: int = DEFAULT_RUN_LEASE_SECONDS,
+    ) -> Optional[SyncRun]:
+        now = self._now()
+        (
+            self.client.table(NEW_TABLE)
+            .update({
+                "status": "running",
+                "phase": "running",
+                "progress": 5,
+                "message": message,
+                "started_at": now,
+                "heartbeat_at": now,
+                "lease_expires_at": self._lease_expires_at(lease_seconds),
+            })
+            .eq("id", run_id)
+            .in_("status", list(ACTIVE_RUN_STATUSES))
+            .execute()
+        )
+        return self.get_by_id(run_id)
+
+    def mark_stale(self, run_id: str) -> Optional[SyncRun]:
+        now = self._now()
+        response = (
+            self.client.table(NEW_TABLE)
+            .update({
+                "status": "failed",
+                "phase": "failed",
+                "progress": 100,
+                "message": "Sync run lease expired",
+                "error_message": "Sync run lease expired before completion",
+                "finished_at": now,
+                "lease_expires_at": None,
+            })
+            .eq("id", run_id)
+            .in_("status", list(ACTIVE_RUN_STATUSES))
+            .execute()
+        )
+        rows = response.data or []
+        return self._to_model(rows[0]) if rows else None
+
+    def recover_stale_active_runs(
+        self,
+        *,
+        lease_seconds: int = DEFAULT_RUN_LEASE_SECONDS,
+        limit: int = 100,
+    ) -> list[SyncRun]:
+        rows = (
+            self.client.table(NEW_TABLE)
+            .select("*")
+            .in_("status", list(ACTIVE_RUN_STATUSES))
+            .order("created_at", desc=False)
+            .limit(limit)
+            .execute()
+        ).data or []
+        recovered: list[SyncRun] = []
+        for row in rows:
+            run = self._to_model(row)
+            if self.is_stale(run, lease_seconds=lease_seconds):
+                stale = self.mark_stale(run.id)
+                if stale:
+                    recovered.append(stale)
+        return recovered
 
     def complete(
         self,
@@ -119,6 +375,8 @@ class SyncRunRepository:
         run = self.get_by_id(run_id)
         if not run:
             return
+        if _status_for_new_table(run.status) in TERMINAL_RUN_STATUSES:
+            return
 
         now = self._now()
         data: dict[str, Any] = {
@@ -126,6 +384,7 @@ class SyncRunRepository:
             "phase": _status_for_new_table(status),
             "progress": 100,
             "finished_at": now,
+            "lease_expires_at": None,
         }
         if error is not None:
             data["error_message"] = error[:10_000]

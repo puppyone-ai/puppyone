@@ -80,8 +80,16 @@ class ETLConfig(BaseSettings):
         default="imports", description="ARQ queue name for one-time import jobs"
     )
 
+    sync_arq_queue_name: str = Field(
+        default="syncs", description="ARQ queue name for durable connection sync jobs"
+    )
+
     import_task_timeout: int = Field(
         default=900, description="Import job timeout in seconds"
+    )
+
+    sync_task_timeout: int = Field(
+        default=900, description="Sync job timeout in seconds"
     )
 
     etl_ocr_max_attempts: int = Field(

@@ -116,11 +116,20 @@ class TestIntegrationEngineDecoupling:
         from src.platform.integrations.engine import IntegrationEngine
         assert hasattr(IntegrationEngine, "execute")
 
-    def test_engine_uses_version_write_commands(self):
-        """IntegrationEngine.execute() should enter writes through L3 command normalization."""
+    def test_engine_uses_version_write_port(self):
+        """IntegrationEngine.execute() should enter project writes through one port."""
         import inspect
         from src.platform.integrations.engine import IntegrationEngine
         source = inspect.getsource(IntegrationEngine.execute)
+        assert "self.write_port.write_plan" in source
+        assert "commands.bulk_write" not in source
+        assert "commands.write_bytes" not in source
+
+    def test_version_write_port_uses_version_write_commands(self):
+        """The Integration write port is the only direct Version Engine write adapter."""
+        import inspect
+        from src.platform.integrations.version_write_port import VersionEngineWritePort
+        source = inspect.getsource(VersionEngineWritePort.write_plan)
         assert "build_worker_version_engine_container" in source
         assert "write_commands" in source
         assert "commands.bulk_write" in source

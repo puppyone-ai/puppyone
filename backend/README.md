@@ -228,7 +228,7 @@ Notion / GitHub / Google (Sheets, Gmail, Drive, Calendar, Docs) / Linear / Airta
 | `POST /api/v1/agents` | Agent SSE 流式对话 |
 | `GET/POST/PUT/DELETE /api/v1/agents/config` | Agent 配置管理 |
 | `GET/POST/PUT/DELETE /api/v1/mcp/agents/{id}/tools` | MCP 工具绑定管理 |
-| `* /api/v1/mcp/proxy/{api_key}/{path}` | MCP Server 代理 |
+| `* /api/v1/mcp/proxy` | MCP Server 公共代理，使用 `Authorization: Bearer mcp_...` 鉴权 |
 
 ### 数据摄取
 
@@ -266,15 +266,19 @@ Notion / GitHub / Google (Sheets, Gmail, Drive, Calendar, Docs) / Linear / Airta
 
 通过 MCP (Model Context Protocol) 让 LLM Agent 直接访问上下文数据：
 
-- **MCP Server**: 独立 FastMCP 服务 (`mcp_service/`)，通过代理连接主 API
+- **MCP Server**: 独立 MCP 服务 (`mcp_service/`)，由主 API 公共代理转发
 - **工具绑定**: 将 Tool 绑定到 Agent，Agent 通过 MCP 协议获取工具列表
-- **API Key 认证**: 每个 Agent 拥有独立 API Key，通过 URL 参数鉴权
+- **Bearer Key 认证**: 每个 Agent 或 MCP Access Point 拥有独立 key，通过 `Authorization: Bearer ...` 鉴权
 
 ```json
 {
   "mcpServers": {
     "contextbase": {
-      "command": "npx -y mcp-remote <MCP_SERVER_URL>/mcp?api_key=<YOUR_KEY>"
+      "type": "http",
+      "url": "https://api.example.com/api/v1/mcp/proxy",
+      "headers": {
+        "Authorization": "Bearer <YOUR_MCP_KEY>"
+      }
     }
   }
 }

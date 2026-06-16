@@ -1,5 +1,6 @@
 """OAuth repository for database operations."""
 
+from datetime import datetime
 from typing import Optional
 
 from src.infra.supabase.client import SupabaseClient
@@ -8,6 +9,41 @@ from src.connectors.datasource.oauth.models import (
     OAuthConnectionCreate,
     OAuthConnectionUpdate,
 )
+
+
+def _parse_datetime(value: object) -> datetime | None:
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str) and value:
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    return None
+
+
+def _select_preferred_connection_row(rows: list[dict]) -> dict | None:
+    """Pick the best row when legacy migrations left duplicate OAuth rows."""
+    if not rows:
+        return None
+
+    def rank(row: dict) -> tuple:
+        metadata = row.get("metadata") or {}
+        if not isinstance(metadata, dict):
+            metadata = {}
+        updated_at = _parse_datetime(row.get("updated_at")) or _parse_datetime(row.get("created_at"))
+        updated_at_key = updated_at.timestamp() if updated_at else 0.0
+        return (
+            not bool(metadata.get("_legacy_gateway_id")),
+            isinstance(metadata.get("user"), dict),
+            bool(row.get("refresh_token")),
+            bool(row.get("access_token")),
+            row.get("expires_at") is not None,
+            updated_at_key,
+            int(row.get("id") or 0),
+        )
+
+    return max(rows, key=rank)
 
 
 class OAuthRepository:
@@ -87,10 +123,11 @@ class OAuthRepository:
             .execute()
         )
 
-        if not response.data:
+        row = _select_preferred_connection_row(response.data or [])
+        if not row:
             return None
 
-        return OAuthConnection(**response.data[0])
+        return OAuthConnection(**row)
 
     async def update(
         self, connection_id: int, update_data: OAuthConnectionUpdate

@@ -1,19 +1,14 @@
 'use client';
 
 import { useConnectorSpecs } from '@/lib/hooks/useData';
+import { resolveProviderIconUrl } from '@/lib/providerIcons';
 import { PROVIDER_LABELS, PROVIDER_COLORS } from '../lib/constants';
 import { parseAgentIcon } from '../lib/format';
 
-// Single source of truth for provider brand marks: `connector_specs` from
-// the backend, fetched via `useConnectorSpecs()`.  This mirrors the
-// access drawer (`data/components/SyncConfigPanel.tsx`):
-//   - `filesystem` → local `FolderMini` SVG (green machine-folder mark)
-//   - everything else → `<img src={spec.icon_url}>` painted directly
-//   - `agent` → emoji-on-chip avatar
-// Any local hardcoded logo map drifts from the access surface the moment
-// the backend ships a new connector, so we deliberately do NOT keep one
-// here.  If a provider has no `icon_url`, we degrade to spec.icon (emoji)
-// then to a single-letter chip.
+// Provider brand marks go through `resolveProviderIconUrl()`, which
+// keeps known brands on local scalable assets and only uses backend
+// `icon_url` for unknown providers. `filesystem` stays a local folder
+// glyph because it is a built-in access surface, not a third-party brand.
 
 function FolderMini({ size }: { size: number }) {
   return (
@@ -61,12 +56,17 @@ export function ProviderAvatar({
   }
 
   const spec = specs.find(s => s.provider === provider);
+  const iconUrl = resolveProviderIconUrl({
+    provider,
+    icon: spec?.icon,
+    iconUrl: spec?.icon_url,
+  });
 
-  if (spec?.icon_url) {
+  if (iconUrl) {
     return (
       <img
-        src={spec.icon_url}
-        alt={spec.display_name || provider}
+        src={iconUrl}
+        alt={spec?.display_name || provider}
         width={size}
         height={size}
         style={{ display: 'block', objectFit: 'contain' }}

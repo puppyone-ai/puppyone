@@ -16,6 +16,10 @@ Read in this order:
 9. [Context Entry Points](architecture/10-context-entrypoints.md)
 10. [Context Entry Point Data Model](architecture/11-context-entrypoint-data-model.md)
 
+Document-level constructs:
+
+- [Editor Save Construct](document/editor-save-construct.md)
+
 For product onboarding (install CLI, first project), see the [root README](../README.md).
 
 The current source of truth for versioning is `backend/src/version_engine/`.

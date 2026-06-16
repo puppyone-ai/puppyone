@@ -69,8 +69,10 @@ export function ImagePreview({ projectId, filePath, nodeName }: ImagePreviewProp
         alignItems: 'center',
         justifyContent: 'center',
         overflow: 'auto',
-        padding: 24,
-        background: 'var(--po-inset)',
+        padding:
+          'var(--po-editor-compact-padding-block) var(--po-editor-compact-padding-inline) var(--po-editor-compact-padding-bottom)',
+        boxSizing: 'border-box',
+        background: 'var(--po-editor-bg)',
       }}
     >
       <div style={{ fontSize: 13, color: 'var(--po-text-subtle)', marginBottom: 12 }}>{nodeName}</div>

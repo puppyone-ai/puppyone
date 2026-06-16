@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useMemo } from 'react';
-import { LoaderCircle } from 'lucide-react';
+import { Dots } from '@/components/loading';
 import { ActivityIconButton } from './ActivityIconButton';
 import {
   ACTIVITY_BG,
@@ -63,11 +63,7 @@ export function ImportJobsWidget({ projectId, inline = false }: ImportJobsWidget
       >
         <div style={activityHeaderStyle}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-            <LoaderCircle
-              size={13}
-              strokeWidth={1.8}
-              style={{ animation: 'import-widget-spin 1s linear infinite' }}
-            />
+            <Dots size="xs" tone="info" ariaLabel="Importing" />
             <span style={activityTitleStyle}>{title}</span>
           </div>
           {primaryJob ? (
@@ -139,13 +135,6 @@ export function ImportJobsWidget({ projectId, inline = false }: ImportJobsWidget
             </div>
           ))}
         </div>
-
-        <style>{`
-          @keyframes import-widget-spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-          }
-        `}</style>
       </div>
     </div>
   );

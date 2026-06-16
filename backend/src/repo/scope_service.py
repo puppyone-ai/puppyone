@@ -117,6 +117,22 @@ class ScopeService:
                         "is auto-created and cannot be re-created."
                     ),
                 )
+        else:
+            from src.platform.entitlements.service import EntitlementService
+            from src.platform.project.repository import ProjectRepositorySupabase
+
+            project = ProjectRepositorySupabase().get_by_id(project_id)
+            if project is None:
+                raise NotFoundException("Project not found")
+            existing_user_scopes = [
+                scope for scope in self._repo.list_by_project(project_id)
+                if not scope.is_root
+            ]
+            EntitlementService().require_capacity(
+                project.org_id,
+                "repo_scopes.max_per_project",
+                current_count=len(existing_user_scopes),
+            )
 
         scope = self._repo.insert(
             project_id=project_id,

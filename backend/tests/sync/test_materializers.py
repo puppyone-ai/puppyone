@@ -135,6 +135,75 @@ class _EngineConnector(BaseConnector):
         return FetchResult(content={"ok": True}, content_hash="hash-3", summary="Fetched")
 
 
+class _CountingConnector(BaseConnector):
+    def __init__(self):
+        self.fetch_calls = 0
+
+    def spec(self) -> ConnectorSpec:
+        return ConnectorSpec(
+            provider="counting_fake",
+            display_name="Counting Fake",
+            capabilities=Capability.PULL,
+            supported_directions=["inbound"],
+        )
+
+    async def fetch(self, config, credentials):
+        self.fetch_calls += 1
+        return FetchResult(content={"ok": True}, content_hash="hash-counting")
+
+
+class _ClaimAwareConnector(BaseConnector):
+    def __init__(self, run_repo):
+        self.run_repo = run_repo
+        self.fetch_calls = 0
+
+    def spec(self) -> ConnectorSpec:
+        return ConnectorSpec(
+            provider="engine_fake",
+            display_name="Engine Fake",
+            capabilities=Capability.PULL,
+            supported_directions=["inbound"],
+        )
+
+    async def fetch(self, config, credentials):
+        assert self.run_repo.claimed == ["run-created"]
+        self.fetch_calls += 1
+        return FetchResult(content={"ok": True}, content_hash="hash-claim", summary="Fetched")
+
+
+class _SingleLaneRunRepo:
+    def __init__(self, run):
+        self.run = run
+        self.created: list[tuple[str, str]] = []
+
+    def create_queued_single_lane(self, connection_id: str, trigger_type: str):
+        self.created.append((connection_id, trigger_type))
+        return self.run, False
+
+
+class _CreatedSingleLaneRunRepo:
+    def __init__(self):
+        self.run = SimpleNamespace(id="run-created", status="queued")
+        self.created: list[tuple[str, str]] = []
+        self.claimed: list[str] = []
+        self.completed: list[tuple[str, str, str | None]] = []
+
+    def create_queued_single_lane(self, connection_id: str, trigger_type: str):
+        self.created.append((connection_id, trigger_type))
+        return self.run, True
+
+    def claim_running(self, run_id: str):
+        if run_id != self.run.id or self.run.status != "queued":
+            return None
+        self.run.status = "running"
+        self.claimed.append(run_id)
+        return self.run
+
+    def complete(self, run_id: str, *, status: str, result_summary: str | None = None, **_kwargs):
+        self.completed.append((run_id, status, result_summary))
+        self.run.status = status
+
+
 class _EngineMaterializer:
     provider = "engine_fake"
     schema = MaterializationSchema(
@@ -225,3 +294,68 @@ async def test_integration_engine_uses_pinned_materializer(monkeypatch):
         last_sync_commit_id="commit-2",
         remote_hash="hash-3",
     )
+
+
+@pytest.mark.asyncio
+async def test_integration_engine_direct_execute_skips_existing_active_run():
+    connector = _CountingConnector()
+    registry = ConnectorRegistry()
+    registry.register(connector)
+
+    connection = _sync("counting_fake")
+    connection.status = "active"
+
+    repository = MagicMock()
+    repository.get_by_id.return_value = connection
+    run_repo = _SingleLaneRunRepo(
+        SimpleNamespace(id="run-active", status="running", worker_job_id="arq-active")
+    )
+
+    result = await IntegrationEngine(registry, repository, run_repo).execute(connection.id)
+
+    assert result is None
+    assert run_repo.created == [("sync-1", "manual")]
+    assert connector.fetch_calls == 0
+    repository.update_status.assert_not_called()
+    repository.update_sync_point.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_integration_engine_direct_execute_creates_claims_and_completes_run(monkeypatch):
+    run_repo = _CreatedSingleLaneRunRepo()
+    connector = _ClaimAwareConnector(run_repo)
+    registry = ConnectorRegistry()
+    registry.register(connector)
+    registry.register_materializer(_EngineMaterializer())
+
+    connection = _sync("engine_fake")
+    connection.path = "Integrations/Mount"
+    connection.config = {
+        "target_path": "Integrations/Mount",
+        "materialization_schema": {"id": "test.schema", "version": 1},
+    }
+
+    repository = MagicMock()
+    repository.get_by_id.return_value = connection
+
+    write_result = SimpleNamespace(commit_id="commit-claim")
+    commands = MagicMock()
+    commands.bulk_write = AsyncMock(return_value=SimpleNamespace(result=write_result))
+    commands.write_bytes = AsyncMock()
+
+    class _Container:
+        def write_commands(self):
+            return commands
+
+    import src.version_engine.bootstrap.dependencies as deps
+    monkeypatch.setattr(deps, "build_worker_version_engine_container", lambda: _Container())
+
+    result = await IntegrationEngine(registry, repository, run_repo).execute(connection.id)
+
+    assert result is not None
+    assert result["run_id"] == "run-created"
+    assert run_repo.created == [("sync-1", "manual")]
+    assert run_repo.claimed == ["run-created"]
+    assert run_repo.completed == [("run-created", "success", "Fetched")]
+    assert connector.fetch_calls == 1
+    commands.bulk_write.assert_awaited_once()

@@ -8,7 +8,7 @@ const CODE_DARK = {
   base: 'vs-dark' as const,
   inherit: true,
   rules: [
-    { token: '', foreground: 'd4d4d4', background: '0e0e0e' },
+    { token: '', foreground: 'd4d4d4', background: '101010' },
     { token: 'comment', foreground: '6b7280', fontStyle: 'italic' },
     { token: 'keyword', foreground: 'f97316' },
     { token: 'string', foreground: '86efac' },
@@ -17,7 +17,7 @@ const CODE_DARK = {
     { token: 'type', foreground: 'a5b4fc' },
   ],
   colors: {
-    'editor.background': '#0e0e0e',
+    'editor.background': '#101010',
     'editor.foreground': '#d4d4d4',
     'editor.lineHighlightBackground': '#141414',
     'editor.selectionBackground': '#3f3f46',
@@ -39,7 +39,7 @@ const CODE_LIGHT = {
   base: 'vs' as const,
   inherit: true,
   rules: [
-    { token: '', foreground: '2f2a23', background: 'fbf6ed' },
+    { token: '', foreground: '2f2a23', background: 'f4ede3' },
     { token: 'comment', foreground: '8a8175', fontStyle: 'italic' },
     { token: 'keyword', foreground: 'cf222e' },
     { token: 'string', foreground: '116329' },
@@ -48,17 +48,17 @@ const CODE_LIGHT = {
     { token: 'type', foreground: '8250df' },
   ],
   colors: {
-    'editor.background': '#fbf6ed',
+    'editor.background': '#f4ede3',
     'editor.foreground': '#2f2a23',
-    'editor.lineHighlightBackground': '#efe7db',
+    'editor.lineHighlightBackground': '#ece2d5',
     'editor.selectionBackground': '#b6d6ff',
     'editor.inactiveSelectionBackground': '#dbeafeaa',
     'editorLineNumber.foreground': '#aaa197',
     'editorLineNumber.activeForeground': '#70685e',
     'editorCursor.foreground': '#2f2a23',
     'editor.selectionHighlightBackground': '#0969da22',
-    'editorIndentGuide.background': '#e1d8cb',
-    'editorIndentGuide.activeBackground': '#c8bdaf',
+    'editorIndentGuide.background': '#ddd2c3',
+    'editorIndentGuide.activeBackground': '#c4b7a7',
     'scrollbar.shadow': '#00000000',
     'scrollbarSlider.background': '#8c959f44',
     'scrollbarSlider.hoverBackground': '#6e778166',
@@ -120,5 +120,5 @@ export function definePuppyoneMonacoThemes(monaco: MonacoLike) {
 }
 
 export function getPuppyoneMonacoTheme(kind: 'code' | 'json' | 'markdown', resolvedTheme?: string) {
-  return `po-${kind}-${resolvedTheme === 'light' ? 'light' : 'dark'}`;
+  return `po-${kind}-${resolvedTheme === 'dark' ? 'dark' : 'light'}`;
 }

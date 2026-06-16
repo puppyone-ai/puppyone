@@ -50,21 +50,6 @@
   letter-spacing: 0;
 }
 
-.countBadge {
-  min-width: 0;
-  height: auto;
-  padding: 1px 7px;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  font-size: 10px;
-  font-weight: 500;
-  color: var(--po-text-muted);
-  background: var(--po-border-subtle);
-}
-
 .pageSubtitle {
   margin: 0;
   font-size: 14px;
@@ -1032,16 +1017,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.spin {
-  animation: workflow-spin 0.9s linear infinite;
-}
-
-@keyframes workflow-spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 @media (max-width: 1040px) {

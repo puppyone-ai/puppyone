@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     PORT: int = 3090
 
     # ============ RPC 配置 ============
-    MAIN_SERVICE_URL: str = "http://localhost:8000"
+    MAIN_SERVICE_URL: str = "http://localhost:9090"
     INTERNAL_API_SECRET: str = ""  # 在 validate() 中强制校验，避免 import 时就炸
     RPC_TIMEOUT: float = 30.0
 

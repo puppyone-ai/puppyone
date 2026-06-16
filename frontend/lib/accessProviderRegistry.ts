@@ -73,7 +73,10 @@ const BUILTIN_PROVIDER_DEFINITIONS = {
   mcp: {
     id: 'mcp',
     label: 'MCP Server',
+    methodTitle: 'MCP Server',
+    methodDescription: 'Connect an MCP-compatible client to this scoped workspace.',
     typeLineLabel: 'MCP server',
+    fixedTypeLine: 'MCP tools endpoint',
     group: 'mcp',
     sortOrder: 3,
   },

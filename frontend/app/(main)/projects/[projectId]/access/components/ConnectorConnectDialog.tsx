@@ -1,12 +1,14 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { DialogBody, DialogHeader, DialogRoot, DialogSurface } from '@/components/ui/Dialog';
-import { buildGitSyncPrompt } from '@/lib/accessPointCliPrompt';
+import { CountBadge } from '@/components/ui/CountBadge';
+import { buildGitSyncPrompt, buildMcpSetupPrompt } from '@/lib/accessPointCliPrompt';
 import type { Connector, RepoScope } from '@/lib/repoApi';
+import { isMcpProvider } from '@/lib/accessProviderRegistry';
 import { T } from '../lib/tokens';
 import { getApiBase, isGitBuiltinProvider } from '../lib/format';
-import { ProviderIcon } from './icons';
+import { CopyIcon, ProviderIcon } from './icons';
 import { CommandBlock, NoAccessKeyNotice } from './ui-blocks';
 import { ConnectorAccessPanel } from './quick-connect';
 import { formatScopePath } from './ScopeHeader';
@@ -26,25 +28,28 @@ export function ConnectorConnectDialog({
   const tileSize = getProviderTileSize(connector.provider);
   const iconSize = getProviderIconSize(connector.provider);
   const isGitRemote = isGitBuiltinProvider(connector.provider);
+  const isMcp = isMcpProvider(connector.provider);
 
   return (
     <DialogRoot onClose={onClose}>
-      <DialogSurface width={680} maxHeight='min(760px, calc(100vh - 32px))'>
+      <DialogSurface width={isMcp ? 620 : 680} maxHeight='min(760px, calc(100vh - 32px))'>
         <DialogHeader
-          title={isGitRemote ? 'Git commands' : `Connect ${name}`}
+          title={isMcp ? <McpDialogTitle /> : isGitRemote ? 'Git commands' : `Connect ${name}`}
           description={
             isGitRemote
               ? `${scope ? formatScopePath(scope) : 'Scope'} · terminal setup`
+              : isMcp
+                ? <McpDialogDescription scope={scope} />
               : undefined
           }
           onClose={onClose}
-          style={{ padding: '14px 20px 4px' }}
+          style={{ padding: isMcp ? '20px 24px 8px' : '14px 20px 4px' }}
           leading={
             <div
               style={{
-                width: tileSize,
-                height: tileSize,
-                borderRadius: isGitBuiltinProvider(connector.provider) ? 7 : 6,
+                width: isMcp ? 44 : tileSize,
+                height: isMcp ? 44 : tileSize,
+                borderRadius: isMcp ? 9 : isGitBuiltinProvider(connector.provider) ? 7 : 6,
                 background: tile.background,
                 border: `1px solid ${tile.border}`,
                 color: tile.color,
@@ -54,13 +59,15 @@ export function ConnectorConnectDialog({
                 overflow: isGitBuiltinProvider(connector.provider) ? 'hidden' : undefined,
               }}
             >
-              <ProviderIcon provider={connector.provider} size={iconSize} />
+              <ProviderIcon provider={connector.provider} size={isMcp ? 21 : iconSize} />
             </div>
           }
         />
-        <DialogBody style={{ padding: '4px 20px 20px' }}>
+        <DialogBody style={{ padding: isMcp ? '4px 24px 24px' : '4px 20px 20px' }}>
           {isGitRemote ? (
             <GitManualCommandsPanel scope={scope} />
+          ) : isMcp ? (
+            <McpConnectionPanel connector={connector} scope={scope} />
           ) : (
             <ConnectorAccessPanel
               connector={connector}
@@ -70,6 +77,284 @@ export function ConnectorConnectDialog({
         </DialogBody>
       </DialogSurface>
     </DialogRoot>
+  );
+}
+
+function McpDialogTitle() {
+  return (
+    <span
+      style={{
+        color: T.text1,
+        fontSize: 18,
+        lineHeight: '24px',
+        fontWeight: 600,
+        fontFamily: T.fontSans,
+      }}
+    >
+      Connect MCP Server
+    </span>
+  );
+}
+
+function McpDialogDescription({ scope }: { readonly scope: RepoScope | undefined }) {
+  return (
+    <span
+      style={{
+        color: T.text2,
+        fontSize: 13,
+        lineHeight: '18px',
+        fontFamily: T.fontSans,
+      }}
+    >
+      {scope ? formatScopePath(scope) : 'Scope'} · URL and API key
+    </span>
+  );
+}
+
+function McpConnectionPanel({
+  connector,
+  scope,
+}: {
+  readonly connector: Connector;
+  readonly scope: RepoScope | undefined;
+}) {
+  const setup = useMemo(() => {
+    const configKey = connector.config?.api_key;
+    const apiKey = typeof configKey === 'string' ? configKey : connector.access_key || '';
+    if (!scope) {
+      return {
+        apiKey,
+        serverUrl: '',
+        authorizationLine: '',
+        serverName: '',
+        config: '',
+      };
+    }
+    const scopeName = scope.name || (scope.path === '' ? 'root' : scope.path || 'Root');
+    return {
+      ...buildMcpSetupPrompt({
+        apiBase: getApiBase(),
+        apiKey,
+        scopeName,
+        accessPointName: connector.name,
+      }),
+      apiKey,
+    };
+  }, [connector.access_key, connector.config?.api_key, connector.name, scope]);
+
+  if (!scope) {
+    return (
+      <div style={{ color: T.text3, fontSize: 12, lineHeight: '18px', fontFamily: T.fontSans }}>
+        Select a scope before connecting this MCP server.
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      {!setup.apiKey ? <McpNoKeyNotice /> : null}
+      <div
+        style={{
+          color: T.text2,
+          fontSize: 13,
+          lineHeight: '20px',
+          fontFamily: T.fontSans,
+        }}
+      >
+        Add this server to an MCP client with the URL and bearer token. Tool permissions are controlled by this access point on the server.
+      </div>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr',
+          gap: 10,
+        }}
+      >
+        <McpConnectionField
+          label='Server URL'
+          value={setup.serverUrl}
+        />
+        <McpConnectionField
+          label='API key'
+          value={setup.apiKey || '<mcp-api-key>'}
+          secret
+        />
+        <div
+          style={{
+            borderRadius: 7,
+            border: `1px solid ${T.cardBorder}`,
+            background: 'color-mix(in srgb, var(--po-control) 42%, transparent)',
+            padding: '10px 12px',
+            color: T.text3,
+            fontSize: 12,
+            lineHeight: '18px',
+            fontFamily: T.fontSans,
+          }}
+        >
+          The key is sent as <span style={{ fontFamily: T.fontMono, color: T.text2 }}>Authorization: Bearer ...</span>. The client JSON below already includes it.
+        </div>
+      </div>
+      <div>
+        <McpSectionHeader
+          title='Client JSON'
+          description='Use this when your MCP client accepts a JSON config block.'
+        />
+        <CommandBlock lines={(setup.config || '{}').split('\n')} />
+      </div>
+    </div>
+  );
+}
+
+function McpConnectionField({
+  label,
+  value,
+  secret = false,
+}: {
+  readonly label: string;
+  readonly value: string;
+  readonly secret?: boolean;
+}) {
+  const [copied, setCopied] = useState(false);
+  const copyValue = useCallback(async () => {
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch {
+      /* clipboard unavailable */
+    }
+  }, [value]);
+
+  return (
+    <div
+      style={{
+        borderRadius: 8,
+        border: `1px solid ${T.cardBorder}`,
+        background: 'color-mix(in srgb, var(--po-inset) 88%, var(--po-panel) 12%)',
+        padding: '12px 12px 12px 14px',
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0, 1fr) 32px',
+        gap: 12,
+        alignItems: 'center',
+      }}
+    >
+      <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <span
+          style={{
+            color: T.text3,
+            fontSize: 11,
+            lineHeight: '14px',
+            fontWeight: 600,
+            fontFamily: T.fontSans,
+          }}
+        >
+          {label}
+        </span>
+        <span
+          title={value}
+          style={{
+            color: T.text1,
+            fontSize: 14,
+            lineHeight: '20px',
+            fontFamily: T.fontMono,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {value}
+        </span>
+        {secret ? (
+          <span
+            style={{
+              color: T.text3,
+              fontSize: 11,
+              lineHeight: '14px',
+              fontFamily: T.fontSans,
+            }}
+          >
+            Keep this key private.
+          </span>
+        ) : null}
+      </div>
+      <button
+        type='button'
+        aria-label={copied ? `Copied ${label}` : `Copy ${label}`}
+        title={copied ? 'Copied' : 'Copy'}
+        onClick={copyValue}
+        style={{
+          width: 32,
+          height: 32,
+          borderRadius: 7,
+          border: `1px solid ${copied ? 'color-mix(in srgb, var(--po-success) 42%, var(--po-border-strong))' : T.border}`,
+          background: copied
+            ? 'color-mix(in srgb, var(--po-success) 12%, transparent)'
+            : 'color-mix(in srgb, var(--po-control) 58%, var(--po-panel) 42%)',
+          color: copied ? 'var(--po-success)' : T.text2,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          transition: `background 0.12s ${T.ease}, border-color 0.12s ${T.ease}, color 0.12s ${T.ease}`,
+        }}
+      >
+        <CopyIcon size={13} />
+      </button>
+    </div>
+  );
+}
+
+function McpSectionHeader({
+  title,
+  description,
+}: {
+  readonly title: string;
+  readonly description: string;
+}) {
+  return (
+    <div style={{ marginBottom: 8, display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <span
+        style={{
+          color: T.text1,
+          fontSize: 13,
+          lineHeight: '18px',
+          fontWeight: 600,
+          fontFamily: T.fontSans,
+        }}
+      >
+        {title}
+      </span>
+      <span
+        style={{
+          color: T.text3,
+          fontSize: 12,
+          lineHeight: '17px',
+          fontFamily: T.fontSans,
+        }}
+      >
+        {description}
+      </span>
+    </div>
+  );
+}
+
+function McpNoKeyNotice() {
+  return (
+    <div
+      style={{
+        borderRadius: 6,
+        border: `1px solid color-mix(in srgb, var(--po-warning) 25%, transparent)`,
+        background: 'color-mix(in srgb, var(--po-warning) 6%, transparent)',
+        color: 'var(--po-warning)',
+        fontSize: 12,
+        lineHeight: 1.5,
+        padding: '8px 10px',
+        fontFamily: T.fontSans,
+      }}
+    >
+      This MCP access point has no API key yet. Regenerate the endpoint key before connecting a client.
+    </div>
   );
 }
 
@@ -129,24 +414,8 @@ function ManualCommandSteps({
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {steps.map((step, index) => (
         <div key={step.title} style={{ display: 'flex', gap: 10 }}>
-          <span
-            style={{
-              width: 20,
-              height: 20,
-              borderRadius: 999,
-              background: 'var(--po-border-subtle)',
-              color: T.text2,
-              fontSize: 10,
-              fontWeight: 600,
-              fontFamily: T.fontSans,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-              marginTop: 1,
-            }}
-          >
-            {index + 1}
+          <span style={{ marginTop: 1 }}>
+            <CountBadge value={index + 1} size="sm" tone="neutral" />
           </span>
           <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
             <span
@@ -167,4 +436,3 @@ function ManualCommandSteps({
     </div>
   );
 }
-

@@ -39,10 +39,20 @@ def test_writable_endpoint_exposes_each_fs_command_as_a_tool():
         "fs_touch",
         "fs_cp",
         "fs_mv",
-        "fs_rmdir",
-        "fs_rm",
     }.issubset(names)
+    assert "fs_rmdir" not in names
+    assert "fs_rm" not in names
     assert "fs_batch" not in names
+
+
+def test_allowed_tools_can_explicitly_expose_delete_tools():
+    tools = build_mcp_tool_definitions(
+        writable=True,
+        allowed_tools=frozenset({"fs_ls", "fs_rm"}),
+    )
+    names = {tool["name"] for tool in tools}
+
+    assert names == {"fs_ls", "fs_rm"}
 
 
 def test_tool_definitions_include_full_mcp_contract_fields():
@@ -59,7 +69,13 @@ def test_tool_definitions_include_full_mcp_contract_fields():
 
 
 def test_write_and_delete_tools_carry_mutation_annotations():
-    tools = _tools(writable=True)
+    tools = {
+        tool["name"]: tool
+        for tool in build_mcp_tool_definitions(
+            writable=True,
+            allowed_tools=frozenset({"fs_write", "fs_rm"}),
+        )
+    }
 
     assert tools["fs_write"]["annotations"]["readOnlyHint"] is False
     assert tools["fs_write"]["annotations"]["destructiveHint"] is True

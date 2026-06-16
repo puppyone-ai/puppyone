@@ -1,7 +1,8 @@
 'use client';
 
 import type { RefObject } from 'react';
-import { Check, Loader2, X } from 'lucide-react';
+import { Check, X } from 'lucide-react';
+import { Dots } from '@/components/loading';
 import { CreateMenu } from './menus/CreateMenu';
 import type { CreateMenuPosition, DataCreateMenuActions } from '../hooks/useDataCreateFlow';
 import type { DataPageToast } from '../hooks/useNodeActions';
@@ -59,7 +60,7 @@ export function DataPageOverlays({
           }}
         >
           {isLoading ? (
-            <Loader2 size={14} strokeWidth={2.4} className="animate-spin" />
+            <Dots size="xs" ariaLabel="Loading" />
           ) : isError ? (
             <X size={14} strokeWidth={2.6} />
           ) : (

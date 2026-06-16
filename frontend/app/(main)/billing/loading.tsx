@@ -1,7 +1,7 @@
 /**
  * Route-segment loading fallback for /billing.
  *
- * Suspense fallback shown while the billing JS bundle + Stripe data
+ * Suspense fallback shown while the billing JS bundle + entitlement data
  * resolve. The AppSidebar stays mounted; only the content area
  * shows this loader.
  */

@@ -80,7 +80,7 @@ export function useDataRouteController({
     activeMimeType: resolvedActiveMimeType,
     // `textContent` here is the **server-side** value (any text-like
     // file: markdown, code, yaml, csv, plaintext). The page-level
-    // editor draft comes from useMarkdownSave and may differ while dirty.
+    // editor draft comes from the editor save session and may differ while dirty.
     textContent: serverTextContent,
     isLoadingText,
     markdownViewMode,

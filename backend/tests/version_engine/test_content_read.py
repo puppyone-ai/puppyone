@@ -11,6 +11,9 @@ from src.platform.auth.models import CurrentUser
 
 class _FakeOps:
     def __init__(self) -> None:
+        self._files = {
+            "config.json": b'{\n  "ok": true\n}',
+        }
         self._entries = [
             VersionEntry(name=".env", path=".env", type="file"),
             VersionEntry(name="visible.md", path="visible.md", type="markdown"),
@@ -25,6 +28,9 @@ class _FakeOps:
 
     def get_head_commit_id(self, _project_id: str) -> str:
         return "head-1"
+
+    def read_file(self, _project_id: str, path: str) -> bytes:
+        return self._files[path]
 
 
 class _FakeProjectService:
@@ -81,6 +87,19 @@ def test_content_tree_includes_dotfiles_by_default():
     assert ".env" in paths
     assert ".config/config.json" in paths
     assert "visible.md" in paths
+
+
+def test_content_cat_json_returns_raw_text_and_parsed_content():
+    response = content_read.read_file(
+        "project-1",
+        path="config.json",
+        ops=_FakeOps(),
+        project_service=_FakeProjectService(),
+        current_user=_user(),
+    )
+
+    assert response.data.content == {"ok": True}
+    assert response.data.content_text == '{\n  "ok": true\n}'
 
 
 def test_content_ls_missing_directory_returns_404_not_empty():

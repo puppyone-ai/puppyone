@@ -370,12 +370,26 @@ FS_TOOL_BY_NAME = {spec.name: spec for spec in FS_TOOL_SPECS}
 MCP_FS_TOOL_NAMES = frozenset(FS_TOOL_BY_NAME)
 
 
-def build_mcp_tool_definitions(*, writable: bool) -> list[dict[str, Any]]:
+def build_mcp_tool_definitions(
+    *,
+    writable: bool,
+    allowed_tools: frozenset[str] | set[str] | None = None,
+) -> list[dict[str, Any]]:
     """Return MCP protocol tool definitions for a scope mode."""
+
+    effective_allowed = allowed_tools
+    if effective_allowed is None:
+        effective_allowed = {
+            spec.name
+            for spec in FS_TOOL_SPECS
+            if spec.access == "read" or (writable and spec.access == "write")
+        }
 
     tools: list[dict[str, Any]] = []
     for spec in FS_TOOL_SPECS:
         if spec.access in {"write", "delete"} and not writable:
+            continue
+        if spec.name not in effective_allowed:
             continue
         tools.append({
             "name": spec.name,

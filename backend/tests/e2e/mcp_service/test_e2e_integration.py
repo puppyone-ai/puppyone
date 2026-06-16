@@ -354,12 +354,12 @@ class TestToolsList:
         session._req_counter = 0
         session.client = httpx.Client(timeout=TIMEOUT)
 
-        # 代理路由使用 X-MCP-API-Key header
+        # 代理路由使用标准 Authorization bearer header
         def _headers():
             h = {
                 "Content-Type": "application/json",
                 "Accept": "application/json",
-                "X-MCP-API-Key": session.api_key,
+                "Authorization": f"Bearer {session.api_key}",
             }
             if session.session_id:
                 h["Mcp-Session-Id"] = session.session_id

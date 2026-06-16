@@ -9,9 +9,10 @@
  * setup live behind Configure.
  */
 
-import { useCallback, useEffect, useMemo, useState, type CSSProperties, type MouseEvent } from 'react';
+import { useCallback, useEffect, useState, type CSSProperties, type MouseEvent } from 'react';
 import useSWR from 'swr';
 import { AiHandoffButton } from '@/components/ui/AiHandoffButton';
+import { CountBadge } from '@/components/ui/CountBadge';
 import { StatusIndicator } from '@/components/ui/StatusDot';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import type { RepoScope } from '@/lib/repoApi';
@@ -35,7 +36,7 @@ import { T } from '../lib/tokens';
 import { formatScopePath } from './ScopeHeader';
 import { CommandBlock, KvBlock, SubSectionLabel } from './ui-blocks';
 
-type WorkspaceVisualState = 'off' | 'ready' | 'active';
+type WorkspaceVisualState = 'off' | 'active';
 
 function fmtExpiry(epoch: number): string {
   try {
@@ -92,11 +93,10 @@ export function SandboxConnectCard({
 
   const keyLooksValid = /^(ssh-ed25519|ssh-rsa|ecdsa-sha2-)\s+\S+/.test(publicKey.trim());
   const connected = info != null || (status?.connected ?? false);
-  const sandboxState = status?.state ?? 'none';
-  const workspaceStarted = sandboxState !== 'none';
-  const workspaceVisualState: WorkspaceVisualState = connected ? 'active' : workspaceStarted ? 'ready' : 'off';
+  const workspaceVisualState: WorkspaceVisualState = connected ? 'active' : 'off';
   const workspaceOff = workspaceVisualState === 'off';
   const workspaceActive = workspaceVisualState === 'active';
+  const previewOpen = expanded || workspaceActive;
   const alias = `puppy-${scope.id.slice(0, 8)}`;
   const workspacePath = info?.workspace_path ?? status?.workspace_path ?? '';
   const openCommand = connected && workspacePath
@@ -148,13 +148,6 @@ export function SandboxConnectCard({
     }
   }, [revoking, projectId, scope.id, mutateStatus]);
 
-  const statusText = useMemo(() => {
-    if (error) return 'Needs attention';
-    if (connected) return 'Active';
-    if (workspaceStarted) return 'Ready';
-    return 'Off';
-  }, [connected, error, workspaceStarted]);
-
   return (
     <div
       style={{
@@ -163,6 +156,8 @@ export function SandboxConnectCard({
         border: `1px solid ${
           expanded
             ? 'var(--po-border-strong)'
+            : error
+              ? 'color-mix(in srgb, var(--po-danger) 28%, var(--po-border-subtle) 72%)'
             : workspaceActive
               ? 'color-mix(in srgb, var(--po-success) 24%, var(--po-border-subtle) 76%)'
               : T.cardBorder
@@ -171,9 +166,7 @@ export function SandboxConnectCard({
           ? 'color-mix(in srgb, var(--po-panel) 72%, var(--po-control) 28%)'
           : workspaceActive
             ? 'color-mix(in srgb, var(--po-success) 4%, var(--po-canvas) 96%)'
-            : workspaceOff
-              ? 'color-mix(in srgb, var(--po-canvas) 88%, var(--po-control) 12%)'
-              : T.bg,
+            : T.bg,
         overflow: 'hidden',
         boxShadow: expanded ? '0 1px 2px color-mix(in srgb, var(--po-shadow) 16%, transparent)' : 'none',
         transition: `border-color 0.15s ${T.ease}, box-shadow 0.15s ${T.ease}, background 0.15s ${T.ease}`,
@@ -193,13 +186,13 @@ export function SandboxConnectCard({
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         style={{
-          minHeight: 132,
+          minHeight: previewOpen ? 132 : 84,
           minWidth: 0,
           display: 'grid',
-          gridTemplateColumns: 'minmax(260px, 1fr) 148px minmax(280px, 320px)',
-          alignItems: 'stretch',
-          gap: 16,
-          padding: '16px 18px',
+          gridTemplateColumns: previewOpen ? 'minmax(0, 1fr) minmax(220px, 240px)' : 'minmax(0, 1fr) max-content',
+          alignItems: previewOpen ? 'stretch' : 'center',
+          gap: previewOpen ? 16 : 14,
+          padding: previewOpen ? '16px 18px' : '14px 18px',
           boxSizing: 'border-box',
           cursor: 'pointer',
           outline: 'none',
@@ -213,9 +206,26 @@ export function SandboxConnectCard({
           transition: `background 0.15s ${T.ease}`,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, minWidth: 0, opacity: workspaceOff ? 0.68 : 1 }}>
-          <SandboxIconTile visualState={workspaceVisualState} active={expanded || connected} />
-          <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: previewOpen ? 'flex-start' : 'center',
+            gap: 14,
+            minWidth: 0,
+            alignSelf: previewOpen ? 'stretch' : undefined,
+          }}
+        >
+          <SandboxIconTile />
+          <div
+            style={{
+              minWidth: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: previewOpen ? 9 : 5,
+              flex: 1,
+              minHeight: previewOpen ? 96 : undefined,
+            }}
+          >
             <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 7 }}>
               <span
                 style={{
@@ -234,18 +244,11 @@ export function SandboxConnectCard({
               >
                 Remote Workspace
               </span>
-              <span aria-hidden style={{ color: T.text4, fontSize: 12 }}>·</span>
-              <span
-                style={{
-                  color: workspaceActive ? 'var(--po-success)' : T.text3,
-                  fontSize: 12,
-                  lineHeight: '16px',
-                  fontFamily: T.fontSans,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {statusText}
-              </span>
+              <RemoteWorkspaceInlineStatus
+                loading={!status}
+                visualState={workspaceVisualState}
+                errored={!!error}
+              />
             </div>
             <div
               style={{
@@ -254,28 +257,46 @@ export function SandboxConnectCard({
                 fontFamily: T.fontSans,
                 lineHeight: '18px',
                 fontWeight: 400,
+                whiteSpace: previewOpen ? 'normal' : 'nowrap',
+                overflow: previewOpen ? 'visible' : 'hidden',
+                textOverflow: previewOpen ? undefined : 'ellipsis',
               }}
             >
-              Open this scope's ready Git workspace in Cursor or VS Code.
+              Add your SSH public key, then open this scope in Cursor or VS Code over Remote-SSH.
             </div>
+            {previewOpen ? (
+              <div style={{ marginTop: 'auto', paddingTop: 10 }}>
+                <SandboxPreviewActions
+                  connected={connected}
+                  expanded={expanded}
+                  visualState={workspaceVisualState}
+                  onToggle={() => setExpanded((v) => !v)}
+                  compact={false}
+                />
+              </div>
+            ) : null}
           </div>
         </div>
 
-        <SandboxPreviewActions
-          connected={connected}
-          loading={!status}
-          expanded={expanded}
-          visualState={workspaceVisualState}
-          onToggle={() => setExpanded((v) => !v)}
-        />
+        {!previewOpen ? (
+          <SandboxPreviewActions
+            connected={connected}
+            expanded={expanded}
+            visualState={workspaceVisualState}
+            onToggle={() => setExpanded((v) => !v)}
+            compact
+          />
+        ) : null}
 
-        <SandboxCommandPreview
-          scope={scope}
-          alias={alias}
-          command={openCommand}
-          connected={connected}
-          visualState={workspaceVisualState}
-        />
+        {previewOpen ? (
+          <SandboxCommandPreview
+            scope={scope}
+            alias={alias}
+            command={openCommand}
+            connected={connected}
+            visualState={workspaceVisualState}
+          />
+        ) : null}
       </div>
 
       {expanded ? (
@@ -331,38 +352,20 @@ export function SandboxConnectCard({
   );
 }
 
-function SandboxIconTile({
-  active,
-  visualState,
-}: {
-  readonly active: boolean;
-  readonly visualState: WorkspaceVisualState;
-}) {
-  const activated = visualState === 'active';
-  const off = visualState === 'off';
+function SandboxIconTile() {
   return (
     <div
       style={{
         height: 36,
         width: 36,
         borderRadius: 8,
-        background: activated
-          ? 'color-mix(in srgb, var(--po-success) 18%, #272b3a 82%)'
-          : active
-            ? '#272b3a'
-            : 'color-mix(in srgb, var(--po-control) 76%, var(--po-canvas) 24%)',
-        border: `1px solid ${activated ? 'color-mix(in srgb, var(--po-success) 42%, #555b72 58%)' : active ? '#555b72' : T.cardBorder}`,
-        color: activated || active ? '#f4efe5' : T.text2,
+        background: '#4a4a4a',
+        border: '1px solid color-mix(in srgb, #4a4a4a 72%, var(--po-border-subtle) 28%)',
+        color: '#f4efe5',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         flexShrink: 0,
-        opacity: off ? 0.84 : 1,
-        boxShadow: activated
-          ? '0 1px 4px color-mix(in srgb, var(--po-success) 18%, transparent)'
-          : active
-            ? '0 1px 3px color-mix(in srgb, var(--po-shadow) 28%, transparent)'
-            : 'none',
       }}
     >
       <RemoteWorkspaceGlyph size={22} />
@@ -370,42 +373,39 @@ function SandboxIconTile({
   );
 }
 
-function SandboxStatusPill({
+function RemoteWorkspaceInlineStatus({
   loading,
   visualState,
+  errored,
 }: {
   readonly loading: boolean;
   readonly visualState: WorkspaceVisualState;
+  readonly errored: boolean;
 }) {
   const active = visualState === 'active';
   const off = visualState === 'off';
-  const label = loading ? 'Checking' : active ? 'Active' : off ? 'Off' : 'Not connected';
-  const status = loading ? 'loading' : active ? 'active' : off ? 'inactive' : 'paused';
+  const label = errored ? 'Needs attention' : loading ? 'Checking' : active ? 'Active' : off ? 'Off' : 'Off';
+  const status = errored ? 'error' : loading ? 'loading' : active ? 'active' : 'inactive';
   return (
-    <StatusIndicator
-      status={status}
-      label={label}
-      onClick={(event) => event.stopPropagation()}
-      style={{
-        justifyContent: 'flex-end',
-        minWidth: 0,
-      }}
-    />
+    <>
+      <span aria-hidden style={{ color: T.text4, fontSize: 12, lineHeight: '16px' }}>·</span>
+      <StatusIndicator status={status} label={label} style={{ flexShrink: 0 }} />
+    </>
   );
 }
 
 function SandboxPreviewActions({
   connected,
-  loading,
   expanded,
   visualState,
   onToggle,
+  compact,
 }: {
   readonly connected: boolean;
-  readonly loading: boolean;
   readonly expanded: boolean;
   readonly visualState: WorkspaceVisualState;
   readonly onToggle: () => void;
+  readonly compact: boolean;
 }) {
   return (
     <div
@@ -413,15 +413,14 @@ function SandboxPreviewActions({
       style={{
         display: 'flex',
         minWidth: 0,
-        alignItems: 'flex-end',
+        alignItems: compact ? 'center' : 'flex-start',
         justifyContent: 'center',
         flexDirection: 'column',
         gap: 12,
       }}
     >
-      <SandboxStatusPill loading={loading} visualState={visualState} />
       <SandboxActionButton
-        label={connected ? 'Open details' : 'Setup workspace'}
+        label={connected ? 'Connection details' : 'Add SSH key'}
         active={expanded}
         quiet={visualState === 'off'}
         onClick={onToggle}
@@ -452,7 +451,7 @@ function SandboxActionButton({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        height: 34,
+        height: 30,
         minWidth: 132,
         borderRadius: 7,
         border: `1px solid ${active || hovered ? 'var(--po-border-strong)' : T.border}`,
@@ -466,7 +465,7 @@ function SandboxActionButton({
         alignItems: 'center',
         justifyContent: 'center',
         gap: 8,
-        padding: '0 12px',
+        padding: '0 11px',
         fontSize: 12,
         lineHeight: '16px',
         fontWeight: 500,
@@ -497,9 +496,6 @@ function SandboxCommandPreview({
 }) {
   const [copied, setCopied] = useState(false);
   const off = visualState === 'off';
-  const preview = command
-    ? `Open this Puppyone Remote Workspace.\n\nHost: ${alias}\nScope: ${formatScopePath(scope)}\n\n${command}`
-    : `Open this Puppyone Remote Workspace.\n\nScope: ${formatScopePath(scope)}\nHost: ${alias}\n\n${connected ? 'Connect again to show the VS Code command.' : 'Paste your SSH public key, then connect.'}`;
 
   const copyCommand = useCallback(async (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
@@ -512,6 +508,38 @@ function SandboxCommandPreview({
       /* clipboard unavailable */
     }
   }, [command]);
+
+  if (!command) {
+    return (
+      <div
+        style={{
+          minWidth: 0,
+          minHeight: 96,
+          borderRadius: 7,
+          border: `1px solid ${T.cardBorder}`,
+          background: 'color-mix(in srgb, var(--po-inset) 92%, var(--po-panel) 8%)',
+          padding: '10px 12px',
+          boxSizing: 'border-box',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          gap: 8,
+          opacity: off ? 0.76 : 1,
+        }}
+      >
+        <SubSectionLabel>Workspace onboarding</SubSectionLabel>
+        <WorkspacePreviewStep number={1} title="Add SSH public key" detail="Authorize your laptop" />
+        <WorkspacePreviewStep number={2} title="Start workspace" detail={`Creates Host ${alias}`} />
+        <WorkspacePreviewStep
+          number={3}
+          title="Open in editor"
+          detail={connected ? 'Copy command' : 'Remote-SSH command'}
+        />
+      </div>
+    );
+  }
+
+  const preview = `Open this Puppyone Remote Workspace with Remote-SSH.\n\nHost: ${alias}\nScope: ${formatScopePath(scope)}\n\n${command}`;
 
   return (
     <div
@@ -555,7 +583,7 @@ function SandboxCommandPreview({
       <AiHandoffButton
         disabled={!command}
         copied={copied}
-        label={command ? 'Copy command' : 'Connect first'}
+        label={command ? 'Copy command' : 'Start first'}
         copiedLabel="Copied"
         onClick={copyCommand}
         style={{
@@ -565,6 +593,62 @@ function SandboxCommandPreview({
           transform: 'translate(-50%, -50%)',
         }}
       />
+    </div>
+  );
+}
+
+function WorkspacePreviewStep({
+  number,
+  title,
+  detail,
+}: {
+  readonly number: number;
+  readonly title: string;
+  readonly detail: string;
+}) {
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '20px minmax(0, 1fr)',
+        alignItems: 'start',
+        gap: 8,
+      }}
+    >
+      <CountBadge
+        value={number}
+        size="sm"
+        tone="surface"
+      />
+      <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
+        <span
+          style={{
+            color: T.text1,
+            fontSize: 12,
+            lineHeight: '16px',
+            fontWeight: 600,
+            fontFamily: T.fontSans,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {title}
+        </span>
+        <span
+          style={{
+            color: T.text3,
+            fontSize: 11,
+            lineHeight: '15px',
+            fontFamily: T.fontSans,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {detail}
+        </span>
+      </div>
     </div>
   );
 }
@@ -806,10 +890,10 @@ function SandboxSetupForm({
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
         <div style={{ fontSize: 13, lineHeight: '18px', fontWeight: 600, color: T.text1, fontFamily: T.fontSans }}>
-          Connect this sandbox
+          Connect Remote Workspace
         </div>
         <div style={{ fontSize: 12, lineHeight: '18px', color: T.text2, fontFamily: T.fontSans }}>
-          One-time setup for Cursor or VS Code. Your private key stays on your Mac; Puppyone only needs the public key so this sandbox can recognize your laptop.
+          Remote Workspace uses SSH, not a URL/key pair. Add your public key once, start the workspace, then copy the editor command.
         </div>
       </div>
 
@@ -860,7 +944,7 @@ function SandboxSetupForm({
         )}
       </SetupStep>
 
-      <SetupStep number={3} title="Connect the sandbox">
+      <SetupStep number={3} title="Start the workspace">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <button
             type="button"
@@ -868,10 +952,10 @@ function SandboxSetupForm({
             disabled={!keyLooksValid || connecting}
             style={connectBtnStyle(!keyLooksValid || connecting)}
           >
-            {connecting ? 'Connecting...' : connected ? 'Refresh command' : 'Connect'}
+            {connecting ? 'Starting...' : connected ? 'Refresh command' : 'Start workspace'}
           </button>
           <span style={{ fontSize: 11, color: T.text3, fontFamily: T.fontSans }}>
-            After Connect, copy the command on the right to open the initialized Git workspace.
+            After it starts, copy the command on the right to open the initialized Git workspace.
           </span>
           {statusConnected ? (
             <button
@@ -907,24 +991,11 @@ function SetupStep({
         alignItems: 'start',
       }}
     >
-      <span
-        style={{
-          width: 22,
-          height: 22,
-          borderRadius: 999,
-          border: `1px solid ${T.cardBorder}`,
-          background: 'color-mix(in srgb, var(--po-control) 70%, var(--po-panel) 30%)',
-          color: T.text2,
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: 11,
-          fontWeight: 600,
-          fontFamily: T.fontSans,
-        }}
-      >
-        {number}
-      </span>
+      <CountBadge
+        value={number}
+        size="md"
+        tone="surface"
+      />
       <div style={{ minWidth: 0 }}>
         <div style={{ marginBottom: 7, fontSize: 12, color: T.text1, fontWeight: 600, fontFamily: T.fontSans }}>
           {title}
@@ -990,7 +1061,7 @@ function ConnectedView({
       ) : null}
 
       <div>
-        <SubSectionLabel>Add to ~/.ssh/config</SubSectionLabel>
+        <SubSectionLabel>1. Add this SSH host to ~/.ssh/config</SubSectionLabel>
         <CommandBlock
           lines={sshConfigBlock
             ? sshConfigBlock.trimEnd().split('\n')
@@ -999,11 +1070,11 @@ function ConnectedView({
       </div>
 
       <div>
-        <SubSectionLabel>Open the Git workspace</SubSectionLabel>
+        <SubSectionLabel>2. Open in VS Code or Cursor</SubSectionLabel>
         <CommandBlock lines={[openCommand || `code --remote ssh-remote+${alias} ${workspacePath || '<workspace>'}`]} />
         <p style={{ margin: '6px 0 0', fontSize: 11, color: T.text3, fontFamily: T.fontSans }}>
-          Use VS Code Remote-SSH and pick <code style={{ fontFamily: T.fontMono }}>{alias}</code>.
-          The path opens the cloned Git repo directly.
+          This opens the scoped Git workspace through Remote-SSH. The Host alias is{' '}
+          <code style={{ fontFamily: T.fontMono }}>{alias}</code>.
         </p>
       </div>
 

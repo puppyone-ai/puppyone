@@ -35,32 +35,26 @@
  *   │  [prompt block with centered Copy CTA]                    │
  *   │  CONFIGURATION                                             │
  *   │  [config table]                                            │
- *   │  RECENT ACTIVITY                                           │
- *   │  [activity placeholder]                                    │
  *   └───────────────────────────────────────────────────────────┘
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import useSWR from 'swr';
 import { StatusIndicator } from '@/components/ui/StatusDot';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
-import { getAccessProviderMethodMeta } from '@/lib/accessProviderRegistry';
+import { getAccessProviderMethodMeta, isMcpProvider } from '@/lib/accessProviderRegistry';
 import type { Connector, RepoScope } from '@/lib/repoApi';
-import { getProjectAuditLogs } from '@/lib/contentTreeApi';
 import { PROJECT_CONTENT_RAIL_WIDTH } from '@/lib/layout';
 import { T } from '../lib/tokens';
 import { STATUS_LABEL } from '../lib/constants';
+import { McpConnectCard } from './McpConnectCard';
 import { SandboxConnectCard } from './SandboxConnectCard';
 import { SyncActivityPanel } from './SyncActivityPanel';
 import { ScopeSettingsBlock } from '../../data/components/access-points/ScopeSettingsBlock';
 import type { ConnectorEditPatch } from '../hooks/useAccessData';
-import { AccessActivitySection, filterAccessActivityLogs } from './AccessActivity';
 import { ConnectorList } from './ConnectorMethodList';
 import { ScopePageHeader, SettingsSection } from './ScopeHeader';
 import { ProviderIcon } from './icons';
 import { getProviderIconSize, getProviderTileSize, getProviderTileStyle } from './connectorVisuals';
-
-const SHOW_ACCESS_ACTIVITY = true;
 
 // ─── Detail pane root ────────────────────────────────────────────────
 
@@ -135,7 +129,8 @@ export function ScopeDetailPanel({
   }, [onScopeDeleted]);
 
   const visibleConnectors = connectors;
-  const methodCount = visibleConnectors.length + (scope ? 1 : 0);
+  const hasMcpMethod = visibleConnectors.some((connector) => isMcpProvider(connector.provider));
+  const methodCount = visibleConnectors.length + (scope ? 1 : 0) + (scope && !hasMcpMethod ? 1 : 0);
 
   useEffect(() => {
     if (visibleConnectors.length === 0) {
@@ -152,19 +147,6 @@ export function ScopeDetailPanel({
       visibleConnectors.find((c) => c.id === selectedConnectorId) ?? null,
     [selectedConnectorId, visibleConnectors],
   );
-  const {
-    data: auditData,
-    error: auditError,
-  } = useSWR(
-    SHOW_ACCESS_ACTIVITY && projectId ? ['access-project-audit-logs', projectId] : null,
-    () => getProjectAuditLogs(projectId, 150),
-    { refreshInterval: 30000, revalidateOnFocus: false, dedupingInterval: 15000 },
-  );
-  const accessActivity = useMemo(
-    () => filterAccessActivityLogs(auditData?.logs ?? [], scope).slice(0, 7),
-    [auditData?.logs, scope],
-  );
-  const activityLoading = !auditError && auditData === undefined;
 
   return (
     <div
@@ -209,6 +191,7 @@ export function ScopeDetailPanel({
               accessMethods={
                 <ScopeAccessMethodsSettings
                   connectors={visibleConnectors}
+                  showMcpPlaceholder={!hasMcpMethod}
                   pendingConnectorIds={pendingConnectorIds}
                   onPauseResume={onPauseResume}
                 />
@@ -231,14 +214,14 @@ export function ScopeDetailPanel({
                 pendingConnectorIds={pendingConnectorIds}
               />
             ) : null}
-            {scope ? <SandboxConnectCard scope={scope} projectId={projectId} /> : null}
-            {SHOW_ACCESS_ACTIVITY ? (
-              <AccessActivitySection
-                rows={accessActivity}
-                loading={activityLoading}
-                errored={!!auditError}
+            {scope && !hasMcpMethod ? (
+              <McpConnectCard
+                scope={scope}
+                projectId={projectId}
+                onCreated={onScopeMutated}
               />
             ) : null}
+            {scope ? <SandboxConnectCard scope={scope} projectId={projectId} /> : null}
           </div>
         ) : (
           <div
@@ -278,13 +261,16 @@ export function ScopeDetailPanel({
 
 function ScopeAccessMethodsSettings({
   connectors,
+  showMcpPlaceholder,
   pendingConnectorIds,
   onPauseResume,
 }: {
   readonly connectors: readonly Connector[];
+  readonly showMcpPlaceholder: boolean;
   readonly pendingConnectorIds: ReadonlySet<string>;
   readonly onPauseResume: (id: string) => void;
 }) {
+  const wayCount = connectors.length + 1 + (showMcpPlaceholder ? 1 : 0);
   return (
     <div
       style={{
@@ -314,7 +300,7 @@ function ScopeAccessMethodsSettings({
             whiteSpace: 'nowrap',
           }}
         >
-          {connectors.length + 1} ways
+          {wayCount} ways
         </div>
       </div>
       <div
@@ -334,8 +320,88 @@ function ScopeAccessMethodsSettings({
             onPauseResume={() => onPauseResume(connector.id)}
           />
         ))}
-        <RemoteWorkspaceSettingsRow isFirst={connectors.length === 0} />
+        {showMcpPlaceholder ? <McpSettingsRow isFirst={connectors.length === 0} /> : null}
+        <RemoteWorkspaceSettingsRow isFirst={connectors.length === 0 && !showMcpPlaceholder} />
       </div>
+    </div>
+  );
+}
+
+function McpSettingsRow({ isFirst }: { readonly isFirst: boolean }) {
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0, 1fr) max-content',
+        alignItems: 'center',
+        gap: 14,
+        minHeight: 58,
+        padding: '10px 12px',
+        borderTop: isFirst ? 'none' : `1px solid ${T.cardBorder}`,
+        opacity: 0.72,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+        <div
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: 6,
+            background: 'color-mix(in srgb, var(--po-control) 76%, var(--po-canvas) 24%)',
+            border: `1px solid ${T.cardBorder}`,
+            color: T.text2,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <ProviderIcon provider='mcp' size={15} variant='mono' />
+        </div>
+        <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+            <span
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: T.text1,
+                fontFamily: T.fontSans,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              MCP Server
+            </span>
+            <span aria-hidden style={{ color: T.text4, fontSize: 12 }}>·</span>
+            <StatusIndicator status='inactive' label='Off' style={{ flexShrink: 0 }} />
+          </div>
+          <span
+            style={{
+              color: T.text3,
+              fontSize: 11,
+              lineHeight: '15px',
+              fontFamily: T.fontSans,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            Create an endpoint from the MCP card.
+          </span>
+        </div>
+      </div>
+      <span
+        style={{
+          color: T.text3,
+          fontSize: 12,
+          lineHeight: '16px',
+          fontFamily: T.fontSans,
+          whiteSpace: 'nowrap',
+        }}
+      >
+        Create from card
+      </span>
     </div>
   );
 }
@@ -488,9 +554,9 @@ function RemoteWorkspaceSettingsRow({ isFirst }: { readonly isFirst: boolean }) 
             height: 34,
             width: 34,
             borderRadius: 8,
-            background: 'color-mix(in srgb, var(--po-control) 76%, var(--po-canvas) 24%)',
-            border: `1px solid ${T.cardBorder}`,
-            color: T.text2,
+            background: '#4a4a4a',
+            border: '1px solid color-mix(in srgb, #4a4a4a 72%, var(--po-border-subtle) 28%)',
+            color: '#f4efe5',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',

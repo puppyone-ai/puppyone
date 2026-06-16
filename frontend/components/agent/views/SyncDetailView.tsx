@@ -324,12 +324,15 @@ export function SyncDetailView({ syncId, projectId, onClose, onBack }: SyncDetai
                 onMouseEnter={e => e.currentTarget.style.color = 'var(--po-text-muted)'}
                 onMouseLeave={e => e.currentTarget.style.color = 'var(--po-text-disabled)'}
               >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                  strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                  style={{ animation: refreshing ? 'spin 0.6s linear' : 'none' }}
-                >
-                  <polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
-                </svg>
+                {refreshing ? (
+                  <Dots size="xs" ariaLabel="Refreshing" />
+                ) : (
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                  >
+                    <polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                  </svg>
+                )}
               </button>
             </div>
           </div>

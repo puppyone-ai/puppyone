@@ -3,12 +3,19 @@
 import React, { memo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { GitPullRequestArrow } from 'lucide-react';
 import useSWR from 'swr';
 import type { ProjectInfo } from '../lib/projectsApi';
 import type { OrganizationInfo } from '../lib/organizationsApi';
 import { getProjectHistory } from '../lib/contentTreeApi';
-import { listPendingConflicts } from '../lib/conflictApi';
+import { PROJECT_LOGS_ENABLED } from '../lib/featureFlags';
+import { listKinds } from '../lib/needsActionRegistry';
+import { isSnoozed } from '../lib/needsActionSnooze';
 import { SidebarLayout, type NavItem } from './sidebar/SidebarLayout';
+
+// Side-effect import: populate the same Needs Action registry used by
+// the Changes page before the sidebar summary reads it.
+import '@/app/(main)/projects/[projectId]/history/components/items';
 
 type AppSidebarProps = {
   projects: ProjectInfo[];
@@ -30,6 +37,34 @@ type AppSidebarProps = {
   userIdentityLoading?: boolean;
   onOpenGuide?: () => void;
 };
+
+type NeedsActionSidebarSummary = {
+  count: number;
+  hasErrors: boolean;
+};
+
+async function getNeedsActionSidebarSummary(projectId: string): Promise<NeedsActionSidebarSummary> {
+  const results = await Promise.allSettled(
+    listKinds().map(async (def) => {
+      const items = await def.fetchItems(projectId);
+      return items.filter(
+        (item) => !isSnoozed({ projectId, kind: def.kind, id: item.id }),
+      ).length;
+    }),
+  );
+
+  return results.reduce<NeedsActionSidebarSummary>(
+    (summary, result) => {
+      if (result.status === 'fulfilled') {
+        summary.count += result.value;
+      } else {
+        summary.hasErrors = true;
+      }
+      return summary;
+    },
+    { count: 0, hasErrors: false },
+  );
+}
 
 export const AppSidebar = memo(function AppSidebar({
   projects,
@@ -65,6 +100,7 @@ export const AppSidebar = memo(function AppSidebar({
     : null;
   const activeProjectTitleLoading =
     Boolean(activeBaseId && !activeProjectFromList) || projectIdentityLoading;
+  const activeProjectId = activeProject?.id ?? null;
 
   const projectOptions = projects.map((p) => ({
     id: p.id,
@@ -80,16 +116,15 @@ export const AppSidebar = memo(function AppSidebar({
     { revalidateOnFocus: false, dedupingInterval: 60000 },
   );
 
-  // Pending conflicts count — drives the badge on Changes. Conflicts
-  // are one kind of change that needs review, not a separate page.
-  // 30s revalidation strikes a balance between freshness and not
-  // hammering the API.
-  const { data: pendingConflicts, isLoading: pendingConflictsLoading } = useSWR(
-    activeProjectFromList ? ['sidebar-pending-conflicts', activeProjectFromList.id] : null,
-    () => listPendingConflicts(activeProjectFromList!.id),
+  // Needs Action count — drives the badge on Changes. Use the same
+  // registry as the Changes page so failed syncs / risky deletes /
+  // pending reviews all surface at the app-navigation entry point.
+  const { data: needsActionSummary, isLoading: needsActionLoading } = useSWR(
+    activeProjectId ? ['sidebar-needs-action', activeProjectId] : null,
+    () => getNeedsActionSidebarSummary(activeProjectId!),
     { refreshInterval: 30_000, dedupingInterval: 15_000, revalidateOnFocus: true },
   );
-  const pendingConflictCount = (pendingConflicts ?? []).length;
+  const needsActionCount = needsActionSummary?.count ?? 0;
 
   const projectStats = activeProjectFromList
     ? {
@@ -111,16 +146,10 @@ export const AppSidebar = memo(function AppSidebar({
       {
         id: 'changes',
         label: t('changes'),
-        icon: (
-          <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
-            <circle cx='6' cy='6' r='3' />
-            <circle cx='18' cy='18' r='3' />
-            <path d='M6 9v6a3 3 0 0 0 3 3h6' />
-            <path d='M18 15V9a3 3 0 0 0-3-3h-2' />
-          </svg>
-        ),
-        badge: pendingConflictCount > 0 ? pendingConflictCount : undefined,
-        badgeLoading: pendingConflictsLoading,
+        icon: <GitPullRequestArrow size={15} strokeWidth={2} />,
+        badge: needsActionCount > 0 ? needsActionCount : undefined,
+        badgeLoading: needsActionLoading,
+        badgeTone: 'danger',
       },
       {
         id: 'access',
@@ -138,6 +167,7 @@ export const AppSidebar = memo(function AppSidebar({
             <path d='M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71' />
           </svg>
         ),
+        groupEnd: true,
       },
       {
         id: 'integrations',
@@ -154,19 +184,20 @@ export const AppSidebar = memo(function AppSidebar({
             <path d='M17.5 10v4' />
           </svg>
         ),
-        groupEnd: true,
       },
-      {
-        id: 'develop',
-        label: t('develop'),
-        icon: (
-          <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
-            <polyline points='16 18 22 12 16 6' />
-            <polyline points='8 6 2 12 8 18' />
-            <line x1='14' y1='4' x2='10' y2='20' />
-          </svg>
-        ),
-      },
+      ...(PROJECT_LOGS_ENABLED
+        ? [{
+            id: 'develop',
+            label: t('develop'),
+            icon: (
+              <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+                <polyline points='16 18 22 12 16 6' />
+                <polyline points='8 6 2 12 8 18' />
+                <line x1='14' y1='4' x2='10' y2='20' />
+              </svg>
+            ),
+          }]
+        : []),
       // HIDDEN: Toolkit nav item temporarily disabled
       // {
       //   id: 'toolkit',

@@ -7,13 +7,18 @@ Shared MCP protocol host for PuppyOne access endpoints.
 ```text
 MCP Client
   -> Main Backend /api/v1/mcp/proxy
-     -> authenticates X-MCP-API-Key or legacy path key
+     -> authenticates Authorization: Bearer mcp_...
      -> proxies to internal mcp_service /mcp
         -> handles MCP protocol, sessions, streaming, tool validation
         -> calls Main Backend /internal/mcp-runtime/*
            -> resolves endpoint scope and permissions
            -> executes scoped_fs tools through Version Engine
 ```
+
+Endpoint records live in `access_surfaces(kind='mcp')`. Runtime credentials
+live in `access_surface_credentials` as HMAC hashes, and server-side tool/file
+permissions live in `access_surface_policies`. Do not store MCP keys or policy
+in `access_surfaces.config`.
 
 `mcp_service` is a separate service by design. Do not embed the MCP protocol
 server directly into the main FastAPI backend. The main backend owns public
@@ -38,30 +43,34 @@ service:
 {
   "mcpServers": {
     "puppyone": {
+      "type": "http",
       "url": "https://api.example.com/api/v1/mcp/proxy",
       "headers": {
-        "X-MCP-API-Key": "mcp_..."
+        "Authorization": "Bearer mcp_..."
       }
     }
   }
 }
 ```
 
-Legacy keyed-path URLs remain route-compatible during migration, but the
-header form above is the canonical product surface.
+The public URL is stable for every MCP access point. The bearer key selects
+the endpoint scope and server-side tool policy.
 
 ## Service Configuration
 
 Main backend:
 
 ```bash
-MCP_SERVER_URL=http://mcp-service:3090
+SERVICE_ROLE=api
+MCP_SERVER_URL=https://your-mcp-service.up.railway.app
+ALLOWED_HOSTS=https://your-frontend.example.com
 INTERNAL_API_SECRET=...
 ```
 
 MCP service:
 
 ```bash
+SERVICE_ROLE=mcp_server
 MAIN_SERVICE_URL=http://main-backend:9090
 INTERNAL_API_SECRET=...
 PORT=3090
@@ -126,7 +135,7 @@ Tools list through the public proxy:
 ```bash
 curl -X POST http://localhost:9090/api/v1/mcp/proxy \
   -H "Content-Type: application/json" \
-  -H "X-MCP-API-Key: mcp_..." \
+  -H "Authorization: Bearer mcp_..." \
   -d '{"jsonrpc":"2.0","method":"tools/list","id":1}'
 ```
 
@@ -135,7 +144,7 @@ Tool call through the public proxy:
 ```bash
 curl -X POST http://localhost:9090/api/v1/mcp/proxy \
   -H "Content-Type: application/json" \
-  -H "X-MCP-API-Key: mcp_..." \
+  -H "Authorization: Bearer mcp_..." \
   -d '{
     "jsonrpc": "2.0",
     "method": "tools/call",

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Check } from 'lucide-react';
+import { InlineLoading } from '@/components/loading';
 import { TreeDisclosureMarker } from '@/components/ui/TreeDisclosureMarker';
 import { useContentNodes } from '@/lib/hooks/useData';
 import { sortNodes, type NodeInfo } from '@/lib/contentTreeApi';
@@ -161,7 +162,7 @@ function FolderChildren({
   const { nodes, isLoading, error } = useContentNodes(projectId, parentPath);
   const entries = useMemo(() => sortNodes(nodes), [nodes]);
 
-  if (isLoading) return <TreeMessage depth={depth}>Loading...</TreeMessage>;
+  if (isLoading) return <TreeMessage depth={depth}><InlineLoading label="Loading" size="xs" /></TreeMessage>;
   if (error) return <TreeMessage depth={depth}>Could not load this folder.</TreeMessage>;
   if (entries.length === 0) return <TreeMessage depth={depth}>Empty folder</TreeMessage>;
 

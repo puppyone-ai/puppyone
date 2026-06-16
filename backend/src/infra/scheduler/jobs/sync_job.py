@@ -1,8 +1,8 @@
 """
 Sync execution job for scheduled sync tasks.
 
-APScheduler calls execute_sync_pull when a scheduled sync needs to refresh.
-Now uses IntegrationEngine instead of the legacy scope-bound sync path.
+APScheduler calls execute_sync_pull when a scheduled sync is due.
+It only creates/enqueues a durable sync run; the sync worker owns execution.
 """
 
 import asyncio
@@ -13,32 +13,83 @@ from src.utils.logger import log_info, log_error
 
 async def _execute_sync_pull_async(sync_id: str, trigger_type: str = "scheduled") -> dict:
     """
-    Pull fresh data for a scheduled Integration binding.
+    Queue fresh data pull for a scheduled Integration binding.
     """
-    from src.platform.integrations.dependencies import create_integration_engine
+    from src.connectors.datasource.run_repository import SyncRunRepository
+    from src.infra.supabase.client import SupabaseClient
+    from src.platform.integrations.arq_client import SyncArqClient
+    from src.platform.integrations.repository import IntegrationRepository
 
     started_at = datetime.now(timezone.utc)
-    log_info(f"[sync-scheduler] Starting pull for sync {sync_id}")
+    log_info(f"[sync-scheduler] Queueing pull for sync {sync_id}")
+    supabase = SupabaseClient()
+    connection = IntegrationRepository(supabase).get_by_id(sync_id)
+    if not connection:
+        return {
+            "status": "failed",
+            "access_point_id": sync_id,
+            "error": "Connection not found",
+        }
+    if connection.direction not in {"inbound", "bidirectional"}:
+        return {
+            "status": "skipped",
+            "access_point_id": sync_id,
+            "reason": "not_configured_for_inbound_sync",
+        }
+    run_repo = SyncRunRepository(supabase)
+    active_run = run_repo.get_blocking_active_by_sync(sync_id)
+    if active_run:
+        return {
+            "status": active_run.status,
+            "access_point_id": sync_id,
+            "connection_id": sync_id,
+            "run_id": active_run.id,
+            "worker_job_id": active_run.worker_job_id,
+            "deduped": True,
+            "reason": f"sync_already_{active_run.status}",
+        }
+    if connection.status not in {"active", "error"}:
+        return {
+            "status": "skipped",
+            "access_point_id": sync_id,
+            "reason": f"status_{connection.status}",
+        }
 
     try:
-        engine = create_integration_engine()
-        result = await engine.execute(sync_id, trigger_type=trigger_type)
+        run, created = run_repo.create_queued_single_lane(
+            sync_id,
+            trigger_type=trigger_type,
+        )
+        if not created:
+            return {
+                "status": run.status,
+                "access_point_id": sync_id,
+                "connection_id": sync_id,
+                "run_id": run.id,
+                "worker_job_id": run.worker_job_id,
+                "deduped": True,
+                "reason": f"sync_already_{run.status}",
+            }
+        worker_job_id = await SyncArqClient().enqueue_sync_run(run.id)
+        run_repo.set_worker_job_id(run.id, worker_job_id)
         elapsed_ms = int((datetime.now(timezone.utc) - started_at).total_seconds() * 1000)
 
-        if result:
-            log_info(f"[sync-scheduler] Pull completed for sync {sync_id} in {elapsed_ms}ms")
-            return {"status": "success", "access_point_id": sync_id, "elapsed_ms": elapsed_ms, **result}
-        else:
-            log_info(f"[sync-scheduler] No changes for sync {sync_id} ({elapsed_ms}ms)")
-            return {"status": "no_change", "access_point_id": sync_id, "elapsed_ms": elapsed_ms}
+        log_info(f"[sync-scheduler] Pull queued for sync {sync_id} in {elapsed_ms}ms")
+        return {
+            "status": "queued",
+            "access_point_id": sync_id,
+            "connection_id": sync_id,
+            "run_id": run.id,
+            "worker_job_id": worker_job_id,
+            "elapsed_ms": elapsed_ms,
+        }
 
     except Exception as e:
-        log_error(f"[sync-scheduler] Pull failed for sync {sync_id}: {e}")
+        log_error(f"[sync-scheduler] Queueing failed for sync {sync_id}: {e}")
         import traceback
         log_error(f"Traceback: {traceback.format_exc()}")
 
         try:
-            from src.infra.supabase.client import SupabaseClient
             from src.platform.integrations.repository import IntegrationRepository
             IntegrationRepository(SupabaseClient()).update_error(sync_id, str(e))
         except Exception:

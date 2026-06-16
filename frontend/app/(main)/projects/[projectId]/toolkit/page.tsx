@@ -29,6 +29,7 @@ import { getNodeTypeConfig, isFolderType } from '@/lib/nodeTypeConfig';
 import { PulseGrid, PageLoading, Dots } from '@/components/loading';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { StatusIndicator, type StatusDotTone } from '@/components/ui/StatusDot';
+import { CountBadge } from '@/components/ui/CountBadge';
 
 // ================= Types =================
 
@@ -157,18 +158,11 @@ function FilterChip({
       {icon && <span style={{ display: 'flex', color: active ? color : 'inherit', opacity: active ? 1 : 0.7 }}>{icon}</span>}
       <span>{label}</span>
       {count !== undefined && count > 0 && (
-        <span style={{
-          background: active ? (color ? `color-mix(in srgb, ${color} 18%, transparent)` : 'var(--po-border-strong)') : 'var(--po-border-subtle)',
-          color: active ? (color || 'var(--po-text)') : 'var(--po-text-subtle)',
-          padding: '0 5px',
-          borderRadius: 4,
-          fontSize: 10,
-          fontWeight: 500,
-          minWidth: 18,
-          textAlign: 'center',
-        }}>
-          {count}
-        </span>
+        <CountBadge
+          value={count}
+          size="md"
+          tone={active ? 'accent' : 'neutral'}
+        />
       )}
     </button>
   );
@@ -538,7 +532,7 @@ function CreateToolPanel({ projectId, onClose, onCreated }: { projectId: string;
           {step === 'config' && (
             <button onClick={handleCreate} disabled={creating}
               style={{ height: 30, padding: '0 16px', background: 'var(--po-accent)', border: 'none', borderRadius: 6, color: 'var(--po-text-inverse)', fontSize: 12, fontWeight: 500, cursor: creating ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              {creating && <Dots size="xs" />}
+              {creating && <Dots size="sm" />}
               {creating ? 'Creating…' : 'Create Tool'}
             </button>
           )}
@@ -774,7 +768,7 @@ export default function ToolkitPage({ params }: { params: Promise<{ projectId: s
             title="Refresh list"
           >
             {loading
-              ? <PulseGrid size="xs" />
+              ? <PulseGrid size="sm" />
               : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 4v6h-6" /><path d="M1 20v-6h6" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>
             }
           </button>

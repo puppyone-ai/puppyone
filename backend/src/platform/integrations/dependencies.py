@@ -10,9 +10,12 @@ from src.connectors.datasource.dependencies import get_connector_registry
 from src.connectors.datasource.registry import ConnectorRegistry
 from src.connectors.datasource.run_repository import SyncRunRepository
 from src.infra.supabase.client import SupabaseClient
+from src.platform.integrations.arq_client import SyncArqClient
 from src.platform.integrations.engine import IntegrationEngine
 from src.platform.integrations.repository import IntegrationRepository
 from src.platform.integrations.service import IntegrationService
+
+_sync_arq_client: SyncArqClient | None = None
 
 
 def _get_supabase_client() -> SupabaseClient:
@@ -38,6 +41,13 @@ def get_integration_service(
         registry=registry,
         supabase=supabase,
     )
+
+
+def get_sync_arq_client() -> SyncArqClient:
+    global _sync_arq_client
+    if _sync_arq_client is None:
+        _sync_arq_client = SyncArqClient()
+    return _sync_arq_client
 
 
 def _build_integration_service(
@@ -70,4 +80,5 @@ __all__ = [
     "get_connector_registry",
     "get_integration_engine",
     "get_integration_service",
+    "get_sync_arq_client",
 ]

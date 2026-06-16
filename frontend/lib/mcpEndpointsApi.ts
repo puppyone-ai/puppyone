@@ -1,5 +1,27 @@
 import { get, post, put, del } from './apiClient';
 
+export type McpToolsConfig =
+  | {
+      version?: number;
+      filesystem?: {
+        allowed?: string[];
+        allowed_tools?: string[];
+        groups?: Record<string, boolean>;
+        tools?: Record<string, boolean>;
+      };
+      fs?: {
+        allowed?: string[];
+        allowed_tools?: string[];
+        groups?: Record<string, boolean>;
+        tools?: Record<string, boolean>;
+      };
+      shell?: { enabled?: boolean };
+      custom_tools?: { tool_id: string; enabled?: boolean }[];
+      bound_tools?: { tool_id: string; enabled?: boolean }[];
+      external_tools?: { tool_id: string; enabled?: boolean }[];
+    }
+  | { tool_id: string; enabled?: boolean }[];
+
 export interface McpEndpoint {
   id: string;
   project_id: string;
@@ -7,7 +29,9 @@ export interface McpEndpoint {
   name: string;
   description: string | null;
   api_key: string;
-  tools_config: { tool_id: string; enabled: boolean }[];
+  api_key_hint?: string;
+  api_key_revealed?: boolean;
+  tools_config: McpToolsConfig;
   accesses: { path: string; json_path: string; readonly: boolean }[];
   config: Record<string, unknown>;
   status: string;
@@ -37,7 +61,7 @@ export async function createMcpEndpoint(params: {
   path?: string;
   description?: string;
   accesses?: { path: string; json_path?: string; readonly?: boolean }[];
-  tools_config?: { tool_id: string; enabled?: boolean }[];
+  tools_config?: McpToolsConfig;
 }): Promise<McpEndpoint> {
   return post<McpEndpoint>('/api/v1/mcp-endpoints', params);
 }
@@ -48,7 +72,7 @@ export async function updateMcpEndpoint(id: string, params: Partial<{
   path: string;
   status: string;
   accesses: { path: string; json_path?: string; readonly?: boolean }[];
-  tools_config: { tool_id: string; enabled?: boolean }[];
+  tools_config: McpToolsConfig;
 }>): Promise<McpEndpoint> {
   return put<McpEndpoint>(`/api/v1/mcp-endpoints/${id}`, params);
 }

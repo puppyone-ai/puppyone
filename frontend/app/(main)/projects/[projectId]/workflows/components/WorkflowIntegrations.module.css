@@ -131,21 +131,6 @@
   color: var(--po-text);
 }
 
-.providerCount {
-  min-width: 20px;
-  height: 20px;
-  border-radius: 999px;
-  background: var(--po-control);
-  color: var(--po-text-subtle);
-  padding: 0 7px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--po-text-size-body);
-  line-height: 20px;
-  font-weight: var(--po-text-weight-medium);
-}
-
 .providerConnectionList {
   min-width: 0;
   width: 100%;

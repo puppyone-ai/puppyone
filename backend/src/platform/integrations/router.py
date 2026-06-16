@@ -36,7 +36,9 @@ from src.platform.integrations.dependencies import (
     get_connector_registry,
     get_integration_engine,
     get_integration_service,
+    get_sync_arq_client,
 )
+from src.platform.integrations.arq_client import SyncArqClient
 from src.platform.integrations.engine import IntegrationEngine
 from src.platform.integrations.paths import canonical_provider
 from src.platform.integrations.service import IntegrationService
@@ -48,6 +50,8 @@ from src.utils.logger import log_error
 router = APIRouter(prefix="/integrations", tags=["integrations"])
 
 _PROJECT_ID_DESC = "Project ID"
+_PULL_DIRECTIONS = {"inbound", "bidirectional"}
+_QUEUEABLE_PULL_STATUSES = {"active", "error"}
 
 
 class BootstrapRequest(BaseModel):
@@ -57,7 +61,7 @@ class BootstrapRequest(BaseModel):
     target_folder_path: Optional[str] = None
     target_path: Optional[str] = None
     credentials_ref: Optional[str] = None
-    direction: str = "bidirectional"
+    direction: str = "inbound"
     conflict_strategy: str = "three_way_merge"
     sync_mode: str = "manual"
     trigger: Optional[dict] = None
@@ -159,6 +163,104 @@ def _target_from_request(body: CreateIntegrationRequest | BootstrapRequest) -> s
     return body.target_path or body.target_folder_path
 
 
+def _ensure_direction_supported(direction: str, spec) -> None:
+    supported = set(spec.supported_directions or [])
+    if direction in supported:
+        return
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail=(
+            f"Direction {direction!r} is not supported by {spec.provider}. "
+            f"Supported directions: {', '.join(spec.supported_directions)}"
+        ),
+    )
+
+
+def _can_queue_pull(connection) -> bool:
+    return (
+        connection.direction in _PULL_DIRECTIONS
+        and connection.status in _QUEUEABLE_PULL_STATUSES
+    )
+
+
+def _ensure_pull_queueable(connection) -> None:
+    if connection.direction not in _PULL_DIRECTIONS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This integration is not configured for inbound sync.",
+        )
+    if connection.status not in _QUEUEABLE_PULL_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Integration cannot be synced while status is {connection.status}.",
+        )
+
+
+def _get_run_repo():
+    from src.connectors.datasource.run_repository import SyncRunRepository
+    from src.infra.supabase.client import SupabaseClient
+
+    return SyncRunRepository(SupabaseClient())
+
+
+def _queued_run_result(*, connection, run, created: bool) -> dict:
+    return {
+        "connection_id": connection.id,
+        "access_point_id": connection.id,
+        "run_id": run.id,
+        "worker_job_id": run.worker_job_id,
+        "path": connection.path,
+        "provider": connection.provider,
+        "status": run.status,
+        "summary": "Sync queued" if created else f"Sync already {run.status}",
+        "deduped": not created,
+    }
+
+
+async def _queue_sync_run(
+    *,
+    connection,
+    trigger_type: str,
+    sync_arq_client: SyncArqClient,
+) -> dict:
+    run_repo = _get_run_repo()
+    active_run = run_repo.get_blocking_active_by_sync(connection.id)
+    if active_run:
+        return _queued_run_result(
+            connection=connection,
+            run=active_run,
+            created=False,
+        )
+
+    _ensure_pull_queueable(connection)
+    run, created = run_repo.create_queued_single_lane(
+        connection.id,
+        trigger_type=trigger_type,
+    )
+    if not created:
+        return _queued_run_result(
+            connection=connection,
+            run=run,
+            created=False,
+        )
+
+    try:
+        worker_job_id = await sync_arq_client.enqueue_sync_run(run.id)
+        run_repo.set_worker_job_id(run.id, worker_job_id)
+        run.worker_job_id = worker_job_id
+    except Exception as exc:
+        run_repo.complete(
+            run.id,
+            status="failed",
+            error=f"Failed to enqueue sync worker: {exc}",
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Sync worker is unavailable. Try again in a moment.",
+        ) from exc
+    return _queued_run_result(connection=connection, run=run, created=True)
+
+
 @router.get("/status", response_model=ApiResponse[ProjectSyncStatusResponse])
 async def get_project_sync_status(
     project_id: str = Query(..., description=_PROJECT_ID_DESC),
@@ -257,8 +359,8 @@ async def list_provider_resources(
 async def create_connection(
     body: CreateIntegrationRequest,
     service: IntegrationService = Depends(get_integration_service),
-    engine: IntegrationEngine = Depends(get_integration_engine),
     registry: ConnectorRegistry = Depends(get_connector_registry),
+    sync_arq_client: SyncArqClient = Depends(get_sync_arq_client),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -281,6 +383,7 @@ async def create_connection(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Connector {provider} must be created via bootstrap",
         )
+    _ensure_direction_supported(body.direction, connector.spec())
 
     try:
         config = registry.pin_materialization_schema(provider, body.config)
@@ -303,7 +406,26 @@ async def create_connection(
             detail=str(exc),
         )
 
-    if body.sync_mode == "scheduled" and body.trigger:
+    execution_result = None
+    if connection.direction in _PULL_DIRECTIONS:
+        try:
+            execution_result = await _queue_sync_run(
+                connection=connection,
+                trigger_type="initial",
+                sync_arq_client=sync_arq_client,
+            )
+        except HTTPException:
+            service.remove_sync(connection.id)
+            raise
+        except Exception as exc:
+            service.remove_sync(connection.id)
+            log_error(f"[IntegrationCreate] First sync enqueue failed for {connection.id}: {exc}")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Sync worker is unavailable. Try again in a moment.",
+            ) from exc
+
+    if execution_result and body.sync_mode == "scheduled" and body.trigger:
         try:
             from src.infra.scheduler.service import get_scheduler_service
 
@@ -314,12 +436,6 @@ async def create_connection(
             )
         except Exception:
             pass
-
-    execution_result = None
-    try:
-        execution_result = await engine.execute(connection.id)
-    except Exception as exc:
-        log_error(f"[IntegrationCreate] First fetch failed for {connection.id}: {exc}")
 
     refreshed = service.repository.get_by_id(connection.id) or connection
     return ApiResponse.success(
@@ -391,6 +507,9 @@ async def update_connection(
     )
     fields: dict[str, Any] = {}
     if body.direction is not None:
+        connector = registry.get(connection.provider)
+        if connector:
+            _ensure_direction_supported(body.direction, connector.spec())
         fields["direction"] = body.direction
     if body.target_path is not None:
         fields["target_path"] = body.target_path
@@ -495,7 +614,7 @@ def pause_connection(
 async def refresh_connection(
     connection_id: str,
     service: IntegrationService = Depends(get_integration_service),
-    engine: IntegrationEngine = Depends(get_integration_engine),
+    sync_arq_client: SyncArqClient = Depends(get_sync_arq_client),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -510,38 +629,36 @@ async def refresh_connection(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot refresh an import-once job.",
         )
-    result = await engine.execute(connection_id)
-    results = [result] if result else []
-    return ApiResponse.success(data=PullResponse(synced=len(results), results=results))
+    result = await _queue_sync_run(
+        connection=connection,
+        trigger_type="manual",
+        sync_arq_client=sync_arq_client,
+    )
+    return ApiResponse.success(data=PullResponse(synced=0, results=[result]))
 
 
 @router.post("/connections/{connection_id}/resume", response_model=ApiResponse)
 async def resume_connection(
     connection_id: str,
     service: IntegrationService = Depends(get_integration_service),
-    engine: IntegrationEngine = Depends(get_integration_engine),
+    sync_arq_client: SyncArqClient = Depends(get_sync_arq_client),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    _get_connection_with_access(
+    connection = _get_connection_with_access(
         connection_id=connection_id,
         service=service,
         project_service=project_service,
         current_user=current_user,
     )
     service.resume_sync(connection_id)
-    try:
-        await engine.execute(connection_id)
-    except Exception:
-        pass
+    connection = service.repository.get_by_id(connection_id) or connection
+    await _queue_sync_run(
+        connection=connection,
+        trigger_type="manual",
+        sync_arq_client=sync_arq_client,
+    )
     return ApiResponse.success(message="Integration resumed")
-
-
-def _get_run_repo():
-    from src.connectors.datasource.run_repository import SyncRunRepository
-    from src.infra.supabase.client import SupabaseClient
-
-    return SyncRunRepository(SupabaseClient())
 
 
 @router.get("/failed-runs", response_model=ApiResponse[list[FailedSyncRunItem]])
@@ -600,6 +717,7 @@ def list_connection_runs(
             id=r.id,
             access_point_id=r.access_point_id,
             status=r.status,
+            worker_job_id=r.worker_job_id,
             started_at=r.started_at,
             finished_at=r.finished_at,
             duration_ms=r.duration_ms,
@@ -624,6 +742,7 @@ def get_connection_run(
         id=run.id,
         access_point_id=run.access_point_id,
         status=run.status,
+        worker_job_id=run.worker_job_id,
         started_at=run.started_at,
         finished_at=run.finished_at,
         duration_ms=run.duration_ms,
@@ -639,8 +758,8 @@ def get_connection_run(
 async def bootstrap(
     body: BootstrapRequest,
     service: IntegrationService = Depends(get_integration_service),
-    engine: IntegrationEngine = Depends(get_integration_engine),
     registry: ConnectorRegistry = Depends(get_connector_registry),
+    sync_arq_client: SyncArqClient = Depends(get_sync_arq_client),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -657,6 +776,7 @@ async def bootstrap(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Connector {provider} must be created via POST /integrations/connections",
         )
+    _ensure_direction_supported(body.direction, connector.spec())
 
     try:
         config = registry.pin_materialization_schema(provider, body.config)
@@ -679,12 +799,26 @@ async def bootstrap(
             detail=str(exc),
         )
 
+    queued_connections = []
+    for connection in connections:
+        if connection.direction not in _PULL_DIRECTIONS:
+            continue
+        try:
+            await _queue_sync_run(
+                connection=connection,
+                trigger_type="initial",
+                sync_arq_client=sync_arq_client,
+            )
+            queued_connections.append(connection)
+        except Exception as exc:
+            log_error(f"[IntegrationBootstrap] First sync enqueue failed for {connection.id}: {exc}")
+
     if body.sync_mode == "scheduled" and body.trigger:
         try:
             from src.infra.scheduler.service import get_scheduler_service
 
             scheduler = get_scheduler_service()
-            for connection in connections:
+            for connection in queued_connections:
                 await scheduler.sync_trigger(
                     connection_id=connection.id,
                     provider=provider,
@@ -693,27 +827,61 @@ async def bootstrap(
         except Exception:
             pass
 
-    for connection in connections:
-        try:
-            await engine.execute(connection.id)
-        except Exception as exc:
-            log_error(f"[IntegrationBootstrap] First fetch failed for {connection.id}: {exc}")
-
     return ApiResponse.success(data=BootstrapResponse(syncs_created=len(connections)))
 
 
 @router.post("/pull", response_model=ApiResponse[PullResponse])
 async def trigger_pull(
     connection_id: Optional[str] = Query(None, description="Connection ID. Omit to pull all."),
+    project_id: Optional[str] = Query(None, description=_PROJECT_ID_DESC),
     provider: Optional[str] = Query(None),
-    engine: IntegrationEngine = Depends(get_integration_engine),
+    service: IntegrationService = Depends(get_integration_service),
+    sync_arq_client: SyncArqClient = Depends(get_sync_arq_client),
+    project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     if connection_id:
-        result = await engine.execute(connection_id)
-        results = [result] if result else []
+        connection = _get_connection_with_access(
+            connection_id=connection_id,
+            service=service,
+            project_service=project_service,
+            current_user=current_user,
+        )
+        result = await _queue_sync_run(
+            connection=connection,
+            trigger_type="manual",
+            sync_arq_client=sync_arq_client,
+        )
+        results = [result]
     else:
-        results = await engine.execute_all(provider)
+        if not project_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="project_id is required when connection_id is omitted",
+            )
+        _ensure_project_access(project_service, current_user, project_id)
+        connections = (
+            service.repository.list_by_provider(project_id, provider)
+            if provider
+            else service.repository.list_by_project(project_id)
+        )
+        results = []
+        for connection in connections:
+            if connection.direction not in _PULL_DIRECTIONS:
+                continue
+            try:
+                results.append(await _queue_sync_run(
+                    connection=connection,
+                    trigger_type="manual",
+                    sync_arq_client=sync_arq_client,
+                ))
+            except HTTPException as exc:
+                if exc.status_code in {
+                    status.HTTP_400_BAD_REQUEST,
+                    status.HTTP_409_CONFLICT,
+                }:
+                    continue
+                raise
     return ApiResponse.success(data=PullResponse(synced=len(results), results=results))
 
 

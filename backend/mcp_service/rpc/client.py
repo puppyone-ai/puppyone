@@ -4,6 +4,7 @@ RPC客户端模块
 
 MCP service 调主服务内部端点：
 - /internal/agent-by-mcp-key/{mcp_api_key} - 获取 Agent 及其 bash 访问权限和 tools
+- /internal/mcp-endpoint/resolve - 获取 standalone MCP endpoint 配置
 - /internal/mcp-runtime/* - standalone MCP endpoint scoped filesystem runtime
 - /internal/tables/{table_id}/context-* - 数据操作端点
 - /internal/tools/{tool_id}/search - Search Tool 查询端点
@@ -68,8 +69,8 @@ class InternalApiClient:
     async def get_mcp_endpoint_by_key(self, api_key: str) -> Optional[Dict[str, Any]]:
         """Query MCP endpoint from access_points table (provider='mcp')."""
         try:
-            url = f"{self.base_url}/internal/mcp-endpoint-by-key/{api_key}"
-            response = await self._client.get(url)
+            url = f"{self.base_url}/internal/mcp-endpoint/resolve"
+            response = await self._client.post(url, json={"api_key": api_key})
             if response.status_code == 404:
                 return None
             response.raise_for_status()

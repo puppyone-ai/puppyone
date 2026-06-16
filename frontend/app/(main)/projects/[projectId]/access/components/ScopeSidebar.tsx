@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import type { Connector, RepoScope } from '@/lib/repoApi';
+import { CountBadge } from '@/components/ui/CountBadge';
 import { StatusDot } from '@/components/ui/StatusDot';
 import { SIDEBAR_ROW_TYPOGRAPHY } from '@/lib/uiTypography';
 import { T } from '../lib/tokens';
@@ -57,11 +58,11 @@ export function ScopeSidebar({
           flexDirection: 'column',
         }}
       >
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 34px', gap: 6 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 30px', gap: 6 }}>
           <label
             style={{
-              height: 34,
-              borderRadius: 8,
+              height: 30,
+              borderRadius: 6,
               border: `1px solid ${T.border}`,
               background: 'var(--po-control)',
               display: 'flex',
@@ -95,14 +96,12 @@ export function ScopeSidebar({
               aria-expanded={filterOpen}
               onClick={() => setFilterOpen((v) => !v)}
               style={{
-                width: 34,
-                height: 34,
-                borderRadius: 8,
-                border: `1px solid ${filter !== 'all' || filterOpen ? 'var(--po-border-strong)' : T.border}`,
-                background: filter !== 'all' || filterOpen
-                  ? 'color-mix(in srgb, var(--po-control) 74%, var(--po-panel) 26%)'
-                  : 'var(--po-control)',
-                color: filter !== 'all' ? T.text1 : T.text2,
+                width: 30,
+                height: 30,
+                borderRadius: 6,
+                border: '1px solid transparent',
+                background: 'transparent',
+                color: filter !== 'all' || filterOpen ? T.text1 : T.text2,
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -116,7 +115,7 @@ export function ScopeSidebar({
                 style={{
                   position: 'absolute',
                   zIndex: 5,
-                  top: 40,
+                  top: 36,
                   right: 0,
                   width: 150,
                   borderRadius: 8,
@@ -216,7 +215,7 @@ function ScopeSidebarRow({
     : (scope.name || scope.path.split('/').filter(Boolean).pop() || scope.path);
   const subPath = formatScopePath(scope);
   const active = connectors.some(isConnectorActive);
-  const accessPointCount = connectors.length + 1;
+  const connectorCount = connectors.length;
 
   return (
     <div
@@ -304,27 +303,12 @@ function ScopeSidebarRow({
           >
             {subPath}
           </span>
-          <span
-            title={`${accessPointCount} access points`}
-            style={{
-              height: 22,
-              minWidth: 22,
-              padding: '0 7px',
-              borderRadius: 999,
-              background: isSelected ? 'color-mix(in srgb, var(--po-text) 10%, var(--po-panel) 90%)' : 'var(--po-border-subtle)',
-              color: isSelected ? T.text1 : T.text3,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontFamily: T.fontSans,
-              fontSize: 12,
-              lineHeight: '16px',
-              fontWeight: 650,
-              flexShrink: 0,
-            }}
-          >
-            {accessPointCount}
-          </span>
+          <CountBadge
+            value={connectorCount}
+            title={`${connectorCount} ${connectorCount === 1 ? 'connector' : 'connectors'}`}
+            size="md"
+            tone={isSelected ? 'selected' : 'neutral'}
+          />
         </div>
       </div>
     </div>

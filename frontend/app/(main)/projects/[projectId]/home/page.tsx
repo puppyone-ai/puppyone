@@ -21,6 +21,7 @@ import { GetStartedPanel } from './components/GetStartedPanel';
 import { ApChip } from './components/ApChip';
 import { ProjectPageLoadingShell } from '@/components/loading';
 import { ProjectGitHealthBadge } from '@/components/ProjectGitHealthBadge';
+import { CountBadge } from '@/components/ui/CountBadge';
 
 // ConnectionsCanvas (the old xyflow wiring board) used to mount here.
 // Home now surfaces Access Points directly under the Data card via
@@ -789,29 +790,11 @@ export default function HomePage({
                     Data
                   </span>
                   {dashboard?.nodes?.total != null && (
-                    <span
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        minWidth: 20,
-                        height: 18,
-                        padding: '0 6px',
-                        borderRadius: 9,
-                        background: 'var(--po-border)',
-                        fontSize: 11,
-                        fontWeight: 600,
-                        // Dimmed from text1 → text2 so the chip number
-                        // doesn't glare brighter than the label next
-                        // to it (chip read like a beacon in the
-                        // previous draft).
-                        color: dashboard.nodes.total > 0 ? T.text2 : T.text3,
-                        fontVariantNumeric: 'tabular-nums',
-                        lineHeight: 1,
-                      }}
-                    >
-                      {dashboard.nodes.total}
-                    </span>
+                    <CountBadge
+                      value={dashboard.nodes.total}
+                      size="md"
+                      tone="neutral"
+                    />
                   )}
                 </div>
                 <button
