@@ -56,13 +56,7 @@ export default function LoginPage() {
 function LoginPageFallback() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[var(--po-inset)]">
-      <img
-        src="/puppyone-logo.svg"
-        alt="Puppyone"
-        width={48}
-        height={48}
-        className="opacity-50 animate-pulse"
-      />
+      <PulseGrid />
     </div>
   );
 }

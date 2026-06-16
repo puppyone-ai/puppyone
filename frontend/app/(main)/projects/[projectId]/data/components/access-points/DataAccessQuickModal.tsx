@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from 'react';
 import { ArrowLeft, BookOpen, Check, ChevronRight, Copy, ExternalLink, Plus } from 'lucide-react';
 import { PulseGrid } from '@/components/loading';
 import { AiHandoffButton } from '@/components/ui/AiHandoffButton';
+import { CountBadge } from '@/components/ui/CountBadge';
 import { DialogBody, DialogHeader, DialogRoot, DialogSurface } from '@/components/ui/Dialog';
 import { ModalPortal } from '@/components/ui/ModalPortal';
 import { StatusIndicator } from '@/components/ui/StatusDot';
@@ -1032,24 +1033,8 @@ function ConnectionStepsList({
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {steps.map((step, index) => (
         <div key={step.title} style={{ display: 'flex', gap: 10 }}>
-          <span
-            style={{
-              width: 20,
-              height: 20,
-              borderRadius: 999,
-              background: 'var(--po-border-subtle)',
-              color: T.text2,
-              fontSize: FONT_META,
-              fontWeight: 600,
-              fontFamily: T.fontSans,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-              marginTop: 1,
-            }}
-          >
-            {index + 1}
+          <span style={{ marginTop: 1 }}>
+            <CountBadge value={index + 1} size="sm" tone="neutral" />
           </span>
           <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
             <span style={{ color: T.text1, fontSize: FONT_META, fontWeight: 600, fontFamily: T.fontSans }}>

@@ -36,17 +36,27 @@ class _Supabase:
         return _Query(self._tables.get(name, []))
 
 
+class _McpEndpointRepo:
+    def __init__(self, endpoint: dict | None):
+        self._endpoint = endpoint
+
+    def get_by_api_key(self, api_key: str):
+        assert api_key == "mcp_key"
+        return self._endpoint
+
+
 def test_resolver_builds_writable_context_when_scope_and_access_are_rw(monkeypatch):
+    endpoint = {
+        "id": "endpoint-1",
+        "name": "Files",
+        "project_id": "proj-1",
+        "scope_id": "scope-1",
+        "status": "active",
+        "created_by": "user-1",
+        "accesses": [{"readonly": False}],
+        "tools_config": {},
+    }
     sb = _Supabase({
-        "access_surfaces": [{
-            "id": "endpoint-1",
-            "name": "Files",
-            "project_id": "proj-1",
-            "scope_id": "scope-1",
-            "status": "active",
-            "created_by": "user-1",
-            "config": {"api_key": "mcp_key", "accesses": [{"readonly": False}]},
-        }],
         "repo_scopes": [{
             "id": "scope-1",
             "project_id": "proj-1",
@@ -56,6 +66,7 @@ def test_resolver_builds_writable_context_when_scope_and_access_are_rw(monkeypat
         }],
     })
     monkeypatch.setattr(resolver, "get_supabase_client", lambda: sb)
+    monkeypatch.setattr(resolver, "McpEndpointRepository", lambda: _McpEndpointRepo(endpoint))
 
     ctx = resolver.resolve_mcp_scoped_fs_context("mcp_key")
 
@@ -65,18 +76,22 @@ def test_resolver_builds_writable_context_when_scope_and_access_are_rw(monkeypat
     assert ctx.scope_path == "docs"
     assert ctx.exclude == ["private"]
     assert ctx.mode == "rw"
+    assert ctx.allowed_tools is not None
+    assert "fs_write" in ctx.allowed_tools
+    assert "fs_rm" not in ctx.allowed_tools
 
 
 def test_resolver_downgrades_to_readonly_without_writable_access(monkeypatch):
+    endpoint = {
+        "id": "endpoint-1",
+        "name": "Files",
+        "project_id": "proj-1",
+        "scope_id": "scope-1",
+        "status": "active",
+        "accesses": [{"readonly": True}],
+        "tools_config": {},
+    }
     sb = _Supabase({
-        "access_surfaces": [{
-            "id": "endpoint-1",
-            "name": "Files",
-            "project_id": "proj-1",
-            "scope_id": "scope-1",
-            "status": "active",
-            "config": {"api_key": "mcp_key", "accesses": [{"readonly": True}]},
-        }],
         "repo_scopes": [{
             "id": "scope-1",
             "project_id": "proj-1",
@@ -87,11 +102,47 @@ def test_resolver_downgrades_to_readonly_without_writable_access(monkeypatch):
         "projects": [{"created_by": "project-owner"}],
     })
     monkeypatch.setattr(resolver, "get_supabase_client", lambda: sb)
+    monkeypatch.setattr(resolver, "McpEndpointRepository", lambda: _McpEndpointRepo(endpoint))
 
     ctx = resolver.resolve_mcp_scoped_fs_context("mcp_key")
 
     assert ctx.mode == "ro"
     assert ctx.user_id == "project-owner"
+    assert ctx.allowed_tools is not None
+    assert "fs_ls" in ctx.allowed_tools
+    assert "fs_write" not in ctx.allowed_tools
+
+
+def test_resolver_applies_mcp_tools_config(monkeypatch):
+    endpoint = {
+        "id": "endpoint-1",
+        "name": "Files",
+        "project_id": "proj-1",
+        "scope_id": "scope-1",
+        "status": "active",
+        "created_by": "user-1",
+        "accesses": [{"readonly": False}],
+        "tools_config": {
+            "filesystem": {
+                "allowed": ["fs_ls", "fs_rm"],
+            },
+        },
+    }
+    sb = _Supabase({
+        "repo_scopes": [{
+            "id": "scope-1",
+            "project_id": "proj-1",
+            "path": "docs",
+            "exclude": [],
+            "mode": "rw",
+        }],
+    })
+    monkeypatch.setattr(resolver, "get_supabase_client", lambda: sb)
+    monkeypatch.setattr(resolver, "McpEndpointRepository", lambda: _McpEndpointRepo(endpoint))
+
+    ctx = resolver.resolve_mcp_scoped_fs_context("mcp_key")
+
+    assert ctx.allowed_tools == frozenset({"fs_ls", "fs_rm"})
 
 
 def test_resolver_rejects_non_mcp_key():

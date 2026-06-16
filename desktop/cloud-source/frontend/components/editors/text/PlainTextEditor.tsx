@@ -10,7 +10,7 @@ const plainTextStyles = `
     width: 100%;
     height: 100%;
     overflow: auto;
-    background: var(--po-canvas);
+    background: var(--po-editor-bg);
     color: var(--po-text-muted);
     font-family: var(--po-font-sans);
   }
@@ -21,7 +21,7 @@ const plainTextStyles = `
     max-width: ${PROJECT_CONTENT_RAIL_WIDTH}px;
     min-height: 100%;
     margin: 0 auto;
-    padding: 28px 32px 48px;
+    padding: var(--po-editor-padding-block) var(--po-editor-padding-inline) var(--po-editor-padding-bottom);
   }
 
   .plain-text-editor__surface {
@@ -64,11 +64,6 @@ const plainTextStyles = `
     background: var(--po-selected);
   }
 
-  @media (max-width: 640px) {
-    .plain-text-editor__rail {
-      padding: 24px 20px 40px;
-    }
-  }
 `;
 
 interface PlainTextEditorProps {

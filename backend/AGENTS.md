@@ -244,6 +244,8 @@ Nixpacks 也会触发 Python 检测并尝试默认安装流程，把上面的 bu
 |----------------|------|
 | 未设置 / `api` | `uvicorn src.main:app` (FastAPI) |
 | `file_worker` | `arq src.ingest.file.jobs.worker.WorkerSettings` |
+| `import_worker` | `arq src.platform.imports.worker.WorkerSettings` |
+| `sync_worker` | `arq src.platform.integrations.worker.WorkerSettings` |
 | `mcp_server` | `uvicorn mcp_service.server:app` |
 
 每个 Railway service 在 Variables 里设 `SERVICE_ROLE` 即可，不需要复制代码。

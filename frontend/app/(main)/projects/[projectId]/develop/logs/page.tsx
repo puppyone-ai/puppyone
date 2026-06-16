@@ -567,13 +567,6 @@ export default function ProjectLogsPage({ params }: { params: Promise<{ projectI
           </div>
         )}
       </div>
-
-      <style>{`
-        @keyframes puppyone-logs-pulse {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50%      { opacity: 0.55; transform: scale(0.85); }
-        }
-      `}</style>
     </div>
   );
 }

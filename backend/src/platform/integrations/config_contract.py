@@ -35,6 +35,14 @@ REMOVED_FLAT_CONFIG_KEYS = {
 }
 
 
+def _nonempty_listish(value: Any) -> bool:
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, list):
+        return any(str(item).strip() for item in value)
+    return False
+
+
 def validate_structured_config(
     provider: str,
     spec,
@@ -73,6 +81,12 @@ def validate_structured_config(
     if spec.auth in {AuthRequirement.OAUTH, AuthRequirement.OPTIONAL_OAUTH}:
         if not source.get("resource_id"):
             raise ValueError("config.source.resource_id is required")
+
+    if provider == "google_calendar":
+        source_metadata = source.get("metadata") if isinstance(source.get("metadata"), dict) else {}
+        calendar_ids = options.get("calendar_ids") or source_metadata.get("calendar_ids")
+        if not _nonempty_listish(calendar_ids):
+            raise ValueError("config.options.calendar_ids is required")
 
 
 def validate_bootstrap_config(config: dict[str, Any]) -> None:

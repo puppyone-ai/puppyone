@@ -16,6 +16,7 @@ from src.version_engine.write_engine.path_utils import normalize_path
 from .context import ScopedFsContext
 from .errors import ScopedFsError, ScopedFsNotFound, ScopedFsPermissionDenied
 from .registry import FS_TOOL_BY_NAME
+from .policy import default_mcp_fs_allowed_tools
 
 
 _DEFAULT_TREE_LIMIT = 5000
@@ -67,6 +68,11 @@ class ScopedFsService:
         spec = FS_TOOL_BY_NAME[name]
         if spec.access in {"write", "delete"} and not ctx.writable:
             raise ScopedFsPermissionDenied(f"Tool {name} requires a writable MCP endpoint scope")
+        allowed_tools = ctx.allowed_tools
+        if allowed_tools is None:
+            allowed_tools = default_mcp_fs_allowed_tools(writable=ctx.writable)
+        if name not in allowed_tools:
+            raise ScopedFsPermissionDenied(f"Tool {name} is disabled for this MCP endpoint")
 
         args = arguments or {}
         method_name = name[3:] if name.startswith("fs_") else name

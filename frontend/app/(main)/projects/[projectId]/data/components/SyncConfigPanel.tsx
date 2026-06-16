@@ -12,6 +12,7 @@ import { GithubIntegrationPanel } from './github-integration/GithubIntegrationPa
 import { usePanelStore } from '../usePanelStore';
 import type { SaasType } from '@/lib/oauthApi';
 import { useConnectorSpecs } from '@/lib/hooks/useData';
+import { resolveProviderIconUrl } from '@/lib/providerIcons';
 import { createSyncConnection } from '@/lib/syncApi';
 
 /* ================================================================
@@ -171,29 +172,37 @@ function CreateView({
 
   const { specs: connectorSpecs } = useConnectorSpecs();
 
-  const syncProviders = useMemo<SyncProviderDef[]>(() => connectorSpecs.map(spec => ({
-    id: spec.provider,
-    label: spec.display_name,
-    description: spec.description || '',
-    icon: spec.icon_url
-        ? <ProviderImg src={spec.icon_url} />
+  const syncProviders = useMemo<SyncProviderDef[]>(() => connectorSpecs.map(spec => {
+    const iconUrl = resolveProviderIconUrl({
+      provider: spec.provider,
+      icon: spec.icon,
+      iconUrl: spec.icon_url,
+    });
+
+    return {
+      id: spec.provider,
+      label: spec.display_name,
+      description: spec.description || '',
+      icon: iconUrl
+        ? <ProviderImg src={iconUrl} />
         : <span style={{ fontSize: 14 }}>{spec.icon || '📄'}</span>,
-    oauthType: spec.oauth_ui_type ? spec.oauth_ui_type as SaasType : undefined,
-    requiresAuth: spec.auth !== 'none',
-    creationMode: spec.creation_mode,
-    direction: (spec.supported_directions?.[0] || 'inbound') as 'inbound' | 'outbound' | 'bidirectional',
-    accept: (spec.accept_types ?? []) as AcceptedNodeType[],
-    configFields: (spec.config_fields ?? []).map(f => ({
-      key: f.key,
-      label: f.label,
-      type: (f.type === 'url' ? 'text' : f.type) as 'select' | 'text' | 'number',
-      placeholder: f.placeholder || undefined,
-      options: f.options || undefined,
-      defaultValue: f.default != null ? String(f.default) : undefined,
-      required: f.required || undefined,
-      hint: f.hint || undefined,
-    })),
-  })), [connectorSpecs]);
+      oauthType: spec.oauth_ui_type ? spec.oauth_ui_type as SaasType : undefined,
+      requiresAuth: spec.auth !== 'none',
+      creationMode: spec.creation_mode,
+      direction: (spec.supported_directions?.[0] || 'inbound') as 'inbound' | 'outbound' | 'bidirectional',
+      accept: (spec.accept_types ?? []) as AcceptedNodeType[],
+      configFields: (spec.config_fields ?? []).map(f => ({
+        key: f.key,
+        label: f.label,
+        type: (f.type === 'url' ? 'text' : f.type) as 'select' | 'text' | 'number',
+        placeholder: f.placeholder || undefined,
+        options: f.options || undefined,
+        defaultValue: f.default != null ? String(f.default) : undefined,
+        required: f.required || undefined,
+        hint: f.hint || undefined,
+      })),
+    };
+  }), [connectorSpecs]);
 
   const [selectedAgentType, setSelectedAgentType] = useState<AgentTypeId | null>(null);
   const [selectedEndpointType, setSelectedEndpointType] = useState<EndpointTypeId | null>(null);

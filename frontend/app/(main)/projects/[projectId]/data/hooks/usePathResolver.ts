@@ -65,6 +65,18 @@ function safeDecode(s: string): string {
   try { return decodeURIComponent(s); } catch { return s; }
 }
 
+function treeContentToEditorText(fileContent: Awaited<ReturnType<typeof readFile>>): string {
+  if (typeof fileContent.content_text === 'string') return fileContent.content_text;
+  if (fileContent.content !== null && fileContent.content !== undefined) {
+    try {
+      return JSON.stringify(fileContent.content, null, 2);
+    } catch {
+      return String(fileContent.content);
+    }
+  }
+  return '';
+}
+
 export function usePathResolver(
   projectId: string,
   rawPath: string[],
@@ -214,7 +226,7 @@ export function usePathResolver(
 
       if (finalNeedsText) {
         if (fileContent !== null) {
-          setTextContent(typeof fileContent.content_text === 'string' ? fileContent.content_text : '');
+          setTextContent(treeContentToEditorText(fileContent));
           setIsLoadingText(false);
         } else {
           // Fallback: fetch now (e.g. extension unknown, mime arrived as
@@ -223,7 +235,7 @@ export function usePathResolver(
           try {
             const content = await readFile(projectId, fullPath);
             if (cancelled) return;
-            setTextContent(typeof content.content_text === 'string' ? content.content_text : '');
+            setTextContent(treeContentToEditorText(content));
           } catch (readErr) {
             if (cancelled) return;
             console.error('[usePathResolver] Failed to load text content:', readErr);

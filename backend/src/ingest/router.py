@@ -43,6 +43,7 @@ from src.ingest.file.exceptions import RuleNotFoundError
 from src.ingest.file.service import ETLService
 from src.ingest.file.tasks.models import ETLTaskStatus
 from src.ingest.policy.upload_policy import (
+    PER_BATCH_MAX_BYTES as POLICY_PER_BATCH_MAX_BYTES,
     PER_FILE_MAX_BYTES as POLICY_PER_FILE_MAX_BYTES,
     evaluate_batch_limits,
     path_has_blocked_segment,
@@ -73,6 +74,8 @@ from src.ingest.shared.task.normalizers import detect_file_ingest_type
 from src.ingest.upload_jobs import UploadJobRepository
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
+from src.platform.entitlements.dependencies import get_entitlement_service
+from src.platform.entitlements.service import EntitlementService
 from src.platform.imports.dependencies import get_import_job_service
 from src.platform.imports.provider import detect_import_provider, suggest_import_name
 from src.platform.imports.schemas import ImportJobCreateRequest
@@ -150,6 +153,7 @@ async def submit_file_ingest(
     # Dependencies
     etl_service: ETLService = Depends(get_etl_service),
     s3_service: S3Service = Depends(get_s3_service),
+    entitlement_service: EntitlementService = Depends(get_entitlement_service),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -162,8 +166,18 @@ async def submit_file_ingest(
     is downgraded to "raw" so binary/OCR-needing files end up on S3
     via the same code path as a plain file upload.
     """
-    if not project_service.verify_project_access(project_id, current_user.user_id):
+    project = project_service.get_by_id(project_id)
+    if not project or not project_service.verify_project_access(project_id, current_user.user_id):
         raise HTTPException(status_code=404, detail="Project not found")
+    entitlement_file_max = entitlement_service.limit_value(
+        project.org_id,
+        "upload.max_single_file_bytes",
+    )
+    per_file_max_bytes = (
+        int(entitlement_file_max)
+        if entitlement_file_max is not None
+        else POLICY_PER_FILE_MAX_BYTES
+    )
 
     # OCR pause: silently downgrade ocr_parse → raw when the
     # smart-parse pipeline is disabled at the deployment level.
@@ -194,7 +208,25 @@ async def submit_file_ingest(
         original_filename = f.filename or "file"
         original_basename = Path(original_filename).name
         content = await f.read()
-        len(content)
+        if len(content) > per_file_max_bytes:
+            error = (
+                f"File '{original_filename}' is {len(content)} bytes; "
+                f"per-file cap is {per_file_max_bytes} bytes."
+            )
+            items.append(_make_failed_item(
+                etl_service.create_failed_task(
+                    user_id=current_user.user_id,
+                    project_id=project_id,
+                    filename=original_filename,
+                    rule_id=rule_id,
+                    error=error,
+                    metadata={"error_stage": "entitlement"},
+                ),
+                original_filename,
+                None,
+                error,
+            ))
+            continue
 
         file_type = classify_file_type(original_basename)
 
@@ -470,11 +502,82 @@ _MAX_PARTS_PER_UPLOAD = 10000                    # AWS hard limit
 _MAX_PART_BODY_SIZE = 32 * 1024 * 1024           # 32 MiB
 
 
+def _metadata_int(metadata: dict, key: str) -> int | None:
+    value = metadata.get(key)
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _expected_part_size(metadata: dict, part_number: int) -> int:
+    declared_size = _metadata_int(metadata, "size")
+    chunk_size = _metadata_int(metadata, "chunk_size")
+    total_parts = _metadata_int(metadata, "total_parts")
+    if declared_size is None or chunk_size is None or total_parts is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Task is missing upload shape metadata; restart the upload",
+        )
+    if total_parts <= 0:
+        raise HTTPException(status_code=400, detail="Task has no multipart parts")
+    if part_number > total_parts:
+        raise HTTPException(
+            status_code=400,
+            detail=f"part_number {part_number} exceeds total_parts {total_parts}",
+        )
+    expected_start = (part_number - 1) * chunk_size
+    expected_size = min(chunk_size, declared_size - expected_start)
+    if expected_size <= 0:
+        raise HTTPException(status_code=400, detail="Invalid part number for task size")
+    return expected_size
+
+
+def _validate_part_body_shape(metadata: dict, part_number: int, body_size: int) -> None:
+    expected_size = _expected_part_size(metadata, part_number)
+    if body_size != expected_size:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Part {part_number} is {body_size} bytes; expected "
+                f"{expected_size} bytes for this upload"
+            ),
+        )
+
+
+def _validate_complete_manifest(metadata: dict, parts: list) -> None:
+    declared_size = _metadata_int(metadata, "size")
+    total_parts = _metadata_int(metadata, "total_parts")
+    if declared_size is None or total_parts is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Task is missing upload shape metadata; restart the upload",
+        )
+    part_numbers = [p.part_number for p in parts]
+    if declared_size == 0:
+        if part_numbers:
+            raise HTTPException(status_code=400, detail="Zero-byte upload must not include parts")
+        return
+    expected_numbers = list(range(1, total_parts + 1))
+    sorted_numbers = sorted(part_numbers)
+    if sorted_numbers != expected_numbers:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Upload parts do not match the server-issued manifest; "
+                f"expected {expected_numbers}, got {sorted_numbers}"
+            ),
+        )
+
+
 @router.post("/upload/init", response_model=UploadInitResponse)
 async def init_multipart_upload(
     request: UploadInitRequest,
     s3_service: S3Service = Depends(get_s3_service),
     etl_service: ETLService = Depends(get_etl_service),
+    entitlement_service: EntitlementService = Depends(get_entitlement_service),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -496,8 +599,10 @@ async def init_multipart_upload(
     ``upload_part`` server-side. See the protocol comment above for
     why we abandoned direct-to-S3.
     """
-    if not project_service.verify_project_access(
-        request.project_id, current_user.user_id
+    project = project_service.get_by_id(request.project_id)
+    if not project or not project_service.verify_project_access(
+        request.project_id,
+        current_user.user_id,
     ):
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -507,6 +612,30 @@ async def init_multipart_upload(
             status_code=400,
             detail=f"chunk_size must be >= {_MIN_CHUNK_SIZE} bytes (AWS minimum)",
         )
+    if chunk_size > _MAX_PART_BODY_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"chunk_size must be <= {_MAX_PART_BODY_SIZE} bytes",
+        )
+
+    entitlement_file_max = entitlement_service.limit_value(
+        project.org_id,
+        "upload.max_single_file_bytes",
+    )
+    per_file_max_bytes = (
+        int(entitlement_file_max)
+        if entitlement_file_max is not None
+        else POLICY_PER_FILE_MAX_BYTES
+    )
+    entitlement_batch_max = entitlement_service.limit_value(
+        project.org_id,
+        "upload.max_batch_bytes",
+    )
+    batch_max_bytes = (
+        int(entitlement_batch_max)
+        if entitlement_batch_max is not None
+        else POLICY_PER_BATCH_MAX_BYTES
+    )
 
     # ── PUP-3 batch caps ───────────────────────────────────────────
     # Defense-in-depth (Q8): the client also enforces these but a
@@ -514,7 +643,10 @@ async def init_multipart_upload(
     # client. The numbers come from the policy module
     # (``src.ingest.policy.upload_policy``); see
     # ``docs/proposals/PUP-3-folder-upload-policy.md`` Q4.
-    for violation in evaluate_batch_limits(f.size for f in request.files):
+    for violation in evaluate_batch_limits(
+        (f.size for f in request.files),
+        max_total_bytes=batch_max_bytes,
+    ):
         if violation.kind == "file_count":
             raise HTTPException(
                 status_code=400,
@@ -546,13 +678,12 @@ async def init_multipart_upload(
         # ceiling kept for the chunk-count check below. Enforce the
         # policy cap first so users see the policy-level message,
         # not the larger S3-multipart message.
-        if f.size > POLICY_PER_FILE_MAX_BYTES:
+        if f.size > per_file_max_bytes:
             raise HTTPException(
                 status_code=400,
                 detail=(
                     f"File '{f.filename}' is {f.size} bytes; per-file "
-                    f"cap is {POLICY_PER_FILE_MAX_BYTES} bytes "
-                    f"(see PUP-3 folder-upload policy)."
+                    f"cap is {per_file_max_bytes} bytes."
                 ),
             )
         if f.size > _MAX_FILE_SIZE:
@@ -654,7 +785,9 @@ async def init_multipart_upload(
             "chunk_size": chunk_size,
         },
         policy_summary={
-            "per_file_max_bytes": POLICY_PER_FILE_MAX_BYTES,
+            "per_file_max_bytes": per_file_max_bytes,
+            "batch_max_bytes": batch_max_bytes,
+            "entitlements_enabled": entitlement_service.enabled,
         },
     )
 
@@ -709,6 +842,9 @@ async def init_multipart_upload(
                     mount_path=mount_path,
                     size=f.size,
                     content_type=f.content_type,
+                    chunk_size=chunk_size,
+                    total_parts=num_parts,
+                    max_single_file_bytes=per_file_max_bytes,
                     default_rule_id=default_rule_id,
                     upload_job_id=upload_job_id,
                 )
@@ -893,6 +1029,7 @@ async def upload_part(
             status_code=404,
             detail="Task is not a multipart upload",
         )
+    expected_part_size = _expected_part_size(task.metadata, part_number)
 
     # Check Content-Length first for an early bounce; it's cheap.
     content_length_header = request.headers.get("content-length")
@@ -909,6 +1046,14 @@ async def upload_part(
                     f"{_MAX_PART_BODY_SIZE} bytes"
                 ),
             )
+        if cl >= 0 and cl != expected_part_size:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Part {part_number} is declared as {cl} bytes; expected "
+                    f"{expected_part_size} bytes for this upload"
+                ),
+            )
 
     body = await request.body()
     if len(body) == 0:
@@ -921,6 +1066,7 @@ async def upload_part(
                 f"{_MAX_PART_BODY_SIZE} bytes"
             ),
         )
+    _validate_part_body_shape(task.metadata, part_number, len(body))
 
     try:
         etag = await s3_service.upload_part(
@@ -1006,7 +1152,8 @@ async def complete_upload(
     parts = sorted(
         [(p.part_number, p.etag) for p in request.parts], key=lambda x: x[0]
     )
-    expected_size = task.metadata.get("size")
+    _validate_complete_manifest(task.metadata, request.parts)
+    expected_size = _metadata_int(task.metadata, "size")
 
     if expected_size == 0 and not parts:
         logger.info(
@@ -1057,11 +1204,29 @@ async def complete_upload(
     try:
         meta = await s3_service.get_file_metadata(request.s3_key)
         if expected_size is not None and meta.size != expected_size:
-            logger.warning(
-                f"Task {request.task_id}: declared size {expected_size} "
-                f"differs from S3 size {meta.size}"
+            message = (
+                f"Declared size {expected_size} differs from S3 size {meta.size}"
             )
+            logger.warning(f"Task {request.task_id}: {message}")
+            task.mark_failed(message)
+            task.metadata["error_stage"] = "size_mismatch"
+            etl_service.task_repository.update_task(task)
+            upload_job_id = task.metadata.get("upload_job_id")
+            if upload_job_id:
+                upload_repo = UploadJobRepository()
+                await asyncio.to_thread(
+                    upload_repo.mark_item_failed,
+                    str(task.task_id),
+                    message,
+                )
+                await asyncio.to_thread(
+                    upload_repo.refresh_job_from_items,
+                    upload_job_id,
+                )
+            raise HTTPException(status_code=400, detail=message)
     except Exception as e:
+        if isinstance(e, HTTPException):
+            raise
         logger.warning(
             f"Task {request.task_id}: head_object after complete failed: {e}"
         )
@@ -1211,6 +1376,15 @@ async def complete_upload_batch(
                 error="s3_key/upload_id mismatch with the task",
             )
             continue
+        try:
+            _validate_complete_manifest(task.metadata, item.parts)
+        except HTTPException as exc:
+            item_results[item.task_id] = UploadCompleteItemResult(
+                task_id=item.task_id,
+                status=IngestStatus.FAILED,
+                error=str(exc.detail),
+            )
+            continue
 
         eligible.append((item, task))
 
@@ -1245,7 +1419,7 @@ async def complete_upload_batch(
         parts = sorted(
             [(p.part_number, p.etag) for p in item.parts], key=lambda x: x[0]
         )
-        expected_size = task.metadata.get("size")
+        expected_size = _metadata_int(task.metadata, "size")
         if expected_size == 0 and not parts:
             logger.info(
                 "Task %s is zero-byte; skipping multipart complete",
@@ -1284,10 +1458,19 @@ async def complete_upload_batch(
         try:
             meta = await s3_service.get_file_metadata(item.s3_key)
             if expected_size is not None and meta.size != expected_size:
-                logger.warning(
-                    f"Task {item.task_id}: declared size {expected_size} "
-                    f"differs from S3 size {meta.size}"
+                message = (
+                    f"Declared size {expected_size} differs from S3 size {meta.size}"
                 )
+                logger.warning(f"Task {item.task_id}: {message}")
+                task.mark_failed(message)
+                task.metadata["error_stage"] = "size_mismatch"
+                etl_service.task_repository.update_task(task)
+                item_results[item.task_id] = UploadCompleteItemResult(
+                    task_id=item.task_id,
+                    status=IngestStatus.FAILED,
+                    error=message,
+                )
+                return
         except Exception as e:
             logger.warning(
                 f"Task {item.task_id}: head_object after complete failed: {e}"

@@ -22,8 +22,8 @@ import {
   buildRecentRuns,
   buildTriggerPayload,
   defaultConfigForProvider,
+  hasValidSourceSelection,
   providerName,
-  providerNeedsResourceSelection,
   providerOAuthType,
   providerUsesOAuth,
   targetDefault,
@@ -124,7 +124,7 @@ export function useWorkflowController(projectId: string) {
     [createConfigErrors],
   );
   const missingSource = useMemo(
-    () => providerNeedsResourceSelection(selectedProvider) && selectedResources.length === 0,
+    () => !hasValidSourceSelection(selectedProvider, selectedResources),
     [selectedProvider, selectedResources],
   );
   const triggerDraft: TriggerDraft = useMemo(
@@ -355,7 +355,7 @@ export function useWorkflowController(projectId: string) {
   return {
     model: {
       projectId,
-      loading: providersLoading && connectionsLoading,
+      loading: providersLoading || connectionsLoading,
       mode,
       hasSelection,
       connections,

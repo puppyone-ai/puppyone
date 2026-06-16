@@ -15,6 +15,7 @@ import { SIDEBAR_ROW_TYPOGRAPHY } from '@/lib/uiTypography';
 import { PageLoading } from '@/components/loading';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { StatusDot } from '@/components/ui/StatusDot';
+import { CountBadge } from '@/components/ui/CountBadge';
 import { ResizableSidebarColumn } from '@/components/sidebar/ResizableSidebarColumn';
 import { useCommitUpdates } from '@/contexts/VersionWebSocketContext';
 import { Clock3, GitCommitHorizontal } from 'lucide-react';
@@ -1566,21 +1567,7 @@ export default function HistoryPage({ params }: HistoryPageProps) {
                   </svg>
                   <span className="sr-only">Filter</span>
                   {activeFilterCount > 0 ? (
-                    <span
-                      style={{
-                        minWidth: 16,
-                        height: 16,
-                        padding: '0 4px',
-                        borderRadius: 999,
-                        background: 'var(--po-control)',
-                        color: 'var(--po-text-subtle)',
-                        fontSize: 10,
-                        lineHeight: '16px',
-                        textAlign: 'center',
-                      }}
-                    >
-                      {activeFilterCount}
-                    </span>
+                    <CountBadge value={activeFilterCount} size="sm" tone="muted" />
                   ) : null}
                 </button>
 

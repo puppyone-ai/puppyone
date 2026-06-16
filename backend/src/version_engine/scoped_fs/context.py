@@ -19,6 +19,7 @@ class ScopedFsContext:
     scope_path: str = ""
     mode: Literal["ro", "rw"] = "ro"
     exclude: list[str] = field(default_factory=list)
+    allowed_tools: frozenset[str] | None = None
     channel: Literal["mcp"] = "mcp"
 
     @property

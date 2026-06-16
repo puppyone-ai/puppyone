@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import useSWR from 'swr';
 import { ResizablePanel } from '@/components/RightAuxiliaryPanel/ResizablePanel';
@@ -22,6 +22,11 @@ import type { SyncStatusSync } from '../../DataLayoutContext';
 import type { PanelState } from '../../usePanelStore';
 import { PageLoading } from '@/components/loading';
 import { AI_AGENT_ENABLED } from '@/lib/featureFlags';
+import {
+  useEditorSaveSession,
+  type EditorSaveNodeType,
+} from '@/lib/hooks/useEditorSaveSession';
+import { useEditorSaveGuards } from '../../hooks/useEditorSaveGuards';
 
 const PanelLoading = () => <PageLoading variant="fill" />;
 
@@ -78,7 +83,7 @@ interface DataPageRightPanelProps {
   readonly repoIdentity: RepoIdentity | undefined;
   readonly onClose: () => void;
   onEditorClose: () => void;
-  onEditorSave: (newValue: string) => void;
+  onEditorSave: (newValue: string) => Promise<void>;
   onToggleEditorFullScreen: () => void;
   onRollbackComplete: () => void;
   onSyncCreated: (nodeId: string) => void | Promise<void>;
@@ -136,6 +141,43 @@ export function DataPageRightPanel({
   onPanelWidthChange,
   onAccessPanelNavigationGuardChange,
 }: DataPageRightPanelProps) {
+  const documentFilePath = editorTarget?.path ?? '';
+  const documentNodeType = useMemo<EditorSaveNodeType>(() => {
+    const lower = documentFilePath.toLowerCase();
+    if (lower.endsWith('.md') || lower.endsWith('.markdown') || lower.endsWith('.mdx')) return 'markdown';
+    if (lower.endsWith('.json') || lower.endsWith('.json5') || lower.endsWith('.jsonc')) return 'json';
+    return 'file';
+  }, [documentFilePath]);
+  const saveDocumentContent = useCallback(
+    async (content: string) => {
+      await onEditorSave(content);
+    },
+    [onEditorSave],
+  );
+  const documentSession = useEditorSaveSession({
+    projectId,
+    filePath: documentFilePath,
+    serverContent: editorTarget?.value ?? '',
+    nodeType: documentNodeType,
+    saveContent: saveDocumentContent,
+    skipDraftRestore: editorTarget === null,
+  });
+  useEditorSaveGuards({
+    dirty: documentSession.dirty,
+    save: documentSession.save,
+    keyboardEnabled: editorTarget !== null,
+  });
+  const closeDocumentEditor = useCallback(() => {
+    if (
+      documentSession.dirty &&
+      typeof window !== 'undefined' &&
+      !window.confirm('You have unsaved changes. Close this editor and discard the local draft?')
+    ) {
+      return;
+    }
+    onEditorClose();
+  }, [documentSession.dirty, onEditorClose]);
+
   // For access_list, the panel always tracks the *current file-tree
   // folder* (one-way: file tree → panel) so the user's reading context
   // stays in sync with whatever scope they're navigating into.
@@ -278,9 +320,14 @@ export function DataPageRightPanel({
       {editorTarget && (
         <DocumentEditor
           path={editorTarget.path}
-          value={editorTarget.value}
-          onSave={onEditorSave}
-          onClose={onEditorClose}
+          value={documentSession.content}
+          dirty={documentSession.dirty}
+          saveStatus={documentSession.status}
+          saveError={documentSession.error}
+          onChange={documentSession.onChange}
+          onSave={documentSession.save}
+          onDiscard={documentSession.discard}
+          onClose={closeDocumentEditor}
           isFullScreen={isEditorFullScreen}
           onToggleFullScreen={onToggleEditorFullScreen}
         />

@@ -183,6 +183,20 @@ def _ensure_writable(scope: dict) -> None:
     ensure_mode_writable(str(scope.get("mode", "r")))
 
 
+def _upload_max_bytes_for_project(project_id: str) -> int:
+    from src.platform.entitlements.service import EntitlementService
+    from src.platform.project.repository import ProjectRepositorySupabase
+
+    project = ProjectRepositorySupabase().get_by_id(project_id)
+    if project is None:
+        return POLICY_PER_FILE_MAX_BYTES
+    limit = EntitlementService().limit_value(
+        project.org_id,
+        "upload.max_single_file_bytes",
+    )
+    return int(limit) if limit is not None else POLICY_PER_FILE_MAX_BYTES
+
+
 def _fs_error(
     status_code: int,
     error_code: str,
@@ -1631,13 +1645,32 @@ async def upload_file(
     _assert_not_excluded(rel_path, scope)
     _assert_upload_policy(rel_path)
 
+    per_file_max_bytes = await asyncio.to_thread(
+        _upload_max_bytes_for_project,
+        project_id,
+    )
+    content_length_header = request.headers.get("content-length")
+    if content_length_header:
+        try:
+            content_length = int(content_length_header)
+        except ValueError:
+            content_length = -1
+        if content_length > per_file_max_bytes:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"File body is {content_length} bytes; per-file cap is "
+                    f"{per_file_max_bytes} bytes."
+                ),
+            )
+
     content = await request.body()
-    if len(content) > POLICY_PER_FILE_MAX_BYTES:
+    if len(content) > per_file_max_bytes:
         raise HTTPException(
             status_code=400,
             detail=(
                 f"File body is {len(content)} bytes; per-file cap is "
-                f"{POLICY_PER_FILE_MAX_BYTES} bytes (PUP-3 folder-upload policy)."
+                f"{per_file_max_bytes} bytes."
             ),
         )
     full_path = _join_scope(scope["path"], rel_path)

@@ -50,7 +50,9 @@ export function PdfPreview({ projectId, filePath, nodeName }: PdfPreviewProps) {
           alignItems: 'center',
           justifyContent: 'center',
           color: 'var(--po-danger)',
-          padding: 24,
+          padding:
+            'var(--po-editor-compact-padding-block) var(--po-editor-compact-padding-inline) var(--po-editor-compact-padding-bottom)',
+          boxSizing: 'border-box',
         }}
       >
         Failed to load PDF: {error}
@@ -69,7 +71,9 @@ export function PdfPreview({ projectId, filePath, nodeName }: PdfPreviewProps) {
         display: 'flex',
         flexDirection: 'column',
         minHeight: 0,
-        background: 'var(--po-inset)',
+        padding: 16,
+        boxSizing: 'border-box',
+        background: 'var(--po-editor-bg)',
       }}
     >
       <iframe
@@ -78,7 +82,8 @@ export function PdfPreview({ projectId, filePath, nodeName }: PdfPreviewProps) {
         style={{
           flex: 1,
           width: '100%',
-          border: 'none',
+          border: '1px solid var(--po-border-subtle)',
+          borderRadius: 6,
           background: 'var(--po-panel-raised)',
         }}
       />

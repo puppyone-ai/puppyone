@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/app/supabase/SupabaseAuthProvider';
+import { SkeletonBlock } from '@/components/loading';
 import { get } from '@/lib/apiClient';
 import { isGitRemoteProvider } from '@/lib/accessProviderRegistry';
 import { uploadFiles as uploadFilesApi } from '@/lib/uploadApi';
@@ -733,15 +734,7 @@ function CmdLineSkeleton() {
       >
         $
       </span>
-      <div
-        className="animate-pulse"
-        style={{
-          flex: 1,
-          height: 12,
-          background: 'var(--po-border-subtle)',
-          borderRadius: 2,
-        }}
-      />
+      <SkeletonBlock width="100%" height={12} radius={2} style={{ flex: 1 }} />
     </div>
   );
 }

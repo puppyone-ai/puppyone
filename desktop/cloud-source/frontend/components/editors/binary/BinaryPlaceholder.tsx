@@ -26,6 +26,10 @@ export function BinaryPlaceholder({ nodeName, formatLabel }: BinaryPlaceholderPr
         alignItems: 'center',
         justifyContent: 'center',
         gap: 16,
+        padding:
+          'var(--po-editor-compact-padding-block) var(--po-editor-compact-padding-inline) var(--po-editor-compact-padding-bottom)',
+        boxSizing: 'border-box',
+        background: 'var(--po-editor-bg)',
         color: 'var(--po-text-subtle)',
       }}
     >

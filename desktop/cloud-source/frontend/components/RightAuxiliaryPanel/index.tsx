@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { DocumentEditor } from './DocumentEditor';
 import { type McpToolDefinition } from '../../lib/mcpApi';
+import { useManualSave } from '@/lib/hooks/useManualSave';
 
 // 面板类型
 export type RightPanelContent = 'NONE' | 'EDITOR';
@@ -49,6 +50,40 @@ export function RightAuxiliaryPanel({
     startX: number;
     startWidth: number;
   } | null>(null);
+  const editorFileKey = useMemo(
+    () => `right-panel:${editorTarget?.path || '(none)'}`,
+    [editorTarget?.path],
+  );
+  const stringIdentity = useCallback((value: string) => value, []);
+  const stringEquals = useCallback((a: string, b: string) => a === b, []);
+  const saveEditorContent = useCallback(
+    async (snapshot: string) => {
+      if (!editorTarget?.path) {
+        throw new Error('Cannot save: no active editor target');
+      }
+      await onEditorSave(editorTarget.path, snapshot);
+    },
+    [editorTarget?.path, onEditorSave],
+  );
+  const editorSession = useManualSave<string>({
+    fileKey: editorFileKey,
+    serverContent: editorTarget?.value ?? '',
+    isEqual: stringEquals,
+    serialize: stringIdentity,
+    deserialize: stringIdentity,
+    save: saveEditorContent,
+    skipDraftRestore: editorTarget === null,
+  });
+  const closeEditor = useCallback(() => {
+    if (
+      editorSession.dirty &&
+      typeof window !== 'undefined' &&
+      !window.confirm('You have unsaved changes. Close this editor and discard the local draft?')
+    ) {
+      return;
+    }
+    onClose();
+  }, [editorSession.dirty, onClose]);
 
   // Handle Resize - 使用相对拖拽逻辑，不依赖面板在页面中的绝对位置
   useEffect(() => {
@@ -110,9 +145,14 @@ export function RightAuxiliaryPanel({
         {editorTarget && (
           <DocumentEditor
             path={editorTarget.path}
-            value={editorTarget.value}
-            onSave={newValue => onEditorSave(editorTarget.path, newValue)}
-            onClose={onClose}
+            value={editorSession.draft}
+            dirty={editorSession.dirty}
+            saveStatus={editorSession.status}
+            saveError={editorSession.error}
+            onChange={editorSession.setDraft}
+            onSave={editorSession.save}
+            onDiscard={editorSession.discard}
+            onClose={closeEditor}
             isFullScreen={isEditorFullScreen}
             onToggleFullScreen={onToggleEditorFullScreen}
           />
@@ -179,9 +219,14 @@ export function RightAuxiliaryPanel({
         {content === 'EDITOR' && editorTarget && (
           <DocumentEditor
             path={editorTarget.path}
-            value={editorTarget.value}
-            onSave={newValue => onEditorSave(editorTarget.path, newValue)}
-            onClose={onClose}
+            value={editorSession.draft}
+            dirty={editorSession.dirty}
+            saveStatus={editorSession.status}
+            saveError={editorSession.error}
+            onChange={editorSession.setDraft}
+            onSave={editorSession.save}
+            onDiscard={editorSession.discard}
+            onClose={closeEditor}
             isFullScreen={isEditorFullScreen}
             onToggleFullScreen={onToggleEditorFullScreen}
           />

@@ -4,7 +4,6 @@ import {
   ArrowRight,
   ExternalLink,
   Folder,
-  Loader2,
   Plus,
 } from 'lucide-react';
 import { ActionButton } from '@/components/ui/ActionButton';
@@ -159,7 +158,7 @@ function NewWorkflowBuilder(props: WorkflowShellProps) {
             <ActionButton
               variant="secondary"
               size="sm"
-              leadingIcon={model.authBusy ? <Loader2 size={15} className={styles.spin} /> : <ExternalLink size={15} />}
+              leadingIcon={<ExternalLink size={15} />}
               onClick={() => void actions.authorize()}
               loading={model.authBusy}
             >
@@ -169,7 +168,7 @@ function NewWorkflowBuilder(props: WorkflowShellProps) {
           <ActionButton
             variant="primary"
             size="sm"
-            leadingIcon={model.creating ? <Loader2 size={15} className={styles.spin} /> : <Plus size={15} />}
+            leadingIcon={<Plus size={15} />}
             onClick={() => void actions.create()}
             loading={model.creating}
             disabled={createDisabled}

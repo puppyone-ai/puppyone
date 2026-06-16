@@ -45,7 +45,10 @@ import { useDataViewPreferences } from '../hooks/useDataViewPreferences';
 import { useEditorSaveGuards } from '../hooks/useEditorSaveGuards';
 import { useEmptyProjectOpened } from '../hooks/useEmptyProjectOpened';
 import { useStructuredNodeData } from '../hooks/useStructuredNodeData';
-import { useMarkdownSave } from '../hooks/useMarkdownSave';
+import {
+  useEditorSaveSession,
+  type EditorSaveNodeType,
+} from '@/lib/hooks/useEditorSaveSession';
 import { useFileImport } from '../hooks/useFileImport';
 import { useNodeActions } from '../hooks/useNodeActions';
 import { useExternalFileDropCatcher } from '@/lib/hooks/useExternalFileDropCatcher';
@@ -62,7 +65,7 @@ import type { EditorTarget } from '../components/right-panel';
 import { useDataCreateFlow } from '../hooks/useDataCreateFlow';
 import { useAccessPointEntries } from '../hooks/useAccessPointEntries';
 import { ProjectPageLoadingShell, SkeletonBlock } from '@/components/loading';
-import { resolveFormat } from '@/lib/fileFormats';
+import { isTextLikeCategory, resolveFormat } from '@/lib/fileFormats';
 import { writeFile } from '@/lib/contentTreeApi';
 import { DataHeaderActions, type DataHeaderActionTarget } from '../components/DataHeaderActions';
 import { FileViewerHeaderActions } from '../components/FileViewerHeaderActions';
@@ -169,28 +172,49 @@ export default function DataPage({ params }: DataPageProps) {
     return resolveFormat({ name: activeNodeId, mimeType: activeMimeType });
   }, [activeNodeId, activeNodeType, activeMimeType]);
 
-  const activeTextSaveNodeType =
-    activeFormat?.defaultViewer === 'markdown-editor' ? 'markdown' : 'file';
+  const activeTextSaveNodeType: EditorSaveNodeType =
+    activeFormat?.id === 'markdown' ? 'markdown'
+    : activeFormat?.id === 'json' ? 'json'
+    : 'file';
 
   // Manual-save hook: editor edits stay local until the user hits
   // Cmd+S / clicks Save. Replaces the older 1.5s-debounced
   // auto-save which generated 100+ commits per editing session.
   // CLI / Git / external writes still go through their own code
   // paths and are unaffected.
-  const {
-    markdownContent: editorTextDraft,
-    handleMarkdownChange: onEditorTextChange,
-    markdownSaveStatus: editorSaveStatus,
-    save: saveEditor,
-    dirty: editorDirty,
-  } = useMarkdownSave({
+  const editorSession = useEditorSaveSession({
     projectId,
-    activeNodePath: activeNodeId,
+    filePath: activeNodeId,
     serverContent: serverTextContent,
     nodeType: activeTextSaveNodeType,
   });
+  const {
+    content: editorTextDraft,
+    onChange: onEditorTextChange,
+    status: editorSaveStatus,
+    save: saveEditor,
+    dirty: editorDirty,
+  } = editorSession;
 
-  useEditorSaveGuards({ dirty: editorDirty, save: saveEditor });
+  useEditorSaveGuards({
+    dirty: editorDirty,
+    save: saveEditor,
+    keyboardEnabled: editorTarget === null,
+  });
+
+  const navigateToWithEditorGuard = useCallback((nextPath: string[], typeHint?: string) => {
+    const nextPathKey = nextPath.join('/');
+    const currentPathKey = routePath.join('/');
+    if (
+      nextPathKey !== currentPathKey &&
+      editorDirty &&
+      typeof window !== 'undefined' &&
+      !window.confirm('You have unsaved changes. Leave this file and discard the local draft?')
+    ) {
+      return;
+    }
+    navigateTo(nextPath, typeHint);
+  }, [editorDirty, navigateTo, routePath]);
 
   const nodeActions = useNodeActions(projectId, currentFolderId);
   const fileImport = useFileImport(projectId, session?.access_token, {
@@ -339,7 +363,7 @@ export default function DataPage({ params }: DataPageProps) {
   } = useDataCreateFlow({
     projectId,
     currentFolderId,
-    navigateTo,
+    navigateTo: navigateToWithEditorGuard,
     openSyncCreatePanel,
     openSyncSetting,
     openFilePickerForTarget: fileImport.openFilePickerForTarget,
@@ -423,7 +447,7 @@ export default function DataPage({ params }: DataPageProps) {
   } = useDataGridController({
     contentNodes,
     currentFolderId,
-    navigateTo,
+    navigateTo: navigateToWithEditorGuard,
     handleBulkDelete: nodeActions.handleBulkDelete,
     refresh: refreshCurrentNodes,
   });
@@ -444,7 +468,7 @@ export default function DataPage({ params }: DataPageProps) {
     segments.push({
       label: projectName,
       href: hasSubContent ? `/projects/${projectId}/data` : undefined,
-      onClick: hasSubContent ? () => navigateTo([]) : undefined,
+      onClick: hasSubContent ? () => navigateToWithEditorGuard([]) : undefined,
     });
 
     if (isResolvingPath && routePath.length > 0 && folderBreadcrumbs.length === 0) {
@@ -460,7 +484,7 @@ export default function DataPage({ params }: DataPageProps) {
           label: folder.name,
           href: !isLast || activeNodeId ? `/projects/${projectId}/data/${folderUrlPath}` : undefined,
           onClick: !isLast || activeNodeId
-            ? () => navigateTo(folder.id.split('/').filter(Boolean), 'folder')
+            ? () => navigateToWithEditorGuard(folder.id.split('/').filter(Boolean), 'folder')
             : undefined,
         });
       });
@@ -469,7 +493,7 @@ export default function DataPage({ params }: DataPageProps) {
       }
     }
     return segments;
-  }, [activeProject, projectId, folderBreadcrumbs, currentFolderId, activeNodeId, activeNodeDisplayName, currentTableData?.name, isResolvingPath, routePath, navigateTo]);
+  }, [activeProject, projectId, folderBreadcrumbs, currentFolderId, activeNodeId, activeNodeDisplayName, currentTableData?.name, isResolvingPath, routePath, navigateToWithEditorGuard]);
 
   const activeNodeListing = useMemo(
     () => contentNodes.find((node) => node.path === activeNodeId),
@@ -496,6 +520,10 @@ export default function DataPage({ params }: DataPageProps) {
     activeNodeType,
     currentTableData?.name,
   ]);
+
+  const activeUsesEditorSaveSession = Boolean(
+    activeFormat?.editable && isTextLikeCategory(activeFormat),
+  );
 
   const headerCommandMenu = (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -534,11 +562,7 @@ export default function DataPage({ params }: DataPageProps) {
       editable={activeFormat.editable}
       markdownViewMode={markdownViewMode}
       onMarkdownViewModeChange={setMarkdownViewMode}
-      saveStatus={activeFormat.editable && (
-        activeFormat.defaultViewer === 'markdown-editor' ||
-        activeFormat.defaultViewer === 'plain-text' ||
-        activeFormat.defaultViewer === 'csv-table'
-      ) ? editorSaveStatus : 'clean'}
+      saveStatus={activeUsesEditorSaveSession ? editorSaveStatus : 'clean'}
       onSave={saveEditor}
       editorType={editorType}
       onEditorTypeChange={setEditorType}
@@ -677,7 +701,7 @@ export default function DataPage({ params }: DataPageProps) {
     csvViewMode,
     configuredAccessPoints,
     onActiveTableChange: (nodePath: string) => {
-      navigateTo(nodePath.split('/').filter(Boolean));
+      navigateToWithEditorGuard(nodePath.split('/').filter(Boolean));
     },
     onAccessPointChange: (apPath: string, permissions: McpToolPermissions) => {
       const hasAnyPermission = Object.values(permissions).some(Boolean);
@@ -876,11 +900,14 @@ export default function DataPage({ params }: DataPageProps) {
         onEditorSave: async (newValue) => {
           const target = editorTarget;
           if (!target?.path) return;
-          // The right-panel document editor auto-saves on Raw→Preview switch.
-          // Persist to the content tree (previously this only console.log'd and
-          // closed the panel, silently discarding the edit). Markdown files keep
-          // their node type; everything else is a plain file node.
-          const nodeType = target.path.toLowerCase().endsWith('.md') ? 'markdown' : 'file';
+          // Persist through the same explicit-save contract as the main editor.
+          const lower = target.path.toLowerCase();
+          const nodeType =
+            lower.endsWith('.md') || lower.endsWith('.markdown') || lower.endsWith('.mdx')
+              ? 'markdown'
+              : lower.endsWith('.json') || lower.endsWith('.json5') || lower.endsWith('.jsonc')
+                ? 'json'
+                : 'file';
           try {
             await writeFile(projectId, target.path, newValue, nodeType);
             // Reflect the saved value so the editor's dirty state resets and the
@@ -892,6 +919,7 @@ export default function DataPage({ params }: DataPageProps) {
               `Save failed: ${e instanceof Error ? e.message : String(e)}`,
               'error',
             );
+            throw e;
           }
         },
         onToggleEditorFullScreen: () => setIsEditorFullScreen(!isEditorFullScreen),

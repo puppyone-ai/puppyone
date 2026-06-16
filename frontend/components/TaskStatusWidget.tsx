@@ -24,6 +24,7 @@ import {
   activityTitleStyle,
 } from './activityStyles';
 import { ActivityIconButton } from './ActivityIconButton';
+import { Dots } from './loading';
 
 interface TaskWithStatus extends PendingTask {
   displayStatus:
@@ -181,17 +182,6 @@ export function TaskStatusWidget({ inline = false }: TaskStatusWidgetProps) {
 
   return (
     <div style={containerStyle}>
-      <style>{`
-        @keyframes widget-spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        @keyframes widget-progress-pulse {
-          0%, 100% { opacity: 0.55; }
-          50%      { opacity: 1; }
-        }
-      `}</style>
-
       {!isExpanded ? (
         /* Collapsed pill — shares the same surface tokens as the
            Getting Started checklist so the bottom-right activity stack
@@ -217,23 +207,7 @@ export function TaskStatusWidget({ inline = false }: TaskStatusWidgetProps) {
           }}
         >
           {processingCount > 0 ? (
-            <svg
-              width='16'
-              height='16'
-              viewBox='0 0 18 18'
-              fill='none'
-              style={{ animation: 'widget-spin 1s linear infinite' }}
-            >
-              <circle
-                cx='9'
-                cy='9'
-                r='6'
-                stroke='var(--po-accent)'
-                strokeWidth='2'
-                strokeLinecap='round'
-                strokeDasharray='28 10'
-              />
-            </svg>
+            <Dots size="sm" tone="info" ariaLabel="Processing" />
           ) : failedCount > 0 ? (
             <svg width='14' height='14' viewBox='0 0 16 16' fill='none'>
               <path
@@ -271,23 +245,7 @@ export function TaskStatusWidget({ inline = false }: TaskStatusWidgetProps) {
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
               {processingCount > 0 ? (
-                <svg
-                  width='12'
-                  height='12'
-                  viewBox='0 0 14 14'
-                  fill='none'
-                  style={{ animation: 'widget-spin 1s linear infinite' }}
-                >
-                  <circle
-                    cx='7'
-                    cy='7'
-                    r='5'
-                    stroke='var(--po-accent)'
-                    strokeWidth='2'
-                    strokeLinecap='round'
-                    strokeDasharray='24 8'
-                  />
-                </svg>
+                <Dots size="xs" tone="info" ariaLabel="Processing" />
               ) : (
                 <svg width='12' height='12' viewBox='0 0 14 14' fill='none'>
                   <path
@@ -458,23 +416,7 @@ function TaskRow({
             />
           </svg>
         ) : (
-          <svg
-            width='14'
-            height='14'
-            viewBox='0 0 14 14'
-            fill='none'
-            style={{ animation: 'widget-spin 1s linear infinite' }}
-          >
-            <circle
-              cx='7'
-              cy='7'
-              r='5'
-              stroke={getStatusColor()}
-              strokeWidth='2'
-              strokeLinecap='round'
-              strokeDasharray='24 8'
-            />
-          </svg>
+          <Dots size="xs" tone={task.displayStatus === 'uploading' ? 'warning' : 'info'} ariaLabel="Processing" />
         )}
 
         {/* SaaS 图标角标 */}
@@ -528,10 +470,9 @@ function TaskRow({
         </div>
         {/*
           Progress bar — drawn during ``uploading`` (real progress
-          ticks 0..100 from XHR.upload.progress) AND during
-          ``finalizing`` (a 100% solid bar with a subtle pulse to
-          signal "byte transfer is done, waiting on the server"
-          rather than abruptly removing the bar mid-task).
+          ticks 0..100 from XHR.upload.progress) and held at 100%
+          during ``finalizing`` while the row's official loader signals
+          that server-side work is still active.
         */}
         {(task.displayStatus === 'uploading' ||
           task.displayStatus === 'finalizing') &&
@@ -558,14 +499,6 @@ function TaskRow({
                       ? 'var(--po-accent)'
                       : 'var(--po-warning)',
                   transition: 'width 0.2s ease',
-                  // Subtle pulse during finalize tells the user the
-                  // server is actively working — without it, a static
-                  // 100% bar reads as "stuck", which is exactly the
-                  // bug we're fixing.
-                  animation:
-                    task.displayStatus === 'finalizing'
-                      ? 'widget-progress-pulse 1.4s ease-in-out infinite'
-                      : undefined,
                 }}
               />
             </div>

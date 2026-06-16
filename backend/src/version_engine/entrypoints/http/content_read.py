@@ -141,13 +141,16 @@ def read_file(
     content_json = None
     content_text = None
 
+    decoded_text = content.decode("utf-8", errors="replace")
+
     if node_type == "json":
+        content_text = decoded_text
         try:
-            content_json = _json.loads(content.decode("utf-8"))
+            content_json = _json.loads(decoded_text)
         except ValueError:
-            content_text = content.decode("utf-8", errors="replace")
+            content_json = None
     else:
-        content_text = content.decode("utf-8", errors="replace")
+        content_text = decoded_text
 
     return ApiResponse.success(data=ReadFileResponse(
         path=clean_path,

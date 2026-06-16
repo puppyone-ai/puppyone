@@ -141,6 +141,8 @@ export interface UseManualSaveResult<T> {
   status: SaveStatus;
   /** Convenience: `status === 'dirty' || status === 'error'`. */
   dirty: boolean;
+  /** Last save error. Cleared on edit, discard, or a new save attempt. */
+  error: string | null;
   /** Trigger a save. No-op if not dirty (avoids accidental double-
    *  commit on Cmd+S spam). */
   save: () => Promise<void>;
@@ -183,6 +185,7 @@ export function useManualSave<T>({
   // save / discard / clean reload.
   const [draft, setDraftState] = useState<T>(serverContent);
   const [status, setStatus] = useState<SaveStatus>('clean');
+  const [error, setError] = useState<string | null>(null);
   const [hasRestoredDraft, setHasRestoredDraft] = useState(false);
   const [lastEditedAt, setLastEditedAt] = useState<number | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
@@ -308,6 +311,7 @@ export function useManualSave<T>({
     if (skipDraftRestore) {
       setDraftState(serverContent);
       setStatus('clean');
+      setError(null);
       setHasRestoredDraft(false);
       setLastEditedAt(null);
     } else {
@@ -315,6 +319,7 @@ export function useManualSave<T>({
       if (stored !== null && !isEqual(stored, serverContent)) {
         setDraftState(stored);
         setStatus('dirty');
+        setError(null);
         setHasRestoredDraft(true);
         setLastEditedAt(Date.now());
       } else {
@@ -323,6 +328,7 @@ export function useManualSave<T>({
         if (stored !== null) clearDraft();
         setDraftState(serverContent);
         setStatus('clean');
+        setError(null);
         setHasRestoredDraft(false);
         setLastEditedAt(null);
       }
@@ -353,6 +359,7 @@ export function useManualSave<T>({
       } else if (isEqual(draftRef.current, serverContent)) {
         clearDraft();
         setStatus('clean');
+        setError(null);
         setHasRestoredDraft(false);
       }
     }
@@ -365,6 +372,7 @@ export function useManualSave<T>({
     (next: T) => {
       setDraftState(next);
       setLastEditedAt(Date.now());
+      setError(null);
       // Edits during a 'saved' flash demote us back to 'dirty' —
       // the new value isn't on the server.
       setStatus((prev) => {
@@ -392,6 +400,7 @@ export function useManualSave<T>({
       flashTimerRef.current = null;
     }
     setStatus('saving');
+    setError(null);
     const snapshot = draftRef.current;
     try {
       await saveFn(snapshot);
@@ -415,6 +424,7 @@ export function useManualSave<T>({
       }
     } catch (err) {
       console.error('[useManualSave] Save failed:', err);
+      setError(err instanceof Error ? err.message : String(err));
       setStatus('error');
     }
   }, [saveFn, isEqual, clearDraft]);
@@ -427,6 +437,7 @@ export function useManualSave<T>({
     clearDraft();
     setDraftState(serverContent);
     setStatus('clean');
+    setError(null);
     setHasRestoredDraft(false);
     setLastEditedAt(null);
   }, [clearDraft, serverContent]);
@@ -440,6 +451,7 @@ export function useManualSave<T>({
     setDraft,
     status,
     dirty: status === 'dirty' || status === 'error',
+    error,
     save,
     discard,
     hasRestoredDraft,

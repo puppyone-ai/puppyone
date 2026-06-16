@@ -36,6 +36,7 @@ import {
   getAccessProviderCardTitle,
   isBuiltInAccessProvider,
   isCliProvider,
+  isMcpProvider,
   normalizeConnectorProvider,
 } from '@/lib/accessProviderRegistry';
 import { T } from '../lib/tokens';
@@ -206,6 +207,7 @@ export function ConnectorDetailBody({
 }) {
   const isBuiltin = isBuiltInAccessProvider(connector.provider);
   const inline = variant === 'inline';
+  const provider = normalizeConnectorProvider(connector.provider);
 
   return (
     <div style={{ padding: inline ? '12px 16px 14px' : '16px' }}>
@@ -786,12 +788,14 @@ function PausedBanner({
 // `puppyone fs` commands this connector may expose. Scope mode remains
 // the upper bound; a read-only scope locks mutating commands off here.
 
-type CliCommandKind = 'read' | 'write';
-type CliCommandSpec = {
+type PermissionCommandKind = 'read' | 'write';
+type PermissionCommandSpec = {
   readonly key: string;
-  readonly kind: CliCommandKind;
+  readonly kind: PermissionCommandKind;
   readonly defaultAllowed: boolean;
 };
+type CliCommandSpec = PermissionCommandSpec;
+type McpToolSpec = PermissionCommandSpec;
 
 const CLI_PERMISSION_CONFIG_KEY = 'command_permissions';
 const CLI_COMMAND_SPECS: readonly CliCommandSpec[] = [
@@ -819,6 +823,30 @@ const CLI_VALID_COMMANDS = new Set(CLI_COMMAND_SPECS.map((command) => command.ke
 const CLI_DEFAULT_ALLOWED = CLI_COMMAND_SPECS
   .filter((command) => command.defaultAllowed)
   .map((command) => command.key);
+const MCP_TOOLS_CONFIG_KEY = 'tools_config';
+const MCP_TOOL_SPECS: readonly McpToolSpec[] = [
+  { key: 'fs_semantics', kind: 'read', defaultAllowed: true },
+  { key: 'fs_ls', kind: 'read', defaultAllowed: true },
+  { key: 'fs_tree', kind: 'read', defaultAllowed: true },
+  { key: 'fs_find', kind: 'read', defaultAllowed: true },
+  { key: 'fs_grep', kind: 'read', defaultAllowed: true },
+  { key: 'fs_cat', kind: 'read', defaultAllowed: true },
+  { key: 'fs_head', kind: 'read', defaultAllowed: true },
+  { key: 'fs_tail', kind: 'read', defaultAllowed: true },
+  { key: 'fs_stat', kind: 'read', defaultAllowed: true },
+  { key: 'fs_write', kind: 'write', defaultAllowed: true },
+  { key: 'fs_mkdir', kind: 'write', defaultAllowed: true },
+  { key: 'fs_touch', kind: 'write', defaultAllowed: true },
+  { key: 'fs_cp', kind: 'write', defaultAllowed: true },
+  { key: 'fs_mv', kind: 'write', defaultAllowed: true },
+  { key: 'fs_rmdir', kind: 'write', defaultAllowed: false },
+  { key: 'fs_rm', kind: 'write', defaultAllowed: false },
+];
+const MCP_TOOL_ORDER = new Map(MCP_TOOL_SPECS.map((tool, index) => [tool.key, index]));
+const MCP_VALID_TOOLS = new Set(MCP_TOOL_SPECS.map((tool) => tool.key));
+const MCP_DEFAULT_ALLOWED = MCP_TOOL_SPECS
+  .filter((tool) => tool.defaultAllowed)
+  .map((tool) => tool.key);
 const PERMISSION_CHECK_COLOR = 'var(--po-accent)';
 const PERMISSION_CHECK_MARK_COLOR = 'var(--po-text-inverse)';
 
@@ -977,6 +1005,169 @@ function CliCommandPermissionsRow({
   );
 }
 
+function McpToolPermissionsRow({
+  connector,
+  scope,
+  onUpdate,
+  pending,
+  variant = 'default',
+  isFirst,
+}: {
+  readonly connector: Connector;
+  readonly scope: RepoScope | undefined;
+  readonly onUpdate: (patch: ConnectorEditPatch) => Promise<void>;
+  readonly pending: boolean;
+  readonly variant?: ConfigPanelVariant;
+  readonly isFirst?: boolean;
+}) {
+  const allowedTools = useMemo(
+    () => parseMcpToolPermissions(connector.config),
+    [connector.config],
+  );
+  const writable = getMcpWritable(connector, scope);
+  const readTools = MCP_TOOL_SPECS.filter((tool) => tool.kind === 'read');
+  const writeTools = MCP_TOOL_SPECS.filter((tool) => tool.kind === 'write' && tool.defaultAllowed);
+  const deleteTools = MCP_TOOL_SPECS.filter((tool) => tool.kind === 'write' && !tool.defaultAllowed);
+
+  const writeAllowedTools = useCallback(
+    async (next: Set<string>) => {
+      await onUpdate({
+        config: {
+          ...connector.config,
+          [MCP_TOOLS_CONFIG_KEY]: buildMcpToolsConfig(connector.config[MCP_TOOLS_CONFIG_KEY], next),
+        },
+      });
+    },
+    [connector.config, onUpdate],
+  );
+
+  const setToolAllowed = useCallback(
+    async (tool: McpToolSpec, checked: boolean) => {
+      if (!writable && tool.kind === 'write') return;
+      const next = new Set(allowedTools);
+      if (checked) {
+        next.add(tool.key);
+      } else {
+        next.delete(tool.key);
+      }
+      await writeAllowedTools(next);
+    },
+    [allowedTools, writable, writeAllowedTools],
+  );
+
+  const setToolsAllowed = useCallback(
+    async (tools: readonly McpToolSpec[], checked: boolean) => {
+      if (!writable && tools.some((tool) => tool.kind === 'write')) return;
+      const next = new Set(allowedTools);
+      if (checked) {
+        tools.forEach((tool) => next.add(tool.key));
+      } else {
+        tools.forEach((tool) => next.delete(tool.key));
+      }
+      await writeAllowedTools(next);
+    },
+    [allowedTools, writable, writeAllowedTools],
+  );
+
+  const readEnabled = readTools.every((tool) => allowedTools.has(tool.key));
+  const writeEnabled = writable && writeTools.every((tool) => allowedTools.has(tool.key));
+  const deleteEnabled = writable && deleteTools.every((tool) => allowedTools.has(tool.key));
+  const readAllowedCount = readTools.filter((tool) => allowedTools.has(tool.key)).length;
+  const writeAllowedCount = writable
+    ? writeTools.filter((tool) => allowedTools.has(tool.key)).length
+    : 0;
+  const deleteAllowedCount = writable
+    ? deleteTools.filter((tool) => allowedTools.has(tool.key)).length
+    : 0;
+
+  return (
+    <div
+      style={{
+        minWidth: 0,
+        padding: variant === 'inline' ? '14px 14px 16px' : '14px 12px 16px',
+        borderTop: isFirst ? 'none' : `1px solid ${T.cardBorder}`,
+      }}
+    >
+      <div
+        style={{
+          minWidth: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 10,
+        }}
+      >
+        <div
+          style={{
+            fontFamily: T.fontSans,
+            fontSize: 14,
+            lineHeight: '18px',
+            color: T.text2,
+            fontWeight: 600,
+          }}
+        >
+          MCP tools
+        </div>
+        <div
+          style={{
+            minWidth: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            borderRadius: 7,
+            border: `1px solid ${T.cardBorder}`,
+            background: 'color-mix(in srgb, var(--po-control) 42%, transparent)',
+            overflow: 'hidden',
+          }}
+        >
+          <CommandPermissionGroup
+            title='Read tools'
+            commands={readTools}
+            allowedCommands={allowedTools}
+            allowedCount={readAllowedCount}
+            groupEnabled={readEnabled}
+            disabled={pending}
+            onToggleAll={(checked) => setToolsAllowed(readTools, checked)}
+            onToggleCommand={setToolAllowed}
+            isFirst
+          />
+          <CommandPermissionGroup
+            title='Write tools'
+            commands={writeTools}
+            allowedCommands={allowedTools}
+            allowedCount={writeAllowedCount}
+            groupEnabled={writeEnabled}
+            disabled={pending || !writable}
+            muted={!writable}
+            onToggleAll={(checked) => setToolsAllowed(writeTools, checked)}
+            onToggleCommand={setToolAllowed}
+          />
+          <CommandPermissionGroup
+            title='Delete tools'
+            commands={deleteTools}
+            allowedCommands={allowedTools}
+            allowedCount={deleteAllowedCount}
+            groupEnabled={deleteEnabled}
+            disabled={pending || !writable}
+            muted={!writable}
+            danger
+            onToggleAll={(checked) => setToolsAllowed(deleteTools, checked)}
+            onToggleCommand={setToolAllowed}
+          />
+        </div>
+        <div
+          style={{
+            color: T.text3,
+            fontFamily: T.fontSans,
+            fontSize: 11,
+            lineHeight: '16px',
+          }}
+        >
+          The server applies this policy to both tools/list and tools/call. Client JSON only contains the URL and key.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CommandPermissionGroup({
   title,
   commands,
@@ -991,7 +1182,7 @@ function CommandPermissionGroup({
   isFirst,
 }: {
   readonly title: string;
-  readonly commands: readonly CliCommandSpec[];
+  readonly commands: readonly PermissionCommandSpec[];
   readonly allowedCommands: ReadonlySet<string>;
   readonly allowedCount: number;
   readonly groupEnabled: boolean;
@@ -999,7 +1190,7 @@ function CommandPermissionGroup({
   readonly muted?: boolean;
   readonly danger?: boolean;
   readonly onToggleAll: (checked: boolean) => Promise<void>;
-  readonly onToggleCommand: (command: CliCommandSpec, checked: boolean) => Promise<void>;
+  readonly onToggleCommand: (command: PermissionCommandSpec, checked: boolean) => Promise<void>;
   readonly isFirst?: boolean;
 }) {
   const commandCount = commands.length;
@@ -1166,7 +1357,7 @@ function CommandPermissionPill({
   danger = false,
   onToggle,
 }: {
-  readonly command: CliCommandSpec;
+  readonly command: PermissionCommandSpec;
   readonly enabled: boolean;
   readonly disabled: boolean;
   readonly danger?: boolean;
@@ -1184,7 +1375,7 @@ function CommandPermissionPill({
       type='button'
       aria-pressed={enabled}
       disabled={disabled}
-      title={`puppyone fs ${command.key}`}
+      title={command.key}
       onClick={() => { void onToggle(!enabled); }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -1281,7 +1472,7 @@ function parseCliCommandPermissions(config: Record<string, unknown>): ReadonlySe
 
 function parseLegacyCliGroups(groups: Record<string, unknown>): ReadonlySet<string> {
   const allowed = new Set<string>();
-  const addByKind = (kind: CliCommandKind) => {
+  const addByKind = (kind: PermissionCommandKind) => {
     CLI_COMMAND_SPECS
       .filter((command) => command.kind === kind)
       .forEach((command) => allowed.add(command.key));
@@ -1306,6 +1497,129 @@ function readCommandArray(value: unknown): string[] | null {
 
 function sortCliCommands(a: string, b: string): number {
   return (CLI_COMMAND_ORDER.get(a) ?? 999) - (CLI_COMMAND_ORDER.get(b) ?? 999);
+}
+
+function parseMcpToolPermissions(config: Record<string, unknown>): ReadonlySet<string> {
+  const raw = config[MCP_TOOLS_CONFIG_KEY];
+  const legacyList = parseLegacyMcpToolList(raw);
+  if (legacyList) {
+    return legacyList;
+  }
+  if (!isRecord(raw)) {
+    return new Set(MCP_DEFAULT_ALLOWED);
+  }
+
+  const fsConfig = isRecord(raw.filesystem)
+    ? raw.filesystem
+    : isRecord(raw.fs)
+      ? raw.fs
+      : raw;
+  const allowed = readMcpToolArray(fsConfig.allowed)
+    ?? readMcpToolArray(fsConfig.allowed_tools)
+    ?? readMcpToolArray(fsConfig.tools_allowed);
+  if (allowed) {
+    return new Set(allowed);
+  }
+
+  const toolMap = fsConfig.tools;
+  if (isRecord(toolMap)) {
+    return new Set(
+      MCP_TOOL_SPECS
+        .filter((tool) => toolMap[tool.key] === true)
+        .map((tool) => tool.key),
+    );
+  }
+
+  if (isRecord(fsConfig.groups)) {
+    return parseMcpGroups(fsConfig.groups);
+  }
+  if ('read' in fsConfig || 'write' in fsConfig || 'delete' in fsConfig) {
+    return parseMcpGroups(fsConfig);
+  }
+
+  return new Set(MCP_DEFAULT_ALLOWED);
+}
+
+function buildMcpToolsConfig(raw: unknown, allowedTools: ReadonlySet<string>) {
+  const customTools = readMcpCustomTools(raw);
+  return {
+    version: 1,
+    filesystem: {
+      allowed: Array.from(allowedTools)
+        .filter((tool) => MCP_VALID_TOOLS.has(tool))
+        .sort(sortMcpTools),
+    },
+    shell: { enabled: false },
+    ...(customTools.length > 0 ? { custom_tools: customTools } : {}),
+  };
+}
+
+function getMcpWritable(connector: Connector, scope: RepoScope | undefined): boolean {
+  if (!scope || scope.mode !== 'rw') return false;
+  const accesses = Array.isArray(connector.config?.accesses)
+    ? connector.config.accesses as Array<{ readonly?: boolean }>
+    : [];
+  if (accesses.length === 0) return true;
+  return accesses.some((access) => access.readonly === false);
+}
+
+function parseLegacyMcpToolList(value: unknown): ReadonlySet<string> | null {
+  if (!Array.isArray(value)) return null;
+  let found = false;
+  const allowed = new Set<string>();
+  value.forEach((item) => {
+    if (!isRecord(item)) return;
+    const name = item.name ?? item.tool_name;
+    if (typeof name !== 'string' || !MCP_VALID_TOOLS.has(name)) return;
+    found = true;
+    if (item.enabled !== false) allowed.add(name);
+  });
+  return found ? allowed : null;
+}
+
+function parseMcpGroups(groups: Record<string, unknown>): ReadonlySet<string> {
+  const allowed = new Set<string>();
+  const addTools = (tools: readonly McpToolSpec[]) => {
+    tools.forEach((tool) => allowed.add(tool.key));
+  };
+  if (groups.read !== false) {
+    addTools(MCP_TOOL_SPECS.filter((tool) => tool.kind === 'read'));
+  }
+  if (groups.write !== false) {
+    addTools(MCP_TOOL_SPECS.filter((tool) => tool.kind === 'write' && tool.defaultAllowed));
+  }
+  if (groups.delete === true) {
+    addTools(MCP_TOOL_SPECS.filter((tool) => tool.kind === 'write' && !tool.defaultAllowed));
+  }
+  return allowed;
+}
+
+function readMcpToolArray(value: unknown): string[] | null {
+  if (!Array.isArray(value)) return null;
+  return value.filter((item): item is string => typeof item === 'string' && MCP_VALID_TOOLS.has(item));
+}
+
+function readMcpCustomTools(value: unknown): Array<{ tool_id: string; enabled?: boolean }> {
+  const read = (items: unknown): Array<{ tool_id: string; enabled?: boolean }> => {
+    if (!Array.isArray(items)) return [];
+    return items
+      .filter((item): item is Record<string, unknown> => isRecord(item) && typeof item.tool_id === 'string')
+      .map((item) => ({
+        tool_id: item.tool_id as string,
+        ...(typeof item.enabled === 'boolean' ? { enabled: item.enabled } : {}),
+      }));
+  };
+  if (Array.isArray(value)) {
+    return read(value);
+  }
+  if (!isRecord(value)) {
+    return [];
+  }
+  return read(value.custom_tools).concat(read(value.bound_tools), read(value.external_tools));
+}
+
+function sortMcpTools(a: string, b: string): number {
+  return (MCP_TOOL_ORDER.get(a) ?? 999) - (MCP_TOOL_ORDER.get(b) ?? 999);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -1336,15 +1650,16 @@ function ConnectorConfigPanel({
 }) {
   const inline = variant === 'inline';
   const showCliCommands = isCliProvider(connector.provider) && !!onUpdate;
+  const showMcpTools = isMcpProvider(connector.provider) && !!onUpdate;
   const showError = !!connector.error_message;
 
-  if (!showCliCommands && !showError) {
+  if (!showCliCommands && !showMcpTools && !showError) {
     return null;
   }
 
   return (
     <div style={{ marginBottom: inline ? 0 : 14 }}>
-      {showLabel && !showCliCommands ? <SubSectionLabel>Details</SubSectionLabel> : null}
+      {showLabel && !showCliCommands && !showMcpTools ? <SubSectionLabel>Details</SubSectionLabel> : null}
       <div
         style={{
           background: inline ? 'transparent' : 'var(--po-canvas)',
@@ -1363,11 +1678,21 @@ function ConnectorConfigPanel({
             isFirst
           />
         ) : null}
+        {showMcpTools && onUpdate ? (
+          <McpToolPermissionsRow
+            connector={connector}
+            scope={scope}
+            onUpdate={onUpdate}
+            pending={pending}
+            variant={variant}
+            isFirst={!showCliCommands}
+          />
+        ) : null}
         {connector.error_message ? (
           <ConfigRow
             label='Error'
             value={connector.error_message}
-            isFirst={!showCliCommands}
+            isFirst={!showCliCommands && !showMcpTools}
             variant={variant}
           />
         ) : null}

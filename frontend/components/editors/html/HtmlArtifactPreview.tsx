@@ -59,7 +59,7 @@ export function HtmlArtifactPreview({ content, nodeName, mode }: HtmlArtifactPre
         minHeight: 0,
         display: 'flex',
         flexDirection: 'column',
-        background: 'var(--po-inset)',
+        background: 'var(--po-editor-bg)',
       }}
     >
       <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
@@ -82,6 +82,7 @@ export function HtmlArtifactPreview({ content, nodeName, mode }: HtmlArtifactPre
               flex: 1,
               minHeight: 0,
               display: mode === 'source' ? 'flex' : 'none',
+              background: 'var(--po-editor-bg)',
             }}
           >
             <MonacoCodeViewer content={content} language="html" readOnly />

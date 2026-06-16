@@ -8,6 +8,7 @@ import { type NodeInfo } from '../../lib/contentTreeApi';
 import { ProjectSwitcher, type ProjectOption } from './ProjectSwitcher';
 import { getEnvironmentLabel } from '../../lib/env';
 import { SkeletonBlock } from '../loading';
+import { CountBadge, type CountBadgeTone } from '../ui/CountBadge';
 
 export type NavItem = {
   id: string;
@@ -15,6 +16,7 @@ export type NavItem = {
   icon: React.ReactNode;
   badge?: number;
   badgeLoading?: boolean;
+  badgeTone?: CountBadgeTone;
   groupEnd?: boolean;
 };
 
@@ -76,17 +78,8 @@ export type SidebarLayoutProps = {
 const MIN_SIDEBAR_WIDTH = 200;
 const MAX_SIDEBAR_WIDTH = 400;
 const DEFAULT_SIDEBAR_WIDTH = MIN_SIDEBAR_WIDTH;
-const SIDEBAR_IDENTITY_CHIP_SIZE = 18;
 const SIDEBAR_NAV_ICON_SIZE = 15;
 const COLLAPSED_RAIL_INSET = 7.5;
-
-// Brand blue — single source of truth for the workspace identity
-// chip (both the expanded ProjectSwitcher chip and the collapsed
-// sidebar chip). Picked to read as PuppyOne's primary accent against
-// the #121212 / #181818 sidebar surfaces. Keep this in sync with
-// `BRAND_BLUE` in `ProjectSwitcher.tsx`.
-const BRAND_BLUE = '#4599DF';
-
 export function SidebarLayout({
   title,
   titleLoading = false,
@@ -136,6 +129,12 @@ export function SidebarLayout({
   const [isResizing, setIsResizing] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const sidebarRef = useRef<HTMLElement>(null);
+  const currentProjectForSwitcher = currentProjectId
+    ? projects.find(p => p.id === currentProjectId) || {
+        id: currentProjectId,
+        name: title,
+      }
+    : null;
 
   // Handle resize
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -199,7 +198,7 @@ export function SidebarLayout({
 
   const collapsedBtnClass = (isActive: boolean) =>
     clsx(
-      'flex h-8 w-8 items-center justify-center rounded-[6px] text-[var(--po-text-muted)] transition-colors duration-150 hover:bg-[var(--po-hover)] hover:text-[var(--po-text)]',
+      'relative flex h-8 w-8 items-center justify-center rounded-[6px] text-[var(--po-text-muted)] transition-colors duration-150 hover:bg-[var(--po-hover)] hover:text-[var(--po-text)]',
       isActive ? 'bg-[var(--po-selected)] text-[var(--po-text)]' : 'bg-transparent'
     );
 
@@ -222,12 +221,11 @@ export function SidebarLayout({
           page-level header across /(main) (Context / Access / History /
           Settings / etc.) so the top band reads as one continuous
           strip across sidebar + main pane.
-          Layout is a single flex row so the workspace switcher and the
-          collapse toggle each get their own slot and never overlap.
-          The collapse button always reserves its slot so the workspace
-          name truncates predictably — no layout shift between
-          rest/hover states, and the two controls are spatially
-          distinct rather than stacked. */}
+          In the expanded state this row holds the project/org switcher
+          and the collapse toggle. In the collapsed state it keeps only
+          the identity switcher; the expand control moves to the lower
+          rail so project switching and sidebar layout are separate
+          actions. */}
       <div
         className={clsx(
           'group/header flex items-center',
@@ -242,76 +240,44 @@ export function SidebarLayout({
         }}
       >
         {effectiveCollapsed ? (
-          // Collapsed identity chip — one grammar across project AND
-          // org/global view: the brand-blue 18×18 chip carrying the
-          // workspace's first letter. Earlier we forked between the
-          // chip (project) and a puppyone-logo image (global), but
-          // the two glyphs have very different visual mass (flat
-          // letter vs detailed illustration), so the rail "changed
-          // shape" when the user navigated home → project. Letter is
-          // the first character of whatever title is in scope (project
-          // name when in a project, org name when in /home / /team /
-          // /billing / /settings). On hover the chip morphs into the
-          // "expand sidebar" affordance — same hover-to-reveal pattern
-          // used by the collapse button on the right.
-          // Geometry locked to the collapsed nav rail below it:
-          //   hit area : h-8 w-8 (32×32) — same as `collapsedBtnClass`
-          //   chip     : 18×18 — same as ProjectSwitcher's expanded chip
-          //   hover icon: 15×15 — same as the expanded nav SVGs
-          <button
-            type='button'
-            className='group flex h-8 w-8 items-center justify-center rounded-[6px] transition-colors duration-150 hover:bg-[var(--po-hover)]'
-            onClick={() => handleCollapsedChange(false)}
-            title={t('expand')}
-            aria-label={t('expand')}
-          >
-            <span className='block group-hover:hidden'>
-              {titleLoading ? (
-                <SkeletonBlock width={SIDEBAR_IDENTITY_CHIP_SIZE} height={SIDEBAR_IDENTITY_CHIP_SIZE} radius={5} />
-              ) : (
-                <span
-                  aria-hidden
-                  className='flex items-center justify-center rounded-[5px] text-[10px] font-bold uppercase text-[var(--po-text-inverse)]'
-                  style={{
-                    width: SIDEBAR_IDENTITY_CHIP_SIZE,
-                    height: SIDEBAR_IDENTITY_CHIP_SIZE,
-                    background: BRAND_BLUE,
-                    fontFamily: 'var(--po-font-sans)',
-                    letterSpacing: 0,
-                  }}
-                >
-                  {(title?.[0] || 'P').toUpperCase()}
-                </span>
-              )}
-            </span>
-            <svg
-              className='hidden text-[var(--po-text-muted)] group-hover:block'
-              width={SIDEBAR_NAV_ICON_SIZE}
-              height={SIDEBAR_NAV_ICON_SIZE}
-              viewBox='0 0 24 24'
-              fill='none'
-              stroke='currentColor'
-              strokeWidth='1.5'
-              strokeLinecap='round'
-              strokeLinejoin='round'
+          onSelectProject && onGoHome ? (
+            <ProjectSwitcher
+              currentProject={currentProjectForSwitcher}
+              projects={projects}
+              projectsLoading={projectsLoading}
+              onSelectProject={onSelectProject}
+              onGoHome={onGoHome}
+              onHoverProject={onHoverProject}
+              identityLoading={titleLoading}
+              organizations={organizations}
+              currentOrgId={currentOrgId}
+              onSwitchOrg={onSwitchOrg}
+              globalLabel={!currentProjectId ? title : undefined}
+              isCollapsed
+            />
+          ) : (
+            <button
+              type='button'
+              className='flex h-8 w-8 items-center justify-center rounded-[6px] transition-colors duration-150 hover:bg-[var(--po-hover)]'
+              onClick={() => handleCollapsedChange(false)}
+              title={t('expand')}
+              aria-label={t('expand')}
             >
-              <rect x='3' y='3' width='18' height='18' rx='2' />
-              <line x1='9' y1='3' x2='9' y2='21' />
-            </svg>
-          </button>
+              <img
+                src='/puppyone-logo.svg'
+                alt=''
+                width={18}
+                height={18}
+                className='rounded-[4px]'
+              />
+            </button>
+          )
         ) : (
           <div className='flex h-full w-full items-center gap-1 pl-2 pr-1'>
             {/* Workspace switcher — flexible slot, truncates first */}
             {onSelectProject && onGoHome ? (
               <ProjectSwitcher
-                currentProject={
-                  currentProjectId
-                    ? projects.find(p => p.id === currentProjectId) || {
-                        id: currentProjectId,
-                        name: title,
-                      }
-                    : null
-                }
+                currentProject={currentProjectForSwitcher}
                 projects={projects}
                 projectsLoading={projectsLoading}
                 onSelectProject={onSelectProject}
@@ -394,8 +360,13 @@ export function SidebarLayout({
                     {item.badgeLoading ? (
                       <SkeletonBlock width={18} height={10} radius={3} className='ml-auto' />
                     ) : item.badge !== undefined && item.badge > 0 && (
-                      <span className='ml-auto min-w-[16px] pr-1 text-right text-[12px] font-medium tabular-nums leading-none text-[var(--po-text-disabled)]'>
-                        {item.badge}
+                      <span className='ml-auto'>
+                        <CountBadge
+                          value={item.badge}
+                          size={item.badgeTone === 'danger' ? 'md' : 'sm'}
+                          tone={item.badgeTone ?? (isActive ? 'selected' : 'neutral')}
+                          title={`${item.label}: ${item.badge}`}
+                        />
                       </span>
                     )}
                   </button>
@@ -417,31 +388,79 @@ export function SidebarLayout({
           style={{ paddingLeft: COLLAPSED_RAIL_INSET }}
         >
           <div className='flex flex-col items-start gap-px'>
-            {navItems.map(item => (
-              <React.Fragment key={item.id}>
-                <button
-                  type='button'
-                  className={collapsedBtnClass(activeView === item.id)}
-                  onClick={() => onNavigate(item.id)}
-                  onMouseEnter={() => onHoverNavItem?.(item.id)}
-                  title={item.label}
-                  aria-label={item.label}
-                >
-                  <span className='flex h-[18px] w-[18px] items-center justify-center'>
-                    {React.isValidElement(item.icon)
-                      ? React.cloneElement(item.icon, {
-                          width: SIDEBAR_NAV_ICON_SIZE,
-                          height: SIDEBAR_NAV_ICON_SIZE,
-                        } as any)
-                      : item.icon}
-                  </span>
-                </button>
-                {item.groupEnd && (
-                  <div className='my-1.5 ml-1.5 w-5 border-t border-[var(--po-divider)]' />
-                )}
-              </React.Fragment>
-            ))}
+            {navItems.map(item => {
+              const isActive = activeView === item.id;
+              return (
+                <React.Fragment key={item.id}>
+                  <button
+                    type='button'
+                    className={collapsedBtnClass(isActive)}
+                    onClick={() => onNavigate(item.id)}
+                    onMouseEnter={() => onHoverNavItem?.(item.id)}
+                    title={item.label}
+                    aria-label={item.label}
+                  >
+                    <span className='flex h-[18px] w-[18px] items-center justify-center'>
+                      {React.isValidElement(item.icon)
+                        ? React.cloneElement(item.icon, {
+                            width: SIDEBAR_NAV_ICON_SIZE,
+                            height: SIDEBAR_NAV_ICON_SIZE,
+                          } as any)
+                        : item.icon}
+                    </span>
+                    {item.badgeLoading ? (
+                      <span
+                        aria-hidden
+                        className='absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-[var(--po-border-strong)]'
+                      />
+                    ) : item.badge !== undefined && item.badge > 0 ? (
+                      <span className='absolute -right-1 -top-1'>
+                        <CountBadge
+                          value={item.badge}
+                          size={item.badgeTone === 'danger' ? 'md' : 'sm'}
+                          tone={item.badgeTone ?? (isActive ? 'selected' : 'neutral')}
+                          ariaLabel={`${item.label}: ${item.badge}`}
+                        />
+                      </span>
+                    ) : null}
+                  </button>
+                  {item.groupEnd && (
+                    <div className='my-1.5 ml-1.5 w-5 border-t border-[var(--po-divider)]' />
+                  )}
+                </React.Fragment>
+              );
+            })}
           </div>
+        </div>
+      )}
+
+      {effectiveCollapsed && (
+        <div
+          className='flex flex-shrink-0 pb-2'
+          style={{ paddingLeft: COLLAPSED_RAIL_INSET }}
+        >
+          <button
+            type='button'
+            className={collapsedBtnClass(false)}
+            onClick={() => handleCollapsedChange(false)}
+            title={t('expand')}
+            aria-label={t('expand')}
+          >
+            <svg
+              width={SIDEBAR_NAV_ICON_SIZE}
+              height={SIDEBAR_NAV_ICON_SIZE}
+              viewBox='0 0 24 24'
+              fill='none'
+              stroke='currentColor'
+              strokeWidth='1.5'
+              strokeLinecap='round'
+              strokeLinejoin='round'
+              aria-hidden
+            >
+              <rect x='3' y='3' width='18' height='18' rx='2' />
+              <line x1='9' y1='3' x2='9' y2='21' />
+            </svg>
+          </button>
         </div>
       )}
 

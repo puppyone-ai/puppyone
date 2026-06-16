@@ -234,6 +234,14 @@ export function providerNeedsResourceSelection(provider?: WorkflowProviderSpec):
   return providerUsesOAuth(provider);
 }
 
+export function hasValidSourceSelection(
+  provider: WorkflowProviderSpec | undefined,
+  selectedResources: WorkflowSourceResource[],
+): boolean {
+  if (!providerNeedsResourceSelection(provider)) return true;
+  return selectedResources.some((resource) => resource.id.trim().length > 0);
+}
+
 function accountLabelFromResource(resource: WorkflowSourceResource): string | undefined {
   const value = resource.metadata?.account_label ?? resource.metadata?.owner;
   return typeof value === 'string' && value.trim() ? value : undefined;
@@ -280,7 +288,7 @@ export function buildStructuredConfigForCreate({
   }
 
   if (provider.provider === 'google_calendar') {
-    const selected = selectedResources.length > 0 ? selectedResources : [];
+    const selected = selectedResources.filter((resource) => resource.id.trim().length > 0);
     const calendarIds = selected.map((resource) => resource.id);
     return {
       source: {

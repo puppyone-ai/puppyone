@@ -2,6 +2,7 @@
 
 import type { CSSProperties, ReactNode } from 'react';
 import { SelectField, TextField } from '@/components/ui/Field';
+import { resolveProviderIconUrl } from '@/lib/providerIcons';
 import type { WorkflowConfigField, WorkflowProviderSpec } from '@/lib/workflowApi';
 import { labelize } from './workflowHelpers';
 import styles from './WorkflowPage.module.css';
@@ -55,8 +56,14 @@ export function StatusPill({ status }: { status: string }) {
   );
 }
 
-export function ProviderMark({ provider }: { provider?: WorkflowProviderSpec }) {
-  const iconSrc = providerIconSrc(provider);
+export function ProviderMark({
+  provider,
+  icon,
+}: {
+  provider?: WorkflowProviderSpec;
+  icon?: string | null;
+}) {
+  const iconSrc = providerIconSrc(provider, icon);
   if (iconSrc) {
     return (
       <img
@@ -71,10 +78,12 @@ export function ProviderMark({ provider }: { provider?: WorkflowProviderSpec }) 
   return <span className={styles.providerGlyph}>{provider?.icon || '*'}</span>;
 }
 
-function providerIconSrc(provider?: WorkflowProviderSpec): string | null {
-  if (provider?.provider === 'gmail') return '/icons/gmail.svg';
-  if (provider?.provider === 'google_calendar') return '/icons/google_calendar.svg';
-  return provider?.icon_url ?? null;
+function providerIconSrc(provider?: WorkflowProviderSpec, icon?: string | null): string | null {
+  return resolveProviderIconUrl({
+    provider: provider?.provider,
+    icon: icon ?? provider?.icon,
+    iconUrl: provider?.icon_url,
+  });
 }
 
 export function ConfigFieldInput({

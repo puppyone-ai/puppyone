@@ -1,13 +1,13 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
-import Editor, { OnMount } from '@monaco-editor/react';
+import Editor, { OnMount, type Monaco } from '@monaco-editor/react';
 import { useTheme } from 'next-themes';
 import { EditorLoadingSurface } from '@/components/loading';
 import { definePuppyoneMonacoThemes, getPuppyoneMonacoTheme } from '@/lib/theme/monacoThemes';
 
 const MONACO_LOADING = <EditorLoadingSurface />;
-const JSON_SOURCE_FONT = 'var(--po-font-sans)';
+const JSON_SOURCE_FONT = 'var(--po-font-mono)';
 
 interface MonacoJsonEditorProps {
   json: object;
@@ -21,10 +21,13 @@ export function MonacoJsonEditor({ json, onChange, onPathChange }: MonacoJsonEdi
   const { resolvedTheme } = useTheme();
   const themeName = getPuppyoneMonacoTheme('json', resolvedTheme);
 
+  const handleBeforeMount = (monaco: Monaco) => {
+    definePuppyoneMonacoThemes(monaco);
+  };
+
   const handleEditorMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
     monacoRef.current = monaco;
-    definePuppyoneMonacoThemes(monaco);
     monaco.editor.setTheme(themeName);
 
     editor.onDidChangeCursorPosition((e: any) => {
@@ -56,48 +59,61 @@ export function MonacoJsonEditor({ json, onChange, onPathChange }: MonacoJsonEdi
   };
 
   return (
-    <Editor
-      height="100%"
-      defaultLanguage="json"
-      value={JSON.stringify(json, null, 2)}
-      onChange={handleEditorChange}
-      onMount={handleEditorMount}
-      theme={themeName}
-      loading={MONACO_LOADING}
-      options={{
-        minimap: { enabled: false },
-        fontSize: 13,
-        fontFamily: JSON_SOURCE_FONT,
-        fontWeight: '400',
-        lineHeight: 20,
-        lineNumbers: 'on',
-        lineNumbersMinChars: 3,
-        scrollBeyondLastLine: false,
-        automaticLayout: true,
-        tabSize: 2,
-        wordWrap: 'on',
-        padding: { top: 16, bottom: 40 },
-        folding: true,
-        bracketPairColorization: { enabled: true },
-        formatOnPaste: true,
-        formatOnType: true,
-        renderLineHighlight: 'none',
-        overviewRulerBorder: false,
-        hideCursorInOverviewRuler: true,
-        scrollbar: {
-          vertical: 'auto',
-          horizontal: 'hidden',
-          verticalScrollbarSize: 8,
-        },
-        quickSuggestions: false,
-        suggestOnTriggerCharacters: false,
-        acceptSuggestionOnEnter: 'off',
-        tabCompletion: 'off',
-        wordBasedSuggestions: 'off',
-        renderWhitespace: 'none',
-        guides: { indentation: false },
+    <div
+      style={{
+        height: '100%',
+        width: '100%',
+        boxSizing: 'border-box',
+        padding:
+          'var(--po-editor-code-padding-block) var(--po-editor-code-padding-inline) var(--po-editor-code-padding-bottom)',
+        background: 'var(--po-editor-bg)',
       }}
-    />
+    >
+      <Editor
+        height="100%"
+        defaultLanguage="json"
+        value={JSON.stringify(json, null, 2)}
+        onChange={handleEditorChange}
+        beforeMount={handleBeforeMount}
+        onMount={handleEditorMount}
+        theme={themeName}
+        loading={MONACO_LOADING}
+        options={{
+          minimap: { enabled: false },
+          fontSize: 13,
+          fontFamily: JSON_SOURCE_FONT,
+          fontWeight: '400',
+          lineHeight: 20,
+          lineNumbers: 'on',
+          lineNumbersMinChars: 3,
+          lineDecorationsWidth: 12,
+          scrollBeyondLastLine: false,
+          automaticLayout: true,
+          tabSize: 2,
+          wordWrap: 'on',
+          padding: { top: 0, bottom: 0 },
+          folding: true,
+          bracketPairColorization: { enabled: true },
+          formatOnPaste: true,
+          formatOnType: true,
+          renderLineHighlight: 'none',
+          overviewRulerBorder: false,
+          hideCursorInOverviewRuler: true,
+          scrollbar: {
+            vertical: 'auto',
+            horizontal: 'hidden',
+            verticalScrollbarSize: 8,
+          },
+          quickSuggestions: false,
+          suggestOnTriggerCharacters: false,
+          acceptSuggestionOnEnter: 'off',
+          tabCompletion: 'off',
+          wordBasedSuggestions: 'off',
+          renderWhitespace: 'none',
+          guides: { indentation: false },
+        }}
+      />
+    </div>
   );
 }
 

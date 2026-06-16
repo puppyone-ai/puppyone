@@ -50,7 +50,10 @@ async def list_runtime_tools(payload: RuntimeToolsRequest):
             "scope_path": ctx.scope_path,
             "mode": ctx.mode,
         },
-        "tools": build_mcp_tool_definitions(writable=ctx.writable),
+        "tools": build_mcp_tool_definitions(
+            writable=ctx.writable,
+            allowed_tools=ctx.allowed_tools,
+        ),
     }
 
 

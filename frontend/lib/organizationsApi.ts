@@ -12,6 +12,22 @@ export type OrganizationInfo = {
   member_count?: number;
 };
 
+export type OrganizationEntitlements = {
+  org_id: string;
+  plan_id: string;
+  status: string;
+  source: string;
+  entitlements: {
+    features?: Record<string, boolean>;
+    limits?: Record<string, number | string | null>;
+    allow?: Record<string, string[] | string | null>;
+  };
+  current_period_end?: string | null;
+  effective_until?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
 export type OrgMember = {
   id: string;
   user_id: string;
@@ -59,6 +75,10 @@ export async function getOrganizations(): Promise<OrganizationInfo[]> {
 
 export async function getOrganization(orgId: string): Promise<OrganizationInfo> {
   return apiRequest<OrganizationInfo>(`/api/v1/organizations/${orgId}`);
+}
+
+export async function getOrganizationEntitlements(orgId: string): Promise<OrganizationEntitlements> {
+  return apiRequest<OrganizationEntitlements>(`/api/v1/organizations/${orgId}/entitlements`);
 }
 
 export async function createOrganization(name: string, slug?: string): Promise<OrganizationInfo> {

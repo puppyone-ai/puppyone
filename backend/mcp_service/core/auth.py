@@ -11,16 +11,12 @@ from starlette.requests import Request
 
 
 def extract_api_key(request: Request) -> str:
-    """从请求中提取 API key（X-API-KEY / Bearer token）"""
+    """从主 API 代理转发的内部 X-API-KEY header 提取 runtime key。"""
     api_key = request.headers.get("X-API-KEY") or request.headers.get("x-api-key")
     if api_key:
         return api_key
 
-    auth = request.headers.get("authorization")
-    if auth and auth.lower().startswith("bearer "):
-        return auth[7:].strip()
-
-    raise Exception("缺少api_key，请在X-API-KEY header中提供")
+    raise Exception("缺少内部 X-API-KEY header")
 
 
 def parse_table_scope_from_api_key(api_key: str) -> tuple[int, str]:

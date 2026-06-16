@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ArrowRight, Check, Loader2 } from 'lucide-react';
+import { ArrowRight, Check } from 'lucide-react';
+import { InlineLoading } from '@/components/loading';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { DialogBody, DialogFooter } from '@/components/ui/Dialog';
 import { TreeDisclosureMarker } from '@/components/ui/TreeDisclosureMarker';
@@ -465,7 +466,7 @@ function FolderTreeChildren({
   const { nodes, isLoading, error } = useContentNodes(projectId, parentPath);
   const entries = useMemo(() => sortNodes(nodes), [nodes]);
 
-  if (isLoading) return <FolderTreeMessage depth={depth}>Loading...</FolderTreeMessage>;
+  if (isLoading) return <FolderTreeMessage depth={depth}><InlineLoading label="Loading" size="xs" /></FolderTreeMessage>;
   if (error) return <FolderTreeMessage depth={depth}>Could not load this folder.</FolderTreeMessage>;
   if (entries.length === 0) return <FolderTreeMessage depth={depth}>Empty folder</FolderTreeMessage>;
 
@@ -610,7 +611,7 @@ function SettingsActions({
         variant="primary"
         disabled={!dirty || saving || invalid}
         loading={saving}
-        leadingIcon={saving ? <Loader2 size={14} className={styles.spin} /> : <Check size={14} />}
+        leadingIcon={<Check size={14} />}
         onClick={() => void onSave()}
       >
         Save

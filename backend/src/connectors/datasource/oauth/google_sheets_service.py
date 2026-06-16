@@ -155,8 +155,10 @@ class GoogleSheetsOAuthService:
     async def is_token_expired(self, user_id: str) -> bool:
         """Check if stored token is expired."""
         connection = await self.get_connection(user_id)
-        if not connection or not connection.expires_at:
+        if not connection:
             return False
+        if not connection.expires_at:
+            return bool(connection.refresh_token)
         return datetime.now(timezone.utc) > connection.expires_at
 
     async def refresh_token_if_needed(self, user_id: str) -> Optional[OAuthConnection]:

@@ -31,6 +31,7 @@
  */
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { CountBadge } from '@/components/ui/CountBadge';
 import { GithubIcon, GmailIcon, NotionIcon } from '@/lib/nodeTypeConfig';
 import type { Connector, RepoScope } from '@/lib/repoApi';
 import {
@@ -256,18 +257,13 @@ export function ScopedConnectorsListPanel({
   const headerTitle: ReactNode = scope ? (
     settingsPage ? 'Settings' : scope.name
   ) : (
-    <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 8 }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
       <span>Access</span>
-      <span
-        style={{
-          fontSize: 12,
-          fontWeight: 400,
-          color: COLOR_FG_DIM,
-          fontVariantNumeric: 'tabular-nums',
-        }}
-      >
-        {scopes.length}
-      </span>
+      <CountBadge
+        value={scopes.length}
+        size="md"
+        tone="neutral"
+      />
     </span>
   );
   const headerSubtitle = undefined;

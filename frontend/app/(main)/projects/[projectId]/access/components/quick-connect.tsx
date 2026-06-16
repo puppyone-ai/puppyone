@@ -24,7 +24,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { buildGitSyncPrompt, buildTerminalCliPrompt } from '@/lib/accessPointCliPrompt';
+import { CountBadge } from '@/components/ui/CountBadge';
+import { buildGitSyncPrompt, buildMcpSetupPrompt, buildTerminalCliPrompt } from '@/lib/accessPointCliPrompt';
 import { activateAgentConnector, type Connector, type RepoScope } from '@/lib/repoApi';
 import {
   getAccessProviderLabel,
@@ -281,24 +282,8 @@ function ConnectionStepsList({
     >
       {steps.map((step, idx) => (
         <div key={step.title} style={{ display: 'flex', gap: 10 }}>
-          <span
-            style={{
-              width: 20,
-              height: 20,
-              borderRadius: 999,
-              background: 'var(--po-border-subtle)',
-              color: T.text2,
-              fontSize: 10,
-              fontWeight: 600,
-              fontFamily: T.fontSans,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-              marginTop: 1,
-            }}
-          >
-            {idx + 1}
+          <span style={{ marginTop: 1 }}>
+            <CountBadge value={idx + 1} size="sm" tone="neutral" />
           </span>
           <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
             <span style={{ fontSize: 12, fontWeight: 600, color: T.text1, fontFamily: T.fontSans }}>
@@ -393,22 +378,70 @@ function McpBody({
   readonly scope: RepoScope;
 }) {
   const apiBase = useMemo(() => getApiBase(), []);
-  const apiKey = String(connector.access_key || connector.config?.api_key || '');
-  const endpoint = `${apiBase}/api/v1/mcp/proxy`;
+  const configKey = connector.config?.api_key;
+  const apiKey = typeof configKey === 'string' ? configKey : connector.access_key || '';
   const scopeName = scope.name || (scope.path === '' ? 'root' : scope.path);
+  const setup = useMemo(
+    () =>
+      buildMcpSetupPrompt({
+        apiBase,
+        apiKey,
+        scopeName,
+        accessPointName: connector.name,
+      }),
+    [apiBase, apiKey, scopeName, connector.name],
+  );
 
   return (
-    <>
-      <SubSectionLabel>MCP endpoint</SubSectionLabel>
-      <KvBlock
-        rows={[
-          { label: 'URL', value: endpoint, mono: true, copyable: true },
-          { label: 'Header', value: `X-MCP-API-Key: ${apiKey || '<mcp-api-key>'}`, mono: true, copyable: true },
-          { label: 'Scope', value: scopeName },
-          { label: 'Mode', value: scope.mode === 'rw' ? 'Read & write' : 'Read-only' },
-        ]}
-      />
-    </>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {!apiKey ? <McpKeyNotice /> : null}
+      <p
+        style={{
+          margin: 0,
+          color: T.text2,
+          fontSize: 12,
+          lineHeight: '18px',
+          fontFamily: T.fontSans,
+        }}
+      >
+        Add this MCP server to your client. The only required values are the server URL and API key; the JSON below includes both.
+      </p>
+      <div>
+        <SubSectionLabel>MCP client JSON</SubSectionLabel>
+        <CommandBlock lines={setup.config.split('\n')} />
+      </div>
+      <div>
+        <SubSectionLabel>MCP connection</SubSectionLabel>
+        <KvBlock
+          rows={[
+            { label: 'MCP server', value: setup.serverUrl, mono: true, copyable: true },
+            { label: 'API key', value: apiKey || '<mcp-api-key>', mono: true, copyable: true },
+            { label: 'Scope', value: scopeName },
+            { label: 'File tools', value: 'Controlled by server policy' },
+            { label: 'Shell/Bash', value: 'Not exposed' },
+          ]}
+        />
+      </div>
+    </div>
+  );
+}
+
+function McpKeyNotice() {
+  return (
+    <div
+      style={{
+        borderRadius: 6,
+        border: `1px solid color-mix(in srgb, var(--po-warning) 25%, transparent)`,
+        background: 'color-mix(in srgb, var(--po-warning) 6%, transparent)',
+        color: 'var(--po-warning)',
+        fontSize: 12,
+        lineHeight: 1.5,
+        padding: '8px 10px',
+        fontFamily: T.fontSans,
+      }}
+    >
+      This MCP access point has no API key yet. Regenerate the endpoint key before connecting a client.
+    </div>
   );
 }
 

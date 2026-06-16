@@ -7,6 +7,7 @@ import { get } from '@/lib/apiClient';
 import { pauseAgent, resumeAgent } from '@/lib/agentApi';
 import { PageLoading } from '@/components/loading';
 import { IconButton } from '@/components/ui/IconButton';
+import { CountBadge } from '@/components/ui/CountBadge';
 
 interface ExecutionLog {
   id: string;
@@ -383,20 +384,11 @@ export function AgentDetailView({ agent }: AgentDetailViewProps) {
                       borderRadius: 6,
                     }}
                   >
-                    <span style={{
-                      width: 18,
-                      height: 18,
-                      borderRadius: '50%',
-                      background: 'var(--po-border-strong)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 10,
-                      color: 'var(--po-text-subtle)',
-                      flexShrink: 0,
-                    }}>
-                      {index + 1}
-                    </span>
+                    <CountBadge
+                      value={index + 1}
+                      size="md"
+                      tone="neutral"
+                    />
                     <span style={{ fontSize: 13, color: 'var(--po-text)', lineHeight: 1.4 }}>
                       {task}
                     </span>

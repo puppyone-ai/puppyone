@@ -5,11 +5,14 @@ import { useEffect } from 'react';
 export function useEditorSaveGuards({
   dirty,
   save,
+  keyboardEnabled = true,
 }: {
   dirty: boolean;
   save: () => void | Promise<void>;
+  keyboardEnabled?: boolean;
 }) {
   useEffect(() => {
+    if (!keyboardEnabled) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!(event.metaKey || event.ctrlKey)) return;
       if (event.key !== 's' && event.key !== 'S') return;
@@ -19,7 +22,7 @@ export function useEditorSaveGuards({
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [dirty, save]);
+  }, [dirty, keyboardEnabled, save]);
 
   useEffect(() => {
     if (!dirty) return;

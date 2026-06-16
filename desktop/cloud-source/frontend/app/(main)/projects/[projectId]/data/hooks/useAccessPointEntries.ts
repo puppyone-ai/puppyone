@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useConnectorSpecs } from '@/lib/hooks/useData';
+import { resolveProviderIconUrl } from '@/lib/providerIcons';
 import type { SyncStatusSync } from '../DataLayoutContext';
 import type { SyncEndpointInfo } from '../components/explorer';
 import { getEndpointEntries } from '../components/access-points/utils';
@@ -61,7 +62,14 @@ export function useAccessPointEntries({
   const providerIcons = useMemo<ProviderIconLookup>(() => {
     const icons: ProviderIconLookup = {};
     for (const spec of connectorSpecs) {
-      icons[spec.provider] = { icon: spec.icon, iconUrl: spec.icon_url ?? null };
+      icons[spec.provider] = {
+        icon: spec.icon,
+        iconUrl: resolveProviderIconUrl({
+          provider: spec.provider,
+          icon: spec.icon,
+          iconUrl: spec.icon_url,
+        }),
+      };
     }
     return icons;
   }, [connectorSpecs]);

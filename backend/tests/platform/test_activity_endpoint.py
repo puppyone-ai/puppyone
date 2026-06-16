@@ -87,6 +87,11 @@ def _rows():
          "message": None, "error_message": None, "result_path": None,
          "result_commit_id": None, "created_at": "2026-06-03T00:03:00Z",
          "completed_at": None},
+        {"id": "s2", "kind": "sync_run", "project_id": "p1", "created_by": "user-1",
+         "label": "Google Calendar", "status": "failed", "phase": "failed", "progress": 100,
+         "message": None, "error_message": "source calendar selection is required",
+         "result_path": None, "result_commit_id": None,
+         "created_at": "2026-06-03T00:03:30Z", "completed_at": None},
         {"id": "x9", "kind": "upload", "project_id": "OTHER", "created_by": "user-2",
          "label": "leak", "status": "completed", "phase": "completed", "progress": 100,
          "message": None, "error_message": None, "result_path": None,
@@ -102,7 +107,7 @@ def test_repo_reads_the_view_scoped_to_project():
     repo = ActivityRepository(FakeSupabaseClient(_rows()))
     items = repo.list_by_project("p1")
     ids = {i.id for i in items}
-    assert ids == {"u1", "i1", "s1"}              # all three kinds, project-scoped
+    assert ids == {"u1", "i1", "s1", "s2"}        # all three kinds, project-scoped
     assert "x9" not in ids                         # other project never leaks
     assert {i.kind for i in items} == {"upload", "import", "sync_run"}
 
@@ -110,13 +115,13 @@ def test_repo_reads_the_view_scoped_to_project():
 def test_repo_kind_filter():
     repo = ActivityRepository(FakeSupabaseClient(_rows()))
     items = repo.list_by_project("p1", kind="sync_run")
-    assert [i.id for i in items] == ["s1"]
+    assert [i.id for i in items] == ["s1", "s2"]
 
 
 def test_repo_active_only_filters_to_unfinished():
     repo = ActivityRepository(FakeSupabaseClient(_rows()))
     items = repo.list_by_project("p1", active_only=True)
-    # only rows with completed_at IS NULL (import + sync_run still running)
+    # terminal rows do not remain active even if completed_at was not populated.
     assert {i.id for i in items} == {"i1", "s1"}
 
 
@@ -146,7 +151,7 @@ def test_service_enforces_project_access_before_returning():
     )
     items = svc.list_for_project("p1", "user-1")
     assert proj.checked == ("p1", "user-1")        # access checked first
-    assert {i.id for i in items} == {"u1", "i1", "s1"}
+    assert {i.id for i in items} == {"u1", "i1", "s1", "s2"}
 
 
 def test_service_denies_when_access_check_raises():

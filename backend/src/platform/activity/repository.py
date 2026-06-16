@@ -9,6 +9,26 @@ from src.platform.activity.schemas import ActivityItemResponse
 
 # Kinds the view can emit; used to validate the optional filter.
 ACTIVITY_KINDS = ("upload", "import", "sync_run")
+TERMINAL_ACTIVITY_STATUSES = {
+    "completed",
+    "success",
+    "failed",
+    "cancelled",
+    "canceled",
+    "skipped",
+    "conflict",
+    "error",
+}
+
+
+def _is_active(row: dict[str, Any]) -> bool:
+    status = str(row.get("status") or "").lower()
+    phase = str(row.get("phase") or "").lower()
+    return (
+        row.get("completed_at") is None
+        and status not in TERMINAL_ACTIVITY_STATUSES
+        and phase not in TERMINAL_ACTIVITY_STATUSES
+    )
 
 
 class ActivityRepository:
@@ -46,4 +66,6 @@ class ActivityRepository:
             # don't have to track each table's status vocabulary.
             query = query.is_("completed_at", "null")
         rows: list[dict[str, Any]] = query.execute().data or []
+        if active_only:
+            rows = [row for row in rows if _is_active(row)]
         return [ActivityItemResponse.model_validate(row) for row in rows]

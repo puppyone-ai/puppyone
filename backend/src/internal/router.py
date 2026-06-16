@@ -6,6 +6,7 @@ Called by internal services (e.g., MCP Server), authenticated via SECRET
 import hmac
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any
 from src.content.table.dependencies import get_table_service
 from src.config import settings
@@ -14,6 +15,10 @@ from src.infra.supabase.dependencies import get_supabase_repository
 from src.infra.turbopuffer.internal_router import router as turbopuffer_internal_router
 from src.infra.search.dependencies import get_search_service
 from src.infra.search.schemas import SearchToolQueryInput, SearchToolQueryResponse
+from src.platform.entitlements.dependencies import get_entitlement_service
+from src.platform.entitlements.models import EntitlementUpsert
+from src.platform.entitlements.service import EntitlementService
+from src.platform.organization.repository import OrganizationRepository
 from src.tool.repository import ToolRepositorySupabase
 from src.version_engine.bootstrap.dependencies import (
     build_worker_version_engine_container,
@@ -25,6 +30,10 @@ from src.platform.project.repository import ProjectRepositorySupabase
 from src.utils.logger import log_warning
 
 router = APIRouter(prefix="/internal", tags=["internal"])
+
+
+class InternalMcpKeyRequest(BaseModel):
+    api_key: str = Field(..., min_length=1)
 
 
 async def verify_internal_secret(x_internal_secret: str = Header(...)) -> None:
@@ -104,6 +113,50 @@ router.include_router(
     turbopuffer_internal_router,
     dependencies=[Depends(verify_internal_secret)],
 )
+
+
+@router.post(
+    "/billing/entitlements/upsert",
+    summary="Upsert organization entitlement snapshot",
+    dependencies=[Depends(verify_internal_secret)],
+)
+async def upsert_organization_entitlements(
+    payload: EntitlementUpsert,
+    entitlement_service: EntitlementService = Depends(get_entitlement_service),
+):
+    snapshot = entitlement_service.upsert(payload)
+    return {
+        "ok": True,
+        "data": snapshot.model_dump(mode="json"),
+    }
+
+
+@router.get(
+    "/billing/organizations/{org_id}/access",
+    summary="Verify user can manage organization billing",
+    dependencies=[Depends(verify_internal_secret)],
+)
+async def verify_billing_organization_access(
+    org_id: str,
+    user_id: str = Query(..., description="Authenticated user id requesting billing changes"),
+):
+    member = OrganizationRepository().get_member(org_id, user_id)
+    if not member:
+        raise HTTPException(
+            status_code=403,
+            detail="User is not a member of this organization",
+        )
+    if member.role != "owner":
+        raise HTTPException(
+            status_code=403,
+            detail="Organization owner role is required for billing changes",
+        )
+    return {
+        "ok": True,
+        "org_id": org_id,
+        "user_id": user_id,
+        "role": member.role,
+    }
 
 
 @router.get(
@@ -808,17 +861,18 @@ async def get_agent_by_mcp_key(
     return _resolve_agent_via_connectors(mcp_api_key)
 
 
-@router.get(
-    "/mcp-endpoint-by-key/{api_key}",
+@router.post(
+    "/mcp-endpoint/resolve",
     summary="Get standalone MCP endpoint configuration by API key",
     description="MCP Server calls this endpoint to get standalone MCP Endpoint configuration",
     dependencies=[Depends(verify_internal_secret)],
 )
-async def get_mcp_endpoint_by_key(api_key: str):
+async def get_mcp_endpoint_by_key(payload: InternalMcpKeyRequest):
     from src.connectors.mcp_endpoint.repository import McpEndpointRepository
+    from src.version_engine.scoped_fs.policy import custom_tool_bindings_from_tools_config
 
     repo = McpEndpointRepository()
-    endpoint = repo.get_by_api_key(api_key)
+    endpoint = repo.get_by_api_key(payload.api_key)
     if not endpoint:
         raise HTTPException(status_code=404, detail="MCP endpoint not found for this API key")
     if endpoint.get("status") != "active":
@@ -842,7 +896,7 @@ async def get_mcp_endpoint_by_key(api_key: str):
 
     tool_repo = ToolRepositorySupabase(get_supabase_repository())
     tools_data = []
-    for t in endpoint.get("tools_config", []):
+    for t in custom_tool_bindings_from_tools_config(endpoint.get("tools_config")):
         tool = tool_repo.get_by_id(t.get("tool_id", ""))
         if tool and t.get("enabled", True):
             tools_data.append({

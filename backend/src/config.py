@@ -145,6 +145,26 @@ class Settings(BaseSettings):
             )
         return self
 
+    @model_validator(mode="after")
+    def enforce_entitlements_safety(self):
+        """Hosted billing enforcement must not boot with entitlement checks off."""
+        if self.BILLING_ENFORCEMENT == "required" and self.ENTITLEMENTS_MODE == "disabled":
+            raise ValueError(
+                "BILLING_ENFORCEMENT=required requires ENTITLEMENTS_MODE to be "
+                "'db' or 'local'."
+            )
+        return self
+
+    @model_validator(mode="after")
+    def enforce_access_credential_secret_safety(self):
+        """Hosted runtimes must use a dedicated stable HMAC secret for Access keys."""
+        if self.APP_ENV not in {"development", "test"} and not self.ACCESS_CREDENTIAL_HASH_SECRET:
+            raise ValueError(
+                "ACCESS_CREDENTIAL_HASH_SECRET is required outside development/test. "
+                "It must remain stable because it hashes MCP/Access credentials."
+            )
+        return self
+
     # JWT configuration
     JWT_SECRET: str = "ContextBase-256-bit-secret"
     JWT_ALGORITHM: str = "HS256"
@@ -273,6 +293,15 @@ class Settings(BaseSettings):
     # Inter-service communication
     INTERNAL_API_SECRET: str = ""  # Internal service communication secret
     MCP_SERVER_URL: str = ""  # MCP service address
+    ACCESS_CREDENTIAL_HASH_SECRET: str = ""  # HMAC secret for Access surface credentials
+
+    # Product entitlements / billing enforcement.
+    # disabled: open-source/self-hosted default, no product limits enforced.
+    # local: read a local JSON entitlement snapshot, useful for tests/self-hosted overrides.
+    # db: read organization_entitlements, written by PuppyPay through internal API.
+    ENTITLEMENTS_MODE: Literal["disabled", "local", "db"] = "disabled"
+    BILLING_ENFORCEMENT: Literal["disabled", "required"] = "disabled"
+    LOCAL_ENTITLEMENTS_FILE: str | None = None
 
     # Public access URL (used to generate external API links)
     # - Local development: http://localhost:8000
@@ -336,6 +365,15 @@ class Settings(BaseSettings):
     SHADOW_SNAPSHOT_TTL_SECONDS: int = 14 * 24 * 60 * 60
     SHADOW_SNAPSHOT_REAPER_INTERVAL_SECONDS: int = 6 * 60 * 60
     SHADOW_SNAPSHOT_REAPER_MAX_PER_RUN: int = 500
+
+    # Integration sync-run lease. Active sync runs must renew this lease while
+    # executing; the reaper fails expired rows so a crashed worker cannot block a
+    # connection lane indefinitely.
+    SYNC_RUN_LEASE_SECONDS: int = 30 * 60
+    SYNC_RUN_HEARTBEAT_INTERVAL_SECONDS: int = 60
+    SYNC_RUN_REAPER_ENABLED: bool = True
+    SYNC_RUN_REAPER_INTERVAL_SECONDS: int = 5 * 60
+    SYNC_RUN_REAPER_MAX_PER_RUN: int = 100
 
     # DB Connector sensitive config encryption (AES-256-GCM)
     # Base64-encoded string of 32-byte key

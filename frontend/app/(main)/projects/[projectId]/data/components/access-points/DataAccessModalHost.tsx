@@ -1,6 +1,7 @@
 'use client';
 
 import { DialogBody, DialogHeader, DialogRoot, DialogSurface } from '@/components/ui/Dialog';
+import { CountBadge } from '@/components/ui/CountBadge';
 import { CreateAccessModal } from '../../../access/components/CreateAccessModal';
 import type { Connector, RepoScope } from '@/lib/repoApi';
 import { AllAccessPointsList } from './AllAccessPointsList';
@@ -103,9 +104,11 @@ function DataAccessOverviewModal({
           title={
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
               <span>Access</span>
-              <span style={{ color: 'var(--po-text-subtle)', fontVariantNumeric: 'tabular-nums' }}>
-                {scopes.length}
-              </span>
+              <CountBadge
+                value={scopes.length}
+                size="md"
+                tone="neutral"
+              />
             </span>
           }
           description="Manage existing access points or create a new folder boundary."

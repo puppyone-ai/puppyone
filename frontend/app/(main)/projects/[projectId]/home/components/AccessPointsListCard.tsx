@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import type { useRouter } from 'next/navigation';
 import { ArrowRight, ArrowLeft, ArrowLeftRight } from 'lucide-react';
 import { StatusDot } from '@/components/ui/StatusDot';
+import { CountBadge } from '@/components/ui/CountBadge';
 import { getAccessProviderLabel } from '@/lib/accessProviderRegistry';
 import { T } from '../lib/tokens';
 import { getApDirection } from '../lib/constants';
@@ -241,25 +242,11 @@ export function AccessPointsListCard({
           <span style={{ fontSize: 13, fontWeight: 500, color: T.text2 }}>
             Workflows
           </span>
-          <span
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              minWidth: 20,
-              height: 18,
-              padding: '0 6px',
-              borderRadius: 9,
-              background: 'var(--po-border)',
-              fontSize: 11,
-              fontWeight: 600,
-              color: total > 0 ? T.text2 : T.text3,
-              fontVariantNumeric: 'tabular-nums',
-              lineHeight: 1,
-            }}
-          >
-            {total}
-          </span>
+          <CountBadge
+            value={total}
+            size="md"
+            tone={total > 0 ? 'neutral' : 'muted'}
+          />
         </div>
       </div>
 

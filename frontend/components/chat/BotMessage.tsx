@@ -1,5 +1,6 @@
 import { Copy, Check, ChevronDown, ChevronRight, Terminal } from 'lucide-react';
 import { useState, memo, useCallback, CSSProperties } from 'react';
+import { Dots } from '@/components/loading';
 import MarkdownRenderer from './MarkdownRenderer';
 
 // 简化：消息部件（按时间顺序）
@@ -52,15 +53,6 @@ const S_TOOL_BTN_BASE: CSSProperties = {
   borderRadius: 4,
   maxWidth: '100%',
   transition: 'background 0.15s',
-};
-
-const S_SPINNER: CSSProperties = {
-  width: 10, height: 10,
-  border: '1.5px solid color-mix(in srgb, var(--po-text) 22%, transparent)',
-  borderTopColor: 'var(--po-text-muted)',
-  borderRadius: '50%',
-  animation: 'spin 1s linear infinite',
-  flexShrink: 0,
 };
 
 const S_DOT_BASE: CSSProperties = {
@@ -125,7 +117,7 @@ const ToolItem = memo(function ToolItem({
         onMouseLeave={e => { e.currentTarget.style.background = 'var(--po-hover)'; }}
       >
         {isRunning ? (
-          <div style={S_SPINNER} />
+          <Dots size="xs" ariaLabel="Running tool" />
         ) : (
           <div style={dotStyle}>
             {isCompleted && <Check size={6} strokeWidth={3} style={{ color: 'var(--po-text-subtle)' }} />}

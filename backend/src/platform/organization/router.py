@@ -5,8 +5,11 @@ from urllib.parse import urlsplit, urlunsplit
 from fastapi import APIRouter, Depends, Request, status
 
 from src.common_schemas import ApiResponse
+from src.exceptions import ForbiddenException
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
+from src.platform.entitlements.dependencies import get_entitlement_service
+from src.platform.entitlements.service import EntitlementService
 from src.platform.organization.dependencies import get_org_service
 from src.platform.organization.models import OrgInvitation
 from src.platform.organization.schemas import (
@@ -121,9 +124,23 @@ def get_organization(
     org_service: OrganizationService = Depends(get_org_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    org_service.get_my_role(org_id, current_user.user_id)
+    if not org_service.get_my_role(org_id, current_user.user_id):
+        raise ForbiddenException("Not a member of this organization")
     org = org_service.get_by_id(org_id)
     return ApiResponse.success(data=_org_to_out(org))
+
+
+@router.get("/{org_id}/entitlements", response_model=ApiResponse[dict])
+def get_organization_entitlements(
+    org_id: str,
+    org_service: OrganizationService = Depends(get_org_service),
+    entitlement_service: EntitlementService = Depends(get_entitlement_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    if not org_service.get_my_role(org_id, current_user.user_id):
+        raise ForbiddenException("Not a member of this organization")
+    snapshot = entitlement_service.get_snapshot(org_id)
+    return ApiResponse.success(data=snapshot.model_dump(mode="json"))
 
 
 @router.put("/{org_id}", response_model=ApiResponse[OrganizationOut])

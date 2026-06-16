@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import useSWR from 'swr';
 import { PulseGrid } from '@/components/loading';
+import { CountBadge } from '@/components/ui/CountBadge';
 import {
   listKinds,
   type NeedsActionItem,
@@ -159,26 +160,12 @@ export function NeedsActionSection({
           Needs action
         </span>
         {totalCount > 0 ? (
-          <span
-            aria-label={`${totalCount} open items`}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 20,
-              height: 20,
-              borderRadius: '50%',
-              color: 'var(--po-canvas)',
-              background: 'var(--po-danger)',
-              fontSize: 11,
-              fontWeight: 700,
-              lineHeight: '20px',
-              whiteSpace: 'nowrap',
-              boxShadow: '0 0 0 1px color-mix(in srgb, var(--po-danger) 25%, transparent)',
-            }}
-          >
-            {totalCount}
-          </span>
+          <CountBadge
+            value={totalCount}
+            ariaLabel={`${totalCount} open items`}
+            size="md"
+            tone="danger"
+          />
         ) : null}
       </button>
 

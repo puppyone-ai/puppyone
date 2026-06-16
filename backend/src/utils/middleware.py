@@ -18,32 +18,8 @@ from src.utils.request_context import (
 )
 
 
-MCP_PROXY_PREFIXES = ("/api/v1/mcp/proxy/", "/mcp/proxy/")
-
-
 def _sanitize_path_for_access_log(request: Request) -> str:
-    path = str(request.url.path)
-    for prefix in MCP_PROXY_PREFIXES:
-        if not path.startswith(prefix):
-            continue
-        suffix = path[len(prefix) :]
-        if not suffix:
-            return path
-
-        first_segment, *rest = suffix.split("/", 1)
-        if not first_segment:
-            return path
-
-        header_key = (request.headers.get("X-MCP-API-Key") or "").strip()
-        should_mask = (not header_key) or (first_segment == header_key)
-        if not should_mask:
-            return path
-
-        masked = "***"
-        if rest:
-            masked = f"{masked}/{rest[0]}"
-        return f"{prefix}{masked}"
-    return path
+    return str(request.url.path)
 
 
 class RequestContextMiddleware(BaseHTTPMiddleware):

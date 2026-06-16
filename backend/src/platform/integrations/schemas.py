@@ -73,6 +73,7 @@ class SyncRunResponse(BaseModel):
     id: str
     access_point_id: str
     status: str
+    worker_job_id: Optional[str] = None
     started_at: Optional[str] = None
     finished_at: Optional[str] = None
     duration_ms: Optional[int] = None
