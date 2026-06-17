@@ -14,6 +14,7 @@
  */
 
 import { T } from '../lib/tokens';
+import { resolveProviderIconUrl } from '@/lib/providerIcons';
 
 export function ProviderIcon({
   provider,
@@ -24,17 +25,10 @@ export function ProviderIcon({
   readonly size?: number;
   readonly variant?: 'brand' | 'mono';
 }) {
-  const logos: Record<string, string> = {
-    gmail: 'https://www.gstatic.com/images/branding/product/1x/gmail_2020q4_32dp.png',
-    google_sheets: 'https://www.gstatic.com/images/branding/product/1x/sheets_2020q4_32dp.png',
-    google_calendar: 'https://www.gstatic.com/images/branding/product/1x/calendar_2020q4_32dp.png',
-    google_docs: 'https://www.gstatic.com/images/branding/product/1x/docs_2020q4_32dp.png',
-    github: 'https://github.githubassets.com/favicons/favicon-dark.svg',
-    notion: 'https://www.notion.so/images/favicon.ico',
-  };
-  if (logos[provider]) {
+  const logo = resolveProviderIconUrl({ provider });
+  if (logo) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={logos[provider]} alt={provider} width={size} height={size} style={{ display: 'block', borderRadius: 2 }} />;
+    return <img src={logo} alt={provider} width={size} height={size} style={{ display: 'block', borderRadius: 2 }} />;
   }
   if (provider === 'cli') {
     return (

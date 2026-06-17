@@ -185,12 +185,12 @@ def _resolver_kind_for(source_channel: str, policy: str = "") -> str:
     the policy via admin rules).
 
     When no agent policy is in play, fall back to the channel-based
-    routing: agent / sync channels keep their existing "agent" path,
-    everything else goes to human review.
+    routing: access-runtime / sync channels keep their existing
+    "agent" resolver path, everything else goes to human review.
     """
     if policy in {"agent_review", "agent_auto_resolve"}:
         return "agent"
-    if source_channel in {"agent", "sync"}:
+    if source_channel in {"agent", "access_sandbox", "sync"}:
         return "agent"
     return "human"
 

@@ -85,3 +85,31 @@
  * render the agent surface again before shipping.
  */
 export const AI_AGENT_ENABLED = false;
+
+/**
+ * Project Logs — hidden 2026-06-16.
+ *
+ * ## Why hidden
+ *
+ * The logs page is still early and the main project sidebar should stay
+ * focused on stable, high-confidence workflows. Keeping the route alive
+ * lets us keep iterating internally without putting a half-ready surface
+ * in front of every project user.
+ *
+ * ## What's still alive
+ *
+ *   - `app/(main)/projects/[projectId]/develop/logs/page.tsx`
+ *   - `app/(main)/projects/[projectId]/develop/*` layouts/redirects
+ *   - Project audit log API clients and backend endpoints
+ *
+ * ## What's hidden (entry points only)
+ *
+ *   - `AppSidebar.tsx` project sidebar `Develop` item, which routes to
+ *     `/projects/{projectId}/develop/logs`.
+ *
+ * ## To re-enable
+ *
+ * Set this constant to `true` and verify the project sidebar, collapsed
+ * rail, and `/develop/logs` page still read cleanly together.
+ */
+export const PROJECT_LOGS_ENABLED = false;

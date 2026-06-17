@@ -8,6 +8,7 @@ import {
   type GitViewHealthPayload,
   type GitViewHealth,
 } from '@/lib/gitHealthApi';
+import { StatusDot } from '@/components/ui/StatusDot';
 
 interface Props {
   projectId: string;
@@ -87,17 +88,7 @@ export function ProjectGitHealthBadge({ projectId, alwaysShow = false }: Props) 
         gap: 10,
       }}
     >
-      <span
-        aria-hidden
-        style={{
-          width: 7,
-          height: 7,
-          borderRadius: '50%',
-          background: tone.color,
-          marginTop: 5,
-          flexShrink: 0,
-        }}
-      />
+      <StatusDot style={{ background: tone.color, marginTop: 5 }} />
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: tone.color, lineHeight: 1.5 }}>
           {title}

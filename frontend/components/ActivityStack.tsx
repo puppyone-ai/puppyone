@@ -2,6 +2,7 @@
 
 import { TaskStatusWidget } from './TaskStatusWidget';
 import { ImportJobsWidget } from './ImportJobsWidget';
+import { SyncJobsWidget } from './SyncJobsWidget';
 
 interface ActivityStackProps {
   projectId?: string;
@@ -35,6 +36,10 @@ export function ActivityStack({
     >
       <div style={{ pointerEvents: 'auto' }}>
         <ImportJobsWidget projectId={projectId} inline />
+      </div>
+
+      <div style={{ pointerEvents: 'auto' }}>
+        <SyncJobsWidget projectId={projectId} inline />
       </div>
 
       <div style={{ pointerEvents: 'auto' }}>

@@ -21,8 +21,9 @@ from src.connectors.datasource._base import (
     TriggerMode,
     FetchResult,
     Credentials,
-    ConfigField,
+    SourceResource,
 )
+from src.connectors.datasource.google_workspace.resources import list_drive_source_resources
 from src.connectors.datasource.oauth.google_docs_service import GoogleDocsOAuthService
 from src.infra.s3.service import S3Service
 from src.utils.logger import log_error
@@ -32,6 +33,7 @@ class GoogleDocsConnector(BaseConnector):
     """Connector for Google Docs imports."""
 
     DOCS_API_URL = "https://docs.googleapis.com/v1/documents"
+    DOC_MIME_TYPE = "application/vnd.google-apps.document"
 
     def spec(self) -> ConnectorSpec:
         return ConnectorSpec(
@@ -50,16 +52,6 @@ class GoogleDocsConnector(BaseConnector):
             description="Sync documents",
             accept_types=("folder",),
             icon_url="https://www.gstatic.com/images/branding/product/1x/docs_2020q4_32dp.png",
-            config_fields=(
-                ConfigField(
-                    key="source_url",
-                    label="Google Docs URL",
-                    type="url",
-                    required=True,
-                    placeholder="https://docs.google.com/document/d/.../edit",
-                    hint="Paste the full URL of your Google Docs document",
-                ),
-            ),
         )
 
     def __init__(
@@ -75,11 +67,11 @@ class GoogleDocsConnector(BaseConnector):
 
     async def fetch(self, config: dict, credentials: Credentials) -> FetchResult:
         """Pull a Google Doc and return as markdown."""
+        source = config.get("source") or {}
         access_token = credentials.access_token
-        source_url = config.get("source_url", "")
-        doc_id = self._extract_doc_id(source_url)
+        doc_id = source.get("resource_id")
         if not doc_id:
-            raise ValueError(f"Invalid Google Docs URL or ID: {source_url}")
+            raise ValueError("source.resource_id is required for Google Docs")
 
         doc_content = await self._fetch_document(access_token, doc_id)
         if not doc_content:
@@ -97,28 +89,24 @@ class GoogleDocsConnector(BaseConnector):
             summary=f"Google Doc '{title}'",
         )
 
-    def _extract_doc_id(self, source: str) -> Optional[str]:
-        """Extract document ID from URL or return as-is if already an ID."""
-        if not source:
-            return None
-
-        # Handle full URLs
-        # Format: https://docs.google.com/document/d/DOC_ID/edit
-        if "docs.google.com/document/d/" in source:
-            parts = source.split("/document/d/")
-            if len(parts) > 1:
-                doc_id = parts[1].split("/")[0].split("?")[0]
-                return doc_id
-
-        # Handle oauth:// URLs
-        if source.startswith("oauth://google-docs/"):
-            return source.replace("oauth://google-docs/", "").split("?")[0]
-
-        # Assume it's already a document ID
-        if len(source) > 10 and "/" not in source:
-            return source
-
-        return None
+    async def list_source_resources(
+        self,
+        credentials: Credentials,
+        *,
+        query: str = "",
+        cursor: Optional[str] = None,
+        resource_type: Optional[str] = None,
+    ) -> tuple[list[SourceResource], Optional[str]]:
+        return await list_drive_source_resources(
+            self.client,
+            credentials.access_token,
+            query=query,
+            cursor=cursor,
+            mime_type=self.DOC_MIME_TYPE,
+            icon="google_docs",
+            resource_type="document",
+            default_name="Untitled document",
+        )
 
     async def _fetch_document(self, access_token: str, doc_id: str) -> Optional[dict]:
         """Fetch document content from Google Docs API."""

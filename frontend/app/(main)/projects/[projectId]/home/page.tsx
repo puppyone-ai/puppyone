@@ -19,9 +19,9 @@ import { TreeRows, type RowVariant } from './components/TreeRows';
 import { HistoryCard } from './components/HistoryCard';
 import { GetStartedPanel } from './components/GetStartedPanel';
 import { ApChip } from './components/ApChip';
-import { AccessPointsListCard } from './components/AccessPointsListCard';
 import { ProjectPageLoadingShell } from '@/components/loading';
 import { ProjectGitHealthBadge } from '@/components/ProjectGitHealthBadge';
+import { CountBadge } from '@/components/ui/CountBadge';
 
 // ConnectionsCanvas (the old xyflow wiring board) used to mount here.
 // Home now surfaces Access Points directly under the Data card via
@@ -215,11 +215,7 @@ export default function HomePage({
       // backend can produce into a single key — '' — so downstream
       // consumers only have to look in one place:
       //
-      //   path === '/'   — filesystem bootstrap stores this for root
-      //                    (filesystem service.bootstrap is called
-      //                    with path='/' from the home onboarding
-      //                    panel and the access page's "root scope"
-      //                    button)
+      //   path === '/'   — root access surfaces may serialize this way
       //   path === null  — incomplete rows from before path-NOT-NULL was
       //                    enforced; still in some long-lived projects
       //   path === ''    — early hand-bootstrapped rows
@@ -685,7 +681,7 @@ export default function HomePage({
 
               Connections are passed in so the CLI card inside the panel
               can derive its `access_key` from server truth (the
-              existing root filesystem AP, if any) instead of relying on
+              existing root Git Remote AP, if any) instead of relying on
               local React state that vanishes on refresh.
               ============================================================ */}
 
@@ -794,29 +790,11 @@ export default function HomePage({
                     Data
                   </span>
                   {dashboard?.nodes?.total != null && (
-                    <span
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        minWidth: 20,
-                        height: 18,
-                        padding: '0 6px',
-                        borderRadius: 9,
-                        background: 'var(--po-border)',
-                        fontSize: 11,
-                        fontWeight: 600,
-                        // Dimmed from text1 → text2 so the chip number
-                        // doesn't glare brighter than the label next
-                        // to it (chip read like a beacon in the
-                        // previous draft).
-                        color: dashboard.nodes.total > 0 ? T.text2 : T.text3,
-                        fontVariantNumeric: 'tabular-nums',
-                        lineHeight: 1,
-                      }}
-                    >
-                      {dashboard.nodes.total}
-                    </span>
+                    <CountBadge
+                      value={dashboard.nodes.total}
+                      size="md"
+                      tone="neutral"
+                    />
                   )}
                 </div>
                 <button
@@ -917,8 +895,7 @@ export default function HomePage({
                   // for project-root APs in ConnectionsCanvas).
                   // Two reasons:
                   //   1.  AP visibility — root-attached access points
-                  //       (the default filesystem access point at
-                  //       `/`) had no anchor row in the Data card, so
+                  //       had no anchor row in the Data card, so
                   //       their presence was visible only in the
                   //       Connections canvas below.  Now the chip
                   //       renders directly on the root row, making
@@ -1037,17 +1014,6 @@ export default function HomePage({
                 gap: 16,
               }}
             >
-              {/* Access Points first — top of the rail because the
-                  user's typical work is "look at Data, then act on
-                  it via an AP".  Putting AP above History honors
-                  that reading order. */}
-              <AccessPointsListCard
-                projectId={projectId}
-                router={router}
-                connections={connections}
-                hoveredPath={hoveredPath}
-                onHoverPath={setHoveredPath}
-              />
               <HistoryCard
                 projectId={projectId}
                 router={router}

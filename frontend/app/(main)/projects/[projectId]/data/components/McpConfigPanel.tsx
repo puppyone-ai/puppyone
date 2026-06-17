@@ -9,6 +9,8 @@ interface McpEndpointData {
   id: string;
   name: string;
   api_key: string;
+  api_key_hint?: string;
+  api_key_revealed?: boolean;
   status: string;
   accesses: { path: string; json_path: string; readonly: boolean }[];
 }
@@ -70,7 +72,7 @@ export function McpConfigPanel({ endpoint, onClose, onBack }: McpConfigPanelProp
   const apiBase = typeof window !== 'undefined'
     ? (process.env.NEXT_PUBLIC_API_URL || window.location.origin)
     : '';
-  const serverUrl = `${apiBase}/api/v1/mcp/proxy/${endpoint.api_key}`;
+  const serverUrl = `${apiBase}/api/v1/mcp/proxy`;
   const targetLabel = endpoint.accesses.length > 0
     ? endpoint.accesses[0].path
     : 'Workspace';
@@ -123,7 +125,7 @@ export function McpConfigPanel({ endpoint, onClose, onBack }: McpConfigPanelProp
         </div>
         <div>
           <SectionLabel>API Key</SectionLabel>
-          <CodeBlock>{endpoint.api_key}</CodeBlock>
+          <CodeBlock>{endpoint.api_key || endpoint.api_key_hint || 'Regenerate the key to reveal it once.'}</CodeBlock>
         </div>
         <div>
           <SectionLabel>Cursor Config</SectionLabel>
@@ -131,8 +133,9 @@ export function McpConfigPanel({ endpoint, onClose, onBack }: McpConfigPanelProp
 {JSON.stringify({
   mcpServers: {
     [endpoint.name.toLowerCase().replace(/\s+/g, '-')]: {
+      type: 'http',
       url: serverUrl,
-      headers: { 'X-API-KEY': endpoint.api_key },
+      headers: { Authorization: `Bearer ${endpoint.api_key || '<rotate-key-to-reveal>'}` },
     }
   }
 }, null, 2)}

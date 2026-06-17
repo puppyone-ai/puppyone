@@ -12,6 +12,7 @@ from datetime import datetime
 from typing import Any, Optional
 
 IMPORT_ONLY_CONNECTOR_PROVIDERS = frozenset({"github"})
+DEPRECATED_ACCESS_CONNECTOR_PROVIDERS = frozenset({"filesystem"})
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -66,7 +67,7 @@ class Connector:
     def is_builtin(self) -> bool:
         # Built-in Access surfaces are tied to the scope lifecycle and cannot
         # be deleted or manually run through the legacy connector API.
-        return self.provider in ("git_remote", "cli", "agent", "filesystem")
+        return self.provider in ("git_remote", "cli", "agent")
 
     @property
     def is_oauth_backed(self) -> bool:
@@ -84,6 +85,8 @@ class Connector:
         default.
         """
         if self.provider in IMPORT_ONLY_CONNECTOR_PROVIDERS:
+            return False
+        if self.provider in DEPRECATED_ACCESS_CONNECTOR_PROVIDERS:
             return False
         return (self.trigger or {}).get("type") != "import_once"
 

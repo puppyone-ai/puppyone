@@ -7,6 +7,7 @@ import {
   type MouseEvent,
   type ReactNode,
 } from 'react';
+import { Dots } from '@/components/loading';
 import { BUTTON_HEIGHT, BUTTON_RADIUS } from './buttonTokens';
 
 type ActionButtonVariant = 'primary' | 'secondary' | 'access' | 'danger' | 'warning' | 'ghost';
@@ -123,6 +124,9 @@ export function ActionButton({
 }: ActionButtonProps) {
   const [hovered, setHovered] = useState(false);
   const isDisabled = Boolean(disabled || loading);
+  const resolvedLeadingIcon = loading ? (
+    <Dots size="xs" tone={variant === 'danger' ? 'danger' : 'neutral'} />
+  ) : leadingIcon;
 
   const handleMouseEnter = (event: MouseEvent<HTMLButtonElement>) => {
     setHovered(true);
@@ -159,7 +163,7 @@ export function ActionButton({
         ...style,
       }}
     >
-      {leadingIcon}
+      {resolvedLeadingIcon}
       {children}
       {trailingIcon}
     </button>

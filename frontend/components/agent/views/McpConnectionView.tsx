@@ -39,13 +39,12 @@ const TrashIcon = () => (
 export function McpConnectionView({ agent, onEdit, onDelete }: McpConnectionViewProps) {
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
-  // Get base URL from environment or default
   const baseUrl = typeof window !== 'undefined'
-    ? window.location.origin.replace('3000', '8000')  // Dev mode: frontend 3000 -> backend 8000
-    : 'https://api.puppyone.com';
+    ? (process.env.NEXT_PUBLIC_API_URL || window.location.origin)
+    : (process.env.NEXT_PUBLIC_API_URL || 'https://api.puppyone.com');
 
   const mcpUrl = agent.mcp_api_key
-    ? `${baseUrl}/api/v1/mcp/server/${agent.mcp_api_key}`
+    ? `${baseUrl}/api/v1/mcp/proxy`
     : null;
 
   const handleCopy = async (text: string, field: string) => {
@@ -58,7 +57,9 @@ export function McpConnectionView({ agent, onEdit, onDelete }: McpConnectionView
   const claudeConfig = mcpUrl ? JSON.stringify({
     "mcpServers": {
       [agent.name.toLowerCase().replace(/\s+/g, '-')]: {
-        "url": mcpUrl
+        "type": "http",
+        "url": mcpUrl,
+        "headers": { "Authorization": `Bearer ${agent.mcp_api_key}` }
       }
     }
   }, null, 2) : null;
@@ -68,7 +69,9 @@ export function McpConnectionView({ agent, onEdit, onDelete }: McpConnectionView
     "mcp": {
       "servers": {
         [agent.name.toLowerCase().replace(/\s+/g, '-')]: {
-          "url": mcpUrl
+          "type": "http",
+          "url": mcpUrl,
+          "headers": { "Authorization": `Bearer ${agent.mcp_api_key}` }
         }
       }
     }
@@ -381,7 +384,3 @@ export function McpConnectionView({ agent, onEdit, onDelete }: McpConnectionView
     </div>
   );
 }
-
-
-
-

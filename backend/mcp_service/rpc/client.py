@@ -2,8 +2,10 @@
 RPC客户端模块
 用于MCP Server调用主服务的Internal API
 
-整合后只保留 Agent 模式需要的端点：
+MCP service 调主服务内部端点：
 - /internal/agent-by-mcp-key/{mcp_api_key} - 获取 Agent 及其 bash 访问权限和 tools
+- /internal/mcp-endpoint/resolve - 获取 standalone MCP endpoint 配置
+- /internal/mcp-runtime/* - standalone MCP endpoint scoped filesystem runtime
 - /internal/tables/{table_id}/context-* - 数据操作端点
 - /internal/tools/{tool_id}/search - Search Tool 查询端点
 """
@@ -24,7 +26,7 @@ def _acting_user_header(acting_user_id: Optional[str]) -> Dict[str, str]:
 class InternalApiClient:
     """
     Internal API客户端
-    用于MCP Server调用主服务的内部API（整合后只支持 Agent 模式）
+    用于MCP Server调用主服务的内部API。
     """
     
     def __init__(
@@ -67,8 +69,8 @@ class InternalApiClient:
     async def get_mcp_endpoint_by_key(self, api_key: str) -> Optional[Dict[str, Any]]:
         """Query MCP endpoint from access_points table (provider='mcp')."""
         try:
-            url = f"{self.base_url}/internal/mcp-endpoint-by-key/{api_key}"
-            response = await self._client.get(url)
+            url = f"{self.base_url}/internal/mcp-endpoint/resolve"
+            response = await self._client.post(url, json={"api_key": api_key})
             if response.status_code == 404:
                 return None
             response.raise_for_status()
@@ -110,11 +112,43 @@ class InternalApiClient:
                     "name": ep.get("name"),
                     "project_id": ep.get("project_id"),
                     "type": "mcp_endpoint",
+                    "user_id": ep.get("user_id", ""),
                 },
                 "accesses": result.get("accesses", []),
                 "tools": result.get("tools", []),
             }
         return await self.get_agent_by_mcp_key(api_key)
+
+    async def list_mcp_runtime_tools(self, api_key: str) -> Dict[str, Any]:
+        """List tools for a standalone MCP endpoint runtime."""
+        url = f"{self.base_url}/internal/mcp-runtime/tools"
+        response = await self._client.post(url, json={"api_key": api_key})
+        response.raise_for_status()
+        return response.json()
+
+    async def call_mcp_runtime_tool(
+        self,
+        api_key: str,
+        name: str,
+        arguments: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Execute one standalone MCP endpoint runtime tool."""
+        url = f"{self.base_url}/internal/mcp-runtime/call"
+        response = await self._client.post(
+            url,
+            json={"api_key": api_key, "name": name, "arguments": arguments or {}},
+        )
+        if response.status_code >= 400:
+            try:
+                detail = response.json().get("detail")
+            except ValueError:
+                detail = response.text
+            return {
+                "isError": True,
+                "error": detail,
+                "status_code": response.status_code,
+            }
+        return response.json()
 
     # ============================================================
     # 数据操作端点（Context Data CRUD）

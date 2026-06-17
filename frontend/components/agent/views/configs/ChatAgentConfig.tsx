@@ -152,7 +152,7 @@ export function ChatAgentConfig({
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
             <label style={{ ...labelStyle, marginBottom: 0, paddingLeft: 2, color: 'var(--po-text)' }}>{targetLabel || 'Agent Access Target'}</label>
-            <span style={{ width: 5, height: 5, background: 'var(--po-danger)', borderRadius: '50%' }} title="Required" />
+            <span style={{ width: 6, height: 6, background: 'var(--po-danger)', borderRadius: 1.5 }} title="Required" />
           </div>
           <div style={{ color: 'var(--po-text-muted)', fontSize: 13, marginBottom: 12, lineHeight: 1.4, paddingLeft: 2 }}>
             {targetDescription || 'Drag and drop a folder to define the workspace scope this agent can interact with.'}

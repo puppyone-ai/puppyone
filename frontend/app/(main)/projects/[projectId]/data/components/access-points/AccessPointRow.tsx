@@ -3,6 +3,13 @@
 import { useMemo, useState } from 'react';
 import type { Connector, RepoScope } from '@/lib/repoApi';
 import { AI_AGENT_ENABLED } from '@/lib/featureFlags';
+import {
+  isAgentProvider,
+  isBuiltInAccessProvider,
+  isCliProvider,
+  isGitRemoteProvider,
+} from '@/lib/accessProviderRegistry';
+import { StatusDot } from '@/components/ui/StatusDot';
 import { connectorAsEndpointShape, providerLabel } from './labels';
 import { AccessPointProviderIcon } from './AccessPointProviderIcon';
 import { ProviderIcon } from '../../../access/components/icons';
@@ -52,8 +59,8 @@ export function AccessPointRow({
   onClick,
 }: {
   readonly scope: RepoScope;
-  /** Connectors bound to this scope. We split into the three
-   *  built-ins (cli / filesystem / agent) and any third-party
+  /** Connectors bound to this scope. We split into the built-ins
+   *  (cli / git_remote / agent) and any third-party
    *  integrations. Empty array (frozen at the call site) when the
    *  DB trigger hasn't settled — row degrades to "no chips" without
    *  crashing. */
@@ -66,20 +73,20 @@ export function AccessPointRow({
 }) {
   const [hovered, setHovered] = useState(false);
 
-  // Pluck the three built-ins by provider id. Post-2026-05-08 the
-  // DB trigger guarantees one of each per scope, but we read them
+  // Pluck the built-ins by provider id. Scope creation guarantees
+  // one of each per scope, but we read them
   // defensively in case the trigger hasn't settled yet on a fresh
   // insert.
-  const cliConnector = connectors.find((c) => c.provider === 'cli');
-  const filesystemConnector = connectors.find((c) => c.provider === 'filesystem');
-  const agentConnector = connectors.find((c) => c.provider === 'agent');
+  const cliConnector = connectors.find((c) => isCliProvider(c.provider));
+  const gitRemoteConnector = connectors.find((c) => isGitRemoteProvider(c.provider));
+  const agentConnector = connectors.find((c) => isAgentProvider(c.provider));
 
   // Active flags for the chip-render gate. We hide a built-in chip
   // when its connector is paused — the strip is a positive
   // statement of "what's on", not a state diagram of every method
   // that exists. (The detail view is where on/off lives.)
   const cliActive = cliConnector?.status === 'active';
-  const filesystemActive = filesystemConnector?.status === 'active';
+  const gitRemoteActive = gitRemoteConnector?.status === 'active';
   const agentActive = agentConnector?.status === 'active';
 
   // Third-party integrations. Same hide-paused rule as the built-ins
@@ -90,9 +97,7 @@ export function AccessPointRow({
     () =>
       connectors.filter(
         (c) =>
-          c.provider !== 'cli' &&
-          c.provider !== 'agent' &&
-          c.provider !== 'filesystem' &&
+          !isBuiltInAccessProvider(c.provider) &&
           c.status !== 'paused',
       ),
     [connectors],
@@ -110,7 +115,7 @@ export function AccessPointRow({
   const active = connectors.some((c) => c.status === 'active' || c.status === 'syncing');
   const activeMethodCount =
     Number(cliActive) +
-    Number(filesystemActive) +
+    Number(gitRemoteActive) +
     Number(AI_AGENT_ENABLED && agentActive) +
     visibleIntegrations.length +
     hiddenIntegrations;
@@ -207,9 +212,9 @@ export function AccessPointRow({
                 title="Puppyone CLI · active"
               />
             )}
-            {filesystemActive && (
+            {gitRemoteActive && (
               <ProviderSignal
-                provider="filesystem"
+                provider="git_remote"
                 label="Git"
                 selected={isCurrent}
                 title="Git Remote · active"
@@ -347,20 +352,16 @@ function ScopeGlyph({
         <path d="M15 7h2a5 5 0 1 1 0 10h-2" />
         <line x1="8" y1="12" x2="16" y2="12" />
       </svg>
-      <span
+      <StatusDot
+        status={active ? 'active' : 'inactive'}
         style={{
           position: 'absolute',
-          right: -2,
-          bottom: -2,
-          width: 8,
-          height: 8,
-          borderRadius: '50%',
-          background: active ? 'var(--po-access-action)' : COLOR_FG_DIM,
-          border: '2px solid var(--po-canvas)',
+          right: -1,
+          bottom: -1,
+          width: 6,
+          height: 6,
+          border: '1px solid var(--po-canvas)',
           boxSizing: 'border-box',
-          boxShadow: active
-            ? '0 0 6px var(--po-access-action-shadow)'
-            : 'none',
         }}
       />
     </span>
@@ -383,7 +384,7 @@ function ProviderSignal({
   readonly selected: boolean;
   readonly title: string;
 }) {
-  const isGit = provider === 'filesystem';
+  const isGit = isGitRemoteProvider(provider);
 
   return (
     <span

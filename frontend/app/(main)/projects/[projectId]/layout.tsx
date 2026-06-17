@@ -12,7 +12,7 @@ function ProjectLayoutInner({ children, projectId }: { children: React.ReactNode
   //
   // Background: ``subscribeVersionNotifications`` ref-counts handlers and
   // tears the socket down when the count reaches zero. Without this
-  // layout-level no-op subscriber, navigating to settings / monitor /
+  // layout-level no-op subscriber, navigating to settings / develop /
   // toolkit (which don't call ``useCommitUpdates``) drops the count
   // to zero, the socket closes, and re-entering data / history forces
   // a full reconnect (visible as ``connected … disconnected`` pairs in

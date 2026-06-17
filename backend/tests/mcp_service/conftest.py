@@ -4,4 +4,4 @@ import os
 
 # Set required env vars before any mcp_service imports
 os.environ.setdefault("INTERNAL_API_SECRET", "test-secret-for-unit-tests")
-os.environ.setdefault("MAIN_SERVICE_URL", "http://localhost:8000")
+os.environ.setdefault("MAIN_SERVICE_URL", "http://localhost:9090")

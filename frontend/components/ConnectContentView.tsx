@@ -1,14 +1,6 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-// URL parsing功能已移至 TableManageDialog
-// import {
-//   parseUrl,
-//   importData,
-//   type ParseUrlResponse,
-//   type CrawlOptions,
-// } from '../lib/connectApi';
-// import CrawlOptionsPanel from './CrawlOptionsPanel';
 import {
   getGithubStatus,
   disconnectGithub,
@@ -30,7 +22,7 @@ import { useOrganization } from '@/contexts/OrganizationContext';
 import { Dots } from './loading';
 import { ToggleSwitch } from './ui/ToggleSwitch';
 import { ActionButton } from './ui/ActionButton';
-import { StatusDot } from './ui/StatusDot';
+import { StatusIndicator } from './ui/StatusDot';
 
 type ConnectContentViewProps = {
   onBack: () => void;
@@ -129,21 +121,9 @@ const getDefaultPlatformStates = (): Record<PlatformId, PlatformState> =>
     {} as Record<PlatformId, PlatformState>
   );
 
-const statusColors: Record<PlatformStatusType, string> = {
-  connected: 'var(--po-success)',
-  disconnected: 'var(--po-text-disabled)',
-  error: 'var(--po-danger)',
-};
-
 export function ConnectContentView({ onBack }: ConnectContentViewProps) {
   const { currentOrg } = useOrganization();
   const { projects } = useProjects(currentOrg?.id ?? null);
-
-  // URL parsing功能已移至 TableManageDialog
-  // const [url, setUrl] = useState('');
-  // const [isLoading, setIsLoading] = useState(false);
-  // const [error, setError] = useState<string | null>(null);
-  // const [parseResult, setParseResult] = useState<ParseUrlResponse | null>(null);
 
   // OAuth states
   const [githubStatus, setGithubStatus] = useState<GithubStatusResponse>({
@@ -182,24 +162,6 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
       platformId
     );
   }, []);
-
-  // URL parsing和导入功能已移至 TableManageDialog
-  // // Import settings
-  // const [selectedProjectId, setSelectedProjectId] = useState<number | null>(
-  //   null
-  // );
-  // const [targetTableId, setTargetTableId] = useState<number | null>(null);
-  // const [newTableName, setNewTableName] = useState('');
-  // const [isImporting, setIsImporting] = useState(false);
-  // const [importSuccess, setImportSuccess] = useState(false);
-
-  // // Crawl options for web scraping
-  // const [crawlOptions, setCrawlOptions] = useState<CrawlOptions>({
-  //   limit: 50,  // Reduced to avoid timeout
-  //   maxDepth: 3,
-  //   crawlEntireDomain: true,
-  //   sitemap: 'include',
-  // });
 
   const updatePlatformState = useCallback(
     (platformId: PlatformId, updates: Partial<PlatformState>) => {
@@ -529,131 +491,6 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
     checkGoogleDriveStatus,
   ]);
 
-  // URL parsing和导入功能已移至 TableManageDialog
-  // const handleParse = async () => {
-  //   if (!url.trim()) {
-  //     setError('Please enter a URL');
-  //     return;
-  //   }
-
-  //   // Check if Notion/GitHub/Google Sheets/Linear/Airtable URL and not authenticated
-  //   if (isNotionUrl(url) && !notionStatus?.connected) {
-  //     setError('Please connect Notion before importing this page');
-  //     return;
-  //   }
-  //   if (isGithubUrl(url) && !githubStatus?.connected) {
-  //     setError('Please connect GitHub before importing this page');
-  //     return;
-  //   }
-  //   if (isGoogleSheetsUrl(url) && !googleSheetsStatus?.connected) {
-  //     setError(
-  //       'Please connect Google Sheets before importing this spreadsheet'
-  //     );
-  //     return;
-  //   }
-  //   if (isLinearUrl(url) && !linearStatus?.connected) {
-  //     setError('Please connect Linear before importing this page');
-  //     return;
-  //   }
-  //   if (isAirtableUrl(url) && !airtableStatus?.connected) {
-  //     setError('Please connect Airtable before importing this base');
-  //     return;
-  //   }
-
-  //   setIsLoading(true);
-  //   setError(null);
-  //   setParseResult(null);
-  //   setImportSuccess(false);
-
-  //   try {
-  //     const result = await parseUrl(url, crawlOptions);
-  //     setParseResult(result);
-
-  //     // Auto-select first project if available
-  //     if (projects.length > 0 && !selectedProjectId) {
-  //       setSelectedProjectId(Number(projects[0].id));
-  //     }
-  //   } catch (err) {
-  //     setError(err instanceof Error ? err.message : 'Failed to parse URL');
-
-  //     // Mark status as error when auth fails
-  //     if (err instanceof Error && err.message.toLowerCase().includes('auth')) {
-  //       if (isNotionUrl(url)) {
-  //         updatePlatformState('notion', {
-  //           status: 'error',
-  //           label: 'Authorization error',
-  //         });
-  //       }
-  //       if (isGithubUrl(url)) {
-  //         updatePlatformState('github', {
-  //           status: 'error',
-  //           label: 'Authorization error',
-  //         });
-  //       }
-  //       if (isGoogleSheetsUrl(url)) {
-  //         updatePlatformState('google-sheets', {
-  //           status: 'error',
-  //           label: 'Authorization error',
-  //         });
-  //       }
-  //       if (isLinearUrl(url)) {
-  //         updatePlatformState('linear', {
-  //           status: 'error',
-  //           label: 'Authorization error',
-  //         });
-  //       }
-  //       if (isAirtableUrl(url)) {
-  //         updatePlatformState('airtable', {
-  //           status: 'error',
-  //           label: 'Authorization error',
-  //         });
-  //       }
-  //     }
-  //   } finally {
-  //     setIsLoading(false);
-  //   }
-  // };
-
-  // const handleImport = async () => {
-  //   if (!parseResult || !selectedProjectId) {
-  //     setError('Please select a target project');
-  //     return;
-  //   }
-
-  //   // If no table selected and no new table name, use parsed title or default
-  //   const tableName = targetTableId
-  //     ? undefined
-  //     : newTableName || parseResult.title || 'Imported Data';
-
-  //   setIsImporting(true);
-  //   setError(null);
-
-  //   try {
-  //     await importData({
-  //       url: parseResult.url,
-  //       project_id: selectedProjectId,
-  //       table_id: targetTableId || undefined,
-  //       table_name: tableName,
-  //       table_description: `Imported from ${parseResult.source_type}`,
-  //     });
-
-  //     setImportSuccess(true);
-
-  //     // Reset after 2 seconds
-  //     setTimeout(() => {
-  //       setUrl('');
-  //       setParseResult(null);
-  //       setTargetTableId(null);
-  //       setNewTableName('');
-  //       setImportSuccess(false);
-  //     }, 2000);
-  //   } catch (err) {
-  //     setError(err instanceof Error ? err.message : 'Failed to import data');
-  //   } finally {
-  //     setIsImporting(false);
-  //   }
-  // };
-
   const disconnectPlatformName = disconnectConfirmation.platformId
     ? getPlatformName(disconnectConfirmation.platformId)
     : '';
@@ -776,8 +613,6 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
                 {platformConfigs.map(platform => {
                   const state = platformStates[platform.id];
                   const isConnected = state?.status === 'connected';
-                  const lampColor =
-                    statusColors[state?.status ?? 'disconnected'];
                   const isToggleDisabled =
                     !platform.isEnabled || state?.isLoading || isInitialLoading;
 
@@ -839,21 +674,10 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
                           justifyContent: 'flex-end',
                         }}
                       >
-                        <StatusDot
+                        <StatusIndicator
                           status={state?.status}
-                          size={12}
-                          pulse={state?.status === 'connected'}
+                          label={isInitialLoading ? 'Checking...' : state?.label ?? 'Disconnected'}
                         />
-                        <span
-                          style={{
-                            fontSize: 12,
-                            fontWeight: 500,
-                            color: lampColor,
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {isInitialLoading ? 'Checking...' : state?.label}
-                        </span>
                       </div>
 
                       <ToggleSwitch

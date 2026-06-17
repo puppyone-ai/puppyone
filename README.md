@@ -23,7 +23,7 @@ Puppyone provides context hosting for AI agents, with Git version control and fi
 It supports CLI, MCP, Git, bash/SSH, and web app interactions through Access Points for different AI agents.
 
 <p align="center">
-  <img src="assets/context-drive-access-diagram.png" alt="Puppyone Context Drive exposed through CLI, MCP, Git, and SSH access methods" width="100%" />
+  <img src="assets/context-drive-access-diagram.png" alt="Puppyone Context Drive exposed through CLI, MCP, Git, and SSH access methods" width="600" />
 </p>
 
 <p align="center"><em>One shared Context Drive, multiple scoped Access Points for different agents and tools.</em></p>

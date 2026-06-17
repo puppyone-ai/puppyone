@@ -16,6 +16,7 @@ import asyncio
 import hashlib
 import json
 from datetime import datetime, timedelta, timezone
+from urllib.parse import quote
 
 import httpx
 
@@ -29,6 +30,7 @@ from src.connectors.datasource._base import (
     FetchResult,
     Credentials,
     ConfigField,
+    SourceResource,
 )
 from src.connectors.datasource.oauth.google_calendar_service import GoogleCalendarOAuthService
 from src.infra.s3.service import S3Service
@@ -78,17 +80,29 @@ class GoogleCalendarConnector(BaseConnector):
 
     async def fetch(self, config: dict, credentials: Credentials) -> FetchResult:
         """Fetch Google Calendar events using the unified fetch interface."""
+        source = config.get("source") or {}
+        options = config.get("options") or {}
         user_email = credentials.metadata.get("user", {}).get("email", "Google Calendar")
         access_token = credentials.access_token
 
-        days_past = config.get("days_past", 30)
-        days_future = config.get("days_future", 30)
-        max_results = config.get("max_results", 100)
+        calendar_ids = options.get("calendar_ids") or (source.get("metadata") or {}).get("calendar_ids")
+        if isinstance(calendar_ids, str):
+            calendar_ids = [calendar_ids]
+        if not calendar_ids:
+            raise ValueError("source calendar selection is required")
+
+        days_past = options.get("days_past", 30)
+        days_future = options.get("days_future", 30)
+        max_results = options.get("max_results", 100)
 
         time_min = (datetime.now(timezone.utc) - timedelta(days=days_past)).isoformat()
         time_max = (datetime.now(timezone.utc) + timedelta(days=days_future)).isoformat()
 
         calendars = await self._list_calendars(access_token)
+        selected_ids = {str(calendar_id) for calendar_id in calendar_ids}
+        calendars = [calendar for calendar in calendars if str(calendar.get("id", "")) in selected_ids]
+        if not calendars:
+            raise ValueError("Selected calendars are no longer available")
 
         calendars_info = [
             {
@@ -150,9 +164,41 @@ class GoogleCalendarConnector(BaseConnector):
             content=content,
             content_hash=content_hash,
             node_type="json",
-            node_name=config.get("name") or f"Google Calendar - {user_email}"[:100],
+            node_name=source.get("resource_name") or f"Google Calendar - {user_email}"[:100],
             summary=f"Fetched {len(events_data)} events from {len(calendars_info)} calendars",
         )
+
+    async def list_source_resources(
+        self,
+        credentials: Credentials,
+        *,
+        query: str = "",
+        cursor: str | None = None,
+        resource_type: str | None = None,
+    ) -> tuple[list[SourceResource], str | None]:
+        calendars = await self._list_calendars(credentials.access_token)
+        needle = query.strip().lower()
+        resources: list[SourceResource] = []
+        for calendar in calendars:
+            name = calendar.get("summary", "Untitled calendar")
+            if needle and needle not in name.lower():
+                continue
+            calendar_id = str(calendar.get("id", ""))
+            resources.append(
+                SourceResource(
+                    id=calendar_id,
+                    type="calendar",
+                    name=name,
+                    url=f"https://calendar.google.com/calendar/u/0/r?cid={quote(calendar_id)}",
+                    subtitle=calendar.get("description") or calendar.get("summaryOverride"),
+                    icon="google_calendar",
+                    metadata={
+                        "primary": bool(calendar.get("primary")),
+                        "time_zone": calendar.get("timeZone"),
+                    },
+                )
+            )
+        return resources, None
 
     async def _list_calendars(self, access_token: str) -> list[dict]:
         """List user's calendars."""

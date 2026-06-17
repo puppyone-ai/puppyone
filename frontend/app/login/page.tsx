@@ -22,8 +22,21 @@ const URL_SUCCESS_MESSAGES: Record<string, string> = {
 
 type AuthView = 'main' | 'signin' | 'signup' | 'verify-otp' | 'forgot';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090';
+const BACKEND_API_BASE = '/api/backend/api/v1';
 const RESEND_COOLDOWN_SECONDS = 300; // 5 minutes
+
+function backendApiUrl(path: string): string {
+  return `${BACKEND_API_BASE}${path.startsWith('/') ? path : `/${path}`}`;
+}
+
+function getBackendErrorMessage(payload: any, fallback: string): string {
+  const detail = payload?.detail;
+  if (typeof payload?.message === 'string' && payload.message) return payload.message;
+  if (typeof detail === 'string' && detail) return detail;
+  if (typeof detail?.message === 'string' && detail.message) return detail.message;
+  if (typeof payload?.error === 'string' && payload.error) return payload.error;
+  return fallback;
+}
 
 /**
  * Default export wraps the inner page in <Suspense> because
@@ -43,13 +56,7 @@ export default function LoginPage() {
 function LoginPageFallback() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[var(--po-inset)]">
-      <img
-        src="/puppyone-logo.svg"
-        alt="Puppyone"
-        width={48}
-        height={48}
-        className="opacity-50 animate-pulse"
-      />
+      <PulseGrid />
     </div>
   );
 }
@@ -232,14 +239,14 @@ function LoginPageInner() {
     clearFeedback();
     setLoading('continue');
     try {
-      const resp = await fetch(`${API_BASE}/api/v1/auth/check-email`, {
+      const resp = await fetch(backendApiUrl('/auth/check-email'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
       });
       const json = await resp.json();
       if (resp.status === 429) throw new Error('Too many attempts. Please wait a moment and try again.');
-      if (!resp.ok) throw new Error(json.detail || 'Failed to check email');
+      if (!resp.ok) throw new Error(getBackendErrorMessage(json, 'Failed to check email'));
       const exists = json.data?.exists;
       setView(exists ? 'signin' : 'signup');
     } catch (e: unknown) {
@@ -333,7 +340,7 @@ function LoginPageInner() {
         try {
           const token = await getAccessToken();
           if (token) {
-            const res = await fetch(`${API_BASE}/api/v1/auth/initialize`, {
+            const res = await fetch(backendApiUrl('/auth/initialize'), {
               method: 'POST',
               headers: { Authorization: `Bearer ${token}` },
             });
@@ -380,7 +387,7 @@ function LoginPageInner() {
       try {
         const token = await getAccessToken();
         if (token) {
-          const res = await fetch(`${API_BASE}/api/v1/auth/initialize`, {
+          const res = await fetch(backendApiUrl('/auth/initialize'), {
             method: 'POST',
             headers: { Authorization: `Bearer ${token}` },
           });
@@ -473,8 +480,7 @@ function LoginPageInner() {
           {view === 'main' && (
             <div className="animate-fade-in">
               <div className="mb-8 text-center">
-                <h1 className="text-2xl font-semibold text-[var(--po-text)]">Welcome to Puppyone</h1>
-                <p className="mt-2 text-sm text-[var(--po-text-muted)]">The context hub for your agents.</p>
+                <h1 className="text-2xl font-semibold text-[var(--po-text)]">Sign in or sign up</h1>
               </div>
 
               <div className="flex flex-col gap-3">
@@ -496,7 +502,9 @@ function LoginPageInner() {
                 />
               </div>
 
-              <div className="mt-6">
+              <AuthDivider />
+
+              <div>
                 <form onSubmit={handleContinue} className="flex flex-col gap-3">
                   <InputField
                     label="Email"
@@ -686,13 +694,23 @@ function ProviderButton({
     <button
       onClick={onClick}
       disabled={disabled}
-      className="w-full h-10 px-4 rounded-md border border-[var(--po-border)] bg-[var(--po-control)] text-[var(--po-text)] cursor-pointer text-sm font-medium transition-all hover:bg-[var(--po-control-hover)] hover:border-[var(--po-border-strong)] disabled:opacity-50 disabled:cursor-not-allowed"
+      className="relative w-full h-10 px-4 rounded-md border border-[var(--po-border)] bg-[var(--po-control)] text-[var(--po-text)] cursor-pointer text-sm font-medium transition-all hover:bg-[var(--po-control-hover)] hover:border-[var(--po-border-strong)] disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center"
     >
-      <span className="flex items-center justify-center gap-2.5">
+      <span className="absolute left-4 top-1/2 -translate-y-1/2 inline-flex h-5 w-5 items-center justify-center">
         {icon}
-        <span>{isLoading ? loadingLabel : label}</span>
       </span>
+      <span>{isLoading ? loadingLabel : label}</span>
     </button>
+  );
+}
+
+function AuthDivider() {
+  return (
+    <div className="my-5 flex items-center gap-3 text-xs font-medium text-[var(--po-text-subtle)]">
+      <div className="h-px flex-1 bg-[var(--po-border)]" />
+      <span>or</span>
+      <div className="h-px flex-1 bg-[var(--po-border)]" />
+    </div>
   );
 }
 

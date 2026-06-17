@@ -7,6 +7,7 @@ path traversal, resource exhaustion, and other input-based attacks.
 from __future__ import annotations
 
 import base64
+import re
 
 from fastapi import HTTPException
 
@@ -47,6 +48,12 @@ _TOO_MANY_FILES_HINT = (
 # ── Path Validation ──
 
 _FORBIDDEN_SEGMENTS = frozenset({"..", ".", "~"})
+_FORBIDDEN_FILENAME_CHARS = re.compile(r'[<>:"|?*\x00-\x1f]')
+_FORBIDDEN_FILENAMES = frozenset(
+    [".", "..", "CON", "PRN", "AUX", "NUL"]
+    + [f"COM{i}" for i in range(1, 10)]
+    + [f"LPT{i}" for i in range(1, 10)]
+)
 
 
 def validate_path(path: str) -> str:
@@ -74,6 +81,32 @@ def validate_path(path: str) -> str:
                 raise HTTPException(400, "Path contains invalid characters")
 
     return clean
+
+
+def validate_version_filename(filename: str) -> str | None:
+    """Return an error message when a version-tree path is invalid."""
+    if not filename or not filename.strip():
+        return "Filename must not be empty"
+    if filename.startswith("/"):
+        return f"Absolute path not allowed: {filename}"
+    if "\\" in filename:
+        return f"Backslash not allowed: {filename}"
+
+    segments = filename.split("/")
+    if any(segment == "" for segment in segments):
+        return f"Double slash not allowed: {filename}"
+    if any(segment == "." for segment in segments):
+        return f"Relative path not allowed: {filename}"
+    if any(segment == ".." for segment in segments):
+        return f"Path traversal not allowed: {filename}"
+    if _FORBIDDEN_FILENAME_CHARS.search(filename):
+        return f"Filename contains forbidden characters: {filename}"
+    basename = filename.rsplit("/", 1)[-1].split(".")[0].upper()
+    if basename in _FORBIDDEN_FILENAMES:
+        return f"Reserved filename: {filename}"
+    if len(filename) > 255:
+        return "Filename too long (max 255)"
+    return None
 
 
 def validate_limit(limit: int, default: int = 100, maximum: int = 1000) -> int:

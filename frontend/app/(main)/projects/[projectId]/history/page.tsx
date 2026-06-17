@@ -14,6 +14,8 @@ import { PROJECT_CONTENT_RAIL_WIDTH } from '@/lib/layout';
 import { SIDEBAR_ROW_TYPOGRAPHY } from '@/lib/uiTypography';
 import { PageLoading } from '@/components/loading';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { StatusDot } from '@/components/ui/StatusDot';
+import { CountBadge } from '@/components/ui/CountBadge';
 import { ResizableSidebarColumn } from '@/components/sidebar/ResizableSidebarColumn';
 import { useCommitUpdates } from '@/contexts/VersionWebSocketContext';
 import { Clock3, GitCommitHorizontal } from 'lucide-react';
@@ -375,16 +377,7 @@ function HistoryFilterOption({
       }}
     >
       {showMarkerSlot ? (
-        <span
-          aria-hidden
-          style={{
-            width: 8,
-            height: 8,
-            borderRadius: '50%',
-            background: markerColor ?? 'transparent',
-            flexShrink: 0,
-          }}
-        />
+        <StatusDot style={{ background: markerColor ?? 'transparent' }} />
       ) : null}
       <span className="min-w-0 flex-1 truncate">{label}</span>
       <span
@@ -442,7 +435,7 @@ function VerticalCommitNode({
 
   const trackColor = 'var(--po-filetree-rail)';
   const dotStroke = hovered ? 'var(--po-text-subtle)' : 'var(--po-text-disabled)';
-  const dotRadius = isSelected ? 4 : 3;
+  const markerSize = 6;
 
   return (
     <div style={{ position: 'relative', height: HISTORY_ROW_HEIGHT }}>
@@ -507,10 +500,12 @@ function VerticalCommitNode({
                 strokeWidth={1.5}
               />
             )}
-            <circle
-              cx={HISTORY_LINE_X}
-              cy={HISTORY_ROW_HEIGHT / 2}
-              r={dotRadius}
+            <rect
+              x={HISTORY_LINE_X - markerSize / 2}
+              y={HISTORY_ROW_HEIGHT / 2 - markerSize / 2}
+              width={markerSize}
+              height={markerSize}
+              rx={1.5}
               fill={isSelected ? currentInfo.color : hovered ? 'var(--po-panel)' : 'var(--po-canvas)'}
               stroke={isSelected ? 'none' : dotStroke}
               strokeWidth={isSelected ? 0 : 1.5}
@@ -631,10 +626,12 @@ function HistoryMoreRow({
           stroke={trackColor}
           strokeWidth={1.5}
         />
-        <circle
-          cx={HISTORY_LINE_X}
-          cy={HISTORY_ROW_HEIGHT / 2}
-          r={6}
+        <rect
+          x={HISTORY_LINE_X - 6}
+          y={HISTORY_ROW_HEIGHT / 2 - 6}
+          width={12}
+          height={12}
+          rx={2}
           fill="var(--po-canvas)"
           stroke={hovered ? 'var(--po-text-subtle)' : 'var(--po-text-disabled)'}
           strokeWidth={1.25}
@@ -1570,21 +1567,7 @@ export default function HistoryPage({ params }: HistoryPageProps) {
                   </svg>
                   <span className="sr-only">Filter</span>
                   {activeFilterCount > 0 ? (
-                    <span
-                      style={{
-                        minWidth: 16,
-                        height: 16,
-                        padding: '0 4px',
-                        borderRadius: 999,
-                        background: 'var(--po-control)',
-                        color: 'var(--po-text-subtle)',
-                        fontSize: 10,
-                        lineHeight: '16px',
-                        textAlign: 'center',
-                      }}
-                    >
-                      {activeFilterCount}
-                    </span>
+                    <CountBadge value={activeFilterCount} size="sm" tone="muted" />
                   ) : null}
                 </button>
 

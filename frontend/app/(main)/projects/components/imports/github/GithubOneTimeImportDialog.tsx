@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { LoaderCircle } from 'lucide-react';
+import { Dots } from '@/components/loading';
 import { createImportJob, type ImportJob } from '@/lib/importApi';
 import { openOAuthPopup } from '@/lib/oauthApi';
 import { DialogBody, DialogHeader, DialogRoot, DialogSurface } from '@/components/ui/Dialog';
@@ -118,7 +118,7 @@ export function GithubOneTimeImportDialog({
 
             {isAuthorizing ? (
               <div className="flex items-start gap-2 rounded-md border border-[var(--po-border-subtle)] bg-[color-mix(in_srgb,var(--po-panel)_42%,transparent)] px-3 py-2 text-[12px] leading-5 text-[var(--po-text-muted)]">
-                <LoaderCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-[var(--po-text)]" strokeWidth={1.8} />
+                <Dots size="xs" ariaLabel="Authorizing" />
                 <div>
                   <div className="font-medium text-[var(--po-text)]">Authorizing GitHub</div>
                   <div>Finish the GitHub window. This dialog stays open until authorization returns.</div>
@@ -140,7 +140,7 @@ export function GithubOneTimeImportDialog({
 
             {isImporting ? (
               <div className="flex items-start gap-2 rounded-md border border-[var(--po-border-subtle)] bg-[color-mix(in_srgb,var(--po-panel)_42%,transparent)] px-3 py-2 text-[12px] leading-5 text-[var(--po-text-muted)]">
-                <LoaderCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-[var(--po-text)]" strokeWidth={1.8} />
+                <Dots size="xs" ariaLabel="Creating import job" />
                 <div>
                   <div className="font-medium text-[var(--po-text)]">Creating import job</div>
                   <div>Puppyone will keep importing in the background after this dialog closes.</div>
@@ -166,7 +166,7 @@ export function GithubOneTimeImportDialog({
               >
                 {isImporting ? (
                   <>
-                    <LoaderCircle className="h-3.5 w-3.5 animate-spin" strokeWidth={1.8} />
+                    <Dots size="xs" ariaLabel="Importing" />
                     Importing
                   </>
                 ) : 'Import repository'}

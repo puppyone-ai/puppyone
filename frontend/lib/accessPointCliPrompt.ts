@@ -28,6 +28,21 @@ export interface GitSyncPrompt {
   readonly prompt: string;
 }
 
+export interface McpSetupPromptInput {
+  readonly apiBase: string;
+  readonly apiKey: string;
+  readonly scopeName: string;
+  readonly accessPointName?: string;
+}
+
+export interface McpSetupPrompt {
+  readonly serverUrl: string;
+  readonly authorizationLine: string;
+  readonly serverName: string;
+  readonly config: string;
+  readonly prompt: string;
+}
+
 export function accessPointProfileSlug(name: string): string {
   return (
     name
@@ -145,14 +160,14 @@ export function buildTerminalCliPrompt({
     accessPointName ? `Access Point: ${accessPointName}` : null,
     `Scope: ${scopeName}`,
     '',
-    'Recommended path: direct remote filesystem commands through the Puppyone CLI. No local clone is needed.',
+    'Recommended path: scoped FS CLI commands through the Puppyone CLI. No local clone is needed.',
     'Install or update the CLI, then authenticate this scoped Access Point:',
     '```bash',
     installLine,
     loginLine,
     '```',
     '',
-    'Use Unix-like scoped filesystem commands:',
+    'Use Unix-like scoped file commands:',
     '```bash',
     ...exploreLines,
     ...fileLines,
@@ -171,6 +186,59 @@ export function buildTerminalCliPrompt({
     loginLine,
     exploreLines,
     fileLines,
+    prompt,
+  };
+}
+
+export function buildMcpSetupPrompt({
+  apiBase,
+  apiKey,
+  scopeName,
+  accessPointName,
+}: McpSetupPromptInput): McpSetupPrompt {
+  const serverUrl = `${apiBase || '<api-url>'}/api/v1/mcp/proxy`;
+  const key = apiKey || '<mcp-api-key>';
+  const label = accessPointName || 'Puppyone MCP';
+  const serverName = accessPointProfileSlug(label || scopeName || 'puppyone-mcp');
+  const authorizationLine = `Authorization: Bearer ${key}`;
+  const config = JSON.stringify(
+    {
+      mcpServers: {
+        [serverName]: {
+          type: 'http',
+          url: serverUrl,
+          headers: {
+            Authorization: `Bearer ${key}`,
+          },
+        },
+      },
+    },
+    null,
+    2,
+  );
+
+  const prompt = [
+    'Configure this Puppyone MCP Access Point for my coding agent.',
+    '',
+    accessPointName ? `Access Point: ${accessPointName}` : null,
+    `Scope: ${scopeName}`,
+    `Server URL: ${serverUrl}`,
+    `Header: ${authorizationLine}`,
+    '',
+    'Use this MCP client config:',
+    '```json',
+    config,
+    '```',
+    '',
+    'After setup, use the exposed MCP tools against this scoped Puppyone workspace.',
+    'Do not create another Puppyone access point unless I ask for one.',
+  ].filter((line): line is string => line != null).join('\n');
+
+  return {
+    serverUrl,
+    authorizationLine,
+    serverName,
+    config,
     prompt,
   };
 }

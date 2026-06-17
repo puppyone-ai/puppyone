@@ -2,14 +2,26 @@ import { createBrowserClient } from '@supabase/ssr';
 import { API_BASE_URL } from '@/config/api';
 
 /**
- * 统一的 API 客户端
- * 自动附加 Authorization header
+ * Shared API client.
+ * Automatically attaches Authorization header.
  */
 
 const DEFAULT_API_TIMEOUT_MS = 30_000;
+const BROWSER_API_PROXY_PREFIX = '/api/backend';
 
 interface ApiRequestOptions extends RequestInit {
   timeoutMs?: number;
+}
+
+function normalizeRelativeApiEndpoint(endpoint: string): string {
+  const queryStart = endpoint.indexOf('?');
+  const rawPath = queryStart >= 0 ? endpoint.slice(0, queryStart) : endpoint;
+  const query = queryStart >= 0 ? endpoint.slice(queryStart) : '';
+  const path = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
+  const collapsedPath = path.replace(/\/{2,}/g, '/');
+  const canonicalPath =
+    collapsedPath.length > 1 ? collapsedPath.replace(/\/+$/g, '') : collapsedPath;
+  return `${canonicalPath}${query}`;
 }
 
 export class ApiNetworkError extends Error {
@@ -31,8 +43,11 @@ export class ApiNetworkError extends Error {
 
 function buildApiUrl(endpoint: string): string {
   if (/^https?:\/\//i.test(endpoint)) return endpoint;
+  const path = normalizeRelativeApiEndpoint(endpoint);
+  if (typeof window !== 'undefined') {
+    return `${BROWSER_API_PROXY_PREFIX}${path}`;
+  }
   const base = API_BASE_URL.replace(/\/+$/, '');
-  const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   return `${base}${path}`;
 }
 
@@ -50,33 +65,33 @@ function getNetworkErrorMessage(args: {
 
   const hints: string[] = [];
   try {
-    const target = new URL(url);
     const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+    const target = currentOrigin ? new URL(url, currentOrigin) : new URL(url);
     const current = currentOrigin ? new URL(currentOrigin) : null;
     if (target.hostname === 'localhost' || target.hostname === '127.0.0.1') {
-      hints.push(`确认后端正在 ${target.origin} 运行`);
+      hints.push(`make sure the backend is running at ${target.origin}`);
     }
     if (current && target.origin !== current.origin) {
-      hints.push('如果后端可访问，请检查 CORS/HTTPS/mixed-content 配置');
+      hints.push('if the backend is reachable, check CORS, HTTPS, and mixed-content settings');
     }
     if (
       typeof window !== 'undefined' &&
       window.location.hostname !== 'localhost' &&
       target.hostname === 'localhost'
     ) {
-      hints.push('生产或远程预览环境不能使用 localhost 作为 NEXT_PUBLIC_API_URL');
+      hints.push('remote deployments cannot use localhost as NEXT_PUBLIC_API_URL');
     }
   } catch {
     // ignore malformed URLs; the failed URL is still included below.
   }
 
   const reason = isAbort
-    ? `请求超时 (${Math.round(timeoutMs / 1000)}s)`
+    ? `request timed out (${Math.round(timeoutMs / 1000)}s)`
     : cause instanceof Error && cause.message
       ? cause.message
       : 'network request failed';
-  const hintText = hints.length ? `。${hints.join('；')}` : '';
-  return `无法连接后端 API：${endpoint} -> ${url}（${reason}）${hintText}`;
+  const hintText = hints.length ? `. ${hints.join('; ')}` : '';
+  return `Unable to reach the backend API: ${endpoint} -> ${url} (${reason})${hintText}`;
 }
 
 function _initSupabase() {
@@ -158,7 +173,7 @@ async function getAuthToken(): Promise<string | null> {
 }
 
 /**
- * 暴露给其他 API 客户端使用
+ * Exposed for other API clients.
  */
 export async function getApiAccessToken(): Promise<string | null> {
   return getAuthToken();
@@ -167,6 +182,52 @@ export async function getApiAccessToken(): Promise<string | null> {
 // Alias for backward compatibility
 export const getAccessToken = getApiAccessToken;
 
+// ── session recovery on 401 ───────────────────────────────────────────
+// A Supabase access token lives ~1h. When it lapses, the backend returns
+// 401 on every call; without recovery the UI just renders empty (orgs +
+// projects "disappear", pages stick on loading). On a 401 we force a
+// one-time token refresh and retry; if that fails the session is truly
+// dead and we redirect to /login instead of silently failing.
+let _inflightRefresh: Promise<string | null> | null = null;
+let _redirectingToLogin = false;
+
+/** Force-refresh the Supabase session (coalesced). Returns the new token or null. */
+async function refreshAuthToken(): Promise<string | null> {
+  _cachedToken = null;
+  _cacheValidUntilMs = 0;
+  if (_inflightRefresh) return _inflightRefresh;
+  _inflightRefresh = (async () => {
+    try {
+      const { data, error } = await getSupabase().auth.refreshSession();
+      if (error || !data.session) return null;
+      _setCacheFromSession(data.session as any);
+      return _cachedToken;
+    } catch {
+      return null;
+    } finally {
+      _inflightRefresh = null;
+    }
+  })();
+  return _inflightRefresh;
+}
+
+/** Session is unrecoverable: clear it and send the user to /login (once). */
+function handleAuthFailure(): void {
+  _cachedToken = null;
+  _cacheValidUntilMs = 0;
+  if (typeof window === 'undefined' || _redirectingToLogin) return;
+  if (window.location.pathname.startsWith('/login')) return;
+  _redirectingToLogin = true;
+  const go = () => {
+    window.location.href = '/login?session=expired';
+  };
+  try {
+    Promise.resolve(getSupabase().auth.signOut({ scope: 'local' })).finally(go);
+  } catch {
+    go();
+  }
+}
+
 interface ApiResponse<T> {
   code: number;
   message: string;
@@ -174,11 +235,12 @@ interface ApiResponse<T> {
 }
 
 /**
- * 带认证的 API 请求
+ * Authenticated API request.
  */
 export async function apiRequest<T>(
   endpoint: string,
-  options?: ApiRequestOptions
+  options?: ApiRequestOptions,
+  _isRetry = false
 ): Promise<T> {
   const token = await getAuthToken();
   const { timeoutMs = DEFAULT_API_TIMEOUT_MS, ...fetchOptions } = options ?? {};
@@ -189,7 +251,7 @@ export async function apiRequest<T>(
     ...(fetchOptions.headers as Record<string, string>),
   };
 
-  // 如果有 token，添加 Authorization header
+  // Attach Authorization header when available.
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
@@ -218,9 +280,19 @@ export async function apiRequest<T>(
     }
   }
 
-  // 处理 401 未授权
   if (response.status === 401) {
-    const error: any = new Error('未登录或登录已过期');
+    // The access token likely expired. Try a one-time refresh + retry before
+    // giving up — this is what stops a long-open tab from silently showing an
+    // empty account once the ~1h token lapses.
+    if (!_isRetry && typeof window !== 'undefined') {
+      const refreshed = await refreshAuthToken();
+      if (refreshed) {
+        return apiRequest<T>(endpoint, options, true);
+      }
+    }
+    // Refresh failed (or we already retried) → the session is unrecoverable.
+    handleAuthFailure();
+    const error: any = new Error('You are not signed in, or your session has expired.');
     error.response = response;
     error.code = 401;
     throw error;
@@ -285,14 +357,14 @@ export async function apiRequest<T>(
 }
 
 /**
- * GET 请求
+ * GET request.
  */
 export function get<T>(endpoint: string): Promise<T> {
   return apiRequest<T>(endpoint, { method: 'GET' });
 }
 
 /**
- * POST 请求
+ * POST request.
  */
 export function post<T>(endpoint: string, body?: unknown): Promise<T> {
   return apiRequest<T>(endpoint, {
@@ -302,7 +374,7 @@ export function post<T>(endpoint: string, body?: unknown): Promise<T> {
 }
 
 /**
- * PUT 请求
+ * PUT request.
  */
 export function put<T>(endpoint: string, body?: unknown): Promise<T> {
   return apiRequest<T>(endpoint, {
@@ -312,14 +384,14 @@ export function put<T>(endpoint: string, body?: unknown): Promise<T> {
 }
 
 /**
- * DELETE 请求
+ * DELETE request.
  */
 export function del<T>(endpoint: string): Promise<T> {
   return apiRequest<T>(endpoint, { method: 'DELETE' });
 }
 
 /**
- * PATCH 请求
+ * PATCH request.
  */
 export function patch<T>(endpoint: string, body?: unknown): Promise<T> {
   return apiRequest<T>(endpoint, {

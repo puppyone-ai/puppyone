@@ -3,22 +3,24 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "main": "electron/main.mjs",
   "scripts": {
-    "dev": "vite --host 127.0.0.1",
-    "build": "tsc && vite build",
+    "check:boundaries": "node ../scripts/check-data-ui-boundaries.mjs",
+    "dev": "node scripts/dev-electron.mjs",
+    "dev:renderer": "vite --host 127.0.0.1",
+    "dev:browser": "vite --host 127.0.0.1",
+    "build": "npm run check:boundaries && tsc && vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "sync:cloud-source": "./scripts/sync-cloud-source.sh",
-    "tauri": "tauri",
-    "tauri:dev": "tauri dev"
+    "smoke:local-api": "node scripts/smoke-local-api.mjs",
+    "start": "electron ."
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.10.0",
     "lucide-react": "^0.562.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.10.0",
+    "electron": "^41.2.1",
     "@types/react": "^18.3.8",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.4",

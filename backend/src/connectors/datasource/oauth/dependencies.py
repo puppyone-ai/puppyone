@@ -13,6 +13,7 @@ from src.connectors.datasource.oauth.gmail_service import GmailOAuthService
 from src.connectors.datasource.oauth.google_drive_service import GoogleDriveOAuthService
 from src.connectors.datasource.oauth.google_calendar_service import GoogleCalendarOAuthService
 from src.connectors.datasource.oauth.google_docs_service import GoogleDocsOAuthService
+from src.connectors.datasource.oauth.google_search_console_service import GoogleSearchConsoleOAuthService
 from src.connectors.datasource.oauth.linear_service import LinearOAuthService
 from src.connectors.datasource.oauth.airtable_service import AirtableOAuthService
 from src.connectors.datasource.oauth.repository import OAuthRepository
@@ -65,6 +66,11 @@ def get_google_calendar_service() -> GoogleCalendarOAuthService:
 def get_google_docs_service() -> GoogleDocsOAuthService:
     """Get Google Docs OAuth service instance."""
     return GoogleDocsOAuthService()
+
+
+def get_google_search_console_service() -> GoogleSearchConsoleOAuthService:
+    """Get Google Search Console OAuth service instance."""
+    return GoogleSearchConsoleOAuthService()
 
 
 def get_oauth_repository() -> OAuthRepository:

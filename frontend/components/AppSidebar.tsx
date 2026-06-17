@@ -3,12 +3,19 @@
 import React, { memo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { GitPullRequestArrow } from 'lucide-react';
 import useSWR from 'swr';
 import type { ProjectInfo } from '../lib/projectsApi';
 import type { OrganizationInfo } from '../lib/organizationsApi';
 import { getProjectHistory } from '../lib/contentTreeApi';
-import { listPendingConflicts } from '../lib/conflictApi';
+import { PROJECT_LOGS_ENABLED } from '../lib/featureFlags';
+import { listKinds } from '../lib/needsActionRegistry';
+import { isSnoozed } from '../lib/needsActionSnooze';
 import { SidebarLayout, type NavItem } from './sidebar/SidebarLayout';
+
+// Side-effect import: populate the same Needs Action registry used by
+// the Changes page before the sidebar summary reads it.
+import '@/app/(main)/projects/[projectId]/history/components/items';
 
 type AppSidebarProps = {
   projects: ProjectInfo[];
@@ -23,11 +30,41 @@ type AppSidebarProps = {
   sidebarWidth?: number;
   onSidebarWidthChange?: (width: number) => void;
   currentOrg?: OrganizationInfo | null;
+  organizations?: ReadonlyArray<{ id: string; name: string }>;
+  onSwitchOrg?: (orgId: string) => void;
   organizationIdentityLoading?: boolean;
   projectIdentityLoading?: boolean;
   userIdentityLoading?: boolean;
   onOpenGuide?: () => void;
 };
+
+type NeedsActionSidebarSummary = {
+  count: number;
+  hasErrors: boolean;
+};
+
+async function getNeedsActionSidebarSummary(projectId: string): Promise<NeedsActionSidebarSummary> {
+  const results = await Promise.allSettled(
+    listKinds().map(async (def) => {
+      const items = await def.fetchItems(projectId);
+      return items.filter(
+        (item) => !isSnoozed({ projectId, kind: def.kind, id: item.id }),
+      ).length;
+    }),
+  );
+
+  return results.reduce<NeedsActionSidebarSummary>(
+    (summary, result) => {
+      if (result.status === 'fulfilled') {
+        summary.count += result.value;
+      } else {
+        summary.hasErrors = true;
+      }
+      return summary;
+    },
+    { count: 0, hasErrors: false },
+  );
+}
 
 export const AppSidebar = memo(function AppSidebar({
   projects,
@@ -42,6 +79,8 @@ export const AppSidebar = memo(function AppSidebar({
   sidebarWidth,
   onSidebarWidthChange,
   currentOrg,
+  organizations,
+  onSwitchOrg,
   organizationIdentityLoading = false,
   projectIdentityLoading = false,
   userIdentityLoading = false,
@@ -61,6 +100,7 @@ export const AppSidebar = memo(function AppSidebar({
     : null;
   const activeProjectTitleLoading =
     Boolean(activeBaseId && !activeProjectFromList) || projectIdentityLoading;
+  const activeProjectId = activeProject?.id ?? null;
 
   const projectOptions = projects.map((p) => ({
     id: p.id,
@@ -76,16 +116,15 @@ export const AppSidebar = memo(function AppSidebar({
     { revalidateOnFocus: false, dedupingInterval: 60000 },
   );
 
-  // Pending conflicts count — drives the badge on Changes. Conflicts
-  // are one kind of change that needs review, not a separate page.
-  // 30s revalidation strikes a balance between freshness and not
-  // hammering the API.
-  const { data: pendingConflicts, isLoading: pendingConflictsLoading } = useSWR(
-    activeProjectFromList ? ['sidebar-pending-conflicts', activeProjectFromList.id] : null,
-    () => listPendingConflicts(activeProjectFromList!.id),
+  // Needs Action count — drives the badge on Changes. Use the same
+  // registry as the Changes page so failed syncs / risky deletes /
+  // pending reviews all surface at the app-navigation entry point.
+  const { data: needsActionSummary, isLoading: needsActionLoading } = useSWR(
+    activeProjectId ? ['sidebar-needs-action', activeProjectId] : null,
+    () => getNeedsActionSidebarSummary(activeProjectId!),
     { refreshInterval: 30_000, dedupingInterval: 15_000, revalidateOnFocus: true },
   );
-  const pendingConflictCount = (pendingConflicts ?? []).length;
+  const needsActionCount = needsActionSummary?.count ?? 0;
 
   const projectStats = activeProjectFromList
     ? {
@@ -107,16 +146,10 @@ export const AppSidebar = memo(function AppSidebar({
       {
         id: 'changes',
         label: t('changes'),
-        icon: (
-          <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
-            <circle cx='6' cy='6' r='3' />
-            <circle cx='18' cy='18' r='3' />
-            <path d='M6 9v6a3 3 0 0 0 3 3h6' />
-            <path d='M18 15V9a3 3 0 0 0-3-3h-2' />
-          </svg>
-        ),
-        badge: pendingConflictCount > 0 ? pendingConflictCount : undefined,
-        badgeLoading: pendingConflictsLoading,
+        icon: <GitPullRequestArrow size={15} strokeWidth={2} />,
+        badge: needsActionCount > 0 ? needsActionCount : undefined,
+        badgeLoading: needsActionLoading,
+        badgeTone: 'danger',
       },
       {
         id: 'access',
@@ -124,7 +157,7 @@ export const AppSidebar = memo(function AppSidebar({
         // Lucide `link` icon. The earlier horizontal version only
         // filled ~20×10 of the 24-grid which made the strokes read as
         // thin and the icon as "too wide" next to its siblings (folder
-        // / clock / monitor / gear all fill ~18×18). The rotated path
+        // / clock / code / gear all fill ~18×18). The rotated path
         // shares the same square footprint as those four, so the rail
         // reads as one consistent family.
         label: t('access'),
@@ -137,39 +170,34 @@ export const AppSidebar = memo(function AppSidebar({
         groupEnd: true,
       },
       {
-        id: 'monitor',
-        label: t('monitor'),
+        id: 'integrations',
+        label: t('integrations'),
         icon: (
-          // Logs glyph — three iterations on this:
-          //   v1 ECG line          → wrong semantic (looked like
-          //                          live metrics, not events).
-          //   v2 list-with-bullets → right semantic but bare horizontal
-          //                          lines felt thin next to the other
-          //                          four nav glyphs (folder · lock ·
-          //                          clock · gear), which are all
-          //                          `closed outline + interior detail`.
-          //   v3 rect + lines      → right visual weight but the bullets
-          //                          went away, so the icon read as a
-          //                          generic document rather than a
-          //                          bulleted log feed.
-          //
-          // This is v4: the closed-outline grammar of v3 (a 3–21
-          // rounded rect, same footprint as the History clock and
-          // Settings gear) wrapped around the bullet+line grammar of
-          // v2. Visual weight matches the family; semantic stays as
-          // "stream of bulleted log entries". Last entry is shorter so
-          // the list reads as "trailing off into the live tail".
           <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
-            <rect x='3' y='4' width='18' height='16' rx='2' />
-            <line x1='7' y1='9' x2='7.01' y2='9' />
-            <line x1='10' y1='9' x2='17' y2='9' />
-            <line x1='7' y1='13' x2='7.01' y2='13' />
-            <line x1='10' y1='13' x2='17' y2='13' />
-            <line x1='7' y1='17' x2='7.01' y2='17' />
-            <line x1='10' y1='17' x2='14' y2='17' />
+            <rect x='3' y='3' width='7' height='7' rx='1.5' />
+            <rect x='14' y='3' width='7' height='7' rx='1.5' />
+            <rect x='3' y='14' width='7' height='7' rx='1.5' />
+            <rect x='14' y='14' width='7' height='7' rx='1.5' />
+            <path d='M10 6.5h4' />
+            <path d='M6.5 10v4' />
+            <path d='M10 17.5h4' />
+            <path d='M17.5 10v4' />
           </svg>
         ),
       },
+      ...(PROJECT_LOGS_ENABLED
+        ? [{
+            id: 'develop',
+            label: t('develop'),
+            icon: (
+              <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+                <polyline points='16 18 22 12 16 6' />
+                <polyline points='8 6 2 12 8 18' />
+                <line x1='14' y1='4' x2='10' y2='20' />
+              </svg>
+            ),
+          }]
+        : []),
       // HIDDEN: Toolkit nav item temporarily disabled
       // {
       //   id: 'toolkit',
@@ -216,10 +244,12 @@ export const AppSidebar = memo(function AppSidebar({
             router.push(`/projects/${activeProject.id}/changes`);
           } else if (viewId === 'access') {
             router.push(`/projects/${activeProject.id}/access`);
+          } else if (viewId === 'integrations') {
+            router.push(`/projects/${activeProject.id}/workflows`);
           } else if (viewId === 'history') {
             router.push(`/projects/${activeProject.id}/history`);
-          } else if (viewId === 'monitor') {
-            router.push(`/projects/${activeProject.id}/monitor`);
+          } else if (viewId === 'develop') {
+            router.push(`/projects/${activeProject.id}/develop/logs`);
           } else if (viewId === 'toolkit') {
             router.push(`/projects/${activeProject.id}/toolkit`);
           } else if (viewId === 'settings') {
@@ -232,8 +262,9 @@ export const AppSidebar = memo(function AppSidebar({
             data: `/projects/${id}/data`,
             changes: `/projects/${id}/changes`,
             access: `/projects/${id}/access`,
+            integrations: `/projects/${id}/workflows`,
             history: `/projects/${id}/history`,
-            monitor: `/projects/${id}/monitor`,
+            develop: `/projects/${id}/develop/logs`,
             toolkit: `/projects/${id}/toolkit`,
             settings: `/projects/${id}/settings`,
           };
@@ -302,13 +333,14 @@ export const AppSidebar = memo(function AppSidebar({
       projectsLoading={projectsLoading}
       onSelectProject={(projectId) => router.push(`/projects/${projectId}/data`)}
       onGoHome={() => router.push('/home')}
+      organizations={organizations}
+      currentOrgId={currentOrg?.id ?? null}
+      onSwitchOrg={onSwitchOrg}
       activeView={activeView}
       navItems={globalNavItems}
       onNavigate={(viewId) => {
         if (viewId === 'home') {
           router.push('/home');
-        } else if (viewId === 'tools') {
-          router.push('/tools-and-server/tools-list');
         } else if (viewId === 'team') {
           router.push('/team');
         } else if (viewId === 'billing') {

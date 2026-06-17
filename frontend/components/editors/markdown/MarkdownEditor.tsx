@@ -61,7 +61,7 @@ export function MarkdownEditor({
         height: '100%',
         width: '100%',
         position: 'relative',
-        background: 'var(--po-canvas)',
+        background: 'var(--po-editor-bg)',
       }}
     >
       {viewMode === 'wysiwyg' && (

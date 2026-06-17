@@ -6,6 +6,7 @@ import { getNodeTypeConfig, isSyncedType, getSyncSource, getSyncSourceIcon, Lock
 import { useNodeDrop } from '@/lib/hooks/useNodeDrop';
 import { PageLoading } from '@/components/loading';
 import { FilePreviewIcon } from '@/lib/fileIcons';
+import { CountBadge } from '@/components/ui/CountBadge';
 
 // Content type definition
 export type ContentType = 'folder' | 'json' | 'markdown' | 'image' | 'pdf' | 'video' | 'file' | 'sync' | 'github_repo' | 'notion_page' | 'notion_database' | 'airtable_base' | 'linear_project' | 'google_sheets';
@@ -76,23 +77,9 @@ const FolderIconLarge = ({ childrenCount }: { childrenCount?: number | null }) =
   <div style={{ position: 'relative', width: 56, height: 56, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
     <img src="/icons/folder.svg" alt="Folder" width={56} height={56} style={{ display: 'block' }} />
     {childrenCount != null && childrenCount > 0 && (
-      <div style={{
-        position: 'absolute',
-        bottom: 0,
-        right: -4,
-        background: 'var(--po-panel-raised)',
-        border: '1px solid var(--po-border)',
-        borderRadius: 8,
-        padding: '1px 5px',
-        fontSize: 10,
-        fontWeight: 600,
-        color: 'var(--po-text-muted)',
-        lineHeight: '14px',
-        minWidth: 18,
-        textAlign: 'center',
-      }}>
-        {childrenCount}
-      </div>
+      <span style={{ position: 'absolute', bottom: 0, right: -4 }}>
+        <CountBadge value={childrenCount} size="md" tone="surface" />
+      </span>
     )}
   </div>
 );
@@ -308,7 +295,7 @@ const UnifiedBrandedIcon = ({
             right: 0,
             width: 16,
           height: 16,
-          borderRadius: '50%',
+          borderRadius: 4,
           background: 'var(--po-warning)',
           border: '2px solid var(--po-panel)',
           display: 'flex',

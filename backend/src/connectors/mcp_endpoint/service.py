@@ -1,7 +1,7 @@
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from src.connectors.mcp_endpoint.repository import McpEndpointRepository
-from src.connectors.mcp_endpoint.schemas import McpAccessItem, McpToolItem
+from src.connectors.mcp_endpoint.schemas import McpAccessItem
 
 
 class McpEndpointService:
@@ -34,7 +34,8 @@ class McpEndpointService:
         path: Optional[str] = None,
         description: Optional[str] = None,
         accesses: Optional[List[McpAccessItem]] = None,
-        tools_config: Optional[List[McpToolItem]] = None,
+        tools_config: Optional[Any] = None,
+        created_by: Optional[str] = None,
     ) -> dict:
         return self._repo.create(
             project_id=project_id,
@@ -42,7 +43,8 @@ class McpEndpointService:
             path=path,
             description=description,
             accesses=[a.model_dump() for a in accesses] if accesses else [],
-            tools_config=[t.model_dump() for t in tools_config] if tools_config else [],
+            tools_config=_dump_tools_config(tools_config),
+            created_by=created_by,
         )
 
     def update_endpoint(self, endpoint_id: str, **kwargs) -> Optional[dict]:
@@ -51,7 +53,7 @@ class McpEndpointService:
         if accesses is not None:
             kwargs["accesses"] = [a.model_dump() if hasattr(a, "model_dump") else a for a in accesses]
         if tools_config is not None:
-            kwargs["tools_config"] = [t.model_dump() if hasattr(t, "model_dump") else t for t in tools_config]
+            kwargs["tools_config"] = _dump_tools_config(tools_config)
         return self._repo.update(endpoint_id, **kwargs)
 
     def delete_endpoint(self, endpoint_id: str) -> bool:
@@ -62,3 +64,13 @@ class McpEndpointService:
 
     def verify_access(self, endpoint_id: str, user_id: str) -> bool:
         return self._repo.verify_access(endpoint_id, user_id)
+
+
+def _dump_tools_config(value: Any) -> Any:
+    if value is None:
+        return {}
+    if hasattr(value, "model_dump"):
+        return value.model_dump()
+    if isinstance(value, list):
+        return [item.model_dump() if hasattr(item, "model_dump") else item for item in value]
+    return value

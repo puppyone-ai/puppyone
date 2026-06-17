@@ -61,7 +61,10 @@ import { matchScopeForPath } from '@/lib/repoApi';
 
 // Extracted hooks
 import { usePathResolver } from '../hooks/usePathResolver';
-import { useMarkdownSave } from '../hooks/useMarkdownSave';
+import {
+  useEditorSaveSession,
+  type EditorSaveNodeType,
+} from '@/lib/hooks/useEditorSaveSession';
 import { useFileImport } from '../hooks/useFileImport';
 import { useNodeActions } from '../hooks/useNodeActions';
 import { useGridSelection } from '../hooks/useGridSelection';
@@ -85,7 +88,8 @@ import { useDataCreateFlow } from '../hooks/useDataCreateFlow';
 import { useAccessPointEntries } from '../hooks/useAccessPointEntries';
 import { PageLoading, ProjectPageLoadingShell, SkeletonBlock } from '@/components/loading';
 import { ActivityIconButton } from '@/components/ActivityIconButton';
-import { resolveFormat } from '@/lib/fileFormats';
+import { writeFile } from '@/lib/contentTreeApi';
+import { isTextLikeCategory, resolveFormat } from '@/lib/fileFormats';
 import { FileViewerHeaderActions } from '../components/FileViewerHeaderActions';
 import type { HtmlArtifactMode } from '@/components/editors/html/HtmlArtifactPreview';
 
@@ -310,7 +314,7 @@ export default function DataPage({ params }: DataPageProps) {
     activeMimeType: resolvedActiveMimeType,
     // `textContent` here is the **server-side** value (any text-like
     // file: markdown, code, yaml, csv, plaintext). Fed into
-    // `useMarkdownSave` as the dirty-check baseline. The page-level
+    // the editor save session as the dirty-check baseline. The page-level
     // editor draft (used by EditorArea) comes from the save hook
     // below — it may differ from the server value when the user has
     // unsaved markdown edits. Non-markdown text formats are
@@ -368,25 +372,29 @@ export default function DataPage({ params }: DataPageProps) {
     return resolveFormat({ name: activeNodeId, mimeType: activeMimeType });
   }, [activeNodeId, activeNodeType, activeMimeType]);
 
-  const activeTextSaveNodeType = activeFormat?.defaultViewer === 'plain-text' ? 'file' : 'markdown';
+  const activeTextSaveNodeType: EditorSaveNodeType =
+    activeFormat?.id === 'markdown' ? 'markdown'
+    : activeFormat?.id === 'json' ? 'json'
+    : 'file';
 
   // Manual-save hook: editor edits stay local until the user hits
   // Cmd+S / clicks Save. Replaces the older 1.5s-debounced
   // auto-save which generated 100+ commits per editing session.
   // CLI / MUT / external writes still go through their own code
   // paths and are unaffected.
-  const {
-    markdownContent: editorTextDraft,
-    handleMarkdownChange: onEditorTextChange,
-    markdownSaveStatus: editorSaveStatus,
-    save: saveEditor,
-    dirty: editorDirty,
-  } = useMarkdownSave({
+  const editorSession = useEditorSaveSession({
     projectId,
-    activeNodePath: activeNodeId,
+    filePath: activeNodeId,
     serverContent: serverTextContent,
     nodeType: activeTextSaveNodeType,
   });
+  const {
+    content: editorTextDraft,
+    onChange: onEditorTextChange,
+    status: editorSaveStatus,
+    save: saveEditor,
+    dirty: editorDirty,
+  } = editorSession;
 
   // ── Cmd+S / Ctrl+S → save the active markdown editor ──────────
   //
@@ -412,13 +420,13 @@ export default function DataPage({ params }: DataPageProps) {
       // Without this guard we'd swallow Cmd+S on every page in the
       // app, which is hostile when the user is just trying to save
       // the browser tab (e.g. a long form they typed into).
-      if (!editorDirty) return;
+      if (!editorDirty || editorTarget !== null) return;
       event.preventDefault();
       void saveEditor();
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [saveEditor, editorDirty]);
+  }, [saveEditor, editorDirty, editorTarget]);
 
   // ── beforeunload guard for unsaved markdown edits ─────────────
   //
@@ -540,6 +548,15 @@ export default function DataPage({ params }: DataPageProps) {
     const url = typeHint ? `${basePath}?type=${encodeURIComponent(typeHint)}` : basePath;
     const nextPathKey = nextPath.join('/');
 
+    if (
+      nextPathKey !== routePathKey &&
+      editorDirty &&
+      typeof window !== 'undefined' &&
+      !window.confirm('You have unsaved changes. Leave this file and discard the local draft?')
+    ) {
+      return;
+    }
+
     if (typeHint === 'folder') {
       setPendingFolderNavigation({
         path: nextPathKey || null,
@@ -553,7 +570,7 @@ export default function DataPage({ params }: DataPageProps) {
     startRouteTransition(() => {
       router.push(url);
     });
-  }, [projectId, router, startRouteTransition]);
+  }, [editorDirty, projectId, routePathKey, router, startRouteTransition]);
 
   const refreshRepoAndAgents = useCallback(async () => {
     await mutateRepo();
@@ -1005,6 +1022,10 @@ export default function DataPage({ params }: DataPageProps) {
     return accessPoints.map(ap => ({ path: ap.path, permissions: ap.permissions }));
   }, [accessPoints]);
 
+  const activeUsesEditorSaveSession = Boolean(
+    activeFormat?.editable && isTextLikeCategory(activeFormat),
+  );
+
   const headerActionSlot = activeFormat ? (
     <FileViewerHeaderActions
       projectId={activeProject?.id ?? projectId}
@@ -1013,7 +1034,7 @@ export default function DataPage({ params }: DataPageProps) {
       editable={activeFormat.editable}
       markdownViewMode={markdownViewMode}
       onMarkdownViewModeChange={setMarkdownViewMode}
-      saveStatus={activeFormat.editable && (activeFormat.defaultViewer === 'markdown-editor' || activeFormat.defaultViewer === 'plain-text') ? editorSaveStatus : 'clean'}
+      saveStatus={activeUsesEditorSaveSession ? editorSaveStatus : 'clean'}
       onSave={saveEditor}
       editorType={editorType}
       onEditorTypeChange={setEditorType}
@@ -1487,10 +1508,27 @@ export default function DataPage({ params }: DataPageProps) {
           repoIdentity={repoIdentity}
           onClose={closeRightPanel}
           onEditorClose={() => { setEditorTarget(null); setIsEditorFullScreen(false); }}
-          onEditorSave={(newValue) => {
-            console.log('Save document:', editorTarget?.path, newValue);
-            setEditorTarget(null);
-            setIsEditorFullScreen(false);
+          onEditorSave={async (newValue) => {
+            const target = editorTarget;
+            if (!target?.path) return;
+            const lower = target.path.toLowerCase();
+            const nodeType =
+              lower.endsWith('.md') || lower.endsWith('.markdown') || lower.endsWith('.mdx')
+                ? 'markdown'
+                : lower.endsWith('.json') || lower.endsWith('.json5') || lower.endsWith('.jsonc')
+                  ? 'json'
+                  : 'file';
+            try {
+              await writeFile(projectId, target.path, newValue, nodeType);
+              setEditorTarget({ path: target.path, value: newValue });
+              refreshCurrentNodes();
+            } catch (e) {
+              nodeActions.showToast?.(
+                `Save failed: ${e instanceof Error ? e.message : String(e)}`,
+                'error',
+              );
+              throw e;
+            }
           }}
           onToggleEditorFullScreen={() => setIsEditorFullScreen(!isEditorFullScreen)}
           onRollbackComplete={() => { refreshTable(); refreshCurrentNodes(); }}

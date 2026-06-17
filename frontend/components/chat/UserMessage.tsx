@@ -1,5 +1,6 @@
 import { Copy, Check } from 'lucide-react';
-import { CSSProperties, useState, useEffect } from 'react';
+import { CSSProperties, useState } from 'react';
+import { Dots } from '@/components/loading';
 import MarkdownRenderer from './MarkdownRenderer';
 
 // Types
@@ -15,19 +16,6 @@ export interface UserMessageProps {
   isTyping?: boolean;
 }
 
-const StyleManager = {
-  injected: new Set<string>(),
-  inject(id: string, css: string) {
-    if (typeof document === 'undefined') return;
-    if (this.injected.has(id)) return;
-    const style = document.createElement('style');
-    style.id = id;
-    style.textContent = css;
-    document.head.appendChild(style);
-    this.injected.add(id);
-  },
-};
-
 export default function UserMessage({
   message,
   showAvatar = true,
@@ -36,18 +24,6 @@ export default function UserMessage({
 }: UserMessageProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    StyleManager.inject(
-      'puppychat-pulse-animation',
-      `
-      @keyframes pulse {
-        0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
-        40% { transform: scale(1); opacity: 1; }
-      }
-    `
-    );
-  }, []);
 
   const handleCopy = async () => {
     try {
@@ -171,15 +147,8 @@ export default function UserMessage({
     typingDots: {
       display: 'flex',
       alignItems: 'center',
-      gap: '8px',
+      justifyContent: 'center',
       height: '20px',
-    },
-    dot: {
-      width: '8px',
-      height: '8px',
-      backgroundColor: 'var(--po-accent)',
-      borderRadius: '50%',
-      animation: 'pulse 1s infinite',
     },
   };
 
@@ -193,9 +162,7 @@ export default function UserMessage({
         <div style={styles.bubble}>
           {isTyping ? (
             <div style={styles.typingDots}>
-              <div style={{ ...styles.dot, animationDelay: '0s' }}></div>
-              <div style={{ ...styles.dot, animationDelay: '0.3s' }}></div>
-              <div style={{ ...styles.dot, animationDelay: '0.6s' }}></div>
+              <Dots size="sm" tone="info" ariaLabel="Typing" />
             </div>
           ) : (
             <div style={styles.content}>

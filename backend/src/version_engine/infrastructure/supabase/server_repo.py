@@ -287,6 +287,32 @@ class PuppyOneServerRepo:
     def record_audit(self, event_type: str, agent_id: str, detail: dict) -> None:
         self.audit.record(event_type, agent_id, detail)
 
+    def record_scope_sync(
+        self,
+        *,
+        scope_path: str,
+        committed_commit_id: str,
+        current_head_at_start: str,
+        source_commit_id: str,
+        actor: str,
+        source_channel: str = "scope-sync",
+    ) -> None:
+        """Record a derived scope-view sync (a non-source scope head advanced
+        by project-root projection) as an auditable transaction + audit row.
+
+        Delegates to the history backend; a no-op if the backend predates this
+        method. Best-effort — the scope head has already advanced."""
+        fn = getattr(self.history, "record_scope_sync", None)
+        if callable(fn):
+            fn(
+                scope_path=scope_path,
+                committed_commit_id=committed_commit_id,
+                current_head_at_start=current_head_at_start,
+                source_commit_id=source_commit_id,
+                actor=actor,
+                source_channel=source_channel,
+            )
+
     # ── Lock (no-op — CAS replaces locks) ──
 
     def acquire_lock(self, scope_id: str) -> bool:

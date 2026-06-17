@@ -202,7 +202,7 @@ async def test_k7_pending_resolve_produces_clean_audit_chain(
 
     repo_manager.transaction_ledger = FakeLedger()
 
-    import src.version_engine.write_engine.engine as engine_mod
+    import src.version_engine.write_engine.submission_writer as submission_writer_mod
 
     # 1) Make the policy selector force manual_review so the next non-Git
     # submission lands pending. Git remotes reject stale/non-fast-forward
@@ -210,7 +210,7 @@ async def test_k7_pending_resolve_produces_clean_audit_chain(
     # the pending-resolution ledger.
     from src.version_engine.domain.conflicts import ConflictPolicyDecision
     monkeypatch.setattr(
-        engine_mod, "select_conflict_policy",
+        submission_writer_mod, "select_conflict_policy",
         lambda **kw: ConflictPolicyDecision(policy="manual_review", reason="forced"),
     )
 

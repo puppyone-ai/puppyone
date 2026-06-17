@@ -6,6 +6,7 @@ from src.infra.scheduler.jobs.agent_job import execute_agent_task
 from src.infra.scheduler.jobs.object_gc_job import process_git_object_gc
 from src.infra.scheduler.jobs.object_integrity_job import process_object_integrity_scan
 from src.infra.scheduler.jobs.sync_job import execute_sync_pull
+from src.infra.scheduler.jobs.sync_run_reaper import process_sync_run_reaper
 from src.infra.scheduler.jobs.version_outbox_job import process_version_outbox
 
 __all__ = [
@@ -13,8 +14,8 @@ __all__ = [
     "execute_sync_pull",
     "process_git_object_gc",
     "process_object_integrity_scan",
+    "process_sync_run_reaper",
     "process_version_outbox",
 ]
-
 
 

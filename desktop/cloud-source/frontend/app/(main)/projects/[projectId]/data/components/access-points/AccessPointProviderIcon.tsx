@@ -1,6 +1,7 @@
 'use client';
 
 import type { SyncEndpointInfo } from '../explorer';
+import { resolveProviderIconUrl } from '@/lib/providerIcons';
 import type { ProviderIconLookup } from './types';
 
 export function StatusDot({ status, borderColor = 'var(--po-panel)' }: { status: string; borderColor?: string }) {
@@ -80,8 +81,13 @@ export function AccessPointProviderIcon({
   if (ep.provider === 'filesystem') return <FolderMiniIcon />;
 
   const providerIcon = providerIcons[ep.provider];
-  if (providerIcon?.iconUrl) {
-    return <img src={providerIcon.iconUrl} alt="" width={16} height={16} style={{ display: 'block', borderRadius: 2 }} />;
+  const iconUrl = resolveProviderIconUrl({
+    provider: ep.provider,
+    icon: providerIcon?.icon,
+    iconUrl: providerIcon?.iconUrl,
+  });
+  if (iconUrl) {
+    return <img src={iconUrl} alt="" width={16} height={16} style={{ display: 'block', borderRadius: 2 }} />;
   }
 
   return providerIcon?.icon ? <span style={{ fontSize: 14, lineHeight: 1 }}>{providerIcon.icon}</span> : <DefaultProviderIcon />;

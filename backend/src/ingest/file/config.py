@@ -44,10 +44,20 @@ class ETLConfig(BaseSettings):
         default=".etl_rules", description="Directory for ETL rules"
     )
 
-    # Redis / ARQ settings (new executor)
+    # Redis / ARQ settings (new executor).
+    #
+    # IMPORTANT: BOTH the file/ETL worker AND the import worker connect through
+    # this single URL — they are separated by ARQ *queue name*
+    # (``etl_arq_queue_name`` vs ``import_arq_queue_name``), NOT by separate
+    # Redis instances. There is deliberately no ``import_redis_url`` field: a
+    # stray ``IMPORT_REDIS_URL`` env var is NOT read by the code and must not be
+    # relied on. The api enqueues and both workers consume on THIS Redis, so all
+    # three services (api / file_worker / import_worker) must point ETL_REDIS_URL
+    # at the same instance.
     etl_redis_url: str = Field(
         default="redis://localhost:6379/0",
-        description="Redis connection URL for ETL runtime state and ARQ",
+        description="Redis URL for ARQ (shared by ETL + import workers, "
+                    "separated by queue name; IMPORT_REDIS_URL is not used)",
     )
 
     etl_redis_prefix: str = Field(
@@ -70,8 +80,16 @@ class ETLConfig(BaseSettings):
         default="imports", description="ARQ queue name for one-time import jobs"
     )
 
+    sync_arq_queue_name: str = Field(
+        default="syncs", description="ARQ queue name for durable connection sync jobs"
+    )
+
     import_task_timeout: int = Field(
         default=900, description="Import job timeout in seconds"
+    )
+
+    sync_task_timeout: int = Field(
+        default=900, description="Sync job timeout in seconds"
     )
 
     etl_ocr_max_attempts: int = Field(

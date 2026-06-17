@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/supabase/SupabaseAuthProvider';
-import { post } from '@/lib/apiClient';
+import { SkeletonBlock } from '@/components/loading';
+import { get } from '@/lib/apiClient';
+import { isGitRemoteProvider } from '@/lib/accessProviderRegistry';
 import { uploadFiles as uploadFilesApi } from '@/lib/uploadApi';
 import {
   addPendingTasks,
@@ -46,8 +47,6 @@ import type { DashboardConnection } from '../lib/types';
 //   │  $ git push origin main         [Copy]  │     copy-only card
 //   └─────────────────────────────────────────┘
 //
-//        Need a different source? → /access
-//
 // We do NOT make the user "choose" between drop and CLI — both paths
 // are visible and ready at all times.  The dropzone is the dominant
 // affordance (fits 95% of users); the git block is a quiet, always-
@@ -55,27 +54,28 @@ import type { DashboardConnection } from '../lib/types';
 // (drop succeeds, or `git push` lands data) flips `nodes.total > 0` and
 // the panel auto-retires.
 //
-// CLI bootstrap policy — EAGER on first panel mount.  The bootstrap
-// endpoint is server-side idempotent: `(project_id, '/')` returns the
-// existing AP if one exists, else mints a new one.  We trade one
-// sometimes-unused root filesystem AP per project (visible in /access,
-// deletable from there) for an instant-copyable command experience —
-// the previous "click Enable to reveal the commands" pattern collapsed
-// the panel mid-onboarding by flipping the trigger condition (now fixed,
-// but the click itself was unnecessary friction either way).
+// Git credentials come from the built-in root Git Remote access surface.
+// This component no longer creates provider rows just to show commands:
+// if the root Git Remote is not available, the full /access page owns
+// recovery and credential management.
 // =====================================================================
+
+interface AccessConnection {
+  id: string;
+  provider: string;
+  path: string | null;
+  access_key: string | null;
+}
 
 interface GetStartedPanelProps {
   projectId: string;
   /** Current AP list from the dashboard payload.  We look here first
-   *  for an already-bootstrapped root filesystem AP — if found, we
-   *  skip the bootstrap call and seed the CLI card from server truth.
-   *  This makes the panel refresh-safe and tab-switch-safe. */
+   *  for the built-in root Git Remote AP so the CLI card can seed from
+   *  server truth. */
   connections: DashboardConnection[];
-  /** Called after files upload starts and after a CLI AP is created /
-   *  refreshed.  Wire this to SWR `mutate` of the dashboard + tree so
-   *  the empty state collapses back into the regular canvas the
-   *  moment data shows up. */
+  /** Called after files upload starts.  Wire this to SWR `mutate` of
+   *  the dashboard + tree so the empty state collapses back into the
+   *  regular canvas the moment data shows up. */
   onChanged?: () => void;
 }
 
@@ -84,7 +84,6 @@ export function GetStartedPanel({
   connections,
   onChanged,
 }: GetStartedPanelProps) {
-  const router = useRouter();
   const { session } = useAuth();
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -284,36 +283,8 @@ export function GetStartedPanel({
       />
 
       <div style={{ marginTop: 32 }}>
-        <GitSyncBlock projectId={projectId} connections={connections} onReady={onChanged} />
+        <GitSyncBlock projectId={projectId} connections={connections} />
       </div>
-
-      {/* Demoted escape hatch — left-aligned, body text size, no
-          decoration.  One sentence, one role: "if neither path fits,
-          here's where the full provider catalogue lives." */}
-      <button
-        onClick={() => router.push(`/projects/${projectId}/access`)}
-        style={{
-          marginTop: 24,
-          alignSelf: 'flex-start',
-          background: 'none',
-          border: 'none',
-          height: 30,
-          padding: 0,
-          color: T.text3,
-          fontSize: 13,
-          cursor: 'pointer',
-          fontFamily: T.fontSans,
-          transition: `color 200ms ${T.ease}`,
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.color = T.text1;
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.color = T.text3;
-        }}
-      >
-        Need a different source? Add an integration →
-      </button>
 
       {/* Hidden inputs — clicked programmatically from DropFilesCard. */}
       <input
@@ -514,57 +485,39 @@ function DropFilesCard({
 
 // =====================================================================
 // GitSyncBlock — secondary, subordinate surface.  Always-on, always-
-// copyable terminal block.  No CTA, no Enable button — the AP is
-// silently bootstrapped on mount (server-side idempotent) so the
-// commands populate with the real access key as soon as the network
-// round-trip resolves (the key is wired into the git-credentials helper
-// line of the connect script).
+// copyable terminal block.  No CTA and no hidden provider creation:
+// commands populate from the built-in Git Remote access surface.
 //
 // State derives from server truth (`connections` prop).  If the
-// dashboard already lists a root filesystem AP with an access_key, we
-// skip the bootstrap call and seed the commands from that.  Otherwise
-// we fire bootstrap once on mount and capture the returned key.
+// dashboard already lists a root Git Remote AP with an access_key, we
+// seed the commands from that. Otherwise we read the canonical access
+// list API and show an error if credentials are unavailable.
 // =====================================================================
 
 function GitSyncBlock({
   projectId,
   connections,
-  onReady,
 }: {
   projectId: string;
   connections: DashboardConnection[];
-  onReady?: () => void;
 }) {
-  // Look for an already-bootstrapped root filesystem AP in dashboard
-  // truth.  We accept either '/' or null path as "root scope" — older
-  // rows in the wild have null.  This makes the block instantly ready
-  // on refresh / tab switch / second-machine open.
-  //
-  // CRITICAL: the dashboard endpoint masks access_key for safety
-  // (see backend dashboard_router._mask_key — turns
-  // `cli_<43chars>` into `cli_<prefix>...<last4>`).  That masked
-  // string is fine to *display* but useless to *paste into a
-  // terminal*: the literal `...` makes the key look like
-  // `cli_...R6CA` which the backend can't resolve, so
-  // the connect command returns 401 / not found.  Treat the masked form
-  // as "no seed" so the bootstrap effect below fires and the
-  // bootstrap endpoint (idempotent — returns the existing AP's
-  // real, full access_key) gives us a paste-runnable command.
+  // Look for the built-in root Git Remote access surface in dashboard
+  // truth.  We accept '/' / null / '' as "root scope" because older
+  // rows may use different root path encodings.
   const seededKey = useMemo(() => {
-    const fs = connections.find(
+    const gitRemote = connections.find(
       (c) =>
-        c.provider === 'filesystem' &&
+        isGitRemoteProvider(c.provider) &&
         (c.path === '/' || c.path === null || c.path === '') &&
         !!c.access_key,
     );
-    const raw = fs?.access_key ?? null;
+    const raw = gitRemote?.access_key ?? null;
     if (raw && raw.includes('...')) return null;
     return raw;
   }, [connections]);
 
   const [accessKey, setAccessKey] = useState<string | null>(seededKey);
-  const [bootstrapError, setBootstrapError] = useState<string | null>(null);
-  const bootstrapTriggered = useRef(false);
+  const [credentialError, setCredentialError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
 
   // Keep `accessKey` in sync with server truth — if connections updates
@@ -574,53 +527,45 @@ function GitSyncBlock({
     if (seededKey && seededKey !== accessKey) setAccessKey(seededKey);
   }, [seededKey, accessKey]);
 
-  // Eager bootstrap on mount — fire-and-forget.  Idempotent on backend
-  // so calling it when an AP already exists just returns the same key
-  // (we'd already have it from `seededKey` in that case, but the call
-  // is cheap insurance against the edge case where dashboard hasn't
-  // surfaced the AP yet for a brand-new project).
+  // Dashboard usually carries the full root Git Remote key.  If it does
+  // not, fall back to the access list API, which reads the canonical
+  // access_surfaces rows.  This is a lookup only; it does not create an
+  // old provider row.
   useEffect(() => {
-    if (accessKey || bootstrapTriggered.current) return;
-    bootstrapTriggered.current = true;
-
+    if (accessKey) return;
     let cancelled = false;
     (async () => {
       try {
-        const result = await post<{
-          access_point_id: string;
-          access_key: string;
-          path: string;
-          project_id: string;
-        }>(
-          `/api/v1/filesystem/bootstrap?project_id=${encodeURIComponent(
-            projectId,
-          )}&path=${encodeURIComponent('/')}`,
+        const rows = await get<AccessConnection[]>(
+          `/api/v1/access/?project_id=${encodeURIComponent(projectId)}&provider=git_remote`,
         );
         if (cancelled) return;
-        setAccessKey(result.access_key);
-        setBootstrapError(null);
-        // Nudge SWR so the dashboard re-fetches and any AP-list UI
-        // elsewhere (e.g. /access) reflects the new entry promptly.
-        // Important: this does NOT collapse the panel — the trigger
-        // condition is `nodes.total > 0`, not `connections > 0`.
-        onReady?.();
+        const root = rows.find(
+          (c) =>
+            isGitRemoteProvider(c.provider) &&
+            (c.path === '/' || c.path === null || c.path === '') &&
+            !!c.access_key,
+        );
+        const raw = root?.access_key ?? null;
+        if (raw && !raw.includes('...')) {
+          setAccessKey(raw);
+          setCredentialError(null);
+        } else {
+          setCredentialError('Git Remote credentials are not available yet.');
+        }
       } catch (err) {
         if (cancelled) return;
-        console.warn('Filesystem bootstrap failed:', err);
-        setBootstrapError(
-          err instanceof Error ? err.message : 'CLI commands unavailable',
+        console.warn('Git Remote credential lookup failed:', err);
+        setCredentialError(
+          err instanceof Error ? err.message : 'Git Remote credentials unavailable',
         );
-        // Reset so a future render can retry (e.g. user comes back
-        // online).  We don't auto-retry on a timer here — the dropzone
-        // path is fully functional regardless.
-        bootstrapTriggered.current = false;
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [accessKey, projectId, onReady]);
+  }, [accessKey, projectId]);
 
   // The Git remote endpoint that backs this access point. Stock
   // `git clone`, `git push`, and `git pull --ff-only` all talk to it
@@ -716,7 +661,7 @@ function GitSyncBlock({
             onCopy={() => copy(connectCmd, 'connect')}
             wrap
           />
-        ) : bootstrapError ? (
+        ) : credentialError ? (
           <CmdLineError onRetry={() => location.reload()} />
         ) : (
           <CmdLineSkeleton />
@@ -759,7 +704,7 @@ function ProseLabel({ children }: { children: React.ReactNode }) {
 }
 
 // =====================================================================
-// CmdLineSkeleton — placeholder rendered while bootstrap is in flight.
+// CmdLineSkeleton — placeholder rendered while credentials are loading.
 // Uses an animated grey bar instead of any text — a user can't
 // accidentally copy a skeleton.  No Copy button (don't even tempt the
 // click).  Layout matches `CmdLine` so the row doesn't jump when the
@@ -789,24 +734,16 @@ function CmdLineSkeleton() {
       >
         $
       </span>
-      <div
-        className="animate-pulse"
-        style={{
-          flex: 1,
-          height: 12,
-          background: 'var(--po-border-subtle)',
-          borderRadius: 2,
-        }}
-      />
+      <SkeletonBlock width="100%" height={12} radius={2} style={{ flex: 1 }} />
     </div>
   );
 }
 
 // =====================================================================
-// CmdLineError — bootstrap failed.  Prose only, no `$`, no Copy button,
+// CmdLineError — credential lookup failed.  Prose only, no `$`, no Copy button,
 // nothing that could be mistaken for a runnable command.  Includes a
 // retry that simply reloads the page (rebuilds the whole component
-// tree, so the bootstrap re-fires from scratch on a fresh useEffect).
+// tree, so the lookup re-fires from scratch on a fresh useEffect).
 // =====================================================================
 
 function CmdLineError({ onRetry }: { onRetry: () => void }) {
@@ -822,7 +759,7 @@ function CmdLineError({ onRetry }: { onRetry: () => void }) {
         lineHeight: 1.5,
       }}
     >
-      Couldn’t generate credentials.{' '}
+      Couldn’t load Git Remote credentials.{' '}
       <button
         onClick={onRetry}
         style={{

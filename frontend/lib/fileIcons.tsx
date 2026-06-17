@@ -1,4 +1,5 @@
 import React from 'react';
+import { CountBadge } from '@/components/ui/CountBadge';
 import { TreeDisclosureMarker } from '@/components/ui/TreeDisclosureMarker';
 
 export type FileVisualKind =
@@ -353,25 +354,9 @@ export function FilePreviewIcon({
       <div style={{ position: 'relative', width: size, height: size, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <img src="/icons/folder.svg" alt="" width={size} height={size} style={{ display: 'block' }} />
         {childrenCount != null && childrenCount > 0 && (
-          <div
-            style={{
-              position: 'absolute',
-              bottom: 0,
-              right: -4,
-              minWidth: 18,
-              padding: '1px 5px',
-              borderRadius: 8,
-              border: '1px solid var(--po-border)',
-              background: 'var(--po-panel-raised)',
-              color: 'var(--po-text-muted)',
-              fontSize: 10,
-              fontWeight: 600,
-              lineHeight: '14px',
-              textAlign: 'center',
-            }}
-          >
-            {childrenCount}
-          </div>
+          <span style={{ position: 'absolute', bottom: 0, right: -4 }}>
+            <CountBadge value={childrenCount} size="md" tone="surface" />
+          </span>
         )}
       </div>
     );

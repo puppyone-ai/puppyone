@@ -1,9 +1,8 @@
 """
-MCP V3 Router
+MCP runtime gateway.
 
-MCP API endpoints based on the Agent architecture:
-1. /mcp/agents/{agent_id}/... - Agent MCP configuration management
-2. /mcp/proxy/... - Proxy to MCP Server (recommended: Header X-MCP-API-Key, with legacy path key fallback)
+Agent-specific MCP management remains under /mcp/agents/*, while /mcp/proxy
+is the shared public gateway for Agent and standalone MCP endpoint keys.
 """
 
 from __future__ import annotations
@@ -11,7 +10,7 @@ from __future__ import annotations
 import asyncio
 from typing import List
 
-from fastapi import APIRouter, Depends, Query, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import StreamingResponse
 from starlette.background import BackgroundTask
 from starlette.requests import ClientDisconnect
@@ -22,9 +21,8 @@ from src.platform.auth.models import CurrentUser
 from src.common_schemas import ApiResponse
 from src.config import settings
 from src.exceptions import NotFoundException, ErrorCode
-from src.connectors.agent.config.models import Agent
 
-from .dependencies import get_mcp_v3_service, get_agent_by_mcp_api_key
+from .dependencies import McpRuntimePrincipal, get_mcp_v3_service, get_mcp_runtime_principal
 from .service import McpV3Service
 from .schemas import (
     McpBoundToolOut,
@@ -35,6 +33,49 @@ from .schemas import (
 
 
 router = APIRouter(prefix="/mcp", tags=["mcp"])
+
+
+_MCP_PROXY_FORWARD_HEADERS = {
+    "accept",
+    "content-type",
+    "mcp-protocol-version",
+    "mcp-session-id",
+    "last-event-id",
+    "cache-control",
+}
+
+
+def _build_mcp_proxy_headers(request: Request, api_key: str) -> dict[str, str]:
+    """Forward only MCP protocol headers plus the internal runtime key."""
+    headers: dict[str, str] = {}
+    for name, value in request.headers.items():
+        lower_name = name.lower()
+        if lower_name in _MCP_PROXY_FORWARD_HEADERS or lower_name.startswith("mcp-"):
+            headers[name] = value
+    headers["X-API-KEY"] = api_key
+    return headers
+
+
+def _validate_mcp_proxy_origin(request: Request) -> None:
+    """Validate browser Origin for the public MCP streamable HTTP gateway."""
+    origin = (request.headers.get("origin") or "").rstrip("/")
+    if not origin:
+        return
+
+    allowed_hosts = settings.ALLOWED_HOSTS or []
+    if "*" in allowed_hosts:
+        return
+
+    allowed_origins = {
+        host.rstrip("/")
+        for host in allowed_hosts
+        if host and host != "*"
+    }
+    if origin not in allowed_origins:
+        raise HTTPException(
+            status_code=403,
+            detail="Origin is not allowed for MCP proxy",
+        )
 
 
 # ============================================
@@ -163,60 +204,39 @@ def unbind_tool(
 
 
 @router.api_route(
-    "/proxy/{api_key}",
-    methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"],
-    summary="MCP Server proxy route (Legacy)",
-    description="Legacy route: pass mcp_api_key via URL path (migration compatibility only).",
-    include_in_schema=False,
-)
-@router.api_route(
-    "/proxy/{api_key}/{path:path}",
-    methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"],
-    summary="MCP Server proxy route (Legacy)",
-    description="Legacy route: pass mcp_api_key via URL path (migration compatibility only).",
-    include_in_schema=False,
-)
-@router.api_route(
     "/proxy",
     methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"],
-    summary="MCP Server proxy route (Recommended)",
-    description="Forward requests to MCP Server. Provide the key via `X-MCP-API-Key` header.",
+    summary="MCP Server proxy route",
+    description="Forward requests to MCP Server. Provide the key via `Authorization: Bearer <mcp_api_key>`.",
     include_in_schema=True,
 )
 @router.api_route(
     "/proxy/{path:path}",
     methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"],
-    summary="MCP Server proxy route (Recommended)",
-    description="Forward requests to MCP Server. Provide the key via `X-MCP-API-Key` header.",
+    summary="MCP Server proxy route",
+    description="Forward requests to MCP Server. Provide the key via `Authorization: Bearer <mcp_api_key>`.",
     include_in_schema=True,
 )
 async def proxy_mcp_server(
     request: Request,
     path: str = "",
-    agent: Agent = Depends(get_agent_by_mcp_api_key),
+    principal: McpRuntimePrincipal = Depends(get_mcp_runtime_principal),
 ):
     """
     Proxy requests to MCP Server.
 
-    Recommended: pass the key via `X-MCP-API-Key` header.
-    Also compatible with legacy route `/mcp/proxy/{api_key}` (migration period).
+    Public clients pass the key via `Authorization: Bearer <mcp_api_key>`.
+    The proxy validates that key and forwards it to the internal MCP service
+    as `X-API-KEY`.
     """
+    _validate_mcp_proxy_origin(request)
+
     # 1. Build MCP Server URL
     mcp_server_url = (settings.MCP_SERVER_URL or "").rstrip("/")
     if not mcp_server_url:
         raise ValueError("MCP_SERVER_URL should not be empty.")
 
     normalized_path = (path or "").lstrip("/")
-    legacy_api_key = request.path_params.get("api_key")
-    # When the request matches the legacy route but also uses the Header key (recommended),
-    # we need to restore the legacy api_key path segment as part of the real downstream path.
-    if legacy_api_key and request.headers.get("X-MCP-API-Key"):
-        normalized_path = (
-            f"{legacy_api_key}/{normalized_path}"
-            if normalized_path
-            else str(legacy_api_key)
-        )
-
     if normalized_path in ("", "mcp"):
         downstream_path = "/mcp/"
     elif normalized_path.startswith("mcp/"):
@@ -235,12 +255,7 @@ async def proxy_mcp_server(
             return Response(status_code=204)
 
     # 3. Prepare forwarding request headers
-    headers = dict(request.headers)
-    headers.pop("host", None)
-    headers.pop("content-length", None)
-    headers.pop("x-mcp-api-key", None)
-    headers.pop("X-MCP-API-Key", None)
-    headers["X-API-KEY"] = agent.mcp_api_key  # Use the Agent's mcp_api_key
+    headers = _build_mcp_proxy_headers(request, principal.api_key)
 
     # 4. Query parameters
     query_params = dict(request.query_params)

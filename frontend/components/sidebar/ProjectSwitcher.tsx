@@ -34,6 +34,12 @@ export type ProjectSwitcherProps = {
   // glyph so org view renders the same blue letter-chip as project view.
   globalLabel?: string;
   identityLoading?: boolean;
+  // Organization switcher (shown only when the user belongs to >1 org).
+  // Lets a multi-org user switch the active organization from the same
+  // dropdown rather than being stuck in whichever org loaded first.
+  organizations?: ReadonlyArray<{ id: string; name: string }>;
+  currentOrgId?: string | null;
+  onSwitchOrg?: (orgId: string) => void;
 };
 
 export function ProjectSwitcher({
@@ -46,6 +52,9 @@ export function ProjectSwitcher({
   isCollapsed = false,
   globalLabel,
   identityLoading = false,
+  organizations,
+  currentOrgId,
+  onSwitchOrg,
 }: ProjectSwitcherProps) {
   const t = useTranslations('sidebar');
   const [isOpen, setIsOpen] = useState(false);
@@ -113,11 +122,6 @@ export function ProjectSwitcher({
     return () => document.removeEventListener('keydown', handleEscape);
   }, [isOpen]);
 
-  if (isCollapsed) {
-    // Collapsed state - just show logo that expands sidebar
-    return null;
-  }
-
   const displayName = currentProject?.name ?? globalLabel ?? 'puppyone';
   const isInProject = currentProject !== null;
 
@@ -135,7 +139,7 @@ export function ProjectSwitcher({
   ).toUpperCase();
 
   return (
-    <div className='relative flex-1 min-w-0'>
+    <div className={clsx('relative min-w-0', isCollapsed ? 'w-8 flex-none' : 'flex-1')}>
       {/* Trigger Button — uses the exact same row metrics as the
           dropdown rows below and the SidebarLayout nav rows (13px
           text / gap-2.5 / h-8 / rounded-[5px] / white/[0.03] hover /
@@ -145,8 +149,15 @@ export function ProjectSwitcher({
         ref={buttonRef}
         type='button'
         onClick={() => setIsOpen(!isOpen)}
+        title={isCollapsed ? displayName : undefined}
+        aria-label={isCollapsed ? displayName : undefined}
+        aria-haspopup='menu'
+        aria-expanded={isOpen}
         className={clsx(
-          'flex h-8 w-full items-center gap-2.5 rounded-[5px] px-2 transition-colors duration-150',
+          'flex h-8 items-center rounded-[5px] transition-colors duration-150',
+          isCollapsed
+            ? 'w-8 justify-center rounded-[6px] px-0'
+            : 'w-full gap-2.5 px-2',
           isOpen ? 'bg-[var(--po-selected)]' : 'hover:bg-[var(--po-hover)]'
         )}
       >
@@ -173,13 +184,15 @@ export function ProjectSwitcher({
           </span>
         )}
 
-        <span className='flex-1 truncate text-left text-[13px] font-medium text-[var(--po-text)]'>
-          {identityLoading ? (
-            <SkeletonBlock width="65%" height={10} radius={3} />
-          ) : (
-            displayName
-          )}
-        </span>
+        {!isCollapsed && (
+          <span className='flex-1 truncate text-left text-[13px] font-medium text-[var(--po-text)]'>
+            {identityLoading ? (
+              <SkeletonBlock width="65%" height={10} radius={3} />
+            ) : (
+              displayName
+            )}
+          </span>
+        )}
 
         {/* Chevron — only revealed on header hover or while the
             dropdown is open. Keeps the rest state quiet (just the
@@ -187,25 +200,27 @@ export function ProjectSwitcher({
             when the user is reaching for it. Mirrors the collapse
             button's hover-to-reveal behavior so the two header
             controls feel like one coordinated set. */}
-        <svg
-          width='10'
-          height='10'
-          viewBox='0 0 24 24'
-          fill='none'
-          stroke='currentColor'
-          strokeWidth='2'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-          aria-hidden
-          className={clsx(
-            'flex-shrink-0 text-[var(--po-text-disabled)] transition-[transform,opacity,colors] duration-150',
-            isOpen
-              ? 'rotate-180 opacity-100 text-[var(--po-text-muted)]'
-              : 'opacity-0 group-hover/header:opacity-100 group-hover/header:text-[var(--po-text-muted)]'
-          )}
-        >
-          <polyline points='6 9 12 15 18 9' />
-        </svg>
+        {!isCollapsed && (
+          <svg
+            width='10'
+            height='10'
+            viewBox='0 0 24 24'
+            fill='none'
+            stroke='currentColor'
+            strokeWidth='2'
+            strokeLinecap='round'
+            strokeLinejoin='round'
+            aria-hidden
+            className={clsx(
+              'flex-shrink-0 text-[var(--po-text-disabled)] transition-[transform,opacity,colors] duration-150',
+              isOpen
+                ? 'rotate-180 opacity-100 text-[var(--po-text-muted)]'
+                : 'opacity-0 group-hover/header:opacity-100 group-hover/header:text-[var(--po-text-muted)]'
+            )}
+          >
+            <polyline points='6 9 12 15 18 9' />
+          </svg>
+        )}
       </button>
 
       {/* Dropdown Menu — follows the sidebar design system 1:1 so the
@@ -233,6 +248,41 @@ export function ProjectSwitcher({
             zIndex: APP_Z_INDEX.popover,
           }}
         >
+          {/* Organizations — only when the user belongs to more than one,
+              so single-org users don't see a redundant switcher. Lets a
+              multi-org user switch the active organization in place. */}
+          {organizations && organizations.length > 1 && onSwitchOrg ? (
+            <div className='p-1' style={{ borderBottom: '1px solid var(--po-border-subtle)' }}>
+              <div className='px-2 pt-1.5 pb-1 text-[11px] font-medium text-[var(--po-text-subtle)]'>
+                Organizations
+              </div>
+              {organizations.map(org => {
+                const isCurrentOrg = org.id === currentOrgId;
+                return (
+                  <button
+                    key={org.id}
+                    type='button'
+                    onClick={() => {
+                      onSwitchOrg(org.id);
+                      setIsOpen(false);
+                    }}
+                    className={dropdownRowClass(isCurrentOrg)}
+                  >
+                    <span
+                      aria-hidden
+                      className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[5px] text-[10px] font-bold uppercase text-[var(--po-text-inverse)]'
+                      style={{ background: BRAND_BLUE, fontFamily: 'var(--po-font-sans)', letterSpacing: 0 }}
+                    >
+                      {(org.name?.[0] || 'O').toUpperCase()}
+                    </span>
+                    <span className={dropdownLabelClass(isCurrentOrg)}>{org.name}</span>
+                    {isCurrentOrg && <CheckIcon />}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+
           {/* Go to organization — action-oriented label rather than
               echoing the org name (which would visually collide with
               project rows). The org-initial letter chip + the

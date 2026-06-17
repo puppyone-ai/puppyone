@@ -16,6 +16,8 @@ from src.version_engine.read.admin import VersionAdminService
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
 from src.platform.organization.dependencies import resolve_org_id, resolve_org_ids
+from src.platform.entitlements.dependencies import get_entitlement_service
+from src.platform.entitlements.service import EntitlementService
 from src.platform.project.dependencies import get_project_service, get_verified_project
 from src.platform.project.models import Project
 from src.platform.project.schemas import (
@@ -163,10 +165,16 @@ def get_project(
 async def create_project(
     payload: ProjectCreate,
     project_service: ProjectService = Depends(get_project_service),
+    entitlement_service: EntitlementService = Depends(get_entitlement_service),
     version_admin: VersionAdminService = Depends(get_version_admin_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     resolved_org_id = resolve_org_id(payload.org_id, current_user.user_id)
+    entitlement_service.require_capacity(
+        resolved_org_id,
+        "projects.max",
+        current_count=len(project_service.get_by_org_id(resolved_org_id)),
+    )
 
     project = project_service.create(
         name=payload.name,
@@ -178,7 +186,7 @@ async def create_project(
     await version_admin.init_tree(str(project.id))
 
     # Ensure the canonical root scope exists before returning. Scope creation
-    # creates built-in access surfaces for Git Remote / CLI / filesystem.
+    # creates built-in access surfaces for Git Remote / FS CLI.
     from src.repo.scope_service import ScopeService
     ScopeService().ensure_root_scope(str(project.id))
 

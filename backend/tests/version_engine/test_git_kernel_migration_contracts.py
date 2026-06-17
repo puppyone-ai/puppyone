@@ -54,7 +54,6 @@ ACTIVE_RUNTIME_SCAN_ROOTS = (
     "backend/CLAUDE.md",
     "backend/mcp_service",
     "backend/scripts",
-    "backend/src/connectors/filesystem",
     "backend/src/repo",
     "backend/src/version_engine",
     "backend/tests/conflicts",

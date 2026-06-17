@@ -13,7 +13,11 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
-from src.version_engine.write_engine.git_object_format import decode_commit, decode_tree
+from src.version_engine.write_engine.git_object_format import (
+    decode_commit,
+    decode_object,
+    decode_tree,
+)
 
 from src.version_engine.adapters.git.protocol import ZERO_ID, is_object_id
 from src.utils.logger import log_warning
@@ -39,6 +43,11 @@ class GitObjectGcResult:
     errors: list[str] = field(default_factory=list)
     deleted_sample: list[str] = field(default_factory=list)
     unreachable_sample: list[str] = field(default_factory=list)
+    # Fail-safe flag: True when the reachability closure could not be computed
+    # cleanly (a root source or tree object was unreadable), so we refused to
+    # delete anything for this project even though ``dry_run`` was off. See the
+    # gate in ``run_git_object_gc``.
+    sweep_skipped_for_safety: bool = False
 
 
 def run_git_object_gc(
@@ -59,8 +68,18 @@ def run_git_object_gc(
 
     project_id = getattr(repo, "_project_id", "") or ""
     errors: list[str] = []
+    # Errors from WALKING the object graph are tracked separately so the
+    # fail-safe gate keys only off them. A read failure mid-walk is the precise
+    # cause of the "Damaged folder" corruption: a live subtree whose parent
+    # tree read transiently fails is never marked reachable, so its objects get
+    # mis-classified as orphans. (A failure while *collecting roots* is a
+    # different, pre-existing risk class — it can drop a whole disconnected
+    # commit, not create a dangling subtree under a live tree — and is left
+    # non-gating so a transient DB blip on one root source doesn't wedge GC.)
+    walk_errors: list[str] = []
     roots = collect_object_gc_roots(repo, errors=errors)
-    reachable = mark_reachable_objects(repo, roots, errors=errors)
+    reachable = mark_reachable_objects(repo, roots, errors=walk_errors)
+
     all_objects = _all_object_ids(repo, errors=errors)
     metadata = _object_metadata(repo, errors=errors)
     now = _aware_now(now)
@@ -91,7 +110,7 @@ def run_git_object_gc(
             kept_young += 1
             protected_roots.add(object_id)
 
-    protected = mark_reachable_objects(repo, protected_roots, errors=errors)
+    protected = mark_reachable_objects(repo, protected_roots, errors=walk_errors)
     protected_descendants = set(eligible).intersection(protected)
     if protected_descendants:
         eligible = [
@@ -102,8 +121,29 @@ def run_git_object_gc(
     if max_delete is not None:
         eligible = eligible[:max(0, int(max_delete))]
 
+    # Fail-safe gate. The two ``mark_reachable_objects`` passes are what walk
+    # the object graph to decide which objects are live. If either logged an
+    # error — a tree/commit we couldn't read while walking (so its whole
+    # subtree was never marked reachable, or a young orphan's descendants
+    # weren't re-protected) — then the reachable / protected sets are
+    # potentially INCOMPLETE. Sweeping on an incomplete closure deletes live,
+    # still-referenced objects (e.g. a folder's subtree whose parent tree read
+    # transiently failed mid-walk) and permanently corrupts the repo — exactly
+    # the "Damaged folder" class we are fixing. A GC must fail safe: when it
+    # cannot PROVE an object is unreachable, it keeps it. So if the walk was not
+    # clean, we still report what WOULD be eligible (for observability) but
+    # delete nothing, even when ``dry_run`` is off.
+    closure_incomplete = len(walk_errors) > 0
+    errors = walk_errors + errors
+
     deleted: list[str] = []
-    if not dry_run:
+    if not dry_run and closure_incomplete:
+        errors.append(
+            "sweep skipped for safety: reachability closure incomplete "
+            f"({len(eligible)} object(s) would have been eligible) — refusing "
+            "to delete to avoid sweeping live objects"
+        )
+    elif not dry_run:
         deleted = _delete_eligible_objects(repo, eligible, errors=errors)
 
     return GitObjectGcResult(
@@ -121,6 +161,7 @@ def run_git_object_gc(
         errors=errors,
         deleted_sample=deleted[:_SAMPLE_LIMIT],
         unreachable_sample=unreachable[:_SAMPLE_LIMIT],
+        sweep_skipped_for_safety=(closure_incomplete and not dry_run),
     )
 
 
@@ -206,29 +247,54 @@ def mark_reachable_objects(
             continue
         reachable.add(object_id)
 
+        # Split FETCH from DECODE so the fail-safe gate fires only on the case
+        # that actually threatens closure completeness.
+        #
+        #   • Fetch failure (object genuinely missing, or a transient
+        #     object-store read error): we CANNOT see whether this was a tree
+        #     with children, so its subtree may be silently dropped from the
+        #     reachable set. This is the "Damaged folder" trigger — record it
+        #     as a walk error so the caller refuses to delete.
+        #   • Fetched-but-not-a-git-object (e.g. a legacy raw blob stored at a
+        #     tree position): we DID read it and it provably has no git-tree
+        #     children to follow, so nothing was dropped. Treat it as an opaque
+        #     leaf and continue WITHOUT gating, so GC isn't permanently wedged
+        #     by such objects.
         try:
-            obj_type, body = repo.store.get_object(object_id)
-        except Exception as exc:  # noqa: BLE001 - GC should continue scanning.
+            loose = repo.store.get_loose(object_id)
+        except Exception as exc:  # noqa: BLE001 - fail-safe: unreadable ⇒ gate.
             out_errors.append(f"read {object_id}: {exc}")
             continue
 
         try:
-            if obj_type == "commit":
-                commit = decode_commit(body)
-                tree = commit.get("tree", "")
-                if is_object_id(tree):
-                    stack.append(tree)
-                for parent in commit.get("parents") or []:
-                    if is_object_id(parent):
-                        stack.append(parent)
-            elif obj_type == "tree":
-                for entry in decode_tree(body):
-                    if is_object_id(entry.sha1_hex):
-                        stack.append(entry.sha1_hex)
+            obj_type, body = decode_object(loose)
+        except Exception:  # noqa: BLE001 - present but not git ⇒ opaque leaf.
+            continue
+
+        try:
+            stack.extend(_child_object_ids(obj_type, body))
         except Exception as exc:  # noqa: BLE001
             out_errors.append(f"walk {object_id}: {exc}")
 
     return reachable
+
+
+def _child_object_ids(obj_type: str, body: bytes) -> list[str]:
+    """Return the Git object ids a commit/tree directly references."""
+    children: list[str] = []
+    if obj_type == "commit":
+        commit = decode_commit(body)
+        tree = commit.get("tree", "")
+        if is_object_id(tree):
+            children.append(tree)
+        for parent in commit.get("parents") or []:
+            if is_object_id(parent):
+                children.append(parent)
+    elif obj_type == "tree":
+        for entry in decode_tree(body):
+            if is_object_id(entry.sha1_hex):
+                children.append(entry.sha1_hex)
+    return children
 
 
 def _add_history_roots(repo, add, errors: list[str]) -> None:

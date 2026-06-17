@@ -60,7 +60,7 @@ export function TreeRows({
   accessByPath: Map<string, DashboardConnection[]>;
   highlightedPaths: Set<string> | null;
   // Depth of the hovered AP's scope-root row.  -1 means "whole tree
-  // scope" (filesystem at root) — band starts flush at row x=0.
+  // scope" (root access surface) — band starts flush at row x=0.
   highlightAnchorDepth: number;
   // Depth at which a highlighted row should be rendered as the SCOPE
   // ROOT (using `T.rowHighlightRoot`, the brighter tint) rather than a

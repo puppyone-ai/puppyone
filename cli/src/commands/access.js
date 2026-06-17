@@ -2,8 +2,8 @@
  * puppyone access <subcommand>
  *
  * THE unified entry point for managing ALL Access Points:
- * SaaS datasources, agents, MCP endpoints, sandbox endpoints, filesystem sync,
- * direct access, and database connectors.
+ * SaaS datasources, agents, MCP endpoints, sandbox endpoints, direct access,
+ * and database connectors.
  *
  * Product connector state lives in the backend connector/scope registry.
  *
@@ -27,11 +27,10 @@ const PROVIDER_ALIASES = {
   gsheets: "google_sheets", "google-sheets": "google_sheets",
   gsc: "google_search_console", "google-search-console": "google_search_console",
   web: "url",
-  folder: "filesystem", local: "filesystem",
   db: "database",
 };
 
-const PLATFORM_TYPES = new Set(["agent", "mcp", "sandbox", "filesystem", "direct"]);
+const PLATFORM_TYPES = new Set(["agent", "mcp", "sandbox", "direct"]);
 
 const OAUTH_ENDPOINTS = {
   github: "github",
@@ -110,7 +109,7 @@ function findSpec(specs, provider) {
 
 const DEFAULT_NAMES = {
   agent: "Agent", mcp: "MCP Endpoint", sandbox: "Sandbox",
-  filesystem: "Filesystem Sync", direct: "Direct Access", database: "Database",
+  direct: "Direct Access", database: "Database",
 };
 function _defaultName(provider) {
   return DEFAULT_NAMES[provider] || provider;
@@ -280,7 +279,6 @@ export function registerAccess(program) {
         { provider: "agent", name: "AI Agent", description: "LLM agent with scoped read/write access" },
         { provider: "mcp", name: "MCP Endpoint", description: "Model Context Protocol server" },
         { provider: "sandbox", name: "Sandbox", description: "Isolated code execution" },
-        { provider: "filesystem", name: "Local Folder Sync", description: "Bidirectional local ↔ cloud" },
         { provider: "database", name: "Database", description: "External DB access" },
       ], [
         { key: "provider", label: "PROVIDER" },
@@ -368,7 +366,7 @@ export function registerAccess(program) {
   access
     .command("add")
     .description("Add a new Access Point (any provider type)")
-    .argument("<type>", "provider: github | gmail | notion | agent | mcp | sandbox | filesystem | database | direct | ...")
+    .argument("<type>", "provider: github | gmail | notion | agent | mcp | sandbox | database | direct | ...")
     .argument("[source]", "source URL, path, or name (depends on type)")
     .option("--name <name>", "access point name")
     .option("--folder <folder>", "target folder path in project (for syncs)")
@@ -398,29 +396,6 @@ export function registerAccess(program) {
         }
       }
       Object.assign(config, parseSetValues(opts.set));
-
-      if (provider === "filesystem") {
-        const scopePath = scope || source || "";
-        if (!scopePath) {
-          out.error("MISSING_PATH", "Filesystem scope path is required.",
-            "Usage: puppyone access add filesystem <path>\n  Example: puppyone access add filesystem docs");
-          return;
-        }
-        out.step(`Creating filesystem access point for scope "${scopePath}"...`);
-        const data = await client.post(
-          "/filesystem/bootstrap", null,
-          { project_id: projectId, path: scopePath }
-        );
-        out.done("done");
-        out.info("");
-
-        _showProviderGuidance(out, {
-          id: data.access_point_id || data.sync_id, provider, access_key: data.access_key,
-          path: data.path, ap_base: data.ap_base,
-        }, client.baseUrl);
-        out.success?.({ access: data });
-        return;
-      }
 
       if (isPlatformType(provider) || provider === "database") {
         if (provider === "direct") {
@@ -922,8 +897,6 @@ function _showProviderGuidance(out, connection, baseUrl) {
     out.info(`    npx -y mcp-remote ${baseUrl}/mcp?api_key=${key}\n`);
   } else if (provider === "sandbox") {
     out.info("  \u2500 Execute via Agent or API.\n");
-  } else if (provider === "filesystem" && key) {
-    _showFsGuidance(out, connection, baseUrl, "filesystem");
   } else if (provider === "direct" && key) {
     _showFsGuidance(out, connection, baseUrl, "direct");
   } else {

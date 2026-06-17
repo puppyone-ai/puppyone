@@ -4,18 +4,27 @@ import { useMemo, useRef, useState } from 'react';
 import { ArrowLeft, BookOpen, Check, ChevronRight, Copy, ExternalLink, Plus } from 'lucide-react';
 import { PulseGrid } from '@/components/loading';
 import { AiHandoffButton } from '@/components/ui/AiHandoffButton';
+import { CountBadge } from '@/components/ui/CountBadge';
 import { DialogBody, DialogHeader, DialogRoot, DialogSurface } from '@/components/ui/Dialog';
 import { ModalPortal } from '@/components/ui/ModalPortal';
+import { StatusIndicator } from '@/components/ui/StatusDot';
 import {
   accessPointProfileSlug,
   buildGitSyncPrompt,
   buildTerminalCliPrompt,
 } from '@/lib/accessPointCliPrompt';
 import { sortConnectorsBuiltinFirst, type Connector, type RepoScope } from '@/lib/repoApi';
+import {
+  getAccessProviderCardTitle,
+  getAccessProviderMethodMeta,
+  getAccessProviderPromptKind,
+  isCliProvider,
+  isGitRemoteProvider,
+} from '@/lib/accessProviderRegistry';
 import { APP_Z_INDEX } from '@/lib/zIndex';
 import { ProviderIcon } from '../../../access/components/icons';
 import { CommandBlock } from '../../../access/components/ui-blocks';
-import { PROVIDER_LABELS, STATUS_COLORS, STATUS_LABEL } from '../../../access/lib/constants';
+import { STATUS_LABEL } from '../../../access/lib/constants';
 import { getApiBase, getTypeLine, timeAgo } from '../../../access/lib/format';
 import { T } from '../../../access/lib/tokens';
 
@@ -41,13 +50,13 @@ export function DataAccessQuickModal({
   onOpenFullSettings,
 }: DataAccessQuickModalProps) {
   const [manualConnectorId, setManualConnectorId] = useState<string | null>(null);
-  const methods = useMemo(
-    () =>
-      sortConnectorsBuiltinFirst(connectors).filter(
-        (connector) => connector.provider === 'cli' || connector.provider === 'filesystem',
-      ),
-    [connectors],
-  );
+  const methods = useMemo(() => {
+    const sorted = sortConnectorsBuiltinFirst(connectors);
+    const cliMethods = sorted.filter((connector) => isCliProvider(connector.provider));
+    const gitRemote = sorted.find((connector) => isGitRemoteProvider(connector.provider));
+
+    return gitRemote ? [...cliMethods, gitRemote] : cliMethods;
+  }, [connectors]);
   const manualConnector = useMemo(
     () => methods.find((connector) => connector.id === manualConnectorId) ?? null,
     [manualConnectorId, methods],
@@ -262,7 +271,7 @@ function AccessMethodCard({
   const setup = useMemo(() => buildSetupGuide(connector, scope), [connector, scope]);
   const [copied, setCopied] = useState(false);
   const meta = accessMethodMeta(connector);
-  const showManualCommands = connector.provider === 'filesystem';
+  const showManualCommands = isGitRemoteProvider(connector.provider);
 
   const copyPrompt = async () => {
     try {
@@ -687,7 +696,7 @@ function ManualWayRow({
               whiteSpace: 'nowrap',
             }}
           >
-            {connector.provider === 'filesystem'
+            {isGitRemoteProvider(connector.provider)
               ? 'For clone, pull, commit, and push workflows.'
               : getTypeLine(connector)}
           </span>
@@ -1024,24 +1033,8 @@ function ConnectionStepsList({
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {steps.map((step, index) => (
         <div key={step.title} style={{ display: 'flex', gap: 10 }}>
-          <span
-            style={{
-              width: 20,
-              height: 20,
-              borderRadius: 999,
-              background: 'var(--po-border-subtle)',
-              color: T.text2,
-              fontSize: FONT_META,
-              fontWeight: 600,
-              fontFamily: T.fontSans,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-              marginTop: 1,
-            }}
-          >
-            {index + 1}
+          <span style={{ marginTop: 1 }}>
+            <CountBadge value={index + 1} size="sm" tone="neutral" />
           </span>
           <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
             <span style={{ color: T.text1, fontSize: FONT_META, fontWeight: 600, fontFamily: T.fontSans }}>
@@ -1147,15 +1140,16 @@ function PromptPreview({ prompt }: { readonly prompt: string }) {
 
 function ProviderTile({ provider }: { readonly provider: string }) {
   const tile = getProviderTileStyle(provider);
-  const tileSize = provider === 'filesystem' ? 34 : 30;
-  const iconSize = provider === 'filesystem' ? 34 : 17;
+  const isGitRemote = isGitRemoteProvider(provider);
+  const tileSize = isGitRemote ? 34 : 30;
+  const iconSize = isGitRemote ? 34 : 17;
 
   return (
     <div
       style={{
         width: tileSize,
         height: tileSize,
-        borderRadius: provider === 'filesystem' ? 7 : 6,
+        borderRadius: isGitRemote ? 7 : 6,
         background: tile.background,
         border: `1px solid ${tile.border}`,
         color: tile.color,
@@ -1164,7 +1158,7 @@ function ProviderTile({ provider }: { readonly provider: string }) {
         alignItems: 'center',
         justifyContent: 'center',
         flexShrink: 0,
-        overflow: provider === 'filesystem' ? 'hidden' : undefined,
+        overflow: isGitRemote ? 'hidden' : undefined,
       }}
     >
       <ProviderIcon provider={provider} size={iconSize} />
@@ -1174,7 +1168,8 @@ function ProviderTile({ provider }: { readonly provider: string }) {
 
 function buildSetupGuide(connector: Connector, scope: RepoScope) {
   const scopeName = scope.name || scope.path || 'Root';
-  if (connector.provider === 'filesystem') {
+  const promptKind = getAccessProviderPromptKind(connector.provider);
+  if (promptKind === 'git_remote') {
     const gitUrl = `${getApiBase()}/git/ap/${scope.access_key || '<access-key>'}.git`;
     const guide = buildGitSyncPrompt({
       gitUrl,
@@ -1217,7 +1212,7 @@ function buildSetupGuide(connector: Connector, scope: RepoScope) {
 }
 
 function getProviderTileStyle(provider: string) {
-  if (provider === 'cli') {
+  if (isCliProvider(provider)) {
     return {
       background: 'var(--po-accent)',
       border: 'var(--po-accent)',
@@ -1234,40 +1229,19 @@ function getProviderTileStyle(provider: string) {
 }
 
 function StatusCell({ status }: { readonly status: Connector['status'] }) {
-  const color = STATUS_COLORS[status] ?? T.text3;
   return (
-    <span
+    <StatusIndicator
+      status={status}
+      label={STATUS_LABEL[status] ?? status}
       style={{
         justifySelf: 'end',
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 6,
-        color,
-        fontSize: FONT_META,
-        fontWeight: 500,
-        fontFamily: T.fontSans,
-        whiteSpace: 'nowrap',
       }}
-    >
-      <span
-        aria-hidden
-        style={{
-          width: 7,
-          height: 7,
-          borderRadius: '50%',
-          background: color,
-          flexShrink: 0,
-        }}
-      />
-      {STATUS_LABEL[status] ?? status}
-    </span>
+    />
   );
 }
 
 function connectorName(connector: Connector): string {
-  if (connector.provider === 'cli') return 'Puppyone CLI';
-  if (connector.provider === 'filesystem') return 'Git Remote';
-  return connector.name || PROVIDER_LABELS[connector.provider] || connector.provider;
+  return getAccessProviderCardTitle(connector.provider, connector.name);
 }
 
 function accessMethodMeta(connector: Connector): {
@@ -1275,23 +1249,10 @@ function accessMethodMeta(connector: Connector): {
   readonly description: string;
   readonly badge?: string;
 } {
-  if (connector.provider === 'cli') {
-    return {
-      title: 'Context Drive CLI',
-      badge: 'Official',
-      description:
-        'Use Puppyone\'s scoped filesystem CLI to let an agent read and write this cloud drive without cloning it.',
-    };
-  }
-  if (connector.provider === 'filesystem') {
-    return {
-      title: 'Git Remote',
-      description: 'Use a native Git remote for clone, pull, commit, and push workflows.',
-    };
-  }
+  const meta = getAccessProviderMethodMeta(connector.provider, connector.name);
   return {
-    title: connectorName(connector),
-    description: getTypeLine(connector),
+    ...meta,
+    badge: isCliProvider(connector.provider) ? 'Official' : undefined,
   };
 }
 

@@ -4,6 +4,7 @@ import type { ComponentProps, CSSProperties, ReactNode } from 'react';
 import { ActivityIconButton } from '@/components/ActivityIconButton';
 import { ProjectsHeader } from '@/components/ProjectsHeader';
 import { PageLoading } from '@/components/loading';
+import { CountBadge } from '@/components/ui/CountBadge';
 import { EmptyWorkspaceState } from '../../../components/EmptyWorkspaceState';
 import { BulkDeleteDialog } from './BulkDeleteDialog';
 import { DataPageDialogs } from './DataPageDialogs';
@@ -170,16 +171,11 @@ export function DataWorkspaceSurface({
                       {accessHeader.title}
                     </span>
                     {accessHeader.listView === 'overview' && (
-                      <span
-                        style={{
-                          fontSize: 13,
-                          fontWeight: 400,
-                          color: 'var(--po-text-subtle)',
-                          fontVariantNumeric: 'tabular-nums',
-                        }}
-                      >
-                        {accessHeader.scopeCount}
-                      </span>
+                      <CountBadge
+                        value={accessHeader.scopeCount}
+                        size="md"
+                        tone="neutral"
+                      />
                     )}
                   </div>
                   {accessHeader.subtitle && (

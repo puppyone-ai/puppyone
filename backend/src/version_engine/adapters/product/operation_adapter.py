@@ -45,6 +45,9 @@ from src.version_engine.adapters.product.tree_patch import (
     splice_remove,
     splice_touch,
 )
+from src.version_engine.write_engine.tree_objects import find_missing_tree_objects
+from src.config import settings
+from src.utils.logger import log_error
 
 
 @dataclass
@@ -142,8 +145,48 @@ class ProductOperationAdapter:
             pusher_client_id=pusher_client_id,
         )
         if scope:
-            return await self._engine.apply_operation(intent, splice_fn)
-        return await self._engine.apply_project_operation(intent, splice_fn)
+            result = await self._engine.apply_operation(intent, splice_fn)
+        else:
+            result = await self._engine.apply_project_operation(intent, splice_fn)
+
+        # Optional post-commit tree-closure tripwire. The blob safety net
+        # (``_verify_blobs_present``) only proves leaf blobs exist; it does NOT
+        # prove the published root's subtree TREE objects do. A builder/graft
+        # regression that referenced an unpersisted subtree would publish a
+        # dangling tree — the on-disk shape of a "Damaged folder". When enabled
+        # (off by default — a full closure walk is O(tree) per write), verify
+        # the freshly-published root resolves end to end and fail loud if not,
+        # so corruption surfaces at the write that caused it instead of at a
+        # later read. The builders are proven complete by
+        # ``tests/version_engine/test_tree_closure.py``; this flag is the
+        # belt-and-suspenders runtime guard for prod paranoia / incident triage.
+        if settings.VERSION_VERIFY_TREE_CLOSURE_ON_WRITE:
+            self._assert_published_tree_closure(project_id)
+        return result
+
+    def _assert_published_tree_closure(self, project_id: str) -> None:
+        try:
+            root = self._reader.get_root_hash(project_id)
+            if not root:
+                return
+            store = self._repos.get_server_repo(project_id).store
+            missing = find_missing_tree_objects(store, root)
+        except Exception as exc:  # noqa: BLE001 - never mask the write itself.
+            log_error(
+                f"[ProductOperationAdapter] tree-closure check errored for "
+                f"{project_id}: {exc}"
+            )
+            return
+        if missing:
+            log_error(
+                f"[ProductOperationAdapter] published root {root[:12]} for "
+                f"{project_id} references {len(missing)} missing object(s) "
+                f"(e.g. {missing[:5]}) — dangling tree"
+            )
+            raise MissingBlobError(
+                f"published root {root[:12]} references {len(missing)} missing "
+                "object(s); refusing to leave a dangling tree unflagged"
+            )
 
     # ══════════════════════════════════════════════
     # Write operations — typed splice → Write Engine
@@ -694,6 +737,8 @@ class ProductOperationAdapter:
         deleted: list[str] | None = None,
         message: str = "",
         verify_blobs: bool = True,
+        source_channel: str = "papi",
+        project_write_state: ProjectWriteState | None = None,
     ) -> WriteResult:
         """Commit a tree update referencing already-staged blobs by hash.
 
@@ -728,6 +773,8 @@ class ProductOperationAdapter:
         if scope:
             return await self._bulk_write_refs_in_scope(
                 project_id, scope, clean, clean_del, who, message,
+                source_channel=source_channel,
+                project_write_state=project_write_state,
             )
 
         write_groups = self._group_paths_by_scope(
@@ -746,6 +793,8 @@ class ProductOperationAdapter:
             r = await self._bulk_write_refs_in_scope(
                 project_id, target_scope,
                 rel_refs, rel_dels, who, message,
+                source_channel=source_channel,
+                project_write_state=project_write_state,
             )
             first_result = first_result or r
         return first_result or WriteResult(
@@ -760,6 +809,9 @@ class ProductOperationAdapter:
         rel_dels: list[str],
         who: str,
         message: str,
+        *,
+        source_channel: str = "papi",
+        project_write_state: ProjectWriteState | None = None,
     ) -> WriteResult:
         ops: list[tuple] = []
         ops.extend(
@@ -783,6 +835,8 @@ class ProductOperationAdapter:
                 "deletes": len(rel_dels),
                 "total_size": total_size,
             },
+            source_channel=source_channel,
+            project_write_state=project_write_state,
         )
         full_paths = [
             self._join_scope_path(scope, p)

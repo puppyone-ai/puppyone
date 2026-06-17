@@ -1,8 +1,9 @@
 /**
- * ETL API - Now forwards to unified Ingest API
+ * ETL API - compatibility layer
  *
  * This file is kept for backward compatibility.
- * All new code should use ingestApi.ts directly.
+ * File submission now goes through Upload; ETL task polling still uses legacy
+ * Ingest task endpoints.
  */
 
 import { getAccessToken } from './apiClient';
@@ -184,8 +185,9 @@ export async function uploadAndSubmit(
     formData.append('files', file);
   }
 
-  // Route through same-origin Next.js proxy to avoid CORS / system-proxy issues
-  const response = await fetch('/api/ingest?path=submit/file', {
+  // Route through the first-class Upload proxy to avoid CORS /
+  // system-proxy issues.
+  const response = await fetch('/api/upload?path=submit/file', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,

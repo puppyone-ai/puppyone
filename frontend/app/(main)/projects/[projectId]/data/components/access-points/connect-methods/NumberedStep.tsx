@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { CountBadge } from '@/components/ui/CountBadge';
 import { COLOR_FG, COLOR_FG_DIM, COLOR_FG_MUTED } from '../tokens';
 
 export function NumberedStep({
@@ -16,25 +17,9 @@ export function NumberedStep({
 }) {
   return (
     <div style={{ display: 'flex', gap: 10 }}>
-      <div
-        style={{
-          width: 20,
-          height: 20,
-          borderRadius: 999,
-          background: 'var(--po-border-subtle)',
-          color: COLOR_FG_MUTED,
-          fontSize: 10,
-          fontWeight: 600,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
-          marginTop: 2,
-        }}
-        aria-hidden
-      >
-        {number}
-      </div>
+      <span style={{ marginTop: 2 }}>
+        <CountBadge value={number} size="sm" tone="neutral" ariaHidden />
+      </span>
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: COLOR_FG, lineHeight: 1.4 }}>
           {title}

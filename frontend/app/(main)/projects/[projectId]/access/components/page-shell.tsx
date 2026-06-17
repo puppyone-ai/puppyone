@@ -12,6 +12,7 @@
  */
 
 import { PageLoading } from '@/components/loading';
+import { CountBadge } from '@/components/ui/CountBadge';
 import { CHROME_LABEL_TYPOGRAPHY } from '@/lib/uiTypography';
 import { T } from '../lib/tokens';
 import { Plus } from 'lucide-react';
@@ -42,18 +43,7 @@ export function AccessHeader({
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ ...CHROME_LABEL_TYPOGRAPHY, color: T.text1 }}>Access</span>
-        <span
-          style={{
-            fontSize: 10,
-            fontFamily: T.fontSans,
-            padding: '1px 7px',
-            borderRadius: 999,
-            background: 'var(--po-border-subtle)',
-            color: T.text2,
-          }}
-        >
-          {count}
-        </span>
+        <CountBadge value={count} size="md" tone="neutral" />
       </div>
       <button
         type="button"

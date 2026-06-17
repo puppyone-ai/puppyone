@@ -22,6 +22,7 @@
  */
 
 import React, { useCallback, useState } from 'react';
+import { AiHandoffButton } from '@/components/ui/AiHandoffButton';
 import {
   T,
   BTN_RADIUS,
@@ -216,13 +217,13 @@ export function NoAccessKeyNotice() {
 
 export function PromptBlock({ prompt }: { readonly prompt: string }) {
   const [copied, setCopied] = useState(false);
-  const [hovered, setHovered] = useState(false);
 
-  const handleCopy = useCallback(async () => {
+  const handleCopy = useCallback(async (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
     try {
       await navigator.clipboard.writeText(prompt);
       setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
+      setTimeout(() => setCopied(false), 1400);
     } catch {
       /* clipboard unavailable — silent */
     }
@@ -232,101 +233,51 @@ export function PromptBlock({ prompt }: { readonly prompt: string }) {
     <div
       style={{
         position: 'relative',
-        height: PROMPT_BLOCK_HEIGHT + 28,
-        borderRadius: 8,
-        border: '1px solid var(--po-border-strong)',
-        background: PROMPT_PREVIEW_BG,
+        minHeight: PROMPT_BLOCK_HEIGHT,
+        borderRadius: 7,
+        border: `1px solid ${T.cardBorder}`,
+        background: 'color-mix(in srgb, var(--po-inset) 92%, var(--po-panel) 8%)',
         overflow: 'hidden',
         marginBottom: 0,
-        boxShadow: '0 1px 2px var(--po-shadow)',
       }}
     >
-      <div
-        aria-hidden
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          height: 32,
-          display: 'flex',
-          alignItems: 'center',
-          padding: '0 14px',
-          borderBottom: `1px solid ${T.cardBorder}`,
-          background: 'color-mix(in srgb, var(--po-panel) 72%, var(--po-inset) 28%)',
-          color: T.text2,
-          fontFamily: T.fontSans,
-          fontSize: 12,
-          fontWeight: 600,
-          boxSizing: 'border-box',
-        }}
-      >
-        Setup prompt
-      </div>
       <pre
         aria-hidden
         style={{
           margin: 0,
-          padding: '44px 14px 60px 14px',
+          padding: '10px 12px 42px',
           fontFamily: T.fontMono,
           fontSize: 12,
-          lineHeight: 1.6,
-          color: T.text1,
+          lineHeight: 1.55,
+          color: 'color-mix(in srgb, var(--po-text) 58%, var(--po-text-muted) 42%)',
           whiteSpace: 'pre-wrap',
           wordBreak: 'break-word',
+          maxHeight: PROMPT_BLOCK_HEIGHT,
+          overflow: 'hidden',
         }}
       >
-        {prompt}
+        {prompt || 'Access setup is preparing.'}
       </pre>
       <div
         aria-hidden
         style={{
           position: 'absolute',
-          inset: 'auto 0 0 0',
-          height: 70,
-          background: `linear-gradient(180deg, transparent 0%, ${PROMPT_PREVIEW_BG} 100%)`,
+          inset: 0,
+          background: 'linear-gradient(180deg, color-mix(in srgb, var(--po-inset) 18%, transparent) 0%, color-mix(in srgb, var(--po-inset) 92%, var(--po-panel) 8%) 82%)',
           pointerEvents: 'none',
         }}
       />
-      <button
-        type="button"
+      <AiHandoffButton
+        disabled={!prompt}
         onClick={handleCopy}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
+        copied={copied}
         style={{
           position: 'absolute',
-          left: '50%',
-          bottom: 10,
-          transform: 'translateX(-50%)',
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 7,
-          height: 30,
-          padding: '0 12px',
-          fontFamily: T.fontSans,
-          fontSize: 12,
-          fontWeight: 600,
-          letterSpacing: 0,
-          color: copied ? 'var(--po-success-contrast)' : 'var(--po-success)',
-          background: copied
-            ? 'var(--po-success)'
-            : hovered
-              ? 'color-mix(in srgb, var(--po-success) 20%, var(--po-panel) 80%)'
-              : 'color-mix(in srgb, var(--po-success) 14%, var(--po-panel) 86%)',
-          border: copied
-            ? '1px solid var(--po-success)'
-            : '1px solid color-mix(in srgb, var(--po-success) 38%, transparent)',
-          borderRadius: BTN_RADIUS,
-          cursor: 'pointer',
-          whiteSpace: 'nowrap',
-          boxShadow: 'none',
-          transition: 'background 0.12s ease, border-color 0.12s ease, color 0.12s ease',
+          right: 18,
+          top: '50%',
+          transform: 'translateY(-50%)',
         }}
-      >
-        <CopyIcon size={12} />
-        {copied ? 'Copied' : 'Copy setup prompt'}
-      </button>
+      />
     </div>
   );
 }

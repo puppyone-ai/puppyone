@@ -7,11 +7,22 @@
  *   /api/v1/projects/{pid}/access-point — repo identity (URL + prompt + scope keys)
  *   /api/v1/projects/{pid}/permissions — team-plan per-user permissions
  *
- * Cli + agent are auto-created per scope by a DB trigger and
+ * CLI + Git remote are auto-created per scope by a DB trigger and
  * cannot be created via the API (the backend returns 400 if attempted).
  */
 
 import { get, post, patch, del } from '@/lib/apiClient';
+import {
+  BUILTIN_ACCESS_PROVIDER_IDS,
+  getAccessProviderSortRank,
+  isAccessProviderHiddenInAccess,
+  normalizeConnectorProvider,
+} from '@/lib/accessProviderRegistry';
+
+export {
+  isGitRemoteProvider,
+  normalizeConnectorProvider,
+} from '@/lib/accessProviderRegistry';
 
 // ── Types (mirror backend src/repo/schemas.py) ──────────────────────────
 
@@ -44,6 +55,7 @@ export interface Connector {
   oauth_connection_id: number | null;
   trigger: Record<string, unknown>;
   status: ConnectorStatus;
+  access_key?: string | null;
   last_run_at: string | null;
   last_run_id: string | null;
   error_message: string | null;
@@ -124,7 +136,8 @@ export async function listConnectors(
   if (filter?.direction) qs.set('direction', filter.direction);
   if (filter?.includeNonAccess) qs.set('include_non_access', 'true');
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
-  return (await get<Connector[]>(`/api/v1/projects/${projectId}/connectors${suffix}`)) || [];
+  const rows = (await get<Connector[]>(`/api/v1/projects/${projectId}/connectors${suffix}`)) || [];
+  return rows.map(normalizeConnector);
 }
 
 export interface CreateConnectorBody {
@@ -252,12 +265,17 @@ export function isWithinScope(nodePath: string, scopePath: string): boolean {
 }
 
 /**
- * Sort connectors so cli + agent (DB-trigger built-ins) come first,
+ * Sort connectors so CLI + Git remote + agent built-ins come first,
  * then everything else in stable insertion order.
  */
-export const BUILTIN_PROVIDERS = ['cli', 'agent'] as const;
+export const BUILTIN_PROVIDERS = BUILTIN_ACCESS_PROVIDER_IDS;
 
-const ACCESS_SURFACE_HIDDEN_PROVIDERS = new Set(['github']);
+function normalizeConnector(connector: Connector): Connector {
+  return {
+    ...connector,
+    provider: normalizeConnectorProvider(connector.provider),
+  };
+}
 
 /**
  * Access surfaces are for ongoing ways into a scope: CLI, Git remote,
@@ -269,15 +287,24 @@ const ACCESS_SURFACE_HIDDEN_PROVIDERS = new Set(['github']);
 export function isAccessSurfaceConnector(
   connector: Pick<Connector, 'provider'> & Partial<Pick<Connector, 'trigger'>>,
 ): boolean {
-  if (ACCESS_SURFACE_HIDDEN_PROVIDERS.has(connector.provider)) return false;
+  if (isAccessProviderHiddenInAccess(connector.provider)) return false;
   return connector.trigger?.type !== 'import_once';
+}
+
+/**
+ * Drop legacy filesystem rows defensively. The database migration removes them,
+ * but hiding stale API data keeps current Access/Data UI on the Git Remote model.
+ */
+export function normalizeAccessSurfaceConnectors(connectors: readonly Connector[]): Connector[] {
+  return connectors
+    .map(normalizeConnector)
+    .filter((connector) => connector.provider !== 'filesystem');
 }
 
 export function sortConnectorsBuiltinFirst(connectors: readonly Connector[]): Connector[] {
   const order = (c: Connector) => {
-    if (c.provider === 'cli') return 0;
-    if (c.provider === 'agent') return 1;
-    return 2;
+    const rank = getAccessProviderSortRank(c.provider);
+    return rank >= 100 ? 100 : rank;
   };
   return [...connectors].sort((a, b) => order(a) - order(b) || a.created_at.localeCompare(b.created_at));
 }

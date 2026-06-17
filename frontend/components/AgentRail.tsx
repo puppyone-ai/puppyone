@@ -4,7 +4,7 @@ import React, { useState, useCallback } from 'react';
 
 // --- Types ---
 
-export type AgentType = 'chat' | 'devbox' | 'webhook' | 'schedule';
+export type AgentType = 'chat' | 'webhook' | 'schedule';
 export type TriggerType = 'manual' | 'cron' | 'webhook';
 
 // 触发配置

@@ -7,9 +7,9 @@ import { SYNC_MODE_META, getProviderDisplayLabel, getSyncTriggerPolicy } from '@
 import type { SyncModeType } from '@/lib/syncTriggerPolicy';
 import { useConnectorSpecs } from '@/lib/hooks/useData';
 import { PanelShell } from '../../../app/(main)/projects/[projectId]/data/components/PanelShell';
-import { FilesystemDetailView } from './FilesystemDetailView';
 import { Dots } from '@/components/loading';
 import { ActivityIconButton } from '@/components/ActivityIconButton';
+import { StatusIndicator } from '@/components/ui/StatusDot';
 
 interface SyncDetail {
   id: string;
@@ -75,12 +75,6 @@ function getProviderLogo(provider: string, size: number) {
     case 'github': return <GitHubLogo size={size} />;
     case 'notion': return <ProviderImg src="/icons/notion.svg" alt="Notion" size={size} />;
     case 'linear': return <ProviderImg src="/icons/linear.svg" alt="Linear" size={size} />;
-    case 'filesystem':
-      return (
-        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="var(--po-success)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="3" y="4" width="18" height="12" rx="2" /><path d="M2 20h20" />
-        </svg>
-      );
     default:
       return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -129,7 +123,6 @@ function ConnectionLine({ direction, isActive, status }: { direction: string; co
 // ============================================================
 
 const PROVIDER_LABELS: Record<string, string> = {
-  filesystem: 'Machine Folder',
   github: 'GitHub', notion: 'Notion', gmail: 'Gmail',
   google_calendar: 'Google Calendar', google_sheets: 'Google Sheets',
   google_drive: 'Google Drive', google_docs: 'Google Docs',
@@ -167,7 +160,7 @@ export function SyncDetailView({ syncId, projectId, onClose, onBack }: SyncDetai
 
   const { data: syncData, mutate } = useSWR<{ syncs: SyncDetail[] }>(
     projectId ? ['sync-status', projectId] : null,
-    () => get<{ syncs: SyncDetail[] }>(`/api/v1/sync/status?project_id=${projectId}`),
+    () => get<{ syncs: SyncDetail[] }>(`/api/v1/integrations/status?project_id=${projectId}`),
     { revalidateOnFocus: true },
   );
 
@@ -183,7 +176,7 @@ export function SyncDetailView({ syncId, projectId, onClose, onBack }: SyncDetai
     if (!syncId) return;
     setRefreshing(true);
     try {
-      await post(`/api/v1/sync/syncs/${syncId}/refresh`);
+      await post(`/api/v1/integrations/connections/${syncId}/refresh`);
       await mutate();
     } catch (err) {
       console.error('Sync refresh failed:', err);
@@ -195,7 +188,7 @@ export function SyncDetailView({ syncId, projectId, onClose, onBack }: SyncDetai
   const handlePause = useCallback(async () => {
     if (!syncId) return;
     try {
-      await post(`/api/v1/sync/syncs/${syncId}/pause`);
+      await post(`/api/v1/integrations/connections/${syncId}/pause`);
       await mutate();
     } catch (err) {
       console.error('Pause failed:', err);
@@ -205,7 +198,7 @@ export function SyncDetailView({ syncId, projectId, onClose, onBack }: SyncDetai
   const handleResume = useCallback(async () => {
     if (!syncId) return;
     try {
-      await post(`/api/v1/sync/syncs/${syncId}/resume`);
+      await post(`/api/v1/integrations/connections/${syncId}/resume`);
       await mutate();
     } catch (err) {
       console.error('Resume failed:', err);
@@ -217,7 +210,7 @@ export function SyncDetailView({ syncId, projectId, onClose, onBack }: SyncDetai
     if (!syncId || disconnecting) return;
     setDisconnecting(true);
     try {
-      await del(`/api/v1/sync/syncs/${syncId}`);
+      await del(`/api/v1/integrations/connections/${syncId}`);
       await mutate();
       onClose?.();
     } catch (err) {
@@ -237,10 +230,6 @@ export function SyncDetailView({ syncId, projectId, onClose, onBack }: SyncDetai
     );
   }
 
-  if (sync.provider === 'filesystem') {
-    return <FilesystemDetailView syncId={syncId} projectId={projectId} onClose={onClose} onBack={onBack} />;
-  }
-
   const providerLabel = getProviderDisplayLabel(sync.provider, specs) !== sync.provider
     ? getProviderDisplayLabel(sync.provider, specs)
     : (PROVIDER_LABELS[sync.provider] || sync.provider);
@@ -249,9 +238,8 @@ export function SyncDetailView({ syncId, projectId, onClose, onBack }: SyncDetai
   const isError = sync.status === 'error';
   const isPaused = sync.status === 'paused';
 
-  const statusColor = isError ? 'var(--po-danger)' : isActive ? 'var(--po-success)' : isPaused ? 'var(--po-warning)' : 'var(--po-text-disabled)';
   const statusLabel = isError ? 'Error' : sync.status === 'syncing' ? 'Syncing' : isActive ? 'Sync active' : isPaused ? 'Paused' : sync.status || 'Inactive';
-  const statusTextColor = isError ? 'var(--po-danger)' : isActive ? 'var(--po-text)' : 'var(--po-text-muted)';
+  const statusForIndicator = isError ? 'error' : sync.status === 'syncing' ? 'syncing' : isActive ? 'active' : isPaused ? 'paused' : 'inactive';
 
   const normalizedMode = normalizeMode(sync.trigger?.type);
 
@@ -318,13 +306,7 @@ export function SyncDetailView({ syncId, projectId, onClose, onBack }: SyncDetai
 
             {/* Status line */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, paddingTop: 2 }}>
-              <span style={{
-                width: 5, height: 5, borderRadius: '50%', background: statusColor,
-                display: 'inline-block', flexShrink: 0,
-              }} />
-              <span style={{ fontSize: 11, fontWeight: 500, color: statusTextColor }}>
-                {statusLabel}
-              </span>
+              <StatusIndicator status={statusForIndicator} label={statusLabel} style={{ fontSize: 11 }} />
               {sync.last_synced_at && (
                 <span style={{ fontSize: 11, color: 'var(--po-text-disabled)' }}>
                   · {relativeTime(sync.last_synced_at)}
@@ -342,12 +324,15 @@ export function SyncDetailView({ syncId, projectId, onClose, onBack }: SyncDetai
                 onMouseEnter={e => e.currentTarget.style.color = 'var(--po-text-muted)'}
                 onMouseLeave={e => e.currentTarget.style.color = 'var(--po-text-disabled)'}
               >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                  strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                  style={{ animation: refreshing ? 'spin 0.6s linear' : 'none' }}
-                >
-                  <polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
-                </svg>
+                {refreshing ? (
+                  <Dots size="xs" ariaLabel="Refreshing" />
+                ) : (
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                  >
+                    <polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                  </svg>
+                )}
               </button>
             </div>
           </div>
@@ -390,11 +375,6 @@ export function SyncDetailView({ syncId, projectId, onClose, onBack }: SyncDetai
             )}
             <ActionButton label={disconnecting ? 'Removing...' : 'Disconnect'} icon="disconnect" variant="danger" onClick={handleDisconnect} />
           </div>
-
-          {/* Filesystem: Git Remote credentials & usage */}
-          {sync.provider === 'filesystem' && sync.access_key && (
-            <GitCredentialsSection accessKey={sync.access_key} path={sync.path} />
-          )}
 
           {/* Details — minimal */}
           <div style={{ padding: '0 4px' }}>
@@ -488,7 +468,7 @@ function TriggerModeSelector({
         trigger.schedule = scheduleConfig.schedule;
         trigger.timezone = scheduleConfig.timezone || 'Asia/Shanghai';
       }
-      await patch(`/api/v1/sync/syncs/${syncId}/trigger`, {
+      await patch(`/api/v1/integrations/connections/${syncId}/trigger`, {
         sync_mode: pendingMode,
         trigger,
       });
@@ -800,139 +780,6 @@ function ActionButton({ label, icon, variant = 'default', onClick }: {
       )}
       {label}
     </button>
-  );
-}
-
-function GitCredentialsSection({ accessKey, path }: { accessKey: string; path: string }) {
-  const [copied, setCopied] = React.useState<string | null>(null);
-  const [mode, setMode] = React.useState<'clone' | 'connect'>('clone');
-  const masked = accessKey.slice(0, 8) + '...' + accessKey.slice(-4);
-  const apiBase = typeof window !== 'undefined' ? (process.env.NEXT_PUBLIC_API_URL || window.location.origin) : '';
-  const endpointUrl = `${apiBase}/git/ap/${accessKey}.git`;
-  const cloneCmd = `git clone ${endpointUrl}`;
-  const connectCmd = [
-    'cd /path/to/your/folder',
-    'git init -b main',
-    `git remote add origin ${endpointUrl}`,
-    'git pull --rebase origin main',
-    'git push -u origin main',
-  ].join('\n');
-  const activeCmd = mode === 'clone' ? cloneCmd : connectCmd;
-
-  const handleCopy = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    setCopied(label);
-    setTimeout(() => setCopied(null), 2000);
-  };
-
-  const tabBtnStyle = (active: boolean): React.CSSProperties => ({
-    flex: 1,
-    height: 30,
-    padding: '0 8px',
-    fontSize: 10,
-    fontWeight: active ? 600 : 500,
-    color: active ? 'var(--po-text)' : 'var(--po-text-subtle)',
-    background: active ? 'var(--po-hover)' : 'transparent',
-    border: '1px solid',
-    borderColor: active ? 'var(--po-border-strong)' : 'var(--po-border-subtle)',
-    borderRadius: 5,
-    cursor: 'pointer',
-    transition: 'all 0.12s',
-  });
-
-  return (
-    <div style={{ padding: '0 4px' }}>
-      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--po-text-subtle)', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.5px' }}>
-        Credentials
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--po-hover)' }}>
-        <div style={{ fontSize: 11, color: 'var(--po-text-disabled)', fontWeight: 500, width: 72 }}>Access Key</div>
-        <code style={{ flex: 1, fontSize: 11, color: 'var(--po-text-muted)', fontFamily: "var(--po-font-sans)" }}>{masked}</code>
-        <button
-          onClick={() => handleCopy(accessKey, 'key')}
-          style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: copied === 'key' ? 'var(--po-success)' : 'var(--po-text-disabled)', width: 30, height: 30, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-        >
-          {copied === 'key' ? (
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-          ) : (
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-          )}
-        </button>
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '8px 0' }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--po-text-subtle)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-          Quick Start
-        </div>
-        <div style={{ display: 'flex', gap: 4 }}>
-          <button onClick={() => setMode('clone')} style={tabBtnStyle(mode === 'clone')}>
-            Clone (new folder)
-          </button>
-          <button onClick={() => setMode('connect')} style={tabBtnStyle(mode === 'connect')}>
-            Connect (existing)
-          </button>
-        </div>
-        {mode === 'connect' && (
-          <div style={{ fontSize: 10, color: 'var(--po-text-disabled)', lineHeight: 1.5 }}>
-            <code style={{ fontFamily: "var(--po-font-sans)", color: 'var(--po-text-subtle)' }}>cd /path/to/your/folder</code> first, then run:
-          </div>
-        )}
-        <div style={{
-          padding: '8px 10px', borderRadius: 6,
-          background: 'var(--po-panel)', border: '1px solid var(--po-border-subtle)',
-          display: 'flex', alignItems: 'center', gap: 6,
-        }}>
-          <code style={{ flex: 1, fontSize: 10, color: 'var(--po-text-muted)', fontFamily: "var(--po-font-sans)", wordBreak: 'break-all', lineHeight: 1.5 }}>
-            {activeCmd}
-          </code>
-          <button
-            onClick={() => handleCopy(activeCmd, 'cmd')}
-            style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: copied === 'cmd' ? 'var(--po-success)' : 'var(--po-text-disabled)', width: 30, height: 30, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
-          >
-            {copied === 'cmd' ? (
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-            ) : (
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-            )}
-          </button>
-        </div>
-        <div style={{ fontSize: 10, color: 'var(--po-text-disabled)', lineHeight: 1.5 }}>
-          {mode === 'clone'
-            ? <>Then: <code style={{ fontFamily: "var(--po-font-sans)", color: 'var(--po-text-subtle)' }}>git add -A &amp;&amp; git commit -m &quot;…&quot; &amp;&amp; git push origin main</code></>
-            : <>One-shot: init + remote + pull --rebase + push. Server applies the V1 conflict policy (safe auto-merge → parent-scope-wins → LWW) — unsafe conflicts queue for review.</>}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AccessKeyRow({ accessKey }: { accessKey: string }) {
-  const [copied, setCopied] = React.useState(false);
-  const masked = accessKey.slice(0, 8) + '...' + accessKey.slice(-4);
-  const handleCopy = () => {
-    navigator.clipboard.writeText(accessKey);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-  return (
-    <div style={{ padding: '0 4px' }}>
-      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--po-text-subtle)', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.5px' }}>
-        Credentials
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--po-hover)' }}>
-        <div style={{ fontSize: 11, color: 'var(--po-text-disabled)', fontWeight: 500, width: 72 }}>Access Key</div>
-        <code style={{ flex: 1, fontSize: 11, color: 'var(--po-text-muted)', fontFamily: "var(--po-font-sans)" }}>{masked}</code>
-        <button
-          onClick={handleCopy}
-          style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: copied ? 'var(--po-success)' : 'var(--po-text-disabled)', width: 30, height: 30, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-        >
-          {copied ? (
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-          ) : (
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-          )}
-        </button>
-      </div>
-    </div>
   );
 }
 

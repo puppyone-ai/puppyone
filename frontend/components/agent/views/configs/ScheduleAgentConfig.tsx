@@ -5,6 +5,7 @@ import { useAgent } from '@/contexts/AgentContext';
 import type { AccessResource } from '@/contexts/AgentContext';
 import type { Tool as DbTool } from '@/lib/mcpApi';
 import { ActivityIconButton } from '@/components/ActivityIconButton';
+import { CountBadge } from '@/components/ui/CountBadge';
 import {
   FolderIcon, JsonIcon, MarkdownIcon,
   PlusIcon, ChevronDownIcon,
@@ -105,7 +106,7 @@ const DatePickerDropdown = ({
               onMouseLeave={e => { if (!past && !sel) e.currentTarget.style.background = 'transparent'; }}
             >
               {cell.day}
-              {tod && !sel && <div style={{ position: 'absolute', bottom: 3, left: '50%', transform: 'translateX(-50%)', width: 4, height: 4, borderRadius: '50%', background: 'var(--po-accent)' }} />}
+              {tod && !sel && <div style={{ position: 'absolute', bottom: 3, left: '50%', transform: 'translateX(-50%)', width: 6, height: 6, borderRadius: 1.5, background: 'var(--po-accent)' }} />}
             </button>
           );
         })}
@@ -215,7 +216,7 @@ export const ScheduleTriggerSection = ({ draftTriggerConfig, setDraftTriggerConf
     <div style={{ marginBottom: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
         <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--po-text-muted)', display: 'block' }}>Schedule</label>
-        <span style={{ width: 5, height: 5, background: 'var(--po-danger)', borderRadius: '50%' }} title="Required" />
+        <span style={{ width: 6, height: 6, background: 'var(--po-danger)', borderRadius: 1.5 }} title="Required" />
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
@@ -335,19 +336,16 @@ const ScheduleTasksSection = ({
   const taskRowStyle: React.CSSProperties = {
     display: 'flex', alignItems: 'center', gap: 8, height: 32, padding: '0 10px', borderRadius: 8,
   };
-  const badgeStyle: React.CSSProperties = {
-    width: 18, height: 18, borderRadius: '50%', background: 'var(--po-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 600, color: 'var(--po-text-subtle)', flexShrink: 0,
-  };
 
   if (tasks.length === 0 && !isAddingNew) {
     return (
       <div style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
           <label style={labelStyle}>Tasks</label>
-          <span style={{ width: 5, height: 5, background: 'var(--po-danger)', borderRadius: '50%' }} title="Required" />
+          <span style={{ width: 6, height: 6, background: 'var(--po-danger)', borderRadius: 1.5 }} title="Required" />
         </div>
         <div style={{ ...taskRowStyle, background: newTaskText.trim() ? 'var(--po-panel)' : 'transparent', border: newTaskText.trim() ? '1px solid var(--po-border)' : '1px dashed var(--po-border)' }}>
-          <div style={badgeStyle}>1</div>
+          <CountBadge value={1} size="md" tone="neutral" />
           <input type="text" value={newTaskText} onChange={e => setNewTaskText(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && newTaskText.trim()) saveNewTask(); }}
             onBlur={() => { if (newTaskText.trim()) saveNewTask(); }}
@@ -363,12 +361,12 @@ const ScheduleTasksSection = ({
     <div style={{ marginBottom: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
         <label style={labelStyle}>Tasks</label>
-        <span style={{ width: 5, height: 5, background: 'var(--po-danger)', borderRadius: '50%' }} title="Required" />
+        <span style={{ width: 6, height: 6, background: 'var(--po-danger)', borderRadius: 1.5 }} title="Required" />
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {tasks.map((task, index) => (
           <div key={index} style={{ ...taskRowStyle, background: 'var(--po-panel)', border: '1px solid var(--po-border)' }}>
-            <div style={badgeStyle}>{index + 1}</div>
+            <CountBadge value={index + 1} size="md" tone="neutral" />
             {editingIndex === index ? (
               <input type="text" value={editingText} onChange={e => setEditingText(e.target.value)}
                 onBlur={saveEditing} onKeyDown={e => { if (e.key === 'Enter') saveEditing(); if (e.key === 'Escape') { setEditingIndex(null); setEditingText(''); } }}
@@ -390,7 +388,7 @@ const ScheduleTasksSection = ({
 
         {isAddingNew && (
           <div style={{ ...taskRowStyle, background: newTaskText.trim() ? 'var(--po-panel)' : 'transparent', border: newTaskText.trim() ? '1px solid var(--po-border)' : '1px dashed var(--po-border)' }}>
-            <div style={badgeStyle}>{tasks.length + 1}</div>
+            <CountBadge value={tasks.length + 1} size="md" tone="neutral" />
             <input ref={newTaskInputRef} type="text" value={newTaskText} onChange={e => setNewTaskText(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') saveNewTask(); if (e.key === 'Escape') { setIsAddingNew(false); setNewTaskText(''); } }}
               onBlur={saveNewTask} placeholder="Describe the task..."
@@ -483,7 +481,7 @@ export function ScheduleAgentConfig({ projectTools }: AgentConfigProps) {
       <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
           <label style={{ ...labelStyle, marginBottom: 0 }}>Agent's bash access</label>
-          <span style={{ width: 5, height: 5, background: 'var(--po-danger)', borderRadius: '50%' }} title="Required" />
+          <span style={{ width: 6, height: 6, background: 'var(--po-danger)', borderRadius: 1.5 }} title="Required" />
         </div>
         <div
           style={{ minHeight: 88, background: isDragging ? 'var(--po-hover)' : 'transparent', border: isDragging ? '1px dashed var(--po-text-disabled)' : '1px dashed var(--po-border)', borderRadius: 6, transition: 'all 0.15s' }}

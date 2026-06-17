@@ -69,8 +69,10 @@ export function AudioPreview({ projectId, filePath, nodeName, mimeType }: AudioP
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: 24,
-        background: 'var(--po-inset)',
+        padding:
+          'var(--po-editor-compact-padding-block) var(--po-editor-compact-padding-inline) var(--po-editor-compact-padding-bottom)',
+        boxSizing: 'border-box',
+        background: 'var(--po-editor-bg)',
         gap: 16,
       }}
     >

@@ -10,7 +10,7 @@
  *                                  (the three default ways to access this
  *                                  folder — DB-trigger-backed cli + agent
  *                                  connectors fan out into three UI cards)
- *   ② Integrations               — third-party providers (notion / gmail
+ *   ② Workflows                  — third-party providers (notion / gmail
  *                                  / github / url / ...) with a + Add CTA
  *
  * The header is intentionally one line. The scope's access methods
@@ -31,8 +31,15 @@
  */
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { CountBadge } from '@/components/ui/CountBadge';
 import { GithubIcon, GmailIcon, NotionIcon } from '@/lib/nodeTypeConfig';
 import type { Connector, RepoScope } from '@/lib/repoApi';
+import {
+  isAgentProvider,
+  isBuiltInAccessProvider,
+  isCliProvider,
+  isGitRemoteProvider,
+} from '@/lib/accessProviderRegistry';
 import { PanelShell } from '../PanelShell';
 import { FolderIcon } from '../explorer';
 import { ConnectorCard } from './ConnectorCard';
@@ -61,7 +68,7 @@ interface Props {
   /** Project id needed for the create/update/delete scope API calls. */
   readonly projectId: string;
   /** Connectors for the *current* scope (filtered up at the page
-   *  level). Drives the detail-view ConnectMethodsBlock + Integrations. */
+   *  level). Drives the detail-view ConnectMethodsBlock + Workflows. */
   readonly connectors: readonly Connector[];
   /** Project-wide connectors keyed by scope_id — used in the Overview
    *  state so each AccessPointRow can render its own connect / integration
@@ -133,34 +140,25 @@ export function ScopedConnectorsListPanel({
   onNavigationGuardChange,
 }: Props) {
   const cliConnector = useMemo(
-    () => connectors.find((c) => c.provider === 'cli'),
+    () => connectors.find((c) => isCliProvider(c.provider)),
     [connectors],
   );
-  // Filesystem became a per-scope built-in in the 2026-05-08
-  // migration — picked out here so the Git Remote MethodCard's
-  // pause/resume toggle has a connector to bind to.
-  const filesystemConnector = useMemo(
-    () => connectors.find((c) => c.provider === 'filesystem'),
+  const gitRemoteConnector = useMemo(
+    () => connectors.find((c) => isGitRemoteProvider(c.provider)),
     [connectors],
   );
   const agentConnector = useMemo(
-    () => connectors.find((c) => c.provider === 'agent'),
+    () => connectors.find((c) => isAgentProvider(c.provider)),
     [connectors],
   );
-  // Integrations = third-party connectors. The three built-ins
-  // (cli / agent / filesystem) are surfaced via the CONNECT block
+  // Workflows = third-party connectors. Built-ins
+  // (cli / agent / git_remote) are surfaced via the CONNECT block
   // above (Terminal CLI / AI Agent / Git Remote cards), so they
   // must be excluded from this row to avoid double-rendering.
-  // `filesystem` was promoted to a built-in by the 2026-05-08
-  // migration; missing it from this filter caused the Git Remote
-  // built-in to leak into the Integrations section as a phantom card.
   const integrations = useMemo(
     () =>
       connectors.filter(
-        (c) =>
-          c.provider !== 'cli' &&
-          c.provider !== 'agent' &&
-          c.provider !== 'filesystem',
+        (c) => !isBuiltInAccessProvider(c.provider),
       ),
     [connectors],
   );
@@ -259,18 +257,13 @@ export function ScopedConnectorsListPanel({
   const headerTitle: ReactNode = scope ? (
     settingsPage ? 'Settings' : scope.name
   ) : (
-    <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 8 }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
       <span>Access</span>
-      <span
-        style={{
-          fontSize: 12,
-          fontWeight: 400,
-          color: COLOR_FG_DIM,
-          fontVariantNumeric: 'tabular-nums',
-        }}
-      >
-        {scopes.length}
-      </span>
+      <CountBadge
+        value={scopes.length}
+        size="md"
+        tone="neutral"
+      />
     </span>
   );
   const headerSubtitle = undefined;
@@ -350,7 +343,7 @@ export function ScopedConnectorsListPanel({
               <ConnectMethodsBlock
                 scope={scope}
                 cliConnector={cliConnector}
-                filesystemConnector={filesystemConnector}
+                gitRemoteConnector={gitRemoteConnector}
                 agentConnector={agentConnector}
                 projectId={projectId}
                 apiBase={apiBase}
@@ -360,7 +353,7 @@ export function ScopedConnectorsListPanel({
 
               <ScopeSummaryBar scope={scope} />
 
-              {/* Integrations: third-party providers (notion / gmail /
+              {/* Workflows: third-party providers (notion / gmail /
                   github / url / ...). Empty state is itself the add
                   affordance, so it reads like an available slot instead
                   of adding another competing button to the panel. */}
@@ -379,11 +372,11 @@ export function ScopedConnectorsListPanel({
                       color: COLOR_FG_DIM,
                     }}
                   >
-                    Integrations
+                    Workflows
                   </div>
                 </div>
                 {integrations.length === 0 ? (
-                  <EmptyIntegrationsSlot onClick={onAddRequested} />
+                  <EmptyWorkflowsSlot onClick={onAddRequested} />
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {integrations.map((c) => (
@@ -425,7 +418,7 @@ export function ScopedConnectorsListPanel({
   );
 }
 
-function EmptyIntegrationsSlot({ onClick }: { readonly onClick: () => void }) {
+function EmptyWorkflowsSlot({ onClick }: { readonly onClick: () => void }) {
   const [hovered, setHovered] = useState(false);
 
   return (
@@ -451,9 +444,9 @@ function EmptyIntegrationsSlot({ onClick }: { readonly onClick: () => void }) {
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-          <IntegrationHintIcon label="GitHub"><GithubIcon size={15} /></IntegrationHintIcon>
-          <IntegrationHintIcon label="Notion"><NotionIcon size={15} /></IntegrationHintIcon>
-          <IntegrationHintIcon label="Gmail"><GmailIcon size={15} /></IntegrationHintIcon>
+          <WorkflowHintIcon label="GitHub"><GithubIcon size={15} /></WorkflowHintIcon>
+          <WorkflowHintIcon label="Notion"><NotionIcon size={15} /></WorkflowHintIcon>
+          <WorkflowHintIcon label="Gmail"><GmailIcon size={15} /></WorkflowHintIcon>
         </div>
         <div style={{ minWidth: 0 }}>
           <div
@@ -464,7 +457,7 @@ function EmptyIntegrationsSlot({ onClick }: { readonly onClick: () => void }) {
               color: COLOR_FG,
             }}
           >
-            Add an integration
+            Add workflow
           </div>
           <div
             style={{
@@ -482,7 +475,7 @@ function EmptyIntegrationsSlot({ onClick }: { readonly onClick: () => void }) {
   );
 }
 
-function IntegrationHintIcon({
+function WorkflowHintIcon({
   label,
   children,
 }: {

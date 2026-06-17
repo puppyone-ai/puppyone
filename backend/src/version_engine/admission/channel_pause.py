@@ -15,7 +15,7 @@ from src.utils.logger import log_error, log_warning
 # unknown / future client kinds don't break authentication. The worst case is
 # that pause becomes informational for that client kind, not that a legitimate
 # request gets rejected.
-_KNOWN_CHANNELS = frozenset({"cli", "filesystem"})
+_KNOWN_CHANNELS = frozenset({"cli", "git_remote", "mcp"})
 _CHANNEL_PAUSE_CACHE_TTL_SECONDS = 2.0
 _channel_pause_cache: dict[tuple[str, str], tuple[float, str | None, str | None]] = {}
 _channel_pause_cache_lock = threading.Lock()

@@ -1,28 +1,27 @@
 // Provider-related constants used across Home subcomponents.
 
+import {
+  ACCESS_PROVIDER_LABELS,
+  isAgentProvider,
+  isMcpProvider,
+  isSandboxProvider,
+} from '@/lib/accessProviderRegistry';
 import type { ApDirection, DashboardConnection } from './types';
 
-export const PROVIDER_LABELS: Record<string, string> = {
-  filesystem: 'Desktop Sync', gmail: 'Gmail', google_sheets: 'Google Sheets',
-  google_calendar: 'Google Calendar', google_docs: 'Google Docs', github: 'GitHub',
-  supabase: 'Supabase', notion: 'Notion', linear: 'Linear',
-  hackernews: 'Hacker News', posthog: 'PostHog',
-  google_search_console: 'GSC', script: 'Script',
-  agent: 'Agent', mcp: 'MCP Server', sandbox: 'Sandbox', url: 'Web Page',
-};
+export const PROVIDER_LABELS = ACCESS_PROVIDER_LABELS;
 
 export const PROVIDER_COLORS: Record<string, string> = {
-  agent: 'var(--po-file-accent-audio)', mcp: 'var(--po-accent)', sandbox: 'var(--po-warning)', filesystem: 'var(--po-success)',
+  agent: 'var(--po-file-accent-audio)', mcp: 'var(--po-accent)', sandbox: 'var(--po-warning)',
+  git_remote: 'var(--po-success)', cli: 'var(--po-accent)',
   gmail: 'var(--po-danger)', github: 'var(--po-text)', google_sheets: 'var(--po-success)', google_docs: 'var(--po-accent)',
   notion: 'var(--po-text)', supabase: 'var(--po-success)', url: 'var(--po-text-subtle)',
 };
 
 // Provider-based fallback for legacy rows where `connections.direction` is
-// missing.  Truth-of-record is the backend `direction` column — see
-// `getApDirection()` below.
-export const OUTPUT_PROVIDERS = new Set(['agent', 'mcp', 'sandbox']);
-
-export const isOutputProvider = (provider: string) => OUTPUT_PROVIDERS.has(provider);
+// missing. Truth-of-record is the backend `direction` column; provider category
+// comes from the shared Access provider registry.
+export const isOutputProvider = (provider: string) =>
+  isAgentProvider(provider) || isMcpProvider(provider) || isSandboxProvider(provider);
 export const isInputProvider = (provider: string) => !isOutputProvider(provider);
 
 /** Normalize the wire `direction` (loose `string | null`) into a strict

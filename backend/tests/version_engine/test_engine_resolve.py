@@ -23,6 +23,7 @@ import pytest
 from src.version_engine.write_engine.engine import (
     VersionWriteEngine,
 )
+from src.version_engine.write_engine.submission_writer import SubmissionWriter
 from src.version_engine.write_engine.tree_objects import build_tree_from_files
 from src.version_engine.domain.intents import ConflictResolutionIntent
 from src.version_engine.domain.intents import TransactionResult
@@ -271,8 +272,8 @@ async def test_resolve_landing_pending_keeps_row_resolving(
             reason="manual_review_required",
         )
     monkeypatch.setattr(
-        VersionWriteEngine,
-        "_submit_version_root_first",
+        SubmissionWriter,
+        "submit_version_root_first",
         fake_submit,
     )
 

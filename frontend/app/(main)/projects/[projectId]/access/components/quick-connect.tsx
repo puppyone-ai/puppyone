@@ -7,7 +7,7 @@
  * The data view's `ConnectMethods` already encoded this for us; we
  * mirror its split here:
  *
- *   • CLI / filesystem  → primary AI-agent setup prompt, with manual
+ *   • CLI / Git Remote  → primary AI-agent setup prompt, with manual
  *     terminal commands tucked behind a secondary disclosure.
  *   • agent             → ActivationCard (Activate / Open chat) — agents
  *     are Puppyone's in-app chat, never an externally-pasted prompt.
@@ -24,11 +24,20 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { buildGitSyncPrompt, buildTerminalCliPrompt } from '@/lib/accessPointCliPrompt';
+import { CountBadge } from '@/components/ui/CountBadge';
+import { buildGitSyncPrompt, buildMcpSetupPrompt, buildTerminalCliPrompt } from '@/lib/accessPointCliPrompt';
 import { activateAgentConnector, type Connector, type RepoScope } from '@/lib/repoApi';
+import {
+  getAccessProviderLabel,
+  isAgentProvider,
+  isCliProvider,
+  isGitRemoteProvider,
+  isMcpProvider,
+  isSandboxProvider,
+  normalizeConnectorProvider,
+} from '@/lib/accessProviderRegistry';
 import { AI_AGENT_ENABLED } from '@/lib/featureFlags';
 import { T } from '../lib/tokens';
-import { PROVIDER_LABELS } from '../lib/constants';
 import {
   getApiBase,
   profileSlug,
@@ -54,13 +63,14 @@ export function ConnectorAccessPanel({
   const apiBase = useMemo(() => getApiBase(), []);
   if (!scope) return null;
 
-  if (connector.provider === 'cli') {
-    return <TerminalCliBody scope={scope} apiBase={apiBase} />;
+  const provider = normalizeConnectorProvider(connector.provider);
+  if (isCliProvider(provider)) {
+    return <TerminalCliBody connector={connector} scope={scope} apiBase={apiBase} />;
   }
-  if (connector.provider === 'filesystem') {
-    return <LocalSyncBody scope={scope} apiBase={apiBase} />;
+  if (isGitRemoteProvider(provider)) {
+    return <GitRemoteBody connector={connector} scope={scope} apiBase={apiBase} />;
   }
-  if (connector.provider === 'agent') {
+  if (isAgentProvider(provider)) {
     // Agent surface is gated on the AI_AGENT_ENABLED flag (see
     // `frontend/lib/featureFlags.ts`). When hidden, fall through to
     // an empty render — callers should be filtering agent connectors
@@ -70,10 +80,10 @@ export function ConnectorAccessPanel({
     if (!AI_AGENT_ENABLED) return null;
     return <AgentBody connector={connector} scope={scope} />;
   }
-  if (connector.provider === 'mcp') {
+  if (isMcpProvider(provider)) {
     return <McpBody connector={connector} scope={scope} />;
   }
-  if (connector.provider === 'sandbox') {
+  if (isSandboxProvider(provider)) {
     return <SandboxBody scope={scope} />;
   }
   return <ThirdPartyBody connector={connector} scope={scope} />;
@@ -82,13 +92,15 @@ export function ConnectorAccessPanel({
 // ─── Body: Terminal CLI ──────────────────────────────────────────────
 
 function TerminalCliBody({
+  connector,
   scope,
   apiBase,
 }: {
+  readonly connector: Connector;
   readonly scope: RepoScope;
   readonly apiBase: string;
 }) {
-  const accessKey = scope.access_key || '';
+  const accessKey = scope.access_key || connector.access_key || '';
   const scopeName = scope.name || (scope.path === '' ? 'root' : scope.path);
   const profileName = profileSlug(scope.name || scope.path || 'root');
 
@@ -121,14 +133,16 @@ function TerminalCliBody({
 
 // ─── Body: Git Remote ────────────────────────────────────────────────
 
-function LocalSyncBody({
+function GitRemoteBody({
+  connector,
   scope,
   apiBase,
 }: {
+  readonly connector: Connector;
   readonly scope: RepoScope;
   readonly apiBase: string;
 }) {
-  const accessKey = scope.access_key || '';
+  const accessKey = scope.access_key || connector.access_key || '';
   const scopeName = scope.name || (scope.path === '' ? 'root' : scope.path);
   const gitUrl = `${apiBase}/git/ap/${accessKey || '<access-key>'}.git`;
   const {
@@ -268,24 +282,8 @@ function ConnectionStepsList({
     >
       {steps.map((step, idx) => (
         <div key={step.title} style={{ display: 'flex', gap: 10 }}>
-          <span
-            style={{
-              width: 20,
-              height: 20,
-              borderRadius: 999,
-              background: 'var(--po-border-subtle)',
-              color: T.text2,
-              fontSize: 10,
-              fontWeight: 600,
-              fontFamily: T.fontSans,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-              marginTop: 1,
-            }}
-          >
-            {idx + 1}
+          <span style={{ marginTop: 1 }}>
+            <CountBadge value={idx + 1} size="sm" tone="neutral" />
           </span>
           <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
             <span style={{ fontSize: 12, fontWeight: 600, color: T.text1, fontFamily: T.fontSans }}>
@@ -380,23 +378,70 @@ function McpBody({
   readonly scope: RepoScope;
 }) {
   const apiBase = useMemo(() => getApiBase(), []);
-  // MCP endpoint URL — the actual binding lives in the connector's
-  // config; we surface the basics so the user can paste them into a
-  // Claude Desktop / Cursor MCP config.
-  const endpoint = `${apiBase}/mcp/${connector.id}`;
+  const configKey = connector.config?.api_key;
+  const apiKey = typeof configKey === 'string' ? configKey : connector.access_key || '';
   const scopeName = scope.name || (scope.path === '' ? 'root' : scope.path);
+  const setup = useMemo(
+    () =>
+      buildMcpSetupPrompt({
+        apiBase,
+        apiKey,
+        scopeName,
+        accessPointName: connector.name,
+      }),
+    [apiBase, apiKey, scopeName, connector.name],
+  );
 
   return (
-    <>
-      <SubSectionLabel>MCP endpoint</SubSectionLabel>
-      <KvBlock
-        rows={[
-          { label: 'URL', value: endpoint, mono: true, copyable: true },
-          { label: 'Scope', value: scopeName },
-          { label: 'Mode', value: scope.mode === 'rw' ? 'Read & write' : 'Read-only' },
-        ]}
-      />
-    </>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {!apiKey ? <McpKeyNotice /> : null}
+      <p
+        style={{
+          margin: 0,
+          color: T.text2,
+          fontSize: 12,
+          lineHeight: '18px',
+          fontFamily: T.fontSans,
+        }}
+      >
+        Add this MCP server to your client. The only required values are the server URL and API key; the JSON below includes both.
+      </p>
+      <div>
+        <SubSectionLabel>MCP client JSON</SubSectionLabel>
+        <CommandBlock lines={setup.config.split('\n')} />
+      </div>
+      <div>
+        <SubSectionLabel>MCP connection</SubSectionLabel>
+        <KvBlock
+          rows={[
+            { label: 'MCP server', value: setup.serverUrl, mono: true, copyable: true },
+            { label: 'API key', value: apiKey || '<mcp-api-key>', mono: true, copyable: true },
+            { label: 'Scope', value: scopeName },
+            { label: 'File tools', value: 'Controlled by server policy' },
+            { label: 'Shell/Bash', value: 'Not exposed' },
+          ]}
+        />
+      </div>
+    </div>
+  );
+}
+
+function McpKeyNotice() {
+  return (
+    <div
+      style={{
+        borderRadius: 6,
+        border: `1px solid color-mix(in srgb, var(--po-warning) 25%, transparent)`,
+        background: 'color-mix(in srgb, var(--po-warning) 6%, transparent)',
+        color: 'var(--po-warning)',
+        fontSize: 12,
+        lineHeight: 1.5,
+        padding: '8px 10px',
+        fontFamily: T.fontSans,
+      }}
+    >
+      This MCP access point has no API key yet. Regenerate the endpoint key before connecting a client.
+    </div>
   );
 }
 
@@ -428,7 +473,7 @@ function ThirdPartyBody({
   readonly scope: RepoScope;
 }) {
   const router = useRouter();
-  const providerLabel = PROVIDER_LABELS[connector.provider] ?? connector.provider;
+  const providerLabel = getAccessProviderLabel(connector.provider);
 
   const handleConfigure = useCallback(() => {
     router.push(scopePathToDataUrl(connector.project_id, scope.path) + `?ap=${connector.id}`);

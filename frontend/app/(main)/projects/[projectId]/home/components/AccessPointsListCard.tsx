@@ -3,8 +3,11 @@
 import React, { useState } from 'react';
 import type { useRouter } from 'next/navigation';
 import { ArrowRight, ArrowLeft, ArrowLeftRight } from 'lucide-react';
+import { StatusDot } from '@/components/ui/StatusDot';
+import { CountBadge } from '@/components/ui/CountBadge';
+import { getAccessProviderLabel } from '@/lib/accessProviderRegistry';
 import { T } from '../lib/tokens';
-import { PROVIDER_LABELS, getApDirection } from '../lib/constants';
+import { getApDirection } from '../lib/constants';
 import type { DashboardConnection } from '../lib/types';
 import { ProviderAvatar } from './ProviderAvatar';
 
@@ -52,8 +55,8 @@ function DirectionGlyph({ direction }: { direction: 'inbound' | 'outbound' | 'bi
   // data signals.  Direction is *metadata* (which way data flows
   // when this AP is used), not a status — the colour was over-
   // promising and contributed to the "everything is cyan" feel.
-  // Status freshness is communicated by the dot next to the AP
-  // name, which keeps its statusColor mapping (live / error / paused).
+  // Status freshness is communicated by the standard dot next to the
+  // AP name, so size / color mapping stays consistent product-wide.
   const Icon =
     direction === 'outbound'
       ? ArrowLeft
@@ -67,7 +70,7 @@ function DirectionGlyph({ direction }: { direction: 'inbound' | 'outbound' | 'bi
 // path shape per provider.  The host comes from NEXT_PUBLIC_API_URL
 // when set (build-time-baked backend host) and falls back to the
 // current page origin only when no env was provided — same pattern as
-// FilesystemDetailView / SyncDetailView / GetStartedPanel.
+// SyncDetailView / GetStartedPanel.
 function buildEndpointUrl(conn: DashboardConnection): string | null {
   if (!conn.access_key) return null;
   const apiBase =
@@ -76,13 +79,13 @@ function buildEndpointUrl(conn: DashboardConnection): string | null {
       : '';
 
   switch (conn.provider) {
-    case 'filesystem':
-      // Filesystem access keys authorise the Git smart-HTTP remote at
+    case 'git_remote':
+      // Git Remote access keys authorise the Git smart-HTTP remote at
       // /git/ap/<key>.git.
       return `${apiBase}/git/ap/${conn.access_key}.git`;
     case 'mcp':
     case 'agent':
-      return `${apiBase}/api/v1/mcp/proxy/${conn.access_key}`;
+      return `${apiBase}/api/v1/mcp/proxy`;
     case 'sandbox':
       // Sandbox uses endpoint.id rather than access_key for the
       // public exec route, but DashboardConnection only carries
@@ -95,13 +98,12 @@ function buildEndpointUrl(conn: DashboardConnection): string | null {
 }
 
 // Shell command users would actually paste, scoped per provider.
-// `null` means we don't render a command row for this provider —
-// today everything that isn't filesystem; their richer invocation
-// shapes (MCP server config blob, sandbox exec body, etc.) live on
-// the /access detail page.
+// `null` means we don't render a command row for this provider.
+// Non-Git invocation shapes (MCP server config blob, sandbox exec
+// body, etc.) live on the /access detail page.
 function buildCliCommand(conn: DashboardConnection, url: string | null): string | null {
   if (!url || !conn.access_key) return null;
-  if (conn.provider !== 'filesystem') return null;
+  if (conn.provider !== 'git_remote') return null;
   // Stock git clone is the canonical setup. The
   // user authenticates once via `git credential.helper store`; see the
   // detail panel's "Authenticate" step for the full one-line helper.
@@ -238,64 +240,14 @@ export function AccessPointsListCard({
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 13, fontWeight: 500, color: T.text2 }}>
-            Integrations
+            Workflows
           </span>
-          <span
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              minWidth: 20,
-              height: 18,
-              padding: '0 6px',
-              borderRadius: 9,
-              background: 'var(--po-border)',
-              fontSize: 11,
-              fontWeight: 600,
-              color: total > 0 ? T.text2 : T.text3,
-              fontVariantNumeric: 'tabular-nums',
-              lineHeight: 1,
-            }}
-          >
-            {total}
-          </span>
+          <CountBadge
+            value={total}
+            size="md"
+            tone={total > 0 ? 'neutral' : 'muted'}
+          />
         </div>
-        <button
-          onClick={() => router.push(`/projects/${projectId}/access`)}
-          title="Manage integrations"
-          style={{
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            width: 30,
-            height: 30,
-            padding: 0,
-            fontSize: 12,
-            color: T.text2,
-            fontFamily: T.fontSans,
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 4,
-            transition: `color 200ms ${T.ease}`,
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.color = T.text1;
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = T.text2;
-          }}
-        >
-          Manage
-          <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-            <path
-              d="M4 2l4 4-4 4"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
       </div>
 
       <div style={{ padding: '6px 8px', minHeight: 60 }}>
@@ -310,7 +262,7 @@ export function AccessPointsListCard({
               fontSize: 12,
             }}
           >
-            No integrations configured.
+            No workflows configured.
           </div>
         ) : (
           // Flex column with generous vertical gap rather than 1px
@@ -365,16 +317,10 @@ function ApListRow({
   const [isMouseOver, setIsMouseOver] = useState(false);
 
   const direction = getApDirection(conn);
-  const label = conn.name || PROVIDER_LABELS[conn.provider] || conn.provider;
+  const label = conn.name || getAccessProviderLabel(conn.provider);
   const rawPath = conn.path;
   const isRoot = rawPath === null || rawPath === '' || rawPath === '/';
   const displayScope = isRoot ? '/' : `/${rawPath}`;
-  const isError = conn.status === 'error';
-  const statusColor = isError
-    ? T.err
-    : conn.status === 'paused'
-      ? T.warn
-      : T.live;
   const url = buildEndpointUrl(conn);
   const cmd = buildCliCommand(conn, url);
 
@@ -481,17 +427,7 @@ function ApListRow({
             >
               {label}
             </span>
-            <span
-              aria-hidden
-              style={{
-                width: 5,
-                height: 5,
-                borderRadius: '50%',
-                background: statusColor,
-                boxShadow: isError ? 'none' : `0 0 0 2px ${T.liveSoft}`,
-                flexShrink: 0,
-              }}
-            />
+            <StatusDot status={conn.status} />
           </div>
 
           {/* Direction + scope — pinned to the right, with scope

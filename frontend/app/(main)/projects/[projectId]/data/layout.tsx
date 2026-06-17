@@ -3,6 +3,10 @@
 import { use, useCallback, useMemo } from 'react';
 import useSWR from 'swr';
 import { get } from '@/lib/apiClient';
+import {
+  isMcpProvider,
+  isSandboxProvider,
+} from '@/lib/accessProviderRegistry';
 import { useProjectTools, refreshFolderNodes } from '@/lib/hooks/useData';
 import { useAgent } from '@/contexts/AgentContext';
 import { useCommitUpdates } from '@/contexts/VersionWebSocketContext';
@@ -13,6 +17,7 @@ import {
   isAccessSurfaceConnector,
   listConnectors,
   listScopes,
+  normalizeAccessSurfaceConnectors,
   type Connector,
 } from '@/lib/repoApi';
 import {
@@ -99,7 +104,7 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
     syncs: SyncStatusSync[];
   }>(
     projectId ? ['sync-status', projectId] : null,
-    () => get(`/api/v1/sync/status?project_id=${projectId}`),
+    () => get(`/api/v1/integrations/status?project_id=${projectId}`),
     { revalidateOnFocus: false, dedupingInterval: 60000 },
   );
   const { data: mcpEndpoints } = useSWR(
@@ -130,16 +135,22 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
     { revalidateOnFocus: false, dedupingInterval: 60000 },
   );
 
+  const accessConnectorsForDataView = useMemo(
+    () =>
+      normalizeAccessSurfaceConnectors(connectorsList || [])
+        .filter((connector) => isAccessSurfaceConnector(connector)),
+    [connectorsList],
+  );
+
   const connectorsByScope = useMemo(() => {
     const m = new Map<string, Connector[]>();
-    for (const c of connectorsList || []) {
-      if (!isAccessSurfaceConnector(c)) continue;
+    for (const c of accessConnectorsForDataView) {
       const list = m.get(c.scope_id) || [];
       list.push(c);
       m.set(c.scope_id, list);
     }
     return m;
-  }, [connectorsList]);
+  }, [accessConnectorsForDataView]);
 
   const mutateRepo = async () => {
     await Promise.all([mutateScopes(), mutateConnectors(), mutateIdentity()]);
@@ -170,21 +181,17 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
 
     // Project connectors+scopes data into the per-row endpoint view so the
     // object menu and connection-list affordances use the canonical model.
-    // cli connectors map
-    // to `filesystem` (matching the boss-era
-    // provider taxonomy that AccessPointProviderIcon / setup-snippet code
-    // branches on); the access_key for cli is the *scope's* access_key,
-    // not the connector's. agent connectors are skipped here because the
+    // The access_key for built-in access surfaces is the scope's access_key,
+    // not the connector's. Agent connectors are skipped here because the
     // savedAgents loop below already populates them from AgentContext.
     const scopeById = new Map((scopes || []).map((s) => [s.id, s]));
-    for (const c of connectorsList || []) {
-      if (!isAccessSurfaceConnector(c)) continue;
+    for (const c of accessConnectorsForDataView) {
       if (c.provider === 'agent') continue;
       const scope = scopeById.get(c.scope_id);
       if (!scope) continue;
       append(scope.path, {
         syncId: c.id,
-        provider: c.provider === 'cli' ? 'filesystem' : c.provider,
+        provider: c.provider,
         direction: c.direction,
         status: c.status,
         name: c.name || scope.name,
@@ -238,13 +245,13 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
     }
 
     return map;
-  }, [syncStatusData, savedAgents, mcpEndpoints, sandboxEndpoints, scopes, connectorsList]);
+  }, [syncStatusData, savedAgents, mcpEndpoints, sandboxEndpoints, scopes, accessConnectorsForDataView]);
 
   const syncEndpoints = useMemo(() => {
     const pickPriority = (provider: string): number => {
       if (provider.startsWith('agent:')) return 1;
-      if (provider === 'mcp') return 2;
-      if (provider === 'sandbox') return 3;
+      if (isMcpProvider(provider)) return 2;
+      if (isSandboxProvider(provider)) return 3;
       return 4;
     };
 

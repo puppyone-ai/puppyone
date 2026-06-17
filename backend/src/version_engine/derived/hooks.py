@@ -74,6 +74,40 @@ async def push_and_finalize(
 
 _SUCCESS_STATUSES = frozenset({"ok", "rolled-back"})
 _SCOPE_SYNC_RETRIES = 5
+
+# Neutral system identity for derived scope-view commits / sync audit rows.
+# A cross-scope projection is NOT a user write, so it is attributed to this
+# system actor — never the source scope's auth.
+SCOPE_VIEW_ACTOR = "puppyone-scope-view"
+
+
+def _record_scope_sync_best_effort(
+    repo,
+    *,
+    scope_path: str,
+    committed_commit_id: str,
+    current_head_at_start: str,
+    source_commit_id: str,
+) -> None:
+    """Leave an auditable transaction + audit row on a scope whose head was
+    just advanced by project-root projection. Best-effort: the head already
+    moved, so a missing ``record_scope_sync`` backend or a write failure must
+    not break the sync loop."""
+    record = getattr(repo, "record_scope_sync", None)
+    if not callable(record):
+        return
+    try:
+        record(
+            scope_path=scope_path,
+            committed_commit_id=committed_commit_id,
+            current_head_at_start=current_head_at_start or "",
+            source_commit_id=source_commit_id,
+            actor=SCOPE_VIEW_ACTOR,
+        )
+    except Exception as exc:  # noqa: BLE001 — derived audit is best-effort
+        log_warning(
+            f"[PostCommit] scope-sync audit record failed for {scope_path!r}: {exc}"
+        )
 _PROJECTION_LOCK_REGISTRY: dict[tuple[str, str], threading.RLock] = {}
 _PROJECTION_LOCK_REGISTRY_LOCK = threading.Lock()
 
@@ -214,11 +248,35 @@ def run_post_push_hook(
             project_id,
             _scope_commit_git_view_paths(repo, scope_path, changes),
         )
+        # Scope-sync: append path-scoped "upstream advanced" events so sandbox
+        # sidecars pull lazily (PUP-sync-trigger-architecture, M3/M4).
+        _emit_scope_sync_event(project_id, scope_path, changes, commit_id, entry.get("who"))
 
     except Exception as e:
         log_error(f"[PostCommit] post-push hook failed for project {project_id}: {e}")
         if raise_errors:
             raise
+
+
+def _emit_scope_sync_event(project_id, scope_path, changes, commit_id, who) -> None:
+    """Append path-scoped scope-sync upstream events for this publish (M3/M4).
+
+    Lazy import + fully guarded: scope-sync eventing must never affect a commit.
+    """
+    try:
+        paths = [c.get("path") for c in (changes or []) if isinstance(c, dict) and c.get("path")]
+        if not paths:
+            return
+        from src.platform.scope_sync.service import get_scope_sync_service
+        get_scope_sync_service().record_publish(
+            project_id=project_id,
+            scope_path=(scope_path or "").strip("/"),
+            changed_paths=paths,
+            head_version=commit_id,
+            origin_user=who or None,
+        )
+    except Exception as exc:  # noqa: BLE001
+        log_warning(f"[PostCommit] scope-sync event emit skipped: {exc}")
 
 
 def _refresh_fs_path_index(
@@ -358,6 +416,11 @@ def run_post_project_update_hook(
             {"", *_project_root_affected_scope_paths(repo, changed_paths)},
         )
         _broadcast_commit_update(project_id, entry, changes)
+        # Scope-sync: fan out path-scoped "upstream advanced" events (M3/M4).
+        # This is the root-first publish path (git push + typed writes), so the
+        # changes are project-root-absolute → scope_path="" lets record_publish
+        # translate them into each affected scope's coordinates.
+        _emit_scope_sync_event(project_id, "", changes, commit_id, entry.get("who"))
 
     except Exception as e:
         log_error(
@@ -797,7 +860,7 @@ def _sync_child_scope_refs_from_project_root(
                     repo,
                     tree_sha=target_hash,
                     parent_sha=parent,
-                    who="puppyone-scope-view",
+                    who=SCOPE_VIEW_ACTOR,
                     message=f"Puppyone scope view for {source_commit_id}",
                     created_at_iso=created_at_iso,
                     validate_parent_graph=False,
@@ -808,6 +871,18 @@ def _sync_child_scope_refs_from_project_root(
                     log_info(
                         f"[PostCommit] synced child scope {scope_path!r} from "
                         f"project-root commit {source_commit_id[:12]}"
+                    )
+                    # Leave an auditable trail on the synced scope: its head
+                    # just advanced via a derived projection (not a user
+                    # write), so without this the change is invisible in this
+                    # scope's transaction/audit stream. Attribution is a
+                    # neutral system identity — never the source scope's auth.
+                    _record_scope_sync_best_effort(
+                        repo,
+                        scope_path=scope_path,
+                        committed_commit_id=scope_commit_id,
+                        current_head_at_start=current_head,
+                        source_commit_id=source_commit_id,
                     )
                     break
 

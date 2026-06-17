@@ -2,6 +2,7 @@
 
 import { useId } from 'react';
 import type { useRouter } from 'next/navigation';
+import { CountBadge } from '@/components/ui/CountBadge';
 import { T } from '../lib/tokens';
 import { formatRelative } from '../lib/format';
 import type { VersionCommitInfo } from '@/lib/contentTreeApi';
@@ -258,27 +259,11 @@ export function HistoryCard({
           >
             History
           </span>
-          <span
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              minWidth: 20,
-              height: 18,
-              padding: '0 6px',
-              borderRadius: 9,
-              background: 'var(--po-border)',
-              fontSize: 11,
-              fontWeight: 600,
-              // Dimmed from text1 → text2 (chip number was glaring
-              // brighter than the label next to it).
-              color: hasHistory ? T.text2 : T.text3,
-              fontVariantNumeric: 'tabular-nums',
-              lineHeight: 1,
-            }}
-          >
-            {total}
-          </span>
+          <CountBadge
+            value={total}
+            size="md"
+            tone={hasHistory ? 'neutral' : 'muted'}
+          />
         </div>
         <button
           onClick={() => router.push(`/projects/${projectId}/history`)}
@@ -389,14 +374,14 @@ export function HistoryCard({
                     <span
                       aria-hidden
                       style={{
-                        width: isFirst ? 8 : 6,
-                        height: isFirst ? 8 : 6,
-                        borderRadius: '50%',
+                        width: 6,
+                        height: 6,
+                        borderRadius: 1.5,
                         background: isFirst ? T.live : 'transparent',
                         border: isFirst
                           ? `1px solid ${T.live}`
                           : `1px solid ${T.text3}`,
-                        boxShadow: isFirst ? `0 0 0 3px ${T.liveSoft}` : 'none',
+                        boxSizing: 'border-box',
                         marginTop: 5,
                         flexShrink: 0,
                       }}

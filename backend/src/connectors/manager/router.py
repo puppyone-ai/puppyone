@@ -1,8 +1,8 @@
 """Workspace Access API.
 
 Access manages scope-bound ways to enter or operate on a workspace:
-Git remote, CLI, local filesystem, agents, MCP endpoints, and sandboxes.
-External source relationships belong to Connect, not this router.
+Git remote, FS CLI, agents, MCP endpoints, and sandboxes.
+External source relationships belong to Integration, not this router.
 """
 
 from __future__ import annotations
@@ -18,6 +18,8 @@ from src.exceptions import ErrorCode, NotFoundException
 from src.infra.supabase.client import SupabaseClient
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
+from src.platform.entitlements.dependencies import get_entitlement_service
+from src.platform.entitlements.service import EntitlementService
 from src.platform.organization.dependencies import resolve_org_ids
 from src.repo.access_surface_repository import AccessSurfaceRepository
 from src.repo.scope_service import ScopeService
@@ -56,6 +58,17 @@ class ConnectionUpdate(BaseModel):
 
 def _get_client():
     return SupabaseClient().client
+
+
+def _count_user_access_surfaces_for_project(sb_client, project_id: str) -> int:
+    resp = (
+        sb_client.table("access_surfaces")
+        .select("id", count="exact")
+        .eq("project_id", project_id)
+        .not_.in_("kind", ["git_remote", "cli"])
+        .execute()
+    )
+    return resp.count or 0
 
 
 def _normalize_scope_path(path: str | None) -> str:
@@ -129,12 +142,12 @@ def _scope_for_path(
 def _access_key_for(row: dict, scope: dict | None) -> str | None:
     cfg = row.get("config") or {}
     provider = row.get("kind", row.get("provider", ""))
-    if provider in {"git_remote", "cli", "filesystem"}:
+    if provider in {"git_remote", "cli"}:
         return (scope or {}).get("access_key")
     if provider == "agent":
         return cfg.get("mcp_api_key") or cfg.get("access_key")
     if provider == "mcp":
-        return cfg.get("api_key")
+        return None
     if provider == "sandbox":
         return cfg.get("access_key")
     return cfg.get("access_key")
@@ -371,7 +384,7 @@ async def delete_connection(
     if resp.data[0]["project_id"] not in pids:
         raise NotFoundException("Access connection not found", code=ErrorCode.NOT_FOUND)
 
-    if resp.data[0].get("kind") in {"git_remote", "cli", "filesystem"}:
+    if resp.data[0].get("kind") in {"git_remote", "cli"}:
         raise HTTPException(status_code=400, detail="Built-in access surfaces cannot be deleted")
     AccessSurfaceRepository().delete(connection_id)
     return ApiResponse.success(message="Access connection deleted")
@@ -436,7 +449,7 @@ def regenerate_key(
         raise NotFoundException("Access connection not found", code=ErrorCode.NOT_FOUND)
 
     provider = row.get("kind", row.get("provider", ""))
-    if provider in {"git_remote", "cli", "filesystem"}:
+    if provider in {"git_remote", "cli"}:
         new_key = ScopeService().regenerate_access_key(row["scope_id"])
         if not new_key:
             raise NotFoundException("Scope not found", code=ErrorCode.NOT_FOUND)
@@ -444,7 +457,7 @@ def regenerate_key(
             sb.table("access_surfaces")
             .select("*")
             .eq("scope_id", row["scope_id"])
-            .in_("kind", ["git_remote", "cli", "filesystem"])
+            .in_("kind", ["git_remote", "cli"])
             .execute()
         ).data or []
         for surface in surfaces:
@@ -455,9 +468,23 @@ def regenerate_key(
     if provider == "sandbox":
         prefix = "sbx"
         key_field = "access_key"
-    elif provider in {"agent", "mcp"}:
+    elif provider == "mcp":
+        from src.connectors.mcp_endpoint.repository import McpEndpointRepository
+        from src.connectors.mcp_endpoint.service import McpEndpointService
+
+        endpoint = McpEndpointService(repository=McpEndpointRepository()).regenerate_key(connection_id)
+        if not endpoint or not endpoint.get("api_key"):
+            raise NotFoundException("MCP endpoint not found", code=ErrorCode.NOT_FOUND)
+        return ApiResponse.success(
+            data={
+                "access_key": endpoint["api_key"],
+                "access_key_hint": endpoint.get("api_key_hint"),
+            },
+            message="Key regenerated",
+        )
+    elif provider == "agent":
         prefix = "cli"
-        key_field = "mcp_api_key" if provider == "agent" else "api_key"
+        key_field = "mcp_api_key"
     else:
         prefix = "key"
         key_field = "access_key"
@@ -491,15 +518,6 @@ def list_connection_types():
             "creation_mode": "direct",
             "category": "access",
             "icon": "git-branch",
-        },
-        {
-            "provider": "filesystem",
-            "display_name": "Local Folder Sync",
-            "description": "Local folder access using the scoped access key",
-            "auth": "access_key",
-            "creation_mode": "bootstrap",
-            "category": "access",
-            "icon": "folder-sync",
         },
         {
             "provider": "agent",
@@ -606,7 +624,7 @@ def _create_agent(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
     )
 
 
-def _create_mcp(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
+def _create_mcp(payload: UnifiedConnectionCreate, *, created_by: str | None = None) -> UnifiedConnectionOut:
     from src.connectors.mcp_endpoint.repository import McpEndpointRepository
     from src.connectors.mcp_endpoint.schemas import McpAccessItem, McpToolItem
     from src.connectors.mcp_endpoint.service import McpEndpointService
@@ -623,6 +641,7 @@ def _create_mcp(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
         description=payload.config.get("description"),
         accesses=accesses,
         tools_config=tools,
+        created_by=created_by,
     )
     return UnifiedConnectionOut(
         id=row["id"],
@@ -660,46 +679,6 @@ def _create_sandbox(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
         provider="sandbox",
         name=row["name"],
         status=row["status"],
-    )
-
-
-async def _create_filesystem(
-    payload: UnifiedConnectionCreate, _user_id: str,
-) -> UnifiedConnectionOut:
-    """Claim the built-in filesystem connector for a scope."""
-    from src.connectors.datasource.repository import SyncRepository
-    from src.connectors.filesystem.service import FilesystemService
-    from src.infra.supabase.client import SupabaseClient
-
-    supabase = SupabaseClient()
-    sync_repo = SyncRepository(supabase)
-    service = FilesystemService(supabase=supabase, sync_repo=sync_repo)
-
-    cfg = payload.config
-    scope = cfg.get("scope", {})
-    if isinstance(scope, dict):
-        scope_path = scope.get("path", payload.path or "/")
-    else:
-        scope_path = str(scope) if scope else (payload.path or "/")
-
-    try:
-        sync = service.bootstrap(
-            project_id=payload.project_id,
-            path=scope_path,
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to create filesystem connector: {e}") from e
-
-    return UnifiedConnectionOut(
-        id=sync.id,
-        project_id=payload.project_id,
-        provider="filesystem",
-        name=payload.name or "Filesystem Sync",
-        status=sync.status or "active",
-        access_key=sync.access_key,
-        # Post-hash: the access_key now authorises Git smart-HTTP at
-        # /git/ap/<key>.git and the FS HTTP API at /api/v1/ap-fs/*.
-        ap_base=f"/git/ap/{sync.access_key}.git" if sync.access_key else None,
     )
 
 
@@ -763,6 +742,7 @@ def _create_direct(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
 async def create_connection(
     payload: UnifiedConnectionCreate,
     current_user: CurrentUser = Depends(get_current_user),
+    entitlement_service: EntitlementService = Depends(get_entitlement_service),
 ):
     """
     Unified entry point for creating Access surfaces.
@@ -771,14 +751,25 @@ async def create_connection(
     - agent: creates a chat agent
     - mcp: creates an MCP endpoint
     - sandbox: creates a sandbox endpoint
-    - filesystem/direct: returns scoped access credentials
+    - direct: returns scoped Git Remote and FS CLI credentials
     """
     from src.platform.project.repository import ProjectRepositorySupabase
     project_repo = ProjectRepositorySupabase()
     if not project_repo.verify_project_access(payload.project_id, current_user.user_id):
         raise HTTPException(status_code=403, detail="Access denied to this project")
+    project = project_repo.get_by_id(payload.project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
 
     provider = payload.provider.lower()
+    if provider not in {"agent", "mcp", "sandbox", "direct"}:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Unknown access provider: {provider}. Use Integration APIs "
+                "for external datasource connections."
+            ),
+        )
 
     # ── Duplicate detection ────────────────────────────────────────
     # Block creation if an identical access surface already exists.
@@ -786,7 +777,7 @@ async def create_connection(
     sb = _get_client()
     existing = []
     existing_scopes: dict[str, dict] = {}
-    if provider not in {"direct", "filesystem"}:
+    if provider != "direct":
         existing = (
             sb.table("access_surfaces")
             .select("*")
@@ -818,25 +809,28 @@ async def create_connection(
                 },
             )
 
+    if provider != "direct":
+        entitlement_service.require_allowed(
+            project.org_id,
+            "access_surface_kinds",
+            provider,
+        )
+        entitlement_service.require_feature(project.org_id, f"access_surface.{provider}")
+        entitlement_service.require_capacity(
+            project.org_id,
+            "access_surfaces.max_per_project",
+            current_count=_count_user_access_surfaces_for_project(sb, payload.project_id),
+        )
+
     try:
         if provider == "agent":
             result = _create_agent(payload)
         elif provider == "mcp":
-            result = _create_mcp(payload)
+            result = _create_mcp(payload, created_by=current_user.user_id)
         elif provider == "sandbox":
             result = _create_sandbox(payload)
-        elif provider == "filesystem":
-            result = await _create_filesystem(payload, current_user.user_id)
         elif provider == "direct":
             result = _create_direct(payload)
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"Unknown access provider: {provider}. Use Connect APIs "
-                    "for external datasource connections."
-                ),
-            )
     except HTTPException:
         raise
     except Exception as e:

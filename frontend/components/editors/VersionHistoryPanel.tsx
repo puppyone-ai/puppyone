@@ -119,9 +119,10 @@ function CommitRow({
     <div style={{ position: 'relative', paddingLeft: 24 }}>
       <div style={{
         position: 'absolute', left: 7, top: 16,
-        width: 8, height: 8, borderRadius: '50%',
+        width: 6, height: 6, borderRadius: 1.5,
         background: isCurrent ? 'var(--po-success)' : 'var(--po-filetree-rail)',
-        border: `2px solid ${isCurrent ? 'var(--po-success)' : 'var(--po-text-disabled)'}`,
+        border: `1px solid ${isCurrent ? 'var(--po-success)' : 'var(--po-text-disabled)'}`,
+        boxSizing: 'border-box',
         zIndex: 1,
       }} />
 

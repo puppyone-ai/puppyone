@@ -1,33 +1,26 @@
 'use client';
 
 import type { SyncEndpointInfo } from '../explorer';
+import { StatusDot as BaseStatusDot } from '@/components/ui/StatusDot';
+import {
+  isMcpProvider,
+  isSandboxProvider,
+} from '@/lib/accessProviderRegistry';
+import { resolveProviderIconUrl } from '@/lib/providerIcons';
 import type { ProviderIconLookup } from './types';
 
 export function StatusDot({ status, borderColor = 'var(--po-panel)' }: { status: string; borderColor?: string }) {
-  const color = status === 'error' ? 'var(--po-danger)' : status === 'stopped' ? 'var(--po-text-subtle)' : 'var(--po-success)';
   return (
-    <span
-      aria-hidden
+    <BaseStatusDot
+      status={status}
       style={{
         position: 'absolute',
         right: -1,
         bottom: -1,
-        width: 8,
-        height: 8,
-        borderRadius: '50%',
-        background: color,
-        border: `2px solid ${borderColor}`,
+        border: `1px solid ${borderColor}`,
         boxSizing: 'border-box',
       }}
     />
-  );
-}
-
-function FolderMiniIcon() {
-  return (
-    <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="var(--po-success)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-    </svg>
   );
 }
 
@@ -75,13 +68,16 @@ export function AccessPointProviderIcon({
   providerIcons: ProviderIconLookup;
 }) {
   if (ep.provider.startsWith('agent:')) return <AgentMiniIcon />;
-  if (ep.provider === 'mcp') return <McpMiniIcon />;
-  if (ep.provider === 'sandbox') return <SandboxMiniIcon />;
-  if (ep.provider === 'filesystem') return <FolderMiniIcon />;
-
+  if (isMcpProvider(ep.provider)) return <McpMiniIcon />;
+  if (isSandboxProvider(ep.provider)) return <SandboxMiniIcon />;
   const providerIcon = providerIcons[ep.provider];
-  if (providerIcon?.iconUrl) {
-    return <img src={providerIcon.iconUrl} alt="" width={16} height={16} style={{ display: 'block', borderRadius: 2 }} />;
+  const iconUrl = resolveProviderIconUrl({
+    provider: ep.provider,
+    icon: providerIcon?.icon,
+    iconUrl: providerIcon?.iconUrl,
+  });
+  if (iconUrl) {
+    return <img src={iconUrl} alt="" width={16} height={16} style={{ display: 'block', borderRadius: 2 }} />;
   }
 
   return providerIcon?.icon ? <span style={{ fontSize: 14, lineHeight: 1 }}>{providerIcon.icon}</span> : <DefaultProviderIcon />;

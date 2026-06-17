@@ -80,7 +80,7 @@ from src.context_publish.router import router as context_publish_router
 
 context_publish_router_duration = time.time() - context_publish_router_start
 
-# Unified ingest router (file + SaaS imports)
+# Legacy ingest compatibility router (ETL/task management + old upload/import aliases)
 ingest_router_start = time.time()
 from src.ingest.router import router as ingest_router
 
@@ -119,6 +119,7 @@ profile_router_duration = time.time() - profile_router_start
 
 imports_router_start = time.time()
 from src.platform.imports.router import router as imports_router
+from src.platform.activity.router import router as activity_router
 
 imports_router_duration = time.time() - imports_router_start
 
@@ -311,6 +312,26 @@ async def _init_version_trees() -> None:
         log_error(f"❌ Version Engine tree initialization failed (took: {version_init_duration * 1000:.2f}ms): {e}")
 
 
+def _init_scope_sandbox_reaper(app: FastAPI) -> None:
+    """Start the scope-sandbox reaper (idle→stop, long-idle→destroy) if enabled.
+
+    Off by default — it makes real provider stop/destroy calls. Stored on
+    app.state so _shutdown_services can stop it cleanly."""
+    if not getattr(settings, "SCOPE_SANDBOX_REAPER_ENABLED", False):
+        return
+    from src.platform.scope_sandbox.reaper import start_reaper
+    from src.platform.scope_sandbox.service import get_scope_sandbox_service
+
+    service = get_scope_sandbox_service()
+    task, stop_event = start_reaper(
+        service, interval_s=settings.SCOPE_SANDBOX_REAPER_INTERVAL_S,
+    )
+    app.state.scope_sandbox_reaper = (task, stop_event)
+    log_info(
+        f"🧹 Scope-sandbox reaper started (every {settings.SCOPE_SANDBOX_REAPER_INTERVAL_S}s)"
+    )
+
+
 async def _shutdown_services() -> None:
     """Shutdown cleanup logic."""
     log_info("ContextBase API shutting down...")
@@ -378,6 +399,7 @@ async def app_lifespan(app: FastAPI):
     await _init_file_ingest()
     _init_connector_registry()
     await _init_version_trees()
+    _init_scope_sandbox_reaper(app)
 
     log_info("📁 Filesystem sync: client-side via Git smart-HTTP (no server init needed)")
 
@@ -391,6 +413,14 @@ async def app_lifespan(app: FastAPI):
     log_info("")
 
     yield
+    reaper = getattr(app.state, "scope_sandbox_reaper", None)
+    if reaper is not None:
+        task, stop_event = reaper
+        stop_event.set()
+        try:
+            await task
+        except Exception as e:  # noqa: BLE001
+            log_error(f"Scope-sandbox reaper shutdown error: {e}")
     await _shutdown_services()
 
 
@@ -439,14 +469,19 @@ def create_app() -> FastAPI:
     # public short link: /p/{publish_key}
     app.include_router(context_publish_public_router, tags=["publishes"])
 
-    # Unified ingest router (file + SaaS imports)
-    app.include_router(ingest_router, prefix="/api/v1", tags=["ingest"])
+    # Legacy ingest compatibility router. Product-level Upload and Import
+    # routes are registered separately below.
+    app.include_router(ingest_router, prefix="/api/v1", tags=["ingest-compat"])
+    from src.platform.upload.router import router as upload_router
+    app.include_router(upload_router, prefix="/api/v1", tags=["upload"])
 
     app.include_router(project_router, prefix="/api/v1", tags=["projects"])
     app.include_router(oauth_router, prefix="/api/v1", tags=["oauth"])
     app.include_router(
         internal_router, tags=["internal"]
     )  # Internal API does not use /api/v1 prefix
+    from src.internal.mcp_runtime import router as mcp_runtime_router
+    app.include_router(mcp_runtime_router, tags=["internal-mcp-runtime"])
     from src.version_engine.entrypoints.http.content import router as content_router
     app.include_router(content_router, prefix="/api/v1", tags=["content"])
     from src.version_engine.entrypoints.http.audit import router as audit_router
@@ -464,8 +499,8 @@ def create_app() -> FastAPI:
     app.include_router(ap_fs_router, prefix="/api/v1", tags=["access-point-fs"])
     from src.platform.workspace.router import router as workspace_router
     app.include_router(workspace_router, prefix="/api/v1", tags=["workspace"])
-    from src.connectors.datasource.router import router as sync_router
-    app.include_router(sync_router, prefix="/api/v1", tags=["sync"])
+    from src.platform.integrations.router import router as integrations_router
+    app.include_router(integrations_router, prefix="/api/v1", tags=["integrations"])
     # GitHub Integration: bind a project to a (repo, branch) pair, run
     # imports/exports, receive webhooks. Two routers because the webhook
     # callback isn't per-project.
@@ -475,13 +510,16 @@ def create_app() -> FastAPI:
     )
     app.include_router(github_integration_router, tags=["github-integration"])
     app.include_router(github_webhook_router, tags=["github-integration"])
-    from src.connectors.filesystem.router import router as filesystem_router
-    app.include_router(filesystem_router, tags=["filesystem"])
+    from src.platform.scope_sandbox.router import router as scope_sandbox_router
+    app.include_router(scope_sandbox_router, tags=["scope-sandboxes"])
+    from src.platform.scope_sync.router import router as scope_sync_router
+    app.include_router(scope_sync_router, tags=["scope-sync"])
     from src.platform.auth.router import router as auth_router
     app.include_router(auth_router, prefix="/api/v1", tags=["auth"])
     app.include_router(analytics_router, tags=["analytics"])
     app.include_router(profile_router, tags=["profile"])
     app.include_router(imports_router, prefix="/api/v1", tags=["imports"])
+    app.include_router(activity_router, prefix="/api/v1", tags=["activity"])
     app.include_router(db_connector_router, prefix="/api/v1", tags=["db-connector"])
     app.include_router(organization_router, prefix="/api/v1", tags=["organizations"])
     from src.connectors.mcp_endpoint.router import router as mcp_endpoint_router
@@ -490,7 +528,7 @@ def create_app() -> FastAPI:
     app.include_router(sandbox_endpoint_router, prefix="/api/v1", tags=["sandbox-endpoints"])
     from src.platform.project.dashboard_router import router as dashboard_router
     app.include_router(dashboard_router, prefix="/api/v1", tags=["projects"])
-    from src.connectors.manager.router import router as access_router
+    from src.platform.access.router import router as access_router
     app.include_router(access_router, prefix="/api/v1", tags=["access"])
     from src.connectors.gateway.router import router as gateway_router
     app.include_router(gateway_router, prefix="/api/v1", tags=["gateways"])

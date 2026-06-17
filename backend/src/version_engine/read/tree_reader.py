@@ -348,6 +348,23 @@ class VersionTreeReader:
             if name != ".keep"
         ]
         result.sort(key=_entry_sort_key)
+
+        # Self-heal: a "damaged" folder means its subtree object is missing from
+        # the store while a parent tree still references it — a dangling entry
+        # the view should not keep surfacing. Re-derive the project root from
+        # the canonical scope rows (best-effort). For a healthy project this is
+        # a no-op (the rebuild reproduces the same root); for a damaged
+        # SUB-SCOPE it either re-grafts the recovered subtree or drops the dead
+        # entry, so the next read is clean instead of showing a phantom
+        # "damaged" folder. Never let healing break the read it piggybacks on.
+        if any(entry.integrity_status == "damaged" for entry in result):
+            try:
+                self._repair_project_root_from_scope_state(project_id, root_hash)
+            except Exception as exc:  # noqa: BLE001 - heal is best-effort.
+                log_warning(
+                    f"[VersionTreeReader] best-effort root heal failed for "
+                    f"{project_id} at {path or 'root'!r}: {exc}",
+                )
         return result
 
     def _build_entry(

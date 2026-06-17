@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from src.version_engine.write_engine import tree as tree_mod
 from src.version_engine.write_engine.git_object_format import (
+    EMPTY_TREE_SHA1,
     MODE_DIR,
     MODE_FILE,
     TreeEntry,
+    decode_tree,
     encode_tree,
 )
 from src.version_engine.write_engine.path_utils import normalize_path
@@ -75,6 +77,59 @@ def build_tree_from_blob_ids(
             node = node.setdefault(part, {})
         node[parts[-1]] = ("B", blob_id, modes.get(path, MODE_FILE))
     return _write_nested_tree(store, nested)
+
+
+def find_missing_tree_objects(store, root_hash: str) -> list[str]:
+    """Return any object ids the tree at ``root_hash`` references but the store
+    cannot resolve — i.e. the dangling-tree shape behind a "Damaged folder".
+
+    Walks the tree top-down checking *existence* of every referenced subtree
+    and blob. Subtree (directory) entries are read so their children are
+    verified too; blob entries are existence-checked only — blob bytes are
+    never downloaded. An empty result means the whole closure is present.
+
+    This is the integrity invariant every committed root MUST satisfy: a tree
+    object may only reference children that are durably present. Use it to
+    assert that tree builders / grafts persist a complete closure (so a write
+    can never publish a dangling tree), and as a diagnostic when auditing an
+    existing root.
+    """
+    if not root_hash or root_hash == EMPTY_TREE_SHA1:
+        return []
+    missing: list[str] = []
+    seen: set[str] = set()
+    stack = [root_hash]
+    while stack:
+        tree_oid = stack.pop()
+        if tree_oid in seen:
+            continue
+        seen.add(tree_oid)
+        if not store.exists(tree_oid):
+            missing.append(tree_oid)
+            continue
+        obj_type, body = store.get_object(tree_oid)
+        if obj_type == "tree":
+            stack.extend(_verify_tree_children(store, body, seen, missing))
+    return missing
+
+
+def _verify_tree_children(store, tree_body: bytes, seen: set, missing: list) -> list[str]:
+    """Existence-check a tree's blob children and return its subtree ids.
+
+    Subtree (directory) ids are returned for the caller to walk; blob children
+    are existence-checked here (no bytes downloaded) and appended to ``missing``
+    when absent.
+    """
+    subtrees: list[str] = []
+    for entry in decode_tree(tree_body):
+        child = entry.sha1_hex
+        if not child or child in seen:
+            continue
+        if entry.is_dir:
+            subtrees.append(child)  # existence verified when popped
+        elif not store.exists(child):
+            missing.append(child)
+    return subtrees
 
 
 def compute_changeset(

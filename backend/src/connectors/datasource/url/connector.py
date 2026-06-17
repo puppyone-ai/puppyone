@@ -54,7 +54,7 @@ class UrlConnector(BaseConnector):
             accept_types=("folder",),
             config_fields=(
                 ConfigField(
-                    key="source_url",
+                    key="resource_url",
                     label="URL",
                     type="url",
                     required=True,
@@ -73,13 +73,15 @@ class UrlConnector(BaseConnector):
 
     async def fetch(self, config: dict, credentials: Credentials) -> FetchResult:
         """Scrape a URL via Firecrawl. No OAuth needed — credentials are ignored."""
-        source_url = config.get("source_url", "")
+        source = config.get("source") or {}
+        options = config.get("options") or {}
+        source_url = source.get("resource_url", "")
         if not source_url:
-            raise ValueError("source_url is required for URL fetch")
+            raise ValueError("source.resource_url is required for URL fetch")
 
         url_parser = UrlParser()
         try:
-            crawl_options = config.get("crawl_options")
+            crawl_options = options.get("crawl_options")
             result = await url_parser.parse(source_url, crawl_options)
 
             if not result:

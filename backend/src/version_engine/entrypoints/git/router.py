@@ -11,7 +11,7 @@ import os
 import tempfile
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from src.common_schemas import ApiResponse
 from src.version_engine.adapters.git.health import git_view_health_payload
@@ -54,11 +54,9 @@ async def resolve_git_access_point(access_key: str, request: Request) -> tuple[s
             status_code=401,
             detail="User identity mismatch: key is bound to a different user",
         )
-    # Native Git clients do not reliably send custom headers, but this
-    # endpoint is itself the Git Remote surface. Infer the built-in
-    # filesystem connector channel from the route instead of trusting
-    # X-Puppy-Client.
-    enforce_channel_pause(auth, "filesystem", log_prefix="[GitAP]")
+    # Native Git clients do not reliably send custom headers, so infer the
+    # Git Remote access surface from the route.
+    enforce_channel_pause(auth, "git_remote", log_prefix="[GitAP]")
     return project_id, auth
 
 
@@ -80,7 +78,7 @@ def _git_audit_detail(
     )
     scope = auth.get("_scope") or {}
     return {
-        "source_channel": "git",
+        "source_channel": "access_git",
         "protocol": "git",
         "entry_point": entry_point,
         "remote": (
@@ -114,7 +112,22 @@ async def _record_git_fetch_audit(
     await asyncio.to_thread(repo.record_audit, "git_fetch", actor, detail)
 
 
-async def _spool_git_request_body(request: Request) -> Path:
+def _git_receive_max_body_bytes(project_id: str) -> int | None:
+    from src.platform.entitlements.service import EntitlementService
+    from src.platform.project.repository import ProjectRepositorySupabase
+
+    project = ProjectRepositorySupabase().get_by_id(project_id)
+    if project is None:
+        return None
+    limit = EntitlementService().limit_value(project.org_id, "upload.max_batch_bytes")
+    return int(limit) if limit is not None else None
+
+
+async def _spool_git_request_body(
+    request: Request,
+    *,
+    max_body_bytes: int | None = None,
+) -> Path:
     """Spool a Git RPC request body to disk.
 
     Large Git pushes may arrive as chunked transfer bodies. Keeping them off
@@ -122,13 +135,38 @@ async def _spool_git_request_body(request: Request) -> Path:
     without requiring users to tune client-side buffering.
     """
 
+    content_length = request.headers.get("content-length")
+    if max_body_bytes is not None and content_length:
+        try:
+            declared_size = int(content_length)
+        except ValueError:
+            declared_size = -1
+        if declared_size > max_body_bytes:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Git request body is {declared_size} bytes; "
+                    f"max allowed is {max_body_bytes} bytes"
+                ),
+            )
+
     tmp = tempfile.NamedTemporaryFile(
         prefix="puppyone-git-rpc-",
         delete=False,
     )
     try:
+        total = 0
         async for chunk in request.stream():
             if chunk:
+                total += len(chunk)
+                if max_body_bytes is not None and total > max_body_bytes:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=(
+                            f"Git request body exceeds max allowed "
+                            f"{max_body_bytes} bytes"
+                        ),
+                    )
                 tmp.write(chunk)
         tmp.close()
         return Path(tmp.name)
@@ -300,7 +338,7 @@ async def git_ap_rebuild_cache(
         auth,
         facade,
         action="write",
-        source_channel="git",
+        source_channel="access_git",
         channel_header=request.headers.get("x-puppy-client"),
         log_prefix="[GitAP][rebuild]",
     )
@@ -328,7 +366,7 @@ async def git_project_rebuild_cache(
         auth,
         facade,
         action="write",
-        source_channel="git",
+        source_channel="access_git",
         channel_header=request.headers.get("x-puppy-client"),
         log_prefix="[GitProject][rebuild]",
     )
@@ -349,7 +387,11 @@ async def git_receive_pack(
 
     auth = await resolve_git_project_auth(project_id, request, scope)
     repo = repo_manager.get_server_repo(project_id)
-    request_path = await _spool_git_request_body(request)
+    max_body_bytes = await asyncio.to_thread(_git_receive_max_body_bytes, project_id)
+    request_path = await _spool_git_request_body(
+        request,
+        max_body_bytes=max_body_bytes,
+    )
     actor = request_actor(request, auth)
     facade = repo_facade_from_auth(project_id, auth, kind="project_git_remote",
                                    scope_backend=repo_manager.get_scope_backend(project_id))
@@ -384,7 +426,11 @@ async def git_ap_receive_pack(
 
     project_id, auth = await resolve_git_access_point(access_key, request)
     repo = repo_manager.get_server_repo(project_id)
-    request_path = await _spool_git_request_body(request)
+    max_body_bytes = await asyncio.to_thread(_git_receive_max_body_bytes, project_id)
+    request_path = await _spool_git_request_body(
+        request,
+        max_body_bytes=max_body_bytes,
+    )
     actor = request_actor(request, auth)
     facade = repo_facade_from_auth(project_id, auth, kind="access_point",
                                    scope_backend=repo_manager.get_scope_backend(project_id))

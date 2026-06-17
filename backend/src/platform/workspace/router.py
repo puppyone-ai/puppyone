@@ -16,6 +16,10 @@ from pydantic import BaseModel
 from src.common_schemas import ApiResponse
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
+from src.platform.entitlements.dependencies import get_entitlement_service
+from src.platform.entitlements.service import EntitlementService
+from src.platform.project.dependencies import get_project_service
+from src.platform.project.service import ProjectService
 from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
 from src.version_engine.bootstrap.dependencies import (
     get_product_operation_adapter,
@@ -69,10 +73,18 @@ class WorkspaceStatusResponse(BaseModel):
 async def create_workspace(
     request: CreateWorkspaceRequest,
     current_user: CurrentUser = Depends(get_current_user),
+    project_service: ProjectService = Depends(get_project_service),
+    entitlement_service: EntitlementService = Depends(get_entitlement_service),
     ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
 ):
     from src.platform.workspace.provider import get_workspace_provider
     from src.platform.workspace.sync_worker import SyncWorker
+
+    project = project_service.get_by_id_with_access_check(
+        request.project_id,
+        current_user.user_id,
+    )
+    entitlement_service.require_feature(project.org_id, "remote_workspace.create")
 
     agent_id = request.agent_id or f"ext-{int(time_mod.time() * 1000)}"
 
@@ -110,6 +122,7 @@ async def complete_workspace(
     agent_id: str,
     project_id: str = Query(..., description="Project ID"),
     current_user: CurrentUser = Depends(get_current_user),
+    project_service: ProjectService = Depends(get_project_service),
     commands: VersionWriteCommandService = Depends(get_version_write_command_service),
 ):
     """
@@ -120,6 +133,8 @@ async def complete_workspace(
     3. Perform atomic commit via ProductOperationAdapter.bulk_write
     """
     from src.platform.workspace.provider import get_workspace_provider
+
+    project_service.get_by_id_with_access_check(project_id, current_user.user_id)
 
     provider = get_workspace_provider()
     changes = await provider.detect_changes(agent_id)

@@ -42,10 +42,6 @@ export const EXPLORER_TREE_ROW_MARGIN_X = 6;
 export const EXPLORER_TREE_CONTENT_INSET = 8;
 export const EXPLORER_TREE_ROW_MARGIN_Y = EXPLORER_TREE_ROW_GAP / 2;
 const EXPLORER_TREE_LINE_OVERDRAW = 2;
-const EXPLORER_TREE_LINE_HEIGHT =
-  EXPLORER_TREE_ROW_HEIGHT + EXPLORER_TREE_LINE_OVERDRAW * 2;
-const EXPLORER_TREE_HOOK_Y =
-  EXPLORER_TREE_LINE_OVERDRAW + EXPLORER_TREE_ROW_HEIGHT / 2;
 const EXPLORER_TREE_META_OFFSET = 14;
 const SUBTREE_MOTION_MIN_MS = 170;
 const SUBTREE_MOTION_MAX_MS = 340;
@@ -388,57 +384,32 @@ function hasFileExtension(name: string): boolean {
   return /\.\w{1,10}$/.test(name);
 }
 
-function TreeElbow({
-  depth,
-  isLastSibling,
-}: {
-  depth: number;
-  isLastSibling: boolean;
-}) {
+function TreeIndentGuide({ depth }: { depth: number }) {
   if (depth <= 0) return null;
 
-  const width = depth * EXPLORER_TREE_INDENT + 8;
-
   return (
-    <svg
-      width={width}
-      height={EXPLORER_TREE_LINE_HEIGHT}
-      viewBox={`0 0 ${width} ${EXPLORER_TREE_LINE_HEIGHT}`}
-      shapeRendering="crispEdges"
+    <div
+      aria-hidden
       style={{
         position: 'absolute',
-        left: 0,
+        left: depth * EXPLORER_TREE_INDENT,
         top: -EXPLORER_TREE_LINE_OVERDRAW,
+        bottom: -EXPLORER_TREE_LINE_OVERDRAW,
+        width: 1,
+        background: 'var(--po-tree-guide)',
         pointerEvents: 'none',
         zIndex: 0,
       }}
-    >
-      <rect
-        x={depth * EXPLORER_TREE_INDENT}
-        y={0}
-        width={1}
-        height={isLastSibling ? EXPLORER_TREE_HOOK_Y : EXPLORER_TREE_LINE_HEIGHT}
-        fill="var(--po-tree-guide)"
-      />
-      <rect
-        x={depth * EXPLORER_TREE_INDENT}
-        y={EXPLORER_TREE_HOOK_Y}
-        width={8}
-        height={1}
-        fill="var(--po-tree-guide)"
-      />
-    </svg>
+    />
   );
 }
 
 export function ExplorerTreeMetaRow({
   depth,
   children,
-  isLastSibling = true,
 }: {
   depth: number;
   children: ReactNode;
-  isLastSibling?: boolean;
 }) {
   return (
     <div
@@ -455,7 +426,7 @@ export function ExplorerTreeMetaRow({
         position: 'relative',
       }}
     >
-      <TreeElbow depth={depth} isLastSibling={isLastSibling} />
+      <TreeIndentGuide depth={depth} />
       <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center' }}>
         {children}
       </div>
@@ -596,15 +567,6 @@ function ExplorerSubtreeMotion({
 interface ExplorerTreeRowProps {
   item: MillerColumnItem;
   depth: number;
-  // True when this row is the LAST among its siblings at this
-  // depth.  Drives the L-shape elbow:
-  //   ─ last  → vertical stops at the hook level (closing ╰─).
-  //   ─ !last → vertical runs full row height so it visually
-  //             merges with the next sibling's elbow below.
-  // Also gates the ancestor continuation line drawn by THIS
-  // row's children-wrapper: only non-last rows thread their
-  // column down through their subtree.
-  isLastSibling: boolean;
   projectId: string;
   activeId: string | null;
   onNavigate: (item: MillerColumnItem) => void;
@@ -629,7 +591,6 @@ interface ExplorerTreeRowProps {
 export const ExplorerTreeRow = memo(function ExplorerTreeRow({
   item,
   depth,
-  isLastSibling,
   projectId,
   activeId,
   onNavigate,
@@ -884,31 +845,9 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
           position: 'relative',
         }}
       >
-        {/* Tree-line elbow for THIS depth.  Same visual grammar as
-            the home page's `TreeRows`, just sized for the sidebar's
-            tighter 16px-per-level indent (vs home's 20px):
-
-              ─ vertical stub at row-local x = depth*16 (one indent
-                step left of the icon).
-              ─ horizontal hook 8px to the icon's left edge.
-              ─ vertical stops at the row midpoint when this is the
-                last sibling — that's the closing ╰─ shape.  Otherwise
-                it spans the full row slot so it visually merges
-                with the next sibling's elbow below.
-
-            `<rect>` not `<line>`: stroke-1 lines paint a center stroke
-            that straddles two pixels, which subpixel-misaligns with
-            the integer-bound continuation `<div>` drawn in the
-            children-wrapper below — looks crisp on retina with rect.
-
-            Ancestor continuation lines are NOT drawn here.  Each
-            ancestor's children-wrapper draws its own (see {expanded}
-            block), which is what makes the tree visually CLOSE at
-            the right depth (last sibling = no continuation through
-            subtree) instead of the old behavior where every per-depth
-            line ran full row height regardless of whether the
-            ancestor still had siblings below. */}
-        <TreeElbow depth={depth} isLastSibling={isLastSibling} />
+        {/* VS Code-style indent guide for this depth: a straight
+            vertical rail only, with no per-row horizontal elbow. */}
+        <TreeIndentGuide depth={depth} />
 
         <div
           style={{
@@ -1049,29 +988,11 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
           onExited={() => setRenderSubtree(false)}
         >
         <div style={{ position: 'relative', width: '100%', boxSizing: 'border-box' }}>
-          {/* `position: relative` so the continuation line below can
-              absolute-position itself against the wrapper's full
-              height, threading my elbow column down through every
-              descendant row (and their sub-subtree wrappers). */}
-          {/* Continuation line — the structural complement to the
-              per-row elbow above.  When *I* am not the last sibling,
-              my elbow column needs to keep going down through my
-              entire subtree so the next sibling's elbow visually
-              connects.  Drawn at MY depth's column in OUTER coords:
-              the row's 6px left margin + row-local elbow x (depth*16)
-              = 6 + depth*16.  The wrapper has no margin so wrapper-x
-              == outer-x, no further offset needed.
-
-              Skipped when last sibling so the tree visually CLOSES
-              at the right depth instead of running every line off
-              the bottom of the subtree.
-
-              Also drawn when there are NO real children (loading /
-              empty placeholder): the parent's "more siblings below"
-              signal still needs to thread through whatever the
-              wrapper renders, otherwise an expanded-but-empty
-              parent would visually break the sibling chain. */}
-          {depth > 0 && !isLastSibling && (
+          {/* The parent indent guide spans the full expanded subtree,
+              including loading/error/empty meta rows. This matches
+              VS Code's continuous guide behavior instead of closing
+              the line at the last sibling row. */}
+          {depth > 0 && (
             <div
               aria-hidden
               style={{
@@ -1091,12 +1012,11 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
               <Dots size="xs" />
             </ExplorerTreeMetaRow>
           ) : childItems.length > 0 ? (
-            childItems.map((child, idx) => (
+            childItems.map((child) => (
               <ExplorerTreeRow
                 key={child.id}
                 item={child}
                 depth={depth + 1}
-                isLastSibling={idx === childItems.length - 1}
                 projectId={projectId}
                 activeId={activeId}
                 onNavigate={onNavigate}

@@ -26,14 +26,11 @@ ALL_SCOPES = [
 
 
 class TestComputeCarvedExcludes:
-    def test_root_scope_excludes_all_non_root(self):
+    def test_root_scope_carves_nothing(self):
+        # Root is the project-wide view: it sees/writes/syncs ALL sub-scopes,
+        # so it auto-carves NOTHING (only user-configured excludes apply).
         carved = compute_carved_excludes("", ALL_SCOPES)
-        assert "docs" in carved
-        assert "docs/api" in carved
-        assert "src" in carved
-        assert "src/lib" in carved
-        # root scope itself ("") must not appear
-        assert "" not in carved
+        assert carved == ()
 
     def test_docs_scope_excludes_only_its_children(self):
         carved = compute_carved_excludes("docs", ALL_SCOPES)
@@ -65,7 +62,7 @@ class TestComputeCarvedExcludes:
             assert path not in carved, f"self-exclusion found for scope={path!r}"
 
     def test_result_is_sorted_and_deduped(self):
-        carved = compute_carved_excludes("", ALL_SCOPES)
+        carved = compute_carved_excludes("docs", ALL_SCOPES)
         assert list(carved) == sorted(set(carved))
 
 
@@ -104,12 +101,21 @@ class TestRepoFacadeCarvedExcludes:
                                        scope_backend=self._make_backend())
         assert facade.excludes.count("docs/api") == 1
 
-    def test_root_scope_hides_all_child_scopes(self):
+    def test_root_scope_exposes_all_child_scopes(self):
+        # Root no longer carves sub-scopes — it is the full project view.
+        # Only user-configured excludes (none here) should appear.
         auth = self._make_auth(scope_path="")
         facade = repo_facade_from_auth("proj", auth, kind="access_point",
                                        scope_backend=self._make_backend())
         for name in ("docs", "docs/api", "src", "src/lib"):
-            assert name in facade.excludes, f"{name} missing from root carved_excludes"
+            assert name not in facade.excludes, f"root must not carve {name}"
+
+    def test_root_scope_still_honours_user_excludes(self):
+        auth = self._make_auth(scope_path="", user_exclude=["secrets"])
+        facade = repo_facade_from_auth("proj", auth, kind="access_point",
+                                       scope_backend=self._make_backend())
+        assert "secrets" in facade.excludes        # explicit user exclude kept
+        assert "docs" not in facade.excludes        # but sub-scopes not auto-carved
 
     def test_scope_backend_failure_falls_back_gracefully(self):
         """A DB error must not crash the auth flow — fall back to user excludes."""

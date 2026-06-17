@@ -20,6 +20,7 @@ from src.connectors.datasource.oauth.dependencies import (
     get_google_drive_service,
     get_google_calendar_service,
     get_google_docs_service,
+    get_google_search_console_service,
     get_linear_service,
     get_airtable_service,
 )
@@ -64,6 +65,7 @@ OAUTH_PROVIDERS: list[dict] = [
     {"name": "Google Drive",    "slug": "google-drive",    "dep": get_google_drive_service,    "check": _check_google},
     {"name": "Google Calendar",  "slug": "google-calendar", "dep": get_google_calendar_service, "check": _check_google},
     {"name": "Google Docs",     "slug": "google-docs",     "dep": get_google_docs_service,     "check": _check_google},
+    {"name": "Google Search Console", "slug": "google-search-console", "dep": get_google_search_console_service, "check": _check_google},
 ]
 
 

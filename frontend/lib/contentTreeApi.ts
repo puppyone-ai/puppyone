@@ -15,6 +15,14 @@ import {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090';
 
+function backendResourceUrl(path: string): string {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  if (typeof window !== 'undefined') {
+    return `/api/backend${normalizedPath}`;
+  }
+  return `${API_BASE_URL.replace(/\/+$/, '')}${normalizedPath}`;
+}
+
 // === Types ===
 
 export type NodeType = 'folder' | 'json' | 'markdown' | 'file';
@@ -324,10 +332,9 @@ export async function fetchRawBlob(
 ): Promise<Blob> {
   const token = await getApiAccessToken();
   const params = new URLSearchParams({ path });
-  const res = await fetch(
-    `${API_BASE_URL}/api/v1/content/${projectId}/raw?${params}`,
-    { headers: token ? { Authorization: `Bearer ${token}` } : {} }
-  );
+  const res = await fetch(backendResourceUrl(`/api/v1/content/${projectId}/raw?${params}`), {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
   if (!res.ok) throw new Error(`Failed to fetch raw file: ${res.status}`);
   return res.blob();
 }
@@ -354,7 +361,7 @@ export async function getInlinePreviewUrl(
 
   return signed.url.startsWith('http')
     ? signed.url
-    : `${API_BASE_URL}${signed.url}`;
+    : backendResourceUrl(signed.url);
 }
 
 /**
@@ -390,7 +397,7 @@ export async function downloadNode(
   // works behind any deployment host.
   const absoluteUrl = signed.url.startsWith('http')
     ? signed.url
-    : `${API_BASE_URL}${signed.url}`;
+    : backendResourceUrl(signed.url);
 
   // A hidden `<a download>` click — vs `window.location.assign(url)` —
   // keeps the user's current page intact (no SPA unmount, no scroll
@@ -949,39 +956,4 @@ export async function getProjectAuditLogs(
   return treeRequest<ProjectAuditLogListResponse>(
     `/api/v1/nodes/project-audit-logs?${params}`
   );
-}
-
-// === Sync Changelog API ===
-
-export interface SyncChangelogItem {
-  id: number;
-  project_id: string;
-  path: string;
-  action: string;
-  node_type: string | null;
-  version: number;
-  hash: string | null;
-  size_bytes: number;
-  folder_id: string | null;
-  filename: string | null;
-  created_at: string | null;
-}
-
-export interface SyncChangelogResponse {
-  entries: SyncChangelogItem[];
-  cursor: number;
-  has_more: boolean;
-}
-
-export async function getSyncChangelog(
-  projectId: string,
-  cursor: number = 0,
-  limit: number = 100
-): Promise<SyncChangelogResponse> {
-  const params = new URLSearchParams({
-    project_id: projectId,
-    cursor: String(cursor),
-    limit: String(limit),
-  });
-  return apiRequest<SyncChangelogResponse>(`/api/v1/sync/changelog?${params}`);
 }

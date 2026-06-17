@@ -20,9 +20,11 @@
     "changes": "Changes",
     "access": "Access",
     "history": "History",
+    "develop": "Develop",
     "monitor": "Monitor",
     "conflicts": "Conflicts",
     "integrations": "Integrations",
+    "workflows": "Workflows",
     "settings": "Settings",
     "team": "Team",
     "billing": "Billing"

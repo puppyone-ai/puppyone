@@ -51,7 +51,7 @@ def is_mode_writable(mode: str) -> bool:
 
 def ensure_mode_readable(mode: str) -> None:
     if not is_mode_readable(mode):
-        raise HTTPException(status_code=403, detail="Access point does not allow filesystem reads")
+        raise HTTPException(status_code=403, detail="Access point does not allow file reads")
 
 
 def ensure_mode_writable(mode: str) -> None:

@@ -30,7 +30,9 @@ const _PROJECT_VIEWS: ReadonlyArray<readonly [string, string]> = [
   ['/history', 'changes'],
   ['/conflicts', 'changes'],
   ['/access', 'access'],
-  ['/monitor', 'monitor'],
+  ['/workflows', 'integrations'],
+  ['/develop', 'develop'],
+  ['/monitor', 'develop'],
   ['/settings', 'settings'],
   ['/data', 'data'],
 ];
@@ -142,6 +144,8 @@ const MainLayoutInner = memo(function MainLayoutInner({
         sidebarWidth={sidebarWidth}
         onSidebarWidthChange={setSidebarWidth}
         currentOrg={currentOrg}
+        organizations={orgs}
+        onSwitchOrg={switchOrg}
         organizationIdentityLoading={orgIdentityLoading}
         projectIdentityLoading={projectIdentityLoading}
         userIdentityLoading={userIdentityLoading}

@@ -6,7 +6,13 @@ import {
   buildGitSyncPrompt,
   buildTerminalCliPrompt,
 } from '@/lib/accessPointCliPrompt';
+import {
+  isGitRemoteProvider,
+  isMcpProvider,
+  isSandboxProvider,
+} from '@/lib/accessProviderRegistry';
 import { PanelShell } from '../PanelShell';
+import { CountBadge } from '@/components/ui/CountBadge';
 import { AccessPointProviderIcon, StatusDot } from './AccessPointProviderIcon';
 import type { SyncEndpointInfo } from '../explorer';
 import type { EndpointEntry, ProviderIconLookup } from './types';
@@ -33,7 +39,7 @@ function getSetupSnippets(ep: SyncEndpointInfo, displayName: string, scopeName: 
   const apiBase = getApiBase();
   const accessKey = ep.accessKey || '';
 
-  if (ep.provider === 'filesystem' && accessKey) {
+  if (isGitRemoteProvider(ep.provider) && accessKey) {
     const gitUrl = `${apiBase}/git/ap/${accessKey}.git`;
     const profileName = accessPointProfileSlug(scopeName);
     const gitPrompt = buildGitSyncPrompt({
@@ -58,24 +64,24 @@ function getSetupSnippets(ep: SyncEndpointInfo, displayName: string, scopeName: 
       },
       secondary: {
         title: 'Puppyone FS CLI',
-        description: 'Use scoped filesystem commands without a local clone.',
+        description: 'Use scoped FS CLI commands without a local clone.',
         body: terminalPrompt,
         copyText: terminalPrompt,
       },
     } as const;
   }
 
-  if (ep.provider === 'mcp' && accessKey) {
-    const serverUrl = `${apiBase}/api/v1/mcp/proxy/${accessKey}`;
+  if (isMcpProvider(ep.provider) && accessKey) {
+    const serverUrl = `${apiBase}/api/v1/mcp/proxy`;
     const serverName = displayName.toLowerCase().replace(/\s+/g, '-') || 'puppyone-mcp';
-    const config = `{\n  "mcpServers": {\n    "${serverName}": {\n      "url": "${serverUrl}",\n      "headers": { "X-API-KEY": "${accessKey}" }\n    }\n  }\n}`;
+    const config = `{\n  "mcpServers": {\n    "${serverName}": {\n      "type": "http",\n      "url": "${serverUrl}",\n      "headers": { "Authorization": "Bearer ${accessKey}" }\n    }\n  }\n}`;
     const prompt = [
       `Configure this MCP Access Point for my coding agent.`,
       ``,
       `Access Point: ${displayName}`,
       `Scope: ${scopeName}`,
       `Server URL: ${serverUrl}`,
-      `API Key: ${accessKey}`,
+      `Header: Authorization: Bearer ${accessKey}`,
       ``,
       `Use this MCP config:`,
       config,
@@ -92,7 +98,7 @@ function getSetupSnippets(ep: SyncEndpointInfo, displayName: string, scopeName: 
     };
   }
 
-  if (ep.provider === 'sandbox' && accessKey) {
+  if (isSandboxProvider(ep.provider) && accessKey) {
     const execUrl = `${apiBase}/api/v1/sandbox-endpoints/${ep.syncId}/exec`;
     const command = `curl -X POST ${execUrl} \\\n  -H "X-Access-Key: ${accessKey}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"command": "ls /workspace"}'`;
     const prompt = [
@@ -285,23 +291,11 @@ export function AccessPointsListPanel({
       title="Access Points"
       onClose={onClose}
       headerRight={
-        <span
-          style={{
-            minWidth: 18,
-            height: 18,
-            padding: '0 6px',
-            borderRadius: 999,
-            background: 'var(--po-border)',
-            color: 'var(--po-text-muted)',
-            fontSize: 10,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-          }}
-        >
-          {entries.length}
-        </span>
+        <CountBadge
+          value={entries.length}
+          size="md"
+          tone="neutral"
+        />
       }
     >
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--po-canvas)' }}>
@@ -418,7 +412,7 @@ export function AccessPointsListPanel({
                             title={setup.primary.title}
                             description={setup.primary.description}
                             prompt={setup.primary.body}
-                            tone={ep.provider === 'filesystem' ? 'green' : 'neutral'}
+                            tone={isGitRemoteProvider(ep.provider) ? 'green' : 'neutral'}
                           />
                           {setup.secondary && (
                             <CopyPromptButton

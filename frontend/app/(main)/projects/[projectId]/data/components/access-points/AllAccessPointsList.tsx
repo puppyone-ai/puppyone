@@ -1,6 +1,7 @@
 'use client';
 
 import type { Connector, RepoScope } from '@/lib/repoApi';
+import { CountBadge } from '@/components/ui/CountBadge';
 import { AccessPointRow } from './AccessPointRow';
 import { ACCESS_PANEL_TYPOGRAPHY, COLOR_FG, COLOR_FG_DIM } from './tokens';
 import type { ProviderIconLookup } from './types';
@@ -43,15 +44,11 @@ export function AllAccessPointsList({
         <div style={{ ...ACCESS_PANEL_TYPOGRAPHY.title, color: COLOR_FG }}>
           Active access points
         </div>
-        <div
-          style={{
-            ...ACCESS_PANEL_TYPOGRAPHY.label,
-            color: COLOR_FG_DIM,
-            fontVariantNumeric: 'tabular-nums',
-          }}
-        >
-          {scopes.length}
-        </div>
+        <CountBadge
+          value={scopes.length}
+          size="md"
+          tone="neutral"
+        />
       </div>
 
       {scopes.length === 0 ? (

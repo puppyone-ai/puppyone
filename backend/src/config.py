@@ -145,6 +145,26 @@ class Settings(BaseSettings):
             )
         return self
 
+    @model_validator(mode="after")
+    def enforce_entitlements_safety(self):
+        """Hosted billing enforcement must not boot with entitlement checks off."""
+        if self.BILLING_ENFORCEMENT == "required" and self.ENTITLEMENTS_MODE == "disabled":
+            raise ValueError(
+                "BILLING_ENFORCEMENT=required requires ENTITLEMENTS_MODE to be "
+                "'db' or 'local'."
+            )
+        return self
+
+    @model_validator(mode="after")
+    def enforce_access_credential_secret_safety(self):
+        """Hosted runtimes must use a dedicated stable HMAC secret for Access keys."""
+        if self.APP_ENV not in {"development", "test"} and not self.ACCESS_CREDENTIAL_HASH_SECRET:
+            raise ValueError(
+                "ACCESS_CREDENTIAL_HASH_SECRET is required outside development/test. "
+                "It must remain stable because it hashes MCP/Access credentials."
+            )
+        return self
+
     # JWT configuration
     JWT_SECRET: str = "ContextBase-256-bit-secret"
     JWT_ALGORITHM: str = "HS256"
@@ -165,6 +185,35 @@ class Settings(BaseSettings):
     SANDBOX_DOWNLOAD_CONCURRENCY: int = 10
     # Large file streaming threshold (bytes); files exceeding this size use streaming transfer
     SANDBOX_LARGE_FILE_THRESHOLD: int = 50 * 1024 * 1024  # 50MB
+
+    # ── Scope-sandbox (V2 "sandbox as access point") ──
+    # NOTE: the per-project/enterprise choice of "fly" vs "e2b" is a USER
+    # selection made in the frontend and persisted as a project setting; it is
+    # resolved at runtime via factory.provider_from_settings(settings, name=...).
+    # The env var below is only the DEFAULT/fallback for projects that haven't
+    # chosen. The vars here hold the per-provider CREDENTIALS (always needed for
+    # whichever provider a project selects). See docs/proposals/PUP-sandbox-access-point.md.
+    # Default only; the per-project UI choice overrides. Defaults to "e2b" — the
+    # live-validated path (full SSH + credential round-trip proven). Fly is
+    # code-complete but not yet live (needs payment + dedicated IPv4), so it
+    # shouldn't be the silent fallback for projects that haven't chosen.
+    SCOPE_SANDBOX_PROVIDER: Literal["fly", "e2b"] = "e2b"
+    SCOPE_SANDBOX_FLY_APP: str = ""
+    SCOPE_SANDBOX_FLY_TOKEN: str = ""
+    SCOPE_SANDBOX_FLY_IMAGE: str = ""
+    # Custom E2B template (roadmap #6) baking sshd+websocat+sidecar. When set,
+    # the provider launches this template and the bootstrap uses the FAST provision
+    # path (seed key + start pre-installed daemons). Unset → default template +
+    # full runtime install. Build via sandbox/scope-e2b/build.sh.
+    SCOPE_SANDBOX_E2B_TEMPLATE: str = ""
+    # Session store backend: "memory" (dev/single-process) or "supabase"
+    # (durable, multi-worker-visible — required for the reaper + multi-instance).
+    SCOPE_SANDBOX_STORE: Literal["memory", "supabase"] = "memory"
+    # Background reaper: stop idle / destroy long-idle sandboxes to save cost.
+    # OFF by default — it makes real provider stop/destroy calls (billing), so
+    # it's opt-in per deployment. Interval is seconds between sweeps.
+    SCOPE_SANDBOX_REAPER_ENABLED: bool = False
+    SCOPE_SANDBOX_REAPER_INTERVAL_S: int = 120
 
     # Workspace Provider configuration
     # - "auto": Auto-detect platform (macOS -> APFS Clone, Linux -> OverlayFS, other -> full copy)
@@ -229,6 +278,7 @@ class Settings(BaseSettings):
     GOOGLE_DRIVE_REDIRECT_URI: str = "http://localhost:3000/oauth/google-drive/callback"
     GOOGLE_CALENDAR_REDIRECT_URI: str = "http://localhost:3000/oauth/google-calendar/callback"
     GOOGLE_DOCS_REDIRECT_URI: str = "http://localhost:3000/oauth/google-docs/callback"
+    GOOGLE_SEARCH_CONSOLE_REDIRECT_URI: str = "http://localhost:3000/oauth/google-search-console/callback"
 
     # Linear OAuth configuration
     LINEAR_CLIENT_ID: str = ""
@@ -243,6 +293,15 @@ class Settings(BaseSettings):
     # Inter-service communication
     INTERNAL_API_SECRET: str = ""  # Internal service communication secret
     MCP_SERVER_URL: str = ""  # MCP service address
+    ACCESS_CREDENTIAL_HASH_SECRET: str = ""  # HMAC secret for Access surface credentials
+
+    # Product entitlements / billing enforcement.
+    # disabled: open-source/self-hosted default, no product limits enforced.
+    # local: read a local JSON entitlement snapshot, useful for tests/self-hosted overrides.
+    # db: read organization_entitlements, written by PuppyPay through internal API.
+    ENTITLEMENTS_MODE: Literal["disabled", "local", "db"] = "disabled"
+    BILLING_ENFORCEMENT: Literal["disabled", "required"] = "disabled"
+    LOCAL_ENTITLEMENTS_FILE: str | None = None
 
     # Public access URL (used to generate external API links)
     # - Local development: http://localhost:8000
@@ -282,6 +341,13 @@ class Settings(BaseSettings):
     VERSION_OBJECT_GC_MAX_PROJECTS_PER_RUN: int = 25
     VERSION_OBJECT_GC_MAX_DELETE_PER_PROJECT: int = 1000
 
+    # Post-commit tree-closure tripwire. When on, every product write verifies
+    # the freshly-published root resolves its entire subtree closure and fails
+    # loud (MissingBlobError) on a dangling tree. Off by default: the walk is
+    # O(tree) per write. Builders are proven complete by unit test; enable this
+    # for prod paranoia or incident triage. See ProductOperationAdapter.
+    VERSION_VERIFY_TREE_CLOSURE_ON_WRITE: bool = False
+
     # Background primary-loose-object integrity scan (runbook §8①).
     # Disabled + diagnosis-only by default; ops flips _HEAL on after
     # observing the dry-run "ticket" log lines.
@@ -299,6 +365,15 @@ class Settings(BaseSettings):
     SHADOW_SNAPSHOT_TTL_SECONDS: int = 14 * 24 * 60 * 60
     SHADOW_SNAPSHOT_REAPER_INTERVAL_SECONDS: int = 6 * 60 * 60
     SHADOW_SNAPSHOT_REAPER_MAX_PER_RUN: int = 500
+
+    # Integration sync-run lease. Active sync runs must renew this lease while
+    # executing; the reaper fails expired rows so a crashed worker cannot block a
+    # connection lane indefinitely.
+    SYNC_RUN_LEASE_SECONDS: int = 30 * 60
+    SYNC_RUN_HEARTBEAT_INTERVAL_SECONDS: int = 60
+    SYNC_RUN_REAPER_ENABLED: bool = True
+    SYNC_RUN_REAPER_INTERVAL_SECONDS: int = 5 * 60
+    SYNC_RUN_REAPER_MAX_PER_RUN: int = 100
 
     # DB Connector sensitive config encryption (AES-256-GCM)
     # Base64-encoded string of 32-byte key

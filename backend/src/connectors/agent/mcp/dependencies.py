@@ -4,13 +4,21 @@ MCP V3 Dependency Injection
 
 from __future__ import annotations
 
-from fastapi import Header, HTTPException, Request
+from dataclasses import dataclass
+from typing import Literal
 
-from src.connectors.agent.config.models import Agent
+from fastapi import Header, HTTPException
+
 from src.connectors.agent.config.repository import AgentRepository
-from src.exceptions import NotFoundException, ErrorCode
+from src.connectors.mcp_endpoint.repository import McpEndpointRepository
 
 from .service import McpV3Service
+
+
+@dataclass(frozen=True)
+class McpRuntimePrincipal:
+    api_key: str
+    kind: Literal["agent", "mcp_endpoint"]
 
 
 # Singleton service instance
@@ -25,31 +33,41 @@ def get_mcp_v3_service() -> McpV3Service:
     return _mcp_v3_service
 
 
-def get_agent_by_mcp_api_key(
-    request: Request,
-    x_mcp_api_key: str | None = Header(
+def get_mcp_runtime_principal(
+    authorization: str | None = Header(
         default=None,
-        alias="X-MCP-API-Key",
-        description="MCP API Key (recommended: pass via Header)",
+        alias="Authorization",
+        description="Bearer token for an MCP access point",
     ),
-) -> Agent:
+) -> McpRuntimePrincipal:
     """
-    Get Agent by MCP API Key (used for proxy routing).
+    Resolve an MCP runtime key for proxy routing.
 
-    Supports two sources:
-    1) Header: `X-MCP-API-Key` (recommended)
-    2) Legacy path: `/mcp/proxy/{api_key}` (migration compatibility)
+    Public MCP clients authenticate with the standard HTTP Authorization
+    header: `Authorization: Bearer mcp_...`.
     """
-    legacy_api_key = request.path_params.get("api_key")
-    api_key = (x_mcp_api_key or legacy_api_key or "").strip()
-    if not api_key:
-        raise HTTPException(status_code=401, detail="Missing X-MCP-API-Key")
+    scheme, _, token = (authorization or "").strip().partition(" ")
+    if scheme.lower() != "bearer" or not token.strip():
+        raise HTTPException(
+            status_code=401,
+            detail="Missing Authorization bearer token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    api_key = token.strip()
 
     repo = AgentRepository()
     agent = repo.get_by_mcp_api_key_with_accesses(api_key)
-    if not agent:
-        raise NotFoundException(
-            "Agent not found for MCP API key",
-            code=ErrorCode.NOT_FOUND,
-        )
-    return agent
+    if agent:
+        return McpRuntimePrincipal(api_key=agent.mcp_api_key, kind="agent")
+
+    endpoint = McpEndpointRepository().get_by_api_key(api_key)
+    if endpoint:
+        if endpoint.get("status") == "active":
+            return McpRuntimePrincipal(api_key=api_key, kind="mcp_endpoint")
+        raise HTTPException(status_code=403, detail="MCP endpoint is not active")
+
+    raise HTTPException(
+        status_code=401,
+        detail="Invalid MCP bearer token",
+        headers={"WWW-Authenticate": "Bearer"},
+    )

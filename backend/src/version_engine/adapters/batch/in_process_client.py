@@ -45,22 +45,22 @@ class InProcessVersionClient:
         repo_manager: VersionRepoManager,
         project_id: str,
         auth_context: dict,
-        source_channel: str = "agent",
+        source_channel: str = "access_sandbox",
     ):
-        """In-process client used by agent / sandbox / connector flows.
+        """In-process client used by access-runtime / sandbox / connector flows.
 
         ``source_channel`` tags every push this client makes so audit
-        rows and conflict-policy rules can distinguish ``agent`` writes
+        rows and conflict-policy rules can distinguish Access runtime writes
         from ``sync`` connector imports or hosted ``web`` UI calls. The
-        default is ``agent`` because every current caller is an agent
-        or sandbox flow; product API entry points pass
+        default is ``access_sandbox`` because current in-process callers are
+        agent/sandbox runtime flows; product API entry points pass
         ``source_channel="papi"`` explicitly.
         """
 
         self._repo_manager = repo_manager
         self._project_id = project_id
         self._auth = auth_context
-        self._source_channel = source_channel or "agent"
+        self._source_channel = source_channel or "access_sandbox"
 
         self._head_commit_id: str = ""
         self._scope: dict = {}

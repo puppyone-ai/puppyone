@@ -1,15 +1,9 @@
 """
-MCP Server - Unified Agent mode implementation.
-Built on the MCP Python SDK with dynamic tool configuration and multi-tenant isolation.
+Shared MCP protocol service.
 
-Only Agent mode is supported:
-- Access via the Agent's mcp_api_key (prefixed with "mcp_")
-- Configuration is read from the agent + agent_bash + agent_tool tables
-- V2 mode and Legacy mode have been removed
-
-Tool types:
-1. Built-in tools (based on agent_bash): data CRUD operations
-2. Custom tools (based on agent_tool): search, custom_script, etc.
+The main backend owns public authentication, endpoint/scope resolution, and
+Version Engine execution. This service owns MCP transport, sessions, tool
+listing/calling, and protocol-level validation.
 """
 from __future__ import annotations
 
@@ -333,6 +327,17 @@ def _build_fs_tools_list(accesses: list[dict[str, Any]]) -> list[mcp_types.Tool]
     return tools
 
 
+def _runtime_tool_to_mcp(tool: dict[str, Any]) -> mcp_types.Tool:
+    return mcp_types.Tool(
+        name=tool.get("name", ""),
+        title=tool.get("title"),
+        description=tool.get("description") or tool.get("title") or tool.get("name", ""),
+        inputSchema=tool.get("inputSchema") or {"type": "object", "additionalProperties": False},
+        outputSchema=tool.get("outputSchema"),
+        annotations=tool.get("annotations"),
+    )
+
+
 def _find_access_and_tool_type(config: dict[str, Any], tool_name: str) -> tuple[dict[str, Any] | None, str | None, str | None]:
     """
     Find the corresponding configuration and tool type by tool name.
@@ -403,7 +408,7 @@ def build_starlette_app(*, json_response: bool = True) -> Starlette:
 
     @mcp_server.list_tools()
     async def list_tools() -> list[mcp_types.Tool]:
-        """List available tools (Agent mode only)."""
+        """List available tools for the resolved MCP runtime."""
         try:
             ctx = mcp_server.request_context
             request = ctx.request
@@ -424,7 +429,10 @@ def build_starlette_app(*, json_response: bool = True) -> Starlette:
             if config.get("mode") == "agent":
                 return _build_agent_tools_list(config)
 
-            # Other modes are no longer supported
+            if config.get("mode") == "mcp_endpoint":
+                runtime = await rpc_client.list_mcp_runtime_tools(api_key)
+                return [_runtime_tool_to_mcp(tool) for tool in runtime.get("tools", [])]
+
             return []
         except Exception as e:
             print(f"Error listing tools: {e}")
@@ -433,8 +441,8 @@ def build_starlette_app(*, json_response: bool = True) -> Starlette:
     @mcp_server.call_tool()
     async def call_tool(
         name: str, arguments: dict[str, Any]
-    ) -> list[mcp_types.TextContent]:
-        """Execute a tool call (Agent mode only)."""
+    ) -> dict[str, Any] | list[mcp_types.TextContent] | mcp_types.CallToolResult:
+        """Execute a tool call for the resolved MCP runtime."""
         try:
             ctx = mcp_server.request_context
             request = ctx.request
@@ -450,9 +458,30 @@ def build_starlette_app(*, json_response: bool = True) -> Starlette:
                     mcp_types.TextContent(type="text", text="Error: Agent configuration does not exist or failed to load")
                 ]
 
+            if config.get("mode") == "mcp_endpoint":
+                result = await rpc_client.call_mcp_runtime_tool(api_key, name, arguments or {})
+                if result.get("isError"):
+                    return mcp_types.CallToolResult(
+                        content=[
+                            mcp_types.TextContent(
+                                type="text",
+                                text=json.dumps(
+                                    result.get("error", result),
+                                    ensure_ascii=False,
+                                    indent=2,
+                                ),
+                            )
+                        ],
+                        isError=True,
+                    )
+                structured = result.get("structuredContent", result)
+                if isinstance(structured, dict):
+                    return structured
+                return {"result": structured}
+
             # Agent mode: execute based on agent accesses configuration
             if config.get("mode") != "agent":
-                return [mcp_types.TextContent(type="text", text="Error: only Agent mode is supported")]
+                return [mcp_types.TextContent(type="text", text="Error: unsupported MCP runtime mode")]
 
             result: Any = None
 

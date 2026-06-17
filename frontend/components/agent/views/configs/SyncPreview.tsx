@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { StatusIndicator } from '@/components/ui/StatusDot';
 
 export type AcceptedNodeType = 'folder' | 'json' | 'markdown' | 'file';
 type SyncDirection = 'inbound' | 'outbound' | 'bidirectional';
@@ -88,12 +89,6 @@ function getProviderLogo(provider: string, size: number) {
         <defs><linearGradient id="sp0s" x1="53.9738" y1="54.974" x2="94.1635" y2="71.8295" gradientUnits="userSpaceOnUse"><stop stopColor="var(--po-success)"/><stop offset="1" stopColor="var(--po-success)"/></linearGradient></defs>
       </svg>
     );
-    case 'filesystem':
-      return (
-        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="var(--po-success)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="3" y="4" width="18" height="12" rx="2" /><path d="M2 20h20" />
-        </svg>
-      );
     case 'agent':
       return <span style={{ fontSize: size * 0.65 }}>💬</span>;
     case 'mcp':
@@ -189,14 +184,11 @@ export function SyncPreview({ provider, providerLabel, direction, targetName, ta
 
       {/* Status line below the diagram */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, paddingTop: 2 }}>
-        <span style={{
-          width: 5, height: 5, borderRadius: '50%',
-          background: ready ? 'var(--po-success)' : 'var(--po-text-disabled)',
-          display: 'inline-block', flexShrink: 0,
-        }} />
-        <span style={{ fontSize: 11, fontWeight: 500, color: ready ? 'var(--po-text)' : 'var(--po-text-subtle)' }}>
-          {ready ? DIR_LABELS[direction] : !hasTarget ? 'Waiting for sync target' : 'Waiting for account'}
-        </span>
+        <StatusIndicator
+          status={ready ? 'active' : 'inactive'}
+          label={ready ? DIR_LABELS[direction] : !hasTarget ? 'Waiting for sync target' : 'Waiting for account'}
+          style={{ fontSize: 11 }}
+        />
       </div>
     </div>
   );

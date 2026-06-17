@@ -177,15 +177,15 @@ def admit_cli_fs_command(
     """Enforce connector policy for one AP-FS command.
 
     Access-key auth already resolved the scope. This gate only answers:
-    "is this CLI connector allowed to run this filesystem command?"
+    "is this CLI connector allowed to run this FS CLI command?"
     """
 
     normalized_channel = (channel or "").strip().lower()
     if normalized_channel != "cli":
-        # Only the CLI FS connector has command-level policy today. Other AP-FS
-        # clients keep the existing channel pause semantics.
-        enforce_channel_pause(auth, normalized_channel, log_prefix=log_prefix)
-        return
+        raise HTTPException(
+            status_code=400,
+            detail="AP-FS commands must use X-Puppy-Client: cli",
+        )
 
     normalized_command = command.strip().lower()
     if normalized_command not in CLI_FS_KNOWN_COMMANDS:

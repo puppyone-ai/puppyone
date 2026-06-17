@@ -83,11 +83,12 @@ export function FileViewerHeaderActions({
     actionsSlot !== undefined ? actionsSlot : <FileActionsMenu projectId={projectId} filePath={filePath} />;
   const resolvedMarkdownViewMode: MarkdownViewMode =
     markdownViewMode === 'source' ? 'source' : 'wysiwyg';
+  const saveButton = editable ? <EditorSaveButton status={saveStatus} onSave={onSave} /> : null;
 
   if (viewerId === 'markdown-editor') {
     return (
       <HeaderActionGroup>
-        {editable && <EditorSaveButton status={saveStatus} onSave={onSave} />}
+        {saveButton}
         <ModePicker mode={resolvedMarkdownViewMode} onChange={onMarkdownViewModeChange} options={MARKDOWN_OPTIONS} />
         {actions}
       </HeaderActionGroup>
@@ -97,7 +98,7 @@ export function FileViewerHeaderActions({
   if (viewerId === 'plain-text') {
     return (
       <HeaderActionGroup>
-        {editable && <EditorSaveButton status={saveStatus} onSave={onSave} />}
+        {saveButton}
         {actions}
       </HeaderActionGroup>
     );
@@ -106,7 +107,7 @@ export function FileViewerHeaderActions({
   if (viewerId === 'csv-table') {
     return (
       <HeaderActionGroup>
-        {editable && <EditorSaveButton status={saveStatus} onSave={onSave} />}
+        {saveButton}
         <ModePicker mode={csvViewMode} onChange={onCsvViewModeChange} options={CSV_OPTIONS} />
         {actions}
       </HeaderActionGroup>
@@ -142,6 +143,7 @@ export function FileViewerHeaderActions({
 
   return (
     <HeaderActionGroup>
+      {saveButton}
       {actions}
     </HeaderActionGroup>
   );

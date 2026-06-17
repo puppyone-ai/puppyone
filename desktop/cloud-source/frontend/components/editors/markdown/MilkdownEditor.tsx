@@ -21,20 +21,26 @@ import { PROJECT_CONTENT_RAIL_WIDTH } from '@/lib/layout';
 // text token while chrome/helper copy stays muted elsewhere in the app.
 const editorThemeStyles = `
   .milkdown-editor {
-    background: var(--po-canvas);
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background: var(--po-editor-bg);
     color: var(--po-text-muted);
     font-family: var(--po-font-sans);
     font-size: 14px;
     font-weight: var(--po-text-weight-medium);
     line-height: 1.65;
-    padding: 28px 32px 48px;
     box-sizing: border-box;
     outline: none;
-    max-width: ${PROJECT_CONTENT_RAIL_WIDTH}px;
-    margin: 0 auto;
   }
 
   .milkdown-editor .editor {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: ${PROJECT_CONTENT_RAIL_WIDTH}px;
+    min-height: 100%;
+    margin: 0 auto;
+    padding: var(--po-editor-padding-block) var(--po-editor-padding-inline) var(--po-editor-padding-bottom);
     outline: none;
   }
 
@@ -477,7 +483,7 @@ export const MilkdownEditor = forwardRef<MilkdownEditorRef, MilkdownEditorProps>
           height: '100%',
           width: '100%',
           overflow: 'auto',
-          background: 'var(--po-canvas)',
+          background: 'var(--po-editor-bg)',
         }}
       >
         <style>{editorThemeStyles}</style>

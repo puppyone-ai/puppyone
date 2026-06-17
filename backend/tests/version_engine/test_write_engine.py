@@ -564,7 +564,7 @@ class TestGitNativeSubmission:
         assert server_repo.get_scope_head_commit_id("") == client_commit_id
         assert _files_for_scope(server_repo) == {"README.md": b"hi"}
         assert server_repo.history._entries[-1]["commit_id"] == client_commit_id
-        assert server_repo.audit.events[-1]["type"] == "git_push"
+        assert server_repo.audit.events[-1]["type"] == "access_git_push"
 
     @pytest.mark.asyncio
     async def test_stale_git_push_is_rejected_like_git_hosts(
@@ -1240,7 +1240,7 @@ class TestGitNativeHardeningContracts:
 
         assert result.status == "ok"
         assert len(calls) == 1
-        assert calls[0]["audit_event_type"] == "git_push"
+        assert calls[0]["audit_event_type"] == "access_git_push"
         assert calls[0]["commit_id"] == commit_id
         assert calls[0]["new_root_hash"] == tree_id
         assert calls[0]["scope_hash"] == tree_id
@@ -2093,7 +2093,7 @@ def test_git_access_point_receive_pack_uses_bound_scope_and_identity(
     assert root_projection_head != client_commit_id
     assert _files_for_scope(server_repo) == {"docs/README.md": b"hello from git\n"}
     assert _files_for_scope(server_repo, "docs") == {"README.md": b"hello from git\n"}
-    assert _last_audit_event(server_repo, "git_push")["agent"] == "alice@example.com"
+    assert _last_audit_event(server_repo, "access_git_push")["agent"] == "alice@example.com"
 
 
 def test_git_access_point_receive_pack_accepts_flush_only_noop(
@@ -2246,7 +2246,7 @@ def test_real_git_cli_can_clone_commit_push_and_clone_again(
         "README.md": b"hello through real git\n",
     }
     assert (second / "README.md").read_text(encoding="utf-8") == "hello through real git\n"
-    assert _last_audit_event(server_repo, "git_push")["type"] == "git_push"
+    assert _last_audit_event(server_repo, "access_git_push")["type"] == "access_git_push"
 
 
 def test_real_git_cli_degraded_history_clones_and_pushes_from_projected_head(
@@ -2296,13 +2296,13 @@ def test_real_git_cli_degraded_history_clones_and_pushes_from_projected_head(
     assert _files_for_scope(server_repo, "docs") == {
         "README.md": b"current plus push\n",
     }
-    assert _last_audit_event(server_repo, "git_push")["detail"][
+    assert _last_audit_event(server_repo, "access_git_push")["detail"][
         "git_visible_old_commit_id"
     ] == projected
-    assert _last_audit_event(server_repo, "git_push")["detail"][
+    assert _last_audit_event(server_repo, "access_git_push")["detail"][
         "canonical_base_commit_id"
     ] == current_commit
-    assert _last_audit_event(server_repo, "git_push")["detail"]["git_view_history_cut"] is True
+    assert _last_audit_event(server_repo, "access_git_push")["detail"]["git_view_history_cut"] is True
 
 
 def test_real_git_cli_root_derived_scope_without_scope_state_pushes(
@@ -2369,7 +2369,7 @@ def test_real_git_cli_root_derived_scope_without_scope_state_pushes(
         "README.md": b"root-derived scope\n",
         "perf-git-access-point.md": b"root-derived access point push\n",
     }
-    detail = _last_audit_event(server_repo, "git_push")["detail"]
+    detail = _last_audit_event(server_repo, "access_git_push")["detail"]
     assert detail["git_visible_old_commit_id"] == projected
     assert detail["canonical_base_commit_id"] == ""
     assert detail["engine_base_commit_id"] == projected
@@ -2670,6 +2670,18 @@ def test_real_git_cli_tag_push_is_stored_without_advancing_scope(
         monkeypatch,
         {"docs-key": ("docs-scope", "/docs/", "rw")},
     )
+    import src.version_engine.infrastructure.supabase.version_ref_repository as _vrr
+    stored_refs = []
+
+    class _FakeRefStore:
+        def list_refs(self, *a, **k):
+            return []
+
+        def set_ref(self, **kw):
+            stored_refs.append(kw)
+            return True
+
+    monkeypatch.setattr(_vrr, "VersionRefStore", lambda *a, **k: _FakeRefStore())
     app = FastAPI()
     app.include_router(git_router)
     app.dependency_overrides[get_repo_manager] = lambda: repo_manager
@@ -2690,6 +2702,13 @@ def test_real_git_cli_tag_push_is_stored_without_advancing_scope(
     assert proc.returncode == 0, proc.stderr          # tag push accepted + stored
     assert server_repo.get_scope_head_commit_id("docs") == ""   # scope head NOT advanced
     assert server_repo.store.exists(tagged_head)      # tag objects promoted (fetchable)
+    assert stored_refs == [{
+        "project_id": "test-proj",
+        "scope_path": "docs",
+        "ref_name": "refs/tags/v1",
+        "commit_id": tagged_head,
+        "created_by": "scope:docs-scope",
+    }]
 
 
 def test_real_git_cli_lfs_pointer_push_is_rejected_without_advancing_scope(
@@ -2771,7 +2790,7 @@ def test_real_git_cli_stale_force_push_is_rejected_like_git_hosts(
     }
     assert (verify / "a.txt").read_text(encoding="utf-8") == "from first\n"
     assert not (verify / "b.txt").exists()
-    assert _last_audit_event(server_repo, "git_push")["detail"]["merged"] is False
+    assert _last_audit_event(server_repo, "access_git_push")["detail"]["merged"] is False
 
 
 def test_real_git_cli_scoped_remotes_do_not_leak_sibling_worktrees(

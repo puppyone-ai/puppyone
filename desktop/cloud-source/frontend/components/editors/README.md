@@ -1,81 +1,30 @@
-# JSON Editors
+# Editors
 
-This folder contains all JSON editor implementations used in the application.
+The active file editor contract lives in
+[`docs/document/editor-save-construct.md`](../../../../../docs/document/editor-save-construct.md).
 
-## 📁 Structure
+Default file editing is raw-text/session based:
 
-```
-editors/
-├── tree/                    # Tree-based visual editors
-│   ├── JsonEditorComponent.tsx    # Original jsoneditor library wrapper
-│   ├── TreeLineVirtualEditor.tsx  # Virtual scrolling with ├─ └─ lines (high performance)
-│   └── index.ts
-│
-├── code/                    # Code/text-based editors
-│   ├── MonacoJsonEditor.tsx       # Monaco Editor (VS Code engine)
-│   ├── CodeMirrorJsonEditor.tsx   # CodeMirror 6
-│   └── index.ts
-│
-├── vanilla/                 # Svelte-based editor
-│   ├── VanillaJsonEditor.tsx      # svelte-jsoneditor wrapper
-│   └── index.ts
-│
-├── index.ts                 # Main exports
-└── README.md
-```
+- Markdown uses `MarkdownEditor`.
+- Plain text uses `PlainTextEditor`.
+- JSON uses the raw Monaco viewer through `monaco-code`.
+- Code/source formats use `MonacoCodeViewer`.
+- The right-side document drawer uses `DocumentEditor`.
 
-## ⚡ Performance Comparison
+All new editable file viewers must accept the generic viewer props
+`textContent`, `onTextChange`, and `editable`, and must persist through
+`useEditorSaveSession` at the page/session layer.
 
-| Editor | 100 nodes | 1K nodes | 10K nodes | 100K nodes |
-|--------|-----------|----------|-----------|------------|
-| VanillaJsonEditor | ✅ | ✅ | ✅ | ✅ |
-| TreeLineVirtualEditor | ✅ | ✅ | ✅ | ✅ |
-| MonacoJsonEditor | ✅ | ✅ | ✅ | 🟡 |
-| CodeMirrorJsonEditor | ✅ | ✅ | 🟡 | 🟡 |
-| JsonEditorComponent | ✅ | ✅ | 🟡 | 🔴 |
+## Archived JSON Editors
 
-## 🎨 Features Comparison
+The older object/tree JSON editor stack is still in the repository for
+reference, but it is not the default editing path:
 
-| Editor | Tree View | Connection Lines | Virtual Scroll | Edit | Search | Undo/Redo |
-|--------|-----------|------------------|----------------|------|--------|-----------|
-| VanillaJsonEditor | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ |
-| TreeLineVirtualEditor | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
-| JsonEditorComponent | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ |
-| MonacoJsonEditor | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ |
-| CodeMirrorJsonEditor | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ |
+- `ProjectWorkspaceView`
+- `components/editors/table/*`
+- `components/editors/code/MonacoJsonEditor.tsx`
+- `components/editors/vanilla/*`
 
-## 📖 Usage
-
-```tsx
-import dynamic from 'next/dynamic'
-
-// Dynamic import (recommended for SSR)
-const VanillaJsonEditor = dynamic(
-  () => import('./editors/vanilla/VanillaJsonEditor'),
-  { ssr: false }
-)
-
-// In component
-<VanillaJsonEditor
-  json={data}
-  onChange={(newJson) => setData(newJson)}
-  onPathChange={(path) => console.log('Selected:', path)}
-/>
-```
-
-## 🔧 Adding a New Editor
-
-1. Create a new folder or add to existing category
-2. Implement the standard interface:
-   ```tsx
-   interface EditorProps {
-     json: object
-     onChange?: (json: object) => void
-     onPathChange?: (path: string | null) => void
-   }
-   ```
-3. Export from the category's `index.ts`
-4. Add to main `editors/index.ts`
-5. Update `ProjectWorkspaceView.tsx` with dynamic import
-6. Add to `ProjectsHeader.tsx` editor options
-
+Do not re-enable these as a default JSON viewer until they are refactored to use
+the same save session, dirty state, navigation guard, and visual surface tokens
+defined by the editor construct.

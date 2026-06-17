@@ -20,7 +20,7 @@ export interface CreateMenuProps {
   onClose: () => void;
   // When `accessOnly` is true, the menu skips the Create Blank /
   // Upload sections entirely and renders the access-provider list
-  // (Notion, Gmail, Calendar, …, Machine Folder, Chat Agent, etc.)
+  // (Notion, Gmail, Calendar, GitHub, MCP, Sandbox, etc.)
   // as the top-level menu — flat, no `New Access >` submenu trigger.
   // This is what the sidebar row `Expose as...` command uses: the
   // user already expressed the intent "create access for this folder",
@@ -41,10 +41,10 @@ export interface CreateMenuProps {
   onImportSheets?: () => void;
   onConnectSupabase?: () => void;
   onImportSearchConsole?: () => void;
-  onImportLocalFolder?: () => void;
   onCreateAgent?: () => void;
   onCreateMcp?: () => void;
   onCreateSandbox?: () => void;
+  onCreateSshTerminal?: () => void;
 }
 
 interface MenuItemProps {
@@ -207,9 +207,8 @@ const SupabaseIcon = () => (
 
 const SearchConsoleIcon = () => <span style={{ fontSize: 14 }}>📊</span>;
 
-// LocalFolderIcon and ChatAgentIcon were removed alongside their menu
-// rows in the 2026-05-08 cleanup — Machine Folder (filesystem) and
-// Chat Agent are now per-scope built-ins, not creatable connectors.
+// Local folder sync and Chat Agent menu rows were removed in the
+// 2026-05-08 cleanup; Chat Agent is now a per-scope built-in.
 
 const McpIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--po-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -246,10 +245,10 @@ export function CreateMenu({
   onImportSheets,
   onConnectSupabase,
   onImportSearchConsole,
-  onImportLocalFolder,
   onCreateAgent,
   onCreateMcp,
   onCreateSandbox,
+  onCreateSshTerminal,
 }: CreateMenuProps) {
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -385,23 +384,6 @@ export function CreateMenu({
             )}
             <MenuItem icon={<SearchConsoleIcon />} label="Google Search Console" sublabel="Coming soon" disabled />
 
-            {/*
-              Removed (2026-05-08):
-                - "Sync data with a folder / Machine Folder" — filesystem
-                  is now a per-scope built-in (DB trigger auto-provisions
-                  one connector per scope), not a creatable connector.
-                - "Share data with an AI Agent / Chat Agent" — agent is
-                  now a per-scope built-in too. Users reach the chat
-                  runtime from the scope's detail panel (the Connect
-                  block's AI Agent MethodCard), not by minting one here.
-
-              `onImportLocalFolder` and `onCreateAgent` props are kept on
-              the interface for now so external deep-link callers don't
-              break — but no menu row consumes them. Future cleanup pass
-              can prune the props once we confirm no caller still passes
-              them.
-            */}
-
             <Divider />
 
             <div style={{ padding: '6px 16px 2px', fontSize: 10, fontWeight: 600, color: 'var(--po-text-subtle)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -410,8 +392,11 @@ export function CreateMenu({
             <MenuItem
               icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--po-text-subtle)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" /></svg>}
               label="SSH Terminal"
-              sublabel="Coming soon"
-              disabled
+              sublabel="Remote dev over SSH"
+              onClick={() => {
+                onCreateSshTerminal?.();
+                onClose();
+              }}
             />
 
             <Divider />
@@ -419,7 +404,15 @@ export function CreateMenu({
             <div style={{ padding: '6px 16px 2px', fontSize: 10, fontWeight: 600, color: 'var(--po-text-subtle)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               Expose data
             </div>
-            <MenuItem icon={<McpIcon />} label="MCP Server" sublabel="Coming soon" disabled />
+            <MenuItem
+              icon={<McpIcon />}
+              label="MCP Server"
+              sublabel="Expose this folder to MCP clients"
+              onClick={() => {
+                onCreateMcp?.();
+                onClose();
+              }}
+            />
             <MenuItem icon={<SandboxIcon />} label="Sandbox" sublabel="Coming soon" disabled />
 
             {/* "More Sources…" is the open-the-empty-picker fallback

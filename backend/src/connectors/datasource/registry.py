@@ -1,16 +1,17 @@
 """
-ConnectorRegistry — Central registry for all sync connectors.
+ConnectorRegistry — Central registry for all integration connectors.
 
 Responsibilities:
   - Register connector instances by provider name
   - Look up connectors by provider
-  - List all registered ConnectorSpecs (for GET /sync/connectors API)
+  - List all registered ConnectorSpecs (for GET /integrations/connectors API)
   - Manage OAuth service mapping for credential resolution
 """
 
 from typing import Any, Optional
 
 from src.connectors.datasource._base import BaseConnector, ConnectorSpec, Credentials
+from src.connectors.datasource.materializers import SourceMaterializer
 from src.utils.logger import log_info, log_error
 
 
@@ -18,13 +19,14 @@ class ConnectorRegistry:
     """
     Central registry for connector instances and OAuth services.
 
-    SyncEngine uses this to look up connectors and resolve credentials.
-    The /sync/connectors API uses list_specs() for frontend dynamic rendering.
+    IntegrationEngine uses this to look up connectors and resolve credentials.
+    The /integrations/connectors API uses list_specs() for frontend dynamic rendering.
     """
 
     def __init__(self) -> None:
         self._connectors: dict[str, BaseConnector] = {}
         self._oauth_services: dict[str, Any] = {}
+        self._materializers: dict[str, dict[str, dict[int, SourceMaterializer]]] = {}
 
     # ── Connector registration ───────────────────────────────
 
@@ -41,6 +43,85 @@ class ConnectorRegistry:
 
     def providers(self) -> list[str]:
         return list(self._connectors.keys())
+
+    # ── Materializer registration ─────────────────────────────
+
+    def register_materializer(self, materializer: SourceMaterializer) -> None:
+        by_schema = self._materializers.setdefault(materializer.provider, {})
+        by_version = by_schema.setdefault(materializer.schema.id, {})
+        if materializer.schema.version in by_version:
+            raise ValueError(
+                f"Duplicate materializer: {materializer.provider} "
+                f"{materializer.schema.id}@{materializer.schema.version}"
+            )
+        by_version[materializer.schema.version] = materializer
+        log_info(
+            "[Registry] Registered materializer: "
+            f"{materializer.provider}:{materializer.schema.id}@{materializer.schema.version}"
+        )
+
+    def get_materializer(self, provider: str) -> Optional[SourceMaterializer]:
+        return self.latest_materializer(provider)
+
+    def materializers_for_provider(self, provider: str) -> list[SourceMaterializer]:
+        by_schema = self._materializers.get(provider) or {}
+        result: list[SourceMaterializer] = []
+        for by_version in by_schema.values():
+            result.extend(by_version.values())
+        return sorted(result, key=lambda item: (item.schema.id, item.schema.version))
+
+    def latest_materializer(self, provider: str) -> Optional[SourceMaterializer]:
+        materializers = self.materializers_for_provider(provider)
+        if not materializers:
+            return None
+        return max(materializers, key=lambda item: item.schema.version)
+
+    def latest_schema_version(self, provider: str, schema_id: str | None = None) -> int | None:
+        materializers = self.materializers_for_provider(provider)
+        if schema_id:
+            materializers = [item for item in materializers if item.schema.id == schema_id]
+        if not materializers:
+            return None
+        return max(item.schema.version for item in materializers)
+
+    def resolve_materializer(
+        self,
+        provider: str,
+        schema_ref: Optional[dict[str, Any]] = None,
+    ) -> Optional[SourceMaterializer]:
+        by_schema = self._materializers.get(provider) or {}
+        if not by_schema:
+            return None
+        if not schema_ref:
+            return self.latest_materializer(provider)
+
+        schema_id = schema_ref.get("id")
+        version = schema_ref.get("version")
+        if not schema_id or version is None:
+            raise ValueError(f"Invalid materialization schema ref for {provider}: {schema_ref!r}")
+        try:
+            version_int = int(version)
+        except (TypeError, ValueError):
+            raise ValueError(f"Invalid materialization schema version for {provider}: {version!r}") from None
+
+        materializer = by_schema.get(str(schema_id), {}).get(version_int)
+        if materializer is None:
+            raise ValueError(f"Unknown materialization schema for {provider}: {schema_id}@{version_int}")
+        return materializer
+
+    def pin_materialization_schema(
+        self,
+        provider: str,
+        config: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
+        pinned = dict(config or {})
+        materializer = self.resolve_materializer(
+            provider,
+            pinned.get("materialization_schema"),
+        )
+        if materializer is not None:
+            pinned["materialization_schema"] = materializer.schema.ref()
+        return pinned
 
     # ── OAuth service registration ───────────────────────────
 
@@ -104,6 +185,10 @@ class ConnectorRegistry:
             s = connector.spec()
             if not include_hidden and not s.ui_visible:
                 continue
+            latest_materializer = self.latest_materializer(s.provider)
+            latest_version = (
+                latest_materializer.schema.version if latest_materializer else None
+            )
             result.append({
                 "provider": s.provider,
                 "display_name": s.display_name,
@@ -132,5 +217,22 @@ class ConnectorRegistry:
                 ],
                 "icon": s.icon,
                 "icon_url": s.icon_url,
+                "materialization_schema": (
+                    latest_materializer.schema.to_dict(
+                        provider=s.provider,
+                        latest=True,
+                        latest_version=latest_version,
+                    )
+                    if latest_materializer
+                    else None
+                ),
+                "materialization_schemas": [
+                    materializer.schema.to_dict(
+                        provider=s.provider,
+                        latest=materializer.schema.version == latest_version,
+                        latest_version=latest_version,
+                    )
+                    for materializer in self.materializers_for_provider(s.provider)
+                ],
             })
         return result
