@@ -2,8 +2,11 @@ import { app, BrowserWindow, dialog, ipcMain, protocol } from "electron";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import {
+  getWorkspaceGitStatus,
   listFolderChildren,
+  readWorkspaceTextFile,
   readWorkspaceFile,
+  writeWorkspaceTextFile,
   workspaceFromPath,
 } from "../local-api/workspace.mjs";
 
@@ -93,6 +96,39 @@ function registerIpcHandlers() {
       throw new Error("Workspace root path is required.");
     }
     return listFolderChildren(rootPath, folderPath);
+  });
+
+  ipcMain.handle("workspace:read-file", async (_event, request) => {
+    const rootPath = request?.rootPath;
+    const filePath = request?.path;
+    if (typeof rootPath !== "string" || rootPath.trim().length === 0) {
+      throw new Error("Workspace root path is required.");
+    }
+    if (typeof filePath !== "string" || filePath.trim().length === 0) {
+      throw new Error("File path is required.");
+    }
+    return readWorkspaceTextFile(rootPath, filePath);
+  });
+
+  ipcMain.handle("workspace:write-file", async (_event, request) => {
+    const rootPath = request?.rootPath;
+    const filePath = request?.path;
+    const content = request?.content;
+    if (typeof rootPath !== "string" || rootPath.trim().length === 0) {
+      throw new Error("Workspace root path is required.");
+    }
+    if (typeof filePath !== "string" || filePath.trim().length === 0) {
+      throw new Error("File path is required.");
+    }
+    await writeWorkspaceTextFile(rootPath, filePath, content);
+  });
+
+  ipcMain.handle("workspace:git-status", async (_event, request) => {
+    const rootPath = request?.rootPath;
+    if (typeof rootPath !== "string" || rootPath.trim().length === 0) {
+      throw new Error("Workspace root path is required.");
+    }
+    return getWorkspaceGitStatus(rootPath);
   });
 }
 

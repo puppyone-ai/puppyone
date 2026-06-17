@@ -5,13 +5,13 @@
   "type": "module",
   "main": "electron/main.mjs",
   "scripts": {
+    "check:boundaries": "node ../scripts/check-data-ui-boundaries.mjs",
     "dev": "node scripts/dev-electron.mjs",
     "dev:renderer": "vite --host 127.0.0.1",
     "dev:browser": "vite --host 127.0.0.1",
-    "build": "tsc && vite build",
+    "build": "npm run check:boundaries && tsc && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "smoke:local-api": "node scripts/smoke-local-api.mjs",
-    "sync:cloud-source": "./scripts/sync-cloud-source.sh",
     "start": "electron ."
   },
   "dependencies": {

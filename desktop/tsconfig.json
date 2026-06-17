@@ -15,6 +15,7 @@
     "paths": {
       "@puppyone/data-core": ["../packages/data-core/src/index.ts"],
       "@puppyone/data-ui": ["../packages/data-ui/src/index.ts"],
+      "@puppyone/editor-ui": ["../packages/editor-ui/src/index.ts"],
       "lucide-react": ["node_modules/lucide-react/dist/lucide-react.d.ts"],
       "react": ["node_modules/@types/react/index.d.ts"],
       "react/jsx-runtime": ["node_modules/@types/react/jsx-runtime.d.ts"]
@@ -24,6 +25,6 @@
     "noEmit": true,
     "jsx": "react-jsx"
   },
-  "include": ["src", "../packages/data-core/src", "../packages/data-ui/src"],
+  "include": ["src", "../packages/data-core/src", "../packages/data-ui/src", "../packages/editor-ui/src"],
   "references": []
 }

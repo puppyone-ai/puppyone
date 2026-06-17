@@ -1,4 +1,5 @@
 import type { DataNode, DataNodeKind, DataPort, Workspace } from "@puppyone/data-core";
+import type { GitStatusSnapshot } from "../types/electron";
 
 export type { Workspace };
 export type FileKind = DataNodeKind;
@@ -7,6 +8,8 @@ export type FileNode = DataNode;
 export function createLocalDataPort(rootPath: string): DataPort {
   return {
     listChildren: (folderPath) => loadFolderChildren(rootPath, folderPath),
+    readFile: (path) => getDesktopBridge().readFile({ rootPath, path }),
+    writeFile: (path, content) => getDesktopBridge().writeFile({ rootPath, path, content }),
   };
 }
 
@@ -23,6 +26,10 @@ export async function selectWorkspaceFolder(): Promise<Workspace | null> {
 
 export async function workspaceFromPath(folderPath: string): Promise<Workspace> {
   return getDesktopBridge().workspaceFromPath(folderPath);
+}
+
+export async function getWorkspaceGitStatus(rootPath: string): Promise<GitStatusSnapshot> {
+  return getDesktopBridge().getGitStatus({ rootPath });
 }
 
 export function findFileNode(nodes: FileNode[], path: string | null): FileNode | null {

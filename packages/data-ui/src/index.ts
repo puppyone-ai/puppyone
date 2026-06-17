@@ -2,6 +2,8 @@ export { DataWorkspace } from "./DataWorkspace";
 export type { DataWorkspaceProps } from "./DataWorkspace";
 export { ExplorerTree } from "./ExplorerTree";
 export type { ExplorerTreeProps } from "./ExplorerTree";
+export { EditorHost } from "./EditorHost";
+export type { EditorHostProps } from "./EditorHost";
 export { FilePreview } from "./FilePreview";
 export type { FilePreviewProps } from "./FilePreview";
 export {

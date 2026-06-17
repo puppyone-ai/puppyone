@@ -16,6 +16,10 @@ export default defineConfig({
         replacement: fileURLToPath(new URL("../packages/data-ui/src/index.ts", import.meta.url)),
       },
       {
+        find: "@puppyone/editor-ui",
+        replacement: fileURLToPath(new URL("../packages/editor-ui/src/index.ts", import.meta.url)),
+      },
+      {
         find: "lucide-react",
         replacement: fileURLToPath(new URL("./node_modules/lucide-react/dist/esm/lucide-react.js", import.meta.url)),
       },

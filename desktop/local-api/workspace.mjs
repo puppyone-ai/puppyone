@@ -1,8 +1,12 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 
 const MAX_ENTRIES_PER_FOLDER = 500;
 const MAX_PREVIEW_BYTES = 4096;
+const MAX_EDITOR_BYTES = 1024 * 1024;
+const execFileAsync = promisify(execFile);
 
 export async function workspaceFromPath(folderPath) {
   const resolvedPath = path.resolve(folderPath);
@@ -60,6 +64,86 @@ export async function listFolderChildren(rootPath, folderPath) {
 export async function readWorkspaceFile(rootPath, relativePath) {
   const filePath = resolveWorkspacePath(rootPath, relativePath);
   return fs.readFile(filePath);
+}
+
+export async function readWorkspaceTextFile(rootPath, relativePath) {
+  const filePath = resolveWorkspacePath(rootPath, relativePath);
+  const metadata = await fs.stat(filePath).catch((error) => {
+    throw new Error(`Unable to read file metadata: ${error.message}`);
+  });
+
+  if (metadata.isDirectory()) {
+    throw new Error("Selected path is a folder.");
+  }
+  if (metadata.size > MAX_EDITOR_BYTES) {
+    throw new Error("File is too large to edit in PuppyOne Desktop.");
+  }
+
+  const bytes = await fs.readFile(filePath);
+  if (bytes.includes(0)) {
+    return {
+      path: normalizeRelativePath(relativePath),
+      name: path.basename(filePath),
+      type: classifyFile(filePath),
+      content: null,
+      mimeType: null,
+      size: formatFileSize(metadata.size),
+    };
+  }
+
+  return {
+    path: normalizeRelativePath(relativePath),
+    name: path.basename(filePath),
+    type: classifyFile(filePath),
+    content: bytes.toString("utf8"),
+    mimeType: "text/plain; charset=utf-8",
+    size: formatFileSize(metadata.size),
+  };
+}
+
+export async function writeWorkspaceTextFile(rootPath, relativePath, content) {
+  if (typeof content !== "string") {
+    throw new Error("File content must be text.");
+  }
+  const filePath = resolveWorkspacePath(rootPath, relativePath);
+  const metadata = await fs.stat(filePath).catch((error) => {
+    throw new Error(`Unable to write file: ${error.message}`);
+  });
+  if (metadata.isDirectory()) {
+    throw new Error("Selected path is a folder.");
+  }
+  await fs.writeFile(filePath, content, "utf8");
+}
+
+export async function getWorkspaceGitStatus(rootPath) {
+  const root = resolveWorkspacePath(rootPath, null);
+  const isRepo = await execGit(root, ["rev-parse", "--is-inside-work-tree"])
+    .then((result) => result.stdout.trim() === "true")
+    .catch(() => false);
+
+  if (!isRepo) {
+    return {
+      isRepo: false,
+      branch: null,
+      entries: [],
+    };
+  }
+
+  const [branchResult, statusResult] = await Promise.all([
+    execGit(root, ["branch", "--show-current"]).catch(() => ({ stdout: "" })),
+    execGit(root, ["status", "--short"]).catch((error) => {
+      throw new Error(`Unable to read git status: ${error.message}`);
+    }),
+  ]);
+
+  return {
+    isRepo: true,
+    branch: branchResult.stdout.trim() || "detached",
+    entries: statusResult.stdout
+      .split(/\r?\n/)
+      .map(parseGitStatusLine)
+      .filter(Boolean),
+  };
 }
 
 async function nodeFromEntry(folder, entry, parentRelative) {
@@ -218,4 +302,36 @@ function formatFileSize(bytes) {
 
 function stableWorkspaceId(folderPath) {
   return `local:${Buffer.from(folderPath).toString("base64url")}`;
+}
+
+function execGit(rootPath, args) {
+  return execFileAsync("git", ["-C", rootPath, ...args], {
+    timeout: 5000,
+    maxBuffer: 1024 * 256,
+  });
+}
+
+function parseGitStatusLine(line) {
+  if (!line.trim()) return null;
+  const staged = line[0] || " ";
+  const unstaged = line[1] || " ";
+  const pathText = line.slice(3).trim();
+  if (!pathText) return null;
+
+  return {
+    path: pathText,
+    staged: staged.trim() || null,
+    unstaged: unstaged.trim() || null,
+    status: getGitStatusLabel(staged, unstaged),
+  };
+}
+
+function getGitStatusLabel(staged, unstaged) {
+  const code = `${staged}${unstaged}`;
+  if (code.includes("?")) return "untracked";
+  if (code.includes("A")) return "added";
+  if (code.includes("D")) return "deleted";
+  if (code.includes("R")) return "renamed";
+  if (code.includes("M")) return "modified";
+  return "changed";
 }

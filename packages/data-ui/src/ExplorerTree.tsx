@@ -1,42 +1,50 @@
 import type { CSSProperties } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { DataNode } from "@puppyone/data-core";
 import { FileGlyphIcon } from "./fileIcons";
 
 export type ExplorerTreeProps = {
   nodes: DataNode[];
   activePath: string | null;
+  loadingPath?: string | null;
   rootLabel?: string;
   showRoot?: boolean;
   onSelectNode: (node: DataNode | null) => void;
+  onToggleFolder?: (node: DataNode, expanded: boolean) => void;
 };
 
 export function ExplorerTree({
   nodes,
   activePath,
+  loadingPath = null,
   rootLabel = "Workspace",
   showRoot = true,
   onSelectNode,
+  onToggleFolder,
 }: ExplorerTreeProps) {
-  const initialExpanded = useMemo(() => collectFolderPaths(nodes), [nodes]);
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(initialExpanded));
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(collectAncestorFolderPaths(activePath)));
+  const lastAutoExpandedPath = useRef(activePath);
   const rootActive = activePath === null;
 
   useEffect(() => {
+    if (lastAutoExpandedPath.current === activePath) return;
+    lastAutoExpandedPath.current = activePath;
+    if (!activePath) return;
     setExpanded((current) => {
       const next = new Set(current);
-      collectFolderPaths(nodes).forEach((path) => next.add(path));
+      collectAncestorFolderPaths(activePath).forEach((path) => next.add(path));
       return next;
     });
-  }, [nodes]);
+  }, [activePath]);
 
-  const toggleFolder = (path: string) => {
+  const toggleFolder = (node: DataNode, nextExpanded: boolean) => {
     setExpanded((current) => {
       const next = new Set(current);
-      if (next.has(path)) next.delete(path);
-      else next.add(path);
+      if (nextExpanded) next.add(node.path);
+      else next.delete(node.path);
       return next;
     });
+    onToggleFolder?.(node, nextExpanded);
   };
 
   return (
@@ -62,6 +70,7 @@ export function ExplorerTree({
           isLast={index === nodes.length - 1}
           expanded={expanded}
           activePath={activePath}
+          loadingPath={loadingPath}
           onToggleFolder={toggleFolder}
           onSelectNode={onSelectNode}
         />
@@ -76,6 +85,7 @@ function TreeNodeRow({
   isLast,
   expanded,
   activePath,
+  loadingPath,
   onToggleFolder,
   onSelectNode,
 }: {
@@ -84,20 +94,34 @@ function TreeNodeRow({
   isLast: boolean;
   expanded: Set<string>;
   activePath: string | null;
-  onToggleFolder: (path: string) => void;
+  loadingPath: string | null;
+  onToggleFolder: (node: DataNode, expanded: boolean) => void;
   onSelectNode: (node: DataNode) => void;
 }) {
   const isFolder = node.type === "folder";
   const isExpanded = isFolder && expanded.has(node.path);
   const active = activePath === node.path;
+  const loading = loadingPath === node.path;
+  const children = node.children ?? [];
+
+  const toggleCurrentFolder = () => {
+    if (!isFolder) return;
+    onToggleFolder(node, !isExpanded);
+  };
 
   return (
     <>
       <button
-        className={`tree-row ${active ? "active" : ""} ${node.status ? `status-${node.status}` : ""}`}
+        className={`tree-row ${isFolder ? "folder" : "file"} ${active ? "active" : ""} ${loading ? "loading" : ""} ${node.status ? `status-${node.status}` : ""}`}
         type="button"
+        aria-current={active ? "true" : undefined}
+        aria-expanded={isFolder ? isExpanded : undefined}
+        aria-busy={loading || undefined}
         onClick={() => {
-          if (isFolder && !isExpanded) onToggleFolder(node.path);
+          if (isFolder) {
+            toggleCurrentFolder();
+            return;
+          }
           onSelectNode(node);
         }}
         style={{ "--depth": depth } as CSSProperties}
@@ -109,7 +133,7 @@ function TreeNodeRow({
             onClick={(event) => {
               if (!isFolder) return;
               event.stopPropagation();
-              onToggleFolder(node.path);
+              toggleCurrentFolder();
             }}
           >
             {isFolder ? (
@@ -122,22 +146,37 @@ function TreeNodeRow({
           {node.status && node.status !== "clean" && (
             <span className={`tree-status ${node.status}`}>{shortStatus(node.status)}</span>
           )}
+          {loading && <span className="tree-loading-dot" aria-hidden />}
         </span>
       </button>
 
-      {isExpanded &&
-        node.children?.map((child, index) => (
-          <TreeNodeRow
-            key={child.path}
-            node={child}
-            depth={depth + 1}
-            isLast={index === (node.children?.length ?? 0) - 1}
-            expanded={expanded}
-            activePath={activePath}
-            onToggleFolder={onToggleFolder}
-            onSelectNode={onSelectNode}
-          />
-        ))}
+      {isExpanded && (
+        <div className="tree-subtree">
+          {loading && children.length === 0 && (
+            <div className="tree-meta-row" style={{ "--depth": depth + 1 } as CSSProperties}>
+              Loading...
+            </div>
+          )}
+          {!loading && children.length === 0 && node.children && (
+            <div className="tree-meta-row" style={{ "--depth": depth + 1 } as CSSProperties}>
+              Empty folder
+            </div>
+          )}
+          {children.map((child, index) => (
+            <TreeNodeRow
+              key={child.path}
+              node={child}
+              depth={depth + 1}
+              isLast={index === children.length - 1}
+              expanded={expanded}
+              activePath={activePath}
+              loadingPath={loadingPath}
+              onToggleFolder={onToggleFolder}
+              onSelectNode={onSelectNode}
+            />
+          ))}
+        </div>
+      )}
     </>
   );
 }
@@ -183,9 +222,8 @@ function shortStatus(status: NonNullable<DataNode["status"]>) {
   return "";
 }
 
-function collectFolderPaths(nodes: DataNode[]): string[] {
-  return nodes.flatMap((node) => [
-    ...(node.type === "folder" && Array.isArray(node.children) ? [node.path] : []),
-    ...(node.children ? collectFolderPaths(node.children) : []),
-  ]);
+function collectAncestorFolderPaths(activePath: string | null): string[] {
+  if (!activePath) return [];
+  const parts = activePath.split("/").filter(Boolean);
+  return parts.slice(0, -1).map((_, index) => parts.slice(0, index + 1).join("/"));
 }
