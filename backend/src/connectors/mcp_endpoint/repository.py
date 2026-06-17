@@ -50,6 +50,7 @@ def _row_to_endpoint(
     return {
         "id": row["id"],
         "project_id": row["project_id"],
+        "scope_id": row.get("scope_id"),
         "path": scope_path,
         "name": row.get("name") or config.get("name", "MCP Endpoint"),
         "description": config.get("description"),

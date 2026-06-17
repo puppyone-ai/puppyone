@@ -1,9 +1,9 @@
 import { RotateCcw, Save } from "lucide-react";
-import { FilePreviewIcon } from "../../cloud-source/frontend/lib/fileIcons";
-import type { FileNode } from "../lib/mockData";
+import type { DataNode } from "@puppyone/data-core";
+import { FilePreviewIcon } from "./fileIcons";
 
-type FilePreviewProps = {
-  node: FileNode | null;
+export type FilePreviewProps = {
+  node: DataNode | null;
 };
 
 export function FilePreview({ node }: FilePreviewProps) {
@@ -14,15 +14,14 @@ export function FilePreview({ node }: FilePreviewProps) {
           <FilePreviewIcon name="document.md" type="markdown" size={34} />
         </div>
         <div>
-          <strong>Select a file</strong>
-          <span>Preview and session context appear here.</span>
+          <strong>No file selected</strong>
+          <span>Choose a file from the sidebar to open it here.</span>
         </div>
       </div>
     );
   }
 
-  const name = node.name;
-  const extension = name.includes(".") ? name.split(".").pop()?.toUpperCase() : node.type.toUpperCase();
+  const extension = node.name.includes(".") ? node.name.split(".").pop()?.toUpperCase() : node.type.toUpperCase();
 
   return (
     <div className="file-preview-shell">
@@ -56,11 +55,10 @@ export function FilePreview({ node }: FilePreviewProps) {
       <div className="file-preview-body">
         {node.type === "markdown" && <MarkdownPreview content={node.content ?? node.preview ?? ""} />}
         {node.type === "json" && <CodePreview language="JSON" content={node.content ?? "{}"} />}
-        {node.type === "code" && <CodePreview language={extension ?? "CODE"} content={node.content ?? ""} />}
-        {node.type === "sheet" && <SheetPreview />}
+        {node.type === "file" && node.content && <CodePreview language={extension ?? "TEXT"} content={node.content} />}
         {node.type === "image" && <ImagePreview node={node} />}
         {node.type === "pdf" && <PdfFramePreview node={node} />}
-        {node.type === "file" && <DocumentPreview node={node} />}
+        {node.type === "file" && !node.content && <DocumentPreview node={node} />}
       </div>
     </div>
   );
@@ -99,45 +97,27 @@ function CodePreview({ language, content }: { language: string; content: string 
   );
 }
 
-function SheetPreview() {
-  const rows = [
-    ["Category", "Before", "After"],
-    ["Travel", "$18,000", "$41,000"],
-    ["Consulting", "$42,000", "$19,000"],
-    ["Hardware", "$12,500", "$12,500"],
-  ];
-
-  return (
-    <div className="sheet-preview">
-      {rows.map((row, rowIndex) => (
-        <div key={row.join("-")} className={rowIndex === 0 ? "sheet-row header" : "sheet-row"}>
-          {row.map((cell) => (
-            <span key={cell}>{cell}</span>
-          ))}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function ImagePreview({ node }: { node: FileNode }) {
+function ImagePreview({ node }: { node: DataNode }) {
   return (
     <div className="image-preview">
       <div className="image-preview-name">{node.name}</div>
-      <img src={node.assetUrl ?? "/old-vs-new-world.png"} alt={node.name} />
+      <img src="/old-vs-new-world.png" alt={node.name} />
     </div>
   );
 }
 
-function PdfFramePreview({ node }: { node: FileNode }) {
+function PdfFramePreview({ node }: { node: DataNode }) {
   return (
     <div className="pdf-frame-preview">
-      <iframe src={node.assetUrl} title={node.name} />
+      <div className="document-page">
+        <FilePreviewIcon name={node.name} type={node.type} size={82} snippet={node.preview} />
+        <span className="document-title">PDF preview will be rendered from local file access.</span>
+      </div>
     </div>
   );
 }
 
-function DocumentPreview({ node }: { node: FileNode }) {
+function DocumentPreview({ node }: { node: DataNode }) {
   return (
     <div className="document-preview">
       <div className="document-page">

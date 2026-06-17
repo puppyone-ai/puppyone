@@ -4,9 +4,6 @@ module.exports = {
   content: [
     './index.html',
     './src/**/*.{js,ts,jsx,tsx}',
-    './cloud-source/frontend/app/**/*.{js,ts,jsx,tsx,mdx}',
-    './cloud-source/frontend/components/**/*.{js,ts,jsx,tsx,mdx}',
-    './cloud-source/frontend/lib/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
     extend: {

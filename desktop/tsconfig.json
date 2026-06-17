@@ -13,14 +13,17 @@
     "moduleResolution": "Node",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["cloud-source/frontend/*"],
-      "next/link": ["src/next-shims/link.tsx"]
+      "@puppyone/data-core": ["../packages/data-core/src/index.ts"],
+      "@puppyone/data-ui": ["../packages/data-ui/src/index.ts"],
+      "lucide-react": ["node_modules/lucide-react/dist/lucide-react.d.ts"],
+      "react": ["node_modules/@types/react/index.d.ts"],
+      "react/jsx-runtime": ["node_modules/@types/react/jsx-runtime.d.ts"]
     },
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx"
   },
-  "include": ["src"],
+  "include": ["src", "../packages/data-core/src", "../packages/data-ui/src"],
   "references": []
 }

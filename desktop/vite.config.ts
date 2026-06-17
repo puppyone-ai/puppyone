@@ -6,10 +6,33 @@ export default defineConfig({
   plugins: [react()],
   clearScreen: false,
   resolve: {
-    alias: {
-      "@": fileURLToPath(new URL("./cloud-source/frontend", import.meta.url)),
-      "next/link": fileURLToPath(new URL("./src/next-shims/link.tsx", import.meta.url)),
-    },
+    alias: [
+      {
+        find: "@puppyone/data-core",
+        replacement: fileURLToPath(new URL("../packages/data-core/src/index.ts", import.meta.url)),
+      },
+      {
+        find: "@puppyone/data-ui",
+        replacement: fileURLToPath(new URL("../packages/data-ui/src/index.ts", import.meta.url)),
+      },
+      {
+        find: "lucide-react",
+        replacement: fileURLToPath(new URL("./node_modules/lucide-react/dist/esm/lucide-react.js", import.meta.url)),
+      },
+      {
+        find: /^react\/jsx-dev-runtime$/,
+        replacement: fileURLToPath(new URL("./node_modules/react/jsx-dev-runtime.js", import.meta.url)),
+      },
+      {
+        find: /^react\/jsx-runtime$/,
+        replacement: fileURLToPath(new URL("./node_modules/react/jsx-runtime.js", import.meta.url)),
+      },
+      {
+        find: /^react$/,
+        replacement: fileURLToPath(new URL("./node_modules/react/index.js", import.meta.url)),
+      },
+    ],
+    dedupe: ["react", "react-dom"],
   },
   server: {
     strictPort: true,
