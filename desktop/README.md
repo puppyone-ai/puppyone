@@ -10,44 +10,35 @@ npm install
 npm run dev
 ```
 
-Open the Vite URL shown in the terminal to view the UI in a browser.
+`npm run dev` starts the Vite renderer and opens the Electron native shell.
+Use `npm run dev:browser` only when you want to inspect the renderer in a
+plain browser; local-folder APIs require Electron preload IPC.
 
-For the native shell:
-
-```bash
-cd desktop
-npm run tauri:dev
-```
-
-To build and open the macOS app bundle:
+To build the renderer and run the Electron shell against the production build:
 
 ```bash
 cd desktop
-npm run tauri -- build --debug --bundles app
-open "src-tauri/target/debug/bundle/macos/PuppyOne Desktop.app"
+npm run build
+npm run start
 ```
 
 ## UI Direction
 
-`cloud-source/frontend/` is a verbatim mirror of the PuppyOne Cloud frontend
-source, including the Data page and its component/lib dependencies. Keep that
-mirror untouched and place desktop-specific adapters in `src/`.
+Desktop shares the stable Data workspace surface through repo-local packages:
 
-Desktop should use the Cloud Data workspace as the canonical interaction model:
-app sidebar, project/workspace switcher, data tree, file list, file preview,
-changes review, and access/monitor/settings rails. The runtime stays local;
-Cloud sync remains an optional layer instead of the default source of truth.
+- `packages/data-core` owns portable data types and the `DataPort` boundary.
+- `packages/data-ui` owns reusable Data workspace UI such as the explorer tree,
+  header, file icons, and preview shell.
 
-The current desktop shell imports Cloud source components directly for the Data
-chrome and file browser where practical:
+The desktop app owns its own native shell, title bar, local workspace switcher,
+and Electron runtime adapters. Cloud-only app chrome, organization state,
+access-point panels, sync panels, and Next.js routing stay in `frontend/`.
+The runtime stays local; Cloud sync remains an optional layer instead of the
+default source of truth.
 
-- `cloud-source/frontend/components/ProjectsHeader`
-- `cloud-source/frontend/app/(main)/projects/[projectId]/data/components/views/GridView`
-- `cloud-source/frontend/lib/fileIcons`
-
-Vite aliases `@/*` to `cloud-source/frontend/*`, and Tailwind scans both
-`src/` and `cloud-source/frontend/` so copied Cloud components keep their
-original styles.
+Electron owns the local runtime boundary. Renderer code talks to the narrow
+`window.puppyoneDesktop` preload bridge for folder selection and local file
+listing; it does not receive direct Node.js or filesystem access.
 
 ## Product Boundary
 

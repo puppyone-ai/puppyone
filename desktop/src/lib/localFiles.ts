@@ -1,41 +1,35 @@
-import { invoke } from "@tauri-apps/api/core";
+import type { DataNode, DataNodeKind, DataPort, Workspace } from "@puppyone/data-core";
+import type { GitStatusSnapshot } from "../types/electron";
 
-export type Workspace = {
-  id: string;
-  name: string;
-  path: string;
-  status: "protected" | "recording" | "paused";
-  commitCount?: number;
-  cloudState?: "local" | "syncing" | "synced";
-};
+export type { Workspace };
+export type FileKind = DataNodeKind;
+export type FileNode = DataNode;
 
-export type FileKind =
-  | "folder"
-  | "markdown"
-  | "json"
-  | "image"
-  | "pdf"
-  | "video"
-  | "file";
-
-export type FileNode = {
-  id: string;
-  name: string;
-  path: string;
-  type: FileKind;
-  size?: string | null;
-  modified?: string | null;
-  status?: "clean" | "modified" | "created" | "deleted" | "moved";
-  preview?: string | null;
-  content?: string | null;
-  children?: FileNode[] | null;
-};
+export function createLocalDataPort(rootPath: string): DataPort {
+  return {
+    listChildren: (folderPath) => loadFolderChildren(rootPath, folderPath),
+    readFile: (path) => getDesktopBridge().readFile({ rootPath, path }),
+    writeFile: (path, content) => getDesktopBridge().writeFile({ rootPath, path, content }),
+  };
+}
 
 export async function loadFolderChildren(rootPath: string, folderPath: string | null): Promise<FileNode[]> {
-  return invoke<FileNode[]>("list_folder_children", {
+  return getDesktopBridge().listFolderChildren({
     rootPath,
     folderPath,
   });
+}
+
+export async function selectWorkspaceFolder(): Promise<Workspace | null> {
+  return getDesktopBridge().selectFolder();
+}
+
+export async function workspaceFromPath(folderPath: string): Promise<Workspace> {
+  return getDesktopBridge().workspaceFromPath(folderPath);
+}
+
+export async function getWorkspaceGitStatus(rootPath: string): Promise<GitStatusSnapshot> {
+  return getDesktopBridge().getGitStatus({ rootPath });
 }
 
 export function findFileNode(nodes: FileNode[], path: string | null): FileNode | null {
@@ -82,4 +76,11 @@ export function attachFolderChildren(
     }
     return node;
   });
+}
+
+function getDesktopBridge() {
+  if (!window.puppyoneDesktop) {
+    throw new Error("PuppyOne Desktop bridge is unavailable. Run the app with Electron.");
+  }
+  return window.puppyoneDesktop;
 }

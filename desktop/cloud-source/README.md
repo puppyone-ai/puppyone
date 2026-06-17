@@ -1,38 +1,12 @@
-# PuppyOne Cloud Source Mirror
+# PuppyOne Cloud Source Mirror (Retired)
 
-This directory is a verbatim source mirror of the PuppyOne Cloud frontend for
-desktop reuse work.
+This directory is a retired verbatim source mirror of the PuppyOne Cloud
+frontend. Desktop no longer builds against this mirror.
 
-Current mirror target:
+Current desktop reuse flows through repo-local packages instead:
 
-- `frontend/app/(main)/projects/[projectId]/data`
-- `frontend/components`
-- `frontend/lib`
-- `frontend/contexts`
-- `frontend/config`
-- `frontend/i18n`
-- `frontend/messages`
-- `frontend/public`
-- Cloud frontend config files such as `package.json`, `tsconfig.json`,
-  `tailwind.config.cjs`, and `postcss.config.cjs`
+- `packages/data-core` for portable data contracts and `DataPort`
+- `packages/data-ui` for reusable Data workspace UI
 
-Excluded generated/dependency directories:
-
-- `frontend/node_modules`
-- `frontend/.next`
-- `frontend/.turbo`
-- `frontend/dist`
-- `frontend/coverage`
-
-Do not hand-edit mirrored files here. Re-sync from the repo root with:
-
-```bash
-desktop/scripts/sync-cloud-source.sh
-```
-
-The sync script also copies Cloud runtime assets into the Vite/Tauri app:
-
-- `frontend/public/` → `desktop/public/`
-- `frontend/app/globals.css` → `desktop/src/cloud-globals.css`
-
-Desktop-specific adapters should live outside this mirror.
+Do not add new desktop imports from this directory. New shared UI should move
+into `packages/data-ui`, while Cloud app shell code should stay in `frontend/`.
