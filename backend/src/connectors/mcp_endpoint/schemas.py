@@ -3,6 +3,11 @@ from pydantic import BaseModel, Field
 
 
 class McpAccessItem(BaseModel):
+    # NOTE: scoping is currently whole-scope — the resolver governs reads/writes
+    # by the BOUND scope's path/exclude/mode and only consumes `readonly` here
+    # (collapsed across all accesses into a single writable flag). `path` and
+    # `json_path` are stored but NOT yet used to narrow access, so do not rely on
+    # them for restriction. Narrowing by path/json_path would be a new feature.
     path: str
     json_path: str = ""
     readonly: bool = True

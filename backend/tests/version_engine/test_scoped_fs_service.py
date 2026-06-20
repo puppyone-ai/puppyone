@@ -177,3 +177,29 @@ async def test_grep_skips_excluded_files_and_reads_scope_relative():
     # double-prefix the scope and silently match nothing).
     assert ops.reads == ["note.txt"]
     assert out["matches"] and all(m["path"] == "docs/note.txt" for m in out["matches"])
+
+
+# ── fs_cat on a folder is an error (not an ls payload) ───────────────
+
+class _FolderOps(_FakeOps):
+    def stat_in_scope(self, *_a, **_k):
+        return _entry("docs/sub", typ="folder")
+
+
+async def test_cat_on_folder_raises_is_directory():
+    svc = ScopedFsService(_FolderOps(), _FakeCommands())
+    with pytest.raises(ScopedFsError) as ei:
+        await svc.call(_ctx(allowed_tools=frozenset({"fs_cat"})), "fs_cat", {"path": "sub"})
+    assert ei.value.code == "IS_DIRECTORY"
+
+
+# ── write cannot smuggle an excluded path via the node-type extension ─
+
+async def test_write_extension_cannot_bypass_exclude():
+    # exclude hides notes.json; writing "notes" as json serializes to notes.json,
+    # which the post-canonicalization gate must still deny (never reach the write).
+    svc = _svc()
+    ctx = _ctx(exclude=["docs/notes.json"], allowed_tools=frozenset({"fs_write"}))
+    with pytest.raises(ScopedFsPermissionDenied):
+        await svc.call(ctx, "fs_write", {"path": "notes", "content": "x", "node_type": "json"})
+    assert svc.commands.writes == []

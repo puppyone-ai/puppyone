@@ -2,7 +2,6 @@
 
 from typing import Any, Dict, List, Optional
 
-from src.utils.id_generator import generate_uuid_v7
 from src.repo.scope_service import ScopeService
 from src.repo.access_credentials import (
     AccessCredentialRepository,
@@ -231,7 +230,9 @@ class McpEndpointRepository:
         }
         scope = self._scope_for_path(project_id, path)
         row = {
-            "id": generate_uuid_v7(),
+            # Let the DB assign the id (gen_random_uuid default) — same as every
+            # other access_surfaces writer; the id is read back from the insert
+            # response below, so there is no need to mint one client-side.
             "org_id": self._project_org_id(project_id),
             "project_id": project_id,
             "scope_id": scope["id"],

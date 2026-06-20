@@ -426,7 +426,11 @@ def build_starlette_app(*, json_response: bool = True) -> Starlette:
             # 3. Fetch Agent configuration
             config = await load_mcp_config(api_key, rpc_client)
             if not config:
-                return []
+                # The proxy already validated this key, so a None here means the
+                # service could not re-resolve it (inactive / misconfigured).
+                # Surface that as an error — an empty tool list would make a
+                # broken endpoint indistinguishable from one that has no tools.
+                raise RuntimeError("MCP endpoint could not be resolved")
 
             # Agent mode: generate tools from agent accesses
             if config.get("mode") == "agent":
@@ -437,11 +441,12 @@ def build_starlette_app(*, json_response: bool = True) -> Starlette:
                 return [_runtime_tool_to_mcp(tool) for tool in runtime.get("tools", [])]
 
             return []
-        except Exception:
-            # Don't silently return [] — a config/RPC failure looks like "no
-            # tools" to the external client, so log it loudly server-side.
+        except Exception as exc:
+            # A config/RPC failure must NOT collapse to [] — that is identical to
+            # "this endpoint has no tools" from the client's view. Log it and
+            # surface a protocol error instead (mirrors call_tool's behavior).
             logger.exception("MCP list_tools failed")
-            return []
+            raise RuntimeError(f"Failed to list MCP tools: {exc}") from exc
 
     @mcp_server.call_tool()
     async def call_tool(
