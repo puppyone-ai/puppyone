@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import logging
 from typing import Any, AsyncIterator
 
 from mcp.server.lowlevel import Server as MCP_Server
@@ -32,6 +33,8 @@ from .event_store import InMemoryEventStore
 from .rpc.client import create_client
 from .tool.fs_tool import FsToolImplementation
 from .tool.table_tool import TableToolImplementation
+
+logger = logging.getLogger("mcp_service.server")
 
 # POSIX tool name set (used for call_tool routing)
 _POSIX_TOOL_NAMES = frozenset({"ls", "cat", "write", "mkdir", "rm"})
@@ -434,8 +437,10 @@ def build_starlette_app(*, json_response: bool = True) -> Starlette:
                 return [_runtime_tool_to_mcp(tool) for tool in runtime.get("tools", [])]
 
             return []
-        except Exception as e:
-            print(f"Error listing tools: {e}")
+        except Exception:
+            # Don't silently return [] — a config/RPC failure looks like "no
+            # tools" to the external client, so log it loudly server-side.
+            logger.exception("MCP list_tools failed")
             return []
 
     @mcp_server.call_tool()
@@ -605,10 +610,10 @@ def build_starlette_app(*, json_response: bool = True) -> Starlette:
                 )
             ]
         except Exception as e:
-            import traceback
-
-            error_text = f"Error: {e!s}\n\n{traceback.format_exc()}"
-            return [mcp_types.TextContent(type="text", text=error_text)]
+            # Log the full traceback server-side; return a concise message to the
+            # external client (don't leak internal stack traces over the wire).
+            logger.exception("MCP call_tool failed: tool=%s", name)
+            return [mcp_types.TextContent(type="text", text=f"Error: {e!s}")]
 
     async def handle_mcp(scope: Scope, receive: Receive, send: Send) -> None:
         await session_manager.handle_request(scope=scope, receive=receive, send=send)
@@ -674,7 +679,7 @@ def load_settings():
     try:
         settings.validate()
     except ValueError as e:
-        print(f"Configuration error: {e}")
+        logger.error("MCP server configuration error: %s", e)
         raise
 
     # Display settings (sensitive values are masked)
