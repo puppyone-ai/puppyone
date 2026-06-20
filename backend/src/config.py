@@ -385,6 +385,15 @@ class Settings(BaseSettings):
     IMPORT_JOB_STALE_SECONDS: int = 60 * 60
     IMPORT_JOB_REAPER_MAX_PER_RUN: int = 100
 
+    # Upload-job reaper. Upload finalize runs inline in the API request (not a
+    # worker), so a job only stays `running` forever if the API process died
+    # mid-finalize. The stale window must exceed the max HTTP request lifetime so
+    # a legitimately long finalize is never reaped (1h >> any request timeout).
+    UPLOAD_JOB_REAPER_ENABLED: bool = True
+    UPLOAD_JOB_REAPER_INTERVAL_SECONDS: int = 5 * 60
+    UPLOAD_JOB_STALE_SECONDS: int = 60 * 60
+    UPLOAD_JOB_REAPER_MAX_PER_RUN: int = 100
+
     # DB Connector sensitive config encryption (AES-256-GCM)
     # Base64-encoded string of 32-byte key
     DB_CONNECTOR_ENCRYPTION_KEY: str = ""
