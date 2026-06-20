@@ -41,7 +41,7 @@ class McpEndpointOut(BaseModel):
     api_key_hint: str = ""
     api_key_revealed: bool = False
     # Canonical MCP server URL an external client (ChatGPT / Claude Desktop)
-    # connects to. Auth is the api_key via the X-API-KEY (or Bearer) header,
+    # connects to. Auth is the api_key sent as `Authorization: Bearer <key>`,
     # so the URL is the same for every endpoint — the key selects the endpoint.
     server_url: str = ""
     tools_config: Any = Field(default_factory=dict)

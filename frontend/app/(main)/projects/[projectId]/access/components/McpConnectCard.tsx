@@ -44,17 +44,25 @@ export function McpConnectCard({
         name: 'MCP Server',
         accesses: [{ path: scope.path, json_path: '', readonly: scope.mode !== 'rw' }],
       });
+      // Defer the parent refresh until the user dismisses the connect panel:
+      // onCreated() revalidates the connector list, which flips this card's
+      // mount gate (!hasMcpMethod) in ScopeDetailPanel and would otherwise
+      // unmount the panel showing the ONE-TIME api_key before it can be copied.
       setCreated(endpoint);
-      await onCreated();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create MCP endpoint');
     } finally {
       setCreating(false);
     }
-  }, [creating, projectId, scope.path, scope.mode, onCreated]);
+  }, [creating, projectId, scope.path, scope.mode]);
+
+  const handleDismiss = useCallback(() => {
+    setCreated(null);
+    void onCreated();
+  }, [onCreated]);
 
   if (created) {
-    return <McpConnectInfo created={created} onDismiss={() => setCreated(null)} />;
+    return <McpConnectInfo created={created} onDismiss={handleDismiss} />;
   }
 
   return (
@@ -256,12 +264,12 @@ function McpConnectInfo({
       </div>
 
       <CopyField label="Server URL" value={url} />
-      <CopyField label="API key — send as header  X-API-KEY: <key>" value={created.api_key} />
+      <CopyField label="API key — send as  Authorization: Bearer <key>" value={created.api_key} />
 
       <p style={{ margin: 0, fontSize: 11, lineHeight: 1.6, color: T.text3 }}>
-        In your MCP client, add a server with the <strong>Server URL</strong> above and set the
-        header <code style={{ fontFamily: T.fontMono }}>X-API-KEY</code> to the key
-        (<code style={{ fontFamily: T.fontMono }}>Authorization: Bearer &lt;key&gt;</code> also works).
+        In your MCP client, add a server with the <strong>Server URL</strong> above and send the
+        key as a bearer token — set the <code style={{ fontFamily: T.fontMono }}>Authorization</code> header
+        to <code style={{ fontFamily: T.fontMono }}>Bearer &lt;key&gt;</code>.
       </p>
 
       <button

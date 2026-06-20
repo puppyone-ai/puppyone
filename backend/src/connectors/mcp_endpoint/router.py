@@ -18,7 +18,7 @@ from src.config import settings
 
 
 def _mcp_server_url() -> str:
-    """Public MCP proxy URL external clients connect to (auth via X-API-KEY)."""
+    """Public MCP proxy URL external clients connect to (auth via Authorization: Bearer)."""
     base = (settings.PUBLIC_URL or "").rstrip("/")
     return f"{base}/api/v1/mcp/proxy" if base else ""
 

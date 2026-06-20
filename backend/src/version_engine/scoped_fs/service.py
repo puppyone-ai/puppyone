@@ -233,6 +233,9 @@ class ScopedFsService:
             include_size=True,
             max_entries=safe_max_files + 1,
         )
+        # Same exclusion gate the listing tools apply — without it grep would
+        # read line content out of files the endpoint's `exclude` hides.
+        candidates = self._filter_entries(ctx, candidates, include_hidden=True)
         files = [entry for entry in candidates if entry and entry.type != "folder"]
         truncated_files = len(files) > safe_max_files
         files = files[:safe_max_files]
@@ -249,7 +252,10 @@ class ScopedFsService:
                 skipped.append({"path": entry.path, "reason": "file_too_large"})
                 continue
             try:
-                content = self.ops.read_file_in_scope(ctx.project_id, ctx.scope_path, entry.path)
+                # entry.path is scope-absolute; the read API wants scope-relative.
+                content = self.ops.read_file_in_scope(
+                    ctx.project_id, ctx.scope_path, self._rel_path(ctx, entry.path),
+                )
             except Exception as exc:
                 skipped.append({"path": entry.path, "reason": str(exc)})
                 continue
@@ -632,12 +638,40 @@ class ScopedFsService:
         return rel
 
     @staticmethod
-    def _is_excluded(ctx: ScopedFsContext, rel_path: str) -> bool:
-        rel = rel_path.strip("/")
+    def _abs_path(ctx: ScopedFsContext, rel_path: str) -> str:
+        """Lift a scope-relative path into the scope-absolute (project-relative)
+        space that ``ctx.exclude`` and tree-reader ``entry.path`` values use."""
+        rel = (rel_path or "").strip("/")
+        if not ctx.scope_path:
+            return rel
+        return f"{ctx.scope_path}/{rel}" if rel else ctx.scope_path
+
+    @staticmethod
+    def _rel_path(ctx: ScopedFsContext, abs_path: str) -> str:
+        """Inverse of :meth:`_abs_path`: drop the scope prefix so a scope-absolute
+        entry path can be passed back into the scope-relative read APIs."""
+        p = (abs_path or "").strip("/")
+        if ctx.scope_path and (p == ctx.scope_path or p.startswith(ctx.scope_path + "/")):
+            return p[len(ctx.scope_path):].strip("/")
+        return p
+
+    def _is_excluded(self, ctx: ScopedFsContext, rel_path: str) -> bool:
+        # ``rel_path`` is scope-relative. The admission layer stores ``exclude``
+        # entries scope-absolute (project-relative) and merges them with the
+        # carved child-scope paths, so the canonical comparison space is
+        # absolute. Legacy rows may hold scope-relative entries, so match BOTH
+        # forms — fail-closed is the right default for a deny gate. (Previously
+        # only the relative form was compared, which let a known excluded path
+        # be read/written directly even though listings hid it.)
+        rel = (rel_path or "").strip("/")
+        abs_path = self._abs_path(ctx, rel)
         for exclude in ctx.exclude:
             clean = normalize_path(str(exclude))
-            if rel == clean or rel.startswith(clean + "/"):
-                return True
+            if not clean:
+                continue
+            for candidate in (rel, abs_path):
+                if candidate == clean or candidate.startswith(clean + "/"):
+                    return True
         return False
 
     def _stat(self, ctx: ScopedFsContext, rel_path: str, *, include_size: bool = False) -> VersionEntry | None:
@@ -652,7 +686,12 @@ class ScopedFsService:
         *,
         include_hidden: bool,
     ) -> list[VersionEntry]:
-        visible = [entry for entry in entries if not self._is_excluded(ctx, entry.path)]
+        # entry.path is scope-absolute; normalize to scope-relative so the
+        # exclusion check sees the same space as the read/stat callers.
+        visible = [
+            entry for entry in entries
+            if not self._is_excluded(ctx, self._rel_path(ctx, entry.path))
+        ]
         if include_hidden:
             return visible
         return [entry for entry in visible if not entry.name.startswith(".")]

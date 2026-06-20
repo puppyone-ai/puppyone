@@ -125,3 +125,55 @@ async def test_write_conflict_maps_to_409():
         await _svc(conflict=True).call(_ctx(allowed_tools=frozenset({"fs_write"})),
                                        "fs_write", {"path": "a.md", "content": "x"})
     assert ei.value.code == "CONFLICT" and ei.value.status_code == 409
+
+
+# ── exclude path-space: admission stores excludes scope-absolute ──────
+# `_ctx` uses scope_path="docs", so a scope-absolute exclude carries that prefix.
+
+async def test_excluded_path_denied_absolute_form():
+    # The exclude entry is scope-absolute (project-relative), matching the
+    # admission layer. A DIRECT fs_cat of the scope-relative path must still be
+    # denied — the bug was that _clean_path compared scope-relative paths only,
+    # so a known excluded path could be read directly while listings hid it.
+    ctx = _ctx(exclude=["docs/secret.txt"], allowed_tools=frozenset({"fs_cat"}))
+    with pytest.raises(ScopedFsPermissionDenied):
+        await _svc().call(ctx, "fs_cat", {"path": "secret.txt"})
+
+
+# ── fs_grep: exclusion gate + scope-relative read ────────────────────
+
+class _GrepOps(_FakeOps):
+    """Ops fake for grep: returns tree entries + file contents, records reads."""
+
+    def __init__(self, entries, contents):
+        self._entries = entries
+        self._contents = contents
+        self.reads: list[str] = []
+
+    def list_tree_in_scope(self, *_a, **_k):
+        return self._entries
+
+    def read_file_in_scope(self, _project_id, _scope_path, path):
+        self.reads.append(path)
+        return self._contents.get(path, b"")
+
+
+def _entry(path, typ="md", size=32):
+    return SimpleNamespace(
+        name=path.rsplit("/", 1)[-1], path=path, type=typ, size_bytes=size,
+        content_hash="h", mime_type="text/plain", children_count=0,
+        integrity_status="ok", created_at=None, modified_at=None,
+    )
+
+
+async def test_grep_skips_excluded_files_and_reads_scope_relative():
+    entries = [_entry("docs/secret.txt"), _entry("docs/note.txt")]
+    ops = _GrepOps(entries, {"note.txt": b"hello world\n", "secret.txt": b"hello secret\n"})
+    svc = ScopedFsService(ops, _FakeCommands())
+    ctx = _ctx(exclude=["docs/secret.txt"], allowed_tools=frozenset({"fs_grep"}))
+    out = await svc.call(ctx, "fs_grep", {"pattern": "hello"})
+    # Excluded file is never opened, and the visible file is read via its
+    # scope-RELATIVE path (not the scope-absolute entry.path that would
+    # double-prefix the scope and silently match nothing).
+    assert ops.reads == ["note.txt"]
+    assert out["matches"] and all(m["path"] == "docs/note.txt" for m in out["matches"])

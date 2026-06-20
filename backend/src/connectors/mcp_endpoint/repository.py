@@ -190,7 +190,15 @@ class McpEndpointRepository:
         scope_ids = [s["id"] for s in (scope_resp.data or [])]
         if not scope_ids:
             return None
-        resp = self._query().in_("scope_id", scope_ids).execute()
+        # mcp is intentionally exempt from the one-surface-per-scope unique index,
+        # so a scope can host several endpoints — return the most recent one
+        # deterministically rather than whatever order the DB happens to yield.
+        resp = (
+            self._query()
+            .in_("scope_id", scope_ids)
+            .order("created_at", desc=True)
+            .execute()
+        )
         rows = self._hydrate(resp.data or [])
         return rows[0] if rows else None
 
