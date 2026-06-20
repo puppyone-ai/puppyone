@@ -11,6 +11,8 @@ interface McpEndpointData {
   api_key: string;
   api_key_hint?: string;
   api_key_revealed?: boolean;
+  /** Canonical server URL from the backend; preferred over re-deriving it. */
+  server_url?: string;
   status: string;
   accesses: { path: string; json_path: string; readonly: boolean }[];
 }
@@ -72,7 +74,8 @@ export function McpConfigPanel({ endpoint, onClose, onBack }: McpConfigPanelProp
   const apiBase = typeof window !== 'undefined'
     ? (process.env.NEXT_PUBLIC_API_URL || window.location.origin)
     : '';
-  const serverUrl = `${apiBase}/api/v1/mcp/proxy`;
+  // Prefer the backend-issued canonical URL; fall back to deriving it.
+  const serverUrl = endpoint.server_url || `${apiBase}/api/v1/mcp/proxy`;
   const targetLabel = endpoint.accesses.length > 0
     ? endpoint.accesses[0].path
     : 'Workspace';

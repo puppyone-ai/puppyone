@@ -14,6 +14,13 @@ from src.connectors.mcp_endpoint.dependencies import (
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
 from src.common_schemas import ApiResponse
+from src.config import settings
+
+
+def _mcp_server_url() -> str:
+    """Public MCP proxy URL external clients connect to (auth via Authorization: Bearer)."""
+    base = (settings.PUBLIC_URL or "").rstrip("/")
+    return f"{base}/api/v1/mcp/proxy" if base else ""
 
 
 router = APIRouter(
@@ -36,6 +43,7 @@ def _to_out(row: dict) -> McpEndpointOut:
         api_key=row.get("api_key", ""),
         api_key_hint=row.get("api_key_hint", ""),
         api_key_revealed=bool(row.get("api_key_revealed", False)),
+        server_url=_mcp_server_url(),
         tools_config=row.get("tools_config", {}),
         accesses=row.get("accesses", []),
         created_by=row.get("created_by"),
