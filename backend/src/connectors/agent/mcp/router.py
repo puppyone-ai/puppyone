@@ -309,7 +309,13 @@ async def proxy_mcp_server(
                     await client.aclose()
 
             return StreamingResponse(
-                upstream_response.aiter_raw(),
+                # aiter_bytes() (not aiter_raw()) so httpx transparently decodes
+                # any Content-Encoding (e.g. gzip) from the upstream. _filter_
+                # response_headers drops content-encoding, so forwarding the raw
+                # compressed bytes here would leave clients unable to decode the
+                # body — which broke tools/list and every large tool result for
+                # real MCP clients (initialize is small enough to go uncompressed).
+                upstream_response.aiter_bytes(),
                 status_code=upstream_response.status_code,
                 headers=response_headers,
                 media_type=media_type,

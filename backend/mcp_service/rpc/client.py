@@ -140,8 +140,16 @@ class InternalApiClient:
         )
         if response.status_code >= 400:
             try:
-                detail = response.json().get("detail")
+                body = response.json()
             except ValueError:
+                body = None
+            if isinstance(body, dict):
+                # The main API wraps errors as {code, message, data:{code,message}}
+                # (its ApiResponse envelope); older/raw FastAPI uses {detail:...}.
+                # Prefer the structured scoped-fs detail so the tool error code +
+                # message reach the client instead of a bare "null".
+                detail = body.get("data") or body.get("detail") or body.get("message") or body
+            else:
                 detail = response.text
             return {
                 "isError": True,

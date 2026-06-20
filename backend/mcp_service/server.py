@@ -471,15 +471,18 @@ def build_starlette_app(*, json_response: bool = True) -> Starlette:
             if config.get("mode") == "mcp_endpoint":
                 result = await rpc_client.call_mcp_runtime_tool(api_key, name, arguments or {})
                 if result.get("isError"):
+                    # Render the structured error detail; never let a missing
+                    # detail collapse to the literal "null" (carry the status at
+                    # minimum so the client gets something actionable).
+                    err = result.get("error")
+                    if err is None:
+                        err = {"message": "tool call failed",
+                               "status_code": result.get("status_code")}
                     return mcp_types.CallToolResult(
                         content=[
                             mcp_types.TextContent(
                                 type="text",
-                                text=json.dumps(
-                                    result.get("error", result),
-                                    ensure_ascii=False,
-                                    indent=2,
-                                ),
+                                text=json.dumps(err, ensure_ascii=False, indent=2),
                             )
                         ],
                         isError=True,
