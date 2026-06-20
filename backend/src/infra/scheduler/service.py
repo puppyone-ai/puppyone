@@ -22,6 +22,7 @@ from src.infra.scheduler.jobs import (
     process_sync_run_reaper,
     process_version_outbox,
 )
+from src.infra.scheduler.jobs.import_job_reaper import process_import_job_reaper
 from src.infra.scheduler.jobs.sandbox_reaper import reap_idle_sandboxes
 from src.infra.scheduler.jobs.shadow_snapshot_reaper import (
     process_shadow_snapshot_reaper,
@@ -157,6 +158,17 @@ class SchedulerService:
                 ),
                 id="sync-run-reaper",
                 name="Integration Sync Run Lease Reaper",
+                replace_existing=True,
+            )
+
+        if settings.IMPORT_JOB_REAPER_ENABLED:
+            self.scheduler.add_job(
+                process_import_job_reaper,
+                trigger=IntervalTrigger(
+                    seconds=settings.IMPORT_JOB_REAPER_INTERVAL_SECONDS,
+                ),
+                id="import-job-reaper",
+                name="One-Time Import Job Reaper",
                 replace_existing=True,
             )
 
