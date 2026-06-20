@@ -21,7 +21,10 @@ jobs:
 
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # Pinned: `version: latest` resolves via the GitHub releases API, which is
+          # rate-limited for unauthenticated CI runners ("Failed to resolve latest
+          # Supabase CLI release: rate limit exceeded"). Bump deliberately.
+          version: "2.107.0"
 
       - name: Link to staging project
         run: supabase link --project-ref ${{ secrets.STAGING_PROJECT_ID }}

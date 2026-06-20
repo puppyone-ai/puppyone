@@ -193,11 +193,16 @@ async def _do_import(
 
     files = await _materialise_blobs(api, owner, repo_name, entries)
 
-    # Conflict gate — currently a no-op. Future work: refuse if the
-    # version scope has commits past ``last_imported_sha`` that haven't
-    # been exported. Skipping is safe (worst case: silently overwrite
-    # local edits — users opt out via force=False / explicit export
-    # before re-import).
+    # Conflict gate — intentionally deferred and NOT yet wired to ``force``
+    # (which is currently accepted but unused). GitHub import is authoritative
+    # today: a re-import overwrites the bound scope.
+    #
+    # WARNING for the implementer: the sound check is "refuse unless force when
+    # the scope has a NON-github commit since the last import" — it must be
+    # source_channel-aware. A plain "current scope head != last import's
+    # version_commit_id" compare is WRONG and would make nearly every re-import
+    # a false conflict, because scope-sync projection advances the scope head on
+    # its own (commits with source_channel="scope-sync"). See ImportConflict above.
 
     # Build a splice that resets the bound scope to the imported tree.
     scope_path = ""  # bind-at-project-level → root scope. If we later

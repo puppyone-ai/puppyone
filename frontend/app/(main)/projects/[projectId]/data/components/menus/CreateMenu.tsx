@@ -413,7 +413,19 @@ export function CreateMenu({
                 onClose();
               }}
             />
-            <MenuItem icon={<SandboxIcon />} label="Sandbox" sublabel="Coming soon" disabled />
+            <MenuItem
+              icon={<SandboxIcon />}
+              label="Sandbox"
+              sublabel="Run tools with this folder mounted"
+              onClick={() => {
+                // Sandbox is a scope-level Remote Dev (SSH) card on the Access
+                // page, not a connector — route to it like the SSH Terminal
+                // entry (onCreateSandbox would open a sync-config panel, which
+                // does not fit a sandbox).
+                onCreateSshTerminal?.();
+                onClose();
+              }}
+            />
 
             {/* "More Sources…" is the open-the-empty-picker fallback
                 — useful from `+ → New Access` when the user is

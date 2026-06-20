@@ -13,7 +13,7 @@
 - [x] 2.2 Route one-shot external imports only through `import_jobs`.
 - [x] 2.3 Route durable external source setup through `connections`.
 - [x] 2.4 Route every durable source execution through `sync_runs`.
-- [ ] 2.5 Split ARQ queues into `uploads`, `imports`, and `syncs`.
+- [x] 2.5 Split ARQ queues into `uploads`, `imports`, and `syncs`. (Done: three queues `etl`/`imports`/`syncs` run as separate worker processes via `SERVICE_ROLE`; the upload queue is named `etl`.)
 - [ ] 2.6 Move GitHub webhook sync out of API in-process background tasks.
 - [x] 2.7 Stop creating new `import_once` connector or sync bindings.
 
