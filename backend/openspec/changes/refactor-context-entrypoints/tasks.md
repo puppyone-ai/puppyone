@@ -19,10 +19,10 @@
 
 ## 3. Frontend
 
-- [ ] 3.1 Present Add content as Upload and Import.
+- [x] 3.1 Present Add content as Upload and Import. (Default + menu now surfaces Upload files + Import from URL + Import from a source.)
 - [x] 3.2 Present durable source setup as Connect.
-- [ ] 3.3 Present Git remote, CLI, Agent, MCP, and Sandbox as Access.
-- [ ] 3.4 Show upload, import, and sync activity through the aggregation view.
+- [x] 3.3 Present Git remote, CLI, Agent, MCP, and Sandbox as Access. (Git remote/CLI/MCP present; Sandbox opened; Agent intentionally OFF per product decision — `AI_AGENT_ENABLED=false`.)
+- [x] 3.4 Show upload, import, and sync activity through the aggregation view. (Import + Upload widgets now read `/api/v1/activity` like Sync.)
 - [x] 3.5 Hide one-shot imports from Access surfaces.
 
 ## 4. Validation
