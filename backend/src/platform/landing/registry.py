@@ -52,6 +52,29 @@ TOOL_REGISTRY: dict[str, ToolSpec] = {
         output_ext=".md",
         name_suffix=" (Markdown → MCP)",
     ),
+    "openapi": ToolSpec(
+        kind="openapi",
+        accept=("application/json", "application/yaml", "text/yaml", ".json", ".yaml", ".yml"),
+        parser="openapi",
+        scope_path="api",
+        readonly=True,
+        output_ext=".md",
+        name_suffix=" (OpenAPI → MCP)",
+    ),
+    "excel": ToolSpec(
+        kind="excel",
+        accept=(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/vnd.ms-excel",
+            ".xlsx",
+            ".xls",
+        ),
+        parser="excel",
+        scope_path="data",
+        readonly=True,
+        output_ext=".md",
+        name_suffix=" (Excel → MCP)",
+    ),
 }
 
 

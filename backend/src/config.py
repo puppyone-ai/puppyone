@@ -309,6 +309,14 @@ class Settings(BaseSettings):
     # (the proxy adds CAPTCHA + per-IP rate limiting). Unset = open (dev only).
     LANDING_INGEST_SECRET: str | None = None
 
+    # Abuse control for the public landing preview endpoint.
+    # Per-IP sliding-window rate limit (in-process; single-deployment safe).
+    LANDING_PREVIEW_RATE_WINDOW: int = 600  # seconds
+    LANDING_PREVIEW_RATE_MAX: int = 12      # max previews / window / IP
+    # Cloudflare Turnstile secret. When set, /landing/preview requires a valid
+    # turnstile token (verified server-side). Unset = CAPTCHA disabled (dev).
+    TURNSTILE_SECRET: str | None = None
+
     # Public access URL (used to generate external API links)
     # - Local development: http://localhost:8000
     # - Railway: https://your-app.railway.app

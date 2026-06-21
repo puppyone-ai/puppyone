@@ -5,8 +5,10 @@ See ``__init__.py`` for the architecture rationale (Option C).
 
 from __future__ import annotations
 
+import json
 import logging
 import time
+from io import BytesIO
 from pathlib import PurePosixPath
 from uuid import uuid4
 
@@ -34,6 +36,112 @@ def _safe_name(filename: str | None) -> str:
     # Defend against path traversal / odd names in the S3 key and repo path.
     base = PurePosixPath((filename or "file").replace("\\", "/")).name
     return base or "file"
+
+
+_HTTP_METHODS = {"get", "post", "put", "patch", "delete", "head", "options"}
+
+
+def _openapi_to_markdown(content: bytes) -> str:
+    """Render an OpenAPI/Swagger spec (JSON or YAML) into a readable markdown
+    summary the MCP fs tools can serve."""
+    text = content.decode("utf-8", errors="replace")
+    spec: object
+    try:
+        spec = json.loads(text)
+    except Exception:
+        import yaml
+
+        spec = yaml.safe_load(text)
+    if not isinstance(spec, dict):
+        raise ValueError("Not a valid OpenAPI/Swagger document")
+
+    info = spec.get("info") or {}
+    lines = [f"# {info.get('title', 'API')} {info.get('version', '')}".strip()]
+    if info.get("description"):
+        lines += ["", str(info["description"])]
+
+    servers = spec.get("servers") or []
+    server_urls = [s.get("url", "") for s in servers if isinstance(s, dict)]
+    if server_urls:
+        lines += ["", "## Servers"] + [f"- {u}" for u in server_urls if u]
+
+    paths = spec.get("paths") or {}
+    if isinstance(paths, dict) and paths:
+        lines += ["", "## Endpoints"]
+        for path, ops in paths.items():
+            if not isinstance(ops, dict):
+                continue
+            for method, op in ops.items():
+                if method.lower() not in _HTTP_METHODS:
+                    continue
+                op = op or {}
+                summary = op.get("summary") or op.get("operationId") or ""
+                entry = f"- `{method.upper()} {path}`"
+                lines.append(f"{entry} — {summary}" if summary else entry)
+
+    components = spec.get("components") or {}
+    schemas = components.get("schemas") if isinstance(components, dict) else None
+    schemas = schemas or spec.get("definitions") or {}
+    if isinstance(schemas, dict) and schemas:
+        lines += ["", "## Schemas", ", ".join(sorted(schemas.keys()))]
+
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _rows_to_md_table(rows: list[list[str]], truncated: bool, max_rows: int) -> list[str]:
+    out: list[str] = []
+    if rows:
+        width = max(len(r) for r in rows)
+        pad = lambda r: r + [""] * (width - len(r))  # noqa: E731
+        out.append("| " + " | ".join(pad(rows[0])) + " |")
+        out.append("| " + " | ".join(["---"] * width) + " |")
+        for r in rows[1:]:
+            out.append("| " + " | ".join(c.replace("|", "\\|") for c in pad(r)) + " |")
+    if truncated:
+        out.append(f"\n_(truncated at {max_rows} rows)_")
+    return out
+
+
+def _excel_to_markdown(content: bytes, max_rows: int = 200, max_cols: int = 30) -> str:
+    """Render each worksheet of an .xlsx workbook as a markdown table. Falls
+    back to CSV/TSV parsing for non-xlsx tabular uploads."""
+    try:
+        from openpyxl import load_workbook
+
+        wb = load_workbook(BytesIO(content), read_only=True, data_only=True)
+    except Exception:
+        return _csv_to_markdown(content, max_rows, max_cols)
+
+    out: list[str] = []
+    for ws in wb.worksheets:
+        out.append(f"## {ws.title}")
+        rows: list[list[str]] = []
+        truncated = False
+        for r, row in enumerate(ws.iter_rows(values_only=True)):
+            if r >= max_rows:
+                truncated = True
+                break
+            rows.append(["" if c is None else str(c) for c in row[:max_cols]])
+        out += _rows_to_md_table(rows, truncated, max_rows)
+        out.append("")
+    return "\n".join(out).rstrip() + "\n"
+
+
+def _csv_to_markdown(content: bytes, max_rows: int, max_cols: int) -> str:
+    import csv
+    import io
+
+    text = content.decode("utf-8", errors="replace")
+    sample = text[:4096]
+    delimiter = "\t" if sample.count("\t") > sample.count(",") else ","
+    rows: list[list[str]] = []
+    truncated = False
+    for r, row in enumerate(csv.reader(io.StringIO(text), delimiter=delimiter)):
+        if r >= max_rows:
+            truncated = True
+            break
+        rows.append([("" if c is None else str(c)) for c in row[:max_cols]])
+    return "\n".join(["## Sheet1", *_rows_to_md_table(rows, truncated, max_rows)]).rstrip() + "\n"
 
 
 class LandingService:
@@ -97,6 +205,10 @@ class LandingService:
     ) -> str:
         if spec.parser == "passthrough":
             return content.decode("utf-8", errors="replace")
+        if spec.parser == "openapi":
+            return _openapi_to_markdown(content)
+        if spec.parser == "excel":
+            return _excel_to_markdown(content)
         if spec.parser == "ocr_parse":
             from src.ingest.file.ocr.factory import get_ocr_provider
 
