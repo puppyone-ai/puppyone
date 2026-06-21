@@ -303,6 +303,12 @@ class Settings(BaseSettings):
     BILLING_ENFORCEMENT: Literal["disabled", "required"] = "disabled"
     LOCAL_ENTITLEMENTS_FILE: str | None = None
 
+    # Shared secret for the login-free landing "X → MCP" preview endpoint.
+    # When set, /api/v1/landing/preview requires header X-Landing-Secret to
+    # match — so only the marketing site's server-side proxy can reach it
+    # (the proxy adds CAPTCHA + per-IP rate limiting). Unset = open (dev only).
+    LANDING_INGEST_SECRET: str | None = None
+
     # Public access URL (used to generate external API links)
     # - Local development: http://localhost:8000
     # - Railway: https://your-app.railway.app
