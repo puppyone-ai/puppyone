@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import logging
+import time
+from collections import defaultdict
 
-from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, UploadFile
+import httpx
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Request, UploadFile
 
 from src.common_schemas import ApiResponse
 from src.config import settings
@@ -47,18 +50,71 @@ def _check_proxy_secret(x_landing_secret: str | None) -> None:
         raise HTTPException(status_code=401, detail="Invalid landing proxy secret")
 
 
+def _client_ip(request: Request) -> str:
+    """Real client IP. The website proxy forwards it as X-Forwarded-For; take
+    the first hop. Falls back to the socket peer."""
+    fwd = request.headers.get("x-forwarded-for")
+    if fwd:
+        return fwd.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+# Per-IP sliding window (in-process; safe for a single deployment — swap for a
+# Redis-backed counter if the backend is ever horizontally scaled).
+_preview_hits: dict[str, list[float]] = defaultdict(list)
+
+
+def _rate_limit_preview(ip: str) -> None:
+    now = time.monotonic()
+    window = settings.LANDING_PREVIEW_RATE_WINDOW
+    _preview_hits[ip] = hits = [t for t in _preview_hits[ip] if now - t < window]
+    if len(hits) >= settings.LANDING_PREVIEW_RATE_MAX:
+        raise HTTPException(
+            status_code=429, detail="Too many previews. Please try again later."
+        )
+    hits.append(now)
+
+
+async def _verify_turnstile(token: str | None, ip: str) -> None:
+    """Verify a Cloudflare Turnstile token. No-op when TURNSTILE_SECRET is
+    unset (dev). Fails closed (403) when configured but the token is missing
+    or rejected."""
+    secret = settings.TURNSTILE_SECRET
+    if not secret:
+        return
+    if not token:
+        raise HTTPException(status_code=403, detail="Captcha required")
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+                data={"secret": secret, "response": token, "remoteip": ip},
+            )
+        ok = bool(resp.json().get("success")) if resp.status_code == 200 else False
+    except Exception:  # noqa: BLE001 - network/parse failure → treat as unverified
+        logger.warning("turnstile verification call failed", exc_info=True)
+        ok = False
+    if not ok:
+        raise HTTPException(status_code=403, detail="Captcha verification failed")
+
+
 @router.post(
     "/preview",
     response_model=ApiResponse[PreviewResponse],
     summary="Parse an uploaded source into a previewable MCP (login-free, no DB rows)",
 )
 async def landing_preview(
+    request: Request,
     tool_kind: str = Form(..., description="Registry key, e.g. 'pdf'"),
     file: UploadFile = File(...),
+    turnstile_token: str | None = Form(default=None),
     x_landing_secret: str | None = Header(default=None),
     service: LandingService = Depends(get_landing_service),
 ):
     _check_proxy_secret(x_landing_secret)
+    ip = _client_ip(request)
+    _rate_limit_preview(ip)
+    await _verify_turnstile(turnstile_token, ip)
     try:
         get_tool_spec(tool_kind)
     except KeyError as exc:
