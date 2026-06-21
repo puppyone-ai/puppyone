@@ -102,16 +102,28 @@ def _rows_to_md_table(rows: list[list[str]], truncated: bool, max_rows: int) -> 
     return out
 
 
-def _excel_to_markdown(content: bytes, max_rows: int = 200, max_cols: int = 30) -> str:
-    """Render each worksheet of an .xlsx workbook as a markdown table. Falls
-    back to CSV/TSV parsing for non-xlsx tabular uploads."""
-    try:
-        from openpyxl import load_workbook
+def _pdf_extract_text(content: bytes) -> str:
+    """Extract the text layer of a PDF via PyMuPDF (no external service)."""
+    import fitz  # PyMuPDF
 
-        wb = load_workbook(BytesIO(content), read_only=True, data_only=True)
-    except Exception:
+    parts: list[str] = []
+    with fitz.open(stream=content, filetype="pdf") as doc:
+        for page in doc:
+            parts.append(page.get_text())
+    return "\n\n".join(p for p in parts if p).strip()
+
+
+def _excel_to_markdown(content: bytes, max_rows: int = 200, max_cols: int = 30) -> str:
+    """Render each worksheet of an .xlsx workbook as a markdown table. CSV/TSV
+    uploads (detected by NOT being a zip/xlsx) go through the CSV path — we
+    branch on the magic bytes so a binary xlsx is never fed to the CSV reader."""
+    # .xlsx/.xlsm are zip archives ("PK\x03\x04"); real CSV/TSV is text.
+    if content[:2] != b"PK":
         return _csv_to_markdown(content, max_rows, max_cols)
 
+    from openpyxl import load_workbook
+
+    wb = load_workbook(BytesIO(content), read_only=True, data_only=True)
     out: list[str] = []
     for ws in wb.worksheets:
         out.append(f"## {ws.title}")
@@ -209,18 +221,39 @@ class LandingService:
             return _openapi_to_markdown(content)
         if spec.parser == "excel":
             return _excel_to_markdown(content)
+        if spec.parser == "pdf":
+            # Text-layer PDFs extract directly (no API key). Only fall back to
+            # the OCR provider for scanned/image-only PDFs that yield no text.
+            text = _pdf_extract_text(content)
+            if len(text.strip()) >= 40:
+                return text
+            return await self._ocr_parse(src_key, ticket_id) or (
+                text
+                or "_(No extractable text — this looks like a scanned PDF; "
+                "configure an OCR provider to read it.)_"
+            )
         if spec.parser == "ocr_parse":
+            return await self._ocr_parse(src_key, ticket_id)
+        raise ValueError(
+            f"Unsupported parser '{spec.parser}' for tool '{spec.kind}'"
+        )
+
+    async def _ocr_parse(self, src_key: str, ticket_id: str) -> str:
+        """Run the configured OCR provider over the stashed source. Returns ""
+        (not an exception) when OCR is unavailable, so callers can fall back."""
+        try:
             from src.ingest.file.ocr.factory import get_ocr_provider
 
             presigned = await self._s3.generate_presigned_download_url(
                 src_key, expires_in=SRC_PRESIGN_SECONDS
             )
-            provider = get_ocr_provider()
-            parsed = await provider.parse_document(presigned, data_id=ticket_id)
+            parsed = await get_ocr_provider().parse_document(
+                presigned, data_id=ticket_id
+            )
             return parsed.markdown_content or ""
-        raise ValueError(
-            f"Unsupported parser '{spec.parser}' for tool '{spec.kind}'"
-        )
+        except Exception:  # noqa: BLE001 - provider missing/misconfigured → caller falls back
+            logger.warning("OCR parse unavailable", exc_info=True)
+            return ""
 
     # ── claim: born-owned create-chain for the logged-in user ────────
     async def claim(self, *, ticket: str, user_id: str) -> dict:
