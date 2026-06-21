@@ -1,8 +1,8 @@
 [package]
 name = "puppyone-desktop"
 version = "0.1.0"
-description = "PuppyOne Desktop local agent workspace recorder"
-authors = ["PuppyOne AI"]
+description = "puppyone desktop local agent workspace recorder"
+authors = ["puppyone AI"]
 license = "Apache-2.0"
 edition = "2021"
 

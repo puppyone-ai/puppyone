@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "PuppyOne Desktop",
+  "productName": "puppyone",
   "version": "0.1.0",
   "identifier": "ai.puppyone.desktop",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "PuppyOne Desktop",
+        "title": "puppyone",
         "width": 1180,
         "height": 760,
         "minWidth": 860,
@@ -26,6 +26,14 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "category": "Productivity"
+    "category": "Productivity",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico",
+      "icons/icon.png"
+    ]
   }
 }

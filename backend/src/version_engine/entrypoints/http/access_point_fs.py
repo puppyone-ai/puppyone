@@ -43,6 +43,14 @@ from src.version_engine.admission.validation import (
     validate_path,
 )
 from src.version_engine.admission.repo_facade import repo_facade_from_auth
+from src.version_engine.scoped_fs.capabilities import scoped_fs_capabilities
+from src.version_engine.scoped_fs.context import ScopedFsContext
+from src.version_engine.scoped_fs.errors import ScopedFsError
+from src.version_engine.scoped_fs.indexed_grep import (
+    IndexedGrepError,
+    run_indexed_grep_payload,
+)
+from src.version_engine.scoped_fs.service import ScopedFsService
 from src.version_engine.write_engine.engine import ConcurrentMutationError
 from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
 from src.version_engine.adapters.product.commands import VersionWriteCommandService
@@ -357,6 +365,36 @@ def _operator(auth: dict) -> str:
     return f"access_point:{auth.get('agent', 'unknown')}"
 
 
+def _scoped_fs_context(
+    *,
+    access_key: str | None,
+    project_id: str,
+    auth: dict,
+    scope: dict,
+) -> ScopedFsContext:
+    scope_id = str(scope.get("id") or auth.get("agent") or "")
+    return ScopedFsContext(
+        api_key=(access_key or "").strip(),
+        endpoint_id=scope_id,
+        endpoint_name=str(auth.get("name") or scope_id),
+        project_id=project_id,
+        user_id=_operator(auth),
+        scope_id=scope_id,
+        scope_path=str(scope.get("path") or ""),
+        mode="rw" if is_mode_writable(str(scope.get("mode", "r"))) else "ro",
+        exclude=list(scope.get("exclude") or []),
+        allowed_tools=None,
+        channel="cli",
+    )
+
+
+def _scoped_fs_error(exc: ScopedFsError) -> HTTPException:
+    return HTTPException(
+        status_code=exc.status_code,
+        detail={"code": exc.code, "message": exc.message},
+    )
+
+
 def _ops_stat(
     ops: ProductOperationAdapter,
     project_id: str,
@@ -508,6 +546,18 @@ def _matches_any_grep_glob(path: str, patterns: list[str]) -> bool:
 def _matches_exclude_dir_glob(path: str, patterns: list[str]) -> bool:
     parts = [part for part in path.strip("/").split("/")[:-1] if part]
     return any(fnmatch.fnmatchcase(part, pattern) for part in parts for pattern in patterns)
+
+
+def _grep_file_depth(path: str, root_path: str = "") -> int:
+    clean = path.strip("/")
+    root = root_path.strip("/")
+    if root and clean == root:
+        return 0
+    rel = clean[len(root) + 1:] if root and clean.startswith(f"{root}/") else clean
+    parent = rel.rsplit("/", 1)[0] if "/" in rel else ""
+    if not parent:
+        return 0
+    return len([part for part in parent.split("/") if part])
 
 
 def _grep_matcher(pattern: str, *, regex: bool, ignore_case: bool):
@@ -672,6 +722,22 @@ def _attach_timestamps(
         entry.modified_at = data.get("modified_at") or None
 
 
+@router.get("/semantics", response_model=ApiResponse)
+async def semantics(
+    x_access_key: str | None = Header(None, alias="X-Access-Key"),
+    x_puppyone_user: str | None = Header(None, alias="X-PuppyOne-User"),
+    x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
+):
+    _project_id, _auth, scope = await _resolve_auth(
+        x_access_key, x_puppyone_user, x_puppy_client, command="semantics",
+    )
+    data = scoped_fs_capabilities(
+        writable=is_mode_writable(str(scope.get("mode", "r"))),
+    )
+    data["scope"] = _scope_payload(scope)
+    return ApiResponse.success(data=data)
+
+
 @router.get("/ls", response_model=ApiResponse)
 async def list_dir(
     path: str = Query("", description="Path relative to the access point scope"),
@@ -788,8 +854,8 @@ async def tree(
     })
 
 
-# Legacy S3-scan grep — KEEP. Used by the CLI as a fallback when
-# ``POST /grep-indexed`` returns ``index_status != "indexed"``. The
+# Legacy S3-scan grep — KEEP. Used by canonical ``GET /grep`` as the
+# authoritative fallback when the indexed core is not fresh enough. The
 # trade-off is: this path can find content the indexer hasn't yet
 # processed, at the cost of an O(scope size) S3 read + Python
 # regex scan. See ``docs/proposals/PUP-cloud-grep.md``.
@@ -1030,6 +1096,7 @@ async def grep(
     exclude_dir: str = Query("", description="Newline-separated directory glob patterns to exclude"),
     max_depth: int = Query(-1, description="Maximum recursion depth for directories, -1 = unlimited"),
     max_count: int = Query(0, description="Maximum matching lines returned per file, 0 = unlimited"),
+    require_file_list: bool = Query(False, description="Require every candidate file in files[], including zero-match files"),
     before_context: int = Query(0, description="Context lines before each match"),
     after_context: int = Query(0, description="Context lines after each match"),
     include_offsets: bool = Query(False, description="Include byte offsets in match metadata"),
@@ -1051,6 +1118,7 @@ async def grep(
     invert_match = _query_bool(invert_match)
     only_matching = _query_bool(only_matching)
     include_offsets = _query_bool(include_offsets)
+    require_file_list = _query_bool(require_file_list)
     per_file_limit = max(0, _query_int(max_count, 0))
     before_context = min(max(0, _query_int(before_context, 0)), 100)
     after_context = min(max(0, _query_int(after_context, 0)), 100)
@@ -1092,6 +1160,40 @@ async def grep(
     target = _ops_stat(ops, project_id, scope, rel_path)
     if target is None and rel_path:
         raise HTTPException(status_code=404, detail=f"Path not found: {rel_path}")
+    target_type = target.type if target and target.type != "folder" else "folder"
+
+    if not require_file_list:
+        indexed_result = _try_indexed_grep_legacy_response(
+            project_id=project_id,
+            scope=scope,
+            ops=ops,
+            body=_GrepIndexedRequest(
+                pattern=pattern,
+                path=rel_path,
+                regex=regex,
+                ignore_case=ignore_case,
+                invert_match=invert_match,
+                only_matching=only_matching,
+                before_context=before_context,
+                after_context=after_context,
+                limit=safe_limit,
+                per_file_limit=per_file_limit,
+                candidate_limit=safe_file_limit,
+            ),
+            rel_path=rel_path,
+            version_path=full_path,
+            target_type=target_type,
+            include_hidden=include_hidden,
+            include_patterns=include_patterns,
+            exclude_patterns=exclude_patterns,
+            exclude_dir_patterns=exclude_dir_patterns,
+            max_depth=max_depth,
+            include_offsets=include_offsets,
+            safe_file_limit=safe_file_limit,
+            safe_byte_limit=safe_byte_limit,
+        )
+        if indexed_result is not None:
+            return ApiResponse.success(data=indexed_result)
 
     truncated = False
     truncation_reason = ""
@@ -1103,10 +1205,8 @@ async def grep(
             truncation_reason = reason
 
     if target and target.type != "folder":
-        target_type = target.type
         candidates = [target]
     else:
-        target_type = "folder"
         tree_entries = _filter_entries(
             _ops_list_tree(
                 ops,
@@ -1284,6 +1384,7 @@ async def grep(
         "invert_match": invert_match,
         "only_matching": only_matching,
         "include_offsets": include_offsets,
+        "require_file_list": require_file_list,
         "include": include_patterns,
         "exclude": exclude_patterns,
         "exclude_dir": exclude_dir_patterns,
@@ -1310,15 +1411,16 @@ async def grep(
 
 
 # ────────────────────────────────────────────────────────────────────
-# Indexed grep (federated search — server-side primary)
+# Indexed grep (server-side fast path)
 # ────────────────────────────────────────────────────────────────────
 #
 # Contract: ``docs/proposals/PUP-cloud-grep.md``.
 #
 # This endpoint queries the ``version_text_index`` GIN indexes
 # (tsvector + pg_trgm) and recovers per-line offsets in the
-# application layer. The legacy ``GET /grep`` above remains as the
-# fallback when ``index_status != "indexed"``.
+# application layer. ``GET /grep`` is the canonical AP-FS grep
+# operation and owns the index-readiness/fallback policy; this endpoint
+# remains as the raw indexed contract for diagnostics and targeted tests.
 
 
 from pydantic import BaseModel as _BaseModel  # local import to keep top of file lean
@@ -1348,6 +1450,175 @@ class _GrepIndexedRequest(_BaseModel):
     candidate_limit: int = 2000
 
 
+def _run_grep_indexed_payload(
+    *,
+    project_id: str,
+    scope: dict,
+    ops: ProductOperationAdapter,
+    body: _GrepIndexedRequest,
+) -> dict[str, Any]:
+    try:
+        return run_indexed_grep_payload(
+            project_id=project_id,
+            scope_path=scope["path"],
+            excludes=scope.get("exclude") or [],
+            ops=ops,
+            pattern=body.pattern,
+            path=body.path,
+            regex=body.regex,
+            ignore_case=body.ignore_case,
+            word_match=body.word_match,
+            invert_match=body.invert_match,
+            only_matching=body.only_matching,
+            before_context=body.before_context,
+            after_context=body.after_context,
+            limit=body.limit,
+            per_file_limit=body.per_file_limit,
+            candidate_limit=body.candidate_limit,
+            pattern_max_chars=_GREP_PATTERN_MAX_CHARS,
+            max_limit=_GREP_MAX_LIMIT,
+        )
+    except IndexedGrepError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+
+
+def _try_indexed_grep_legacy_response(
+    *,
+    project_id: str,
+    scope: dict,
+    ops: ProductOperationAdapter,
+    body: _GrepIndexedRequest,
+    rel_path: str,
+    version_path: str,
+    target_type: str,
+    include_hidden: bool,
+    include_patterns: list[str],
+    exclude_patterns: list[str],
+    exclude_dir_patterns: list[str],
+    max_depth: int,
+    include_offsets: bool,
+    safe_file_limit: int,
+    safe_byte_limit: int,
+) -> dict[str, Any] | None:
+    try:
+        envelope = _run_grep_indexed_payload(
+            project_id=project_id,
+            scope=scope,
+            ops=ops,
+            body=body,
+        )
+    except HTTPException:
+        raise
+    except Exception:
+        return None
+
+    if envelope.get("index_status") != "indexed":
+        return None
+
+    matches: list[dict[str, Any]] = []
+    files_by_path: dict[str, dict[str, Any]] = {}
+    skipped_by_filter = 0
+    for hit in envelope.get("hits") or []:
+        hit_path = str(hit.get("path") or "")
+        hit_rel_path = _relative_to_scope(hit_path, scope["path"])
+        if not include_hidden and _is_hidden_path(hit_rel_path):
+            skipped_by_filter += 1
+            continue
+        if max_depth >= 0 and _grep_file_depth(hit_rel_path, rel_path) > max_depth:
+            skipped_by_filter += 1
+            continue
+        if include_patterns and not _matches_any_grep_glob(hit_rel_path, include_patterns):
+            skipped_by_filter += 1
+            continue
+        if exclude_patterns and _matches_any_grep_glob(hit_rel_path, exclude_patterns):
+            skipped_by_filter += 1
+            continue
+        if exclude_dir_patterns and _matches_exclude_dir_glob(hit_rel_path, exclude_dir_patterns):
+            skipped_by_filter += 1
+            continue
+        content_hash = hit.get("content_hash") or None
+        line_text = str(hit.get("match") or "")
+        col = max(0, int(hit.get("col") or 1) - 1)
+        match_payload: dict[str, Any] = {
+            "path": hit_rel_path,
+            "version_path": _join_scope(scope["path"], hit_rel_path),
+            "line_number": hit.get("line") or 0,
+            "line_text": line_text,
+            "match_start": col,
+            "match_end": col + len(line_text),
+            "match_text": line_text,
+            "byte_offset": None,
+            "match_byte_offset": col if include_offsets else None,
+            "before_context": [
+                {"line_text": text}
+                for text in (hit.get("context_before") or [])
+            ],
+            "after_context": [
+                {"line_text": text}
+                for text in (hit.get("context_after") or [])
+            ],
+            "content_hash": content_hash,
+        }
+        matches.append(match_payload)
+        file_payload = files_by_path.setdefault(hit_rel_path, {
+            "path": hit_rel_path,
+            "version_path": _join_scope(scope["path"], hit_rel_path),
+            "match_count": 0,
+            "content_hash": content_hash,
+        })
+        file_payload["match_count"] += 1
+
+    scope_head_commit_id = ops.get_scope_head_commit_id(project_id, scope["path"])
+    truncated = bool(envelope.get("truncated"))
+    truncation_reason = "indexed_truncated" if truncated else ""
+    skipped = {
+        "non_text": 0,
+        "binary": 0,
+        "too_large": 0,
+        "read_errors": 0,
+    }
+    if skipped_by_filter:
+        skipped["filtered"] = skipped_by_filter
+
+    return {
+        "pattern": body.pattern,
+        "path": rel_path,
+        "version_path": version_path,
+        "scope": _scope_payload(scope),
+        "target_type": target_type,
+        "regex": body.regex,
+        "ignore_case": body.ignore_case,
+        "invert_match": body.invert_match,
+        "only_matching": body.only_matching,
+        "include_offsets": include_offsets,
+        "include": include_patterns,
+        "exclude": exclude_patterns,
+        "exclude_dir": exclude_dir_patterns,
+        "limit": envelope.get("limit") or body.limit,
+        "max_count": envelope.get("per_file_limit") or body.per_file_limit,
+        "before_context": body.before_context,
+        "after_context": body.after_context,
+        "max_files": safe_file_limit,
+        "max_bytes": safe_byte_limit,
+        "returned_count": len(matches),
+        "matched_files": len(files_by_path),
+        "candidate_files": envelope.get("candidates_examined") or 0,
+        "scanned_files": 0,
+        "scanned_bytes": 0,
+        "skipped": skipped,
+        "complete": not truncated,
+        "truncated": truncated,
+        "truncation_reason": truncation_reason,
+        "files": list(files_by_path.values()),
+        "matches": matches,
+        "head_commit_id": scope_head_commit_id,
+        "scope_head_commit_id": scope_head_commit_id,
+        "index_status": envelope.get("index_status"),
+        "index_freshness": envelope.get("index_freshness"),
+        "search_backend": "indexed",
+    }
+
+
 @router.post("/grep-indexed", response_model=ApiResponse)
 async def grep_indexed(
     body: _GrepIndexedRequest,
@@ -1358,146 +1629,23 @@ async def grep_indexed(
 ):
     """Indexed grep against the server's text index.
 
-    Returns hits keyed by ``content_hash`` so the CLI can pair each
-    one with the file's current remote content (via ``/ap-fs/cat``)
-    and its local working copy. The response also carries
-    ``index_status`` so the CLI knows whether to fall back to the
-    legacy ``/grep`` S3-scan path:
+    Returns hits keyed by ``content_hash`` for diagnostics and raw
+    indexed consumers. The response also carries ``index_status`` so
+    callers can tell whether the index is authoritative:
 
       - ``indexed`` — index is at HEAD; results are authoritative.
-      - ``stale``   — index is behind HEAD; CLI also fetches via
-                     legacy ``/grep`` for completeness.
-      - ``missing`` — no rows for this scope; CLI uses legacy as
-                     the primary tracked-channel query.
+      - ``stale``   — index is behind HEAD.
+      - ``missing`` — no rows for this scope.
     """
-    from src.version_engine.infrastructure.supabase.text_index_repository import (
-        TextIndexRepository,
-        cut_chunk_to_hits,
-    )
-
     project_id, _auth, scope = await _resolve_auth(
         x_access_key, x_puppyone_user, x_puppy_client, command="grep",
     )
-    rel_path = _clean_relative(body.path)
-    _assert_not_excluded(rel_path, scope)
-
-    if len(body.pattern) > _GREP_PATTERN_MAX_CHARS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"grep pattern exceeds {_GREP_PATTERN_MAX_CHARS} characters",
-        )
-
-    # Wrap user pattern for the precise re-match. ``word_match`` is
-    # implemented here by re-anchoring with ``\b`` rather than in the
-    # SQL filter — the SQL stage uses the same trigram candidate set
-    # either way, and anchoring in Python keeps the SQL operator one
-    # of (``like``, ``ilike``, ``match``, ``imatch``).
-    py_pattern = body.pattern if body.regex else re.escape(body.pattern)
-    if body.word_match:
-        py_pattern = rf"\b(?:{py_pattern})\b"
-    py_flags = re.IGNORECASE if body.ignore_case else 0
-    try:
-        matcher = re.compile(py_pattern, py_flags)
-    except re.error as exc:
-        raise HTTPException(status_code=400, detail=f"Invalid regex: {exc}") from exc
-
-    # Combine the AP's scope_path with the user-supplied sub-path so
-    # the index lookup never reaches outside the AP's blast radius.
-    combined_scope = _join_scope(scope["path"], rel_path).strip("/")
-
-    repo = TextIndexRepository()
-    candidates = repo.query_indexed_grep(
+    return ApiResponse.success(data=_run_grep_indexed_payload(
         project_id=project_id,
-        scope_path=combined_scope,
-        pattern=body.pattern,
-        regex=body.regex,
-        ignore_case=body.ignore_case,
-        candidate_limit=max(1, min(int(body.candidate_limit), 5000)),
-    )
-
-    head_commit_id = ops.get_head_commit_id(project_id) or ""
-    freshness = repo.get_freshness(
-        project_id=project_id,
-        scope_path=combined_scope,
-        head_commit_id=head_commit_id,
-        rows_estimate=len(candidates),
-    )
-
-    per_file_limit = max(0, int(body.per_file_limit))
-    safe_limit = _query_limited_int(body.limit, _GREP_DEFAULT_LIMIT, _GREP_MAX_LIMIT)
-    before_ctx = min(max(0, int(body.before_context)), 100)
-    after_ctx = min(max(0, int(body.after_context)), 100)
-
-    hits: list[dict] = []
-    per_file_seen: dict[str, int] = {}
-    truncated = False
-    scope_excludes = scope.get("exclude") or []
-    for cand in candidates:
-        if len(hits) >= safe_limit:
-            truncated = True
-            break
-        file_path = cand.file_path
-        # Scope isolation: the candidate query narrows by file_path PREFIX
-        # but does not apply the AP's exclude rules. Mirror the live /grep
-        # per-hit exclude check (see the GET /grep loop) so excluded paths
-        # and declared child scopes never leak through the indexed path.
-        if _matches_exclude(_relative_to_scope(file_path, scope["path"]), scope_excludes):
-            continue
-        remaining = None
-        if per_file_limit:
-            already = per_file_seen.get(file_path, 0)
-            if already >= per_file_limit:
-                continue
-            remaining = per_file_limit - already
-        chunk_hits = cut_chunk_to_hits(
-            chunk_text=cand.chunk_text,
-            line_start=cand.line_start,
-            matcher=matcher,
-            invert=body.invert_match,
-            only_matching=body.only_matching,
-            before_context=before_ctx,
-            after_context=after_ctx,
-            per_file_remaining=remaining,
-        )
-        if not chunk_hits:
-            continue
-        for ch in chunk_hits:
-            if len(hits) >= safe_limit:
-                truncated = True
-                break
-            hits.append({
-                "path": file_path,
-                "line": ch["line"],
-                "col": ch["col"],
-                "match": ch["match"],
-                "context_before": ch["context_before"],
-                "context_after": ch["context_after"],
-                "content_hash": cand.content_hash,
-            })
-            per_file_seen[file_path] = per_file_seen.get(file_path, 0) + 1
-
-    return ApiResponse.success(data={
-        "scope": combined_scope,
-        "pattern": body.pattern,
-        "regex": body.regex,
-        "ignore_case": body.ignore_case,
-        "word_match": body.word_match,
-        "invert_match": body.invert_match,
-        "only_matching": body.only_matching,
-        "limit": safe_limit,
-        "per_file_limit": per_file_limit,
-        "candidate_limit": body.candidate_limit,
-        "candidates_examined": len(candidates),
-        "hits": hits,
-        "truncated": truncated,
-        "index_status": freshness.status,
-        "index_freshness": {
-            "indexed_commit_id": freshness.indexed_commit_id,
-            "head_commit_id": freshness.head_commit_id,
-            "commits_behind": freshness.commits_behind,
-        },
-        "head_commit_id": head_commit_id,
-    })
+        scope=scope,
+        ops=ops,
+        body=body,
+    ))
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -1649,7 +1797,8 @@ async def upload_file(
         _upload_max_bytes_for_project,
         project_id,
     )
-    content_length_header = request.headers.get("content-length")
+    request_headers = getattr(request, "headers", {})
+    content_length_header = request_headers.get("content-length")
     if content_length_header:
         try:
             content_length = int(content_length_header)
@@ -2324,117 +2473,72 @@ async def remove(
 @router.get("/find", response_model=ApiResponse)
 async def find_index(
     name: str = Query("", description="fnmatch-style glob over the basename"),
+    iname: str = Query("", description="case-insensitive fnmatch-style glob over the basename"),
     path: str = Query("", description="Subpath under the scope to narrow the search"),
+    path_glob: str = Query("", description="fnmatch-style glob over the scope-relative path"),
     mime: str = Query("", description="Optional mime-type prefix filter (e.g. 'text/')"),
     type_: str = Query(
         "any",
         alias="type",
-        description="'file' or 'any'; folders aren't indexed, only blobs",
+        description="'file', 'folder', or 'any'",
     ),
-    limit: int = Query(1000, ge=1, le=20000),
+    conditions: str = Query("", description="JSON array of find predicates from CLI/MCP surfaces"),
+    mindepth: int = Query(0, description="Minimum result depth relative to the search root"),
+    max_depth: int = Query(-1, description="Maximum result depth relative to the search root, -1 = unlimited"),
+    include_hidden: bool = Query(True, description="Include entries whose names begin with '.'"),
+    limit: int = Query(1000, ge=1, le=50000),
     x_access_key: str | None = Header(None, alias="X-Access-Key"),
     x_puppyone_user: str | None = Header(None, alias="X-PuppyOne-User"),
     x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
+    ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
 ):
-    """Server-side accelerated ``puppyone fs find`` (H2).
+    """Canonical scoped find.
 
-    Queries the materialised ``fs_path_index`` instead of walking the
-    Merkle tree, so large projects answer in milliseconds. Scope and
-    exclude rules from the caller's access point are applied as
-    SQL filters (H4) so a scoped credential never sees out-of-scope
-    rows even if the index has them.
-
-    The index is refreshed asynchronously by the outbox worker. A
-    just-pushed file may take one worker tick (~30s) to appear; for
-    correctness-critical callers use ``/stat`` or ``/ls`` which walk
-    the live tree.
+    The route owns traversal, filtering, truncation, and future
+    index/fallback policy. CLI and MCP clients should map their surface
+    syntax into this request shape rather than filtering locally.
     """
 
-    project_id, _auth, scope = await _resolve_auth(
+    project_id, auth, scope = await _resolve_auth(
         x_access_key, x_puppyone_user, x_puppy_client, command="find",
     )
-    scope_full = _join_scope(scope["path"], _clean_relative(path)) if path else (scope["path"] or "")
-    scope_full = scope_full.strip("/")
-
-    from src.infra.supabase.client import SupabaseClient
-
-    client = SupabaseClient().client
-    builder = client.table("fs_path_index").select(
-        "full_path, size_bytes, mime_type, last_who, last_commit_id, last_updated_at",
-    ).eq("project_id", project_id)
-
-    # H4 — permission filter at query time.
-    if scope_full:
-        # We use a LIKE-style match so paths under the scope prefix are
-        # returned. The pg_trgm index lets this run cheaply.
-        builder = builder.like("full_path", f"{scope_full}/%")
-        # Also accept the scope path itself if it is a single file (rare).
-        # The OR is expressed by the next query, merged client-side; for
-        # V1 we stick with the strict prefix because file-scopes are not
-        # in production yet.
-    # Reject hits inside any exclude pattern. The patterns are absolute
-    # paths (per the resolved convention) so we can filter on full_path
-    # directly.
-    for excl in scope.get("exclude") or []:
-        clean = (excl or "").strip("/")
-        if not clean:
-            continue
-        builder = builder.not_.like("full_path", f"{clean}%")
-
-    if mime:
-        builder = builder.like("mime_type", f"{mime}%")
-    if type_ == "file":
-        # Folder entries are not indexed; this is a no-op but lets the
-        # caller request strict file semantics for symmetry with POSIX find.
-        pass
-
-    rows = (builder.limit(limit).execute()).data or []
-
-    # Apply name-glob filter in Python (pg_trgm doesn't do fnmatch).
-    if name:
-        import fnmatch
-        rows = [
-            r for r in rows
-            if fnmatch.fnmatch(_basename(r["full_path"]), name)
-        ]
-
-    # Re-shape paths to scope-relative for the caller.
-    scope_prefix = (scope["path"] or "").strip("/")
-    out = []
-    for r in rows[:limit]:
-        full = r["full_path"]
-        if scope_prefix:
-            if full == scope_prefix:
-                rel = ""
-            elif full.startswith(scope_prefix + "/"):
-                rel = full[len(scope_prefix) + 1:]
-            else:
-                continue  # belt-and-braces: scope mismatch
-        else:
-            rel = full
-        # The SQL ``not like '{excl}%'`` above only catches full-path
-        # PREFIX excludes; the canonical matcher also honors segment
-        # excludes (bare ``secret`` hides any ``.../secret/...``). Apply it
-        # precisely here so find can't leak excluded paths that ls/grep/cat
-        # already hide (the SQL filter remains as a cheap pre-narrowing).
-        if _matches_exclude(rel, scope.get("exclude") or []):
-            continue
-        out.append({
-            "path": rel,
-            "version_path": full,
-            "size_bytes": r.get("size_bytes", 0),
-            "mime_type": r.get("mime_type", ""),
-            "last_who": r.get("last_who", ""),
-            "last_commit_id": r.get("last_commit_id", ""),
-            "last_updated_at": r.get("last_updated_at", ""),
-        })
-    return ApiResponse.success(data={
-        "scope": _scope_payload(scope),
-        "entries": out,
-        "returned_count": len(out),
-        "truncated": len(rows) >= limit,
-        "source": "fs_path_index",
-    })
+    name_value = name if isinstance(name, str) else ""
+    iname_value = iname if isinstance(iname, str) else ""
+    path_glob_value = path_glob if isinstance(path_glob, str) else ""
+    mime_value = mime if isinstance(mime, str) else ""
+    type_value = type_ if isinstance(type_, str) else "any"
+    conditions_value = conditions if isinstance(conditions, str) else ""
+    if mime_value:
+        # The previous route exposed a file-index-only mime filter. It is not
+        # part of the canonical FS find contract; keep the error explicit so
+        # callers do not assume MCP/CLI parity for it.
+        raise HTTPException(status_code=400, detail="mime filtering is not supported by canonical find")
+    service = ScopedFsService(ops=ops, commands=None)  # type: ignore[arg-type]
+    ctx = _scoped_fs_context(
+        access_key=x_access_key,
+        project_id=project_id,
+        auth=auth,
+        scope=scope,
+    )
+    try:
+        result = await service.find(
+            ctx,
+            path=_clean_relative(path),
+            name=name_value,
+            iname=iname_value,
+            path_glob=path_glob_value,
+            type=type_value,
+            conditions=conditions_value,
+            mindepth=mindepth,
+            max_depth=max_depth,
+            limit=limit,
+            include_hidden=_query_bool(include_hidden, True),
+        )
+    except ScopedFsError as exc:
+        raise _scoped_fs_error(exc) from exc
+    result["scope"] = _scope_payload(scope)
+    result["head_commit_id"] = ops.get_head_commit_id(project_id)
+    return ApiResponse.success(data=result)
 
 
 class _ObjectIntegrityRequest(_BaseModel):

@@ -226,7 +226,7 @@ body {
 /* ── Global theme-aware scrollbar ── */
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--po-scrollbar-thumb) transparent;
+  scrollbar-color: transparent transparent;
 }
 
 *::-webkit-scrollbar {
@@ -239,16 +239,31 @@ body {
 }
 
 *::-webkit-scrollbar-thumb {
-  background: var(--po-scrollbar-thumb);
+  background: transparent;
   border-radius: 3px;
+  transition: background-color 0.16s ease;
 }
 
-*::-webkit-scrollbar-thumb:hover {
+.po-scrollbar-active {
+  scrollbar-color: var(--po-scrollbar-thumb) transparent;
+}
+
+.po-scrollbar-active::-webkit-scrollbar-thumb {
+  background: var(--po-scrollbar-thumb);
+}
+
+.po-scrollbar-active::-webkit-scrollbar-thumb:hover {
   background: var(--po-scrollbar-thumb-hover);
 }
 
 *::-webkit-scrollbar-corner {
   background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *::-webkit-scrollbar-thumb {
+    transition: none;
+  }
 }
 
 #__next {

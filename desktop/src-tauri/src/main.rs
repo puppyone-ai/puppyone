@@ -230,5 +230,5 @@ fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![list_folder_children])
         .run(tauri::generate_context!())
-        .expect("failed to run PuppyOne Desktop");
+        .expect("failed to run puppyone");
 }

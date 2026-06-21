@@ -9,7 +9,7 @@ import {
   editorViewOptionsCtx,
 } from '@milkdown/core';
 import { commonmark } from '@milkdown/preset-commonmark';
-import { gfm } from '@milkdown/preset-gfm';
+import { columnResizingPlugin, gfm } from '@milkdown/preset-gfm';
 import { listener, listenerCtx } from '@milkdown/plugin-listener';
 import { Milkdown, MilkdownProvider, useEditor } from '@milkdown/react';
 import { $prose } from '@milkdown/utils';
@@ -159,10 +159,58 @@ const editorThemeStyles = `
   }
 
   /* Table */
-  .milkdown-editor table {
-    width: auto;
-    min-width: min(640px, 100%);
+  .milkdown-editor .tableWrapper,
+  .milkdown-editor .markdown-table-scroll {
+    position: relative;
+    display: block;
+    width: 100%;
     max-width: 100%;
+    margin: 12px 0 14px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--po-scrollbar-thumb) transparent;
+  }
+
+  .milkdown-editor .ProseMirror > table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--po-scrollbar-thumb) transparent;
+  }
+
+  .milkdown-editor .tableWrapper::-webkit-scrollbar,
+  .milkdown-editor .markdown-table-scroll::-webkit-scrollbar,
+  .milkdown-editor .ProseMirror > table::-webkit-scrollbar {
+    height: 8px;
+  }
+
+  .milkdown-editor .tableWrapper::-webkit-scrollbar-track,
+  .milkdown-editor .tableWrapper::-webkit-scrollbar-corner,
+  .milkdown-editor .markdown-table-scroll::-webkit-scrollbar-track,
+  .milkdown-editor .markdown-table-scroll::-webkit-scrollbar-corner,
+  .milkdown-editor .ProseMirror > table::-webkit-scrollbar-track,
+  .milkdown-editor .ProseMirror > table::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  .milkdown-editor .tableWrapper::-webkit-scrollbar-thumb,
+  .milkdown-editor .markdown-table-scroll::-webkit-scrollbar-thumb,
+  .milkdown-editor .ProseMirror > table::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background: var(--po-scrollbar-thumb);
+    background-clip: padding-box;
+  }
+
+  .milkdown-editor table {
+    width: 100%;
+    min-width: 100%;
+    max-width: none;
     margin: 12px 0 14px;
     border-collapse: separate;
     border-spacing: 0;
@@ -171,6 +219,25 @@ const editorThemeStyles = `
     overflow: hidden;
     font-size: 13px;
     line-height: 1.42;
+  }
+
+  .milkdown-editor .tableWrapper table,
+  .milkdown-editor .markdown-table-scroll table {
+    width: max-content;
+    min-width: 100%;
+    margin: 0;
+    table-layout: auto;
+  }
+
+  .milkdown-editor .ProseMirror > table {
+    width: max-content;
+    min-width: 100%;
+    table-layout: auto;
+  }
+
+  .milkdown-editor .ProseMirror th:not([data-colwidth]):not(.column-resize-dragging),
+  .milkdown-editor .ProseMirror td:not([data-colwidth]):not(.column-resize-dragging) {
+    min-width: var(--default-cell-min-width, 100px);
   }
 
   .milkdown-editor th {
@@ -433,6 +500,7 @@ function MilkdownEditorContent({ defaultValue, onChange, readOnly }: MilkdownEdi
       })
       .use(commonmark)
       .use(gfm)
+      .use(columnResizingPlugin)
       .use(listener)
       .use(taskListClickPlugin);
   }, []);
@@ -485,6 +553,9 @@ export const MilkdownEditor = forwardRef<MilkdownEditorRef, MilkdownEditorProps>
           overflow: 'auto',
           background: 'var(--po-editor-bg)',
         }}
+        onWheelCapture={(event) => {
+          if (scrollTableFromWheelEvent(event)) event.stopPropagation();
+        }}
       >
         <style>{editorThemeStyles}</style>
         <MilkdownProvider>
@@ -498,5 +569,65 @@ export const MilkdownEditor = forwardRef<MilkdownEditorRef, MilkdownEditorProps>
     );
   }
 );
+
+type WheelScrollEvent = {
+  readonly deltaX: number;
+  readonly deltaY: number;
+  readonly deltaMode: number;
+  readonly shiftKey: boolean;
+  readonly target: EventTarget | null;
+  preventDefault: () => void;
+};
+
+function scrollTableFromWheelEvent(event: WheelScrollEvent): boolean {
+  const scrollContainer = findTableScrollContainer(event.target);
+  if (!scrollContainer) return false;
+
+  const delta = getHorizontalWheelDelta(event);
+  if (delta === 0) return false;
+
+  const maxScrollLeft = scrollContainer.scrollWidth - scrollContainer.clientWidth;
+  if (maxScrollLeft <= 1) return false;
+
+  const currentScrollLeft = scrollContainer.scrollLeft;
+  const nextScrollLeft = clamp(scrollContainer.scrollLeft + delta, 0, maxScrollLeft);
+  if (nextScrollLeft === currentScrollLeft) return false;
+
+  event.preventDefault();
+  scrollContainer.scrollLeft = nextScrollLeft;
+
+  return true;
+}
+
+function findTableScrollContainer(target: EventTarget | null): HTMLElement | null {
+  const element = getEventElement(target);
+  if (!element) return null;
+
+  const scrollContainer = element.closest('.tableWrapper, .markdown-table-scroll');
+  if (scrollContainer instanceof HTMLElement) return scrollContainer;
+
+  const table = element.closest('.milkdown-editor table');
+  if (table instanceof HTMLElement) return table;
+
+  return null;
+}
+
+function getEventElement(target: EventTarget | null): Element | null {
+  if (target instanceof Element) return target;
+  if (target instanceof Node && target.parentElement) return target.parentElement;
+  return null;
+}
+
+function getHorizontalWheelDelta(event: Pick<WheelScrollEvent, 'deltaMode' | 'deltaX' | 'deltaY' | 'shiftKey'>): number {
+  const rawDelta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+  if (!Number.isFinite(rawDelta)) return 0;
+  if (event.deltaMode === 1) return rawDelta * 16;
+  if (event.deltaMode === 2) return rawDelta * 120;
+  return rawDelta;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
 
 export default MilkdownEditor;

@@ -3,21 +3,14 @@ import react from "@vitejs/plugin-react";
 import { fileURLToPath, URL } from "node:url";
 
 export default defineConfig({
+  base: "./",
   plugins: [react()],
   clearScreen: false,
   resolve: {
     alias: [
       {
-        find: "@puppyone/data-core",
-        replacement: fileURLToPath(new URL("../packages/data-core/src/index.ts", import.meta.url)),
-      },
-      {
-        find: "@puppyone/data-ui",
-        replacement: fileURLToPath(new URL("../packages/data-ui/src/index.ts", import.meta.url)),
-      },
-      {
-        find: "@puppyone/editor-ui",
-        replacement: fileURLToPath(new URL("../packages/editor-ui/src/index.ts", import.meta.url)),
+        find: "@puppyone/shared-ui",
+        replacement: fileURLToPath(new URL("./vendor/shared-ui/src/index.ts", import.meta.url)),
       },
       {
         find: "lucide-react",

@@ -20,7 +20,7 @@ pub struct SessionSummary {
 
 pub fn desktop_status() -> DesktopStatus {
     DesktopStatus {
-        app_name: "PuppyOne Desktop".to_string(),
+        app_name: "puppyone".to_string(),
         recorder_ready: true,
         cloud_sync_enabled: false,
     }

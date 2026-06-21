@@ -43,6 +43,8 @@ export type FileKind =
   | "sheet"
   | "file";
 
+const oldVsNewWorldUrl = new URL("../../public/old-vs-new-world.png", import.meta.url).href;
+
 export type FileNode = {
   id: string;
   name: string;
@@ -269,7 +271,7 @@ export const fileTrees: Record<string, FileNode[]> = {
       modified: "Fri",
       status: "clean",
       preview: "Relationship map for contract entities.",
-      assetUrl: "/old-vs-new-world.png",
+      assetUrl: oldVsNewWorldUrl,
     },
   ],
   finance: [

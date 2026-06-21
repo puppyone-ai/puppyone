@@ -1,29 +1,36 @@
-import { FolderOpen, ShieldCheck, Upload } from "lucide-react";
+import { ChevronRight, FolderOpen, Upload } from "lucide-react";
 import type { DragEvent } from "react";
-import { useState } from "react";
-import type { Workspace } from "@puppyone/data-core";
+import { useEffect, useState } from "react";
+import type { Workspace } from "@puppyone/shared-ui";
 import { selectWorkspaceFolder, workspaceFromPath } from "../lib/localFiles";
+
+const puppyoneLogoUrl = new URL("../../public/puppyone-logo.svg", import.meta.url).href;
 
 type MinimalOnboardingProps = {
   onOpenWorkspace: (workspace: Workspace) => void;
+  initialError?: string | null;
 };
 
-export function MinimalOnboarding({ onOpenWorkspace }: MinimalOnboardingProps) {
-  const [folderPath, setFolderPath] = useState("");
-  const [error, setError] = useState<string | null>(null);
+export function MinimalOnboarding({ onOpenWorkspace, initialError = null }: MinimalOnboardingProps) {
+  const [error, setError] = useState<string | null>(initialError);
   const [dragging, setDragging] = useState(false);
   const [opening, setOpening] = useState(false);
 
-  const protectFolder = async (path: string = folderPath) => {
+  useEffect(() => {
+    setError(initialError);
+  }, [initialError]);
+
+  const openDroppedFolder = async (path: string) => {
     setError(null);
-    if (!path.trim().startsWith("/")) {
-      setError("Paste an absolute folder path.");
+    const nextPath = path.trim();
+    if (!nextPath.startsWith("/")) {
+      setError("Drop a local folder or click to choose one.");
       return;
     }
 
     setOpening(true);
     try {
-      onOpenWorkspace(await workspaceFromPath(path.trim()));
+      onOpenWorkspace(await workspaceFromPath(nextPath));
     } catch (error) {
       setError(error instanceof Error ? error.message : String(error));
     } finally {
@@ -58,19 +65,23 @@ export function MinimalOnboarding({ onOpenWorkspace }: MinimalOnboardingProps) {
       return;
     }
 
-    await protectFolder(droppedPath);
+    await openDroppedFolder(droppedPath);
   };
 
   return (
     <main className="onboarding-shell">
       <div className="onboarding-panel">
-        <img src="/puppyone-logo.svg" alt="" className="onboarding-logo" />
-        <h1>PuppyOne Desktop</h1>
-        <p className="onboarding-copy">Open a local folder to make it readable, versioned, and safe for agents.</p>
+        <div className="onboarding-brand">
+          <img src={puppyoneLogoUrl} alt="" className="onboarding-logo" />
+          <h1>puppyone</h1>
+        </div>
         <button
           className={`folder-drop-zone ${dragging ? "dragging" : ""}`}
           type="button"
+          disabled={opening}
+          aria-busy={opening}
           onClick={chooseFolder}
+          onDragEnter={() => setDragging(true)}
           onDragOver={(event) => {
             event.preventDefault();
             setDragging(true);
@@ -79,31 +90,13 @@ export function MinimalOnboarding({ onOpenWorkspace }: MinimalOnboardingProps) {
           onDrop={handleDrop}
         >
           <span className="folder-drop-icon">
-            {dragging ? <Upload size={24} /> : <FolderOpen size={24} />}
+            {dragging ? <Upload size={21} /> : <FolderOpen size={21} />}
           </span>
-          <strong>{opening ? "Opening folder..." : "Choose a local folder"}</strong>
-          <span>Click to browse, or drag a folder here</span>
-        </button>
-        <input
-          className="folder-path-input"
-          value={folderPath}
-          onChange={(event) => setFolderPath(event.currentTarget.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") protectFolder();
-          }}
-          placeholder="/Users/you/Documents/workspace"
-          spellCheck={false}
-        />
-        <button className="open-folder-button" type="button" onClick={() => protectFolder()}>
-          <ShieldCheck size={17} />
-          <span>Open pasted path</span>
-        </button>
-        <button
-          className="sample-folder-button"
-          type="button"
-          onClick={() => setFolderPath("/Users/supersayajin/Desktop/puppyone")}
-        >
-          Use PuppyOne repo
+          <span className="folder-drop-copy">
+            <strong>{opening ? "Opening folder..." : dragging ? "Drop folder to open" : "Open local folder"}</strong>
+            <span>{dragging ? "Release to continue" : "Browse or drag a folder here"}</span>
+          </span>
+          <ChevronRight className="folder-drop-arrow" size={18} />
         </button>
         {error && <p className="onboarding-error">{error}</p>}
       </div>

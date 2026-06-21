@@ -6,28 +6,93 @@
   "main": "electron/main.mjs",
   "scripts": {
     "check:boundaries": "node ../scripts/check-data-ui-boundaries.mjs",
+    "check:shared-ui": "node ../scripts/check-desktop-shared-ui-sync.mjs",
     "dev": "node scripts/dev-electron.mjs",
     "dev:renderer": "vite --host 127.0.0.1",
     "dev:browser": "vite --host 127.0.0.1",
+    "postinstall": "node scripts/fix-node-pty-permissions.mjs",
     "build": "npm run check:boundaries && tsc && vite build",
+    "dist:mac": "npm run check:shared-ui && npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg",
     "preview": "vite preview --host 127.0.0.1",
     "smoke:local-api": "node scripts/smoke-local-api.mjs",
     "start": "electron ."
   },
   "dependencies": {
+    "@milkdown/core": "^7.18.0",
+    "@milkdown/ctx": "^7.18.0",
+    "@milkdown/plugin-listener": "^7.18.0",
+    "@milkdown/preset-commonmark": "^7.18.0",
+    "@milkdown/preset-gfm": "^7.18.0",
+    "@milkdown/prose": "^7.18.0",
+    "@milkdown/react": "^7.18.0",
+    "@milkdown/utils": "^7.18.0",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
     "lucide-react": "^0.562.0",
+    "node-pty": "^1.1.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "electron": "^41.2.1",
     "@types/react": "^18.3.8",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.5.0",
+    "electron": "^41.2.1",
+    "electron-builder": "^26.15.3",
     "postcss": "^8.5.15",
     "tailwindcss": "^3.4.19",
     "typescript": "^5.6.3",
     "vite": "^6.0.7"
+  },
+  "build": {
+    "appId": "ai.puppyone.desktop",
+    "productName": "puppyone",
+    "executableName": "puppyone",
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/node-pty/**"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**",
+      "electron/**",
+      "local-api/**",
+      "vendor/shared-ui/**",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "src-tauri/icons/icon.icns",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "notarize": false,
+      "executableName": "puppyone",
+      "extendInfo": {
+        "CFBundleName": "puppyone",
+        "CFBundleDisplayName": "puppyone"
+      },
+      "target": [
+        "dmg"
+      ]
+    },
+    "dmg": {
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    }
   }
 }

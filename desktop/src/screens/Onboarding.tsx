@@ -12,7 +12,7 @@ export function Onboarding({ onChooseFolder }: OnboardingProps) {
           <ShieldCheck size={24} strokeWidth={2.2} />
         </div>
         <div className="onboarding-copy">
-          <h1>PuppyOne Desktop</h1>
+          <h1>puppyone</h1>
           <p>See and undo everything your local agents change.</p>
         </div>
         <button className="primary-action" type="button" onClick={onChooseFolder}>
@@ -20,7 +20,7 @@ export function Onboarding({ onChooseFolder }: OnboardingProps) {
           <span>Choose protected folder</span>
         </button>
         <button className="secondary-action" type="button">
-          Sync with PuppyOne Cloud
+          Sync with puppyone Cloud
         </button>
       </section>
     </main>
