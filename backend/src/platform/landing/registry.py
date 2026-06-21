@@ -35,7 +35,9 @@ TOOL_REGISTRY: dict[str, ToolSpec] = {
     "pdf": ToolSpec(
         kind="pdf",
         accept=("application/pdf", ".pdf"),
-        parser="ocr_parse",
+        # Text-layer extraction via PyMuPDF (no API key); OCR fallback only for
+        # scanned/image-only PDFs when an OCR provider is configured.
+        parser="pdf",
         scope_path="doc",
         readonly=True,
         output_ext=".md",
