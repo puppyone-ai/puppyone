@@ -1,6 +1,8 @@
 # PUP — GitHub import conflict semantics (2026-06)
 
-Status: **proposal** (semantics + taxonomy settled; impl pending a ledger read + write-path coverage check)
+Status: **IMPLEMENTED** (2026-06-21). Gate lives in `importer._do_import` (source_channel-aware
+divergence check over `version_transactions`, force-overridable, fail-open). Live-verify against a
+real integration with divergent writes still recommended. Original design below.
 Owner area: `backend/src/repo/github_integration/`, `version_engine` history
 Related: `docs/architecture/01-version-engine.md` §"并发 push / 冲突", GAP-3 (branches), `importer.py` `ImportConflict`
 
