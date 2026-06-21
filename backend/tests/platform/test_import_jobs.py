@@ -1,3 +1,4 @@
+import asyncio
 import io
 import json
 import os
@@ -431,3 +432,38 @@ async def test_import_job_create_returns_existing_job_for_idempotency_key():
     )
 
     assert result is repo.existing
+
+
+class _RecordingFailRepo(FakeImportRepo):
+    """FakeImportRepo that records mark_failed instead of asserting (the base
+    raises, since its happy-path tests never expect a failure)."""
+
+    def __init__(self):
+        super().__init__()
+        self.failed = None
+
+    def mark_failed(self, job_id, error_message):
+        self.failed = (job_id, error_message)
+        self.job.status = "failed"
+        return self.job
+
+
+class _TimeoutRunner:
+    async def run(self, job, *, on_phase=None):
+        await on_phase("fetching", 25, "Fetching from GitHub")
+        raise asyncio.CancelledError()
+
+
+@pytest.mark.asyncio
+async def test_execute_import_job_finalizes_on_cancellation():
+    """Worker timeout/cancellation must finalize the row (mark failed) AND
+    re-raise CancelledError so ARQ sees the cancellation — otherwise a killed
+    worker leaves the job stuck `running` forever (validation task 4.3)."""
+    repo = _RecordingFailRepo()
+    with pytest.raises(asyncio.CancelledError):
+        await execute_import_job(
+            {"import_job_repository": repo, "one_time_import_runner": _TimeoutRunner()},
+            "job-1",
+        )
+    assert repo.failed is not None and repo.failed[0] == "job-1"
+    assert repo.job.status == "failed"

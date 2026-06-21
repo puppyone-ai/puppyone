@@ -42,7 +42,9 @@ class FsToolImplementation:
             return {"error": f"Access denied: {path}"}
 
         result = await self.rpc.list_dir(project_id, normalized, acting_user_id=acting_user_id)
-        entries = result.get("entries", [])
+        # /internal/nodes/list returns {"children": [...]} — reading "entries"
+        # (the OUTPUT key, below) silently yielded an empty listing every time.
+        entries = result.get("children", result.get("entries", []))
 
         if scope:
             entries = [e for e in entries if self._entry_in_scope(e, scope)]
@@ -200,9 +202,13 @@ class FsToolImplementation:
 
     @staticmethod
     def _is_readonly(accesses: List[Dict[str, Any]]) -> bool:
+        # Access dicts (built by config_loader) carry a FLAT ``bash_readonly``
+        # flag — there is no nested ``scope`` object — so the old
+        # ``a.get("scope")`` read always saw {} and reported read-only for every
+        # access, blocking write/mkdir/rm even on writable scopes. Writable iff
+        # any access is not bash_readonly (matches the server-side has_write gate).
         for a in accesses:
-            scope = a.get("scope", {}) if isinstance(a, dict) else {}
-            if scope.get("mode") == "rw" or not scope.get("readonly", True):
+            if isinstance(a, dict) and not a.get("bash_readonly", True):
                 return False
         return True
 
