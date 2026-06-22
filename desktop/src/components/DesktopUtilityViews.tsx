@@ -1,23 +1,30 @@
 import {
+  Bot,
   Check,
   ChevronRight,
+  Cloud,
   Copy,
   FileText,
   GitBranch,
+  GripVertical,
   Minus,
   Monitor,
   Moon,
+  PanelBottom,
+  PanelTop,
   Plus,
   RefreshCw,
+  Server,
   Settings,
   ShieldCheck,
-  SlidersHorizontal,
+  SquareTerminal,
   Sun,
   Trash2,
   Unlink,
+  Users,
 } from "lucide-react";
-import { FileGlyphIcon, type Workspace } from "@puppyone/shared-ui";
-import { useState, type ReactNode } from "react";
+import { FILE_ICON_THEMES, FileGlyphIcon, type FileIconThemeId, type Workspace } from "@puppyone/shared-ui";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import type {
   GitCommitDetail,
   GitCommitSummary,
@@ -26,7 +33,16 @@ import type {
   GitStatusEntry,
   GitStatusSnapshot,
 } from "../types/electron";
-import type { ThemeMode } from "../App";
+import {
+  DEFAULT_EXPLORER_EXCLUDE_PATTERNS,
+  SIDEBAR_NAVIGATION_LAYOUT_OPTIONS,
+  normalizeExplorerExcludePatterns,
+  type FilesVisibilitySettings,
+  type RightSidebarToolId,
+  type RightSidebarToolsSettings,
+  type SidebarNavigationLayout,
+  type ThemeMode,
+} from "../preferences";
 
 type GitStatusViewProps = {
   workspace: Workspace;
@@ -59,7 +75,7 @@ export type GitWorkingSelection = {
 
 export type GitMainPanel = "changes" | "history";
 
-export type SettingsSection = "workspace" | "git" | "appearance" | "advanced";
+export type SettingsSection = "workspace" | "git" | "appearance" | "files";
 
 type SettingsViewProps = {
   workspace: Workspace;
@@ -68,7 +84,15 @@ type SettingsViewProps = {
   gitStatusLoading: boolean;
   gitStatusError: string | null;
   themeMode: ThemeMode;
+  fileIconTheme: FileIconThemeId;
+  sidebarNavigationLayout: SidebarNavigationLayout;
+  filesVisibilitySettings: FilesVisibilitySettings;
+  rightSidebarToolsSettings: RightSidebarToolsSettings;
   onThemeModeChange: (mode: ThemeMode) => void;
+  onFileIconThemeChange: (theme: FileIconThemeId) => void;
+  onSidebarNavigationLayoutChange: (layout: SidebarNavigationLayout) => void;
+  onFilesVisibilitySettingsChange: (settings: FilesVisibilitySettings) => void;
+  onRightSidebarToolsSettingsChange: (settings: RightSidebarToolsSettings) => void;
   onUnlinkWorkspace: () => Promise<void>;
   onRefreshGitStatus: () => void;
 };
@@ -78,8 +102,45 @@ type SettingsSidebarProps = {
   onSelectSection: (section: SettingsSection) => void;
 };
 
+type CloudServiceSidebarProps = {
+  workspace: Workspace;
+  status: GitStatusSnapshot | null;
+  accountEmail: string | null;
+  loading: boolean;
+  error: string | null;
+  onOpenDetails: () => void;
+  onRefresh: () => void;
+  onOpenGitSettings: () => void;
+};
+
+type CloudServicePanelProps = {
+  open: boolean;
+  workspace: Workspace;
+  status: GitStatusSnapshot | null;
+  accountEmail: string | null;
+  loading: boolean;
+  error: string | null;
+  onClose: () => void;
+  onRefresh: () => void;
+  onSignedIn: (email: string) => void;
+  onEnterCloud: () => void;
+  onOpenGitSettings: () => void;
+};
+
+type CloudServiceMainViewProps = {
+  workspace: Workspace;
+  status: GitStatusSnapshot | null;
+  accountEmail: string | null;
+  loading: boolean;
+  error: string | null;
+  onRefresh: () => void;
+  onOpenDetails: () => void;
+  onOpenGitSettings: () => void;
+};
+
 type GitSidebarProps = {
   status: GitStatusSnapshot | null;
+  fileIconTheme: FileIconThemeId;
   activePanel: GitMainPanel;
   selectedCommitId: string | null;
   selectedWorkingFile: GitWorkingSelection | null;
@@ -96,6 +157,18 @@ type GitSidebarProps = {
   onCommit: (message: string) => Promise<boolean>;
   onInitializeRepository: () => Promise<boolean>;
 };
+
+const RIGHT_SIDEBAR_TOOL_DEFINITIONS = [
+  {
+    id: "terminal",
+    label: "Terminal",
+    icon: SquareTerminal,
+  },
+] as const satisfies Array<{
+  id: RightSidebarToolId;
+  label: string;
+  icon: typeof SquareTerminal;
+}>;
 
 export function GitStatusView({
   workspace,
@@ -211,6 +284,7 @@ export function GitStatusView({
 
 export function GitSidebar({
   status,
+  fileIconTheme,
   activePanel,
   selectedCommitId,
   selectedWorkingFile,
@@ -277,110 +351,119 @@ export function GitSidebar({
                 {historyCommits.length === 0 ? (
                   <SidebarEmptyHistory status={status} />
                 ) : (
-                  <div className="desktop-history-list">
-                    {historyCommits.map((commit, index) => (
-                      <SidebarHistoryRow
-                        key={commit.commit_id}
-                        commit={commit}
-                        isHead={commit.commit_id === status?.headCommitId}
-                        isSelected={commit.commit_id === selectedCommitId}
-                        hasPrevious={index > 0}
-                        hasNext={index < historyCommits.length - 1}
-                        onClick={() => onSelectCommit(commit.commit_id)}
-                      />
-                    ))}
+                  <div className="desktop-git-history-scroll">
+                    <div className="desktop-history-list">
+                      {historyCommits.map((commit, index) => (
+                        <SidebarHistoryRow
+                          key={commit.commit_id}
+                          commit={commit}
+                          isHead={commit.commit_id === status?.headCommitId}
+                          isSelected={commit.commit_id === selectedCommitId}
+                          hasPrevious={index > 0}
+                          hasNext={index < historyCommits.length - 1}
+                          onClick={() => onSelectCommit(commit.commit_id)}
+                        />
+                      ))}
+                    </div>
                   </div>
                 )}
               </>
             ) : (
               <>
-                <div className="desktop-git-commit-box">
-                  <textarea
-                    value={commitMessage}
-                    placeholder="Message"
-                    rows={3}
-                    disabled={disabled}
-                    onChange={(event) => setCommitMessage(event.target.value)}
+                <div className="desktop-git-fixed-region">
+                  <div className="desktop-git-commit-box">
+                    <textarea
+                      value={commitMessage}
+                      placeholder="Message"
+                      rows={3}
+                      disabled={disabled}
+                      onChange={(event) => setCommitMessage(event.target.value)}
+                    />
+                    <button type="button" disabled={!canCommit} onClick={() => void submitCommit()}>
+                      <Check size={14} />
+                      <span>Commit</span>
+                    </button>
+                  </div>
+
+                  {operationError && <div className="desktop-git-operation-error">{operationError}</div>}
+
+                  <GitSectionHeader
+                    title="Staged Changes"
+                    count={stagedEntries.length}
+                    action={stagedEntries.length > 0 ? (
+                      <button
+                        className="desktop-tool-sidebar-icon"
+                        type="button"
+                        title="Unstage all"
+                        aria-label="Unstage all"
+                        disabled={disabled}
+                        onClick={() => void onUnstagePaths([])}
+                      >
+                        <Minus size={14} />
+                      </button>
+                    ) : null}
                   />
-                  <button type="button" disabled={!canCommit} onClick={() => void submitCommit()}>
-                    <Check size={14} />
-                    <span>Commit</span>
-                  </button>
                 </div>
 
-                {operationError && <div className="desktop-git-operation-error">{operationError}</div>}
+                <div className="desktop-git-changes-scroll">
+                  {stagedEntries.length === 0 ? (
+                    <div className="desktop-tool-sidebar-empty compact">No staged changes</div>
+                  ) : (
+                    <div className="desktop-working-tree-list">
+                      {stagedEntries.map((entry) => (
+                        <WorkingTreeRow
+                          entry={entry}
+                          staged
+                          key={`staged:${entry.status}:${entry.path}`}
+                          selected={selectedWorkingFile?.staged === true && selectedWorkingFile.path === entry.path}
+                          operationLoading={operationLoading}
+                          fileIconTheme={fileIconTheme}
+                          onSelect={onSelectWorkingFile}
+                          onStagePaths={onStagePaths}
+                          onUnstagePaths={onUnstagePaths}
+                          onDiscardPaths={onDiscardPaths}
+                        />
+                      ))}
+                    </div>
+                  )}
 
-                <GitSectionHeader
-                  title="Staged Changes"
-                  count={stagedEntries.length}
-                  action={stagedEntries.length > 0 ? (
-                    <button
-                      className="desktop-tool-sidebar-icon"
-                      type="button"
-                      title="Unstage all"
-                      aria-label="Unstage all"
-                      disabled={disabled}
-                      onClick={() => void onUnstagePaths([])}
-                    >
-                      <Minus size={14} />
-                    </button>
-                  ) : null}
-                />
-                {stagedEntries.length === 0 ? (
-                  <div className="desktop-tool-sidebar-empty compact">No staged changes</div>
-                ) : (
-                  <div className="desktop-working-tree-list">
-                    {stagedEntries.map((entry) => (
-                      <WorkingTreeRow
-                        entry={entry}
-                        staged
-                        key={`staged:${entry.status}:${entry.path}`}
-                        selected={selectedWorkingFile?.staged === true && selectedWorkingFile.path === entry.path}
-                        operationLoading={operationLoading}
-                        onSelect={onSelectWorkingFile}
-                        onStagePaths={onStagePaths}
-                        onUnstagePaths={onUnstagePaths}
-                        onDiscardPaths={onDiscardPaths}
-                      />
-                    ))}
-                  </div>
-                )}
-
-                <GitSectionHeader
-                  title="Changes"
-                  count={workingEntries.length}
-                  action={workingEntries.length > 0 ? (
-                    <button
-                      className="desktop-tool-sidebar-icon"
-                      type="button"
-                      title="Stage all"
-                      aria-label="Stage all"
-                      disabled={disabled}
-                      onClick={() => void onStagePaths([])}
-                    >
-                      <Plus size={14} />
-                    </button>
-                  ) : null}
-                />
-                {workingEntries.length === 0 ? (
-                  <div className="desktop-tool-sidebar-empty compact">No working changes</div>
-                ) : (
-                  <div className="desktop-working-tree-list">
-                    {workingEntries.map((entry) => (
-                      <WorkingTreeRow
-                        entry={entry}
-                        staged={false}
-                        key={`working:${entry.status}:${entry.path}`}
-                        selected={selectedWorkingFile?.staged === false && selectedWorkingFile.path === entry.path}
-                        operationLoading={operationLoading}
-                        onSelect={onSelectWorkingFile}
-                        onStagePaths={onStagePaths}
-                        onUnstagePaths={onUnstagePaths}
-                        onDiscardPaths={onDiscardPaths}
-                      />
-                    ))}
-                  </div>
-                )}
+                  <GitSectionHeader
+                    title="Changes"
+                    count={workingEntries.length}
+                    action={workingEntries.length > 0 ? (
+                      <button
+                        className="desktop-tool-sidebar-icon"
+                        type="button"
+                        title="Stage all"
+                        aria-label="Stage all"
+                        disabled={disabled}
+                        onClick={() => void onStagePaths([])}
+                      >
+                        <Plus size={14} />
+                      </button>
+                    ) : null}
+                  />
+                  {workingEntries.length === 0 ? (
+                    <div className="desktop-tool-sidebar-empty compact">No working changes</div>
+                  ) : (
+                    <div className="desktop-working-tree-list">
+                      {workingEntries.map((entry) => (
+                        <WorkingTreeRow
+                          entry={entry}
+                          staged={false}
+                          key={`working:${entry.status}:${entry.path}`}
+                          selected={selectedWorkingFile?.staged === false && selectedWorkingFile.path === entry.path}
+                          operationLoading={operationLoading}
+                          fileIconTheme={fileIconTheme}
+                          onSelect={onSelectWorkingFile}
+                          onStagePaths={onStagePaths}
+                          onUnstagePaths={onUnstagePaths}
+                          onDiscardPaths={onDiscardPaths}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
               </>
             )}
           </>
@@ -388,6 +471,910 @@ export function GitSidebar({
       </div>
     </section>
   );
+}
+
+export function CloudServiceSidebar({
+  workspace,
+  status,
+  accountEmail,
+  loading,
+  error,
+  onOpenDetails,
+  onRefresh,
+  onOpenGitSettings,
+}: CloudServiceSidebarProps) {
+  const cloudRemote = getPuppyoneRemote(status);
+  const hosted = Boolean(cloudRemote);
+  const accountConnected = Boolean(accountEmail) || hosted;
+  const currentBranch = status?.branches.find((branch) => branch.current) ?? null;
+  const localChangeCount =
+    (status?.stagedEntries.length ?? 0) +
+    (status?.unstagedEntries.length ?? 0) +
+    (status?.untrackedEntries.length ?? 0);
+  const syncStatus = currentBranch?.upstream
+    ? `${currentBranch.ahead} ahead, ${currentBranch.behind} behind`
+    : hosted
+      ? "Remote configured"
+      : "Local only";
+  const statusLabel = error
+    ? "Check failed"
+    : loading && !status
+      ? "Checking"
+      : hosted
+        ? "Hosted"
+        : accountConnected
+          ? "Account connected"
+          : "Local only";
+  const statusCopy = error
+    ? error
+    : hosted
+      ? "This workspace is backed up to PuppyOne Cloud. Cloud-native services operate on the hosted copy."
+      : accountConnected
+        ? "Your Puppyone account is connected. Back up this workspace to enable cloud-native services here."
+        : "Sign in to a PuppyOne account, then back up this folder before cloud services can run.";
+  const services: CloudSidebarServiceDescriptor[] = [
+    {
+      label: "Puppyone CLI",
+      description: "Scoped cloud filesystem for terminal and agents.",
+      icon: SquareTerminal,
+      state: hosted ? "Ready" : accountConnected ? "Backup" : "Login",
+      plan: "Included",
+      tone: hosted ? "ready" : "locked",
+    },
+    {
+      label: "Git Remote",
+      description: "Local backup and restore transport.",
+      icon: GitBranch,
+      state: hosted ? "Connected" : "Backup",
+      plan: "Included",
+      tone: hosted ? "ready" : "locked",
+    },
+    {
+      label: "MCP Server",
+      description: "MCP-compatible access to cloud content.",
+      icon: Server,
+      state: hosted ? "Plus" : "Backup",
+      plan: "Plus",
+      tone: hosted ? "upgrade" : "locked",
+    },
+    {
+      label: "Team",
+      description: "Members, roles, and shared access.",
+      icon: Users,
+      state: hosted ? "Plus" : "Backup",
+      plan: "Plus",
+      tone: hosted ? "upgrade" : "locked",
+    },
+    {
+      label: "Hosted workspace",
+      description: "Cloud-native workspace runtime.",
+      icon: Bot,
+      state: hosted ? "Pro" : "Backup",
+      plan: "Pro",
+      tone: hosted ? "upgrade" : "locked",
+    },
+  ];
+
+  return (
+    <section className="desktop-tool-sidebar desktop-cloud-service-sidebar">
+      <div className="desktop-cloud-sidebar-topbar">
+        <div>
+          <span>Cloud</span>
+          <strong>Native Service</strong>
+        </div>
+        <button className="desktop-tool-sidebar-icon" type="button" onClick={onRefresh} aria-label="Refresh Cloud status">
+          <RefreshCw size={14} className={loading ? "spin" : undefined} />
+        </button>
+      </div>
+
+      <div className="desktop-cloud-sidebar-scroll">
+        <section className={`desktop-cloud-sidebar-card ${hosted ? "hosted" : ""}`}>
+          <div className="desktop-cloud-sidebar-status">
+            <span className={`desktop-cloud-sidebar-status-icon ${hosted ? "hosted" : ""}`}>
+              <Cloud size={17} />
+            </span>
+            <div>
+              <strong>{hosted ? "Backed up to Cloud" : accountConnected ? "Cloud unlocked" : "PuppyOne account required"}</strong>
+              <span>{statusLabel}</span>
+            </div>
+          </div>
+          <p>{statusCopy}</p>
+          <div className="desktop-cloud-sidebar-actions">
+            <button
+              className="desktop-cloud-sidebar-primary"
+              type="button"
+              onClick={accountConnected ? onOpenDetails : () => openCloudApp("/login")}
+            >
+              {hosted ? "Manage Cloud" : accountConnected ? "Back up workspace" : "Sign in"}
+            </button>
+            <button className="desktop-cloud-sidebar-secondary" type="button" onClick={onOpenDetails}>
+              Details
+            </button>
+          </div>
+        </section>
+
+        <section className="desktop-cloud-sidebar-section">
+          <div className="desktop-cloud-sidebar-section-title">
+            <span>Access surfaces</span>
+            <button type="button" onClick={onOpenDetails}>Manage</button>
+          </div>
+          <div className="desktop-cloud-sidebar-service-list">
+            {services.map((service) => (
+              <CloudSidebarServiceRow key={service.label} service={service} />
+            ))}
+          </div>
+        </section>
+
+        <section className="desktop-cloud-sidebar-section">
+          <div className="desktop-cloud-sidebar-section-title">
+            <span>Backup and plan</span>
+            <button type="button" onClick={() => openCloudApp("/billing")}>Billing</button>
+          </div>
+          <div className="desktop-cloud-sidebar-meter">
+            <CloudSidebarMetric label="Project" value={cloudRemote?.info.displayId ?? "Not backed up"} tone={hosted ? "ready" : undefined} />
+            <CloudSidebarMetric label="Sync" value={syncStatus} />
+            <CloudSidebarMetric
+              label="Local changes"
+              value={localChangeCount === 0 ? "None" : String(localChangeCount)}
+              tone={localChangeCount === 0 ? undefined : "warning"}
+            />
+          </div>
+          <p className="desktop-cloud-sidebar-note">Backup size counts against Cloud storage. MCP starts on Plus; hosted workspace and sandbox start on Pro.</p>
+        </section>
+
+        <button className="desktop-cloud-sidebar-git-button" type="button" onClick={onOpenGitSettings}>
+          <GitBranch size={14} />
+          <span>Git sync details</span>
+        </button>
+      </div>
+    </section>
+  );
+}
+
+export function CloudServiceMainView({
+  workspace,
+  status,
+  accountEmail,
+  loading,
+  error,
+  onRefresh,
+  onOpenDetails,
+  onOpenGitSettings,
+}: CloudServiceMainViewProps) {
+  const cloudRemote = getPuppyoneRemote(status);
+  const hosted = Boolean(cloudRemote);
+  const accountConnected = Boolean(accountEmail) || hosted;
+  const currentBranch = status?.branches.find((branch) => branch.current) ?? null;
+  const localChangeCount =
+    (status?.stagedEntries.length ?? 0) +
+    (status?.unstagedEntries.length ?? 0) +
+    (status?.untrackedEntries.length ?? 0);
+  const syncStatus = currentBranch?.upstream
+    ? `${currentBranch.ahead} ahead, ${currentBranch.behind} behind`
+    : hosted
+      ? "Remote configured"
+      : "Not backed up";
+  const services: CloudSidebarServiceDescriptor[] = [
+    {
+      label: "Cloud backup",
+      description: "Sync this local workspace to a hosted copy.",
+      icon: Cloud,
+      state: hosted ? "Ready" : accountConnected ? "Set up" : "Login",
+      plan: "Included",
+      tone: hosted ? "ready" : "locked",
+    },
+    {
+      label: "Team collaboration",
+      description: "Share workspace access with teammates.",
+      icon: Users,
+      state: hosted ? "Plus" : "Backup",
+      plan: "Plus",
+      tone: hosted ? "upgrade" : "locked",
+    },
+    {
+      label: "MCP / CLI",
+      description: "Connect agents and command line tools to Cloud.",
+      icon: SquareTerminal,
+      state: hosted ? "Ready" : "Backup",
+      plan: "Included",
+      tone: hosted ? "ready" : "locked",
+    },
+    {
+      label: "24/7 online",
+      description: "Keep a hosted workspace available outside this computer.",
+      icon: Server,
+      state: hosted ? "Pro" : "Backup",
+      plan: "Pro",
+      tone: hosted ? "upgrade" : "locked",
+    },
+  ];
+
+  return (
+    <main className="desktop-cloud-main-view">
+      <section className="desktop-cloud-main-hero">
+        <div className="desktop-cloud-main-mark" aria-hidden="true">
+          <CloudProductMark />
+        </div>
+        <div className="desktop-cloud-main-copy">
+          <span>Cloud version</span>
+          <h2>{hosted ? "Cloud workspace ready" : "Cloud unlocked"}</h2>
+          <p>
+            {hosted
+              ? "This local workspace is connected to Puppyone Cloud."
+              : "Your Puppyone account is connected. Back up this workspace to enable hosted services."}
+          </p>
+        </div>
+        <div className="desktop-cloud-main-actions">
+          <button className="desktop-cloud-primary-button" type="button" onClick={onOpenDetails}>
+            {hosted ? "Manage Cloud" : "Set up backup"}
+          </button>
+          <button className="desktop-cloud-ghost-button" type="button" onClick={onRefresh}>
+            <RefreshCw size={14} className={loading ? "spin" : undefined} />
+            <span>Refresh</span>
+          </button>
+        </div>
+      </section>
+
+      {error && <div className="desktop-cloud-main-alert">{error}</div>}
+
+      <section className="desktop-cloud-detail-grid desktop-cloud-main-detail-grid">
+        <CloudMainDetail label="Account" value={accountEmail ?? "Connected"} tone={accountConnected ? "ready" : undefined} />
+        <CloudMainDetail label="Workspace" value={workspace.name} />
+        <CloudMainDetail label="Backup" value={cloudRemote?.info.displayId ?? "Not configured"} tone={hosted ? "ready" : "warning"} />
+        <CloudMainDetail label="Sync" value={syncStatus} />
+        <CloudMainDetail label="Local changes" value={localChangeCount === 0 ? "None" : String(localChangeCount)} tone={localChangeCount === 0 ? undefined : "warning"} />
+      </section>
+
+      <section className="desktop-cloud-services-section">
+        <div className="desktop-cloud-section-heading">
+          <strong>Cloud services</strong>
+          <span>Services unlock as this workspace is backed up and upgraded.</span>
+        </div>
+        <div className="desktop-cloud-service-list">
+          {services.map((service) => (
+            <CloudServiceMainRow key={service.label} service={service} />
+          ))}
+        </div>
+      </section>
+
+      <section className="desktop-cloud-details-section">
+        <div className="desktop-cloud-section-heading">
+          <strong>Version transport</strong>
+          <span>Puppyone Cloud uses Git under the hood for local backup and restore.</span>
+        </div>
+        <button className="desktop-cloud-row-action" type="button" onClick={onOpenGitSettings}>
+          Git sync details
+        </button>
+      </section>
+    </main>
+  );
+}
+
+export function CloudServicePanel({
+  open,
+  workspace,
+  status,
+  accountEmail,
+  loading,
+  error,
+  onClose,
+  onRefresh,
+  onSignedIn,
+  onEnterCloud,
+  onOpenGitSettings,
+}: CloudServicePanelProps) {
+  const [cloudAuthView, setCloudAuthView] = useState<CloudAuthView>("main");
+  const [cloudLoginEmail, setCloudLoginEmail] = useState("");
+  const [cloudLoginLoading, setCloudLoginLoading] = useState<CloudLoginMethod | null>(null);
+  const [cloudLoginPassword, setCloudLoginPassword] = useState("");
+  const [cloudLoginError, setCloudLoginError] = useState<string | null>(null);
+  const [cloudLoginMessage, setCloudLoginMessage] = useState<string | null>(null);
+  const [cloudSignedInEmail, setCloudSignedInEmail] = useState<string | null>(null);
+
+  if (!open) return null;
+
+  const cloudRemote = getPuppyoneRemote(status);
+  const hosted = Boolean(cloudRemote);
+  const signedInEmail = cloudSignedInEmail ?? accountEmail;
+  const effectiveAuthView: CloudAuthView = !hosted && signedInEmail ? "signedIn" : cloudAuthView;
+  const statusBadge = error
+    ? "Check failed"
+    : loading && !status
+      ? "Checking"
+      : hosted
+        ? "Hosted"
+        : null;
+  const statusTitle = hosted ? "Workspace already connected." : "Sign in to continue.";
+  const startCloudLogin = (method: CloudLoginMethod, email?: string) => {
+    const params = new URLSearchParams();
+    if (method !== "email") params.set("provider", method);
+    const trimmedEmail = email?.trim();
+    if (trimmedEmail) params.set("email", trimmedEmail);
+
+    setCloudLoginLoading(method);
+    openCloudApp(`/login${params.size > 0 ? `?${params.toString()}` : ""}`);
+    window.setTimeout(() => setCloudLoginLoading(null), 1200);
+  };
+  const handleCloudEmailLogin = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const email = cloudLoginEmail.trim();
+    if (!email) return;
+
+    setCloudLoginError(null);
+    setCloudLoginMessage(null);
+    setCloudLoginLoading("email");
+
+    try {
+      const result = await checkCloudEmail(email);
+      setCloudAuthView(result.exists ? "signin" : "signup");
+    } catch (checkError) {
+      setCloudLoginError(checkError instanceof Error ? checkError.message : "Failed to check email");
+    } finally {
+      setCloudLoginLoading(null);
+    }
+  };
+  const handleCloudPasswordLogin = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const email = cloudLoginEmail.trim();
+    if (!email || !cloudLoginPassword) return;
+
+    setCloudLoginError(null);
+    setCloudLoginMessage(null);
+    setCloudLoginLoading("password");
+
+    try {
+      const session = await loginCloudWithPassword(email, cloudLoginPassword);
+      await initializeCloudUser(session.access_token);
+      const signedInAs = session.user_email || email;
+      setCloudSignedInEmail(signedInAs);
+      setCloudAuthView("signedIn");
+      setCloudLoginMessage(null);
+      setCloudLoginPassword("");
+      await onRefresh();
+      onSignedIn(signedInAs);
+    } catch (loginError) {
+      setCloudLoginError(loginError instanceof Error ? loginError.message : "Sign-in failed");
+    } finally {
+      setCloudLoginLoading(null);
+    }
+  };
+  const handleCloudSignupContinue = () => {
+    startCloudLogin("email", cloudLoginEmail);
+  };
+  const handleCloudAuthBack = () => {
+    setCloudAuthView("main");
+    setCloudLoginPassword("");
+    setCloudLoginError(null);
+    setCloudLoginMessage(null);
+  };
+  const cloudFeatures: CloudLoginFeature[] = [
+    {
+      label: "Team collaboration",
+      icon: Users,
+    },
+    {
+      label: "Cloud backup",
+      icon: Cloud,
+    },
+    {
+      label: "MCP / CLI supported",
+      icon: SquareTerminal,
+    },
+    {
+      label: "24/7 online",
+      icon: Server,
+    },
+  ];
+
+  return (
+    <div className="desktop-cloud-panel-layer">
+      <button className="desktop-cloud-panel-scrim" type="button" aria-label="Close Cloud panel" onClick={onClose} />
+      <section className={`desktop-cloud-panel ${hosted ? "hosted" : "locked"}`} role="dialog" aria-modal="true" aria-label="Cloud Native Service">
+        <div className="desktop-cloud-panel-body">
+          <section className="desktop-cloud-login-layout">
+            <div className="desktop-cloud-login-copy">
+              <div className="desktop-cloud-login-copy-content">
+                <div className="desktop-cloud-login-identity">
+                  <div className="desktop-cloud-login-logo" aria-hidden="true">
+                    <CloudProductMark />
+                  </div>
+                  <div className="desktop-cloud-login-copy-stack">
+                    <h3>Get Puppyone Cloud</h3>
+                    {statusBadge && (
+                      <span className={`desktop-cloud-login-badge ${hosted ? "hosted" : "locked"}`}>{statusBadge}</span>
+                    )}
+                    <p>Back up this workspace. Keep agents, teammates, MCP, and CLI connected.</p>
+                  </div>
+                </div>
+                <div className="desktop-cloud-login-feature-list">
+                  {cloudFeatures.map((feature) => (
+                    <CloudLoginFeatureRow key={feature.label} feature={feature} />
+                  ))}
+                </div>
+              </div>
+            </div>
+            <aside className="desktop-cloud-login-card">
+              {hosted ? (
+                <CloudHostedLoginCard
+                  loading={loading}
+                  statusTitle={statusTitle}
+                  error={error}
+                  onOpenCloud={onEnterCloud}
+                  onRefresh={onRefresh}
+                  onOpenGitSettings={onOpenGitSettings}
+                />
+              ) : (
+                <CloudAuthCard
+                  view={effectiveAuthView}
+                  email={cloudLoginEmail}
+                  password={cloudLoginPassword}
+                  signedInEmail={signedInEmail}
+                  loading={cloudLoginLoading}
+                  error={cloudLoginError}
+                  message={cloudLoginMessage}
+                  onEmailChange={setCloudLoginEmail}
+                  onPasswordChange={setCloudLoginPassword}
+                  onProviderLogin={(method) => startCloudLogin(method)}
+                  onEmailSubmit={handleCloudEmailLogin}
+                  onPasswordSubmit={handleCloudPasswordLogin}
+                  onSignupContinue={handleCloudSignupContinue}
+                  onOpenCloud={onEnterCloud}
+                  onRefresh={onRefresh}
+                  onBack={handleCloudAuthBack}
+                />
+              )}
+            </aside>
+          </section>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+type CloudAuthView = "main" | "signin" | "signup" | "signedIn";
+type CloudLoginMethod = "google" | "github" | "email" | "password";
+
+type CloudLoginFeature = {
+  label: string;
+  icon: typeof Cloud;
+};
+
+function CloudAuthCard({
+  view,
+  email,
+  password,
+  signedInEmail,
+  loading,
+  error,
+  message,
+  onEmailChange,
+  onPasswordChange,
+  onProviderLogin,
+  onEmailSubmit,
+  onPasswordSubmit,
+  onSignupContinue,
+  onOpenCloud,
+  onRefresh,
+  onBack,
+}: {
+  view: CloudAuthView;
+  email: string;
+  password: string;
+  signedInEmail: string | null;
+  loading: CloudLoginMethod | null;
+  error: string | null;
+  message: string | null;
+  onEmailChange: (email: string) => void;
+  onPasswordChange: (password: string) => void;
+  onProviderLogin: (method: Exclude<CloudLoginMethod, "email" | "password">) => void;
+  onEmailSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onPasswordSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onSignupContinue: () => void;
+  onOpenCloud: () => void;
+  onRefresh: () => void;
+  onBack: () => void;
+}) {
+  const disabled = Boolean(loading);
+
+  return (
+    <div className="desktop-cloud-auth-card">
+      {view !== "main" && view !== "signedIn" && (
+        <button className="desktop-cloud-auth-back" type="button" disabled={disabled} onClick={onBack}>
+          All sign in options
+        </button>
+      )}
+
+      {view === "main" ? (
+        <>
+          <div className="desktop-cloud-auth-provider-list">
+            <CloudProviderButton
+              icon={<CloudGoogleIcon />}
+              label="Continue with Google"
+              loadingLabel="Redirecting..."
+              isLoading={loading === "google"}
+              disabled={disabled}
+              onClick={() => onProviderLogin("google")}
+            />
+            <CloudProviderButton
+              icon={<CloudGithubIcon />}
+              label="Continue with GitHub"
+              loadingLabel="Redirecting..."
+              isLoading={loading === "github"}
+              disabled={disabled}
+              onClick={() => onProviderLogin("github")}
+            />
+          </div>
+
+          <CloudAuthDivider />
+
+          <form className="desktop-cloud-auth-form" onSubmit={onEmailSubmit}>
+            <label htmlFor="desktop-cloud-login-email">Email</label>
+            <input
+              id="desktop-cloud-login-email"
+              type="email"
+              value={email}
+              placeholder="Your email address"
+              required
+              disabled={disabled}
+              onChange={(event) => onEmailChange(event.target.value)}
+            />
+            <button className="desktop-cloud-auth-submit" type="submit" disabled={disabled}>
+              {loading === "email" && <CloudAuthDots />}
+              <span>{loading === "email" ? "Checking..." : "Continue"}</span>
+            </button>
+          </form>
+        </>
+      ) : view === "signin" ? (
+        <>
+          <div className="desktop-cloud-auth-heading">
+            <h3>Welcome back</h3>
+            <p>{email}</p>
+          </div>
+          <form className="desktop-cloud-auth-form" onSubmit={onPasswordSubmit}>
+            <label htmlFor="desktop-cloud-login-password">Password</label>
+            <input
+              id="desktop-cloud-login-password"
+              type="password"
+              value={password}
+              placeholder="Enter your password"
+              required
+              minLength={6}
+              disabled={disabled}
+              autoFocus
+              onChange={(event) => onPasswordChange(event.target.value)}
+            />
+            <button className="desktop-cloud-auth-submit" type="submit" disabled={disabled}>
+              {loading === "password" && <CloudAuthDots />}
+              <span>{loading === "password" ? "Signing in..." : "Sign In"}</span>
+            </button>
+          </form>
+        </>
+      ) : view === "signup" ? (
+        <>
+          <div className="desktop-cloud-auth-heading">
+            <h3>Create your account</h3>
+            <p>{email}</p>
+          </div>
+          <button className="desktop-cloud-auth-submit" type="button" disabled={disabled} onClick={onSignupContinue}>
+            {loading === "email" && <CloudAuthDots />}
+            <span>{loading === "email" ? "Opening..." : "Continue in PuppyOne Cloud"}</span>
+          </button>
+        </>
+      ) : (
+        <>
+          <div className="desktop-cloud-auth-heading">
+            <h3>Signed in</h3>
+            <p>{signedInEmail ?? email}</p>
+          </div>
+          <div className="desktop-cloud-auth-state">
+            <span>
+              <Check size={14} />
+            </span>
+            <div>
+              <strong>Puppyone account connected</strong>
+              <p>Back up this workspace to enable Cloud services here.</p>
+            </div>
+          </div>
+          <button className="desktop-cloud-auth-submit" type="button" onClick={onOpenCloud}>
+            Enter Cloud version
+          </button>
+          <button className="desktop-cloud-auth-secondary" type="button" onClick={onRefresh}>
+            <RefreshCw size={14} />
+            <span>Check workspace status</span>
+          </button>
+        </>
+      )}
+
+      <CloudAuthFeedback error={error} message={message} />
+
+      {view !== "signedIn" && (
+        <p className="desktop-cloud-auth-terms">By continuing you agree to our Terms and Privacy Policy.</p>
+      )}
+    </div>
+  );
+}
+
+function CloudHostedLoginCard({
+  loading,
+  statusTitle,
+  error,
+  onOpenCloud,
+  onRefresh,
+  onOpenGitSettings,
+}: {
+  loading: boolean;
+  statusTitle: string;
+  error: string | null;
+  onOpenCloud: () => void;
+  onRefresh: () => void;
+  onOpenGitSettings: () => void;
+}) {
+  return (
+    <div className="desktop-cloud-auth-card desktop-cloud-auth-card-hosted">
+      <h3>PuppyOne Cloud</h3>
+      <p className="desktop-cloud-auth-hosted-copy">{statusTitle}</p>
+      <button className="desktop-cloud-auth-submit" type="button" onClick={onOpenCloud}>
+        Enter Cloud version
+      </button>
+      <button className="desktop-cloud-auth-secondary" type="button" onClick={onRefresh}>
+        <RefreshCw size={14} className={loading ? "spin" : undefined} />
+        <span>Check status</span>
+      </button>
+      <button className="desktop-cloud-auth-secondary" type="button" onClick={onOpenGitSettings}>
+        Git sync details
+      </button>
+      {error && <p className="desktop-cloud-login-error">{error}</p>}
+    </div>
+  );
+}
+
+function CloudProviderButton({
+  icon,
+  label,
+  loadingLabel,
+  isLoading,
+  disabled,
+  onClick,
+}: {
+  icon: ReactNode;
+  label: string;
+  loadingLabel: string;
+  isLoading: boolean;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button className="desktop-cloud-provider-button" type="button" disabled={disabled} onClick={onClick}>
+      <span className="desktop-cloud-provider-button-icon">{icon}</span>
+      <span>{isLoading ? loadingLabel : label}</span>
+    </button>
+  );
+}
+
+function CloudAuthDivider() {
+  return (
+    <div className="desktop-cloud-auth-divider">
+      <span />
+      <small>or</small>
+      <span />
+    </div>
+  );
+}
+
+function CloudAuthFeedback({ error, message }: { error: string | null; message: string | null }) {
+  if (!error && !message) return null;
+
+  return (
+    <div className="desktop-cloud-auth-feedback">
+      {error && <div className="error">{error}</div>}
+      {message && <div className="success">{message}</div>}
+    </div>
+  );
+}
+
+function CloudAuthDots() {
+  return (
+    <span className="desktop-cloud-auth-dots" aria-hidden="true">
+      <span />
+      <span />
+      <span />
+    </span>
+  );
+}
+
+function CloudLoginFeatureRow({ feature }: { feature: CloudLoginFeature }) {
+  return (
+    <div className="desktop-cloud-login-feature-row">
+      <span>
+        <Check size={13} />
+      </span>
+      <div>
+        <strong>{feature.label}</strong>
+      </div>
+    </div>
+  );
+}
+
+function CloudProductMark() {
+  return (
+    <svg className="desktop-cloud-product-mark" viewBox="0 0 160 100" aria-hidden="true" focusable="false">
+      <path
+        className="desktop-cloud-product-mark-cloud"
+        d="M43.8 76.5h72.6c14.4 0 26.1-11.1 26.1-24.8 0-13.6-11.4-24.6-25.6-24.9C111.2 13.8 98.1 5.5 83.5 7.1 67.3 8.8 54.2 21.1 51.2 37.2h-6.8c-15.5 0-27.9 11.1-27.9 24.6 0 9.6 9.3 14.7 27.3 14.7Z"
+      />
+    </svg>
+  );
+}
+
+function CloudGoogleIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 533.5 544.3" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path fill="#4285f4" d="M533.5 278.4c0-17.6-1.6-34.4-4.6-50.4H272v95.3h147c-6.4 34.6-25.8 63.9-55 83.6l89 69.4c51.8-47.7 80.5-118 80.5-198z" />
+      <path fill="#34a853" d="M272 544.3c74.7 0 137.5-24.8 183.3-67.4l-89-69.4c-24.7 16.6-56.3 26.3-94.3 26.3-72.5 0-134-49-155.9-114.9l-92 71.6c41.6 82.5 127.1 153.8 247.9 153.8z" />
+      <path fill="#fbbc04" d="M116.1 318.9c-10-29.8-10-62.1 0-91.9l-92-71.6C4 211 0 240.9 0 272.4s4 61.4 24.1 116.9l92-70.4z" />
+      <path fill="#ea4335" d="M272 107.7c39.7-.6 77.6 14.7 105.8 42.9l77.5-77.5C395.1 24 334.2 0 272 0 151.2 0 65.7 71.3 24.1 155.5l92 71.6C138 161.3 199.5 107.7 272 107.7z" />
+    </svg>
+  );
+}
+
+function CloudGithubIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
+      <path d="M12 1C6 1 1.5 5.5 1.5 11.5c0 4.6 3 8.5 7.2 9.9.5.1.7-.2.7-.5v-1.9c-2.9.6-3.5-1.2-3.5-1.2-.5-1.2-1.2-1.6-1.2-1.6-1-.7.1-.7.1-.7 1.1.1 1.7 1.1 1.7 1.1 1 1.7 2.6 1.2 3.2.9.1-.7.4-1.2.7-1.5-2.4-.3-4.9-1.2-4.9-5.3 0-1.2.4-2.1 1.1-2.9-.1-.3-.5-1.4.1-2.9 0 0 .9-.3 3 .1 1-.3 2-.4 3.1-.4s2.1.1 3.1.4c2.1-1.4 3-.1 3-.1.6 1.5.2 2.6.1 2.9.7.8 1.1 1.7 1.1 2.9 0 4.1-2.6 5.1-5 5.4.4.3.7 1 .7 2v3c0 .3.2.6.7.5 4.2-1.4 7.2-5.3 7.2-9.9C22.5 5.5 18 1 12 1z" />
+    </svg>
+  );
+}
+
+type CloudSidebarServiceDescriptor = {
+  label: string;
+  description: string;
+  icon: typeof Cloud;
+  state: string;
+  plan: string;
+  tone: "ready" | "upgrade" | "locked";
+};
+
+function CloudSidebarServiceRow({ service }: { service: CloudSidebarServiceDescriptor }) {
+  const Icon = service.icon;
+
+  return (
+    <div className="desktop-cloud-sidebar-service-row">
+      <span className={`desktop-cloud-sidebar-service-icon ${service.tone}`}>
+        <Icon size={14} />
+      </span>
+      <div>
+        <strong>{service.label}</strong>
+        <span>{service.description}</span>
+      </div>
+      <small className={service.tone}>{service.state}</small>
+    </div>
+  );
+}
+
+function CloudSidebarMetric({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: "ready" | "warning";
+}) {
+  return (
+    <div className={`desktop-cloud-sidebar-metric ${tone ?? ""}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function CloudMainDetail({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: "ready" | "warning";
+}) {
+  return (
+    <div className={`desktop-cloud-detail-item ${tone ?? ""}`}>
+      <span>{label}</span>
+      <strong title={value}>{value}</strong>
+    </div>
+  );
+}
+
+function CloudServiceMainRow({ service }: { service: CloudSidebarServiceDescriptor }) {
+  const Icon = service.icon;
+
+  return (
+    <div className="desktop-cloud-service-panel-row">
+      <span className={`desktop-cloud-service-panel-icon ${service.tone}`}>
+        <Icon size={14} />
+      </span>
+      <div className="desktop-cloud-service-panel-copy">
+        <div>
+          <strong>{service.label}</strong>
+          <span>{service.plan}</span>
+        </div>
+        <p>{service.description}</p>
+      </div>
+      <small className={`desktop-cloud-service-panel-state ${service.tone}`}>{service.state}</small>
+    </div>
+  );
+}
+
+function openCloudApp(path: string) {
+  window.open(`https://app.puppyone.ai${path}`, "_blank", "noopener,noreferrer");
+}
+
+const DESKTOP_CLOUD_API_BASE_URL = "http://localhost:9090/api/v1";
+
+async function checkCloudEmail(email: string) {
+  const response = await fetch(desktopCloudApiUrl("/auth/check-email"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  const payload = await readCloudApiPayload(response);
+  return { exists: Boolean(payload?.data?.exists) };
+}
+
+async function loginCloudWithPassword(email: string, password: string) {
+  const response = await fetch(desktopCloudApiUrl("/auth/login"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  const payload = await readCloudApiPayload(response);
+  const data = payload?.data ?? {};
+  const accessToken = typeof data.access_token === "string" ? data.access_token : "";
+  if (!accessToken) throw new Error("Login succeeded but no access token was returned.");
+
+  return {
+    access_token: accessToken,
+    refresh_token: typeof data.refresh_token === "string" ? data.refresh_token : "",
+    expires_in: typeof data.expires_in === "number" ? data.expires_in : 0,
+    user_email: typeof data.user_email === "string" ? data.user_email : email,
+  };
+}
+
+async function initializeCloudUser(accessToken: string) {
+  const response = await fetch(desktopCloudApiUrl("/auth/initialize"), {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  await readCloudApiPayload(response);
+}
+
+function desktopCloudApiUrl(path: string) {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${DESKTOP_CLOUD_API_BASE_URL}${normalizedPath}`;
+}
+
+async function readCloudApiPayload(response: Response) {
+  let payload: any = null;
+  try {
+    payload = await response.json();
+  } catch {
+    payload = null;
+  }
+
+  if (!response.ok) {
+    throw new Error(getCloudApiErrorMessage(payload, `Request failed (${response.status})`));
+  }
+
+  return payload;
+}
+
+function getCloudApiErrorMessage(payload: any, fallback: string) {
+  const detail = payload?.detail;
+  if (typeof payload?.message === "string" && payload.message) return payload.message;
+  if (typeof detail === "string" && detail) return detail;
+  if (typeof detail?.message === "string" && detail.message) return detail.message;
+  if (typeof payload?.error === "string" && payload.error) return payload.error;
+  return fallback;
 }
 
 function GitSidebarTabs({
@@ -473,7 +1460,15 @@ export function SettingsView({
   gitStatusLoading,
   gitStatusError,
   themeMode,
+  fileIconTheme,
+  sidebarNavigationLayout,
+  filesVisibilitySettings,
+  rightSidebarToolsSettings,
   onThemeModeChange,
+  onFileIconThemeChange,
+  onSidebarNavigationLayoutChange,
+  onFilesVisibilitySettingsChange,
+  onRightSidebarToolsSettingsChange,
   onUnlinkWorkspace,
   onRefreshGitStatus,
 }: SettingsViewProps) {
@@ -481,6 +1476,10 @@ export function SettingsView({
   const [unlinkError, setUnlinkError] = useState<string | null>(null);
   const [copiedRemoteKey, setCopiedRemoteKey] = useState<string | null>(null);
   const [copyError, setCopyError] = useState<string | null>(null);
+  const [draggingRightSidebarToolId, setDraggingRightSidebarToolId] = useState<RightSidebarToolId | null>(null);
+  const orderedRightSidebarTools = rightSidebarToolsSettings.order
+    .map((toolId) => RIGHT_SIDEBAR_TOOL_DEFINITIONS.find((tool) => tool.id === toolId))
+    .filter((tool): tool is typeof RIGHT_SIDEBAR_TOOL_DEFINITIONS[number] => Boolean(tool));
 
   const unlinkWorkspace = async () => {
     if (unlinking) return;
@@ -524,6 +1523,15 @@ export function SettingsView({
     );
   }
 
+  if (activeSection === "files") {
+    return (
+      <FilesSettingsView
+        settings={filesVisibilitySettings}
+        onChange={onFilesVisibilitySettingsChange}
+      />
+    );
+  }
+
   if (activeSection === "appearance") {
     return (
       <section className="desktop-utility-view desktop-settings-view">
@@ -558,6 +1566,100 @@ export function SettingsView({
                     <Moon size={14} />
                     <span>Dark</span>
                   </button>
+                </div>
+              </div>
+              <div className="desktop-settings-row desktop-settings-row-control">
+                <span>File icons</span>
+                <div className="desktop-theme-segment desktop-file-icon-theme-segment" aria-label="File icon theme">
+                  {FILE_ICON_THEMES.map((theme) => (
+                    <button
+                      key={theme.id}
+                      className={fileIconTheme === theme.id ? "active" : ""}
+                      type="button"
+                      title={theme.description}
+                      onClick={() => onFileIconThemeChange(theme.id)}
+                    >
+                      <FileGlyphIcon name="document.md" size={14} theme={theme.id} />
+                      <span>{theme.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="desktop-settings-row desktop-settings-row-control">
+                <span>Navigation</span>
+                <div className="desktop-theme-segment desktop-sidebar-layout-segment" aria-label="Sidebar navigation layout">
+                  {SIDEBAR_NAVIGATION_LAYOUT_OPTIONS.map((option) => {
+                    const Icon = option.placement === "top" ? PanelTop : PanelBottom;
+                    return (
+                      <button
+                        className={sidebarNavigationLayout === option.value ? "active" : ""}
+                        type="button"
+                        key={option.value}
+                        onClick={() => onSidebarNavigationLayoutChange(option.value)}
+                      >
+                        <Icon size={14} />
+                        <span>{option.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="desktop-settings-row desktop-settings-row-control desktop-settings-tools-row">
+                <span>Right sidebar</span>
+                <div className="desktop-settings-tool-list">
+                  {orderedRightSidebarTools.map((tool) => {
+                    const Icon = tool.icon;
+                    return (
+                      <div
+                        className={`desktop-settings-tool-item ${draggingRightSidebarToolId === tool.id ? "dragging" : ""}`}
+                        key={tool.id}
+                        draggable={orderedRightSidebarTools.length > 1}
+                        onDragStart={(event) => {
+                          setDraggingRightSidebarToolId(tool.id);
+                          event.dataTransfer.effectAllowed = "move";
+                          event.dataTransfer.setData("text/plain", tool.id);
+                        }}
+                        onDragOver={(event) => {
+                          if (!draggingRightSidebarToolId || draggingRightSidebarToolId === tool.id) return;
+                          event.preventDefault();
+                          event.dataTransfer.dropEffect = "move";
+                        }}
+                        onDrop={(event) => {
+                          event.preventDefault();
+                          const sourceToolId = readRightSidebarDragToolId(event.dataTransfer.getData("text/plain")) ?? draggingRightSidebarToolId;
+                          if (!sourceToolId || sourceToolId === tool.id) return;
+                          onRightSidebarToolsSettingsChange({
+                            ...rightSidebarToolsSettings,
+                            order: moveRightSidebarTool(rightSidebarToolsSettings.order, sourceToolId, tool.id),
+                          });
+                          setDraggingRightSidebarToolId(null);
+                        }}
+                        onDragEnd={() => setDraggingRightSidebarToolId(null)}
+                      >
+                        <span className="desktop-settings-tool-drag-handle" aria-hidden="true">
+                          <GripVertical size={14} />
+                        </span>
+                        <span className="desktop-settings-tool-label">
+                          <Icon size={14} />
+                          <span>{tool.label}</span>
+                        </span>
+                        <label className="desktop-settings-switch">
+                          <input
+                            type="checkbox"
+                            checked={rightSidebarToolsSettings.enabled[tool.id]}
+                            onChange={(event) => onRightSidebarToolsSettingsChange({
+                              ...rightSidebarToolsSettings,
+                              enabled: {
+                                ...rightSidebarToolsSettings.enabled,
+                                [tool.id]: event.target.checked,
+                              },
+                            })}
+                          />
+                          <span aria-hidden="true" />
+                        </label>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -611,6 +1713,117 @@ export function SettingsView({
       </div>
     </section>
   );
+}
+
+function FilesSettingsView({
+  settings,
+  onChange,
+}: {
+  settings: FilesVisibilitySettings;
+  onChange: (settings: FilesVisibilitySettings) => void;
+}) {
+  const savedPatternText = settings.excludePatterns.join("\n");
+  const [patternDraft, setPatternDraft] = useState(savedPatternText);
+  const normalizedDraft = normalizeExplorerExcludePatterns(patternDraft);
+  const patternsDirty = normalizedDraft.join("\n") !== savedPatternText;
+
+  useEffect(() => {
+    setPatternDraft(savedPatternText);
+  }, [savedPatternText]);
+
+  const applyPatterns = () => {
+    onChange({
+      ...settings,
+      excludePatterns: normalizedDraft,
+    });
+  };
+
+  const resetPatterns = () => {
+    const nextPatterns = [...DEFAULT_EXPLORER_EXCLUDE_PATTERNS];
+    setPatternDraft(nextPatterns.join("\n"));
+    onChange({
+      ...settings,
+      excludePatterns: nextPatterns,
+    });
+  };
+
+  return (
+    <section className="desktop-utility-view desktop-settings-view">
+      <div className="desktop-utility-body desktop-settings-body">
+        <div className="desktop-settings-section desktop-files-settings-section">
+          <SettingsSectionHeader title="Files" />
+
+          <SettingsGroup title="Explorer">
+            <div className="desktop-settings-line desktop-settings-toggle-line desktop-files-toggle-line">
+              <span>Show hidden files</span>
+              <label className="desktop-settings-switch">
+                <input
+                  type="checkbox"
+                  checked={settings.showHiddenFiles}
+                  onChange={(event) => onChange({
+                    ...settings,
+                    showHiddenFiles: event.target.checked,
+                  })}
+                />
+                <span aria-hidden="true" />
+              </label>
+            </div>
+            <div className="desktop-settings-pattern-editor desktop-files-pattern-editor">
+              <div className="desktop-files-pattern-editor-toolbar">
+                <span>Exclude patterns</span>
+                <small>{normalizedDraft.length} pattern{normalizedDraft.length === 1 ? "" : "s"}</small>
+              </div>
+              <textarea
+                value={patternDraft}
+                spellCheck={false}
+                onChange={(event) => setPatternDraft(event.target.value)}
+              />
+              <div className="desktop-settings-pattern-editor-footer">
+                <button
+                  className="desktop-settings-row-action"
+                  type="button"
+                  disabled={!patternsDirty}
+                  onClick={applyPatterns}
+                >
+                  <Check size={13} />
+                  <span>Apply</span>
+                </button>
+                <button
+                  className="desktop-settings-row-action"
+                  type="button"
+                  onClick={resetPatterns}
+                >
+                  <RefreshCw size={13} />
+                  <span>Reset</span>
+                </button>
+              </div>
+            </div>
+          </SettingsGroup>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function readRightSidebarDragToolId(value: string): RightSidebarToolId | null {
+  return RIGHT_SIDEBAR_TOOL_DEFINITIONS.some((tool) => tool.id === value)
+    ? value as RightSidebarToolId
+    : null;
+}
+
+function moveRightSidebarTool(
+  order: RightSidebarToolId[],
+  sourceToolId: RightSidebarToolId,
+  targetToolId: RightSidebarToolId,
+): RightSidebarToolId[] {
+  if (sourceToolId === targetToolId) return order;
+
+  const nextOrder = order.filter((toolId) => toolId !== sourceToolId);
+  const targetIndex = nextOrder.indexOf(targetToolId);
+  if (targetIndex < 0) return order;
+
+  nextOrder.splice(targetIndex, 0, sourceToolId);
+  return nextOrder;
 }
 
 function GitSettingsView({
@@ -815,7 +2028,7 @@ export function SettingsSidebar({ activeSection, onSelectSection }: SettingsSide
     { id: "workspace", label: "Workspace", icon: Settings, disabled: false },
     { id: "git", label: "Git", icon: GitBranch, disabled: false },
     { id: "appearance", label: "Appearance", icon: Monitor, disabled: false },
-    { id: "advanced", label: "Advanced", icon: SlidersHorizontal, disabled: true },
+    { id: "files", label: "Files", icon: FileText, disabled: false },
   ] satisfies Array<{
     id: SettingsSection;
     label: string;
@@ -1261,6 +2474,7 @@ function WorkingTreeRow({
   staged,
   selected,
   operationLoading,
+  fileIconTheme,
   onSelect,
   onStagePaths,
   onUnstagePaths,
@@ -1270,6 +2484,7 @@ function WorkingTreeRow({
   staged: boolean;
   selected: boolean;
   operationLoading: string | null;
+  fileIconTheme: FileIconThemeId;
   onSelect: (selection: GitWorkingSelection) => void;
   onStagePaths: (paths: string[]) => Promise<boolean>;
   onUnstagePaths: (paths: string[]) => Promise<boolean>;
@@ -1288,7 +2503,7 @@ function WorkingTreeRow({
         onClick={() => onSelect({ path: entry.path, status: entry.status, staged })}
       >
         <span className="desktop-working-tree-icon">
-          <FileGlyphIcon name={entry.path} size={15} />
+          <FileGlyphIcon name={entry.path} size={15} theme={fileIconTheme} />
         </span>
         <span className="desktop-working-tree-copy">
           <span className="desktop-working-tree-name">{displayParts.name}</span>
@@ -1392,6 +2607,15 @@ function UtilityEmptyState({
       </div>
     </section>
   );
+}
+
+function getPuppyoneRemote(status: GitStatusSnapshot | null) {
+  for (const remote of status?.remotes ?? []) {
+    const info = parsePuppyoneRemote(remote.fetchUrl ?? remote.pushUrl);
+    if (info) return { remote, info };
+  }
+
+  return null;
 }
 
 function parsePuppyoneRemote(rawUrl: string | null) {

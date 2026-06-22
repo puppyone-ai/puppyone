@@ -409,20 +409,22 @@ export async function getWorkspaceGitStatus(rootPath) {
     .split(/\r?\n/)
     .map(parseGitStatusLine)
     .filter(Boolean);
+  const branchName = branchResult.stdout.trim() || symbolicBranchResult.stdout.trim() || "detached";
+  const normalizedBranches = normalizeGitBranches(branches, branchName, headResult.stdout.trim());
 
   return {
     isRepo: true,
-    branch: branchResult.stdout.trim() || symbolicBranchResult.stdout.trim() || "detached",
+    branch: branchName,
     headCommitId: headResult.stdout.trim() || null,
     totalCommits: Number.parseInt(countResult.stdout.trim(), 10) || commits.length,
     entries,
     stagedEntries: entries.filter(hasStagedStatus),
     unstagedEntries: entries.filter(hasUnstagedStatus),
     untrackedEntries: entries.filter((entry) => entry.status === "untracked"),
-    branches,
+    branches: normalizedBranches,
     remotes: remotes.map((remote) => ({
       ...remote,
-      branches: branches
+      branches: normalizedBranches
         .filter((branch) => branch.remote && branch.name.startsWith(`${remote.name}/`))
         .map((branch) => branch.name),
     })),
@@ -1059,6 +1061,37 @@ async function readGitBranches(rootPath) {
     .split(/\r?\n/)
     .map(parseGitBranchLine)
     .filter(Boolean);
+}
+
+function normalizeGitBranches(branches, currentBranchName, headCommitId) {
+  if (!currentBranchName || currentBranchName === "detached") return branches;
+
+  let foundCurrentBranch = false;
+  const normalized = branches.map((branch) => {
+    if (branch.remote || branch.name !== currentBranchName) return branch;
+    foundCurrentBranch = true;
+    return {
+      ...branch,
+      current: true,
+    };
+  });
+
+  if (foundCurrentBranch) return normalized;
+
+  return [
+    {
+      name: currentBranchName,
+      current: true,
+      remote: false,
+      upstream: null,
+      ahead: 0,
+      behind: 0,
+      lastCommitId: headCommitId || null,
+      lastCommitMessage: null,
+      lastCommitDate: null,
+    },
+    ...normalized,
+  ];
 }
 
 function parseGitBranchLine(line) {

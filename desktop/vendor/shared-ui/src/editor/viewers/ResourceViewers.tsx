@@ -29,13 +29,13 @@ export function PdfResourceViewer({ document, fileUrl, fileUrlLoading, fileUrlEr
   );
 }
 
-export function AudioResourceViewer({ document, fileUrl, fileUrlLoading, fileUrlError }: EditorViewerContext) {
+export function AudioResourceViewer({ document, fileUrl, fileUrlLoading, fileUrlError, fileIconTheme }: EditorViewerContext) {
   return (
     <ResourcePreviewState fileUrl={fileUrl} loading={fileUrlLoading} error={fileUrlError} label="audio">
       {(url) => (
         <div className="native-preview native-preview-centered">
           <div className="native-media-card">
-            <FilePreviewIcon name={document.name} type="audio" size={54} />
+            <FilePreviewIcon name={document.name} type="audio" size={54} theme={fileIconTheme} />
             <strong>{document.name}</strong>
             <audio controls preload="metadata">
               <source src={url} type={document.mimeType ?? undefined} />

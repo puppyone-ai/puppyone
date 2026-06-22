@@ -43,7 +43,7 @@ const workspaceStateFilename = "desktop-workspace-state.json";
 const macTitlebarOptions = process.platform === "darwin"
   ? {
       titleBarStyle: "hiddenInset",
-      trafficLightPosition: { x: 18, y: 12 },
+      trafficLightPosition: { x: 13, y: 13 },
     }
   : {
       titleBarStyle: "default",
@@ -419,12 +419,7 @@ function registerIpcHandlers() {
         cwd,
         cols,
         rows,
-        env: {
-          ...process.env,
-          TERM: "xterm-256color",
-          COLORTERM: "truecolor",
-          PUPPYONE_TERMINAL: "1",
-        },
+        env: buildTerminalEnv(),
       });
     } catch (error) {
       throw new Error(`Failed to start terminal: ${error instanceof Error ? error.message : String(error)}`);
@@ -586,6 +581,21 @@ function buildTerminalSpawnConfig() {
     file,
     args,
     displayShell: shellName,
+  };
+}
+
+function buildTerminalEnv() {
+  const env = { ...process.env };
+  delete env.NO_COLOR;
+
+  return {
+    ...env,
+    TERM: "xterm-256color",
+    COLORTERM: "truecolor",
+    CLICOLOR: env.CLICOLOR || "1",
+    TERM_PROGRAM: "PuppyOne",
+    TERM_PROGRAM_VERSION: app.getVersion(),
+    PUPPYONE_TERMINAL: "1",
   };
 }
 

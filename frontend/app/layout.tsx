@@ -1,4 +1,5 @@
 import './globals.css';
+import '../shared-ui/src/styles/editor.css';
 import '@xyflow/react/dist/style.css';
 import type { ReactNode } from 'react';
 import { GeistSans } from 'geist/font/sans';

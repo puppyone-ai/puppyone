@@ -1,7 +1,7 @@
 {
   "name": "@puppyone/desktop",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "main": "electron/main.mjs",
   "scripts": {
@@ -18,20 +18,21 @@
     "start": "electron ."
   },
   "dependencies": {
-    "@milkdown/core": "^7.18.0",
-    "@milkdown/ctx": "^7.18.0",
-    "@milkdown/plugin-listener": "^7.18.0",
-    "@milkdown/preset-commonmark": "^7.18.0",
-    "@milkdown/preset-gfm": "^7.18.0",
-    "@milkdown/prose": "^7.18.0",
-    "@milkdown/react": "^7.18.0",
-    "@milkdown/utils": "^7.18.0",
+    "@codemirror/commands": "^6.10.3",
+    "@codemirror/lang-markdown": "^6.5.0",
+    "@codemirror/language": "^6.12.3",
+    "@codemirror/state": "^6.6.0",
+    "@codemirror/view": "^6.43.1",
+    "@lezer/highlight": "^1.2.3",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
+    "jszip": "^3.10.1",
     "lucide-react": "^0.562.0",
+    "mammoth": "^1.12.0",
     "node-pty": "^1.1.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/react": "^18.3.8",

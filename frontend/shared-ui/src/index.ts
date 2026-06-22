@@ -66,6 +66,7 @@ export type {
 export { ConflictMarkerBanner } from "./editor/ConflictMarkerBanner";
 
 export {
+  FILE_ICON_THEMES,
   FILE_TYPE_ICONS,
   FileGlyphIcon,
   FilePreviewIcon,
@@ -73,8 +74,9 @@ export {
   getFileExtension,
   getFileIcon,
   getFileVisualKind,
+  isFileIconThemeId,
 } from "./file/fileIcons";
-export type { FileVisualKind } from "./file/fileIcons";
+export type { FileIconThemeId, FileVisualKind } from "./file/fileIcons";
 
 export { Button } from "./primitives/Button";
 export type { ButtonProps } from "./primitives/Button";

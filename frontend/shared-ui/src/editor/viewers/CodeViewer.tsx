@@ -6,7 +6,7 @@ import type { EditorViewerContext } from "../viewerTypes";
 export function JsonViewer(context: EditorViewerContext) {
   return (
     <TextEditorFrame
-      key={context.document.path}
+      documentId={context.document.path}
       content={context.content}
       nodeName={context.document.name}
       defaultMode="source"
@@ -26,7 +26,7 @@ export function TextFileViewer(context: EditorViewerContext) {
 
   return (
     <TextEditorFrame
-      key={context.document.path}
+      documentId={context.document.path}
       content={context.content}
       nodeName={context.document.name}
       defaultMode="source"

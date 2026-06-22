@@ -113,8 +113,8 @@
   --po-json-null: #6f6a60;
   --po-json-icon: #70685e;
 
-  --po-scrollbar-thumb: rgba(73, 55, 35, 0.24);
-  --po-scrollbar-thumb-hover: rgba(73, 55, 35, 0.36);
+  --po-scrollbar-thumb: rgba(73, 55, 35, 0.14);
+  --po-scrollbar-thumb-hover: rgba(73, 55, 35, 0.24);
 }
 
 .dark {
@@ -204,8 +204,8 @@
   --po-json-null: #94a3b8;
   --po-json-icon: #cbd5e1;
 
-  --po-scrollbar-thumb: rgba(255, 255, 255, 0.12);
-  --po-scrollbar-thumb-hover: rgba(255, 255, 255, 0.22);
+  --po-scrollbar-thumb: rgba(255, 255, 255, 0.08);
+  --po-scrollbar-thumb-hover: rgba(255, 255, 255, 0.16);
 }
 
 html,
@@ -226,7 +226,7 @@ body {
 /* ── Global theme-aware scrollbar ── */
 * {
   scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
+  scrollbar-color: var(--po-scrollbar-thumb) transparent;
 }
 
 *::-webkit-scrollbar {
@@ -239,7 +239,7 @@ body {
 }
 
 *::-webkit-scrollbar-thumb {
-  background: transparent;
+  background: var(--po-scrollbar-thumb);
   border-radius: 3px;
   transition: background-color 0.16s ease;
 }
@@ -252,9 +252,11 @@ body {
   background: var(--po-scrollbar-thumb);
 }
 
+*::-webkit-scrollbar-thumb:hover,
 .po-scrollbar-active::-webkit-scrollbar-thumb:hover {
   background: var(--po-scrollbar-thumb-hover);
 }
+
 
 *::-webkit-scrollbar-corner {
   background: transparent;

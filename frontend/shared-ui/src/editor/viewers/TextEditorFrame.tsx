@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { EditorSaveButton, type SaveStatus } from "../EditorSaveButton";
 import { PlainTextEditor } from "../PlainTextEditor";
 import type { EditorMode, EditorSaveMode } from "../viewerTypes";
 
 export type TextEditorFrameProps = {
+  documentId: string;
   content: string;
   nodeName: string;
   defaultMode: EditorMode;
@@ -14,9 +15,11 @@ export type TextEditorFrameProps = {
   hideSourceView: boolean;
   saveMode: EditorSaveMode;
   renderLive: (content: string, controls: { canEdit: boolean; onChange: (content: string) => void }) => ReactNode;
+  renderSource?: (content: string, controls: { canEdit: boolean; onChange: (content: string) => void }) => ReactNode;
 };
 
 export function TextEditorFrame({
+  documentId,
   content,
   nodeName,
   defaultMode,
@@ -25,17 +28,34 @@ export function TextEditorFrame({
   hideSourceView,
   saveMode,
   renderLive,
+  renderSource,
 }: TextEditorFrameProps) {
   const [mode, setMode] = useState<EditorMode>(hideSourceView ? "live" : defaultMode);
   const [draft, setDraft] = useState(content);
   const [persistedContent, setPersistedContent] = useState(content);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("clean");
   const [saveError, setSaveError] = useState<string | null>(null);
+  const documentIdRef = useRef(documentId);
   const draftRef = useRef(draft);
   const persistedContentRef = useRef(persistedContent);
   const savingRef = useRef(false);
   const queuedAutoSaveRef = useRef<string | null>(null);
   const dirty = draft !== persistedContent;
+
+  useLayoutEffect(() => {
+    if (documentIdRef.current === documentId) return;
+
+    documentIdRef.current = documentId;
+    savingRef.current = false;
+    queuedAutoSaveRef.current = null;
+    draftRef.current = content;
+    persistedContentRef.current = content;
+    setMode(hideSourceView ? "live" : defaultMode);
+    setDraft(content);
+    setPersistedContent(content);
+    setSaveStatus("clean");
+    setSaveError(null);
+  }, [content, defaultMode, documentId, hideSourceView]);
 
   useEffect(() => {
     draftRef.current = draft;
@@ -45,7 +65,9 @@ export function TextEditorFrame({
     persistedContentRef.current = persistedContent;
   }, [persistedContent]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    if (documentIdRef.current !== documentId) return;
+
     const previousPersistedContent = persistedContentRef.current;
     const hasLocalDraft = saveMode === "auto" &&
       draftRef.current !== previousPersistedContent &&
@@ -63,7 +85,7 @@ export function TextEditorFrame({
     setDraft(content);
     draftRef.current = content;
     setSaveStatus("clean");
-  }, [content, saveMode]);
+  }, [content, documentId, saveMode]);
 
   useEffect(() => {
     if (hideSourceView) setMode("live");
@@ -82,19 +104,28 @@ export function TextEditorFrame({
       return;
     }
 
+    const saveDocumentId = documentIdRef.current;
     savingRef.current = true;
     setSaveStatus("saving");
     setSaveError(null);
     try {
       await onSaveContent(contentToSave);
+      if (documentIdRef.current !== saveDocumentId) return;
+
       persistedContentRef.current = contentToSave;
       setPersistedContent(contentToSave);
       setSaveStatus(draftRef.current === contentToSave ? "saved" : "dirty");
-      window.setTimeout(() => setSaveStatus((status) => (status === "saved" ? "clean" : status)), 1200);
+      window.setTimeout(() => {
+        if (documentIdRef.current !== saveDocumentId) return;
+        setSaveStatus((status) => (status === "saved" ? "clean" : status));
+      }, 1200);
     } catch (error) {
+      if (documentIdRef.current !== saveDocumentId) return;
       setSaveStatus("error");
       setSaveError(error instanceof Error ? error.message : String(error));
     } finally {
+      if (documentIdRef.current !== saveDocumentId) return;
+
       savingRef.current = false;
       if (automatic) {
         const queuedContent = queuedAutoSaveRef.current;
@@ -135,6 +166,10 @@ export function TextEditorFrame({
       {mode === "live" ? (
         <div className="editor-live-surface">
           {renderLive(draft, { canEdit, onChange: setDraft })}
+        </div>
+      ) : renderSource ? (
+        <div className="editor-live-surface">
+          {renderSource(draft, { canEdit, onChange: setDraft })}
         </div>
       ) : (
         <PlainTextEditor

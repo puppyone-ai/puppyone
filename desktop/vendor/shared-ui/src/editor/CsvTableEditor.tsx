@@ -1,9 +1,10 @@
 "use client";
 
 import { Plus, Trash2 } from "lucide-react";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useLayoutEffect, useMemo, useState } from "react";
 
 export type CsvTableEditorProps = {
+  documentId?: string;
   content: string;
   nodeName?: string;
   delimiter?: "," | "\t";
@@ -17,6 +18,7 @@ type ParsedTable = {
 };
 
 export function CsvTableEditor({
+  documentId,
   content,
   nodeName = "",
   delimiter,
@@ -31,6 +33,10 @@ export function CsvTableEditor({
   const dataRows = headerEnabled ? matrix.slice(1) : matrix;
   const rowCount = content.trim() ? dataRows.length : 0;
   const gridTemplateColumns = `44px repeat(${columnCount}, minmax(128px, 1fr))`;
+
+  useLayoutEffect(() => {
+    setHeaderEnabled(inferHeaderRow(parsed.rows));
+  }, [documentId]);
 
   const emitMatrix = (nextMatrix: string[][]) => {
     onChange?.(stringifyDelimitedText(trimRows(nextMatrix), resolvedDelimiter));

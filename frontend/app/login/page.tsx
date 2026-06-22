@@ -141,6 +141,7 @@ function LoginPageInner() {
   const [redirecting, setRedirecting] = useState(false);
   const cooldownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoSubmittedRef = useRef(false);
+  const autoOAuthProviderRef = useRef<'google' | 'github' | null>(null);
 
   const clearFeedback = useCallback(() => {
     setError(null);
@@ -233,6 +234,21 @@ function LoginPageInner() {
       setLoading(null);
     }
   };
+
+  useEffect(() => {
+    const queryEmail = searchParams?.get('email')?.trim();
+    if (!queryEmail) return;
+    setEmail((current) => current || queryEmail);
+  }, [searchParams]);
+
+  useEffect(() => {
+    const provider = searchParams?.get('provider');
+    if (provider !== 'google' && provider !== 'github') return;
+    if (autoOAuthProviderRef.current === provider) return;
+
+    autoOAuthProviderRef.current = provider;
+    void handleOAuthSignIn(provider);
+  }, [searchParams]);
 
   const handleContinue = async (e: React.FormEvent) => {
     e.preventDefault();

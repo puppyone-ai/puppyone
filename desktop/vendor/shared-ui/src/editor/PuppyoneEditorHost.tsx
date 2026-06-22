@@ -2,6 +2,7 @@
 
 import { resolveEditorViewer } from "./viewerRegistry";
 import type { EditorDocument, EditorSaveMode } from "./viewerTypes";
+import type { FileIconThemeId } from "../file/fileIcons";
 
 export type { EditorDocument, EditorDocumentKind, EditorSaveMode } from "./viewerTypes";
 
@@ -13,6 +14,7 @@ export type PuppyoneEditorHostProps = {
   fileUrlError?: string | null;
   onSaveContent?: (content: string) => Promise<void>;
   hideSourceView?: boolean;
+  fileIconTheme?: FileIconThemeId;
   saveMode?: EditorSaveMode;
 };
 
@@ -24,6 +26,7 @@ export function PuppyoneEditorHost({
   fileUrlError = null,
   onSaveContent,
   hideSourceView = false,
+  fileIconTheme = "default",
   saveMode = "manual",
 }: PuppyoneEditorHostProps) {
   const { viewer, format } = resolveEditorViewer(document);
@@ -54,6 +57,7 @@ export function PuppyoneEditorHost({
         error,
         canEdit,
         hideSourceView,
+        fileIconTheme,
         saveMode,
         onSaveContent,
       })}

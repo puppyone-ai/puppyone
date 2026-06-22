@@ -22,6 +22,7 @@ export type GenericViewerId =
   | "audio-preview"
   | "video-preview"
   | "pdf-preview"
+  | "office-preview"
   | "binary-placeholder";
 
 export type SpecialViewerId = "json-table";
@@ -233,6 +234,8 @@ export function getPreviewKindForFormat(format: FileFormat): FilePreviewKind {
       return "video";
     case "pdf-preview":
       return "pdf";
+    case "office-preview":
+      return "placeholder";
     case "binary-placeholder":
     default:
       return "placeholder";

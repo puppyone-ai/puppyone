@@ -263,9 +263,10 @@ export function useManualSave<T>({
   // Earlier versions of this hook handled `fileKey` and
   // `serverContent` changes in `useEffect`. That broke editors
   // whose internal state is initialised exactly once on mount —
-  // notably Milkdown's `useEditor(..., [])`, which reads
-  // `defaultValue` only at mount and ignores subsequent prop
-  // changes.
+  // for example rich/code editor wrappers that read their initial
+  // document at construction time and ignore subsequent prop
+  // changes unless the parent remounts or dispatches an explicit
+  // external update.
   //
   // The failure mode looked like this:
   //
@@ -276,13 +277,14 @@ export function useManualSave<T>({
   //   Render N+1 : serverContent loads to '# Hello'.
   //                isLoadingText flips to false.
   //                <MarkdownEditor> *mounts* with content=draft=''.
-  //                Milkdown initialises its internal state from
-  //                that empty string.
+  //                The embedded editor initialises its internal
+  //                state from that empty string.
   //                After commit, serverContent-change effect runs:
   //                setDraftState('# Hello'). draft updates.
   //   Render N+2 : draft = '# Hello' arrives at <MarkdownEditor>,
-  //                but Milkdown ignores prop changes — it's already
-  //                mounted with empty content, and stays that way.
+  //                but the embedded editor ignores prop changes —
+  //                it's already mounted with empty content, and
+  //                stays that way.
   //
   // Result: every markdown file opened with manual-save enabled
   // looked empty, even though the API returned content correctly.
@@ -295,7 +297,7 @@ export function useManualSave<T>({
   // When `setState` is called during render, React discards the
   // current render's output, immediately re-renders with the new
   // state, and only commits the final result. So child components
-  // (Milkdown, etc.) read the *synced* draft on first mount and
+  // embedded editors read the *synced* draft on first mount and
   // initialise from real content rather than the stale ''.
   //
   // Refs hold the previous fileKey / serverContent so we can detect

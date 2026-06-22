@@ -1,4 +1,5 @@
 import type { DataNode, FileContent } from "../core/types";
+import type { FileIconThemeId } from "../file/fileIcons";
 import { PuppyoneEditorHost, type EditorSaveMode } from "./PuppyoneEditorHost";
 
 export type EditorHostProps = {
@@ -11,7 +12,9 @@ export type EditorHostProps = {
   error?: string | null;
   onSaveContent?: (content: string) => Promise<void>;
   hideSourceView?: boolean;
+  fileIconTheme?: FileIconThemeId;
   saveMode?: EditorSaveMode;
+  deferFallbackContent?: boolean;
 };
 
 export function EditorHost({
@@ -24,7 +27,9 @@ export function EditorHost({
   error = null,
   onSaveContent,
   hideSourceView = false,
+  fileIconTheme = "default",
   saveMode = "manual",
+  deferFallbackContent = false,
 }: EditorHostProps) {
   return (
     <PuppyoneEditorHost
@@ -32,8 +37,8 @@ export function EditorHost({
         path: node.path,
         name: node.name,
         type: fileContent?.type ?? node.type,
-        content: fileContent?.content ?? node.content,
-        preview: node.preview,
+        content: fileContent?.content ?? (deferFallbackContent ? undefined : node.content),
+        preview: deferFallbackContent ? undefined : node.preview,
         mimeType: fileContent?.mimeType,
         url: fileContent?.url ?? fileUrl,
       }}
@@ -43,6 +48,7 @@ export function EditorHost({
       fileUrlError={fileUrlError}
       onSaveContent={onSaveContent}
       hideSourceView={hideSourceView}
+      fileIconTheme={fileIconTheme}
       saveMode={saveMode}
     />
   );

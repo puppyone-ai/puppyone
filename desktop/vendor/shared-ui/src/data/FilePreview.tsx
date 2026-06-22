@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import type { DataNode, FileContent } from "../core/types";
 import { EditorHost } from "../editor/EditorHost";
 import type { EditorSaveMode } from "../editor/PuppyoneEditorHost";
-import { FilePreviewIcon } from "../file/fileIcons";
+import { FilePreviewIcon, type FileIconThemeId } from "../file/fileIcons";
 
 export type FilePreviewProps = {
   node: DataNode | null;
@@ -18,6 +18,7 @@ export type FilePreviewProps = {
   renderBody?: (node: DataNode) => ReactNode;
   onSaveContent?: (content: string) => Promise<void>;
   hideSourceView?: boolean;
+  fileIconTheme?: FileIconThemeId;
   editorSaveMode?: EditorSaveMode;
 };
 
@@ -35,6 +36,7 @@ export function FilePreview({
   renderBody,
   onSaveContent,
   hideSourceView = false,
+  fileIconTheme = "default",
   editorSaveMode = "manual",
 }: FilePreviewProps) {
   if (!node) {
@@ -42,12 +44,13 @@ export function FilePreview({
 
     return (
       <div className="empty-preview">
-        <strong>No file selected</strong>
+        <span>No documents opened</span>
       </div>
     );
   }
 
   const actions = typeof actionSlot === "function" ? actionSlot(node) : actionSlot;
+  const deferFallbackContent = loading && !fileContent;
 
   return (
     <div className={`file-preview-shell ${showHeader ? "" : "without-header"}`}>
@@ -60,6 +63,7 @@ export function FilePreview({
               size={36}
               snippet={node.preview}
               childrenCount={node.children?.length}
+              theme={fileIconTheme}
             />
             <div>
               <h2>{node.name}</h2>
@@ -87,7 +91,9 @@ export function FilePreview({
             error={error}
             onSaveContent={onSaveContent}
             hideSourceView={hideSourceView}
+            fileIconTheme={fileIconTheme}
             saveMode={editorSaveMode}
+            deferFallbackContent={deferFallbackContent}
           />
         )}
       </div>

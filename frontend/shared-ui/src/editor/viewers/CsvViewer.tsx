@@ -6,7 +6,7 @@ import { getDelimitedTableDelimiter, isTextEditable } from "./viewerUtils";
 export function CsvViewer(context: EditorViewerContext) {
   return (
     <TextEditorFrame
-      key={context.document.path}
+      documentId={context.document.path}
       content={context.content}
       nodeName={context.document.name}
       defaultMode="live"
@@ -16,6 +16,7 @@ export function CsvViewer(context: EditorViewerContext) {
       saveMode={context.saveMode}
       renderLive={(value, controls) => (
         <CsvTableEditor
+          documentId={context.document.path}
           content={value}
           nodeName={context.document.name}
           delimiter={getDelimitedTableDelimiter(context.document)}

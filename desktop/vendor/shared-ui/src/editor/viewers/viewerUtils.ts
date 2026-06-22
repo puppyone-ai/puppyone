@@ -2,7 +2,7 @@ import { isTextLikeFile } from "../../core/fileFormats";
 import type { EditorDocument } from "../viewerTypes";
 
 export function isTextPreviewKind(type: EditorDocument["type"]): boolean {
-  return type === "file" || type === "code" || type === "text" || type === "spreadsheet";
+  return type === "file" || type === "code" || type === "text";
 }
 
 export function isTextEditable(document: EditorDocument, content: string): boolean {

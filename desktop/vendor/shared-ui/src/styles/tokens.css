@@ -97,8 +97,8 @@
   --po-json-null: #6f6a60;
   --po-json-icon: #70685e;
 
-  --po-scrollbar-thumb: rgba(73, 55, 35, 0.24);
-  --po-scrollbar-thumb-hover: rgba(73, 55, 35, 0.36);
+  --po-scrollbar-thumb: rgba(73, 55, 35, 0.14);
+  --po-scrollbar-thumb-hover: rgba(73, 55, 35, 0.24);
 }
 
 .dark {
@@ -172,7 +172,6 @@
   --po-json-null: #94a3b8;
   --po-json-icon: #cbd5e1;
 
-  --po-scrollbar-thumb: rgba(255, 255, 255, 0.12);
-  --po-scrollbar-thumb-hover: rgba(255, 255, 255, 0.22);
+  --po-scrollbar-thumb: rgba(255, 255, 255, 0.08);
+  --po-scrollbar-thumb-hover: rgba(255, 255, 255, 0.16);
 }
-

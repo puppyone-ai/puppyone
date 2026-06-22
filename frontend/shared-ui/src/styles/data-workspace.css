@@ -36,6 +36,24 @@
   pointer-events: none;
 }
 
+.data-explorer-view-frame,
+.data-main-view-frame {
+  display: flex;
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.data-explorer-view-frame {
+  background: var(--po-sidebar);
+}
+
+.data-main-view-frame {
+  background: var(--po-canvas);
+}
+
 .data-explorer-fill,
 .data-explorer-collapsed-fill {
   flex: 1;
@@ -128,6 +146,9 @@ body.data-sidebar-resizing * {
 }
 
 .explorer-tree-shell {
+  --tree-row-left-gap: 6px;
+  --tree-row-right-gap: 4px;
+
   position: relative;
   display: flex;
   flex: 1;
@@ -150,7 +171,39 @@ body.data-sidebar-resizing * {
   min-height: 0;
   overflow: auto;
   overflow-x: hidden;
-  scrollbar-gutter: auto;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.explorer-tree-scroll::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.explorer-tree-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.explorer-tree-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: transparent;
+}
+
+.explorer-tree-scroll.is-scrollable:hover,
+.explorer-tree-scroll.is-scrollable:focus-within,
+.explorer-tree-scroll.is-scrollable.po-scrollbar-active {
+  scrollbar-color: var(--po-scrollbar-thumb) transparent;
+}
+
+.explorer-tree-scroll.is-scrollable:hover::-webkit-scrollbar-thumb,
+.explorer-tree-scroll.is-scrollable:focus-within::-webkit-scrollbar-thumb,
+.explorer-tree-scroll.is-scrollable.po-scrollbar-active::-webkit-scrollbar-thumb {
+  background: var(--po-scrollbar-thumb);
+}
+
+.explorer-tree-scroll.is-scrollable:hover::-webkit-scrollbar-thumb:hover,
+.explorer-tree-scroll.is-scrollable.po-scrollbar-active::-webkit-scrollbar-thumb:hover {
+  background: var(--po-scrollbar-thumb-hover);
 }
 
 .explorer-tree-list {
@@ -164,7 +217,7 @@ body.data-sidebar-resizing * {
   position: relative;
   z-index: 30;
   flex: 0 0 auto;
-  min-height: 42px;
+  min-height: 38px;
   overflow: visible;
   border-top: 1px solid var(--po-divider);
   background: var(--po-sidebar);
@@ -174,9 +227,9 @@ body.data-sidebar-resizing * {
   position: relative;
   display: flex;
   align-items: center;
-  width: calc(100% - 12px);
+  width: calc(100% - var(--tree-row-left-gap) - var(--tree-row-right-gap));
   height: 30px;
-  margin: 1px 6px;
+  margin: 1px var(--tree-row-right-gap) 1px var(--tree-row-left-gap);
   padding: 0;
   border: 0;
   border-radius: 6px;
@@ -194,6 +247,11 @@ body.data-sidebar-resizing * {
 
 .tree-row.root {
   cursor: default;
+}
+
+.tree-row.root:hover {
+  background: transparent;
+  color: var(--po-text-muted);
 }
 
 .tree-row:hover {
@@ -225,13 +283,25 @@ body.data-sidebar-resizing * {
   height: 100%;
   box-sizing: border-box;
   padding-right: 6px;
-  padding-left: calc(8px + var(--depth, 0) * 16px);
+  padding-left: calc(8px + var(--depth, 0) * 24px);
   overflow: hidden;
   white-space: nowrap;
 }
 
-.tree-row:has(.tree-row-actions) .tree-row-content {
-  padding-right: 56px;
+.tree-row:has(.tree-row-actions) {
+  --tree-row-action-reserve: 32px;
+}
+
+.tree-row:has(.tree-row-actions > .tree-row-action-button:nth-child(2)) {
+  --tree-row-action-reserve: 56px;
+}
+
+.tree-row.root:has(.tree-row-actions) .tree-row-content,
+.tree-row:hover:has(.tree-row-actions) .tree-row-content,
+.tree-row:focus-visible:has(.tree-row-actions) .tree-row-content,
+.tree-row:focus-within:has(.tree-row-actions) .tree-row-content,
+.tree-row.active:has(.tree-row-actions) .tree-row-content {
+  padding-right: var(--tree-row-action-reserve);
 }
 
 .tree-row-actions {
@@ -324,8 +394,8 @@ body.data-sidebar-resizing * {
   display: flex;
   align-items: center;
   height: 30px;
-  margin: 1px 6px;
-  padding-left: calc(8px + var(--depth, 0) * 16px + 24px);
+  margin: 1px var(--tree-row-right-gap) 1px var(--tree-row-left-gap);
+  padding-left: calc(8px + var(--depth, 0) * 24px + 24px);
   box-sizing: border-box;
   color: var(--po-text-subtle);
   font-size: 12px;
@@ -379,7 +449,7 @@ body.data-sidebar-resizing * {
   position: absolute;
   top: -2px;
   bottom: -2px;
-  left: calc(var(--depth, 0) * 16px);
+  left: calc(var(--depth, 0) * 24px - 8px);
   z-index: 0;
   width: 1px;
   background: var(--po-tree-guide);
@@ -489,11 +559,12 @@ body.data-sidebar-resizing * {
   min-height: 148px;
   padding: 18px;
   border-bottom: 1px solid var(--po-divider);
-  color: var(--po-text-muted);
   text-align: center;
 }
 
-.empty-preview strong {
-  color: var(--po-text);
-  font-size: 14px;
+.empty-preview span {
+  color: var(--po-text-subtle);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
 }

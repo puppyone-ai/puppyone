@@ -12,6 +12,7 @@ import { CsvViewer, canEditCsv } from "./viewers/CsvViewer";
 import { DocumentPreview } from "./viewers/DocumentFallbackViewer";
 import { HtmlViewer } from "./viewers/HtmlViewer";
 import { MarkdownViewer, canEditMarkdown } from "./viewers/MarkdownViewer";
+import { OfficeViewer } from "./viewers/OfficeViewer";
 import {
   AudioResourceViewer,
   ImageResourceViewer,
@@ -61,6 +62,12 @@ export const EDITOR_VIEWERS: EditorViewer[] = [
     source: "resource",
     match: ({ document, format }) => document.type === "pdf" || format.defaultViewer === "pdf-preview",
     render: (context) => <PdfResourceViewer {...context} />,
+  },
+  {
+    id: "office-preview",
+    source: "resource",
+    match: ({ document, format }) => format.defaultViewer === "office-preview" || isOfficeDocument(document.name, document.mimeType),
+    render: (context) => <OfficeViewer {...context} />,
   },
   {
     id: "audio-preview",
@@ -126,4 +133,18 @@ export function shouldReadEditorContent(input: {
 }): boolean {
   const requirement = getEditorSourceRequirement(input);
   return requirement === "content" || requirement === "content-and-resource";
+}
+
+function isOfficeDocument(name: string, mimeType?: string | null): boolean {
+  const lowerName = name.toLowerCase();
+  if (/\.(docx?|xlsx?|xlsm|xlsb|pptx?|ppsx?|odt|ott|ods|ots|odp|otp)$/.test(lowerName)) return true;
+
+  const normalizedMime = mimeType?.toLowerCase().split(";")[0].trim() ?? "";
+  return (
+    normalizedMime === "application/msword" ||
+    normalizedMime === "application/vnd.ms-excel" ||
+    normalizedMime === "application/vnd.ms-powerpoint" ||
+    normalizedMime.startsWith("application/vnd.openxmlformats-officedocument.") ||
+    normalizedMime.startsWith("application/vnd.oasis.opendocument.")
+  );
 }

@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { DataNode } from "../core/types";
-import { FileGlyphIcon } from "../file/fileIcons";
+import { FileGlyphIcon, type FileIconThemeId } from "../file/fileIcons";
 
 export type ExplorerTreeProps = {
   nodes: DataNode[];
@@ -13,6 +13,7 @@ export type ExplorerTreeProps = {
   showRoot?: boolean;
   emptyLabel?: string;
   loadingLabel?: string;
+  fileIconTheme?: FileIconThemeId;
   onSelectNode: (node: DataNode | null) => void;
   onToggleFolder?: (node: DataNode, expanded: boolean) => void;
   renderRootActions?: () => ReactNode;
@@ -22,7 +23,7 @@ export type ExplorerTreeProps = {
 
 const EXPLORER_TREE_ROW_HEIGHT = 30;
 const EXPLORER_TREE_ROW_GAP = 2;
-const EXPLORER_TREE_INDENT = 16;
+const EXPLORER_TREE_INDENT = 24;
 const EXPLORER_TREE_ROW_MARGIN_X = 6;
 const EXPLORER_TREE_CONTENT_INSET = 8;
 const EXPLORER_TREE_ROW_MARGIN_Y = EXPLORER_TREE_ROW_GAP / 2;
@@ -44,6 +45,7 @@ export function ExplorerTree({
   showRoot = true,
   emptyLabel = "Empty folder",
   loadingLabel = "Loading...",
+  fileIconTheme = "default",
   onSelectNode,
   onToggleFolder,
   renderRootActions,
@@ -51,8 +53,9 @@ export function ExplorerTree({
   renderNodeActions,
 }: ExplorerTreeProps) {
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(collectAncestorFolderPaths(activePath)));
+  const scrollRef = useRef<HTMLDivElement>(null);
   const lastAutoExpandedPath = useRef(activePath);
-  const rootActive = activePath === null;
+  const [scrollable, setScrollable] = useState(false);
 
   useEffect(() => {
     if (lastAutoExpandedPath.current === activePath) return;
@@ -78,14 +81,44 @@ export function ExplorerTree({
     [onToggleFolder],
   );
 
+  useLayoutEffect(() => {
+    if (typeof window === "undefined") return;
+    const element = scrollRef.current;
+    if (!element) return;
+
+    let frame = 0;
+    const updateScrollableState = () => {
+      frame = 0;
+      const nextScrollable = element.scrollHeight - element.clientHeight > 1;
+      setScrollable((current) => (current === nextScrollable ? current : nextScrollable));
+    };
+    const scheduleUpdate = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(updateScrollableState);
+    };
+
+    const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(scheduleUpdate);
+    resizeObserver?.observe(element);
+    if (element.firstElementChild) {
+      resizeObserver?.observe(element.firstElementChild);
+    }
+
+    scheduleUpdate();
+    window.addEventListener("resize", scheduleUpdate);
+
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", scheduleUpdate);
+    };
+  }, [nodes, rootError, rootLoading, loadingPath, expanded]);
+
   return (
     <div className="explorer-tree-shell">
       {showRoot && (
         <div className="explorer-tree-root-scope">
-          <button
-            className={`tree-row root ${rootActive ? "active" : ""}`}
-            type="button"
-            onClick={() => onSelectNode(null)}
+          <div
+            className="tree-row root"
             style={{ "--depth": 0 } as CSSProperties}
           >
             <span className="tree-row-content">
@@ -96,11 +129,11 @@ export function ExplorerTree({
                 </span>
               )}
             </span>
-          </button>
+          </div>
         </div>
       )}
 
-      <div className="explorer-tree-scroll">
+      <div ref={scrollRef} className={`explorer-tree-scroll ${scrollable ? "is-scrollable" : ""}`}>
         <div className="explorer-tree-list">
           {rootError && nodes.length === 0 ? (
             <ExplorerTreeMetaRow depth={0}>{rootError}</ExplorerTreeMetaRow>
@@ -119,6 +152,7 @@ export function ExplorerTree({
                 loadingPath={loadingPath}
                 emptyLabel={emptyLabel}
                 loadingLabel={loadingLabel}
+                fileIconTheme={fileIconTheme}
                 onToggleFolder={toggleFolder}
                 onSelectNode={onSelectNode}
                 renderFolderActions={renderFolderActions}
@@ -140,6 +174,7 @@ function TreeNodeRow({
   loadingPath,
   emptyLabel,
   loadingLabel,
+  fileIconTheme,
   onToggleFolder,
   onSelectNode,
   renderFolderActions,
@@ -152,6 +187,7 @@ function TreeNodeRow({
   loadingPath: string | null;
   emptyLabel: string;
   loadingLabel: string;
+  fileIconTheme: FileIconThemeId;
   onToggleFolder: (node: DataNode, expanded: boolean) => void;
   onSelectNode: (node: DataNode) => void;
   renderFolderActions?: (node: DataNode) => ReactNode;
@@ -206,7 +242,7 @@ function TreeNodeRow({
             {isFolder ? (
               <TreeDisclosureMarker expanded={isExpanded} />
             ) : (
-              <FileGlyphIcon name={node.name} type={node.type} size={18} />
+              <FileGlyphIcon name={node.name} type={node.type} size={18} theme={fileIconTheme} />
             )}
           </span>
           <span className="tree-label">{node.name}</span>
@@ -240,6 +276,7 @@ function TreeNodeRow({
               loadingPath={loadingPath}
               emptyLabel={emptyLabel}
               loadingLabel={loadingLabel}
+              fileIconTheme={fileIconTheme}
               onToggleFolder={onToggleFolder}
               onSelectNode={onSelectNode}
               renderFolderActions={renderFolderActions}

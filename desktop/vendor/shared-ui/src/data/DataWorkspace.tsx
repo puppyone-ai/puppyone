@@ -17,6 +17,7 @@ import { ExplorerTree } from "./ExplorerTree";
 import { FilePreview, type FilePreviewProps } from "./FilePreview";
 import { ProjectsHeader } from "./ProjectsHeader";
 import type { EditorSaveMode } from "../editor/PuppyoneEditorHost";
+import type { FileIconThemeId } from "../file/fileIcons";
 
 export type DataWorkspaceState = {
   tree: DataNode[];
@@ -33,6 +34,15 @@ export type DataWorkspaceState = {
   fileUrl: string | null;
   fileUrlLoading: boolean;
   fileUrlError: string | null;
+};
+
+type CommittedPreviewDocument = {
+  node: DataNode;
+  fileContent: FileContent | null;
+  fileUrl: string | null;
+  fileUrlLoading: boolean;
+  fileUrlError: string | null;
+  fileError: string | null;
 };
 
 export type DataWorkspaceSlot = ReactNode | ((state: DataWorkspaceState) => ReactNode);
@@ -67,6 +77,7 @@ export type DataWorkspaceProps = {
   emptySlot?: ReactNode;
   showPreviewHeader?: boolean;
   hidePreviewSourceView?: boolean;
+  fileIconTheme?: FileIconThemeId;
   editorSaveMode?: EditorSaveMode;
   previewActionSlot?: FilePreviewProps["actionSlot"];
   renderPreviewBody?: FilePreviewProps["renderBody"];
@@ -117,6 +128,7 @@ export function DataWorkspace({
   emptySlot,
   showPreviewHeader = true,
   hidePreviewSourceView = false,
+  fileIconTheme = "default",
   editorSaveMode = "manual",
   previewActionSlot,
   renderPreviewBody,
@@ -135,12 +147,15 @@ export function DataWorkspace({
   const [loadingPath, setLoadingPath] = useState<string | null>(ROOT_FOLDER_KEY);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<FileContent | null>(null);
+  const [fileContentCache, setFileContentCache] = useState<Record<string, FileContent>>({});
   const [fileLoading, setFileLoading] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [fileErrorPath, setFileErrorPath] = useState<string | null>(null);
   const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [fileUrlPath, setFileUrlPath] = useState<string | null>(null);
   const [fileUrlLoading, setFileUrlLoading] = useState(false);
   const [fileUrlError, setFileUrlError] = useState<string | null>(null);
+  const [committedPreviewDocument, setCommittedPreviewDocument] = useState<CommittedPreviewDocument | null>(null);
   const lastRefreshKeyRef = useRef(refreshKey);
   const [internalExplorerWidth, setInternalExplorerWidth] = useState(() => (
     clampNumber(defaultExplorerWidth, minExplorerWidth, maxExplorerWidth)
@@ -191,12 +206,15 @@ export function DataWorkspace({
     setTree([]);
     setLoadError(null);
     setFileContent(null);
+    setFileContentCache({});
     setFileError(null);
+    setFileErrorPath(null);
     setFileLoading(false);
     setFileUrl(null);
     setFileUrlPath(null);
     setFileUrlError(null);
     setFileUrlLoading(false);
+    setCommittedPreviewDocument(null);
     setLoadingPath(ROOT_FOLDER_KEY);
   }, [workspace.path, dataPort, defaultActivePath]);
 
@@ -272,10 +290,42 @@ export function DataWorkspace({
   const activeNode = useMemo(() => findDataNode(tree, resolvedActivePath), [resolvedActivePath, tree]);
   const currentFolderPath = activeNode?.type === "folder" ? activeNode.path : getParentPath(resolvedActivePath);
   const selectedFile = activeNode?.type !== "folder" ? activeNode : null;
-  const selectedFileContent = fileContent?.path === selectedFile?.path ? fileContent : null;
+  const selectedFileNeedsFullContent = Boolean(selectedFile && dataPort.readFile && shouldReadEditorContent(selectedFile));
+  const cachedSelectedFileContent = selectedFile ? fileContentCache[selectedFile.path] ?? null : null;
+  const selectedFileContent = fileContent?.path === selectedFile?.path ? fileContent : cachedSelectedFileContent;
+  const selectedFileError = fileErrorPath === selectedFile?.path ? fileError : null;
+  const selectedFileContentPending = Boolean(
+    selectedFileNeedsFullContent && selectedFile && !selectedFileContent && !selectedFileError,
+  );
   const selectedFileUrl = fileUrlPath === selectedFile?.path ? fileUrl : null;
   const selectedFileUrlLoading = fileUrlPath === selectedFile?.path ? fileUrlLoading : false;
   const selectedFileUrlError = fileUrlPath === selectedFile?.path ? fileUrlError : null;
+  const selectedPreviewDocument = useMemo<CommittedPreviewDocument | null>(() => (
+    selectedFile
+      ? {
+          node: selectedFile,
+          fileContent: selectedFileContent,
+          fileUrl: selectedFileUrl,
+          fileUrlLoading: selectedFileUrlLoading,
+          fileUrlError: selectedFileUrlError,
+          fileError: selectedFileError,
+        }
+      : null
+  ), [selectedFile, selectedFileContent, selectedFileError, selectedFileUrl, selectedFileUrlError, selectedFileUrlLoading]);
+  const renderedPreviewDocument = selectedFileContentPending && committedPreviewDocument
+    ? committedPreviewDocument
+    : selectedPreviewDocument;
+  const renderedPreviewIsSelectedFile = renderedPreviewDocument?.node.path === selectedFile?.path;
+  const renderedPreviewLoading = renderedPreviewIsSelectedFile
+    ? fileLoading || selectedFileContentPending
+    : selectedFileContentPending;
+  const renderedPreviewError = renderedPreviewIsSelectedFile ? selectedFileError : null;
+  const renderedPreviewUrlLoading = renderedPreviewIsSelectedFile
+    ? selectedFileUrlLoading
+    : renderedPreviewDocument?.fileUrlLoading ?? false;
+  const renderedPreviewUrlError = renderedPreviewIsSelectedFile
+    ? selectedFileUrlError
+    : renderedPreviewDocument?.fileUrlError ?? null;
   const pathSegments = buildBreadcrumb(workspace.name, currentFolderPath, selectedFile?.name)
     .map((label) => ({ label }));
   const rootLoading = loadingPath === ROOT_FOLDER_KEY;
@@ -289,17 +339,28 @@ export function DataWorkspace({
     loadError,
     rootLoading,
     fileContent: selectedFileContent,
-    fileLoading,
-    fileError,
+    fileLoading: fileLoading || selectedFileContentPending,
+    fileError: selectedFileError,
     fileUrl: selectedFileUrl,
     fileUrlLoading: selectedFileUrlLoading,
     fileUrlError: selectedFileUrlError,
   };
 
   useEffect(() => {
+    if (!selectedPreviewDocument) {
+      setCommittedPreviewDocument(null);
+      return;
+    }
+
+    if (selectedFileContentPending) return;
+    setCommittedPreviewDocument(selectedPreviewDocument);
+  }, [selectedPreviewDocument, selectedFileContentPending]);
+
+  useEffect(() => {
     if (!selectedFile) {
       setFileContent(null);
       setFileError(null);
+      setFileErrorPath(null);
       setFileLoading(false);
       return undefined;
     }
@@ -307,6 +368,7 @@ export function DataWorkspace({
     if (!dataPort.readFile) {
       setFileContent(null);
       setFileError(null);
+      setFileErrorPath(null);
       setFileLoading(false);
       return undefined;
     }
@@ -314,6 +376,7 @@ export function DataWorkspace({
     if (!shouldReadEditorContent(selectedFile)) {
       setFileContent(null);
       setFileError(null);
+      setFileErrorPath(null);
       setFileLoading(false);
       return undefined;
     }
@@ -322,13 +385,21 @@ export function DataWorkspace({
     setFileContent(null);
     setFileLoading(true);
     setFileError(null);
+    setFileErrorPath(null);
     dataPort.readFile(selectedFile.path)
       .then((content) => {
-        if (!cancelled) setFileContent(content);
+        if (!cancelled) {
+          setFileContent(content);
+          setFileContentCache((current) => ({
+            ...current,
+            [content.path]: content,
+          }));
+        }
       })
       .catch((error) => {
         if (!cancelled) {
           setFileContent(null);
+          setFileErrorPath(selectedFile.path);
           setFileError(error instanceof Error ? error.message : String(error));
         }
       })
@@ -389,20 +460,42 @@ export function DataWorkspace({
     if (expanded) void loadFolder(node.path);
   };
 
-  const saveSelectedFile = async (content: string) => {
-    if (!selectedFile || !dataPort.writeFile) return;
-    await dataPort.writeFile(selectedFile.path, content);
+  const saveFileContent = async (node: DataNode, content: string) => {
+    if (!dataPort.writeFile) return;
+
+    await dataPort.writeFile(node.path, content);
+
+    const existingContent = fileContent?.path === node.path
+      ? fileContent
+      : fileContentCache[node.path] ?? null;
+    const nextContent: FileContent = existingContent
+      ? { ...existingContent, content }
+      : {
+          path: node.path,
+          name: node.name,
+          type: node.type,
+          content,
+        };
+
     setFileContent((current) => (
-      current
-        ? { ...current, content }
-        : {
-            path: selectedFile.path,
-            name: selectedFile.name,
-            type: selectedFile.type,
-            content,
-          }
+      current?.path === node.path || selectedFile?.path === node.path
+        ? nextContent
+        : current
     ));
-    setTree((current) => updateNodeContent(current, selectedFile.path, content));
+    setFileContentCache((current) => ({
+      ...current,
+      [node.path]: nextContent,
+    }));
+    setCommittedPreviewDocument((current) => (
+      current?.node.path === node.path
+        ? {
+            ...current,
+            node: { ...current.node, content },
+            fileContent: nextContent,
+          }
+        : current
+    ));
+    setTree((current) => updateNodeContent(current, node.path, content));
   };
 
   const beginExplorerResize = useCallback(
@@ -504,10 +597,10 @@ export function DataWorkspace({
                   </div>
                 )
               )}
-              {explorerSlot ? (
-                renderWorkspaceSlot(explorerSlot, workspaceState)
-              ) : (
-                <>
+              <div className="data-explorer-view-frame" data-view-mode={explorerSlot ? "custom" : "files"}>
+                {explorerSlot ? (
+                  renderWorkspaceSlot(explorerSlot, workspaceState)
+                ) : (
                   <ExplorerTree
                     nodes={tree}
                     activePath={resolvedActivePath}
@@ -519,12 +612,13 @@ export function DataWorkspace({
                     loadingLabel={labels?.loadingWorkspace ?? "Loading workspace..."}
                     onToggleFolder={toggleFolder}
                     onSelectNode={selectNode}
+                    fileIconTheme={fileIconTheme}
                     renderRootActions={explorerRootActionSlot ? () => renderWorkspaceSlot(explorerRootActionSlot, workspaceState) : undefined}
                     renderFolderActions={explorerFolderActionSlot ? (folder) => renderWorkspaceFolderSlot(explorerFolderActionSlot, workspaceState, folder) : undefined}
                     renderNodeActions={explorerNodeActionSlot ? (node) => renderWorkspaceNodeSlot(explorerNodeActionSlot, workspaceState, node) : undefined}
                   />
-                </>
-              )}
+                )}
+              </div>
             </>
           )}
           {explorerCollapsed && (
@@ -558,26 +652,31 @@ export function DataWorkspace({
         )}
 
         <main className="browser-column desktop-editor-panel">
-          {mainSlot ? (
-            renderWorkspaceSlot(mainSlot, workspaceState)
-          ) : (
-            <FilePreview
-              node={selectedFile}
-              fileContent={selectedFileContent}
-              fileUrl={selectedFileUrl}
-              fileUrlLoading={selectedFileUrlLoading}
-              fileUrlError={selectedFileUrlError}
-              loading={fileLoading}
-              error={fileError}
-              showHeader={showPreviewHeader}
-              hideSourceView={hidePreviewSourceView}
-              editorSaveMode={editorSaveMode}
-              emptySlot={emptySlot}
-              actionSlot={previewActionSlot}
-              renderBody={renderPreviewBody}
-              onSaveContent={dataPort.writeFile ? saveSelectedFile : undefined}
-            />
-          )}
+          <div className="data-main-view-frame" data-view-mode={mainSlot ? "custom" : "files"}>
+            {mainSlot ? (
+              renderWorkspaceSlot(mainSlot, workspaceState)
+            ) : (
+              <FilePreview
+                node={renderedPreviewDocument?.node ?? null}
+                fileContent={renderedPreviewDocument?.fileContent ?? null}
+                fileUrl={renderedPreviewDocument?.fileUrl ?? null}
+                fileUrlLoading={renderedPreviewUrlLoading}
+                fileUrlError={renderedPreviewUrlError}
+                loading={renderedPreviewLoading}
+                error={renderedPreviewError}
+                showHeader={showPreviewHeader}
+                hideSourceView={hidePreviewSourceView}
+                fileIconTheme={fileIconTheme}
+                editorSaveMode={editorSaveMode}
+                emptySlot={emptySlot}
+                actionSlot={previewActionSlot}
+                renderBody={renderPreviewBody}
+                onSaveContent={dataPort.writeFile && renderedPreviewDocument
+                  ? (content) => saveFileContent(renderedPreviewDocument.node, content)
+                  : undefined}
+              />
+            )}
+          </div>
         </main>
       </div>
     </section>

@@ -1,8 +1,11 @@
 import type { CSSProperties, Dispatch, ReactNode, SetStateAction } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { DataWorkspace, FileGlyphIcon, type DataNode, type Workspace } from "@puppyone/shared-ui";
+import { DataWorkspace, isFileIconThemeId, type DataNode, type DataPort, type FileIconThemeId, type Workspace } from "@puppyone/shared-ui";
 import { DesktopCloudShell, type DesktopView } from "./components/DesktopCloudShell";
 import {
+  CloudServiceMainView,
+  CloudServicePanel,
+  CloudServiceSidebar,
   GitSidebar,
   GitStatusView,
   SettingsSidebar,
@@ -33,17 +36,35 @@ import {
   stashAndCheckoutWorkspaceGitBranch,
   unstageWorkspaceGitPaths,
 } from "./lib/localFiles";
+import {
+  DEFAULT_SIDEBAR_NAVIGATION_LAYOUT,
+  DEFAULT_THEME_MODE,
+  FILES_VISIBILITY_STORAGE_KEY,
+  FILE_ICON_THEME_STORAGE_KEY,
+  RIGHT_SIDEBAR_TOOLS_STORAGE_KEY,
+  SIDEBAR_NAVIGATION_LAYOUT_STORAGE_KEY,
+  THEME_STORAGE_KEY,
+  getSidebarNavigationOrientation,
+  getSidebarNavigationPlacement,
+  parseFilesVisibilitySettings,
+  parseRightSidebarToolsSettings,
+  parseSidebarNavigationLayout,
+  parseThemeMode,
+  type FilesVisibilitySettings,
+  type RightSidebarToolsSettings,
+  type SidebarNavigationLayout,
+  type SidebarNavigationOrientation,
+  type ThemeMode,
+} from "./preferences";
 import type { GitCommitDetail, GitStatusSnapshot } from "./types/electron";
 import type { GitBranchSummary } from "./types/electron";
-import { AlertTriangle, ChevronDown, Eraser, Folder, GitBranch, MoreVertical, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Settings, SquareTerminal, Trash2, X } from "lucide-react";
+import { AlertTriangle, ChevronDown, Cloud, Eraser, FileText, Folder, GitBranch, MoreVertical, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Settings, SquareTerminal, Trash2, X } from "lucide-react";
 
 const puppyoneLogoUrl = new URL("../public/puppyone-logo.svg", import.meta.url).href;
-
-export type ThemeMode = "system" | "light" | "dark";
 type OpenWorkspaceOptions = {
   remember?: boolean;
 };
-type DesktopCreateEntryKind = "folder" | "markdown" | "file";
+type DesktopCreateEntryKind = "folder" | "markdown";
 type DesktopCreateEntryAnchor = {
   left: number;
   top: number;
@@ -57,6 +78,8 @@ type DesktopCreateEntryDraft = {
   anchor: DesktopCreateEntryAnchor;
   error: string | null;
   creatingKind: DesktopCreateEntryKind | null;
+  selectedKind: DesktopCreateEntryKind | null;
+  name: string;
 };
 type DesktopNodeActionMenuDraft = {
   node: DataNode;
@@ -73,7 +96,6 @@ type PendingBranchSwitch = {
   error: string | null;
 };
 
-const THEME_STORAGE_KEY = "puppyone.desktop.theme";
 const EXPLORER_WIDTH_STORAGE_KEY = "puppyone.desktop.explorerWidth";
 const SIDEBAR_COLLAPSED_STORAGE_KEY = "puppyone.desktop.sidebarCollapsed";
 const RIGHT_SIDEBAR_WIDTH_STORAGE_KEY = "puppyone.desktop.rightSidebarWidth";
@@ -84,13 +106,39 @@ const COLLAPSED_EXPLORER_WIDTH = 0;
 const DEFAULT_RIGHT_SIDEBAR_WIDTH = 560;
 const MIN_RIGHT_SIDEBAR_WIDTH = 420;
 const MAX_RIGHT_SIDEBAR_WIDTH = 760;
-const CREATE_ENTRY_MENU_WIDTH = 176;
-const CREATE_ENTRY_MENU_ESTIMATED_HEIGHT = 178;
+const CREATE_ENTRY_PICKER_MENU_WIDTH = 168;
+const CREATE_ENTRY_NAME_MENU_WIDTH = 260;
+const CREATE_ENTRY_MENU_ESTIMATED_HEIGHT = 154;
 const CREATE_ENTRY_MENU_MARGIN = 12;
 const NODE_ACTION_MENU_WIDTH = 160;
 const NODE_ACTION_MENU_ESTIMATED_HEIGHT = 112;
 const TITLEBAR_WORKSPACE_LABEL_CHARS = 12;
 const TITLEBAR_BRANCH_LABEL_CHARS = 24;
+const CLOUD_ACCOUNT_EMAIL_STORAGE_KEY = "puppyone.desktop.cloudAccountEmail";
+
+function hasPuppyoneCloudRemote(status: GitStatusSnapshot | null) {
+  return Boolean(status?.remotes.some((remote) => isPuppyoneCloudRemoteUrl(remote.fetchUrl ?? remote.pushUrl)));
+}
+
+function isPuppyoneCloudRemoteUrl(rawUrl: string | null) {
+  if (!rawUrl) return false;
+
+  try {
+    const url = new URL(rawUrl);
+    return /^\/git\/ap\/[^/]+\.git$/.test(url.pathname) || /^\/git\/[^/]+\.git$/.test(url.pathname);
+  } catch {
+    return false;
+  }
+}
+
+function readStoredCloudAccountEmail() {
+  try {
+    const value = window.localStorage.getItem(CLOUD_ACCOUNT_EMAIL_STORAGE_KEY);
+    return value && value.includes("@") ? value : null;
+  } catch {
+    return null;
+  }
+}
 
 function RestoringWorkspaceScreen() {
   return (
@@ -108,6 +156,8 @@ export function App() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<DesktopView>("data");
+  const [cloudPanelOpen, setCloudPanelOpen] = useState(false);
+  const [cloudAccountEmail, setCloudAccountEmail] = useState<string | null>(() => readStoredCloudAccountEmail());
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [gitStatus, setGitStatus] = useState<GitStatusSnapshot | null>(null);
   const [gitStatusPath, setGitStatusPath] = useState<string | null>(null);
@@ -125,6 +175,10 @@ export function App() {
   const [gitOperationLoading, setGitOperationLoading] = useState<string | null>(null);
   const [gitOperationError, setGitOperationError] = useState<string | null>(null);
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => readInitialThemeMode());
+  const [fileIconTheme, setFileIconTheme] = useState<FileIconThemeId>(() => readInitialFileIconTheme());
+  const [sidebarNavigationLayout, setSidebarNavigationLayout] = useState<SidebarNavigationLayout>(() => readInitialSidebarNavigationLayout());
+  const [filesVisibilitySettings, setFilesVisibilitySettings] = useState<FilesVisibilitySettings>(() => readInitialFilesVisibilitySettings());
+  const [rightSidebarToolsSettings, setRightSidebarToolsSettings] = useState<RightSidebarToolsSettings>(() => readInitialRightSidebarToolsSettings());
   const [activeSettingsSection, setActiveSettingsSection] = useState<SettingsSection>("workspace");
   const [explorerWidth, setExplorerWidth] = useState(() => readInitialExplorerWidth());
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readInitialSidebarCollapsed());
@@ -149,16 +203,48 @@ export function App() {
     [activeWorkspaceId, workspaces],
   );
   const workspaceKey = useMemo(() => workspace?.path ?? "no-workspace", [workspace?.path]);
-  const dataPort = useMemo(
+  const localDataPort = useMemo(
     () => (workspace ? createLocalDataPort(workspace.path) : null),
     [workspace],
   );
+  const dataPort = useMemo(
+    () => (localDataPort ? createExplorerDataPort(localDataPort, filesVisibilitySettings) : null),
+    [filesVisibilitySettings, localDataPort],
+  );
   const resolvedTheme = themeMode === "system" ? (systemDark ? "dark" : "light") : themeMode;
   const activeGitStatus = gitStatusPath === workspace?.path ? gitStatus : null;
+  const cloudWorkspaceAvailable = useMemo(
+    () => Boolean(cloudAccountEmail) || hasPuppyoneCloudRemote(activeGitStatus),
+    [activeGitStatus, cloudAccountEmail],
+  );
+  const sidebarNavigationPlacement = getSidebarNavigationPlacement(sidebarNavigationLayout);
+  const sidebarNavigationOrientation = getSidebarNavigationOrientation(sidebarNavigationLayout);
+  const terminalToolEnabled = rightSidebarToolsSettings.enabled.terminal;
+  const terminalSidebarOpen = terminalToolEnabled && rightSidebarOpen;
 
   useEffect(() => {
     window.localStorage.setItem(THEME_STORAGE_KEY, themeMode);
   }, [themeMode]);
+
+  useEffect(() => {
+    window.localStorage.setItem(FILE_ICON_THEME_STORAGE_KEY, fileIconTheme);
+  }, [fileIconTheme]);
+
+  useEffect(() => {
+    window.localStorage.setItem(SIDEBAR_NAVIGATION_LAYOUT_STORAGE_KEY, sidebarNavigationLayout);
+  }, [sidebarNavigationLayout]);
+
+  useEffect(() => {
+    window.localStorage.setItem(FILES_VISIBILITY_STORAGE_KEY, JSON.stringify(filesVisibilitySettings));
+  }, [filesVisibilitySettings]);
+
+  useEffect(() => {
+    window.localStorage.setItem(RIGHT_SIDEBAR_TOOLS_STORAGE_KEY, JSON.stringify(rightSidebarToolsSettings));
+  }, [rightSidebarToolsSettings]);
+
+  useEffect(() => {
+    if (!terminalToolEnabled && rightSidebarOpen) setRightSidebarOpen(false);
+  }, [rightSidebarOpen, terminalToolEnabled]);
 
   useEffect(() => {
     window.localStorage.setItem(EXPLORER_WIDTH_STORAGE_KEY, String(explorerWidth));
@@ -235,6 +321,7 @@ export function App() {
     setGitOperationLoading(null);
     setActiveSettingsSection("workspace");
     setBranchSwitcherOpen(false);
+    setCloudPanelOpen(false);
     setActiveDataPath(null);
     setCreateEntryDraft(null);
     setNodeActionMenu(null);
@@ -247,6 +334,7 @@ export function App() {
     });
     setActiveWorkspaceId(nextWorkspace.id);
     setActiveView("data");
+    setCloudPanelOpen(false);
     setSwitcherOpen(false);
     setRestoreWorkspaceError(null);
     if (options.remember !== false) {
@@ -259,6 +347,28 @@ export function App() {
   const openWorkspace = useCallback((nextWorkspace: Workspace, options: OpenWorkspaceOptions = {}) => {
     activateWorkspace(nextWorkspace, options);
   }, [activateWorkspace]);
+
+  const navigateDesktopView = useCallback((view: DesktopView) => {
+    if (view === "cloud" && !cloudWorkspaceAvailable) {
+      setCloudPanelOpen(true);
+      setSwitcherOpen(false);
+      return;
+    }
+
+    setActiveView(view);
+    setCloudPanelOpen(false);
+    setSidebarCollapsed(false);
+    setSwitcherOpen(false);
+  }, [cloudWorkspaceAvailable]);
+
+  const handleActiveDataPathChange = useCallback((path: string | null) => {
+    setActiveDataPath(path);
+  }, []);
+
+  const handleFilesVisibilitySettingsChange = useCallback((nextSettings: FilesVisibilitySettings) => {
+    setFilesVisibilitySettings(nextSettings);
+    setWorkspaceRefreshToken((token) => token + 1);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -311,6 +421,27 @@ export function App() {
       if (workspacePathRef.current === rootPath) setGitStatusLoading(false);
     }
   }, [workspace]);
+
+  const handleCloudSignedIn = useCallback((email: string) => {
+    setCloudAccountEmail(email);
+    try {
+      window.localStorage.setItem(CLOUD_ACCOUNT_EMAIL_STORAGE_KEY, email);
+    } catch {
+      // Local storage is best-effort; the current session still unlocks Cloud.
+    }
+    setCloudPanelOpen(false);
+    setActiveView("cloud");
+    setSidebarCollapsed(false);
+    setSwitcherOpen(false);
+    void refreshGitStatus();
+  }, [refreshGitStatus]);
+
+  const enterCloudView = useCallback(() => {
+    setCloudPanelOpen(false);
+    setActiveView("cloud");
+    setSidebarCollapsed(false);
+    setSwitcherOpen(false);
+  }, []);
 
   useEffect(() => {
     if (!workspace || !window.puppyoneDesktop?.watchWorkspace) return undefined;
@@ -607,6 +738,8 @@ export function App() {
       anchor: rectToCreateEntryAnchor(anchorRect),
       error: null,
       creatingKind: null,
+      selectedKind: null,
+      name: "",
     });
   }, []);
 
@@ -639,14 +772,35 @@ export function App() {
     setRestoringWorkspace(false);
   }, []);
 
-  const createEntryFromMenu = useCallback(async (kind: DesktopCreateEntryKind) => {
-    if (!workspace || !createEntryDraft || createEntryDraft.creatingKind) return;
+  const selectCreateEntryKind = useCallback((kind: DesktopCreateEntryKind) => {
+    setCreateEntryDraft((current) => current ? {
+      ...current,
+      selectedKind: kind,
+      name: defaultCreateName(kind),
+      error: null,
+    } : current);
+  }, []);
+
+  const createEntryFromMenu = useCallback(async () => {
+    if (!workspace || !createEntryDraft || createEntryDraft.creatingKind || !createEntryDraft.selectedKind) return;
+
+    const kind = createEntryDraft.selectedKind;
+    let requestedName: string;
+    try {
+      requestedName = normalizeCreateEntryName(kind, createEntryDraft.name);
+    } catch (error) {
+      setCreateEntryDraft((current) => current ? {
+        ...current,
+        error: error instanceof Error ? error.message : String(error),
+      } : current);
+      return;
+    }
 
     setCreateEntryDraft((current) => current ? { ...current, creatingKind: kind, error: null } : current);
     try {
       const existingChildren = await loadFolderChildren(workspace.path, createEntryDraft.parentPath).catch(() => []);
-      const name = uniqueCreateEntryName(defaultCreateName(kind), new Set(existingChildren.map((node) => node.name)));
-      await createWorkspaceEntry(workspace.path, {
+      const name = uniqueCreateEntryName(requestedName, new Set(existingChildren.map((node) => node.name)));
+      const result = await createWorkspaceEntry(workspace.path, {
         parentPath: createEntryDraft.parentPath,
         name,
         kind: kind === "folder" ? "folder" : "file",
@@ -655,6 +809,8 @@ export function App() {
       setCreateEntryDraft(null);
       setNodeActionMenu(null);
       setActiveView("data");
+      setSidebarCollapsed(false);
+      setActiveDataPath(result.path ?? joinDataPath(createEntryDraft.parentPath, name));
       setWorkspaceRefreshToken((token) => token + 1);
       void refreshGitStatus();
     } catch (error) {
@@ -760,12 +916,13 @@ export function App() {
               key={item.id}
               className={`desktop-project-option ${item.id === workspace.id ? "active" : ""}`}
               type="button"
+              title={`${item.name} - ${item.path}`}
               onClick={() => {
                 openWorkspace(item);
               }}
             >
               <span className="desktop-project-mark">{item.name[0]?.toUpperCase() ?? "P"}</span>
-              <span>
+              <span className="desktop-project-option-text">
                 <strong>{item.name}</strong>
                 <small>{item.path}</small>
               </span>
@@ -859,9 +1016,9 @@ export function App() {
     </div>
   );
 
-  const titlebarActions = (
+  const titlebarActions = terminalToolEnabled ? (
     <>
-      {rightSidebarOpen && (
+      {terminalSidebarOpen && (
         <button
           className="desktop-titlebar-action"
           type="button"
@@ -878,9 +1035,9 @@ export function App() {
       <button
         className="desktop-titlebar-action"
         type="button"
-        title={rightSidebarOpen ? "Hide terminal" : "Show terminal"}
-        aria-label={rightSidebarOpen ? "Hide terminal" : "Show terminal"}
-        aria-pressed={rightSidebarOpen}
+        title={terminalSidebarOpen ? "Hide terminal" : "Show terminal"}
+        aria-label={terminalSidebarOpen ? "Hide terminal" : "Show terminal"}
+        aria-pressed={terminalSidebarOpen}
         onClick={() => {
           setRightSidebarOpen((open) => !open);
           setSwitcherOpen(false);
@@ -889,26 +1046,26 @@ export function App() {
         <SquareTerminal size={16} />
       </button>
     </>
-  );
+  ) : null;
 
   return (
     <div className={`app-shell cloud-runtime ${resolvedTheme === "dark" ? "dark" : ""}`} data-theme-mode={themeMode}>
       <DesktopCloudShell
         titlebarSlot={titlebarSlot}
         titlebarActions={titlebarActions}
-        rightSidebarOpen={rightSidebarOpen}
+        rightSidebarOpen={terminalSidebarOpen}
         resizableRightSidebar
         rightSidebarWidth={rightSidebarWidth}
         minRightSidebarWidth={MIN_RIGHT_SIDEBAR_WIDTH}
         maxRightSidebarWidth={MAX_RIGHT_SIDEBAR_WIDTH}
         onRightSidebarWidthChange={setRightSidebarWidth}
-        rightSidebar={(
+        rightSidebar={terminalToolEnabled ? (
           <RightTerminalPanel
             key={`${workspace.path}:${terminalResetToken}`}
             workspace={workspace}
-            active={rightSidebarOpen}
+            active={terminalSidebarOpen}
           />
-        )}
+        ) : undefined}
       >
         {dataPort ? (
           <DataWorkspace
@@ -916,7 +1073,7 @@ export function App() {
             workspace={workspace}
             dataPort={dataPort}
             activePath={activeDataPath}
-            onActivePathChange={setActiveDataPath}
+            onActivePathChange={handleActiveDataPathChange}
             resizableExplorer
             explorerCollapsed={sidebarCollapsed}
             explorerWidth={explorerWidth}
@@ -936,13 +1093,24 @@ export function App() {
                   setSwitcherOpen(false);
                 }}
               >
-                <PanelLeftOpen size={17} />
+                <PanelLeftOpen size={16} />
               </button>
             }
             showHeader={false}
-            showExplorerToolbar={false}
+            showExplorerToolbar={sidebarNavigationPlacement === "top"}
+            explorerToolbarSlot={sidebarNavigationPlacement === "top" ? (
+              <DesktopSidebarTopNavigation
+                activeView={activeView}
+                orientation={sidebarNavigationOrientation}
+                sidebarCollapsed={sidebarCollapsed}
+                onNavigate={navigateDesktopView}
+                onOpenSettings={() => navigateDesktopView("settings")}
+                onToggleCollapsed={() => setSidebarCollapsed((collapsed) => !collapsed)}
+              />
+            ) : undefined}
             showPreviewHeader={false}
             hidePreviewSourceView
+            fileIconTheme={fileIconTheme}
             editorSaveMode="auto"
             refreshKey={workspaceRefreshToken}
             explorerRootActionSlot={
@@ -961,124 +1129,121 @@ export function App() {
               />
             )}
             explorerSlot={activeView === "data" ? undefined : (
-              activeView === "git" ? (
-                <GitSidebar
-                  status={activeGitStatus}
-                  activePanel={gitMainPanel}
-                  selectedCommitId={selectedGitCommitId}
-                  loading={gitStatusLoading}
-                  error={gitStatusError}
-                  selectedWorkingFile={selectedGitWorkingFile}
-                  operationLoading={gitOperationLoading}
-                  operationError={gitOperationError}
-                  onSelectPanel={selectGitMainPanel}
-                  onSelectCommit={selectGitCommit}
-                  onSelectWorkingFile={selectGitWorkingFile}
-                  onStagePaths={handleStageGitPaths}
-                  onUnstagePaths={handleUnstageGitPaths}
-                  onDiscardPaths={handleDiscardGitPaths}
-                  onCommit={handleCommitGit}
-                  onInitializeRepository={handleInitializeGitRepository}
-                />
-              ) : (
-                <SettingsSidebar
-                  activeSection={activeSettingsSection}
-                  onSelectSection={setActiveSettingsSection}
-                />
-              )
+              <div className="desktop-view-surface desktop-view-surface-sidebar" data-view={activeView}>
+                {activeView === "git" ? (
+                  <GitSidebar
+                    status={activeGitStatus}
+                    fileIconTheme={fileIconTheme}
+                    activePanel={gitMainPanel}
+                    selectedCommitId={selectedGitCommitId}
+                    loading={gitStatusLoading}
+                    error={gitStatusError}
+                    selectedWorkingFile={selectedGitWorkingFile}
+                    operationLoading={gitOperationLoading}
+                    operationError={gitOperationError}
+                    onSelectPanel={selectGitMainPanel}
+                    onSelectCommit={selectGitCommit}
+                    onSelectWorkingFile={selectGitWorkingFile}
+                    onStagePaths={handleStageGitPaths}
+                    onUnstagePaths={handleUnstageGitPaths}
+                    onDiscardPaths={handleDiscardGitPaths}
+                    onCommit={handleCommitGit}
+                    onInitializeRepository={handleInitializeGitRepository}
+                  />
+                ) : activeView === "cloud" ? (
+                  <CloudServiceSidebar
+                    workspace={workspace}
+                    status={activeGitStatus}
+                    accountEmail={cloudAccountEmail}
+                    loading={gitStatusLoading}
+                    error={gitStatusError}
+                    onOpenDetails={() => setCloudPanelOpen(true)}
+                    onRefresh={refreshGitStatus}
+                    onOpenGitSettings={() => {
+                      setActiveSettingsSection("git");
+                      navigateDesktopView("settings");
+                    }}
+                  />
+                ) : (
+                  <SettingsSidebar
+                    activeSection={activeSettingsSection}
+                    onSelectSection={setActiveSettingsSection}
+                  />
+                )}
+              </div>
             )}
             explorerFooterSlot={
-              <div className={`desktop-sidebar-footer-bar actions-only ${sidebarCollapsed ? "collapsed" : ""}`}>
-                <button
-                  className="desktop-sidebar-footer-button"
-                  type="button"
-                  title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-                  aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-                  onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
-                >
-                  {sidebarCollapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
-                </button>
-                <div className="desktop-sidebar-footer-actions">
-                  <button
-                    className={`desktop-sidebar-footer-button ${activeView === "data" ? "active" : ""}`}
-                    type="button"
-                    title="Context"
-                    aria-label="Context"
-                    onClick={() => {
-                      setActiveView("data");
-                      setSidebarCollapsed(false);
-                      setSwitcherOpen(false);
-                    }}
-                  >
-                    <Folder size={17} />
-                  </button>
-                  <button
-                    className={`desktop-sidebar-footer-button ${activeView === "git" ? "active" : ""}`}
-                    type="button"
-                    title="Git"
-                    aria-label="Git"
-                    onClick={() => {
-                      setActiveView("git");
-                      setSidebarCollapsed(false);
-                      setSwitcherOpen(false);
-                    }}
-                  >
-                    <GitBranch size={17} />
-                  </button>
-                  <button
-                    className={`desktop-sidebar-footer-button ${activeView === "settings" ? "active" : ""}`}
-                    type="button"
-                    title="Settings"
-                    aria-label="Settings"
-                    onClick={() => {
-                      setActiveView("settings");
-                      setSidebarCollapsed(false);
-                      setSwitcherOpen(false);
-                    }}
-                  >
-                    <Settings size={17} />
-                  </button>
-                </div>
-              </div>
+              sidebarNavigationPlacement === "bottom" ? (
+                <DesktopSidebarFooterNavigation
+                  activeView={activeView}
+                  onNavigate={navigateDesktopView}
+                  onOpenSettings={() => navigateDesktopView("settings")}
+                  onToggleCollapsed={() => setSidebarCollapsed((collapsed) => !collapsed)}
+                />
+              ) : undefined
             }
-            mainSlot={activeView === "data" ? undefined : (
-              activeView === "git" ? (
-                <GitStatusView
-                  workspace={workspace}
-                  status={activeGitStatus}
-                  activePanel={gitMainPanel}
-                  selectedCommitId={selectedGitCommitId}
-                  selectedWorkingFile={selectedGitWorkingFile}
-                  commitDetail={gitCommitDetail}
-                  commitDetailLoading={gitCommitDetailLoading}
-                  commitDetailError={gitCommitDetailError}
-                  workingFileDiff={gitWorkingFileDiff}
-                  workingFileDiffLoading={gitWorkingFileDiffLoading}
-                  workingFileDiffError={gitWorkingFileDiffError}
-                  operationLoading={gitOperationLoading}
-                  operationError={gitOperationError}
-                  loading={gitStatusLoading}
-                  error={gitStatusError}
-                  onRefresh={refreshGitStatus}
-                  onStagePaths={handleStageGitPaths}
-                  onUnstagePaths={handleUnstageGitPaths}
-                  onDiscardPaths={handleDiscardGitPaths}
-                  onInitializeRepository={handleInitializeGitRepository}
-                />
-              ) : (
-                <SettingsView
-                  workspace={workspace}
-                  activeSection={activeSettingsSection}
-                  gitStatus={activeGitStatus}
-                  gitStatusLoading={gitStatusLoading}
-                  gitStatusError={gitStatusError}
-                  themeMode={themeMode}
-                  onThemeModeChange={setThemeMode}
-                  onUnlinkWorkspace={unlinkCurrentWorkspace}
-                  onRefreshGitStatus={refreshGitStatus}
-                />
-              )
-            )}
+            mainSlot={activeView === "git" || activeView === "settings" || activeView === "cloud" ? (
+              <div className="desktop-view-surface desktop-view-surface-main" data-view={activeView}>
+                {activeView === "git" ? (
+                  <GitStatusView
+                    workspace={workspace}
+                    status={activeGitStatus}
+                    activePanel={gitMainPanel}
+                    selectedCommitId={selectedGitCommitId}
+                    selectedWorkingFile={selectedGitWorkingFile}
+                    commitDetail={gitCommitDetail}
+                    commitDetailLoading={gitCommitDetailLoading}
+                    commitDetailError={gitCommitDetailError}
+                    workingFileDiff={gitWorkingFileDiff}
+                    workingFileDiffLoading={gitWorkingFileDiffLoading}
+                    workingFileDiffError={gitWorkingFileDiffError}
+                    operationLoading={gitOperationLoading}
+                    operationError={gitOperationError}
+                    loading={gitStatusLoading}
+                    error={gitStatusError}
+                    onRefresh={refreshGitStatus}
+                    onStagePaths={handleStageGitPaths}
+                    onUnstagePaths={handleUnstageGitPaths}
+                    onDiscardPaths={handleDiscardGitPaths}
+                    onInitializeRepository={handleInitializeGitRepository}
+                  />
+                ) : activeView === "cloud" ? (
+                  <CloudServiceMainView
+                    workspace={workspace}
+                    status={activeGitStatus}
+                    accountEmail={cloudAccountEmail}
+                    loading={gitStatusLoading}
+                    error={gitStatusError}
+                    onRefresh={refreshGitStatus}
+                    onOpenDetails={() => setCloudPanelOpen(true)}
+                    onOpenGitSettings={() => {
+                      setActiveSettingsSection("git");
+                      navigateDesktopView("settings");
+                    }}
+                  />
+                ) : (
+                  <SettingsView
+                    workspace={workspace}
+                    activeSection={activeSettingsSection}
+                    gitStatus={activeGitStatus}
+                    gitStatusLoading={gitStatusLoading}
+                    gitStatusError={gitStatusError}
+                    themeMode={themeMode}
+                    fileIconTheme={fileIconTheme}
+                    sidebarNavigationLayout={sidebarNavigationLayout}
+                    filesVisibilitySettings={filesVisibilitySettings}
+                    rightSidebarToolsSettings={rightSidebarToolsSettings}
+                    onThemeModeChange={setThemeMode}
+                    onFileIconThemeChange={setFileIconTheme}
+                    onSidebarNavigationLayoutChange={setSidebarNavigationLayout}
+                    onFilesVisibilitySettingsChange={handleFilesVisibilitySettingsChange}
+                    onRightSidebarToolsSettingsChange={setRightSidebarToolsSettings}
+                    onUnlinkWorkspace={unlinkCurrentWorkspace}
+                    onRefreshGitStatus={refreshGitStatus}
+                  />
+                )}
+              </div>
+            ) : undefined}
             capabilities={{
               create: true,
               rename: true,
@@ -1101,11 +1266,19 @@ export function App() {
               gitStatusLoading={gitStatusLoading}
               gitStatusError={gitStatusError}
               themeMode={themeMode}
+              fileIconTheme={fileIconTheme}
+              sidebarNavigationLayout={sidebarNavigationLayout}
+              filesVisibilitySettings={filesVisibilitySettings}
+              rightSidebarToolsSettings={rightSidebarToolsSettings}
               onThemeModeChange={setThemeMode}
+              onFileIconThemeChange={setFileIconTheme}
+              onSidebarNavigationLayoutChange={setSidebarNavigationLayout}
+              onFilesVisibilitySettingsChange={handleFilesVisibilitySettingsChange}
+              onRightSidebarToolsSettingsChange={setRightSidebarToolsSettings}
               onUnlinkWorkspace={unlinkCurrentWorkspace}
               onRefreshGitStatus={refreshGitStatus}
             />
-          ) : (
+          ) : activeView === "git" ? (
             <GitStatusView
               workspace={workspace}
               status={activeGitStatus}
@@ -1128,9 +1301,42 @@ export function App() {
               onDiscardPaths={handleDiscardGitPaths}
               onInitializeRepository={handleInitializeGitRepository}
             />
-          )
+          ) : activeView === "cloud" ? (
+            <CloudServiceMainView
+              workspace={workspace}
+              status={activeGitStatus}
+              accountEmail={cloudAccountEmail}
+              loading={gitStatusLoading}
+              error={gitStatusError}
+              onRefresh={refreshGitStatus}
+              onOpenDetails={() => setCloudPanelOpen(true)}
+              onOpenGitSettings={() => {
+                setActiveSettingsSection("git");
+                navigateDesktopView("settings");
+              }}
+            />
+          ) : null
         )}
       </DesktopCloudShell>
+      {workspace && (
+        <CloudServicePanel
+          open={cloudPanelOpen}
+          workspace={workspace}
+          status={activeGitStatus}
+          accountEmail={cloudAccountEmail}
+          loading={gitStatusLoading}
+          error={gitStatusError}
+          onClose={() => setCloudPanelOpen(false)}
+          onRefresh={refreshGitStatus}
+          onSignedIn={handleCloudSignedIn}
+          onEnterCloud={enterCloudView}
+          onOpenGitSettings={() => {
+            setCloudPanelOpen(false);
+            setActiveSettingsSection("git");
+            navigateDesktopView("settings");
+          }}
+        />
+      )}
       {pendingBranchSwitch && (
         <BranchSwitchConflictDialog
           branchName={pendingBranchSwitch.branchName}
@@ -1146,7 +1352,9 @@ export function App() {
       {createEntryDraft && (
         <DesktopCreateEntryMenu
           draft={createEntryDraft}
+          onChange={setCreateEntryDraft}
           onCancel={() => setCreateEntryDraft(null)}
+          onSelectKind={selectCreateEntryKind}
           onCreate={createEntryFromMenu}
         />
       )}
@@ -1204,20 +1412,178 @@ function DesktopExplorerRowActions({
   );
 }
 
+function DesktopSidebarFooterNavigation({
+  activeView,
+  onNavigate,
+  onOpenSettings,
+  onToggleCollapsed,
+}: {
+  activeView: DesktopView;
+  onNavigate: (view: DesktopView) => void;
+  onOpenSettings: () => void;
+  onToggleCollapsed: () => void;
+}) {
+  return (
+    <div className="desktop-sidebar-footer-bar actions-only horizontal">
+      <div className="desktop-sidebar-footer-actions desktop-sidebar-footer-actions-start">
+        <button
+          className="desktop-sidebar-footer-button"
+          type="button"
+          title="Collapse sidebar"
+          aria-label="Collapse sidebar"
+          onClick={onToggleCollapsed}
+        >
+          <PanelLeftClose size={16} />
+        </button>
+      </div>
+      <div className="desktop-sidebar-footer-actions desktop-sidebar-footer-actions-end">
+        <DesktopSidebarIconNavigation
+          activeView={activeView}
+          items={DESKTOP_PRIMARY_SIDEBAR_NAV_ITEMS}
+          onNavigate={onNavigate}
+        />
+        <DesktopSidebarFooterSettingsButton activeView={activeView} onOpenSettings={onOpenSettings} />
+      </div>
+    </div>
+  );
+}
+
+function DesktopSidebarTopNavigation({
+  activeView,
+  orientation,
+  sidebarCollapsed,
+  onNavigate,
+  onOpenSettings,
+  onToggleCollapsed,
+}: {
+  activeView: DesktopView;
+  orientation: SidebarNavigationOrientation;
+  sidebarCollapsed: boolean;
+  onNavigate: (view: DesktopView) => void;
+  onOpenSettings: () => void;
+  onToggleCollapsed: () => void;
+}) {
+  return (
+    <div className={`desktop-sidebar-top-navigation ${orientation}`}>
+      <div className="desktop-sidebar-top-navigation-list" aria-label="Workspace navigation">
+        {DESKTOP_PRIMARY_SIDEBAR_NAV_ITEMS.map((item) => (
+          <button
+            key={item.view}
+            className={`desktop-sidebar-top-navigation-button ${activeView === item.view ? "active" : ""}`}
+            type="button"
+            aria-current={activeView === item.view ? "page" : undefined}
+            onClick={() => onNavigate(item.view)}
+          >
+            <item.icon size={16} />
+            <span>{item.label}</span>
+          </button>
+        ))}
+        <button
+          className={`desktop-sidebar-top-navigation-button ${activeView === "settings" ? "active" : ""}`}
+          type="button"
+          title="Settings"
+          aria-label="Settings"
+          aria-current={activeView === "settings" ? "page" : undefined}
+          onClick={onOpenSettings}
+        >
+          <Settings size={16} />
+          <span>Settings</span>
+        </button>
+      </div>
+      <button
+        className="desktop-sidebar-top-navigation-button desktop-sidebar-top-collapse-button"
+        type="button"
+        title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+        aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+        onClick={onToggleCollapsed}
+      >
+        {sidebarCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+        <span>{sidebarCollapsed ? "Expand" : "Collapse"}</span>
+      </button>
+    </div>
+  );
+}
+
+function DesktopSidebarFooterSettingsButton({
+  activeView,
+  onOpenSettings,
+}: {
+  activeView: DesktopView;
+  onOpenSettings: () => void;
+}) {
+  return (
+    <button
+      className={`desktop-sidebar-footer-button ${activeView === "settings" ? "active" : ""}`}
+      type="button"
+      title="Settings"
+      aria-label="Settings"
+      aria-current={activeView === "settings" ? "page" : undefined}
+      onClick={onOpenSettings}
+    >
+      <Settings size={16} />
+    </button>
+  );
+}
+
+function DesktopSidebarIconNavigation({
+  activeView,
+  items,
+  onNavigate,
+}: {
+  activeView: DesktopView;
+  items: typeof DESKTOP_PRIMARY_SIDEBAR_NAV_ITEMS;
+  onNavigate: (view: DesktopView) => void;
+}) {
+  return (
+    <>
+      {items.map((item) => (
+        <button
+          key={item.view}
+          className={`desktop-sidebar-footer-button ${activeView === item.view ? "active" : ""}`}
+          type="button"
+          title={item.label}
+          aria-label={item.label}
+          aria-current={activeView === item.view ? "page" : undefined}
+          onClick={() => onNavigate(item.view)}
+        >
+          <item.icon size={16} />
+        </button>
+      ))}
+    </>
+  );
+}
+
+const DESKTOP_PRIMARY_SIDEBAR_NAV_ITEMS = [
+  { view: "data", label: "Files", icon: Folder },
+  { view: "git", label: "Changes", icon: GitBranch },
+  { view: "cloud", label: "Cloud", icon: Cloud },
+] satisfies Array<{
+  view: Extract<DesktopView, "data" | "git" | "cloud">;
+  label: string;
+  icon: typeof Folder;
+}>;
+
 function DesktopCreateEntryMenu({
   draft,
+  onChange,
   onCancel,
+  onSelectKind,
   onCreate,
 }: {
   draft: DesktopCreateEntryDraft;
+  onChange: Dispatch<SetStateAction<DesktopCreateEntryDraft | null>>;
   onCancel: () => void;
-  onCreate: (kind: DesktopCreateEntryKind) => void;
+  onSelectKind: (kind: DesktopCreateEntryKind) => void;
+  onCreate: () => void;
 }) {
   const menuRef = useRef<HTMLDivElement>(null);
-  const position = getCreateEntryMenuPosition(draft.anchor);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const menuWidth = draft.selectedKind ? CREATE_ENTRY_NAME_MENU_WIDTH : CREATE_ENTRY_PICKER_MENU_WIDTH;
+  const position = getCreateEntryMenuPosition(draft.anchor, menuWidth);
   const menuStyle = {
     "--create-entry-menu-left": `${position.left}px`,
     "--create-entry-menu-top": `${position.top}px`,
+    "--create-entry-menu-width": `${menuWidth}px`,
   } as CSSProperties;
 
   useEffect(() => {
@@ -1243,40 +1609,77 @@ function DesktopCreateEntryMenu({
     };
   }, [onCancel]);
 
+  useEffect(() => {
+    if (!draft.selectedKind) return undefined;
+    const frame = window.requestAnimationFrame(() => inputRef.current?.select());
+    return () => window.cancelAnimationFrame(frame);
+  }, [draft.selectedKind]);
+
+  const selectedLabel = draft.selectedKind === "folder" ? "Folder" : "Markdown";
+
   return (
     <div
       ref={menuRef}
-      className="desktop-create-entry-menu"
-      role="menu"
+      className={`desktop-create-entry-menu ${draft.selectedKind ? "is-naming" : "is-picker"}`}
+      role={draft.selectedKind ? "dialog" : "menu"}
       aria-label="Create new"
       style={menuStyle}
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
     >
-      <div className="desktop-create-entry-section-label">Create blank</div>
-      <DesktopCreateEntryMenuItem
-        icon={<FileGlyphIcon name="folder" type="folder" size={16} />}
-        label="Folder"
-        loading={draft.creatingKind === "folder"}
-        disabled={Boolean(draft.creatingKind)}
-        onClick={() => onCreate("folder")}
-      />
-      <DesktopCreateEntryMenuItem
-        icon={<FileGlyphIcon name="Untitled.md" type="markdown" size={16} />}
-        label="Markdown"
-        loading={draft.creatingKind === "markdown"}
-        disabled={Boolean(draft.creatingKind)}
-        onClick={() => onCreate("markdown")}
-      />
-      <DesktopCreateEntryMenuItem
-        icon={<FileGlyphIcon name="Untitled.txt" type="text" size={16} />}
-        label="File"
-        sublabel=".txt"
-        loading={draft.creatingKind === "file"}
-        disabled={Boolean(draft.creatingKind)}
-        onClick={() => onCreate("file")}
-      />
-      {draft.error && <div className="desktop-create-entry-error">{draft.error}</div>}
+      {!draft.selectedKind ? (
+        <>
+          <DesktopCreateEntryMenuItem
+            icon={<Folder size={15} strokeWidth={1.9} />}
+            label="Folder"
+            disabled={Boolean(draft.creatingKind)}
+            onClick={() => onSelectKind("folder")}
+          />
+          <DesktopCreateEntryMenuItem
+            icon={<FileText size={15} strokeWidth={1.9} />}
+            label="Markdown"
+            disabled={Boolean(draft.creatingKind)}
+            onClick={() => onSelectKind("markdown")}
+          />
+          {draft.error && <div className="desktop-create-entry-error">{draft.error}</div>}
+        </>
+      ) : (
+        <form
+          className="desktop-create-entry-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            onCreate();
+          }}
+        >
+          <div className="desktop-create-entry-form-title">New {selectedLabel}</div>
+          <input
+            ref={inputRef}
+            value={draft.name}
+            disabled={draft.creatingKind !== null}
+            aria-label={`${selectedLabel} name`}
+            onChange={(event) => {
+              const value = event.target.value;
+              onChange((current) => current ? { ...current, name: value, error: null } : current);
+            }}
+          />
+          {draft.selectedKind === "markdown" && (
+            <div className="desktop-create-entry-hint">Names without an extension are saved as .md.</div>
+          )}
+          <div className="desktop-create-entry-form-actions">
+            <button
+              type="button"
+              disabled={draft.creatingKind !== null}
+              onClick={onCancel}
+            >
+              Cancel
+            </button>
+            <button type="submit" disabled={draft.creatingKind !== null || !draft.name.trim()}>
+              {draft.creatingKind ? "Creating..." : "Create"}
+            </button>
+          </div>
+          {draft.error && <div className="desktop-create-entry-error">{draft.error}</div>}
+        </form>
+      )}
     </div>
   );
 }
@@ -1284,14 +1687,12 @@ function DesktopCreateEntryMenu({
 function DesktopCreateEntryMenuItem({
   icon,
   label,
-  sublabel,
   loading,
   disabled,
   onClick,
 }: {
   icon: ReactNode;
   label: string;
-  sublabel?: string;
   loading?: boolean;
   disabled?: boolean;
   onClick: () => void;
@@ -1310,7 +1711,6 @@ function DesktopCreateEntryMenuItem({
     >
       <span className="desktop-create-entry-menu-icon">{icon}</span>
       <span className="desktop-create-entry-menu-label">{loading ? "Creating..." : label}</span>
-      {sublabel && <span className="desktop-create-entry-menu-sublabel">{sublabel}</span>}
     </button>
   );
 }
@@ -1457,8 +1857,24 @@ function DesktopNodeActionMenuItem({
 
 function defaultCreateName(kind: DesktopCreateEntryKind): string {
   if (kind === "folder") return "New Folder";
-  if (kind === "file") return "Untitled.txt";
   return "Untitled.md";
+}
+
+function normalizeCreateEntryName(kind: DesktopCreateEntryKind, value: string): string {
+  const name = value.trim();
+  if (!name) {
+    throw new Error("Name is required.");
+  }
+  if (name === "." || name === ".." || name.includes("/") || name.includes("\\")) {
+    throw new Error("Name must be a single file or folder name.");
+  }
+  if (name.includes("\0")) {
+    throw new Error("Name contains unsupported characters.");
+  }
+  if (kind === "markdown" && !/\.(md|markdown|mdx)$/i.test(name)) {
+    return `${name}.md`;
+  }
+  return name;
 }
 
 function uniqueCreateEntryName(defaultName: string, existingNames: Set<string>): string {
@@ -1488,10 +1904,10 @@ function rectToCreateEntryAnchor(rect: DOMRect): DesktopCreateEntryAnchor {
   };
 }
 
-function getCreateEntryMenuPosition(anchor: DesktopCreateEntryAnchor) {
+function getCreateEntryMenuPosition(anchor: DesktopCreateEntryAnchor, menuWidth: number) {
   const viewportWidth = typeof window === "undefined" ? 1024 : window.innerWidth;
   const viewportHeight = typeof window === "undefined" ? 768 : window.innerHeight;
-  const maxLeft = Math.max(CREATE_ENTRY_MENU_MARGIN, viewportWidth - CREATE_ENTRY_MENU_WIDTH - CREATE_ENTRY_MENU_MARGIN);
+  const maxLeft = Math.max(CREATE_ENTRY_MENU_MARGIN, viewportWidth - menuWidth - CREATE_ENTRY_MENU_MARGIN);
   const maxTop = Math.max(CREATE_ENTRY_MENU_MARGIN, viewportHeight - CREATE_ENTRY_MENU_ESTIMATED_HEIGHT - CREATE_ENTRY_MENU_MARGIN);
 
   return {
@@ -1510,6 +1926,85 @@ function getNodeActionMenuPosition(anchor: DesktopCreateEntryAnchor) {
     left: clampNumber(anchor.left, CREATE_ENTRY_MENU_MARGIN, maxLeft),
     top: clampNumber(anchor.bottom + 4, CREATE_ENTRY_MENU_MARGIN, maxTop),
   };
+}
+
+function createExplorerDataPort(dataPort: DataPort, settings: FilesVisibilitySettings): DataPort {
+  if (settings.showHiddenFiles || settings.excludePatterns.length === 0) return dataPort;
+  const matchers = settings.excludePatterns
+    .map(createExplorerExcludeMatcher)
+    .filter((matcher): matcher is ExcludeMatcher => matcher !== null);
+
+  if (matchers.length === 0) return dataPort;
+
+  return {
+    ...dataPort,
+    listChildren: async (folderPath) => {
+      const children = await dataPort.listChildren(folderPath);
+      return children.filter((node) => !matchers.some((matcher) => matcher(node)));
+    },
+  };
+}
+
+type ExcludeMatcher = (node: DataNode) => boolean;
+
+function createExplorerExcludeMatcher(rawPattern: string): ExcludeMatcher | null {
+  const pattern = rawPattern.trim().replace(/\\/g, "/").replace(/^\/+/, "");
+  if (!pattern) return null;
+
+  const targetPattern = pattern.includes("/") ? pattern : `**/${pattern}`;
+  const regex = globPatternToRegExp(targetPattern);
+  if (!regex) return null;
+
+  return (node) => regex.test(normalizeExplorerPath(node.path));
+}
+
+function globPatternToRegExp(pattern: string): RegExp | null {
+  let source = "";
+
+  for (let index = 0; index < pattern.length;) {
+    const char = pattern[index];
+    const next = pattern[index + 1];
+    const afterNext = pattern[index + 2];
+
+    if (char === "*") {
+      if (next === "*") {
+        if (afterNext === "/") {
+          source += "(?:.*/)?";
+          index += 3;
+        } else {
+          source += ".*";
+          index += 2;
+        }
+      } else {
+        source += "[^/]*";
+        index += 1;
+      }
+      continue;
+    }
+
+    if (char === "?") {
+      source += "[^/]";
+      index += 1;
+      continue;
+    }
+
+    source += escapeRegExp(char);
+    index += 1;
+  }
+
+  try {
+    return new RegExp(`^${source}$`);
+  } catch {
+    return null;
+  }
+}
+
+function normalizeExplorerPath(path: string): string {
+  return path.replace(/\\/g, "/").replace(/^\/+/, "");
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[\\^$.*+?()[\]{}|]/g, "\\$&");
 }
 
 function clampNumber(value: number, min: number, max: number) {
@@ -1710,10 +2205,29 @@ function BranchMenuGroup({
 }
 
 function readInitialThemeMode(): ThemeMode {
-  if (typeof window === "undefined") return "system";
-  const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
-  if (stored === "light" || stored === "dark" || stored === "system") return stored;
-  return "system";
+  if (typeof window === "undefined") return DEFAULT_THEME_MODE;
+  return parseThemeMode(window.localStorage.getItem(THEME_STORAGE_KEY));
+}
+
+function readInitialFileIconTheme(): FileIconThemeId {
+  if (typeof window === "undefined") return "default";
+  const stored = window.localStorage.getItem(FILE_ICON_THEME_STORAGE_KEY);
+  return isFileIconThemeId(stored) ? stored : "default";
+}
+
+function readInitialSidebarNavigationLayout(): SidebarNavigationLayout {
+  if (typeof window === "undefined") return DEFAULT_SIDEBAR_NAVIGATION_LAYOUT;
+  return parseSidebarNavigationLayout(window.localStorage.getItem(SIDEBAR_NAVIGATION_LAYOUT_STORAGE_KEY));
+}
+
+function readInitialFilesVisibilitySettings(): FilesVisibilitySettings {
+  if (typeof window === "undefined") return parseFilesVisibilitySettings(null);
+  return parseFilesVisibilitySettings(window.localStorage.getItem(FILES_VISIBILITY_STORAGE_KEY));
+}
+
+function readInitialRightSidebarToolsSettings(): RightSidebarToolsSettings {
+  if (typeof window === "undefined") return parseRightSidebarToolsSettings(null);
+  return parseRightSidebarToolsSettings(window.localStorage.getItem(RIGHT_SIDEBAR_TOOLS_STORAGE_KEY));
 }
 
 function readInitialExplorerWidth(): number {

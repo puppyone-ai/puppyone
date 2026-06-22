@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { FileFormat } from "../core/fileFormats";
+import type { FileIconThemeId } from "../file/fileIcons";
 
 export type EditorDocumentKind =
   | "folder"
@@ -47,6 +48,7 @@ export type EditorViewerContext = EditorViewerMatch & {
   error?: string | null;
   canEdit: boolean;
   hideSourceView: boolean;
+  fileIconTheme: FileIconThemeId;
   saveMode: EditorSaveMode;
   onSaveContent?: (content: string) => Promise<void>;
 };
