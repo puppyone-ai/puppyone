@@ -62,11 +62,20 @@ def _client_ip(request: Request) -> str:
 # Per-IP sliding window (in-process; safe for a single deployment — swap for a
 # Redis-backed counter if the backend is ever horizontally scaled).
 _preview_hits: dict[str, list[float]] = defaultdict(list)
+# Bound the table on a public endpoint: once it grows past this, drop IPs whose
+# window has fully elapsed so unique-IP churn can't leak memory unbounded.
+_MAX_TRACKED_IPS = 10_000
 
 
 def _rate_limit_preview(ip: str) -> None:
     now = time.monotonic()
     window = settings.LANDING_PREVIEW_RATE_WINDOW
+    if len(_preview_hits) > _MAX_TRACKED_IPS:
+        stale = [
+            k for k, v in _preview_hits.items() if not v or now - v[-1] >= window
+        ]
+        for k in stale:
+            del _preview_hits[k]
     _preview_hits[ip] = hits = [t for t in _preview_hits[ip] if now - t < window]
     if len(hits) >= settings.LANDING_PREVIEW_RATE_MAX:
         raise HTTPException(
