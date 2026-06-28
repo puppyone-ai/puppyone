@@ -181,6 +181,7 @@ def _enrich(rows: list[dict], sb_client) -> list[ConnectionOut]:
             "row": r,
             "cfg": cfg,
             "scope": scope,
+            "kind": kind,
             "base_name": base_name,
             "node_path": node_path,
             "node_name": node_name,
@@ -212,7 +213,7 @@ def _enrich(rows: list[dict], sb_client) -> list[ConnectionOut]:
         out.append(ConnectionOut(
             id=r["id"],
             project_id=r["project_id"],
-            provider=kind,
+            provider=e["kind"],
             name=name,
             path=node_path or None,
             node_name=e["node_name"],
