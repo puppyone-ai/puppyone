@@ -262,6 +262,15 @@ class LandingService:
         md_bytes = await self._s3.download_file(body["md_key"])
 
         org_id = resolve_org_id(None, user_id)
+        # Enforce the same projects.max plan limit as the normal create path —
+        # the login-free → claim route must not bypass entitlements.
+        from src.platform.entitlements.service import EntitlementService
+
+        EntitlementService().require_capacity(
+            org_id,
+            "projects.max",
+            current_count=len(self._projects.get_by_org_id(org_id)),
+        )
         stem = PurePosixPath(body["src_name"]).stem or "Document"
         project = self._projects.create(
             name=f"{stem}{spec.name_suffix}",

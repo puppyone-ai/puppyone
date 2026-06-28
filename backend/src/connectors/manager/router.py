@@ -419,7 +419,6 @@ def rename_connection(
 
     cfg = dict(row.get("config") or {})
     cfg["name"] = new_name
-    cfg["name"] = new_name
     sb.table("access_surfaces").update({"name": new_name, "config": cfg}).eq("id", connection_id).execute()
 
     updated = sb.table("access_surfaces").select("*").eq("id", connection_id).execute()

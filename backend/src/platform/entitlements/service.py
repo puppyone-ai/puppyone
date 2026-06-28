@@ -280,20 +280,6 @@ class EntitlementService:
             maximum=maximum,
         )
 
-    def require_value_at_most(self, org_id: str, limit_key: str, value: int) -> None:
-        maximum = self.limit_value(org_id, limit_key)
-        if maximum is None or value <= maximum:
-            return
-        snapshot = self.get_snapshot(org_id)
-        self._raise_denied(
-            org_id=org_id,
-            plan_id=snapshot.plan_id,
-            reason="limit_exceeded",
-            limit=limit_key,
-            requested=value,
-            maximum=maximum,
-        )
-
     def require_allowed(self, org_id: str, allow_key: str, requested_value: str) -> None:
         if not self.enabled:
             return
@@ -309,18 +295,6 @@ class EntitlementService:
             requested=requested_value,
             allowed=allowed or [],
         )
-
-    def get_project_snapshot(self, project_id: str) -> EntitlementSnapshot:
-        from src.platform.project.repository import ProjectRepositorySupabase
-
-        project = ProjectRepositorySupabase().get_by_id(project_id)
-        if project is None:
-            raise AppException(
-                code=ErrorCode.NOT_FOUND,
-                status_code=404,
-                message="Project not found",
-            )
-        return self.get_snapshot(project.org_id)
 
     def _raise_denied(
         self,
