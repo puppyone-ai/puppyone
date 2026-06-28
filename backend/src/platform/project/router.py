@@ -192,19 +192,15 @@ async def create_project(
         current_count=len(project_service.get_by_org_id(resolved_org_id)),
     )
 
-    project = project_service.create(
+    from src.platform.project.orchestration import create_project_with_tree
+    project = await create_project_with_tree(
+        project_service=project_service,
+        admin_service=version_admin,
         name=payload.name,
         description=payload.description,
         org_id=resolved_org_id,
         created_by=current_user.user_id,
     )
-
-    await version_admin.init_tree(str(project.id))
-
-    # Ensure the canonical root scope exists before returning. Scope creation
-    # creates built-in access surfaces for Git Remote / FS CLI.
-    from src.repo.scope_service import ScopeService
-    ScopeService().ensure_root_scope(str(project.id))
 
     if payload.template:
         from src.platform.project.templates import seed_template_content
