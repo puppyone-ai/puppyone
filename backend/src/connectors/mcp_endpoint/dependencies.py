@@ -24,6 +24,9 @@ def get_verified_mcp_endpoint(
     endpoint = service.get_endpoint(endpoint_id)
     if not endpoint:
         raise HTTPException(status_code=404, detail="MCP endpoint not found")
-    if not service.verify_access(endpoint_id, current_user.user_id):
+    # Reuse the project_id from the endpoint we just fetched instead of calling
+    # verify_access(endpoint_id, ...), which would re-fetch + re-hydrate the
+    # endpoint (3 extra queries) only to read the same project_id.
+    if not service.verify_project_access(endpoint["project_id"], current_user.user_id):
         raise HTTPException(status_code=403, detail="Access denied")
     return endpoint

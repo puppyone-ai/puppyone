@@ -14,6 +14,12 @@ project_access_cache_var: ContextVar[dict[str, str | None] | None] = ContextVar(
     "project_access_cache", default=None
 )
 
+# Per-request cache: key = org_id, value = EntitlementSnapshot. Collapses the
+# repeated snapshot fetches that entitlement gates do within a single request.
+entitlement_snapshot_cache_var: ContextVar[dict[str, Any] | None] = ContextVar(
+    "entitlement_snapshot_cache", default=None
+)
+
 
 def patch_log_record_from_context(record: dict[str, Any]) -> None:
     """

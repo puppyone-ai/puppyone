@@ -177,6 +177,22 @@ class EntitlementService:
         return self._repository
 
     def get_snapshot(self, org_id: str) -> EntitlementSnapshot:
+        # Per-request memo (set by RequestContextMiddleware): collapse the
+        # repeated snapshot fetches that the entitlement gates do within one
+        # request (each require_*/limit_value/feature_enabled calls this) down
+        # to a single fetch. Falls through to a direct fetch off-request
+        # (workers/scripts) where the contextvar is unset.
+        from src.utils.request_context import entitlement_snapshot_cache_var
+
+        cache = entitlement_snapshot_cache_var.get()
+        if cache is not None and org_id in cache:
+            return cache[org_id]
+        snapshot = self._compute_snapshot(org_id)
+        if cache is not None:
+            cache[org_id] = snapshot
+        return snapshot
+
+    def _compute_snapshot(self, org_id: str) -> EntitlementSnapshot:
         if not self.enabled:
             return EntitlementSnapshot(
                 org_id=org_id,

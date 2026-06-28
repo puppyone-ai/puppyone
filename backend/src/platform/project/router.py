@@ -96,11 +96,13 @@ def _count_user_access_points(project_ids: list[str]) -> dict[str, int]:
     response_description="Returns all projects of the organization",
     status_code=status.HTTP_200_OK,
 )
-async def list_projects(
+def list_projects(
     org_id: str | None = Query(None, description="Organization ID (if omitted, returns projects from all user organizations)"),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
+    # Sync handler: FastAPI runs it in a threadpool, so the blocking (sync)
+    # Supabase calls below don't stall the event loop. No `await` in this body.
     oids = resolve_org_ids(org_id, current_user.user_id)
 
     all_projects = []
