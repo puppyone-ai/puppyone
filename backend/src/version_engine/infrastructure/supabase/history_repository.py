@@ -91,6 +91,7 @@ class SupabaseHistoryManager:
         val = rows[0]["commit_id"] if rows else ""
         self._head_cid_val = val
         self._head_cid_ts = now
+        self._head_cid_cache = True
         return val
 
     def set_head_commit_id(self, _cid: str) -> None:

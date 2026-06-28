@@ -251,6 +251,18 @@ def _get_user_project_ids(sb_client, org_ids: list[str]) -> list[str]:
     return [r["id"] for r in resp.data]
 
 
+def _require_connection_project_access(sb_client, project_id: str, user_id: str) -> None:
+    """Raise 404 unless ``user_id`` can reach ``project_id`` via org membership.
+
+    Extracted from the five single-connection endpoints that each repeated this
+    check verbatim. 404 (not 403) is intentional: we do not disclose the
+    existence of connections in projects the caller cannot see.
+    """
+    org_ids = resolve_org_ids(None, user_id)
+    if project_id not in _get_user_project_ids(sb_client, org_ids):
+        raise NotFoundException("Access connection not found", code=ErrorCode.NOT_FOUND)
+
+
 # ── Endpoints ───────────────────────────────────────────────
 
 @router.get(
@@ -308,11 +320,7 @@ def get_connection(
         raise NotFoundException("Access connection not found", code=ErrorCode.NOT_FOUND)
 
     row = resp.data[0]
-    # Verify user has access via org membership
-    org_ids = resolve_org_ids(None, current_user.user_id)
-    pids = _get_user_project_ids(sb, org_ids)
-    if row["project_id"] not in pids:
-        raise NotFoundException("Access connection not found", code=ErrorCode.NOT_FOUND)
+    _require_connection_project_access(sb, row["project_id"], current_user.user_id)
 
     return ApiResponse.success(data=_enrich([row], sb)[0], message="Access connection found")
 
@@ -340,10 +348,7 @@ async def update_connection(
         raise NotFoundException("Access connection not found", code=ErrorCode.NOT_FOUND)
 
     row = resp.data[0]
-    org_ids = resolve_org_ids(None, current_user.user_id)
-    pids = _get_user_project_ids(sb, org_ids)
-    if row["project_id"] not in pids:
-        raise NotFoundException("Access connection not found", code=ErrorCode.NOT_FOUND)
+    _require_connection_project_access(sb, row["project_id"], current_user.user_id)
 
     fields: dict[str, Any] = {}
     if payload.status is not None:
@@ -379,10 +384,7 @@ async def delete_connection(
     if not resp.data:
         raise NotFoundException("Access connection not found", code=ErrorCode.NOT_FOUND)
 
-    org_ids = resolve_org_ids(None, current_user.user_id)
-    pids = _get_user_project_ids(sb, org_ids)
-    if resp.data[0]["project_id"] not in pids:
-        raise NotFoundException("Access connection not found", code=ErrorCode.NOT_FOUND)
+    _require_connection_project_access(sb, resp.data[0]["project_id"], current_user.user_id)
 
     if resp.data[0].get("kind") in {"git_remote", "cli"}:
         raise HTTPException(status_code=400, detail="Built-in access surfaces cannot be deleted")
@@ -412,13 +414,9 @@ def rename_connection(
         raise NotFoundException("Access connection not found", code=ErrorCode.NOT_FOUND)
 
     row = resp.data[0]
-    org_ids = resolve_org_ids(None, current_user.user_id)
-    pids = _get_user_project_ids(sb, org_ids)
-    if row["project_id"] not in pids:
-        raise NotFoundException("Access connection not found", code=ErrorCode.NOT_FOUND)
+    _require_connection_project_access(sb, row["project_id"], current_user.user_id)
 
     cfg = dict(row.get("config") or {})
-    cfg["name"] = new_name
     cfg["name"] = new_name
     sb.table("access_surfaces").update({"name": new_name, "config": cfg}).eq("id", connection_id).execute()
 
@@ -443,10 +441,7 @@ def regenerate_key(
         raise NotFoundException("Access connection not found", code=ErrorCode.NOT_FOUND)
 
     row = resp.data[0]
-    org_ids = resolve_org_ids(None, current_user.user_id)
-    pids = _get_user_project_ids(sb, org_ids)
-    if row["project_id"] not in pids:
-        raise NotFoundException("Access connection not found", code=ErrorCode.NOT_FOUND)
+    _require_connection_project_access(sb, row["project_id"], current_user.user_id)
 
     provider = row.get("kind", row.get("provider", ""))
     if provider in {"git_remote", "cli"}:

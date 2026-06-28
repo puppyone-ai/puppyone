@@ -469,8 +469,3 @@ async def _record_failure(
         git_sha=None, version_commit_id=None,
         files_changed=None, error_message=error,
     )
-
-
-async def _to_thread(fn, *args, **kwargs):
-    import asyncio
-    return await asyncio.to_thread(fn, *args, **kwargs)

@@ -262,8 +262,29 @@ class LandingService:
         md_bytes = await self._s3.download_file(body["md_key"])
 
         org_id = resolve_org_id(None, user_id)
+        # Enforce the same projects.max plan limit as the normal create path —
+        # the login-free → claim route must not bypass entitlements.
+        from src.platform.entitlements.service import EntitlementService
+
+        EntitlementService().require_capacity(
+            org_id,
+            "projects.max",
+            current_count=len(self._projects.get_by_org_id(org_id)),
+        )
         stem = PurePosixPath(body["src_name"]).stem or "Document"
-        project = self._projects.create(
+
+        # Shared born-owned create-chain (create row + init tree + root scope),
+        # same as platform/project/router.create_project. The container is built
+        # here because it is reused below for the content write.
+        from src.version_engine.bootstrap.dependencies import (
+            build_worker_version_engine_container,
+        )
+        from src.platform.project.orchestration import create_project_with_tree
+
+        container = build_worker_version_engine_container()
+        project = await create_project_with_tree(
+            project_service=self._projects,
+            admin_service=container.admin_service(),
             name=f"{stem}{spec.name_suffix}",
             description=f"Created from {body['src_name']} via Puppyone {spec.kind} → MCP.",
             org_id=org_id,
@@ -271,15 +292,6 @@ class LandingService:
         )
         project_id = str(project.id)
 
-        # Same create-chain as platform/project/router.create_project, but
-        # invoked at the service layer.
-        from src.version_engine.bootstrap.dependencies import (
-            build_worker_version_engine_container,
-        )
-
-        container = build_worker_version_engine_container()
-        await container.admin_service().init_tree(project_id)
-        ScopeService().ensure_root_scope(project_id)
         # A single named leaf scope == the "separate repo" the user sees, and
         # it is the narrowest scope for everything written under it (so the
         # upload-channel write is not shadowed by a sub-scope graft).
