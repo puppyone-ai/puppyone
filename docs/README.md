@@ -21,7 +21,6 @@ Product and frontend design:
 - [Design Guidelines](design.md)
 - [Product Visual System](frontend/product-visual-system.md)
 - [Color Mode Architecture](frontend/color-mode-architecture.md)
-- [Desktop Feature Architecture](../desktop/docs/FEATURE.md)
 
 Document-level constructs:
 

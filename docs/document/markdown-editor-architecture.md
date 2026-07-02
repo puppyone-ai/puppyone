@@ -9,8 +9,8 @@ preview rendering, CodeMirror decorations, cursor placement, or editor layout.
 - Markdown files are raw text documents. The persisted source is the Markdown
   string, not a rendered HTML document.
 - The shared editor implementation lives under `frontend/shared-ui`.
-- The desktop editor uses the generated copy under `desktop/vendor/shared-ui`.
-  Do not edit the desktop copy directly; sync from `frontend/shared-ui`.
+- The standalone Desktop app consumes its own vendored copy of the shared editor
+  from `frontend/shared-ui`.
 - The Markdown viewer has two modes:
   - `Live view`: one editable CodeMirror document with syntax-aware
     decorations and widgets.
@@ -295,8 +295,6 @@ Before merging Markdown live-preview layout changes:
 Also run:
 
 ```bash
-node scripts/sync-desktop-shared-ui.mjs
-node scripts/check-desktop-shared-ui-sync.mjs
-cd desktop && npx tsc --noEmit
-cd desktop && npm run build
+npm run shared-ui:test-markdown-html
+npm run build
 ```
