@@ -1,9 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type { EditorViewerContext } from "../viewerTypes";
-
-type OfficeKind = "word" | "spreadsheet" | "presentation" | "opendocument" | "unsupported";
 
 type OfficeState =
   | { status: "idle" | "loading" }
@@ -60,8 +58,6 @@ export function OfficeViewer({
 }: EditorViewerContext) {
   const [state, setState] = useState<OfficeState>({ status: "idle" });
   const [activeSheet, setActiveSheet] = useState(0);
-  const extension = useMemo(() => getExtension(document.name), [document.name]);
-  const officeKind = useMemo(() => getOfficeKind(document.name), [document.name]);
 
   useEffect(() => {
     setActiveSheet(0);
@@ -108,13 +104,6 @@ export function OfficeViewer({
 
   return (
     <div className="office-preview">
-      <div className="office-preview__toolbar">
-        <div className="office-preview__title">
-          <strong>{document.name}</strong>
-          <span>{getOfficeKindLabel(officeKind, extension)} preview</span>
-        </div>
-        <span className="office-preview__badge">Read-only</span>
-      </div>
       <div className="office-preview__body">
         {state.status === "error" && (
           <OfficeEmptyState title="Preview failed" message={state.message} />
@@ -154,9 +143,6 @@ function OfficePreviewContent({
           className="office-document-page"
           dangerouslySetInnerHTML={{ __html: result.html || "<p></p>" }}
         />
-        {result.warnings.length > 0 && (
-          <div className="office-preview__note">{result.warnings[0]}</div>
-        )}
       </div>
     );
   }
@@ -449,23 +435,6 @@ function getSlideIndex(path: string): number {
 function getExtension(filename: string): string {
   const match = /\.([^.]+)$/.exec(filename.toLowerCase());
   return match ? match[1] : "";
-}
-
-function getOfficeKind(filename: string): OfficeKind {
-  const extension = getExtension(filename);
-  if (isWordExtension(extension) || LEGACY_WORD_EXTENSIONS.has(extension)) return "word";
-  if (isSpreadsheetExtension(extension)) return "spreadsheet";
-  if (isPresentationExtension(extension) || LEGACY_PRESENTATION_EXTENSIONS.has(extension)) return "presentation";
-  if (isOpenDocumentExtension(extension)) return "opendocument";
-  return "unsupported";
-}
-
-function getOfficeKindLabel(kind: OfficeKind, extension: string): string {
-  if (kind === "word") return extension === "doc" ? "Word" : "Word";
-  if (kind === "spreadsheet") return "Spreadsheet";
-  if (kind === "presentation") return "Presentation";
-  if (kind === "opendocument") return "OpenDocument";
-  return "Office";
 }
 
 function isWordExtension(extension: string): boolean {

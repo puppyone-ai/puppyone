@@ -20,6 +20,10 @@ export function MarkdownViewer(context: EditorViewerContext) {
           value={value}
           readOnly={!controls.canEdit}
           livePreview
+          aiEditFile={context.aiEditFile}
+          htmlTrustMode={context.htmlTrustMode}
+          documentPath={context.document.path}
+          markdownLinkGraph={context.markdownLinkGraph}
           onChange={controls.canEdit ? controls.onChange : undefined}
         />
       )}
@@ -28,6 +32,10 @@ export function MarkdownViewer(context: EditorViewerContext) {
           value={value}
           readOnly={!controls.canEdit}
           livePreview={false}
+          aiEditFile={context.aiEditFile}
+          htmlTrustMode={context.htmlTrustMode}
+          documentPath={context.document.path}
+          markdownLinkGraph={context.markdownLinkGraph}
           onChange={controls.canEdit ? controls.onChange : undefined}
         />
       )}

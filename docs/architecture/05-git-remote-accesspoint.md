@@ -87,6 +87,64 @@ and recommended recovery actions. This route is a read/diagnostic path; cache
 warming belongs to L5 Follow-up background work after Access Point creation or
 after a version commit, not to the first user's clone request.
 
+## PuppyOne Cloud Git Remote Contract
+
+PuppyOne Cloud exposes a Git remote as a transport for a scoped workspace, not
+as a GitHub-style collaboration surface. The default product model is one
+visible cloud source of truth:
+
+```text
+PuppyOne Cloud remote = one workspace scope
+refs/heads/main       = the only product-visible truth branch
+```
+
+Command examples below assume the local remote is named `puppyone`. A plain
+`git clone` may name the same remote `origin`; the contract is the same.
+
+| Capability | Product action | Support | Git behavior | Product rule |
+|---|---|---:|---|---|
+| Clone | Clone from Cloud | Yes | `git clone <puppyone-url>` | Create a local checkout of the cloud workspace/scope. |
+| Fetch | Refresh Cloud Status | Yes | `git fetch puppyone main` | Update local knowledge of cloud state without changing the working tree. |
+| Fast-forward download | Download | Yes | `git pull --ff-only --autostash puppyone main` | Use when local `main` has no committed changes beyond cloud; preserve staged/tracked edits automatically. |
+| Rebase download | Download | Yes | `git pull --rebase --autostash puppyone main` | Use when local committed changes exist and cloud also has newer commits; preserve staged/tracked edits automatically. |
+| Upload | Upload | Yes | `git push puppyone HEAD:main` | Allowed only when the push is fast-forward against cloud `main`. |
+| Force push | Overwrite Cloud | No | reject non-fast-forward / `--force` | Never allow a client to overwrite the cloud source of truth. |
+| Merge commit push | Upload merge commit | No | reject commits with multiple parents | Keep workspace history linear and explainable. |
+| Delete remote ref | Delete cloud ref/history | No | reject ref deletion | Cloud history is append-only; rollback is a product operation. |
+| Git LFS | Git LFS large files | No | reject LFS pointer blobs | Large binaries must use PuppyOne upload/object APIs. |
+| Branch push | Raw Git branch storage | Yes, transport-level | stored as named refs; does not advance `main` | Advanced clients may store branch refs, but PuppyOne Cloud does not provide a merge-to-main shortcut. |
+| Tag push | Raw Git tag storage | Yes, transport-level | stored as named refs; does not advance `main` | Tags stay transport metadata and are not part of the default knowledge-collaboration UX. |
+| Conflict handling | Resolve conflict | Basic local support | rebase conflict in the client | Same-source Git concurrency is resolved by client rebase, not server merge. |
+| Health | Cloud Health | Yes | `GET /git/.../health` | Report whether clone/fetch/push are safe for this Git view. |
+| Rebuild cache | Repair Git View | Hidden/admin | `POST /git/.../rebuild-cache` | Repair transport projection from canonical Version Engine facts. |
+
+The desktop product should map this contract to two primary cloud actions:
+
+```text
+Download:
+  fetch puppyone
+  if local has no committed changes:
+    pull --ff-only --autostash puppyone main
+  else:
+    pull --rebase --autostash puppyone main
+
+Upload:
+  push puppyone HEAD:main
+  reject/disable if cloud has newer commits
+```
+
+The client must not present `git push --force`, server-side merge proposals,
+branch merge-to-main shortcuts, or default branch switching as PuppyOne Cloud
+collaboration primitives. Raw branch/tag refs may exist for Git transport
+compatibility, but cloud `main` remains the product-visible source of truth.
+
+Same-source Git concurrency stays in the Git layer: if Alice and Bob both push
+to the same scope from an older base, the second push receives
+`non-fast-forward`, rebases onto cloud `main`, resolves any local textual
+conflict, and pushes a new fast-forward commit. Hosted conflict review is for
+cross-entrypoint product conflicts, such as Git vs product/API writes, not for
+normal same-scope Git races.
+
 ## Product/API Save
 
 Product saves do not run the Git transport. They submit typed tree splices to

@@ -1,0 +1,356 @@
+.desktop-titlebar {
+  position: relative;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--desktop-chrome-height);
+  min-height: var(--desktop-chrome-height);
+  padding: 0 8px 0 98px;
+  border-bottom: 1px solid var(--po-divider);
+  background: var(--po-header);
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.desktop-titlebar-left {
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  width: auto;
+  max-width: min(620px, calc(100vw - 128px));
+  min-width: 0;
+  -webkit-app-region: no-drag;
+}
+
+.desktop-titlebar-context {
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+.desktop-titlebar-drag-fill {
+  flex: 1 1 auto;
+  min-width: 0;
+  align-self: stretch;
+}
+
+.desktop-titlebar-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 3px;
+  height: var(--desktop-chrome-control-size);
+  -webkit-app-region: no-drag;
+}
+
+.desktop-titlebar-action {
+  position: relative;
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--desktop-chrome-control-size);
+  height: var(--desktop-chrome-control-size);
+  border: 0;
+  border-radius: var(--desktop-control-radius);
+  background: transparent;
+  color: var(--po-text-muted);
+  outline: 0;
+  box-shadow: none;
+  transition: background 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.desktop-titlebar-action:hover {
+  background: var(--po-hover);
+  color: var(--po-text);
+}
+
+.desktop-titlebar-action:focus-visible {
+  background: var(--po-hover);
+  box-shadow: inset 0 0 0 1px var(--po-focus-ring);
+  color: var(--po-text);
+}
+
+.desktop-titlebar-action.active,
+.desktop-titlebar-action[aria-pressed="true"] {
+  background: var(--po-selected);
+  color: var(--po-text);
+}
+
+.desktop-titlebar-action:disabled {
+  cursor: default;
+  opacity: 0.68;
+}
+
+.desktop-titlebar-action .spin {
+  animation: spin 900ms linear infinite;
+}
+
+.desktop-update-titlebar-action.available,
+.desktop-update-titlebar-action.downloaded {
+  color: var(--po-accent);
+}
+
+.desktop-update-titlebar-action.blocked,
+.desktop-update-titlebar-action.error {
+  color: var(--po-warning);
+}
+
+.desktop-update-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 6px;
+  height: 6px;
+  border: 1px solid var(--po-sidebar);
+  border-radius: 999px;
+  background: var(--po-accent);
+  pointer-events: none;
+}
+
+.desktop-titlebar-workspace-wrap {
+  position: relative;
+  display: flex;
+  height: 100%;
+  align-items: center;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.desktop-titlebar-workspace-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  justify-content: flex-start;
+  width: auto;
+  max-width: min(134px, 16vw);
+  height: var(--desktop-chrome-control-size);
+  min-width: 0;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--desktop-control-radius);
+  background: transparent;
+  color: var(--po-text);
+  text-align: left;
+  box-shadow: none;
+  -webkit-app-region: no-drag;
+  outline: 0;
+  transition: background 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.desktop-titlebar-workspace-button:hover,
+.desktop-titlebar-workspace-button[aria-expanded="true"] {
+  background: var(--po-hover);
+}
+
+.desktop-titlebar-workspace-mark {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  border-radius: 5px;
+  background: transparent;
+  color: color-mix(in srgb, var(--po-accent) 72%, var(--po-text));
+  font-size: 9.5px;
+  font-weight: 800;
+  transition: background 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.desktop-titlebar-workspace-button:hover .desktop-titlebar-workspace-mark,
+.desktop-titlebar-workspace-button[aria-expanded="true"] .desktop-titlebar-workspace-mark {
+  background: color-mix(in srgb, var(--po-accent) 16%, transparent);
+}
+
+.desktop-titlebar-workspace-button:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--po-focus-ring);
+}
+
+.desktop-titlebar-workspace-name {
+  max-width: 82px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--po-text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-titlebar-workspace-button:hover .desktop-titlebar-workspace-name,
+.desktop-titlebar-workspace-button[aria-expanded="true"] .desktop-titlebar-workspace-name {
+  color: var(--po-text);
+}
+
+.desktop-titlebar-menu {
+  position: absolute;
+  z-index: 80;
+  top: calc(100% + 4px);
+  left: 0;
+  width: min(360px, calc(100vw - 32px));
+  padding: 8px;
+  border: 1px solid var(--po-border);
+  border-radius: 8px;
+  background: var(--po-overlay);
+  box-shadow: 0 18px 44px color-mix(in srgb, var(--po-shadow) 86%, transparent);
+  -webkit-app-region: no-drag;
+}
+
+.desktop-titlebar-branch-wrap {
+  position: relative;
+  display: flex;
+  height: 100%;
+  align-items: center;
+  min-width: 0;
+  max-width: min(190px, 28vw);
+}
+
+.desktop-titlebar-branch-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  max-width: 100%;
+  height: var(--desktop-chrome-control-size);
+  min-width: 0;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--desktop-control-radius);
+  background: transparent;
+  color: var(--po-text-muted);
+  text-align: left;
+  outline: 0;
+  -webkit-app-region: no-drag;
+  transition: background 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.desktop-titlebar-branch-button:hover,
+.desktop-titlebar-branch-button[aria-expanded="true"] {
+  background: var(--po-hover);
+  color: var(--po-text);
+}
+
+.desktop-titlebar-branch-button:disabled {
+  cursor: default;
+  color: var(--po-text-disabled);
+}
+
+.desktop-titlebar-branch-button:disabled:hover {
+  background: transparent;
+  color: var(--po-text-disabled);
+}
+
+.desktop-titlebar-branch-button:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--po-focus-ring);
+}
+
+.desktop-titlebar-branch-button span {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-branch-menu {
+  max-height: min(440px, calc(100vh - 58px));
+  overflow: auto;
+}
+
+.desktop-branch-menu-group {
+  display: grid;
+  gap: 2px;
+  padding-top: 0;
+}
+
+.desktop-branch-menu-group + .desktop-branch-menu-group {
+  padding-top: 10px;
+}
+
+.desktop-branch-menu-label {
+  padding: 0 7px 4px;
+  color: var(--po-text-disabled);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.desktop-branch-menu-list {
+  display: grid;
+  overflow: visible;
+}
+
+.desktop-branch-menu-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--desktop-control-radius);
+  background: transparent;
+  color: var(--po-text-muted);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 18px;
+  text-align: left;
+}
+
+.desktop-branch-menu-row:hover:not(:disabled),
+.desktop-branch-menu-row.current {
+  background: var(--po-hover);
+  color: var(--po-text);
+}
+
+.desktop-branch-menu-row span {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-branch-menu-row small {
+  flex: 0 0 auto;
+  color: var(--po-text-disabled);
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.desktop-branch-menu-error {
+  display: grid;
+  gap: 7px;
+  margin-top: 8px;
+  padding: 7px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--po-danger) 9%, transparent);
+  color: var(--po-danger);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.desktop-branch-menu-action {
+  justify-self: start;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid color-mix(in srgb, var(--po-danger) 22%, transparent);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--po-danger);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.desktop-branch-menu-action:hover {
+  background: color-mix(in srgb, var(--po-danger) 10%, transparent);
+}

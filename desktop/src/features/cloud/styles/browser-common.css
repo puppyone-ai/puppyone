@@ -1,0 +1,786 @@
+.desktop-cloud-home-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  gap: 14px;
+  align-items: start;
+}
+
+.desktop-cloud-content-list,
+.desktop-cloud-activity-list,
+.desktop-cloud-access-page-list,
+.desktop-cloud-project-list {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.desktop-cloud-source-browser {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 8px;
+  padding: 12px 16px 16px;
+}
+
+.desktop-cloud-browser-card {
+  display: grid;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--po-divider);
+  border-radius: 8px;
+  background: var(--po-panel);
+}
+
+.desktop-cloud-browser-toolbar {
+  display: flex;
+  min-height: 46px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--po-divider);
+  background: var(--po-panel);
+}
+
+.desktop-cloud-browser-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+}
+
+.desktop-cloud-source-browser.has-source-dock {
+  position: relative;
+  min-height: min(640px, calc(100vh - 238px));
+  padding-bottom: 42px;
+}
+
+.desktop-cloud-source-dock {
+  position: absolute;
+  right: 8px;
+  bottom: 4px;
+  display: inline-flex;
+  max-width: min(520px, calc(100% - 16px));
+  height: 28px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 9px;
+  border: 1px solid color-mix(in srgb, var(--po-border) 86%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--po-panel-raised) 82%, transparent);
+  color: var(--po-text-subtle);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--po-shadow) 28%, transparent);
+}
+
+.desktop-cloud-source-dock strong {
+  color: var(--po-text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.desktop-cloud-source-dock em {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--po-text-subtle);
+  font-family: var(--po-font-mono);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-cloud-path-breadcrumb {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.desktop-cloud-path-breadcrumb button {
+  display: inline-flex;
+  min-width: 0;
+  height: 28px;
+  align-items: center;
+  gap: 2px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--po-text-subtle);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.desktop-cloud-path-breadcrumb button:hover,
+.desktop-cloud-path-breadcrumb button.active {
+  background: var(--po-hover);
+  color: var(--po-text);
+}
+
+.desktop-cloud-path-breadcrumb button span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-cloud-asset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  grid-auto-rows: 126px;
+  align-content: start;
+  align-items: start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.desktop-cloud-asset-loading {
+  min-height: 174px;
+  border: 1px solid var(--po-divider);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--po-panel-raised) 48%, transparent);
+}
+
+.desktop-cloud-asset-tile {
+  display: grid;
+  min-width: 0;
+  height: 126px;
+  justify-items: center;
+  align-content: center;
+  gap: 7px;
+  padding: 12px 9px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--po-text-muted);
+  text-align: center;
+  cursor: pointer;
+  transition:
+    background 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    transform 150ms ease;
+}
+
+.desktop-cloud-asset-tile:hover {
+  border-color: var(--po-border);
+  background: color-mix(in srgb, var(--po-panel-raised) 58%, transparent);
+  color: var(--po-text);
+  transform: translateY(-1px);
+}
+
+.desktop-cloud-asset-icon {
+  display: inline-flex;
+  width: 50px;
+  height: 50px;
+  align-items: center;
+  justify-content: center;
+}
+
+.desktop-cloud-folder-icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.desktop-cloud-folder-icon img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.desktop-cloud-folder-icon em {
+  position: absolute;
+  right: -4px;
+  bottom: 0;
+  display: inline-flex;
+  min-width: 18px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 5px;
+  border: 1px solid var(--po-border);
+  border-radius: 8px;
+  background: var(--po-panel-raised);
+  color: var(--po-text-muted);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 650;
+  line-height: 14px;
+  text-align: center;
+}
+
+.desktop-cloud-asset-tile strong {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  color: currentColor;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-cloud-asset-tile small {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--po-text-subtle);
+  font-size: 11px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-cloud-home-list-loading {
+  min-height: 180px;
+  border: 1px solid var(--po-divider);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--po-panel-raised) 48%, transparent);
+}
+
+.desktop-cloud-home-content-list {
+  display: grid;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--po-divider);
+  border-radius: 8px;
+  background: var(--po-panel);
+}
+
+.desktop-cloud-home-content-row {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) max-content;
+  min-width: 0;
+  min-height: 42px;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border: 0;
+  border-bottom: 1px solid var(--po-divider);
+  background: transparent;
+  color: var(--po-text-muted);
+  text-align: left;
+  cursor: pointer;
+}
+
+.desktop-cloud-home-content-row:last-child {
+  border-bottom: 0;
+}
+
+.desktop-cloud-home-content-row:hover {
+  background: var(--po-hover);
+  color: var(--po-text);
+}
+
+.desktop-cloud-home-content-icon {
+  display: inline-flex;
+  width: 26px;
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+}
+
+.desktop-cloud-home-content-row strong {
+  min-width: 0;
+  overflow: hidden;
+  color: currentColor;
+  font-size: 13px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-cloud-home-content-row small {
+  color: var(--po-text-subtle);
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.desktop-cloud-home-history-list {
+  display: grid;
+  min-width: 0;
+  gap: 0;
+  padding: 2px 0;
+}
+
+.desktop-cloud-home-history-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) max-content;
+  min-width: 0;
+  min-height: 38px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 7px 0 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--po-text-muted);
+  text-align: left;
+  cursor: pointer;
+}
+
+.desktop-cloud-home-history-row:hover {
+  background: var(--po-hover);
+  color: var(--po-text);
+}
+
+.desktop-cloud-home-history-graph {
+  position: relative;
+  display: block;
+  align-self: stretch;
+  width: 24px;
+}
+
+.desktop-cloud-home-history-graph .before,
+.desktop-cloud-home-history-graph .after {
+  position: absolute;
+  left: 11px;
+  width: 1.5px;
+  background: var(--po-filetree-rail);
+  content: "";
+}
+
+.desktop-cloud-home-history-graph .before {
+  top: 0;
+  height: 50%;
+}
+
+.desktop-cloud-home-history-graph .after {
+  top: 50%;
+  bottom: 0;
+}
+
+.desktop-cloud-home-history-graph .dot {
+  position: absolute;
+  top: 50%;
+  left: 8px;
+  width: 7px;
+  height: 7px;
+  border: 1.5px solid var(--po-text-disabled);
+  border-radius: 2px;
+  background: var(--po-panel);
+  transform: translateY(-50%);
+}
+
+.desktop-cloud-home-history-main {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.desktop-cloud-home-history-title {
+  min-width: 0;
+  overflow: hidden;
+  color: currentColor;
+  font-size: 13px;
+  font-weight: 640;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-cloud-home-history-meta {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  overflow: hidden;
+  color: var(--po-text-subtle);
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.desktop-cloud-home-history-meta span:first-child {
+  font-family: var(--po-font-mono);
+}
+
+.desktop-cloud-home-history-row time {
+  color: var(--po-text-subtle);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.desktop-cloud-content-row,
+.desktop-cloud-access-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: 9px;
+  min-height: 40px;
+  padding: 6px 8px;
+  border: 1px solid var(--po-divider);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--po-panel-raised) 72%, transparent);
+}
+
+.desktop-cloud-content-row.button,
+.desktop-cloud-access-row.button,
+.desktop-cloud-activity-row.button {
+  width: 100%;
+  border-color: var(--po-border);
+  color: inherit;
+  text-align: left;
+  cursor: default;
+}
+
+.desktop-cloud-content-row.button:hover,
+.desktop-cloud-access-row.button:hover,
+.desktop-cloud-activity-row.button:hover {
+  border-color: color-mix(in srgb, var(--po-accent) 28%, var(--po-border));
+  background: var(--po-control-hover);
+}
+
+.desktop-cloud-content-row {
+  grid-template-columns: 28px minmax(0, 1fr);
+}
+
+.desktop-cloud-content-row > span,
+.desktop-cloud-access-row > span {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--po-divider);
+  border-radius: 6px;
+  background: var(--po-control);
+  color: var(--po-text-muted);
+}
+
+.desktop-cloud-content-row > div,
+.desktop-cloud-access-row > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.desktop-cloud-content-row strong,
+.desktop-cloud-access-row strong {
+  overflow: hidden;
+  color: var(--po-text);
+  font-size: 13px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-cloud-content-row small,
+.desktop-cloud-access-row small {
+  overflow: hidden;
+  color: var(--po-text-subtle);
+  font-size: 12px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-cloud-access-row em {
+  color: var(--po-text-subtle);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.desktop-cloud-activity-row {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) max-content;
+  align-items: start;
+  gap: 10px;
+  min-height: 38px;
+  padding: 7px 4px;
+}
+
+.desktop-cloud-activity-row > span {
+  width: 7px;
+  height: 7px;
+  margin-top: 6px;
+  border-radius: 999px;
+  background: var(--po-text-disabled);
+}
+
+.desktop-cloud-activity-row > span.ready {
+  background: var(--po-success);
+}
+
+.desktop-cloud-activity-row > span.warning {
+  background: var(--po-warning);
+}
+
+.desktop-cloud-activity-row > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.desktop-cloud-activity-row strong {
+  overflow: hidden;
+  color: var(--po-text);
+  font-size: 13px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-cloud-activity-row small,
+.desktop-cloud-activity-row time {
+  color: var(--po-text-subtle);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.desktop-cloud-activity-row time {
+  white-space: nowrap;
+}
+
+.desktop-cloud-project-row {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: 9px;
+  min-height: 46px;
+  padding: 7px 9px;
+  border: 1px solid var(--po-divider);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--po-panel-raised) 72%, transparent);
+}
+
+.desktop-cloud-project-row > span {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--po-divider);
+  border-radius: 6px;
+  background: var(--po-control);
+  color: var(--po-text-muted);
+}
+
+.desktop-cloud-project-row > div:nth-child(2) {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.desktop-cloud-project-row strong {
+  overflow: hidden;
+  color: var(--po-text);
+  font-size: 13px;
+  font-weight: 680;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-cloud-project-row small {
+  overflow: hidden;
+  color: var(--po-text-subtle);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-cloud-project-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.desktop-cloud-project-row-actions button {
+  display: inline-flex;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  border: 1px solid var(--po-divider);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--po-text-muted);
+  font-size: 12px;
+  font-weight: 680;
+  white-space: nowrap;
+}
+
+.desktop-cloud-project-row-actions button:hover:not(:disabled) {
+  background: var(--po-control-hover);
+  color: var(--po-text);
+}
+
+.desktop-cloud-project-row-actions button:disabled,
+.desktop-cloud-row-action:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+}
+
+.desktop-cloud-empty-state,
+.desktop-cloud-inline-empty {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--po-divider);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--po-panel-raised) 72%, transparent);
+}
+
+.desktop-cloud-inline-empty {
+  grid-template-columns: 32px minmax(0, 1fr);
+  padding: 10px;
+}
+
+.desktop-cloud-empty-state > span,
+.desktop-cloud-inline-empty > span {
+  display: inline-flex;
+  width: 38px;
+  height: 38px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--po-border);
+  border-radius: 8px;
+
+  background: var(--po-control);
+  color: var(--po-text-muted);
+}
+
+.desktop-cloud-inline-empty > span {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+}
+
+.desktop-cloud-empty-state > div,
+.desktop-cloud-inline-empty > div {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.desktop-cloud-empty-state strong,
+.desktop-cloud-inline-empty strong {
+  color: var(--po-text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.desktop-cloud-empty-state p,
+.desktop-cloud-inline-empty small {
+  margin: 0;
+  color: var(--po-text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.desktop-cloud-command-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.desktop-cloud-command-box {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--po-divider);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--po-panel-raised) 72%, transparent);
+}
+
+.desktop-cloud-command-box > div {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.desktop-cloud-command-box > div > span {
+  display: inline-flex;
+  width: 26px;
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--po-border);
+  border-radius: 7px;
+  background: var(--po-control);
+  color: var(--po-text-muted);
+}
+
+.desktop-cloud-command-box strong {
+  color: var(--po-text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.desktop-cloud-command-box code {
+  overflow: hidden;
+  min-width: 0;
+  padding: 8px 9px;
+  border: 1px solid var(--po-divider);
+  border-radius: 7px;
+  background: var(--po-canvas);
+  color: var(--po-text-muted);
+  font-family: var(--po-font-mono);
+  font-size: 12px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-cloud-main-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--po-border);
+  border-radius: 8px;
+  background: var(--po-border);
+}
+
+.desktop-cloud-main-metric {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+  padding: 9px 10px;
+  background: var(--po-panel-raised);
+}
+
+.desktop-cloud-main-metric span {
+  overflow: hidden;
+  color: var(--po-text-subtle);
+  font-size: 11px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-cloud-main-metric strong {
+  overflow: hidden;
+  color: var(--po-text);
+  font-size: 12px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-cloud-main-metric.mono strong {
+  font-family: var(--po-font-mono);
+  font-size: 12px;
+}
+
+.desktop-cloud-main-metric.ready strong {
+  color: var(--po-success);
+}
+
+.desktop-cloud-main-metric.warning strong {
+  color: var(--po-warning);
+}

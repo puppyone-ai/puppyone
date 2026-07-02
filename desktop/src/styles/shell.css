@@ -1,0 +1,31 @@
+.app-shell {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 760px;
+  overflow: hidden;
+  background: var(--po-canvas);
+}
+
+.app-shell.minimal {
+  min-width: 640px;
+}
+
+.app-shell.cloud-runtime {
+  min-width: 920px;
+  background: var(--po-canvas);
+}
+
+.desktop-shell {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--po-canvas);
+  color: var(--po-text);
+}

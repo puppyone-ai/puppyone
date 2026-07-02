@@ -1,0 +1,436 @@
+.desktop-project-folder-card {
+  position: relative;
+  display: flex;
+  width: 100%;
+  max-width: 260px;
+  aspect-ratio: 1;
+  flex-direction: column;
+  color: var(--po-text-muted);
+  outline: none;
+  cursor: pointer;
+  transition: transform 150ms ease;
+}
+
+.desktop-project-folder-card:hover,
+.desktop-project-folder-card:focus-visible {
+  transform: translateY(-1px);
+}
+
+.desktop-project-folder-card-tab {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  max-width: 75%;
+  height: 32px;
+  align-items: center;
+  gap: 8px;
+  align-self: flex-start;
+  padding: 0 14px;
+  border: 2px solid var(--po-border);
+  border-bottom: 0;
+  border-radius: 6px 6px 0 0;
+  background: var(--po-project-card-tab);
+  transition: border-color 150ms ease;
+}
+
+.desktop-project-folder-card:hover .desktop-project-folder-card-tab,
+.desktop-project-folder-card:focus-visible .desktop-project-folder-card-tab,
+.desktop-project-folder-card.selected .desktop-project-folder-card-tab {
+  border-color: var(--po-border-strong);
+}
+
+.desktop-project-folder-card-tab span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--po-text-muted);
+  font-size: 13px;
+  font-weight: 660;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color 150ms ease;
+}
+
+.desktop-project-folder-card:hover .desktop-project-folder-card-tab span,
+.desktop-project-folder-card:focus-visible .desktop-project-folder-card-tab span,
+.desktop-project-folder-card.selected .desktop-project-folder-card-tab span {
+  color: var(--po-text);
+}
+
+.desktop-project-folder-card-tab em {
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 20px;
+  align-items: center;
+  padding: 0 8px;
+  border: 1px solid color-mix(in srgb, var(--po-success) 58%, transparent);
+  border-radius: 999px;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--po-success) 30%, var(--po-panel-raised)),
+      color-mix(in srgb, var(--po-success) 18%, var(--po-panel))
+    );
+  color: color-mix(in srgb, var(--po-success) 28%, var(--po-text));
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 820;
+  line-height: 1;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 18%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--po-success) 12%, transparent);
+  text-transform: uppercase;
+}
+
+.desktop-project-folder-card-body {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+  margin-top: -2px;
+  border: 2px solid var(--po-border);
+  border-radius: 0 8px 8px 8px;
+  background: var(--po-project-card-bg);
+  box-shadow: none;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.desktop-project-folder-card:hover .desktop-project-folder-card-body,
+.desktop-project-folder-card:focus-visible .desktop-project-folder-card-body,
+.desktop-project-folder-card.selected .desktop-project-folder-card-body {
+  border-color: var(--po-border-strong);
+  background: var(--po-project-card-hover-bg);
+}
+
+.desktop-project-folder-card:hover .desktop-project-folder-card-body,
+.desktop-project-folder-card:focus-visible .desktop-project-folder-card-body {
+  box-shadow: 7px 8px 0 var(--po-shadow);
+}
+
+.desktop-project-folder-card.selected .desktop-project-folder-card-body {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--po-accent) 34%, transparent);
+}
+
+.desktop-project-folder-card-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 4;
+  display: inline-flex;
+  max-width: calc(100% - 16px);
+  gap: 5px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.desktop-project-folder-card:hover .desktop-project-folder-card-actions,
+.desktop-project-folder-card:focus-within .desktop-project-folder-card-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.desktop-project-folder-card-action {
+  display: inline-flex;
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 8px;
+  border: 1px solid var(--po-divider);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--po-panel-raised) 88%, transparent);
+  color: var(--po-text-muted);
+  font-size: 12px;
+  font-weight: 680;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.desktop-project-folder-card-action:hover:not(:disabled) {
+  border-color: var(--po-border);
+  background: var(--po-panel-raised);
+  color: var(--po-text);
+}
+
+.desktop-project-folder-card-action:disabled {
+  cursor: default;
+  opacity: 0.58;
+}
+
+.desktop-project-folder-card-preview {
+  position: absolute;
+  inset: 0;
+  padding: 12px 12px 34px;
+}
+
+.desktop-project-folder-preview-grid {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-content: start;
+  gap: 12px 8px;
+  overflow: hidden;
+}
+
+.desktop-project-folder-preview-item {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.desktop-project-folder-preview-item > span {
+  display: flex;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+}
+
+.desktop-project-folder-preview-item strong {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--po-text-muted);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.15;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color 150ms ease;
+}
+
+.desktop-project-folder-card:hover .desktop-project-folder-preview-item strong,
+.desktop-project-folder-card:focus-visible .desktop-project-folder-preview-item strong {
+  color: var(--po-text);
+}
+
+.desktop-project-folder-preview-empty {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  height: 100%;
+  align-items: center;
+  color: var(--po-text-muted);
+}
+
+.desktop-project-folder-preview-empty p {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0;
+  color: var(--po-text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.desktop-project-folder-preview-skeleton {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-content: start;
+  gap: 12px 8px;
+}
+
+.desktop-project-folder-preview-skeleton div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+}
+
+.desktop-project-folder-preview-skeleton span,
+.desktop-project-folder-preview-skeleton em,
+.desktop-project-folder-card.skeleton .desktop-project-folder-card-tab span,
+.desktop-project-folder-card.skeleton .desktop-project-folder-card-footer span:last-child {
+  display: block;
+  border-radius: 4px;
+  background:
+    linear-gradient(
+      90deg,
+      var(--po-skeleton-base),
+      var(--po-skeleton-shimmer),
+      var(--po-skeleton-base)
+    );
+  background-size: 180% 100%;
+  animation: desktop-project-folder-skeleton 1.4s ease-in-out infinite;
+}
+
+.desktop-project-folder-preview-skeleton span {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+}
+
+.desktop-project-folder-preview-skeleton em {
+  width: 68%;
+  height: 8px;
+}
+
+.desktop-project-folder-card.skeleton {
+  pointer-events: none;
+}
+
+.desktop-project-folder-card.skeleton .desktop-project-folder-card-body {
+  padding: 12px 12px 34px;
+}
+
+.desktop-project-folder-card.skeleton .desktop-project-folder-card-tab span {
+  width: 112px;
+  height: 12px;
+}
+
+.desktop-project-folder-card.skeleton .desktop-project-folder-card-footer span:last-child {
+  width: 72px;
+  height: 9px;
+}
+
+.desktop-project-folder-card-footer {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 3;
+  display: flex;
+  height: 30px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  border-top: 1px solid var(--po-divider);
+  padding: 0 12px;
+  color: var(--po-text-subtle);
+  font-size: 10px;
+  font-weight: 520;
+}
+
+.desktop-project-folder-card-footer span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-project-folder-card-footer i {
+  color: var(--po-border);
+  font-style: normal;
+}
+
+.desktop-project-folder-status-dot {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--po-border-strong);
+}
+
+.desktop-project-folder-status-dot.connected {
+  background: var(--po-accent);
+}
+
+.desktop-project-folder-new-card {
+  position: relative;
+  display: flex;
+  width: 100%;
+  max-width: 260px;
+  aspect-ratio: 1;
+  flex-direction: column;
+  border: 0;
+  background: transparent;
+  color: var(--po-text-muted);
+  cursor: pointer;
+  transition:
+    color 150ms ease,
+    transform 150ms ease;
+}
+
+.desktop-project-folder-new-card:hover:not(:disabled),
+.desktop-project-folder-new-card:focus-visible {
+  color: var(--po-text);
+  transform: translateY(-1px);
+}
+
+.desktop-project-folder-new-card:disabled {
+  cursor: default;
+  opacity: 0.62;
+}
+
+.desktop-project-folder-new-card > div {
+  position: relative;
+  z-index: 2;
+  width: 64px;
+  height: 32px;
+  border: 2px dashed var(--po-border);
+  border-bottom: 0;
+  border-radius: 6px 6px 0 0;
+  background: transparent;
+  transition: border-color 150ms ease;
+}
+
+.desktop-project-folder-new-card > span {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: -2px;
+  border: 2px dashed var(--po-border);
+  border-radius: 0 8px 8px 8px;
+  background: transparent;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.desktop-project-folder-new-card:hover:not(:disabled) > div,
+.desktop-project-folder-new-card:hover:not(:disabled) > span,
+.desktop-project-folder-new-card:focus-visible > div,
+.desktop-project-folder-new-card:focus-visible > span {
+  border-color: var(--po-border-strong);
+}
+
+.desktop-project-folder-new-card:hover:not(:disabled) > span,
+.desktop-project-folder-new-card:focus-visible > span {
+  box-shadow: 7px 8px 0 var(--po-shadow);
+}
+
+.desktop-project-folder-new-card strong {
+  max-width: 160px;
+  color: currentColor;
+  font-size: 13px;
+  font-weight: 680;
+  line-height: 1.25;
+  text-align: center;
+}
+
+@keyframes desktop-project-folder-skeleton {
+  0% {
+    background-position: 120% 0;
+  }
+  100% {
+    background-position: -120% 0;
+  }
+}

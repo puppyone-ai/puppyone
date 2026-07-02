@@ -26,7 +26,7 @@ export {
 
 export { DataWorkspace } from "./data/DataWorkspace";
 export type { DataWorkspaceProps, DataWorkspaceState } from "./data/DataWorkspace";
-export { ExplorerTree } from "./data/ExplorerTree";
+export { EXPLORER_TREE_NODE_DRAG_TYPE, ExplorerTree } from "./data/ExplorerTree";
 export type { ExplorerTreeProps } from "./data/ExplorerTree";
 export { FilePreview } from "./data/FilePreview";
 export type { FilePreviewProps } from "./data/FilePreview";
@@ -53,6 +53,11 @@ export type {
   EditorViewer,
   EditorViewerContext,
   EditorViewerMatch,
+  MarkdownBacklink,
+  MarkdownBacklinkReference,
+  MarkdownHtmlTrustMode,
+  MarkdownLinkGraph,
+  MarkdownWikiLinkResolvedTarget,
 } from "./editor/viewerTypes";
 export { PlainTextEditor } from "./editor/PlainTextEditor";
 export type { PlainTextEditorProps } from "./editor/PlainTextEditor";
@@ -64,6 +69,21 @@ export type {
   SaveStatus,
 } from "./editor/EditorSaveButton";
 export { ConflictMarkerBanner } from "./editor/ConflictMarkerBanner";
+export {
+  createAiEditFile,
+  createAiEditRequest,
+  getAiEditFileForPath,
+  getAiEditTotals,
+} from "./editor/ai-edits/diff";
+export type {
+  AiEditFile,
+  AiEditFileStatus,
+  AiEditHunk,
+  AiEditHunkKind,
+  AiEditHunkState,
+  AiEditLineRange,
+  AiEditRequest,
+} from "./editor/ai-edits/types";
 
 export {
   FILE_ICON_THEMES,

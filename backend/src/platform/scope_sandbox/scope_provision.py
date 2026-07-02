@@ -7,8 +7,8 @@ end user never sees it), so all git/CLI inside the sandbox operate on the scope
 without exposing the key.
 
 Crucially it sets ``pull.rebase true``: PuppyOne enforces LINEAR history and
-rejects merge-commit pushes ("merge commits are not supported; fetch and rebase,
-or resolve through PuppyOne review"), so the correct collaboration workflow is
+rejects merge-commit pushes ("merge commits are not supported; fetch and
+rebase onto the remote main branch"), so the correct collaboration workflow is
 rebase. Without this default, a user's plain ``git pull`` makes a merge commit
 that the server rejects (see docs/proposals/sandbox-collab-session-results-2026-06.md).
 

@@ -728,12 +728,13 @@ async def semantics(
     x_puppyone_user: str | None = Header(None, alias="X-PuppyOne-User"),
     x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
 ):
-    _project_id, _auth, scope = await _resolve_auth(
+    project_id, _auth, scope = await _resolve_auth(
         x_access_key, x_puppyone_user, x_puppy_client, command="semantics",
     )
     data = scoped_fs_capabilities(
         writable=is_mode_writable(str(scope.get("mode", "r"))),
     )
+    data["project_id"] = project_id
     data["scope"] = _scope_payload(scope)
     return ApiResponse.success(data=data)
 

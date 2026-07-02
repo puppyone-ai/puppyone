@@ -1,0 +1,285 @@
+.desktop-cloud-project-browser {
+  display: grid;
+  min-width: 0;
+  gap: 26px;
+  padding: 8px 4px 28px;
+}
+
+.desktop-cloud-project-browser-header {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.desktop-cloud-project-browser-header h1 {
+  margin: 0;
+  color: var(--po-text);
+  font-size: 24px;
+  font-weight: 760;
+  letter-spacing: 0;
+  line-height: 1.16;
+}
+
+.desktop-cloud-project-browser-link {
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 11px;
+  border: 1px solid var(--po-divider);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--po-panel-raised) 76%, transparent);
+  color: var(--po-text-muted);
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.desktop-cloud-project-browser-link:hover {
+  background: var(--po-hover);
+  color: var(--po-text);
+}
+
+.desktop-cloud-project-browser-link.primary {
+  border-color: color-mix(in srgb, var(--po-accent) 26%, transparent);
+  background: color-mix(in srgb, var(--po-accent) 10%, transparent);
+  color: var(--po-accent);
+}
+
+.desktop-cloud-project-browser-link.primary:hover {
+  background: color-mix(in srgb, var(--po-accent) 14%, transparent);
+  color: var(--po-accent);
+}
+
+.desktop-cloud-project-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 260px));
+  gap: 60px;
+  align-items: start;
+}
+
+.desktop-cloud-auth-main-view {
+  overflow: hidden;
+}
+
+.desktop-cloud-auth-main-view .desktop-cloud-page-shell {
+  display: grid;
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  margin: 0;
+  gap: 0;
+}
+
+.desktop-cloud-project-auth-stage {
+  display: grid;
+  min-height: min(660px, calc(100vh - 132px));
+  place-items: center;
+  padding: clamp(24px, 7vh, 70px) clamp(16px, 4vw, 56px);
+}
+
+.desktop-cloud-auth-main-view .desktop-cloud-project-auth-stage {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 0 clamp(24px, 5vw, 72px);
+}
+
+.desktop-cloud-project-auth-panel.desktop-cloud-panel {
+  --desktop-cloud-title-size: clamp(28px, 3.2vw, 36px);
+  width: min(1040px, 100%);
+  max-height: none;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.desktop-cloud-project-auth-panel.desktop-cloud-panel::before {
+  display: none;
+}
+
+.desktop-cloud-project-auth-panel .desktop-cloud-panel-body {
+  overflow: visible;
+}
+
+.desktop-cloud-project-auth-panel .desktop-cloud-login-layout {
+  grid-template-columns: minmax(280px, 430px) minmax(320px, 380px);
+  min-height: 460px;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(38px, 6vw, 78px);
+}
+
+.desktop-cloud-project-auth-panel .desktop-cloud-login-copy {
+  min-height: 460px;
+  overflow: visible;
+  border-right: 0;
+  background: transparent;
+}
+
+.desktop-cloud-project-auth-panel .desktop-cloud-login-copy-content {
+  min-height: 460px;
+  align-content: center;
+  justify-items: start;
+  gap: 26px;
+  padding: 0;
+  background: transparent;
+}
+
+.desktop-cloud-project-auth-panel .desktop-cloud-login-identity {
+  grid-template-columns: 1fr;
+  justify-items: start;
+  gap: 22px;
+}
+
+.desktop-cloud-project-auth-panel .desktop-cloud-login-logo {
+  width: 140px;
+  height: 140px;
+  border-color: color-mix(in srgb, var(--po-text) 18%, transparent);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 28% 18%, color-mix(in srgb, #ffffff 18%, transparent), transparent 36%),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--po-panel-raised) 72%, transparent),
+      color-mix(in srgb, var(--po-panel) 42%, transparent)
+    );
+  color: color-mix(in srgb, var(--po-text) 58%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 34%, transparent),
+    inset 0 -18px 44px color-mix(in srgb, #000000 18%, transparent),
+    0 22px 60px color-mix(in srgb, #000000 20%, transparent);
+}
+
+.desktop-cloud-project-auth-panel .desktop-cloud-product-mark {
+  width: 98px;
+  height: 72px;
+  filter:
+    drop-shadow(0 1px 0 color-mix(in srgb, #ffffff 22%, transparent))
+    drop-shadow(0 14px 24px color-mix(in srgb, #000000 22%, transparent));
+}
+
+.desktop-cloud-project-auth-panel .desktop-cloud-product-mark-cloud {
+  stroke-width: 6.5px;
+}
+
+.desktop-cloud-project-auth-panel .desktop-cloud-login-copy h3 {
+  max-width: none;
+  font-weight: 720;
+  line-height: 1.05;
+  white-space: normal;
+}
+
+.desktop-cloud-project-auth-panel .desktop-cloud-login-copy-stack > p {
+  max-width: 350px;
+  color: color-mix(in srgb, var(--po-text-muted) 88%, transparent);
+  font-size: var(--desktop-cloud-body-size);
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.desktop-cloud-project-auth-panel .desktop-cloud-login-badge {
+  border-color: color-mix(in srgb, var(--po-accent) 30%, transparent);
+  background: color-mix(in srgb, var(--po-accent) 10%, transparent);
+}
+
+.desktop-cloud-project-auth-panel .desktop-cloud-login-feature-list {
+  width: min(100%, 350px);
+  gap: 7px;
+}
+
+.desktop-cloud-project-auth-panel .desktop-cloud-login-feature-row {
+  min-height: 26px;
+}
+
+.desktop-cloud-project-auth-panel .desktop-cloud-login-card {
+  min-height: 460px;
+  box-sizing: border-box;
+  padding: 34px 32px;
+  border: 1px solid color-mix(in srgb, var(--po-border) 74%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--po-panel-raised) 88%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 7%, transparent),
+    0 18px 50px color-mix(in srgb, #000000 18%, transparent);
+}
+
+.desktop-cloud-project-auth-panel .desktop-cloud-auth-card {
+  max-width: 320px;
+  padding: 0;
+}
+
+.desktop-cloud-project-auth-panel .desktop-cloud-login-feature-row strong {
+  color: color-mix(in srgb, var(--po-text-muted) 90%, transparent);
+  font-size: var(--desktop-cloud-body-size);
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+@media (max-width: 940px) {
+  .desktop-cloud-project-browser-header {
+    display: grid;
+  }
+
+  .desktop-cloud-project-grid {
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 28px;
+  }
+
+  .desktop-cloud-project-auth-stage {
+    min-height: auto;
+    place-items: start center;
+    padding: 24px 18px;
+  }
+
+  .desktop-cloud-project-auth-panel .desktop-cloud-login-layout {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    gap: 28px;
+  }
+
+  .desktop-cloud-project-auth-panel .desktop-cloud-login-copy,
+  .desktop-cloud-project-auth-panel .desktop-cloud-login-copy-content,
+  .desktop-cloud-project-auth-panel .desktop-cloud-login-card {
+    min-height: auto;
+  }
+
+  .desktop-cloud-project-auth-panel .desktop-cloud-login-copy-content {
+    width: min(100%, 420px);
+  }
+
+  .desktop-cloud-project-auth-panel .desktop-cloud-login-identity {
+    gap: 18px;
+  }
+
+  .desktop-cloud-project-auth-panel .desktop-cloud-login-logo {
+    width: 112px;
+    height: 112px;
+    border-radius: 22px;
+  }
+
+  .desktop-cloud-project-auth-panel .desktop-cloud-product-mark {
+    width: 78px;
+    height: 58px;
+  }
+
+  .desktop-cloud-project-auth-panel .desktop-cloud-login-card {
+    width: min(100%, 420px);
+  }
+}
+
+@media (max-width: 520px) {
+  .desktop-cloud-project-auth-stage {
+    padding: 14px 0;
+  }
+
+  .desktop-cloud-project-auth-panel .desktop-cloud-login-card {
+    padding: 24px;
+  }
+}

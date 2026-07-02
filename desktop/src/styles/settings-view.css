@@ -1,0 +1,17 @@
+.desktop-settings-view {
+  background: var(--po-canvas);
+}
+
+.desktop-settings-body {
+  display: grid;
+  align-content: start;
+  justify-items: center;
+  padding:
+    var(--desktop-utility-page-padding-top)
+    var(--desktop-utility-page-padding-inline)
+    var(--desktop-utility-page-padding-bottom);
+}
+
+.desktop-settings-sidebar .desktop-tool-sidebar-list {
+  padding-top: var(--desktop-sidebar-section-top-gap);
+}

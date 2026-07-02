@@ -13,10 +13,17 @@ import {
 import type { DataCapabilities, DataNode, DataPort, FileContent, Workspace } from "../core/types";
 import { defaultDataCapabilities } from "../core/types";
 import { shouldReadEditorContent } from "../editor/viewerRegistry";
+import {
+  createMarkdownLinkGraph,
+  type MarkdownLinkGraphDocument,
+} from "../editor/markdown/links/markdownLinkGraph";
 import { ExplorerTree } from "./ExplorerTree";
 import { FilePreview, type FilePreviewProps } from "./FilePreview";
 import { ProjectsHeader } from "./ProjectsHeader";
 import type { EditorSaveMode } from "../editor/PuppyoneEditorHost";
+import type { MarkdownHtmlTrustMode } from "../editor/viewerTypes";
+import { getAiEditFileForPath } from "../editor/ai-edits/diff";
+import type { AiEditRequest } from "../editor/ai-edits/types";
 import type { FileIconThemeId } from "../file/fileIcons";
 
 export type DataWorkspaceState = {
@@ -79,12 +86,16 @@ export type DataWorkspaceProps = {
   hidePreviewSourceView?: boolean;
   fileIconTheme?: FileIconThemeId;
   editorSaveMode?: EditorSaveMode;
+  htmlTrustMode?: MarkdownHtmlTrustMode;
   previewActionSlot?: FilePreviewProps["actionSlot"];
   renderPreviewBody?: FilePreviewProps["renderBody"];
+  previewAccessorySlot?: DataWorkspaceSlot;
+  aiEditRequest?: AiEditRequest | null;
   refreshKey?: unknown;
   onExplorerWidthChange?: (width: number) => void;
   onExplorerCollapsedChange?: (collapsed: boolean) => void;
   onActivePathChange?: (path: string | null, node: DataNode | null) => void;
+  onOpenExternalUrl?: (href: string) => void | Promise<void>;
   onCreate?: (folderPath: string | null) => void;
   onMore?: (state: DataWorkspaceState) => void;
   onAccess?: (folderPath: string | null) => void;
@@ -99,6 +110,7 @@ const DEFAULT_EXPLORER_WIDTH = 320;
 const MIN_EXPLORER_WIDTH = 240;
 const MAX_EXPLORER_WIDTH = 520;
 const COLLAPSED_EXPLORER_WIDTH = 47;
+const MARKDOWN_LINK_INDEX_MAX_FILES = 250;
 
 export function DataWorkspace({
   workspace,
@@ -130,12 +142,16 @@ export function DataWorkspace({
   hidePreviewSourceView = false,
   fileIconTheme = "default",
   editorSaveMode = "manual",
+  htmlTrustMode = "safe",
   previewActionSlot,
   renderPreviewBody,
+  previewAccessorySlot,
+  aiEditRequest = null,
   refreshKey,
   onExplorerWidthChange,
   onExplorerCollapsedChange,
   onActivePathChange,
+  onOpenExternalUrl,
   onCreate,
   onMore,
   onAccess,
@@ -144,7 +160,9 @@ export function DataWorkspace({
   const resolvedCapabilities = { ...defaultDataCapabilities, ...capabilities };
   const [tree, setTree] = useState<DataNode[]>([]);
   const [internalActivePath, setInternalActivePath] = useState<string | null>(defaultActivePath);
-  const [loadingPath, setLoadingPath] = useState<string | null>(ROOT_FOLDER_KEY);
+  const [rootLoaded, setRootLoaded] = useState(false);
+  const [loadingFolderPaths, setLoadingFolderPaths] = useState<Set<string>>(() => new Set([ROOT_FOLDER_KEY]));
+  const [expandedFolderPaths, setExpandedFolderPaths] = useState<Set<string>>(() => new Set(collectAncestorFolderPaths(defaultActivePath)));
   const [loadError, setLoadError] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<FileContent | null>(null);
   const [fileContentCache, setFileContentCache] = useState<Record<string, FileContent>>({});
@@ -155,8 +173,10 @@ export function DataWorkspace({
   const [fileUrlPath, setFileUrlPath] = useState<string | null>(null);
   const [fileUrlLoading, setFileUrlLoading] = useState(false);
   const [fileUrlError, setFileUrlError] = useState<string | null>(null);
+  const [markdownLinkIndexing, setMarkdownLinkIndexing] = useState(false);
   const [committedPreviewDocument, setCommittedPreviewDocument] = useState<CommittedPreviewDocument | null>(null);
   const lastRefreshKeyRef = useRef(refreshKey);
+  const loadGenerationRef = useRef(0);
   const [internalExplorerWidth, setInternalExplorerWidth] = useState(() => (
     clampNumber(defaultExplorerWidth, minExplorerWidth, maxExplorerWidth)
   ));
@@ -181,29 +201,59 @@ export function DataWorkspace({
     [explorerWidth, maxExplorerWidth, minExplorerWidth, onExplorerWidthChange],
   );
 
+  const setFolderLoading = useCallback((folderPath: string | null, loading: boolean) => {
+    const loadingKey = getLoadingKey(folderPath);
+    setLoadingFolderPaths((current) => {
+      if (loading && current.has(loadingKey)) return current;
+      if (!loading && !current.has(loadingKey)) return current;
+      const next = new Set(current);
+      if (loading) next.add(loadingKey);
+      else next.delete(loadingKey);
+      return next;
+    });
+  }, []);
+
+  const isFolderLoaded = useCallback(
+    (folderPath: string | null) => (
+      folderPath ? hasLoadedFolder(tree, folderPath) : rootLoaded
+    ),
+    [rootLoaded, tree],
+  );
+
   const loadFolder = useCallback(
     async (folderPath: string | null, force = false) => {
-      if (!force && hasLoadedFolder(tree, folderPath)) return;
+      if (!force && isFolderLoaded(folderPath)) return true;
 
-      const loadingKey = getLoadingKey(folderPath);
-      setLoadingPath(loadingKey);
+      const requestGeneration = loadGenerationRef.current;
+      setFolderLoading(folderPath, true);
       setLoadError(null);
 
       try {
         const children = await dataPort.listChildren(folderPath);
+        if (requestGeneration !== loadGenerationRef.current) return false;
         setTree((current) => attachFolderChildren(current, folderPath, children));
+        if (!folderPath) setRootLoaded(true);
+        return true;
       } catch (error) {
+        if (requestGeneration !== loadGenerationRef.current) return false;
         setLoadError(error instanceof Error ? error.message : String(error));
+        return false;
       } finally {
-        setLoadingPath((current) => (current === loadingKey ? null : current));
+        if (requestGeneration === loadGenerationRef.current) {
+          setFolderLoading(folderPath, false);
+        }
       }
     },
-    [dataPort, tree],
+    [dataPort, isFolderLoaded, setFolderLoading],
   );
 
   useEffect(() => {
+    loadGenerationRef.current += 1;
     setInternalActivePath(defaultActivePath);
     setTree([]);
+    setRootLoaded(false);
+    setExpandedFolderPaths(new Set(collectAncestorFolderPaths(defaultActivePath)));
+    setLoadingFolderPaths(new Set([ROOT_FOLDER_KEY]));
     setLoadError(null);
     setFileContent(null);
     setFileContentCache({});
@@ -214,8 +264,8 @@ export function DataWorkspace({
     setFileUrlPath(null);
     setFileUrlError(null);
     setFileUrlLoading(false);
+    setMarkdownLinkIndexing(false);
     setCommittedPreviewDocument(null);
-    setLoadingPath(ROOT_FOLDER_KEY);
   }, [workspace.path, dataPort, defaultActivePath]);
 
   useEffect(() => {
@@ -225,24 +275,31 @@ export function DataWorkspace({
 
   useEffect(() => {
     let cancelled = false;
+    const requestGeneration = loadGenerationRef.current;
 
-    setLoadingPath(ROOT_FOLDER_KEY);
+    setFolderLoading(null, true);
     setLoadError(null);
     dataPort.listChildren(null)
       .then((children) => {
-        if (!cancelled) setTree(children);
+        if (cancelled || requestGeneration !== loadGenerationRef.current) return;
+        setTree(children);
+        setRootLoaded(true);
       })
       .catch((error) => {
-        if (!cancelled) setLoadError(error instanceof Error ? error.message : String(error));
+        if (!cancelled && requestGeneration === loadGenerationRef.current) {
+          setLoadError(error instanceof Error ? error.message : String(error));
+        }
       })
       .finally(() => {
-        if (!cancelled) setLoadingPath((current) => (current === ROOT_FOLDER_KEY ? null : current));
+        if (!cancelled && requestGeneration === loadGenerationRef.current) {
+          setFolderLoading(null, false);
+        }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [workspace.path, dataPort]);
+  }, [workspace.path, dataPort, setFolderLoading]);
 
   useEffect(() => {
     if (refreshKey === undefined || Object.is(lastRefreshKeyRef.current, refreshKey)) {
@@ -252,8 +309,9 @@ export function DataWorkspace({
     lastRefreshKeyRef.current = refreshKey;
     const loadedFolderPaths = collectLoadedFolderPaths(tree);
     let cancelled = false;
+    const requestGeneration = loadGenerationRef.current;
 
-    setLoadingPath(ROOT_FOLDER_KEY);
+    setFolderLoading(null, true);
     setLoadError(null);
 
     dataPort.listChildren(null)
@@ -266,6 +324,7 @@ export function DataWorkspace({
         );
 
         if (cancelled) return;
+        if (requestGeneration !== loadGenerationRef.current) return;
 
         let nextTree = rootChildren;
         for (const result of folderResults) {
@@ -274,18 +333,23 @@ export function DataWorkspace({
           }
         }
         setTree(nextTree);
+        setRootLoaded(true);
       })
       .catch((error) => {
-        if (!cancelled) setLoadError(error instanceof Error ? error.message : String(error));
+        if (!cancelled && requestGeneration === loadGenerationRef.current) {
+          setLoadError(error instanceof Error ? error.message : String(error));
+        }
       })
       .finally(() => {
-        if (!cancelled) setLoadingPath((current) => (current === ROOT_FOLDER_KEY ? null : current));
+        if (!cancelled && requestGeneration === loadGenerationRef.current) {
+          setFolderLoading(null, false);
+        }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [dataPort, refreshKey, tree]);
+  }, [dataPort, refreshKey, setFolderLoading, tree]);
 
   const activeNode = useMemo(() => findDataNode(tree, resolvedActivePath), [resolvedActivePath, tree]);
   const currentFolderPath = activeNode?.type === "folder" ? activeNode.path : getParentPath(resolvedActivePath);
@@ -326,9 +390,123 @@ export function DataWorkspace({
   const renderedPreviewUrlError = renderedPreviewIsSelectedFile
     ? selectedFileUrlError
     : renderedPreviewDocument?.fileUrlError ?? null;
+  const renderedPreviewAiEditFile = getAiEditFileForPath(aiEditRequest, renderedPreviewDocument?.node.path);
   const pathSegments = buildBreadcrumb(workspace.name, currentFolderPath, selectedFile?.name)
     .map((label) => ({ label }));
-  const rootLoading = loadingPath === ROOT_FOLDER_KEY;
+  const loadingPath = getFirstSetValue(loadingFolderPaths);
+  const rootLoading = loadingFolderPaths.has(ROOT_FOLDER_KEY);
+  const filesExplorerActive = !explorerSlot;
+  const activateNode = useCallback(
+    (node: DataNode | null) => {
+      const nextPath = node?.path ?? null;
+      if (activePath === undefined) setInternalActivePath(nextPath);
+      onActivePathChange?.(nextPath, node);
+      if (!node) {
+        void loadFolder(null);
+      }
+    },
+    [activePath, loadFolder, onActivePathChange],
+  );
+  const loadLinkedPathNode = useCallback(
+    async (path: string): Promise<DataNode | null> => {
+      const normalizedPath = normalizeDataPath(path);
+      if (!normalizedPath) return null;
+
+      const requestGeneration = loadGenerationRef.current;
+      let workingTree = tree;
+
+      const loadChildren = async (folderPath: string | null): Promise<DataNode[] | null> => {
+        if (requestGeneration !== loadGenerationRef.current) return null;
+
+        setFolderLoading(folderPath, true);
+        setLoadError(null);
+
+        try {
+          const children = await dataPort.listChildren(folderPath);
+          if (requestGeneration !== loadGenerationRef.current) return null;
+
+          workingTree = folderPath ? attachFolderChildren(workingTree, folderPath, children) : children;
+          setTree((current) => (folderPath ? attachFolderChildren(current, folderPath, children) : children));
+          if (!folderPath) setRootLoaded(true);
+          return children;
+        } catch (error) {
+          if (requestGeneration === loadGenerationRef.current) {
+            setLoadError(error instanceof Error ? error.message : String(error));
+          }
+          return null;
+        } finally {
+          if (requestGeneration === loadGenerationRef.current) {
+            setFolderLoading(folderPath, false);
+          }
+        }
+      };
+
+      if (!rootLoaded) {
+        const rootChildren = await loadChildren(null);
+        if (!rootChildren) return null;
+      }
+
+      const ancestorPaths = collectAncestorFolderPaths(normalizedPath);
+      for (const folderPath of ancestorPaths) {
+        let folder = findDataNode(workingTree, folderPath);
+        if (!folder || folder.type !== "folder") return null;
+
+        if (!Array.isArray(folder.children)) {
+          const children = await loadChildren(folderPath);
+          if (!children) return null;
+          folder = findDataNode(workingTree, folderPath);
+        }
+
+        if (!folder || folder.type !== "folder") return null;
+      }
+
+      const node = findDataNode(workingTree, normalizedPath);
+      if (node) {
+        setExpandedFolderPaths((current) => addSetValues(current, ancestorPaths));
+      }
+      return node;
+    },
+    [dataPort, rootLoaded, setFolderLoading, tree],
+  );
+  const openMarkdownLinkCandidates = useCallback(
+    async (paths: readonly string[]) => {
+      const normalizedPaths = paths
+        .map(normalizeDataPath)
+        .filter((path, index, allPaths): path is string => Boolean(path) && allPaths.indexOf(path) === index);
+
+      for (const path of normalizedPaths) {
+        const node = findDataNode(tree, path) ?? await loadLinkedPathNode(path);
+        if (!node) continue;
+
+        if (activePath === undefined) setInternalActivePath(node.path);
+        onActivePathChange?.(node.path, node);
+        if (node.type === "folder") {
+          void loadFolder(node.path);
+        }
+        return;
+      }
+    },
+    [activePath, loadFolder, loadLinkedPathNode, onActivePathChange, tree],
+  );
+  const markdownLinkDocuments = useMemo(
+    () => buildMarkdownLinkDocuments(tree, fileContentCache),
+    [fileContentCache, tree],
+  );
+  const markdownLinkGraph = useMemo(
+    () => createMarkdownLinkGraph(markdownLinkDocuments, {
+      isIndexing: markdownLinkIndexing,
+      onOpenPath: (path) => {
+        void openMarkdownLinkCandidates([path]);
+      },
+      onOpenCandidatePaths: (paths) => {
+        void openMarkdownLinkCandidates(paths);
+      },
+      onOpenExternalUrl: (href) => {
+        void onOpenExternalUrl?.(href);
+      },
+    }),
+    [markdownLinkDocuments, markdownLinkIndexing, onOpenExternalUrl, openMarkdownLinkCandidates],
+  );
   const workspaceState: DataWorkspaceState = {
     tree,
     activePath: resolvedActivePath,
@@ -345,6 +523,14 @@ export function DataWorkspace({
     fileUrlLoading: selectedFileUrlLoading,
     fileUrlError: selectedFileUrlError,
   };
+  const previewAccessory = renderWorkspaceSlot(previewAccessorySlot, workspaceState);
+
+  useEffect(() => {
+    const ancestorPaths = collectAncestorFolderPaths(resolvedActivePath);
+    if (ancestorPaths.length === 0) return;
+
+    setExpandedFolderPaths((current) => addSetValues(current, ancestorPaths));
+  }, [resolvedActivePath]);
 
   useEffect(() => {
     if (!selectedPreviewDocument) {
@@ -413,6 +599,45 @@ export function DataWorkspace({
   }, [dataPort, refreshKey, selectedFile?.path]);
 
   useEffect(() => {
+    if (!dataPort.readFile) {
+      setMarkdownLinkIndexing(false);
+      return undefined;
+    }
+
+    const candidates = collectMarkdownLinkIndexCandidates(tree, fileContentCache)
+      .slice(0, MARKDOWN_LINK_INDEX_MAX_FILES);
+    if (candidates.length === 0) {
+      setMarkdownLinkIndexing(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    setMarkdownLinkIndexing(true);
+
+    readMarkdownLinkIndexFiles(
+      candidates,
+      (path) => dataPort.readFile?.(path) ?? Promise.reject(new Error("readFile is unavailable")),
+    )
+      .then((contents) => {
+        if (cancelled || contents.length === 0) return;
+        setFileContentCache((current) => {
+          const next = { ...current };
+          for (const content of contents) {
+            if (typeof content.content === "string") next[content.path] = content;
+          }
+          return next;
+        });
+      })
+      .finally(() => {
+        if (!cancelled) setMarkdownLinkIndexing(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [dataPort, fileContentCache, refreshKey, tree]);
+
+  useEffect(() => {
     if (!selectedFile || !dataPort.getFileUrl) {
       setFileUrl(null);
       setFileUrlPath(null);
@@ -447,18 +672,27 @@ export function DataWorkspace({
     };
   }, [dataPort, selectedFile?.path]);
 
-  const selectNode = (node: DataNode | null) => {
-    const nextPath = node?.path ?? null;
-    if (activePath === undefined) setInternalActivePath(nextPath);
-    onActivePathChange?.(nextPath, node);
-    if (!node) {
-      void loadFolder(null);
-    }
-  };
+  const toggleFolder = useCallback(
+    (node: DataNode, expanded: boolean) => {
+      if (!expanded) {
+        setExpandedFolderPaths((current) => deleteSetValue(current, node.path));
+        return;
+      }
 
-  const toggleFolder = (node: DataNode, expanded: boolean) => {
-    if (expanded) void loadFolder(node.path);
-  };
+      if (Array.isArray(node.children)) {
+        setExpandedFolderPaths((current) => addSetValue(current, node.path));
+        return;
+      }
+
+      if (loadingFolderPaths.has(node.path)) return;
+
+      void loadFolder(node.path).then((loaded) => {
+        if (!loaded) return;
+        setExpandedFolderPaths((current) => addSetValue(current, node.path));
+      });
+    },
+    [loadFolder, loadingFolderPaths],
+  );
 
   const saveFileContent = async (node: DataNode, content: string) => {
     if (!dataPort.writeFile) return;
@@ -497,6 +731,55 @@ export function DataWorkspace({
     ));
     setTree((current) => updateNodeContent(current, node.path, content));
   };
+
+  const moveNode = useCallback(
+    async (node: DataNode, targetFolderPath: string | null) => {
+      if (!resolvedCapabilities.move || !dataPort.moveNode) return;
+
+      const previousPath = node.path;
+      const nextPath = joinDataPath(targetFolderPath, node.name);
+      const previousParentPath = getParentPath(previousPath);
+
+      if (previousPath === nextPath || previousParentPath === targetFolderPath) return;
+
+      setLoadError(null);
+
+      try {
+        await dataPort.moveNode(previousPath, nextPath);
+      } catch (error) {
+        setLoadError(error instanceof Error ? error.message : String(error));
+        return;
+      }
+
+      setTree((current) => moveDataNode(current, previousPath, nextPath, targetFolderPath));
+      setFileContentCache((current) => rebaseFileContentCache(current, previousPath, nextPath));
+      setFileContent((current) => rebaseFileContent(current, previousPath, nextPath));
+      setFileErrorPath((current) => rebaseMovedPath(current, previousPath, nextPath));
+      setFileUrlPath((current) => rebaseMovedPath(current, previousPath, nextPath));
+      setCommittedPreviewDocument((current) => rebaseCommittedPreviewDocument(current, previousPath, nextPath));
+
+      const nextActivePath = rebaseMovedPath(resolvedActivePath, previousPath, nextPath);
+      if (nextActivePath !== resolvedActivePath) {
+        const nextActiveNode = activeNode ? rebaseDataNode(activeNode, previousPath, nextPath) : null;
+        if (activePath === undefined) setInternalActivePath(nextActivePath);
+        onActivePathChange?.(nextActivePath, nextActiveNode);
+      }
+
+      void loadFolder(previousParentPath, true);
+      if (targetFolderPath !== previousParentPath) {
+        void loadFolder(targetFolderPath, true);
+      }
+    },
+    [
+      activeNode,
+      activePath,
+      dataPort,
+      loadFolder,
+      onActivePathChange,
+      resolvedActivePath,
+      resolvedCapabilities.move,
+    ],
+  );
 
   const beginExplorerResize = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -597,26 +880,37 @@ export function DataWorkspace({
                   </div>
                 )
               )}
-              <div className="data-explorer-view-frame" data-view-mode={explorerSlot ? "custom" : "files"}>
-                {explorerSlot ? (
-                  renderWorkspaceSlot(explorerSlot, workspaceState)
-                ) : (
+              <div className="data-explorer-view-stack" data-view-mode={filesExplorerActive ? "files" : "custom"}>
+                <div
+                  className="data-explorer-view-frame"
+                  data-view-mode="files"
+                  data-active={filesExplorerActive ? "true" : "false"}
+                  aria-hidden={filesExplorerActive ? undefined : true}
+                >
                   <ExplorerTree
                     nodes={tree}
                     activePath={resolvedActivePath}
-                    loadingPath={loadingPath}
+                    expandedPaths={expandedFolderPaths}
+                    loadingPaths={loadingFolderPaths}
                     rootLoading={rootLoading}
                     rootError={loadError}
                     rootLabel={labels?.root ?? "Root"}
                     showRoot
                     loadingLabel={labels?.loadingWorkspace ?? "Loading workspace..."}
                     onToggleFolder={toggleFolder}
-                    onSelectNode={selectNode}
+                    onSelectNode={activateNode}
                     fileIconTheme={fileIconTheme}
+                    canMoveNodes={Boolean(resolvedCapabilities.move && dataPort.moveNode)}
+                    onMoveNode={moveNode}
                     renderRootActions={explorerRootActionSlot ? () => renderWorkspaceSlot(explorerRootActionSlot, workspaceState) : undefined}
                     renderFolderActions={explorerFolderActionSlot ? (folder) => renderWorkspaceFolderSlot(explorerFolderActionSlot, workspaceState, folder) : undefined}
                     renderNodeActions={explorerNodeActionSlot ? (node) => renderWorkspaceNodeSlot(explorerNodeActionSlot, workspaceState, node) : undefined}
                   />
+                </div>
+                {explorerSlot && (
+                  <div className="data-explorer-view-frame" data-view-mode="custom" data-active="true">
+                    {renderWorkspaceSlot(explorerSlot, workspaceState)}
+                  </div>
                 )}
               </div>
             </>
@@ -656,25 +950,35 @@ export function DataWorkspace({
             {mainSlot ? (
               renderWorkspaceSlot(mainSlot, workspaceState)
             ) : (
-              <FilePreview
-                node={renderedPreviewDocument?.node ?? null}
-                fileContent={renderedPreviewDocument?.fileContent ?? null}
-                fileUrl={renderedPreviewDocument?.fileUrl ?? null}
-                fileUrlLoading={renderedPreviewUrlLoading}
-                fileUrlError={renderedPreviewUrlError}
-                loading={renderedPreviewLoading}
-                error={renderedPreviewError}
-                showHeader={showPreviewHeader}
-                hideSourceView={hidePreviewSourceView}
-                fileIconTheme={fileIconTheme}
-                editorSaveMode={editorSaveMode}
-                emptySlot={emptySlot}
-                actionSlot={previewActionSlot}
-                renderBody={renderPreviewBody}
-                onSaveContent={dataPort.writeFile && renderedPreviewDocument
-                  ? (content) => saveFileContent(renderedPreviewDocument.node, content)
-                  : undefined}
-              />
+              <>
+                {previewAccessory && (
+                  <div className="data-preview-accessory">
+                    {previewAccessory}
+                  </div>
+                )}
+                <FilePreview
+                  node={renderedPreviewDocument?.node ?? null}
+                  fileContent={renderedPreviewDocument?.fileContent ?? null}
+                  fileUrl={renderedPreviewDocument?.fileUrl ?? null}
+                  fileUrlLoading={renderedPreviewUrlLoading}
+                  fileUrlError={renderedPreviewUrlError}
+                  loading={renderedPreviewLoading}
+                  error={renderedPreviewError}
+                  aiEditFile={renderedPreviewAiEditFile}
+                  showHeader={showPreviewHeader}
+                  hideSourceView={hidePreviewSourceView}
+                  fileIconTheme={fileIconTheme}
+                  editorSaveMode={editorSaveMode}
+                  htmlTrustMode={htmlTrustMode}
+                  markdownLinkGraph={markdownLinkGraph}
+                  emptySlot={emptySlot}
+                  actionSlot={previewActionSlot}
+                  renderBody={renderPreviewBody}
+                  onSaveContent={dataPort.writeFile && renderedPreviewDocument
+                    ? (content) => saveFileContent(renderedPreviewDocument.node, content)
+                    : undefined}
+                />
+              </>
             )}
           </div>
         </main>
@@ -685,6 +989,34 @@ export function DataWorkspace({
 
 function clampNumber(value: number, min: number, max: number): number {
   return Math.min(Math.max(Math.round(value), min), max);
+}
+
+function getFirstSetValue<T>(values: ReadonlySet<T>): T | null {
+  return values.values().next().value ?? null;
+}
+
+function addSetValue<T>(current: Set<T>, value: T): Set<T> {
+  if (current.has(value)) return current;
+  const next = new Set(current);
+  next.add(value);
+  return next;
+}
+
+function addSetValues<T>(current: Set<T>, values: readonly T[]): Set<T> {
+  let next: Set<T> | null = null;
+  for (const value of values) {
+    if (current.has(value)) continue;
+    next ??= new Set(current);
+    next.add(value);
+  }
+  return next ?? current;
+}
+
+function deleteSetValue<T>(current: Set<T>, value: T): Set<T> {
+  if (!current.has(value)) return current;
+  const next = new Set(current);
+  next.delete(value);
+  return next;
 }
 
 function findDataNode(nodes: DataNode[], path: string | null): DataNode | null {
@@ -760,6 +1092,155 @@ function updateNodeContent(nodes: DataNode[], path: string, content: string): Da
   });
 }
 
+function moveDataNode(
+  nodes: DataNode[],
+  previousPath: string,
+  nextPath: string,
+  targetFolderPath: string | null,
+): DataNode[] {
+  const removed = removeDataNode(nodes, previousPath);
+  if (!removed.node) return nodes;
+
+  return insertDataNode(
+    removed.nodes,
+    targetFolderPath,
+    rebaseDataNode(removed.node, previousPath, nextPath),
+  );
+}
+
+function removeDataNode(nodes: DataNode[], path: string): { nodes: DataNode[]; node: DataNode | null } {
+  let removedNode: DataNode | null = null;
+  let changed = false;
+  const nextNodes: DataNode[] = [];
+
+  for (const node of nodes) {
+    if (node.path === path) {
+      removedNode = node;
+      changed = true;
+      continue;
+    }
+
+    if (node.children && !removedNode) {
+      const result = removeDataNode(node.children, path);
+      if (result.node) {
+        removedNode = result.node;
+        changed = true;
+        nextNodes.push({ ...node, children: result.nodes });
+        continue;
+      }
+    }
+
+    nextNodes.push(node);
+  }
+
+  return {
+    nodes: changed ? nextNodes : nodes,
+    node: removedNode,
+  };
+}
+
+function insertDataNode(nodes: DataNode[], targetFolderPath: string | null, movedNode: DataNode): DataNode[] {
+  if (!targetFolderPath) {
+    return sortDataNodes([...nodes, movedNode]);
+  }
+
+  let changed = false;
+  const nextNodes = nodes.map((node) => {
+    if (node.path === targetFolderPath && node.type === "folder") {
+      if (!Array.isArray(node.children)) return node;
+      changed = true;
+      return {
+        ...node,
+        children: sortDataNodes([...node.children, movedNode]),
+      };
+    }
+
+    if (node.children) {
+      const nextChildren = insertDataNode(node.children, targetFolderPath, movedNode);
+      if (nextChildren !== node.children) {
+        changed = true;
+        return { ...node, children: nextChildren };
+      }
+    }
+
+    return node;
+  });
+
+  return changed ? nextNodes : nodes;
+}
+
+function sortDataNodes(nodes: DataNode[]): DataNode[] {
+  return [...nodes].sort((left, right) => {
+    const leftFolder = left.type === "folder";
+    const rightFolder = right.type === "folder";
+    if (leftFolder !== rightFolder) return leftFolder ? -1 : 1;
+    return left.name.localeCompare(right.name, undefined, { sensitivity: "base" });
+  });
+}
+
+function rebaseDataNode(node: DataNode, previousPath: string, nextPath: string): DataNode {
+  const rebasedPath = rebaseMovedPath(node.path, previousPath, nextPath) ?? node.path;
+  return {
+    ...node,
+    id: node.id === node.path ? rebasedPath : node.id,
+    path: rebasedPath,
+    children: node.children
+      ? node.children.map((child) => rebaseDataNode(child, previousPath, nextPath))
+      : node.children,
+  };
+}
+
+function rebaseFileContentCache(
+  cache: Record<string, FileContent>,
+  previousPath: string,
+  nextPath: string,
+): Record<string, FileContent> {
+  const nextCache: Record<string, FileContent> = {};
+
+  for (const [path, content] of Object.entries(cache)) {
+    const rebasedPath = rebaseMovedPath(path, previousPath, nextPath) ?? path;
+    nextCache[rebasedPath] = rebaseFileContent(content, previousPath, nextPath) ?? content;
+  }
+
+  return nextCache;
+}
+
+function rebaseFileContent(
+  content: FileContent | null,
+  previousPath: string,
+  nextPath: string,
+): FileContent | null {
+  const rebasedPath = rebaseMovedPath(content?.path ?? null, previousPath, nextPath);
+  return content && rebasedPath ? { ...content, path: rebasedPath } : content;
+}
+
+function rebaseCommittedPreviewDocument(
+  document: CommittedPreviewDocument | null,
+  previousPath: string,
+  nextPath: string,
+): CommittedPreviewDocument | null {
+  if (!document) return null;
+  const rebasedNodePath = rebaseMovedPath(document.node.path, previousPath, nextPath);
+  if (!rebasedNodePath) return document;
+
+  return {
+    ...document,
+    node: rebaseDataNode(document.node, previousPath, nextPath),
+    fileContent: rebaseFileContent(document.fileContent, previousPath, nextPath),
+  };
+}
+
+function rebaseMovedPath(path: string | null, previousPath: string, nextPath: string): string | null {
+  if (!path) return path;
+  if (path === previousPath) return nextPath;
+  if (path.startsWith(`${previousPath}/`)) return `${nextPath}${path.slice(previousPath.length)}`;
+  return path;
+}
+
+function joinDataPath(folderPath: string | null, name: string): string {
+  return folderPath ? `${folderPath}/${name}` : name;
+}
+
 function buildPreview(content: string): string | null {
   const preview = content
     .split(/\r?\n/)
@@ -770,9 +1251,121 @@ function buildPreview(content: string): string | null {
   return preview || null;
 }
 
+function buildMarkdownLinkDocuments(
+  nodes: DataNode[],
+  fileContentCache: Record<string, FileContent>,
+): MarkdownLinkGraphDocument[] {
+  const documents: MarkdownLinkGraphDocument[] = [];
+
+  for (const node of collectLinkableNodes(nodes)) {
+    const cachedContent = fileContentCache[node.path];
+    const content = isMarkdownNodeLike(node)
+      ? cachedContent?.content ?? node.content ?? null
+      : null;
+
+    documents.push({
+      path: node.path,
+      name: node.name,
+      content,
+    });
+  }
+
+  return documents;
+}
+
+function collectMarkdownLinkIndexCandidates(
+  nodes: DataNode[],
+  fileContentCache: Record<string, FileContent>,
+): string[] {
+  const paths: string[] = [];
+
+  for (const node of collectMarkdownNodes(nodes)) {
+    if (typeof node.content === "string") continue;
+    if (typeof fileContentCache[node.path]?.content === "string") continue;
+    paths.push(node.path);
+  }
+
+  return paths;
+}
+
+async function readMarkdownLinkIndexFiles(
+  paths: string[],
+  readFile: NonNullable<DataPort["readFile"]>,
+): Promise<FileContent[]> {
+  const contents: FileContent[] = [];
+  const batchSize = 6;
+
+  for (let index = 0; index < paths.length; index += batchSize) {
+    const batch = paths.slice(index, index + batchSize);
+    const results = await Promise.all(
+      batch.map(async (path) => {
+        try {
+          return await readFile(path);
+        } catch {
+          return null;
+        }
+      }),
+    );
+
+    for (const result of results) {
+      if (result && isMarkdownNodeLike(result)) contents.push(result);
+    }
+  }
+
+  return contents;
+}
+
+function collectMarkdownNodes(nodes: DataNode[]): DataNode[] {
+  const markdownNodes: DataNode[] = [];
+
+  for (const node of nodes) {
+    if (isMarkdownNodeLike(node)) markdownNodes.push(node);
+    if (node.children) markdownNodes.push(...collectMarkdownNodes(node.children));
+  }
+
+  return markdownNodes;
+}
+
+function collectLinkableNodes(nodes: DataNode[]): DataNode[] {
+  const linkableNodes: DataNode[] = [];
+
+  for (const node of nodes) {
+    if (node.type !== "folder") linkableNodes.push(node);
+    if (node.children) linkableNodes.push(...collectLinkableNodes(node.children));
+  }
+
+  return linkableNodes;
+}
+
+function isMarkdownNodeLike(node: Pick<DataNode, "name" | "path" | "type">): boolean {
+  return node.type === "markdown" || /\.(?:md|markdown)$/i.test(node.name) || /\.(?:md|markdown)$/i.test(node.path);
+}
+
 function getParentPath(path: string | null): string | null {
   if (!path || !path.includes("/")) return null;
   return path.slice(0, path.lastIndexOf("/"));
+}
+
+function normalizeDataPath(path: string): string {
+  const normalized = path.replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+/g, "/").trim();
+  const parts: string[] = [];
+
+  for (const part of normalized.split("/")) {
+    if (!part || part === ".") continue;
+    if (part === "..") {
+      parts.pop();
+      continue;
+    }
+    parts.push(part);
+  }
+
+  return parts.join("/");
+}
+
+function collectAncestorFolderPaths(activePath: string | null): string[] {
+  if (!activePath) return [];
+  const parts = activePath.split("/").filter(Boolean);
+  return parts.slice(0, -1).map((_, index) => parts.slice(0, index + 1).join("/"));
 }
 
 function getLoadingKey(folderPath: string | null): string {

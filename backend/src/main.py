@@ -370,9 +370,13 @@ async def app_lifespan(app: FastAPI):
 
     from src.version_engine.bootstrap.container import build_version_engine_container
 
-    # probe=True at process boot — fail fast on misconfigured S3 /
-    # Supabase rather than crashing the first user write.
-    app.state.version_engine = build_version_engine_container(probe=True)
+    # Probe external storage at non-debug process boot so production fails fast
+    # on misconfigured S3/Supabase. Local development/test runs often use partial
+    # env files or offline services; keep those bootable and let individual
+    # request paths surface dependency failures when exercised.
+    app.state.version_engine = build_version_engine_container(
+        probe=settings.APP_ENV not in {"development", "test"},
+    )
 
     # Wire the outbox → agent-resolver bridge. Until a real runner
     # is installed via ``AgentResolverDispatcher.install(...)`` the

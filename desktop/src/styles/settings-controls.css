@@ -1,0 +1,307 @@
+.desktop-settings-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--po-success) !important;
+}
+
+.desktop-settings-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid var(--po-divider);
+  border-radius: 6px;
+  background: var(--po-panel-raised);
+  color: var(--po-text-muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.desktop-settings-action span {
+  color: inherit;
+}
+
+.desktop-settings-action:hover:not(:disabled) {
+  background: var(--po-hover);
+  color: var(--po-text);
+}
+
+.desktop-settings-action.primary {
+  border-color: color-mix(in srgb, var(--po-accent) 28%, transparent);
+  background: color-mix(in srgb, var(--po-accent) 9%, var(--po-panel-raised));
+  color: var(--po-accent);
+}
+
+.desktop-settings-action.primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--po-accent) 14%, var(--po-panel-raised));
+  color: var(--po-accent);
+}
+
+.desktop-settings-action:disabled {
+  cursor: default;
+  opacity: 0.62;
+}
+
+.desktop-settings-action .spin {
+  animation: spin 0.85s linear infinite;
+}
+
+.desktop-settings-action.danger {
+  border-color: color-mix(in srgb, var(--po-danger) 22%, transparent);
+  background: color-mix(in srgb, var(--po-danger) 7%, var(--po-panel-raised));
+  color: var(--po-danger);
+}
+
+.desktop-settings-action.danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--po-danger) 12%, var(--po-panel-raised));
+}
+
+.desktop-settings-row-control {
+  min-height: 42px;
+}
+
+.desktop-settings-tools-row {
+  align-items: flex-start;
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+
+.desktop-update-settings-row {
+  align-items: flex-start;
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+
+.desktop-update-blocker {
+  color: var(--po-warning) !important;
+}
+
+.desktop-settings-tool-list {
+  display: grid;
+  width: min(100%, 320px);
+  gap: 4px;
+}
+
+.desktop-settings-tool-item {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  min-height: 30px;
+  padding: 0 7px 0 4px;
+  border: 1px solid var(--po-divider);
+  border-radius: 6px;
+  background: var(--po-panel-raised);
+  color: var(--po-text-muted);
+}
+
+.desktop-settings-tool-item[draggable="true"] {
+  cursor: grab;
+}
+
+.desktop-settings-tool-item.dragging {
+  opacity: 0.62;
+}
+
+.desktop-settings-tool-drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--po-text-subtle);
+}
+
+.desktop-settings-tool-label {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  color: var(--po-text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.desktop-settings-tool-label > svg {
+  flex: 0 0 auto;
+  color: var(--po-text-subtle);
+}
+
+.desktop-settings-tool-label > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-settings-remote-list {
+  display: grid;
+  max-width: 780px;
+  gap: 10px;
+}
+
+.desktop-settings-remote-table {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid var(--po-divider);
+  border-radius: 8px;
+  background: var(--po-panel);
+}
+
+.desktop-settings-remote-table-head,
+.desktop-settings-remote-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.9fr) 92px minmax(220px, 2fr) 72px 86px;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+
+.desktop-settings-remote-table-head {
+  height: 34px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--po-divider);
+  color: var(--po-text-subtle);
+  font-size: 11px;
+  font-weight: 760;
+  text-transform: uppercase;
+}
+
+.desktop-settings-remote-row {
+  min-height: 46px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--po-divider);
+  color: var(--po-text-muted);
+  font-size: 12.5px;
+}
+
+.desktop-settings-remote-row:last-child {
+  border-bottom: 0;
+}
+
+.desktop-settings-remote-row > strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--po-text);
+  font-size: 12.5px;
+  font-weight: 740;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-settings-remote-url {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.desktop-settings-remote-url code,
+.desktop-settings-remote-url small {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--po-text);
+  font-family: var(--po-font-mono);
+  font-size: 11.5px;
+  font-weight: 620;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-settings-remote-url small {
+  color: var(--po-text-subtle);
+  font-size: 11px;
+  font-weight: 520;
+}
+
+.desktop-settings-icon-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 28px;
+  min-width: 0;
+  padding: 0 8px;
+  border: 1px solid var(--po-divider);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--po-text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.desktop-settings-icon-action:hover:not(:disabled) {
+  background: var(--po-hover);
+  color: var(--po-text);
+}
+
+.desktop-settings-icon-action:disabled {
+  color: var(--po-text-disabled);
+  opacity: 0.55;
+}
+
+.desktop-settings-remote {
+  display: grid;
+  gap: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--po-divider);
+}
+
+.desktop-settings-remote-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 32px;
+  gap: 12px;
+}
+
+.desktop-settings-remote-header > strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--po-text);
+  font-size: 12.5px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-theme-segment {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 7px;
+  background: var(--po-control);
+}
+
+.desktop-theme-segment button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--po-text-muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.desktop-theme-segment button:hover,
+.desktop-theme-segment button.active {
+  background: var(--po-selected);
+  color: var(--po-text);
+}
+
+.desktop-sidebar-layout-segment {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: 410px;
+}
+
+.desktop-sidebar-layout-segment button {
+  min-width: 112px;
+}

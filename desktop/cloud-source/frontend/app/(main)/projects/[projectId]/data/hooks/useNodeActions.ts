@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback } from 'react';
 import { mutate } from 'swr';
-import { downloadNode, moveFile, removeFile, bulkRemoveFiles, type NodeInfo } from '@/lib/contentTreeApi';
+import { downloadNode, moveFile, removeFile, bulkRemoveFiles, sortNodes, type NodeInfo } from '@/lib/contentTreeApi';
 import { refreshFolderNodes, refreshProjectHistory } from '@/lib/hooks/useData';
 import { ensureExpanded } from '../components/explorer';
 
@@ -15,6 +15,17 @@ function parentOf(path: string): string {
 
 function normalizeTreePath(path: string): string {
   return path.trim().replace(/^\/+|\/+$/g, '');
+}
+
+function normalizeParentPath(path?: string | null): string | null {
+  const clean = normalizeTreePath(path ?? '');
+  return clean || null;
+}
+
+function isDescendantPath(parent: string, child: string): boolean {
+  const parentClean = normalizeTreePath(parent);
+  const childClean = normalizeTreePath(child);
+  return Boolean(parentClean && childClean.startsWith(`${parentClean}/`));
 }
 
 function matchesDeletedRoot(path: string, deletedRoots: readonly string[]): boolean {
@@ -246,45 +257,56 @@ export function useNodeActions(projectId: string, currentFolderPath: string | nu
     targetFolderPath: string | null,
     sourceParentPath: string | null = currentFolderPath,
   ) => {
-    if (sourceParentPath === targetFolderPath) return;
+    const cleanNodePath = normalizeTreePath(nodePath);
+    const cleanSourceParentPath = normalizeParentPath(sourceParentPath);
+    const cleanTargetFolderPath = normalizeParentPath(targetFolderPath);
+    if (!cleanNodePath) return;
+    if (cleanSourceParentPath === cleanTargetFolderPath) return;
+    if (cleanNodePath === cleanTargetFolderPath || (cleanTargetFolderPath && isDescendantPath(cleanNodePath, cleanTargetFolderPath))) {
+      showToast('Cannot move an item into itself or its own subtree', 'error');
+      return;
+    }
 
-    const sourceKey = ['tree', projectId, sourceParentPath ?? ''];
-    const targetKey = ['tree', projectId, targetFolderPath ?? ''];
+    const sourceKey = ['tree', projectId, cleanSourceParentPath ?? ''];
+    const targetKey = ['tree', projectId, cleanTargetFolderPath ?? ''];
 
     let movedNode: NodeInfo | undefined;
 
     mutate(
       sourceKey,
       (nodes: NodeInfo[] | undefined) => {
-        movedNode = (nodes ?? []).find(n => n.path === nodePath || n.id === nodePath);
-        return (nodes ?? []).filter(n => n.path !== nodePath && n.id !== nodePath);
+        movedNode = (nodes ?? []).find(n => n.path === cleanNodePath || n.id === cleanNodePath);
+        return (nodes ?? []).filter(n => n.path !== cleanNodePath && n.id !== cleanNodePath);
       },
       { revalidate: false },
     );
 
     if (movedNode) {
       const name = movedNode.name;
-      const newPath = targetFolderPath ? `${targetFolderPath}/${name}` : name;
-      const nodeForTarget = { ...movedNode, path: newPath, id: newPath, parent_id: targetFolderPath };
-      if (targetFolderPath) ensureExpanded(targetFolderPath);
+      const newPath = cleanTargetFolderPath ? `${cleanTargetFolderPath}/${name}` : name;
+      const nodeForTarget = { ...movedNode, path: newPath, id: newPath, mut_path: `/${newPath}`, parent_id: cleanTargetFolderPath };
+      if (cleanTargetFolderPath) ensureExpanded(cleanTargetFolderPath);
       mutate(
         targetKey,
-        (nodes: NodeInfo[] | undefined) => nodes ? [...nodes, nodeForTarget] : undefined,
+        (nodes: NodeInfo[] | undefined) => (
+          nodes ? sortNodes([...nodes.filter(n => n.path !== newPath && n.id !== newPath), nodeForTarget]) : undefined
+        ),
         { revalidate: false },
       );
     }
 
     try {
-      const name = nodePath.includes('/') ? nodePath.substring(nodePath.lastIndexOf('/') + 1) : nodePath;
+      const name = cleanNodePath.includes('/') ? cleanNodePath.substring(cleanNodePath.lastIndexOf('/') + 1) : cleanNodePath;
       showToast(`Moving "${name}"...`, 'loading', null);
-      const newPath = targetFolderPath ? `${targetFolderPath}/${name}` : name;
-      await moveFile(projectId, nodePath, newPath);
+      const newPath = cleanTargetFolderPath ? `${cleanTargetFolderPath}/${name}` : name;
+      await moveFile(projectId, cleanNodePath, newPath);
       // Source parent + target parent are the only two listings that changed.
-      void refreshFolderNodes(projectId, sourceParentPath, targetFolderPath);
+      void refreshFolderNodes(projectId, cleanSourceParentPath, cleanTargetFolderPath);
+      revalidateProjectTreeCaches(projectId);
       refreshProjectHistory(projectId);
       showToast(`Moved "${name}"`);
     } catch (err: unknown) {
-      refreshFolderNodes(projectId, sourceParentPath, targetFolderPath);
+      refreshFolderNodes(projectId, cleanSourceParentPath, cleanTargetFolderPath);
       const msg = (err as { message?: string })?.message || 'Failed to move item';
       showToast(msg, 'error');
     }

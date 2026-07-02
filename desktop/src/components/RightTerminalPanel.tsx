@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { Workspace } from "@puppyone/shared-ui";
+import { useCallback, useEffect, useRef, useState, type DragEvent as ReactDragEvent } from "react";
+import { EXPLORER_TREE_NODE_DRAG_TYPE, type Workspace } from "@puppyone/shared-ui";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal, type ITheme } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
@@ -17,6 +17,31 @@ export function RightTerminalPanel({ workspace, active }: RightTerminalPanelProp
   const sessionIdRef = useRef<string | null>(null);
   const activeRef = useRef(active);
   const [hasStarted, setHasStarted] = useState(active);
+
+  const handleTerminalDragOver = useCallback((event: ReactDragEvent<HTMLDivElement>) => {
+    if (!hasExplorerNodePath(event.dataTransfer)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = "copy";
+  }, []);
+
+  const handleTerminalDrop = useCallback((event: ReactDragEvent<HTMLDivElement>) => {
+    const nodePath = readExplorerNodePath(event.dataTransfer);
+    if (!nodePath) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const sessionId = sessionIdRef.current;
+    const bridge = window.puppyoneDesktop;
+    if (!sessionId || !bridge?.writeTerminal) return;
+
+    bridge.writeTerminal({
+      id: sessionId,
+      data: shellQuotePath(joinWorkspacePath(workspace.path, nodePath)),
+    });
+    terminalRef.current?.focus();
+  }, [workspace.path]);
 
   useEffect(() => {
     activeRef.current = active;
@@ -192,10 +217,36 @@ export function RightTerminalPanel({ workspace, active }: RightTerminalPanelProp
   return (
     <section className="desktop-terminal-panel" aria-label="Terminal">
       <div className="desktop-terminal-body" ref={bodyRef}>
-        <div className="desktop-terminal-xterm" ref={containerRef} />
+        <div
+          className="desktop-terminal-xterm"
+          ref={containerRef}
+          onDragOver={handleTerminalDragOver}
+          onDrop={handleTerminalDrop}
+        />
       </div>
     </section>
   );
+}
+
+function hasExplorerNodePath(dataTransfer: DataTransfer) {
+  return Array.from(dataTransfer.types).includes(EXPLORER_TREE_NODE_DRAG_TYPE);
+}
+
+function readExplorerNodePath(dataTransfer: DataTransfer) {
+  const value = dataTransfer.getData(EXPLORER_TREE_NODE_DRAG_TYPE).trim();
+  return value || null;
+}
+
+function joinWorkspacePath(rootPath: string, nodePath: string) {
+  const cleanNodePath = nodePath.trim().replace(/^[/\\]+/, "");
+  if (!cleanNodePath) return rootPath;
+  const separator = /[/\\]$/.test(rootPath) ? "" : "/";
+  return `${rootPath}${separator}${cleanNodePath}`;
+}
+
+function shellQuotePath(pathValue: string) {
+  if (/^[A-Za-z0-9_@%+=:,./-]+$/.test(pathValue)) return pathValue;
+  return `'${pathValue.replace(/'/g, "'\\''")}'`;
 }
 
 function readTerminalTheme(element: HTMLElement): ITheme {

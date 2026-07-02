@@ -4,7 +4,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 import { getNodeTypeConfig, getSyncSource, getSyncSourceIcon, isSyncedType, isFolderType } from '@/lib/nodeTypeConfig';
 import { useContentNodes } from '@/lib/hooks/useData';
-import { useNodeDrop } from '@/lib/hooks/useNodeDrop';
+import { beginNodeDrag, endNodeDrag, useNodeDrop } from '@/lib/hooks/useNodeDrop';
 import {
   resolveDataTransferSnapshot,
   snapshotDataTransfer,
@@ -497,10 +497,11 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
   const isAnyCreateMenuOpen = openMenuAction !== null;
   const endpoints = endpointByNodeId?.get(item.id) ?? [];
 
-  const { isDropTarget, dropHandlers } = useNodeDrop({
+  const { isDropTarget, isInvalidDropTarget, dropReason, dropHandlers } = useNodeDrop({
     targetFolderId: item.id,
     onMoveNode,
     disabled: !isFolder,
+    onHoverExpand: isFolder && !expanded ? () => ensureExpanded(item.id) : undefined,
   });
   const fileDropTarget = isFolder
     ? { path: item.id, name: item.name }
@@ -541,9 +542,11 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
   const isFileDropTarget = isFolder && activeFileDropTargetPath === item.id;
   const isInsideActiveFileDropScope =
     !!activeFileDropTargetPath && item.id.startsWith(`${activeFileDropTargetPath}/`);
-  const hasSpecialBg = isDropTarget || isFileDropTarget || isInsideActiveFileDropScope || isHighlighted || isRowActive || isAnyCreateMenuOpen;
+  const hasSpecialBg = isDropTarget || isInvalidDropTarget || isFileDropTarget || isInsideActiveFileDropScope || isHighlighted || isRowActive || isAnyCreateMenuOpen;
   const staticBg = isDropTarget || isFileDropTarget
     ? FILE_DROP_TARGET_BG
+    : isInvalidDropTarget
+      ? 'color-mix(in srgb, var(--po-danger) 10%, transparent)'
     : isInsideActiveFileDropScope
       ? FILE_DROP_SCOPE_BG
     : isHighlighted
@@ -564,6 +567,8 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
         : 'transparent';
   const staticColor = isDropTarget || isFileDropTarget
     ? 'var(--po-text)'
+    : isInvalidDropTarget
+      ? 'var(--po-danger)'
     : isAccessPointHighlight
       ? 'var(--po-success)'
     : isRowActive || isAnyCreateMenuOpen
@@ -625,28 +630,16 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
         onClick={handleClick}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        // Keep file rows as navigation-first targets. Native HTML drag on the
-        // whole row can swallow the click when the pointer moves a pixel or
-        // two, which makes Markdown/README selections feel randomly dead.
-        // Folders stay draggable as structural move sources; files can still
-        // be moved from the main grid/list views onto this sidebar.
-        draggable={isFolder && Boolean(onMoveNode)}
+        draggable={Boolean(onMoveNode)}
         onDragStart={(e) => {
-          if (!isFolder) {
-            e.preventDefault();
-            return;
-          }
-          e.dataTransfer.setData(
-            'application/x-puppyone-node',
-            JSON.stringify({
-              id: item.id,
-              name: item.name,
-              type: item.type,
-              parentId: item.id.includes('/') ? item.id.split('/').slice(0, -1).join('/') : null,
-            }),
-          );
-          e.dataTransfer.effectAllowed = 'move';
+          beginNodeDrag(e, {
+            id: item.id,
+            name: item.name,
+            type: item.type,
+            parentId: item.id.includes('/') ? item.id.split('/').slice(0, -1).join('/') : null,
+          });
         }}
+        onDragEnd={endNodeDrag}
         onDragEnter={(e) => {
           if (!activateFileDropTarget(e)) dropHandlers.onDragEnter(e);
         }}
@@ -673,6 +666,8 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
           transition: 'background 0.1s, color 0.1s',
           boxShadow: isDropTarget || isFileDropTarget
             ? `inset 0 0 0 1px ${FILE_DROP_TARGET_BORDER}`
+            : isInvalidDropTarget
+              ? 'inset 0 0 0 1px color-mix(in srgb, var(--po-danger) 65%, transparent)'
             : isInsideActiveFileDropScope
               ? `inset 1px 0 0 0 ${FILE_DROP_SCOPE_BORDER}`
             : isAccessPointHighlight
@@ -681,6 +676,7 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
           cursor: 'pointer',
           position: 'relative',
         }}
+        title={isInvalidDropTarget ? dropReason ?? undefined : undefined}
       >
         {/* Tree-line elbow for THIS depth.  Same visual grammar as
             the home page's `TreeRows`, just sized for the sidebar's

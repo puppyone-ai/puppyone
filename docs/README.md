@@ -16,9 +16,17 @@ Read in this order:
 9. [Context Entry Points](architecture/10-context-entrypoints.md)
 10. [Context Entry Point Data Model](architecture/11-context-entrypoint-data-model.md)
 
+Product and frontend design:
+
+- [Design Guidelines](design.md)
+- [Product Visual System](frontend/product-visual-system.md)
+- [Color Mode Architecture](frontend/color-mode-architecture.md)
+- [Desktop Feature Architecture](../desktop/docs/FEATURE.md)
+
 Document-level constructs:
 
 - [Editor Save Construct](document/editor-save-construct.md)
+- [Markdown Editor Architecture](document/markdown-editor-architecture.md)
 
 For product onboarding (install CLI, first project), see the [root README](../README.md).
 

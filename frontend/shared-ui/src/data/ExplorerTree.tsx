@@ -1,12 +1,15 @@
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties, DragEvent as ReactDragEvent, ReactNode } from "react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { DataNode } from "../core/types";
+import { getMatchedExtension } from "../core/fileFormats";
 import { FileGlyphIcon, type FileIconThemeId } from "../file/fileIcons";
 
 export type ExplorerTreeProps = {
   nodes: DataNode[];
   activePath: string | null;
   loadingPath?: string | null;
+  expandedPaths: ReadonlySet<string>;
+  loadingPaths?: ReadonlySet<string>;
   rootLoading?: boolean;
   rootError?: string | null;
   rootLabel?: string;
@@ -14,11 +17,36 @@ export type ExplorerTreeProps = {
   emptyLabel?: string;
   loadingLabel?: string;
   fileIconTheme?: FileIconThemeId;
+  canMoveNodes?: boolean;
   onSelectNode: (node: DataNode | null) => void;
   onToggleFolder?: (node: DataNode, expanded: boolean) => void;
+  onMoveNode?: (node: DataNode, targetFolderPath: string | null) => void | Promise<void>;
   renderRootActions?: () => ReactNode;
   renderFolderActions?: (node: DataNode) => ReactNode;
   renderNodeActions?: (node: DataNode) => ReactNode;
+};
+
+type TreeDropTarget = {
+  rowPath: string | null;
+  targetFolderPath: string | null;
+  mode: "folder" | "parent";
+  valid: boolean;
+} | null;
+
+type TreeDragController = {
+  enabled: boolean;
+  draggedNode: DataNode | null;
+  dropTarget: TreeDropTarget;
+  onNodeDragStart: (event: ReactDragEvent<HTMLButtonElement>, node: DataNode) => void;
+  onNodeDragEnd: () => void;
+  onRowDragOver: (
+    event: ReactDragEvent<HTMLElement>,
+    rowPath: string | null,
+    targetFolderPath: string | null,
+    mode: "folder" | "parent",
+  ) => boolean;
+  onRowDragLeave: (event: ReactDragEvent<HTMLElement>, rowPath: string | null) => void;
+  onRowDrop: (event: ReactDragEvent<HTMLElement>, targetFolderPath: string | null) => void;
 };
 
 const EXPLORER_TREE_ROW_HEIGHT = 30;
@@ -34,11 +62,16 @@ const SUBTREE_MOTION_MIN_MS = 170;
 const SUBTREE_MOTION_MAX_MS = 340;
 const SUBTREE_MOTION_PX_FACTOR = 0.28;
 const SUBTREE_MOTION_EASE = "cubic-bezier(0.25, 0.1, 0.25, 1)";
+export const EXPLORER_TREE_NODE_DRAG_TYPE = "application/x-puppyone-data-node-path";
+const FOLDER_HOVER_EXPAND_MS = 620;
+const FOLDER_PEER_DROP_ZONE_RATIO = 0.34;
 
 export function ExplorerTree({
   nodes,
   activePath,
   loadingPath = null,
+  expandedPaths,
+  loadingPaths,
   rootLoading = false,
   rootError = null,
   rootLabel = "Root",
@@ -46,40 +79,122 @@ export function ExplorerTree({
   emptyLabel = "Empty folder",
   loadingLabel = "Loading...",
   fileIconTheme = "default",
+  canMoveNodes = false,
   onSelectNode,
   onToggleFolder,
+  onMoveNode,
   renderRootActions,
   renderFolderActions,
   renderNodeActions,
 }: ExplorerTreeProps) {
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(collectAncestorFolderPaths(activePath)));
   const scrollRef = useRef<HTMLDivElement>(null);
-  const lastAutoExpandedPath = useRef(activePath);
   const [scrollable, setScrollable] = useState(false);
-
-  useEffect(() => {
-    if (lastAutoExpandedPath.current === activePath) return;
-    lastAutoExpandedPath.current = activePath;
-    if (!activePath) return;
-    setExpanded((current) => {
-      const next = new Set(current);
-      collectAncestorFolderPaths(activePath).forEach((path) => next.add(path));
-      return next;
-    });
-  }, [activePath]);
-
-  const toggleFolder = useCallback(
-    (node: DataNode, nextExpanded: boolean) => {
-      setExpanded((current) => {
-        const next = new Set(current);
-        if (nextExpanded) next.add(node.path);
-        else next.delete(node.path);
-        return next;
-      });
-      onToggleFolder?.(node, nextExpanded);
-    },
-    [onToggleFolder],
+  const [draggedNode, setDraggedNode] = useState<DataNode | null>(null);
+  const [dropTarget, setDropTarget] = useState<TreeDropTarget>(null);
+  const rootDisplayNameCounts = useMemo(() => buildDisplayNameCounts(nodes), [nodes]);
+  const moveEnabled = Boolean(canMoveNodes && onMoveNode);
+  const resolvedLoadingPaths = useMemo<ReadonlySet<string>>(
+    () => loadingPaths ?? (loadingPath ? new Set([loadingPath]) : EMPTY_PATH_SET),
+    [loadingPath, loadingPaths],
   );
+
+  const clearDragState = useCallback(() => {
+    setDraggedNode(null);
+    setDropTarget(null);
+  }, []);
+
+  const setNextDropTarget = useCallback((
+    rowPath: string | null,
+    targetFolderPath: string | null,
+    mode: "folder" | "parent",
+    valid: boolean,
+  ) => {
+    setDropTarget((current) => {
+      if (
+        current?.rowPath === rowPath
+        && current.targetFolderPath === targetFolderPath
+        && current.mode === mode
+        && current.valid === valid
+      ) {
+        return current;
+      }
+      return { rowPath, targetFolderPath, mode, valid };
+    });
+  }, []);
+
+  const beginNodeDrag = useCallback((event: ReactDragEvent<HTMLButtonElement>, node: DataNode) => {
+    if (!moveEnabled) {
+      event.preventDefault();
+      return;
+    }
+
+    event.stopPropagation();
+    event.dataTransfer.effectAllowed = "copyMove";
+    event.dataTransfer.setData(EXPLORER_TREE_NODE_DRAG_TYPE, node.path);
+    event.dataTransfer.setData("text/plain", node.path);
+    setDraggedNode(node);
+    setDropTarget(null);
+  }, [moveEnabled]);
+
+  const dragOverRow = useCallback((
+    event: ReactDragEvent<HTMLElement>,
+    rowPath: string | null,
+    targetFolderPath: string | null,
+    mode: "folder" | "parent",
+  ) => {
+    if (!moveEnabled || !draggedNode) return false;
+
+    const valid = isValidMoveTarget(draggedNode, targetFolderPath);
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = valid ? "move" : "none";
+    setNextDropTarget(rowPath, targetFolderPath, mode, valid);
+    return valid;
+  }, [draggedNode, moveEnabled, setNextDropTarget]);
+
+  const dragLeaveRow = useCallback((event: ReactDragEvent<HTMLElement>, rowPath: string | null) => {
+    event.stopPropagation();
+  }, []);
+
+  const dropOnRow = useCallback((event: ReactDragEvent<HTMLElement>, targetFolderPath: string | null) => {
+    if (!moveEnabled || !draggedNode) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    const movingNode = draggedNode;
+    const valid = isValidMoveTarget(movingNode, targetFolderPath);
+    clearDragState();
+    if (!valid || !onMoveNode) return;
+
+    void Promise.resolve(onMoveNode(movingNode, targetFolderPath)).catch((error) => {
+      console.error("Unable to move explorer item:", error);
+    });
+  }, [clearDragState, draggedNode, moveEnabled, onMoveNode]);
+
+  const leaveTree = useCallback((event: ReactDragEvent<HTMLDivElement>) => {
+    if (!draggedNode || !didLeaveElementBounds(event)) return;
+    setDropTarget(null);
+  }, [draggedNode]);
+
+  const dragController = useMemo<TreeDragController>(() => ({
+    enabled: moveEnabled,
+    draggedNode,
+    dropTarget,
+    onNodeDragStart: beginNodeDrag,
+    onNodeDragEnd: clearDragState,
+    onRowDragOver: dragOverRow,
+    onRowDragLeave: dragLeaveRow,
+    onRowDrop: dropOnRow,
+  }), [
+    beginNodeDrag,
+    clearDragState,
+    dragLeaveRow,
+    dragOverRow,
+    draggedNode,
+    dropOnRow,
+    dropTarget,
+    moveEnabled,
+  ]);
 
   useLayoutEffect(() => {
     if (typeof window === "undefined") return;
@@ -111,15 +226,22 @@ export function ExplorerTree({
       resizeObserver?.disconnect();
       window.removeEventListener("resize", scheduleUpdate);
     };
-  }, [nodes, rootError, rootLoading, loadingPath, expanded]);
+  }, [nodes, rootError, rootLoading, resolvedLoadingPaths, expandedPaths]);
 
   return (
-    <div className="explorer-tree-shell">
+    <div
+      className={`explorer-tree-shell ${draggedNode ? "is-dragging-node" : ""}`}
+      onDragLeave={moveEnabled ? leaveTree : undefined}
+    >
       {showRoot && (
         <div className="explorer-tree-root-scope">
           <div
-            className="tree-row root"
+            className={`tree-row root ${dropTarget?.rowPath === null && dropTarget.valid ? "drop-target" : ""} ${dropTarget?.rowPath === null && !dropTarget.valid ? "drop-invalid" : ""}`}
             style={{ "--depth": 0 } as CSSProperties}
+            onDragEnter={moveEnabled ? (event) => dragController.onRowDragOver(event, null, null, "folder") : undefined}
+            onDragOver={moveEnabled ? (event) => dragController.onRowDragOver(event, null, null, "folder") : undefined}
+            onDragLeave={moveEnabled ? (event) => dragController.onRowDragLeave(event, null) : undefined}
+            onDrop={moveEnabled ? (event) => dragController.onRowDrop(event, null) : undefined}
           >
             <span className="tree-row-content">
               <span className="tree-label">{rootLabel}</span>
@@ -147,14 +269,16 @@ export function ExplorerTree({
                 key={node.path}
                 node={node}
                 depth={0}
-                expanded={expanded}
+                siblingDisplayNameCounts={rootDisplayNameCounts}
+                expandedPaths={expandedPaths}
                 activePath={activePath}
-                loadingPath={loadingPath}
+                loadingPaths={resolvedLoadingPaths}
                 emptyLabel={emptyLabel}
                 loadingLabel={loadingLabel}
                 fileIconTheme={fileIconTheme}
-                onToggleFolder={toggleFolder}
+                onToggleFolder={onToggleFolder}
                 onSelectNode={onSelectNode}
+                dragController={dragController}
                 renderFolderActions={renderFolderActions}
                 renderNodeActions={renderNodeActions}
               />
@@ -169,56 +293,122 @@ export function ExplorerTree({
 function TreeNodeRow({
   node,
   depth,
-  expanded,
+  siblingDisplayNameCounts,
+  expandedPaths,
   activePath,
-  loadingPath,
+  loadingPaths,
   emptyLabel,
   loadingLabel,
   fileIconTheme,
   onToggleFolder,
   onSelectNode,
+  dragController,
   renderFolderActions,
   renderNodeActions,
 }: {
   node: DataNode;
   depth: number;
-  expanded: Set<string>;
+  siblingDisplayNameCounts: Map<string, number>;
+  expandedPaths: ReadonlySet<string>;
   activePath: string | null;
-  loadingPath: string | null;
+  loadingPaths: ReadonlySet<string>;
   emptyLabel: string;
   loadingLabel: string;
   fileIconTheme: FileIconThemeId;
-  onToggleFolder: (node: DataNode, expanded: boolean) => void;
+  onToggleFolder?: (node: DataNode, expanded: boolean) => void;
   onSelectNode: (node: DataNode) => void;
+  dragController: TreeDragController;
   renderFolderActions?: (node: DataNode) => ReactNode;
   renderNodeActions?: (node: DataNode) => ReactNode;
 }) {
   const isFolder = node.type === "folder";
-  const isExpanded = isFolder && expanded.has(node.path);
-  const [renderSubtree, setRenderSubtree] = useState(isExpanded);
+  const isExpanded = isFolder && expandedPaths.has(node.path);
+  const hoverExpandTimer = useRef<number | null>(null);
   const active = activePath === node.path;
-  const loading = loadingPath === node.path;
+  const loading = loadingPaths.has(node.path);
+  const dragging = dragController.draggedNode?.path === node.path;
+  const dropMatchesRow = dragController.dropTarget?.rowPath === node.path;
+  const dropOver = dropMatchesRow && dragController.dropTarget?.mode === "folder" && dragController.dropTarget.valid;
+  const dropParentOver = dropMatchesRow && dragController.dropTarget?.mode === "parent" && dragController.dropTarget.valid;
+  const dropInvalid = dropMatchesRow && !dragController.dropTarget?.valid;
   const children = useMemo(() => node.children ?? [], [node.children]);
-  const shouldRenderSubtree = isExpanded || renderSubtree;
+  const childDisplayNameCounts = useMemo(() => buildDisplayNameCounts(children), [children]);
   const rowActions = renderNodeActions?.(node) ?? (isFolder ? renderFolderActions?.(node) : null);
-
-  useLayoutEffect(() => {
-    if (isExpanded) setRenderSubtree(true);
-  }, [isExpanded]);
+  const displayName = useMemo(() => getExplorerDisplayName(node), [node.name, node.type]);
+  const showExtensionDisambiguator = Boolean(
+    displayName.extension
+      && (siblingDisplayNameCounts.get(getDisplayNameKey(displayName.primary)) ?? 0) > 1,
+  );
 
   const toggleCurrentFolder = useCallback(() => {
     if (!isFolder) return;
-    onToggleFolder(node, !isExpanded);
+    onToggleFolder?.(node, !isExpanded);
   }, [isExpanded, isFolder, node, onToggleFolder]);
+
+  const clearHoverExpandTimer = useCallback(() => {
+    if (hoverExpandTimer.current === null) return;
+    window.clearTimeout(hoverExpandTimer.current);
+    hoverExpandTimer.current = null;
+  }, []);
+
+  useEffect(() => clearHoverExpandTimer, [clearHoverExpandTimer]);
+
+  const scheduleHoverExpand = useCallback(() => {
+    if (!isFolder || isExpanded || hoverExpandTimer.current !== null) return;
+    hoverExpandTimer.current = window.setTimeout(() => {
+      hoverExpandTimer.current = null;
+      onToggleFolder?.(node, true);
+    }, FOLDER_HOVER_EXPAND_MS);
+  }, [isExpanded, isFolder, node, onToggleFolder]);
+
+  const getDropIntent = useCallback((event: ReactDragEvent<HTMLElement>): {
+    targetFolderPath: string | null;
+    mode: "folder" | "parent";
+  } => {
+    if (!isFolder) {
+      return { targetFolderPath: getParentPath(node.path), mode: "parent" };
+    }
+
+    if (isPointerInFolderPeerDropZone(event)) {
+      return { targetFolderPath: getParentPath(node.path), mode: "parent" };
+    }
+
+    return { targetFolderPath: node.path, mode: "folder" };
+  }, [isFolder, node.path]);
 
   return (
     <>
       <button
-        className={`tree-row ${isFolder ? "folder" : "file"} ${active ? "active" : ""} ${loading ? "loading" : ""} ${node.status ? `status-${node.status}` : ""}`}
+        className={`tree-row ${isFolder ? "folder" : "file"} ${active ? "active" : ""} ${loading ? "loading" : ""} ${dragging ? "dragging" : ""} ${dropOver ? "drop-target" : ""} ${dropParentOver ? "drop-parent-target" : ""} ${dropInvalid ? "drop-invalid" : ""} ${node.status ? `status-${node.status}` : ""}`}
         type="button"
+        draggable={dragController.enabled}
         aria-current={active ? "true" : undefined}
         aria-expanded={isFolder ? isExpanded : undefined}
         aria-busy={loading || undefined}
+        aria-grabbed={dragging ? "true" : undefined}
+        aria-label={node.name}
+        title={displayName.hidden || showExtensionDisambiguator ? node.name : undefined}
+        onDragStart={(event) => dragController.onNodeDragStart(event, node)}
+        onDragEnd={dragController.onNodeDragEnd}
+        onDragEnter={(event) => {
+          const dropIntent = getDropIntent(event);
+          const validTarget = dragController.onRowDragOver(event, node.path, dropIntent.targetFolderPath, dropIntent.mode);
+          if (isFolder && dropIntent.mode === "folder" && validTarget) scheduleHoverExpand();
+        }}
+        onDragOver={(event) => {
+          const dropIntent = getDropIntent(event);
+          const validTarget = dragController.onRowDragOver(event, node.path, dropIntent.targetFolderPath, dropIntent.mode);
+          if (isFolder && dropIntent.mode === "folder" && validTarget) scheduleHoverExpand();
+        }}
+        onDragLeave={(event) => {
+          clearHoverExpandTimer();
+          dragController.onRowDragLeave(event, node.path);
+        }}
+        onDrop={(event) => {
+          clearHoverExpandTimer();
+          const dropIntent = getDropIntent(event);
+          dragController.onRowDrop(event, dropIntent.targetFolderPath);
+        }}
         onClick={(event) => {
           event.stopPropagation();
           if (isFolder) {
@@ -229,7 +419,6 @@ function TreeNodeRow({
         }}
         style={{ "--depth": depth } as CSSProperties}
       >
-        <TreeIndentGuide depth={depth} />
         <span className="tree-row-content">
           <span
             className="tree-icon-slot"
@@ -245,7 +434,14 @@ function TreeNodeRow({
               <FileGlyphIcon name={node.name} type={node.type} size={18} theme={fileIconTheme} />
             )}
           </span>
-          <span className="tree-label">{node.name}</span>
+          <span className="tree-label">
+            <span className="tree-label-primary">{displayName.primary}</span>
+            {showExtensionDisambiguator && (
+              <span className="tree-label-extension" aria-hidden="true">
+                {displayName.extension}
+              </span>
+            )}
+          </span>
           {node.status && node.status !== "clean" && (
             <span className={`tree-status ${node.status}`}>{shortStatus(node.status)}</span>
           )}
@@ -258,8 +454,8 @@ function TreeNodeRow({
         </span>
       </button>
 
-      {shouldRenderSubtree && (
-        <ExplorerSubtreeMotion visible={isExpanded} onExited={() => setRenderSubtree(false)}>
+      {isFolder && (
+        <ExplorerSubtreePresence expanded={isExpanded} guideDepth={depth + 1}>
           {loading && children.length === 0 && (
             <ExplorerTreeMetaRow depth={depth + 1}>{loadingLabel}</ExplorerTreeMetaRow>
           )}
@@ -271,19 +467,21 @@ function TreeNodeRow({
               key={child.path}
               node={child}
               depth={depth + 1}
-              expanded={expanded}
+              siblingDisplayNameCounts={childDisplayNameCounts}
+              expandedPaths={expandedPaths}
               activePath={activePath}
-              loadingPath={loadingPath}
+              loadingPaths={loadingPaths}
               emptyLabel={emptyLabel}
               loadingLabel={loadingLabel}
               fileIconTheme={fileIconTheme}
               onToggleFolder={onToggleFolder}
               onSelectNode={onSelectNode}
+              dragController={dragController}
               renderFolderActions={renderFolderActions}
               renderNodeActions={renderNodeActions}
             />
           ))}
-        </ExplorerSubtreeMotion>
+        </ExplorerSubtreePresence>
       )}
     </>
   );
@@ -317,11 +515,6 @@ function TreeDisclosureMarker({
   );
 }
 
-function TreeIndentGuide({ depth }: { depth: number }) {
-  if (depth <= 0) return null;
-  return <span className="tree-indent-guide" aria-hidden />;
-}
-
 function ExplorerTreeMetaRow({
   depth,
   children,
@@ -331,9 +524,47 @@ function ExplorerTreeMetaRow({
 }) {
   return (
     <div className="tree-meta-row" style={{ "--depth": depth } as CSSProperties}>
-      <TreeIndentGuide depth={depth} />
       <span>{children}</span>
     </div>
+  );
+}
+
+function TreeSubtreeGuide({ depth }: { depth: number }) {
+  if (depth <= 0) return null;
+  return <span className="tree-subtree-guide" style={{ "--depth": depth } as CSSProperties} aria-hidden />;
+}
+
+function ExplorerSubtreePresence({
+  expanded,
+  guideDepth,
+  children,
+}: {
+  expanded: boolean;
+  guideDepth: number;
+  children: ReactNode;
+}) {
+  const mountedOnceRef = useRef(false);
+  const [renderSubtree, setRenderSubtree] = useState(expanded);
+
+  useLayoutEffect(() => {
+    if (expanded) setRenderSubtree(true);
+  }, [expanded]);
+
+  useEffect(() => {
+    mountedOnceRef.current = true;
+  }, []);
+
+  if (!expanded && !renderSubtree) return null;
+
+  return (
+    <ExplorerSubtreeMotion
+      visible={expanded}
+      guideDepth={guideDepth}
+      animateInitialEnter={mountedOnceRef.current}
+      onExited={() => setRenderSubtree(false)}
+    >
+      {children}
+    </ExplorerSubtreeMotion>
   );
 }
 
@@ -352,10 +583,14 @@ function getSubtreeMotionDurationMs(fromHeight: number, toHeight: number): numbe
 
 function ExplorerSubtreeMotion({
   visible,
+  guideDepth,
+  animateInitialEnter,
   onExited,
   children,
 }: {
   visible: boolean;
+  guideDepth: number;
+  animateInitialEnter: boolean;
   onExited: () => void;
   children: ReactNode;
 }) {
@@ -363,7 +598,10 @@ function ExplorerSubtreeMotion({
   const contentRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number | null>(null);
   const onExitedRef = useRef(onExited);
-  const [height, setHeight] = useState<number | "auto">(0);
+  const mountedRef = useRef(false);
+  const [height, setHeight] = useState<number | "auto">(() => (
+    visible && !animateInitialEnter ? "auto" : 0
+  ));
   const [durationMs, setDurationMs] = useState(SUBTREE_MOTION_MIN_MS);
 
   const cancelFrame = useCallback(() => {
@@ -385,6 +623,26 @@ function ExplorerSubtreeMotion({
 
     cancelFrame();
 
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+      if (!visible) {
+        setHeight(0);
+        return;
+      }
+      if (!animateInitialEnter) {
+        setHeight("auto");
+        return;
+      }
+      const nextHeight = content.scrollHeight;
+      setDurationMs(getSubtreeMotionDurationMs(0, nextHeight));
+      setHeight(0);
+      rafRef.current = window.requestAnimationFrame(() => {
+        setHeight(nextHeight);
+        rafRef.current = null;
+      });
+      return;
+    }
+
     const currentHeight = wrapper.getBoundingClientRect().height;
     const nextHeight = visible ? content.scrollHeight : 0;
 
@@ -400,7 +658,7 @@ function ExplorerSubtreeMotion({
       setHeight(nextHeight);
       rafRef.current = null;
     });
-  }, [cancelFrame, visible]);
+  }, [animateInitialEnter, cancelFrame, visible]);
 
   useEffect(() => {
     if (!visible || height === "auto" || typeof ResizeObserver === "undefined") {
@@ -451,6 +709,7 @@ function ExplorerSubtreeMotion({
       } as CSSProperties}
     >
       <div ref={contentRef} className="tree-subtree-content">
+        <TreeSubtreeGuide depth={guideDepth} />
         {children}
       </div>
     </div>
@@ -465,8 +724,82 @@ function shortStatus(status: NonNullable<DataNode["status"]>) {
   return "";
 }
 
-function collectAncestorFolderPaths(activePath: string | null): string[] {
-  if (!activePath) return [];
-  const parts = activePath.split("/").filter(Boolean);
-  return parts.slice(0, -1).map((_, index) => parts.slice(0, index + 1).join("/"));
+function isValidMoveTarget(node: DataNode, targetFolderPath: string | null): boolean {
+  if (getParentPath(node.path) === targetFolderPath) return false;
+  if (targetFolderPath === node.path) return false;
+  if (targetFolderPath?.startsWith(`${node.path}/`)) return false;
+  return true;
 }
+
+function getParentPath(path: string): string | null {
+  if (!path.includes("/")) return null;
+  return path.slice(0, path.lastIndexOf("/"));
+}
+
+function didLeaveElementBounds(event: ReactDragEvent<HTMLElement>): boolean {
+  const rect = event.currentTarget.getBoundingClientRect();
+  return (
+    event.clientX < rect.left
+    || event.clientX > rect.right
+    || event.clientY < rect.top
+    || event.clientY > rect.bottom
+  );
+}
+
+function isPointerInFolderPeerDropZone(event: ReactDragEvent<HTMLElement>): boolean {
+  const rect = event.currentTarget.getBoundingClientRect();
+  const peerZoneTop = rect.bottom - rect.height * FOLDER_PEER_DROP_ZONE_RATIO;
+  return event.clientY >= peerZoneTop;
+}
+
+function getExplorerDisplayName(node: DataNode): {
+  primary: string;
+  extension: string | null;
+  hidden: boolean;
+} {
+  if (node.type === "folder") {
+    return { primary: node.name, extension: null, hidden: false };
+  }
+
+  const extension = getDisplayExtension(node.name);
+  if (!extension) {
+    return { primary: node.name, extension: null, hidden: false };
+  }
+
+  const suffix = `.${extension}`;
+  const primary = node.name.slice(0, -suffix.length);
+  if (!primary) {
+    return { primary: node.name, extension: null, hidden: false };
+  }
+
+  return { primary, extension, hidden: true };
+}
+
+function buildDisplayNameCounts(nodes: readonly DataNode[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const node of nodes) {
+    const displayName = getExplorerDisplayName(node);
+    const key = getDisplayNameKey(displayName.primary);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return counts;
+}
+
+function getDisplayNameKey(value: string): string {
+  return value.toLocaleLowerCase();
+}
+
+function getDisplayExtension(name: string): string | null {
+  if (!name) return null;
+  if (name.startsWith(".") && name.indexOf(".", 1) === -1) return null;
+
+  const extension = getMatchedExtension(name);
+  if (!extension) return null;
+
+  const suffix = `.${extension}`;
+  if (!name.toLocaleLowerCase().endsWith(suffix.toLocaleLowerCase())) return null;
+  if (name.length <= suffix.length) return null;
+  return extension;
+}
+
+const EMPTY_PATH_SET: ReadonlySet<string> = new Set();

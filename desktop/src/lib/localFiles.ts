@@ -1,9 +1,11 @@
-import type { DataNode, DataNodeKind, DataPort, Workspace } from "@puppyone/shared-ui";
+import type { AiEditRequest, DataNode, DataNodeKind, DataPort, Workspace } from "@puppyone/shared-ui";
 import type {
   GitCommitDetail,
+  GitBranchGraphSnapshot,
   GitStatusSnapshot,
   GitWorkingDiffScope,
   LastWorkspaceResult,
+  PuppyoneWorkspaceConfig,
   WorkspaceCreateEntryKind,
   WorkspaceCreateEntryResult,
 } from "../types/electron";
@@ -22,6 +24,7 @@ export function createLocalDataPort(rootPath: string): DataPort {
     getFileUrl: (path) => buildLocalFileUrl(rootPath, path),
     writeFile: (path, content) => getDesktopBridge().writeFile({ rootPath, path, content }),
     renameNode: (path, nextName) => getDesktopBridge().renameEntry({ rootPath, path, nextName }).then(() => undefined),
+    moveNode: (from, to) => getDesktopBridge().moveEntry({ rootPath, fromPath: from, toPath: to }).then(() => undefined),
     deleteNode: (path) => getDesktopBridge().deleteEntry({ rootPath, path }).then(() => undefined),
   };
 }
@@ -39,6 +42,10 @@ export async function getLastWorkspace(): Promise<LastWorkspaceResult> {
 
 export async function rememberLastWorkspace(folderPath: string): Promise<void> {
   await getDesktopBridge().rememberLastWorkspace(folderPath);
+}
+
+export async function openExternalUrl(href: string): Promise<void> {
+  await getDesktopBridge().openExternalUrl(href);
 }
 
 export async function forgetLastWorkspace(): Promise<void> {
@@ -65,12 +72,68 @@ export async function createWorkspaceEntry(
   return getDesktopBridge().createEntry({ rootPath, ...request });
 }
 
+export async function getLatestAiEditReviewRequest(rootPath: string): Promise<AiEditRequest | null> {
+  return getDesktopBridge().getLatestAiEditReviewRequest({ rootPath });
+}
+
+export function subscribeAiEditReviewUpdates(
+  callback: (event: { rootPath: string; request: AiEditRequest }) => void,
+): () => void {
+  return getDesktopBridge().onAiEditReviewUpdated(callback);
+}
+
 export async function getWorkspaceGitStatus(rootPath: string): Promise<GitStatusSnapshot> {
   return getDesktopBridge().getGitStatus({ rootPath });
 }
 
+export async function getWorkspaceGitBranchGraph(rootPath: string): Promise<GitBranchGraphSnapshot> {
+  const bridge = getDesktopBridge();
+  if (typeof bridge.getGitBranchGraph === "function") {
+    try {
+      return await bridge.getGitBranchGraph({ rootPath });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!/No handler registered.*workspace:git-branch-graph|workspace:git-branch-graph/i.test(message)) {
+        throw error;
+      }
+    }
+  }
+  const status = await bridge.getGitStatus({ rootPath });
+  return toWorkspaceGitBranchGraphSnapshot(status);
+}
+
+export function toWorkspaceGitBranchGraphSnapshot(status: GitStatusSnapshot | GitBranchGraphSnapshot): GitBranchGraphSnapshot {
+  return {
+    isRepo: status.isRepo,
+    branch: status.branch,
+    headCommitId: status.headCommitId,
+    branches: status.branches,
+    commits: status.commits,
+    allCommits: status.allCommits,
+  };
+}
+
 export async function initializeWorkspaceGitRepository(rootPath: string): Promise<GitStatusSnapshot> {
   return getDesktopBridge().initGitRepository({ rootPath });
+}
+
+export async function configureWorkspaceCloudRemote(
+  rootPath: string,
+  remoteUrl: string,
+  remoteName = "puppyone",
+): Promise<GitStatusSnapshot> {
+  return getDesktopBridge().configureGitCloudRemote({ rootPath, remoteUrl, remoteName });
+}
+
+export async function readPuppyoneWorkspaceConfig(rootPath: string): Promise<PuppyoneWorkspaceConfig> {
+  return getDesktopBridge().readPuppyoneConfig({ rootPath });
+}
+
+export async function writePuppyoneWorkspaceConfig(
+  rootPath: string,
+  config: PuppyoneWorkspaceConfig,
+): Promise<PuppyoneWorkspaceConfig> {
+  return getDesktopBridge().writePuppyoneConfig({ rootPath, config });
 }
 
 export async function getWorkspaceGitCommitDetail(rootPath: string, commitId: string): Promise<GitCommitDetail> {
@@ -89,12 +152,24 @@ export async function stageWorkspaceGitPaths(rootPath: string, paths: string[]):
   return getDesktopBridge().stageGitPaths({ rootPath, paths });
 }
 
+export async function stageAllWorkspaceGitChanges(rootPath: string): Promise<GitStatusSnapshot> {
+  return getDesktopBridge().stageAllGitChanges({ rootPath });
+}
+
 export async function unstageWorkspaceGitPaths(rootPath: string, paths: string[]): Promise<GitStatusSnapshot> {
   return getDesktopBridge().unstageGitPaths({ rootPath, paths });
 }
 
+export async function unstageAllWorkspaceGitChanges(rootPath: string): Promise<GitStatusSnapshot> {
+  return getDesktopBridge().unstageAllGitChanges({ rootPath });
+}
+
 export async function discardWorkspaceGitPaths(rootPath: string, paths: string[]): Promise<GitStatusSnapshot> {
   return getDesktopBridge().discardGitPaths({ rootPath, paths });
+}
+
+export async function discardAllWorkspaceGitChanges(rootPath: string): Promise<GitStatusSnapshot> {
+  return getDesktopBridge().discardAllGitChanges({ rootPath });
 }
 
 export async function commitWorkspaceGit(rootPath: string, message: string): Promise<GitStatusSnapshot> {
@@ -139,6 +214,14 @@ export async function pullWorkspaceGit(rootPath: string): Promise<GitStatusSnaps
 
 export async function pushWorkspaceGit(rootPath: string): Promise<GitStatusSnapshot> {
   return getDesktopBridge().pushGit({ rootPath });
+}
+
+export async function publishWorkspaceGitBranch(rootPath: string, remoteName?: string | null): Promise<GitStatusSnapshot> {
+  return getDesktopBridge().publishGitBranch({ rootPath, remoteName });
+}
+
+export async function syncWorkspaceGit(rootPath: string): Promise<GitStatusSnapshot> {
+  return getDesktopBridge().syncGit({ rootPath });
 }
 
 export function findFileNode(nodes: FileNode[], path: string | null): FileNode | null {

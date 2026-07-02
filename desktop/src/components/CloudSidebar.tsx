@@ -4,8 +4,7 @@ import {
   GitBranch,
   Link2,
   Monitor,
-  PanelLeftClose,
-  PanelLeftOpen,
+  PanelLeft,
   Settings,
   ShieldCheck,
 } from "lucide-react";
@@ -62,7 +61,7 @@ export function CloudSidebar({
             onClick={() => setCollapsed(false)}
           >
             <span>{initial}</span>
-            <PanelLeftOpen className="collapsed-hover-icon" size={15} />
+            <PanelLeft className="collapsed-hover-icon" size={15} />
           </button>
         ) : (
           <>
@@ -112,7 +111,7 @@ export function CloudSidebar({
               aria-label="Collapse sidebar"
               onClick={() => setCollapsed(true)}
             >
-              <PanelLeftClose size={14} />
+              <PanelLeft size={14} />
             </button>
           </>
         )}

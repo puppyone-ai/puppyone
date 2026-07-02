@@ -1,4 +1,5 @@
 export type ThemeMode = "system" | "light" | "dark";
+export type GitDisplayMode = "simple" | "professional";
 
 export type SidebarNavigationLayout =
   | "bottom-horizontal"
@@ -23,11 +24,15 @@ export const FILE_ICON_THEME_STORAGE_KEY = "puppyone.desktop.fileIconTheme";
 export const SIDEBAR_NAVIGATION_LAYOUT_STORAGE_KEY = "puppyone.desktop.sidebarNavigationLayout";
 export const FILES_VISIBILITY_STORAGE_KEY = "puppyone.desktop.filesVisibility";
 export const RIGHT_SIDEBAR_TOOLS_STORAGE_KEY = "puppyone.desktop.rightSidebarTools";
+export const AI_EDIT_ASSIST_STORAGE_KEY = "puppyone.desktop.aiEditAssist";
+export const GIT_DISPLAY_MODE_STORAGE_KEY = "puppyone.desktop.gitDisplayMode";
 
 export const DEFAULT_THEME_MODE: ThemeMode = "system";
+export const DEFAULT_GIT_DISPLAY_MODE: GitDisplayMode = "simple";
 export const DEFAULT_SIDEBAR_NAVIGATION_LAYOUT: SidebarNavigationLayout = "bottom-horizontal";
 export const DEFAULT_EXPLORER_EXCLUDE_PATTERNS = [
   "**/.git",
+  "**/.puppyone",
   "**/.svn",
   "**/.hg",
   "**/.DS_Store",
@@ -43,6 +48,7 @@ export const DEFAULT_RIGHT_SIDEBAR_TOOLS_SETTINGS: RightSidebarToolsSettings = {
   },
   order: [...RIGHT_SIDEBAR_TOOL_IDS],
 };
+export const DEFAULT_AI_EDIT_ASSIST_ENABLED = false;
 
 export const SIDEBAR_NAVIGATION_LAYOUT_OPTIONS = [
   { value: "bottom-horizontal", label: "Bottom", placement: "bottom" },
@@ -56,6 +62,10 @@ export const SIDEBAR_NAVIGATION_LAYOUT_OPTIONS = [
 
 export function parseThemeMode(value: string | null | undefined): ThemeMode {
   return value === "light" || value === "dark" || value === "system" ? value : DEFAULT_THEME_MODE;
+}
+
+export function parseGitDisplayMode(value: string | null | undefined): GitDisplayMode {
+  return value === "professional" || value === "simple" ? value : DEFAULT_GIT_DISPLAY_MODE;
 }
 
 export function parseSidebarNavigationLayout(value: string | null | undefined): SidebarNavigationLayout {
@@ -113,6 +123,12 @@ export function parseRightSidebarToolsSettings(value: string | null | undefined)
   } catch {
     return DEFAULT_RIGHT_SIDEBAR_TOOLS_SETTINGS;
   }
+}
+
+export function parseAiEditAssistEnabled(value: string | null | undefined): boolean {
+  if (value === "true") return true;
+  if (value === "false") return false;
+  return DEFAULT_AI_EDIT_ASSIST_ENABLED;
 }
 
 function readRightSidebarToolEnabled(

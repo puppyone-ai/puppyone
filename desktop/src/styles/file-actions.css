@@ -1,0 +1,256 @@
+.desktop-file-dialog {
+  width: min(420px, calc(100vw - 32px));
+}
+
+.desktop-create-entry-dialog {
+  width: min(360px, calc(100vw - 32px));
+}
+
+.desktop-file-dialog-body {
+  gap: 14px;
+}
+
+.desktop-dialog-leading.file {
+  background: color-mix(in srgb, var(--po-accent) 11%, transparent);
+  color: var(--po-accent);
+}
+
+.desktop-dialog-button.primary.file {
+  border-color: color-mix(in srgb, var(--po-text) 32%, var(--po-border));
+  background: var(--po-text);
+  color: var(--po-text-inverse);
+}
+
+.desktop-dialog-button.primary.file:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--po-text) 44%, var(--po-border));
+  background: color-mix(in srgb, var(--po-text) 90%, var(--po-accent) 10%);
+  color: var(--po-text-inverse);
+}
+
+.desktop-file-type-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.desktop-file-type-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  min-width: 0;
+  padding: 0 10px;
+  border: 1px solid var(--po-border-subtle);
+  border-radius: 8px;
+  background: var(--po-panel);
+  color: var(--po-text-muted);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+.desktop-file-type-option:hover:not(:disabled),
+.desktop-file-type-option:focus-visible:not(:disabled) {
+  border-color: var(--po-border);
+  background: var(--po-hover);
+  color: var(--po-text);
+  outline: none;
+}
+
+.desktop-file-type-option.selected {
+  border-color: color-mix(in srgb, var(--po-accent) 36%, var(--po-border));
+  background: color-mix(in srgb, var(--po-accent) 10%, var(--po-panel));
+  color: var(--po-text);
+}
+
+.desktop-file-type-option:disabled {
+  color: var(--po-text-disabled);
+  opacity: 0.58;
+}
+
+.desktop-file-type-option svg {
+  flex: 0 0 auto;
+}
+
+.desktop-file-type-option span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-dialog-field {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  color: var(--po-text-muted);
+  font-size: 11.5px;
+  font-weight: 650;
+  line-height: 15px;
+}
+
+.desktop-dialog-field input,
+.desktop-dialog-field select {
+  width: 100%;
+  height: 32px;
+  box-sizing: border-box;
+  padding: 0 9px;
+  border: 1px solid var(--po-border);
+  border-radius: 7px;
+  background: var(--po-input, var(--po-panel-raised));
+  color: var(--po-text);
+  font: inherit;
+  font-size: 12.5px;
+}
+
+.desktop-dialog-field select {
+  appearance: none;
+  padding-right: 28px;
+  background:
+    linear-gradient(45deg, transparent 50%, var(--po-text-muted) 50%) calc(100% - 15px) 13px / 5px 5px no-repeat,
+    linear-gradient(135deg, var(--po-text-muted) 50%, transparent 50%) calc(100% - 10px) 13px / 5px 5px no-repeat,
+    var(--po-input, var(--po-panel-raised));
+}
+
+.desktop-dialog-field input:focus,
+.desktop-dialog-field select:focus {
+  border-color: color-mix(in srgb, var(--po-accent) 42%, var(--po-border));
+  outline: none;
+}
+
+.desktop-node-action-menu {
+  position: fixed;
+  top: var(--node-action-menu-top);
+  left: var(--node-action-menu-left);
+  z-index: 90;
+  width: var(--node-action-menu-width, 176px);
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 24px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 4px 0;
+  border: 1px solid var(--po-border);
+  border-radius: 8px;
+  background: var(--po-overlay);
+  backdrop-filter: blur(20px);
+  color: var(--po-text);
+  box-shadow: 0 16px 44px var(--po-shadow);
+  font-size: 13px;
+}
+
+.desktop-create-entry-menu.desktop-node-action-menu {
+  padding: 4px;
+  border-color: var(--po-divider);
+  border-radius: 8px;
+  background: var(--po-sidebar);
+  font-size: 13px;
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--po-shadow) 72%, transparent);
+}
+
+.app-shell.dark .desktop-create-entry-menu {
+  --po-text: #d2cec5;
+  --po-text-muted: #b9b6ae;
+  --po-text-subtle: #87837c;
+  --po-text-disabled: #67635d;
+  --po-hover: rgba(211, 208, 197, 0.075);
+  --po-selected: rgba(211, 208, 197, 0.14);
+  --po-file-icon-body: #24231f;
+  --po-file-icon-fold: #2d2a25;
+  --po-file-icon-stroke: rgba(185, 182, 174, 0.62);
+  --po-file-accent-default: #b9b6ae;
+  --po-file-accent-markdown: #b9b6ae;
+}
+
+.desktop-create-entry-menu .desktop-node-action-menu-item {
+  gap: 6px;
+  width: 100%;
+  height: var(--desktop-sidebar-row-height);
+  margin: 0;
+  padding: 0 var(--desktop-sidebar-row-content-right) 0 var(--desktop-sidebar-row-content-left);
+  border-radius: var(--desktop-sidebar-row-radius);
+  color: var(--po-text-muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.desktop-create-entry-menu .desktop-node-action-menu-icon {
+  width: 18px;
+  height: 18px;
+  flex-basis: 18px;
+  color: var(--po-text-muted);
+  opacity: 1;
+}
+
+.desktop-create-entry-menu .desktop-node-action-menu-item:hover:not(:disabled),
+.desktop-create-entry-menu .desktop-node-action-menu-item:focus-visible:not(:disabled) {
+  background: var(--po-hover);
+  color: var(--po-text);
+}
+
+.desktop-node-action-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: calc(100% - 8px);
+  height: 32px;
+  margin: 0 4px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--po-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  transition: background 0.1s ease;
+}
+
+.desktop-node-action-menu-item:hover:not(:disabled),
+.desktop-node-action-menu-item:focus-visible:not(:disabled) {
+  background: var(--po-hover);
+  outline: none;
+}
+
+.desktop-node-action-menu-item.danger {
+  color: var(--po-danger);
+}
+
+.desktop-node-action-menu-item.danger:hover:not(:disabled),
+.desktop-node-action-menu-item.danger:focus-visible:not(:disabled) {
+  background: color-mix(in srgb, var(--po-danger) 10%, transparent);
+}
+
+.desktop-node-action-menu-item:disabled {
+  color: var(--po-text-disabled);
+  opacity: 0.55;
+}
+
+.desktop-node-action-menu-icon {
+  display: flex;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.72;
+}
+
+.desktop-node-action-menu-item.danger .desktop-node-action-menu-icon {
+  opacity: 0.85;
+}
+
+.desktop-node-action-menu-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-node-action-error {
+  margin: 4px 8px 2px;
+  color: var(--po-danger);
+  font-size: 11px;
+  line-height: 15px;
+}

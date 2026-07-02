@@ -1,34 +1,13 @@
-import { spawn, spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, rmSync, watch } from "node:fs";
+import { spawn } from "node:child_process";
+import { watch } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { prepareElectronAppRuntime } from "./electron-runtime.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const desktopRoot = path.resolve(__dirname, "..");
 const devUrl = "http://127.0.0.1:5173";
-const defaultElectronBin = process.platform === "win32"
-  ? path.join(desktopRoot, "node_modules", ".bin", "electron.cmd")
-  : path.join(desktopRoot, "node_modules", ".bin", "electron");
-const electronSourceAppPath = path.join(
-  desktopRoot,
-  "node_modules",
-  "electron",
-  "dist",
-  "Electron.app",
-);
 const electronDevAppPath = path.join("/private/tmp", "puppyone-electron-dev", "puppyone.app");
-const electronDevAppExecutablePath = path.join(electronDevAppPath, "Contents", "MacOS", "Electron");
-const electronDevAppIconPath = path.join(
-  electronDevAppPath,
-  "Contents",
-  "Resources",
-  "electron.icns",
-);
-const electronDevInfoPlistPath = path.join(
-  electronDevAppPath,
-  "Contents",
-  "Info.plist",
-);
 const desktopDevAppIconPath = path.join(desktopRoot, "src-tauri", "icons", "icon.icns");
 const mainWatchPaths = [
   path.join(desktopRoot, "electron"),
@@ -97,44 +76,13 @@ function startElectron() {
 }
 
 function prepareElectronDevRuntime() {
-  if (process.platform !== "darwin") return defaultElectronBin;
-
-  try {
-    if (!existsSync(electronDevAppExecutablePath)) {
-      rmSync(electronDevAppPath, { recursive: true, force: true });
-      copyAppBundle(electronSourceAppPath, electronDevAppPath);
-    }
-
-    if (existsSync(desktopDevAppIconPath) && existsSync(electronDevAppIconPath)) {
-      copyFileSync(desktopDevAppIconPath, electronDevAppIconPath);
-    }
-    if (existsSync(electronDevInfoPlistPath)) {
-      setPlistValue("CFBundleName", "puppyone");
-      setPlistValue("CFBundleDisplayName", "puppyone");
-      setPlistValue("CFBundleIdentifier", "ai.puppyone.desktop.dev");
-      setPlistValue("CFBundleExecutable", "Electron");
-      setPlistValue("CFBundleIconFile", "electron.icns");
-    }
-    return electronDevAppExecutablePath;
-  } catch (error) {
-    console.warn("Unable to prepare puppyone dev app:", error);
-    return defaultElectronBin;
-  }
-}
-
-function copyAppBundle(sourcePath, targetPath) {
-  mkdirSync(path.dirname(targetPath), { recursive: true });
-  const result = spawnSync("/bin/cp", ["-R", sourcePath, targetPath], {
-    stdio: "ignore",
-  });
-  if (result.status !== 0) {
-    throw new Error(`Failed to copy Electron app bundle from ${sourcePath}`);
-  }
-}
-
-function setPlistValue(key, value) {
-  spawnSync("/usr/libexec/PlistBuddy", ["-c", `Set :${key} ${value}`, electronDevInfoPlistPath], {
-    stdio: "ignore",
+  return prepareElectronAppRuntime({
+    desktopRoot,
+    targetAppPath: electronDevAppPath,
+    appName: "puppyone",
+    displayName: "puppyone",
+    bundleIdentifier: "ai.puppyone.desktop.dev",
+    iconPath: desktopDevAppIconPath,
   });
 }
 

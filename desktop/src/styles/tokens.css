@@ -1,0 +1,81 @@
+@font-face {
+  font-family: "Geist Sans";
+  src: url("/fonts/geist/Geist-Variable.woff2") format("woff2");
+  font-display: swap;
+  font-style: normal;
+  font-weight: 100 900;
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  src: url("/fonts/geist/GeistMono-Variable.woff2") format("woff2");
+  font-display: swap;
+  font-style: normal;
+  font-weight: 100 900;
+}
+
+:root {
+  color-scheme: light;
+  --font-geist-sans: "Geist Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-geist-mono: "Geist Mono", "SFMono-Regular", "SF Mono", Consolas, "Liberation Mono", monospace;
+  --po-font-sans: var(--font-geist-sans);
+  --po-font-mono: var(--font-geist-mono);
+  --desktop-control-radius: 6px;
+  --desktop-chrome-height: 38px;
+  --desktop-chrome-control-size: 30px;
+  --desktop-sidebar-nav-height: var(--desktop-chrome-height);
+  --desktop-sidebar-control-size: var(--desktop-chrome-control-size);
+  --desktop-sidebar-toolbar-height: 46px;
+  --desktop-sidebar-toolbar-padding-left: 22px;
+  --desktop-sidebar-toolbar-padding-right: 16px;
+  --desktop-sidebar-row-height: 30px;
+  --desktop-sidebar-row-radius: 6px;
+  --desktop-sidebar-row-left-gap: 8px;
+  --desktop-sidebar-row-right-gap: 8px;
+  --desktop-sidebar-row-content-left: 6px;
+  --desktop-sidebar-row-content-right: 6px;
+  --desktop-sidebar-section-top-gap: 5px;
+  --desktop-sidebar-section-bottom-gap: 6px;
+  --desktop-utility-page-padding-top: 24px;
+  --desktop-utility-page-padding-inline: 28px;
+  --desktop-utility-page-padding-bottom: 40px;
+
+  --po-canvas: #f1eadf;
+  --po-header: #f1eadf;
+  --po-sidebar: var(--po-header);
+  --po-panel: #fbf6ed;
+  --po-panel-raised: #fffaf1;
+  --po-overlay: #fff8ee;
+  --po-inset: #e6ded1;
+  --po-text: #2f2a23;
+  --po-text-muted: #70685e;
+  --po-text-subtle: #958b7f;
+  --po-text-disabled: #b9afa3;
+  --po-text-inverse: #fffaf2;
+  --po-border: rgba(73, 55, 35, 0.22);
+  --po-border-subtle: rgba(73, 55, 35, 0.15);
+  --po-border-strong: rgba(73, 55, 35, 0.36);
+  --po-divider: rgba(73, 55, 35, 0.17);
+  --po-hover: rgba(73, 55, 35, 0.095);
+  --po-active: rgba(73, 55, 35, 0.15);
+  --po-selected: rgba(73, 55, 35, 0.17);
+  --po-control: rgba(73, 55, 35, 0.10);
+  --po-control-hover: rgba(73, 55, 35, 0.15);
+  --po-focus-ring: rgba(37, 99, 235, 0.35);
+  --po-accent: #2563eb;
+  --po-success: #15803d;
+  --po-warning: #b45309;
+  --po-danger: #dc2626;
+  --po-info: #0284c7;
+  --po-file-icon-body: #eee5d8;
+  --po-file-icon-fold: #dfd4c6;
+  --po-file-icon-stroke: rgba(73, 55, 35, 0.36);
+  --po-file-icon-shadow: rgba(73, 55, 35, 0.18);
+  --po-tree-guide: color-mix(in srgb, var(--po-sidebar) 87%, var(--po-text));
+  --po-editor-bg: #fbf6ed;
+  --po-editor-line: rgba(73, 55, 35, 0.14);
+  --po-diff-added-bg: rgba(22, 163, 74, 0.10);
+  --po-diff-added-text: #166534;
+  --po-diff-removed-bg: rgba(220, 38, 38, 0.10);
+  --po-diff-removed-text: #991b1b;
+}

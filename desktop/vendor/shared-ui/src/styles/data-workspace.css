@@ -36,6 +36,7 @@
   pointer-events: none;
 }
 
+.data-explorer-view-stack,
 .data-explorer-view-frame,
 .data-main-view-frame {
   display: flex;
@@ -46,12 +47,34 @@
   overflow: hidden;
 }
 
+.data-explorer-view-stack {
+  position: relative;
+  flex-direction: column;
+}
+
 .data-explorer-view-frame {
+  position: absolute;
+  inset: 0;
   background: var(--po-sidebar);
+}
+
+.data-explorer-view-frame[data-active="false"] {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .data-main-view-frame {
   background: var(--po-canvas);
+}
+
+.data-main-view-frame[data-view-mode="files"] {
+  flex-direction: column;
+}
+
+.data-preview-accessory {
+  flex: 0 0 auto;
+  border-bottom: 1px solid var(--po-divider);
+  background: var(--po-panel);
 }
 
 .data-explorer-fill,
@@ -146,8 +169,15 @@ body.data-sidebar-resizing * {
 }
 
 .explorer-tree-shell {
-  --tree-row-left-gap: 6px;
-  --tree-row-right-gap: 4px;
+  --tree-row-left-gap: var(--po-tree-row-left-gap, 6px);
+  --tree-row-right-gap: var(--po-tree-row-right-gap, 4px);
+  --tree-row-height: var(--po-tree-row-height, 30px);
+  --tree-row-radius: var(--po-tree-row-radius, 6px);
+  --tree-row-content-left: var(--po-tree-row-content-left, 8px);
+  --tree-row-content-right: var(--po-tree-row-content-right, 6px);
+  --tree-row-indent: var(--po-tree-row-indent, 24px);
+  --tree-root-top-gap: var(--po-tree-root-top-gap, 5px);
+  --tree-list-bottom-gap: var(--po-tree-list-bottom-gap, 6px);
 
   position: relative;
   display: flex;
@@ -161,7 +191,7 @@ body.data-sidebar-resizing * {
 .explorer-tree-root-scope {
   flex-shrink: 0;
   box-sizing: border-box;
-  padding-top: 5px;
+  padding-top: var(--tree-root-top-gap);
   background: var(--po-sidebar);
 }
 
@@ -210,14 +240,15 @@ body.data-sidebar-resizing * {
   position: relative;
   width: 100%;
   box-sizing: border-box;
-  padding: 0 0 6px;
+  padding: 0 0 var(--tree-list-bottom-gap);
 }
 
 .data-explorer-footer {
   position: relative;
   z-index: 30;
   flex: 0 0 auto;
-  min-height: 38px;
+  height: var(--data-explorer-footer-height, auto);
+  min-height: var(--data-explorer-footer-min-height, 38px);
   overflow: visible;
   border-top: 1px solid var(--po-divider);
   background: var(--po-sidebar);
@@ -228,11 +259,11 @@ body.data-sidebar-resizing * {
   display: flex;
   align-items: center;
   width: calc(100% - var(--tree-row-left-gap) - var(--tree-row-right-gap));
-  height: 30px;
+  height: var(--tree-row-height);
   margin: 1px var(--tree-row-right-gap) 1px var(--tree-row-left-gap);
   padding: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--tree-row-radius);
   background: transparent;
   color: var(--po-text-muted);
   font-size: 13px;
@@ -259,9 +290,39 @@ body.data-sidebar-resizing * {
   color: var(--po-text);
 }
 
+.tree-row.dragging {
+  opacity: 0.46;
+}
+
 .tree-row.active {
   background: var(--po-selected);
   color: var(--po-text);
+}
+
+.tree-row.drop-target {
+  background: var(--po-tree-folder-drop-bg, color-mix(in srgb, var(--po-accent) 18%, transparent));
+  color: var(--po-text);
+  cursor: move;
+}
+
+.tree-row.drop-parent-target {
+  background: transparent;
+  color: var(--po-text);
+  cursor: move;
+}
+
+.tree-row.drop-parent-target::before {
+  content: "";
+  position: absolute;
+  right: 10px;
+  bottom: 2px;
+  left: calc(var(--tree-row-content-left) + var(--depth, 0) * var(--tree-row-indent) + 2px);
+  z-index: 2;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--po-focus-ring);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--po-focus-ring) 16%, transparent);
+  pointer-events: none;
 }
 
 .tree-row:focus-visible {
@@ -270,6 +331,22 @@ body.data-sidebar-resizing * {
 
 .tree-row.loading {
   color: var(--po-text);
+}
+
+.tree-row.status-deleted {
+  color: var(--po-danger);
+}
+
+.tree-row.status-modified {
+  color: var(--po-warning);
+}
+
+.tree-row.status-created {
+  color: var(--po-success);
+}
+
+.tree-row.status-moved {
+  color: var(--po-accent);
 }
 
 .tree-row-content {
@@ -282,8 +359,8 @@ body.data-sidebar-resizing * {
   min-width: 0;
   height: 100%;
   box-sizing: border-box;
-  padding-right: 6px;
-  padding-left: calc(8px + var(--depth, 0) * 24px);
+  padding-right: var(--tree-row-content-right);
+  padding-left: calc(var(--tree-row-content-left) + var(--depth, 0) * var(--tree-row-indent));
   overflow: hidden;
   white-space: nowrap;
 }
@@ -366,11 +443,32 @@ body.data-sidebar-resizing * {
 }
 
 .tree-label {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.tree-label-primary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tree-label-extension {
+  flex: 0 0 auto;
+  color: var(--po-text-subtle);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1;
+}
+
+.tree-label-extension::before {
+  content: "· ";
+  font-weight: 600;
 }
 
 .tree-subtree-motion {
@@ -383,19 +481,31 @@ body.data-sidebar-resizing * {
 }
 
 .tree-subtree-content {
+  position: relative;
   width: 100%;
   min-height: 0;
   overflow: hidden;
   box-sizing: border-box;
 }
 
+.tree-subtree-guide {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--tree-row-left-gap) + var(--depth, 0) * var(--tree-row-indent) - var(--tree-row-content-left));
+  z-index: 0;
+  width: 1px;
+  background: var(--po-tree-guide);
+  pointer-events: none;
+}
+
 .tree-meta-row {
   position: relative;
   display: flex;
   align-items: center;
-  height: 30px;
+  height: var(--tree-row-height);
   margin: 1px var(--tree-row-right-gap) 1px var(--tree-row-left-gap);
-  padding-left: calc(8px + var(--depth, 0) * 24px + 24px);
+  padding-left: calc(var(--tree-row-content-left) + var(--depth, 0) * var(--tree-row-indent) + var(--tree-row-indent));
   box-sizing: border-box;
   color: var(--po-text-subtle);
   font-size: 12px;
@@ -443,17 +553,6 @@ body.data-sidebar-resizing * {
   border-radius: 4px;
   font-size: 10px;
   font-weight: 800;
-}
-
-.tree-indent-guide {
-  position: absolute;
-  top: -2px;
-  bottom: -2px;
-  left: calc(var(--depth, 0) * 24px - 8px);
-  z-index: 0;
-  width: 1px;
-  background: var(--po-tree-guide);
-  pointer-events: none;
 }
 
 .browser-column {

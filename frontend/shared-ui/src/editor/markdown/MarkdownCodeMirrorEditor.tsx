@@ -7,11 +7,18 @@ import {
   markdownCodeMirrorBaseExtensions,
   markdownLivePreviewExtension,
 } from "./markdownCodeMirrorExtensions";
+import { markdownAiEditExtension } from "./markdownAiEditExtension";
+import type { AiEditFile } from "../ai-edits/types";
+import type { MarkdownHtmlTrustMode, MarkdownLinkGraph } from "../viewerTypes";
 
 export type MarkdownCodeMirrorEditorProps = {
   value: string;
   readOnly: boolean;
   livePreview: boolean;
+  aiEditFile?: AiEditFile | null;
+  htmlTrustMode?: MarkdownHtmlTrustMode;
+  documentPath?: string;
+  markdownLinkGraph?: MarkdownLinkGraph | null;
   onChange?: (value: string) => void;
 };
 
@@ -21,6 +28,10 @@ export function MarkdownCodeMirrorEditor({
   value,
   readOnly,
   livePreview,
+  aiEditFile = null,
+  htmlTrustMode = "safe",
+  documentPath = "",
+  markdownLinkGraph = null,
   onChange,
 }: MarkdownCodeMirrorEditorProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -28,6 +39,7 @@ export function MarkdownCodeMirrorEditor({
   const onChangeRef = useRef(onChange);
   const editableCompartmentRef = useRef(new Compartment());
   const livePreviewCompartmentRef = useRef(new Compartment());
+  const aiEditCompartmentRef = useRef(new Compartment());
 
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -44,7 +56,8 @@ export function MarkdownCodeMirrorEditor({
         extensions: [
           ...markdownCodeMirrorBaseExtensions(readOnly),
           editableCompartmentRef.current.of(getEditableExtensions(readOnly)),
-          livePreviewCompartmentRef.current.of(livePreview ? markdownLivePreviewExtension() : []),
+          livePreviewCompartmentRef.current.of(livePreview ? markdownLivePreviewExtension(htmlTrustMode, markdownLinkGraph, documentPath) : []),
+          aiEditCompartmentRef.current.of(markdownAiEditExtension(aiEditFile)),
           EditorView.updateListener.of((update) => {
             if (!update.docChanged) return;
             if (update.transactions.some((transaction) => transaction.annotation(externalDocumentUpdate))) return;
@@ -76,9 +89,25 @@ export function MarkdownCodeMirrorEditor({
     if (!view) return;
 
     view.dispatch({
-      effects: livePreviewCompartmentRef.current.reconfigure(livePreview ? markdownLivePreviewExtension() : []),
+      effects: livePreviewCompartmentRef.current.reconfigure(livePreview ? markdownLivePreviewExtension(htmlTrustMode, markdownLinkGraph, documentPath) : []),
     });
-  }, [livePreview]);
+  }, [documentPath, livePreview, htmlTrustMode, markdownLinkGraph]);
+
+  useLayoutEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+
+    try {
+      view.dispatch({
+        effects: aiEditCompartmentRef.current.reconfigure(markdownAiEditExtension(aiEditFile)),
+      });
+    } catch (error) {
+      console.warn("Unable to apply AI edit decorations:", error);
+      view.dispatch({
+        effects: aiEditCompartmentRef.current.reconfigure([]),
+      });
+    }
+  }, [aiEditFile]);
 
   useLayoutEffect(() => {
     const view = viewRef.current;

@@ -1,0 +1,721 @@
+.desktop-utility-view {
+  display: flex;
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--po-canvas);
+}
+
+.desktop-utility-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 54px;
+  min-height: 54px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--po-divider);
+}
+
+.desktop-utility-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  color: var(--po-text-muted);
+}
+
+.desktop-utility-title > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.desktop-utility-title span {
+  color: var(--po-text-subtle);
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: uppercase;
+}
+
+.desktop-utility-title strong {
+  overflow: hidden;
+  color: var(--po-text);
+  font-size: 13px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-utility-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--po-text-muted);
+}
+
+.desktop-utility-icon-button:hover {
+  background: var(--po-hover);
+  color: var(--po-text);
+}
+
+.desktop-utility-icon-button .spin {
+  animation: spin 900ms linear infinite;
+}
+
+.desktop-utility-body {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px;
+}
+
+.desktop-utility-empty {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 10px;
+  color: var(--po-text-subtle);
+  font-size: 12.5px;
+}
+
+.desktop-utility-empty.danger {
+  color: var(--po-danger);
+}
+
+.desktop-settings-list {
+  display: grid;
+  gap: 2px;
+}
+
+.desktop-settings-list {
+  width: 100%;
+  max-width: none;
+}
+
+.desktop-settings-section {
+  display: grid;
+  width: 100%;
+  max-width: 920px;
+  gap: 14px;
+  margin: 0 auto;
+}
+
+.desktop-files-settings-section {
+  max-width: 680px;
+  gap: 10px;
+}
+
+.desktop-settings-section + .desktop-settings-section {
+  margin-top: 20px;
+}
+
+.desktop-settings-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 14px;
+  max-width: 920px;
+}
+
+.desktop-settings-section-header {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.desktop-settings-section-header strong {
+  color: var(--po-text);
+  font-size: 14px;
+  font-weight: 720;
+}
+
+.desktop-settings-section-header span {
+  color: var(--po-text-subtle);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.desktop-settings-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 30px;
+  border-radius: 6px;
+  color: var(--po-text-muted);
+  font-size: 12.5px;
+}
+
+.desktop-settings-row:hover {
+  background: var(--po-hover);
+  color: var(--po-text);
+}
+
+.desktop-settings-row {
+  justify-content: space-between;
+  gap: 18px;
+  padding: 0 10px;
+}
+
+.desktop-settings-row span {
+  flex: 0 0 auto;
+  color: var(--po-text-subtle);
+}
+
+.desktop-settings-row .desktop-settings-label-stack {
+  display: grid;
+  min-width: 0;
+  flex: 1 1 auto;
+  gap: 2px;
+}
+
+.desktop-settings-row .desktop-settings-label-stack strong {
+  color: var(--po-text);
+  font-size: 12.5px;
+  font-weight: 620;
+  line-height: 1.25;
+  text-align: left;
+}
+
+.desktop-settings-row .desktop-settings-label-stack small {
+  color: var(--po-text-subtle);
+  font-size: 11px;
+  font-weight: 520;
+  line-height: 1.35;
+}
+
+.desktop-settings-row strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--po-text);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-settings-code {
+  font-family: var(--po-font-mono);
+  font-size: 11.5px !important;
+}
+
+.desktop-settings-group {
+  display: grid;
+  gap: 6px;
+}
+
+.desktop-settings-group-title {
+  padding: 0 2px;
+  color: var(--po-text-subtle);
+  font-size: 11px;
+  font-weight: 760;
+  text-transform: uppercase;
+}
+
+.desktop-settings-group-body {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid var(--po-divider);
+  border-radius: 8px;
+  background: var(--po-panel);
+}
+
+.desktop-settings-line,
+.desktop-settings-remote-setting,
+.desktop-settings-muted-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 0.38fr) minmax(0, 1fr);
+  min-height: 42px;
+  align-items: center;
+  gap: 16px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--po-divider);
+  color: var(--po-text-muted);
+  font-size: 12.5px;
+}
+
+.desktop-settings-line:last-child,
+.desktop-settings-remote-setting:last-child,
+.desktop-settings-muted-row:last-child {
+  border-bottom: 0;
+}
+
+.desktop-settings-line > span {
+  color: var(--po-text-subtle);
+}
+
+.desktop-settings-toggle-line {
+  grid-template-columns: minmax(180px, 1fr) auto;
+}
+
+.desktop-files-toggle-line {
+  min-height: 36px;
+}
+
+.desktop-files-toggle-line > span {
+  color: var(--po-text);
+  font-weight: 600;
+}
+
+.desktop-settings-line-value {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.desktop-settings-line-value strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--po-text);
+  font-size: 12.5px;
+  font-weight: 650;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-settings-line-value strong.success {
+  color: var(--po-success);
+}
+
+.desktop-settings-row-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 26px;
+  flex: 0 0 auto;
+  padding: 0 7px;
+  border: 1px solid var(--po-divider);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--po-text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.desktop-settings-row-action:hover:not(:disabled) {
+  background: var(--po-hover);
+  color: var(--po-text);
+}
+
+.desktop-settings-row-action:disabled {
+  color: var(--po-text-disabled);
+  opacity: 0.55;
+}
+
+.desktop-settings-select,
+.desktop-settings-text-input {
+  box-sizing: border-box;
+  width: min(100%, 220px);
+  height: 28px;
+  min-width: 0;
+  border: 1px solid var(--po-divider);
+  border-radius: 6px;
+  background: var(--po-input, var(--po-panel-raised));
+  color: var(--po-text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 560;
+  outline: none;
+}
+
+.desktop-settings-select {
+  padding: 0 8px;
+}
+
+.desktop-settings-text-input {
+  padding: 0 9px;
+}
+
+.desktop-settings-select:focus,
+.desktop-settings-text-input:focus {
+  border-color: color-mix(in srgb, var(--po-accent) 42%, var(--po-divider));
+}
+
+.desktop-settings-select:disabled,
+.desktop-settings-text-input:disabled {
+  color: var(--po-text-disabled);
+  opacity: 0.62;
+}
+
+.desktop-settings-switch {
+  position: relative;
+  display: inline-flex;
+  width: 34px;
+  height: 20px;
+  flex: 0 0 auto;
+  align-items: center;
+  cursor: pointer;
+}
+
+.desktop-settings-switch input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
+}
+
+.desktop-settings-switch span {
+  position: relative;
+  width: 34px;
+  height: 20px;
+  border: 1px solid var(--po-divider);
+  border-radius: 999px;
+  background: var(--po-control);
+  transition: background 0.14s ease, border-color 0.14s ease;
+}
+
+.desktop-settings-switch span::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--po-text-subtle);
+  transition: background 0.14s ease, transform 0.14s ease;
+}
+
+.desktop-settings-switch input:checked + span {
+  border-color: color-mix(in srgb, var(--po-accent) 52%, var(--po-divider));
+  background: color-mix(in srgb, var(--po-accent) 18%, var(--po-control));
+}
+
+.desktop-settings-switch input:checked + span::before {
+  background: var(--po-accent);
+  transform: translateX(14px);
+}
+
+.desktop-settings-switch input:focus-visible + span {
+  outline: 2px solid color-mix(in srgb, var(--po-accent) 36%, transparent);
+  outline-offset: 2px;
+}
+
+.desktop-settings-pattern-editor {
+  display: grid;
+  gap: 7px;
+  padding: 10px 12px 11px;
+  border-bottom: 1px solid var(--po-divider);
+}
+
+.desktop-settings-pattern-editor:last-child {
+  border-bottom: 0;
+}
+
+.desktop-files-pattern-editor {
+  background: transparent;
+}
+
+.desktop-files-pattern-editor-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 20px;
+  color: var(--po-text-subtle);
+  font-size: 12px;
+}
+
+.desktop-files-pattern-editor-toolbar span {
+  color: var(--po-text);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.desktop-files-pattern-editor-toolbar small {
+  color: var(--po-text-subtle);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.desktop-settings-pattern-editor textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 96px;
+  resize: vertical;
+  padding: 7px 8px;
+  border: 1px solid var(--po-divider);
+  border-radius: 6px;
+  outline: none;
+  background: var(--po-input, var(--po-panel-raised));
+  color: var(--po-text);
+  font-family: var(--po-font-mono);
+  font-size: 11.5px;
+  line-height: 17px;
+}
+
+.desktop-settings-pattern-editor textarea:focus {
+  border-color: color-mix(in srgb, var(--po-accent) 42%, var(--po-divider));
+}
+
+.desktop-settings-pattern-editor-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  color: var(--po-text-subtle);
+  font-size: 11.5px;
+}
+
+.desktop-settings-muted-row {
+  display: flex;
+  min-height: 38px;
+  color: var(--po-text-subtle);
+}
+
+.desktop-puppyone-config-note {
+  display: grid;
+  gap: 2px;
+  padding: 9px 12px 10px;
+  border-bottom: 1px solid var(--po-divider);
+  color: var(--po-text-subtle);
+}
+
+.desktop-puppyone-config-note span {
+  color: var(--po-text);
+  font-family: var(--po-font-mono);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.desktop-puppyone-config-note small {
+  color: var(--po-text-subtle);
+  font-size: 11.5px;
+  font-weight: 520;
+  line-height: 1.35;
+}
+
+.desktop-puppyone-config-row {
+  min-height: 48px;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--po-divider);
+}
+
+.desktop-puppyone-config-row:hover {
+  background: transparent;
+}
+
+.desktop-puppyone-config-footer {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 12px;
+  color: var(--po-text-subtle);
+  font-size: 11.5px;
+}
+
+.desktop-puppyone-config-footer > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-puppyone-config-footer > div {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.desktop-settings-remote-setting {
+  grid-template-columns: minmax(120px, 0.28fr) minmax(76px, auto) minmax(0, 1fr) auto;
+}
+
+.desktop-settings-remote-setting-main {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.desktop-settings-remote-setting-main strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--po-text);
+  font-size: 12.5px;
+  font-weight: 680;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-settings-remote-setting-meta {
+  display: inline-flex;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: flex-start;
+  gap: 4px;
+  color: var(--po-text-subtle);
+  white-space: nowrap;
+}
+
+.desktop-settings-remote-setting-meta strong {
+  color: var(--po-text);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.desktop-settings-remote-setting-meta span {
+  color: var(--po-text-subtle);
+  font-size: 12px;
+}
+
+.desktop-settings-remote-setting-url {
+  display: grid;
+  min-width: 0;
+  justify-items: end;
+  gap: 2px;
+}
+
+.desktop-settings-remote-setting-url code,
+.desktop-settings-remote-setting-url small {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--po-text);
+  font-family: var(--po-font-mono);
+  font-size: 11.5px;
+  font-weight: 620;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-settings-remote-setting-url small {
+  color: var(--po-text-subtle);
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.desktop-git-settings-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--po-divider);
+  border-radius: 8px;
+  background: var(--po-divider);
+}
+
+.desktop-git-settings-summary > div {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+  padding: 12px;
+  background: var(--po-panel);
+}
+
+.desktop-git-settings-summary span,
+.desktop-git-cloud-grid span {
+  overflow: hidden;
+  color: var(--po-text-subtle);
+  font-size: 11px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.desktop-git-settings-summary strong,
+.desktop-git-cloud-grid strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--po-text);
+  font-size: 12.5px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-settings-panel {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--po-divider);
+  border-radius: 8px;
+  background: var(--po-panel);
+}
+
+.desktop-settings-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.desktop-settings-panel-header > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.desktop-settings-panel-header strong {
+  overflow: hidden;
+  color: var(--po-text);
+  font-size: 13px;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-settings-panel-header span,
+.desktop-settings-panel-empty {
+  overflow: hidden;
+  color: var(--po-text-subtle);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-git-cloud-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--po-divider);
+}
+
+.desktop-git-cloud-grid > div {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.desktop-settings-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  max-width: 100%;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--po-control);
+  color: var(--po-text-subtle);
+  font-size: 11px;
+  font-weight: 750;
+  text-transform: none;
+}
+
+.desktop-settings-badge.connected {
+  background: color-mix(in srgb, var(--po-success) 12%, transparent);
+  color: var(--po-success);
+}

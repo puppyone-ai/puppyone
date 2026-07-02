@@ -1,4 +1,4 @@
-import type { DataNode, FileContent, Workspace } from "@puppyone/shared-ui";
+import type { AiEditRequest, DataNode, FileContent, Workspace } from "@puppyone/shared-ui";
 
 export type GitStatusEntry = {
   path: string;
@@ -6,6 +6,36 @@ export type GitStatusEntry = {
   staged: string | null;
   unstaged: string | null;
   status: string;
+  conflict?: boolean;
+};
+
+export type GitSourceControlResourceStatus =
+  | "added"
+  | "modified"
+  | "deleted"
+  | "renamed"
+  | "copied"
+  | "untracked"
+  | "conflict"
+  | "changed";
+
+export type GitSourceControlResourceGroupId = "merge" | "index" | "workingTree" | "untracked";
+
+export type GitSourceControlResource = {
+  id: string;
+  group: GitSourceControlResourceGroupId;
+  path: string;
+  oldPath: string | null;
+  status: GitSourceControlResourceStatus;
+  staged: boolean;
+  conflict: boolean;
+  letter: string;
+};
+
+export type GitSourceControlResourceGroup = {
+  id: GitSourceControlResourceGroupId;
+  label: string;
+  resources: GitSourceControlResource[];
 };
 
 export type GitCommitChangeStatus = "added" | "modified" | "deleted" | "renamed" | "copied" | "changed";
@@ -25,6 +55,8 @@ export type GitCommitSummary = {
   author_email: string;
   created_at: string | null;
   message: string;
+  graph_prefix?: string;
+  graph_continuation_prefixes?: string[];
   changes: GitCommitChange[];
 };
 
@@ -64,7 +96,56 @@ export type GitRemoteSummary = {
   branches: string[];
 };
 
-export type GitWorkingDiffScope = "staged" | "unstaged" | "untracked";
+export type GitSyncTargetSummary = {
+  remote: string | null;
+  branch: string | null;
+  ref: string | null;
+  exists: boolean;
+  ahead: number;
+  behind: number;
+  incomingPreview: GitSourceControlResource[];
+  outgoingPreview: GitSourceControlResource[];
+};
+
+export type GitSourceControlRemoteSummary = {
+  target: GitSyncTargetSummary | null;
+  currentBranch: string | null;
+  upstream: string | null;
+  ahead: number;
+  behind: number;
+  incomingPreview: GitSourceControlResource[];
+  outgoingPreview: GitSourceControlResource[];
+  canPull: boolean;
+  canPush: boolean;
+  canSync: boolean;
+  canPublish: boolean;
+  state:
+    | "no-repository"
+    | "no-remote"
+    | "no-branch"
+    | "publish"
+    | "incoming"
+    | "outgoing"
+    | "diverged"
+    | "synced";
+};
+
+export type GitSourceControlSnapshot = {
+  input: {
+    placeholder: string;
+    defaultMessage: string;
+  };
+  groups: GitSourceControlResourceGroup[];
+  remote: GitSourceControlRemoteSummary;
+  actions: {
+    canStageAll: boolean;
+    canUnstageAll: boolean;
+    canDiscardAll: boolean;
+    canCommit: boolean;
+  };
+};
+
+export type GitWorkingDiffScope = "staged" | "unstaged" | "untracked" | "remote" | "committed";
 
 export type GitStatusSnapshot = {
   isRepo: boolean;
@@ -77,6 +158,17 @@ export type GitStatusSnapshot = {
   untrackedEntries: GitStatusEntry[];
   branches: GitBranchSummary[];
   remotes: GitRemoteSummary[];
+  syncTarget: GitSyncTargetSummary | null;
+  sourceControl: GitSourceControlSnapshot;
+  commits: GitCommitSummary[];
+  allCommits: GitCommitSummary[];
+};
+
+export type GitBranchGraphSnapshot = {
+  isRepo: boolean;
+  branch: string | null;
+  headCommitId: string | null;
+  branches: GitBranchSummary[];
   commits: GitCommitSummary[];
   allCommits: GitCommitSummary[];
 };
@@ -117,11 +209,62 @@ export type TerminalExitEvent = {
   signal: string | null;
 };
 
+export type DesktopUpdateStatus =
+  | "disabled"
+  | "idle"
+  | "checking"
+  | "not-available"
+  | "available"
+  | "downloading"
+  | "downloaded"
+  | "installing"
+  | "blocked"
+  | "error";
+
+export type DesktopUpdateInfo = {
+  version: string | null;
+  releaseName: string | null;
+  releaseDate: string | null;
+  releaseNotes: string | null;
+} | null;
+
+export type DesktopUpdateProgress = {
+  percent: number;
+  bytesPerSecond: number;
+  transferred: number;
+  total: number;
+} | null;
+
+export type DesktopUpdateBlocker = {
+  id: string;
+  label: string;
+  detail: string | null;
+};
+
+export type DesktopUpdateState = {
+  status: DesktopUpdateStatus;
+  currentVersion: string;
+  channel: "stable" | "beta" | "internal";
+  availableVersion: string | null;
+  updateInfo: DesktopUpdateInfo;
+  progress: DesktopUpdateProgress;
+  blockers: DesktopUpdateBlocker[];
+  error: string | null;
+  reason: string | null;
+  lastCheckedAt: string | null;
+  updatedAt: string;
+};
+
 export type WorkspaceChangedEvent = {
   rootPath: string;
   eventType: string;
   path: string | null;
   error?: string;
+};
+
+export type AiEditReviewUpdatedEvent = {
+  rootPath: string;
+  request: AiEditRequest;
 };
 
 export type LastWorkspaceResult = {
@@ -150,14 +293,127 @@ export type WorkspaceRenameEntryRequest = {
   nextName: string;
 };
 
+export type WorkspaceMoveEntryRequest = {
+  rootPath: string;
+  fromPath: string;
+  toPath: string;
+};
+
 export type WorkspaceDeleteEntryRequest = {
   rootPath: string;
   path: string;
 };
 
+export type DesktopStoredCloudSession = {
+  expires_in?: number;
+  expires_at?: number;
+  user_email: string;
+  api_base_url?: string;
+};
+
+export type PuppyoneBackendService = "puppyone" | "github" | "custom";
+
+export type PuppyoneWorkspaceConfig = {
+  version: 1;
+  sync: {
+    sourceOfTruth: {
+      service: PuppyoneBackendService;
+      remote: string | null;
+      branch: string | null;
+    };
+  };
+  git: {
+    primaryRemote: string | null;
+    watchedBranch: string | null;
+  };
+  backup: {
+    enabled: boolean;
+    service: PuppyoneBackendService;
+    remote: string | null;
+    branch: string | null;
+  };
+  cloud: {
+    projectId: string | null;
+  };
+  updatedAt?: string;
+};
+
 declare global {
   interface Window {
     puppyoneDesktop?: {
+      readCloudSession: () => Promise<DesktopStoredCloudSession | null>;
+      restoreCloudSession: (request: {
+        apiBaseUrl?: string | null;
+      }) => Promise<DesktopStoredCloudSession | null>;
+      signInCloudSessionWithPassword: (request: {
+        apiBaseUrl: string;
+        email: string;
+        password: string;
+      }) => Promise<DesktopStoredCloudSession>;
+      startCloudOAuth: (request: {
+        apiBaseUrl: string;
+        provider: "google" | "github";
+      }) => Promise<{ ok: boolean }>;
+      clearCloudSession: () => Promise<void>;
+      onCloudSessionChanged: (
+        callback: (session: DesktopStoredCloudSession | null) => void,
+      ) => () => void;
+      onCloudAuthError: (
+        callback: (payload: { message?: string }) => void,
+      ) => () => void;
+      requestCloudApi: (request: {
+        apiBaseUrl: string;
+        path: string;
+        method?: string;
+        headers?: Record<string, string>;
+        body?: string;
+      }) => Promise<unknown>;
+      requestCloudSessionApi: (request: {
+        apiBaseUrl: string;
+        path: string;
+        method?: string;
+        headers?: Record<string, string>;
+        body?: string;
+      }) => Promise<unknown>;
+      listCloudAccessPointDirectory: (request: {
+        accessKey: string;
+        path?: string;
+        userEmail?: string | null;
+        remoteUrl?: string | null;
+        apiBaseUrl?: string | null;
+      }) => Promise<{
+        path: string;
+        entries: Array<{
+          name: string;
+          path: string;
+          type: string;
+          content_hash?: string | null;
+          size_bytes?: number | null;
+          mime_type?: string | null;
+          children_count?: number | null;
+          integrity_status?: "ok" | "damaged" | "unknown";
+        }>;
+        head_commit_id?: string;
+      }>;
+      getCloudAccessPointSemantics: (request: {
+        accessKey: string;
+        userEmail?: string | null;
+        remoteUrl?: string | null;
+        apiBaseUrl?: string | null;
+      }) => Promise<{
+        project_id?: string;
+        scope?: {
+          id?: string;
+          project_id?: string;
+          repo_id?: string;
+          repo_kind?: string;
+          repo_ref?: string;
+          path?: string;
+          mode?: string;
+          exclude?: string[];
+        };
+      }>;
+      openExternalUrl: (href: string) => Promise<{ ok: boolean }>;
       getLastWorkspace: () => Promise<LastWorkspaceResult>;
       rememberLastWorkspace: (folderPath: string) => Promise<void>;
       forgetLastWorkspace: () => Promise<void>;
@@ -179,17 +435,39 @@ declare global {
       }) => Promise<void>;
       createEntry: (request: WorkspaceCreateEntryRequest) => Promise<WorkspaceCreateEntryResult>;
       renameEntry: (request: WorkspaceRenameEntryRequest) => Promise<WorkspaceCreateEntryResult>;
+      moveEntry: (request: WorkspaceMoveEntryRequest) => Promise<WorkspaceCreateEntryResult>;
       deleteEntry: (request: WorkspaceDeleteEntryRequest) => Promise<WorkspaceCreateEntryResult>;
       watchWorkspace: (
         rootPath: string,
         callback: (event: WorkspaceChangedEvent) => void,
       ) => () => void;
+      getLatestAiEditReviewRequest: (request: {
+        rootPath: string;
+      }) => Promise<AiEditRequest | null>;
+      onAiEditReviewUpdated: (
+        callback: (event: AiEditReviewUpdatedEvent) => void,
+      ) => () => void;
       getGitStatus: (request: {
         rootPath: string;
       }) => Promise<GitStatusSnapshot>;
+      getGitBranchGraph?: (request: {
+        rootPath: string;
+      }) => Promise<GitBranchGraphSnapshot>;
       initGitRepository: (request: {
         rootPath: string;
       }) => Promise<GitStatusSnapshot>;
+      configureGitCloudRemote: (request: {
+        rootPath: string;
+        remoteUrl: string;
+        remoteName?: string;
+      }) => Promise<GitStatusSnapshot>;
+      readPuppyoneConfig: (request: {
+        rootPath: string;
+      }) => Promise<PuppyoneWorkspaceConfig>;
+      writePuppyoneConfig: (request: {
+        rootPath: string;
+        config: PuppyoneWorkspaceConfig;
+      }) => Promise<PuppyoneWorkspaceConfig>;
       getGitCommitDetail: (request: {
         rootPath: string;
         commitId: string;
@@ -203,13 +481,22 @@ declare global {
         rootPath: string;
         paths: string[];
       }) => Promise<GitStatusSnapshot>;
+      stageAllGitChanges: (request: {
+        rootPath: string;
+      }) => Promise<GitStatusSnapshot>;
       unstageGitPaths: (request: {
         rootPath: string;
         paths: string[];
       }) => Promise<GitStatusSnapshot>;
+      unstageAllGitChanges: (request: {
+        rootPath: string;
+      }) => Promise<GitStatusSnapshot>;
       discardGitPaths: (request: {
         rootPath: string;
         paths: string[];
+      }) => Promise<GitStatusSnapshot>;
+      discardAllGitChanges: (request: {
+        rootPath: string;
       }) => Promise<GitStatusSnapshot>;
       commitGit: (request: {
         rootPath: string;
@@ -243,6 +530,21 @@ declare global {
       pushGit: (request: {
         rootPath: string;
       }) => Promise<GitStatusSnapshot>;
+      publishGitBranch: (request: {
+        rootPath: string;
+        remoteName?: string | null;
+      }) => Promise<GitStatusSnapshot>;
+      syncGit: (request: {
+        rootPath: string;
+      }) => Promise<GitStatusSnapshot>;
+      getUpdateState: () => Promise<DesktopUpdateState>;
+      checkForUpdates: () => Promise<DesktopUpdateState>;
+      downloadUpdate: () => Promise<DesktopUpdateState>;
+      updateNow: () => Promise<DesktopUpdateState>;
+      installUpdate: () => Promise<DesktopUpdateState>;
+      onUpdateStateChanged: (
+        callback: (state: DesktopUpdateState) => void,
+      ) => () => void;
       createTerminal: (request: TerminalCreateRequest) => Promise<TerminalCreateResult>;
       writeTerminal: (request: TerminalInputRequest) => void;
       resizeTerminal: (request: TerminalResizeRequest) => void;

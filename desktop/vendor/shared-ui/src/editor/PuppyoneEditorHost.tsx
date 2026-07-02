@@ -1,10 +1,11 @@
 "use client";
 
 import { resolveEditorViewer } from "./viewerRegistry";
-import type { EditorDocument, EditorSaveMode } from "./viewerTypes";
+import type { EditorDocument, EditorSaveMode, MarkdownHtmlTrustMode, MarkdownLinkGraph } from "./viewerTypes";
 import type { FileIconThemeId } from "../file/fileIcons";
+import type { AiEditFile } from "./ai-edits/types";
 
-export type { EditorDocument, EditorDocumentKind, EditorSaveMode } from "./viewerTypes";
+export type { EditorDocument, EditorDocumentKind, EditorSaveMode, MarkdownHtmlTrustMode } from "./viewerTypes";
 
 export type PuppyoneEditorHostProps = {
   document: EditorDocument;
@@ -13,9 +14,12 @@ export type PuppyoneEditorHostProps = {
   fileUrlLoading?: boolean;
   fileUrlError?: string | null;
   onSaveContent?: (content: string) => Promise<void>;
+  aiEditFile?: AiEditFile | null;
   hideSourceView?: boolean;
   fileIconTheme?: FileIconThemeId;
   saveMode?: EditorSaveMode;
+  htmlTrustMode?: MarkdownHtmlTrustMode;
+  markdownLinkGraph?: MarkdownLinkGraph | null;
 };
 
 export function PuppyoneEditorHost({
@@ -25,9 +29,12 @@ export function PuppyoneEditorHost({
   fileUrlLoading = false,
   fileUrlError = null,
   onSaveContent,
+  aiEditFile = null,
   hideSourceView = false,
   fileIconTheme = "default",
   saveMode = "manual",
+  htmlTrustMode = "safe",
+  markdownLinkGraph = null,
 }: PuppyoneEditorHostProps) {
   const { viewer, format } = resolveEditorViewer(document);
   const rawContent = viewer.allowPreviewContent === false
@@ -50,6 +57,7 @@ export function PuppyoneEditorHost({
         document,
         format,
         content,
+        aiEditFile,
         fileUrl: document.url,
         fileUrlLoading,
         fileUrlError,
@@ -59,6 +67,8 @@ export function PuppyoneEditorHost({
         hideSourceView,
         fileIconTheme,
         saveMode,
+        htmlTrustMode,
+        markdownLinkGraph,
         onSaveContent,
       })}
     </>

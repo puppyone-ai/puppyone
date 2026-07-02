@@ -1,0 +1,245 @@
+.desktop-cloud-service-sidebar {
+  background: var(--po-sidebar);
+}
+
+.desktop-cloud-sidebar-context {
+  display: flex;
+  height: var(--desktop-sidebar-toolbar-height);
+  min-height: var(--desktop-sidebar-toolbar-height);
+  align-items: center;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--po-divider);
+  box-sizing: border-box;
+}
+
+.desktop-cloud-sidebar-context-back {
+  display: inline-flex;
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--po-text-muted);
+  font-size: 13px;
+  font-weight: 650;
+  text-align: left;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.desktop-cloud-sidebar-context-back:hover {
+  background: var(--po-hover);
+  color: var(--po-text);
+}
+
+.desktop-cloud-sidebar-context-back span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-cloud-sidebar-list {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: var(--desktop-sidebar-section-top-gap) 0 var(--desktop-sidebar-section-bottom-gap);
+  scrollbar-width: thin;
+  scrollbar-color: var(--po-scrollbar-thumb) transparent;
+}
+
+.desktop-cloud-sidebar-list::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.desktop-cloud-sidebar-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.desktop-cloud-sidebar-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--po-scrollbar-thumb);
+}
+
+.desktop-cloud-sidebar-list::-webkit-scrollbar-thumb:hover {
+  background: var(--po-scrollbar-thumb-hover);
+}
+
+.desktop-cloud-sidebar-metric {
+  display: grid;
+  grid-template-columns: minmax(0, 0.35fr) minmax(0, 1fr);
+  align-items: center;
+  min-width: 0;
+  gap: 8px;
+  width: calc(100% - var(--desktop-sidebar-row-left-gap) - var(--desktop-sidebar-row-right-gap));
+  min-height: 28px;
+  margin: 1px var(--desktop-sidebar-row-right-gap) 1px var(--desktop-sidebar-row-left-gap);
+  padding: 0 var(--desktop-sidebar-row-content-right) 0 var(--desktop-sidebar-row-content-left);
+}
+
+.desktop-cloud-sidebar-metric span {
+  overflow: hidden;
+  color: var(--po-text-subtle);
+  font-size: 12px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-cloud-sidebar-metric strong {
+  overflow: hidden;
+  color: var(--po-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-cloud-sidebar-metric.ready strong {
+  color: var(--po-success);
+}
+
+.desktop-cloud-sidebar-metric.warning strong {
+  color: var(--po-warning);
+}
+
+.desktop-cloud-sidebar-nav {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.desktop-cloud-sidebar-nav-row {
+  position: relative;
+  gap: 7px;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.desktop-cloud-sidebar-nav-icon {
+  display: inline-flex;
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+  align-items: center;
+  justify-content: center;
+  color: currentColor;
+}
+
+.desktop-cloud-sidebar-nav-label {
+  min-width: 0;
+  overflow: hidden;
+  color: currentColor;
+  font-size: 13px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-cloud-sidebar-nav-row.active .desktop-cloud-sidebar-nav-label {
+  font-weight: 600;
+}
+
+.desktop-cloud-sidebar-separator {
+  height: 1px;
+  margin:
+    var(--desktop-sidebar-section-top-gap)
+    var(--desktop-sidebar-row-right-gap)
+    var(--desktop-sidebar-section-top-gap)
+    var(--desktop-sidebar-row-left-gap);
+  background: color-mix(in srgb, var(--po-divider) 72%, transparent);
+}
+
+.desktop-cloud-sidebar-footer {
+  display: flex;
+  height: var(--desktop-sidebar-nav-height);
+  min-height: var(--desktop-sidebar-nav-height);
+  align-items: center;
+  justify-content: flex-start;
+  padding: 3px 9px 4px;
+  border-top: 1px solid var(--po-divider);
+  box-sizing: border-box;
+}
+
+.desktop-cloud-sidebar-footer-avatar {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  background: var(--po-control);
+  color: var(--po-text);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  transition: background 150ms ease, box-shadow 150ms ease;
+}
+
+.desktop-cloud-sidebar-footer-avatar:hover {
+  background: var(--po-selected);
+  box-shadow: 0 0 0 2px var(--po-hover);
+}
+
+.desktop-cloud-main-view {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding:
+    var(--desktop-utility-page-padding-top)
+    var(--desktop-utility-page-padding-inline)
+    var(--desktop-utility-page-padding-bottom);
+  background: var(--po-canvas);
+  color: var(--po-text);
+  scrollbar-width: thin;
+  scrollbar-color: var(--po-scrollbar-thumb) transparent;
+}
+
+.desktop-cloud-main-view::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.desktop-cloud-main-view::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.desktop-cloud-main-view::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: var(--po-scrollbar-thumb);
+  background-clip: padding-box;
+}
+
+.desktop-cloud-main-view::-webkit-scrollbar-thumb:hover {
+  background: var(--po-scrollbar-thumb-hover);
+  background-clip: padding-box;
+}
+
+.desktop-cloud-page-shell {
+  display: grid;
+  width: min(100%, 1040px);
+  min-height: 100%;
+  margin: 0 auto;
+  gap: 18px;
+}
+
+.desktop-cloud-loading-state {
+  display: grid;
+  min-height: 100%;
+  place-items: center;
+  color: var(--po-text-muted);
+}

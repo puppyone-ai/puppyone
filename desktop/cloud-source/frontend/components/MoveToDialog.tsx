@@ -16,6 +16,12 @@ interface MoveToDialogProps {
   onClose: () => void;
 }
 
+function parentOfPath(path: string): string | null {
+  const clean = path.trim().replace(/^\/+|\/+$/g, '');
+  if (!clean || !clean.includes('/')) return null;
+  return clean.slice(0, clean.lastIndexOf('/'));
+}
+
 function FolderTreeItem({
   id,
   name,
@@ -201,6 +207,8 @@ export function MoveToDialog({
 }: MoveToDialogProps) {
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const isRootSelected = selectedFolderId === null;
+  const sourceParentId = parentOfPath(nodeId);
+  const isCurrentLocationSelected = selectedFolderId === sourceParentId;
 
   const { nodes: rootNodes, isLoading: rootLoading } = useTreeDir(
     isOpen ? projectId : '',
@@ -219,8 +227,9 @@ export function MoveToDialog({
   }, []);
 
   const handleConfirm = useCallback(() => {
+    if (isCurrentLocationSelected) return;
     onConfirm(selectedFolderId);
-  }, [selectedFolderId, onConfirm]);
+  }, [isCurrentLocationSelected, selectedFolderId, onConfirm]);
 
   if (!isOpen) return null;
 
@@ -341,6 +350,8 @@ export function MoveToDialog({
           <ActionButton
             onClick={handleConfirm}
             variant='primary'
+            disabled={isCurrentLocationSelected}
+            title={isCurrentLocationSelected ? 'Already in this folder' : undefined}
           >
             Move Here
           </ActionButton>

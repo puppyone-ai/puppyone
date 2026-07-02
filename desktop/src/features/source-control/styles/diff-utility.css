@@ -1,0 +1,204 @@
+.desktop-file-diff-list {
+  display: grid;
+  gap: 14px;
+}
+
+.desktop-file-diff {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--po-border-subtle);
+  border-radius: 8px;
+  background: var(--po-panel);
+}
+
+.desktop-file-diff-header {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--po-border-subtle);
+  background: color-mix(in srgb, var(--po-canvas) 84%, var(--po-text) 4%);
+  color: var(--po-text-muted);
+}
+
+.desktop-file-diff-path {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--po-text);
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-file-diff-stat {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 520;
+}
+
+.desktop-change-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  flex: 0 0 auto;
+  padding: 0 6px;
+  border-radius: 5px;
+  background: var(--po-control);
+  color: var(--po-text-muted);
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.desktop-change-badge.added,
+.desktop-change-badge.untracked {
+  background: color-mix(in srgb, var(--po-success) 14%, transparent);
+  color: var(--po-success);
+}
+
+.desktop-change-badge.deleted {
+  background: color-mix(in srgb, var(--po-danger) 14%, transparent);
+  color: var(--po-danger);
+}
+
+.desktop-change-badge.modified,
+.desktop-change-badge.renamed,
+.desktop-change-badge.copied {
+  background: color-mix(in srgb, var(--po-accent) 12%, transparent);
+  color: var(--po-accent);
+}
+
+.desktop-diff-lines {
+  min-width: 0;
+  padding: 6px 0;
+  background: var(--po-inset);
+}
+
+.desktop-diff-line {
+  display: flex;
+  min-width: 0;
+  min-height: 20px;
+  font-family: var(--po-font-mono);
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.desktop-diff-line.add {
+  background: var(--po-diff-added-bg);
+  color: var(--po-diff-added-text);
+}
+
+.desktop-diff-line.remove {
+  background: var(--po-diff-removed-bg);
+  color: var(--po-diff-removed-text);
+}
+
+.desktop-diff-line.context {
+  color: var(--po-text-muted);
+}
+
+.desktop-diff-line.hunk {
+  align-items: center;
+  height: 24px;
+  padding: 0 12px;
+  border-top: 1px solid var(--po-hover);
+  border-bottom: 1px solid var(--po-hover);
+  background: color-mix(in srgb, var(--po-canvas) 84%, var(--po-text) 4%);
+  color: var(--po-text-disabled);
+  font-family: var(--po-font-sans);
+  font-size: 11px;
+}
+
+.desktop-diff-line .line-number {
+  width: 42px;
+  flex: 0 0 42px;
+  padding-right: 10px;
+  color: currentColor;
+  opacity: 0.52;
+  text-align: right;
+  user-select: none;
+}
+
+.desktop-diff-line .line-prefix {
+  width: 18px;
+  flex: 0 0 18px;
+  text-align: center;
+  user-select: none;
+}
+
+.desktop-diff-line code {
+  min-width: 0;
+  overflow: hidden;
+  color: inherit;
+  font: inherit;
+  text-overflow: ellipsis;
+  white-space: pre;
+}
+
+.desktop-diff-placeholder,
+.desktop-commit-empty {
+  padding: 14px 16px;
+  color: var(--po-text-subtle);
+  font-size: 12px;
+  font-style: italic;
+}
+
+.desktop-diff-placeholder {
+  background: var(--po-inset);
+}
+
+.desktop-utility-center {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  color: var(--po-text-subtle);
+  text-align: center;
+}
+
+.desktop-utility-center strong {
+  color: var(--po-text);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.desktop-utility-center span {
+  max-width: min(520px, 80%);
+  color: var(--po-text-subtle);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.desktop-utility-center.danger strong {
+  color: var(--po-danger);
+}
+
+.desktop-utility-primary-button {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid color-mix(in srgb, var(--po-accent) 36%, var(--po-border));
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--po-accent) 12%, var(--po-panel));
+  color: var(--po-accent);
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+.desktop-utility-primary-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--po-accent) 18%, var(--po-panel));
+}
+
+.desktop-utility-primary-button:disabled {
+  border-color: var(--po-border-subtle);
+  background: var(--po-control);
+  color: var(--po-text-disabled);
+}

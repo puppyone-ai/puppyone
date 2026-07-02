@@ -1,7 +1,9 @@
-import type { ReactNode } from "react";
+import { Component, type ErrorInfo, type ReactNode } from "react";
 import type { DataNode, FileContent } from "../core/types";
 import { EditorHost } from "../editor/EditorHost";
 import type { EditorSaveMode } from "../editor/PuppyoneEditorHost";
+import type { MarkdownHtmlTrustMode, MarkdownLinkGraph } from "../editor/viewerTypes";
+import type { AiEditFile } from "../editor/ai-edits/types";
 import { FilePreviewIcon, type FileIconThemeId } from "../file/fileIcons";
 
 export type FilePreviewProps = {
@@ -12,6 +14,7 @@ export type FilePreviewProps = {
   fileUrlError?: string | null;
   loading?: boolean;
   error?: string | null;
+  aiEditFile?: AiEditFile | null;
   showHeader?: boolean;
   emptySlot?: ReactNode;
   actionSlot?: ReactNode | ((node: DataNode) => ReactNode);
@@ -20,6 +23,8 @@ export type FilePreviewProps = {
   hideSourceView?: boolean;
   fileIconTheme?: FileIconThemeId;
   editorSaveMode?: EditorSaveMode;
+  htmlTrustMode?: MarkdownHtmlTrustMode;
+  markdownLinkGraph?: MarkdownLinkGraph | null;
 };
 
 export function FilePreview({
@@ -30,6 +35,7 @@ export function FilePreview({
   fileUrlError = null,
   loading = false,
   error = null,
+  aiEditFile = null,
   showHeader = true,
   emptySlot,
   actionSlot,
@@ -38,13 +44,15 @@ export function FilePreview({
   hideSourceView = false,
   fileIconTheme = "default",
   editorSaveMode = "manual",
+  htmlTrustMode = "safe",
+  markdownLinkGraph = null,
 }: FilePreviewProps) {
   if (!node) {
     if (emptySlot) return <>{emptySlot}</>;
 
     return (
       <div className="empty-preview">
-        <span>No documents opened</span>
+        <span>Select a file to preview</span>
       </div>
     );
   }
@@ -81,22 +89,64 @@ export function FilePreview({
 
       <div className="file-preview-body">
         {renderBody ? renderBody(node) : (
-          <EditorHost
-            node={node}
-            fileContent={fileContent}
-            fileUrl={fileUrl}
-            fileUrlLoading={fileUrlLoading}
-            fileUrlError={fileUrlError}
-            loading={loading}
-            error={error}
-            onSaveContent={onSaveContent}
-            hideSourceView={hideSourceView}
-            fileIconTheme={fileIconTheme}
-            saveMode={editorSaveMode}
-            deferFallbackContent={deferFallbackContent}
-          />
+          <EditorPreviewBoundary key={node.path}>
+            <EditorHost
+              node={node}
+              fileContent={fileContent}
+              fileUrl={fileUrl}
+              fileUrlLoading={fileUrlLoading}
+              fileUrlError={fileUrlError}
+              loading={loading}
+              error={error}
+              aiEditFile={aiEditFile}
+              onSaveContent={onSaveContent}
+              hideSourceView={hideSourceView}
+              fileIconTheme={fileIconTheme}
+              saveMode={editorSaveMode}
+              htmlTrustMode={htmlTrustMode}
+              markdownLinkGraph={markdownLinkGraph}
+              deferFallbackContent={deferFallbackContent}
+            />
+          </EditorPreviewBoundary>
         )}
       </div>
     </div>
   );
+}
+
+type EditorPreviewBoundaryProps = {
+  children: ReactNode;
+};
+
+type EditorPreviewBoundaryState = {
+  error: string | null;
+};
+
+class EditorPreviewBoundary extends Component<EditorPreviewBoundaryProps, EditorPreviewBoundaryState> {
+  state: EditorPreviewBoundaryState = {
+    error: null,
+  };
+
+  static getDerivedStateFromError(error: unknown): EditorPreviewBoundaryState {
+    return {
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+
+  componentDidCatch(error: unknown, info: ErrorInfo) {
+    console.warn("Editor preview crashed:", error, info.componentStack);
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="editor-crash-state">
+          <strong>Unable to render this editor.</strong>
+          <span>{this.state.error}</span>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
 }

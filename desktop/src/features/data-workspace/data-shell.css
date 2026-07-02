@@ -1,0 +1,387 @@
+.data-workspace,
+.changes-workspace,
+.utility-workspace {
+  display: flex;
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--po-canvas);
+}
+
+.data-content {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--data-explorer-width, clamp(282px, 26vw, 360px)) minmax(0, 1fr);
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--po-canvas);
+}
+
+.data-content[data-explorer-collapsed="true"] {
+  grid-template-columns: 0 minmax(0, 1fr);
+}
+
+.explorer-column {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--po-sidebar);
+  border-right: 1px solid var(--po-divider);
+}
+
+.data-content[data-explorer-collapsed="true"] .explorer-column {
+  border-right: 0;
+  background: transparent;
+  pointer-events: none;
+}
+
+.data-explorer-view-frame,
+.data-main-view-frame {
+  display: flex;
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.data-explorer-view-frame {
+  background: var(--po-sidebar);
+}
+
+.data-main-view-frame {
+  background: var(--po-canvas);
+}
+
+.data-explorer-fill,
+.data-explorer-collapsed-fill {
+  flex: 1;
+  min-height: 0;
+}
+
+.data-explorer-collapsed-slot {
+  position: absolute;
+  left: 8px;
+  bottom: 4px;
+  z-index: 40;
+  display: flex;
+  pointer-events: auto;
+}
+
+.data-explorer-resizer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 35;
+  width: 9px;
+  transform: translateX(4px);
+  cursor: col-resize;
+  touch-action: none;
+  -webkit-app-region: no-drag;
+}
+
+.data-explorer-resizer::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  width: 1px;
+  background: transparent;
+  content: "";
+  transition: background 120ms ease, box-shadow 120ms ease;
+}
+
+.data-explorer-resizer:hover::after,
+.data-explorer-resizer:focus-visible::after {
+  background: var(--po-border-strong);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--po-border-strong) 35%, transparent);
+}
+
+body.data-sidebar-resizing,
+body.data-sidebar-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
+.desktop-explorer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--desktop-sidebar-toolbar-height);
+  min-height: var(--desktop-sidebar-toolbar-height);
+  padding: 0 var(--desktop-sidebar-toolbar-padding-right) 0 var(--desktop-sidebar-toolbar-padding-left);
+  border-bottom: 1px solid var(--po-divider);
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.desktop-explorer-toolbar > span {
+  color: var(--po-text-muted);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.desktop-explorer-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  -webkit-app-region: no-drag;
+}
+
+.desktop-explorer-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--desktop-control-radius);
+  background: transparent;
+  color: var(--po-text-muted);
+}
+
+.desktop-explorer-actions button:hover {
+  background: var(--po-hover);
+  color: var(--po-text);
+}
+
+.desktop-sidebar-footer-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: calc(var(--desktop-sidebar-nav-height) - 1px);
+  min-width: 0;
+  padding: 3px 8px 4px;
+}
+
+.desktop-sidebar-footer-bar.actions-only {
+  justify-content: space-between;
+}
+
+.desktop-sidebar-footer-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 3px;
+  -webkit-app-region: no-drag;
+}
+
+.desktop-sidebar-footer-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--desktop-sidebar-control-size);
+  height: var(--desktop-sidebar-control-size);
+  border: 0;
+  border-radius: var(--desktop-control-radius);
+  background: transparent;
+  color: var(--po-text-muted);
+}
+
+.desktop-sidebar-footer-button:hover {
+  background: var(--po-hover);
+  color: var(--po-text);
+}
+
+.desktop-sidebar-footer-button.active {
+  background: var(--po-selected);
+  color: var(--po-text);
+}
+
+.desktop-sidebar-top-navigation {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+  min-height: var(--desktop-sidebar-nav-height);
+  padding: 4px 4px 4px 8px;
+  border-bottom: 1px solid var(--po-divider);
+  background: var(--po-sidebar);
+  -webkit-app-region: no-drag;
+}
+
+.desktop-sidebar-top-navigation.horizontal {
+  align-items: center;
+  height: var(--desktop-sidebar-nav-height);
+}
+
+.desktop-sidebar-top-navigation.vertical {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.desktop-sidebar-top-navigation-list {
+  display: flex;
+  justify-content: space-between;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 3px;
+}
+
+.desktop-sidebar-top-navigation.horizontal .desktop-sidebar-top-navigation-list {
+  display: flex;
+}
+
+.desktop-sidebar-top-navigation.vertical .desktop-sidebar-top-navigation-list {
+  display: grid;
+  flex: 0 0 auto;
+  width: 100%;
+}
+
+.desktop-sidebar-top-navigation-group {
+  display: flex;
+  min-width: 0;
+  gap: 3px;
+}
+
+.desktop-sidebar-top-navigation-cloud {
+  flex: 0 0 auto;
+}
+
+.desktop-sidebar-top-navigation-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  width: 100%;
+  height: var(--desktop-sidebar-control-size);
+  min-width: 0;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--desktop-control-radius);
+  background: transparent;
+  color: var(--po-text-muted);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 18px;
+  text-align: left;
+}
+
+.desktop-sidebar-top-navigation.horizontal .desktop-sidebar-top-navigation-button {
+  justify-content: center;
+  width: var(--desktop-sidebar-control-size);
+  min-width: var(--desktop-sidebar-control-size);
+  padding: 0;
+}
+
+.desktop-sidebar-top-navigation.horizontal .desktop-sidebar-top-navigation-button span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.desktop-sidebar-top-navigation-button > svg {
+  flex: 0 0 auto;
+}
+
+.desktop-sidebar-top-navigation-button span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-sidebar-top-navigation-button:hover {
+  background: var(--po-hover);
+  color: var(--po-text);
+}
+
+.desktop-sidebar-top-navigation-button.active {
+  background: var(--po-selected);
+  color: var(--po-text);
+}
+
+.desktop-sidebar-nav-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: inline-flex;
+  box-sizing: border-box;
+  min-width: 13px;
+  height: 13px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: #4599df;
+  box-shadow: 0 0 0 1px var(--po-sidebar);
+  color: var(--po-text-inverse);
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 760;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.desktop-sidebar-top-navigation.horizontal .desktop-sidebar-nav-badge {
+  top: 1px;
+  right: 1px;
+}
+
+.desktop-sidebar-top-navigation.vertical .desktop-sidebar-nav-badge {
+  top: 5px;
+  right: 5px;
+}
+
+.browser-column,
+.inspector-column,
+.change-list-panel,
+.diff-preview-panel,
+.utility-body {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.browser-column {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  background: var(--po-canvas);
+}
+
+.desktop-editor-panel {
+  position: relative;
+  overflow: hidden;
+  background: var(--po-canvas);
+}
+
+.desktop-editor-panel .empty-preview {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  min-height: 0;
+  place-items: center;
+  border-bottom: 0;
+  color: var(--po-text-muted);
+  text-align: center;
+}
+
+.cloud-grid-host {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 14px;
+}

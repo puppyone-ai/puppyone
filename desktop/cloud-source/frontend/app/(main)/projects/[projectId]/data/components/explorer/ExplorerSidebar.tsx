@@ -53,7 +53,12 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
   const sidebarFileDragCounterRef = useRef(0);
   const [isExternalFileDraggingInSidebar, setIsExternalFileDraggingInSidebar] = useState(false);
   const [activeFileDropTarget, setActiveFileDropTarget] = useState<FileImportTarget | null>(null);
-  const { isDropTarget: isRootDropTarget, dropHandlers: rootDropHandlers } = useNodeDrop({
+  const {
+    isDropTarget: isRootDropTarget,
+    isInvalidDropTarget: isRootInvalidDropTarget,
+    dropReason: rootDropReason,
+    dropHandlers: rootDropHandlers,
+  } = useNodeDrop({
     targetFolderId: null,
     onMoveNode,
   });
@@ -86,7 +91,7 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
   const rootOpenMenuAction = createMenuOpenForId === '__root__' ? createMenuOpenAction ?? null : null;
   const rootEndpoints = endpointByNodeId?.get('') ?? [];
   const isRootFileDropTarget = isExternalFileDraggingInSidebar && activeFileDropTarget?.path === null;
-  const rootHasSpecialBg = isRootDropTarget || isRootFileDropTarget || isRootHighlighted || isRootActive || rootOpenMenuAction !== null;
+  const rootHasSpecialBg = isRootDropTarget || isRootInvalidDropTarget || isRootFileDropTarget || isRootHighlighted || isRootActive || rootOpenMenuAction !== null;
   const [isRootHovered, setIsRootHovered] = useState(false);
   const isRootSoftHovered = isRootHovered && !rootHasSpecialBg;
 
@@ -184,6 +189,8 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
               borderRadius: 6,
               background: isRootDropTarget || isRootFileDropTarget
                 ? FILE_DROP_TARGET_BG
+                : isRootInvalidDropTarget
+                  ? 'color-mix(in srgb, var(--po-danger) 10%, transparent)'
                 : isRootAccessPointHighlight
                   ? 'color-mix(in srgb, var(--po-success) 14%, transparent)'
                 : isRootActive || rootOpenMenuAction
@@ -197,10 +204,14 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
                     : 'transparent',
               color: isRootDropTarget || isRootFileDropTarget
                 ? 'var(--po-text)'
+                : isRootInvalidDropTarget
+                  ? 'var(--po-danger)'
                 : isRootAccessPointHighlight ? 'var(--po-success)' : isRootActive || rootOpenMenuAction ? 'var(--po-text)' : isRootSoftHovered ? 'var(--po-text-muted)' : 'var(--po-text-muted)',
               transition: 'background 0.1s, color 0.1s',
               boxShadow: isRootDropTarget || isRootFileDropTarget
                 ? `inset 0 0 0 1px ${FILE_DROP_TARGET_BORDER}`
+                : isRootInvalidDropTarget
+                ? 'inset 0 0 0 1px color-mix(in srgb, var(--po-danger) 65%, transparent)'
                 : isRootAccessPointHighlight
                 ? 'inset 2px 0 0 0 color-mix(in srgb, var(--po-success) 90%, transparent)'
                 : 'none',
@@ -224,6 +235,7 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
             onClick={() => {
               onNavigate({ id: '', name: 'Root', type: 'folder' as ContentType });
             }}
+            title={isRootInvalidDropTarget ? rootDropReason ?? undefined : undefined}
           >
             <div
               style={{

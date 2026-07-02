@@ -1,0 +1,431 @@
+.desktop-history-detail-view {
+  background: var(--po-canvas);
+}
+
+.desktop-history-panel {
+  display: flex;
+  flex-direction: row;
+}
+
+.desktop-history-panel-tree {
+  --git-sidebar-left-gap: 5px;
+  --git-sidebar-right-gap: 5px;
+  --git-sidebar-row-width: calc(100% - var(--git-sidebar-left-gap) - var(--git-sidebar-right-gap));
+  --git-sidebar-content-left: 7px;
+  --git-sidebar-content-right: 7px;
+  --git-row-radius: var(--desktop-sidebar-row-radius);
+  position: relative;
+  display: flex;
+  width: clamp(260px, 28vw, 380px);
+  min-width: 180px;
+  min-height: 0;
+  flex: 0 0 auto;
+  flex-direction: column;
+  border-right: 1px solid var(--po-divider);
+  background: color-mix(in srgb, var(--po-sidebar) 72%, var(--po-canvas));
+  transition:
+    width 140ms ease,
+    min-width 140ms ease;
+}
+
+body.desktop-history-resizing,
+body.desktop-history-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
+body.desktop-history-resizing .desktop-history-panel-tree {
+  transition: none;
+}
+
+.desktop-history-panel-tree > .desktop-history-list {
+  min-height: 0;
+  overflow: auto;
+  padding-top: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--po-scrollbar-thumb) transparent;
+}
+
+.desktop-history-panel-tree-resizer {
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  right: -4px;
+  bottom: 0;
+  display: flex;
+  width: 8px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: transparent;
+  cursor: col-resize;
+  outline: none;
+}
+
+.desktop-history-panel-tree-resizer::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 2px;
+  border-radius: 999px;
+  background: transparent;
+  content: "";
+}
+
+.desktop-history-panel-tree-resizer svg {
+  position: relative;
+  z-index: 1;
+  opacity: 0;
+}
+
+.desktop-history-panel-tree-resizer:hover,
+.desktop-history-panel-tree-resizer:focus-visible {
+  color: var(--po-text-subtle);
+}
+
+.desktop-history-panel-tree-resizer:hover::after,
+.desktop-history-panel-tree-resizer:focus-visible::after,
+body.desktop-history-resizing .desktop-history-panel-tree-resizer::after {
+  background: color-mix(in srgb, var(--po-text-muted) 46%, var(--po-border));
+}
+
+.desktop-history-panel-tree-resizer:hover svg,
+.desktop-history-panel-tree-resizer:focus-visible svg,
+body.desktop-history-resizing .desktop-history-panel-tree-resizer svg {
+  opacity: 0.9;
+}
+
+.desktop-history-panel-detail {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.desktop-history-detail-scroll {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.desktop-git-default-state {
+  display: grid;
+  min-height: 100%;
+  place-items: center;
+  padding: var(--desktop-utility-page-padding-top) var(--desktop-utility-page-padding-inline);
+}
+
+.desktop-git-default-copy {
+  display: grid;
+  justify-items: center;
+  padding: 18px;
+  text-align: center;
+}
+
+.desktop-git-default-copy span {
+  color: var(--po-text-subtle);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+}
+
+.desktop-git-default-status {
+  width: min(100%, 420px);
+  margin-top: 14px;
+  padding: 8px 10px;
+  border: 1px solid var(--po-border-subtle);
+  border-radius: 8px;
+  color: var(--po-text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.desktop-git-default-status.danger {
+  border-color: color-mix(in srgb, var(--po-danger) 24%, transparent);
+  background: color-mix(in srgb, var(--po-danger) 7%, transparent);
+  color: var(--po-danger);
+}
+
+.desktop-commit-detail {
+  width: min(100%, 980px);
+  margin: 0 auto;
+  padding:
+    var(--desktop-utility-page-padding-top)
+    var(--desktop-utility-page-padding-inline)
+    var(--desktop-utility-page-padding-bottom);
+}
+
+.desktop-commit-summary {
+  display: grid;
+  min-width: 0;
+  gap: 9px;
+  padding-bottom: 18px;
+}
+
+.desktop-commit-id-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.desktop-commit-id-row strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--po-text);
+  font-family: var(--po-font-sans);
+  font-size: 18px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-commit-summary p {
+  color: var(--po-text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.desktop-commit-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: var(--po-text-subtle);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.desktop-commit-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 0;
+  border: 0;
+  color: var(--po-text-subtle);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.desktop-commit-stats .secondary-action,
+.desktop-commit-stats .danger-action {
+  height: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--po-border-subtle);
+  border-radius: 6px;
+  background: var(--po-panel-raised);
+  color: var(--po-text-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.desktop-commit-stats .secondary-action:hover:not(:disabled) {
+  border-color: var(--po-border);
+  background: var(--po-hover);
+  color: var(--po-text);
+}
+
+.desktop-commit-stats .danger-action {
+  border-color: color-mix(in srgb, var(--po-danger) 18%, var(--po-border-subtle));
+  background: color-mix(in srgb, var(--po-danger) 6%, var(--po-panel-raised));
+  color: var(--po-danger);
+}
+
+.desktop-commit-stats .danger-action:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--po-danger) 28%, var(--po-border));
+  background: color-mix(in srgb, var(--po-danger) 10%, var(--po-panel-raised));
+  color: var(--po-danger);
+}
+
+.desktop-commit-stats .secondary-action:disabled,
+.desktop-commit-stats .danger-action:disabled {
+  border-color: var(--po-border-subtle);
+  background: var(--po-control);
+  color: var(--po-text-disabled);
+}
+
+.desktop-commit-stats .added,
+.desktop-file-diff-stat .added {
+  color: var(--po-success);
+}
+
+.desktop-commit-stats .deleted,
+.desktop-file-diff-stat .deleted {
+  color: var(--po-danger);
+}
+
+.desktop-working-file-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.desktop-working-file-actions .secondary-action,
+.desktop-working-file-actions .danger-action {
+  height: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--po-border-subtle);
+  border-radius: 6px;
+  background: var(--po-panel-raised);
+  color: var(--po-text-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.desktop-working-file-actions .secondary-action:hover:not(:disabled) {
+  border-color: var(--po-border);
+  background: var(--po-hover);
+  color: var(--po-text);
+}
+
+.desktop-working-file-actions .danger-action {
+  border-color: color-mix(in srgb, var(--po-danger) 18%, var(--po-border-subtle));
+  background: color-mix(in srgb, var(--po-danger) 6%, var(--po-panel-raised));
+  color: var(--po-danger);
+}
+
+.desktop-working-file-actions .danger-action:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--po-danger) 28%, var(--po-border));
+  background: color-mix(in srgb, var(--po-danger) 10%, var(--po-panel-raised));
+  color: var(--po-danger);
+}
+
+.desktop-working-file-actions .secondary-action:disabled,
+.desktop-working-file-actions .danger-action:disabled {
+  border-color: var(--po-border-subtle);
+  background: var(--po-control);
+  color: var(--po-text-disabled);
+}
+
+.desktop-initial-repo-state {
+  display: flex;
+  width: min(100%, 780px);
+  margin: 0 auto;
+  padding:
+    calc(var(--desktop-utility-page-padding-top) + 28px)
+    var(--desktop-utility-page-padding-inline)
+    var(--desktop-utility-page-padding-bottom);
+}
+
+.desktop-initial-repo-state.compact {
+  width: min(100%, 720px);
+  padding-top: calc(var(--desktop-utility-page-padding-top) + 8px);
+}
+
+.desktop-initial-repo-card {
+  display: grid;
+  width: 100%;
+  gap: 16px;
+  padding: 18px 20px;
+  border: 1px solid var(--po-border-subtle);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--po-panel) 82%, transparent);
+}
+
+.desktop-initial-repo-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.desktop-initial-repo-header > div {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 2px;
+}
+
+.desktop-initial-repo-header > div > span {
+  color: var(--po-text-subtle);
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: uppercase;
+}
+
+.desktop-initial-repo-header strong {
+  overflow: hidden;
+  color: var(--po-text);
+  font-size: 15px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-initial-repo-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  border: 1px solid var(--po-border-subtle);
+  border-radius: 8px;
+  background: var(--po-control);
+  color: var(--po-text-muted);
+}
+
+.desktop-initial-repo-card > p {
+  max-width: 620px;
+  color: var(--po-text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.55;
+}
+
+.desktop-initial-repo-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border: 1px solid var(--po-border-subtle);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.desktop-initial-repo-metrics div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 11px 12px;
+  background: color-mix(in srgb, var(--po-canvas) 74%, transparent);
+}
+
+.desktop-initial-repo-metrics div + div {
+  border-left: 1px solid var(--po-border-subtle);
+}
+
+.desktop-initial-repo-metrics span {
+  color: var(--po-text-subtle);
+  font-size: 11px;
+  font-weight: 620;
+}
+
+.desktop-initial-repo-metrics strong {
+  overflow: hidden;
+  color: var(--po-text);
+  font-size: 13px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-initial-repo-status {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--po-control);
+  color: var(--po-text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.desktop-initial-repo-status.danger {
+  background: color-mix(in srgb, var(--po-danger) 8%, transparent);
+  color: var(--po-danger);
+}

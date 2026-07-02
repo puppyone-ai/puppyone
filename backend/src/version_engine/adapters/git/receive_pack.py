@@ -205,7 +205,7 @@ async def receive_pack_response_from_path(
                     command.ref,
                     outcome="rejected",
                     message="puppyone-rejected: client merge commits are not supported; "
-                            "fetch and rebase, or resolve through PuppyOne review",
+                            "fetch and rebase onto the remote main branch",
                     capabilities=command.capabilities,
                 )
 
@@ -468,12 +468,13 @@ async def receive_pack_response_from_path(
 
 _LFS_POINTER_PREAMBLE = b"version https://git-lfs.github.com/spec/v1"
 _NON_FAST_FORWARD_REMOTE_LINES = [
+    "PuppyOne-Code: NON_FAST_FORWARD",
     "PuppyOne: Updates were rejected because the remote contains work that "
     "you do not have locally.",
-    "PuppyOne: Fetch first, then rebase your work onto origin/main before "
+    "PuppyOne: Fetch first, then rebase your work onto the remote main branch before "
     "pushing again.",
-    "PuppyOne: Scope remotes do not use force push as a server-side merge "
-    "proposal.",
+    "PuppyOne: Do not force push. PuppyOne Cloud only accepts fast-forward "
+    "updates to main.",
 ]
 
 

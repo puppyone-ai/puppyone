@@ -1,11 +1,12 @@
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { HighlightStyle, bracketMatching, indentOnInput, syntaxHighlighting } from "@codemirror/language";
-import { EditorSelection, EditorState, StateField, type Extension, type Range } from "@codemirror/state";
+import { EditorSelection, EditorState, Facet, StateField, type Extension, type Range } from "@codemirror/state";
 import {
   Decoration,
   type DecorationSet,
   EditorView,
+  type Rect,
   WidgetType,
   dropCursor,
   highlightActiveLine,
@@ -14,6 +15,21 @@ import {
   placeholder,
 } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
+import { renderMarkdownInlineInto } from "./rendering/inlineRenderer";
+import {
+  getMarkdownTableBlock,
+  isMarkdownTableLine,
+  type MarkdownTableCell,
+  type MarkdownTableRow,
+} from "./rendering/tableModel";
+import { getMarkdownTaskLine, type MarkdownTaskLine } from "./rendering/taskModel";
+import { getMarkdownHtmlBlock, type MarkdownHtmlBlock } from "./rendering/htmlBlockModel";
+import { isSafeHref } from "./rendering/markdownHtmlPolicy";
+import { createSanitizedBlockHtmlFragment } from "./rendering/sanitizeHtml";
+import { findMarkdownLinkTokens, isExternalMarkdownHref } from "./links/markdownLinkModel";
+import { findWikiLinkTokens } from "./links/wikiLinkModel";
+import { getHtmlPreviewInteractionCss } from "../htmlPreviewInteraction";
+import type { MarkdownHtmlTrustMode, MarkdownLinkGraph } from "../viewerTypes";
 
 type LivePreviewDecorations = {
   decorations: DecorationSet;
@@ -30,13 +46,6 @@ type OccupiedRange = {
   to: number;
 };
 
-type MarkdownTableBlock = {
-  from: number;
-  to: number;
-  nextLineNumber: number;
-  rows: MarkdownTableRow[];
-};
-
 type MarkdownCodeBlock = {
   from: number;
   to: number;
@@ -45,18 +54,23 @@ type MarkdownCodeBlock = {
   code: string;
 };
 
-type MarkdownTableCell = {
-  text: string;
-  from: number;
-  to: number;
-  editable: boolean;
-};
+const markdownHtmlTrustModeFacet = Facet.define<MarkdownHtmlTrustMode, MarkdownHtmlTrustMode>({
+  combine(values) {
+    return values.length > 0 ? values[values.length - 1] : "safe";
+  },
+});
 
-type MarkdownTableRow = {
-  cells: MarkdownTableCell[];
-  header: boolean;
-  lineTo: number;
-};
+const markdownLinkGraphFacet = Facet.define<MarkdownLinkGraph | null, MarkdownLinkGraph | null>({
+  combine(values) {
+    return values.length > 0 ? values[values.length - 1] : null;
+  },
+});
+
+const markdownDocumentPathFacet = Facet.define<string, string>({
+  combine(values) {
+    return values.length > 0 ? values[values.length - 1] : "";
+  },
+});
 
 export function markdownCodeMirrorBaseExtensions(readOnly: boolean): Extension[] {
   return [
@@ -68,6 +82,11 @@ export function markdownCodeMirrorBaseExtensions(readOnly: boolean): Extension[]
     markdown({ base: markdownLanguage }),
     syntaxHighlighting(puppyMarkdownHighlightStyle),
     EditorView.lineWrapping,
+    EditorView.contentAttributes.of({
+      spellcheck: "false",
+      autocorrect: "off",
+      autocapitalize: "off",
+    }),
     highlightActiveLine(),
     keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
     placeholder(readOnly ? "" : "Start writing..."),
@@ -75,8 +94,18 @@ export function markdownCodeMirrorBaseExtensions(readOnly: boolean): Extension[]
   ];
 }
 
-export function markdownLivePreviewExtension(): Extension {
-  return markdownLivePreviewDecorations;
+export function markdownLivePreviewExtension(
+  htmlTrustMode: MarkdownHtmlTrustMode = "safe",
+  markdownLinkGraph: MarkdownLinkGraph | null = null,
+  documentPath = "",
+): Extension {
+  return [
+    markdownHtmlTrustModeFacet.of(htmlTrustMode),
+    markdownLinkGraphFacet.of(markdownLinkGraph),
+    markdownDocumentPathFacet.of(documentPath),
+    markdownLinkOpenHandler,
+    markdownLivePreviewDecorations,
+  ];
 }
 
 const puppyMarkdownEditorTheme = EditorView.theme({
@@ -114,7 +143,7 @@ const markdownLivePreviewDecorations = StateField.define<LivePreviewDecorations>
     return buildMarkdownDecorations(state);
   },
   update(decorations, transaction) {
-    if (transaction.docChanged || transaction.selection || transaction.reconfigured) {
+    if (transaction.docChanged || transaction.reconfigured) {
       return buildMarkdownDecorations(transaction.state);
     }
     return {
@@ -130,13 +159,123 @@ const markdownLivePreviewDecorations = StateField.define<LivePreviewDecorations>
   },
 });
 
+let suppressNextMouseLinkClickUntil = 0;
+
+const markdownLinkOpenHandler = EditorView.domEventHandlers({
+  mousedown(event, view) {
+    if (event.button !== 0) return false;
+    const opened = openMarkdownLinkFromEvent(event, view);
+    if (opened) suppressNextMouseLinkClickUntil = Date.now() + 700;
+    return opened;
+  },
+  click(event, view) {
+    if (
+      event.detail > 0 &&
+      suppressNextMouseLinkClickUntil >= Date.now() &&
+      getMarkdownLinkElementFromEvent(event, view)
+    ) {
+      suppressNextMouseLinkClickUntil = 0;
+      event.preventDefault();
+      event.stopPropagation();
+      return true;
+    }
+    return openMarkdownLinkFromEvent(event, view);
+  },
+  keydown(event, view) {
+    if (event.key !== "Enter") return false;
+    const linkElement = getMarkdownLinkElementFromEvent(event, view);
+    if (!linkElement) return false;
+    return openMarkdownLinkFromEvent(event, view);
+  },
+});
+
+function openMarkdownLinkFromEvent(event: Event, view: EditorView): boolean {
+  if (event.defaultPrevented) return false;
+  const linkElement = getMarkdownLinkElementFromEvent(event, view);
+  if (!linkElement) return false;
+
+  const opened = openMarkdownLinkElement(linkElement, view);
+  if (!opened) return false;
+
+  event.preventDefault();
+  event.stopPropagation();
+  return true;
+}
+
+function getMarkdownLinkElementFromEvent(event: Event, view: EditorView): HTMLElement | null {
+  const targetElement = getEventTargetElement(event.target);
+  if (!targetElement) return null;
+
+  const linkElement = targetElement.closest<HTMLElement>(
+    ".cm-md-wiki-link-label[data-wiki-target], .cm-md-link-label[data-md-href]",
+  );
+  if (!linkElement || !view.dom.contains(linkElement)) return null;
+  return linkElement;
+}
+
+function openMarkdownLinkElement(linkElement: HTMLElement, view: EditorView): boolean {
+  const linkGraph = view.state.facet(markdownLinkGraphFacet);
+  const sourcePath = view.state.facet(markdownDocumentPathFacet);
+  const wikiTarget = linkElement.dataset.wikiTarget;
+  if (wikiTarget) {
+    if (!linkGraph?.openWikiLink) return false;
+
+    const resolvedTarget = linkGraph.resolveWikiLink(sourcePath, wikiTarget);
+    if (!resolvedTarget.exists && (!resolvedTarget.candidatePaths || resolvedTarget.candidatePaths.length === 0)) {
+      return false;
+    }
+
+    linkGraph.openWikiLink(resolvedTarget, sourcePath);
+    return true;
+  }
+
+  const href = linkElement.dataset.mdHref;
+  if (!href) return false;
+
+  if (isExternalMarkdownHref(href) && isSafeHref(href)) {
+    return openExternalMarkdownHref(href, view);
+  }
+
+  const resolvedTarget = linkGraph?.resolveMarkdownLink(sourcePath, href) ?? null;
+  if (!resolvedTarget || !linkGraph?.openWikiLink) return false;
+  if (!resolvedTarget.exists && (!resolvedTarget.candidatePaths || resolvedTarget.candidatePaths.length === 0)) {
+    return false;
+  }
+
+  linkGraph.openWikiLink(resolvedTarget, sourcePath);
+  return true;
+}
+
+function openExternalMarkdownHref(href: string, view: EditorView): boolean {
+  const linkGraph = view.state.facet(markdownLinkGraphFacet);
+  if (linkGraph?.openExternalUrl) {
+    linkGraph.openExternalUrl(href);
+    return true;
+  }
+
+  window.open(href, "_blank", "noopener,noreferrer");
+  return true;
+}
+
+function getEventTargetElement(target: EventTarget | null): Element | null {
+  if (target instanceof Element) return target;
+  if (target instanceof Node) return target.parentElement;
+  return null;
+}
+
 function buildMarkdownDecorations(state: EditorState): LivePreviewDecorations {
   const builders: MarkdownDecorationBuilders = {
     decorations: [],
     atomicRanges: [],
   };
 
-  addMarkdownBlockAndLineDecorations(state, builders);
+  addMarkdownBlockAndLineDecorations(
+    state,
+    builders,
+    state.facet(markdownHtmlTrustModeFacet),
+    state.facet(markdownLinkGraphFacet),
+    state.facet(markdownDocumentPathFacet),
+  );
 
   return {
     decorations: builders.decorations.length > 0 ? Decoration.set(builders.decorations, true) : Decoration.none,
@@ -144,7 +283,13 @@ function buildMarkdownDecorations(state: EditorState): LivePreviewDecorations {
   };
 }
 
-function addMarkdownBlockAndLineDecorations(state: EditorState, builders: MarkdownDecorationBuilders) {
+function addMarkdownBlockAndLineDecorations(
+  state: EditorState,
+  builders: MarkdownDecorationBuilders,
+  htmlTrustMode: MarkdownHtmlTrustMode,
+  markdownLinkGraph: MarkdownLinkGraph | null,
+  documentPath: string,
+) {
   const lineCount = state.doc.lines;
 
   for (let lineNumber = 1; lineNumber <= lineCount;) {
@@ -164,12 +309,27 @@ function addMarkdownBlockAndLineDecorations(state: EditorState, builders: Markdo
       continue;
     }
 
+    const htmlBlock = getMarkdownHtmlBlock(state, line.number);
+    if (htmlBlock) {
+      addReplacementDecoration(
+        builders,
+        Decoration.replace({
+          widget: new HtmlBlockWidget(htmlBlock, htmlTrustMode),
+          block: true,
+        }),
+        htmlBlock.from,
+        htmlBlock.to,
+      );
+      lineNumber = htmlBlock.nextLineNumber;
+      continue;
+    }
+
     const tableBlock = getMarkdownTableBlock(state, line.number);
     if (tableBlock) {
       addReplacementDecoration(
         builders,
         Decoration.replace({
-          widget: new MarkdownTableWidget(tableBlock.rows),
+          widget: new MarkdownTableWidget(tableBlock.rows, markdownLinkGraph, documentPath),
           block: true,
         }),
         tableBlock.from,
@@ -179,7 +339,7 @@ function addMarkdownBlockAndLineDecorations(state: EditorState, builders: Markdo
       continue;
     }
 
-    decorateMarkdownLine(line.from, line.to, line.text, builders);
+    decorateMarkdownLine(line.from, line.to, line.text, builders, markdownLinkGraph, documentPath);
     lineNumber += 1;
   }
 }
@@ -189,10 +349,18 @@ function decorateMarkdownLine(
   lineTo: number,
   text: string,
   builders: MarkdownDecorationBuilders,
+  markdownLinkGraph: MarkdownLinkGraph | null,
+  documentPath: string,
 ) {
+  const taskLine = getMarkdownTaskLine({ from: lineFrom, to: lineTo, text });
   const lineClasses = getMarkdownLineClasses(text);
   if (lineClasses) {
-    builders.decorations.push(Decoration.line({ class: lineClasses }).range(lineFrom));
+    builders.decorations.push(
+      Decoration.line({
+        class: lineClasses,
+        attributes: taskLine ? { style: `--md-list-depth:${taskLine.depth};` } : undefined,
+      }).range(lineFrom),
+    );
   }
 
   const hrMatch = /^(\s{0,3}(?:-{3,}|\*{3,}|_{3,})\s*)$/.exec(text);
@@ -219,21 +387,22 @@ function decorateMarkdownLine(
     addHiddenDecoration(builders, lineFrom, lineFrom + blockquoteMarker[1].length);
   }
 
-  const taskMatch = /^(\s*)([-*+]|\d+[.)])\s+(\[[ xX]\])\s?/.exec(text);
-  if (taskMatch) {
-    const checkboxFrom = lineFrom + taskMatch[1].length + taskMatch[2].length + 1;
-    const checkboxTo = checkboxFrom + taskMatch[3].length;
-    const prefixTo = lineFrom + taskMatch[0].length;
-    addReplacementDecoration(
-      builders,
-      Decoration.replace({
-        widget: new TaskCheckboxWidget(taskMatch[3].toLowerCase() === "[x]", checkboxFrom, getListDepth(taskMatch[1])),
-        inclusive: false,
-      }),
-      lineFrom,
-      prefixTo,
+  if (taskLine) {
+    addHiddenDecoration(builders, taskLine.prefixFrom, taskLine.prefixTo);
+    builders.decorations.push(
+      Decoration.widget({
+        widget: new TaskCheckboxWidget(taskLine),
+        side: -1,
+      }).range(taskLine.prefixTo),
     );
-    addInlineMarkdownDecorations(lineFrom, text, builders, [{ from: lineFrom, to: checkboxTo }]);
+    addInlineMarkdownDecorations(
+      lineFrom,
+      text,
+      builders,
+      markdownLinkGraph,
+      documentPath,
+      [{ from: taskLine.prefixFrom, to: taskLine.prefixTo }],
+    );
     return;
   }
 
@@ -250,7 +419,7 @@ function decorateMarkdownLine(
     );
   }
 
-  addInlineMarkdownDecorations(lineFrom, text, builders);
+  addInlineMarkdownDecorations(lineFrom, text, builders, markdownLinkGraph, documentPath);
 }
 
 function getMarkdownLineClasses(text: string): string {
@@ -276,15 +445,18 @@ function addInlineMarkdownDecorations(
   lineFrom: number,
   text: string,
   builders: MarkdownDecorationBuilders,
+  markdownLinkGraph: MarkdownLinkGraph | null,
+  documentPath: string,
   initialOccupied: OccupiedRange[] = [],
 ) {
   const occupied = [...initialOccupied];
 
+  addDelimiterDecorations(lineFrom, text, /(`)([^`\n]+)(`)/g, 1, "cm-md-syntax-monospace", builders, occupied);
   addImageDecorations(lineFrom, text, builders, occupied);
-  addLinkDecorations(lineFrom, text, builders, occupied);
+  addWikiLinkDecorations(lineFrom, text, builders, occupied, markdownLinkGraph, documentPath);
+  addLinkDecorations(lineFrom, text, builders, occupied, markdownLinkGraph, documentPath);
   addDelimiterDecorations(lineFrom, text, /(\*\*|__)(\S(?:.*?\S)?)\1/g, 1, "cm-md-syntax-strong", builders, occupied);
   addDelimiterDecorations(lineFrom, text, /(~~)(\S(?:.*?\S)?)(~~)/g, 1, "cm-md-syntax-strikethrough", builders, occupied);
-  addDelimiterDecorations(lineFrom, text, /(`)([^`\n]+)(`)/g, 1, "cm-md-syntax-monospace", builders, occupied);
   addItalicDecorations(lineFrom, text, builders, occupied);
 }
 
@@ -314,29 +486,107 @@ function addImageDecorations(
   }
 }
 
+function addWikiLinkDecorations(
+  lineFrom: number,
+  text: string,
+  builders: MarkdownDecorationBuilders,
+  occupied: OccupiedRange[],
+  markdownLinkGraph: MarkdownLinkGraph | null,
+  documentPath: string,
+) {
+  for (const token of findWikiLinkTokens(text)) {
+    const matchFrom = lineFrom + token.from;
+    const matchTo = lineFrom + token.to;
+    if (!reserveRange(occupied, matchFrom, matchTo)) continue;
+
+    const visibleFrom = lineFrom + (token.aliasFrom ?? token.targetFrom);
+    const visibleTo = lineFrom + (token.aliasTo ?? token.targetTo);
+    if (visibleFrom >= visibleTo) continue;
+
+    const resolvedTarget = markdownLinkGraph?.resolveWikiLink(documentPath, token.target) ?? null;
+    const classes = [
+      "cm-md-syntax-link",
+      "cm-md-wiki-link-label",
+      resolvedTarget?.exists ? "is-resolved" : "is-missing",
+      resolvedTarget?.ambiguous ? "is-ambiguous" : "",
+    ].filter(Boolean).join(" ");
+
+    addHiddenDecoration(builders, matchFrom, visibleFrom);
+    builders.decorations.push(
+      Decoration.mark({
+        class: classes,
+        attributes: {
+          "data-wiki-target": token.target,
+          role: "link",
+          tabindex: "0",
+          "aria-label": getWikiLinkTitle(resolvedTarget, token.target),
+        },
+      }).range(visibleFrom, visibleTo),
+    );
+    addHiddenDecoration(builders, visibleTo, matchTo);
+  }
+}
+
 function addLinkDecorations(
   lineFrom: number,
   text: string,
   builders: MarkdownDecorationBuilders,
   occupied: OccupiedRange[],
+  markdownLinkGraph: MarkdownLinkGraph | null,
+  documentPath: string,
 ) {
-  const pattern = /(!?)\[([^\]\n]+)\]\(([^)\n]+)\)/g;
-
-  for (const match of text.matchAll(pattern)) {
-    if (match.index == null || match[1] === "!") continue;
-    const label = match[2];
-    if (!label) continue;
-
-    const matchFrom = lineFrom + match.index;
-    const labelFrom = matchFrom + 1;
-    const labelTo = labelFrom + label.length;
-    const matchTo = matchFrom + match[0].length;
+  for (const token of findMarkdownLinkTokens(text)) {
+    const matchFrom = lineFrom + token.from;
+    const labelFrom = lineFrom + token.labelFrom;
+    const labelTo = lineFrom + token.labelTo;
+    const matchTo = lineFrom + token.to;
     if (!reserveRange(occupied, matchFrom, matchTo)) continue;
 
+    const resolvedTarget = markdownLinkGraph?.resolveMarkdownLink(documentPath, token.href) ?? null;
+    const linkClasses = [
+      "cm-md-syntax-link",
+      "cm-md-link-label",
+      resolvedTarget ? "cm-md-document-link-label" : "",
+      resolvedTarget?.exists ? "is-resolved" : "",
+      resolvedTarget && !resolvedTarget.exists ? "is-missing" : "",
+      resolvedTarget?.ambiguous ? "is-ambiguous" : "",
+      isExternalMarkdownHref(token.href) && isSafeHref(token.href) ? "is-external" : "",
+    ].filter(Boolean).join(" ");
+
     addHiddenDecoration(builders, matchFrom, labelFrom);
-    builders.decorations.push(Decoration.mark({ class: "cm-md-syntax-link cm-md-link-label" }).range(labelFrom, labelTo));
+    builders.decorations.push(
+      Decoration.mark({
+        class: linkClasses,
+        attributes: {
+          "data-md-href": token.href,
+          role: "link",
+          tabindex: "0",
+          "aria-label": getMarkdownLinkTitle(resolvedTarget, token.href),
+        },
+      }).range(labelFrom, labelTo),
+    );
     addHiddenDecoration(builders, labelTo, matchTo);
   }
+}
+
+function getWikiLinkTitle(
+  resolvedTarget: ReturnType<MarkdownLinkGraph["resolveWikiLink"]> | null,
+  target: string,
+): string {
+  if (!resolvedTarget) return target;
+  if (!resolvedTarget.exists) return `Missing linked note: ${target}`;
+  if (resolvedTarget.ambiguous) return `${resolvedTarget.path} (ambiguous title match)`;
+  return resolvedTarget.path ?? target;
+}
+
+function getMarkdownLinkTitle(
+  resolvedTarget: ReturnType<MarkdownLinkGraph["resolveMarkdownLink"]> | null,
+  href: string,
+): string {
+  if (!resolvedTarget) return href;
+  if (!resolvedTarget.exists) return `Missing linked note: ${href}`;
+  if (resolvedTarget.ambiguous) return `${resolvedTarget.path} (ambiguous title match)`;
+  return resolvedTarget.path ?? href;
 }
 
 function addDelimiterDecorations(
@@ -394,7 +644,15 @@ function addItalicDecorations(
 
 function addHiddenDecoration(builders: MarkdownDecorationBuilders, from: number, to: number) {
   if (from >= to) return;
-  addReplacementDecoration(builders, Decoration.replace({}), from, to);
+  addReplacementDecoration(
+    builders,
+    Decoration.replace({
+      widget: hiddenMarkdownSyntaxWidget,
+      inclusive: false,
+    }),
+    from,
+    to,
+  );
 }
 
 function addReplacementDecoration(
@@ -462,129 +720,6 @@ function getMarkdownCodeBlock(state: EditorState, lineNumber: number): MarkdownC
   };
 }
 
-function getMarkdownTableBlock(state: EditorState, lineNumber: number): MarkdownTableBlock | null {
-  const doc = state.doc;
-  if (lineNumber >= doc.lines) return null;
-
-  const headerLine = doc.line(lineNumber);
-  const delimiterLine = doc.line(lineNumber + 1);
-  if (!isTableHeaderLine(headerLine.text) || !isTableDelimiterLine(delimiterLine.text)) return null;
-
-  const rows: MarkdownTableRow[] = [{
-    cells: splitTableCellsWithPositions(headerLine),
-    header: true,
-    lineTo: headerLine.to,
-  }];
-  let lastLine = delimiterLine;
-  let nextLineNumber = lineNumber + 2;
-
-  while (nextLineNumber <= doc.lines) {
-    const rowLine = doc.line(nextLineNumber);
-    if (!isMarkdownTableLine(rowLine.text) || isTableDelimiterLine(rowLine.text)) break;
-    rows.push({
-      cells: splitTableCellsWithPositions(rowLine),
-      header: false,
-      lineTo: rowLine.to,
-    });
-    lastLine = rowLine;
-    nextLineNumber += 1;
-  }
-
-  if (rows.length < 2) return null;
-
-  return {
-    from: headerLine.from,
-    to: lastLine.to,
-    nextLineNumber,
-    rows: normalizeTableRows(rows),
-  };
-}
-
-function isMarkdownTableLine(text: string): boolean {
-  const trimmed = text.trim();
-  if (!trimmed.includes("|")) return false;
-  if (/^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test(trimmed)) return true;
-  return /^\|.+\|$/.test(trimmed);
-}
-
-function isTableHeaderLine(text: string): boolean {
-  return splitTableCells(text).length >= 2;
-}
-
-function isTableDelimiterLine(text: string): boolean {
-  const cells = splitTableCells(text);
-  return cells.length >= 2 && cells.every((cell) => /^:?-{3,}:?$/.test(cell.trim()));
-}
-
-function splitTableCells(text: string): string[] {
-  const trimmed = text.trim();
-  if (!trimmed.includes("|")) return [];
-  const withoutEdgePipes = trimmed.replace(/^\|/, "").replace(/\|$/, "");
-  return withoutEdgePipes.split("|").map((cell) => cell.trim());
-}
-
-function splitTableCellsWithPositions(line: { from: number; to: number; text: string }): MarkdownTableCell[] {
-  const text = line.text;
-  const pipeIndexes = Array.from(text.matchAll(/\|/g), (match) => match.index).filter((index): index is number => index != null);
-  if (pipeIndexes.length === 0) return [];
-
-  const firstContentIndex = text.search(/\S/);
-  const lastContentIndex = findLastNonWhitespaceIndex(text);
-  const hasLeadingPipe = firstContentIndex >= 0 && text[firstContentIndex] === "|";
-  const hasTrailingPipe = lastContentIndex >= 0 && text[lastContentIndex] === "|";
-  const boundaries: number[] = [];
-
-  if (hasLeadingPipe) {
-    boundaries.push(pipeIndexes[0]);
-    boundaries.push(...pipeIndexes.slice(1));
-  } else {
-    boundaries.push(-1, ...pipeIndexes);
-  }
-
-  if (!hasTrailingPipe) {
-    boundaries.push(text.length);
-  }
-
-  const cells: MarkdownTableCell[] = [];
-  for (let index = 0; index < boundaries.length - 1; index += 1) {
-    const rawFrom = Math.max(0, boundaries[index] + 1);
-    const rawTo = Math.min(text.length, boundaries[index + 1]);
-    const raw = text.slice(rawFrom, rawTo);
-    const leadingWhitespaceLength = raw.match(/^\s*/)?.[0].length ?? 0;
-    const trailingWhitespaceLength = raw.match(/\s*$/)?.[0].length ?? 0;
-    const cellFrom = line.from + rawFrom + leadingWhitespaceLength;
-    const cellTo = line.from + rawTo - trailingWhitespaceLength;
-    cells.push({
-      text: raw.trim(),
-      from: cellFrom,
-      to: Math.max(cellFrom, cellTo),
-      editable: true,
-    });
-  }
-
-  return cells;
-}
-
-function findLastNonWhitespaceIndex(text: string): number {
-  for (let index = text.length - 1; index >= 0; index -= 1) {
-    if (!/\s/.test(text[index])) return index;
-  }
-  return -1;
-}
-
-function normalizeTableRows(rows: MarkdownTableRow[]): MarkdownTableRow[] {
-  const width = Math.max(...rows.map((row) => row.cells.length));
-  return rows.map((row) => ({
-    ...row,
-    cells: Array.from({ length: width }, (_, index) => row.cells[index] ?? {
-      text: "",
-      from: row.lineTo,
-      to: row.lineTo,
-      editable: false,
-    }),
-  }));
-}
-
 class ListMarkerWidget extends WidgetType {
   constructor(
     private readonly marker: string,
@@ -604,13 +739,36 @@ class ListMarkerWidget extends WidgetType {
     marker.textContent = this.marker;
     return marker;
   }
+
+  coordsAt(dom: HTMLElement, pos: number, side: number): Rect | null {
+    return getInlineWidgetTextCoords(dom, getInlineWidgetEdgeX(dom, pos, side));
+  }
 }
 
+class HiddenMarkdownSyntaxWidget extends WidgetType {
+  eq(widget: WidgetType): boolean {
+    return widget instanceof HiddenMarkdownSyntaxWidget;
+  }
+
+  toDOM(): HTMLElement {
+    const marker = document.createElement("span");
+    marker.className = "cm-md-hidden-syntax-widget";
+    marker.setAttribute("aria-hidden", "true");
+    return marker;
+  }
+
+  coordsAt(dom: HTMLElement, pos: number, side: number): Rect | null {
+    return getInlineWidgetTextCoords(dom, getInlineWidgetEdgeX(dom, pos, side));
+  }
+}
+
+const hiddenMarkdownSyntaxWidget = new HiddenMarkdownSyntaxWidget();
+
 class TaskCheckboxWidget extends WidgetType {
+  private pointerDown: { x: number; y: number } | null = null;
+
   constructor(
-    private readonly checked: boolean,
-    private readonly from: number,
-    private readonly depth: number,
+    private readonly task: MarkdownTaskLine,
   ) {
     super();
   }
@@ -618,43 +776,154 @@ class TaskCheckboxWidget extends WidgetType {
   eq(widget: WidgetType): boolean {
     return (
       widget instanceof TaskCheckboxWidget &&
-      widget.checked === this.checked &&
-      widget.from === this.from &&
-      widget.depth === this.depth
+      widget.task.checked === this.task.checked &&
+      widget.task.depth === this.task.depth &&
+      widget.task.checkboxFrom === this.task.checkboxFrom &&
+      widget.task.checkboxTo === this.task.checkboxTo
     );
   }
 
   toDOM(view: EditorView): HTMLElement {
-    const checkbox = document.createElement("button");
-    checkbox.type = "button";
-    checkbox.className = this.checked ? "cm-md-task-checkbox is-checked" : "cm-md-task-checkbox";
-    checkbox.style.setProperty("--md-list-depth", String(this.depth));
-    checkbox.setAttribute("aria-label", this.checked ? "Mark task incomplete" : "Mark task complete");
+    const wrapper = document.createElement("span");
+    wrapper.className = "cm-md-task-checkbox-widget";
+    wrapper.style.setProperty("--md-list-depth", String(this.task.depth));
+
+    const checkbox = document.createElement("span");
+    checkbox.role = "checkbox";
+    checkbox.className = this.task.checked ? "cm-md-task-checkbox is-checked" : "cm-md-task-checkbox";
+    checkbox.setAttribute("aria-label", this.task.checked ? "Mark task incomplete" : "Mark task complete");
+    checkbox.setAttribute("aria-checked", String(this.task.checked));
 
     checkbox.addEventListener("mousedown", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
+      this.pointerDown = { x: event.clientX, y: event.clientY };
     });
 
     checkbox.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
+      if (this.pointerDown && hasPointerMoved(event, this.pointerDown)) return;
       if (view.state.readOnly) return;
 
-      const nextValue = this.checked ? "[ ]" : "[x]";
+      const nextValue = this.task.checked ? "[ ]" : "[x]";
       view.dispatch({
-        changes: { from: this.from, to: this.from + 3, insert: nextValue },
-        selection: EditorSelection.cursor(this.from + nextValue.length),
+        changes: { from: this.task.checkboxFrom, to: this.task.checkboxTo, insert: nextValue },
+        selection: EditorSelection.cursor(this.task.checkboxFrom + nextValue.length),
       });
       view.focus();
     });
 
-    return checkbox;
+    wrapper.appendChild(checkbox);
+    return wrapper;
   }
 
   ignoreEvent() {
-    return true;
+    return false;
   }
+
+  coordsAt(dom: HTMLElement, pos: number, side: number): Rect | null {
+    const line = dom.closest(".cm-line");
+    const lineRect = line?.getBoundingClientRect();
+    if (!line || !lineRect) return null;
+
+    const lineStyle = window.getComputedStyle(line);
+    const textLeft = lineRect.left + Number.parseFloat(lineStyle.paddingLeft || "0");
+    return getInlineWidgetTextCoords(dom, textLeft);
+  }
+}
+
+function getInlineWidgetEdgeX(dom: HTMLElement, pos: number, side: number): number {
+  const rect = dom.getBoundingClientRect();
+  return pos <= 0 || side < 0 ? rect.left : rect.right;
+}
+
+function getInlineWidgetTextCoords(dom: HTMLElement, x: number): Rect | null {
+  const line = dom.closest(".cm-line");
+  if (!(line instanceof HTMLElement)) return null;
+
+  const referenceRect = dom.getBoundingClientRect();
+  const textRect = getNearestVisibleTextRect(line, referenceRect) ?? getFallbackLineTextRect(line);
+
+  return {
+    left: x,
+    right: x,
+    top: textRect.top,
+    bottom: textRect.bottom,
+  };
+}
+
+function getNearestVisibleTextRect(line: HTMLElement, referenceRect: DOMRect): Rect | null {
+  const ownerDocument = line.ownerDocument;
+  const ownerWindow = ownerDocument.defaultView;
+  if (!ownerWindow) return null;
+
+  const textNodes = ownerDocument.createTreeWalker(
+    line,
+    ownerWindow.NodeFilter.SHOW_TEXT,
+    {
+      acceptNode(node) {
+        if (!node.nodeValue?.trim()) return ownerWindow.NodeFilter.FILTER_REJECT;
+        const parent = node.parentElement;
+        if (!parent) return ownerWindow.NodeFilter.FILTER_REJECT;
+        if (parent.closest(".cm-md-hidden-syntax-widget, .cm-md-task-checkbox-widget")) {
+          return ownerWindow.NodeFilter.FILTER_REJECT;
+        }
+        return ownerWindow.NodeFilter.FILTER_ACCEPT;
+      },
+    },
+  );
+
+  const referenceY = referenceRect.top + referenceRect.height / 2;
+  const referenceX = referenceRect.left + referenceRect.width / 2;
+  let bestRect: Rect | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+
+  for (let node = textNodes.nextNode(); node; node = textNodes.nextNode()) {
+    const range = ownerDocument.createRange();
+    range.selectNodeContents(node);
+    for (const rect of Array.from(range.getClientRects())) {
+      if (rect.width <= 0 || rect.height <= 0) continue;
+
+      const verticalDistance = Math.abs(rect.top + rect.height / 2 - referenceY);
+      const horizontalDistance = referenceX < rect.left
+        ? rect.left - referenceX
+        : referenceX > rect.right
+          ? referenceX - rect.right
+          : 0;
+      const distance = verticalDistance * 4 + horizontalDistance;
+
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestRect = {
+          left: rect.left,
+          right: rect.right,
+          top: rect.top,
+          bottom: rect.bottom,
+        };
+      }
+    }
+    range.detach();
+  }
+
+  return bestRect;
+}
+
+function getFallbackLineTextRect(line: HTMLElement): Rect {
+  const lineRect = line.getBoundingClientRect();
+  const style = window.getComputedStyle(line);
+  const paddingTop = parseCssPixelValue(style.paddingTop);
+  const lineHeight = parseCssPixelValue(style.lineHeight) || parseCssPixelValue(style.fontSize) * 1.2;
+  const top = lineRect.top + paddingTop;
+  return {
+    top,
+    bottom: top + lineHeight,
+    left: lineRect.left,
+    right: lineRect.right,
+  };
+}
+
+function parseCssPixelValue(value: string): number {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 class HorizontalRuleWidget extends WidgetType {
@@ -667,6 +936,383 @@ class HorizontalRuleWidget extends WidgetType {
     rule.className = "cm-md-hr-widget";
     return rule;
   }
+}
+
+class HtmlBlockWidget extends WidgetType {
+  private messageListener: ((event: MessageEvent) => void) | null = null;
+  private readyTimer: number | null = null;
+
+  constructor(
+    private readonly block: MarkdownHtmlBlock,
+    private readonly htmlTrustMode: MarkdownHtmlTrustMode,
+  ) {
+    super();
+  }
+
+  eq(widget: WidgetType): boolean {
+    return (
+      widget instanceof HtmlBlockWidget &&
+      widget.block.source === this.block.source &&
+      widget.block.tagName === this.block.tagName &&
+      widget.block.closed === this.block.closed &&
+      widget.htmlTrustMode === this.htmlTrustMode
+    );
+  }
+
+  toDOM(): HTMLElement {
+    const shell = document.createElement("div");
+    shell.className = "cm-md-html-widget";
+
+    const toolbar = document.createElement("div");
+    toolbar.className = "cm-md-html-widget-toolbar";
+
+    const toggleButton = document.createElement("button");
+    toggleButton.className = "cm-md-html-source-toggle";
+    toggleButton.type = "button";
+    toolbar.appendChild(toggleButton);
+
+    const content = document.createElement("div");
+    content.className = "cm-md-html-widget-content";
+
+    let showingSource = false;
+    const render = () => {
+      this.clearPreviewLifecycle();
+      content.replaceChildren(showingSource ? createHtmlSourceBlock(this.block.source) : this.createPreviewBlock());
+      toggleButton.replaceChildren(createHtmlWidgetIcon(showingSource ? "preview" : "source"));
+      toggleButton.title = showingSource ? "Show HTML preview" : "Show HTML source";
+      toggleButton.setAttribute("aria-label", showingSource ? "Show HTML preview" : "Show HTML source");
+      toggleButton.classList.toggle("active", showingSource);
+    };
+
+    toggleButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      showingSource = !showingSource;
+      render();
+    });
+
+    render();
+    shell.append(toolbar, content);
+    return shell;
+  }
+
+  private createPreviewBlock(): HTMLElement {
+    if (!this.block.closed) {
+      return createUnsupportedHtmlBlock(this.block, ["HTML block is not closed"]);
+    }
+
+    if (this.htmlTrustMode === "localTrusted") {
+      return this.createTrustedHtmlBlock(this.block);
+    }
+
+    const result = createSanitizedBlockHtmlFragment(this.block.source);
+    if (!result.supported) {
+      return createUnsupportedHtmlBlock(this.block, result.reasons);
+    }
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "cm-md-html-rendered-surface cm-md-html-block";
+    wrapper.appendChild(result.fragment);
+    return wrapper;
+  }
+
+  destroy() {
+    this.clearPreviewLifecycle();
+  }
+
+  private clearPreviewLifecycle() {
+    if (this.messageListener) {
+      window.removeEventListener("message", this.messageListener);
+      this.messageListener = null;
+    }
+    if (this.readyTimer !== null) {
+      window.clearTimeout(this.readyTimer);
+      this.readyTimer = null;
+    }
+  }
+
+  ignoreEvent() {
+    return true;
+  }
+
+  private createTrustedHtmlBlock(block: MarkdownHtmlBlock): HTMLElement {
+    const wrapper = document.createElement("div");
+    wrapper.className = "cm-md-html-trusted-block is-loading";
+
+    const sizer = createTrustedHtmlSizer(block.source);
+    const loader = createTrustedHtmlLoader();
+    wrapper.appendChild(sizer);
+    wrapper.appendChild(loader);
+
+    const frameId = createTrustedHtmlFrameId();
+    const iframe = document.createElement("iframe");
+    iframe.className = "cm-md-html-trusted-frame";
+    iframe.title = "Trusted Markdown HTML preview";
+    iframe.sandbox.add("allow-downloads", "allow-forms", "allow-modals", "allow-popups", "allow-scripts");
+    iframe.referrerPolicy = "no-referrer";
+    iframe.style.height = `${estimateTrustedHtmlFrameHeight(block.source)}px`;
+
+    const markReady = () => {
+      if (this.readyTimer !== null) {
+        window.clearTimeout(this.readyTimer);
+        this.readyTimer = null;
+      }
+      if (!wrapper.classList.contains("is-loading")) return;
+      wrapper.classList.remove("is-loading");
+      sizer.remove();
+      loader.remove();
+    };
+
+    let measuredHeight = false;
+    this.messageListener = (event: MessageEvent) => {
+      if (event.source !== iframe.contentWindow) return;
+      if (!isTrustedHtmlHeightMessage(event.data, frameId)) return;
+      measuredHeight = true;
+      iframe.style.height = `${clampNumber(event.data.height, 80, 2400)}px`;
+      markReady();
+    };
+    window.addEventListener("message", this.messageListener);
+
+    iframe.addEventListener("load", () => {
+      if (!wrapper.classList.contains("is-loading")) return;
+      this.readyTimer = window.setTimeout(() => {
+        if (!measuredHeight) markReady();
+      }, 120);
+    }, { once: true });
+
+    iframe.srcdoc = createTrustedHtmlDocument(block.source, frameId);
+    wrapper.appendChild(iframe);
+    return wrapper;
+  }
+}
+
+function createHtmlSourceBlock(source: string): HTMLElement {
+  const pre = document.createElement("pre");
+  pre.className = "cm-md-html-source-block";
+
+  const code = document.createElement("code");
+  code.textContent = source;
+  pre.appendChild(code);
+
+  return pre;
+}
+
+function createTrustedHtmlSizer(source: string): HTMLElement {
+  const wrapper = document.createElement("div");
+  wrapper.className = "cm-md-html-rendered-surface cm-md-html-trusted-sizer";
+  wrapper.setAttribute("aria-hidden", "true");
+
+  const result = createSanitizedBlockHtmlFragment(source);
+  if (result.fragment.childNodes.length > 0) {
+    wrapper.appendChild(result.fragment);
+    return wrapper;
+  }
+
+  const placeholder = document.createElement("div");
+  placeholder.className = "cm-md-html-sizing-placeholder";
+  wrapper.appendChild(placeholder);
+  return wrapper;
+}
+
+function createTrustedHtmlLoader(): HTMLElement {
+  const loader = document.createElement("div");
+  loader.className = "cm-md-html-trusted-loader";
+  loader.setAttribute("aria-hidden", "true");
+
+  for (let index = 0; index < 3; index += 1) {
+    const line = document.createElement("span");
+    loader.appendChild(line);
+  }
+
+  return loader;
+}
+
+function createHtmlWidgetIcon(kind: "preview" | "source"): SVGElement {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("width", "13");
+  svg.setAttribute("height", "13");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "2");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("stroke-linejoin", "round");
+  svg.setAttribute("aria-hidden", "true");
+
+  const paths = kind === "preview"
+    ? [
+        ["path", "M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"],
+        ["circle", "M12 12", "3"],
+      ] as const
+    : [
+        ["polyline", "16 18 22 12 16 6"],
+        ["polyline", "8 6 2 12 8 18"],
+      ] as const;
+
+  for (const item of paths) {
+    if (item[0] === "circle") {
+      const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      circle.setAttribute("cx", "12");
+      circle.setAttribute("cy", "12");
+      circle.setAttribute("r", item[2]);
+      svg.appendChild(circle);
+      continue;
+    }
+
+    const element = document.createElementNS("http://www.w3.org/2000/svg", item[0]);
+    if (item[0] === "path") element.setAttribute("d", item[1]);
+    else element.setAttribute("points", item[1]);
+    svg.appendChild(element);
+  }
+
+  return svg;
+}
+
+function createTrustedHtmlDocument(source: string, frameId: string): string {
+  return `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<base target="_blank">
+<style>
+${getTrustedHtmlThemeCss()}
+* {
+  box-sizing: border-box;
+}
+html {
+  min-height: 0;
+  color-scheme: light dark;
+  background: transparent;
+}
+body {
+  margin: 0;
+  overflow: hidden;
+  background: transparent;
+  color: var(--text-normal);
+  font-family: var(--font-text);
+  font-size: 14px;
+  line-height: 1.6;
+}
+#puppyone-md-html-content {
+  display: flow-root;
+  min-height: 0;
+}
+a {
+  color: var(--text-accent);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+}
+pre,
+code {
+  font-family: var(--font-monospace);
+}
+${getHtmlPreviewInteractionCss("#puppyone-md-html-content")}
+</style>
+</head>
+<body>
+<div id="puppyone-md-html-content">
+${source}
+</div>
+<script>
+(() => {
+  const frameId = ${JSON.stringify(frameId)};
+  const postHeight = () => {
+    const content = document.getElementById("puppyone-md-html-content");
+    if (!content) return;
+    const rect = content.getBoundingClientRect();
+    const height = Math.ceil(Math.max(content.scrollHeight, rect.height));
+    parent.postMessage({ type: "puppyone:markdown-html-height", id: frameId, height }, "*");
+  };
+  addEventListener("load", postHeight);
+  if ("ResizeObserver" in window) {
+    const content = document.getElementById("puppyone-md-html-content");
+    if (content) new ResizeObserver(postHeight).observe(content);
+  }
+  requestAnimationFrame(postHeight);
+  setTimeout(postHeight, 120);
+})();
+</script>
+</body>
+</html>`;
+}
+
+function getTrustedHtmlThemeCss(): string {
+  const rootStyle = getComputedStyle(document.documentElement);
+  const read = (name: string, fallback: string) => rootStyle.getPropertyValue(name).trim() || fallback;
+
+  return `:root {
+  --background-primary: ${read("--po-editor-bg", "#ffffff")};
+  --background-primary-alt: ${read("--po-panel", "#f7f3ec")};
+  --background-modifier-border: ${read("--po-divider", "#ded4c7")};
+  --text-normal: ${read("--po-text", "#2f2a24")};
+  --text-muted: ${read("--po-text-muted", "#8a8073")};
+  --text-accent: ${read("--po-accent", "#2563eb")};
+  --font-text: ${read("--po-font-sans", "ui-sans-serif, system-ui, sans-serif")};
+  --font-monospace: ${read("--po-font-mono", "ui-monospace, SFMono-Regular, Menlo, monospace")};
+}`;
+}
+
+function createTrustedHtmlFrameId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+
+  return `md-html-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function estimateTrustedHtmlFrameHeight(source: string): number {
+  return source.trim() ? 160 : 80;
+}
+
+function isTrustedHtmlHeightMessage(
+  value: unknown,
+  frameId: string,
+): value is { type: "puppyone:markdown-html-height"; id: string; height: number } {
+  if (!value || typeof value !== "object") return false;
+  const message = value as { type?: unknown; id?: unknown; height?: unknown };
+  return (
+    message.type === "puppyone:markdown-html-height" &&
+    message.id === frameId &&
+    typeof message.height === "number" &&
+    Number.isFinite(message.height)
+  );
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function createUnsupportedHtmlBlock(block: MarkdownHtmlBlock, reasons: string[]): HTMLElement {
+  const wrapper = document.createElement("div");
+  wrapper.className = "cm-md-html-unsupported";
+
+  const title = document.createElement("strong");
+  title.textContent = "Unsupported HTML";
+  wrapper.appendChild(title);
+
+  const detail = document.createElement("span");
+  detail.textContent = reasons[0] ?? `<${block.tagName}> is not supported in Markdown preview`;
+  wrapper.appendChild(detail);
+
+  const code = document.createElement("code");
+  code.textContent = getHtmlPreviewSnippet(block.source);
+  wrapper.appendChild(code);
+
+  return wrapper;
+}
+
+function getHtmlPreviewSnippet(source: string): string {
+  const normalized = source.trim().replace(/\s+/g, " ");
+  if (normalized.length <= 140) return normalized;
+  return `${normalized.slice(0, 137)}...`;
 }
 
 class CodeBlockWidget extends WidgetType {
@@ -813,12 +1459,19 @@ class ImagePreviewWidget extends WidgetType {
 class MarkdownTableWidget extends WidgetType {
   constructor(
     private readonly rows: MarkdownTableRow[],
+    private readonly markdownLinkGraph: MarkdownLinkGraph | null,
+    private readonly documentPath: string,
   ) {
     super();
   }
 
   eq(widget: WidgetType): boolean {
-    return widget instanceof MarkdownTableWidget && JSON.stringify(widget.rows) === JSON.stringify(this.rows);
+    return (
+      widget instanceof MarkdownTableWidget &&
+      JSON.stringify(widget.rows) === JSON.stringify(this.rows) &&
+      widget.markdownLinkGraph === this.markdownLinkGraph &&
+      widget.documentPath === this.documentPath
+    );
   }
 
   toDOM(view: EditorView): HTMLElement {
@@ -834,7 +1487,7 @@ class MarkdownTableWidget extends WidgetType {
       const tr = document.createElement("tr");
       for (const cell of header.cells) {
         const th = document.createElement("th");
-        th.appendChild(createTableCellEditor(view, cell));
+        th.appendChild(createTableCellEditor(view, cell, this.markdownLinkGraph, this.documentPath));
         tr.appendChild(th);
       }
       thead.appendChild(tr);
@@ -848,7 +1501,7 @@ class MarkdownTableWidget extends WidgetType {
         const tr = document.createElement("tr");
         for (const cell of row.cells) {
           const td = document.createElement("td");
-          td.appendChild(createTableCellEditor(view, cell));
+          td.appendChild(createTableCellEditor(view, cell, this.markdownLinkGraph, this.documentPath));
           tr.appendChild(td);
         }
         tbody.appendChild(tr);
@@ -866,14 +1519,25 @@ class MarkdownTableWidget extends WidgetType {
   }
 }
 
-function createTableCellEditor(view: EditorView, cell: MarkdownTableCell): HTMLElement {
+function createTableCellEditor(
+  view: EditorView,
+  cell: MarkdownTableCell,
+  markdownLinkGraph: MarkdownLinkGraph | null,
+  documentPath: string,
+): HTMLElement {
   const content = document.createElement("span");
   content.className = "cm-md-table-cell-content";
-  content.textContent = cell.text;
   content.spellcheck = false;
+  renderTableCellPreview(content, cell.text, markdownLinkGraph, documentPath);
 
   if (!view.state.readOnly && cell.editable) {
+    let editing = false;
     content.contentEditable = "true";
+    content.addEventListener("focus", () => {
+      if (editing) return;
+      editing = true;
+      content.textContent = cell.text;
+    });
     content.addEventListener("keydown", (event) => {
       event.stopPropagation();
       if (event.key === "Enter") {
@@ -888,7 +1552,12 @@ function createTableCellEditor(view: EditorView, cell: MarkdownTableCell): HTMLE
     });
     content.addEventListener("blur", () => {
       const nextValue = sanitizeMarkdownTableCell(content.textContent ?? "");
-      if (nextValue === cell.text) return;
+      editing = false;
+      if (nextValue === cell.text) {
+        renderTableCellPreview(content, cell.text, markdownLinkGraph, documentPath);
+        view.requestMeasure();
+        return;
+      }
       view.dispatch({
         changes: {
           from: cell.from,
@@ -906,6 +1575,16 @@ function createTableCellEditor(view: EditorView, cell: MarkdownTableCell): HTMLE
   return content;
 }
 
+function renderTableCellPreview(
+  content: HTMLElement,
+  source: string,
+  markdownLinkGraph: MarkdownLinkGraph | null,
+  documentPath: string,
+) {
+  content.replaceChildren();
+  renderMarkdownInlineInto(content, source, { markdownLinkGraph, sourcePath: documentPath });
+}
+
 function stopCodeMirrorEvent(event: Event) {
   event.stopPropagation();
 }
@@ -916,6 +1595,10 @@ function sanitizeMarkdownTableCell(value: string): string {
 
 function sanitizeCodeLanguage(value: string): string {
   return value.trim().replace(/\s+/g, "-").replace(/[`~]/g, "");
+}
+
+function hasPointerMoved(event: MouseEvent, pointerDown: { x: number; y: number }): boolean {
+  return Math.abs(event.clientX - pointerDown.x) > 4 || Math.abs(event.clientY - pointerDown.y) > 4;
 }
 
 function normalizeLineEndings(value: string): string {

@@ -1,0 +1,342 @@
+.desktop-cloud-surface-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.desktop-cloud-surface-card {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--po-divider);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--po-control) 28%, transparent);
+}
+
+.desktop-cloud-surface-card.active {
+  background: color-mix(in srgb, var(--po-control) 54%, transparent);
+}
+
+.desktop-cloud-surface-card-header,
+.desktop-cloud-method-card-header,
+.desktop-cloud-mcp-card-header,
+.desktop-cloud-sync-panel-header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+}
+
+.desktop-cloud-surface-card-header > span,
+.desktop-cloud-method-card-header > span,
+.desktop-cloud-mcp-card-header > span {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--po-border);
+  border-radius: 7px;
+  background: var(--po-control);
+  color: var(--po-text-muted);
+}
+
+.desktop-cloud-surface-card-header > div,
+.desktop-cloud-mcp-card-header > div,
+.desktop-cloud-sync-panel-header > div {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 2px;
+}
+
+.desktop-cloud-surface-card-header strong,
+.desktop-cloud-method-card-header strong,
+.desktop-cloud-mcp-card-header strong,
+.desktop-cloud-sync-panel-header strong {
+  overflow: hidden;
+  color: var(--po-text);
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-cloud-surface-card-header small,
+.desktop-cloud-mcp-card-header small,
+.desktop-cloud-sync-panel-header small {
+  overflow: hidden;
+  color: var(--po-text-subtle);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-cloud-method-page {
+  display: grid;
+  width: min(100%, 820px);
+  min-width: 0;
+  gap: 18px;
+  margin: 0 auto;
+  padding: 20px 24px 40px;
+}
+
+.desktop-cloud-method-section {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+}
+
+.desktop-cloud-method-warning {
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--po-warning) 30%, var(--po-border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--po-warning) 8%, transparent);
+  color: var(--po-warning);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.desktop-cloud-method-card {
+  overflow: hidden;
+  border: 1px solid var(--po-divider);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--po-control) 28%, transparent);
+}
+
+.desktop-cloud-method-card.active {
+  background: color-mix(in srgb, var(--po-control) 54%, transparent);
+}
+
+.desktop-cloud-method-card-header {
+  min-height: 42px;
+  padding: 8px 12px;
+}
+
+.desktop-cloud-method-card-header strong {
+  flex: 1;
+  min-width: 0;
+  color: var(--po-text-muted);
+  font-weight: 550;
+}
+
+.desktop-cloud-method-card-header em {
+  color: var(--po-text-subtle);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 650;
+}
+
+.desktop-cloud-method-card.active .desktop-cloud-method-card-header em {
+  color: var(--po-success);
+}
+
+.desktop-cloud-method-card-body {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+  padding: 0 12px 12px;
+}
+
+.desktop-cloud-prompt-block {
+  position: relative;
+  min-height: 132px;
+  overflow: hidden;
+  border: 1px solid var(--po-border);
+  border-radius: 8px;
+  background: var(--po-panel);
+}
+
+.desktop-cloud-prompt-block pre {
+  margin: 0;
+  padding: 12px 14px 58px;
+  color: var(--po-text-muted);
+  font-family: var(--po-font-mono);
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.desktop-cloud-prompt-block::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 68px;
+  background: linear-gradient(180deg, transparent 0%, var(--po-panel) 100%);
+  pointer-events: none;
+}
+
+.desktop-cloud-prompt-block button {
+  position: absolute;
+  z-index: 1;
+  bottom: 10px;
+  left: 50%;
+  display: inline-flex;
+  height: 30px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px;
+  transform: translateX(-50%);
+  border: 1px solid color-mix(in srgb, var(--po-success) 38%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--po-success) 14%, var(--po-panel) 86%);
+  color: var(--po-success);
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.desktop-cloud-prompt-block button:hover {
+  background: color-mix(in srgb, var(--po-success) 20%, var(--po-panel) 80%);
+}
+
+.desktop-cloud-command-block {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.desktop-cloud-command-block > div {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 2px;
+}
+
+.desktop-cloud-command-block span {
+  color: var(--po-text-subtle);
+  font-size: 10px;
+  font-weight: 720;
+  text-transform: uppercase;
+}
+
+.desktop-cloud-command-block button {
+  display: inline-flex;
+  width: 24px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--po-text-subtle);
+}
+
+.desktop-cloud-command-block button:hover:not(:disabled) {
+  border-color: var(--po-border);
+  background: var(--po-hover);
+  color: var(--po-text);
+}
+
+.desktop-cloud-command-block pre {
+  overflow: auto;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--po-border);
+  border-radius: 6px;
+  background: var(--po-canvas);
+  color: var(--po-text-muted);
+  font-family: var(--po-font-mono);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre;
+}
+
+.desktop-cloud-mcp-card {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--po-divider);
+
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--po-control) 38%, transparent);
+}
+
+.desktop-cloud-mcp-card.compact {
+  gap: 8px;
+}
+
+.desktop-cloud-mcp-key-hint {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid var(--po-border);
+  border-radius: 6px;
+  background: var(--po-canvas);
+}
+
+.desktop-cloud-mcp-key-hint span {
+  color: var(--po-text-subtle);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.desktop-cloud-mcp-key-hint strong {
+  overflow: hidden;
+  color: var(--po-text-muted);
+  font-family: var(--po-font-mono);
+  font-size: 12px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-cloud-mcp-card p {
+  margin: 0;
+  color: var(--po-text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.desktop-cloud-sync-layout {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 18px 18px 0;
+}
+
+.desktop-cloud-sync-panel {
+  display: grid;
+  min-width: 0;
+  gap: 14px;
+  padding: 13px;
+  border: 1px solid var(--po-divider);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--po-panel-raised) 62%, transparent);
+}
+
+.desktop-cloud-sync-panel.primary {
+  border-color: color-mix(in srgb, var(--po-success) 26%, var(--po-divider));
+  background: color-mix(in srgb, var(--po-success) 6%, var(--po-panel-raised));
+}
+
+.desktop-cloud-sync-panel-body {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--po-border);
+  border-radius: 8px;
+  background: var(--po-border);
+}
+
+.desktop-cloud-web-detail-block {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+  padding: 18px;
+}
+
+@keyframes desktop-cloud-page-fade {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
+}

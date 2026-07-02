@@ -13,6 +13,7 @@
     "start": "next start",
     "theme:audit": "node scripts/check-theme-colors.mjs",
     "font:audit": "node scripts/check-font-families.mjs",
+    "shared-ui:test-markdown-html": "node scripts/test-shared-ui-markdown-html.mjs",
     "shared-ui:sync-desktop": "node ../scripts/sync-desktop-shared-ui.mjs",
     "shared-ui:check-desktop": "node ../scripts/check-desktop-shared-ui-sync.mjs",
     "lint": "next lint"

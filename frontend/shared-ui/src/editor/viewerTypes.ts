@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { FileFormat } from "../core/fileFormats";
 import type { FileIconThemeId } from "../file/fileIcons";
+import type { AiEditFile } from "./ai-edits/types";
 
 export type EditorDocumentKind =
   | "folder"
@@ -33,6 +34,44 @@ export type EditorDocument = {
 export type EditorMode = "live" | "source";
 export type EditorSaveMode = "manual" | "auto";
 export type EditorSourceRequirement = "content" | "resource" | "content-and-resource" | "none";
+export type MarkdownHtmlTrustMode = "safe" | "localTrusted";
+
+export type MarkdownWikiLinkResolvedTarget = {
+  exists: boolean;
+  ambiguous: boolean;
+  path: string | null;
+  candidatePaths?: string[];
+  name: string;
+  displayName: string;
+  target: string;
+  heading?: string | null;
+};
+
+export type MarkdownBacklinkReference = {
+  lineNumber: number;
+  lineText: string;
+  target: string;
+  label: string;
+};
+
+export type MarkdownBacklink = {
+  sourcePath: string;
+  sourceName: string;
+  count: number;
+  references: MarkdownBacklinkReference[];
+};
+
+export type MarkdownLinkGraph = {
+  documentCount: number;
+  indexedDocumentCount: number;
+  isIndexing: boolean;
+  resolveWikiLink: (sourcePath: string, target: string) => MarkdownWikiLinkResolvedTarget;
+  resolveMarkdownLink: (sourcePath: string, href: string) => MarkdownWikiLinkResolvedTarget | null;
+  openWikiLink?: (target: MarkdownWikiLinkResolvedTarget, sourcePath: string) => void;
+  openPath?: (path: string) => void;
+  openExternalUrl?: (href: string) => void;
+  getBacklinks?: (path: string) => MarkdownBacklink[];
+};
 
 export type EditorViewerMatch = {
   document: EditorDocument;
@@ -41,6 +80,7 @@ export type EditorViewerMatch = {
 
 export type EditorViewerContext = EditorViewerMatch & {
   content: string;
+  aiEditFile?: AiEditFile | null;
   fileUrl?: string | null;
   fileUrlLoading: boolean;
   fileUrlError?: string | null;
@@ -50,6 +90,8 @@ export type EditorViewerContext = EditorViewerMatch & {
   hideSourceView: boolean;
   fileIconTheme: FileIconThemeId;
   saveMode: EditorSaveMode;
+  htmlTrustMode: MarkdownHtmlTrustMode;
+  markdownLinkGraph?: MarkdownLinkGraph | null;
   onSaveContent?: (content: string) => Promise<void>;
 };
 

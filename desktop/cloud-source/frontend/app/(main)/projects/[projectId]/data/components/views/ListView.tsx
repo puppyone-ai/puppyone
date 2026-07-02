@@ -4,7 +4,7 @@ import { useState } from 'react';
 import type { ContentType, AgentResource } from './GridView';
 import { ItemActionMenu } from '@/components/ItemActionMenu';
 import { getNodeTypeConfig, isSyncedType, LockIcon, getSyncSourceIcon, getSyncSource } from '@/lib/nodeTypeConfig';
-import { useNodeDrop } from '@/lib/hooks/useNodeDrop';
+import { beginNodeDrag, endNodeDrag, useNodeDrop } from '@/lib/hooks/useNodeDrop';
 import { PageLoading } from '@/components/loading';
 import { FileGlyphIcon } from '@/lib/fileIcons';
 
@@ -152,7 +152,7 @@ function ListItem({
   const typeConfig = getNodeTypeConfig(item.type);
   const isFolder = typeConfig.iconCategory === 'folder';
 
-  const { isDropTarget, dropHandlers } = useNodeDrop({
+  const { isDropTarget, isInvalidDropTarget, dropReason, dropHandlers } = useNodeDrop({
     targetFolderId: item.id,
     onMoveNode,
     disabled: !isFolder,
@@ -179,15 +179,16 @@ function ListItem({
           e.preventDefault();
           return;
         }
-        e.dataTransfer.setData('application/x-puppyone-node', JSON.stringify({
+        beginNodeDrag(e, {
           id: item.id,
           name: item.name,
           type: item.type,
           parentId: parentFolderId ?? null,
-        }));
-        e.dataTransfer.effectAllowed = 'copyMove';
+        });
       }}
+      onDragEnd={endNodeDrag}
       {...dropHandlers}
+      title={isInvalidDropTarget ? dropReason ?? undefined : undefined}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -197,6 +198,8 @@ function ListItem({
         cursor: 'pointer',
         background: isDropTarget
           ? 'color-mix(in srgb, var(--po-accent) 15%, transparent)'
+          : isInvalidDropTarget
+          ? 'color-mix(in srgb, var(--po-danger) 10%, transparent)'
           : hasAgentAccess
           ? hovered
             ? 'color-mix(in srgb, var(--po-warning) 8%, transparent)'
@@ -205,6 +208,8 @@ function ListItem({
         borderBottom: '1px solid var(--po-hover)',
         borderLeft: isDropTarget
             ? '3px solid color-mix(in srgb, var(--po-accent) 60%, transparent)'
+            : isInvalidDropTarget
+            ? '3px solid color-mix(in srgb, var(--po-danger) 70%, transparent)'
             : hasAgentAccess
             ? '3px solid color-mix(in srgb, var(--po-warning) 60%, transparent)'
             : '3px solid transparent',

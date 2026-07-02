@@ -9,7 +9,41 @@ const MAX_ENTRIES_PER_FOLDER = 500;
 const MAX_PREVIEW_BYTES = 4096;
 const MAX_EDITOR_BYTES = 1024 * 1024;
 const GIT_HISTORY_LIMIT = 100;
+const GIT_ALL_BRANCH_HISTORY_LIMIT = 320;
+const GIT_REMOTE_PREVIEW_LIMIT = 12;
 const GIT_MAX_BUFFER = 1024 * 1024 * 4;
+const GIT_EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
+const PUPPYONE_CONFIG_DIR = ".puppyone";
+const PUPPYONE_CONFIG_FILE = "config.json";
+const GIT_RESOURCE_GROUPS = Object.freeze([
+  { id: "merge", label: "Merge Changes" },
+  { id: "index", label: "Staged Changes" },
+  { id: "workingTree", label: "Changes" },
+  { id: "untracked", label: "Untracked Changes" },
+]);
+const DEFAULT_PUPPYONE_WORKSPACE_CONFIG = Object.freeze({
+  version: 1,
+  sync: {
+    sourceOfTruth: {
+      service: "puppyone",
+      remote: null,
+      branch: null,
+    },
+  },
+  git: {
+    primaryRemote: null,
+    watchedBranch: null,
+  },
+  backup: {
+    enabled: false,
+    service: "puppyone",
+    remote: null,
+    branch: null,
+  },
+  cloud: {
+    projectId: null,
+  },
+});
 const execFileAsync = promisify(execFile);
 const localApiDir = path.dirname(fileURLToPath(import.meta.url));
 const fileFormatRegistry = loadFileFormatRegistry();
@@ -345,6 +379,52 @@ export async function renameWorkspaceEntry(rootPath, request) {
   return { path: nextRelativePath };
 }
 
+export async function moveWorkspaceEntry(rootPath, request) {
+  const fromRelativePath = normalizeRelativePath(request?.fromPath);
+  const toRelativePath = normalizeRelativePath(request?.toPath);
+
+  if (!fromRelativePath) {
+    throw new Error("Cannot move the workspace root.");
+  }
+  if (!toRelativePath) {
+    throw new Error("Move target path is required.");
+  }
+  if (fromRelativePath.includes("\0") || toRelativePath.includes("\0")) {
+    throw new Error("Path contains an invalid character.");
+  }
+  if (fromRelativePath === toRelativePath) {
+    return { path: toRelativePath };
+  }
+  if (toRelativePath.startsWith(`${fromRelativePath}/`)) {
+    throw new Error("Cannot move a folder into itself.");
+  }
+
+  const sourcePath = resolveWorkspacePath(rootPath, fromRelativePath);
+  const targetPath = resolveWorkspacePath(rootPath, toRelativePath);
+  const targetParentPath = path.dirname(targetPath);
+
+  await fs.stat(sourcePath).catch((error) => {
+    throw new Error(`Unable to move entry: ${error.message}`);
+  });
+  const targetParentMetadata = await fs.stat(targetParentPath).catch((error) => {
+    throw new Error(`Unable to move entry: ${error.message}`);
+  });
+  if (!targetParentMetadata.isDirectory()) {
+    throw new Error("Move target parent is not a folder.");
+  }
+
+  const targetExists = await fs.stat(targetPath).then(() => true).catch(() => false);
+  if (targetExists) {
+    throw new Error("An item with that name already exists.");
+  }
+
+  await fs.rename(sourcePath, targetPath).catch((error) => {
+    throw new Error(`Unable to move entry: ${error.message}`);
+  });
+
+  return { path: toRelativePath };
+}
+
 export async function deleteWorkspaceEntry(rootPath, request) {
   const relativePath = normalizeRelativePath(request?.path);
   if (!relativePath) {
@@ -366,6 +446,14 @@ export async function getWorkspaceGitStatus(rootPath) {
     .catch(() => false);
 
   if (!isRepo) {
+    const sourceControl = buildGitSourceControlSnapshot({
+      entries: [],
+      branchName: null,
+      syncTarget: null,
+      currentBranch: null,
+      headCommitId: null,
+    });
+
     return {
       isRepo: false,
       branch: null,
@@ -377,6 +465,8 @@ export async function getWorkspaceGitStatus(rootPath) {
       untrackedEntries: [],
       branches: [],
       remotes: [],
+      syncTarget: null,
+      sourceControl,
       commits: [],
       allCommits: [],
     };
@@ -397,37 +487,90 @@ export async function getWorkspaceGitStatus(rootPath) {
     execGit(root, ["symbolic-ref", "--quiet", "--short", "HEAD"]).catch(() => ({ stdout: "" })),
     execGit(root, ["rev-parse", "HEAD"]).catch(() => ({ stdout: "" })),
     execGit(root, ["rev-list", "--count", "HEAD"]).catch(() => ({ stdout: "0" })),
-    execGit(root, ["status", "--short"]).catch((error) => {
+    execGit(root, ["status", "--porcelain=v2", "-z", "--branch"]).catch((error) => {
       throw new Error(`Unable to read git status: ${error.message}`);
     }),
     readGitBranches(root),
     readGitRemotes(root),
     readGitHistory(root, GIT_HISTORY_LIMIT),
-    readGitHistory(root, GIT_HISTORY_LIMIT, { allBranches: true }),
+    readGitHistory(root, GIT_ALL_BRANCH_HISTORY_LIMIT, { allBranches: true }),
   ]);
-  const entries = statusResult.stdout
-    .split(/\r?\n/)
-    .map(parseGitStatusLine)
-    .filter(Boolean);
+  const parsedStatus = parseGitPorcelainV2Status(statusResult.stdout);
   const branchName = branchResult.stdout.trim() || symbolicBranchResult.stdout.trim() || "detached";
   const normalizedBranches = normalizeGitBranches(branches, branchName, headResult.stdout.trim());
+  const normalizedRemotes = remotes.map((remote) => ({
+    ...remote,
+    branches: normalizedBranches
+      .filter((branch) => branch.remote && branch.name.startsWith(`${remote.name}/`))
+      .map((branch) => branch.name),
+  }));
+  const syncTarget = await readGitSyncTarget(root, normalizedRemotes, normalizedBranches, branchName, headResult.stdout.trim());
+  const currentBranch = normalizedBranches.find((branch) => branch.current && !branch.remote) ?? null;
+  const sourceControl = buildGitSourceControlSnapshot({
+    entries: parsedStatus.entries,
+    branchName,
+    syncTarget,
+    currentBranch,
+    headCommitId: headResult.stdout.trim() || null,
+  });
 
   return {
     isRepo: true,
     branch: branchName,
     headCommitId: headResult.stdout.trim() || null,
     totalCommits: Number.parseInt(countResult.stdout.trim(), 10) || commits.length,
-    entries,
-    stagedEntries: entries.filter(hasStagedStatus),
-    unstagedEntries: entries.filter(hasUnstagedStatus),
-    untrackedEntries: entries.filter((entry) => entry.status === "untracked"),
+    entries: parsedStatus.entries,
+    stagedEntries: parsedStatus.entries.filter(hasStagedStatus),
+    unstagedEntries: parsedStatus.entries.filter(hasUnstagedStatus),
+    untrackedEntries: parsedStatus.entries.filter((entry) => entry.status === "untracked"),
     branches: normalizedBranches,
-    remotes: remotes.map((remote) => ({
-      ...remote,
-      branches: normalizedBranches
-        .filter((branch) => branch.remote && branch.name.startsWith(`${remote.name}/`))
-        .map((branch) => branch.name),
-    })),
+    remotes: normalizedRemotes,
+    syncTarget,
+    sourceControl,
+    commits,
+    allCommits,
+  };
+}
+
+export async function getWorkspaceGitBranchGraph(rootPath) {
+  const root = resolveWorkspacePath(rootPath, null);
+  const isRepo = await execGit(root, ["rev-parse", "--is-inside-work-tree"])
+    .then((result) => result.stdout.trim() === "true")
+    .catch(() => false);
+
+  if (!isRepo) {
+    return {
+      isRepo: false,
+      branch: null,
+      headCommitId: null,
+      branches: [],
+      commits: [],
+      allCommits: [],
+    };
+  }
+
+  const [
+    branchResult,
+    symbolicBranchResult,
+    headResult,
+    branches,
+    commits,
+    allCommits,
+  ] = await Promise.all([
+    execGit(root, ["branch", "--show-current"]).catch(() => ({ stdout: "" })),
+    execGit(root, ["symbolic-ref", "--quiet", "--short", "HEAD"]).catch(() => ({ stdout: "" })),
+    execGit(root, ["rev-parse", "HEAD"]).catch(() => ({ stdout: "" })),
+    readGitBranches(root),
+    readGitHistory(root, GIT_HISTORY_LIMIT),
+    readGitHistory(root, GIT_ALL_BRANCH_HISTORY_LIMIT, { allBranches: true }),
+  ]);
+  const branchName = branchResult.stdout.trim() || symbolicBranchResult.stdout.trim() || "detached";
+
+  return {
+    isRepo: true,
+    branch: branchName,
+    headCommitId: headResult.stdout.trim() || null,
+    branches: normalizeGitBranches(branches, branchName, headResult.stdout.trim()),
     commits,
     allCommits,
   };
@@ -446,6 +589,69 @@ export async function initializeWorkspaceGitRepository(rootPath) {
   }
 
   return getWorkspaceGitStatus(root);
+}
+
+export async function configureWorkspaceCloudRemote(rootPath, remoteUrl, remoteName = "puppyone") {
+  const root = resolveWorkspacePath(rootPath, null);
+  const normalizedRemoteName = normalizeGitRemoteName(remoteName);
+  const normalizedRemoteUrl = normalizeGitRemoteUrl(remoteUrl);
+  const isRepo = await execGit(root, ["rev-parse", "--is-inside-work-tree"])
+    .then((result) => result.stdout.trim() === "true")
+    .catch(() => false);
+
+  if (!isRepo) {
+    await execGit(root, ["init"]).catch((error) => {
+      throw new Error(`Unable to initialize repository: ${getGitErrorOutput(error)}`);
+    });
+  }
+
+  const remoteExists = await execGit(root, ["remote", "get-url", normalizedRemoteName])
+    .then(() => true)
+    .catch(() => false);
+  const args = remoteExists
+    ? ["remote", "set-url", normalizedRemoteName, normalizedRemoteUrl]
+    : ["remote", "add", normalizedRemoteName, normalizedRemoteUrl];
+
+  await execGit(root, args).catch((error) => {
+    throw new Error(`Unable to configure Cloud remote: ${getGitErrorOutput(error)}`);
+  });
+
+  return getWorkspaceGitStatus(root);
+}
+
+export async function readPuppyoneWorkspaceConfig(rootPath) {
+  const root = resolveWorkspacePath(rootPath, null);
+  const configPath = path.join(root, PUPPYONE_CONFIG_DIR, PUPPYONE_CONFIG_FILE);
+  const rawConfig = await fs.readFile(configPath, "utf8").catch((error) => {
+    if (error?.code === "ENOENT") return null;
+    throw new Error(`Unable to read PuppyOne config: ${error.message}`);
+  });
+
+  if (!rawConfig) return normalizePuppyoneWorkspaceConfig(null);
+
+  try {
+    return normalizePuppyoneWorkspaceConfig(JSON.parse(rawConfig));
+  } catch (error) {
+    throw new Error(`Unable to parse PuppyOne config: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+export async function writePuppyoneWorkspaceConfig(rootPath, config) {
+  const root = resolveWorkspacePath(rootPath, null);
+  const configDir = path.join(root, PUPPYONE_CONFIG_DIR);
+  const configPath = path.join(configDir, PUPPYONE_CONFIG_FILE);
+  const normalizedConfig = normalizePuppyoneWorkspaceConfig(config, {
+    updatedAt: new Date().toISOString(),
+  });
+
+  await fs.mkdir(configDir, { recursive: true }).catch((error) => {
+    throw new Error(`Unable to create PuppyOne config directory: ${error.message}`);
+  });
+  await fs.writeFile(configPath, `${JSON.stringify(normalizedConfig, null, 2)}\n`, "utf8").catch((error) => {
+    throw new Error(`Unable to write PuppyOne config: ${error.message}`);
+  });
+
+  return normalizedConfig;
 }
 
 export async function getWorkspaceGitCommitDetail(rootPath, commitId) {
@@ -482,6 +688,62 @@ export async function getWorkspaceGitFileDiff(rootPath, relativePath, scope = "u
     };
   }
 
+  if (scope === "remote") {
+    const status = await getWorkspaceGitStatus(root);
+    const target = status.sourceControl.remote.target;
+    if (!target?.remote || !target.branch || target.exists !== true) {
+      throw new Error("Remote branch is not available.");
+    }
+
+    const remoteRef = `refs/remotes/${target.remote}/${target.branch}`;
+    const diffRange = await resolveGitRemoteDiffRange(root, "incoming", remoteRef);
+    const patchResult = await execGit(root, [
+      "diff",
+      "--find-renames",
+      "--patch",
+      "--unified=3",
+      "--no-ext-diff",
+      diffRange,
+      "--",
+      normalizedPath,
+    ]).catch((error) => {
+      throw new Error(formatGitFileDiffError("remote", error));
+    });
+
+    return {
+      commit_id: target.ref ?? remoteRef,
+      files: parseGitPatch(patchResult.stdout),
+    };
+  }
+
+  if (scope === "committed") {
+    const status = await getWorkspaceGitStatus(root);
+    const target = status.sourceControl.remote.target;
+    if (!target?.remote || !target.branch || target.exists !== true) {
+      throw new Error("Remote branch is not available.");
+    }
+
+    const remoteRef = `refs/remotes/${target.remote}/${target.branch}`;
+    const diffRange = await resolveGitRemoteDiffRange(root, "outgoing", remoteRef);
+    const patchResult = await execGit(root, [
+      "diff",
+      "--find-renames",
+      "--patch",
+      "--unified=3",
+      "--no-ext-diff",
+      diffRange,
+      "--",
+      normalizedPath,
+    ]).catch((error) => {
+      throw new Error(formatGitFileDiffError("committed", error));
+    });
+
+    return {
+      commit_id: "local-commits",
+      files: parseGitPatch(patchResult.stdout),
+    };
+  }
+
   const args = [
     "diff",
     "--find-renames",
@@ -504,22 +766,38 @@ export async function getWorkspaceGitFileDiff(rootPath, relativePath, scope = "u
 
 export async function stageWorkspaceGitPaths(rootPath, paths) {
   const root = resolveWorkspacePath(rootPath, null);
-  const normalizedPaths = normalizeGitPathList(paths, { allowEmpty: true });
-  const args = normalizedPaths.length > 0 ? ["add", "--", ...normalizedPaths] : ["add", "--all"];
-  await execGit(root, args).catch((error) => {
+  const normalizedPaths = normalizeGitPathList(paths);
+  await execGit(root, ["add", "--", ...normalizedPaths]).catch((error) => {
     throw new Error(`Unable to stage changes: ${error.message}`);
+  });
+  return getWorkspaceGitStatus(root);
+}
+
+export async function stageAllWorkspaceGitChanges(rootPath) {
+  const root = resolveWorkspacePath(rootPath, null);
+  await execGit(root, ["add", "--all"]).catch((error) => {
+    throw new Error(`Unable to stage all changes: ${getGitErrorOutput(error)}`);
   });
   return getWorkspaceGitStatus(root);
 }
 
 export async function unstageWorkspaceGitPaths(rootPath, paths) {
   const root = resolveWorkspacePath(rootPath, null);
-  const normalizedPaths = normalizeGitPathList(paths, { allowEmpty: true });
-  const pathArgs = normalizedPaths.length > 0 ? normalizedPaths : ["."];
-  await execGit(root, ["restore", "--staged", "--", ...pathArgs]).catch(async () => {
-    await execGit(root, ["reset", "HEAD", "--", ...pathArgs]);
+  const normalizedPaths = normalizeGitPathList(paths);
+  await execGit(root, ["restore", "--staged", "--", ...normalizedPaths]).catch(async () => {
+    await execGit(root, ["reset", "HEAD", "--", ...normalizedPaths]);
   }).catch((error) => {
     throw new Error(`Unable to unstage changes: ${error.message}`);
+  });
+  return getWorkspaceGitStatus(root);
+}
+
+export async function unstageAllWorkspaceGitChanges(rootPath) {
+  const root = resolveWorkspacePath(rootPath, null);
+  await execGit(root, ["restore", "--staged", "--", "."]).catch(async () => {
+    await execGit(root, ["reset", "HEAD", "--", "."]);
+  }).catch((error) => {
+    throw new Error(`Unable to unstage all changes: ${getGitErrorOutput(error)}`);
   });
   return getWorkspaceGitStatus(root);
 }
@@ -528,10 +806,11 @@ export async function discardWorkspaceGitPaths(rootPath, paths) {
   const root = resolveWorkspacePath(rootPath, null);
   const normalizedPaths = normalizeGitPathList(paths);
   const status = await getWorkspaceGitStatus(root);
+  const pathsToDiscard = normalizedPaths;
   const entriesByPath = new Map(status.entries.map((entry) => [entry.path, entry]));
   const trackedPaths = [];
 
-  for (const relativePath of normalizedPaths) {
+  for (const relativePath of pathsToDiscard) {
     const entry = entriesByPath.get(relativePath);
     if (entry?.status === "untracked") {
       await fs.rm(resolveWorkspacePath(root, relativePath), { recursive: true, force: true });
@@ -549,9 +828,38 @@ export async function discardWorkspaceGitPaths(rootPath, paths) {
   return getWorkspaceGitStatus(root);
 }
 
+export async function discardAllWorkspaceGitChanges(rootPath) {
+  const root = resolveWorkspacePath(rootPath, null);
+  const status = await getWorkspaceGitStatus(root);
+  const resources = getDiscardableResources(status.sourceControl);
+  const untrackedPaths = [];
+  const trackedPaths = [];
+
+  for (const resource of resources) {
+    if (resource.group === "untracked" || resource.status === "untracked") {
+      untrackedPaths.push(resource.path);
+      continue;
+    }
+    trackedPaths.push(...getResourceGitPaths(resource));
+  }
+
+  for (const relativePath of uniqueGitPaths(untrackedPaths)) {
+    await fs.rm(resolveWorkspacePath(root, relativePath), { recursive: true, force: true });
+  }
+
+  const uniqueTrackedPaths = uniqueGitPaths(trackedPaths);
+  if (uniqueTrackedPaths.length > 0) {
+    await execGit(root, ["restore", "--worktree", "--", ...uniqueTrackedPaths]).catch((error) => {
+      throw new Error(`Unable to discard all changes: ${getGitErrorOutput(error)}`);
+    });
+  }
+
+  return getWorkspaceGitStatus(root);
+}
+
 export async function commitWorkspaceGit(rootPath, message) {
   const root = resolveWorkspacePath(rootPath, null);
-  const normalizedMessage = normalizeCommitMessage(message);
+  const normalizedMessage = await normalizeCommitMessage(root, message);
   await execGit(root, ["commit", "-m", normalizedMessage]).catch((error) => {
     throw new Error(`Unable to commit changes: ${error.message}`);
   });
@@ -640,25 +948,85 @@ export async function createWorkspaceGitBranch(rootPath, branchName) {
 
 export async function fetchWorkspaceGit(rootPath) {
   const root = resolveWorkspacePath(rootPath, null);
-  await execGit(root, ["fetch", "--all", "--prune"]).catch((error) => {
-    throw new Error(`Unable to fetch remotes: ${error.message}`);
-  });
+  const remotes = await readGitRemotes(root);
+
+  if (remotes.length === 0) {
+    throw new Error("Unable to fetch remotes: no Git remotes are configured.");
+  }
+
+  const failures = [];
+  for (const remote of remotes) {
+    await execGit(root, ["fetch", "--prune", remote.name], { timeout: 30000 }).catch((error) => {
+      failures.push(`remote '${remote.name}': ${getGitErrorOutput(error)}`);
+    });
+  }
+
+  if (failures.length === remotes.length) {
+    throw new Error(`Unable to fetch remotes: ${failures.join("; ")}`);
+  }
+
+  if (failures.length > 0) {
+    console.warn(`Some Git remotes could not be fetched: ${failures.join("; ")}`);
+  }
+
   return getWorkspaceGitStatus(root);
 }
 
 export async function pullWorkspaceGit(rootPath) {
   const root = resolveWorkspacePath(rootPath, null);
-  await execGit(root, ["pull", "--ff-only"]).catch((error) => {
-    throw new Error(`Unable to pull changes: ${error.message}`);
+  const pullArgs = await buildDefaultPullArgs(root);
+  await execGit(root, pullArgs, { timeout: 30000 }).catch((error) => {
+    throw new Error(`Unable to pull changes: ${getGitErrorOutput(error)}`);
   });
   return getWorkspaceGitStatus(root);
 }
 
 export async function pushWorkspaceGit(rootPath) {
   const root = resolveWorkspacePath(rootPath, null);
-  await execGit(root, ["push"]).catch((error) => {
-    throw new Error(`Unable to push changes: ${error.message}`);
+  await execGit(root, ["push"], { timeout: 30000 }).catch((error) => {
+    if (isMissingUpstreamError(error)) {
+      return pushWorkspaceGitWithDefaultUpstream(root);
+    }
+    throw new Error(`Unable to push changes: ${getGitErrorOutput(error)}`);
   });
+  return getWorkspaceGitStatus(root);
+}
+
+export async function publishWorkspaceGitBranch(rootPath, remoteName = null) {
+  const root = resolveWorkspacePath(rootPath, null);
+  await pushWorkspaceGitWithDefaultUpstream(root, remoteName);
+  return getWorkspaceGitStatus(root);
+}
+
+export async function syncWorkspaceGit(rootPath) {
+  const root = resolveWorkspacePath(rootPath, null);
+  const status = await getWorkspaceGitStatus(root);
+
+  if (!status.isRepo) {
+    throw new Error("Current workspace is not a Git repository.");
+  }
+  if (status.sourceControl.remote.canPublish) {
+    await pushWorkspaceGitWithDefaultUpstream(root);
+    return getWorkspaceGitStatus(root);
+  }
+
+  if (status.sourceControl.remote.behind > 0) {
+    const pullArgs = await buildDefaultPullArgs(root);
+    await execGit(root, pullArgs, { timeout: 30000 }).catch((error) => {
+      throw new Error(`Unable to sync changes: ${getGitErrorOutput(error)}`);
+    });
+  }
+
+  const refreshedStatus = await getWorkspaceGitStatus(root);
+  if (refreshedStatus.sourceControl.remote.ahead > 0) {
+    await execGit(root, ["push"], { timeout: 30000 }).catch((error) => {
+      if (isMissingUpstreamError(error)) {
+        return pushWorkspaceGitWithDefaultUpstream(root);
+      }
+      throw new Error(`Unable to sync changes: ${getGitErrorOutput(error)}`);
+    });
+  }
+
   return getWorkspaceGitStatus(root);
 }
 
@@ -993,9 +1361,9 @@ function stableWorkspaceId(folderPath) {
   return `local:${Buffer.from(folderPath).toString("base64url")}`;
 }
 
-function execGit(rootPath, args) {
+function execGit(rootPath, args, options = {}) {
   return execFileAsync("git", ["-C", rootPath, "-c", "core.quotePath=false", ...args], {
-    timeout: 5000,
+    timeout: options.timeout ?? 5000,
     maxBuffer: GIT_MAX_BUFFER,
   });
 }
@@ -1008,6 +1376,68 @@ function getGitErrorOutput(error) {
     return error.stdout.trim();
   }
   return error instanceof Error ? error.message : String(error);
+}
+
+function isMissingUpstreamError(error) {
+  const message = getGitErrorOutput(error);
+  return /no upstream branch|has no upstream branch|--set-upstream/i.test(message);
+}
+
+async function buildDefaultPullArgs(rootPath) {
+  const upstream = await execGit(rootPath, ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"])
+    .then((result) => result.stdout.trim())
+    .catch(() => "");
+  if (upstream) return ["pull", "--ff-only"];
+
+  const remotes = await readGitRemotes(rootPath);
+  const branch = await execGit(rootPath, ["branch", "--show-current"])
+    .then((result) => result.stdout.trim())
+    .catch(() => "");
+  const config = await readPuppyoneWorkspaceConfig(rootPath).catch(() => null);
+  const rawBranches = await readGitBranches(rootPath);
+  const headCommitId = await execGit(rootPath, ["rev-parse", "HEAD"])
+    .then((result) => result.stdout.trim())
+    .catch(() => "");
+  const branches = normalizeGitBranches(rawBranches, branch || "detached", headCommitId);
+  const target = chooseGitSyncTarget(remotes, branches, branch || "detached", config);
+  const remoteName = target.remote;
+  const branchName = target.branch;
+
+  if (remoteName && branchName) return ["pull", "--ff-only", remoteName, branchName];
+  return ["pull", "--ff-only"];
+}
+
+async function pushWorkspaceGitWithDefaultUpstream(rootPath, requestedRemoteName = null) {
+  const branch = await execGit(rootPath, ["branch", "--show-current"])
+    .then((result) => result.stdout.trim())
+    .catch(() => "");
+  if (!branch) {
+    throw new Error("Unable to push changes: current workspace is not on a branch.");
+  }
+  const config = await readPuppyoneWorkspaceConfig(rootPath).catch(() => null);
+  const targetBranch = config?.sync?.sourceOfTruth?.branch ?? config?.backup?.branch ?? config?.git?.watchedBranch ?? branch;
+  const refspec = targetBranch === branch ? branch : `HEAD:${targetBranch}`;
+  const remote = await chooseDefaultPushRemote(rootPath, requestedRemoteName);
+  await execGit(rootPath, ["push", "--set-upstream", remote, refspec], { timeout: 30000 }).catch((error) => {
+    throw new Error(`Unable to push changes: ${getGitErrorOutput(error)}`);
+  });
+}
+
+async function chooseDefaultPushRemote(rootPath, requestedRemoteName = null) {
+  const remotes = await readGitRemotes(rootPath);
+  if (requestedRemoteName) {
+    const normalizedRemoteName = normalizeGitRemoteName(requestedRemoteName);
+    if (remotes.some((remote) => remote.name === normalizedRemoteName)) return normalizedRemoteName;
+    throw new Error(`Unable to push changes: remote '${normalizedRemoteName}' is not configured.`);
+  }
+  const config = await readPuppyoneWorkspaceConfig(rootPath).catch(() => null);
+  const preferredRemoteName = config?.sync?.sourceOfTruth?.remote ?? config?.git?.primaryRemote ?? config?.backup?.remote;
+  if (preferredRemoteName && remotes.some((remote) => remote.name === preferredRemoteName)) return preferredRemoteName;
+  if (remotes.some((remote) => remote.name === "origin")) return "origin";
+  if (remotes.some((remote) => remote.name === "puppyone")) return "puppyone";
+  const firstRemote = remotes[0]?.name;
+  if (firstRemote) return firstRemote;
+  throw new Error("Unable to push changes: no Git remote is configured.");
 }
 
 function formatGitCheckoutError(error) {
@@ -1094,6 +1524,330 @@ function normalizeGitBranches(branches, currentBranchName, headCommitId) {
   ];
 }
 
+async function readGitSyncTarget(rootPath, remotes, branches, currentBranchName, headCommitId) {
+  const config = await readPuppyoneWorkspaceConfig(rootPath).catch(() => null);
+  const target = chooseGitSyncTarget(remotes, branches, currentBranchName, config);
+  const remoteName = target.remote;
+  const branchName = target.branch;
+
+  if (!remoteName || !branchName) {
+    return {
+      remote: remoteName ?? null,
+      branch: branchName ?? null,
+      ref: null,
+      exists: false,
+      ahead: 0,
+      behind: 0,
+      incomingPreview: [],
+      outgoingPreview: [],
+    };
+  }
+
+  const remoteRef = `refs/remotes/${remoteName}/${branchName}`;
+  const remoteExists = await execGit(rootPath, ["rev-parse", "--verify", "--quiet", remoteRef])
+    .then((result) => Boolean(result.stdout.trim()))
+    .catch(() => false);
+
+  if (!remoteExists) {
+    return {
+      remote: remoteName,
+      branch: branchName,
+      ref: `${remoteName}/${branchName}`,
+      exists: false,
+      ahead: 0,
+      behind: 0,
+      incomingPreview: [],
+      outgoingPreview: [],
+    };
+  }
+
+  const counts = headCommitId ? await readGitAheadBehindCounts(rootPath, remoteRef) : { ahead: 0, behind: 0 };
+  const incomingPreview = counts.behind > 0
+    ? await readGitRemoteChangePreview(rootPath, `HEAD..${remoteRef}`)
+    : [];
+  const outgoingPreview = counts.ahead > 0
+    ? await readGitOutgoingChangePreview(rootPath, `${remoteRef}..HEAD`)
+    : [];
+
+  return {
+    remote: remoteName,
+    branch: branchName,
+    ref: `${remoteName}/${branchName}`,
+    exists: true,
+    ahead: counts.ahead,
+    behind: counts.behind,
+    incomingPreview,
+    outgoingPreview,
+  };
+}
+
+function chooseConfiguredRemoteName(remotes, config) {
+  const configuredRemoteName = config?.sync?.sourceOfTruth?.remote ?? config?.git?.primaryRemote ?? config?.backup?.remote;
+  if (configuredRemoteName && remotes.some((remote) => remote.name === configuredRemoteName)) return configuredRemoteName;
+  if (remotes.some((remote) => remote.name === "origin")) return "origin";
+  if (remotes.some((remote) => remote.name.toLowerCase() === "puppyone")) return "puppyone";
+  return remotes[0]?.name ?? null;
+}
+
+function chooseGitSyncTarget(remotes, branches, currentBranchName, config) {
+  const configuredRemoteName = config?.sync?.sourceOfTruth?.remote ?? config?.git?.primaryRemote ?? config?.backup?.remote;
+  const configuredBranchName = config?.sync?.sourceOfTruth?.branch ?? config?.git?.watchedBranch ?? config?.backup?.branch;
+  const remoteNames = new Set(remotes.map((remote) => remote.name));
+
+  if (configuredRemoteName || configuredBranchName) {
+    const remote = configuredRemoteName && remoteNames.has(configuredRemoteName)
+      ? configuredRemoteName
+      : findRemoteForBranch(branches, configuredBranchName)
+        ?? preferExistingRemote(remotes, "origin")
+        ?? preferExistingRemote(remotes, "puppyone")
+        ?? remotes[0]?.name
+        ?? null;
+    return {
+      remote,
+      branch: configuredBranchName
+        ?? findDefaultBranchForRemote(branches, remote)
+        ?? normalizeCurrentBranchName(currentBranchName),
+    };
+  }
+
+  const currentBranch = branches.find((branch) => branch.current && !branch.remote);
+  if (currentBranch?.upstream) {
+    const upstreamTarget = splitRemoteBranchName(currentBranch.upstream);
+    if (upstreamTarget) return upstreamTarget;
+  }
+
+  const originMain = findRemoteBranch(branches, "origin", "main");
+  if (originMain) return originMain;
+
+  const puppyoneMain = findRemoteBranch(branches, "puppyone", "main");
+  if (puppyoneMain) return puppyoneMain;
+
+  const currentBranchNameSafe = normalizeCurrentBranchName(currentBranchName);
+  if (currentBranchNameSafe) {
+    const originCurrent = findRemoteBranch(branches, "origin", currentBranchNameSafe);
+    if (originCurrent) return originCurrent;
+    const puppyoneCurrent = findRemoteBranch(branches, "puppyone", currentBranchNameSafe);
+    if (puppyoneCurrent) return puppyoneCurrent;
+  }
+
+  const fallbackRemote = preferExistingRemote(remotes, "origin")
+    ?? preferExistingRemote(remotes, "puppyone")
+    ?? remotes[0]?.name
+    ?? null;
+
+  return {
+    remote: fallbackRemote,
+    branch: findDefaultBranchForRemote(branches, fallbackRemote)
+      ?? currentBranchNameSafe
+      ?? null,
+  };
+}
+
+function findRemoteBranch(branches, remoteName, branchName) {
+  if (!remoteName || !branchName) return null;
+  return branches.some((branch) => branch.remote && branch.name === `${remoteName}/${branchName}`)
+    ? { remote: remoteName, branch: branchName }
+    : null;
+}
+
+function findRemoteForBranch(branches, branchName) {
+  if (!branchName) return null;
+  const remoteBranch = branches.find((branch) => branch.remote && branch.name.endsWith(`/${branchName}`));
+  return remoteBranch ? splitRemoteBranchName(remoteBranch.name)?.remote ?? null : null;
+}
+
+function findDefaultBranchForRemote(branches, remoteName) {
+  if (!remoteName) return null;
+  if (findRemoteBranch(branches, remoteName, "main")) return "main";
+  if (findRemoteBranch(branches, remoteName, "master")) return "master";
+  const firstRemoteBranch = branches.find((branch) => branch.remote && branch.name.startsWith(`${remoteName}/`));
+  return firstRemoteBranch ? firstRemoteBranch.name.slice(remoteName.length + 1) : null;
+}
+
+function preferExistingRemote(remotes, remoteName) {
+  return remotes.some((remote) => remote.name === remoteName) ? remoteName : null;
+}
+
+function normalizeCurrentBranchName(branchName) {
+  return branchName && branchName !== "detached" ? branchName : null;
+}
+
+function splitRemoteBranchName(value) {
+  const slashIndex = value.indexOf("/");
+  if (slashIndex <= 0 || slashIndex >= value.length - 1) return null;
+  return {
+    remote: value.slice(0, slashIndex),
+    branch: value.slice(slashIndex + 1),
+  };
+}
+
+function parseGitAheadBehindCounts(output) {
+  const [aheadText, behindText] = output.trim().split(/\s+/);
+  return {
+    ahead: Number.parseInt(aheadText, 10) || 0,
+    behind: Number.parseInt(behindText, 10) || 0,
+  };
+}
+
+async function readGitAheadBehindCounts(rootPath, remoteRef) {
+  const symmetricCounts = await execGit(rootPath, ["rev-list", "--left-right", "--count", `HEAD...${remoteRef}`])
+    .then((result) => parseGitAheadBehindCounts(result.stdout))
+    .catch(() => null);
+  if (symmetricCounts) return symmetricCounts;
+
+  const [aheadResult, behindResult] = await Promise.all([
+    execGit(rootPath, ["rev-list", "--count", `${remoteRef}..HEAD`]).catch(() => ({ stdout: "0" })),
+    execGit(rootPath, ["rev-list", "--count", `HEAD..${remoteRef}`]).catch(() => ({ stdout: "0" })),
+  ]);
+
+  return {
+    ahead: Number.parseInt(aheadResult.stdout.trim(), 10) || 0,
+    behind: Number.parseInt(behindResult.stdout.trim(), 10) || 0,
+  };
+}
+
+async function resolveGitRemoteDiffRange(rootPath, direction, remoteRef) {
+  const hasHead = await execGit(rootPath, ["rev-parse", "--verify", "--quiet", "HEAD"])
+    .then((result) => Boolean(result.stdout.trim()))
+    .catch(() => false);
+
+  if (!hasHead) {
+    return direction === "incoming" ? `${GIT_EMPTY_TREE}..${remoteRef}` : `${remoteRef}..${GIT_EMPTY_TREE}`;
+  }
+
+  const mergeBase = await execGit(rootPath, ["merge-base", "HEAD", remoteRef])
+    .then((result) => result.stdout.trim())
+    .catch(() => "");
+
+  if (mergeBase) {
+    return direction === "incoming" ? `${mergeBase}..${remoteRef}` : `${mergeBase}..HEAD`;
+  }
+
+  return direction === "incoming" ? `HEAD..${remoteRef}` : `${remoteRef}..HEAD`;
+}
+
+function formatGitFileDiffError(scope, error) {
+  const message = getGitErrorOutput(error);
+  if (/no merge base|no common ancestor/i.test(message)) {
+    return "Cannot preview this diff because the local branch and remote branch do not share a common history. Pull with a merge or rebase strategy, then try again.";
+  }
+  if (/bad revision|unknown revision|ambiguous argument|not a valid object name/i.test(message)) {
+    return scope === "remote"
+      ? "Cannot preview this remote change because the remote branch is not available locally. Fetch remote changes and try again."
+      : "Cannot preview this committed change because the comparison branch is not available locally. Fetch remote changes and try again.";
+  }
+  return scope === "remote"
+    ? `Unable to preview remote change: ${message}`
+    : `Unable to preview committed change: ${message}`;
+}
+
+async function readGitRemoteChangePreview(rootPath, range) {
+  const result = await execGit(rootPath, [
+    "log",
+    "--name-status",
+    "--format=",
+    "-z",
+    "--find-renames",
+    range,
+  ]).catch(() => ({ stdout: "" }));
+
+  return uniqueGitPreviewResources(
+    parseGitNameStatusPreview(result.stdout, "remote", GIT_REMOTE_PREVIEW_LIMIT * 4),
+    GIT_REMOTE_PREVIEW_LIMIT,
+  );
+}
+
+async function readGitOutgoingChangePreview(rootPath, range) {
+  const result = await execGit(rootPath, [
+    "log",
+    "--name-status",
+    "--format=",
+    "-z",
+    "--find-renames",
+    range,
+  ]).catch(() => ({ stdout: "" }));
+
+  return uniqueGitPreviewResources(
+    parseGitNameStatusPreview(result.stdout, "committed", GIT_REMOTE_PREVIEW_LIMIT * 4),
+    GIT_REMOTE_PREVIEW_LIMIT,
+  );
+}
+
+function uniqueGitPreviewResources(resources, limit) {
+  const seen = new Set();
+  const unique = [];
+
+  for (const resource of resources) {
+    const key = `${resource.oldPath ?? ""}\0${resource.path}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(resource);
+    if (unique.length >= limit) break;
+  }
+
+  return unique;
+}
+
+function parseGitNameStatusPreview(output, group, limit) {
+  const tokens = output.split("\0").filter(Boolean);
+  const resources = [];
+
+  for (let index = 0; index < tokens.length && resources.length < limit; index += 1) {
+    const code = tokens[index] ?? "";
+    const statusCode = code[0] ?? "";
+    if (!statusCode) continue;
+
+    if (statusCode === "R" || statusCode === "C") {
+      const oldPath = tokens[index + 1] ?? null;
+      const nextPath = tokens[index + 2] ?? oldPath;
+      index += 2;
+      if (nextPath) {
+        resources.push(buildGitPreviewResource({
+          path: nextPath,
+          oldPath,
+          status: statusCode === "R" ? "renamed" : "copied",
+          group,
+        }));
+      }
+      continue;
+    }
+
+    const filePath = tokens[index + 1] ?? null;
+    index += 1;
+    if (!filePath) continue;
+    resources.push(buildGitPreviewResource({
+      path: filePath,
+      oldPath: null,
+      status: gitNameStatusCodeToLabel(statusCode),
+      group,
+    }));
+  }
+
+  return resources;
+}
+
+function buildGitPreviewResource({ path: filePath, oldPath, status, group }) {
+  return {
+    id: `${group}:${oldPath ?? ""}:${filePath}:${status}`,
+    group: "workingTree",
+    path: filePath,
+    oldPath: oldPath ?? null,
+    status,
+    staged: false,
+    conflict: false,
+    letter: gitStatusLabelToLetter(status),
+  };
+}
+
+function gitNameStatusCodeToLabel(statusCode) {
+  if (statusCode === "A") return "added";
+  if (statusCode === "D") return "deleted";
+  if (statusCode === "R") return "renamed";
+  if (statusCode === "C") return "copied";
+  if (statusCode === "M") return "modified";
+  return "changed";
+}
+
 function parseGitBranchLine(line) {
   if (!line.trim()) return null;
   const [
@@ -1158,17 +1912,79 @@ async function readGitRemotes(rootPath) {
   return [...remotes.values()];
 }
 
+function normalizePuppyoneWorkspaceConfig(value, options = {}) {
+  const source = value && typeof value === "object" ? value : {};
+  const sync = source.sync && typeof source.sync === "object" ? source.sync : {};
+  const sourceOfTruth = sync.sourceOfTruth && typeof sync.sourceOfTruth === "object" ? sync.sourceOfTruth : {};
+  const git = source.git && typeof source.git === "object" ? source.git : {};
+  const backup = source.backup && typeof source.backup === "object" ? source.backup : {};
+  const cloud = source.cloud && typeof source.cloud === "object" ? source.cloud : {};
+  const primaryRemote = normalizeOptionalConfigText(git.primaryRemote);
+  const watchedBranch = normalizeOptionalConfigText(git.watchedBranch);
+  const sourceOfTruthService = normalizeBackendService(sourceOfTruth.service ?? backup.service);
+  const sourceOfTruthRemote =
+    normalizeOptionalConfigText(sourceOfTruth.remote)
+    ?? primaryRemote
+    ?? normalizeOptionalConfigText(backup.remote);
+  const sourceOfTruthBranch =
+    normalizeOptionalConfigText(sourceOfTruth.branch)
+    ?? watchedBranch
+    ?? normalizeOptionalConfigText(backup.branch);
+  const updatedAt = typeof options.updatedAt === "string"
+    ? options.updatedAt
+    : typeof source.updatedAt === "string"
+      ? source.updatedAt
+      : undefined;
+
+  return {
+    ...DEFAULT_PUPPYONE_WORKSPACE_CONFIG,
+    version: 1,
+    sync: {
+      sourceOfTruth: {
+        service: sourceOfTruthService,
+        remote: sourceOfTruthRemote,
+        branch: sourceOfTruthBranch,
+      },
+    },
+    git: {
+      primaryRemote: primaryRemote ?? sourceOfTruthRemote,
+      watchedBranch: watchedBranch ?? sourceOfTruthBranch,
+    },
+    backup: {
+      enabled: backup.enabled === true || cloud.backupEnabled === true,
+      service: normalizeBackendService(backup.service ?? sourceOfTruthService),
+      remote: normalizeOptionalConfigText(backup.remote) ?? sourceOfTruthRemote,
+      branch: normalizeOptionalConfigText(backup.branch) ?? sourceOfTruthBranch,
+    },
+    cloud: {
+      projectId: normalizeOptionalConfigText(cloud.projectId),
+    },
+    ...(updatedAt ? { updatedAt } : {}),
+  };
+}
+
+function normalizeBackendService(value) {
+  return value === "github" || value === "custom" || value === "puppyone" ? value : "puppyone";
+}
+
+function normalizeOptionalConfigText(value) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 async function readGitHistory(rootPath, limit, options = {}) {
   const baseArgs = [
     "log",
     ...(options.allBranches ? ["--all"] : []),
+    "--topo-order",
     "-n",
     String(limit),
     "--date=iso-strict",
     "--pretty=format:%x1e%H%x1f%P%x1f%an%x1f%ae%x1f%ad%x1f%s",
   ];
 
-  const [statusResult, statsResult] = await Promise.all([
+  const [statusResult, statsResult, graphByCommit] = await Promise.all([
     execGit(rootPath, [
       ...baseArgs,
       "--name-status",
@@ -1177,6 +1993,7 @@ async function readGitHistory(rootPath, limit, options = {}) {
       ...baseArgs,
       "--numstat",
     ]).catch(() => ({ stdout: "" })),
+    readGitGraphLayout(rootPath, limit, options),
   ]);
 
   if (!statusResult.stdout.trim()) return [];
@@ -1195,8 +2012,53 @@ async function readGitHistory(rootPath, limit, options = {}) {
     .filter(Boolean)
     .map((commit) => ({
       ...commit,
+      graph_prefix: graphByCommit.get(commit.commit_id)?.prefix ?? "",
+      graph_continuation_prefixes: graphByCommit.get(commit.commit_id)?.continuations ?? [],
       changes: mergeGitChangeStats(commit.changes, statsByCommit.get(commit.commit_id) ?? []),
     }));
+}
+
+async function readGitGraphLayout(rootPath, limit, options = {}) {
+  const result = await execGit(rootPath, [
+    "log",
+    ...(options.allBranches ? ["--all"] : []),
+    "--topo-order",
+    "-n",
+    String(limit),
+    "--graph",
+    "--pretty=format:%x1e%H",
+  ]).catch(() => ({ stdout: "" }));
+
+  return parseGitGraphLayout(result.stdout);
+}
+
+function parseGitGraphLayout(output) {
+  const graphByCommit = new Map();
+  let currentCommitId = null;
+
+  for (const line of output.split(/\r?\n/)) {
+    const markerIndex = line.indexOf("\x1e");
+    if (markerIndex >= 0) {
+      const commitId = line.slice(markerIndex + 1).trim();
+      if (!commitId) {
+        currentCommitId = null;
+        continue;
+      }
+      currentCommitId = commitId;
+      graphByCommit.set(commitId, {
+        prefix: line.slice(0, markerIndex).replace(/\s+$/, ""),
+        continuations: [],
+      });
+      continue;
+    }
+
+    if (!currentCommitId) continue;
+    const continuation = line.replace(/\s+$/, "");
+    if (!continuation.trim()) continue;
+    graphByCommit.get(currentCommitId)?.continuations.push(continuation);
+  }
+
+  return graphByCommit;
 }
 
 function parseGitNumstatSection(section) {
@@ -1525,13 +2387,28 @@ function normalizeGitPathList(paths, options = {}) {
   });
 }
 
-function normalizeCommitMessage(message) {
-  if (typeof message !== "string") {
-    throw new Error("Commit message is required.");
+async function normalizeCommitMessage(rootPath, message) {
+  const normalized = typeof message === "string" ? message.trim() : "";
+  if (normalized) return normalized;
+  return buildDefaultCommitMessage(rootPath);
+}
+
+async function buildDefaultCommitMessage(rootPath) {
+  const result = await execGit(rootPath, ["diff", "--cached", "--name-only"]).catch(() => null);
+  const stagedPaths = (result?.stdout ?? "")
+    .split(/\r?\n/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  if (stagedPaths.length === 1) {
+    return `Update ${path.basename(stagedPaths[0]) || stagedPaths[0]}`;
   }
-  const normalized = message.trim();
-  if (!normalized) throw new Error("Commit message is required.");
-  return normalized;
+
+  if (stagedPaths.length > 1) {
+    return `Update ${stagedPaths.length} files`;
+  }
+
+  return "Update workspace";
 }
 
 async function normalizeGitBranchName(rootPath, branchName) {
@@ -1548,31 +2425,356 @@ async function normalizeGitBranchName(rootPath, branchName) {
   return normalized;
 }
 
-function parseGitStatusLine(line) {
-  if (!line.trim()) return null;
-  const staged = line[0] || " ";
-  const unstaged = line[1] || " ";
-  const pathText = line.slice(3).trim();
-  if (!pathText) return null;
-  const renameIndex = pathText.indexOf(" -> ");
-  const oldPath = renameIndex >= 0 ? pathText.slice(0, renameIndex) : null;
-  const nextPath = renameIndex >= 0 ? pathText.slice(renameIndex + " -> ".length) : pathText;
+function normalizeGitRemoteName(remoteName) {
+  if (typeof remoteName !== "string") {
+    throw new Error("Remote name is required.");
+  }
+  const normalized = remoteName.trim();
+  if (!/^[A-Za-z0-9._-]{1,40}$/.test(normalized) || normalized.startsWith("-")) {
+    throw new Error("Remote name is invalid.");
+  }
+  return normalized;
+}
+
+function normalizeGitRemoteUrl(remoteUrl) {
+  if (typeof remoteUrl !== "string") {
+    throw new Error("Remote URL is required.");
+  }
+  const normalized = remoteUrl.trim();
+  let url;
+  try {
+    url = new URL(normalized);
+  } catch {
+    throw new Error("Remote URL is invalid.");
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") {
+    throw new Error("Remote URL must use http or https.");
+  }
+  if (!/^\/git\/(?:ap\/)?[^/]+\.git$/.test(url.pathname)) {
+    throw new Error("Remote URL is not a PuppyOne Git endpoint.");
+  }
+  return normalized;
+}
+
+function parseGitPorcelainV2Status(output) {
+  const entries = [];
+  const headers = {};
+  const records = output.split("\0");
+
+  for (let index = 0; index < records.length; index += 1) {
+    const record = records[index];
+    if (!record) continue;
+
+    if (record.startsWith("# ")) {
+      const spaceIndex = record.indexOf(" ", 2);
+      if (spaceIndex > 2) {
+        headers[record.slice(2, spaceIndex)] = record.slice(spaceIndex + 1);
+      }
+      continue;
+    }
+
+    const type = record[0];
+    if (type === "1") {
+      const entry = parseGitPorcelainV2OrdinaryRecord(record);
+      if (entry) entries.push(entry);
+      continue;
+    }
+
+    if (type === "2") {
+      const { entry, consumedNext } = parseGitPorcelainV2RenameRecord(record, records[index + 1]);
+      if (entry) entries.push(entry);
+      if (consumedNext) index += 1;
+      continue;
+    }
+
+    if (type === "u") {
+      const entry = parseGitPorcelainV2UnmergedRecord(record);
+      if (entry) entries.push(entry);
+      continue;
+    }
+
+    if (type === "?") {
+      const filePath = record.slice(2);
+      if (filePath) {
+        entries.push({
+          path: filePath,
+          oldPath: null,
+          staged: "?",
+          unstaged: "?",
+          status: "untracked",
+        });
+      }
+    }
+  }
+
+  return { headers, entries };
+}
+
+function parseGitPorcelainV2OrdinaryRecord(record) {
+  const fields = splitGitPorcelainRecord(record, 8);
+  if (fields.length < 9) return null;
+  const xy = fields[1] || "  ";
+  const filePath = fields[8];
+  if (!filePath) return null;
+  return buildGitStatusEntry({
+    path: filePath,
+    oldPath: null,
+    staged: xy[0] || " ",
+    unstaged: xy[1] || " ",
+  });
+}
+
+function parseGitPorcelainV2RenameRecord(record, nextRecord) {
+  const fields = splitGitPorcelainRecord(record, 9);
+  if (fields.length < 10) return { entry: null, consumedNext: false };
+
+  const xy = fields[1] || "  ";
+  const pathText = fields[9] || "";
+  const tabIndex = pathText.indexOf("\t");
+  const filePath = tabIndex >= 0 ? pathText.slice(0, tabIndex) : pathText;
+  const oldPathFromRecord = tabIndex >= 0 ? pathText.slice(tabIndex + 1) : null;
+  const oldPathFromNext = oldPathFromRecord ?? nextRecord ?? null;
+  const consumedNext = Boolean(!oldPathFromRecord && oldPathFromNext);
 
   return {
-    path: nextPath,
-    oldPath,
-    staged: staged.trim() || null,
-    unstaged: unstaged.trim() || null,
-    status: getGitStatusLabel(staged, unstaged),
+    consumedNext,
+    entry: filePath
+      ? buildGitStatusEntry({
+        path: filePath,
+        oldPath: oldPathFromNext,
+        staged: xy[0] || " ",
+        unstaged: xy[1] || " ",
+      })
+      : null,
   };
 }
 
+function parseGitPorcelainV2UnmergedRecord(record) {
+  const fields = splitGitPorcelainRecord(record, 10);
+  if (fields.length < 11) return null;
+  const xy = fields[1] || "UU";
+  const filePath = fields[10];
+  if (!filePath) return null;
+  return buildGitStatusEntry({
+    path: filePath,
+    oldPath: null,
+    staged: xy[0] || "U",
+    unstaged: xy[1] || "U",
+    conflict: true,
+  });
+}
+
+function splitGitPorcelainRecord(record, fixedFieldCount) {
+  const fields = [];
+  let cursor = 0;
+
+  for (let index = 0; index < fixedFieldCount; index += 1) {
+    const nextSpace = record.indexOf(" ", cursor);
+    if (nextSpace < 0) {
+      fields.push(record.slice(cursor));
+      return fields;
+    }
+    fields.push(record.slice(cursor, nextSpace));
+    cursor = nextSpace + 1;
+  }
+
+  fields.push(record.slice(cursor));
+  return fields;
+}
+
+function buildGitStatusEntry({ path: filePath, oldPath, staged, unstaged, conflict = false }) {
+  const normalizedStaged = normalizeGitStatusCode(staged);
+  const normalizedUnstaged = normalizeGitStatusCode(unstaged);
+  return {
+    path: filePath,
+    oldPath: oldPath || null,
+    staged: normalizedStaged,
+    unstaged: normalizedUnstaged,
+    status: conflict ? "conflict" : getGitStatusLabel(normalizedStaged ?? " ", normalizedUnstaged ?? " "),
+    ...(conflict ? { conflict: true } : {}),
+  };
+}
+
+function buildGitSourceControlSnapshot({ entries, branchName, syncTarget, currentBranch, headCommitId }) {
+  const resourcesByGroup = new Map(GIT_RESOURCE_GROUPS.map((group) => [group.id, []]));
+
+  for (const entry of entries) {
+    for (const resource of buildGitSourceControlResourcesForEntry(entry)) {
+      resourcesByGroup.get(resource.group)?.push(resource);
+    }
+  }
+
+  const groups = GIT_RESOURCE_GROUPS
+    .map((group) => ({
+      ...group,
+      resources: resourcesByGroup.get(group.id) ?? [],
+    }))
+    .filter((group) => group.resources.length > 0 || group.id === "index" || group.id === "workingTree");
+  const stagedCount = resourcesByGroup.get("index")?.length ?? 0;
+  const workingCount = (resourcesByGroup.get("workingTree")?.length ?? 0) + (resourcesByGroup.get("untracked")?.length ?? 0);
+  const mergeCount = resourcesByGroup.get("merge")?.length ?? 0;
+
+  return {
+    input: {
+      placeholder: branchName && branchName !== "detached"
+        ? `Message (⌘↩ to commit on ${branchName})`
+        : "Message (⌘↩ to commit)",
+      defaultMessage: buildDefaultCommitMessageFromResources(resourcesByGroup.get("index") ?? []),
+    },
+    groups,
+    remote: buildGitSourceControlRemoteSummary({ branchName, syncTarget, currentBranch, headCommitId }),
+    actions: {
+      canStageAll: workingCount > 0 || mergeCount > 0,
+      canUnstageAll: stagedCount > 0,
+      canDiscardAll: workingCount > 0 || mergeCount > 0,
+      canCommit: stagedCount > 0 && mergeCount === 0,
+    },
+  };
+}
+
+function buildGitSourceControlResourcesForEntry(entry) {
+  if (entry.conflict || entry.status === "conflict" || isConflictStatus(entry.staged, entry.unstaged)) {
+    return [buildGitSourceControlResource(entry, "merge", "conflict")];
+  }
+
+  const resources = [];
+  if (entry.status === "untracked") {
+    resources.push(buildGitSourceControlResource(entry, "untracked", "untracked"));
+    return resources;
+  }
+
+  const stagedStatus = gitStatusCodeToLabel(entry.staged);
+  if (stagedStatus) {
+    resources.push(buildGitSourceControlResource(entry, "index", stagedStatus));
+  }
+
+  const unstagedStatus = gitStatusCodeToLabel(entry.unstaged);
+  if (unstagedStatus) {
+    resources.push(buildGitSourceControlResource(entry, "workingTree", unstagedStatus));
+  }
+
+  return resources;
+}
+
+function buildGitSourceControlResource(entry, group, status) {
+  return {
+    id: `${group}:${entry.oldPath ?? ""}:${entry.path}:${status}`,
+    group,
+    path: entry.path,
+    oldPath: entry.oldPath ?? null,
+    status,
+    staged: group === "index",
+    conflict: group === "merge",
+    letter: gitStatusLabelToLetter(status),
+  };
+}
+
+function buildGitSourceControlRemoteSummary({ branchName, syncTarget, currentBranch, headCommitId }) {
+  const ahead = syncTarget?.ahead ?? currentBranch?.ahead ?? 0;
+  const behind = syncTarget?.behind ?? currentBranch?.behind ?? 0;
+  const hasBranch = Boolean(branchName && branchName !== "detached");
+  const hasTarget = Boolean(syncTarget?.remote && syncTarget?.branch);
+  const remoteExists = syncTarget?.exists === true;
+  const upstream = currentBranch?.upstream ?? syncTarget?.ref ?? null;
+  const canPublish = hasBranch && hasTarget && !remoteExists && Boolean(headCommitId);
+  const canPull = remoteExists && behind > 0;
+  const canPush = remoteExists && ahead > 0;
+  const canSync = canPublish || (remoteExists && (ahead > 0 || behind > 0));
+
+  let state = "synced";
+  if (branchName == null && !headCommitId && !syncTarget) {
+    state = "no-repository";
+  } else if (!hasBranch) {
+    state = "no-branch";
+  } else if (!hasTarget) {
+    state = "no-remote";
+  } else if (!remoteExists) {
+    state = "publish";
+  } else if (ahead > 0 && behind > 0) {
+    state = "diverged";
+  } else if (behind > 0) {
+    state = "incoming";
+  } else if (ahead > 0) {
+    state = "outgoing";
+  }
+
+  return {
+    target: syncTarget,
+    currentBranch: branchName ?? null,
+    upstream,
+    ahead,
+    behind,
+    incomingPreview: syncTarget?.incomingPreview ?? [],
+    outgoingPreview: syncTarget?.outgoingPreview ?? [],
+    canPull,
+    canPush,
+    canSync,
+    canPublish,
+    state,
+  };
+}
+
+function buildDefaultCommitMessageFromResources(resources) {
+  if (resources.length === 1) {
+    return `Update ${path.basename(resources[0].path) || resources[0].path}`;
+  }
+  if (resources.length > 1) return `Update ${resources.length} files`;
+  return "Update workspace";
+}
+
+function getDiscardableResources(sourceControl) {
+  return (sourceControl?.groups ?? [])
+    .filter((group) => group.id === "workingTree" || group.id === "untracked" || group.id === "merge")
+    .flatMap((group) => group.resources);
+}
+
+function getResourceGitPaths(resource) {
+  return resource.oldPath && resource.oldPath !== resource.path
+    ? [resource.oldPath, resource.path]
+    : [resource.path];
+}
+
+function uniqueGitPaths(paths) {
+  return [...new Set(paths.map((value) => normalizeRelativePath(value)).filter(Boolean))];
+}
+
+function isConflictStatus(staged, unstaged) {
+  const code = `${staged ?? " "}${unstaged ?? " "}`;
+  return code.includes("U") || ["DD", "AA"].includes(code);
+}
+
+function normalizeGitStatusCode(code) {
+  if (!code || code === " " || code === ".") return null;
+  return code.trim() || null;
+}
+
+function gitStatusCodeToLabel(code) {
+  if (!code || code === " " || code === "." || code === "?") return null;
+  if (code === "M") return "modified";
+  if (code === "A") return "added";
+  if (code === "D") return "deleted";
+  if (code === "R") return "renamed";
+  if (code === "C") return "copied";
+  if (code === "U") return "conflict";
+  return "changed";
+}
+
+function gitStatusLabelToLetter(status) {
+  if (status === "untracked") return "U";
+  if (status === "added") return "A";
+  if (status === "deleted") return "D";
+  if (status === "renamed") return "R";
+  if (status === "copied") return "C";
+  if (status === "conflict") return "!";
+  return "M";
+}
+
 function hasStagedStatus(entry) {
-  return Boolean(entry.staged && entry.staged !== "?");
+  return Boolean(entry.staged && entry.staged !== "?" && entry.staged !== ".");
 }
 
 function hasUnstagedStatus(entry) {
-  return entry.status !== "untracked" && Boolean(entry.unstaged && entry.unstaged !== "?");
+  return entry.status !== "untracked" && Boolean(entry.unstaged && entry.unstaged !== "?" && entry.unstaged !== ".");
 }
 
 function getGitStatusLabel(staged, unstaged) {

@@ -1,0 +1,671 @@
+.desktop-cloud-overview-focus {
+  --desktop-cloud-overview-width: 900px;
+  --desktop-cloud-overview-gap: 44px;
+  --desktop-cloud-preview-max-size: 260px;
+  --desktop-cloud-overview-side-width: calc(var(--desktop-cloud-overview-width) - var(--desktop-cloud-preview-max-size) - var(--desktop-cloud-overview-gap));
+  display: grid;
+  width: min(100%, var(--desktop-cloud-overview-width));
+  min-width: 0;
+  justify-items: stretch;
+  gap: 48px;
+  margin: clamp(28px, 6vh, 68px) auto 0;
+}
+
+.desktop-cloud-overview-header {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.desktop-cloud-overview-heading {
+  display: grid;
+  max-width: 520px;
+  min-width: 0;
+  justify-items: start;
+  gap: 8px;
+  text-align: left;
+}
+
+.desktop-cloud-overview-title-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.desktop-cloud-overview-title-row h1 {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  color: var(--po-text);
+  font-size: 24px;
+  font-weight: 720;
+  line-height: 1.14;
+}
+
+.desktop-cloud-overview-heading p {
+  max-width: 560px;
+  margin: 0;
+  color: var(--po-text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.desktop-cloud-project-id {
+  display: block;
+  max-width: min(520px, 100%);
+  overflow: hidden;
+  color: var(--po-text-subtle);
+  font-family: var(--po-font-mono);
+  font-size: 12px;
+  font-weight: 620;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-cloud-overview-body {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: var(--desktop-cloud-preview-max-size) minmax(0, var(--desktop-cloud-overview-side-width));
+  align-items: start;
+  gap: var(--desktop-cloud-overview-gap);
+}
+
+.desktop-cloud-overview-preview {
+  display: grid;
+  width: var(--desktop-cloud-preview-max-size);
+  min-width: 0;
+  align-items: center;
+  justify-items: start;
+}
+
+.desktop-cloud-overview-preview .desktop-project-folder-card {
+  max-width: var(--desktop-cloud-preview-max-size);
+}
+
+.desktop-cloud-overview-side {
+  display: grid;
+  width: min(430px, 100%);
+  min-width: 0;
+  justify-self: end;
+  align-content: start;
+  justify-items: stretch;
+  gap: 12px;
+  padding-top: 0;
+  text-align: left;
+}
+
+.desktop-cloud-overview-doc {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 1fr;
+  justify-items: stretch;
+  gap: 0;
+  border-top: 1px solid color-mix(in srgb, var(--po-divider) 72%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--po-divider) 72%, transparent);
+}
+
+.desktop-cloud-overview-metric {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 1fr;
+  align-items: start;
+  gap: 6px;
+  min-height: 0;
+  padding: 12px 0 13px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.desktop-cloud-overview-metric + .desktop-cloud-overview-metric,
+.desktop-cloud-overview-metric + .desktop-cloud-integrations-card {
+  border-top: 1px solid color-mix(in srgb, var(--po-divider) 60%, transparent);
+}
+
+.desktop-cloud-overview-metric-value {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: flex-start;
+  gap: 8px;
+  max-width: 100%;
+}
+
+.desktop-cloud-overview-metric-label {
+  overflow: hidden;
+  color: var(--po-text-subtle);
+  font-size: 12px;
+  font-weight: 680;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-cloud-overview-metric strong {
+  flex: 0 0 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--po-text);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-cloud-overview-metric.date strong {
+  color: var(--po-text);
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.desktop-cloud-overview-metric small {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--po-text-muted);
+  font-size: 12px;
+  font-weight: 560;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-cloud-overview-metric.mono strong {
+  font-family: var(--po-font-mono);
+  font-size: 13px;
+}
+
+.desktop-cloud-overview-metric.ready strong {
+  color: var(--po-success);
+}
+
+.desktop-cloud-overview-metric.warning strong {
+  color: var(--po-warning);
+}
+
+.desktop-cloud-integrations-card {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 1fr;
+  align-items: start;
+  gap: 6px;
+  padding: 12px 0 13px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.desktop-cloud-integrations-heading {
+  display: block;
+  min-width: 0;
+}
+
+.desktop-cloud-integrations-heading span {
+  overflow: hidden;
+  color: var(--po-text-subtle);
+  font-size: 12px;
+  font-weight: 680;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-cloud-integrations-heading strong {
+  color: var(--po-text);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.desktop-cloud-integrations-icons {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.desktop-cloud-integrations-value {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.desktop-cloud-integrations-value strong {
+  color: var(--po-text);
+  font-size: 14px;
+  font-weight: 720;
+  line-height: 1.25;
+}
+
+.desktop-cloud-integrations-value small {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--po-text-muted);
+  font-size: 12px;
+  font-weight: 560;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-cloud-provider-tile {
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid var(--po-border);
+  border-radius: 6px;
+  background: var(--po-panel);
+  color: var(--po-text-muted);
+  font-size: 10px;
+  font-weight: 720;
+}
+
+.desktop-cloud-provider-tile img {
+  display: block;
+  width: 15px;
+  height: 15px;
+  object-fit: contain;
+}
+
+.desktop-cloud-local-map {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: 1fr;
+  align-items: center;
+  justify-items: stretch;
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.desktop-cloud-local-map.mapped {
+  border-color: transparent;
+  background: transparent;
+}
+
+.desktop-cloud-local-map-main {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.desktop-cloud-local-map-main span {
+  overflow: hidden;
+  color: var(--po-text-subtle);
+  font-size: 12px;
+  font-weight: 680;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-cloud-local-map-main code {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--po-text);
+  font-family: var(--po-font-mono);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-cloud-repo-hero {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  align-items: center;
+  gap: 28px;
+  min-width: 0;
+  padding: 2px 0 0;
+}
+
+.desktop-cloud-repo-copy {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+}
+
+.desktop-cloud-repo-copy-header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.desktop-cloud-repo-title-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 11px;
+}
+
+.desktop-cloud-repo-title-row h1 {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--po-text);
+  font-size: 25px;
+  font-weight: 730;
+  line-height: 1.16;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-cloud-source-pill {
+  display: inline-flex;
+  flex: 0 0 auto;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid color-mix(in srgb, var(--po-success) 22%, var(--po-border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--po-success) 6%, transparent);
+  color: color-mix(in srgb, var(--po-success) 82%, var(--po-text-muted));
+  font-size: 12px;
+  font-weight: 620;
+}
+
+.desktop-cloud-repo-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+}
+
+.desktop-cloud-repo-title {
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+}
+
+.desktop-cloud-repo-title > span {
+  color: var(--po-text-subtle);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.desktop-cloud-repo-title h1 {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--po-text);
+  font-size: 24px;
+  font-weight: 720;
+  line-height: 1.14;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-cloud-repo-title p {
+  max-width: 620px;
+  color: var(--po-text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.desktop-cloud-authority-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--po-border);
+  border-radius: 8px;
+  background: var(--po-border);
+}
+
+.desktop-cloud-authority-cell {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+  padding: 10px 11px;
+  background: var(--po-panel);
+}
+
+.desktop-cloud-authority-cell span {
+  overflow: hidden;
+  color: var(--po-text-subtle);
+  font-size: 11px;
+  font-weight: 620;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-cloud-authority-cell strong {
+  overflow: hidden;
+  color: var(--po-text);
+  font-size: 12px;
+  font-weight: 680;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-cloud-authority-cell.mono strong {
+  font-family: var(--po-font-mono);
+  font-size: 12px;
+}
+
+.desktop-cloud-authority-cell.ready strong {
+  color: var(--po-success);
+}
+
+.desktop-cloud-authority-cell.warning strong {
+  color: var(--po-warning);
+}
+
+.desktop-cloud-main-alert {
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--po-danger) 18%, var(--po-divider));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--po-danger) 8%, var(--po-panel));
+  color: var(--po-danger);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.desktop-cloud-main-alert.success {
+  border-color: color-mix(in srgb, var(--po-success) 24%, var(--po-divider));
+  background: color-mix(in srgb, var(--po-success) 8%, var(--po-panel));
+  color: var(--po-success);
+}
+
+.desktop-cloud-section-card {
+  display: grid;
+  min-width: 0;
+  overflow: hidden;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--po-divider);
+  border-radius: 8px;
+  background: var(--po-panel);
+}
+
+.desktop-cloud-section-card-header {
+  display: flex;
+  min-height: 30px;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0;
+}
+
+.desktop-cloud-section-card-header > div {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.desktop-cloud-section-card-header span {
+  overflow: hidden;
+  color: var(--po-text);
+  font-size: 13px;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-cloud-section-card-header small {
+  display: inline-flex;
+  min-width: 20px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--po-control);
+  color: var(--po-text-muted);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.desktop-cloud-section-card-body {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+  padding: 0;
+}
+
+.desktop-cloud-project-overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  align-items: center;
+  gap: 14px;
+}
+
+.desktop-cloud-project-overview > div:first-child {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.desktop-cloud-project-overview > div:first-child span {
+  color: var(--po-text-subtle);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.desktop-cloud-project-overview > div:first-child strong {
+  overflow: hidden;
+  color: var(--po-text);
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-cloud-project-overview > div:first-child p {
+  max-width: 640px;
+  margin: 0;
+  color: var(--po-text-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.desktop-cloud-hosted-source {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  align-items: center;
+  gap: 14px;
+}
+
+.desktop-cloud-hosted-copy {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.desktop-cloud-hosted-kicker {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  align-items: center;
+  gap: 7px;
+  color: var(--po-text-subtle);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.desktop-cloud-hosted-kicker em {
+  display: inline-flex;
+  height: 18px;
+  align-items: center;
+  padding: 0 7px;
+  border: 1px solid color-mix(in srgb, var(--po-success) 38%, var(--po-border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--po-success) 10%, transparent);
+  color: var(--po-success);
+  font-style: normal;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.desktop-cloud-hosted-status {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--po-success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--po-success) 14%, transparent);
+}
+
+.desktop-cloud-hosted-copy strong {
+  overflow: hidden;
+  color: var(--po-text);
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-cloud-hosted-copy p {
+  max-width: 640px;
+  margin: 0;
+  color: var(--po-text-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.desktop-cloud-sync-summary,
+.desktop-cloud-usage-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--po-border);
+  border-radius: 8px;
+  background: var(--po-border);
+}
+
+.desktop-cloud-usage-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}

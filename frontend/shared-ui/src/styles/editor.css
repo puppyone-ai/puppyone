@@ -38,6 +38,67 @@
   background: var(--po-panel-raised);
 }
 
+.html-preview-shell {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  background: var(--po-editor-bg);
+}
+
+.html-preview-toolbar {
+  position: absolute;
+  top: 22px;
+  right: 22px;
+  z-index: 3;
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid color-mix(in srgb, var(--po-divider) 84%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--po-panel-raised) 92%, transparent);
+  box-shadow: var(--po-shadow-sm);
+}
+
+.html-preview-toolbar button {
+  display: inline-grid;
+  width: 26px;
+  height: 24px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--po-text-muted);
+  cursor: pointer;
+}
+
+.html-preview-toolbar button:hover,
+.html-preview-toolbar button.active {
+  background: var(--po-control-hover);
+  color: var(--po-text);
+}
+
+.html-preview-toolbar button:disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+
+.html-source-preview {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: 14px;
+}
+
+.html-source-preview .plain-text-editor {
+  border: 1px solid var(--po-border-subtle);
+  border-radius: 6px;
+  background: var(--po-panel-raised);
+}
+
 .native-image-preview {
   display: block;
   max-width: 100%;
@@ -77,77 +138,43 @@
 .office-preview {
   display: flex;
   flex: 1;
+  width: 100%;
+  height: 100%;
   min-width: 0;
   min-height: 0;
   flex-direction: column;
+  overflow: hidden;
   background: var(--po-editor-bg);
   color: var(--po-text);
 }
 
-.office-preview__toolbar {
-  display: flex;
-  min-height: 42px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 7px 84px 7px 12px;
-  border-bottom: 1px solid var(--po-border-subtle);
-  background: var(--po-panel);
-}
-
-.office-preview__title {
-  display: grid;
-  min-width: 0;
-  gap: 1px;
-}
-
-.office-preview__title strong,
-.office-preview__title span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.office-preview__title strong {
-  color: var(--po-text);
-  font-size: 13px;
-  font-weight: 650;
-  line-height: 1.25;
-}
-
-.office-preview__title span,
-.office-preview__badge,
 .office-preview__note {
   color: var(--po-text-muted);
   font-size: 11px;
 }
 
-.office-preview__badge {
-  display: inline-flex;
-  flex: 0 0 auto;
-  height: 24px;
-  align-items: center;
-  padding: 0 8px;
-  border: 1px solid var(--po-border-subtle);
-  border-radius: 999px;
-  background: var(--po-control);
-  font-weight: 650;
-}
-
 .office-preview__body {
+  box-sizing: border-box;
   display: flex;
   flex: 1;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
   min-height: 0;
   overflow: hidden;
 }
 
 .office-document-preview,
 .office-presentation-preview {
+  box-sizing: border-box;
   flex: 1;
+  width: 100%;
+  height: 100%;
   min-width: 0;
   min-height: 0;
   overflow: auto;
-  padding: 18px;
+  overscroll-behavior: contain;
+  padding: 18px 18px 42px;
 }
 
 .office-document-preview {
@@ -159,6 +186,8 @@
 }
 
 .office-document-page {
+  box-sizing: border-box;
+  flex: 0 0 auto;
   align-self: center;
   width: min(780px, 100%);
   min-height: 900px;
@@ -213,57 +242,72 @@
 }
 
 .office-spreadsheet-preview {
+  box-sizing: border-box;
   display: flex;
   flex: 1;
+  width: 100%;
+  height: 100%;
   min-width: 0;
   min-height: 0;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .office-spreadsheet-tabs {
+  box-sizing: border-box;
   display: flex;
   flex: 0 0 auto;
   gap: 4px;
   overflow-x: auto;
-  padding: 7px 12px;
-  border-bottom: 1px solid var(--po-border-subtle);
-  background: var(--po-panel);
+  height: var(--desktop-sidebar-nav-height, 38px);
+  min-height: var(--desktop-sidebar-nav-height, 38px);
+  align-items: center;
+  padding: 4px 12px;
+  background: var(--po-editor-bg);
+  box-shadow: inset 0 -1px 0 var(--po-border-subtle);
 }
 
 .office-spreadsheet-tabs button {
   display: inline-flex;
-  height: 26px;
+  height: var(--desktop-chrome-control-size, 30px);
   max-width: 180px;
   align-items: center;
+  justify-content: center;
   padding: 0 9px;
   overflow: hidden;
-  border: 1px solid transparent;
-  border-radius: 6px;
+  border: 0;
+  border-radius: var(--desktop-control-radius, 6px);
   background: transparent;
   color: var(--po-text-muted);
   font: inherit;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 18px;
   letter-spacing: 0;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: pointer;
 }
 
 .office-spreadsheet-tabs button:hover {
-  background: var(--po-hover);
+  background: color-mix(in srgb, var(--po-panel) 44%, transparent);
   color: var(--po-text);
 }
 
 .office-spreadsheet-tabs button[aria-selected="true"] {
-  border-color: var(--po-border);
   background: var(--po-control);
   color: var(--po-text);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--po-border) 74%, transparent);
 }
 
 .office-spreadsheet-grid-wrap {
   flex: 1;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
   min-height: 0;
   overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .office-spreadsheet-grid {
@@ -276,6 +320,7 @@
 
 .office-spreadsheet-grid th,
 .office-spreadsheet-grid td {
+  box-sizing: border-box;
   min-width: 96px;
   max-width: 260px;
   height: 30px;
@@ -283,7 +328,9 @@
   overflow: hidden;
   border-right: 1px solid var(--po-border-subtle);
   border-bottom: 1px solid var(--po-border-subtle);
+  line-height: 18px;
   text-overflow: ellipsis;
+  vertical-align: middle;
   white-space: nowrap;
 }
 
@@ -908,6 +955,11 @@ button.editor-save-chip {
 
 .markdown-codemirror-editor {
   --po-markdown-editor-text-width: 724px;
+  --po-markdown-editor-gutter-min: 48px;
+  --po-markdown-breakout-right-gutter: 48px;
+  --po-markdown-breakout-max-width: 1180px;
+  position: relative;
+  container-type: inline-size;
   width: 100%;
   height: 100%;
   overflow: hidden;
@@ -940,7 +992,7 @@ button.editor-save-chip {
   max-width: none;
   min-height: 100%;
   margin: 0;
-  padding: 48px max(48px, calc((100% - var(--po-markdown-editor-text-width)) / 2)) 84px;
+  padding: 48px max(var(--po-markdown-editor-gutter-min), calc((100% - var(--po-markdown-editor-text-width)) / 2)) 84px;
   caret-color: var(--po-text);
   color: color-mix(in srgb, var(--po-text) 78%, var(--po-text-muted));
   overflow-wrap: anywhere;
@@ -948,6 +1000,88 @@ button.editor-save-chip {
 
 .markdown-codemirror-editor .cm-line {
   min-height: 1.68em;
+}
+
+.markdown-codemirror-editor .cm-ai-edit-line {
+  position: relative;
+  background: transparent;
+  box-shadow: none;
+}
+
+.markdown-codemirror-editor .cm-ai-edit-line-modified {
+  background: transparent;
+  box-shadow: inset -3px 0 0 color-mix(in srgb, var(--po-warning) 78%, transparent);
+}
+
+.markdown-codemirror-editor .cm-ai-edit-line-added {
+  background: transparent;
+  box-shadow: inset -3px 0 0 color-mix(in srgb, var(--po-success) 76%, transparent);
+}
+
+.markdown-codemirror-editor .cm-ai-edit-line-removed {
+  background: transparent;
+  box-shadow: inset -3px 0 0 color-mix(in srgb, var(--po-danger) 76%, transparent);
+}
+
+.cm-tooltip.cm-ai-edit-delete-preview-tooltip,
+.cm-ai-edit-delete-preview-tooltip {
+  width: min(360px, calc(100vw - 48px));
+  max-width: min(360px, calc(100vw - 48px));
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--po-border) 82%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--po-panel) 98%, transparent);
+  box-shadow: 0 12px 32px rgba(47, 42, 35, 0.13);
+  color: var(--po-text);
+  backdrop-filter: blur(12px);
+}
+
+.cm-ai-edit-delete-preview-tooltip__header {
+  min-height: 28px;
+  padding: 7px 10px 5px;
+  border-bottom: 1px solid var(--po-divider);
+  color: color-mix(in srgb, var(--po-text) 82%, var(--po-text-muted));
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.cm-ai-edit-delete-preview-tooltip--modified .cm-ai-edit-delete-preview-tooltip__header {
+  color: color-mix(in srgb, var(--po-warning) 42%, var(--po-text));
+}
+
+.cm-ai-edit-delete-preview-tooltip__body {
+  display: grid;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.cm-ai-edit-delete-preview-tooltip__line {
+  display: block;
+  min-height: 22px;
+  color: color-mix(in srgb, var(--po-text) 82%, var(--po-text-muted));
+  font-family: var(--po-font-sans);
+  font-size: 12px;
+  line-height: 1.58;
+}
+
+.cm-ai-edit-delete-preview-tooltip__line code {
+  min-width: 0;
+  display: block;
+  padding: 2px 10px;
+  overflow-wrap: anywhere;
+  color: inherit;
+  font: inherit;
+  white-space: pre-wrap;
+}
+
+.cm-ai-edit-delete-preview-tooltip__footer {
+  min-height: 25px;
+  padding: 6px 10px;
+  border-top: 1px solid var(--po-divider);
+  color: var(--po-text-subtle);
+  font-size: 11px;
+  line-height: 1.2;
 }
 
 .markdown-codemirror-editor .cm-selectionBackground,
@@ -1099,21 +1233,59 @@ button.editor-save-chip {
   user-select: none;
 }
 
+.markdown-codemirror-editor .cm-md-hidden-syntax-widget {
+  display: inline-block;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  vertical-align: baseline;
+}
+
+.markdown-codemirror-editor .cm-md-task-line {
+  --md-task-checkbox-size: 1em;
+  --md-task-prefix-width: calc(29px + var(--md-list-depth, 0) * 16px);
+  position: relative;
+  padding-left: var(--md-task-prefix-width);
+  color: color-mix(in srgb, var(--po-text) 78%, var(--po-text-muted));
+}
+
+.markdown-codemirror-editor .cm-md-task-checked {
+  color: var(--po-text-subtle);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.markdown-codemirror-editor .cm-md-task-checkbox-widget {
+  position: absolute;
+  top: 0.84em;
+  left: calc(var(--md-list-depth, 0) * 16px);
+  display: inline-grid;
+  width: var(--md-task-checkbox-size);
+  height: var(--md-task-checkbox-size);
+  place-items: center;
+  line-height: 1;
+  text-decoration: none;
+  transform: translateY(-50%);
+  user-select: none;
+}
+
 .markdown-codemirror-editor .cm-md-task-checkbox {
   position: relative;
-  display: inline-flex;
-  width: 16px;
-  height: 16px;
+  display: inline-grid;
+  width: var(--md-task-checkbox-size);
+  height: var(--md-task-checkbox-size);
   align-items: center;
   justify-content: center;
-  margin: 0 6px 0 calc(var(--md-list-depth, 0) * 16px);
+  margin: 0;
   padding: 0;
   border: 2px solid var(--po-text-disabled);
-  border-radius: 0;
+  border-radius: 2px;
   background: transparent;
   color: var(--po-inset);
-  vertical-align: -3px;
   cursor: pointer;
+  text-indent: 0;
+  text-decoration: none;
+  user-select: none;
 }
 
 .markdown-codemirror-editor .cm-md-task-checkbox:hover {
@@ -1128,11 +1300,11 @@ button.editor-save-chip {
 
 .markdown-codemirror-editor .cm-md-task-checkbox.is-checked::after {
   content: "";
-  width: 5px;
-  height: 9px;
-  margin-top: -2px;
+  width: 0.34em;
+  height: 0.62em;
+  margin-top: -0.12em;
   border: solid var(--po-inset);
-  border-width: 0 2px 2px 0;
+  border-width: 0 0.14em 0.14em 0;
   transform: rotate(45deg);
 }
 
@@ -1221,6 +1393,229 @@ button.editor-save-chip {
   background: color-mix(in srgb, var(--po-control) 18%, transparent);
 }
 
+.markdown-codemirror-editor .cm-md-html-widget {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+
+.markdown-codemirror-editor .cm-md-html-widget-toolbar {
+  position: absolute;
+  top: 20px;
+  right: 6px;
+  z-index: 2;
+  display: inline-flex;
+}
+
+.markdown-codemirror-editor .cm-md-html-source-toggle {
+  display: inline-grid;
+  width: 26px;
+  height: 24px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--po-divider) 82%, transparent);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--po-panel-raised) 92%, transparent);
+  color: var(--po-text-muted);
+  box-shadow: var(--po-shadow-sm);
+  cursor: pointer;
+}
+
+.markdown-codemirror-editor .cm-md-html-source-toggle:hover,
+.markdown-codemirror-editor .cm-md-html-source-toggle.active {
+  background: var(--po-control-hover);
+  color: var(--po-text);
+}
+
+.markdown-codemirror-editor .cm-md-html-source-block {
+  box-sizing: border-box;
+  width: 100%;
+  max-height: 360px;
+  margin: 14px 0 18px;
+  padding: 12px 14px;
+  overflow: auto;
+  border: 1px solid color-mix(in srgb, var(--po-divider) 82%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--po-inset) 76%, transparent);
+  color: color-mix(in srgb, var(--po-text) 78%, var(--po-text-muted));
+  font-family: var(--po-font-mono);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre;
+}
+
+.markdown-codemirror-editor .cm-md-html-source-block code {
+  font: inherit;
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface {
+  --background-primary: var(--po-editor-bg);
+  --background-primary-alt: color-mix(in srgb, var(--po-panel) 56%, transparent);
+  --background-modifier-border: var(--po-divider);
+  --text-muted: var(--po-text-muted);
+  --text-normal: var(--po-text);
+  box-sizing: border-box;
+  width: 100%;
+  color: color-mix(in srgb, var(--po-text) 80%, var(--po-text-muted));
+  font-family: var(--po-font-sans);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.markdown-codemirror-editor .cm-md-html-block {
+  margin: 14px 0 18px;
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface * {
+  box-sizing: border-box;
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface h1,
+.markdown-codemirror-editor .cm-md-html-rendered-surface h2,
+.markdown-codemirror-editor .cm-md-html-rendered-surface h3,
+.markdown-codemirror-editor .cm-md-html-rendered-surface h4,
+.markdown-codemirror-editor .cm-md-html-rendered-surface h5,
+.markdown-codemirror-editor .cm-md-html-rendered-surface h6 {
+  color: var(--po-text);
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface p {
+  margin: 0 0 10px;
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface a {
+  color: var(--po-accent);
+  text-decoration: none;
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface a:hover {
+  text-decoration: underline;
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface details {
+  margin-top: 10px;
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface summary {
+  cursor: pointer;
+}
+
+.markdown-codemirror-editor .cm-md-html-trusted-block {
+  position: relative;
+  display: block;
+  width: 100%;
+  margin: 14px 0 18px;
+}
+
+.markdown-codemirror-editor .cm-md-html-trusted-block.is-loading {
+  min-height: 80px;
+}
+
+.markdown-codemirror-editor .cm-md-html-trusted-block.is-loading .cm-md-html-trusted-frame {
+  position: absolute;
+  inset: 0;
+  height: 100% !important;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.markdown-codemirror-editor .cm-md-html-trusted-frame {
+  display: block;
+  width: 100%;
+  min-height: 80px;
+  border: 0;
+  background: transparent;
+  color-scheme: inherit;
+  opacity: 1;
+  transition: opacity 90ms ease-out;
+}
+
+.markdown-codemirror-editor .cm-md-html-trusted-sizer {
+  visibility: hidden;
+  min-height: 80px;
+  pointer-events: none;
+  user-select: none;
+}
+
+.markdown-codemirror-editor .cm-md-html-sizing-placeholder {
+  min-height: 80px;
+}
+
+.markdown-codemirror-editor .cm-md-html-trusted-loader {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--po-divider) 72%, transparent);
+  border-radius: 6px;
+  background:
+    linear-gradient(90deg, transparent, color-mix(in srgb, var(--po-panel-raised) 70%, transparent), transparent),
+    color-mix(in srgb, var(--po-panel) 28%, transparent);
+  background-size: 240px 100%, auto;
+  opacity: 0.72;
+  pointer-events: none;
+}
+
+.markdown-codemirror-editor .cm-md-html-trusted-loader span {
+  display: block;
+  max-width: 680px;
+  height: 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--po-text-muted) 18%, transparent);
+}
+
+.markdown-codemirror-editor .cm-md-html-trusted-loader span:nth-child(1) {
+  width: 42%;
+}
+
+.markdown-codemirror-editor .cm-md-html-trusted-loader span:nth-child(2) {
+  width: 62%;
+}
+
+.markdown-codemirror-editor .cm-md-html-trusted-loader span:nth-child(3) {
+  width: 54%;
+}
+
+.markdown-codemirror-editor .cm-md-html-unsupported {
+  display: grid;
+  gap: 5px;
+  margin: 14px 0 18px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--po-warning) 30%, var(--po-divider));
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--po-warning) 9%, transparent);
+  color: var(--po-text-muted);
+}
+
+.markdown-codemirror-editor .cm-md-html-unsupported strong {
+  color: color-mix(in srgb, var(--po-warning) 38%, var(--po-text));
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.markdown-codemirror-editor .cm-md-html-unsupported span {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.markdown-codemirror-editor .cm-md-html-unsupported code {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--po-text-subtle);
+  font-family: var(--po-font-mono);
+  font-size: 11px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .markdown-codemirror-editor .cm-md-image-widget {
   display: inline-flex;
   max-width: 100%;
@@ -1246,20 +1641,58 @@ button.editor-save-chip {
   font-size: 12px;
 }
 
-.markdown-codemirror-editor .cm-md-link-label {
-  text-decoration: none;
+.markdown-codemirror-editor .cm-md-link-label,
+.markdown-codemirror-editor .cm-md-wiki-link-label,
+.markdown-codemirror-editor .cm-md-wiki-link-inline {
+  text-decoration-line: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 2px;
 }
 
-.markdown-codemirror-editor .cm-md-link-label:hover {
-  text-decoration: underline;
+.markdown-codemirror-editor .cm-md-link-label.is-resolved:hover,
+.markdown-codemirror-editor .cm-md-link-label.is-external:hover,
+.markdown-codemirror-editor .cm-md-wiki-link-label:hover,
+.markdown-codemirror-editor .cm-md-wiki-link-inline:hover {
+  text-decoration-color: currentColor;
+}
+
+.markdown-codemirror-editor .cm-md-link-label.is-resolved,
+.markdown-codemirror-editor .cm-md-link-label.is-external,
+.markdown-codemirror-editor .cm-md-link-label.is-missing,
+.markdown-codemirror-editor .cm-md-wiki-link-label.is-resolved,
+.markdown-codemirror-editor .cm-md-wiki-link-label.is-missing,
+.markdown-codemirror-editor .cm-md-wiki-link-inline {
+  cursor: pointer;
+}
+
+.markdown-codemirror-editor .cm-md-wiki-link-label,
+.markdown-codemirror-editor .cm-md-wiki-link-inline {
+  color: var(--po-accent);
+}
+
+.markdown-codemirror-editor .cm-md-link-label.is-missing,
+.markdown-codemirror-editor .cm-md-wiki-link-label.is-missing,
+.markdown-codemirror-editor .cm-md-wiki-link-inline.is-missing {
+  color: var(--po-accent);
+  text-decoration-style: dotted;
+  text-decoration-color: color-mix(in srgb, var(--po-accent) 46%, transparent);
+}
+
+.markdown-codemirror-editor .cm-md-link-label.is-ambiguous,
+.markdown-codemirror-editor .cm-md-wiki-link-label.is-ambiguous,
+.markdown-codemirror-editor .cm-md-wiki-link-inline.is-ambiguous {
+  text-decoration-style: dashed;
+  text-decoration-color: color-mix(in srgb, currentColor 62%, transparent);
 }
 
 .markdown-codemirror-editor .cm-md-table-widget-wrap {
   position: relative;
   display: block;
+  box-sizing: border-box;
+  width: 100%;
   max-width: 100%;
   margin: 0;
-  padding: 18px 0 22px;
+  padding: 14px 0 18px;
   overflow-x: auto;
   overflow-y: hidden;
   overscroll-behavior-x: contain;
@@ -1268,6 +1701,20 @@ button.editor-save-chip {
   scrollbar-color: var(--po-scrollbar-thumb) transparent;
   touch-action: pan-x;
   cursor: text;
+}
+
+@supports (width: 100cqw) {
+  .markdown-codemirror-editor .cm-md-table-widget-wrap {
+    --po-markdown-editor-gutter-inline: max(
+      var(--po-markdown-editor-gutter-min),
+      calc((100cqw - var(--po-markdown-editor-text-width)) / 2)
+    );
+    width: min(
+      var(--po-markdown-breakout-max-width),
+      calc(100cqw - var(--po-markdown-editor-gutter-inline) - var(--po-markdown-breakout-right-gutter))
+    );
+    max-width: calc(100cqw - var(--po-markdown-editor-gutter-inline) - var(--po-markdown-breakout-right-gutter));
+  }
 }
 
 .markdown-codemirror-editor .cm-md-table-widget-wrap::-webkit-scrollbar {
@@ -1288,30 +1735,37 @@ button.editor-save-chip {
 
 .markdown-codemirror-editor .cm-md-table-widget {
   width: max-content;
-  min-width: 100%;
+  min-width: 0;
   max-width: none;
   margin: 0;
-  border-collapse: collapse;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--po-divider) 82%, transparent);
+  border-radius: 4px;
+  border-collapse: separate;
   border-spacing: 0;
   table-layout: auto;
-  color: color-mix(in srgb, var(--po-text) 78%, var(--po-text-muted));
-  font-size: 14px;
-  line-height: 1.5;
+  background: color-mix(in srgb, var(--po-panel) 36%, transparent);
+  color: color-mix(in srgb, var(--po-text) 82%, var(--po-text-muted));
+  font-size: 12.5px;
+  line-height: 1.45;
 }
 
 .markdown-codemirror-editor .cm-md-table-widget th,
 .markdown-codemirror-editor .cm-md-table-widget td {
-  min-width: 100px;
+  min-width: 96px;
+  max-width: 280px;
   padding: 0;
-  border: 1px solid color-mix(in srgb, var(--po-divider) 84%, transparent);
+  border: 0;
+  border-right: 1px solid color-mix(in srgb, var(--po-divider) 74%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--po-divider) 74%, transparent);
   text-align: left;
   vertical-align: top;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .markdown-codemirror-editor .cm-md-table-widget th {
-  background: color-mix(in srgb, var(--po-control) 36%, transparent);
-  color: var(--po-text);
+  background: color-mix(in srgb, var(--po-control) 32%, transparent);
+  color: color-mix(in srgb, var(--po-text) 88%, var(--po-text-muted));
   font-weight: 650;
 }
 
@@ -1319,18 +1773,71 @@ button.editor-save-chip {
   color: color-mix(in srgb, var(--po-text) 72%, var(--po-text-muted));
 }
 
+.markdown-codemirror-editor .cm-md-table-widget th:last-child,
+.markdown-codemirror-editor .cm-md-table-widget td:last-child {
+  border-right: 0;
+}
+
+.markdown-codemirror-editor .cm-md-table-widget tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.markdown-codemirror-editor .cm-md-table-widget tbody tr:hover td {
+  background: color-mix(in srgb, var(--po-hover) 48%, transparent);
+}
+
 .markdown-codemirror-editor .cm-md-table-cell-content {
   display: block;
-  min-width: 100px;
-  min-height: 22px;
-  padding: 8px 12px;
+  min-width: 96px;
+  max-width: 280px;
+  min-height: 24px;
+  padding: 6px 10px;
   outline: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
   cursor: text;
 }
 
 .markdown-codemirror-editor .cm-md-table-cell-content[contenteditable="true"]:focus {
   background: color-mix(in srgb, var(--po-selected) 58%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--po-accent) 48%, transparent);
+}
+
+.markdown-codemirror-editor .cm-md-table-cell-content a {
+  color: var(--po-accent);
+  text-decoration: none;
+}
+
+.markdown-codemirror-editor .cm-md-table-cell-content a:hover {
+  text-decoration: underline;
+}
+
+.markdown-codemirror-editor .cm-md-table-cell-content del,
+.markdown-codemirror-editor .cm-md-table-cell-content s {
+  color: inherit;
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.markdown-codemirror-editor .cm-md-table-cell-content strong,
+.markdown-codemirror-editor .cm-md-table-cell-content b {
+  color: color-mix(in srgb, var(--po-text) 92%, var(--po-text-muted));
+  font-weight: 650;
+}
+
+.markdown-codemirror-editor .cm-md-table-cell-content em,
+.markdown-codemirror-editor .cm-md-table-cell-content i {
+  color: inherit;
+  font-style: italic;
+}
+
+.markdown-codemirror-editor .cm-md-inline-code {
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--po-control) 46%, transparent);
+  color: color-mix(in srgb, var(--po-text) 82%, var(--po-text-muted));
+  font-family: var(--po-font-mono);
+  font-size: 0.92em;
 }
 
 .conflict-marker-banner {
@@ -1477,6 +1984,30 @@ button.editor-save-chip {
 .editor-state.danger,
 .editor-inline-error {
   color: var(--po-danger);
+}
+
+.editor-crash-state {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-content: center;
+  gap: 5px;
+  padding: 24px;
+  background: var(--po-editor-bg);
+  color: var(--po-text-subtle);
+  text-align: center;
+}
+
+.editor-crash-state strong {
+  color: var(--po-text);
+  font-size: 13px;
+  font-weight: 680;
+}
+
+.editor-crash-state span {
+  max-width: 520px;
+  overflow-wrap: anywhere;
+  font-size: 12px;
 }
 
 .editor-inline-error {

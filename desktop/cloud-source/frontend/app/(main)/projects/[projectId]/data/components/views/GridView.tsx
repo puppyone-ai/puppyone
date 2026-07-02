@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { ItemActionMenu } from '@/components/ItemActionMenu';
 import { getNodeTypeConfig, isSyncedType, getSyncSource, getSyncSourceIcon, LockIcon } from '@/lib/nodeTypeConfig';
-import { useNodeDrop } from '@/lib/hooks/useNodeDrop';
+import { beginNodeDrag, endNodeDrag, useNodeDrop } from '@/lib/hooks/useNodeDrop';
 import { PageLoading } from '@/components/loading';
 import { FilePreviewIcon } from '@/lib/fileIcons';
 
@@ -421,7 +421,7 @@ function GridItem({
 
   const typeConfig = getNodeTypeConfig(item.type);
   const isFolder = typeConfig.iconCategory === 'folder';
-  const { isDropTarget, dropHandlers } = useNodeDrop({
+  const { isDropTarget, isInvalidDropTarget, dropReason, dropHandlers } = useNodeDrop({
     targetFolderId: item.id,
     onMoveNode,
     disabled: !isFolder,
@@ -528,17 +528,18 @@ function GridItem({
           e.preventDefault();
           return;
         }
-        e.dataTransfer.setData('application/x-puppyone-node', JSON.stringify({
+        beginNodeDrag(e, {
           id: item.id,
           name: item.name,
           type: item.type,
           parentId: parentFolderId ?? null,
-        }));
-        e.dataTransfer.effectAllowed = 'copyMove';
+        });
       }}
+      onDragEnd={endNodeDrag}
       {...dropHandlers}
       className={`flex flex-col items-center justify-center gap-1.5 cursor-pointer group p-3 rounded-xl transition-colors relative aspect-square ${
         isDropTarget ? 'bg-[var(--po-selected)] ring-2 ring-[var(--po-focus-ring)]' :
+        isInvalidDropTarget ? 'bg-[color-mix(in_srgb,var(--po-danger)_10%,transparent)] ring-2 ring-[color-mix(in_srgb,var(--po-danger)_55%,transparent)]' :
         isSelected ? 'bg-[var(--po-selected)] ring-2 ring-[var(--po-focus-ring)]' :
         isHighlighted ? 'bg-[var(--po-selected)] ring-2 ring-[var(--po-focus-ring)]' :
         hasAgentAccess ? 'ring-2 ring-[color-mix(in_srgb,var(--po-warning)_50%,transparent)]' :
@@ -547,6 +548,7 @@ function GridItem({
       style={{
         animation: isHighlighted ? 'gridItemHighlight 2s ease-out' : undefined,
       }}
+      title={isInvalidDropTarget ? dropReason ?? undefined : undefined}
     >
       {/* 图标区域 */}
       <div className="flex items-center justify-center w-14 h-14 opacity-80 group-hover:opacity-100 transition-opacity drop-shadow-sm relative" title={isPlaceholder ? "Click to connect" : undefined}>

@@ -1,0 +1,271 @@
+.desktop-tool-sidebar {
+  display: flex;
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--po-sidebar);
+}
+
+.desktop-git-sidebar {
+  --git-sidebar-left-gap: 5px;
+  --git-sidebar-right-gap: 5px;
+  --git-sidebar-row-width: calc(100% - var(--git-sidebar-left-gap) - var(--git-sidebar-right-gap));
+  --git-sidebar-block-width: calc(100% - var(--git-sidebar-left-gap) - var(--git-sidebar-right-gap));
+  --git-sidebar-control-left-gap: 8px;
+  --git-sidebar-control-right-gap: 8px;
+  --git-sidebar-control-width: calc(100% - var(--git-sidebar-control-left-gap) - var(--git-sidebar-control-right-gap));
+  --git-sidebar-content-left: 7px;
+  --git-sidebar-content-right: 7px;
+  --git-control-radius: 8px;
+  --git-inner-radius: 6px;
+  --git-row-radius: var(--desktop-sidebar-row-radius);
+  --git-font-main: 13px;
+  --git-font-small: 13px;
+  --git-weight-regular: 520;
+  --git-weight-strong: 650;
+}
+
+.desktop-tool-sidebar-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--po-text-muted);
+}
+
+.desktop-tool-sidebar-icon:hover {
+  background: var(--po-hover);
+  color: var(--po-text);
+}
+
+.desktop-tool-sidebar-icon.primary {
+  background: color-mix(in srgb, var(--po-text) 10%, transparent);
+  color: var(--po-text);
+}
+
+.desktop-tool-sidebar-icon.primary:hover {
+  background: color-mix(in srgb, var(--po-text) 14%, transparent);
+  color: var(--po-text);
+}
+
+.desktop-tool-sidebar-icon.danger {
+  color: var(--po-danger);
+}
+
+.desktop-tool-sidebar-icon:disabled,
+.desktop-tool-sidebar-icon:disabled:hover {
+  background: transparent;
+  color: var(--po-text-disabled);
+  opacity: 0.58;
+}
+
+.desktop-tool-sidebar-list {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--desktop-sidebar-section-top-gap) 0 var(--desktop-sidebar-section-bottom-gap);
+}
+
+.desktop-tool-sidebar-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: calc(100% - var(--desktop-sidebar-row-left-gap) - var(--desktop-sidebar-row-right-gap));
+  height: var(--desktop-sidebar-row-height);
+  min-width: 0;
+  margin: 1px var(--desktop-sidebar-row-right-gap) 1px var(--desktop-sidebar-row-left-gap);
+  padding: 0 var(--desktop-sidebar-row-content-right) 0 var(--desktop-sidebar-row-content-left);
+  border: 0;
+  border-radius: var(--desktop-sidebar-row-radius);
+  background: transparent;
+  color: var(--po-text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+  text-align: left;
+}
+
+.desktop-tool-sidebar-row:hover:not(:disabled),
+.desktop-tool-sidebar-row.active {
+  background: var(--po-hover);
+  color: var(--po-text);
+}
+
+.desktop-tool-sidebar-row.active {
+  background: var(--po-selected);
+}
+
+.desktop-tool-sidebar-row:disabled,
+.desktop-tool-sidebar-row[aria-disabled="true"] {
+  cursor: default;
+  color: var(--po-text-disabled);
+  opacity: 0.42;
+}
+
+.desktop-tool-sidebar-row:disabled:hover,
+.desktop-tool-sidebar-row[aria-disabled="true"]:hover {
+  background: transparent;
+  color: var(--po-text-disabled);
+}
+
+.desktop-tool-sidebar-row span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-tool-sidebar-empty {
+  display: flex;
+  align-items: center;
+  min-height: var(--desktop-sidebar-row-height);
+  margin: 1px var(--desktop-sidebar-row-right-gap) 1px var(--desktop-sidebar-row-left-gap);
+  padding: 0 var(--desktop-sidebar-row-content-right) 0 var(--desktop-sidebar-row-content-left);
+  color: var(--po-text-subtle);
+  font-size: 12.5px;
+}
+
+.desktop-tool-sidebar-empty.vertical {
+  height: auto;
+  min-height: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px var(--desktop-sidebar-row-content-right) 8px var(--desktop-sidebar-row-content-left);
+}
+
+.desktop-tool-sidebar-empty.danger {
+  color: var(--po-danger);
+}
+
+.desktop-tool-sidebar-list > .desktop-tool-sidebar-empty:only-child {
+  min-height: calc(100% - 2px);
+  justify-content: center;
+  text-align: center;
+}
+
+.desktop-tool-sidebar-list > .desktop-tool-sidebar-empty.vertical:only-child {
+  align-items: center;
+}
+
+.desktop-git-sidebar-empty-history {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: var(--git-sidebar-block-width);
+  margin: 4px var(--git-sidebar-right-gap) 4px var(--git-sidebar-left-gap);
+  padding: 9px 8px;
+  border: 1px solid var(--po-border-subtle);
+  border-radius: var(--git-control-radius);
+  color: var(--po-text-subtle);
+}
+
+.desktop-git-sidebar-empty-history svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--po-text-disabled);
+}
+
+.desktop-git-sidebar-empty-history div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.desktop-git-sidebar-empty-history strong {
+  color: var(--po-text-muted);
+  font-size: 12.5px;
+  font-weight: 620;
+}
+
+.desktop-git-sidebar-empty-history span {
+  color: var(--po-text-subtle);
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.desktop-tool-sidebar-action {
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid color-mix(in srgb, var(--po-accent) 34%, var(--po-border));
+  border-radius: var(--git-control-radius, 8px);
+  background: color-mix(in srgb, var(--po-accent) 10%, var(--po-panel));
+  color: var(--po-accent);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.desktop-tool-sidebar-action:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--po-accent) 16%, var(--po-panel));
+}
+
+.desktop-tool-sidebar-action:disabled {
+  border-color: var(--po-border-subtle);
+  background: var(--po-control);
+  color: var(--po-text-disabled);
+}
+
+.desktop-tool-sidebar-error-text {
+  color: var(--po-danger);
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+
+.desktop-tool-sidebar-empty.compact {
+  min-height: 26px;
+  padding-left: calc(var(--desktop-sidebar-row-content-left) + 20px);
+  font-size: 12px;
+}
+
+.desktop-git-sidebar .desktop-tool-sidebar-empty {
+  margin: 1px var(--git-sidebar-right-gap) 1px var(--git-sidebar-left-gap);
+  padding: 0 var(--git-sidebar-content-right) 0 var(--git-sidebar-content-left);
+}
+
+.desktop-git-sidebar .desktop-tool-sidebar-empty.vertical {
+  padding: 8px var(--git-sidebar-content-right) 8px var(--git-sidebar-content-left);
+}
+
+.desktop-git-sidebar .desktop-tool-sidebar-empty.compact {
+  padding-left: calc(var(--git-sidebar-content-left) + 20px);
+}
+
+.desktop-git-sidebar .desktop-git-empty-stage,
+.desktop-git-sidebar .desktop-git-empty-committed,
+.desktop-git-sidebar .desktop-git-empty-changes {
+  align-items: flex-start;
+  min-height: 46px;
+  justify-content: flex-start;
+  padding-left: calc(var(--git-sidebar-content-left) + 20px);
+  padding-top: 6px;
+  font-style: normal;
+  text-align: left;
+}
+
+.desktop-git-committed-summary,
+.desktop-git-preview-summary {
+  display: flex;
+  align-items: flex-start;
+  min-height: 34px;
+  margin: 4px var(--git-sidebar-right-gap) 0 var(--git-sidebar-left-gap);
+  padding: 6px var(--git-sidebar-content-right) 0 calc(var(--git-sidebar-content-left) + 20px);
+  color: var(--po-text-subtle);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.desktop-tool-sidebar-icon .spin,
+.desktop-utility-icon-button .spin {
+  animation: spin 900ms linear infinite;
+}

@@ -12,10 +12,11 @@
     "dev:browser": "vite --host 127.0.0.1",
     "postinstall": "node scripts/fix-node-pty-permissions.mjs",
     "build": "npm run check:boundaries && tsc && vite build",
-    "dist:mac": "npm run check:shared-ui && npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg",
+    "dist:mac": "npm run check:shared-ui && npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac",
+    "dist:mac:publish": "npm run check:shared-ui && npm run build && electron-builder --mac --publish always",
     "preview": "vite preview --host 127.0.0.1",
     "smoke:local-api": "node scripts/smoke-local-api.mjs",
-    "start": "electron ."
+    "start": "node scripts/start-electron.mjs"
   },
   "dependencies": {
     "@codemirror/commands": "^6.10.3",
@@ -26,6 +27,8 @@
     "@lezer/highlight": "^1.2.3",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
+    "electron-log": "^5.4.4",
+    "electron-updater": "^6.8.9",
     "jszip": "^3.10.1",
     "lucide-react": "^0.562.0",
     "mammoth": "^1.12.0",
@@ -50,6 +53,7 @@
     "appId": "ai.puppyone.desktop",
     "productName": "puppyone",
     "executableName": "puppyone",
+    "electronUpdaterCompatibility": ">=2.16",
     "asar": true,
     "asarUnpack": [
       "node_modules/node-pty/**"
@@ -61,8 +65,16 @@
       "dist/**",
       "electron/**",
       "local-api/**",
+      "shared/**",
       "vendor/shared-ui/**",
       "package.json"
+    ],
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://updates.puppyone.ai/desktop/stable/mac",
+        "channel": "stable"
+      }
     ],
     "mac": {
       "category": "public.app-category.productivity",
@@ -77,7 +89,8 @@
         "CFBundleDisplayName": "puppyone"
       },
       "target": [
-        "dmg"
+        "dmg",
+        "zip"
       ]
     },
     "dmg": {

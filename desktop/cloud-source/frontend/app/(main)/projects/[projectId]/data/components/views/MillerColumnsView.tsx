@@ -15,6 +15,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import type { ContentType, AgentResource } from './GridView';
 import { ItemActionMenu } from '@/components/ItemActionMenu';
 import { getNodeTypeConfig, isSyncedType, LockIcon } from '@/lib/nodeTypeConfig';
+import { beginNodeDrag, endNodeDrag } from '@/lib/hooks/useNodeDrop';
 import { InlineLoading, PageLoading } from '@/components/loading';
 
 // === Types ===
@@ -128,6 +129,7 @@ function getIconColor(type: string) {
 
 interface ColumnProps {
   items: MillerColumnItem[];
+  parentId: string | null;
   selectedId?: string;
   onItemClick: (item: MillerColumnItem) => void;
   onCreateClick?: (e: React.MouseEvent) => void;
@@ -139,7 +141,7 @@ interface ColumnProps {
   resourceMap: Map<string, AgentResource>;
 }
 
-function Column({ items, selectedId, onItemClick, onCreateClick, onRename, onDelete, onDuplicate, onRefresh, loading, resourceMap }: ColumnProps) {
+function Column({ items, parentId, selectedId, onItemClick, onCreateClick, onRename, onDelete, onDuplicate, onRefresh, loading, resourceMap }: ColumnProps) {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [createHovered, setCreateHovered] = useState(false);
 
@@ -195,13 +197,14 @@ function Column({ items, selectedId, onItemClick, onCreateClick, onRename, onDel
                       e.preventDefault();
                       return;
                     }
-                    e.dataTransfer.setData('application/x-puppyone-node', JSON.stringify({
+                    beginNodeDrag(e, {
                       id: item.id,
                       name: item.name,
-                      type: item.type
-                    }));
-                    e.dataTransfer.effectAllowed = 'copy';
+                      type: item.type,
+                      parentId,
+                    });
                   }}
+                  onDragEnd={endNodeDrag}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -511,6 +514,7 @@ export function MillerColumnsView({
         <Column
           key={col.parentId ?? 'root'}
           items={col.items}
+          parentId={col.parentId}
           selectedId={col.selectedId}
           onItemClick={(item) => handleItemClick(index, item)}
           onCreateClick={onCreateClick ? (e) => {

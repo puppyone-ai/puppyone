@@ -1,0 +1,121 @@
+.utility-body {
+  flex: 1;
+  padding: 28px;
+  overflow: auto;
+}
+
+.utility-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.utility-title-icon.large {
+  width: 42px;
+  height: 42px;
+  color: var(--po-accent);
+  background: color-mix(in srgb, var(--po-accent) 13%, transparent);
+}
+
+.utility-table {
+  width: min(760px, 100%);
+  border: 1px solid var(--po-border-subtle);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--po-panel);
+}
+
+.utility-row {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  min-height: 44px;
+  border-bottom: 1px solid var(--po-divider);
+}
+
+.utility-row:last-child {
+  border-bottom: 0;
+}
+
+.utility-row span,
+.utility-row strong {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 0 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.utility-row span {
+  color: var(--po-text-muted);
+  background: var(--po-control);
+}
+
+.utility-row strong {
+  color: var(--po-text);
+  font-weight: 600;
+}
+
+.monitor-footer {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: min(760px, 100%);
+  margin-top: 14px;
+  color: var(--po-text-muted);
+  font-size: 12px;
+}
+
+.recording-strip {
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 38px;
+  min-height: 38px;
+  padding: 0 14px;
+  border-bottom: 1px solid rgba(180, 83, 9, 0.24);
+  background: color-mix(in srgb, var(--po-warning) 10%, var(--po-panel-raised));
+  color: var(--po-warning);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.recording-strip span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recording-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--po-danger);
+  box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.12);
+}
+
+.panic-undo {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  z-index: 12;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 14px;
+  border: 1px solid rgba(220, 38, 38, 0.28);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--po-danger) 9%, var(--po-panel-raised));
+  color: var(--po-danger);
+  box-shadow: 0 12px 30px rgba(73, 55, 35, 0.16);
+  font-size: 13px;
+  font-weight: 750;
+}

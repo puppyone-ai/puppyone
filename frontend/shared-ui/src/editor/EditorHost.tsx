@@ -1,6 +1,8 @@
 import type { DataNode, FileContent } from "../core/types";
 import type { FileIconThemeId } from "../file/fileIcons";
 import { PuppyoneEditorHost, type EditorSaveMode } from "./PuppyoneEditorHost";
+import type { AiEditFile } from "./ai-edits/types";
+import type { MarkdownHtmlTrustMode, MarkdownLinkGraph } from "./viewerTypes";
 
 export type EditorHostProps = {
   node: DataNode;
@@ -11,9 +13,12 @@ export type EditorHostProps = {
   loading?: boolean;
   error?: string | null;
   onSaveContent?: (content: string) => Promise<void>;
+  aiEditFile?: AiEditFile | null;
   hideSourceView?: boolean;
   fileIconTheme?: FileIconThemeId;
   saveMode?: EditorSaveMode;
+  htmlTrustMode?: MarkdownHtmlTrustMode;
+  markdownLinkGraph?: MarkdownLinkGraph | null;
   deferFallbackContent?: boolean;
 };
 
@@ -26,9 +31,12 @@ export function EditorHost({
   loading = false,
   error = null,
   onSaveContent,
+  aiEditFile = null,
   hideSourceView = false,
   fileIconTheme = "default",
   saveMode = "manual",
+  htmlTrustMode = "safe",
+  markdownLinkGraph = null,
   deferFallbackContent = false,
 }: EditorHostProps) {
   return (
@@ -47,9 +55,12 @@ export function EditorHost({
       fileUrlLoading={fileUrlLoading}
       fileUrlError={fileUrlError}
       onSaveContent={onSaveContent}
+      aiEditFile={aiEditFile}
       hideSourceView={hideSourceView}
       fileIconTheme={fileIconTheme}
       saveMode={saveMode}
+      htmlTrustMode={htmlTrustMode}
+      markdownLinkGraph={markdownLinkGraph}
     />
   );
 }

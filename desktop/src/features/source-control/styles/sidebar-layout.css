@@ -1,0 +1,41 @@
+.desktop-git-sidebar-list {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: var(--desktop-sidebar-section-top-gap) 0 0;
+}
+
+.desktop-git-fixed-region {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.desktop-git-resizable-stack {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.desktop-git-resizable-section {
+  display: flex;
+  min-width: 0;
+  min-height: 72px;
+  flex: 1 1 0;
+  flex-direction: column;
+  overflow: hidden;
+  transition:
+    flex-basis 160ms ease,
+    max-height 160ms ease,
+    min-height 160ms ease;
+}
+
+.desktop-git-resizable-section.collapsed {
+  min-height: var(--desktop-sidebar-row-height);
+}
+
+body.desktop-git-sidebar-resizing .desktop-git-resizable-section {
+  transition: none;
+}
