@@ -1,8 +1,7 @@
 'use client';
 
-import { useCallback, useMemo } from 'react';
+import { useMemo } from 'react';
 import { Dots } from '@/components/loading';
-import { ActivityIconButton } from './ActivityIconButton';
 import {
   ACTIVITY_BG,
   ACTIVITY_BORDER,
@@ -11,37 +10,29 @@ import {
   activityHeaderStyle,
   activityTitleStyle,
 } from './activityStyles';
-import { cancelImportJob } from '@/lib/importApi';
-import type { ActivityItem } from '@/lib/activityApi';
 import { useProjectActivity } from '@/lib/hooks/useActivity';
 
-type ImportJobsWidgetProps = {
+type UploadJobsWidgetProps = {
   projectId?: string;
   inline?: boolean;
 };
 
 /**
- * Transient widget for in-progress one-shot imports.
+ * Transient widget for in-progress uploads, read from the unified activity feed
+ * filtered to `upload` (the durable `upload_jobs` rows via
+ * `context_activity_items`). Display-only sibling of Import/Sync widgets.
  *
- * Consumes the unified activity feed filtered to `import`, so imports render
- * from the same `context_activity_items` aggregation view as uploads and syncs
- * (sibling of SyncJobsWidget) instead of a separate import-jobs pipeline.
- * Import items stay cancellable — an import activity item's `id` is its
- * import_job id, so `cancelImportJob(item.id)` targets the right row.
+ * This is the cross-session, server-backed view of uploads. The legacy
+ * TaskStatusWidget tracks the same-tab client-side upload notifier for instant
+ * feedback; the two can coexist until that one is retired.
  */
-export function ImportJobsWidget({ projectId, inline = false }: ImportJobsWidgetProps) {
-  const { activeItems, refresh } = useProjectActivity(projectId, { kind: 'import' });
+export function UploadJobsWidget({ projectId, inline = false }: UploadJobsWidgetProps) {
+  const { activeItems } = useProjectActivity(projectId, { kind: 'upload' });
   const runs = useMemo(() => activeItems.slice(0, 3), [activeItems]);
-
-  const handleCancel = useCallback(async (item: ActivityItem) => {
-    await cancelImportJob(item.id);
-    await refresh();
-  }, [refresh]);
 
   if (!projectId || activeItems.length === 0) return null;
 
-  const primary = runs[0];
-  const title = activeItems.length === 1 ? 'Importing' : `${activeItems.length} imports`;
+  const title = activeItems.length === 1 ? 'Uploading' : `${activeItems.length} uploads`;
 
   const containerStyle: React.CSSProperties = inline
     ? { position: 'relative', fontFamily: 'var(--po-font-sans)' }
@@ -70,16 +61,9 @@ export function ImportJobsWidget({ projectId, inline = false }: ImportJobsWidget
       >
         <div style={activityHeaderStyle}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-            <Dots size="xs" tone="info" ariaLabel="Importing" />
+            <Dots size="xs" tone="info" ariaLabel="Uploading" />
             <span style={activityTitleStyle}>{title}</span>
           </div>
-          {primary ? (
-            <ActivityIconButton
-              kind="close"
-              title="Cancel import"
-              onClick={() => handleCancel(primary)}
-            />
-          ) : null}
         </div>
 
         <div style={{ padding: '0 12px 12px' }}>
@@ -97,7 +81,7 @@ export function ImportJobsWidget({ projectId, inline = false }: ImportJobsWidget
                   }}
                   title={item.label || undefined}
                 >
-                  {item.label || 'Import'}
+                  {item.label || 'Upload'}
                 </div>
                 <div
                   style={{
@@ -137,7 +121,7 @@ export function ImportJobsWidget({ projectId, inline = false }: ImportJobsWidget
                   color: 'var(--po-text-subtle)',
                 }}
               >
-                {item.message || item.phase || 'Importing'}
+                {item.message || item.phase || 'Uploading'}
               </div>
             </div>
           ))}

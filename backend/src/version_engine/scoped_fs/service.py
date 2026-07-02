@@ -562,7 +562,10 @@ class ScopedFsService:
         if entry is None:
             raise ScopedFsNotFound(f"File not found: {rel}")
         if entry.type == "folder":
-            return await self.ls(ctx, rel)
+            # fs_cat advertises a file-content output schema; returning an ls
+            # payload for a folder violates it for strict MCP clients. Point the
+            # caller at fs_ls instead (POSIX `cat` on a directory is an error).
+            raise ScopedFsError("IS_DIRECTORY", f"Path is a directory, use fs_ls: {rel}")
         content = self.ops.read_file_in_scope(ctx.project_id, ctx.scope_path, rel)
         text = content.decode("utf-8", errors="replace")
         content_json = None
@@ -654,6 +657,14 @@ class ScopedFsService:
         base_commit_id: str | None = None,
     ) -> dict[str, Any]:
         rel = self._clean_path(ctx, path, require=True)
+        # serialize_content appends a node-type extension (.json/.md) AFTER the
+        # exclusion gate above, so re-check the canonical path — otherwise an
+        # exclude like "notes.json" is bypassable by writing "notes" as json.
+        canonical = self._with_node_ext(rel, node_type or "file")
+        if canonical != rel and self._is_excluded(ctx, canonical):
+            raise ScopedFsPermissionDenied(
+                f"Path is excluded from this MCP endpoint: {canonical}"
+            )
         outcome = await self._run_write(
             self.commands.write_file(
                 ctx.project_id,
@@ -896,12 +907,52 @@ class ScopedFsService:
         return rel
 
     @staticmethod
-    def _is_excluded(ctx: ScopedFsContext, rel_path: str) -> bool:
-        rel = rel_path.strip("/")
+    def _abs_path(ctx: ScopedFsContext, rel_path: str) -> str:
+        """Lift a scope-relative path into the scope-absolute (project-relative)
+        space that ``ctx.exclude`` and tree-reader ``entry.path`` values use."""
+        rel = (rel_path or "").strip("/")
+        if not ctx.scope_path:
+            return rel
+        return f"{ctx.scope_path}/{rel}" if rel else ctx.scope_path
+
+    @staticmethod
+    def _rel_path(ctx: ScopedFsContext, abs_path: str) -> str:
+        """Inverse of :meth:`_abs_path`: drop the scope prefix so a scope-absolute
+        entry path can be passed back into the scope-relative read APIs."""
+        p = (abs_path or "").strip("/")
+        if ctx.scope_path and (p == ctx.scope_path or p.startswith(ctx.scope_path + "/")):
+            return p[len(ctx.scope_path):].strip("/")
+        return p
+
+    # Mirror of commands._EXT_MAP — node types whose serializer canonicalizes the
+    # filename with an extension. Keep in sync with that map.
+    _NODE_EXT = {"json": ".json", "markdown": ".md"}
+
+    @classmethod
+    def _with_node_ext(cls, rel: str, node_type: str) -> str:
+        """The path serialize_content will actually write for this node_type."""
+        ext = cls._NODE_EXT.get(node_type)
+        if ext and not rel.endswith(ext):
+            return f"{rel}{ext}"
+        return rel
+
+    def _is_excluded(self, ctx: ScopedFsContext, rel_path: str) -> bool:
+        # ``rel_path`` is scope-relative. The admission layer stores ``exclude``
+        # entries scope-absolute (project-relative) and merges them with the
+        # carved child-scope paths, so the canonical comparison space is
+        # absolute. Legacy rows may hold scope-relative entries, so match BOTH
+        # forms — fail-closed is the right default for a deny gate. (Previously
+        # only the relative form was compared, which let a known excluded path
+        # be read/written directly even though listings hid it.)
+        rel = (rel_path or "").strip("/")
+        abs_path = self._abs_path(ctx, rel)
         for exclude in ctx.exclude:
             clean = normalize_path(str(exclude))
-            if rel == clean or rel.startswith(clean + "/"):
-                return True
+            if not clean:
+                continue
+            for candidate in (rel, abs_path):
+                if candidate == clean or candidate.startswith(clean + "/"):
+                    return True
         return False
 
     def _stat(self, ctx: ScopedFsContext, rel_path: str, *, include_size: bool = False) -> VersionEntry | None:
@@ -916,7 +967,12 @@ class ScopedFsService:
         *,
         include_hidden: bool,
     ) -> list[VersionEntry]:
-        visible = [entry for entry in entries if not self._is_excluded(ctx, self._entry_rel_path(ctx, entry))]
+        # entry.path is scope-absolute; normalize to scope-relative so the
+        # exclusion check sees the same space as the read/stat callers.
+        visible = [
+            entry for entry in entries
+            if not self._is_excluded(ctx, self._rel_path(ctx, entry.path))
+        ]
         if include_hidden:
             return visible
         return [entry for entry in visible if not self._is_hidden_path(self._entry_rel_path(ctx, entry))]

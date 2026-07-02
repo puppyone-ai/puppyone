@@ -1020,14 +1020,8 @@ def get_s3_service_instance() -> S3Service:
     return _s3_service_instance
 
 
-# For backward compatibility, keep the s3_service variable but use lazy loading
-# Note: Accessing s3_service directly will trigger initialization; prefer get_s3_service_instance()
-@property
-def _lazy_s3_service():
-    return get_s3_service_instance()
-
-
-# Use property descriptor for lazy loading
+# Backward-compat: `s3_service` lazily proxies to the singleton.
+# Prefer get_s3_service_instance() / get_s3_service() in new code.
 class _S3ServiceProxy:
     def __getattr__(self, name):
         return getattr(get_s3_service_instance(), name)

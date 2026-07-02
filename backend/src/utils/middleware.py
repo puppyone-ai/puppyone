@@ -15,6 +15,7 @@ from src.utils.request_context import (
     path_var,
     request_id_var,
     project_access_cache_var,
+    entitlement_snapshot_cache_var,
 )
 
 
@@ -41,6 +42,7 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         token_p = path_var.set(_sanitize_path_for_access_log(request))
         token_ip = client_ip_var.set(request.client.host if request.client else None)
         token_pac = project_access_cache_var.set({})
+        token_ec = entitlement_snapshot_cache_var.set({})
 
         response = await call_next(request)
 
@@ -58,5 +60,6 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         path_var.reset(token_p)
         client_ip_var.reset(token_ip)
         project_access_cache_var.reset(token_pac)
+        entitlement_snapshot_cache_var.reset(token_ec)
 
         return response

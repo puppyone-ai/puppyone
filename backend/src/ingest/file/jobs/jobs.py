@@ -25,7 +25,6 @@ from src.ingest.file.rules.repository_supabase import RuleRepositorySupabase
 from src.ingest.file.state.models import ETLPhase, ETLRuntimeState
 from src.ingest.file.state.repository import ETLStateRepositoryRedis
 from src.ingest.file.tasks.models import ETLTaskResult, ETLTaskStatus
-from src.version_engine.write_engine.git_object_format import encode_object
 from src.version_engine.adapters.product.operation_adapter import BlobRef
 
 logger = logging.getLogger(__name__)
@@ -166,47 +165,6 @@ async def _head_object_size(s3, key: str) -> int:
 
     response = await asyncio.to_thread(_head)
     return int(response["ContentLength"])
-
-
-async def _stage_blob_for_version(
-    s3,
-    *,
-    project_id: str,
-    src_key: str,
-    content: bytes,
-) -> str:
-    """Stage a blob from in-memory ``content``.
-
-    Encodes ``content`` as a Git blob object and writes the loose object bytes
-    to the version object key. New callers should use :func:`stage_blob_from_s3`.
-    """
-    blob_hash, loose_bytes = encode_object("blob", content)
-    dst_key = _version_object_key(project_id, blob_hash)
-    # Same legacy-raw-bytes hazard as ``stage_blob_from_s3``; see the
-    # comment there for the rationale behind size-checked dedup.
-    try:
-        existing_meta = await s3.get_file_metadata(dst_key)
-    except Exception:
-        existing_meta = None
-    if existing_meta is not None and existing_meta.size == len(loose_bytes):
-        logger.info(
-            f"_stage_blob_for_version: blob {blob_hash[:12]} already at "
-            f"{dst_key} ({existing_meta.size} bytes), skipping upload",
-        )
-        return blob_hash
-    if existing_meta is not None:
-        logger.warning(
-            f"_stage_blob_for_version: blob {blob_hash[:12]} at {dst_key} "
-            f"has unexpected size {existing_meta.size} (expected "
-            f"{len(loose_bytes)}); overwriting to recover from legacy "
-            f"raw-bytes finalize",
-        )
-    await s3.upload_file(
-        dst_key,
-        loose_bytes,
-        content_type="application/octet-stream",
-    )
-    return blob_hash
 
 
 def _creator_id(task) -> str:

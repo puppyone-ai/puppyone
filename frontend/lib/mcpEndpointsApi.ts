@@ -31,6 +31,10 @@ export interface McpEndpoint {
   api_key: string;
   api_key_hint?: string;
   api_key_revealed?: boolean;
+  /** Canonical MCP server URL external clients connect to (auth via the api_key
+   *  sent as `Authorization: Bearer <key>`). Returned by the backend; falls back
+   *  to `${NEXT_PUBLIC_API_URL}/api/v1/mcp/proxy` if absent. */
+  server_url?: string;
   tools_config: McpToolsConfig;
   accesses: { path: string; json_path: string; readonly: boolean }[];
   config: Record<string, unknown>;

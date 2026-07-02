@@ -852,62 +852,6 @@ def _bare_has_object(bare_dir: Path, object_id: str) -> bool:
     return loose.exists()
 
 
-def _missing_reachable_object_ids(repo, bare_dir: Path, roots: list[str]) -> set[str]:
-    missing: set[str] = set()
-    stack = [root for root in roots if is_object_id(root) and root != ZERO_ID]
-    while stack:
-        object_id = stack.pop()
-        if object_id in missing:
-            continue
-        if _bare_has_object(bare_dir, object_id):
-            continue
-        missing.add(object_id)
-        try:
-            obj_type, body = repo.store.get_object(object_id)
-        except Exception:
-            continue
-        if obj_type == "commit":
-            commit = decode_commit(body)
-            tree = commit.get("tree", "")
-            if is_object_id(tree):
-                stack.append(tree)
-            for parent in commit.get("parents") or []:
-                if is_object_id(parent):
-                    stack.append(parent)
-        elif obj_type == "tree":
-            for entry in decode_tree(body):
-                if is_object_id(entry.sha1_hex):
-                    stack.append(entry.sha1_hex)
-    return missing
-
-
-def _reachable_object_ids(repo, roots: list[str]) -> set[str]:
-    reachable: set[str] = set()
-    stack = [root for root in roots if is_object_id(root) and root != ZERO_ID]
-    while stack:
-        object_id = stack.pop()
-        if object_id in reachable:
-            continue
-        reachable.add(object_id)
-        try:
-            obj_type, body = repo.store.get_object(object_id)
-        except Exception:
-            continue
-        if obj_type == "commit":
-            commit = decode_commit(body)
-            tree = commit.get("tree", "")
-            if is_object_id(tree):
-                stack.append(tree)
-            for parent in commit.get("parents") or []:
-                if is_object_id(parent):
-                    stack.append(parent)
-        elif obj_type == "tree":
-            for entry in decode_tree(body):
-                if is_object_id(entry.sha1_hex):
-                    stack.append(entry.sha1_hex)
-    return reachable
-
-
 def _reachable_object_ids_from_bare(
     bare_dir: Path,
     roots: list[str],

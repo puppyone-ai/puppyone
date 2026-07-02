@@ -168,3 +168,46 @@ async def test_rm_root_denied():
     result = await fs.rm("proj-1", [], "/", user_id="agent-1")
 
     assert result == {"error": "Cannot remove the root directory"}
+
+
+# ── regression: live agent-mode fixes (children key + flat bash_readonly) ──
+
+@pytest.mark.asyncio
+async def test_ls_reads_children_key():
+    """ls must read the 'children' key /internal/nodes/list returns; reading
+    'entries' silently yielded an empty listing every time."""
+    rpc = _rpc(list_dir={"path": "docs", "children": [
+        {"name": "a.md", "path": "docs/a.md", "type": "markdown"},
+    ]})
+    result = await FsToolImplementation(rpc).ls("proj-1", [], "/docs")
+    assert [e["name"] for e in result["entries"]] == ["a.md"]
+
+
+def test_is_readonly_uses_flat_bash_readonly():
+    ro = FsToolImplementation._is_readonly
+    assert ro([{"bash_readonly": True}]) is True
+    assert ro([{"bash_readonly": False}]) is False  # writable
+    assert ro([{"bash_readonly": True}, {"bash_readonly": False}]) is False
+    assert ro([]) is True
+
+
+@pytest.mark.asyncio
+async def test_write_allowed_on_writable_bash_access():
+    """A writable access (flat bash_readonly=False) must not be blocked as
+    read-only — the old nested-scope read reported read-only for every access."""
+    rpc = _rpc(write_file={"path": "docs/x.md", "updated": True})
+    result = await FsToolImplementation(rpc).write(
+        "proj-1", [{"path": "docs", "bash_readonly": False}], "/docs/x.md", "hi",
+    )
+    assert "error" not in result
+    rpc.write_file.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_write_blocked_on_readonly_bash_access():
+    rpc = _rpc()
+    result = await FsToolImplementation(rpc).write(
+        "proj-1", [{"path": "docs", "bash_readonly": True}], "/docs/x.md", "hi",
+    )
+    assert "Read-only" in result.get("error", "")
+    rpc.write_file.assert_not_awaited()

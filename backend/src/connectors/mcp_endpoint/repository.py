@@ -2,7 +2,6 @@
 
 from typing import Any, Dict, List, Optional
 
-from src.utils.id_generator import generate_uuid_v7
 from src.repo.scope_service import ScopeService
 from src.repo.access_credentials import (
     AccessCredentialRepository,
@@ -190,7 +189,15 @@ class McpEndpointRepository:
         scope_ids = [s["id"] for s in (scope_resp.data or [])]
         if not scope_ids:
             return None
-        resp = self._query().in_("scope_id", scope_ids).execute()
+        # mcp is intentionally exempt from the one-surface-per-scope unique index,
+        # so a scope can host several endpoints — return the most recent one
+        # deterministically rather than whatever order the DB happens to yield.
+        resp = (
+            self._query()
+            .in_("scope_id", scope_ids)
+            .order("created_at", desc=True)
+            .execute()
+        )
         rows = self._hydrate(resp.data or [])
         return rows[0] if rows else None
 
@@ -223,7 +230,9 @@ class McpEndpointRepository:
         }
         scope = self._scope_for_path(project_id, path)
         row = {
-            "id": generate_uuid_v7(),
+            # Let the DB assign the id (gen_random_uuid default) — same as every
+            # other access_surfaces writer; the id is read back from the insert
+            # response below, so there is no need to mint one client-side.
             "org_id": self._project_org_id(project_id),
             "project_id": project_id,
             "scope_id": scope["id"],

@@ -528,6 +528,8 @@ def create_app() -> FastAPI:
     app.include_router(organization_router, prefix="/api/v1", tags=["organizations"])
     from src.connectors.mcp_endpoint.router import router as mcp_endpoint_router
     app.include_router(mcp_endpoint_router, prefix="/api/v1", tags=["mcp-endpoints"])
+    from src.platform.landing.router import router as landing_router
+    app.include_router(landing_router, prefix="/api/v1", tags=["landing"])
     from src.connectors.sandbox_endpoint.router import router as sandbox_endpoint_router
     app.include_router(sandbox_endpoint_router, prefix="/api/v1", tags=["sandbox-endpoints"])
     from src.platform.project.dashboard_router import router as dashboard_router

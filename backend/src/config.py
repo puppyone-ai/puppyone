@@ -299,6 +299,20 @@ class Settings(BaseSettings):
     BILLING_ENFORCEMENT: Literal["disabled", "required"] = "disabled"
     LOCAL_ENTITLEMENTS_FILE: str | None = None
 
+    # Shared secret for the login-free landing "X → MCP" preview endpoint.
+    # When set, /api/v1/landing/preview requires header X-Landing-Secret to
+    # match — so only the marketing site's server-side proxy can reach it
+    # (the proxy adds CAPTCHA + per-IP rate limiting). Unset = open (dev only).
+    LANDING_INGEST_SECRET: str | None = None
+
+    # Abuse control for the public landing preview endpoint.
+    # Per-IP sliding-window rate limit (in-process; single-deployment safe).
+    LANDING_PREVIEW_RATE_WINDOW: int = 600  # seconds
+    LANDING_PREVIEW_RATE_MAX: int = 12      # max previews / window / IP
+    # Cloudflare Turnstile secret. When set, /landing/preview requires a valid
+    # turnstile token (verified server-side). Unset = CAPTCHA disabled (dev).
+    TURNSTILE_SECRET: str | None = None
+
     # Public access URL (used to generate external API links)
     # - Local development: http://localhost:8000
     # - Railway: https://your-app.railway.app
@@ -370,6 +384,25 @@ class Settings(BaseSettings):
     SYNC_RUN_REAPER_ENABLED: bool = True
     SYNC_RUN_REAPER_INTERVAL_SECONDS: int = 5 * 60
     SYNC_RUN_REAPER_MAX_PER_RUN: int = 100
+
+    # One-time import-job reaper. Active import rows (QUEUED/RUNNING) untouched
+    # for longer than the stale window mean a dead worker / never-consumed job;
+    # the reaper fails them so they don't sit active forever. The reaper floors
+    # the stale window above the import worker job_timeout so a live job (which
+    # ARQ kills at job_timeout) is never reaped.
+    IMPORT_JOB_REAPER_ENABLED: bool = True
+    IMPORT_JOB_REAPER_INTERVAL_SECONDS: int = 5 * 60
+    IMPORT_JOB_STALE_SECONDS: int = 60 * 60
+    IMPORT_JOB_REAPER_MAX_PER_RUN: int = 100
+
+    # Upload-job reaper. Upload finalize runs inline in the API request (not a
+    # worker), so a job only stays `running` forever if the API process died
+    # mid-finalize. The stale window must exceed the max HTTP request lifetime so
+    # a legitimately long finalize is never reaped (1h >> any request timeout).
+    UPLOAD_JOB_REAPER_ENABLED: bool = True
+    UPLOAD_JOB_REAPER_INTERVAL_SECONDS: int = 5 * 60
+    UPLOAD_JOB_STALE_SECONDS: int = 60 * 60
+    UPLOAD_JOB_REAPER_MAX_PER_RUN: int = 100
 
     # DB Connector sensitive config encryption (AES-256-GCM)
     # Base64-encoded string of 32-byte key

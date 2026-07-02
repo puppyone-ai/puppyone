@@ -316,7 +316,41 @@ export function CreateMenu({
 
           <Divider />
 
-          <MenuItem icon={<UploadIcon />} label="Upload files" onClick={() => { onImportFromFiles(); onClose(); }} />
+          {/* Add content splits into Upload (local files) and Import (a one-shot
+              snapshot from an external source). Both are first-class entries —
+              the Import callbacks already exist (used by the accessOnly picker);
+              this surfaces them in the default + menu as peers to Upload. */}
+          <MenuItem
+            icon={<UploadIcon />}
+            label="Upload files"
+            sublabel="From this device"
+            onClick={() => { onImportFromFiles(); onClose(); }}
+          />
+          <MenuItem
+            icon={
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" stroke={iconColor} strokeWidth="1.5" />
+                <path d="M2 12h20" stroke={iconColor} strokeWidth="1.5" />
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" stroke={iconColor} strokeWidth="1.5" />
+              </svg>
+            }
+            label="Import from URL"
+            sublabel="Web page"
+            onClick={() => { onImportFromUrl(); onClose(); }}
+          />
+          <MenuItem
+            icon={
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={iconColor} strokeWidth="1.5">
+                <rect x="3" y="3" width="7" height="7" rx="1.5" />
+                <rect x="14" y="3" width="7" height="7" rx="1.5" />
+                <rect x="3" y="14" width="7" height="7" rx="1.5" />
+                <rect x="14" y="14" width="7" height="7" rx="1.5" />
+              </svg>
+            }
+            label="Import from a source…"
+            sublabel="Notion, Google, GitHub…"
+            onClick={() => { onImportFromSaas(); onClose(); }}
+          />
         </>
       )}
 
@@ -413,7 +447,19 @@ export function CreateMenu({
                 onClose();
               }}
             />
-            <MenuItem icon={<SandboxIcon />} label="Sandbox" sublabel="Coming soon" disabled />
+            <MenuItem
+              icon={<SandboxIcon />}
+              label="Sandbox"
+              sublabel="Run tools with this folder mounted"
+              onClick={() => {
+                // Sandbox is a scope-level Remote Dev (SSH) card on the Access
+                // page, not a connector — route to it like the SSH Terminal
+                // entry (onCreateSandbox would open a sync-config panel, which
+                // does not fit a sandbox).
+                onCreateSshTerminal?.();
+                onClose();
+              }}
+            />
 
             {/* "More Sources…" is the open-the-empty-picker fallback
                 — useful from `+ → New Access` when the user is

@@ -5,7 +5,7 @@ Provides REST API endpoints for project CRUD operations.
 """
 
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from src.common_schemas import ApiResponse
 from src.exceptions import ErrorCode, PermissionException
@@ -96,11 +96,13 @@ def _count_user_access_points(project_ids: list[str]) -> dict[str, int]:
     response_description="Returns all projects of the organization",
     status_code=status.HTTP_200_OK,
 )
-async def list_projects(
+def list_projects(
     org_id: str | None = Query(None, description="Organization ID (if omitted, returns projects from all user organizations)"),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
+    # Sync handler: FastAPI runs it in a threadpool, so the blocking (sync)
+    # Supabase calls below don't stall the event loop. No `await` in this body.
     oids = resolve_org_ids(org_id, current_user.user_id)
 
     all_projects = []
@@ -133,6 +135,20 @@ async def list_projects(
 def list_project_templates():
     from src.platform.project.templates import list_templates
     return ApiResponse.success(data=list_templates(), message="Templates retrieved")
+
+
+@router.get(
+    "/templates/{template_id}",
+    response_model=ApiResponse[dict],
+    summary="Get a single template's detail (metadata + file tree + rendered preview doc)",
+    status_code=status.HTTP_200_OK,
+)
+def get_project_template(template_id: str):
+    from src.platform.project.templates import get_template_detail
+    detail = get_template_detail(template_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="Template not found")
+    return ApiResponse.success(data=detail, message="Template retrieved")
 
 
 @router.get(
@@ -176,19 +192,15 @@ async def create_project(
         current_count=len(project_service.get_by_org_id(resolved_org_id)),
     )
 
-    project = project_service.create(
+    from src.platform.project.orchestration import create_project_with_tree
+    project = await create_project_with_tree(
+        project_service=project_service,
+        admin_service=version_admin,
         name=payload.name,
         description=payload.description,
         org_id=resolved_org_id,
         created_by=current_user.user_id,
     )
-
-    await version_admin.init_tree(str(project.id))
-
-    # Ensure the canonical root scope exists before returning. Scope creation
-    # creates built-in access surfaces for Git Remote / FS CLI.
-    from src.repo.scope_service import ScopeService
-    ScopeService().ensure_root_scope(str(project.id))
 
     if payload.template:
         from src.platform.project.templates import seed_template_content

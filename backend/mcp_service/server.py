@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import logging
 from typing import Any, AsyncIterator
 
 from mcp.server.lowlevel import Server as MCP_Server
@@ -32,6 +33,8 @@ from .event_store import InMemoryEventStore
 from .rpc.client import create_client
 from .tool.fs_tool import FsToolImplementation
 from .tool.table_tool import TableToolImplementation
+
+logger = logging.getLogger("mcp_service.server")
 
 # POSIX tool name set (used for call_tool routing)
 _POSIX_TOOL_NAMES = frozenset({"ls", "cat", "write", "mkdir", "rm"})
@@ -423,7 +426,11 @@ def build_starlette_app(*, json_response: bool = True) -> Starlette:
             # 3. Fetch Agent configuration
             config = await load_mcp_config(api_key, rpc_client)
             if not config:
-                return []
+                # The proxy already validated this key, so a None here means the
+                # service could not re-resolve it (inactive / misconfigured).
+                # Surface that as an error — an empty tool list would make a
+                # broken endpoint indistinguishable from one that has no tools.
+                raise RuntimeError("MCP endpoint could not be resolved")
 
             # Agent mode: generate tools from agent accesses
             if config.get("mode") == "agent":
@@ -434,9 +441,12 @@ def build_starlette_app(*, json_response: bool = True) -> Starlette:
                 return [_runtime_tool_to_mcp(tool) for tool in runtime.get("tools", [])]
 
             return []
-        except Exception as e:
-            print(f"Error listing tools: {e}")
-            return []
+        except Exception as exc:
+            # A config/RPC failure must NOT collapse to [] — that is identical to
+            # "this endpoint has no tools" from the client's view. Log it and
+            # surface a protocol error instead (mirrors call_tool's behavior).
+            logger.exception("MCP list_tools failed")
+            raise RuntimeError(f"Failed to list MCP tools: {exc}") from exc
 
     @mcp_server.call_tool()
     async def call_tool(
@@ -461,15 +471,18 @@ def build_starlette_app(*, json_response: bool = True) -> Starlette:
             if config.get("mode") == "mcp_endpoint":
                 result = await rpc_client.call_mcp_runtime_tool(api_key, name, arguments or {})
                 if result.get("isError"):
+                    # Render the structured error detail; never let a missing
+                    # detail collapse to the literal "null" (carry the status at
+                    # minimum so the client gets something actionable).
+                    err = result.get("error")
+                    if err is None:
+                        err = {"message": "tool call failed",
+                               "status_code": result.get("status_code")}
                     return mcp_types.CallToolResult(
                         content=[
                             mcp_types.TextContent(
                                 type="text",
-                                text=json.dumps(
-                                    result.get("error", result),
-                                    ensure_ascii=False,
-                                    indent=2,
-                                ),
+                                text=json.dumps(err, ensure_ascii=False, indent=2),
                             )
                         ],
                         isError=True,
@@ -605,10 +618,10 @@ def build_starlette_app(*, json_response: bool = True) -> Starlette:
                 )
             ]
         except Exception as e:
-            import traceback
-
-            error_text = f"Error: {e!s}\n\n{traceback.format_exc()}"
-            return [mcp_types.TextContent(type="text", text=error_text)]
+            # Log the full traceback server-side; return a concise message to the
+            # external client (don't leak internal stack traces over the wire).
+            logger.exception("MCP call_tool failed: tool=%s", name)
+            return [mcp_types.TextContent(type="text", text=f"Error: {e!s}")]
 
     async def handle_mcp(scope: Scope, receive: Receive, send: Send) -> None:
         await session_manager.handle_request(scope=scope, receive=receive, send=send)
@@ -674,7 +687,7 @@ def load_settings():
     try:
         settings.validate()
     except ValueError as e:
-        print(f"Configuration error: {e}")
+        logger.error("MCP server configuration error: %s", e)
         raise
 
     # Display settings (sensitive values are masked)
