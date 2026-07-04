@@ -44,6 +44,36 @@ def _rate_limit_check_email(ip: str) -> None:
     window.append(now)
 
 
+# ── Generic per-IP sliding-window limiter for sensitive auth endpoints (ISSUE-006) ──
+# NOTE: process-local — under multi-replica the effective limit is per-replica. This is
+# an app-layer defence-in-depth backstop (Supabase also throttles); a Redis-backed limiter
+# is the full fix. Fail-open by construction: it never depends on external infrastructure.
+_LOGIN_WINDOW = 300       # 5 minutes
+_LOGIN_MAX_HITS = 10      # brute-force / credential-stuffing backstop, generous for real users
+_REFRESH_WINDOW = 60
+_REFRESH_MAX_HITS = 30
+_rate_hits: dict[tuple[str, str], list[float]] = defaultdict(list)
+
+
+def _client_ip(request: Request) -> str:
+    return request.client.host if request and request.client else "unknown"
+
+
+def _rate_limit(bucket: str, ip: str, *, max_hits: int, window_s: float) -> None:
+    """Raise 429 (with Retry-After) if (bucket, ip) exceeded max_hits in window_s."""
+    now = time.monotonic()
+    key = (bucket, ip)
+    kept = [t for t in _rate_hits[key] if now - t < window_s]
+    _rate_hits[key] = kept
+    if len(kept) >= max_hits:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many requests. Please try again later.",
+            headers={"Retry-After": str(int(window_s))},
+        )
+    kept.append(now)
+
+
 class LoginRequest(BaseModel):
     email: str
     password: str
@@ -145,7 +175,8 @@ async def check_email(body: CheckEmailRequest, request: Request):
 
 
 @router.post("/login", response_model=ApiResponse[LoginResponse])
-def login(body: LoginRequest):
+def login(body: LoginRequest, request: Request):
+    _rate_limit("login", _client_ip(request), max_hits=_LOGIN_MAX_HITS, window_s=_LOGIN_WINDOW)
     try:
         auth_client = _make_auth_client()
         result = auth_client.auth.sign_in_with_password({
@@ -174,7 +205,8 @@ def login(body: LoginRequest):
 
 
 @router.post("/refresh", response_model=ApiResponse[LoginResponse])
-def refresh_token(body: RefreshRequest):
+def refresh_token(body: RefreshRequest, request: Request):
+    _rate_limit("refresh", _client_ip(request), max_hits=_REFRESH_MAX_HITS, window_s=_REFRESH_WINDOW)
     try:
         auth_client = _make_auth_client()
         result = auth_client.auth.refresh_session(body.refresh_token)

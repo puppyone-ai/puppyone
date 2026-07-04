@@ -192,6 +192,17 @@ class Settings(BaseSettings):
     # Bound MCP token lifetime (ISSUE-007). MCP tokens previously carried no
     # `exp` claim and never expired. 0 disables expiry (legacy behaviour).
     MCP_TOKEN_TTL_SECONDS: int = 30 * 24 * 60 * 60  # 30 days
+    # Cluster-aware version notifications (ISSUE-015). When set, WebSocket
+    # commit_update events are fanned out across replicas via Redis pub/sub.
+    # Empty (default) = process-local fan-out only (unchanged behaviour).
+    NOTIFICATIONS_REDIS_URL: str = ""
+
+    # Scope access-key hashing (ISSUE-003). When enabled, repo_scopes writes and
+    # resolves keys via an HMAC hash (access_key_hash column) instead of trusting
+    # the plaintext column. OFF by default so behaviour is unchanged until ops has
+    # (1) applied the access_key_hash migration and (2) backfilled existing rows;
+    # then flip this on, and finally drop the plaintext access_key column.
+    SCOPE_ACCESS_KEY_HASH_LOOKUP: bool = False
 
     # Anthropic configuration
     ANTHROPIC_API_KEY: str = ""

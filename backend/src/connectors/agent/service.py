@@ -637,6 +637,7 @@ class AgentService:
                         user_id=current_user.user_id if current_user else None,
                         agent_id=request.agent_id,
                         session_id=request.session_id,
+                        project_id=_agent_project_id,
                     )
 
                     # Record path mapping (for write-back and display)

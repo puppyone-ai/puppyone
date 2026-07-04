@@ -70,7 +70,29 @@ class RepoScopeRepository:
         return _row_to_scope(rows[0]) if rows else None
 
     def get_by_access_key(self, access_key: str) -> Optional[RepoScope]:
-        """Hot path: access-key auth resolves an access_key to its scope."""
+        """Hot path: access-key auth resolves an access_key to its scope.
+
+        When SCOPE_ACCESS_KEY_HASH_LOOKUP is enabled (ISSUE-003) we resolve by
+        HMAC hash first, then fall back to the plaintext column for rows not yet
+        backfilled. With the flag off, behaviour is exactly the plaintext lookup.
+        """
+        from src.config import settings
+
+        if settings.SCOPE_ACCESS_KEY_HASH_LOOKUP:
+            from src.repo.access_credentials import access_token_hash
+            resp = (
+                self._client.table(self.TABLE)
+                .select("*")
+                .eq("access_key_hash", access_token_hash(access_key))
+                .is_("access_key_revoked_at", "null")
+                .limit(1)
+                .execute()
+            )
+            rows = resp.data or []
+            if rows:
+                return _row_to_scope(rows[0])
+            # fall through: row may predate the backfill and only have plaintext
+
         resp = (
             self._client.table(self.TABLE)
             .select("*")
@@ -129,19 +151,20 @@ class RepoScopeRepository:
     ) -> RepoScope:
         """Insert a new scope. Access surfaces are created explicitly by
         ScopeService after this row is persisted."""
-        resp = (
-            self._client.table(self.TABLE)
-            .insert({
-                "project_id": project_id,
-                "name": name,
-                "path": path,
-                "exclude": exclude,
-                "mode": mode,
-                "is_root": is_root,
-                "access_key": access_key,
-            })
-            .execute()
-        )
+        row: dict[str, Any] = {
+            "project_id": project_id,
+            "name": name,
+            "path": path,
+            "exclude": exclude,
+            "mode": mode,
+            "is_root": is_root,
+            "access_key": access_key,
+        }
+        from src.config import settings
+        if settings.SCOPE_ACCESS_KEY_HASH_LOOKUP:
+            from src.repo.access_credentials import access_token_hash
+            row["access_key_hash"] = access_token_hash(access_key)
+        resp = self._client.table(self.TABLE).insert(row).execute()
         return _row_to_scope(resp.data[0])
 
     def update(
@@ -173,12 +196,17 @@ class RepoScopeRepository:
     def regenerate_access_key(self, scope_id: str, new_key: str) -> bool:
         """Atomic: mark old key revoked AND set new key. We reuse the same
         column (no separate history table) so old-key auth fails immediately."""
+        patch: dict[str, Any] = {
+            "access_key": new_key,
+            "access_key_revoked_at": None,
+        }
+        from src.config import settings
+        if settings.SCOPE_ACCESS_KEY_HASH_LOOKUP:
+            from src.repo.access_credentials import access_token_hash
+            patch["access_key_hash"] = access_token_hash(new_key)
         resp = (
             self._client.table(self.TABLE)
-            .update({
-                "access_key": new_key,
-                "access_key_revoked_at": None,
-            })
+            .update(patch)
             .eq("id", scope_id)
             .execute()
         )

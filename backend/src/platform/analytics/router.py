@@ -55,7 +55,7 @@ async def get_access_timeseries(
     interval: str = Query("hour", description="'hour' or 'day'"),
     range_hours: int = Query(168, ge=1, le=_MAX_RANGE_HOURS, description="Hours back (default 7 days)"),
     agent_id: str | None = Query(None),
-    path: str | None = Query(None),
+    node_name: str | None = Query(None),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """
@@ -70,16 +70,18 @@ async def get_access_timeseries(
     now = datetime.utcnow()
     start_time = now - timedelta(hours=range_hours)
 
+    # access_logs identifies the accessed node by node_name (there is no "path"
+    # column in the current schema).
     query = supabase.table("access_logs") \
-        .select("id, created_at, agent_id, path") \
+        .select("id, created_at, agent_id, node_name") \
         .eq("project_id", project_id) \
         .gte("created_at", start_time.isoformat()) \
         .order("created_at", desc=False)
 
     if agent_id:
         query = query.eq("agent_id", agent_id)
-    if path:
-        query = query.eq("path", path)
+    if node_name:
+        query = query.eq("node_name", node_name)
 
     result = query.execute()
     logs = result.data or []
@@ -134,7 +136,7 @@ async def get_access_summary(
     start_time = datetime.utcnow() - timedelta(hours=range_hours)
 
     result = supabase.table("access_logs") \
-        .select("agent_id, path") \
+        .select("agent_id, node_name") \
         .eq("project_id", project_id) \
         .gte("created_at", start_time.isoformat()) \
         .execute()
@@ -142,7 +144,7 @@ async def get_access_summary(
     logs = result.data or []
 
     unique_agents = len({log["agent_id"] for log in logs if log.get("agent_id")})
-    unique_nodes = len({log["path"] for log in logs if log.get("path")})
+    unique_nodes = len({log["node_name"] for log in logs if log.get("node_name")})
 
     return {
         "total_accesses": len(logs),
