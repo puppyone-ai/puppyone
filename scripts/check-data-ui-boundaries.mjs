@@ -6,6 +6,10 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const checkedSrcDirs = [
   path.join(repoRoot, "packages", "data-ui", "src"),
   path.join(repoRoot, "packages", "editor-ui", "src"),
+  // ISSUE-022: shared cloud domain must stay platform-agnostic (no Next.js,
+  // Electron, Supabase, or SWR) so both the web frontend and the desktop cloud
+  // panel can consume it. Platform auth/HTTP is injected via CloudTransport.
+  path.join(repoRoot, "packages", "cloud-core", "src"),
 ];
 
 const blockedImports = [
