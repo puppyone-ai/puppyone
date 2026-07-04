@@ -721,8 +721,9 @@ class TestInternalAPI:
     ):
         """测试通过 MCP API Key 获取 Agent 配置"""
         mcp_key = test_agent["mcp_api_key"]
-        resp = main_client.get(
-            f"/internal/agent-by-mcp-key/{mcp_key}",
+        resp = main_client.post(
+            "/internal/agent-by-mcp-key",
+            json={"mcp_api_key": mcp_key},
             headers=internal_headers,
         )
         assert resp.status_code == 200, f"获取 Agent 失败: {resp.status_code} {resp.text}"

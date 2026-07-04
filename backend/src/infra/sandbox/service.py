@@ -61,7 +61,14 @@ class SandboxService:
         return await self._impl.start_with_files(session_id, files, readonly, s3_service)
 
     async def exec(self, session_id: str, command: str) -> dict:
-        """Execute a command in the sandbox"""
+        """Execute a command in the sandbox.
+
+        Command-safety policy is enforced here (ISSUE-009) so every caller —
+        the sandbox HTTP endpoint and the agent bash tool alike — passes the
+        same blacklist. Defense-in-depth over the container boundary (ISSUE-010).
+        """
+        from .command_policy import assert_command_allowed
+        assert_command_allowed(command)
         return await self._impl.exec(session_id, command)
 
     async def read(self, session_id: str) -> dict:
