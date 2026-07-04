@@ -10,6 +10,7 @@ from src.version_engine.write_engine.audit import (
     log_done as _log_done,
     now_iso as _now_iso,
 )
+from src.version_engine.write_engine.cas_backoff import cas_backoff
 from src.version_engine.write_engine.git_commit import build_git_commit
 from src.version_engine.write_engine.path_utils import normalize_path
 from src.version_engine.write_engine.publisher import (
@@ -80,6 +81,7 @@ class RollbackWriter:
 
         last_error: Exception | None = None
         for attempt in range(_MAX_CAS_ATTEMPTS):
+            await cas_backoff(attempt)
             attempt_no = attempt + 1
             old_root_hash, base_root_hash = _get_project_root_state_for_write(repo)
             project_head_commit_id = _get_project_view_head(repo, old_root_hash)

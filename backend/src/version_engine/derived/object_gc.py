@@ -201,6 +201,7 @@ def collect_object_gc_roots(repo, *, errors: list[str] | None = None) -> set[str
     _add_outbox_roots(repo, add, out_errors)
     _add_pending_conflict_roots(repo, add, out_errors)
     _add_version_ref_roots(repo, add, out_errors)
+    _add_shadow_snapshot_roots(repo, add, out_errors)
     return roots
 
 
@@ -224,6 +225,39 @@ def _add_version_ref_roots(repo, add, errors: list[str]) -> None:
             add(commit_id)
     except Exception as exc:  # noqa: BLE001
         errors.append(f"version_ref roots: {exc}")
+
+
+def _add_shadow_snapshot_roots(repo, add, errors: list[str]) -> None:
+    """Protect objects referenced by un-promoted shadow snapshots (ISSUE-012).
+
+    Shadow snapshots upload their referenced blobs into the canonical object
+    store *before* promotion and may sit un-promoted indefinitely. A pending
+    snapshot's ``tree_hash`` is not reachable from any ref, so without adding it
+    to the root set GC would reclaim the snapshot's objects once they age past
+    the retention window and break ``/promote``. Marking the tree then protects
+    the blobs it references transitively.
+
+    DB-only by design: the ``tree_hash`` lives on the ``local_shadow_snapshots``
+    row, so this stays synchronous. Reading the S3 manifest's ``blob_hashes``
+    from the sync GC root pass is intentionally avoided.
+    """
+    project_id = getattr(repo, "_project_id", "") or ""
+    if not project_id:
+        return
+    try:
+        from src.infra.supabase import get_supabase_client
+
+        client = get_supabase_client()
+        resp = (
+            client.table("local_shadow_snapshots")
+            .select("tree_hash")
+            .eq("project_id", project_id)
+            .execute()
+        )
+        for row in (resp.data or []):
+            add(row.get("tree_hash"))
+    except Exception as exc:  # noqa: BLE001 - GC must keep scanning even if this lookup fails.
+        errors.append(f"shadow_snapshot roots: {exc}")
 
 
 def mark_reachable_objects(

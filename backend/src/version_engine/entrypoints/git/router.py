@@ -13,6 +13,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
+from src.config import settings
 from src.common_schemas import ApiResponse
 from src.version_engine.adapters.git.health import git_view_health_payload
 from src.version_engine.derived.git_transport_cache import rebuild_git_transport_view
@@ -133,6 +134,11 @@ async def _spool_git_request_body(
     Large Git pushes may arrive as chunked transfer bodies. Keeping them off
     the Python heap lets stock Git consume the exact decoded request bytes
     without requiring users to tune client-side buffering.
+
+    ``max_body_bytes`` fail-fast caps the compressed request body so a hostile
+    client cannot fill the spool disk (or feed an unbounded pack downstream).
+    Streaming is aborted and the partial file removed as soon as the cap is
+    crossed, raising HTTP 413.
     """
 
     content_length = request.headers.get("content-length")
@@ -170,7 +176,7 @@ async def _spool_git_request_body(
                 tmp.write(chunk)
         tmp.close()
         return Path(tmp.name)
-    except Exception:
+    except BaseException:
         name = tmp.name
         tmp.close()
         try:
@@ -466,7 +472,10 @@ async def git_upload_pack(
 
     auth = await resolve_git_project_auth(project_id, request, scope)
     repo = repo_manager.get_server_repo(project_id)
-    request_path = await _spool_git_request_body(request)
+    # Cap the fetch-negotiation body too (ISSUE-014), reusing v2-audit's spool path.
+    request_path = await _spool_git_request_body(
+        request, max_body_bytes=settings.GIT_MAX_UPLOAD_PACK_BYTES or None
+    )
     actor = request_actor(request, auth)
     facade = repo_facade_from_auth(project_id, auth, kind="project_git_remote",
                                    scope_backend=repo_manager.get_scope_backend(project_id))
@@ -501,7 +510,10 @@ async def git_ap_upload_pack(
 
     project_id, auth = await resolve_git_access_point(access_key, request)
     repo = repo_manager.get_server_repo(project_id)
-    request_path = await _spool_git_request_body(request)
+    # Cap the fetch-negotiation body too (ISSUE-014), reusing v2-audit's spool path.
+    request_path = await _spool_git_request_body(
+        request, max_body_bytes=settings.GIT_MAX_UPLOAD_PACK_BYTES or None
+    )
     actor = request_actor(request, auth)
     facade = repo_facade_from_auth(project_id, auth, kind="access_point",
                                    scope_backend=repo_manager.get_scope_backend(project_id))

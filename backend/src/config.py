@@ -165,9 +165,33 @@ class Settings(BaseSettings):
             )
         return self
 
+    @model_validator(mode="after")
+    def enforce_jwt_secret_safety(self):
+        """Refuse to boot with a weak/default JWT_SECRET outside development/test.
+
+        JWT_SECRET signs user session JWTs and MCP tokens. If the in-source
+        default ("ContextBase-256-bit-secret") ever ships to staging/production,
+        anyone can forge tokens and bypass authentication. Mirrors
+        enforce_skip_auth_safety: fail fast at startup rather than serve a
+        forgeable signing key.
+        """
+        if self.APP_ENV not in {"development", "test"}:
+            secret = (self.JWT_SECRET or "").strip()
+            if not secret or secret == "ContextBase-256-bit-secret" or len(secret) < 32:
+                raise ValueError(
+                    "JWT_SECRET must be a strong, non-default value (>=32 chars) "
+                    f"outside development/test. Got APP_ENV={self.APP_ENV!r} with a "
+                    "missing/default/short secret. Refusing to start with a forgeable "
+                    "signing key — set JWT_SECRET to a securely generated random value."
+                )
+        return self
+
     # JWT configuration
     JWT_SECRET: str = "ContextBase-256-bit-secret"
     JWT_ALGORITHM: str = "HS256"
+    # Bound MCP token lifetime (ISSUE-007). MCP tokens previously carried no
+    # `exp` claim and never expired. 0 disables expiry (legacy behaviour).
+    MCP_TOKEN_TTL_SECONDS: int = 30 * 24 * 60 * 60  # 30 days
 
     # Anthropic configuration
     ANTHROPIC_API_KEY: str = ""
@@ -185,6 +209,13 @@ class Settings(BaseSettings):
     SANDBOX_DOWNLOAD_CONCURRENCY: int = 10
     # Large file streaming threshold (bytes); files exceeding this size use streaming transfer
     SANDBOX_LARGE_FILE_THRESHOLD: int = 50 * 1024 * 1024  # 50MB
+    # Docker sandbox isolation hardening (ISSUE-010). Applied to the primary
+    # (self-contained custom-image) container. Network mode "none" cuts off
+    # outbound access incl. the cloud metadata endpoint; "" keeps default bridge.
+    SANDBOX_DOCKER_NETWORK: str = "none"
+    SANDBOX_DOCKER_NO_NEW_PRIVILEGES: bool = True
+    SANDBOX_DOCKER_CAP_DROP_ALL: bool = True
+    SANDBOX_DOCKER_READONLY_ROOTFS: bool = False  # opt-in: image must not write outside mounts
 
     # ── Scope-sandbox (V2 "sandbox as access point") ──
     # NOTE: the per-project/enterprise choice of "fly" vs "e2b" is a USER
@@ -347,6 +378,19 @@ class Settings(BaseSettings):
     # Durable L6 Git view cache root. The cache is rebuildable from Version
     # Engine facts and should live outside the source checkout by default.
     GIT_VIEW_CACHE_DIR: Path = Path("~/.puppyone/git-view-cache")
+    # Bound the local git view cache so per-replica disk cannot grow without
+    # limit (ISSUE-011). Least-recently-rebuilt views are evicted first. 0
+    # disables the respective cap.
+    GIT_VIEW_CACHE_MAX_BYTES: int = 5 * 1024 * 1024 * 1024  # 5 GiB
+    GIT_VIEW_CACHE_MAX_VIEWS: int = 500
+
+    # Git transport hardening (ISSUE-014). Bound the compressed request body of a
+    # push and the wall-clock time of any git subprocess so a hostile client
+    # cannot exhaust disk/CPU/memory via an oversized or decompression-bomb pack.
+    # 0 disables the respective limit.
+    GIT_MAX_RECEIVE_PACK_BYTES: int = 1024 * 1024 * 1024  # 1 GiB compressed push cap
+    GIT_MAX_UPLOAD_PACK_BYTES: int = 16 * 1024 * 1024      # 16 MiB fetch-negotiation cap
+    GIT_SUBPROCESS_TIMEOUT_SECONDS: int = 300              # per git invocation
 
     VERSION_OBJECT_GC_ENABLED: bool = False
     VERSION_OBJECT_GC_DRY_RUN: bool = True

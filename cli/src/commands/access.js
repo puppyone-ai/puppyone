@@ -579,7 +579,11 @@ export function registerAccess(program) {
         name: (c.name || "").slice(0, 25),
         direction: c.direction || "\u2014",
         status: statusLabel(c.status),
-        key: maskKey(c.access_key),
+        // The list endpoint no longer returns the raw access_key (ISSUE-002);
+        // prefer the masked has_key/key_last4 fields, and fall back to masking a
+        // full key if an older backend still sends one. Use `access info <id>`
+        // to reveal the full key.
+        key: c.access_key ? maskKey(c.access_key) : (c.has_key ? `...${c.key_last4}` : "\u2014"),
         lastSync: c.last_synced_at ? timeAgo(c.last_synced_at) : "\u2014",
       })), [
         { key: "id", label: "ID" },

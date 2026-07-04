@@ -5,7 +5,7 @@ Removed process management logic, MCP instances are reduced to pure data records
 
 import jwt
 import httpx
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any, List, Callable
 from src.config import settings
 from src.exceptions import (
@@ -92,13 +92,19 @@ class McpService:
         Returns:
             JWT token string
         """
+        now = datetime.now(timezone.utc)
         payload = {
             "user_id": user_id,
             "project_id": project_id,
             "table_id": table_id,
             "json_pointer": json_pointer,
-            "iat": datetime.now(timezone.utc),
+            "iat": now,
         }
+        # Bound token lifetime so a leaked/forged MCP token cannot be used
+        # indefinitely (ISSUE-007). TTL of 0 preserves legacy non-expiring behaviour.
+        ttl = settings.MCP_TOKEN_TTL_SECONDS
+        if ttl and ttl > 0:
+            payload["exp"] = now + timedelta(seconds=ttl)
         token = jwt.encode(
             payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM
         )

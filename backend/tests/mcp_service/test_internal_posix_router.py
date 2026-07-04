@@ -306,8 +306,9 @@ def test_get_agent_by_mcp_key_enriches_access_with_node_info(client, app, monkey
     monkeypatch.setattr(connector_service_module, "ConnectorService", lambda: _ConnectorService())
     monkeypatch.setattr(scope_repository_module, "RepoScopeRepository", lambda: _ScopeRepository())
 
-    resp = client.get(
-        "/internal/agent-by-mcp-key/mcp_k",
+    resp = client.post(
+        "/internal/agent-by-mcp-key",
+        json={"mcp_api_key": "mcp_k"},
         headers={"X-Internal-Secret": "ignored"},
     )
 

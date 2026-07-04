@@ -19,7 +19,10 @@ def invalidate_mcp_cache(api_key: str) -> None:
         return
 
     url = f"{base}/cache/invalidate"
+    # Authenticate the server-to-server call (ISSUE-008): the MCP service now
+    # requires the shared internal secret on this endpoint.
+    headers = {"X-Internal-Secret": settings.INTERNAL_API_SECRET or ""}
     try:
-        httpx.post(url, json={"api_key": api_key}, timeout=5.0, trust_env=False)
+        httpx.post(url, json={"api_key": api_key}, headers=headers, timeout=5.0, trust_env=False)
     except Exception as e:
         log_error(f"Failed to invalidate MCP cache: api_key={api_key[:12]}... err={e}")
