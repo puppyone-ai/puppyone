@@ -197,6 +197,11 @@ class Settings(BaseSettings):
     # Empty (default) = process-local fan-out only (unchanged behaviour).
     NOTIFICATIONS_REDIS_URL: str = ""
 
+    # Redis-backed login brute-force throttle (ISSUE-006). When set, failed-login
+    # counters are shared across replicas (the in-process fallback is per-replica).
+    # Empty (default) = in-process fallback only. Fail-open on any Redis error.
+    RATELIMIT_REDIS_URL: str = ""
+
     # Scope access-key hashing (ISSUE-003). When enabled, repo_scopes writes and
     # resolves keys via an HMAC hash (access_key_hash column) instead of trusting
     # the plaintext column. OFF by default so behaviour is unchanged until ops has

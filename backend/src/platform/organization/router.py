@@ -308,7 +308,9 @@ def accept_invitation(
     without a second round-trip. Idempotent if the user is already
     a member of the org (the service returns the existing membership).
     """
-    member, org = org_service.accept_invitation(token, current_user.user_id)
+    member, org = org_service.accept_invitation(
+        token, current_user.user_id, user_email=current_user.email
+    )
     return ApiResponse.success(
         data={
             "member_id": member.id,

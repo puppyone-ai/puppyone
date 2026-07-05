@@ -365,7 +365,8 @@ def get_connection(
     row = resp.data[0]
     _require_connection_project_access(sb, row["project_id"], current_user.user_id)
 
-    return ApiResponse.success(data=_enrich([row], sb)[0], message="Access connection found")
+    # Detail views must not echo raw credentials (access_key / config secrets).
+    return ApiResponse.success(data=_enrich([row], sb, mask_credentials=True)[0], message="Access connection found")
 
 
 @router.patch(

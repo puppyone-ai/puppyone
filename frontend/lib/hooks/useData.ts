@@ -151,7 +151,7 @@ export function useOrphanTables() {
  * @returns Promise that resolves when the data is actually fetched
  */
 export async function refreshProjects(orgId?: string | null) {
-  mutate('orphan-tables');
+  void mutate('orphan-tables').catch(() => {});
   if (orgId === null) {
     return undefined;
   }
@@ -456,7 +456,7 @@ export function refreshProjectTools(projectId?: string | null) {
  */
 export function refreshToolsByPath(path?: string) {
   if (path) {
-    mutate(['tools-by-path', path]);
+    void mutate(['tools-by-path', path]).catch(() => {});
   }
   return mutate('all-tools');
 }

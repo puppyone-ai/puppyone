@@ -330,9 +330,10 @@ async def list_provider_resources(
             resource_type=resource_type,
         )
     except ValueError as exc:
+        log_error(f"[Integrations] list_source_resources failed provider={provider}: {exc}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(exc),
+            detail="Unable to authorize with the provider",
         ) from exc
 
     return ApiResponse.success(
@@ -733,11 +734,22 @@ def list_connection_runs(
 @router.get("/runs/{run_id}", response_model=ApiResponse[SyncRunResponse])
 def get_connection_run(
     run_id: str,
+    service: IntegrationService = Depends(get_integration_service),
+    project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     run = _get_run_repo().get_by_id(run_id)
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
+    # Scope the read to a project the caller can reach — a run id alone must not
+    # leak another tenant's sync output. Resolve the owning connection and
+    # enforce project access (mirrors list_connection_runs).
+    _get_connection_with_access(
+        connection_id=run.access_point_id,
+        service=service,
+        project_service=project_service,
+        current_user=current_user,
+    )
     return ApiResponse.success(data=SyncRunResponse(
         id=run.id,
         access_point_id=run.access_point_id,
@@ -890,11 +902,14 @@ async def trigger_push(
     path: str,
     project_id: str = Query(..., description=_PROJECT_ID_DESC),
     engine: IntegrationEngine = Depends(get_integration_engine),
+    project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
     from src.version_engine.read.tree_reader import detect_type
     import json as _json
+
+    _ensure_project_access(project_service, current_user, project_id)
 
     ops = build_worker_version_engine_container().product_operations()
     try:
