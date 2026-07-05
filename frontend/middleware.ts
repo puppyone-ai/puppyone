@@ -85,7 +85,7 @@ export async function middleware(request: NextRequest) {
   //    not at /home.
   if (session && pathname === '/login') {
     const dest = request.nextUrl.searchParams.get('redirect');
-    if (dest && dest.startsWith('/') && !dest.startsWith('//')) {
+    if (dest && dest.startsWith('/') && !dest.startsWith('//') && !dest.startsWith('/\\')) {
       return NextResponse.redirect(new URL(dest, request.url));
     }
     return NextResponse.redirect(new URL('/home', request.url));
