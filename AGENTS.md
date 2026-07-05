@@ -33,7 +33,7 @@ It aggregates information scattered across various sources into a unified Contex
 
 - **Agent management** — Create agents, bind tools, control access scope, SSE streaming chat
 - **Full CLI coverage** — Every operation available via command line, enabling AI coding tools like Claude Code to drive the platform directly
-- **Unified access management** — All access types (sync/agent/MCP/sandbox/filesystem) consolidated into a single `access_points` table with a single entry point
+- **Unified access management** — All access surface types (Git remote/CLI/agent/MCP/sandbox) are served through a single `/api/v1/access` entry point, backed by the `access_surfaces` table (each row scope-bound to a `repo_scopes` row); external SaaS data sources live separately in the `connectors` table
 
 ## Active Development Directories
 
@@ -82,7 +82,7 @@ backend/
 │   ├── tool/                  # Tool registration & search index
 │   │
 │   ├── connectors/            # Access types
-│   │   ├── manager/           #   Unified access CRUD (connections table)
+│   │   ├── manager/           #   Access surface CRUD (access_surfaces table, scope-bound to repo_scopes)
 │   │   ├── datasource/        #   SaaS data source providers (Gmail/GitHub/Notion/...)
 │   │   │   ├── gmail/         #     Gmail connector
 │   │   │   ├── github/        #     GitHub connector
@@ -138,13 +138,13 @@ backend/
 - **Fully async**: All I/O operations use `async/await`
 - **Pydantic models**: All request/response defined with Pydantic schemas
 - **Naming conventions**: Files `snake_case.py`, classes `PascalCase`, functions/variables `snake_case`
-- **DB table naming**: New tables use **plural snake_case** (e.g. `projects`, `access_points`, `version_transactions`). Deferred physical legacy names may appear only through `backend/src/version_engine/server/db_names.py`.
+- **DB table naming**: New tables use **plural snake_case** (e.g. `projects`, `access_surfaces`, `version_transactions`). Deferred physical legacy names may appear only through `backend/src/version_engine/server/db_names.py`.
 - **Route prefix**: Business APIs under `/api/v1`, internal APIs under `/internal`
 - **Module structure**: Each module typically contains `router.py`, `service.py`, `repository.py`, `schemas.py`
 
 ### Database Tables
 
-All tables use plural snake_case names. The "unified access" architecture stores agents, MCP endpoints, sandbox endpoints, and sync access points in a single `access_points` base table differentiated by `provider`. Sync-specific state lives in the `sync_state` satellite table; agent-specific config in `agent_profiles`.
+All tables use plural snake_case names. The "unified access" architecture serves agents, MCP endpoints, sandbox endpoints, and Git-remote/CLI credentials through the `access_surfaces` table, differentiated by `kind` and each scope-bound to a `repo_scopes` row (scopes carry the `access_key`); provider-specific config is stored inline in each surface's `config` JSON column. External SaaS data-source integrations live separately in the `connectors` table.
 
 | Table | Repository | Description |
 |-------|-----------|-------------|
@@ -154,11 +154,11 @@ All tables use plural snake_case names. The "unified access" architecture stores
 | `org_members` | `organization/repository.py` | Organization membership |
 | `org_invitations` | `organization/repository.py` | Organization invitations |
 | `profiles` | `profile/repository.py` | User profiles |
-| `access_points` | `connectors/manager/router.py`, `connectors/agent/config/repository.py` | Unified access points (agents/MCP/sandbox/sync) — base table |
-| `sync_state` | _(satellite table)_ | Sync-specific state (direction, cursor, last_synced_at, etc.) |
-| `agent_profiles` | _(satellite table)_ | Agent-specific config (model, system_prompt, etc.) |
-| `access_permissions` | `connectors/agent/config/repository.py` | Access point ↔ content node permissions |
-| `access_tools` | `connectors/agent/config/repository.py`, `tool/service.py` | Access point ↔ tool bindings |
+| `access_surfaces` | `connectors/manager/router.py`, `repo/access_surface_repository.py` | Unified access surfaces (Git remote/CLI/agent/MCP/sandbox), keyed by `kind`, scope-bound to `repo_scopes` |
+| `repo_scopes` | `repo/scope_repository.py`, `repo/scope_service.py` | Scoped subtrees each access surface binds to (carries `access_key`) |
+| `connectors` | `repo/connector_repository.py`, `repo/connector_service.py` | External SaaS data-source integrations (Gmail/GitHub/Notion/...) |
+| `access_permissions` | `connectors/agent/config/repository.py` | Access surface ↔ content node permissions |
+| `access_tools` | `connectors/agent/config/repository.py`, `tool/service.py` | Access surface ↔ tool bindings |
 | `content_nodes` | _(dropped — replaced by Version Engine Git trees in object storage)_ | Legacy content tree |
 | `tools` | `supabase/tools/repository.py` | Registered tools |
 | `mcps` | `supabase/mcps/repository.py`, `supabase/mcp_v2/repository.py` | MCP server instances |

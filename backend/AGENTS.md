@@ -67,7 +67,7 @@ backend/
 │   ├── tool/                  # 工具注册 & 搜索索引
 │   │
 │   ├── connectors/            # 连接器
-│   │   ├── manager/           # 统一 Access CRUD (access_points 表)
+│   │   ├── manager/           # Access surface CRUD (access_surfaces 表, scope 绑定 repo_scopes)
 │   │   ├── agent/             # AI Agent (config/chat/MCP 绑定)
 │   │   ├── datasource/        # SaaS 数据源 (Gmail/GitHub/Notion/...)
 │   │   │   └── oauth/         # OAuth 授权流程 & token 存储
