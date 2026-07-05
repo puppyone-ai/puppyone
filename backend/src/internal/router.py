@@ -106,6 +106,19 @@ def _create_write_commands() -> VersionWriteCommandService:
     return build_worker_version_engine_container().write_commands()
 
 
+def _enforce_acting_user_table_access(request: Request, table_service, table_id: str) -> str:
+    """Resolve the project owning ``table_id`` and enforce acting-user access.
+
+    The table context endpoints operate on project data by table_id; without
+    this, any holder of the internal secret could read/write any project's
+    table by varying table_id. Mirrors the node endpoints' project-access gate.
+    """
+    table = table_service.get_by_id(table_id)
+    if not table:
+        raise HTTPException(status_code=404, detail="Table not found")
+    return _enforce_acting_user_project_access(request, table.project_id)
+
+
 # ============================================================
 # Turbopuffer internal debug endpoints
 # ============================================================
@@ -165,10 +178,11 @@ async def verify_billing_organization_access(
     description="Get table metadata by table_id (excluding data content)",
     dependencies=[Depends(verify_internal_secret)],
 )
-async def get_table_metadata(table_id: str, table_service=Depends(get_table_service)):
+async def get_table_metadata(table_id: str, request: Request, table_service=Depends(get_table_service)):
     table = table_service.get_by_id(table_id)
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
+    _enforce_acting_user_project_access(request, table.project_id)
 
     return {
         "id": table.id,
@@ -192,13 +206,17 @@ async def get_table_metadata(table_id: str, table_service=Depends(get_table_serv
 )
 async def get_table_context_schema(
     table_id: str,
+    request: Request,
     json_path: str = Query(default="", description="Mount point JSON Pointer path"),
     table_service=Depends(get_table_service),
 ):
     try:
+        _enforce_acting_user_table_access(request, table_service, table_id)
         return table_service.get_context_structure(
             table_id=table_id, json_pointer_path=json_path
         )
+    except HTTPException:
+        raise
     except AppException as e:
         raise HTTPException(status_code=e.status_code, detail=e.message) from e
     except Exception as e:
@@ -213,6 +231,7 @@ async def get_table_context_schema(
 )
 async def get_table_context_data(
     table_id: str,
+    request: Request,
     json_path: str = Query(default="", description="Mount point JSON Pointer path"),
     query: Optional[str] = Query(
         default=None, description="JMESPath query expression (optional)"
@@ -220,6 +239,7 @@ async def get_table_context_data(
     table_service=Depends(get_table_service),
 ):
     try:
+        _enforce_acting_user_table_access(request, table_service, table_id)
         if query:
             return table_service.query_context_data_with_jmespath(
                 table_id=table_id, json_pointer_path=json_path, query=query
@@ -227,6 +247,8 @@ async def get_table_context_data(
         return table_service.get_context_data(
             table_id=table_id, json_pointer_path=json_path
         )
+    except HTTPException:
+        raise
     except AppException as e:
         raise HTTPException(status_code=e.status_code, detail=e.message) from e
     except Exception as e:
@@ -242,9 +264,11 @@ async def get_table_context_data(
 async def create_table_context_data(
     table_id: str,
     payload: Dict[str, Any],
+    request: Request,
     table_service=Depends(get_table_service),
 ):
     try:
+        _enforce_acting_user_table_access(request, table_service, table_id)
         json_path = payload.get("json_path", "")
         elements = payload.get("elements", [])
         data = await table_service.create_context_data(
@@ -253,6 +277,8 @@ async def create_table_context_data(
             elements=elements,
         )
         return {"message": "Created successfully", "data": data}
+    except HTTPException:
+        raise
     except AppException as e:
         raise HTTPException(status_code=e.status_code, detail=e.message) from e
     except Exception as e:
@@ -268,15 +294,19 @@ async def create_table_context_data(
 async def update_table_context_data(
     table_id: str,
     payload: Dict[str, Any],
+    request: Request,
     table_service=Depends(get_table_service),
 ):
     try:
+        _enforce_acting_user_table_access(request, table_service, table_id)
         json_path = payload.get("json_path", "")
         elements = payload.get("elements", [])
         data = await table_service.update_context_data(
             table_id=table_id, json_pointer_path=json_path, elements=elements
         )
         return {"message": "Updated successfully", "data": data}
+    except HTTPException:
+        raise
     except AppException as e:
         raise HTTPException(status_code=e.status_code, detail=e.message) from e
     except Exception as e:
@@ -292,15 +322,19 @@ async def update_table_context_data(
 async def delete_table_context_data(
     table_id: str,
     payload: Dict[str, Any],
+    request: Request,
     table_service=Depends(get_table_service),
 ):
     try:
+        _enforce_acting_user_table_access(request, table_service, table_id)
         json_path = payload.get("json_path", "")
         keys = payload.get("keys", [])
         data = await table_service.delete_context_data(
             table_id=table_id, json_pointer_path=json_path, keys=keys
         )
         return {"message": "Deleted successfully", "data": data}
+    except HTTPException:
+        raise
     except AppException as e:
         raise HTTPException(status_code=e.status_code, detail=e.message) from e
     except Exception as e:

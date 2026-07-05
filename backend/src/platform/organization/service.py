@@ -210,7 +210,9 @@ class OrganizationService:
             )
             return InviteEmailResult(sent=False, error=msg[:200])
 
-    def accept_invitation(self, token: str, user_id: str) -> tuple[OrgMember, Organization]:
+    def accept_invitation(
+        self, token: str, user_id: str, user_email: str | None = None
+    ) -> tuple[OrgMember, Organization]:
         """Apply an invitation: add membership and mark accepted.
 
         Returns the new member row AND the org so the frontend can
@@ -225,6 +227,17 @@ class OrganizationService:
             raise AppException(
                 code=ErrorCode.FORBIDDEN,
                 message="Invitation expired",
+            )
+
+        # The invitation is bound to a specific email. Only the invited person
+        # may redeem it — otherwise anyone holding the token (e.g. a forwarded
+        # link) could join the org. Compare case-insensitively.
+        invited_email = (invitation.email or "").strip().lower()
+        caller_email = (user_email or "").strip().lower()
+        if invited_email and caller_email != invited_email:
+            raise AppException(
+                code=ErrorCode.FORBIDDEN,
+                message="This invitation was issued to a different email address",
             )
 
         # If the user is ALREADY a member, mark the invitation accepted

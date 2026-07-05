@@ -239,6 +239,10 @@ def update_project(
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
+    role = project_service.verify_project_access(project.id, current_user.user_id)
+    if role not in ("owner", "admin"):
+        raise PermissionException("Only org owner or project admin can update the project", code=ErrorCode.FORBIDDEN)
+
     updated_project = project_service.update(
         project_id=project.id,
         name=payload.name,
@@ -262,7 +266,12 @@ def update_project(
 def delete_project(
     project: Project = Depends(get_verified_project),
     project_service: ProjectService = Depends(get_project_service),
+    current_user: CurrentUser = Depends(get_current_user),
 ):
+    role = project_service.verify_project_access(project.id, current_user.user_id)
+    if role not in ("owner", "admin"):
+        raise PermissionException("Only org owner or project admin can delete the project", code=ErrorCode.FORBIDDEN)
+
     project_service.delete(project.id)
     return ApiResponse.success(message="Project deleted successfully")
 
@@ -276,8 +285,13 @@ def delete_project(
 )
 async def seed_project(
     project: Project = Depends(get_verified_project),
+    project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
+    role = project_service.verify_project_access(project.id, current_user.user_id)
+    if role not in ("owner", "admin"):
+        raise PermissionException("Only org owner or project admin can seed the project", code=ErrorCode.FORBIDDEN)
+
     from src.platform.project.seed_content import seed_default_content
     result = await seed_default_content(
         project_id=str(project.id),

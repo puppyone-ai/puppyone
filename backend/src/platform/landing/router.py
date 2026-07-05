@@ -149,7 +149,7 @@ async def landing_preview(
         raise
     except Exception as exc:  # noqa: BLE001 - surface parse/storage failures cleanly
         logger.exception("landing preview failed for tool_kind=%s", tool_kind)
-        raise HTTPException(status_code=502, detail=f"Preview failed: {exc}")
+        raise HTTPException(status_code=502, detail="Preview failed") from exc
 
     return ApiResponse.success(data=result, message="Preview ready")
 
