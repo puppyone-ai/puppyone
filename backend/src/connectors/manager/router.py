@@ -39,6 +39,8 @@ class ConnectionOut(BaseModel):
     direction: str | None = None
     status: str = "active"
     access_key: str | None = None
+    has_key: bool = False
+    key_last4: str | None = None
     gateway_id: str | None = None
     trigger: dict | None = None
     last_synced_at: str | None = None
@@ -153,6 +155,29 @@ def _access_key_for(row: dict, scope: dict | None) -> str | None:
     return cfg.get("access_key")
 
 
+# Config keys that hold machine credentials / secrets. These must never be
+# returned in a list view (IDOR would otherwise leak usable credentials across
+# the whole result set); they are only meaningful on the single-item detail path.
+_SECRET_CONFIG_KEYS = {
+    "access_key", "mcp_api_key", "api_key", "secret", "client_secret",
+    "token", "refresh_token", "access_token", "password", "private_key",
+}
+
+
+def _mask_key(value: str | None) -> tuple[bool, str | None]:
+    """Return (has_key, last-4) for masked credential display."""
+    if not value:
+        return False, None
+    return True, value[-4:] if len(value) >= 4 else value
+
+
+def _redact_config(cfg: Any) -> Any:
+    """Drop secret-bearing keys from a config dict for list/masked views."""
+    if not isinstance(cfg, dict):
+        return cfg
+    return {k: v for k, v in cfg.items() if k.lower() not in _SECRET_CONFIG_KEYS}
+
+
 def _created_or_updated(value: Any) -> str | None:
     if value is None:
         return None
@@ -161,11 +186,15 @@ def _created_or_updated(value: Any) -> str | None:
     return str(value)
 
 
-def _enrich(rows: list[dict], sb_client) -> list[ConnectionOut]:
+def _enrich(rows: list[dict], sb_client, *, mask_credentials: bool = False) -> list[ConnectionOut]:
     """Resolve node names from paths and extract config.name for display.
 
     Auto-disambiguates duplicate display names by appending path or a counter,
     so users can tell apart multiple connections of the same provider type.
+
+    When ``mask_credentials`` is True (list views), raw credentials are never
+    emitted: ``access_key`` is replaced by ``has_key``/``key_last4`` and secret
+    keys are stripped from ``config``.
     """
     scopes = _scope_rows_for_surfaces(sb_client, rows)
     # First pass: build raw entries
@@ -210,6 +239,9 @@ def _enrich(rows: list[dict], sb_client) -> list[ConnectionOut]:
         else:
             name = base_name
 
+        raw_key = _access_key_for(r, e["scope"])
+        has_key, key_last4 = _mask_key(raw_key)
+
         out.append(ConnectionOut(
             id=r["id"],
             project_id=r["project_id"],
@@ -219,12 +251,14 @@ def _enrich(rows: list[dict], sb_client) -> list[ConnectionOut]:
             node_name=e["node_name"],
             direction=cfg.get("direction"),
             status=r.get("status", "active"),
-            access_key=_access_key_for(r, e["scope"]),
+            access_key=None if mask_credentials else raw_key,
+            has_key=has_key,
+            key_last4=key_last4,
             gateway_id=(e["cfg"].get("gateway_id") if isinstance(e["cfg"], dict) else None),
             trigger=cfg.get("trigger"),
             last_synced_at=_created_or_updated(cfg.get("last_seen_at") or cfg.get("last_run_at")),
             error_message=cfg.get("error_message"),
-            config=e["cfg"],
+            config=_redact_config(e["cfg"]) if mask_credentials else e["cfg"],
             created_at=_created_or_updated(r.get("created_at")),
             updated_at=_created_or_updated(r.get("updated_at")),
         ))
@@ -280,11 +314,18 @@ def list_connections(
 ):
     sb = _get_client()
     org_ids = resolve_org_ids(None, current_user.user_id)
+    allowed_project_ids = _get_user_project_ids(sb, org_ids)
 
     if project_id:
+        # project_id is client-controlled input and must be re-authorized against
+        # the caller's own membership set — otherwise this list endpoint is an IDOR
+        # into any tenant's access points. Mirror get_connection's non-leak
+        # convention: return empty rather than confirming another tenant's project.
+        if project_id not in allowed_project_ids:
+            return ApiResponse.success(data=[], message="No access connections")
         project_ids = [project_id]
     else:
-        project_ids = _get_user_project_ids(sb, org_ids)
+        project_ids = allowed_project_ids
 
     if not project_ids:
         return ApiResponse.success(data=[], message="No access connections")
@@ -302,7 +343,8 @@ def list_connections(
         query = query.eq("status", connection_status)
 
     rows = query.order("created_at").execute().data
-    return ApiResponse.success(data=_enrich(rows, sb), message="Access connections listed")
+    # List views never emit raw credentials (IDOR would otherwise leak usable keys).
+    return ApiResponse.success(data=_enrich(rows, sb, mask_credentials=True), message="Access connections listed")
 
 
 @router.get(
@@ -323,7 +365,8 @@ def get_connection(
     row = resp.data[0]
     _require_connection_project_access(sb, row["project_id"], current_user.user_id)
 
-    return ApiResponse.success(data=_enrich([row], sb)[0], message="Access connection found")
+    # Detail views must not echo raw credentials (access_key / config secrets).
+    return ApiResponse.success(data=_enrich([row], sb, mask_credentials=True)[0], message="Access connection found")
 
 
 @router.patch(

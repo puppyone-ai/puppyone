@@ -165,6 +165,12 @@ export interface UseManualSaveResult<T> {
   lastSavedAt: number | null;
 }
 
+/** Collapse trailing whitespace on each line and strip leading/trailing
+ *  blank lines, so two serialized values that differ only by server-side
+ *  whitespace normalization (e.g. a trimmed trailing newline) compare equal. */
+const normalizeWhitespace = (s: string): string =>
+  s.replace(/[ \t]+$/gm, '').replace(/\n+$/g, '').replace(/^\n+/g, '');
+
 const defaultIsEqual = <T>(a: T, b: T) => Object.is(a, b);
 const defaultSerialize = <T>(v: T) => JSON.stringify(v);
 const defaultDeserialize = <T>(raw: string) => JSON.parse(raw) as T;
@@ -305,36 +311,29 @@ export function useManualSave<T>({
   // re-renders, which is exactly what we need here.
   const prevFileKeyRef = useRef(fileKey);
   const prevServerContentRef = useRef(serverContent);
+  // localStorage is impure I/O and MUST NOT run in the render body — a
+  // discarded / double render (React strict mode, a bailed-out sync render)
+  // would otherwise `clearDraft()` and wipe a still-valid persisted draft.
+  // Instead the render body only decides *what* to do and records it here;
+  // an effect below performs the actual read/clear after commit.
+  const pendingClearRef = useRef(false);
+  // Set to a fileKey when render needs the persisted draft for that key read
+  // back in on the next commit. Reads are deferred out of render too so the
+  // render stays pure.
+  const pendingRestoreKeyRef = useRef<string | null>(null);
 
   if (prevFileKeyRef.current !== fileKey) {
-    // Case 1: file switched. Re-init draft + status from
-    // localStorage (if a stored draft exists) or from
-    // serverContent (otherwise).
-    if (skipDraftRestore) {
-      setDraftState(serverContent);
-      setStatus('clean');
-      setError(null);
-      setHasRestoredDraft(false);
-      setLastEditedAt(null);
-    } else {
-      const stored = readDraft();
-      if (stored !== null && !isEqual(stored, serverContent)) {
-        setDraftState(stored);
-        setStatus('dirty');
-        setError(null);
-        setHasRestoredDraft(true);
-        setLastEditedAt(Date.now());
-      } else {
-        // Stored draft missing or already matches server (e.g. saved
-        // in another tab). Either way, drop it and start clean.
-        if (stored !== null) clearDraft();
-        setDraftState(serverContent);
-        setStatus('clean');
-        setError(null);
-        setHasRestoredDraft(false);
-        setLastEditedAt(null);
-      }
-    }
+    // Case 1: file switched. Re-init draft + status. The persisted draft
+    // (if any) is restored asynchronously in the effect below; here we
+    // optimistically start from serverContent so Milkdown (which reads
+    // `defaultValue` only at mount) initialises from real content.
+    setDraftState(serverContent);
+    setStatus('clean');
+    setError(null);
+    setHasRestoredDraft(false);
+    setLastEditedAt(null);
+    // Defer the localStorage read/reconcile to the post-commit effect.
+    pendingRestoreKeyRef.current = skipDraftRestore ? null : fileKey;
     prevFileKeyRef.current = fileKey;
     prevServerContentRef.current = serverContent;
   } else if (!isEqual(prevServerContentRef.current, serverContent)) {
@@ -357,9 +356,23 @@ export function useManualSave<T>({
     // scramble the eventual save handler.
     if (statusRef.current !== 'saving') {
       if (statusRef.current === 'clean' || statusRef.current === 'saved') {
-        setDraftState(serverContent);
+        // Bug guard: after a save flashes 'saved', the parent often re-fetches
+        // and hands back server-*normalized* content (e.g. a trimmed trailing
+        // newline). Silently replacing the on-screen text with that — with no
+        // dirty indicator — is jarring and looks like data loss. If the only
+        // difference from what's already on screen is whitespace normalization,
+        // leave the editor's text alone. Genuine server changes (real content
+        // diffs, or a file the user isn't actively editing) still sync.
+        const isSavedWindow = statusRef.current === 'saved';
+        const onlyWhitespaceDiff =
+          isSavedWindow &&
+          normalizeWhitespace(serialize(draftRef.current)) ===
+            normalizeWhitespace(serialize(serverContent));
+        if (!onlyWhitespaceDiff) {
+          setDraftState(serverContent);
+        }
       } else if (isEqual(draftRef.current, serverContent)) {
-        clearDraft();
+        pendingClearRef.current = true;
         setStatus('clean');
         setError(null);
         setHasRestoredDraft(false);
@@ -367,6 +380,35 @@ export function useManualSave<T>({
     }
     prevServerContentRef.current = serverContent;
   }
+
+  // ── Deferred localStorage I/O ─────────────────────────────────
+  //
+  // Runs after commit, so a discarded render can never touch storage.
+  // Handles both the file-switch draft *restore* (Case 1) and the
+  // phantom-dirty *clear* (Case 2B) queued by the render body above.
+  useEffect(() => {
+    if (pendingClearRef.current) {
+      pendingClearRef.current = false;
+      clearDraft();
+    }
+    const restoreKey = pendingRestoreKeyRef.current;
+    if (restoreKey !== null) {
+      pendingRestoreKeyRef.current = null;
+      const stored = readDraft();
+      if (stored !== null && !isEqual(stored, serverContent)) {
+        setDraftState(stored);
+        setStatus('dirty');
+        setError(null);
+        setHasRestoredDraft(true);
+        setLastEditedAt(Date.now());
+      } else if (stored !== null) {
+        // Stored draft already matches server (e.g. saved in another tab).
+        clearDraft();
+      }
+    }
+    // draft/status intentionally not deps — this reacts to render-queued work.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
 
   // ── Public actions ───────────────────────────────────────────
 

@@ -121,6 +121,7 @@ function LoginPageInner() {
     if (!raw) return null;
     if (!raw.startsWith('/')) return null;
     if (raw.startsWith('//')) return null; // protocol-relative
+    if (raw.startsWith('/\\')) return null; // backslash → protocol-relative
     return raw;
   }, [searchParams]);
 

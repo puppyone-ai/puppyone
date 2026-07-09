@@ -223,6 +223,29 @@ class DockerSandbox(SandboxBase):
 
         return False
 
+    def _isolation_args(self, *, allow_network: bool, minimal: bool = False) -> list[str]:
+        """Build Docker isolation flags for untrusted code (ISSUE-010).
+
+        ``allow_network=False`` cuts outbound access (incl. the cloud metadata
+        endpoint). ``minimal`` keeps only always-safe hardening for the alpine
+        fallback, which must retain network + capabilities to run ``apk add``.
+        """
+        from src.config import settings
+
+        args: list[str] = []
+        if not allow_network and settings.SANDBOX_DOCKER_NETWORK:
+            args.append(f"--network={settings.SANDBOX_DOCKER_NETWORK}")
+        if settings.SANDBOX_DOCKER_NO_NEW_PRIVILEGES:
+            # Always safe; blocks setuid privilege escalation inside the container.
+            args += ["--security-opt", "no-new-privileges"]
+        if minimal:
+            return args
+        if settings.SANDBOX_DOCKER_CAP_DROP_ALL:
+            args.append("--cap-drop=ALL")
+        if settings.SANDBOX_DOCKER_READONLY_ROOTFS:
+            args += ["--read-only", "--tmpfs", "/tmp:rw,size=64m"]
+        return args
+
     async def _try_start_container(
         self,
         mount_args: list[str],
@@ -240,10 +263,14 @@ class DockerSandbox(SandboxBase):
         """
         # Resource limits: prevent a single container from exhausting host resources
         resource_args = ["--memory=128m", "--cpus=0.5", "--pids-limit=100"]
+        # Isolation hardening (ISSUE-010). Full set on the self-contained custom
+        # image; the alpine fallback keeps network + caps because it must apk-add.
+        hardened_args = self._isolation_args(allow_network=False)
+        fallback_hardened_args = self._isolation_args(allow_network=True, minimal=True)
 
         if use_custom_image:
             # Try using the custom json-sandbox image
-            args = ["run", "-d", "--rm", *resource_args, *mount_args, "json-sandbox"]
+            args = ["run", "-d", "--rm", *resource_args, *hardened_args, *mount_args, "json-sandbox"]
             returncode, stdout, stderr = await self._run_docker_command(*args, timeout=30.0)
 
             if returncode == 0:
@@ -260,7 +287,7 @@ class DockerSandbox(SandboxBase):
             print("[DockerSandbox] json-sandbox image not found, falling back to alpine:3.19")
 
         # Use alpine:3.19 and install jq and bash
-        args = ["run", "-d", "--rm", *resource_args, *mount_args, "alpine:3.19", "sh", "-c", "apk add --no-cache jq bash >/dev/null 2>&1 && tail -f /dev/null"]
+        args = ["run", "-d", "--rm", *resource_args, *fallback_hardened_args, *mount_args, "alpine:3.19", "sh", "-c", "apk add --no-cache jq bash >/dev/null 2>&1 && tail -f /dev/null"]
         returncode, stdout, stderr = await self._run_docker_command(*args, timeout=60.0)
 
         if returncode == 0:

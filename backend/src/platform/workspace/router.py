@@ -137,6 +137,17 @@ async def complete_workspace(
     project_service.get_by_id_with_access_check(project_id, current_user.user_id)
 
     provider = get_workspace_provider()
+
+    # Verify the agent's workspace actually belongs to the caller-supplied
+    # project_id — otherwise a caller with access to project A could merge
+    # another project B's workspace into A by supplying a mismatched agent_id.
+    ws_info = provider._registry.get(agent_id) if hasattr(provider, "_registry") else None
+    if ws_info is not None and ws_info.project_id != project_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Workspace does not belong to this project",
+        )
+
     changes = await provider.detect_changes(agent_id)
 
     modified: dict[str, bytes] = {}
@@ -174,7 +185,7 @@ async def complete_workspace(
         )
     except Exception as e:
         log_error(f"[Workspace API] version push failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Workspace merge failed: {e}") from e
+        raise HTTPException(status_code=500, detail="Workspace merge failed") from e
     finally:
         await provider.cleanup(agent_id)
 
@@ -200,11 +211,18 @@ async def complete_workspace(
 async def workspace_status(
     agent_id: str,
     current_user: CurrentUser = Depends(get_current_user),
+    project_service: ProjectService = Depends(get_project_service),
 ):
     from src.platform.workspace.provider import get_workspace_provider
 
     provider = get_workspace_provider()
     info = provider._registry.get(agent_id) if hasattr(provider, '_registry') else None
+
+    # A workspace is bound to a project — only members of that project may
+    # observe its status/path. Without this any authenticated user could probe
+    # arbitrary agent_ids and learn another tenant's workspace paths.
+    if info is not None:
+        project_service.get_by_id_with_access_check(info.project_id, current_user.user_id)
 
     if info and os.path.exists(info.path):
         return ApiResponse.success(data=WorkspaceStatusResponse(

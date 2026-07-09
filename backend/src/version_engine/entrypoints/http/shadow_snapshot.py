@@ -62,7 +62,10 @@ from src.platform.auth.models import CurrentUser
 from src.platform.project.dependencies import get_project_service
 from src.platform.project.service import ProjectService
 from src.utils.logger import log_info, log_warning
-from src.version_engine.entrypoints.http.content_helpers import ensure_project_access
+from src.version_engine.entrypoints.http.content_helpers import (
+    ensure_project_access,
+    ensure_write_access,
+)
 
 
 router = APIRouter()
@@ -585,6 +588,7 @@ class _BlobUploadResponse(BaseModel):
 async def upload_snapshot_blobs(
     snapshot_id: str,
     body: _BlobUploadRequest,
+    project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """Stream a batch of blob bodies into the project object store.
@@ -615,11 +619,11 @@ async def upload_snapshot_blobs(
         raise HTTPException(status_code=404, detail="snapshot not found")
 
     project_id = snap_row["project_id"]
-    # The snapshot row's ``user_id`` (matched in the SELECT above) is
-    # the security gate: a user can only push blobs to a project they
-    # already created a snapshot for. The snapshot creation path
-    # ran ``ensure_project_access`` so the project_id is necessarily
-    # one the user has access to.
+    # Re-validate project write-access at push time. The snapshot row's
+    # user_id match is NOT sufficient: a user's access may have been revoked
+    # after the snapshot was created, and blob upload mutates the project
+    # object store. Mirror the write-role gate the snapshot-create path uses.
+    ensure_write_access(project_service, current_user, project_id)
 
     from src.version_engine.bootstrap.dependencies import (
         build_worker_version_engine_container,
@@ -701,6 +705,7 @@ class _PromoteResponse(BaseModel):
 async def promote_snapshot(
     snapshot_id: str,
     body: _PromoteRequest,
+    project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """Turn a shadow manifest into a published Git commit.
@@ -737,6 +742,9 @@ async def promote_snapshot(
         raise HTTPException(status_code=404, detail="snapshot not found")
 
     project_id = snap_row["project_id"]
+    # Re-validate project write-access before landing a commit — matching the
+    # snapshot row's user_id is not enough (access may have been revoked).
+    ensure_write_access(project_service, current_user, project_id)
     manifest_doc = await _get_manifest_from_s3(project_id, snapshot_id)
     manifest = (manifest_doc or {}).get("manifest") or []
     if not manifest:

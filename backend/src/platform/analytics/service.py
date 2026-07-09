@@ -183,10 +183,12 @@ def log_context_access(
     try:
         supabase = get_supabase_client()
 
+        # NOTE: access_logs has no "path" column (schema uses node_name); inserting
+        # "path" previously made every write fail silently in the except below.
+        # The accessed-node identifier lands in node_name (falling back to path).
         supabase.table("access_logs").insert({
-            "path": path,
             "node_type": node_type,
-            "node_name": node_name,
+            "node_name": node_name or path,
             "user_id": user_id,
             "agent_id": agent_id,
             "session_id": session_id,

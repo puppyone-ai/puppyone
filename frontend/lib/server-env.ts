@@ -1,6 +1,25 @@
 const DEFAULT_PUBLIC_API_URL = 'http://localhost:9090';
 const DEFAULT_PUBLIC_SUPABASE_URL = 'http://localhost:8000';
 
+/**
+ * True iff `next` is a safe same-origin relative path — i.e. safe to
+ * concatenate onto an origin for a redirect without allowing an open
+ * redirect to an attacker-controlled host.
+ *
+ * Rejects:
+ *   - non-string / empty
+ *   - anything not starting with `/` (absolute URLs, `http:…`, etc.)
+ *   - `//evil.com` (protocol-relative — browsers treat as absolute)
+ *   - `/\evil.com` (backslash variant some parsers normalise to `//`)
+ */
+export function isSafeRelativePath(next: string | null | undefined): next is string {
+  if (!next || typeof next !== 'string') return false;
+  if (!next.startsWith('/')) return false;
+  if (next.startsWith('//')) return false; // protocol-relative
+  if (next.startsWith('/\\')) return false; // backslash → protocol-relative
+  return true;
+}
+
 export function getServerApiBaseUrl(): string {
   return (
     process.env.API_INTERNAL_URL ||

@@ -18,6 +18,7 @@ from src.version_engine.write_engine.audit import (
     log_done as _log_done,
     now_iso as _now_iso,
 )
+from src.version_engine.write_engine.cas_backoff import cas_backoff
 from src.version_engine.write_engine.cas_retry import (
     merge_on_cas_retry as _merge_on_cas_retry,
 )
@@ -87,6 +88,7 @@ class OperationWriter:
         base_scope_hash: str | None = None
         merge_audit: dict | None = None
         for attempt in range(_MAX_CAS_ATTEMPTS):
+            await cas_backoff(attempt)
             attempt_no = attempt + 1
             old_root_hash, base_root_hash = _get_project_root_state_for_write(repo)
             current_head_commit_id = _get_project_view_head(repo, old_root_hash)
@@ -314,6 +316,7 @@ class OperationWriter:
         merge_base_root_hash: str | None = None
         merge_audit: dict | None = None
         for attempt in range(_MAX_CAS_ATTEMPTS):
+            await cas_backoff(attempt)
             attempt_no = attempt + 1
             if attempt == 0 and write_state is not None:
                 old_root_hash = write_state.root_hash or ""

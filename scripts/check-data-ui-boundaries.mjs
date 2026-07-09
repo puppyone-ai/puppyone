@@ -7,10 +7,10 @@ const checkedSrcDirs = [
   path.join(repoRoot, "packages", "data-ui", "src"),
   path.join(repoRoot, "packages", "editor-ui", "src"),
   path.join(repoRoot, "frontend", "shared-ui", "src"),
-  path.join(repoRoot, "desktop", "vendor", "shared-ui", "src"),
-];
-const desktopSrcDirs = [
-  path.join(repoRoot, "desktop", "src"),
+  // ISSUE-022: shared cloud domain must stay platform-agnostic (no Next.js,
+  // Electron, Supabase, or SWR) so both the web frontend and the desktop cloud
+  // panel can consume it. Platform auth/HTTP is injected via CloudTransport.
+  path.join(repoRoot, "packages", "cloud-core", "src"),
 ];
 
 const blockedImports = [
@@ -23,42 +23,17 @@ const blockedImports = [
   { pattern: /cloud-source\//, reason: "desktop cloud mirror" },
   { pattern: /^@tauri-apps\//, reason: "Tauri runtime" },
 ];
-const blockedDesktopImports = [
-  { pattern: /^@\//, reason: "cloud frontend alias" },
-  { pattern: /^next(\/|$)/, reason: "Next.js runtime" },
-  { pattern: /^@supabase\//, reason: "cloud auth/runtime" },
-  { pattern: /^swr$/, reason: "cloud data fetching runtime" },
-  { pattern: /frontend\//, reason: "cloud frontend source" },
-  { pattern: /cloud-source\//, reason: "desktop cloud mirror" },
-  {
-    pattern: /^@puppyone\/(?:data-core|data-ui|editor-ui)$/,
-    reason: "desktop must consume @puppyone/shared-ui",
-  },
-];
 
 const importPattern = /\b(?:import|export)\s+(?:type\s+)?(?:[^'"]*?\s+from\s+)?["']([^"']+)["']/g;
 const dynamicImportPattern = /\bimport\(\s*["']([^"']+)["']\s*\)/g;
-const sharedTreeSelectorPattern = /(^|[^A-Za-z0-9_-])\.(explorer-tree-shell|explorer-tree-root-scope|explorer-tree-scroll|explorer-tree-list|data-explorer-footer|tree-row|tree-row-content|tree-row-actions|tree-row-action-button|tree-icon-slot|tree-disclosure-marker|tree-label|tree-label-primary|tree-label-extension|tree-subtree-motion|tree-subtree-content|tree-meta-row|tree-status|tree-indent-guide)(?=[^A-Za-z0-9_-]|$)/g;
-const errors = [
-  ...findBoundaryErrors(checkedSrcDirs, blockedImports),
-  ...findBoundaryErrors(desktopSrcDirs, blockedDesktopImports),
-  ...findDesktopSharedTreeCssErrors([
-    path.join(repoRoot, "desktop", "src", "styles.css"),
-  ]),
-];
+const errors = findBoundaryErrors(checkedSrcDirs, blockedImports);
 
 if (errors.length > 0) {
   console.error("shared UI boundary check failed:");
   for (const error of errors) {
-    if (error.kind === "css-selector") {
-      console.error(
-        `- ${path.relative(repoRoot, error.filePath)} defines "${error.specifier}" (${error.reason})`,
-      );
-    } else {
-      console.error(
-        `- ${path.relative(repoRoot, error.filePath)} imports "${error.specifier}" (${error.reason})`,
-      );
-    }
+    console.error(
+      `- ${path.relative(repoRoot, error.filePath)} imports "${error.specifier}" (${error.reason})`,
+    );
   }
   process.exit(1);
 }
@@ -112,39 +87,4 @@ function collectSpecifiers(source) {
     }
   }
   return specifiers;
-}
-
-function findDesktopSharedTreeCssErrors(cssFiles) {
-  const boundaryErrors = [];
-
-  for (const filePath of cssFiles) {
-    const source = stripCssComments(readFileSync(filePath, "utf8"));
-    for (const selector of collectSharedTreeSelectors(source)) {
-      boundaryErrors.push({
-        kind: "css-selector",
-        filePath,
-        specifier: selector,
-        reason: "ExplorerTree component selectors belong in frontend/shared-ui/src/styles/data-workspace.css; desktop should override --po-tree-* variables instead",
-      });
-    }
-  }
-
-  return boundaryErrors;
-}
-
-function stripCssComments(source) {
-  return source.replace(/\/\*[\s\S]*?\*\//g, "");
-}
-
-function collectSharedTreeSelectors(source) {
-  const selectors = new Set();
-  sharedTreeSelectorPattern.lastIndex = 0;
-
-  let match = sharedTreeSelectorPattern.exec(source);
-  while (match) {
-    selectors.add(`.${match[2]}`);
-    match = sharedTreeSelectorPattern.exec(source);
-  }
-
-  return [...selectors].sort();
 }

@@ -4,6 +4,7 @@ import { useState, useRef, useCallback } from 'react';
 import { mutate } from 'swr';
 import { downloadNode, moveFile, removeFile, bulkRemoveFiles, type NodeInfo } from '@/lib/contentTreeApi';
 import { refreshFolderNodes, refreshProjectHistory } from '@/lib/hooks/useData';
+import { dataDirectoryCacheKeys } from '@/lib/dataTreeCache';
 import { ensureExpanded } from '../components/explorer';
 
 export type DataPageToastType = 'success' | 'error' | 'loading';
@@ -274,30 +275,35 @@ export function useNodeActions(projectId: string, currentFolderPath: string | nu
     const cleanNodePath = normalizeTreePath(nodePath);
     const cleanTargetPath = targetFolderPath ? normalizeTreePath(targetFolderPath) : null;
     const cleanSourceParent = sourceParentPath ? normalizeTreePath(sourceParentPath) : null;
-    const sourceKey = ['tree', projectId, cleanSourceParent ?? ''];
-    const targetKey = ['tree', projectId, cleanTargetPath ?? ''];
-
     let movedNode: NodeInfo | undefined;
 
-    mutate(
-      sourceKey,
-      (nodes: NodeInfo[] | undefined) => {
-        movedNode = (nodes ?? []).find(n => n.path === cleanNodePath || n.id === cleanNodePath);
-        return (nodes ?? []).filter(n => n.path !== cleanNodePath && n.id !== cleanNodePath);
-      },
-      { revalidate: false },
-    );
+    // Update both read models optimistically — `tree` backs the main content
+    // pane and `explorer-tree` backs the sidebar. Mutating only `tree` left the
+    // sidebar showing the node in its old folder until revalidation landed.
+    for (const sourceKey of dataDirectoryCacheKeys(projectId, cleanSourceParent)) {
+      mutate(
+        sourceKey,
+        (nodes: NodeInfo[] | undefined) => {
+          const found = (nodes ?? []).find(n => n.path === cleanNodePath || n.id === cleanNodePath);
+          if (found) movedNode = found;
+          return (nodes ?? []).filter(n => n.path !== cleanNodePath && n.id !== cleanNodePath);
+        },
+        { revalidate: false },
+      );
+    }
 
     if (movedNode) {
       const name = movedNode.name;
       const newPath = cleanTargetPath ? `${cleanTargetPath}/${name}` : name;
       const nodeForTarget = { ...movedNode, path: newPath, id: newPath, parent_id: cleanTargetPath };
       if (cleanTargetPath) ensureExpanded(cleanTargetPath);
-      mutate(
-        targetKey,
-        (nodes: NodeInfo[] | undefined) => nodes ? [...nodes, nodeForTarget] : undefined,
-        { revalidate: false },
-      );
+      for (const targetKey of dataDirectoryCacheKeys(projectId, cleanTargetPath)) {
+        mutate(
+          targetKey,
+          (nodes: NodeInfo[] | undefined) => nodes ? [...nodes, nodeForTarget] : undefined,
+          { revalidate: false },
+        );
+      }
     }
 
     try {

@@ -23,6 +23,8 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./*"],
+      "@puppyone/cloud-core": ["../packages/cloud-core/src/index.ts"],
+      "@puppyone/cloud-core/accessProviders": ["../packages/cloud-core/src/accessProviders.ts"],
       "react": ["node_modules/@types/react/index.d.ts"],
       "react/jsx-runtime": ["node_modules/@types/react/jsx-runtime.d.ts"]
     },

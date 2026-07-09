@@ -9,6 +9,7 @@ GET    /auth/config           Public Supabase config (URL + anon key) for Realti
 """
 
 import asyncio
+import hashlib
 import os
 import time
 from collections import defaultdict
@@ -20,8 +21,10 @@ from pydantic import BaseModel, EmailStr
 from supabase import create_client
 
 from src.common_schemas import ApiResponse
+from src.config import settings
 from src.platform.auth.dependencies import CurrentUser, get_current_user, get_initialization_service
 from src.platform.auth.initialization import UserInitializationService
+from src.utils.logger import log_warning
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -42,6 +45,90 @@ def _rate_limit_check_email(ip: str) -> None:
     if len(window) >= _CHECK_EMAIL_MAX_HITS:
         raise HTTPException(status_code=429, detail="Too many requests. Please try again later.")
     window.append(now)
+
+
+# ── Login brute-force throttle (ISSUE-006) ──────────────────────────────────
+# Keyed by ACCOUNT (email), NOT by IP: behind a reverse proxy request.client.host
+# is a shared proxy address (per-IP limiting would false-positive real users) and
+# X-Forwarded-For is client-spoofable, so IP keying would be both unsafe and
+# ineffective. We count FAILED logins only and evaluate the threshold AFTER the
+# attempt — so a legitimate user with the correct password is never blocked (no
+# victim-lockout DoS), and successful logins add ZERO overhead. Redis-backed when
+# RATELIMIT_REDIS_URL is set (cross-replica-correct); otherwise a per-replica
+# in-process fallback. Fail-open: any Redis error degrades to in-process, never
+# blocks auth. Supabase's own throttling remains the primary backstop.
+_LOGIN_FAIL_WINDOW = 600     # 10 minutes
+_LOGIN_FAIL_MAX = 10         # failed attempts per account per window before 429
+_rate_hits: dict[str, list[float]] = defaultdict(list)
+
+# Atomic fixed-window counter: INCR, and set the TTL only when the key is new.
+_RL_LUA = (
+    "local c = redis.call('INCR', KEYS[1])\n"
+    "if c == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]) end\n"
+    "return c"
+)
+_rl_redis = None
+_rl_script = None
+_rl_redis_init = False
+
+
+def _hash_key(value: str) -> str:
+    # Hash the account so Redis never stores plaintext emails, and keys are bounded.
+    return hashlib.sha256((value or "").encode("utf-8")).hexdigest()[:24]
+
+
+def _get_rl_redis():
+    """Lazily build a pooled sync Redis client + registered script.
+
+    Returns (None, None) when RATELIMIT_REDIS_URL is unset or the client can't be
+    built — the caller then uses the in-process fallback.
+    """
+    global _rl_redis, _rl_script, _rl_redis_init
+    if _rl_redis_init:
+        return _rl_redis, _rl_script
+    _rl_redis_init = True
+    url = getattr(settings, "RATELIMIT_REDIS_URL", "") or ""
+    if not url:
+        return None, None
+    try:
+        import redis as redis_sync
+        _rl_redis = redis_sync.Redis.from_url(
+            url, decode_responses=True,
+            socket_timeout=0.15, socket_connect_timeout=0.15,
+        )
+        _rl_script = _rl_redis.register_script(_RL_LUA)
+    except Exception as e:  # noqa: BLE001 — never break auth on redis init
+        log_warning(f"[auth] rate-limit redis disabled (init failed): {e}")
+        _rl_redis = None
+        _rl_script = None
+    return _rl_redis, _rl_script
+
+
+def _over_limit(bucket: str, value: str, max_hits: int, window_s: int) -> bool:
+    """Increment the (bucket, value) counter; return True if it now exceeds
+    max_hits within window_s. Redis-first, fail-open to a per-replica in-process
+    sliding window on any Redis error."""
+    key = f"rl:{bucket}:{_hash_key(value)}"
+    r, script = _get_rl_redis()
+    if r is not None and script is not None:
+        try:
+            count = int(script(keys=[key], args=[window_s]))
+            return count > max_hits
+        except Exception as e:  # noqa: BLE001 — degrade to in-process
+            log_warning(f"[auth] rate-limit redis error, using in-process: {e}")
+    now = time.monotonic()
+    kept = [t for t in _rate_hits[key] if now - t < window_s]
+    kept.append(now)
+    _rate_hits[key] = kept
+    return len(kept) > max_hits
+
+
+def _register_login_failure(email: str) -> bool:
+    """Record a failed login for an account; True once the account is throttled."""
+    return _over_limit(
+        "login_fail", (email or "").strip().lower() or "unknown",
+        _LOGIN_FAIL_MAX, _LOGIN_FAIL_WINDOW,
+    )
 
 
 class LoginRequest(BaseModel):
@@ -167,6 +254,15 @@ def login(body: LoginRequest):
     except HTTPException:
         raise
     except Exception as e:
+        # Failed auth counts toward the per-account brute-force throttle (ISSUE-006).
+        # A legitimate user with the correct password never reaches this path, so
+        # this can only throttle attackers guessing an account's password.
+        if _register_login_failure(body.email):
+            raise HTTPException(
+                status_code=429,
+                detail="Too many failed login attempts. Please try again later.",
+                headers={"Retry-After": str(_LOGIN_FAIL_WINDOW)},
+            ) from e
         error_msg = str(e)
         if "Invalid login" in error_msg or "invalid" in error_msg.lower():
             raise HTTPException(status_code=401, detail="Invalid email or password")
@@ -175,6 +271,9 @@ def login(body: LoginRequest):
 
 @router.post("/refresh", response_model=ApiResponse[LoginResponse])
 def refresh_token(body: RefreshRequest):
+    # No rate limit here: a refresh requires possession of a high-entropy refresh
+    # token (not brute-forceable), and limiting it risks throttling legitimate
+    # clients. Login (password guessing) is the real brute-force surface.
     try:
         auth_client = _make_auth_client()
         result = auth_client.auth.refresh_session(body.refresh_token)
