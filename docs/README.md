@@ -26,6 +26,7 @@ Document-level constructs:
 
 - [Editor Save Construct](document/editor-save-construct.md)
 - [Markdown Editor Architecture](document/markdown-editor-architecture.md)
+- [VM / SSH Agent Access Architecture](document/vm-ssh-agent-access.md)
 
 For product onboarding (install CLI, first project), see the [root README](../README.md).
 
