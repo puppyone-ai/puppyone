@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - newmu
+      - qubits
     paths:
       - "supabase/migrations/**"
       - ".github/workflows/migrate-staging.yml"
