@@ -3,7 +3,7 @@
 Backs the ``version_refs`` table (migration
 ``20260531000000_version_refs_table.sql``). A ref is a named pointer to an
 already-promoted commit object; storing one here does NOT advance the
-scope head (``mut_scope_state``) — only a landing/merge does that.
+scope head (``version_scope_state``) — only a landing/merge does that.
 
 Design: ``docs/proposals/PUP-multi-branch-design.md`` (Phase 1).
 

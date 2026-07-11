@@ -98,6 +98,42 @@ backend/
 
 ## 核心模块
 
+### MCP 四层职责与唯一数据路径
+
+```text
+MCP client
+    │ streamable HTTP / session / notifications
+    ▼
+mcp_service/                         transport only
+    │ /internal/mcp-runtime/tools|call
+    ▼
+src/internal/mcp_runtime.py          tool registry + dispatch
+    │ one hash credential lookup + one scope/policy resolution
+    ▼
+access_surface_credentials ── access_surfaces ── repo_scopes
+    │                                 │
+    │ custom bindings                 │ filesystem operations
+    ▼                                 ▼
+access_tools                   version_engine/scoped_fs
+                                      │
+                                      ▼
+                              Version Engine Git data
+```
+
+- **传输层**：`mcp_service` 只处理协议、session、通知和 RPC 适配，不解析
+  agent/endpoint 配置，不缓存凭证，不读取产品数据。
+- **能力层**：`src/internal/mcp_runtime.py` 是唯一工具注册和调用入口；所有
+  文件数据读写由 `version_engine/scoped_fs` 完成。绑定的 search 工具只读取
+  由同一 scope 内容构建的索引，并再次验证 tool path 位于该 scope 内。
+- **配置层**：agent 与 MCP endpoint 都是 `access_surfaces`；API key 只在
+  `access_surface_credentials` 以 hash 保存和认证；自定义工具绑定只在
+  `access_tools`。
+- **管理层**：远程 MCP 的独立基础设施职责仅为 `infra/mcp_health.py` 的传输
+  健康探测。legacy `mcps`、`mcp_bindings` 及其 repository 不属于运行时。
+
+缓存失效 webhook 只负责通知已连接 session 重新拉取工具；传输层没有产品
+配置或表数据缓存，因此不存在第二套鉴权缓存。
+
 ### ProductOperationAdapter（产品写入入口）
 
 ```python

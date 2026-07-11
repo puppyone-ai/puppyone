@@ -21,8 +21,11 @@ DEPRECATED_ACCESS_CONNECTOR_PROVIDERS = frozenset({"filesystem"})
 
 @dataclass
 class RepoScope:
-    """A subtree of a repo. Owns its own access_key (the scope credential
-    for paths that fall under this scope)."""
+    """A subtree of a repo.
+
+    ``access_key`` is transient and populated only on create/regenerate
+    responses; persisted credentials belong to access_surface_credentials.
+    """
 
     id: str
     project_id: str

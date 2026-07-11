@@ -15,6 +15,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from src.version_engine.adapters.git._filelock import try_file_exclusive_lock
+
 
 ProjectionVersion = Literal["git-view-v1"]
 HistoryMode = Literal["full", "receive-boundary"]
@@ -182,6 +184,11 @@ def _view_recency(view_dir: Path) -> float:
     return 0.0
 
 
+def view_lock_path(view_dir: Path) -> Path:
+    """Keep lock outside the evicted directory so Windows can remove the view."""
+    return view_dir.parent / f".{view_dir.name}.lock"
+
+
 def prune_git_view_cache(*, keep: Path | None = None) -> None:
     """Evict least-recently-rebuilt view caches to stay under configured caps.
 
@@ -230,9 +237,16 @@ def prune_git_view_cache(*, keep: Path | None = None) -> None:
         # Safety: only ever delete inside the cache root.
         if root not in {resolved, *resolved.parents}:
             continue
-        shutil.rmtree(view_dir, ignore_errors=True)
-        total_bytes -= size
-        count -= 1
+        with try_file_exclusive_lock(view_lock_path(view_dir)) as acquired:
+            if not acquired:
+                continue
+            shutil.rmtree(view_dir, ignore_errors=True)
+            if view_dir.exists():
+                # Keep accounting accurate and continue looking for another
+                # candidate instead of pretending a failed deletion freed disk.
+                continue
+            total_bytes -= size
+            count -= 1
 
 
 def invalidate_git_view_cache(key: GitViewCacheKey) -> None:
@@ -244,7 +258,10 @@ def invalidate_git_view_cache(key: GitViewCacheKey) -> None:
         return
     if root not in {resolved, *resolved.parents}:
         raise ValueError(f"refusing to remove cache outside root: {cache_dir}")
-    shutil.rmtree(cache_dir, ignore_errors=True)
+    with try_file_exclusive_lock(view_lock_path(cache_dir)) as acquired:
+        if not acquired:
+            raise RuntimeError("git view cache is active and cannot be invalidated")
+        shutil.rmtree(cache_dir, ignore_errors=False)
 
 
 def object_store_namespace(repo) -> str:

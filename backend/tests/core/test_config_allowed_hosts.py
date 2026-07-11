@@ -4,9 +4,14 @@ from src.config import Settings
 def test_allowed_hosts_accepts_single_string() -> None:
     settings = Settings(
         _env_file=None,
-        APP_ENV="production",
+        APP_ENV="test",
         DEBUG=False,
         SKIP_AUTH=False,
+        ACCESS_CREDENTIAL_HASH_SECRET="allowed-hosts-test-secret-not-for-production",
+        AUTH_SECURITY_REDIS_URL="redis://test.invalid:6379/0",
+        DESKTOP_AUTH_PUBLIC_BASE_URL="https://auth.example.com",
+        JWT_SECRET="allowed-hosts-jwt-test-secret-not-for-production",
+        MCP_TOKEN_SECRET="allowed-hosts-mcp-test-secret-not-for-production",
         ALLOWED_HOSTS="https://frontend.example.com",
     )
 
@@ -16,9 +21,14 @@ def test_allowed_hosts_accepts_single_string() -> None:
 def test_allowed_hosts_accepts_comma_separated_string() -> None:
     settings = Settings(
         _env_file=None,
-        APP_ENV="production",
+        APP_ENV="test",
         DEBUG=False,
         SKIP_AUTH=False,
+        ACCESS_CREDENTIAL_HASH_SECRET="allowed-hosts-test-secret-not-for-production",
+        AUTH_SECURITY_REDIS_URL="redis://test.invalid:6379/0",
+        DESKTOP_AUTH_PUBLIC_BASE_URL="https://auth.example.com",
+        JWT_SECRET="allowed-hosts-jwt-test-secret-not-for-production",
+        MCP_TOKEN_SECRET="allowed-hosts-mcp-test-secret-not-for-production",
         ALLOWED_HOSTS="https://a.example.com, https://b.example.com/",
     )
 

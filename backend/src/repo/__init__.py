@@ -2,7 +2,7 @@
 
 The repository surface is split into four orthogonal sub-modules:
 
-    scope_*       — repo_scopes table CRUD (subtree definitions + per-scope keys)
+    scope_*       — repo_scopes subtree geometry CRUD (credentials are access-surface credentials)
     identity_*    — project URL + prompt_template (the "access point")
     connector_*   — compatibility facade over access_surfaces + connections
     permission_*  — repo_user_permissions table (team plans only)

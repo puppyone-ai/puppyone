@@ -19,6 +19,7 @@ from __future__ import annotations
 import os
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from src.config import settings
 from src.platform.scope_sandbox import scope_provision, ssh_credentials, ssh_e2b
@@ -154,7 +155,19 @@ class ScopeSandboxService:
             raise LookupError("scope not found in project")
 
         now = time.time() if now is None else now
-        git_url = self._git_url(public_base, scope.access_key)
+        expires_at = now + ttl_s
+        access_key = scope.access_key
+        if not access_key:
+            from src.repo.access_surface_repository import AccessSurfaceRepository
+
+            access_key = AccessSurfaceRepository().issue_scope_session_credential(
+                scope_id=scope_id,
+                created_by=user_id,
+                expires_at=datetime.fromtimestamp(expires_at, tz=timezone.utc),
+            )
+        if not access_key:
+            raise RuntimeError("Failed to issue sandbox scope credential")
+        git_url = self._git_url(public_base, access_key)
         mgr = self._manager(provider_name)
 
         spec = SandboxSpec(scope_id=scope_id, project_id=project_id, env={GIT_URL_ENV: git_url})
@@ -176,7 +189,6 @@ class ScopeSandboxService:
         )
         workspace_path = self._workspace_path(username, workdir)
         # short-lived, revocable SSH grant (#5)
-        expires_at = now + ttl_s
         await ssh_credentials.grant_ssh_access(
             provider, sid, user_id, public_key, expires_at=expires_at,
         )
@@ -187,7 +199,7 @@ class ScopeSandboxService:
         # multi-user-per-scope sidecars are a follow-up.)
         await self._sidecar_starter(
             provider, sid, project_id=project_id, scope_id=scope_id,
-            user_id=user_id, username=username, access_key=scope.access_key,
+            user_id=user_id, username=username, access_key=access_key,
             public_base=public_base, repo_dir=workspace_path,
         )
 

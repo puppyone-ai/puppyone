@@ -90,9 +90,6 @@ class ConnectorService:
     def get(self, connector_id: str) -> Optional[Connector]:
         return self._repo.get(connector_id)
 
-    def get_agent_by_mcp_key(self, mcp_api_key: str) -> Optional[Connector]:
-        return self._repo.get_agent_by_mcp_key(mcp_api_key)
-
     # ── Writes ───────────────────────────────────────────────────────────
 
     def create(

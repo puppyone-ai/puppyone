@@ -10,9 +10,9 @@ recording stub), so no DB client is constructed and nothing touches the cloud.
 
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 
-import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -33,6 +33,10 @@ class _RecordingClient:
 
     def table(self, name):
         self.calls.append(("table", name))
+        return self
+
+    def rpc(self, name, params):
+        self.calls.append(("rpc", name, params))
         return self
 
     def select(self, *a, **k):
@@ -97,7 +101,7 @@ def test_non_member_is_403_and_no_query(monkeypatch):
         r = tc.get(f"/api/v1/analytics/access-timeseries?project_id={FOREIGN}")
     assert r.status_code == 403, r.text
     # CRITICAL: access_logs must NOT have been queried before the 403.
-    assert ("table", "access_logs") not in client.calls
+    assert not any(call[0] in {"table", "rpc"} for call in client.calls)
 
 
 def test_member_query_is_scoped_to_project(monkeypatch):
@@ -105,9 +109,8 @@ def test_member_query_is_scoped_to_project(monkeypatch):
     with TestClient(_app(authed=True)) as tc:
         r = tc.get(f"/api/v1/analytics/access-timeseries?project_id={ALLOWED}")
     assert r.status_code == 200, r.text
-    # The query must be filtered by the caller's project_id.
-    assert ("table", "access_logs") in client.calls
-    assert ("eq", "project_id", ALLOWED) in client.calls
+    rpc = next(call for call in client.calls if call[:2] == ("rpc", "analytics_access_timeseries"))
+    assert rpc[2]["p_project_id"] == ALLOWED
 
 
 def test_summary_also_scoped_and_authenticated(monkeypatch):
@@ -115,11 +118,25 @@ def test_summary_also_scoped_and_authenticated(monkeypatch):
     with TestClient(_app(authed=True)) as tc:
         r = tc.get(f"/api/v1/analytics/access-summary?project_id={ALLOWED}")
     assert r.status_code == 200, r.text
-    assert ("eq", "project_id", ALLOWED) in client.calls
+    rpc = next(call for call in client.calls if call[:2] == ("rpc", "analytics_access_summary"))
+    assert rpc[2]["p_project_id"] == ALLOWED
 
     # And a non-member is blocked on the summary endpoint too.
     client2 = _install(monkeypatch, member_of=set())
     with TestClient(_app(authed=True)) as tc:
         r2 = tc.get(f"/api/v1/analytics/access-summary?project_id={FOREIGN}")
     assert r2.status_code == 403, r2.text
-    assert ("table", "access_logs") not in client2.calls
+    assert not any(call[0] in {"table", "rpc"} for call in client2.calls)
+
+
+def test_analytics_migration_has_composite_index_rls_and_private_rpcs():
+    migration = (
+        Path(__file__).resolve().parents[3]
+        / "supabase/migrations/20260711030000_harden_analytics_aggregation.sql"
+    )
+    sql = migration.read_text(encoding="utf-8")
+    assert "ON public.access_logs (project_id, created_at DESC)" in sql
+    assert "CREATE POLICY access_logs_authenticated_project_member" in sql
+    assert "analytics_access_timeseries" in sql
+    assert "analytics_access_summary" in sql
+    assert "FROM PUBLIC, anon, authenticated" in sql

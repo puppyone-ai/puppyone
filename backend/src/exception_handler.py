@@ -49,6 +49,8 @@ def app_exception_handler(request: Request, exc: AppException):
     )
     if rid:
         resp.headers["X-Request-Id"] = rid
+    for key, value in getattr(exc, "headers", {}).items():
+        resp.headers[key] = value
     return resp
 
 

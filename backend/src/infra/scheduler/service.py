@@ -24,7 +24,6 @@ from src.infra.scheduler.jobs import (
 )
 from src.infra.scheduler.jobs.import_job_reaper import process_import_job_reaper
 from src.infra.scheduler.jobs.upload_job_reaper import process_upload_job_reaper
-from src.infra.scheduler.jobs.sandbox_reaper import reap_idle_sandboxes
 from src.infra.scheduler.jobs.shadow_snapshot_reaper import (
     process_shadow_snapshot_reaper,
 )
@@ -94,15 +93,6 @@ class SchedulerService:
         # Load existing schedule agents from database
         await self._load_scheduled_agents()
         await self._load_scheduled_syncs()
-
-        # Register sandbox idle reaper (runs every 60s)
-        self.scheduler.add_job(
-            reap_idle_sandboxes,
-            trigger=IntervalTrigger(seconds=60),
-            id="sandbox-reaper",
-            name="Sandbox Idle Reaper",
-            replace_existing=True,
-        )
 
         if settings.VERSION_OUTBOX_ENABLED:
             self.scheduler.add_job(
@@ -200,20 +190,12 @@ class SchedulerService:
             return
 
         try:
-            from src.infra.supabase.client import SupabaseClient
-
-            client = SupabaseClient().client
-
-            result = (
-                client.table("access_surfaces")
-                .select("*")
-                .eq("kind", "agent")
-                .eq("status", "active")
-                .execute()
-            )
+            from src.repo.access_surface_repository import AccessSurfaceRepository
 
             agents = [
-                row for row in (result.data or [])
+                row for row in AccessSurfaceRepository().list_all(
+                    kind="agent", status="active"
+                )
                 if (row.get("config") or {}).get("type") == "schedule"
                 and ((row.get("config") or {}).get("trigger") or {}).get("type")
                 in {"cron", "scheduled"}

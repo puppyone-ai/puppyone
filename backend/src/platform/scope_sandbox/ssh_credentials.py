@@ -23,6 +23,7 @@ import base64
 from datetime import datetime, timezone
 
 from src.platform.scope_sandbox.scope_provision import provision_scope_steps
+from src.platform.scope_sandbox.execution_policy import SSH_POLICY_WRAPPER_PATH
 
 TAG = "puppyone"
 AUTHORIZED_KEYS = "~/.ssh/authorized_keys"
@@ -47,7 +48,11 @@ def user_comment(user_id: str) -> str:
 def authorized_key_line(public_key: str, user_id: str, expiry: str) -> str:
     """A tagged, self-expiring authorized_keys line for one user."""
     pk = public_key.strip().replace("\n", " ")
-    return f'expiry-time="{expiry}" {pk} {user_comment(user_id)}'
+    options = (
+        f'expiry-time="{expiry}",no-agent-forwarding,no-X11-forwarding,'
+        f'command="{SSH_POLICY_WRAPPER_PATH}"'
+    )
+    return f'{options} {pk} {user_comment(user_id)}'
 
 
 def _line_user(line: str) -> str | None:

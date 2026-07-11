@@ -26,6 +26,7 @@ class ErrorCode(int, Enum):
     # Content node related (4000-4999)
     NAME_CONFLICT = 4001  # Duplicate name exists in the same directory
     VERSION_CONFLICT = 4002  # Optimistic lock version conflict (concurrent write)
+    CAS_RETRY_EXHAUSTED = 4003
 
     # MCP related (3000-3999)
     MCP_INSTANCE_NOT_FOUND = 3001
@@ -116,4 +117,17 @@ class VersionConflictException(AppException):
             code=ErrorCode.VERSION_CONFLICT,
             message=message,
             status_code=409,
+        )
+
+
+class CasRetriesExhausted(AppException):
+    """A write lost every bounded CAS attempt and is safe to retry later."""
+
+    def __init__(self, message: str = "Concurrent write contention; retry the request"):
+        self.headers = {"Retry-After": "1"}
+        super().__init__(
+            code=ErrorCode.CAS_RETRY_EXHAUSTED,
+            message=message,
+            status_code=409,
+            details={"retryable": True},
         )

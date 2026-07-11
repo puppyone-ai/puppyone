@@ -1128,21 +1128,15 @@ def _post_commit_delete_repo_scopes(
     sees the orphaned scope in /scopes and decides what to do. Logging
     here gives ops a forensics trail."""
     try:
-        from src.infra.supabase.client import SupabaseClient
-        client = SupabaseClient().client
-        resp = (
-            client.table("repo_scopes")
-            .select("id, path, is_root")
-            .eq("project_id", project_id)
-            .execute()
-        )
-        for row in resp.data or []:
-            if row.get("is_root"):
+        from src.repo.scope_repository import RepoScopeRepository
+        scopes = RepoScopeRepository().list_by_project(project_id)
+        for scope in scopes:
+            if scope.is_root:
                 continue   # root scope (path='') is always valid; nothing to do
-            scope_path = row.get("path") or ""
+            scope_path = scope.path or ""
             if scope_path and _path_matches_any(scope_path, deleted_paths):
                 log_warning(
-                    f"[PostCommit] repo_scope {row['id']} path={scope_path!r} "
+                    f"[PostCommit] repo_scope {scope.id} path={scope_path!r} "
                     f"is now orphaned (parent folder was deleted). Surface in "
                     f"/scopes UI for user to delete or re-target."
                 )
@@ -1162,29 +1156,21 @@ def _post_commit_move_repo_scopes(
 ) -> None:
     """Rewrite repo_scopes.path on folder rename."""
     try:
-        from src.infra.supabase.client import SupabaseClient
-        client = SupabaseClient().client
-        resp = (
-            client.table("repo_scopes")
-            .select("id, path, is_root")
-            .eq("project_id", project_id)
-            .execute()
-        )
-        for row in resp.data or []:
-            if row.get("is_root"):
+        from src.repo.scope_repository import RepoScopeRepository
+        scopes = RepoScopeRepository()
+        for scope in scopes.list_by_project(project_id):
+            if scope.is_root:
                 continue   # root scope path is always '' — never rewritten
-            old_path = row.get("path") or ""
+            old_path = scope.path or ""
             if not old_path:
                 continue
             new_path = _rewrite_path(old_path, old_prefix, new_prefix)
             if new_path == old_path:
                 continue
             try:
-                client.table("repo_scopes").update(
-                    {"path": new_path}
-                ).eq("id", row["id"]).execute()
+                scopes.update_path(scope.id, new_path)
                 log_info(
-                    f"[PostCommit] repo_scope {row['id']} path "
+                    f"[PostCommit] repo_scope {scope.id} path "
                     f"{old_path!r} → {new_path!r}"
                 )
             except Exception as e:
@@ -1192,7 +1178,7 @@ def _post_commit_move_repo_scopes(
                 # different scope already lives at the new path. Log and
                 # leave the orphan for the user to resolve via UI.
                 log_warning(
-                    f"[PostCommit] repo_scope {row['id']} path rewrite "
+                    f"[PostCommit] repo_scope {scope.id} path rewrite "
                     f"{old_path!r} → {new_path!r} rejected (likely UNIQUE "
                     f"conflict with existing scope): {e}"
                 )

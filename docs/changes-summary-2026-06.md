@@ -182,7 +182,8 @@
 
 ## 10. 架构与模块(`backend/src/platform/scope_sandbox/`)
 
-刻意与 legacy `infra/sandbox`(JSON-edit)分开,是干净的 V2 抽象:
+当前统一位于 `platform/scope_sandbox`:长驻 workspace provider 与一次性
+`execution` mode 生命周期不同，但共享一个产品边界和执行策略:
 
 - **`provider.py`** — `SandboxProvider` ABC:`capabilities / create / start / stop / destroy / status / exec / extend`;`SandboxState` 三态枚举、`SandboxSpec`、`ConnectionInfo`(host/port/username/**proxy_command**)、`ProviderCapabilities`(声明是否支持 stop-留盘 / 原生 TCP / 可自托管)。
 - **`policy.py`** — 纯函数会话策略:`decide()`(RUNNING-idle→STOP、STOPPED-长idle→DESTROY)、`adaptive_stop_timeout()`(按最近用户数/拉取成本/热度延长保温)、`eviction_score()` + `select_for_eviction()`(容量压力下淘汰最低价值会话)。完全可单测。
@@ -245,7 +246,7 @@
   2. **`expiry-time` 时区依赖**:`format_expiry` 加 **`Z` 后缀(UTC 明示)**——OpenSSH 默认按箱**本地时区**解析裸时间戳,`Z` 钉死 UTC 使 TTL 与镜像 TZ 无关;**实 sshd(9.1p1)验证 honor**:valid-Z→可、expired-Z→拒;
   3. **默认 provider** 改 `e2b`(已验证路径),避免未选择的项目静默落到未实连的 Fly。
 - **未配线的 seam(意图性,非有害死代码,保留)**:`factory.store_from_settings`、`scope_provision.provision_scope_workspace`、`reaper.start_reaper`、`manager.record_pull_cost/evict_to_capacity/touch` —— 均为 **#9(HTTP API + 前端选择)将配线的公开 API**,现仅无调用方。
-- **legacy**:scope_sandbox 内无旧代码;旧 `infra/sandbox` + `connectors/sandbox_endpoint`(JSON-edit/stateless)与 V2 并存,**按 #11 计划后续退役**,现不冲突。
+- **收敛完成(2026-07-11)**:`infra/sandbox` 已退役；agent/endpoint 的一次性执行迁入 `scope_sandbox/execution`，每请求写回并销毁，长驻 workspace 默认使用 Supabase session store。
 - **本地清理**:删除遗留的 `~/.ssh/config` puppy-e2b 块与 `.e2b_ssh_test/`,保留 websocat + flyctl;**线上测试项目按用户要求保留**。
 
 ## 15. 提交清单(第二部分)
@@ -279,7 +280,7 @@
 2. **#8** 可观测(写 `sync_runs` / 修 GAP-8)+ 用真实数据调 session 策略阈值(现为静态默认);
 3. **#9** HTTP API + 前端 provider 选择 + 项目设置存储 —— 配线现有 seam(`provider_from_settings`/`store_from_settings`/`provision_scope_workspace`/reaper 调度);
 4. **#10** Fly **实连**(绑支付 + `fly ips allocate-v4` + 推镜像后跑一轮基准:创建→exec→SSH 往返);
-5. **#11** legacy(`infra/sandbox` + `connectors/sandbox_endpoint`)退役;
+5. **#11 已完成**:`infra/sandbox` 退役，endpoint 作为统一 subsystem 的 execution mode 保留;
 6. **跨实例同 scope 竞争**:Supabase store 现为 last-write-wins + 进程内锁,多 writer 生产前需行锁/乐观版本;
 7. **合并**:同属 `feat/context-entrypoints`,未合并。
 

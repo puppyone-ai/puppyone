@@ -10,6 +10,7 @@ import asyncio
 import time
 from typing import Callable
 
+from src.exceptions import CasRetriesExhausted
 from src.version_engine.domain.intents import OperationWriteIntent, TransactionResult
 from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
 from src.version_engine.storage.object_store import ObjectStore, stage_object_writes
@@ -220,6 +221,13 @@ class OperationWriter:
 
                 if object_batch is not None:
                     await asyncio.to_thread(object_batch.flush)
+                    register_candidates = getattr(
+                        repo.history, "register_object_gc_candidates", None
+                    )
+                    if callable(register_candidates):
+                        await asyncio.to_thread(
+                            register_candidates, object_batch.flushed_ids
+                        )
 
             scope_head_commit_id = ""
             expected_scope_head_commit_id: str | None = None
@@ -289,7 +297,7 @@ class OperationWriter:
                 f"project={intent.project_id} scope={scope_norm!r}",
             )
 
-        raise RuntimeError(
+        raise CasRetriesExhausted(
             f"[version_engine][{intent.operation_type}] root CAS still failing "
             f"after {_MAX_CAS_ATTEMPTS} attempts "
             f"(project={intent.project_id}, scope={scope_norm!r}); "
@@ -479,6 +487,13 @@ class OperationWriter:
                     count = getattr(object_batch, "count", lambda: None)()
                     with trace_phase("object.flush", attempt=attempt_no, count=count):
                         await asyncio.to_thread(object_batch.flush)
+                    register_candidates = getattr(
+                        repo.history, "register_object_gc_candidates", None
+                    )
+                    if callable(register_candidates):
+                        await asyncio.to_thread(
+                            register_candidates, object_batch.flushed_ids
+                        )
 
             with trace_phase("changes.build_full_changes", attempt=attempt_no):
                 full_changes = build_full_changes("", changes)
@@ -529,7 +544,7 @@ class OperationWriter:
                 f"project={intent.project_id}",
             )
 
-        raise RuntimeError(
+        raise CasRetriesExhausted(
             f"[version_engine][{intent.operation_type}:project] root CAS still "
             f"failing after {_MAX_CAS_ATTEMPTS} attempts "
             f"(project={intent.project_id}); last error: {last_error}",

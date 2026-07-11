@@ -113,8 +113,10 @@ def test_project_update_allows_admin():
 class _FakeConnClient:
     def __init__(self, row):
         self._row = row
+        self._table = None
 
-    def table(self, *a, **k):
+    def table(self, name, *a, **k):
+        self._table = name
         return self
 
     def select(self, *a, **k):
@@ -123,7 +125,15 @@ class _FakeConnClient:
     def eq(self, *a, **k):
         return self
 
+    def in_(self, *a, **k):
+        return self
+
+    def is_(self, *a, **k):
+        return self
+
     def execute(self):
+        if self._table == "access_surface_credentials":
+            return SimpleNamespace(data=[])
         return SimpleNamespace(data=[self._row])
 
 

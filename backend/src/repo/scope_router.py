@@ -69,13 +69,11 @@ def list_scopes(
     project: Project = Depends(get_verified_project),
     service: ScopeService = Depends(get_scope_service),
 ):
-    # The current user is verified as a project member by get_verified_project.
-    # We expose access_key only to project members for now (i.e. always, given
-    # the dep gate). Phase C tightens this by consulting repo_user_permissions
-    # for fine-grained admin/editor distinction.
     scopes = service.list_for_project(str(project.id))
     return ApiResponse.success(
-        data=[_to_out(s, reveal_key=True) for s in scopes],
+        # Machine credentials are one-time reveal only. Ordinary reads never
+        # reconstruct a bearer token from storage.
+        data=[_to_out(s, reveal_key=False) for s in scopes],
         message="Scopes listed",
     )
 

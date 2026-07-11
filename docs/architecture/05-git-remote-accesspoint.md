@@ -4,7 +4,8 @@
 
 ```text
 Web / API creates repo scope
-  -> repo_scopes row stores scope_path, excludes, mode, access_key hash
+  -> repo_scopes stores scope_path/excludes/mode
+  -> access_surface_credentials stores the CLI/Git bearer credential hash
   -> user receives Git Remote URL and Puppyone CLI profile instructions
 ```
 

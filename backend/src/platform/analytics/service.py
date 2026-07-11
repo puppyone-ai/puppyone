@@ -83,6 +83,8 @@ async def log_bash_execution(
     output: str | None = None,
     latency_ms: int | None = None,
     error_message: str | None = None,
+    source: str = "unknown",
+    decision: str = "allowed",
 ) -> None:
     """Log a bash command execution."""
     # Truncate output
@@ -102,6 +104,8 @@ async def log_bash_execution(
             "command": command,
             "output_preview": output_preview,
             "sandbox_session_id": sandbox_session_id,
+            "source": source,
+            "decision": decision,
         },
     )
 

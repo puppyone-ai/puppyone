@@ -15,11 +15,11 @@ Pre-existing missed events are reconciled by normal version refresh/fetch.
 
 Concurrency
 -----------
-The manager is process-wide singleton-style. Connections register
-via :meth:`register` and unregister on disconnect. All public methods
-are async-safe. We don't try to be cluster-aware — running multiple
-backend replicas means each only fans out to its own connections, and
-normal version refresh/fetch covers the rest.
+The manager is process-wide singleton-style. Connections register via
+:meth:`register` and unregister on disconnect. Redis distributes business
+events to every replica; each replica keeps only its live socket handles.
+Canonical history paging is the durable reconnect source when Pub/Sub delivery
+is interrupted.
 """
 from __future__ import annotations
 
@@ -63,7 +63,7 @@ class NotificationManager:
 
     _instance: "NotificationManager | None" = None
 
-    def __init__(self):
+    def __init__(self, *, redis_client=None):
         # (project_id, scope_path) → list of active connections.
         self._conns: dict[tuple[str, str], list[_ClientConn]] = defaultdict(list)
         # client_id → list of pending events for offline clients.
@@ -76,7 +76,8 @@ class NotificationManager:
         # Cross-replica pub/sub (ISSUE-015). Disabled unless NOTIFICATIONS_REDIS_URL
         # is set; origin id lets a replica ignore the events it published itself.
         self._origin_id = uuid.uuid4().hex
-        self._redis = None
+        self._redis = redis_client
+        self._injected_redis = redis_client is not None
         self._pubsub_task: asyncio.Task | None = None
         self._pubsub_started = False
 
@@ -224,6 +225,9 @@ class NotificationManager:
         if self._pubsub_started:
             return
         self._pubsub_started = True  # only attempt once
+        if self._injected_redis:
+            self._pubsub_task = asyncio.create_task(self._subscriber_loop())
+            return
         from src.config import settings
         url = getattr(settings, "NOTIFICATIONS_REDIS_URL", "") or ""
         if not url:
@@ -275,7 +279,7 @@ class NotificationManager:
         """Cancel the subscriber + close Redis (call on app shutdown)."""
         if self._pubsub_task:
             self._pubsub_task.cancel()
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(asyncio.CancelledError, Exception):
                 await self._pubsub_task
             self._pubsub_task = None
         if self._redis:

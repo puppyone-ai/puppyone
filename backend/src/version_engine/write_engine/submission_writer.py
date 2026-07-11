@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 
+from src.exceptions import CasRetriesExhausted
 from src.version_engine.domain.intents import TransactionResult, VersionSubmissionIntent
 from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
 from src.version_engine.write_engine.audit import (
@@ -501,7 +502,7 @@ class SubmissionWriter:
                 f"project={intent.project_id} scope={scope_norm!r}",
             )
 
-        raise RuntimeError(
+        raise CasRetriesExhausted(
             f"[version_engine][{intent.source_channel}_push] root CAS still failing "
             f"after {_MAX_CAS_ATTEMPTS} attempts "
             f"(project={intent.project_id}, scope={scope_norm!r}); "

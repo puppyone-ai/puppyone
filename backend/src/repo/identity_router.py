@@ -1,6 +1,6 @@
 """Repo identity endpoint — the single "access point" page surface.
 
-Returns the project's Git/CLI access surface + prompt template + per-scope keys. This is
+Returns the project's Git/CLI access surface + prompt template + scope metadata. This is
 what the new frontend /access page renders.
 
 Path: /api/v1/projects/{project_id}/access-point
@@ -79,7 +79,8 @@ def get_access_point(
                     name=s.name,
                     path=s.path,
                     is_root=s.is_root,
-                    access_key=s.access_key,        # visible to project members
+                    # Credentials are returned only by create/regenerate flows.
+                    access_key=None,
                 )
                 for s in scopes
             ],

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 
+from src.exceptions import CasRetriesExhausted
 from src.version_engine.domain.intents import RollbackIntent, TransactionResult
 from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
 from src.version_engine.write_engine.audit import (
@@ -201,7 +202,7 @@ class RollbackWriter:
                 **(intent.audit_detail or {}),
             },
         )
-        raise RuntimeError(
+        raise CasRetriesExhausted(
             f"[version_engine][rollback] root CAS still failing "
             f"after {_MAX_CAS_ATTEMPTS} attempts "
             f"(project={intent.project_id}, scope={scope_norm!r}); "

@@ -33,6 +33,7 @@ from src.version_engine.adapters.git.view_projection import (
 )
 from src.version_engine.write_engine.git_object_format import (
     MODE_DIR,
+    MODE_FILE,
     decode_commit,
     decode_tree,
     encode_object,
@@ -82,7 +83,9 @@ def transport_bare_repo(
     )
     cache_dir = cache_key.cache_dir()
     cache_dir.mkdir(parents=True, exist_ok=True)
-    lock_path = cache_dir / "cache.lock"
+    from src.version_engine.adapters.git.view_cache import view_lock_path
+
+    lock_path = view_lock_path(cache_dir)
     with file_exclusive_lock(lock_path):
         bare_dir = cache_dir / "repo.git"
         _ensure_bare_repo(bare_dir)
@@ -108,7 +111,9 @@ def transport_bare_repo(
             health_reason=view_head.reason,
             history_cut=view_head.history_cut,
         )
-    yield bare_dir
+        # Hold the lease while Git consumes the bare repo/alternates. Pruning
+        # uses a non-blocking attempt on the same lock and skips active views.
+        yield bare_dir
 
 
 @contextmanager

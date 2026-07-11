@@ -1,5 +1,4 @@
-"""Hermetic tests for the previously-deferred fixes: ISSUE-003 (scope access-key
-hashing, gated dual-read) and ISSUE-015 (cluster-aware notifications, gated).
+"""Hermetic tests for ISSUE-003 scope hashing and ISSUE-015 notifications.
 
 No Supabase, no Redis, no network — fake clients / websockets only.
 """
@@ -8,9 +7,6 @@ from __future__ import annotations
 
 import asyncio
 from types import SimpleNamespace
-
-import pytest
-
 
 # ── ISSUE-003: scope access-key hash lookup (gated dual-read) ───────────────
 
@@ -21,12 +17,15 @@ class _FakeScopeClient:
         self.hit_columns = set(hit_columns)
         self.eq_calls: list[tuple] = []
         self._last_eq_col = None
+        self.is_calls: list[tuple] = []
+        self.table_name = ""
 
     @property
     def client(self):
         return self
 
-    def table(self, _name):
+    def table(self, name):
+        self.table_name = name
         return self
 
     def select(self, *a, **k):
@@ -41,14 +40,27 @@ class _FakeScopeClient:
         return self
 
     def is_(self, *a, **k):
+        self.is_calls.append(tuple(a))
         return self
 
     def execute(self):
-        row = {
-            "id": "s1", "project_id": "p1", "path": "docs",
-            "exclude": [], "mode": "rw", "access_key_revoked_at": None,
-        }
-        data = [row] if self._last_eq_col in self.hit_columns else []
+        if self.table_name == "access_surface_credentials":
+            data = ([{
+                "access_surface_id": "surface-1", "key_hash": "hashed",
+                "credential_type": "bearer_token", "status": "active",
+            }] if "key_hash" in self.hit_columns else [])
+        elif self.table_name == "access_surfaces":
+            data = [{
+                "id": "surface-1", "scope_id": "s1", "project_id": "p1",
+                "kind": "cli", "status": "active",
+            }]
+        elif self.table_name == "repo_scopes":
+            data = [{
+                "id": "s1", "project_id": "p1", "path": "docs",
+                "exclude": [], "mode": "rw",
+            }]
+        else:
+            data = []
         return SimpleNamespace(data=data)
 
 
@@ -57,37 +69,35 @@ def _find():
     return scope_repository.find_scope_by_access_key
 
 
-def test_flag_off_uses_plaintext_only(monkeypatch):
-    from src.config import settings
-    monkeypatch.setattr(settings, "SCOPE_ACCESS_KEY_HASH_LOOKUP", False, raising=False)
-    client = _FakeScopeClient(hit_columns={"access_key"})
-    row = _find()(client, "cli_secretkey")
-    assert row is not None
-    cols = [c for c, _ in client.eq_calls]
-    assert "access_key" in cols
-    assert "access_key_hash" not in cols, "flag off must never touch the hash column"
-
-
-def test_flag_on_resolves_by_hash(monkeypatch):
+def test_scope_auth_always_resolves_by_hash_first(monkeypatch):
     from src.config import settings
     from src.repo.access_credentials import access_token_hash
-    monkeypatch.setattr(settings, "SCOPE_ACCESS_KEY_HASH_LOOKUP", True, raising=False)
-    client = _FakeScopeClient(hit_columns={"access_key_hash"})
+    monkeypatch.setattr(
+        settings,
+        "ACCESS_CREDENTIAL_HASH_SECRET",
+        "test-credential-secret-at-least-32-characters",
+    )
+    client = _FakeScopeClient(hit_columns={"key_hash"})
     row = _find()(client, "cli_secretkey")
     assert row is not None
     # First lookup is by hash of the key, not the plaintext.
-    assert ("access_key_hash", access_token_hash("cli_secretkey")) in client.eq_calls
+    assert ("key_hash", access_token_hash("cli_secretkey")) in client.eq_calls
 
 
-def test_flag_on_falls_back_to_plaintext_for_unbackfilled_rows(monkeypatch):
+def test_scope_plaintext_fallback_is_fully_retired(monkeypatch):
     from src.config import settings
-    monkeypatch.setattr(settings, "SCOPE_ACCESS_KEY_HASH_LOOKUP", True, raising=False)
-    # Hash lookup misses (row not backfilled); plaintext still resolves it.
+    monkeypatch.setattr(
+        settings,
+        "ACCESS_CREDENTIAL_HASH_SECRET",
+        "test-credential-secret-at-least-32-characters",
+    )
+    # Hash lookup misses; plaintext storage has been removed and is never read.
     client = _FakeScopeClient(hit_columns={"access_key"})
     row = _find()(client, "cli_secretkey")
-    assert row is not None
+    assert row is None
     cols = [c for c, _ in client.eq_calls]
-    assert "access_key_hash" in cols and "access_key" in cols
+    assert "key_hash" in cols
+    assert "access_key" not in cols
 
 
 # ── ISSUE-015: cluster-aware notifications (gated, fail-open) ────────────────
@@ -106,6 +116,42 @@ class _FakeRedis:
 
     async def publish(self, channel, data):
         self.published.append((channel, data))
+
+
+class _SharedPubSubBus:
+    def __init__(self):
+        self.queues = []
+
+    def client(self):
+        return _BusClient(self)
+
+
+class _BusPubSub:
+    def __init__(self, bus):
+        self.bus = bus
+        self.queue = asyncio.Queue()
+
+    async def subscribe(self, _channel):
+        self.bus.queues.append(self.queue)
+
+    async def listen(self):
+        while True:
+            yield await self.queue.get()
+
+
+class _BusClient:
+    def __init__(self, bus):
+        self.bus = bus
+
+    def pubsub(self):
+        return _BusPubSub(self.bus)
+
+    async def publish(self, _channel, data):
+        for queue in list(self.bus.queues):
+            await queue.put({"type": "message", "data": data})
+
+    async def aclose(self):
+        return None
 
 
 def _manager():
@@ -151,4 +197,35 @@ def test_broadcast_publishes_with_origin_when_redis_present():
         assert msg["project_id"] == "p1"
         assert msg["scope_norm"] == "docs/sub"
         assert msg["payload"]["commit_id"] == "c9"
+    asyncio.run(main())
+
+
+def test_two_managers_fan_out_across_shared_bus_once():
+    async def main():
+        from src.version_engine.derived.notifications import NotificationManager
+
+        bus = _SharedPubSubBus()
+        first = NotificationManager(redis_client=bus.client())
+        second = NotificationManager(redis_client=bus.client())
+        ws = _FakeWS()
+        await first.register(ws, "p1", "docs", agent="listener")
+        await second._ensure_pubsub_started()
+        await asyncio.sleep(0)
+
+        await second.broadcast_commit_update(
+            "p1",
+            "docs/sub",
+            commit_id="cross-instance-1",
+            pushed_by="writer",
+            changes=[{"path": "docs/a.md"}],
+        )
+        for _ in range(10):
+            if ws.sent:
+                break
+            await asyncio.sleep(0)
+
+        assert [event["commit_id"] for event in ws.sent] == ["cross-instance-1"]
+        await first.stop_pubsub()
+        await second.stop_pubsub()
+
     asyncio.run(main())
