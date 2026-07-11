@@ -1,5 +1,5 @@
 """
-Sandbox service - Unified interface
+Sandbox service - ephemeral execution mode of the unified sandbox subsystem
 
 Automatically selects E2B cloud sandbox or Docker local sandbox based on configuration.
 
@@ -86,7 +86,7 @@ class SandboxService:
         same blacklist. Defense-in-depth over the container boundary (ISSUE-010).
         """
         from src.platform.analytics.service import log_bash_execution
-        from .command_policy import SandboxCommandRejected, assert_command_allowed
+        from ..execution_policy import SandboxCommandRejected, assert_command_allowed
 
         context = audit_context or {}
         started = time.monotonic()

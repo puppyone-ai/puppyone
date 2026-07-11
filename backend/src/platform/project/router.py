@@ -74,17 +74,17 @@ def _count_user_access_points(project_ids: list[str]) -> dict[str, int]:
         .in_("project_id", project_ids)
         .execute()
     ).data or []
-    access_rows = (
-        sb.table("access_surfaces")
-        .select("project_id, kind")
-        .in_("project_id", project_ids)
-        .in_("kind", ["mcp", "sandbox"])
-        .execute()
-    ).data or []
+    from src.repo.access_surface_repository import AccessSurfaceRepository
+
+    access_counts = AccessSurfaceRepository(sb).count_by_projects_and_kinds(
+        project_ids, ["mcp", "sandbox"]
+    )
     counts: dict[str, int] = {}
-    for row in [*connection_rows, *access_rows]:
+    for row in connection_rows:
         pid = row["project_id"]
         counts[pid] = counts.get(pid, 0) + 1
+    for pid, count in access_counts.items():
+        counts[pid] = counts.get(pid, 0) + count
     return counts
 
 

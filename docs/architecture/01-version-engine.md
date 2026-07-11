@@ -74,7 +74,7 @@ Scopes = path-bounded access wrappers over that root.
 Scope-state rows = derived/cache/compatibility state, never authority.
 ```
 
-Concretely, the project root hash column (`projects.mut_root_hash`, later
+Concretely, the project root hash column (`projects.version_root_hash`, formerly
 `projects.version_root_hash`) is the canonical tree for the project. Product
 writes, Access Point writes, Git pushes, CLI FS writes, and connector writes all
 land by applying a path-scoped patch to that root and conditionally publishing a
@@ -575,24 +575,26 @@ backend/src/version_engine/
 
 ## Persistent DB Names
 
-Database renames are intentionally deferred. Runtime code may reference these
-names only through `infrastructure/supabase/db_names.py`:
+Canonical physical names are exposed through
+`infrastructure/supabase/db_names.py`:
 
 ```text
-mut_commits
-mut_scope_state
-mut_version_index
-mut_version_outbox
-mut_object_locations
-mut_conflicts
-projects.mut_root_hash
-github_sync_log.mut_commit_id
-publish_mut_project_update
-get_mut_project_write_state
-claim/complete/fail_mut_version_outbox
+version_commits
+version_scope_state
+version_view_commits
+version_outbox
+version_object_locations
+version_conflicts
+projects.version_root_hash
+github_sync_log.version_commit_id
+publish_version_project_update
+get_version_project_write_state
+claim/complete/fail_version_outbox
 ```
 
-These names are storage compatibility, not architecture. Product code,
+The deployment migration temporarily retains restricted `mut_*` compatibility
+views/wrappers and dual-write columns so old and new pods can overlap. Runtime
+code never targets them. Product code,
 frontend code, CLI code, logs, and API metadata should use Version Engine,
 Git Remote, Puppyone CLI, scope, conflict, and audit language.
 
@@ -651,10 +653,10 @@ point。Root 入口能看见整棵树，触达任意路径都是合法的。
 
 1. 客户端提交的就是整棵 root 的新版本，**新 root 树直接拿来用**（不用 graft，root 入口就是站在 root 上写的）。
 2. build 一条新的 root commit `C_canon`，parent = 当前 root 的 head commit。
-3. 拿 `(旧 root_hash → 新 root_hash)` 去 CAS `projects.mut_root_hash`。撞车就拿新 root 重新 graft + rebuild commit 再 CAS，重试到上限为止。
+3. 拿 `(旧 root_hash → 新 root_hash)` 去 CAS `projects.version_root_hash`。撞车就拿新 root 重新 graft + rebuild commit 再 CAS，重试到上限为止。
 4. CAS 成功后**同一个数据库事务里**做完下面这些：
    - 写 `mut_scope_state[scope_path='']`：`scope_hash = 新 root_hash`、`head_commit_id = C_canon`（这一行就是"root scope 的视图缓存"）。
-   - 写 `mut_commits` 一行（canonical commit 记录）。
+   - 写 `version_commits` 一行（canonical commit 记录）。
    - 写 `version_transactions` 一行（事务记录）。
    - 写 `audit_logs` 一行。
    - 写 `mut_version_outbox` 一行 `project_version_committed`（通知用）。
@@ -703,11 +705,11 @@ Engine，没有任何 git object 落盘、没有 root_hash 改动、没有 mut_s
 1. **splice 出 A 的新子树**：把客户端提交的 tree（A 视图下那棵树）作为 A 的新子树；C 子树在 A 视图里是 carved 隐藏的，**原样从老的 root 里钉回来**——也就是说客户端那棵树即使在 A 看不见的位置摸了 `/A/C/*`，我们也不让它进。
 2. **graft 回 root**：拿当前 root 的整棵树，把 `/A` 那一格替换成步骤 1 得到的 A 新子树，得到 candidate 新 root 树。
 3. build canonical root commit `C_canon`，parent = 当前 root 的 head commit。message trailer 里写 `PuppyOne-Original-Commit: C_client`，方便溯源。
-4. CAS `projects.mut_root_hash: 旧 → 新`。撞车就拿当时新的 root 重新 graft（步骤 2）+ 重新 build commit（步骤 3）再 CAS。重试期间客户端 SHA `C_client` 一直**不变**——只换 canonical root commit 的 parent。**但 publish 时必须同时带上 A 当前 head 的 expected base；如果 A 的 head 已经从客户端 base 前进了，整次事务失败并返回 `non-fast-forward`，不能继续把 `C_client` 写成 A 的 head。**
+4. CAS `projects.version_root_hash: 旧 → 新`。撞车就拿当时新的 root 重新 graft（步骤 2）+ 重新 build commit（步骤 3）再 CAS。重试期间客户端 SHA `C_client` 一直**不变**——只换 canonical root commit 的 parent。**但 publish 时必须同时带上 A 当前 head 的 expected base；如果 A 的 head 已经从客户端 base 前进了，整次事务失败并返回 `non-fast-forward`，不能继续把 `C_client` 写成 A 的 head。**
 5. CAS 成功后同一个事务里：
    - 写 `mut_scope_state[scope_path='']`：`scope_hash = 新 root_hash`、`head = C_canon`（root 行用服务端 SHA）。
    - 写 `mut_scope_state[scope_path='/A']`：`scope_hash = A 的新子树 hash`、`head = C_client`（**源 scope 行刻意沿用客户端 SHA**，这样 A 上 `git fetch` 是 fast-forward，客户端不需要 REWRITE 协议）。
-   - 写 `mut_commits` / `version_transactions` / `audit_logs` / `mut_version_outbox` 各一行（同根入口）。
+   - 写 `version_commits` / `version_transactions` / `audit_logs` / `version_outbox` 各一行（同根入口）。
 6. 事务提交后看 changed_paths（只在 A 自己的地盘里）：
    - A 自己：源 scope，**显式跳过**，否则会把 A 行的 `C_client` 覆盖成合成 commit，fast-forward 链立刻断。
    - C：A 写不到 /A/C/*（admission 拦了），所以与 C 视图必然不相交 → 不刷。

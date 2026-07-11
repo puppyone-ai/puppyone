@@ -11,6 +11,7 @@ Responsibilities the repository deliberately does NOT have:
 
 from __future__ import annotations
 
+from dataclasses import replace
 import secrets
 from typing import Optional
 
@@ -18,7 +19,7 @@ from src.exceptions import AppException, BusinessException, ErrorCode, NotFoundE
 from src.repo.access_surface_repository import AccessSurfaceRepository
 from src.repo.models import RepoScope
 from src.repo.scope_repository import RepoScopeRepository
-from src.utils.logger import log_info, log_warning
+from src.utils.logger import log_info
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -134,6 +135,7 @@ class ScopeService:
                 current_count=len(existing_user_scopes),
             )
 
+        key = _mint_access_key()
         scope = self._repo.insert(
             project_id=project_id,
             name=name,
@@ -141,10 +143,13 @@ class ScopeService:
             exclude=list(exclude or []),
             mode=mode,
             is_root=False,
-            access_key=_mint_access_key(),
         )
         self._access_surfaces.ensure_scope_defaults(scope)
-        return scope
+        if not self._access_surfaces.store_scope_credential(
+            scope_id=scope.id, raw_token=key
+        ):
+            raise RuntimeError("Failed to attach scope credential")
+        return replace(scope, access_key=key)
 
     def ensure_root_scope(self, project_id: str) -> RepoScope:
         """Idempotent: returns the existing root scope, or creates one if
@@ -155,6 +160,7 @@ class ScopeService:
         if existing:
             return existing
         log_info(f"[scope] auto-creating root scope for project={project_id}")
+        key = _mint_access_key()
         scope = self._repo.insert(
             project_id=project_id,
             name="Root",
@@ -162,10 +168,13 @@ class ScopeService:
             exclude=[],
             mode="rw",
             is_root=True,
-            access_key=_mint_access_key(),
         )
         self._access_surfaces.ensure_scope_defaults(scope)
-        return scope
+        if not self._access_surfaces.store_scope_credential(
+            scope_id=scope.id, raw_token=key
+        ):
+            raise RuntimeError("Failed to attach root scope credential")
+        return replace(scope, access_key=key)
 
     def update(
         self,
@@ -181,7 +190,10 @@ class ScopeService:
 
     def regenerate_access_key(self, scope_id: str) -> Optional[str]:
         new_key = _mint_access_key()
-        ok = self._repo.regenerate_access_key(scope_id, new_key)
+        ok = self._access_surfaces.store_scope_credential(
+            scope_id=scope_id,
+            raw_token=new_key,
+        )
         return new_key if ok else None
 
     def delete(

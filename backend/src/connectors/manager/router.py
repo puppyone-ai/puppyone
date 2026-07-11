@@ -63,17 +63,6 @@ def _get_client():
     return SupabaseClient().client
 
 
-def _count_user_access_surfaces_for_project(sb_client, project_id: str) -> int:
-    resp = (
-        sb_client.table("access_surfaces")
-        .select("id", count="exact")
-        .eq("project_id", project_id)
-        .not_.in_("kind", ["git_remote", "cli"])
-        .execute()
-    )
-    return resp.count or 0
-
-
 def _normalize_scope_path(path: str | None) -> str:
     value = (path or "").strip()
     while value.startswith("/"):
@@ -83,14 +72,6 @@ def _normalize_scope_path(path: str | None) -> str:
     while "//" in value:
         value = value.replace("//", "/")
     return value
-
-
-def _scope_rows_for_surfaces(sb_client, rows: list[dict]) -> dict[str, dict]:
-    scope_ids = sorted({r.get("scope_id") for r in rows if r.get("scope_id")})
-    if not scope_ids:
-        return {}
-    resp = sb_client.table("repo_scopes").select("*").in_("id", scope_ids).execute()
-    return {r["id"]: r for r in (resp.data or [])}
 
 
 def _scope_for_path(
@@ -105,21 +86,23 @@ def _scope_for_path(
     scope_service = ScopeService()
     if target == "":
         scope = scope_service.ensure_root_scope(project_id)
+        access_key = scope.access_key or scope_service.regenerate_access_key(scope.id)
         return {
             "id": scope.id,
             "project_id": scope.project_id,
             "name": scope.name,
             "path": scope.path,
-            "access_key": scope.access_key,
+            "access_key": access_key,
         }
     for scope in scope_service.list_for_project(project_id):
         if _normalize_scope_path(scope.path) == target:
+            access_key = scope_service.regenerate_access_key(scope.id)
             return {
                 "id": scope.id,
                 "project_id": scope.project_id,
                 "name": scope.name,
                 "path": scope.path,
-                "access_key": scope.access_key,
+                "access_key": access_key,
             }
     scope = scope_service.create(
         project_id=project_id,
@@ -256,7 +239,7 @@ def _enrich(rows: list[dict], sb_client) -> list[ConnectionOut]:
     Raw credentials are issued only by the explicit create/regenerate response
     models; callers cannot opt this serializer into returning a bearer token.
     """
-    scopes = _scope_rows_for_surfaces(sb_client, rows)
+    scopes = AccessSurfaceRepository(sb_client).scope_rows_for(rows)
     from src.repo.access_credentials import AccessCredentialRepository
 
     credentials = AccessCredentialRepository(sb_client).list_active_by_surface(
@@ -404,19 +387,9 @@ def list_connections(
     if not project_ids:
         return ApiResponse.success(data=[], message="No access connections")
 
-    query = sb.table("access_surfaces").select("*")
-
-    if len(project_ids) == 1:
-        query = query.eq("project_id", project_ids[0])
-    else:
-        query = query.in_("project_id", project_ids)
-
-    if provider:
-        query = query.eq("kind", provider)
-    if connection_status:
-        query = query.eq("status", connection_status)
-
-    rows = query.order("created_at").execute().data
+    rows = AccessSurfaceRepository(sb).list_by_projects(
+        project_ids, kind=provider, status=connection_status
+    )
     # List views never emit raw credentials (IDOR would otherwise leak usable keys).
     return ApiResponse.success(data=_enrich(rows, sb), message="Access connections listed")
 
@@ -432,11 +405,9 @@ def get_connection(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     sb = _get_client()
-    resp = sb.table("access_surfaces").select("*").eq("id", connection_id).execute()
-    if not resp.data:
+    row = AccessSurfaceRepository(sb).get(connection_id)
+    if not row:
         raise NotFoundException("Access connection not found", code=ErrorCode.NOT_FOUND)
-
-    row = resp.data[0]
     _require_connection_project_access(sb, row["project_id"], current_user.user_id)
 
     # Detail views must not echo raw credentials (access_key / config secrets).
@@ -456,11 +427,10 @@ async def update_connection(
 ):
     sb = _get_client()
 
-    resp = sb.table("access_surfaces").select("*").eq("id", connection_id).execute()
-    if not resp.data:
+    surfaces = AccessSurfaceRepository(sb)
+    row = surfaces.get(connection_id)
+    if not row:
         raise NotFoundException("Access connection not found", code=ErrorCode.NOT_FOUND)
-
-    row = resp.data[0]
     _require_connection_project_access(sb, row["project_id"], current_user.user_id)
 
     fields: dict[str, Any] = {}
@@ -483,11 +453,9 @@ async def update_connection(
         cfg["trigger"] = payload.trigger
         fields["config"] = cfg
 
-    sb.table("access_surfaces").update(fields).eq("id", connection_id).execute()
-
-    updated = sb.table("access_surfaces").select("*").eq("id", connection_id).execute()
+    updated = surfaces.update(connection_id, fields)
     return ApiResponse.success(
-        data=_enrich(updated.data, sb)[0], message="Access connection updated"
+        data=_enrich([updated], sb)[0], message="Access connection updated"
     )
 
 
@@ -503,15 +471,16 @@ async def delete_connection(
 ):
     sb = _get_client()
 
-    resp = sb.table("access_surfaces").select("project_id, kind").eq("id", connection_id).execute()
-    if not resp.data:
+    surfaces = AccessSurfaceRepository(sb)
+    row = surfaces.get(connection_id)
+    if not row:
         raise NotFoundException("Access connection not found", code=ErrorCode.NOT_FOUND)
 
-    _require_connection_project_access(sb, resp.data[0]["project_id"], current_user.user_id)
+    _require_connection_project_access(sb, row["project_id"], current_user.user_id)
 
-    if resp.data[0].get("kind") in {"git_remote", "cli"}:
+    if row.get("kind") in {"git_remote", "cli"}:
         raise HTTPException(status_code=400, detail="Built-in access surfaces cannot be deleted")
-    AccessSurfaceRepository().delete(connection_id)
+    surfaces.delete(connection_id)
     return ApiResponse.success(message="Access connection deleted")
 
 
@@ -532,22 +501,17 @@ def rename_connection(
         raise HTTPException(status_code=400, detail="name must not be empty")
 
     sb = _get_client()
-    resp = sb.table("access_surfaces").select("*").eq("id", connection_id).execute()
-    if not resp.data:
+    surfaces = AccessSurfaceRepository(sb)
+    row = surfaces.get(connection_id)
+    if not row:
         raise NotFoundException("Access connection not found", code=ErrorCode.NOT_FOUND)
-
-    row = resp.data[0]
     _require_connection_project_access(sb, row["project_id"], current_user.user_id)
 
     cfg = dict(row.get("config") or {})
     cfg["name"] = new_name
-    sb.table("access_surfaces").update({"name": new_name, "config": cfg}).eq(
-        "id", connection_id
-    ).execute()
-
-    updated = sb.table("access_surfaces").select("*").eq("id", connection_id).execute()
+    updated = surfaces.update(connection_id, {"name": new_name, "config": cfg})
     return ApiResponse.success(
-        data=_enrich(updated.data, sb)[0], message="Access connection renamed"
+        data=_enrich([updated], sb)[0], message="Access connection renamed"
     )
 
 
@@ -563,11 +527,9 @@ def regenerate_key(
 ):
     sb = _get_client()
 
-    resp = sb.table("access_surfaces").select("*").eq("id", connection_id).execute()
-    if not resp.data:
+    row = AccessSurfaceRepository(sb).get(connection_id)
+    if not row:
         raise NotFoundException("Access connection not found", code=ErrorCode.NOT_FOUND)
-
-    row = resp.data[0]
     _require_connection_project_access(sb, row["project_id"], current_user.user_id)
 
     provider = row.get("kind", row.get("provider", ""))
@@ -813,7 +775,7 @@ def _create_sandbox(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
 
 def _create_direct(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
     """Return direct Git + FS HTTP API credentials for a scope."""
-    sb = _get_client()
+    surfaces = AccessSurfaceRepository()
     cfg = payload.config
     scope = cfg.get("scope", {})
     scope_path = (
@@ -828,30 +790,17 @@ def _create_direct(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
         exclude=list(exclude or []),
         mode=mode,
     )
-    surface_resp = (
-        sb.table("access_surfaces")
-        .select("id, status")
-        .eq("scope_id", scope_row["id"])
-        .eq("kind", "git_remote")
-        .limit(1)
-        .execute()
-    )
-    if not surface_resp.data:
+    if not scope_row.get("access_key"):
+        raise RuntimeError("direct access credential issuance failed")
+    surface = surfaces.get_by_scope_kind(scope_row["id"], "git_remote")
+    if not surface:
         scope_model = ScopeService().get(scope_row["id"])
         if scope_model is None:
             raise RuntimeError("scope disappeared while creating direct access")
-        AccessSurfaceRepository().ensure_scope_defaults(scope_model)
-        surface_resp = (
-            sb.table("access_surfaces")
-            .select("id, status")
-            .eq("scope_id", scope_row["id"])
-            .eq("kind", "git_remote")
-            .limit(1)
-            .execute()
-        )
-    if not surface_resp.data:
+        surfaces.ensure_scope_defaults(scope_model)
+        surface = surfaces.get_by_scope_kind(scope_row["id"], "git_remote")
+    if not surface:
         raise RuntimeError("git_remote access surface was not created")
-    surface = surface_resp.data[0]
 
     return UnifiedConnectionOut(
         id=surface["id"],
@@ -906,18 +855,12 @@ async def create_connection(
     # ── Duplicate detection ────────────────────────────────────────
     # Block creation if an identical access surface already exists.
     # "Identical" = same project + provider + path + key config fields.
-    sb = _get_client()
+    surfaces = AccessSurfaceRepository()
     existing = []
     existing_scopes: dict[str, dict] = {}
     if provider != "direct":
-        existing = (
-            sb.table("access_surfaces")
-            .select("*")
-            .eq("project_id", payload.project_id)
-            .eq("kind", provider)
-            .execute()
-        ).data or []
-        existing_scopes = _scope_rows_for_surfaces(sb, existing)
+        existing = surfaces.list_by_project(payload.project_id, kind=provider)
+        existing_scopes = surfaces.scope_rows_for(existing)
 
     for ex in existing:
         ex_scope = existing_scopes.get(ex.get("scope_id")) or {}
@@ -949,7 +892,7 @@ async def create_connection(
         entitlement_service.require_capacity(
             project.org_id,
             "access_surfaces.max_per_project",
-            current_count=_count_user_access_surfaces_for_project(sb, payload.project_id),
+            current_count=surfaces.count_user_surfaces_by_project(payload.project_id),
         )
 
     try:

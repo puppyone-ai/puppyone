@@ -3,16 +3,16 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from types import MethodType, SimpleNamespace
 
 import pytest
 
-from mcp_service.cache import CacheManager
 from src.config import settings
 from src.connectors.agent.config.repository import AgentRepository
 from src.connectors.sandbox_endpoint.repository import SandboxEndpointRepository
 from src.repo.access_credentials import AccessCredentialRepository, access_token_hash
+from src.repo.scope_repository import RepoScopeRepository
 
 
 class _MemoryQuery:
@@ -145,29 +145,6 @@ def test_hashing_never_falls_back_to_jwt_or_internal_secret(monkeypatch):
         access_token_hash("mcp_example")
 
 
-def test_mcp_cache_key_never_contains_bearer_token():
-    token = "mcp_super-secret-token"
-    key = CacheManager._get_config_key(token)
-    assert token not in key
-    assert key.startswith("mcp:config:sha256:")
-
-
-@pytest.mark.asyncio
-async def test_mcp_cache_can_revoke_all_tokens_for_one_surface():
-    await CacheManager.clear_all()
-    first = "mcp_first-token"
-    second = "mcp_second-token"
-    config = {"agent": {"id": "surface-1"}}
-    await CacheManager.set_config(first, config)
-    await CacheManager.set_config(second, config)
-
-    assert await CacheManager.get_config(first) == config
-    assert await CacheManager.get_config(second) == config
-    assert await CacheManager.invalidate_surface("surface-1") == 2
-    assert await CacheManager.get_config(first) is None
-    assert await CacheManager.get_config(second) is None
-
-
 def test_credential_rotation_revokes_old_hash_and_never_stores_plaintext():
     client = _MemoryClient(access_surface_credentials=[])
     repo = AccessCredentialRepository(client)
@@ -191,6 +168,59 @@ def test_credential_rotation_revokes_old_hash_and_never_stores_plaintext():
     assert repo.get_active_by_token(new) is not None
 
 
+def test_expired_scope_session_credential_is_rejected():
+    client = _MemoryClient(
+        access_surfaces=[_surface(kind="cli")],
+        access_surface_credentials=[],
+        repo_scopes=[{
+            "id": "scope-1",
+            "project_id": "project-1",
+            "name": "Root",
+            "path": "",
+            "exclude": [],
+            "mode": "rw",
+            "is_root": True,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }],
+    )
+    credentials = AccessCredentialRepository(client)
+    token = credentials.issue_bearer_token(
+        access_surface_id="surface-1",
+        org_id="org-1",
+        project_id="project-1",
+        prefix="cli",
+        revoke_existing=False,
+        expires_at=datetime.now(timezone.utc) - timedelta(seconds=1),
+    )
+
+    assert credentials.get_active_by_token(token) is None
+    assert RepoScopeRepository(client).get_by_access_key(token) is None
+
+
+def test_scope_credential_resolves_via_cli_access_surface_only():
+    now = datetime.now(timezone.utc).isoformat()
+    client = _MemoryClient(
+        access_surfaces=[_surface(kind="cli")],
+        access_surface_credentials=[],
+        repo_scopes=[{
+            "id": "scope-1", "project_id": "project-1", "name": "Root",
+            "path": "", "exclude": [], "mode": "rw", "is_root": True,
+            "created_at": now, "updated_at": now,
+        }],
+    )
+    token = AccessCredentialRepository(client).issue_bearer_token(
+        access_surface_id="surface-1",
+        org_id="org-1",
+        project_id="project-1",
+        prefix="cli",
+    )
+
+    scope = RepoScopeRepository(client).get_by_access_key(token)
+    assert scope and scope.id == "scope-1"
+    assert token not in repr(client.tables)
+
+
 def test_agent_issues_once_authenticates_by_hash_and_revokes_old_token():
     surface = _surface(config={"name": "Agent", "scope": {"path": "", "mode": "rw"}})
     client = _MemoryClient(access_surfaces=[surface], access_surface_credentials=[])
@@ -210,12 +240,13 @@ def test_agent_issues_once_authenticates_by_hash_and_revokes_old_token():
     updated = repo.update("surface-1", description="updated")
     assert updated and updated.mcp_enabled is True
     assert updated.mcp_api_key is None
-    assert repo.get_by_mcp_api_key(issued).id == "surface-1"
+    credentials = AccessCredentialRepository(client)
+    assert credentials.get_active_by_token(issued)["access_surface_id"] == "surface-1"
 
     replacement = repo.regenerate_mcp_api_key("surface-1")
     assert replacement and replacement != issued
-    assert repo.get_by_mcp_api_key(issued) is None
-    assert repo.get_by_mcp_api_key(replacement).id == "surface-1"
+    assert credentials.get_active_by_token(issued) is None
+    assert credentials.get_active_by_token(replacement)["access_surface_id"] == "surface-1"
 
 
 def test_sandbox_issues_once_and_exec_lookup_rejects_revoked_token(monkeypatch):

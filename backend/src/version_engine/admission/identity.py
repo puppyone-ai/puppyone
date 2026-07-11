@@ -157,7 +157,7 @@ class PuppyOneAuthenticator:
             return False
 
     def _try_access_key(self, key: str, project_id: str) -> dict | None:
-        """Resolve an access_key against the canonical repo_scopes table.
+        """Resolve an access key through canonical access-surface credentials.
 
         Scopes own their keys directly. There is no config-scope fallback
         here because accepting two auth sources creates two policy models
@@ -172,7 +172,7 @@ class PuppyOneAuthenticator:
             return None
         if scope.get("project_id") != project_id:
             log_warning(
-                f"[Auth] access_key project mismatch (repo_scopes): "
+                f"[Auth] access_key project mismatch (access surface scope): "
                 f"url_project={project_id} key_project={scope.get('project_id')}"
             )
             return None
@@ -180,7 +180,7 @@ class PuppyOneAuthenticator:
 
     # ── Key management ──
     #
-    # Key revocation uses repo_scopes.access_key_revoked_at. The public
+    # Key revocation uses access_surface_credentials.status. The public
     # endpoint is POST /api/v1/projects/{pid}/scopes/{sid}/regenerate-key
     # (see src/repo/scope_router.py).
 

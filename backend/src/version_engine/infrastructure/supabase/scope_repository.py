@@ -22,44 +22,30 @@ def find_scope_by_access_key(
     supabase: SupabaseClient,
     access_key: str,
 ) -> dict | None:
-    """Look up the ``repo_scopes`` row that owns ``access_key``.
+    """Resolve a scope credential through ``access_surface_credentials``.
 
     L2 identity + L1 access-point routing both need this lookup, and the
     SQL used to be duplicated between them. The repository module is the
     single source of truth so that revocation handling, column selection,
     and project_id checks live in one place.
 
-    Returns the full row including ``access_key_revoked_at`` so callers
-    can decide whether to honor or reject the credential. Returns
+    Revoked credentials are filtered by the credential repository. Returns
     ``None`` when the key is unknown; callers translate that to a 401.
     """
     try:
-        select_cols = "id, project_id, path, exclude, mode, access_key_revoked_at"
-        from src.repo.access_credentials import access_token_hash
+        from src.repo.scope_repository import RepoScopeRepository
 
-        resp = (
-            supabase.client.table("repo_scopes")
-            .select(select_cols)
-            .eq("access_key_hash", access_token_hash(access_key))
-            .limit(1)
-            .execute()
-        )
-        rows = safe_data(resp)
-        if rows:
-            return rows[0]
-
-        resp = (
-            supabase.client.table("repo_scopes")
-            .select(select_cols)
-            .eq("access_key", access_key)
-            .is_("access_key_hash", "null")
-            .limit(1)
-            .execute()
-        )
-        rows = safe_data(resp)
-        if not rows:
+        scope = RepoScopeRepository(supabase.client).get_by_access_key(access_key)
+        if scope is None:
             return None
-        return rows[0]
+        return {
+            "id": scope.id,
+            "project_id": scope.project_id,
+            "path": scope.path,
+            "exclude": scope.exclude,
+            "mode": scope.mode,
+            "access_key_revoked_at": None,
+        }
     except Exception as e:
         log_error(f"[scope_repository] find_scope_by_access_key failed: {e}")
         return None
@@ -70,7 +56,7 @@ class SupabaseScopeBackend(ScopeBackend):
 
     Each row is the canonical scope record:
       - path / exclude / mode are real columns (not JSONB extraction)
-      - access_key on the same row drives scoped version access
+      - machine credentials live hash-only in access_surface_credentials
     """
 
     TABLE = "repo_scopes"

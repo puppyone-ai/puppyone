@@ -1,9 +1,9 @@
 """Generalized sandbox provider abstraction for scope-keyed Access sandboxes.
 
-This is the V2 "sandbox as access point" provider interface (see
-docs/proposals/PUP-sandbox-access-point.md). It is intentionally separate from
-the legacy JSON-edit ``infra.sandbox.SandboxBase`` (which models one-shot
-``exec`` against ``/workspace/data.json``).
+This is the long-lived workspace provider interface (see
+docs/proposals/PUP-sandbox-access-point.md). Request-scoped JSON/file execution
+is the sibling ``scope_sandbox.execution`` mode; both live behind this product
+subsystem and share the central execution policy.
 
 A provider here manages a long-lived, scope-keyed sandbox with an explicit
 three-state lifecycle so the session manager can trade warm cost against cold

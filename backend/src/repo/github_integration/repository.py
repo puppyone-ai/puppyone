@@ -168,8 +168,8 @@ class GithubSyncLogRepository:
             "direction": direction,
             "status": status,
             "git_sha": git_sha,
-            # DB column rename is deferred; keep the historical column name
-            # behind this repository boundary.
+            # Canonical physical column is isolated behind this repository
+            # constant; rollout compatibility is handled by the DB trigger.
             GITHUB_SYNC_VERSION_COLUMN: version_commit_id,
             "error_message": error_message,
             "files_changed": files_changed,

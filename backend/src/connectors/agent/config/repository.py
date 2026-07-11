@@ -351,44 +351,6 @@ class AgentRepository:
                 return self._agent_from_row(row)
         return None
 
-    def get_by_mcp_api_key(self, mcp_api_key: str) -> Optional[Agent]:
-        credential = self._credentials.get_active_by_token(mcp_api_key)
-        if credential:
-            response = self._query().eq("id", credential["access_surface_id"]).execute()
-            if response.data:
-                return _row_to_agent(
-                    response.data[0],
-                    credential=credential,
-                    plaintext_mcp_api_key=mcp_api_key,
-                )
-
-        # Bounded migration fallback: only accept a legacy config key when the
-        # surface has no active hashed credential. New rows never contain this
-        # config field, and backfilled rows are therefore ineligible.
-        response = (
-            self._query()
-            .filter("config->>mcp_api_key", "eq", mcp_api_key)
-            .execute()
-        )
-        if response.data:
-            row = response.data[0]
-            if self._credentials.get_active_by_surface(row["id"]):
-                return None
-            return _row_to_agent(row, plaintext_mcp_api_key=mcp_api_key)
-        return None
-
-    def get_by_mcp_api_key_with_accesses(self, mcp_api_key: str) -> Optional[Agent]:
-        agent = self.get_by_mcp_api_key(mcp_api_key)
-        if agent is None:
-            return None
-        row_response = self._query().eq("id", agent.id).execute()
-        if not row_response.data:
-            return None
-        row = row_response.data[0]
-        agent.bash_accesses = _scope_to_bash(agent.id, row.get("config") or {})
-        agent.tools = self.get_tools_by_agent_id_for_mcp(agent.id)
-        return agent
-
     def create(
         self,
         project_id: str,
@@ -740,6 +702,19 @@ class AgentRepository:
             .execute()
         )
         return [_row_to_tool(row) for row in response.data]
+
+    def list_access_point_ids_by_tool(self, tool_id: str) -> list[str]:
+        response = (
+            self._client.table("access_tools")
+            .select("access_point_id")
+            .eq("tool_id", tool_id)
+            .execute()
+        )
+        return list(dict.fromkeys(
+            row["access_point_id"]
+            for row in (response.data or [])
+            if row.get("access_point_id")
+        ))
 
     def get_tools_by_agent_id_for_mcp(self, agent_id: str) -> List[AgentTool]:
         response = (

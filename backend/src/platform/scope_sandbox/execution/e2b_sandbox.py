@@ -1,4 +1,4 @@
-"""E2B cloud sandbox implementation"""
+"""E2B cloud sandbox implementation."""
 
 import asyncio
 import inspect

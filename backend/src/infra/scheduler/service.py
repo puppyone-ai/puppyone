@@ -200,20 +200,12 @@ class SchedulerService:
             return
 
         try:
-            from src.infra.supabase.client import SupabaseClient
-
-            client = SupabaseClient().client
-
-            result = (
-                client.table("access_surfaces")
-                .select("*")
-                .eq("kind", "agent")
-                .eq("status", "active")
-                .execute()
-            )
+            from src.repo.access_surface_repository import AccessSurfaceRepository
 
             agents = [
-                row for row in (result.data or [])
+                row for row in AccessSurfaceRepository().list_all(
+                    kind="agent", status="active"
+                )
                 if (row.get("config") or {}).get("type") == "schedule"
                 and ((row.get("config") or {}).get("trigger") or {}).get("type")
                 in {"cron", "scheduled"}

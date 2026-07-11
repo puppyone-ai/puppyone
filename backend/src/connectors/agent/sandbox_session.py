@@ -1,14 +1,14 @@
 """
-Agent sandbox session management — reuse version-backed sandboxes across chat messages.
+Request-scoped agent sandbox write-back state.
 
 Each AgentSandboxSession holds a InProcessVersionClient that was cloned once at
-session start. When the session ends (explicit or idle timeout), the client
-pushes modified files back through the Write Engine.
+request start. Before the response ends, it pushes modified files through the
+Write Engine and destroys the sandbox.
 
 Lifecycle:
   1. Agent chat starts → clone version scope → mount in sandbox → register session
-  2. Subsequent messages → reuse same sandbox + version client (touch heartbeat)
-  3. Chat ends / idle timeout → read changed files → client.push() → destroy sandbox
+  2. Request completion → read changed files → client.push()
+  3. Destroy sandbox; the next turn starts from the new canonical head
 """
 
 from __future__ import annotations
@@ -124,9 +124,10 @@ class AgentSandboxSession:
 
 
 class AgentSandboxRegistry:
-    """In-memory registry of active agent sandbox sessions.
+    """Transient registry for state owned by one streaming request.
 
-    Keyed by chat_session_id for O(1) lookup on each message.
+    Entries are removed before request completion. Durable sessions belong to
+    ScopeSandboxManager's external store.
     """
 
     def __init__(self):

@@ -688,20 +688,17 @@ class AgentService:
             sandbox_parent_path = ""
 
             chat_key = persisted_session_id or f"agent-{request.agent_id}-{int(time.time() * 1000)}"
-            existing_session = agent_sandbox_registry.get(chat_key)
-
+            # Ephemeral execution is request-scoped. Process-local reuse made
+            # chats worker-affine and left unmanageable sessions after crashes.
+            # Each turn now starts from canonical Version Engine state; durable
+            # long-lived workspaces belong to ScopeSandboxManager instead.
+            existing_session = agent_sandbox_registry.remove(chat_key)
             if existing_session:
-                sandbox_session_id = existing_session.sandbox_session_id
-                agent_sandbox_registry.touch(chat_key)
-
-                status = await sandbox_service.status(sandbox_session_id)
-                if status.get("active"):
-                    start_result = {"success": True}
-                    logger.info(f"[Agent] Reusing sandbox {sandbox_session_id} for session {chat_key}")
-                else:
-                    agent_sandbox_registry.remove(chat_key)
-                    existing_session = None
-                    logger.info(f"[Agent] Sandbox {sandbox_session_id} expired, creating new one")
+                try:
+                    await sandbox_service.stop(existing_session.sandbox_session_id)
+                except Exception:
+                    pass
+                existing_session = None
 
             if not existing_session:
                 sandbox_session_id = f"agent-{int(time.time() * 1000)}"
@@ -1224,7 +1221,11 @@ class AgentService:
             else:
                 yield {"type": "result", "success": True}
 
-            agent_sandbox_registry.touch(chat_key)
+            agent_sandbox_registry.remove(chat_key)
+            try:
+                await sandbox_service.stop(sandbox_session_id)
+            except Exception as exc:
+                logger.error(f"[Agent] Sandbox cleanup failed: {exc}")
 
         else:
             yield {"type": "result", "success": True}

@@ -18,15 +18,17 @@ def _row_to_scope(row: dict[str, Any]) -> RepoScope:
     return RepoScope(
         id=row["id"],
         project_id=row["project_id"],
-        name=row["name"],
-        path=row["path"],
+        name=row.get("name") or row.get("path") or "Scope",
+        path=row.get("path") or "",
         exclude=row.get("exclude") or [],
-        mode=row["mode"],
+        mode=row.get("mode") or "rw",
         is_root=row.get("is_root", False),
-        access_key=row["access_key"],
-        access_key_revoked_at=_parse_dt(row.get("access_key_revoked_at")),
-        created_at=_parse_dt(row["created_at"]),
-        updated_at=_parse_dt(row["updated_at"]),
+        # Plaintext credentials are one-time service return values and never
+        # hydrate from repo_scopes.
+        access_key="",
+        access_key_revoked_at=None,
+        created_at=_parse_dt(row.get("created_at")),
+        updated_at=_parse_dt(row.get("updated_at")),
     )
 
 
@@ -42,7 +44,8 @@ class RepoScopeRepository:
     TABLE = "repo_scopes"
 
     def __init__(self, supabase_client: Optional[SupabaseClient] = None):
-        self._client = (supabase_client or SupabaseClient()).get_client()
+        owner = supabase_client or SupabaseClient()
+        self._client = owner if callable(getattr(owner, "table", None)) else owner.get_client()
 
     # ── Reads ────────────────────────────────────────────────────────────
 
@@ -58,6 +61,15 @@ class RepoScopeRepository:
         )
         return [_row_to_scope(r) for r in (resp.data or [])]
 
+    def list_paths_by_project(self, project_id: str) -> list[dict[str, str]]:
+        response = (
+            self._client.table(self.TABLE)
+            .select("path")
+            .eq("project_id", project_id)
+            .execute()
+        )
+        return [{"path": row.get("path") or ""} for row in (response.data or [])]
+
     def get(self, scope_id: str) -> Optional[RepoScope]:
         resp = (
             self._client.table(self.TABLE)
@@ -70,37 +82,10 @@ class RepoScopeRepository:
         return _row_to_scope(rows[0]) if rows else None
 
     def get_by_access_key(self, access_key: str) -> Optional[RepoScope]:
-        """Hot path: access-key auth resolves an access_key to its scope.
+        from src.repo.access_surface_repository import AccessSurfaceRepository
 
-        Resolve by HMAC hash first. The plaintext compatibility lookup is
-        eligible only for rows whose hash is NULL, so newly written rows can
-        never silently fall back to plaintext authentication.
-        """
-        from src.repo.access_credentials import access_token_hash
-
-        resp = (
-            self._client.table(self.TABLE)
-            .select("*")
-            .eq("access_key_hash", access_token_hash(access_key))
-            .is_("access_key_revoked_at", "null")
-            .limit(1)
-            .execute()
-        )
-        rows = resp.data or []
-        if rows:
-            return _row_to_scope(rows[0])
-
-        resp = (
-            self._client.table(self.TABLE)
-            .select("*")
-            .eq("access_key", access_key)
-            .is_("access_key_hash", "null")
-            .is_("access_key_revoked_at", "null")
-            .limit(1)
-            .execute()
-        )
-        rows = resp.data or []
-        return _row_to_scope(rows[0]) if rows else None
+        surface = AccessSurfaceRepository(self._client).resolve_scope_credential(access_key)
+        return self.get(surface["scope_id"]) if surface else None
 
     def get_root_scope(self, project_id: str) -> Optional[RepoScope]:
         resp = (
@@ -145,7 +130,6 @@ class RepoScopeRepository:
         exclude: list[str],
         mode: str,
         is_root: bool,
-        access_key: str,
     ) -> RepoScope:
         """Insert a new scope. Access surfaces are created explicitly by
         ScopeService after this row is persisted."""
@@ -156,11 +140,7 @@ class RepoScopeRepository:
             "exclude": exclude,
             "mode": mode,
             "is_root": is_root,
-            "access_key": access_key,
         }
-        from src.repo.access_credentials import access_token_hash
-
-        row["access_key_hash"] = access_token_hash(access_key)
         resp = self._client.table(self.TABLE).insert(row).execute()
         return _row_to_scope(resp.data[0])
 
@@ -190,24 +170,6 @@ class RepoScopeRepository:
         rows = resp.data or []
         return _row_to_scope(rows[0]) if rows else None
 
-    def regenerate_access_key(self, scope_id: str, new_key: str) -> bool:
-        """Atomic: mark old key revoked AND set new key. We reuse the same
-        column (no separate history table) so old-key auth fails immediately."""
-        patch: dict[str, Any] = {
-            "access_key": new_key,
-            "access_key_revoked_at": None,
-        }
-        from src.repo.access_credentials import access_token_hash
-
-        patch["access_key_hash"] = access_token_hash(new_key)
-        resp = (
-            self._client.table(self.TABLE)
-            .update(patch)
-            .eq("id", scope_id)
-            .execute()
-        )
-        return bool(resp.data)
-
     def delete(self, scope_id: str) -> bool:
         """Hard delete. The DB cascades scope-bound access surfaces.
         Service layer is responsible for refusing to delete root scopes."""
@@ -218,3 +180,17 @@ class RepoScopeRepository:
             .execute()
         )
         return bool(resp.data)
+
+    def update_path(self, scope_id: str, path: str) -> bool:
+        """Infrastructure hook for a committed folder move.
+
+        User-facing path changes still go through ScopeService; this narrow
+        method keeps post-commit referential maintenance inside the repository.
+        """
+        response = (
+            self._client.table(self.TABLE)
+            .update({"path": path})
+            .eq("id", scope_id)
+            .execute()
+        )
+        return bool(response.data)

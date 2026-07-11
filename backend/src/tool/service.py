@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from src.exceptions import BusinessException, ErrorCode, NotFoundException
-from src.infra.mcp_server.cache_invalidator import invalidate_mcp_surface_cache
+from src.connectors.mcp_cache import invalidate_mcp_surface_cache
 from src.infra.supabase.dependencies import get_supabase_repository
 from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
 from src.platform.project.service import ProjectService
@@ -43,9 +43,9 @@ class ToolCreateParams:
 @lru_cache(maxsize=64)
 def _get_default_tool_description(tool_type: str) -> str | None:
     """
-    Read default tool description from `src/infra/mcp_server/description/{tool_type}.txt` (used as default for Tool.description).
+    Read the tool-owned default description for ``tool_type``.
     """
-    desc_dir = Path(__file__).resolve().parents[1] / "infra" / "mcp_server" / "description"
+    desc_dir = Path(__file__).resolve().parent / "descriptions"
     p = desc_dir / f"{tool_type}.txt"
     if not p.exists():
         return None
@@ -118,17 +118,10 @@ class ToolService:
         from src.connectors.agent.config.repository import AgentRepository
 
         try:
-            response = self._get_supabase_repository()._client.table("access_tools").select("access_point_id").eq("tool_id", tool_id).execute()
-            if not response.data:
-                return
-
             agent_repo = AgentRepository()
             seen_surfaces = set()
 
-            for row in response.data:
-                conn_id = row.get("access_point_id")
-                if not conn_id:
-                    continue
+            for conn_id in agent_repo.list_access_point_ids_by_tool(tool_id):
                 agent = agent_repo.get_by_id(conn_id)
                 if not agent or not agent.mcp_enabled:
                     continue
@@ -165,16 +158,9 @@ class ToolService:
         from src.connectors.agent.config.repository import AgentRepository
 
         try:
-            response = self._get_supabase_repository()._client.table("access_tools").select("access_point_id").eq("tool_id", tool_id).execute()
-            if not response.data:
-                return
-
             agent_repo = AgentRepository()
 
-            for row in response.data:
-                conn_id = row.get("access_point_id")
-                if not conn_id:
-                    continue
+            for conn_id in agent_repo.list_access_point_ids_by_tool(tool_id):
                 agent_tools = agent_repo.get_tools_by_agent_id(conn_id)
                 self._check_sibling_name_conflict(tool_id, user_id, new_name, conn_id, agent_tools)
         except BusinessException:

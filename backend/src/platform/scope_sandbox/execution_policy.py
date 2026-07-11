@@ -1,4 +1,4 @@
-"""Shared command-safety policy for sandbox execution (ISSUE-009).
+"""Shared command-safety policy for every sandbox execution mode (ISSUE-009).
 
 Both the sandbox HTTP endpoint (``connectors/sandbox_endpoint``) and the agent
 bash tool (``connectors/agent``) route execution through

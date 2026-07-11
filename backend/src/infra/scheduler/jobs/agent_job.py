@@ -31,7 +31,7 @@ async def _execute_agent_task_async(agent_id: str) -> dict:
     from src.infra.supabase.client import SupabaseClient
     from src.connectors.agent.service import AgentService
     from src.connectors.agent.config.service import AgentConfigService
-    from src.infra.sandbox.service import SandboxService
+    from src.platform.scope_sandbox.execution.service import SandboxService
 
     started_at = datetime.now(timezone.utc)
     execution_id: Optional[str] = None
@@ -41,15 +41,9 @@ async def _execute_agent_task_async(agent_id: str) -> dict:
     try:
         db_client = SupabaseClient().client
 
-        agent_result = (
-            db_client.table("access_surfaces")
-            .select("*, project:project_id(created_by, org_id)")
-            .eq("id", agent_id)
-            .eq("kind", "agent")
-            .single()
-            .execute()
-        )
-        agent = agent_result.data
+        from src.repo.access_surface_repository import AccessSurfaceRepository
+
+        agent = AccessSurfaceRepository(db_client).get_agent_with_project(agent_id)
 
         if not agent:
             log_error(f"Agent {agent_id} not found")

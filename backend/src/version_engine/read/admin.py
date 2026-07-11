@@ -77,10 +77,10 @@ class VersionAdminService:
     ) -> list[dict]:
         """Get commit history ordered by ``(created_at ASC, commit_id ASC)``.
 
-        Contract: linear ASC order (oldest first). When ``limit > 0`` we return the
-        *newest* ``limit`` commits (the tail of the ASC list), not the
-        oldest — so callers asking for "latest 50" actually get the
-        most recent 50.
+        Contract: linear ASC order (oldest first). Without an anchor, a
+        positive limit returns the newest commits for history UIs. With
+        ``since_commit_id``, it returns the first page immediately after the
+        anchor so reconnect/catch-up callers cannot skip an oversized gap.
 
         When *path* is specified we need to fetch a larger batch from
         the DB because the SQL query returns all commits (not just
@@ -106,7 +106,7 @@ class VersionAdminService:
                 if any(c.get("path") == path for c in e.get("changes", []))
             ]
 
-        if limit > 0:
+        if limit > 0 and not since_commit_id:
             # entries is ASC (oldest first) — keep the *tail* so callers
             # asking for "latest 50" see the most recent visible changes,
             # not technical projections or the oldest rows.

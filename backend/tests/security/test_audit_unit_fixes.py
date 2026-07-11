@@ -12,9 +12,6 @@ import asyncio
 import json
 import os
 import shutil
-import time
-
-import jwt
 import pytest
 
 
@@ -22,7 +19,7 @@ import pytest
 
 class TestCommandPolicy:
     def _mod(self):
-        from src.infra.sandbox import command_policy
+        from src.platform.scope_sandbox import execution_policy as command_policy
         return command_policy
 
     @pytest.mark.parametrize("cmd", [
@@ -102,87 +99,6 @@ class TestCasBackoff:
         assert response.headers["retry-after"] == "1"
         assert payload["code"] == ErrorCode.CAS_RETRY_EXHAUSTED
         assert payload["data"]["retryable"] is True
-
-
-# ── ISSUE-007: MCP token expiry ─────────────────────────────────────────────
-
-class TestMcpTokenExpiry:
-    def _service(self):
-        from src.infra.mcp_server.service import McpService
-        # Token methods use only settings + jwt; the repo is never touched.
-        return McpService(instance_repo=None)  # type: ignore[arg-type]
-
-    def test_token_carries_exp_by_default(self, monkeypatch):
-        from src.config import settings
-
-        monkeypatch.setattr(settings, "MCP_TOKEN_TTL_SECONDS", 3600, raising=False)
-        monkeypatch.setattr(settings, "MCP_TOKEN_SECRET", "m" * 40, raising=False)
-        token = self._service().generate_mcp_token("u1", "p1", "t1", "")
-
-        claims = jwt.decode(
-            token,
-            "m" * 40,
-            algorithms=[settings.JWT_ALGORITHM],
-            audience=settings.MCP_TOKEN_AUDIENCE,
-        )
-        assert "exp" in claims
-        assert "iat" in claims
-        assert claims["aud"] == settings.MCP_TOKEN_AUDIENCE
-        # exp ~ now + ttl (allow generous skew)
-        assert abs(claims["exp"] - (time.time() + 3600)) < 120
-
-    def test_ttl_zero_refuses_to_issue(self, monkeypatch):
-        from src.config import settings
-        from src.exceptions import AuthException
-
-        monkeypatch.setattr(settings, "MCP_TOKEN_TTL_SECONDS", 0, raising=False)
-        monkeypatch.setattr(settings, "MCP_TOKEN_SECRET", "m" * 40, raising=False)
-        with pytest.raises(AuthException):
-            self._service().generate_mcp_token("u1", "p1", "t1", "")
-
-    def test_expired_token_is_rejected(self, monkeypatch):
-        from src.config import settings
-        from src.exceptions import AuthException
-
-        monkeypatch.setattr(settings, "MCP_TOKEN_SECRET", "m" * 40, raising=False)
-        # Craft an already-expired token directly.
-        expired = jwt.encode(
-            {"user_id": "u", "project_id": "p", "table_id": "t",
-             "json_pointer": "", "aud": settings.MCP_TOKEN_AUDIENCE,
-             "iat": int(time.time()) - 20, "exp": int(time.time()) - 10},
-            "m" * 40, algorithm=settings.JWT_ALGORITHM,
-        )
-        with pytest.raises(AuthException):
-            self._service().decode_mcp_token(expired)
-
-    def test_cross_purpose_tokens_are_rejected_both_directions(self, monkeypatch):
-        from src.config import settings
-        from src.exceptions import AuthException
-
-        monkeypatch.setattr(settings, "JWT_SECRET", "s" * 40, raising=False)
-        monkeypatch.setattr(settings, "MCP_TOKEN_SECRET", "m" * 40, raising=False)
-        monkeypatch.setattr(settings, "MCP_TOKEN_TTL_SECONDS", 3600, raising=False)
-        mcp_token = self._service().generate_mcp_token("u", "p", "t")
-        session_token = jwt.encode(
-            {
-                "sub": "u",
-                "aud": "authenticated",
-                "iat": int(time.time()),
-                "exp": int(time.time()) + 3600,
-            },
-            "s" * 40,
-            algorithm=settings.JWT_ALGORITHM,
-        )
-
-        with pytest.raises(AuthException):
-            self._service().decode_mcp_token(session_token)
-        with pytest.raises(jwt.InvalidTokenError):
-            jwt.decode(
-                mcp_token,
-                "s" * 40,
-                algorithms=[settings.JWT_ALGORITHM],
-                audience="authenticated",
-            )
 
 
 # ── ISSUE-002: credential masking helpers (pure) ────────────────────────────

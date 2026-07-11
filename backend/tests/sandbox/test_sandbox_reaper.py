@@ -44,7 +44,7 @@ async def test_reaper_calls_writeback_and_destroy(monkeypatch):
         lambda: _FakeRegistry(),
     )
     monkeypatch.setattr(
-        "src.infra.sandbox.dependencies.get_sandbox_service",
+        "src.platform.scope_sandbox.execution.dependencies.get_sandbox_service",
         lambda: sandbox_service,
     )
 

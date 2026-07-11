@@ -1,4 +1,4 @@
-"""Docker sandbox implementation"""
+"""Docker sandbox implementation."""
 
 import asyncio
 import json

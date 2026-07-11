@@ -45,10 +45,6 @@ class AgentConfigService:
             agent.bash_accesses = self._repo.get_bash_by_agent_id(agent.id)
         return agent
 
-    def get_by_mcp_api_key(self, mcp_api_key: str) -> Optional[Agent]:
-        """Get Agent by MCP API key (with accesses)."""
-        return self._repo.get_by_mcp_api_key_with_accesses(mcp_api_key)
-
     def verify_access(self, agent_id: str, user_id: str) -> bool:
         """Verify whether the user has permission to access the specified Agent (via project check)."""
         return self._repo.verify_access(agent_id, user_id)

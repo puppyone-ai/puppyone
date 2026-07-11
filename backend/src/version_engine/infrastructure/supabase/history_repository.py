@@ -415,98 +415,129 @@ class SupabaseHistoryManager:
         """
 
         roots: list[str] = []
-        try:
-            data = (
-                self._client.table("projects")
-                .select(PROJECT_ROOT_HASH_COLUMN)
-                .eq("id", self._project_id)
-                .maybe_single()
-                .execute()
-            )
-            project = _safe_data(data) or {}
-            roots.append(project.get(PROJECT_ROOT_HASH_COLUMN, ""))
-        except Exception as exc:  # noqa: BLE001
-            log_error(f"[VersionHistory] object GC project roots failed: {exc}")
+        data = (
+            self._client.table("projects")
+            .select(PROJECT_ROOT_HASH_COLUMN)
+            .eq("id", self._project_id)
+            .maybe_single()
+            .execute()
+        )
+        project = _safe_data(data) or {}
+        roots.append(project.get(PROJECT_ROOT_HASH_COLUMN, ""))
 
-        try:
-            for row in _select_all(
-                self._client,
-                self.SCOPE_STATE_TABLE,
-                "scope_hash, head_commit_id",
-                project_id=self._project_id,
-            ):
-                roots.extend([row.get("scope_hash", ""), row.get("head_commit_id", "")])
-        except Exception as exc:  # noqa: BLE001
-            log_error(f"[VersionHistory] object GC scope roots failed: {exc}")
+        for row in _select_all(
+            self._client,
+            self.SCOPE_STATE_TABLE,
+            "scope_hash, head_commit_id",
+            project_id=self._project_id,
+        ):
+            roots.extend([row.get("scope_hash", ""), row.get("head_commit_id", "")])
 
-        try:
-            for row in _select_all(
-                self._client,
-                self.TABLE,
-                "commit_id, root_hash, scope_hash",
-                project_id=self._project_id,
-            ):
-                roots.extend([
-                    row.get("commit_id", ""),
-                    row.get("root_hash", ""),
-                    row.get("scope_hash", ""),
-                ])
-        except Exception as exc:  # noqa: BLE001
-            log_error(f"[VersionHistory] object GC history roots failed: {exc}")
+        for row in _select_all(
+            self._client,
+            self.TABLE,
+            "commit_id, root_hash, scope_hash",
+            project_id=self._project_id,
+        ):
+            roots.extend([
+                row.get("commit_id", ""),
+                row.get("root_hash", ""),
+                row.get("scope_hash", ""),
+            ])
 
         return roots
 
     def list_version_index_roots(self) -> list[dict]:
         """Return persistent subtree/history graft roots for object GC."""
 
-        try:
-            return _select_all(
-                self._client,
-                VERSION_INDEX_TABLE,
-                (
-                    "source_commit_id, source_scope_hash, "
-                    "project_root_hash, project_view_commit_id"
-                ),
-                project_id=self._project_id,
-            )
-        except Exception as exc:  # noqa: BLE001
-            log_warning(f"[VersionHistory] object GC version-index roots unavailable: {exc}")
-            return []
+        return _select_all(
+            self._client,
+            VERSION_INDEX_TABLE,
+            (
+                "source_commit_id, source_scope_hash, "
+                "project_root_hash, project_view_commit_id"
+            ),
+            project_id=self._project_id,
+        )
 
     def list_pending_outbox_roots(self) -> list[dict]:
         """Return unprocessed durable side-effect rows that must pin objects."""
 
-        try:
-            return _select_all_query(
-                lambda: (
-                    self._client.table(VERSION_OUTBOX_TABLE)
-                    .select("commit_id, payload")
-                    .eq("project_id", self._project_id)
-                    .is_("processed_at", "null")
-                )
+        return _select_all_query(
+            lambda: (
+                self._client.table(VERSION_OUTBOX_TABLE)
+                .select("commit_id, payload")
+                .eq("project_id", self._project_id)
+                .is_("processed_at", "null")
             )
-        except Exception as exc:  # noqa: BLE001
-            log_warning(f"[VersionHistory] object GC outbox roots unavailable: {exc}")
-            return []
+        )
 
     def list_pending_conflict_roots(self) -> list[dict]:
         """Return pending conflict metadata that may reference promoted roots."""
 
-        try:
-            return [
-                row.get("metadata") or {}
-                for row in _select_all_query(
-                    lambda: (
-                        self._client.table("audit_logs")
-                        .select("metadata")
-                        .eq("project_id", self._project_id)
-                        .like("action", "%conflict_pending%")
-                    )
+        return [
+            row.get("metadata") or {}
+            for row in _select_all_query(
+                lambda: (
+                    self._client.table("audit_logs")
+                    .select("metadata")
+                    .eq("project_id", self._project_id)
+                    .like("action", "%conflict_pending%")
                 )
-            ]
-        except Exception as exc:  # noqa: BLE001
-            log_warning(f"[VersionHistory] object GC pending-conflict roots unavailable: {exc}")
-            return []
+            )
+        ]
+
+    def list_version_ref_roots(self) -> list[str]:
+        rows = _select_all(
+            self._client,
+            "version_refs",
+            "commit_id",
+            project_id=self._project_id,
+        )
+        return [row.get("commit_id", "") for row in rows]
+
+    def list_shadow_snapshot_roots(self) -> list[str]:
+        rows = _select_all(
+            self._client,
+            "local_shadow_snapshots",
+            "tree_hash",
+            project_id=self._project_id,
+        )
+        return [row.get("tree_hash", "") for row in rows]
+
+    def sync_object_gc_candidates(
+        self,
+        object_ids: list[str],
+        *,
+        now,
+        quarantine_seconds: int,
+    ) -> list[str]:
+        """Atomically reconcile quarantine candidates and return matured ids.
+
+        Objects that became reachable disappear from the registry and are
+        therefore automatically recovered before any physical deletion.
+        """
+
+        response = self._client.rpc(
+            "sync_version_object_gc_candidates",
+            {
+                "p_project_id": self._project_id,
+                "p_object_ids": object_ids,
+                "p_now": now.isoformat(),
+                "p_quarantine_seconds": max(0, int(quarantine_seconds)),
+            },
+        ).execute()
+        rows = _safe_data(response) or []
+        if isinstance(rows, dict):
+            rows = [rows]
+        return [row.get("object_id", "") for row in rows if row.get("object_id")]
+
+    def remove_object_gc_candidates(self, object_ids: list[str]) -> None:
+        if not object_ids:
+            return
+        self._client.table("version_object_gc_candidates").delete().eq(
+            "project_id", self._project_id
+        ).in_("object_id", object_ids).execute()
 
     # ── Scope History Queries ──
 
@@ -700,13 +731,11 @@ class SupabaseHistoryManager:
         version filesystem backend, so both backends
         yield the same linear view.
 
-        When a ``limit`` is supplied, the returned slice is the
-        **newest** ``limit`` commits (matching
-        ``entries[-limit:]`` in the filesystem backend), not the
-        oldest.  We achieve this by pulling rows DESC from Postgres,
-        capping at ``limit``, and reversing in-process — so callers
-        that ask for "latest 50" get the most recent 50 commits in
-        chronological order, not the earliest 50 ever recorded.
+        With no anchor, a supplied ``limit`` returns the newest commits (the
+        history-page contract). With an anchor, it returns the *oldest next*
+        page after that anchor (the catch-up contract). The distinction is
+        essential: tail-limiting an anchored query silently loses commits
+        when a client was offline for more than one page.
         """
         since_entry = None
         if since_commit_id:
@@ -716,15 +745,17 @@ class SupabaseHistoryManager:
                 # leak the full history.
                 return []
 
-        query = (
-            self._client.table(self.TABLE)
-            .select("*")
-            .eq("project_id", self._project_id)
-            # Fetch newest-first so LIMIT keeps the tail; we reverse
-            # below to present the caller with ASC order.
-            .order("created_at", desc=True)
-            .order("commit_id", desc=True)
+        query = self._client.table(self.TABLE).select("*").eq(
+            "project_id", self._project_id
         )
+        if since_entry:
+            query = query.order("created_at").order("commit_id")
+        else:
+            # Fetch newest-first so LIMIT keeps the tail; we reverse below to
+            # present the caller with ASC order.
+            query = query.order("created_at", desc=True).order(
+                "commit_id", desc=True
+            )
 
         if since_entry:
             anchor_time = since_entry.get("created_at", "")
@@ -745,7 +776,8 @@ class SupabaseHistoryManager:
 
         resp = query.execute()
         entries = _safe_data(resp) or []
-        entries.reverse()
+        if not since_entry:
+            entries.reverse()
         for entry in entries:
             _parse_json_fields(entry)
         return entries

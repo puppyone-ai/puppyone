@@ -1,4 +1,4 @@
-"""Sandbox abstract base class definitions"""
+"""Sandbox abstract base class definitions."""
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field

@@ -80,7 +80,12 @@ class AccessCredentialRepository:
             .limit(1)
             .execute()
         )
-        rows = resp.data or []
+        now = datetime.now(timezone.utc)
+        rows = [
+            row for row in (resp.data or [])
+            if not row.get("expires_at")
+            or datetime.fromisoformat(str(row["expires_at"]).replace("Z", "+00:00")) > now
+        ]
         return rows[0] if rows else None
 
     def get_active_by_surface(self, access_surface_id: str) -> Optional[dict[str, Any]]:
@@ -95,7 +100,15 @@ class AccessCredentialRepository:
             .execute()
         )
         rows = resp.data or []
-        return rows[0] if rows else None
+        if not rows:
+            return None
+        row = rows[0]
+        expires_at = row.get("expires_at")
+        if expires_at and datetime.fromisoformat(
+            str(expires_at).replace("Z", "+00:00")
+        ) <= datetime.now(timezone.utc):
+            return None
+        return row
 
     def store_bearer_token(
         self,
@@ -106,6 +119,7 @@ class AccessCredentialRepository:
         raw_token: str,
         created_by: str | None = None,
         revoke_existing: bool = True,
+        expires_at: datetime | None = None,
     ) -> None:
         """Persist a supplied bearer token as hash-only credential state.
 
@@ -117,8 +131,7 @@ class AccessCredentialRepository:
             self.revoke_active(access_surface_id, credential_type="bearer_token")
 
         key_prefix, key_last4 = access_token_metadata(raw_token)
-        self._client.table(CREDENTIALS_TABLE).insert(
-            {
+        payload = {
                 "org_id": org_id,
                 "project_id": project_id,
                 "access_surface_id": access_surface_id,
@@ -130,7 +143,9 @@ class AccessCredentialRepository:
                 "status": "active",
                 "created_by": created_by,
             }
-        ).execute()
+        if expires_at is not None:
+            payload["expires_at"] = expires_at.astimezone(timezone.utc).isoformat()
+        self._client.table(CREDENTIALS_TABLE).insert(payload).execute()
 
     def issue_bearer_token(
         self,
@@ -141,6 +156,7 @@ class AccessCredentialRepository:
         prefix: str,
         created_by: str | None = None,
         revoke_existing: bool = True,
+        expires_at: datetime | None = None,
     ) -> str:
         token = generate_access_token(prefix)
         self.store_bearer_token(
@@ -150,6 +166,7 @@ class AccessCredentialRepository:
             raw_token=token,
             created_by=created_by,
             revoke_existing=revoke_existing,
+            expires_at=expires_at,
         )
         return token
 

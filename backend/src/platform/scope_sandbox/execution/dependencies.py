@@ -1,4 +1,4 @@
-from src.infra.sandbox.service import SandboxService
+from src.platform.scope_sandbox.execution.service import SandboxService
 
 _sandbox_service = None
 

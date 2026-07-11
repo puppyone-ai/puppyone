@@ -1,4 +1,4 @@
-"""Sandbox module."""
+"""Ephemeral execution mode of the unified scope-sandbox subsystem."""
 
 from .base import SandboxBase, SandboxSession
 from .service import SandboxService, get_sandbox_type

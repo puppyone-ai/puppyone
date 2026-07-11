@@ -5,7 +5,8 @@ Provides time-series data for monitoring data egress (context → sandbox).
 Data source: access_logs table (records each time a node is sent to sandbox).
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -52,7 +53,7 @@ class TimeSeriesResponse(BaseModel):
 @router.get("/access-timeseries", response_model=TimeSeriesResponse)
 async def get_access_timeseries(
     project_id: str = Query(..., description="Project to report on (required)"),
-    interval: str = Query("hour", description="'hour' or 'day'"),
+    interval: Literal["hour", "day"] = Query("hour", description="'hour' or 'day'"),
     range_hours: int = Query(168, ge=1, le=_MAX_RANGE_HOURS, description="Hours back (default 7 days)"),
     agent_id: str | None = Query(None),
     node_name: str | None = Query(None),
@@ -67,37 +68,29 @@ async def get_access_timeseries(
     _require_project_access(project_id, current_user.user_id)
     supabase = get_supabase_client()
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     start_time = now - timedelta(hours=range_hours)
-
-    # access_logs identifies the accessed node by node_name (there is no "path"
-    # column in the current schema).
-    query = supabase.table("access_logs") \
-        .select("id, created_at, agent_id, node_name") \
-        .eq("project_id", project_id) \
-        .gte("created_at", start_time.isoformat()) \
-        .order("created_at", desc=False)
-
-    if agent_id:
-        query = query.eq("agent_id", agent_id)
-    if node_name:
-        query = query.eq("node_name", node_name)
-
-    result = query.execute()
-    logs = result.data or []
+    result = supabase.rpc(
+        "analytics_access_timeseries",
+        {
+            "p_project_id": project_id,
+            "p_start_time": start_time.isoformat(),
+            "p_interval": interval,
+            "p_agent_id": agent_id,
+            "p_node_name": node_name,
+        },
+    ).execute()
+    rows = result.data or []
 
     bucket_counts: dict[str, int] = {}
     bucket_hours = 24 if interval == "day" else 1
-
-    for log in logs:
-        created_at = log.get("created_at")
-        if created_at:
-            dt = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
-            if interval == "day":
-                bucket_key = dt.strftime("%Y-%m-%dT00:00:00Z")
-            else:
-                bucket_key = dt.strftime("%Y-%m-%dT%H:00:00Z")
-            bucket_counts[bucket_key] = bucket_counts.get(bucket_key, 0) + 1
+    for row in rows:
+        raw_bucket = row.get("bucket")
+        if not raw_bucket:
+            continue
+        dt = datetime.fromisoformat(str(raw_bucket).replace("Z", "+00:00"))
+        bucket_format = "%Y-%m-%dT00:00:00Z" if interval == "day" else "%Y-%m-%dT%H:00:00Z"
+        bucket_counts[dt.strftime(bucket_format)] = int(row.get("event_count") or 0)
 
     all_buckets: list[TimeSeriesBucket] = []
     current = start_time.replace(minute=0, second=0, microsecond=0)
@@ -118,7 +111,7 @@ async def get_access_timeseries(
         data=all_buckets,
         interval=interval,
         range_hours=range_hours,
-        total=len(logs)
+        total=sum(bucket_counts.values())
     )
 
 
@@ -133,22 +126,16 @@ async def get_access_summary(
     """
     _require_project_access(project_id, current_user.user_id)
     supabase = get_supabase_client()
-    start_time = datetime.utcnow() - timedelta(hours=range_hours)
-
-    result = supabase.table("access_logs") \
-        .select("agent_id, node_name") \
-        .eq("project_id", project_id) \
-        .gte("created_at", start_time.isoformat()) \
-        .execute()
-
-    logs = result.data or []
-
-    unique_agents = len({log["agent_id"] for log in logs if log.get("agent_id")})
-    unique_nodes = len({log["node_name"] for log in logs if log.get("node_name")})
+    start_time = datetime.now(timezone.utc) - timedelta(hours=range_hours)
+    result = supabase.rpc(
+        "analytics_access_summary",
+        {"p_project_id": project_id, "p_start_time": start_time.isoformat()},
+    ).execute()
+    row = (result.data or [{}])[0]
 
     return {
-        "total_accesses": len(logs),
-        "unique_agents": unique_agents,
-        "unique_nodes": unique_nodes,
+        "total_accesses": int(row.get("total_accesses") or 0),
+        "unique_agents": int(row.get("unique_agents") or 0),
+        "unique_nodes": int(row.get("unique_nodes") or 0),
         "range_hours": range_hours,
     }

@@ -15,7 +15,7 @@ from src.connectors.agent.config.models import Agent, AgentTool
 from src.connectors.agent.config.repository import AgentRepository
 from src.tool.repository import ToolRepositoryBase, ToolRepositorySupabase
 from src.infra.supabase.dependencies import get_supabase_repository
-from src.infra.mcp_server.cache_invalidator import invalidate_mcp_surface_cache
+from src.connectors.mcp_cache import invalidate_mcp_surface_cache
 from src.exceptions import NotFoundException, ErrorCode, BusinessException
 
 from .models import McpAgentInfo, McpBoundTool
@@ -38,10 +38,6 @@ class McpV3Service:
     # ============================================
     # Agent MCP Configuration
     # ============================================
-
-    def get_agent_by_mcp_key(self, mcp_api_key: str) -> Optional[Agent]:
-        """Get Agent by MCP API Key (with tools)."""
-        return self._agent_repo.get_by_mcp_api_key_with_accesses(mcp_api_key)
 
     def get_agent_mcp_info(self, agent_id: str, user_id: str) -> McpAgentInfo:
         """Get MCP configuration info for an Agent."""

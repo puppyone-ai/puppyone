@@ -67,7 +67,8 @@ class AccessSurfaceRepository:
     CONNECTIONS = "connections"
 
     def __init__(self, supabase_client: Optional[SupabaseClient] = None):
-        self._client = (supabase_client or SupabaseClient()).get_client()
+        owner = supabase_client or SupabaseClient()
+        self._client = owner if callable(getattr(owner, "table", None)) else owner.get_client()
         self._credentials = AccessCredentialRepository(self._client)
 
     def _project_org_id(self, project_id: str) -> str | None:
@@ -102,17 +103,128 @@ class AccessSurfaceRepository:
         resp = query.order("created_at", desc=False).execute()
         return resp.data or []
 
+    def list_by_projects(
+        self,
+        project_ids: list[str],
+        *,
+        kind: Optional[str] = None,
+        status: Optional[str] = None,
+    ) -> list[dict[str, Any]]:
+        """Multi-project list used by tenant-authorized aggregate views."""
+        if not project_ids:
+            return []
+        query = self._client.table(self.TABLE).select("*")
+        query = (
+            query.eq("project_id", project_ids[0])
+            if len(project_ids) == 1
+            else query.in_("project_id", project_ids)
+        )
+        if kind:
+            if kind not in ACCESS_SURFACE_KINDS:
+                return []
+            query = query.eq("kind", kind)
+        else:
+            query = query.in_("kind", ACCESS_SURFACE_KIND_LIST)
+        if status:
+            query = query.eq("status", status)
+        return query.order("created_at").execute().data or []
+
+    def list_all(
+        self, *, kind: Optional[str] = None, status: Optional[str] = None
+    ) -> list[dict[str, Any]]:
+        query = self._client.table(self.TABLE).select("*")
+        if kind:
+            if kind not in ACCESS_SURFACE_KINDS:
+                return []
+            query = query.eq("kind", kind)
+        else:
+            query = query.in_("kind", ACCESS_SURFACE_KIND_LIST)
+        if status:
+            query = query.eq("status", status)
+        return query.order("created_at").execute().data or []
+
+    def get_agent_with_project(self, surface_id: str) -> Optional[dict[str, Any]]:
+        response = (
+            self._client.table(self.TABLE)
+            .select("*, project:project_id(created_by, org_id)")
+            .eq("id", surface_id)
+            .eq("kind", "agent")
+            .single()
+            .execute()
+        )
+        return response.data
+
+    def list_tool_bindings(
+        self,
+        surface_id: str,
+        *,
+        enabled_only: bool = False,
+        mcp_exposed_only: bool = False,
+    ) -> list[dict[str, Any]]:
+        """Read canonical tool bindings for any access-surface kind."""
+
+        query = (
+            self._client.table("access_tools")
+            .select("*")
+            .eq("access_point_id", surface_id)
+        )
+        if enabled_only:
+            query = query.eq("enabled", True)
+        if mcp_exposed_only:
+            query = query.eq("mcp_exposed", True)
+        return query.order("created_at").execute().data or []
+
+    def count_by_projects_and_kinds(
+        self, project_ids: list[str], kinds: list[str]
+    ) -> dict[str, int]:
+        if not project_ids:
+            return {}
+        valid_kinds = [kind for kind in kinds if kind in ACCESS_SURFACE_KINDS]
+        if not valid_kinds:
+            return {}
+        rows = (
+            self._client.table(self.TABLE)
+            .select("project_id")
+            .in_("project_id", project_ids)
+            .in_("kind", valid_kinds)
+            .execute()
+        ).data or []
+        counts: dict[str, int] = {}
+        for row in rows:
+            project_id = row["project_id"]
+            counts[project_id] = counts.get(project_id, 0) + 1
+        return counts
+
+    def scope_rows_for(self, rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+        """Batch-load scope metadata for surface presentation/duplicate checks."""
+        scope_ids = sorted({row.get("scope_id") for row in rows if row.get("scope_id")})
+        if not scope_ids:
+            return {}
+        response = (
+            self._client.table("repo_scopes").select("*").in_("id", scope_ids).execute()
+        )
+        return {row["id"]: row for row in (response.data or [])}
+
+    def count_user_surfaces_by_project(self, project_id: str) -> int:
+        response = (
+            self._client.table(self.TABLE)
+            .select("id", count="exact")
+            .eq("project_id", project_id)
+            .not_.in_("kind", ["git_remote", "cli"])
+            .execute()
+        )
+        return response.count or 0
+
     def get(self, surface_id: str) -> Optional[dict[str, Any]]:
         resp = (
             self._client.table(self.TABLE)
             .select("*")
             .eq("id", surface_id)
-            .limit(1)
             .execute()
         )
         rows = resp.data or []
         row = rows[0] if rows else None
-        if row and row.get("kind") not in ACCESS_SURFACE_KINDS:
+        if row and row.get("kind", row.get("provider")) not in ACCESS_SURFACE_KINDS:
             return None
         return row
 
@@ -165,16 +277,60 @@ class AccessSurfaceRepository:
         row = self.get_by_scope_kind(scope_id, kind)
         return _row_to_connector(row) if row else None
 
-    def get_agent_connector_by_mcp_key(self, mcp_api_key: str) -> Optional[Connector]:
-        credential = self._credentials.get_active_by_token(mcp_api_key)
-        row = self.get(credential["access_surface_id"]) if credential else None
-        if row is not None and row.get("kind") != "agent":
-            row = None
-        if row is None:
-            legacy = self.get_by_config_key("agent", "mcp_api_key", mcp_api_key)
-            if legacy and not self._credentials.get_active_by_surface(legacy["id"]):
-                row = legacy
-        return _row_to_connector(row) if row else None
+    def resolve_scope_credential(self, raw_token: str) -> Optional[dict[str, Any]]:
+        """Resolve a CLI/Git scope token through the canonical credential table."""
+
+        credential = self._credentials.get_active_by_token(raw_token)
+        if not credential:
+            return None
+        surface = self.get(credential["access_surface_id"])
+        if not surface or surface.get("kind") != "cli":
+            return None
+        return surface
+
+    def store_scope_credential(
+        self,
+        *,
+        scope_id: str,
+        raw_token: str,
+        created_by: str | None = None,
+    ) -> bool:
+        """Store/rotate the shared CLI/Git scope credential hash-only."""
+
+        surface = self.get_by_scope_kind(scope_id, "cli")
+        if not surface:
+            return False
+        self._credentials.store_bearer_token(
+            access_surface_id=surface["id"],
+            org_id=surface.get("org_id") or self._project_org_id(surface["project_id"]),
+            project_id=surface["project_id"],
+            raw_token=raw_token,
+            created_by=created_by,
+            revoke_existing=True,
+        )
+        return True
+
+    def issue_scope_session_credential(
+        self,
+        *,
+        scope_id: str,
+        expires_at: datetime,
+        created_by: str | None = None,
+    ) -> Optional[str]:
+        """Issue a non-disruptive, expiring token for an internal scope session."""
+
+        surface = self.get_by_scope_kind(scope_id, "cli")
+        if not surface:
+            return None
+        return self._credentials.issue_bearer_token(
+            access_surface_id=surface["id"],
+            org_id=surface.get("org_id") or self._project_org_id(surface["project_id"]),
+            project_id=surface["project_id"],
+            prefix="cli",
+            created_by=created_by,
+            revoke_existing=False,
+            expires_at=expires_at,
+        )
 
     # ── Writes ───────────────────────────────────────────────────────────
 
@@ -232,11 +388,7 @@ class AccessSurfaceRepository:
             existing = self.get_by_scope_kind(scope.id, kind)
             if existing:
                 continue
-            config: dict[str, Any] = {
-                "access_key": scope.access_key,
-                "path": scope.path,
-                "mode": scope.mode,
-            }
+            config: dict[str, Any] = {"path": scope.path, "mode": scope.mode}
             if kind in {"git_remote", "cli"}:
                 config["direction"] = "bidirectional"
             self.insert(

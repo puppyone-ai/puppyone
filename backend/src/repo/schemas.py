@@ -46,7 +46,7 @@ class ScopeOut(BaseModel):
     exclude: list[str]
     mode: ModeLiteral
     is_root: bool
-    access_key: Optional[str] = None      # populated only for callers with admin/editor on the project
+    access_key: Optional[str] = None      # one-time create/regenerate response only
     access_key_revoked: bool = False
     created_at: datetime
     updated_at: datetime
@@ -72,7 +72,7 @@ class RepoIdentityScopeOut(BaseModel):
     name: str
     path: str
     is_root: bool
-    access_key: Optional[str] = None      # only visible to admin/editor
+    access_key: Optional[str] = None      # ordinary identity reads always redact it
 
 
 class RepoIdentityOut(BaseModel):

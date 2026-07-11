@@ -13,7 +13,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from src.infra.mcp_server.dependencies import get_mcp_instance_service
+from src.infra.mcp_health import get_mcp_health_client
 
 # Record application start time
 APP_START_TIME = time.time()
@@ -204,9 +204,7 @@ async def _init_mcp_health_check() -> None:
     mcp_init_start = time.time()
     try:
         log_info("🔌 Checking MCP Server health status...")
-        from src.infra.mcp_server.dependencies import get_mcp_instance_service
-
-        mcp_service = get_mcp_instance_service()
+        mcp_service = get_mcp_health_client()
         health_result = await mcp_service.check_mcp_server_health()
         mcp_duration = time.time() - mcp_init_start
         if health_result.get("status", "") != "unhealthy":
@@ -645,7 +643,7 @@ async def live_check():
 @app.get("/ready")
 async def ready_check(
     response: Response,
-    mcp_service=Depends(get_mcp_instance_service),
+    mcp_service=Depends(get_mcp_health_client),
 ):
     """Readiness: indicates whether the service can accept traffic."""
     report = await _build_readiness_report(mcp_service)

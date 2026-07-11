@@ -215,12 +215,11 @@ def _scope_paths_and_keys_by_id(sb, scope_ids: list[str]) -> dict[str, dict]:
     if not ids:
         return {}
     try:
-        rows = (
-            sb.table("repo_scopes")
-            .select("id, path, access_key")
-            .in_("id", ids)
-            .execute()
-        ).data or []
+        from src.repo.access_surface_repository import AccessSurfaceRepository
+
+        rows = AccessSurfaceRepository(sb).scope_rows_for(
+            [{"scope_id": scope_id} for scope_id in ids]
+        ).values()
     except Exception:
         logger.exception("[Dashboard] repo_scopes lookup failed")
         return {}
@@ -274,15 +273,9 @@ def _fetch_connections(sb, project_id: str) -> list[DashboardConnection]:
         .order("created_at")
         .execute()
     ).data or []
-    access_rows = (
-        sb.table("access_surfaces")
-        .select(
-            "id, kind, name, status, config, scope_id, created_at, updated_at"
-        )
-        .eq("project_id", project_id)
-        .order("created_at")
-        .execute()
-    ).data or []
+    from src.repo.access_surface_repository import AccessSurfaceRepository
+
+    access_rows = AccessSurfaceRepository(sb).list_by_project(project_id)
     from src.repo.access_credentials import (
         AccessCredentialRepository,
         mask_access_token,

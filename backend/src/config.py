@@ -301,7 +301,7 @@ class Settings(BaseSettings):
     SCOPE_SANDBOX_E2B_TEMPLATE: str = ""
     # Session store backend: "memory" (dev/single-process) or "supabase"
     # (durable, multi-worker-visible — required for the reaper + multi-instance).
-    SCOPE_SANDBOX_STORE: Literal["memory", "supabase"] = "memory"
+    SCOPE_SANDBOX_STORE: Literal["memory", "supabase"] = "supabase"
     # Background reaper: stop idle / destroy long-idle sandboxes to save cost.
     # OFF by default — it makes real provider stop/destroy calls (billing), so
     # it's opt-in per deployment. Interval is seconds between sweeps.
@@ -458,8 +458,11 @@ class Settings(BaseSettings):
     VERSION_OBJECT_GC_DRY_RUN: bool = True
     VERSION_OBJECT_GC_INTERVAL_SECONDS: int = 60 * 60
     VERSION_OBJECT_GC_RETENTION_SECONDS: int = 7 * 24 * 60 * 60
+    VERSION_OBJECT_GC_QUARANTINE_SECONDS: int = 7 * 24 * 60 * 60
     VERSION_OBJECT_GC_MAX_PROJECTS_PER_RUN: int = 25
     VERSION_OBJECT_GC_MAX_DELETE_PER_PROJECT: int = 1000
+    VERSION_OBJECT_GC_REQUIRED_DRY_RUN_DAYS: int = 7
+    VERSION_OBJECT_GC_PROJECT_ALLOWLIST: str = ""
 
     # Post-commit tree-closure tripwire. When on, every product write verifies
     # the freshly-published root resolves its entire subtree closure and fails

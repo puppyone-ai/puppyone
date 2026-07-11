@@ -17,7 +17,7 @@ async def reap_idle_sandboxes():
         get_agent_sandbox_registry,
         writeback_and_destroy,
     )
-    from src.infra.sandbox.dependencies import get_sandbox_service
+    from src.platform.scope_sandbox.execution.dependencies import get_sandbox_service
 
     registry = get_agent_sandbox_registry()
     idle_sessions = registry.get_idle_sessions()

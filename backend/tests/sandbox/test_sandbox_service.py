@@ -4,11 +4,11 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 import os
 
-from src.infra.sandbox.service import SandboxService, get_sandbox_type
-from src.infra.sandbox.e2b_sandbox import E2BSandbox
-from src.infra.sandbox import docker_sandbox as docker_sandbox_module
-from src.infra.sandbox.docker_sandbox import DockerSandbox
-from src.infra.sandbox.command_policy import SandboxCommandRejected, assert_command_allowed
+from src.platform.scope_sandbox.execution.service import SandboxService, get_sandbox_type
+from src.platform.scope_sandbox.execution.e2b_sandbox import E2BSandbox
+from src.platform.scope_sandbox.execution import docker_sandbox as docker_sandbox_module
+from src.platform.scope_sandbox.execution.docker_sandbox import DockerSandbox
+from src.platform.scope_sandbox.execution_policy import SandboxCommandRejected, assert_command_allowed
 
 
 # ==================== Fake E2B 实现 ====================
@@ -368,7 +368,7 @@ async def test_docker_missing_prebuilt_image_never_uses_network_fallback():
 @pytest.mark.anyio
 async def test_parallel_download():
     """测试并行下载功能"""
-    from src.infra.sandbox.file_utils import download_files_parallel
+    from src.platform.scope_sandbox.execution.file_utils import download_files_parallel
     
     # 创建模拟 S3 服务
     mock_s3 = AsyncMock()
@@ -398,7 +398,7 @@ async def test_parallel_download():
 @pytest.mark.anyio
 async def test_prepare_files_for_sandbox():
     """测试准备沙盒文件"""
-    from src.infra.sandbox.file_utils import prepare_files_for_sandbox
+    from src.platform.scope_sandbox.execution.file_utils import prepare_files_for_sandbox
     
     # 创建模拟 S3 服务
     mock_s3 = AsyncMock()
@@ -426,7 +426,7 @@ async def test_prepare_files_for_sandbox():
 @pytest.mark.anyio
 async def test_parallel_download_with_failures():
     """测试并行下载时部分失败"""
-    from src.infra.sandbox.file_utils import prepare_files_for_sandbox
+    from src.platform.scope_sandbox.execution.file_utils import prepare_files_for_sandbox
     
     # 创建模拟 S3 服务，第二个文件下载失败
     mock_s3 = AsyncMock()

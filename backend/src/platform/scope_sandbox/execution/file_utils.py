@@ -1,4 +1,4 @@
-"""Sandbox file handling utility functions"""
+"""Sandbox file handling utility functions."""
 
 import asyncio
 import os
