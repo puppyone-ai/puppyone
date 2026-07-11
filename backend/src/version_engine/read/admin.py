@@ -20,20 +20,53 @@ any layer.
 from __future__ import annotations
 
 import asyncio
+import heapq
 import json
+import threading
+from collections import OrderedDict
+from dataclasses import dataclass
+from datetime import datetime, timezone
 
-from src.version_engine.write_engine.diff import diff_trees
-from src.version_engine.storage.object_store import ObjectStore
-from src.version_engine.write_engine.tree import read_tree
-from src.version_engine.domain.errors import ObjectNotFoundError, VersionEngineError
-
-from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
 from src.utils.logger import log_error
+from src.version_engine.domain.errors import ObjectNotFoundError, VersionEngineError
+from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
+from src.version_engine.storage.object_store import ObjectStore
+from src.version_engine.write_engine.diff import diff_trees
+from src.version_engine.write_engine.git_commit import is_git_object_id
+from src.version_engine.write_engine.git_object_format import decode_commit, split_author_line
+from src.version_engine.write_engine.tree import read_tree
 
 
 _SCOPE_PROMOTE_TRAILER = "PuppyOne-Source: scope-promote"
 _HISTORY_VISIBLE_FETCH_MULTIPLIER = 20
 _HISTORY_VISIBLE_FETCH_FLOOR = 1000
+_HISTORY_GRAPH_CACHE_MAX = 32
+_history_graph_cache: OrderedDict[
+    tuple[int, str, tuple[str, ...]],
+    tuple[tuple[str, ...], dict[str, "_GraphCommit"]],
+] = OrderedDict()
+_history_graph_cache_lock = threading.Lock()
+
+
+@dataclass(frozen=True)
+class TopologicalHistoryPage:
+    """One stable child-before-parent page from the project's Git DAG."""
+
+    entries: list[dict]
+    total: int
+    next_cursor: str | None
+    has_more: bool
+
+
+@dataclass(frozen=True)
+class _GraphCommit:
+    commit_id: str
+    parent_ids: tuple[str, ...]
+    tree_id: str
+    author: str
+    message: str
+    created_at: str | None
+    timestamp: int
 
 
 class VersionAdminService:
@@ -114,6 +147,42 @@ class VersionAdminService:
 
         return entries
 
+    async def get_topological_commit_history(
+        self,
+        project_id: str,
+        ref_commit_ids: list[str],
+        *,
+        limit: int = 50,
+        cursor: str = "",
+    ) -> TopologicalHistoryPage:
+        """Return a deterministic all-ref Git history page.
+
+        The graph is derived from immutable commit objects reachable from the
+        supplied refs.  The resulting order is child-before-parent and stable
+        for a fixed ref snapshot.  Named-ref-only commits are intentionally
+        included even when they have no transaction-history row.
+        """
+
+        repo = self._repos.get_repo(project_id)
+        return await asyncio.to_thread(
+            _build_topological_history_page,
+            repo,
+            project_id,
+            ref_commit_ids,
+            limit,
+            cursor,
+        )
+
+    async def get_commit_parent_ids(
+        self,
+        project_id: str,
+        commit_ids: list[str],
+    ) -> dict[str, list[str]]:
+        """Read parent ids for legacy linear-history rows in one worker hop."""
+
+        repo = self._repos.get_repo(project_id)
+        return await asyncio.to_thread(_read_parent_ids, repo, commit_ids)
+
     async def get_commit_content(
         self,
         project_id: str,
@@ -172,6 +241,230 @@ class VersionAdminService:
             raise ObjectNotFoundError(
                 f"diff unavailable for {from_commit_id}..{to_commit_id}: {exc}"
             ) from exc
+
+
+def _build_topological_history_page(
+    repo,
+    project_id: str,
+    ref_commit_ids: list[str],
+    limit: int,
+    cursor: str,
+) -> TopologicalHistoryPage:
+    roots = tuple(dict.fromkeys(
+        commit_id for commit_id in ref_commit_ids if is_git_object_id(commit_id)
+    ))
+    if not roots:
+        return TopologicalHistoryPage(entries=[], total=0, next_cursor=None, has_more=False)
+
+    order, nodes = _get_history_graph(repo, project_id, roots)
+    start = 0
+    if cursor:
+        try:
+            start = order.index(cursor) + 1
+        except ValueError as exc:
+            raise ValueError("history cursor is not part of the current ref snapshot") from exc
+
+    page_ids = list(order[start:start + max(1, limit)])
+    end = start + len(page_ids)
+    has_more = end < len(order)
+    metadata = _load_history_metadata(repo.history, page_ids)
+    entries = [
+        _graph_commit_to_history_entry(nodes[commit_id], metadata.get(commit_id))
+        for commit_id in page_ids
+    ]
+    return TopologicalHistoryPage(
+        entries=entries,
+        total=len(order),
+        next_cursor=page_ids[-1] if has_more and page_ids else None,
+        has_more=has_more,
+    )
+
+
+def _get_history_graph(
+    repo,
+    project_id: str,
+    roots: tuple[str, ...],
+) -> tuple[tuple[str, ...], dict[str, _GraphCommit]]:
+    cache_key = (id(repo.store), project_id, roots)
+    with _history_graph_cache_lock:
+        cached = _history_graph_cache.get(cache_key)
+        if cached is not None:
+            _history_graph_cache.move_to_end(cache_key)
+            return cached
+
+    nodes, root_ranks = _read_reachable_graph(repo, roots)
+    order = tuple(_topological_commit_order(nodes, root_ranks))
+    cached = (order, nodes)
+    with _history_graph_cache_lock:
+        _history_graph_cache[cache_key] = cached
+        _history_graph_cache.move_to_end(cache_key)
+        while len(_history_graph_cache) > _HISTORY_GRAPH_CACHE_MAX:
+            _history_graph_cache.popitem(last=False)
+    return cached
+
+
+def _read_reachable_graph(
+    repo,
+    roots: tuple[str, ...],
+) -> tuple[dict[str, _GraphCommit], dict[str, int]]:
+    nodes: dict[str, _GraphCommit] = {}
+    root_ranks: dict[str, int] = {}
+    stack = [(commit_id, rank) for rank, commit_id in reversed(list(enumerate(roots)))]
+
+    while stack:
+        commit_id, rank = stack.pop()
+        previous_rank = root_ranks.get(commit_id)
+        if previous_rank is not None and previous_rank <= rank:
+            continue
+        root_ranks[commit_id] = rank
+
+        node = nodes.get(commit_id)
+        if node is None:
+            node = _read_graph_commit(repo, commit_id)
+            if node is None:
+                continue
+            nodes[commit_id] = node
+        for parent_id in reversed(node.parent_ids):
+            stack.append((parent_id, rank))
+
+    return nodes, root_ranks
+
+
+def _read_graph_commit(repo, commit_id: str) -> _GraphCommit | None:
+    if not is_git_object_id(commit_id):
+        return None
+    try:
+        obj_type, content = repo.store.get_object(commit_id)
+        if obj_type != "commit":
+            return None
+        info = decode_commit(content)
+    except Exception as exc:  # noqa: BLE001 - one damaged ref must not hide healthy history
+        log_error(f"[history-graph] cannot read commit {commit_id}: {exc}")
+        return None
+
+    parent_ids = tuple(dict.fromkeys(
+        parent_id
+        for parent_id in (info.get("parents") or [])
+        if is_git_object_id(parent_id)
+    ))
+    timestamp, created_at = _git_identity_time(info.get("committer") or info.get("author") or "")
+    author_identity, _author_time = split_author_line(info.get("author") or "")
+    author = author_identity.rsplit("<", 1)[0].strip() or author_identity.strip() or "Git"
+    message = (info.get("message") or "").splitlines()[0].strip() or "Update workspace"
+    return _GraphCommit(
+        commit_id=commit_id,
+        parent_ids=parent_ids,
+        tree_id=info.get("tree", "") if is_git_object_id(info.get("tree", "")) else "",
+        author=author,
+        message=message,
+        created_at=created_at,
+        timestamp=timestamp,
+    )
+
+
+def _git_identity_time(identity_line: str) -> tuple[int, str | None]:
+    _identity, raw_time = split_author_line(identity_line)
+    try:
+        timestamp = int(raw_time.split(" ", 1)[0])
+    except (TypeError, ValueError):
+        return 0, None
+    try:
+        created_at = datetime.fromtimestamp(timestamp, tz=timezone.utc).isoformat()
+    except (OSError, OverflowError, ValueError):
+        return timestamp, None
+    return timestamp, created_at
+
+
+def _topological_commit_order(
+    nodes: dict[str, _GraphCommit],
+    root_ranks: dict[str, int],
+) -> list[str]:
+    pending_children = dict.fromkeys(nodes, 0)
+    for node in nodes.values():
+        for parent_id in node.parent_ids:
+            if parent_id in pending_children:
+                pending_children[parent_id] += 1
+
+    ready: list[tuple[int, int, str]] = []
+    for commit_id, child_count in pending_children.items():
+        if child_count == 0:
+            node = nodes[commit_id]
+            heapq.heappush(
+                ready,
+                (root_ranks.get(commit_id, len(root_ranks)), -node.timestamp, commit_id),
+            )
+
+    order: list[str] = []
+    while ready:
+        _rank, _timestamp, commit_id = heapq.heappop(ready)
+        order.append(commit_id)
+        for parent_id in nodes[commit_id].parent_ids:
+            if parent_id not in pending_children:
+                continue
+            pending_children[parent_id] -= 1
+            if pending_children[parent_id] == 0:
+                parent = nodes[parent_id]
+                heapq.heappush(
+                    ready,
+                    (
+                        root_ranks.get(parent_id, len(root_ranks)),
+                        -parent.timestamp,
+                        parent_id,
+                    ),
+                )
+
+    if len(order) != len(nodes):
+        # A cycle cannot be produced by valid content-addressed Git commits,
+        # but deterministic recovery keeps a damaged repository inspectable.
+        remaining = sorted(set(nodes) - set(order), key=lambda commit_id: (
+            root_ranks.get(commit_id, len(root_ranks)),
+            -nodes[commit_id].timestamp,
+            commit_id,
+        ))
+        order.extend(remaining)
+    return order
+
+
+def _load_history_metadata(history, commit_ids: list[str]) -> dict[str, dict]:
+    try:
+        batch_getter = getattr(history, "get_entries", None)
+        if callable(batch_getter):
+            rows = batch_getter(commit_ids)
+        else:
+            rows = [history.get_entry(commit_id) for commit_id in commit_ids]
+    except Exception as exc:  # noqa: BLE001 - Git objects remain a valid read fallback
+        log_error(f"[history-graph] history metadata lookup failed: {exc}")
+        rows = []
+    return {
+        row.get("commit_id", ""): row
+        for row in rows
+        if row and row.get("commit_id")
+    }
+
+
+def _graph_commit_to_history_entry(node: _GraphCommit, metadata: dict | None) -> dict:
+    metadata = metadata or {}
+    return {
+        "commit_id": node.commit_id,
+        "parent_ids": list(node.parent_ids),
+        "who": metadata.get("who") or node.author,
+        "message": metadata.get("message") or node.message,
+        "changes": metadata.get("changes") or [],
+        "conflicts": metadata.get("conflicts") or [],
+        "root_hash": metadata.get("root_hash") or node.tree_id,
+        "scope_hash": metadata.get("scope_hash") or node.tree_id,
+        "scope_path": metadata.get("scope_path") or "",
+        "created_at": metadata.get("created_at") or node.created_at,
+        "audit_detail": metadata.get("audit_detail"),
+    }
+
+
+def _read_parent_ids(repo, commit_ids: list[str]) -> dict[str, list[str]]:
+    parents_by_commit: dict[str, list[str]] = {}
+    for commit_id in dict.fromkeys(commit_ids):
+        node = _read_graph_commit(repo, commit_id)
+        parents_by_commit[commit_id] = list(node.parent_ids) if node else []
+    return parents_by_commit
 
 
 def _resolve_entry_root(entry: dict) -> str:

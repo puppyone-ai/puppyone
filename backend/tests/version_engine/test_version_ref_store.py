@@ -85,6 +85,15 @@ class FakeSupabaseClient:
         self.client = FakeTables()
 
 
+class BrokenSupabaseClient:
+    class _BrokenTables:
+        def table(self, _name):
+            raise ConnectionError("control plane unavailable")
+
+    def __init__(self):
+        self.client = self._BrokenTables()
+
+
 @pytest.fixture
 def store():
     return VersionRefStore(client=FakeSupabaseClient())
@@ -159,6 +168,14 @@ def test_list_refs_scoped(store):
     assert docs == {"refs/heads/a", "refs/tags/v1"}
     src = {r["ref_name"] for r in store.list_refs("p", "src")}
     assert src == {"refs/heads/b"}
+
+
+def test_list_refs_strict_fails_closed_instead_of_hiding_branches():
+    broken = VersionRefStore(client=BrokenSupabaseClient())
+
+    assert broken.list_refs("p") == []
+    with pytest.raises(RuntimeError, match="version refs are unavailable"):
+        broken.list_refs("p", strict=True)
 
 
 def test_delete_ref(store):

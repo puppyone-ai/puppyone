@@ -15,8 +15,8 @@ to expose branch/tag views.
 from __future__ import annotations
 
 from src.infra.supabase.client import SupabaseClient
-from src.version_engine.infrastructure.supabase import safe_data
 from src.utils.logger import log_error
+from src.version_engine.infrastructure.supabase import safe_data
 from src.version_engine.write_engine.path_utils import normalize_path
 
 
@@ -44,8 +44,19 @@ class VersionRefStore:
     def __init__(self, client: SupabaseClient | None = None) -> None:
         self._client = (client or SupabaseClient()).client
 
-    def list_refs(self, project_id: str, scope_path: str = "") -> list[dict]:
-        """All branch/tag refs for one (project, scope), newest update first."""
+    def list_refs(
+        self,
+        project_id: str,
+        scope_path: str = "",
+        *,
+        strict: bool = False,
+    ) -> list[dict]:
+        """All branch/tag refs for one (project, scope), newest update first.
+
+        Transport advertisement keeps the historical best-effort behavior.
+        Read models that promise an all-branches view pass ``strict=True`` so
+        a control-plane outage cannot silently masquerade as a single branch.
+        """
         try:
             resp = (
                 self._client.table(_TABLE)
@@ -57,6 +68,8 @@ class VersionRefStore:
             )
         except Exception as exc:  # noqa: BLE001
             log_error(f"[VersionRefs] list_refs failed: {exc}")
+            if strict:
+                raise RuntimeError("version refs are unavailable") from exc
             return []
         return safe_data(resp) or []
 
