@@ -2,16 +2,20 @@
 
 from typing import List, Optional
 from datetime import datetime, timezone
-import secrets
 
 from src.connectors.agent.config.models import Agent, AgentBash, AgentTool
 from src.repo.scope_service import ScopeService
+from src.repo.access_credentials import AccessCredentialRepository
 from src.utils.id_generator import generate_uuid_v7
 
 
 AGENT_PROVIDER = "agent"
 ACCESS_SURFACES_TABLE = "access_surfaces"
-_NOW = "now()"
+
+
+def _now_iso() -> str:
+    """Return a real timestamp; PostgREST does not evaluate SQL expressions in JSON."""
+    return datetime.now(timezone.utc).isoformat()
 
 
 def _scope_to_bash(agent_id: str, config: dict) -> list[AgentBash]:
@@ -44,18 +48,16 @@ def _row_to_tool(row: dict) -> AgentTool:
     )
 
 
-def generate_access_key(agent_type: str = "chat") -> str:
-    return f"mcp_{secrets.token_urlsafe(32)}"
-
-
-def generate_mcp_api_key() -> str:
-    return generate_access_key("chat")
-
-
-def _row_to_agent(row: dict) -> Agent:
+def _row_to_agent(
+    row: dict,
+    *,
+    credential: dict | None = None,
+    plaintext_mcp_api_key: str | None = None,
+) -> Agent:
     """Convert an access_surfaces row (kind='agent') to an Agent model."""
     config = row.get("config") or {}
     trigger = config.get("trigger") or {}
+    active_key = plaintext_mcp_api_key
     return Agent(
         id=row["id"],
         project_id=row["project_id"],
@@ -64,7 +66,11 @@ def _row_to_agent(row: dict) -> Agent:
         type=config.get("type", "chat"),
         description=config.get("description"),
         is_default=config.get("is_default", False),
-        mcp_api_key=config.get("mcp_api_key") or None,
+        # Plaintext is populated only for one-time issuance or an authenticated
+        # runtime lookup. Ordinary reads expose metadata below, never the token.
+        mcp_api_key=plaintext_mcp_api_key,
+        mcp_enabled=bool(credential or active_key),
+        mcp_key_last4=(credential or {}).get("key_last4") or (active_key[-4:] if active_key else None),
         trigger_type=trigger.get("type", "manual"),
         trigger_config=trigger.get("config"),
         task_content=config.get("task_content"),
@@ -118,6 +124,28 @@ class AgentRepository:
             self._client = get_supabase_client()
         else:
             self._client = supabase_client
+        self._credentials = AccessCredentialRepository(self._client)
+
+    def _credential_map(self, rows: list[dict]) -> dict[str, dict]:
+        # A few narrow unit tests construct the repository via ``__new__`` to
+        # isolate visibility filtering. Production instances always run
+        # ``__init__`` and therefore have the credential boundary.
+        if not hasattr(self, "_credentials"):
+            return {}
+        return self._credentials.list_active_by_surface([row["id"] for row in rows])
+
+    def _agent_from_row(
+        self,
+        row: dict,
+        *,
+        plaintext_mcp_api_key: str | None = None,
+    ) -> Agent:
+        credential = self._credentials.get_active_by_surface(row["id"])
+        return _row_to_agent(
+            row,
+            credential=credential,
+            plaintext_mcp_api_key=plaintext_mcp_api_key,
+        )
 
     def _project_org_id(self, project_id: str) -> str | None:
         resp = (
@@ -225,7 +253,7 @@ class AgentRepository:
             .execute()
         )
         if response.data:
-            return _row_to_agent(response.data[0])
+            return self._agent_from_row(response.data[0])
         return None
 
     def get_by_id_with_accesses(self, agent_id: str) -> Optional[Agent]:
@@ -237,7 +265,7 @@ class AgentRepository:
         if not response.data:
             return None
         row = response.data[0]
-        agent = _row_to_agent(row)
+        agent = self._agent_from_row(row)
         agent.bash_accesses = _scope_to_bash(agent_id, row.get("config") or {})
         agent.tools = self.get_tools_by_agent_id(agent_id)
         return agent
@@ -249,7 +277,9 @@ class AgentRepository:
             .order("created_at", desc=True)
             .execute()
         )
-        return [_row_to_agent(row) for row in response.data]
+        rows = response.data or []
+        credentials = self._credential_map(rows)
+        return [_row_to_agent(row, credential=credentials.get(row["id"])) for row in rows]
 
     def get_by_project_id_with_accesses(
         self, project_id: str, viewer_user_id: Optional[str] = None,
@@ -277,7 +307,8 @@ class AgentRepository:
                 or r.get("created_by") == viewer_user_id
             ]
 
-        agents = [_row_to_agent(row) for row in rows]
+        credentials = self._credential_map(rows)
+        agents = [_row_to_agent(row, credential=credentials.get(row["id"])) for row in rows]
         if not agents:
             return agents
 
@@ -316,33 +347,8 @@ class AgentRepository:
         for row in response.data:
             config = row.get("config") or {}
             if config.get("is_default"):
-                return _row_to_agent(row)
+                return self._agent_from_row(row)
         return None
-
-    def get_by_mcp_api_key(self, mcp_api_key: str) -> Optional[Agent]:
-        # mcp_api_key lives in access_surfaces.config (jsonb).
-        response = (
-            self._query()
-            .filter("config->>mcp_api_key", "eq", mcp_api_key)
-            .execute()
-        )
-        if response.data:
-            return _row_to_agent(response.data[0])
-        return None
-
-    def get_by_mcp_api_key_with_accesses(self, mcp_api_key: str) -> Optional[Agent]:
-        response = (
-            self._query()
-            .filter("config->>mcp_api_key", "eq", mcp_api_key)
-            .execute()
-        )
-        if not response.data:
-            return None
-        row = response.data[0]
-        agent = _row_to_agent(row)
-        agent.bash_accesses = _scope_to_bash(agent.id, row.get("config") or {})
-        agent.tools = self.get_tools_by_agent_id_for_mcp(agent.id)
-        return agent
 
     def create(
         self,
@@ -374,8 +380,6 @@ class AgentRepository:
             name=name,
             created_by=created_by,
         )
-        existing_config = dict(surface.get("config") or {})
-        mcp_api_key = existing_config.get("mcp_api_key") or generate_access_key(type)
         trigger = {
             "type": trigger_type or "manual",
             "config": trigger_config,
@@ -387,7 +391,6 @@ class AgentRepository:
             "type": type,
             "description": description,
             "is_default": is_default,
-            "mcp_api_key": mcp_api_key,
             "trigger": trigger,
             "task_content": task_content,
             "task_path": task_path,
@@ -411,7 +414,20 @@ class AgentRepository:
             .eq("kind", AGENT_PROVIDER)
             .execute()
         )
-        return _row_to_agent(response.data[0])
+        inserted = response.data[0]
+        mcp_api_key = self._credentials.issue_bearer_token(
+            access_surface_id=inserted["id"],
+            org_id=inserted.get("org_id"),
+            project_id=inserted["project_id"],
+            prefix="mcp",
+            created_by=inserted.get("created_by"),
+        )
+        credential = self._credentials.get_active_by_surface(inserted["id"])
+        return _row_to_agent(
+            inserted,
+            credential=credential,
+            plaintext_mcp_api_key=mcp_api_key,
+        )
 
     def update(
         self,
@@ -458,13 +474,13 @@ class AgentRepository:
         )
 
         update_data: dict = {
-            "config": config, "updated_at": _NOW,
+            "config": config, "updated_at": _now_iso(),
         }
         config["trigger"] = trigger
         if name is not None:
             update_data["name"] = name
         if mcp_api_key is not None:
-            config["mcp_api_key"] = mcp_api_key
+            raise ValueError("Use regenerate_mcp_api_key for credential rotation")
 
         resp = (
             self._client.table(self.TABLE)
@@ -474,8 +490,23 @@ class AgentRepository:
             .execute()
         )
         if resp.data:
-            return _row_to_agent(resp.data[0])
+            credential = self._credentials.get_active_by_surface(agent_id)
+            return _row_to_agent(resp.data[0], credential=credential)
         return None
+
+    def regenerate_mcp_api_key(self, agent_id: str) -> Optional[str]:
+        response = self._query().eq("id", agent_id).execute()
+        if not response.data:
+            return None
+        row = response.data[0]
+        return self._credentials.issue_bearer_token(
+            access_surface_id=row["id"],
+            org_id=row.get("org_id"),
+            project_id=row["project_id"],
+            prefix="mcp",
+            created_by=row.get("created_by"),
+            revoke_existing=True,
+        )
 
     def delete(self, agent_id: str) -> bool:
         response = (
@@ -573,7 +604,7 @@ class AgentRepository:
         config.pop("_project_id", None)
         config["scope"] = scope
         self._client.table(self.TABLE).update(
-            {"config": config, "scope_id": scope["id"], "updated_at": _NOW}
+            {"config": config, "scope_id": scope["id"], "updated_at": _now_iso()}
         ).eq("id", agent_id).eq("kind", AGENT_PROVIDER).execute()
 
     def get_bash_by_agent_id(self, agent_id: str) -> List[AgentBash]:
@@ -636,7 +667,7 @@ class AgentRepository:
             del config["scope"]
             config.pop("_project_id", None)
             self._client.table(self.TABLE).update(
-                {"config": config, "updated_at": _NOW}
+                {"config": config, "updated_at": _now_iso()}
             ).eq("id", agent_id).execute()
         return True
 
@@ -666,6 +697,19 @@ class AgentRepository:
             .execute()
         )
         return [_row_to_tool(row) for row in response.data]
+
+    def list_access_point_ids_by_tool(self, tool_id: str) -> list[str]:
+        response = (
+            self._client.table("access_tools")
+            .select("access_point_id")
+            .eq("tool_id", tool_id)
+            .execute()
+        )
+        return list(dict.fromkeys(
+            row["access_point_id"]
+            for row in (response.data or [])
+            if row.get("access_point_id")
+        ))
 
     def get_tools_by_agent_id_for_mcp(self, agent_id: str) -> List[AgentTool]:
         response = (

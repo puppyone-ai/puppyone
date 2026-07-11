@@ -1,10 +1,10 @@
-"""ISSUE-002 — GET /api/v1/access (list_connections) IDOR + credential exposure.
+"""ISSUE-002 — access IDOR + credential-free ordinary responses.
 
-Two guarantees verified:
+Guarantees verified:
   1. A caller passing a project_id they are NOT a member of gets an empty list
      (no IDOR into another tenant's access points).
-  2. The list view never returns raw credentials — access_key is nulled and the
-     secret-bearing config keys are stripped; only has_key/key_last4 remain.
+  2. list/get/update/rename never return raw credentials at any config depth.
+  3. metadata updates cannot introduce or rotate a credential.
 
 Hermetic: get_current_user overridden; org/project resolution and the Supabase
 client are faked, so no DB is touched.
@@ -28,12 +28,15 @@ FOREIGN = "proj-foreign"
 
 
 class _FakeConnectorsClient:
-    """Chainable Supabase stub returning one agent connector for the list query."""
+    """Small stateful Supabase stub for the four ordinary response paths."""
 
     def __init__(self, rows):
-        self._rows = rows
+        self._rows = [dict(row) for row in rows]
+        self._table = None
+        self._update = None
 
     def table(self, name):
+        self._table = name
         return self
 
     def select(self, *a, **k):
@@ -48,21 +51,38 @@ class _FakeConnectorsClient:
     def order(self, *a, **k):
         return self
 
+    def update(self, values):
+        self._update = values
+        return self
+
     def execute(self):
+        if self._table == "access_surface_credentials":
+            return SimpleNamespace(data=[])
+        if self._update is not None and self._table == "access_surfaces":
+            for row in self._rows:
+                row.update(self._update)
+            self._update = None
         return SimpleNamespace(data=self._rows)
 
 
 def _install(monkeypatch, rows):
+    client = _FakeConnectorsClient(rows)
     monkeypatch.setattr(access_router_mod, "resolve_org_ids", lambda *a, **k: ["org-1"])
     monkeypatch.setattr(access_router_mod, "_get_user_project_ids", lambda *a, **k: [ALLOWED])
-    monkeypatch.setattr(access_router_mod, "_get_client", lambda: _FakeConnectorsClient(rows))
+    monkeypatch.setattr(
+        access_router_mod, "_require_connection_project_access", lambda *a, **k: None
+    )
+    monkeypatch.setattr(access_router_mod, "_get_client", lambda: client)
+    return client
 
 
 def _app():
     app = FastAPI()
     app.include_router(access_router, prefix="/api/v1")
     app.dependency_overrides[get_current_user] = lambda: CurrentUser(
-        user_id="user-alice", email="a@example.com", role="authenticated",
+        user_id="user-alice",
+        email="a@example.com",
+        role="authenticated",
     )
     return app
 
@@ -76,7 +96,20 @@ def _agent_row():
         "status": "active",
         "direction": "outbound",
         "scope_id": None,  # keeps _enrich from querying repo_scopes
-        "config": {"mcp_api_key": "mcpkey_abcd1234WXYZ", "name": "My Agent"},
+        "config": {
+            "mcp_api_key": "mcpkey_abcd1234WXYZ",
+            "name": "My Agent",
+            "nested": {
+                "oauth": {
+                    "clientSecret": "nested-client-secret",
+                    "refresh_token": "nested-refresh-token",
+                    "region": "sg",
+                },
+                "items": [
+                    {"provider_api_key": "nested-provider-key", "label": "safe"},
+                ],
+            },
+        },
         "trigger": None,
         "last_run_at": None,
         "error_message": None,
@@ -112,6 +145,8 @@ def test_member_list_masks_credentials(monkeypatch):
     assert "mcp_api_key" not in (conn.get("config") or {})
     # Non-secret config is preserved.
     assert (conn.get("config") or {}).get("name") == "My Agent"
+    assert conn["config"]["nested"]["oauth"] == {"region": "sg"}
+    assert conn["config"]["nested"]["items"] == [{"label": "safe"}]
 
 
 def test_list_response_carries_no_raw_secret_anywhere(monkeypatch):
@@ -120,3 +155,84 @@ def test_list_response_carries_no_raw_secret_anywhere(monkeypatch):
     with TestClient(_app()) as tc:
         r = tc.get(f"/api/v1/access/?project_id={ALLOWED}")
     assert "mcpkey_abcd1234WXYZ" not in r.text
+
+
+def test_list_serializes_each_rows_own_metadata(monkeypatch):
+    first = _agent_row()
+    first["config"] = {
+        **first["config"],
+        "direction": "inbound",
+        "trigger": {"type": "manual"},
+    }
+    second = _agent_row()
+    second["id"] = "conn-2"
+    second["name"] = "Other Agent"
+    second["config"] = {
+        **second["config"],
+        "name": "Other Agent",
+        "direction": "outbound",
+        "trigger": {"type": "scheduled"},
+    }
+    _install(monkeypatch, rows=[first, second])
+
+    with TestClient(_app()) as tc:
+        response = tc.get(f"/api/v1/access/?project_id={ALLOWED}")
+
+    assert response.status_code == 200, response.text
+    by_id = {item["id"]: item for item in response.json()["data"]}
+    assert (by_id["conn-1"]["direction"], by_id["conn-1"]["trigger"]) == (
+        "inbound",
+        {"type": "manual"},
+    )
+    assert (by_id["conn-2"]["direction"], by_id["conn-2"]["trigger"]) == (
+        "outbound",
+        {"type": "scheduled"},
+    )
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "json_body"),
+    [
+        ("get", f"/api/v1/access/?project_id={ALLOWED}", None),
+        ("get", "/api/v1/access/conn-1", None),
+        ("patch", "/api/v1/access/conn-1", {"status": "inactive"}),
+        ("patch", "/api/v1/access/conn-1/rename", {"name": "Renamed"}),
+    ],
+)
+def test_all_ordinary_responses_are_recursively_credential_free(
+    monkeypatch,
+    method,
+    path,
+    json_body,
+):
+    _install(monkeypatch, rows=[_agent_row()])
+    with TestClient(_app()) as tc:
+        response = tc.request(method, path, json=json_body)
+
+    assert response.status_code == 200, response.text
+    for secret in (
+        "mcpkey_abcd1234WXYZ",
+        "nested-client-secret",
+        "nested-refresh-token",
+        "nested-provider-key",
+    ):
+        assert secret not in response.text
+
+    data = response.json()["data"]
+    connection = data[0] if isinstance(data, list) else data
+    assert connection["access_key"] is None
+    assert connection["has_key"] is True
+    assert connection["key_last4"] == "WXYZ"
+
+
+def test_metadata_update_rejects_nested_credentials(monkeypatch):
+    _install(monkeypatch, rows=[_agent_row()])
+    with TestClient(_app()) as tc:
+        response = tc.patch(
+            "/api/v1/access/conn-1",
+            json={"config": {"safe": {"providerApiKey": "must-not-be-written"}}},
+        )
+
+    assert response.status_code == 400, response.text
+    assert "dedicated create or regenerate-key flow" in response.text
+    assert "must-not-be-written" not in response.text

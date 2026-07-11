@@ -72,6 +72,18 @@ _GREP_DEFAULT_BYTE_LIMIT = 16 * 1024 * 1024
 _GREP_MAX_BYTE_LIMIT = 256 * 1024 * 1024
 _GREP_PATTERN_MAX_CHARS = 2048
 _BINARY_SAMPLE_BYTES = 4096
+
+
+def _is_not_found_error(exc: Exception) -> bool:
+    """Normalize object-store not-found wrappers for the admin repair path."""
+
+    message = str(exc).lower()
+    return any(
+        token in message
+        for token in ("not found", "nosuchkey", "404", "does not exist")
+    )
+
+
 _TEXT_MIME_EXACT = frozenset({
     "application/dart",
     "application/graphql",
@@ -2564,7 +2576,7 @@ class _ObjectIntegrityRequest(_BaseModel):
     Behaviour matrix:
       * ``dry_run=true``  (default): report only, never delete.
       * ``dry_run=false``: delete keys that fail ``_verify_loose_hash``
-        AND are NOT recorded in ``mut_object_locations`` (i.e. the
+        AND are NOT recorded in ``version_object_locations`` (i.e. the
         object isn't also packed — packed copies are the recovery
         path). The endpoint refuses to delete a key whose hash is
         currently referenced by a live commit / tree / blob — we

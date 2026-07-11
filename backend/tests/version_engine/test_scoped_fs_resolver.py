@@ -36,15 +36,6 @@ class _Supabase:
         return _Query(self._tables.get(name, []))
 
 
-class _McpEndpointRepo:
-    def __init__(self, endpoint: dict | None):
-        self._endpoint = endpoint
-
-    def get_by_api_key(self, api_key: str):
-        assert api_key == "mcp_key"
-        return self._endpoint
-
-
 def test_resolver_builds_writable_context_when_scope_and_access_are_rw(monkeypatch):
     endpoint = {
         "id": "endpoint-1",
@@ -53,8 +44,7 @@ def test_resolver_builds_writable_context_when_scope_and_access_are_rw(monkeypat
         "scope_id": "scope-1",
         "status": "active",
         "created_by": "user-1",
-        "accesses": [{"readonly": False}],
-        "tools_config": {},
+        "kind": "mcp",
     }
     sb = _Supabase({
         "repo_scopes": [{
@@ -66,7 +56,11 @@ def test_resolver_builds_writable_context_when_scope_and_access_are_rw(monkeypat
         }],
     })
     monkeypatch.setattr(resolver, "get_supabase_client", lambda: sb)
-    monkeypatch.setattr(resolver, "McpEndpointRepository", lambda: _McpEndpointRepo(endpoint))
+    monkeypatch.setattr(
+        resolver,
+        "_resolve_surface",
+        lambda _key: (endpoint, {"fs_policy": {"accesses": [{"readonly": False}]}}),
+    )
 
     ctx = resolver.resolve_mcp_scoped_fs_context("mcp_key")
 
@@ -88,8 +82,7 @@ def test_resolver_downgrades_to_readonly_without_writable_access(monkeypatch):
         "project_id": "proj-1",
         "scope_id": "scope-1",
         "status": "active",
-        "accesses": [{"readonly": True}],
-        "tools_config": {},
+        "kind": "mcp",
     }
     sb = _Supabase({
         "repo_scopes": [{
@@ -102,7 +95,11 @@ def test_resolver_downgrades_to_readonly_without_writable_access(monkeypatch):
         "projects": [{"created_by": "project-owner"}],
     })
     monkeypatch.setattr(resolver, "get_supabase_client", lambda: sb)
-    monkeypatch.setattr(resolver, "McpEndpointRepository", lambda: _McpEndpointRepo(endpoint))
+    monkeypatch.setattr(
+        resolver,
+        "_resolve_surface",
+        lambda _key: (endpoint, {"fs_policy": {"accesses": [{"readonly": True}]}}),
+    )
 
     ctx = resolver.resolve_mcp_scoped_fs_context("mcp_key")
 
@@ -121,12 +118,7 @@ def test_resolver_applies_mcp_tools_config(monkeypatch):
         "scope_id": "scope-1",
         "status": "active",
         "created_by": "user-1",
-        "accesses": [{"readonly": False}],
-        "tools_config": {
-            "filesystem": {
-                "allowed": ["fs_ls", "fs_rm"],
-            },
-        },
+        "kind": "mcp",
     }
     sb = _Supabase({
         "repo_scopes": [{
@@ -138,7 +130,14 @@ def test_resolver_applies_mcp_tools_config(monkeypatch):
         }],
     })
     monkeypatch.setattr(resolver, "get_supabase_client", lambda: sb)
-    monkeypatch.setattr(resolver, "McpEndpointRepository", lambda: _McpEndpointRepo(endpoint))
+    monkeypatch.setattr(
+        resolver,
+        "_resolve_surface",
+        lambda _key: (endpoint, {
+            "fs_policy": {"accesses": [{"readonly": False}]},
+            "tools_policy": {"filesystem": {"allowed": ["fs_ls", "fs_rm"]}},
+        }),
+    )
 
     ctx = resolver.resolve_mcp_scoped_fs_context("mcp_key")
 
@@ -179,8 +178,7 @@ def test_resolver_carves_child_scopes_for_parent_mcp_key(monkeypatch):
         "scope_id": "scope-1",
         "status": "active",
         "created_by": "user-1",
-        "accesses": [{"readonly": False}],
-        "tools_config": {},
+        "kind": "mcp",
     }
     sb = _Supabase({
         "repo_scopes": [
@@ -190,7 +188,11 @@ def test_resolver_carves_child_scopes_for_parent_mcp_key(monkeypatch):
         ],
     })
     monkeypatch.setattr(resolver, "get_supabase_client", lambda: sb)
-    monkeypatch.setattr(resolver, "McpEndpointRepository", lambda: _McpEndpointRepo(endpoint))
+    monkeypatch.setattr(
+        resolver,
+        "_resolve_surface",
+        lambda _key: (endpoint, {"fs_policy": {"accesses": [{"readonly": False}]}}),
+    )
 
     ctx = resolver.resolve_mcp_scoped_fs_context("mcp_key")
 

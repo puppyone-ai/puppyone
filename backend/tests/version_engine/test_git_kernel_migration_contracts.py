@@ -713,8 +713,8 @@ def test_backend_python_no_longer_imports_external_legacy_version_package() -> N
 def test_active_runtime_surfaces_do_not_reintroduce_removed_protocol_names() -> None:
     """Keep product code, CLI, frontend, and agent instructions on final names.
 
-    Deferred physical database names are allowed only in db_names.py. That file
-    is the explicit storage-boundary exception documented in 01-version-engine.
+    Temporary physical-name compatibility is confined to SQL migrations; active
+    runtime and its identifier constants use canonical Version Engine names.
     """
 
     old_protocol_upper = "".join(("M", "UT"))
@@ -827,6 +827,188 @@ def test_access_point_auth_uses_repo_scopes_without_legacy_fallback() -> None:
     ]
 
     assert offenders == []
+
+
+def test_version_storage_uses_canonical_physical_names() -> None:
+    from src.version_engine.infrastructure.supabase import db_names
+
+    values = {
+        value
+        for name, value in vars(db_names).items()
+        if name.isupper() and isinstance(value, str)
+    }
+    assert values
+    assert all(not value.startswith("mut_") for value in values)
+    assert all("_mut_" not in value for value in values)
+
+    migration = (
+        REPO_ROOT
+        / "supabase/migrations/20260711040000_version_physical_rename.sql"
+    ).read_text(encoding="utf-8")
+    for table in (
+        "version_commits",
+        "version_scope_state",
+        "version_view_commits",
+        "version_outbox",
+        "version_conflicts",
+        "version_object_locations",
+    ):
+        assert f"RENAME TO {table}" in migration
+    assert "sync_project_version_columns" in migration
+    assert "sync_github_version_columns" in migration
+    assert "FROM PUBLIC,anon,authenticated" in migration
+
+
+def test_access_tables_are_confined_to_repository_boundaries() -> None:
+    table_names = {"access_surfaces", "repo_scopes", "access_tools"}
+    offenders: list[str] = []
+    for path in (BACKEND_ROOT / "src").rglob("*.py"):
+        rel = path.relative_to(BACKEND_ROOT).as_posix()
+        allowed = (
+            "/repository.py" in rel
+            or "/supabase/" in rel
+            or rel.endswith("access_surface_repository.py")
+            or rel.endswith("scope_repository.py")
+        )
+        if allowed:
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+                continue
+            if node.func.attr != "table" or not node.args:
+                continue
+            arg = node.args[0]
+            if isinstance(arg, ast.Constant) and arg.value in table_names:
+                offenders.append(f"{rel}:{node.lineno}:{arg.value}")
+    assert offenders == []
+
+
+def test_scope_credentials_are_hash_only_access_surface_credentials() -> None:
+    scope_repo = (BACKEND_ROOT / "src/repo/scope_repository.py").read_text(
+        encoding="utf-8"
+    )
+    surface_repo = (
+        BACKEND_ROOT / "src/repo/access_surface_repository.py"
+    ).read_text(encoding="utf-8")
+    assert '.eq("access_key"' not in scope_repo
+    assert '"access_key": access_key' not in scope_repo
+    assert "resolve_scope_credential" in surface_repo
+    assert "store_scope_credential" in surface_repo
+
+    migration = (
+        REPO_ROOT
+        / "supabase/migrations/20260711070000_move_scope_credentials_to_access_credentials.sql"
+    ).read_text(encoding="utf-8")
+    assert "INSERT INTO public.access_surface_credentials" in migration
+    assert "run backfill_scope_access_key_hash.py first" in migration
+    for column in ("access_key", "access_key_hash", "access_key_revoked_at"):
+        assert f"DROP COLUMN IF EXISTS {column}" in migration
+    assert "NOT (config ? 'access_key')" in migration
+
+    assert not (BACKEND_ROOT / "scripts/migrate_access_points_to_v2.py").exists()
+
+
+def test_object_gc_has_durable_recovery_window_and_metrics() -> None:
+    migration = (
+        REPO_ROOT
+        / "supabase/migrations/20260711080000_object_gc_quarantine_and_metrics.sql"
+    ).read_text(encoding="utf-8")
+    assert "version_object_gc_candidates" in migration
+    assert "version_object_gc_runs" in migration
+    assert "sync_version_object_gc_candidates" in migration
+    assert "first_seen_at" in migration
+    assert "make_interval" in migration
+    assert "ENABLE ROW LEVEL SECURITY" in migration
+    assert "FROM PUBLIC, anon, authenticated" in migration
+
+    worker = (
+        BACKEND_ROOT / "src/version_engine/derived/object_gc_worker.py"
+    ).read_text(encoding="utf-8")
+    assert "VERSION_OBJECT_GC_QUARANTINE_SECONDS" in worker
+    assert "version_object_gc_runs" in worker
+
+
+def test_legacy_mcp_and_sandbox_runtime_packages_are_retired() -> None:
+    legacy_mcp = BACKEND_ROOT / "src/infra/mcp_server"
+    assert not legacy_mcp.exists() or not any(legacy_mcp.glob("*.py"))
+    legacy_sandbox = BACKEND_ROOT / "src/infra/sandbox"
+    assert not legacy_sandbox.exists() or not any(legacy_sandbox.glob("*.py"))
+
+    migration = (
+        REPO_ROOT / "supabase/migrations/20260711050000_retire_legacy_mcps.sql"
+    ).read_text(encoding="utf-8")
+    assert "INSERT INTO public.access_surfaces" in migration
+    assert "DROP TABLE IF EXISTS public.mcps CASCADE" in migration
+
+    config = (BACKEND_ROOT / "src/config.py").read_text(encoding="utf-8")
+    assert 'SCOPE_SANDBOX_STORE: Literal["memory", "supabase"] = "supabase"' in config
+
+
+def test_mcp_transport_has_one_backend_runtime_and_one_binding_store() -> None:
+    removed = (
+        "mcp_service/cache.py",
+        "mcp_service/core/config_loader.py",
+        "mcp_service/tool/fs_tool.py",
+        "mcp_service/tool/table_tool.py",
+        "script/migrate_mcp_to_v2.py",
+    )
+    for relative in removed:
+        assert not (BACKEND_ROOT / relative).exists()
+
+    transport = (BACKEND_ROOT / "mcp_service/server.py").read_text(encoding="utf-8")
+    rpc_client = (BACKEND_ROOT / "mcp_service/rpc/client.py").read_text(encoding="utf-8")
+    assert "list_mcp_runtime_tools" in transport
+    assert "call_mcp_runtime_tool" in transport
+    for legacy_symbol in (
+        "load_mcp_config",
+        "FsToolImplementation",
+        "TableToolImplementation",
+        "_build_agent_tools_list",
+        "node_{idx}",
+    ):
+        assert legacy_symbol not in transport
+    assert "/internal/mcp-runtime/tools" in rpc_client
+    assert "/internal/mcp-runtime/call" in rpc_client
+    assert "/internal/nodes/" not in rpc_client
+    assert "/internal/tables/" not in rpc_client
+
+    migration = (
+        REPO_ROOT
+        / "supabase/migrations/20260711060000_unify_mcp_tool_bindings.sql"
+    ).read_text(encoding="utf-8")
+    assert "idx_access_tools_surface_tool_unique" in migration
+    assert "replace_mcp_surface_policy" in migration
+    assert "DELETE FROM public.access_tools" in migration
+    assert "REVOKE ALL ON FUNCTION" in migration
+
+    guide = (BACKEND_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    assert "MCP 四层职责与唯一数据路径" in guide
+    assert "version_engine/scoped_fs" in guide
+
+
+def test_version_alias_views_are_not_exposed_as_rls_bypasses() -> None:
+    migration = (
+        REPO_ROOT
+        / "supabase/migrations/20260711020000_secure_version_alias_views.sql"
+    ).read_text(encoding="utf-8")
+    views = (
+        "version_commits",
+        "version_scope_state",
+        "version_view_commits",
+        "version_outbox",
+        "version_conflicts",
+        "version_object_locations",
+    )
+
+    for view in views:
+        assert f"ALTER VIEW IF EXISTS public.{view}" in migration
+        assert "security_invoker = true" in migration
+        assert (
+            f"REVOKE ALL ON public.{view} FROM PUBLIC, anon, authenticated;"
+            in migration
+        )
+    assert "GRANT SELECT ON public.version_commits TO authenticated" not in migration
 
 
 def test_product_write_path_does_not_import_git_transport_materialization() -> None:

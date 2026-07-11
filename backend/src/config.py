@@ -154,11 +154,35 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def enforce_access_credential_secret_safety(self):
         """Hosted runtimes must use a dedicated stable HMAC secret for Access keys."""
-        if self.APP_ENV not in {"development", "test"} and not self.ACCESS_CREDENTIAL_HASH_SECRET:
-            raise ValueError(
-                "ACCESS_CREDENTIAL_HASH_SECRET is required outside development/test. "
-                "It must remain stable because it hashes MCP/Access credentials."
-            )
+        if self.APP_ENV not in {"development", "test"}:
+            secret = (self.ACCESS_CREDENTIAL_HASH_SECRET or "").strip()
+            if (
+                len(secret) < 32
+                or secret == "ContextBase-access-credential-development-secret"
+                or secret in {self.JWT_SECRET, self.INTERNAL_API_SECRET}
+            ):
+                raise ValueError(
+                    "ACCESS_CREDENTIAL_HASH_SECRET must be dedicated, non-default, "
+                    "and at least 32 characters outside development/test"
+                )
+        return self
+
+    @model_validator(mode="after")
+    def enforce_auth_security_store_safety(self):
+        """Hosted auth controls require one shared, cross-replica Redis."""
+        if self.APP_ENV not in {"development", "test"}:
+            if not self.AUTH_SECURITY_REDIS_URL:
+                raise ValueError(
+                    "AUTH_SECURITY_REDIS_URL is required outside development/test"
+                )
+            if not self.NOTIFICATIONS_REDIS_URL:
+                raise ValueError(
+                    "NOTIFICATIONS_REDIS_URL is required outside development/test"
+                )
+            if not self.DESKTOP_AUTH_PUBLIC_BASE_URL.startswith("https://"):
+                raise ValueError(
+                    "DESKTOP_AUTH_PUBLIC_BASE_URL must use https outside development/test"
+                )
         return self
 
     @model_validator(mode="after")
@@ -182,28 +206,65 @@ class Settings(BaseSettings):
                 )
         return self
 
+    @model_validator(mode="after")
+    def enforce_mcp_token_secret_safety(self):
+        """MCP JWTs have a separate trust domain and always expire."""
+        if self.APP_ENV not in {"development", "test"}:
+            secret = (self.MCP_TOKEN_SECRET or "").strip()
+            if (
+                not secret
+                or secret == "ContextBase-mcp-development-secret"
+                or len(secret) < 32
+                or secret == self.JWT_SECRET
+            ):
+                raise ValueError(
+                    "MCP_TOKEN_SECRET must be distinct, non-default, and >=32 chars"
+                )
+            if self.MCP_TOKEN_TTL_SECONDS <= 0:
+                raise ValueError("MCP_TOKEN_TTL_SECONDS must be positive")
+        return self
+
+    @model_validator(mode="after")
+    def enforce_hosted_sandbox_safety(self):
+        """Hosted deployments may never fall back to a shared-kernel Docker sandbox."""
+        if self.APP_ENV in {"staging", "production"}:
+            if self.SANDBOX_TYPE != "e2b":
+                raise ValueError("Hosted SANDBOX_TYPE must be 'e2b' (no Docker fallback)")
+            if not self.E2B_API_KEY:
+                raise ValueError("E2B_API_KEY is required for hosted sandbox execution")
+            if self.SCOPE_SANDBOX_STORE != "supabase":
+                raise ValueError("Hosted sandbox sessions require SCOPE_SANDBOX_STORE=supabase")
+            if not self.SCOPE_SANDBOX_REAPER_ENABLED:
+                raise ValueError("Hosted sandbox sessions require SCOPE_SANDBOX_REAPER_ENABLED=true")
+        return self
+
+    @model_validator(mode="after")
+    def enforce_git_transport_caps(self):
+        if self.APP_ENV not in {"development", "test"} and (
+            self.GIT_MAX_RECEIVE_PACK_BYTES <= 0
+            or self.GIT_MAX_UPLOAD_PACK_BYTES <= 0
+        ):
+            raise ValueError("Hosted Git transport hard caps must be positive")
+        return self
+
     # JWT configuration
     JWT_SECRET: str = "ContextBase-256-bit-secret"
     JWT_ALGORITHM: str = "HS256"
-    # Bound MCP token lifetime (ISSUE-007). MCP tokens previously carried no
-    # `exp` claim and never expired. 0 disables expiry (legacy behaviour).
+    MCP_TOKEN_SECRET: str = "ContextBase-mcp-development-secret"
+    MCP_TOKEN_AUDIENCE: str = "puppyone-mcp"
     MCP_TOKEN_TTL_SECONDS: int = 30 * 24 * 60 * 60  # 30 days
+    # Shared fail-closed store for OAuth one-time state and auth rate limits.
+    AUTH_SECURITY_REDIS_URL: str = ""
+    # Browser/CLI-reachable Supabase origin. Empty means SUPABASE_URL is already public.
+    SUPABASE_PUBLIC_URL: str = ""
+    DESKTOP_AUTH_PUBLIC_BASE_URL: str = ""
+    DESKTOP_AUTH_ALLOWED_CALLBACKS: str = "puppyone://auth/callback"
+    DESKTOP_AUTH_STATE_TTL_SECONDS: int = 10 * 60
+    DESKTOP_AUTH_EXCHANGE_TTL_SECONDS: int = 60
     # Cluster-aware version notifications (ISSUE-015). When set, WebSocket
     # commit_update events are fanned out across replicas via Redis pub/sub.
-    # Empty (default) = process-local fan-out only (unchanged behaviour).
+    # Local development may leave this empty; hosted validation requires it.
     NOTIFICATIONS_REDIS_URL: str = ""
-
-    # Redis-backed login brute-force throttle (ISSUE-006). When set, failed-login
-    # counters are shared across replicas (the in-process fallback is per-replica).
-    # Empty (default) = in-process fallback only. Fail-open on any Redis error.
-    RATELIMIT_REDIS_URL: str = ""
-
-    # Scope access-key hashing (ISSUE-003). When enabled, repo_scopes writes and
-    # resolves keys via an HMAC hash (access_key_hash column) instead of trusting
-    # the plaintext column. OFF by default so behaviour is unchanged until ops has
-    # (1) applied the access_key_hash migration and (2) backfilled existing rows;
-    # then flip this on, and finally drop the plaintext access_key column.
-    SCOPE_ACCESS_KEY_HASH_LOOKUP: bool = False
 
     # Anthropic configuration
     ANTHROPIC_API_KEY: str = ""
@@ -215,20 +276,13 @@ class Settings(BaseSettings):
     # - "docker": Use local Docker container sandbox
     # - "auto": Auto-select (use E2B if E2B_API_KEY is available, otherwise use Docker)
     SANDBOX_TYPE: Literal["e2b", "docker", "auto"] = "auto"
+    E2B_API_KEY: str = ""
     # Docker sandbox dedicated temp directory; only needed when containerized backend controls host Docker
     SANDBOX_TMPDIR: str | None = None
     # Sandbox file download concurrency
     SANDBOX_DOWNLOAD_CONCURRENCY: int = 10
     # Large file streaming threshold (bytes); files exceeding this size use streaming transfer
     SANDBOX_LARGE_FILE_THRESHOLD: int = 50 * 1024 * 1024  # 50MB
-    # Docker sandbox isolation hardening (ISSUE-010). Applied to the primary
-    # (self-contained custom-image) container. Network mode "none" cuts off
-    # outbound access incl. the cloud metadata endpoint; "" keeps default bridge.
-    SANDBOX_DOCKER_NETWORK: str = "none"
-    SANDBOX_DOCKER_NO_NEW_PRIVILEGES: bool = True
-    SANDBOX_DOCKER_CAP_DROP_ALL: bool = True
-    SANDBOX_DOCKER_READONLY_ROOTFS: bool = False  # opt-in: image must not write outside mounts
-
     # ── Scope-sandbox (V2 "sandbox as access point") ──
     # NOTE: the per-project/enterprise choice of "fly" vs "e2b" is a USER
     # selection made in the frontend and persisted as a project setting; it is
@@ -251,11 +305,10 @@ class Settings(BaseSettings):
     SCOPE_SANDBOX_E2B_TEMPLATE: str = ""
     # Session store backend: "memory" (dev/single-process) or "supabase"
     # (durable, multi-worker-visible — required for the reaper + multi-instance).
-    SCOPE_SANDBOX_STORE: Literal["memory", "supabase"] = "memory"
-    # Background reaper: stop idle / destroy long-idle sandboxes to save cost.
-    # OFF by default — it makes real provider stop/destroy calls (billing), so
-    # it's opt-in per deployment. Interval is seconds between sweeps.
-    SCOPE_SANDBOX_REAPER_ENABLED: bool = False
+    SCOPE_SANDBOX_STORE: Literal["memory", "supabase"] = "supabase"
+    # Background reaper is part of the lifecycle correctness contract: without
+    # it a worker crash can leave paid provider resources alive indefinitely.
+    SCOPE_SANDBOX_REAPER_ENABLED: bool = True
     SCOPE_SANDBOX_REAPER_INTERVAL_S: int = 120
 
     # Workspace Provider configuration
@@ -336,7 +389,7 @@ class Settings(BaseSettings):
     # Inter-service communication
     INTERNAL_API_SECRET: str = ""  # Internal service communication secret
     MCP_SERVER_URL: str = ""  # MCP service address
-    ACCESS_CREDENTIAL_HASH_SECRET: str = ""  # HMAC secret for Access surface credentials
+    ACCESS_CREDENTIAL_HASH_SECRET: str = "ContextBase-access-credential-development-secret"
 
     # Product entitlements / billing enforcement.
     # disabled: open-source/self-hosted default, no product limits enforced.
@@ -408,8 +461,11 @@ class Settings(BaseSettings):
     VERSION_OBJECT_GC_DRY_RUN: bool = True
     VERSION_OBJECT_GC_INTERVAL_SECONDS: int = 60 * 60
     VERSION_OBJECT_GC_RETENTION_SECONDS: int = 7 * 24 * 60 * 60
+    VERSION_OBJECT_GC_QUARANTINE_SECONDS: int = 7 * 24 * 60 * 60
     VERSION_OBJECT_GC_MAX_PROJECTS_PER_RUN: int = 25
     VERSION_OBJECT_GC_MAX_DELETE_PER_PROJECT: int = 1000
+    VERSION_OBJECT_GC_REQUIRED_DRY_RUN_DAYS: int = 7
+    VERSION_OBJECT_GC_PROJECT_ALLOWLIST: str = ""
 
     # Post-commit tree-closure tripwire. When on, every product write verifies
     # the freshly-published root resolves its entire subtree closure and fails

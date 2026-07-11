@@ -43,9 +43,6 @@ class ConnectorRepository:
     def get(self, connector_id: str) -> Optional[Connector]:
         return self._repo.get_connector(connector_id)
 
-    def get_agent_by_mcp_key(self, mcp_api_key: str) -> Optional[Connector]:
-        return self._repo.get_agent_connector_by_mcp_key(mcp_api_key)
-
     def get_by_scope_provider(
         self, scope_id: str, provider: str,
     ) -> Optional[Connector]:

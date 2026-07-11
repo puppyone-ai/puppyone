@@ -7,6 +7,10 @@ from src.repo.access_credentials import (
     AccessCredentialRepository,
     mask_access_token,
 )
+from src.repo.access_surface_repository import AccessSurfaceRepository
+from src.version_engine.scoped_fs.policy import (
+    custom_tool_bindings_from_tools_config,
+)
 
 
 PROVIDER = "mcp"
@@ -15,13 +19,25 @@ ACCESS_SURFACE_POLICIES_TABLE = "access_surface_policies"
 SCOPES_TABLE = "repo_scopes"
 
 
+def _filesystem_tools_policy(tools_config: Any) -> dict[str, Any]:
+    """Strip custom bindings; those live exclusively in ``access_tools``."""
+
+    if not isinstance(tools_config, dict):
+        return {}
+    return {
+        key: value
+        for key, value in tools_config.items()
+        if key not in {"custom_tools", "bound_tools", "external_tools"}
+    }
+
+
 def _default_policy(accesses: Optional[list] = None, tools_config: Any = None) -> dict[str, Any]:
     return {
         "version": 1,
         "fs_policy": {
             "accesses": accesses or [],
         },
-        "tools_policy": tools_config if tools_config is not None else {},
+        "tools_policy": _filesystem_tools_policy(tools_config),
         "shell_policy": {
             "enabled": False,
         },
@@ -35,13 +51,22 @@ def _row_to_endpoint(
     *,
     policy: Optional[dict] = None,
     credential: Optional[dict] = None,
+    tool_bindings: Optional[list[dict]] = None,
     plaintext_api_key: str = "",
 ) -> dict:
     """Reshape an access_surfaces row into the endpoint dict the API exposes."""
     config = row.get("config") or {}
     policy = policy or {}
     fs_policy = policy.get("fs_policy") or {}
-    tools_policy = policy.get("tools_policy")
+    tools_policy = dict(policy.get("tools_policy") or {})
+    if tool_bindings:
+        tools_policy["custom_tools"] = [
+            {
+                "tool_id": binding["tool_id"],
+                "enabled": bool(binding.get("enabled", True)),
+            }
+            for binding in tool_bindings
+        ]
     credential_hint = mask_access_token(
         (credential or {}).get("key_prefix"),
         (credential or {}).get("key_last4"),
@@ -80,6 +105,7 @@ class McpEndpointRepository:
         else:
             self._client = supabase_client
         self._credentials = AccessCredentialRepository(self._client)
+        self._surfaces = AccessSurfaceRepository(self._client)
 
     def _project_org_id(self, project_id: str) -> str | None:
         resp = (
@@ -129,12 +155,20 @@ class McpEndpointRepository:
         surface_ids = [r["id"] for r in rows]
         policy_by_surface = self._policy_lookup(surface_ids)
         credential_by_surface = self._credentials.list_active_by_surface(surface_ids)
+        bindings_by_surface = {
+            surface_id: self._surfaces.list_tool_bindings(
+                surface_id,
+                mcp_exposed_only=True,
+            )
+            for surface_id in surface_ids
+        }
         return [
             _row_to_endpoint(
                 r,
                 path_by_scope.get(r.get("scope_id")),
                 policy=policy_by_surface.get(r["id"]),
                 credential=credential_by_surface.get(r["id"]),
+                tool_bindings=bindings_by_surface.get(r["id"]),
             )
             for r in rows
         ]
@@ -156,14 +190,6 @@ class McpEndpointRepository:
 
     def get_by_id(self, endpoint_id: str) -> Optional[dict]:
         resp = self._query().eq("id", endpoint_id).execute()
-        rows = self._hydrate(resp.data or [])
-        return rows[0] if rows else None
-
-    def get_by_api_key(self, api_key: str) -> Optional[dict]:
-        credential = self._credentials.get_active_by_token(api_key)
-        if not credential:
-            return None
-        resp = self._query().eq("id", credential["access_surface_id"]).execute()
         rows = self._hydrate(resp.data or [])
         return rows[0] if rows else None
 
@@ -206,12 +232,24 @@ class McpEndpointRepository:
             "access_surface_id": surface_id,
             **_default_policy(accesses, tools_config),
         }
-        resp = (
-            self._client.table(ACCESS_SURFACE_POLICIES_TABLE)
-            .upsert(payload, on_conflict="access_surface_id")
-            .execute()
-        )
-        return (resp.data or [payload])[0]
+        bindings = custom_tool_bindings_from_tools_config(tools_config)
+        resp = self._client.rpc(
+            "replace_mcp_surface_policy",
+            {
+                "p_surface_id": surface_id,
+                "p_accesses": accesses or [],
+                "p_tools_policy": payload["tools_policy"],
+                "p_bindings": bindings,
+            },
+        ).execute()
+        data = resp.data
+        if isinstance(data, list):
+            data = data[0] if data else None
+        if not isinstance(data, dict):
+            raise RuntimeError("replace_mcp_surface_policy returned no policy")
+        # RPC returns the stored policy without the API-facing embedded binding
+        # compatibility view; hydration adds canonical access_tools bindings.
+        return data
 
     def create(
         self,
@@ -265,6 +303,9 @@ class McpEndpointRepository:
             scope["path"],
             policy=policy,
             credential=credential,
+            tool_bindings=self._surfaces.list_tool_bindings(
+                inserted["id"], mcp_exposed_only=True
+            ),
             plaintext_api_key=api_key,
         )
 
@@ -342,6 +383,9 @@ class McpEndpointRepository:
             path_by_scope.get(row.get("scope_id")),
             policy=policy,
             credential=credential,
+            tool_bindings=self._surfaces.list_tool_bindings(
+                row["id"], mcp_exposed_only=True
+            ),
             plaintext_api_key=api_key,
         )
 

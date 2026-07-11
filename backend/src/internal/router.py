@@ -19,7 +19,6 @@ from src.platform.entitlements.dependencies import get_entitlement_service
 from src.platform.entitlements.models import EntitlementUpsert
 from src.platform.entitlements.service import EntitlementService
 from src.platform.organization.repository import OrganizationRepository
-from src.tool.repository import ToolRepositorySupabase
 from src.version_engine.bootstrap.dependencies import (
     build_worker_version_engine_container,
     get_product_operation_adapter,
@@ -31,9 +30,23 @@ from src.utils.logger import log_warning
 
 router = APIRouter(prefix="/internal", tags=["internal"])
 
-
-class InternalMcpKeyRequest(BaseModel):
-    api_key: str = Field(..., min_length=1)
+# Security manifest: every project-scoped internal endpoint must appear here and
+# invoke one of the two actor guards before its first tenant operation. Tests
+# compare this manifest to the router so additions cannot silently omit authz.
+PROJECT_SCOPED_INTERNAL_ENDPOINTS = {
+    "/internal/table/{table_id}",
+    "/internal/tables/{table_id}/context-schema",
+    "/internal/tables/{table_id}/context-data",
+    "/internal/tools/{tool_id}/search",
+    "/internal/nodes/resolve-path",
+    "/internal/nodes/list",
+    "/internal/nodes/read",
+    "/internal/nodes/write",
+    "/internal/nodes/create",
+    "/internal/nodes/rm",
+    "/internal/nodes/rename",
+    "/internal/nodes/move",
+}
 
 
 async def verify_internal_secret(x_internal_secret: str = Header(...)) -> None:
@@ -362,6 +375,7 @@ async def delete_table_context_data(
 async def search_tool(
     tool_id: str,
     payload: SearchToolQueryInput,
+    request: Request,
     supabase_repo=Depends(get_supabase_repository),
     search_service=Depends(get_search_service),
 ):
@@ -379,6 +393,7 @@ async def search_tool(
     project_id = tool.project_id or ""
     if not project_id:
         raise HTTPException(status_code=400, detail="tool.project_id is missing")
+    _enforce_acting_user_project_access(request, project_id)
 
     try:
         from src.infra.search.index_task_repository import SearchIndexTaskRepository
@@ -824,140 +839,6 @@ async def move_node_internal(
         raise HTTPException(status_code=e.status_code, detail=e.message) from e
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
-
-
-# ============================================================
-# Agent internal endpoints (called by mcp_service, new architecture)
-# ============================================================
-
-def _resolve_agent_via_connectors(mcp_api_key: str) -> dict:
-    """Resolve an MCP key through the canonical connectors/repo_scopes model."""
-
-    from src.repo.connector_service import ConnectorService
-    from src.repo.scope_repository import RepoScopeRepository
-
-    connector = ConnectorService().get_agent_by_mcp_key(mcp_api_key)
-    if connector is None:
-        raise HTTPException(status_code=404, detail="Agent not found for this MCP API key")
-
-    # Connectors don't have first-class tools/bash_accesses today; the
-    # agent's bound scope IS its access scope. We return one access
-    # entry per scope (the connector's bound scope), letting the MCP
-    # service render its tool list against that scope.
-    scope = RepoScopeRepository().get(connector.scope_id)
-    accesses_data: list[dict] = []
-    if scope is not None:
-        is_writable = scope.mode == "rw"
-        accesses_data.append({
-            "path": scope.path,
-            "bash_enabled": True,
-            "bash_readonly": not is_writable,
-            "tool_query": True,
-            "tool_create": is_writable,
-            "tool_update": is_writable,
-            "tool_delete": is_writable,
-            "json_path": "",
-            "node_name": scope.name,
-            "node_type": "folder",
-        })
-
-    return {
-        "agent": {
-            "id": connector.id,
-            "name": connector.name,
-            "project_id": connector.project_id,
-            # Connector-backed in-app agents expose the chat runtime.
-            "type": "chat",
-            "user_id": connector.created_by or "",
-        },
-        "accesses": accesses_data,
-        # Agent-scoped tool grants are derived from the bound repo scope.
-        # No secondary agent/access table is consulted here.
-        "tools": [],
-    }
-
-
-@router.post(
-    "/agent-by-mcp-key",
-    summary="Get Agent and its access permissions and tools by MCP API key",
-    description="MCP Server calls this endpoint to get Agent configuration for generating tool lists",
-    dependencies=[Depends(verify_internal_secret)],
-)
-async def get_agent_by_mcp_key(
-    mcp_api_key: str = Body(..., embed=True),
-):
-    """Resolve an MCP API key to an agent's config + tools + accesses.
-
-    The canonical source of truth is ``access_surfaces`` rows with
-    kind='agent' and ``config.mcp_api_key``. Missing or unhealthy
-    surface state fails loud instead of consulting historical tables.
-    """
-    return _resolve_agent_via_connectors(mcp_api_key)
-
-
-@router.post(
-    "/mcp-endpoint/resolve",
-    summary="Get standalone MCP endpoint configuration by API key",
-    description="MCP Server calls this endpoint to get standalone MCP Endpoint configuration",
-    dependencies=[Depends(verify_internal_secret)],
-)
-async def get_mcp_endpoint_by_key(payload: InternalMcpKeyRequest):
-    from src.connectors.mcp_endpoint.repository import McpEndpointRepository
-    from src.version_engine.scoped_fs.policy import custom_tool_bindings_from_tools_config
-
-    repo = McpEndpointRepository()
-    endpoint = repo.get_by_api_key(payload.api_key)
-    if not endpoint:
-        raise HTTPException(status_code=404, detail="MCP endpoint not found for this API key")
-    if endpoint.get("status") != "active":
-        raise HTTPException(status_code=403, detail="MCP endpoint is not active")
-
-    accesses_data = []
-    for a in endpoint.get("accesses", []):
-        entry = {
-            "path": a.get("path", ""),
-            "bash_enabled": True,
-            "bash_readonly": a.get("readonly", True),
-            "tool_query": True,
-            "tool_create": not a.get("readonly", True),
-            "tool_update": not a.get("readonly", True),
-            "tool_delete": not a.get("readonly", True),
-            "json_path": a.get("json_path", ""),
-            "node_name": a.get("path", ""),
-            "node_type": "folder",
-        }
-        accesses_data.append(entry)
-
-    tool_repo = ToolRepositorySupabase(get_supabase_repository())
-    tools_data = []
-    for t in custom_tool_bindings_from_tools_config(endpoint.get("tools_config")):
-        tool = tool_repo.get_by_id(t.get("tool_id", ""))
-        if tool and t.get("enabled", True):
-            tools_data.append({
-                "id": t.get("tool_id"),
-                "tool_id": tool.id,
-                "name": tool.name,
-                "type": tool.type,
-                "description": tool.description,
-                "path": tool.path,
-                "json_path": tool.json_path,
-                "input_schema": tool.input_schema,
-                "category": tool.category,
-                "enabled": True,
-                "mcp_exposed": True,
-            })
-
-    return {
-        "endpoint": {
-            "id": endpoint["id"],
-            "name": endpoint["name"],
-            "project_id": endpoint["project_id"],
-            "type": "mcp_endpoint",
-            "user_id": endpoint.get("created_by") or "",
-        },
-        "accesses": accesses_data,
-        "tools": tools_data,
-    }
 
 
 @router.post(

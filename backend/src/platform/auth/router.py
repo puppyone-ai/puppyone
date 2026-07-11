@@ -9,14 +9,17 @@ GET    /auth/config           Public Supabase config (URL + anon key) for Realti
 """
 
 import asyncio
+import base64
 import hashlib
 import os
+import secrets
 import time
-from collections import defaultdict
+from urllib.parse import urlencode, urlparse
 
 import httpx
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, EmailStr
 from supabase import create_client
 
@@ -24,52 +27,21 @@ from src.common_schemas import ApiResponse
 from src.config import settings
 from src.platform.auth.dependencies import CurrentUser, get_current_user, get_initialization_service
 from src.platform.auth.initialization import UserInitializationService
-from src.utils.logger import log_warning
+from src.platform.auth.shared_security_store import (
+    AtomicTTLStore,
+    RateLimiter,
+    SecurityStoreUnavailable,
+    get_auth_security_store,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-# ── Rate limiter for check-email (sliding window, per IP) ────────────────
 _CHECK_EMAIL_WINDOW = 60        # seconds
 _CHECK_EMAIL_MAX_HITS = 5       # max requests per window per IP
 _CHECK_EMAIL_MIN_LATENCY = 0.4  # seconds — flatten timing side-channel
-_check_email_hits: dict[str, list[float]] = defaultdict(list)
-
-
-def _rate_limit_check_email(ip: str) -> None:
-    """Raise 429 if the IP has exceeded the allowed check-email rate."""
-    now = time.monotonic()
-    window = _check_email_hits[ip]
-    # Trim entries outside the window
-    _check_email_hits[ip] = window = [t for t in window if now - t < _CHECK_EMAIL_WINDOW]
-    if len(window) >= _CHECK_EMAIL_MAX_HITS:
-        raise HTTPException(status_code=429, detail="Too many requests. Please try again later.")
-    window.append(now)
-
-
-# ── Login brute-force throttle (ISSUE-006) ──────────────────────────────────
-# Keyed by ACCOUNT (email), NOT by IP: behind a reverse proxy request.client.host
-# is a shared proxy address (per-IP limiting would false-positive real users) and
-# X-Forwarded-For is client-spoofable, so IP keying would be both unsafe and
-# ineffective. We count FAILED logins only and evaluate the threshold AFTER the
-# attempt — so a legitimate user with the correct password is never blocked (no
-# victim-lockout DoS), and successful logins add ZERO overhead. Redis-backed when
-# RATELIMIT_REDIS_URL is set (cross-replica-correct); otherwise a per-replica
-# in-process fallback. Fail-open: any Redis error degrades to in-process, never
-# blocks auth. Supabase's own throttling remains the primary backstop.
-_LOGIN_FAIL_WINDOW = 600     # 10 minutes
-_LOGIN_FAIL_MAX = 10         # failed attempts per account per window before 429
-_rate_hits: dict[str, list[float]] = defaultdict(list)
-
-# Atomic fixed-window counter: INCR, and set the TTL only when the key is new.
-_RL_LUA = (
-    "local c = redis.call('INCR', KEYS[1])\n"
-    "if c == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]) end\n"
-    "return c"
-)
-_rl_redis = None
-_rl_script = None
-_rl_redis_init = False
+_LOGIN_WINDOW = 600
+_LOGIN_MAX_HITS = 10
 
 
 def _hash_key(value: str) -> str:
@@ -77,58 +49,24 @@ def _hash_key(value: str) -> str:
     return hashlib.sha256((value or "").encode("utf-8")).hexdigest()[:24]
 
 
-def _get_rl_redis():
-    """Lazily build a pooled sync Redis client + registered script.
-
-    Returns (None, None) when RATELIMIT_REDIS_URL is unset or the client can't be
-    built — the caller then uses the in-process fallback.
-    """
-    global _rl_redis, _rl_script, _rl_redis_init
-    if _rl_redis_init:
-        return _rl_redis, _rl_script
-    _rl_redis_init = True
-    url = getattr(settings, "RATELIMIT_REDIS_URL", "") or ""
-    if not url:
-        return None, None
+def _enforce_rate_limit(
+    limiter: RateLimiter,
+    *,
+    bucket: str,
+    subject: str,
+    limit: int,
+    window_seconds: int,
+) -> None:
     try:
-        import redis as redis_sync
-        _rl_redis = redis_sync.Redis.from_url(
-            url, decode_responses=True,
-            socket_timeout=0.15, socket_connect_timeout=0.15,
+        exceeded = limiter.hit(bucket, _hash_key(subject), limit, window_seconds)
+    except SecurityStoreUnavailable as exc:
+        raise HTTPException(status_code=503, detail="Authentication security store unavailable") from exc
+    if exceeded:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many requests. Please try again later.",
+            headers={"Retry-After": str(window_seconds)},
         )
-        _rl_script = _rl_redis.register_script(_RL_LUA)
-    except Exception as e:  # noqa: BLE001 — never break auth on redis init
-        log_warning(f"[auth] rate-limit redis disabled (init failed): {e}")
-        _rl_redis = None
-        _rl_script = None
-    return _rl_redis, _rl_script
-
-
-def _over_limit(bucket: str, value: str, max_hits: int, window_s: int) -> bool:
-    """Increment the (bucket, value) counter; return True if it now exceeds
-    max_hits within window_s. Redis-first, fail-open to a per-replica in-process
-    sliding window on any Redis error."""
-    key = f"rl:{bucket}:{_hash_key(value)}"
-    r, script = _get_rl_redis()
-    if r is not None and script is not None:
-        try:
-            count = int(script(keys=[key], args=[window_s]))
-            return count > max_hits
-        except Exception as e:  # noqa: BLE001 — degrade to in-process
-            log_warning(f"[auth] rate-limit redis error, using in-process: {e}")
-    now = time.monotonic()
-    kept = [t for t in _rate_hits[key] if now - t < window_s]
-    kept.append(now)
-    _rate_hits[key] = kept
-    return len(kept) > max_hits
-
-
-def _register_login_failure(email: str) -> bool:
-    """Record a failed login for an account; True once the account is throttled."""
-    return _over_limit(
-        "login_fail", (email or "").strip().lower() or "unknown",
-        _LOGIN_FAIL_MAX, _LOGIN_FAIL_WINDOW,
-    )
 
 
 class LoginRequest(BaseModel):
@@ -155,6 +93,21 @@ class CheckEmailResponse(BaseModel):
     exists: bool
 
 
+class DesktopStartRequest(BaseModel):
+    provider: str
+    callback_url: str
+
+
+class DesktopStartResponse(BaseModel):
+    state: str
+    login_url: str
+
+
+class DesktopExchangeRequest(BaseModel):
+    code: str
+    state: str
+
+
 def _make_auth_client():
     """Create a throwaway Supabase client for auth operations only.
 
@@ -172,10 +125,139 @@ class RealtimeConfig(BaseModel):
     supabase_anon_key: str
 
 
+def _allowed_desktop_callbacks() -> set[str]:
+    return {
+        item.strip()
+        for item in settings.DESKTOP_AUTH_ALLOWED_CALLBACKS.split(",")
+        if item.strip()
+    }
+
+
+def _public_supabase_url() -> str:
+    """Return the browser-reachable auth origin, not an internal service DNS name."""
+    return (
+        settings.SUPABASE_PUBLIC_URL or os.environ.get("SUPABASE_URL", "")
+    ).rstrip("/")
+
+
+def _validate_desktop_callback(callback_url: str) -> str:
+    if callback_url not in _allowed_desktop_callbacks():
+        raise HTTPException(status_code=400, detail="Desktop callback URL is not allowed")
+    parsed = urlparse(callback_url)
+    if parsed.query or parsed.fragment or not parsed.scheme:
+        raise HTTPException(status_code=400, detail="Invalid desktop callback URL")
+    return callback_url
+
+
+def _store_error(exc: SecurityStoreUnavailable) -> HTTPException:
+    return HTTPException(status_code=503, detail="Authentication security store unavailable")
+
+
+@router.post("/desktop/start", response_model=ApiResponse[DesktopStartResponse])
+def desktop_auth_start(
+    body: DesktopStartRequest,
+    store: AtomicTTLStore = Depends(get_auth_security_store),
+):
+    """Start an OAuth PKCE flow whose state is safe across replicas."""
+    provider = body.provider.strip().lower()
+    if provider not in {"google", "github"}:
+        raise HTTPException(status_code=400, detail="Unsupported OAuth provider")
+    callback_url = _validate_desktop_callback(body.callback_url)
+    public_base = settings.DESKTOP_AUTH_PUBLIC_BASE_URL.rstrip("/")
+    supabase_url = _public_supabase_url()
+    if not public_base or not supabase_url:
+        raise HTTPException(status_code=503, detail="Desktop OAuth is not configured")
+
+    state = secrets.token_urlsafe(32)
+    verifier = secrets.token_urlsafe(64)
+    challenge = base64.urlsafe_b64encode(
+        hashlib.sha256(verifier.encode("ascii")).digest()
+    ).rstrip(b"=").decode("ascii")
+    try:
+        store.put(
+            "desktop-state",
+            state,
+            {"callback_url": callback_url, "code_verifier": verifier},
+            settings.DESKTOP_AUTH_STATE_TTL_SECONDS,
+        )
+    except SecurityStoreUnavailable as exc:
+        raise _store_error(exc) from exc
+
+    redirect_to = f"{public_base}/auth/desktop/callback?{urlencode({'state': state})}"
+    authorize_params = urlencode({
+        'provider': provider,
+        'redirect_to': redirect_to,
+        'code_challenge': challenge,
+        'code_challenge_method': 's256',
+    })
+    login_url = f"{supabase_url}/auth/v1/authorize?{authorize_params}"
+    return ApiResponse.success(data=DesktopStartResponse(state=state, login_url=login_url))
+
+
+@router.get("/desktop/callback")
+async def desktop_auth_callback(
+    code: str,
+    state: str,
+    store: AtomicTTLStore = Depends(get_auth_security_store),
+):
+    """Consume OAuth state, exchange PKCE code, then issue a one-time desktop code."""
+    try:
+        pending = store.consume("desktop-state", state)
+    except SecurityStoreUnavailable as exc:
+        raise _store_error(exc) from exc
+    if not pending:
+        raise HTTPException(status_code=400, detail="Desktop OAuth state is invalid or expired")
+
+    supabase_url = os.environ.get("SUPABASE_URL", "").rstrip("/")
+    anon_key = os.environ.get("SUPABASE_ANON_KEY", "") or os.environ.get("SUPABASE_KEY", "")
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            f"{supabase_url}/auth/v1/token?grant_type=pkce",
+            headers={"apikey": anon_key, "Content-Type": "application/json"},
+            json={"auth_code": code, "code_verifier": pending["code_verifier"]},
+        )
+    if response.status_code != 200:
+        raise HTTPException(status_code=401, detail="OAuth code exchange failed")
+    session = response.json()
+    if not session.get("access_token") or not session.get("refresh_token"):
+        raise HTTPException(status_code=502, detail="OAuth provider returned an invalid session")
+
+    exchange_code = secrets.token_urlsafe(32)
+    try:
+        store.put(
+            "desktop-exchange",
+            exchange_code,
+            {"state": state, "session": session},
+            settings.DESKTOP_AUTH_EXCHANGE_TTL_SECONDS,
+        )
+    except SecurityStoreUnavailable as exc:
+        raise _store_error(exc) from exc
+    callback_url = pending["callback_url"]
+    separator = "&" if "?" in callback_url else "?"
+    return RedirectResponse(
+        f"{callback_url}{separator}{urlencode({'code': exchange_code, 'state': state})}",
+        status_code=302,
+    )
+
+
+@router.post("/desktop/exchange")
+def desktop_auth_exchange(
+    body: DesktopExchangeRequest,
+    store: AtomicTTLStore = Depends(get_auth_security_store),
+):
+    try:
+        record = store.consume("desktop-exchange", body.code)
+    except SecurityStoreUnavailable as exc:
+        raise _store_error(exc) from exc
+    if not record or not secrets.compare_digest(str(record.get("state", "")), body.state):
+        raise HTTPException(status_code=400, detail="Desktop exchange code is invalid or expired")
+    return ApiResponse.success(data=record["session"])
+
+
 @router.get("/config", response_model=ApiResponse[RealtimeConfig])
 def get_public_config():
     """Return public Supabase config needed by CLI for Realtime subscriptions."""
-    url = os.environ.get("SUPABASE_URL", "")
+    url = _public_supabase_url()
     anon_key = os.environ.get("SUPABASE_ANON_KEY", "")
     if not url or not anon_key:
         raise HTTPException(
@@ -188,14 +270,24 @@ def get_public_config():
 
 
 @router.post("/check-email", response_model=ApiResponse[CheckEmailResponse])
-async def check_email(body: CheckEmailRequest, request: Request):
+async def check_email(
+    body: CheckEmailRequest,
+    request: Request,
+    limiter: RateLimiter = Depends(get_auth_security_store),
+):
     """Check whether an email is already registered (for email-first login flow).
 
     Protected by per-IP rate limiting and constant-time response delay
     to mitigate email enumeration attacks.
     """
     client_ip = request.client.host if request.client else "unknown"
-    _rate_limit_check_email(client_ip)
+    _enforce_rate_limit(
+        limiter,
+        bucket="check-email",
+        subject=client_ip,
+        limit=_CHECK_EMAIL_MAX_HITS,
+        window_seconds=_CHECK_EMAIL_WINDOW,
+    )
 
     start = time.monotonic()
 
@@ -232,7 +324,17 @@ async def check_email(body: CheckEmailRequest, request: Request):
 
 
 @router.post("/login", response_model=ApiResponse[LoginResponse])
-def login(body: LoginRequest):
+def login(
+    body: LoginRequest,
+    limiter: RateLimiter = Depends(get_auth_security_store),
+):
+    _enforce_rate_limit(
+        limiter,
+        bucket="login",
+        subject=(body.email or "").strip().lower() or "unknown",
+        limit=_LOGIN_MAX_HITS,
+        window_seconds=_LOGIN_WINDOW,
+    )
     try:
         auth_client = _make_auth_client()
         result = auth_client.auth.sign_in_with_password({
@@ -254,15 +356,6 @@ def login(body: LoginRequest):
     except HTTPException:
         raise
     except Exception as e:
-        # Failed auth counts toward the per-account brute-force throttle (ISSUE-006).
-        # A legitimate user with the correct password never reaches this path, so
-        # this can only throttle attackers guessing an account's password.
-        if _register_login_failure(body.email):
-            raise HTTPException(
-                status_code=429,
-                detail="Too many failed login attempts. Please try again later.",
-                headers={"Retry-After": str(_LOGIN_FAIL_WINDOW)},
-            ) from e
         error_msg = str(e)
         if "Invalid login" in error_msg or "invalid" in error_msg.lower():
             raise HTTPException(status_code=401, detail="Invalid email or password")

@@ -119,7 +119,7 @@ backend/
 │   │   ├── scheduler/         #   Scheduled tasks (APScheduler)
 │   │   ├── sandbox/           #   Sandbox runtime (Docker/E2B execution engine)
 │   │   ├── turbopuffer/       #   Turbopuffer vector DB client
-│   │   └── mcp_server/        #   MCP Server management (health checks, cache, legacy mcps table)
+│   │   └── mcp_health.py      #   Remote MCP transport health probe only
 │   ├── ingest/                # File ingestion ETL (MineRU + LLM)
 │   ├── context_publish/       # Public JSON publishing (short links)
 │   ├── internal/              # Internal API (X-Internal-Secret)
@@ -144,7 +144,7 @@ backend/
 
 ### Database Tables
 
-All tables use plural snake_case names. The "unified access" architecture serves agents, MCP endpoints, sandbox endpoints, and Git-remote/CLI credentials through the `access_surfaces` table, differentiated by `kind` and each scope-bound to a `repo_scopes` row (scopes carry the `access_key`); provider-specific config is stored inline in each surface's `config` JSON column. External SaaS data-source integrations live separately in the `connectors` table.
+All tables use plural snake_case names. The "unified access" architecture serves agents, MCP endpoints, sandbox endpoints, and Git-remote/CLI credentials through the `access_surfaces` table, differentiated by `kind` and each scope-bound to a `repo_scopes` row. Scope geometry lives in `repo_scopes`; every machine secret lives hash-only in `access_surface_credentials` and is revealed only on issuance. Provider config must never contain credentials. External SaaS data-source integrations live separately in the `connectors` table.
 
 | Table | Repository | Description |
 |-------|-----------|-------------|
@@ -155,14 +155,13 @@ All tables use plural snake_case names. The "unified access" architecture serves
 | `org_invitations` | `organization/repository.py` | Organization invitations |
 | `profiles` | `profile/repository.py` | User profiles |
 | `access_surfaces` | `connectors/manager/router.py`, `repo/access_surface_repository.py` | Unified access surfaces (Git remote/CLI/agent/MCP/sandbox), keyed by `kind`, scope-bound to `repo_scopes` |
-| `repo_scopes` | `repo/scope_repository.py`, `repo/scope_service.py` | Scoped subtrees each access surface binds to (carries `access_key`) |
+| `repo_scopes` | `repo/scope_repository.py`, `repo/scope_service.py` | Scoped subtree geometry (path/exclude/mode), with no credential columns |
 | `connectors` | `repo/connector_repository.py`, `repo/connector_service.py` | External SaaS data-source integrations (Gmail/GitHub/Notion/...) |
 | `access_permissions` | `connectors/agent/config/repository.py` | Access surface ↔ content node permissions |
 | `access_tools` | `connectors/agent/config/repository.py`, `tool/service.py` | Access surface ↔ tool bindings |
 | `content_nodes` | _(dropped — replaced by Version Engine Git trees in object storage)_ | Legacy content tree |
 | `tools` | `supabase/tools/repository.py` | Registered tools |
-| `mcps` | `supabase/mcps/repository.py`, `supabase/mcp_v2/repository.py` | MCP server instances |
-| `mcp_bindings` | `supabase/mcp_binding/repository.py` | MCP ↔ tool bindings |
+| `access_surface_credentials` | `repo/access_credentials.py` | Hash-only machine credentials; sole MCP key authentication source |
 | `chunks` | `chunking/repository.py` | Text chunks for search |
 | `uploads` | `upload/file/tasks/repository.py` | File upload/ingest tasks |
 | `etl_rules` | `upload/file/rules/repository_supabase.py` | ETL transformation rules |

@@ -13,7 +13,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from src.infra.mcp_server.dependencies import get_mcp_instance_service
+from src.infra.mcp_health import get_mcp_health_client
 
 # Record application start time
 APP_START_TIME = time.time()
@@ -204,9 +204,7 @@ async def _init_mcp_health_check() -> None:
     mcp_init_start = time.time()
     try:
         log_info("🔌 Checking MCP Server health status...")
-        from src.infra.mcp_server.dependencies import get_mcp_instance_service
-
-        mcp_service = get_mcp_instance_service()
+        mcp_service = get_mcp_health_client()
         health_result = await mcp_service.check_mcp_server_health()
         mcp_duration = time.time() - mcp_init_start
         if health_result.get("status", "") != "unhealthy":
@@ -315,11 +313,13 @@ async def _init_version_trees() -> None:
 def _init_scope_sandbox_reaper(app: FastAPI) -> None:
     """Start the scope-sandbox reaper (idle→stop, long-idle→destroy) if enabled.
 
-    Off by default — it makes real provider stop/destroy calls. Stored on
-    app.state so _shutdown_services can stop it cleanly."""
+    It is enabled by default and mandatory in hosted deployments so crashed
+    workers cannot orphan paid provider resources. Stored on app.state so
+    shutdown can stop both durable reaper loops cleanly."""
     if not getattr(settings, "SCOPE_SANDBOX_REAPER_ENABLED", False):
         return
     from src.platform.scope_sandbox.reaper import start_reaper
+    from src.platform.scope_sandbox.execution.reaper import start_execution_reaper
     from src.platform.scope_sandbox.service import get_scope_sandbox_service
 
     service = get_scope_sandbox_service()
@@ -327,6 +327,9 @@ def _init_scope_sandbox_reaper(app: FastAPI) -> None:
         service, interval_s=settings.SCOPE_SANDBOX_REAPER_INTERVAL_S,
     )
     app.state.scope_sandbox_reaper = (task, stop_event)
+    app.state.sandbox_execution_reaper = start_execution_reaper(
+        interval_s=settings.SCOPE_SANDBOX_REAPER_INTERVAL_S,
+    )
     log_info(
         f"🧹 Scope-sandbox reaper started (every {settings.SCOPE_SANDBOX_REAPER_INTERVAL_S}s)"
     )
@@ -425,6 +428,14 @@ async def app_lifespan(app: FastAPI):
             await task
         except Exception as e:  # noqa: BLE001
             log_error(f"Scope-sandbox reaper shutdown error: {e}")
+    execution_reaper = getattr(app.state, "sandbox_execution_reaper", None)
+    if execution_reaper is not None:
+        task, stop_event = execution_reaper
+        stop_event.set()
+        try:
+            await task
+        except Exception as e:  # noqa: BLE001
+            log_error(f"Sandbox execution reaper shutdown error: {e}")
     await _shutdown_services()
 
 
@@ -649,7 +660,7 @@ async def live_check():
 @app.get("/ready")
 async def ready_check(
     response: Response,
-    mcp_service=Depends(get_mcp_instance_service),
+    mcp_service=Depends(get_mcp_health_client),
 ):
     """Readiness: indicates whether the service can accept traffic."""
     report = await _build_readiness_report(mcp_service)

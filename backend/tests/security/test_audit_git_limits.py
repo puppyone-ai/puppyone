@@ -67,7 +67,7 @@ def test_spool_accepts_body_within_cap(tmp_path):
         router._unlink_temp(Path(path))
 
 
-def test_spool_unbounded_when_no_cap(tmp_path):
+def test_spool_helper_can_be_unbounded_for_non_git_callers(tmp_path):
     router = _router()
     req = _FakeStreamRequest([b"x" * 5000])
     path = asyncio.run(router._spool_git_request_body(req, max_body_bytes=None))
@@ -75,6 +75,24 @@ def test_spool_unbounded_when_no_cap(tmp_path):
         assert Path(path).stat().st_size == 5000
     finally:
         router._unlink_temp(Path(path))
+
+
+@pytest.mark.parametrize(
+    ("entitlement", "hard_cap", "expected"),
+    [
+        (None, 1000, 1000),
+        (0, 1000, 1000),
+        (-1, 1000, 1000),
+        (400, 1000, 400),
+        (2000, 1000, 1000),
+    ],
+)
+def test_receive_pack_always_has_smaller_finite_cap(
+    monkeypatch, entitlement, hard_cap, expected
+):
+    router = _router()
+    monkeypatch.setattr(router.settings, "GIT_MAX_RECEIVE_PACK_BYTES", hard_cap)
+    assert router._effective_receive_pack_cap(entitlement) == expected
 
 
 # ── run_git timeout parameter ───────────────────────────────────────────────

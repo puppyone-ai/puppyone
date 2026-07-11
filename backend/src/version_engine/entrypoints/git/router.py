@@ -113,15 +113,26 @@ async def _record_git_fetch_audit(
     await asyncio.to_thread(repo.record_audit, "git_fetch", actor, detail)
 
 
-def _git_receive_max_body_bytes(project_id: str) -> int | None:
+def _git_receive_max_body_bytes(project_id: str) -> int:
     from src.platform.entitlements.service import EntitlementService
     from src.platform.project.repository import ProjectRepositorySupabase
 
     project = ProjectRepositorySupabase().get_by_id(project_id)
     if project is None:
-        return None
+        return _effective_receive_pack_cap(None)
     limit = EntitlementService().limit_value(project.org_id, "upload.max_batch_bytes")
-    return int(limit) if limit is not None else None
+    return _effective_receive_pack_cap(limit)
+
+
+def _effective_receive_pack_cap(entitlement_limit: int | None) -> int:
+    """Choose the smaller finite plan limit and mandatory infrastructure cap."""
+    hard_cap = int(settings.GIT_MAX_RECEIVE_PACK_BYTES)
+    if hard_cap <= 0:
+        raise RuntimeError("GIT_MAX_RECEIVE_PACK_BYTES must be positive")
+    if entitlement_limit is None:
+        return hard_cap
+    plan_cap = int(entitlement_limit)
+    return min(plan_cap, hard_cap) if plan_cap > 0 else hard_cap
 
 
 async def _spool_git_request_body(

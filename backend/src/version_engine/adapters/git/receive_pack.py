@@ -696,7 +696,7 @@ def _store_named_ref(
 
     The commit's reachable objects are promoted into the canonical store
     so the ref is durable and fetchable, then the pointer is recorded.
-    The scope head (``mut_scope_state``) is deliberately untouched.
+    The scope head (``version_scope_state``) is deliberately untouched.
     """
     from src.version_engine.infrastructure.supabase.version_ref_repository import (
         VersionRefStore,
@@ -735,7 +735,7 @@ def _ref_writability(ref: str) -> tuple[bool, str]:
 
     Three accepted shapes (GAP-3):
       - ``refs/heads/main`` — the scope head; lands through the write
-        engine and advances ``mut_scope_state``.
+        engine and advances ``version_scope_state``.
       - other ``refs/heads/*`` and ``refs/tags/*`` — stored as named refs
         in ``version_refs`` WITHOUT advancing the scope head. A stored ref
         is a durable, fetchable pointer to a promoted commit; landing it to

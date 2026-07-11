@@ -12,9 +12,6 @@ class McpEndpointService:
     def get_endpoint(self, endpoint_id: str) -> Optional[dict]:
         return self._repo.get_by_id(endpoint_id)
 
-    def get_by_api_key(self, api_key: str) -> Optional[dict]:
-        return self._repo.get_by_api_key(api_key)
-
     def list_endpoints(self, project_id: str) -> List[dict]:
         return self._repo.list_by_project(project_id)
 

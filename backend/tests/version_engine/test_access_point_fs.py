@@ -752,9 +752,12 @@ async def test_raw_file_can_return_byte_slice(monkeypatch):
 @pytest.mark.asyncio
 async def test_upload_writes_raw_bytes_through_product_operation_adapter(monkeypatch):
     _patch_auth(monkeypatch)
+    monkeypatch.setattr(apfs, "_upload_max_bytes_for_project", lambda _project_id: 1024 * 1024)
     ops = _FakeOps()
 
     class _Request:
+        headers = {}
+
         async def body(self):
             return b"\x00bytes"
 
