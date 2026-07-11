@@ -11,6 +11,7 @@ from src.platform.scope_sync.events import (
 )
 from src.platform.scope_sync.policy import Persona, SyncAction, policy_for
 from src.platform.scope_sync.service import ScopeSyncService
+from src.platform.scope_sync.settings_store import InMemorySettingsStore
 
 
 def test_inmemory_store_append_and_since():
@@ -67,6 +68,7 @@ def _svc():
         scope_lookup=lambda sid: next((s for s in _SCOPES if s.id == sid), None),
         scopes_lister=lambda pid: [(s.id, s.path) for s in _SCOPES if s.project_id == pid],
         event_store=store,
+        settings_store=InMemorySettingsStore(),
     )
 
 
@@ -108,6 +110,7 @@ def test_record_publish_is_best_effort_on_error():
     # a broken scopes_lister must not raise into the publish path
     svc = ScopeSyncService(scope_lookup=lambda sid: None,
                            scopes_lister=lambda pid: (_ for _ in ()).throw(RuntimeError("boom")),
-                           event_store=InMemoryEventStore())
+                           event_store=InMemoryEventStore(),
+                           settings_store=InMemorySettingsStore())
     assert svc.record_publish(project_id="p1", scope_path="docs", changed_paths=["a"],
                               head_version="v", origin_user=None) == 0

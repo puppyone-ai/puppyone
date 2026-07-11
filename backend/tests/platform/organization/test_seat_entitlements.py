@@ -10,7 +10,7 @@ from src.platform.organization.models import Organization, OrgInvitation, OrgMem
 from src.platform.organization.service import OrganizationService
 
 
-NOW = datetime(2026, 6, 15, tzinfo=UTC)
+NOW = datetime.now(UTC)
 
 
 class _FakeEntitlementService:
@@ -90,4 +90,8 @@ def test_accept_invitation_enforces_seat_limit() -> None:
     service = OrganizationService(_FakeOrganizationRepository())
 
     with pytest.raises(AppException, match="Seat limit reached \\(1\\)"):
-        service.accept_invitation("token-1", "new-user-1")
+        service.accept_invitation(
+            "token-1",
+            "new-user-1",
+            user_email="new@example.com",
+        )

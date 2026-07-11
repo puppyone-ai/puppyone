@@ -20,9 +20,9 @@ Identity model:
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 # Path syntactic validation lives in the L4 adapter
 # (``ProductOperationAdapter.*`` → ``validate_path``). Per the
@@ -198,6 +198,9 @@ class VersionCommitChange(BaseModel):
 class FileVersionInfo(BaseModel):
     """History list item for a single commit."""
     commit_id: str
+    parent_ids: list[Annotated[str, Field(pattern=r"^[0-9a-f]{40}$")]] = Field(
+        default_factory=list,
+    )
     who: str = ""
     message: str = ""
     changes: list[VersionCommitChange] = []
@@ -215,6 +218,14 @@ class FileVersionInfo(BaseModel):
     audit_detail: dict | None = None
 
 
+class VersionHistoryRef(BaseModel):
+    """Named Git ref included in the project history graph."""
+
+    ref_name: str
+    ref_type: Literal["branch", "tag"]
+    commit_id: Annotated[str, Field(pattern=r"^[0-9a-f]{40}$")]
+
+
 class VersionHistoryResponse(BaseModel):
     """Commit history response (kept name for API compat)."""
     project_id: str
@@ -222,6 +233,9 @@ class VersionHistoryResponse(BaseModel):
     head_commit_id: str = ""
     root_hash: str = ""
     commits: list[FileVersionInfo]
+    refs: list[VersionHistoryRef] = Field(default_factory=list)
+    next_cursor: str | None = None
+    has_more: bool = False
     total: int
 
 

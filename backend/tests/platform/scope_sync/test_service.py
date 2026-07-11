@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import pytest
 
 from src.platform.scope_sync.service import ScopeSyncService
+from src.platform.scope_sync.settings_store import InMemorySettingsStore
 
 
 @dataclass
@@ -23,7 +24,10 @@ _LOOKUP = {SUB.id: SUB, ROOT.id: ROOT}
 
 
 def _svc():
-    return ScopeSyncService(scope_lookup=lambda sid: _LOOKUP.get(sid))
+    return ScopeSyncService(
+        scope_lookup=lambda sid: _LOOKUP.get(sid),
+        settings_store=InMemorySettingsStore(),
+    )
 
 
 def test_sub_scope_dev_gets_dev_policy():

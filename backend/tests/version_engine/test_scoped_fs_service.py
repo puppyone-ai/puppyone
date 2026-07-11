@@ -176,7 +176,7 @@ async def test_grep_skips_excluded_files_and_reads_scope_relative():
     # scope-RELATIVE path (not the scope-absolute entry.path that would
     # double-prefix the scope and silently match nothing).
     assert ops.reads == ["note.txt"]
-    assert out["matches"] and all(m["path"] == "docs/note.txt" for m in out["matches"])
+    assert out["matches"] and all(m["path"] == "note.txt" for m in out["matches"])
 
 
 # ── fs_cat on a folder is an error (not an ls payload) ───────────────

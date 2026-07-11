@@ -218,7 +218,8 @@ async def git_info_refs(
     repo = repo_manager.get_server_repo(project_id)
     facade = repo_facade_from_auth(project_id, auth, kind="project_git_remote",
                                    scope_backend=repo_manager.get_scope_backend(project_id))
-    return info_refs_response(
+    return await asyncio.to_thread(
+        info_refs_response,
         repo,
         service,
         facade.scope_path,
@@ -239,7 +240,8 @@ async def git_ap_info_refs(
     repo = repo_manager.get_server_repo(project_id)
     facade = repo_facade_from_auth(project_id, auth, kind="access_point",
                                    scope_backend=repo_manager.get_scope_backend(project_id))
-    return info_refs_response(
+    return await asyncio.to_thread(
+        info_refs_response,
         repo,
         service,
         facade.scope_path,
@@ -500,7 +502,7 @@ async def git_upload_pack(
     # The streaming response OWNS request_path and unlinks it when the pack
     # finishes streaming. Only clean up here if we never reach that point.
     try:
-        return upload_pack_streaming_response(
+        return await upload_pack_streaming_response(
             repo,
             facade.scope_path,
             list(facade.excludes),
@@ -538,7 +540,7 @@ async def git_ap_upload_pack(
     # The streaming response OWNS request_path and unlinks it when the pack
     # finishes streaming. Only clean up here if we never reach that point.
     try:
-        return upload_pack_streaming_response(
+        return await upload_pack_streaming_response(
             repo,
             facade.scope_path,
             list(facade.excludes),
