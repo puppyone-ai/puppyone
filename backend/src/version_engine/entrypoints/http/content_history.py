@@ -24,9 +24,9 @@ from src.version_engine.adapters.product.operation_adapter import ProductOperati
 from src.version_engine.admission.validation import validate_path
 from src.version_engine.bootstrap.dependencies import (
     get_product_operation_adapter,
+    get_history_graph_service,
     get_repo_manager,
     get_version_admin_service,
-    get_version_ref_store,
 )
 from src.version_engine.domain.errors import VersionEngineError
 from src.version_engine.entrypoints.http.content_helpers import (
@@ -42,10 +42,14 @@ from src.version_engine.entrypoints.http.schemas import (
     VersionHistoryResponse,
 )
 from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
-from src.version_engine.infrastructure.supabase.version_ref_repository import VersionRefStore
 from src.version_engine.read.admin import VersionAdminService
+from src.version_engine.read.history_graph import HistoryGraphService
 from src.version_engine.read.history_changes import normalize_history_changes
-from src.version_engine.write_engine.git_commit import is_git_object_id
+from src.version_engine.read.history_models import (
+    HistoryCursorError,
+    HistoryGraphTooLargeError,
+    HistoryRefsUnavailableError,
+)
 
 history_router = APIRouter()
 
@@ -79,9 +83,8 @@ async def get_commits(
         ),
     ),
     version_admin: VersionAdminService = Depends(get_version_admin_service),
+    history_graph: HistoryGraphService = Depends(get_history_graph_service),
     ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
-    repo_manager: VersionRepoManager = Depends(get_repo_manager),
-    version_refs: VersionRefStore = Depends(get_version_ref_store),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -99,36 +102,43 @@ async def get_commits(
             detail="topological history is project-level and uses cursor pagination",
         )
 
-    try:
-        refs = await asyncio.to_thread(
-            _list_project_history_refs,
-            repo_manager,
-            version_refs,
-            project_id,
-        )
-    except RuntimeError as exc:
-        raise HTTPException(status_code=503, detail="History refs are unavailable") from exc
-    head_commit_id = next(
-        (ref.commit_id for ref in refs if ref.ref_name == "refs/heads/main"),
-        "",
-    )
-
+    refs: list[VersionHistoryRef] = []
+    refs_included = False
+    snapshot_id = ""
     next_cursor: str | None = None
     has_more = False
+    graph_health: Literal["complete", "degraded"] = "complete"
+    unreadable_commit_ids: list[str] = []
     if graph_mode:
         try:
-            page = await version_admin.get_topological_commit_history(
+            page = await history_graph.get_page(
                 project_id,
-                [ref.commit_id for ref in refs],
                 limit=limit,
                 cursor=cursor,
             )
-        except ValueError as exc:
+        except HistoryCursorError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except HistoryRefsUnavailableError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except HistoryGraphTooLargeError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
         entries = page.entries
         total = page.total
         next_cursor = page.next_cursor
         has_more = page.has_more
+        refs = [
+            VersionHistoryRef(
+                ref_name=ref.ref_name,
+                ref_type=ref.ref_type,
+                commit_id=ref.commit_id,
+            )
+            for ref in page.refs
+        ]
+        refs_included = page.refs_included
+        head_commit_id = page.head_commit_id
+        snapshot_id = page.snapshot_id
+        graph_health = page.graph_health
+        unreadable_commit_ids = list(page.unreadable_commit_ids)
     else:
         entries = await version_admin.get_commit_history(
             project_id=project_id,
@@ -148,6 +158,7 @@ async def get_commits(
             for entry in entries
         ]
         total = len(entries)
+        head_commit_id = await version_admin.get_project_head_commit_id(project_id)
 
     commits = [
         FileVersionInfo(
@@ -177,57 +188,14 @@ async def get_commits(
         root_hash=root_hash,
         commits=commits,
         refs=refs,
+        refs_included=refs_included,
+        snapshot_id=snapshot_id,
         next_cursor=next_cursor,
         has_more=has_more,
+        graph_health=graph_health,
+        unreadable_commit_ids=unreadable_commit_ids,
         total=total,
     ))
-
-
-def _list_project_history_refs(
-    repo_manager: VersionRepoManager,
-    version_refs: VersionRefStore,
-    project_id: str,
-) -> list[VersionHistoryRef]:
-    repo = repo_manager.get_repo(project_id)
-    head_commit_id = repo.history.get_head_commit_id() or ""
-    scope_head_getter = getattr(repo.history, "get_scope_head_commit_id", None)
-    if not is_git_object_id(head_commit_id or ""):
-        head_commit_id = scope_head_getter("") if callable(scope_head_getter) else ""
-
-    rows: list[dict] = []
-    if is_git_object_id(head_commit_id):
-        rows.append({
-            "ref_name": "refs/heads/main",
-            "ref_type": "branch",
-            "commit_id": head_commit_id,
-        })
-    rows.extend(version_refs.list_refs(project_id, "", strict=True))
-
-    refs_by_name: dict[str, VersionHistoryRef] = {}
-    for row in rows:
-        ref_name = str(row.get("ref_name") or "")
-        ref_type = str(row.get("ref_type") or "")
-        commit_id = str(row.get("commit_id") or "")
-        if (
-            ref_name in refs_by_name
-            or ref_type not in {"branch", "tag"}
-            or not is_git_object_id(commit_id)
-        ):
-            continue
-        refs_by_name[ref_name] = VersionHistoryRef(
-            ref_name=ref_name,
-            ref_type=ref_type,
-            commit_id=commit_id,
-        )
-
-    return sorted(
-        refs_by_name.values(),
-        key=lambda ref: (
-            0 if ref.ref_name == "refs/heads/main" else 1,
-            0 if ref.ref_type == "branch" else 1,
-            ref.ref_name,
-        ),
-    )
 
 
 @history_router.get(

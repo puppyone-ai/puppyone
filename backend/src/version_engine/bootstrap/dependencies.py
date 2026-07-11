@@ -16,6 +16,7 @@ from src.version_engine.bootstrap.container import (
 from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
 from src.version_engine.infrastructure.supabase.version_ref_repository import VersionRefStore
 from src.version_engine.read.admin import VersionAdminService
+from src.version_engine.read.history_graph import HistoryGraphService
 from src.version_engine.write_engine.engine import VersionWriteEngine
 
 
@@ -49,6 +50,12 @@ def get_version_admin_service(
     container: VersionEngineContainer = Depends(get_version_engine_container),
 ) -> VersionAdminService:
     return container.admin_service()
+
+
+def get_history_graph_service(
+    container: VersionEngineContainer = Depends(get_version_engine_container),
+) -> HistoryGraphService:
+    return container.history_graph()
 
 
 def get_product_operation_adapter(

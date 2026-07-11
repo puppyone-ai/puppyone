@@ -17,6 +17,7 @@ from src.version_engine.adapters.product.operation_adapter import ProductOperati
 from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
 from src.version_engine.infrastructure.supabase.version_ref_repository import VersionRefStore
 from src.version_engine.read.admin import VersionAdminService
+from src.version_engine.read.history_graph import HistoryGraphService
 from src.version_engine.write_engine.engine import VersionWriteEngine
 
 
@@ -26,9 +27,13 @@ class VersionEngineContainer:
 
     repo_manager: VersionRepoManager
     version_ref_store: VersionRefStore
+    history_graph_service: HistoryGraphService
 
     def admin_service(self) -> VersionAdminService:
         return VersionAdminService(self.repo_manager)
+
+    def history_graph(self) -> HistoryGraphService:
+        return self.history_graph_service
 
     def product_operations(self) -> ProductOperationAdapter:
         return ProductOperationAdapter(self.repo_manager)
@@ -61,9 +66,11 @@ def build_version_engine_container(
     if probe:
         _probe_dependencies(s3_svc, supa)
     repo_manager = VersionRepoManager(s3_svc, supa)
+    version_ref_store = VersionRefStore(client=supa)
     return VersionEngineContainer(
         repo_manager=repo_manager,
-        version_ref_store=VersionRefStore(client=supa),
+        version_ref_store=version_ref_store,
+        history_graph_service=HistoryGraphService(repo_manager, version_ref_store),
     )
 
 

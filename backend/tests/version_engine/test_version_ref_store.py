@@ -94,6 +94,17 @@ class BrokenSupabaseClient:
         self.client = self._BrokenTables()
 
 
+class HistorySnapshotClient:
+    def __init__(self, rows):
+        self.rows = rows
+        self.calls = []
+        self.client = self
+
+    def rpc(self, name, args):
+        self.calls.append((name, args))
+        return SimpleNamespace(execute=lambda: SimpleNamespace(data=self.rows))
+
+
 @pytest.fixture
 def store():
     return VersionRefStore(client=FakeSupabaseClient())
@@ -176,6 +187,26 @@ def test_list_refs_strict_fails_closed_instead_of_hiding_branches():
     assert broken.list_refs("p") == []
     with pytest.raises(RuntimeError, match="version refs are unavailable"):
         broken.list_refs("p", strict=True)
+
+
+def test_project_history_refs_use_one_atomic_rpc_snapshot():
+    client = HistorySnapshotClient([
+        {"ref_name": "refs/heads/main", "ref_type": "branch", "commit_id": COMMIT_A},
+        {"ref_name": "refs/heads/feat", "ref_type": "branch", "commit_id": COMMIT_B},
+    ])
+    store = VersionRefStore(client=client)
+
+    assert store.list_project_history_refs("p") == client.rows
+    assert client.calls == [
+        ("get_version_project_history_refs", {"p_project_id": "p"}),
+    ]
+
+
+def test_project_history_ref_snapshot_fails_closed_when_rpc_is_unavailable():
+    broken = VersionRefStore(client=BrokenSupabaseClient())
+
+    with pytest.raises(RuntimeError, match="project history refs are unavailable"):
+        broken.list_project_history_refs("p")
 
 
 def test_delete_ref(store):

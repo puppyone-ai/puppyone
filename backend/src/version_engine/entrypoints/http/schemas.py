@@ -203,8 +203,8 @@ class FileVersionInfo(BaseModel):
     )
     who: str = ""
     message: str = ""
-    changes: list[VersionCommitChange] = []
-    conflicts: list[dict] = []
+    changes: list[VersionCommitChange] = Field(default_factory=list)
+    conflicts: list[dict] = Field(default_factory=list)
     root_hash: str = ""
     scope_hash: str = ""
     scope_path: str = ""
@@ -234,8 +234,14 @@ class VersionHistoryResponse(BaseModel):
     root_hash: str = ""
     commits: list[FileVersionInfo]
     refs: list[VersionHistoryRef] = Field(default_factory=list)
+    refs_included: bool = True
+    snapshot_id: str = ""
     next_cursor: str | None = None
     has_more: bool = False
+    graph_health: Literal["complete", "degraded"] = "complete"
+    unreadable_commit_ids: list[
+        Annotated[str, Field(pattern=r"^[0-9a-f]{40}$")]
+    ] = Field(default_factory=list)
     total: int
 
 

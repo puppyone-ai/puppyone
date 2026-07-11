@@ -22,6 +22,7 @@ from src.version_engine.write_engine.git_object_format import (
     TreeEntry,
     decode_commit,
     decode_object,
+    decode_tag,
     decode_tree,
     encode_commit,
     encode_object,
@@ -116,6 +117,20 @@ def test_git_tree_and_commit_helpers_round_trip() -> None:
     assert commit["tree"] == "2" * 40
     assert commit["parents"] == ["3" * 40]
     assert commit["message"] == "hello"
+
+    tag = decode_tag(
+        (
+            f"object {'4' * 40}\n"
+            "type commit\n"
+            "tag v1.0\n"
+            "tagger A <a@example.com> 1767225602 +0000\n"
+            "\nRelease v1.0\n"
+        ).encode("utf-8")
+    )
+    assert tag["object"] == "4" * 40
+    assert tag["type"] == "commit"
+    assert tag["tag"] == "v1.0"
+    assert tag["message"] == "Release v1.0"
 
 
 def test_git_tree_encoder_rejects_legacy_short_object_ids() -> None:

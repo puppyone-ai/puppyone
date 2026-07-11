@@ -9,20 +9,29 @@ from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
 from src.platform.project.dependencies import get_project_service
 from src.version_engine.bootstrap.dependencies import (
+    get_history_graph_service,
     get_product_operation_adapter,
     get_repo_manager,
     get_version_admin_service,
-    get_version_ref_store,
 )
 from src.version_engine.entrypoints.http.content_history import history_router
 from src.version_engine.read.admin import VersionAdminService
+from src.version_engine.read.history_cursor import HistoryCursorCodec
+from src.version_engine.read.history_graph import HistoryGraphService
 from src.version_engine.storage.object_store import ObjectStore
-from src.version_engine.write_engine.git_object_format import EMPTY_TREE_SHA1
+from src.version_engine.write_engine.git_object_format import EMPTY_TREE_SHA1, encode_object
 
 
 class _History:
-    def __init__(self, head_commit_id: str, entries: list[dict]) -> None:
+    def __init__(
+        self,
+        head_commit_id: str,
+        entries: list[dict],
+        *,
+        global_head_commit_id: str | None = None,
+    ) -> None:
         self._head_commit_id = head_commit_id
+        self._global_head_commit_id = global_head_commit_id or head_commit_id
         self._entries = {entry["commit_id"]: entry for entry in entries}
 
     def get_scope_head_commit_id(self, scope_path: str) -> str:
@@ -30,6 +39,16 @@ class _History:
         return self._head_commit_id
 
     def get_head_commit_id(self) -> str:
+        return self._global_head_commit_id
+
+    def get_root_hash(self) -> str:
+        return EMPTY_TREE_SHA1
+
+    def get_scope_state(self, scope_path: str) -> tuple[str, str]:
+        assert scope_path == ""
+        return EMPTY_TREE_SHA1, self._head_commit_id
+
+    def get_latest_project_view_commit_id(self) -> str:
         return self._head_commit_id
 
     def get_entries(self, commit_ids: list[str]) -> list[dict]:
@@ -61,18 +80,21 @@ class _RepoManager:
 class _VersionRefs:
     def __init__(self, rows: list[dict]) -> None:
         self.rows = rows
+        self.main_commit_id = ""
+        self.fail = False
 
-    def list_refs(
-        self,
-        project_id: str,
-        scope_path: str = "",
-        *,
-        strict: bool = False,
-    ) -> list[dict]:
+    def list_project_history_refs(self, project_id: str) -> list[dict]:
         assert project_id == "project-1"
-        assert scope_path == ""
-        assert strict is True
-        return self.rows
+        if self.fail:
+            raise RuntimeError("ref store offline")
+        return [
+            {
+                "ref_name": "refs/heads/main",
+                "ref_type": "branch",
+                "commit_id": self.main_commit_id,
+            },
+            *self.rows,
+        ]
 
 
 class _ProjectService:
@@ -114,9 +136,12 @@ def test_topological_history_api_returns_all_refs_merge_parents_and_cursor_pages
     assert first_response.status_code == 200
     first = first_response.json()["data"]
     assert first["head_commit_id"] == merge
+    assert first["refs_included"] is True
+    assert len(first["snapshot_id"]) == 64
     assert first["total"] == 4
     assert first["has_more"] is True
-    assert first["next_cursor"] == feature
+    assert first["next_cursor"].startswith("h1.")
+    assert first["next_cursor"] != feature
     assert [commit["commit_id"] for commit in first["commits"]] == [merge, feature]
     assert first["commits"][0]["parent_ids"] == [main, feature]
     assert first["commits"][1]["message"] == "Feature work"
@@ -133,6 +158,9 @@ def test_topological_history_api_returns_all_refs_merge_parents_and_cursor_pages
     assert second_response.status_code == 200
     second = second_response.json()["data"]
     assert [commit["commit_id"] for commit in second["commits"]] == [main, base]
+    assert second["snapshot_id"] == first["snapshot_id"]
+    assert second["refs_included"] is False
+    assert second["refs"] == []
     assert second["has_more"] is False
     assert second["next_cursor"] is None
 
@@ -147,7 +175,7 @@ def test_topological_history_api_returns_all_refs_merge_parents_and_cursor_pages
     assert ordered.index(feature) < ordered.index(base)
 
 
-def test_topological_history_api_rejects_cursor_from_another_ref_snapshot(tmp_path):
+def test_topological_history_api_rejects_unsigned_or_tampered_cursor(tmp_path):
     store = ObjectStore(tmp_path / "objects")
     head = _put_commit(store, [], 1, "Head")
     client = _client(store, _History(head, [_history_entry(head, "Head", 1)]), _VersionRefs([]))
@@ -159,6 +187,69 @@ def test_topological_history_api_rejects_cursor_from_another_ref_snapshot(tmp_pa
 
     assert response.status_code == 400
     assert "cursor" in response.json()["detail"]
+
+
+def test_topological_cursor_keeps_original_ref_snapshot_after_refs_move(tmp_path):
+    store = ObjectStore(tmp_path / "objects")
+    base = _put_commit(store, [], 1, "Base")
+    main = _put_commit(store, [base], 2, "Main")
+    feature = _put_commit(store, [base], 3, "Feature")
+    history = _History(main, [
+        _history_entry(base, "Base", 1),
+        _history_entry(main, "Main", 2),
+    ])
+    refs = _VersionRefs([
+        {"ref_name": "refs/heads/feature", "ref_type": "branch", "commit_id": feature},
+    ])
+    client = _client(store, history, refs)
+
+    first = client.get(
+        "/api/v1/content/project-1/commits",
+        params={"order": "topo", "limit": 1},
+    ).json()["data"]
+    refs.rows = []  # branch deletion after page one must not mutate this walk
+
+    second = client.get(
+        "/api/v1/content/project-1/commits",
+        params={"order": "topo", "limit": 10, "cursor": first["next_cursor"]},
+    )
+
+    assert second.status_code == 200
+    page = second.json()["data"]
+    combined = [first["commits"][0]["commit_id"], *[row["commit_id"] for row in page["commits"]]]
+    assert combined == [main, feature, base]
+    assert len(combined) == len(set(combined))
+    assert page["snapshot_id"] == first["snapshot_id"]
+
+
+def test_canonical_root_head_wins_over_newer_global_scope_commit(tmp_path):
+    store = ObjectStore(tmp_path / "objects")
+    root_head = _put_commit(store, [], 1, "Root head")
+    newer_scoped = _put_commit(store, [], 2, "Scoped client head")
+    history = _History(
+        root_head,
+        [_history_entry(root_head, "Root head", 1)],
+        global_head_commit_id=newer_scoped,
+    )
+    response = _client(store, history, _VersionRefs([])).get(
+        "/api/v1/content/project-1/commits",
+        params={"order": "topo"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["head_commit_id"] == root_head
+    assert data["refs"][0] == {
+        "ref_name": "refs/heads/main",
+        "ref_type": "branch",
+        "commit_id": root_head,
+    }
+    linear = _client(store, history, _VersionRefs([])).get(
+        "/api/v1/content/project-1/commits",
+        params={"limit": 1},
+    )
+    assert linear.status_code == 200
+    assert linear.json()["data"]["head_commit_id"] == root_head
 
 
 def test_linear_history_contract_keeps_ascending_catch_up_and_adds_parent_ids(tmp_path):
@@ -188,13 +279,136 @@ def test_linear_history_contract_keeps_ascending_catch_up_and_adds_parent_ids(tm
     assert catch_up["head_commit_id"] == head
 
 
-def _client(store: ObjectStore, history: _History, refs: _VersionRefs) -> TestClient:
+def test_linear_history_does_not_depend_on_named_ref_store_availability(tmp_path):
+    store = ObjectStore(tmp_path / "objects")
+    head = _put_commit(store, [], 1, "Head")
+    history = _History(head, [_history_entry(head, "Head", 1)])
+    refs = _VersionRefs([])
+    refs.fail = True
+
+    response = _client(store, history, refs).get(
+        "/api/v1/content/project-1/commits",
+        params={"limit": 1},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["head_commit_id"] == head
+
+
+def test_graph_reports_degraded_health_for_unreadable_named_ref(tmp_path):
+    store = ObjectStore(tmp_path / "objects")
+    head = _put_commit(store, [], 1, "Head")
+    missing = "f" * 40
+    history = _History(head, [_history_entry(head, "Head", 1)])
+    refs = _VersionRefs([
+        {"ref_name": "refs/heads/broken", "ref_type": "branch", "commit_id": missing},
+    ])
+
+    response = _client(store, history, refs).get(
+        "/api/v1/content/project-1/commits",
+        params={"order": "topo"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["graph_health"] == "degraded"
+    assert data["unreadable_commit_ids"] == [missing]
+
+
+def test_graph_fails_closed_when_atomic_ref_snapshot_is_malformed(tmp_path):
+    store = ObjectStore(tmp_path / "objects")
+    head = _put_commit(store, [], 1, "Head")
+    history = _History(head, [_history_entry(head, "Head", 1)])
+    refs = _VersionRefs([
+        {"ref_name": "refs/tags/not-a-branch", "ref_type": "branch", "commit_id": head},
+    ])
+
+    response = _client(store, history, refs).get(
+        "/api/v1/content/project-1/commits",
+        params={"order": "topo"},
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "History ref snapshot is invalid"
+
+
+def test_topological_history_peels_annotated_tag_to_its_commit(tmp_path):
+    store = ObjectStore(tmp_path / "objects")
+    head = _put_commit(store, [], 1, "Main")
+    tagged_commit = _put_commit(store, [], 2, "Tagged orphan")
+    tag_body = (
+        f"object {tagged_commit}\n"
+        "type commit\n"
+        "tag v1\n"
+        "tagger Test <test@example.com> 3 +0000\n"
+        "\nVersion one\n"
+    ).encode("utf-8")
+    tag_id, tag_loose = encode_object("tag", tag_body)
+    store.put_loose(tag_id, tag_loose)
+    history = _History(head, [_history_entry(head, "Main", 1)])
+    refs = _VersionRefs([
+        {"ref_name": "refs/tags/v1", "ref_type": "tag", "commit_id": tag_id},
+    ])
+
+    response = _client(store, history, refs).get(
+        "/api/v1/content/project-1/commits",
+        params={"order": "topo"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert [commit["commit_id"] for commit in data["commits"]] == [head, tagged_commit]
+    assert data["refs"][-1] == {
+        "ref_name": "refs/tags/v1",
+        "ref_type": "tag",
+        "commit_id": tagged_commit,
+    }
+    assert data["graph_health"] == "complete"
+
+
+def test_graph_traversal_has_a_defensive_commit_budget(tmp_path):
+    store = ObjectStore(tmp_path / "objects")
+    base = _put_commit(store, [], 1, "Base")
+    head = _put_commit(store, [base], 2, "Head")
+    history = _History(head, [
+        _history_entry(base, "Base", 1),
+        _history_entry(head, "Head", 2),
+    ])
+
+    response = _client(
+        store,
+        history,
+        _VersionRefs([]),
+        max_traversal_nodes=1,
+    ).get(
+        "/api/v1/content/project-1/commits",
+        params={"order": "topo"},
+    )
+
+    assert response.status_code == 422
+    assert "traversal safety limit" in response.json()["detail"]
+
+
+def _client(
+    store: ObjectStore,
+    history: _History,
+    refs: _VersionRefs,
+    *,
+    max_traversal_nodes: int = 200_000,
+) -> TestClient:
     repo_manager = _RepoManager(store, history)
+    refs.main_commit_id = history._head_commit_id
+    history_graph = HistoryGraphService(
+        repo_manager,
+        refs,
+        cursor_codec=HistoryCursorCodec("test-history-cursor-secret"),
+        max_traversal_nodes=max_traversal_nodes,
+    )
     app = FastAPI()
     app.include_router(history_router, prefix="/api/v1/content")
     app.dependency_overrides[get_repo_manager] = lambda: repo_manager
     app.dependency_overrides[get_version_admin_service] = lambda: VersionAdminService(repo_manager)
-    app.dependency_overrides[get_version_ref_store] = lambda: refs
+    app.dependency_overrides[get_history_graph_service] = lambda: history_graph
     app.dependency_overrides[get_product_operation_adapter] = lambda: _Operations()
     app.dependency_overrides[get_project_service] = lambda: _ProjectService()
     app.dependency_overrides[get_current_user] = lambda: CurrentUser(
