@@ -10,10 +10,22 @@ Configuration (in backend/src/config.py):
   - "auto": Auto-select (use E2B if E2B_API_KEY exists, otherwise use Docker)
 """
 
-import os
+import re
+import time
 from typing import Any, Callable, Optional
 
 from .base import SandboxBase
+
+
+_SECRET_ASSIGNMENT = re.compile(
+    r"(?i)\b([A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|API_KEY))\s*=\s*([^\s;&|]+)"
+)
+
+
+def _audit_command_preview(command: str) -> str:
+    """Bound and redact command text before it enters durable audit storage."""
+    preview = _SECRET_ASSIGNMENT.sub(r"\1=[REDACTED]", command or "")
+    return preview[:512]
 
 
 class SandboxService:
@@ -60,16 +72,73 @@ class SandboxService:
         """Create a sandbox session and preload multiple files"""
         return await self._impl.start_with_files(session_id, files, readonly, s3_service)
 
-    async def exec(self, session_id: str, command: str) -> dict:
+    async def exec(
+        self,
+        session_id: str,
+        command: str,
+        *,
+        audit_context: dict[str, Any] | None = None,
+    ) -> dict:
         """Execute a command in the sandbox.
 
         Command-safety policy is enforced here (ISSUE-009) so every caller —
         the sandbox HTTP endpoint and the agent bash tool alike — passes the
         same blacklist. Defense-in-depth over the container boundary (ISSUE-010).
         """
-        from .command_policy import assert_command_allowed
-        assert_command_allowed(command)
-        return await self._impl.exec(session_id, command)
+        from src.platform.analytics.service import log_bash_execution
+        from .command_policy import SandboxCommandRejected, assert_command_allowed
+
+        context = audit_context or {}
+        started = time.monotonic()
+        try:
+            assert_command_allowed(command)
+        except SandboxCommandRejected:
+            await log_bash_execution(
+                command=_audit_command_preview(command),
+                user_id=context.get("user_id"),
+                agent_id=context.get("agent_id"),
+                session_id=context.get("session_id"),
+                sandbox_session_id=session_id,
+                success=False,
+                error_message="Command rejected by sandbox policy",
+                latency_ms=int((time.monotonic() - started) * 1000),
+                source=context.get("source", "agent"),
+                decision="rejected",
+            )
+            raise
+
+        try:
+            result = await self._impl.exec(session_id, command)
+        except Exception as exc:
+            await log_bash_execution(
+                command=_audit_command_preview(command),
+                user_id=context.get("user_id"),
+                agent_id=context.get("agent_id"),
+                session_id=context.get("session_id"),
+                sandbox_session_id=session_id,
+                success=False,
+                error_message=type(exc).__name__,
+                latency_ms=int((time.monotonic() - started) * 1000),
+                source=context.get("source", "agent"),
+                decision="allowed",
+            )
+            raise
+
+        success = bool(result.get("success"))
+        await log_bash_execution(
+            command=_audit_command_preview(command),
+            user_id=context.get("user_id"),
+            agent_id=context.get("agent_id"),
+            session_id=context.get("session_id"),
+            sandbox_session_id=session_id,
+            success=success,
+            output=result.get("output") if success else None,
+            error_message=None if success else str(result.get("error") or "Execution failed"),
+            latency_ms=int((time.monotonic() - started) * 1000),
+            source=context.get("source", "agent"),
+            decision="allowed",
+        )
+        return result
 
     async def read(self, session_id: str) -> dict:
         """Read the contents of /workspace/data.json"""
@@ -119,7 +188,7 @@ def _create_sandbox_impl() -> SandboxBase:
 
     # Auto mode: detect environment
     if sandbox_type == "auto":
-        if os.getenv("E2B_API_KEY"):
+        if settings.E2B_API_KEY:
             sandbox_type = "e2b"
             print("[SandboxService] Auto-detected E2B_API_KEY, using E2B sandbox")
         else:
@@ -128,6 +197,8 @@ def _create_sandbox_impl() -> SandboxBase:
 
     # Create the corresponding implementation
     if sandbox_type == "e2b":
+        if not settings.E2B_API_KEY:
+            raise RuntimeError("E2B_API_KEY is required for E2B sandbox execution")
         from .e2b_sandbox import E2BSandbox
         print("[SandboxService] Initializing E2B cloud sandbox")
         return E2BSandbox()
@@ -148,7 +219,11 @@ def get_sandbox_type() -> str:
     sandbox_type = settings.SANDBOX_TYPE
 
     if sandbox_type == "auto":
-        if os.getenv("E2B_API_KEY"):
+        if settings.APP_ENV in {"staging", "production"}:
+            if not settings.E2B_API_KEY:
+                raise RuntimeError("Hosted sandbox cannot fall back to Docker")
+            return "e2b"
+        if settings.E2B_API_KEY:
             return "e2b"
         else:
             return "docker"

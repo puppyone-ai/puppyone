@@ -31,7 +31,7 @@ from src.connectors.agent.chat.service import ChatService
 from src.connectors.agent.config.service import AgentConfigService
 from src.connectors.agent.sandbox_session import SandboxFile, SandboxData, prepare_sandbox_data
 from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
-from src.platform.analytics.service import log_context_access, log_bash_execution
+from src.platform.analytics.service import log_context_access
 from src.connectors.agent.request_builder import (
     _get_bash_tool,
     _sanitize_tool_name,
@@ -291,10 +291,15 @@ class AgentService:
                             command = tool_input.get("command", "")
                             logger.info(f"[ScheduleAgent] Executing bash: {command[:100]}")
 
-                            # Track execution time
-                            exec_start = time_module.time()
-                            exec_result = await sandbox_service.exec(sandbox_session_id, command)
-                            exec_latency = int((time_module.time() - exec_start) * 1000)
+                            exec_result = await sandbox_service.exec(
+                                sandbox_session_id,
+                                command,
+                                audit_context={
+                                    "source": "schedule_agent",
+                                    "agent_id": agent_id,
+                                    "session_id": sandbox_session_id,
+                                },
+                            )
 
                             if exec_result.get("success"):
                                 output = exec_result.get("output", "")
@@ -303,15 +308,6 @@ class AgentService:
                                     "output": output[:500],
                                     "success": True,
                                 })
-                                await log_bash_execution(
-                                    command=command,
-                                    agent_id=agent_id,
-                                    session_id=sandbox_session_id,
-                                    sandbox_session_id=sandbox_session_id,
-                                    success=True,
-                                    output=output,
-                                    latency_ms=exec_latency,
-                                )
                             else:
                                 output = exec_result.get("error", "")
                                 result["tool_calls"].append({
@@ -319,15 +315,6 @@ class AgentService:
                                     "output": output[:500],
                                     "success": False,
                                 })
-                                await log_bash_execution(
-                                    command=command,
-                                    agent_id=agent_id,
-                                    session_id=sandbox_session_id,
-                                    sandbox_session_id=sandbox_session_id,
-                                    success=False,
-                                    error_message=output,
-                                    latency_ms=exec_latency,
-                                )
                         else:
                             output = f"Unknown tool: {tool_name}"
 
@@ -1076,38 +1063,22 @@ class AgentService:
                 if tool_name == "bash" and use_bash and sandbox_service:
                     command = tool_input.get("command", "")
 
-                    # Track execution time
-                    exec_start = time_module.time()
-                    exec_result = await sandbox_service.exec(sandbox_session_id, command)
-                    exec_latency = int((time_module.time() - exec_start) * 1000)
+                    exec_result = await sandbox_service.exec(
+                        sandbox_session_id,
+                        command,
+                        audit_context={
+                            "source": "chat_agent",
+                            "user_id": current_user.user_id if current_user else None,
+                            "agent_id": request.agent_id,
+                            "session_id": persisted_session_id,
+                        },
+                    )
 
                     if exec_result.get("success"):
                         output = exec_result.get("output", "")
-                        # Log bash execution
-                        await log_bash_execution(
-                            command=command,
-                            user_id=current_user.user_id if current_user else None,
-                            agent_id=request.agent_id,
-                            session_id=persisted_session_id,  # Use chat session id
-                            sandbox_session_id=sandbox_session_id,
-                            success=True,
-                            output=output,
-                            latency_ms=exec_latency,
-                        )
                     else:
                         success = False
                         output = exec_result.get("error", "")
-                        # Log failed bash execution
-                        await log_bash_execution(
-                            command=command,
-                            user_id=current_user.user_id if current_user else None,
-                            agent_id=request.agent_id,
-                            session_id=persisted_session_id,
-                            sandbox_session_id=sandbox_session_id,
-                            success=False,
-                            error_message=output,
-                            latency_ms=exec_latency,
-                        )
                 elif tool_name in search_tools_map and search_service:
                     # ===== Search Tool execution =====
                     stc = search_tools_map[tool_name]

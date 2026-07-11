@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 from src.infra.supabase.client import SupabaseClient
+from src.repo.access_credentials import AccessCredentialRepository
 from src.repo.models import Connector, RepoScope
 
 
@@ -67,6 +68,7 @@ class AccessSurfaceRepository:
 
     def __init__(self, supabase_client: Optional[SupabaseClient] = None):
         self._client = (supabase_client or SupabaseClient()).get_client()
+        self._credentials = AccessCredentialRepository(self._client)
 
     def _project_org_id(self, project_id: str) -> str | None:
         resp = (
@@ -164,7 +166,14 @@ class AccessSurfaceRepository:
         return _row_to_connector(row) if row else None
 
     def get_agent_connector_by_mcp_key(self, mcp_api_key: str) -> Optional[Connector]:
-        row = self.get_by_config_key("agent", "mcp_api_key", mcp_api_key)
+        credential = self._credentials.get_active_by_token(mcp_api_key)
+        row = self.get(credential["access_surface_id"]) if credential else None
+        if row is not None and row.get("kind") != "agent":
+            row = None
+        if row is None:
+            legacy = self.get_by_config_key("agent", "mcp_api_key", mcp_api_key)
+            if legacy and not self._credentials.get_active_by_surface(legacy["id"]):
+                row = legacy
         return _row_to_connector(row) if row else None
 
     # ── Writes ───────────────────────────────────────────────────────────

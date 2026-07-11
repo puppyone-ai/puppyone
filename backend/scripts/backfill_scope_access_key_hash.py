@@ -1,8 +1,7 @@
 """Backfill repo_scopes.access_key_hash from plaintext access_key (ISSUE-003).
 
 Idempotent: only touches rows that have an access_key but no access_key_hash.
-Run AFTER migration 20260704000000_repo_scopes_access_key_hash.sql and BEFORE
-enabling SCOPE_ACCESS_KEY_HASH_LOOKUP.
+Run AFTER migration 20260704000000_repo_scopes_access_key_hash.sql.
 
 Usage:
     python -m scripts.backfill_scope_access_key_hash            # dry run
@@ -19,10 +18,13 @@ from src.repo.access_credentials import access_token_hash
 
 def backfill(apply: bool) -> None:
     client = SupabaseClient().client
-    page = 0
     page_size = 500
     scanned = updated = 0
+    pending: list[dict] = []
+    page = 0
 
+    # Snapshot candidates before updating them. Paging a filtered set while
+    # removing rows from that same set skips every other page.
     while True:
         resp = (
             client.table("repo_scopes")
@@ -35,20 +37,22 @@ def backfill(apply: bool) -> None:
         rows = resp.data or []
         if not rows:
             break
-        for row in rows:
-            scanned += 1
-            key = row.get("access_key")
-            if not key:
-                continue
-            digest = access_token_hash(key)
-            if apply:
-                client.table("repo_scopes").update(
-                    {"access_key_hash": digest}
-                ).eq("id", row["id"]).execute()
-            updated += 1
+        pending.extend(rows)
         if len(rows) < page_size:
             break
         page += 1
+
+    for row in pending:
+        scanned += 1
+        key = row.get("access_key")
+        if not key:
+            continue
+        digest = access_token_hash(key)
+        if apply:
+            client.table("repo_scopes").update({"access_key_hash": digest}).eq(
+                "id", row["id"]
+            ).execute()
+        updated += 1
 
     verb = "updated" if apply else "would update"
     print(f"[backfill] scanned={scanned} {verb}={updated}")

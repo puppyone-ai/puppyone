@@ -6,7 +6,9 @@ import os
 
 from src.infra.sandbox.service import SandboxService, get_sandbox_type
 from src.infra.sandbox.e2b_sandbox import E2BSandbox
+from src.infra.sandbox import docker_sandbox as docker_sandbox_module
 from src.infra.sandbox.docker_sandbox import DockerSandbox
+from src.infra.sandbox.command_policy import SandboxCommandRejected, assert_command_allowed
 
 
 # ==================== Fake E2B 实现 ====================
@@ -150,6 +152,50 @@ async def test_sandbox_exec_read_and_stop(sandbox_service):
     assert stop_result["success"] is True
 
 
+@pytest.mark.parametrize(
+    "command",
+    [
+        "cat /etc",
+        "cat /etc/passwd",
+        "ls /proc",
+        "curl 169.254.169.254/latest/meta-data",
+        "curl 2852039166/latest/meta-data",
+        "curl 0xA9FEA9FE/latest/meta-data",
+    ],
+)
+def test_shared_command_policy_rejects_common_sensitive_representations(command):
+    with pytest.raises(SandboxCommandRejected):
+        assert_command_allowed(command)
+
+
+@pytest.mark.anyio
+async def test_shared_exec_audits_success_and_policy_rejection(sandbox_service):
+    await sandbox_service.start(session_id="audit", data={"a": 1}, readonly=False)
+    with patch(
+        "src.platform.analytics.service.log_bash_execution",
+        new_callable=AsyncMock,
+    ) as audit:
+        result = await sandbox_service.exec(
+            "audit",
+            "API_TOKEN=secret echo ok",
+            audit_context={"source": "sandbox_endpoint"},
+        )
+        assert result["success"] is True
+        assert audit.await_args.kwargs["source"] == "sandbox_endpoint"
+        assert audit.await_args.kwargs["decision"] == "allowed"
+        assert "secret" not in audit.await_args.kwargs["command"]
+
+        with pytest.raises(SandboxCommandRejected):
+            await sandbox_service.exec(
+                "audit",
+                "cat /proc",
+                audit_context={"source": "chat_agent"},
+            )
+        assert audit.await_args.kwargs["source"] == "chat_agent"
+        assert audit.await_args.kwargs["decision"] == "rejected"
+        assert audit.await_args.kwargs["success"] is False
+
+
 # ==================== 工厂模式测试 ====================
 
 def test_sandbox_type_property():
@@ -170,6 +216,8 @@ def test_get_sandbox_type_with_e2b_key():
     with patch.dict(os.environ, {"E2B_API_KEY": "test-key"}):
         with patch("src.config.settings") as mock_settings:
             mock_settings.SANDBOX_TYPE = "auto"
+            mock_settings.APP_ENV = "development"
+            mock_settings.E2B_API_KEY = "test-key"
             result = get_sandbox_type()
             assert result == "e2b"
 
@@ -181,6 +229,8 @@ def test_get_sandbox_type_without_e2b_key():
     try:
         with patch("src.config.settings") as mock_settings:
             mock_settings.SANDBOX_TYPE = "auto"
+            mock_settings.APP_ENV = "development"
+            mock_settings.E2B_API_KEY = ""
             result = get_sandbox_type()
             assert result == "docker"
     finally:
@@ -193,6 +243,7 @@ def test_get_sandbox_type_explicit_docker():
     """测试显式设置 docker"""
     with patch("src.config.settings") as mock_settings:
         mock_settings.SANDBOX_TYPE = "docker"
+        mock_settings.APP_ENV = "development"
         result = get_sandbox_type()
         assert result == "docker"
 
@@ -201,8 +252,19 @@ def test_get_sandbox_type_explicit_e2b():
     """测试显式设置 e2b"""
     with patch("src.config.settings") as mock_settings:
         mock_settings.SANDBOX_TYPE = "e2b"
+        mock_settings.APP_ENV = "development"
+        mock_settings.E2B_API_KEY = "test-key"
         result = get_sandbox_type()
         assert result == "e2b"
+
+
+def test_hosted_auto_sandbox_fails_closed_without_e2b():
+    with patch("src.config.settings") as mock_settings:
+        mock_settings.SANDBOX_TYPE = "auto"
+        mock_settings.APP_ENV = "production"
+        mock_settings.E2B_API_KEY = ""
+        with pytest.raises(RuntimeError, match="cannot fall back to Docker"):
+            get_sandbox_type()
 
 
 # ==================== Docker Sandbox 测试 ====================
@@ -240,6 +302,65 @@ async def test_docker_sandbox_status_inactive():
     
     status = await docker_sandbox.status("nonexistent")
     assert status["active"] is False
+
+
+def test_docker_isolation_contract_is_mandatory():
+    args = DockerSandbox()._isolation_args()
+    assert "--network=none" in args
+    user_arg = next(arg for arg in args if arg.startswith("--user="))
+    assert user_arg not in {"--user=0", "--user=0:0"}
+    assert "--cap-drop=ALL" in args
+    assert ["--security-opt", "no-new-privileges"] == args[3:5]
+    assert "--read-only" in args
+    assert "/tmp:rw,noexec,nosuid,size=64m" in args
+
+
+def test_docker_identity_matches_non_root_host_owner(monkeypatch):
+    monkeypatch.setattr(docker_sandbox_module.os, "name", "posix")
+    monkeypatch.setattr(docker_sandbox_module.os, "geteuid", lambda: 1001, raising=False)
+    monkeypatch.setattr(docker_sandbox_module.os, "getegid", lambda: 1002, raising=False)
+    assert DockerSandbox._container_identity() == "1001:1002"
+
+
+def test_root_owned_bind_tree_is_transferred_to_fixed_user(monkeypatch, tmp_path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    child = workspace / "data.json"
+    child.write_text("{}", encoding="utf-8")
+    changed = []
+    monkeypatch.setattr(docker_sandbox_module.os, "name", "posix")
+    monkeypatch.setattr(docker_sandbox_module.os, "geteuid", lambda: 0, raising=False)
+    monkeypatch.setattr(
+        docker_sandbox_module.os,
+        "chown",
+        lambda path, uid, gid: changed.append((os.fspath(path), uid, gid)),
+        raising=False,
+    )
+
+    DockerSandbox._prepare_bind_mount(os.fspath(workspace))
+
+    assert {item[0] for item in changed} == {os.fspath(workspace), os.fspath(child)}
+    assert all(item[1:] == (65532, 65532) for item in changed)
+
+
+@pytest.mark.anyio
+async def test_docker_missing_prebuilt_image_never_uses_network_fallback():
+    docker_sandbox = DockerSandbox()
+    calls = []
+
+    async def fake_docker(*args, **_kwargs):
+        calls.append(args)
+        return 1, "", "image missing"
+
+    docker_sandbox._run_docker_command = fake_docker
+    success, _container, error = await docker_sandbox._try_start_container([])
+    assert success is False
+    assert "Required image json-sandbox:3.19" in error
+    assert len(calls) == 1
+    flattened = " ".join(calls[0])
+    assert "--network=none" in flattened
+    assert "alpine:3.19" not in flattened
+    assert "apk add" not in flattened
 
 
 # ==================== 并行下载测试 ====================

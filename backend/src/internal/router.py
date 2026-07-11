@@ -31,6 +31,24 @@ from src.utils.logger import log_warning
 
 router = APIRouter(prefix="/internal", tags=["internal"])
 
+# Security manifest: every project-scoped internal endpoint must appear here and
+# invoke one of the two actor guards before its first tenant operation. Tests
+# compare this manifest to the router so additions cannot silently omit authz.
+PROJECT_SCOPED_INTERNAL_ENDPOINTS = {
+    "/internal/table/{table_id}",
+    "/internal/tables/{table_id}/context-schema",
+    "/internal/tables/{table_id}/context-data",
+    "/internal/tools/{tool_id}/search",
+    "/internal/nodes/resolve-path",
+    "/internal/nodes/list",
+    "/internal/nodes/read",
+    "/internal/nodes/write",
+    "/internal/nodes/create",
+    "/internal/nodes/rm",
+    "/internal/nodes/rename",
+    "/internal/nodes/move",
+}
+
 
 class InternalMcpKeyRequest(BaseModel):
     api_key: str = Field(..., min_length=1)
@@ -362,6 +380,7 @@ async def delete_table_context_data(
 async def search_tool(
     tool_id: str,
     payload: SearchToolQueryInput,
+    request: Request,
     supabase_repo=Depends(get_supabase_repository),
     search_service=Depends(get_search_service),
 ):
@@ -379,6 +398,7 @@ async def search_tool(
     project_id = tool.project_id or ""
     if not project_id:
         raise HTTPException(status_code=400, detail="tool.project_id is missing")
+    _enforce_acting_user_project_access(request, project_id)
 
     try:
         from src.infra.search.index_task_repository import SearchIndexTaskRepository
@@ -888,9 +908,9 @@ async def get_agent_by_mcp_key(
 ):
     """Resolve an MCP API key to an agent's config + tools + accesses.
 
-    The canonical source of truth is ``access_surfaces`` rows with
-    kind='agent' and ``config.mcp_api_key``. Missing or unhealthy
-    surface state fails loud instead of consulting historical tables.
+    The canonical source of truth is a hash-only active credential bound to an
+    ``access_surfaces`` row with ``kind='agent'``. A bounded config fallback is
+    retained only for rows not yet migrated.
     """
     return _resolve_agent_via_connectors(mcp_api_key)
 

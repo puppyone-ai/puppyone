@@ -9,14 +9,13 @@ MCP service based on the Agent architecture. Main responsibilities:
 
 from __future__ import annotations
 
-import secrets
 from typing import List, Optional
 
 from src.connectors.agent.config.models import Agent, AgentTool
 from src.connectors.agent.config.repository import AgentRepository
 from src.tool.repository import ToolRepositoryBase, ToolRepositorySupabase
 from src.infra.supabase.dependencies import get_supabase_repository
-from src.infra.mcp_server.cache_invalidator import invalidate_mcp_cache
+from src.infra.mcp_server.cache_invalidator import invalidate_mcp_surface_cache
 from src.exceptions import NotFoundException, ErrorCode, BusinessException
 
 from .models import McpAgentInfo, McpBoundTool
@@ -54,8 +53,8 @@ class McpV3Service:
             id=agent.id,
             name=agent.name,
             icon=agent.icon,
-            mcp_api_key=agent.mcp_api_key or "",
-            mcp_enabled=bool(agent.mcp_api_key),
+            mcp_api_key="",
+            mcp_enabled=agent.mcp_enabled,
             created_at=agent.created_at,
         )
 
@@ -65,19 +64,14 @@ class McpV3Service:
         if not agent or not self._agent_repo.verify_access(agent_id, user_id):
             raise NotFoundException(_AGENT_NOT_FOUND, code=ErrorCode.NOT_FOUND)
 
-        # Invalidate cache for the old key
-        if agent.mcp_api_key:
-            invalidate_mcp_cache(agent.mcp_api_key)
-
-        # Generate new key
-        new_key = f"mcp_{secrets.token_urlsafe(32)}"
-        updated = self._agent_repo.update(agent_id, mcp_api_key=new_key)
-        if not updated:
+        new_key = self._agent_repo.regenerate_mcp_api_key(agent_id)
+        if not new_key:
             raise BusinessException(
                 "Failed to regenerate MCP API key",
                 code=ErrorCode.INTERNAL_SERVER_ERROR,
             )
 
+        invalidate_mcp_surface_cache(agent_id)
         return new_key
 
     # ============================================
@@ -152,8 +146,8 @@ class McpV3Service:
         )
 
         # Invalidate MCP cache
-        if agent.mcp_api_key:
-            invalidate_mcp_cache(agent.mcp_api_key)
+        if agent.mcp_enabled:
+            invalidate_mcp_surface_cache(agent.id)
 
         return binding
 
@@ -186,8 +180,8 @@ class McpV3Service:
             result.append(binding)
 
         # Invalidate MCP cache
-        if agent.mcp_api_key:
-            invalidate_mcp_cache(agent.mcp_api_key)
+        if agent.mcp_enabled:
+            invalidate_mcp_surface_cache(agent.id)
 
         return result
 
@@ -223,8 +217,8 @@ class McpV3Service:
             )
 
         # Invalidate MCP cache
-        if agent.mcp_api_key:
-            invalidate_mcp_cache(agent.mcp_api_key)
+        if agent.mcp_enabled:
+            invalidate_mcp_surface_cache(agent.id)
 
         return updated
 
@@ -249,8 +243,8 @@ class McpV3Service:
             )
 
         # Invalidate MCP cache
-        if agent.mcp_api_key:
-            invalidate_mcp_cache(agent.mcp_api_key)
+        if agent.mcp_enabled:
+            invalidate_mcp_surface_cache(agent.id)
 
         return True
 
@@ -265,8 +259,8 @@ class McpV3Service:
 
         return {
             "agent_id": agent.id,
-            "mcp_api_key": agent.mcp_api_key or "",
-            "mcp_enabled": bool(agent.mcp_api_key),
+            "mcp_api_key": "",
+            "mcp_enabled": agent.mcp_enabled,
             "tools_count": len(all_tools),
             "mcp_exposed_count": len(mcp_exposed),
         }

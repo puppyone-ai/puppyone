@@ -11,6 +11,7 @@ from __future__ import annotations
 import base64
 import asyncio
 import json
+import shutil
 import socket
 import subprocess
 import threading
@@ -1512,6 +1513,17 @@ class TestGitNativeHardeningContracts:
         assert metadata["history_mode"] == "full"
         assert metadata["blob_mode"] == "included"
         assert metadata["cache_head"] == head_commit
+
+        # The cache is disposable: deleting it must rebuild from canonical
+        # object storage on the next transport request with identical content.
+        shutil.rmtree(cache_dir)
+        assert not cache_dir.exists()
+        with transport_bare_repo(server_repo, "docs") as rebuilt_bare:
+            rebuilt_metadata = json.loads(
+                (rebuilt_bare.parent / "view.json").read_text(encoding="utf-8")
+            )
+            assert rebuilt_metadata["cache_head"] == head_commit
+            assert (rebuilt_bare / "objects" / head_commit[:2] / head_commit[2:]).exists()
 
     def test_receive_quarantine_uses_blob_included_boundary_cache_by_default(
         self, tmp_path, server_repo, monkeypatch,

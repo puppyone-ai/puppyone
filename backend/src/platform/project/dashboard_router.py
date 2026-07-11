@@ -283,6 +283,14 @@ def _fetch_connections(sb, project_id: str) -> list[DashboardConnection]:
         .order("created_at")
         .execute()
     ).data or []
+    from src.repo.access_credentials import (
+        AccessCredentialRepository,
+        mask_access_token,
+    )
+
+    credential_map = AccessCredentialRepository(sb).list_active_by_surface(
+        [row["id"] for row in access_rows]
+    )
 
     scope_ids = [
         *(row.get("scope_id") for row in sync_rows),
@@ -325,11 +333,17 @@ def _fetch_connections(sb, project_id: str) -> list[DashboardConnection]:
         trigger = cfg.get("trigger")
         if isinstance(trigger, dict) and isinstance(trigger.get("config"), dict):
             trigger = {"type": trigger.get("type"), **trigger["config"]}
-        preview_key = _access_surface_preview_key(
-            cfg,
-            kind,
-            scope.get("access_key"),
-        )
+        credential = credential_map.get(r["id"])
+        if credential:
+            preview_key = mask_access_token(
+                credential.get("key_prefix"), credential.get("key_last4")
+            )
+        else:
+            preview_key = _access_surface_preview_key(
+                cfg,
+                kind,
+                scope.get("access_key"),
+            )
         connections.append(DashboardConnection(
             id=r["id"],
             provider=kind,
@@ -337,7 +351,7 @@ def _fetch_connections(sb, project_id: str) -> list[DashboardConnection]:
             path=_path_from_scope(r, cfg, scope_lookup),
             direction=cfg.get("direction"),
             status=r.get("status", "active"),
-            access_key=_mask_key(preview_key, kind),
+            access_key=(preview_key if credential else _mask_key(preview_key, kind)),
             trigger=trigger,
             last_synced_at=_iso_string(
                 cfg.get("last_seen_at") or cfg.get("last_run_at")

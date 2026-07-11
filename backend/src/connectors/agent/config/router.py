@@ -6,7 +6,7 @@ REST API for Agent configuration.
 
 import asyncio
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Query
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 
 from src.version_engine.bootstrap.dependencies import get_product_operation_adapter
 from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
@@ -80,6 +80,8 @@ def _to_agent_out(
         is_default=agent.is_default,
         project_id=agent.project_id,
         mcp_api_key=agent.mcp_api_key,
+        mcp_enabled=agent.mcp_enabled,
+        mcp_key_last4=agent.mcp_key_last4,
         trigger_type=agent.trigger_type,
         trigger_config=agent.trigger_config,
         task_content=agent.task_content,

@@ -1,10 +1,9 @@
 """Sandbox endpoint repository over access_surfaces + repo_scopes."""
 
 from typing import Dict, List, Optional
-import secrets
-
 from src.utils.id_generator import generate_uuid_v7
 from src.repo.scope_service import ScopeService
+from src.repo.access_credentials import AccessCredentialRepository
 
 
 PROVIDER = "sandbox"
@@ -12,11 +11,13 @@ ACCESS_SURFACES_TABLE = "access_surfaces"
 SCOPES_TABLE = "repo_scopes"
 
 
-def generate_sandbox_access_key() -> str:
-    return f"sbx_{secrets.token_urlsafe(32)}"
-
-
-def _row_to_endpoint(row: dict, scope_path: Optional[str] = None) -> dict:
+def _row_to_endpoint(
+    row: dict,
+    scope_path: Optional[str] = None,
+    *,
+    credential: dict | None = None,
+    plaintext_access_key: str | None = None,
+) -> dict:
     """Reshape an access_surfaces row into the sandbox endpoint API dict."""
     config = row.get("config") or {}
     return {
@@ -25,7 +26,10 @@ def _row_to_endpoint(row: dict, scope_path: Optional[str] = None) -> dict:
         "path": scope_path,
         "name": row.get("name") or config.get("name", "Sandbox"),
         "description": config.get("description"),
-        "access_key": config.get("access_key", ""),
+        "access_key": plaintext_access_key,
+        "has_key": bool(credential or config.get("access_key") or plaintext_access_key),
+        "key_last4": (credential or {}).get("key_last4")
+        or ((plaintext_access_key or config.get("access_key") or "")[-4:] or None),
         "mounts": config.get("mounts", []),
         "runtime": config.get("runtime", "alpine"),
         "timeout_seconds": config.get("timeout_seconds", 30),
@@ -46,6 +50,7 @@ class SandboxEndpointRepository:
             self._client = get_supabase_client()
         else:
             self._client = supabase_client
+        self._credentials = AccessCredentialRepository(self._client)
 
     def _project_org_id(self, project_id: str) -> str | None:
         resp = (
@@ -81,9 +86,14 @@ class SandboxEndpointRepository:
         if not rows:
             return []
         path_by_scope = self._scope_path_lookup([r.get("scope_id") for r in rows])
+        credentials = self._credentials.list_active_by_surface([row["id"] for row in rows])
         return [
-            _row_to_endpoint(r, path_by_scope.get(r.get("scope_id")))
-            for r in rows
+            _row_to_endpoint(
+                row,
+                path_by_scope.get(row.get("scope_id")),
+                credential=credentials.get(row["id"]),
+            )
+            for row in rows
         ]
 
     def _scope_for_path(self, project_id: str, path: Optional[str]) -> dict:
@@ -107,12 +117,31 @@ class SandboxEndpointRepository:
         return rows[0] if rows else None
 
     def get_by_access_key(self, access_key: str) -> Optional[dict]:
-        # access_key lives in access_surfaces.config (jsonb). Use
-        # postgrest-py's .filter(path, op, value) form for jsonb access —
-        # matches the convention already used elsewhere in this codebase.
+        credential = self._credentials.get_active_by_token(access_key)
+        if credential:
+            resp = self._query().eq("id", credential["access_surface_id"]).execute()
+            if resp.data:
+                row = resp.data[0]
+                path_by_scope = self._scope_path_lookup([row.get("scope_id")])
+                return _row_to_endpoint(
+                    row,
+                    path_by_scope.get(row.get("scope_id")),
+                    credential=credential,
+                    plaintext_access_key=access_key,
+                )
+
         resp = self._query().filter("config->>access_key", "eq", access_key).execute()
-        rows = self._hydrate(resp.data or [])
-        return rows[0] if rows else None
+        if not resp.data:
+            return None
+        row = resp.data[0]
+        if self._credentials.get_active_by_surface(row["id"]):
+            return None
+        path_by_scope = self._scope_path_lookup([row.get("scope_id")])
+        return _row_to_endpoint(
+            row,
+            path_by_scope.get(row.get("scope_id")),
+            plaintext_access_key=access_key,
+        )
 
     def list_by_project(self, project_id: str) -> List[dict]:
         resp = (
@@ -154,7 +183,6 @@ class SandboxEndpointRepository:
         config = {
             "name": name,
             "description": description,
-            "access_key": generate_sandbox_access_key(),
             "mounts": mounts or [],
             "runtime": runtime,
             "timeout_seconds": timeout_seconds,
@@ -172,7 +200,21 @@ class SandboxEndpointRepository:
             "status": "active",
         }
         resp = self._client.table(self.TABLE).insert(row).execute()
-        return _row_to_endpoint(resp.data[0], scope["path"])
+        inserted = resp.data[0]
+        access_key = self._credentials.issue_bearer_token(
+            access_surface_id=inserted["id"],
+            org_id=inserted.get("org_id"),
+            project_id=inserted["project_id"],
+            prefix="sbx",
+            created_by=inserted.get("created_by"),
+        )
+        credential = self._credentials.get_active_by_surface(inserted["id"])
+        return _row_to_endpoint(
+            inserted,
+            scope["path"],
+            credential=credential,
+            plaintext_access_key=access_key,
+        )
 
     def update(self, endpoint_id: str, **kwargs) -> Optional[dict]:
         current = self._query().eq("id", endpoint_id).execute()
@@ -196,8 +238,7 @@ class SandboxEndpointRepository:
             scope = self._scope_for_path(row["project_id"], kwargs["path"])
             update_data["scope_id"] = scope["id"]
         if "access_key" in kwargs:
-            config["access_key"] = kwargs["access_key"]
-            update_data["config"] = config
+            raise ValueError("Use regenerate_access_key for credential rotation")
         if "status" in kwargs:
             update_data["status"] = kwargs["status"]
 
@@ -207,7 +248,9 @@ class SandboxEndpointRepository:
             .eq("id", endpoint_id)
             .execute()
         )
-        return _row_to_endpoint(resp.data[0]) if resp.data else None
+        if not resp.data:
+            return None
+        return self._hydrate(resp.data)[0]
 
     def delete(self, endpoint_id: str) -> bool:
         resp = (
@@ -219,8 +262,31 @@ class SandboxEndpointRepository:
         return bool(resp.data)
 
     def regenerate_access_key(self, endpoint_id: str) -> Optional[dict]:
-        new_key = generate_sandbox_access_key()
-        return self.update(endpoint_id, access_key=new_key)
+        current = self._query().eq("id", endpoint_id).execute()
+        if not current.data:
+            return None
+        row = current.data[0]
+        config = dict(row.get("config") or {})
+        if "access_key" in config:
+            config.pop("access_key", None)
+            self._client.table(self.TABLE).update({"config": config}).eq("id", endpoint_id).execute()
+            row["config"] = config
+        new_key = self._credentials.issue_bearer_token(
+            access_surface_id=row["id"],
+            org_id=row.get("org_id"),
+            project_id=row["project_id"],
+            prefix="sbx",
+            created_by=row.get("created_by"),
+            revoke_existing=True,
+        )
+        credential = self._credentials.get_active_by_surface(row["id"])
+        path_by_scope = self._scope_path_lookup([row.get("scope_id")])
+        return _row_to_endpoint(
+            row,
+            path_by_scope.get(row.get("scope_id")),
+            credential=credential,
+            plaintext_access_key=new_key,
+        )
 
     def verify_access(self, endpoint_id: str, user_id: str) -> bool:
         endpoint = self.get_by_id(endpoint_id)

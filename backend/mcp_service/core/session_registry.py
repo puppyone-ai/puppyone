@@ -17,6 +17,7 @@ class SessionRegistry:
     def __init__(self) -> None:
         self._lock = anyio.Lock()
         self._by_api_key: dict[str, weakref.WeakSet[ServerSession]] = {}
+        self._by_surface: dict[str, weakref.WeakSet[ServerSession]] = {}
 
     async def bind(self, api_key: str, session: ServerSession) -> None:
         """绑定 api_key 和 session"""
@@ -25,6 +26,14 @@ class SessionRegistry:
             if bucket is None:
                 bucket = weakref.WeakSet()
                 self._by_api_key[api_key] = bucket
+            bucket.add(session)
+
+    async def bind_surface(self, access_surface_id: str, session: ServerSession) -> None:
+        async with self._lock:
+            bucket = self._by_surface.get(access_surface_id)
+            if bucket is None:
+                bucket = weakref.WeakSet()
+                self._by_surface[access_surface_id] = bucket
             bucket.add(session)
 
     async def notify_tools_list_changed(self, api_key: str) -> int:
@@ -41,4 +50,18 @@ class SessionRegistry:
             except Exception:
                 continue
 
+        return sent
+
+    async def notify_surface_changed(self, access_surface_id: str) -> int:
+        async with self._lock:
+            bucket = self._by_surface.get(access_surface_id)
+            sessions = list(bucket) if bucket is not None else []
+
+        sent = 0
+        for session in sessions:
+            try:
+                await session.send_tool_list_changed()
+                sent += 1
+            except Exception:
+                continue
         return sent

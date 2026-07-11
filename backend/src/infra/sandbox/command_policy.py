@@ -21,18 +21,20 @@ import re
 # instance-metadata IP (SSRF / credential theft).
 _FORBIDDEN_PATTERNS = [
     r"\bsudo\b",
-    r"/etc/",
-    r"/proc/",
-    r"/sys/",
-    r"/dev/",
+    r"/etc(?:/|\b)",
+    r"/proc(?:/|\b)",
+    r"/sys(?:/|\b)",
+    r"/dev(?:/|\b)",
     r"(^|\s)mount(\s|$)",
     r"(^|\s)umount(\s|$)",
     r"(^|\s)reboot(\s|$)",
     r"(^|\s)shutdown(\s|$)",
     r"(^|\s)mkfs(\s|$)",
     r"169\.254\.169\.254",
+    r"\b2852039166\b",
+    r"\b0x0*a9fe0*a9fe\b",
 ]
-_COMPILED = [re.compile(pattern) for pattern in _FORBIDDEN_PATTERNS]
+_COMPILED = [re.compile(pattern, re.IGNORECASE) for pattern in _FORBIDDEN_PATTERNS]
 
 
 class SandboxCommandRejected(ValueError):

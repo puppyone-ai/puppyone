@@ -21,11 +21,7 @@ def generate_access_token(prefix: str) -> str:
 
 
 def access_token_hash(raw_token: str) -> str:
-    secret = (
-        settings.ACCESS_CREDENTIAL_HASH_SECRET
-        or settings.INTERNAL_API_SECRET
-        or settings.JWT_SECRET
-    )
+    secret = settings.ACCESS_CREDENTIAL_HASH_SECRET
     if not secret:
         raise ValueError("ACCESS_CREDENTIAL_HASH_SECRET is required to hash access credentials")
     return hmac.new(
@@ -63,6 +59,7 @@ class AccessCredentialRepository:
             self._client.table(CREDENTIALS_TABLE)
             .select("*")
             .in_("access_surface_id", surface_ids)
+            .eq("credential_type", "bearer_token")
             .eq("status", "active")
             .execute()
         )
@@ -78,12 +75,62 @@ class AccessCredentialRepository:
             self._client.table(CREDENTIALS_TABLE)
             .select("*")
             .eq("key_hash", token_hash)
+            .eq("credential_type", "bearer_token")
             .eq("status", "active")
             .limit(1)
             .execute()
         )
         rows = resp.data or []
         return rows[0] if rows else None
+
+    def get_active_by_surface(self, access_surface_id: str) -> Optional[dict[str, Any]]:
+        resp = (
+            self._client.table(CREDENTIALS_TABLE)
+            .select("*")
+            .eq("access_surface_id", access_surface_id)
+            .eq("credential_type", "bearer_token")
+            .eq("status", "active")
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        rows = resp.data or []
+        return rows[0] if rows else None
+
+    def store_bearer_token(
+        self,
+        *,
+        access_surface_id: str,
+        org_id: str | None,
+        project_id: str,
+        raw_token: str,
+        created_by: str | None = None,
+        revoke_existing: bool = True,
+    ) -> None:
+        """Persist a supplied bearer token as hash-only credential state.
+
+        This is used by the idempotent legacy backfill and by compatibility
+        callers that already generated a token. New product flows should call
+        :meth:`issue_bearer_token` so generation stays inside this boundary.
+        """
+        if revoke_existing:
+            self.revoke_active(access_surface_id, credential_type="bearer_token")
+
+        key_prefix, key_last4 = access_token_metadata(raw_token)
+        self._client.table(CREDENTIALS_TABLE).insert(
+            {
+                "org_id": org_id,
+                "project_id": project_id,
+                "access_surface_id": access_surface_id,
+                "credential_type": "bearer_token",
+                "key_prefix": key_prefix,
+                "key_last4": key_last4,
+                "key_hash": access_token_hash(raw_token),
+                "hash_alg": HASH_ALG,
+                "status": "active",
+                "created_by": created_by,
+            }
+        ).execute()
 
     def issue_bearer_token(
         self,
@@ -95,23 +142,15 @@ class AccessCredentialRepository:
         created_by: str | None = None,
         revoke_existing: bool = True,
     ) -> str:
-        if revoke_existing:
-            self.revoke_active(access_surface_id, credential_type="bearer_token")
-
         token = generate_access_token(prefix)
-        key_prefix, key_last4 = access_token_metadata(token)
-        self._client.table(CREDENTIALS_TABLE).insert({
-            "org_id": org_id,
-            "project_id": project_id,
-            "access_surface_id": access_surface_id,
-            "credential_type": "bearer_token",
-            "key_prefix": key_prefix,
-            "key_last4": key_last4,
-            "key_hash": access_token_hash(token),
-            "hash_alg": HASH_ALG,
-            "status": "active",
-            "created_by": created_by,
-        }).execute()
+        self.store_bearer_token(
+            access_surface_id=access_surface_id,
+            org_id=org_id,
+            project_id=project_id,
+            raw_token=token,
+            created_by=created_by,
+            revoke_existing=revoke_existing,
+        )
         return token
 
     def revoke_active(self, access_surface_id: str, *, credential_type: str | None = None) -> None:

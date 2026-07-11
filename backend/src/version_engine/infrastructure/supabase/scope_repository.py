@@ -34,28 +34,25 @@ def find_scope_by_access_key(
     ``None`` when the key is unknown; callers translate that to a 401.
     """
     try:
-        from src.config import settings
-
         select_cols = "id, project_id, path, exclude, mode, access_key_revoked_at"
-        if settings.SCOPE_ACCESS_KEY_HASH_LOOKUP:
-            # ISSUE-003: resolve by HMAC hash first, then fall back to the
-            # plaintext column for rows not yet backfilled.
-            from src.repo.access_credentials import access_token_hash
-            resp = (
-                supabase.client.table("repo_scopes")
-                .select(select_cols)
-                .eq("access_key_hash", access_token_hash(access_key))
-                .limit(1)
-                .execute()
-            )
-            rows = safe_data(resp)
-            if rows:
-                return rows[0]
+        from src.repo.access_credentials import access_token_hash
+
+        resp = (
+            supabase.client.table("repo_scopes")
+            .select(select_cols)
+            .eq("access_key_hash", access_token_hash(access_key))
+            .limit(1)
+            .execute()
+        )
+        rows = safe_data(resp)
+        if rows:
+            return rows[0]
 
         resp = (
             supabase.client.table("repo_scopes")
             .select(select_cols)
             .eq("access_key", access_key)
+            .is_("access_key_hash", "null")
             .limit(1)
             .execute()
         )

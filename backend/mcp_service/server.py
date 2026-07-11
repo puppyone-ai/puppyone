@@ -432,6 +432,9 @@ def build_starlette_app(*, json_response: bool = True) -> Starlette:
                 # Surface that as an error — an empty tool list would make a
                 # broken endpoint indistinguishable from one that has no tools.
                 raise RuntimeError("MCP endpoint could not be resolved")
+            surface_id = str((config.get("agent") or {}).get("id") or "")
+            if surface_id:
+                await sessions.bind_surface(surface_id, ctx.session)
 
             # Agent mode: generate tools from agent accesses
             if config.get("mode") == "agent":
@@ -468,6 +471,9 @@ def build_starlette_app(*, json_response: bool = True) -> Starlette:
                 return [
                     mcp_types.TextContent(type="text", text="Error: Agent configuration does not exist or failed to load")
                 ]
+            surface_id = str((config.get("agent") or {}).get("id") or "")
+            if surface_id:
+                await sessions.bind_surface(surface_id, ctx.session)
 
             if config.get("mode") == "mcp_endpoint":
                 result = await rpc_client.call_mcp_runtime_tool(api_key, name, arguments or {})
@@ -652,20 +658,35 @@ def build_starlette_app(*, json_response: bool = True) -> Starlette:
         try:
             body = await request.json()
             api_key = body.get("api_key")
+            access_surface_id = body.get("access_surface_id")
             table_id = body.get("table_id")
 
             if api_key:
                 await CacheManager.invalidate_config(api_key)
                 notified = await sessions.notify_tools_list_changed(api_key)
                 return JSONResponse(
-                    {"message": f"Invalidated cache for api_key={api_key}", "notified_sessions": notified}
+                    {"message": "Invalidated credential cache", "notified_sessions": notified}
+                )
+
+            if access_surface_id:
+                invalidated = await CacheManager.invalidate_surface(str(access_surface_id))
+                notified = await sessions.notify_surface_changed(str(access_surface_id))
+                return JSONResponse(
+                    {
+                        "message": f"Invalidated cache for access_surface_id={access_surface_id}",
+                        "invalidated_entries": invalidated,
+                        "notified_sessions": notified,
+                    }
                 )
 
             if table_id:
                 await CacheManager.invalidate_all_table_data(table_id)
                 return JSONResponse({"message": f"Invalidated cache for table_id={table_id}"})
 
-            return JSONResponse({"error": "Missing api_key or table_id parameter"}, status_code=400)
+            return JSONResponse(
+                {"error": "Missing api_key, access_surface_id, or table_id parameter"},
+                status_code=400,
+            )
         except Exception as e:
             return JSONResponse({"error": str(e)}, status_code=500)
 

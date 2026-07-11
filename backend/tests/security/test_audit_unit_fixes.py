@@ -9,7 +9,9 @@ branch) because no DB client is ever constructed.
 from __future__ import annotations
 
 import asyncio
+import json
 import os
+import shutil
 import time
 
 import jwt
@@ -87,6 +89,20 @@ class TestCasBackoff:
         for delay in slept:
             assert 0.0 <= delay <= ceiling_s + 1e-9
 
+    def test_exhausted_cas_maps_to_retryable_http_conflict(self):
+        from fastapi import Request
+
+        from src.exception_handler import app_exception_handler
+        from src.exceptions import CasRetriesExhausted, ErrorCode
+
+        request = Request({"type": "http", "headers": []})
+        response = app_exception_handler(request, CasRetriesExhausted())
+        payload = json.loads(response.body)
+        assert response.status_code == 409
+        assert response.headers["retry-after"] == "1"
+        assert payload["code"] == ErrorCode.CAS_RETRY_EXHAUSTED
+        assert payload["data"]["retryable"] is True
+
 
 # ── ISSUE-007: MCP token expiry ─────────────────────────────────────────────
 
@@ -100,37 +116,73 @@ class TestMcpTokenExpiry:
         from src.config import settings
 
         monkeypatch.setattr(settings, "MCP_TOKEN_TTL_SECONDS", 3600, raising=False)
-        monkeypatch.setattr(settings, "JWT_SECRET", "x" * 40, raising=False)
+        monkeypatch.setattr(settings, "MCP_TOKEN_SECRET", "m" * 40, raising=False)
         token = self._service().generate_mcp_token("u1", "p1", "t1", "")
 
-        claims = jwt.decode(token, "x" * 40, algorithms=[settings.JWT_ALGORITHM])
+        claims = jwt.decode(
+            token,
+            "m" * 40,
+            algorithms=[settings.JWT_ALGORITHM],
+            audience=settings.MCP_TOKEN_AUDIENCE,
+        )
         assert "exp" in claims
         assert "iat" in claims
+        assert claims["aud"] == settings.MCP_TOKEN_AUDIENCE
         # exp ~ now + ttl (allow generous skew)
         assert abs(claims["exp"] - (time.time() + 3600)) < 120
 
-    def test_ttl_zero_disables_expiry(self, monkeypatch):
+    def test_ttl_zero_refuses_to_issue(self, monkeypatch):
         from src.config import settings
+        from src.exceptions import AuthException
 
         monkeypatch.setattr(settings, "MCP_TOKEN_TTL_SECONDS", 0, raising=False)
-        monkeypatch.setattr(settings, "JWT_SECRET", "x" * 40, raising=False)
-        token = self._service().generate_mcp_token("u1", "p1", "t1", "")
-        claims = jwt.decode(token, "x" * 40, algorithms=[settings.JWT_ALGORITHM])
-        assert "exp" not in claims
+        monkeypatch.setattr(settings, "MCP_TOKEN_SECRET", "m" * 40, raising=False)
+        with pytest.raises(AuthException):
+            self._service().generate_mcp_token("u1", "p1", "t1", "")
 
     def test_expired_token_is_rejected(self, monkeypatch):
         from src.config import settings
         from src.exceptions import AuthException
 
-        monkeypatch.setattr(settings, "JWT_SECRET", "x" * 40, raising=False)
+        monkeypatch.setattr(settings, "MCP_TOKEN_SECRET", "m" * 40, raising=False)
         # Craft an already-expired token directly.
         expired = jwt.encode(
             {"user_id": "u", "project_id": "p", "table_id": "t",
-             "json_pointer": "", "exp": int(time.time()) - 10},
-            "x" * 40, algorithm=settings.JWT_ALGORITHM,
+             "json_pointer": "", "aud": settings.MCP_TOKEN_AUDIENCE,
+             "iat": int(time.time()) - 20, "exp": int(time.time()) - 10},
+            "m" * 40, algorithm=settings.JWT_ALGORITHM,
         )
         with pytest.raises(AuthException):
             self._service().decode_mcp_token(expired)
+
+    def test_cross_purpose_tokens_are_rejected_both_directions(self, monkeypatch):
+        from src.config import settings
+        from src.exceptions import AuthException
+
+        monkeypatch.setattr(settings, "JWT_SECRET", "s" * 40, raising=False)
+        monkeypatch.setattr(settings, "MCP_TOKEN_SECRET", "m" * 40, raising=False)
+        monkeypatch.setattr(settings, "MCP_TOKEN_TTL_SECONDS", 3600, raising=False)
+        mcp_token = self._service().generate_mcp_token("u", "p", "t")
+        session_token = jwt.encode(
+            {
+                "sub": "u",
+                "aud": "authenticated",
+                "iat": int(time.time()),
+                "exp": int(time.time()) + 3600,
+            },
+            "s" * 40,
+            algorithm=settings.JWT_ALGORITHM,
+        )
+
+        with pytest.raises(AuthException):
+            self._service().decode_mcp_token(session_token)
+        with pytest.raises(jwt.InvalidTokenError):
+            jwt.decode(
+                mcp_token,
+                "s" * 40,
+                algorithms=[settings.JWT_ALGORITHM],
+                audience="authenticated",
+            )
 
 
 # ── ISSUE-002: credential masking helpers (pure) ────────────────────────────
@@ -225,3 +277,60 @@ class TestViewCachePrune:
 
         view_cache.prune_git_view_cache(keep=None)
         assert v1.exists() and v2.exists()
+
+    def test_byte_cap_evicts_until_actual_size_is_bounded(self, tmp_path, monkeypatch):
+        from src.config import settings
+        from src.version_engine.adapters.git import view_cache
+
+        root = tmp_path / "cache"
+        oldest = self._make_view(root, "proj", "old", mtime=1, size_bytes=900)
+        newest = self._make_view(root, "proj", "new", mtime=2, size_bytes=900)
+        monkeypatch.setattr(view_cache, "git_view_cache_root", lambda: root)
+        monkeypatch.setattr(settings, "GIT_VIEW_CACHE_MAX_VIEWS", 10, raising=False)
+        monkeypatch.setattr(settings, "GIT_VIEW_CACHE_MAX_BYTES", 1200, raising=False)
+
+        view_cache.prune_git_view_cache(keep=newest)
+        assert not oldest.exists()
+        assert newest.exists()
+
+    def test_prune_skips_active_view_and_continues(self, tmp_path, monkeypatch):
+        from src.config import settings
+        from src.version_engine.adapters.git import view_cache
+        from src.version_engine.adapters.git._filelock import file_exclusive_lock
+
+        root = tmp_path / "cache"
+        active = self._make_view(root, "proj", "active", mtime=1)
+        other = self._make_view(root, "proj", "other", mtime=2)
+        monkeypatch.setattr(view_cache, "git_view_cache_root", lambda: root)
+        monkeypatch.setattr(settings, "GIT_VIEW_CACHE_MAX_VIEWS", 1, raising=False)
+        monkeypatch.setattr(settings, "GIT_VIEW_CACHE_MAX_BYTES", 0, raising=False)
+
+        with file_exclusive_lock(view_cache.view_lock_path(active)):
+            view_cache.prune_git_view_cache()
+            assert active.exists()
+            assert not other.exists()
+
+    def test_failed_delete_is_not_counted_as_freed(self, tmp_path, monkeypatch):
+        from src.config import settings
+        from src.version_engine.adapters.git import view_cache
+
+        root = tmp_path / "cache"
+        oldest = self._make_view(root, "proj", "old", mtime=1)
+        second = self._make_view(root, "proj", "second", mtime=2)
+        newest = self._make_view(root, "proj", "new", mtime=3)
+        real_rmtree = shutil.rmtree
+
+        def selective_failure(path, *args, **kwargs):
+            if path == oldest:
+                return None
+            return real_rmtree(path, *args, **kwargs)
+
+        monkeypatch.setattr(view_cache, "git_view_cache_root", lambda: root)
+        monkeypatch.setattr(view_cache.shutil, "rmtree", selective_failure)
+        monkeypatch.setattr(settings, "GIT_VIEW_CACHE_MAX_VIEWS", 1, raising=False)
+        monkeypatch.setattr(settings, "GIT_VIEW_CACHE_MAX_BYTES", 0, raising=False)
+        view_cache.prune_git_view_cache(keep=newest)
+
+        assert oldest.exists()
+        assert not second.exists(), "pruner must continue after a failed deletion"
+        assert newest.exists()

@@ -72,31 +72,29 @@ class RepoScopeRepository:
     def get_by_access_key(self, access_key: str) -> Optional[RepoScope]:
         """Hot path: access-key auth resolves an access_key to its scope.
 
-        When SCOPE_ACCESS_KEY_HASH_LOOKUP is enabled (ISSUE-003) we resolve by
-        HMAC hash first, then fall back to the plaintext column for rows not yet
-        backfilled. With the flag off, behaviour is exactly the plaintext lookup.
+        Resolve by HMAC hash first. The plaintext compatibility lookup is
+        eligible only for rows whose hash is NULL, so newly written rows can
+        never silently fall back to plaintext authentication.
         """
-        from src.config import settings
+        from src.repo.access_credentials import access_token_hash
 
-        if settings.SCOPE_ACCESS_KEY_HASH_LOOKUP:
-            from src.repo.access_credentials import access_token_hash
-            resp = (
-                self._client.table(self.TABLE)
-                .select("*")
-                .eq("access_key_hash", access_token_hash(access_key))
-                .is_("access_key_revoked_at", "null")
-                .limit(1)
-                .execute()
-            )
-            rows = resp.data or []
-            if rows:
-                return _row_to_scope(rows[0])
-            # fall through: row may predate the backfill and only have plaintext
+        resp = (
+            self._client.table(self.TABLE)
+            .select("*")
+            .eq("access_key_hash", access_token_hash(access_key))
+            .is_("access_key_revoked_at", "null")
+            .limit(1)
+            .execute()
+        )
+        rows = resp.data or []
+        if rows:
+            return _row_to_scope(rows[0])
 
         resp = (
             self._client.table(self.TABLE)
             .select("*")
             .eq("access_key", access_key)
+            .is_("access_key_hash", "null")
             .is_("access_key_revoked_at", "null")
             .limit(1)
             .execute()
@@ -160,10 +158,9 @@ class RepoScopeRepository:
             "is_root": is_root,
             "access_key": access_key,
         }
-        from src.config import settings
-        if settings.SCOPE_ACCESS_KEY_HASH_LOOKUP:
-            from src.repo.access_credentials import access_token_hash
-            row["access_key_hash"] = access_token_hash(access_key)
+        from src.repo.access_credentials import access_token_hash
+
+        row["access_key_hash"] = access_token_hash(access_key)
         resp = self._client.table(self.TABLE).insert(row).execute()
         return _row_to_scope(resp.data[0])
 
@@ -200,10 +197,9 @@ class RepoScopeRepository:
             "access_key": new_key,
             "access_key_revoked_at": None,
         }
-        from src.config import settings
-        if settings.SCOPE_ACCESS_KEY_HASH_LOOKUP:
-            from src.repo.access_credentials import access_token_hash
-            patch["access_key_hash"] = access_token_hash(new_key)
+        from src.repo.access_credentials import access_token_hash
+
+        patch["access_key_hash"] = access_token_hash(new_key)
         resp = (
             self._client.table(self.TABLE)
             .update(patch)

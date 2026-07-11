@@ -99,14 +99,17 @@ class McpService:
             "table_id": table_id,
             "json_pointer": json_pointer,
             "iat": now,
+            "aud": settings.MCP_TOKEN_AUDIENCE,
         }
-        # Bound token lifetime so a leaked/forged MCP token cannot be used
-        # indefinitely (ISSUE-007). TTL of 0 preserves legacy non-expiring behaviour.
         ttl = settings.MCP_TOKEN_TTL_SECONDS
-        if ttl and ttl > 0:
-            payload["exp"] = now + timedelta(seconds=ttl)
+        if ttl <= 0:
+            raise AuthException(
+                "MCP token lifetime is not configured",
+                code=ErrorCode.INVALID_TOKEN,
+            )
+        payload["exp"] = now + timedelta(seconds=ttl)
         token = jwt.encode(
-            payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM
+            payload, settings.MCP_TOKEN_SECRET, algorithm=settings.JWT_ALGORITHM
         )
         return token
 
@@ -125,7 +128,11 @@ class McpService:
         """
         try:
             payload = jwt.decode(
-                token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM]
+                token,
+                settings.MCP_TOKEN_SECRET,
+                algorithms=[settings.JWT_ALGORITHM],
+                audience=settings.MCP_TOKEN_AUDIENCE,
+                options={"require": ["exp", "iat", "aud"]},
             )
             return McpTokenPayload(**payload)
         except jwt.ExpiredSignatureError:

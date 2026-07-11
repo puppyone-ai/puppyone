@@ -41,6 +41,8 @@ def _to_out(row: dict) -> SandboxEndpointOut:
         name=row["name"],
         description=row.get("description"),
         access_key=row["access_key"],
+        has_key=row.get("has_key", False),
+        key_last4=row.get("key_last4"),
         mounts=row.get("mounts", []),
         runtime=row.get("runtime", "alpine"),
         timeout_seconds=row.get("timeout_seconds", 30),
@@ -107,7 +109,7 @@ def _clone_version_files(project_id: str, scope_path: str) -> tuple:
 
     repo_manager = build_worker_version_engine_container().repo_manager
     auth = {
-        "agent": f"sandbox_endpoint",
+        "agent": "sandbox_endpoint",
         "_scope": {
             "id": f"sbx-{scope_path.replace('/', '-').strip('-') or 'root'}",
             "path": scope_path,
@@ -302,10 +304,10 @@ async def exec_command(
     service: SandboxEndpointService = Depends(get_sandbox_endpoint_service),
     sandbox_service: SandboxService = Depends(get_sandbox_service),
 ):
-    endpoint = service.get_endpoint(endpoint_id)
+    endpoint = service.get_by_access_key(x_access_key)
     if not endpoint:
-        raise HTTPException(status_code=404, detail="Sandbox endpoint not found")
-    if endpoint.get("access_key") != x_access_key:
+        raise HTTPException(status_code=403, detail="Invalid access key")
+    if endpoint.get("id") != endpoint_id:
         raise HTTPException(status_code=403, detail="Invalid access key")
     if endpoint.get("status") != "active":
         raise HTTPException(status_code=403, detail="Sandbox endpoint is not active")
@@ -356,7 +358,14 @@ async def exec_command(
         raise HTTPException(status_code=500, detail=start_res.get("error", "Failed to start sandbox session"))
 
     try:
-        exec_res = await sandbox_service.exec(session_id=session_id, command=command)
+        exec_res = await sandbox_service.exec(
+            session_id=session_id,
+            command=command,
+            audit_context={
+                "source": "sandbox_endpoint",
+                "session_id": session_id,
+            },
+        )
 
         # Write back changed files for writable mounts via Write Engine
         writeback_results = []

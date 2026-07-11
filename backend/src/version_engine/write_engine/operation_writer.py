@@ -10,6 +10,7 @@ import asyncio
 import time
 from typing import Callable
 
+from src.exceptions import CasRetriesExhausted
 from src.version_engine.domain.intents import OperationWriteIntent, TransactionResult
 from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
 from src.version_engine.storage.object_store import ObjectStore, stage_object_writes
@@ -289,7 +290,7 @@ class OperationWriter:
                 f"project={intent.project_id} scope={scope_norm!r}",
             )
 
-        raise RuntimeError(
+        raise CasRetriesExhausted(
             f"[version_engine][{intent.operation_type}] root CAS still failing "
             f"after {_MAX_CAS_ATTEMPTS} attempts "
             f"(project={intent.project_id}, scope={scope_norm!r}); "
@@ -529,7 +530,7 @@ class OperationWriter:
                 f"project={intent.project_id}",
             )
 
-        raise RuntimeError(
+        raise CasRetriesExhausted(
             f"[version_engine][{intent.operation_type}:project] root CAS still "
             f"failing after {_MAX_CAS_ATTEMPTS} attempts "
             f"(project={intent.project_id}); last error: {last_error}",

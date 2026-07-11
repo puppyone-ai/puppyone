@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from src.exceptions import BusinessException, ErrorCode, NotFoundException
-from src.infra.mcp_server.cache_invalidator import invalidate_mcp_cache
+from src.infra.mcp_server.cache_invalidator import invalidate_mcp_surface_cache
 from src.infra.supabase.dependencies import get_supabase_repository
 from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
 from src.platform.project.service import ProjectService
@@ -112,8 +112,8 @@ class ToolService:
 
         Based on the connection_tool table structure:
         - Find all connection_tool records bound to this tool
-        - Get the corresponding Agent's mcp_api_key
-        - Invalidate MCP cache
+        - Invalidate by access-surface id, so rotation never needs to retrieve
+          a stored plaintext key.
         """
         from src.connectors.agent.config.repository import AgentRepository
 
@@ -123,19 +123,19 @@ class ToolService:
                 return
 
             agent_repo = AgentRepository()
-            seen_keys = set()
+            seen_surfaces = set()
 
             for row in response.data:
                 conn_id = row.get("access_point_id")
                 if not conn_id:
                     continue
                 agent = agent_repo.get_by_id(conn_id)
-                if not agent or not agent.mcp_api_key:
+                if not agent or not agent.mcp_enabled:
                     continue
-                if agent.mcp_api_key in seen_keys:
+                if agent.id in seen_surfaces:
                     continue
-                seen_keys.add(agent.mcp_api_key)
-                invalidate_mcp_cache(agent.mcp_api_key)
+                seen_surfaces.add(agent.id)
+                invalidate_mcp_surface_cache(agent.id)
         except Exception:
             pass
 

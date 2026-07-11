@@ -7,8 +7,10 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
+from starlette.testclient import TestClient
 
 import mcp_service.server as server_module
+from mcp_service.settings import Settings, settings as mcp_settings
 
 
 class _FakeMcpServer:
@@ -58,6 +60,12 @@ class _FakeSessions:
         return None
 
     async def notify_tools_list_changed(self, *_args):
+        return 0
+
+    async def bind_surface(self, *_args):
+        return None
+
+    async def notify_surface_changed(self, *_args):
         return 0
 
 
@@ -170,6 +178,54 @@ async def test_list_tools_returns_agent_tools(server_env, monkeypatch):
     tools = await fake_server._list_tools_fn()
     names = {tool.name for tool in tools}
     assert {"ls", "cat", "write", "mkdir", "rm", "node_0_get_schema"}.issubset(names)
+
+
+def test_cache_invalidation_requires_internal_secret(server_env, monkeypatch):
+    app, _server, _rpc = server_env
+    monkeypatch.setattr(mcp_settings, "INTERNAL_API_SECRET", "shared-secret")
+    with TestClient(app) as client:
+        assert client.post("/cache/invalidate", json={}).status_code == 401
+        assert client.post(
+            "/cache/invalidate",
+            json={},
+            headers={"X-Internal-Secret": "wrong"},
+        ).status_code == 401
+        assert client.post(
+            "/cache/invalidate",
+            json={},
+            headers={"X-Internal-Secret": "shared-secret"},
+        ).status_code == 400
+
+
+def test_cors_allows_only_configured_origin(server_env):
+    app, _server, _rpc = server_env
+    with TestClient(app) as client:
+        allowed = client.options(
+            "/cache/invalidate",
+            headers={
+                "Origin": "http://localhost:5173",
+                "Access-Control-Request-Method": "POST",
+            },
+        )
+        denied = client.options(
+            "/cache/invalidate",
+            headers={
+                "Origin": "https://attacker.example",
+                "Access-Control-Request-Method": "POST",
+            },
+        )
+    assert allowed.headers["access-control-allow-origin"] == "http://localhost:5173"
+    assert "access-control-allow-origin" not in denied.headers
+
+
+def test_hosted_cors_rejects_wildcard():
+    hosted = Settings(
+        APP_ENV="production",
+        INTERNAL_API_SECRET="secret",
+        CORS_ALLOWED_ORIGINS="*",
+    )
+    with pytest.raises(ValueError, match="explicit allowlist"):
+        hosted.validate()
 
 
 @pytest.mark.asyncio

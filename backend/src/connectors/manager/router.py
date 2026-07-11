@@ -7,7 +7,6 @@ External source relationships belong to Integration, not this router.
 
 from __future__ import annotations
 
-import secrets
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, status
@@ -28,6 +27,7 @@ router = APIRouter(prefix="/access", tags=["access"])
 
 
 # ── Schemas ─────────────────────────────────────────────────
+
 
 class ConnectionOut(BaseModel):
     id: str
@@ -57,6 +57,7 @@ class ConnectionUpdate(BaseModel):
 
 
 # ── Helpers ─────────────────────────────────────────────────
+
 
 def _get_client():
     return SupabaseClient().client
@@ -88,12 +89,7 @@ def _scope_rows_for_surfaces(sb_client, rows: list[dict]) -> dict[str, dict]:
     scope_ids = sorted({r.get("scope_id") for r in rows if r.get("scope_id")})
     if not scope_ids:
         return {}
-    resp = (
-        sb_client.table("repo_scopes")
-        .select("*")
-        .in_("id", scope_ids)
-        .execute()
-    )
+    resp = sb_client.table("repo_scopes").select("*").in_("id", scope_ids).execute()
     return {r["id"]: r for r in (resp.data or [])}
 
 
@@ -156,12 +152,36 @@ def _access_key_for(row: dict, scope: dict | None) -> str | None:
 
 
 # Config keys that hold machine credentials / secrets. These must never be
-# returned in a list view (IDOR would otherwise leak usable credentials across
-# the whole result set); they are only meaningful on the single-item detail path.
+# returned by ordinary list/detail/mutation responses. Raw values are only
+# meaningful in the one-time create/regenerate issuance responses.
 _SECRET_CONFIG_KEYS = {
-    "access_key", "mcp_api_key", "api_key", "secret", "client_secret",
-    "token", "refresh_token", "access_token", "password", "private_key",
+    "access_key",
+    "mcp_api_key",
+    "api_key",
+    "secret",
+    "client_secret",
+    "token",
+    "bearer_token",
+    "refresh_token",
+    "access_token",
+    "password",
+    "private_key",
+    "credential",
+    "credentials",
 }
+
+_SECRET_CONFIG_KEY_SUFFIXES = (
+    "_access_key",
+    "_api_key",
+    "_secret",
+    "_password",
+    "_private_key",
+    "_bearer_token",
+    "_access_token",
+    "_refresh_token",
+    "_credential",
+    "_credentials",
+)
 
 
 def _mask_key(value: str | None) -> tuple[bool, str | None]:
@@ -171,11 +191,51 @@ def _mask_key(value: str | None) -> tuple[bool, str | None]:
     return True, value[-4:] if len(value) >= 4 else value
 
 
-def _redact_config(cfg: Any) -> Any:
-    """Drop secret-bearing keys from a config dict for list/masked views."""
-    if not isinstance(cfg, dict):
-        return cfg
-    return {k: v for k, v in cfg.items() if k.lower() not in _SECRET_CONFIG_KEYS}
+def _normalise_config_key(key: Any) -> str:
+    """Return a conservative snake-case-ish representation for secret checks."""
+    import re
+
+    value = re.sub(r"(?<!^)(?=[A-Z])", "_", str(key)).lower()
+    return re.sub(r"[^a-z0-9]+", "_", value).strip("_")
+
+
+def _is_secret_config_key(key: Any) -> bool:
+    normalised = _normalise_config_key(key)
+    return normalised in _SECRET_CONFIG_KEYS or normalised.endswith(_SECRET_CONFIG_KEY_SUFFIXES)
+
+
+def _redact_config(value: Any) -> Any:
+    """Recursively remove credential-bearing fields from response config.
+
+    Access surface config is intentionally provider-extensible, so a shallow
+    blacklist is unsafe: a provider can nest credentials under OAuth/session
+    metadata and ordinary read or mutation responses would echo them. Keep the
+    non-secret shape for existing clients, but fail closed for known credential
+    names at every depth (including camelCase variants and provider prefixes).
+    """
+    if isinstance(value, dict):
+        return {
+            key: _redact_config(child)
+            for key, child in value.items()
+            if not _is_secret_config_key(key)
+        }
+    if isinstance(value, list):
+        return [_redact_config(child) for child in value]
+    if isinstance(value, tuple):
+        return tuple(_redact_config(child) for child in value)
+    return value
+
+
+def _contains_secret_config_key(value: Any) -> bool:
+    """Reject attempts to smuggle credentials through the metadata endpoint."""
+    if isinstance(value, dict):
+        return any(
+            _is_secret_config_key(key) or _contains_secret_config_key(child)
+            for key, child in value.items()
+        )
+    if isinstance(value, list | tuple):
+        return any(_contains_secret_config_key(child) for child in value)
+    return False
 
 
 def _created_or_updated(value: Any) -> str | None:
@@ -186,17 +246,22 @@ def _created_or_updated(value: Any) -> str | None:
     return str(value)
 
 
-def _enrich(rows: list[dict], sb_client, *, mask_credentials: bool = False) -> list[ConnectionOut]:
+def _enrich(rows: list[dict], sb_client) -> list[ConnectionOut]:
     """Resolve node names from paths and extract config.name for display.
 
     Auto-disambiguates duplicate display names by appending path or a counter,
     so users can tell apart multiple connections of the same provider type.
 
-    When ``mask_credentials`` is True (list views), raw credentials are never
-    emitted: ``access_key`` is replaced by ``has_key``/``key_last4`` and secret
-    keys are stripped from ``config``.
+    This ordinary response serializer is credential-free by construction.
+    Raw credentials are issued only by the explicit create/regenerate response
+    models; callers cannot opt this serializer into returning a bearer token.
     """
     scopes = _scope_rows_for_surfaces(sb_client, rows)
+    from src.repo.access_credentials import AccessCredentialRepository
+
+    credentials = AccessCredentialRepository(sb_client).list_active_by_surface(
+        [row["id"] for row in rows]
+    )
     # First pass: build raw entries
     entries = []
     for r in rows:
@@ -206,24 +271,28 @@ def _enrich(rows: list[dict], sb_client, *, mask_credentials: bool = False) -> l
         base_name = r.get("name") or cfg.get("name") or cfg.get("sync_url") or kind
         node_path = _normalize_scope_path((scope or {}).get("path"))
         node_name = node_path.rsplit("/", 1)[-1] if node_path else None
-        entries.append({
-            "row": r,
-            "cfg": cfg,
-            "scope": scope,
-            "kind": kind,
-            "base_name": base_name,
-            "node_path": node_path,
-            "node_name": node_name,
-        })
+        entries.append(
+            {
+                "row": r,
+                "cfg": cfg,
+                "scope": scope,
+                "kind": kind,
+                "base_name": base_name,
+                "node_path": node_path,
+                "node_name": node_name,
+            }
+        )
 
     # Second pass: detect duplicates and disambiguate names
     from collections import Counter
+
     name_counts = Counter(e["base_name"] for e in entries)
     name_seen: dict[str, int] = {}
 
     out: list[ConnectionOut] = []
     for e in entries:
         r = e["row"]
+        cfg = e["cfg"]
         base_name = e["base_name"]
         node_path = e["node_path"]
 
@@ -240,28 +309,37 @@ def _enrich(rows: list[dict], sb_client, *, mask_credentials: bool = False) -> l
             name = base_name
 
         raw_key = _access_key_for(r, e["scope"])
-        has_key, key_last4 = _mask_key(raw_key)
+        credential = credentials.get(r["id"])
+        if credential:
+            has_key = True
+            key_last4 = credential.get("key_last4")
+        else:
+            has_key, key_last4 = _mask_key(raw_key)
 
-        out.append(ConnectionOut(
-            id=r["id"],
-            project_id=r["project_id"],
-            provider=e["kind"],
-            name=name,
-            path=node_path or None,
-            node_name=e["node_name"],
-            direction=cfg.get("direction"),
-            status=r.get("status", "active"),
-            access_key=None if mask_credentials else raw_key,
-            has_key=has_key,
-            key_last4=key_last4,
-            gateway_id=(e["cfg"].get("gateway_id") if isinstance(e["cfg"], dict) else None),
-            trigger=cfg.get("trigger"),
-            last_synced_at=_created_or_updated(cfg.get("last_seen_at") or cfg.get("last_run_at")),
-            error_message=cfg.get("error_message"),
-            config=_redact_config(e["cfg"]) if mask_credentials else e["cfg"],
-            created_at=_created_or_updated(r.get("created_at")),
-            updated_at=_created_or_updated(r.get("updated_at")),
-        ))
+        out.append(
+            ConnectionOut(
+                id=r["id"],
+                project_id=r["project_id"],
+                provider=e["kind"],
+                name=name,
+                path=node_path or None,
+                node_name=e["node_name"],
+                direction=cfg.get("direction"),
+                status=r.get("status", "active"),
+                access_key=None,
+                has_key=has_key,
+                key_last4=key_last4,
+                gateway_id=(e["cfg"].get("gateway_id") if isinstance(e["cfg"], dict) else None),
+                trigger=cfg.get("trigger"),
+                last_synced_at=_created_or_updated(
+                    cfg.get("last_seen_at") or cfg.get("last_run_at")
+                ),
+                error_message=cfg.get("error_message"),
+                config=_redact_config(e["cfg"]),
+                created_at=_created_or_updated(r.get("created_at")),
+                updated_at=_created_or_updated(r.get("updated_at")),
+            )
+        )
     return out
 
 
@@ -277,12 +355,7 @@ def _get_user_project_ids(sb_client, org_ids: list[str]) -> list[str]:
     """
     if not org_ids:
         return []
-    resp = (
-        sb_client.table("projects")
-        .select("id")
-        .in_("org_id", org_ids)
-        .execute()
-    )
+    resp = sb_client.table("projects").select("id").in_("org_id", org_ids).execute()
     return [r["id"] for r in resp.data]
 
 
@@ -299,6 +372,7 @@ def _require_connection_project_access(sb_client, project_id: str, user_id: str)
 
 
 # ── Endpoints ───────────────────────────────────────────────
+
 
 @router.get(
     "/",
@@ -344,7 +418,7 @@ def list_connections(
 
     rows = query.order("created_at").execute().data
     # List views never emit raw credentials (IDOR would otherwise leak usable keys).
-    return ApiResponse.success(data=_enrich(rows, sb, mask_credentials=True), message="Access connections listed")
+    return ApiResponse.success(data=_enrich(rows, sb), message="Access connections listed")
 
 
 @router.get(
@@ -366,7 +440,7 @@ def get_connection(
     _require_connection_project_access(sb, row["project_id"], current_user.user_id)
 
     # Detail views must not echo raw credentials (access_key / config secrets).
-    return ApiResponse.success(data=_enrich([row], sb, mask_credentials=True)[0], message="Access connection found")
+    return ApiResponse.success(data=_enrich([row], sb)[0], message="Access connection found")
 
 
 @router.patch(
@@ -382,12 +456,7 @@ async def update_connection(
 ):
     sb = _get_client()
 
-    resp = (
-        sb.table("access_surfaces")
-        .select("*")
-        .eq("id", connection_id)
-        .execute()
-    )
+    resp = sb.table("access_surfaces").select("*").eq("id", connection_id).execute()
     if not resp.data:
         raise NotFoundException("Access connection not found", code=ErrorCode.NOT_FOUND)
 
@@ -398,6 +467,14 @@ async def update_connection(
     if payload.status is not None:
         fields["status"] = payload.status
     if payload.config is not None:
+        if _contains_secret_config_key(payload.config):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Credentials cannot be updated through access metadata; "
+                    "use the dedicated create or regenerate-key flow"
+                ),
+            )
         cfg = dict(row.get("config") or {})
         cfg.update(payload.config)
         fields["config"] = cfg
@@ -409,7 +486,9 @@ async def update_connection(
     sb.table("access_surfaces").update(fields).eq("id", connection_id).execute()
 
     updated = sb.table("access_surfaces").select("*").eq("id", connection_id).execute()
-    return ApiResponse.success(data=_enrich(updated.data, sb)[0], message="Access connection updated")
+    return ApiResponse.success(
+        data=_enrich(updated.data, sb)[0], message="Access connection updated"
+    )
 
 
 @router.delete(
@@ -462,10 +541,14 @@ def rename_connection(
 
     cfg = dict(row.get("config") or {})
     cfg["name"] = new_name
-    sb.table("access_surfaces").update({"name": new_name, "config": cfg}).eq("id", connection_id).execute()
+    sb.table("access_surfaces").update({"name": new_name, "config": cfg}).eq(
+        "id", connection_id
+    ).execute()
 
     updated = sb.table("access_surfaces").select("*").eq("id", connection_id).execute()
-    return ApiResponse.success(data=_enrich(updated.data, sb)[0], message="Access connection renamed")
+    return ApiResponse.success(
+        data=_enrich(updated.data, sb)[0], message="Access connection renamed"
+    )
 
 
 @router.post(
@@ -492,26 +575,23 @@ def regenerate_key(
         new_key = ScopeService().regenerate_access_key(row["scope_id"])
         if not new_key:
             raise NotFoundException("Scope not found", code=ErrorCode.NOT_FOUND)
-        surfaces = (
-            sb.table("access_surfaces")
-            .select("*")
-            .eq("scope_id", row["scope_id"])
-            .in_("kind", ["git_remote", "cli"])
-            .execute()
-        ).data or []
-        for surface in surfaces:
-            cfg = dict(surface.get("config") or {})
-            cfg["access_key"] = new_key
-            sb.table("access_surfaces").update({"config": cfg}).eq("id", surface["id"]).execute()
         return ApiResponse.success(data={"access_key": new_key}, message="Key regenerated")
     if provider == "sandbox":
-        prefix = "sbx"
-        key_field = "access_key"
+        from src.connectors.sandbox_endpoint.repository import SandboxEndpointRepository
+
+        endpoint = SandboxEndpointRepository(sb).regenerate_access_key(connection_id)
+        if not endpoint or not endpoint.get("access_key"):
+            raise NotFoundException("Sandbox endpoint not found", code=ErrorCode.NOT_FOUND)
+        return ApiResponse.success(
+            data={"access_key": endpoint["access_key"]}, message="Key regenerated"
+        )
     elif provider == "mcp":
         from src.connectors.mcp_endpoint.repository import McpEndpointRepository
         from src.connectors.mcp_endpoint.service import McpEndpointService
 
-        endpoint = McpEndpointService(repository=McpEndpointRepository()).regenerate_key(connection_id)
+        endpoint = McpEndpointService(repository=McpEndpointRepository()).regenerate_key(
+            connection_id
+        )
         if not endpoint or not endpoint.get("api_key"):
             raise NotFoundException("MCP endpoint not found", code=ErrorCode.NOT_FOUND)
         return ApiResponse.success(
@@ -522,21 +602,19 @@ def regenerate_key(
             message="Key regenerated",
         )
     elif provider == "agent":
-        prefix = "cli"
-        key_field = "mcp_api_key"
-    else:
-        prefix = "key"
-        key_field = "access_key"
+        from src.connectors.agent.config.repository import AgentRepository
 
-    new_key = f"{prefix}_{secrets.token_urlsafe(32)}"
-    cfg = dict(row.get("config") or {})
-    cfg[key_field] = new_key
-    sb.table("access_surfaces").update({"config": cfg}).eq("id", connection_id).execute()
-
-    return ApiResponse.success(data={"access_key": new_key}, message="Key regenerated")
+        new_key = AgentRepository(sb).regenerate_mcp_api_key(connection_id)
+        if not new_key:
+            raise NotFoundException("Agent not found", code=ErrorCode.NOT_FOUND)
+        return ApiResponse.success(
+            data={"access_key": new_key}, message="Key regenerated"
+        )
+    raise HTTPException(status_code=400, detail="This access surface has no bearer key")
 
 
 # ── Connection Types (unified) ─────────────────────────────
+
 
 @router.get(
     "/types",
@@ -592,21 +670,29 @@ def list_connection_types():
 
 # ── Unified Create ─────────────────────────────────────────
 
+
 class UnifiedConnectionCreate(BaseModel):
     """
     Single request schema for creating ANY access type.
     The `provider` field determines which service handles creation.
     """
+
     project_id: str = Field(..., description="Project ID")
     provider: str = Field(..., description="Access type: gmail, github, agent, mcp, sandbox, ...")
     name: str | None = Field(None, description="Display name")
     path: str | None = Field(None, description="Target version path")
     config: dict = Field(default_factory=dict, description="Provider-specific configuration")
-    gateway_id: str | None = Field(None, description="Gateway ID (required for datasource providers)")
+    gateway_id: str | None = Field(
+        None, description="Gateway ID (required for datasource providers)"
+    )
     direction: str | None = Field(None, description="Sync direction (datasource only)")
     trigger: dict | None = Field(None, description="Trigger config (datasource/agent)")
-    credentials_ref: str | None = Field(None, description="OAuth credentials reference (datasource)")
-    sync_mode: str | None = Field(None, description="Sync mode: manual, scheduled, realtime (datasource)")
+    credentials_ref: str | None = Field(
+        None, description="OAuth credentials reference (datasource)"
+    )
+    sync_mode: str | None = Field(
+        None, description="Sync mode: manual, scheduled, realtime (datasource)"
+    )
     conflict_strategy: str | None = Field(None, description="Conflict strategy (datasource)")
     accesses: list[dict] | None = Field(None, description="Node access bindings (agent/mcp)")
     tools_config: list[dict] | None = Field(None, description="Tool bindings (mcp)")
@@ -663,7 +749,9 @@ def _create_agent(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
     )
 
 
-def _create_mcp(payload: UnifiedConnectionCreate, *, created_by: str | None = None) -> UnifiedConnectionOut:
+def _create_mcp(
+    payload: UnifiedConnectionCreate, *, created_by: str | None = None
+) -> UnifiedConnectionOut:
     from src.connectors.mcp_endpoint.repository import McpEndpointRepository
     from src.connectors.mcp_endpoint.schemas import McpAccessItem, McpToolItem
     from src.connectors.mcp_endpoint.service import McpEndpointService
@@ -700,7 +788,9 @@ def _create_sandbox(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
 
     cfg = payload.config
     mounts = [SandboxMountItem(**m) for m in cfg.get("mounts", [])] or None
-    resource_limits = SandboxResourceLimits(**cfg["resource_limits"]) if cfg.get("resource_limits") else None
+    resource_limits = (
+        SandboxResourceLimits(**cfg["resource_limits"]) if cfg.get("resource_limits") else None
+    )
 
     row = service.create_endpoint(
         project_id=payload.project_id,
@@ -726,7 +816,9 @@ def _create_direct(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
     sb = _get_client()
     cfg = payload.config
     scope = cfg.get("scope", {})
-    scope_path = scope.get("path", payload.path or "") if isinstance(scope, dict) else (payload.path or "")
+    scope_path = (
+        scope.get("path", payload.path or "") if isinstance(scope, dict) else (payload.path or "")
+    )
     mode = scope.get("mode", "rw") if isinstance(scope, dict) else "rw"
     exclude = scope.get("exclude", []) if isinstance(scope, dict) else []
     scope_row = _scope_for_path(
@@ -793,6 +885,7 @@ async def create_connection(
     - direct: returns scoped Git Remote and FS CLI credentials
     """
     from src.platform.project.repository import ProjectRepositorySupabase
+
     project_repo = ProjectRepositorySupabase()
     if not project_repo.verify_project_access(payload.project_id, current_user.user_id):
         raise HTTPException(status_code=403, detail="Access denied to this project")
@@ -833,8 +926,6 @@ async def create_connection(
         if ex_path != new_path:
             continue
         # Same path — compare key config fields per provider
-        ex_cfg = ex.get("config") or {}
-        new_cfg = payload.config or {}
         is_dup = False
         if provider in ("agent", "mcp", "sandbox"):
             is_dup = True
@@ -874,7 +965,10 @@ async def create_connection(
         raise
     except Exception as e:
         from src.utils.logger import log_error
+
         log_error(f"Failed to create {provider} access surface: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to create {provider} access surface: {e}") from e
+        raise HTTPException(
+            status_code=500, detail=f"Failed to create {provider} access surface: {e}"
+        ) from e
 
     return ApiResponse.success(data=result, message=f"{provider} access surface created")

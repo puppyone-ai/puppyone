@@ -223,85 +223,81 @@ class DockerSandbox(SandboxBase):
 
         return False
 
-    def _isolation_args(self, *, allow_network: bool, minimal: bool = False) -> list[str]:
-        """Build Docker isolation flags for untrusted code (ISSUE-010).
+    @staticmethod
+    def _container_identity() -> str:
+        """Use a non-root identity that can access host bind mounts.
 
-        ``allow_network=False`` cuts outbound access (incl. the cloud metadata
-        endpoint). ``minimal`` keeps only always-safe hardening for the alpine
-        fallback, which must retain network + capabilities to run ``apk add``.
+        A non-root backend already owns its temporary files, so matching its
+        numeric uid/gid avoids weakening host permissions. Root-run local
+        backends and Docker Desktop use the image's fixed unprivileged user.
         """
-        from src.config import settings
+        if os.name != "nt" and hasattr(os, "geteuid"):
+            uid = os.geteuid()
+            gid = os.getegid()
+            if uid > 0:
+                return f"{uid}:{gid}"
+        return "65532:65532"
 
-        args: list[str] = []
-        if not allow_network and settings.SANDBOX_DOCKER_NETWORK:
-            args.append(f"--network={settings.SANDBOX_DOCKER_NETWORK}")
-        if settings.SANDBOX_DOCKER_NO_NEW_PRIVILEGES:
-            # Always safe; blocks setuid privilege escalation inside the container.
-            args += ["--security-opt", "no-new-privileges"]
-        if minimal:
-            return args
-        if settings.SANDBOX_DOCKER_CAP_DROP_ALL:
-            args.append("--cap-drop=ALL")
-        if settings.SANDBOX_DOCKER_READONLY_ROOTFS:
-            args += ["--read-only", "--tmpfs", "/tmp:rw,size=64m"]
-        return args
+    @staticmethod
+    def _prepare_bind_mount(path: str) -> None:
+        """Transfer root-owned local temp files to the fixed container user."""
+        if os.name == "nt" or not hasattr(os, "geteuid") or os.geteuid() != 0:
+            return
+        targets = [path]
+        if os.path.isdir(path):
+            targets.extend(
+                os.path.join(root, name)
+                for root, dirs, files in os.walk(path)
+                for name in [*dirs, *files]
+            )
+        for target in targets:
+            os.chown(target, 65532, 65532)
+
+    def _isolation_args(self) -> list[str]:
+        """Mandatory local Docker security contract; none is configurable off."""
+        return [
+            "--network=none",
+            f"--user={self._container_identity()}",
+            "--cap-drop=ALL",
+            "--security-opt", "no-new-privileges",
+            "--read-only",
+            "--tmpfs", "/tmp:rw,noexec,nosuid,size=64m",
+        ]
 
     async def _try_start_container(
         self,
         mount_args: list[str],
-        use_custom_image: bool = True
     ) -> tuple[bool, str, str]:
         """
         Attempt to start a Docker container
 
         Args:
             mount_args: List of mount arguments
-            use_custom_image: Whether to use a custom image
-
         Returns:
             (success, container_id, error_message)
         """
         # Resource limits: prevent a single container from exhausting host resources
         resource_args = ["--memory=128m", "--cpus=0.5", "--pids-limit=100"]
-        # Isolation hardening (ISSUE-010). Full set on the self-contained custom
-        # image; the alpine fallback keeps network + caps because it must apk-add.
-        hardened_args = self._isolation_args(allow_network=False)
-        fallback_hardened_args = self._isolation_args(allow_network=True, minimal=True)
-
-        if use_custom_image:
-            # Try using the custom json-sandbox image
-            args = ["run", "-d", "--rm", *resource_args, *hardened_args, *mount_args, "json-sandbox"]
-            returncode, stdout, stderr = await self._run_docker_command(*args, timeout=30.0)
-
-            if returncode == 0:
-                container_id = stdout.strip()
-                # Wait for container to be ready
-                if await self._wait_for_container_ready(container_id, max_retries=10):
-                    return (True, container_id, "")
-                else:
-                    # Container not ready, clean up and fail
-                    await self._run_docker_command("stop", container_id, timeout=5.0)
-                    return (False, "", "Container started but not ready")
-
-            # Custom image not found, fall back to alpine
-            print("[DockerSandbox] json-sandbox image not found, falling back to alpine:3.19")
-
-        # Use alpine:3.19 and install jq and bash
-        args = ["run", "-d", "--rm", *resource_args, *fallback_hardened_args, *mount_args, "alpine:3.19", "sh", "-c", "apk add --no-cache jq bash >/dev/null 2>&1 && tail -f /dev/null"]
-        returncode, stdout, stderr = await self._run_docker_command(*args, timeout=60.0)
+        hardened_args = self._isolation_args()
+        args = [
+            "run", "-d", "--rm",
+            *resource_args,
+            *hardened_args,
+            *mount_args,
+            "json-sandbox:3.19",
+        ]
+        returncode, stdout, stderr = await self._run_docker_command(*args, timeout=30.0)
 
         if returncode == 0:
             container_id = stdout.strip()
-            # Wait for apk installation to complete and verify container is ready
-            # Give alpine more time since it needs to install packages
-            if await self._wait_for_container_ready(container_id, max_retries=30, retry_interval=1.0):
+            if await self._wait_for_container_ready(container_id, max_retries=10):
                 return (True, container_id, "")
             else:
                 # Container not ready, clean up and fail
                 await self._run_docker_command("stop", container_id, timeout=5.0)
-                return (False, "", "Container started but packages not installed in time")
+                return (False, "", "Container started but not ready")
 
-        return (False, "", f"Failed to start container: {stderr}")
+        return (False, "", f"Required image json-sandbox:3.19 failed to start: {stderr}")
 
     async def start(self, session_id: str, data: Any, readonly: bool = False) -> dict:
         """
@@ -339,6 +335,7 @@ class DockerSandbox(SandboxBase):
             json_content = json.dumps(data, ensure_ascii=False, indent=2)
             with open(temp_file_path, "w", encoding="utf-8") as f:
                 f.write(json_content)
+            self._prepare_bind_mount(temp_file_path)
         except Exception as e:
             return {"success": False, "error": f"Failed to create temp file: {e}"}
 
@@ -422,6 +419,7 @@ class DockerSandbox(SandboxBase):
         written_paths, all_failures = await prepare_files_for_docker_sandbox(
             files, workspace_dir, s3_service
         )
+        self._prepare_bind_mount(workspace_dir)
 
         # Build mount arguments
         mount_option = f"{workspace_dir}:/workspace"

@@ -4,6 +4,7 @@
 """
 from cashews import cache
 from typing import Optional, Dict, Any
+import hashlib
 from .settings import settings
 
 # 配置缓存后端
@@ -18,8 +19,13 @@ class CacheManager:
     
     @staticmethod
     def _get_config_key(api_key: str) -> str:
-        """生成配置缓存的key"""
-        return f"mcp:config:{api_key}"
+        """Generate a cache key without persisting the bearer token itself."""
+        digest = hashlib.sha256(api_key.encode("utf-8")).hexdigest()
+        return f"mcp:config:sha256:{digest}"
+
+    @staticmethod
+    def _get_surface_index_key(access_surface_id: str) -> str:
+        return f"mcp:config-surface:{access_surface_id}"
     
     @staticmethod
     def _get_table_data_key(table_id: int, json_path: str) -> str:
@@ -53,6 +59,13 @@ class CacheManager:
         key = CacheManager._get_config_key(api_key)
         ttl = ttl or settings.CACHE_TTL
         await cache.set(key, config, expire=ttl)
+        surface_id = str((config.get("agent") or {}).get("id") or "").strip()
+        if surface_id:
+            index_key = CacheManager._get_surface_index_key(surface_id)
+            keys = list(await cache.get(index_key) or [])
+            if key not in keys:
+                keys.append(key)
+            await cache.set(index_key, keys, expire=ttl)
     
     @staticmethod
     async def invalidate_config(api_key: str) -> None:
@@ -64,6 +77,16 @@ class CacheManager:
         """
         key = CacheManager._get_config_key(api_key)
         await cache.delete(key)
+
+    @staticmethod
+    async def invalidate_surface(access_surface_id: str) -> int:
+        """Invalidate every cached credential that resolved to one surface."""
+        index_key = CacheManager._get_surface_index_key(access_surface_id)
+        keys = list(await cache.get(index_key) or [])
+        for key in keys:
+            await cache.delete(key)
+        await cache.delete(index_key)
+        return len(keys)
     
     @staticmethod
     async def get_table_data(table_id: int, json_path: str = "") -> Optional[Any]:
@@ -123,7 +146,6 @@ class CacheManager:
         # 由于cashews不支持按前缀删除，这里使用一个简单的方式
         # 在实际使用中，可能需要记录所有使用的 json_path
         # 或者使用Redis并利用SCAN命令
-        pattern = f"mcp:table_data:{table_id}:*"
         # 暂时使用空实现，因为内存缓存会自动过期
         # 如果需要立即失效，可以维护一个 json_path 列表
         pass
