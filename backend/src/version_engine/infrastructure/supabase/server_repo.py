@@ -327,7 +327,7 @@ class PuppyOneServerRepo:
         """Read the files visible to a scope from the canonical root.
 
         Root-first architecture makes the project root the source of truth.
-        ``mut_scope_state`` is kept as a protocol/cache hint, so it is used only
+        ``version_scope_state`` is kept as a protocol/cache hint, so it is used only
         as a legacy fallback when the root has not yet been migrated.
 
         Cached on (project_id, scope_path, scope_hash). The cost we're

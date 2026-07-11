@@ -64,8 +64,14 @@ class AccessCredentialRepository:
             .execute()
         )
         rows = resp.data or []
+        now = datetime.now(timezone.utc)
         by_surface: dict[str, dict[str, Any]] = {}
         for row in rows:
+            expires_at = row.get("expires_at")
+            if expires_at and datetime.fromisoformat(
+                str(expires_at).replace("Z", "+00:00")
+            ) <= now:
+                continue
             by_surface.setdefault(row["access_surface_id"], row)
         return by_surface
 
@@ -128,6 +134,26 @@ class AccessCredentialRepository:
         :meth:`issue_bearer_token` so generation stays inside this boundary.
         """
         if revoke_existing:
+            rpc = getattr(self._client, "rpc", None)
+            if callable(rpc):
+                key_prefix, key_last4 = access_token_metadata(raw_token)
+                rpc("rotate_access_surface_bearer_token", {
+                    "p_access_surface_id": access_surface_id,
+                    "p_org_id": org_id,
+                    "p_project_id": project_id,
+                    "p_key_prefix": key_prefix,
+                    "p_key_last4": key_last4,
+                    "p_key_hash": access_token_hash(raw_token),
+                    "p_hash_alg": HASH_ALG,
+                    "p_created_by": created_by,
+                    "p_expires_at": (
+                        expires_at.astimezone(timezone.utc).isoformat()
+                        if expires_at is not None else None
+                    ),
+                }).execute()
+                return
+            # Lightweight repositories used by local tests do not implement
+            # RPC. Production Supabase always takes the transactional path.
             self.revoke_active(access_surface_id, credential_type="bearer_token")
 
         key_prefix, key_last4 = access_token_metadata(raw_token)

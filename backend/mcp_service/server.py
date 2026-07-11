@@ -160,13 +160,13 @@ def build_starlette_app(*, json_response: bool = True) -> Starlette:
             table_id = body.get("table_id")
 
             if api_key:
-                notified = await sessions.notify_tools_list_changed(api_key)
+                notified = await sessions.broadcast_tools_list_changed(api_key)
                 return JSONResponse(
                     {"message": "Notified credential sessions", "notified_sessions": notified}
                 )
 
             if access_surface_id:
-                notified = await sessions.notify_surface_changed(str(access_surface_id))
+                notified = await sessions.broadcast_surface_changed(str(access_surface_id))
                 return JSONResponse(
                     {
                         "message": f"Notified sessions for access_surface_id={access_surface_id}",
@@ -188,8 +188,12 @@ def build_starlette_app(*, json_response: bool = True) -> Starlette:
 
     @contextlib.asynccontextmanager
     async def lifespan(_: Starlette) -> AsyncIterator[None]:
+        from .settings import settings as mcp_settings
+
+        await sessions.start(mcp_settings.REDIS_URL)
         async with session_manager.run():
             yield
+            await sessions.close()
             await rpc_client.close()
 
     app = Starlette(

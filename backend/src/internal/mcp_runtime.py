@@ -121,6 +121,55 @@ def _tool_is_inside_runtime_scope(runtime: ResolvedMcpRuntime, path: str) -> boo
     return True
 
 
+async def _filter_search_results_through_scoped_fs(
+    runtime: ResolvedMcpRuntime,
+    scoped_fs: ScopedFsService,
+    tool_path: str,
+    result: Any,
+) -> Any:
+    """Reject stale index rows that are not present in the canonical scope.
+
+    Vector indexes are derived acceleration structures, not an authorization or
+    data source. Every returned chunk is therefore revalidated against content
+    read through ``ScopedFsService`` before it leaves the MCP runtime.
+    """
+    if not isinstance(result, list):
+        return result
+
+    content_by_path: dict[str, str | None] = {}
+    filtered: list[dict[str, Any]] = []
+    scope = runtime.context.scope_path.strip("/")
+    for row in result:
+        if not isinstance(row, dict):
+            continue
+        file_info = row.get("file") if isinstance(row.get("file"), dict) else {}
+        absolute = str(
+            file_info.get("version_path") or file_info.get("path") or tool_path
+        ).strip("/")
+        if not _tool_is_inside_runtime_scope(runtime, absolute):
+            continue
+        relative = absolute
+        if scope and (absolute == scope or absolute.startswith(scope + "/")):
+            relative = absolute[len(scope):].strip("/")
+        if absolute not in content_by_path:
+            try:
+                canonical = await scoped_fs.cat(runtime.context, relative)
+                content_by_path[absolute] = str(
+                    canonical.get("content_text") or canonical.get("content") or ""
+                )
+            except ScopedFsError:
+                content_by_path[absolute] = None
+        canonical_text = content_by_path[absolute]
+        if canonical_text is None:
+            continue
+        chunk = row.get("chunk") if isinstance(row.get("chunk"), dict) else {}
+        chunk_text = str(chunk.get("chunk_text") or "")
+        if chunk_text and chunk_text not in canonical_text:
+            continue
+        filtered.append(row)
+    return filtered
+
+
 @router.post("/tools")
 async def list_runtime_tools(payload: RuntimeToolsRequest):
     runtime = resolve_mcp_runtime(payload.api_key)
@@ -153,11 +202,10 @@ async def call_runtime_tool(
 ):
     runtime = resolve_mcp_runtime(payload.api_key)
     ctx = runtime.context
+    scoped_fs = ScopedFsService(ops, commands)
     try:
         if payload.name in MCP_FS_TOOL_NAMES:
-            result = await ScopedFsService(ops, commands).call(
-                ctx, payload.name, payload.arguments
-            )
+            result = await scoped_fs.call(ctx, payload.name, payload.arguments)
         else:
             matches = [
                 tool
@@ -203,6 +251,9 @@ async def call_runtime_tool(
                     query=query,
                     top_k=top_k,
                 )
+            result = await _filter_search_results_through_scoped_fs(
+                runtime, scoped_fs, tool.path, result
+            )
     except ScopedFsError as exc:
         raise HTTPException(
             status_code=exc.status_code,

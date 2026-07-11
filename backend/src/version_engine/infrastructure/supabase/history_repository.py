@@ -40,6 +40,7 @@ the version repository adapter.
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 
 from src.infra.supabase.client import SupabaseClient
 from src.version_engine.infrastructure.supabase import safe_data as _safe_data
@@ -531,6 +532,23 @@ class SupabaseHistoryManager:
         if isinstance(rows, dict):
             rows = [rows]
         return [row.get("object_id", "") for row in rows if row.get("object_id")]
+
+    def register_object_gc_candidates(self, object_ids: list[str]) -> None:
+        """Record freshly flushed objects before the publishing CAS.
+
+        Successful objects are removed by the next authoritative mark/sync;
+        objects abandoned by a failed CAS retain their original first-seen time.
+        """
+        if not object_ids:
+            return
+        self._client.rpc(
+            "register_version_object_gc_candidates",
+            {
+                "p_project_id": self._project_id,
+                "p_object_ids": object_ids,
+                "p_now": datetime.now(timezone.utc).isoformat(),
+            },
+        ).execute()
 
     def remove_object_gc_candidates(self, object_ids: list[str]) -> None:
         if not object_ids:

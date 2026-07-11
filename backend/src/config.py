@@ -179,6 +179,10 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "AUTH_SECURITY_REDIS_URL is required outside development/test"
                 )
+            if not self.NOTIFICATIONS_REDIS_URL:
+                raise ValueError(
+                    "NOTIFICATIONS_REDIS_URL is required outside development/test"
+                )
             if not self.DESKTOP_AUTH_PUBLIC_BASE_URL.startswith("https://"):
                 raise ValueError(
                     "DESKTOP_AUTH_PUBLIC_BASE_URL must use https outside development/test"
@@ -232,6 +236,10 @@ class Settings(BaseSettings):
                 raise ValueError("Hosted SANDBOX_TYPE must be 'e2b' (no Docker fallback)")
             if not self.E2B_API_KEY:
                 raise ValueError("E2B_API_KEY is required for hosted sandbox execution")
+            if self.SCOPE_SANDBOX_STORE != "supabase":
+                raise ValueError("Hosted sandbox sessions require SCOPE_SANDBOX_STORE=supabase")
+            if not self.SCOPE_SANDBOX_REAPER_ENABLED:
+                raise ValueError("Hosted sandbox sessions require SCOPE_SANDBOX_REAPER_ENABLED=true")
         return self
 
     @model_validator(mode="after")
@@ -259,7 +267,7 @@ class Settings(BaseSettings):
     DESKTOP_AUTH_EXCHANGE_TTL_SECONDS: int = 60
     # Cluster-aware version notifications (ISSUE-015). When set, WebSocket
     # commit_update events are fanned out across replicas via Redis pub/sub.
-    # Empty (default) = process-local fan-out only (unchanged behaviour).
+    # Local development may leave this empty; hosted validation requires it.
     NOTIFICATIONS_REDIS_URL: str = ""
 
     # Anthropic configuration
@@ -302,10 +310,9 @@ class Settings(BaseSettings):
     # Session store backend: "memory" (dev/single-process) or "supabase"
     # (durable, multi-worker-visible — required for the reaper + multi-instance).
     SCOPE_SANDBOX_STORE: Literal["memory", "supabase"] = "supabase"
-    # Background reaper: stop idle / destroy long-idle sandboxes to save cost.
-    # OFF by default — it makes real provider stop/destroy calls (billing), so
-    # it's opt-in per deployment. Interval is seconds between sweeps.
-    SCOPE_SANDBOX_REAPER_ENABLED: bool = False
+    # Background reaper is part of the lifecycle correctness contract: without
+    # it a worker crash can leave paid provider resources alive indefinitely.
+    SCOPE_SANDBOX_REAPER_ENABLED: bool = True
     SCOPE_SANDBOX_REAPER_INTERVAL_S: int = 120
 
     # Workspace Provider configuration

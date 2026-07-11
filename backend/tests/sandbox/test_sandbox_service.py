@@ -8,6 +8,7 @@ from src.platform.scope_sandbox.execution.service import SandboxService, get_san
 from src.platform.scope_sandbox.execution.e2b_sandbox import E2BSandbox
 from src.platform.scope_sandbox.execution import docker_sandbox as docker_sandbox_module
 from src.platform.scope_sandbox.execution.docker_sandbox import DockerSandbox
+from src.platform.scope_sandbox.execution.store import InMemoryExecutionSessionStore
 from src.platform.scope_sandbox.execution_policy import SandboxCommandRejected, assert_command_allowed
 
 
@@ -53,14 +54,28 @@ def anyio_backend():
 @pytest.fixture
 def e2b_sandbox_service():
     """创建使用 Fake E2B 的 SandboxService"""
-    e2b_impl = E2BSandbox(sandbox_factory=lambda: FakeSandbox())
+    sandbox = FakeSandbox()
+    e2b_impl = E2BSandbox(
+        sandbox_factory=lambda: sandbox,
+        sandbox_connector=lambda _sandbox_id: sandbox,
+        session_store=InMemoryExecutionSessionStore(),
+    )
     return SandboxService(sandbox_impl=e2b_impl)
 
 
 @pytest.fixture
 def sandbox_service():
     """向后兼容：使用 sandbox_factory 参数"""
-    return SandboxService(sandbox_factory=lambda: FakeSandbox())
+    sandbox = FakeSandbox()
+    return SandboxService(sandbox_impl=E2BSandbox(
+        sandbox_factory=lambda: sandbox,
+        sandbox_connector=lambda _sandbox_id: sandbox,
+        session_store=InMemoryExecutionSessionStore(),
+    ))
+
+
+def _docker() -> DockerSandbox:
+    return DockerSandbox(session_store=InMemoryExecutionSessionStore())
 
 
 # ==================== E2B Sandbox 测试 ====================
@@ -201,12 +216,15 @@ async def test_shared_exec_audits_success_and_policy_rejection(sandbox_service):
 def test_sandbox_type_property():
     """测试 sandbox_type 属性"""
     # E2B 实现
-    e2b_impl = E2BSandbox(sandbox_factory=lambda: FakeSandbox())
+    e2b_impl = E2BSandbox(
+        sandbox_factory=lambda: FakeSandbox(),
+        session_store=InMemoryExecutionSessionStore(),
+    )
     service = SandboxService(sandbox_impl=e2b_impl)
     assert service.sandbox_type == "e2b"
     
     # Docker 实现（不启动实际 Docker）
-    docker_impl = DockerSandbox()
+    docker_impl = _docker()
     service = SandboxService(sandbox_impl=docker_impl)
     assert service.sandbox_type == "docker"
 
@@ -272,7 +290,7 @@ def test_hosted_auto_sandbox_fails_closed_without_e2b():
 @pytest.mark.anyio
 async def test_docker_sandbox_not_available():
     """测试 Docker 不可用时的错误处理"""
-    docker_sandbox = DockerSandbox()
+    docker_sandbox = _docker()
     
     # Mock _check_docker_available 方法返回 False
     async def mock_check_docker():
@@ -288,7 +306,7 @@ async def test_docker_sandbox_not_available():
 @pytest.mark.anyio
 async def test_docker_sandbox_session_not_found():
     """测试会话不存在时的错误处理"""
-    docker_sandbox = DockerSandbox()
+    docker_sandbox = _docker()
     
     result = await docker_sandbox.exec("nonexistent", "echo hello")
     assert result["success"] is False
@@ -298,14 +316,14 @@ async def test_docker_sandbox_session_not_found():
 @pytest.mark.anyio
 async def test_docker_sandbox_status_inactive():
     """测试查询不存在的会话状态"""
-    docker_sandbox = DockerSandbox()
+    docker_sandbox = _docker()
     
     status = await docker_sandbox.status("nonexistent")
     assert status["active"] is False
 
 
 def test_docker_isolation_contract_is_mandatory():
-    args = DockerSandbox()._isolation_args()
+    args = _docker()._isolation_args()
     assert "--network=none" in args
     user_arg = next(arg for arg in args if arg.startswith("--user="))
     assert user_arg not in {"--user=0", "--user=0:0"}
@@ -345,7 +363,7 @@ def test_root_owned_bind_tree_is_transferred_to_fixed_user(monkeypatch, tmp_path
 
 @pytest.mark.anyio
 async def test_docker_missing_prebuilt_image_never_uses_network_fallback():
-    docker_sandbox = DockerSandbox()
+    docker_sandbox = _docker()
     calls = []
 
     async def fake_docker(*args, **_kwargs):
@@ -353,7 +371,7 @@ async def test_docker_missing_prebuilt_image_never_uses_network_fallback():
         return 1, "", "image missing"
 
     docker_sandbox._run_docker_command = fake_docker
-    success, _container, error = await docker_sandbox._try_start_container([])
+    success, _container, error = await docker_sandbox._try_start_container("test-session", [])
     assert success is False
     assert "Required image json-sandbox:3.19" in error
     assert len(calls) == 1

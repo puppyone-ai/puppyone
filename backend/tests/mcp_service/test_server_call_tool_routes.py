@@ -55,6 +55,10 @@ class _FakeSessions:
     bind_surface = AsyncMock(return_value=None)
     notify_tools_list_changed = AsyncMock(return_value=1)
     notify_surface_changed = AsyncMock(return_value=1)
+    broadcast_tools_list_changed = AsyncMock(return_value=1)
+    broadcast_surface_changed = AsyncMock(return_value=1)
+    start = AsyncMock(return_value=None)
+    close = AsyncMock(return_value=None)
 
 
 class _FakeRpc:
@@ -138,6 +142,7 @@ def test_hosted_cors_rejects_wildcard():
     hosted = Settings(
         APP_ENV="production",
         INTERNAL_API_SECRET="secret",
+        REDIS_URL="redis://example.invalid:6379/0",
         CORS_ALLOWED_ORIGINS="*",
     )
     with pytest.raises(ValueError, match="explicit allowlist"):

@@ -2471,7 +2471,7 @@ class _ObjectIntegrityRequest(_BaseModel):
     Behaviour matrix:
       * ``dry_run=true``  (default): report only, never delete.
       * ``dry_run=false``: delete keys that fail ``_verify_loose_hash``
-        AND are NOT recorded in ``mut_object_locations`` (i.e. the
+        AND are NOT recorded in ``version_object_locations`` (i.e. the
         object isn't also packed — packed copies are the recovery
         path). The endpoint refuses to delete a key whose hash is
         currently referenced by a live commit / tree / blob — we

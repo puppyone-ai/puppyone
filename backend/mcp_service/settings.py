@@ -83,6 +83,10 @@ class Settings(BaseSettings):
         if self.CACHE_BACKEND == "redis" and not self.REDIS_URL:
             raise ValueError("REDIS_URL is required when CACHE_BACKEND=redis")
         if self.APP_ENV in {"staging", "production"}:
+            if not self.REDIS_URL:
+                raise ValueError(
+                    "Hosted MCP service requires REDIS_URL for cross-replica notifications"
+                )
             origins = self.cors_origins
             if not origins or "*" in origins:
                 raise ValueError(

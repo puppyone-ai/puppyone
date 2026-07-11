@@ -89,7 +89,7 @@ replace the canonical root as truth.
 
 ### Legacy Scope-State Compatibility
 
-Existing deployments still contain `mut_scope_state` and older scoped heads. That
+Existing deployments may still expose the restricted `mut_scope_state` compatibility view and older scoped heads. The canonical table is `version_scope_state`. That
 state is compatibility data during migration and may be used to rebuild or repair
 the canonical root for legacy projects, but new root-first writes must not treat
 per-scope heads as independent sources of truth.
@@ -655,14 +655,14 @@ point。Root 入口能看见整棵树，触达任意路径都是合法的。
 2. build 一条新的 root commit `C_canon`，parent = 当前 root 的 head commit。
 3. 拿 `(旧 root_hash → 新 root_hash)` 去 CAS `projects.version_root_hash`。撞车就拿新 root 重新 graft + rebuild commit 再 CAS，重试到上限为止。
 4. CAS 成功后**同一个数据库事务里**做完下面这些：
-   - 写 `mut_scope_state[scope_path='']`：`scope_hash = 新 root_hash`、`head_commit_id = C_canon`（这一行就是"root scope 的视图缓存"）。
+   - 写 `version_scope_state[scope_path='']`：`scope_hash = 新 root_hash`、`head_commit_id = C_canon`（这一行就是"root scope 的视图缓存"）。
    - 写 `version_commits` 一行（canonical commit 记录）。
    - 写 `version_transactions` 一行（事务记录）。
    - 写 `audit_logs` 一行。
-   - 写 `mut_version_outbox` 一行 `project_version_committed`（通知用）。
+   - 写 `version_outbox` 一行 `project_version_committed`（通知用）。
 5. 事务提交后，**按 changed_paths 一一处理被波及的子 scope 视图**：对每个声明过的 scope `S`（A、B、C 都要看），判断 `changed_paths` 跟"S 自己看得见的路径集合"（= S 自己的 path 子集 - S 已声明的孙 scope）有没有交集：
    - 没交集 → 这个 scope 视图就不动，head 保持原值。
-   - 有交集 → 从新 root 按 `S.path` 派生出 `S` 的新 scope_hash；用这个 scope_hash build 一条**合成 commit**（author = `puppyone-scope-view`，message = `Puppyone scope view for <C_canon>`，parent = 该 scope 上一次的 head）；CAS 写 `mut_scope_state[S]` 一行 `(scope_hash, head=合成 commit)`。
+   - 有交集 → 从新 root 按 `S.path` 派生出 `S` 的新 scope_hash；用这个 scope_hash build 一条**合成 commit**（author = `puppyone-scope-view`，message = `Puppyone scope view for <C_canon>`，parent = 该 scope 上一次的 head）；CAS 写 `version_scope_state[S]` 一行 `(scope_hash, head=合成 commit)`。
 6. outbox 投递通知 → 受影响 scope 上挂着的 SSE / connector / Git client 拿到 push 通知，下一次 fetch 就看到新 head。
 
 **几个具体场景的差别**（接 上表行号）：
@@ -695,7 +695,7 @@ A 默认看不到 `/A/C/*`（已声明的子 scope 在父视图里自动隐藏�
 | 5 | 动 Root 直辖区（往父跑） | 拒绝 | 越界。要动父就用 root access key 或走产品 API。 |
 
 **拒绝的 4 行（#2~#5）怎么处理**：在 admission（L3）期就判完，请求**不进** Write
-Engine，没有任何 git object 落盘、没有 root_hash 改动、没有 mut_scope_state 改动。
+Engine，没有任何 git object 落盘、没有 root_hash 改动、没有 version_scope_state 改动。
 错误码统一 `out_of_scope`，response 带着违规路径和"请去 Scope X push"的建议。
 
 **接受的 #1（只动 A 自己）我们干啥（按顺序）：**
@@ -707,8 +707,8 @@ Engine，没有任何 git object 落盘、没有 root_hash 改动、没有 mut_s
 3. build canonical root commit `C_canon`，parent = 当前 root 的 head commit。message trailer 里写 `PuppyOne-Original-Commit: C_client`，方便溯源。
 4. CAS `projects.version_root_hash: 旧 → 新`。撞车就拿当时新的 root 重新 graft（步骤 2）+ 重新 build commit（步骤 3）再 CAS。重试期间客户端 SHA `C_client` 一直**不变**——只换 canonical root commit 的 parent。**但 publish 时必须同时带上 A 当前 head 的 expected base；如果 A 的 head 已经从客户端 base 前进了，整次事务失败并返回 `non-fast-forward`，不能继续把 `C_client` 写成 A 的 head。**
 5. CAS 成功后同一个事务里：
-   - 写 `mut_scope_state[scope_path='']`：`scope_hash = 新 root_hash`、`head = C_canon`（root 行用服务端 SHA）。
-   - 写 `mut_scope_state[scope_path='/A']`：`scope_hash = A 的新子树 hash`、`head = C_client`（**源 scope 行刻意沿用客户端 SHA**，这样 A 上 `git fetch` 是 fast-forward，客户端不需要 REWRITE 协议）。
+   - 写 `version_scope_state[scope_path='']`：`scope_hash = 新 root_hash`、`head = C_canon`（root 行用服务端 SHA）。
+   - 写 `version_scope_state[scope_path='/A']`：`scope_hash = A 的新子树 hash`、`head = C_client`（**源 scope 行刻意沿用客户端 SHA**，这样 A 上 `git fetch` 是 fast-forward，客户端不需要 REWRITE 协议）。
    - 写 `version_commits` / `version_transactions` / `audit_logs` / `version_outbox` 各一行（同根入口）。
 6. 事务提交后看 changed_paths（只在 A 自己的地盘里）：
    - A 自己：源 scope，**显式跳过**，否则会把 A 行的 `C_client` 覆盖成合成 commit，fast-forward 链立刻断。
@@ -751,8 +751,8 @@ C 是最里层，没有更深的子 scope。
 3. build canonical root commit `C_canon`，parent = 当前 root head。trailer 写 `PuppyOne-Original-Commit: C_client`。
 4. CAS root_hash，撞车 rebase 重试（同 A 入口）。**但 publish 时必须同时带上 C 当前 head 的 expected base；如果 C 的 head 已经从客户端 base 前进了，整次事务失败并返回 `non-fast-forward`。**
 5. CAS 成功后同一个事务里：
-   - 写 `mut_scope_state[scope_path='']`，head = `C_canon`。
-   - 写 `mut_scope_state[scope_path='/A/C']`，head = `C_client`（**源 scope 用客户端 SHA**）。
+   - 写 `version_scope_state[scope_path='']`，head = `C_canon`。
+   - 写 `version_scope_state[scope_path='/A/C']`，head = `C_client`（**源 scope 用客户端 SHA**）。
    - 写 commits / transactions / audit / outbox 各一行。
 6. 事务提交后看 changed_paths（都在 /A/C/* 里）跟各 scope 视图相交情况：
    - C：源 scope，跳过。
@@ -789,8 +789,8 @@ B 是最简单的形态——独立子树，没有子 scope，跟 A、C 都不�
 3. build canonical commit `C_canon`，parent = 当前 root head，trailer 带 `C_client`。
 4. CAS root_hash，撞车 rebase 重试。**但 publish 时必须同时带上 B 当前 head 的 expected base；如果 B 的 head 已经从客户端 base 前进了，整次事务失败并返回 `non-fast-forward`。**
 5. 事务里：
-   - 写 `mut_scope_state['']`，head = `C_canon`。
-   - 写 `mut_scope_state['/B']`，head = `C_client`。
+   - 写 `version_scope_state['']`，head = `C_canon`。
+   - 写 `version_scope_state['/B']`，head = `C_client`。
    - commits / transactions / audit / outbox。
 6. changed_paths 都在 /B/* 里：B 是源 scope 跳过；A、C 完全不相交 → **没有任何派生 scope 需要刷新**。
 7. notify。
@@ -855,7 +855,7 @@ PuppyOne 的并发处理建立在两条公理上：
 
 **关键不变量**（必须始终成立）：
 
-> 任何一行 `mut_scope_state[scope].head_commit_id` 所指 commit 的 tree，必须等于该行的 `scope_hash`。
+> 任何一行 `version_scope_state[scope].head_commit_id` 所指 commit 的 tree，必须等于该行的 `scope_hash`。
 
 这条不变量从根上禁止了"head 指针和 scope_hash 是两棵不同 tree"的状态。任何未来代码改动只要违反它就 publish 失败。
 
@@ -936,7 +936,7 @@ Git 原生 `git push --force` 允许非 fast-forward。puppyone 默认禁用，�
 
 #### 九、首次 push（scope 还没 head）
 
-新声明的 scope 第一次被 push，`mut_scope_state` 里压根没这行。
+新声明的 scope 第一次被 push，`version_scope_state` 里压根没这行。
 
 - 源 scope CAS 的 expected = 空（或 null）。
 - publish 的 upsert 走 INSERT 分支——没有现存行可以比对，自动通过。
@@ -977,7 +977,7 @@ Git 原生 `git push --force` 允许非 fast-forward。puppyone 默认禁用，�
 整套并发处理底下只有两条不变量：
 
 1. **写源 scope 行必须带客户端 base（Git）或当时读到的 head（非 Git），CAS 不过整事务回滚。**
-2. **`mut_scope_state[scope].head_commit_id` 所指 commit 的 tree 必须等于该行的 `scope_hash`。**
+2. **`version_scope_state[scope].head_commit_id` 所指 commit 的 tree 必须等于该行的 `scope_hash`。**
 
 任何并发场景的正确性都从这两条推出来。**修复落地前，运维上对 Git 客户端用户文档加一条提示：并发 push 到同一 scope 可能出现 view drift；产品端短期把单 scope 写串行化（节流到 1 QPS/scope）。修复落地后这条提示可以撤掉。**
 

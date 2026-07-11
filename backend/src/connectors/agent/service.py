@@ -585,6 +585,7 @@ class AgentService:
         use_bash = len(bash_tools) > 0
         sandbox_data: SandboxData | None = None
         sandbox_session_id = None
+        live_sandbox_session = None
         _agent_project_id = ""
         # If any access is not readonly, the entire sandbox is not readonly
         sandbox_readonly = all(tool["readonly"] for tool in bash_tools) if bash_tools else True
@@ -683,90 +684,82 @@ class AgentService:
             logger.info(f"[Agent] Total sandbox files: {len(all_files)} from {len(bash_tools)} accesses, path_map={list(node_path_map.keys())}")
 
         if use_bash and sandbox_service:
-            from src.connectors.agent.sandbox_session import get_agent_sandbox_registry
-            agent_sandbox_registry = get_agent_sandbox_registry()
+            from src.connectors.agent.sandbox_session import AgentSandboxSession
             sandbox_parent_path = ""
 
-            chat_key = persisted_session_id or f"agent-{request.agent_id}-{int(time.time() * 1000)}"
-            # Ephemeral execution is request-scoped. Process-local reuse made
-            # chats worker-affine and left unmanageable sessions after crashes.
-            # Each turn now starts from canonical Version Engine state; durable
-            # long-lived workspaces belong to ScopeSandboxManager instead.
-            existing_session = agent_sandbox_registry.remove(chat_key)
-            if existing_session:
-                try:
-                    await sandbox_service.stop(existing_session.sandbox_session_id)
-                except Exception:
-                    pass
-                existing_session = None
+            # A chat turn owns exactly one execution and never publishes its
+            # non-serializable Version client into a process-global registry.
+            # Provider lifecycle is tracked by the execution subsystem; this
+            # local object exists only to perform the request's final write-back.
+            sandbox_session_id = f"agent-{int(time.time() * 1000)}"
 
-            if not existing_session:
-                sandbox_session_id = f"agent-{int(time.time() * 1000)}"
+            if sandbox_data and sandbox_data.node_type == "json" and len(bash_tools) == 1:
+                json_content = {}
+                if sandbox_data.files:
+                    try:
+                        json_content = json.loads(sandbox_data.files[0].content or "{}")
+                    except (TypeError, ValueError):
+                        json_content = {}
+                start_result = await sandbox_service.start(
+                    session_id=sandbox_session_id,
+                    data=json_content,
+                    readonly=sandbox_readonly,
+                )
+            else:
+                start_result = await sandbox_service.start_with_files(
+                    session_id=sandbox_session_id,
+                    files=sandbox_data.files if sandbox_data else [],
+                    readonly=sandbox_readonly,
+                    s3_service=s3_service,
+                )
 
-                if sandbox_data and sandbox_data.node_type == "json" and len(bash_tools) == 1:
-                    json_content = {}
-                    if sandbox_data.files:
-                        try:
-                            json_content = json.loads(sandbox_data.files[0].content or "{}")
-                        except (TypeError, ValueError):
-                            json_content = {}
-                    start_result = await sandbox_service.start(
-                        session_id=sandbox_session_id,
-                        data=json_content,
-                        readonly=sandbox_readonly,
-                    )
-                else:
-                    start_result = await sandbox_service.start_with_files(
-                        session_id=sandbox_session_id,
-                        files=sandbox_data.files if sandbox_data else [],
-                        readonly=sandbox_readonly,
-                        s3_service=s3_service,
-                    )
+            if start_result.get("success"):
+                scope_path = ""
+                if sandbox_data and _agent_project_id and ops:
+                    root_path = sandbox_data.root_path
+                    root_entry = ops.stat(_agent_project_id, root_path) if root_path else None
+                    if root_entry:
+                        if root_entry.type == "folder":
+                            sandbox_parent_path = root_path
+                            scope_path = root_path.strip("/")
+                        else:
+                            sandbox_parent_path = root_path.rsplit("/", 1)[0] if "/" in root_path else ""
+                            scope_path = sandbox_parent_path.strip("/")
 
-                if start_result.get("success"):
-                    scope_path = ""
-                    if sandbox_data and _agent_project_id and ops:
-                        root_path = sandbox_data.root_path
-                        root_entry = ops.stat(_agent_project_id, root_path) if root_path else None
-                        if root_entry:
-                            if root_entry.type == "folder":
-                                sandbox_parent_path = root_path
-                                scope_path = root_path.strip("/")
-                            else:
-                                sandbox_parent_path = root_path.rsplit("/", 1)[0] if "/" in root_path else ""
-                                scope_path = sandbox_parent_path.strip("/")
+                version_client = None
+                cloned_files = {}
+                repo_manager = None
+                if _agent_project_id and not sandbox_readonly:
+                    from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
+                    from src.version_engine.adapters.batch.in_process_client import InProcessVersionClient
+                    repo_manager = build_worker_version_engine_container().repo_manager
+                    version_auth = {
+                        "agent": f"agent:{request.agent_id}",
+                        "_scope": {
+                            "id": f"agent-{request.agent_id}",
+                            "path": scope_path,
+                            "exclude": [],
+                            "mode": "rw",
+                        },
+                    }
+                    version_client = InProcessVersionClient(repo_manager, _agent_project_id, version_auth)
+                    cloned_files = await asyncio.to_thread(version_client.clone)
 
-                    version_client = None
-                    cloned_files = {}
-                    repo_manager = None
-                    if _agent_project_id and not sandbox_readonly:
-                        from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
-                        from src.version_engine.adapters.batch.in_process_client import InProcessVersionClient
-                        repo_manager = build_worker_version_engine_container().repo_manager
-                        version_auth = {
-                            "agent": f"agent:{request.agent_id}",
-                            "_scope": {
-                                "id": f"agent-{request.agent_id}",
-                                "path": scope_path,
-                                "exclude": [],
-                                "mode": "rw",
-                            },
-                        }
-                        version_client = InProcessVersionClient(repo_manager, _agent_project_id, version_auth)
-                        cloned_files = await asyncio.to_thread(version_client.clone)
-
-                    agent_sandbox_registry.register(
-                        chat_session_id=chat_key,
-                        sandbox_session_id=sandbox_session_id,
-                        agent_id=request.agent_id,
-                        version_client=version_client,
-                        cloned_files=cloned_files,
-                        scope_path=scope_path,
-                        readonly=sandbox_readonly,
-                        project_id=_agent_project_id,
-                        parent_path=sandbox_parent_path,
-                        repo_manager=repo_manager,
-                    )
+                now = time.time()
+                live_sandbox_session = AgentSandboxSession(
+                    chat_session_id=persisted_session_id or sandbox_session_id,
+                    sandbox_session_id=sandbox_session_id,
+                    agent_id=request.agent_id,
+                    version_client=version_client,
+                    cloned_files=cloned_files,
+                    scope_path=scope_path,
+                    created_at=now,
+                    last_active=now,
+                    readonly=sandbox_readonly,
+                    project_id=_agent_project_id,
+                    parent_path=sandbox_parent_path,
+                    repo_manager=repo_manager,
+                )
 
             if not start_result.get("success"):
                 err_msg = start_result.get("error", "Failed to start sandbox")
@@ -1166,38 +1159,33 @@ class AgentService:
 
         if use_bash and sandbox_service and sandbox_session_id:
             from src.connectors.agent.sandbox_session import (
-                get_agent_sandbox_registry,
                 _read_modified_files,
             )
-            agent_sandbox_registry = get_agent_sandbox_registry()
-
-            chat_key = persisted_session_id or f"agent-{request.agent_id}-ephemeral"
-            live_session = agent_sandbox_registry.get(chat_key)
 
             updated_nodes = []
-            if live_session and live_session.version_client and not live_session.readonly:
+            if live_sandbox_session and live_sandbox_session.version_client and not live_sandbox_session.readonly:
                 try:
                     modified, deleted = await _read_modified_files(
                         sandbox_service,
-                        live_session.sandbox_session_id,
-                        live_session.cloned_files,
+                        live_sandbox_session.sandbox_session_id,
+                        live_sandbox_session.cloned_files,
                         "/workspace",
-                        live_session.scope_path,
+                        live_sandbox_session.scope_path,
                     )
                     if modified or deleted:
                         from src.version_engine.derived.hooks import push_and_finalize
                         push_result = await push_and_finalize(
-                            live_session.version_client,
-                            live_session.project_id,
-                            repo_manager=live_session.repo_manager,
+                            live_sandbox_session.version_client,
+                            live_sandbox_session.project_id,
+                            repo_manager=live_sandbox_session.repo_manager,
                             modified=modified,
                             deleted=deleted,
                             message=f"Agent chat write-back ({len(modified)} modified, {len(deleted)} deleted)",
                             who=f"agent:{request.agent_id}",
                         )
-                        live_session.cloned_files.update(modified)
+                        live_sandbox_session.cloned_files.update(modified)
                         for dp in deleted:
-                            live_session.cloned_files.pop(dp, None)
+                            live_sandbox_session.cloned_files.pop(dp, None)
                         logger.info(
                             f"[Agent] version push: commit={push_result.get('commit_id') or '(none)'} "
                             f"merged={push_result.get('merged', False)} modified={len(modified)} deleted={len(deleted)}"
@@ -1221,7 +1209,6 @@ class AgentService:
             else:
                 yield {"type": "result", "success": True}
 
-            agent_sandbox_registry.remove(chat_key)
             try:
                 await sandbox_service.stop(sandbox_session_id)
             except Exception as exc:

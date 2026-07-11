@@ -284,7 +284,11 @@ class AccessSurfaceRepository:
         if not credential:
             return None
         surface = self.get(credential["access_surface_id"])
-        if not surface or surface.get("kind") != "cli":
+        if (
+            not surface
+            or surface.get("kind") != "cli"
+            or surface.get("status") != "active"
+        ):
             return None
         return surface
 

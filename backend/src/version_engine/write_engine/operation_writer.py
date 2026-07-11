@@ -221,6 +221,13 @@ class OperationWriter:
 
                 if object_batch is not None:
                     await asyncio.to_thread(object_batch.flush)
+                    register_candidates = getattr(
+                        repo.history, "register_object_gc_candidates", None
+                    )
+                    if callable(register_candidates):
+                        await asyncio.to_thread(
+                            register_candidates, object_batch.flushed_ids
+                        )
 
             scope_head_commit_id = ""
             expected_scope_head_commit_id: str | None = None
@@ -480,6 +487,13 @@ class OperationWriter:
                     count = getattr(object_batch, "count", lambda: None)()
                     with trace_phase("object.flush", attempt=attempt_no, count=count):
                         await asyncio.to_thread(object_batch.flush)
+                    register_candidates = getattr(
+                        repo.history, "register_object_gc_candidates", None
+                    )
+                    if callable(register_candidates):
+                        await asyncio.to_thread(
+                            register_candidates, object_batch.flushed_ids
+                        )
 
             with trace_phase("changes.build_full_changes", attempt=attempt_no):
                 full_changes = build_full_changes("", changes)

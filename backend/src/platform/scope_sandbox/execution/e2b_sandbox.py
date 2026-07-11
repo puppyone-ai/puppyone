@@ -6,10 +6,14 @@ import json
 import os
 import shlex
 import time
-import threading
 from typing import Any, Callable, Optional
 
-from .base import SandboxBase, SandboxSession
+from .base import SandboxBase
+from .store import (
+    ExecutionSession,
+    ExecutionSessionStore,
+    durable_execution_store,
+)
 
 
 # Default sandbox session timeout (seconds)
@@ -26,6 +30,8 @@ class E2BSandbox(SandboxBase):
     def __init__(
         self,
         sandbox_factory: Optional[Callable[[], Any]] = None,
+        sandbox_connector: Optional[Callable[[str], Any]] = None,
+        session_store: ExecutionSessionStore | None = None,
         session_timeout: float = DEFAULT_SESSION_TIMEOUT,
     ):
         """
@@ -36,10 +42,23 @@ class E2BSandbox(SandboxBase):
             session_timeout: Session timeout in seconds
         """
         self._sandbox_factory = sandbox_factory or _default_e2b_factory
-        self._sessions: dict[str, SandboxSession] = {}
-        self._lock = threading.Lock()  # Protects concurrent access to _sessions
+        self._sandbox_connector = sandbox_connector or _default_e2b_connector
+        self._store = session_store or durable_execution_store()
         self._session_timeout = session_timeout
-        self._cleanup_task: Optional[asyncio.Task] = None
+
+    async def _resolve(self, session_id: str):
+        session = self._store.get(session_id)
+        if not session or session.provider != "e2b":
+            return None, None
+        try:
+            sandbox = await _call_maybe_async(
+                self._sandbox_connector, session.resource_id
+            )
+        except Exception:
+            return None, None
+        session.last_activity = time.time()
+        self._store.put(session)
+        return session, sandbox
 
     async def start(self, session_id: str, data: Any, readonly: bool) -> dict:
         """Create a sandbox session and preload data into /workspace/data.json"""
@@ -48,10 +67,19 @@ class E2BSandbox(SandboxBase):
 
         await self.stop(session_id)
 
+        now = time.time()
+        claim = ExecutionSession(
+            session_id=session_id, provider="e2b", resource_id="",
+            readonly=bool(readonly), created_at=now, last_activity=now,
+        )
+        if not self._store.insert(claim):
+            return {"success": False, "error": "Sandbox session is being started by another worker"}
+
         # Create a fresh sandbox instance for this session.
         try:
             sandbox = await _call_maybe_async(self._sandbox_factory)
         except Exception as e:
+            self._store.delete(session_id)
             msg = str(e)
             # e2b-code-interpreter raises this type of error when authentication is not configured:
             # "Could not resolve authentication method. Expected either api_key or auth_token ..."
@@ -65,18 +93,22 @@ class E2BSandbox(SandboxBase):
                 msg = f"{hint}\nOriginal error: {msg}"
             return {"success": False, "error": msg}
 
+        resource_id = str(getattr(sandbox, "id", "") or getattr(sandbox, "sandbox_id", ""))
+        if not resource_id:
+            await _close_e2b(sandbox)
+            self._store.delete(session_id)
+            return {"success": False, "error": "E2B provider returned no sandbox id"}
+        claim.resource_id = resource_id
+        claim.last_activity = time.time()
+        self._store.put(claim)
+
         # Persist JSON data so bash tools can operate on it.
         payload = json.dumps(data, ensure_ascii=False, indent=2)
-        await _call_maybe_async(sandbox.files.write, "/workspace/data.json", payload)
-
-        now = time.time()
-        with self._lock:
-            self._sessions[session_id] = SandboxSession(
-                sandbox=sandbox, readonly=bool(readonly), created_at=now, last_activity=now
-            )
-
-        # Start cleanup task (if not already running)
-        await self._ensure_cleanup_task()
+        try:
+            await _call_maybe_async(sandbox.files.write, "/workspace/data.json", payload)
+        except Exception as exc:
+            await self.stop(session_id)
+            return {"success": False, "error": f"Failed to initialize E2B workspace: {exc}"}
         return {"success": True}
 
     async def start_with_files(
@@ -99,10 +131,19 @@ class E2BSandbox(SandboxBase):
 
         await self.stop(session_id)
 
+        now = time.time()
+        claim = ExecutionSession(
+            session_id=session_id, provider="e2b", resource_id="",
+            readonly=bool(readonly), created_at=now, last_activity=now,
+        )
+        if not self._store.insert(claim):
+            return {"success": False, "error": "Sandbox session is being started by another worker"}
+
         # Create a fresh sandbox instance
         try:
             sandbox = await _call_maybe_async(self._sandbox_factory)
         except Exception as e:
+            self._store.delete(session_id)
             msg = str(e)
             if "Could not resolve authentication method" in msg:
                 hint = (
@@ -113,6 +154,15 @@ class E2BSandbox(SandboxBase):
                 )
                 msg = f"{hint}\nOriginal error: {msg}"
             return {"success": False, "error": msg}
+
+        resource_id = str(getattr(sandbox, "id", "") or getattr(sandbox, "sandbox_id", ""))
+        if not resource_id:
+            await _close_e2b(sandbox)
+            self._store.delete(session_id)
+            return {"success": False, "error": "E2B provider returned no sandbox id"}
+        claim.resource_id = resource_id
+        claim.last_activity = time.time()
+        self._store.put(claim)
 
         # Download all files in parallel
         prepared_files, failed_files = await prepare_files_for_sandbox(files, s3_service)
@@ -223,15 +273,6 @@ class E2BSandbox(SandboxBase):
         # Merge all failed files
         all_failures = failed_files + write_failures
 
-        now = time.time()
-        with self._lock:
-            self._sessions[session_id] = SandboxSession(
-                sandbox=sandbox, readonly=bool(readonly), created_at=now, last_activity=now
-            )
-
-        # Start cleanup task (if not already running)
-        await self._ensure_cleanup_task()
-
         result: dict[str, Any] = {"success": True}
         if all_failures:
             result["warnings"] = all_failures
@@ -239,22 +280,17 @@ class E2BSandbox(SandboxBase):
 
     async def exec(self, session_id: str, command: str) -> dict:
         """Execute a command in the sandbox and return its output"""
-        with self._lock:
-            session = self._sessions.get(session_id)
-
+        session, sandbox = await self._resolve(session_id)
         if not session:
             return {
                 "success": False,
                 "error": "Sandbox session not found. Call start first.",
             }
 
-        # Update last activity time
-        session.last_activity = time.time()
-
         # Execute in sandbox and normalize output to text.
         # Always run commands in /workspace so agent file operations land in the right place.
         try:
-            result = await _call_maybe_async(session.sandbox.commands.run, command, cwd="/workspace")
+            result = await _call_maybe_async(sandbox.commands.run, command, cwd="/workspace")
             # E2B SDK v1+ uses .stdout/.stderr; older versions use .text
             output = getattr(result, "text", None)
             if output is None:
@@ -287,16 +323,11 @@ class E2BSandbox(SandboxBase):
 
     async def read(self, session_id: str) -> dict:
         """Read and parse JSON data from /workspace/data.json"""
-        with self._lock:
-            session = self._sessions.get(session_id)
-
+        session, sandbox = await self._resolve(session_id)
         if not session:
             return {"success": False, "error": "Sandbox session not found"}
 
-        # Update last activity time
-        session.last_activity = time.time()
-
-        raw = await _call_maybe_async(session.sandbox.files.read, "/workspace/data.json")
+        raw = await _call_maybe_async(sandbox.files.read, "/workspace/data.json")
         try:
             if isinstance(raw, bytes):
                 raw = raw.decode("utf-8")
@@ -317,17 +348,12 @@ class E2BSandbox(SandboxBase):
         Returns:
             {"success": True, "content": str/dict} or {"success": False, "error": str}
         """
-        with self._lock:
-            session = self._sessions.get(session_id)
-
+        session, sandbox = await self._resolve(session_id)
         if not session:
             return {"success": False, "error": "Sandbox session not found"}
 
-        # Update last activity time
-        session.last_activity = time.time()
-
         try:
-            raw = await _call_maybe_async(session.sandbox.files.read, path)
+            raw = await _call_maybe_async(sandbox.files.read, path)
             if isinstance(raw, bytes):
                 raw = raw.decode("utf-8")
 
@@ -344,34 +370,30 @@ class E2BSandbox(SandboxBase):
 
     async def stop(self, session_id: str) -> dict:
         """Close and remove sandbox session"""
-        with self._lock:
-            session = self._sessions.pop(session_id, None)
-
+        session = self._store.get(session_id)
         if not session:
             return {"success": True}
-
-        # Some sandbox implementations expose close(); guard it.
-        close = getattr(session.sandbox, "close", None)
-        if callable(close):
-            try:
-                await _call_maybe_async(close)
-            except Exception as e:
-                print(f"[E2BSandbox] Error closing sandbox {session_id}: {e}")
-
+        if not session.resource_id:
+            return {"success": False, "error": "Sandbox session is still provisioning"}
+        try:
+            sandbox = await _call_maybe_async(
+                self._sandbox_connector, session.resource_id
+            )
+            await _close_e2b(sandbox)
+        except Exception as e:
+            print(f"[E2BSandbox] Error closing sandbox {session_id}: {e}")
+            return {"success": False, "error": "Failed to stop E2B sandbox; cleanup will retry"}
+        self._store.delete(session_id)
         return {"success": True}
 
     async def status(self, session_id: str) -> dict:
         """Return session status and basic metadata"""
-        with self._lock:
-            session = self._sessions.get(session_id)
-
+        session, _sandbox = await self._resolve(session_id)
         if not session:
             return {"active": False}
-
-        sandbox_id = getattr(session.sandbox, "id", None)
         return {
             "active": True,
-            "sandbox_id": sandbox_id,
+            "sandbox_id": session.resource_id,
             "readonly": session.readonly,
             "created_at": session.created_at,
             "last_activity": session.last_activity,
@@ -379,49 +401,8 @@ class E2BSandbox(SandboxBase):
 
     async def stop_all(self) -> None:
         """Stop all sandbox sessions (used during service shutdown)"""
-        with self._lock:
-            session_ids = list(self._sessions.keys())
-
-        for session_id in session_ids:
-            await self.stop(session_id)
-
-        if self._cleanup_task and not self._cleanup_task.done():
-            self._cleanup_task.cancel()
-            try:
-                await self._cleanup_task
-            except asyncio.CancelledError:
-                pass
-
-    async def _ensure_cleanup_task(self):
-        """Ensure the cleanup task is running"""
-        if self._cleanup_task is None or self._cleanup_task.done():
-            self._cleanup_task = asyncio.create_task(self._cleanup_expired_sessions())
-
-    async def _cleanup_expired_sessions(self):
-        """Periodically clean up expired sandbox sessions"""
-        while True:
-            try:
-                await asyncio.sleep(60)  # Check every minute
-                now = time.time()
-                expired_sessions = []
-
-                with self._lock:
-                    for session_id, session in self._sessions.items():
-                        if now - session.last_activity > self._session_timeout:
-                            expired_sessions.append(session_id)
-
-                for session_id in expired_sessions:
-                    print(f"[E2BSandbox] Cleaning up expired session: {session_id}")
-                    await self.stop(session_id)
-
-                # If no active sessions, exit the cleanup task
-                with self._lock:
-                    if not self._sessions:
-                        break
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                print(f"[E2BSandbox] Cleanup task error: {e}")
+        for session in self._store.list_provider("e2b"):
+            await self.stop(session.session_id)
 
 
 def _default_e2b_factory():
@@ -429,6 +410,18 @@ def _default_e2b_factory():
     from e2b_code_interpreter import Sandbox
 
     return Sandbox.create()
+
+
+def _default_e2b_connector(sandbox_id: str):
+    from e2b_code_interpreter import Sandbox
+
+    return Sandbox.connect(sandbox_id)
+
+
+async def _close_e2b(sandbox) -> None:
+    close = getattr(sandbox, "kill", None) or getattr(sandbox, "close", None)
+    if callable(close):
+        await _call_maybe_async(close)
 
 
 async def _call_maybe_async(func: Callable[..., Any], *args, **kwargs):

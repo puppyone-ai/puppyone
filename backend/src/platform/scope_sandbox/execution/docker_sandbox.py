@@ -6,7 +6,6 @@ import os
 import shlex
 import shutil
 import tempfile
-import threading
 import time
 from dataclasses import dataclass
 from typing import Any, Optional
@@ -14,6 +13,7 @@ from typing import Any, Optional
 from src.config import settings
 
 from .base import SandboxBase, SandboxSession
+from .store import ExecutionSession, ExecutionSessionStore, durable_execution_store
 
 
 # Docker session timeout (seconds)
@@ -38,18 +38,20 @@ class DockerSandbox(SandboxBase):
     - File reading
     """
 
-    def __init__(self, session_timeout: float = DEFAULT_DOCKER_SESSION_TIMEOUT):
+    def __init__(
+        self,
+        session_timeout: float = DEFAULT_DOCKER_SESSION_TIMEOUT,
+        session_store: ExecutionSessionStore | None = None,
+    ):
         """
         Initialize Docker sandbox service
 
         Args:
             session_timeout: Session timeout in seconds, default 10 minutes
         """
-        self._sessions: dict[str, DockerSession] = {}
-        self._lock = threading.Lock()  # For fast synchronous access
+        self._store = session_store or durable_execution_store()
         self._async_lock = asyncio.Lock()  # For async operation mutual exclusion
         self._session_timeout = session_timeout
-        self._cleanup_task: Optional[asyncio.Task] = None
         self._docker_available: Optional[bool] = None
         self._docker_check_time: float = 0  # Last check time
         self._docker_cache_ttl: float = 60.0  # Cache TTL (seconds)
@@ -159,39 +161,6 @@ class DockerSandbox(SandboxBase):
         except Exception as e:
             return (-1, "", str(e))
 
-    async def _cleanup_expired_sessions(self):
-        """Periodically clean up expired sandbox sessions"""
-        while True:
-            try:
-                await asyncio.sleep(60)  # Check every minute
-                now = time.time()
-                expired_sessions = []
-
-                with self._lock:
-                    for session_id, session in self._sessions.items():
-                        if now - session.last_activity > self._session_timeout:
-                            expired_sessions.append(session_id)
-
-                # Clean up one by one using async lock
-                for session_id in expired_sessions:
-                    print(f"[DockerSandbox] Cleaning up expired session: {session_id}")
-                    async with self._async_lock:
-                        await self._stop_internal(session_id)
-
-                # If no active sessions, exit the cleanup task
-                with self._lock:
-                    if not self._sessions:
-                        break
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                print(f"[DockerSandbox] Cleanup task error: {e}")
-
-    async def _ensure_cleanup_task(self):
-        """Ensure the cleanup task is running"""
-        if self._cleanup_task is None or self._cleanup_task.done():
-            self._cleanup_task = asyncio.create_task(self._cleanup_expired_sessions())
-
     async def _wait_for_container_ready(
         self,
         container_id: str,
@@ -266,6 +235,7 @@ class DockerSandbox(SandboxBase):
 
     async def _try_start_container(
         self,
+        session_id: str,
         mount_args: list[str],
     ) -> tuple[bool, str, str]:
         """
@@ -281,6 +251,7 @@ class DockerSandbox(SandboxBase):
         hardened_args = self._isolation_args()
         args = [
             "run", "-d", "--rm",
+            "--label", f"puppyone.sandbox.session={session_id}",
             *resource_args,
             *hardened_args,
             *mount_args,
@@ -318,15 +289,20 @@ class DockerSandbox(SandboxBase):
                 "error": "Docker is not available. Please ensure Docker is installed and running."
             }
 
-        # Clean up expired sessions
-        await self._ensure_cleanup_task()
-
         # If already exists, stop first (use async lock to protect the check-stop operation)
         async with self._async_lock:
-            with self._lock:
-                session_exists = session_id in self._sessions
-            if session_exists:
+            existing = self._store.get(session_id)
+            if existing and not existing.resource_id:
+                return {"success": False, "error": "Sandbox session is being started by another worker"}
+            if existing:
                 await self._stop_internal(session_id)
+            now = time.time()
+            claim = ExecutionSession(
+                session_id=session_id, provider="docker", resource_id="",
+                readonly=readonly, created_at=now, last_activity=now,
+            )
+            if not self._store.insert(claim):
+                return {"success": False, "error": "Sandbox session is being started by another worker"}
 
         # Create temporary JSON file
         temp_file_path = self._create_temp_json_file(session_id)
@@ -337,6 +313,7 @@ class DockerSandbox(SandboxBase):
                 f.write(json_content)
             self._prepare_bind_mount(temp_file_path)
         except Exception as e:
+            self._store.delete(session_id)
             return {"success": False, "error": f"Failed to create temp file: {e}"}
 
         # Build mount arguments
@@ -346,9 +323,10 @@ class DockerSandbox(SandboxBase):
         mount_args = ["-v", mount_option]
 
         # Start container
-        success, container_id, error = await self._try_start_container(mount_args)
+        success, container_id, error = await self._try_start_container(session_id, mount_args)
 
         if not success:
+            self._store.delete(session_id)
             # Clean up temporary file
             try:
                 os.unlink(temp_file_path)
@@ -356,17 +334,17 @@ class DockerSandbox(SandboxBase):
                 pass
             return {"success": False, "error": error}
 
-        # Record session
-        now = time.time()
-        with self._lock:
-            self._sessions[session_id] = DockerSession(
-                sandbox=container_id,
-                readonly=readonly,
-                created_at=now,
-                last_activity=now,
-                container_id=container_id,
-                temp_path=temp_file_path
-            )
+        try:
+            claim.resource_id = container_id
+            claim.temp_path = temp_file_path
+            claim.last_activity = time.time()
+            self._store.put(claim)
+        except Exception:
+            await self._run_docker_command("stop", container_id, timeout=5.0)
+            if os.path.isfile(temp_file_path):
+                os.unlink(temp_file_path)
+            self._store.delete(session_id)
+            raise
 
         print(f"[DockerSandbox] Started session {session_id}, container: {container_id[:12]}, readonly: {readonly}")
         return {"success": True}
@@ -399,27 +377,39 @@ class DockerSandbox(SandboxBase):
                 "error": "Docker is not available. Please ensure Docker is installed and running."
             }
 
-        # Clean up expired sessions
-        await self._ensure_cleanup_task()
-
         # If already exists, stop first (use async lock to protect the check-stop operation)
         async with self._async_lock:
-            with self._lock:
-                session_exists = session_id in self._sessions
-            if session_exists:
+            existing = self._store.get(session_id)
+            if existing and not existing.resource_id:
+                return {"success": False, "error": "Sandbox session is being started by another worker"}
+            if existing:
                 await self._stop_internal(session_id)
+            now = time.time()
+            claim = ExecutionSession(
+                session_id=session_id, provider="docker", resource_id="",
+                readonly=readonly, created_at=now, last_activity=now,
+            )
+            if not self._store.insert(claim):
+                return {"success": False, "error": "Sandbox session is being started by another worker"}
 
         # Create temporary directory to store all files
-        temp_dir = self._create_temp_workspace_dir(session_id)
-        workspace_dir = os.path.join(temp_dir, "workspace")
-        os.makedirs(workspace_dir, exist_ok=True)
+        temp_dir = ""
+        try:
+            temp_dir = self._create_temp_workspace_dir(session_id)
+            workspace_dir = os.path.join(temp_dir, "workspace")
+            os.makedirs(workspace_dir, exist_ok=True)
 
-        # Use the dedicated Docker file preparation function, large files are streamed directly to disk
-        from .file_utils import prepare_files_for_docker_sandbox
-        written_paths, all_failures = await prepare_files_for_docker_sandbox(
-            files, workspace_dir, s3_service
-        )
-        self._prepare_bind_mount(workspace_dir)
+            # Use the dedicated Docker file preparation function, large files are streamed directly to disk
+            from .file_utils import prepare_files_for_docker_sandbox
+            written_paths, all_failures = await prepare_files_for_docker_sandbox(
+                files, workspace_dir, s3_service
+            )
+            self._prepare_bind_mount(workspace_dir)
+        except Exception as exc:
+            self._store.delete(session_id)
+            if temp_dir:
+                shutil.rmtree(temp_dir, ignore_errors=True)
+            return {"success": False, "error": f"Failed to prepare sandbox files: {exc}"}
 
         # Build mount arguments
         mount_option = f"{workspace_dir}:/workspace"
@@ -428,9 +418,10 @@ class DockerSandbox(SandboxBase):
         mount_args = ["-v", mount_option]
 
         # Start container
-        success, container_id, error = await self._try_start_container(mount_args)
+        success, container_id, error = await self._try_start_container(session_id, mount_args)
 
         if not success:
+            self._store.delete(session_id)
             # Clean up temporary directory
             try:
                 shutil.rmtree(temp_dir)
@@ -438,17 +429,16 @@ class DockerSandbox(SandboxBase):
                 pass
             return {"success": False, "error": error}
 
-        # Record session
-        now = time.time()
-        with self._lock:
-            self._sessions[session_id] = DockerSession(
-                sandbox=container_id,
-                readonly=readonly,
-                created_at=now,
-                last_activity=now,
-                container_id=container_id,
-                temp_path=temp_dir  # Save the entire temporary directory
-            )
+        try:
+            claim.resource_id = container_id
+            claim.temp_path = temp_dir
+            claim.last_activity = time.time()
+            self._store.put(claim)
+        except Exception:
+            await self._run_docker_command("stop", container_id, timeout=5.0)
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            self._store.delete(session_id)
+            raise
 
         print(f"[DockerSandbox] Started session {session_id} with {len(written_paths)} files written, container: {container_id[:12]}, readonly: {readonly}")
 
@@ -468,10 +458,8 @@ class DockerSandbox(SandboxBase):
         Returns:
             {"success": True, "output": str} or {"success": False, "error": str}
         """
-        with self._lock:
-            session = self._sessions.get(session_id)
-
-        if not session:
+        session = self._store.get(session_id)
+        if not session or session.provider != "docker":
             return {
                 "success": False,
                 "error": "Sandbox session not found. Call start first."
@@ -479,6 +467,7 @@ class DockerSandbox(SandboxBase):
 
         # Update last activity time
         session.last_activity = time.time()
+        self._store.put(session)
 
         # Security notes:
         # 1. _run_docker_command uses asyncio.subprocess_exec, bypassing the host shell,
@@ -487,7 +476,7 @@ class DockerSandbox(SandboxBase):
         # 3. The container itself provides isolation, limiting the potential scope of damage
 
         returncode, stdout, stderr = await self._run_docker_command(
-            "exec", session.container_id,
+            "exec", session.resource_id,
             "sh", "-c", command,
             timeout=30.0
         )
@@ -566,20 +555,21 @@ class DockerSandbox(SandboxBase):
         Returns:
             Whether the session was successfully stopped (whether it existed)
         """
-        with self._lock:
-            session = self._sessions.pop(session_id, None)
-
-        if not session:
+        session = self._store.get(session_id)
+        if not session or session.provider != "docker":
             return False  # Already does not exist
 
         # Stop container
         try:
-            await self._run_docker_command(
-                "stop", session.container_id,
-                timeout=10.0
+            returncode, _stdout, stderr = await self._run_docker_command(
+                "stop", session.resource_id, timeout=10.0
             )
+            if returncode != 0 and "no such container" not in stderr.lower():
+                print(f"[DockerSandbox] Failed to stop {session_id}: {stderr}")
+                return False
         except Exception as e:
             print(f"[DockerSandbox] Error stopping container {session_id}: {e}")
+            return False
 
         # Clean up temporary files/directories
         if session.temp_path:
@@ -590,6 +580,8 @@ class DockerSandbox(SandboxBase):
                     os.unlink(session.temp_path)
             except Exception as e:
                 print(f"[DockerSandbox] Error cleaning temp path {session.temp_path}: {e}")
+
+        self._store.delete(session_id)
 
         print(f"[DockerSandbox] Stopped session {session_id}")
         return True
@@ -618,15 +610,13 @@ class DockerSandbox(SandboxBase):
         Returns:
             {"active": bool, ...} including other metadata
         """
-        with self._lock:
-            session = self._sessions.get(session_id)
-
-        if not session:
+        session = self._store.get(session_id)
+        if not session or session.provider != "docker":
             return {"active": False}
 
         return {
             "active": True,
-            "container_id": session.container_id[:12] if session.container_id else None,
+            "container_id": session.resource_id[:12] if session.resource_id else None,
             "readonly": session.readonly,
             "created_at": session.created_at,
             "last_activity": session.last_activity,
@@ -635,17 +625,7 @@ class DockerSandbox(SandboxBase):
     async def stop_all(self) -> None:
         """Stop all sandbox sessions (used during service shutdown)"""
         async with self._async_lock:
-            with self._lock:
-                session_ids = list(self._sessions.keys())
-
-            for session_id in session_ids:
-                await self._stop_internal(session_id)
-
-        if self._cleanup_task and not self._cleanup_task.done():
-            self._cleanup_task.cancel()
-            try:
-                await self._cleanup_task
-            except asyncio.CancelledError:
-                pass
+            for session in self._store.list_provider("docker"):
+                await self._stop_internal(session.session_id)
 
         print("[DockerSandbox] All sessions stopped")

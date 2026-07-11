@@ -57,8 +57,7 @@ def _row_to_agent(
     """Convert an access_surfaces row (kind='agent') to an Agent model."""
     config = row.get("config") or {}
     trigger = config.get("trigger") or {}
-    legacy_key = config.get("mcp_api_key") or None
-    active_key = plaintext_mcp_api_key or legacy_key
+    active_key = plaintext_mcp_api_key
     return Agent(
         id=row["id"],
         project_id=row["project_id"],
@@ -500,10 +499,6 @@ class AgentRepository:
         if not response.data:
             return None
         row = response.data[0]
-        config = dict(row.get("config") or {})
-        if "mcp_api_key" in config:
-            config.pop("mcp_api_key", None)
-            self._client.table(self.TABLE).update({"config": config}).eq("id", agent_id).execute()
         return self._credentials.issue_bearer_token(
             access_surface_id=row["id"],
             org_id=row.get("org_id"),

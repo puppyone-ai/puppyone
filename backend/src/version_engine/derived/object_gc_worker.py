@@ -44,20 +44,7 @@ def process_object_gc_projects(
     }
     if allowlist:
         ids = [project_id for project_id in ids if project_id in allowlist]
-    dry = settings.VERSION_OBJECT_GC_DRY_RUN if dry_run is None else dry_run
-    if (
-        not dry
-        and project_ids is None
-        and settings.APP_ENV == "production"
-        and not _destructive_rollout_allowed(
-            db,
-            required_days=settings.VERSION_OBJECT_GC_REQUIRED_DRY_RUN_DAYS,
-        )
-    ):
-        log_warning(
-            "[object-gc] destructive rollout gate not satisfied; forcing dry-run"
-        )
-        dry = True
+    requested_dry_run = settings.VERSION_OBJECT_GC_DRY_RUN if dry_run is None else dry_run
     retention = (
         settings.VERSION_OBJECT_GC_RETENTION_SECONDS
         if retention_seconds is None
@@ -72,10 +59,28 @@ def process_object_gc_projects(
     results: list[GitObjectGcResult] = []
     for project_id in ids:
         try:
+            # Production evidence is tenant-local. A healthy project's dry-run
+            # history must never authorize deletion in another project, and an
+            # explicitly supplied project list must not bypass this safety gate.
+            project_dry_run = requested_dry_run
+            if (
+                not project_dry_run
+                and settings.APP_ENV == "production"
+                and not _destructive_rollout_allowed(
+                    db,
+                    project_id=project_id,
+                    required_days=settings.VERSION_OBJECT_GC_REQUIRED_DRY_RUN_DAYS,
+                )
+            ):
+                log_warning(
+                    f"[object-gc] project={project_id} destructive rollout gate "
+                    "not satisfied; forcing dry-run"
+                )
+                project_dry_run = True
             repo = repos.get_server_repo(project_id)
             result = run_git_object_gc(
                 repo,
-                dry_run=dry,
+                dry_run=project_dry_run,
                 retention_seconds=retention,
                 max_delete=max_delete,
                 quarantine_seconds=settings.VERSION_OBJECT_GC_QUARANTINE_SECONDS,
@@ -83,7 +88,7 @@ def process_object_gc_projects(
             results.append(result)
             if result.unreachable_count or result.deleted_count or result.errors:
                 log_info(
-                    f"[object-gc] project={project_id} dry_run={dry} "
+                    f"[object-gc] project={project_id} dry_run={project_dry_run} "
                     f"total={result.total_objects} "
                     f"reachable={result.reachable_count} "
                     f"unreachable={result.unreachable_count} "
@@ -126,8 +131,13 @@ def _record_gc_run(client, result: GitObjectGcResult) -> None:
         log_warning(f"[object-gc] failed to persist run metrics: {exc}")
 
 
-def _destructive_rollout_allowed(client, *, required_days: int) -> bool:
-    """Require consecutive clean production dry-run evidence before deletion."""
+def _destructive_rollout_allowed(
+    client,
+    *,
+    project_id: str,
+    required_days: int,
+) -> bool:
+    """Require consecutive clean dry-run evidence for exactly one project."""
 
     required = max(1, int(required_days))
     cutoff = datetime.now(timezone.utc) - timedelta(days=required)
@@ -135,6 +145,7 @@ def _destructive_rollout_allowed(client, *, required_days: int) -> bool:
         response = (
             client.table("version_object_gc_runs")
             .select("created_at, errors, sweep_skipped_for_safety")
+            .eq("project_id", project_id)
             .eq("dry_run", True)
             .gte("created_at", cutoff.isoformat())
             .execute()

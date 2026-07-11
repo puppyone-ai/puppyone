@@ -24,7 +24,6 @@ from src.infra.scheduler.jobs import (
 )
 from src.infra.scheduler.jobs.import_job_reaper import process_import_job_reaper
 from src.infra.scheduler.jobs.upload_job_reaper import process_upload_job_reaper
-from src.infra.scheduler.jobs.sandbox_reaper import reap_idle_sandboxes
 from src.infra.scheduler.jobs.shadow_snapshot_reaper import (
     process_shadow_snapshot_reaper,
 )
@@ -94,15 +93,6 @@ class SchedulerService:
         # Load existing schedule agents from database
         await self._load_scheduled_agents()
         await self._load_scheduled_syncs()
-
-        # Register sandbox idle reaper (runs every 60s)
-        self.scheduler.add_job(
-            reap_idle_sandboxes,
-            trigger=IntervalTrigger(seconds=60),
-            id="sandbox-reaper",
-            name="Sandbox Idle Reaper",
-            replace_existing=True,
-        )
 
         if settings.VERSION_OUTBOX_ENABLED:
             self.scheduler.add_job(

@@ -144,11 +144,19 @@ class ScopeService:
             mode=mode,
             is_root=False,
         )
-        self._access_surfaces.ensure_scope_defaults(scope)
-        if not self._access_surfaces.store_scope_credential(
-            scope_id=scope.id, raw_token=key
-        ):
-            raise RuntimeError("Failed to attach scope credential")
+        try:
+            self._access_surfaces.ensure_scope_defaults(scope)
+            if not self._access_surfaces.store_scope_credential(
+                scope_id=scope.id, raw_token=key
+            ):
+                raise RuntimeError("Failed to attach scope credential")
+        except Exception:
+            # A scope without its built-in surfaces/credential is unusable and
+            # can be observed by other workers. Cascading delete compensates the
+            # multi-table REST sequence instead of leaving a half-created access
+            # model behind.
+            self._repo.delete(scope.id)
+            raise
         return replace(scope, access_key=key)
 
     def ensure_root_scope(self, project_id: str) -> RepoScope:
@@ -169,11 +177,15 @@ class ScopeService:
             mode="rw",
             is_root=True,
         )
-        self._access_surfaces.ensure_scope_defaults(scope)
-        if not self._access_surfaces.store_scope_credential(
-            scope_id=scope.id, raw_token=key
-        ):
-            raise RuntimeError("Failed to attach root scope credential")
+        try:
+            self._access_surfaces.ensure_scope_defaults(scope)
+            if not self._access_surfaces.store_scope_credential(
+                scope_id=scope.id, raw_token=key
+            ):
+                raise RuntimeError("Failed to attach root scope credential")
+        except Exception:
+            self._repo.delete(scope.id)
+            raise
         return replace(scope, access_key=key)
 
     def update(

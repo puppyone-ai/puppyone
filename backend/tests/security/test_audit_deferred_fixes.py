@@ -18,12 +18,14 @@ class _FakeScopeClient:
         self.eq_calls: list[tuple] = []
         self._last_eq_col = None
         self.is_calls: list[tuple] = []
+        self.table_name = ""
 
     @property
     def client(self):
         return self
 
-    def table(self, _name):
+    def table(self, name):
+        self.table_name = name
         return self
 
     def select(self, *a, **k):
@@ -42,11 +44,23 @@ class _FakeScopeClient:
         return self
 
     def execute(self):
-        row = {
-            "id": "s1", "project_id": "p1", "path": "docs",
-            "exclude": [], "mode": "rw", "access_key_revoked_at": None,
-        }
-        data = [row] if self._last_eq_col in self.hit_columns else []
+        if self.table_name == "access_surface_credentials":
+            data = ([{
+                "access_surface_id": "surface-1", "key_hash": "hashed",
+                "credential_type": "bearer_token", "status": "active",
+            }] if "key_hash" in self.hit_columns else [])
+        elif self.table_name == "access_surfaces":
+            data = [{
+                "id": "surface-1", "scope_id": "s1", "project_id": "p1",
+                "kind": "cli", "status": "active",
+            }]
+        elif self.table_name == "repo_scopes":
+            data = [{
+                "id": "s1", "project_id": "p1", "path": "docs",
+                "exclude": [], "mode": "rw",
+            }]
+        else:
+            data = []
         return SimpleNamespace(data=data)
 
 
@@ -63,27 +77,27 @@ def test_scope_auth_always_resolves_by_hash_first(monkeypatch):
         "ACCESS_CREDENTIAL_HASH_SECRET",
         "test-credential-secret-at-least-32-characters",
     )
-    client = _FakeScopeClient(hit_columns={"access_key_hash"})
+    client = _FakeScopeClient(hit_columns={"key_hash"})
     row = _find()(client, "cli_secretkey")
     assert row is not None
     # First lookup is by hash of the key, not the plaintext.
-    assert ("access_key_hash", access_token_hash("cli_secretkey")) in client.eq_calls
+    assert ("key_hash", access_token_hash("cli_secretkey")) in client.eq_calls
 
 
-def test_scope_plaintext_fallback_is_limited_to_hash_null_rows(monkeypatch):
+def test_scope_plaintext_fallback_is_fully_retired(monkeypatch):
     from src.config import settings
     monkeypatch.setattr(
         settings,
         "ACCESS_CREDENTIAL_HASH_SECRET",
         "test-credential-secret-at-least-32-characters",
     )
-    # Hash lookup misses (row not backfilled); plaintext still resolves it.
+    # Hash lookup misses; plaintext storage has been removed and is never read.
     client = _FakeScopeClient(hit_columns={"access_key"})
     row = _find()(client, "cli_secretkey")
-    assert row is not None
+    assert row is None
     cols = [c for c, _ in client.eq_calls]
-    assert "access_key_hash" in cols and "access_key" in cols
-    assert ("access_key_hash", "null") in client.is_calls
+    assert "key_hash" in cols
+    assert "access_key" not in cols
 
 
 # ── ISSUE-015: cluster-aware notifications (gated, fail-open) ────────────────

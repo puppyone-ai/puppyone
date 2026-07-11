@@ -27,9 +27,9 @@ def _row_to_endpoint(
         "name": row.get("name") or config.get("name", "Sandbox"),
         "description": config.get("description"),
         "access_key": plaintext_access_key,
-        "has_key": bool(credential or config.get("access_key") or plaintext_access_key),
+        "has_key": bool(credential or plaintext_access_key),
         "key_last4": (credential or {}).get("key_last4")
-        or ((plaintext_access_key or config.get("access_key") or "")[-4:] or None),
+        or ((plaintext_access_key or "")[-4:] or None),
         "mounts": config.get("mounts", []),
         "runtime": config.get("runtime", "alpine"),
         "timeout_seconds": config.get("timeout_seconds", 30),
@@ -122,6 +122,8 @@ class SandboxEndpointRepository:
             resp = self._query().eq("id", credential["access_surface_id"]).execute()
             if resp.data:
                 row = resp.data[0]
+                if row.get("status") != "active":
+                    return None
                 path_by_scope = self._scope_path_lookup([row.get("scope_id")])
                 return _row_to_endpoint(
                     row,
@@ -130,18 +132,7 @@ class SandboxEndpointRepository:
                     plaintext_access_key=access_key,
                 )
 
-        resp = self._query().filter("config->>access_key", "eq", access_key).execute()
-        if not resp.data:
-            return None
-        row = resp.data[0]
-        if self._credentials.get_active_by_surface(row["id"]):
-            return None
-        path_by_scope = self._scope_path_lookup([row.get("scope_id")])
-        return _row_to_endpoint(
-            row,
-            path_by_scope.get(row.get("scope_id")),
-            plaintext_access_key=access_key,
-        )
+        return None
 
     def list_by_project(self, project_id: str) -> List[dict]:
         resp = (
@@ -266,11 +257,6 @@ class SandboxEndpointRepository:
         if not current.data:
             return None
         row = current.data[0]
-        config = dict(row.get("config") or {})
-        if "access_key" in config:
-            config.pop("access_key", None)
-            self._client.table(self.TABLE).update({"config": config}).eq("id", endpoint_id).execute()
-            row["config"] = config
         new_key = self._credentials.issue_bearer_token(
             access_surface_id=row["id"],
             org_id=row.get("org_id"),

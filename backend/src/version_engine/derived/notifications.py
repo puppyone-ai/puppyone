@@ -15,11 +15,11 @@ Pre-existing missed events are reconciled by normal version refresh/fetch.
 
 Concurrency
 -----------
-The manager is process-wide singleton-style. Connections register
-via :meth:`register` and unregister on disconnect. All public methods
-are async-safe. We don't try to be cluster-aware — running multiple
-backend replicas means each only fans out to its own connections, and
-normal version refresh/fetch covers the rest.
+The manager is process-wide singleton-style. Connections register via
+:meth:`register` and unregister on disconnect. Redis distributes business
+events to every replica; each replica keeps only its live socket handles.
+Canonical history paging is the durable reconnect source when Pub/Sub delivery
+is interrupted.
 """
 from __future__ import annotations
 
