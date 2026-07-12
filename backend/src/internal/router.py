@@ -19,6 +19,7 @@ from src.platform.entitlements.dependencies import get_entitlement_service
 from src.platform.entitlements.models import EntitlementUpsert
 from src.platform.entitlements.service import EntitlementService
 from src.platform.organization.repository import OrganizationRepository
+from src.platform.authorization.service import redacted_project_ref
 from src.version_engine.bootstrap.dependencies import (
     build_worker_version_engine_container,
     get_product_operation_adapter,
@@ -97,15 +98,15 @@ def _enforce_acting_user_project_access(
     try:
         from src.platform.authorization.factory import build_authorization_service
         from src.platform.authorization.models import ProjectAction
-
         selected_action = action or ProjectAction.CONTENT_READ
         allowed = build_authorization_service().allows(
             project_id, acting_user, selected_action
         )
     except Exception as e:
         log_warning(
-            f"[Internal] project access check error project={project_id} "
-            f"user={acting_user}: {e}"
+            "[Internal] project access check error "
+            f"project_ref={redacted_project_ref(project_id)} "
+            f"error_type={type(e).__name__}"
         )
         raise HTTPException(
             status_code=503,
@@ -114,8 +115,8 @@ def _enforce_acting_user_project_access(
 
     if not allowed:
         log_warning(
-            f"[Internal] cross_tenant_denied project={project_id} "
-            f"acting_user={acting_user} caller={request.headers.get('x-internal-caller', 'unknown')}"
+            "[Internal] project authorization denied "
+            f"project_ref={redacted_project_ref(project_id)}"
         )
         raise HTTPException(
             status_code=403,

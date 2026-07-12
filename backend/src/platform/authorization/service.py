@@ -25,7 +25,7 @@ _CACHE_PREFIX = "project-grant:v2"
 _logger = logging.getLogger("puppyone.authorization")
 
 
-def _project_ref(project_id: str) -> str:
+def redacted_project_ref(project_id: str) -> str:
     """Stable, non-reversible Project reference for decision telemetry."""
 
     return hashlib.sha256(project_id.encode("utf-8")).hexdigest()[:12]
@@ -46,7 +46,7 @@ def _record_decision(
         "project_authorization_decision",
         extra={
             "authorization_decision": {
-                "project_ref": _project_ref(project_id),
+                "project_ref": redacted_project_ref(project_id),
                 "action": action.value,
                 "outcome": outcome,
                 "reason": reason,
@@ -119,7 +119,7 @@ class AuthorizationService:
             _logger.warning(
                 "project_authorization_facts_unavailable",
                 extra={
-                    "project_ref": _project_ref(project_id),
+                    "project_ref": redacted_project_ref(project_id),
                     "error_type": type(exc).__name__,
                 },
             )
