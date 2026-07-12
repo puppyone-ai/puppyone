@@ -953,7 +953,7 @@ def test_irrecoverable_root_incidents_are_private_and_durable() -> None:
     ).read_text(encoding="utf-8")
     assert "version_project_root_integrity_incidents" in migration
     assert "REFERENCES public.projects(id) ON DELETE CASCADE" in migration
-    assert "{16}([0-9a-f]{24})?" in migration
+    assert "^[0-9a-f]{40}$" in migration
     assert "ENABLE ROW LEVEL SECURITY" in migration
     assert "FOR ALL TO service_role" in migration
     assert "FROM PUBLIC, anon, authenticated" in migration
@@ -966,12 +966,6 @@ def test_irrecoverable_root_incidents_are_private_and_durable() -> None:
         "def mark_project_root_irrecoverable", 1
     )[1].split("def _project_ids", 1)[0]
 
-    forward_fix = (
-        REPO_ROOT
-        / "supabase/migrations/20260711150000_allow_legacy_root_ids_in_integrity_incidents.sql"
-    ).read_text(encoding="utf-8")
-    assert "DROP CONSTRAINT IF EXISTS" in forward_fix
-    assert "{16}([0-9a-f]{24})?" in forward_fix
 
 
 def test_legacy_mcp_and_sandbox_runtime_packages_are_retired() -> None:

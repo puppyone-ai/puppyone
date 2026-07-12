@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json as _json
+import re
 from urllib.parse import quote
 from zipfile import ZIP_DEFLATED
 
@@ -40,6 +41,7 @@ from src.platform.project.dependencies import get_project_service
 from src.platform.project.service import ProjectService
 
 read_router = APIRouter()
+_LEGACY_ROOT_ID_RE = re.compile(r"^[0-9a-f]{16}$")
 
 
 def _is_marked_irrecoverable(project_id: str) -> bool:
@@ -62,11 +64,35 @@ def _is_marked_irrecoverable(project_id: str) -> bool:
         return False
 
 
+def _has_unsupported_legacy_root(project_id: str) -> bool:
+    """Return true only for the retired 16-hex root identifier format.
+
+    This is consulted after an object read already failed.  It makes the
+    terminal state explicit without reintroducing legacy-object compatibility
+    or weakening the canonical 40-hex incident table constraint.
+    """
+
+    try:
+        response = (
+            SupabaseClient().client
+            .table("projects")
+            .select("version_root_hash")
+            .eq("id", project_id)
+            .limit(1)
+            .execute()
+        )
+        rows = response.data or []
+        root_hash = str(rows[0].get("version_root_hash") or "") if rows else ""
+        return bool(_LEGACY_ROOT_ID_RE.fullmatch(root_hash))
+    except Exception:
+        return False
+
+
 def _raise_storage_integrity_error(
     project_id: str, path: str, exc: ObjectNotFoundError,
 ) -> None:
     target = path or "project root"
-    if _is_marked_irrecoverable(project_id):
+    if _is_marked_irrecoverable(project_id) or _has_unsupported_legacy_root(project_id):
         raise HTTPException(
             status_code=410,
             detail={
