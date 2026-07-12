@@ -133,6 +133,12 @@ export interface NodeListResponse {
   total: number;
 }
 
+/** True when a project was explicitly marked as having no recoverable tree. */
+export function isVersionStorageIrrecoverableError(error: unknown): boolean {
+  const value = error as { status?: number; detail?: { code?: string } } | null;
+  return value?.status === 410 && value.detail?.code === 'VERSION_STORAGE_IRRECOVERABLE';
+}
+
 // === Unwrap helper ===
 // apiRequest already unwraps { code, message, data } envelope.
 // treeRequest is a simple alias for consistency.

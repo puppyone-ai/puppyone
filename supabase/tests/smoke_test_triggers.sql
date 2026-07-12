@@ -176,3 +176,72 @@ END;
 $$;
 
 ROLLBACK;
+
+
+-- ============================================================================
+-- Check 3: object-GC candidate RPC must execute a real upsert and reconcile
+-- its candidate set.  The function returns TABLE(object_id), so an
+-- ``ON CONFLICT (project_id, object_id)`` target can become ambiguous to
+-- PL/pgSQL because ``object_id`` is also an OUT variable.  Run against a
+-- temporary project and roll it back so this proves the SQL path without
+-- leaving production/staging data behind.
+-- ============================================================================
+
+BEGIN;
+
+DO $$
+DECLARE
+    probe_org_id text;
+    probe_project_id text := gen_random_uuid()::text;
+    probe_object_id constant text := 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    matured_ids text[];
+BEGIN
+    SELECT id INTO probe_org_id
+    FROM public.organizations
+    ORDER BY created_at
+    LIMIT 1;
+
+    -- A pristine local database can legitimately have no organization. The
+    -- deployed staging/production databases always do; skip rather than make
+    -- the general migration smoke test depend on seed data.
+    IF probe_org_id IS NULL THEN
+        RAISE NOTICE 'SMOKE TEST SKIPPED: no organization available for object-GC RPC probe';
+        RETURN;
+    END IF;
+
+    INSERT INTO public.projects (id, name, org_id)
+    VALUES (probe_project_id, '__object_gc_rpc_smoke__', probe_org_id);
+
+    SELECT array_agg(s.object_id) INTO matured_ids
+    FROM public.sync_version_object_gc_candidates(
+        probe_project_id,
+        ARRAY[probe_object_id],
+        now(),
+        0
+    ) AS s;
+
+    IF matured_ids IS DISTINCT FROM ARRAY[probe_object_id] THEN
+        RAISE EXCEPTION
+            'SMOKE TEST FAILED: sync_version_object_gc_candidates returned %, expected %',
+            matured_ids,
+            ARRAY[probe_object_id];
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+        FROM public.sync_version_object_gc_candidates(
+            probe_project_id,
+            ARRAY[]::text[],
+            now(),
+            0
+        )
+    ) THEN
+        RAISE EXCEPTION
+            'SMOKE TEST FAILED: object-GC candidate reconciliation retained removed objects';
+    END IF;
+
+    RAISE NOTICE 'SMOKE TEST PASSED: object-GC candidate RPC upserts and reconciles';
+END;
+$$;
+
+ROLLBACK;
