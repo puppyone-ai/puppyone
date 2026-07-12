@@ -9,6 +9,19 @@ from scripts.backfill_scope_access_key_hash import _legacy_columns_have_been_ret
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
+def test_credential_sql_migrations_do_not_name_an_application_language_or_script() -> None:
+    for migration_name in (
+        "20260711010000_harden_agent_sandbox_credentials.sql",
+        "20260711070000_move_scope_credentials_to_access_credentials.sql",
+    ):
+        migration = (REPO_ROOT / "supabase/migrations" / migration_name).read_text(
+            encoding="utf-8"
+        ).lower()
+        assert "python" not in migration
+        assert ".py" not in migration
+        assert "scripts/" not in migration
+
+
 def test_credential_backfills_precede_the_destructive_migration_in_ci() -> None:
     """CI must not let db push reach 20260711070000 before the HMAC backfill."""
     for workflow_name, environment in (

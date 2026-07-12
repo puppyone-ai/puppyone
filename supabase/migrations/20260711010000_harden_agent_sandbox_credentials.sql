@@ -1,6 +1,6 @@
 -- ISSUE-003: prevent new agent/sandbox machine credentials from entering config.
--- Existing rows are migrated by scripts/backfill_surface_credentials.py before
--- this constraint is validated in a later deployment.
+-- Existing rows are moved into the credential table by the deployment's
+-- pre-migration data-backfill phase; this constraint is validated later.
 
 BEGIN;
 
