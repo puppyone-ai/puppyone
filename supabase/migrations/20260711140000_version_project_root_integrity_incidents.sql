@@ -5,7 +5,10 @@
 
 CREATE TABLE IF NOT EXISTS public.version_project_root_integrity_incidents (
     project_id text PRIMARY KEY REFERENCES public.projects(id) ON DELETE CASCADE,
-    root_hash text NOT NULL CHECK (root_hash ~ '^[0-9a-f]{40}$'),
+    -- Older projects can still point at the former 16-hex object IDs.
+    -- Do not reject their incident records merely because their missing root
+    -- predates the Git-compatible 40-hex object namespace.
+    root_hash text NOT NULL CHECK (root_hash ~ '^[0-9a-f]{16}([0-9a-f]{24})?$'),
     status text NOT NULL CHECK (status IN ('irrecoverable')),
     reason text NOT NULL,
     first_detected_at timestamptz NOT NULL DEFAULT now(),
