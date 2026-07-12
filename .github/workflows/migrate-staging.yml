@@ -7,6 +7,10 @@ on:
       - qubits
     paths:
       - "supabase/migrations/**"
+      - "backend/scripts/backfill_scope_access_key_hash.py"
+      - "backend/scripts/backfill_surface_credentials.py"
+      - "backend/pyproject.toml"
+      - "backend/uv.lock"
       - ".github/workflows/migrate-staging.yml"
   workflow_dispatch:
 
@@ -29,6 +33,36 @@ jobs:
 
       - name: Link to staging project
         run: supabase link --project-ref ${{ secrets.STAGING_PROJECT_ID }}
+
+      # 20260711010000 and 20260711070000 retire plaintext credentials. Their
+      # hashes must be made with the application HMAC secret before db push
+      # reaches the destructive migration; `supabase db push` cannot run
+      # application code between individual migration files.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install backfill runtime
+        run: pip install uv
+
+      - name: Backfill legacy machine credentials before migration dry-run
+        working-directory: backend
+        env:
+          SUPABASE_URL: https://${{ secrets.STAGING_PROJECT_ID }}.supabase.co
+          SUPABASE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}
+          ACCESS_CREDENTIAL_HASH_SECRET: ${{ secrets.STAGING_ACCESS_CREDENTIAL_HASH_SECRET }}
+        run: |
+          set -euo pipefail
+          : "${SUPABASE_URL:?STAGING_PROJECT_ID is required}"
+          : "${SUPABASE_KEY:?STAGING_SUPABASE_SERVICE_ROLE_KEY is required}"
+          : "${ACCESS_CREDENTIAL_HASH_SECRET:?STAGING_ACCESS_CREDENTIAL_HASH_SECRET is required}"
+          if [ "${#ACCESS_CREDENTIAL_HASH_SECRET}" -lt 32 ] || [ "$ACCESS_CREDENTIAL_HASH_SECRET" = "ContextBase-access-credential-development-secret" ]; then
+            echo "::error::STAGING_ACCESS_CREDENTIAL_HASH_SECRET must be the deployed 32+ character credential HMAC secret."
+            exit 1
+          fi
+          uv sync --locked
+          uv run python -m scripts.backfill_scope_access_key_hash --apply
+          uv run python -m scripts.backfill_surface_credentials --apply
 
       - name: Push migrations (dry run)
         run: supabase db push --dry-run
