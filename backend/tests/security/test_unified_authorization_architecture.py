@@ -38,6 +38,24 @@ def test_every_named_project_action_has_one_capability_contract():
     assert set(ACTION_CAPABILITY) == set(ProjectAction)
 
 
+def test_authorization_failure_logs_do_not_emit_raw_principal_or_project_ids():
+    sensitive_fragments = {
+        "identity.py": ("user={user_id}", "project={project_id}"),
+        "router.py": ("user={acting_user}", "acting_user={acting_user}"),
+        "agent_job.py": ("user={user_id}", "project={project_id}"),
+    }
+    files = {
+        "identity.py": SRC / "version_engine" / "admission" / "identity.py",
+        "router.py": SRC / "internal" / "router.py",
+        "agent_job.py": SRC / "infra" / "scheduler" / "jobs" / "agent_job.py",
+    }
+    for name, path in files.items():
+        text = path.read_text()
+        assert "redacted_project_ref" in text
+        for fragment in sensitive_fragments[name]:
+            assert fragment not in text
+
+
 def test_only_authorization_boundary_reads_project_membership_facts():
     offenders = []
     for path in SRC.rglob("*.py"):

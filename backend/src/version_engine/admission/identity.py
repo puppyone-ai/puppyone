@@ -25,6 +25,7 @@ from src.version_engine.infrastructure.supabase.scope_repository import (
 )
 from src.version_engine.admission.channel_pause import enforce_channel_pause
 from src.platform.auth.dependencies import security
+from src.platform.authorization.service import redacted_project_ref
 from src.utils.logger import log_error, log_warning
 
 
@@ -162,7 +163,10 @@ class PuppyOneAuthenticator:
             # Expected: invalid/expired JWT → not a JWT, try next method
             return None
         except Exception as e:
-            log_error(f"[Auth] Unexpected JWT auth error: {e}")
+            log_error(
+                "[Auth] Unexpected JWT auth error "
+                f"error_type={type(e).__name__}"
+            )
             return None
 
     def _resolve_project_grant(self, user_id: str, project_id: str):
@@ -176,8 +180,9 @@ class PuppyOneAuthenticator:
         except Exception as e:
             # Fail closed: if the access check itself errors, deny access.
             log_error(
-                f"[Auth] Project access check failed user={user_id} "
-                f"project={project_id}: {e}"
+                "[Auth] Project access check failed "
+                f"project_ref={redacted_project_ref(project_id)} "
+                f"error_type={type(e).__name__}"
             )
             return None
 
@@ -197,8 +202,9 @@ class PuppyOneAuthenticator:
             return None
         if scope.get("project_id") != project_id:
             log_warning(
-                f"[Auth] access_key project mismatch (access surface scope): "
-                f"url_project={project_id} key_project={scope.get('project_id')}"
+                "[Auth] access_key project mismatch (access surface scope) "
+                f"requested_project_ref={redacted_project_ref(project_id)} "
+                f"credential_project_ref={redacted_project_ref(str(scope.get('project_id') or ''))}"
             )
             return None
         return scope
