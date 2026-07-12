@@ -29,6 +29,7 @@ from src.version_engine.read.history_models import (
     HistoryGraphTooLargeError,
     HistoryRef,
     HistoryRefsUnavailableError,
+    HistorySnapshotUnavailableError,
     ProjectHistoryGraphPage,
 )
 from src.version_engine.write_engine.git_commit import is_git_object_id
@@ -116,7 +117,7 @@ class HistoryGraphService:
         if cursor_state.anchor_commit_id:
             anchor_position = snapshot.positions.get(cursor_state.anchor_commit_id)
             if anchor_position is None:
-                raise HistoryCursorError(
+                raise HistorySnapshotUnavailableError(
                     "history cursor anchor is unavailable; refresh the history snapshot"
                 )
             start = anchor_position + 1

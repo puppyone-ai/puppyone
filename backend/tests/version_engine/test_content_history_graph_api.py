@@ -17,6 +17,7 @@ from src.version_engine.bootstrap.dependencies import (
 from src.version_engine.entrypoints.http.content_history import history_router
 from src.version_engine.read.admin import VersionAdminService
 from src.version_engine.read.history_cursor import HistoryCursorCodec
+from src.version_engine.read.history_models import HistoryCursorState
 from src.version_engine.read.history_graph import HistoryGraphService
 from src.version_engine.storage.object_store import ObjectStore
 from src.version_engine.write_engine.git_object_format import EMPTY_TREE_SHA1, encode_object
@@ -187,6 +188,31 @@ def test_topological_history_api_rejects_unsigned_or_tampered_cursor(tmp_path):
 
     assert response.status_code == 400
     assert "cursor" in response.json()["detail"]
+
+
+def test_topological_history_returns_conflict_for_unavailable_signed_snapshot(tmp_path):
+    store = ObjectStore(tmp_path / "objects")
+    head = _put_commit(store, [], 1, "Head")
+    cursor = HistoryCursorCodec("test-history-cursor-secret").encode(HistoryCursorState(
+        project_id="project-1",
+        snapshot_id="1" * 64,
+        roots=(head,),
+        head_commit_id=head,
+        anchor_commit_id="f" * 40,
+    ))
+    client = _client(
+        store,
+        _History(head, [_history_entry(head, "Head", 1)]),
+        _VersionRefs([]),
+    )
+
+    response = client.get(
+        "/api/v1/content/project-1/commits",
+        params={"order": "topo", "cursor": cursor},
+    )
+
+    assert response.status_code == 409
+    assert "refresh the history snapshot" in response.json()["detail"]
 
 
 def test_topological_cursor_keeps_original_ref_snapshot_after_refs_move(tmp_path):

@@ -10,6 +10,10 @@ class HistoryCursorError(ValueError):
     """The client supplied an invalid or incompatible History cursor."""
 
 
+class HistorySnapshotUnavailableError(RuntimeError):
+    """A valid cursor names a snapshot that can no longer be reconstructed."""
+
+
 class HistoryRefsUnavailableError(RuntimeError):
     """The control plane could not provide one atomic ref snapshot."""
 

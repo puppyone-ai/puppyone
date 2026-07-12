@@ -49,6 +49,7 @@ from src.version_engine.read.history_models import (
     HistoryCursorError,
     HistoryGraphTooLargeError,
     HistoryRefsUnavailableError,
+    HistorySnapshotUnavailableError,
 )
 
 history_router = APIRouter()
@@ -118,6 +119,8 @@ async def get_commits(
             )
         except HistoryCursorError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except HistorySnapshotUnavailableError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         except HistoryRefsUnavailableError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         except HistoryGraphTooLargeError as exc:
