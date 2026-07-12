@@ -13,8 +13,9 @@
   creator Admin creation transactional.
 - [x] 2.2 Add `project_workspace_bindings` and binding-scoped credential
   lifecycle constraints/RPCs.
-- [x] 2.3 Add blocking legacy permission preflight/backfill and remove
-  `repo_user_permissions` from final schema and runtime.
+- [x] 2.3 Add the blocking legacy permission data migration, remove all runtime
+  use of `repo_user_permissions`, and stage its reviewed contract for promotion
+  after Qubits and Production receipts.
 
 ## 3. Binding and readiness APIs
 

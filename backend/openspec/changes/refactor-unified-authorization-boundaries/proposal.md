@@ -20,7 +20,8 @@ grant and makes the same action produce different decisions across entry points.
   hash-only credentials per workspace binding.
 - Derive Claude readiness from an active root Git surface and an accepted root
   head; non-root scopes never satisfy this precondition.
-- Remove `repo_user_permissions` and the Desktop project/scope/key scanning
+- Retire `repo_user_permissions` through a manifest-driven data migration and
+  separately promoted contract, and remove Desktop project/scope/key scanning
   resolver after a blocking migration preflight.
 
 ## Impact
@@ -32,6 +33,6 @@ grant and makes the same action produce different decisions across entry points.
   admission, Desktop Cloud binding and navigation
 - Affected schema: the nine-table authorization/binding/runtime model defined
   in `design.md`; `project_workspace_bindings` is new and
-  `repo_user_permissions` is retired
+  `repo_user_permissions` retirement is staged and fail-closed
 - Breaking API change: Project responses expose effective authorization and
   Desktop uses binding/readiness endpoints instead of heuristic discovery

@@ -1,4 +1,4 @@
-name: Deploy Migrations to Production
+name: Deploy Schema to Production
 
 on:
   push:
@@ -6,117 +6,16 @@ on:
       - main
     paths:
       - "supabase/migrations/**"
-      - "backend/scripts/backfill_scope_access_key_hash.py"
-      - "backend/scripts/backfill_surface_credentials.py"
-      - "backend/pyproject.toml"
-      - "backend/uv.lock"
+      - "supabase/tests/smoke_test_triggers.sql"
+      - ".github/workflows/_schema-deploy.yml"
       - ".github/workflows/migrate-production.yml"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   deploy:
-    runs-on: ubuntu-latest
-    env:
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      SUPABASE_DB_PASSWORD: ${{ secrets.PRODUCTION_DB_PASSWORD }}
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: supabase/setup-cli@v1
-        with:
-          # Pinned: `version: latest` resolves via the GitHub releases API, which is
-          # rate-limited for unauthenticated CI runners ("Failed to resolve latest
-          # Supabase CLI release: rate limit exceeded"). Bump deliberately.
-          version: "2.107.0"
-
-      - name: Link to production project
-        run: supabase link --project-ref ${{ secrets.PRODUCTION_PROJECT_ID }}
-
-      # Keep the application-HMAC backfill ahead of the destructive credential
-      # migration. This is intentionally before the dry-run: the dry-run also
-      # evaluates 20260711070000's fail-closed precondition.
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install backfill runtime
-        run: pip install uv
-
-      - name: Backfill legacy machine credentials before migration dry-run
-        working-directory: backend
-        env:
-          SUPABASE_URL: https://${{ secrets.PRODUCTION_PROJECT_ID }}.supabase.co
-          SUPABASE_KEY: ${{ secrets.PRODUCTION_SUPABASE_SERVICE_ROLE_KEY }}
-          ACCESS_CREDENTIAL_HASH_SECRET: ${{ secrets.PRODUCTION_ACCESS_CREDENTIAL_HASH_SECRET }}
-        run: |
-          set -euo pipefail
-          : "${SUPABASE_URL:?PRODUCTION_PROJECT_ID is required}"
-          : "${SUPABASE_KEY:?PRODUCTION_SUPABASE_SERVICE_ROLE_KEY is required}"
-          : "${ACCESS_CREDENTIAL_HASH_SECRET:?PRODUCTION_ACCESS_CREDENTIAL_HASH_SECRET is required}"
-          if [ "$ACCESS_CREDENTIAL_HASH_SECRET" = "ContextBase-access-credential-development-secret" ]; then
-            echo "::error::PRODUCTION_ACCESS_CREDENTIAL_HASH_SECRET must be the deployed credential HMAC secret, not the development default."
-            exit 1
-          fi
-          uv sync --locked
-          uv run python -m scripts.backfill_scope_access_key_hash --apply
-          uv run python -m scripts.backfill_surface_credentials --apply
-
-      - name: Push migrations (dry run first)
-        run: supabase db push --dry-run
-
-      - name: Push migrations
-        run: supabase db push
-
-      - name: Smoke test — verify critical triggers
-        env:
-          PGPASSWORD: ${{ secrets.PRODUCTION_DB_PASSWORD }}
-          PGHOST: db.${{ secrets.PRODUCTION_PROJECT_ID }}.supabase.co
-        run: |
-          set -euo pipefail
-          command -v dig >/dev/null || sudo apt-get update -qq && sudo apt-get install -y -qq dnsutils
-          IPV4=$(dig +short A "$PGHOST" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -n1 || true)
-          if [ -z "$IPV4" ]; then
-            echo "::error::Could not resolve IPv4 A record for ${PGHOST}"
-            exit 1
-          fi
-          psql "hostaddr=${IPV4} host=${PGHOST} port=5432 dbname=postgres user=postgres sslmode=require" \
-            -f supabase/tests/smoke_test_triggers.sql
-
-      - name: Detect schema drift
-        run: |
-          DIFF=$(supabase db diff --linked 2>&1) || true
-          if [ -n "$DIFF" ] && ! echo "$DIFF" | grep -q "No schema changes found"; then
-            echo "::warning::Schema drift detected after migration push!"
-            echo "$DIFF"
-            echo ""
-            echo "The remote database has manual changes that are not captured in migrations."
-            echo "Create a new migration to reconcile: supabase db diff -f <name>"
-          fi
-
-      - name: Notify on failure (email)
-        if: failure()
-        continue-on-error: true
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: smtp.gmail.com
-          server_port: 465
-          secure: true
-          username: ${{ secrets.ALERT_SMTP_USERNAME }}
-          password: ${{ secrets.ALERT_SMTP_PASSWORD }}
-          from: PuppyOne CI <${{ secrets.ALERT_SMTP_USERNAME }}>
-          to: ${{ secrets.ALERT_EMAIL_TO }}
-          subject: "🚨 [PROD] Migration failed: ${{ github.event.head_commit.message }}"
-          body: |
-            Production migration push FAILED.
-
-            Workflow: ${{ github.workflow }}
-            Commit:   ${{ github.sha }}
-            Author:   ${{ github.event.head_commit.author.name }}
-            Message:  ${{ github.event.head_commit.message }}
-
-            View logs:
-            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-            ⚠️ Production database may be in a partially-migrated state.
-            Run `supabase db push` manually to retry, or revert the offending migration.
+    uses: ./.github/workflows/_schema-deploy.yml
+    with:
+      environment: production

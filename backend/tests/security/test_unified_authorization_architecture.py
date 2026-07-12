@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from src.infra.data_migrations.catalog import DataMigrationCatalog
 from src.platform.authorization.manifest import PROJECT_ROUTE_AUTHORIZATION
 from src.platform.authorization.models import ACTION_CAPABILITY, ProjectAction
 
@@ -147,18 +148,26 @@ def test_removed_ambiguous_project_access_api_has_no_runtime_callers():
     assert offenders == []
 
 
-def test_migrations_define_nine_table_target_and_blocking_retirement():
+def test_migrations_define_nine_table_target_and_staged_retirement():
     foundation = (
         BACKEND.parent
         / "supabase"
         / "migrations"
-        / "20260712010000_unified_project_authorization.sql"
+        / "20260712010000_expand_unified_project_authorization.sql"
     ).read_text()
     retirement = (
         BACKEND.parent
         / "supabase"
-        / "migrations"
-        / "20260712020000_retire_repo_user_permissions.sql"
+        / "data_migrations"
+        / "20260712_repo_user_permissions_to_project_members"
+        / "contract.pending.sql"
+    ).read_text()
+    data_migration = (
+        BACKEND.parent
+        / "supabase"
+        / "data_migrations"
+        / "20260712_repo_user_permissions_to_project_members"
+        / "run.sql"
     ).read_text()
     assert "CREATE TABLE IF NOT EXISTS public.project_workspace_bindings" in foundation
     assert "create_project_with_admin" in foundation
@@ -173,21 +182,36 @@ def test_migrations_define_nine_table_target_and_blocking_retirement():
     assert "REVOKE ALL ON FUNCTION public.rotate_access_surface_bearer_token" in foundation
     assert "REVOKE ALL ON FUNCTION public.unified_authorization_preflight()" in foundation
     assert "REVOKE ALL ON FUNCTION public.unified_authorization_preflight()" in retirement
+    assert "requires-data-migration: 20260712_repo_user_permissions" in retirement
+    artifact_checksum = DataMigrationCatalog(BACKEND.parent).get(
+        "20260712_repo_user_permissions_to_project_members"
+    ).checksum
+    assert f"data-migration-checksum: {artifact_checksum}" in retirement
+    assert f"summary->>'artifact_checksum' =\n              '{artifact_checksum}'" in retirement
+    assert "DATA_MIGRATION_REQUIRED:20260712_repo_user_permissions" in retirement
     assert "legacy_denied" in retirement
     assert "legacy_scoped" in retirement
     assert "RAISE EXCEPTION" in retirement
     assert "DROP TABLE IF EXISTS public.repo_user_permissions" in retirement
+    assert "INSERT INTO public.project_members" not in retirement
+    assert "INSERT INTO public.project_members" in data_migration
 
 
 def test_migration_functions_pin_a_hardened_search_path():
     migrations = BACKEND.parent / "supabase" / "migrations"
     for name in (
-        "20260712010000_unified_project_authorization.sql",
-        "20260712020000_retire_repo_user_permissions.sql",
+        "20260712010000_expand_unified_project_authorization.sql",
     ):
         text = (migrations / name).read_text()
         assert "SET search_path = public" not in text
         assert "SET search_path = pg_catalog, public, pg_temp" in text
+    retirement = (
+        BACKEND.parent
+        / "supabase/data_migrations/20260712_repo_user_permissions_to_project_members"
+        / "contract.pending.sql"
+    ).read_text()
+    assert "SET search_path = public" not in retirement
+    assert "SET search_path = pg_catalog, public, pg_temp" in retirement
 
 
 def test_database_contract_suite_and_ci_gate_are_wired():

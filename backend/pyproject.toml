@@ -47,6 +47,9 @@ dependencies = [
     "pyyaml>=6.0.0",
 ]
 
+[project.scripts]
+puppyone-db = "src.infra.data_migrations.cli:main"
+
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"

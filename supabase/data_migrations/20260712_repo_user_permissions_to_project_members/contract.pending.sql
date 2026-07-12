@@ -4,16 +4,44 @@
 -- This is intentionally fail-closed. Denied rows, folder-scoped human ACLs,
 -- tenant mismatches, or conflicting roles require an explicit data decision;
 -- silently widening or narrowing access is not an acceptable migration.
+--
+-- requires-data-migration: 20260712_repo_user_permissions_to_project_members
+-- data-migration-checksum: 649b84361ea1c8b72dfcef8f6c9e5beeafa520a1322b4d9f1ecbb79202fd6bce
+--
+-- This reviewed contract is intentionally outside supabase/migrations. Promote
+-- it by copying it to a new timestamped schema migration only after Qubits and
+-- Production both hold a verified migration_log receipt. Keep this released
+-- artifact immutable. A fresh installation may proceed without a receipt
+-- because the legacy table contains no rows.
 
 BEGIN;
+
+SET LOCAL lock_timeout = '5s';
+SET LOCAL statement_timeout = '15min';
 
 DO $$
 DECLARE
     report jsonb;
-    conflict_count bigint;
+    legacy_count bigint;
+    unresolved_count bigint;
 BEGIN
     IF to_regclass('public.repo_user_permissions') IS NULL THEN
         RETURN;
+    END IF;
+
+    LOCK TABLE public.repo_user_permissions IN ACCESS EXCLUSIVE MODE;
+
+    SELECT count(*) INTO legacy_count
+    FROM public.repo_user_permissions;
+    IF legacy_count > 0 AND NOT EXISTS (
+        SELECT 1 FROM public.migration_log
+        WHERE name = '20260712_repo_user_permissions_to_project_members'
+          AND COALESCE((summary->>'verified')::boolean, false)
+          AND summary->>'artifact_checksum' =
+              '649b84361ea1c8b72dfcef8f6c9e5beeafa520a1322b4d9f1ecbb79202fd6bce'
+    ) THEN
+        RAISE EXCEPTION
+          'DATA_MIGRATION_REQUIRED:20260712_repo_user_permissions_to_project_members';
     END IF;
 
     report := public.unified_authorization_preflight();
@@ -31,43 +59,25 @@ BEGIN
           'repo_user_permissions retirement blocked; preflight=%', report;
     END IF;
 
-    SELECT count(*) INTO conflict_count
+    SELECT count(*) INTO unresolved_count
     FROM public.repo_user_permissions rp
-    JOIN public.project_members pm
-      ON pm.project_id = rp.project_id AND pm.user_id = rp.user_id
-    WHERE pm.role <> CASE rp.role
+    LEFT JOIN public.project_members pm
+      ON pm.project_id = rp.project_id
+     AND pm.user_id = rp.user_id
+     AND pm.role = CASE rp.role
         WHEN 'admin' THEN 'admin'
         WHEN 'editor' THEN 'editor'
         WHEN 'reader' THEN 'viewer'
-        ELSE pm.role
-    END;
-
-    IF conflict_count > 0 THEN
-        RAISE EXCEPTION
-          'repo_user_permissions retirement blocked: % conflicting explicit roles',
-          conflict_count;
-    END IF;
-
-    INSERT INTO public.project_members (
-        id, org_id, project_id, user_id, role, granted_by, created_at, updated_at
-    )
-    SELECT
-        gen_random_uuid()::text,
-        p.org_id,
-        rp.project_id,
-        rp.user_id,
-        CASE rp.role
-            WHEN 'admin' THEN 'admin'
-            WHEN 'editor' THEN 'editor'
-            WHEN 'reader' THEN 'viewer'
-        END,
-        rp.granted_by,
-        rp.granted_at,
-        rp.granted_at
-    FROM public.repo_user_permissions rp
-    JOIN public.projects p ON p.id = rp.project_id
+        ELSE NULL
+     END
     WHERE rp.role IN ('admin', 'editor', 'reader')
-    ON CONFLICT (project_id, user_id) DO NOTHING;
+      AND pm.id IS NULL;
+
+    IF unresolved_count > 0 THEN
+        RAISE EXCEPTION
+          'repo_user_permissions retirement blocked: % unresolved role row(s)',
+          unresolved_count;
+    END IF;
 END $$;
 
 -- Remove the preflight function's dependency on the legacy table before the

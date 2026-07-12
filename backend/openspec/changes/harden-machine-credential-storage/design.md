@@ -17,8 +17,8 @@ agent and sandbox credentials remain in provider config JSON.
 - Treat create/regenerate responses as one-time issuance. Ordinary reads expose
   only prefix/last-four metadata.
 - Keep a legacy config lookup only when no active hashed credential exists for
-  the resolved surface. The backfill removes config plaintext after inserting
-  the hash row.
+  the resolved surface. The manifest-driven data migration removes config
+  plaintext only after inserting or confirming the hash row.
 - Scope authentication always queries `access_key_hash` first. Plaintext lookup
   additionally requires `access_key_hash IS NULL`, so newly written rows can
   never authenticate through the legacy path.
@@ -35,7 +35,8 @@ agent and sandbox credentials remain in provider config JSON.
 ## Migration Plan
 
 1. Deploy schema constraint and repository dual-read support.
-2. Run the idempotent agent/sandbox credential backfill.
+2. Run and verify the idempotent `20260711_surface_credentials` artifact
+   through the portable data migration runner.
 3. Observe legacy-fallback usage until zero.
 4. Remove legacy agent/sandbox fallback in a later cleanup.
 5. Drop `repo_scopes.access_key` only in a separately approved migration.
@@ -44,4 +45,3 @@ agent and sandbox credentials remain in provider config JSON.
 
 - None for this stage; OAuth encryption and final legacy-column removal are
   deliberately separate changes.
-

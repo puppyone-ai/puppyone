@@ -49,7 +49,9 @@ The final authorization/binding/runtime subsystem has exactly nine core tables:
 `organizations`, `org_members`, `projects`, `project_members`,
 `project_workspace_bindings`, `repo_scopes`, `access_surfaces`,
 `access_surface_credentials`, and `access_surface_policies`.
-`repo_user_permissions` is removed after preflight and deterministic backfill.
+`repo_user_permissions` is removed only after the deterministic, manifest-driven
+data migration has verified receipts in Qubits and Production. The reviewed
+contract remains outside Supabase schema history until that promotion gate.
 
 Tenant integrity is enforced with composite foreign keys. Project creation and
 creator Admin membership are one database transaction. Active bindings are
@@ -99,12 +101,14 @@ commit` and does not request Agent/Claude runtime data until ready.
 
 1. Add hardened `project_members`, bindings, binding credential relation,
    transactional RPCs, and readiness query.
-2. Run blocking legacy preflight, backfill admin/editor/reader to
-   admin/editor/viewer, and reject denied/scoped/tenant-invalid ambiguity.
+2. Run the blocking, manifest-driven legacy data migration to copy
+   admin/editor/reader to admin/editor/viewer, and reject
+   denied/scoped/tenant-invalid ambiguity.
 3. Switch every Project-scoped human entry point to the canonical PDP.
 4. Switch Desktop to explicit bindings and readiness.
-5. Remove legacy routes, repositories, schema, heuristic resolver, and any v1
-   policy switch. The final runtime has only the v2 policy.
+5. Remove legacy routes, repositories, heuristic resolver, and any v1 policy
+   switch. Promote the schema contract only after both environment receipts;
+   the final runtime has only the v2 policy.
 
 Rollback before legacy drop is additive. After drop, recovery uses the verified
 preflight snapshot and forward repair; no `old_allow OR new_allow` mode exists.

@@ -13,8 +13,8 @@ tenant data-plane access, and revocation behavior differs by surface kind.
   plaintext fallback to legacy rows whose hash has not been backfilled.
 - Store newly issued agent and sandbox credentials only in
   `access_surface_credentials`, never in `access_surfaces.config`.
-- Preserve a bounded legacy read path and provide an idempotent backfill that
-  removes migrated config secrets.
+- Preserve a bounded legacy read path and provide an idempotent, manifest-driven
+  data migration that removes migrated config secrets.
 - Make create/regenerate the only plaintext issuance responses and verify that
   revocation rejects the old credential on the next authenticated operation.
 
@@ -22,5 +22,5 @@ tenant data-plane access, and revocation behavior differs by surface kind.
 
 - Affected specs: `machine-credential-security` (new)
 - Affected code: credential, scope, agent, sandbox repositories and migrations
-- Deployment: migration/backfill must ship before legacy fallback is removed
-
+- Deployment: the portable data migration must verify before the legacy
+  fallback Contract is removed

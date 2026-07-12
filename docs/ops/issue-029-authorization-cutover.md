@@ -6,8 +6,9 @@ mode.  Any ambiguous data blocks the cutover.
 
 ## Release artifacts
 
-- `20260712010000_unified_project_authorization.sql`
-- `20260712020000_retire_repo_user_permissions.sql`
+- `20260712010000_expand_unified_project_authorization.sql`
+- `supabase/data_migrations/20260712_repo_user_permissions_to_project_members`
+- reviewed `contract.pending.sql` promoted only after both environment receipts
 - canonical backend Project policy and route manifest
 - binding/readiness APIs
 - capability-driven Web and Desktop clients
@@ -18,8 +19,8 @@ mode.  Any ambiguous data blocks the cutover.
 1. Take a recoverable database snapshot and record its identifier.
 2. Record the application and Desktop release commit IDs.
 3. Run a migration dry-run against staging and production.
-4. On a staging clone, rebuild from migration zero and run
-   `supabase test db`.
+4. On a staging clone, rebuild from migration zero and run the fresh/legacy
+   database paths in `Validate Database Changes`.
 5. Capture the preflight report:
 
    ```sql
@@ -38,15 +39,19 @@ decision.  They are never silently widened or discarded.
 
 1. Stop membership, Project, Access, and binding mutations or place the API in
    a short maintenance/read-only window.
-2. Apply the additive foundation migration.
-3. Re-run and archive the preflight JSON.
-4. Apply the retirement migration.  It deterministically maps
-   `admin -> admin`, `editor -> editor`, and `reader -> viewer`, rejects
-   conflicting explicit roles, then removes `repo_user_permissions`.
-5. Deploy the backend before clients.  Confirm `/health`, Project list/detail,
+2. Deploy the additive foundation migration to Qubits and Production.
+3. Run the protected data migration in Qubits, verify it, then run and verify
+   the identical artifact in Production. It deterministically maps
+   `admin -> admin`, `editor -> editor`, and `reader -> viewer` and rejects
+   conflicting or ambiguous rows.
+4. Deploy the backend cutover before clients and wait for old instances to
+   drain. Confirm `/health`, Project list/detail,
    authorization, binding, and readiness endpoints.
+5. In a separate `db/contract-*` PR, copy the reviewed pending Contract into a
+   newly timestamped `supabase/migrations/*_contract_*.sql` file. Run staging
+   and production verification workflows before Main Release Gate permits it.
 6. Deploy Web and Desktop clients that consume server capabilities.
-7. Re-enable mutations.
+7. Re-enable mutations after the Contract checks and product matrix pass.
 
 Project + creator Admin and binding + one-time credential are independently
 atomic database publications.  Do not split their RPC calls into client-side
@@ -110,9 +115,10 @@ names, or file content while investigating.
 
 ### Before legacy table retirement
 
-The foundation migration is additive.  Stop the deployment, keep the old
-application version, repair the reported data, and rerun preflight.  Do not
-enable a permissive `old_allow OR new_allow` fallback.
+The foundation migration is additive. Stop the data workflow, keep the
+dual-compatible application version, repair the reported data, and rerun the
+idempotent migration and preflight. Do not enable a permissive
+`old_allow OR new_allow` fallback.
 
 ### After legacy table retirement, before client rollout
 

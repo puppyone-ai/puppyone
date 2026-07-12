@@ -7,6 +7,12 @@
 > `https://<host>/git/ap/<access_key>.git`, while Web/API/`puppyone fs`
 > writes converge through the Product Operation Adapter. Do not introduce the
 > removed legacy wire protocol, external version package, or old source naming.
+>
+> The canonical database release architecture is
+> [`docs/architecture/13-database-release-governance.md`](docs/architecture/13-database-release-governance.md).
+> Schema changes use `supabase/migrations`; non-transactional/application-code
+> data changes use immutable `supabase/data_migrations` artifacts through the
+> portable runner. Never hide an external script between schema migrations.
 
 ## Overview
 

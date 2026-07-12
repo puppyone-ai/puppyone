@@ -7,10 +7,15 @@
 --   access_surface_credentials, access_surface_policies.
 --
 -- This migration is additive except for tightening invalid tenant facts. The
--- follow-up retirement migration performs the blocking legacy permission
--- backfill and removes repo_user_permissions.
+-- versioned data migration
+-- 20260712_repo_user_permissions_to_project_members performs the blocking
+-- legacy permission copy. A later contract migration removes
+-- repo_user_permissions only after Qubits and Production verification.
 
 BEGIN;
+
+SET LOCAL lock_timeout = '5s';
+SET LOCAL statement_timeout = '15min';
 
 -- Composite keys let child tables prove that related rows belong to the same
 -- tenant/project instead of trusting application-side joins.
