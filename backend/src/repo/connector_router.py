@@ -13,8 +13,8 @@ from src.common_schemas import ApiResponse
 from src.exceptions import AppException
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
-from src.platform.project.dependencies import get_verified_project
-from src.platform.project.models import Project
+from src.platform.authorization.dependencies import AuthorizedProject, require_project_action
+from src.platform.authorization.models import ProjectAction
 from src.repo.connector_service import ConnectorService
 from src.repo.models import Connector
 from src.repo.schemas import (
@@ -70,11 +70,13 @@ def list_connectors(
             "contains only ongoing Access methods."
         ),
     ),
-    project: Project = Depends(get_verified_project),
+    authorized: AuthorizedProject = Depends(
+        require_project_action(ProjectAction.ACCESS_READ)
+    ),
     service: ConnectorService = Depends(get_connector_service),
 ):
     items = service.list(
-        str(project.id),
+        str(authorized.project.id),
         scope_id=scope_id,
         provider=provider,
         direction=direction,
@@ -91,13 +93,15 @@ def list_connectors(
 )
 def create_connector(
     payload: ConnectorIn,
-    project: Project = Depends(get_verified_project),
+    authorized: AuthorizedProject = Depends(
+        require_project_action(ProjectAction.INTEGRATION_MANAGE)
+    ),
     current_user: CurrentUser = Depends(get_current_user),
     service: ConnectorService = Depends(get_connector_service),
 ):
     try:
         c = service.create(
-            project_id=str(project.id),
+            project_id=str(authorized.project.id),
             scope_id=payload.scope_id,
             provider=payload.provider,
             direction=payload.direction,
@@ -121,11 +125,13 @@ def create_connector(
 def update_connector(
     connector_id: str,
     payload: ConnectorPatch,
-    project: Project = Depends(get_verified_project),
+    authorized: AuthorizedProject = Depends(
+        require_project_action(ProjectAction.INTEGRATION_MANAGE)
+    ),
     service: ConnectorService = Depends(get_connector_service),
 ):
     existing = service.get(connector_id)
-    if existing is None or existing.project_id != str(project.id):
+    if existing is None or existing.project_id != str(authorized.project.id):
         raise HTTPException(status_code=404, detail="Connector not found")
     patch = payload.model_dump(exclude_unset=True)
     if "trigger" in patch and patch["trigger"] is not None:
@@ -147,11 +153,13 @@ def update_connector(
 )
 def activate_agent_connector(
     connector_id: str,
-    project: Project = Depends(get_verified_project),
+    authorized: AuthorizedProject = Depends(
+        require_project_action(ProjectAction.AGENT_MANAGE)
+    ),
     service: ConnectorService = Depends(get_connector_service),
 ):
     existing = service.get(connector_id)
-    if existing is None or existing.project_id != str(project.id):
+    if existing is None or existing.project_id != str(authorized.project.id):
         raise HTTPException(status_code=404, detail="Connector not found")
     try:
         updated = service.activate_agent_connector(connector_id)
@@ -169,11 +177,13 @@ def activate_agent_connector(
 )
 async def run_connector(
     connector_id: str,
-    project: Project = Depends(get_verified_project),
+    authorized: AuthorizedProject = Depends(
+        require_project_action(ProjectAction.AUTOMATION_RUN)
+    ),
     service: ConnectorService = Depends(get_connector_service),
 ):
     existing = service.get(connector_id)
-    if existing is None or existing.project_id != str(project.id):
+    if existing is None or existing.project_id != str(authorized.project.id):
         raise HTTPException(status_code=404, detail="Connector not found")
     try:
         run_id = await service.run_now(connector_id)
@@ -189,11 +199,13 @@ async def run_connector(
 )
 def pause_connector(
     connector_id: str,
-    project: Project = Depends(get_verified_project),
+    authorized: AuthorizedProject = Depends(
+        require_project_action(ProjectAction.INTEGRATION_MANAGE)
+    ),
     service: ConnectorService = Depends(get_connector_service),
 ):
     existing = service.get(connector_id)
-    if existing is None or existing.project_id != str(project.id):
+    if existing is None or existing.project_id != str(authorized.project.id):
         raise HTTPException(status_code=404, detail="Connector not found")
     service.pause(connector_id)
     return ApiResponse.success(message="Connector paused")
@@ -206,11 +218,13 @@ def pause_connector(
 )
 def resume_connector(
     connector_id: str,
-    project: Project = Depends(get_verified_project),
+    authorized: AuthorizedProject = Depends(
+        require_project_action(ProjectAction.INTEGRATION_MANAGE)
+    ),
     service: ConnectorService = Depends(get_connector_service),
 ):
     existing = service.get(connector_id)
-    if existing is None or existing.project_id != str(project.id):
+    if existing is None or existing.project_id != str(authorized.project.id):
         raise HTTPException(status_code=404, detail="Connector not found")
     service.resume(connector_id)
     return ApiResponse.success(message="Connector resumed")
@@ -223,11 +237,13 @@ def resume_connector(
 )
 def delete_connector(
     connector_id: str,
-    project: Project = Depends(get_verified_project),
+    authorized: AuthorizedProject = Depends(
+        require_project_action(ProjectAction.INTEGRATION_MANAGE)
+    ),
     service: ConnectorService = Depends(get_connector_service),
 ):
     existing = service.get(connector_id)
-    if existing is None or existing.project_id != str(project.id):
+    if existing is None or existing.project_id != str(authorized.project.id):
         raise HTTPException(status_code=404, detail="Connector not found")
     try:
         service.delete(connector_id)

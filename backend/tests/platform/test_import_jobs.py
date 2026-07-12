@@ -21,6 +21,7 @@ from src.platform.imports.repository import ImportJob
 from src.platform.imports.runner import ImportRunResult, OneTimeImportRunner
 from src.platform.imports.schemas import ImportJobCreateRequest
 from src.platform.imports.service import ImportJobService
+from tests.authorization_fakes import authorization_for
 
 
 def _zip_bytes(files: dict[str, bytes]) -> bytes:
@@ -374,13 +375,6 @@ async def test_execute_import_job_does_not_overwrite_cancelled_job():
     assert repo.job.status == "cancelled"
 
 
-class FakeProjectService:
-    def get_by_id_with_access_check(self, project_id, user_id):
-        assert project_id == "project-1"
-        assert user_id == "user-1"
-        return SimpleNamespace(org_id="org-1")
-
-
 class IdempotentImportRepo:
     def __init__(self):
         self.existing = ImportJob(
@@ -417,7 +411,7 @@ async def test_import_job_create_returns_existing_job_for_idempotency_key():
     repo = IdempotentImportRepo()
     service = ImportJobService(
         repo=repo,
-        project_service=FakeProjectService(),
+        authorization=authorization_for("project-1"),
         arq_client=ExplodingImportArqClient(),
     )
 

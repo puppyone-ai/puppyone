@@ -8,7 +8,6 @@ Provides REST API endpoints for project CRUD operations.
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from src.common_schemas import ApiResponse
-from src.exceptions import ErrorCode, PermissionException
 from src.version_engine.bootstrap.dependencies import (
     get_version_admin_service,
 )
@@ -18,18 +17,27 @@ from src.platform.auth.models import CurrentUser
 from src.platform.organization.dependencies import resolve_org_id, resolve_org_ids
 from src.platform.entitlements.dependencies import get_entitlement_service
 from src.platform.entitlements.service import EntitlementService
-from src.platform.project.dependencies import get_project_service, get_verified_project
+from src.platform.authorization.dependencies import (
+    AuthorizedProject,
+    get_authorization_service,
+    require_project_action,
+)
+from src.platform.authorization.models import ProjectAction, ProjectGrant
+from src.platform.authorization.service import AuthorizationService
+from src.platform.project.dependencies import get_project_service
 from src.platform.project.models import Project
 from src.platform.project.schemas import (
     AddProjectMember,
     ProjectCreate,
     ProjectMemberOut,
+    ProjectAuthorizationOut,
     ProjectOut,
     ProjectUpdate,
     UpdateProjectMemberRole,
 )
 from src.infra.supabase.dependencies import get_supabase_client
 from src.platform.project.service import ProjectService
+from src.platform.project.readiness import ProjectReadinessService
 
 router = APIRouter(
     prefix="/projects",
@@ -41,8 +49,14 @@ router = APIRouter(
 )
 
 
+def get_project_readiness_service() -> ProjectReadinessService:
+    return ProjectReadinessService()
+
+
 def _convert_to_project_out(
-    project: Project, access_point_count: int = 0
+    project: Project,
+    grant: ProjectGrant,
+    access_point_count: int = 0,
 ) -> ProjectOut:
     """Convert Project to project metadata.
 
@@ -59,6 +73,7 @@ def _convert_to_project_out(
         bound_git_branch=getattr(project, 'bound_git_branch', 'main'),
         updated_at=project.updated_at.isoformat() if project.updated_at else None,
         access_point_count=access_point_count,
+        **grant.as_api_fields(),
     )
 
 
@@ -99,6 +114,7 @@ def _count_user_access_points(project_ids: list[str]) -> dict[str, int]:
 def list_projects(
     org_id: str | None = Query(None, description="Organization ID (if omitted, returns projects from all user organizations)"),
     project_service: ProjectService = Depends(get_project_service),
+    authorization: AuthorizationService = Depends(get_authorization_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     # Sync handler: FastAPI runs it in a threadpool, so the blocking (sync)
@@ -109,16 +125,19 @@ def list_projects(
     for oid in oids:
         all_projects.extend(project_service.get_by_org_id(oid))
 
-    # Batch-fetch entry-point counts for all projects. Count only user-created
+    accessible = authorization.filter_accessible(all_projects, current_user.user_id)
+
+    # Batch-fetch entry-point counts only for authorized Projects. Count user-created
     # integrations; CLI / Agent / Filesystem / Git Remote are built-in methods.
-    project_ids = [str(p.id) for p in all_projects]
+    project_ids = [str(project.id) for project, _grant in accessible]
     conn_counts = _count_user_access_points(project_ids)
 
     result = []
-    for p in all_projects:
+    for p, grant in accessible:
         result.append(
             _convert_to_project_out(
                 p,
+                grant,
                 access_point_count=conn_counts.get(str(p.id), 0),
             )
         )
@@ -160,13 +179,37 @@ def get_project_template(template_id: str):
     status_code=status.HTTP_200_OK,
 )
 def get_project(
-    project: Project = Depends(get_verified_project),
-    current_user: CurrentUser = Depends(get_current_user),
+    authorized: AuthorizedProject = Depends(
+        require_project_action(ProjectAction.PROJECT_READ)
+    ),
 ):
+    project = authorized.project
     conn_count = _count_user_access_points([str(project.id)]).get(str(project.id), 0)
     return ApiResponse.success(
-        data=_convert_to_project_out(project, access_point_count=conn_count),
+        data=_convert_to_project_out(
+            project, authorized.grant, access_point_count=conn_count
+        ),
         message="Project retrieved successfully",
+    )
+
+
+@router.get(
+    "/{project_id}/authorization",
+    response_model=ApiResponse[ProjectAuthorizationOut],
+    summary="Get the current user's canonical Project grant",
+)
+def get_project_authorization(
+    authorized: AuthorizedProject = Depends(
+        require_project_action(ProjectAction.PROJECT_READ)
+    ),
+):
+    grant = authorized.grant
+    return ApiResponse.success(
+        data=ProjectAuthorizationOut(
+            project_id=grant.project_id,
+            org_id=grant.org_id,
+            **grant.as_api_fields(),
+        )
     )
 
 
@@ -183,6 +226,7 @@ async def create_project(
     project_service: ProjectService = Depends(get_project_service),
     entitlement_service: EntitlementService = Depends(get_entitlement_service),
     version_admin: VersionAdminService = Depends(get_version_admin_service),
+    authorization: AuthorizationService = Depends(get_authorization_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     resolved_org_id = resolve_org_id(payload.org_id, current_user.user_id)
@@ -219,6 +263,9 @@ async def create_project(
     return ApiResponse.success(
         data=_convert_to_project_out(
             project,
+            authorization.authorize(
+                str(project.id), current_user.user_id, ProjectAction.PROJECT_READ
+            ),
             access_point_count=_count_user_access_points([str(project.id)]).get(str(project.id), 0),
         ),
         message="Project created successfully",
@@ -234,24 +281,26 @@ async def create_project(
     status_code=status.HTTP_200_OK,
 )
 def update_project(
-    project: Project = Depends(get_verified_project),
+    authorized: AuthorizedProject = Depends(
+        require_project_action(ProjectAction.PROJECT_MANAGE)
+    ),
     payload: ProjectUpdate = ...,
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    role = project_service.verify_project_access(project.id, current_user.user_id)
-    if role not in ("owner", "admin"):
-        raise PermissionException("Only org owner or project admin can update the project", code=ErrorCode.FORBIDDEN)
+    project = authorized.project
 
     updated_project = project_service.update(
         project_id=project.id,
         name=payload.name,
         description=payload.description,
+        visibility=payload.visibility,
         bound_git_branch=payload.bound_git_branch,
     )
 
     return ApiResponse.success(
-        data=_convert_to_project_out(updated_project), message="Project updated successfully"
+        data=_convert_to_project_out(updated_project, authorized.grant),
+        message="Project updated successfully",
     )
 
 
@@ -264,14 +313,13 @@ def update_project(
     status_code=status.HTTP_200_OK,
 )
 def delete_project(
-    project: Project = Depends(get_verified_project),
+    authorized: AuthorizedProject = Depends(
+        require_project_action(ProjectAction.PROJECT_DELETE)
+    ),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    role = project_service.verify_project_access(project.id, current_user.user_id)
-    if role not in ("owner", "admin"):
-        raise PermissionException("Only org owner or project admin can delete the project", code=ErrorCode.FORBIDDEN)
-
+    project = authorized.project
     project_service.delete(project.id)
     return ApiResponse.success(message="Project deleted successfully")
 
@@ -284,14 +332,13 @@ def delete_project(
     status_code=status.HTTP_201_CREATED,
 )
 async def seed_project(
-    project: Project = Depends(get_verified_project),
+    authorized: AuthorizedProject = Depends(
+        require_project_action(ProjectAction.CONTENT_WRITE)
+    ),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    role = project_service.verify_project_access(project.id, current_user.user_id)
-    if role not in ("owner", "admin"):
-        raise PermissionException("Only org owner or project admin can seed the project", code=ErrorCode.FORBIDDEN)
-
+    project = authorized.project
     from src.platform.project.seed_content import seed_default_content
     result = await seed_default_content(
         project_id=str(project.id),
@@ -309,10 +356,12 @@ async def seed_project(
     summary="List project members",
 )
 def list_project_members(
-    project: Project = Depends(get_verified_project),
+    authorized: AuthorizedProject = Depends(
+        require_project_action(ProjectAction.MEMBERS_READ)
+    ),
     project_service: ProjectService = Depends(get_project_service),
 ):
-    rows = project_service.list_project_members(project.id)
+    rows = project_service.list_project_members(authorized.project.id)
     result = []
     for row in rows:
         profile = row.get("profiles") or {}
@@ -336,18 +385,18 @@ def list_project_members(
 )
 def add_project_member(
     payload: AddProjectMember,
-    project: Project = Depends(get_verified_project),
+    authorized: AuthorizedProject = Depends(
+        require_project_action(ProjectAction.MEMBERS_MANAGE)
+    ),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    role = project_service.verify_project_access(project.id, current_user.user_id)
-    if role not in ("owner", "admin"):
-        raise PermissionException("Only org owner or project admin can add members", code=ErrorCode.FORBIDDEN)
-
-    if payload.role not in ("admin", "editor", "viewer"):
-        raise PermissionException("Role must be admin, editor, or viewer", code=ErrorCode.FORBIDDEN)
-
-    project_service.add_project_member(project.id, payload.user_id, payload.role)
+    project_service.add_project_member(
+        authorized.project.id,
+        payload.user_id,
+        payload.role,
+        granted_by=current_user.user_id,
+    )
     return ApiResponse.success(message="Member added")
 
 
@@ -359,15 +408,18 @@ def add_project_member(
 def update_project_member_role(
     target_user_id: str,
     payload: UpdateProjectMemberRole,
-    project: Project = Depends(get_verified_project),
+    authorized: AuthorizedProject = Depends(
+        require_project_action(ProjectAction.MEMBERS_MANAGE)
+    ),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    role = project_service.verify_project_access(project.id, current_user.user_id)
-    if role not in ("owner", "admin"):
-        raise PermissionException("Only org owner or project admin can change roles", code=ErrorCode.FORBIDDEN)
-
-    project_service.update_project_member_role(project.id, target_user_id, payload.role)
+    project_service.update_project_member_role(
+        authorized.project.id,
+        target_user_id,
+        payload.role,
+        actor_user_id=current_user.user_id,
+    )
     return ApiResponse.success(message="Role updated")
 
 
@@ -378,15 +430,17 @@ def update_project_member_role(
 )
 def remove_project_member(
     target_user_id: str,
-    project: Project = Depends(get_verified_project),
+    authorized: AuthorizedProject = Depends(
+        require_project_action(ProjectAction.MEMBERS_MANAGE)
+    ),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    role = project_service.verify_project_access(project.id, current_user.user_id)
-    if role not in ("owner", "admin"):
-        raise PermissionException("Only org owner or project admin can remove members", code=ErrorCode.FORBIDDEN)
-
-    project_service.remove_project_member(project.id, target_user_id)
+    project_service.remove_project_member(
+        authorized.project.id,
+        target_user_id,
+        actor_user_id=current_user.user_id,
+    )
     return ApiResponse.success(message="Member removed")
 
 
@@ -410,11 +464,15 @@ def remove_project_member(
     summary="Get share link info (owner/admin only)",
 )
 def get_share_info(
-    project: Project = Depends(get_verified_project),
+    authorized: AuthorizedProject = Depends(
+        require_project_action(ProjectAction.SHARE_MANAGE)
+    ),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    info = project_service.get_share_info(project.id, current_user.user_id)
+    info = project_service.get_share_info(
+        authorized.project.id, current_user.user_id
+    )
     return ApiResponse.success(data=info)
 
 
@@ -424,11 +482,15 @@ def get_share_info(
     summary="Rotate share token (revokes existing link)",
 )
 def rotate_share_token(
-    project: Project = Depends(get_verified_project),
+    authorized: AuthorizedProject = Depends(
+        require_project_action(ProjectAction.SHARE_MANAGE)
+    ),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    info = project_service.rotate_share_token(project.id, current_user.user_id)
+    info = project_service.rotate_share_token(
+        authorized.project.id, current_user.user_id
+    )
     return ApiResponse.success(
         data=info, message="Share link rotated; previous link is no longer valid",
     )
@@ -458,3 +520,17 @@ def join_via_share_token(
             "Joined project" if result.get("newly_joined") else "Already a member"
         ),
     )
+
+
+@router.get(
+    "/{project_id}/readiness",
+    response_model=ApiResponse[dict],
+    summary="Get root Git and Claude readiness",
+)
+def get_project_readiness(
+    authorized: AuthorizedProject = Depends(
+        require_project_action(ProjectAction.PROJECT_READ)
+    ),
+    readiness: ProjectReadinessService = Depends(get_project_readiness_service),
+):
+    return ApiResponse.success(data=readiness.resolve(authorized.project.id).as_dict())

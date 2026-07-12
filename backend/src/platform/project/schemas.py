@@ -5,7 +5,9 @@ Defines frontend API request/response models, matching the frontend ProjectInfo 
 """
 
 
-from pydantic import BaseModel
+from typing import Literal
+
+from pydantic import BaseModel, Field
 
 
 class ProjectOut(BaseModel):
@@ -24,12 +26,23 @@ class ProjectOut(BaseModel):
     bound_git_branch: str = "main"
     updated_at: str | None = None
     access_point_count: int = 0
+    effective_role: Literal["admin", "editor", "viewer"]
+    grant_source: Literal["org_owner", "project_member", "org_visibility"]
+    capabilities: list[str]
+
+
+class ProjectAuthorizationOut(BaseModel):
+    project_id: str
+    org_id: str
+    effective_role: Literal["admin", "editor", "viewer"]
+    grant_source: Literal["org_owner", "project_member", "org_visibility"]
+    capabilities: list[str]
 
 
 class ProjectCreate(BaseModel):
     """Create project request"""
 
-    name: str
+    name: str = Field(min_length=1, max_length=200)
     description: str | None = None
     org_id: str | None = None
     seed: bool = False
@@ -39,9 +52,9 @@ class ProjectCreate(BaseModel):
 class ProjectUpdate(BaseModel):
     """Update project request"""
 
-    name: str | None = None
+    name: str | None = Field(default=None, min_length=1, max_length=200)
     description: str | None = None
-    visibility: str | None = None
+    visibility: Literal["org", "private"] | None = None
     bound_git_branch: str | None = None
 
 
@@ -53,7 +66,7 @@ class ProjectMemberOut(BaseModel):
     email: str | None = None
     display_name: str | None = None
     avatar_url: str | None = None
-    role: str
+    role: Literal["admin", "editor", "viewer"]
     created_at: str
 
 
@@ -61,10 +74,10 @@ class AddProjectMember(BaseModel):
     """Add project member"""
 
     user_id: str
-    role: str = "editor"
+    role: Literal["admin", "editor", "viewer"] = "editor"
 
 
 class UpdateProjectMemberRole(BaseModel):
     """Update project member role"""
 
-    role: str
+    role: Literal["admin", "editor", "viewer"]

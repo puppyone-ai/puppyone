@@ -80,9 +80,11 @@ async def _execute_agent_task_async(agent_id: str) -> dict:
             return {"status": "failed", "error": "Agent has no associated user"}
 
         try:
-            from src.platform.project.repository import ProjectRepositorySupabase
-            access_role = ProjectRepositorySupabase().verify_project_access(
-                project_id, user_id,
+            from src.platform.authorization.factory import build_authorization_service
+            from src.platform.authorization.models import ProjectAction
+
+            principal_allowed = build_authorization_service().allows(
+                project_id, user_id, ProjectAction.AGENT_RUN
             )
         except Exception as verify_err:
             log_error(
@@ -93,7 +95,7 @@ async def _execute_agent_task_async(agent_id: str) -> dict:
                 "status": "failed",
                 "error": "Principal access check failed",
             }
-        if access_role is None:
+        if not principal_allowed:
             log_error(
                 f"⛔ Agent {agent_id}: scheduled job principal user={user_id} "
                 f"is no longer a member of project={project_id} — refusing to run"
@@ -101,6 +103,20 @@ async def _execute_agent_task_async(agent_id: str) -> dict:
             return {
                 "status": "failed",
                 "error": "principal_invalid: scheduled job creator no longer has project access",
+            }
+
+        from src.platform.project.readiness import ProjectReadinessService
+
+        readiness = ProjectReadinessService().resolve(project_id)
+        if not readiness.claude_ready:
+            log_error(
+                f"⛔ Agent {agent_id}: Project Agent readiness blockers="
+                f"{readiness.blockers}"
+            )
+            return {
+                "status": "failed",
+                "error": "project_agent_not_ready",
+                "blockers": readiness.blockers,
             }
 
         agent_name = config.get("name", "Unknown")

@@ -68,6 +68,7 @@ export function ScopeDetailPanel({
   pendingConnectorIds,
   onScopeMutated,
   onScopeDeleted,
+  canManage,
 }: {
   readonly scope: RepoScope | undefined;
   readonly connectors: readonly Connector[];
@@ -83,6 +84,7 @@ export function ScopeDetailPanel({
    *  clear its `selectedScopeId` and let the auto-select-first effect
    *  pick up an adjacent scope on the next render. */
   readonly onScopeDeleted: () => void;
+  readonly canManage: boolean;
 }) {
   // Track the currently-expanded access point. Defaults to collapsed
   // so first-time users see the compact access point list before drilling
@@ -112,6 +114,7 @@ export function ScopeDetailPanel({
   }, []);
 
   const handleToggleSettings = useCallback(() => {
+    if (!canManage) return;
     if (settingsOpen && settingsDirty) {
       const ok = globalThis.confirm(
         'Discard unsaved scope edits?',
@@ -120,7 +123,7 @@ export function ScopeDetailPanel({
       setSettingsDirty(false);
     }
     setSettingsOpen((v) => !v);
-  }, [settingsOpen, settingsDirty]);
+  }, [canManage, settingsOpen, settingsDirty]);
 
   const handleScopeDeleted = useCallback(() => {
     setSettingsOpen(false);
@@ -175,12 +178,13 @@ export function ScopeDetailPanel({
           settingsOpen={settingsOpen}
           settingsDirty={settingsDirty}
           onToggleSettings={handleToggleSettings}
+          canManage={canManage}
         />
 
         {/* SETTINGS — opened from the header gear. The collapsed
             placeholder row is intentionally gone so the boundary row
             can stay visually adjacent to the title. */}
-        {scope ? (
+        {scope && canManage ? (
           <SettingsSection open={settingsOpen}>
             <ScopeSettingsBlock
               scope={scope}
@@ -212,16 +216,17 @@ export function ScopeDetailPanel({
                 onPauseResume={onPauseResume}
                 onUpdate={onUpdate}
                 pendingConnectorIds={pendingConnectorIds}
+                canManage={canManage}
               />
             ) : null}
-            {scope && !hasMcpMethod ? (
+            {canManage && scope && !hasMcpMethod ? (
               <McpConnectCard
                 scope={scope}
                 projectId={projectId}
                 onCreated={onScopeMutated}
               />
             ) : null}
-            {scope ? <SandboxConnectCard scope={scope} projectId={projectId} /> : null}
+            {canManage && scope ? <SandboxConnectCard scope={scope} projectId={projectId} /> : null}
           </div>
         ) : (
           <div

@@ -17,7 +17,8 @@ from src.infra.llm.embedding_service import EmbeddingService
 from src.infra.s3.service import S3Service
 from src.infra.turbopuffer.schemas import TurbopufferRow
 from src.infra.turbopuffer.service import TurbopufferSearchService
-from src.platform.project.service import ProjectService
+from src.platform.authorization.models import ProjectAction
+from src.platform.authorization.service import AuthorizationService
 from src.exceptions import NotFoundException, ErrorCode
 from src.utils.logger import log_info, log_error
 
@@ -137,7 +138,7 @@ class SearchService:
         *,
         ops: ProductOperationAdapter,
         chunk_repo: ChunkRepository,
-        project_service: ProjectService,
+        authorization: AuthorizationService,
         chunking_service: ChunkingService | None = None,
         chunking_config: ChunkingConfig | None = None,
         embedding_service: EmbeddingService | None = None,
@@ -145,14 +146,16 @@ class SearchService:
     ) -> None:
         self._ops = ops
         self._chunk_repo = chunk_repo
-        self._project_service = project_service
+        self.authorization = authorization
         self._chunking_service = chunking_service or ChunkingService()
         self._chunking_config = chunking_config or ChunkingConfig()
         self._embedding = embedding_service or EmbeddingService()
         self._tp = turbopuffer_service or TurbopufferSearchService()
 
     def _ensure_project_access(self, *, project_id: str, user_id: str) -> None:
-        if not self._project_service.verify_project_access(project_id, user_id):
+        if not self.authorization.allows(
+            project_id, user_id, ProjectAction.CONTENT_READ
+        ):
             raise NotFoundException(
                 f"Project not found: {project_id}",
                 code=ErrorCode.NOT_FOUND,

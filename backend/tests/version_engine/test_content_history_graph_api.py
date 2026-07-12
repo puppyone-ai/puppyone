@@ -7,7 +7,6 @@ from fastapi.testclient import TestClient
 
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
-from src.platform.project.dependencies import get_project_service
 from src.version_engine.bootstrap.dependencies import (
     get_history_graph_service,
     get_product_operation_adapter,
@@ -21,6 +20,7 @@ from src.version_engine.read.history_models import HistoryCursorState
 from src.version_engine.read.history_graph import HistoryGraphService
 from src.version_engine.storage.object_store import ObjectStore
 from src.version_engine.write_engine.git_object_format import EMPTY_TREE_SHA1, encode_object
+from tests.authorization_fakes import authorization_for, install_authorization
 
 
 class _History:
@@ -96,13 +96,6 @@ class _VersionRefs:
             },
             *self.rows,
         ]
-
-
-class _ProjectService:
-    def verify_project_access(self, project_id: str, user_id: str) -> str:
-        assert project_id == "project-1"
-        assert user_id == "user-1"
-        return "viewer"
 
 
 class _Operations:
@@ -473,7 +466,7 @@ def _client(
     app.dependency_overrides[get_version_admin_service] = lambda: VersionAdminService(repo_manager)
     app.dependency_overrides[get_history_graph_service] = lambda: history_graph
     app.dependency_overrides[get_product_operation_adapter] = lambda: _Operations()
-    app.dependency_overrides[get_project_service] = lambda: _ProjectService()
+    install_authorization(app, authorization_for("project-1", role="viewer"))
     app.dependency_overrides[get_current_user] = lambda: CurrentUser(
         user_id="user-1",
         role="authenticated",

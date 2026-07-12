@@ -44,6 +44,23 @@ repair.**
 - Scope、权限、excludes、pause、冲突策略和 audit 都在 server 端执行
 - 旧线协议和外部版本包不再是运行时依赖
 
+### 授权架构（Organization → Project → Runtime）
+
+- Human Project action 必须经过 `src/platform/authorization/` 的 canonical
+  `AuthorizationService`，以具名 `ProjectAction` 求值；业务模块不得直接读取
+  `project_members`、解释 raw role 或复活 `verify_project_access`。
+- `project_members` 是唯一显式 Human Project role 事实。Organization membership
+  只建立 tenant context；`visibility='org'` 仅给 Viewer baseline。
+- Agent visibility、publish ownership、upload ownership 等 child rule 只能继续
+  收紧 `ProjectGrant`，不能放大权限。
+- Git/CLI/Agent/MCP/Sandbox/binding credential 只能形成 scope-bound
+  `RuntimeGrant`，不得替代 Human ProjectGrant 或进入成员、分享、设置、Billing
+  与 credential management control plane。
+- Local workspace 与 Cloud Project 的同一性只来自
+  `project_workspace_bindings`；remote URL、scope key 与本地路径都不是 canonical
+  identity。新增 Project-scoped route 必须登记在
+  `src/platform/authorization/manifest.py`。
+
 ## 项目结构
 
 ```

@@ -35,8 +35,8 @@ from src.version_engine.admission.validation import validate_path
 from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
-from src.platform.project.dependencies import get_project_service
-from src.platform.project.service import ProjectService
+from src.platform.authorization.dependencies import get_authorization_service
+from src.platform.authorization.service import AuthorizationService
 
 read_router = APIRouter()
 
@@ -89,10 +89,10 @@ def list_dir(
     project_id: str,
     path: str = Query("", description="Directory path, empty = root directory"),
     ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
-    project_service: ProjectService = Depends(get_project_service),
+    authorization: AuthorizationService = Depends(get_authorization_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    ensure_project_access(project_service, current_user, project_id)
+    ensure_project_access(authorization, current_user, project_id)
     clean_path = validate_path(path)
 
     try:
@@ -121,10 +121,10 @@ def read_file(
     project_id: str,
     path: str = Query(..., description="File path"),
     ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
-    project_service: ProjectService = Depends(get_project_service),
+    authorization: AuthorizationService = Depends(get_authorization_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    ensure_project_access(project_service, current_user, project_id)
+    ensure_project_access(authorization, current_user, project_id)
     clean_path = validate_path(path)
 
     try:
@@ -171,10 +171,10 @@ def raw_file(
     request: Request,
     path: str = Query(..., description="File path"),
     ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
-    project_service: ProjectService = Depends(get_project_service),
+    authorization: AuthorizationService = Depends(get_authorization_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    ensure_project_access(project_service, current_user, project_id)
+    ensure_project_access(authorization, current_user, project_id)
     clean_path = validate_path(path)
 
     try:
@@ -362,13 +362,13 @@ class InlineSignResponse(BaseModel):
 def sign_download(
     project_id: str,
     body: DownloadSignRequest,
-    project_service: ProjectService = Depends(get_project_service),
+    authorization: AuthorizationService = Depends(get_authorization_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """Authenticated step. Caller proves project access via the normal
     Bearer flow; we hand back a token that the browser can use for a
     plain `<a download>` navigation."""
-    ensure_project_access(project_service, current_user, project_id)
+    ensure_project_access(authorization, current_user, project_id)
     clean_path = validate_path(body.path)
 
     token, expires_at = issue_token(
@@ -395,7 +395,7 @@ def sign_download(
 def sign_inline(
     project_id: str,
     body: InlineSignRequest,
-    project_service: ProjectService = Depends(get_project_service),
+    authorization: AuthorizationService = Depends(get_authorization_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """Authenticated step for embedding protected files in native
@@ -405,7 +405,7 @@ def sign_inline(
     same short-lived HMAC token as downloads but return an inline
     endpoint instead of an attachment endpoint.
     """
-    ensure_project_access(project_service, current_user, project_id)
+    ensure_project_access(authorization, current_user, project_id)
     clean_path = validate_path(body.path)
 
     token, expires_at = issue_token(
@@ -621,10 +621,10 @@ def stat(
     project_id: str,
     path: str = Query(..., description="Path"),
     ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
-    project_service: ProjectService = Depends(get_project_service),
+    authorization: AuthorizationService = Depends(get_authorization_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    ensure_project_access(project_service, current_user, project_id)
+    ensure_project_access(authorization, current_user, project_id)
     clean_path = validate_path(path)
     head_commit_id = ops.get_head_commit_id(project_id)
     scope_head_commit_id = ops.get_scope_head_commit_id_for_path(project_id, clean_path)
@@ -668,10 +668,10 @@ def full_tree(
     path: str = Query("", description="Starting path"),
     max_depth: int = Query(-1, description="Maximum recursion depth, -1 = unlimited"),
     ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
-    project_service: ProjectService = Depends(get_project_service),
+    authorization: AuthorizationService = Depends(get_authorization_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    ensure_project_access(project_service, current_user, project_id)
+    ensure_project_access(authorization, current_user, project_id)
     clean_path = validate_path(path)
 
     try:

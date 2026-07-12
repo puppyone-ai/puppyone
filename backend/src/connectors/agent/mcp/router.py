@@ -21,6 +21,12 @@ from src.platform.auth.models import CurrentUser
 from src.common_schemas import ApiResponse
 from src.config import settings
 from src.exceptions import NotFoundException, ErrorCode
+from src.connectors.agent.config.dependencies import (
+    get_credential_agent,
+    get_verified_agent,
+    get_writable_agent,
+)
+from src.connectors.agent.config.models import Agent
 
 from .dependencies import McpRuntimePrincipal, get_mcp_v3_service, get_mcp_runtime_principal
 from .service import McpV3Service
@@ -91,6 +97,7 @@ def _validate_mcp_proxy_origin(request: Request) -> None:
 )
 def get_mcp_status(
     agent_id: str,
+    _authorized_agent: Agent = Depends(get_verified_agent),
     svc: McpV3Service = Depends(get_mcp_v3_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -106,6 +113,7 @@ def get_mcp_status(
 )
 def regenerate_mcp_key(
     agent_id: str,
+    _authorized_agent: Agent = Depends(get_credential_agent),
     svc: McpV3Service = Depends(get_mcp_v3_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -132,6 +140,7 @@ def list_bound_tools(
     mcp_exposed_only: bool = Query(
         default=False, description="Whether to return only MCP-exposed tools"
     ),
+    _authorized_agent: Agent = Depends(get_verified_agent),
     svc: McpV3Service = Depends(get_mcp_v3_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -152,6 +161,7 @@ def list_bound_tools(
 def bind_tools(
     agent_id: str,
     payload: BindToolsRequest,
+    _authorized_agent: Agent = Depends(get_writable_agent),
     svc: McpV3Service = Depends(get_mcp_v3_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -169,6 +179,7 @@ def update_tool_binding(
     agent_id: str,
     tool_id: str,
     payload: UpdateToolBindingRequest,
+    _authorized_agent: Agent = Depends(get_writable_agent),
     svc: McpV3Service = Depends(get_mcp_v3_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -191,6 +202,7 @@ def update_tool_binding(
 def unbind_tool(
     agent_id: str,
     tool_id: str,
+    _authorized_agent: Agent = Depends(get_writable_agent),
     svc: McpV3Service = Depends(get_mcp_v3_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):

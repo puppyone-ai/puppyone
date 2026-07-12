@@ -27,6 +27,7 @@ export function ConnectorListRow({
   showSettings = false,
   settingsOpen = false,
   onSettings,
+  canManage = false,
 }: {
   readonly scope: RepoScope | undefined;
   readonly connector: Connector;
@@ -40,6 +41,7 @@ export function ConnectorListRow({
   readonly showSettings?: boolean;
   readonly settingsOpen?: boolean;
   readonly onSettings?: () => void;
+  readonly canManage?: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
   const meta = getConnectorMethodMeta(connector);
@@ -68,6 +70,7 @@ export function ConnectorListRow({
         iconSize={iconSize}
         pending={pending}
         onTurnOn={onPauseResume}
+        canManage={canManage}
       />
     );
   }
@@ -216,6 +219,7 @@ export function ConnectorListRow({
                 onConfigure={onSelect}
                 canConfigure={canConfigure}
                 selected={selected}
+                canManage={canManage}
               />
             </div>
           ) : null}
@@ -250,6 +254,7 @@ function PausedConnectorPreview({
   iconSize,
   pending,
   onTurnOn,
+  canManage,
 }: {
   readonly connector: Connector;
   readonly meta: {
@@ -264,6 +269,7 @@ function PausedConnectorPreview({
   readonly iconSize: number;
   readonly pending: boolean;
   readonly onTurnOn: () => Promise<void> | void;
+  readonly canManage: boolean;
 }) {
   return (
     <div
@@ -363,12 +369,12 @@ function PausedConnectorPreview({
         >
           Off
         </span>
-        <MethodOutlineButton
+        {canManage ? <MethodOutlineButton
           label={pending ? 'Turning on' : 'Turn On'}
           tone='soft'
           disabled={pending}
           onClick={onTurnOn}
-        />
+        /> : null}
       </div>
     </div>
   );
@@ -580,6 +586,7 @@ function ConnectorPreviewActions({
   onConfigure,
   canConfigure,
   selected,
+  canManage,
 }: {
   readonly connector: Connector;
   readonly status: string;
@@ -589,6 +596,7 @@ function ConnectorPreviewActions({
   readonly onConfigure: () => void;
   readonly canConfigure: boolean;
   readonly selected: boolean;
+  readonly canManage: boolean;
 }) {
   const isGitRemote = isGitBuiltinProvider(connector.provider);
   const isCli = isCliProvider(normalizeConnectorProvider(connector.provider));
@@ -596,9 +604,11 @@ function ConnectorPreviewActions({
   const action = status === 'error'
     ? null
     : status === 'paused'
-      ? { label: pending ? 'Turning on' : 'Turn On', icon: undefined, onClick: onPauseResume, active: false, tone: 'soft' as const }
+      ? canManage ? { label: pending ? 'Turning on' : 'Turn On', icon: undefined, onClick: onPauseResume, active: false, tone: 'soft' as const } : null
       : isGitRemote
       ? { label: 'View Git remote', icon: <ExternalLinkGlyph size={12} />, onClick: onConnect, active: false, tone: 'outline' as const }
+      : !canManage
+        ? null
       : isMcp
         ? { label: selected ? 'Hide config' : 'Show config', icon: <ChevronDownGlyph size={12} rotated={selected} />, onClick: onConfigure, active: selected, tone: 'outline' as const }
       : isCli || canConfigure
@@ -618,7 +628,7 @@ function ConnectorPreviewActions({
         gap: 8,
       }}
     >
-      {status === 'error' ? (
+      {status === 'error' && canManage ? (
         <RowActionButton
           label='Retry'
           icon={<RetryIcon size={10} />}

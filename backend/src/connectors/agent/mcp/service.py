@@ -35,6 +35,20 @@ class McpV3Service:
         self._agent_repo = agent_repo or AgentRepository()
         self._tool_repo = tool_repo or ToolRepositorySupabase(get_supabase_repository())
 
+    def _tool_in_agent_boundary(self, agent: Agent, tool) -> bool:
+        """Agent child grants never import a sibling/foreign Project tool."""
+
+        if tool.project_id is not None:
+            return str(tool.project_id) == str(agent.project_id)
+        project_org_id = self._agent_repo.get_project_org_id(agent.project_id)
+        return bool(project_org_id and str(tool.org_id) == str(project_org_id))
+
+    def _get_boundable_tool(self, agent: Agent, tool_id: str):
+        tool = self._tool_repo.get_by_id(tool_id)
+        if not tool or not self._tool_in_agent_boundary(agent, tool):
+            raise NotFoundException("Tool not found", code=ErrorCode.NOT_FOUND)
+        return tool
+
     # ============================================
     # Agent MCP Configuration
     # ============================================
@@ -42,7 +56,7 @@ class McpV3Service:
     def get_agent_mcp_info(self, agent_id: str, user_id: str) -> McpAgentInfo:
         """Get MCP configuration info for an Agent."""
         agent = self._agent_repo.get_by_id(agent_id)
-        if not agent or not self._agent_repo.verify_access(agent_id, user_id):
+        if not agent or not self._agent_repo.is_visible_to(agent_id, user_id):
             raise NotFoundException(_AGENT_NOT_FOUND, code=ErrorCode.NOT_FOUND)
 
         return McpAgentInfo(
@@ -57,7 +71,7 @@ class McpV3Service:
     def regenerate_mcp_key(self, agent_id: str, user_id: str) -> str:
         """Regenerate the MCP API Key for an Agent."""
         agent = self._agent_repo.get_by_id(agent_id)
-        if not agent or not self._agent_repo.verify_access(agent_id, user_id):
+        if not agent or not self._agent_repo.is_visible_to(agent_id, user_id):
             raise NotFoundException(_AGENT_NOT_FOUND, code=ErrorCode.NOT_FOUND)
 
         new_key = self._agent_repo.regenerate_mcp_api_key(agent_id)
@@ -83,7 +97,7 @@ class McpV3Service:
     ) -> List[McpBoundTool]:
         """Get Tools bound to an Agent."""
         agent = self._agent_repo.get_by_id(agent_id)
-        if not agent or not self._agent_repo.verify_access(agent_id, user_id):
+        if not agent or not self._agent_repo.is_visible_to(agent_id, user_id):
             raise NotFoundException(_AGENT_NOT_FOUND, code=ErrorCode.NOT_FOUND)
 
         # Get binding relationships
@@ -96,7 +110,7 @@ class McpV3Service:
         result: List[McpBoundTool] = []
         for at in agent_tools:
             tool = self._tool_repo.get_by_id(at.tool_id)
-            if not tool:
+            if not tool or not self._tool_in_agent_boundary(agent, tool):
                 continue
             result.append(
                 McpBoundTool(
@@ -126,12 +140,10 @@ class McpV3Service:
         """Bind a Tool to an Agent."""
         # Verify Agent access (via project)
         agent = self._agent_repo.get_by_id(agent_id)
-        if not agent or not self._agent_repo.verify_access(agent_id, user_id):
+        if not agent or not self._agent_repo.is_visible_to(agent_id, user_id):
             raise NotFoundException(_AGENT_NOT_FOUND, code=ErrorCode.NOT_FOUND)
 
-        tool = self._tool_repo.get_by_id(tool_id)
-        if not tool:
-            raise NotFoundException("Tool not found", code=ErrorCode.NOT_FOUND)
+        self._get_boundable_tool(agent, tool_id)
 
         # Create or update binding
         binding = self._agent_repo.upsert_tool_binding(
@@ -156,16 +168,17 @@ class McpV3Service:
         """Batch bind Tools to an Agent."""
         # Verify Agent access (via project)
         agent = self._agent_repo.get_by_id(agent_id)
-        if not agent or not self._agent_repo.verify_access(agent_id, user_id):
+        if not agent or not self._agent_repo.is_visible_to(agent_id, user_id):
             raise NotFoundException(_AGENT_NOT_FOUND, code=ErrorCode.NOT_FOUND)
 
         result: List[AgentTool] = []
         for b in bindings:
-            tool = self._tool_repo.get_by_id(b.tool_id)
-            if not tool:
+            try:
+                self._get_boundable_tool(agent, b.tool_id)
+            except NotFoundException:
                 raise NotFoundException(
                     f"Tool not found: {b.tool_id}", code=ErrorCode.NOT_FOUND
-                )
+                ) from None
 
             binding = self._agent_repo.upsert_tool_binding(
                 agent_id=agent_id,
@@ -192,13 +205,14 @@ class McpV3Service:
         """Update a Tool binding."""
         # Verify Agent access (via project)
         agent = self._agent_repo.get_by_id(agent_id)
-        if not agent or not self._agent_repo.verify_access(agent_id, user_id):
+        if not agent or not self._agent_repo.is_visible_to(agent_id, user_id):
             raise NotFoundException(_AGENT_NOT_FOUND, code=ErrorCode.NOT_FOUND)
 
         # Find existing binding
         binding = self._agent_repo.get_tool_binding_by_agent_and_tool(agent_id, tool_id)
         if not binding:
             raise NotFoundException("Tool binding not found", code=ErrorCode.NOT_FOUND)
+        self._get_boundable_tool(agent, tool_id)
 
         # Update
         updated = self._agent_repo.update_tool_binding(
@@ -222,13 +236,14 @@ class McpV3Service:
         """Unbind a Tool."""
         # Verify Agent access (via project)
         agent = self._agent_repo.get_by_id(agent_id)
-        if not agent or not self._agent_repo.verify_access(agent_id, user_id):
+        if not agent or not self._agent_repo.is_visible_to(agent_id, user_id):
             raise NotFoundException(_AGENT_NOT_FOUND, code=ErrorCode.NOT_FOUND)
 
         # Find existing binding
         binding = self._agent_repo.get_tool_binding_by_agent_and_tool(agent_id, tool_id)
         if not binding:
             raise NotFoundException("Tool binding not found", code=ErrorCode.NOT_FOUND)
+        self._get_boundable_tool(agent, tool_id)
 
         # Delete
         ok = self._agent_repo.delete_tool_binding(binding.id)
@@ -247,10 +262,17 @@ class McpV3Service:
     def get_mcp_status(self, agent_id: str, user_id: str) -> dict:
         """Get MCP status summary for an Agent."""
         agent = self._agent_repo.get_by_id(agent_id)
-        if not agent or not self._agent_repo.verify_access(agent_id, user_id):
+        if not agent or not self._agent_repo.is_visible_to(agent_id, user_id):
             raise NotFoundException(_AGENT_NOT_FOUND, code=ErrorCode.NOT_FOUND)
 
-        all_tools = self._agent_repo.get_tools_by_agent_id(agent_id)
+        all_tools = [
+            binding
+            for binding in self._agent_repo.get_tools_by_agent_id(agent_id)
+            if (
+                (tool := self._tool_repo.get_by_id(binding.tool_id)) is not None
+                and self._tool_in_agent_boundary(agent, tool)
+            )
+        ]
         mcp_exposed = [t for t in all_tools if t.enabled and t.mcp_exposed]
 
         return {

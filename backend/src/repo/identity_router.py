@@ -14,11 +14,8 @@ from src.common_schemas import ApiResponse
 from src.config import settings
 from src.version_engine.bootstrap.dependencies import get_product_operation_adapter
 from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
-from src.platform.project.dependencies import (
-    get_project_service, get_verified_project,
-)
-from src.platform.project.models import Project
-from src.platform.project.service import ProjectService
+from src.platform.authorization.dependencies import AuthorizedProject, require_project_action
+from src.platform.authorization.models import ProjectAction
 from src.repo.scope_service import ScopeService
 from src.repo.scope_router import get_scope_service
 from src.repo.schemas import (
@@ -56,10 +53,13 @@ def _build_repo_url(project_id: str, request: Request) -> str:
 )
 def get_access_point(
     request: Request,
-    project: Project = Depends(get_verified_project),
+    authorized: AuthorizedProject = Depends(
+        require_project_action(ProjectAction.ACCESS_READ)
+    ),
     scope_service: ScopeService = Depends(get_scope_service),
     ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
 ):
+    project = authorized.project
     scopes = scope_service.list_for_project(str(project.id))
     # Defensive: ensure root exists. Idempotent — just returns existing if so.
     if not any(s.is_root for s in scopes):
@@ -98,9 +98,11 @@ def get_access_point(
 )
 def update_access_point(
     payload: RepoIdentityPatch,
-    project: Project = Depends(get_verified_project),
-    project_service: ProjectService = Depends(get_project_service),
+    authorized: AuthorizedProject = Depends(
+        require_project_action(ProjectAction.PROJECT_MANAGE)
+    ),
 ):
+    project = authorized.project
     if payload.prompt_template is not None:
         # Reuse the project service if it has an update method; otherwise
         # write directly via Supabase client. (Keeping this loose so the

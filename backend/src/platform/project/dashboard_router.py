@@ -20,8 +20,8 @@ from src.version_engine.bootstrap.dependencies import get_product_operation_adap
 from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
-from src.platform.project.dependencies import get_verified_project
-from src.platform.project.models import Project
+from src.platform.authorization.dependencies import AuthorizedProject, require_project_action
+from src.platform.authorization.models import ProjectAction
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -96,7 +96,9 @@ class ProjectDashboard(BaseModel):
     status_code=status.HTTP_200_OK,
 )
 async def get_project_dashboard(
-    project: Project = Depends(get_verified_project),
+    authorized: AuthorizedProject = Depends(
+        require_project_action(ProjectAction.PROJECT_READ)
+    ),
     ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -108,6 +110,7 @@ async def get_project_dashboard(
     parallel collapses that to roughly the slowest single section
     (~600–900 ms). supabase-py is sync, so we offload via run_in_threadpool.
     """
+    project = authorized.project
     project_id = str(project.id)
     sb = SupabaseClient().client
 

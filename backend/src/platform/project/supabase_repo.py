@@ -30,6 +30,28 @@ class ProjectRepository:
         except Exception as e:
             raise handle_supabase_error(e, "create project")
 
+    def create_with_admin(self, project_data: ProjectCreate) -> ProjectResponse:
+        """Atomically create a Project and the creator's Admin membership."""
+        try:
+            response = self._client.rpc(
+                "create_project_with_admin",
+                {
+                    "p_id": project_data.id,
+                    "p_name": project_data.name,
+                    "p_description": project_data.description,
+                    "p_org_id": project_data.org_id,
+                    "p_created_by": project_data.created_by,
+                    "p_share_token": project_data.share_token,
+                },
+            ).execute()
+            rows = response.data or []
+            row = rows[0] if isinstance(rows, list) else rows
+            if not row:
+                raise RuntimeError("create_project_with_admin returned no Project")
+            return ProjectResponse(**row)
+        except Exception as e:
+            raise handle_supabase_error(e, "create project with admin")
+
     def get_by_id(self, project_id: str) -> ProjectResponse | None:
         response = (
             self._client.table("projects")

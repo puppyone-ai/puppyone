@@ -107,7 +107,7 @@ class AgentService:
                 return {"status": "failed", "error": f"Agent not found: {agent_id}"}
 
             # Verify access via project
-            if not agent_config_service.verify_access(agent_id, user_id):
+            if not agent_config_service.is_visible_to(agent_id, user_id):
                 return {"status": "failed", "error": "Unauthorized access to agent"}
 
             logger.info(f"[ScheduleAgent] Executing agent: {agent.name} (id={agent_id})")
@@ -445,7 +445,7 @@ class AgentService:
                 # Note: the Agent model has no user_id field; verification goes through the project table
                 has_access = False
                 if agent:
-                    has_access = agent_config_service.verify_access(request.agent_id, current_user.user_id)
+                    has_access = agent_config_service.is_visible_to(request.agent_id, current_user.user_id)
                     logger.info(f"[Agent DEBUG] Access check: has_access={has_access}")
 
                 if agent and has_access:
@@ -1216,5 +1216,4 @@ class AgentService:
 
         else:
             yield {"type": "result", "success": True}
-
 

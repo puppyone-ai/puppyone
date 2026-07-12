@@ -2,7 +2,7 @@
 PuppyOneAuthenticator — version access authentication adapter
 
 Maps PuppyOne's authentication system to the version access context:
-  - JWT Bearer → user + full project scope (mode=rw)
+  - JWT Bearer → human ProjectGrant + root scope bounded by role
   - Access Key → connection + restricted repo scope
 
 Supports:
@@ -51,8 +51,8 @@ class PuppyOneAuthenticator:
                 to the actual operator (the cli/agent identity behind the
                 key). The strict per-key binding enforcement that this
                 value used to drive moved to the new
-                repo_user_permissions table; this parameter is now an
-                identity HINT, not an auth gate.
+                Project authorization boundary; this value is an identity
+                hint, not an authorization gate.
             user_identity: X-PuppyOne-User header value (for identity binding)
 
         Returns:
@@ -83,7 +83,8 @@ class PuppyOneAuthenticator:
             # be a member of the target project. Without this check, ANY
             # logged-in user could read/write the version tree of ANY project
             # by changing project_id in the URL.
-            if not self._user_has_project_access(user["user_id"], project_id):
+            grant = self._resolve_project_grant(user["user_id"], project_id)
+            if grant is None:
                 log_warning(
                     f"[Auth] JWT user {user['user_id']} attempted version access "
                     f"to project {project_id} without membership"
@@ -92,9 +93,19 @@ class PuppyOneAuthenticator:
                     status_code=403,
                     detail="Not a member of this project",
                 )
+            from src.platform.authorization.models import ProjectAction
+
             return {
                 "agent": f"user:{user['user_id']}",
-                "_scope": {"id": "_root", "path": "", "exclude": [], "mode": "rw"},
+                "_scope": {
+                    "id": "_root",
+                    "path": "",
+                    "exclude": [],
+                    "mode": (
+                        "rw" if grant.allows(ProjectAction.CONTENT_WRITE) else "r"
+                    ),
+                },
+                "_project_grant": grant,
                 "_user_identity": user_identity,
             }
 
@@ -103,6 +114,23 @@ class PuppyOneAuthenticator:
             # Access keys resolve to repo_scopes rows directly. The
             # "scope is the auth" mental model: the scope dict we return
             # IS the row that authenticated.
+            from src.platform.authorization.models import (
+                RuntimeGrant,
+                RuntimeMode,
+                RuntimePrincipal,
+            )
+
+            runtime_grant = RuntimeGrant(
+                principal=RuntimePrincipal(
+                    principal_id=str(scope_row["id"]),
+                    credential_kind="access_surface_credential",
+                ),
+                project_id=str(scope_row["project_id"]),
+                scope_id=str(scope_row["id"]),
+                path=str(scope_row.get("path") or ""),
+                excludes=tuple(scope_row.get("exclude") or ()),
+                mode=RuntimeMode(scope_row.get("mode", "r")),
+            )
             return {
                 "agent": f"scope:{scope_row['id']}",
                 "_scope": {
@@ -111,6 +139,7 @@ class PuppyOneAuthenticator:
                     "exclude": scope_row.get("exclude") or [],
                     "mode": scope_row.get("mode", "rw"),
                 },
+                "_runtime_grant": runtime_grant,
                 "_user_identity": user_identity,
             }
 
@@ -136,25 +165,21 @@ class PuppyOneAuthenticator:
             log_error(f"[Auth] Unexpected JWT auth error: {e}")
             return None
 
-    def _user_has_project_access(self, user_id: str, project_id: str) -> bool:
-        """Verify that user is a member of the project's organization.
-
-        Reused from ProjectRepositorySupabase.verify_project_access. We avoid
-        a full ProjectService instantiation here to keep version auth fast — we
-        only need a boolean, not the project model.
-        """
+    def _resolve_project_grant(self, user_id: str, project_id: str):
+        """Resolve the canonical human ProjectGrant, failing closed."""
         try:
-            from src.platform.project.repository import ProjectRepositorySupabase
-            repo = ProjectRepositorySupabase()
-            role = repo.verify_project_access(project_id, user_id)
-            return role is not None
+            from src.platform.authorization.factory import build_authorization_service
+
+            return build_authorization_service(
+                self._supabase.client
+            ).resolve_project_grant(project_id, user_id)
         except Exception as e:
             # Fail closed: if the access check itself errors, deny access.
             log_error(
                 f"[Auth] Project access check failed user={user_id} "
                 f"project={project_id}: {e}"
             )
-            return False
+            return None
 
     def _try_access_key(self, key: str, project_id: str) -> dict | None:
         """Resolve an access key through canonical access-surface credentials.

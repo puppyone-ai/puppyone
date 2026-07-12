@@ -72,20 +72,48 @@ from src.ingest.schemas import (
 from src.ingest.service import IngestService
 from src.ingest.shared.task.normalizers import detect_file_ingest_type
 from src.ingest.upload_jobs import UploadJobRepository
+from src.exceptions import AppException
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
+from src.platform.authorization.dependencies import get_authorization_service
+from src.platform.authorization.models import ProjectAction
+from src.platform.authorization.service import AuthorizationService
 from src.platform.entitlements.dependencies import get_entitlement_service
 from src.platform.entitlements.service import EntitlementService
 from src.platform.imports.dependencies import get_import_job_service
 from src.platform.imports.provider import detect_import_provider, suggest_import_name
 from src.platform.imports.schemas import ImportJobCreateRequest
 from src.platform.imports.service import ImportJobService
-from src.platform.project.dependencies import get_project_service
-from src.platform.project.service import ProjectService
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ingest", tags=["ingest"])
+
+
+def _authorize_owned_upload_task(
+    task,
+    *,
+    current_user: CurrentUser,
+    authorization: AuthorizationService,
+):
+    """Require both task ownership and the current Project write grant.
+
+    Ownership prevents task-id substitution; it is only a child-resource
+    restriction.  Re-resolving the Project grant closes the window where a
+    member starts a multipart upload and is then revoked or downgraded before
+    a part/finalize request.
+    """
+
+    if not task or (
+        task.created_by is not None and task.created_by != current_user.user_id
+    ):
+        raise HTTPException(status_code=404, detail="Task not found")
+    authorization.authorize(
+        task.project_id,
+        current_user.user_id,
+        ProjectAction.INGEST_WRITE,
+    )
+    return task
 
 # === File Type Classification ===
 
@@ -154,7 +182,7 @@ async def submit_file_ingest(
     etl_service: ETLService = Depends(get_etl_service),
     s3_service: S3Service = Depends(get_s3_service),
     entitlement_service: EntitlementService = Depends(get_entitlement_service),
-    project_service: ProjectService = Depends(get_project_service),
+    authorization: AuthorizationService = Depends(get_authorization_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """
@@ -166,11 +194,11 @@ async def submit_file_ingest(
     is downgraded to "raw" so binary/OCR-needing files end up on S3
     via the same code path as a plain file upload.
     """
-    project = project_service.get_by_id(project_id)
-    if not project or not project_service.verify_project_access(project_id, current_user.user_id):
-        raise HTTPException(status_code=404, detail="Project not found")
+    grant = authorization.authorize(
+        project_id, current_user.user_id, ProjectAction.INGEST_WRITE
+    )
     entitlement_file_max = entitlement_service.limit_value(
-        project.org_id,
+        grant.org_id,
         "upload.max_single_file_bytes",
     )
     per_file_max_bytes = (
@@ -578,7 +606,7 @@ async def init_multipart_upload(
     s3_service: S3Service = Depends(get_s3_service),
     etl_service: ETLService = Depends(get_etl_service),
     entitlement_service: EntitlementService = Depends(get_entitlement_service),
-    project_service: ProjectService = Depends(get_project_service),
+    authorization: AuthorizationService = Depends(get_authorization_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """
@@ -599,12 +627,9 @@ async def init_multipart_upload(
     ``upload_part`` server-side. See the protocol comment above for
     why we abandoned direct-to-S3.
     """
-    project = project_service.get_by_id(request.project_id)
-    if not project or not project_service.verify_project_access(
-        request.project_id,
-        current_user.user_id,
-    ):
-        raise HTTPException(status_code=404, detail="Project not found")
+    grant = authorization.authorize(
+        request.project_id, current_user.user_id, ProjectAction.INGEST_WRITE
+    )
 
     chunk_size = request.chunk_size or _DEFAULT_CHUNK_SIZE
     if chunk_size < _MIN_CHUNK_SIZE:
@@ -619,7 +644,7 @@ async def init_multipart_upload(
         )
 
     entitlement_file_max = entitlement_service.limit_value(
-        project.org_id,
+        grant.org_id,
         "upload.max_single_file_bytes",
     )
     per_file_max_bytes = (
@@ -970,13 +995,15 @@ async def upload_part(
     s3_service: S3Service = Depends(get_s3_service),
     etl_service: ETLService = Depends(get_etl_service),
     current_user: CurrentUser = Depends(get_current_user),
+    authorization: AuthorizationService = Depends(get_authorization_service),
 ):
     """
     Forward one multipart part to S3 on behalf of the browser.
 
     Auth boundary:
-      - The task is looked up by ``task_id`` and must belong to the
-        current user. The ``s3_key`` and ``upload_id`` are pulled
+      - The task is looked up by ``task_id``, must belong to the current user,
+        and its current ProjectGrant must still allow ingest writes. The
+        ``s3_key`` and ``upload_id`` are pulled
         from the task's metadata, never from the client — so a
         compromised browser can't redirect a part to a different
         upload session by tampering with query parameters.
@@ -1007,11 +1034,11 @@ async def upload_part(
       - 502: S3 ``upload_part`` failed (typically transient — the
              client's retry loop should clear it).
     """
-    task = etl_service.task_repository.get_task(task_id)
-    if not task or (
-        task.created_by is not None and task.created_by != current_user.user_id
-    ):
-        raise HTTPException(status_code=404, detail="Task not found")
+    task = _authorize_owned_upload_task(
+        etl_service.task_repository.get_task(task_id),
+        current_user=current_user,
+        authorization=authorization,
+    )
 
     if task.status != ETLTaskStatus.PENDING:
         raise HTTPException(
@@ -1096,6 +1123,7 @@ async def complete_upload(
     s3_service: S3Service = Depends(get_s3_service),
     etl_service: ETLService = Depends(get_etl_service),
     current_user: CurrentUser = Depends(get_current_user),
+    authorization: AuthorizationService = Depends(get_authorization_service),
 ):
     """
     Finalize a direct-to-S3 multipart upload and write the assembled
@@ -1103,8 +1131,9 @@ async def complete_upload(
 
     By the time the client calls this, every part is already in S3.
     We:
-      1. Verify task ownership (the auth boundary on the back end of
-         the protocol — the ``s3_key`` & ``upload_id`` are echoed back
+      1. Verify task ownership and re-resolve the current Project write grant
+         (the auth boundary on the back end of the protocol — the ``s3_key``
+         & ``upload_id`` are echoed back
          from the client and we cross-check them against the task we
          created in /upload/init).
       2. Run S3 ``CompleteMultipartUpload`` to assemble the parts.
@@ -1123,11 +1152,11 @@ async def complete_upload(
          (a request-flag that swaps to the ``etl_finalize_upload_job``
          worker path, which is still wired up).
     """
-    task = etl_service.task_repository.get_task(request.task_id)
-    if not task or (
-        task.created_by is not None and task.created_by != current_user.user_id
-    ):
-        raise HTTPException(status_code=404, detail="Task not found")
+    task = _authorize_owned_upload_task(
+        etl_service.task_repository.get_task(request.task_id),
+        current_user=current_user,
+        authorization=authorization,
+    )
 
     # State guard: complete is a one-way trip from PENDING. Re-calling
     # would race with the finalize worker; the client should consult
@@ -1301,6 +1330,7 @@ async def complete_upload_batch(
     s3_service: S3Service = Depends(get_s3_service),
     etl_service: ETLService = Depends(get_etl_service),
     current_user: CurrentUser = Depends(get_current_user),
+    authorization: AuthorizationService = Depends(get_authorization_service),
 ):
     """
     Finalize multiple multipart uploads as one project-root product commit.
@@ -1347,15 +1377,17 @@ async def complete_upload_batch(
     eligible: list = []  # items that survive validation
 
     for item in request.items:
-        task = etl_service.task_repository.get_task(item.task_id)
-        if not task or (
-            task.created_by is not None
-            and task.created_by != current_user.user_id
-        ):
+        try:
+            task = _authorize_owned_upload_task(
+                etl_service.task_repository.get_task(item.task_id),
+                current_user=current_user,
+                authorization=authorization,
+            )
+        except (HTTPException, AppException):
             item_results[item.task_id] = UploadCompleteItemResult(
                 task_id=item.task_id,
                 status=IngestStatus.FAILED,
-                error="Task not found",
+                error="Task not found or Project write access is no longer available",
             )
             continue
 
@@ -1650,7 +1682,6 @@ async def submit_saas_ingest(
     crawl_options: str | None = Form(None, description="JSON crawl options for generic web URLs"),
 
     # Dependencies
-    project_service: ProjectService = Depends(get_project_service),
     import_service: ImportJobService = Depends(get_import_job_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -1661,9 +1692,6 @@ async def submit_saas_ingest(
     HTTP request. It creates a backend-owned job and lets the ARQ worker
     perform the import.
     """
-
-    if not project_service.verify_project_access(project_id, current_user.user_id):
-        raise HTTPException(status_code=404, detail="Project not found")
 
     try:
         provider = detect_import_provider(url)

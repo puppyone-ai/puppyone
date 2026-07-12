@@ -9,8 +9,10 @@ method_var: ContextVar[str | None] = ContextVar("method", default=None)
 path_var: ContextVar[str | None] = ContextVar("path", default=None)
 client_ip_var: ContextVar[str | None] = ContextVar("client_ip", default=None)
 
-# Per-request cache: key = "project_id:user_id", value = role string or None
-project_access_cache_var: ContextVar[dict[str, str | None] | None] = ContextVar(
+# Per-request cache for immutable authorization decisions. Values are
+# ProjectGrant or None; Any keeps this utility module independent from the
+# authorization domain and avoids a circular import.
+project_access_cache_var: ContextVar[dict[str, Any] | None] = ContextVar(
     "project_access_cache", default=None
 )
 

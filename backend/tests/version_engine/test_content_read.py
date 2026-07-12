@@ -7,6 +7,7 @@ from src.version_engine.domain.errors import PathNotFoundError, VersionReadError
 from src.version_engine.entrypoints.http import content_read
 from src.version_engine.read.tree_reader import VersionEntry
 from src.platform.auth.models import CurrentUser
+from tests.authorization_fakes import authorization_for
 
 
 class _FakeOps:
@@ -31,11 +32,6 @@ class _FakeOps:
 
     def read_file(self, _project_id: str, path: str) -> bytes:
         return self._files[path]
-
-
-class _FakeProjectService:
-    def verify_project_access(self, _project_id: str, _user_id: str) -> str:
-        return "owner"
 
 
 def _user() -> CurrentUser:
@@ -63,7 +59,7 @@ def test_content_ls_includes_dotfiles_by_default():
         "project-1",
         path="",
         ops=_FakeOps(),
-        project_service=_FakeProjectService(),
+        authorization=authorization_for("project-1"),
         current_user=_user(),
     )
 
@@ -79,7 +75,7 @@ def test_content_tree_includes_dotfiles_by_default():
         path="",
         max_depth=-1,
         ops=_FakeOps(),
-        project_service=_FakeProjectService(),
+        authorization=authorization_for("project-1"),
         current_user=_user(),
     )
 
@@ -94,7 +90,7 @@ def test_content_cat_json_returns_raw_text_and_parsed_content():
         "project-1",
         path="config.json",
         ops=_FakeOps(),
-        project_service=_FakeProjectService(),
+        authorization=authorization_for("project-1"),
         current_user=_user(),
     )
 
@@ -108,7 +104,7 @@ def test_content_ls_missing_directory_returns_404_not_empty():
             "project-1",
             path="missing",
             ops=_MissingDirOps(),
-            project_service=_FakeProjectService(),
+            authorization=authorization_for("project-1"),
             current_user=_user(),
         )
 
@@ -127,7 +123,7 @@ def test_content_tree_missing_directory_returns_404_not_empty():
             path="missing",
             max_depth=-1,
             ops=_MissingDirOps(),
-            project_service=_FakeProjectService(),
+            authorization=authorization_for("project-1"),
             current_user=_user(),
         )
 
@@ -145,7 +141,7 @@ def test_content_ls_read_unavailable_returns_502_not_empty():
             "project-1",
             path="",
             ops=_ReadUnavailableOps(),
-            project_service=_FakeProjectService(),
+            authorization=authorization_for("project-1"),
             current_user=_user(),
         )
 

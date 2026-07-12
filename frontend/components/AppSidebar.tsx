@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { GitPullRequestArrow } from 'lucide-react';
 import useSWR from 'swr';
-import type { ProjectInfo } from '../lib/projectsApi';
+import { projectAllows, type ProjectInfo } from '../lib/projectsApi';
 import type { OrganizationInfo } from '../lib/organizationsApi';
 import { getProjectHistory } from '../lib/contentTreeApi';
 import { PROJECT_LOGS_ENABLED } from '../lib/featureFlags';
@@ -208,7 +208,7 @@ export const AppSidebar = memo(function AppSidebar({
       //     </svg>
       //   ),
       // },
-      {
+      ...(projectAllows(activeProjectFromList, 'project.settings.manage') ? [{
         id: 'settings',
         label: t('settings'),
         icon: (
@@ -217,7 +217,7 @@ export const AppSidebar = memo(function AppSidebar({
             <path d='M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 0 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 0 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 0 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3h.1a1.6 1.6 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 0 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8v.1a1.6 1.6 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1Z' />
           </svg>
         ),
-      },
+      }] : []),
     ];
 
     return (

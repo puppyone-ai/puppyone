@@ -17,12 +17,24 @@ export type ProjectInfo = {
   bound_git_branch?: string;
   updated_at?: string;
   access_point_count?: number;
+  /** Server-resolved human authorization. Missing fields fail closed in UI. */
+  effective_role?: 'admin' | 'editor' | 'viewer';
+  grant_source?: 'org_owner' | 'project_member' | 'org_visibility';
+  capabilities?: string[];
 };
+
+export function projectAllows(
+  project: ProjectInfo | null | undefined,
+  capability: string,
+): boolean {
+  return project?.capabilities?.includes(capability) === true;
+}
 
 export interface UpdateProjectPayload {
   name?: string;
   description?: string;
   bound_git_branch?: string;
+  visibility?: 'org' | 'private';
 }
 
 // 保留 TableInfo 用于兼容性

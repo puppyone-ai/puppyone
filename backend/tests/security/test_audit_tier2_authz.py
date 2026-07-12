@@ -24,6 +24,7 @@ from src.exceptions import AppException
 from src.exception_handler import app_exception_handler
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
+from tests.authorization_fakes import authorization_for, install_authorization
 
 ALLOWED = "proj-allowed"
 FOREIGN = "proj-foreign"
@@ -37,6 +38,7 @@ def _base_app() -> FastAPI:
     app = FastAPI()
     app.add_exception_handler(AppException, app_exception_handler)
     app.dependency_overrides[get_current_user] = _user
+    install_authorization(app, authorization_for(ALLOWED))
     return app
 
 
@@ -44,33 +46,31 @@ def _base_app() -> FastAPI:
 
 def _integrations_app(verify_returns):
     from src.platform.integrations.router import router as integ_router
-    from src.platform.project.dependencies import get_project_service
 
     app = _base_app()
     app.include_router(integ_router, prefix="/api/v1")
-
-    svc = MagicMock()
-    svc.verify_project_access.side_effect = verify_returns
-    app.dependency_overrides[get_project_service] = lambda: svc
-    return app, svc
+    return app, MagicMock()
 
 
 def test_trigger_push_foreign_project_forbidden():
     app, _svc = _integrations_app(lambda pid, uid: None)  # never a member
     with TestClient(app) as tc:
         r = tc.post(f"/api/v1/integrations/push/notes/a.md?project_id={FOREIGN}")
-    assert r.status_code == 403, r.text
+    assert r.status_code == 404, r.text
 
 
 # ── Bug 2: project update/delete/seed owner-admin gate ───────────────
 
 def _project_app(role):
     from src.platform.project.router import router as project_router
-    from src.platform.project.dependencies import get_project_service, get_verified_project
-    from src.platform.project.models import Project
+    from src.platform.project.dependencies import (
+        get_project_repository,
+        get_project_service,
+    )
 
     app = _base_app()
     app.include_router(project_router, prefix="/api/v1")
+    install_authorization(app, authorization_for(ALLOWED, role=role))
 
     fake_project = SimpleNamespace(
         id=ALLOWED, name="P", description="", org_id="org-1",
@@ -78,11 +78,12 @@ def _project_app(role):
     )
 
     svc = MagicMock()
-    svc.verify_project_access.return_value = role
     svc.update.return_value = fake_project
     svc.delete.return_value = None
 
-    app.dependency_overrides[get_verified_project] = lambda: fake_project
+    repository = MagicMock()
+    repository.get_by_id.return_value = fake_project
+    app.dependency_overrides[get_project_repository] = lambda: repository
     app.dependency_overrides[get_project_service] = lambda: svc
     return app, svc
 
@@ -90,7 +91,6 @@ def _project_app(role):
 @pytest.mark.parametrize("method,path,body", [
     ("put", f"/api/v1/projects/{ALLOWED}", {"name": "x"}),
     ("delete", f"/api/v1/projects/{ALLOWED}", None),
-    ("post", f"/api/v1/projects/{ALLOWED}/seed", None),
 ])
 def test_project_mutations_reject_plain_member(method, path, body):
     app, svc = _project_app(role="editor")  # member but not owner/admin
@@ -180,7 +180,6 @@ def test_get_connection_detail_masks_credentials(monkeypatch):
 def test_get_connection_run_foreign_project_forbidden():
     from src.platform.integrations import router as integ
     from src.platform.integrations.router import router as integ_router
-    from src.platform.project.dependencies import get_project_service
 
     app = _base_app()
     app.include_router(integ_router, prefix="/api/v1")
@@ -188,11 +187,6 @@ def test_get_connection_run_foreign_project_forbidden():
     svc = MagicMock()
     # connection exists and belongs to a project the caller can't reach
     svc.repository.get_by_id.return_value = SimpleNamespace(id="conn-1", project_id=FOREIGN)
-    proj_svc = MagicMock()
-    proj_svc.verify_project_access.return_value = None  # not a member
-
-    app.dependency_overrides[get_project_service] = lambda: proj_svc
-
     from src.platform.integrations.dependencies import get_integration_service
     app.dependency_overrides[get_integration_service] = lambda: svc
 
@@ -205,7 +199,7 @@ def test_get_connection_run_foreign_project_forbidden():
         run_repo.return_value.get_by_id.return_value = run
         with TestClient(app) as tc:
             r = tc.get("/api/v1/integrations/runs/run-1")
-    assert r.status_code == 403, r.text
+    assert r.status_code == 404, r.text
 
 
 # ── Bug 5: internal table endpoints acting-user access ───────────────
@@ -225,8 +219,10 @@ def test_internal_table_access_rejects_non_member():
     table_service = MagicMock()
     table_service.get_by_id.return_value = SimpleNamespace(project_id="project-x")
 
-    with patch("src.internal.router.ProjectRepositorySupabase") as repo_cls:
-        repo_cls.return_value.verify_project_access.return_value = None
+    with patch(
+        "src.platform.authorization.factory.build_authorization_service",
+        return_value=authorization_for(),
+    ):
         with pytest.raises(HTTPException) as exc:
             _enforce_acting_user_table_access(req, table_service, "table-1")
     assert exc.value.status_code == 403
@@ -249,7 +245,9 @@ def test_internal_table_access_allows_member():
     req = _fake_request({"x-acting-user-id": "alice"})
     table_service = MagicMock()
     table_service.get_by_id.return_value = SimpleNamespace(project_id="project-x")
-    with patch("src.internal.router.ProjectRepositorySupabase") as repo_cls:
-        repo_cls.return_value.verify_project_access.return_value = "member"
+    with patch(
+        "src.platform.authorization.factory.build_authorization_service",
+        return_value=authorization_for("project-x"),
+    ):
         result = _enforce_acting_user_table_access(req, table_service, "table-1")
     assert result == "alice"
