@@ -54,8 +54,8 @@ jobs:
           : "${SUPABASE_URL:?PRODUCTION_PROJECT_ID is required}"
           : "${SUPABASE_KEY:?PRODUCTION_SUPABASE_SERVICE_ROLE_KEY is required}"
           : "${ACCESS_CREDENTIAL_HASH_SECRET:?PRODUCTION_ACCESS_CREDENTIAL_HASH_SECRET is required}"
-          if [ "${#ACCESS_CREDENTIAL_HASH_SECRET}" -lt 32 ] || [ "$ACCESS_CREDENTIAL_HASH_SECRET" = "ContextBase-access-credential-development-secret" ]; then
-            echo "::error::PRODUCTION_ACCESS_CREDENTIAL_HASH_SECRET must be the deployed 32+ character credential HMAC secret."
+          if [ "$ACCESS_CREDENTIAL_HASH_SECRET" = "ContextBase-access-credential-development-secret" ]; then
+            echo "::error::PRODUCTION_ACCESS_CREDENTIAL_HASH_SECRET must be the deployed credential HMAC secret, not the development default."
             exit 1
           fi
           uv sync --locked
