@@ -13,7 +13,7 @@ from src.infra.data_migrations.errors import (
 )
 
 
-def test_database_url_is_passed_only_through_libpq_environment(monkeypatch) -> None:
+def test_database_url_is_split_into_libpq_environment(monkeypatch) -> None:
     calls: list[tuple[list[str], dict[str, str]]] = []
 
     monkeypatch.setattr("shutil.which", lambda executable: f"/usr/bin/{executable}")
@@ -23,12 +23,38 @@ def test_database_url_is_passed_only_through_libpq_environment(monkeypatch) -> N
         return subprocess.CompletedProcess(command, 0, stdout="1\n", stderr="")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
-    client = PsqlClient("postgresql://operator:secret@example.test/postgres")
+    client = PsqlClient(
+        "postgresql://operator:sec%40ret@example.test:5433/postgres"
+        "?sslmode=require&application_name=puppyone-db"
+    )
 
     assert client.scalar("SELECT 1") == "1"
     command, environment = calls[0]
     assert all("secret" not in argument for argument in command)
-    assert environment["PGDATABASE"] == "postgresql://operator:secret@example.test/postgres"
+    assert environment["PGHOST"] == "example.test"
+    assert environment["PGPORT"] == "5433"
+    assert environment["PGDATABASE"] == "postgres"
+    assert environment["PGUSER"] == "operator"
+    assert environment["PGPASSWORD"] == "sec@ret"
+    assert environment["PGSSLMODE"] == "require"
+    assert environment["PGAPPNAME"] == "puppyone-db"
+
+
+@pytest.mark.parametrize(
+    "database_url",
+    (
+        "not-a-url",
+        "https://example.test/postgres",
+        "postgresql:///postgres",
+        "postgresql://example.test",
+        "postgresql://example.test:invalid/postgres",
+    ),
+)
+def test_invalid_database_url_is_rejected(monkeypatch, database_url: str) -> None:
+    monkeypatch.setattr("shutil.which", lambda executable: f"/usr/bin/{executable}")
+
+    with pytest.raises(PrerequisiteError, match="database|PostgreSQL"):
+        PsqlClient(database_url)
 
 
 def test_psql_timeout_is_an_operator_error(monkeypatch) -> None:

@@ -10,13 +10,13 @@ import subprocess
 from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Any
-from urllib.parse import unquote, urlsplit
+from urllib.parse import parse_qs, unquote, urlsplit
 
 from .errors import ExecutionError, MigrationBusyError, PrerequisiteError
 
 
 class PsqlClient:
-    """Execute trusted repository SQL without placing the DB URL in argv."""
+    """Execute trusted repository SQL without placing credentials in argv."""
 
     def __init__(
         self,
@@ -34,9 +34,60 @@ class PsqlClient:
         self.executable = resolved
         self._database_url = database_url
         self.environment = dict(os.environ if base_environment is None else base_environment)
-        # libpq accepts a connection URI through PGDATABASE. Keeping it out of
-        # argv prevents credentials from appearing in process listings.
-        self.environment["PGDATABASE"] = database_url
+        self._bind_libpq_environment(database_url)
+
+    def _bind_libpq_environment(self, database_url: str) -> None:
+        """Translate a PostgreSQL URI into discrete libpq environment fields.
+
+        `PGDATABASE` is a database *name*, not a portable connection-URI slot.
+        Splitting the URI keeps the password out of process arguments while
+        preserving the same behavior for every `psql` subprocess.
+        """
+
+        database = urlsplit(database_url)
+        if database.scheme not in {"postgres", "postgresql"} or not database.hostname:
+            raise PrerequisiteError("DATA_MIGRATION_DATABASE_URL must be a PostgreSQL URI")
+        try:
+            port = database.port or 5432
+        except ValueError as error:
+            raise PrerequisiteError("database URL has an invalid port") from error
+        database_name = unquote(database.path.removeprefix("/"))
+        if not database_name:
+            raise PrerequisiteError("database URL must name a database")
+
+        for name in (
+            "PGSERVICE",
+            "PGSERVICEFILE",
+            "PGHOSTADDR",
+            "PGUSER",
+            "PGPASSWORD",
+            "PGSSLMODE",
+            "PGAPPNAME",
+            "PGCONNECT_TIMEOUT",
+        ):
+            self.environment.pop(name, None)
+        self.environment.update(
+            {
+                "PGHOST": database.hostname,
+                "PGPORT": str(port),
+                "PGDATABASE": database_name,
+            }
+        )
+        if database.username:
+            self.environment["PGUSER"] = unquote(database.username)
+        if database.password:
+            self.environment["PGPASSWORD"] = unquote(database.password)
+
+        query = parse_qs(database.query, keep_blank_values=False)
+        query_environment = {
+            "sslmode": "PGSSLMODE",
+            "application_name": "PGAPPNAME",
+            "connect_timeout": "PGCONNECT_TIMEOUT",
+        }
+        for parameter, environment_name in query_environment.items():
+            values = query.get(parameter)
+            if values:
+                self.environment[environment_name] = values[-1]
 
     def assert_supabase_target(self, *, project_ref: str, api_url: str) -> None:
         """Prove that hosted API and PostgreSQL credentials target one project.
