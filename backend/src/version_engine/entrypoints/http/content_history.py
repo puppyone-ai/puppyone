@@ -1,43 +1,56 @@
 """Commit history API — commits, commit-content, diff, rollback.
 
 All commit identity is hash-based (40-hex SHA-1 ``commit_id`` over the
-git ``commit`` object body). Commits are
-returned ordered by ``(created_at ASC, commit_id ASC)``. The frontend
-history page reverses in-place to show newest-first; the ASC order
-keeps the linear-catch-up semantics usable by the Write Engine's
-clone/pull response fields.
-
-The tuple tiebreaker on ``commit_id`` keeps the order deterministic
-even if two commits land in the same microsecond on the server.
+Git ``commit`` object body). The default linear mode preserves the legacy
+``(created_at ASC, commit_id ASC)`` catch-up contract. ``order=topo`` exposes
+the all-ref Git DAG in deterministic child-before-parent order and pages older
+commits with an exclusive cursor.
 """
 
 from __future__ import annotations
 
 import asyncio
 import json as _json
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from src.common_schemas import ApiResponse
-from src.version_engine.bootstrap.dependencies import get_version_admin_service, get_product_operation_adapter, get_repo_manager
-from src.version_engine.read.history_changes import normalize_history_changes
-from src.version_engine.entrypoints.http.content_helpers import ensure_project_access, ensure_write_access
+from src.platform.auth.dependencies import get_current_user
+from src.platform.auth.models import CurrentUser
+from src.platform.authorization.dependencies import get_authorization_service
+from src.platform.authorization.service import AuthorizationService
+from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
+from src.version_engine.admission.validation import validate_path
+from src.version_engine.bootstrap.dependencies import (
+    get_product_operation_adapter,
+    get_history_graph_service,
+    get_repo_manager,
+    get_version_admin_service,
+)
+from src.version_engine.domain.errors import VersionEngineError
+from src.version_engine.entrypoints.http.content_helpers import (
+    ensure_project_access,
+    ensure_write_access,
+)
 from src.version_engine.entrypoints.http.schemas import (
     DiffResponse,
     FileVersionInfo,
     RollbackRequest,
     RollbackResponse,
+    VersionHistoryRef,
     VersionHistoryResponse,
 )
-from src.version_engine.read.admin import VersionAdminService
-from src.version_engine.domain.errors import VersionEngineError
 from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
-from src.version_engine.admission.validation import validate_path
-from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
-from src.platform.auth.dependencies import get_current_user
-from src.platform.auth.models import CurrentUser
-from src.platform.authorization.dependencies import get_authorization_service
-from src.platform.authorization.service import AuthorizationService
+from src.version_engine.read.admin import VersionAdminService
+from src.version_engine.read.history_graph import HistoryGraphService
+from src.version_engine.read.history_changes import normalize_history_changes
+from src.version_engine.read.history_models import (
+    HistoryCursorError,
+    HistoryGraphTooLargeError,
+    HistoryRefsUnavailableError,
+    HistorySnapshotUnavailableError,
+)
 
 history_router = APIRouter()
 
@@ -50,7 +63,7 @@ history_router = APIRouter()
 async def get_commits(
     project_id: str,
     path: str = Query(None, description="File path (omit for project-level history)"),
-    limit: int = Query(50, description="Maximum number of results"),
+    limit: int = Query(50, ge=1, le=100, description="Maximum number of results"),
     since_commit_id: str = Query(
         "",
         description=(
@@ -59,37 +72,117 @@ async def get_commits(
             "commits (the default)."
         ),
     ),
+    cursor: str = Query(
+        "",
+        description="Exclusive cursor for loading older topological-history pages.",
+    ),
+    order: Literal["linear", "topo"] = Query(
+        "linear",
+        description=(
+            "linear preserves the legacy transaction catch-up contract; topo "
+            "returns all commits reachable from the project's branch/tag refs."
+        ),
+    ),
     version_admin: VersionAdminService = Depends(get_version_admin_service),
+    history_graph: HistoryGraphService = Depends(get_history_graph_service),
     ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
     authorization: AuthorizationService = Depends(get_authorization_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     ensure_project_access(authorization, current_user, project_id)
 
-    entries = await version_admin.get_commit_history(
-        project_id=project_id,
-        path=validate_path(path) if path else None,
-        limit=limit,
-        since_commit_id=since_commit_id,
-    )
+    if cursor and since_commit_id:
+        raise HTTPException(
+            status_code=400,
+            detail="cursor and since_commit_id are mutually exclusive",
+        )
+    graph_mode = order == "topo" or bool(cursor)
+    if graph_mode and (path or since_commit_id):
+        raise HTTPException(
+            status_code=400,
+            detail="topological history is project-level and uses cursor pagination",
+        )
+
+    refs: list[VersionHistoryRef] = []
+    refs_included = False
+    snapshot_id = ""
+    next_cursor: str | None = None
+    has_more = False
+    graph_health: Literal["complete", "degraded"] = "complete"
+    unreadable_commit_ids: list[str] = []
+    if graph_mode:
+        try:
+            page = await history_graph.get_page(
+                project_id,
+                limit=limit,
+                cursor=cursor,
+            )
+        except HistoryCursorError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except HistorySnapshotUnavailableError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except HistoryRefsUnavailableError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except HistoryGraphTooLargeError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        entries = page.entries
+        total = page.total
+        next_cursor = page.next_cursor
+        has_more = page.has_more
+        refs = [
+            VersionHistoryRef(
+                ref_name=ref.ref_name,
+                ref_type=ref.ref_type,
+                commit_id=ref.commit_id,
+            )
+            for ref in page.refs
+        ]
+        refs_included = page.refs_included
+        head_commit_id = page.head_commit_id
+        snapshot_id = page.snapshot_id
+        graph_health = page.graph_health
+        unreadable_commit_ids = list(page.unreadable_commit_ids)
+    else:
+        entries = await version_admin.get_commit_history(
+            project_id=project_id,
+            path=validate_path(path) if path else None,
+            limit=limit,
+            since_commit_id=since_commit_id,
+        )
+        parents_by_commit = await version_admin.get_commit_parent_ids(
+            project_id,
+            [entry.get("commit_id", "") for entry in entries],
+        )
+        entries = [
+            {
+                **entry,
+                "parent_ids": parents_by_commit.get(entry.get("commit_id", ""), []),
+            }
+            for entry in entries
+        ]
+        total = len(entries)
+        head_commit_id = await version_admin.get_project_head_commit_id(project_id)
 
     commits = [
         FileVersionInfo(
             commit_id=e.get("commit_id", ""),
+            parent_ids=e.get("parent_ids") or [],
             who=e.get("who", ""),
             message=e.get("message", ""),
             changes=normalize_history_changes(e.get("changes")),
             conflicts=e.get("conflicts") or [],
             root_hash=e.get("root_hash", ""),
+            scope_hash=e.get("scope_hash", ""),
             scope_path=e.get("scope_path", ""),
             created_at=e.get("created_at"),
             audit_detail=e.get("audit_detail"),
         )
         for e in entries
     ]
-    head_commit_id = commits[-1].commit_id if commits else ""
+    if not head_commit_id and commits:
+        head_commit_id = commits[0].commit_id if graph_mode else commits[-1].commit_id
 
-    root_hash = ops.get_root_hash(project_id) or ""
+    root_hash = await asyncio.to_thread(ops.get_root_hash, project_id) or ""
 
     return ApiResponse.success(data=VersionHistoryResponse(
         project_id=project_id,
@@ -97,7 +190,14 @@ async def get_commits(
         head_commit_id=head_commit_id,
         root_hash=root_hash,
         commits=commits,
-        total=len(commits),
+        refs=refs,
+        refs_included=refs_included,
+        snapshot_id=snapshot_id,
+        next_cursor=next_cursor,
+        has_more=has_more,
+        graph_health=graph_health,
+        unreadable_commit_ids=unreadable_commit_ids,
+        total=total,
     ))
 
 

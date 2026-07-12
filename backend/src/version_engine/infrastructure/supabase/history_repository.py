@@ -43,6 +43,7 @@ import json
 from datetime import datetime, timezone
 
 from src.infra.supabase.client import SupabaseClient
+from src.utils.logger import log_error, log_info, log_warning
 from src.version_engine.infrastructure.supabase import safe_data as _safe_data
 from src.version_engine.infrastructure.supabase.db_names import (
     COMMIT_HISTORY_TABLE,
@@ -52,7 +53,6 @@ from src.version_engine.infrastructure.supabase.db_names import (
     VERSION_INDEX_TABLE,
     VERSION_OUTBOX_TABLE,
 )
-from src.utils.logger import log_error, log_info, log_warning
 
 
 class SupabaseHistoryManager:
@@ -816,6 +816,30 @@ class SupabaseHistoryManager:
         if entry:
             _parse_json_fields(entry)
         return entry
+
+    def get_entries(self, commit_ids: list[str]) -> list[dict]:
+        """Return history metadata for a bounded set of Git commit ids.
+
+        Topological history pages may contain commits that only exist behind
+        a named Git ref and therefore have no transaction-history row.  A
+        single ``IN`` query lets the read model enrich the rows that do exist
+        without issuing one PostgREST request per commit.
+        """
+
+        unique_ids = list(dict.fromkeys(commit_id for commit_id in commit_ids if commit_id))
+        if not unique_ids:
+            return []
+        resp = (
+            self._client.table(self.TABLE)
+            .select("*")
+            .eq("project_id", self._project_id)
+            .in_("commit_id", unique_ids)
+            .execute()
+        )
+        entries = _safe_data(resp) or []
+        for entry in entries:
+            _parse_json_fields(entry)
+        return entries
 
 
 def _normalize(scope_path: str) -> str:

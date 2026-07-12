@@ -22,13 +22,16 @@ from __future__ import annotations
 import asyncio
 import json
 
-from src.version_engine.write_engine.diff import diff_trees
-from src.version_engine.storage.object_store import ObjectStore
-from src.version_engine.write_engine.tree import read_tree
-from src.version_engine.domain.errors import ObjectNotFoundError, VersionEngineError
-
-from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
 from src.utils.logger import log_error
+from src.version_engine.domain.errors import ObjectNotFoundError, VersionEngineError
+from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
+from src.version_engine.read.history_facts import (
+    read_commit_parent_ids,
+    resolve_project_history_head,
+)
+from src.version_engine.storage.object_store import ObjectStore
+from src.version_engine.write_engine.diff import diff_trees
+from src.version_engine.write_engine.tree import read_tree
 
 
 _SCOPE_PROMOTE_TRAILER = "PuppyOne-Source: scope-promote"
@@ -113,6 +116,22 @@ class VersionAdminService:
             entries = entries[-limit:]
 
         return entries
+
+    async def get_project_head_commit_id(self, project_id: str) -> str:
+        """Return the canonical project-view head without reading named refs."""
+
+        repo = self._repos.get_repo(project_id)
+        return await asyncio.to_thread(resolve_project_history_head, repo)
+
+    async def get_commit_parent_ids(
+        self,
+        project_id: str,
+        commit_ids: list[str],
+    ) -> dict[str, list[str]]:
+        """Read parent ids for legacy linear-history rows in one worker hop."""
+
+        repo = self._repos.get_repo(project_id)
+        return await asyncio.to_thread(read_commit_parent_ids, repo, commit_ids)
 
     async def get_commit_content(
         self,

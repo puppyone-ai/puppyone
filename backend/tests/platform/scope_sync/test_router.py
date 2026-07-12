@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
+from src.platform.scope_sync.events import InMemoryEventStore
 from src.platform.scope_sync.router import router
 from src.platform.scope_sync.service import ScopeSyncService, get_scope_sync_service
 from src.platform.scope_sync.settings_store import InMemorySettingsStore
@@ -22,8 +23,6 @@ class _Scope:
     path: str
     is_root: bool
 
-
-from src.platform.scope_sync.events import InMemoryEventStore
 
 _SCOPES = [_Scope("s1", "proj-1", "docs", False), _Scope("s-root", "proj-1", "", True)]
 _LOOKUP = {s.id: s for s in _SCOPES}

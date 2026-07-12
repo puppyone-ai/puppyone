@@ -96,8 +96,8 @@ async def test_scheduler_routes_async_jobs_to_asyncio_default(monkeypatch):
         for func, kwargs in scheduler.jobs
     }
 
-    # Scope sandbox cleanup is lifecycle-owned by the FastAPI app so it can
-    # share the app's stop event. It must not be duplicated in APScheduler.
+    # Sandbox cleanup moved to the app-scoped durable reaper lifecycle. The
+    # deleted in-memory scheduler job must not be reintroduced here.
     assert "sandbox-reaper" not in jobs_by_id
 
     assert jobs_by_id["shadow-snapshot-reaper"][0] is process_shadow_snapshot_reaper
