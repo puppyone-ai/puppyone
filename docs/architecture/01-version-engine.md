@@ -555,6 +555,7 @@ backend/src/version_engine/
     admin.py                       # narrow orchestration for legacy/admin reads
     history_cache.py               # bounded LRU/TTL + per-snapshot single-flight
     history_cursor.py              # authenticated immutable-ref paging cursors
+    history_facts.py               # canonical head + immutable commit decoding
     history_graph.py               # all-ref DAG traversal and page projection
     history_models.py              # typed History read-model contracts/errors
     history_changes.py             # persisted change normalization

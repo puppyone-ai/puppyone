@@ -13,13 +13,13 @@ import hashlib
 import heapq
 import json
 import time
-from datetime import datetime, timezone
 
 from src.utils.logger import log_error, log_info
 from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
 from src.version_engine.infrastructure.supabase.version_ref_repository import VersionRefStore
 from src.version_engine.read.history_cache import HistoryGraphCache
 from src.version_engine.read.history_cursor import HistoryCursorCodec
+from src.version_engine.read.history_facts import read_graph_commit
 from src.version_engine.read.history_models import (
     GraphCommit,
     HistoryCursorError,
@@ -32,11 +32,7 @@ from src.version_engine.read.history_models import (
     ProjectHistoryGraphPage,
 )
 from src.version_engine.write_engine.git_commit import is_git_object_id
-from src.version_engine.write_engine.git_object_format import (
-    decode_commit,
-    decode_tag,
-    split_author_line,
-)
+from src.version_engine.write_engine.git_object_format import decode_tag
 
 
 _MAX_HISTORY_REFS = 512
@@ -191,47 +187,6 @@ class HistoryGraphService:
         return await asyncio.to_thread(_normalize_history_refs, rows, repo)
 
 
-def resolve_project_history_head(repo) -> str:
-    """Resolve the canonical project-view head for legacy linear responses.
-
-    Root state is accepted only when it represents the current canonical root.
-    Older deployments then fall back through the persistent project-view index,
-    the root-scope compatibility row, and finally the legacy global head.
-    """
-
-    history = repo.history
-    root_hash = _safe_call(history, "get_root_hash")
-    scope_hash = ""
-    root_head = ""
-    state_getter = getattr(history, "get_scope_state", None)
-    if callable(state_getter):
-        try:
-            scope_hash, root_head = state_getter("")
-        except Exception:  # noqa: BLE001 - compatibility fallbacks remain available
-            scope_hash, root_head = "", ""
-    else:
-        scope_hash = _safe_call(history, "get_scope_hash", "")
-        root_head = _safe_call(history, "get_scope_head_commit_id", "")
-
-    if is_git_object_id(root_head) and (not root_hash or scope_hash == root_hash):
-        return root_head
-    indexed_head = _safe_call(history, "get_latest_project_view_commit_id")
-    if is_git_object_id(indexed_head):
-        return indexed_head
-    if is_git_object_id(root_head):
-        return root_head
-    legacy_head = _safe_call(history, "get_head_commit_id")
-    return legacy_head if is_git_object_id(legacy_head) else ""
-
-
-def read_commit_parent_ids(repo, commit_ids: list[str]) -> dict[str, list[str]]:
-    parents_by_commit: dict[str, list[str]] = {}
-    for commit_id in dict.fromkeys(commit_ids):
-        node = _read_graph_commit(repo, commit_id)
-        parents_by_commit[commit_id] = list(node.parent_ids) if node else []
-    return parents_by_commit
-
-
 def _normalize_history_refs(rows: list[dict], repo) -> tuple[HistoryRef, ...]:
     refs_by_name: dict[str, HistoryRef] = {}
     for row in rows:
@@ -343,7 +298,7 @@ def _build_graph_snapshot(repo, roots: tuple[str, ...], *, max_nodes: int) -> Hi
                 raise HistoryGraphTooLargeError(
                     f"history graph exceeds the {max_nodes} commit traversal safety limit"
                 )
-            node = _read_graph_commit(repo, commit_id)
+            node = read_graph_commit(repo, commit_id)
             if node is None:
                 unreadable.add(commit_id)
                 continue
@@ -358,51 +313,6 @@ def _build_graph_snapshot(repo, roots: tuple[str, ...], *, max_nodes: int) -> Hi
         nodes=nodes,
         unreadable_commit_ids=tuple(sorted(unreadable)),
     )
-
-
-def _read_graph_commit(repo, commit_id: str) -> GraphCommit | None:
-    if not is_git_object_id(commit_id):
-        return None
-    try:
-        obj_type, content = repo.store.get_object(commit_id)
-        if obj_type != "commit":
-            raise ValueError(f"expected commit object, got {obj_type}")
-        info = decode_commit(content)
-    except Exception as exc:  # noqa: BLE001 - report degraded graph without hiding healthy refs
-        log_error(f"[history-graph] cannot read commit {commit_id}: {exc}")
-        return None
-
-    parent_ids = tuple(dict.fromkeys(
-        parent_id
-        for parent_id in (info.get("parents") or [])
-        if is_git_object_id(parent_id)
-    ))
-    timestamp, created_at = _git_identity_time(info.get("committer") or info.get("author") or "")
-    author_identity, _author_time = split_author_line(info.get("author") or "")
-    author = author_identity.rsplit("<", 1)[0].strip() or author_identity.strip() or "Git"
-    message = (info.get("message") or "").splitlines()[0].strip() or "Update workspace"
-    return GraphCommit(
-        commit_id=commit_id,
-        parent_ids=parent_ids,
-        tree_id=info.get("tree", "") if is_git_object_id(info.get("tree", "")) else "",
-        author=author,
-        message=message,
-        created_at=created_at,
-        timestamp=timestamp,
-    )
-
-
-def _git_identity_time(identity_line: str) -> tuple[int, str | None]:
-    _identity, raw_time = split_author_line(identity_line)
-    try:
-        timestamp = int(raw_time.split(" ", 1)[0])
-    except (TypeError, ValueError):
-        return 0, None
-    try:
-        created_at = datetime.fromtimestamp(timestamp, tz=timezone.utc).isoformat()
-    except (OSError, OverflowError, ValueError):
-        return timestamp, None
-    return timestamp, created_at
 
 
 def _topological_commit_order(
@@ -485,13 +395,3 @@ def _graph_commit_to_history_entry(node: GraphCommit, metadata: dict | None) -> 
         "created_at": metadata.get("created_at") or node.created_at,
         "audit_detail": metadata.get("audit_detail"),
     }
-
-
-def _safe_call(target, method_name: str, *args) -> str:
-    method = getattr(target, method_name, None)
-    if not callable(method):
-        return ""
-    try:
-        return method(*args) or ""
-    except Exception:  # noqa: BLE001 - ordered compatibility fallback
-        return ""

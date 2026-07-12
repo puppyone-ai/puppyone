@@ -25,7 +25,7 @@ import json
 from src.utils.logger import log_error
 from src.version_engine.domain.errors import ObjectNotFoundError, VersionEngineError
 from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
-from src.version_engine.read.history_graph import (
+from src.version_engine.read.history_facts import (
     read_commit_parent_ids,
     resolve_project_history_head,
 )
