@@ -51,6 +51,7 @@ jobs:
     if: inputs.environment == 'staging'
     needs: validate_protected_ref
     uses: ./.github/workflows/_data-migration.yml
+    secrets: inherit
     with:
       environment: staging
       migration_id: ${{ inputs.migration_id }}
@@ -60,6 +61,7 @@ jobs:
     if: inputs.environment == 'production' && inputs.operation == 'run'
     needs: validate_protected_ref
     uses: ./.github/workflows/_data-migration.yml
+    secrets: inherit
     with:
       environment: staging
       migration_id: ${{ inputs.migration_id }}
@@ -75,6 +77,7 @@ jobs:
       - validate_protected_ref
       - production_staging_evidence
     uses: ./.github/workflows/_data-migration.yml
+    secrets: inherit
     with:
       environment: production
       migration_id: ${{ inputs.migration_id }}
