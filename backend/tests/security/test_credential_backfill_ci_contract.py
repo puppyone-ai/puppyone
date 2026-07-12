@@ -49,10 +49,16 @@ def test_scope_backfill_only_skips_the_expected_postgrest_retired_column_error()
     class PostgrestMissingColumn(Exception):
         code = "PGRST204"
 
+    class PostgresMissingColumn(Exception):
+        code = "42703"
+
     assert _legacy_columns_have_been_retired(
         PostgrestMissingColumn(
             "Could not find the 'access_key' column of 'repo_scopes' in the schema cache"
         )
+    )
+    assert _legacy_columns_have_been_retired(
+        PostgresMissingColumn("column repo_scopes.access_key does not exist")
     )
     assert not _legacy_columns_have_been_retired(
         PostgrestMissingColumn("Could not find the 'other_column' column of 'repo_scopes'")

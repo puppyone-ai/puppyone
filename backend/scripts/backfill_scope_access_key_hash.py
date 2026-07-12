@@ -22,13 +22,14 @@ def _legacy_columns_have_been_retired(error: Exception) -> bool:
     """Only treat the expected PostgREST missing-column response as a no-op.
 
     The migration workflow deliberately runs this idempotent backfill before
-    every `db push`.  After the destructive migration has succeeded, querying
-    its dropped columns produces PGRST204. Do not hide network, auth, or other
-    database errors: they must still fail the deployment.
+    every `db push`. After the destructive migration has succeeded, querying
+    its dropped columns can produce PostgREST's PGRST204 or PostgreSQL's 42703
+    (depending on the API path). Do not hide network, auth, or other database
+    errors: they must still fail the deployment.
     """
     message = str(error).lower()
     return (
-        getattr(error, "code", None) == "PGRST204"
+        getattr(error, "code", None) in {"PGRST204", "42703"}
         and "repo_scopes" in message
         and ("access_key" in message or "access_key_hash" in message)
     )
