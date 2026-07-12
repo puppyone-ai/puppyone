@@ -41,8 +41,8 @@ def test_credential_backfills_precede_the_destructive_migration_in_ci() -> None:
         assert workflow.index(surface_backfill) < workflow.index(dry_run)
         assert f"{environment}_SUPABASE_SERVICE_ROLE_KEY" in workflow
         assert f"{environment}_ACCESS_CREDENTIAL_HASH_SECRET" in workflow
-        assert "${#ACCESS_CREDENTIAL_HASH_SECRET}" in workflow
         assert "ContextBase-access-credential-development-secret" in workflow
+        assert "${#ACCESS_CREDENTIAL_HASH_SECRET}" not in workflow
 
 
 def test_scope_backfill_only_skips_the_expected_postgrest_retired_column_error() -> None:
