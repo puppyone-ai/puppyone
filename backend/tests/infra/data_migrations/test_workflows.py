@@ -55,6 +55,24 @@ def test_psql_receives_connection_uri_explicitly() -> None:
     assert validation.count('psql "$DATABASE_URL"') == 4
 
 
+def test_ordered_data_migration_fixtures_are_not_auto_discovered_by_supabase() -> None:
+    supabase_tests = REPOSITORY / "supabase" / "tests"
+    migration = (
+        REPOSITORY
+        / "supabase"
+        / "data_migrations"
+        / "20260712_repo_user_permissions_to_project_members"
+    )
+    validation = (WORKFLOWS / "validate-migrations.yml").read_text()
+
+    assert not list(supabase_tests.glob("*fixture*.sql"))
+    assert not list(supabase_tests.glob("*assert*.sql"))
+    assert (migration / "test_fixture.sql").is_file()
+    assert (migration / "test_assert.sql").is_file()
+    assert "test_fixture.sql" in validation
+    assert "test_assert.sql" in validation
+
+
 def test_production_data_work_cannot_run_from_untrusted_ref() -> None:
     dispatcher = (WORKFLOWS / "data-migration.yml").read_text()
     assert '"refs/heads/qubits"' in dispatcher
