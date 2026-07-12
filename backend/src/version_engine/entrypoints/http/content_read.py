@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json as _json
+import re
 from urllib.parse import quote
 from zipfile import ZIP_DEFLATED
 
@@ -12,6 +13,7 @@ from pydantic import BaseModel, Field
 from zipstream import ZipStream
 
 from src.common_schemas import ApiResponse
+from src.infra.supabase.client import SupabaseClient
 from src.version_engine.bootstrap.dependencies import get_product_operation_adapter
 from src.version_engine.domain.errors import (
     ObjectNotFoundError,
@@ -39,10 +41,69 @@ from src.platform.authorization.dependencies import get_authorization_service
 from src.platform.authorization.service import AuthorizationService
 
 read_router = APIRouter()
+_LEGACY_ROOT_ID_RE = re.compile(r"^[0-9a-f]{16}$")
 
 
-def _raise_storage_integrity_error(path: str, exc: ObjectNotFoundError) -> None:
+def _is_marked_irrecoverable(project_id: str) -> bool:
+    """Classify a known root-loss incident without exposing it to browser roles."""
+
+    try:
+        response = (
+            SupabaseClient().client
+            .table("version_project_root_integrity_incidents")
+            .select("status")
+            .eq("project_id", project_id)
+            .eq("status", "irrecoverable")
+            .limit(1)
+            .execute()
+        )
+        return bool(response.data)
+    except Exception:
+        # Incident classification must never mask the original integrity
+        # failure if a rollout has not yet applied the incident migration.
+        return False
+
+
+def _has_unsupported_legacy_root(project_id: str) -> bool:
+    """Return true only for the retired 16-hex root identifier format.
+
+    This is consulted after an object read already failed.  It makes the
+    terminal state explicit without reintroducing legacy-object compatibility
+    or weakening the canonical 40-hex incident table constraint.
+    """
+
+    try:
+        response = (
+            SupabaseClient().client
+            .table("projects")
+            .select("version_root_hash")
+            .eq("id", project_id)
+            .limit(1)
+            .execute()
+        )
+        rows = response.data or []
+        root_hash = str(rows[0].get("version_root_hash") or "") if rows else ""
+        return bool(_LEGACY_ROOT_ID_RE.fullmatch(root_hash))
+    except Exception:
+        return False
+
+
+def _raise_storage_integrity_error(
+    project_id: str, path: str, exc: ObjectNotFoundError,
+) -> None:
     target = path or "project root"
+    if _is_marked_irrecoverable(project_id) or _has_unsupported_legacy_root(project_id):
+        raise HTTPException(
+            status_code=410,
+            detail={
+                "code": "VERSION_STORAGE_IRRECOVERABLE",
+                "message": (
+                    "This project's historical version content is unavailable and "
+                    "cannot be recovered from the configured storage."
+                ),
+                "path": path,
+            },
+        ) from exc
     raise HTTPException(
         status_code=500,
         detail={
@@ -98,7 +159,7 @@ def list_dir(
     try:
         entries = ops.list_dir(project_id, clean_path)
     except ObjectNotFoundError as exc:
-        _raise_storage_integrity_error(clean_path, exc)
+        _raise_storage_integrity_error(project_id, clean_path, exc)
     except PathNotFoundError as exc:
         _raise_directory_not_found(clean_path, exc)
     except VersionReadError as exc:
@@ -130,7 +191,7 @@ def read_file(
     try:
         content = ops.read_file(project_id, clean_path)
     except ObjectNotFoundError as exc:
-        _raise_storage_integrity_error(clean_path, exc)
+        _raise_storage_integrity_error(project_id, clean_path, exc)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=f"File not found: {clean_path}")
 
@@ -180,14 +241,14 @@ def raw_file(
     try:
         content = ops.read_file(project_id, clean_path)
     except ObjectNotFoundError as exc:
-        _raise_storage_integrity_error(clean_path, exc)
+        _raise_storage_integrity_error(project_id, clean_path, exc)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=f"File not found: {clean_path}")
 
     try:
         entry = ops.stat(project_id, clean_path)
     except ObjectNotFoundError as exc:
-        _raise_storage_integrity_error(clean_path, exc)
+        _raise_storage_integrity_error(project_id, clean_path, exc)
     from src.version_engine.read.tree_reader import detect_mime
     mime = detect_mime(clean_path) if entry else "application/octet-stream"
 
@@ -447,14 +508,14 @@ def inline_file(
     try:
         entry = ops.stat(project_id, clean_path)
     except ObjectNotFoundError as exc:
-        _raise_storage_integrity_error(clean_path, exc)
+        _raise_storage_integrity_error(project_id, clean_path, exc)
     if not entry or entry.type == "folder":
         raise HTTPException(status_code=404, detail=f"File not found: {clean_path}")
 
     try:
         content = ops.read_file(project_id, clean_path)
     except ObjectNotFoundError as exc:
-        _raise_storage_integrity_error(clean_path, exc)
+        _raise_storage_integrity_error(project_id, clean_path, exc)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=f"File not found: {clean_path}")
 
@@ -510,7 +571,7 @@ def download(
     try:
         entry = ops.stat(project_id, clean_path)
     except ObjectNotFoundError as exc:
-        _raise_storage_integrity_error(clean_path, exc)
+        _raise_storage_integrity_error(project_id, clean_path, exc)
     if not entry:
         raise HTTPException(status_code=404, detail=f"Path not found: {clean_path}")
 
@@ -526,7 +587,7 @@ def download(
         try:
             entries = ops.list_tree(project_id, clean_path, max_depth=-1)
         except ObjectNotFoundError as exc:
-            _raise_storage_integrity_error(clean_path, exc)
+            _raise_storage_integrity_error(project_id, clean_path, exc)
         except PathNotFoundError as exc:
             _raise_directory_not_found(clean_path, exc)
         except VersionReadError as exc:
@@ -589,7 +650,7 @@ def download(
     try:
         content = ops.read_file(project_id, clean_path)
     except ObjectNotFoundError as exc:
-        _raise_storage_integrity_error(clean_path, exc)
+        _raise_storage_integrity_error(project_id, clean_path, exc)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=f"File not found: {clean_path}")
 
@@ -632,7 +693,7 @@ def stat(
     try:
         entry = ops.stat(project_id, clean_path)
     except ObjectNotFoundError as exc:
-        _raise_storage_integrity_error(clean_path, exc)
+        _raise_storage_integrity_error(project_id, clean_path, exc)
     if not entry:
         return ApiResponse.success(data=StatResponse(
             path=clean_path,
@@ -677,7 +738,7 @@ def full_tree(
     try:
         entries = ops.list_tree(project_id, clean_path, max_depth=max_depth)
     except ObjectNotFoundError as exc:
-        _raise_storage_integrity_error(clean_path, exc)
+        _raise_storage_integrity_error(project_id, clean_path, exc)
     except PathNotFoundError as exc:
         _raise_directory_not_found(clean_path, exc)
     except VersionReadError as exc:

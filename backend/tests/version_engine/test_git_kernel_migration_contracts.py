@@ -918,7 +918,7 @@ def test_scope_credentials_are_hash_only_access_surface_credentials() -> None:
         / "supabase/migrations/20260711070000_move_scope_credentials_to_access_credentials.sql"
     ).read_text(encoding="utf-8")
     assert "INSERT INTO public.access_surface_credentials" in migration
-    assert "run backfill_scope_access_key_hash.py first" in migration
+    assert "legacy credential backfill is incomplete" in migration
     for column in ("access_key", "access_key_hash", "access_key_revoked_at"):
         assert f"DROP COLUMN IF EXISTS {column}" in migration
     assert "NOT (config ? 'access_key')" in migration
@@ -944,6 +944,45 @@ def test_object_gc_has_durable_recovery_window_and_metrics() -> None:
     ).read_text(encoding="utf-8")
     assert "VERSION_OBJECT_GC_QUARANTINE_SECONDS" in worker
     assert "version_object_gc_runs" in worker
+
+
+def test_object_gc_sync_rpc_ambiguity_has_forward_fix_and_execution_smoke() -> None:
+    fix = (
+        REPO_ROOT
+        / "supabase/migrations/20260711130000_fix_object_gc_candidate_sync_ambiguity.sql"
+    ).read_text(encoding="utf-8")
+    assert "RETURNS TABLE(object_id text)" in fix
+    assert "ON CONFLICT ON CONSTRAINT version_object_gc_candidates_pkey" in fix
+    assert "ON CONFLICT (project_id, object_id)" not in fix
+
+    smoke = (REPO_ROOT / "supabase/tests/smoke_test_triggers.sql").read_text(
+        encoding="utf-8"
+    )
+    assert "sync_version_object_gc_candidates" in smoke
+    assert "__object_gc_rpc_smoke__" in smoke
+    assert "ROLLBACK;" in smoke
+
+
+def test_irrecoverable_root_incidents_are_private_and_durable() -> None:
+    migration = (
+        REPO_ROOT
+        / "supabase/migrations/20260711140000_version_project_root_integrity_incidents.sql"
+    ).read_text(encoding="utf-8")
+    assert "version_project_root_integrity_incidents" in migration
+    assert "REFERENCES public.projects(id) ON DELETE CASCADE" in migration
+    assert "^[0-9a-f]{40}$" in migration
+    assert "ENABLE ROW LEVEL SECURITY" in migration
+    assert "FOR ALL TO service_role" in migration
+    assert "FROM PUBLIC, anon, authenticated" in migration
+
+    repair = (BACKEND_ROOT / "scripts/repair_missing_project_roots.py").read_text(
+        encoding="utf-8"
+    )
+    assert "mark_project_root_irrecoverable" in repair
+    assert "cas_update_root_hash" not in repair.split(
+        "def mark_project_root_irrecoverable", 1
+    )[1].split("def _project_ids", 1)[0]
+
 
 
 def test_legacy_mcp_and_sandbox_runtime_packages_are_retired() -> None:
