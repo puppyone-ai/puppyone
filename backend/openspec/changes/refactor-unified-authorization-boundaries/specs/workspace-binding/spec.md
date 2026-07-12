@@ -24,4 +24,3 @@ revocable Project-level binding that grants no authorization by itself.
 - **WHEN** membership, role, account, host, binding, or binding credential changes
 - **THEN** the next Cloud request re-evaluates authorization and fails closed
 - **AND** local files remain available
-

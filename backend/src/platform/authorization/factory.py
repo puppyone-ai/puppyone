@@ -17,4 +17,3 @@ def build_authorization_service(
     supabase_client: Any | None = None,
 ) -> AuthorizationService:
     return AuthorizationService(AuthorizationRepository(supabase_client))
-

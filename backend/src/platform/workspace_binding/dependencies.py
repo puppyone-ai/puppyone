@@ -17,4 +17,3 @@ def get_workspace_binding_service(
     authorization: AuthorizationService = Depends(get_authorization_service),
 ) -> WorkspaceBindingService:
     return WorkspaceBindingService(repository, authorization)
-

@@ -35,4 +35,3 @@ grant and makes the same action produce different decisions across entry points.
   `repo_user_permissions` is retired
 - Breaking API change: Project responses expose effective authorization and
   Desktop uses binding/readiness endpoints instead of heuristic discovery
-

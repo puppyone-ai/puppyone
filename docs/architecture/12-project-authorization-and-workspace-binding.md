@@ -208,4 +208,3 @@ return no Projects rather than a partial metadata leak.
 
 Deployment and rollback gates are defined in
 [ISSUE-029 authorization cutover](../ops/issue-029-authorization-cutover.md).
-
