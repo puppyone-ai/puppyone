@@ -152,6 +152,9 @@ def test_migrations_define_nine_table_target_and_blocking_retirement():
     assert "_repo_scope_reconcile_workspace_bindings" in foundation
     assert "invalid_access_tool_bindings" in foundation
     assert "AND kind = 'cli'" in foundation
+    assert "REVOKE ALL ON FUNCTION public.rotate_access_surface_bearer_token" in foundation
+    assert "REVOKE ALL ON FUNCTION public.unified_authorization_preflight()" in foundation
+    assert "REVOKE ALL ON FUNCTION public.unified_authorization_preflight()" in retirement
     assert "legacy_denied" in retirement
     assert "legacy_scoped" in retirement
     assert "RAISE EXCEPTION" in retirement
@@ -176,7 +179,8 @@ def test_database_contract_suite_and_ci_gate_are_wired():
     workflow = (
         BACKEND.parent / ".github" / "workflows" / "validate-migrations.yml"
     ).read_text()
-    assert "SELECT plan(53);" in contract
+    assert "SELECT plan(55);" in contract
+    assert "has_function_privilege" in contract
     assert contract.count("SELECT throws_ok(") >= 6
     assert "root/non-root identity drift" in contract
     assert "Agent child permissions cannot import a sibling Project tool" in contract
