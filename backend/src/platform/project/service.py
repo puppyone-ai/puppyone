@@ -9,6 +9,7 @@ import re
 from dataclasses import dataclass
 
 from src.exceptions import ErrorCode, NotFoundException, PermissionException
+from src.platform.authorization.repository import ProjectMembershipRepository
 from src.platform.project.models import Project
 from src.platform.project.repository import ProjectRepositoryBase
 
@@ -71,8 +72,13 @@ class TableInfo:
 class ProjectService:
     """Encapsulates business logic for projects"""
 
-    def __init__(self, repo: ProjectRepositoryBase):
+    def __init__(
+        self,
+        repo: ProjectRepositoryBase,
+        memberships: ProjectMembershipRepository,
+    ):
         self.repo = repo
+        self.memberships = memberships
 
     def get_by_id(self, project_id: str) -> Project | None:
         """
@@ -85,36 +91,6 @@ class ProjectService:
             Project object, or None if not found
         """
         return self.repo.get_by_id(project_id)
-
-    def get_by_id_with_access_check(self, project_id: str, user_id: str) -> Project:
-        """
-        Get project and verify user access
-
-        Checks whether the user belongs to the project's organization via the org_members table
-
-        Args:
-            project_id: Project ID
-            user_id: User ID
-
-        Returns:
-            Verified Project object
-
-        Raises:
-            NotFoundException: If project does not exist or user has no access
-        """
-        project = self.get_by_id(project_id)
-        if not project:
-            raise NotFoundException(
-                f"Project not found: {project_id}", code=ErrorCode.NOT_FOUND
-            )
-
-        has_access = self.repo.verify_project_access(project_id, user_id)
-        if not has_access:
-            raise NotFoundException(
-                f"Project not found: {project_id}", code=ErrorCode.NOT_FOUND
-            )
-
-        return project
 
     def get_by_org_id(self, org_id: str) -> list[Project]:
         """
@@ -154,25 +130,6 @@ class ProjectService:
             org_id=org_id,
             created_by=created_by,
         )
-        # Auto-insert the creator into ``project_members`` so the
-        # settings UI shows them immediately. Access-wise this is a
-        # no-op (the org owner already has access via
-        # ``verify_project_access``) — the row is purely for visibility
-        # in the membership list. Role ``admin`` because ``owner`` is
-        # not in the ``project_members.role`` CHECK constraint
-        # (``admin|editor|viewer``).
-        try:
-            self.add_project_member(project.id, created_by, "admin")
-        except Exception as exc:
-            # Failure here doesn't roll back the project — the user
-            # can still re-add themselves manually. Log and move on
-            # rather than failing project creation.
-            import logging
-            logging.getLogger(__name__).warning(
-                "[project.create] failed to auto-add creator %s as member of "
-                "project %s: %s",
-                created_by, project.id, exc,
-            )
         return project
 
     def update(
@@ -180,6 +137,7 @@ class ProjectService:
         project_id: str,
         name: str | None,
         description: str | None,
+        visibility: str | None = None,
         bound_git_branch: str | None = None,
     ) -> Project:
         """
@@ -201,6 +159,7 @@ class ProjectService:
             project_id=project_id,
             name=name,
             description=description,
+            visibility=visibility,
             bound_git_branch=bound_git_branch,
         )
         if not updated:
@@ -225,59 +184,8 @@ class ProjectService:
                 f"Project not found: {project_id}", code=ErrorCode.NOT_FOUND
             )
 
-    def verify_project_access(self, project_id: str, user_id: str) -> str | None:
-        """
-        Verify whether the user has access to the specified project
-
-        Args:
-            project_id: Project ID
-            user_id: User ID
-
-        Returns:
-            User's role string in the organization, or None if no access
-        """
-        return self.repo.verify_project_access(project_id, user_id)
-
-    def update_visibility(self, project_id: str, visibility: str, user_id: str) -> Project:
-        from src.platform.organization.repository import OrganizationRepository
-        project = self.get_by_id(project_id)
-        if not project:
-            raise NotFoundException(f"Project not found: {project_id}", code=ErrorCode.NOT_FOUND)
-
-        org_repo = OrganizationRepository()
-        member = org_repo.get_member(project.org_id, user_id)
-        if not member or member.role != "owner":
-            raise NotFoundException("Only org owner can change project visibility", code=ErrorCode.NOT_FOUND)
-
-        if visibility not in ("org", "private"):
-            raise NotFoundException("visibility must be 'org' or 'private'", code=ErrorCode.NOT_FOUND)
-
-        updated = self.repo.update(project_id, name=None, description=None, visibility=visibility)
-        return updated
-
     def list_project_members(self, project_id: str) -> list:
-        from src.infra.supabase.dependencies import get_supabase_client
-
-        client = get_supabase_client()
-        try:
-            resp = (
-                client.table("project_members")
-                .select("*, profiles(email, display_name, avatar_url)")
-                .eq("project_id", project_id)
-                .order("created_at")
-                .execute()
-            )
-            rows = resp.data or []
-        except Exception:
-            # Fallback: query without join if profiles table has issues
-            resp = (
-                client.table("project_members")
-                .select("*")
-                .eq("project_id", project_id)
-                .order("created_at")
-                .execute()
-            )
-            rows = resp.data or []
+        rows = self.memberships.list_by_project(project_id)
 
         # ── Backfill missing profile data from auth.users ─────────────
         # The PostgREST join returns ``profiles=None`` (or fields all
@@ -337,37 +245,51 @@ class ProjectService:
                 continue
         return out
 
-    def add_project_member(self, project_id: str, target_user_id: str, role: str) -> dict:
-        from src.infra.supabase.dependencies import get_supabase_client
-        from src.utils.id_generator import generate_uuid_v7
-        client = get_supabase_client()
-        data = {
-            "id": generate_uuid_v7(),
-            "project_id": project_id,
-            "user_id": target_user_id,
-            "role": role,
-        }
-        resp = client.table("project_members").insert(data).execute()
-        return resp.data[0] if resp.data else data
-
-    def update_project_member_role(self, project_id: str, target_user_id: str, role: str) -> dict:
-        from src.infra.supabase.dependencies import get_supabase_client
-        client = get_supabase_client()
-        resp = (
-            client.table("project_members")
-            .update({"role": role})
-            .eq("project_id", project_id)
-            .eq("user_id", target_user_id)
-            .execute()
+    def add_project_member(
+        self,
+        project_id: str,
+        target_user_id: str,
+        role: str,
+        *,
+        granted_by: str | None = None,
+    ) -> dict:
+        if granted_by is None:
+            raise PermissionException(
+                "Project member changes require an authenticated actor",
+                code=ErrorCode.FORBIDDEN,
+            )
+        row = self.memberships.add(
+            project_id, target_user_id, role, granted_by
         )
-        if not resp.data:
-            raise NotFoundException("Project member not found", code=ErrorCode.NOT_FOUND)
-        return resp.data[0]
+        if not row:
+            raise PermissionException(
+                "Project member could not be added", code=ErrorCode.FORBIDDEN
+            )
+        return row
 
-    def remove_project_member(self, project_id: str, target_user_id: str) -> None:
-        from src.infra.supabase.dependencies import get_supabase_client
-        client = get_supabase_client()
-        client.table("project_members").delete().eq("project_id", project_id).eq("user_id", target_user_id).execute()
+    def update_project_member_role(
+        self,
+        project_id: str,
+        target_user_id: str,
+        role: str,
+        *,
+        actor_user_id: str,
+    ) -> dict:
+        row = self.memberships.update_role(
+            project_id, target_user_id, role, actor_user_id
+        )
+        if not row:
+            raise NotFoundException("Project member not found", code=ErrorCode.NOT_FOUND)
+        return row
+
+    def remove_project_member(
+        self, project_id: str, target_user_id: str, *, actor_user_id: str
+    ) -> None:
+        changed = self.memberships.remove(
+            project_id, target_user_id, actor_user_id
+        )
+        if not changed:
+            raise NotFoundException("Project member not found", code=ErrorCode.NOT_FOUND)
 
     # ── Share link MVP ──
 
@@ -383,12 +305,6 @@ class ProjectService:
         otherwise); we keep the field so the frontend can branch on a
         single property when there are future role tiers.
         """
-        role = self.verify_project_access(project_id, user_id)
-        if role not in ("owner", "admin"):
-            raise PermissionException(
-                "Only org owner or project admin can view the share link",
-                code=ErrorCode.FORBIDDEN,
-            )
         project = self.get_by_id(project_id)
         if not project:
             raise NotFoundException(
@@ -404,12 +320,6 @@ class ProjectService:
 
         Owner/admin only — see ``get_share_info``.
         """
-        role = self.verify_project_access(project_id, user_id)
-        if role not in ("owner", "admin"):
-            raise PermissionException(
-                "Only org owner or project admin can rotate the share link",
-                code=ErrorCode.FORBIDDEN,
-            )
         updated = self.repo.rotate_share_token(project_id)
         if not updated:
             raise NotFoundException(
@@ -428,29 +338,10 @@ class ProjectService:
         we silently return their existing role rather than 409 (the
         observable goal — "I'm in this project now" — is met).
         """
-        project = self.repo.find_by_share_token(token)
-        if not project:
+        row = self.memberships.join_with_share_token(token, user_id)
+        if not row:
             raise NotFoundException(
                 "Share link is invalid or has been rotated",
                 code=ErrorCode.NOT_FOUND,
             )
-
-        # If the caller is already a project member (or org owner with
-        # implicit access), just return the join info without
-        # re-inserting. Matches the org-invite accept idempotency.
-        existing_role = self.verify_project_access(project.id, user_id)
-        if existing_role:
-            return {
-                "project_id": project.id,
-                "project_name": project.name,
-                "role": existing_role,
-                "newly_joined": False,
-            }
-
-        self.add_project_member(project.id, user_id, "viewer")
-        return {
-            "project_id": project.id,
-            "project_name": project.name,
-            "role": "viewer",
-            "newly_joined": True,
-        }
+        return row

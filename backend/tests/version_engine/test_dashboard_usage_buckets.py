@@ -30,6 +30,10 @@ class FakeTable:
         self._in_filters.append((col, set(ids)))
         return self
 
+    def is_(self, col, value):
+        self._eq_filters.append((col, None if value == "null" else value))
+        return self
+
     def gte(self, _col, val):
         self._gte_filters.append((_col, val))
         return self

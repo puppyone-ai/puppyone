@@ -20,6 +20,7 @@ from src.platform.analytics import router as analytics_router_mod
 from src.platform.analytics.router import router as analytics_router
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
+from tests.authorization_fakes import authorization_for, install_authorization
 
 ALLOWED = "proj-allowed"
 FOREIGN = "proj-foreign"
@@ -57,21 +58,16 @@ class _RecordingClient:
 
 
 def _install(monkeypatch, *, member_of):
-    """Wire fakes: membership + supabase. Returns the recording client."""
+    """Wire the Supabase analytics seam. Returns the recording client."""
     client = _RecordingClient()
     monkeypatch.setattr(analytics_router_mod, "get_supabase_client", lambda: client)
-
-    class _FakeProjectRepo:
-        def verify_project_access(self, project_id, user_id):
-            return "member" if project_id in member_of else None
-
-    monkeypatch.setattr(analytics_router_mod, "ProjectRepositorySupabase", _FakeProjectRepo)
     return client
 
 
-def _app(authed: bool):
+def _app(authed: bool, member_of=()):
     app = FastAPI()
     app.include_router(analytics_router)
+    install_authorization(app, authorization_for(*member_of))
     if authed:
         app.dependency_overrides[get_current_user] = lambda: CurrentUser(
             user_id="user-alice", email="a@example.com", role="authenticated",
@@ -83,21 +79,21 @@ def test_anonymous_is_rejected_401(monkeypatch):
     _install(monkeypatch, member_of={ALLOWED})
     # No get_current_user override → real dependency runs; SKIP_AUTH disabled by
     # the security conftest, so a missing bearer token must 401.
-    with TestClient(_app(authed=False)) as client:
+    with TestClient(_app(authed=False, member_of={ALLOWED})) as client:
         r = client.get(f"/api/v1/analytics/access-timeseries?project_id={ALLOWED}")
     assert r.status_code == 401, r.text
 
 
 def test_missing_project_id_is_422(monkeypatch):
     _install(monkeypatch, member_of={ALLOWED})
-    with TestClient(_app(authed=True)) as client:
+    with TestClient(_app(authed=True, member_of={ALLOWED})) as client:
         r = client.get("/api/v1/analytics/access-timeseries")
     assert r.status_code == 422, r.text
 
 
 def test_non_member_is_403_and_no_query(monkeypatch):
     client = _install(monkeypatch, member_of=set())  # member of nothing
-    with TestClient(_app(authed=True)) as tc:
+    with TestClient(_app(authed=True, member_of=set())) as tc:
         r = tc.get(f"/api/v1/analytics/access-timeseries?project_id={FOREIGN}")
     assert r.status_code == 403, r.text
     # CRITICAL: access_logs must NOT have been queried before the 403.
@@ -106,7 +102,7 @@ def test_non_member_is_403_and_no_query(monkeypatch):
 
 def test_member_query_is_scoped_to_project(monkeypatch):
     client = _install(monkeypatch, member_of={ALLOWED})
-    with TestClient(_app(authed=True)) as tc:
+    with TestClient(_app(authed=True, member_of={ALLOWED})) as tc:
         r = tc.get(f"/api/v1/analytics/access-timeseries?project_id={ALLOWED}")
     assert r.status_code == 200, r.text
     rpc = next(call for call in client.calls if call[:2] == ("rpc", "analytics_access_timeseries"))
@@ -115,7 +111,7 @@ def test_member_query_is_scoped_to_project(monkeypatch):
 
 def test_summary_also_scoped_and_authenticated(monkeypatch):
     client = _install(monkeypatch, member_of={ALLOWED})
-    with TestClient(_app(authed=True)) as tc:
+    with TestClient(_app(authed=True, member_of={ALLOWED})) as tc:
         r = tc.get(f"/api/v1/analytics/access-summary?project_id={ALLOWED}")
     assert r.status_code == 200, r.text
     rpc = next(call for call in client.calls if call[:2] == ("rpc", "analytics_access_summary"))
@@ -123,7 +119,7 @@ def test_summary_also_scoped_and_authenticated(monkeypatch):
 
     # And a non-member is blocked on the summary endpoint too.
     client2 = _install(monkeypatch, member_of=set())
-    with TestClient(_app(authed=True)) as tc:
+    with TestClient(_app(authed=True, member_of=set())) as tc:
         r2 = tc.get(f"/api/v1/analytics/access-summary?project_id={FOREIGN}")
     assert r2.status_code == 403, r2.text
     assert not any(call[0] in {"table", "rpc"} for call in client2.calls)

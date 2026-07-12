@@ -45,11 +45,6 @@ class ProjectRepositoryBase(ABC):
     def delete(self, project_id: str) -> bool:
         """Delete a project"""
 
-    @abstractmethod
-    def verify_project_access(self, project_id: str, user_id: str) -> str | None:
-        """Verify whether user has access to the specified project; returns role string or None"""
-
-
 class ProjectRepositorySupabase(ProjectRepositoryBase):
     """Supabase-based Project repository implementation"""
 
@@ -130,7 +125,7 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
             # string; same entropy budget we use for org-invite tokens.
             share_token=secrets.token_urlsafe(24),
         )
-        project_response = self._supabase_repo.create_project(project_data)
+        project_response = self._supabase_repo.create_project_with_admin(project_data)
         return self._project_response_to_project(project_response)
 
     def rotate_share_token(self, project_id: str) -> Project | None:
@@ -226,63 +221,6 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
             Whether deletion was successful
         """
         return self._supabase_repo.delete_project(project_id)
-
-    def verify_project_access(self, project_id: str, user_id: str) -> str | None:
-        """
-        Verify whether user has access to the specified project
-
-        Access logic:
-        1. visibility='org' -> any member of the org can access
-        2. visibility='private' -> only org owner or members in project_members can access
-
-        Uses per-request contextvar cache to avoid redundant DB lookups
-        when the same project+user pair is checked multiple times.
-
-        Returns:
-            Role string (org role or project role), or None if no access
-        """
-        from src.utils.request_context import project_access_cache_var
-
-        cache_key = f"{project_id}:{user_id}"
-        cache = project_access_cache_var.get()
-        if cache is not None and cache_key in cache:
-            return cache[cache_key]
-
-        result = self._verify_project_access_uncached(project_id, user_id)
-
-        if cache is not None:
-            cache[cache_key] = result
-
-        return result
-
-    def _verify_project_access_uncached(self, project_id: str, user_id: str) -> str | None:
-        project = self.get_by_id(project_id)
-        if not project:
-            return None
-
-        from src.platform.organization.repository import OrganizationRepository
-        org_repo = OrganizationRepository()
-        member = org_repo.get_member(project.org_id, user_id)
-
-        if project.visibility == "org":
-            return member.role if member else None
-
-        if member and member.role == "owner":
-            return "owner"
-
-        from src.infra.supabase.dependencies import get_supabase_client
-        client = get_supabase_client()
-        resp = (
-            client.table("project_members")
-            .select("role")
-            .eq("project_id", project_id)
-            .eq("user_id", user_id)
-            .execute()
-        )
-        if resp.data:
-            return resp.data[0]["role"]
-
-        return None
 
     def _project_response_to_project(self, project_response) -> Project:
         """

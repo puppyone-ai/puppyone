@@ -36,8 +36,8 @@ from src.version_engine.admission.validation import validate_path
 from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
-from src.platform.project.dependencies import get_project_service
-from src.platform.project.service import ProjectService
+from src.platform.authorization.dependencies import get_authorization_service
+from src.platform.authorization.service import AuthorizationService
 
 history_router = APIRouter()
 
@@ -61,10 +61,10 @@ async def get_commits(
     ),
     version_admin: VersionAdminService = Depends(get_version_admin_service),
     ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
-    project_service: ProjectService = Depends(get_project_service),
+    authorization: AuthorizationService = Depends(get_authorization_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    ensure_project_access(project_service, current_user, project_id)
+    ensure_project_access(authorization, current_user, project_id)
 
     entries = await version_admin.get_commit_history(
         project_id=project_id,
@@ -110,10 +110,10 @@ async def get_commit_content(
     path: str = Query(..., description="File path"),
     commit_id: str = Query(..., description="Commit id (40-hex SHA-1)"),
     version_admin: VersionAdminService = Depends(get_version_admin_service),
-    project_service: ProjectService = Depends(get_project_service),
+    authorization: AuthorizationService = Depends(get_authorization_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    ensure_project_access(project_service, current_user, project_id)
+    ensure_project_access(authorization, current_user, project_id)
 
     clean_path = validate_path(path)
     try:
@@ -164,10 +164,10 @@ async def diff_commits(
     from_commit_id: str = Query(..., description="Source commit id"),
     to_commit_id: str = Query(..., description="Target commit id"),
     version_admin: VersionAdminService = Depends(get_version_admin_service),
-    project_service: ProjectService = Depends(get_project_service),
+    authorization: AuthorizationService = Depends(get_authorization_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    ensure_project_access(project_service, current_user, project_id)
+    ensure_project_access(authorization, current_user, project_id)
 
     try:
         changes = await version_admin.compute_diff(project_id, from_commit_id, to_commit_id)
@@ -202,10 +202,10 @@ async def rollback(
     project_id: str,
     body: RollbackRequest,
     repo_manager: VersionRepoManager = Depends(get_repo_manager),
-    project_service: ProjectService = Depends(get_project_service),
+    authorization: AuthorizationService = Depends(get_authorization_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    ensure_write_access(project_service, current_user, project_id)
+    ensure_write_access(authorization, current_user, project_id)
 
     from src.version_engine.write_engine.engine import VersionWriteEngine
     from src.version_engine.domain.intents import RollbackIntent

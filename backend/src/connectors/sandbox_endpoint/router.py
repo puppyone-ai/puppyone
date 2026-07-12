@@ -12,8 +12,10 @@ from src.connectors.sandbox_endpoint.schemas import (
     SandboxEndpointOut,
 )
 from src.connectors.sandbox_endpoint.dependencies import (
+    get_credential_sandbox_endpoint,
     get_sandbox_endpoint_service,
     get_verified_sandbox_endpoint,
+    get_writable_sandbox_endpoint,
 )
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
@@ -21,6 +23,9 @@ from src.common_schemas import ApiResponse
 from src.platform.scope_sandbox.execution.dependencies import get_sandbox_service
 from src.platform.scope_sandbox.execution.service import SandboxService
 from src.connectors.agent.sandbox_session import SandboxFile
+from src.platform.authorization.dependencies import get_authorization_service
+from src.platform.authorization.models import ProjectAction
+from src.platform.authorization.service import AuthorizationService
 
 
 router = APIRouter(
@@ -183,9 +188,11 @@ def list_endpoints(
     project_id: str = Query(..., description="Project ID"),
     current_user: CurrentUser = Depends(get_current_user),
     service: SandboxEndpointService = Depends(get_sandbox_endpoint_service),
+    authorization: AuthorizationService = Depends(get_authorization_service),
 ):
-    if not service.verify_project_access(project_id, current_user.user_id):
-        raise HTTPException(status_code=403, detail="Access denied")
+    authorization.authorize(
+        project_id, current_user.user_id, ProjectAction.ACCESS_READ
+    )
     rows = service.list_endpoints(project_id)
     return ApiResponse.success(data=[_to_out(r) for r in rows])
 
@@ -210,12 +217,14 @@ def get_by_path(
     path: str,
     current_user: CurrentUser = Depends(get_current_user),
     service: SandboxEndpointService = Depends(get_sandbox_endpoint_service),
+    authorization: AuthorizationService = Depends(get_authorization_service),
 ):
     row = service.get_by_path(path)
     if not row:
         raise HTTPException(status_code=404, detail="No Sandbox endpoint for this path")
-    if not service.verify_access(row["id"], current_user.user_id):
-        raise HTTPException(status_code=403, detail="Access denied")
+    authorization.authorize(
+        row["project_id"], current_user.user_id, ProjectAction.ACCESS_READ
+    )
     return ApiResponse.success(data=_to_out(row))
 
 
@@ -228,9 +237,11 @@ def create_endpoint(
     payload: SandboxEndpointCreate,
     current_user: CurrentUser = Depends(get_current_user),
     service: SandboxEndpointService = Depends(get_sandbox_endpoint_service),
+    authorization: AuthorizationService = Depends(get_authorization_service),
 ):
-    if not service.verify_project_access(payload.project_id, current_user.user_id):
-        raise HTTPException(status_code=403, detail="Access denied")
+    authorization.authorize(
+        payload.project_id, current_user.user_id, ProjectAction.SANDBOX_MANAGE
+    )
     row = service.create_endpoint(
         project_id=payload.project_id,
         name=payload.name,
@@ -251,7 +262,7 @@ def create_endpoint(
 )
 def update_endpoint(
     payload: SandboxEndpointUpdate,
-    endpoint: dict = Depends(get_verified_sandbox_endpoint),
+    endpoint: dict = Depends(get_writable_sandbox_endpoint),
     current_user: CurrentUser = Depends(get_current_user),
     service: SandboxEndpointService = Depends(get_sandbox_endpoint_service),
 ):
@@ -268,7 +279,7 @@ def update_endpoint(
     summary="Delete Sandbox endpoint",
 )
 def delete_endpoint(
-    endpoint: dict = Depends(get_verified_sandbox_endpoint),
+    endpoint: dict = Depends(get_writable_sandbox_endpoint),
     current_user: CurrentUser = Depends(get_current_user),
     service: SandboxEndpointService = Depends(get_sandbox_endpoint_service),
 ):
@@ -282,7 +293,7 @@ def delete_endpoint(
     summary="Regenerate access key",
 )
 def regenerate_key(
-    endpoint: dict = Depends(get_verified_sandbox_endpoint),
+    endpoint: dict = Depends(get_credential_sandbox_endpoint),
     current_user: CurrentUser = Depends(get_current_user),
     service: SandboxEndpointService = Depends(get_sandbox_endpoint_service),
 ):

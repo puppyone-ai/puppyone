@@ -81,8 +81,7 @@ def test_connection_target_path_column_allows_project_root():
     repo = IntegrationRepository.__new__(IntegrationRepository)
 
     assert repo._target_path_from_row(
-        {"target_path": "", "config": {"target_path": "Docs"}},
-        {"path": "LegacyScope"},
+        {"target_path": "", "config": {"target_path": "Docs"}}
     ) == ""
 
 

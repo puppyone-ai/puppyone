@@ -7,7 +7,6 @@ from apscheduler.executors.asyncio import AsyncIOExecutor
 from apscheduler.executors.pool import ThreadPoolExecutor
 
 import src.infra.scheduler.service as scheduler_module
-from src.infra.scheduler.jobs.sandbox_reaper import reap_idle_sandboxes
 from src.infra.scheduler.jobs.shadow_snapshot_reaper import (
     process_shadow_snapshot_reaper,
 )
@@ -97,8 +96,9 @@ async def test_scheduler_routes_async_jobs_to_asyncio_default(monkeypatch):
         for func, kwargs in scheduler.jobs
     }
 
-    assert jobs_by_id["sandbox-reaper"][0] is reap_idle_sandboxes
-    assert "executor" not in jobs_by_id["sandbox-reaper"][1]
+    # Scope sandbox cleanup is lifecycle-owned by the FastAPI app so it can
+    # share the app's stop event. It must not be duplicated in APScheduler.
+    assert "sandbox-reaper" not in jobs_by_id
 
     assert jobs_by_id["shadow-snapshot-reaper"][0] is process_shadow_snapshot_reaper
     assert "executor" not in jobs_by_id["shadow-snapshot-reaper"][1]

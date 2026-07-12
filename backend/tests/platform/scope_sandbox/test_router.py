@@ -14,9 +14,9 @@ from fastapi.testclient import TestClient
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
 from src.platform.entitlements.dependencies import get_entitlement_service
-from src.platform.project.dependencies import get_project_service
 from src.platform.scope_sandbox.router import router
 from src.platform.scope_sandbox.service import ConnectInfo, get_scope_sandbox_service
+from tests.authorization_fakes import authorization_for, install_authorization
 
 
 @dataclass
@@ -54,17 +54,6 @@ class _FakeService:
         return 0
 
 
-@dataclass
-class _FakeProject:
-    id: str
-    org_id: str = "org-1"
-
-
-class _FakeProjectService:
-    def get_by_id_with_access_check(self, project_id, user_id):
-        return _FakeProject(id=project_id) if project_id == "proj-1" else None
-
-
 class _FakeEntitlementService:
     def require_feature(self, org_id: str, feature_key: str) -> None:
         assert org_id == "org-1"
@@ -77,7 +66,7 @@ def _app(service: _FakeService) -> FastAPI:
     app.dependency_overrides[get_current_user] = lambda: CurrentUser(
         user_id="u1", email="u1@corp.com", role="authenticated", user_metadata={"name": "U One"},
     )
-    app.dependency_overrides[get_project_service] = lambda: _FakeProjectService()
+    install_authorization(app, authorization_for("proj-1"))
     app.dependency_overrides[get_entitlement_service] = lambda: _FakeEntitlementService()
     app.dependency_overrides[get_scope_sandbox_service] = lambda: service
     return app

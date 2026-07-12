@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 from src.platform.project.models import Project
 from src.platform.project.service import ProjectService, resolve_untitled_project_name
@@ -73,7 +74,7 @@ def test_project_service_create_resolves_stale_untitled_names(monkeypatch):
         _project("Untitled Project 4", "p4"),
         _project("Untitled Project 5", "p5"),
     ])
-    service = ProjectService(repo)  # type: ignore[arg-type]
+    service = ProjectService(repo, MagicMock())  # type: ignore[arg-type]
     monkeypatch.setattr(service, "add_project_member", lambda *args, **kwargs: {})
 
     created = service.create(

@@ -22,6 +22,7 @@ from src.connectors.manager import router as access_router_mod
 from src.connectors.manager.router import router as access_router
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
+from tests.authorization_fakes import authorization_for, install_authorization
 
 ALLOWED = "proj-allowed"
 FOREIGN = "proj-foreign"
@@ -46,6 +47,9 @@ class _FakeConnectorsClient:
         return self
 
     def in_(self, *a, **k):
+        return self
+
+    def is_(self, *a, **k):
         return self
 
     def order(self, *a, **k):
@@ -84,6 +88,7 @@ def _app():
         email="a@example.com",
         role="authenticated",
     )
+    install_authorization(app, authorization_for(ALLOWED))
     return app
 
 

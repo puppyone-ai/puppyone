@@ -866,7 +866,9 @@ def test_access_tables_are_confined_to_repository_boundaries() -> None:
         rel = path.relative_to(BACKEND_ROOT).as_posix()
         allowed = (
             "/repository.py" in rel
+            or rel.endswith("_repository.py")
             or "/supabase/" in rel
+            or rel.endswith("access_credentials.py")
             or rel.endswith("access_surface_repository.py")
             or rel.endswith("scope_repository.py")
         )

@@ -15,12 +15,14 @@ Read in this order:
 8. [Shadow Snapshots](architecture/08-shadow-snapshots.md)
 9. [Context Entry Points](architecture/10-context-entrypoints.md)
 10. [Context Entry Point Data Model](architecture/11-context-entrypoint-data-model.md)
+11. [Project Authorization and Workspace Binding](architecture/12-project-authorization-and-workspace-binding.md)
 
 Product and frontend design:
 
 - [Design Guidelines](design.md)
 - [Product Visual System](frontend/product-visual-system.md)
 - [Color Mode Architecture](frontend/color-mode-architecture.md)
+- [ISSUE-029 Authorization Cutover](ops/issue-029-authorization-cutover.md)
 
 Document-level constructs:
 

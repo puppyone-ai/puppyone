@@ -4,8 +4,34 @@ on:
   pull_request:
     paths:
       - "supabase/migrations/**"
+      - "supabase/tests/**"
+      - ".github/workflows/validate-migrations.yml"
 
 jobs:
+  validate-local-database:
+    name: Apply migrations and run database contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: "2.107.0"
+
+      - name: Start ephemeral Supabase
+        run: supabase start
+
+      - name: Rebuild from migration zero
+        run: supabase db reset --no-seed
+
+      - name: Run pgTAP contracts
+        run: supabase test db
+
+      - name: Stop ephemeral Supabase
+        if: always()
+        run: supabase stop --no-backup
+
   lint-rpc-signatures:
     name: Lint RPC parameter types (new migrations)
     runs-on: ubuntu-latest

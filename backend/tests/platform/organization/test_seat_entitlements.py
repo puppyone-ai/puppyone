@@ -32,7 +32,7 @@ class _FakeOrganizationRepository:
             token="token-1",
             status="pending",
             invited_by="owner-1",
-            expires_at=NOW + timedelta(days=1),
+            expires_at=datetime.now(UTC) + timedelta(days=1),
             created_at=NOW,
         )
 
@@ -90,4 +90,6 @@ def test_accept_invitation_enforces_seat_limit() -> None:
     service = OrganizationService(_FakeOrganizationRepository())
 
     with pytest.raises(AppException, match="Seat limit reached \\(1\\)"):
-        service.accept_invitation("token-1", "new-user-1")
+        service.accept_invitation(
+            "token-1", "new-user-1", user_email="new@example.com"
+        )

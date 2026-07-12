@@ -290,6 +290,11 @@ class AccessSurfaceRepository:
             or surface.get("status") != "active"
         ):
             return None
+        if credential.get("workspace_binding_mode"):
+            surface = {
+                **surface,
+                "_credential_mode": credential["workspace_binding_mode"],
+            }
         return surface
 
     def store_scope_credential(
