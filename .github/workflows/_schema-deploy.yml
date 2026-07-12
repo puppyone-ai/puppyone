@@ -25,7 +25,7 @@ jobs:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
-      PGDATABASE: ${{ secrets.DATABASE_URL }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
@@ -51,9 +51,9 @@ jobs:
           : "${SUPABASE_ACCESS_TOKEN:?supabase_access_token is required}"
           : "${SUPABASE_DB_PASSWORD:?supabase_db_password is required}"
           : "${SUPABASE_PROJECT_ID:?supabase_project_id is required}"
-          : "${PGDATABASE:?database_url is required}"
+          : "${DATABASE_URL:?database_url is required}"
 
-          case "$PGDATABASE" in
+          case "$DATABASE_URL" in
             postgresql://*@db.${SUPABASE_PROJECT_ID}.supabase.co:5432/*|\
             postgres://*@db.${SUPABASE_PROJECT_ID}.supabase.co:5432/*|\
             postgresql://postgres.${SUPABASE_PROJECT_ID}:*@*.pooler.supabase.com:5432/*|\
@@ -95,7 +95,9 @@ jobs:
           fi
 
       - name: Run database smoke contracts
-        run: psql -X -v ON_ERROR_STOP=1 -f supabase/tests/smoke_test_triggers.sql
+        run: >-
+          psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1
+          -f supabase/tests/smoke_test_triggers.sql
 
       - name: Fail on post-deploy schema drift
         shell: bash

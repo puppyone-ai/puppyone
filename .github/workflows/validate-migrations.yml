@@ -126,28 +126,28 @@ jobs:
 
       - name: Verify fresh install contract path
         env:
-          PGDATABASE: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
         run: |
           supabase db reset --no-seed
-          psql -X -v ON_ERROR_STOP=1 \
+          psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 \
             -f supabase/data_migrations/20260712_repo_user_permissions_to_project_members/contract.pending.sql
           supabase test db
 
       - name: Verify legacy-data upgrade, retry, receipt, and contract path
         env:
           DATA_MIGRATION_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
-          PGDATABASE: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
         run: |
           supabase db reset --no-seed
-          psql -X -v ON_ERROR_STOP=1 \
+          psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 \
             -f supabase/tests/data_migration_repo_user_permissions_fixture.sql
           cd backend
           uv run puppyone-db run 20260712_repo_user_permissions_to_project_members
           uv run puppyone-db run 20260712_repo_user_permissions_to_project_members
           cd ..
-          psql -X -v ON_ERROR_STOP=1 \
+          psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 \
             -f supabase/data_migrations/20260712_repo_user_permissions_to_project_members/contract.pending.sql
-          psql -X -v ON_ERROR_STOP=1 \
+          psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 \
             -f supabase/tests/data_migration_repo_user_permissions_assert.sql
 
       - name: Stop ephemeral Supabase

@@ -45,6 +45,16 @@ def test_hosted_workflows_bind_connection_to_protected_project() -> None:
     assert "secrets.DATABASE_URL" in data
 
 
+def test_psql_receives_connection_uri_explicitly() -> None:
+    schema = (WORKFLOWS / "_schema-deploy.yml").read_text()
+    validation = (WORKFLOWS / "validate-migrations.yml").read_text()
+
+    assert "PGDATABASE:" not in schema
+    assert "PGDATABASE:" not in validation
+    assert 'psql "$DATABASE_URL"' in schema
+    assert validation.count('psql "$DATABASE_URL"') == 4
+
+
 def test_production_data_work_cannot_run_from_untrusted_ref() -> None:
     dispatcher = (WORKFLOWS / "data-migration.yml").read_text()
     assert '"refs/heads/qubits"' in dispatcher
