@@ -7,7 +7,7 @@ BEGIN
         WHERE access_key IS NOT NULL AND access_key_hash IS NULL
     ) THEN
         RAISE EXCEPTION
-            'scope credential migration blocked: run backfill_scope_access_key_hash.py first';
+            'scope credential migration blocked: legacy credential backfill is incomplete';
     END IF;
 END;
 $$;

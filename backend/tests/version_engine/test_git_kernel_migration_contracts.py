@@ -901,7 +901,7 @@ def test_scope_credentials_are_hash_only_access_surface_credentials() -> None:
         / "supabase/migrations/20260711070000_move_scope_credentials_to_access_credentials.sql"
     ).read_text(encoding="utf-8")
     assert "INSERT INTO public.access_surface_credentials" in migration
-    assert "run backfill_scope_access_key_hash.py first" in migration
+    assert "legacy credential backfill is incomplete" in migration
     for column in ("access_key", "access_key_hash", "access_key_revoked_at"):
         assert f"DROP COLUMN IF EXISTS {column}" in migration
     assert "NOT (config ? 'access_key')" in migration
