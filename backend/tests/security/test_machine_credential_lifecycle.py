@@ -221,6 +221,76 @@ def test_scope_credential_resolves_via_cli_access_surface_only():
     assert token not in repr(client.tables)
 
 
+def test_readonly_workspace_binding_clamps_an_rw_scope_runtime_grant():
+    """A Viewer binding may never inherit the root scope's rw mode."""
+    now = datetime.now(timezone.utc).isoformat()
+    raw_token = "pwb_readonly_workspace_token"
+    client = _MemoryClient(
+        projects=[{
+            "id": "project-1", "org_id": "org-1", "visibility": "private",
+        }],
+        org_members=[{
+            "id": "org-member-1", "org_id": "org-1", "user_id": "user-1", "role": "member",
+        }],
+        project_members=[{
+            "id": "project-member-1", "org_id": "org-1", "project_id": "project-1",
+            "user_id": "user-1", "role": "viewer",
+        }],
+        project_workspace_bindings=[{
+            "id": "binding-1", "project_id": "project-1", "scope_id": "scope-1",
+            "bound_user_id": "user-1", "mode": "r", "status": "active",
+        }],
+        access_surfaces=[_surface(kind="cli")],
+        access_surface_credentials=[{
+            "id": "credential-1", "org_id": "org-1", "project_id": "project-1",
+            "access_surface_id": "surface-1", "workspace_binding_id": "binding-1",
+            "credential_type": "bearer_token", "key_prefix": "pwb", "key_last4": "oken",
+            "key_hash": access_token_hash(raw_token), "hash_alg": "hmac_sha256_v1",
+            "status": "active", "created_at": now,
+        }],
+        repo_scopes=[{
+            "id": "scope-1", "project_id": "project-1", "name": "Root",
+            "path": "", "exclude": [], "mode": "rw", "is_root": True,
+            "created_at": now, "updated_at": now,
+        }],
+    )
+
+    scope = RepoScopeRepository(client).get_by_access_key(raw_token)
+    assert scope is not None
+    assert scope.mode == "r"
+
+
+def test_shared_surface_rotation_does_not_revoke_device_binding_credentials():
+    client = _MemoryClient(access_surface_credentials=[])
+    credentials = AccessCredentialRepository(client)
+    binding_token = "pwb_device_specific_token"
+    client.tables["access_surface_credentials"].append({
+        "id": "binding-credential", "org_id": "org-1", "project_id": "project-1",
+        "access_surface_id": "surface-1", "workspace_binding_id": "binding-1",
+        "credential_type": "bearer_token", "key_prefix": "pwb", "key_last4": "oken",
+        "key_hash": access_token_hash(binding_token), "hash_alg": "hmac_sha256_v1",
+        "status": "active", "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    credentials.issue_bearer_token(
+        access_surface_id="surface-1",
+        org_id="org-1",
+        project_id="project-1",
+        prefix="cli",
+    )
+    credentials.issue_bearer_token(
+        access_surface_id="surface-1",
+        org_id="org-1",
+        project_id="project-1",
+        prefix="cli",
+    )
+
+    binding_row = next(
+        row for row in client.tables["access_surface_credentials"]
+        if row.get("workspace_binding_id") == "binding-1"
+    )
+    assert binding_row["status"] == "active"
+
+
 def test_agent_issues_once_authenticates_by_hash_and_revokes_old_token():
     surface = _surface(config={"name": "Agent", "scope": {"path": "", "mode": "rw"}})
     client = _MemoryClient(access_surfaces=[surface], access_surface_credentials=[])

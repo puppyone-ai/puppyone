@@ -61,6 +61,7 @@ class AccessCredentialRepository:
             .in_("access_surface_id", surface_ids)
             .eq("credential_type", "bearer_token")
             .eq("status", "active")
+            .is_("workspace_binding_id", "null")
             .execute()
         )
         rows = resp.data or []
@@ -92,7 +93,77 @@ class AccessCredentialRepository:
             if not row.get("expires_at")
             or datetime.fromisoformat(str(row["expires_at"]).replace("Z", "+00:00")) > now
         ]
-        return rows[0] if rows else None
+        if not rows:
+            return None
+        credential = rows[0]
+        binding_id = credential.get("workspace_binding_id")
+        if binding_id:
+            binding_mode = self._binding_credential_mode_if_authorized(credential)
+            if binding_mode is None:
+                return None
+            credential = {**credential, "workspace_binding_mode": binding_mode}
+        return credential
+
+    def _binding_credential_mode_if_authorized(
+        self, credential: dict[str, Any]
+    ) -> str | None:
+        """Re-evaluate a binding credential against current human access.
+
+        Membership removal, role downgrade, binding revocation, and
+        surface/scope mismatch therefore take effect on the next machine
+        request without relying on Desktop to rotate or delete a token.
+        """
+        try:
+            rows = (
+                self._client.table("project_workspace_bindings")
+                .select("project_id, scope_id, bound_user_id, mode, status")
+                .eq("id", credential["workspace_binding_id"])
+                .eq("status", "active")
+                .limit(1)
+                .execute()
+            ).data or []
+            if not rows:
+                return None
+            binding = rows[0]
+            if str(binding["project_id"]) != str(credential["project_id"]):
+                return None
+
+            surfaces = (
+                self._client.table("access_surfaces")
+                .select("project_id, scope_id, status")
+                .eq("id", credential["access_surface_id"])
+                .eq("status", "active")
+                .limit(1)
+                .execute()
+            ).data or []
+            if not surfaces:
+                return None
+            surface = surfaces[0]
+            if (
+                str(surface["project_id"]) != str(binding["project_id"])
+                or str(surface["scope_id"]) != str(binding["scope_id"])
+            ):
+                return None
+
+            from src.platform.authorization.models import ProjectAction
+            from src.platform.authorization.repository import AuthorizationRepository
+            from src.platform.authorization.service import AuthorizationService
+
+            action = (
+                ProjectAction.BIND_READWRITE
+                if binding["mode"] == "rw"
+                else ProjectAction.BIND_READONLY
+            )
+            allowed = AuthorizationService(
+                AuthorizationRepository(self._client)
+            ).allows(
+                str(binding["project_id"]),
+                str(binding["bound_user_id"]),
+                action,
+            )
+            return str(binding["mode"]) if allowed else None
+        except Exception:
+            return None
 
     def get_active_by_surface(self, access_surface_id: str) -> Optional[dict[str, Any]]:
         resp = (
@@ -101,6 +172,7 @@ class AccessCredentialRepository:
             .eq("access_surface_id", access_surface_id)
             .eq("credential_type", "bearer_token")
             .eq("status", "active")
+            .is_("workspace_binding_id", "null")
             .order("created_at", desc=True)
             .limit(1)
             .execute()
@@ -203,6 +275,7 @@ class AccessCredentialRepository:
             .update(patch)
             .eq("access_surface_id", access_surface_id)
             .eq("status", "active")
+            .is_("workspace_binding_id", "null")
         )
         if credential_type:
             query = query.eq("credential_type", credential_type)

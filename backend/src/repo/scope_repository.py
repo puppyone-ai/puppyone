@@ -7,6 +7,7 @@ scope_service.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime
 from typing import Any, Optional
 
@@ -85,7 +86,14 @@ class RepoScopeRepository:
         from src.repo.access_surface_repository import AccessSurfaceRepository
 
         surface = AccessSurfaceRepository(self._client).resolve_scope_credential(access_key)
-        return self.get(surface["scope_id"]) if surface else None
+        scope = self.get(surface["scope_id"]) if surface else None
+        if (
+            scope is not None
+            and surface.get("_credential_mode") == "r"
+            and scope.mode == "rw"
+        ):
+            return replace(scope, mode="r")
+        return scope
 
     def get_root_scope(self, project_id: str) -> Optional[RepoScope]:
         resp = (

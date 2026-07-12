@@ -101,24 +101,6 @@ class TableService:
     def get_by_id(self, table_id: str) -> Table | None:
         return self.repo.get_by_id(table_id)
 
-    def get_by_id_with_access_check(self, table_id: str, user_id: str) -> Table:
-        table = self.get_by_id(table_id)
-        if not table:
-            raise NotFoundException(
-                f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
-            )
-
-        has_access = self.repo.verify_table_access(table_id, user_id)
-        if not has_access:
-            raise NotFoundException(
-                f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
-            )
-
-        return table
-
-    def verify_project_access(self, project_id: str, user_id: str) -> bool:
-        return self.repo.verify_project_access(project_id, user_id)
-
     # ================================================================
     # Write operations - all through Write Engine (ProductOperationAdapter)
     # ================================================================

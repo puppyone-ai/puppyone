@@ -29,6 +29,8 @@ import { ScopeSidebar } from './components/ScopeSidebar';
 import { ScopeDetailPanel } from './components/ScopeDetailPanel';
 import { CreateAccessModal } from './components/CreateAccessModal';
 import type { RepoScope } from '@/lib/repoApi';
+import { useProject } from '@/lib/hooks/useData';
+import { projectAllows } from '@/lib/projectsApi';
 
 export default function AccessPointsPage({
   params,
@@ -40,6 +42,9 @@ export default function AccessPointsPage({
   const searchParams = useSearchParams();
   const [createOpen, setCreateOpen] = useState(false);
   const [createInitialPath, setCreateInitialPath] = useState<string | null>(null);
+  const { project } = useProject(projectId);
+  const canManageAccess = projectAllows(project, 'access_surface.manage')
+    && projectAllows(project, 'scope.manage');
 
   const {
     loading,
@@ -60,9 +65,10 @@ export default function AccessPointsPage({
   } = useAccessData(projectId);
 
   const openCreate = useCallback((path?: string | null) => {
+    if (!canManageAccess) return;
     setCreateInitialPath(path ?? null);
     setCreateOpen(true);
-  }, []);
+  }, [canManageAccess]);
 
   const closeCreate = useCallback(() => {
     setCreateOpen(false);
@@ -105,12 +111,15 @@ export default function AccessPointsPage({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--po-canvas)' }}>
-      <AccessHeader count={loading ? 0 : sortedScopes.length} onCreate={() => openCreate()} />
+      <AccessHeader
+        count={loading ? 0 : sortedScopes.length}
+        onCreate={canManageAccess ? () => openCreate() : undefined}
+      />
 
       {loading ? (
         <LoadingState />
       ) : noScopes ? (
-        <NoConnectorsState onCreateScope={() => openCreate()} />
+        <NoConnectorsState onCreateScope={canManageAccess ? () => openCreate() : undefined} />
       ) : (
         <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
           <ResizableSidebarColumn
@@ -137,13 +146,14 @@ export default function AccessPointsPage({
               pendingConnectorIds={pendingConnectorIds}
               onScopeMutated={refresh}
               onScopeDeleted={clearScopeSelection}
+              canManage={canManageAccess}
             />
           ) : (
             <div style={{ flex: 1, background: T.bg }} />
           )}
         </div>
       )}
-      {createOpen ? (
+      {canManageAccess && createOpen ? (
         <CreateAccessModal
           projectId={projectId}
           existingScopes={allScopes}

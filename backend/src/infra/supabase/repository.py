@@ -72,6 +72,10 @@ class SupabaseRepository:
         """
         return self._project_repo.create(project_data)
 
+    def create_project_with_admin(self, project_data: ProjectCreate) -> ProjectResponse:
+        """Create Project and creator Admin membership in one database RPC."""
+        return self._project_repo.create_with_admin(project_data)
+
     def get_project(self, project_id: str) -> Optional[ProjectResponse]:
         """
         Get project by ID.

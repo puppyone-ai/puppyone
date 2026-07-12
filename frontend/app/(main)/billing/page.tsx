@@ -358,7 +358,7 @@ export default function BillingPage() {
       return (
         <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
           <div className="text-[14px] font-medium text-[var(--po-text)]">
-            Couldn't load your organizations
+            {"Couldn't load your organizations"}
           </div>
           <div className="max-w-md text-[13px] text-[var(--po-text-subtle)]">
             {orgsError.message || 'The request failed. Your session may have expired.'}

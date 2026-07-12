@@ -23,6 +23,7 @@ from fastapi import HTTPException, Request
 from src.infra.search.schemas import SearchToolQueryInput
 from src.internal import router as internal_router
 from src.internal.router import _enforce_acting_user_project_access
+from tests.authorization_fakes import authorization_for
 
 
 def _fake_request(headers: dict[str, str]) -> Request:
@@ -57,9 +58,9 @@ def test_acting_user_with_no_access_returns_403():
     """Acting user that doesn't belong to the project → 403."""
     req = _fake_request({"x-acting-user-id": "intruder-uuid"})
     with patch(
-        "src.internal.router.ProjectRepositorySupabase"
-    ) as repo_cls:
-        repo_cls.return_value.verify_project_access.return_value = None
+        "src.platform.authorization.factory.build_authorization_service",
+        return_value=authorization_for(),
+    ):
         with pytest.raises(HTTPException) as exc:
             _enforce_acting_user_project_access(req, "project-x")
     assert exc.value.status_code == 403
@@ -70,9 +71,9 @@ def test_acting_user_with_access_returns_user_id():
     helper's contract, used by handlers to know who is operating)."""
     req = _fake_request({"x-acting-user-id": "alice-uuid"})
     with patch(
-        "src.internal.router.ProjectRepositorySupabase"
-    ) as repo_cls:
-        repo_cls.return_value.verify_project_access.return_value = "member"
+        "src.platform.authorization.factory.build_authorization_service",
+        return_value=authorization_for("project-x"),
+    ):
         result = _enforce_acting_user_project_access(req, "project-x")
     assert result == "alice-uuid"
 
@@ -81,12 +82,12 @@ def test_db_error_during_check_returns_503():
     """If the access check itself errors (DB outage etc.), fail closed
     with a transient 503 — never a quiet allow."""
     req = _fake_request({"x-acting-user-id": "alice-uuid"})
+    authorization = MagicMock()
+    authorization.allows.side_effect = RuntimeError("DB down")
     with patch(
-        "src.internal.router.ProjectRepositorySupabase"
-    ) as repo_cls:
-        repo_cls.return_value.verify_project_access.side_effect = RuntimeError(
-            "DB down"
-        )
+        "src.platform.authorization.factory.build_authorization_service",
+        return_value=authorization,
+    ):
         with pytest.raises(HTTPException) as exc:
             _enforce_acting_user_project_access(req, "project-x")
     assert exc.value.status_code == 503
@@ -141,8 +142,10 @@ def test_tool_search_rejects_non_member_before_search():
         json_path="",
     )
     search_service = MagicMock()
-    with patch("src.internal.router.ProjectRepositorySupabase") as repo_cls:
-        repo_cls.return_value.verify_project_access.return_value = None
+    with patch(
+        "src.platform.authorization.factory.build_authorization_service",
+        return_value=authorization_for(),
+    ):
         with pytest.raises(HTTPException) as exc:
             asyncio.run(
                 internal_router.search_tool(

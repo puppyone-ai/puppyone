@@ -24,7 +24,7 @@ export function AccessHeader({
   onCreate,
 }: {
   readonly count: number;
-  readonly onCreate: () => void;
+  readonly onCreate?: () => void;
 }) {
   return (
     <div
@@ -45,7 +45,7 @@ export function AccessHeader({
         <span style={{ ...CHROME_LABEL_TYPOGRAPHY, color: T.text1 }}>Access</span>
         <CountBadge value={count} size="md" tone="neutral" />
       </div>
-      <button
+      {onCreate ? <button
         type="button"
         onClick={onCreate}
         style={{
@@ -78,7 +78,7 @@ export function AccessHeader({
       >
         <Plus size={14} strokeWidth={2.1} />
         New access
-      </button>
+      </button> : null}
     </div>
   );
 }
@@ -89,7 +89,7 @@ export function LoadingState() {
   return <PageLoading variant="fill" />;
 }
 
-export function NoConnectorsState({ onCreateScope }: { readonly onCreateScope: () => void }) {
+export function NoConnectorsState({ onCreateScope }: { readonly onCreateScope?: () => void }) {
   return (
     <div
       style={{
@@ -110,7 +110,7 @@ export function NoConnectorsState({ onCreateScope }: { readonly onCreateScope: (
         Access points let Git remotes, CLIs, and integrations read or write
         one selected path in this project.
       </div>
-      <button
+      {onCreateScope ? <button
         type="button"
         onClick={onCreateScope}
         style={{
@@ -142,7 +142,7 @@ export function NoConnectorsState({ onCreateScope }: { readonly onCreateScope: (
         }}
       >
         New access
-      </button>
+      </button> : null}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 """HTTP API for repo_scopes CRUD.
 
-Mounted at /api/v1/projects/{project_id}/scopes by main.py.
-Every endpoint depends on get_verified_project for tenant isolation.
+Mounted at /api/v1/projects/{project_id}/scopes by main.py. Every endpoint
+declares its canonical Project action.
 """
 
 from __future__ import annotations
@@ -12,8 +12,8 @@ from typing import Optional
 from src.common_schemas import ApiResponse
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
-from src.platform.project.dependencies import get_verified_project
-from src.platform.project.models import Project
+from src.platform.authorization.dependencies import AuthorizedProject, require_project_action
+from src.platform.authorization.models import ProjectAction
 from src.repo.scope_service import ScopeService
 from src.repo.schemas import (
     ScopeIn, ScopePatch, ScopeOut, ScopeAutoSuggestOut,
@@ -66,10 +66,12 @@ def _to_out(scope: RepoScope, *, reveal_key: bool = False) -> ScopeOut:
     summary="List scopes for a project",
 )
 def list_scopes(
-    project: Project = Depends(get_verified_project),
+    authorized: AuthorizedProject = Depends(
+        require_project_action(ProjectAction.ACCESS_READ)
+    ),
     service: ScopeService = Depends(get_scope_service),
 ):
-    scopes = service.list_for_project(str(project.id))
+    scopes = service.list_for_project(str(authorized.project.id))
     return ApiResponse.success(
         # Machine credentials are one-time reveal only. Ordinary reads never
         # reconstruct a bearer token from storage.
@@ -86,11 +88,13 @@ def list_scopes(
 )
 def create_scope(
     payload: ScopeIn,
-    project: Project = Depends(get_verified_project),
+    authorized: AuthorizedProject = Depends(
+        require_project_action(ProjectAction.SCOPE_MANAGE)
+    ),
     service: ScopeService = Depends(get_scope_service),
 ):
     scope = service.create(
-        project_id=str(project.id),
+        project_id=str(authorized.project.id),
         name=payload.name,
         path=payload.path,
         exclude=payload.exclude,
@@ -107,11 +111,13 @@ def create_scope(
 def update_scope(
     scope_id: str,
     payload: ScopePatch,
-    project: Project = Depends(get_verified_project),
+    authorized: AuthorizedProject = Depends(
+        require_project_action(ProjectAction.SCOPE_MANAGE)
+    ),
     service: ScopeService = Depends(get_scope_service),
 ):
     existing = service.get(scope_id)
-    if existing is None or existing.project_id != str(project.id):
+    if existing is None or existing.project_id != str(authorized.project.id):
         raise HTTPException(status_code=404, detail="Scope not found")
     updated = service.update(
         scope_id,
@@ -131,11 +137,13 @@ def update_scope(
 )
 def delete_scope(
     scope_id: str,
-    project: Project = Depends(get_verified_project),
+    authorized: AuthorizedProject = Depends(
+        require_project_action(ProjectAction.SCOPE_MANAGE)
+    ),
     service: ScopeService = Depends(get_scope_service),
 ):
     existing = service.get(scope_id)
-    if existing is None or existing.project_id != str(project.id):
+    if existing is None or existing.project_id != str(authorized.project.id):
         raise HTTPException(status_code=404, detail="Scope not found")
     # has_bound_connectors: count connectors that are NOT cli/agent (which
     # are auto-managed and cascade with the scope).
@@ -152,7 +160,7 @@ def delete_scope(
     from src.version_engine.derived.path_index import (
         cleanup_fs_path_index_for_scope,
     )
-    cleanup_fs_path_index_for_scope(str(project.id), existing.path or "")
+    cleanup_fs_path_index_for_scope(str(authorized.project.id), existing.path or "")
     return ApiResponse.success(message="Scope deleted")
 
 
@@ -163,11 +171,13 @@ def delete_scope(
 )
 def regenerate_scope_key(
     scope_id: str,
-    project: Project = Depends(get_verified_project),
+    authorized: AuthorizedProject = Depends(
+        require_project_action(ProjectAction.CREDENTIAL_MANAGE)
+    ),
     service: ScopeService = Depends(get_scope_service),
 ):
     existing = service.get(scope_id)
-    if existing is None or existing.project_id != str(project.id):
+    if existing is None or existing.project_id != str(authorized.project.id):
         raise HTTPException(status_code=404, detail="Scope not found")
     new_key = service.regenerate_access_key(scope_id)
     if new_key is None:
@@ -182,7 +192,9 @@ def regenerate_scope_key(
     summary="Suggest new scopes from current top-level folders",
 )
 def auto_suggest_scopes(
-    project: Project = Depends(get_verified_project),
+    authorized: AuthorizedProject = Depends(
+        require_project_action(ProjectAction.CONTENT_READ)
+    ),
     service: ScopeService = Depends(get_scope_service),
 ):
     """Reads the current version tree's top-level folders and returns those
@@ -190,11 +202,13 @@ def auto_suggest_scopes(
     from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
     ops = build_worker_version_engine_container().product_operations()
     try:
-        entries = ops.list_dir(str(project.id), "")
+        entries = ops.list_dir(str(authorized.project.id), "")
     except Exception:
         entries = []
     folder_names = [e.name for e in entries if getattr(e, "type", None) == "folder"]
-    suggestions = service.auto_suggest_from_tree(str(project.id), folder_names)
+    suggestions = service.auto_suggest_from_tree(
+        str(authorized.project.id), folder_names
+    )
     return ApiResponse.success(
         data=ScopeAutoSuggestOut(suggestions=[
             ScopeIn(**s) for s in suggestions

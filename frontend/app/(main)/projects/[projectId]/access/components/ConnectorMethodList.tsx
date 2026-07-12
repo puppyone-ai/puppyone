@@ -22,6 +22,7 @@ export function ConnectorList({
   onPauseResume,
   onUpdate,
   pendingConnectorIds,
+  canManage,
 }: {
   readonly scope: RepoScope | undefined;
   readonly connectors: readonly Connector[];
@@ -30,6 +31,7 @@ export function ConnectorList({
   readonly onPauseResume: (id: string) => Promise<void> | void;
   readonly onUpdate: (id: string, patch: ConnectorEditPatch) => Promise<void>;
   readonly pendingConnectorIds: ReadonlySet<string>;
+  readonly canManage: boolean;
 }) {
   const [connectDialogConnector, setConnectDialogConnector] = useState<Connector | null>(null);
 
@@ -74,8 +76,9 @@ export function ConnectorList({
                 onConnect={() => setConnectDialogConnector(connector)}
                 onPauseResume={() => onPauseResume(connector.id)}
                 pending={pending}
+                canManage={canManage}
               />
-              {selected && !inactive ? (
+              {canManage && selected && !inactive ? (
                 <ConnectorExpandedDetail
                   connector={connector}
                   scope={scope}

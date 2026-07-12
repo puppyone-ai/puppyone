@@ -552,8 +552,13 @@ backend/src/version_engine/
     projection.py
 
   read/
-    admin.py
-    history_changes.py
+    admin.py                       # narrow orchestration for legacy/admin reads
+    history_cache.py               # bounded LRU/TTL + per-snapshot single-flight
+    history_cursor.py              # authenticated immutable-ref paging cursors
+    history_facts.py               # canonical head + immutable commit decoding
+    history_graph.py               # all-ref DAG traversal and page projection
+    history_models.py              # typed History read-model contracts/errors
+    history_changes.py             # persisted change normalization
     text_detection.py
     tree_reader.py
 
@@ -589,6 +594,7 @@ projects.version_root_hash
 github_sync_log.version_commit_id
 publish_version_project_update
 get_version_project_write_state
+get_version_project_history_refs
 claim/complete/fail_version_outbox
 ```
 
@@ -597,6 +603,36 @@ views/wrappers and dual-write columns so old and new pods can overlap. Runtime
 code never targets them. Product code,
 frontend code, CLI code, logs, and API metadata should use Version Engine,
 Git Remote, Puppyone CLI, scope, conflict, and audit language.
+
+## Project History Read Model
+
+Cloud project History is a dedicated read model over immutable Git objects; it
+is not a second source of truth and does not participate in writes. The first
+topological page obtains canonical main plus root-scope branch/tag refs from
+`get_version_project_history_refs` in one PostgreSQL MVCC snapshot. The RPC
+resolves main against `projects.version_root_hash`, then uses the persisted
+project-view index and compatibility rows only as ordered fallbacks.
+
+Pagination is bound to that exact ref snapshot. An authenticated, stateless
+cursor carries the ordered root commit IDs, snapshot digest, canonical head,
+and exclusive anchor, so continuation requests do not reread mutable refs and
+remain valid across API replicas. Ref metadata is returned only on the first
+page (`refs_included=true`); clients retain it while appending pages and reject
+a different `snapshot_id`.
+
+`read/history_graph.py` owns traversal and deterministic child-before-parent
+ordering. It reports unreadable objects as an explicit degraded graph instead
+of silently claiming completeness. Traversal has a hard commit/ref budget, and
+the app-scoped cache is bounded by TTL, snapshot count, and retained-container
+weight with single-flight builds. Each actual build logs root count, commit
+count, unreadable count, and elapsed time; those measurements are the gate for
+any future persistent graph index. The legacy linear catch-up contract remains
+independent of the named-ref control-plane read.
+
+For this commit-graph read model, annotated (including nested) tags are peeled
+to their commit target exactly as `git log --all` does. The persisted Git ref
+still points at the original tag object; only the History response's
+`commit_id` is the peeled target used for traversal and label placement.
 
 ## Access Point Model
 

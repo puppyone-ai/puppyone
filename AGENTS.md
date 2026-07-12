@@ -7,6 +7,12 @@
 > `https://<host>/git/ap/<access_key>.git`, while Web/API/`puppyone fs`
 > writes converge through the Product Operation Adapter. Do not introduce the
 > removed legacy wire protocol, external version package, or old source naming.
+>
+> The canonical database release architecture is
+> [`docs/architecture/13-database-release-governance.md`](docs/architecture/13-database-release-governance.md).
+> Schema changes use `supabase/migrations`; non-transactional/application-code
+> data changes use immutable `supabase/data_migrations` artifacts through the
+> portable runner. Never hide an external script between schema migrations.
 
 ## Overview
 
@@ -28,6 +34,21 @@ It aggregates information scattered across various sources into a unified Contex
 - **Audit logging** — Records all operations (who did what to which node, and when), fully traceable
 - **Collaborative editing** — Checkout/commit workflow, locking mechanism, conflict detection and resolution
 - **Structured data management** — Cloud file system (folders/JSON/Markdown/files), JSON Pointer table operations
+
+#### Authorization boundary
+
+- Human access is resolved only by `backend/src/platform/authorization/` as
+  `Organization context -> ProjectGrant -> optional child restriction`.
+- `project_members` is the sole explicit Human Project role source. Organization
+  membership supplies tenant context; an org-visible Project supplies only the
+  Viewer baseline. Never use a Runtime key, Git remote, scope, or Agent
+  visibility to create Human Project access.
+- Machine entry points resolve a `RuntimeGrant` bounded by Project, scope, mode,
+  policy, and credential status. A RuntimeGrant cannot enter Team, Billing,
+  Project settings, members, sharing, or credential-management control planes.
+- Local workspace identity is an explicit `project_workspace_bindings` fact.
+  Git URLs are transport configuration and legacy discovery input, not identity
+  or authorization.
 
 ### Platform
 
@@ -149,7 +170,8 @@ All tables use plural snake_case names. The "unified access" architecture serves
 | Table | Repository | Description |
 |-------|-----------|-------------|
 | `projects` | `supabase/projects/repository.py` | Projects |
-| `project_members` | `project/repository.py`, `project/service.py` | Project membership |
+| `project_members` | `platform/authorization/repository.py` | Sole explicit Human Project membership/role fact |
+| `project_workspace_bindings` | `platform/workspace_binding/repository.py` | Stable local workspace instance ↔ Cloud Project identity (no secret/role snapshot) |
 | `organizations` | `organization/repository.py` | Organizations |
 | `org_members` | `organization/repository.py` | Organization membership |
 | `org_invitations` | `organization/repository.py` | Organization invitations |

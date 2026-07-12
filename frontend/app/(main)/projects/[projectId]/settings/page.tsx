@@ -20,6 +20,7 @@ import {
   updateProjectVisibility,
   getProjectShareInfo,
   rotateProjectShareToken,
+  projectAllows,
   type ProjectMember,
 } from '@/lib/projectsApi';
 import { useTranslations } from 'next-intl';
@@ -133,13 +134,14 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
   const {
     currentOrg,
     members: orgMembers,
-    myRole: orgRole,
     isMembersLoading: orgMembersLoading,
   } = useOrganization();
 
   const { project: routeProject, isLoading: routeProjectLoading } = useProject(session ? projectId : null);
   const { projects, isLoading } = useProjects(currentOrg?.id ?? null);
   const currentProject = projects.find(p => p.id === projectId) ?? routeProject;
+  const canManageSettings = projectAllows(currentProject, 'project.settings.manage');
+  const canManageMembers = projectAllows(currentProject, 'project.member.manage');
   const scopedProjects = useMemo(() => {
     const projectsForCurrentRoute =
       routeProject?.org_id && currentOrg?.id !== routeProject.org_id ? [] : projects;
@@ -158,7 +160,7 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
     mutate: mutateProjectMembers,
   } =
     useSWR<ProjectMember[]>(
-      session ? ['project-members', projectId] : null,
+      session && canManageMembers ? ['project-members', projectId] : null,
       async () => {
         try {
           return await getProjectMembers(projectId);
@@ -198,8 +200,6 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
   const [feedback, setFeedback] = useState<{ type: 'error' | 'success'; msg: string } | null>(null);
   const [memberRemoval, setMemberRemoval] = useState<{ userId: string; name: string } | null>(null);
   const [memberRemovalLoading, setMemberRemovalLoading] = useState(false);
-
-  const isOrgOwner = orgRole === 'owner';
 
   useEffect(() => {
     if (currentProject?.visibility) {
@@ -302,9 +302,7 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
     });
   }, [availableOrgMembers, bulkSearch]);
 
-  const canShare = orgRole === 'owner' || projectMembers.some(
-    m => m.user_id === session?.user?.id && m.role === 'admin',
-  );
+  const canShare = canManageMembers;
 
   // Fetch the share token for owners/admins only. Re-runs when the
   // project id changes OR the user's role changes (signing back in
@@ -429,6 +427,24 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
   // during loading so the loader doesn't jump when content paints.
   if (!isAuthReady || isLoading || routeProjectLoading || !currentProject) {
     return <ProjectPageLoadingShell title="Settings" />;
+  }
+
+  if (!canManageSettings) {
+    return (
+      <div style={{ display: 'grid', placeItems: 'center', height: '100%', background: T.bg, padding: 32 }}>
+        <div style={{ maxWidth: 460, textAlign: 'center', color: T.text2, fontFamily: T.fontSans }}>
+          <h1 style={{ margin: '0 0 8px', color: T.text1, fontSize: 18 }}>
+            Project settings are restricted
+          </h1>
+          <p style={{ margin: '0 0 18px', fontSize: 13, lineHeight: 1.6 }}>
+            Your current Project role can view this Project, but it cannot manage settings, members, sharing, or deletion.
+          </p>
+          <button type="button" onClick={() => router.push(`/projects/${projectId}/data`)} style={btnGhost}>
+            Back to project
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -647,7 +663,7 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
           </div>
 
           {/* Section: Access */}
-          {isOrgOwner && (
+          {canManageMembers && (
             <div style={{ marginBottom: 48 }}>
               <h2 style={sectionTitle}>Access & Visibility</h2>
               <div style={cardBox}>

@@ -273,12 +273,3 @@ class SandboxEndpointRepository:
             credential=credential,
             plaintext_access_key=new_key,
         )
-
-    def verify_access(self, endpoint_id: str, user_id: str) -> bool:
-        endpoint = self.get_by_id(endpoint_id)
-        if not endpoint:
-            return False
-        from src.platform.project.repository import ProjectRepositorySupabase
-        project_repo = ProjectRepositorySupabase()
-        role = project_repo.verify_project_access(endpoint["project_id"], user_id)
-        return role is not None

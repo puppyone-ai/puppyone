@@ -29,9 +29,6 @@ const nextConfig: NextConfig = {
     optimizePackageImports: [
       'lucide-react',
       'framer-motion',
-      '@milkdown/core',
-      '@milkdown/preset-commonmark',
-      '@milkdown/react',
       'react-syntax-highlighter',
     ],
   },

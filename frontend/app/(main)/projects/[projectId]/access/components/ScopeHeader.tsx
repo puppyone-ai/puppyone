@@ -59,12 +59,14 @@ export function ScopePageHeader({
   settingsOpen,
   settingsDirty,
   onToggleSettings,
+  canManage,
 }: {
   readonly scope: RepoScope | undefined;
   readonly connectors: readonly Connector[];
   readonly settingsOpen: boolean;
   readonly settingsDirty: boolean;
   readonly onToggleSettings: () => void;
+  readonly canManage: boolean;
 }) {
   const titleText = scope?.name?.trim() || 'Untitled scope';
   const aggregate = computeAggregate(connectors);
@@ -166,11 +168,11 @@ export function ScopePageHeader({
         </div>
       </div>
       <div style={{ flexShrink: 0, marginTop: 2, display: 'flex', alignItems: 'center', gap: 8 }}>
-        <SettingsHeaderButton
+        {canManage ? <SettingsHeaderButton
           active={settingsOpen}
           dirty={settingsDirty}
           onClick={onToggleSettings}
-        />
+        /> : null}
       </div>
     </div>
   );

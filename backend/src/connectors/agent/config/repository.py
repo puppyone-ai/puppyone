@@ -158,6 +158,11 @@ class AgentRepository:
         rows = resp.data or []
         return rows[0].get("org_id") if rows else None
 
+    def get_project_org_id(self, project_id: str) -> str | None:
+        """Return the Agent Project tenant for child-resource validation."""
+
+        return self._project_org_id(project_id)
+
     def _query(self):
         return (
             self._client.table(ACCESS_SURFACES_TABLE)
@@ -269,6 +274,18 @@ class AgentRepository:
         agent.bash_accesses = _scope_to_bash(agent_id, row.get("config") or {})
         agent.tools = self.get_tools_by_agent_id(agent_id)
         return agent
+
+    def get_project_id(self, agent_id: str) -> str | None:
+        """Return only the parent identity needed for pre-read authorization."""
+        rows = (
+            self._client.table(self.TABLE)
+            .select("project_id")
+            .eq("id", agent_id)
+            .eq("kind", AGENT_PROVIDER)
+            .limit(1)
+            .execute()
+        ).data or []
+        return str(rows[0]["project_id"]) if rows else None
 
     def get_by_project_id(self, project_id: str) -> List[Agent]:
         response = (
@@ -518,15 +535,11 @@ class AgentRepository:
         )
         return len(response.data) > 0
 
-    def verify_access(self, agent_id: str, user_id: str) -> bool:
-        """Check whether `user_id` is allowed to access agent `agent_id`.
+    def is_visible_to(self, agent_id: str, user_id: str) -> bool:
+        """Apply the child Agent visibility restriction only.
 
-        Two layers of checks (security: M-1):
-        1. Project membership — user must belong to the agent's project's org.
-        2. Visibility — if agent is marked private (config.visibility == 'private'),
-           only the agent surface owner may read it.
-
-        Defaults to org-visibility when the field is missing.
+        Canonical Project authorization is outside this method. Child
+        visibility may narrow a ProjectGrant but can never create one.
         """
         # Pull both the row and the agent in one go to avoid N queries.
         row_resp = (
@@ -541,27 +554,7 @@ class AgentRepository:
             return False
         row = row_resp.data[0]
         config = row.get("config") or {}
-        project_id = row.get("project_id")
-
-        # Layer 1: org membership
-        proj_resp = (
-            self._client.table("projects")
-            .select("org_id")
-            .eq("id", project_id)
-            .execute()
-        )
-        if not proj_resp.data:
-            return False
-        org_id = proj_resp.data[0].get("org_id")
-        if not org_id:
-            return False
-        from src.platform.organization.repository import OrganizationRepository
-        org_repo = OrganizationRepository(supabase_client=self._client)
-        member = org_repo.get_member(org_id, user_id)
-        if member is None:
-            return False
-
-        # Layer 2: visibility
+        # Agent visibility can only narrow the already-resolved ProjectGrant.
         visibility = (config.get("visibility") or "org").lower()
         if visibility == "private":
             owner = row.get("created_by")

@@ -60,6 +60,15 @@ from src.version_engine.write_engine.engine import (
 from src.version_engine.domain.intents import RollbackIntent, VersionSubmissionIntent
 
 
+@pytest.fixture(autouse=True)
+def _use_hard_receive_cap_without_live_entitlement_lookup(monkeypatch):
+    """Git protocol tests are hermetic; entitlement resolution is covered separately."""
+    monkeypatch.setattr(
+        "src.version_engine.entrypoints.git.router._git_receive_max_body_bytes",
+        lambda _project_id: int(settings.GIT_MAX_RECEIVE_PACK_BYTES),
+    )
+
+
 async def submit_agent_push(repo_manager, project_id, auth, body):
     """In-process adapter used by older tests after the version wire-protocol
     surface was removed. Translates the old request body into the canonical

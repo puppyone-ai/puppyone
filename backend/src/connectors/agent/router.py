@@ -1,10 +1,15 @@
 import json
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from src.connectors.agent.schemas import AgentRequest
 from src.connectors.agent.dependencies import get_agent_service
 from src.platform.scope_sandbox.execution.dependencies import get_sandbox_service
 from src.connectors.agent.chat.dependencies import get_chat_service
-from src.platform.auth.dependencies import get_current_user_optional
+from src.platform.auth.dependencies import get_current_user
+from src.platform.auth.models import CurrentUser
+from src.platform.authorization.dependencies import get_authorization_service
+from src.platform.authorization.models import ProjectAction
+from src.platform.authorization.service import AuthorizationService
+from src.platform.project.readiness import ProjectReadinessService
 from src.tool.dependencies import get_tool_service
 from src.infra.s3.dependencies import get_s3_service
 from src.connectors.agent.config.dependencies import get_agent_config_service
@@ -31,7 +36,8 @@ router = APIRouter(
 )
 async def create_agent_session(
     agent_request: AgentRequest,
-    current_user=Depends(get_current_user_optional),
+    current_user: CurrentUser = Depends(get_current_user),
+    authorization: AuthorizationService = Depends(get_authorization_service),
     agent_service=Depends(get_agent_service),
     sandbox_service=Depends(get_sandbox_service),
     chat_service=Depends(get_chat_service),
@@ -41,6 +47,32 @@ async def create_agent_session(
     agent_config_service=Depends(get_agent_config_service),
     search_service=Depends(get_search_service),
 ):
+    if not agent_request.agent_id:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="agent_id is required for a Project Agent run",
+        )
+    project_id = agent_config_service.get_agent_project_id(agent_request.agent_id)
+    if project_id is None:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    authorization.authorize(
+        project_id, current_user.user_id, ProjectAction.AGENT_RUN
+    )
+    if not agent_config_service.is_visible_to(
+        agent_request.agent_id, current_user.user_id
+    ):
+        raise HTTPException(status_code=404, detail="Agent not found")
+    readiness = ProjectReadinessService().resolve(project_id)
+    if not readiness.claude_ready:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "project_agent_not_ready",
+                "git_state": readiness.git_state,
+                "blockers": readiness.blockers,
+            },
+        )
+
     async def event_stream():
         try:
             async for event in agent_service.stream_events(

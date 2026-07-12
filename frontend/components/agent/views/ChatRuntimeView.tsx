@@ -955,7 +955,7 @@ export function ChatRuntimeView({
 
           {/* Agent's bash access - 和 AgentSettingView 保持一致 */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
-            <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--po-text-subtle)' }}>Agent's bash access</span>
+            <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--po-text-subtle)' }}>{"Agent's bash access"}</span>
           </div>
           <div
             style={{

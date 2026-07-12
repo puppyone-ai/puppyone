@@ -40,6 +40,25 @@ How did you verify this change? Examples:
 - Verified UI in `npm run dev` at http://localhost:3000/foo
 -->
 
+## Database release phase
+
+<!-- Complete this section only when the PR changes database schema or data. -->
+
+- [ ] No database change
+- [ ] Expand — additive schema and old/new-compatible application behavior
+- [ ] Data — immutable `supabase/data_migrations/<id>` artifact
+- [ ] Cutover — application now uses only the new fact
+- [ ] Contract — destructive cleanup after Qubits and Production verification
+
+If this changes the database, provide:
+
+- Data migration ID / required Contract marker:
+- Affected tables and estimated rows:
+- Expected runtime and lock behavior:
+- Verification and safe retry behavior:
+- Forward-fix / break-glass plan:
+- Qubits evidence:
+
 ## Linked issues
 
 <!-- Use `Fixes #123` to auto-close, or `Refs #123` to reference. -->

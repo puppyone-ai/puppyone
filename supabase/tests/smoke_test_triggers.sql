@@ -10,6 +10,9 @@
 -- Design note: each block is self-contained so a failure in one does not mask another.
 -- The CAS RPC block is wrapped in BEGIN/ROLLBACK so its probe calls leave no residue.
 
+BEGIN;
+SELECT plan(2);
+
 DO $$
 DECLARE
     func_body TEXT;
@@ -66,6 +69,8 @@ BEGIN
 END;
 $$;
 
+SELECT pass('handle_new_user trigger is consistent with profiles');
+
 
 -- ============================================================================
 -- Check 2: MUT CAS RPCs must use p_project_id TEXT (not UUID).
@@ -89,8 +94,6 @@ $$;
 -- Wrapped in BEGIN/ROLLBACK because the RPC probe may INSERT a ghost row
 -- via the first-push branch of cas_update_scope_state.
 -- ============================================================================
-
-BEGIN;
 
 DO $$
 DECLARE
@@ -175,6 +178,8 @@ BEGIN
 END;
 $$;
 
+SELECT pass('MUT CAS RPCs use TEXT project IDs and invoke successfully');
+SELECT * FROM finish();
 ROLLBACK;
 
 

@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 
 from src.version_engine.bootstrap.dependencies import get_product_operation_adapter
 from src.internal.router import router as internal_router, verify_internal_secret
+from tests.authorization_fakes import authorization_for
 
 
 @dataclass
@@ -89,9 +90,9 @@ def client(app, ops):
     # The pre-existing tests don't set up real users, so we patch the
     # access check to always allow.
     with patch(
-        "src.internal.router.ProjectRepositorySupabase"
-    ) as repo_cls:
-        repo_cls.return_value.verify_project_access.return_value = "member"
+        "src.platform.authorization.factory.build_authorization_service",
+        return_value=authorization_for("proj-1"),
+    ):
         with TestClient(app) as c:
             # Inject the required header for every request via headers=
             c.headers.update({"X-Acting-User-Id": "test-user"})

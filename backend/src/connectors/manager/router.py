@@ -17,6 +17,9 @@ from src.exceptions import ErrorCode, NotFoundException
 from src.infra.supabase.client import SupabaseClient
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
+from src.platform.authorization.dependencies import get_authorization_service
+from src.platform.authorization.models import ProjectAction
+from src.platform.authorization.service import AuthorizationService
 from src.platform.entitlements.dependencies import get_entitlement_service
 from src.platform.entitlements.service import EntitlementService
 from src.platform.organization.dependencies import resolve_org_ids
@@ -326,32 +329,28 @@ def _enrich(rows: list[dict], sb_client) -> list[ConnectionOut]:
     return out
 
 
-def _get_user_project_ids(sb_client, org_ids: list[str]) -> list[str]:
-    """Get all project IDs across the user's organizations.
-
-    NOTE: This relies on resolve_org_ids() which queries org_members for the
-    user.  If a user was added to an org but their org_members row is missing
-    (e.g. RLS policy prevents the service-role read, or the invite flow didn't
-    insert a row), they will get zero org_ids and therefore zero project_ids,
-    causing 404 on access-point mutations.  This is a data/RLS issue, not a
-    code bug — ensure org_members rows exist for all invited users.
-    """
+def _get_user_project_ids(
+    sb_client,
+    org_ids: list[str],
+    authorization: AuthorizationService,
+    user_id: str,
+) -> list[str]:
+    """Discover tenant candidates, then filter them through ProjectGrant."""
     if not org_ids:
         return []
     resp = sb_client.table("projects").select("id").in_("org_id", org_ids).execute()
-    return [r["id"] for r in resp.data]
+    return authorization.accessible_project_ids(
+        [str(row["id"]) for row in (resp.data or [])], user_id
+    )
 
 
-def _require_connection_project_access(sb_client, project_id: str, user_id: str) -> None:
-    """Raise 404 unless ``user_id`` can reach ``project_id`` via org membership.
-
-    Extracted from the five single-connection endpoints that each repeated this
-    check verbatim. 404 (not 403) is intentional: we do not disclose the
-    existence of connections in projects the caller cannot see.
-    """
-    org_ids = resolve_org_ids(None, user_id)
-    if project_id not in _get_user_project_ids(sb_client, org_ids):
-        raise NotFoundException("Access connection not found", code=ErrorCode.NOT_FOUND)
+def _require_connection_project_access(
+    authorization: AuthorizationService,
+    project_id: str,
+    user_id: str,
+    action: ProjectAction,
+) -> None:
+    authorization.authorize(project_id, user_id, action)
 
 
 # ── Endpoints ───────────────────────────────────────────────
@@ -368,10 +367,13 @@ def list_connections(
     provider: str | None = Query(None),
     connection_status: str | None = Query(None, alias="status"),
     current_user: CurrentUser = Depends(get_current_user),
+    authorization: AuthorizationService = Depends(get_authorization_service),
 ):
     sb = _get_client()
     org_ids = resolve_org_ids(None, current_user.user_id)
-    allowed_project_ids = _get_user_project_ids(sb, org_ids)
+    allowed_project_ids = _get_user_project_ids(
+        sb, org_ids, authorization, current_user.user_id
+    )
 
     if project_id:
         # project_id is client-controlled input and must be re-authorized against
@@ -403,12 +405,15 @@ def list_connections(
 def get_connection(
     connection_id: str = Path(...),
     current_user: CurrentUser = Depends(get_current_user),
+    authorization: AuthorizationService = Depends(get_authorization_service),
 ):
     sb = _get_client()
     row = AccessSurfaceRepository(sb).get(connection_id)
     if not row:
         raise NotFoundException("Access connection not found", code=ErrorCode.NOT_FOUND)
-    _require_connection_project_access(sb, row["project_id"], current_user.user_id)
+    _require_connection_project_access(
+        authorization, row["project_id"], current_user.user_id, ProjectAction.ACCESS_READ
+    )
 
     # Detail views must not echo raw credentials (access_key / config secrets).
     return ApiResponse.success(data=_enrich([row], sb)[0], message="Access connection found")
@@ -424,6 +429,7 @@ async def update_connection(
     payload: ConnectionUpdate,
     connection_id: str = Path(...),
     current_user: CurrentUser = Depends(get_current_user),
+    authorization: AuthorizationService = Depends(get_authorization_service),
 ):
     sb = _get_client()
 
@@ -431,7 +437,12 @@ async def update_connection(
     row = surfaces.get(connection_id)
     if not row:
         raise NotFoundException("Access connection not found", code=ErrorCode.NOT_FOUND)
-    _require_connection_project_access(sb, row["project_id"], current_user.user_id)
+    _require_connection_project_access(
+        authorization,
+        row["project_id"],
+        current_user.user_id,
+        ProjectAction.ACCESS_MANAGE,
+    )
 
     fields: dict[str, Any] = {}
     if payload.status is not None:
@@ -468,6 +479,7 @@ async def update_connection(
 async def delete_connection(
     connection_id: str = Path(...),
     current_user: CurrentUser = Depends(get_current_user),
+    authorization: AuthorizationService = Depends(get_authorization_service),
 ):
     sb = _get_client()
 
@@ -476,7 +488,12 @@ async def delete_connection(
     if not row:
         raise NotFoundException("Access connection not found", code=ErrorCode.NOT_FOUND)
 
-    _require_connection_project_access(sb, row["project_id"], current_user.user_id)
+    _require_connection_project_access(
+        authorization,
+        row["project_id"],
+        current_user.user_id,
+        ProjectAction.ACCESS_MANAGE,
+    )
 
     if row.get("kind") in {"git_remote", "cli"}:
         raise HTTPException(status_code=400, detail="Built-in access surfaces cannot be deleted")
@@ -494,6 +511,7 @@ def rename_connection(
     connection_id: str = Path(...),
     body: dict = Body(...),
     current_user: CurrentUser = Depends(get_current_user),
+    authorization: AuthorizationService = Depends(get_authorization_service),
 ):
     """Update only the display name stored in config.name."""
     new_name = (body.get("name") or "").strip()
@@ -505,7 +523,12 @@ def rename_connection(
     row = surfaces.get(connection_id)
     if not row:
         raise NotFoundException("Access connection not found", code=ErrorCode.NOT_FOUND)
-    _require_connection_project_access(sb, row["project_id"], current_user.user_id)
+    _require_connection_project_access(
+        authorization,
+        row["project_id"],
+        current_user.user_id,
+        ProjectAction.ACCESS_MANAGE,
+    )
 
     cfg = dict(row.get("config") or {})
     cfg["name"] = new_name
@@ -524,13 +547,19 @@ def rename_connection(
 def regenerate_key(
     connection_id: str = Path(...),
     current_user: CurrentUser = Depends(get_current_user),
+    authorization: AuthorizationService = Depends(get_authorization_service),
 ):
     sb = _get_client()
 
     row = AccessSurfaceRepository(sb).get(connection_id)
     if not row:
         raise NotFoundException("Access connection not found", code=ErrorCode.NOT_FOUND)
-    _require_connection_project_access(sb, row["project_id"], current_user.user_id)
+    _require_connection_project_access(
+        authorization,
+        row["project_id"],
+        current_user.user_id,
+        ProjectAction.CREDENTIAL_MANAGE,
+    )
 
     provider = row.get("kind", row.get("provider", ""))
     if provider in {"git_remote", "cli"}:
@@ -823,6 +852,7 @@ async def create_connection(
     payload: UnifiedConnectionCreate,
     current_user: CurrentUser = Depends(get_current_user),
     entitlement_service: EntitlementService = Depends(get_entitlement_service),
+    authorization: AuthorizationService = Depends(get_authorization_service),
 ):
     """
     Unified entry point for creating Access surfaces.
@@ -835,13 +865,6 @@ async def create_connection(
     """
     from src.platform.project.repository import ProjectRepositorySupabase
 
-    project_repo = ProjectRepositorySupabase()
-    if not project_repo.verify_project_access(payload.project_id, current_user.user_id):
-        raise HTTPException(status_code=403, detail="Access denied to this project")
-    project = project_repo.get_by_id(payload.project_id)
-    if project is None:
-        raise HTTPException(status_code=404, detail="Project not found")
-
     provider = payload.provider.lower()
     if provider not in {"agent", "mcp", "sandbox", "direct"}:
         raise HTTPException(
@@ -851,6 +874,22 @@ async def create_connection(
                 "for external datasource connections."
             ),
         )
+
+    action_by_provider = {
+        "agent": ProjectAction.AGENT_MANAGE,
+        "mcp": ProjectAction.MCP_MANAGE,
+        "sandbox": ProjectAction.SANDBOX_MANAGE,
+        "direct": ProjectAction.CREDENTIAL_MANAGE,
+    }
+    authorization.authorize(
+        payload.project_id,
+        current_user.user_id,
+        action_by_provider[provider],
+    )
+    project_repo = ProjectRepositorySupabase()
+    project = project_repo.get_by_id(payload.project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
 
     # ── Duplicate detection ────────────────────────────────────────
     # Block creation if an identical access surface already exists.

@@ -1,128 +1,16 @@
-name: Deploy Migrations to Staging
+name: Deploy Schema to Qubits
 
 on:
   push:
     branches:
-      - newmu
       - qubits
-    paths:
-      - "supabase/migrations/**"
-      - "backend/scripts/backfill_scope_access_key_hash.py"
-      - "backend/scripts/backfill_surface_credentials.py"
-      - "backend/pyproject.toml"
-      - "backend/uv.lock"
-      - ".github/workflows/migrate-staging.yml"
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
-    env:
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      SUPABASE_DB_PASSWORD: ${{ secrets.STAGING_DB_PASSWORD }}
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: supabase/setup-cli@v1
-        with:
-          # Pinned: `version: latest` resolves via the GitHub releases API, which is
-          # rate-limited for unauthenticated CI runners ("Failed to resolve latest
-          # Supabase CLI release: rate limit exceeded"). Bump deliberately.
-          version: "2.107.0"
-
-      - name: Link to staging project
-        run: supabase link --project-ref ${{ secrets.STAGING_PROJECT_ID }}
-
-      # 20260711010000 and 20260711070000 retire plaintext credentials. Their
-      # hashes must be made with the application HMAC secret before db push
-      # reaches the destructive migration; `supabase db push` cannot run
-      # application code between individual migration files.
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install backfill runtime
-        run: pip install uv
-
-      - name: Backfill legacy machine credentials before migration dry-run
-        working-directory: backend
-        env:
-          SUPABASE_URL: https://${{ secrets.STAGING_PROJECT_ID }}.supabase.co
-          SUPABASE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}
-          ACCESS_CREDENTIAL_HASH_SECRET: ${{ secrets.STAGING_ACCESS_CREDENTIAL_HASH_SECRET }}
-        run: |
-          set -euo pipefail
-          : "${SUPABASE_URL:?STAGING_PROJECT_ID is required}"
-          : "${SUPABASE_KEY:?STAGING_SUPABASE_SERVICE_ROLE_KEY is required}"
-          : "${ACCESS_CREDENTIAL_HASH_SECRET:?STAGING_ACCESS_CREDENTIAL_HASH_SECRET is required}"
-          if [ "$ACCESS_CREDENTIAL_HASH_SECRET" = "ContextBase-access-credential-development-secret" ]; then
-            echo "::error::STAGING_ACCESS_CREDENTIAL_HASH_SECRET must be the deployed credential HMAC secret, not the development default."
-            exit 1
-          fi
-          uv sync --locked
-          uv run python -m scripts.backfill_scope_access_key_hash --apply
-          uv run python -m scripts.backfill_surface_credentials --apply
-
-      - name: Push migrations (dry run)
-        run: supabase db push --dry-run
-
-      - name: Push migrations
-        run: supabase db push
-
-      - name: Smoke test — verify critical triggers
-        env:
-          PGPASSWORD: ${{ secrets.STAGING_DB_PASSWORD }}
-          PGHOST: db.${{ secrets.STAGING_PROJECT_ID }}.supabase.co
-        run: |
-          set -euo pipefail
-          # Direct DB smoke tests need the database password secret; migration push itself does not.
-          if [ -z "${PGPASSWORD:-}" ]; then
-            echo "::warning::STAGING_DB_PASSWORD is not configured; skipping direct database smoke test."
-            exit 0
-          fi
-
-          command -v dig >/dev/null || sudo apt-get update -qq && sudo apt-get install -y -qq dnsutils
-          IPV4=$(dig +short A "$PGHOST" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -n1 || true)
-          if [ -n "$IPV4" ]; then
-            psql "hostaddr=${IPV4} host=${PGHOST} port=5432 dbname=postgres user=postgres sslmode=require" \
-              -f supabase/tests/smoke_test_triggers.sql
-          else
-            echo "::warning::Could not resolve IPv4 A record for ${PGHOST}; falling back to normal DNS resolution."
-            psql "host=${PGHOST} port=5432 dbname=postgres user=postgres sslmode=require" \
-              -f supabase/tests/smoke_test_triggers.sql
-          fi
-
-      - name: Detect schema drift
-        run: |
-          DIFF=$(supabase db diff --linked 2>&1) || true
-          if [ -n "$DIFF" ] && ! echo "$DIFF" | grep -q "No schema changes found"; then
-            echo "::warning::Schema drift detected after migration push!"
-            echo "$DIFF"
-          fi
-
-      - name: Notify on failure (email)
-        if: failure()
-        continue-on-error: true
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: smtp.gmail.com
-          server_port: 465
-          secure: true
-          username: ${{ secrets.ALERT_SMTP_USERNAME }}
-          password: ${{ secrets.ALERT_SMTP_PASSWORD }}
-          from: PuppyOne CI <${{ secrets.ALERT_SMTP_USERNAME }}>
-          to: ${{ secrets.ALERT_EMAIL_TO }}
-          subject: "⚠️ [STAGING] Migration failed: ${{ github.event.head_commit.message }}"
-          body: |
-            Staging migration push FAILED.
-
-            Workflow: ${{ github.workflow }}
-            Commit:   ${{ github.sha }}
-            Author:   ${{ github.event.head_commit.author.name }}
-            Message:  ${{ github.event.head_commit.message }}
-
-            View logs:
-            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-            Fix this BEFORE merging to main, otherwise production will break too.
+    uses: ./.github/workflows/_schema-deploy.yml
+    with:
+      environment: staging

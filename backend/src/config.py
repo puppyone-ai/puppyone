@@ -101,20 +101,16 @@ class Settings(BaseSettings):
                 # an earlier port is occupied (orphan dev servers, other IDE
                 # workers, etc.), and a missing entry here surfaces as every
                 # OPTIONS preflight returning 400 with no useful UI signal.
-                # Cover 3000-3004 so a couple of port bumps don't silently
-                # break the local stack.  Explicit env var ALLOWED_HOSTS
-                # still overrides this list for non-default setups.
+                # Cover Next.js (3000-3004) and the Electron/Vite desktop
+                # renderer (5173-5177) so a couple of port bumps don't
+                # silently break the local stack. Explicit env var
+                # ALLOWED_HOSTS still overrides this list for non-default
+                # setups.
+                dev_ports = [3000, 3001, 3002, 3003, 3004, 5173, 5174, 5175, 5176, 5177]
                 self.ALLOWED_HOSTS = [
-                    "http://localhost:3000",
-                    "http://localhost:3001",
-                    "http://localhost:3002",
-                    "http://localhost:3003",
-                    "http://localhost:3004",
-                    "http://127.0.0.1:3000",
-                    "http://127.0.0.1:3001",
-                    "http://127.0.0.1:3002",
-                    "http://127.0.0.1:3003",
-                    "http://127.0.0.1:3004",
+                    origin
+                    for port in dev_ports
+                    for origin in (f"http://localhost:{port}", f"http://127.0.0.1:{port}")
                 ]
             else:
                 self.ALLOWED_HOSTS = ["*"] if self.DEBUG else []

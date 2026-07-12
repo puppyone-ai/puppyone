@@ -373,9 +373,13 @@ async def app_lifespan(app: FastAPI):
 
     from src.version_engine.bootstrap.container import build_version_engine_container
 
-    # probe=True at process boot — fail fast on misconfigured S3 /
-    # Supabase rather than crashing the first user write.
-    app.state.version_engine = build_version_engine_container(probe=True)
+    # Probe external storage at non-debug process boot so production fails fast
+    # on misconfigured S3/Supabase. Local development/test runs often use partial
+    # env files or offline services; keep those bootable and let individual
+    # request paths surface dependency failures when exercised.
+    app.state.version_engine = build_version_engine_container(
+        probe=settings.APP_ENV not in {"development", "test"},
+    )
 
     # Wire the outbox → agent-resolver bridge. Until a real runner
     # is installed via ``AgentResolverDispatcher.install(...)`` the
@@ -487,6 +491,12 @@ def create_app() -> FastAPI:
     app.include_router(upload_router, prefix="/api/v1", tags=["upload"])
 
     app.include_router(project_router, prefix="/api/v1", tags=["projects"])
+    from src.platform.workspace_binding.router import router as workspace_binding_router
+    app.include_router(
+        workspace_binding_router,
+        prefix="/api/v1",
+        tags=["workspace-bindings"],
+    )
     app.include_router(oauth_router, prefix="/api/v1", tags=["oauth"])
     app.include_router(
         internal_router, tags=["internal"]
@@ -546,16 +556,13 @@ def create_app() -> FastAPI:
     from src.connectors.gateway.router import router as gateway_router
     app.include_router(gateway_router, prefix="/api/v1", tags=["gateways"])
 
-    # Repository surface: scope CRUD, repo identity, connectors, and
-    # per-user-per-repo permissions.
+    # Repository data-plane surface: scope CRUD, repo identity, connectors.
     from src.repo.scope_router import router as repo_scope_router
     from src.repo.identity_router import router as repo_identity_router
     from src.repo.connector_router import router as repo_connector_router
-    from src.repo.permission_router import router as repo_permission_router
     app.include_router(repo_scope_router, prefix="/api/v1", tags=["repo-scopes"])
     app.include_router(repo_identity_router, prefix="/api/v1", tags=["repo-identity"])
     app.include_router(repo_connector_router, prefix="/api/v1", tags=["connectors"])
-    app.include_router(repo_permission_router, prefix="/api/v1", tags=["repo-permissions"])
     router_register_duration = time.time() - router_register_start
 
     # Register exception handlers

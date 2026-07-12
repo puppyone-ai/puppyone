@@ -9,6 +9,7 @@ from fastapi import HTTPException
 from src.internal import mcp_runtime
 from src.version_engine.scoped_fs.errors import ScopedFsPermissionDenied
 from src.version_engine.scoped_fs.context import ScopedFsContext
+from src.version_engine.scoped_fs import service as scoped_fs_service
 from src.version_engine.scoped_fs.resolver import ResolvedMcpRuntime
 from src.version_engine.scoped_fs.service import ScopedFsService
 
@@ -110,6 +111,62 @@ async def test_runtime_call_rejects_disabled_tool_before_execution():
         )
 
     assert "disabled" in exc.value.message
+
+
+@pytest.mark.asyncio
+async def test_scoped_fs_grep_uses_shared_indexed_backend(monkeypatch):
+    calls = {}
+
+    def _indexed_payload(**kwargs):
+        calls.update(kwargs)
+        return {
+            "index_status": "indexed",
+            "index_freshness": {
+                "indexed_commit_id": "head",
+                "head_commit_id": "head",
+                "commits_behind": 0,
+            },
+            "truncated": False,
+            "hits": [{
+                "path": "docs/a.md",
+                "line": 3,
+                "col": 5,
+                "match": "hello mcp",
+                "context_before": ["before"],
+                "context_after": ["after"],
+                "content_hash": "blob-hash",
+            }],
+        }
+
+    class _Ops:
+        def stat_in_scope(self, _project_id, _scope_path, _path, *, include_size=False):
+            return None
+
+        def get_scope_head_commit_id(self, _project_id, _scope_path):
+            return "scope-head"
+
+    monkeypatch.setattr(scoped_fs_service, "run_indexed_grep_payload", _indexed_payload)
+    service = ScopedFsService(ops=_Ops(), commands=None)  # type: ignore[arg-type]
+
+    result = await service.grep(_ctx("ro"), pattern="hello", path="")
+
+    assert calls["scope_path"] == "docs"
+    assert calls["excludes"] == ["private"]
+    assert result["search_backend"] == "indexed"
+    assert result["head_commit_id"] == "scope-head"
+    assert result["matches"] == [{
+        "path": "a.md",
+        "line_number": 3,
+        "line_text": "hello mcp",
+        "match_text": "hello mcp",
+        "match_start": 4,
+        "match_end": 13,
+        "byte_offset": None,
+        "match_byte_offset": None,
+        "before_context": [{"line_text": "before"}],
+        "after_context": [{"line_text": "after"}],
+        "content_hash": "blob-hash",
+    }]
 
 
 @pytest.mark.asyncio
