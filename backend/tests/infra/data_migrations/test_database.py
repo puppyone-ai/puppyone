@@ -14,12 +14,12 @@ from src.infra.data_migrations.errors import (
 
 
 def test_database_url_is_split_into_libpq_environment(monkeypatch) -> None:
-    calls: list[tuple[list[str], dict[str, str]]] = []
+    calls: list[tuple[list[str], dict[str, str], str | None]] = []
 
     monkeypatch.setattr("shutil.which", lambda executable: f"/usr/bin/{executable}")
 
     def fake_run(command, **kwargs):
-        calls.append((command, kwargs["env"]))
+        calls.append((command, kwargs["env"], kwargs["input"]))
         return subprocess.CompletedProcess(command, 0, stdout="1\n", stderr="")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
@@ -29,7 +29,7 @@ def test_database_url_is_split_into_libpq_environment(monkeypatch) -> None:
     )
 
     assert client.scalar("SELECT 1") == "1"
-    command, environment = calls[0]
+    command, environment, input_text = calls[0]
     assert all("secret" not in argument for argument in command)
     assert environment["PGHOST"] == "example.test"
     assert environment["PGPORT"] == "5433"
@@ -38,6 +38,29 @@ def test_database_url_is_split_into_libpq_environment(monkeypatch) -> None:
     assert environment["PGPASSWORD"] == "sec@ret"
     assert environment["PGSSLMODE"] == "require"
     assert environment["PGAPPNAME"] == "puppyone-db"
+    assert "-c" not in command
+    assert input_text == "SELECT 1\n"
+
+
+def test_scalar_variables_use_psql_literal_quoting_over_stdin(monkeypatch) -> None:
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr("shutil.which", lambda executable: f"/usr/bin/{executable}")
+
+    def fake_run(command, **kwargs):
+        calls.append({"command": command, **kwargs})
+        return subprocess.CompletedProcess(command, 0, stdout="{}\n", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    client = PsqlClient("postgresql://example.test/postgres")
+
+    client.scalar(
+        "SELECT :'migration_id'",
+        variables={"migration_id": "20260712_example"},
+    )
+
+    assert "-c" not in calls[0]["command"]
+    assert "migration_id=20260712_example" in calls[0]["command"]
+    assert calls[0]["input"] == "SELECT :'migration_id'\n"
 
 
 @pytest.mark.parametrize(
@@ -119,11 +142,11 @@ def test_transaction_pooler_is_rejected_for_session_locking(monkeypatch) -> None
 
 
 def test_sql_receipt_is_insert_only(monkeypatch, tmp_path: Path) -> None:
-    calls: list[list[str]] = []
+    calls: list[dict[str, object]] = []
     monkeypatch.setattr("shutil.which", lambda executable: f"/usr/bin/{executable}")
 
     def fake_run(command, **kwargs):
-        calls.append(command)
+        calls.append({"command": command, **kwargs})
         return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
@@ -143,21 +166,25 @@ def test_sql_receipt_is_insert_only(monkeypatch, tmp_path: Path) -> None:
         timeout=10,
     )
 
-    rendered = " ".join(calls[0])
+    rendered = str(calls[0]["input"])
     assert "ON CONFLICT (name) DO NOTHING" in rendered
     assert "DO UPDATE" not in rendered
     assert "pg_try_advisory_xact_lock" in rendered
+    assert "BEGIN;" in rendered
+    assert "SELECT 1;" in rendered
+    assert "COMMIT;" in rendered
+    assert "-c" not in calls[0]["command"]
 
 
 def test_standalone_verification_is_read_only_and_database_timed(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
-    calls: list[list[str]] = []
+    calls: list[dict[str, object]] = []
     monkeypatch.setattr("shutil.which", lambda executable: f"/usr/bin/{executable}")
 
     def fake_run(command, **kwargs):
-        calls.append(command)
+        calls.append({"command": command, **kwargs})
         return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
@@ -167,10 +194,11 @@ def test_standalone_verification_is_read_only_and_database_timed(
 
     client.verify(verification, timeout=10)
 
-    rendered = " ".join(calls[0])
-    assert "--single-transaction" in rendered
-    assert "SET TRANSACTION READ ONLY" in rendered
-    assert "statement_timeout_ms=10000ms" in rendered
+    rendered = str(calls[0]["input"])
+    assert "BEGIN READ ONLY;" in rendered
+    assert "ROLLBACK;" in rendered
+    assert "statement_timeout_ms=10000ms" in calls[0]["command"]
+    assert "-c" not in calls[0]["command"]
 
 
 def test_sql_migration_fails_fast_when_another_runner_holds_the_lock(

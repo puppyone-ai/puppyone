@@ -156,8 +156,11 @@ class PsqlClient:
         arguments = ["-qAt", "-v", "ON_ERROR_STOP=1"]
         for name, value in sorted((variables or {}).items()):
             arguments.extend(["-v", f"{name}={value}"])
-        arguments.extend(["-c", sql])
-        return self.command(arguments).stdout.strip()
+        # psql variable interpolation is a client-side script feature. In
+        # particular, variables in SQL supplied through `-c` are not expanded.
+        # Feeding the script over stdin preserves `:'name'` literal quoting and
+        # keeps dynamic values out of both SQL string construction and argv.
+        return self.command(arguments, input_text=f"{sql.rstrip()}\n").stdout.strip()
 
     def applied_schema_versions(self) -> set[str]:
         output = self.scalar(
@@ -182,21 +185,24 @@ class PsqlClient:
         return value
 
     def verify(self, verify_path: Path, *, timeout: int) -> None:
+        verification = verify_path.read_text(encoding="utf-8")
+        script = (
+            "BEGIN READ ONLY;\n"
+            "SET LOCAL lock_timeout = '5s';\n"
+            "SET LOCAL statement_timeout = :'statement_timeout_ms';\n"
+            f"{verification.rstrip()}\n"
+            "ROLLBACK;\n"
+        )
         self.command(
             [
-                "--single-transaction",
+                "-q",
                 "-v",
                 "ON_ERROR_STOP=1",
                 "-v",
                 f"statement_timeout_ms={timeout * 1000}ms",
-                "-c",
-                "SET TRANSACTION READ ONLY; "
-                "SET LOCAL lock_timeout = '5s'; "
-                "SET LOCAL statement_timeout = :'statement_timeout_ms'",
-                "-f",
-                str(verify_path),
             ],
             timeout=timeout,
+            input_text=script,
         )
 
     def record_receipt(
@@ -218,6 +224,11 @@ class PsqlClient:
             sort_keys=True,
             separators=(",", ":"),
         )
+        script = (
+            "INSERT INTO public.migration_log(name, applied_at, summary) "
+            "VALUES (:'migration_id', now(), :'summary'::jsonb) "
+            "ON CONFLICT (name) DO NOTHING;\n"
+        )
         self.command(
             [
                 "-q",
@@ -227,11 +238,8 @@ class PsqlClient:
                 f"migration_id={migration_id}",
                 "-v",
                 f"summary={summary}",
-                "-c",
-                "INSERT INTO public.migration_log(name, applied_at, summary) "
-                "VALUES (:'migration_id', now(), :'summary'::jsonb) "
-                "ON CONFLICT (name) DO NOTHING",
-            ]
+            ],
+            input_text=script,
         )
 
     def run_sql_transaction(
@@ -256,39 +264,42 @@ class PsqlClient:
             sort_keys=True,
             separators=(",", ":"),
         )
+        entrypoint = entrypoint_path.read_text(encoding="utf-8")
+        verification = verify_path.read_text(encoding="utf-8")
+        script = (
+            "BEGIN;\n"
+            "SET LOCAL lock_timeout = '5s';\n"
+            "SET LOCAL statement_timeout = :'statement_timeout_ms';\n"
+            "SELECT set_config("
+            "'puppyone.data_migration_id', :'migration_id', true);\n"
+            "DO $puppyone$ BEGIN "
+            "IF NOT pg_try_advisory_xact_lock(hashtextextended("
+            "current_setting('puppyone.data_migration_id'), 0)) THEN "
+            "RAISE EXCEPTION 'DATA_MIGRATION_BUSY:%', "
+            "current_setting('puppyone.data_migration_id'); "
+            "END IF; END; $puppyone$;\n"
+            f"{entrypoint.rstrip()}\n"
+            f"{verification.rstrip()}\n"
+            "INSERT INTO public.migration_log(name, applied_at, summary) "
+            "VALUES (:'migration_id', now(), :'summary'::jsonb) "
+            "ON CONFLICT (name) DO NOTHING;\n"
+            "COMMIT;\n"
+        )
         try:
             self.command(
                 [
+                    "-q",
                     "-v",
                     "ON_ERROR_STOP=1",
-                    "--single-transaction",
                     "-v",
                     f"migration_id={migration_id}",
                     "-v",
                     f"summary={summary}",
                     "-v",
                     f"statement_timeout_ms={timeout * 1000}ms",
-                    "-c",
-                    "SET LOCAL lock_timeout = '5s'; "
-                    "SET LOCAL statement_timeout = :'statement_timeout_ms'; "
-                    "SET LOCAL puppyone.data_migration_id = :'migration_id'",
-                    "-c",
-                    "DO $puppyone$ BEGIN "
-                    "IF NOT pg_try_advisory_xact_lock(hashtextextended("
-                    "current_setting('puppyone.data_migration_id'), 0)) THEN "
-                    "RAISE EXCEPTION 'DATA_MIGRATION_BUSY:%', "
-                    "current_setting('puppyone.data_migration_id'); "
-                    "END IF; END; $puppyone$;",
-                    "-f",
-                    str(entrypoint_path),
-                    "-f",
-                    str(verify_path),
-                    "-c",
-                    "INSERT INTO public.migration_log(name, applied_at, summary) "
-                    "VALUES (:'migration_id', now(), :'summary'::jsonb) "
-                    "ON CONFLICT (name) DO NOTHING",
                 ],
                 timeout=timeout,
+                input_text=script,
             )
         except ExecutionError as error:
             if "DATA_MIGRATION_BUSY:" in str(error):
