@@ -11,7 +11,6 @@
 -- The CAS RPC block is wrapped in BEGIN/ROLLBACK so its probe calls leave no residue.
 
 BEGIN;
-SELECT plan(2);
 
 DO $$
 DECLARE
@@ -68,9 +67,6 @@ BEGIN
     RAISE NOTICE 'SMOKE TEST PASSED: handle_new_user() trigger is consistent with profiles table';
 END;
 $$;
-
-SELECT pass('handle_new_user trigger is consistent with profiles');
-
 
 -- ============================================================================
 -- Check 2: MUT CAS RPCs must use p_project_id TEXT (not UUID).
@@ -178,8 +174,6 @@ BEGIN
 END;
 $$;
 
-SELECT pass('MUT CAS RPCs use TEXT project IDs and invoke successfully');
-SELECT * FROM finish();
 ROLLBACK;
 
 
