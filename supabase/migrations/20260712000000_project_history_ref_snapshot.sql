@@ -15,7 +15,7 @@ RETURNS TABLE(ref_name TEXT, ref_type TEXT, commit_id TEXT)
 LANGUAGE SQL
 STABLE
 SECURITY DEFINER
-SET search_path = public
+SET search_path = ''
 AS $$
     WITH project_root AS (
         SELECT COALESCE(p.version_root_hash, '') AS root_hash
