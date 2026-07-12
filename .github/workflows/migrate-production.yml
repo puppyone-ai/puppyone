@@ -17,5 +17,6 @@ permissions:
 jobs:
   deploy:
     uses: ./.github/workflows/_schema-deploy.yml
+    secrets: inherit
     with:
       environment: production

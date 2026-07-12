@@ -81,7 +81,19 @@ def test_production_data_work_cannot_run_from_untrusted_ref() -> None:
     assert "environment: staging" in dispatcher
     assert "operation: verify" in dispatcher
     assert "needs.production_staging_evidence.result == 'success'" in dispatcher
-    assert "secrets:" not in dispatcher
+
+
+def test_reusable_database_workflows_receive_protected_secrets() -> None:
+    staging = (WORKFLOWS / "migrate-staging.yml").read_text()
+    production = (WORKFLOWS / "migrate-production.yml").read_text()
+    dispatcher = (WORKFLOWS / "data-migration.yml").read_text()
+
+    # GitHub does not pass secrets to reusable workflows automatically. Every
+    # direct caller must cross that boundary explicitly; the called job then
+    # selects the protected staging/production Environment.
+    assert staging.count("secrets: inherit") == 1
+    assert production.count("secrets: inherit") == 1
+    assert dispatcher.count("secrets: inherit") == 3
 
 
 def test_needs_expressions_use_identifier_safe_job_ids() -> None:
