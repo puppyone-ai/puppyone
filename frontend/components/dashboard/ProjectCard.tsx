@@ -6,7 +6,12 @@ import { useTranslations, useFormatter } from 'next-intl';
 import { Dots, SkeletonBlock } from '@/components/loading';
 import { StatusDot } from '@/components/ui/StatusDot';
 import type { ProjectInfo } from '@/lib/projectsApi';
-import { listDir, sortNodes, type NodeInfo } from '@/lib/contentTreeApi';
+import {
+  isVersionStorageIrrecoverableError,
+  listDir,
+  sortNodes,
+  type NodeInfo,
+} from '@/lib/contentTreeApi';
 import { FilePreviewIcon } from '@/lib/fileIcons';
 
 export const PROJECT_CARD_MIN_WIDTH = 210;
@@ -33,7 +38,7 @@ function useProjectCardPreview(projectId: string, enabled: boolean) {
       keepPreviousData: true,
       errorRetryCount: 3,
       errorRetryInterval: 1_500,
-      shouldRetryOnError: true,
+      shouldRetryOnError: (error) => !isVersionStorageIrrecoverableError(error),
     },
   );
 }
@@ -124,6 +129,7 @@ export function ProjectCard({ project, onClick }: Readonly<ProjectCardProps>) {
     isValidating: previewValidating,
   } = useProjectCardPreview(project.id, !isPending);
   const previewNodes = previewData ?? [];
+  const previewIrrecoverable = isVersionStorageIrrecoverableError(previewError);
   const hasPreview = previewNodes.length > 0;
   const previewSettled = previewData !== undefined && !previewError;
   const showPreviewSkeleton =
@@ -181,6 +187,10 @@ export function ProjectCard({ project, onClick }: Readonly<ProjectCardProps>) {
                 </p>
               ) : showPreviewSkeleton ? (
                 <ProjectPreviewSkeleton />
+              ) : previewIrrecoverable ? (
+                <p className="text-[12px] text-[var(--po-text-muted)] leading-relaxed">
+                  Historical content is unavailable.
+                </p>
               ) : project.description ? (
                 <p className="text-[12px] text-[var(--po-text-muted)] leading-relaxed line-clamp-3">
                   {project.description}
