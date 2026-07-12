@@ -61,23 +61,26 @@ def read_graph_commit(repo, commit_id: str) -> GraphCommit | None:
         if obj_type != "commit":
             raise ValueError(f"expected commit object, got {obj_type}")
         info = decode_commit(content)
+        tree_id = str(info.get("tree") or "")
+        if not is_git_object_id(tree_id):
+            raise ValueError("commit has an invalid tree id")
+        raw_parent_ids = tuple(info.get("parents") or ())
+        if not all(is_git_object_id(parent_id) for parent_id in raw_parent_ids):
+            raise ValueError("commit has an invalid parent id")
     except Exception as exc:  # noqa: BLE001 - caller reports degraded graph semantics
         log_error(f"[history-facts] cannot read commit {commit_id}: {exc}")
         return None
 
-    parent_ids = tuple(dict.fromkeys(
-        parent_id
-        for parent_id in (info.get("parents") or [])
-        if is_git_object_id(parent_id)
-    ))
+    parent_ids = tuple(dict.fromkeys(raw_parent_ids))
     timestamp, created_at = _git_identity_time(info.get("committer") or info.get("author") or "")
     author_identity, _author_time = split_author_line(info.get("author") or "")
     author = author_identity.rsplit("<", 1)[0].strip() or author_identity.strip() or "Git"
-    message = (info.get("message") or "").splitlines()[0].strip() or "Update workspace"
+    message_lines = (info.get("message") or "").splitlines()
+    message = (message_lines[0].strip() if message_lines else "") or "Update workspace"
     return GraphCommit(
         commit_id=commit_id,
         parent_ids=parent_ids,
-        tree_id=info.get("tree", "") if is_git_object_id(info.get("tree", "")) else "",
+        tree_id=tree_id,
         author=author,
         message=message,
         created_at=created_at,

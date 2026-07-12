@@ -315,6 +315,43 @@ def test_graph_reports_degraded_health_for_unreadable_named_ref(tmp_path):
     assert data["unreadable_commit_ids"] == [missing]
 
 
+def test_graph_reports_degraded_health_for_malformed_commit_ancestry(tmp_path):
+    store = ObjectStore(tmp_path / "objects")
+    malformed = store.put_commit((
+        f"tree {EMPTY_TREE_SHA1}\n"
+        "parent not-a-git-object\n"
+        "author Test <test@example.com> 1 +0000\n"
+        "committer Test <test@example.com> 1 +0000\n"
+        "\n"
+    ).encode("utf-8"))
+    history = _History(malformed, [_history_entry(malformed, "Malformed", 1)])
+
+    response = _client(store, history, _VersionRefs([])).get(
+        "/api/v1/content/project-1/commits",
+        params={"order": "topo"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["commits"] == []
+    assert data["graph_health"] == "degraded"
+    assert data["unreadable_commit_ids"] == [malformed]
+
+
+def test_graph_uses_a_safe_default_for_an_empty_commit_message(tmp_path):
+    store = ObjectStore(tmp_path / "objects")
+    head = _put_commit(store, [], 1, "")
+    history = _History(head, [_history_entry(head, "", 1)])
+
+    response = _client(store, history, _VersionRefs([])).get(
+        "/api/v1/content/project-1/commits",
+        params={"order": "topo"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["commits"][0]["message"] == "Update workspace"
+
+
 def test_graph_fails_closed_when_atomic_ref_snapshot_is_malformed(tmp_path):
     store = ObjectStore(tmp_path / "objects")
     head = _put_commit(store, [], 1, "Head")
