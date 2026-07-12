@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import re
 
 from src.infra.supabase.client import SupabaseClient
 from src.version_engine.bootstrap.dependencies import (
@@ -29,6 +30,7 @@ from src.version_engine.bootstrap.dependencies import (
 
 
 INCIDENTS_TABLE = "version_project_root_integrity_incidents"
+_CANONICAL_OBJECT_ID_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
 @dataclass(frozen=True)
@@ -154,7 +156,7 @@ def apply_project_root_recovery(repo, plan: RootRecoveryPlan) -> bool:
     return True
 
 
-def mark_project_root_irrecoverable(client, plan: RootRecoveryPlan) -> None:
+def mark_project_root_irrecoverable(client, plan: RootRecoveryPlan) -> bool:
     """Persist an incident for a reviewed, genuinely unrecoverable root.
 
     The root hash remains untouched.  Re-running the scan updates only the
@@ -163,6 +165,12 @@ def mark_project_root_irrecoverable(client, plan: RootRecoveryPlan) -> None:
 
     if plan.status != "unrecoverable" or not plan.current_root:
         raise ValueError("only an unrecoverable non-empty root can be marked")
+    # Legacy 16-hex roots are intentionally unsupported by the current Git
+    # object namespace.  Do not weaken the canonical-ID database constraint
+    # just to persist diagnostic metadata; their unrecoverable status is
+    # detected directly by the read API.
+    if not _CANONICAL_OBJECT_ID_RE.fullmatch(plan.current_root):
+        return False
     client.table(INCIDENTS_TABLE).upsert(
         {
             "project_id": plan.project_id,
@@ -174,6 +182,7 @@ def mark_project_root_irrecoverable(client, plan: RootRecoveryPlan) -> None:
         },
         on_conflict="project_id",
     ).execute()
+    return True
 
 
 def _project_ids(client, explicit_ids: list[str], *, scan_all: bool) -> list[str]:
@@ -225,8 +234,9 @@ def run(
             if not applied:
                 failed += 1
         if mark_unrecoverable and plan.status == "unrecoverable":
-            mark_project_root_irrecoverable(db, plan)
-            print(f"project={plan.project_id} irrecoverable_marked=true")
+            marked = mark_project_root_irrecoverable(db, plan)
+            outcome = "true" if marked else "legacy_root_not_recorded"
+            print(f"project={plan.project_id} irrecoverable_marked={outcome}")
     return plans, failed
 
 

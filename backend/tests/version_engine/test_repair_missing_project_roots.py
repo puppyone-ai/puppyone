@@ -181,3 +181,13 @@ def test_mark_irrecoverable_persists_an_incident_without_mutating_root() -> None
         "current root object missing and no readable historical root tree"
     )
     assert query.row["last_detected_at"].endswith("+00:00")
+
+
+def test_legacy_root_is_not_written_to_the_canonical_incident_table() -> None:
+    class _Client:
+        def table(self, _name):
+            raise AssertionError("legacy roots must not be recorded in this table")
+
+    plan = RootRecoveryPlan(project_id="project-1", current_root="a" * 16)
+
+    assert mark_project_root_irrecoverable(_Client(), plan) is False
