@@ -17,4 +17,5 @@ def test_history_ref_snapshot_rpc_resolves_canonical_head_before_legacy_global_h
     assert "r.scope_path = ''" in sql
     assert "REVOKE ALL ON FUNCTION" in sql
     assert "TO service_role" in sql
+    assert "SET search_path = ''" in sql
     assert "NOTIFY pgrst, 'reload schema'" in sql
