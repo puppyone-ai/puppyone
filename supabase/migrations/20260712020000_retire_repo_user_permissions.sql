@@ -143,4 +143,9 @@ SELECT jsonb_build_object(
 );
 $$;
 
+REVOKE ALL ON FUNCTION public.unified_authorization_preflight()
+    FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.unified_authorization_preflight()
+    TO service_role;
+
 COMMIT;

@@ -6,7 +6,7 @@
 
 BEGIN;
 
-SELECT plan(53);
+SELECT plan(55);
 
 DO $$
 DECLARE
@@ -157,6 +157,18 @@ SELECT has_table('public', 'project_workspace_bindings',
     'workspace bindings are a first-class Project identity fact');
 SELECT hasnt_table('public', 'repo_user_permissions',
     'legacy human permission table is retired');
+SELECT ok(
+    NOT has_function_privilege(
+        'anon', 'public.unified_authorization_preflight()', 'EXECUTE'
+    ),
+    'anonymous clients cannot execute the operational authorization preflight'
+);
+SELECT ok(
+    NOT has_function_privilege(
+        'authenticated', 'public.unified_authorization_preflight()', 'EXECUTE'
+    ),
+    'authenticated clients cannot execute the operational authorization preflight'
+);
 SELECT is(
     (SELECT count(*) FROM information_schema.tables
      WHERE table_schema = 'public'

@@ -735,6 +735,16 @@ BEGIN
 END;
 $$;
 
+-- CREATE OR REPLACE currently preserves the ACL established by the previous
+-- migration.  Repeat it here so this security boundary remains correct when
+-- the function is inspected, replayed, or consolidated independently.
+REVOKE ALL ON FUNCTION public.rotate_access_surface_bearer_token(
+    text, text, text, text, text, text, text, uuid, timestamptz
+) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.rotate_access_surface_bearer_token(
+    text, text, text, text, text, text, text, uuid, timestamptz
+) TO service_role;
+
 ALTER TABLE public.access_surface_credentials
     DROP CONSTRAINT IF EXISTS access_surface_credentials_surface_tenant_fkey;
 ALTER TABLE public.access_surface_credentials
@@ -1320,5 +1330,10 @@ SELECT jsonb_build_object(
         ) END
 );
 $$;
+
+REVOKE ALL ON FUNCTION public.unified_authorization_preflight()
+    FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.unified_authorization_preflight()
+    TO service_role;
 
 COMMIT;
