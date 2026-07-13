@@ -69,6 +69,58 @@ BEGIN
 END;
 $$;
 
+DO $$
+BEGIN
+    IF to_regprocedure('public.project_creator_authorization_preflight()') IS NULL THEN
+        RAISE EXCEPTION
+            'SMOKE TEST FAILED: Project creator authorization preflight is missing';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_trigger t
+        JOIN pg_class c ON c.oid = t.tgrelid
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public'
+          AND c.relname = 'project_members'
+          AND t.tgname = 'trg_project_members_creator_admin_guard'
+          AND NOT t.tgisinternal
+          AND t.tgenabled <> 'D'
+    ) THEN
+        RAISE EXCEPTION
+            'SMOKE TEST FAILED: Project creator membership guard is missing or disabled';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_trigger t
+        JOIN pg_class c ON c.oid = t.tgrelid
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public'
+          AND c.relname = 'projects'
+          AND t.tgname = 'trg_projects_creator_admin_guard'
+          AND t.tgdeferrable
+          AND t.tginitdeferred
+          AND t.tgenabled <> 'D'
+    ) THEN
+        RAISE EXCEPTION
+            'SMOKE TEST FAILED: deferred Project creator fact guard is missing or disabled';
+    END IF;
+
+    IF has_function_privilege(
+        'anon', 'public.project_creator_authorization_preflight()', 'EXECUTE'
+    ) OR has_function_privilege(
+        'authenticated', 'public.project_creator_authorization_preflight()', 'EXECUTE'
+    ) THEN
+        RAISE EXCEPTION
+            'SMOKE TEST FAILED: creator diagnostics are exposed to client roles';
+    END IF;
+
+    RAISE NOTICE
+        'SMOKE TEST PASSED: Project creator authorization guards are installed';
+END;
+$$;
+
 -- ============================================================================
 -- Check 2: MUT CAS RPCs must use p_project_id TEXT (not UUID).
 --

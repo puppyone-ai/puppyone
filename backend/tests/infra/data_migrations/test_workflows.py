@@ -52,7 +52,7 @@ def test_psql_receives_connection_uri_explicitly() -> None:
     assert "PGDATABASE:" not in schema
     assert "PGDATABASE:" not in validation
     assert 'psql "$DATABASE_URL"' in schema
-    assert validation.count('psql "$DATABASE_URL"') == 4
+    assert validation.count('psql "$DATABASE_URL"') == 6
 
 
 def test_hosted_schema_smoke_has_no_pgtap_runtime_dependency() -> None:
@@ -74,20 +74,26 @@ def test_hosted_schema_smoke_has_no_pgtap_runtime_dependency() -> None:
 
 def test_ordered_data_migration_fixtures_are_not_auto_discovered_by_supabase() -> None:
     supabase_tests = REPOSITORY / "supabase" / "tests"
-    migration = (
+    permission_migration = (
         REPOSITORY
         / "supabase"
         / "data_migrations"
         / "20260712_repo_user_permissions_to_project_members"
     )
+    creator_migration = (
+        REPOSITORY
+        / "supabase"
+        / "data_migrations"
+        / "20260713_reconcile_project_creator_admin"
+    )
     validation = (WORKFLOWS / "validate-migrations.yml").read_text()
 
     assert not list(supabase_tests.glob("*fixture*.sql"))
     assert not list(supabase_tests.glob("*assert*.sql"))
-    assert (migration / "test_fixture.sql").is_file()
-    assert (migration / "test_assert.sql").is_file()
-    assert "test_fixture.sql" in validation
-    assert "test_assert.sql" in validation
+    for migration in (permission_migration, creator_migration):
+        assert (migration / "test_fixture.sql").is_file()
+        assert (migration / "test_assert.sql").is_file()
+        assert migration.name in validation
 
 
 def test_production_data_work_cannot_run_from_untrusted_ref() -> None:
@@ -128,7 +134,7 @@ def test_staging_manual_release_is_auditable_and_serial() -> None:
     assert staging.count("uses: ./.github/workflows/_data-migration.yml") == 3
     for operation in ("plan", "run", "verify"):
         assert f"operation: {operation}" in staging
-    assert "20260712_repo_user_permissions_to_project_members" in release
+    assert "20260713_reconcile_project_creator_admin" in release
 
 
 def test_needs_expressions_use_identifier_safe_job_ids() -> None:
