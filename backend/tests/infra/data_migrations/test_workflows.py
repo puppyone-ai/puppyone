@@ -56,7 +56,10 @@ def test_psql_receives_connection_uri_explicitly() -> None:
 
 
 def test_hosted_schema_smoke_has_no_pgtap_runtime_dependency() -> None:
-    smoke = (REPOSITORY / "supabase" / "tests" / "smoke_test_triggers.sql").read_text()
+    smoke_path = REPOSITORY / "supabase" / "smoke" / "schema_contracts.sql"
+    smoke = smoke_path.read_text()
+    adapter = (REPOSITORY / "supabase" / "tests" / "smoke_test_triggers.sql").read_text()
+    deploy = (WORKFLOWS / "_schema-deploy.yml").read_text()
 
     # The hosted staging/production projects are not required to install the
     # pgTAP test extension. Deployment smoke checks fail through SQL exceptions
@@ -64,6 +67,8 @@ def test_hosted_schema_smoke_has_no_pgtap_runtime_dependency() -> None:
     assert "SELECT plan(" not in smoke
     assert "SELECT pass(" not in smoke
     assert "finish()" not in smoke
+    assert r"\ir ../smoke/schema_contracts.sql" in adapter
+    assert "-f supabase/smoke/schema_contracts.sql" in deploy
 
 
 def test_ordered_data_migration_fixtures_are_not_auto_discovered_by_supabase() -> None:
