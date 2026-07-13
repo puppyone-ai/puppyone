@@ -155,6 +155,12 @@ def test_migrations_define_nine_table_target_and_staged_retirement():
         / "migrations"
         / "20260712010000_expand_unified_project_authorization.sql"
     ).read_text()
+    creator_guard = (
+        BACKEND.parent
+        / "supabase"
+        / "migrations"
+        / "20260713010000_enforce_project_creator_admin.sql"
+    ).read_text()
     retirement = (
         BACKEND.parent
         / "supabase"
@@ -181,6 +187,10 @@ def test_migrations_define_nine_table_target_and_staged_retirement():
     assert "AND kind = 'cli'" in foundation
     assert "REVOKE ALL ON FUNCTION public.rotate_access_surface_bearer_token" in foundation
     assert "REVOKE ALL ON FUNCTION public.unified_authorization_preflight()" in foundation
+    assert "project_creator_authorization_preflight" in creator_guard
+    assert "trg_project_members_creator_admin_guard" in creator_guard
+    assert "trg_projects_creator_admin_guard" in creator_guard
+    assert "DEFERRABLE INITIALLY DEFERRED" in creator_guard
     assert "REVOKE ALL ON FUNCTION public.unified_authorization_preflight()" in retirement
     assert "requires-data-migration: 20260712_repo_user_permissions" in retirement
     artifact_checksum = DataMigrationCatalog(BACKEND.parent).get(
@@ -201,6 +211,7 @@ def test_migration_functions_pin_a_hardened_search_path():
     migrations = BACKEND.parent / "supabase" / "migrations"
     for name in (
         "20260712010000_expand_unified_project_authorization.sql",
+        "20260713010000_enforce_project_creator_admin.sql",
     ):
         text = (migrations / name).read_text()
         assert "SET search_path = public" not in text
@@ -221,7 +232,7 @@ def test_database_contract_suite_and_ci_gate_are_wired():
     workflow = (
         BACKEND.parent / ".github" / "workflows" / "validate-migrations.yml"
     ).read_text()
-    assert "SELECT plan(55);" in contract
+    assert "SELECT plan(58);" in contract
     assert "has_function_privilege" in contract
     assert contract.count("SELECT throws_ok(") >= 6
     assert "root/non-root identity drift" in contract

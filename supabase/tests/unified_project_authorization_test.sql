@@ -6,7 +6,7 @@
 
 BEGIN;
 
-SELECT plan(55);
+SELECT plan(58);
 
 DO $$
 DECLARE
@@ -186,6 +186,36 @@ SELECT is(
        AND user_id = '00000000-0000-0000-0000-000000029101'),
     'admin',
     'Project creation publishes creator Admin membership atomically'
+);
+
+SELECT throws_ok(
+    $$SELECT * FROM public.update_project_member_role_authorized(
+        'issue029-private',
+        '00000000-0000-0000-0000-000000029101'::uuid,
+        'viewer',
+        '00000000-0000-0000-0000-000000029101'::uuid
+    )$$,
+    '23514',
+    'project creator must retain explicit Project Admin membership',
+    'Project creator cannot be downgraded through the authorized RPC'
+);
+SELECT throws_ok(
+    $$SELECT public.remove_project_member_authorized(
+        'issue029-private',
+        '00000000-0000-0000-0000-000000029101'::uuid,
+        '00000000-0000-0000-0000-000000029101'::uuid
+    )$$,
+    '23514',
+    'project creator must retain explicit Project Admin membership',
+    'Project creator cannot be removed through the authorized RPC'
+);
+SELECT throws_ok(
+    $$DELETE FROM public.org_members
+      WHERE org_id = 'issue029-org'
+        AND user_id = '00000000-0000-0000-0000-000000029101'::uuid$$,
+    '23514',
+    'project creator must retain explicit Project Admin membership',
+    'tenant membership cannot be removed before Project ownership is transferred'
 );
 
 SELECT throws_ok(
