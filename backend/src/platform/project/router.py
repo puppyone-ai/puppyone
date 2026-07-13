@@ -4,8 +4,7 @@ Project Router
 Provides REST API endpoints for project CRUD operations.
 """
 
-
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 
 from src.common_schemas import ApiResponse
 from src.infra.supabase.dependencies import get_supabase_client
@@ -16,14 +15,14 @@ from src.platform.authorization.dependencies import (
     get_authorization_service,
     require_project_action,
 )
-from src.platform.authorization.models import ProjectAction, ProjectGrant
+from src.platform.authorization.models import ProjectAction
 from src.platform.authorization.service import AuthorizationService
 from src.platform.entitlements.dependencies import get_entitlement_service
 from src.platform.entitlements.service import EntitlementService
 from src.platform.organization.dependencies import resolve_org_id, resolve_org_ids
 from src.platform.project.dependencies import get_project_service
 from src.platform.project.git_view import ProjectGitViewService
-from src.platform.project.models import Project
+from src.platform.project.presenters import project_to_out
 from src.platform.project.readiness import ProjectReadinessService
 from src.platform.project.schemas import (
     AddProjectMember,
@@ -35,6 +34,15 @@ from src.platform.project.schemas import (
     UpdateProjectMemberRole,
 )
 from src.platform.project.service import ProjectService
+from src.platform.template_registry.dependencies import (
+    get_template_instantiation_service,
+    get_template_registry_service,
+)
+from src.platform.template_registry.exceptions import TemplateRegistryError
+from src.platform.template_registry.http_errors import registry_http_exception
+from src.platform.template_registry.instantiation import TemplateInstantiationService
+from src.platform.template_registry.schemas import TemplateDetail, TemplateSummary
+from src.platform.template_registry.service import TemplateRegistryService
 from src.version_engine.bootstrap.dependencies import (
     get_repo_manager,
     get_version_admin_service,
@@ -62,30 +70,6 @@ def get_project_git_view_service(
     return ProjectGitViewService(repo_manager)
 
 
-def _convert_to_project_out(
-    project: Project,
-    grant: ProjectGrant,
-    access_point_count: int = 0,
-) -> ProjectOut:
-    """Convert Project to project metadata.
-
-    This router is the project/container API. It must not read Version Engine
-    trees or S3 objects; content belongs to /api/v1/content.
-    """
-
-    return ProjectOut(
-        id=str(project.id),
-        name=project.name,
-        description=project.description,
-        org_id=project.org_id,
-        visibility=project.visibility,
-        bound_git_branch=getattr(project, 'bound_git_branch', 'main'),
-        updated_at=project.updated_at.isoformat() if project.updated_at else None,
-        access_point_count=access_point_count,
-        **grant.as_api_fields(),
-    )
-
-
 def _count_user_access_points(project_ids: list[str]) -> dict[str, int]:
     """Count user-created entry points, excluding built-in connection methods."""
 
@@ -93,10 +77,7 @@ def _count_user_access_points(project_ids: list[str]) -> dict[str, int]:
         return {}
     sb = get_supabase_client()
     connection_rows = (
-        sb.table("connections")
-        .select("project_id")
-        .in_("project_id", project_ids)
-        .execute()
+        sb.table("connections").select("project_id").in_("project_id", project_ids).execute()
     ).data or []
     from src.repo.access_surface_repository import AccessSurfaceRepository
 
@@ -112,6 +93,24 @@ def _count_user_access_points(project_ids: list[str]) -> dict[str, int]:
     return counts
 
 
+def _legacy_template_summary(template: TemplateSummary) -> dict[str, object]:
+    """Preserve the pre-Registry template card wire shape during migration."""
+
+    data = template.model_dump(mode="json", exclude_none=True)
+    data["cover"] = data.get("cover_url")
+    return data
+
+
+def _legacy_template_detail(template: TemplateDetail) -> dict[str, object]:
+    data = template.model_dump(mode="json", exclude_none=True)
+    data["cover"] = data.get("cover_url")
+    data["version"] = template.current_release.version
+    data["preview_doc"] = (
+        template.preview_document.model_dump(mode="json") if template.preview_document else None
+    )
+    return data
+
+
 @router.get(
     "/",
     response_model=ApiResponse[list[ProjectOut]],
@@ -121,7 +120,10 @@ def _count_user_access_points(project_ids: list[str]) -> dict[str, int]:
     status_code=status.HTTP_200_OK,
 )
 def list_projects(
-    org_id: str | None = Query(None, description="Organization ID (if omitted, returns projects from all user organizations)"),
+    org_id: str | None = Query(
+        None,
+        description="Organization ID (if omitted, returns projects from all user organizations)",
+    ),
     project_service: ProjectService = Depends(get_project_service),
     authorization: AuthorizationService = Depends(get_authorization_service),
     current_user: CurrentUser = Depends(get_current_user),
@@ -144,7 +146,7 @@ def list_projects(
     result = []
     for p, grant in accessible:
         result.append(
-            _convert_to_project_out(
+            project_to_out(
                 p,
                 grant,
                 access_point_count=conn_counts.get(str(p.id), 0),
@@ -155,28 +157,46 @@ def list_projects(
 
 @router.get(
     "/templates/list",
-    response_model=ApiResponse[list],
+    response_model=ApiResponse[list[dict[str, object]]],
     summary="List available project templates",
     description="Returns metadata for all available project templates.",
     status_code=status.HTTP_200_OK,
 )
-def list_project_templates():
-    from src.platform.project.templates import list_templates
-    return ApiResponse.success(data=list_templates(), message="Templates retrieved")
+async def list_project_templates(
+    registry: TemplateRegistryService = Depends(get_template_registry_service),
+):
+    """Compatibility alias for older clients; backed by the active provider."""
+
+    try:
+        catalog = await registry.catalog(limit=100)
+    except TemplateRegistryError as exc:
+        raise registry_http_exception(exc) from exc
+    return ApiResponse.success(
+        data=[_legacy_template_summary(item) for item in catalog.templates],
+        message="Templates retrieved",
+    )
 
 
 @router.get(
     "/templates/{template_id}",
-    response_model=ApiResponse[dict],
+    response_model=ApiResponse[dict[str, object]],
     summary="Get a single template's detail (metadata + file tree + rendered preview doc)",
     status_code=status.HTTP_200_OK,
 )
-def get_project_template(template_id: str):
-    from src.platform.project.templates import get_template_detail
-    detail = get_template_detail(template_id)
-    if detail is None:
-        raise HTTPException(status_code=404, detail="Template not found")
-    return ApiResponse.success(data=detail, message="Template retrieved")
+async def get_project_template(
+    template_id: str,
+    registry: TemplateRegistryService = Depends(get_template_registry_service),
+):
+    """Compatibility alias for older clients; backed by the active provider."""
+
+    try:
+        detail = await registry.get_template(template_id)
+    except TemplateRegistryError as exc:
+        raise registry_http_exception(exc) from exc
+    return ApiResponse.success(
+        data=_legacy_template_detail(detail),
+        message="Template retrieved",
+    )
 
 
 @router.get(
@@ -188,16 +208,12 @@ def get_project_template(template_id: str):
     status_code=status.HTTP_200_OK,
 )
 def get_project(
-    authorized: AuthorizedProject = Depends(
-        require_project_action(ProjectAction.PROJECT_READ)
-    ),
+    authorized: AuthorizedProject = Depends(require_project_action(ProjectAction.PROJECT_READ)),
 ):
     project = authorized.project
     conn_count = _count_user_access_points([str(project.id)]).get(str(project.id), 0)
     return ApiResponse.success(
-        data=_convert_to_project_out(
-            project, authorized.grant, access_point_count=conn_count
-        ),
+        data=project_to_out(project, authorized.grant, access_point_count=conn_count),
         message="Project retrieved successfully",
     )
 
@@ -208,9 +224,7 @@ def get_project(
     summary="Get the current user's canonical Project grant",
 )
 def get_project_authorization(
-    authorized: AuthorizedProject = Depends(
-        require_project_action(ProjectAction.PROJECT_READ)
-    ),
+    authorized: AuthorizedProject = Depends(require_project_action(ProjectAction.PROJECT_READ)),
 ):
     grant = authorized.grant
     return ApiResponse.success(
@@ -235,42 +249,54 @@ async def create_project(
     project_service: ProjectService = Depends(get_project_service),
     entitlement_service: EntitlementService = Depends(get_entitlement_service),
     version_admin: VersionAdminService = Depends(get_version_admin_service),
+    template_instantiation: TemplateInstantiationService = Depends(
+        get_template_instantiation_service
+    ),
     authorization: AuthorizationService = Depends(get_authorization_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     resolved_org_id = resolve_org_id(payload.org_id, current_user.user_id)
-    entitlement_service.require_capacity(
-        resolved_org_id,
-        "projects.max",
-        current_count=len(project_service.get_by_org_id(resolved_org_id)),
-    )
-
-    from src.platform.project.orchestration import create_project_with_tree
-    project = await create_project_with_tree(
-        project_service=project_service,
-        admin_service=version_admin,
-        name=payload.name,
-        description=payload.description,
-        org_id=resolved_org_id,
-        created_by=current_user.user_id,
-    )
-
     if payload.template:
-        from src.platform.project.templates import seed_template_content
-        await seed_template_content(
-            project_id=str(project.id),
-            template_id=payload.template,
+        try:
+            result = await template_instantiation.instantiate(
+                template_id=payload.template,
+                release_id=payload.template_release_id,
+                project_name=payload.name,
+                project_description=payload.description,
+                org_id=resolved_org_id,
+                actor_user_id=current_user.user_id,
+            )
+        except TemplateRegistryError as exc:
+            raise registry_http_exception(exc) from exc
+        project = result.project
+    else:
+        entitlement_service.require_capacity(
+            resolved_org_id,
+            "projects.max",
+            current_count=len(project_service.get_by_org_id(resolved_org_id)),
+        )
+
+        from src.platform.project.orchestration import create_project_with_tree
+
+        project = await create_project_with_tree(
+            project_service=project_service,
+            admin_service=version_admin,
+            name=payload.name,
+            description=payload.description,
+            org_id=resolved_org_id,
             created_by=current_user.user_id,
         )
-    elif payload.seed:
-        from src.platform.project.seed_content import seed_default_content
-        await seed_default_content(
-            project_id=str(project.id),
-            created_by=current_user.user_id,
-        )
+
+        if payload.seed:
+            from src.platform.project.seed_content import seed_default_content
+
+            await seed_default_content(
+                project_id=str(project.id),
+                created_by=current_user.user_id,
+            )
 
     return ApiResponse.success(
-        data=_convert_to_project_out(
+        data=project_to_out(
             project,
             authorization.authorize(
                 str(project.id), current_user.user_id, ProjectAction.PROJECT_READ
@@ -290,9 +316,7 @@ async def create_project(
     status_code=status.HTTP_200_OK,
 )
 def update_project(
-    authorized: AuthorizedProject = Depends(
-        require_project_action(ProjectAction.PROJECT_MANAGE)
-    ),
+    authorized: AuthorizedProject = Depends(require_project_action(ProjectAction.PROJECT_MANAGE)),
     payload: ProjectUpdate = ...,
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
@@ -308,7 +332,7 @@ def update_project(
     )
 
     return ApiResponse.success(
-        data=_convert_to_project_out(updated_project, authorized.grant),
+        data=project_to_out(updated_project, authorized.grant),
         message="Project updated successfully",
     )
 
@@ -322,9 +346,7 @@ def update_project(
     status_code=status.HTTP_200_OK,
 )
 def delete_project(
-    authorized: AuthorizedProject = Depends(
-        require_project_action(ProjectAction.PROJECT_DELETE)
-    ),
+    authorized: AuthorizedProject = Depends(require_project_action(ProjectAction.PROJECT_DELETE)),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -341,14 +363,13 @@ def delete_project(
     status_code=status.HTTP_201_CREATED,
 )
 async def seed_project(
-    authorized: AuthorizedProject = Depends(
-        require_project_action(ProjectAction.CONTENT_WRITE)
-    ),
+    authorized: AuthorizedProject = Depends(require_project_action(ProjectAction.CONTENT_WRITE)),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     project = authorized.project
     from src.platform.project.seed_content import seed_default_content
+
     result = await seed_default_content(
         project_id=str(project.id),
         created_by=current_user.user_id,
@@ -365,24 +386,24 @@ async def seed_project(
     summary="List project members",
 )
 def list_project_members(
-    authorized: AuthorizedProject = Depends(
-        require_project_action(ProjectAction.MEMBERS_READ)
-    ),
+    authorized: AuthorizedProject = Depends(require_project_action(ProjectAction.MEMBERS_READ)),
     project_service: ProjectService = Depends(get_project_service),
 ):
     rows = project_service.list_project_members(authorized.project.id)
     result = []
     for row in rows:
         profile = row.get("profiles") or {}
-        result.append(ProjectMemberOut(
-            id=row["id"],
-            user_id=row["user_id"],
-            email=profile.get("email"),
-            display_name=profile.get("display_name"),
-            avatar_url=profile.get("avatar_url"),
-            role=row["role"],
-            created_at=row["created_at"],
-        ))
+        result.append(
+            ProjectMemberOut(
+                id=row["id"],
+                user_id=row["user_id"],
+                email=profile.get("email"),
+                display_name=profile.get("display_name"),
+                avatar_url=profile.get("avatar_url"),
+                role=row["role"],
+                created_at=row["created_at"],
+            )
+        )
     return ApiResponse.success(data=result)
 
 
@@ -394,9 +415,7 @@ def list_project_members(
 )
 def add_project_member(
     payload: AddProjectMember,
-    authorized: AuthorizedProject = Depends(
-        require_project_action(ProjectAction.MEMBERS_MANAGE)
-    ),
+    authorized: AuthorizedProject = Depends(require_project_action(ProjectAction.MEMBERS_MANAGE)),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -417,9 +436,7 @@ def add_project_member(
 def update_project_member_role(
     target_user_id: str,
     payload: UpdateProjectMemberRole,
-    authorized: AuthorizedProject = Depends(
-        require_project_action(ProjectAction.MEMBERS_MANAGE)
-    ),
+    authorized: AuthorizedProject = Depends(require_project_action(ProjectAction.MEMBERS_MANAGE)),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -439,9 +456,7 @@ def update_project_member_role(
 )
 def remove_project_member(
     target_user_id: str,
-    authorized: AuthorizedProject = Depends(
-        require_project_action(ProjectAction.MEMBERS_MANAGE)
-    ),
+    authorized: AuthorizedProject = Depends(require_project_action(ProjectAction.MEMBERS_MANAGE)),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -473,15 +488,11 @@ def remove_project_member(
     summary="Get share link info (owner/admin only)",
 )
 def get_share_info(
-    authorized: AuthorizedProject = Depends(
-        require_project_action(ProjectAction.SHARE_MANAGE)
-    ),
+    authorized: AuthorizedProject = Depends(require_project_action(ProjectAction.SHARE_MANAGE)),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    info = project_service.get_share_info(
-        authorized.project.id, current_user.user_id
-    )
+    info = project_service.get_share_info(authorized.project.id, current_user.user_id)
     return ApiResponse.success(data=info)
 
 
@@ -491,17 +502,14 @@ def get_share_info(
     summary="Rotate share token (revokes existing link)",
 )
 def rotate_share_token(
-    authorized: AuthorizedProject = Depends(
-        require_project_action(ProjectAction.SHARE_MANAGE)
-    ),
+    authorized: AuthorizedProject = Depends(require_project_action(ProjectAction.SHARE_MANAGE)),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    info = project_service.rotate_share_token(
-        authorized.project.id, current_user.user_id
-    )
+    info = project_service.rotate_share_token(authorized.project.id, current_user.user_id)
     return ApiResponse.success(
-        data=info, message="Share link rotated; previous link is no longer valid",
+        data=info,
+        message="Share link rotated; previous link is no longer valid",
     )
 
 
@@ -525,9 +533,7 @@ def join_via_share_token(
     result = project_service.join_via_share_token(token, current_user.user_id)
     return ApiResponse.success(
         data=result,
-        message=(
-            "Joined project" if result.get("newly_joined") else "Already a member"
-        ),
+        message=("Joined project" if result.get("newly_joined") else "Already a member"),
     )
 
 
@@ -537,9 +543,7 @@ def join_via_share_token(
     summary="Get root Git and Claude readiness",
 )
 def get_project_readiness(
-    authorized: AuthorizedProject = Depends(
-        require_project_action(ProjectAction.PROJECT_READ)
-    ),
+    authorized: AuthorizedProject = Depends(require_project_action(ProjectAction.PROJECT_READ)),
     readiness: ProjectReadinessService = Depends(get_project_readiness_service),
 ):
     return ApiResponse.success(data=readiness.resolve(authorized.project.id).as_dict())
@@ -551,9 +555,7 @@ def get_project_readiness(
     summary="Get the root Git view health through the Project control plane",
 )
 def get_project_git_view_health(
-    authorized: AuthorizedProject = Depends(
-        require_project_action(ProjectAction.PROJECT_READ)
-    ),
+    authorized: AuthorizedProject = Depends(require_project_action(ProjectAction.PROJECT_READ)),
     git_view: ProjectGitViewService = Depends(get_project_git_view_service),
 ):
     """Return derived Git health using Human Project authorization.
@@ -565,12 +567,8 @@ def get_project_git_view_health(
     return ApiResponse.success(
         data=git_view.health(
             str(authorized.project.id),
-            content_write_allowed=authorized.grant.allows(
-                ProjectAction.CONTENT_WRITE
-            ),
-            cache_rebuild_allowed=authorized.grant.allows(
-                ProjectAction.PROJECT_MANAGE
-            ),
+            content_write_allowed=authorized.grant.allows(ProjectAction.CONTENT_WRITE),
+            cache_rebuild_allowed=authorized.grant.allows(ProjectAction.PROJECT_MANAGE),
         ),
         message="Project Git view health loaded",
     )
@@ -582,9 +580,7 @@ def get_project_git_view_health(
     summary="Rebuild the root Git view cache through the Project control plane",
 )
 def rebuild_project_git_view_cache(
-    authorized: AuthorizedProject = Depends(
-        require_project_action(ProjectAction.PROJECT_MANAGE)
-    ),
+    authorized: AuthorizedProject = Depends(require_project_action(ProjectAction.PROJECT_MANAGE)),
     git_view: ProjectGitViewService = Depends(get_project_git_view_service),
 ):
     """Rebuild both derived root-view cache variants from canonical facts."""

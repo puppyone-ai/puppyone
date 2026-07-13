@@ -42,6 +42,7 @@ function _resolveActiveView(segments: readonly string[]): string {
   if (section === 'tools-and-server') return 'tools';
   if (section === 'settings') return 'settings';
   if (section === 'home') return 'home';
+  if (section === 'templates') return 'templates';
   if (section === 'team') return 'team';
   if (section === 'billing') return 'billing';
   if (section === 'projects') {

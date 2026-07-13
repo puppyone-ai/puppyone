@@ -4,10 +4,9 @@ Project API Schemas
 Defines frontend API request/response models, matching the frontend ProjectInfo type.
 """
 
-
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class ProjectOut(BaseModel):
@@ -46,7 +45,20 @@ class ProjectCreate(BaseModel):
     description: str | None = None
     org_id: str | None = None
     seed: bool = False
-    template: str | None = None
+    template: str | None = Field(
+        default=None,
+        pattern=r"^[a-z0-9][a-z0-9._-]{0,127}$",
+    )
+    template_release_id: str | None = Field(
+        default=None,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._+@-]{0,127}$",
+    )
+
+    @model_validator(mode="after")
+    def release_requires_template(self) -> "ProjectCreate":
+        if self.template_release_id and not self.template:
+            raise ValueError("template_release_id requires template")
+        return self
 
 
 class ProjectUpdate(BaseModel):

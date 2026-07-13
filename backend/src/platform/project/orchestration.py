@@ -11,7 +11,12 @@ The demo-seed path (``auth/initialization``) is intentionally NOT routed
 through here: it is best-effort (must never block sign-in) and swallows
 tree/scope failures, whereas this helper is fail-hard and propagates them.
 """
+
 from __future__ import annotations
+
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 async def create_project_with_tree(
@@ -35,11 +40,20 @@ async def create_project_with_tree(
         created_by=created_by,
     )
     project_id = str(project.id)
-    await admin_service.init_tree(project_id)
-    # Root scope creates the built-in access surfaces (Git Remote / FS CLI).
-    # Imported lazily to mirror the router's existing lazy import and avoid any
-    # import cycle through src.repo.
-    from src.repo.scope_service import ScopeService
+    try:
+        await admin_service.init_tree(project_id)
+        # Root scope creates the built-in access surfaces (Git Remote / FS CLI).
+        # Imported lazily to mirror the router's existing lazy import and avoid
+        # an import cycle through src.repo.
+        from src.repo.scope_service import ScopeService
 
-    ScopeService().ensure_root_scope(project_id)
+        ScopeService().ensure_root_scope(project_id)
+    except Exception:
+        # Creating a Project is one application operation. Do not strand a
+        # visible container when its canonical tree or root scope failed.
+        try:
+            project_service.delete(project_id)
+        except Exception:
+            logger.exception("Unable to compensate failed Project %s", project_id)
+        raise
     return project

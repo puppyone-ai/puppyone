@@ -79,6 +79,7 @@ function DashboardPageContent() {
             router.push(`/projects/${projectId}/data`);
           }}
           onCreateClick={handleCreateProject}
+          onBrowseTemplates={() => router.push('/templates')}
           creatingProject={isCreatingProject}
         />
       </div>

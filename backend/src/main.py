@@ -90,6 +90,7 @@ ingest_router_duration = time.time() - ingest_router_start
 
 project_router_start = time.time()
 from src.platform.project.router import router as project_router
+from src.platform.template_registry.router import router as template_registry_router
 
 project_router_duration = time.time() - project_router_start
 
@@ -493,6 +494,7 @@ def create_app() -> FastAPI:
     app.include_router(upload_router, prefix="/api/v1", tags=["upload"])
 
     app.include_router(project_router, prefix="/api/v1", tags=["projects"])
+    app.include_router(template_registry_router, prefix="/api/v1", tags=["templates"])
     from src.platform.workspace_binding.router import router as workspace_binding_router
     app.include_router(
         workspace_binding_router,
