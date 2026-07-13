@@ -171,7 +171,20 @@ BEGIN
         RAISE EXCEPTION 'SMOKE TEST FAILED: cas_update_root_hash returned NULL (expected boolean)';
     END IF;
 
-    RAISE NOTICE 'SMOKE TEST PASSED: CAS RPCs have correct TEXT signatures and invoke without type errors';
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public'
+          AND c.relname = 'version_object_locations'
+          AND c.relkind = 'r'
+          AND c.relrowsecurity
+    ) THEN
+        RAISE EXCEPTION
+            'SMOKE TEST FAILED: version_object_locations must have row-level security enabled';
+    END IF;
+
+    RAISE NOTICE 'SMOKE TEST PASSED: CAS RPCs and object-location RLS are consistent';
 END;
 $$;
 
