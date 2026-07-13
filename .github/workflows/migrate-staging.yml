@@ -1,4 +1,4 @@
-name: Deploy Schema to Qubits
+name: Deploy Database to Qubits
 
 on:
   push:
@@ -10,8 +10,89 @@ permissions:
   contents: read
 
 jobs:
+  validate_ref:
+    name: Validate protected staging source
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Enforce qubits branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_REF" != "refs/heads/qubits" ]; then
+            echo "::error::Staging database releases must run from the qubits branch."
+            exit 1
+          fi
+
+  resolve_data_release:
+    name: Resolve staged data release
+    if: github.event_name == 'workflow_dispatch'
+    needs: validate_ref
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      migration_id: ${{ steps.release.outputs.migration_id }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Validate staged migration pointer
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          request="supabase/releases/staging-data-migration.json"
+          migration_id=$(jq -er '.migration_id | select(type == "string")' "$request")
+          case "$migration_id" in
+            ''|*[!0-9A-Za-z_]*)
+              echo "::error::Invalid staging data migration ID."
+              exit 1
+              ;;
+          esac
+          if [ ! -d "supabase/data_migrations/$migration_id" ]; then
+            echo "::error::Staged data migration artifact does not exist."
+            exit 1
+          fi
+          echo "migration_id=$migration_id" >> "$GITHUB_OUTPUT"
+
   deploy:
+    needs: validate_ref
     uses: ./.github/workflows/_schema-deploy.yml
     secrets: inherit
     with:
       environment: staging
+
+  data_plan:
+    if: github.event_name == 'workflow_dispatch'
+    needs:
+      - deploy
+      - resolve_data_release
+    uses: ./.github/workflows/_data-migration.yml
+    secrets: inherit
+    with:
+      environment: staging
+      migration_id: ${{ needs.resolve_data_release.outputs.migration_id }}
+      operation: plan
+
+  data_run:
+    if: github.event_name == 'workflow_dispatch'
+    needs:
+      - data_plan
+      - resolve_data_release
+    uses: ./.github/workflows/_data-migration.yml
+    secrets: inherit
+    with:
+      environment: staging
+      migration_id: ${{ needs.resolve_data_release.outputs.migration_id }}
+      operation: run
+
+  data_verify:
+    if: github.event_name == 'workflow_dispatch'
+    needs:
+      - data_run
+      - resolve_data_release
+    uses: ./.github/workflows/_data-migration.yml
+    secrets: inherit
+    with:
+      environment: staging
+      migration_id: ${{ needs.resolve_data_release.outputs.migration_id }}
+      operation: verify

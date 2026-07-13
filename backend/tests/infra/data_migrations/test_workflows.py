@@ -108,17 +108,36 @@ def test_reusable_database_workflows_receive_protected_secrets() -> None:
     # GitHub does not pass secrets to reusable workflows automatically. Every
     # direct caller must cross that boundary explicitly; the called job then
     # selects the protected staging/production Environment.
-    assert staging.count("secrets: inherit") == 1
+    assert staging.count("secrets: inherit") == 4
     assert production.count("secrets: inherit") == 1
     assert dispatcher.count("secrets: inherit") == 3
 
 
+def test_staging_manual_release_is_auditable_and_serial() -> None:
+    staging = (WORKFLOWS / "migrate-staging.yml").read_text()
+    release = (
+        REPOSITORY / "supabase" / "releases" / "staging-data-migration.json"
+    ).read_text()
+
+    assert '"refs/heads/qubits"' in staging
+    assert "github.event_name == 'workflow_dispatch'" in staging
+    assert "supabase/releases/staging-data-migration.json" in staging
+    assert "needs:\n      - deploy\n      - resolve_data_release" in staging
+    assert "needs:\n      - data_plan\n      - resolve_data_release" in staging
+    assert "needs:\n      - data_run\n      - resolve_data_release" in staging
+    assert staging.count("uses: ./.github/workflows/_data-migration.yml") == 3
+    for operation in ("plan", "run", "verify"):
+        assert f"operation: {operation}" in staging
+    assert "20260712_repo_user_permissions_to_project_members" in release
+
+
 def test_needs_expressions_use_identifier_safe_job_ids() -> None:
-    dispatcher = (WORKFLOWS / "data-migration.yml").read_text()
-    for line in dispatcher.splitlines():
-        if "needs." in line:
-            reference = line.split("needs.", 1)[1].split(".", 1)[0]
-            assert "-" not in reference
+    for name in ("data-migration.yml", "migrate-staging.yml"):
+        workflow = (WORKFLOWS / name).read_text()
+        for line in workflow.splitlines():
+            if "needs." in line:
+                reference = line.split("needs.", 1)[1].split(".", 1)[0]
+                assert "-" not in reference
 
 
 def test_pull_request_validation_never_receives_remote_database_secrets() -> None:
@@ -173,6 +192,7 @@ def test_database_workflow_third_party_actions_are_sha_pinned() -> None:
     for name in (
         "_schema-deploy.yml",
         "_data-migration.yml",
+        "migrate-staging.yml",
         "validate-migrations.yml",
         "main-release-gate.yml",
     ):
