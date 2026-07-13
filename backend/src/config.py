@@ -257,6 +257,8 @@ class Settings(BaseSettings):
     AUTH_SECURITY_REDIS_URL: str = ""
     # Browser/CLI-reachable Supabase origin. Empty means SUPABASE_URL is already public.
     SUPABASE_PUBLIC_URL: str = ""
+    # Browser-reachable Puppyone web origin used by the Desktop login handoff.
+    FRONTEND_URL: str = ""
     DESKTOP_AUTH_PUBLIC_BASE_URL: str = ""
     DESKTOP_AUTH_ALLOWED_CALLBACKS: str = "puppyone://auth/callback"
     DESKTOP_AUTH_STATE_TTL_SECONDS: int = 10 * 60

@@ -144,7 +144,8 @@ services:
       ACCESS_CREDENTIAL_HASH_SECRET: ${ACCESS_CREDENTIAL_HASH_SECRET:-docker-local-access-hash-secret-at-least-32-characters}
       AUTH_SECURITY_REDIS_URL: redis://redis:6379/0
       SUPABASE_PUBLIC_URL: http://localhost:${SUPABASE_API_PORT:-8000}
-      DESKTOP_AUTH_PUBLIC_BASE_URL: http://localhost:${BACKEND_PORT:-9090}
+      FRONTEND_URL: http://localhost:${FRONTEND_PORT:-3000}
+      DESKTOP_AUTH_PUBLIC_BASE_URL: http://localhost:${BACKEND_PORT:-9090}/api/v1
       DESKTOP_AUTH_ALLOWED_CALLBACKS: puppyone://auth/callback
       SKIP_AUTH: ${SKIP_AUTH:-false}
       USE_REAL_S3: "false"
