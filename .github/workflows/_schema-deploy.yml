@@ -97,7 +97,7 @@ jobs:
       - name: Run database smoke contracts
         run: >-
           psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1
-          -f supabase/tests/smoke_test_triggers.sql
+          -f supabase/tests/_support/schema_contracts.inc
 
       - name: Fail on post-deploy schema drift
         shell: bash
