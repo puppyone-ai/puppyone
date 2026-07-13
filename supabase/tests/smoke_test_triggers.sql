@@ -5,6 +5,6 @@
 -- that same body with plain psql and no pgTAP dependency.
 
 SELECT plan(1);
-\ir _support/schema_contracts.sql
+\ir _support/schema_contracts.inc
 SELECT pass('portable schema smoke contracts completed without an exception');
 SELECT * FROM finish();

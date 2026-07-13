@@ -6,7 +6,7 @@ on:
       - main
     paths:
       - "supabase/migrations/**"
-      - "supabase/tests/_support/schema_contracts.sql"
+      - "supabase/tests/_support/schema_contracts.inc"
       - ".github/workflows/_schema-deploy.yml"
       - ".github/workflows/migrate-production.yml"
   workflow_dispatch:
