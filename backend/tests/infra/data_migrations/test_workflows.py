@@ -134,7 +134,7 @@ def test_staging_manual_release_is_auditable_and_serial() -> None:
     assert staging.count("uses: ./.github/workflows/_data-migration.yml") == 3
     for operation in ("plan", "run", "verify"):
         assert f"operation: {operation}" in staging
-    assert "20260713_reconcile_project_creator_admin" in release
+    assert "20260712_repo_user_permissions_to_project_members" in release
 
 
 def test_needs_expressions_use_identifier_safe_job_ids() -> None:
