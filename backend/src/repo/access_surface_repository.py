@@ -341,6 +341,39 @@ class AccessSurfaceRepository:
             expires_at=expires_at,
         )
 
+    def issue_git_session_credential(
+        self,
+        *,
+        scope_id: str,
+        expires_at: datetime,
+        created_by: str | None = None,
+    ) -> Optional[str]:
+        """Issue a non-disruptive scoped Git token for an internal session."""
+
+        surface = self.get_by_scope_kind(scope_id, "git_remote")
+        if not surface or surface.get("status") != "active":
+            return None
+        scopes = (
+            self._client.table("repo_scopes")
+            .select("mode")
+            .eq("id", scope_id)
+            .eq("project_id", surface["project_id"])
+            .limit(1)
+            .execute()
+        ).data or []
+        if not scopes:
+            return None
+        return self._credentials.issue_git_http_token(
+            access_surface_id=surface["id"],
+            org_id=surface.get("org_id") or self._project_org_id(surface["project_id"]),
+            project_id=surface["project_id"],
+            grant_mode=str(scopes[0].get("mode") or "r"),
+            prefix="git",
+            created_by=created_by,
+            revoke_existing=False,
+            expires_at=expires_at,
+        )
+
     # ── Writes ───────────────────────────────────────────────────────────
 
     def insert(

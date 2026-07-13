@@ -438,9 +438,9 @@ export default function HomePage({
             * ``healthy``. Silent on healthy/empty so the home page
             * stays calm; expands to a colored banner with a "Rebuild
             * cache" action button when current_corrupt is detected.
-            * The banner reads from ``GET /git/{id}.git/health`` every
-            * 60s so cache rebuilds (background workers, manual
-            * triggers from ops) reflect quickly.
+            * The banner reads from the JWT-authenticated Project Git-view
+            * control plane every 60s. The /git data plane remains reserved
+            * for scope-bounded runtime credentials.
             */}
           <ProjectGitHealthBadge projectId={projectId} />
           {/* ============================================================
@@ -679,10 +679,9 @@ export default function HomePage({
               actual content lands (drop → upload, or `git push` → sync),
               then retires automatically via SWR revalidation.
 
-              Connections are passed in so the CLI card inside the panel
-              can derive its `access_key` from server truth (the
-              existing root Git Remote AP, if any) instead of relying on
-              local React state that vanishes on refresh.
+              Connections are passed in so the Git card can locate the
+              existing root Git Remote surface. Credentials are issued
+              explicitly and shown once; dashboard lists never return them.
               ============================================================ */}
 
           {(dashboard?.nodes?.total ?? 0) === 0 ? (

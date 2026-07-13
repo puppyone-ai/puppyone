@@ -18,8 +18,9 @@
  * All 5 Body components live in this single file because they're a
  * family of mutually-exclusive branches behind `ConnectorAccessPanel`,
  * the one router that picks the right one. Reading them side-by-side
- * makes it trivial to spot drift between providers (every Body should
- * share the same NoAccessKeyNotice + SubSectionLabel + KvBlock idiom).
+ * makes it trivial to spot drift between providers. CLI uses an explicit
+ * one-time credential issuance panel; other providers share the neutral
+ * SubSectionLabel + KvBlock idiom.
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -27,6 +28,7 @@ import { useRouter } from 'next/navigation';
 import { CountBadge } from '@/components/ui/CountBadge';
 import { buildGitSyncPrompt, buildMcpSetupPrompt, buildTerminalCliPrompt } from '@/lib/accessPointCliPrompt';
 import { activateAgentConnector, type Connector, type RepoScope } from '@/lib/repoApi';
+import { canonicalGitUrlForScope } from '@/lib/gitRemote';
 import {
   getAccessProviderLabel,
   isAgentProvider,
@@ -46,10 +48,11 @@ import {
 import {
   CommandBlock,
   KvBlock,
-  NoAccessKeyNotice,
   PromptBlock,
   SubSectionLabel,
 } from './ui-blocks';
+import { CliCredentialIssuePanel } from '../../data/components/access-points/connect-methods/CliCredentialIssuePanel';
+import { GitCredentialIssuePanel } from '../../data/components/access-points/connect-methods/GitCredentialIssuePanel';
 
 // ─── Per-provider access panel ───────────────────────────────────────
 
@@ -100,34 +103,39 @@ function TerminalCliBody({
   readonly scope: RepoScope;
   readonly apiBase: string;
 }) {
-  const accessKey = scope.access_key || connector.access_key || '';
   const scopeName = scope.name || (scope.path === '' ? 'root' : scope.path);
   const profileName = profileSlug(scope.name || scope.path || 'root');
 
-  const { installLine, loginLine, exploreLines, fileLines, prompt } = buildTerminalCliPrompt({
-    apiBase,
-    accessKey,
-    profileName,
-    scopeName,
-  });
-  const steps = [
-    { title: 'Install once', lines: [installLine] },
-    { title: 'Sign in to this scope', lines: [loginLine] },
-    { title: 'Explore safely', lines: exploreLines },
-    { title: 'Read & write files', lines: fileLines },
-  ];
-
   return (
-    <>
-      {!accessKey && <NoAccessKeyNotice />}
-      <ConnectPathChooser
-        prompt={prompt}
-        steps={steps}
-        agentDescription='Paste this setup prompt into Codex, Cursor, or Claude. The agent can install, sign in, and use this scope for you.'
-        manualTitle='Set up in terminal'
-        manualDescription='Run these commands yourself when you want direct CLI access without handing setup to an agent.'
-      />
-    </>
+    <CliCredentialIssuePanel
+      projectId={scope.project_id}
+      scopeId={scope.id}
+      initialCredential={scope.access_key || connector.access_key || ''}
+    >
+      {(accessKey) => {
+        const { installLine, loginLine, exploreLines, fileLines, prompt } = buildTerminalCliPrompt({
+          apiBase,
+          accessKey,
+          profileName,
+          scopeName,
+        });
+        const steps = [
+          { title: 'Install once', lines: [installLine] },
+          { title: 'Sign in to this scope', lines: [loginLine] },
+          { title: 'Explore safely', lines: exploreLines },
+          { title: 'Read & write files', lines: fileLines },
+        ];
+        return (
+          <ConnectPathChooser
+            prompt={prompt}
+            steps={steps}
+            agentDescription='Paste this setup prompt into Codex, Cursor, or Claude. The agent can install, sign in, and use this scope for you.'
+            manualTitle='Set up in terminal'
+            manualDescription='Run these commands yourself when you want direct CLI access without handing setup to an agent.'
+          />
+        );
+      }}
+    </CliCredentialIssuePanel>
   );
 }
 
@@ -142,9 +150,8 @@ function GitRemoteBody({
   readonly scope: RepoScope;
   readonly apiBase: string;
 }) {
-  const accessKey = scope.access_key || connector.access_key || '';
   const scopeName = scope.name || (scope.path === '' ? 'root' : scope.path);
-  const gitUrl = `${apiBase}/git/ap/${accessKey || '<access-key>'}.git`;
+  const gitUrl = canonicalGitUrlForScope(apiBase, scope);
   const {
     cloneLines,
     existingFolderLines,
@@ -156,10 +163,13 @@ function GitRemoteBody({
     { title: 'Publish an existing folder', lines: existingFolderLines },
     { title: 'Day-to-day workflow', lines: workflowLines },
   ];
-
   return (
     <>
-      {!accessKey && <NoAccessKeyNotice />}
+      <GitCredentialIssuePanel
+        connectorId={connector.id}
+        gitUrl={gitUrl}
+        scopeMode={scope.mode}
+      />
       <ConnectPathChooser
         prompt={prompt}
         steps={steps}

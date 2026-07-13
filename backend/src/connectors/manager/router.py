@@ -7,12 +7,13 @@ External source relationships belong to Integration, not this router.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, Request, status
 from pydantic import BaseModel, Field
 
 from src.common_schemas import ApiResponse
+from src.config import settings
 from src.exceptions import ErrorCode, NotFoundException
 from src.infra.supabase.client import SupabaseClient
 from src.platform.auth.dependencies import get_current_user
@@ -25,6 +26,8 @@ from src.platform.entitlements.service import EntitlementService
 from src.platform.organization.dependencies import resolve_org_ids
 from src.repo.access_surface_repository import AccessSurfaceRepository
 from src.repo.scope_service import ScopeService
+from src.repo.access_credentials import AccessCredentialRepository
+from src.version_engine.entrypoints.git.locator import canonical_git_url
 
 router = APIRouter(prefix="/access", tags=["access"])
 
@@ -35,6 +38,7 @@ router = APIRouter(prefix="/access", tags=["access"])
 class ConnectionOut(BaseModel):
     id: str
     project_id: str
+    scope_id: str | None = None
     provider: str
     name: str | None = None
     path: str | None = None
@@ -57,6 +61,10 @@ class ConnectionUpdate(BaseModel):
     status: str | None = None
     trigger: dict | None = None
     config: dict | None = None
+
+
+class GitCredentialRotationRequest(BaseModel):
+    grant_mode: Literal["r", "rw"] | None = None
 
 
 # ── Helpers ─────────────────────────────────────────────────
@@ -306,6 +314,7 @@ def _enrich(rows: list[dict], sb_client) -> list[ConnectionOut]:
             ConnectionOut(
                 id=r["id"],
                 project_id=r["project_id"],
+                scope_id=r.get("scope_id"),
                 provider=e["kind"],
                 name=name,
                 path=node_path or None,
@@ -541,11 +550,13 @@ def rename_connection(
 @router.post(
     "/{connection_id}/regenerate-key",
     response_model=ApiResponse[dict],
-    summary="Regenerate access key for an access connection",
+    summary="Rotate a credential for an access connection",
     status_code=status.HTTP_200_OK,
 )
 def regenerate_key(
+    request: Request,
     connection_id: str = Path(...),
+    body: GitCredentialRotationRequest | None = Body(default=None),
     current_user: CurrentUser = Depends(get_current_user),
     authorization: AuthorizationService = Depends(get_authorization_service),
 ):
@@ -562,7 +573,42 @@ def regenerate_key(
     )
 
     provider = row.get("kind", row.get("provider", ""))
-    if provider in {"git_remote", "cli"}:
+    if provider == "git_remote":
+        scope = ScopeService().get(row["scope_id"])
+        if scope is None:
+            raise NotFoundException("Scope not found", code=ErrorCode.NOT_FOUND)
+        grant_mode = body.grant_mode if body and body.grant_mode else scope.mode
+        if grant_mode == "rw" and scope.mode != "rw":
+            raise HTTPException(
+                status_code=400,
+                detail="Read-write Git credentials cannot exceed the Scope mode",
+            )
+        credential = AccessCredentialRepository(sb).issue_git_http_token(
+            access_surface_id=row["id"],
+            org_id=row["org_id"],
+            project_id=row["project_id"],
+            grant_mode=grant_mode,
+            prefix="git",
+            created_by=current_user.user_id,
+        )
+        configured_origin = settings.PUBLIC_URL
+        origin = configured_origin or f"{request.url.scheme}://{request.url.netloc}"
+        git_url = canonical_git_url(
+            origin,
+            row["project_id"],
+            None if scope.is_root else scope.id,
+        )
+        return ApiResponse.success(
+            data={
+                "credential": credential,
+                "git_url": git_url,
+                "git_username": "x-puppyone-token",
+                "scope_id": scope.id,
+                "grant_mode": grant_mode,
+            },
+            message="Git credential regenerated",
+        )
+    if provider == "cli":
         new_key = ScopeService().regenerate_access_key(row["scope_id"])
         if not new_key:
             raise NotFoundException("Scope not found", code=ErrorCode.NOT_FOUND)
@@ -698,6 +744,11 @@ class UnifiedConnectionOut(BaseModel):
     gateway_id: str | None = None
     access_key: str | None = None
     ap_base: str | None = None
+    scope_id: str | None = None
+    git_url: str | None = None
+    git_username: str | None = None
+    git_credential: str | None = None
+    cli_access_key: str | None = None
 
 
 def _create_agent(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
@@ -802,8 +853,13 @@ def _create_sandbox(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
     )
 
 
-def _create_direct(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
-    """Return direct Git + FS HTTP API credentials for a scope."""
+def _create_direct(
+    payload: UnifiedConnectionCreate,
+    *,
+    cloud_origin: str,
+    created_by: str,
+) -> UnifiedConnectionOut:
+    """Issue independent Git and CLI credentials for one canonical scope."""
     surfaces = AccessSurfaceRepository()
     cfg = payload.config
     scope = cfg.get("scope", {})
@@ -831,14 +887,38 @@ def _create_direct(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
     if not surface:
         raise RuntimeError("git_remote access surface was not created")
 
+    scope_model = ScopeService().get(scope_row["id"])
+    if scope_model is None:
+        raise RuntimeError("scope disappeared while issuing Git credential")
+    git_credential = AccessCredentialRepository().issue_git_http_token(
+        access_surface_id=str(surface["id"]),
+        org_id=str(surface["org_id"]),
+        project_id=payload.project_id,
+        grant_mode=scope_model.mode,
+        prefix="git",
+        created_by=created_by,
+    )
+    git_url = canonical_git_url(
+        cloud_origin,
+        payload.project_id,
+        None if scope_model.is_root else scope_model.id,
+    )
+
     return UnifiedConnectionOut(
         id=surface["id"],
         project_id=payload.project_id,
         provider="direct",
         name=payload.name or "Direct Access",
         status=surface.get("status", "active"),
+        # Compatibility: access_key remains the CLI bearer key. New clients
+        # consume the explicitly named Git fields below.
         access_key=scope_row["access_key"],
-        ap_base=f"/git/ap/{scope_row['access_key']}.git",
+        cli_access_key=scope_row["access_key"],
+        ap_base=git_url,
+        scope_id=scope_model.id,
+        git_url=git_url,
+        git_username="x-puppyone-token",
+        git_credential=git_credential,
     )
 
 
@@ -850,6 +930,7 @@ def _create_direct(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
 )
 async def create_connection(
     payload: UnifiedConnectionCreate,
+    request: Request,
     current_user: CurrentUser = Depends(get_current_user),
     entitlement_service: EntitlementService = Depends(get_entitlement_service),
     authorization: AuthorizationService = Depends(get_authorization_service),
@@ -942,7 +1023,16 @@ async def create_connection(
         elif provider == "sandbox":
             result = _create_sandbox(payload)
         elif provider == "direct":
-            result = _create_direct(payload)
+            configured_origin = settings.PUBLIC_URL
+            cloud_origin = (
+                configured_origin
+                or f"{request.url.scheme}://{request.url.netloc}"
+            )
+            result = _create_direct(
+                payload,
+                cloud_origin=cloud_origin,
+                created_by=current_user.user_id,
+            )
     except HTTPException:
         raise
     except Exception as e:

@@ -113,13 +113,13 @@ class WorkspaceBindingRepository:
         rows = query.limit(1).execute().data or []
         return rows[0] if rows else None
 
-    def get_cli_surface(self, project_id: str, scope_id: str) -> dict[str, Any] | None:
+    def get_git_surface(self, project_id: str, scope_id: str) -> dict[str, Any] | None:
         rows = (
             self._client.table("access_surfaces")
             .select("*")
             .eq("project_id", project_id)
             .eq("scope_id", scope_id)
-            .eq("kind", "cli")
+            .eq("kind", "git_remote")
             .eq("status", "active")
             .limit(1)
             .execute()
@@ -141,10 +141,10 @@ class WorkspaceBindingRepository:
     ) -> tuple[WorkspaceBinding, str]:
         binding_id = generate_uuid_v7()
         credential_id = generate_uuid_v7()
-        raw_token = generate_access_token("pwb")
+        raw_token = generate_access_token("pwg")
         key_prefix, key_last4 = access_token_metadata(raw_token)
         response = self._client.rpc(
-            "create_project_workspace_binding",
+            "create_project_workspace_git_binding",
             {
                 "p_binding_id": binding_id,
                 "p_org_id": org_id,
@@ -208,10 +208,10 @@ class WorkspaceBindingRepository:
 
     def rotate_credential(self, binding_id: str, user_id: str) -> str | None:
         credential_id = generate_uuid_v7()
-        raw_token = generate_access_token("pwb")
+        raw_token = generate_access_token("pwg")
         key_prefix, key_last4 = access_token_metadata(raw_token)
         changed = self._client.rpc(
-            "rotate_project_workspace_binding_credential",
+            "rotate_project_workspace_binding_git_credential",
             {
                 "p_binding_id": binding_id,
                 "p_bound_user_id": user_id,
@@ -225,6 +225,18 @@ class WorkspaceBindingRepository:
         if isinstance(changed, list):
             changed = changed[0] if changed else False
         return raw_token if changed else None
+
+    def revoke_credential(self, binding_id: str, user_id: str) -> bool:
+        changed = self._client.rpc(
+            "revoke_project_workspace_binding_git_credential",
+            {
+                "p_binding_id": binding_id,
+                "p_bound_user_id": user_id,
+            },
+        ).execute().data
+        if isinstance(changed, list):
+            changed = changed[0] if changed else False
+        return bool(changed)
 
     def resolve_credential(self, raw_token: str) -> dict[str, Any] | None:
         from src.repo.access_credentials import AccessCredentialRepository

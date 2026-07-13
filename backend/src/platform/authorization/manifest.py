@@ -47,6 +47,8 @@ PROJECT_ROUTE_AUTHORIZATION: dict[
     ("GET", "/api/v1/projects/{project_id}/authorization"): _human(ProjectAction.PROJECT_READ),
     ("GET", "/api/v1/projects/{project_id}/dashboard"): _human(ProjectAction.PROJECT_READ),
     ("GET", "/api/v1/projects/{project_id}/readiness"): _human(ProjectAction.PROJECT_READ),
+    ("GET", "/api/v1/projects/{project_id}/git-view/health"): _human(ProjectAction.PROJECT_READ),
+    ("POST", "/api/v1/projects/{project_id}/git-view/rebuild-cache"): _human(ProjectAction.PROJECT_MANAGE),
     ("PUT", "/api/v1/projects/{project_id}"): _human(ProjectAction.PROJECT_MANAGE),
     ("DELETE", "/api/v1/projects/{project_id}"): _human(ProjectAction.PROJECT_DELETE),
     ("POST", "/api/v1/projects/{project_id}/seed"): _human(ProjectAction.CONTENT_WRITE),
@@ -127,6 +129,11 @@ PROJECT_ROUTE_AUTHORIZATION: dict[
     ("POST", "/git/{project_id}.git/git-upload-pack"): _runtime("git.read"),
     ("POST", "/git/{project_id}.git/git-receive-pack"): _runtime("git.write"),
     ("POST", "/git/{project_id}.git/rebuild-cache"): _runtime("git.admin"),
+    ("GET", "/git/{project_id}/scopes/{scope_id}.git/health"): _runtime("git.health"),
+    ("GET", "/git/{project_id}/scopes/{scope_id}.git/info/refs"): _runtime("git.read"),
+    ("POST", "/git/{project_id}/scopes/{scope_id}.git/git-upload-pack"): _runtime("git.read"),
+    ("POST", "/git/{project_id}/scopes/{scope_id}.git/git-receive-pack"): _runtime("git.write"),
+    ("POST", "/git/{project_id}/scopes/{scope_id}.git/rebuild-cache"): _runtime("git.admin"),
 }
 
 # Query/body/child-resource routes are listed as deliberately as path-scoped
@@ -192,7 +199,9 @@ PROJECT_ROUTE_AUTHORIZATION.update({
     ("POST", "/api/v1/workspace-bindings/{binding_id}/heartbeat"): _human(ProjectAction.BIND_READONLY),
     ("DELETE", "/api/v1/workspace-bindings/{binding_id}"): _owner("workspace_binding.self_revoke"),
     ("POST", "/api/v1/workspace-bindings/{binding_id}/credential/rotate"): _human(ProjectAction.BIND_READONLY),
+    ("POST", "/api/v1/workspace-bindings/{binding_id}/credential/revoke"): _owner("workspace_binding.credential_self_revoke"),
     ("POST", "/api/v1/desktop/project-bindings/resolve-legacy-remote"): _human(ProjectAction.PROJECT_READ),
+    ("POST", "/api/v1/desktop/project-bindings/resolve-canonical-remote"): _human(ProjectAction.PROJECT_READ),
 
     # Delegated internal human calls.
     ("POST", "/internal/nodes/resolve-path"): _human(ProjectAction.CONTENT_READ),

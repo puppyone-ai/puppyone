@@ -6,20 +6,21 @@ declares its canonical Project action.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from fastapi import APIRouter, Depends, HTTPException, status
-from typing import Optional
 
 from src.common_schemas import ApiResponse
-from src.platform.auth.dependencies import get_current_user
-from src.platform.auth.models import CurrentUser
 from src.platform.authorization.dependencies import AuthorizedProject, require_project_action
 from src.platform.authorization.models import ProjectAction
-from src.repo.scope_service import ScopeService
-from src.repo.schemas import (
-    ScopeIn, ScopePatch, ScopeOut, ScopeAutoSuggestOut,
-)
 from src.repo.models import RepoScope
-
+from src.repo.schemas import (
+    ScopeAutoSuggestOut,
+    ScopeIn,
+    ScopeOut,
+    ScopePatch,
+)
+from src.repo.scope_service import ScopeService
 
 router = APIRouter(
     prefix="/projects/{project_id}/scopes",
@@ -127,7 +128,9 @@ def update_scope(
     )
     if updated is None:
         raise HTTPException(status_code=404, detail="Scope not found after update")
-    return ApiResponse.success(data=_to_out(updated, reveal_key=True), message="Scope updated")
+    # Updating metadata never re-reveals a machine credential.  The raw token
+    # is available only from create/regenerate responses.
+    return ApiResponse.success(data=_to_out(updated, reveal_key=False), message="Scope updated")
 
 
 @router.delete(
@@ -182,8 +185,16 @@ def regenerate_scope_key(
     new_key = service.regenerate_access_key(scope_id)
     if new_key is None:
         raise HTTPException(status_code=500, detail="Failed to regenerate key")
-    refreshed = service.get(scope_id)
-    return ApiResponse.success(data=_to_out(refreshed, reveal_key=True), message="Key regenerated")
+    # Storage is hash-only, so a fresh read correctly contains no plaintext.
+    # Attach the just-minted value to the already-authorized Scope object only;
+    # a second database read would add a failure window after the old key has
+    # already been revoked. It is never persisted on repo_scopes and ordinary
+    # reads remain redacted.
+    one_time_result = replace(existing, access_key=new_key)
+    return ApiResponse.success(
+        data=_to_out(one_time_result, reveal_key=True),
+        message="Key regenerated",
+    )
 
 
 @router.post(

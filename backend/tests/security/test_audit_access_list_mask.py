@@ -123,6 +123,82 @@ def _agent_row():
     }
 
 
+def test_git_regeneration_returns_locator_and_one_time_credential_separately(
+    monkeypatch,
+):
+    issued = []
+    row = {
+        "id": "surface-git",
+        "org_id": "org-1",
+        "project_id": ALLOWED,
+        "scope_id": "scope-docs",
+        "kind": "git_remote",
+        "status": "active",
+    }
+
+    class _Surfaces:
+        def __init__(self, _client):
+            pass
+
+        def get(self, connection_id):
+            assert connection_id == "surface-git"
+            return row
+
+    class _Scopes:
+        def get(self, scope_id):
+            assert scope_id == "scope-docs"
+            return SimpleNamespace(
+                id="scope-docs",
+                project_id=ALLOWED,
+                mode="rw",
+                is_root=False,
+            )
+
+    class _Credentials:
+        def __init__(self, _client):
+            pass
+
+        def issue_git_http_token(self, **kwargs):
+            issued.append(kwargs)
+            return "git_one_time_secret"
+
+    monkeypatch.setattr(access_router_mod, "_get_client", object)
+    monkeypatch.setattr(access_router_mod, "AccessSurfaceRepository", _Surfaces)
+    monkeypatch.setattr(access_router_mod, "ScopeService", _Scopes)
+    monkeypatch.setattr(access_router_mod, "AccessCredentialRepository", _Credentials)
+    monkeypatch.setattr(
+        access_router_mod, "_require_connection_project_access", lambda *_a, **_k: None
+    )
+    monkeypatch.setattr(
+        access_router_mod, "settings", SimpleNamespace(PUBLIC_URL="https://api.example")
+    )
+
+    with TestClient(_app()) as client:
+        response = client.post(
+            "/api/v1/access/surface-git/regenerate-key",
+            json={"grant_mode": "r"},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()["data"]
+    assert payload == {
+        "credential": "git_one_time_secret",
+        "git_url": f"https://api.example/git/{ALLOWED}/scopes/scope-docs.git",
+        "git_username": "x-puppyone-token",
+        "scope_id": "scope-docs",
+        "grant_mode": "r",
+    }
+    assert payload["credential"] not in payload["git_url"]
+    assert issued == [{
+        "access_surface_id": "surface-git",
+        "org_id": "org-1",
+        "project_id": ALLOWED,
+        "grant_mode": "r",
+        "prefix": "git",
+        "created_by": "user-alice",
+    }]
+
+
 def test_foreign_project_returns_empty_no_idor(monkeypatch):
     _install(monkeypatch, rows=[_agent_row()])
     with TestClient(_app()) as tc:

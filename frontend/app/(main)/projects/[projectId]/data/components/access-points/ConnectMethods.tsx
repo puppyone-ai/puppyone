@@ -22,8 +22,9 @@
  * "platform under every agent" positioning.
  *
  * cli + git_remote + agent are auto-INSERTed per scope
- * (post-2026-05-08 migration), so the scope always has an access_key
- * plus three connector records — one for each method. Each connector's
+ * (post-2026-05-08 migration), so the scope has three connector records —
+ * one for each method. CLI and Git credentials are independently issued and
+ * shown once; ordinary scope reads intentionally contain no plaintext key. Each connector's
  * `status` (`active` / `paused`) is the single source of truth for
  * whether that method is enabled for this scope, and the in-card toggle
  * routes through `pauseConnector` / `resumeConnector` to flip it.
@@ -48,12 +49,12 @@ import {
   type RepoScope,
 } from '@/lib/repoApi';
 import { AI_AGENT_ENABLED } from '@/lib/featureFlags';
+import { canonicalGitUrlForScope } from '@/lib/gitRemote';
 import {
   AiAgentBody,
   GitRemoteBody,
   METHOD_META,
   MethodCard,
-  NoAccessKeyNotice,
   SectionHeader,
   TerminalCliBody,
   profileSlug,
@@ -62,14 +63,11 @@ import {
 interface ConnectMethodsBlockProps {
   readonly scope: RepoScope;
   /** Auto-INSERTed cli connector. Drives the Puppyone CLI card's
-   *  on/off toggle. The card body still derives prompts from the
-   *  scope's access_key directly — toggling cli paused doesn't blank
-   *  the body, it just stops the access key from authorising terminal
-   *  access on the server side until resumed. */
+   *  on/off toggle. CLI setup explicitly rotates/reveals its own one-time
+   *  credential; ordinary Scope reads never rehydrate plaintext. */
   readonly cliConnector: Connector | undefined;
   /** Auto-INSERTed Git Remote connector. Drives the Git Remote card's
-   *  on/off toggle; body content is derived from the scope access key,
-   *  while connector status gates server-side Git authorization. */
+   *  on/off toggle and its independent Git credential issuance flow. */
   readonly gitRemoteConnector: Connector | undefined;
   /** Auto-INSERTed agent connector — also drives the in-card toggle,
    *  separately from the activation flow (`config.scope` is set
@@ -124,8 +122,7 @@ export function ConnectMethodsBlock({
     setAgentActivationError(null);
   }, [agentConnector]);
 
-  const accessKey = scope.access_key || '';
-  const gitUrl = `${apiBase}/git/ap/${accessKey}.git`;
+  const gitUrl = canonicalGitUrlForScope(apiBase, scope);
   const scopeName = scope.name || (scope.path === '' ? 'root' : scope.path);
   const profileName = profileSlug(scope.name || scope.path || 'root');
 
@@ -248,8 +245,6 @@ export function ConnectMethodsBlock({
 
   return (
     <section style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {!accessKey && <NoAccessKeyNotice />}
-
       <MethodSection title={METHOD_META.terminal.title}>
         <MethodCard
           meta={METHOD_META.terminal}
@@ -259,7 +254,9 @@ export function ConnectMethodsBlock({
         >
           <TerminalCliBody
             apiBase={apiBase}
-            accessKey={accessKey}
+            projectId={projectId}
+            scopeId={scope.id}
+            initialCredential={scope.access_key || ''}
             profileName={profileName}
             scopeName={scopeName}
           />
@@ -274,7 +271,9 @@ export function ConnectMethodsBlock({
           onToggle={localGitRemote ? handleToggleGitRemote : undefined}
         >
           <GitRemoteBody
+            connectorId={localGitRemote?.id ?? ''}
             gitUrl={gitUrl}
+            scopeMode={scope.mode}
             scopeName={scopeName}
           />
         </MethodCard>

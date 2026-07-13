@@ -41,6 +41,7 @@ export interface RepoIdentity {
     name: string;
     path: string;
     is_root: boolean;
+    git_url?: string;
     access_key?: string | null;
   }>;
 }

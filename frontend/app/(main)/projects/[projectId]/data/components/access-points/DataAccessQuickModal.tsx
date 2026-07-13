@@ -14,6 +14,7 @@ import {
   buildTerminalCliPrompt,
 } from '@/lib/accessPointCliPrompt';
 import { sortConnectorsBuiltinFirst, type Connector, type RepoScope } from '@/lib/repoApi';
+import { canonicalGitUrlForScope } from '@/lib/gitRemote';
 import {
   getAccessProviderCardTitle,
   getAccessProviderMethodMeta,
@@ -27,6 +28,8 @@ import { CommandBlock } from '../../../access/components/ui-blocks';
 import { STATUS_LABEL } from '../../../access/lib/constants';
 import { getApiBase, getTypeLine, timeAgo } from '../../../access/lib/format';
 import { T } from '../../../access/lib/tokens';
+import { GitCredentialIssuePanel } from './connect-methods/GitCredentialIssuePanel';
+import { CliCredentialIssuePanel } from './connect-methods/CliCredentialIssuePanel';
 
 const PROMPT_BOX_BG = 'color-mix(in srgb, var(--po-inset) 92%, var(--po-panel) 8%)';
 const FONT_BODY = 13;
@@ -166,7 +169,7 @@ function HeaderAccessLine({ scope }: { readonly scope: RepoScope }) {
           color: T.text4,
         }}
       >
-        <span style={{ fontFamily: T.fontSans, whiteSpace: 'nowrap' }}>Access key</span>
+        <span style={{ fontFamily: T.fontSans, whiteSpace: 'nowrap' }}>CLI key</span>
         <code
           style={{
             maxWidth: 132,
@@ -179,7 +182,7 @@ function HeaderAccessLine({ scope }: { readonly scope: RepoScope }) {
             whiteSpace: 'nowrap',
           }}
         >
-          {accessKey ? maskAccessKey(accessKey) : 'Preparing'}
+          {accessKey ? maskAccessKey(accessKey) : 'Hidden'}
         </code>
         <button
           type="button"
@@ -271,9 +274,10 @@ function AccessMethodCard({
   const setup = useMemo(() => buildSetupGuide(connector, scope), [connector, scope]);
   const [copied, setCopied] = useState(false);
   const meta = accessMethodMeta(connector);
-  const showManualCommands = isGitRemoteProvider(connector.provider);
+  const showManualCommands = isGitRemoteProvider(connector.provider) || isCliProvider(connector.provider);
 
   const copyPrompt = async () => {
+    if (!setup.prompt) return;
     try {
       await navigator.clipboard.writeText(setup.prompt);
       setCopied(true);
@@ -350,7 +354,7 @@ function AccessMethodCard({
                       color: T.text4,
                     }}
                   />
-                  Manual commands
+                  {isCliProvider(connector.provider) ? 'Generate key' : 'Manual commands'}
                 </button>
               ) : null}
             </div>
@@ -461,7 +465,28 @@ function ManualCommandsPage({
         </div>
       </div>
       <div style={{ padding: '14px 16px 18px' }}>
-        <ConnectionStepsList steps={setup.steps} />
+        {isGitRemoteProvider(connector.provider) ? (
+          <div style={{ marginBottom: 14 }}>
+            <GitCredentialIssuePanel
+              connectorId={connector.id}
+              gitUrl={canonicalGitUrlForScope(getApiBase(), scope)}
+              scopeMode={scope.mode}
+            />
+          </div>
+        ) : null}
+        {isCliProvider(connector.provider) ? (
+          <CliCredentialIssuePanel
+            projectId={scope.project_id}
+            scopeId={scope.id}
+            initialCredential={scope.access_key || connector.access_key || ''}
+          >
+            {(credential) => (
+              <ConnectionStepsList steps={buildSetupGuide(connector, scope, credential).steps} />
+            )}
+          </CliCredentialIssuePanel>
+        ) : (
+          <ConnectionStepsList steps={setup.steps} />
+        )}
       </div>
     </div>
   );
@@ -503,7 +528,7 @@ function MethodPromptPreview({
           overflow: 'hidden',
         }}
       >
-        {prompt}
+        {prompt || 'Generate a one-time credential to build this setup prompt.'}
       </pre>
       <div
         aria-hidden
@@ -517,6 +542,7 @@ function MethodPromptPreview({
       <AiHandoffButton
         copied={copied}
         onClick={onCopy}
+        disabled={!prompt}
         style={{
           position: 'absolute',
           left: '50%',
@@ -1052,6 +1078,7 @@ function PromptPreview({ prompt }: { readonly prompt: string }) {
   const [copied, setCopied] = useState(false);
 
   const copyPrompt = async () => {
+    if (!prompt) return;
     try {
       await navigator.clipboard.writeText(prompt);
       setCopied(true);
@@ -1085,7 +1112,7 @@ function PromptPreview({ prompt }: { readonly prompt: string }) {
           wordBreak: 'break-word',
         }}
       >
-        {prompt}
+        {prompt || 'Generate a one-time credential from this access method before copying setup.'}
       </pre>
       <div
         aria-hidden
@@ -1126,6 +1153,7 @@ function PromptPreview({ prompt }: { readonly prompt: string }) {
       <AiHandoffButton
         onClick={copyPrompt}
         copied={copied}
+        disabled={!prompt}
         label="Copy setup prompt"
         style={{
           position: 'absolute',
@@ -1166,11 +1194,11 @@ function ProviderTile({ provider }: { readonly provider: string }) {
   );
 }
 
-function buildSetupGuide(connector: Connector, scope: RepoScope) {
+function buildSetupGuide(connector: Connector, scope: RepoScope, cliCredential?: string) {
   const scopeName = scope.name || scope.path || 'Root';
   const promptKind = getAccessProviderPromptKind(connector.provider);
   if (promptKind === 'git_remote') {
-    const gitUrl = `${getApiBase()}/git/ap/${scope.access_key || '<access-key>'}.git`;
+    const gitUrl = canonicalGitUrlForScope(getApiBase(), scope);
     const guide = buildGitSyncPrompt({
       gitUrl,
       scopeName,
@@ -1190,9 +1218,20 @@ function buildSetupGuide(connector: Connector, scope: RepoScope) {
     };
   }
 
+  const accessKey = cliCredential ?? scope.access_key ?? connector.access_key ?? '';
+  if (!accessKey) {
+    return {
+      title: 'Access this folder by an AI agent',
+      description: 'Generate a one-time CLI key before copying setup.',
+      prompt: '',
+      manualTitle: 'Puppyone CLI',
+      manualDescription: 'Generate a key to reveal runnable commands.',
+      steps: [],
+    };
+  }
   const guide = buildTerminalCliPrompt({
     apiBase: getApiBase(),
-    accessKey: scope.access_key || '',
+    accessKey,
     profileName: accessPointProfileSlug(scope.name || scope.path || 'root'),
     scopeName,
   });

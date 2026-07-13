@@ -3,10 +3,15 @@
 > **AI assistants working on this codebase**: the canonical Version Engine
 > architecture is in
 > [`docs/architecture/01-version-engine.md`](docs/architecture/01-version-engine.md).
-> PuppyOne is Git-native at the version layer: stock `git` talks to
-> `https://<host>/git/ap/<access_key>.git`, while Web/API/`puppyone fs`
+> PuppyOne is Git-native at the version layer: stock `git` talks to a
+> credential-free `/git/{project_id}.git` or
+> `/git/{project_id}/scopes/{scope_id}.git` locator and supplies its separate
+> Git credential through HTTP auth, while Web/API/`puppyone fs`
 > writes converge through the Product Operation Adapter. Do not introduce the
-> removed legacy wire protocol, external version package, or old source naming.
+> removed legacy wire protocol, construct the bounded legacy
+> `/git/ap/<access_key>.git` URL in new code, introduce an external version
+> package, or restore old source naming. The normative Git contract is
+> [`docs/architecture/05-git-remote-accesspoint.md`](docs/architecture/05-git-remote-accesspoint.md).
 >
 > The canonical database release architecture is
 > [`docs/architecture/13-database-release-governance.md`](docs/architecture/13-database-release-governance.md).
@@ -220,7 +225,8 @@ All tables use plural snake_case names. The "unified access" architecture serves
 | `/api/v1/filesystem` | connectors/filesystem | Filesystem access lifecycle |
 | `/api/v1/ingest` | upload | File/URL ingestion ETL |
 | `/api/v1/ap-fs` | version_engine/routers/access_point_fs | Puppyone CLI scoped filesystem API |
-| `/git/{project_id}.git`, `/git/ap/{access_key}.git` | version_engine/adapters/git/router | Git smart-HTTP clone/fetch/push |
+| `/git/{project_id}.git`, `/git/{project_id}/scopes/{scope_id}.git` | version_engine/entrypoints/git/router | Canonical Git smart-HTTP clone/fetch/push; credential is HTTP auth, not URL data |
+| `/git/ap/{access_key}.git` | version_engine/entrypoints/git/router | Bounded, instrumented legacy compatibility only; never construct for new clients |
 | `/api/v1/workspace` | workspace | Workspace management |
 | `/api/v1/db-connector` | db_connector | External database access |
 | `/api/v1/publishes` | context_publish | Public JSON short links |

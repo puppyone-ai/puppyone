@@ -5,6 +5,7 @@ import { ExternalLink } from 'lucide-react';
 import { AiHandoffButton } from '@/components/ui/AiHandoffButton';
 import { buildGitSyncPrompt, buildMcpSetupPrompt, buildTerminalCliPrompt } from '@/lib/accessPointCliPrompt';
 import type { Connector, RepoScope } from '@/lib/repoApi';
+import { canonicalGitUrlForScope } from '@/lib/gitRemote';
 import { getAccessProviderPromptKind, isMcpProvider } from '@/lib/accessProviderRegistry';
 import { T } from '../lib/tokens';
 import { getApiBase, profileSlug } from '../lib/format';
@@ -330,7 +331,7 @@ function buildConnectorSetupPrompt(connector: Connector, scope: RepoScope | unde
   }
   const promptKind = getAccessProviderPromptKind(connector.provider);
   if (promptKind === 'git_remote') {
-    const gitUrl = `${apiBase}/git/ap/${accessKey || '<access-key>'}.git`;
+    const gitUrl = canonicalGitUrlForScope(apiBase, scope);
     return buildGitSyncPrompt({
       gitUrl,
       scopeName,
@@ -338,6 +339,10 @@ function buildConnectorSetupPrompt(connector: Connector, scope: RepoScope | unde
     }).prompt;
   }
   if (promptKind === 'terminal_cli') {
+    // Plaintext CLI credentials are one-time reveal only. Never build a
+    // copyable prompt with a fake placeholder after an ordinary redacted read;
+    // the Connect panel owns explicit issuance.
+    if (!accessKey) return '';
     return buildTerminalCliPrompt({
       apiBase,
       accessKey,

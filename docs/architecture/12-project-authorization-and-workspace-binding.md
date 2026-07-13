@@ -1,11 +1,16 @@
 # Project Authorization and Workspace Binding
 
-Status: **current architecture** (ISSUE-029)
+Status: **current authorization and canonical Git binding architecture**
+(ISSUE-029). The implementation record is tracked by OpenSpec change
+[`refactor-canonical-git-remote-contract`](../../backend/openspec/changes/refactor-canonical-git-remote-contract/design.md).
 
 This document is the source of truth for PuppyOne's Organization, Project,
 Agent-child, local workspace binding, and machine runtime boundaries.  Git
-remotes and credentials transport content; they never grant human control-plane
-access or identify a local folder as a Cloud Project.
+credentials transport content and grant only a bounded machine RuntimeGrant. A
+trusted canonical Git locator may identify one deterministic Project/Scope
+candidate, but it never grants human control-plane access and never becomes the
+durable identity of a local folder. Only WorkspaceBinding supplies that local
+identity.
 
 ## The three decisions
 
@@ -29,6 +34,9 @@ These decisions are deliberately independent:
 - Agent visibility can hide a child; it cannot admit a denied Project user.
 - A binding says which Cloud Project a local workspace represents; every
   request still re-authorizes the current account.
+- A canonical Git locator may remove Project-list scanning by declaring one
+  Project/root-or-Scope candidate; current JWT authorization and a matching
+  binding are still required before normal bound-Project navigation.
 - A Git, CLI, MCP, Sandbox, Agent, or binding token cannot call Team, Billing,
   Project Members, Project Settings, or credential-management APIs.
 
@@ -130,6 +138,12 @@ that workspace.  Membership loss, role downgrade, scope downgrade, surface
 disable, or binding revoke is rechecked on the next machine request.  Triggered
 revocation is defense in depth, not a replacement for request-time checks.
 
+Credential revocation domains are explicit in
+`access_surface_credentials.credential_lifecycle`: `shared` identifies the
+manual surface slot, `session` identifies a separately expiring runtime token,
+and `binding` requires `workspace_binding_id`. This prevents a shared-key
+rotation from revoking active Sandbox sessions or unrelated workspaces.
+
 Desktop persists only:
 
 ```json
@@ -146,6 +160,71 @@ Desktop persists only:
 The credential is returned once and written only into the Git credential form
 of the configured remote.  It is never written into the shared PuppyOne
 manifest.
+
+### Canonical Git locator discovery
+
+The current Git locator contract is defined normatively in
+[Git Remote Locator, Credential, And Access Point Contract](05-git-remote-accesspoint.md):
+
+```text
+Project root  /git/{project_id}.git
+Scoped view   /git/{project_id}/scopes/{scope_id}.git
+```
+
+The IDs are non-secret locators. The credential is a separate opaque secret
+stored through the Git credential helper. The four decisions remain separate:
+
+```text
+locator          -> one Project/Scope candidate
+Git credential   -> machine RuntimeGrant only
+human JWT        -> ProjectGrant only
+WorkspaceBinding -> durable local workspace identity only
+```
+
+The same split applies to Git-view diagnostics. Locator-relative
+`/git/.../health` and `/git/.../rebuild-cache` remain machine RuntimeGrant
+operations. A signed-in Web client uses the root-only Project control plane at
+`GET /api/v1/projects/{project_id}/git-view/health` (Project Read) and
+`POST /api/v1/projects/{project_id}/git-view/rebuild-cache` (Project Manage).
+The adapter reuses the Version Engine's derived view implementation, but never
+passes a human JWT through Git transport auth. The returned `can_rebuild` fact
+is evaluated from the current ProjectGrant; UI code must not guess it from a
+raw role.
+
+Desktop open behavior follows this order:
+
+1. read the secret-free PuppyOne remote and local workspace identity;
+2. parse a candidate only when the remote uses a configured trusted Cloud
+   origin and canonical locator grammar;
+3. resolve the active binding when its ID is present;
+4. re-authorize the current account against the binding's Project;
+5. verify exact Project, Scope, host, workspace instance, and full/scoped kind;
+6. navigate directly to the verified Project without enumerating Organization
+   Projects first.
+
+The Desktop Project-catalog hook is disabled during Local workspace session
+restore. It may enumerate Projects only for Cloud-only/home browsing, or when
+the user explicitly browses from an unbound Local workspace with no canonical
+target candidate. This prevents a broad catalog request from racing and
+visually winning over exact binding resolution.
+
+The explicit `Use here` action already owns the selected Project ID. It calls
+Workspace Binding creation with that ID and accepts the canonical remote from
+the binding response; it must not prefetch Repo Identity or enumerate Scopes
+merely to rediscover a URL that the binding service owns.
+
+If local binding state is absent, a canonical locator can seed one explicit
+attach/recovery flow after current-user authorization. It cannot silently
+create durable identity, cannot authorize Project metadata, and cannot trigger
+an N-by-M scan of Projects, Scopes, or shared credentials. The legacy
+`/git/ap/<key>.git` route remains confirmation-gated during migration because
+its path is a secret-bearing capability rather than a stable locator.
+
+Binding or Access issuance returns the canonical locator and one-time
+credential as separate fields. Rotation changes the credential but never the
+locator or binding identity. A local configuration failure after server-side
+issuance must retain enough non-secret binding identity to retry or revoke; it
+must not leave an unreported active binding.
 
 ## Git and Claude readiness
 

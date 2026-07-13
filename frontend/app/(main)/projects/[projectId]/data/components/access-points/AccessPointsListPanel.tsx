@@ -17,6 +17,7 @@ import { AccessPointProviderIcon, StatusDot } from './AccessPointProviderIcon';
 import type { SyncEndpointInfo } from '../explorer';
 import type { EndpointEntry, ProviderIconLookup } from './types';
 import { ensureExpandedBatch } from '../explorer/explorerState';
+import { canonicalProjectGitUrl, canonicalScopeGitUrl } from '@/lib/gitRemote';
 
 function formatStatus(status: string) {
   if (!status) return 'Unknown';
@@ -39,8 +40,10 @@ function getSetupSnippets(ep: SyncEndpointInfo, displayName: string, scopeName: 
   const apiBase = getApiBase();
   const accessKey = ep.accessKey || '';
 
-  if (isGitRemoteProvider(ep.provider) && accessKey) {
-    const gitUrl = `${apiBase}/git/ap/${accessKey}.git`;
+  if (isGitRemoteProvider(ep.provider) && ep.projectId && ep.scopeId) {
+    const gitUrl = ep.scopeIsRoot
+      ? canonicalProjectGitUrl(apiBase, ep.projectId)
+      : canonicalScopeGitUrl(apiBase, ep.projectId, ep.scopeId);
     const profileName = accessPointProfileSlug(scopeName);
     const gitPrompt = buildGitSyncPrompt({
       gitUrl,
@@ -48,13 +51,15 @@ function getSetupSnippets(ep: SyncEndpointInfo, displayName: string, scopeName: 
       directoryName: scopeName,
       accessPointName: displayName,
     }).prompt;
-    const terminalPrompt = buildTerminalCliPrompt({
-      apiBase,
-      accessKey,
-      profileName,
-      scopeName,
-      accessPointName: displayName,
-    }).prompt;
+    const terminalPrompt = accessKey
+      ? buildTerminalCliPrompt({
+          apiBase,
+          accessKey,
+          profileName,
+          scopeName,
+          accessPointName: displayName,
+        }).prompt
+      : '';
     return {
       primary: {
         title: 'Git Remote',
@@ -62,12 +67,14 @@ function getSetupSnippets(ep: SyncEndpointInfo, displayName: string, scopeName: 
         body: gitPrompt,
         copyText: gitPrompt,
       },
-      secondary: {
-        title: 'Puppyone FS CLI',
-        description: 'Use scoped FS CLI commands without a local clone.',
-        body: terminalPrompt,
-        copyText: terminalPrompt,
-      },
+      secondary: terminalPrompt
+        ? {
+            title: 'Puppyone FS CLI',
+            description: 'Use scoped FS CLI commands without a local clone.',
+            body: terminalPrompt,
+            copyText: terminalPrompt,
+          }
+        : undefined,
     } as const;
   }
 

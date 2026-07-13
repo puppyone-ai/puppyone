@@ -201,7 +201,8 @@ audit/transaction/outbox。
 |----------|------|------|
 | `/api/v1/content/{project_id}` | version_engine/routers/content_router | Content API (ls/cat/stat/tree/write/mkdir/mv/rm/history/diff) |
 | `/api/v1/ap-fs` | version_engine/routers/access_point_fs | Puppyone CLI scoped filesystem API |
-| `/git/{project_id}.git`, `/git/ap/{access_key}.git` | version_engine/adapters/git/router | Git smart-HTTP clone/fetch/push |
+| `/git/{project_id}.git`, `/git/{project_id}/scopes/{scope_id}.git` | version_engine/entrypoints/git/router | Canonical Git smart-HTTP; stable locator plus separate HTTP credential |
+| `/git/ap/{access_key}.git` | version_engine/entrypoints/git/router | Instrumented legacy compatibility only; no new URL construction |
 | `/api/v1/tables` | content/table | 数据表 JSON Pointer 操作 |
 | `/api/v1/projects` | platform/project | 项目管理 |
 | `/api/v1/organizations` | platform/organization | 组织管理 |

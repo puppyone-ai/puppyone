@@ -1,6 +1,7 @@
 export { AiAgentBody } from './AiAgentBody';
 export { GitRemoteBody } from './GitRemoteBody';
 export { TerminalCliBody } from './TerminalCliBody';
+export { CliCredentialIssuePanel } from './CliCredentialIssuePanel';
 export {
   MethodCard,
   NoAccessKeyNotice,

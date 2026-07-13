@@ -196,6 +196,9 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
         status: c.status,
         name: c.name || scope.name,
         accessKey: scope.access_key ?? null,
+        projectId: scope.project_id,
+        scopeId: scope.id,
+        scopeIsRoot: scope.is_root,
       });
     }
 

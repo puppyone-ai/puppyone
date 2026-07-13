@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
 
 from src.common_schemas import ApiResponse
+from src.config import settings
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
 from src.platform.authorization.dependencies import AuthorizedProject, require_project_action
@@ -10,6 +11,7 @@ from src.platform.authorization.models import ProjectAction
 from src.platform.workspace_binding.dependencies import get_workspace_binding_service
 from src.platform.workspace_binding.models import WorkspaceBinding
 from src.platform.workspace_binding.schemas import (
+    GitRemoteOut,
     LegacyRemoteCandidateOut,
     LegacyRemoteResolveRequest,
     WorkspaceBindingCreate,
@@ -17,6 +19,7 @@ from src.platform.workspace_binding.schemas import (
     WorkspaceBindingCredentialOut,
 )
 from src.platform.workspace_binding.service import WorkspaceBindingService
+from src.version_engine.entrypoints.git.locator import canonical_git_url
 
 
 router = APIRouter(tags=["workspace-bindings"])
@@ -29,6 +32,9 @@ def _out(
     usable: bool = True,
     reason: str | None = None,
 ) -> WorkspaceBindingOut:
+    scope_id = (
+        None if binding.binding_kind.value == "full" else binding.scope_id
+    )
     return WorkspaceBindingOut(
         id=binding.id,
         org_id=binding.org_id,
@@ -48,6 +54,16 @@ def _out(
         last_seen_at=binding.last_seen_at.isoformat(),
         revoked_at=binding.revoked_at.isoformat() if binding.revoked_at else None,
         credential=credential,
+        remote=GitRemoteOut(
+            url=canonical_git_url(
+                binding.cloud_origin,
+                binding.project_id,
+                scope_id,
+            ),
+            project_id=binding.project_id,
+            scope_id=binding.scope_id,
+            kind=binding.binding_kind,
+        ),
     )
 
 
@@ -156,9 +172,26 @@ def rotate_workspace_binding_credential(
     credential = service.rotate_credential(binding_id, current_user.user_id)
     return ApiResponse.success(
         data=WorkspaceBindingCredentialOut(
-            binding_id=binding_id, credential=credential
+            binding_id=binding_id,
+            credential=credential,
+            remote=_out(
+                service.get(binding_id, current_user.user_id)[0]
+            ).remote,
         )
     )
+
+
+@router.post(
+    "/workspace-bindings/{binding_id}/credential/revoke",
+    response_model=ApiResponse[None],
+)
+def revoke_workspace_binding_credential(
+    binding_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+    service: WorkspaceBindingService = Depends(get_workspace_binding_service),
+):
+    service.revoke_credential(binding_id, current_user.user_id)
+    return ApiResponse.success(message="Workspace binding credential revoked")
 
 
 @router.post(
@@ -167,11 +200,45 @@ def rotate_workspace_binding_credential(
 )
 def resolve_legacy_remote(
     payload: LegacyRemoteResolveRequest,
+    request: Request,
     current_user: CurrentUser = Depends(get_current_user),
     service: WorkspaceBindingService = Depends(get_workspace_binding_service),
 ):
     project_id, scope_id, kind = service.resolve_legacy_remote(
-        payload.remote_url, current_user.user_id
+        payload.remote_url,
+        current_user.user_id,
+        expected_origin=(
+            settings.PUBLIC_URL
+            or f"{request.url.scheme}://{request.url.netloc}"
+        ),
+    )
+    return ApiResponse.success(
+        data=LegacyRemoteCandidateOut(
+            project_id=project_id,
+            scope_id=scope_id,
+            binding_kind=kind,
+            requires_confirmation=True,
+        )
+    )
+
+
+@router.post(
+    "/desktop/project-bindings/resolve-canonical-remote",
+    response_model=ApiResponse[LegacyRemoteCandidateOut],
+)
+def resolve_canonical_remote(
+    payload: LegacyRemoteResolveRequest,
+    request: Request,
+    current_user: CurrentUser = Depends(get_current_user),
+    service: WorkspaceBindingService = Depends(get_workspace_binding_service),
+):
+    project_id, scope_id, kind = service.resolve_canonical_remote(
+        payload.remote_url,
+        current_user.user_id,
+        expected_origin=(
+            settings.PUBLIC_URL
+            or f"{request.url.scheme}://{request.url.netloc}"
+        ),
     )
     return ApiResponse.success(
         data=LegacyRemoteCandidateOut(

@@ -208,7 +208,7 @@ export function NoAccessKeyNotice() {
         padding: '8px 10px',
       }}
     >
-      This scope has no access key issued. Regenerate one from scope settings to enable this method.
+      CLI key plaintext is hidden after issuance. Generate a new one from scope settings when you need setup commands.
     </div>
   );
 }

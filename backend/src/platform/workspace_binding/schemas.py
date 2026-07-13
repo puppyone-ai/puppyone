@@ -27,6 +27,14 @@ class WorkspaceBindingCreate(BaseModel):
         return self
 
 
+class GitRemoteOut(BaseModel):
+    url: str
+    project_id: str
+    scope_id: str
+    kind: BindingKind
+    username: str = "x-puppyone-token"
+
+
 class WorkspaceBindingOut(BaseModel):
     id: str
     org_id: str
@@ -46,6 +54,7 @@ class WorkspaceBindingOut(BaseModel):
     last_seen_at: str
     revoked_at: str | None = None
     credential: str | None = None
+    remote: GitRemoteOut
 
 
 class LegacyRemoteResolveRequest(BaseModel):
@@ -62,3 +71,4 @@ class LegacyRemoteCandidateOut(BaseModel):
 class WorkspaceBindingCredentialOut(BaseModel):
     binding_id: str
     credential: str
+    remote: GitRemoteOut

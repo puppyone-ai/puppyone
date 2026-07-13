@@ -7,8 +7,9 @@ Endpoints (JWT auth, project-scoped):
   POST /api/v1/scope-sandboxes/revoke   → revoke the caller's SSH access.
 
 The provider (Fly/E2B) is chosen per request (frontend selection), defaulting to
-``settings.SCOPE_SANDBOX_PROVIDER``. All git/CLI runs inside the sandbox; the
-scope's access key stays server-side (embedded in the in-box git remote URL).
+``settings.SCOPE_SANDBOX_PROVIDER``. All git/CLI runs inside the sandbox. Its
+canonical Git locator is credential-free; a short-lived Git credential stays
+server-side and reaches Git only through the sandbox credential-helper file.
 """
 
 from __future__ import annotations

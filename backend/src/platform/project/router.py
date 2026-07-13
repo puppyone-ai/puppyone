@@ -8,15 +8,9 @@ Provides REST API endpoints for project CRUD operations.
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from src.common_schemas import ApiResponse
-from src.version_engine.bootstrap.dependencies import (
-    get_version_admin_service,
-)
-from src.version_engine.read.admin import VersionAdminService
+from src.infra.supabase.dependencies import get_supabase_client
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
-from src.platform.organization.dependencies import resolve_org_id, resolve_org_ids
-from src.platform.entitlements.dependencies import get_entitlement_service
-from src.platform.entitlements.service import EntitlementService
 from src.platform.authorization.dependencies import (
     AuthorizedProject,
     get_authorization_service,
@@ -24,20 +18,29 @@ from src.platform.authorization.dependencies import (
 )
 from src.platform.authorization.models import ProjectAction, ProjectGrant
 from src.platform.authorization.service import AuthorizationService
+from src.platform.entitlements.dependencies import get_entitlement_service
+from src.platform.entitlements.service import EntitlementService
+from src.platform.organization.dependencies import resolve_org_id, resolve_org_ids
 from src.platform.project.dependencies import get_project_service
+from src.platform.project.git_view import ProjectGitViewService
 from src.platform.project.models import Project
+from src.platform.project.readiness import ProjectReadinessService
 from src.platform.project.schemas import (
     AddProjectMember,
+    ProjectAuthorizationOut,
     ProjectCreate,
     ProjectMemberOut,
-    ProjectAuthorizationOut,
     ProjectOut,
     ProjectUpdate,
     UpdateProjectMemberRole,
 )
-from src.infra.supabase.dependencies import get_supabase_client
 from src.platform.project.service import ProjectService
-from src.platform.project.readiness import ProjectReadinessService
+from src.version_engine.bootstrap.dependencies import (
+    get_repo_manager,
+    get_version_admin_service,
+)
+from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
+from src.version_engine.read.admin import VersionAdminService
 
 router = APIRouter(
     prefix="/projects",
@@ -51,6 +54,12 @@ router = APIRouter(
 
 def get_project_readiness_service() -> ProjectReadinessService:
     return ProjectReadinessService()
+
+
+def get_project_git_view_service(
+    repo_manager: VersionRepoManager = Depends(get_repo_manager),
+) -> ProjectGitViewService:
+    return ProjectGitViewService(repo_manager)
 
 
 def _convert_to_project_out(
@@ -534,3 +543,53 @@ def get_project_readiness(
     readiness: ProjectReadinessService = Depends(get_project_readiness_service),
 ):
     return ApiResponse.success(data=readiness.resolve(authorized.project.id).as_dict())
+
+
+@router.get(
+    "/{project_id}/git-view/health",
+    response_model=ApiResponse[dict],
+    summary="Get the root Git view health through the Project control plane",
+)
+def get_project_git_view_health(
+    authorized: AuthorizedProject = Depends(
+        require_project_action(ProjectAction.PROJECT_READ)
+    ),
+    git_view: ProjectGitViewService = Depends(get_project_git_view_service),
+):
+    """Return derived Git health using Human Project authorization.
+
+    The smart-HTTP ``/git/.../health`` route intentionally remains a machine
+    RuntimeGrant endpoint; a human JWT is never forwarded to that data plane.
+    """
+
+    return ApiResponse.success(
+        data=git_view.health(
+            str(authorized.project.id),
+            content_write_allowed=authorized.grant.allows(
+                ProjectAction.CONTENT_WRITE
+            ),
+            cache_rebuild_allowed=authorized.grant.allows(
+                ProjectAction.PROJECT_MANAGE
+            ),
+        ),
+        message="Project Git view health loaded",
+    )
+
+
+@router.post(
+    "/{project_id}/git-view/rebuild-cache",
+    response_model=ApiResponse[dict],
+    summary="Rebuild the root Git view cache through the Project control plane",
+)
+def rebuild_project_git_view_cache(
+    authorized: AuthorizedProject = Depends(
+        require_project_action(ProjectAction.PROJECT_MANAGE)
+    ),
+    git_view: ProjectGitViewService = Depends(get_project_git_view_service),
+):
+    """Rebuild both derived root-view cache variants from canonical facts."""
+
+    return ApiResponse.success(
+        data=git_view.rebuild(str(authorized.project.id)),
+        message="Project Git view caches rebuilt from canonical facts",
+    )

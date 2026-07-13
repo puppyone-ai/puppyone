@@ -289,6 +289,11 @@
 
 # 第三部分:Sandbox 前端接线(产品化最后一公里,2026-06-08)
 
+> 历史记录说明：本节记录的是 2026-06 当时的 key-in-path 实现。当前 Sandbox
+> 已改为 canonical Project/Scope locator + 短期 Git HTTP credential，旧
+> `/git/ap/<key>.git` 仅为有界兼容路由。现行契约见
+> `docs/architecture/05-git-remote-accesspoint.md`。
+
 > 之前 sandbox 功能是「后端库就绪 + 实环境验证,但前端只有 "Coming soon" 占位」。这一部分把它接成用户能点的真实流程:Access 页 scope 卡片直接连 SSH,Data 菜单的 "SSH Terminal" 也通了。配套补齐了后端 HTTP API(前端要调它)+ reaper 调度 + 多 writer 安全,并合并了 qubits 最新代码。
 
 ## 18. 后端 HTTP API(前端契约,#9 backend)

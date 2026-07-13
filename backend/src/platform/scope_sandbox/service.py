@@ -28,11 +28,12 @@ from src.platform.scope_sandbox.manager import AcquireResult, ScopeSandboxManage
 from src.platform.scope_sandbox.provider import SandboxProvider, SandboxSpec
 from src.platform.scope_sandbox.registry import SandboxSessionStore
 from src.utils.logger import log_info, log_warning
+from src.version_engine.entrypoints.git.locator import canonical_git_url
 
-# Env key carrying the scope's git remote URL into the sandbox (read by the
-# bootstrap to clone the scope on cold create). Server-side only; the access
-# key lives in the URL and is never returned to the client.
+# The URL is non-secret. The token stays in server-only SandboxSpec metadata
+# until the provider writes it through its sensitive file channel.
 GIT_URL_ENV = "PUPPY_SCOPE_GIT_URL"
+GIT_TOKEN_ENV = "PUPPY_SCOPE_GIT_TOKEN"
 
 # Short-lived by default — a connect grants ~8h, re-connect renews. Offboarding
 # (revoke) or the TTL elapsing both cut access.
@@ -72,6 +73,7 @@ class ScopeSandboxService:
         scope_lookup=None,
         manager_factory=None,
         sidecar_starter=None,
+        git_credential_issuer=None,
     ) -> None:
         # Shared durable store across providers (one row per scope).
         self._store = store or store_from_settings(settings)
@@ -80,6 +82,9 @@ class ScopeSandboxService:
         self._manager_factory = manager_factory or self._build_manager
         # injectable so unit tests skip the (DB-touching) sync-sidecar start
         self._sidecar_starter = sidecar_starter or self._maybe_start_sidecar
+        self._git_credential_issuer = (
+            git_credential_issuer or self._issue_git_credential
+        )
         self._managers: dict[str, ScopeSandboxManager] = {}
 
     # ── manager wiring ────────────────────────────────────────────────
@@ -114,6 +119,14 @@ class ScopeSandboxService:
                 await ssh_e2b.provision_e2b_ssh(provider, sandbox_id, baked=baked)  # no seed key
             git_url = spec.env.get(GIT_URL_ENV, "")
             if git_url:
+                git_credential = str(spec.metadata.get(GIT_TOKEN_ENV) or "")
+                if not git_credential:
+                    raise RuntimeError("Sandbox Git credential is missing")
+                await scope_provision.write_scope_git_credential(
+                    provider,
+                    sandbox_id,
+                    git_credential,
+                )
                 await scope_provision.provision_scope_workspace(
                     provider, sandbox_id, git_url=git_url,
                 )
@@ -122,8 +135,32 @@ class ScopeSandboxService:
     # ── git url ───────────────────────────────────────────────────────
 
     @staticmethod
-    def _git_url(public_base: str, access_key: str) -> str:
-        return f"{public_base.rstrip('/')}/git/ap/{access_key}.git"
+    def _git_url(
+        public_base: str,
+        project_id: str,
+        scope_id: str,
+        *,
+        is_root: bool,
+    ) -> str:
+        return canonical_git_url(
+            public_base,
+            project_id,
+            None if is_root else scope_id,
+        )
+
+    @staticmethod
+    def _issue_git_credential(
+        scope_id: str,
+        user_id: str,
+        expires_at: datetime,
+    ) -> str | None:
+        from src.repo.access_surface_repository import AccessSurfaceRepository
+
+        return AccessSurfaceRepository().issue_git_session_credential(
+            scope_id=scope_id,
+            created_by=user_id,
+            expires_at=expires_at,
+        )
 
     @staticmethod
     def _workspace_path(username: str, workdir: str) -> str:
@@ -167,10 +204,30 @@ class ScopeSandboxService:
             )
         if not access_key:
             raise RuntimeError("Failed to issue sandbox scope credential")
-        git_url = self._git_url(public_base, access_key)
+        credential_expires_at = datetime.fromtimestamp(
+            expires_at, tz=timezone.utc
+        )
+        git_credential = self._git_credential_issuer(
+            scope_id,
+            user_id,
+            credential_expires_at,
+        )
+        if not git_credential:
+            raise RuntimeError("Failed to issue sandbox Git credential")
+        git_url = self._git_url(
+            public_base,
+            project_id,
+            scope_id,
+            is_root=bool(getattr(scope, "is_root", False)),
+        )
         mgr = self._manager(provider_name)
 
-        spec = SandboxSpec(scope_id=scope_id, project_id=project_id, env={GIT_URL_ENV: git_url})
+        spec = SandboxSpec(
+            scope_id=scope_id,
+            project_id=project_id,
+            env={GIT_URL_ENV: git_url},
+            metadata={GIT_TOKEN_ENV: git_credential},
+        )
         result: AcquireResult = await mgr.acquire(spec, user_id, now=now)
         session = result.session
         provider = mgr.provider
@@ -181,6 +238,15 @@ class ScopeSandboxService:
         port = conn.port if conn else 22
         username = conn.username if conn else "user"
         proxy = conn.proxy_command if conn else None
+
+        # A warm/resumed sandbox keeps its disk, so renew the helper's secret
+        # file on every connect. The raw value travels via E2B's filesystem API
+        # or Fly Machines Exec stdin, never via the shell command or locator.
+        await scope_provision.write_scope_git_credential(
+            provider,
+            sid,
+            git_credential,
+        )
 
         # per-user working tree + git identity (#7): push attributes to the person
         workdir = await ssh_credentials.provision_user_workspace(

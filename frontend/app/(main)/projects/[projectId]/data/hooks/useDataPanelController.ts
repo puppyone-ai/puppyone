@@ -12,6 +12,7 @@ import { getApiBase } from '../components/access-points/labels';
 import type { AccessPanelNavigationGuard, EditorTarget } from '../components/right-panel';
 import { usePanelStore } from '../usePanelStore';
 import { matchScopeForPath, type Connector, type RepoScope } from '@/lib/repoApi';
+import { canonicalProjectGitUrl } from '@/lib/gitRemote';
 
 function normalizeAccessPath(path: string | null | undefined): string {
   return (path ?? '').trim().replace(/^\/+|\/+$/g, '').replace(/\/+/g, '/');
@@ -94,9 +95,9 @@ export function useDataPanelController({
 
   const rootScope = useMemo(() => matchScopeForPath('', scopes), [scopes]);
   const rootGitRemoteUrl = useMemo(() => {
-    if (!rootScope?.access_key) return null;
-    return `${getApiBase()}/git/ap/${rootScope.access_key}.git`;
-  }, [rootScope?.access_key]);
+    if (!rootScope) return null;
+    return canonicalProjectGitUrl(getApiBase(), projectId);
+  }, [projectId, rootScope]);
 
   const quickAccessScope = useMemo(() => {
     if (!quickAccessScopeId) return null;

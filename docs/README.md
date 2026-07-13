@@ -10,7 +10,7 @@ Read in this order:
 3. [Context Resources](architecture/02-context-resources.md)
 4. [CLI](architecture/03-cli.md)
 5. [Connectors](architecture/04-connectors.md)
-6. [Git Remote Access Point Flow](architecture/05-git-remote-accesspoint.md)
+6. [Git Remote Locator, Credential, And Access Point Contract](architecture/05-git-remote-accesspoint.md)
 7. [Gateway And Access Boundary](architecture/06-gateway-access-point-split.md)
 8. [Shadow Snapshots](architecture/08-shadow-snapshots.md)
 9. [Context Entry Points](architecture/10-context-entrypoints.md)
@@ -24,6 +24,7 @@ Product and frontend design:
 - [Product Visual System](frontend/product-visual-system.md)
 - [Color Mode Architecture](frontend/color-mode-architecture.md)
 - [ISSUE-029 Authorization Cutover](ops/issue-029-authorization-cutover.md)
+- [Canonical Git Remote Rollout Runbook](ops/canonical-git-remote-rollout.md)
 - [July 2026 Database Migration Transition](ops/database-migration-transition-2026-07.md)
 
 Document-level constructs:

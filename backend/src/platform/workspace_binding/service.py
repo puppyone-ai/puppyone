@@ -12,6 +12,7 @@ from src.platform.authorization.service import AuthorizationService
 from src.platform.workspace_binding.models import BindingKind, BindingMode, WorkspaceBinding
 from src.platform.workspace_binding.repository import WorkspaceBindingRepository
 from src.platform.workspace_binding.schemas import WorkspaceBindingCreate
+from src.version_engine.entrypoints.git.locator import parse_canonical_git_url
 
 
 _ACCESS_REMOTE_RE = re.compile(r"/git/ap/([^/?#]+?)(?:\.git)?$")
@@ -26,6 +27,24 @@ def normalize_cloud_origin(raw_origin: str) -> str:
     if parts.path not in {"", "/"}:
         raise ValidationException("cloud_origin must not contain a path")
     return f"{parts.scheme.lower()}://{parts.netloc.lower()}"
+
+
+def _validate_remote_origin(parts, expected_origin: str | None) -> None:
+    if (
+        parts.scheme not in {"http", "https"}
+        or not parts.netloc
+        or parts.username
+        or parts.password
+        or parts.query
+        or parts.fragment
+    ):
+        raise ValidationException(
+            "Remote must be a credential-free HTTP(S) URL without query data"
+        )
+    if expected_origin and normalize_cloud_origin(expected_origin) != (
+        f"{parts.scheme.lower()}://{parts.netloc.lower()}"
+    ):
+        raise ValidationException("Remote belongs to a different Cloud origin")
 
 
 class WorkspaceBindingService:
@@ -113,9 +132,9 @@ class WorkspaceBindingService:
                 "Binding mode cannot exceed scope mode", code=ErrorCode.FORBIDDEN
             )
 
-        surface = self._repository.get_cli_surface(project_id, str(scope["id"]))
+        surface = self._repository.get_git_surface(project_id, str(scope["id"]))
         if surface is None:
-            raise ValidationException("The selected scope has no active Git/CLI surface")
+            raise ValidationException("The selected scope has no active Git surface")
         binding, credential = self._repository.create_with_credential(
             org_id=grant.org_id,
             project_id=project_id,
@@ -209,10 +228,27 @@ class WorkspaceBindingService:
             )
         return credential
 
+    def revoke_credential(self, binding_id: str, user_id: str) -> None:
+        # Self-revocation only narrows machine authority and deliberately does
+        # not require current Project access, so compensation still works
+        # after a concurrent role removal.
+        binding = self._repository.get_for_user(binding_id, user_id)
+        if binding is None or not self._repository.revoke_credential(
+            binding_id, user_id
+        ):
+            raise NotFoundException(
+                "Workspace binding not found", code=ErrorCode.NOT_FOUND
+            )
+
     def resolve_legacy_remote(
-        self, remote_url: str, user_id: str
+        self,
+        remote_url: str,
+        user_id: str,
+        *,
+        expected_origin: str | None = None,
     ) -> tuple[str, str, BindingKind]:
         parts = urlsplit(remote_url.strip())
+        _validate_remote_origin(parts, expected_origin)
         match = _ACCESS_REMOTE_RE.search(parts.path)
         if not match:
             raise ValidationException("Remote is not a PuppyOne Access remote")
@@ -230,3 +266,39 @@ class WorkspaceBindingService:
             raise NotFoundException("Remote scope not found", code=ErrorCode.NOT_FOUND)
         kind = BindingKind.FULL if scope.get("is_root") else BindingKind.SCOPED
         return project_id, scope_id, kind
+
+    def resolve_canonical_remote(
+        self,
+        remote_url: str,
+        user_id: str,
+        *,
+        expected_origin: str | None = None,
+    ) -> tuple[str, str, BindingKind]:
+        parts = urlsplit(remote_url.strip())
+        _validate_remote_origin(parts, expected_origin)
+        locator = parse_canonical_git_url(remote_url)
+        if locator is None:
+            raise ValidationException(
+                "Remote is not a credential-free canonical PuppyOne Git remote"
+            )
+        self._authorization.authorize(
+            locator.project_id,
+            user_id,
+            ProjectAction.PROJECT_READ,
+        )
+        scope = self._repository.get_scope(
+            locator.project_id,
+            locator.scope_id,
+            root=locator.scope_id is None,
+        )
+        if scope is None:
+            raise NotFoundException(
+                "Remote scope not found", code=ErrorCode.NOT_FOUND
+            )
+        is_root = bool(scope.get("is_root"))
+        if locator.scope_id is not None and is_root:
+            raise ValidationException(
+                "The canonical root scope must use the Project Git URL"
+            )
+        kind = BindingKind.FULL if is_root else BindingKind.SCOPED
+        return locator.project_id, str(scope["id"]), kind

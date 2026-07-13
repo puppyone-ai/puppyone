@@ -21,6 +21,9 @@ export interface SyncEndpointInfo {
   status: string;
   name?: string;
   accessKey?: string | null;
+  projectId?: string | null;
+  scopeId?: string | null;
+  scopeIsRoot?: boolean;
 }
 
 export interface DataLayoutContextValue {

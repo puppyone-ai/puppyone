@@ -72,12 +72,13 @@ class RepoIdentityScopeOut(BaseModel):
     name: str
     path: str
     is_root: bool
+    git_url: str
     access_key: Optional[str] = None      # ordinary identity reads always redact it
 
 
 class RepoIdentityOut(BaseModel):
     project_id: str
-    url: str                              # https://<api>/api/v1/version/<project_id>
+    url: str                              # canonical credential-free root Git URL
     prompt_template: str
     scopes: list[RepoIdentityScopeOut]
     content_initialized: bool = False

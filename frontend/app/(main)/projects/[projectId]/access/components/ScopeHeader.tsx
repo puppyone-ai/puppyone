@@ -202,9 +202,9 @@ function ScopeAccessKeyInline({ accessKey }: { readonly accessKey: string }) {
         color: T.text2,
       }}
     >
-      <span style={{ flexShrink: 0 }}>Access key</span>
+      <span style={{ flexShrink: 0 }}>CLI key</span>
       <code
-        title={accessKey ? maskAccessKey(accessKey) : undefined}
+        title={accessKey ? maskAccessKey(accessKey) : 'CLI keys are revealed only when issued'}
         style={{
           maxWidth: 136,
           minWidth: 0,
@@ -217,12 +217,12 @@ function ScopeAccessKeyInline({ accessKey }: { readonly accessKey: string }) {
           lineHeight: '16px',
         }}
       >
-        {accessKey ? maskAccessKey(accessKey) : 'Preparing'}
+        {accessKey ? maskAccessKey(accessKey) : 'Hidden'}
       </code>
       <button
         type='button'
-        aria-label='Copy access key'
-        title='Copy access key'
+        aria-label='Copy CLI access key'
+        title='Copy CLI access key'
         disabled={!accessKey}
         onClick={handleCopy}
         style={{

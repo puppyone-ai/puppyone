@@ -52,15 +52,29 @@ class BindingRepositoryStub:
         }
         self.existing = existing
         self.created = []
+        self.revoked_credentials = []
 
     def get_active_by_instance(self, *_args):
         return self.existing
 
+    def get_for_user(self, binding_id, user_id):
+        if (
+            self.existing
+            and self.existing.id == binding_id
+            and self.existing.bound_user_id == user_id
+        ):
+            return self.existing
+        return None
+
+    def revoke_credential(self, binding_id, user_id):
+        self.revoked_credentials.append((binding_id, user_id))
+        return True
+
     def get_scope(self, *_args, **_kwargs):
         return self.scope
 
-    def get_cli_surface(self, *_args):
-        return {"id": "surface-cli"}
+    def get_git_surface(self, *_args):
+        return {"id": "surface-git"}
 
     def create_with_credential(self, **kwargs):
         self.created.append(kwargs)
@@ -107,6 +121,25 @@ def test_cloud_origin_is_canonical_and_rejects_paths_or_credentials():
     ):
         with pytest.raises(ValidationException):
             normalize_cloud_origin(invalid)
+
+
+def test_remote_discovery_rejects_wrong_origin_or_url_credentials_before_lookup():
+    service = WorkspaceBindingService(
+        BindingRepositoryStub(), AuthorizationStub(ProjectRole.ADMIN)
+    )
+
+    with pytest.raises(ValidationException, match="different Cloud origin"):
+        service.resolve_canonical_remote(
+            "https://evil.example/git/project-1.git",
+            "user-1",
+            expected_origin="https://cloud.puppyone.ai",
+        )
+    with pytest.raises(ValidationException, match="credential-free"):
+        service.resolve_legacy_remote(
+            "https://user:secret@cloud.puppyone.ai/git/ap/legacy.git",
+            "user-1",
+            expected_origin="https://cloud.puppyone.ai",
+        )
 
 
 def test_editor_can_create_full_readwrite_binding_with_independent_credential():
@@ -192,3 +225,31 @@ def test_existing_rw_binding_fails_closed_after_scope_mode_downgrade():
     assert credential is None
     assert usable is False
     assert reason == "scope_mode_downgraded"
+
+
+def test_binding_credential_compensation_preserves_binding_identity():
+    now = datetime.now(UTC)
+    existing = WorkspaceBinding(
+        id="binding-1",
+        org_id="org-1",
+        project_id="project-1",
+        scope_id="scope-root",
+        workspace_instance_id="workspace-instance-0001",
+        bound_user_id="user-1",
+        cloud_origin="https://cloud.puppyone.ai",
+        binding_kind=BindingKind.FULL,
+        mode=BindingMode.READ_WRITE,
+        status=BindingStatus.ACTIVE,
+        created_at=now,
+        updated_at=now,
+        last_seen_at=now,
+    )
+    repository = BindingRepositoryStub(existing=existing)
+    service = WorkspaceBindingService(
+        repository, AuthorizationStub(ProjectRole.VIEWER)
+    )
+
+    service.revoke_credential("binding-1", "user-1")
+
+    assert repository.existing is existing
+    assert repository.revoked_credentials == [("binding-1", "user-1")]

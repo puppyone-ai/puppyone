@@ -221,6 +221,127 @@ def test_scope_credential_resolves_via_cli_access_surface_only():
     assert token not in repr(client.tables)
 
 
+def test_git_http_token_is_separate_from_cli_bearer_and_resolves_runtime_facts():
+    now = datetime.now(timezone.utc).isoformat()
+    client = _MemoryClient(
+        access_surfaces=[
+            _surface(kind="git_remote"),
+            _surface(surface_id="surface-cli", kind="cli"),
+        ],
+        access_surface_credentials=[],
+        repo_scopes=[{
+            "id": "scope-1", "project_id": "project-1", "name": "Root",
+            "path": "", "exclude": ["private"], "mode": "rw", "is_root": True,
+            "created_at": now, "updated_at": now,
+        }],
+    )
+    credentials = AccessCredentialRepository(client)
+    git_token = credentials.issue_git_http_token(
+        access_surface_id="surface-1",
+        org_id="org-1",
+        project_id="project-1",
+        grant_mode="r",
+    )
+    cli_token = credentials.issue_bearer_token(
+        access_surface_id="surface-cli",
+        org_id="org-1",
+        project_id="project-1",
+        prefix="cli",
+        revoke_existing=False,
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=5),
+    )
+
+    assert credentials.get_active_by_token(git_token) is None
+    assert credentials.resolve_git_runtime_credential(cli_token) is None
+    resolved = credentials.resolve_git_runtime_credential(git_token)
+    assert resolved is not None
+    assert resolved["project_id"] == "project-1"
+    assert resolved["scope_is_root"] is True
+    assert resolved["scope_exclude"] == ["private"]
+    assert resolved["effective_mode"] == "r"
+
+
+def test_shared_git_read_and_readwrite_credentials_rotate_independently():
+    now = datetime.now(timezone.utc).isoformat()
+    client = _MemoryClient(
+        access_surfaces=[_surface(kind="git_remote")],
+        access_surface_credentials=[],
+        repo_scopes=[{
+            "id": "scope-1", "project_id": "project-1", "name": "Root",
+            "path": "", "exclude": [], "mode": "rw", "is_root": True,
+            "created_at": now, "updated_at": now,
+        }],
+    )
+    credentials = AccessCredentialRepository(client)
+
+    read_v1 = credentials.issue_git_http_token(
+        access_surface_id="surface-1",
+        org_id="org-1",
+        project_id="project-1",
+        grant_mode="r",
+    )
+    readwrite = credentials.issue_git_http_token(
+        access_surface_id="surface-1",
+        org_id="org-1",
+        project_id="project-1",
+        grant_mode="rw",
+    )
+    read_v2 = credentials.issue_git_http_token(
+        access_surface_id="surface-1",
+        org_id="org-1",
+        project_id="project-1",
+        grant_mode="r",
+    )
+
+    assert credentials.resolve_git_runtime_credential(read_v1) is None
+    assert credentials.resolve_git_runtime_credential(read_v2)["effective_mode"] == "r"
+    assert credentials.resolve_git_runtime_credential(readwrite)["effective_mode"] == "rw"
+
+
+def test_shared_git_rotation_preserves_same_mode_session_credential():
+    now = datetime.now(timezone.utc)
+    client = _MemoryClient(
+        access_surfaces=[_surface(kind="git_remote")],
+        access_surface_credentials=[],
+        repo_scopes=[{
+            "id": "scope-1", "project_id": "project-1", "name": "Root",
+            "path": "", "exclude": [], "mode": "rw", "is_root": True,
+            "created_at": now.isoformat(), "updated_at": now.isoformat(),
+        }],
+    )
+    credentials = AccessCredentialRepository(client)
+
+    shared_v1 = credentials.issue_git_http_token(
+        access_surface_id="surface-1",
+        org_id="org-1",
+        project_id="project-1",
+        grant_mode="r",
+    )
+    session = credentials.issue_git_http_token(
+        access_surface_id="surface-1",
+        org_id="org-1",
+        project_id="project-1",
+        grant_mode="r",
+        revoke_existing=False,
+        expires_at=now + timedelta(minutes=5),
+    )
+    shared_v2 = credentials.issue_git_http_token(
+        access_surface_id="surface-1",
+        org_id="org-1",
+        project_id="project-1",
+        grant_mode="r",
+    )
+
+    assert credentials.resolve_git_runtime_credential(shared_v1) is None
+    assert credentials.resolve_git_runtime_credential(shared_v2) is not None
+    assert credentials.resolve_git_runtime_credential(session) is not None
+    active = [
+        row for row in client.tables["access_surface_credentials"]
+        if row["status"] == "active"
+    ]
+    assert {row["credential_lifecycle"] for row in active} == {"shared", "session"}
+
+
 def test_readonly_workspace_binding_clamps_an_rw_scope_runtime_grant():
     """A Viewer binding may never inherit the root scope's rw mode."""
     now = datetime.now(timezone.utc).isoformat()

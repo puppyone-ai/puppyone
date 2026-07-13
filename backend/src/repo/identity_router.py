@@ -21,6 +21,7 @@ from src.repo.scope_router import get_scope_service
 from src.repo.schemas import (
     RepoIdentityOut, RepoIdentityScopeOut, RepoIdentityPatch,
 )
+from src.version_engine.entrypoints.git.locator import canonical_git_url
 
 
 router = APIRouter(
@@ -35,15 +36,15 @@ def _build_repo_url(project_id: str, request: Request) -> str:
     V1 post-hash-removal: the project-level Git smart-HTTP surface
     lives at ``/git/{project_id}.git``; the legacy ``/api/v1/version/{project_id}``
     endpoint was deleted with the wire protocol. Prefer
-    ``settings.PUBLIC_API_URL`` when set (production); fall back to the
+    ``settings.PUBLIC_URL`` when set (production); fall back to the
     request's own host header so dev / staging show the right thing
     without extra config.
     """
-    base = getattr(settings, "PUBLIC_API_URL", None) or ""
+    base = settings.PUBLIC_URL
     if not base:
         # Best-effort fallback — request.url.scheme/netloc.
         base = f"{request.url.scheme}://{request.url.netloc}"
-    return f"{base.rstrip('/')}/git/{project_id}.git"
+    return canonical_git_url(base, project_id)
 
 
 @router.get(
@@ -79,6 +80,14 @@ def get_access_point(
                     name=s.name,
                     path=s.path,
                     is_root=s.is_root,
+                    git_url=canonical_git_url(
+                        (
+                            settings.PUBLIC_URL
+                            or f"{request.url.scheme}://{request.url.netloc}"
+                        ),
+                        str(project.id),
+                        None if s.is_root else s.id,
+                    ),
                     # Credentials are returned only by create/regenerate flows.
                     access_key=None,
                 )

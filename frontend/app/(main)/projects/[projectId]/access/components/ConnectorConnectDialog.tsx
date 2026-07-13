@@ -5,12 +5,14 @@ import { DialogBody, DialogHeader, DialogRoot, DialogSurface } from '@/component
 import { CountBadge } from '@/components/ui/CountBadge';
 import { buildGitSyncPrompt, buildMcpSetupPrompt } from '@/lib/accessPointCliPrompt';
 import type { Connector, RepoScope } from '@/lib/repoApi';
+import { canonicalGitUrlForScope } from '@/lib/gitRemote';
 import { isMcpProvider } from '@/lib/accessProviderRegistry';
 import { T } from '../lib/tokens';
 import { getApiBase, isGitBuiltinProvider } from '../lib/format';
 import { CopyIcon, ProviderIcon } from './icons';
-import { CommandBlock, NoAccessKeyNotice } from './ui-blocks';
+import { CommandBlock } from './ui-blocks';
 import { ConnectorAccessPanel } from './quick-connect';
+import { GitCredentialIssuePanel } from '../../data/components/access-points/connect-methods/GitCredentialIssuePanel';
 import { formatScopePath } from './ScopeHeader';
 import { getConnectorDisplayName, getProviderIconSize, getProviderTileSize, getProviderTileStyle } from './connectorVisuals';
 
@@ -65,7 +67,7 @@ export function ConnectorConnectDialog({
         />
         <DialogBody style={{ padding: isMcp ? '4px 24px 24px' : '4px 20px 20px' }}>
           {isGitRemote ? (
-            <GitManualCommandsPanel scope={scope} />
+            <GitManualCommandsPanel connector={connector} scope={scope} />
           ) : isMcp ? (
             <McpConnectionPanel connector={connector} scope={scope} />
           ) : (
@@ -359,14 +361,16 @@ function McpNoKeyNotice() {
 }
 
 function GitManualCommandsPanel({
+  connector,
   scope,
 }: {
+  readonly connector: Connector;
   readonly scope: RepoScope | undefined;
 }) {
   const steps = useMemo(() => {
     if (!scope) return [];
     const scopeName = scope.name || (scope.path === '' ? 'root' : scope.path || 'Root');
-    const gitUrl = `${getApiBase()}/git/ap/${scope.access_key || '<access-key>'}.git`;
+    const gitUrl = canonicalGitUrlForScope(getApiBase(), scope);
     const guide = buildGitSyncPrompt({
       gitUrl,
       scopeName,
@@ -389,7 +393,11 @@ function GitManualCommandsPanel({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {!scope.access_key ? <NoAccessKeyNotice /> : null}
+      <GitCredentialIssuePanel
+        connectorId={connector.id}
+        gitUrl={canonicalGitUrlForScope(getApiBase(), scope)}
+        scopeMode={scope.mode}
+      />
       <div
         style={{
           color: T.text2,

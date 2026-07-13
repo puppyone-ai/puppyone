@@ -21,7 +21,7 @@ async def test_git_ap_infers_git_remote_channel_without_custom_header(monkeypatc
         lambda _key: ("project-1", {"agent": "git", "_scope": {"id": "scope-1", "path": ""}}),
     )
     monkeypatch.setattr(
-        git_router,
+        git_auth,
         "enforce_channel_pause",
         lambda _auth, channel, **_kwargs: calls.append(channel),
     )
@@ -36,15 +36,28 @@ async def test_git_ap_infers_git_remote_channel_without_custom_header(monkeypatc
 async def test_git_project_auth_infers_git_remote_channel_without_custom_header(monkeypatch):
     calls = []
 
-    class _Authenticator:
-        def __init__(self, _supabase):
+    class _Credentials:
+        def __init__(self, _client):
             pass
 
-        def authenticate(self, _token, _project_id, _user_identity):
-            return {"agent": "user:test", "_scope": {"id": "scope-1", "path": "docs"}}
+        def resolve_git_runtime_credential(self, _token):
+            return {
+                "credential_id": "credential-1",
+                "project_id": "project-1",
+                "access_surface_id": "surface-1",
+                "scope_id": "scope-root",
+                "scope_path": "",
+                "scope_exclude": [],
+                "scope_is_root": True,
+                "workspace_binding_id": "binding-1",
+                "effective_mode": "rw",
+            }
 
-    monkeypatch.setattr(git_auth, "SupabaseClient", lambda: SimpleNamespace())
-    monkeypatch.setattr(git_auth, "PuppyOneAuthenticator", _Authenticator)
+    monkeypatch.setattr(
+        git_auth, "SupabaseClient", lambda: SimpleNamespace(client=SimpleNamespace())
+    )
+    monkeypatch.setattr(git_auth, "AccessCredentialRepository", _Credentials)
+    monkeypatch.setattr(git_auth.settings, "SKIP_AUTH", False)
     monkeypatch.setattr(
         git_auth,
         "enforce_channel_pause",
@@ -55,8 +68,58 @@ async def test_git_project_auth_infers_git_remote_channel_without_custom_header(
     auth = await git_auth.resolve_git_project_auth(
         "project-1",
         _request({"authorization": f"Basic {token}"}),
-        "docs",
     )
 
-    assert auth["_scope"]["path"] == "docs"
+    assert auth["_scope"]["path"] == ""
+    assert auth["_runtime_grant"].principal.credential_kind == "git_http_token"
     assert calls == ["git_remote"]
+
+
+@pytest.mark.asyncio
+async def test_canonical_git_route_requires_exact_root_or_scope_target(monkeypatch):
+    class _Credentials:
+        def __init__(self, _client):
+            pass
+
+        def resolve_git_runtime_credential(self, _token):
+            return {
+                "credential_id": "credential-docs",
+                "project_id": "project-1",
+                "access_surface_id": "surface-docs",
+                "scope_id": "scope-docs",
+                "scope_path": "docs",
+                "scope_exclude": ["drafts"],
+                "scope_is_root": False,
+                "workspace_binding_id": None,
+                "effective_mode": "r",
+            }
+
+    monkeypatch.setattr(
+        git_auth, "SupabaseClient", lambda: SimpleNamespace(client=SimpleNamespace())
+    )
+    monkeypatch.setattr(git_auth, "AccessCredentialRepository", _Credentials)
+    monkeypatch.setattr(git_auth.settings, "SKIP_AUTH", False)
+    monkeypatch.setattr(git_auth, "enforce_channel_pause", lambda *_a, **_k: None)
+    token = base64.b64encode(b"x-puppyone-token:git_secret").decode("ascii")
+    request = _request({"authorization": f"Basic {token}"})
+
+    with pytest.raises(Exception) as root_error:
+        await git_auth.resolve_git_project_auth("project-1", request)
+    assert root_error.value.status_code == 401
+    assert "Basic realm" in root_error.value.headers["WWW-Authenticate"]
+
+    auth = await git_auth.resolve_git_scope_auth(
+        "project-1", "scope-docs", request
+    )
+    assert auth["_scope"] == {
+        "id": "scope-docs",
+        "path": "docs",
+        "exclude": ["drafts"],
+        "mode": "r",
+    }
+
+    with pytest.raises(Exception) as wrong_scope_error:
+        await git_auth.resolve_git_scope_auth(
+            "project-1", "scope-other", request
+        )
+    assert wrong_scope_error.value.status_code == 401

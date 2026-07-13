@@ -418,6 +418,13 @@ A broken derived view must never become an empty project. If the root is healthy
 and a derived cache is missing, stale, or damaged, the system should rebuild from
 the root or fail loudly with a repairable error.
 
+The rebuild implementation remains a derived L5 follow-up operation. Git
+clients reach it through the machine `/git/.../rebuild-cache` entry point after
+RuntimeGrant admission; human Web operators reach the same implementation
+through the Project control-plane adapter after ProjectGrant authorization.
+The adapter boundary must not make JWT a valid Git transport credential or
+create another publication path.
+
 ## Rules
 
 1. Git owns version facts: objects, trees, commits, refs, clone/fetch/push.
@@ -650,6 +657,29 @@ repo_scopes row
 
 This keeps the GitHub-like external product model without creating one physical
 Git repository per scope and without creating one source of truth per scope.
+
+The public Git locator and credential contract lives in
+[Git Remote Locator, Credential, And Access Point Contract](05-git-remote-accesspoint.md).
+Its canonical routes are a root Project locator and an exact scoped
+locator:
+
+```text
+/git/{project_id}.git
+/git/{project_id}/scopes/{scope_id}.git
+```
+
+The route supplies non-secret target identity and HTTP authorization supplies
+the opaque credential. L2 must prove that credential, Access Surface, Scope,
+Project, lifecycle, and optional Workspace Binding all match before emitting a
+RuntimeGrant. From that grant onward the existing Version Engine contract is
+unchanged: RepoFacade, GitViewHead, cache identity, quarantine, scope/exclude
+admission, VersionSubmissionIntent, canonical-root CAS, audit, and repair do not
+depend on the URL family or raw credential.
+
+In particular, the Git view cache remains keyed by effective content geometry
+(`project_id + scope_path + excludes + projection/storage variants`), not by
+credential, binding, user, route family, or Scope ID. Credential rotation
+therefore never creates a new content view or invalidates a transport cache.
 
 ## 嵌套 Scope 拓扑 —— 用户行为对照表
 

@@ -11,6 +11,7 @@ from __future__ import annotations
 import base64
 import asyncio
 import json
+import os
 import shutil
 import socket
 import subprocess
@@ -417,14 +418,26 @@ def _pkt_line(payload: bytes) -> bytes:
     return f"{len(payload) + 4:04x}".encode("ascii") + payload
 
 
-def _run_git(args: list[str], cwd, input_data: bytes | None = None) -> bytes:
-    proc = _run_git_raw(args, cwd, input_data)
+def _run_git(
+    args: list[str],
+    cwd,
+    input_data: bytes | None = None,
+    *,
+    env: dict[str, str] | None = None,
+) -> bytes:
+    proc = _run_git_raw(args, cwd, input_data, env=env)
     if proc.returncode != 0:
         raise AssertionError(proc.stderr.decode("utf-8", errors="replace"))
     return proc.stdout
 
 
-def _run_git_raw(args: list[str], cwd, input_data: bytes | None = None) -> subprocess.CompletedProcess:
+def _run_git_raw(
+    args: list[str],
+    cwd,
+    input_data: bytes | None = None,
+    *,
+    env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess:
     # Force ``main`` as the local default branch regardless of the host
     # git config. Older / Windows git defaults to ``master`` which makes
     # every push test fail with ``src refspec main does not match any``
@@ -437,6 +450,7 @@ def _run_git_raw(args: list[str], cwd, input_data: bytes | None = None) -> subpr
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         check=False,
+        env=env,
     )
     return proc
 
@@ -444,6 +458,30 @@ def _run_git_raw(args: list[str], cwd, input_data: bytes | None = None) -> subpr
 def _configure_git_identity(repo_dir) -> None:
     _run_git(["config", "user.name", "Git Smoke"], repo_dir)
     _run_git(["config", "user.email", "git-smoke@example.com"], repo_dir)
+
+
+def _standard_git_credential_env(tmp_path, token: str) -> dict[str, str]:
+    """Use Git's credential-helper protocol without putting a secret in a URL."""
+
+    helper = tmp_path / "git-credential-puppyone-test"
+    helper.write_text(
+        "#!/bin/sh\n"
+        "if [ \"$1\" = get ]; then\n"
+        "  printf 'username=x-puppyone-token\\npassword=%s\\n' "
+        "\"$PUPPYONE_TEST_GIT_TOKEN\"\n"
+        "fi\n",
+        encoding="utf-8",
+    )
+    helper.chmod(0o700)
+    config = tmp_path / "gitconfig"
+    _run_git(["config", "--file", str(config), "credential.helper", str(helper)], tmp_path)
+    _run_git(["config", "--file", str(config), "credential.useHttpPath", "true"], tmp_path)
+    return {
+        **os.environ,
+        "GIT_CONFIG_GLOBAL": str(config),
+        "GIT_TERMINAL_PROMPT": "0",
+        "PUPPYONE_TEST_GIT_TOKEN": token,
+    }
 
 
 def _free_tcp_port() -> int:
@@ -541,6 +579,45 @@ def _patch_git_scope_auth(monkeypatch, mapping: dict[str, tuple]):
         "src.version_engine.entrypoints.git.router.resolve_access_point",
         fake_resolve,
     )
+
+
+def _patch_canonical_git_credentials(
+    monkeypatch,
+    *,
+    scope_id: str,
+    scope_path: str,
+    is_root: bool,
+    token: str = "git_secret",
+) -> None:
+    from src.version_engine.entrypoints.git import auth as git_auth
+
+    class _Credentials:
+        def __init__(self, _client):
+            pass
+
+        def resolve_git_runtime_credential(self, raw_token: str):
+            if raw_token != token:
+                return None
+            return {
+                "credential_id": "credential-canonical",
+                "project_id": "test-proj",
+                "access_surface_id": "surface-git",
+                "scope_id": scope_id,
+                "scope_path": scope_path,
+                "scope_exclude": [],
+                "scope_is_root": is_root,
+                "workspace_binding_id": None,
+                "effective_mode": "rw",
+            }
+
+    monkeypatch.setattr(
+        git_auth,
+        "SupabaseClient",
+        lambda: type("_Supabase", (), {"client": object()})(),
+    )
+    monkeypatch.setattr(git_auth, "AccessCredentialRepository", _Credentials)
+    monkeypatch.setattr(git_auth.settings, "SKIP_AUTH", False)
+    monkeypatch.setattr(git_auth, "enforce_channel_pause", lambda *_a, **_k: None)
 
 
 def _receive_command_body(old_id: str, new_id: str, ref: str, pack: bytes = b"") -> bytes:
@@ -1766,10 +1843,13 @@ class TestGitNativeHardeningContracts:
 def test_git_protocol_routes_exist():
     paths = {route.path for route in git_router.routes}
     assert "/git/{project_id}.git/info/refs" in paths
+    assert "/git/{project_id}/scopes/{scope_id}.git/info/refs" in paths
     assert "/git/ap/{access_key}.git/info/refs" in paths
     assert "/git/{project_id}.git/git-receive-pack" in paths
+    assert "/git/{project_id}/scopes/{scope_id}.git/git-receive-pack" in paths
     assert "/git/ap/{access_key}.git/git-receive-pack" in paths
     assert "/git/{project_id}.git/git-upload-pack" in paths
+    assert "/git/{project_id}/scopes/{scope_id}.git/git-upload-pack" in paths
     assert "/git/ap/{access_key}.git/git-upload-pack" in paths
 
 
@@ -1958,7 +2038,8 @@ def test_git_project_receive_pack_requires_credentials(
 
     assert client_commit_id
     assert response.status_code == 401
-    assert response.json()["detail"] == "Missing Git credentials"
+    assert response.json()["detail"] == "Invalid Git credentials"
+    assert response.headers["www-authenticate"] == 'Basic realm="PuppyOne Git"'
     assert server_repo.get_scope_head_commit_id("") == ""
 
 
@@ -2268,6 +2349,142 @@ def test_real_git_cli_can_clone_commit_push_and_clone_again(
     }
     assert (second / "README.md").read_text(encoding="utf-8") == "hello through real git\n"
     assert _last_audit_event(server_repo, "access_git_push")["type"] == "access_git_push"
+
+
+@pytest.mark.parametrize(
+    ("scope_id", "scope_path", "remote_path", "expected_scope"),
+    [
+        ("root-scope", "", "/git/test-proj.git", ""),
+        (
+            "docs-scope",
+            "/docs/",
+            "/git/test-proj/scopes/docs-scope.git",
+            "docs",
+        ),
+    ],
+    ids=["project-root", "scoped"],
+)
+def test_real_git_cli_uses_canonical_locator_and_credential_helper(
+    monkeypatch,
+    tmp_path,
+    repo_manager,
+    server_repo,
+    scope_id,
+    scope_path,
+    remote_path,
+    expected_scope,
+):
+    """Stock Git authenticates without a key-bearing URL on both locators."""
+
+    server_repo.add_scope(scope_id, scope_path)
+    if not scope_path:
+        _init_empty_project_shell(server_repo)
+    _patch_canonical_git_credentials(
+        monkeypatch,
+        scope_id=scope_id,
+        scope_path=scope_path,
+        is_root=not bool(scope_path),
+    )
+    credential_env = _standard_git_credential_env(tmp_path, "git_secret")
+    app = FastAPI()
+    app.include_router(git_router)
+    app.dependency_overrides[get_repo_manager] = lambda: repo_manager
+
+    with _serve_git_app(app) as base_url:
+        remote = f"{base_url}{remote_path}"
+        first = tmp_path / "canonical-first"
+        second = tmp_path / "canonical-second"
+
+        _run_git(["clone", remote, str(first)], tmp_path, env=credential_env)
+        assert "git_secret" not in _run_git(
+            ["remote", "get-url", "origin"], first
+        ).decode("utf-8")
+        _configure_git_identity(first)
+        (first / "README.md").write_text(
+            f"canonical {scope_id}\n",
+            encoding="utf-8",
+        )
+        _run_git(["add", "README.md"], first)
+        _run_git(["commit", "-m", "canonical Git smoke"], first)
+        pushed_head = _run_git(["rev-parse", "HEAD"], first).decode("ascii").strip()
+        _run_git(["push", "origin", "main"], first, env=credential_env)
+        _run_git(["clone", remote, str(second)], tmp_path, env=credential_env)
+
+    assert server_repo.get_scope_head_commit_id(expected_scope) == pushed_head
+    assert _files_for_scope(server_repo, expected_scope) == {
+        "README.md": f"canonical {scope_id}\n".encode(),
+    }
+    assert (second / "README.md").read_text(encoding="utf-8") == (
+        f"canonical {scope_id}\n"
+    )
+
+
+def test_canonical_and_legacy_git_routes_share_one_scope_and_canonical_cas(
+    monkeypatch, tmp_path, repo_manager, server_repo,
+):
+    server_repo.add_scope("docs-scope", "/docs/")
+    _patch_canonical_git_credentials(
+        monkeypatch,
+        scope_id="docs-scope",
+        scope_path="/docs/",
+        is_root=False,
+    )
+    _patch_git_scope_auth(
+        monkeypatch,
+        {"legacy-key": ("docs-scope", "/docs/", "rw")},
+    )
+    credential_env = _standard_git_credential_env(tmp_path, "git_secret")
+    app = FastAPI()
+    app.include_router(git_router)
+    app.dependency_overrides[get_repo_manager] = lambda: repo_manager
+
+    with _serve_git_app(app) as base_url:
+        canonical = f"{base_url}/git/test-proj/scopes/docs-scope.git"
+        legacy = f"{base_url}/git/ap/legacy-key.git"
+        canonical_work = tmp_path / "canonical-work"
+        legacy_work = tmp_path / "legacy-work"
+        canonical_verify = tmp_path / "canonical-verify"
+
+        _run_git(
+            ["clone", canonical, str(canonical_work)],
+            tmp_path,
+            env=credential_env,
+        )
+        _configure_git_identity(canonical_work)
+        (canonical_work / "README.md").write_text("canonical v1\n", encoding="utf-8")
+        _run_git(["add", "README.md"], canonical_work)
+        _run_git(["commit", "-m", "canonical v1"], canonical_work)
+        _run_git(["push", "origin", "main"], canonical_work, env=credential_env)
+
+        _run_git(["clone", legacy, str(legacy_work)], tmp_path)
+        assert (legacy_work / "README.md").read_text(encoding="utf-8") == "canonical v1\n"
+        _configure_git_identity(legacy_work)
+        (legacy_work / "README.md").write_text("legacy v2\n", encoding="utf-8")
+        _run_git(["add", "README.md"], legacy_work)
+        _run_git(["commit", "-m", "legacy v2"], legacy_work)
+        final_head = _run_git(["rev-parse", "HEAD"], legacy_work).decode().strip()
+        _run_git(["push", "origin", "main"], legacy_work)
+
+        _run_git(
+            ["clone", canonical, str(canonical_verify)],
+            tmp_path,
+            env=credential_env,
+        )
+
+    assert server_repo.get_scope_head_commit_id("docs") == final_head
+    assert _files_for_scope(server_repo, "docs") == {"README.md": b"legacy v2\n"}
+    assert _files_for_scope(server_repo) == {"docs/README.md": b"legacy v2\n"}
+    assert (canonical_verify / "README.md").read_text(encoding="utf-8") == "legacy v2\n"
+    push_events = [
+        event
+        for event in server_repo.audit.events
+        if event.get("type") == "access_git_push"
+    ]
+    assert [event["detail"]["entry_point"] for event in push_events] == [
+        "project_git_remote",
+        "access_key_git_remote",
+    ]
+    assert {event["detail"]["scope"] for event in push_events} == {"docs"}
 
 
 def test_real_git_cli_degraded_history_clones_and_pushes_from_projected_head(
