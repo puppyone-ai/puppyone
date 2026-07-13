@@ -30,7 +30,6 @@ jobs:
           git diff --quiet "origin/$BASE_REF...HEAD" -- \
             'supabase/migrations/**' \
             'supabase/data_migrations/**' \
-            'supabase/smoke/**' \
             'supabase/tests/**' \
             'backend/src/infra/data_migrations/**' \
             'backend/tests/infra/data_migrations/**' \
