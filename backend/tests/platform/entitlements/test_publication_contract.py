@@ -28,7 +28,7 @@ class _Repository:
 def _payload() -> dict:
     unsigned = {
         "org_id": "org-1",
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "plan_id": "plus",
         "status": "active",
         "source": "puppypay",
@@ -58,6 +58,7 @@ def _payload() -> dict:
         "current_period_end": None,
         "effective_until": None,
         "source_event_id": "event-8",
+        "source_quote_id": "quote-8",
         "event_type": "subscription.updated",
     }
     canonical = json.dumps(
@@ -80,6 +81,7 @@ def test_publication_accepts_exact_canonical_hash_and_returns_ack() -> None:
     assert repository.published == payload
     assert ack.source_revision == 8
     assert ack.payload_hash == payload.payload_hash
+    assert ack.snapshot.source_quote_id == "quote-8"
 
 
 def test_publication_rejects_tampered_snapshot_before_database_write() -> None:
@@ -93,6 +95,41 @@ def test_publication_rejects_tampered_snapshot_before_database_write() -> None:
     assert caught.value.status_code == 422
     assert caught.value.details["code"] == "entitlement_payload_hash_mismatch"
     assert repository.published is None
+
+
+def test_publication_preserves_version_1_0_canonical_hash_during_rolling_deploy() -> None:
+    repository = _Repository()
+    unsigned = _payload()
+    unsigned.pop("payload_hash")
+    unsigned.pop("source_quote_id")
+    unsigned["schema_version"] = "1.0"
+    canonical_unsigned = EntitlementUpsert.model_construct(
+        **unsigned,
+        payload_hash="0" * 64,
+    ).model_dump(mode="json", exclude={"payload_hash"})
+    canonical_unsigned.pop("source_quote_id", None)
+    canonical = json.dumps(
+        canonical_unsigned,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
+    payload = EntitlementUpsert.model_validate(
+        {**unsigned, "payload_hash": hashlib.sha256(canonical.encode()).hexdigest()}
+    )
+
+    ack = EntitlementService(repository=repository).publish(payload)
+
+    assert ack.source_revision == 8
+    assert repository.published == payload
+
+
+def test_quote_correlation_requires_schema_version_1_1() -> None:
+    raw = _payload()
+    raw["schema_version"] = "1.0"
+
+    with pytest.raises(ValueError, match="source_quote_id requires"):
+        EntitlementUpsert.model_validate(raw)
 
 
 def test_unknown_contract_major_and_missing_groups_are_rejected() -> None:

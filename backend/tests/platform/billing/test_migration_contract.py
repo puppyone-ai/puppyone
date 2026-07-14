@@ -4,10 +4,18 @@ _MIGRATION = (
     Path(__file__).resolve().parents[4]
     / "supabase/migrations/20260714010000_unified_billing_control_plane.sql"
 )
+_LIFECYCLE_MIGRATION = (
+    Path(__file__).resolve().parents[4]
+    / "supabase/migrations/20260715010000_durable_billing_operation_lifecycle.sql"
+)
 
 
 def _migration_sql() -> str:
     return _MIGRATION.read_text(encoding="utf-8")
+
+
+def _lifecycle_migration_sql() -> str:
+    return _LIFECYCLE_MIGRATION.read_text(encoding="utf-8")
 
 
 def test_reconciliation_claim_uses_unambiguous_primary_key_conflict_target() -> None:
@@ -80,3 +88,39 @@ def test_entitlement_publication_rejects_incomplete_or_wrong_authority_rows() ->
     assert "p_source IS DISTINCT FROM 'puppypay'" in migration
     assert "p_catalog_version = 'legacy'" in migration
     assert "p_effective_at IS NULL" in migration
+
+
+def test_commercial_operations_are_correlated_atomically_to_entitlement_revision() -> None:
+    migration = _lifecycle_migration_sql()
+
+    assert "source_quote_id" in migration
+    assert "trg_reset_entitlement_quote_on_revision_advance" in migration
+    assert "NEW.source_quote_id := NULL" in migration
+    assert "trg_confirm_correlated_billing_operations" in migration
+    assert "operation.quote_id = NEW.source_quote_id" in migration
+    assert "operation.target_plan_id = NEW.plan_id" in migration
+    assert "operation.target_seat_quantity = NEW.seat_quantity" in migration
+    assert "operation.baseline_source_revision IS NOT NULL" in migration
+    assert "operation.baseline_source_revision < NEW.source_revision" in migration
+    assert "COALESCE(operation.baseline_source_revision" not in migration
+    assert "'submitted', 'failed'" not in migration
+    assert (
+        "CREATE UNIQUE INDEX IF NOT EXISTS organization_billing_operations_quote_idx" in migration
+    )
+    assert "organization_billing_operations_quote_shape" in migration
+    assert "source_quote_id requires entitlement schema_version 1.1 or newer" in migration
+
+
+def test_webhook_before_response_race_has_explicit_service_role_reconciliation() -> None:
+    migration = _lifecycle_migration_sql()
+
+    assert "reconcile_billing_operation_from_entitlement" in migration
+    assert "entitlement.source_quote_id = operation.quote_id" in migration
+    assert (
+        "REVOKE ALL ON FUNCTION public.reconcile_billing_operation_from_entitlement(text, text)"
+        in migration
+    )
+    assert (
+        "GRANT EXECUTE ON FUNCTION public.reconcile_billing_operation_from_entitlement(text, text)"
+        in migration
+    )

@@ -217,6 +217,12 @@ class EntitlementService:
 
     def publish(self, payload: EntitlementUpsert) -> EntitlementPublicationAck:
         unsigned = payload.model_dump(mode="json", exclude={"payload_hash"})
+        # Version 1.0 predates quote correlation. Pydantic materializes the new
+        # optional field as ``None`` when it reads a stored 1.0 outbox item, but
+        # that field was not present in the producer's signed bytes. Preserve
+        # the historical canonical form during a rolling deployment.
+        if payload.schema_version == "1.0":
+            unsigned.pop("source_quote_id", None)
         canonical = json.dumps(
             unsigned,
             sort_keys=True,

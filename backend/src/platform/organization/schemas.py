@@ -41,6 +41,15 @@ class OrganizationSeatUsageOut(BaseModel):
     billable_seat_quantity: int
 
 
+class OrganizationAccessOut(BaseModel):
+    """Current-user organization authority without exposing the member directory."""
+
+    org_id: str
+    user_id: str
+    role: str
+    can_manage_billing: bool
+
+
 class OrgMemberOut(BaseModel):
     id: str
     user_id: str

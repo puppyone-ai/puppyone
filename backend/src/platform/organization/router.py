@@ -16,6 +16,7 @@ from src.platform.organization.models import OrgInvitation
 from src.platform.organization.schemas import (
     CreateOrganization,
     InviteMember,
+    OrganizationAccessOut,
     OrganizationOut,
     OrganizationSeatUsageOut,
     OrgInvitationOut,
@@ -165,6 +166,25 @@ def get_organization_seat_usage(
 ):
     quantity = org_service.get_billable_seat_quantity(org_id, current_user.user_id)
     return ApiResponse.success(data=OrganizationSeatUsageOut(billable_seat_quantity=quantity))
+
+
+@router.get("/{org_id}/access", response_model=ApiResponse[OrganizationAccessOut])
+def get_organization_access(
+    org_id: str,
+    org_service: OrganizationService = Depends(get_org_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    role = org_service.get_my_role(org_id, current_user.user_id)
+    if role is None:
+        raise ForbiddenException("Not a member of this organization")
+    return ApiResponse.success(
+        data=OrganizationAccessOut(
+            org_id=org_id,
+            user_id=current_user.user_id,
+            role=role,
+            can_manage_billing=role == "owner",
+        )
+    )
 
 
 @router.put("/{org_id}", response_model=ApiResponse[OrganizationOut])

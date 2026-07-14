@@ -23,6 +23,7 @@ _ALLOWED_PATHS = (
         r"(?:summary|usage|plan/quote|seats/quote|checkout|plan/change|"
         r"seats/change|subscription/cancel|portal|runtime/top-up|runtime/overage)$"
     ),
+    re.compile(r"^/api/v1/billing/organizations/[^/?#]+/quotes/[^/?#]+$"),
     re.compile(r"^/internal/v1/billing/seat-proposals$"),
     re.compile(r"^/internal/v1/billing/organizations/provision$"),
     re.compile(r"^/internal/v1/billing/runtime/reservations$"),

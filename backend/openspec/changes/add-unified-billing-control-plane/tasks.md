@@ -34,3 +34,18 @@
 - [x] 5.3 Run PuppyPay, PuppyOne, Desktop, OpenSpec, migration, and issue audit quality gates.
 - [x] 5.4 Review the final implementation for duplicated policy, permissive fallback, secret
       exposure, non-idempotent writes, and missing execution entry points.
+
+## 6. Durable Desktop billing lifecycle hardening
+
+- [x] 6.1 Extend the signed PuppyPay entitlement contract with optional Quote correlation and
+      regenerate versioned contracts.
+- [x] 6.2 Add additive PuppyOne operation correlation schema, atomic entitlement confirmation,
+      webhook-before-response reconciliation, and typed public operation views.
+- [x] 6.3 Return durable operations from checkout/plan/seat mutations and add a narrow current-user
+      organization access endpoint.
+- [x] 6.4 Make Desktop validate strict billing enums/invariants, poll concrete operations with
+      bounded backoff/focus recovery, and remove render-phase ref writes and short false timeouts.
+- [x] 6.5 Separate Billing access data from Team member/entitlement/seat data and persist selection
+      by stable account + Cloud origin.
+- [x] 6.6 Add cross-ordering, retryable-failure, expiry, StrictMode, host/account isolation, and
+      reload-resume tests; run every repository quality gate.

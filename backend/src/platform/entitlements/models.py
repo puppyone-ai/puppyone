@@ -119,6 +119,7 @@ class EntitlementSnapshot(BaseModel):
     current_period_end: datetime | None = None
     effective_until: datetime | None = None
     payload_hash: str = ""
+    source_quote_id: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
@@ -149,16 +150,23 @@ class EntitlementUpsert(BaseModel):
     effective_until: datetime | None = None
     payload_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
     source_event_id: str | None = None
+    source_quote_id: str | None = Field(default=None, min_length=1, max_length=255)
     event_type: str | None = None
 
     @model_validator(mode="after")
     def validate_contract(self) -> EntitlementUpsert:
         try:
-            major = int(self.schema_version.split(".", 1)[0])
-        except (TypeError, ValueError) as exc:
+            major_text, separator, minor_text = self.schema_version.partition(".")
+            if not separator or not major_text.isdigit() or not minor_text.isdigit():
+                raise ValueError
+            major = int(major_text)
+            minor = int(minor_text)
+        except (AttributeError, TypeError, ValueError) as exc:
             raise ValueError("invalid entitlement schema_version") from exc
         if major != 1:
             raise ValueError(f"unsupported entitlement schema major: {major}")
+        if self.source_quote_id is not None and minor < 1:
+            raise ValueError("source_quote_id requires entitlement schema_version 1.1 or newer")
         if self.catalog_version == "legacy":
             raise ValueError("PuppyPay publications require a non-legacy catalog_version")
         validate_entitlement_values(self.entitlements, seat_quantity=self.seat_quantity)

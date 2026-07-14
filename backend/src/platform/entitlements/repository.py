@@ -52,7 +52,8 @@ class EntitlementRepository:
             "p_current_period_end": _serialize_dt(payload.current_period_end),
             "p_payload_hash": payload.payload_hash,
             "p_source_event_id": payload.source_event_id,
+            "p_source_quote_id": payload.source_quote_id,
             "p_event_type": payload.event_type or "entitlement.published",
         }
-        response = self._client.rpc("publish_organization_entitlement", params).execute()
+        response = self._client.rpc("publish_organization_entitlement_v2", params).execute()
         return EntitlementPublicationAck.model_validate(_rpc_object(response.data))

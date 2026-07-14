@@ -14,10 +14,17 @@ grant product access without a durable seat or runtime billing transaction.
 - Extend the PuppyOne entitlement projection with version, seat, effective-time, and payload-hash
   metadata, enforcing monotonic idempotent publication.
 - Add durable product-side billing operations for seat sagas, runtime reservations/settlements,
-  and storage usage counters.
+  checkout/subscription mutations, and storage usage counters. Public operation responses expose
+  one typed lifecycle instead of leaking worker-specific database statuses.
 - Make hosted product enforcement consume only the published snapshot; keep self-hosted
   `disabled` and `local` modes independent from PuppyPay.
 - Move Desktop billing presentation to the PuppyOne BFF and remove executable price constants.
+- Correlate accepted entitlement revisions back to the quote and durable product operation that
+  caused them; Desktop resumes pending operations after reload and never treats a short polling
+  timeout or browser return as a financial outcome.
+- Read the owner-authorized PuppyPay Quote and commit a unique PuppyOne operation intent before any
+  external commercial mutation, closing the provider-success/process-crash gap without trusting
+  client targets or breaking the existing apply request contract.
 - Introduce disabled/shadow/required rollout modes and reconciliation evidence before production
   billing is enabled.
 

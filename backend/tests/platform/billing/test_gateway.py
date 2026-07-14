@@ -74,6 +74,28 @@ async def test_gateway_retries_safe_get_but_not_unkeyed_post() -> None:
 
 
 @pytest.mark.asyncio
+async def test_gateway_allows_authoritative_quote_inspection() -> None:
+    captured_path = ""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_path
+        captured_path = request.url.path
+        return httpx.Response(200, json={"quote_id": "quote-1"})
+
+    result = await PuppyPayGateway(
+        base_url="https://pay.example.test",
+        transport=httpx.MockTransport(handler),
+    ).request(
+        "GET",
+        "/api/v1/billing/organizations/org-1/quotes/quote-1",
+        actor_user_id="user-1",
+    )
+
+    assert result == {"quote_id": "quote-1"}
+    assert captured_path == "/api/v1/billing/organizations/org-1/quotes/quote-1"
+
+
+@pytest.mark.asyncio
 async def test_gateway_rejects_paths_outside_fixed_billing_surface() -> None:
     gateway = PuppyPayGateway(base_url="https://pay.example.test")
     for path in (

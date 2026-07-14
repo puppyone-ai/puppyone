@@ -41,6 +41,23 @@ revision, idempotently acknowledges the same revision/hash, and rejects any regr
 same-revision conflict. Seat and runtime operations use stable idempotency keys and durable local
 operation records; reconciliation repairs recoverable drift.
 
+Every commercial mutation exposed to Desktop also has a PuppyOne operation identity. PuppyPay
+exposes an owner-authorized read of the authoritative, still-actionable Quote. Before invoking a
+provider mutation, PuppyOne reads that Quote and the entitlement baseline and commits one uniquely
+Quote-linked operation intent. Client-supplied target values are never the authority, and the
+existing apply request remains wire-compatible during rolling deployment. PuppyPay includes the
+originating Quote identity in the signed entitlement publication when provider metadata supplies
+it. PuppyOne confirms the matching operation in the same database transaction that accepts the
+newer entitlement revision. An explicit reconciliation function covers the
+webhook-before-HTTP-response race. The public BFF maps storage/worker statuses onto a closed,
+typed lifecycle (`pending`, `requires_action`, `processing`, `retryable_failed`, `succeeded`,
+`canceled`, `failed`) with explicit `terminal` and `retryable` properties; clients never infer
+terminality from raw database strings.
+
+The database enforces one operation per organization/Quote. When a membership seat proposal on a
+Free organization resolves to checkout rather than an in-place seat change, checkout advances the
+existing membership operation; it never creates a competing commercial operation for that Quote.
+
 ### Decision: capability-derived billable seats
 
 An active human member is billable when their resolved organization/product capabilities permit
@@ -76,10 +93,26 @@ Billing UI and writes are independently gated. Seat, runtime, and storage use
 `disabled|shadow|required`. Hosted startup rejects contradictory required-mode configuration;
 self-hosted `disabled/local` never contacts PuppyPay.
 
+### Decision: resumable Desktop coordination
+
+Desktop watches a concrete PuppyOne operation with bounded exponential polling and an immediate
+refresh when its window regains focus. The watch has no short financial timeout: it ends only when
+the server reports a terminal lifecycle or the Billing surface unmounts. A reload discovers the
+same non-terminal operation from the organization operation feed and resumes watching it. Quote
+expiry and all returned organization/quote/target invariants are validated before an external URL
+is opened, while PuppyOne and PuppyPay remain the authoritative validators.
+
+Organization selection is persisted by Cloud origin and user identity, not by an ephemeral login
+generation. Billing reads a narrow current-user organization access resource instead of fetching
+the full member directory or Team-only entitlement/seat data merely to establish Owner authority.
+
 ## Risks / Trade-offs
 
 - Eventual consistency can temporarily show a pending checkout. The UI exposes pending state and
   polls the authoritative PuppyOne projection instead of treating the return URL as success.
+- Provider events may arrive before PuppyOne stores the provider response. Because the operation
+  intent is committed first, Quote correlation plus idempotent reconciliation closes both event
+  orderings without an untracked external side effect or distributed transaction.
 - Keeping pending activation outside `org_members` adds an explicit finalization step, but avoids
   changing every authorization/RLS query and makes it structurally impossible for an unpaid seat
   to acquire tenant access.
@@ -90,9 +123,11 @@ self-hosted `disabled/local` never contacts PuppyPay.
 
 ## Migration Plan
 
-1. Freeze and test the PuppyPay contract and reject placeholder provider mappings in hosted mode.
+1. Freeze and test the PuppyPay contract, including authoritative Quote inspection, and reject
+   placeholder provider mappings in hosted mode.
 2. Apply additive PuppyOne columns/tables/RLS/indexes; old code continues to run.
-3. Deploy Gateway/BFF and dual-compatible entitlement code with all writes disabled.
+3. Deploy PuppyPay Quote inspection first, then Gateway/BFF and dual-compatible entitlement code
+   with all writes disabled.
 4. Republish/bootstrap snapshots and verify revision/hash/seat parity.
 5. Enable Desktop read-only catalog/summary/usage; remove old constants.
 6. Canary checkout/portal for internal organizations.
