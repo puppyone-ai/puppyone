@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { useTranslations } from 'next-intl';
+import { LayoutTemplate } from 'lucide-react';
 import {
   NewProjectCard,
   ProjectCard,
@@ -19,6 +20,7 @@ export interface DashboardViewProps {
   creatingProject?: boolean;
   onProjectClick: (projectId: string) => void;
   onCreateClick: () => void;
+  onBrowseTemplates: () => void;
 }
 
 export function DashboardView({
@@ -27,6 +29,7 @@ export function DashboardView({
   creatingProject = false,
   onProjectClick,
   onCreateClick,
+  onBrowseTemplates,
 }: DashboardViewProps) {
   const t = useTranslations('home');
   const tc = useTranslations('common');
@@ -37,17 +40,24 @@ export function DashboardView({
 
   if (projects.length === 0) {
     return (
-      <OrganizationPageShell title={t('title')}>
+      <OrganizationPageShell
+        title={t('title')}
+        actions={<BrowseTemplatesButton onClick={onBrowseTemplates} />}
+      >
         <EmptyDashboard
           onCreateClick={onCreateClick}
           creatingProject={creatingProject}
+          onBrowseTemplates={onBrowseTemplates}
         />
       </OrganizationPageShell>
     );
   }
 
   return (
-    <OrganizationPageShell title={t('title')}>
+    <OrganizationPageShell
+      title={t('title')}
+      actions={<BrowseTemplatesButton onClick={onBrowseTemplates} />}
+    >
       <div
         className='grid'
         style={{
@@ -106,7 +116,12 @@ export function DashboardLoadingSkeleton({
 function EmptyDashboard({
   onCreateClick,
   creatingProject,
-}: Readonly<{ onCreateClick: () => void; creatingProject: boolean }>) {
+  onBrowseTemplates,
+}: Readonly<{
+  onCreateClick: () => void;
+  creatingProject: boolean;
+  onBrowseTemplates: () => void;
+}>) {
   const t = useTranslations('home');
   return (
     <div className='flex min-h-[420px] flex-col items-center justify-center px-8 py-12'>
@@ -122,6 +137,27 @@ function EmptyDashboard({
           disabled={creatingProject}
         />
       </div>
+      <button
+        type="button"
+        onClick={onBrowseTemplates}
+        className="mt-6 text-[12px] font-medium text-[var(--po-accent-text)] hover:underline"
+      >
+        {t('browseTemplates')}
+      </button>
     </div>
+  );
+}
+
+function BrowseTemplatesButton({ onClick }: { onClick: () => void }) {
+  const t = useTranslations('home');
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex h-8 items-center gap-2 rounded-md border border-[var(--po-border)] bg-[var(--po-panel)] px-3 text-[11px] font-medium text-[var(--po-text-muted)] transition-colors hover:border-[var(--po-border-strong)] hover:text-[var(--po-text)]"
+    >
+      <LayoutTemplate size={14} aria-hidden />
+      {t('browseTemplates')}
+    </button>
   );
 }

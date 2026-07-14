@@ -2,6 +2,7 @@
 
 import { useState, useEffect, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import { LayoutTemplate } from 'lucide-react';
 import type { ProjectInfo } from '../lib/projectsApi';
 import {
   createProject,
@@ -139,6 +140,10 @@ export function ProjectManageDialog({
             onClose={onClose}
             onSubmit={handleSubmit}
             loading={loading}
+            onBrowseTemplates={() => {
+              onClose();
+              router.push('/templates');
+            }}
           />
         )}
       </DialogSurface>
@@ -156,12 +161,14 @@ function CreateBody({
   onClose,
   onSubmit,
   loading,
+  onBrowseTemplates,
 }: {
   name: string;
   setName: (v: string) => void;
   onClose: () => void;
   onSubmit: (e: FormEvent) => void;
   loading: boolean;
+  onBrowseTemplates: () => void;
 }) {
   return (
     <>
@@ -178,7 +185,37 @@ function CreateBody({
           </Field>
 
           <Field label="Start">
-            <StartEmptyCard />
+            <div style={{ display: 'grid', gap: 10 }}>
+              <StartEmptyCard />
+              <button
+                type="button"
+                onClick={onBrowseTemplates}
+                style={{
+                  width: '100%',
+                  minHeight: 62,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  padding: '10px 14px',
+                  borderRadius: 8,
+                  border: '1px solid var(--po-border)',
+                  background: 'var(--po-panel)',
+                  color: 'var(--po-text)',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                }}
+              >
+                <LayoutTemplate size={18} color="var(--po-text-muted)" />
+                <span>
+                  <span style={{ display: 'block', fontSize: 13, fontWeight: 600 }}>
+                    Browse templates
+                  </span>
+                  <span style={{ display: 'block', marginTop: 2, fontSize: 12, color: 'var(--po-text-muted)' }}>
+                    Start from a reusable project structure.
+                  </span>
+                </span>
+              </button>
+            </div>
           </Field>
         </DialogBody>
 
