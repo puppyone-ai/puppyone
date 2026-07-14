@@ -80,12 +80,16 @@ def test_git_object_helpers_match_git_hash_object() -> None:
     content = b"hello from puppyone\n"
 
     object_id, loose = encode_object("blob", content)
-    expected = subprocess.run(
-        ["git", "hash-object", "--stdin"],
-        input=content,
-        stdout=subprocess.PIPE,
-        check=True,
-    ).stdout.decode("ascii").strip()
+    expected = (
+        subprocess.run(
+            ["git", "hash-object", "--stdin"],
+            input=content,
+            stdout=subprocess.PIPE,
+            check=True,
+        )
+        .stdout.decode("ascii")
+        .strip()
+    )
 
     assert object_id == expected
     assert hash_object("blob", content) == expected
@@ -94,10 +98,12 @@ def test_git_object_helpers_match_git_hash_object() -> None:
 
 def test_git_tree_and_commit_helpers_round_trip() -> None:
     blob_id, _loose = encode_object("blob", b"data\n")
-    tree_body = encode_tree([
-        TreeEntry(name="src", mode=MODE_DIR, sha1_hex="1" * 40),
-        TreeEntry(name="README.md", mode=MODE_FILE, sha1_hex=blob_id),
-    ])
+    tree_body = encode_tree(
+        [
+            TreeEntry(name="src", mode=MODE_DIR, sha1_hex="1" * 40),
+            TreeEntry(name="README.md", mode=MODE_FILE, sha1_hex=blob_id),
+        ]
+    )
 
     entries = decode_tree(tree_body)
     assert [entry.name for entry in entries] == ["README.md", "src"]
@@ -135,9 +141,11 @@ def test_git_tree_and_commit_helpers_round_trip() -> None:
 
 def test_git_tree_encoder_rejects_legacy_short_object_ids() -> None:
     with pytest.raises(ValueError, match="40 hex"):
-        encode_tree([
-            TreeEntry(name="legacy", mode=MODE_DIR, sha1_hex="28a44dbeee08f49e"),
-        ])
+        encode_tree(
+            [
+                TreeEntry(name="legacy", mode=MODE_DIR, sha1_hex="28a44dbeee08f49e"),
+            ]
+        )
 
 
 def test_empty_git_tree_is_virtual_builtin_object(tmp_path) -> None:
@@ -171,7 +179,8 @@ def test_empty_git_tree_is_virtual_builtin_object(tmp_path) -> None:
 
 
 def test_git_quarantine_promotion_blind_writes_receive_pack_new_objects(
-    tmp_path, monkeypatch,
+    tmp_path,
+    monkeypatch,
 ) -> None:
     work = tmp_path / "work"
     work.mkdir()
@@ -253,11 +262,7 @@ def _git_rev_list_objects(git_dir: Path, root: str, *, exclude: str = "") -> set
         stderr=subprocess.PIPE,
         check=True,
     ).stdout
-    return {
-        line.split(maxsplit=1)[0].decode("ascii")
-        for line in out.splitlines()
-        if line
-    }
+    return {line.split(maxsplit=1)[0].decode("ascii") for line in out.splitlines() if line}
 
 
 @pytest.mark.asyncio
@@ -355,11 +360,14 @@ async def test_object_batch_writes_one_bundle_with_location_index() -> None:
     supabase = _FakeSupabase()
     backend = S3StorageBackend(s3, "proj", supabase=supabase)
 
-    await backend.async_put_many({
-        blob_id: blob_loose,
-        tree_id: tree_loose,
-        commit_id: commit_loose,
-    }, skip_exists=True)
+    await backend.async_put_many(
+        {
+            blob_id: blob_loose,
+            tree_id: tree_loose,
+            commit_id: commit_loose,
+        },
+        skip_exists=True,
+    )
 
     assert len(s3.uploads) == 1
     [pack_key] = list(s3.uploads)
@@ -459,11 +467,13 @@ async def test_object_batch_chunks_large_objects_below_storage_object_cap() -> N
             project_id = self.filters.get("project_id")
             object_ids = self.filters.get("object_id")
             if isinstance(object_ids, list):
-                return SimpleNamespace(data=[
-                    row
-                    for oid in object_ids
-                    if (row := self.db.rows.get((project_id, oid))) is not None
-                ])
+                return SimpleNamespace(
+                    data=[
+                        row
+                        for oid in object_ids
+                        if (row := self.db.rows.get((project_id, oid))) is not None
+                    ]
+                )
             row = self.db.rows.get((project_id, object_ids))
             return SimpleNamespace(data=[row] if row else [])
 
@@ -488,10 +498,13 @@ async def test_object_batch_chunks_large_objects_below_storage_object_cap() -> N
         ),
     )
 
-    await backend.async_put_many({
-        large_id: large_loose,
-        small_id: small_loose,
-    }, skip_exists=True)
+    await backend.async_put_many(
+        {
+            large_id: large_loose,
+            small_id: small_loose,
+        },
+        skip_exists=True,
+    )
 
     large_location = supabase.rows[("proj", large_id)]
     small_location = supabase.rows[("proj", small_id)]
@@ -507,12 +520,11 @@ async def test_object_batch_chunks_large_objects_below_storage_object_cap() -> N
     assert large_total == len(large_loose)
     assert large_slice == large_loose[10:35]
 
+
 def test_s3_backend_reads_deferred_namespace_but_writes_final_namespace() -> None:
     object_id, loose = encode_object("blob", b"from deferred storage\n")
     deferred_namespace = "".join(("m", "ut"))
-    deferred_key = (
-        f"{deferred_namespace}/proj/objects/{object_id[:2]}/{object_id[2:]}"
-    )
+    deferred_key = f"{deferred_namespace}/proj/objects/{object_id[:2]}/{object_id[2:]}"
 
     class _FakeS3:
         def __init__(self):
@@ -848,17 +860,14 @@ def test_version_storage_uses_canonical_physical_names() -> None:
     from src.version_engine.infrastructure.supabase import db_names
 
     values = {
-        value
-        for name, value in vars(db_names).items()
-        if name.isupper() and isinstance(value, str)
+        value for name, value in vars(db_names).items() if name.isupper() and isinstance(value, str)
     }
     assert values
     assert all(not value.startswith("mut_") for value in values)
     assert all("_mut_" not in value for value in values)
 
     migration = (
-        REPO_ROOT
-        / "supabase/migrations/20260711040000_version_physical_rename.sql"
+        REPO_ROOT / "supabase/migrations/20260711040000_version_physical_rename.sql"
     ).read_text(encoding="utf-8")
     for table in (
         "version_commits",
@@ -902,12 +911,10 @@ def test_access_tables_are_confined_to_repository_boundaries() -> None:
 
 
 def test_scope_credentials_are_hash_only_access_surface_credentials() -> None:
-    scope_repo = (BACKEND_ROOT / "src/repo/scope_repository.py").read_text(
+    scope_repo = (BACKEND_ROOT / "src/repo/scope_repository.py").read_text(encoding="utf-8")
+    surface_repo = (BACKEND_ROOT / "src/repo/access_surface_repository.py").read_text(
         encoding="utf-8"
     )
-    surface_repo = (
-        BACKEND_ROOT / "src/repo/access_surface_repository.py"
-    ).read_text(encoding="utf-8")
     assert '.eq("access_key"' not in scope_repo
     assert '"access_key": access_key' not in scope_repo
     assert "resolve_scope_credential" in surface_repo
@@ -928,8 +935,7 @@ def test_scope_credentials_are_hash_only_access_surface_credentials() -> None:
 
 def test_object_gc_has_durable_recovery_window_and_metrics() -> None:
     migration = (
-        REPO_ROOT
-        / "supabase/migrations/20260711080000_object_gc_quarantine_and_metrics.sql"
+        REPO_ROOT / "supabase/migrations/20260711080000_object_gc_quarantine_and_metrics.sql"
     ).read_text(encoding="utf-8")
     assert "version_object_gc_candidates" in migration
     assert "version_object_gc_runs" in migration
@@ -939,25 +945,25 @@ def test_object_gc_has_durable_recovery_window_and_metrics() -> None:
     assert "ENABLE ROW LEVEL SECURITY" in migration
     assert "FROM PUBLIC, anon, authenticated" in migration
 
-    worker = (
-        BACKEND_ROOT / "src/version_engine/derived/object_gc_worker.py"
-    ).read_text(encoding="utf-8")
+    worker = (BACKEND_ROOT / "src/version_engine/derived/object_gc_worker.py").read_text(
+        encoding="utf-8"
+    )
     assert "VERSION_OBJECT_GC_QUARANTINE_SECONDS" in worker
     assert "version_object_gc_runs" in worker
 
 
 def test_object_gc_sync_rpc_ambiguity_has_forward_fix_and_execution_smoke() -> None:
     fix = (
-        REPO_ROOT
-        / "supabase/migrations/20260711130000_fix_object_gc_candidate_sync_ambiguity.sql"
+        REPO_ROOT / "supabase/migrations/20260711130000_fix_object_gc_candidate_sync_ambiguity.sql"
     ).read_text(encoding="utf-8")
     assert "RETURNS TABLE(object_id text)" in fix
     assert "ON CONFLICT ON CONSTRAINT version_object_gc_candidates_pkey" in fix
     assert "ON CONFLICT (project_id, object_id)" not in fix
 
-    smoke = (REPO_ROOT / "supabase/tests/smoke_test_triggers.sql").read_text(
-        encoding="utf-8"
-    )
+    smoke_adapter = REPO_ROOT / "supabase/tests/smoke_test_triggers.sql"
+    smoke_contracts = REPO_ROOT / "supabase/tests/_support/schema_contracts.inc"
+    smoke = smoke_adapter.read_text(encoding="utf-8") + smoke_contracts.read_text(encoding="utf-8")
+    assert r"\ir _support/schema_contracts.inc" in smoke_adapter.read_text(encoding="utf-8")
     assert "sync_version_object_gc_candidates" in smoke
     assert "__object_gc_rpc_smoke__" in smoke
     assert "ROLLBACK;" in smoke
@@ -975,14 +981,14 @@ def test_irrecoverable_root_incidents_are_private_and_durable() -> None:
     assert "FOR ALL TO service_role" in migration
     assert "FROM PUBLIC, anon, authenticated" in migration
 
-    repair = (BACKEND_ROOT / "scripts/repair_missing_project_roots.py").read_text(
-        encoding="utf-8"
-    )
+    repair = (BACKEND_ROOT / "scripts/repair_missing_project_roots.py").read_text(encoding="utf-8")
     assert "mark_project_root_irrecoverable" in repair
-    assert "cas_update_root_hash" not in repair.split(
-        "def mark_project_root_irrecoverable", 1
-    )[1].split("def _project_ids", 1)[0]
-
+    assert (
+        "cas_update_root_hash"
+        not in repair.split("def mark_project_root_irrecoverable", 1)[1].split(
+            "def _project_ids", 1
+        )[0]
+    )
 
 
 def test_legacy_mcp_and_sandbox_runtime_packages_are_retired() -> None:
@@ -991,9 +997,9 @@ def test_legacy_mcp_and_sandbox_runtime_packages_are_retired() -> None:
     legacy_sandbox = BACKEND_ROOT / "src/infra/sandbox"
     assert not legacy_sandbox.exists() or not any(legacy_sandbox.glob("*.py"))
 
-    migration = (
-        REPO_ROOT / "supabase/migrations/20260711050000_retire_legacy_mcps.sql"
-    ).read_text(encoding="utf-8")
+    migration = (REPO_ROOT / "supabase/migrations/20260711050000_retire_legacy_mcps.sql").read_text(
+        encoding="utf-8"
+    )
     assert "INSERT INTO public.access_surfaces" in migration
     assert "DROP TABLE IF EXISTS public.mcps CASCADE" in migration
 
@@ -1030,8 +1036,7 @@ def test_mcp_transport_has_one_backend_runtime_and_one_binding_store() -> None:
     assert "/internal/tables/" not in rpc_client
 
     migration = (
-        REPO_ROOT
-        / "supabase/migrations/20260711060000_unify_mcp_tool_bindings.sql"
+        REPO_ROOT / "supabase/migrations/20260711060000_unify_mcp_tool_bindings.sql"
     ).read_text(encoding="utf-8")
     assert "idx_access_tools_surface_tool_unique" in migration
     assert "replace_mcp_surface_policy" in migration
@@ -1045,8 +1050,7 @@ def test_mcp_transport_has_one_backend_runtime_and_one_binding_store() -> None:
 
 def test_version_alias_views_are_not_exposed_as_rls_bypasses() -> None:
     migration = (
-        REPO_ROOT
-        / "supabase/migrations/20260711020000_secure_version_alias_views.sql"
+        REPO_ROOT / "supabase/migrations/20260711020000_secure_version_alias_views.sql"
     ).read_text(encoding="utf-8")
     views = (
         "version_commits",
@@ -1060,10 +1064,7 @@ def test_version_alias_views_are_not_exposed_as_rls_bypasses() -> None:
     for view in views:
         assert f"ALTER VIEW IF EXISTS public.{view}" in migration
         assert "security_invoker = true" in migration
-        assert (
-            f"REVOKE ALL ON public.{view} FROM PUBLIC, anon, authenticated;"
-            in migration
-        )
+        assert f"REVOKE ALL ON public.{view} FROM PUBLIC, anon, authenticated;" in migration
     assert "GRANT SELECT ON public.version_commits TO authenticated" not in migration
 
 
