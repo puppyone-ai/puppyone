@@ -4,9 +4,10 @@ ContextBase Backend Server Entrypoint.
 
 # ruff: noqa: E402
 
+import asyncio
 import os
 import time
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import Depends, FastAPI, Response
 from fastapi.exceptions import RequestValidationError
@@ -120,8 +121,8 @@ from src.platform.profile.router import router as profile_router
 profile_router_duration = time.time() - profile_router_start
 
 imports_router_start = time.time()
-from src.platform.imports.router import router as imports_router
 from src.platform.activity.router import router as activity_router
+from src.platform.imports.router import router as imports_router
 
 imports_router_duration = time.time() - imports_router_start
 
@@ -138,21 +139,16 @@ from src.infra.scheduler.service import get_scheduler_service
 scheduler_import_duration = time.time() - scheduler_start
 
 
-
 def _validate_security_baseline() -> None:
     """Validate critical security configuration in non-development environments."""
     if settings.DEBUG:
         return
 
     if not (settings.INTERNAL_API_SECRET or "").strip():
-        raise RuntimeError(
-            "INTERNAL_API_SECRET must be configured when DEBUG is False"
-        )
+        raise RuntimeError("INTERNAL_API_SECRET must be configured when DEBUG is False")
 
     if "*" in (settings.ALLOWED_HOSTS or []):
-        raise RuntimeError(
-            "ALLOWED_HOSTS cannot contain '*' when DEBUG is False"
-        )
+        raise RuntimeError("ALLOWED_HOSTS cannot contain '*' when DEBUG is False")
 
 
 _validate_security_baseline()
@@ -187,9 +183,7 @@ def _log_import_times() -> None:
     log_info(f"  │  ├─ tool_router: {tool_router_duration * 1000:.2f}ms")
     log_info(f"  │  ├─ mcp_router(v3): {mcp_v3_router_duration * 1000:.2f}ms")
     log_info(f"  │  ├─ agent_router: {agent_router_duration * 1000:.2f}ms")
-    log_info(
-        f"  │  ├─ context_publish_router: {context_publish_router_duration * 1000:.2f}ms"
-    )
+    log_info(f"  │  ├─ context_publish_router: {context_publish_router_duration * 1000:.2f}ms")
     log_info(f"  │  ├─ ingest_router: {ingest_router_duration * 1000:.2f}ms")
     log_info(f"  │  ├─ project_router: {project_router_duration * 1000:.2f}ms")
     log_info(f"  │  ├─ oauth_router: {oauth_router_duration * 1000:.2f}ms")
@@ -217,9 +211,7 @@ async def _init_mcp_health_check() -> None:
             log_error(f"❌ MCP Server is down, health info: {health_result}")
     except Exception as e:
         mcp_duration = time.time() - mcp_init_start
-        log_error(
-            f"❌ MCP Server health check failed (took: {mcp_duration * 1000:.2f}ms): {e}"
-        )
+        log_error(f"❌ MCP Server health check failed (took: {mcp_duration * 1000:.2f}ms): {e}")
 
 
 async def _init_scheduler() -> None:
@@ -231,12 +223,16 @@ async def _init_scheduler() -> None:
             scheduler_service = get_scheduler_service()
             await scheduler_service.start()
             scheduler_duration = time.time() - scheduler_init_start
-            log_info(f"✅ Scheduler service started successfully (took: {scheduler_duration * 1000:.2f}ms)")
+            log_info(
+                f"✅ Scheduler service started successfully (took: {scheduler_duration * 1000:.2f}ms)"
+            )
         else:
             log_info("⏭️  Scheduler service skipped (SCHEDULER_ENABLED is off)")
     except Exception as e:
         scheduler_duration = time.time() - scheduler_init_start
-        log_error(f"❌ Scheduler service failed to start (took: {scheduler_duration * 1000:.2f}ms): {e}")
+        log_error(
+            f"❌ Scheduler service failed to start (took: {scheduler_duration * 1000:.2f}ms): {e}"
+        )
 
 
 async def _init_file_ingest() -> None:
@@ -256,12 +252,16 @@ async def _init_file_ingest() -> None:
         Path(".etl_rules").mkdir(parents=True, exist_ok=True)
         await file_ingest_service.start()
         file_ingest_duration = time.time() - file_ingest_init_start
-        log_info(f"✅ File Ingest service started successfully (took: {file_ingest_duration * 1000:.2f}ms)")
+        log_info(
+            f"✅ File Ingest service started successfully (took: {file_ingest_duration * 1000:.2f}ms)"
+        )
         if settings.DEBUG:
             log_info("   ℹ️  File workers started in DEBUG mode (for development testing)")
     except Exception as e:
         file_ingest_duration = time.time() - file_ingest_init_start
-        log_error(f"❌ File Ingest service failed to start (took: {file_ingest_duration * 1000:.2f}ms): {e}")
+        log_error(
+            f"❌ File Ingest service failed to start (took: {file_ingest_duration * 1000:.2f}ms): {e}"
+        )
 
 
 def _init_connector_registry() -> None:
@@ -270,12 +270,17 @@ def _init_connector_registry() -> None:
     try:
         log_info("🔌 Initializing ConnectorRegistry...")
         from src.connectors.datasource.dependencies import init_registry
+
         init_registry()
         registry_duration = time.time() - registry_init_start
-        log_info(f"✅ ConnectorRegistry initialized successfully (took: {registry_duration * 1000:.2f}ms)")
+        log_info(
+            f"✅ ConnectorRegistry initialized successfully (took: {registry_duration * 1000:.2f}ms)"
+        )
     except Exception as e:
         registry_duration = time.time() - registry_init_start
-        log_error(f"❌ ConnectorRegistry initialization failed (took: {registry_duration * 1000:.2f}ms): {e}")
+        log_error(
+            f"❌ ConnectorRegistry initialization failed (took: {registry_duration * 1000:.2f}ms): {e}"
+        )
 
 
 async def _init_version_trees() -> None:
@@ -301,15 +306,21 @@ async def _init_version_trees() -> None:
                 try:
                     await _writer.init_tree(row["id"])
                 except Exception as init_err:
-                    log_error(f"  ❌ Failed to init Version Engine tree for {row['id']}: {init_err}")
+                    log_error(
+                        f"  ❌ Failed to init Version Engine tree for {row['id']}: {init_err}"
+                    )
             log_info(f"  ✅ Initialized Version Engine tree for {len(uninit_projects)} project(s)")
         else:
             log_info("  ✅ All projects already have a Version Engine tree")
         version_init_duration = time.time() - version_init_start
-        log_info(f"✅ Version Engine tree check completed (took: {version_init_duration * 1000:.2f}ms)")
+        log_info(
+            f"✅ Version Engine tree check completed (took: {version_init_duration * 1000:.2f}ms)"
+        )
     except Exception as e:
         version_init_duration = time.time() - version_init_start
-        log_error(f"❌ Version Engine tree initialization failed (took: {version_init_duration * 1000:.2f}ms): {e}")
+        log_error(
+            f"❌ Version Engine tree initialization failed (took: {version_init_duration * 1000:.2f}ms): {e}"
+        )
 
 
 def _init_scope_sandbox_reaper(app: FastAPI) -> None:
@@ -320,21 +331,140 @@ def _init_scope_sandbox_reaper(app: FastAPI) -> None:
     shutdown can stop both durable reaper loops cleanly."""
     if not getattr(settings, "SCOPE_SANDBOX_REAPER_ENABLED", False):
         return
-    from src.platform.scope_sandbox.reaper import start_reaper
     from src.platform.scope_sandbox.execution.reaper import start_execution_reaper
+    from src.platform.scope_sandbox.reaper import start_reaper
     from src.platform.scope_sandbox.service import get_scope_sandbox_service
 
     service = get_scope_sandbox_service()
     task, stop_event = start_reaper(
-        service, interval_s=settings.SCOPE_SANDBOX_REAPER_INTERVAL_S,
+        service,
+        interval_s=settings.SCOPE_SANDBOX_REAPER_INTERVAL_S,
     )
     app.state.scope_sandbox_reaper = (task, stop_event)
     app.state.sandbox_execution_reaper = start_execution_reaper(
         interval_s=settings.SCOPE_SANDBOX_REAPER_INTERVAL_S,
     )
-    log_info(
-        f"🧹 Scope-sandbox reaper started (every {settings.SCOPE_SANDBOX_REAPER_INTERVAL_S}s)"
+    log_info(f"🧹 Scope-sandbox reaper started (every {settings.SCOPE_SANDBOX_REAPER_INTERVAL_S}s)")
+
+
+def _init_runtime_billing_reaper(app: FastAPI) -> None:
+    if settings.RUNTIME_METERING_MODE == "disabled":
+        return
+    from src.platform.billing.runtime import get_runtime_metering_service
+
+    stop_event = asyncio.Event()
+
+    async def loop() -> None:
+        while not stop_event.is_set():
+            try:
+                await get_runtime_metering_service().recover_once()
+            except Exception as exc:  # durable rows remain available for the next pass
+                log_error(f"Runtime billing recovery error: {type(exc).__name__}")
+            with suppress(TimeoutError):
+                await asyncio.wait_for(
+                    stop_event.wait(),
+                    timeout=settings.RUNTIME_BILLING_RECOVERY_INTERVAL_SECONDS,
+                )
+
+    app.state.runtime_billing_reaper = (asyncio.create_task(loop()), stop_event)
+    log_info("Runtime billing recovery loop started")
+
+
+def _init_entitlement_provisioner(app: FastAPI) -> None:
+    if settings.ENTITLEMENTS_MODE != "db" or not settings.PUPPYPAY_BASE_URL:
+        return
+    from src.platform.billing.provisioning import get_entitlement_provisioning_service
+
+    service = get_entitlement_provisioning_service()
+    stop_event = asyncio.Event()
+
+    async def loop() -> None:
+        while not stop_event.is_set():
+            try:
+                result = await service.recover_once(
+                    limit=settings.ENTITLEMENT_PROVISIONING_BATCH_SIZE,
+                )
+                if result["claimed"]:
+                    log_info(
+                        "Entitlement provisioning: "
+                        f"enqueued={result['enqueued']} claimed={result['claimed']} "
+                        f"completed={result['succeeded']} failed={result['failed']}"
+                    )
+            except Exception as exc:
+                log_error(f"Entitlement provisioning error: {type(exc).__name__}")
+            with suppress(TimeoutError):
+                await asyncio.wait_for(
+                    stop_event.wait(),
+                    timeout=settings.ENTITLEMENT_PROVISIONING_INTERVAL_SECONDS,
+                )
+
+    app.state.entitlement_provisioner = (asyncio.create_task(loop()), stop_event)
+    log_info("Entitlement provisioning loop started")
+
+
+def _init_seat_proposal_worker(app: FastAPI) -> None:
+    if settings.SEAT_BILLING_MODE == "disabled" or not settings.PUPPYPAY_BASE_URL:
+        return
+    from src.platform.billing.seat_proposals import get_seat_proposal_service
+
+    service = get_seat_proposal_service()
+    stop_event = asyncio.Event()
+
+    async def loop() -> None:
+        while not stop_event.is_set():
+            try:
+                result = await service.recover_once(limit=settings.SEAT_PROPOSAL_BATCH_SIZE)
+                if result["claimed"]:
+                    log_info(
+                        "Seat proposals: "
+                        f"claimed={result['claimed']} quoted={result['quoted']} "
+                        f"failed={result['failed']}"
+                    )
+            except Exception as exc:
+                log_error(f"Seat proposal worker error: {type(exc).__name__}")
+            with suppress(TimeoutError):
+                await asyncio.wait_for(
+                    stop_event.wait(),
+                    timeout=settings.SEAT_PROPOSAL_INTERVAL_SECONDS,
+                )
+
+    app.state.seat_proposal_worker = (asyncio.create_task(loop()), stop_event)
+    log_info("Seat proposal worker started")
+
+
+def _init_storage_reconciler(app: FastAPI) -> None:
+    if settings.STORAGE_ENFORCEMENT_MODE == "disabled":
+        return
+    from src.platform.billing.storage import StorageReconciliationService
+
+    service = StorageReconciliationService(
+        repo_manager=app.state.version_engine.repo_manager,
     )
+    stop_event = asyncio.Event()
+
+    async def loop() -> None:
+        while not stop_event.is_set():
+            try:
+                result = await service.reconcile_once(
+                    limit=settings.STORAGE_RECONCILIATION_BATCH_SIZE,
+                    min_age_seconds=settings.STORAGE_RECONCILIATION_MIN_AGE_SECONDS,
+                )
+                if result["claimed"]:
+                    log_info(
+                        "Storage reconciliation: "
+                        f"claimed={result['claimed']} reconciled={result['reconciled']} "
+                        f"failed={result['failed']}"
+                    )
+            except Exception as exc:
+                log_error(f"Storage reconciliation error: {type(exc).__name__}")
+            with suppress(TimeoutError):
+                await asyncio.wait_for(
+                    stop_event.wait(),
+                    timeout=settings.STORAGE_RECONCILIATION_INTERVAL_SECONDS,
+                )
+
+    app.state.storage_reconciler = (asyncio.create_task(loop()), stop_event)
+    log_info("Storage reconciliation loop started")
 
 
 async def _shutdown_services() -> None:
@@ -391,12 +521,13 @@ async def app_lifespan(app: FastAPI):
     # interim. The hook itself is a thin router; install your agent
     # backend wherever you boot model integration (typically in the
     # workers, e.g. ARQ ``WorkerSettings.on_startup``).
-    from src.version_engine.derived.outbox import register_pending_conflict_hook
     from src.version_engine.derived.agent_resolver import (
         AgentResolverDispatcher,
         NoopAgentRunner,
         agent_resolver_outbox_hook,
     )
+    from src.version_engine.derived.outbox import register_pending_conflict_hook
+
     register_pending_conflict_hook(agent_resolver_outbox_hook)
     if AgentResolverDispatcher.get() is None:
         AgentResolverDispatcher.install(NoopAgentRunner())
@@ -409,6 +540,10 @@ async def app_lifespan(app: FastAPI):
     _init_connector_registry()
     await _init_version_trees()
     _init_scope_sandbox_reaper(app)
+    _init_entitlement_provisioner(app)
+    _init_seat_proposal_worker(app)
+    _init_runtime_billing_reaper(app)
+    _init_storage_reconciler(app)
 
     log_info("📁 Filesystem sync: client-side via Git smart-HTTP (no server init needed)")
 
@@ -428,7 +563,7 @@ async def app_lifespan(app: FastAPI):
         stop_event.set()
         try:
             await task
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             log_error(f"Scope-sandbox reaper shutdown error: {e}")
     execution_reaper = getattr(app.state, "sandbox_execution_reaper", None)
     if execution_reaper is not None:
@@ -436,8 +571,40 @@ async def app_lifespan(app: FastAPI):
         stop_event.set()
         try:
             await task
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             log_error(f"Sandbox execution reaper shutdown error: {e}")
+    runtime_billing_reaper = getattr(app.state, "runtime_billing_reaper", None)
+    if runtime_billing_reaper is not None:
+        task, stop_event = runtime_billing_reaper
+        stop_event.set()
+        try:
+            await task
+        except Exception as e:
+            log_error(f"Runtime billing reaper shutdown error: {e}")
+    entitlement_provisioner = getattr(app.state, "entitlement_provisioner", None)
+    if entitlement_provisioner is not None:
+        task, stop_event = entitlement_provisioner
+        stop_event.set()
+        try:
+            await task
+        except Exception as e:
+            log_error(f"Entitlement provisioner shutdown error: {e}")
+    seat_proposal_worker = getattr(app.state, "seat_proposal_worker", None)
+    if seat_proposal_worker is not None:
+        task, stop_event = seat_proposal_worker
+        stop_event.set()
+        try:
+            await task
+        except Exception as e:
+            log_error(f"Seat proposal worker shutdown error: {e}")
+    storage_reconciler = getattr(app.state, "storage_reconciler", None)
+    if storage_reconciler is not None:
+        task, stop_event = storage_reconciler
+        stop_event.set()
+        try:
+            await task
+        except Exception as e:
+            log_error(f"Storage reconciliation shutdown error: {e}")
     await _shutdown_services()
 
 
@@ -481,6 +648,7 @@ def create_app() -> FastAPI:
     app.include_router(agent_router, prefix="/api/v1", tags=["agents"])
     app.include_router(agent_config_router, prefix="/api/v1", tags=["agent-config"])
     from src.connectors.agent.chat.router import router as chat_router
+
     app.include_router(chat_router, prefix="/api/v1", tags=["chat"])
     app.include_router(context_publish_router, prefix="/api/v1", tags=["publishes"])
     # public short link: /p/{publish_key}
@@ -490,10 +658,12 @@ def create_app() -> FastAPI:
     # routes are registered separately below.
     app.include_router(ingest_router, prefix="/api/v1", tags=["ingest-compat"])
     from src.platform.upload.router import router as upload_router
+
     app.include_router(upload_router, prefix="/api/v1", tags=["upload"])
 
     app.include_router(project_router, prefix="/api/v1", tags=["projects"])
     from src.platform.workspace_binding.router import router as workspace_binding_router
+
     app.include_router(
         workspace_binding_router,
         prefix="/api/v1",
@@ -504,40 +674,56 @@ def create_app() -> FastAPI:
         internal_router, tags=["internal"]
     )  # Internal API does not use /api/v1 prefix
     from src.internal.mcp_runtime import router as mcp_runtime_router
+
     app.include_router(mcp_runtime_router, tags=["internal-mcp-runtime"])
     from src.version_engine.entrypoints.http.content import router as content_router
+
     app.include_router(content_router, prefix="/api/v1", tags=["content"])
     from src.version_engine.entrypoints.http.audit import router as audit_router
+
     app.include_router(audit_router, prefix="/api/v1", tags=["audit-logs"])
     from src.version_engine.entrypoints.http.conflict import router as conflict_router
+
     app.include_router(conflict_router, prefix="/api/v1/content", tags=["conflicts"])
     from src.version_engine.entrypoints.http.shadow_snapshot import router as shadow_router
+
     app.include_router(shadow_router, prefix="/api/v1", tags=["shadow-snapshots"])
     from src.version_engine.entrypoints.git.router import router as git_protocol_router
+
     app.include_router(git_protocol_router, tags=["git-protocol"])
     # WebSocket /ws — server→client commit_update notifications.
     from src.version_engine.entrypoints.http.websocket import ws_router as version_ws_router
+
     app.include_router(version_ws_router, tags=["version-ws"])
     from src.version_engine.entrypoints.http.access_point_fs import router as ap_fs_router
+
     app.include_router(ap_fs_router, prefix="/api/v1", tags=["access-point-fs"])
     from src.platform.workspace.router import router as workspace_router
+
     app.include_router(workspace_router, prefix="/api/v1", tags=["workspace"])
     from src.platform.integrations.router import router as integrations_router
+
     app.include_router(integrations_router, prefix="/api/v1", tags=["integrations"])
     # GitHub Integration: bind a project to a (repo, branch) pair, run
     # imports/exports, receive webhooks. Two routers because the webhook
     # callback isn't per-project.
     from src.repo.github_integration.router import (
         router as github_integration_router,
+    )
+    from src.repo.github_integration.router import (
         webhook_router as github_webhook_router,
     )
+
     app.include_router(github_integration_router, tags=["github-integration"])
     app.include_router(github_webhook_router, tags=["github-integration"])
     from src.platform.scope_sandbox.router import router as scope_sandbox_router
+
     app.include_router(scope_sandbox_router, tags=["scope-sandboxes"])
     from src.platform.scope_sync.router import router as scope_sync_router
+
     app.include_router(scope_sync_router, tags=["scope-sync"])
     from src.platform.auth.router import router as auth_router
+
     app.include_router(auth_router, prefix="/api/v1", tags=["auth"])
     app.include_router(analytics_router, tags=["analytics"])
     app.include_router(profile_router, tags=["profile"])
@@ -545,23 +731,33 @@ def create_app() -> FastAPI:
     app.include_router(activity_router, prefix="/api/v1", tags=["activity"])
     app.include_router(db_connector_router, prefix="/api/v1", tags=["db-connector"])
     app.include_router(organization_router, prefix="/api/v1", tags=["organizations"])
+    from src.platform.billing.router import router as billing_router
+
+    app.include_router(billing_router, prefix="/api/v1", tags=["billing"])
     from src.connectors.mcp_endpoint.router import router as mcp_endpoint_router
+
     app.include_router(mcp_endpoint_router, prefix="/api/v1", tags=["mcp-endpoints"])
     from src.platform.landing.router import router as landing_router
+
     app.include_router(landing_router, prefix="/api/v1", tags=["landing"])
     from src.connectors.sandbox_endpoint.router import router as sandbox_endpoint_router
+
     app.include_router(sandbox_endpoint_router, prefix="/api/v1", tags=["sandbox-endpoints"])
     from src.platform.project.dashboard_router import router as dashboard_router
+
     app.include_router(dashboard_router, prefix="/api/v1", tags=["projects"])
     from src.platform.access.router import router as access_router
+
     app.include_router(access_router, prefix="/api/v1", tags=["access"])
     from src.connectors.gateway.router import router as gateway_router
+
     app.include_router(gateway_router, prefix="/api/v1", tags=["gateways"])
 
     # Repository data-plane surface: scope CRUD, repo identity, connectors.
-    from src.repo.scope_router import router as repo_scope_router
-    from src.repo.identity_router import router as repo_identity_router
     from src.repo.connector_router import router as repo_connector_router
+    from src.repo.identity_router import router as repo_identity_router
+    from src.repo.scope_router import router as repo_scope_router
+
     app.include_router(repo_scope_router, prefix="/api/v1", tags=["repo-scopes"])
     app.include_router(repo_identity_router, prefix="/api/v1", tags=["repo-identity"])
     app.include_router(repo_connector_router, prefix="/api/v1", tags=["connectors"])
@@ -598,19 +794,14 @@ app = create_app()
 
 
 async def _build_readiness_report(mcp_service) -> dict:
-    import os
 
     env_status = {
-        "supabase_configured": bool(
-            os.getenv("SUPABASE_URL") and os.getenv("SUPABASE_KEY")
-        ),
+        "supabase_configured": bool(os.getenv("SUPABASE_URL") and os.getenv("SUPABASE_KEY")),
         "s3_configured": bool(os.getenv("S3_BUCKET_NAME")),
         "mineru_configured": bool(os.getenv("MINERU_API_KEY")),
         "anthropic_configured": bool(os.getenv("ANTHROPIC_API_KEY")),
         "e2b_configured": bool(os.getenv("E2B_API_KEY")),
-        "internal_api_secret_configured": bool(
-            (settings.INTERNAL_API_SECRET or "").strip()
-        ),
+        "internal_api_secret_configured": bool((settings.INTERNAL_API_SECRET or "").strip()),
     }
 
     config_errors: list[str] = []
@@ -621,8 +812,12 @@ async def _build_readiness_report(mcp_service) -> dict:
 
     # Cache MCP health check to avoid blocking every /health call (~12s timeout)
     import time as _time
+
     _now = _time.time()
-    if not hasattr(_build_readiness_report, "_mcp_cache") or _now - _build_readiness_report._mcp_cache_time > 60:
+    if (
+        not hasattr(_build_readiness_report, "_mcp_cache")
+        or _now - _build_readiness_report._mcp_cache_time > 60
+    ):
         try:
             mcp_status = await mcp_service.check_mcp_server_health()
         except Exception as e:

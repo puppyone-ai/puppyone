@@ -1,32 +1,32 @@
-from typing import List, Dict, Any
 import asyncio
 import json
 import re
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, Query, Header
+from typing import Any
 
-from src.connectors.sandbox_endpoint.service import SandboxEndpointService
-from src.connectors.sandbox_endpoint.schemas import (
-    SandboxEndpointCreate,
-    SandboxEndpointUpdate,
-    SandboxEndpointOut,
-)
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
+
+from src.common_schemas import ApiResponse
+from src.connectors.agent.sandbox_session import SandboxFile
 from src.connectors.sandbox_endpoint.dependencies import (
     get_credential_sandbox_endpoint,
     get_sandbox_endpoint_service,
     get_verified_sandbox_endpoint,
     get_writable_sandbox_endpoint,
 )
+from src.connectors.sandbox_endpoint.schemas import (
+    SandboxEndpointCreate,
+    SandboxEndpointOut,
+    SandboxEndpointUpdate,
+)
+from src.connectors.sandbox_endpoint.service import SandboxEndpointService
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
-from src.common_schemas import ApiResponse
-from src.platform.scope_sandbox.execution.dependencies import get_sandbox_service
-from src.platform.scope_sandbox.execution.service import SandboxService
-from src.connectors.agent.sandbox_session import SandboxFile
 from src.platform.authorization.dependencies import get_authorization_service
 from src.platform.authorization.models import ProjectAction
 from src.platform.authorization.service import AuthorizationService
-
+from src.platform.scope_sandbox.execution.dependencies import get_sandbox_service
+from src.platform.scope_sandbox.execution.service import SandboxService
 
 router = APIRouter(
     prefix="/sandbox-endpoints",
@@ -71,26 +71,42 @@ def _normalize_mount_path(path: str) -> str:
 
 def _is_write_command(command: str) -> bool:
     write_patterns = [
-        r">", r">>", r"\brm\b", r"\bmv\b", r"\bcp\b", r"\btouch\b", r"\bmkdir\b",
-        r"\brmdir\b", r"\btruncate\b", r"\bsed\s+-i\b", r"\btee\b", r"\bchmod\b",
-        r"\bchown\b", r"\becho\b.*>",
+        r">",
+        r">>",
+        r"\brm\b",
+        r"\bmv\b",
+        r"\bcp\b",
+        r"\btouch\b",
+        r"\bmkdir\b",
+        r"\brmdir\b",
+        r"\btruncate\b",
+        r"\bsed\s+-i\b",
+        r"\btee\b",
+        r"\bchmod\b",
+        r"\bchown\b",
+        r"\becho\b.*>",
     ]
     return any(re.search(pattern, command) for pattern in write_patterns)
 
 
-def _validate_command(command: str, mounts: List[Dict[str, Any]]) -> None:
+def _validate_command(command: str, mounts: list[dict[str, Any]]) -> None:
     # Forbidden-pattern policy lives in the shared choke point so the endpoint
     # and the agent bash tool stay in lockstep (ISSUE-009).
     from src.platform.scope_sandbox.execution_policy import (
         SandboxCommandRejected,
         assert_command_allowed,
     )
+
     try:
         assert_command_allowed(command)
     except SandboxCommandRejected as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
-    readonly_mounts = [_normalize_mount_path(m.get("mount_path", "/workspace")) for m in mounts if (m.get("permissions") or {}).get("write") is False]
+    readonly_mounts = [
+        _normalize_mount_path(m.get("mount_path", "/workspace"))
+        for m in mounts
+        if (m.get("permissions") or {}).get("write") is False
+    ]
     if not readonly_mounts:
         return
 
@@ -99,18 +115,22 @@ def _validate_command(command: str, mounts: List[Dict[str, Any]]) -> None:
 
     referenced_paths = re.findall(r"(/workspace[^\s\"']*)", command)
     if not referenced_paths:
-        raise HTTPException(status_code=400, detail="Write commands must target explicit /workspace paths")
+        raise HTTPException(
+            status_code=400, detail="Write commands must target explicit /workspace paths"
+        )
 
     for path in referenced_paths:
         for readonly_path in readonly_mounts:
             if path == readonly_path or path.startswith(f"{readonly_path}/"):
-                raise HTTPException(status_code=403, detail=f"Write denied for readonly mount: {readonly_path}")
+                raise HTTPException(
+                    status_code=403, detail=f"Write denied for readonly mount: {readonly_path}"
+                )
 
 
 def _clone_version_files(project_id: str, scope_path: str) -> tuple:
     """Clone version tree files for a scope path. Returns (client, files_dict)."""
-    from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
     from src.version_engine.adapters.batch.in_process_client import InProcessVersionClient
+    from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
 
     repo_manager = build_worker_version_engine_container().repo_manager
     auth = {
@@ -131,13 +151,13 @@ def _build_sandbox_files_from_clone(
     cloned_files: dict[str, bytes],
     mount_path: str,
     scope_path: str,
-) -> List[SandboxFile]:
+) -> list[SandboxFile]:
     """Convert version clone result to SandboxFile list for container mounting."""
-    sandbox_files: List[SandboxFile] = []
+    sandbox_files: list[SandboxFile] = []
     for file_path, content in cloned_files.items():
         relative = file_path
         if scope_path and relative.startswith(scope_path + "/"):
-            relative = relative[len(scope_path) + 1:]
+            relative = relative[len(scope_path) + 1 :]
 
         target = f"{mount_path}/{relative}"
 
@@ -157,13 +177,19 @@ def _build_sandbox_files_from_clone(
             text = content.decode("utf-8", errors="replace")
             content_type = "text/plain"
 
-        sandbox_files.append(SandboxFile(
-            path=target,
-            content=text,
-            content_type=content_type,
-            version_path=file_path,
-            node_type="json" if ext == "json" else "markdown" if ext in ("md", "markdown") else "file",
-        ))
+        sandbox_files.append(
+            SandboxFile(
+                path=target,
+                content=text,
+                content_type=content_type,
+                version_path=file_path,
+                node_type="json"
+                if ext == "json"
+                else "markdown"
+                if ext in ("md", "markdown")
+                else "file",
+            )
+        )
     return sandbox_files
 
 
@@ -176,12 +202,13 @@ async def _read_modified_files(
 ) -> dict[str, bytes]:
     """Read files from sandbox container, return only changed ones as {version_path: bytes}."""
     from src.connectors.agent.sandbox_session import _read_modified_files as _read_mod
+
     return await _read_mod(sandbox_service, session_id, original_files, mount_path, scope_path)
 
 
 @router.get(
     "",
-    response_model=ApiResponse[List[SandboxEndpointOut]],
+    response_model=ApiResponse[list[SandboxEndpointOut]],
     summary="List Sandbox endpoints for a project",
 )
 def list_endpoints(
@@ -190,9 +217,7 @@ def list_endpoints(
     service: SandboxEndpointService = Depends(get_sandbox_endpoint_service),
     authorization: AuthorizationService = Depends(get_authorization_service),
 ):
-    authorization.authorize(
-        project_id, current_user.user_id, ProjectAction.ACCESS_READ
-    )
+    authorization.authorize(project_id, current_user.user_id, ProjectAction.ACCESS_READ)
     rows = service.list_endpoints(project_id)
     return ApiResponse.success(data=[_to_out(r) for r in rows])
 
@@ -222,9 +247,7 @@ def get_by_path(
     row = service.get_by_path(path)
     if not row:
         raise HTTPException(status_code=404, detail="No Sandbox endpoint for this path")
-    authorization.authorize(
-        row["project_id"], current_user.user_id, ProjectAction.ACCESS_READ
-    )
+    authorization.authorize(row["project_id"], current_user.user_id, ProjectAction.ACCESS_READ)
     return ApiResponse.success(data=_to_out(row))
 
 
@@ -239,9 +262,7 @@ def create_endpoint(
     service: SandboxEndpointService = Depends(get_sandbox_endpoint_service),
     authorization: AuthorizationService = Depends(get_authorization_service),
 ):
-    authorization.authorize(
-        payload.project_id, current_user.user_id, ProjectAction.SANDBOX_MANAGE
-    )
+    authorization.authorize(payload.project_id, current_user.user_id, ProjectAction.SANDBOX_MANAGE)
     row = service.create_endpoint(
         project_id=payload.project_id,
         name=payload.name,
@@ -335,7 +356,7 @@ async def exec_command(
         raise HTTPException(status_code=400, detail="Sandbox endpoint has no project_id")
 
     # Clone version tree for each mount, collect files + clients
-    all_sandbox_files: List[SandboxFile] = []
+    all_sandbox_files: list[SandboxFile] = []
     version_clients = []
     for mount in mounts:
         mount_source = mount.get("path")
@@ -346,7 +367,9 @@ async def exec_command(
         has_write = permissions.get("write", False)
 
         client, cloned_files = await asyncio.to_thread(
-            _clone_version_files, project_id, mount_source,
+            _clone_version_files,
+            project_id,
+            mount_source,
         )
 
         sandbox_files = _build_sandbox_files_from_clone(cloned_files, mount_target, mount_source)
@@ -356,7 +379,9 @@ async def exec_command(
             version_clients.append((client, cloned_files, mount_target, mount_source))
 
     if not all_sandbox_files:
-        raise HTTPException(status_code=400, detail="No mount files resolved for this sandbox endpoint")
+        raise HTTPException(
+            status_code=400, detail="No mount files resolved for this sandbox endpoint"
+        )
 
     session_id = f"sbxep-{endpoint_id}-{uuid.uuid4().hex[:10]}"
     start_res = await sandbox_service.start_with_files(
@@ -364,9 +389,21 @@ async def exec_command(
         files=all_sandbox_files,
         readonly=not version_clients,
         s3_service=None,
+        audit_context={
+            "source": "sandbox_endpoint",
+            "session_id": session_id,
+            "org_id": endpoint.get("org_id"),
+            "project_id": project_id,
+            "maximum_runtime_units": max(
+                1,
+                int(endpoint.get("timeout_seconds") or 30) // 60 + 1,
+            ),
+        },
     )
     if not start_res.get("success"):
-        raise HTTPException(status_code=500, detail=start_res.get("error", "Failed to start sandbox session"))
+        raise HTTPException(
+            status_code=500, detail=start_res.get("error", "Failed to start sandbox session")
+        )
 
     try:
         exec_res = await sandbox_service.exec(
@@ -375,6 +412,12 @@ async def exec_command(
             audit_context={
                 "source": "sandbox_endpoint",
                 "session_id": session_id,
+                "org_id": endpoint.get("org_id"),
+                "project_id": project_id,
+                "maximum_runtime_units": max(
+                    1,
+                    int(endpoint.get("timeout_seconds") or 30) // 60 + 1,
+                ),
             },
         )
 
@@ -382,21 +425,28 @@ async def exec_command(
         writeback_results = []
         for client, original_files, mount_target, scope_path in version_clients:
             modified = await _read_modified_files(
-                sandbox_service, session_id, original_files, mount_target, scope_path,
+                sandbox_service,
+                session_id,
+                original_files,
+                mount_target,
+                scope_path,
             )
             if modified:
                 from src.version_engine.derived.hooks import push_and_finalize
+
                 push_result = await push_and_finalize(
                     client,
                     project_id,
                     modified=modified,
                     message=f"Sandbox exec: {command[:80]}",
                 )
-                writeback_results.append({
-                    "scope": scope_path,
-                    "files_written": len(modified),
-                    "commit_id": push_result.get("commit_id"),
-                })
+                writeback_results.append(
+                    {
+                        "scope": scope_path,
+                        "files_written": len(modified),
+                        "commit_id": push_result.get("commit_id"),
+                    }
+                )
 
         if writeback_results:
             exec_res["writeback"] = writeback_results

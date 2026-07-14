@@ -21,6 +21,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, EmailStr
+from supabase import create_client
 
 from src.common_schemas import ApiResponse
 from src.config import settings
@@ -32,13 +33,12 @@ from src.platform.auth.shared_security_store import (
     SecurityStoreUnavailable,
     get_auth_security_store,
 )
-from supabase import create_client
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-_CHECK_EMAIL_WINDOW = 60        # seconds
-_CHECK_EMAIL_MAX_HITS = 5       # max requests per window per IP
+_CHECK_EMAIL_WINDOW = 60  # seconds
+_CHECK_EMAIL_MAX_HITS = 5  # max requests per window per IP
 _CHECK_EMAIL_MIN_LATENCY = 0.4  # seconds — flatten timing side-channel
 _LOGIN_WINDOW = 600
 _LOGIN_MAX_HITS = 10
@@ -60,7 +60,9 @@ def _enforce_rate_limit(
     try:
         exceeded = limiter.hit(bucket, _hash_key(subject), limit, window_seconds)
     except SecurityStoreUnavailable as exc:
-        raise HTTPException(status_code=503, detail="Authentication security store unavailable") from exc
+        raise HTTPException(
+            status_code=503, detail="Authentication security store unavailable"
+        ) from exc
     if exceeded:
         raise HTTPException(
             status_code=429,
@@ -143,17 +145,13 @@ class RealtimeConfig(BaseModel):
 
 def _allowed_desktop_callbacks() -> set[str]:
     return {
-        item.strip()
-        for item in settings.DESKTOP_AUTH_ALLOWED_CALLBACKS.split(",")
-        if item.strip()
+        item.strip() for item in settings.DESKTOP_AUTH_ALLOWED_CALLBACKS.split(",") if item.strip()
     }
 
 
 def _public_supabase_url() -> str:
     """Return the browser-reachable auth origin, not an internal service DNS name."""
-    return (
-        settings.SUPABASE_PUBLIC_URL or os.environ.get("SUPABASE_URL", "")
-    ).rstrip("/")
+    return (settings.SUPABASE_PUBLIC_URL or os.environ.get("SUPABASE_URL", "")).rstrip("/")
 
 
 _DESKTOP_PKCE_VALUE = re.compile(r"^[A-Za-z0-9_-]{43,128}$")
@@ -224,9 +222,7 @@ def _desktop_browser_login_url(state: str) -> str:
         or (
             parsed.scheme != "https"
             and not (
-                settings.APP_ENV in {"development", "test"}
-                and parsed.scheme == "http"
-                and loopback
+                settings.APP_ENV in {"development", "test"} and parsed.scheme == "http" and loopback
             )
         )
     ):
@@ -300,17 +296,21 @@ def desktop_auth_start(
         if not public_base or not supabase_url:
             raise HTTPException(status_code=503, detail="Desktop OAuth is not configured")
         verifier = secrets.token_urlsafe(64)
-        provider_challenge = base64.urlsafe_b64encode(
-            hashlib.sha256(verifier.encode("ascii")).digest()
-        ).rstrip(b"=").decode("ascii")
+        provider_challenge = (
+            base64.urlsafe_b64encode(hashlib.sha256(verifier.encode("ascii")).digest())
+            .rstrip(b"=")
+            .decode("ascii")
+        )
         pending["code_verifier"] = verifier
         redirect_to = f"{public_base}/auth/desktop/callback?{urlencode({'state': state})}"
-        authorize_params = urlencode({
-            "provider": provider,
-            "redirect_to": redirect_to,
-            "code_challenge": provider_challenge,
-            "code_challenge_method": "s256",
-        })
+        authorize_params = urlencode(
+            {
+                "provider": provider,
+                "redirect_to": redirect_to,
+                "code_challenge": provider_challenge,
+                "code_challenge_method": "s256",
+            }
+        )
         login_url = f"{supabase_url}/auth/v1/authorize?{authorize_params}"
 
     try:
@@ -435,16 +435,22 @@ def desktop_auth_exchange(
         verifier = (body.code_verifier or "").strip()
         callback_url = str(record.get("callback_url", ""))
         if not _DESKTOP_PKCE_VALUE.fullmatch(verifier):
-            raise HTTPException(status_code=400, detail="Desktop exchange code is invalid or expired")
-        candidate_challenge = base64.urlsafe_b64encode(
-            hashlib.sha256(verifier.encode("ascii")).digest()
-        ).rstrip(b"=").decode("ascii")
+            raise HTTPException(
+                status_code=400, detail="Desktop exchange code is invalid or expired"
+            )
+        candidate_challenge = (
+            base64.urlsafe_b64encode(hashlib.sha256(verifier.encode("ascii")).digest())
+            .rstrip(b"=")
+            .decode("ascii")
+        )
         if (
             not secrets.compare_digest(candidate_challenge, str(desktop_code_challenge))
             or not body.redirect_uri
             or not secrets.compare_digest(body.redirect_uri, callback_url)
         ):
-            raise HTTPException(status_code=400, detail="Desktop exchange code is invalid or expired")
+            raise HTTPException(
+                status_code=400, detail="Desktop exchange code is invalid or expired"
+            )
     return ApiResponse.success(data=record["session"])
 
 
@@ -458,9 +464,12 @@ def get_public_config():
             status_code=500,
             detail="SUPABASE_URL or SUPABASE_ANON_KEY not configured on server",
         )
-    return ApiResponse.success(data=RealtimeConfig(
-        supabase_url=url, supabase_anon_key=anon_key,
-    ))
+    return ApiResponse.success(
+        data=RealtimeConfig(
+            supabase_url=url,
+            supabase_anon_key=anon_key,
+        )
+    )
 
 
 @router.post("/check-email", response_model=ApiResponse[CheckEmailResponse])
@@ -531,21 +540,25 @@ def login(
     )
     try:
         auth_client = _make_auth_client()
-        result = auth_client.auth.sign_in_with_password({
-            "email": body.email,
-            "password": body.password,
-        })
+        result = auth_client.auth.sign_in_with_password(
+            {
+                "email": body.email,
+                "password": body.password,
+            }
+        )
 
         session = result.session
         if not session:
             raise HTTPException(status_code=401, detail="Login failed: unable to create session")
 
-        return ApiResponse.success(data=LoginResponse(
-            access_token=session.access_token,
-            refresh_token=session.refresh_token,
-            expires_in=session.expires_in,
-            user_email=result.user.email if result.user else body.email,
-        ))
+        return ApiResponse.success(
+            data=LoginResponse(
+                access_token=session.access_token,
+                refresh_token=session.refresh_token,
+                expires_in=session.expires_in,
+                user_email=result.user.email if result.user else body.email,
+            )
+        )
 
     except HTTPException:
         raise
@@ -569,12 +582,14 @@ def refresh_token(body: RefreshRequest):
         if not session:
             raise HTTPException(status_code=401, detail="Refresh failed: invalid session")
 
-        return ApiResponse.success(data=LoginResponse(
-            access_token=session.access_token,
-            refresh_token=session.refresh_token,
-            expires_in=session.expires_in,
-            user_email=result.user.email if result.user else "",
-        ))
+        return ApiResponse.success(
+            data=LoginResponse(
+                access_token=session.access_token,
+                refresh_token=session.refresh_token,
+                expires_in=session.expires_in,
+                user_email=result.user.email if result.user else "",
+            )
+        )
 
     except HTTPException:
         raise
@@ -600,14 +615,25 @@ async def initialize_user(
     result = init_service.ensure_initialized(
         user_id=current_user.user_id,
         email=current_user.email,
-        display_name=current_user.user_metadata.get("full_name") if current_user.user_metadata else None,
+        display_name=current_user.user_metadata.get("full_name")
+        if current_user.user_metadata
+        else None,
     )
+    if settings.ENTITLEMENTS_MODE == "db":
+        from src.platform.billing.provisioning import get_entitlement_provisioning_service
+
+        await get_entitlement_provisioning_service().ensure(
+            org_id=result["org_id"],
+            actor_user_id=current_user.user_id,
+        )
     demo_project_id = await init_service.maybe_seed_demo_project(
         user_id=current_user.user_id,
         org_id=result["org_id"],
     )
-    return ApiResponse.success(data=InitializeResponse(
-        org_id=result["org_id"],
-        is_new_org=result["is_new_org"],
-        demo_project_id=demo_project_id,
-    ))
+    return ApiResponse.success(
+        data=InitializeResponse(
+            org_id=result["org_id"],
+            is_new_org=result["is_new_org"],
+            demo_project_id=demo_project_id,
+        )
+    )

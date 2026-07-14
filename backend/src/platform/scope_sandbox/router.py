@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 
 from src.common_schemas import ApiResponse
 from src.config import settings
+from src.exceptions import AppException, ErrorCode
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
 from src.platform.authorization.dependencies import get_authorization_service
@@ -32,6 +33,7 @@ from src.platform.scope_sandbox.service import (
     ScopeSandboxService,
     get_scope_sandbox_service,
 )
+from src.utils.logger import log_warning
 
 router = APIRouter(prefix="/api/v1/scope-sandboxes", tags=["scope-sandboxes"])
 
@@ -58,6 +60,24 @@ def _user_name(current_user: CurrentUser) -> str:
     return meta.get("name") or meta.get("full_name") or current_user.email or "puppyone"
 
 
+def _guard_long_lived_runtime_metering() -> None:
+    # Scope Sandbox is a long-lived SSH resource, unlike the bounded ephemeral
+    # SandboxService sessions metered around start/stop. Until segmented leases
+    # are implemented it must not create unreserved hosted cost in required mode.
+    if settings.RUNTIME_METERING_MODE == "required":
+        raise AppException(
+            code=ErrorCode.FORBIDDEN,
+            status_code=503,
+            message="Long-lived Scope Sandbox is not enabled for metered hosting",
+            details={
+                "code": "scope_sandbox_runtime_metering_unavailable",
+                "retryable": False,
+            },
+        )
+    if settings.RUNTIME_METERING_MODE == "shadow":
+        log_warning("[runtime-billing] Scope Sandbox would be denied in required mode")
+
+
 @router.post("/connect", response_model=ApiResponse)
 async def connect(
     payload: ConnectRequest,
@@ -71,6 +91,7 @@ async def connect(
         payload.project_id, current_user.user_id, ProjectAction.SANDBOX_MANAGE
     )
     entitlement_service.require_feature(grant.org_id, "scope_sandbox.connect")
+    _guard_long_lived_runtime_metering()
     if not payload.public_key.strip():
         raise HTTPException(status_code=400, detail="public_key is required")
     if payload.provider and payload.provider not in ("fly", "e2b"):
@@ -121,10 +142,10 @@ async def revoke(
     authorization: AuthorizationService = Depends(get_authorization_service),
     service: ScopeSandboxService = Depends(get_scope_sandbox_service),
 ):
-    authorization.authorize(
-        payload.project_id, current_user.user_id, ProjectAction.SANDBOX_MANAGE
-    )
+    authorization.authorize(payload.project_id, current_user.user_id, ProjectAction.SANDBOX_MANAGE)
     remaining = await service.revoke(
-        project_id=payload.project_id, scope_id=payload.scope_id, user_id=current_user.user_id,
+        project_id=payload.project_id,
+        scope_id=payload.scope_id,
+        user_id=current_user.user_id,
     )
     return ApiResponse.success(data={"connected_users": remaining}, message="Access revoked")

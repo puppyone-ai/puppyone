@@ -77,9 +77,7 @@ class UserInitializationService:
         profile = self._profile_repo.get_or_create(user_id, email)
         if not profile:
             log_error(f"Failed to get/create profile for user {user_id}")
-            raise RuntimeError(
-                f"Cannot initialize user {user_id}: profile creation failed"
-            )
+            raise RuntimeError(f"Cannot initialize user {user_id}: profile creation failed")
 
         # 2. Ensure at least one organization exists
         orgs = self._org_repo.list_by_user(user_id)
@@ -95,6 +93,7 @@ class UserInitializationService:
         # 3. Ensure profile.default_org_id is set
         if not profile.default_org_id:
             from src.platform.profile.models import ProfileUpdate
+
             self._profile_repo.update(
                 user_id,
                 ProfileUpdate(default_org_id=org.id),
@@ -143,8 +142,7 @@ class UserInitializationService:
         if existing:
             self._profile_repo.mark_onboarded(user_id=user_id)
             log_info(
-                f"User {user_id} already had projects; marking onboarded "
-                f"without seeding a demo"
+                f"User {user_id} already had projects; marking onboarded without seeding a demo"
             )
             return None
 
@@ -167,10 +165,17 @@ class UserInitializationService:
         """Create the Get Started project, init its version tree, and seed
         template content. Returns the new project id, or None on failure
         (failures are logged but never block sign-in)."""
-        from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
         from src.platform.project.templates import seed_template_content
+        from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
 
         try:
+            from src.platform.entitlements.service import EntitlementService
+
+            EntitlementService().require_capacity(
+                org_id,
+                "projects.max",
+                current_count=0,
+            )
             project = self._project_service.create(
                 name=_DEMO_PROJECT_NAME,
                 description=_DEMO_PROJECT_DESCRIPTION,
@@ -178,10 +183,7 @@ class UserInitializationService:
                 created_by=user_id,
             )
         except Exception as e:
-            log_error(
-                f"Demo project: row create failed for user={user_id} "
-                f"org={org_id}: {e}"
-            )
+            log_error(f"Demo project: row create failed for user={user_id} org={org_id}: {e}")
             return None
 
         project_id = str(project.id)
@@ -193,9 +195,7 @@ class UserInitializationService:
             admin = build_worker_version_engine_container().admin_service()
             await admin.init_tree(project_id)
         except Exception as e:
-            log_error(
-                f"Demo project {project_id}: hash init_tree failed: {e}"
-            )
+            log_error(f"Demo project {project_id}: hash init_tree failed: {e}")
             return project_id
 
         # Same root-scope auto-create as the regular create_project router
@@ -205,11 +205,10 @@ class UserInitializationService:
         # no entry point.
         try:
             from src.repo.scope_service import ScopeService
+
             ScopeService().ensure_root_scope(project_id)
         except Exception as e:
-            log_error(
-                f"Demo project {project_id}: ensure_root_scope failed: {e}"
-            )
+            log_error(f"Demo project {project_id}: ensure_root_scope failed: {e}")
 
         try:
             await seed_template_content(
@@ -222,9 +221,7 @@ class UserInitializationService:
                 f"'{_DEMO_TEMPLATE_ID}' for user {user_id}"
             )
         except Exception as e:
-            log_error(
-                f"Demo project {project_id}: template seed failed: {e}"
-            )
+            log_error(f"Demo project {project_id}: template seed failed: {e}")
 
         return project_id
 
@@ -242,5 +239,21 @@ class UserInitializationService:
             user_id=user_id,
             role="owner",
         )
+
+        from src.config import settings
+
+        if settings.ENTITLEMENTS_MODE == "db":
+            try:
+                from src.platform.billing.provisioning import EntitlementProvisioningService
+
+                EntitlementProvisioningService().enqueue(
+                    org_id=org.id,
+                    actor_user_id=user_id,
+                )
+            except Exception as exc:
+                log_error(
+                    "Failed to enqueue initial entitlement provisioning "
+                    f"org={org.id} error_type={type(exc).__name__}"
+                )
 
         return org

@@ -1,10 +1,11 @@
-
+import asyncio
 import os
 from urllib.parse import urlsplit, urlunsplit
 
 from fastapi import APIRouter, Depends, Request, status
 
 from src.common_schemas import ApiResponse
+from src.config import settings
 from src.exceptions import ForbiddenException
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
@@ -16,8 +17,10 @@ from src.platform.organization.schemas import (
     CreateOrganization,
     InviteMember,
     OrganizationOut,
+    OrganizationSeatUsageOut,
     OrgInvitationOut,
     OrgMemberOut,
+    TransferOwnership,
     UpdateMemberRole,
     UpdateOrganization,
 )
@@ -79,6 +82,7 @@ def _invitation_to_out(
         email_error=email_result.error if email_result else None,
     )
 
+
 router = APIRouter(
     prefix="/organizations",
     tags=["organizations"],
@@ -107,14 +111,24 @@ def list_organizations(
 
 
 @router.post("/", response_model=ApiResponse[OrganizationOut], status_code=status.HTTP_201_CREATED)
-def create_organization(
+async def create_organization(
     payload: CreateOrganization,
     org_service: OrganizationService = Depends(get_org_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    org = org_service.create(
-        name=payload.name, slug=payload.slug, user_id=current_user.user_id
+    org = await asyncio.to_thread(
+        org_service.create,
+        name=payload.name,
+        slug=payload.slug,
+        user_id=current_user.user_id,
     )
+    if settings.ENTITLEMENTS_MODE == "db":
+        from src.platform.billing.provisioning import get_entitlement_provisioning_service
+
+        await get_entitlement_provisioning_service().ensure(
+            org_id=org.id,
+            actor_user_id=current_user.user_id,
+        )
     return ApiResponse.success(data=_org_to_out(org))
 
 
@@ -141,6 +155,16 @@ def get_organization_entitlements(
         raise ForbiddenException("Not a member of this organization")
     snapshot = entitlement_service.get_snapshot(org_id)
     return ApiResponse.success(data=snapshot.model_dump(mode="json"))
+
+
+@router.get("/{org_id}/seat-usage", response_model=ApiResponse[OrganizationSeatUsageOut])
+def get_organization_seat_usage(
+    org_id: str,
+    org_service: OrganizationService = Depends(get_org_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    quantity = org_service.get_billable_seat_quantity(org_id, current_user.user_id)
+    return ApiResponse.success(data=OrganizationSeatUsageOut(billable_seat_quantity=quantity))
 
 
 @router.put("/{org_id}", response_model=ApiResponse[OrganizationOut])
@@ -204,6 +228,17 @@ def update_member_role(
     return ApiResponse.success(message="Role updated")
 
 
+@router.post("/{org_id}/ownership/transfer", response_model=ApiResponse[None])
+def transfer_ownership(
+    org_id: str,
+    payload: TransferOwnership,
+    org_service: OrganizationService = Depends(get_org_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    org_service.transfer_ownership(org_id, payload.user_id, current_user.user_id)
+    return ApiResponse.success(message="Ownership transferred")
+
+
 @router.delete("/{org_id}/members/{target_user_id}", response_model=ApiResponse[None])
 def remove_member(
     org_id: str,
@@ -236,9 +271,7 @@ def invite_member(
     org_service: OrganizationService = Depends(get_org_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    invitation = org_service.invite(
-        org_id, payload.email, payload.role, current_user.user_id
-    )
+    invitation = org_service.invite(org_id, payload.email, payload.role, current_user.user_id)
     invite_url = f"{_resolve_frontend_origin(request)}/invite/{invitation.token}"
 
     # Best-effort email dispatch. Failures don't roll back the

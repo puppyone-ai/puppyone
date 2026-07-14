@@ -62,18 +62,13 @@ def _git_audit_detail(
     facade = repo_facade_from_auth(
         project_id or auth.get("_project_id", ""),
         auth,
-        kind=(
-            "access_point"
-            if entry_point == "access_key_git_remote"
-            else "project_git_remote"
-        ),
+        kind=("access_point" if entry_point == "access_key_git_remote" else "project_git_remote"),
     )
     scope = auth.get("_scope") or {}
     runtime_grant = auth.get("_runtime_grant")
     runtime_principal = getattr(runtime_grant, "principal", None)
-    runtime_principal_id = (
-        auth.get("_credential_id")
-        or getattr(runtime_principal, "principal_id", "")
+    runtime_principal_id = auth.get("_credential_id") or getattr(
+        runtime_principal, "principal_id", ""
     )
     runtime_credential_kind = getattr(runtime_principal, "credential_kind", "")
     return {
@@ -125,7 +120,10 @@ def _git_receive_max_body_bytes(project_id: str) -> int:
     project = ProjectRepositorySupabase().get_by_id(project_id)
     if project is None:
         return _effective_receive_pack_cap(None)
-    limit = EntitlementService().limit_value(project.org_id, "upload.max_batch_bytes")
+    limit = EntitlementService().enforced_limit_value(
+        project.org_id,
+        "upload.max_batch_bytes",
+    )
     return _effective_receive_pack_cap(limit)
 
 
@@ -184,10 +182,7 @@ async def _spool_git_request_body(
                 if max_body_bytes is not None and total > max_body_bytes:
                     raise HTTPException(
                         status_code=400,
-                        detail=(
-                            f"Git request body exceeds max allowed "
-                            f"{max_body_bytes} bytes"
-                        ),
+                        detail=(f"Git request body exceeds max allowed {max_body_bytes} bytes"),
                     )
                 tmp.write(chunk)
         tmp.close()
@@ -478,9 +473,7 @@ async def _git_receive_pack_for_target(
     repo_manager: VersionRepoManager,
 ):
     repo, facade = _repo_and_facade(target, repo_manager)
-    max_body_bytes = await asyncio.to_thread(
-        _git_receive_max_body_bytes, target.project_id
-    )
+    max_body_bytes = await asyncio.to_thread(_git_receive_max_body_bytes, target.project_id)
     request_path = await _spool_git_request_body(
         request,
         max_body_bytes=max_body_bytes,

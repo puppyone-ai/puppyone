@@ -17,38 +17,43 @@ Supported tool types:
 - bash (sandbox): configured via agent_bash, executed in a data sandbox
 - search: linked via agent_tool, vector retrieval (Turbopuffer)
 """
+
 import asyncio
+import contextlib
 import json
 import time
+import time as time_module  # For latency tracking
+import uuid
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass
-from typing import Any, AsyncGenerator, Optional
+from typing import Any
 
 from loguru import logger
 
-from src.connectors.agent.schemas import AgentRequest
 from src.config import settings
 from src.connectors.agent.chat.service import ChatService
 from src.connectors.agent.config.service import AgentConfigService
-from src.connectors.agent.sandbox_session import SandboxFile, SandboxData, prepare_sandbox_data
-from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
-from src.platform.analytics.service import log_context_access
 from src.connectors.agent.request_builder import (
+    _default_anthropic_client,
     _get_bash_tool,
     _sanitize_tool_name,
-    _default_anthropic_client,
 )
-import time as time_module  # For latency tracking
+from src.connectors.agent.sandbox_session import SandboxData, SandboxFile, prepare_sandbox_data
+from src.connectors.agent.schemas import AgentRequest
+from src.platform.analytics.service import log_context_access
+from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
 
 
 @dataclass
 class SearchToolConfig:
     """Search Tool configuration associated with an Agent."""
+
     tool_id: str
     path: str
     project_id: str
     node_type: str
-    name: str              # Original tool name
-    description: str       # Tool description
+    name: str  # Original tool name
+    description: str  # Tool description
     claude_tool_name: str  # Tool name registered with Claude
 
 
@@ -87,7 +92,6 @@ class AgentService:
         Returns:
             dict with execution results
         """
-        import time
         from src.config import settings
 
         result = {
@@ -115,10 +119,12 @@ class AgentService:
             # ========== 2. Collect bash tools ==========
             bash_tools: list[dict] = []
             for ba in agent.bash_accesses:
-                bash_tools.append({
-                    "path": ba.path,
-                    "readonly": ba.readonly,
-                })
+                bash_tools.append(
+                    {
+                        "path": ba.path,
+                        "readonly": ba.readonly,
+                    }
+                )
                 logger.info(f"[ScheduleAgent] Found bash access: path={ba.path}")
 
             use_bash = len(bash_tools) > 0
@@ -142,7 +148,9 @@ class AgentService:
                             project_id=agent.project_id,
                             path=tool["path"],
                         )
-                        logger.info(f"[ScheduleAgent] Prepared sandbox data: path={tool['path']}, files={len(data.files)}")
+                        logger.info(
+                            f"[ScheduleAgent] Prepared sandbox data: path={tool['path']}, files={len(data.files)}"
+                        )
                         all_files.extend(data.files)
 
                         if data.files:
@@ -170,7 +178,7 @@ class AgentService:
 
             # ========== 4. Start sandbox ==========
             if use_bash and sandbox_service:
-                sandbox_session_id = f"schedule-{int(time.time() * 1000)}"
+                sandbox_session_id = f"schedule-{uuid.uuid4()}"
 
                 if sandbox_data and sandbox_data.node_type == "json" and len(bash_tools) == 1:
                     json_content = {}
@@ -183,6 +191,12 @@ class AgentService:
                         session_id=sandbox_session_id,
                         data=json_content,
                         readonly=sandbox_readonly,
+                        audit_context={
+                            "source": "schedule_agent",
+                            "user_id": user_id,
+                            "agent_id": agent_id,
+                            "project_id": agent.project_id,
+                        },
                     )
                 else:
                     start_result = await sandbox_service.start_with_files(
@@ -190,10 +204,19 @@ class AgentService:
                         files=sandbox_data.files if sandbox_data else [],
                         readonly=sandbox_readonly,
                         s3_service=s3_service,
+                        audit_context={
+                            "source": "schedule_agent",
+                            "user_id": user_id,
+                            "agent_id": agent_id,
+                            "project_id": agent.project_id,
+                        },
                     )
 
                 if not start_result.get("success"):
-                    return {"status": "failed", "error": start_result.get("error", "Failed to start sandbox")}
+                    return {
+                        "status": "failed",
+                        "error": start_result.get("error", "Failed to start sandbox"),
+                    }
 
                 logger.info(f"[ScheduleAgent] Sandbox started: {sandbox_session_id}")
 
@@ -263,19 +286,25 @@ class AgentService:
                             all_text_outputs.append(text)
                             response_content.append({"type": "text", "text": text})
                         elif block_type == "tool_use":
-                            tool_uses.append({
-                                "id": getattr(block, "id", ""),
-                                "name": getattr(block, "name", ""),
-                                "input": getattr(block, "input", {}),
-                            })
-                            response_content.append({
-                                "type": "tool_use",
-                                "id": getattr(block, "id", ""),
-                                "name": getattr(block, "name", ""),
-                                "input": getattr(block, "input", {}),
-                            })
+                            tool_uses.append(
+                                {
+                                    "id": getattr(block, "id", ""),
+                                    "name": getattr(block, "name", ""),
+                                    "input": getattr(block, "input", {}),
+                                }
+                            )
+                            response_content.append(
+                                {
+                                    "type": "tool_use",
+                                    "id": getattr(block, "id", ""),
+                                    "name": getattr(block, "name", ""),
+                                    "input": getattr(block, "input", {}),
+                                }
+                            )
 
-                    logger.info(f"[ScheduleAgent] Claude response: stop_reason={stop_reason}, tool_uses={len(tool_uses)}")
+                    logger.info(
+                        f"[ScheduleAgent] Claude response: stop_reason={stop_reason}, tool_uses={len(tool_uses)}"
+                    )
 
                     # No tool calls, finish
                     if not tool_uses:
@@ -298,31 +327,38 @@ class AgentService:
                                     "source": "schedule_agent",
                                     "agent_id": agent_id,
                                     "session_id": sandbox_session_id,
+                                    "project_id": agent.project_id,
                                 },
                             )
 
                             if exec_result.get("success"):
                                 output = exec_result.get("output", "")
-                                result["tool_calls"].append({
-                                    "command": command,
-                                    "output": output[:500],
-                                    "success": True,
-                                })
+                                result["tool_calls"].append(
+                                    {
+                                        "command": command,
+                                        "output": output[:500],
+                                        "success": True,
+                                    }
+                                )
                             else:
                                 output = exec_result.get("error", "")
-                                result["tool_calls"].append({
-                                    "command": command,
-                                    "output": output[:500],
-                                    "success": False,
-                                })
+                                result["tool_calls"].append(
+                                    {
+                                        "command": command,
+                                        "output": output[:500],
+                                        "success": False,
+                                    }
+                                )
                         else:
                             output = f"Unknown tool: {tool_name}"
 
-                        tool_results.append({
-                            "type": "tool_result",
-                            "tool_use_id": tool.get("id", ""),
-                            "content": output,
-                        })
+                        tool_results.append(
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": tool.get("id", ""),
+                                "content": output,
+                            }
+                        )
 
                     messages.append({"role": "assistant", "content": response_content})
                     messages.append({"role": "user", "content": tool_results})
@@ -342,8 +378,12 @@ class AgentService:
                     agent_identity = f"agent:{agent.id}" if agent else "agent:unknown"
 
                     from src.connectors.agent.sandbox_session import _read_modified_files
-                    from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
-                    from src.version_engine.adapters.batch.in_process_client import InProcessVersionClient
+                    from src.version_engine.adapters.batch.in_process_client import (
+                        InProcessVersionClient,
+                    )
+                    from src.version_engine.bootstrap.dependencies import (
+                        build_worker_version_engine_container,
+                    )
 
                     # _read_modified_files returns (modified, deleted); the
                     # chat path unpacks it but the schedule path used to assign
@@ -370,9 +410,12 @@ class AgentService:
                                     "mode": "rw",
                                 },
                             }
-                            client = InProcessVersionClient(repo_manager, agent.project_id, version_auth)
+                            client = InProcessVersionClient(
+                                repo_manager, agent.project_id, version_auth
+                            )
                             await asyncio.to_thread(client.clone)
                             from src.version_engine.derived.hooks import push_and_finalize
+
                             push_result = await push_and_finalize(
                                 client,
                                 agent.project_id,
@@ -387,10 +430,14 @@ class AgentService:
                                 f"files={len(modified_files)} deleted={len(deleted_files)}"
                             )
                             for path in modified_files:
-                                result["updated_nodes"].append({
-                                    "nodeId": path,
-                                    "nodeName": path.rsplit("/", 1)[-1] if "/" in path else path,
-                                })
+                                result["updated_nodes"].append(
+                                    {
+                                        "nodeId": path,
+                                        "nodeName": path.rsplit("/", 1)[-1]
+                                        if "/" in path
+                                        else path,
+                                    }
+                                )
                         except Exception as e:
                             logger.warning(f"[ScheduleAgent] version push failed: {e}")
 
@@ -416,9 +463,9 @@ class AgentService:
         ops: ProductOperationAdapter | None,
         tool_service,
         sandbox_service,
-        chat_service: Optional[ChatService] = None,
+        chat_service: ChatService | None = None,
         s3_service=None,
-        agent_config_service: Optional[AgentConfigService] = None,
+        agent_config_service: AgentConfigService | None = None,
         search_service=None,
         max_iterations: int = 15,
     ) -> AsyncGenerator[dict, None]:
@@ -433,33 +480,45 @@ class AgentService:
         # ========== 1. Parse configuration, prefer new agent_access ==========
         bash_tools: list[dict] = []  # [{path, readonly}, ...]
 
-        logger.info(f"[Agent DEBUG] agent_id={request.agent_id}, active_tool_ids={request.active_tool_ids}, user_id={current_user.user_id if current_user else None}")
+        logger.info(
+            f"[Agent DEBUG] agent_id={request.agent_id}, active_tool_ids={request.active_tool_ids}, user_id={current_user.user_id if current_user else None}"
+        )
 
         # New version: if agent_id exists, read configuration from agent_bash table
         if request.agent_id and current_user and agent_config_service:
             try:
                 agent = agent_config_service.get_agent(request.agent_id)
-                logger.info(f"[Agent DEBUG] Got agent: {agent.id if agent else None}, project_id={agent.project_id if agent else None}")
+                logger.info(
+                    f"[Agent DEBUG] Got agent: {agent.id if agent else None}, project_id={agent.project_id if agent else None}"
+                )
 
                 # Verify access: check whether the user has permission to access this Agent via project_id
                 # Note: the Agent model has no user_id field; verification goes through the project table
                 has_access = False
                 if agent:
-                    has_access = agent_config_service.is_visible_to(request.agent_id, current_user.user_id)
+                    has_access = agent_config_service.is_visible_to(
+                        request.agent_id, current_user.user_id
+                    )
                     logger.info(f"[Agent DEBUG] Access check: has_access={has_access}")
 
                 if agent and has_access:
-                    logger.info(f"[Agent] Found agent config: id={agent.id}, bash_accesses={len(agent.bash_accesses)}")
+                    logger.info(
+                        f"[Agent] Found agent config: id={agent.id}, bash_accesses={len(agent.bash_accesses)}"
+                    )
                     # Collect all Bash access permissions (in the new architecture all bash_accesses are terminal accesses)
                     for bash in agent.bash_accesses:
-                        bash_tools.append({
-                            "path": bash.path,
-                            "readonly": bash.readonly,
-                        })
+                        bash_tools.append(
+                            {
+                                "path": bash.path,
+                                "readonly": bash.readonly,
+                            }
+                        )
                         logger.info(f"[Agent] Found bash access from agent_bash: path={bash.path}")
                     logger.info(f"[Agent] Total bash accesses collected: {len(bash_tools)}")
                 else:
-                    logger.warning(f"[Agent] Agent not found or unauthorized: agent_id={request.agent_id}, has_access={has_access}")
+                    logger.warning(
+                        f"[Agent] Agent not found or unauthorized: agent_id={request.agent_id}, has_access={has_access}"
+                    )
                     if not agent:
                         raise ValueError(f"Agent not found: {request.agent_id}")
                     if not has_access:
@@ -475,7 +534,13 @@ class AgentService:
         # ========== 1b. Collect Search Tools (from agent_tool bindings) ==========
         search_tools_map: dict[str, SearchToolConfig] = {}  # {claude_tool_name: SearchToolConfig}
 
-        if request.agent_id and current_user and agent_config_service and tool_service and search_service:
+        if (
+            request.agent_id
+            and current_user
+            and agent_config_service
+            and tool_service
+            and search_service
+        ):
             try:
                 agent_for_tools = agent_config_service.get_agent(request.agent_id)
 
@@ -492,7 +557,11 @@ class AgentService:
 
                         # Get node info to determine search type
                         try:
-                            node = ops.stat(agent_for_tools.project_id, tool_info.path) if ops else None
+                            node = (
+                                ops.stat(agent_for_tools.project_id, tool_info.path)
+                                if ops
+                                else None
+                            )
                             if not node:
                                 continue
                         except Exception:
@@ -514,7 +583,9 @@ class AgentService:
                             description=tool_info.description or f"Search in {tool_info.name}",
                             claude_tool_name=claude_name,
                         )
-                        logger.info(f"[Agent] Loaded search tool: {claude_name} (tool_id={tool_info.id}, node_type={node.type})")
+                        logger.info(
+                            f"[Agent] Loaded search tool: {claude_name} (tool_id={tool_info.id}, node_type={node.type})"
+                        )
 
                     if search_tools_map:
                         logger.info(f"[Agent] Total search tools: {len(search_tools_map)}")
@@ -526,7 +597,9 @@ class AgentService:
         created_session = False
         should_persist = current_user is not None and chat_service is not None
 
-        logger.info(f"[Chat Persist] should_persist={should_persist}, current_user={current_user is not None}, chat_service={chat_service is not None}")
+        logger.info(
+            f"[Chat Persist] should_persist={should_persist}, current_user={current_user is not None}, chat_service={chat_service is not None}"
+        )
 
         if should_persist:
             try:
@@ -536,7 +609,9 @@ class AgentService:
                     agent_id=request.agent_id,
                     mode="agent",
                 )
-                logger.info(f"[Chat Persist] Session ready: id={persisted_session_id}, created={created_session}")
+                logger.info(
+                    f"[Chat Persist] Session ready: id={persisted_session_id}, created={created_session}"
+                )
                 # If this is a newly created session, set the title first
                 if created_session and persisted_session_id:
                     try:
@@ -576,7 +651,9 @@ class AgentService:
         # Save user message
         if should_persist and persisted_session_id:
             try:
-                chat_service.add_user_message(session_id=persisted_session_id, content=request.prompt)
+                chat_service.add_user_message(
+                    session_id=persisted_session_id, content=request.prompt
+                )
                 logger.info(f"[Chat Persist] User message saved to session {persisted_session_id}")
             except Exception as e:
                 logger.error(f"[Chat Persist] Failed to save user message: {e}")
@@ -613,8 +690,10 @@ class AgentService:
                         project_id=_agent_project_id,
                         path=tool["path"],
                     )
-                    logger.info(f"[Agent] Prepared sandbox data for access {i+1}/{len(bash_tools)}: "
-                               f"path={tool['path']}, type={data.node_type}, files={len(data.files)}")
+                    logger.info(
+                        f"[Agent] Prepared sandbox data for access {i + 1}/{len(bash_tools)}: "
+                        f"path={tool['path']}, type={data.node_type}, files={len(data.files)}"
+                    )
                     all_files.extend(data.files)
 
                     # Log context access (data egress tracking)
@@ -642,7 +721,9 @@ class AgentService:
                                 }
                         # Also record the folder itself (for display)
                         node_path_map[tool["path"]] = {
-                            "path": f"/workspace/{data.root_node_name}" if data.root_node_name else "/workspace",
+                            "path": f"/workspace/{data.root_node_name}"
+                            if data.root_node_name
+                            else "/workspace",
                             "node_type": "folder",
                             "readonly": tool["readonly"],
                             "is_folder_parent": True,
@@ -660,7 +741,9 @@ class AgentService:
                     else:
                         # Record empty folders too, using the folder name as the path
                         node_path_map[tool["path"]] = {
-                            "path": f"/workspace/{data.root_node_name}" if data.root_node_name else "/workspace/(empty folder)",
+                            "path": f"/workspace/{data.root_node_name}"
+                            if data.root_node_name
+                            else "/workspace/(empty folder)",
                             "node_type": data.node_type,
                             "readonly": tool["readonly"],
                             "is_empty": True,
@@ -672,26 +755,33 @@ class AgentService:
                         primary_path = data.root_path
                         primary_node_name = data.root_node_name
                 except Exception as e:
-                    logger.warning(f"[Agent] Failed to prepare sandbox data for node {tool['path']}: {e}")
+                    logger.warning(
+                        f"[Agent] Failed to prepare sandbox data for node {tool['path']}: {e}"
+                    )
 
             sandbox_data = SandboxData(
                 files=all_files,
-                node_type=primary_node_type if len(bash_tools) == 1 else "multi",  # mark as multi when there are multiple
+                node_type=primary_node_type
+                if len(bash_tools) == 1
+                else "multi",  # mark as multi when there are multiple
                 root_path=primary_path,
                 root_node_name=primary_node_name,
                 node_path_map=node_path_map,
             )
-            logger.info(f"[Agent] Total sandbox files: {len(all_files)} from {len(bash_tools)} accesses, path_map={list(node_path_map.keys())}")
+            logger.info(
+                f"[Agent] Total sandbox files: {len(all_files)} from {len(bash_tools)} accesses, path_map={list(node_path_map.keys())}"
+            )
 
         if use_bash and sandbox_service:
             from src.connectors.agent.sandbox_session import AgentSandboxSession
+
             sandbox_parent_path = ""
 
             # A chat turn owns exactly one execution and never publishes its
             # non-serializable Version client into a process-global registry.
             # Provider lifecycle is tracked by the execution subsystem; this
             # local object exists only to perform the request's final write-back.
-            sandbox_session_id = f"agent-{int(time.time() * 1000)}"
+            sandbox_session_id = f"agent-{uuid.uuid4()}"
 
             if sandbox_data and sandbox_data.node_type == "json" and len(bash_tools) == 1:
                 json_content = {}
@@ -704,6 +794,12 @@ class AgentService:
                     session_id=sandbox_session_id,
                     data=json_content,
                     readonly=sandbox_readonly,
+                    audit_context={
+                        "source": "chat_agent",
+                        "user_id": current_user.user_id if current_user else None,
+                        "agent_id": request.agent_id,
+                        "project_id": _agent_project_id,
+                    },
                 )
             else:
                 start_result = await sandbox_service.start_with_files(
@@ -711,6 +807,12 @@ class AgentService:
                     files=sandbox_data.files if sandbox_data else [],
                     readonly=sandbox_readonly,
                     s3_service=s3_service,
+                    audit_context={
+                        "source": "chat_agent",
+                        "user_id": current_user.user_id if current_user else None,
+                        "agent_id": request.agent_id,
+                        "project_id": _agent_project_id,
+                    },
                 )
 
             if start_result.get("success"):
@@ -723,15 +825,22 @@ class AgentService:
                             sandbox_parent_path = root_path
                             scope_path = root_path.strip("/")
                         else:
-                            sandbox_parent_path = root_path.rsplit("/", 1)[0] if "/" in root_path else ""
+                            sandbox_parent_path = (
+                                root_path.rsplit("/", 1)[0] if "/" in root_path else ""
+                            )
                             scope_path = sandbox_parent_path.strip("/")
 
                 version_client = None
                 cloned_files = {}
                 repo_manager = None
                 if _agent_project_id and not sandbox_readonly:
-                    from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
-                    from src.version_engine.adapters.batch.in_process_client import InProcessVersionClient
+                    from src.version_engine.adapters.batch.in_process_client import (
+                        InProcessVersionClient,
+                    )
+                    from src.version_engine.bootstrap.dependencies import (
+                        build_worker_version_engine_container,
+                    )
+
                     repo_manager = build_worker_version_engine_container().repo_manager
                     version_auth = {
                         "agent": f"agent:{request.agent_id}",
@@ -742,7 +851,9 @@ class AgentService:
                             "mode": "rw",
                         },
                     }
-                    version_client = InProcessVersionClient(repo_manager, _agent_project_id, version_auth)
+                    version_client = InProcessVersionClient(
+                        repo_manager, _agent_project_id, version_auth
+                    )
                     cloned_files = await asyncio.to_thread(version_client.clone)
 
                 now = time.time()
@@ -765,14 +876,12 @@ class AgentService:
                 err_msg = start_result.get("error", "Failed to start sandbox")
                 yield {"type": "error", "message": err_msg}
                 if should_persist and persisted_session_id:
-                    try:
+                    with contextlib.suppress(Exception):
                         chat_service.add_assistant_message(
                             session_id=persisted_session_id,
                             content=err_msg,
                             parts=[{"type": "text", "content": err_msg}],
                         )
-                    except Exception:
-                        pass
                 return
 
             yield {"type": "status", "message": "Sandbox ready"}
@@ -782,25 +891,27 @@ class AgentService:
 
         # Register Search Tools with Claude
         for claude_name, stc in search_tools_map.items():
-            tools.append({
-                "name": claude_name,
-                "description": stc.description,
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "query": {
-                            "type": "string",
-                            "description": "The search query text",
+            tools.append(
+                {
+                    "name": claude_name,
+                    "description": stc.description,
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "query": {
+                                "type": "string",
+                                "description": "The search query text",
+                            },
+                            "top_k": {
+                                "type": "integer",
+                                "description": "Number of results to return (default 5, max 20)",
+                                "default": 5,
+                            },
                         },
-                        "top_k": {
-                            "type": "integer",
-                            "description": "Number of results to return (default 5, max 20)",
-                            "default": 5,
-                        },
+                        "required": ["query"],
                     },
-                    "required": ["query"],
-                },
-            })
+                }
+            )
 
         use_search = len(search_tools_map) > 0
 
@@ -828,8 +939,8 @@ class AgentService:
             search_prompt_suffix = (
                 "\n\n[Available Search Tools]\n"
                 "You have access to the following search tools for semantic retrieval:\n"
-                + "\n".join(search_tool_descriptions) +
-                "\nUse these tools when the user asks questions about the data. "
+                + "\n".join(search_tool_descriptions)
+                + "\nUse these tools when the user asks questions about the data. "
                 "Pass a natural language query to search for relevant information."
             )
             system_prompt += search_prompt_suffix
@@ -853,7 +964,11 @@ class AgentService:
                 return "\n".join(lines) if lines else "  - /workspace/ (unknown)"
 
             if node_type == "json" and len(bash_tools) == 1:
-                mode_str = "⚠️ Read-only mode - changes will not be saved" if sandbox_readonly else "✏️ Read-write mode"
+                mode_str = (
+                    "⚠️ Read-only mode - changes will not be saved"
+                    if sandbox_readonly
+                    else "✏️ Read-write mode"
+                )
                 context_prefix = (
                     f"[Data Context]\n"
                     f"Node type: JSON\n"
@@ -862,7 +977,11 @@ class AgentService:
                     f"[User Message]\n"
                 )
             elif node_type == "folder" and len(bash_tools) == 1:
-                mode_str = "⚠️ Read-only mode - changes will not be saved" if sandbox_readonly else "✏️ Read-write mode"
+                mode_str = (
+                    "⚠️ Read-only mode - changes will not be saved"
+                    if sandbox_readonly
+                    else "✏️ Read-write mode"
+                )
                 context_prefix = (
                     f"[Data Context]\n"
                     f"Node type: Folder\n"
@@ -889,8 +1008,14 @@ class AgentService:
                 )
             else:
                 # Single file such as file/pdf/image etc.
-                file_name = sandbox_data.files[0].path.split("/")[-1] if sandbox_data.files else "file"
-                mode_str = "⚠️ Read-only mode - changes will not be saved" if sandbox_readonly else "✏️ Read-write mode"
+                file_name = (
+                    sandbox_data.files[0].path.split("/")[-1] if sandbox_data.files else "file"
+                )
+                mode_str = (
+                    "⚠️ Read-only mode - changes will not be saved"
+                    if sandbox_readonly
+                    else "✏️ Read-write mode"
+                )
                 context_prefix = (
                     f"[Data Context]\n"
                     f"Node type: {node_type}\n"
@@ -914,7 +1039,9 @@ class AgentService:
             logger.info(f"[CLAUDE REQUEST] Iteration {iterations} (streaming)")
             logger.info(f"[CLAUDE DEBUG] system_prompt = {system_prompt}")
             logger.info(f"[CLAUDE DEBUG] tools = {json.dumps(tools, ensure_ascii=False)}")
-            logger.info(f"[CLAUDE DEBUG] messages = {json.dumps(messages, ensure_ascii=False, default=str)[:2000]}")
+            logger.info(
+                f"[CLAUDE DEBUG] messages = {json.dumps(messages, ensure_ascii=False, default=str)[:2000]}"
+            )
 
             try:
                 # ===== Streaming call to Claude =====
@@ -972,24 +1099,34 @@ class AgentService:
                         elif event_type == "content_block_stop":
                             if current_text_content:
                                 # Text block finished, save complete text
-                                persisted_parts.append({"type": "text", "content": current_text_content})
-                                response_content.append({"type": "text", "text": current_text_content})
+                                persisted_parts.append(
+                                    {"type": "text", "content": current_text_content}
+                                )
+                                response_content.append(
+                                    {"type": "text", "text": current_text_content}
+                                )
                                 current_text_content = ""
 
                             if current_tool:
                                 # Tool block finished, parse JSON input
                                 try:
-                                    current_tool["input"] = json.loads(current_tool_input_json) if current_tool_input_json else {}
+                                    current_tool["input"] = (
+                                        json.loads(current_tool_input_json)
+                                        if current_tool_input_json
+                                        else {}
+                                    )
                                 except json.JSONDecodeError:
                                     current_tool["input"] = {"raw": current_tool_input_json}
 
                                 tool_uses.append(current_tool)
-                                response_content.append({
-                                    "type": "tool_use",
-                                    "id": current_tool["id"],
-                                    "name": current_tool["name"],
-                                    "input": current_tool["input"],
-                                })
+                                response_content.append(
+                                    {
+                                        "type": "tool_use",
+                                        "id": current_tool["id"],
+                                        "name": current_tool["name"],
+                                        "input": current_tool["input"],
+                                    }
+                                )
                                 current_tool = None
                                 current_tool_input_json = ""
 
@@ -998,26 +1135,24 @@ class AgentService:
                             if delta:
                                 stop_reason = getattr(delta, "stop_reason", None)
 
-                logger.info(f"[CLAUDE RESPONSE] Iteration {iterations}: stop_reason={stop_reason}, tool_uses={len(tool_uses)}")
+                logger.info(
+                    f"[CLAUDE RESPONSE] Iteration {iterations}: stop_reason={stop_reason}, tool_uses={len(tool_uses)}"
+                )
 
             except Exception as e:
                 msg = str(e)
                 logger.error(f"[CLAUDE ERROR] {msg}")
                 yield {"type": "error", "message": msg}
                 if should_persist and persisted_session_id:
-                    try:
+                    with contextlib.suppress(Exception):
                         chat_service.add_assistant_message(
                             session_id=persisted_session_id,
                             content=msg,
                             parts=[{"type": "text", "content": msg}],
                         )
-                    except Exception:
-                        pass
                 if sandbox_session_id and sandbox_service:
-                    try:
+                    with contextlib.suppress(Exception):
                         await sandbox_service.stop(sandbox_session_id)
-                    except Exception:
-                        pass
                 return
 
             # No tool calls, exit loop
@@ -1036,16 +1171,22 @@ class AgentService:
                     "type": "tool_start",
                     "toolId": current_tool_index,
                     "toolName": tool_name,
-                    "toolInput": tool_input.get("command") if tool_name == "bash" else json.dumps(tool_input),
+                    "toolInput": tool_input.get("command")
+                    if tool_name == "bash"
+                    else json.dumps(tool_input),
                 }
 
-                persisted_parts.append({
-                    "type": "tool",
-                    "toolId": str(current_tool_index),
-                    "toolName": tool_name or "tool",
-                    "toolInput": tool_input.get("command") if tool_name == "bash" else json.dumps(tool_input),
-                    "toolStatus": "running",
-                })
+                persisted_parts.append(
+                    {
+                        "type": "tool",
+                        "toolId": str(current_tool_index),
+                        "toolName": tool_name or "tool",
+                        "toolInput": tool_input.get("command")
+                        if tool_name == "bash"
+                        else json.dumps(tool_input),
+                        "toolStatus": "running",
+                    }
+                )
 
                 success = True
                 output = ""
@@ -1061,6 +1202,7 @@ class AgentService:
                             "user_id": current_user.user_id if current_user else None,
                             "agent_id": request.agent_id,
                             "session_id": persisted_session_id,
+                            "project_id": _agent_project_id,
                         },
                     )
 
@@ -1103,7 +1245,9 @@ class AgentService:
                         exec_latency = int((time_module.time() - exec_start) * 1000)
                         output = f"Search error: {e!s}"
                         success = False
-                        logger.error(f"[Agent] Search tool failed: {tool_name}, error={e}, latency={exec_latency}ms")
+                        logger.error(
+                            f"[Agent] Search tool failed: {tool_name}, error={e}, latency={exec_latency}ms"
+                        )
                 else:
                     output = f"Unknown tool: {tool_name}"
                     success = False
@@ -1124,12 +1268,14 @@ class AgentService:
                         p["toolOutput"] = output[:500]
                         break
 
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": tool.get("id", ""),
-                    "content": output,
-                    "is_error": not success,
-                })
+                tool_results.append(
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": tool.get("id", ""),
+                        "content": output,
+                        "is_error": not success,
+                    }
+                )
 
             messages.append({"role": "assistant", "content": response_content})
             messages.append({"role": "user", "content": tool_results})
@@ -1138,7 +1284,9 @@ class AgentService:
                 break
 
         # ========== 6. Save results, clean up sandbox ==========
-        logger.info(f"[Chat Persist] Attempting to save assistant message: should_persist={should_persist}, session_id={persisted_session_id}, parts_count={len(persisted_parts)}")
+        logger.info(
+            f"[Chat Persist] Attempting to save assistant message: should_persist={should_persist}, session_id={persisted_session_id}, parts_count={len(persisted_parts)}"
+        )
         if should_persist and persisted_session_id:
             try:
                 for p in persisted_parts:
@@ -1147,7 +1295,9 @@ class AgentService:
                 final_content = "\n\n".join(
                     [p.get("content", "") for p in persisted_parts if p.get("type") == "text"]
                 ).strip()
-                logger.info(f"[Chat Persist] Saving assistant message: content_length={len(final_content)}, parts={persisted_parts}")
+                logger.info(
+                    f"[Chat Persist] Saving assistant message: content_length={len(final_content)}, parts={persisted_parts}"
+                )
                 chat_service.add_assistant_message(
                     session_id=persisted_session_id, content=final_content, parts=persisted_parts
                 )
@@ -1155,7 +1305,9 @@ class AgentService:
             except Exception as e:
                 logger.error(f"[Chat Persist] Failed to save assistant message: {e}")
         else:
-            logger.warning(f"[Chat Persist] Skipping assistant message save: should_persist={should_persist}, session_id={persisted_session_id}")
+            logger.warning(
+                f"[Chat Persist] Skipping assistant message save: should_persist={should_persist}, session_id={persisted_session_id}"
+            )
 
         if use_bash and sandbox_service and sandbox_session_id:
             from src.connectors.agent.sandbox_session import (
@@ -1163,7 +1315,11 @@ class AgentService:
             )
 
             updated_nodes = []
-            if live_sandbox_session and live_sandbox_session.version_client and not live_sandbox_session.readonly:
+            if (
+                live_sandbox_session
+                and live_sandbox_session.version_client
+                and not live_sandbox_session.readonly
+            ):
                 try:
                     modified, deleted = await _read_modified_files(
                         sandbox_service,
@@ -1174,6 +1330,7 @@ class AgentService:
                     )
                     if modified or deleted:
                         from src.version_engine.derived.hooks import push_and_finalize
+
                         push_result = await push_and_finalize(
                             live_sandbox_session.version_client,
                             live_sandbox_session.project_id,
@@ -1192,11 +1349,13 @@ class AgentService:
                         )
                         for path in modified:
                             node_name = path.rsplit("/", 1)[-1] if "/" in path else path
-                            updated_nodes.append({
-                                "nodeId": path,
-                                "nodeName": node_name,
-                                "mergeStrategy": "version_push",
-                            })
+                            updated_nodes.append(
+                                {
+                                    "nodeId": path,
+                                    "nodeName": node_name,
+                                    "mergeStrategy": "version_push",
+                                }
+                            )
                 except Exception as e:
                     logger.error(f"[Agent] Write-back failed: {e}", exc_info=True)
 
@@ -1216,4 +1375,3 @@ class AgentService:
 
         else:
             yield {"type": "result", "success": True}
-

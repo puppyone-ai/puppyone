@@ -752,7 +752,7 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
             {/* Tab heading — 14px / 600 / `T.text1`. A notch smaller
                 than the previous 16px so the heading doesn't shout
                 over the 15px card titles directly below it
-                (workspace name / "Free" plan), and the modal feels
+                (workspace name / billing handoff), and the modal feels
                 like the same scale as the page-level Settings header
                 (13px / 500 across /(main)). */}
             <div
@@ -909,7 +909,7 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                         textTransform: 'uppercase',
                       }}
                     >
-                      Plan
+                      Billing
                     </div>
                     <div
                       style={{
@@ -918,7 +918,7 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                         color: T.text1,
                       }}
                     >
-                      Free
+                      PuppyOne Desktop
                     </div>
                     <div
                       style={{
@@ -934,7 +934,7 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                         lineHeight: 1.6,
                       }}
                     >
-                      Manage your subscription and billing settings.
+                      View the authoritative plan, usage, and billing settings in the Desktop app.
                     </div>
                   </div>
                 </div>

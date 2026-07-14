@@ -3,31 +3,32 @@ Internal API Router
 Called by internal services (e.g., MCP Server), authenticated via SECRET
 """
 
+import asyncio
 import hmac
+from typing import Any
 
 from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, Request
-from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any
-from src.content.table.dependencies import get_table_service
+
 from src.config import settings
+from src.content.table.dependencies import get_table_service
 from src.exceptions import AppException
-from src.infra.supabase.dependencies import get_supabase_repository
-from src.infra.turbopuffer.internal_router import router as turbopuffer_internal_router
 from src.infra.search.dependencies import get_search_service
 from src.infra.search.schemas import SearchToolQueryInput, SearchToolQueryResponse
+from src.infra.supabase.dependencies import get_supabase_repository
+from src.infra.turbopuffer.internal_router import router as turbopuffer_internal_router
+from src.platform.authorization.service import redacted_project_ref
+from src.platform.billing.facts import BillingFactsService
 from src.platform.entitlements.dependencies import get_entitlement_service
 from src.platform.entitlements.models import EntitlementUpsert
 from src.platform.entitlements.service import EntitlementService
 from src.platform.organization.repository import OrganizationRepository
-from src.platform.authorization.service import redacted_project_ref
+from src.utils.logger import log_warning
+from src.version_engine.adapters.product.commands import VersionWriteCommandService
+from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
 from src.version_engine.bootstrap.dependencies import (
     build_worker_version_engine_container,
     get_product_operation_adapter,
 )
-from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
-from src.version_engine.adapters.product.commands import VersionWriteCommandService
-from src.platform.project.repository import ProjectRepositorySupabase
-from src.utils.logger import log_warning
 
 router = APIRouter(prefix="/internal", tags=["internal"])
 
@@ -90,18 +91,16 @@ def _enforce_acting_user_project_access(
         raise HTTPException(
             status_code=400,
             detail=(
-                "Internal endpoints operating on a project must declare "
-                "X-Acting-User-Id header"
+                "Internal endpoints operating on a project must declare X-Acting-User-Id header"
             ),
         )
 
     try:
         from src.platform.authorization.factory import build_authorization_service
         from src.platform.authorization.models import ProjectAction
+
         selected_action = action or ProjectAction.CONTENT_READ
-        allowed = build_authorization_service().allows(
-            project_id, acting_user, selected_action
-        )
+        allowed = build_authorization_service().allows(project_id, acting_user, selected_action)
     except Exception as e:
         log_warning(
             "[Internal] project access check error "
@@ -141,9 +140,7 @@ def _enforce_acting_user_table_access(
     table = table_service.get_by_id(table_id)
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
-    return _enforce_acting_user_project_access(
-        request, table.project_id, action=action
-    )
+    return _enforce_acting_user_project_access(request, table.project_id, action=action)
 
 
 # ============================================================
@@ -164,10 +161,10 @@ async def upsert_organization_entitlements(
     payload: EntitlementUpsert,
     entitlement_service: EntitlementService = Depends(get_entitlement_service),
 ):
-    snapshot = entitlement_service.upsert(payload)
+    acknowledgement = entitlement_service.publish(payload)
     return {
         "ok": True,
-        "data": snapshot.model_dump(mode="json"),
+        "data": acknowledgement.model_dump(mode="json"),
     }
 
 
@@ -200,12 +197,24 @@ async def verify_billing_organization_access(
 
 
 @router.get(
+    "/billing/organizations/{org_id}/facts",
+    summary="Read non-financial organization billing facts for reconciliation",
+    dependencies=[Depends(verify_internal_secret)],
+)
+async def get_billing_organization_facts(org_id: str):
+    facts = await asyncio.to_thread(BillingFactsService().get, org_id)
+    return {"ok": True, "data": facts.model_dump(mode="json")}
+
+
+@router.get(
     "/table/{table_id}",
     summary="Get table metadata",
     description="Get table metadata by table_id (excluding data content)",
     dependencies=[Depends(verify_internal_secret)],
 )
-async def get_table_metadata(table_id: str, request: Request, table_service=Depends(get_table_service)):
+async def get_table_metadata(
+    table_id: str, request: Request, table_service=Depends(get_table_service)
+):
     table = table_service.get_by_id(table_id)
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
@@ -239,12 +248,11 @@ async def get_table_context_schema(
 ):
     try:
         from src.platform.authorization.models import ProjectAction
+
         _enforce_acting_user_table_access(
             request, table_service, table_id, ProjectAction.CONTENT_READ
         )
-        return table_service.get_context_structure(
-            table_id=table_id, json_pointer_path=json_path
-        )
+        return table_service.get_context_structure(table_id=table_id, json_pointer_path=json_path)
     except HTTPException:
         raise
     except AppException as e:
@@ -263,13 +271,12 @@ async def get_table_context_data(
     table_id: str,
     request: Request,
     json_path: str = Query(default="", description="Mount point JSON Pointer path"),
-    query: Optional[str] = Query(
-        default=None, description="JMESPath query expression (optional)"
-    ),
+    query: str | None = Query(default=None, description="JMESPath query expression (optional)"),
     table_service=Depends(get_table_service),
 ):
     try:
         from src.platform.authorization.models import ProjectAction
+
         _enforce_acting_user_table_access(
             request, table_service, table_id, ProjectAction.CONTENT_READ
         )
@@ -277,9 +284,7 @@ async def get_table_context_data(
             return table_service.query_context_data_with_jmespath(
                 table_id=table_id, json_pointer_path=json_path, query=query
             )
-        return table_service.get_context_data(
-            table_id=table_id, json_pointer_path=json_path
-        )
+        return table_service.get_context_data(table_id=table_id, json_pointer_path=json_path)
     except HTTPException:
         raise
     except AppException as e:
@@ -296,12 +301,13 @@ async def get_table_context_data(
 )
 async def create_table_context_data(
     table_id: str,
-    payload: Dict[str, Any],
+    payload: dict[str, Any],
     request: Request,
     table_service=Depends(get_table_service),
 ):
     try:
         from src.platform.authorization.models import ProjectAction
+
         _enforce_acting_user_table_access(
             request, table_service, table_id, ProjectAction.CONTENT_WRITE
         )
@@ -329,12 +335,13 @@ async def create_table_context_data(
 )
 async def update_table_context_data(
     table_id: str,
-    payload: Dict[str, Any],
+    payload: dict[str, Any],
     request: Request,
     table_service=Depends(get_table_service),
 ):
     try:
         from src.platform.authorization.models import ProjectAction
+
         _enforce_acting_user_table_access(
             request, table_service, table_id, ProjectAction.CONTENT_WRITE
         )
@@ -360,12 +367,13 @@ async def update_table_context_data(
 )
 async def delete_table_context_data(
     table_id: str,
-    payload: Dict[str, Any],
+    payload: dict[str, Any],
     request: Request,
     table_service=Depends(get_table_service),
 ):
     try:
         from src.platform.authorization.models import ProjectAction
+
         _enforce_acting_user_table_access(
             request, table_service, table_id, ProjectAction.CONTENT_WRITE
         )
@@ -474,16 +482,15 @@ async def search_tool(
     dependencies=[Depends(verify_internal_secret)],
 )
 async def resolve_node_path(
-    payload: Dict[str, Any],
+    payload: dict[str, Any],
     request: Request,
     ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
 ):
     try:
         project_id = payload.get("project_id", "")
         from src.platform.authorization.models import ProjectAction
-        _enforce_acting_user_project_access(
-            request, project_id, ProjectAction.CONTENT_READ
-        )
+
+        _enforce_acting_user_project_access(request, project_id, ProjectAction.CONTENT_READ)
         path = payload.get("path", "")
 
         if not path or path == "/":
@@ -523,9 +530,8 @@ async def list_node_children(
 ):
     try:
         from src.platform.authorization.models import ProjectAction
-        _enforce_acting_user_project_access(
-            request, project_id, ProjectAction.CONTENT_READ
-        )
+
+        _enforce_acting_user_project_access(request, project_id, ProjectAction.CONTENT_READ)
         path = path.strip("/")
         entries = ops.list_dir(project_id, path)
 
@@ -563,9 +569,8 @@ async def read_node_content(
 ):
     try:
         from src.platform.authorization.models import ProjectAction
-        _enforce_acting_user_project_access(
-            request, project_id, ProjectAction.CONTENT_READ
-        )
+
+        _enforce_acting_user_project_access(request, project_id, ProjectAction.CONTENT_READ)
         path = path.strip("/")
         entry = ops.stat(project_id, path)
         if not entry:
@@ -595,6 +600,7 @@ async def read_node_content(
 
         if entry.type == "json":
             import json
+
             try:
                 base["content"] = json.loads(content_bytes.decode("utf-8"))
             except (json.JSONDecodeError, UnicodeDecodeError):
@@ -624,7 +630,7 @@ async def read_node_content(
     dependencies=[Depends(verify_internal_secret)],
 )
 async def write_node_content(
-    payload: Dict[str, Any],
+    payload: dict[str, Any],
     request: Request,
 ):
     """
@@ -639,9 +645,8 @@ async def write_node_content(
     try:
         project_id = payload.get("project_id", "")
         from src.platform.authorization.models import ProjectAction
-        _enforce_acting_user_project_access(
-            request, project_id, ProjectAction.CONTENT_WRITE
-        )
+
+        _enforce_acting_user_project_access(request, project_id, ProjectAction.CONTENT_WRITE)
         path = payload.get("path", "").strip("/")
         content = payload.get("content")
         operator_id = payload.get("operator_id", "mcp_agent")
@@ -650,7 +655,9 @@ async def write_node_content(
             raise HTTPException(status_code=400, detail="path is required")
 
         if not isinstance(content, (str, dict, list, bytes)):
-            raise HTTPException(status_code=400, detail=f"Unsupported content type: {type(content).__name__}")
+            raise HTTPException(
+                status_code=400, detail=f"Unsupported content type: {type(content).__name__}"
+            )
 
         commands = _create_write_commands()
         outcome = await commands.write_file(
@@ -684,7 +691,7 @@ async def write_node_content(
     dependencies=[Depends(verify_internal_secret)],
 )
 async def create_node(
-    payload: Dict[str, Any],
+    payload: dict[str, Any],
     request: Request,
 ):
     """
@@ -700,9 +707,8 @@ async def create_node(
     try:
         project_id = payload.get("project_id", "")
         from src.platform.authorization.models import ProjectAction
-        _enforce_acting_user_project_access(
-            request, project_id, ProjectAction.CONTENT_WRITE
-        )
+
+        _enforce_acting_user_project_access(request, project_id, ProjectAction.CONTENT_WRITE)
         path = payload.get("path", "").strip("/")
         node_type = payload.get("node_type", "")
         content = payload.get("content")
@@ -712,7 +718,9 @@ async def create_node(
             raise HTTPException(status_code=400, detail="path is required")
 
         if node_type not in ("json", "markdown", "folder"):
-            raise HTTPException(status_code=400, detail=f"Unsupported node type for creation: {node_type}")
+            raise HTTPException(
+                status_code=400, detail=f"Unsupported node type for creation: {node_type}"
+            )
 
         commands = _create_write_commands()
 
@@ -758,7 +766,7 @@ async def create_node(
     dependencies=[Depends(verify_internal_secret)],
 )
 async def remove_node(
-    payload: Dict[str, Any],
+    payload: dict[str, Any],
     request: Request,
 ):
     """
@@ -770,9 +778,8 @@ async def remove_node(
     try:
         project_id = payload.get("project_id", "")
         from src.platform.authorization.models import ProjectAction
-        _enforce_acting_user_project_access(
-            request, project_id, ProjectAction.CONTENT_WRITE
-        )
+
+        _enforce_acting_user_project_access(request, project_id, ProjectAction.CONTENT_WRITE)
         path = payload.get("path", "").strip("/")
         user_id = payload.get("user_id", "mcp_agent")
 
@@ -803,6 +810,7 @@ async def remove_node(
 # Node rename / move (called by AGFS puppyonefs, etc.)
 # ============================================================
 
+
 @router.post(
     "/nodes/rename",
     summary="Rename file or directory (via ProductOperationAdapter)",
@@ -810,15 +818,14 @@ async def remove_node(
     dependencies=[Depends(verify_internal_secret)],
 )
 async def rename_node(
-    payload: Dict[str, Any],
+    payload: dict[str, Any],
     request: Request,
 ):
     try:
         project_id = payload.get("project_id", "")
         from src.platform.authorization.models import ProjectAction
-        _enforce_acting_user_project_access(
-            request, project_id, ProjectAction.CONTENT_WRITE
-        )
+
+        _enforce_acting_user_project_access(request, project_id, ProjectAction.CONTENT_WRITE)
         path = payload.get("path", "").strip("/")
         new_name = payload.get("new_name", "")
         if not new_name:
@@ -856,15 +863,14 @@ async def rename_node(
     dependencies=[Depends(verify_internal_secret)],
 )
 async def move_node_internal(
-    payload: Dict[str, Any],
+    payload: dict[str, Any],
     request: Request,
 ):
     try:
         project_id = payload.get("project_id", "")
         from src.platform.authorization.models import ProjectAction
-        _enforce_acting_user_project_access(
-            request, project_id, ProjectAction.CONTENT_WRITE
-        )
+
+        _enforce_acting_user_project_access(request, project_id, ProjectAction.CONTENT_WRITE)
         path = payload.get("path", "").strip("/")
         new_parent_path = payload.get("new_parent_path", "").strip("/")
 
@@ -906,7 +912,9 @@ async def get_sandbox_endpoint_by_key(access_key: str = Body(..., embed=True)):
     repo = SandboxEndpointRepository()
     endpoint = repo.get_by_access_key(access_key)
     if not endpoint:
-        raise HTTPException(status_code=404, detail="Sandbox endpoint not found for this access key")
+        raise HTTPException(
+            status_code=404, detail="Sandbox endpoint not found for this access key"
+        )
     if endpoint.get("status") != "active":
         raise HTTPException(status_code=403, detail="Sandbox endpoint is not active")
 

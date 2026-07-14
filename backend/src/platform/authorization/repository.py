@@ -38,9 +38,7 @@ class AuthorizationRepository:
             return data
         return data[0] if data else None
 
-    def load_project_facts(
-        self, project_id: str, user_id: str
-    ) -> ProjectAuthorizationFacts | None:
+    def load_project_facts(self, project_id: str, user_id: str) -> ProjectAuthorizationFacts | None:
         project = self._first(
             self._client.table("projects")
             .select("id, org_id, visibility")
@@ -73,9 +71,7 @@ class AuthorizationRepository:
             org_id=org_id,
             visibility=str(project.get("visibility") or "private"),
             org_role=str(org_member["role"]) if org_member else None,
-            project_role=(
-                str(project_member["role"]) if project_member else None
-            ),
+            project_role=(str(project_member["role"]) if project_member else None),
             project_member_org_id=(
                 str(project_member["org_id"])
                 if project_member and project_member.get("org_id") is not None
@@ -115,13 +111,8 @@ class AuthorizationRepository:
             .execute()
         ).data or []
 
-        org_role_by_id = {
-            str(row["org_id"]): str(row["role"])
-            for row in org_members
-        }
-        project_member_by_id = {
-            str(row["project_id"]): row for row in project_members
-        }
+        org_role_by_id = {str(row["org_id"]): str(row["role"]) for row in org_members}
+        project_member_by_id = {str(row["project_id"]): row for row in project_members}
         result: dict[str, ProjectAuthorizationFacts] = {}
         for project in projects:
             project_id = str(project["id"])
@@ -134,9 +125,7 @@ class AuthorizationRepository:
                 org_role=org_role_by_id.get(org_id),
                 project_role=str(member["role"]) if member else None,
                 project_member_org_id=(
-                    str(member["org_id"])
-                    if member and member.get("org_id") is not None
-                    else None
+                    str(member["org_id"]) if member and member.get("org_id") is not None else None
                 ),
             )
         return result
@@ -176,6 +165,32 @@ class ProjectMembershipRepository:
             )
         return response.data or []
 
+    def get(self, project_id: str, target_user_id: str) -> dict[str, Any] | None:
+        response = (
+            self._client.table("project_members")
+            .select("id, org_id, project_id, user_id, role")
+            .eq("project_id", project_id)
+            .eq("user_id", target_user_id)
+            .limit(1)
+            .execute()
+        )
+        return self._row(response.data)
+
+    def is_billable_organization_member(self, org_id: str, user_id: str) -> bool:
+        """Use the database-owned capability policy for seat transitions."""
+
+        data = (
+            self._client.rpc(
+                "is_billable_organization_member",
+                {"p_org_id": org_id, "p_user_id": user_id},
+            )
+            .execute()
+            .data
+        )
+        if isinstance(data, list):
+            data = data[0] if data else False
+        return bool(data)
+
     @staticmethod
     def _row(data: Any) -> dict[str, Any] | None:
         rows = data or []
@@ -199,7 +214,9 @@ class ProjectMembershipRepository:
                     "p_role": role,
                     "p_actor_user_id": actor_user_id,
                 },
-            ).execute().data
+            )
+            .execute()
+            .data
         )
 
     def update_role(
@@ -218,30 +235,34 @@ class ProjectMembershipRepository:
                     "p_role": role,
                     "p_actor_user_id": actor_user_id,
                 },
-            ).execute().data
+            )
+            .execute()
+            .data
         )
 
-    def remove(
-        self, project_id: str, target_user_id: str, actor_user_id: str
-    ) -> bool:
-        data = self._client.rpc(
-            "remove_project_member_authorized",
-            {
-                "p_project_id": project_id,
-                "p_target_user_id": target_user_id,
-                "p_actor_user_id": actor_user_id,
-            },
-        ).execute().data
+    def remove(self, project_id: str, target_user_id: str, actor_user_id: str) -> bool:
+        data = (
+            self._client.rpc(
+                "remove_project_member_authorized",
+                {
+                    "p_project_id": project_id,
+                    "p_target_user_id": target_user_id,
+                    "p_actor_user_id": actor_user_id,
+                },
+            )
+            .execute()
+            .data
+        )
         if isinstance(data, list):
             return bool(data and data[0])
         return bool(data)
 
-    def join_with_share_token(
-        self, share_token: str, user_id: str
-    ) -> dict[str, Any] | None:
+    def join_with_share_token(self, share_token: str, user_id: str) -> dict[str, Any] | None:
         return self._row(
             self._client.rpc(
                 "join_project_via_share_token",
                 {"p_share_token": share_token, "p_user_id": user_id},
-            ).execute().data
+            )
+            .execute()
+            .data
         )
