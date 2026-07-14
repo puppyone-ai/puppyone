@@ -1,14 +1,83 @@
 import base64
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
+from fastapi import HTTPException
 
+from src.platform.authorization.models import RuntimeGrant, RuntimeMode, RuntimePrincipal
+from src.platform.repository_target.models import ResolvedRepositoryView, ScopeTarget
+from src.repo.models import RepositoryScope, ResolvedScopeCredential
 from src.version_engine.entrypoints.git import auth as git_auth
 from src.version_engine.entrypoints.git import router as git_router
+from src.version_engine.entrypoints.http import access_point
 
 
 def _request(headers: dict[str, str] | None = None):
     return SimpleNamespace(headers=headers or {})
+
+
+def _scope_auth() -> dict:
+    target = ScopeTarget(project_id="project-1", scope_id="scope-1")
+    return {
+        "agent": "git",
+        "_runtime_grant": RuntimeGrant(
+            principal=RuntimePrincipal(
+                principal_id="credential-1",
+                credential_kind="legacy_access_key",
+            ),
+            target=target,
+            repository_view=ResolvedRepositoryView(
+                target=target,
+                path_prefix="docs",
+                excludes=(),
+                max_mode="rw",
+            ),
+            mode=RuntimeMode.READ_WRITE,
+        ),
+    }
+
+
+def test_access_point_runtime_principal_is_the_credential_not_the_scope():
+    now = datetime.now(UTC)
+    resolved = ResolvedScopeCredential(
+        credential_id="credential-1",
+        credential_type="bearer_token",
+        access_surface_id="surface-1",
+        scope=RepositoryScope(
+            id="scope-1",
+            project_id="project-1",
+            name="Docs",
+            path="docs",
+            exclude=["private"],
+            max_mode="r",
+            created_at=now,
+            updated_at=now,
+        ),
+    )
+
+    project_id, auth = access_point._auth_context_from_scope_credential(resolved)
+
+    assert project_id == "project-1"
+    assert auth["_runtime_grant"].principal.principal_id == "credential-1"
+    assert auth["_runtime_grant"].principal.credential_kind == "bearer_token"
+    assert auth["_runtime_grant"].repository_view.path_prefix == "docs"
+    assert auth["_access_surface_id"] == "surface-1"
+
+
+def test_access_point_storage_failure_is_retryable_not_invalid_credential(
+    monkeypatch,
+):
+    def _unavailable(*_args, **_kwargs):
+        raise RuntimeError("database unavailable")
+
+    monkeypatch.setattr(access_point, "resolve_scope_access_credential", _unavailable)
+
+    with pytest.raises(HTTPException) as error:
+        access_point.resolve_access_point("unique-unavailable-token")
+
+    assert error.value.status_code == 503
+    assert error.value.headers == {"X-PuppyOne-Error-Code": "1010"}
 
 
 @pytest.mark.asyncio
@@ -18,7 +87,7 @@ async def test_git_ap_infers_git_remote_channel_without_custom_header(monkeypatc
     monkeypatch.setattr(
         git_router,
         "resolve_access_point",
-        lambda _key: ("project-1", {"agent": "git", "_scope": {"id": "scope-1", "path": ""}}),
+        lambda _key: ("project-1", _scope_auth()),
     )
     monkeypatch.setattr(
         git_auth,
@@ -45,10 +114,11 @@ async def test_git_project_auth_infers_git_remote_channel_without_custom_header(
                 "credential_id": "credential-1",
                 "project_id": "project-1",
                 "access_surface_id": "surface-1",
-                "scope_id": "scope-root",
-                "scope_path": "",
-                "scope_exclude": [],
-                "scope_is_root": True,
+                "target_kind": "project_root",
+                "scope_id": None,
+                "path_prefix": "",
+                "excludes": [],
+                "target_max_mode": "rw",
                 "workspace_binding_id": "binding-1",
                 "effective_mode": "rw",
             }
@@ -70,7 +140,8 @@ async def test_git_project_auth_infers_git_remote_channel_without_custom_header(
         _request({"authorization": f"Basic {token}"}),
     )
 
-    assert auth["_scope"]["path"] == ""
+    assert auth["_runtime_grant"].repository_view.path_prefix == ""
+    assert "_scope" not in auth
     assert auth["_runtime_grant"].principal.credential_kind == "git_http_token"
     assert calls == ["git_remote"]
 
@@ -86,10 +157,11 @@ async def test_canonical_git_route_requires_exact_root_or_scope_target(monkeypat
                 "credential_id": "credential-docs",
                 "project_id": "project-1",
                 "access_surface_id": "surface-docs",
+                "target_kind": "scope",
                 "scope_id": "scope-docs",
-                "scope_path": "docs",
-                "scope_exclude": ["drafts"],
-                "scope_is_root": False,
+                "path_prefix": "docs",
+                "excludes": ["drafts"],
+                "target_max_mode": "r",
                 "workspace_binding_id": None,
                 "effective_mode": "r",
             }
@@ -111,12 +183,11 @@ async def test_canonical_git_route_requires_exact_root_or_scope_target(monkeypat
     auth = await git_auth.resolve_git_scope_auth(
         "project-1", "scope-docs", request
     )
-    assert auth["_scope"] == {
-        "id": "scope-docs",
-        "path": "docs",
-        "exclude": ["drafts"],
-        "mode": "r",
-    }
+    grant = auth["_runtime_grant"]
+    assert grant.target.scope_id == "scope-docs"
+    assert grant.repository_view.path_prefix == "docs"
+    assert grant.repository_view.excludes == ("drafts",)
+    assert "_scope" not in auth
 
     with pytest.raises(Exception) as wrong_scope_error:
         await git_auth.resolve_git_scope_auth(

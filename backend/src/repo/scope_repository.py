@@ -1,8 +1,7 @@
-"""Supabase repository for repo_scopes.
+"""Supabase repository for non-root repository Scopes.
 
 This is a thin wrapper around the Supabase client; all business rules
-(canonicalization, access_key minting, root-scope protection) live in
-scope_service.
+(canonicalization and product rules) live in scope_service.
 """
 
 from __future__ import annotations
@@ -12,22 +11,17 @@ from datetime import datetime
 from typing import Any, Optional
 
 from src.infra.supabase.client import SupabaseClient
-from src.repo.models import RepoScope
+from src.repo.models import RepositoryScope, ResolvedScopeCredential
 
 
-def _row_to_scope(row: dict[str, Any]) -> RepoScope:
-    return RepoScope(
+def _row_to_scope(row: dict[str, Any]) -> RepositoryScope:
+    return RepositoryScope(
         id=row["id"],
         project_id=row["project_id"],
         name=row.get("name") or row.get("path") or "Scope",
         path=row.get("path") or "",
         exclude=row.get("exclude") or [],
-        mode=row.get("mode") or "rw",
-        is_root=row.get("is_root", False),
-        # Plaintext credentials are one-time service return values and never
-        # hydrate from repo_scopes.
-        access_key="",
-        access_key_revoked_at=None,
+        max_mode=row.get("max_mode") or "rw",
         created_at=_parse_dt(row.get("created_at")),
         updated_at=_parse_dt(row.get("updated_at")),
     )
@@ -41,8 +35,8 @@ def _parse_dt(v: Any) -> Optional[datetime]:
     return datetime.fromisoformat(str(v).replace("Z", "+00:00"))
 
 
-class RepoScopeRepository:
-    TABLE = "repo_scopes"
+class RepositoryScopeRepository:
+    TABLE = "repository_scopes"
 
     def __init__(self, supabase_client: Optional[SupabaseClient] = None):
         owner = supabase_client or SupabaseClient()
@@ -50,13 +44,12 @@ class RepoScopeRepository:
 
     # ── Reads ────────────────────────────────────────────────────────────
 
-    def list_by_project(self, project_id: str) -> list[RepoScope]:
-        """Return all scopes for a project. Root pinned first, then by path."""
+    def list_by_project(self, project_id: str) -> list[RepositoryScope]:
+        """Return the Project's real Scopes ordered by path."""
         resp = (
             self._client.table(self.TABLE)
             .select("*")
             .eq("project_id", project_id)
-            .order("is_root", desc=True)        # root first
             .order("path", desc=False)
             .execute()
         )
@@ -71,7 +64,7 @@ class RepoScopeRepository:
         )
         return [{"path": row.get("path") or ""} for row in (response.data or [])]
 
-    def get(self, scope_id: str) -> Optional[RepoScope]:
+    def get(self, scope_id: str) -> Optional[RepositoryScope]:
         resp = (
             self._client.table(self.TABLE)
             .select("*")
@@ -82,47 +75,51 @@ class RepoScopeRepository:
         rows = resp.data or []
         return _row_to_scope(rows[0]) if rows else None
 
-    def get_by_access_key(self, access_key: str) -> Optional[RepoScope]:
+    def resolve_access_key(
+        self,
+        access_key: str,
+    ) -> Optional[ResolvedScopeCredential]:
+        """Resolve one machine credential to its exact Scope target."""
+
         from src.repo.access_surface_repository import AccessSurfaceRepository
 
-        surface = AccessSurfaceRepository(self._client).resolve_scope_credential(access_key)
-        scope = self.get(surface["scope_id"]) if surface else None
-        if (
-            scope is not None
-            and surface.get("_credential_mode") == "r"
-            and scope.mode == "rw"
-        ):
-            return replace(scope, mode="r")
-        return scope
-
-    def get_root_scope(self, project_id: str) -> Optional[RepoScope]:
-        resp = (
-            self._client.table(self.TABLE)
-            .select("*")
-            .eq("project_id", project_id)
-            .eq("is_root", True)
-            .limit(1)
-            .execute()
+        credential = AccessSurfaceRepository(self._client).resolve_scope_credential(
+            access_key
         )
-        rows = resp.data or []
-        return _row_to_scope(rows[0]) if rows else None
+        if credential is None:
+            return None
+        scope = self.get(credential.scope_id)
+        if scope is None or scope.project_id != credential.project_id:
+            return None
+        if credential.mode_ceiling == "r" and scope.max_mode == "rw":
+            scope = replace(scope, max_mode="r")
+        return ResolvedScopeCredential(
+            credential_id=credential.credential_id,
+            credential_type=credential.credential_type,
+            access_surface_id=credential.access_surface_id,
+            scope=scope,
+        )
+
+    def get_by_access_key(self, access_key: str) -> Optional[RepositoryScope]:
+        resolved = self.resolve_access_key(access_key)
+        return resolved.scope if resolved is not None else None
 
     def find_by_path_prefix(
         self, project_id: str, path: str,
-    ) -> Optional[RepoScope]:
+    ) -> Optional[RepositoryScope]:
         """Return the scope whose path is the longest prefix of `path`.
         Used by path-to-scope inference.
 
-        Example: scopes ['', 'docs', 'docs/handbook']; path='docs/handbook/x.md'
+        Example: scopes ['docs', 'docs/handbook']; path='docs/handbook/x.md'
         → returns the 'docs/handbook' scope."""
         all_scopes = self.list_by_project(project_id)
         target = (path or "").strip("/")
         # All scopes ordered shortest-to-longest path.
         candidates = sorted(all_scopes, key=lambda s: len(s.path))
-        best: Optional[RepoScope] = None
+        best: Optional[RepositoryScope] = None
         for s in candidates:
             sp = s.path
-            if sp == "" or target == sp or target.startswith(sp + "/"):
+            if target == sp or target.startswith(sp + "/"):
                 if best is None or len(s.path) > len(best.path):
                     best = s
         return best
@@ -136,18 +133,15 @@ class RepoScopeRepository:
         name: str,
         path: str,
         exclude: list[str],
-        mode: str,
-        is_root: bool,
-    ) -> RepoScope:
-        """Insert a new scope. Access surfaces are created explicitly by
-        ScopeService after this row is persisted."""
+        max_mode: str,
+    ) -> RepositoryScope:
+        """Insert a new path boundary without creating an Access Surface."""
         row: dict[str, Any] = {
             "project_id": project_id,
             "name": name,
             "path": path,
             "exclude": exclude,
-            "mode": mode,
-            "is_root": is_root,
+            "max_mode": max_mode,
         }
         resp = self._client.table(self.TABLE).insert(row).execute()
         return _row_to_scope(resp.data[0])
@@ -158,15 +152,15 @@ class RepoScopeRepository:
         *,
         name: Optional[str] = None,
         exclude: Optional[list[str]] = None,
-        mode: Optional[str] = None,
-    ) -> Optional[RepoScope]:
+        max_mode: Optional[str] = None,
+    ) -> Optional[RepositoryScope]:
         patch: dict[str, Any] = {}
         if name is not None:
             patch["name"] = name
         if exclude is not None:
             patch["exclude"] = exclude
-        if mode is not None:
-            patch["mode"] = mode
+        if max_mode is not None:
+            patch["max_mode"] = max_mode
         if not patch:
             return self.get(scope_id)
         resp = (
@@ -179,8 +173,7 @@ class RepoScopeRepository:
         return _row_to_scope(rows[0]) if rows else None
 
     def delete(self, scope_id: str) -> bool:
-        """Hard delete. The DB cascades scope-bound access surfaces.
-        Service layer is responsible for refusing to delete root scopes."""
+        """Hard delete; the DB cascades resources bound to this exact Scope."""
         resp = (
             self._client.table(self.TABLE)
             .delete()

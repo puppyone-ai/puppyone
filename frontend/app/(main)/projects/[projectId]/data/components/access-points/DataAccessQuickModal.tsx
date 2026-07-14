@@ -13,8 +13,13 @@ import {
   buildGitSyncPrompt,
   buildTerminalCliPrompt,
 } from '@/lib/accessPointCliPrompt';
-import { sortConnectorsBuiltinFirst, type Connector, type RepoScope } from '@/lib/repoApi';
-import { canonicalGitUrlForScope } from '@/lib/gitRemote';
+import {
+  repositoryViewKey,
+  sortConnectorsBuiltinFirst,
+  type Connector,
+  type RepositoryView,
+} from '@/lib/repoApi';
+import { canonicalGitUrlForTarget } from '@/lib/gitRemote';
 import {
   getAccessProviderCardTitle,
   getAccessProviderMethodMeta,
@@ -38,11 +43,11 @@ const HOVER_CARD_WIDTH = 372;
 const HOVER_CARD_HEIGHT = 196;
 
 type DataAccessQuickModalProps = {
-  readonly scope: RepoScope;
+  readonly scope: RepositoryView;
   readonly connectors: readonly Connector[];
   readonly onClose: () => void;
   readonly onCreateAccess: (path: string) => void;
-  readonly onOpenFullSettings: (scopeId: string) => void;
+  readonly onOpenFullSettings: (targetKey: string) => void;
 };
 
 export function DataAccessQuickModal({
@@ -79,7 +84,7 @@ export function DataAccessQuickModal({
         >
           <button
             type="button"
-            onClick={() => onOpenFullSettings(scope.id)}
+            onClick={() => onOpenFullSettings(repositoryViewKey(scope))}
             style={headerActionStyle}
           >
             <ExternalLink size={13} />
@@ -125,21 +130,7 @@ export function DataAccessQuickModal({
   );
 }
 
-function HeaderAccessLine({ scope }: { readonly scope: RepoScope }) {
-  const [copied, setCopied] = useState(false);
-  const accessKey = scope.access_key || '';
-
-  const copyKey = async () => {
-    if (!accessKey) return;
-    try {
-      await navigator.clipboard.writeText(accessKey);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1600);
-    } catch {
-      /* clipboard unavailable */
-    }
-  };
-
+function HeaderAccessLine({ scope }: { readonly scope: RepositoryView }) {
   return (
     <div
       style={{
@@ -159,55 +150,6 @@ function HeaderAccessLine({ scope }: { readonly scope: RepoScope }) {
       >
         {formatScopeDescription(scope)}
       </span>
-      <span
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 6,
-          minWidth: 0,
-          flexShrink: 0,
-          color: T.text4,
-        }}
-      >
-        <span style={{ fontFamily: T.fontSans, whiteSpace: 'nowrap' }}>CLI key</span>
-        <code
-          style={{
-            maxWidth: 132,
-            color: accessKey ? T.text2 : T.text4,
-            fontSize: FONT_META,
-            lineHeight: '18px',
-            fontFamily: T.fontMono,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {accessKey ? maskAccessKey(accessKey) : 'Hidden'}
-        </code>
-        <button
-          type="button"
-          aria-label="Copy access key"
-          disabled={!accessKey}
-          title="Copy key"
-          onClick={copyKey}
-          style={{
-            width: 22,
-            height: 22,
-            borderRadius: 6,
-            border: 'none',
-            background: 'transparent',
-            color: copied ? 'var(--po-success)' : T.text3,
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 0,
-            opacity: accessKey ? 1 : 0.46,
-            cursor: accessKey ? 'pointer' : 'default',
-          }}
-        >
-          {copied ? <Check size={12} /> : <Copy size={12} />}
-        </button>
-      </span>
     </div>
   );
 }
@@ -218,7 +160,7 @@ function AccessMethodsPanel({
   onOpenManualCommands,
 }: {
   readonly connectors: readonly Connector[];
-  readonly scope: RepoScope;
+  readonly scope: RepositoryView;
   readonly onOpenManualCommands: (connectorId: string) => void;
 }) {
   const sorted = useMemo(
@@ -268,7 +210,7 @@ function AccessMethodCard({
   onOpenManualCommands,
 }: {
   readonly connector: Connector;
-  readonly scope: RepoScope;
+  readonly scope: RepositoryView;
   readonly onOpenManualCommands: (connectorId: string) => void;
 }) {
   const setup = useMemo(() => buildSetupGuide(connector, scope), [connector, scope]);
@@ -392,7 +334,7 @@ function ManualCommandsPage({
   onBack,
 }: {
   readonly connector: Connector;
-  readonly scope: RepoScope;
+  readonly scope: RepositoryView;
   readonly onBack: () => void;
 }) {
   const setup = useMemo(() => buildSetupGuide(connector, scope), [connector, scope]);
@@ -469,16 +411,15 @@ function ManualCommandsPage({
           <div style={{ marginBottom: 14 }}>
             <GitCredentialIssuePanel
               connectorId={connector.id}
-              gitUrl={canonicalGitUrlForScope(getApiBase(), scope)}
-              scopeMode={scope.mode}
+              gitUrl={canonicalGitUrlForTarget(getApiBase(), scope.target)}
+              scopeMode={scope.max_mode}
             />
           </div>
         ) : null}
         {isCliProvider(connector.provider) ? (
           <CliCredentialIssuePanel
-            projectId={scope.project_id}
-            scopeId={scope.id}
-            initialCredential={scope.access_key || connector.access_key || ''}
+            connectorId={connector.id}
+            target={scope.target}
           >
             {(credential) => (
               <ConnectionStepsList steps={buildSetupGuide(connector, scope, credential).steps} />
@@ -583,12 +524,12 @@ function ScopeAssuranceRow({
   status,
   lastUsed,
 }: {
-  readonly scope: RepoScope;
+  readonly scope: RepositoryView;
   readonly status: Connector['status'] | null;
   readonly lastUsed: string | null;
 }) {
   const chips = [
-    scope.mode === 'rw' ? 'Read & write' : 'Read only',
+    scope.max_mode === 'rw' ? 'Read & write' : 'Read only',
     'Scope-bound',
     status ? (STATUS_LABEL[status] ?? status) : 'Preparing',
     lastUsed ? `Last used ${timeAgo(lastUsed)}` : 'Not used yet',
@@ -626,7 +567,7 @@ function ManualWaysPanel({
   scope,
 }: {
   readonly connectors: readonly Connector[];
-  readonly scope: RepoScope;
+  readonly scope: RepositoryView;
 }) {
   if (connectors.length === 0) return null;
 
@@ -664,7 +605,7 @@ function ManualWayRow({
   scope,
 }: {
   readonly connector: Connector;
-  readonly scope: RepoScope;
+  readonly scope: RepositoryView;
 }) {
   const setup = useMemo(() => buildSetupGuide(connector, scope), [connector, scope]);
   const [copied, setCopied] = useState(false);
@@ -742,7 +683,7 @@ function MethodRow({
   isFirst,
 }: {
   readonly connector: Connector;
-  readonly scope: RepoScope;
+  readonly scope: RepositoryView;
   readonly isFirst: boolean;
 }) {
   const name = connectorName(connector);
@@ -831,7 +772,7 @@ function SetupGuideHover({
   scope,
 }: {
   readonly connector: Connector;
-  readonly scope: RepoScope;
+  readonly scope: RepositoryView;
 }) {
   const setup = useMemo(() => buildSetupGuide(connector, scope), [connector, scope]);
   const [open, setOpen] = useState(false);
@@ -1194,11 +1135,11 @@ function ProviderTile({ provider }: { readonly provider: string }) {
   );
 }
 
-function buildSetupGuide(connector: Connector, scope: RepoScope, cliCredential?: string) {
+function buildSetupGuide(connector: Connector, scope: RepositoryView, cliCredential?: string) {
   const scopeName = scope.name || scope.path || 'Root';
   const promptKind = getAccessProviderPromptKind(connector.provider);
   if (promptKind === 'git_remote') {
-    const gitUrl = canonicalGitUrlForScope(getApiBase(), scope);
+    const gitUrl = canonicalGitUrlForTarget(getApiBase(), scope.target);
     const guide = buildGitSyncPrompt({
       gitUrl,
       scopeName,
@@ -1218,7 +1159,7 @@ function buildSetupGuide(connector: Connector, scope: RepoScope, cliCredential?:
     };
   }
 
-  const accessKey = cliCredential ?? scope.access_key ?? connector.access_key ?? '';
+  const accessKey = cliCredential ?? '';
   if (!accessKey) {
     return {
       title: 'Access this folder by an AI agent',
@@ -1300,19 +1241,11 @@ function formatScopePath(path: string): string {
   return normalized ? `/${normalized}` : '/';
 }
 
-function formatScopeDescription(scope: RepoScope): string {
+function formatScopeDescription(scope: RepositoryView): string {
   const path = formatScopePath(scope.path);
   const folder = path === '/' ? 'Project root' : path;
-  const mode = scope.mode === 'rw' ? 'read & write' : 'read only';
+  const mode = scope.max_mode === 'rw' ? 'read & write' : 'read only';
   return `${folder} · ${mode}`;
-}
-
-function maskAccessKey(accessKey: string): string {
-  if (!accessKey) return '';
-  const [prefix, rest = ''] = accessKey.split('_', 2);
-  const suffix = rest.slice(-4);
-  if (!prefix || !suffix) return '••••';
-  return `${prefix}_••••••••${suffix}`;
 }
 
 const headerActionStyle = {

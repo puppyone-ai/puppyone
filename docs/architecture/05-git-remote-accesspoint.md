@@ -1,581 +1,245 @@
-# Git Remote Locator, Credential, And Access Point Contract
+# Git Remote Locator, Credential, and Access Surface Contract
 
-Status: **current canonical architecture; additive migration in progress**
+Status: **normative current contract** (ISSUE-039).
 
-The runtime implements the two canonical locator families below and still
-accepts the legacy secret-bearing `/git/ap/<access_key>.git` route as a bounded
-compatibility adapter. The reviewed implementation record is OpenSpec change
-[`refactor-canonical-git-remote-contract`](../../backend/openspec/changes/refactor-canonical-git-remote-contract/design.md).
-Deployment gates, database checks, telemetry, and rollback procedure live in
-the [Canonical Git Remote Rollout Runbook](../ops/canonical-git-remote-rollout.md).
+Repository ownership and relational details are defined in
+[Project-Owned Repository Targets](15-project-owned-repository-targets.md).
+Version transaction semantics are defined in
+[Version Engine](01-version-engine.md).
 
-This document is the normative owner of PuppyOne's Git remote contract:
-
-- canonical root and scoped URL grammar;
-- Git HTTP credential transport and storage;
-- exact Project/Scope/Access Surface resolution;
-- the boundary between Git transport and the Version Engine;
-- legacy remote migration and retirement.
-
-Human Project roles and local Workspace Binding semantics belong to
-[Project Authorization and Workspace Binding](12-project-authorization-and-workspace-binding.md).
-Canonical-root publish, scope projection, conflict, and repair mechanics belong
-to the [Version Engine](01-version-engine.md).
-
-## Four facts that must remain separate
+## Facts that remain separate
 
 ```text
-Git Remote Locator
-  -> declares Project and root/scoped target
-  -> stable and non-secret
-
-Git Runtime Credential
-  -> authenticates one machine principal
-  -> opaque, revocable, hash-only at rest
-
-RuntimeGrant
-  -> effective Project + Scope + path + excludes + r/rw
-  -> the only Git authority passed into Version Engine admission
-
-WorkspaceBinding
-  -> says which Cloud Project/Scope one local workspace instance represents
-  -> stable identity only; grants nothing
+Canonical Git locator  -> declares a non-secret RepositoryTarget
+Git credential         -> authenticates one bounded machine RuntimeGrant
+Human JWT              -> authorizes named Project control-plane actions
+Workspace Binding      -> identifies one local workspace/Cloud target pairing
 ```
 
-A Project ID or Scope ID is a locator, not a capability.  A credential is a
-capability, not a locator.  A Git credential cannot grant human access to
-Project settings, members, Team, Billing, sharing, or credential management.
+None substitutes for another. In particular, a remote URL or valid Git token
+does not grant Human Project access, and a Human JWT is not passed through Git
+transport authentication.
 
-## Canonical Git remote locators
+## Canonical locators
 
-### Project root
+Project root:
 
 ```text
-https://<git-origin>/git/{project_id}.git
+https://<cloud-origin>/git/{project_id}.git
 ```
 
-This locator always means the canonical root Scope.  A non-root credential is
-rejected even when it belongs to the same Project.
-
-### Non-root Scope
+Exact Scope view:
 
 ```text
-https://<git-origin>/git/{project_id}/scopes/{scope_id}.git
+https://<cloud-origin>/git/{project_id}/scopes/{scope_id}.git
 ```
 
-This locator always means the exact non-root Scope.  The Project ID is repeated
-intentionally so a client can identify the owning Project without resolving a
-secret and the server can verify the Project/Scope relation before opening
-repository state.
+The Project root is the complete canonical Project repository. It is not a
+Scope row. A Scope locator is a deliberate subtree view over the same object
+store and canonical history. A Desktop checkout of a complete hosted Project
+MUST use the Project-root locator.
 
-Scope names and filesystem paths are not URL identity.  They may be renamed,
-require escaping, and can disclose content structure.  The immutable Scope ID
-is the locator; the current path and excludes are resolved server-side on every
-authenticated request.
+IDs use one canonical encoded form. Locators reject credentials, userinfo,
+query strings, fragments, percent-encoded route identity, extra path segments,
+and secret-bearing compatibility paths. The Git username is
+`x-puppyone-token`; the opaque secret is supplied by a credential helper or
+HTTP auth and never appears in the URL.
 
-Neither URL implies a physical repository per Scope.  Both select a RepoFacade
-over the Project-shared object store and canonical Project root.
+## Smart HTTP
 
-### Smart-HTTP shape
-
-Stock Git appends the ordinary smart-HTTP endpoints to either locator:
+Each canonical locator supports stock Git endpoints:
 
 ```text
-GET  <remote>/info/refs?service=git-upload-pack
-GET  <remote>/info/refs?service=git-receive-pack
-POST <remote>/git-upload-pack
-POST <remote>/git-receive-pack
+GET  <locator>/info/refs?service=git-upload-pack
+POST <locator>/git-upload-pack
+GET  <locator>/info/refs?service=git-receive-pack
+POST <locator>/git-receive-pack
 ```
 
-PuppyOne additionally exposes:
+Health/cache operations reuse the same resolved view. Signed-in Web uses the
+Project control plane:
 
 ```text
-GET  <remote>/health
-POST <remote>/rebuild-cache
+GET  /api/v1/projects/{project_id}/git-view/health
+POST /api/v1/projects/{project_id}/git-view/rebuild-cache
 ```
 
-These locator-relative health and rebuild routes are part of the Git machine
-data plane. They accept the same exact `git_http_token`/RuntimeGrant as
-clone/fetch/push; a browser JWT is never accepted as a substitute. Human Web
-surfaces use the separate root-only Project control-plane adapters:
+Web diagnostics do not send a Human JWT to Git data-plane routes.
+
+## Credential model
+
+Git credentials are `access_surface_credentials` rows attached to an active
+`git_remote` Access Surface. They store only hash, prefix/last-four display
+metadata, lifecycle, grant mode, expiry/revocation state, and optional
+Workspace Binding. Plaintext is returned exactly once.
+
+The Surface target is represented by `(project_id, nullable scope_id)`:
+
+- NULL `scope_id`: `ProjectRootTarget(project_id)`;
+- non-NULL `scope_id`: `ScopeTarget(project_id, scope_id)`.
+
+Shared Surface, expiring session, and Workspace Binding credentials are
+separate revocation domains. Rotation of one domain cannot revoke unrelated
+sessions or bindings.
+
+## Exact runtime resolution
+
+Canonical Git authentication is a single-snapshot operation:
 
 ```text
-GET  /api/v1/projects/{project_id}/git-view/health          Project Read
-POST /api/v1/projects/{project_id}/git-view/rebuild-cache   Project Manage
+route Project/Scope
+  + credential hash
+    -> credential status/type/expiry
+    -> active git_remote Surface
+    -> exact target
+    -> optional active Binding and current bound-user Project role
+    -> Scope geometry and descendant exclusions, when scoped
+    -> effective mode
+    -> immutable RuntimeGrant + ResolvedRepositoryView
 ```
 
-Those adapters re-authorize the current `ProjectGrant`, resolve the canonical
-root Scope, and call the same derived `GitViewHead`/cache rebuild operations.
-They do not forward the JWT into `/git`, mint a RuntimeGrant, or create a
-second Version Engine path. The health response includes an explicit
-`can_rebuild` capability so clients do not infer administration rights from a
-role label or from content-write authority.
+The resolver must prove:
 
-Target identity is accepted only from the canonical path.  Query parameters,
-request bodies, usernames, and actor headers cannot override Project or Scope.
-Project and Scope IDs use their literal canonical ASCII form; percent-encoded
-route identity is rejected instead of being decoded into a second spelling of
-the same locator.
+- route target equals Surface target;
+- credential Project/Organization equals Surface Project/Organization;
+- a Binding credential equals the Binding target and user;
+- the current Human Project grant still permits the requested binding mode;
+- a Scope exists in the same Project and caps mode;
+- Project root has empty path, no excludes, and no Scope identity;
+- the requested Surface is active and the credential is not revoked/expired.
 
-## Git runtime credentials
+Unknown credentials, route mismatch, Project mismatch, Scope mismatch, and
+malformed resolver facts all produce the same Git 401. This prevents target
+enumeration. Storage failure is not “not found” and must not widen authority.
 
-Canonical URLs contain no replayable secret.  Stock Git authenticates with
-HTTP Basic:
+For a parent Scope, descendant Scope paths are included in the resolved
+exclusions. Downstream Git code consumes the snapshot and does not re-query
+canonical identity. The bounded `/git/ap/<secret>.git` adapter remains only for
+already-issued legacy Access keys; first-party code never constructs it. Its
+secondary topology lookup is fail-closed and its use is redacted telemetry.
+
+## Effective authority
+
+The effective mode is the minimum of:
 
 ```text
-username: x-puppyone-token
-password: <one-time Git runtime credential>
+credential grant mode
+Surface policy/mode
+Scope max_mode, when scoped
+Workspace Binding mode, when bound
+current bound-user Project capability, when bound
 ```
 
-Programmatic clients that can set headers directly may use Bearer transport.
-Missing or invalid credentials receive a challenge without target disclosure:
+Human Project-root diagnostics separately derive read/write/repair capability
+from `ProjectGrant`. A Project-root repository view has an `rw` capability
+ceiling, but a Viewer or read-only credential still receives effective `r`.
 
-```http
-HTTP/1.1 401 Unauthorized
-WWW-Authenticate: Basic realm="PuppyOne Git"
-```
-
-The raw credential is returned only on create or rotation.  The server stores:
-
-```text
-HMAC hash
-prefix and last four characters
-credential type
-grant mode
-credential lifecycle class (`shared`, `session`, or `binding`)
-status and lifecycle timestamps
-Access Surface relation
-optional Workspace Binding relation
-```
-
-It does not store replayable plaintext.
-
-Project, Scope, Repo Identity, and dashboard discovery responses never return
-a Git or CLI credential. They may return a non-replayable hint and an explicit
-`has_credential` fact, but setup commands are constructed only from a dedicated
-one-time issuance response. A field named `access_key` in a list response must
-remain null; a masked value is presentation metadata, not a usable secret.
-
-Interactive first-party clients use an OS-backed Git credential helper and set
-path-aware matching for the PuppyOne host because one host can serve multiple
-Project/Scope credentials:
-
-```text
-credential.useHttpPath=true
-```
-
-Clients must not use `credential.helper store`, put credentials in URL
-userinfo, persist a long-lived Authorization extra-header, or write secrets to
-the PuppyOne manifest.  Sandbox and worker clients use short-lived credentials
-through an ephemeral helper or process-scoped environment.
-
-## One credential model for Project and Scope Git
-
-PuppyOne does not implement separate Project-key and Scope-key policy engines.
-Every Git credential resolves through the same relationship:
-
-```text
-access_surface_credentials
-  -> access_surfaces(kind='git_remote', status='active')
-  -> repo_scopes
-  -> projects
-```
-
-Project-level Git is the same model pointed at `repo_scopes.is_root=true`.
-Scoped Git points at one non-root Scope.  `project_id` may be duplicated on
-credential/surface rows for database integrity and indexing, but the exact
-Scope relation remains mandatory.
-
-Each credential has a mode ceiling:
-
-```text
-r  -> clone, fetch, read, history and health
-rw -> r plus permitted push/write operations
-```
-
-The Scope's mode is a maximum.  It is not the individual credential grant.  A
-read-write Scope can therefore have both read-only and read-write credentials.
-
-Shared credentials use two independent manual rotation slots, one `r` and one
-`rw`. Rotating the `r` slot revokes only the previous shared `r` credential;
-it does not revoke the shared `rw` credential, binding credentials, or
-short-lived Sandbox/session credentials. Session credentials are independently
-expiring and may coexist. Rotation is serialized on the Access Surface so two
-concurrent rotations cannot leave two winners for one manual slot.
-
-`access_surface_credentials.credential_lifecycle` is the authoritative
-revocation-domain fact. Rotation code must filter `shared`; it must never infer
-"shared" merely from a null binding or from `grant_mode`. A `session` row must
-have an expiry, while a `binding` row must have a Workspace Binding relation.
-The database trigger derives this field only for expand-phase callers that do
-not yet send it explicitly.
-
-Binding credentials are independently issued for one local workspace and are
-rechecked against the binding and current human capability.  Shared service
-credentials are Project-Admin managed and should be expiring wherever the
-runtime supports rotation.
-
-The existing Scope `cli_...` bearer token is a separate protocol credential.
-It is issued once through the Scope credential-management endpoint and never
-reused as a canonical Git password. Rotating it may support the bounded legacy
-route during migration, but cannot mutate any canonical Git rotation domain.
-
-## Exact target resolution
-
-Authentication and target selection are one fail-closed L2 operation.
-
-### 1. Parse the declared target
-
-```text
-root URL   -> GitRouteTarget(project_id, root)
-scope URL  -> GitRouteTarget(project_id, scoped, scope_id)
-```
-
-IDs receive strict syntax and length validation before repository access.
-
-### 2. Extract and hash the credential
-
-The Git adapter extracts the Basic password or Bearer value and HMAC-hashes it.
-No route component, username, Project ID, Scope ID, or Git actor string is
-accepted as proof of permission.
-
-### 3. Resolve one bounded fact set
-
-Production resolution loads the following as one repository join or
-transactional RPC rather than independently trusted lookups:
-
-```text
-credential: status, expiry, grant_mode, binding relation
-surface: project, scope, kind, status, channel policy
-scope: project, path, excludes, mode, is_root
-binding: project, scope, user, mode, status (when present)
-current human capability (only for a binding credential)
-```
-
-### 4. Match every identity
-
-All requests require:
-
-```text
-credential.project_id == route.project_id
-surface.project_id    == route.project_id
-scope.project_id      == route.project_id
-surface.scope_id      == scope.id
-surface.kind          == git_remote
-surface.status        == active
-credential.status     == active and unexpired
-```
-
-Root additionally requires:
-
-```text
-scope.is_root == true
-scope.path == ''
-```
-
-Scoped additionally requires:
-
-```text
-scope.is_root == false
-scope.id == route.scope_id
-```
-
-A binding credential additionally requires exact binding Project/Scope/user
-facts, an active binding, and current human capability.  Unknown values,
-repository errors, tenant mismatches, role downgrades, disabled surfaces,
-revoked bindings, and unsupported credential types fail closed.
-
-### 5. Calculate effective authority
-
-Authority only narrows:
-
-```text
-effective_mode = minimum(
-  scope.mode,
-  credential.grant_mode,
-  binding.mode                when binding-backed,
-  current human capability    when binding-backed,
-  surface/channel policy,
-)
-```
-
-### 6. Emit RuntimeGrant
-
-Only the immutable result enters Version Engine admission:
-
-```text
-RuntimeGrant(
-  principal,
-  project_id,
-  scope_id,
-  path,
-  excludes,
-  mode,
-  policy,
-)
-```
-
-Git routes do not carry a raw ProjectGrant into the data plane.  If a future
-human-session Git flow is supported, L2 must exchange or translate that session
-into a bounded RuntimeGrant first.
+Pause is an operational Access Surface gate. Membership, target, mode,
+excludes, credential state, and Binding checks remain the security boundary.
+CLI command policy is fail-closed and keyed by exact Project + Scope + provider.
 
 ## Version Engine boundary
 
-The locator/credential change ends at L2.  It does not create a second write
-path.
+After authentication, all routes converge on one resolved target adapter:
 
 ```text
-canonical locator + HTTP credential
-  -> exact RuntimeGrant
-  -> RepoFacade(project, scope path, excludes, mode, main ref)
-  -> GitViewHead
-  -> Git transport cache
-  -> stock upload-pack / receive-pack
-  -> isolated quarantine for push
-  -> VersionSubmissionIntent
-  -> scope and exclude validation
-  -> canonical Project root CAS
-  -> source Scope head/history/audit/outbox
+ResolvedGitTarget
+  -> Project-shared server repo
+  -> RepoFacade from ResolvedRepositoryView
+  -> advertisement / fetch / push / health
+  -> canonical CAS transaction, history, audit, and outbox
 ```
 
-The quarantine repository and transport cache are never authoritative.
-PuppyOne's source of truth remains canonical Git objects plus committed Version
-Engine refs, transactions, history, audit, and outbox facts.
+There is one object database and canonical Project history. A Scope push is
+validated against its path/excludes, spliced into the Project tree, and
+committed through the same transaction engine as Project-root and Product
+writes. Empty path in ref/cache/history state means Project-root projection;
+it is not a persisted Scope.
 
-For a scoped push, the accepted visible subtree is grafted into the canonical
-Project root.  Hidden excluded content is preserved.  Same-source concurrent
-pushes use normal Git non-fast-forward/rebase behavior; cross-entrypoint path
-conflicts remain Version Engine policy.
+Clone/fetch must not advertise or serve objects outside the resolved view.
+Push rejects unadvertised objects, excluded/sibling writes, stale non-fast-
+forwards, unsupported merge commits, LFS pointers without LFS support, malformed
+packs, and attempts exceeding enforced limits. Rejection cannot advance refs,
+history, audit success state, or canonical Project root.
 
-## Git view cache identity
+## Issuance API
 
-Cache identity is a content-view identity, not a credential or URL identity:
-
-```text
-project_id
-+ scope_path
-+ scope_excludes
-+ projection_version
-+ history_mode
-+ blob_mode
-+ object_store_namespace
-```
-
-Credential, binding, user, route family, and raw Scope ID do not enter the
-cache key.  Multiple principals with the same effective view reuse one derived
-cache.  Credential rotation never invalidates content caches.
-
-If a Scope keeps its ID but changes path, resolution supplies the new geometry
-and therefore a new view key; the old cache remains derived, non-authoritative,
-and eligible for pruning.
-
-## Clone and fetch
-
-```text
-git clone/fetch
-  -> HTTP challenge and credential-helper lookup
-  -> exact RuntimeGrant
-  -> RepoFacade builds root or scoped/excluded view
-  -> GitViewHead resolves empty/healthy/degraded/corrupt state
-  -> Git view cache is verified or rebuilt from committed facts
-  -> stock upload-pack serves only reachable objects for that view
-```
-
-Git health states remain:
-
-```text
-empty               -> no ref advertised
-healthy             -> canonical head is Git-compatible
-history_degraded    -> current content works; legacy ancestry is truncated
-current_corrupt     -> current content cannot be projected; Git rejects
-```
-
-## Push
-
-```text
-git push
-  -> receive-pack body spooled to disk
-  -> exact RuntimeGrant and rw admission
-  -> advertisement uses the same GitViewHead as clone/fetch
-  -> stock git receive-pack --stateless-rpc parses protocol
-  -> objects and temporary refs enter isolated quarantine
-  -> old_id checked against the Git-visible Scope head
-  -> scope/exclude/LFS/ref policy validates the proposed tree
-  -> accepted visible paths splice into the canonical root
-  -> Version Engine publishes through root and source-Scope CAS
-  -> reachable objects, history, audit and outbox commit
-  -> product rejection returns normal receive-pack ng status
-```
-
-No locator or credential path may publish outside the Version Engine.
-
-Git commit attribution and Git actor headers are client-supplied labels, not
-authorization identity. Every fetch/push audit record also captures the
-immutable RuntimeGrant principal ID, credential kind, Access Surface ID, and
-optional Workspace Binding ID. Incident response and authorization analysis
-must use those server-resolved facts rather than trusting the claimed actor.
-
-## Project readiness
-
-Project Git/Claude readiness remains a projection of durable facts:
-
-```text
-active canonical-root git_remote surface
-AND canonical root head
-AND committed Version Engine transaction
-    where scope_path = '' and source_channel = 'access_git'
-```
-
-The root URL can satisfy this only after an accepted root push.  The scoped URL
-always resolves to a non-root Scope and never satisfies root readiness.
-
-## Workspace discovery versus identity
-
-A trusted canonical locator can be parsed into one deterministic
-Project/Scope candidate:
-
-```text
-/git/{project_id}.git
-  -> Project candidate + full/root kind
-
-/git/{project_id}/scopes/{scope_id}.git
-  -> Project candidate + exact scoped kind
-```
-
-That candidate must still pass current-user ProjectGrant checks before private
-metadata is rendered.  It does not grant human access and does not become a
-Workspace Binding by itself.
-
-An already-bound workspace opens the verified Project directly without first
-enumerating Organization Projects.  If local binding state is absent, the
-canonical locator can drive one explicit attach/recovery flow; Desktop must not
-scan every Project, Scope, or shared key.
-
-Desktop also suppresses the Organization Project-catalog request while a Local
-workspace target is being resolved. Session restoration and Project-catalog
-loading must not race: the catalog is loaded only for Cloud-only/home browsing,
-or after an explicit browse action when the Local workspace has neither a
-binding nor a canonical target candidate.
-
-## Issuance and rotation API shape
-
-The server returns locator metadata and the one-time secret separately:
+Issuance returns locator and one-time secret separately:
 
 ```json
 {
-  "remote": {
-    "url": "https://host/git/project-id/scopes/scope-id.git",
-    "project_id": "project-id",
-    "scope_id": "scope-id",
-    "kind": "scoped",
-    "username": "x-puppyone-token"
+  "target": {
+    "kind": "scope",
+    "project_id": "project-1",
+    "scope_id": "scope-docs"
   },
-  "credential": "pwg_...",
-  "grant_mode": "r",
-  "credential_expires_at": null
+  "git_url": "https://cloud.example/git/project-1/scopes/scope-docs.git",
+  "git_username": "x-puppyone-token",
+  "credential": "git_<one-time-secret>",
+  "grant_mode": "r"
 }
 ```
 
-Root responses use `/git/{project_id}.git` and may return the canonical root
-Scope ID as metadata.  Ordinary reads redact the secret.  Rotation returns a
-new secret once and the same locator.  Clients never construct a credential URL
-by replacing path text.
+Ordinary list/read/health/binding responses never return the secret. Rotation
+changes only credential facts; it does not change target or locator. Creating a
+Scope does not implicitly create a Git Surface. The explicit enable-target
+action idempotently and atomically ensures standard Git and CLI Surfaces.
 
-## Error and observability contract
+## Workspace discovery and repair
 
-- Missing, invalid, expired, revoked, wrong-Project, wrong-Scope, wrong-kind,
-  and mismatched-binding credentials use one non-disclosing authentication
-  failure.
-- A valid read-only grant attempting a write uses the normal Git permission
-  failure/report-status path.
-- Authorization headers and credential-helper payloads are always redacted.
-- Legacy secret path segments are never logged verbatim.
-- Structured events carry request ID, action/outcome/reason, and one-way
-  Project/Scope references, not names, paths, user IDs, or credentials.
-- Credential resolution happens before opening repo state or warming a cache.
+Desktop persists Cloud origin, Project ID, Binding ID, and workspace instance
+ID in secret-free config. Git config stores the canonical remote; the operating
+system/Git credential helper stores the secret.
 
-## Legacy `/git/ap/<access_key>.git` migration
-
-The legacy route is a compatibility adapter, not the target architecture.
-
-### Additive rollout
-
-The implementation deploys in this order:
-
-1. expand the credential schema and transactional resolver;
-2. deploy canonical scoped routes and make the Project route root-only;
-3. deploy standard Basic challenge and exact RuntimeGrant resolution;
-4. keep the old route operational with access-log path redaction and one-way
-   usage counters;
-5. make every new issuance return canonical locator plus separate credential;
-6. convert Web, Desktop, Sandbox, CLI guidance, and internal jobs;
-7. observe and repair before any contract/removal phase.
-
-The expand migration is intentionally forward-only during this window. A
-service rollback does not drop `grant_mode`, `credential_lifecycle`, new
-credential rows, or RPCs.
-Canonical ingress remains enabled once clients have received canonical-only
-credentials; after that point an incident is repaired forward rather than by
-forcing users back to secret-bearing URLs.
-
-### First-party conversion
-
-For an existing legacy remote, the client:
-
-1. extracts the key locally without logging it;
-2. resolves the legacy credential to Project/Scope;
-3. verifies current human access when a human session exists;
-4. stores the credential through the Git credential helper;
-5. rewrites the remote to the canonical locator;
-6. verifies `git ls-remote` against the canonical remote;
-7. removes the secret-bearing URL only after verification.
-
-The server does not redirect a secret-bearing path to a canonical URL.  A
-redirect can leak credentials and produces inconsistent Git auth forwarding.
-
-### Retirement gate
-
-The legacy route is removed only through a separate approved contract change
-after all first-party clients have migrated, redacted usage remains zero for
-the agreed window, configuration scans find no first-party secret URLs, and
-rollback no longer depends on the old route.
-
-The exact go/no-go queries and canary matrix are normative operational guidance
-in the rollout runbook. Archiving this OpenSpec change does not authorize route
-removal; removal is a new breaking change.
-
-## PuppyOne Cloud Git behavior
-
-PuppyOne Cloud exposes one workspace view through `refs/heads/main`; it is not a
-GitHub-style pull-request surface.
-
-| Capability | Product action | Support | Product rule |
-| --- | --- | :---: | --- |
-| Clone | Clone from Cloud | Yes | Create a local checkout of the authorized root/Scope view. |
-| Fetch | Refresh Cloud Status | Yes | Refresh remote knowledge without changing the working tree. |
-| Download | Pull/rebase | Yes | Use fast-forward or rebase; preserve staged/tracked edits. |
-| Upload | Push `HEAD:main` | Yes | Accept only against the current Git-visible Scope head. |
-| Force push | Overwrite Cloud | No | Client cannot overwrite canonical history. |
-| Merge commit to main | Upload merge | No | Product-visible main remains linear. |
-| Delete main | Delete history | No | Rollback is a product operation. |
-| Git LFS | LFS pointer blobs | No | Use PuppyOne object/upload APIs for large binaries. |
-| Branch/tag refs | Advanced transport metadata | Limited | Do not advance product-visible main. |
-| Same-Scope conflict | Rebase locally | Yes | Second stale push receives non-fast-forward. |
-| Cross-entrypoint conflict | Hosted review/policy | Yes | Resolved by Version Engine policy. |
-| Health | Diagnose Git view | Yes | Uses the same GitViewHead as clone/fetch/push. |
-| Rebuild cache | Repair derived view | Admin/hidden | Rebuilds only from canonical committed facts. |
-
-Desktop maps the contract to two primary actions:
+On Cloud-page entry Desktop verifies:
 
 ```text
-Download:
-  fetch puppyone
-  pull --ff-only --autostash, or pull --rebase --autostash
-
-Upload:
-  push puppyone HEAD:main
-  disable/reject when Cloud has a newer visible head
+session -> Binding -> current Project authorization
+        -> Binding target == canonical remote target
+        -> origin and workspace instance match
+        -> Project readiness/content
 ```
 
-Product/API saves do not run Git transport.  They submit typed tree splices to
-the same Version Engine publish boundary.
+A missing remote does not erase a valid Binding: content opens with a Repair
+connection action. Detach explicitly revokes/clears Binding identity and
+returns the workspace to local-only. A repository never hosted or bound to
+PuppyOne has neither Cloud config nor PuppyOne remote and renders local-only
+without an error banner.
+
+## Readiness
+
+Claude readiness is a projection of durable facts, not a Scope flag:
+
+```text
+active Project-root git_remote Surface
+AND valid Project-root Version state
+AND committed root Git transaction from source_channel = access_git
+```
+
+A Product/API seed, rejected push, or Scope push cannot impersonate the first
+Project-root Git push. Readiness returns machine-readable blockers. Session
+generation changes are retried/normalized by Desktop and never shown as raw
+`SESSION_CHANGED` text.
+
+## Protocol and observability
+
+Affected first-party control-plane APIs require
+`X-PuppyOne-Repository-Contract: 2`; missing or wrong versions return 426.
+Typed target errors distinguish target mismatch, missing Scope, and repository
+storage unavailability. Git target mismatch stays a uniform 401.
+
+Audit records include source channel, protocol, entry point, immutable runtime
+principal, Surface/Binding IDs, target, mode, ref, and redacted actor
+attribution. Logs and metrics never contain raw credentials or secret-bearing
+paths. The legacy route reports only one-way Project/Scope references and is
+removable when its accepted-request counter remains zero for the retirement
+window.
+
+## Verification contract
+
+Required tests cover canonical locator parsing, hash-only one-snapshot
+resolution, root and Scope clone/fetch/push with stock Git, credential-helper
+use, descendant isolation, read-only enforcement, Binding continuity,
+concurrent pushes, malformed/oversized requests, one-time secret redaction,
+contract-v2 gating, Desktop repair/detach/local-only states, and architecture
+guards against synthetic root identity or `_scope` reconstruction.

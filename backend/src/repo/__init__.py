@@ -2,10 +2,10 @@
 
 The repository surface is split into four orthogonal sub-modules:
 
-    scope_*       — repo_scopes subtree geometry CRUD (credentials are access-surface credentials)
+    scope_*       — repository_scopes path geometry CRUD
     identity_*    — project URL + prompt_template (the "access point")
     connector_*   — compatibility facade over access_surfaces + connections
 
-Git smart-HTTP and Puppyone CLI entry points both read repo_scopes as the
-canonical scope identity table.
+Git smart-HTTP and PuppyOne CLI resolve credentials through Access Surfaces;
+``repository_scopes`` contributes only optional path geometry.
 """

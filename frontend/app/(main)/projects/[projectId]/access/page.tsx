@@ -28,7 +28,7 @@ import { AccessHeader, LoadingState, NoConnectorsState } from './components/page
 import { ScopeSidebar } from './components/ScopeSidebar';
 import { ScopeDetailPanel } from './components/ScopeDetailPanel';
 import { CreateAccessModal } from './components/CreateAccessModal';
-import type { RepoScope } from '@/lib/repoApi';
+import { enableTargetAccess, repositoryViewKey, type RepositoryView } from '@/lib/repoApi';
 import { useProject } from '@/lib/hooks/useData';
 import { projectAllows } from '@/lib/projectsApi';
 
@@ -42,6 +42,8 @@ export default function AccessPointsPage({
   const searchParams = useSearchParams();
   const [createOpen, setCreateOpen] = useState(false);
   const [createInitialPath, setCreateInitialPath] = useState<string | null>(null);
+  const [enablingTargetKey, setEnablingTargetKey] = useState<string | null>(null);
+  const [enableError, setEnableError] = useState<string | null>(null);
   const { project } = useProject(projectId);
   const canManageAccess = projectAllows(project, 'access_surface.manage')
     && projectAllows(project, 'scope.manage');
@@ -51,12 +53,11 @@ export default function AccessPointsPage({
     noScopes,
     allScopes,
     sortedScopes,
-    connectorsByScope,
+    connectorsByTarget,
     selectedScope,
     selectedConnectors,
-    representativeConnector,
     pendingConnectorIds,
-    setSelectedScopeId,
+    setSelectedTargetKey,
     handlePauseResume,
     handleUpdate,
     handleDelete,
@@ -78,10 +79,24 @@ export default function AccessPointsPage({
     }
   }, [projectId, router, searchParams]);
 
-  const handleCreated = useCallback(async (scope: RepoScope) => {
+  const handleCreated = useCallback(async (scope: RepositoryView) => {
     await refresh();
-    setSelectedScopeId(scope.id);
-  }, [refresh, setSelectedScopeId]);
+    setSelectedTargetKey(repositoryViewKey(scope));
+  }, [refresh, setSelectedTargetKey]);
+
+  const handleEnableTargetAccess = useCallback(async (view: RepositoryView) => {
+    const key = repositoryViewKey(view);
+    setEnablingTargetKey(key);
+    setEnableError(null);
+    try {
+      await enableTargetAccess(projectId, view.target);
+      await refresh();
+    } catch (error) {
+      setEnableError(error instanceof Error ? error.message : 'Could not enable access.');
+    } finally {
+      setEnablingTargetKey(null);
+    }
+  }, [projectId, refresh]);
 
   useEffect(() => {
     const createMode = searchParams.get('create');
@@ -90,10 +105,10 @@ export default function AccessPointsPage({
   }, [openCreate, searchParams]);
 
   useEffect(() => {
-    const scopeId = searchParams.get('scope');
-    if (!scopeId) return;
-    setSelectedScopeId(scopeId);
-  }, [searchParams, setSelectedScopeId]);
+    const targetKey = searchParams.get('target');
+    if (!targetKey) return;
+    setSelectedTargetKey(targetKey);
+  }, [searchParams, setSelectedTargetKey]);
 
   // "SSH Terminal" from the data view routes here with ?remote=ssh&path=<folder>.
   // Preselect the scope matching that folder so the user lands on its Remote Dev
@@ -104,10 +119,10 @@ export default function AccessPointsPage({
     const path = searchParams.get('path') ?? '';
     const match =
       sortedScopes.find((s) => s.path === path) ??
-      sortedScopes.find((s) => s.is_root) ??
+      sortedScopes.find((s) => s.target.kind === 'project_root') ??
       sortedScopes[0];
-    if (match) setSelectedScopeId(match.id);
-  }, [searchParams, sortedScopes, setSelectedScopeId]);
+    if (match) setSelectedTargetKey(repositoryViewKey(match));
+  }, [searchParams, sortedScopes, setSelectedTargetKey]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--po-canvas)' }}>
@@ -130,12 +145,12 @@ export default function AccessPointsPage({
           >
             <ScopeSidebar
               scopes={sortedScopes}
-              connectorsByScope={connectorsByScope}
-              selectedScopeId={selectedScope?.id}
-              onSelect={setSelectedScopeId}
+              connectorsByTarget={connectorsByTarget}
+              selectedTargetKey={selectedScope ? repositoryViewKey(selectedScope) : undefined}
+              onSelect={setSelectedTargetKey}
             />
           </ResizableSidebarColumn>
-          {selectedScope && representativeConnector ? (
+          {selectedScope ? (
             <ScopeDetailPanel
               scope={selectedScope}
               connectors={selectedConnectors}
@@ -147,6 +162,9 @@ export default function AccessPointsPage({
               onScopeMutated={refresh}
               onScopeDeleted={clearScopeSelection}
               canManage={canManageAccess}
+              enablingStandardAccess={enablingTargetKey === repositoryViewKey(selectedScope)}
+              enableStandardAccessError={enableError}
+              onEnableStandardAccess={() => handleEnableTargetAccess(selectedScope)}
             />
           ) : (
             <div style={{ flex: 1, background: T.bg }} />
@@ -157,7 +175,7 @@ export default function AccessPointsPage({
         <CreateAccessModal
           projectId={projectId}
           existingScopes={allScopes}
-          connectorsByScope={connectorsByScope}
+          connectorsByTarget={connectorsByTarget}
           initialPath={createInitialPath}
           onClose={closeCreate}
           onCreated={handleCreated}

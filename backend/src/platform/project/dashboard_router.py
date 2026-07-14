@@ -230,13 +230,12 @@ def _scope_paths_and_keys_by_id(sb, scope_ids: list[str]) -> dict[str, dict]:
             [{"scope_id": scope_id} for scope_id in ids]
         ).values()
     except Exception:
-        logger.exception("[Dashboard] repo_scopes lookup failed")
+        logger.exception("[Dashboard] repository_scopes lookup failed")
         return {}
     return {
         row["id"]: {
             "path": row.get("path"),
-            "is_root": row.get("is_root"),
-            "mode": row.get("mode"),
+            "max_mode": row.get("max_mode"),
         }
         for row in rows
     }
@@ -309,7 +308,7 @@ def _fetch_connections(sb, project_id: str) -> list[DashboardConnection]:
             direction=r.get("direction"),
             status=r.get("status", "active"),
             access_key=None,
-            scope_mode=scope_lookup.get(r.get("scope_id"), {}).get("mode"),
+            scope_mode=scope_lookup.get(r.get("scope_id"), {}).get("max_mode"),
             trigger=trigger,
             last_synced_at=_iso_string(r.get("last_synced_at")),
             error_message=r.get("error_message"),
@@ -340,7 +339,7 @@ def _fetch_connections(sb, project_id: str) -> list[DashboardConnection]:
             access_key=None,
             has_credential=credential is not None,
             credential_hint=credential_hint,
-            scope_mode=scope.get("mode"),
+            scope_mode=scope.get("max_mode"),
             trigger=trigger,
             last_synced_at=_iso_string(
                 cfg.get("last_seen_at") or cfg.get("last_run_at")

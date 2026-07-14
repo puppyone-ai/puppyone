@@ -4,7 +4,12 @@ from types import SimpleNamespace
 import pytest
 from fastapi import HTTPException
 
-from src.platform.authorization.models import RuntimeMode
+from src.platform.authorization.models import (
+    RuntimeGrant,
+    RuntimeMode,
+    RuntimePrincipal,
+)
+from src.platform.repository_target.models import ResolvedRepositoryView, ScopeTarget
 from src.version_engine.entrypoints.git import auth as git_auth
 from src.version_engine.entrypoints.git import router as git_router
 from src.version_engine.entrypoints.git.locator import (
@@ -31,10 +36,11 @@ def _resolved_root(**overrides):
         "credential_id": "credential-1",
         "project_id": "project-1",
         "access_surface_id": "surface-1",
-        "scope_id": "scope-root",
-        "scope_path": "",
-        "scope_exclude": [],
-        "scope_is_root": True,
+        "target_kind": "project_root",
+        "scope_id": None,
+        "path_prefix": "",
+        "excludes": [],
+        "target_max_mode": "rw",
         "workspace_binding_id": None,
         "effective_mode": "rw",
     }
@@ -127,7 +133,8 @@ async def test_canonical_git_auth_accepts_bearer_and_builds_readonly_grant(monke
 
     assert auth["_runtime_grant"].mode is RuntimeMode.READ
     assert auth["_runtime_grant"].project_id == "project-1"
-    assert auth["_scope"]["path"] == ""
+    assert auth["_runtime_grant"].repository_view.path_prefix == ""
+    assert "_scope" not in auth
 
     detail = git_router._git_audit_detail(
         auth=auth,
@@ -177,11 +184,12 @@ async def test_canonical_git_auth_cross_project_mismatch_is_uniform(monkeypatch)
     [
         {"credential_id": ""},
         {"access_surface_id": None},
+        {"target_kind": "scope"},
         {"scope_id": "scope/invalid"},
-        {"scope_is_root": "true"},
-        {"scope_path": "/unexpected/"},
-        {"scope_exclude": "drafts"},
-        {"scope_exclude": [1]},
+        {"path_prefix": "/unexpected/"},
+        {"excludes": "drafts"},
+        {"excludes": [1]},
+        {"target_max_mode": "admin"},
         {"effective_mode": "admin"},
     ],
 )
@@ -211,18 +219,27 @@ async def test_skip_auth_bypasses_secret_check_but_not_scope_geometry(monkeypatc
                 project_id="project-1",
                 path="docs",
                 exclude=["drafts"],
-                mode="r",
-                is_root=False,
+                max_mode="r",
             )
 
-        def get_root_scope(self, _project_id):
-            raise AssertionError("scoped locator must not resolve the root")
+        def list_by_project(self, project_id):
+            assert project_id == "project-1"
+            return [
+                self.get("scope-docs"),
+                SimpleNamespace(
+                    id="scope-private",
+                    project_id="project-1",
+                    path="docs/private",
+                    exclude=[],
+                    max_mode="rw",
+                ),
+            ]
 
     monkeypatch.setattr(git_auth.settings, "SKIP_AUTH", True)
     monkeypatch.setattr(
         git_auth, "SupabaseClient", lambda: SimpleNamespace(client=object())
     )
-    monkeypatch.setattr(git_auth, "RepoScopeRepository", _Scopes)
+    monkeypatch.setattr(git_auth, "RepositoryScopeRepository", _Scopes)
     monkeypatch.setattr(git_auth, "enforce_channel_pause", lambda *_a, **_k: None)
 
     auth = await git_auth.resolve_git_scope_auth(
@@ -231,12 +248,12 @@ async def test_skip_auth_bypasses_secret_check_but_not_scope_geometry(monkeypatc
         _request(_basic("dev-only-token")),
     )
 
-    assert auth["_scope"] == {
-        "id": "scope-docs",
-        "path": "docs",
-        "exclude": ["drafts"],
-        "mode": "r",
-    }
+    grant = auth["_runtime_grant"]
+    assert grant.target.scope_id == "scope-docs"
+    assert grant.repository_view.path_prefix == "docs"
+    assert grant.repository_view.excludes == ("drafts", "docs/private")
+    assert grant.mode is RuntimeMode.READ
+    assert "_scope" not in auth
 
 
 @pytest.mark.asyncio
@@ -248,7 +265,26 @@ async def test_legacy_route_telemetry_never_contains_secret_or_raw_target_ids(
 
     async def _resolve(access_key, _request_value):
         assert access_key == secret
-        return "project-sensitive-id", {"_scope": {"id": "scope-sensitive-id"}}
+        target = ScopeTarget(
+            project_id="project-sensitive-id",
+            scope_id="scope-sensitive-id",
+        )
+        return "project-sensitive-id", {
+            "_runtime_grant": RuntimeGrant(
+                principal=RuntimePrincipal(
+                    principal_id="legacy-credential",
+                    credential_kind="legacy_access_key",
+                ),
+                target=target,
+                repository_view=ResolvedRepositoryView(
+                    target=target,
+                    path_prefix="docs",
+                    excludes=(),
+                    max_mode="rw",
+                ),
+                mode=RuntimeMode.READ_WRITE,
+            )
+        }
 
     monkeypatch.setattr(git_router, "resolve_git_access_point", _resolve)
     monkeypatch.setattr(git_router, "log_info", messages.append)

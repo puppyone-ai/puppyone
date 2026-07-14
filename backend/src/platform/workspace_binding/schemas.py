@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator
 
-from src.platform.workspace_binding.models import BindingKind, BindingMode
+from src.platform.repository_target.schemas import RepositoryTargetSchema
+from src.platform.workspace_binding.models import BindingMode
 
 
 class WorkspaceBindingCreate(BaseModel):
     workspace_instance_id: str = Field(min_length=16, max_length=200)
     cloud_origin: str = Field(min_length=8, max_length=300)
-    binding_kind: BindingKind = BindingKind.FULL
-    scope_id: str | None = None
+    target: RepositoryTargetSchema
     mode: BindingMode = BindingMode.READ_WRITE
 
     @field_validator("workspace_instance_id")
@@ -20,31 +20,20 @@ class WorkspaceBindingCreate(BaseModel):
             raise ValueError("workspace_instance_id cannot contain whitespace")
         return normalized
 
-    @model_validator(mode="after")
-    def validate_binding_shape(self):
-        if self.binding_kind is BindingKind.SCOPED and not self.scope_id:
-            raise ValueError("scope_id is required for a scoped binding")
-        return self
-
-
 class GitRemoteOut(BaseModel):
     url: str
-    project_id: str
-    scope_id: str
-    kind: BindingKind
+    target: RepositoryTargetSchema
     username: str = "x-puppyone-token"
 
 
 class WorkspaceBindingOut(BaseModel):
     id: str
     org_id: str
-    project_id: str
-    scope_id: str
+    target: RepositoryTargetSchema
     scope_path: str | None = None
     workspace_instance_id: str
     bound_user_id: str
     cloud_origin: str
-    binding_kind: BindingKind
     mode: BindingMode
     status: str
     usable: bool = True
@@ -62,10 +51,14 @@ class LegacyRemoteResolveRequest(BaseModel):
 
 
 class LegacyRemoteCandidateOut(BaseModel):
-    project_id: str
-    scope_id: str
-    binding_kind: BindingKind
+    target: RepositoryTargetSchema
     requires_confirmation: bool = True
+
+
+class CanonicalRemoteContextOut(BaseModel):
+    """Authorized, secret-free canonical locator resolution."""
+
+    target: RepositoryTargetSchema
 
 
 class WorkspaceBindingCredentialOut(BaseModel):

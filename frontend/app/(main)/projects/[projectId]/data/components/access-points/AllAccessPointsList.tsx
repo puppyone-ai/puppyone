@@ -1,6 +1,6 @@
 'use client';
 
-import type { Connector, RepoScope } from '@/lib/repoApi';
+import { repositoryViewKey, type Connector, type RepositoryView } from '@/lib/repoApi';
 import { CountBadge } from '@/components/ui/CountBadge';
 import { AccessPointRow } from './AccessPointRow';
 import { ACCESS_PANEL_TYPOGRAPHY, COLOR_FG, COLOR_FG_DIM } from './tokens';
@@ -17,18 +17,18 @@ const EMPTY_CONNECTORS: readonly Connector[] = Object.freeze([]);
  */
 export function AllAccessPointsList({
   scopes,
-  connectorsByScope,
+  connectorsByTarget,
   providerIcons,
   currentScopePath,
   onSelectScope,
 }: {
-  readonly scopes: readonly RepoScope[];
+  readonly scopes: readonly RepositoryView[];
   /** project-wide connectors keyed by scope_id; built once in
    *  DataLayout and passed straight through. */
-  readonly connectorsByScope: ReadonlyMap<string, Connector[]>;
+  readonly connectorsByTarget: ReadonlyMap<string, Connector[]>;
   readonly providerIcons: ProviderIconLookup;
   readonly currentScopePath?: string | null;
-  readonly onSelectScope: (scopeId: string) => void;
+  readonly onSelectScope: (targetKey: string) => void;
 }) {
   return (
     <section style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -71,12 +71,12 @@ export function AllAccessPointsList({
         <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
           {scopes.map((s) => (
             <AccessPointRow
-              key={s.id}
+              key={repositoryViewKey(s)}
               scope={s}
-              connectors={connectorsByScope.get(s.id) ?? EMPTY_CONNECTORS}
+              connectors={connectorsByTarget.get(repositoryViewKey(s)) ?? EMPTY_CONNECTORS}
               providerIcons={providerIcons}
               isCurrent={currentScopePath !== null && currentScopePath !== undefined && s.path === currentScopePath}
-              onClick={() => onSelectScope(s.id)}
+              onClick={() => onSelectScope(repositoryViewKey(s))}
             />
           ))}
         </div>

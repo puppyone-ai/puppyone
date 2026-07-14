@@ -184,7 +184,7 @@ class NotificationManager:
     ) -> None:
         """Fan a prepared commit_update payload out to THIS replica's clients."""
         # Targets: every connection on the same project whose scope
-        # contains the affected path. ``''`` (root scope) is the
+        # contains the affected path. ``''`` (Project root) is the
         # ancestor of everything.
         targets: list[_ClientConn] = []
         async with self._lock:
@@ -317,7 +317,7 @@ class NotificationManager:
 
 def _is_ancestor(maybe_ancestor: str, descendant: str) -> bool:
     """Return True if *maybe_ancestor* contains *descendant* as a path
-    prefix. Empty string is the root scope and an ancestor of everything.
+    prefix. Empty string is the Project root and an ancestor of everything.
     """
     if not maybe_ancestor:
         return True

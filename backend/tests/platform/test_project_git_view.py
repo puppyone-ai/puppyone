@@ -7,7 +7,6 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from src.exceptions import NotFoundException
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
 from src.platform.project.dependencies import get_project_repository
@@ -18,18 +17,10 @@ from src.platform.project.router import (
 from src.platform.project.router import (
     router as project_router,
 )
+from src.platform.repository_target.protocol import require_repository_target_contract
 from tests.authorization_fakes import authorization_for, install_authorization
 
 PROJECT_ID = "project-1"
-
-
-class _ScopeRepository:
-    def __init__(self, scope):
-        self.scope = scope
-
-    def get_root_scope(self, project_id: str):
-        assert project_id == PROJECT_ID
-        return self.scope
 
 
 class _ScopeBackend:
@@ -51,20 +42,7 @@ class _RepoManager:
         return self.scope_backend
 
 
-def _root_scope(**overrides):
-    values = {
-        "id": "scope-root",
-        "project_id": PROJECT_ID,
-        "path": "",
-        "exclude": ["private"],
-        "mode": "rw",
-        "is_root": True,
-    }
-    values.update(overrides)
-    return SimpleNamespace(**values)
-
-
-def test_human_health_uses_the_exact_root_view_and_explicit_repair_capability(
+def test_human_health_uses_project_owned_root_view_and_explicit_repair_capability(
     monkeypatch,
 ):
     from src.platform.project import git_view as module
@@ -78,7 +56,7 @@ def test_human_health_uses_the_exact_root_view_and_explicit_repair_capability(
         return {"health": "healthy", "read_only": kwargs["read_only"]}
 
     monkeypatch.setattr(module, "git_view_health_payload", fake_health)
-    service = ProjectGitViewService(manager, _ScopeRepository(_root_scope()))
+    service = ProjectGitViewService(manager)
 
     payload = service.health(
         PROJECT_ID,
@@ -90,7 +68,7 @@ def test_human_health_uses_the_exact_root_view_and_explicit_repair_capability(
         "repo": manager.repo,
         "project_id": PROJECT_ID,
         "scope_path": "",
-        "scope_excludes": ["private"],
+        "scope_excludes": [],
         "read_only": True,
     }
     assert payload["can_rebuild"] is True
@@ -110,20 +88,20 @@ def test_human_rebuild_rewarms_both_root_cache_variants(monkeypatch):
 
     manager = _RepoManager()
     monkeypatch.setattr(module, "rebuild_git_transport_view", fake_rebuild)
-    service = ProjectGitViewService(manager, _ScopeRepository(_root_scope()))
+    service = ProjectGitViewService(manager)
 
     result = service.rebuild(PROJECT_ID)
 
     assert [call[1] for call in calls] == [
         {
             "scope_path": "",
-            "scope_excludes": ["private"],
+            "scope_excludes": [],
             "follow_history": True,
             "include_blobs": True,
         },
         {
             "scope_path": "",
-            "scope_excludes": ["private"],
+            "scope_excludes": [],
             "follow_history": False,
             "include_blobs": False,
         },
@@ -136,29 +114,23 @@ def test_human_rebuild_rewarms_both_root_cache_variants(monkeypatch):
     }
 
 
-@pytest.mark.parametrize(
-    "scope",
-    [
-        None,
-        _root_scope(project_id="project-2"),
-        _root_scope(is_root=False),
-        _root_scope(path="docs"),
-    ],
-)
-def test_human_git_view_fails_closed_without_exact_root_geometry(scope):
-    service = ProjectGitViewService(_RepoManager(), _ScopeRepository(scope))
+def test_human_git_view_never_reads_a_scope_row_for_project_root():
+    manager = _RepoManager()
+    service = ProjectGitViewService(manager)
 
-    with pytest.raises(NotFoundException):
-        service.health(
-            PROJECT_ID,
-            content_write_allowed=True,
-            cache_rebuild_allowed=True,
-        )
+    _repo, facade = service._root_view(PROJECT_ID)
+
+    assert facade.project_id == PROJECT_ID
+    assert facade.repo_id == f"{PROJECT_ID}:root"
+    assert facade.scope_path == ""
+    assert facade.excludes == ()
+    assert facade.read_only is False
 
 
 def _app(role: str):
     app = FastAPI()
     app.include_router(project_router, prefix="/api/v1")
+    app.dependency_overrides[require_repository_target_contract] = lambda: 2
     app.dependency_overrides[get_current_user] = lambda: CurrentUser(
         user_id="user-1",
         email="user@example.com",

@@ -1,4 +1,4 @@
-"""Sandbox endpoint repository over access_surfaces + repo_scopes."""
+"""Sandbox endpoint repository over access_surfaces + repository_scopes."""
 
 from src.repo.access_credentials import AccessCredentialRepository
 from src.repo.scope_service import ScopeService
@@ -6,7 +6,7 @@ from src.utils.id_generator import generate_uuid_v7
 
 PROVIDER = "sandbox"
 ACCESS_SURFACES_TABLE = "access_surfaces"
-SCOPES_TABLE = "repo_scopes"
+SCOPES_TABLE = "repository_scopes"
 
 
 def _row_to_endpoint(

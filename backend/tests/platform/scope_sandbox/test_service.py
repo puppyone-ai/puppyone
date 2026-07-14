@@ -27,8 +27,6 @@ class _Scope:
     id: str
     project_id: str
     path: str
-    access_key: str
-    is_root: bool = False
 
 
 class FakeProvider(SandboxProvider):
@@ -90,7 +88,7 @@ class FakeProvider(SandboxProvider):
         return "\n".join(c for _, c in self.execs)
 
 
-SCOPE = _Scope(id="scope-123456789", project_id="proj-1", path="docs", access_key="AKEY")
+SCOPE = _Scope(id="scope-123456789", project_id="proj-1", path="docs")
 
 
 async def _noop_sidecar(*args, **kwargs):
@@ -107,6 +105,7 @@ def _service(provider: FakeProvider):
             revoke_hook=ssh_credentials.revoke_ssh_access,
         ),
         sidecar_starter=_noop_sidecar,   # keep connect tests hermetic (no DB/sidecar)
+        scope_credential_issuer=lambda *_args: "secret-cli-token-value",
         git_credential_issuer=lambda *_args: "secret-git-token-value",
     )
     return svc
@@ -136,7 +135,8 @@ async def test_connect_e2b_provisions_ssh_clones_and_grants():
     blob = prov.exec_blob()
     assert "sshd" in blob                                  # E2B SSH provisioned
     assert "git clone" in blob and "/git/proj-1/scopes/scope-123456789.git" in blob
-    assert "AKEY" not in blob and "secret-git-token-value" not in blob
+    assert "secret-cli-token-value" not in blob
+    assert "secret-git-token-value" not in blob
     assert "~/scope" in blob                               # scope workspace (bootstrap)
     assert "~/u1" in blob                                  # per-user working tree (#7)
     assert "authorized_keys" in blob                       # SSH key granted (#5)

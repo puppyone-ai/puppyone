@@ -3,7 +3,8 @@
 import { DialogBody, DialogHeader, DialogRoot, DialogSurface } from '@/components/ui/Dialog';
 import { CountBadge } from '@/components/ui/CountBadge';
 import { CreateAccessModal } from '../../../access/components/CreateAccessModal';
-import type { Connector, RepoScope } from '@/lib/repoApi';
+import type { Connector, RepositoryView } from '@/lib/repoApi';
+import { repositoryViewKey } from '@/lib/repoApi';
 import { AllAccessPointsList } from './AllAccessPointsList';
 import { CreateAccessPointCTACard } from './CreateAccessPointCTACard';
 import { DataAccessQuickModal } from './DataAccessQuickModal';
@@ -16,7 +17,7 @@ export function DataAccessModalHost({
   quickAccessConnectors,
   createAccessInitialPath,
   existingScopes,
-  connectorsByScope,
+  connectorsByTarget,
   providerIcons,
   onCloseAccessOverview,
   onOpenExistingAccess,
@@ -28,30 +29,32 @@ export function DataAccessModalHost({
 }: {
   projectId: string;
   accessOverviewOpen: boolean;
-  quickAccessScope: RepoScope | null;
+  quickAccessScope: RepositoryView | null;
   quickAccessConnectors: Connector[];
   createAccessInitialPath: string | null;
-  existingScopes: RepoScope[];
-  connectorsByScope: Map<string, Connector[]>;
+  existingScopes: RepositoryView[];
+  connectorsByTarget: Map<string, Connector[]>;
   providerIcons: ProviderIconLookup;
   onCloseAccessOverview: () => void;
-  onOpenExistingAccess: (scope: RepoScope) => void;
+  onOpenExistingAccess: (scope: RepositoryView) => void;
   onCloseQuickAccess: () => void;
   onCreateAccess: (folderPath: string | null | undefined) => void;
-  onOpenFullSettings: (scopeId: string) => void;
+  onOpenFullSettings: (targetKey: string) => void;
   onCloseCreateAccess: () => void;
-  onCreated: (scope: RepoScope) => void | Promise<void>;
+  onCreated: (scope: RepositoryView) => void | Promise<void>;
 }) {
   return (
     <>
       {accessOverviewOpen && !quickAccessScope && createAccessInitialPath === null && (
         <DataAccessOverviewModal
           scopes={existingScopes}
-          connectorsByScope={connectorsByScope}
+          connectorsByTarget={connectorsByTarget}
           providerIcons={providerIcons}
           onClose={onCloseAccessOverview}
-          onSelectScope={(scopeId) => {
-            const scope = existingScopes.find((item) => item.id === scopeId);
+          onSelectScope={(targetKey) => {
+            const scope = existingScopes.find(
+              (item) => repositoryViewKey(item) === targetKey,
+            );
             if (scope) onOpenExistingAccess(scope);
           }}
           onCreateAccess={() => onCreateAccess(null)}
@@ -72,7 +75,7 @@ export function DataAccessModalHost({
         <CreateAccessModal
           projectId={projectId}
           existingScopes={existingScopes}
-          connectorsByScope={connectorsByScope}
+          connectorsByTarget={connectorsByTarget}
           initialPath={createAccessInitialPath}
           onClose={onCloseCreateAccess}
           onCreated={onCreated}
@@ -84,17 +87,17 @@ export function DataAccessModalHost({
 
 function DataAccessOverviewModal({
   scopes,
-  connectorsByScope,
+  connectorsByTarget,
   providerIcons,
   onClose,
   onSelectScope,
   onCreateAccess,
 }: {
-  readonly scopes: RepoScope[];
-  readonly connectorsByScope: Map<string, Connector[]>;
+  readonly scopes: RepositoryView[];
+  readonly connectorsByTarget: Map<string, Connector[]>;
   readonly providerIcons: ProviderIconLookup;
   readonly onClose: () => void;
-  readonly onSelectScope: (scopeId: string) => void;
+  readonly onSelectScope: (targetKey: string) => void;
   readonly onCreateAccess: () => void;
 }) {
   return (
@@ -118,7 +121,7 @@ function DataAccessOverviewModal({
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <AllAccessPointsList
               scopes={scopes}
-              connectorsByScope={connectorsByScope}
+              connectorsByTarget={connectorsByTarget}
               providerIcons={providerIcons}
               currentScopePath={null}
               onSelectScope={onSelectScope}

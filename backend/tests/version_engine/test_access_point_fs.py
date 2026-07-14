@@ -13,6 +13,13 @@ from src.version_engine.entrypoints.http import access_point_fs as apfs
 from src.version_engine.entrypoints.http.access_point_fs import _filter_entries
 from src.version_engine.read.tree_reader import VersionTreeReader
 from src.version_engine.adapters.product.commands import VersionWriteCommandService
+from src.platform.authorization.models import RuntimeGrant, RuntimeMode, RuntimePrincipal
+from src.platform.repository_target.models import (
+    ProjectRootTarget,
+    ResolvedRepositoryView,
+    ScopeTarget,
+)
+from src.version_engine.infrastructure.supabase.scope_repository import SupabaseScopeBackend
 
 
 def _entry(path: str, type_: str = "file", size_bytes: int | None = None):
@@ -89,6 +96,16 @@ class _BulkExistsBackend(StorageBackend):
 
 
 def _patch_auth(monkeypatch, scope_path: str = ""):
+    if scope_path:
+        target = ScopeTarget(project_id="project-id", scope_id="test-scope")
+    else:
+        target = ProjectRootTarget(project_id="project-id")
+    view = ResolvedRepositoryView(
+        target=target,
+        path_prefix=scope_path.strip("/"),
+        excludes=(),
+        max_mode="rw",
+    )
     monkeypatch.setattr(
         apfs,
         "resolve_access_point",
@@ -96,15 +113,19 @@ def _patch_auth(monkeypatch, scope_path: str = ""):
             "project-id",
             {
                 "agent": "test-ap",
-                "_scope": {
-                    "id": "_root",
-                    "path": scope_path,
-                    "exclude": [],
-                    "mode": "rw",
-                },
+                "_runtime_grant": RuntimeGrant(
+                    principal=RuntimePrincipal(
+                        principal_id="test-credential",
+                        credential_kind="test",
+                    ),
+                    target=target,
+                    repository_view=view,
+                    mode=RuntimeMode.READ_WRITE,
+                ),
             },
         ),
     )
+    monkeypatch.setattr(SupabaseScopeBackend, "list_all_strict", lambda _self: [])
     monkeypatch.setattr(apfs, "admit_cli_fs_command", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
         apfs,

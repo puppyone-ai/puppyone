@@ -46,18 +46,20 @@ class _FakeScopeClient:
     def execute(self):
         if self.table_name == "access_surface_credentials":
             data = ([{
+                "id": "credential-1", "org_id": "org-1", "project_id": "p1",
                 "access_surface_id": "surface-1", "key_hash": "hashed",
                 "credential_type": "bearer_token", "status": "active",
             }] if "key_hash" in self.hit_columns else [])
         elif self.table_name == "access_surfaces":
             data = [{
-                "id": "surface-1", "scope_id": "s1", "project_id": "p1",
+                "id": "surface-1", "org_id": "org-1",
+                "scope_id": "s1", "project_id": "p1",
                 "kind": "cli", "status": "active",
             }]
-        elif self.table_name == "repo_scopes":
+        elif self.table_name == "repository_scopes":
             data = [{
                 "id": "s1", "project_id": "p1", "path": "docs",
-                "exclude": [], "mode": "rw",
+                "exclude": [], "max_mode": "rw",
             }]
         else:
             data = []
@@ -66,7 +68,7 @@ class _FakeScopeClient:
 
 def _find():
     from src.version_engine.infrastructure.supabase import scope_repository
-    return scope_repository.find_scope_by_access_key
+    return scope_repository.resolve_scope_access_credential
 
 
 def test_scope_auth_always_resolves_by_hash_first(monkeypatch):

@@ -232,10 +232,11 @@ def test_database_contract_suite_and_ci_gate_are_wired():
     workflow = (
         BACKEND.parent / ".github" / "workflows" / "validate-migrations.yml"
     ).read_text()
-    assert "SELECT plan(58);" in contract
+    assert "SELECT plan(61);" in contract
     assert "has_function_privilege" in contract
     assert contract.count("SELECT throws_ok(") >= 6
-    assert "root/non-root identity drift" in contract
+    assert "Project-root binding is represented by Project plus NULL Scope" in contract
+    assert "synthetic-root Scope table name is retired" in contract
     assert "Agent child permissions cannot import a sibling Project tool" in contract
     assert "supabase start" in workflow
     assert "supabase db reset --no-seed" in workflow

@@ -211,7 +211,7 @@ export default function HomePage({
   const accessByPath = useMemo(() => {
     const map = new Map<string, DashboardConnection[]>();
     for (const conn of connections) {
-      // Normalize the three "root scope" path representations the
+      // Normalize the three legacy Project-root path representations the
       // backend can produce into a single key — '' — so downstream
       // consumers only have to look in one place:
       //
@@ -220,7 +220,7 @@ export default function HomePage({
       //                    enforced; still in some long-lived projects
       //   path === ''    — early hand-bootstrapped rows
       //
-      // Without this, the root TreeRow's ApChip lookup
+      // Without this, the Project-root TreeRow's ApChip lookup
       // (`accessByPath.get('')`) misses the AP entirely because its
       // path was '/' under the previous `conn.path || ''` pass-through
       // (truthy → key stays '/'), so the chip silently doesn't render

@@ -16,6 +16,7 @@ from src.version_engine.bootstrap.dependencies import get_product_operation_adap
 from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
 from src.platform.authorization.dependencies import AuthorizedProject, require_project_action
 from src.platform.authorization.models import ProjectAction
+from src.platform.repository_target.protocol import require_repository_target_contract
 from src.repo.scope_service import ScopeService
 from src.repo.scope_router import get_scope_service
 from src.repo.schemas import (
@@ -27,6 +28,7 @@ from src.version_engine.entrypoints.git.locator import canonical_git_url
 router = APIRouter(
     prefix="/projects/{project_id}/access-point",
     tags=["repo-identity"],
+    dependencies=[Depends(require_repository_target_contract)],
 )
 
 
@@ -62,10 +64,6 @@ def get_access_point(
 ):
     project = authorized.project
     scopes = scope_service.list_for_project(str(project.id))
-    # Defensive: ensure root exists. Idempotent — just returns existing if so.
-    if not any(s.is_root for s in scopes):
-        scope_service.ensure_root_scope(str(project.id))
-        scopes = scope_service.list_for_project(str(project.id))
 
     head_commit_id = ops.get_head_commit_id(str(project.id)) or ""
 
@@ -79,17 +77,14 @@ def get_access_point(
                     id=s.id,
                     name=s.name,
                     path=s.path,
-                    is_root=s.is_root,
                     git_url=canonical_git_url(
                         (
                             settings.PUBLIC_URL
                             or f"{request.url.scheme}://{request.url.netloc}"
                         ),
                         str(project.id),
-                        None if s.is_root else s.id,
+                        s.id,
                     ),
-                    # Credentials are returned only by create/regenerate flows.
-                    access_key=None,
                 )
                 for s in scopes
             ],

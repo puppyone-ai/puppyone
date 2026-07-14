@@ -1,4 +1,4 @@
-"""HTTP API for repo_scopes CRUD.
+"""HTTP API for repository Scope CRUD.
 
 Mounted at /api/v1/projects/{project_id}/scopes by main.py. Every endpoint
 declares its canonical Project action.
@@ -6,14 +6,13 @@ declares its canonical Project action.
 
 from __future__ import annotations
 
-from dataclasses import replace
-
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from src.common_schemas import ApiResponse
 from src.platform.authorization.dependencies import AuthorizedProject, require_project_action
 from src.platform.authorization.models import ProjectAction
-from src.repo.models import RepoScope
+from src.platform.repository_target.protocol import require_repository_target_contract
+from src.repo.models import RepositoryScope
 from src.repo.schemas import (
     ScopeAutoSuggestOut,
     ScopeIn,
@@ -24,7 +23,8 @@ from src.repo.scope_service import ScopeService
 
 router = APIRouter(
     prefix="/projects/{project_id}/scopes",
-    tags=["repo-scopes"],
+    tags=["repository-scopes"],
+    dependencies=[Depends(require_repository_target_contract)],
 )
 
 
@@ -40,17 +40,14 @@ def get_scope_service() -> ScopeService:
 # Mappers
 # ──────────────────────────────────────────────────────────────────────────
 
-def _to_out(scope: RepoScope, *, reveal_key: bool = False) -> ScopeOut:
+def _to_out(scope: RepositoryScope) -> ScopeOut:
     return ScopeOut(
         id=scope.id,
         project_id=scope.project_id,
         name=scope.name,
         path=scope.path,
         exclude=scope.exclude,
-        mode=scope.mode,           # type: ignore[arg-type]
-        is_root=scope.is_root,
-        access_key=scope.access_key if reveal_key else None,
-        access_key_revoked=scope.access_key_revoked_at is not None,
+        max_mode=scope.max_mode,           # type: ignore[arg-type]
         created_at=scope.created_at,
         updated_at=scope.updated_at,
     )
@@ -76,7 +73,7 @@ def list_scopes(
     return ApiResponse.success(
         # Machine credentials are one-time reveal only. Ordinary reads never
         # reconstruct a bearer token from storage.
-        data=[_to_out(s, reveal_key=False) for s in scopes],
+        data=[_to_out(s) for s in scopes],
         message="Scopes listed",
     )
 
@@ -85,7 +82,7 @@ def list_scopes(
     "",
     response_model=ApiResponse[ScopeOut],
     status_code=status.HTTP_201_CREATED,
-    summary="Create a scope (auto-INSERTs cli + agent connectors)",
+    summary="Create a repository path Scope",
 )
 def create_scope(
     payload: ScopeIn,
@@ -99,15 +96,15 @@ def create_scope(
         name=payload.name,
         path=payload.path,
         exclude=payload.exclude,
-        mode=payload.mode,
+        max_mode=payload.max_mode,
     )
-    return ApiResponse.success(data=_to_out(scope, reveal_key=True), message="Scope created")
+    return ApiResponse.success(data=_to_out(scope), message="Scope created")
 
 
 @router.patch(
     "/{scope_id}",
     response_model=ApiResponse[ScopeOut],
-    summary="Update name / exclude / mode (path is immutable)",
+    summary="Update name / exclude / max mode (path is immutable)",
 )
 def update_scope(
     scope_id: str,
@@ -124,19 +121,19 @@ def update_scope(
         scope_id,
         name=payload.name,
         exclude=payload.exclude,
-        mode=payload.mode,
+        max_mode=payload.max_mode,
     )
     if updated is None:
         raise HTTPException(status_code=404, detail="Scope not found after update")
     # Updating metadata never re-reveals a machine credential.  The raw token
     # is available only from create/regenerate responses.
-    return ApiResponse.success(data=_to_out(updated, reveal_key=False), message="Scope updated")
+    return ApiResponse.success(data=_to_out(updated), message="Scope updated")
 
 
 @router.delete(
     "/{scope_id}",
     response_model=ApiResponse[None],
-    summary="Delete a non-root scope (cascades cli/agent connectors)",
+    summary="Delete a Scope and its exact-target resources",
 )
 def delete_scope(
     scope_id: str,
@@ -148,8 +145,8 @@ def delete_scope(
     existing = service.get(scope_id)
     if existing is None or existing.project_id != str(authorized.project.id):
         raise HTTPException(status_code=404, detail="Scope not found")
-    # has_bound_connectors: count connectors that are NOT cli/agent (which
-    # are auto-managed and cascade with the scope).
+    # Refuse deletion while user-configured Surfaces or external Connections
+    # still target the Scope. Standard Git/CLI Surfaces cascade with it.
     from src.repo.connector_repository import ConnectorRepository
     conn_repo = ConnectorRepository()
     n_third_party = conn_repo.count_third_party_for_scope(scope_id)
@@ -165,36 +162,6 @@ def delete_scope(
     )
     cleanup_fs_path_index_for_scope(str(authorized.project.id), existing.path or "")
     return ApiResponse.success(message="Scope deleted")
-
-
-@router.post(
-    "/{scope_id}/regenerate-key",
-    response_model=ApiResponse[ScopeOut],
-    summary="Mint a new access_key for the scope",
-)
-def regenerate_scope_key(
-    scope_id: str,
-    authorized: AuthorizedProject = Depends(
-        require_project_action(ProjectAction.CREDENTIAL_MANAGE)
-    ),
-    service: ScopeService = Depends(get_scope_service),
-):
-    existing = service.get(scope_id)
-    if existing is None or existing.project_id != str(authorized.project.id):
-        raise HTTPException(status_code=404, detail="Scope not found")
-    new_key = service.regenerate_access_key(scope_id)
-    if new_key is None:
-        raise HTTPException(status_code=500, detail="Failed to regenerate key")
-    # Storage is hash-only, so a fresh read correctly contains no plaintext.
-    # Attach the just-minted value to the already-authorized Scope object only;
-    # a second database read would add a failure window after the old key has
-    # already been revoked. It is never persisted on repo_scopes and ordinary
-    # reads remain redacted.
-    one_time_result = replace(existing, access_key=new_key)
-    return ApiResponse.success(
-        data=_to_out(one_time_result, reveal_key=True),
-        message="Key regenerated",
-    )
 
 
 @router.post(

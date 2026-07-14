@@ -287,7 +287,7 @@ function formatOperatorLabel(type: string): string {
 
 function formatScopeLabel(scopePath: string): string {
   const normalized = normalizeScopePath(scopePath);
-  if (!normalized || normalized === '/') return 'Root scope';
+  if (!normalized || normalized === '/') return 'Project root';
   return normalized;
 }
 

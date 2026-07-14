@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { Connector, RepoScope } from '@/lib/repoApi';
+import type { Connector, RepositoryView } from '@/lib/repoApi';
 import { T } from '../lib/tokens';
 import type { ConnectorEditPatch } from '../hooks/useAccessData';
 import { ConnectorConnectDialog } from './ConnectorConnectDialog';
@@ -24,7 +24,7 @@ export function ConnectorList({
   pendingConnectorIds,
   canManage,
 }: {
-  readonly scope: RepoScope | undefined;
+  readonly scope: RepositoryView | undefined;
   readonly connectors: readonly Connector[];
   readonly selectedId: string | null;
   readonly onSelect: (id: string) => void;

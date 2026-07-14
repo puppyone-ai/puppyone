@@ -4,10 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 
-
-class BindingKind(StrEnum):
-    FULL = "full"
-    SCOPED = "scoped"
+from src.platform.repository_target.models import RepositoryTarget
 
 
 class BindingMode(StrEnum):
@@ -24,12 +21,10 @@ class BindingStatus(StrEnum):
 class WorkspaceBinding:
     id: str
     org_id: str
-    project_id: str
-    scope_id: str
+    target: RepositoryTarget
     workspace_instance_id: str
     bound_user_id: str
     cloud_origin: str
-    binding_kind: BindingKind
     mode: BindingMode
     status: BindingStatus
     created_at: datetime
@@ -37,3 +32,7 @@ class WorkspaceBinding:
     last_seen_at: datetime
     revoked_at: datetime | None = None
     scope_path: str | None = None
+
+    @property
+    def project_id(self) -> str:
+        return self.target.project_id

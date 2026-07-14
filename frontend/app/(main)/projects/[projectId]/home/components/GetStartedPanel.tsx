@@ -495,7 +495,7 @@ function GitSyncBlock({
   connections: DashboardConnection[];
 }) {
   // Look for the built-in root Git Remote access surface in dashboard
-  // truth.  We accept '/' / null / '' as "root scope" because older
+  // truth. We accept '/' / null / '' as legacy Project-root encodings because older
   // rows may use different root path encodings.
   const gitRemote = useMemo(() => (
     connections.find(

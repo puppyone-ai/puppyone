@@ -40,7 +40,9 @@ async def test_create_chain_deletes_project_when_tree_initialization_fails() -> 
 
 
 @pytest.mark.asyncio
-async def test_create_chain_deletes_project_when_root_scope_fails(monkeypatch) -> None:
+async def test_create_chain_finishes_without_creating_a_synthetic_root_scope(
+    monkeypatch,
+) -> None:
     projects = _Projects()
 
     class Admin:
@@ -48,19 +50,19 @@ async def test_create_chain_deletes_project_when_root_scope_fails(monkeypatch) -
             return "commit"
 
     class Scope:
-        def ensure_root_scope(self, _project_id: str):
-            raise RuntimeError("scope failed")
+        def __init__(self):
+            raise AssertionError("Project creation must not instantiate ScopeService")
 
     monkeypatch.setattr("src.repo.scope_service.ScopeService", Scope)
 
-    with pytest.raises(RuntimeError, match="scope failed"):
-        await create_project_with_tree(
-            project_service=projects,
-            admin_service=Admin(),
-            name="Copy",
-            description=None,
-            org_id="org-1",
-            created_by="user-1",
-        )
+    project = await create_project_with_tree(
+        project_service=projects,
+        admin_service=Admin(),
+        name="Copy",
+        description=None,
+        org_id="org-1",
+        created_by="user-1",
+    )
 
-    assert projects.deleted == ["project-1"]
+    assert project.id == "project-1"
+    assert projects.deleted == []

@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import type { Connector, RepoScope } from '@/lib/repoApi';
+import { repositoryViewKey, type Connector, type RepositoryView } from '@/lib/repoApi';
 import { CountBadge } from '@/components/ui/CountBadge';
 import { StatusDot } from '@/components/ui/StatusDot';
 import { SIDEBAR_ROW_TYPOGRAPHY } from '@/lib/uiTypography';
@@ -11,13 +11,13 @@ type ScopeFilter = 'all' | 'active' | 'inactive';
 
 export function ScopeSidebar({
   scopes,
-  connectorsByScope,
-  selectedScopeId,
+  connectorsByTarget,
+  selectedTargetKey,
   onSelect,
 }: {
-  readonly scopes: readonly RepoScope[];
-  readonly connectorsByScope: ReadonlyMap<string, readonly Connector[]>;
-  readonly selectedScopeId: string | undefined;
+  readonly scopes: readonly RepositoryView[];
+  readonly connectorsByTarget: ReadonlyMap<string, readonly Connector[]>;
+  readonly selectedTargetKey: string | undefined;
   readonly onSelect: (id: string) => void;
 }) {
   const [query, setQuery] = useState('');
@@ -27,7 +27,7 @@ export function ScopeSidebar({
   const filteredScopes = useMemo(() => {
     const q = query.trim().toLowerCase();
     return scopes.filter((scope) => {
-      const connectors = connectorsByScope.get(scope.id) ?? [];
+      const connectors = connectorsByTarget.get(repositoryViewKey(scope)) ?? [];
       const active = connectors.some(isConnectorActive);
       if (filter === 'active' && !active) return false;
       if (filter === 'inactive' && active) return false;
@@ -35,7 +35,7 @@ export function ScopeSidebar({
       const haystack = `${scope.name ?? ''} ${scope.path ?? ''} ${formatScopePath(scope)}`.toLowerCase();
       return haystack.includes(q);
     });
-  }, [connectorsByScope, filter, query, scopes]);
+  }, [connectorsByTarget, filter, query, scopes]);
 
   return (
     <div
@@ -171,11 +171,11 @@ export function ScopeSidebar({
         <div style={{ padding: '0 0 6px 0', position: 'relative', boxSizing: 'border-box' }}>
           {filteredScopes.map((scope) => (
             <ScopeSidebarRow
-              key={scope.id}
+              key={repositoryViewKey(scope)}
               scope={scope}
-              connectors={connectorsByScope.get(scope.id) ?? []}
-              isSelected={scope.id === selectedScopeId}
-              onClick={() => onSelect(scope.id)}
+              connectors={connectorsByTarget.get(repositoryViewKey(scope)) ?? []}
+              isSelected={repositoryViewKey(scope) === selectedTargetKey}
+              onClick={() => onSelect(repositoryViewKey(scope))}
             />
           ))}
           {filteredScopes.length === 0 ? (
@@ -203,13 +203,13 @@ function ScopeSidebarRow({
   isSelected,
   onClick,
 }: {
-  readonly scope: RepoScope;
+  readonly scope: RepositoryView;
   readonly connectors: readonly Connector[];
   readonly isSelected: boolean;
   readonly onClick: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
-  const isWorkspaceWide = scope.path === '' || scope.is_root;
+  const isWorkspaceWide = scope.target.kind === 'project_root';
   const displayName = isWorkspaceWide
     ? (scope.name || 'Workspace root')
     : (scope.name || scope.path.split('/').filter(Boolean).pop() || scope.path);
@@ -319,8 +319,8 @@ function isConnectorActive(connector: Connector): boolean {
   return connector.status === 'active' || connector.status === 'syncing';
 }
 
-function formatScopePath(scope: RepoScope): string {
-  if (scope.is_root || !scope.path) return '/';
+function formatScopePath(scope: RepositoryView): string {
+  if (scope.target.kind === 'project_root') return '/';
   return `/${scope.path}`;
 }
 

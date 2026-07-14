@@ -90,7 +90,7 @@ The authorization/binding/runtime boundary has nine core tables:
 3. `projects`
 4. `project_members`
 5. `project_workspace_bindings`
-6. `repo_scopes`
+6. `repository_scopes`
 7. `access_surfaces`
 8. `access_surface_credentials`
 9. `access_surface_policies`
@@ -100,6 +100,8 @@ The authorization/binding/runtime boundary has nine core tables:
 Adjacent business tables such as `tools`, `access_tools`, Version Engine
 transactions, content, and audit are not alternate authorization sources.
 
+Project root is represented by Project plus nullable `scope_id`; it has no
+Scope row. Every `repository_scopes` row is a non-empty path boundary.
 Composite foreign keys prove Project/Organization, Scope/Project,
 Surface/Project/Organization, Binding/Project/Scope/User, and credential/surface
 integrity in the database.  Project creation and creator Admin membership use
@@ -116,8 +118,8 @@ database trigger.
 `project_workspace_bindings` stores only stable, non-secret facts:
 
 ```text
-binding id, Cloud origin, Project id, Scope id,
-workspace instance id, bound user id, full/scoped kind,
+binding id, Cloud origin, Project id, nullable Scope id,
+workspace instance id, bound user id,
 r/rw requested runtime mode, lifecycle timestamps
 ```
 
@@ -125,9 +127,9 @@ It does not store an absolute local path, folder fingerprint, remote URL,
 plaintext credential, role, or capability snapshot.  One workspace instance
 has at most one active binding.  Rebinding requires explicit detach/revoke.
 
-- `full` requires the canonical root scope.
-- `scoped` requires a non-root scope and exposes its path in the UI.
-- changing the root identity of a scope with an active binding is rejected.
+- NULL Scope means `ProjectRootTarget`; a non-NULL Scope means the exact
+  `ScopeTarget`. The target kind is derived, never stored separately.
+- changing a binding target requires explicit detach/rebind.
 - changing a scope from `rw` to `r` revokes active `rw` binding credentials.
 - Viewer can mint only `r`; Editor/Admin can request `r` or `rw`, still capped
   by the current scope.
@@ -198,7 +200,7 @@ Desktop open behavior follows this order:
    origin and canonical locator grammar;
 3. resolve the active binding when its ID is present;
 4. re-authorize the current account against the binding's Project;
-5. verify exact Project, Scope, host, workspace instance, and full/scoped kind;
+5. verify exact Project-root/Scope target, host, and workspace instance;
 6. navigate directly to the verified Project without enumerating Organization
    Projects first.
 
@@ -216,8 +218,8 @@ merely to rediscover a URL that the binding service owns.
 If local binding state is absent, a canonical locator can seed one explicit
 attach/recovery flow after current-user authorization. It cannot silently
 create durable identity, cannot authorize Project metadata, and cannot trigger
-an N-by-M scan of Projects, Scopes, or shared credentials. The legacy
-`/git/ap/<key>.git` route remains confirmation-gated during migration because
+an N-by-M scan of Projects, Scopes, or shared credentials. The bounded legacy
+`/git/ap/<key>.git` adapter is never constructed by first-party clients because
 its path is a secret-bearing capability rather than a stable locator.
 
 Binding or Access issuance returns the canonical locator and one-time
@@ -231,8 +233,8 @@ must not leave an unreported active binding.
 Readiness is a projection of durable facts, not a mutable Project flag:
 
 ```text
-active canonical-root git_remote surface
-AND valid canonical root head
+active Project-root git_remote surface
+AND valid Project-root head
 AND committed Version Engine transaction
     where scope_path = '' and source_channel = 'access_git'
 ```
@@ -282,7 +284,7 @@ return no Projects rather than a partial metadata leak.
 - `supabase/tests/unified_project_authorization_test.sql` exercises real RPCs,
   FKs, triggers, role resolution, credential isolation, scope/role downgrade,
   and tool child boundaries through pgTAP.
-- Desktop tests cover full/scoped binding, wrong account/host, legacy
+- Desktop tests cover Project-root/Scope binding, wrong account/host, legacy
   confirmation, capability navigation, and the first-root-Git-push Claude gate.
 
 Deployment and rollback gates are defined in

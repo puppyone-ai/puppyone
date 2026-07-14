@@ -9,6 +9,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
+from src.platform.repository_target.models import (
+    RepositoryTarget,
+    ResolvedRepositoryView,
+)
+
 
 class ProjectRole(StrEnum):
     ADMIN = "admin"
@@ -192,18 +197,32 @@ class RuntimePrincipal:
 
 @dataclass(frozen=True, slots=True)
 class RuntimeGrant:
-    """Scope-bounded Machine data-plane grant.
+    """Repository-view-bounded Machine data-plane grant.
 
     This type deliberately has no Project role or control-plane capabilities.
     """
 
     principal: RuntimePrincipal
-    project_id: str
-    scope_id: str
-    path: str
-    excludes: tuple[str, ...]
+    target: RepositoryTarget
+    repository_view: ResolvedRepositoryView
     mode: RuntimeMode
     tools: frozenset[str] = frozenset()
+
+    def __post_init__(self) -> None:
+        if self.target != self.repository_view.target:
+            raise ValueError("RuntimeGrant target/view mismatch")
+
+    @property
+    def project_id(self) -> str:
+        return self.target.project_id
+
+    @property
+    def path(self) -> str:
+        return self.repository_view.path_prefix
+
+    @property
+    def excludes(self) -> tuple[str, ...]:
+        return self.repository_view.excludes
 
     @property
     def can_write(self) -> bool:

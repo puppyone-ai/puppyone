@@ -73,15 +73,19 @@ class ScopeSandboxService:
         scope_lookup=None,
         manager_factory=None,
         sidecar_starter=None,
+        scope_credential_issuer=None,
         git_credential_issuer=None,
     ) -> None:
         # Shared durable store across providers (one row per scope).
         self._store = store or store_from_settings(settings)
-        # scope_id -> RepoScope-ish object with .project_id / .path / .access_key
+        # scope_id -> repository Scope object with Project/path geometry
         self._scope_lookup = scope_lookup or (lambda sid: _scope_service().get(sid))
         self._manager_factory = manager_factory or self._build_manager
         # injectable so unit tests skip the (DB-touching) sync-sidecar start
         self._sidecar_starter = sidecar_starter or self._maybe_start_sidecar
+        self._scope_credential_issuer = (
+            scope_credential_issuer or self._issue_scope_credential
+        )
         self._git_credential_issuer = (
             git_credential_issuer or self._issue_git_credential
         )
@@ -139,13 +143,21 @@ class ScopeSandboxService:
         public_base: str,
         project_id: str,
         scope_id: str,
-        *,
-        is_root: bool,
     ) -> str:
-        return canonical_git_url(
-            public_base,
-            project_id,
-            None if is_root else scope_id,
+        return canonical_git_url(public_base, project_id, scope_id)
+
+    @staticmethod
+    def _issue_scope_credential(
+        scope_id: str,
+        user_id: str,
+        expires_at: datetime,
+    ) -> str | None:
+        from src.repo.access_surface_repository import AccessSurfaceRepository
+
+        return AccessSurfaceRepository().issue_scope_session_credential(
+            scope_id=scope_id,
+            created_by=user_id,
+            expires_at=expires_at,
         )
 
     @staticmethod
@@ -193,20 +205,16 @@ class ScopeSandboxService:
 
         now = time.time() if now is None else now
         expires_at = now + ttl_s
-        access_key = scope.access_key
-        if not access_key:
-            from src.repo.access_surface_repository import AccessSurfaceRepository
-
-            access_key = AccessSurfaceRepository().issue_scope_session_credential(
-                scope_id=scope_id,
-                created_by=user_id,
-                expires_at=datetime.fromtimestamp(expires_at, tz=timezone.utc),
-            )
-        if not access_key:
-            raise RuntimeError("Failed to issue sandbox scope credential")
         credential_expires_at = datetime.fromtimestamp(
             expires_at, tz=timezone.utc
         )
+        access_key = self._scope_credential_issuer(
+            scope_id,
+            user_id,
+            credential_expires_at,
+        )
+        if not access_key:
+            raise RuntimeError("Failed to issue sandbox scope credential")
         git_credential = self._git_credential_issuer(
             scope_id,
             user_id,
@@ -218,7 +226,6 @@ class ScopeSandboxService:
             public_base,
             project_id,
             scope_id,
-            is_root=bool(getattr(scope, "is_root", False)),
         )
         mgr = self._manager(provider_name)
 

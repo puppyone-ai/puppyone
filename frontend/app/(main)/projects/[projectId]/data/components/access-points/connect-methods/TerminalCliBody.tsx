@@ -6,27 +6,25 @@ import { CliCredentialIssuePanel } from './CliCredentialIssuePanel';
 import { Disclosure } from './Disclosure';
 import { NumberedStep } from './NumberedStep';
 import { PromptBlock } from './PromptBlock';
+import type { RepositoryTarget } from '@puppyone/cloud-core';
 
 export function TerminalCliBody({
   apiBase,
-  projectId,
-  scopeId,
-  initialCredential,
+  connectorId,
+  target,
   profileName,
   scopeName,
 }: {
   readonly apiBase: string;
-  readonly projectId: string;
-  readonly scopeId: string;
-  readonly initialCredential?: string;
+  readonly connectorId: string;
+  readonly target: RepositoryTarget;
   readonly profileName: string;
   readonly scopeName: string;
 }) {
   return (
     <CliCredentialIssuePanel
-      projectId={projectId}
-      scopeId={scopeId}
-      initialCredential={initialCredential}
+      connectorId={connectorId}
+      target={target}
     >
       {(accessKey) => {
         const { installLine, loginLine, exploreLines, fileLines, prompt } = buildTerminalCliPrompt({

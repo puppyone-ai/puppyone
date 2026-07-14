@@ -11,7 +11,7 @@
  */
 
 import useSWR from 'swr';
-import type { RepoScope } from '@/lib/repoApi';
+import type { RepositoryView } from '@/lib/repoApi';
 import {
   getSyncActivity,
   getSyncStats,
@@ -88,7 +88,7 @@ export function SyncActivityPanel({
   scope,
   projectId,
 }: {
-  readonly scope: RepoScope;
+  readonly scope: RepositoryView;
   readonly projectId: string;
 }) {
   const key = projectId && scope.id ? [projectId, scope.id] : null;

@@ -10,8 +10,14 @@ from fastapi import HTTPException, Request
 from src.config import settings
 from src.infra.supabase.client import SupabaseClient
 from src.platform.authorization.models import RuntimeGrant, RuntimeMode, RuntimePrincipal
+from src.platform.repository_target.models import (
+    ProjectRootTarget,
+    ResolvedRepositoryView,
+    ScopeTarget,
+)
+from src.platform.repository_target.auth_context import repository_view_from_auth
 from src.repo.access_credentials import AccessCredentialRepository
-from src.repo.scope_repository import RepoScopeRepository
+from src.repo.scope_repository import RepositoryScopeRepository
 from src.version_engine.entrypoints.git.locator import validate_git_locator_id
 from src.version_engine.entrypoints.http.access_point import resolve_access_point
 from src.version_engine.admission.channel_pause import enforce_channel_pause
@@ -110,26 +116,26 @@ async def resolve_canonical_git_auth(
         raise _git_unauthorized()
     try:
         resolved_project_id = _required_runtime_text(resolved, "project_id")
-        resolved_scope_id = validate_git_locator_id(
-            _required_runtime_text(resolved, "scope_id"),
-            field="scope_id",
-        )
         credential_id = _required_runtime_text(resolved, "credential_id")
         access_surface_id = _required_runtime_text(resolved, "access_surface_id")
-        is_root = resolved["scope_is_root"]
-        if not isinstance(is_root, bool):
-            raise ValueError("scope_is_root must be a boolean")
-        scope_path = normalize_path(str(resolved.get("scope_path") or ""))
-        raw_excludes = resolved.get("scope_exclude") or []
+        target_kind = _required_runtime_text(resolved, "target_kind")
+        resolved_scope_id = (
+            validate_git_locator_id(str(resolved["scope_id"]), field="scope_id")
+            if resolved.get("scope_id") is not None
+            else None
+        )
+        path_prefix = normalize_path(str(resolved.get("path_prefix") or ""))
+        raw_excludes = resolved.get("excludes") or []
         if not isinstance(raw_excludes, (list, tuple)) or not all(
             isinstance(item, str) for item in raw_excludes
         ):
-            raise ValueError("scope_exclude must be a string list")
+            raise ValueError("excludes must be a string list")
         excludes = tuple(
             normalized
             for item in raw_excludes
             if (normalized := normalize_path(item))
         )
+        target_max_mode = _required_runtime_text(resolved, "target_max_mode")
         mode = RuntimeMode(_required_runtime_text(resolved, "effective_mode"))
     except (KeyError, TypeError, ValueError):
         # A malformed or partially migrated authorization fact set is not a
@@ -139,31 +145,38 @@ async def resolve_canonical_git_auth(
 
     if resolved_project_id != project_id:
         raise _git_unauthorized()
-    if scope_id is None:
-        if not is_root or scope_path:
+    if target_kind == "project_root":
+        if scope_id is not None or resolved_scope_id is not None or path_prefix or excludes:
             raise _git_unauthorized()
-    elif is_root or resolved_scope_id != scope_id or not scope_path:
+        target = ProjectRootTarget(project_id=project_id)
+    elif target_kind == "scope":
+        if scope_id is None or resolved_scope_id != scope_id or not path_prefix:
+            raise _git_unauthorized()
+        target = ScopeTarget(project_id=project_id, scope_id=scope_id)
+    else:
         raise _git_unauthorized()
+
+    try:
+        repository_view = ResolvedRepositoryView(
+            target=target,
+            path_prefix=path_prefix,
+            excludes=excludes,
+            max_mode=target_max_mode,
+        )
+    except ValueError:
+        raise _git_unauthorized() from None
 
     runtime_grant = RuntimeGrant(
         principal=RuntimePrincipal(
             principal_id=credential_id,
             credential_kind="git_http_token",
         ),
-        project_id=project_id,
-        scope_id=resolved_scope_id,
-        path=scope_path,
-        excludes=excludes,
+        target=target,
+        repository_view=repository_view,
         mode=mode,
     )
     auth = {
         "agent": f"git-credential:{credential_id}",
-        "_scope": {
-            "id": resolved_scope_id,
-            "path": runtime_grant.path,
-            "exclude": list(excludes),
-            "mode": mode.value,
-        },
         "_runtime_grant": runtime_grant,
         "_user_identity": user_identity,
         "_credential_id": credential_id,
@@ -199,60 +212,87 @@ async def _mock_git_auth(
 ) -> dict:
     """Bypass credential auth without bypassing canonical target geometry."""
 
-    repository = RepoScopeRepository(SupabaseClient().client)
-    scope = await asyncio.to_thread(
-        repository.get if scope_id is not None else repository.get_root_scope,
-        scope_id if scope_id is not None else project_id,
-    )
-    if (
-        scope is None
-        or scope.project_id != project_id
-        or scope.is_root is not (scope_id is None)
-    ):
-        raise _git_unauthorized()
-    path = normalize_path(scope.path)
-    if (scope.is_root and path) or (not scope.is_root and not path):
-        raise _git_unauthorized()
-    try:
-        mode = RuntimeMode(scope.mode)
-    except ValueError:
-        raise _git_unauthorized() from None
-    excludes = tuple(
-        normalized
-        for item in scope.exclude
-        if (normalized := normalize_path(item))
-    )
+    if scope_id is None:
+        rows = await asyncio.to_thread(
+            lambda: (
+                SupabaseClient().client.table("projects")
+                .select("id")
+                .eq("id", project_id)
+                .limit(1)
+                .execute()
+            ).data or []
+        )
+        if not rows:
+            raise _git_unauthorized()
+        target = ProjectRootTarget(project_id=project_id)
+        view = ResolvedRepositoryView(
+            target=target,
+            path_prefix="",
+            excludes=(),
+            max_mode="rw",
+        )
+        mode = RuntimeMode.READ_WRITE
+    else:
+        scope = await asyncio.to_thread(
+            RepositoryScopeRepository(SupabaseClient().client).get,
+            scope_id,
+        )
+        if scope is None or scope.project_id != project_id:
+            raise _git_unauthorized()
+        path = normalize_path(scope.path)
+        if not path:
+            raise _git_unauthorized()
+        try:
+            mode = RuntimeMode(scope.max_mode)
+        except ValueError:
+            raise _git_unauthorized() from None
+        configured_excludes = tuple(
+            normalized
+            for item in scope.exclude
+            if (normalized := normalize_path(item))
+        )
+        all_scopes = await asyncio.to_thread(
+            RepositoryScopeRepository(SupabaseClient().client).list_by_project,
+            project_id,
+        )
+        descendant_excludes = tuple(
+            child_path
+            for child in all_scopes
+            if child.id != scope.id
+            and (child_path := normalize_path(child.path)).startswith(path + "/")
+        )
+        excludes = tuple(
+            dict.fromkeys(configured_excludes + descendant_excludes)
+        )
+        target = ScopeTarget(project_id=project_id, scope_id=scope.id)
+        view = ResolvedRepositoryView(
+            target=target,
+            path_prefix=path,
+            excludes=excludes,
+            max_mode=scope.max_mode,
+        )
     runtime_grant = RuntimeGrant(
         principal=RuntimePrincipal(
             principal_id="test-git-credential",
             credential_kind="git_http_token",
         ),
-        project_id=project_id,
-        scope_id=scope.id,
-        path=path,
-        excludes=excludes,
+        target=target,
+        repository_view=view,
         mode=mode,
     )
     return {
         "agent": "git-credential:test-git-credential",
-        "_scope": {
-            "id": scope.id,
-            "path": path,
-            "exclude": list(excludes),
-            "mode": mode.value,
-        },
         "_runtime_grant": runtime_grant,
         "_user_identity": username,
     }
 
 
 def scope_path_for_auth(auth: dict) -> str:
-    return normalize_path((auth.get("_scope") or {}).get("path", ""))
+    return normalize_path(repository_view_from_auth(auth).path_prefix)
 
 
 def scope_excludes_for_auth(auth: dict) -> list[str]:
-    raw = (auth.get("_scope") or {}).get("exclude") or []
-    return [normalize_path(item) for item in raw if item]
+    return list(repository_view_from_auth(auth).excludes)
 
 
 def request_actor(request: Request, auth: dict) -> str:

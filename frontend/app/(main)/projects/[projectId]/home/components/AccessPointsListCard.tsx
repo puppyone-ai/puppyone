@@ -12,7 +12,7 @@ import type { DashboardConnection } from '../lib/types';
 import { ProviderAvatar } from './ProviderAvatar';
 import { canonicalProjectGitUrl, canonicalScopeGitUrl } from '@/lib/gitRemote';
 
-// Normalize the three known "root scope" path representations the
+// Normalize the three known legacy Project-root path representations the
 // backend may emit ('/' or '' for root, null for incomplete rows) into a single
 // canonical key.  Used both for the lookup key in `accessByPath` and
 // for the hover-sync key here.  Keep this in step with the same

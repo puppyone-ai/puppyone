@@ -1,4 +1,5 @@
 import type { CloudTransport } from "../transport";
+import type { RepositoryTarget } from "../repositoryTargets";
 import {
   BUILTIN_ACCESS_PROVIDER_IDS,
   getAccessProviderSortRank,
@@ -12,8 +13,7 @@ export type ConnectorStatus = "active" | "paused" | "syncing" | "error";
 
 export interface Connector {
   id: string;
-  project_id: string;
-  scope_id: string;
+  target: RepositoryTarget;
   provider: string; // 'cli' | 'agent' | 'notion' | 'gmail' | ...
   name: string;
   direction: ConnectorDirection;
@@ -21,7 +21,6 @@ export interface Connector {
   oauth_connection_id: number | null;
   trigger: Record<string, unknown>;
   status: ConnectorStatus;
-  access_key?: string | null;
   last_run_at: string | null;
   last_run_id: string | null;
   error_message: string | null;
@@ -40,9 +39,7 @@ export interface RepoIdentity {
     id: string;
     name: string;
     path: string;
-    is_root: boolean;
-    git_url?: string;
-    access_key?: string | null;
+    git_url: string;
   }>;
 }
 
@@ -57,7 +54,7 @@ export interface ConnectorRun {
 }
 
 export interface CreateConnectorBody {
-  scope_id: string;
+  target: RepositoryTarget;
   provider: string;
   direction: ConnectorDirection;
   name?: string;
@@ -71,10 +68,9 @@ export function createConnectorsApi(t: CloudTransport) {
   return {
     async listConnectors(
       projectId: string,
-      filter?: { scopeId?: string; provider?: string; direction?: string; includeNonAccess?: boolean },
+      filter?: { provider?: string; direction?: string; includeNonAccess?: boolean },
     ): Promise<Connector[]> {
       const qs = new URLSearchParams();
-      if (filter?.scopeId) qs.set("scope_id", filter.scopeId);
       if (filter?.provider) qs.set("provider", filter.provider);
       if (filter?.direction) qs.set("direction", filter.direction);
       if (filter?.includeNonAccess) qs.set("include_non_access", "true");
@@ -85,6 +81,12 @@ export function createConnectorsApi(t: CloudTransport) {
     },
     createConnector(projectId: string, body: CreateConnectorBody): Promise<Connector> {
       return t.post<Connector>(`/api/v1/projects/${projectId}/connectors`, body);
+    },
+    enableTargetAccess(projectId: string, target: RepositoryTarget): Promise<Connector[]> {
+      return t.post<Connector[]>(
+        `/api/v1/projects/${projectId}/connectors/enable-target`,
+        { target },
+      );
     },
     updateConnector(
       projectId: string,

@@ -1,6 +1,9 @@
 # Canonical Git Remote Rollout Runbook
 
-Status: **required for rollout; legacy removal is not authorized by this runbook**
+Status: **canonical-locator/legacy-route operations only**. The repository
+target schema cutover is superseded by
+[ISSUE-039 Repository Target Cutover](issue-039-repository-target-cutover.md);
+legacy route removal is not authorized by this runbook.
 
 The normative protocol contract is
 [Git Remote Locator, Credential, And Access Point Contract](../architecture/05-git-remote-accesspoint.md).
@@ -16,7 +19,7 @@ Engine behavior.
 2. A URL identifies one Project root or one exact Scope; it grants nothing.
 3. A Git secret appears only in HTTP authorization/credential-helper input. It
    never appears in a URL, manifest, command argument, image, or access log.
-4. Root URLs accept only root-Scope credentials. Scoped URLs require exact
+4. Root URLs accept only Project-root credentials. Scoped URLs require exact
    Project and Scope equality.
 5. Shared `r`, shared `rw`, per-binding, and short-lived session credentials
    are separate rotation domains.
@@ -103,12 +106,12 @@ where c.status = 'active'
     or s.org_id <> c.org_id
   );
 
--- Must be zero: every Git surface must resolve one Scope in the same Project.
+-- Must be zero: every scoped Git surface resolves one Scope in its Project.
 select count(*) as invalid_git_scope
 from public.access_surfaces s
-left join public.repo_scopes rs
+left join public.repository_scopes rs
   on rs.id = s.scope_id and rs.project_id = s.project_id
-where s.kind = 'git_remote' and rs.id is null;
+where s.kind = 'git_remote' and s.scope_id is not null and rs.id is null;
 
 -- Must be zero: active binding credentials must match an active binding.
 select count(*) as invalid_binding_credential
@@ -124,7 +127,7 @@ where c.status = 'active'
     or b.status <> 'active'
     or b.project_id <> c.project_id
     or b.org_id <> c.org_id
-    or b.scope_id <> s.scope_id
+    or b.scope_id is distinct from s.scope_id
   );
 ```
 
@@ -137,7 +140,7 @@ Deploy B with both route families enabled. Recycle every backend worker; a
 long-lived Python process retains the pre-deploy row mapper even when source
 files on disk have changed. Before testing Desktop attachment, verify that
 `GET /api/v1/projects/{project_id}/scopes` succeeds against a schema where the
-retired `repo_scopes.access_key` column is absent and returns no plaintext key.
+retired Scope plaintext-key column is absent and returns no plaintext key.
 
 Then verify:
 

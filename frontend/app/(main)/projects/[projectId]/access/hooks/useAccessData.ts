@@ -10,7 +10,7 @@
  *   - Two SWR queries  (scopes, connectors) with revalidate config
  *   - Bucketing        (connectors → Map<scopeId, Connector[]>)
  *   - Filtering+sort   (only scopes with ≥1 connector, root-first)
- *   - Selection state  (selectedScopeId + auto-select-first effect)
+ *   - Selection state  (selectedTargetKey + auto-select-first effect)
  *   - Pause/resume     (pendingConnectorIds Set + handlePauseResume)
  *
  * Returning everything as a single object lets `page.tsx` destructure
@@ -27,11 +27,15 @@ import {
   listConnectors,
   listScopes,
   pauseConnector,
+  projectRootRepositoryView,
+  repositoryScopeView,
+  repositoryTargetKey,
+  repositoryViewKey,
   resumeConnector,
   updateConnector,
   type Connector,
   type ConnectorStatus,
-  type RepoScope,
+  type RepositoryView,
 } from '@/lib/repoApi';
 import { listMcpEndpoints, type McpEndpoint } from '@/lib/mcpEndpointsApi';
 import {
@@ -59,14 +63,14 @@ export type ConnectorEditPatch = Partial<{
 export interface UseAccessDataResult {
   loading: boolean;
   noScopes: boolean;
-  allScopes: RepoScope[];
-  sortedScopes: RepoScope[];
-  connectorsByScope: Map<string, Connector[]>;
-  selectedScope: RepoScope | undefined;
+  allScopes: RepositoryView[];
+  sortedScopes: RepositoryView[];
+  connectorsByTarget: Map<string, Connector[]>;
+  selectedScope: RepositoryView | undefined;
   selectedConnectors: Connector[];
   representativeConnector: Connector | undefined;
   pendingConnectorIds: ReadonlySet<string>;
-  setSelectedScopeId: (id: string) => void;
+  setSelectedTargetKey: (key: string) => void;
   handlePauseResume: (connectorId: string) => Promise<void>;
   /** PATCH a connector with the given partial; revalidates SWR on success. */
   handleUpdate: (connectorId: string, patch: ConnectorEditPatch) => Promise<void>;
@@ -99,13 +103,15 @@ export function useAccessData(projectId: string): UseAccessDataResult {
     { refreshInterval: 30000, revalidateOnFocus: false, dedupingInterval: 60000 },
   );
 
-  const [selectedScopeId, setSelectedScopeId] = useState<string | null>(null);
+  const [selectedTargetKey, setSelectedTargetKey] = useState<string | null>(null);
   const [pendingConnectorIds, setPendingConnectorIds] = useState<ReadonlySet<string>>(() => new Set());
 
   const accessConnectors = useMemo(() => {
     const rows = (connectors ?? []).filter(isAccessSurfaceConnector);
     const byId = new Map(rows.map((connector) => [connector.id, connector]));
-    const scopeByPath = new Map((scopes ?? []).map((scope) => [normalizeScopePath(scope.path), scope]));
+    const scopeByPath = new Map(
+      (scopes ?? []).map((scope) => [normalizeScopePath(scope.path), repositoryScopeView(scope)]),
+    );
     for (const endpoint of mcpEndpoints ?? []) {
       if (byId.has(endpoint.id)) continue;
       const path = normalizeScopePath(endpoint.path ?? endpoint.accesses?.[0]?.path ?? '');
@@ -116,7 +122,7 @@ export function useAccessData(projectId: string): UseAccessDataResult {
     return Array.from(byId.values());
   }, [connectors, mcpEndpoints, scopes]);
 
-  // Bucket connectors by scope_id; inside each bucket sort built-ins
+  // Bucket connectors by explicit repository target; inside each bucket sort built-ins
   // (cli, agent) first, then by created_at.
   //
   // When the AI Agent feature flag is off (see
@@ -127,12 +133,13 @@ export function useAccessData(projectId: string): UseAccessDataResult {
   // exist server-side and the rest of the page (selection, pause,
   // delete) keeps the same shape — there are simply no agent rows
   // to surface while the feature is hidden.
-  const connectorsByScope = useMemo(() => {
+  const connectorsByTarget = useMemo(() => {
     const m = new Map<string, Connector[]>();
     accessConnectors.forEach((c) => {
       if (!AI_AGENT_ENABLED && isAgentProvider(c.provider)) return;
-      if (!m.has(c.scope_id)) m.set(c.scope_id, []);
-      m.get(c.scope_id)!.push(c);
+      const key = repositoryTargetKey(c.target);
+      if (!m.has(key)) m.set(key, []);
+      m.get(key)!.push(c);
     });
     for (const list of m.values()) {
       list.sort((a, b) => {
@@ -143,34 +150,44 @@ export function useAccessData(projectId: string): UseAccessDataResult {
     return m;
   }, [accessConnectors]);
 
-  // Only render scopes that have at least one connector — empty
-  // scopes belong in the data view's scope settings, not here.
+  const repositoryViews = useMemo(
+    () => [
+      projectRootRepositoryView(projectId),
+      ...(scopes ?? []).map(repositoryScopeView),
+    ],
+    [projectId, scopes],
+  );
+
+  // Target lifecycle is independent from Access Surface lifecycle. Keep the
+  // Project root and every real Scope visible even before access is enabled.
   const sortedScopes = useMemo(() => {
     if (!scopes) return [];
-    return [...scopes]
-      .filter((s) => (connectorsByScope.get(s.id)?.length ?? 0) > 0)
+    return repositoryViews
       .sort((a, b) => {
-        if (a.is_root && !b.is_root) return -1;
-        if (!a.is_root && b.is_root) return 1;
+        if (a.target.kind === 'project_root' && b.target.kind !== 'project_root') return -1;
+        if (a.target.kind !== 'project_root' && b.target.kind === 'project_root') return 1;
         return a.created_at.localeCompare(b.created_at);
       });
-  }, [scopes, connectorsByScope]);
+  }, [scopes, repositoryViews]);
 
   // Auto-select the first scope on first load / when the current
   // selection disappears.
   useEffect(() => {
-    if (selectedScopeId && sortedScopes.some((s) => s.id === selectedScopeId)) return;
+    if (
+      selectedTargetKey
+      && sortedScopes.some((view) => repositoryViewKey(view) === selectedTargetKey)
+    ) return;
     const first = sortedScopes[0];
-    if (first) setSelectedScopeId(first.id);
-  }, [sortedScopes, selectedScopeId]);
+    if (first) setSelectedTargetKey(repositoryViewKey(first));
+  }, [sortedScopes, selectedTargetKey]);
 
   const selectedScope = useMemo(
-    () => sortedScopes.find((s) => s.id === selectedScopeId) ?? sortedScopes[0],
-    [sortedScopes, selectedScopeId],
+    () => sortedScopes.find((view) => repositoryViewKey(view) === selectedTargetKey) ?? sortedScopes[0],
+    [sortedScopes, selectedTargetKey],
   );
   const selectedConnectors = useMemo(
-    () => (selectedScope ? connectorsByScope.get(selectedScope.id) ?? [] : []),
-    [connectorsByScope, selectedScope],
+    () => (selectedScope ? connectorsByTarget.get(repositoryViewKey(selectedScope)) ?? [] : []),
+    [connectorsByTarget, selectedScope],
   );
   const representativeConnector = selectedConnectors[0];
 
@@ -251,7 +268,7 @@ export function useAccessData(projectId: string): UseAccessDataResult {
 
   const loading = scopes === undefined || connectors === undefined;
   const noScopes = !loading && sortedScopes.length === 0;
-  const allScopes = scopes ?? [];
+  const allScopes = repositoryViews;
 
   // Joint refresh — scope edits (rename / mode / exclude) only touch
   // `repo-scopes`, but a delete cascades to connectors so we always
@@ -265,7 +282,7 @@ export function useAccessData(projectId: string): UseAccessDataResult {
   // adjacent scope on the next render so the user lands on something
   // meaningful instead of a dead detail pane.
   const clearScopeSelection = useCallback(() => {
-    setSelectedScopeId(null);
+    setSelectedTargetKey(null);
   }, []);
 
   return {
@@ -273,12 +290,12 @@ export function useAccessData(projectId: string): UseAccessDataResult {
     noScopes,
     allScopes,
     sortedScopes,
-    connectorsByScope,
+    connectorsByTarget,
     selectedScope,
     selectedConnectors,
     representativeConnector,
     pendingConnectorIds,
-    setSelectedScopeId,
+    setSelectedTargetKey,
     handlePauseResume,
     handleUpdate,
     handleDelete,
@@ -298,11 +315,10 @@ function normalizeConnectorStatus(status: string): ConnectorStatus {
   return 'active';
 }
 
-function mcpEndpointToConnector(endpoint: McpEndpoint, scope: RepoScope): Connector {
+function mcpEndpointToConnector(endpoint: McpEndpoint, scope: RepositoryView): Connector {
   return {
     id: endpoint.id,
-    project_id: endpoint.project_id,
-    scope_id: scope.id,
+    target: scope.target,
     provider: 'mcp',
     name: endpoint.name || 'MCP Server',
     direction: 'bidirectional',
@@ -318,7 +334,6 @@ function mcpEndpointToConnector(endpoint: McpEndpoint, scope: RepoScope): Connec
     oauth_connection_id: null,
     trigger: { type: 'manual' },
     status: normalizeConnectorStatus(endpoint.status),
-    access_key: endpoint.api_key,
     last_run_at: null,
     last_run_id: null,
     error_message: null,

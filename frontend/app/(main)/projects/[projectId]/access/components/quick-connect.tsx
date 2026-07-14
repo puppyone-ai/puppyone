@@ -27,8 +27,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { CountBadge } from '@/components/ui/CountBadge';
 import { buildGitSyncPrompt, buildMcpSetupPrompt, buildTerminalCliPrompt } from '@/lib/accessPointCliPrompt';
-import { activateAgentConnector, type Connector, type RepoScope } from '@/lib/repoApi';
-import { canonicalGitUrlForScope } from '@/lib/gitRemote';
+import { activateAgentConnector, type Connector, type RepositoryView } from '@/lib/repoApi';
+import { canonicalGitUrlForTarget } from '@/lib/gitRemote';
 import {
   getAccessProviderLabel,
   isAgentProvider,
@@ -61,7 +61,7 @@ export function ConnectorAccessPanel({
   scope,
 }: {
   readonly connector: Connector;
-  readonly scope: RepoScope | undefined;
+  readonly scope: RepositoryView | undefined;
 }) {
   const apiBase = useMemo(() => getApiBase(), []);
   if (!scope) return null;
@@ -100,7 +100,7 @@ function TerminalCliBody({
   apiBase,
 }: {
   readonly connector: Connector;
-  readonly scope: RepoScope;
+  readonly scope: RepositoryView;
   readonly apiBase: string;
 }) {
   const scopeName = scope.name || (scope.path === '' ? 'root' : scope.path);
@@ -108,9 +108,8 @@ function TerminalCliBody({
 
   return (
     <CliCredentialIssuePanel
-      projectId={scope.project_id}
-      scopeId={scope.id}
-      initialCredential={scope.access_key || connector.access_key || ''}
+      connectorId={connector.id}
+      target={scope.target}
     >
       {(accessKey) => {
         const { installLine, loginLine, exploreLines, fileLines, prompt } = buildTerminalCliPrompt({
@@ -147,11 +146,11 @@ function GitRemoteBody({
   apiBase,
 }: {
   readonly connector: Connector;
-  readonly scope: RepoScope;
+  readonly scope: RepositoryView;
   readonly apiBase: string;
 }) {
   const scopeName = scope.name || (scope.path === '' ? 'root' : scope.path);
-  const gitUrl = canonicalGitUrlForScope(apiBase, scope);
+  const gitUrl = canonicalGitUrlForTarget(apiBase, scope.target);
   const {
     cloneLines,
     existingFolderLines,
@@ -168,7 +167,7 @@ function GitRemoteBody({
       <GitCredentialIssuePanel
         connectorId={connector.id}
         gitUrl={gitUrl}
-        scopeMode={scope.mode}
+        scopeMode={scope.max_mode}
       />
       <ConnectPathChooser
         prompt={prompt}
@@ -314,44 +313,43 @@ function AgentBody({
   scope,
 }: {
   readonly connector: Connector;
-  readonly scope: RepoScope;
+  readonly scope: RepositoryView;
 }) {
   const router = useRouter();
-  // `activateAgentConnector` writes scope + name into config; an
-  // unactivated agent has `config.scope` empty. Reading it directly
-  // matches `ConnectMethods`.
-  const [activated, setActivated] = useState<boolean>(Boolean(connector.config?.scope));
+  // Activation is explicit state; repository target/view fields never double
+  // as lifecycle flags.
+  const [activated, setActivated] = useState<boolean>(connector.config?.activated === true);
   const [activating, setActivating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Re-sync when connector changes underneath us (e.g. SWR refetch).
   useEffect(() => {
-    setActivated(Boolean(connector.config?.scope));
-  }, [connector.config?.scope]);
+    setActivated(connector.config?.activated === true);
+  }, [connector.config?.activated]);
 
   const goToChat = useCallback(() => {
     // The actual chat runtime lives behind the data view's right panel.
     // Drop the user there — the page-level wiring opens the agent_chat
     // panel for this connector. Using `?ap=...` is enough; the data
     // page reads it on mount.
-    router.push(scopePathToDataUrl(connector.project_id, scope.path) + `?ap=${connector.id}`);
-  }, [router, connector, scope.path]);
+    router.push(scopePathToDataUrl(scope.project_id, scope.path) + `?ap=${connector.id}`);
+  }, [router, connector, scope.path, scope.project_id]);
 
   const handleActivate = useCallback(async () => {
     if (activating) return;
     setActivating(true);
     setError(null);
     try {
-      const updated = await activateAgentConnector(connector.project_id, connector.id);
-      setActivated(Boolean(updated.config?.scope));
+      const updated = await activateAgentConnector(scope.project_id, connector.id);
+      setActivated(updated.config?.activated === true);
       // Then immediately route to chat — same flow as ConnectMethods.
-      router.push(scopePathToDataUrl(connector.project_id, scope.path) + `?ap=${connector.id}`);
+      router.push(scopePathToDataUrl(scope.project_id, scope.path) + `?ap=${connector.id}`);
     } catch (err) {
       setError((err as Error).message || 'Failed to activate AI Agent');
     } finally {
       setActivating(false);
     }
-  }, [activating, connector, scope.path, router]);
+  }, [activating, connector, scope.path, scope.project_id, router]);
 
   const scopeName = scope.name || (scope.path === '' ? 'root' : scope.path);
 
@@ -385,11 +383,11 @@ function McpBody({
   scope,
 }: {
   readonly connector: Connector;
-  readonly scope: RepoScope;
+  readonly scope: RepositoryView;
 }) {
   const apiBase = useMemo(() => getApiBase(), []);
   const configKey = connector.config?.api_key;
-  const apiKey = typeof configKey === 'string' ? configKey : connector.access_key || '';
+  const apiKey = typeof configKey === 'string' ? configKey : '';
   const scopeName = scope.name || (scope.path === '' ? 'root' : scope.path);
   const setup = useMemo(
     () =>
@@ -457,7 +455,7 @@ function McpKeyNotice() {
 
 // ─── Body: Sandbox ───────────────────────────────────────────────────
 
-function SandboxBody({ scope }: { readonly scope: RepoScope }) {
+function SandboxBody({ scope }: { readonly scope: RepositoryView }) {
   const scopeName = scope.name || (scope.path === '' ? 'root' : scope.path);
   return (
     <>
@@ -480,14 +478,14 @@ function ThirdPartyBody({
   scope,
 }: {
   readonly connector: Connector;
-  readonly scope: RepoScope;
+  readonly scope: RepositoryView;
 }) {
   const router = useRouter();
   const providerLabel = getAccessProviderLabel(connector.provider);
 
   const handleConfigure = useCallback(() => {
-    router.push(scopePathToDataUrl(connector.project_id, scope.path) + `?ap=${connector.id}`);
-  }, [router, connector, scope.path]);
+    router.push(scopePathToDataUrl(scope.project_id, scope.path) + `?ap=${connector.id}`);
+  }, [router, connector, scope.path, scope.project_id]);
 
   return (
     <ActivationCard

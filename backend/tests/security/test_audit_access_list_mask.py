@@ -22,6 +22,7 @@ from src.connectors.manager import router as access_router_mod
 from src.connectors.manager.router import router as access_router
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
+from src.platform.repository_target.protocol import require_repository_target_contract
 from tests.authorization_fakes import authorization_for, install_authorization
 
 ALLOWED = "proj-allowed"
@@ -61,7 +62,15 @@ class _FakeConnectorsClient:
 
     def execute(self):
         if self._table == "access_surface_credentials":
-            return SimpleNamespace(data=[])
+            return SimpleNamespace(data=[{
+                "id": "credential-1",
+                "access_surface_id": "conn-1",
+                "credential_type": "bearer_token",
+                "credential_lifecycle": "shared",
+                "workspace_binding_id": None,
+                "status": "active",
+                "key_last4": "WXYZ",
+            }])
         if self._update is not None and self._table == "access_surfaces":
             for row in self._rows:
                 row.update(self._update)
@@ -83,6 +92,7 @@ def _install(monkeypatch, rows):
 def _app():
     app = FastAPI()
     app.include_router(access_router, prefix="/api/v1")
+    app.dependency_overrides[require_repository_target_contract] = lambda: 2
     app.dependency_overrides[get_current_user] = lambda: CurrentUser(
         user_id="user-alice",
         email="a@example.com",
@@ -150,8 +160,7 @@ def test_git_regeneration_returns_locator_and_one_time_credential_separately(
             return SimpleNamespace(
                 id="scope-docs",
                 project_id=ALLOWED,
-                mode="rw",
-                is_root=False,
+                max_mode="rw",
             )
 
     class _Credentials:
@@ -185,7 +194,11 @@ def test_git_regeneration_returns_locator_and_one_time_credential_separately(
         "credential": "git_one_time_secret",
         "git_url": f"https://api.example/git/{ALLOWED}/scopes/scope-docs.git",
         "git_username": "x-puppyone-token",
-        "scope_id": "scope-docs",
+        "target": {
+            "kind": "scope",
+            "project_id": ALLOWED,
+            "scope_id": "scope-docs",
+        },
         "grant_mode": "r",
     }
     assert payload["credential"] not in payload["git_url"]

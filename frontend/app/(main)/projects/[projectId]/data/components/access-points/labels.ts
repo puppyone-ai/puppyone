@@ -1,4 +1,4 @@
-import type { Connector, RepoScope } from '@/lib/repoApi';
+import type { Connector, RepositoryView } from '@/lib/repoApi';
 import {
   getAccessProviderLabel,
   isAgentProvider,
@@ -20,18 +20,18 @@ export function directionLabel(direction: string): string {
 /**
  * Compact header meta line: `path · mode · excludes`. Empty path gets the
  * canonical `/` so the user can see at a glance whether they're at the
- * root scope or a subtree.
+ * Project root or a Scope subtree.
  */
-export function buildScopeMetaLine(scope: RepoScope): string {
+export function buildScopeMetaLine(scope: RepositoryView): string {
   const parts: string[] = [];
   parts.push(scope.path === '' ? '/' : `/${scope.path}`);
-  parts.push(scope.mode === 'rw' ? 'Read & Write' : 'Read-only');
+  parts.push(scope.max_mode === 'rw' ? 'Read & Write' : 'Read-only');
   if (scope.exclude && scope.exclude.length > 0) {
     parts.push(
       `${scope.exclude.length} exclude${scope.exclude.length === 1 ? '' : 's'}`,
     );
   }
-  if (scope.is_root) parts.push('root');
+  if (scope.target.kind === 'project_root') parts.push('project root');
   return parts.join(' · ');
 }
 

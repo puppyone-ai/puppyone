@@ -9,9 +9,13 @@ import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import {
   createConnector,
   createScope,
+  deleteScope,
+  enableTargetAccess,
+  repositoryScopeView,
+  repositoryViewKey,
   type Connector,
   type ConnectorDirection,
-  type RepoScope,
+  type RepositoryView,
 } from '@/lib/repoApi';
 import { createMcpEndpoint } from '@/lib/mcpEndpointsApi';
 import { getAccessProviderLabel } from '@/lib/accessProviderRegistry';
@@ -88,17 +92,17 @@ const INTENT_OPTIONS: Array<{
 export function CreateAccessModal({
   projectId,
   existingScopes,
-  connectorsByScope,
+  connectorsByTarget,
   initialPath,
   onClose,
   onCreated,
 }: {
   readonly projectId: string;
-  readonly existingScopes: readonly RepoScope[];
-  readonly connectorsByScope: ReadonlyMap<string, readonly Connector[]>;
+  readonly existingScopes: readonly RepositoryView[];
+  readonly connectorsByTarget: ReadonlyMap<string, readonly Connector[]>;
   readonly initialPath?: string | null;
   readonly onClose: () => void;
-  readonly onCreated: (scope: RepoScope) => Promise<void> | void;
+  readonly onCreated: (scope: RepositoryView) => Promise<void> | void;
 }) {
   const normalizedInitialPath = normalizePath(initialPath ?? '');
   const initialSelectedPath = normalizedInitialPath === '' ? null : normalizedInitialPath;
@@ -128,9 +132,10 @@ export function CreateAccessModal({
   const existingProviders = useMemo(() => {
     if (!selectedExistingScope) return new Set<string>();
     return new Set(
-      (connectorsByScope.get(selectedExistingScope.id) ?? []).map((connector) => connector.provider),
+      (connectorsByTarget.get(repositoryViewKey(selectedExistingScope)) ?? [])
+        .map((connector) => connector.provider),
     );
-  }, [connectorsByScope, selectedExistingScope]);
+  }, [connectorsByTarget, selectedExistingScope]);
   const optionalProvidersToCreate = useMemo(
     () => Array.from(optionalProviders).filter((provider) => {
       const method = OPTIONAL_METHODS.find((item) => item.provider === provider);
@@ -176,19 +181,30 @@ export function CreateAccessModal({
     if (!canCreate || normalizedSelected === null) return;
     setSaving(true);
     setError(null);
+    let createdScopeId: string | null = null;
     try {
-      const scope = selectedExistingScope ?? await createScope(projectId, {
-        name: (name.trim() || defaultScopeName(normalizedSelected)).slice(0, 100),
-        path: normalizedSelected,
-        mode: 'rw',
-        exclude: [],
-      });
+      const scope = selectedExistingScope ?? repositoryScopeView(
+        await createScope(projectId, {
+          name: (name.trim() || defaultScopeName(normalizedSelected)).slice(0, 100),
+          path: normalizedSelected,
+          max_mode: 'rw',
+          exclude: [],
+        }),
+      );
+      if (!selectedExistingScope && scope.target.kind === 'scope') {
+        createdScopeId = scope.target.scope_id;
+      }
+
+      await enableTargetAccess(projectId, scope.target);
 
       await createOptionalConnectors(scope, optionalProvidersToCreate, projectId);
 
       await onCreated(scope);
       onClose();
     } catch (err) {
+      if (createdScopeId) {
+        await deleteScope(projectId, createdScopeId).catch(() => undefined);
+      }
       console.error('[CreateAccessModal] Failed to create access:', err);
       setError(errorMessage(err));
     } finally {
@@ -674,7 +690,7 @@ function normalizePath(path: string): string {
 }
 
 async function createOptionalConnectors(
-  scope: RepoScope,
+  scope: RepositoryView,
   providers: readonly OptionalProvider[],
   projectId: string,
 ) {
@@ -687,11 +703,11 @@ async function createOptionalConnectors(
           project_id: projectId,
           path: scope.path,
           name: getAccessProviderLabel(provider),
-          accesses: [{ path: scope.path, json_path: '', readonly: scope.mode !== 'rw' }],
+          accesses: [{ path: scope.path, json_path: '', readonly: scope.max_mode !== 'rw' }],
         });
       }
       return createConnector(projectId, {
-        scope_id: scope.id,
+        target: scope.target,
         provider,
         direction: method.direction,
         name: getAccessProviderLabel(provider),

@@ -48,8 +48,9 @@ It aggregates information scattered across various sources into a unified Contex
   membership supplies tenant context; an org-visible Project supplies only the
   Viewer baseline. Never use a Runtime key, Git remote, scope, or Agent
   visibility to create Human Project access.
-- Machine entry points resolve a `RuntimeGrant` bounded by Project, scope, mode,
-  policy, and credential status. A RuntimeGrant cannot enter Team, Billing,
+- Machine entry points resolve a `RuntimeGrant` bounded by an explicit
+  Project-root or Scope target, its resolved view, mode, policy, and credential
+  status. A RuntimeGrant cannot enter Team, Billing,
   Project settings, members, sharing, or credential-management control planes.
 - Local workspace identity is an explicit `project_workspace_bindings` fact.
   Git URLs are transport configuration and legacy discovery input, not identity
@@ -59,7 +60,7 @@ It aggregates information scattered across various sources into a unified Contex
 
 - **Agent management** — Create agents, bind tools, control access scope, SSE streaming chat
 - **Full CLI coverage** — Every operation available via command line, enabling AI coding tools like Claude Code to drive the platform directly
-- **Unified access management** — All access surface types (Git remote/CLI/agent/MCP/sandbox) are served through a single `/api/v1/access` entry point, backed by the `access_surfaces` table (each row scope-bound to a `repo_scopes` row); external SaaS data sources live separately in the `connectors` table
+- **Unified access management** — All access surface types (Git remote/CLI/agent/MCP/sandbox) are served through a single `/api/v1/access` entry point. `access_surfaces` targets Project root with `scope_id = NULL` or one real `repository_scopes` row; external SaaS data sources live separately in `connectors`.
 
 ## Active Development Directories
 
@@ -108,7 +109,7 @@ backend/
 │   ├── tool/                  # Tool registration & search index
 │   │
 │   ├── connectors/            # Access types
-│   │   ├── manager/           #   Access surface CRUD (access_surfaces table, scope-bound to repo_scopes)
+│   │   ├── manager/           #   Access surface CRUD (Project-root or Scope target)
 │   │   ├── datasource/        #   SaaS data source providers (Gmail/GitHub/Notion/...)
 │   │   │   ├── gmail/         #     Gmail connector
 │   │   │   ├── github/        #     GitHub connector
@@ -170,7 +171,7 @@ backend/
 
 ### Database Tables
 
-All tables use plural snake_case names. The "unified access" architecture serves agents, MCP endpoints, sandbox endpoints, and Git-remote/CLI credentials through the `access_surfaces` table, differentiated by `kind` and each scope-bound to a `repo_scopes` row. Scope geometry lives in `repo_scopes`; every machine secret lives hash-only in `access_surface_credentials` and is revealed only on issuance. Provider config must never contain credentials. External SaaS data-source integrations live separately in the `connectors` table.
+All tables use plural snake_case names. The "unified access" architecture serves agents, MCP endpoints, sandbox endpoints, and Git-remote/CLI credentials through `access_surfaces`, differentiated by `kind` and targeted by `(project_id, nullable scope_id)`. NULL means the Project-owned root; a non-NULL value references a true non-empty-path row in `repository_scopes`. Every machine secret lives hash-only in `access_surface_credentials` and is revealed only on issuance. Provider config must never contain credentials. External SaaS data-source integrations live separately in `connectors`.
 
 | Table | Repository | Description |
 |-------|-----------|-------------|
@@ -181,8 +182,8 @@ All tables use plural snake_case names. The "unified access" architecture serves
 | `org_members` | `organization/repository.py` | Organization membership |
 | `org_invitations` | `organization/repository.py` | Organization invitations |
 | `profiles` | `profile/repository.py` | User profiles |
-| `access_surfaces` | `connectors/manager/router.py`, `repo/access_surface_repository.py` | Unified access surfaces (Git remote/CLI/agent/MCP/sandbox), keyed by `kind`, scope-bound to `repo_scopes` |
-| `repo_scopes` | `repo/scope_repository.py`, `repo/scope_service.py` | Scoped subtree geometry (path/exclude/mode), with no credential columns |
+| `access_surfaces` | `connectors/manager/router.py`, `repo/access_surface_repository.py` | Unified access surfaces keyed by `kind`, targeting Project root or one Scope through nullable `scope_id` |
+| `repository_scopes` | `repo/scope_repository.py`, `repo/scope_service.py` | Non-root subtree geometry (`path`, `exclude`, `max_mode`); never a repository or credential owner |
 | `connectors` | `repo/connector_repository.py`, `repo/connector_service.py` | External SaaS data-source integrations (Gmail/GitHub/Notion/...) |
 | `access_permissions` | `connectors/agent/config/repository.py` | Access surface ↔ content node permissions |
 | `access_tools` | `connectors/agent/config/repository.py`, `tool/service.py` | Access surface ↔ tool bindings |

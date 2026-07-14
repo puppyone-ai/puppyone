@@ -10,11 +10,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.exceptions import ErrorCode, NotFoundException
-from src.repo.models import RepoScope
-from src.repo.scope_repository import RepoScopeRepository
+from src.platform.repository_target.models import ProjectRootTarget, ResolvedRepositoryView
 from src.version_engine.adapters.git.health import git_view_health_payload
-from src.version_engine.admission.repo_facade import RepoFacade, repo_facade_from_auth
+from src.version_engine.admission.repo_facade import RepoFacade, repository_view_to_facade
 from src.version_engine.derived.git_transport_cache import rebuild_git_transport_view
 from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
 
@@ -25,10 +23,8 @@ class ProjectGitViewService:
     def __init__(
         self,
         repo_manager: VersionRepoManager,
-        scope_repository: RepoScopeRepository | None = None,
     ) -> None:
         self._repo_manager = repo_manager
-        self._scope_repository = scope_repository or RepoScopeRepository()
 
     def health(
         self,
@@ -70,34 +66,15 @@ class ProjectGitViewService:
         return {"variants": [rebuilt_full, rebuilt_boundary]}
 
     def _root_view(self, project_id: str) -> tuple[Any, RepoFacade]:
-        scope = self._scope_repository.get_root_scope(project_id)
-        self._validate_root_scope(project_id, scope)
-        assert scope is not None
         repo = self._repo_manager.get_server_repo(project_id)
-        facade = repo_facade_from_auth(
-            project_id,
-            {
-                "_scope": {
-                    "id": scope.id,
-                    "path": scope.path,
-                    "exclude": scope.exclude,
-                    "mode": scope.mode,
-                }
-            },
+        facade = repository_view_to_facade(
+            ResolvedRepositoryView(
+                target=ProjectRootTarget(project_id=project_id),
+                path_prefix="",
+                excludes=(),
+                max_mode="rw",
+            ),
             kind="project_git_remote",
             scope_backend=self._repo_manager.get_scope_backend(project_id),
         )
         return repo, facade
-
-    @staticmethod
-    def _validate_root_scope(project_id: str, scope: RepoScope | None) -> None:
-        if (
-            scope is None
-            or scope.project_id != project_id
-            or not scope.is_root
-            or scope.path.strip("/")
-        ):
-            raise NotFoundException(
-                "Canonical Project root Git view is not configured",
-                code=ErrorCode.NOT_FOUND,
-            )

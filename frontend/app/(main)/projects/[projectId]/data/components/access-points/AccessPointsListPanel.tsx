@@ -17,7 +17,7 @@ import { AccessPointProviderIcon, StatusDot } from './AccessPointProviderIcon';
 import type { SyncEndpointInfo } from '../explorer';
 import type { EndpointEntry, ProviderIconLookup } from './types';
 import { ensureExpandedBatch } from '../explorer/explorerState';
-import { canonicalProjectGitUrl, canonicalScopeGitUrl } from '@/lib/gitRemote';
+import { canonicalGitUrlForTarget } from '@/lib/gitRemote';
 
 function formatStatus(status: string) {
   if (!status) return 'Unknown';
@@ -40,10 +40,8 @@ function getSetupSnippets(ep: SyncEndpointInfo, displayName: string, scopeName: 
   const apiBase = getApiBase();
   const accessKey = ep.accessKey || '';
 
-  if (isGitRemoteProvider(ep.provider) && ep.projectId && ep.scopeId) {
-    const gitUrl = ep.scopeIsRoot
-      ? canonicalProjectGitUrl(apiBase, ep.projectId)
-      : canonicalScopeGitUrl(apiBase, ep.projectId, ep.scopeId);
+  if (isGitRemoteProvider(ep.provider) && ep.repositoryTarget) {
+    const gitUrl = canonicalGitUrlForTarget(apiBase, ep.repositoryTarget);
     const profileName = accessPointProfileSlug(scopeName);
     const gitPrompt = buildGitSyncPrompt({
       gitUrl,

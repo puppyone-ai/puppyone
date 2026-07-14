@@ -23,28 +23,16 @@ class ProjectReadinessRepository:
             .limit(1)
             .execute()
         ).data or []
-        root_rows = (
-            self._client.table("repo_scopes")
+        surface_rows = (
+            self._client.table("access_surfaces")
             .select("id")
             .eq("project_id", project_id)
-            .eq("is_root", True)
+            .is_("scope_id", "null")
+            .eq("kind", "git_remote")
+            .eq("status", "active")
             .limit(1)
             .execute()
         ).data or []
-        root_scope_id = str(root_rows[0]["id"]) if root_rows else None
-
-        surface_rows: list[dict[str, Any]] = []
-        if root_scope_id:
-            surface_rows = (
-                self._client.table("access_surfaces")
-                .select("id")
-                .eq("project_id", project_id)
-                .eq("scope_id", root_scope_id)
-                .eq("kind", "git_remote")
-                .eq("status", "active")
-                .limit(1)
-                .execute()
-            ).data or []
         state_rows = (
             self._client.table(SCOPE_STATE_TABLE)
             .select("head_commit_id")
@@ -73,12 +61,11 @@ class ProjectReadinessRepository:
                 if project_rows
                 else "main"
             ),
-            "root_scope_id": root_scope_id,
-            "root_surface_exists": bool(surface_rows),
-            "root_head_commit_id": (
+            "project_git_surface_exists": bool(surface_rows),
+            "project_head_commit_id": (
                 str(state_rows[0].get("head_commit_id") or "")
                 if state_rows
                 else ""
             ),
-            "root_git_push_accepted": bool(accepted_root_pushes),
+            "project_git_push_accepted": bool(accepted_root_pushes),
         }

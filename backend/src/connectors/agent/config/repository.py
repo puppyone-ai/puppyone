@@ -19,14 +19,12 @@ def _now_iso() -> str:
 
 
 def _scope_to_bash(agent_id: str, config: dict) -> list[AgentBash]:
-    """Derive AgentBash list from access-surface ``config.scope``."""
-    scope = config.get("scope")
-    if not scope:
+    """Derive AgentBash list from the operational view, not target identity."""
+    view = config.get("bash_view")
+    if not view:
         return []
-    if scope.get("_orphaned_from"):
-        return []
-    path = scope.get("path", "")
-    mode = scope.get("mode", "r")
+    path = view.get("path_prefix", "")
+    mode = view.get("max_mode", "r")
     return [AgentBash(
         id=f"{agent_id}:scope",
         agent_id=agent_id,
@@ -176,7 +174,13 @@ class AgentRepository:
         normalized = (path or "").strip("/")
         scope_service = ScopeService()
         if not normalized:
-            scope = scope_service.ensure_root_scope(project_id)
+            return {
+                "target": {"kind": "project_root", "project_id": project_id},
+                "id": None,
+                "path": "",
+                "exclude": [],
+                "mode": "r" if readonly else "rw",
+            }
         else:
             scope = None
             for candidate in scope_service.list_for_project(project_id):
@@ -189,13 +193,29 @@ class AgentRepository:
                     name=normalized.rsplit("/", 1)[-1] or "Agent Scope",
                     path=normalized,
                     exclude=[],
-                    mode="r" if readonly else "rw",
+                    max_mode="r" if readonly else "rw",
                 )
         return {
             "id": scope.id,
             "path": scope.path,
             "exclude": scope.exclude,
-            "mode": scope.mode,
+            "mode": scope.max_mode,
+            "target": {
+                "kind": "scope",
+                "project_id": project_id,
+                "scope_id": scope.id,
+            },
+        }
+
+    @staticmethod
+    def _resolved_view(scope: dict) -> dict:
+        """Convert a target selection into the canonical resolved-view shape."""
+
+        return {
+            "target": scope["target"],
+            "path_prefix": scope.get("path", ""),
+            "excludes": list(scope.get("exclude") or []),
+            "max_mode": scope.get("mode", "r"),
         }
 
     def _agent_surface_for_scope(
@@ -206,14 +226,18 @@ class AgentRepository:
         name: str,
         created_by: Optional[str],
     ) -> dict:
-        resp = (
+        query = (
             self._client.table(self.TABLE)
             .select("*")
-            .eq("scope_id", scope["id"])
+            .eq("project_id", project_id)
             .eq("kind", AGENT_PROVIDER)
-            .limit(1)
-            .execute()
         )
+        query = (
+            query.is_("scope_id", "null")
+            if scope["id"] is None
+            else query.eq("scope_id", scope["id"])
+        )
+        resp = query.limit(1).execute()
         rows = resp.data or []
         if rows:
             surface = rows[0]
@@ -238,7 +262,12 @@ class AgentRepository:
                 "status": "active",
                 "config": {
                     "name": name,
-                    "scope": scope,
+                    "repository_view": self._resolved_view(scope),
+                    "bash_view": {
+                        "path_prefix": scope.get("path", ""),
+                        "excludes": list(scope.get("exclude") or []),
+                        "max_mode": scope.get("mode", "r"),
+                    },
                     "activated": False,
                 },
                 "created_by": created_by,
@@ -301,7 +330,7 @@ class AgentRepository:
     def get_by_project_id_with_accesses(
         self, project_id: str, viewer_user_id: Optional[str] = None,
     ) -> List[Agent]:
-        """Load agents with scope-derived bash_accesses and tool bindings.
+        """Load agents with view-derived bash_accesses and tool bindings.
 
         Visibility filter (security: M-1):
         Agents whose config.visibility == 'private' are only returned if
@@ -331,7 +360,7 @@ class AgentRepository:
 
         agent_ids = [a.id for a in agents]
 
-        # Derive bash_accesses from access_surfaces.config.scope
+        # Derive bash_accesses from the operational view in Surface config.
         config_by_id = {row["id"]: (row.get("config") or {}) for row in rows}
         bash_by_agent: dict[str, list[AgentBash]] = {}
         for aid, cfg in config_by_id.items():
@@ -414,7 +443,12 @@ class AgentRepository:
             "external_config": external_config,
             "llm_model": llm_model,
             "system_prompt": system_prompt,
-            "scope": scope,
+            "repository_view": self._resolved_view(scope),
+            "bash_view": {
+                "path_prefix": scope.get("path", ""),
+                "excludes": list(scope.get("exclude") or []),
+                "max_mode": scope.get("mode", "r"),
+            },
             "activated": True,
         }
 
@@ -563,7 +597,7 @@ class AgentRepository:
         return True
 
     # ============================================
-    # AgentBash CRUD — operates on access_surfaces.config.scope (JSONB)
+    # AgentBash CRUD — narrows an Agent target through config.bash_view.
     # ============================================
 
     def _get_agent_config(self, agent_id: str) -> Optional[dict]:
@@ -579,25 +613,37 @@ class AgentRepository:
             row = resp.data[0]
             config = dict(row.get("config") or {})
             config["_project_id"] = row.get("project_id")
-            config["_scope_id"] = row.get("scope_id")
+            config["_target_scope_id"] = row.get("scope_id")
             return config
         return None
 
-    def _update_scope(self, agent_id: str, scope: dict) -> None:
-        """Write scope back into access surface ``config.scope``."""
+    def _update_bash_view(self, agent_id: str, view: dict) -> None:
+        """Update an operational view without changing Surface target identity."""
         config = self._get_agent_config(agent_id)
         if config is None:
             return
-        current_scope_id = config.pop("_scope_id", None)
-        if current_scope_id and current_scope_id != scope["id"]:
-            raise RuntimeError(
-                "Agent scope is immutable; create an agent access surface "
-                "for the target scope instead."
-            )
+        config.pop("_target_scope_id", None)
         config.pop("_project_id", None)
-        config["scope"] = scope
+        target_view = config.get("repository_view")
+        if not isinstance(target_view, dict):
+            raise RuntimeError("Agent repository target is missing")
+        target_prefix = str(target_view.get("path_prefix") or "").strip("/")
+        path_prefix = str(view.get("path_prefix") or "").strip("/")
+        if target_prefix and not (
+            path_prefix == target_prefix or path_prefix.startswith(f"{target_prefix}/")
+        ):
+            raise RuntimeError("Agent Bash view cannot escape its repository target")
+        target_mode = str(target_view.get("max_mode") or "r")
+        max_mode = str(view.get("max_mode") or "r")
+        if max_mode == "rw" and target_mode != "rw":
+            raise RuntimeError("Agent Bash view cannot exceed its target mode")
+        config["bash_view"] = {
+            "path_prefix": path_prefix,
+            "excludes": list(view.get("excludes") or []),
+            "max_mode": max_mode,
+        }
         self._client.table(self.TABLE).update(
-            {"config": config, "scope_id": scope["id"], "updated_at": _now_iso()}
+            {"config": config, "updated_at": _now_iso()}
         ).eq("id", agent_id).eq("kind", AGENT_PROVIDER).execute()
 
     def get_bash_by_agent_id(self, agent_id: str) -> List[AgentBash]:
@@ -626,13 +672,18 @@ class AgentRepository:
         project_id = config.get("_project_id")
         if not project_id:
             raise RuntimeError(f"Agent {agent_id} is missing project_id")
-        scope = self._scope_for_path(project_id, path, readonly=readonly)
-        self._update_scope(agent_id, scope)
+        normalized = (path or "").strip("/")
+        view = {
+            "path_prefix": normalized,
+            "excludes": [],
+            "max_mode": "r" if readonly else "rw",
+        }
+        self._update_bash_view(agent_id, view)
         return AgentBash(
             id=f"{agent_id}:scope",
             agent_id=agent_id,
-            path=scope["path"],
-            readonly=scope["mode"] == "r",
+            path=normalized,
+            readonly=readonly,
             created_at=datetime.now(timezone.utc),
         )
 
@@ -645,10 +696,12 @@ class AgentRepository:
         config = self._get_agent_config(agent_id)
         if config is None:
             return None
-        scope = config.get("scope", {})
+        view = dict(config.get("bash_view") or {})
+        if not view:
+            return None
         if readonly is not None:
-            scope["mode"] = "r" if readonly else "rw"
-        self._update_scope(agent_id, scope)
+            view["max_mode"] = "r" if readonly else "rw"
+        self._update_bash_view(agent_id, view)
         return self.get_bash_by_id(bash_id)
 
     def delete_bash(self, bash_id: str) -> bool:
@@ -656,9 +709,10 @@ class AgentRepository:
         config = self._get_agent_config(agent_id)
         if config is None:
             return False
-        if "scope" in config:
-            del config["scope"]
+        if "bash_view" in config:
+            del config["bash_view"]
             config.pop("_project_id", None)
+            config.pop("_target_scope_id", None)
             self._client.table(self.TABLE).update(
                 {"config": config, "updated_at": _now_iso()}
             ).eq("id", agent_id).execute()
