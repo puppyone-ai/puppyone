@@ -41,6 +41,7 @@ from src.connectors.agent.request_builder import (
 from src.connectors.agent.sandbox_session import SandboxData, SandboxFile, prepare_sandbox_data
 from src.connectors.agent.schemas import AgentRequest
 from src.platform.analytics.service import log_context_access
+from src.platform.repository_target.models import RepositoryPathProjection
 from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
 
 
@@ -401,17 +402,11 @@ class AgentService:
                         try:
                             repo_manager = build_worker_version_engine_container().repo_manager
                             scope_path = sandbox_data.root_path or ""
-                            version_auth = {
-                                "agent": agent_identity,
-                                "_scope": {
-                                    "id": agent_identity,
-                                    "path": scope_path,
-                                    "exclude": [],
-                                    "mode": "rw",
-                                },
-                            }
                             client = InProcessVersionClient(
-                                repo_manager, agent.project_id, version_auth
+                                repo_manager,
+                                agent.project_id,
+                                RepositoryPathProjection(path_prefix=scope_path),
+                                actor=agent_identity,
                             )
                             await asyncio.to_thread(client.clone)
                             from src.version_engine.derived.hooks import push_and_finalize
@@ -842,17 +837,11 @@ class AgentService:
                     )
 
                     repo_manager = build_worker_version_engine_container().repo_manager
-                    version_auth = {
-                        "agent": f"agent:{request.agent_id}",
-                        "_scope": {
-                            "id": f"agent-{request.agent_id}",
-                            "path": scope_path,
-                            "exclude": [],
-                            "mode": "rw",
-                        },
-                    }
                     version_client = InProcessVersionClient(
-                        repo_manager, _agent_project_id, version_auth
+                        repo_manager,
+                        _agent_project_id,
+                        RepositoryPathProjection(path_prefix=scope_path),
+                        actor=f"agent:{request.agent_id}",
                     )
                     cloned_files = await asyncio.to_thread(version_client.clone)
 

@@ -1,65 +1,53 @@
 """
 SupabaseScopeManager — PostgreSQL implementation of scope storage
 
-Scope geometry lives in the dedicated `repo_scopes` table. This module
+Scope geometry lives in the dedicated `repository_scopes` table. This module
 reads from there.
 
 Scope payload:
-  scope_id = repo_scopes.id
+  scope_id = repository_scopes.id
   scope    = {"id", "path", "exclude", "mode"}
+
+The Version Engine interface keeps the generic projection key ``mode``;
+storage maps it explicitly to ``repository_scopes.max_mode`` here.
 """
 
 from __future__ import annotations
 
-from src.version_engine.infrastructure.supabase import safe_data
+from src.infra.supabase.client import SupabaseClient
+from src.repo.models import ResolvedScopeCredential
+from src.utils.logger import log_error
 from src.version_engine.infrastructure.supabase.scope_manager import ScopeBackend
 
-from src.infra.supabase.client import SupabaseClient
-from src.utils.logger import log_error
 
-
-def find_scope_by_access_key(
+def resolve_scope_access_credential(
     supabase: SupabaseClient,
     access_key: str,
-) -> dict | None:
-    """Resolve a scope credential through ``access_surface_credentials``.
+) -> ResolvedScopeCredential | None:
+    """Resolve a bearer credential, Access Surface, and exact Scope target.
 
     L2 identity + L1 access-point routing both need this lookup, and the
-    SQL used to be duplicated between them. The repository module is the
-    single source of truth so that revocation handling, column selection,
-    and project_id checks live in one place.
+    storage work used to be duplicated between them. The repository module is
+    the single source of truth so revocation, target, and capability checks
+    stay together. Storage failures propagate so callers can return an
+    unavailable state instead of misclassifying them as bad credentials.
 
-    Revoked credentials are filtered by the credential repository. Returns
-    ``None`` when the key is unknown; callers translate that to a 401.
+    Returns ``None`` only when the credential/Surface/Scope chain is invalid.
     """
-    try:
-        from src.repo.scope_repository import RepoScopeRepository
+    from src.repo.scope_repository import RepositoryScopeRepository
 
-        scope = RepoScopeRepository(supabase.client).get_by_access_key(access_key)
-        if scope is None:
-            return None
-        return {
-            "id": scope.id,
-            "project_id": scope.project_id,
-            "path": scope.path,
-            "exclude": scope.exclude,
-            "mode": scope.mode,
-            "access_key_revoked_at": None,
-        }
-    except Exception as e:
-        log_error(f"[scope_repository] find_scope_by_access_key failed: {e}")
-        return None
+    return RepositoryScopeRepository(supabase.client).resolve_access_key(access_key)
 
 
 class SupabaseScopeBackend(ScopeBackend):
-    """ScopeBackend backed by the repo_scopes table.
+    """ScopeBackend backed by the repository_scopes table.
 
     Each row is the canonical scope record:
-      - path / exclude / mode are real columns (not JSONB extraction)
+      - path / exclude / max_mode are real columns (not JSONB extraction)
       - machine credentials live hash-only in access_surface_credentials
     """
 
-    TABLE = "repo_scopes"
+    TABLE = "repository_scopes"
 
     def __init__(self, supabase: SupabaseClient, project_id: str):
         self._client = supabase.client
@@ -71,7 +59,7 @@ class SupabaseScopeBackend(ScopeBackend):
         try:
             resp = (
                 self._client.table(self.TABLE)
-                .select("id, path, exclude, mode")
+                .select("id, path, exclude, max_mode")
                 .eq("id", scope_id)
                 .eq("project_id", self._project_id)
                 .maybe_single()
@@ -84,7 +72,7 @@ class SupabaseScopeBackend(ScopeBackend):
                 "id": row["id"],
                 "path": row.get("path", ""),
                 "exclude": row.get("exclude") or [],
-                "mode": row.get("mode", "rw"),
+                "mode": row.get("max_mode", "rw"),
             }
         except Exception as e:
             log_error(f"[ScopeBackend] get({scope_id}) failed: {e}")
@@ -108,7 +96,7 @@ class SupabaseScopeBackend(ScopeBackend):
             if "exclude" in scope:
                 patch["exclude"] = scope.get("exclude") or []
             if "mode" in scope:
-                patch["mode"] = scope.get("mode", "rw")
+                patch["max_mode"] = scope.get("mode", "rw")
             if not patch:
                 return
             (
@@ -125,8 +113,8 @@ class SupabaseScopeBackend(ScopeBackend):
         """Hard-delete the scope row.
 
         Service layer (`scope_service.delete()`) is the user-facing path
-        and refuses to delete root or scopes with bound non-builtin
-        connectors. This low-level method is unconditional — used by
+        and refuses to delete Scopes with bound non-builtin connectors.
+        This low-level method is unconditional — used by
         post-commit hooks for orphan cleanup.
         """
         try:
@@ -144,24 +132,33 @@ class SupabaseScopeBackend(ScopeBackend):
 
     def list_all(self) -> list[dict]:
         try:
-            resp = (
-                self._client.table(self.TABLE)
-                .select("id, path, exclude, mode")
-                .eq("project_id", self._project_id)
-                .execute()
-            )
-            return [
-                {
-                    "id": row["id"],
-                    "path": row.get("path", ""),
-                    "exclude": row.get("exclude") or [],
-                    "mode": row.get("mode", "rw"),
-                }
-                for row in (resp.data or [])
-            ]
+            return self.list_all_strict()
         except Exception as e:
             log_error(f"[ScopeBackend] list_all() failed: {e}")
             return []
+
+    def list_all_strict(self) -> list[dict]:
+        """List Scope geometry while preserving storage failures.
+
+        Authorization-time callers use this method so a database outage can
+        never be mistaken for an empty descendant set.
+        """
+
+        resp = (
+            self._client.table(self.TABLE)
+            .select("id, path, exclude, max_mode")
+            .eq("project_id", self._project_id)
+            .execute()
+        )
+        return [
+            {
+                "id": row["id"],
+                "path": row.get("path", ""),
+                "exclude": row.get("exclude") or [],
+                "mode": row.get("max_mode", "rw"),
+            }
+            for row in (resp.data or [])
+        ]
 
     def find_by_path_prefix(self, path_prefix: str) -> list[dict]:
         """Find scopes whose path starts with the given prefix.

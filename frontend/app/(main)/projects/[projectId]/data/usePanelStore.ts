@@ -26,13 +26,13 @@ export interface PanelState {
    *  one matched against the current file-tree folder. Set by the
    *  Overview's row-click handler and by the file-tree row's chain
    *  icon; cleared by file-tree navigation or by the back button. */
-  selectedScopeId?: string;
+  selectedTargetKey?: string;
   /** Explicit access_list view selection.
    *  - `'overview'`  — render the all-scopes list, regardless of
    *                    whether the current folder happens to be a
    *                    scope. Set by the back button so the user has
    *                    a stable "management home" to return to.
-   *  - `'detail'`    — render scope detail (paired with selectedScopeId
+   *  - `'detail'`    — render scope detail (paired with selectedTargetKey
    *                    when drilling in from a non-scope folder).
    *  - `'settings'`  — render the selected scope's dedicated settings
    *                    page. This is a sibling of detail, not an inline
@@ -82,7 +82,7 @@ export const usePanelStore = create<PanelStore>((set, get) => ({
       cur.agentId === panel.agentId &&
       cur.mcpEndpointId === panel.mcpEndpointId &&
       cur.sandboxEndpointId === panel.sandboxEndpointId &&
-      cur.selectedScopeId === panel.selectedScopeId &&
+      cur.selectedTargetKey === panel.selectedTargetKey &&
       cur.view === panel.view;
     set({ panel: isSame ? NONE : panel });
   },

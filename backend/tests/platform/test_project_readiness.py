@@ -26,6 +26,11 @@ class Query:
         self.filters[key] = value
         return self
 
+    def is_(self, key, value):
+        assert value == "null"
+        self.filters[key] = None
+        return self
+
     def limit(self, *_args):
         return self
 
@@ -57,7 +62,7 @@ def _resolve(
         [{
             "id": "git-root",
             "project_id": "project-1",
-            "scope_id": "scope-root",
+            "scope_id": None,
             "kind": "git_remote",
             "status": "active",
         }]
@@ -78,9 +83,6 @@ def _resolve(
             Client(
             {
                 "projects": [{"id": "project-1", "bound_git_branch": "main"}],
-                "repo_scopes": [
-                    {"id": "scope-root", "project_id": "project-1", "is_root": True}
-                ],
                 "access_surfaces": surfaces,
                 "version_scope_state": states,
                 "version_transactions": (
@@ -132,7 +134,24 @@ def test_non_root_head_never_unlocks_claude():
 
 def test_product_write_head_never_substitutes_for_first_root_git_push():
     readiness = _resolve(root_surface=True, root_head="c" * 40)
-    assert readiness.root_head_exists is True
-    assert readiness.root_git_push_accepted is False
+    assert readiness.project_head_exists is True
+    assert readiness.project_git_push_accepted is False
     assert readiness.git_state == "awaiting_first_push"
-    assert "root_git_push_not_accepted" in readiness.blockers
+    assert "project_git_push_not_accepted" in readiness.blockers
+
+
+def test_readiness_wire_contract_names_project_root_explicitly():
+    payload = _resolve(
+        root_surface=True,
+        root_head="d" * 40,
+        accepted_root_git_push=True,
+    ).as_dict()
+
+    assert payload["git"] == {
+        "target": {"kind": "project_root", "project_id": "project-1"},
+        "surface_exists": True,
+        "head_exists": True,
+        "push_accepted": True,
+        "default_branch": "main",
+        "state": "ready",
+    }

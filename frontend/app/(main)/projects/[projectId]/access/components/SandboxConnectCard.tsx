@@ -15,7 +15,7 @@ import { AiHandoffButton } from '@/components/ui/AiHandoffButton';
 import { CountBadge } from '@/components/ui/CountBadge';
 import { StatusIndicator } from '@/components/ui/StatusDot';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
-import type { RepoScope } from '@/lib/repoApi';
+import type { RepositoryView } from '@/lib/repoApi';
 import {
   connectScopeSandbox,
   getScopeSandboxProviders,
@@ -50,7 +50,7 @@ export function SandboxConnectCard({
   scope,
   projectId,
 }: {
-  readonly scope: RepoScope;
+  readonly scope: RepositoryView;
   readonly projectId: string;
 }) {
   const [provider, setProvider] = useState<SandboxProvider | null>(null);
@@ -488,7 +488,7 @@ function SandboxCommandPreview({
   connected,
   visualState,
 }: {
-  readonly scope: RepoScope;
+  readonly scope: RepositoryView;
   readonly alias: string;
   readonly command: string;
   readonly connected: boolean;

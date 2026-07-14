@@ -30,7 +30,7 @@ import {
 import { createPortal } from 'react-dom';
 import { StatusIndicator } from '@/components/ui/StatusDot';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
-import type { Connector, RepoScope } from '@/lib/repoApi';
+import type { Connector, RepositoryView } from '@/lib/repoApi';
 import { APP_Z_INDEX } from '@/lib/zIndex';
 import {
   getAccessProviderCardTitle,
@@ -72,7 +72,7 @@ export function ConnectorCard({
   pending,
 }: {
   readonly connector: Connector;
-  readonly scope: RepoScope | undefined;
+  readonly scope: RepositoryView | undefined;
   readonly onPauseResume: () => void;
   readonly onUpdate: (patch: ConnectorEditPatch) => Promise<void>;
   readonly onDelete: () => Promise<void>;
@@ -199,7 +199,7 @@ export function ConnectorDetailBody({
   variant = 'full',
 }: {
   readonly connector: Connector;
-  readonly scope: RepoScope | undefined;
+  readonly scope: RepositoryView | undefined;
   readonly onPauseResume: () => void;
   readonly onUpdate: (patch: ConnectorEditPatch) => Promise<void>;
   readonly pending: boolean;
@@ -859,7 +859,7 @@ function CliCommandPermissionsRow({
   isFirst,
 }: {
   readonly connector: Connector;
-  readonly scope: RepoScope | undefined;
+  readonly scope: RepositoryView | undefined;
   readonly onUpdate: (patch: ConnectorEditPatch) => Promise<void>;
   readonly pending: boolean;
   readonly variant?: ConfigPanelVariant;
@@ -869,7 +869,7 @@ function CliCommandPermissionsRow({
     () => parseCliCommandPermissions(connector.config),
     [connector.config],
   );
-  const scopeReadOnly = scope?.mode === 'r';
+  const scopeReadOnly = scope?.max_mode === 'r';
   const readCommands = CLI_COMMAND_SPECS.filter((command) => command.kind === 'read');
   const modifyCommands = CLI_COMMAND_SPECS.filter((command) => command.kind === 'write' && command.defaultAllowed);
   const deleteCommands = CLI_COMMAND_SPECS.filter((command) => command.kind === 'write' && !command.defaultAllowed);
@@ -1014,7 +1014,7 @@ function McpToolPermissionsRow({
   isFirst,
 }: {
   readonly connector: Connector;
-  readonly scope: RepoScope | undefined;
+  readonly scope: RepositoryView | undefined;
   readonly onUpdate: (patch: ConnectorEditPatch) => Promise<void>;
   readonly pending: boolean;
   readonly variant?: ConfigPanelVariant;
@@ -1554,8 +1554,8 @@ function buildMcpToolsConfig(raw: unknown, allowedTools: ReadonlySet<string>) {
   };
 }
 
-function getMcpWritable(connector: Connector, scope: RepoScope | undefined): boolean {
-  if (!scope || scope.mode !== 'rw') return false;
+function getMcpWritable(connector: Connector, scope: RepositoryView | undefined): boolean {
+  if (!scope || scope.max_mode !== 'rw') return false;
   const accesses = Array.isArray(connector.config?.accesses)
     ? connector.config.accesses as Array<{ readonly?: boolean }>
     : [];
@@ -1641,7 +1641,7 @@ function ConnectorConfigPanel({
   variant = 'default',
 }: {
   readonly connector: Connector;
-  readonly scope?: RepoScope;
+  readonly scope?: RepositoryView;
   readonly isBuiltin?: boolean;
   readonly onUpdate?: (patch: ConnectorEditPatch) => Promise<void>;
   readonly pending?: boolean;

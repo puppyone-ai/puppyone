@@ -15,16 +15,13 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from src.config import settings
 from src.common_schemas import ApiResponse
+from src.config import settings
+from src.exceptions import ErrorCode
+from src.platform.repository_target.auth_context import repository_target_from_auth
+from src.platform.repository_target.models import repository_target_scope_id
+from src.utils.logger import log_info
 from src.version_engine.adapters.git.health import git_view_health_payload
-from src.version_engine.derived.git_transport_cache import rebuild_git_transport_view
-from src.version_engine.entrypoints.git.auth import (
-    request_actor,
-    resolve_git_access_point as _resolve_git_access_point,
-    resolve_git_project_auth,
-    resolve_git_scope_auth,
-)
 from src.version_engine.adapters.git.receive_pack import (
     receive_pack_response_from_path,
 )
@@ -32,12 +29,23 @@ from src.version_engine.adapters.git.upload_pack import (
     info_refs_response,
     upload_pack_streaming_response,
 )
-from src.version_engine.admission.repo_facade import repo_facade_from_auth
+from src.version_engine.admission.repo_facade import (
+    RepositoryViewResolutionError,
+    repo_facade_from_auth,
+)
 from src.version_engine.admission.target import admit_target
 from src.version_engine.bootstrap.dependencies import get_repo_manager
-from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
+from src.version_engine.derived.git_transport_cache import rebuild_git_transport_view
+from src.version_engine.entrypoints.git.auth import (
+    request_actor,
+    resolve_git_project_auth,
+    resolve_git_scope_auth,
+)
+from src.version_engine.entrypoints.git.auth import (
+    resolve_git_access_point as _resolve_git_access_point,
+)
 from src.version_engine.entrypoints.http.access_point import resolve_access_point
-from src.utils.logger import log_info
+from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
 
 router = APIRouter(prefix="/git")
 
@@ -64,7 +72,7 @@ def _git_audit_detail(
         auth,
         kind=("access_point" if entry_point == "access_key_git_remote" else "project_git_remote"),
     )
-    scope = auth.get("_scope") or {}
+    scope_id = repository_target_scope_id(repository_target_from_auth(auth)) or ""
     runtime_grant = auth.get("_runtime_grant")
     runtime_principal = getattr(runtime_grant, "principal", None)
     runtime_principal_id = auth.get("_credential_id") or getattr(
@@ -81,7 +89,7 @@ def _git_audit_detail(
             else "Project Git remote"
         ),
         **facade.audit_detail(),
-        "scope_id": scope.get("id", ""),
+        "scope_id": scope_id,
         # The Git username / actor headers are client-supplied attribution.
         # Preserve them for commit UX, but always record the immutable runtime
         # principal that actually authorized the request.
@@ -242,7 +250,7 @@ async def _resolve_access_point_target(
     request: Request,
 ) -> _ResolvedGitTarget:
     project_id, auth = await resolve_git_access_point(access_key, request)
-    scope_id = str((auth.get("_scope") or {}).get("id") or "")
+    scope_id = repository_target_scope_id(repository_target_from_auth(auth)) or ""
     # The compatibility path contains the credential, so telemetry is emitted
     # only after successful resolution and never includes the request path or
     # raw Project/Scope identifiers. This is the rollout-removal counter.
@@ -266,12 +274,27 @@ def _telemetry_ref(value: str) -> str:
 
 def _repo_and_facade(target: _ResolvedGitTarget, repo_manager: VersionRepoManager):
     repo = repo_manager.get_server_repo(target.project_id)
-    facade = repo_facade_from_auth(
-        target.project_id,
-        target.auth,
-        kind=target.facade_kind,
-        scope_backend=repo_manager.get_scope_backend(target.project_id),
-    )
+    try:
+        facade = repo_facade_from_auth(
+            target.project_id,
+            target.auth,
+            kind=target.facade_kind,
+            scope_backend=(
+                repo_manager.get_scope_backend(target.project_id)
+                if target.entry_point == "access_key_git_remote"
+                else None
+            ),
+        )
+    except RepositoryViewResolutionError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Repository view is temporarily unavailable",
+            headers={
+                "X-PuppyOne-Error-Code": str(
+                    ErrorCode.REPOSITORY_STORAGE_UNAVAILABLE.value
+                )
+            },
+        ) from exc
     return repo, facade
 
 
@@ -369,8 +392,8 @@ async def git_project_health(
     project-root Git remote has the same failure modes (empty / healthy /
     history_degraded / current_corrupt) and the same need to expose them
     for self-diagnosis. Same auth + same payload shape as the AP route —
-    just resolved against the project root scope instead of the
-    access-key-bound scope.
+    just resolved against the Project root view instead of an
+    access-key-bound Scope view.
     """
 
     return _git_health_for_target(

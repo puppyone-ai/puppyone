@@ -52,7 +52,13 @@ def test_psql_receives_connection_uri_explicitly() -> None:
     assert "PGDATABASE:" not in schema
     assert "PGDATABASE:" not in validation
     assert 'psql "$DATABASE_URL"' in schema
-    assert validation.count('psql "$DATABASE_URL"') == 6
+    assert validation.count('psql "$DATABASE_URL"') == 2
+    upgrade_harness = (
+        REPOSITORY / "scripts" / "test-repository-target-migration.sh"
+    ).read_text()
+    explicit_calls = upgrade_harness.count('psql "$database_url"')
+    assert explicit_calls == upgrade_harness.count("psql ")
+    assert explicit_calls >= 1
 
 
 def test_hosted_schema_smoke_has_no_pgtap_runtime_dependency() -> None:
@@ -87,13 +93,19 @@ def test_ordered_data_migration_fixtures_are_not_auto_discovered_by_supabase() -
         / "20260713_reconcile_project_creator_admin"
     )
     validation = (WORKFLOWS / "validate-migrations.yml").read_text()
+    upgrade_harness = (
+        REPOSITORY / "scripts" / "test-repository-target-migration.sh"
+    ).read_text()
 
     assert not list(supabase_tests.glob("*fixture*.sql"))
     assert not list(supabase_tests.glob("*assert*.sql"))
+    assert (
+        supabase_tests / "fixtures" / "repository_target_upgrade_assert.sql"
+    ).is_file()
     for migration in (permission_migration, creator_migration):
         assert (migration / "test_fixture.sql").is_file()
         assert (migration / "test_assert.sql").is_file()
-        assert migration.name in validation
+        assert migration.name in validation + upgrade_harness
 
 
 def test_production_data_work_cannot_run_from_untrusted_ref() -> None:

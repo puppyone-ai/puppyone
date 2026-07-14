@@ -21,6 +21,9 @@ class _Query:
     def filter(self, *_args, **_kwargs):
         return self
 
+    def order(self, *_args, **_kwargs):
+        return self
+
     def limit(self, *_args, **_kwargs):
         return self
 
@@ -47,12 +50,12 @@ def test_resolver_builds_writable_context_when_scope_and_access_are_rw(monkeypat
         "kind": "mcp",
     }
     sb = _Supabase({
-        "repo_scopes": [{
+        "repository_scopes": [{
             "id": "scope-1",
             "project_id": "proj-1",
             "path": "docs",
             "exclude": ["private"],
-            "mode": "rw",
+            "max_mode": "rw",
         }],
     })
     monkeypatch.setattr(resolver, "get_supabase_client", lambda: sb)
@@ -85,12 +88,12 @@ def test_resolver_downgrades_to_readonly_without_writable_access(monkeypatch):
         "kind": "mcp",
     }
     sb = _Supabase({
-        "repo_scopes": [{
+        "repository_scopes": [{
             "id": "scope-1",
             "project_id": "proj-1",
             "path": "",
             "exclude": [],
-            "mode": "rw",
+            "max_mode": "rw",
         }],
         "projects": [{"created_by": "project-owner"}],
     })
@@ -121,12 +124,12 @@ def test_resolver_applies_mcp_tools_config(monkeypatch):
         "kind": "mcp",
     }
     sb = _Supabase({
-        "repo_scopes": [{
+        "repository_scopes": [{
             "id": "scope-1",
             "project_id": "proj-1",
             "path": "docs",
             "exclude": [],
-            "mode": "rw",
+            "max_mode": "rw",
         }],
     })
     monkeypatch.setattr(resolver, "get_supabase_client", lambda: sb)
@@ -181,10 +184,10 @@ def test_resolver_carves_child_scopes_for_parent_mcp_key(monkeypatch):
         "kind": "mcp",
     }
     sb = _Supabase({
-        "repo_scopes": [
-            {"id": "scope-1", "project_id": "proj-1", "path": "docs", "exclude": ["private"], "mode": "rw"},
-            {"id": "scope-2", "project_id": "proj-1", "path": "docs/api", "exclude": [], "mode": "rw"},
-            {"id": "scope-3", "project_id": "proj-1", "path": "other", "exclude": [], "mode": "rw"},
+        "repository_scopes": [
+            {"id": "scope-1", "project_id": "proj-1", "path": "docs", "exclude": ["private"], "max_mode": "rw"},
+            {"id": "scope-2", "project_id": "proj-1", "path": "docs/api", "exclude": [], "max_mode": "rw"},
+            {"id": "scope-3", "project_id": "proj-1", "path": "other", "exclude": [], "max_mode": "rw"},
         ],
     })
     monkeypatch.setattr(resolver, "get_supabase_client", lambda: sb)

@@ -6,10 +6,22 @@ import re
 from dataclasses import replace
 from urllib.parse import urlsplit
 
-from src.exceptions import ErrorCode, NotFoundException, PermissionException, ValidationException
+from src.exceptions import (
+    AppException,
+    ErrorCode,
+    NotFoundException,
+    PermissionException,
+    ValidationException,
+)
 from src.platform.authorization.models import ProjectAction, ProjectGrant
 from src.platform.authorization.service import AuthorizationService
-from src.platform.workspace_binding.models import BindingKind, BindingMode, WorkspaceBinding
+from src.platform.repository_target.models import (
+    ProjectRootTarget,
+    RepositoryTarget,
+    ScopeTarget,
+)
+from src.platform.repository_target.schemas import repository_target_domain
+from src.platform.workspace_binding.models import BindingMode, WorkspaceBinding
 from src.platform.workspace_binding.repository import WorkspaceBindingRepository
 from src.platform.workspace_binding.schemas import WorkspaceBindingCreate
 from src.version_engine.entrypoints.git.locator import parse_canonical_git_url
@@ -67,16 +79,17 @@ class WorkspaceBindingService:
             ProjectAction.BIND_READWRITE
         ):
             return False, "role_downgraded"
-        scope = self._repository.get_scope(
-            binding.project_id, binding.scope_id, root=False
-        )
-        if scope is None:
-            return False, "scope_missing"
-        if (
-            binding.mode is BindingMode.READ_WRITE
-            and scope.get("mode") != "rw"
-        ):
-            return False, "scope_mode_downgraded"
+        if isinstance(binding.target, ScopeTarget):
+            scope = self._repository.get_scope(
+                binding.project_id, binding.target.scope_id
+            )
+            if scope is None:
+                return False, "scope_missing"
+            if (
+                binding.mode is BindingMode.READ_WRITE
+                and scope.get("max_mode") != "rw"
+            ):
+                return False, "scope_mode_downgraded"
         return True, None
 
     def create(
@@ -92,6 +105,13 @@ class WorkspaceBindingService:
         )
         grant = self._authorization.authorize(project_id, user_id, action)
         origin = normalize_cloud_origin(payload.cloud_origin)
+        target = repository_target_domain(payload.target)
+        if target.project_id != project_id:
+            raise AppException(
+                code=ErrorCode.TARGET_KIND_MISMATCH,
+                status_code=422,
+                message="Workspace Binding target Project mismatch",
+            )
 
         existing = self._repository.get_active_by_instance(
             payload.workspace_instance_id
@@ -105,9 +125,8 @@ class WorkspaceBindingService:
             if (
                 existing.project_id != project_id
                 or existing.cloud_origin != origin
-                or existing.binding_kind is not payload.binding_kind
+                or existing.target != target
                 or existing.mode is not payload.mode
-                or (payload.scope_id and existing.scope_id != payload.scope_id)
             ):
                 raise PermissionException(
                     "Workspace is already bound; detach it before rebinding",
@@ -116,41 +135,38 @@ class WorkspaceBindingService:
             usable, reason = self._usable(existing, grant)
             return self._with_scope_path(existing), None, usable, reason
 
-        scope = self._repository.get_scope(
-            project_id,
-            payload.scope_id,
-            root=payload.binding_kind is BindingKind.FULL,
-        )
-        if scope is None:
-            raise ValidationException("Requested Project scope does not exist")
-        if payload.binding_kind is BindingKind.SCOPED and scope.get("is_root"):
-            raise ValidationException("A scoped binding requires a non-root scope")
-        if payload.binding_kind is BindingKind.FULL and not scope.get("is_root"):
-            raise ValidationException("A full binding requires the canonical root scope")
-        if payload.mode is BindingMode.READ_WRITE and scope.get("mode") != "rw":
-            raise PermissionException(
-                "Binding mode cannot exceed scope mode", code=ErrorCode.FORBIDDEN
-            )
+        scope = None
+        if isinstance(target, ScopeTarget):
+            scope = self._repository.get_scope(project_id, target.scope_id)
+            if scope is None:
+                raise NotFoundException(
+                    "Requested repository Scope does not exist",
+                    code=ErrorCode.SCOPE_NOT_FOUND,
+                )
+            if (
+                payload.mode is BindingMode.READ_WRITE
+                and scope.get("max_mode") != "rw"
+            ):
+                raise PermissionException(
+                    "Binding mode cannot exceed Scope mode", code=ErrorCode.FORBIDDEN
+                )
 
-        surface = self._repository.get_git_surface(project_id, str(scope["id"]))
-        if surface is None:
-            raise ValidationException("The selected scope has no active Git surface")
         binding, credential = self._repository.create_with_credential(
             org_id=grant.org_id,
             project_id=project_id,
-            scope_id=str(scope["id"]),
+            target=target,
             workspace_instance_id=payload.workspace_instance_id,
             bound_user_id=user_id,
             cloud_origin=origin,
-            binding_kind=payload.binding_kind,
             mode=payload.mode,
-            access_surface_id=str(surface["id"]),
         )
         return self._with_scope_path(binding), credential, True, None
 
     def _with_scope_path(self, binding: WorkspaceBinding) -> WorkspaceBinding:
-        scope = self._repository.get_scope(
-            binding.project_id, binding.scope_id, root=False
+        scope = (
+            self._repository.get_scope(binding.project_id, binding.target.scope_id)
+            if isinstance(binding.target, ScopeTarget)
+            else None
         )
         return replace(
             binding,
@@ -246,7 +262,7 @@ class WorkspaceBindingService:
         user_id: str,
         *,
         expected_origin: str | None = None,
-    ) -> tuple[str, str, BindingKind]:
+    ) -> RepositoryTarget:
         parts = urlsplit(remote_url.strip())
         _validate_remote_origin(parts, expected_origin)
         match = _ACCESS_REMOTE_RE.search(parts.path)
@@ -259,13 +275,20 @@ class WorkspaceBindingService:
         if resolved is None:
             raise NotFoundException("Remote credential is invalid", code=ErrorCode.NOT_FOUND)
         project_id = str(resolved["project_id"])
-        scope_id = str(resolved["scope_id"])
+        scope_id = (
+            str(resolved["scope_id"])
+            if resolved.get("scope_id") is not None
+            else None
+        )
         self._authorization.authorize(project_id, user_id, ProjectAction.PROJECT_READ)
-        scope = self._repository.get_scope(project_id, scope_id, root=False)
+        if scope_id is None:
+            return ProjectRootTarget(project_id=project_id)
+        scope = self._repository.get_scope(project_id, scope_id)
         if scope is None:
-            raise NotFoundException("Remote scope not found", code=ErrorCode.NOT_FOUND)
-        kind = BindingKind.FULL if scope.get("is_root") else BindingKind.SCOPED
-        return project_id, scope_id, kind
+            raise NotFoundException(
+                "Remote Scope not found", code=ErrorCode.SCOPE_NOT_FOUND
+            )
+        return ScopeTarget(project_id=project_id, scope_id=scope_id)
 
     def resolve_canonical_remote(
         self,
@@ -273,7 +296,7 @@ class WorkspaceBindingService:
         user_id: str,
         *,
         expected_origin: str | None = None,
-    ) -> tuple[str, str, BindingKind]:
+    ) -> RepositoryTarget:
         parts = urlsplit(remote_url.strip())
         _validate_remote_origin(parts, expected_origin)
         locator = parse_canonical_git_url(remote_url)
@@ -286,19 +309,14 @@ class WorkspaceBindingService:
             user_id,
             ProjectAction.PROJECT_READ,
         )
-        scope = self._repository.get_scope(
-            locator.project_id,
-            locator.scope_id,
-            root=locator.scope_id is None,
-        )
+        if locator.scope_id is None:
+            return ProjectRootTarget(project_id=locator.project_id)
+        scope = self._repository.get_scope(locator.project_id, locator.scope_id)
         if scope is None:
             raise NotFoundException(
-                "Remote scope not found", code=ErrorCode.NOT_FOUND
+                "Remote Scope not found", code=ErrorCode.SCOPE_NOT_FOUND
             )
-        is_root = bool(scope.get("is_root"))
-        if locator.scope_id is not None and is_root:
-            raise ValidationException(
-                "The canonical root scope must use the Project Git URL"
-            )
-        kind = BindingKind.FULL if is_root else BindingKind.SCOPED
-        return locator.project_id, str(scope["id"]), kind
+        return ScopeTarget(
+            project_id=locator.project_id,
+            scope_id=locator.scope_id,
+        )

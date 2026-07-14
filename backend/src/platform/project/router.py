@@ -24,6 +24,7 @@ from src.platform.project.dependencies import get_project_service
 from src.platform.project.git_view import ProjectGitViewService
 from src.platform.project.presenters import project_to_out
 from src.platform.project.readiness import ProjectReadinessService
+from src.platform.repository_target.protocol import require_repository_target_contract
 from src.platform.project.schemas import (
     AddProjectMember,
     ProjectAuthorizationOut,
@@ -540,11 +541,12 @@ def join_via_share_token(
 @router.get(
     "/{project_id}/readiness",
     response_model=ApiResponse[dict],
-    summary="Get root Git and Claude readiness",
+    summary="Get Project repository Git and Claude readiness",
 )
 def get_project_readiness(
     authorized: AuthorizedProject = Depends(require_project_action(ProjectAction.PROJECT_READ)),
     readiness: ProjectReadinessService = Depends(get_project_readiness_service),
+    _repository_contract: int = Depends(require_repository_target_contract),
 ):
     return ApiResponse.success(data=readiness.resolve(authorized.project.id).as_dict())
 
@@ -552,11 +554,12 @@ def get_project_readiness(
 @router.get(
     "/{project_id}/git-view/health",
     response_model=ApiResponse[dict],
-    summary="Get the root Git view health through the Project control plane",
+    summary="Get Project repository Git view health through the control plane",
 )
 def get_project_git_view_health(
     authorized: AuthorizedProject = Depends(require_project_action(ProjectAction.PROJECT_READ)),
     git_view: ProjectGitViewService = Depends(get_project_git_view_service),
+    _repository_contract: int = Depends(require_repository_target_contract),
 ):
     """Return derived Git health using Human Project authorization.
 
@@ -577,11 +580,12 @@ def get_project_git_view_health(
 @router.post(
     "/{project_id}/git-view/rebuild-cache",
     response_model=ApiResponse[dict],
-    summary="Rebuild the root Git view cache through the Project control plane",
+    summary="Rebuild Project repository Git view cache through the control plane",
 )
 def rebuild_project_git_view_cache(
     authorized: AuthorizedProject = Depends(require_project_action(ProjectAction.PROJECT_MANAGE)),
     git_view: ProjectGitViewService = Depends(get_project_git_view_service),
+    _repository_contract: int = Depends(require_repository_target_contract),
 ):
     """Rebuild both derived root-view cache variants from canonical facts."""
 

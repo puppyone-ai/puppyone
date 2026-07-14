@@ -4,8 +4,8 @@ import { useCallback, useMemo, useState } from 'react';
 import { DialogBody, DialogHeader, DialogRoot, DialogSurface } from '@/components/ui/Dialog';
 import { CountBadge } from '@/components/ui/CountBadge';
 import { buildGitSyncPrompt, buildMcpSetupPrompt } from '@/lib/accessPointCliPrompt';
-import type { Connector, RepoScope } from '@/lib/repoApi';
-import { canonicalGitUrlForScope } from '@/lib/gitRemote';
+import type { Connector, RepositoryView } from '@/lib/repoApi';
+import { canonicalGitUrlForTarget } from '@/lib/gitRemote';
 import { isMcpProvider } from '@/lib/accessProviderRegistry';
 import { T } from '../lib/tokens';
 import { getApiBase, isGitBuiltinProvider } from '../lib/format';
@@ -22,7 +22,7 @@ export function ConnectorConnectDialog({
   onClose,
 }: {
   readonly connector: Connector;
-  readonly scope: RepoScope | undefined;
+  readonly scope: RepositoryView | undefined;
   readonly onClose: () => void;
 }) {
   const name = getConnectorDisplayName(connector);
@@ -98,7 +98,7 @@ function McpDialogTitle() {
   );
 }
 
-function McpDialogDescription({ scope }: { readonly scope: RepoScope | undefined }) {
+function McpDialogDescription({ scope }: { readonly scope: RepositoryView | undefined }) {
   return (
     <span
       style={{
@@ -118,11 +118,11 @@ function McpConnectionPanel({
   scope,
 }: {
   readonly connector: Connector;
-  readonly scope: RepoScope | undefined;
+  readonly scope: RepositoryView | undefined;
 }) {
   const setup = useMemo(() => {
     const configKey = connector.config?.api_key;
-    const apiKey = typeof configKey === 'string' ? configKey : connector.access_key || '';
+    const apiKey = typeof configKey === 'string' ? configKey : '';
     if (!scope) {
       return {
         apiKey,
@@ -142,7 +142,7 @@ function McpConnectionPanel({
       }),
       apiKey,
     };
-  }, [connector.access_key, connector.config?.api_key, connector.name, scope]);
+  }, [connector.config?.api_key, connector.name, scope]);
 
   if (!scope) {
     return (
@@ -365,12 +365,12 @@ function GitManualCommandsPanel({
   scope,
 }: {
   readonly connector: Connector;
-  readonly scope: RepoScope | undefined;
+  readonly scope: RepositoryView | undefined;
 }) {
   const steps = useMemo(() => {
     if (!scope) return [];
     const scopeName = scope.name || (scope.path === '' ? 'root' : scope.path || 'Root');
-    const gitUrl = canonicalGitUrlForScope(getApiBase(), scope);
+    const gitUrl = canonicalGitUrlForTarget(getApiBase(), scope.target);
     const guide = buildGitSyncPrompt({
       gitUrl,
       scopeName,
@@ -395,8 +395,8 @@ function GitManualCommandsPanel({
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <GitCredentialIssuePanel
         connectorId={connector.id}
-        gitUrl={canonicalGitUrlForScope(getApiBase(), scope)}
-        scopeMode={scope.mode}
+        gitUrl={canonicalGitUrlForTarget(getApiBase(), scope.target)}
+        scopeMode={scope.max_mode}
       />
       <div
         style={{

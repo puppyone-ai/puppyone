@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   deleteScope,
   updateScope,
-  type RepoScope,
+  type RepositoryView,
 } from '@/lib/repoApi';
 import { Dots } from '@/components/loading';
 import {
@@ -20,14 +20,13 @@ import {
   COLOR_FG_DIM,
   COLOR_FG_MUTED,
 } from './tokens';
-import { CliCredentialIssuePanel } from './connect-methods/CliCredentialIssuePanel';
 
 /**
  * ScopeSettingsBlock — the full Settings panel for an access point.
  *
  * Keep this page lightweight. Connector-level capabilities now own the
- * detailed permission story, so Settings only keeps scope identity,
- * credential management, and deletion.
+ * detailed permission story, so Settings only keeps Scope identity and
+ * deletion. Credential lifecycle belongs to each Access Surface.
  *
  * The block renders as the dedicated Settings sub-page for a scope.
  * When dirty, a Save / Discard footer appears at the bottom so the
@@ -40,8 +39,7 @@ import { CliCredentialIssuePanel } from './connect-methods/CliCredentialIssuePan
  *
  * Save → updateScope → onMutated (refresh SWR caches) → resets dirty,
  * stays mounted (user can keep editing). Delete → onScopeDeleted
- * (panel close). CLI credential issue/rotation is an independent one-time
- * reveal and does not rehydrate the Scope object.
+ * (panel close). The Project root view has no Scope mutation controls.
  */
 export function ScopeSettingsBlock({
   scope,
@@ -51,7 +49,7 @@ export function ScopeSettingsBlock({
   onDirtyChange,
   accessMethods,
 }: {
-  readonly scope: RepoScope;
+  readonly scope: RepositoryView;
   readonly projectId: string;
   readonly onMutated: () => Promise<unknown>;
   readonly onScopeDeleted: () => void;
@@ -69,6 +67,7 @@ export function ScopeSettingsBlock({
   // Per-action confirm states.
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const isProjectRoot = scope.target.kind === 'project_root';
 
   // Reset everything when the user navigates to a different scope so a
   // half-armed destructive action doesn't leak across.
@@ -78,7 +77,7 @@ export function ScopeSettingsBlock({
     setConfirmDelete(false);
   }, [scope.id, scope.name]);
 
-  const dirty = name.trim() !== scope.name;
+  const dirty = !isProjectRoot && name.trim() !== scope.name;
 
   // Push dirty up. Effect runs after render so consumers see consistent
   // state. The dependency on `onDirtyChange` itself is fine because
@@ -91,13 +90,12 @@ export function ScopeSettingsBlock({
   // ── Mutations ─────────────────────────────────────────────────────────
 
   const handleSave = useCallback(async () => {
+    if (scope.target.kind !== 'scope') return;
     setSaving(true);
     setError(null);
     try {
       await updateScope(projectId, scope.id, {
-        // Root scope name is locked at the DB layer; sending the
-        // original value is a no-op but keeps the patch consistent.
-        name: scope.is_root ? scope.name : (name.trim() || scope.name),
+        name: name.trim() || scope.name,
       });
       await onMutated();
       // Stays mounted; SWR refresh will re-pass scope props and the
@@ -108,7 +106,7 @@ export function ScopeSettingsBlock({
     } finally {
       setSaving(false);
     }
-  }, [projectId, scope.id, scope.is_root, scope.name, name, onMutated]);
+  }, [projectId, scope, name, onMutated]);
 
   const handleDiscard = useCallback(() => {
     setName(scope.name);
@@ -116,6 +114,7 @@ export function ScopeSettingsBlock({
   }, [scope.name]);
 
   const handleDelete = useCallback(async () => {
+    if (scope.target.kind !== 'scope') return;
     if (!confirmDelete) {
       setConfirmDelete(true);
       // Auto-disarm in 4s so an accidental first click doesn't leave
@@ -134,7 +133,7 @@ export function ScopeSettingsBlock({
       setDeleting(false);
       setConfirmDelete(false);
     }
-  }, [confirmDelete, projectId, scope.id, onMutated, onScopeDeleted]);
+  }, [confirmDelete, projectId, scope, onMutated, onScopeDeleted]);
 
   // ── Render helpers ────────────────────────────────────────────────────
 
@@ -146,13 +145,12 @@ export function ScopeSettingsBlock({
         gap: 10,
       }}
     >
-      <Card>
+      {!isProjectRoot ? <Card>
         <FieldLabel>Name</FieldLabel>
         <input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          disabled={scope.is_root}
           style={{
             background: COLOR_BG_SUNKEN,
             border: `1px solid ${COLOR_BORDER}`,
@@ -161,33 +159,21 @@ export function ScopeSettingsBlock({
             fontSize: 12,
             padding: '6px 10px',
             outline: 'none',
-            opacity: scope.is_root ? 0.6 : 1,
           }}
         />
-        {scope.is_root && (
-          <FieldHelp>Root access keeps the project name.</FieldHelp>
-        )}
-      </Card>
-
-      <Card>
-        <FieldLabel>CLI access key</FieldLabel>
-        <FieldHelp>
-          Used by Puppyone FS CLI only. Git Remote credentials are issued and rotated separately.
-          Plaintext is never returned by ordinary Scope reads.
-        </FieldHelp>
-        <CliCredentialIssuePanel
-          projectId={projectId}
-          scopeId={scope.id}
-          initialCredential={scope.access_key || ''}
-        />
-      </Card>
+      </Card> : (
+        <Card>
+          <FieldLabel>Project repository</FieldLabel>
+          <FieldHelp>
+            This is the Project-owned canonical root. Configure credentials on
+            its CLI and Git access methods; path Scope controls do not apply.
+          </FieldHelp>
+        </Card>
+      )}
 
       {accessMethods}
 
-      {/* Danger zone — delete, isolated at the bottom so a stray
-          click on the way out can't catch it. Two-click confirm; root
-          hard-disabled (DB enforces "exactly one root per project"). */}
-      <Card danger>
+      {!isProjectRoot ? <Card danger>
         <FieldLabel danger>Danger zone</FieldLabel>
         <FieldHelp>
           Deletes this access point and cascades to its built-in cli + agent
@@ -196,34 +182,26 @@ export function ScopeSettingsBlock({
         <button
           type="button"
           onClick={handleDelete}
-          disabled={scope.is_root || deleting}
-          title={scope.is_root ? 'Root scope cannot be deleted' : undefined}
+          disabled={deleting}
           style={{
             alignSelf: 'flex-start',
             height: 30,
             padding: '0 12px',
             fontSize: 12,
             fontWeight: 500,
-            color: scope.is_root
-              ? COLOR_FG_DIM
-              : confirmDelete
+            color: confirmDelete
                 ? COLOR_DANGER_FAINT
                 : COLOR_DANGER,
-            background: scope.is_root
-              ? 'transparent'
-              : confirmDelete
+            background: confirmDelete
                 ? COLOR_DANGER_BG
                 : 'transparent',
             border: `1px solid ${
-              scope.is_root
-                ? COLOR_BORDER
-                : confirmDelete
+              confirmDelete
                   ? COLOR_DANGER
                   : COLOR_DANGER_BORDER
             }`,
             borderRadius: 6,
-            cursor: scope.is_root ? 'not-allowed' : 'pointer',
-            opacity: scope.is_root ? 0.5 : 1,
+            cursor: 'pointer',
             display: 'inline-flex',
             alignItems: 'center',
             gap: 6,
@@ -236,7 +214,7 @@ export function ScopeSettingsBlock({
               ? 'Confirm delete'
               : 'Delete access point'}
         </button>
-      </Card>
+      </Card> : null}
 
       {error && (
         <div

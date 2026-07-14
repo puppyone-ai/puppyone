@@ -101,7 +101,7 @@ These checks happen before the destination Project exists.
 resolve destination Organization and capacity
   -> resolve release
   -> download and verify complete bundle
-  -> create Project + Admin grant + canonical root scope
+  -> create Project + Admin grant + canonical Project repository state
   -> VersionWriteCommandService.bulk_write(...)
   -> return the new independent Project
 ```

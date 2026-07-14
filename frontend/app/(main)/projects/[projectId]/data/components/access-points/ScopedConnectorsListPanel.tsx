@@ -33,7 +33,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { CountBadge } from '@/components/ui/CountBadge';
 import { GithubIcon, GmailIcon, NotionIcon } from '@/lib/nodeTypeConfig';
-import type { Connector, RepoScope } from '@/lib/repoApi';
+import type { Connector, RepositoryView } from '@/lib/repoApi';
 import {
   isAgentProvider,
   isBuiltInAccessProvider,
@@ -57,10 +57,10 @@ import {
 import type { ProviderIconLookup } from './types';
 
 interface Props {
-  readonly scope: RepoScope | null;
+  readonly scope: RepositoryView | null;
   /** All scopes in the project — drives the AllScopesList (non-scope state)
    *  and the AllScopesList is the only navigation surface for scope CRUD. */
-  readonly scopes: readonly RepoScope[];
+  readonly scopes: readonly RepositoryView[];
   /** Canonical path of the folder the user has navigated into. Used by
    *  MakeScopeCTA to pre-fill `path` when creating a scope, and by the
    *  AllScopesList to disable the "Open" button on the current row. */
@@ -73,7 +73,7 @@ interface Props {
   /** Project-wide connectors keyed by scope_id — used in the Overview
    *  state so each AccessPointRow can render its own connect / integration
    *  chip rows without per-row API requests. */
-  readonly connectorsByScope: ReadonlyMap<string, Connector[]>;
+  readonly connectorsByTarget: ReadonlyMap<string, Connector[]>;
   readonly providerIcons: ProviderIconLookup;
   readonly onClose: () => void;
   readonly onAddRequested: () => void;
@@ -97,12 +97,12 @@ interface Props {
   readonly onOpenAgentChat: (agentId: string, scopePath: string) => void;
   /** Drill into a specific scope's detail view from the Overview list,
    *  WITHOUT touching the file explorer. The panel maintains its own
-   *  navigation state via selectedScopeId in usePanelStore. The reverse
+   *  navigation state via selectedTargetKey in usePanelStore. The reverse
    *  direction (panel → file tree) is intentionally not wired: clicking
    *  a row should not yank the user out of their current document. */
-  readonly onSelectScope: (scopeId: string) => void;
+  readonly onSelectScope: (targetKey: string) => void;
   /** Pop the drill-down state and return to the Overview. Only present
-   *  when the user is currently *in* a drill-down (selectedScopeId set);
+   *  when the user is currently *in* a drill-down (selectedTargetKey set);
    *  the natural folder-driven detail view has no back. */
   readonly onBack?: () => void;
   /** Open the shared create modal from Overview. The panel provides
@@ -123,7 +123,7 @@ export function ScopedConnectorsListPanel({
   currentScopePath,
   projectId,
   connectors,
-  connectorsByScope,
+  connectorsByTarget,
   providerIcons,
   onClose,
   onAddRequested,
@@ -404,7 +404,7 @@ export function ScopedConnectorsListPanel({
             <>
               <AllAccessPointsList
                 scopes={scopes}
-                connectorsByScope={connectorsByScope}
+                connectorsByTarget={connectorsByTarget}
                 providerIcons={providerIcons}
                 currentScopePath={currentScopePath}
                 onSelectScope={onSelectScope}
@@ -506,9 +506,9 @@ function WorkflowHintIcon({
 function ScopeSummaryBar({
   scope,
 }: {
-  scope: RepoScope;
+  scope: RepositoryView;
 }) {
-  const modeLabel = scope.mode === 'rw' ? 'Read & Write' : 'Read-only';
+  const modeLabel = scope.max_mode === 'rw' ? 'Read & Write' : 'Read-only';
   const pathSegments = scope.path === ''
     ? []
     : scope.path.split('/').filter(Boolean);

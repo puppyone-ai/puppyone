@@ -14,6 +14,8 @@ from src.platform.authorization.models import (
     ROLE_CAPABILITIES,
 )
 from src.version_engine.admission.identity import PuppyOneAuthenticator
+from src.platform.repository_target.auth_context import repository_mode_from_auth
+from src.platform.repository_target.models import ProjectRootTarget
 
 
 @pytest.fixture
@@ -59,12 +61,12 @@ def test_jwt_scope_mode_is_bounded_by_project_role(
 
     resolve.assert_called_once_with(user_id, project_id)
     assert context["agent"] == f"user:{user_id}"
-    assert context["_scope"] == {
-        "id": "_root",
-        "path": "",
-        "exclude": [],
-        "mode": expected_mode,
-    }
+    view = context["_repository_view"]
+    assert view.target == ProjectRootTarget(project_id=project_id)
+    assert view.path_prefix == ""
+    assert view.excludes == ()
+    assert repository_mode_from_auth(context) == expected_mode
+    assert "_scope" not in context
 
 
 def test_jwt_without_project_grant_is_rejected(authenticator):

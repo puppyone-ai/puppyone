@@ -83,6 +83,17 @@ Do not put Expand and Contract in the same release. A fresh install with zero
 legacy rows may apply the final Contract without running irrelevant historical
 data jobs.
 
+An identity-representation cutover may intentionally use one atomic Contract
+without a dual-write phase only when both representations cannot safely coexist
+and all of the following stricter gates hold: a read-only immutable preflight,
+exact checksum receipt, mutation freeze, database restore point, one-transaction
+mapping, previous-schema upgrade fixture, dirty-data rejection proving no
+receipt/no mutation, credential-ID/hash continuity, and same-SHA application
+deployment. ISSUE-039 is this narrow case: keeping both a synthetic root Scope
+and Project-root identity would preserve the ambiguity the change removes. This
+exception does not permit ordinary feature Expand and Contract work to be
+collapsed.
+
 ## Operator commands
 
 From `backend/`:
@@ -139,6 +150,8 @@ Pull requests must pass:
 - an artifact checksum pinned in every destructive Contract;
 - fresh database rebuild and pgTAP;
 - legacy fixture -> data runner -> idempotent rerun -> Contract;
+- corruption fixture -> failed preflight -> no receipt and no schema mutation;
+- concurrent idempotent target enable and existing-credential continuity;
 - targeted backend runner and authorization-boundary tests;
 - no shared-database credentials in pull-request jobs.
 

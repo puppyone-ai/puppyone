@@ -12,7 +12,7 @@ from src.config import settings
 from src.connectors.agent.config.repository import AgentRepository
 from src.connectors.sandbox_endpoint.repository import SandboxEndpointRepository
 from src.repo.access_credentials import AccessCredentialRepository, access_token_hash
-from src.repo.scope_repository import RepoScopeRepository
+from src.repo.scope_repository import RepositoryScopeRepository
 
 
 class _MemoryQuery:
@@ -120,13 +120,15 @@ def _credential_secret(monkeypatch):
     )
 
 
-def _surface(*, surface_id="surface-1", kind="agent", config=None):
+def _surface(
+    *, surface_id="surface-1", kind="agent", config=None, scope_id="scope-1"
+):
     now = datetime.now(timezone.utc).isoformat()
     return {
         "id": surface_id,
         "org_id": "org-1",
         "project_id": "project-1",
-        "scope_id": "scope-1",
+        "scope_id": scope_id,
         "kind": kind,
         "name": "Surface",
         "config": config or {},
@@ -172,14 +174,13 @@ def test_expired_scope_session_credential_is_rejected():
     client = _MemoryClient(
         access_surfaces=[_surface(kind="cli")],
         access_surface_credentials=[],
-        repo_scopes=[{
+        repository_scopes=[{
             "id": "scope-1",
             "project_id": "project-1",
-            "name": "Root",
-            "path": "",
+            "name": "Docs",
+            "path": "docs",
             "exclude": [],
-            "mode": "rw",
-            "is_root": True,
+            "max_mode": "rw",
             "created_at": datetime.now(timezone.utc).isoformat(),
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }],
@@ -195,7 +196,7 @@ def test_expired_scope_session_credential_is_rejected():
     )
 
     assert credentials.get_active_by_token(token) is None
-    assert RepoScopeRepository(client).get_by_access_key(token) is None
+    assert RepositoryScopeRepository(client).get_by_access_key(token) is None
 
 
 def test_scope_credential_resolves_via_cli_access_surface_only():
@@ -203,9 +204,9 @@ def test_scope_credential_resolves_via_cli_access_surface_only():
     client = _MemoryClient(
         access_surfaces=[_surface(kind="cli")],
         access_surface_credentials=[],
-        repo_scopes=[{
-            "id": "scope-1", "project_id": "project-1", "name": "Root",
-            "path": "", "exclude": [], "mode": "rw", "is_root": True,
+        repository_scopes=[{
+            "id": "scope-1", "project_id": "project-1", "name": "Docs",
+            "path": "docs", "exclude": [], "max_mode": "rw",
             "created_at": now, "updated_at": now,
         }],
     )
@@ -216,7 +217,7 @@ def test_scope_credential_resolves_via_cli_access_surface_only():
         prefix="cli",
     )
 
-    scope = RepoScopeRepository(client).get_by_access_key(token)
+    scope = RepositoryScopeRepository(client).get_by_access_key(token)
     assert scope and scope.id == "scope-1"
     assert token not in repr(client.tables)
 
@@ -225,13 +226,13 @@ def test_git_http_token_is_separate_from_cli_bearer_and_resolves_runtime_facts()
     now = datetime.now(timezone.utc).isoformat()
     client = _MemoryClient(
         access_surfaces=[
-            _surface(kind="git_remote"),
+            _surface(kind="git_remote", scope_id=None),
             _surface(surface_id="surface-cli", kind="cli"),
         ],
         access_surface_credentials=[],
-        repo_scopes=[{
-            "id": "scope-1", "project_id": "project-1", "name": "Root",
-            "path": "", "exclude": ["private"], "mode": "rw", "is_root": True,
+        repository_scopes=[{
+            "id": "scope-1", "project_id": "project-1", "name": "Docs",
+            "path": "docs", "exclude": ["private"], "max_mode": "rw",
             "created_at": now, "updated_at": now,
         }],
     )
@@ -256,21 +257,18 @@ def test_git_http_token_is_separate_from_cli_bearer_and_resolves_runtime_facts()
     resolved = credentials.resolve_git_runtime_credential(git_token)
     assert resolved is not None
     assert resolved["project_id"] == "project-1"
-    assert resolved["scope_is_root"] is True
-    assert resolved["scope_exclude"] == ["private"]
+    assert resolved["target_kind"] == "project_root"
+    assert resolved["scope_id"] is None
+    assert resolved["path_prefix"] == ""
+    assert resolved["excludes"] == []
     assert resolved["effective_mode"] == "r"
 
 
 def test_shared_git_read_and_readwrite_credentials_rotate_independently():
     now = datetime.now(timezone.utc).isoformat()
     client = _MemoryClient(
-        access_surfaces=[_surface(kind="git_remote")],
+        access_surfaces=[_surface(kind="git_remote", scope_id=None)],
         access_surface_credentials=[],
-        repo_scopes=[{
-            "id": "scope-1", "project_id": "project-1", "name": "Root",
-            "path": "", "exclude": [], "mode": "rw", "is_root": True,
-            "created_at": now, "updated_at": now,
-        }],
     )
     credentials = AccessCredentialRepository(client)
 
@@ -301,13 +299,8 @@ def test_shared_git_read_and_readwrite_credentials_rotate_independently():
 def test_shared_git_rotation_preserves_same_mode_session_credential():
     now = datetime.now(timezone.utc)
     client = _MemoryClient(
-        access_surfaces=[_surface(kind="git_remote")],
+        access_surfaces=[_surface(kind="git_remote", scope_id=None)],
         access_surface_credentials=[],
-        repo_scopes=[{
-            "id": "scope-1", "project_id": "project-1", "name": "Root",
-            "path": "", "exclude": [], "mode": "rw", "is_root": True,
-            "created_at": now.isoformat(), "updated_at": now.isoformat(),
-        }],
     )
     credentials = AccessCredentialRepository(client)
 
@@ -343,7 +336,7 @@ def test_shared_git_rotation_preserves_same_mode_session_credential():
 
 
 def test_readonly_workspace_binding_clamps_an_rw_scope_runtime_grant():
-    """A Viewer binding may never inherit the root scope's rw mode."""
+    """A Viewer binding may never inherit a Scope's rw maximum mode."""
     now = datetime.now(timezone.utc).isoformat()
     raw_token = "pwb_readonly_workspace_token"
     client = _MemoryClient(
@@ -369,16 +362,16 @@ def test_readonly_workspace_binding_clamps_an_rw_scope_runtime_grant():
             "key_hash": access_token_hash(raw_token), "hash_alg": "hmac_sha256_v1",
             "status": "active", "created_at": now,
         }],
-        repo_scopes=[{
-            "id": "scope-1", "project_id": "project-1", "name": "Root",
-            "path": "", "exclude": [], "mode": "rw", "is_root": True,
+        repository_scopes=[{
+            "id": "scope-1", "project_id": "project-1", "name": "Docs",
+            "path": "docs", "exclude": [], "max_mode": "rw",
             "created_at": now, "updated_at": now,
         }],
     )
 
-    scope = RepoScopeRepository(client).get_by_access_key(raw_token)
+    scope = RepositoryScopeRepository(client).get_by_access_key(raw_token)
     assert scope is not None
-    assert scope.mode == "r"
+    assert scope.max_mode == "r"
 
 
 def test_shared_surface_rotation_does_not_revoke_device_binding_credentials():
@@ -413,10 +406,24 @@ def test_shared_surface_rotation_does_not_revoke_device_binding_credentials():
 
 
 def test_agent_issues_once_authenticates_by_hash_and_revokes_old_token():
-    surface = _surface(config={"name": "Agent", "scope": {"path": "", "mode": "rw"}})
+    surface = _surface(config={
+        "name": "Agent",
+        "repository_view": {
+            "target": {"kind": "project_root", "project_id": "project-1"},
+            "path_prefix": "",
+            "excludes": [],
+            "max_mode": "rw",
+        },
+    })
     client = _MemoryClient(access_surfaces=[surface], access_surface_credentials=[])
     repo = AgentRepository(client)
-    repo._scope_for_path = MethodType(lambda _self, *_a, **_k: {"id": "scope-1", "path": "", "exclude": [], "mode": "rw"}, repo)
+    repo._scope_for_path = MethodType(lambda _self, *_a, **_k: {
+        "id": None,
+        "path": "",
+        "exclude": [],
+        "mode": "rw",
+        "target": {"kind": "project_root", "project_id": "project-1"},
+    }, repo)
     repo._agent_surface_for_scope = MethodType(lambda _self, **_kwargs: deepcopy(surface), repo)
 
     created = repo.create(project_id="project-1", name="Agent")
@@ -444,7 +451,7 @@ def test_sandbox_issues_once_and_exec_lookup_rejects_revoked_token(monkeypatch):
     client = _MemoryClient(
         access_surfaces=[],
         access_surface_credentials=[],
-        repo_scopes=[{"id": "scope-1", "path": ""}],
+        repository_scopes=[{"id": "scope-1", "path": "docs"}],
     )
     repo = SandboxEndpointRepository(client)
     monkeypatch.setattr(repo, "_scope_for_path", lambda *_a, **_k: {"id": "scope-1", "path": ""})

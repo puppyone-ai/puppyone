@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import type { Connector, RepoScope } from '@/lib/repoApi';
+import type { Connector, RepositoryView } from '@/lib/repoApi';
 import { AI_AGENT_ENABLED } from '@/lib/featureFlags';
 import {
   isAgentProvider,
@@ -58,7 +58,7 @@ export function AccessPointRow({
   isCurrent,
   onClick,
 }: {
-  readonly scope: RepoScope;
+  readonly scope: RepositoryView;
   /** Connectors bound to this scope. We split into the built-ins
    *  (cli / git_remote / agent) and any third-party
    *  integrations. Empty array (frozen at the call site) when the
@@ -105,8 +105,8 @@ export function AccessPointRow({
   const visibleIntegrations = integrations.slice(0, INTEGRATION_VISIBLE_CAP);
   const hiddenIntegrations = integrations.length - visibleIntegrations.length;
 
-  const pathDisplay = scope.is_root || scope.path === '' ? '/' : `/${scope.path}`;
-  const displayName = scope.is_root || scope.path === ''
+  const pathDisplay = scope.target.kind === 'project_root' ? '/' : `/${scope.path}`;
+  const displayName = scope.target.kind === 'project_root'
     ? 'Root'
     : scope.name || scope.path.split('/').filter(Boolean).pop() || scope.path;
 

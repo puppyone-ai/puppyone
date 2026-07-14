@@ -24,6 +24,7 @@ from src.exceptions import AppException
 from src.exception_handler import app_exception_handler
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
+from src.platform.repository_target.protocol import require_repository_target_contract
 from tests.authorization_fakes import authorization_for, install_authorization
 
 ALLOWED = "proj-allowed"
@@ -37,6 +38,7 @@ def _user():
 def _base_app() -> FastAPI:
     app = FastAPI()
     app.add_exception_handler(AppException, app_exception_handler)
+    app.dependency_overrides[require_repository_target_contract] = lambda: 2
     app.dependency_overrides[get_current_user] = _user
     install_authorization(app, authorization_for(ALLOWED))
     return app

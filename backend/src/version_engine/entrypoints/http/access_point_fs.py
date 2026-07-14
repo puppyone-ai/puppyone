@@ -1,8 +1,7 @@
 """Access Point scoped FS CLI API.
 
-This router exposes POSIX-like file operations through an access point
-credential. It is intentionally provider-agnostic: any access point with a
-valid ``config.scope`` can use it.
+This router exposes POSIX-like file operations through an admitted Access
+Surface credential and its resolved repository view.
 """
 
 from __future__ import annotations
@@ -17,6 +16,32 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from fastapi.responses import Response
 
 from src.common_schemas import ApiResponse
+from src.exceptions import ErrorCode
+from src.ingest.policy.upload_policy import (
+    PER_FILE_MAX_BYTES as POLICY_PER_FILE_MAX_BYTES,
+)
+from src.ingest.policy.upload_policy import (
+    path_has_blocked_segment,
+)
+from src.platform.repository_target.auth_context import repository_view_from_auth
+from src.platform.repository_target.models import repository_target_scope_id
+from src.version_engine.adapters.product.commands import VersionWriteCommandService
+from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
+from src.version_engine.admission.channel_pause import enforce_channel_pause
+from src.version_engine.admission.connector_policy import admit_cli_fs_command
+from src.version_engine.admission.permission import (
+    ensure_mode_writable,
+    ensure_repo_readable,
+    is_mode_writable,
+)
+from src.version_engine.admission.repo_facade import (
+    RepositoryViewResolutionError,
+    repo_facade_from_auth,
+)
+from src.version_engine.admission.validation import (
+    validate_limit,
+    validate_path,
+)
 from src.version_engine.bootstrap.dependencies import (
     get_product_operation_adapter,
     get_version_write_command_service,
@@ -31,18 +56,6 @@ from src.version_engine.entrypoints.http.schemas import (
     TouchRequest,
     WriteFileRequest,
 )
-from src.version_engine.admission.channel_pause import enforce_channel_pause
-from src.version_engine.admission.connector_policy import admit_cli_fs_command
-from src.version_engine.admission.permission import (
-    ensure_mode_writable,
-    ensure_repo_readable,
-    is_mode_writable,
-)
-from src.version_engine.admission.validation import (
-    validate_limit,
-    validate_path,
-)
-from src.version_engine.admission.repo_facade import repo_facade_from_auth
 from src.version_engine.scoped_fs.capabilities import scoped_fs_capabilities
 from src.version_engine.scoped_fs.context import ScopedFsContext
 from src.version_engine.scoped_fs.errors import ScopedFsError
@@ -52,13 +65,6 @@ from src.version_engine.scoped_fs.indexed_grep import (
 )
 from src.version_engine.scoped_fs.service import ScopedFsService
 from src.version_engine.write_engine.engine import ConcurrentMutationError
-from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
-from src.version_engine.adapters.product.commands import VersionWriteCommandService
-from src.ingest.policy.upload_policy import (
-    PER_FILE_MAX_BYTES as POLICY_PER_FILE_MAX_BYTES,
-    path_has_blocked_segment,
-)
-
 
 router = APIRouter(prefix="/ap-fs", tags=["access-point-fs"])
 
@@ -164,10 +170,21 @@ async def _resolve_auth(
     from src.version_engine.infrastructure.supabase.scope_repository import SupabaseScopeBackend
 
     scope_backend = SupabaseScopeBackend(SupabaseClient(), project_id)
-    facade = repo_facade_from_auth(
-        project_id, auth, kind="access_point", scope_backend=scope_backend
-    )
-    scope = auth.get("_scope") or {}
+    try:
+        facade = repo_facade_from_auth(
+            project_id, auth, kind="access_point", scope_backend=scope_backend
+        )
+    except RepositoryViewResolutionError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Repository view is temporarily unavailable",
+            headers={
+                "X-PuppyOne-Error-Code": str(
+                    ErrorCode.REPOSITORY_STORAGE_UNAVAILABLE.value
+                )
+            },
+        ) from exc
+    view = repository_view_from_auth(auth)
     scope_path = validate_path(facade.scope_path)
     mode = facade.mode
     ensure_repo_readable(facade)
@@ -191,7 +208,7 @@ async def _resolve_auth(
         enforce_channel_pause(auth, normalized_client, log_prefix="[AP-FS]")
 
     normalized_scope = {
-        "id": scope.get("id") or auth.get("agent"),
+        "id": repository_target_scope_id(view.target) or auth.get("agent"),
         "repo_id": facade.repo_id,
         "repo_kind": facade.kind,
         "repo_ref": facade.ref,
@@ -2760,6 +2777,7 @@ async def admin_object_integrity(
     admin endpoints in this router).
     """
     import zlib
+
     from src.version_engine.domain.errors import StorageWriteError
     from src.version_engine.storage.backends.s3 import (
         _verify_loose_hash,

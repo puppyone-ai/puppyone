@@ -5,8 +5,12 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
+from src.platform.repository_target.models import (
+    RepositoryTarget,
+    repository_target_from_storage,
+    repository_target_scope_id,
+)
 from src.platform.workspace_binding.models import (
-    BindingKind,
     BindingMode,
     BindingStatus,
     WorkspaceBinding,
@@ -30,12 +34,13 @@ def _row_to_binding(row: dict[str, Any]) -> WorkspaceBinding:
     return WorkspaceBinding(
         id=str(row["id"]),
         org_id=str(row["org_id"]),
-        project_id=str(row["project_id"]),
-        scope_id=str(row["scope_id"]),
+        target=repository_target_from_storage(
+            str(row["project_id"]),
+            str(row["scope_id"]) if row.get("scope_id") is not None else None,
+        ),
         workspace_instance_id=str(row["workspace_instance_id"]),
         bound_user_id=str(row["bound_user_id"]),
         cloud_origin=str(row["cloud_origin"]),
-        binding_kind=BindingKind(row["binding_kind"]),
         mode=BindingMode(row["mode"]),
         status=BindingStatus(row["status"]),
         created_at=_datetime(row["created_at"]),
@@ -104,23 +109,12 @@ class WorkspaceBindingRepository:
         rows = response.data or []
         return _row_to_binding(rows[0]) if rows else None
 
-    def get_scope(self, project_id: str, scope_id: str | None, *, root: bool) -> dict[str, Any] | None:
-        query = self._client.table("repo_scopes").select("*").eq("project_id", project_id)
-        if scope_id:
-            query = query.eq("id", scope_id)
-        if root:
-            query = query.eq("is_root", True)
-        rows = query.limit(1).execute().data or []
-        return rows[0] if rows else None
-
-    def get_git_surface(self, project_id: str, scope_id: str) -> dict[str, Any] | None:
+    def get_scope(self, project_id: str, scope_id: str) -> dict[str, Any] | None:
         rows = (
-            self._client.table("access_surfaces")
+            self._client.table("repository_scopes")
             .select("*")
             .eq("project_id", project_id)
-            .eq("scope_id", scope_id)
-            .eq("kind", "git_remote")
-            .eq("status", "active")
+            .eq("id", scope_id)
             .limit(1)
             .execute()
         ).data or []
@@ -131,15 +125,14 @@ class WorkspaceBindingRepository:
         *,
         org_id: str,
         project_id: str,
-        scope_id: str,
+        target: RepositoryTarget,
         workspace_instance_id: str,
         bound_user_id: str,
         cloud_origin: str,
-        binding_kind: BindingKind,
         mode: BindingMode,
-        access_surface_id: str,
     ) -> tuple[WorkspaceBinding, str]:
         binding_id = generate_uuid_v7()
+        access_surface_id = generate_uuid_v7()
         credential_id = generate_uuid_v7()
         raw_token = generate_access_token("pwg")
         key_prefix, key_last4 = access_token_metadata(raw_token)
@@ -149,11 +142,10 @@ class WorkspaceBindingRepository:
                 "p_binding_id": binding_id,
                 "p_org_id": org_id,
                 "p_project_id": project_id,
-                "p_scope_id": scope_id,
+                "p_scope_id": repository_target_scope_id(target),
                 "p_workspace_instance_id": workspace_instance_id,
                 "p_bound_user_id": bound_user_id,
                 "p_cloud_origin": cloud_origin,
-                "p_binding_kind": binding_kind.value,
                 "p_mode": mode.value,
                 "p_access_surface_id": access_surface_id,
                 "p_credential_id": credential_id,

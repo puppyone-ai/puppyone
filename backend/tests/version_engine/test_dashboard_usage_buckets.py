@@ -117,11 +117,10 @@ def test_fetch_connections_never_rehydrates_scope_plaintext_key():
             "scope_id": "scope-root",
             "created_at": today,
         }],
-        "repo_scopes": [{
+        "repository_scopes": [{
             "id": "scope-root",
             "path": "",
-            "mode": "r",
-            "access_key": "cli_secretkey123456",
+            "max_mode": "r",
         }],
         "sync_runs": [{"connection_id": "sync1", "started_at": today}],
     })

@@ -59,6 +59,13 @@ from src.version_engine.write_engine.engine import (
     VersionWriteEngine,
 )
 from src.version_engine.domain.intents import RollbackIntent, VersionSubmissionIntent
+from src.platform.authorization.models import RuntimeGrant, RuntimeMode, RuntimePrincipal
+from src.platform.repository_target.auth_context import repository_view_from_auth
+from src.platform.repository_target.models import (
+    ProjectRootTarget,
+    ResolvedRepositoryView,
+    ScopeTarget,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -77,21 +84,21 @@ async def submit_agent_push(repo_manager, project_id, auth, body):
     publish path.
     """
     repo = repo_manager.get_server_repo(project_id)
-    scope = auth["_scope"]
+    view = repository_view_from_auth(auth)
     for object_id, b64data in (body.get("objects") or {}).items():
         repo.store.put_loose(object_id, base64.b64decode(b64data))
     snapshot = body["snapshots"][-1]
     engine = VersionWriteEngine(repo_manager)
     result = await engine.submit_version(VersionSubmissionIntent(
         project_id=project_id,
-        scope_path=scope.get("path", "") or "",
+        scope_path=view.path_prefix,
         actor=auth.get("agent", ""),
         source_channel="agent",
         base_commit_id=body.get("base_commit_id", "") or "",
         proposed_tree_id=snapshot["root"],
         client_commit_id=snapshot.get("commit_id", ""),
         message=snapshot.get("message", ""),
-        scope_excludes=scope.get("exclude") or [],
+        scope_excludes=list(view.excludes),
         audit_detail={"snapshots": len(body.get("snapshots", []))},
         defer_projection=True,
     ))
@@ -108,16 +115,16 @@ async def submit_agent_push(repo_manager, project_id, auth, body):
 
 
 async def submit_version_rollback(repo_manager, project_id, auth, body):
-    scope = auth["_scope"]
+    view = repository_view_from_auth(auth)
     engine = VersionWriteEngine(repo_manager)
     result = await engine.rollback(RollbackIntent(
         project_id=project_id,
-        scope_path=scope.get("path", "") or "",
+        scope_path=view.path_prefix,
         actor=auth.get("agent", ""),
         source_channel="agent",
         target_commit_id=body["target_commit_id"],
         message=body.get("message", ""),
-        scope_excludes=scope.get("exclude") or [],
+        scope_excludes=list(view.excludes),
         defer_projection=True,
     ))
     return {
@@ -547,16 +554,33 @@ def _git_access_auth(
     exclude: list[str] | None = None,
     user_identity: str = "",
 ) -> tuple[str, dict]:
+    normalized_path = scope_path.strip("/")
+    target = (
+        ScopeTarget(project_id="test-proj", scope_id=scope_id)
+        if normalized_path
+        else ProjectRootTarget(project_id="test-proj")
+    )
+    normalized_excludes = tuple(item.strip("/") for item in (exclude or []))
+    view = ResolvedRepositoryView(
+        target=target,
+        path_prefix=normalized_path,
+        excludes=normalized_excludes,
+        max_mode=(mode if normalized_path else "rw"),
+    )
     return (
         "test-proj",
         {
             "agent": f"scope:{scope_id}",
-            "_scope": {
-                "id": scope_id,
-                "path": scope_path,
-                "exclude": exclude or [],
-                "mode": mode,
-            },
+            "_runtime_grant": RuntimeGrant(
+                principal=RuntimePrincipal(
+                    principal_id=scope_id,
+                    credential_kind="test_access_key",
+                ),
+                target=target,
+                repository_view=view,
+                mode=RuntimeMode(mode),
+            ),
+            "_repo_facade": {"id": scope_id, "kind": "access_point"},
             "_project_id": "test-proj",
             "_user_identity": user_identity,
         },
@@ -602,10 +626,11 @@ def _patch_canonical_git_credentials(
                 "credential_id": "credential-canonical",
                 "project_id": "test-proj",
                 "access_surface_id": "surface-git",
-                "scope_id": scope_id,
-                "scope_path": scope_path,
-                "scope_exclude": [],
-                "scope_is_root": is_root,
+                "target_kind": "project_root" if is_root else "scope",
+                "scope_id": None if is_root else scope_id,
+                "path_prefix": "" if is_root else scope_path.strip("/"),
+                "excludes": [],
+                "target_max_mode": "rw",
                 "workspace_binding_id": None,
                 "effective_mode": "rw",
             }
@@ -1196,10 +1221,8 @@ class TestVersionSubmissionAdapter:
             object_id: base64.b64encode(server_repo.store.get_loose(object_id)).decode()
             for object_id in reachable
         }
-        auth = {
-            "agent": "version-agent",
-            "_scope": {"id": "root", "path": "", "exclude": [], "mode": "rw"},
-        }
+        auth = _git_access_auth(scope_id="root", scope_path="")[1]
+        auth["agent"] = "version-agent"
 
         result = await submit_agent_push(
             repo_manager,
@@ -1239,15 +1262,12 @@ class TestVersionSubmissionAdapter:
             object_id: base64.b64encode(server_repo.store.get_loose(object_id)).decode()
             for object_id in reachable
         }
-        auth = {
-            "agent": "version-agent",
-            "_scope": {
-                "id": "docs-scope",
-                "path": "/docs/",
-                "exclude": ["/docs/secret/"],
-                "mode": "rw",
-            },
-        }
+        auth = _git_access_auth(
+            scope_id="docs-scope",
+            scope_path="/docs/",
+            exclude=["/docs/secret/"],
+        )[1]
+        auth["agent"] = "version-agent"
 
         with pytest.raises(PermissionError, match="outside its scope"):
             await submit_agent_push(
@@ -1410,8 +1430,8 @@ class TestGitNativeHardeningContracts:
             repo_manager,
             "test-proj",
             {
+                **_git_access_auth(scope_id="root", scope_path="")[1],
                 "agent": "version-agent",
-                "_scope": {"id": "root", "path": "", "exclude": [], "mode": "rw"},
             },
             {"protocol_version": PROTOCOL_VERSION, "target_commit_id": v1.commit_id},
         )
@@ -3854,8 +3874,10 @@ async def test_real_git_cli_rollback_of_git_commits_is_visible_to_git_clone(
             repo_manager,
             "test-proj",
             {
+                **_git_access_auth(
+                    scope_id="docs-scope", scope_path="/docs/"
+                )[1],
                 "agent": "rollback-agent",
-                "_scope": {"id": "docs-scope", "path": "/docs/", "exclude": [], "mode": "rw"},
             },
             {"protocol_version": PROTOCOL_VERSION, "target_commit_id": v1},
         )

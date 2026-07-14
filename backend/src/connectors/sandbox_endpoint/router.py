@@ -25,6 +25,7 @@ from src.platform.auth.models import CurrentUser
 from src.platform.authorization.dependencies import get_authorization_service
 from src.platform.authorization.models import ProjectAction
 from src.platform.authorization.service import AuthorizationService
+from src.platform.repository_target.models import RepositoryPathProjection
 from src.platform.scope_sandbox.execution.dependencies import get_sandbox_service
 from src.platform.scope_sandbox.execution.service import SandboxService
 
@@ -133,16 +134,12 @@ def _clone_version_files(project_id: str, scope_path: str) -> tuple:
     from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
 
     repo_manager = build_worker_version_engine_container().repo_manager
-    auth = {
-        "agent": "sandbox_endpoint",
-        "_scope": {
-            "id": f"sbx-{scope_path.replace('/', '-').strip('-') or 'root'}",
-            "path": scope_path,
-            "exclude": [],
-            "mode": "rw",
-        },
-    }
-    client = InProcessVersionClient(repo_manager, project_id, auth)
+    client = InProcessVersionClient(
+        repo_manager,
+        project_id,
+        RepositoryPathProjection(path_prefix=scope_path),
+        actor="sandbox_endpoint",
+    )
     files = client.clone()
     return client, files
 

@@ -153,20 +153,24 @@ class AccessCredentialRepository:
         surface = surfaces[0]
         if str(surface.get("org_id")) != str(credential.get("org_id")):
             return None
-        scopes = (
-            self._client.table("repo_scopes")
-            .select("*")
-            .eq("id", surface["scope_id"])
-            .eq("project_id", credential["project_id"])
-            .limit(1)
-            .execute()
-        ).data or []
-        if not scopes:
-            return None
-        scope = scopes[0]
+        scope_id = surface.get("scope_id")
+        scope: dict[str, Any] | None = None
+        if scope_id is not None:
+            scopes = (
+                self._client.table("repository_scopes")
+                .select("*")
+                .eq("id", scope_id)
+                .eq("project_id", credential["project_id"])
+                .limit(1)
+                .execute()
+            ).data or []
+            if not scopes:
+                return None
+            scope = scopes[0]
+        target_max_mode = str((scope or {}).get("max_mode") or "rw")
         modes = {
-            str(credential.get("grant_mode") or scope.get("mode") or "r"),
-            str(scope.get("mode") or "r"),
+            str(credential.get("grant_mode") or target_max_mode),
+            target_max_mode,
             str((surface.get("config") or {}).get("mode") or "rw"),
         }
         binding_mode = credential.get("workspace_binding_mode")
@@ -178,10 +182,11 @@ class AccessCredentialRepository:
             "org_id": str(credential["org_id"]),
             "project_id": str(credential["project_id"]),
             "access_surface_id": str(surface["id"]),
-            "scope_id": str(scope["id"]),
-            "scope_path": str(scope.get("path") or ""),
-            "scope_exclude": scope.get("exclude") or [],
-            "scope_is_root": bool(scope.get("is_root")),
+            "target_kind": "scope" if scope is not None else "project_root",
+            "scope_id": str(scope["id"]) if scope is not None else None,
+            "path_prefix": str((scope or {}).get("path") or ""),
+            "excludes": (scope or {}).get("exclude") or [],
+            "target_max_mode": target_max_mode,
             "workspace_binding_id": credential.get("workspace_binding_id"),
             "bound_user_id": None,
             "effective_mode": effective_mode,
@@ -224,7 +229,7 @@ class AccessCredentialRepository:
             surface = surfaces[0]
             if (
                 str(surface["project_id"]) != str(binding["project_id"])
-                or str(surface["scope_id"]) != str(binding["scope_id"])
+                or surface.get("scope_id") != binding.get("scope_id")
             ):
                 return None
 

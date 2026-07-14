@@ -273,7 +273,7 @@ class LandingService:
         )
         stem = PurePosixPath(body["src_name"]).stem or "Document"
 
-        # Shared born-owned create-chain (create row + init tree + root scope),
+        # Shared born-owned create-chain (create Project row + init tree),
         # same as platform/project/router.create_project. The container is built
         # here because it is reused below for the content write.
         from src.version_engine.bootstrap.dependencies import (

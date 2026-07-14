@@ -169,7 +169,7 @@ async def _do_export(
 
 
 async def _list_scope_files(project_id: str) -> dict[str, bytes]:
-    """Walk the version root scope and return ``{path: bytes}``.
+    """Walk the Project root view and return ``{path: bytes}``.
 
     Uses ``tree_to_flat`` directly off the project's current root_hash
     so we don't have to instantiate per-file readers.

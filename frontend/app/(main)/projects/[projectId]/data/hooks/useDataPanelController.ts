@@ -11,7 +11,12 @@ import { useRouter } from 'next/navigation';
 import { getApiBase } from '../components/access-points/labels';
 import type { AccessPanelNavigationGuard, EditorTarget } from '../components/right-panel';
 import { usePanelStore } from '../usePanelStore';
-import { matchScopeForPath, type Connector, type RepoScope } from '@/lib/repoApi';
+import {
+  matchRepositoryViewForPath,
+  repositoryViewKey,
+  type Connector,
+  type RepositoryView,
+} from '@/lib/repoApi';
 import { canonicalProjectGitUrl } from '@/lib/gitRemote';
 
 function normalizeAccessPath(path: string | null | undefined): string {
@@ -28,7 +33,7 @@ export function useDataPanelController({
   effectiveNodeId,
   syncEndpoints,
   scopes,
-  connectorsByScope,
+  connectorsByTarget,
   mutateRepo,
   refreshAgents,
   setEditorTarget,
@@ -39,8 +44,8 @@ export function useDataPanelController({
   currentFolderId: string | null;
   effectiveNodeId: string;
   syncEndpoints: ReadonlyMap<string, SyncEndpointLike>;
-  scopes: RepoScope[];
-  connectorsByScope: Map<string, Connector[]>;
+  scopes: RepositoryView[];
+  connectorsByTarget: Map<string, Connector[]>;
   mutateRepo: () => Promise<unknown>;
   refreshAgents: () => Promise<unknown> | unknown;
   setEditorTarget: Dispatch<SetStateAction<EditorTarget | null>>;
@@ -53,8 +58,8 @@ export function useDataPanelController({
   const [accessPanelNavigationGuard, setAccessPanelNavigationGuard] =
     useState<AccessPanelNavigationGuard | null>(null);
   const [accessOverviewOpen, setAccessOverviewOpen] = useState(false);
-  const [quickAccessScopeId, setQuickAccessScopeId] = useState<string | null>(null);
-  const [quickAccessScopeFallback, setQuickAccessScopeFallback] = useState<RepoScope | null>(null);
+  const [quickAccessTargetKey, setQuickAccessTargetKey] = useState<string | null>(null);
+  const [quickAccessScopeFallback, setQuickAccessScopeFallback] = useState<RepositoryView | null>(null);
   const [createAccessInitialPath, setCreateAccessInitialPath] = useState<string | null>(null);
   const [syncCreateInitialPath, setSyncCreateInitialPath] = useState<string | null>(null);
 
@@ -65,10 +70,10 @@ export function useDataPanelController({
 
   const isAccessPanelOpen = panelState.type === 'access_list';
   const accessPanelScopePath = currentFolderId || '';
-  const accessDrilledScope = isAccessPanelOpen && panelState.selectedScopeId
-    ? scopes.find((scope) => scope.id === panelState.selectedScopeId) ?? null
+  const accessDrilledScope = isAccessPanelOpen && panelState.selectedTargetKey
+    ? scopes.find((scope) => repositoryViewKey(scope) === panelState.selectedTargetKey) ?? null
     : null;
-  const accessFolderScope = matchScopeForPath(accessPanelScopePath, scopes);
+  const accessFolderScope = matchRepositoryViewForPath(accessPanelScopePath, scopes);
   const accessResolvedScope = accessDrilledScope ?? accessFolderScope;
   const accessListView: 'overview' | 'detail' | 'settings' =
     isAccessPanelOpen && panelState.view === 'settings' && accessResolvedScope
@@ -93,19 +98,20 @@ export function useDataPanelController({
     isAccessPanelOpen &&
     (accessListView === 'detail' || accessListView === 'settings');
 
-  const rootScope = useMemo(() => matchScopeForPath('', scopes), [scopes]);
+  const rootScope = useMemo(() => matchRepositoryViewForPath('', scopes), [scopes]);
   const rootGitRemoteUrl = useMemo(() => {
     if (!rootScope) return null;
     return canonicalProjectGitUrl(getApiBase(), projectId);
   }, [projectId, rootScope]);
 
   const quickAccessScope = useMemo(() => {
-    if (!quickAccessScopeId) return null;
-    return scopes.find((scope) => scope.id === quickAccessScopeId) ?? quickAccessScopeFallback;
-  }, [quickAccessScopeFallback, quickAccessScopeId, scopes]);
+    if (!quickAccessTargetKey) return null;
+    return scopes.find((scope) => repositoryViewKey(scope) === quickAccessTargetKey)
+      ?? quickAccessScopeFallback;
+  }, [quickAccessScopeFallback, quickAccessTargetKey, scopes]);
   const quickAccessConnectors = useMemo(
-    () => quickAccessScope ? connectorsByScope.get(quickAccessScope.id) ?? [] : [],
-    [connectorsByScope, quickAccessScope],
+    () => quickAccessScope ? connectorsByTarget.get(repositoryViewKey(quickAccessScope)) ?? [] : [],
+    [connectorsByTarget, quickAccessScope],
   );
 
   const refreshRepoAndAgents = useCallback(async () => {
@@ -126,7 +132,7 @@ export function useDataPanelController({
       openPanel({
         type: 'access_list',
         view: 'detail',
-        selectedScopeId: accessHeaderScope.id,
+        selectedTargetKey: repositoryViewKey(accessHeaderScope),
       });
       return;
     }
@@ -150,24 +156,24 @@ export function useDataPanelController({
     setEditorTarget(null);
     setIsEditorFullScreen(false);
     setAccessOverviewOpen(false);
-    setQuickAccessScopeId(null);
+    setQuickAccessTargetKey(null);
     setQuickAccessScopeFallback(null);
     setCreateAccessInitialPath(normalizeAccessPath(folderPath));
   }, [setEditorTarget, setIsEditorFullScreen]);
 
-  const openQuickAccessModal = useCallback((scope: RepoScope) => {
+  const openQuickAccessModal = useCallback((scope: RepositoryView) => {
     setEditorTarget(null);
     setIsEditorFullScreen(false);
     setAccessOverviewOpen(false);
     setCreateAccessInitialPath(null);
     setQuickAccessScopeFallback(scope);
-    setQuickAccessScopeId(scope.id);
+    setQuickAccessTargetKey(repositoryViewKey(scope));
   }, [setEditorTarget, setIsEditorFullScreen]);
 
   const openAccessOverviewModal = useCallback(() => {
     setEditorTarget(null);
     setIsEditorFullScreen(false);
-    setQuickAccessScopeId(null);
+    setQuickAccessTargetKey(null);
     setQuickAccessScopeFallback(null);
     setCreateAccessInitialPath(null);
     setAccessOverviewOpen(true);
@@ -195,7 +201,7 @@ export function useDataPanelController({
 
   const openShareWithAI = useCallback((folderPath: string | null | undefined) => {
     const normalizedPath = normalizeAccessPath(folderPath);
-    const existingScope = matchScopeForPath(normalizedPath, scopes);
+    const existingScope = matchRepositoryViewForPath(normalizedPath, scopes);
     if (existingScope) {
       openQuickAccessModal(existingScope);
       return;
@@ -208,7 +214,7 @@ export function useDataPanelController({
   }, []);
 
   const closeQuickAccessModal = useCallback(() => {
-    setQuickAccessScopeId(null);
+    setQuickAccessTargetKey(null);
     setQuickAccessScopeFallback(null);
   }, []);
 
@@ -220,18 +226,18 @@ export function useDataPanelController({
     setSyncCreateInitialPath(null);
   }, []);
 
-  const handleDataAccessCreated = useCallback(async (scope: RepoScope) => {
+  const handleDataAccessCreated = useCallback(async (scope: RepositoryView) => {
     try {
       await refreshRepoAndAgents();
     } finally {
       setQuickAccessScopeFallback(scope);
-      setQuickAccessScopeId(scope.id);
+      setQuickAccessTargetKey(repositoryViewKey(scope));
     }
   }, [refreshRepoAndAgents]);
 
-  const openAccessFullSettings = useCallback((scopeId: string) => {
+  const openAccessFullSettings = useCallback((targetKey: string) => {
     closeQuickAccessModal();
-    router.push(`/projects/${projectId}/access?scope=${encodeURIComponent(scopeId)}`);
+    router.push(`/projects/${projectId}/access?target=${encodeURIComponent(targetKey)}`);
   }, [closeQuickAccessModal, projectId, router]);
 
   return {

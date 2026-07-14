@@ -36,19 +36,20 @@ BEGIN
         'canonical-git-org', owner_id, 'canonical-git-share-token'
     );
 
-    INSERT INTO public.repo_scopes (
-        id, project_id, name, path, exclude, mode, is_root
-    ) VALUES
-        ('canonical-git-root', 'canonical-git-project', 'Root', '', '[]', 'rw', true),
-        ('canonical-git-docs', 'canonical-git-project', 'Docs', 'docs', '[]', 'rw', false);
+    INSERT INTO public.repository_scopes (
+        id, project_id, name, path, exclude, max_mode
+    ) VALUES (
+        'canonical-git-docs', 'canonical-git-project',
+        'Docs', 'docs', '[]', 'rw'
+    );
 
     INSERT INTO public.access_surfaces (
         id, org_id, project_id, scope_id, kind, name, status,
         principal_type, principal_id, config, created_by
     ) VALUES
         ('canonical-git-root-surface', 'canonical-git-org',
-         'canonical-git-project', 'canonical-git-root', 'git_remote',
-         'Root Git', 'active', 'scope', 'canonical-git-root',
+         'canonical-git-project', NULL, 'git_remote',
+         'Root Git', 'active', 'project', 'canonical-git-project',
          '{"mode":"rw"}'::jsonb, owner_id),
         ('canonical-git-docs-surface', 'canonical-git-org',
          'canonical-git-project', 'canonical-git-docs', 'git_remote',
@@ -86,9 +87,9 @@ BEGIN
 
     PERFORM * FROM public.create_project_workspace_git_binding(
         'canonical-git-binding', 'canonical-git-org',
-        'canonical-git-project', 'canonical-git-root',
+        'canonical-git-project', NULL,
         'canonical-git-workspace-0001', owner_id,
-        'https://cloud.puppyone.test', 'full', 'rw',
+        'https://cloud.puppyone.test', 'rw',
         'canonical-git-root-surface', 'canonical-git-binding-credential',
         'pwb', 'b001', 'canonical-git-hash-binding', 'hmac_sha256_v1'
     );

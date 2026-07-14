@@ -17,6 +17,8 @@ Read in this order:
 10. [Context Entry Point Data Model](architecture/11-context-entrypoint-data-model.md)
 11. [Project Authorization and Workspace Binding](architecture/12-project-authorization-and-workspace-binding.md)
 12. [Database Release Governance](architecture/13-database-release-governance.md)
+13. [Template Registry](architecture/14-template-registry.md)
+14. [Project-Owned Repository Targets](architecture/15-project-owned-repository-targets.md)
 
 Product and frontend design:
 
@@ -26,6 +28,7 @@ Product and frontend design:
 - [ISSUE-029 Authorization Cutover](ops/issue-029-authorization-cutover.md)
 - [Canonical Git Remote Rollout Runbook](ops/canonical-git-remote-rollout.md)
 - [July 2026 Database Migration Transition](ops/database-migration-transition-2026-07.md)
+- [ISSUE-039 Repository Target Cutover](ops/issue-039-repository-target-cutover.md)
 
 Document-level constructs:
 

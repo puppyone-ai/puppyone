@@ -7,13 +7,21 @@ import random
 import re
 import subprocess
 from contextlib import contextmanager
-from types import SimpleNamespace
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from src.ingest.file.jobs.jobs import stage_blob_from_s3
+from src.platform.authorization.models import RuntimeGrant, RuntimeMode, RuntimePrincipal
+from src.platform.repository_target.models import ResolvedRepositoryView, ScopeTarget
+from src.version_engine.adapters.git.object_quarantine import GitObjectQuarantine
+from src.version_engine.admission.repo_facade import repo_facade_from_auth
 from src.version_engine.domain.errors import ObjectNotFoundError
+from src.version_engine.infrastructure.supabase.db_names import OBJECT_LOCATIONS_TABLE
+from src.version_engine.storage.backends.s3 import S3StorageBackend
+from src.version_engine.storage.io_strategy import IOStorageStrategy
+from src.version_engine.storage.object_store import ObjectStore, StorageBackend
 from src.version_engine.write_engine.git_object_format import (
     EMPTY_TREE_LOOSE_BYTES,
     EMPTY_TREE_SHA1,
@@ -29,14 +37,7 @@ from src.version_engine.write_engine.git_object_format import (
     encode_tree,
     hash_object,
 )
-from src.version_engine.storage.object_store import ObjectStore, StorageBackend
 from src.version_engine.write_engine.path_utils import normalize_path
-from src.version_engine.adapters.git.object_quarantine import GitObjectQuarantine
-from src.version_engine.admission.repo_facade import repo_facade_from_auth
-from src.version_engine.storage.backends.s3 import S3StorageBackend
-from src.version_engine.infrastructure.supabase.db_names import OBJECT_LOCATIONS_TABLE
-from src.version_engine.storage.io_strategy import IOStorageStrategy
-
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 REPO_ROOT = BACKEND_ROOT.parent
@@ -577,15 +578,24 @@ def test_path_normalization_is_owned_by_puppyone() -> None:
 
 
 def test_access_point_auth_maps_to_repo_facade_not_physical_repo() -> None:
+    target = ScopeTarget(project_id="proj-1", scope_id="scope-123")
     auth = {
         "agent": "scope:scope-123",
         "_project_id": "proj-1",
-        "_scope": {
-            "id": "scope-123",
-            "path": "/docs/",
-            "exclude": ["tmp", "/cache/"],
-            "mode": "rw",
-        },
+        "_runtime_grant": RuntimeGrant(
+            principal=RuntimePrincipal(
+                principal_id="legacy-credential",
+                credential_kind="legacy_access_key",
+            ),
+            target=target,
+            repository_view=ResolvedRepositoryView(
+                target=target,
+                path_prefix="docs",
+                excludes=("tmp", "cache"),
+                max_mode="rw",
+            ),
+            mode=RuntimeMode.READ_WRITE,
+        ),
         "_repo_facade": {
             "id": "scope-123",
             "kind": "access_point",
@@ -657,9 +667,10 @@ async def test_upload_staging_overwrites_legacy_raw_bytes_at_dst_key() -> None:
     up with ``invalid git loose object … incorrect header check`` and
     bulk push fails for the whole batch.
     """
+    from datetime import datetime, timezone
+
     from src.infra.s3.exceptions import S3FileNotFoundError
     from src.infra.s3.schemas import FileMetadata
-    from datetime import datetime, timezone
 
     raw = b"hello world content for the legacy raw bytes test"
     source_key = "uploads/legacy-collision.bin"
@@ -884,7 +895,12 @@ def test_version_storage_uses_canonical_physical_names() -> None:
 
 
 def test_access_tables_are_confined_to_repository_boundaries() -> None:
-    table_names = {"access_surfaces", "repo_scopes", "access_tools"}
+    table_names = {
+        "access_surfaces",
+        "repository_scopes",
+        "repo_scopes",
+        "access_tools",
+    }
     offenders: list[str] = []
     for path in (BACKEND_ROOT / "src").rglob("*.py"):
         rel = path.relative_to(BACKEND_ROOT).as_posix()
@@ -920,6 +936,11 @@ def test_scope_credentials_are_hash_only_access_surface_credentials() -> None:
     assert "resolve_scope_credential" in surface_repo
     assert "store_scope_credential" in surface_repo
 
+    access_router = (
+        BACKEND_ROOT / "src/connectors/manager/router.py"
+    ).read_text(encoding="utf-8")
+    assert "_access_key_for" not in access_router
+
     migration = (
         REPO_ROOT
         / "supabase/migrations/20260711070000_move_scope_credentials_to_access_credentials.sql"
@@ -929,6 +950,12 @@ def test_scope_credentials_are_hash_only_access_surface_credentials() -> None:
     for column in ("access_key", "access_key_hash", "access_key_revoked_at"):
         assert f"DROP COLUMN IF EXISTS {column}" in migration
     assert "NOT (config ? 'access_key')" in migration
+
+    cutover = (
+        REPO_ROOT
+        / "supabase/migrations/20260715000000_project_owned_repository_targets_contract_cutover.sql"
+    ).read_text(encoding="utf-8")
+    assert "legacy Scope credential columns remain" in cutover
 
     assert not (BACKEND_ROOT / "scripts/migrate_access_points_to_v2.py").exists()
 

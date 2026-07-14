@@ -8,9 +8,13 @@ from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
 from src.platform.authorization.dependencies import AuthorizedProject, require_project_action
 from src.platform.authorization.models import ProjectAction
+from src.platform.repository_target.models import repository_target_scope_id
+from src.platform.repository_target.protocol import require_repository_target_contract
+from src.platform.repository_target.schemas import repository_target_schema
 from src.platform.workspace_binding.dependencies import get_workspace_binding_service
 from src.platform.workspace_binding.models import WorkspaceBinding
 from src.platform.workspace_binding.schemas import (
+    CanonicalRemoteContextOut,
     GitRemoteOut,
     LegacyRemoteCandidateOut,
     LegacyRemoteResolveRequest,
@@ -22,7 +26,10 @@ from src.platform.workspace_binding.service import WorkspaceBindingService
 from src.version_engine.entrypoints.git.locator import canonical_git_url
 
 
-router = APIRouter(tags=["workspace-bindings"])
+router = APIRouter(
+    tags=["workspace-bindings"],
+    dependencies=[Depends(require_repository_target_contract)],
+)
 
 
 def _out(
@@ -32,19 +39,15 @@ def _out(
     usable: bool = True,
     reason: str | None = None,
 ) -> WorkspaceBindingOut:
-    scope_id = (
-        None if binding.binding_kind.value == "full" else binding.scope_id
-    )
+    scope_id = repository_target_scope_id(binding.target)
     return WorkspaceBindingOut(
         id=binding.id,
         org_id=binding.org_id,
-        project_id=binding.project_id,
-        scope_id=binding.scope_id,
+        target=repository_target_schema(binding.target),
         scope_path=binding.scope_path,
         workspace_instance_id=binding.workspace_instance_id,
         bound_user_id=binding.bound_user_id,
         cloud_origin=binding.cloud_origin,
-        binding_kind=binding.binding_kind,
         mode=binding.mode,
         status=binding.status.value,
         usable=usable,
@@ -60,9 +63,7 @@ def _out(
                 binding.project_id,
                 scope_id,
             ),
-            project_id=binding.project_id,
-            scope_id=binding.scope_id,
-            kind=binding.binding_kind,
+            target=repository_target_schema(binding.target),
         ),
     )
 
@@ -204,7 +205,7 @@ def resolve_legacy_remote(
     current_user: CurrentUser = Depends(get_current_user),
     service: WorkspaceBindingService = Depends(get_workspace_binding_service),
 ):
-    project_id, scope_id, kind = service.resolve_legacy_remote(
+    target = service.resolve_legacy_remote(
         payload.remote_url,
         current_user.user_id,
         expected_origin=(
@@ -214,9 +215,7 @@ def resolve_legacy_remote(
     )
     return ApiResponse.success(
         data=LegacyRemoteCandidateOut(
-            project_id=project_id,
-            scope_id=scope_id,
-            binding_kind=kind,
+            target=repository_target_schema(target),
             requires_confirmation=True,
         )
     )
@@ -224,7 +223,7 @@ def resolve_legacy_remote(
 
 @router.post(
     "/desktop/project-bindings/resolve-canonical-remote",
-    response_model=ApiResponse[LegacyRemoteCandidateOut],
+    response_model=ApiResponse[CanonicalRemoteContextOut],
 )
 def resolve_canonical_remote(
     payload: LegacyRemoteResolveRequest,
@@ -232,7 +231,7 @@ def resolve_canonical_remote(
     current_user: CurrentUser = Depends(get_current_user),
     service: WorkspaceBindingService = Depends(get_workspace_binding_service),
 ):
-    project_id, scope_id, kind = service.resolve_canonical_remote(
+    target = service.resolve_canonical_remote(
         payload.remote_url,
         current_user.user_id,
         expected_origin=(
@@ -241,10 +240,7 @@ def resolve_canonical_remote(
         ),
     )
     return ApiResponse.success(
-        data=LegacyRemoteCandidateOut(
-            project_id=project_id,
-            scope_id=scope_id,
-            binding_kind=kind,
-            requires_confirmation=True,
+        data=CanonicalRemoteContextOut(
+            target=repository_target_schema(target),
         )
     )

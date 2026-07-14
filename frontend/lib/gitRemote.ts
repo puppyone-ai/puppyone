@@ -1,10 +1,6 @@
 /** Credential-free canonical Git locator helpers. */
 
-export type CanonicalGitScope = {
-  id: string;
-  project_id: string;
-  is_root: boolean;
-};
+import type { RepositoryTarget } from '@puppyone/cloud-core';
 
 const CANONICAL_GIT_ID = '[A-Za-z0-9][A-Za-z0-9_-]{0,199}';
 const CANONICAL_GIT_PATH = new RegExp(
@@ -27,13 +23,13 @@ export function canonicalScopeGitUrl(
   return `${cleanBase(apiBase)}/git/${encodeURIComponent(projectId)}/scopes/${encodeURIComponent(scopeId)}.git`;
 }
 
-export function canonicalGitUrlForScope(
+export function canonicalGitUrlForTarget(
   apiBase: string,
-  scope: CanonicalGitScope,
+  target: RepositoryTarget,
 ): string {
-  return scope.is_root
-    ? canonicalProjectGitUrl(apiBase, scope.project_id)
-    : canonicalScopeGitUrl(apiBase, scope.project_id, scope.id);
+  return target.kind === 'project_root'
+    ? canonicalProjectGitUrl(apiBase, target.project_id)
+    : canonicalScopeGitUrl(apiBase, target.project_id, target.scope_id);
 }
 
 export function isCredentialFreeCanonicalGitUrl(rawUrl: string): boolean {

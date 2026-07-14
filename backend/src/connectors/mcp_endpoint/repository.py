@@ -1,4 +1,4 @@
-"""MCP endpoint repository over access_surfaces + repo_scopes."""
+"""MCP endpoint repository over access_surfaces + repository_scopes."""
 
 from typing import Any, Dict, List, Optional
 
@@ -16,7 +16,7 @@ from src.version_engine.scoped_fs.policy import (
 PROVIDER = "mcp"
 ACCESS_SURFACES_TABLE = "access_surfaces"
 ACCESS_SURFACE_POLICIES_TABLE = "access_surface_policies"
-SCOPES_TABLE = "repo_scopes"
+SCOPES_TABLE = "repository_scopes"
 
 
 def _filesystem_tools_policy(tools_config: Any) -> dict[str, Any]:

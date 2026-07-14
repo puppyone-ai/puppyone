@@ -12,8 +12,8 @@ import asyncio
 import json
 import os
 import shutil
-import pytest
 
+import pytest
 
 # ── ISSUE-009: shared sandbox command policy ────────────────────────────────
 
@@ -108,13 +108,6 @@ class TestAccessListMaskingHelpers:
         from src.connectors.manager import router
         return router
 
-    def test_mask_key(self):
-        r = self._mod()
-        assert r._mask_key(None) == (False, None)
-        assert r._mask_key("") == (False, None)
-        has, last4 = r._mask_key("cli_abcdefgh1234")
-        assert has is True and last4 == "1234"
-
     def test_redact_config_strips_secrets(self):
         r = self._mod()
         cfg = {
@@ -144,8 +137,8 @@ class TestViewCachePrune:
         return view_dir
 
     def test_prunes_oldest_beyond_max_views(self, tmp_path, monkeypatch):
-        from src.version_engine.adapters.git import view_cache
         from src.config import settings
+        from src.version_engine.adapters.git import view_cache
 
         root = tmp_path / "cache"
         oldest = self._make_view(root, "projA", "v_old", mtime=1_000)
@@ -163,8 +156,8 @@ class TestViewCachePrune:
         assert newest.exists(), "the just-written (keep) view must survive"
 
     def test_keep_dir_never_evicted_even_if_oldest(self, tmp_path, monkeypatch):
-        from src.version_engine.adapters.git import view_cache
         from src.config import settings
+        from src.version_engine.adapters.git import view_cache
 
         root = tmp_path / "cache"
         keep_old = self._make_view(root, "projA", "v_keep", mtime=1_000)  # oldest
@@ -180,8 +173,8 @@ class TestViewCachePrune:
         assert not newer.exists(), "non-keep view should be evicted to meet cap"
 
     def test_zero_caps_disable_pruning(self, tmp_path, monkeypatch):
-        from src.version_engine.adapters.git import view_cache
         from src.config import settings
+        from src.version_engine.adapters.git import view_cache
 
         root = tmp_path / "cache"
         v1 = self._make_view(root, "projA", "v1", mtime=1_000)

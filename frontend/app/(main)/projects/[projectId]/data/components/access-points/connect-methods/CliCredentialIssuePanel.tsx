@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { regenerateScopeKey } from '@/lib/repoApi';
+import { post } from '@/lib/apiClient';
+import { sameRepositoryTarget, type RepositoryTarget } from '@puppyone/cloud-core';
 import { CommandBlock } from './CommandBlock';
 
 const CLI_CREDENTIAL_PATTERN = /^cli_[A-Za-z0-9_-]{32,128}$/;
@@ -12,39 +13,38 @@ function acceptedCliCredential(value: string | null | undefined): string | null 
 }
 
 export function CliCredentialIssuePanel({
-  projectId,
-  scopeId,
-  initialCredential = '',
+  connectorId,
+  target,
   children,
 }: {
-  readonly projectId: string;
-  readonly scopeId: string;
-  /** A create response may carry a one-time key. Ordinary reads never do. */
-  readonly initialCredential?: string;
+  readonly connectorId: string;
+  readonly target: RepositoryTarget;
   readonly children?: (credential: string) => ReactNode;
 }) {
   const [issuedCredential, setIssuedCredential] = useState<string | null>(
-    acceptedCliCredential(initialCredential),
+    null,
   );
   const [issuing, setIssuing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     // Never promote a dashboard mask or legacy preview into a runnable key.
-    setIssuedCredential(acceptedCliCredential(initialCredential));
+    setIssuedCredential(null);
     setError(null);
-  }, [projectId, scopeId, initialCredential]);
+  }, [connectorId, target]);
 
   const issue = useCallback(async () => {
-    if (!projectId || !scopeId || issuing) return;
+    if (!connectorId || issuing) return;
     setIssuing(true);
     setError(null);
     try {
-      const result = await regenerateScopeKey(projectId, scopeId);
-      const credential = acceptedCliCredential(result.access_key);
+      const result = await post<{
+        credential: string;
+        target: RepositoryTarget;
+      }>(`/api/v1/access/${encodeURIComponent(connectorId)}/regenerate-key`, {});
+      const credential = acceptedCliCredential(result.credential);
       if (
-        result.project_id !== projectId
-        || result.id !== scopeId
+        !sameRepositoryTarget(result.target, target)
         || !credential
       ) {
         throw new Error('Cloud returned an invalid one-time CLI credential');
@@ -56,7 +56,7 @@ export function CliCredentialIssuePanel({
     } finally {
       setIssuing(false);
     }
-  }, [issuing, projectId, scopeId]);
+  }, [connectorId, issuing, target]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -64,7 +64,7 @@ export function CliCredentialIssuePanel({
         <button
           type='button'
           onClick={() => void issue()}
-          disabled={!projectId || !scopeId || issuing}
+          disabled={!connectorId || issuing}
           style={{
             minHeight: 30,
             padding: '0 10px',
@@ -72,7 +72,7 @@ export function CliCredentialIssuePanel({
             borderRadius: 6,
             background: 'var(--po-panel)',
             color: 'var(--po-text)',
-            cursor: !projectId || !scopeId || issuing ? 'not-allowed' : 'pointer',
+            cursor: !connectorId || issuing ? 'not-allowed' : 'pointer',
             fontSize: 12,
           }}
         >
@@ -93,7 +93,7 @@ export function CliCredentialIssuePanel({
         </>
       ) : (
         <span style={{ color: 'var(--po-text-subtle)', fontSize: 11 }}>
-          Existing keys cannot be recovered from ordinary Scope reads. Generate a new one when you need CLI setup.
+          Existing keys cannot be recovered from ordinary reads. Generate a new one when you need CLI setup.
         </span>
       )}
 
