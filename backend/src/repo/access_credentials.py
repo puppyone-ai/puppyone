@@ -62,7 +62,6 @@ class AccessCredentialRepository:
             .in_("credential_type", ["bearer_token", "git_http_token"])
             .eq("status", "active")
             .eq("credential_lifecycle", "shared")
-            .is_("workspace_binding_id", "null")
             .execute()
         )
         rows = resp.data or []
@@ -102,12 +101,11 @@ class AccessCredentialRepository:
         if not rows:
             return None
         credential = rows[0]
-        binding_id = credential.get("workspace_binding_id")
-        if binding_id:
-            binding_mode = self._binding_credential_mode_if_authorized(credential)
-            if binding_mode is None:
+        if credential.get("credential_lifecycle") == "user":
+            user_mode = self._user_credential_mode_if_authorized(credential)
+            if user_mode is None:
                 return None
-            credential = {**credential, "workspace_binding_mode": binding_mode}
+            credential = {**credential, "user_credential_mode": user_mode}
         return credential
 
     def resolve_git_runtime_credential(
@@ -116,7 +114,7 @@ class AccessCredentialRepository:
         """Resolve a Git HTTP token into already-narrowed runtime facts.
 
         Production uses one SECURITY DEFINER RPC so credential, surface,
-        scope, binding, and current human access are evaluated from a single
+        scope, credential owner, and current human access are evaluated from a single
         database snapshot.  The table-backed branch exists only for the
         lightweight in-memory repository used by unit tests.
         """
@@ -173,9 +171,9 @@ class AccessCredentialRepository:
             target_max_mode,
             str((surface.get("config") or {}).get("mode") or "rw"),
         }
-        binding_mode = credential.get("workspace_binding_mode")
-        if binding_mode:
-            modes.add(str(binding_mode))
+        user_mode = credential.get("user_credential_mode")
+        if user_mode:
+            modes.add(str(user_mode))
         effective_mode = "r" if "r" in modes else "rw"
         return {
             "credential_id": str(credential["id"]),
@@ -187,38 +185,25 @@ class AccessCredentialRepository:
             "path_prefix": str((scope or {}).get("path") or ""),
             "excludes": (scope or {}).get("exclude") or [],
             "target_max_mode": target_max_mode,
-            "workspace_binding_id": credential.get("workspace_binding_id"),
-            "bound_user_id": None,
+            "user_id": credential.get("user_id"),
             "effective_mode": effective_mode,
         }
 
-    def _binding_credential_mode_if_authorized(
+    def _user_credential_mode_if_authorized(
         self, credential: dict[str, Any]
     ) -> str | None:
-        """Re-evaluate a binding credential against current human access.
+        """Re-evaluate a user credential against current Project access.
 
-        Membership removal, role downgrade, binding revocation, and
-        surface/scope mismatch therefore take effect on the next machine
-        request without relying on Desktop to rotate or delete a token.
+        Membership removal and role downgrade take effect on the next Git
+        request. No local checkout, device, or workspace identity participates.
         """
         try:
-            rows = (
-                self._client.table("project_workspace_bindings")
-                .select("project_id, scope_id, bound_user_id, mode, status")
-                .eq("id", credential["workspace_binding_id"])
-                .eq("status", "active")
-                .limit(1)
-                .execute()
-            ).data or []
-            if not rows:
+            user_id = credential.get("user_id")
+            if not user_id:
                 return None
-            binding = rows[0]
-            if str(binding["project_id"]) != str(credential["project_id"]):
-                return None
-
             surfaces = (
                 self._client.table("access_surfaces")
-                .select("project_id, scope_id, status")
+                .select("project_id, status")
                 .eq("id", credential["access_surface_id"])
                 .eq("status", "active")
                 .limit(1)
@@ -227,29 +212,20 @@ class AccessCredentialRepository:
             if not surfaces:
                 return None
             surface = surfaces[0]
-            if (
-                str(surface["project_id"]) != str(binding["project_id"])
-                or surface.get("scope_id") != binding.get("scope_id")
-            ):
+            if str(surface["project_id"]) != str(credential["project_id"]):
                 return None
 
             from src.platform.authorization.models import ProjectAction
             from src.platform.authorization.repository import AuthorizationRepository
             from src.platform.authorization.service import AuthorizationService
 
-            action = (
-                ProjectAction.BIND_READWRITE
-                if binding["mode"] == "rw"
-                else ProjectAction.BIND_READONLY
-            )
-            allowed = AuthorizationService(
-                AuthorizationRepository(self._client)
-            ).allows(
-                str(binding["project_id"]),
-                str(binding["bound_user_id"]),
-                action,
-            )
-            return str(binding["mode"]) if allowed else None
+            authorization = AuthorizationService(AuthorizationRepository(self._client))
+            project_id = str(credential["project_id"])
+            if authorization.allows(project_id, str(user_id), ProjectAction.CONTENT_WRITE):
+                return "rw"
+            if authorization.allows(project_id, str(user_id), ProjectAction.CONTENT_READ):
+                return "r"
+            return None
         except Exception:
             return None
 
@@ -261,7 +237,6 @@ class AccessCredentialRepository:
             .eq("credential_type", "bearer_token")
             .eq("status", "active")
             .eq("credential_lifecycle", "shared")
-            .is_("workspace_binding_id", "null")
             .order("created_at", desc=True)
             .limit(1)
             .execute()
@@ -468,7 +443,6 @@ class AccessCredentialRepository:
             .update(patch)
             .eq("access_surface_id", access_surface_id)
             .eq("status", "active")
-            .is_("workspace_binding_id", "null")
         )
         if credential_type:
             query = query.eq("credential_type", credential_type)

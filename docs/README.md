@@ -15,7 +15,7 @@ Read in this order:
 8. [Shadow Snapshots](architecture/08-shadow-snapshots.md)
 9. [Context Entry Points](architecture/10-context-entrypoints.md)
 10. [Context Entry Point Data Model](architecture/11-context-entrypoint-data-model.md)
-11. [Project Authorization and Workspace Binding](architecture/12-project-authorization-and-workspace-binding.md)
+11. [Project Authorization and Git Credentials](architecture/12-project-authorization-and-git-credentials.md)
 12. [Database Release Governance](architecture/13-database-release-governance.md)
 13. [Template Registry](architecture/14-template-registry.md)
 14. [Project-Owned Repository Targets](architecture/15-project-owned-repository-targets.md)
@@ -29,6 +29,7 @@ Product and frontend design:
 - [Canonical Git Remote Rollout Runbook](ops/canonical-git-remote-rollout.md)
 - [July 2026 Database Migration Transition](ops/database-migration-transition-2026-07.md)
 - [ISSUE-039 Repository Target Cutover](ops/issue-039-repository-target-cutover.md)
+- [Workspace Binding Removal](ops/workspace-binding-removal.md)
 
 Document-level constructs:
 

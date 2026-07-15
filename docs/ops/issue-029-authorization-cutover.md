@@ -104,11 +104,11 @@ user identifiers are omitted.  Alert on:
 - fact-store-unavailable warnings;
 - unexpected deny spikes for Project read or content write;
 - credential resolution after revoke/downgrade;
-- binding mismatch/wrong-host increases;
+- canonical Git locator mismatch/wrong-host increases;
 - readiness reporting ready without a committed root `access_git` transaction;
 - migration preflight counts becoming non-zero.
 
-Never log raw JWTs, binding credentials, access keys, local paths, Project
+Never log raw JWTs, Git credentials, access keys, local paths, Project
 names, or file content while investigating.
 
 ## Abort and rollback

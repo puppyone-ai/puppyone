@@ -58,7 +58,7 @@ write it to a URL, or treat a masked hint as an executable credential.
 
 Generating a new CLI key revokes the previous shared CLI credential (including
 clients still using the bounded legacy key-in-Git-URL route). It does not rotate
-the independent Git `r`/`rw`, session, or Workspace Binding credentials.
+independent Git `r`/`rw` or session credentials.
 
 ## Performance Rule
 

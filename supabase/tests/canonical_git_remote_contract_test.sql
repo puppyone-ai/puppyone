@@ -1,26 +1,30 @@
--- Canonical Git locator/credential database contracts.
+-- Canonical Git locator and user-credential database contracts.
 --
--- This test exercises the real migration functions and trigger boundaries. It
--- intentionally uses opaque fake hashes; raw credentials never belong in SQL.
+-- Raw credentials never belong in SQL. These opaque hashes exercise the final
+-- Project/Scope target, credential lifecycle, and current-ProjectGrant path.
 
 BEGIN;
 
-SELECT plan(18);
+SELECT plan(26);
 
 DO $$
 DECLARE
-    owner_id uuid := '00000000-0000-0000-0000-000000030101';
+    owner_id  uuid := '00000000-0000-0000-0000-000000030101';
+    editor_id uuid := '00000000-0000-0000-0000-000000030102';
 BEGIN
     INSERT INTO auth.users (
         instance_id, id, aud, role, email, encrypted_password,
         email_confirmed_at, raw_app_meta_data, raw_user_meta_data,
         created_at, updated_at
-    ) VALUES (
+    )
+    SELECT
         '00000000-0000-0000-0000-000000000000'::uuid,
-        owner_id, 'authenticated', 'authenticated',
-        'canonical-git-owner@example.test', '', now(), '{}'::jsonb,
-        '{}'::jsonb, now(), now()
-    );
+        fixture.id, 'authenticated', 'authenticated', fixture.email, '',
+        now(), '{}'::jsonb, '{}'::jsonb, now(), now()
+    FROM (VALUES
+        (owner_id, 'canonical-git-owner@example.test'),
+        (editor_id, 'canonical-git-editor@example.test')
+    ) AS fixture(id, email);
 
     INSERT INTO public.organizations (
         id, name, slug, type, plan, seat_limit, created_by
@@ -29,11 +33,16 @@ BEGIN
         'canonical-git-test-org', 'team', 'enterprise', 5, owner_id
     );
     INSERT INTO public.org_members (id, org_id, user_id, role)
-    VALUES ('canonical-git-owner-member', 'canonical-git-org', owner_id, 'owner');
+    VALUES
+        ('canonical-git-owner-member', 'canonical-git-org', owner_id, 'owner'),
+        ('canonical-git-editor-member', 'canonical-git-org', editor_id, 'member');
 
     PERFORM * FROM public.create_project_with_admin(
         'canonical-git-project', 'Canonical Git Project', NULL,
         'canonical-git-org', owner_id, 'canonical-git-share-token'
+    );
+    PERFORM * FROM public.add_project_member_authorized(
+        'canonical-git-project', editor_id, 'editor', owner_id
     );
 
     INSERT INTO public.repository_scopes (
@@ -85,20 +94,26 @@ BEGIN
         'canonical-git-hash-r-v2', 'hmac_sha256_v1', owner_id, NULL
     );
 
-    PERFORM * FROM public.create_project_workspace_git_binding(
-        'canonical-git-binding', 'canonical-git-org',
-        'canonical-git-project', NULL,
-        'canonical-git-workspace-0001', owner_id,
-        'https://cloud.puppyone.test', 'rw',
-        'canonical-git-root-surface', 'canonical-git-binding-credential',
-        'pwb', 'b001', 'canonical-git-hash-binding', 'hmac_sha256_v1'
+    PERFORM public.issue_user_git_http_credential(
+        'canonical-git-user-rw', 'unused-surface-id',
+        'canonical-git-org', 'canonical-git-project', NULL, editor_id,
+        'rw', 'pwg', 'u001', 'canonical-git-hash-user-rw',
+        'hmac_sha256_v1'
     );
 END;
 $$;
 
 SELECT has_column(
-    'public', 'access_surface_credentials', 'grant_mode',
-    'Git credential mode is persisted'
+    'public', 'access_surface_credentials', 'user_id',
+    'user-owned Git credential principal is persisted'
+);
+SELECT hasnt_column(
+    'public', 'access_surface_credentials', 'workspace_binding_id',
+    'credential storage has no checkout identity column'
+);
+SELECT hasnt_table(
+    'public', 'project_workspace_bindings',
+    'Cloud stores no local workspace registration table'
 );
 SELECT has_column(
     'public', 'access_surface_credentials', 'credential_lifecycle',
@@ -106,9 +121,13 @@ SELECT has_column(
 );
 SELECT ok(
     to_regprocedure(
-        'public.rotate_access_surface_git_http_token(text,text,text,text,text,text,text,text,uuid,timestamptz)'
+        'public.issue_user_git_http_credential(text,text,text,text,text,uuid,text,text,text,text,text)'
     ) IS NOT NULL,
-    'shared Git rotation RPC exists'
+    'user Git issuance RPC exists'
+);
+SELECT ok(
+    to_regprocedure('public.revoke_user_git_http_credential(text,text,uuid)') IS NOT NULL,
+    'user Git revocation RPC exists'
 );
 SELECT ok(
     to_regprocedure('public.resolve_git_runtime_credential(text)') IS NOT NULL,
@@ -159,7 +178,7 @@ SELECT is(
 SELECT is(
     (SELECT status FROM public.access_surface_credentials
      WHERE key_hash = 'canonical-git-hash-session'),
-    'active', 'shared rotation preserves a same-mode short-lived session'
+    'active', 'shared rotation preserves a short-lived session'
 );
 SELECT is(
     (SELECT effective_mode FROM public.resolve_git_runtime_credential(
@@ -173,30 +192,65 @@ SELECT is(
 );
 SELECT is(
     (SELECT credential_lifecycle FROM public.access_surface_credentials
-     WHERE id = 'canonical-git-binding-credential'),
-    'binding', 'Workspace Binding issuance writes its lifecycle domain'
+     WHERE id = 'canonical-git-user-rw'),
+    'user', 'Desktop issuance creates a user credential lifecycle'
 );
 SELECT is(
-    (SELECT workspace_binding_id FROM public.resolve_git_runtime_credential(
-        'canonical-git-hash-binding')),
-    'canonical-git-binding', 'binding credential resolves the exact binding'
+    (SELECT user_id FROM public.access_surface_credentials
+     WHERE id = 'canonical-git-user-rw'),
+    '00000000-0000-0000-0000-000000030102'::uuid,
+    'the credential records only its human owner'
+);
+SELECT is(
+    (SELECT effective_mode FROM public.resolve_git_runtime_credential(
+        'canonical-git-hash-user-rw')),
+    'rw', 'an Editor user credential resolves read-write'
+);
+SELECT lives_ok(
+    $$SELECT * FROM public.update_project_member_role_authorized(
+        'canonical-git-project',
+        '00000000-0000-0000-0000-000000030102'::uuid,
+        'viewer',
+        '00000000-0000-0000-0000-000000030101'::uuid
+    )$$,
+    'Project role downgrade succeeds'
+);
+SELECT is(
+    (SELECT effective_mode FROM public.resolve_git_runtime_credential(
+        'canonical-git-hash-user-rw')),
+    'r', 'current Viewer access caps an existing rw credential to read-only'
+);
+SELECT lives_ok(
+    $$SELECT public.issue_user_git_http_credential(
+        'canonical-git-user-r', 'unused-surface-id-2',
+        'canonical-git-org', 'canonical-git-project', NULL,
+        '00000000-0000-0000-0000-000000030102'::uuid,
+        'r', 'pwg', 'u002', 'canonical-git-hash-user-r',
+        'hmac_sha256_v1'
+    )$$,
+    'a Viewer may issue a read-only user credential'
+);
+SELECT is(
+    (SELECT effective_mode FROM public.resolve_git_runtime_credential(
+        'canonical-git-hash-user-r')),
+    'r', 'the Viewer credential resolves read-only'
 );
 SELECT ok(
-    public.revoke_project_workspace_binding_git_credential(
-        'canonical-git-binding',
-        '00000000-0000-0000-0000-000000030101'::uuid
+    public.revoke_user_git_http_credential(
+        'canonical-git-user-r', 'canonical-git-project',
+        '00000000-0000-0000-0000-000000030102'::uuid
     ),
-    'binding credential compensation RPC succeeds'
+    'the owner can revoke one exact Git credential'
 );
 SELECT is(
     (SELECT status FROM public.access_surface_credentials
-     WHERE id = 'canonical-git-binding-credential'),
-    'revoked', 'binding compensation revokes only its Git credential'
+     WHERE id = 'canonical-git-user-r'),
+    'revoked', 'revocation changes only the credential lifecycle'
 );
-SELECT is(
-    (SELECT status FROM public.project_workspace_bindings
-     WHERE id = 'canonical-git-binding'),
-    'active', 'credential compensation preserves durable binding identity'
+SELECT is_empty(
+    $$SELECT * FROM public.resolve_git_runtime_credential(
+        'canonical-git-hash-user-r')$$,
+    'a revoked credential cannot form a RuntimeGrant'
 );
 
 SELECT * FROM finish();

@@ -41,7 +41,7 @@ def _resolved_root(**overrides):
         "path_prefix": "",
         "excludes": [],
         "target_max_mode": "rw",
-        "workspace_binding_id": None,
+        "user_id": "user-1",
         "effective_mode": "rw",
     }
     result.update(overrides)

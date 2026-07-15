@@ -67,7 +67,7 @@ class _FakeConnectorsClient:
                 "access_surface_id": "conn-1",
                 "credential_type": "bearer_token",
                 "credential_lifecycle": "shared",
-                "workspace_binding_id": None,
+                "user_id": None,
                 "status": "active",
                 "key_last4": "WXYZ",
             }])

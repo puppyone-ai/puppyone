@@ -5,16 +5,16 @@ import pytest
 
 from src.exceptions import AppException, ErrorCode
 from src.platform.repository_target.protocol import require_repository_target_contract
-from src.repo.scope_repository import _row_to_scope
 from src.platform.repository_target.schemas import (
     ProjectRootTargetSchema,
     ScopeTargetSchema,
 )
+from src.repo.scope_repository import _row_to_scope
 
 ROOT = Path(__file__).resolve().parents[3]
-MIGRATION = (
-    ROOT
-    / "supabase/migrations/20260715000000_project_owned_repository_targets_contract_cutover.sql"
+MIGRATION = ROOT / "supabase/migrations/20260716000000_remove_workspace_binding.sql"
+TARGET_CUTOVER = ROOT / (
+    "supabase/migrations/20260715000000_project_owned_repository_targets_contract_cutover.sql"
 )
 
 
@@ -41,9 +41,7 @@ def test_repository_scope_rows_are_non_root_path_boundaries_only():
 
 
 def test_cross_client_repository_target_v2_fixture_matches_wire_models():
-    fixture = json.loads(
-        (ROOT / "contracts/repository-target-v2.json").read_text(encoding="utf-8")
-    )
+    fixture = json.loads((ROOT / "contracts/repository-target-v2.json").read_text(encoding="utf-8"))
 
     assert fixture["version"] == 2
     assert fixture["request_header"] == {
@@ -60,12 +58,14 @@ def test_cross_client_repository_target_v2_fixture_matches_wire_models():
         "project_root": {"project_id": "project-1", "scope_id": None},
         "scope": {"project_id": "project-1", "scope_id": "scope-docs"},
     }
-    assert ProjectRootTargetSchema.model_validate(
-        fixture["targets"]["project_root"]
-    ).model_dump() == fixture["targets"]["project_root"]
-    assert ScopeTargetSchema.model_validate(
-        fixture["targets"]["scope"]
-    ).model_dump() == fixture["targets"]["scope"]
+    assert (
+        ProjectRootTargetSchema.model_validate(fixture["targets"]["project_root"]).model_dump()
+        == fixture["targets"]["project_root"]
+    )
+    assert (
+        ScopeTargetSchema.model_validate(fixture["targets"]["scope"]).model_dump()
+        == fixture["targets"]["scope"]
+    )
 
 
 @pytest.mark.parametrize("version", [None, 1, 3])
@@ -83,7 +83,7 @@ def test_repository_target_contract_accepts_exact_v2():
 
 
 def test_cutover_makes_project_the_root_target_and_removes_dual_identity():
-    sql = _sql()
+    sql = TARGET_CUTOVER.read_text(encoding="utf-8")
 
     assert "DELETE FROM public.repo_scopes WHERE is_root = true" in sql
     assert "ALTER TABLE public.repo_scopes RENAME TO repository_scopes" in sql
@@ -95,7 +95,7 @@ def test_cutover_makes_project_the_root_target_and_removes_dual_identity():
 
 
 def test_cutover_preflight_blocks_ambiguous_or_dangling_legacy_geometry():
-    sql = _sql()
+    sql = TARGET_CUTOVER.read_text(encoding="utf-8")
 
     assert "DATA_MIGRATION_REQUIRED:20260715_project_owned_repository_targets_preflight" in sql
     assert "summary ->> 'artifact_checksum'" in sql
@@ -107,9 +107,7 @@ def test_cutover_preflight_blocks_ambiguous_or_dangling_legacy_geometry():
 
 
 def test_runtime_resolver_is_hash_only_and_returns_explicit_target_facts():
-    resolver = _sql().split(
-        "CREATE FUNCTION public.resolve_git_runtime_credential", 1
-    )[1]
+    resolver = _sql().split("CREATE FUNCTION public.resolve_git_runtime_credential", 1)[1]
 
     assert "p_key_hash text" in resolver
     assert "raw_token" not in resolver
@@ -124,12 +122,10 @@ def test_runtime_resolver_is_hash_only_and_returns_explicit_target_facts():
     assert "REVOKE ALL ON FUNCTION public.resolve_git_runtime_credential(text)" in resolver
 
 
-def test_project_root_and_scope_binding_use_one_nullable_fk_without_kind_flag():
+def test_user_git_credential_uses_one_nullable_target_fk_without_checkout_identity():
     sql = _sql()
-    creation = sql.split(
-        "CREATE FUNCTION public.create_project_workspace_git_binding", 1
-    )[1].split(
-        "CREATE OR REPLACE FUNCTION public.rotate_project_workspace_binding_git_credential",
+    creation = sql.split("CREATE FUNCTION public.issue_user_git_http_credential", 1)[1].split(
+        "CREATE FUNCTION public.resolve_git_runtime_credential",
         1,
     )[0]
 
@@ -138,12 +134,16 @@ def test_project_root_and_scope_binding_use_one_nullable_fk_without_kind_flag():
     assert "p_scope_id IS NULL" in creation
     assert "'kind', 'project_root'" in creation
     assert "'kind', 'scope'" in creation
-    assert "p_binding_kind" not in creation
+    assert "workspace_instance" not in creation
+    assert "binding_id" not in creation
+    assert "credential_lifecycle" in creation
+    assert "'user'" in creation
     assert "ensure_repository_target_access_surfaces" in creation
+    assert "revoke_user_git_http_credential" in creation
 
 
 def test_explicit_target_enable_is_atomic_and_concurrency_safe():
-    sql = _sql()
+    sql = TARGET_CUTOVER.read_text(encoding="utf-8")
     enable = sql.split(
         "CREATE OR REPLACE FUNCTION public.ensure_repository_target_access_surfaces",
         1,
@@ -164,46 +164,88 @@ def test_shared_rotation_accepts_project_root_without_a_scope_join():
     sql = _sql()
     rotation = sql.split(
         "CREATE OR REPLACE FUNCTION public.rotate_access_surface_git_http_token", 1
-    )[1].split(
-        "CREATE FUNCTION public.create_project_workspace_git_binding", 1
-    )[0]
+    )[1].split("CREATE FUNCTION public.issue_user_git_http_credential", 1)[0]
 
     assert "s.scope_id IS NULL OR rs.id IS NOT NULL" in rotation
     assert "p_grant_mode = 'r' OR s.scope_id IS NULL OR rs.max_mode = 'rw'" in rotation
-    assert "workspace_binding_id IS NULL" in rotation
     assert "credential_lifecycle = 'shared'" in rotation
 
 
-def test_application_uses_git_specific_binding_rpcs():
-    repository = (
-        ROOT / "backend/src/platform/workspace_binding/repository.py"
-    ).read_text(encoding="utf-8")
+def test_application_issues_user_git_credentials_without_binding_rpcs():
+    repository = (ROOT / "backend/src/platform/repository_context/repository.py").read_text(
+        encoding="utf-8"
+    )
 
-    assert '"create_project_workspace_git_binding"' in repository
-    assert '"rotate_project_workspace_binding_git_credential"' in repository
-    assert '"revoke_project_workspace_binding_git_credential"' in repository
+    assert '"issue_user_git_http_credential"' in repository
+    assert "workspace_instance" not in repository
+    assert "binding_id" not in repository
 
 
-def test_canonical_context_is_not_a_legacy_confirmation_candidate():
-    schemas = (
-        ROOT / "backend/src/platform/workspace_binding/schemas.py"
-    ).read_text(encoding="utf-8")
-    router = (
-        ROOT / "backend/src/platform/workspace_binding/router.py"
-    ).read_text(encoding="utf-8")
+def test_runtime_has_no_local_checkout_registration_module_or_identity_fields():
+    source_root = ROOT / "backend/src"
+    assert not (source_root / "platform/workspace_binding").exists()
+    assert not any("workspace_binding" in path.as_posix() for path in source_root.rglob("*"))
 
-    canonical = schemas.split("class CanonicalRemoteContextOut", 1)[1].split(
-        "class WorkspaceBindingCredentialOut", 1
+    identity_sources = [
+        source_root / "main.py",
+        source_root / "platform/authorization/manifest.py",
+        source_root / "platform/authorization/models.py",
+        source_root / "platform/repository_context/models.py",
+        source_root / "platform/repository_context/repository.py",
+        source_root / "platform/repository_context/router.py",
+        source_root / "platform/repository_context/schemas.py",
+        source_root / "platform/repository_context/service.py",
+        source_root / "repo/access_credentials.py",
+        source_root / "version_engine/entrypoints/git/auth.py",
+    ]
+    combined = "\n".join(path.read_text(encoding="utf-8") for path in identity_sources)
+    for forbidden in (
+        "WorkspaceBinding",
+        "workspace_binding",
+        "workspace_instance_id",
+        "binding_id",
+        "project_workspace_bindings",
+    ):
+        assert forbidden not in combined
+
+
+def test_repository_context_accepts_only_normal_project_target_identity():
+    schemas = (ROOT / "backend/src/platform/repository_context/schemas.py").read_text(
+        encoding="utf-8"
+    )
+    router = (ROOT / "backend/src/platform/repository_context/router.py").read_text(
+        encoding="utf-8"
+    )
+
+    context = schemas.split("class RepositoryProjectContextOut", 1)[1]
+    assert "target: RepositoryTargetSchema" in context
+    assert "remote_url" not in schemas
+    assert "requires_confirmation" not in schemas
+    assert "response_model=ApiResponse[RepositoryProjectContextOut]" in router
+    assert '"/projects/{project_id}/repository-context"' in router
+    assert "resolve-legacy-remote" not in router
+
+
+def test_final_migration_physically_removes_workspace_binding_schema():
+    sql = _sql()
+
+    assert "DROP TABLE public.project_workspace_bindings CASCADE" in sql
+    assert "DROP COLUMN workspace_binding_id" in sql
+    assert "credential_type <> 'git_http_token'" in sql
+    assert "status = CASE WHEN b.status = 'active' THEN c.status ELSE 'revoked' END" in sql
+    assert "credential_lifecycle IN ('shared', 'session', 'user')" in sql
+    assert "CREATE FUNCTION public.revoke_user_git_http_credential" in sql
+    runtime = sql.split("CREATE FUNCTION public.resolve_git_runtime_credential", 1)[1].split(
+        "REVOKE ALL ON FUNCTION public.rotate_access_surface_bearer_token", 1
     )[0]
-    assert "target: RepositoryTargetSchema" in canonical
-    assert "requires_confirmation" not in canonical
-    assert "response_model=ApiResponse[CanonicalRemoteContextOut]" in router
+    assert "user_id uuid" in runtime
+    assert "workspace_binding_id" not in runtime
 
 
 def test_canonical_and_legacy_routes_converge_after_target_resolution():
-    router = (
-        ROOT / "backend/src/version_engine/entrypoints/git/router.py"
-    ).read_text(encoding="utf-8")
+    router = (ROOT / "backend/src/version_engine/entrypoints/git/router.py").read_text(
+        encoding="utf-8"
+    )
 
     assert "class _ResolvedGitTarget" in router
     assert "_git_info_refs_for_target(" in router
@@ -218,10 +260,7 @@ def test_web_git_health_uses_human_control_plane_not_git_runtime_routes():
     api = (ROOT / "frontend/lib/gitHealthApi.ts").read_text(encoding="utf-8")
 
     assert "/api/v1/projects/${encodeURIComponent(projectId)}/git-view/health" in api
-    assert (
-        "/api/v1/projects/${encodeURIComponent(projectId)}/git-view/rebuild-cache"
-        in api
-    )
+    assert "/api/v1/projects/${encodeURIComponent(projectId)}/git-view/rebuild-cache" in api
     assert "`/git/${encodeURIComponent(projectId)}" not in api
     assert "getGitScopeHealth" not in api
     assert "rebuildGitScopeCache" not in api
@@ -229,8 +268,7 @@ def test_web_git_health_uses_human_control_plane_not_git_runtime_routes():
 
 def test_web_one_time_git_credential_is_bound_to_displayed_target_and_mode():
     panel = (
-        ROOT
-        / "frontend/app/(main)/projects/[projectId]/data/components/access-points/"
+        ROOT / "frontend/app/(main)/projects/[projectId]/data/components/access-points/"
         "connect-methods/GitCredentialIssuePanel.tsx"
     ).read_text(encoding="utf-8")
 
@@ -253,8 +291,7 @@ def test_web_one_time_git_credential_is_bound_to_displayed_target_and_mode():
 )
 def test_new_runtime_source_does_not_reintroduce_legacy_identity_types(forbidden):
     backend_source = "\n".join(
-        path.read_text(encoding="utf-8")
-        for path in (ROOT / "backend/src").rglob("*.py")
+        path.read_text(encoding="utf-8") for path in (ROOT / "backend/src").rglob("*.py")
     )
     frontend_source = "\n".join(
         path.read_text(encoding="utf-8")

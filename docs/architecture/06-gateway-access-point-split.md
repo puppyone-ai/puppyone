@@ -93,6 +93,6 @@ A RuntimeGrant can read or write only the admitted data plane. It cannot call:
 - Project settings or deletion;
 - Project membership or sharing;
 - Access Surface or credential management;
-- Workspace Binding administration.
+- any human control-plane administration.
 
 Those operations always require a current human JWT and named ProjectAction.

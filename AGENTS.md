@@ -52,11 +52,11 @@ It aggregates information scattered across various sources into a unified Contex
   Project-root or Scope target, its resolved view, mode, policy, and credential
   status. A RuntimeGrant cannot enter Team, Billing,
   Project settings, members, sharing, or credential-management control planes.
-- Durable local-workspace attachment is an explicit
-  `project_workspace_bindings` fact. A canonical Git URL may locate one
-  transient Project/Scope UI context only after current-JWT authorization; it
-  is still neither durable identity nor authorization. Legacy secret-bearing
-  remotes remain confirmation-gated discovery input.
+- The canonical PuppyOne Git remote is the only local-to-Cloud locator. Desktop
+  parses its Project-root or Scope target locally, then the current JWT must
+  authorize that exact Project target before Cloud UI is shown. A Git URL is a
+  locator, never authority. The Cloud does not register devices, folders, or
+  checkouts, and legacy secret-bearing remotes never identify Cloud UI context.
 
 ### Platform
 
@@ -179,7 +179,6 @@ All tables use plural snake_case names. The "unified access" architecture serves
 |-------|-----------|-------------|
 | `projects` | `supabase/projects/repository.py` | Projects |
 | `project_members` | `platform/authorization/repository.py` | Sole explicit Human Project membership/role fact |
-| `project_workspace_bindings` | `platform/workspace_binding/repository.py` | Stable local workspace instance ↔ Cloud Project identity (no secret/role snapshot) |
 | `organizations` | `organization/repository.py` | Organizations |
 | `org_members` | `organization/repository.py` | Organization membership |
 | `org_invitations` | `organization/repository.py` | Organization invitations |
@@ -191,7 +190,7 @@ All tables use plural snake_case names. The "unified access" architecture serves
 | `access_tools` | `connectors/agent/config/repository.py`, `tool/service.py` | Access surface ↔ tool bindings |
 | `content_nodes` | _(dropped — replaced by Version Engine Git trees in object storage)_ | Legacy content tree |
 | `tools` | `supabase/tools/repository.py` | Registered tools |
-| `access_surface_credentials` | `repo/access_credentials.py` | Hash-only machine credentials; sole MCP key authentication source |
+| `access_surface_credentials` | `repo/access_credentials.py` | Hash-only runtime credentials, including independently revocable user Git credentials; never stores a device, folder, or checkout identity |
 | `chunks` | `chunking/repository.py` | Text chunks for search |
 | `uploads` | `upload/file/tasks/repository.py` | File upload/ingest tasks |
 | `etl_rules` | `upload/file/rules/repository_supabase.py` | ETL transformation rules |

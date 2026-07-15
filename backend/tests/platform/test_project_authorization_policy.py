@@ -148,7 +148,6 @@ def test_editor_can_run_but_cannot_manage_project_runtime_surfaces():
         ProjectAction.CONTENT_WRITE,
         ProjectAction.AGENT_RUN,
         ProjectAction.AUTOMATION_RUN,
-        ProjectAction.BIND_READWRITE,
     ):
         assert service.allows("project-1", "user-1", action)
     for action in (

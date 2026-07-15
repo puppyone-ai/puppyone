@@ -335,10 +335,10 @@ def test_shared_git_rotation_preserves_same_mode_session_credential():
     assert {row["credential_lifecycle"] for row in active} == {"shared", "session"}
 
 
-def test_readonly_workspace_binding_clamps_an_rw_scope_runtime_grant():
-    """A Viewer binding may never inherit a Scope's rw maximum mode."""
+def test_user_git_credential_rechecks_current_role_and_clamps_write_mode():
+    """A Viewer-owned Git credential may never inherit an rw target maximum."""
     now = datetime.now(timezone.utc).isoformat()
-    raw_token = "pwb_readonly_workspace_token"
+    raw_token = "pwg_user_git_token"
     client = _MemoryClient(
         projects=[{
             "id": "project-1", "org_id": "org-1", "visibility": "private",
@@ -350,59 +350,69 @@ def test_readonly_workspace_binding_clamps_an_rw_scope_runtime_grant():
             "id": "project-member-1", "org_id": "org-1", "project_id": "project-1",
             "user_id": "user-1", "role": "viewer",
         }],
-        project_workspace_bindings=[{
-            "id": "binding-1", "project_id": "project-1", "scope_id": "scope-1",
-            "bound_user_id": "user-1", "mode": "r", "status": "active",
-        }],
-        access_surfaces=[_surface(kind="cli")],
+        access_surfaces=[_surface(kind="git_remote", scope_id=None)],
         access_surface_credentials=[{
             "id": "credential-1", "org_id": "org-1", "project_id": "project-1",
-            "access_surface_id": "surface-1", "workspace_binding_id": "binding-1",
-            "credential_type": "bearer_token", "key_prefix": "pwb", "key_last4": "oken",
+            "access_surface_id": "surface-1", "user_id": "user-1",
+            "credential_type": "git_http_token", "credential_lifecycle": "user",
+            "grant_mode": "rw", "key_prefix": "pwg", "key_last4": "oken",
             "key_hash": access_token_hash(raw_token), "hash_alg": "hmac_sha256_v1",
             "status": "active", "created_at": now,
         }],
-        repository_scopes=[{
-            "id": "scope-1", "project_id": "project-1", "name": "Docs",
-            "path": "docs", "exclude": [], "max_mode": "rw",
-            "created_at": now, "updated_at": now,
-        }],
     )
 
-    scope = RepositoryScopeRepository(client).get_by_access_key(raw_token)
-    assert scope is not None
-    assert scope.max_mode == "r"
-
-
-def test_shared_surface_rotation_does_not_revoke_device_binding_credentials():
-    client = _MemoryClient(access_surface_credentials=[])
     credentials = AccessCredentialRepository(client)
-    binding_token = "pwb_device_specific_token"
+    resolved = credentials.resolve_git_runtime_credential(raw_token)
+    assert resolved is not None
+    assert resolved["effective_mode"] == "r"
+    assert resolved["user_id"] == "user-1"
+
+    client.tables["project_members"] = []
+    assert credentials.resolve_git_runtime_credential(raw_token) is None
+
+
+def test_shared_surface_rotation_does_not_revoke_user_git_credentials():
+    client = _MemoryClient(
+        projects=[{"id": "project-1", "org_id": "org-1", "visibility": "private"}],
+        org_members=[{
+            "id": "org-member-1", "org_id": "org-1", "user_id": "user-1", "role": "member",
+        }],
+        project_members=[{
+            "id": "project-member-1", "org_id": "org-1", "project_id": "project-1",
+            "user_id": "user-1", "role": "editor",
+        }],
+        access_surfaces=[_surface(kind="git_remote", scope_id=None)],
+        access_surface_credentials=[],
+    )
+    credentials = AccessCredentialRepository(client)
+    user_token = "pwg_user_specific_token"
     client.tables["access_surface_credentials"].append({
-        "id": "binding-credential", "org_id": "org-1", "project_id": "project-1",
-        "access_surface_id": "surface-1", "workspace_binding_id": "binding-1",
-        "credential_type": "bearer_token", "key_prefix": "pwb", "key_last4": "oken",
-        "key_hash": access_token_hash(binding_token), "hash_alg": "hmac_sha256_v1",
+        "id": "user-credential", "org_id": "org-1", "project_id": "project-1",
+        "access_surface_id": "surface-1", "user_id": "user-1",
+        "credential_type": "git_http_token", "credential_lifecycle": "user",
+        "grant_mode": "rw", "key_prefix": "pwg", "key_last4": "oken",
+        "key_hash": access_token_hash(user_token), "hash_alg": "hmac_sha256_v1",
         "status": "active", "created_at": datetime.now(timezone.utc).isoformat(),
     })
-    credentials.issue_bearer_token(
+    credentials.issue_git_http_token(
         access_surface_id="surface-1",
         org_id="org-1",
         project_id="project-1",
-        prefix="cli",
+        grant_mode="rw",
     )
-    credentials.issue_bearer_token(
+    credentials.issue_git_http_token(
         access_surface_id="surface-1",
         org_id="org-1",
         project_id="project-1",
-        prefix="cli",
+        grant_mode="rw",
     )
 
-    binding_row = next(
+    user_row = next(
         row for row in client.tables["access_surface_credentials"]
-        if row.get("workspace_binding_id") == "binding-1"
+        if row.get("credential_lifecycle") == "user"
     )
-    assert binding_row["status"] == "active"
+    assert user_row["status"] == "active"
+    assert credentials.resolve_git_runtime_credential(user_token) is not None
 
 
 def test_agent_issues_once_authenticates_by_hash_and_revokes_old_token():

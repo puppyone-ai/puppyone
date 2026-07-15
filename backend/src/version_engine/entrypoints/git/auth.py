@@ -181,7 +181,7 @@ async def resolve_canonical_git_auth(
         "_user_identity": user_identity,
         "_credential_id": credential_id,
         "_access_surface_id": access_surface_id,
-        "_workspace_binding_id": resolved.get("workspace_binding_id"),
+        "_credential_user_id": resolved.get("user_id"),
     }
     # Native Git clients do not reliably send custom headers, so infer the
     # Git Remote access surface from the route.

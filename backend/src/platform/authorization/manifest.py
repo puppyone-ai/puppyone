@@ -59,10 +59,9 @@ PROJECT_ROUTE_AUTHORIZATION: dict[
     ("GET", "/api/v1/projects/{project_id}/share"): _human(ProjectAction.SHARE_MANAGE),
     ("POST", "/api/v1/projects/{project_id}/share/rotate"): _human(ProjectAction.SHARE_MANAGE),
 
-    # Explicit local workspace binding.
-    ("POST", "/api/v1/projects/{project_id}/workspace-bindings"): _human(ProjectAction.BIND_READONLY),
-    ("GET", "/api/v1/projects/{project_id}/workspace-bindings"): _human(ProjectAction.BIND_READONLY),
-    ("DELETE", "/api/v1/projects/{project_id}/workspace-bindings/{binding_id}"): _human(ProjectAction.BIND_MANAGE),
+    # A human ProjectGrant may mint a user-owned credential for one exact Git
+    # target. The credential is a data-plane principal, not a local checkout.
+    ("POST", "/api/v1/projects/{project_id}/git-credentials"): _human(ProjectAction.CONTENT_READ),
 
     # Content, History and conflict surfaces.
     **{
@@ -138,7 +137,7 @@ PROJECT_ROUTE_AUTHORIZATION: dict[
 
 # Query/body/child-resource routes are listed as deliberately as path-scoped
 # routes. A Project id need not appear in the URL for a route to cross a
-# Project boundary: Agent, Tool, Integration and binding ids all derive one.
+# Project boundary: Agent, Tool, Integration, and other resource ids derive one.
 PROJECT_ROUTE_AUTHORIZATION.update({
     # Public-link administration exposes Project content outside the tenant.
     # The opaque /p/{publish_key} reader is a separate public credential plane.
@@ -194,14 +193,8 @@ PROJECT_ROUTE_AUTHORIZATION.update({
     ("PUT", "/api/v1/mcp/agents/{agent_id}/tools/{tool_id}"): _human(ProjectAction.AGENT_MANAGE),
     ("DELETE", "/api/v1/mcp/agents/{agent_id}/tools/{tool_id}"): _human(ProjectAction.AGENT_MANAGE),
 
-    # Workspace binding self-service remains revocable after Project access loss.
-    ("GET", "/api/v1/workspace-bindings/{binding_id}"): _human(ProjectAction.BIND_READONLY),
-    ("POST", "/api/v1/workspace-bindings/{binding_id}/heartbeat"): _human(ProjectAction.BIND_READONLY),
-    ("DELETE", "/api/v1/workspace-bindings/{binding_id}"): _owner("workspace_binding.self_revoke"),
-    ("POST", "/api/v1/workspace-bindings/{binding_id}/credential/rotate"): _human(ProjectAction.BIND_READONLY),
-    ("POST", "/api/v1/workspace-bindings/{binding_id}/credential/revoke"): _owner("workspace_binding.credential_self_revoke"),
-    ("POST", "/api/v1/desktop/project-bindings/resolve-legacy-remote"): _human(ProjectAction.PROJECT_READ),
-    ("POST", "/api/v1/desktop/project-bindings/resolve-canonical-remote"): _human(ProjectAction.PROJECT_READ),
+    ("POST", "/api/v1/projects/{project_id}/repository-context"): _human(ProjectAction.PROJECT_READ),
+    ("DELETE", "/api/v1/projects/{project_id}/git-credentials/{credential_id}"): _human(ProjectAction.PROJECT_READ),
 
     # Delegated internal human calls.
     ("POST", "/internal/nodes/resolve-path"): _human(ProjectAction.CONTENT_READ),
