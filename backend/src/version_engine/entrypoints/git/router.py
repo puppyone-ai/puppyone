@@ -97,7 +97,7 @@ def _git_audit_detail(
         "runtime_principal_id": runtime_principal_id,
         "runtime_credential_kind": runtime_credential_kind,
         "access_surface_id": auth.get("_access_surface_id", ""),
-        "workspace_binding_id": auth.get("_workspace_binding_id"),
+        "credential_user_id": auth.get("_credential_user_id"),
     }
 
 

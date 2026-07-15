@@ -631,7 +631,7 @@ def _patch_canonical_git_credentials(
                 "path_prefix": "" if is_root else scope_path.strip("/"),
                 "excludes": [],
                 "target_max_mode": "rw",
-                "workspace_binding_id": None,
+                "user_id": None,
                 "effective_mode": "rw",
             }
 

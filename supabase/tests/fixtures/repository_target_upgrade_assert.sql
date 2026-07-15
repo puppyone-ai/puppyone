@@ -104,6 +104,17 @@ BEGIN
     ) THEN
         RAISE EXCEPTION 'root credential identity/hash/lifecycle changed';
     END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM public.access_surface_credentials
+        WHERE id = 'issue039-retired-cli-credential'
+          AND access_surface_id = 'issue039-root-cli'
+          AND workspace_binding_id = 'issue039-root-binding'
+          AND credential_type = 'bearer_token'
+          AND credential_lifecycle = 'binding'
+          AND status = 'active'
+    ) THEN
+        RAISE EXCEPTION 'historical CLI registration credential was not preserved before final retirement';
+    END IF;
 
     IF NOT EXISTS (
         SELECT 1 FROM public.project_members

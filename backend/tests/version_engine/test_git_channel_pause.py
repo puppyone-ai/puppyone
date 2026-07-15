@@ -119,7 +119,7 @@ async def test_git_project_auth_infers_git_remote_channel_without_custom_header(
                 "path_prefix": "",
                 "excludes": [],
                 "target_max_mode": "rw",
-                "workspace_binding_id": "binding-1",
+                "user_id": "user-1",
                 "effective_mode": "rw",
             }
 
@@ -162,7 +162,7 @@ async def test_canonical_git_route_requires_exact_root_or_scope_target(monkeypat
                 "path_prefix": "docs",
                 "excludes": ["drafts"],
                 "target_max_mode": "r",
-                "workspace_binding_id": None,
+                "user_id": None,
                 "effective_mode": "r",
             }
 

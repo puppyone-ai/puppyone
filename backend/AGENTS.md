@@ -53,14 +53,14 @@ repair.**
   只建立 tenant context；`visibility='org'` 仅给 Viewer baseline。
 - Agent visibility、publish ownership、upload ownership 等 child rule 只能继续
   收紧 `ProjectGrant`，不能放大权限。
-- Git/CLI/Agent/MCP/Sandbox/binding credential 只能形成绑定到显式
+- Git/CLI/Agent/MCP/Sandbox credential 只能形成绑定到显式
   Project-root 或 Scope target 的 `RuntimeGrant`，不得替代 Human ProjectGrant 或进入成员、分享、设置、Billing
   与 credential management control plane。
-- Local workspace 与 Cloud Project 的持久绑定同一性只来自
-  `project_workspace_bindings`；canonical remote URL 只能在当前 JWT 再授权后定位
-  临时 Project/Scope UI context，不能成为 identity 或 authority；scope key 与本地
-  路径同样不是 canonical identity。新增 Project-scoped route 必须登记在
-  `src/platform/authorization/manifest.py`。
+- canonical PuppyOne remote 是本地到 Cloud 的唯一 locator。Desktop 在本地解析
+  Project-root/Scope target；Backend 只接收结构化 target，并用当前 JWT 的
+  ProjectGrant 再授权。Cloud 不登记 device、folder、checkout 或 workspace instance；
+  Git URL、Scope key 与本地路径都不是 authority。新增 Project-scoped route 必须
+  登记在 `src/platform/authorization/manifest.py`。
 
 ## 项目结构
 

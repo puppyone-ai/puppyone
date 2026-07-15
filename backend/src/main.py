@@ -664,12 +664,12 @@ def create_app() -> FastAPI:
 
     app.include_router(project_router, prefix="/api/v1", tags=["projects"])
     app.include_router(template_registry_router, prefix="/api/v1", tags=["templates"])
-    from src.platform.workspace_binding.router import router as workspace_binding_router
+    from src.platform.repository_context.router import router as repository_context_router
 
     app.include_router(
-        workspace_binding_router,
+        repository_context_router,
         prefix="/api/v1",
-        tags=["workspace-bindings"],
+        tags=["repository-context"],
     )
     app.include_router(oauth_router, prefix="/api/v1", tags=["oauth"])
     app.include_router(

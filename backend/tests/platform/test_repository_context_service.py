@@ -1,0 +1,250 @@
+from __future__ import annotations
+
+from datetime import UTC, datetime
+
+import pytest
+
+from src.exceptions import AppException, ErrorCode, NotFoundException, PermissionException
+from src.platform.authorization.models import (
+    ROLE_CAPABILITIES,
+    GrantSource,
+    ProjectGrant,
+    ProjectRole,
+)
+from src.platform.project.models import Project
+from src.platform.repository_context.models import GitCredentialMode
+from src.platform.repository_context.schemas import (
+    GitCredentialIssueRequest,
+    RepositoryContextResolveRequest,
+)
+from src.platform.repository_context.service import RepositoryContextService
+from src.platform.repository_target.models import ProjectRootTarget, ScopeTarget
+
+
+class AuthorizationStub:
+    def __init__(self, role: ProjectRole):
+        self.role = role
+
+    def authorize(self, project_id, user_id, action):
+        grant = ProjectGrant(
+            project_id=project_id,
+            org_id="org-1",
+            user_id=user_id,
+            role=self.role,
+            source=GrantSource.PROJECT_MEMBER,
+            capabilities=ROLE_CAPABILITIES[self.role],
+        )
+        if not grant.allows(action):
+            raise PermissionException()
+        return grant
+
+
+class DenyingAuthorizationStub:
+    def authorize(self, *_args, **_kwargs):
+        raise PermissionException()
+
+
+class RepositoryStub:
+    def __init__(self, *, scope=None):
+        self.scope = scope
+        self.issued = []
+        self.scope_reads = 0
+
+    def get_scope(self, *_args):
+        self.scope_reads += 1
+        return self.scope
+
+    def issue_user_git_credential(self, **kwargs):
+        self.issued.append(kwargs)
+        return "credential-1", "pwg_secret"
+
+    def revoke_user_git_credential(self, **kwargs):
+        self.revoked = kwargs
+        return kwargs["credential_id"] == "credential-1"
+
+
+class ProjectRepositoryStub:
+    def __init__(self, *, missing=False):
+        now = datetime.now(UTC)
+        self.project = (
+            None
+            if missing
+            else Project(
+                id="project-1",
+                name="Project One",
+                description="A test project",
+                org_id="org-1",
+                visibility="private",
+                bound_git_branch="main",
+                created_at=now,
+                updated_at=now,
+            )
+        )
+
+    def get_by_id(self, project_id):
+        return self.project if self.project and self.project.id == project_id else None
+
+
+def _service(repository, role=ProjectRole.EDITOR):
+    return RepositoryContextService(
+        repository,
+        AuthorizationStub(role),
+        ProjectRepositoryStub(),
+    )
+
+
+def _scope(*, scope_id="scope-child", project_id="project-1", mode="rw", path="docs"):
+    return {
+        "id": scope_id,
+        "project_id": project_id,
+        "max_mode": mode,
+        "path": path,
+    }
+
+
+def _root_target(project_id="project-1"):
+    return RepositoryContextResolveRequest(
+        target={"kind": "project_root", "project_id": project_id}
+    ).target
+
+
+def _scope_target():
+    return RepositoryContextResolveRequest(
+        target={
+            "kind": "scope",
+            "project_id": "project-1",
+            "scope_id": "scope-child",
+        }
+    ).target
+
+
+def test_root_target_resolves_project_grant_without_checkout_identity():
+    repository = RepositoryStub()
+    context = _service(repository).get_repository_context("project-1", "user-1", _root_target())
+
+    assert context.project.id == "project-1"
+    assert context.grant.role is ProjectRole.EDITOR
+    assert context.target == ProjectRootTarget(project_id="project-1")
+    assert context.scope_path is None
+    assert repository.scope_reads == 0
+
+
+def test_scope_target_resolves_exact_repository_view():
+    repository = RepositoryStub(scope=_scope(path="docs/private", mode="r"))
+    context = _service(repository, ProjectRole.VIEWER).get_repository_context(
+        "project-1", "user-1", _scope_target()
+    )
+
+    assert context.target == ScopeTarget(project_id="project-1", scope_id="scope-child")
+    assert context.scope_path == "docs/private"
+
+
+def test_repository_context_rejects_target_mismatch_missing_project_and_access():
+    with pytest.raises(AppException) as caught:
+        _service(RepositoryStub()).get_repository_context(
+            "project-1", "user-1", _root_target("project-2")
+        )
+    assert caught.value.code is ErrorCode.TARGET_KIND_MISMATCH
+
+    missing = RepositoryContextService(
+        RepositoryStub(),
+        AuthorizationStub(ProjectRole.ADMIN),
+        ProjectRepositoryStub(missing=True),
+    )
+    with pytest.raises(NotFoundException, match="Project not found"):
+        missing.get_repository_context("project-1", "user-1", _root_target())
+
+    denied = RepositoryContextService(
+        RepositoryStub(), DenyingAuthorizationStub(), ProjectRepositoryStub()
+    )
+    with pytest.raises(PermissionException):
+        denied.get_repository_context("project-1", "user-1", _root_target())
+
+
+def test_editor_issues_user_owned_root_git_credential():
+    repository = RepositoryStub()
+    payload = GitCredentialIssueRequest(
+        target={"kind": "project_root", "project_id": "project-1"},
+        mode=GitCredentialMode.READ_WRITE,
+    )
+
+    issued = _service(repository).issue_git_credential(
+        "project-1", "user-1", payload.target, payload.mode
+    )
+
+    assert issued.target == ProjectRootTarget(project_id="project-1")
+    assert issued.credential_id == "credential-1"
+    assert issued.credential == "pwg_secret"
+    assert repository.scope_reads == 0
+    assert repository.issued == [
+        {
+            "org_id": "org-1",
+            "target": ProjectRootTarget(project_id="project-1"),
+            "user_id": "user-1",
+            "mode": GitCredentialMode.READ_WRITE,
+        }
+    ]
+
+
+def test_viewer_may_issue_read_but_not_write_credential():
+    repository = RepositoryStub()
+    service = _service(repository, ProjectRole.VIEWER)
+    read_target = GitCredentialIssueRequest(
+        target={"kind": "project_root", "project_id": "project-1"},
+        mode=GitCredentialMode.READ,
+    )
+    assert (
+        service.issue_git_credential(
+            "project-1", "user-1", read_target.target, read_target.mode
+        ).mode
+        is GitCredentialMode.READ
+    )
+
+    with pytest.raises(PermissionException):
+        service.issue_git_credential(
+            "project-1",
+            "user-1",
+            read_target.target,
+            GitCredentialMode.READ_WRITE,
+        )
+
+
+def test_scope_mode_and_project_id_bound_credential_exactly():
+    service = _service(RepositoryStub(scope=_scope(mode="r")))
+    scoped = GitCredentialIssueRequest(
+        target={
+            "kind": "scope",
+            "project_id": "project-1",
+            "scope_id": "scope-child",
+        },
+        mode=GitCredentialMode.READ_WRITE,
+    )
+    with pytest.raises(PermissionException, match="cannot exceed Scope mode"):
+        service.issue_git_credential("project-1", "user-1", scoped.target, scoped.mode)
+
+    mismatched = GitCredentialIssueRequest(
+        target={"kind": "project_root", "project_id": "project-2"},
+        mode=GitCredentialMode.READ,
+    )
+    with pytest.raises(AppException) as caught:
+        service.issue_git_credential("project-1", "user-1", mismatched.target, mismatched.mode)
+    assert caught.value.code is ErrorCode.TARGET_KIND_MISMATCH
+
+
+def test_user_may_revoke_only_an_owned_project_git_credential():
+    repository = RepositoryStub()
+    service = RepositoryContextService(
+        repository,
+        DenyingAuthorizationStub(),
+        ProjectRepositoryStub(),
+    )
+
+    service.revoke_git_credential("project-1", "user-1", "credential-1")
+    assert repository.revoked == {
+        "credential_id": "credential-1",
+        "project_id": "project-1",
+        "user_id": "user-1",
+    }
+
+    with pytest.raises(NotFoundException):
+        service.revoke_git_credential("project-1", "user-1", "not-owned")

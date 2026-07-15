@@ -5,25 +5,40 @@ repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 contract_rel="supabase/migrations/20260715000000_project_owned_repository_targets_contract_cutover.sql"
 contract_path="$repository_root/$contract_rel"
 saved_contract="$(mktemp "${TMPDIR:-/tmp}/issue039-contract.XXXXXX.sql")"
+removal_rel="supabase/migrations/20260716000000_remove_workspace_binding.sql"
+removal_path="$repository_root/$removal_rel"
+saved_removal="$(mktemp "${TMPDIR:-/tmp}/issue039-removal.XXXXXX.sql")"
 database_url="${DATABASE_URL:-postgresql://postgres:postgres@127.0.0.1:54322/postgres}"
 export DATA_MIGRATION_DATABASE_URL="${DATA_MIGRATION_DATABASE_URL:-$database_url}"
 
 contract_is_saved=false
+removal_is_saved=false
 restore_contract() {
     if [[ "$contract_is_saved" == true && -f "$saved_contract" ]]; then
         mv "$saved_contract" "$contract_path"
         contract_is_saved=false
     fi
 }
+restore_removal() {
+    if [[ "$removal_is_saved" == true && -f "$saved_removal" ]]; then
+        mv "$saved_removal" "$removal_path"
+        removal_is_saved=false
+    fi
+}
 cleanup() {
     restore_contract
-    rm -f "$saved_contract"
+    restore_removal
+    rm -f "$saved_contract" "$saved_removal"
 }
 trap cleanup EXIT
 
 save_contract() {
     mv "$contract_path" "$saved_contract"
     contract_is_saved=true
+}
+save_removal() {
+    mv "$removal_path" "$saved_removal"
+    removal_is_saved=true
 }
 
 run_data_migration() {
@@ -35,6 +50,7 @@ run_data_migration() {
 }
 
 save_contract
+save_removal
 (
     cd "$repository_root"
     supabase db reset --no-seed
@@ -70,8 +86,20 @@ restore_contract
         -f supabase/tests/fixtures/repository_target_upgrade_assert.sql
 )
 
+# The previous assertion proves the Issue 039 geometry cutover on its own.
+# Apply the final architecture migration separately and prove that no checkout
+# registration entity or credential foreign key survives.
+restore_removal
+(
+    cd "$repository_root"
+    supabase migration up --local
+    psql "$database_url" -X -v ON_ERROR_STOP=1 \
+        -f supabase/tests/fixtures/workspace_binding_removal_assert.sql
+)
+
 # A non-empty installation cannot bypass the immutable data-preflight receipt.
 save_contract
+save_removal
 (
     cd "$repository_root"
     supabase db reset --no-seed
@@ -91,8 +119,10 @@ fi
     psql "$database_url" -X -v ON_ERROR_STOP=1 \
         -c "DO \$\$ BEGIN IF to_regclass('public.repo_scopes') IS NULL OR to_regclass('public.repository_scopes') IS NOT NULL THEN RAISE EXCEPTION 'receipt gate failure mutated the schema'; END IF; END \$\$"
 )
+restore_removal
 
 save_contract
+save_removal
 (
     cd "$repository_root"
     supabase db reset --no-seed
@@ -112,3 +142,4 @@ fi
 )
 
 restore_contract
+restore_removal

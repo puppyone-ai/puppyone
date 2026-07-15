@@ -676,16 +676,16 @@ locator:
 ```
 
 The route supplies non-secret target identity and HTTP authorization supplies
-the opaque credential. L2 must prove that credential, Access Surface, Scope,
-Project, lifecycle, and optional Workspace Binding all match before emitting a
-RuntimeGrant. From that grant onward the existing Version Engine contract is
+the opaque credential. L2 must prove that credential owner, Access Surface,
+Scope, Project, lifecycle, current ProjectGrant, and effective mode all match
+before emitting a RuntimeGrant. From that grant onward the existing Version Engine contract is
 unchanged: RepoFacade, GitViewHead, cache identity, quarantine, scope/exclude
 admission, VersionSubmissionIntent, canonical-root CAS, audit, and repair do not
 depend on the URL family or raw credential.
 
 In particular, the Git view cache remains keyed by effective content geometry
 (`project_id + scope_path + excludes + projection/storage variants`), not by
-credential, binding, user, route family, or Scope ID. Credential rotation
+credential, user, route family, local checkout, or Scope ID. Credential rotation
 therefore never creates a new content view or invalidates a transport cache.
 
 ## 嵌套 Scope 拓扑 —— 用户行为对照表

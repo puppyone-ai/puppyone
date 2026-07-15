@@ -319,7 +319,6 @@ class AccessSurfaceRepository:
             return None
         mode_facts = {
             str(credential.get("grant_mode") or "rw"),
-            str(credential.get("workspace_binding_mode") or "rw"),
             str((surface.get("config") or {}).get("mode") or "rw"),
         }
         if not mode_facts.issubset({"r", "rw"}):
