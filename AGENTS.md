@@ -52,9 +52,11 @@ It aggregates information scattered across various sources into a unified Contex
   Project-root or Scope target, its resolved view, mode, policy, and credential
   status. A RuntimeGrant cannot enter Team, Billing,
   Project settings, members, sharing, or credential-management control planes.
-- Local workspace identity is an explicit `project_workspace_bindings` fact.
-  Git URLs are transport configuration and legacy discovery input, not identity
-  or authorization.
+- Durable local-workspace attachment is an explicit
+  `project_workspace_bindings` fact. A canonical Git URL may locate one
+  transient Project/Scope UI context only after current-JWT authorization; it
+  is still neither durable identity nor authorization. Legacy secret-bearing
+  remotes remain confirmation-gated discovery input.
 
 ### Platform
 

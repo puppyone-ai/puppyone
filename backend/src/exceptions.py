@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 
 class ErrorCode(int, Enum):
@@ -48,7 +48,7 @@ class AppException(Exception):
         code: ErrorCode,
         message: str,
         status_code: int = 400,
-        details: Optional[Any] = None,
+        details: Any | None = None,
     ):
         self.code = code
         self.message = message
@@ -59,9 +59,7 @@ class AppException(Exception):
 
 # Concrete exception class helpers
 class NotFoundException(AppException):
-    def __init__(
-        self, message: str = "Resource not found", code: ErrorCode = ErrorCode.NOT_FOUND
-    ):
+    def __init__(self, message: str = "Resource not found", code: ErrorCode = ErrorCode.NOT_FOUND):
         super().__init__(code=code, message=message, status_code=404)
 
 
@@ -85,10 +83,26 @@ class AuthException(AppException):
 
 
 class PermissionException(AppException):
-    def __init__(
-        self, message: str = "Permission denied", code: ErrorCode = ErrorCode.FORBIDDEN
-    ):
+    def __init__(self, message: str = "Permission denied", code: ErrorCode = ErrorCode.FORBIDDEN):
         super().__init__(code=code, message=message, status_code=403)
+
+
+class ServiceUnavailableException(AppException):
+    """A fail-closed dependency outage that callers may safely retry."""
+
+    def __init__(
+        self,
+        message: str = "Service temporarily unavailable",
+        *,
+        retry_after_seconds: int = 1,
+    ):
+        self.headers = {"Retry-After": str(max(1, retry_after_seconds))}
+        super().__init__(
+            code=ErrorCode.INTERNAL_SERVER_ERROR,
+            message=message,
+            status_code=503,
+            details={"retryable": True},
+        )
 
 
 # Alias for HTTP 403 Forbidden (used by organization service)

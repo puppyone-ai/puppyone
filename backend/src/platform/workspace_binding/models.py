@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 
+from src.platform.authorization.models import ProjectGrant
+from src.platform.project.models import Project
 from src.platform.repository_target.models import RepositoryTarget
 
 
@@ -36,3 +38,17 @@ class WorkspaceBinding:
     @property
     def project_id(self) -> str:
         return self.target.project_id
+
+
+@dataclass(frozen=True, slots=True)
+class CanonicalProjectContext:
+    """Authorized human UI context derived from a canonical Git URL.
+
+    It carries no machine credential and creates no WorkspaceBinding. Runtime
+    Git authorization remains a separate Version Engine admission path.
+    """
+
+    project: Project
+    grant: ProjectGrant
+    target: RepositoryTarget
+    scope_path: str | None

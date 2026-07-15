@@ -56,9 +56,10 @@ repair.**
 - Git/CLI/Agent/MCP/Sandbox/binding credential 只能形成绑定到显式
   Project-root 或 Scope target 的 `RuntimeGrant`，不得替代 Human ProjectGrant 或进入成员、分享、设置、Billing
   与 credential management control plane。
-- Local workspace 与 Cloud Project 的同一性只来自
-  `project_workspace_bindings`；remote URL、scope key 与本地路径都不是 canonical
-  identity。新增 Project-scoped route 必须登记在
+- Local workspace 与 Cloud Project 的持久绑定同一性只来自
+  `project_workspace_bindings`；canonical remote URL 只能在当前 JWT 再授权后定位
+  临时 Project/Scope UI context，不能成为 identity 或 authority；scope key 与本地
+  路径同样不是 canonical identity。新增 Project-scoped route 必须登记在
   `src/platform/authorization/manifest.py`。
 
 ## 项目结构

@@ -6,20 +6,24 @@ import hashlib
 import logging
 from typing import Any
 
-from src.exceptions import ErrorCode, NotFoundException, PermissionException
+from src.exceptions import (
+    ErrorCode,
+    NotFoundException,
+    PermissionException,
+    ServiceUnavailableException,
+)
 from src.platform.authorization.models import (
+    ROLE_CAPABILITIES,
     GrantSource,
     ProjectAction,
     ProjectGrant,
     ProjectRole,
-    ROLE_CAPABILITIES,
 )
 from src.platform.authorization.repository import (
     AuthorizationRepository,
     ProjectAuthorizationFacts,
 )
 from src.utils.request_context import project_access_cache_var
-
 
 _CACHE_PREFIX = "project-grant:v2"
 _logger = logging.getLogger("puppyone.authorization")
@@ -62,9 +66,7 @@ class AuthorizationService:
         self._repository = repository
 
     @staticmethod
-    def _grant_from_facts(
-        facts: ProjectAuthorizationFacts, user_id: str
-    ) -> ProjectGrant | None:
+    def _grant_from_facts(facts: ProjectAuthorizationFacts, user_id: str) -> ProjectGrant | None:
         # Organization membership is the tenant boundary. An explicit Project
         # row can never admit a user who no longer belongs to the tenant.
         if facts.org_role is None:
@@ -99,9 +101,7 @@ class AuthorizationService:
             capabilities=ROLE_CAPABILITIES[role],
         )
 
-    def resolve_project_grant(
-        self, project_id: str, user_id: str
-    ) -> ProjectGrant | None:
+    def resolve_project_grant(self, project_id: str, user_id: str) -> ProjectGrant | None:
         cache = project_access_cache_var.get()
         cache_key = f"{_CACHE_PREFIX}:{project_id}:{user_id}"
         if cache is not None and cache_key in cache:
@@ -115,7 +115,10 @@ class AuthorizationService:
                 else None
             )
         except Exception as exc:
-            # Authorization storage failure is never an allow signal.
+            # Authorization storage failure is never an allow signal, but it
+            # is also not evidence that the Project or grant is absent. Keep
+            # the decision fail-closed while preserving retryable 503
+            # semantics for the caller.
             _logger.warning(
                 "project_authorization_facts_unavailable",
                 extra={
@@ -123,7 +126,9 @@ class AuthorizationService:
                     "error_type": type(exc).__name__,
                 },
             )
-            grant = None
+            raise ServiceUnavailableException(
+                "Project authorization is temporarily unavailable"
+            ) from exc
 
         if cache is not None:
             cache[cache_key] = grant  # type: ignore[assignment]
@@ -202,12 +207,15 @@ class AuthorizationService:
             )
         except Exception as exc:
             # A partial list is an authorization metadata leak. Fail the whole
-            # decision set closed when its facts cannot be read consistently.
+            # decision set closed when its facts cannot be read consistently,
+            # while distinguishing dependency outage from an empty result.
             _logger.warning(
                 "project_authorization_batch_facts_unavailable",
                 extra={"error_type": type(exc).__name__, "candidate_count": len(projects)},
             )
-            return []
+            raise ServiceUnavailableException(
+                "Project authorization is temporarily unavailable"
+            ) from exc
         accessible: list[tuple[Any, ProjectGrant]] = []
         for project in projects:
             project_id = str(project.id)
@@ -231,9 +239,7 @@ class AuthorizationService:
             )
         return accessible
 
-    def accessible_project_ids(
-        self, project_ids: list[str], user_id: str
-    ) -> list[str]:
+    def accessible_project_ids(self, project_ids: list[str], user_id: str) -> list[str]:
         """Filter candidate IDs through the canonical policy in one batch.
 
         Candidate discovery may use tenant indexes for efficiency, but only
@@ -253,7 +259,9 @@ class AuthorizationService:
                     "candidate_count": len(normalized),
                 },
             )
-            return []
+            raise ServiceUnavailableException(
+                "Project authorization is temporarily unavailable"
+            ) from exc
         allowed: list[str] = []
         for project_id in normalized:
             facts = facts_by_id.get(project_id)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from src.platform.repository_target.models import (
@@ -74,11 +74,7 @@ class WorkspaceBindingRepository:
 
     def get_by_id(self, binding_id: str) -> WorkspaceBinding | None:
         rows = (
-            self._client.table(self.TABLE)
-            .select("*")
-            .eq("id", binding_id)
-            .limit(1)
-            .execute()
+            self._client.table(self.TABLE).select("*").eq("id", binding_id).limit(1).execute()
         ).data or []
         return _row_to_binding(rows[0]) if rows else None
 
@@ -95,9 +91,7 @@ class WorkspaceBindingRepository:
             query = query.eq("bound_user_id", user_id)
         return [_row_to_binding(row) for row in (query.execute().data or [])]
 
-    def get_active_by_instance(
-        self, workspace_instance_id: str
-    ) -> WorkspaceBinding | None:
+    def get_active_by_instance(self, workspace_instance_id: str) -> WorkspaceBinding | None:
         response = (
             self._client.table(self.TABLE)
             .select("*")
@@ -162,7 +156,7 @@ class WorkspaceBindingRepository:
         return _row_to_binding(row), raw_token
 
     def heartbeat(self, binding_id: str, user_id: str) -> WorkspaceBinding | None:
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         rows = (
             self._client.table(self.TABLE)
             .update({"last_seen_at": now})
@@ -183,17 +177,19 @@ class WorkspaceBindingRepository:
             return bool(data and data[0])
         return bool(data)
 
-    def revoke_admin(
-        self, binding_id: str, project_id: str, actor_user_id: str
-    ) -> bool:
-        data = self._client.rpc(
-            "revoke_project_workspace_binding_admin",
-            {
-                "p_binding_id": binding_id,
-                "p_project_id": project_id,
-                "p_actor_user_id": actor_user_id,
-            },
-        ).execute().data
+    def revoke_admin(self, binding_id: str, project_id: str, actor_user_id: str) -> bool:
+        data = (
+            self._client.rpc(
+                "revoke_project_workspace_binding_admin",
+                {
+                    "p_binding_id": binding_id,
+                    "p_project_id": project_id,
+                    "p_actor_user_id": actor_user_id,
+                },
+            )
+            .execute()
+            .data
+        )
         if isinstance(data, list):
             return bool(data and data[0])
         return bool(data)
@@ -202,30 +198,38 @@ class WorkspaceBindingRepository:
         credential_id = generate_uuid_v7()
         raw_token = generate_access_token("pwg")
         key_prefix, key_last4 = access_token_metadata(raw_token)
-        changed = self._client.rpc(
-            "rotate_project_workspace_binding_git_credential",
-            {
-                "p_binding_id": binding_id,
-                "p_bound_user_id": user_id,
-                "p_credential_id": credential_id,
-                "p_key_prefix": key_prefix,
-                "p_key_last4": key_last4,
-                "p_key_hash": access_token_hash(raw_token),
-                "p_hash_alg": HASH_ALG,
-            },
-        ).execute().data
+        changed = (
+            self._client.rpc(
+                "rotate_project_workspace_binding_git_credential",
+                {
+                    "p_binding_id": binding_id,
+                    "p_bound_user_id": user_id,
+                    "p_credential_id": credential_id,
+                    "p_key_prefix": key_prefix,
+                    "p_key_last4": key_last4,
+                    "p_key_hash": access_token_hash(raw_token),
+                    "p_hash_alg": HASH_ALG,
+                },
+            )
+            .execute()
+            .data
+        )
         if isinstance(changed, list):
             changed = changed[0] if changed else False
         return raw_token if changed else None
 
     def revoke_credential(self, binding_id: str, user_id: str) -> bool:
-        changed = self._client.rpc(
-            "revoke_project_workspace_binding_git_credential",
-            {
-                "p_binding_id": binding_id,
-                "p_bound_user_id": user_id,
-            },
-        ).execute().data
+        changed = (
+            self._client.rpc(
+                "revoke_project_workspace_binding_git_credential",
+                {
+                    "p_binding_id": binding_id,
+                    "p_bound_user_id": user_id,
+                },
+            )
+            .execute()
+            .data
+        )
         if isinstance(changed, list):
             changed = changed[0] if changed else False
         return bool(changed)

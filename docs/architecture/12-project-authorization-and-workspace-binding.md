@@ -2,7 +2,9 @@
 
 Status: **current authorization and canonical Git binding architecture**
 (ISSUE-029). The implementation record is tracked by OpenSpec change
-[`refactor-canonical-git-remote-contract`](../../backend/openspec/changes/refactor-canonical-git-remote-contract/design.md).
+[`refactor-canonical-git-remote-contract`](../../backend/openspec/changes/refactor-canonical-git-remote-contract/design.md),
+with contextual Desktop resolution refined by
+[`refactor-contextual-project-resolution`](../../backend/openspec/changes/refactor-contextual-project-resolution/design.md).
 
 This document is the source of truth for PuppyOne's Organization, Project,
 Agent-child, local workspace binding, and machine runtime boundaries.  Git
@@ -35,8 +37,9 @@ These decisions are deliberately independent:
 - A binding says which Cloud Project a local workspace represents; every
   request still re-authorizes the current account.
 - A canonical Git locator may remove Project-list scanning by declaring one
-  Project/root-or-Scope candidate; current JWT authorization and a matching
-  binding are still required before normal bound-Project navigation.
+  Project/root-or-Scope candidate. Current JWT authorization is required before
+  Project navigation; a matching WorkspaceBinding is required only for durable
+  attachment and binding credential lifecycle, not for transient UI context.
 - A Git, CLI, MCP, Sandbox, Agent, or binding token cannot call Team, Billing,
   Project Members, Project Settings, or credential-management APIs.
 
@@ -54,9 +57,15 @@ Resolution order is exact:
 4. `projects.visibility = 'org'`: Viewer, source `org_visibility`;
 5. otherwise: deny.
 
-Unknown roles, a member row from another tenant, a fact for a different
-Project, or a repository error fail closed.  Private Project denial is returned
-as not-found on ordinary resource APIs to avoid metadata disclosure.
+Unknown roles, a member row from another tenant, or a fact for a different
+Project fail closed as missing grants. Private Project denial is returned as
+not-found on ordinary resource APIs to avoid metadata disclosure. A repository
+or authorization fact-store failure also fails closed, but returns a generic,
+retryable `503` with `Retry-After`; dependency unavailability is never evidence
+that a Project, binding, Scope, or grant is absent and must not be collapsed
+into a `404`. Safe control-plane reads retry one HTTP transport failure before
+returning `503`; mutations are never replayed automatically because an
+interrupted response does not prove that a write was not committed.
 
 ### Fixed capability contract
 
@@ -112,6 +121,48 @@ write their audit row in the same transaction.
 from the same Project or a tenant-level tool from the same Organization.  A
 sibling-Project or cross-tenant tool is rejected by both service code and a
 database trigger.
+
+### Repository ownership and Scope views
+
+A Project owns exactly one canonical Git repository and source-of-truth
+history. A Scope does not own another repository; it defines a path-bounded
+view and runtime-policy boundary over the same Project root:
+
+```text
+Organization
+  `-- Project                         ownership, membership, billing boundary
+      |-- Canonical Git Repository    one object store and canonical history
+      |   |
+      |   |-- Root Repository View    the complete Project
+      |   |   `-- /git/{project_id}.git
+      |   |
+      |   `-- Scope Views             path / excludes / r-or-rw restriction
+      |       |-- Scope: company
+      |       `-- Scope: company/sales
+      |           `-- /git/{project_id}/scopes/{scope_id}.git
+      |
+      `-- Hosted services             Claude, MCP, Automation, and Agents
+```
+
+The current relational model stores the Project-wide view as the canonical
+root row in `repo_scopes`. This is an internal normalization that lets root and
+non-root targets share composite foreign keys, Access Surface resolution,
+RuntimeGrant evaluation, credential revocation, audit, and Git admission. It
+does **not** make Scope the owner of Git or create one physical repository per
+Scope. The canonical root Scope ID may remain internal execution metadata for
+a full binding; the product identity presented to users is the Project root.
+
+Consequently, a full Workspace Binding targets the Project root view and uses
+the Project-only locator. A scoped binding targets one exact non-root Scope
+view and uses the Project-plus-Scope locator. Human navigation always begins
+with a current ProjectGrant; exact root/non-root Scope validation then proves
+the selected data-plane view and narrows machine authority. Neither a Scope,
+locator, binding, nor Git credential creates human Project access.
+
+Claude and other Project-wide hosted runtimes are gated only by canonical root
+Git readiness. A non-root Scope view may expose bounded Git transport, but it
+never represents the complete Project and cannot satisfy Project-wide hosting
+readiness.
 
 ## Workspace binding
 
@@ -195,32 +246,52 @@ raw role.
 
 Desktop open behavior follows this order:
 
-1. read the secret-free PuppyOne remote and local workspace identity;
-2. parse a candidate only when the remote uses a configured trusted Cloud
-   origin and canonical locator grammar;
-3. resolve the active binding when its ID is present;
-4. re-authorize the current account against the binding's Project;
-5. verify exact Project-root/Scope target, host, and workspace instance;
-6. navigate directly to the verified Project without enumerating Organization
-   Projects first.
+1. read the local workspace identity and collect every recognized PuppyOne
+   fetch and push URL from every Git remote;
+2. normalize duplicate locators and fail closed when origins, Projects, Scopes,
+   fetch/push targets, or legacy credentials conflict;
+3. when an active binding ID is present, resolve it, re-authorize the current
+   account, and verify exact workspace instance, origin and
+   `ProjectRootTarget | ScopeTarget` against any canonical remote;
+4. otherwise, send one canonical URL to
+   `POST /api/v1/desktop/project-bindings/resolve-canonical-remote`;
+5. the backend validates the trusted origin and grammar, authorizes
+   `ProjectAction.PROJECT_READ`, validates the exact Project/Scope geometry,
+   and returns a secret-free target, Project metadata/capabilities and optional
+   Scope path context;
+6. navigate directly to that exact Project with
+   `bindingStatus = not-bound`, without creating a binding or enumerating
+   Organization Projects;
+7. when no binding or PuppyOne locator exists, remain local-only and offer one
+   explicit backup/connect action; wrong host/account/access, missing targets,
+   conflicts and network failures enter recovery. A retryable dependency `503`
+   preserves any exact context already verified for the same resolution key;
+   without verified context it renders temporary-unavailability recovery.
 
-The Desktop Project-catalog hook is disabled during Local workspace session
-restore. It may enumerate Projects only for Cloud-only/home browsing, or when
-the user explicitly browses from an unbound Local workspace with no canonical
-target candidate. This prevents a broad catalog request from racing and
-visually winning over exact binding resolution.
+The contextual Desktop data loader is forbidden from importing or calling the
+Organization Project catalog. Local workspace restore, Cloud entry, local-only
+state, canonical resolution and all recovery states therefore make zero broad
+Project-list requests. The catalog belongs only to the independent App
+home/global browser or Cloud-only workspace flow. A stale global selection can
+never become the context of an open Local workspace.
 
-The explicit `Use here` action already owns the selected Project ID. It calls
-Workspace Binding creation with that ID and accepts the canonical remote from
-the binding response; it must not prefetch Repo Identity or enumerate Scopes
-merely to rediscover a URL that the binding service owns.
+Canonical resolution is read-only. It never creates, replaces or revokes a
+WorkspaceBinding, never issues or rotates a credential, never changes Git
+configuration and never uploads content. An explicit backup/connect/repair
+workflow owns those mutations and accepts the canonical remote returned by the
+binding service; it must not enumerate Projects or Scopes merely to rediscover
+the target.
 
 If local binding state is absent, a canonical locator can seed one explicit
 attach/recovery flow after current-user authorization. It cannot silently
-create durable identity, cannot authorize Project metadata, and cannot trigger
-an N-by-M scan of Projects, Scopes, or shared credentials. The bounded legacy
-`/git/ap/<key>.git` adapter is never constructed by first-party clients because
-its path is a secret-bearing capability rather than a stable locator.
+create durable identity or trigger an N-by-M scan of Projects, Scopes, or
+shared credentials.
+
+The legacy `/git/ap/<key>.git` route remains confirmation-gated during
+migration because its path is a secret-bearing capability rather than a stable
+locator. First-party clients never construct it; its response type remains
+separate from the canonical authorized context and never promotes a legacy
+candidate silently.
 
 Binding or Access issuance returns the canonical locator and one-time
 credential as separate fields. Rotation changes the credential but never the
@@ -269,10 +340,13 @@ remains ineligible even if the parent Project is ready.
 Authorization emits structured allow/deny facts containing action, outcome,
 reason, role/source when present, and a one-way shortened Project reference.
 It never emits user IDs, raw Project IDs, names, paths, content, or credentials.
-Fact-store failures emit only the exception type and fail closed.
+Fact-store and binding-storage transport failures emit only the operation,
+attempt count, and exception type, then fail closed. Safe reads receive one
+bounded retry; writes do not.
 
-Unknown actions and missing route contracts fail CI.  List/batch fact failures
-return no Projects rather than a partial metadata leak.
+Unknown actions and missing route contracts fail CI. List/batch fact failures
+return one generic retryable `503`, rather than either a partial metadata leak
+or a misleading empty Project catalog.
 
 ## Verification
 
