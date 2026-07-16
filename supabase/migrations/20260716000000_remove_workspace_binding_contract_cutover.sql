@@ -1,4 +1,6 @@
 -- Remove local Workspace Binding identity.
+-- requires-data-migration: 20260715_project_owned_repository_targets_preflight
+-- data-migration-checksum: c9c417a19b0ad2a9086588e31775e604e0eefe18d2fcb5c8c1f5ce570661ae55
 --
 -- A canonical Git remote is the only local-to-Cloud Project locator. Human
 -- UI access is authorized by ProjectGrant; Git data-plane access is authorized

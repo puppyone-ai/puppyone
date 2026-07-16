@@ -12,7 +12,10 @@ from src.platform.repository_target.schemas import (
 from src.repo.scope_repository import _row_to_scope
 
 ROOT = Path(__file__).resolve().parents[3]
-MIGRATION = ROOT / "supabase/migrations/20260716000000_remove_workspace_binding.sql"
+MIGRATION = (
+    ROOT
+    / "supabase/migrations/20260716000000_remove_workspace_binding_contract_cutover.sql"
+)
 TARGET_CUTOVER = ROOT / (
     "supabase/migrations/20260715000000_project_owned_repository_targets_contract_cutover.sql"
 )

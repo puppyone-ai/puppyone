@@ -177,7 +177,10 @@ def test_migrations_define_authorization_foundation_and_remove_checkout_identity
         / "run.sql"
     ).read_text()
     binding_removal = (
-        BACKEND.parent / "supabase" / "migrations" / "20260716000000_remove_workspace_binding.sql"
+        BACKEND.parent
+        / "supabase"
+        / "migrations"
+        / "20260716000000_remove_workspace_binding_contract_cutover.sql"
     ).read_text()
     assert "create_project_with_admin" in foundation
     assert "resolve_project_role" in foundation

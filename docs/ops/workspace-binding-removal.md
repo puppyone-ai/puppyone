@@ -1,6 +1,6 @@
 # Server-side Checkout Identity Removal
 
-Migration `20260716000000_remove_workspace_binding.sql` deletes the former
+Migration `20260716000000_remove_workspace_binding_contract_cutover.sql` deletes the former
 Workspace Binding schema and establishes user-owned Git credentials as the
 final model.
 
