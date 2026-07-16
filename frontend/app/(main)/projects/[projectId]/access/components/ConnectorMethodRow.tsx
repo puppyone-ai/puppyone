@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from 'react';
 import { StatusIndicator } from '@/components/ui/StatusDot';
-import type { Connector, RepoScope } from '@/lib/repoApi';
+import type { Connector, RepositoryView } from '@/lib/repoApi';
 import { getAccessProviderMethodMeta, isCliProvider, isMcpProvider, normalizeConnectorProvider } from '@/lib/accessProviderRegistry';
 import { T } from '../lib/tokens';
 import { STATUS_COLORS, STATUS_LABEL } from '../lib/constants';
@@ -29,7 +29,7 @@ export function ConnectorListRow({
   onSettings,
   canManage = false,
 }: {
-  readonly scope: RepoScope | undefined;
+  readonly scope: RepositoryView | undefined;
   readonly connector: Connector;
   readonly selected: boolean;
   readonly showPromptPreview?: boolean;
@@ -427,7 +427,7 @@ function ConnectorCollapsedActions({
   onConnect,
 }: {
   readonly connector: Connector;
-  readonly scope: RepoScope | undefined;
+  readonly scope: RepositoryView | undefined;
   readonly status: string;
   readonly showSettings: boolean;
   readonly settingsOpen: boolean;
@@ -813,7 +813,7 @@ export function ConnectorExpandedDetail({
   onUpdate,
 }: {
   readonly connector: Connector;
-  readonly scope: RepoScope | undefined;
+  readonly scope: RepositoryView | undefined;
   readonly pending: boolean;
   readonly onPauseResume: () => Promise<void> | void;
   readonly onUpdate: (patch: ConnectorEditPatch) => Promise<void>;
@@ -954,7 +954,7 @@ const ExternalLinkGlyph = ({ size = 12 }: { readonly size?: number }) => (
   </svg>
 );
 
-function getScopeChipLabel(scope: RepoScope): string {
+function getScopeChipLabel(scope: RepositoryView): string {
   const path = formatScopePath(scope);
   return path === '/' ? 'Root' : path;
 }

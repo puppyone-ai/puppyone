@@ -167,7 +167,7 @@ def test_content_ls_marked_irrecoverable_returns_explicit_410(monkeypatch):
             "project-1",
             path="",
             ops=_MissingObjectOps(),
-            project_service=_FakeProjectService(),
+            authorization=authorization_for("project-1"),
             current_user=_user(),
         )
 
@@ -190,7 +190,7 @@ def test_content_ls_legacy_root_failure_is_explicitly_irrecoverable(monkeypatch)
             "project-1",
             path="",
             ops=_MissingObjectOps(),
-            project_service=_FakeProjectService(),
+            authorization=authorization_for("project-1"),
             current_user=_user(),
         )
 

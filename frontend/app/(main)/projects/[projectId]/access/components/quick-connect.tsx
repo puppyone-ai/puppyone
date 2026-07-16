@@ -18,15 +18,17 @@
  * All 5 Body components live in this single file because they're a
  * family of mutually-exclusive branches behind `ConnectorAccessPanel`,
  * the one router that picks the right one. Reading them side-by-side
- * makes it trivial to spot drift between providers (every Body should
- * share the same NoAccessKeyNotice + SubSectionLabel + KvBlock idiom).
+ * makes it trivial to spot drift between providers. CLI uses an explicit
+ * one-time credential issuance panel; other providers share the neutral
+ * SubSectionLabel + KvBlock idiom.
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { CountBadge } from '@/components/ui/CountBadge';
 import { buildGitSyncPrompt, buildMcpSetupPrompt, buildTerminalCliPrompt } from '@/lib/accessPointCliPrompt';
-import { activateAgentConnector, type Connector, type RepoScope } from '@/lib/repoApi';
+import { activateAgentConnector, type Connector, type RepositoryView } from '@/lib/repoApi';
+import { canonicalGitUrlForTarget } from '@/lib/gitRemote';
 import {
   getAccessProviderLabel,
   isAgentProvider,
@@ -46,10 +48,11 @@ import {
 import {
   CommandBlock,
   KvBlock,
-  NoAccessKeyNotice,
   PromptBlock,
   SubSectionLabel,
 } from './ui-blocks';
+import { CliCredentialIssuePanel } from '../../data/components/access-points/connect-methods/CliCredentialIssuePanel';
+import { GitCredentialIssuePanel } from '../../data/components/access-points/connect-methods/GitCredentialIssuePanel';
 
 // ─── Per-provider access panel ───────────────────────────────────────
 
@@ -58,7 +61,7 @@ export function ConnectorAccessPanel({
   scope,
 }: {
   readonly connector: Connector;
-  readonly scope: RepoScope | undefined;
+  readonly scope: RepositoryView | undefined;
 }) {
   const apiBase = useMemo(() => getApiBase(), []);
   if (!scope) return null;
@@ -97,37 +100,41 @@ function TerminalCliBody({
   apiBase,
 }: {
   readonly connector: Connector;
-  readonly scope: RepoScope;
+  readonly scope: RepositoryView;
   readonly apiBase: string;
 }) {
-  const accessKey = scope.access_key || connector.access_key || '';
   const scopeName = scope.name || (scope.path === '' ? 'root' : scope.path);
   const profileName = profileSlug(scope.name || scope.path || 'root');
 
-  const { installLine, loginLine, exploreLines, fileLines, prompt } = buildTerminalCliPrompt({
-    apiBase,
-    accessKey,
-    profileName,
-    scopeName,
-  });
-  const steps = [
-    { title: 'Install once', lines: [installLine] },
-    { title: 'Sign in to this scope', lines: [loginLine] },
-    { title: 'Explore safely', lines: exploreLines },
-    { title: 'Read & write files', lines: fileLines },
-  ];
-
   return (
-    <>
-      {!accessKey && <NoAccessKeyNotice />}
-      <ConnectPathChooser
-        prompt={prompt}
-        steps={steps}
-        agentDescription='Paste this setup prompt into Codex, Cursor, or Claude. The agent can install, sign in, and use this scope for you.'
-        manualTitle='Set up in terminal'
-        manualDescription='Run these commands yourself when you want direct CLI access without handing setup to an agent.'
-      />
-    </>
+    <CliCredentialIssuePanel
+      connectorId={connector.id}
+      target={scope.target}
+    >
+      {(accessKey) => {
+        const { installLine, loginLine, exploreLines, fileLines, prompt } = buildTerminalCliPrompt({
+          apiBase,
+          accessKey,
+          profileName,
+          scopeName,
+        });
+        const steps = [
+          { title: 'Install once', lines: [installLine] },
+          { title: 'Sign in to this scope', lines: [loginLine] },
+          { title: 'Explore safely', lines: exploreLines },
+          { title: 'Read & write files', lines: fileLines },
+        ];
+        return (
+          <ConnectPathChooser
+            prompt={prompt}
+            steps={steps}
+            agentDescription='Paste this setup prompt into Codex, Cursor, or Claude. The agent can install, sign in, and use this scope for you.'
+            manualTitle='Set up in terminal'
+            manualDescription='Run these commands yourself when you want direct CLI access without handing setup to an agent.'
+          />
+        );
+      }}
+    </CliCredentialIssuePanel>
   );
 }
 
@@ -139,12 +146,11 @@ function GitRemoteBody({
   apiBase,
 }: {
   readonly connector: Connector;
-  readonly scope: RepoScope;
+  readonly scope: RepositoryView;
   readonly apiBase: string;
 }) {
-  const accessKey = scope.access_key || connector.access_key || '';
   const scopeName = scope.name || (scope.path === '' ? 'root' : scope.path);
-  const gitUrl = `${apiBase}/git/ap/${accessKey || '<access-key>'}.git`;
+  const gitUrl = canonicalGitUrlForTarget(apiBase, scope.target);
   const {
     cloneLines,
     existingFolderLines,
@@ -156,10 +162,14 @@ function GitRemoteBody({
     { title: 'Publish an existing folder', lines: existingFolderLines },
     { title: 'Day-to-day workflow', lines: workflowLines },
   ];
-
   return (
     <>
-      {!accessKey && <NoAccessKeyNotice />}
+      <GitCredentialIssuePanel
+        connectorId={connector.id}
+        gitUrl={gitUrl}
+        scopeMode={scope.max_mode}
+        target={scope.target}
+      />
       <ConnectPathChooser
         prompt={prompt}
         steps={steps}
@@ -304,44 +314,43 @@ function AgentBody({
   scope,
 }: {
   readonly connector: Connector;
-  readonly scope: RepoScope;
+  readonly scope: RepositoryView;
 }) {
   const router = useRouter();
-  // `activateAgentConnector` writes scope + name into config; an
-  // unactivated agent has `config.scope` empty. Reading it directly
-  // matches `ConnectMethods`.
-  const [activated, setActivated] = useState<boolean>(Boolean(connector.config?.scope));
+  // Activation is explicit state; repository target/view fields never double
+  // as lifecycle flags.
+  const [activated, setActivated] = useState<boolean>(connector.config?.activated === true);
   const [activating, setActivating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Re-sync when connector changes underneath us (e.g. SWR refetch).
   useEffect(() => {
-    setActivated(Boolean(connector.config?.scope));
-  }, [connector.config?.scope]);
+    setActivated(connector.config?.activated === true);
+  }, [connector.config?.activated]);
 
   const goToChat = useCallback(() => {
     // The actual chat runtime lives behind the data view's right panel.
     // Drop the user there — the page-level wiring opens the agent_chat
     // panel for this connector. Using `?ap=...` is enough; the data
     // page reads it on mount.
-    router.push(scopePathToDataUrl(connector.project_id, scope.path) + `?ap=${connector.id}`);
-  }, [router, connector, scope.path]);
+    router.push(scopePathToDataUrl(scope.project_id, scope.path) + `?ap=${connector.id}`);
+  }, [router, connector, scope.path, scope.project_id]);
 
   const handleActivate = useCallback(async () => {
     if (activating) return;
     setActivating(true);
     setError(null);
     try {
-      const updated = await activateAgentConnector(connector.project_id, connector.id);
-      setActivated(Boolean(updated.config?.scope));
+      const updated = await activateAgentConnector(scope.project_id, connector.id);
+      setActivated(updated.config?.activated === true);
       // Then immediately route to chat — same flow as ConnectMethods.
-      router.push(scopePathToDataUrl(connector.project_id, scope.path) + `?ap=${connector.id}`);
+      router.push(scopePathToDataUrl(scope.project_id, scope.path) + `?ap=${connector.id}`);
     } catch (err) {
       setError((err as Error).message || 'Failed to activate AI Agent');
     } finally {
       setActivating(false);
     }
-  }, [activating, connector, scope.path, router]);
+  }, [activating, connector, scope.path, scope.project_id, router]);
 
   const scopeName = scope.name || (scope.path === '' ? 'root' : scope.path);
 
@@ -375,11 +384,11 @@ function McpBody({
   scope,
 }: {
   readonly connector: Connector;
-  readonly scope: RepoScope;
+  readonly scope: RepositoryView;
 }) {
   const apiBase = useMemo(() => getApiBase(), []);
   const configKey = connector.config?.api_key;
-  const apiKey = typeof configKey === 'string' ? configKey : connector.access_key || '';
+  const apiKey = typeof configKey === 'string' ? configKey : '';
   const scopeName = scope.name || (scope.path === '' ? 'root' : scope.path);
   const setup = useMemo(
     () =>
@@ -447,7 +456,7 @@ function McpKeyNotice() {
 
 // ─── Body: Sandbox ───────────────────────────────────────────────────
 
-function SandboxBody({ scope }: { readonly scope: RepoScope }) {
+function SandboxBody({ scope }: { readonly scope: RepositoryView }) {
   const scopeName = scope.name || (scope.path === '' ? 'root' : scope.path);
   return (
     <>
@@ -470,14 +479,14 @@ function ThirdPartyBody({
   scope,
 }: {
   readonly connector: Connector;
-  readonly scope: RepoScope;
+  readonly scope: RepositoryView;
 }) {
   const router = useRouter();
   const providerLabel = getAccessProviderLabel(connector.provider);
 
   const handleConfigure = useCallback(() => {
-    router.push(scopePathToDataUrl(connector.project_id, scope.path) + `?ap=${connector.id}`);
-  }, [router, connector, scope.path]);
+    router.push(scopePathToDataUrl(scope.project_id, scope.path) + `?ap=${connector.id}`);
+  }, [router, connector, scope.path, scope.project_id]);
 
   return (
     <ActivationCard

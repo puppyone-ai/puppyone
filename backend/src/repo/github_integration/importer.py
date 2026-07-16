@@ -78,8 +78,8 @@ def _has_external_committed_write(rows: list[dict]) -> bool:
 
 async def _external_writes_since(project_id: str, since_iso: str) -> bool:
     """Did the project receive a committed write from an external/user channel
-    since ``since_iso``? GitHub import binds at the root scope, so any external
-    scope write is divergence the overwrite would clobber. Fail-OPEN on a query
+    since ``since_iso``? GitHub import binds to the Project root, so any external
+    repository write is divergence the overwrite would clobber. Fail-OPEN on a query
     error — the import is GitHub-authoritative; a DB hiccup must not wedge it."""
     def _query() -> list[dict]:
         sb = SupabaseClient().client
@@ -107,7 +107,7 @@ async def _external_writes_since(project_id: str, since_iso: str) -> bool:
 
 
 def _current_root_head(project_id: str) -> str:
-    """Best-effort current root-scope head commit id, for the conflict message."""
+    """Best-effort current Project head commit id, for the conflict message."""
     try:
         from src.version_engine.infrastructure.supabase.history_repository import (
             SupabaseHistoryManager,
@@ -252,7 +252,7 @@ async def _do_import(
     files = await _materialise_blobs(api, owner, repo_name, entries)
 
     # Conflict gate (git non-fast-forward analogue). GitHub import overwrites the
-    # bound scope (root), so refuse unless ``force`` when the project received a
+    # Project root, so refuse unless ``force`` when the Project received a
     # COMMITTED write from an external/user channel since the last successful
     # import. ``github`` (our own imports) and ``scope-sync`` (system projection)
     # are NOT conflicts — the check is source_channel-aware, so projection
@@ -269,10 +269,8 @@ async def _do_import(
                 last_imported=last_commit,
             )
 
-    # Build a splice that resets the bound scope to the imported tree.
-    scope_path = ""  # bind-at-project-level → root scope. If we later
-                    # support per-scope binding this comes from the
-                    # integration row.
+    # Build a splice that resets the Project root view to the imported tree.
+    scope_path = ""  # Version Engine projection path; not a Scope identity.
 
     splice = _make_overwrite_splice(files)
 

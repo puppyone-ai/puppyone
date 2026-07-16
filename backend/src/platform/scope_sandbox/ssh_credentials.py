@@ -22,7 +22,10 @@ from __future__ import annotations
 import base64
 from datetime import datetime, timezone
 
-from src.platform.scope_sandbox.scope_provision import provision_scope_steps
+from src.platform.scope_sandbox.scope_provision import (
+    DEFAULT_GIT_CREDENTIAL_FILE,
+    provision_scope_steps,
+)
 from src.platform.scope_sandbox.execution_policy import SSH_POLICY_WRAPPER_PATH
 
 TAG = "puppyone"
@@ -136,10 +139,17 @@ async def provision_user_workspace(
     git_url: str,
     user_email: str,
     user_name: str,
+    credential_file: str = DEFAULT_GIT_CREDENTIAL_FILE,
 ) -> str:
     """Clone the scope into the user's OWN working tree (~/<user_id>) with their
     git identity (rebase-default). Returns the workdir. (roadmap #7)"""
     workdir = user_id
-    for cmd in provision_scope_steps(git_url, workdir, user_email, user_name):
+    for cmd in provision_scope_steps(
+        git_url,
+        workdir,
+        user_email,
+        user_name,
+        credential_file,
+    ):
         await provider.exec(sandbox_id, cmd)
     return workdir

@@ -9,6 +9,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
+from src.platform.repository_target.models import (
+    RepositoryTarget,
+    ResolvedRepositoryView,
+)
+
 
 class ProjectRole(StrEnum):
     ADMIN = "admin"
@@ -50,8 +55,6 @@ class ProjectCapability(StrEnum):
     ACCESS_SURFACE_MANAGE = "access_surface.manage"
     ACCESS_SURFACE_ROTATE_SECRET = "access_surface.rotate_secret"
     INTEGRATION_MANAGE = "integration.manage"
-    BIND_READONLY = "workspace.bind.readonly"
-    BIND_READWRITE = "workspace.bind.readwrite"
 
 
 class ProjectAction(StrEnum):
@@ -80,9 +83,6 @@ class ProjectAction(StrEnum):
     INTEGRATION_MANAGE = "integration.manage"
     INGEST_WRITE = "ingest.write"
     TOOL_USE = "tool.use"
-    BIND_READONLY = "workspace.bind.readonly"
-    BIND_READWRITE = "workspace.bind.readwrite"
-    BIND_MANAGE = "workspace.bind.manage"
 
 
 _VIEWER_CAPABILITIES = frozenset(
@@ -91,7 +91,6 @@ _VIEWER_CAPABILITIES = frozenset(
         ProjectCapability.CONTENT_READ,
         ProjectCapability.HISTORY_READ,
         ProjectCapability.AGENT_READ,
-        ProjectCapability.BIND_READONLY,
     }
 )
 
@@ -101,7 +100,6 @@ _EDITOR_CAPABILITIES = _VIEWER_CAPABILITIES | frozenset(
         ProjectCapability.HISTORY_RESTORE,
         ProjectCapability.AGENT_RUN,
         ProjectCapability.AUTOMATION_RUN,
-        ProjectCapability.BIND_READWRITE,
     }
 )
 
@@ -151,9 +149,6 @@ ACTION_CAPABILITY: dict[ProjectAction, ProjectCapability] = {
     ProjectAction.INTEGRATION_MANAGE: ProjectCapability.INTEGRATION_MANAGE,
     ProjectAction.INGEST_WRITE: ProjectCapability.CONTENT_WRITE,
     ProjectAction.TOOL_USE: ProjectCapability.AGENT_RUN,
-    ProjectAction.BIND_READONLY: ProjectCapability.BIND_READONLY,
-    ProjectAction.BIND_READWRITE: ProjectCapability.BIND_READWRITE,
-    ProjectAction.BIND_MANAGE: ProjectCapability.PROJECT_SETTINGS_MANAGE,
 }
 
 
@@ -192,18 +187,32 @@ class RuntimePrincipal:
 
 @dataclass(frozen=True, slots=True)
 class RuntimeGrant:
-    """Scope-bounded Machine data-plane grant.
+    """Repository-view-bounded Machine data-plane grant.
 
     This type deliberately has no Project role or control-plane capabilities.
     """
 
     principal: RuntimePrincipal
-    project_id: str
-    scope_id: str
-    path: str
-    excludes: tuple[str, ...]
+    target: RepositoryTarget
+    repository_view: ResolvedRepositoryView
     mode: RuntimeMode
     tools: frozenset[str] = frozenset()
+
+    def __post_init__(self) -> None:
+        if self.target != self.repository_view.target:
+            raise ValueError("RuntimeGrant target/view mismatch")
+
+    @property
+    def project_id(self) -> str:
+        return self.target.project_id
+
+    @property
+    def path(self) -> str:
+        return self.repository_view.path_prefix
+
+    @property
+    def excludes(self) -> tuple[str, ...]:
+        return self.repository_view.excludes
 
     @property
     def can_write(self) -> bool:

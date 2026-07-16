@@ -10,13 +10,16 @@ Read in this order:
 3. [Context Resources](architecture/02-context-resources.md)
 4. [CLI](architecture/03-cli.md)
 5. [Connectors](architecture/04-connectors.md)
-6. [Git Remote Access Point Flow](architecture/05-git-remote-accesspoint.md)
+6. [Git Remote Locator, Credential, And Access Point Contract](architecture/05-git-remote-accesspoint.md)
 7. [Gateway And Access Boundary](architecture/06-gateway-access-point-split.md)
 8. [Shadow Snapshots](architecture/08-shadow-snapshots.md)
 9. [Context Entry Points](architecture/10-context-entrypoints.md)
 10. [Context Entry Point Data Model](architecture/11-context-entrypoint-data-model.md)
-11. [Project Authorization and Workspace Binding](architecture/12-project-authorization-and-workspace-binding.md)
+11. [Project Authorization and Git Credentials](architecture/12-project-authorization-and-git-credentials.md)
 12. [Database Release Governance](architecture/13-database-release-governance.md)
+13. [Template Registry](architecture/14-template-registry.md)
+14. [Project-Owned Repository Targets](architecture/15-project-owned-repository-targets.md)
+15. [Project Publish Control Plane](architecture/16-project-publish-control-plane.md)
 
 Product and frontend design:
 
@@ -24,7 +27,10 @@ Product and frontend design:
 - [Product Visual System](frontend/product-visual-system.md)
 - [Color Mode Architecture](frontend/color-mode-architecture.md)
 - [ISSUE-029 Authorization Cutover](ops/issue-029-authorization-cutover.md)
+- [Canonical Git Remote Rollout Runbook](ops/canonical-git-remote-rollout.md)
 - [July 2026 Database Migration Transition](ops/database-migration-transition-2026-07.md)
+- [ISSUE-039 Repository Target Cutover](ops/issue-039-repository-target-cutover.md)
+- [Workspace Binding Removal](ops/workspace-binding-removal.md)
 
 Document-level constructs:
 

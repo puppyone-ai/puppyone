@@ -11,7 +11,6 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from typing import Protocol
 
-
 TABLE = "sandbox_execution_sessions"
 
 
@@ -24,6 +23,7 @@ class ExecutionSession:
     created_at: float
     last_activity: float
     temp_path: str = ""
+    project_id: str | None = None
 
 
 class ExecutionSessionStore(Protocol):
@@ -89,6 +89,7 @@ class SupabaseExecutionSessionStore:
             created_at=epoch(row["created_at"]),
             last_activity=epoch(row["last_activity"]),
             temp_path=str(row.get("temp_path") or ""),
+            project_id=str(row["project_id"]) if row.get("project_id") else None,
         )
 
     def get(self, session_id: str) -> ExecutionSession | None:

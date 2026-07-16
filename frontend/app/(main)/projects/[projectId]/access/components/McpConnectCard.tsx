@@ -3,7 +3,7 @@
 import { useCallback, useState } from 'react';
 import { StatusIndicator } from '@/components/ui/StatusDot';
 import { createMcpEndpoint, type McpEndpoint } from '@/lib/mcpEndpointsApi';
-import type { RepoScope } from '@/lib/repoApi';
+import type { RepositoryView } from '@/lib/repoApi';
 import { T } from '../lib/tokens';
 import { ProviderIcon } from './icons';
 
@@ -21,7 +21,7 @@ export function McpConnectCard({
   projectId,
   onCreated,
 }: {
-  readonly scope: RepoScope;
+  readonly scope: RepositoryView;
   readonly projectId: string;
   readonly onCreated: () => Promise<unknown>;
 }) {
@@ -42,7 +42,7 @@ export function McpConnectCard({
         project_id: projectId,
         path: scope.path,
         name: 'MCP Server',
-        accesses: [{ path: scope.path, json_path: '', readonly: scope.mode !== 'rw' }],
+        accesses: [{ path: scope.path, json_path: '', readonly: scope.max_mode !== 'rw' }],
       });
       // Defer the parent refresh until the user dismisses the connect panel:
       // onCreated() revalidates the connector list, which flips this card's
@@ -54,7 +54,7 @@ export function McpConnectCard({
     } finally {
       setCreating(false);
     }
-  }, [creating, projectId, scope.path, scope.mode]);
+  }, [creating, projectId, scope.path, scope.max_mode]);
 
   const handleDismiss = useCallback(() => {
     setCreated(null);

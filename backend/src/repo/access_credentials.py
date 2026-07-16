@@ -59,9 +59,9 @@ class AccessCredentialRepository:
             self._client.table(CREDENTIALS_TABLE)
             .select("*")
             .in_("access_surface_id", surface_ids)
-            .eq("credential_type", "bearer_token")
+            .in_("credential_type", ["bearer_token", "git_http_token"])
             .eq("status", "active")
-            .is_("workspace_binding_id", "null")
+            .eq("credential_lifecycle", "shared")
             .execute()
         )
         rows = resp.data or []
@@ -76,13 +76,18 @@ class AccessCredentialRepository:
             by_surface.setdefault(row["access_surface_id"], row)
         return by_surface
 
-    def get_active_by_token(self, raw_token: str) -> Optional[dict[str, Any]]:
+    def get_active_by_token(
+        self,
+        raw_token: str,
+        *,
+        credential_type: str = "bearer_token",
+    ) -> Optional[dict[str, Any]]:
         token_hash = access_token_hash(raw_token)
         resp = (
             self._client.table(CREDENTIALS_TABLE)
             .select("*")
             .eq("key_hash", token_hash)
-            .eq("credential_type", "bearer_token")
+            .eq("credential_type", credential_type)
             .eq("status", "active")
             .limit(1)
             .execute()
@@ -96,41 +101,109 @@ class AccessCredentialRepository:
         if not rows:
             return None
         credential = rows[0]
-        binding_id = credential.get("workspace_binding_id")
-        if binding_id:
-            binding_mode = self._binding_credential_mode_if_authorized(credential)
-            if binding_mode is None:
+        if credential.get("credential_lifecycle") == "user":
+            user_mode = self._user_credential_mode_if_authorized(credential)
+            if user_mode is None:
                 return None
-            credential = {**credential, "workspace_binding_mode": binding_mode}
+            credential = {**credential, "user_credential_mode": user_mode}
         return credential
 
-    def _binding_credential_mode_if_authorized(
-        self, credential: dict[str, Any]
-    ) -> str | None:
-        """Re-evaluate a binding credential against current human access.
+    def resolve_git_runtime_credential(
+        self, raw_token: str
+    ) -> Optional[dict[str, Any]]:
+        """Resolve a Git HTTP token into already-narrowed runtime facts.
 
-        Membership removal, role downgrade, binding revocation, and
-        surface/scope mismatch therefore take effect on the next machine
-        request without relying on Desktop to rotate or delete a token.
+        Production uses one SECURITY DEFINER RPC so credential, surface,
+        scope, credential owner, and current human access are evaluated from a single
+        database snapshot.  The table-backed branch exists only for the
+        lightweight in-memory repository used by unit tests.
         """
-        try:
-            rows = (
-                self._client.table("project_workspace_bindings")
-                .select("project_id, scope_id, bound_user_id, mode, status")
-                .eq("id", credential["workspace_binding_id"])
-                .eq("status", "active")
+
+        token_hash = access_token_hash(raw_token)
+        rpc = getattr(self._client, "rpc", None)
+        if callable(rpc):
+            response = rpc(
+                "resolve_git_runtime_credential",
+                {"p_key_hash": token_hash},
+            ).execute()
+            rows = response.data or []
+            if isinstance(rows, dict):
+                return rows
+            return rows[0] if rows else None
+
+        credential = self.get_active_by_token(
+            raw_token,
+            credential_type="git_http_token",
+        )
+        if not credential:
+            return None
+        surfaces = (
+            self._client.table("access_surfaces")
+            .select("*")
+            .eq("id", credential["access_surface_id"])
+            .eq("project_id", credential["project_id"])
+            .eq("status", "active")
+            .limit(1)
+            .execute()
+        ).data or []
+        if not surfaces or surfaces[0].get("kind") != "git_remote":
+            return None
+        surface = surfaces[0]
+        if str(surface.get("org_id")) != str(credential.get("org_id")):
+            return None
+        scope_id = surface.get("scope_id")
+        scope: dict[str, Any] | None = None
+        if scope_id is not None:
+            scopes = (
+                self._client.table("repository_scopes")
+                .select("*")
+                .eq("id", scope_id)
+                .eq("project_id", credential["project_id"])
                 .limit(1)
                 .execute()
             ).data or []
-            if not rows:
+            if not scopes:
                 return None
-            binding = rows[0]
-            if str(binding["project_id"]) != str(credential["project_id"]):
-                return None
+            scope = scopes[0]
+        target_max_mode = str((scope or {}).get("max_mode") or "rw")
+        modes = {
+            str(credential.get("grant_mode") or target_max_mode),
+            target_max_mode,
+            str((surface.get("config") or {}).get("mode") or "rw"),
+        }
+        user_mode = credential.get("user_credential_mode")
+        if user_mode:
+            modes.add(str(user_mode))
+        effective_mode = "r" if "r" in modes else "rw"
+        return {
+            "credential_id": str(credential["id"]),
+            "org_id": str(credential["org_id"]),
+            "project_id": str(credential["project_id"]),
+            "access_surface_id": str(surface["id"]),
+            "target_kind": "scope" if scope is not None else "project_root",
+            "scope_id": str(scope["id"]) if scope is not None else None,
+            "path_prefix": str((scope or {}).get("path") or ""),
+            "excludes": (scope or {}).get("exclude") or [],
+            "target_max_mode": target_max_mode,
+            "user_id": credential.get("user_id"),
+            "effective_mode": effective_mode,
+        }
 
+    def _user_credential_mode_if_authorized(
+        self, credential: dict[str, Any]
+    ) -> str | None:
+        """Re-evaluate a user credential against current Project access.
+
+        Membership removal and role downgrade take effect on the next Git
+        request. No local checkout, device, or workspace identity participates.
+        """
+        try:
+            user_id = credential.get("user_id")
+            if not user_id:
+                return None
             surfaces = (
                 self._client.table("access_surfaces")
-                .select("project_id, scope_id, status")
+                .select("project_id, status")
                 .eq("id", credential["access_surface_id"])
                 .eq("status", "active")
                 .limit(1)
@@ -139,29 +212,20 @@ class AccessCredentialRepository:
             if not surfaces:
                 return None
             surface = surfaces[0]
-            if (
-                str(surface["project_id"]) != str(binding["project_id"])
-                or str(surface["scope_id"]) != str(binding["scope_id"])
-            ):
+            if str(surface["project_id"]) != str(credential["project_id"]):
                 return None
 
             from src.platform.authorization.models import ProjectAction
             from src.platform.authorization.repository import AuthorizationRepository
             from src.platform.authorization.service import AuthorizationService
 
-            action = (
-                ProjectAction.BIND_READWRITE
-                if binding["mode"] == "rw"
-                else ProjectAction.BIND_READONLY
-            )
-            allowed = AuthorizationService(
-                AuthorizationRepository(self._client)
-            ).allows(
-                str(binding["project_id"]),
-                str(binding["bound_user_id"]),
-                action,
-            )
-            return str(binding["mode"]) if allowed else None
+            authorization = AuthorizationService(AuthorizationRepository(self._client))
+            project_id = str(credential["project_id"])
+            if authorization.allows(project_id, str(user_id), ProjectAction.CONTENT_WRITE):
+                return "rw"
+            if authorization.allows(project_id, str(user_id), ProjectAction.CONTENT_READ):
+                return "r"
+            return None
         except Exception:
             return None
 
@@ -172,7 +236,7 @@ class AccessCredentialRepository:
             .eq("access_surface_id", access_surface_id)
             .eq("credential_type", "bearer_token")
             .eq("status", "active")
-            .is_("workspace_binding_id", "null")
+            .eq("credential_lifecycle", "shared")
             .order("created_at", desc=True)
             .limit(1)
             .execute()
@@ -205,6 +269,8 @@ class AccessCredentialRepository:
         callers that already generated a token. New product flows should call
         :meth:`issue_bearer_token` so generation stays inside this boundary.
         """
+        if not revoke_existing and expires_at is None:
+            raise ValueError("non-rotating bearer session credentials require expires_at")
         if revoke_existing:
             rpc = getattr(self._client, "rpc", None)
             if callable(rpc):
@@ -226,21 +292,26 @@ class AccessCredentialRepository:
                 return
             # Lightweight repositories used by local tests do not implement
             # RPC. Production Supabase always takes the transactional path.
-            self.revoke_active(access_surface_id, credential_type="bearer_token")
+            self.revoke_active(
+                access_surface_id,
+                credential_type="bearer_token",
+                credential_lifecycle="shared",
+            )
 
         key_prefix, key_last4 = access_token_metadata(raw_token)
         payload = {
-                "org_id": org_id,
-                "project_id": project_id,
-                "access_surface_id": access_surface_id,
-                "credential_type": "bearer_token",
-                "key_prefix": key_prefix,
-                "key_last4": key_last4,
-                "key_hash": access_token_hash(raw_token),
-                "hash_alg": HASH_ALG,
-                "status": "active",
-                "created_by": created_by,
-            }
+            "org_id": org_id,
+            "project_id": project_id,
+            "access_surface_id": access_surface_id,
+            "credential_type": "bearer_token",
+            "credential_lifecycle": "shared" if revoke_existing else "session",
+            "key_prefix": key_prefix,
+            "key_last4": key_last4,
+            "key_hash": access_token_hash(raw_token),
+            "hash_alg": HASH_ALG,
+            "status": "active",
+            "created_by": created_by,
+        }
         if expires_at is not None:
             payload["expires_at"] = expires_at.astimezone(timezone.utc).isoformat()
         self._client.table(CREDENTIALS_TABLE).insert(payload).execute()
@@ -268,15 +339,115 @@ class AccessCredentialRepository:
         )
         return token
 
-    def revoke_active(self, access_surface_id: str, *, credential_type: str | None = None) -> None:
+    def store_git_http_token(
+        self,
+        *,
+        access_surface_id: str,
+        org_id: str,
+        project_id: str,
+        raw_token: str,
+        grant_mode: str,
+        created_by: str | None = None,
+        revoke_existing: bool = True,
+        expires_at: datetime | None = None,
+    ) -> None:
+        if grant_mode not in {"r", "rw"}:
+            raise ValueError("grant_mode must be 'r' or 'rw'")
+        if not revoke_existing and expires_at is None:
+            raise ValueError("non-rotating Git session credentials require expires_at")
+        key_prefix, key_last4 = access_token_metadata(raw_token)
+        if revoke_existing:
+            rpc = getattr(self._client, "rpc", None)
+            if callable(rpc):
+                rpc(
+                    "rotate_access_surface_git_http_token",
+                    {
+                        "p_access_surface_id": access_surface_id,
+                        "p_org_id": org_id,
+                        "p_project_id": project_id,
+                        "p_grant_mode": grant_mode,
+                        "p_key_prefix": key_prefix,
+                        "p_key_last4": key_last4,
+                        "p_key_hash": access_token_hash(raw_token),
+                        "p_hash_alg": HASH_ALG,
+                        "p_created_by": created_by,
+                        "p_expires_at": (
+                            expires_at.astimezone(timezone.utc).isoformat()
+                            if expires_at is not None
+                            else None
+                        ),
+                    },
+                ).execute()
+                return
+            self.revoke_active(
+                access_surface_id,
+                credential_type="git_http_token",
+                grant_mode=grant_mode,
+                credential_lifecycle="shared",
+            )
+
+        payload = {
+            "org_id": org_id,
+            "project_id": project_id,
+            "access_surface_id": access_surface_id,
+            "credential_type": "git_http_token",
+            "grant_mode": grant_mode,
+            "credential_lifecycle": "shared" if revoke_existing else "session",
+            "key_prefix": key_prefix,
+            "key_last4": key_last4,
+            "key_hash": access_token_hash(raw_token),
+            "hash_alg": HASH_ALG,
+            "status": "active",
+            "created_by": created_by,
+        }
+        if expires_at is not None:
+            payload["expires_at"] = expires_at.astimezone(timezone.utc).isoformat()
+        self._client.table(CREDENTIALS_TABLE).insert(payload).execute()
+
+    def issue_git_http_token(
+        self,
+        *,
+        access_surface_id: str,
+        org_id: str,
+        project_id: str,
+        grant_mode: str,
+        prefix: str = "git",
+        created_by: str | None = None,
+        revoke_existing: bool = True,
+        expires_at: datetime | None = None,
+    ) -> str:
+        token = generate_access_token(prefix)
+        self.store_git_http_token(
+            access_surface_id=access_surface_id,
+            org_id=org_id,
+            project_id=project_id,
+            raw_token=token,
+            grant_mode=grant_mode,
+            created_by=created_by,
+            revoke_existing=revoke_existing,
+            expires_at=expires_at,
+        )
+        return token
+
+    def revoke_active(
+        self,
+        access_surface_id: str,
+        *,
+        credential_type: str | None = None,
+        grant_mode: str | None = None,
+        credential_lifecycle: str | None = None,
+    ) -> None:
         patch = {"status": "revoked", "revoked_at": datetime.now(timezone.utc).isoformat()}
         query = (
             self._client.table(CREDENTIALS_TABLE)
             .update(patch)
             .eq("access_surface_id", access_surface_id)
             .eq("status", "active")
-            .is_("workspace_binding_id", "null")
         )
         if credential_type:
             query = query.eq("credential_type", credential_type)
+        if grant_mode:
+            query = query.eq("grant_mode", grant_mode)
+        if credential_lifecycle:
+            query = query.eq("credential_lifecycle", credential_lifecycle)
         query.execute()

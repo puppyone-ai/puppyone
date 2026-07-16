@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../app/supabase/SupabaseAuthProvider';
 import {
@@ -20,7 +20,8 @@ import {
   type SaasType,
 } from '../lib/oauthApi';
 import { refreshProjects } from '../lib/hooks/useData';
-import { createProject } from '../lib/projectsApi';
+import { instantiateTemplate } from '../lib/templatesApi';
+import { useOrganization } from '@/contexts/OrganizationContext';
 import { PageLoading, SkeletonBlock } from './loading';
 import { ThemeToggle } from './theme/ThemeToggle';
 import { ActionButton } from './ui/ActionButton';
@@ -152,6 +153,7 @@ const getDefaultPlatformStates = (): Record<PlatformId, PlatformState> =>
 export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
   const router = useRouter();
   const { session, signOut, isAuthReady } = useAuth();
+  const { currentOrg } = useOrganization();
   const [isRendered, setIsRendered] = React.useState(false);
   const [animateIn, setAnimateIn] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState<'account' | 'appearance' | 'integrations' | 'about'>(
@@ -180,6 +182,7 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [starterRepoLoading, setStarterRepoLoading] = useState(false);
   const [starterRepoError, setStarterRepoError] = useState<string | null>(null);
+  const starterRepoOperationKey = useRef<string | null>(null);
   const [disconnectConfirmation, setDisconnectConfirmation] = useState<{
     visible: boolean;
     platformId: PlatformId | null;
@@ -380,14 +383,20 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
     setStarterRepoLoading(true);
     setStarterRepoError(null);
     try {
-      const created = await createProject(
-        'Get Started',
-        'A guided starter repo seeded from the new-user onboarding template.',
-        undefined,
-        false,
-        'get-started',
-      );
-      await refreshProjects();
+      if (!currentOrg?.id) {
+        throw new Error('Select an organization before creating a project.');
+      }
+      starterRepoOperationKey.current ??= crypto.randomUUID();
+      const result = await instantiateTemplate('get-started', {
+        org_id: currentOrg.id,
+        name: 'Get Started',
+        description:
+          'A guided starter repo seeded from the new-user onboarding template.',
+        idempotencyKey: starterRepoOperationKey.current,
+      });
+      starterRepoOperationKey.current = null;
+      const created = result.project;
+      await refreshProjects(currentOrg.id);
       onClose();
       router.push(`/projects/${created.id}/data`);
     } catch (error) {
@@ -399,7 +408,7 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
     } finally {
       setStarterRepoLoading(false);
     }
-  }, [onClose, router, starterRepoLoading]);
+  }, [currentOrg?.id, onClose, router, starterRepoLoading]);
 
   const closeDisconnectModal = () => {
     setDisconnectConfirmation({ visible: false, platformId: null });
@@ -752,7 +761,7 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
             {/* Tab heading — 14px / 600 / `T.text1`. A notch smaller
                 than the previous 16px so the heading doesn't shout
                 over the 15px card titles directly below it
-                (workspace name / "Free" plan), and the modal feels
+                (workspace name / billing handoff), and the modal feels
                 like the same scale as the page-level Settings header
                 (13px / 500 across /(main)). */}
             <div
@@ -909,7 +918,7 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                         textTransform: 'uppercase',
                       }}
                     >
-                      Plan
+                      Billing
                     </div>
                     <div
                       style={{
@@ -918,7 +927,7 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                         color: T.text1,
                       }}
                     >
-                      Free
+                      PuppyOne Desktop
                     </div>
                     <div
                       style={{
@@ -934,7 +943,7 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                         lineHeight: 1.6,
                       }}
                     >
-                      Manage your subscription and billing settings.
+                      View the authoritative plan, usage, and billing settings in the Desktop app.
                     </div>
                   </div>
                 </div>

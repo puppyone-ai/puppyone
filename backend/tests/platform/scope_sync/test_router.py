@@ -21,10 +21,9 @@ class _Scope:
     id: str
     project_id: str
     path: str
-    is_root: bool
 
 
-_SCOPES = [_Scope("s1", "proj-1", "docs", False), _Scope("s-root", "proj-1", "", True)]
+_SCOPES = [_Scope("s1", "proj-1", "docs")]
 _LOOKUP = {s.id: s for s in _SCOPES}
 
 

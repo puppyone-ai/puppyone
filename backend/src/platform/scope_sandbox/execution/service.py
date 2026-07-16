@@ -10,16 +10,21 @@ Configuration (in backend/src/config.py):
   - "auto": Auto-select (use E2B if E2B_API_KEY exists, otherwise use Docker)
 """
 
+import asyncio
+import logging
 import re
 import time
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
+
+from src.platform.project.write_lease import ProjectWriteLease, ProjectWriteLeaseFactory
 
 from .base import SandboxBase
-
 
 _SECRET_ASSIGNMENT = re.compile(
     r"(?i)\b([A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|API_KEY))\s*=\s*([^\s;&|]+)"
 )
+logger = logging.getLogger(__name__)
 
 
 def _audit_command_preview(command: str) -> str:
@@ -38,8 +43,9 @@ class SandboxService:
 
     def __init__(
         self,
-        sandbox_impl: Optional[SandboxBase] = None,
-        sandbox_factory: Optional[Callable[[], Any]] = None,
+        sandbox_impl: SandboxBase | None = None,
+        sandbox_factory: Callable[[], Any] | None = None,
+        write_lease_factory: ProjectWriteLeaseFactory = ProjectWriteLease,
     ):
         """
         Initialize sandbox service
@@ -53,24 +59,173 @@ class SandboxService:
         elif sandbox_factory is not None:
             # Backward compatible: create E2B sandbox using custom factory
             from .e2b_sandbox import E2BSandbox
+
             self._impl = E2BSandbox(sandbox_factory=sandbox_factory)
         else:
             # Auto-create based on configuration
             self._impl = _create_sandbox_impl()
 
-    async def start(self, session_id: str, data: Any, readonly: bool) -> dict:
+        # A key's presence means start() already made the billing decision.
+        # None means billing was disabled or a shadow reservation failed.
+        self._billing_runs: dict[str, str | None] = {}
+        self._billing_timeout_tasks: dict[str, asyncio.Task[None]] = {}
+        self._write_lease_factory = write_lease_factory
+
+    def _session_timeout_seconds(self) -> int:
+        return max(1, int(getattr(self._impl, "_session_timeout", 600)))
+
+    def _cancel_billing_timeout(self, session_id: str) -> None:
+        task = self._billing_timeout_tasks.pop(session_id, None)
+        if task is not None and task is not asyncio.current_task():
+            task.cancel()
+
+    def _arm_billing_timeout(self, session_id: str) -> None:
+        self._cancel_billing_timeout(session_id)
+
+        async def expire() -> None:
+            try:
+                await asyncio.sleep(self._session_timeout_seconds())
+                await self._impl.stop(session_id)
+                await self._finish_billing(session_id)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                # Provider and Runtime recovery both retain durable state; the
+                # cross-worker reapers can safely retry this cleanup.
+                logger.exception(
+                    "sandbox_billing_timeout_cleanup_failed",
+                    extra={"session_id": session_id},
+                )
+
+        self._billing_timeout_tasks[session_id] = asyncio.create_task(expire())
+
+    async def _begin_billing(
+        self,
+        session_id: str,
+        audit_context: dict[str, Any] | None,
+    ) -> str | None:
+        from src.platform.billing.runtime import get_runtime_metering_service
+
+        context = {
+            **(audit_context or {}),
+            "session_id": session_id,
+            "run_id": f"sandbox-session:{session_id}",
+        }
+        if not context.get("maximum_runtime_units"):
+            # Provider sessions have a hard lifetime. Reserve that upper bound
+            # so settlement can never exceed the authorized units merely
+            # because an Agent used the entire provider timeout.
+            timeout_seconds = self._session_timeout_seconds()
+            context["maximum_runtime_units"] = max(1, timeout_seconds // 60 + 1)
+        run_id = await get_runtime_metering_service().start_session(audit_context=context)
+        self._billing_runs[session_id] = run_id
+        return run_id
+
+    async def _cancel_billing(self, session_id: str) -> None:
+        from src.platform.billing.runtime import get_runtime_metering_service
+
+        self._cancel_billing_timeout(session_id)
+        run_id = self._billing_runs.pop(session_id, None)
+        if not run_id:
+            return
+        try:
+            await get_runtime_metering_service().cancel_session(run_id)
+        except Exception:
+            # The durable run is retried by the billing recovery loop. Never
+            # replace the provider's start error with compensation noise.
+            logger.exception("sandbox_runtime_cancellation_failed", extra={"run_id": run_id})
+
+    async def _finish_billing(self, session_id: str) -> None:
+        from src.platform.billing.runtime import get_runtime_metering_service
+
+        self._cancel_billing_timeout(session_id)
+        run_id = self._billing_runs.pop(session_id, None)
+        if not run_id:
+            return
+        try:
+            await get_runtime_metering_service().finish_session(run_id)
+        except Exception:
+            logger.exception("sandbox_runtime_settlement_failed", extra={"run_id": run_id})
+
+    async def start(
+        self,
+        session_id: str,
+        data: Any,
+        readonly: bool,
+        *,
+        audit_context: dict[str, Any] | None = None,
+    ) -> dict:
         """Create a sandbox session and preload a single JSON data"""
-        return await self._impl.start(session_id, data, readonly)
+        project_id = str((audit_context or {}).get("project_id") or "")
+
+        async def admitted_start() -> dict:
+            await self._begin_billing(session_id, audit_context)
+            try:
+                if project_id:
+                    result = await self._impl.start(
+                        session_id,
+                        data,
+                        readonly,
+                        project_id=project_id,
+                    )
+                else:
+                    result = await self._impl.start(session_id, data, readonly)
+            except Exception:
+                await self._cancel_billing(session_id)
+                raise
+            if not result.get("success"):
+                await self._cancel_billing(session_id)
+            else:
+                self._arm_billing_timeout(session_id)
+            return result
+
+        if not project_id:
+            return await admitted_start()
+        async with self._write_lease_factory(project_id, "sandbox.execution.start"):
+            return await admitted_start()
 
     async def start_with_files(
         self,
         session_id: str,
         files: list,
         readonly: bool,
-        s3_service: Optional[Any] = None
+        s3_service: Any | None = None,
+        *,
+        audit_context: dict[str, Any] | None = None,
     ) -> dict:
         """Create a sandbox session and preload multiple files"""
-        return await self._impl.start_with_files(session_id, files, readonly, s3_service)
+        project_id = str((audit_context or {}).get("project_id") or "")
+
+        async def admitted_start() -> dict:
+            await self._begin_billing(session_id, audit_context)
+            try:
+                if project_id:
+                    result = await self._impl.start_with_files(
+                        session_id,
+                        files,
+                        readonly,
+                        s3_service,
+                        project_id=project_id,
+                    )
+                else:
+                    result = await self._impl.start_with_files(
+                        session_id, files, readonly, s3_service
+                    )
+            except Exception:
+                await self._cancel_billing(session_id)
+                raise
+            if not result.get("success"):
+                await self._cancel_billing(session_id)
+            else:
+                self._arm_billing_timeout(session_id)
+            return result
+
+        if not project_id:
+            return await admitted_start()
+        async with self._write_lease_factory(
+            project_id, "sandbox.execution.start_with_files"
+        ):
+            return await admitted_start()
 
     async def exec(
         self,
@@ -86,6 +241,7 @@ class SandboxService:
         same blacklist. Defense-in-depth over the container boundary (ISSUE-010).
         """
         from src.platform.analytics.service import log_bash_execution
+
         from ..execution_policy import SandboxCommandRejected, assert_command_allowed
 
         context = audit_context or {}
@@ -108,7 +264,20 @@ class SandboxService:
             raise
 
         try:
-            result = await self._impl.exec(session_id, command)
+            if session_id in self._billing_runs:
+                result = await self._impl.exec(session_id, command)
+            else:
+                # Compatibility for third-party callers not yet passing context
+                # at start(). First-party hosted paths meter the full session.
+                from src.platform.billing.runtime import get_runtime_metering_service
+
+                result = await get_runtime_metering_service().execute(
+                    audit_context={
+                        **context,
+                        "session_id": context.get("session_id") or session_id,
+                    },
+                    operation=lambda: self._impl.exec(session_id, command),
+                )
         except Exception as exc:
             await log_bash_execution(
                 command=_audit_command_preview(command),
@@ -150,7 +319,10 @@ class SandboxService:
 
     async def stop(self, session_id: str) -> dict:
         """Stop and clean up a sandbox session"""
-        return await self._impl.stop(session_id)
+        result = await self._impl.stop(session_id)
+        if result.get("success"):
+            await self._finish_billing(session_id)
+        return result
 
     async def status(self, session_id: str) -> dict:
         """Get sandbox session status"""
@@ -159,12 +331,14 @@ class SandboxService:
     async def stop_all(self) -> None:
         """Stop all sandbox sessions"""
         await self._impl.stop_all()
+        for session_id in list(self._billing_runs):
+            await self._finish_billing(session_id)
 
     @property
     def sandbox_type(self) -> str:
         """Return the currently used sandbox type"""
-        from .e2b_sandbox import E2BSandbox
         from .docker_sandbox import DockerSandbox
+        from .e2b_sandbox import E2BSandbox
 
         if isinstance(self._impl, E2BSandbox):
             return "e2b"
@@ -200,10 +374,12 @@ def _create_sandbox_impl() -> SandboxBase:
         if not settings.E2B_API_KEY:
             raise RuntimeError("E2B_API_KEY is required for E2B sandbox execution")
         from .e2b_sandbox import E2BSandbox
+
         print("[SandboxService] Initializing E2B cloud sandbox")
         return E2BSandbox()
     else:
         from .docker_sandbox import DockerSandbox
+
         print("[SandboxService] Initializing Docker local sandbox")
         return DockerSandbox()
 

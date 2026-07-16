@@ -7,6 +7,22 @@
  * Supabase, or any platform runtime (see check-data-ui-boundaries).
  */
 export type { CloudTransport } from "./transport";
+export {
+  repositoryTargetKey,
+  sameRepositoryTarget,
+  projectRootRepositoryView,
+  repositoryScopeView,
+  repositoryViewKey,
+  matchRepositoryViewForPath,
+  REPOSITORY_TARGET_CONTRACT_HEADER,
+  REPOSITORY_TARGET_CONTRACT_VERSION,
+} from "./repositoryTargets";
+export type {
+  ProjectRootTarget,
+  ScopeTarget,
+  RepositoryTarget,
+  RepositoryView,
+} from "./repositoryTargets";
 
 // ── Access-provider registry (pure domain data + helpers) ────────────────
 export * from "./accessProviders";
@@ -34,7 +50,7 @@ export type {
 
 // ── Repo scopes ───────────────────────────────────────────────────────────
 export { createScopesApi, matchScopeForPath, isWithinScope } from "./endpoints/scopes";
-export type { RepoScope, ScopeMode } from "./endpoints/scopes";
+export type { RepositoryScope, ScopeMode } from "./endpoints/scopes";
 
 // ── Connectors + repo identity ────────────────────────────────────────────
 export {

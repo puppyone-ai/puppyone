@@ -7,9 +7,11 @@ caring whether they came from Supabase, an in-memory store, or a test stub.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Optional
+
+from src.platform.repository_target.models import RepositoryTarget, repository_target_scope_id
 
 IMPORT_ONLY_CONNECTOR_PROVIDERS = frozenset({"github"})
 DEPRECATED_ACCESS_CONNECTOR_PROVIDERS = frozenset({"filesystem"})
@@ -20,24 +22,47 @@ DEPRECATED_ACCESS_CONNECTOR_PROVIDERS = frozenset({"filesystem"})
 # ──────────────────────────────────────────────────────────────────────────
 
 @dataclass
-class RepoScope:
-    """A subtree of a repo.
-
-    ``access_key`` is transient and populated only on create/regenerate
-    responses; persisted credentials belong to access_surface_credentials.
-    """
+class RepositoryScope:
+    """A real, non-empty path boundary within a Project repository."""
 
     id: str
     project_id: str
     name: str
-    path: str                       # canonical: '' for root, no leading/trailing /
+    path: str                       # canonical, non-empty, no leading/trailing /
     exclude: list[str]
-    mode: str                       # 'r' | 'rw'
-    is_root: bool
-    access_key: str
-    access_key_revoked_at: Optional[datetime]
+    max_mode: str                   # 'r' | 'rw'
     created_at: datetime
     updated_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class ResolvedAccessSurfaceCredential:
+    """An authenticated CLI Access Surface before Scope geometry is loaded."""
+
+    credential_id: str
+    credential_type: str
+    access_surface_id: str
+    project_id: str
+    scope_id: str
+    mode_ceiling: str
+
+
+@dataclass(frozen=True, slots=True)
+class ResolvedScopeCredential:
+    """A machine credential and its exact, capability-clamped Scope target."""
+
+    credential_id: str
+    credential_type: str
+    access_surface_id: str
+    scope: RepositoryScope
+
+    @property
+    def project_id(self) -> str:
+        return self.scope.project_id
+
+    @property
+    def scope_id(self) -> str:
+        return self.scope.id
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -46,11 +71,10 @@ class RepoScope:
 
 @dataclass
 class Connector:
-    """Compatibility DTO for scope-bound Access surfaces."""
+    """Compatibility DTO for Project-root or Scope-bound Access surfaces."""
 
     id: str
-    project_id: str
-    scope_id: str
+    target: RepositoryTarget
     provider: str                   # 'cli', 'agent', 'notion', 'gmail', ...
     name: str
     direction: str                  # 'bidirectional' | 'inbound' | 'outbound'
@@ -67,9 +91,17 @@ class Connector:
     updated_at: datetime
 
     @property
+    def project_id(self) -> str:
+        return self.target.project_id
+
+    @property
+    def scope_id(self) -> Optional[str]:
+        return repository_target_scope_id(self.target)
+
+    @property
     def is_builtin(self) -> bool:
-        # Built-in Access surfaces are tied to the scope lifecycle and cannot
-        # be deleted or manually run through the legacy connector API.
+        # Standard Access surfaces have dedicated lifecycle operations and
+        # cannot be deleted or manually run through the connector facade.
         return self.provider in ("git_remote", "cli", "agent")
 
     @property

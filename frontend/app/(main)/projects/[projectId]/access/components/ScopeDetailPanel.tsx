@@ -42,7 +42,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StatusIndicator } from '@/components/ui/StatusDot';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import { getAccessProviderMethodMeta, isMcpProvider } from '@/lib/accessProviderRegistry';
-import type { Connector, RepoScope } from '@/lib/repoApi';
+import type { Connector, RepositoryView } from '@/lib/repoApi';
 import { PROJECT_CONTENT_RAIL_WIDTH } from '@/lib/layout';
 import { T } from '../lib/tokens';
 import { STATUS_LABEL } from '../lib/constants';
@@ -69,8 +69,11 @@ export function ScopeDetailPanel({
   onScopeMutated,
   onScopeDeleted,
   canManage,
+  enablingStandardAccess,
+  enableStandardAccessError,
+  onEnableStandardAccess,
 }: {
-  readonly scope: RepoScope | undefined;
+  readonly scope: RepositoryView | undefined;
   readonly connectors: readonly Connector[];
   readonly projectId: string;
   readonly onPauseResume: (id: string) => void;
@@ -81,10 +84,13 @@ export function ScopeDetailPanel({
    *  a save / rotate / delete inside the inline settings block. */
   readonly onScopeMutated: () => Promise<unknown>;
   /** Notify the parent that the active scope was deleted, so it can
-   *  clear its `selectedScopeId` and let the auto-select-first effect
+   *  clear its `selectedTargetKey` and let the auto-select-first effect
    *  pick up an adjacent scope on the next render. */
   readonly onScopeDeleted: () => void;
   readonly canManage: boolean;
+  readonly enablingStandardAccess: boolean;
+  readonly enableStandardAccessError: string | null;
+  readonly onEnableStandardAccess: () => void;
 }) {
   // Track the currently-expanded access point. Defaults to collapsed
   // so first-time users see the compact access point list before drilling
@@ -132,6 +138,9 @@ export function ScopeDetailPanel({
   }, [onScopeDeleted]);
 
   const visibleConnectors = connectors;
+  const hasStandardAccess = visibleConnectors.some(
+    (connector) => connector.provider === 'git_remote' || connector.provider === 'cli',
+  );
   const hasMcpMethod = visibleConnectors.some((connector) => isMcpProvider(connector.provider));
   const methodCount = visibleConnectors.length + (scope ? 1 : 0) + (scope && !hasMcpMethod ? 1 : 0);
 
@@ -204,6 +213,56 @@ export function ScopeDetailPanel({
           </SettingsSection>
         ) : null}
 
+        {scope && canManage && !hasStandardAccess ? (
+          <div
+            style={{
+              marginTop: 18,
+              padding: '14px 16px',
+              borderRadius: 8,
+              border: `1px dashed ${T.cardBorder}`,
+              background: T.cardBg,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 16,
+              fontFamily: T.fontSans,
+            }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <div style={{ color: T.text1, fontSize: 13, fontWeight: 600 }}>
+                Enable Git and PuppyOne CLI
+              </div>
+              <div style={{ color: T.text3, fontSize: 12, lineHeight: '18px', marginTop: 3 }}>
+                This target exists independently. Enable its standard access methods when needed.
+              </div>
+              {enableStandardAccessError ? (
+                <div style={{ color: 'var(--po-danger)', fontSize: 12, marginTop: 6 }}>
+                  {enableStandardAccessError}
+                </div>
+              ) : null}
+            </div>
+            <button
+              type='button'
+              onClick={onEnableStandardAccess}
+              disabled={enablingStandardAccess}
+              style={{
+                height: 32,
+                padding: '0 12px',
+                borderRadius: 6,
+                border: `1px solid ${T.border}`,
+                background: 'var(--po-control)',
+                color: T.text1,
+                cursor: enablingStandardAccess ? 'wait' : 'pointer',
+                fontSize: 12,
+                fontWeight: 600,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {enablingStandardAccess ? 'Enabling…' : 'Enable access'}
+            </button>
+          </div>
+        ) : null}
+
         {/* ACCESS METHODS — cards start directly under the scope header. */}
         {methodCount > 0 ? (
           <div style={{ marginTop: 18 }}>
@@ -226,7 +285,9 @@ export function ScopeDetailPanel({
                 onCreated={onScopeMutated}
               />
             ) : null}
-            {canManage && scope ? <SandboxConnectCard scope={scope} projectId={projectId} /> : null}
+            {canManage && scope?.target.kind === 'scope'
+              ? <SandboxConnectCard scope={scope} projectId={projectId} />
+              : null}
           </div>
         ) : (
           <div

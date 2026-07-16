@@ -3,7 +3,7 @@
 import React, { memo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { GitPullRequestArrow } from 'lucide-react';
+import { GitPullRequestArrow, LayoutTemplate } from 'lucide-react';
 import useSWR from 'swr';
 import { projectAllows, type ProjectInfo } from '../lib/projectsApi';
 import type { OrganizationInfo } from '../lib/organizationsApi';
@@ -300,6 +300,11 @@ export const AppSidebar = memo(function AppSidebar({
       badgeLoading: projectsLoading,
     },
     {
+      id: 'templates',
+      label: t('templates'),
+      icon: <LayoutTemplate size={15} strokeWidth={2} />,
+    },
+    {
       id: 'team',
       label: t('team'),
       icon: (
@@ -341,6 +346,8 @@ export const AppSidebar = memo(function AppSidebar({
       onNavigate={(viewId) => {
         if (viewId === 'home') {
           router.push('/home');
+        } else if (viewId === 'templates') {
+          router.push('/templates');
         } else if (viewId === 'team') {
           router.push('/team');
         } else if (viewId === 'billing') {

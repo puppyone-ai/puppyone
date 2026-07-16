@@ -83,6 +83,17 @@ Do not put Expand and Contract in the same release. A fresh install with zero
 legacy rows may apply the final Contract without running irrelevant historical
 data jobs.
 
+An identity-representation cutover may intentionally use one atomic Contract
+without a dual-write phase only when both representations cannot safely coexist
+and all of the following stricter gates hold: a read-only immutable preflight,
+exact checksum receipt, mutation freeze, database restore point, one-transaction
+mapping, previous-schema upgrade fixture, dirty-data rejection proving no
+receipt/no mutation, credential-ID/hash continuity, and same-SHA application
+deployment. ISSUE-039 is this narrow case: keeping both a synthetic root Scope
+and Project-root identity would preserve the ambiguity the change removes. This
+exception does not permit ordinary feature Expand and Contract work to be
+collapsed.
+
 ## Operator commands
 
 From `backend/`:
@@ -139,6 +150,8 @@ Pull requests must pass:
 - an artifact checksum pinned in every destructive Contract;
 - fresh database rebuild and pgTAP;
 - legacy fixture -> data runner -> idempotent rerun -> Contract;
+- corruption fixture -> failed preflight -> no receipt and no schema mutation;
+- concurrent idempotent target enable and existing-credential continuity;
 - targeted backend runner and authorization-boundary tests;
 - no shared-database credentials in pull-request jobs.
 
@@ -168,6 +181,31 @@ label changes re-run the same trusted metadata-only gate.
 The Qubits schema workflow runs on every `qubits` push, including code-only
 commits. This makes the exact-SHA requirement automatic instead of forcing a
 manual re-run after the last non-database commit in a release.
+
+### Application deployment ordering
+
+Schema deployment is a prerequisite of application deployment for the same
+source SHA. Every Railway service sourced from `qubits` (API and all workers)
+must enable GitHub Autodeploy **Wait for CI**. Railway then keeps the candidate
+deployment waiting until the push workflows, including `migrate-staging.yml`,
+finish successfully and skips the candidate if any workflow fails. A service
+must never be configured to become live from a `qubits` push while the database
+workflow for that SHA is still running. See Railway's
+[GitHub Autodeploy controls](https://docs.railway.com/deployments/github-autodeploys).
+
+This ordering is an environment setting as well as a repository contract. The
+release operator verifies **Wait for CI** for every service whenever a service
+is created, reconnected to GitHub, or changes its source branch. The schema
+attestation remains the durable evidence; a green application build alone is
+not evidence that its database contract exists.
+
+Runtime handling is defense in depth, not a substitute for ordering. A missing
+required database function or schema capability returns a sanitized,
+retryable `503 database_schema_outdated`; clients keep durable operation state
+and retry. Raw PostgREST/SQL errors and function signatures never cross the API
+boundary. Local code ahead of remote `qubits` uses a local database or accepts
+this fail-closed response; developers do not push migrations from laptops to a
+shared environment.
 
 When a data artifact contains `contract.pending.sql`, repository policy
 requires the promoted Contract migration to be a byte-for-byte copy. Its

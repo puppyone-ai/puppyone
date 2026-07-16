@@ -1,5 +1,9 @@
 import { createBrowserClient } from '@supabase/ssr';
 import { API_BASE_URL } from '@/config/api';
+import {
+  REPOSITORY_TARGET_CONTRACT_HEADER,
+  REPOSITORY_TARGET_CONTRACT_VERSION,
+} from '@puppyone/cloud-core';
 
 /**
  * Shared API client.
@@ -248,6 +252,7 @@ export async function apiRequest<T>(
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    [REPOSITORY_TARGET_CONTRACT_HEADER]: REPOSITORY_TARGET_CONTRACT_VERSION,
     ...(fetchOptions.headers as Record<string, string>),
   };
 

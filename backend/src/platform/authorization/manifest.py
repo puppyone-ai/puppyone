@@ -47,8 +47,14 @@ PROJECT_ROUTE_AUTHORIZATION: dict[
     ("GET", "/api/v1/projects/{project_id}/authorization"): _human(ProjectAction.PROJECT_READ),
     ("GET", "/api/v1/projects/{project_id}/dashboard"): _human(ProjectAction.PROJECT_READ),
     ("GET", "/api/v1/projects/{project_id}/readiness"): _human(ProjectAction.PROJECT_READ),
+    ("GET", "/api/v1/projects/{project_id}/git-view/health"): _human(ProjectAction.PROJECT_READ),
+    ("POST", "/api/v1/projects/{project_id}/git-view/rebuild-cache"): _human(ProjectAction.PROJECT_MANAGE),
     ("PUT", "/api/v1/projects/{project_id}"): _human(ProjectAction.PROJECT_MANAGE),
     ("DELETE", "/api/v1/projects/{project_id}"): _human(ProjectAction.PROJECT_DELETE),
+    (
+        "POST",
+        "/api/v1/projects/{project_id}/initialization/abandon",
+    ): _owner("project_initialization.operation_owner"),
     ("POST", "/api/v1/projects/{project_id}/seed"): _human(ProjectAction.CONTENT_WRITE),
     ("GET", "/api/v1/projects/{project_id}/members"): _human(ProjectAction.MEMBERS_READ),
     ("POST", "/api/v1/projects/{project_id}/members"): _human(ProjectAction.MEMBERS_MANAGE),
@@ -57,10 +63,9 @@ PROJECT_ROUTE_AUTHORIZATION: dict[
     ("GET", "/api/v1/projects/{project_id}/share"): _human(ProjectAction.SHARE_MANAGE),
     ("POST", "/api/v1/projects/{project_id}/share/rotate"): _human(ProjectAction.SHARE_MANAGE),
 
-    # Explicit local workspace binding.
-    ("POST", "/api/v1/projects/{project_id}/workspace-bindings"): _human(ProjectAction.BIND_READONLY),
-    ("GET", "/api/v1/projects/{project_id}/workspace-bindings"): _human(ProjectAction.BIND_READONLY),
-    ("DELETE", "/api/v1/projects/{project_id}/workspace-bindings/{binding_id}"): _human(ProjectAction.BIND_MANAGE),
+    # A human ProjectGrant may mint a user-owned credential for one exact Git
+    # target. The credential is a data-plane principal, not a local checkout.
+    ("POST", "/api/v1/projects/{project_id}/git-credentials"): _human(ProjectAction.CONTENT_READ),
 
     # Content, History and conflict surfaces.
     **{
@@ -94,12 +99,12 @@ PROJECT_ROUTE_AUTHORIZATION: dict[
     ("POST", "/api/v1/projects/{project_id}/scopes"): _human(ProjectAction.SCOPE_MANAGE),
     ("PATCH", "/api/v1/projects/{project_id}/scopes/{scope_id}"): _human(ProjectAction.SCOPE_MANAGE),
     ("DELETE", "/api/v1/projects/{project_id}/scopes/{scope_id}"): _human(ProjectAction.SCOPE_MANAGE),
-    ("POST", "/api/v1/projects/{project_id}/scopes/{scope_id}/regenerate-key"): _human(ProjectAction.CREDENTIAL_MANAGE),
     ("POST", "/api/v1/projects/{project_id}/scopes/auto-suggest"): _human(ProjectAction.CONTENT_READ),
     ("GET", "/api/v1/projects/{project_id}/access-point"): _human(ProjectAction.ACCESS_READ),
     ("PATCH", "/api/v1/projects/{project_id}/access-point"): _human(ProjectAction.PROJECT_MANAGE),
     ("GET", "/api/v1/projects/{project_id}/connectors"): _human(ProjectAction.ACCESS_READ),
     ("POST", "/api/v1/projects/{project_id}/connectors"): _human(ProjectAction.INTEGRATION_MANAGE),
+    ("POST", "/api/v1/projects/{project_id}/connectors/enable-target"): _human(ProjectAction.ACCESS_MANAGE),
     ("PATCH", "/api/v1/projects/{project_id}/connectors/{connector_id}"): _human(ProjectAction.INTEGRATION_MANAGE),
     ("DELETE", "/api/v1/projects/{project_id}/connectors/{connector_id}"): _human(ProjectAction.INTEGRATION_MANAGE),
     ("POST", "/api/v1/projects/{project_id}/connectors/{connector_id}/activate-agent"): _human(ProjectAction.AGENT_MANAGE),
@@ -127,11 +132,16 @@ PROJECT_ROUTE_AUTHORIZATION: dict[
     ("POST", "/git/{project_id}.git/git-upload-pack"): _runtime("git.read"),
     ("POST", "/git/{project_id}.git/git-receive-pack"): _runtime("git.write"),
     ("POST", "/git/{project_id}.git/rebuild-cache"): _runtime("git.admin"),
+    ("GET", "/git/{project_id}/scopes/{scope_id}.git/health"): _runtime("git.health"),
+    ("GET", "/git/{project_id}/scopes/{scope_id}.git/info/refs"): _runtime("git.read"),
+    ("POST", "/git/{project_id}/scopes/{scope_id}.git/git-upload-pack"): _runtime("git.read"),
+    ("POST", "/git/{project_id}/scopes/{scope_id}.git/git-receive-pack"): _runtime("git.write"),
+    ("POST", "/git/{project_id}/scopes/{scope_id}.git/rebuild-cache"): _runtime("git.admin"),
 }
 
 # Query/body/child-resource routes are listed as deliberately as path-scoped
 # routes. A Project id need not appear in the URL for a route to cross a
-# Project boundary: Agent, Tool, Integration and binding ids all derive one.
+# Project boundary: Agent, Tool, Integration, and other resource ids derive one.
 PROJECT_ROUTE_AUTHORIZATION.update({
     # Public-link administration exposes Project content outside the tenant.
     # The opaque /p/{publish_key} reader is a separate public credential plane.
@@ -187,12 +197,8 @@ PROJECT_ROUTE_AUTHORIZATION.update({
     ("PUT", "/api/v1/mcp/agents/{agent_id}/tools/{tool_id}"): _human(ProjectAction.AGENT_MANAGE),
     ("DELETE", "/api/v1/mcp/agents/{agent_id}/tools/{tool_id}"): _human(ProjectAction.AGENT_MANAGE),
 
-    # Workspace binding self-service remains revocable after Project access loss.
-    ("GET", "/api/v1/workspace-bindings/{binding_id}"): _human(ProjectAction.BIND_READONLY),
-    ("POST", "/api/v1/workspace-bindings/{binding_id}/heartbeat"): _human(ProjectAction.BIND_READONLY),
-    ("DELETE", "/api/v1/workspace-bindings/{binding_id}"): _owner("workspace_binding.self_revoke"),
-    ("POST", "/api/v1/workspace-bindings/{binding_id}/credential/rotate"): _human(ProjectAction.BIND_READONLY),
-    ("POST", "/api/v1/desktop/project-bindings/resolve-legacy-remote"): _human(ProjectAction.PROJECT_READ),
+    ("POST", "/api/v1/projects/{project_id}/repository-context"): _human(ProjectAction.PROJECT_READ),
+    ("DELETE", "/api/v1/projects/{project_id}/git-credentials/{credential_id}"): _owner("git_credential.owner"),
 
     # Delegated internal human calls.
     ("POST", "/internal/nodes/resolve-path"): _human(ProjectAction.CONTENT_READ),

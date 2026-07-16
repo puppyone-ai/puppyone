@@ -1,5 +1,5 @@
 """
-Post-commit hooks — keep ``repo_scopes`` consistent with tree mutations.
+Post-commit hooks — keep ``repository_scopes`` consistent with tree mutations.
 
 When files/folders are deleted or moved in a PuppyOne project, scopes
 that referenced those paths need to follow the change (rename) or get
@@ -192,7 +192,7 @@ def run_post_push_hook(
 
         # Move detection — the L4 move op stashes
         # ``{old_path, new_path}`` in ``audit_detail`` so the hook can
-        # dispatch ``post_commit_move`` (rename ``repo_scopes`` rows
+        # dispatch ``post_commit_move`` (rename ``repository_scopes`` rows
         # under the old prefix to the new one) instead of treating the
         # delete+put pair as a real delete. Without this, the
         # ``deleted_paths`` filter below would invoke
@@ -215,7 +215,7 @@ def run_post_push_hook(
             # Strip the delete side of the move from ``deleted_paths``
             # so ``post_commit_delete`` doesn't ALSO fire for the
             # rename's old path — that would race the move's rename
-            # of repo_scopes rows and produce inconsistent state.
+            # of repository_scopes rows and produce inconsistent state.
             move_old_full = (
                 f"{scope_path}/{move_old_path.strip('/')}"
                 if scope_path else move_old_path.strip("/")
@@ -619,7 +619,7 @@ def _warm_git_transport_views(
         excludes = tuple(sorted(normalize_path(item) for item in (scope.get("exclude") or [])))
         views.setdefault((path, excludes), list(excludes))
 
-    # A project may have scope state before its root repo_scopes row exists in
+    # Project view state may exist before any optional repository Scope exists in
     # older fixtures. Keep the root/project Git remote warm in that case too.
     if "" in normalized:
         views.setdefault(("", ()), [])
@@ -1106,33 +1106,30 @@ def _project_root_replaces_scope(scope_path: str, changed_paths: list[str]) -> b
 
 
 def post_commit_delete(project_id: str, deleted_paths: list[str]) -> None:
-    """After deleting paths from the tree, surface any ``repo_scopes`` rows
+    """After deleting paths from the tree, surface any ``repository_scopes`` rows
     whose path is now orphaned. Best-effort: failures log and don't
     propagate.
     """
     if not deleted_paths:
         return
-    _post_commit_delete_repo_scopes(project_id, deleted_paths)
+    _post_commit_delete_repository_scopes(project_id, deleted_paths)
 
 
-def _post_commit_delete_repo_scopes(
+def _post_commit_delete_repository_scopes(
     project_id: str, deleted_paths: list[str],
 ) -> None:
     """New: log scopes whose path falls under a deleted subtree.
 
-    We deliberately DON'T auto-rewrite repo_scopes.path (the column is
-    constrained UNIQUE(project_id, path) — silently moving a scope to ''
-    would conflict with the auto-created root scope).
+    We deliberately DON'T auto-rewrite repository_scopes.path because the
+    target path is an explicit user-owned boundary.
 
     Connector rows attached to the orphaned scope keep their FK; the user
     sees the orphaned scope in /scopes and decides what to do. Logging
     here gives ops a forensics trail."""
     try:
-        from src.repo.scope_repository import RepoScopeRepository
-        scopes = RepoScopeRepository().list_by_project(project_id)
+        from src.repo.scope_repository import RepositoryScopeRepository
+        scopes = RepositoryScopeRepository().list_by_project(project_id)
         for scope in scopes:
-            if scope.is_root:
-                continue   # root scope (path='') is always valid; nothing to do
             scope_path = scope.path or ""
             if scope_path and _path_matches_any(scope_path, deleted_paths):
                 log_warning(
@@ -1141,26 +1138,24 @@ def _post_commit_delete_repo_scopes(
                     f"/scopes UI for user to delete or re-target."
                 )
     except Exception as e:
-        log_error(f"[PostCommit] delete hook (repo_scopes) failed: {e}")
+        log_error(f"[PostCommit] delete hook (repository_scopes) failed: {e}")
 
 
 def post_commit_move(project_id: str, old_prefix: str, new_prefix: str) -> None:
-    """After moving/renaming paths in the tree, rewrite ``repo_scopes.path``
+    """After moving/renaming paths in the tree, rewrite ``repository_scopes.path``
     so scopes that lived under ``old_prefix`` follow the move.
     """
-    _post_commit_move_repo_scopes(project_id, old_prefix, new_prefix)
+    _post_commit_move_repository_scopes(project_id, old_prefix, new_prefix)
 
 
-def _post_commit_move_repo_scopes(
+def _post_commit_move_repository_scopes(
     project_id: str, old_prefix: str, new_prefix: str,
 ) -> None:
-    """Rewrite repo_scopes.path on folder rename."""
+    """Rewrite repository_scopes.path on folder rename."""
     try:
-        from src.repo.scope_repository import RepoScopeRepository
-        scopes = RepoScopeRepository()
+        from src.repo.scope_repository import RepositoryScopeRepository
+        scopes = RepositoryScopeRepository()
         for scope in scopes.list_by_project(project_id):
-            if scope.is_root:
-                continue   # root scope path is always '' — never rewritten
             old_path = scope.path or ""
             if not old_path:
                 continue
@@ -1183,7 +1178,7 @@ def _post_commit_move_repo_scopes(
                     f"conflict with existing scope): {e}"
                 )
     except Exception as e:
-        log_error(f"[PostCommit] move hook (repo_scopes) failed: {e}")
+        log_error(f"[PostCommit] move hook (repository_scopes) failed: {e}")
 
 
 def _path_matches_any(path: str, deleted_paths: list[str]) -> bool:

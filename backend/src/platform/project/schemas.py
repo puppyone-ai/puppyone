@@ -4,10 +4,9 @@ Project API Schemas
 Defines frontend API request/response models, matching the frontend ProjectInfo type.
 """
 
-
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ProjectOut(BaseModel):
@@ -39,14 +38,34 @@ class ProjectAuthorizationOut(BaseModel):
     capabilities: list[str]
 
 
+class ProjectDeletionOut(BaseModel):
+    """Public state of durable Project deletion; storage prefixes stay private."""
+
+    project_id: str
+    deletion_job_id: str
+    status: Literal["pending", "running", "failed", "completed"]
+
+
 class ProjectCreate(BaseModel):
-    """Create project request"""
+    """Strict empty-Project creation request.
+
+    Seeded/template workflows have their own explicit endpoints and are not
+    compatibility fields on this operation.
+    """
+
+    model_config = ConfigDict(extra="forbid")
 
     name: str = Field(min_length=1, max_length=200)
     description: str | None = None
-    org_id: str | None = None
-    seed: bool = False
-    template: str | None = None
+    org_id: str = Field(min_length=1, max_length=200)
+
+    @field_validator("org_id")
+    @classmethod
+    def normalize_org_id(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("org_id must not be blank")
+        return normalized
 
 
 class ProjectUpdate(BaseModel):

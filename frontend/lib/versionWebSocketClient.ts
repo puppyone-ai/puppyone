@@ -51,7 +51,7 @@ const _CATCH_UP_PAGE_SIZE = 500;
 export interface CommitUpdateEvent {
   type: 'commit_update';
   notification_id: string;
-  scope: string;            // normalised scope_path; '' = root scope
+  scope: string;            // normalized path projection; '' = Project root
   commit_id: string;        // 40-hex SHA-1 git commit object hash
   pushed_by: string;        // agent identity, e.g. 'user:<uuid>'
   message: string;

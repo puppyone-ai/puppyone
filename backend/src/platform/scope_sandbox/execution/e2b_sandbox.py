@@ -15,7 +15,6 @@ from .store import (
     durable_execution_store,
 )
 
-
 # Default sandbox session timeout (seconds)
 DEFAULT_SESSION_TIMEOUT = 1800  # 30 minutes
 
@@ -60,7 +59,14 @@ class E2BSandbox(SandboxBase):
         self._store.put(session)
         return session, sandbox
 
-    async def start(self, session_id: str, data: Any, readonly: bool) -> dict:
+    async def start(
+        self,
+        session_id: str,
+        data: Any,
+        readonly: bool,
+        *,
+        project_id: str | None = None,
+    ) -> dict:
         """Create a sandbox session and preload data into /workspace/data.json"""
         if data is None:
             return {"success": False, "error": "data is required"}
@@ -71,6 +77,7 @@ class E2BSandbox(SandboxBase):
         claim = ExecutionSession(
             session_id=session_id, provider="e2b", resource_id="",
             readonly=bool(readonly), created_at=now, last_activity=now,
+            project_id=project_id,
         )
         if not self._store.insert(claim):
             return {"success": False, "error": "Sandbox session is being started by another worker"}
@@ -116,7 +123,9 @@ class E2BSandbox(SandboxBase):
         session_id: str,
         files: list,
         readonly: bool,
-        s3_service: Optional[Any] = None
+        s3_service: Optional[Any] = None,
+        *,
+        project_id: str | None = None,
     ) -> dict:
         """
         Create a sandbox session and preload multiple files
@@ -135,6 +144,7 @@ class E2BSandbox(SandboxBase):
         claim = ExecutionSession(
             session_id=session_id, provider="e2b", resource_id="",
             readonly=bool(readonly), created_at=now, last_activity=now,
+            project_id=project_id,
         )
         if not self._store.insert(claim):
             return {"success": False, "error": "Sandbox session is being started by another worker"}

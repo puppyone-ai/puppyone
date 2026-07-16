@@ -1,11 +1,10 @@
 'use client';
 
-import { useCallback, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { StatusDot, StatusIndicator } from '@/components/ui/StatusDot';
-import type { Connector, RepoScope } from '@/lib/repoApi';
+import type { Connector, RepositoryView } from '@/lib/repoApi';
 import { T } from '../lib/tokens';
 import { STATUS_LABEL } from '../lib/constants';
-import { CopyIcon } from './icons';
 import { SectionLabel } from './ui-blocks';
 
 // ─── ScopePageHeader ─────────────────────────────────────────────────
@@ -61,7 +60,7 @@ export function ScopePageHeader({
   onToggleSettings,
   canManage,
 }: {
-  readonly scope: RepoScope | undefined;
+  readonly scope: RepositoryView | undefined;
   readonly connectors: readonly Connector[];
   readonly settingsOpen: boolean;
   readonly settingsDirty: boolean;
@@ -70,9 +69,9 @@ export function ScopePageHeader({
 }) {
   const titleText = scope?.name?.trim() || 'Untitled scope';
   const aggregate = computeAggregate(connectors);
-  const isWorkspaceWide = scope?.is_root || scope?.path === '' || scope?.path == null;
+  const isWorkspaceWide = scope?.target.kind === 'project_root';
   const pathLabel = isWorkspaceWide ? '/' : `/${scope?.path ?? ''}`;
-  const modeLabel = scope?.mode === 'rw' ? 'Read & write' : 'Read only';
+  const modeLabel = scope?.max_mode === 'rw' ? 'Read & write' : 'Read only';
 
   return (
     <div
@@ -140,7 +139,7 @@ export function ScopePageHeader({
               fontWeight: 400,
             }}
           >
-            Scope
+            {isWorkspaceWide ? 'Project repository' : 'Scope'}
           </span>
           <span
             style={{
@@ -159,12 +158,6 @@ export function ScopePageHeader({
           <span style={{ color: T.text2, flexShrink: 0 }}>
             {modeLabel}
           </span>
-          {scope ? (
-            <>
-              <span aria-hidden style={{ color: T.text4, flexShrink: 0 }}>·</span>
-              <ScopeAccessKeyInline accessKey={scope.access_key ?? ''} />
-            </>
-          ) : null}
         </div>
       </div>
       <div style={{ flexShrink: 0, marginTop: 2, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -178,85 +171,8 @@ export function ScopePageHeader({
   );
 }
 
-function ScopeAccessKeyInline({ accessKey }: { readonly accessKey: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = useCallback(async () => {
-    if (!accessKey) return;
-    try {
-      await navigator.clipboard.writeText(accessKey);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1400);
-    } catch {
-      /* clipboard unavailable */
-    }
-  }, [accessKey]);
-
-  return (
-    <span
-      style={{
-        display: 'inline-flex',
-        alignItems: 'baseline',
-        gap: 6,
-        minWidth: 0,
-        color: T.text2,
-      }}
-    >
-      <span style={{ flexShrink: 0 }}>Access key</span>
-      <code
-        title={accessKey ? maskAccessKey(accessKey) : undefined}
-        style={{
-          maxWidth: 136,
-          minWidth: 0,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-          color: accessKey ? T.text2 : T.text3,
-          fontFamily: T.fontMono,
-          fontSize: 12,
-          lineHeight: '16px',
-        }}
-      >
-        {accessKey ? maskAccessKey(accessKey) : 'Preparing'}
-      </code>
-      <button
-        type='button'
-        aria-label='Copy access key'
-        title='Copy access key'
-        disabled={!accessKey}
-        onClick={handleCopy}
-        style={{
-          width: 18,
-          height: 18,
-          border: 'none',
-          borderRadius: 5,
-          background: 'transparent',
-          color: copied ? 'var(--po-success)' : T.text2,
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: 0,
-          opacity: accessKey ? 1 : 0.45,
-          cursor: accessKey ? 'pointer' : 'default',
-          transform: 'translateY(2px)',
-        }}
-      >
-        <CopyIcon size={11} />
-      </button>
-    </span>
-  );
-}
-
-function maskAccessKey(accessKey: string): string {
-  if (!accessKey) return '';
-  const [prefix, rest = ''] = accessKey.split('_', 2);
-  const suffix = rest.slice(-4);
-  if (!prefix || !suffix) return '••••';
-  return `${prefix}_••••••••${suffix}`;
-}
-
-export function formatScopePath(scope: RepoScope): string {
-  if (scope.is_root || !scope.path) return '/';
+export function formatScopePath(scope: RepositoryView): string {
+  if (scope.target.kind === 'project_root') return '/';
   return `/${scope.path}`;
 }
 

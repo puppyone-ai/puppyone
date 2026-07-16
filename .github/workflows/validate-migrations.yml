@@ -130,8 +130,6 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
         run: |
           supabase db reset --no-seed
-          psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 \
-            -f supabase/data_migrations/20260712_repo_user_permissions_to_project_members/contract.pending.sql
           supabase test db
 
       - name: Verify historical Project creator repair, retry, and receipt
@@ -149,22 +147,11 @@ jobs:
           psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 \
             -f supabase/data_migrations/20260713_reconcile_project_creator_admin/test_assert.sql
 
-      - name: Verify legacy-data upgrade, retry, receipt, and contract path
+      - name: Verify repository-target upgrade, concurrency, and dirty-data blocking
         env:
           DATA_MIGRATION_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
-        run: |
-          supabase db reset --no-seed
-          psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 \
-            -f supabase/data_migrations/20260712_repo_user_permissions_to_project_members/test_fixture.sql
-          cd backend
-          uv run puppyone-db run 20260712_repo_user_permissions_to_project_members
-          uv run puppyone-db run 20260712_repo_user_permissions_to_project_members
-          cd ..
-          psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 \
-            -f supabase/data_migrations/20260712_repo_user_permissions_to_project_members/contract.pending.sql
-          psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 \
-            -f supabase/data_migrations/20260712_repo_user_permissions_to_project_members/test_assert.sql
+        run: scripts/test-repository-target-migration.sh
 
       - name: Stop ephemeral Supabase
         if: always()

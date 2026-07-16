@@ -4,7 +4,8 @@ import { useCallback, useMemo, useState, type CSSProperties, type MouseEvent } f
 import { ExternalLink } from 'lucide-react';
 import { AiHandoffButton } from '@/components/ui/AiHandoffButton';
 import { buildGitSyncPrompt, buildMcpSetupPrompt, buildTerminalCliPrompt } from '@/lib/accessPointCliPrompt';
-import type { Connector, RepoScope } from '@/lib/repoApi';
+import type { Connector, RepositoryView } from '@/lib/repoApi';
+import { canonicalGitUrlForTarget } from '@/lib/gitRemote';
 import { getAccessProviderPromptKind, isMcpProvider } from '@/lib/accessProviderRegistry';
 import { T } from '../lib/tokens';
 import { getApiBase, profileSlug } from '../lib/format';
@@ -15,7 +16,7 @@ export function ConnectorMethodPrompt({
   onConnect,
 }: {
   readonly connector: Connector;
-  readonly scope: RepoScope | undefined;
+  readonly scope: RepositoryView | undefined;
   readonly onConnect?: () => void;
 }) {
   const mcpSetup = useMcpClientSetup(connector, scope);
@@ -32,7 +33,7 @@ export function ConnectorMethodCopyButton({
   style,
 }: {
   readonly connector: Connector;
-  readonly scope: RepoScope | undefined;
+  readonly scope: RepositoryView | undefined;
   readonly style?: CSSProperties;
 }) {
   const mcpSetup = useMcpClientSetup(connector, scope);
@@ -43,7 +44,7 @@ export function ConnectorMethodCopyButton({
   return <PromptCopyButton prompt={prompt} style={style} />;
 }
 
-function useConnectorSetupPrompt(connector: Connector, scope: RepoScope | undefined): string {
+function useConnectorSetupPrompt(connector: Connector, scope: RepositoryView | undefined): string {
   return useMemo(
     () => buildConnectorSetupPrompt(connector, scope),
     [connector, scope],
@@ -54,10 +55,10 @@ type McpClientSetup = ReturnType<typeof buildMcpSetupPrompt> & {
   readonly apiKey: string;
 };
 
-function useMcpClientSetup(connector: Connector, scope: RepoScope | undefined): McpClientSetup {
+function useMcpClientSetup(connector: Connector, scope: RepositoryView | undefined): McpClientSetup {
   return useMemo(() => {
     const configKey = connector.config?.api_key;
-    const apiKey = typeof configKey === 'string' ? configKey : connector.access_key || '';
+    const apiKey = typeof configKey === 'string' ? configKey : '';
     if (!scope) {
       return {
         apiKey,
@@ -78,7 +79,7 @@ function useMcpClientSetup(connector: Connector, scope: RepoScope | undefined): 
       }),
       apiKey,
     };
-  }, [connector.access_key, connector.config?.api_key, connector.name, scope]);
+  }, [connector.config?.api_key, connector.name, scope]);
 }
 
 function McpMethodSetupPreview({
@@ -320,17 +321,19 @@ function PromptCopyButton({
   );
 }
 
-function buildConnectorSetupPrompt(connector: Connector, scope: RepoScope | undefined): string {
+function buildConnectorSetupPrompt(connector: Connector, scope: RepositoryView | undefined): string {
   if (!scope) return '';
   const apiBase = getApiBase();
   const scopeName = scope.name || (scope.path === '' ? 'root' : scope.path || 'Root');
-  const accessKey = scope.access_key || connector.access_key || '';
+  // Ordinary Connector reads are deliberately secret-free. Credential-bearing
+  // setup is rendered only by explicit one-time issuance panels.
+  const accessKey = '';
   if (isMcpProvider(connector.provider)) {
     return '';
   }
   const promptKind = getAccessProviderPromptKind(connector.provider);
   if (promptKind === 'git_remote') {
-    const gitUrl = `${apiBase}/git/ap/${accessKey || '<access-key>'}.git`;
+    const gitUrl = canonicalGitUrlForTarget(apiBase, scope.target);
     return buildGitSyncPrompt({
       gitUrl,
       scopeName,
@@ -338,6 +341,10 @@ function buildConnectorSetupPrompt(connector: Connector, scope: RepoScope | unde
     }).prompt;
   }
   if (promptKind === 'terminal_cli') {
+    // Plaintext CLI credentials are one-time reveal only. Never build a
+    // copyable prompt with a fake placeholder after an ordinary redacted read;
+    // the Connect panel owns explicit issuance.
+    if (!accessKey) return '';
     return buildTerminalCliPrompt({
       apiBase,
       accessKey,

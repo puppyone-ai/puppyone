@@ -2,8 +2,8 @@ import asyncio
 import io
 import json
 import os
-from types import SimpleNamespace
 import zipfile
+from types import SimpleNamespace
 
 import pytest
 
@@ -80,6 +80,17 @@ class SingleConnectorRegistry:
         return Credentials()
 
 
+class NoopWriteLease:
+    def __init__(self, *_args, **_kwargs):
+        pass
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_args):
+        return False
+
+
 class FakeOps:
     def __init__(self):
         self.bulk_write_call = None
@@ -132,7 +143,7 @@ async def test_import_runner_writes_without_creating_sync_binding(monkeypatch):
         name="repo",
     )
 
-    result = await OneTimeImportRunner().run(job)
+    result = await OneTimeImportRunner(write_lease_factory=NoopWriteLease).run(job)
 
     assert result.path == "repo"
     assert result.commit_id == "commit-1"
@@ -202,7 +213,7 @@ async def test_import_runner_uses_real_github_connector_archive_flow(monkeypatch
         name="tiny",
     )
 
-    result = await OneTimeImportRunner().run(job)
+    result = await OneTimeImportRunner(write_lease_factory=NoopWriteLease).run(job)
 
     written = fake_ops.bulk_write_call["files"]
     assert result.path == "tiny"
@@ -266,7 +277,7 @@ async def test_live_github_import_smoke_octocat_hello_world(monkeypatch):
         },
     )
 
-    result = await OneTimeImportRunner().run(job)
+    result = await OneTimeImportRunner(write_lease_factory=NoopWriteLease).run(job)
 
     written = fake_ops.bulk_write_call["files"]
     assert result.path == "hello-world"

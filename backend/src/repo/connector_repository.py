@@ -48,6 +48,15 @@ class ConnectorRepository:
     ) -> Optional[Connector]:
         return self._repo.get_connector_by_scope_kind(scope_id, provider)
 
+    def get_by_target_provider(
+        self,
+        project_id: str,
+        scope_id: str | None,
+        provider: str,
+    ) -> Optional[Connector]:
+        row = self._repo.get_by_target_kind(project_id, scope_id, provider)
+        return self._repo.get_connector(str(row["id"])) if row else None
+
     def count_third_party_for_scope(self, scope_id: str) -> int:
         return self._repo.count_bound_user_surfaces(scope_id)
 
@@ -57,7 +66,7 @@ class ConnectorRepository:
         self,
         *,
         project_id: str,
-        scope_id: str,
+        scope_id: Optional[str],
         provider: str,
         name: str,
         direction: str,

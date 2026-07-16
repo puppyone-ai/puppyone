@@ -15,16 +15,19 @@ from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
 from src.platform.authorization.dependencies import AuthorizedProject, require_project_action
 from src.platform.authorization.models import ProjectAction
+from src.platform.repository_target.protocol import require_repository_target_contract
+from src.platform.repository_target.schemas import repository_target_domain, repository_target_schema
 from src.repo.connector_service import ConnectorService
 from src.repo.models import Connector
 from src.repo.schemas import (
-    ConnectorIn, ConnectorPatch, ConnectorOut,
+    ConnectorIn, ConnectorPatch, ConnectorOut, TargetAccessEnableIn,
 )
 
 
 router = APIRouter(
     prefix="/projects/{project_id}/connectors",
     tags=["connectors"],
+    dependencies=[Depends(require_repository_target_contract)],
 )
 
 
@@ -35,8 +38,7 @@ def get_connector_service() -> ConnectorService:
 def _to_out(c: Connector) -> ConnectorOut:
     return ConnectorOut(
         id=c.id,
-        project_id=c.project_id,
-        scope_id=c.scope_id,
+        target=repository_target_schema(c.target),
         provider=c.provider,
         name=c.name,
         direction=c.direction,                    # type: ignore[arg-type]
@@ -60,7 +62,6 @@ def _to_out(c: Connector) -> ConnectorOut:
     summary="List connectors (optionally filtered)",
 )
 def list_connectors(
-    scope_id: Optional[str] = Query(None),
     provider: Optional[str] = Query(None),
     direction: Optional[str] = Query(None),
     include_non_access: bool = Query(
@@ -77,7 +78,6 @@ def list_connectors(
 ):
     items = service.list(
         str(authorized.project.id),
-        scope_id=scope_id,
         provider=provider,
         direction=direction,
         access_surface_only=not include_non_access,
@@ -102,7 +102,7 @@ def create_connector(
     try:
         c = service.create(
             project_id=str(authorized.project.id),
-            scope_id=payload.scope_id,
+            target=repository_target_domain(payload.target),
             provider=payload.provider,
             direction=payload.direction,
             name=payload.name,
@@ -115,6 +115,36 @@ def create_connector(
     except AppException as e:
         raise HTTPException(status_code=e.status_code, detail=e.message) from e
     return ApiResponse.success(data=_to_out(c), message="Connector created")
+
+
+@router.post(
+    "/enable-target",
+    response_model=ApiResponse[list[ConnectorOut]],
+    summary="Enable Git and CLI for one repository target",
+)
+def enable_target_access(
+    payload: TargetAccessEnableIn,
+    authorized: AuthorizedProject = Depends(
+        require_project_action(ProjectAction.ACCESS_MANAGE)
+    ),
+    current_user: CurrentUser = Depends(get_current_user),
+    service: ConnectorService = Depends(get_connector_service),
+):
+    try:
+        connectors = service.enable_target_defaults(
+            project_id=str(authorized.project.id),
+            target=repository_target_domain(payload.target),
+            created_by=current_user.user_id,
+        )
+    except AppException as error:
+        raise HTTPException(
+            status_code=error.status_code,
+            detail=error.message,
+        ) from error
+    return ApiResponse.success(
+        data=[_to_out(connector) for connector in connectors],
+        message="Repository target access enabled",
+    )
 
 
 @router.patch(

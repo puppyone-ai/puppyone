@@ -50,10 +50,11 @@ class SandboxSpec:
     memory_mb: int = 2048
     region: str | None = None
     ssh_port: int = 22
-    # Server-side scope access material (e.g. git remote URL + access key) is
-    # injected into the sandbox here so the user never sees the raw key. Held
-    # provider-side, never returned to the client.
+    # Non-secret runtime environment injected at creation. Secrets needed by
+    # bootstrap belong in metadata and cross through provider.write_secret().
     env: dict[str, str] = field(default_factory=dict)
+    # Server-only bootstrap facts. Providers must not copy this dictionary into
+    # machine configuration or process environment.
     metadata: dict[str, object] = field(default_factory=dict)
 
 
@@ -140,6 +141,22 @@ class SandboxProvider(ABC):
         """
         raise NotImplementedError(
             f"{self.capabilities().name} provider does not support exec()"
+        )
+
+    async def write_secret(
+        self,
+        sandbox_id: str,
+        relative_path: str,
+        value: str,
+    ) -> None:
+        """Write a mode-0600 secret below the sandbox user's home directory.
+
+        Implementations must transport ``value`` outside command arguments and
+        must not include it in errors or logs. This is the renewal channel for
+        ephemeral Git credentials in warm sandboxes.
+        """
+        raise NotImplementedError(
+            f"{self.capabilities().name} provider does not support secret writes"
         )
 
     async def extend(self, sandbox_id: str) -> None:

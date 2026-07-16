@@ -6,32 +6,31 @@ This class implements the Facade pattern, delegating to individual sub-module Re
 """
 
 from typing import List, Optional
+
 from supabase import Client
 
+from src.content.table.supabase_repo import TableRepository
+from src.content.table.supabase_schemas import (
+    TableCreate,
+    TableResponse,
+    TableUpdate,
+)
+from src.context_publish.supabase_repo import ContextPublishRepository
+from src.context_publish.supabase_schemas import (
+    ContextPublishCreate,
+    ContextPublishResponse,
+    ContextPublishUpdate,
+)
 from src.infra.supabase.client import SupabaseClient
 
 # Import each sub-module's Repository
 from src.platform.project.supabase_repo import ProjectRepository
-from src.content.table.supabase_repo import TableRepository
-from src.tool.supabase_repo import ToolRepository
-from src.context_publish.supabase_repo import ContextPublishRepository
-
 from src.platform.project.supabase_schemas import (
-    ProjectCreate,
-    ProjectUpdate,
     ProjectResponse,
+    ProjectUpdate,
 )
-from src.content.table.supabase_schemas import (
-    TableCreate,
-    TableUpdate,
-    TableResponse,
-)
-from src.tool.supabase_schemas import ToolCreate, ToolUpdate, ToolResponse
-from src.context_publish.supabase_schemas import (
-    ContextPublishCreate,
-    ContextPublishUpdate,
-    ContextPublishResponse,
-)
+from src.tool.supabase_repo import ToolRepository
+from src.tool.supabase_schemas import ToolCreate, ToolResponse, ToolUpdate
 
 
 class SupabaseRepository:
@@ -56,25 +55,6 @@ class SupabaseRepository:
         self._context_publish_repo = ContextPublishRepository(self._client)
 
     # ==================== Project Operations ====================
-
-    def create_project(self, project_data: ProjectCreate) -> ProjectResponse:
-        """
-        Create a project.
-
-        Args:
-            project_data: Project creation data
-
-        Returns:
-            Created project data
-
-        Raises:
-            SupabaseException: When creation fails
-        """
-        return self._project_repo.create(project_data)
-
-    def create_project_with_admin(self, project_data: ProjectCreate) -> ProjectResponse:
-        """Create Project and creator Admin membership in one database RPC."""
-        return self._project_repo.create_with_admin(project_data)
 
     def get_project(self, project_id: str) -> Optional[ProjectResponse]:
         """
@@ -128,18 +108,6 @@ class SupabaseRepository:
             SupabaseException: When update fails
         """
         return self._project_repo.update(project_id, project_data)
-
-    def delete_project(self, project_id: str) -> bool:
-        """
-        Delete a project.
-
-        Args:
-            project_id: Project ID
-
-        Returns:
-            Whether deletion was successful
-        """
-        return self._project_repo.delete(project_id)
 
     # ==================== Table Operations ====================
 

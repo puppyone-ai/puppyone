@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import time
 import uuid
 
@@ -19,8 +20,17 @@ from src.utils.request_context import (
 )
 
 
+_LEGACY_GIT_SECRET_PATH = re.compile(
+    r"^/git/ap/[^/]+\.git(?P<suffix>/.*)?$",
+)
+
+
 def _sanitize_path_for_access_log(request: Request) -> str:
-    return str(request.url.path)
+    path = str(request.url.path)
+    match = _LEGACY_GIT_SECRET_PATH.fullmatch(path)
+    if match is None:
+        return path
+    return f"/git/ap/<redacted>.git{match.group('suffix') or ''}"
 
 
 class RequestContextMiddleware(BaseHTTPMiddleware):

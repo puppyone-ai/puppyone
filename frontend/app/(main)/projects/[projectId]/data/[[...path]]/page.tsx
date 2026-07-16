@@ -36,6 +36,7 @@ import {
 
 import { useAgent } from '@/contexts/AgentContext';
 import { useOnboarding } from '@/lib/hooks/useOnboarding';
+import { repositoryViewKey } from '@/lib/repoApi';
 
 // Extracted hooks
 import { useDataPanelController } from '../hooks/useDataPanelController';
@@ -99,7 +100,7 @@ export default function DataPage({ params }: DataPageProps) {
   // Project-level data from layout (sync status, tools, endpoints, scopes, connectors)
   const {
     syncStatusData, mutateSyncStatus, projectTools, syncEndpoints, nodeEndpointMap,
-    scopes, connectorsByScope, repoIdentity, repoIdentityLoading, mutateRepo,
+    scopes, connectorsByTarget, repoIdentity, repoIdentityLoading, mutateRepo,
   } = useDataLayout();
 
   // Agent context (needed early for syncEndpoints merge)
@@ -296,7 +297,7 @@ export default function DataPage({ params }: DataPageProps) {
     effectiveNodeId,
     syncEndpoints,
     scopes,
-    connectorsByScope,
+    connectorsByTarget,
     mutateRepo,
     refreshAgents,
     setEditorTarget,
@@ -793,7 +794,7 @@ export default function DataPage({ params }: DataPageProps) {
           openPanel({
             type: 'access_list',
             view: 'settings',
-            selectedScopeId: accessHeaderScope.id,
+            selectedTargetKey: repositoryViewKey(accessHeaderScope),
           });
         },
         onClose: closeRightPanel,
@@ -892,7 +893,7 @@ export default function DataPage({ params }: DataPageProps) {
         accessPointEntries,
         providerIcons,
         scopes,
-        connectorsByScope,
+        connectorsByTarget,
         currentScopePath: currentFolderId || '',
         repoIdentity,
         onClose: closeRightPanel,
@@ -950,7 +951,7 @@ export default function DataPage({ params }: DataPageProps) {
             quickAccessConnectors={quickAccessConnectors}
             createAccessInitialPath={createAccessInitialPath}
             existingScopes={scopes}
-            connectorsByScope={connectorsByScope}
+            connectorsByTarget={connectorsByTarget}
             providerIcons={providerIcons}
             onCloseAccessOverview={closeAccessOverviewModal}
             onOpenExistingAccess={openQuickAccessModal}

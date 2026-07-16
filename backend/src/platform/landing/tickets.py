@@ -57,8 +57,14 @@ def sign_ticket(payload: dict) -> str:
     return f"{payload_b64}.{_sign(payload_b64)}"
 
 
-def verify_ticket(token: str) -> dict:
-    """Return the validated payload, or raise :class:`TicketError`."""
+def verify_ticket_signature(token: str) -> dict:
+    """Validate the signature and decode claims without evaluating ``exp``.
+
+    Claim replay deliberately separates authenticity from freshness: a
+    completed durable operation may be replayed after its preview capability
+    expires, while a brand-new claim must still pass :func:`require_unexpired`.
+    """
+
     if not token or "." not in token:
         raise TicketError("malformed ticket")
     payload_b64, _, sig_b64 = token.partition(".")
@@ -68,10 +74,27 @@ def verify_ticket(token: str) -> dict:
         raise TicketError("bad signature")
     try:
         payload = json.loads(_b64d(payload_b64))
-    except Exception as exc:  # noqa: BLE001 - any decode failure is a bad ticket
+    except Exception as exc:
         raise TicketError(f"undecodable payload: {exc}") from exc
     if not isinstance(payload, dict):
         raise TicketError("payload is not an object")
-    if int(payload.get("exp", 0)) < int(time.time()):
+    return payload
+
+
+def require_unexpired(payload: dict, *, now: int | None = None) -> None:
+    """Reject a decoded ticket whose expiry is missing, invalid, or elapsed."""
+
+    try:
+        expires_at = int(payload["exp"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise TicketError("ticket has an invalid expiry") from exc
+    if expires_at < (int(time.time()) if now is None else now):
         raise TicketError("ticket expired")
+
+
+def verify_ticket(token: str) -> dict:
+    """Return a signature-verified, unexpired payload."""
+
+    payload = verify_ticket_signature(token)
+    require_unexpired(payload)
     return payload

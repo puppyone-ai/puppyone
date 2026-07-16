@@ -20,8 +20,11 @@ from fastapi.testclient import TestClient
 
 from src.connectors.manager import router as access_router_mod
 from src.connectors.manager.router import router as access_router
+from src.exception_handler import app_exception_handler
+from src.exceptions import AppException
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
+from src.platform.repository_target.protocol import require_repository_target_contract
 from tests.authorization_fakes import authorization_for, install_authorization
 
 ALLOWED = "proj-allowed"
@@ -61,7 +64,15 @@ class _FakeConnectorsClient:
 
     def execute(self):
         if self._table == "access_surface_credentials":
-            return SimpleNamespace(data=[])
+            return SimpleNamespace(data=[{
+                "id": "credential-1",
+                "access_surface_id": "conn-1",
+                "credential_type": "bearer_token",
+                "credential_lifecycle": "shared",
+                "user_id": None,
+                "status": "active",
+                "key_last4": "WXYZ",
+            }])
         if self._update is not None and self._table == "access_surfaces":
             for row in self._rows:
                 row.update(self._update)
@@ -82,7 +93,9 @@ def _install(monkeypatch, rows):
 
 def _app():
     app = FastAPI()
+    app.add_exception_handler(AppException, app_exception_handler)
     app.include_router(access_router, prefix="/api/v1")
+    app.dependency_overrides[require_repository_target_contract] = lambda: 2
     app.dependency_overrides[get_current_user] = lambda: CurrentUser(
         user_id="user-alice",
         email="a@example.com",
@@ -121,6 +134,47 @@ def _agent_row():
         "created_at": None,
         "updated_at": None,
     }
+
+
+def test_legacy_git_regeneration_is_closed_in_favor_of_idempotent_client_issuance(
+    monkeypatch,
+):
+    row = {
+        "id": "surface-git",
+        "org_id": "org-1",
+        "project_id": ALLOWED,
+        "scope_id": "scope-docs",
+        "kind": "git_remote",
+        "status": "active",
+    }
+
+    class _Surfaces:
+        def __init__(self, _client):
+            pass
+
+        def get(self, connection_id):
+            assert connection_id == "surface-git"
+            return row
+
+    class _Credentials:
+        def __init__(self, _client):
+            raise AssertionError("legacy Git credential storage must not be invoked")
+
+    monkeypatch.setattr(access_router_mod, "_get_client", object)
+    monkeypatch.setattr(access_router_mod, "AccessSurfaceRepository", _Surfaces)
+    monkeypatch.setattr(access_router_mod, "AccessCredentialRepository", _Credentials)
+    monkeypatch.setattr(
+        access_router_mod, "_require_connection_project_access", lambda *_a, **_k: None
+    )
+    with TestClient(_app()) as client:
+        response = client.post(
+            "/api/v1/access/surface-git/regenerate-key",
+            json={"grant_mode": "r"},
+        )
+
+    assert response.status_code == 410
+    assert response.json()["code"] == 1007
+    assert "/projects/{project_id}/git-credentials" in response.json()["message"]
 
 
 def test_foreign_project_returns_empty_no_idor(monkeypatch):

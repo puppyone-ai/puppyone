@@ -5,7 +5,6 @@ Handles business logic for Project
 """
 
 import logging
-import re
 from dataclasses import dataclass
 
 from src.exceptions import ErrorCode, NotFoundException, PermissionException
@@ -14,51 +13,6 @@ from src.platform.project.models import Project
 from src.platform.project.repository import ProjectRepositoryBase
 
 logger = logging.getLogger(__name__)
-
-DEFAULT_PROJECT_NAME = "Untitled Project"
-DEFAULT_PROJECT_NAME_RE = re.compile(
-    r"^Untitled Project(?: (?:(\d+)|\((\d+)\)))?$",
-    re.IGNORECASE,
-)
-
-
-def _untitled_project_slot(name: str) -> int | None:
-    match = DEFAULT_PROJECT_NAME_RE.match(name.strip())
-    if not match:
-        return None
-    raw_index = match.group(1) or match.group(2)
-    if raw_index is None:
-        return 1
-    index = int(raw_index)
-    return index if index > 1 else None
-
-
-def _format_untitled_project_name(index: int) -> str:
-    return DEFAULT_PROJECT_NAME if index == 1 else f"{DEFAULT_PROJECT_NAME} {index}"
-
-
-def resolve_untitled_project_name(
-    requested_name: str,
-    existing_projects: list[Project],
-) -> str:
-    """Return a collision-free default project name for Untitled-style names."""
-    requested_slot = _untitled_project_slot(requested_name)
-    if requested_slot is None:
-        return requested_name
-
-    occupied = {
-        slot
-        for project in existing_projects
-        if (slot := _untitled_project_slot(project.name)) is not None
-    }
-    if requested_slot not in occupied:
-        return _format_untitled_project_name(requested_slot)
-
-    next_slot = 1
-    while next_slot in occupied:
-        next_slot += 1
-    return _format_untitled_project_name(next_slot)
-
 
 @dataclass
 class TableInfo:
@@ -76,9 +30,26 @@ class ProjectService:
         self,
         repo: ProjectRepositoryBase,
         memberships: ProjectMembershipRepository,
+        seat_billing_service=None,
     ):
         self.repo = repo
         self.memberships = memberships
+        self._seat_billing_service = seat_billing_service
+
+    @property
+    def _seat_billing(self):
+        if self._seat_billing_service is None:
+            from src.platform.billing.seats import SeatBillingService
+            from src.platform.organization.repository import OrganizationRepository
+
+            self._seat_billing_service = SeatBillingService(OrganizationRepository())
+        return self._seat_billing_service
+
+    def _project_org_id(self, project_id: str) -> str:
+        project = self.get_by_id(project_id)
+        if project is None:
+            raise NotFoundException(f"Project not found: {project_id}", code=ErrorCode.NOT_FOUND)
+        return project.org_id
 
     def get_by_id(self, project_id: str) -> Project | None:
         """
@@ -103,34 +74,6 @@ class ProjectService:
             List of projects
         """
         return self.repo.get_by_org_id(org_id)
-
-    def create(
-        self,
-        name: str,
-        description: str | None,
-        org_id: str,
-        created_by: str,
-    ) -> Project:
-        """
-        Create a project
-
-        Args:
-            name: Project name
-            description: Project description
-            org_id: Organization ID
-            created_by: Creator user ID
-
-        Returns:
-            Created Project object
-        """
-        name = resolve_untitled_project_name(name, self.repo.get_by_org_id(org_id))
-        project = self.repo.create(
-            name=name,
-            description=description,
-            org_id=org_id,
-            created_by=created_by,
-        )
-        return project
 
     def update(
         self,
@@ -163,26 +106,8 @@ class ProjectService:
             bound_git_branch=bound_git_branch,
         )
         if not updated:
-            raise NotFoundException(
-                f"Project not found: {project_id}", code=ErrorCode.NOT_FOUND
-            )
+            raise NotFoundException(f"Project not found: {project_id}", code=ErrorCode.NOT_FOUND)
         return updated
-
-    def delete(self, project_id: str) -> None:
-        """
-        Delete a project
-
-        Args:
-            project_id: Project ID (UUID)
-
-        Raises:
-            NotFoundException: If project does not exist
-        """
-        success = self.repo.delete(project_id)
-        if not success:
-            raise NotFoundException(
-                f"Project not found: {project_id}", code=ErrorCode.NOT_FOUND
-            )
 
     def list_project_members(self, project_id: str) -> list:
         rows = self.memberships.list_by_project(project_id)
@@ -258,13 +183,31 @@ class ProjectService:
                 "Project member changes require an authenticated actor",
                 code=ErrorCode.FORBIDDEN,
             )
-        row = self.memberships.add(
-            project_id, target_user_id, role, granted_by
-        )
-        if not row:
-            raise PermissionException(
-                "Project member could not be added", code=ErrorCode.FORBIDDEN
+        from src.config import settings
+        from src.platform.billing.seats import is_billable_project_role
+
+        org_id = self._project_org_id(project_id)
+        was_billable = False
+        activation_operation = None
+        if settings.SEAT_BILLING_MODE != "disabled":
+            was_billable = self.memberships.is_billable_organization_member(org_id, target_user_id)
+        if (
+            settings.SEAT_BILLING_MODE != "disabled"
+            and is_billable_project_role(role)
+            and not was_billable
+        ):
+            activation_operation = self._seat_billing.ensure_member_activation(
+                org_id=org_id,
+                subject_user_id=target_user_id,
+                role=f"project:{role}",
+                actor_user_id=granted_by,
+                grants_billable_capability=True,
             )
+        row = self.memberships.add(project_id, target_user_id, role, granted_by)
+        if not row:
+            raise PermissionException("Project member could not be added", code=ErrorCode.FORBIDDEN)
+        if activation_operation is not None:
+            self._seat_billing.complete_member_activation(activation_operation)
         return row
 
     def update_project_member_role(
@@ -275,21 +218,73 @@ class ProjectService:
         *,
         actor_user_id: str,
     ) -> dict:
-        row = self.memberships.update_role(
-            project_id, target_user_id, role, actor_user_id
-        )
+        from src.config import settings
+        from src.platform.billing.seats import is_billable_project_role
+
+        org_id = self._project_org_id(project_id)
+        existing = None
+        was_billable = False
+        activation_operation = None
+        if settings.SEAT_BILLING_MODE != "disabled":
+            existing = self.memberships.get(project_id, target_user_id)
+            if existing is None:
+                raise NotFoundException("Project member not found", code=ErrorCode.NOT_FOUND)
+            was_billable = self.memberships.is_billable_organization_member(org_id, target_user_id)
+        if (
+            settings.SEAT_BILLING_MODE != "disabled"
+            and is_billable_project_role(role)
+            and not was_billable
+        ):
+            activation_operation = self._seat_billing.ensure_member_activation(
+                org_id=org_id,
+                subject_user_id=target_user_id,
+                role=f"project:{role}",
+                actor_user_id=actor_user_id,
+                grants_billable_capability=True,
+            )
+        row = self.memberships.update_role(project_id, target_user_id, role, actor_user_id)
         if not row:
             raise NotFoundException("Project member not found", code=ErrorCode.NOT_FOUND)
+        if activation_operation is not None:
+            self._seat_billing.complete_member_activation(activation_operation)
+        if settings.SEAT_BILLING_MODE != "disabled" and was_billable:
+            remains_billable = self.memberships.is_billable_organization_member(
+                org_id, target_user_id
+            )
+            if not remains_billable:
+                self._seat_billing.record_member_deactivation(
+                    org_id=org_id,
+                    subject_user_id=target_user_id,
+                    actor_user_id=actor_user_id,
+                    previous_role=f"project:{existing['role']}",
+                    was_billable=True,
+                )
         return row
 
     def remove_project_member(
         self, project_id: str, target_user_id: str, *, actor_user_id: str
     ) -> None:
-        changed = self.memberships.remove(
-            project_id, target_user_id, actor_user_id
-        )
+        from src.config import settings
+
+        org_id = self._project_org_id(project_id)
+        existing = None
+        was_billable = False
+        if settings.SEAT_BILLING_MODE != "disabled":
+            existing = self.memberships.get(project_id, target_user_id)
+            was_billable = self.memberships.is_billable_organization_member(org_id, target_user_id)
+        changed = self.memberships.remove(project_id, target_user_id, actor_user_id)
         if not changed:
             raise NotFoundException("Project member not found", code=ErrorCode.NOT_FOUND)
+        if was_billable and not self.memberships.is_billable_organization_member(
+            org_id, target_user_id
+        ):
+            self._seat_billing.record_member_deactivation(
+                org_id=org_id,
+                subject_user_id=target_user_id,
+                actor_user_id=actor_user_id,
+                previous_role=f"project:{(existing or {}).get('role', 'unknown')}",
+                was_billable=True,
+            )
 
     # ── Share link MVP ──
 
@@ -308,7 +303,8 @@ class ProjectService:
         project = self.get_by_id(project_id)
         if not project:
             raise NotFoundException(
-                f"Project not found: {project_id}", code=ErrorCode.NOT_FOUND,
+                f"Project not found: {project_id}",
+                code=ErrorCode.NOT_FOUND,
             )
         return {
             "share_token": project.share_token or "",
@@ -323,7 +319,8 @@ class ProjectService:
         updated = self.repo.rotate_share_token(project_id)
         if not updated:
             raise NotFoundException(
-                f"Project not found: {project_id}", code=ErrorCode.NOT_FOUND,
+                f"Project not found: {project_id}",
+                code=ErrorCode.NOT_FOUND,
             )
         return {
             "share_token": updated.share_token or "",

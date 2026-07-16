@@ -4,13 +4,15 @@ import { useCallback, useMemo, useState } from 'react';
 import { DialogBody, DialogHeader, DialogRoot, DialogSurface } from '@/components/ui/Dialog';
 import { CountBadge } from '@/components/ui/CountBadge';
 import { buildGitSyncPrompt, buildMcpSetupPrompt } from '@/lib/accessPointCliPrompt';
-import type { Connector, RepoScope } from '@/lib/repoApi';
+import type { Connector, RepositoryView } from '@/lib/repoApi';
+import { canonicalGitUrlForTarget } from '@/lib/gitRemote';
 import { isMcpProvider } from '@/lib/accessProviderRegistry';
 import { T } from '../lib/tokens';
 import { getApiBase, isGitBuiltinProvider } from '../lib/format';
 import { CopyIcon, ProviderIcon } from './icons';
-import { CommandBlock, NoAccessKeyNotice } from './ui-blocks';
+import { CommandBlock } from './ui-blocks';
 import { ConnectorAccessPanel } from './quick-connect';
+import { GitCredentialIssuePanel } from '../../data/components/access-points/connect-methods/GitCredentialIssuePanel';
 import { formatScopePath } from './ScopeHeader';
 import { getConnectorDisplayName, getProviderIconSize, getProviderTileSize, getProviderTileStyle } from './connectorVisuals';
 
@@ -20,7 +22,7 @@ export function ConnectorConnectDialog({
   onClose,
 }: {
   readonly connector: Connector;
-  readonly scope: RepoScope | undefined;
+  readonly scope: RepositoryView | undefined;
   readonly onClose: () => void;
 }) {
   const name = getConnectorDisplayName(connector);
@@ -65,7 +67,7 @@ export function ConnectorConnectDialog({
         />
         <DialogBody style={{ padding: isMcp ? '4px 24px 24px' : '4px 20px 20px' }}>
           {isGitRemote ? (
-            <GitManualCommandsPanel scope={scope} />
+            <GitManualCommandsPanel connector={connector} scope={scope} />
           ) : isMcp ? (
             <McpConnectionPanel connector={connector} scope={scope} />
           ) : (
@@ -96,7 +98,7 @@ function McpDialogTitle() {
   );
 }
 
-function McpDialogDescription({ scope }: { readonly scope: RepoScope | undefined }) {
+function McpDialogDescription({ scope }: { readonly scope: RepositoryView | undefined }) {
   return (
     <span
       style={{
@@ -116,11 +118,11 @@ function McpConnectionPanel({
   scope,
 }: {
   readonly connector: Connector;
-  readonly scope: RepoScope | undefined;
+  readonly scope: RepositoryView | undefined;
 }) {
   const setup = useMemo(() => {
     const configKey = connector.config?.api_key;
-    const apiKey = typeof configKey === 'string' ? configKey : connector.access_key || '';
+    const apiKey = typeof configKey === 'string' ? configKey : '';
     if (!scope) {
       return {
         apiKey,
@@ -140,7 +142,7 @@ function McpConnectionPanel({
       }),
       apiKey,
     };
-  }, [connector.access_key, connector.config?.api_key, connector.name, scope]);
+  }, [connector.config?.api_key, connector.name, scope]);
 
   if (!scope) {
     return (
@@ -359,14 +361,16 @@ function McpNoKeyNotice() {
 }
 
 function GitManualCommandsPanel({
+  connector,
   scope,
 }: {
-  readonly scope: RepoScope | undefined;
+  readonly connector: Connector;
+  readonly scope: RepositoryView | undefined;
 }) {
   const steps = useMemo(() => {
     if (!scope) return [];
     const scopeName = scope.name || (scope.path === '' ? 'root' : scope.path || 'Root');
-    const gitUrl = `${getApiBase()}/git/ap/${scope.access_key || '<access-key>'}.git`;
+    const gitUrl = canonicalGitUrlForTarget(getApiBase(), scope.target);
     const guide = buildGitSyncPrompt({
       gitUrl,
       scopeName,
@@ -389,7 +393,12 @@ function GitManualCommandsPanel({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {!scope.access_key ? <NoAccessKeyNotice /> : null}
+      <GitCredentialIssuePanel
+        connectorId={connector.id}
+        gitUrl={canonicalGitUrlForTarget(getApiBase(), scope.target)}
+        scopeMode={scope.max_mode}
+        target={scope.target}
+      />
       <div
         style={{
           color: T.text2,

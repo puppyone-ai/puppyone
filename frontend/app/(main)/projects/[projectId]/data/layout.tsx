@@ -18,6 +18,9 @@ import {
   listConnectors,
   listScopes,
   normalizeAccessSurfaceConnectors,
+  projectRootRepositoryView,
+  repositoryScopeView,
+  repositoryTargetKey,
   type Connector,
 } from '@/lib/repoApi';
 import {
@@ -142,12 +145,21 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
     [connectorsList],
   );
 
-  const connectorsByScope = useMemo(() => {
+  const repositoryViews = useMemo(
+    () => [
+      projectRootRepositoryView(projectId),
+      ...(scopes || []).map(repositoryScopeView),
+    ],
+    [projectId, scopes],
+  );
+
+  const connectorsByTarget = useMemo(() => {
     const m = new Map<string, Connector[]>();
     for (const c of accessConnectorsForDataView) {
-      const list = m.get(c.scope_id) || [];
+      const key = repositoryTargetKey(c.target);
+      const list = m.get(key) || [];
       list.push(c);
-      m.set(c.scope_id, list);
+      m.set(key, list);
     }
     return m;
   }, [accessConnectorsForDataView]);
@@ -179,23 +191,26 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
       }
     }
 
-    // Project connectors+scopes data into the per-row endpoint view so the
+    // Project connectors+repository views into the per-row endpoint view so the
     // object menu and connection-list affordances use the canonical model.
-    // The access_key for built-in access surfaces is the scope's access_key,
-    // not the connector's. Agent connectors are skipped here because the
-    // savedAgents loop below already populates them from AgentContext.
-    const scopeById = new Map((scopes || []).map((s) => [s.id, s]));
+    // Credentials are never read from repository metadata; a connector may
+    // expose a one-time credential only in its issuance response. Agent
+    // connectors are skipped because AgentContext projects them below.
+    const viewByTarget = new Map(
+      repositoryViews.map((view) => [repositoryTargetKey(view.target), view]),
+    );
     for (const c of accessConnectorsForDataView) {
       if (c.provider === 'agent') continue;
-      const scope = scopeById.get(c.scope_id);
-      if (!scope) continue;
-      append(scope.path, {
+      const view = viewByTarget.get(repositoryTargetKey(c.target));
+      if (!view) continue;
+      append(view.path, {
         syncId: c.id,
         provider: c.provider,
         direction: c.direction,
         status: c.status,
-        name: c.name || scope.name,
-        accessKey: scope.access_key ?? null,
+        name: c.name || view.name,
+        accessKey: null,
+        repositoryTarget: view.target,
       });
     }
 
@@ -245,7 +260,7 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
     }
 
     return map;
-  }, [syncStatusData, savedAgents, mcpEndpoints, sandboxEndpoints, scopes, accessConnectorsForDataView]);
+  }, [syncStatusData, savedAgents, mcpEndpoints, sandboxEndpoints, repositoryViews, accessConnectorsForDataView]);
 
   const syncEndpoints = useMemo(() => {
     const pickPriority = (provider: string): number => {
@@ -272,8 +287,8 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
       projectTools,
       syncEndpoints,
       nodeEndpointMap,
-      scopes: scopes || [],
-      connectorsByScope,
+      scopes: repositoryViews,
+      connectorsByTarget,
       repoIdentity,
       repoIdentityLoading,
       mutateRepo,
@@ -284,8 +299,8 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
       projectTools,
       syncEndpoints,
       nodeEndpointMap,
-      scopes,
-      connectorsByScope,
+      repositoryViews,
+      connectorsByTarget,
       repoIdentity,
       repoIdentityLoading,
       mutateRepo,

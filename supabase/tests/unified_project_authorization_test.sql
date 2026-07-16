@@ -1,12 +1,11 @@
--- ISSUE-029: database-level authorization and workspace-binding contracts.
+-- Unified Project authorization and user-owned Git credential contracts.
 --
--- These tests intentionally exercise the real RPCs, constraints, triggers,
--- and transaction ledger.  Application mocks cannot prove tenant integrity,
--- TOCTOU re-authorization, or credential revocation after a role downgrade.
+-- These tests exercise real RPCs, constraints, triggers, and current-role
+-- evaluation. Cloud stores no local folder, checkout, or computer identity.
 
 BEGIN;
 
-SELECT plan(58);
+SELECT plan(59);
 
 DO $$
 DECLARE
@@ -23,16 +22,8 @@ BEGIN
     )
     SELECT
         '00000000-0000-0000-0000-000000000000'::uuid,
-        fixture.id,
-        'authenticated',
-        'authenticated',
-        fixture.email,
-        '',
-        now(),
-        '{}'::jsonb,
-        '{}'::jsonb,
-        now(),
-        now()
+        fixture.id, 'authenticated', 'authenticated', fixture.email, '',
+        now(), '{}'::jsonb, '{}'::jsonb, now(), now()
     FROM (VALUES
         (owner_id,    'issue029-owner@example.test'),
         (editor_id,   'issue029-editor@example.test'),
@@ -47,7 +38,6 @@ BEGIN
         'issue029-org', 'ISSUE-029 Test Org', 'issue029-test-org',
         'team', 'enterprise', 20, owner_id
     );
-
     INSERT INTO public.org_members (id, org_id, user_id, role)
     VALUES
         ('issue029-om-owner', 'issue029-org', owner_id, 'owner'),
@@ -55,13 +45,21 @@ BEGIN
         ('issue029-om-viewer', 'issue029-org', viewer_id, 'viewer'),
         ('issue029-om-baseline', 'issue029-org', baseline_id, 'member');
 
-    PERFORM * FROM public.create_project_with_admin(
+    INSERT INTO public.projects (
+        id, name, description, org_id, created_by, share_token,
+        lifecycle_status
+    ) VALUES (
         'issue029-private', 'Private Project', NULL, 'issue029-org',
-        owner_id, 'issue029-private-share-token'
+        owner_id, 'issue029-private-share-token', 'ready'
+    );
+    INSERT INTO public.project_members (
+        id, org_id, project_id, user_id, role, granted_by
+    ) VALUES (
+        'issue029-private-owner', 'issue029-org', 'issue029-private',
+        owner_id, 'admin', owner_id
     );
     UPDATE public.projects SET visibility = 'private'
     WHERE id = 'issue029-private';
-
     PERFORM * FROM public.add_project_member_authorized(
         'issue029-private', editor_id, 'editor', owner_id
     );
@@ -69,61 +67,64 @@ BEGIN
         'issue029-private', viewer_id, 'viewer', owner_id
     );
 
-    PERFORM * FROM public.create_project_with_admin(
+    INSERT INTO public.projects (
+        id, name, description, org_id, created_by, share_token,
+        lifecycle_status
+    ) VALUES (
         'issue029-org-visible', 'Org Visible Project', NULL, 'issue029-org',
-        owner_id, 'issue029-org-share-token'
+        owner_id, 'issue029-org-share-token', 'ready'
+    );
+    INSERT INTO public.project_members (
+        id, org_id, project_id, user_id, role, granted_by
+    ) VALUES (
+        'issue029-org-visible-owner', 'issue029-org',
+        'issue029-org-visible', owner_id, 'admin', owner_id
     );
     UPDATE public.projects SET visibility = 'org'
     WHERE id = 'issue029-org-visible';
 
-    INSERT INTO public.repo_scopes (
-        id, project_id, name, path, exclude, mode, is_root
-    ) VALUES
-        ('issue029-root', 'issue029-private', 'Root', '', '[]', 'rw', true),
-        ('issue029-child', 'issue029-private', 'Docs', 'docs', '[]', 'rw', false),
-        ('issue029-org-root', 'issue029-org-visible', 'Root', '', '[]', 'rw', true);
+    INSERT INTO public.repository_scopes (
+        id, project_id, name, path, exclude, max_mode
+    ) VALUES (
+        'issue029-child', 'issue029-private', 'Docs', 'docs', '[]', 'rw'
+    );
 
     INSERT INTO public.access_surfaces (
         id, org_id, project_id, scope_id, kind, name, status,
         principal_type, principal_id, config, created_by
     ) VALUES
         ('issue029-surface-root', 'issue029-org', 'issue029-private',
-         'issue029-root', 'cli', 'Root CLI', 'active', 'scope',
-         'issue029-root', '{}'::jsonb, owner_id),
+         NULL, 'git_remote', 'Root Git', 'active', 'project',
+         'issue029-private', '{"mode":"rw"}'::jsonb, owner_id),
         ('issue029-surface-child', 'issue029-org', 'issue029-private',
-         'issue029-child', 'cli', 'Docs CLI', 'active', 'scope',
-         'issue029-child', '{}'::jsonb, owner_id),
+         'issue029-child', 'git_remote', 'Docs Git', 'active', 'scope',
+         'issue029-child', '{"mode":"rw"}'::jsonb, owner_id),
         ('issue029-org-surface-root', 'issue029-org', 'issue029-org-visible',
-         'issue029-org-root', 'cli', 'Root CLI', 'active', 'scope',
-         'issue029-org-root', '{}'::jsonb, owner_id);
+         NULL, 'git_remote', 'Root Git', 'active', 'project',
+         'issue029-org-visible', '{"mode":"rw"}'::jsonb, owner_id),
+        ('issue029-cli-root', 'issue029-org', 'issue029-private',
+         NULL, 'cli', 'Root CLI', 'active', 'project',
+         'issue029-private', '{"mode":"rw"}'::jsonb, owner_id);
 
-    PERFORM * FROM public.create_project_workspace_binding(
-        'issue029-binding-editor', 'issue029-org', 'issue029-private',
-        'issue029-root', 'issue029-workspace-editor-0001', editor_id,
-        'https://cloud.puppyone.test', 'full', 'rw',
-        'issue029-surface-root', 'issue029-credential-editor-v1',
-        'pwb', 'e001', 'issue029-hash-editor-v1', 'hmac_sha256_v1'
+    PERFORM public.issue_user_git_http_credential(
+        'issue029-credential-editor-v1', 'unused-editor-surface',
+        'issue029-org', 'issue029-private', 'issue029-child', editor_id,
+        'rw', 'pwg', 'e001', 'issue029-hash-editor-v1', 'hmac_sha256_v1'
     );
-    PERFORM * FROM public.create_project_workspace_binding(
-        'issue029-binding-viewer', 'issue029-org', 'issue029-private',
-        'issue029-root', 'issue029-workspace-viewer-0001', viewer_id,
-        'https://cloud.puppyone.test', 'full', 'r',
-        'issue029-surface-root', 'issue029-credential-viewer-v1',
-        'pwb', 'v001', 'issue029-hash-viewer-v1', 'hmac_sha256_v1'
+    PERFORM public.issue_user_git_http_credential(
+        'issue029-credential-viewer-v1', 'unused-viewer-surface',
+        'issue029-org', 'issue029-private', NULL, viewer_id,
+        'r', 'pwg', 'v001', 'issue029-hash-viewer-v1', 'hmac_sha256_v1'
     );
-    PERFORM * FROM public.create_project_workspace_binding(
-        'issue029-binding-removal', 'issue029-org', 'issue029-private',
-        'issue029-root', 'issue029-workspace-removal-0001', viewer_id,
-        'https://cloud.puppyone.test', 'full', 'r',
-        'issue029-surface-root', 'issue029-credential-removal-v1',
-        'pwb', 'r001', 'issue029-hash-removal-v1', 'hmac_sha256_v1'
+    PERFORM public.issue_user_git_http_credential(
+        'issue029-credential-removal-v1', 'unused-removal-surface',
+        'issue029-org', 'issue029-private', NULL, viewer_id,
+        'r', 'pwg', 'r001', 'issue029-hash-removal-v1', 'hmac_sha256_v1'
     );
-    PERFORM * FROM public.create_project_workspace_binding(
-        'issue029-binding-org-baseline', 'issue029-org', 'issue029-org-visible',
-        'issue029-org-root', 'issue029-workspace-org-baseline-0001', baseline_id,
-        'https://cloud.puppyone.test', 'full', 'r',
-        'issue029-org-surface-root', 'issue029-credential-org-baseline-v1',
-        'pwb', 'o001', 'issue029-hash-org-baseline-v1', 'hmac_sha256_v1'
+    PERFORM public.issue_user_git_http_credential(
+        'issue029-credential-org-baseline-v1', 'unused-org-surface',
+        'issue029-org', 'issue029-org-visible', NULL, baseline_id,
+        'r', 'pwg', 'o001', 'issue029-hash-org-baseline-v1', 'hmac_sha256_v1'
     );
 
     INSERT INTO public.access_surface_credentials (
@@ -131,7 +132,7 @@ BEGIN
         key_prefix, key_last4, key_hash, hash_alg, status, created_by
     ) VALUES (
         'issue029-shared-v1', 'issue029-org', 'issue029-private',
-        'issue029-surface-root', 'bearer_token', 'cli', 's001',
+        'issue029-cli-root', 'bearer_token', 'cli', 's001',
         'issue029-hash-shared-v1', 'hmac_sha256_v1', 'active', owner_id
     );
 
@@ -153,39 +154,44 @@ BEGIN
 END;
 $$;
 
-SELECT has_table('public', 'project_workspace_bindings',
-    'workspace bindings are a first-class Project identity fact');
+SELECT hasnt_table('public', 'project_workspace_bindings',
+    'Cloud has no local checkout registration table');
 SELECT hasnt_table('public', 'repo_user_permissions',
     'legacy human permission table is retired');
+SELECT hasnt_table('public', 'repo_scopes',
+    'synthetic-root Scope table name is retired');
+SELECT has_column('public', 'access_surface_credentials', 'user_id',
+    'Git credentials may identify a human principal');
+SELECT hasnt_column('public', 'access_surface_credentials', 'workspace_binding_id',
+    'Git credentials do not identify a local workspace');
 SELECT ok(
     NOT has_function_privilege(
         'anon', 'public.unified_authorization_preflight()', 'EXECUTE'
     ),
-    'anonymous clients cannot execute the operational authorization preflight'
+    'anonymous clients cannot execute authorization preflight'
 );
 SELECT ok(
     NOT has_function_privilege(
         'authenticated', 'public.unified_authorization_preflight()', 'EXECUTE'
     ),
-    'authenticated clients cannot execute the operational authorization preflight'
+    'human clients cannot execute authorization preflight'
 );
 SELECT is(
     (SELECT count(*) FROM information_schema.tables
      WHERE table_schema = 'public'
        AND table_name = ANY (ARRAY[
          'organizations', 'org_members', 'projects', 'project_members',
-         'project_workspace_bindings', 'repo_scopes', 'access_surfaces',
+         'repository_scopes', 'access_surfaces',
          'access_surface_credentials', 'access_surface_policies'
        ])),
-    9::bigint,
-    'all nine authorization and runtime boundary tables exist'
+    8::bigint,
+    'all authorization and runtime boundary tables exist'
 );
 SELECT is(
     (SELECT role FROM public.project_members
      WHERE project_id = 'issue029-private'
        AND user_id = '00000000-0000-0000-0000-000000029101'),
-    'admin',
-    'Project creation publishes creator Admin membership atomically'
+    'admin', 'Project creation publishes creator Admin atomically'
 );
 
 SELECT throws_ok(
@@ -197,7 +203,7 @@ SELECT throws_ok(
     )$$,
     '23514',
     'project creator must retain explicit Project Admin membership',
-    'Project creator cannot be downgraded through the authorized RPC'
+    'Project creator cannot be downgraded'
 );
 SELECT throws_ok(
     $$SELECT public.remove_project_member_authorized(
@@ -207,7 +213,7 @@ SELECT throws_ok(
     )$$,
     '23514',
     'project creator must retain explicit Project Admin membership',
-    'Project creator cannot be removed through the authorized RPC'
+    'Project creator cannot be removed'
 );
 SELECT throws_ok(
     $$DELETE FROM public.org_members
@@ -215,22 +221,23 @@ SELECT throws_ok(
         AND user_id = '00000000-0000-0000-0000-000000029101'::uuid$$,
     '23514',
     'project creator must retain explicit Project Admin membership',
-    'tenant membership cannot be removed before Project ownership is transferred'
+    'tenant membership cannot be removed before ownership transfer'
 );
-
-SELECT throws_ok(
-    $$SELECT * FROM public.create_project_with_admin(
-        'issue029-rejected', 'Rejected', NULL, 'issue029-org',
-        '00000000-0000-0000-0000-000000029105'::uuid, 'rejected-token'
-    )$$,
-    '42501',
-    'project creator must be an organization member',
+SELECT is(
+    (
+        public.create_project_idempotent(
+            '99999999-9999-4999-8999-999999999999', repeat('9', 64),
+            'issue029-rejected', 'Rejected', NULL, 'issue029-org',
+            '00000000-0000-0000-0000-000000029105'::uuid,
+            'rejected-token', 'empty', 20
+        )->>'outcome'
+    ),
+    'forbidden',
     'a non-tenant creator cannot publish a partial Project fact'
 );
 SELECT is(
     (SELECT count(*) FROM public.projects WHERE id = 'issue029-rejected'),
-    0::bigint,
-    'failed Project creation leaves no Project row'
+    0::bigint, 'failed Project creation leaves no row'
 );
 
 SELECT is(
@@ -241,7 +248,7 @@ SELECT is(
 SELECT is(
     (SELECT grant_source FROM public.resolve_project_role(
         'issue029-private', '00000000-0000-0000-0000-000000029101')),
-    'org_owner', 'owner inheritance has an explicit grant source'
+    'org_owner', 'owner inheritance has an explicit source'
 );
 SELECT is(
     (SELECT effective_role FROM public.resolve_project_role(
@@ -256,17 +263,17 @@ SELECT is(
 SELECT is(
     (SELECT effective_role FROM public.resolve_project_role(
         'issue029-org-visible', '00000000-0000-0000-0000-000000029104')),
-    'viewer', 'org-visible baseline is Viewer, never Editor'
+    'viewer', 'org-visible baseline is Viewer'
 );
 SELECT is(
     (SELECT grant_source FROM public.resolve_project_role(
         'issue029-org-visible', '00000000-0000-0000-0000-000000029104')),
-    'org_visibility', 'org-visible Viewer records its baseline source'
+    'org_visibility', 'org-visible Viewer records its source'
 );
 SELECT is_empty(
     $$SELECT * FROM public.resolve_project_role(
         'issue029-private', '00000000-0000-0000-0000-000000029104')$$,
-    'private Project denies an org member without explicit membership'
+    'private Project denies an unlisted org member'
 );
 SELECT is_empty(
     $$SELECT * FROM public.resolve_project_role(
@@ -275,19 +282,22 @@ SELECT is_empty(
 );
 
 SELECT is(
-    (SELECT binding_kind FROM public.project_workspace_bindings
-     WHERE id = 'issue029-binding-editor'),
-    'full', 'full binding is attached only to the canonical root scope'
+    (SELECT s.scope_id
+     FROM public.access_surface_credentials c
+     JOIN public.access_surfaces s ON s.id = c.access_surface_id
+     WHERE c.id = 'issue029-credential-editor-v1'),
+    'issue029-child', 'the Editor credential targets the exact Scope view'
 );
 SELECT is(
-    (SELECT mode FROM public.project_workspace_bindings
-     WHERE id = 'issue029-binding-viewer'),
-    'r', 'Viewer binding is capped to read-only'
+    (SELECT user_id FROM public.access_surface_credentials
+     WHERE id = 'issue029-credential-viewer-v1'),
+    '00000000-0000-0000-0000-000000029103'::uuid,
+    'the Viewer credential identifies only its human owner'
 );
 SELECT is(
     (SELECT count(*) FROM public.access_tools
      WHERE id = 'issue029-access-tool-valid'),
-    1::bigint, 'same-Project Agent/tool binding is accepted'
+    1::bigint, 'same-Project Agent/tool association is accepted'
 );
 SELECT throws_ok(
     $$INSERT INTO public.access_tools (
@@ -307,159 +317,151 @@ SELECT lives_ok(
         'issue029-access-tool-org', 'issue029-surface-root',
         'issue029-tool-org', true, true
       )$$,
-    'same-tenant Organization tool may be attached to a Project surface'
+    'same-tenant Organization tool may target a Project surface'
 );
 SELECT throws_ok(
-    $$SELECT * FROM public.create_project_workspace_binding(
-        'issue029-invalid-full', 'issue029-org', 'issue029-private',
-        'issue029-child', 'issue029-workspace-invalid-full',
-        '00000000-0000-0000-0000-000000029102'::uuid,
-        'https://cloud.puppyone.test', 'full', 'rw',
-        'issue029-surface-child', 'issue029-invalid-full-credential',
-        'pwb', 'if01', 'issue029-hash-invalid-full', 'hmac_sha256_v1'
-    )$$,
-    'P0001',
-    'full workspace binding requires canonical root scope',
-    'a non-root scope cannot impersonate a full Project binding'
+    $$INSERT INTO public.access_surfaces (
+        id, org_id, project_id, scope_id, kind, name, status, config
+      ) VALUES (
+        'issue029-cross-project-surface', 'issue029-org',
+        'issue029-org-visible', 'issue029-child', 'mcp', 'Invalid',
+        'active', '{}'::jsonb
+      )$$,
+    '23503',
+    'insert or update on table "access_surfaces" violates foreign key constraint "access_surfaces_scope_project_fkey"',
+    'a Scope from another Project cannot target an Access Surface'
 );
 SELECT throws_ok(
-    $$SELECT * FROM public.create_project_workspace_binding(
-        'issue029-invalid-scoped', 'issue029-org', 'issue029-private',
-        'issue029-root', 'issue029-workspace-invalid-scoped',
-        '00000000-0000-0000-0000-000000029102'::uuid,
-        'https://cloud.puppyone.test', 'scoped', 'rw',
-        'issue029-surface-root', 'issue029-invalid-scoped-credential',
-        'pwb', 'is01', 'issue029-hash-invalid-scoped', 'hmac_sha256_v1'
-    )$$,
-    'P0001',
-    'scoped workspace binding requires a non-root scope',
-    'the root scope cannot be mislabeled as a scoped checkout'
+    $$INSERT INTO public.access_surfaces (
+        id, org_id, project_id, scope_id, kind, name, status, config
+      ) VALUES (
+        'issue029-duplicate-root-git', 'issue029-org',
+        'issue029-private', NULL, 'git_remote', 'Duplicate Root Git',
+        'active', '{}'::jsonb
+      )$$,
+    '23505',
+    'duplicate key value violates unique constraint "uq_access_surfaces_builtin_target_kind"',
+    'one standard root Git Surface exists per Project'
 );
 SELECT throws_ok(
-    $$SELECT * FROM public.create_project_workspace_binding(
-        'issue029-invalid-viewer-rw', 'issue029-org', 'issue029-private',
-        'issue029-root', 'issue029-workspace-invalid-viewer-rw',
+    $$INSERT INTO public.repository_scopes (
+        id, project_id, name, path, exclude, max_mode
+      ) VALUES (
+        'issue029-empty-scope', 'issue029-private', 'Invalid', '', '[]', 'rw'
+      )$$,
+    '23514',
+    'new row for relation "repository_scopes" violates check constraint "repository_scopes_path_canonical"',
+    'an empty path cannot create a synthetic root Scope'
+);
+
+SELECT throws_ok(
+    $$SELECT public.issue_user_git_http_credential(
+        'issue029-invalid-viewer-rw', 'unused-invalid-surface',
+        'issue029-org', 'issue029-private', NULL,
         '00000000-0000-0000-0000-000000029103'::uuid,
-        'https://cloud.puppyone.test', 'full', 'rw',
-        'issue029-surface-root', 'issue029-invalid-viewer-rw-credential',
-        'pwb', 'iv01', 'issue029-hash-invalid-viewer-rw', 'hmac_sha256_v1'
+        'rw', 'pwg', 'iv01', 'issue029-hash-invalid-viewer-rw',
+        'hmac_sha256_v1'
     )$$,
     '42501',
-    'project binding capability denied',
-    'Viewer cannot mint a read-write binding credential'
+    'Project Git write credential authorization denied',
+    'Viewer cannot mint a read-write Git credential'
 );
 SELECT is(
     (SELECT key_hash FROM public.access_surface_credentials
      WHERE id = 'issue029-credential-editor-v1'),
-    'issue029-hash-editor-v1', 'binding credential stores only its hash'
+    'issue029-hash-editor-v1', 'user credential stores only its hash'
 );
 SELECT hasnt_column('public', 'access_surface_credentials', 'access_key',
     'credential storage has no plaintext access-key column');
 
 SELECT lives_ok(
     $$SELECT public.rotate_access_surface_bearer_token(
-        'issue029-surface-root', 'issue029-org', 'issue029-private',
+        'issue029-cli-root', 'issue029-org', 'issue029-private',
         'cli', 's002', 'issue029-hash-shared-v2', 'hmac_sha256_v1',
         '00000000-0000-0000-0000-000000029101'::uuid, NULL
     )$$,
-    'shared surface credential rotates atomically'
+    'shared Surface credential rotates atomically'
 );
 SELECT is(
     (SELECT status FROM public.access_surface_credentials
      WHERE id = 'issue029-credential-editor-v1'),
-    'active', 'shared-key rotation does not revoke a binding credential'
+    'active', 'shared rotation does not revoke a user credential'
 );
 SELECT is(
     (SELECT status FROM public.access_surface_credentials
      WHERE id = 'issue029-shared-v1'),
-    'revoked', 'shared-key rotation revokes the previous shared key'
+    'revoked', 'shared rotation revokes the previous shared key'
 );
 SELECT is(
     (SELECT count(*) FROM public.access_surface_credentials
-     WHERE workspace_binding_id IS NULL
-       AND access_surface_id = 'issue029-surface-root'
+     WHERE credential_lifecycle = 'shared'
+       AND access_surface_id = 'issue029-cli-root'
        AND status = 'active'),
-    1::bigint, 'shared-key rotation leaves exactly one active shared key'
+    1::bigint, 'shared rotation leaves one active shared key'
 );
 
 SELECT lives_ok(
-    $$SELECT public.rotate_project_workspace_binding_credential(
-        'issue029-binding-editor',
+    $$SELECT public.issue_user_git_http_credential(
+        'issue029-credential-editor-v2', 'unused-editor-surface-v2',
+        'issue029-org', 'issue029-private', 'issue029-child',
         '00000000-0000-0000-0000-000000029102'::uuid,
-        'issue029-credential-editor-v2', 'pwb', 'e002',
-        'issue029-hash-editor-v2', 'hmac_sha256_v1'
+        'rw', 'pwg', 'e002', 'issue029-hash-editor-v2', 'hmac_sha256_v1'
     )$$,
-    'one workspace credential rotates independently'
+    'one user may issue another independent Git credential'
 );
 SELECT is(
     (SELECT status FROM public.access_surface_credentials
      WHERE id = 'issue029-credential-editor-v1'),
-    'revoked', 'binding rotation revokes its previous credential'
-);
-SELECT is(
-    (SELECT status FROM public.access_surface_credentials
-     WHERE id = 'issue029-credential-viewer-v1'),
-    'active', 'binding rotation does not disconnect another workspace'
+    'active', 'new issuance does not rotate an existing user credential'
 );
 SELECT is(
     (SELECT status FROM public.access_surface_credentials
      WHERE id = 'issue029-credential-editor-v2'),
-    'active', 'binding rotation publishes one replacement credential'
+    'active', 'the second user credential is active'
 );
 
 SELECT lives_ok(
-    $$UPDATE public.repo_scopes SET mode = 'r'
-      WHERE id = 'issue029-root'$$,
-    'scope mode can be tightened independently of Human role'
+    $$UPDATE public.repository_scopes SET max_mode = 'r'
+      WHERE id = 'issue029-child'$$,
+    'Scope policy can be tightened independently'
+);
+SELECT is(
+    (SELECT effective_mode FROM public.resolve_git_runtime_credential(
+        'issue029-hash-editor-v1')),
+    'r', 'Scope downgrade caps the first credential to read-only'
+);
+SELECT is(
+    (SELECT effective_mode FROM public.resolve_git_runtime_credential(
+        'issue029-hash-editor-v2')),
+    'r', 'Scope downgrade caps every credential for that target'
+);
+SELECT lives_ok(
+    $$UPDATE public.repository_scopes SET max_mode = 'rw'
+      WHERE id = 'issue029-child'$$,
+    'Scope policy may be restored'
+);
+SELECT is(
+    (SELECT effective_mode FROM public.resolve_git_runtime_credential(
+        'issue029-hash-editor-v2')),
+    'rw', 'restored target policy permits the credential ceiling again'
+);
+
+SELECT ok(
+    public.revoke_user_git_http_credential(
+        'issue029-credential-editor-v1', 'issue029-private',
+        '00000000-0000-0000-0000-000000029102'::uuid
+    ),
+    'the user can revoke one exact Git credential'
+);
+SELECT is(
+    (SELECT status FROM public.access_surface_credentials
+     WHERE id = 'issue029-credential-editor-v1'),
+    'revoked', 'credential revocation changes its own lifecycle'
 );
 SELECT is(
     (SELECT status FROM public.access_surface_credentials
      WHERE id = 'issue029-credential-editor-v2'),
-    'revoked', 'scope rw to r downgrade revokes an rw binding credential'
-);
-SELECT throws_ok(
-    $$UPDATE public.repo_scopes SET is_root = false
-      WHERE id = 'issue029-root'$$,
-    'P0001',
-    'cannot change root identity of a bound scope',
-    'an active binding prevents root/non-root identity drift'
-);
-SELECT lives_ok(
-    $$UPDATE public.repo_scopes SET mode = 'rw'
-      WHERE id = 'issue029-root'$$,
-    'scope may be restored to rw without resurrecting old credentials'
-);
-SELECT lives_ok(
-    $$SELECT public.rotate_project_workspace_binding_credential(
-        'issue029-binding-editor',
-        '00000000-0000-0000-0000-000000029102'::uuid,
-        'issue029-credential-editor-v3', 'pwb', 'e003',
-        'issue029-hash-editor-v3', 'hmac_sha256_v1'
-    )$$,
-    'restored scope requires an explicit fresh binding credential'
-);
-SELECT is(
-    (SELECT status FROM public.access_surface_credentials
-     WHERE id = 'issue029-credential-editor-v3'),
-    'active', 'fresh binding credential is active after explicit rotation'
-);
-
-SELECT lives_ok(
-    $$SELECT public.revoke_project_workspace_binding(
-        'issue029-binding-viewer',
-        '00000000-0000-0000-0000-000000029103'::uuid
-    )$$,
-    'one workspace binding can be revoked independently'
-);
-SELECT is(
-    (SELECT status FROM public.access_surface_credentials
-     WHERE id = 'issue029-credential-viewer-v1'),
-    'revoked', 'binding revocation immediately revokes its credential'
-);
-SELECT is(
-    (SELECT status FROM public.access_surface_credentials
-     WHERE id = 'issue029-credential-editor-v3'),
-    'active', 'revoking another binding leaves this device connected'
+    'active', 'revoking one credential leaves another active'
 );
 
 SELECT lives_ok(
@@ -472,9 +474,9 @@ SELECT lives_ok(
     'Project role downgrade is committed through the authorized RPC'
 );
 SELECT is(
-    (SELECT status FROM public.access_surface_credentials
-     WHERE id = 'issue029-credential-editor-v3'),
-    'revoked', 'Editor to Viewer downgrade revokes the active rw credential'
+    (SELECT effective_mode FROM public.resolve_git_runtime_credential(
+        'issue029-hash-editor-v2')),
+    'r', 'Editor-to-Viewer downgrade takes effect on the next Git request'
 );
 SELECT throws_ok(
     $$SELECT * FROM public.update_project_member_role_authorized(
@@ -501,10 +503,10 @@ SELECT lives_ok(
     )$$,
     'Project membership can be revoked through the authorized RPC'
 );
-SELECT is(
-    (SELECT status FROM public.access_surface_credentials
-     WHERE id = 'issue029-credential-removal-v1'),
-    'revoked', 'Project membership revoke invalidates the binding credential'
+SELECT is_empty(
+    $$SELECT * FROM public.resolve_git_runtime_credential(
+        'issue029-hash-removal-v1')$$,
+    'membership loss invalidates the credential on the next request'
 );
 SELECT is_empty(
     $$SELECT * FROM public.resolve_project_role(
@@ -515,22 +517,17 @@ SELECT lives_ok(
     $$DELETE FROM public.org_members
       WHERE org_id = 'issue029-org'
         AND user_id = '00000000-0000-0000-0000-000000029104'::uuid$$,
-    'Organization membership revoke removes the tenant-bound device identity'
-);
-SELECT is(
-    (SELECT count(*) FROM public.project_workspace_bindings
-     WHERE id = 'issue029-binding-org-baseline'),
-    0::bigint, 'tenant revocation cascades the org-visible workspace binding'
+    'Organization membership revoke removes the tenant principal'
 );
 SELECT is(
     (SELECT count(*) FROM public.access_surface_credentials
      WHERE id = 'issue029-credential-org-baseline-v1'),
-    0::bigint, 'tenant revocation cascades its binding-specific credential'
+    0::bigint, 'tenant revocation cascades its user-owned credential'
 );
 SELECT is(
     (public.unified_authorization_preflight()->>'invalid_project_members')::bigint
       + (public.unified_authorization_preflight()->>'creator_admin_unresolved')::bigint
-      + (public.unified_authorization_preflight()->>'duplicate_or_missing_root_scopes')::bigint
+      + (public.unified_authorization_preflight()->>'invalid_repository_scopes')::bigint
       + (public.unified_authorization_preflight()->>'orphan_access_surfaces')::bigint
       + (public.unified_authorization_preflight()->>'orphan_access_credentials')::bigint
       + (public.unified_authorization_preflight()->>'invalid_access_tool_bindings')::bigint,

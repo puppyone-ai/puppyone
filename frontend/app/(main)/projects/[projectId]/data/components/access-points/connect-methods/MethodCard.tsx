@@ -326,9 +326,9 @@ export function SectionHeader({
 }
 
 /**
- * NoAccessKeyNotice — banner shown when scope.access_key is empty.
- * All three method cards are degenerate without it, so we surface the
- * fix path inline rather than letting the cards render unusable copy.
+ * NoAccessKeyNotice — compatibility banner for a redacted CLI key.
+ * An empty scope.access_key does not prove that no credential exists;
+ * ordinary reads intentionally never return plaintext.
  */
 export function NoAccessKeyNotice() {
   return (
@@ -343,7 +343,7 @@ export function NoAccessKeyNotice() {
         padding: '10px 12px',
       }}
     >
-      This scope has no access key issued. Regenerate one from scope settings to enable any of these methods.
+      CLI key plaintext is hidden after issuance. Generate a new one from scope settings when you need setup commands.
     </div>
   );
 }

@@ -222,13 +222,13 @@ async def seed_template_content(
     created_by: str,
 ) -> dict:
     """Write a template's files into a project through the L3 command service."""
-    from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
+    from src.platform.project.write_lease import build_leased_worker_write_commands
 
     tmpl = get_template(template_id)
     if tmpl is None:
         return {"error": f"Unknown template: {template_id}"}
 
-    commands = build_worker_version_engine_container().write_commands()
+    commands = build_leased_worker_write_commands()
     await commands.bulk_write(
         project_id,
         tmpl.files,

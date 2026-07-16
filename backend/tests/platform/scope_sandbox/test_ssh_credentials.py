@@ -120,7 +120,7 @@ async def test_provision_user_workspace_clones_into_user_dir():
 
     workdir = await sc.provision_user_workspace(
         Box(), "sb-1", "alice",
-        git_url="https://qubits-api.puppyone.ai/git/ap/KEY.git",
+        git_url="https://qubits-api.puppyone.ai/git/project-1/scopes/scope-1.git",
         user_email="alice@corp.com", user_name="Alice",
     )
     assert workdir == "alice"

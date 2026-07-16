@@ -5,6 +5,12 @@ scope boundaries, optimistic merge, hosted conflict review, audit, projection,
 and outbox repair live above Git in the Version Engine. The server does not
 maintain a second version-control protocol.
 
+Repository identity follows
+[Project-Owned Repository Targets](15-project-owned-repository-targets.md):
+Project is the sole root repository identity, while every persisted Scope is a
+non-empty path boundary. “Root” below names an empty-path Project projection,
+never a synthetic Scope resource.
+
 ## Architecture
 
 ```text
@@ -42,7 +48,7 @@ maintain a second version-control protocol.
   +---------------------------+       +-------------------------------+
   | Git object storage        |       | Supabase control plane        |
   |                           |       |                               |
-  | version/<project>/objects |       | repo_scopes                   |
+  | version/<project>/objects |       | repository_scopes             |
   | version/<project>/bundles |       | canonical projects root column|
   | blob/tree/commit bytes    |       | scope-state and commit rows   |
   | object-location index     |       | conflicts, transactions       |
@@ -78,7 +84,7 @@ Concretely, the project root hash column (`projects.version_root_hash`, formerly
 `projects.version_root_hash`) is the canonical tree for the project. Product
 writes, Access Point writes, Git pushes, CLI FS writes, and connector writes all
 land by applying a path-scoped patch to that root and conditionally publishing a
-new root. `repo_scopes` defines who can touch which path; it does not define a
+new root. `repository_scopes` defines optional path boundaries; it does not define a
 separate project truth.
 
 This is the same architectural shape as Git-backed systems: one repository view
@@ -275,7 +281,8 @@ Updates from the previous diagram:
   same permission vocabulary: target scope, mode, excludes, allowed actions,
   connector status, and audit identity.
 - "AP scope auth" means the product concept, not the removed historical
-  table model. The canonical runtime model is `repo_scopes + connectors`.
+  table model. The canonical runtime model is Project-owned repository state +
+  `repository_scopes` + target-bound `access_surfaces`.
 - Write side effects are behind `VersionTransactionLedger`. The
   Write Engine decides the lifecycle facts; Supabase persistence lives in
   `version_engine/infrastructure/supabase/transaction_ledger.py`.
@@ -417,6 +424,13 @@ If a follow-up step fails:
 A broken derived view must never become an empty project. If the root is healthy
 and a derived cache is missing, stale, or damaged, the system should rebuild from
 the root or fail loudly with a repairable error.
+
+The rebuild implementation remains a derived L5 follow-up operation. Git
+clients reach it through the machine `/git/.../rebuild-cache` entry point after
+RuntimeGrant admission; human Web operators reach the same implementation
+through the Project control-plane adapter after ProjectGrant authorization.
+The adapter boundary must not make JWT a valid Git transport credential or
+create another publication path.
 
 ## Rules
 
@@ -640,7 +654,7 @@ Each access point behaves externally like a repo endpoint, but internally it is
 a scoped facade over the canonical project root:
 
 ```text
-repo_scopes row
+RepositoryTarget + ResolvedRepositoryView
   -> RepoFacade(project_id, repo_id, scope_path, excludes, mode, ref)
   -> Git transport / CLI FS scoped view
   -> Version Engine transaction
@@ -650,6 +664,29 @@ repo_scopes row
 
 This keeps the GitHub-like external product model without creating one physical
 Git repository per scope and without creating one source of truth per scope.
+
+The public Git locator and credential contract lives in
+[Git Remote Locator, Credential, And Access Point Contract](05-git-remote-accesspoint.md).
+Its canonical routes are a root Project locator and an exact scoped
+locator:
+
+```text
+/git/{project_id}.git
+/git/{project_id}/scopes/{scope_id}.git
+```
+
+The route supplies non-secret target identity and HTTP authorization supplies
+the opaque credential. L2 must prove that credential owner, Access Surface,
+Scope, Project, lifecycle, current ProjectGrant, and effective mode all match
+before emitting a RuntimeGrant. From that grant onward the existing Version Engine contract is
+unchanged: RepoFacade, GitViewHead, cache identity, quarantine, scope/exclude
+admission, VersionSubmissionIntent, canonical-root CAS, audit, and repair do not
+depend on the URL family or raw credential.
+
+In particular, the Git view cache remains keyed by effective content geometry
+(`project_id + scope_path + excludes + projection/storage variants`), not by
+credential, user, route family, local checkout, or Scope ID. Credential rotation
+therefore never creates a new content view or invalidates a transport cache.
 
 ## 嵌套 Scope 拓扑 —— 用户行为对照表
 
@@ -670,8 +707,8 @@ Root
 
 ### 一、从 Root 入口提交
 
-入口包括产品 Web 保存、API、CLI 带 root access key、root scope 的 access
-point。Root 入口能看见整棵树，触达任意路径都是合法的。
+入口包括产品 Web 保存、API、Project-root CLI/Git Access Surface。Root 入口能
+看见整棵树，触达任意路径都是合法的。
 
 | # | 触达路径 | 我们怎么做 | 为什么 |
 |---|---|---|---|
@@ -691,7 +728,7 @@ point。Root 入口能看见整棵树，触达任意路径都是合法的。
 2. build 一条新的 root commit `C_canon`，parent = 当前 root 的 head commit。
 3. 拿 `(旧 root_hash → 新 root_hash)` 去 CAS `projects.version_root_hash`。撞车就拿新 root 重新 graft + rebuild commit 再 CAS，重试到上限为止。
 4. CAS 成功后**同一个数据库事务里**做完下面这些：
-   - 写 `version_scope_state[scope_path='']`：`scope_hash = 新 root_hash`、`head_commit_id = C_canon`（这一行就是"root scope 的视图缓存"）。
+   - 写 `version_scope_state[scope_path='']`：`scope_hash = 新 root_hash`、`head_commit_id = C_canon`（这一行是 Project-root 投影视图缓存，不是 Scope 资源）。
    - 写 `version_commits` 一行（canonical commit 记录）。
    - 写 `version_transactions` 一行（事务记录）。
    - 写 `audit_logs` 一行。
@@ -839,10 +876,10 @@ B 是最简单的形态——独立子树，没有子 scope，跟 A、C 都不�
 
 | 场景 | 我们怎么做 |
 |---|---|
-| 从 Root 入口删掉整棵 `/A/C` 子树 | 接受。Scope C 的 `repo_scopes` 声明保留，C 视图变成空（clone 出来无 ref）。dashboard 弹一条告警："Scope C 的挂载点被根写清空。" C 的所有者可以继续 push 来重建。 |
+| 从 Root 入口删掉整棵 `/A/C` 子树 | 接受。Scope C 的 `repository_scopes` 声明保留，C 视图变成空（clone 出来无 ref）。dashboard 弹一条告警："Scope C 的挂载点被根写清空。" C 的所有者可以继续 push 来重建。 |
 | 从 Root 入口把 `/A/C` 这个目录改成一个文件 | 走冲突策略。生成 pending conflict，归属 C；由 C 所有者或管理员决定是接受类型变更（C 之后变空）还是回滚。 |
 | 跨 scope 边界的 rename / move（如 `/A/x.md` → `/A/C/x.md`） | 子 scope 入口（A 或 C）都做不了：源或目标必有一端越界。这种动作只能从 Root 入口走。 |
-| 在已有内容上新声明一个子 scope（如新增 `/A/D` 的 `repo_scopes` 行） | 不搬动任何字节。声明落盘后 A 的下一次 push 触达 `/A/D/*` 会开始被拒；`/A/D` 作为 Scope D 自己可写。 |
+| 在已有内容上新声明一个子 scope（如新增 `/A/D` 的 `repository_scopes` 行） | 不搬动任何字节。声明落盘后 A 的下一次 push 触达 `/A/D/*` 会开始被拒；`/A/D` 作为 Scope D 自己可写。 |
 | 只读 scope（`mode = r`）上 push | 一律拒绝（403），不区分触达路径。 |
 | 子 scope push 与并发根写撞同一文件 | 走 L5 标准冲突策略。冲突行归属 = 路径的声明 scope（如 `/A/C/*` 归属 C）；`audit_detail.actor_source_scope` 留下写入者来源。 |
 
@@ -1021,6 +1058,6 @@ Git 原生 `git push --force` 允许非 fast-forward。puppyone 默认禁用，�
 
 未来如果想在某个 scope 上 opt-in "透明可见"（子 scope 的内容能在父 view
 里看见、父 push 能写子的地盘），可以加一个
-`repo_scopes.nested_visibility = transparent` 设置。Transparent 模式下，
+`repository_scopes.nested_visibility = transparent` 设置。Transparent 模式下，
 "父入口写子地盘"要走对子 scope head 的 base-version 校验；该开关存在
 之前，所有嵌套 scope 都按上面表格里的方式处理。

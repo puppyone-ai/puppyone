@@ -17,7 +17,13 @@ import {
   type EndpointEntry,
   type ProviderIconLookup,
 } from '../access-points';
-import { matchScopeForPath, type Connector, type RepoIdentity, type RepoScope } from '@/lib/repoApi';
+import {
+  matchRepositoryViewForPath,
+  repositoryViewKey,
+  type Connector,
+  type RepoIdentity,
+  type RepositoryView,
+} from '@/lib/repoApi';
 import type { SyncStatusSync } from '../../DataLayoutContext';
 import type { PanelState } from '../../usePanelStore';
 import { PageLoading } from '@/components/loading';
@@ -74,9 +80,9 @@ interface DataPageRightPanelProps {
   readonly accessPointEntries: EndpointEntry[];
   readonly providerIcons: ProviderIconLookup;
   /** Redesign 2026-05-02: scope list for matching the current URL path. */
-  readonly scopes: RepoScope[];
+  readonly scopes: RepositoryView[];
   /** Redesign 2026-05-02: connectors indexed by scope_id. */
-  readonly connectorsByScope: Map<string, Connector[]>;
+  readonly connectorsByTarget: Map<string, Connector[]>;
   /** Redesign 2026-05-02: current canonical URL path (empty string for root). */
   readonly currentScopePath: string;
   /** Redesign 2026-05-02: project identity payload (URL + prompt_template + scope keys). */
@@ -121,7 +127,7 @@ export function DataPageRightPanel({
   accessPointEntries: _accessPointEntries,
   providerIcons,
   scopes,
-  connectorsByScope,
+  connectorsByTarget,
   currentScopePath,
   repoIdentity,
   onClose,
@@ -206,13 +212,13 @@ export function DataPageRightPanel({
   //   1. `panelState.view`            — explicit user choice from a
   //                                     trigger (header → overview,
   //                                     row → detail, etc.).
-  //   2. `panelState.selectedScopeId` — drill-down target id.
+  //   2. `panelState.selectedTargetKey` — drill-down target id.
   //   3. `currentScopePath`           — file tree's current folder.
   //
   // Resolution precedence:
   //   - view === 'overview'             → Overview (Pp.1), hard.
   //   - view === 'settings' + scope     → Settings page (Pp.2s).
-  //   - selectedScopeId is set          → Detail of that scope.
+  //   - selectedTargetKey is set          → Detail of that scope.
   //   - currentScopePath matches scope  → Detail of that scope (auto).
   //   - otherwise                       → Overview (Pp.1).
   //
@@ -224,10 +230,10 @@ export function DataPageRightPanel({
   // No parent-child inheritance per the redesign Q1 decision
   // (2026-05-03) — exact match only.
   const drilledScope =
-    panelState.type === 'access_list' && panelState.selectedScopeId
-      ? scopes.find((s) => s.id === panelState.selectedScopeId) ?? null
+    panelState.type === 'access_list' && panelState.selectedTargetKey
+      ? scopes.find((s) => repositoryViewKey(s) === panelState.selectedTargetKey) ?? null
       : null;
-  const folderScope = matchScopeForPath(panelScopePath, scopes);
+  const folderScope = matchRepositoryViewForPath(panelScopePath, scopes);
   const resolvedScope = drilledScope ?? folderScope;
 
   const accessListView: 'overview' | 'detail' | 'settings' =
@@ -244,7 +250,7 @@ export function DataPageRightPanel({
       ? resolvedScope
       : null;
   const currentScopeConnectors = currentScope
-    ? connectorsByScope.get(currentScope.id) || []
+    ? connectorsByTarget.get(repositoryViewKey(currentScope)) || []
     : [];
 
   // File-tree navigation resets the panel's drill-down so the panel
@@ -269,7 +275,7 @@ export function DataPageRightPanel({
         panelState.view !== 'overview' &&
         panelState.view !== 'settings' &&
         (panelState.view !== undefined ||
-          panelState.selectedScopeId !== undefined)
+          panelState.selectedTargetKey !== undefined)
       ) {
         onOpenPanel({ type: 'access_list' });
       }
@@ -405,7 +411,7 @@ export function DataPageRightPanel({
           currentScopePath={panelScopePath}
           projectId={projectId}
           connectors={currentScopeConnectors}
-          connectorsByScope={connectorsByScope}
+          connectorsByTarget={connectorsByTarget}
           providerIcons={providerIcons}
           onScopeHover={onAccessPointHover}
           onScopeMutated={onScopeMutated}
@@ -415,7 +421,7 @@ export function DataPageRightPanel({
           // user keeps their current document open while inspecting
           // a sibling scope's configuration.
           onSelectScope={(scopeId) =>
-            onOpenPanel({ type: 'access_list', view: 'detail', selectedScopeId: scopeId })
+            onOpenPanel({ type: 'access_list', view: 'detail', selectedTargetKey: scopeId })
           }
           // Overview's "+ Create new access point" CTA opens the same
           // CreateAccessModal used by folder row actions. The sidebar
@@ -434,7 +440,7 @@ export function DataPageRightPanel({
               ? () => onOpenPanel({
                   type: 'access_list',
                   view: 'detail',
-                  selectedScopeId: currentScope.id,
+                  selectedTargetKey: repositoryViewKey(currentScope),
                 })
               : accessListView === 'detail'
               ? () => onOpenPanel({ type: 'access_list', view: 'overview' })
@@ -448,7 +454,7 @@ export function DataPageRightPanel({
               ? () => onOpenPanel({
                   type: 'access_list',
                   view: 'settings',
-                  selectedScopeId: currentScope.id,
+                  selectedTargetKey: repositoryViewKey(currentScope),
                 })
               : undefined
           }

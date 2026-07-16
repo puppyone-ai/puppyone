@@ -3,9 +3,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   deleteScope,
-  regenerateScopeKey,
   updateScope,
-  type RepoScope,
+  type RepositoryView,
 } from '@/lib/repoApi';
 import { Dots } from '@/components/loading';
 import {
@@ -20,15 +19,14 @@ import {
   COLOR_FG,
   COLOR_FG_DIM,
   COLOR_FG_MUTED,
-  FONT_MONO,
 } from './tokens';
 
 /**
  * ScopeSettingsBlock — the full Settings panel for an access point.
  *
  * Keep this page lightweight. Connector-level capabilities now own the
- * detailed permission story, so Settings only keeps scope identity,
- * credential management, and deletion.
+ * detailed permission story, so Settings only keeps Scope identity and
+ * deletion. Credential lifecycle belongs to each Access Surface.
  *
  * The block renders as the dedicated Settings sub-page for a scope.
  * When dirty, a Save / Discard footer appears at the bottom so the
@@ -41,8 +39,7 @@ import {
  *
  * Save → updateScope → onMutated (refresh SWR caches) → resets dirty,
  * stays mounted (user can keep editing). Delete → onScopeDeleted
- * (panel close). Rotate → regenerateScopeKey → onMutated, stays
- * mounted.
+ * (panel close). The Project root view has no Scope mutation controls.
  */
 export function ScopeSettingsBlock({
   scope,
@@ -52,7 +49,7 @@ export function ScopeSettingsBlock({
   onDirtyChange,
   accessMethods,
 }: {
-  readonly scope: RepoScope;
+  readonly scope: RepositoryView;
   readonly projectId: string;
   readonly onMutated: () => Promise<unknown>;
   readonly onScopeDeleted: () => void;
@@ -70,12 +67,7 @@ export function ScopeSettingsBlock({
   // Per-action confirm states.
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [confirmRotate, setConfirmRotate] = useState(false);
-  const [rotating, setRotating] = useState(false);
-
-  // Access key reveal/copy state.
-  const [keyRevealed, setKeyRevealed] = useState(false);
-  const [keyCopied, setKeyCopied] = useState(false);
+  const isProjectRoot = scope.target.kind === 'project_root';
 
   // Reset everything when the user navigates to a different scope so a
   // half-armed destructive action doesn't leak across.
@@ -83,12 +75,9 @@ export function ScopeSettingsBlock({
     setName(scope.name);
     setError(null);
     setConfirmDelete(false);
-    setConfirmRotate(false);
-    setKeyRevealed(false);
-    setKeyCopied(false);
-  }, [scope.id, scope.name, scope.access_key]);
+  }, [scope.id, scope.name]);
 
-  const dirty = name.trim() !== scope.name;
+  const dirty = !isProjectRoot && name.trim() !== scope.name;
 
   // Push dirty up. Effect runs after render so consumers see consistent
   // state. The dependency on `onDirtyChange` itself is fine because
@@ -101,13 +90,12 @@ export function ScopeSettingsBlock({
   // ── Mutations ─────────────────────────────────────────────────────────
 
   const handleSave = useCallback(async () => {
+    if (scope.target.kind !== 'scope') return;
     setSaving(true);
     setError(null);
     try {
       await updateScope(projectId, scope.id, {
-        // Root scope name is locked at the DB layer; sending the
-        // original value is a no-op but keeps the patch consistent.
-        name: scope.is_root ? scope.name : (name.trim() || scope.name),
+        name: name.trim() || scope.name,
       });
       await onMutated();
       // Stays mounted; SWR refresh will re-pass scope props and the
@@ -118,7 +106,7 @@ export function ScopeSettingsBlock({
     } finally {
       setSaving(false);
     }
-  }, [projectId, scope.id, scope.is_root, scope.name, name, onMutated]);
+  }, [projectId, scope, name, onMutated]);
 
   const handleDiscard = useCallback(() => {
     setName(scope.name);
@@ -126,6 +114,7 @@ export function ScopeSettingsBlock({
   }, [scope.name]);
 
   const handleDelete = useCallback(async () => {
+    if (scope.target.kind !== 'scope') return;
     if (!confirmDelete) {
       setConfirmDelete(true);
       // Auto-disarm in 4s so an accidental first click doesn't leave
@@ -144,47 +133,9 @@ export function ScopeSettingsBlock({
       setDeleting(false);
       setConfirmDelete(false);
     }
-  }, [confirmDelete, projectId, scope.id, onMutated, onScopeDeleted]);
-
-  const handleRotate = useCallback(async () => {
-    if (!confirmRotate) {
-      setConfirmRotate(true);
-      setTimeout(() => setConfirmRotate(false), 4000);
-      return;
-    }
-    setRotating(true);
-    setError(null);
-    try {
-      await regenerateScopeKey(projectId, scope.id);
-      await onMutated();
-      // After rotate, the new key arrives via SWR → reset effect
-      // re-syncs local state. Reveal stays as user had it.
-      setKeyCopied(false);
-    } catch (e) {
-      setError((e as Error).message || 'Failed to regenerate key');
-    } finally {
-      setRotating(false);
-      setConfirmRotate(false);
-    }
-  }, [confirmRotate, projectId, scope.id, onMutated]);
-
-  const handleCopyKey = useCallback(async () => {
-    if (!scope.access_key) return;
-    try {
-      await navigator.clipboard.writeText(scope.access_key);
-      setKeyCopied(true);
-      setTimeout(() => setKeyCopied(false), 1500);
-    } catch {
-      // Clipboard permission denied. Fall through silently — the user
-      // can still reveal and select-copy manually.
-    }
-  }, [scope.access_key]);
+  }, [confirmDelete, projectId, scope, onMutated, onScopeDeleted]);
 
   // ── Render helpers ────────────────────────────────────────────────────
-
-  const maskedKey = scope.access_key
-    ? `${scope.access_key.slice(0, 4)}${'•'.repeat(Math.max(0, scope.access_key.length - 8))}${scope.access_key.slice(-4)}`
-    : '—';
 
   return (
     <section
@@ -194,13 +145,12 @@ export function ScopeSettingsBlock({
         gap: 10,
       }}
     >
-      <Card>
+      {!isProjectRoot ? <Card>
         <FieldLabel>Name</FieldLabel>
         <input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          disabled={scope.is_root}
           style={{
             background: COLOR_BG_SUNKEN,
             border: `1px solid ${COLOR_BORDER}`,
@@ -209,108 +159,21 @@ export function ScopeSettingsBlock({
             fontSize: 12,
             padding: '6px 10px',
             outline: 'none',
-            opacity: scope.is_root ? 0.6 : 1,
           }}
         />
-        {scope.is_root && (
-          <FieldHelp>Root access keeps the project name.</FieldHelp>
-        )}
-      </Card>
-
-      <Card>
-        <FieldLabel>Access key</FieldLabel>
-        <FieldHelp>
-          Included in copied prompts and connector setup. Regenerate only if it leaked.
-        </FieldHelp>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            background: COLOR_BG_SUNKEN,
-            border: `1px solid ${COLOR_BORDER}`,
-            borderRadius: 6,
-            padding: '5px 6px 5px 10px',
-          }}
-        >
-          <span
-            style={{
-              flex: 1,
-              minWidth: 0,
-              fontFamily: FONT_MONO,
-              fontSize: 12,
-              color: scope.access_key ? COLOR_FG : COLOR_FG_DIM,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              userSelect: keyRevealed ? 'all' : 'none',
-            }}
-          >
-            {keyRevealed ? scope.access_key || '—' : maskedKey}
-          </span>
-          <IconButton
-            ariaLabel={keyRevealed ? 'Hide access key' : 'Reveal access key'}
-            onClick={() => setKeyRevealed((v) => !v)}
-            disabled={!scope.access_key}
-          >
-            {keyRevealed ? <EyeOffIcon /> : <EyeIcon />}
-          </IconButton>
-          <IconButton
-            ariaLabel="Copy access key"
-            onClick={handleCopyKey}
-            disabled={!scope.access_key}
-            title={keyCopied ? 'Copied' : 'Copy'}
-          >
-            {keyCopied ? <CheckIcon /> : <CopyIcon />}
-          </IconButton>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button
-            type="button"
-            onClick={handleRotate}
-            disabled={rotating || !scope.access_key}
-            style={{
-              height: 30,
-              padding: '0 12px',
-              fontSize: 12,
-              fontWeight: 500,
-              color: confirmRotate ? COLOR_DANGER_FAINT : COLOR_FG,
-              background: confirmRotate
-                ? COLOR_DANGER_BG
-                : 'var(--po-hover)',
-              border: `1px solid ${
-                confirmRotate ? COLOR_DANGER_BORDER : COLOR_BORDER_HOVER
-              }`,
-              borderRadius: 6,
-              cursor: rotating || !scope.access_key ? 'default' : 'pointer',
-              opacity: !scope.access_key ? 0.5 : 1,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
-          >
-            {rotating && <Dots size="xs" />}
-            <RotateIcon />
-            {rotating
-              ? 'Regenerating…'
-              : confirmRotate
-                ? 'Confirm regenerate'
-                : 'Regenerate'}
-          </button>
-          {confirmRotate && !rotating && (
-            <span style={{ fontSize: 12, color: COLOR_DANGER_FAINT }}>
-              Will invalidate all current CLI / Sync clients.
-            </span>
-          )}
-        </div>
-      </Card>
+      </Card> : (
+        <Card>
+          <FieldLabel>Project repository</FieldLabel>
+          <FieldHelp>
+            This is the Project-owned canonical root. Configure credentials on
+            its CLI and Git access methods; path Scope controls do not apply.
+          </FieldHelp>
+        </Card>
+      )}
 
       {accessMethods}
 
-      {/* Danger zone — delete, isolated at the bottom so a stray
-          click on the way out can't catch it. Two-click confirm; root
-          hard-disabled (DB enforces "exactly one root per project"). */}
-      <Card danger>
+      {!isProjectRoot ? <Card danger>
         <FieldLabel danger>Danger zone</FieldLabel>
         <FieldHelp>
           Deletes this access point and cascades to its built-in cli + agent
@@ -319,34 +182,26 @@ export function ScopeSettingsBlock({
         <button
           type="button"
           onClick={handleDelete}
-          disabled={scope.is_root || deleting}
-          title={scope.is_root ? 'Root scope cannot be deleted' : undefined}
+          disabled={deleting}
           style={{
             alignSelf: 'flex-start',
             height: 30,
             padding: '0 12px',
             fontSize: 12,
             fontWeight: 500,
-            color: scope.is_root
-              ? COLOR_FG_DIM
-              : confirmDelete
+            color: confirmDelete
                 ? COLOR_DANGER_FAINT
                 : COLOR_DANGER,
-            background: scope.is_root
-              ? 'transparent'
-              : confirmDelete
+            background: confirmDelete
                 ? COLOR_DANGER_BG
                 : 'transparent',
             border: `1px solid ${
-              scope.is_root
-                ? COLOR_BORDER
-                : confirmDelete
+              confirmDelete
                   ? COLOR_DANGER
                   : COLOR_DANGER_BORDER
             }`,
             borderRadius: 6,
-            cursor: scope.is_root ? 'not-allowed' : 'pointer',
-            opacity: scope.is_root ? 0.5 : 1,
+            cursor: 'pointer',
             display: 'inline-flex',
             alignItems: 'center',
             gap: 6,
@@ -359,7 +214,7 @@ export function ScopeSettingsBlock({
               ? 'Confirm delete'
               : 'Delete access point'}
         </button>
-      </Card>
+      </Card> : null}
 
       {error && (
         <div
@@ -500,103 +355,5 @@ function FieldHelp({ children }: { readonly children: React.ReactNode }) {
     >
       {children}
     </div>
-  );
-}
-
-function IconButton({
-  children,
-  onClick,
-  ariaLabel,
-  disabled = false,
-  title,
-}: {
-  readonly children: React.ReactNode;
-  readonly onClick: () => void;
-  readonly ariaLabel: string;
-  readonly disabled?: boolean;
-  readonly title?: string;
-}) {
-  const [hovered, setHovered] = useState(false);
-  return (
-    <button
-      type="button"
-      aria-label={ariaLabel}
-      title={title || ariaLabel}
-      onClick={onClick}
-      disabled={disabled}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: 30,
-        height: 30,
-        padding: 0,
-        borderRadius: 6,
-        border: 'none',
-        background: !disabled && hovered ? 'var(--po-active)' : 'transparent',
-        color: disabled
-          ? COLOR_FG_DIM
-          : hovered
-            ? COLOR_FG
-            : COLOR_FG_MUTED,
-        cursor: disabled ? 'default' : 'pointer',
-        opacity: disabled ? 0.4 : 1,
-        transition: 'background 0.12s ease, color 0.12s ease',
-      }}
-    >
-      {children}
-    </button>
-  );
-}
-
-// ── Inline icons (Lucide stroke geometry, sized 14×14) ────────────────────
-
-function EyeIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
-      <circle cx="12" cy="12" r="3" />
-    </svg>
-  );
-}
-
-function EyeOffIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
-      <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
-      <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
-      <line x1="2" y1="2" x2="22" y2="22" />
-    </svg>
-  );
-}
-
-function CopyIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-    </svg>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
-  );
-}
-
-function RotateIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
-      <path d="M21 3v5h-5" />
-      <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
-      <path d="M3 21v-5h5" />
-    </svg>
   );
 }

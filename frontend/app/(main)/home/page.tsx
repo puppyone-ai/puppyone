@@ -18,6 +18,11 @@ function DashboardPageContent() {
   const { projects, isLoading: projectsLoading } = useProjects(currentOrg?.id ?? null);
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const creatingProjectRef = useRef(false);
+  const createOperationRef = useRef<{
+    idempotencyKey: string;
+    name: string;
+    orgId: string;
+  } | null>(null);
   const handledCreateParamRef = useRef(false);
 
   // Auto-complete 'project' onboarding step when user has a project
@@ -35,8 +40,28 @@ function DashboardPageContent() {
     setIsCreatingProject(true);
 
     try {
+      if (!currentOrg?.id) {
+        throw new Error('Select an organization before creating a project.');
+      }
       const projectName = nextUntitledProjectName(projects);
-      const created = await createProject(projectName, '', currentOrg?.id, false);
+      const previousOperation = createOperationRef.current;
+      const operation =
+        previousOperation?.name === projectName &&
+        previousOperation.orgId === currentOrg.id
+          ? previousOperation
+          : {
+              idempotencyKey: crypto.randomUUID(),
+              name: projectName,
+              orgId: currentOrg.id,
+            };
+      createOperationRef.current = operation;
+      const created = await createProject({
+        name: projectName,
+        description: '',
+        orgId: currentOrg.id,
+        idempotencyKey: operation.idempotencyKey,
+      });
+      createOperationRef.current = null;
       completeStep('project');
       router.push(`/projects/${created.id}/data`);
       void refreshProjects(currentOrg?.id);
@@ -79,6 +104,7 @@ function DashboardPageContent() {
             router.push(`/projects/${projectId}/data`);
           }}
           onCreateClick={handleCreateProject}
+          onBrowseTemplates={() => router.push('/templates')}
           creatingProject={isCreatingProject}
         />
       </div>

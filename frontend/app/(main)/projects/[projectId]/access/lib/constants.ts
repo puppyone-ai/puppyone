@@ -44,8 +44,8 @@ export const STATUS_LABEL: Record<string, string> = {
 // rendered as a card. We group those cards by provider type so each
 // access point reads as a first-class entity in the switcher chip.
 //
-// FS CLI, Git Remote, and Agent are the built-in connection methods
-// that get auto-created per scope.
+// FS CLI and Git Remote are standard target methods enabled explicitly.
+// Agent is a separately created target-bound runtime.
 // MCP / Sandbox / Third-party are user-created.
 
 export const CONNECTOR_GROUP_LABELS = ACCESS_PROVIDER_GROUP_LABELS;

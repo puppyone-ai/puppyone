@@ -19,6 +19,11 @@ export { isGitRemoteProvider, normalizeConnectorProvider } from '@/lib/accessPro
 // Pure domain helpers (transport-agnostic) now sourced from cloud-core.
 export {
   matchScopeForPath,
+  matchRepositoryViewForPath,
+  projectRootRepositoryView,
+  repositoryScopeView,
+  repositoryTargetKey,
+  repositoryViewKey,
   isWithinScope,
   BUILTIN_PROVIDERS,
   isAccessSurfaceConnector,
@@ -28,7 +33,9 @@ export {
 
 export type {
   ScopeMode,
-  RepoScope,
+  RepositoryScope,
+  RepositoryTarget,
+  RepositoryView,
   ConnectorDirection,
   ConnectorStatus,
   Connector,
@@ -45,11 +52,11 @@ export const listScopes = scopesApi.listScopes;
 export const createScope = scopesApi.createScope;
 export const updateScope = scopesApi.updateScope;
 export const deleteScope = scopesApi.deleteScope;
-export const regenerateScopeKey = scopesApi.regenerateScopeKey;
 
 // ── Connectors + repo identity ──────────────────────────────────────────
 export const listConnectors = connectorsApi.listConnectors;
 export const createConnector = connectorsApi.createConnector;
+export const enableTargetAccess = connectorsApi.enableTargetAccess;
 export const updateConnector = connectorsApi.updateConnector;
 export const deleteConnector = connectorsApi.deleteConnector;
 export const runConnectorNow = connectorsApi.runConnectorNow;

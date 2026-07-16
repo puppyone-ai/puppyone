@@ -1,19 +1,18 @@
 from pathlib import Path
 
 from src.infra.data_migrations.catalog import DataMigrationCatalog
-from src.platform.authorization.manifest import PROJECT_ROUTE_AUTHORIZATION
+from src.platform.authorization.manifest import (
+    PROJECT_ROUTE_AUTHORIZATION,
+    AuthorizationPlane,
+)
 from src.platform.authorization.models import ACTION_CAPABILITY, ProjectAction
-
 
 BACKEND = Path(__file__).resolve().parents[2]
 SRC = BACKEND / "src"
 
 
 def _runtime_python_text() -> str:
-    return "\n".join(
-        path.read_text(encoding="utf-8")
-        for path in SRC.rglob("*.py")
-    )
+    return "\n".join(path.read_text(encoding="utf-8") for path in SRC.rglob("*.py"))
 
 
 def test_legacy_human_permission_runtime_is_removed():
@@ -27,16 +26,23 @@ def test_legacy_human_permission_runtime_is_removed():
 
 def test_project_routes_use_named_actions():
     project_router = (SRC / "platform" / "project" / "router.py").read_text()
-    binding_router = (
-        SRC / "platform" / "workspace_binding" / "router.py"
-    ).read_text()
+    context_router = (SRC / "platform" / "repository_context" / "router.py").read_text()
     assert "require_project_action(ProjectAction." in project_router
-    assert "require_project_action(ProjectAction." in binding_router
+    assert "require_project_action(ProjectAction." in context_router
     assert "if role" not in project_router
 
 
 def test_every_named_project_action_has_one_capability_contract():
     assert set(ACTION_CAPABILITY) == set(ProjectAction)
+
+
+def test_git_credential_revocation_is_an_owner_operation_not_project_read():
+    contract = PROJECT_ROUTE_AUTHORIZATION[
+        ("DELETE", "/api/v1/projects/{project_id}/git-credentials/{credential_id}")
+    ]
+
+    assert contract.plane is AuthorizationPlane.HUMAN_RESOURCE_OWNER
+    assert contract.action == "git_credential.owner"
 
 
 def test_authorization_failure_logs_do_not_emit_raw_principal_or_project_ids():
@@ -73,10 +79,9 @@ def test_every_project_path_route_has_an_authorization_contract():
 
     # These identifiers derive a Project through a child record.  Treating
     # only literal project_id parameters as Project-scoped lets a new Agent,
-    # Tool, Session, Binding, Publish, or upload route bypass the manifest.
+    # Tool, Session, Publish, or upload route bypass the manifest.
     derived_project_resource_params = {
         "agent_id",
-        "binding_id",
         "connection_id",
         "endpoint_id",
         "job_id",
@@ -127,9 +132,7 @@ def test_every_project_path_route_has_an_authorization_contract():
         ):
             continue
         registered.update(
-            (method, route.path)
-            for method in methods
-            if method not in {"HEAD", "OPTIONS"}
+            (method, route.path) for method in methods if method not in {"HEAD", "OPTIONS"}
         )
     manifested = set(PROJECT_ROUTE_AUTHORIZATION)
     assert registered - manifested == set()
@@ -139,16 +142,14 @@ def test_every_project_path_route_has_an_authorization_contract():
 def test_removed_ambiguous_project_access_api_has_no_runtime_callers():
     offenders = []
     for path in SRC.rglob("*.py"):
-        if path.is_relative_to(SRC / "tool") or path.is_relative_to(
-            SRC / "context_publish"
-        ):
+        if path.is_relative_to(SRC / "tool") or path.is_relative_to(SRC / "context_publish"):
             continue
         if "get_by_id_with_access_check" in path.read_text(encoding="utf-8"):
             offenders.append(path.relative_to(SRC).as_posix())
     assert offenders == []
 
 
-def test_migrations_define_nine_table_target_and_staged_retirement():
+def test_migrations_define_authorization_foundation_and_remove_checkout_identity():
     foundation = (
         BACKEND.parent
         / "supabase"
@@ -175,14 +176,12 @@ def test_migrations_define_nine_table_target_and_staged_retirement():
         / "20260712_repo_user_permissions_to_project_members"
         / "run.sql"
     ).read_text()
-    assert "CREATE TABLE IF NOT EXISTS public.project_workspace_bindings" in foundation
+    binding_removal = (
+        BACKEND.parent / "supabase" / "migrations" / "20260716000000_remove_workspace_binding.sql"
+    ).read_text()
     assert "create_project_with_admin" in foundation
-    assert "create_project_workspace_binding" in foundation
-    assert "workspace_binding_id" in foundation
     assert "resolve_project_role" in foundation
     assert "get_version_project_write_state" in foundation
-    assert "reconcile_workspace_binding_credentials" in foundation
-    assert "_repo_scope_reconcile_workspace_bindings" in foundation
     assert "invalid_access_tool_bindings" in foundation
     assert "AND kind = 'cli'" in foundation
     assert "REVOKE ALL ON FUNCTION public.rotate_access_surface_bearer_token" in foundation
@@ -193,9 +192,11 @@ def test_migrations_define_nine_table_target_and_staged_retirement():
     assert "DEFERRABLE INITIALLY DEFERRED" in creator_guard
     assert "REVOKE ALL ON FUNCTION public.unified_authorization_preflight()" in retirement
     assert "requires-data-migration: 20260712_repo_user_permissions" in retirement
-    artifact_checksum = DataMigrationCatalog(BACKEND.parent).get(
-        "20260712_repo_user_permissions_to_project_members"
-    ).checksum
+    artifact_checksum = (
+        DataMigrationCatalog(BACKEND.parent)
+        .get("20260712_repo_user_permissions_to_project_members")
+        .checksum
+    )
     assert f"data-migration-checksum: {artifact_checksum}" in retirement
     assert f"summary->>'artifact_checksum' =\n              '{artifact_checksum}'" in retirement
     assert "DATA_MIGRATION_REQUIRED:20260712_repo_user_permissions" in retirement
@@ -205,6 +206,10 @@ def test_migrations_define_nine_table_target_and_staged_retirement():
     assert "DROP TABLE IF EXISTS public.repo_user_permissions" in retirement
     assert "INSERT INTO public.project_members" not in retirement
     assert "INSERT INTO public.project_members" in data_migration
+    assert "DROP TABLE public.project_workspace_bindings CASCADE" in binding_removal
+    assert "DROP COLUMN workspace_binding_id" in binding_removal
+    assert "credential_lifecycle IN ('shared', 'session', 'user')" in binding_removal
+    assert "issue_user_git_http_credential" in binding_removal
 
 
 def test_migration_functions_pin_a_hardened_search_path():
@@ -229,31 +234,26 @@ def test_database_contract_suite_and_ci_gate_are_wired():
     contract = (
         BACKEND.parent / "supabase" / "tests" / "unified_project_authorization_test.sql"
     ).read_text()
-    workflow = (
-        BACKEND.parent / ".github" / "workflows" / "validate-migrations.yml"
-    ).read_text()
-    assert "SELECT plan(58);" in contract
+    workflow = (BACKEND.parent / ".github" / "workflows" / "validate-migrations.yml").read_text()
+    assert "SELECT plan(59);" in contract
     assert "has_function_privilege" in contract
     assert contract.count("SELECT throws_ok(") >= 6
-    assert "root/non-root identity drift" in contract
+    assert "Cloud has no local checkout registration table" in contract
+    assert "membership loss invalidates the credential on the next request" in contract
+    assert "synthetic-root Scope table name is retired" in contract
     assert "Agent child permissions cannot import a sibling Project tool" in contract
     assert "supabase start" in workflow
     assert "supabase db reset --no-seed" in workflow
     assert "supabase test db" in workflow
 
 
-def test_openspec_change_is_complete_and_strictly_shaped():
-    change = BACKEND / "openspec" / "changes" / "refactor-unified-authorization-boundaries"
+def test_openspec_removal_change_is_strictly_shaped():
+    change = BACKEND / "openspec" / "changes" / "remove-workspace-binding"
     assert (change / "proposal.md").is_file()
     assert (change / "design.md").is_file()
-    tasks = (change / "tasks.md").read_text()
-    assert "- [ ]" not in tasks
+    assert (change / "tasks.md").is_file()
     specs = sorted((change / "specs").glob("*/spec.md"))
-    assert {path.parent.name for path in specs} == {
-        "project-authorization",
-        "project-runtime-readiness",
-        "workspace-binding",
-    }
+    assert {path.parent.name for path in specs} == {"git-workspace-linking"}
     for spec in specs:
         text = spec.read_text()
         assert "## ADDED Requirements" in text

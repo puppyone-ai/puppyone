@@ -4,12 +4,15 @@ import itertools
 
 import pytest
 
-from src.exceptions import NotFoundException, PermissionException
+from src.exceptions import (
+    PermissionException,
+    ServiceUnavailableException,
+)
 from src.platform.authorization.models import (
+    ROLE_CAPABILITIES,
     GrantSource,
     ProjectAction,
     ProjectRole,
-    ROLE_CAPABILITIES,
 )
 from src.platform.authorization.repository import ProjectAuthorizationFacts
 from src.platform.authorization.service import AuthorizationService
@@ -28,11 +31,7 @@ class FactsRepository:
     def load_project_facts_batch(self, project_ids, _user_id):
         if self.error:
             raise self.error
-        return {
-            project_id: self.facts
-            for project_id in project_ids
-            if self.facts is not None
-        }
+        return {project_id: self.facts for project_id in project_ids if self.facts is not None}
 
 
 def _facts(
@@ -95,18 +94,14 @@ def test_explicit_role_overrides_org_visible_viewer_baseline():
 @pytest.mark.parametrize("bad_role", ["owner", "member", "reader", "denied", ""])
 def test_unknown_or_legacy_project_roles_fail_closed(bad_role):
     grant = AuthorizationService(
-        FactsRepository(
-            _facts(project_role=bad_role, project_member_org_id="org-1")
-        )
+        FactsRepository(_facts(project_role=bad_role, project_member_org_id="org-1"))
     ).resolve_project_grant("project-1", "user-1")
     assert grant is None
 
 
 def test_cross_tenant_project_membership_fails_closed():
     grant = AuthorizationService(
-        FactsRepository(
-            _facts(project_role="admin", project_member_org_id="org-other")
-        )
+        FactsRepository(_facts(project_role="admin", project_member_org_id="org-other"))
     ).resolve_project_grant("project-1", "user-1")
     assert grant is None
 
@@ -118,19 +113,21 @@ def test_repository_fact_for_another_project_cannot_be_reused():
     assert grant is None
 
 
-def test_repository_failure_fails_closed():
-    service = AuthorizationService(
-        FactsRepository(error=RuntimeError("database unavailable"))
-    )
-    assert service.resolve_project_grant("project-1", "user-1") is None
-    with pytest.raises(NotFoundException):
+def test_repository_failure_fails_closed_as_retryable_unavailability():
+    service = AuthorizationService(FactsRepository(error=RuntimeError("database unavailable")))
+    with pytest.raises(ServiceUnavailableException) as resolved:
+        service.resolve_project_grant("project-1", "user-1")
+    assert resolved.value.status_code == 503
+    assert resolved.value.details == {"retryable": True}
+    assert resolved.value.headers == {"Retry-After": "1"}
+
+    with pytest.raises(ServiceUnavailableException) as authorized:
         service.authorize("project-1", "user-1", ProjectAction.PROJECT_READ)
+    assert authorized.value.status_code == 503
 
 
 def test_viewer_cannot_mutate_or_manage_credentials():
-    service = AuthorizationService(
-        FactsRepository(_facts(visibility="org"))
-    )
+    service = AuthorizationService(FactsRepository(_facts(visibility="org")))
     assert service.allows("project-1", "user-1", ProjectAction.CONTENT_READ)
     for action in (
         ProjectAction.CONTENT_WRITE,
@@ -145,15 +142,12 @@ def test_viewer_cannot_mutate_or_manage_credentials():
 
 def test_editor_can_run_but_cannot_manage_project_runtime_surfaces():
     service = AuthorizationService(
-        FactsRepository(
-            _facts(project_role="editor", project_member_org_id="org-1")
-        )
+        FactsRepository(_facts(project_role="editor", project_member_org_id="org-1"))
     )
     for action in (
         ProjectAction.CONTENT_WRITE,
         ProjectAction.AGENT_RUN,
         ProjectAction.AUTOMATION_RUN,
-        ProjectAction.BIND_READWRITE,
     ):
         assert service.allows("project-1", "user-1", action)
     for action in (
@@ -178,15 +172,17 @@ def test_capabilities_are_monotonic_by_role():
         assert not (ROLE_CAPABILITIES[lower] - ROLE_CAPABILITIES[higher])
 
 
-def test_batch_filter_fails_closed_instead_of_returning_partial_metadata():
+def test_batch_filter_fails_closed_as_retryable_unavailability():
     class Project:
         id = "project-1"
 
-    service = AuthorizationService(
-        FactsRepository(error=RuntimeError("database unavailable"))
-    )
-    assert service.filter_accessible([Project()], "user-1") == []
-    assert service.accessible_project_ids(["project-1"], "user-1") == []
+    service = AuthorizationService(FactsRepository(error=RuntimeError("database unavailable")))
+    with pytest.raises(ServiceUnavailableException) as filtered:
+        service.filter_accessible([Project()], "user-1")
+    assert filtered.value.status_code == 503
+    with pytest.raises(ServiceUnavailableException) as ids:
+        service.accessible_project_ids(["project-1"], "user-1")
+    assert ids.value.status_code == 503
 
 
 def test_decision_telemetry_is_redacted(caplog):
@@ -194,9 +190,7 @@ def test_decision_telemetry_is_redacted(caplog):
         FactsRepository(_facts(project_id="sensitive-project-id", visibility="org"))
     )
     with caplog.at_level("INFO", logger="puppyone.authorization"):
-        service.authorize(
-            "sensitive-project-id", "sensitive-user-id", ProjectAction.PROJECT_READ
-        )
+        service.authorize("sensitive-project-id", "sensitive-user-id", ProjectAction.PROJECT_READ)
     decision = next(
         record.authorization_decision
         for record in caplog.records

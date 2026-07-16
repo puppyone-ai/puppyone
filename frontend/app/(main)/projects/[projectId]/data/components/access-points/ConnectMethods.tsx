@@ -21,9 +21,9 @@
  * because the in-app chat surface conflicts with Puppyone's
  * "platform under every agent" positioning.
  *
- * cli + git_remote + agent are auto-INSERTed per scope
- * (post-2026-05-08 migration), so the scope always has an access_key
- * plus three connector records — one for each method. Each connector's
+ * Git and CLI are enabled explicitly for a repository target; Agent is a
+ * separately created runtime. CLI and Git credentials are independently issued and
+ * shown once; ordinary scope reads intentionally contain no plaintext key. Each connector's
  * `status` (`active` / `paused`) is the single source of truth for
  * whether that method is enabled for this scope, and the in-card toggle
  * routes through `pauseConnector` / `resumeConnector` to flip it.
@@ -45,34 +45,31 @@ import {
   pauseConnector,
   resumeConnector,
   type Connector,
-  type RepoScope,
+  type RepositoryView,
 } from '@/lib/repoApi';
 import { AI_AGENT_ENABLED } from '@/lib/featureFlags';
+import { canonicalGitUrlForTarget } from '@/lib/gitRemote';
 import {
   AiAgentBody,
   GitRemoteBody,
   METHOD_META,
   MethodCard,
-  NoAccessKeyNotice,
   SectionHeader,
   TerminalCliBody,
   profileSlug,
 } from './connect-methods';
 
 interface ConnectMethodsBlockProps {
-  readonly scope: RepoScope;
-  /** Auto-INSERTed cli connector. Drives the Puppyone CLI card's
-   *  on/off toggle. The card body still derives prompts from the
-   *  scope's access_key directly — toggling cli paused doesn't blank
-   *  the body, it just stops the access key from authorising terminal
-   *  access on the server side until resumed. */
+  readonly scope: RepositoryView;
+  /** Target-bound CLI connector. Drives the Puppyone CLI card's
+   *  on/off toggle. CLI setup explicitly rotates/reveals its own one-time
+   *  credential; ordinary Scope reads never rehydrate plaintext. */
   readonly cliConnector: Connector | undefined;
-  /** Auto-INSERTed Git Remote connector. Drives the Git Remote card's
-   *  on/off toggle; body content is derived from the scope access key,
-   *  while connector status gates server-side Git authorization. */
+  /** Target-bound Git Remote connector. Drives the Git Remote card's
+   *  on/off toggle and its independent Git credential issuance flow. */
   readonly gitRemoteConnector: Connector | undefined;
-  /** Auto-INSERTed agent connector — also drives the in-card toggle,
-   *  separately from the activation flow (`config.scope` is set
+  /** Target-bound agent connector — also drives the in-card toggle,
+   *  separately from the activation flow (`config.activated` is set
    *  during activation, `status` is set by pause/resume; both must
    *  be in the right state for the chat runtime to launch). */
   readonly agentConnector: Connector | undefined;
@@ -124,8 +121,7 @@ export function ConnectMethodsBlock({
     setAgentActivationError(null);
   }, [agentConnector]);
 
-  const accessKey = scope.access_key || '';
-  const gitUrl = `${apiBase}/git/ap/${accessKey}.git`;
+  const gitUrl = canonicalGitUrlForTarget(apiBase, scope.target);
   const scopeName = scope.name || (scope.path === '' ? 'root' : scope.path);
   const profileName = profileSlug(scope.name || scope.path || 'root');
 
@@ -137,7 +133,7 @@ export function ConnectMethodsBlock({
   const cliActive = localCli?.status === 'active';
   const gitRemoteActive = localGitRemote?.status === 'active';
   const agentActive = localAgent?.status === 'active';
-  const agentActivated = Boolean(localAgent?.config?.scope);
+  const agentActivated = localAgent?.config?.activated === true;
 
   /**
    * Optimistic-toggle helper.
@@ -248,8 +244,6 @@ export function ConnectMethodsBlock({
 
   return (
     <section style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {!accessKey && <NoAccessKeyNotice />}
-
       <MethodSection title={METHOD_META.terminal.title}>
         <MethodCard
           meta={METHOD_META.terminal}
@@ -259,7 +253,8 @@ export function ConnectMethodsBlock({
         >
           <TerminalCliBody
             apiBase={apiBase}
-            accessKey={accessKey}
+            connectorId={localCli?.id ?? ''}
+            target={scope.target}
             profileName={profileName}
             scopeName={scopeName}
           />
@@ -274,8 +269,11 @@ export function ConnectMethodsBlock({
           onToggle={localGitRemote ? handleToggleGitRemote : undefined}
         >
           <GitRemoteBody
+            connectorId={localGitRemote?.id ?? ''}
             gitUrl={gitUrl}
+            scopeMode={scope.max_mode}
             scopeName={scopeName}
+            target={scope.target}
           />
         </MethodCard>
       </MethodSection>

@@ -64,11 +64,7 @@ class Settings(BaseSettings):
     @staticmethod
     def _normalize_host_list(hosts: list[str]) -> list[str]:
         """Strip empty entries and trailing slashes (except for '*')."""
-        return [
-            host if host == "*" else host.rstrip("/")
-            for host in hosts
-            if host
-        ]
+        return [host if host == "*" else host.rstrip("/") for host in hosts if host]
 
     @field_validator("ALLOWED_HOSTS", mode="before")
     @classmethod
@@ -143,11 +139,104 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def enforce_entitlements_safety(self):
-        """Hosted billing enforcement must not boot with entitlement checks off."""
-        if self.BILLING_ENFORCEMENT == "required" and self.ENTITLEMENTS_MODE == "disabled":
+        """Fail closed on contradictory hosted billing configuration."""
+        if self.BILLING_ENFORCEMENT != "disabled" and self.ENTITLEMENTS_MODE == "disabled":
             raise ValueError(
-                "BILLING_ENFORCEMENT=required requires ENTITLEMENTS_MODE to be "
-                "'db' or 'local'."
+                "BILLING_ENFORCEMENT requires ENTITLEMENTS_MODE to be 'db' or 'local'."
+            )
+        hosted_environment = self.APP_ENV in {"staging", "production"}
+        hosted_global_enabled = hosted_environment and self.BILLING_ENFORCEMENT != "disabled"
+        hosted_db_projection = hosted_environment and self.ENTITLEMENTS_MODE == "db"
+        db_global_enabled = (
+            self.ENTITLEMENTS_MODE == "db" and self.BILLING_ENFORCEMENT != "disabled"
+        )
+        integration_enabled = (
+            hosted_global_enabled
+            or hosted_db_projection
+            or db_global_enabled
+            or any(
+                (
+                    self.BILLING_UI_ENABLED,
+                    self.BILLING_WRITES_ENABLED,
+                    self.SEAT_BILLING_MODE != "disabled",
+                    self.RUNTIME_METERING_MODE != "disabled",
+                    self.STORAGE_ENFORCEMENT_MODE != "disabled",
+                )
+            )
+        )
+        if integration_enabled and not self.PUPPYPAY_BASE_URL:
+            raise ValueError("PUPPYPAY_BASE_URL is required when billing integration is enabled")
+        if integration_enabled:
+            if self.ENTITLEMENTS_MODE != "db":
+                raise ValueError("Hosted billing integration requires ENTITLEMENTS_MODE='db'")
+            if len(self.PUPPYPAY_INTERNAL_API_SECRET) < 32:
+                raise ValueError("PUPPYPAY_INTERNAL_API_SECRET must contain at least 32 characters")
+        if (
+            self.APP_ENV in {"staging", "production"}
+            and integration_enabled
+            and not self.PUPPYPAY_BASE_URL.startswith("https://")
+        ):
+            raise ValueError("PUPPYPAY_BASE_URL must use HTTPS in hosted environments")
+        if (
+            self.APP_ENV in {"staging", "production"}
+            and integration_enabled
+            and self.PUPPYPAY_INTERNAL_API_SECRET == self.INTERNAL_API_SECRET
+        ):
+            raise ValueError(
+                "PUPPYPAY_INTERNAL_API_SECRET must be distinct from INTERNAL_API_SECRET"
+            )
+        if self.BILLING_WRITES_ENABLED and not self.BILLING_UI_ENABLED:
+            raise ValueError("BILLING_WRITES_ENABLED requires BILLING_UI_ENABLED")
+        if self.RUNTIME_AGENT_TIMEOUT_SECONDS > self.RUNTIME_AGENT_MAX_UNITS * 60:
+            raise ValueError(
+                "RUNTIME_AGENT_TIMEOUT_SECONDS cannot exceed the authorized "
+                "RUNTIME_AGENT_MAX_UNITS at 60 seconds per standard RU"
+            )
+        minimum_recovery_retry = int(self.PUPPYPAY_TIMEOUT_SECONDS * 2) + 5
+        if minimum_recovery_retry > self.RUNTIME_BILLING_RECOVERY_RETRY_SECONDS:
+            raise ValueError(
+                "RUNTIME_BILLING_RECOVERY_RETRY_SECONDS must exceed two PuppyPay transport timeouts"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def enforce_project_deletion_quiescence(self):
+        """Keep physical cleanup behind every admitted Git write window.
+
+        A Project delete removes authorization immediately, but a smart-HTTP
+        request that already received a runtime grant may still be flushing
+        immutable objects.  The S3 bridge has a 30-minute upper wait budget;
+        use that as a hard floor even when the Git subprocess timeout is
+        configured lower.
+        """
+
+        minimum_quiescence = max(self.GIT_SUBPROCESS_TIMEOUT_SECONDS, 30 * 60)
+        if minimum_quiescence > self.PROJECT_DELETION_QUIESCENCE_SECONDS:
+            raise ValueError(
+                "PROJECT_DELETION_QUIESCENCE_SECONDS must be at least "
+                f"{minimum_quiescence} seconds so admitted Git writes quiesce "
+                "before Project-owned objects are purged."
+            )
+        return self
+
+    @model_validator(mode="after")
+    def enforce_host_derived_storage_ephemerality(self):
+        """Hosted local workspaces/Git views must remain disposable caches.
+
+        Durable Project deletion is global, while this process can only scrub
+        its own filesystem. Until a shared/distributed cleanup adapter exists,
+        accepting persistent replica-local derived storage would create a false
+        deletion guarantee, so hosted startup fails closed.
+        """
+
+        if (
+            self.APP_ENV in {"staging", "production"}
+            and self.HOST_DERIVED_STORAGE_MODE != "ephemeral"
+        ):
+            raise ValueError(
+                "Hosted WORKSPACE_BASE_DIR and GIT_VIEW_CACHE_DIR must use "
+                "ephemeral derived storage; persistent host storage requires "
+                "an explicit shared/distributed cleanup adapter"
             )
         return self
 
@@ -172,13 +261,9 @@ class Settings(BaseSettings):
         """Hosted auth controls require one shared, cross-replica Redis."""
         if self.APP_ENV not in {"development", "test"}:
             if not self.AUTH_SECURITY_REDIS_URL:
-                raise ValueError(
-                    "AUTH_SECURITY_REDIS_URL is required outside development/test"
-                )
+                raise ValueError("AUTH_SECURITY_REDIS_URL is required outside development/test")
             if not self.NOTIFICATIONS_REDIS_URL:
-                raise ValueError(
-                    "NOTIFICATIONS_REDIS_URL is required outside development/test"
-                )
+                raise ValueError("NOTIFICATIONS_REDIS_URL is required outside development/test")
             if not self.DESKTOP_AUTH_PUBLIC_BASE_URL.startswith("https://"):
                 raise ValueError(
                     "DESKTOP_AUTH_PUBLIC_BASE_URL must use https outside development/test"
@@ -217,9 +302,7 @@ class Settings(BaseSettings):
                 or len(secret) < 32
                 or secret == self.JWT_SECRET
             ):
-                raise ValueError(
-                    "MCP_TOKEN_SECRET must be distinct, non-default, and >=32 chars"
-                )
+                raise ValueError("MCP_TOKEN_SECRET must be distinct, non-default, and >=32 chars")
             if self.MCP_TOKEN_TTL_SECONDS <= 0:
                 raise ValueError("MCP_TOKEN_TTL_SECONDS must be positive")
         return self
@@ -235,14 +318,15 @@ class Settings(BaseSettings):
             if self.SCOPE_SANDBOX_STORE != "supabase":
                 raise ValueError("Hosted sandbox sessions require SCOPE_SANDBOX_STORE=supabase")
             if not self.SCOPE_SANDBOX_REAPER_ENABLED:
-                raise ValueError("Hosted sandbox sessions require SCOPE_SANDBOX_REAPER_ENABLED=true")
+                raise ValueError(
+                    "Hosted sandbox sessions require SCOPE_SANDBOX_REAPER_ENABLED=true"
+                )
         return self
 
     @model_validator(mode="after")
     def enforce_git_transport_caps(self):
         if self.APP_ENV not in {"development", "test"} and (
-            self.GIT_MAX_RECEIVE_PACK_BYTES <= 0
-            or self.GIT_MAX_UPLOAD_PACK_BYTES <= 0
+            self.GIT_MAX_RECEIVE_PACK_BYTES <= 0 or self.GIT_MAX_UPLOAD_PACK_BYTES <= 0
         ):
             raise ValueError("Hosted Git transport hard caps must be positive")
         return self
@@ -257,6 +341,8 @@ class Settings(BaseSettings):
     AUTH_SECURITY_REDIS_URL: str = ""
     # Browser/CLI-reachable Supabase origin. Empty means SUPABASE_URL is already public.
     SUPABASE_PUBLIC_URL: str = ""
+    # Browser-reachable Puppyone web origin used by the Desktop login handoff.
+    FRONTEND_URL: str = ""
     DESKTOP_AUTH_PUBLIC_BASE_URL: str = ""
     DESKTOP_AUTH_ALLOWED_CALLBACKS: str = "puppyone://auth/callback"
     DESKTOP_AUTH_STATE_TTL_SECONDS: int = 10 * 60
@@ -318,6 +404,10 @@ class Settings(BaseSettings):
     # - "fallback": Force full copy
     WORKSPACE_PROVIDER: str = "auto"
     WORKSPACE_BASE_DIR: str = "/tmp/contextbase"
+    # These paths contain only reconstructable, authorization-fenced derived
+    # state. "persistent" is allowed for local/self-hosted experimentation but
+    # hosted startup rejects it until a global cleanup adapter is implemented.
+    HOST_DERIVED_STORAGE_MODE: Literal["ephemeral", "persistent"] = "ephemeral"
 
     # Test configuration
     SKIP_AUTH: bool = False  # Whether to skip authentication (for test environments only)
@@ -351,7 +441,9 @@ class Settings(BaseSettings):
 
     # Notion configuration
     # Method 1: Internal Integration (simple, only requires API Key)
-    NOTION_API_KEY: str = ""  # Format: secret_xxx, obtained from https://www.notion.so/my-integrations
+    NOTION_API_KEY: str = (
+        ""  # Format: secret_xxx, obtained from https://www.notion.so/my-integrations
+    )
     # Method 2: OAuth (suitable for multi-user scenarios)
     # ========== OAuth configuration ==========
     # Unified format: /oauth/{provider}/callback
@@ -374,7 +466,9 @@ class Settings(BaseSettings):
     GOOGLE_DRIVE_REDIRECT_URI: str = "http://localhost:3000/oauth/google-drive/callback"
     GOOGLE_CALENDAR_REDIRECT_URI: str = "http://localhost:3000/oauth/google-calendar/callback"
     GOOGLE_DOCS_REDIRECT_URI: str = "http://localhost:3000/oauth/google-docs/callback"
-    GOOGLE_SEARCH_CONSOLE_REDIRECT_URI: str = "http://localhost:3000/oauth/google-search-console/callback"
+    GOOGLE_SEARCH_CONSOLE_REDIRECT_URI: str = (
+        "http://localhost:3000/oauth/google-search-console/callback"
+    )
 
     # Linear OAuth configuration
     LINEAR_CLIENT_ID: str = ""
@@ -396,8 +490,45 @@ class Settings(BaseSettings):
     # local: read a local JSON entitlement snapshot, useful for tests/self-hosted overrides.
     # db: read organization_entitlements, written by PuppyPay through internal API.
     ENTITLEMENTS_MODE: Literal["disabled", "local", "db"] = "disabled"
-    BILLING_ENFORCEMENT: Literal["disabled", "required"] = "disabled"
+    BILLING_ENFORCEMENT: Literal["disabled", "shadow", "required"] = "disabled"
     LOCAL_ENTITLEMENTS_FILE: str | None = None
+    BILLING_UI_ENABLED: bool = False
+    BILLING_WRITES_ENABLED: bool = False
+    SEAT_BILLING_MODE: Literal["disabled", "shadow", "required"] = "disabled"
+    RUNTIME_METERING_MODE: Literal["disabled", "shadow", "required"] = "disabled"
+    STORAGE_ENFORCEMENT_MODE: Literal["disabled", "shadow", "required"] = "disabled"
+    PUPPYPAY_BASE_URL: str = ""
+    PUPPYPAY_INTERNAL_API_SECRET: str = ""
+    PUPPYPAY_TIMEOUT_SECONDS: float = Field(default=10.0, gt=0, le=60)
+    ENTITLEMENT_PROVISIONING_INTERVAL_SECONDS: int = Field(default=30, ge=10, le=3600)
+    ENTITLEMENT_PROVISIONING_BATCH_SIZE: int = Field(default=25, ge=1, le=100)
+    ENTITLEMENT_PROVISIONING_LEASE_SECONDS: int = Field(default=60, ge=10, le=3600)
+    SEAT_PROPOSAL_INTERVAL_SECONDS: int = Field(default=30, ge=10, le=3600)
+    SEAT_PROPOSAL_BATCH_SIZE: int = Field(default=25, ge=1, le=100)
+    SEAT_PROPOSAL_LEASE_SECONDS: int = Field(default=60, ge=10, le=3600)
+    RUNTIME_DEFAULT_RESERVATION_UNITS: int = Field(default=10, gt=0, le=10_000)
+    RUNTIME_AGENT_MAX_UNITS: int = Field(
+        default=30,
+        gt=0,
+        le=10_000,
+        description="Upper-bound RU reservation for one Agent execution",
+    )
+    RUNTIME_AGENT_TIMEOUT_SECONDS: int = Field(default=1800, ge=60, le=86_400)
+    RUNTIME_RESERVATION_CLAIM_SECONDS: int = Field(default=120, ge=30, le=3600)
+    RUNTIME_BILLING_HEARTBEAT_SECONDS: int = Field(default=300, ge=30, le=3600)
+    RUNTIME_BILLING_RECOVERY_INTERVAL_SECONDS: int = Field(default=60, ge=10, le=3600)
+    RUNTIME_BILLING_RECOVERY_RETRY_SECONDS: int = Field(default=180, ge=30, le=3600)
+    STORAGE_RECONCILIATION_INTERVAL_SECONDS: int = Field(
+        default=3600,
+        ge=60,
+        le=86400,
+    )
+    STORAGE_RECONCILIATION_MIN_AGE_SECONDS: int = Field(
+        default=86400,
+        ge=60,
+        le=2_592_000,
+    )
+    STORAGE_RECONCILIATION_BATCH_SIZE: int = Field(default=25, ge=1, le=200)
 
     # Shared secret for the login-free landing "X → MCP" preview endpoint.
     # When set, /api/v1/landing/preview requires header X-Landing-Secret to
@@ -408,7 +539,7 @@ class Settings(BaseSettings):
     # Abuse control for the public landing preview endpoint.
     # Per-IP sliding-window rate limit (in-process; single-deployment safe).
     LANDING_PREVIEW_RATE_WINDOW: int = 600  # seconds
-    LANDING_PREVIEW_RATE_MAX: int = 12      # max previews / window / IP
+    LANDING_PREVIEW_RATE_MAX: int = 12  # max previews / window / IP
     # Cloudflare Turnstile secret. When set, /landing/preview requires a valid
     # turnstile token (verified server-side). Unset = CAPTCHA disabled (dev).
     TURNSTILE_SECRET: str | None = None
@@ -454,8 +585,8 @@ class Settings(BaseSettings):
     # cannot exhaust disk/CPU/memory via an oversized or decompression-bomb pack.
     # 0 disables the respective limit.
     GIT_MAX_RECEIVE_PACK_BYTES: int = 1024 * 1024 * 1024  # 1 GiB compressed push cap
-    GIT_MAX_UPLOAD_PACK_BYTES: int = 16 * 1024 * 1024      # 16 MiB fetch-negotiation cap
-    GIT_SUBPROCESS_TIMEOUT_SECONDS: int = 300              # per git invocation
+    GIT_MAX_UPLOAD_PACK_BYTES: int = 16 * 1024 * 1024  # 16 MiB fetch-negotiation cap
+    GIT_SUBPROCESS_TIMEOUT_SECONDS: int = 300  # per git invocation
 
     VERSION_OBJECT_GC_ENABLED: bool = False
     VERSION_OBJECT_GC_DRY_RUN: bool = True
@@ -466,6 +597,30 @@ class Settings(BaseSettings):
     VERSION_OBJECT_GC_MAX_DELETE_PER_PROJECT: int = 1000
     VERSION_OBJECT_GC_REQUIRED_DRY_RUN_DAYS: int = 7
     VERSION_OBJECT_GC_PROJECT_ALLOWLIST: str = ""
+
+    # Project deletion is immediately authoritative in Postgres; Project-owned
+    # S3 prefixes are removed by this durable, retryable control-plane worker.
+    PROJECT_DELETION_CLEANUP_ENABLED: bool = True
+    PROJECT_DELETION_CLEANUP_INTERVAL_SECONDS: int = Field(default=60, ge=10, le=3600)
+    PROJECT_DELETION_QUIESCENCE_SECONDS: int = Field(default=3600, ge=1800, le=86_400)
+    PROJECT_DELETION_VERIFY_DELAY_SECONDS: int = Field(default=60, ge=10, le=3600)
+    PROJECT_DELETION_CLEANUP_LEASE_SECONDS: int = Field(default=3600, ge=300, le=86_400)
+
+    # Project rows are prepared transactionally but stay invisible while the
+    # initial root ref remains owned by L5. Resume any operation interrupted
+    # between those durable facts through VersionWriteEngine.initialize_project_tree.
+    PROJECT_INITIALIZATION_RECONCILE_ENABLED: bool = True
+    PROJECT_INITIALIZATION_RECONCILE_INTERVAL_SECONDS: int = Field(
+        default=30,
+        ge=10,
+        le=3600,
+    )
+    PROJECT_INITIALIZATION_RECONCILE_LEASE_SECONDS: int = Field(
+        default=300,
+        ge=30,
+        le=3600,
+    )
+    PROJECT_INITIALIZATION_MAX_ATTEMPTS: int = Field(default=8, ge=1, le=100)
 
     # Post-commit tree-closure tripwire. When on, every product write verifies
     # the freshly-published root resolves its entire subtree closure and fails

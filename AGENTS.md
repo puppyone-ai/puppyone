@@ -3,10 +3,15 @@
 > **AI assistants working on this codebase**: the canonical Version Engine
 > architecture is in
 > [`docs/architecture/01-version-engine.md`](docs/architecture/01-version-engine.md).
-> PuppyOne is Git-native at the version layer: stock `git` talks to
-> `https://<host>/git/ap/<access_key>.git`, while Web/API/`puppyone fs`
+> PuppyOne is Git-native at the version layer: stock `git` talks to a
+> credential-free `/git/{project_id}.git` or
+> `/git/{project_id}/scopes/{scope_id}.git` locator and supplies its separate
+> Git credential through HTTP auth, while Web/API/`puppyone fs`
 > writes converge through the Product Operation Adapter. Do not introduce the
-> removed legacy wire protocol, external version package, or old source naming.
+> removed legacy wire protocol, construct the bounded legacy
+> `/git/ap/<access_key>.git` URL in new code, introduce an external version
+> package, or restore old source naming. The normative Git contract is
+> [`docs/architecture/05-git-remote-accesspoint.md`](docs/architecture/05-git-remote-accesspoint.md).
 >
 > The canonical database release architecture is
 > [`docs/architecture/13-database-release-governance.md`](docs/architecture/13-database-release-governance.md).
@@ -43,18 +48,21 @@ It aggregates information scattered across various sources into a unified Contex
   membership supplies tenant context; an org-visible Project supplies only the
   Viewer baseline. Never use a Runtime key, Git remote, scope, or Agent
   visibility to create Human Project access.
-- Machine entry points resolve a `RuntimeGrant` bounded by Project, scope, mode,
-  policy, and credential status. A RuntimeGrant cannot enter Team, Billing,
+- Machine entry points resolve a `RuntimeGrant` bounded by an explicit
+  Project-root or Scope target, its resolved view, mode, policy, and credential
+  status. A RuntimeGrant cannot enter Team, Billing,
   Project settings, members, sharing, or credential-management control planes.
-- Local workspace identity is an explicit `project_workspace_bindings` fact.
-  Git URLs are transport configuration and legacy discovery input, not identity
-  or authorization.
+- The canonical PuppyOne Git remote is the only local-to-Cloud locator. Desktop
+  parses its Project-root or Scope target locally, then the current JWT must
+  authorize that exact Project target before Cloud UI is shown. A Git URL is a
+  locator, never authority. The Cloud does not register devices, folders, or
+  checkouts, and legacy secret-bearing remotes never identify Cloud UI context.
 
 ### Platform
 
 - **Agent management** — Create agents, bind tools, control access scope, SSE streaming chat
 - **Full CLI coverage** — Every operation available via command line, enabling AI coding tools like Claude Code to drive the platform directly
-- **Unified access management** — All access surface types (Git remote/CLI/agent/MCP/sandbox) are served through a single `/api/v1/access` entry point, backed by the `access_surfaces` table (each row scope-bound to a `repo_scopes` row); external SaaS data sources live separately in the `connectors` table
+- **Unified access management** — All access surface types (Git remote/CLI/agent/MCP/sandbox) are served through a single `/api/v1/access` entry point. `access_surfaces` targets Project root with `scope_id = NULL` or one real `repository_scopes` row; external SaaS data sources live separately in `connectors`.
 
 ## Active Development Directories
 
@@ -103,7 +111,7 @@ backend/
 │   ├── tool/                  # Tool registration & search index
 │   │
 │   ├── connectors/            # Access types
-│   │   ├── manager/           #   Access surface CRUD (access_surfaces table, scope-bound to repo_scopes)
+│   │   ├── manager/           #   Access surface CRUD (Project-root or Scope target)
 │   │   ├── datasource/        #   SaaS data source providers (Gmail/GitHub/Notion/...)
 │   │   │   ├── gmail/         #     Gmail connector
 │   │   │   ├── github/        #     GitHub connector
@@ -165,25 +173,24 @@ backend/
 
 ### Database Tables
 
-All tables use plural snake_case names. The "unified access" architecture serves agents, MCP endpoints, sandbox endpoints, and Git-remote/CLI credentials through the `access_surfaces` table, differentiated by `kind` and each scope-bound to a `repo_scopes` row. Scope geometry lives in `repo_scopes`; every machine secret lives hash-only in `access_surface_credentials` and is revealed only on issuance. Provider config must never contain credentials. External SaaS data-source integrations live separately in the `connectors` table.
+All tables use plural snake_case names. The "unified access" architecture serves agents, MCP endpoints, sandbox endpoints, and Git-remote/CLI credentials through `access_surfaces`, differentiated by `kind` and targeted by `(project_id, nullable scope_id)`. NULL means the Project-owned root; a non-NULL value references a true non-empty-path row in `repository_scopes`. Every machine secret lives hash-only in `access_surface_credentials` and is revealed only on issuance. Provider config must never contain credentials. External SaaS data-source integrations live separately in `connectors`.
 
 | Table | Repository | Description |
 |-------|-----------|-------------|
 | `projects` | `supabase/projects/repository.py` | Projects |
 | `project_members` | `platform/authorization/repository.py` | Sole explicit Human Project membership/role fact |
-| `project_workspace_bindings` | `platform/workspace_binding/repository.py` | Stable local workspace instance ↔ Cloud Project identity (no secret/role snapshot) |
 | `organizations` | `organization/repository.py` | Organizations |
 | `org_members` | `organization/repository.py` | Organization membership |
 | `org_invitations` | `organization/repository.py` | Organization invitations |
 | `profiles` | `profile/repository.py` | User profiles |
-| `access_surfaces` | `connectors/manager/router.py`, `repo/access_surface_repository.py` | Unified access surfaces (Git remote/CLI/agent/MCP/sandbox), keyed by `kind`, scope-bound to `repo_scopes` |
-| `repo_scopes` | `repo/scope_repository.py`, `repo/scope_service.py` | Scoped subtree geometry (path/exclude/mode), with no credential columns |
+| `access_surfaces` | `connectors/manager/router.py`, `repo/access_surface_repository.py` | Unified access surfaces keyed by `kind`, targeting Project root or one Scope through nullable `scope_id` |
+| `repository_scopes` | `repo/scope_repository.py`, `repo/scope_service.py` | Non-root subtree geometry (`path`, `exclude`, `max_mode`); never a repository or credential owner |
 | `connectors` | `repo/connector_repository.py`, `repo/connector_service.py` | External SaaS data-source integrations (Gmail/GitHub/Notion/...) |
 | `access_permissions` | `connectors/agent/config/repository.py` | Access surface ↔ content node permissions |
 | `access_tools` | `connectors/agent/config/repository.py`, `tool/service.py` | Access surface ↔ tool bindings |
 | `content_nodes` | _(dropped — replaced by Version Engine Git trees in object storage)_ | Legacy content tree |
 | `tools` | `supabase/tools/repository.py` | Registered tools |
-| `access_surface_credentials` | `repo/access_credentials.py` | Hash-only machine credentials; sole MCP key authentication source |
+| `access_surface_credentials` | `repo/access_credentials.py` | Hash-only runtime credentials, including independently revocable user Git credentials; never stores a device, folder, or checkout identity |
 | `chunks` | `chunking/repository.py` | Text chunks for search |
 | `uploads` | `upload/file/tasks/repository.py` | File upload/ingest tasks |
 | `etl_rules` | `upload/file/rules/repository_supabase.py` | ETL transformation rules |
@@ -220,7 +227,8 @@ All tables use plural snake_case names. The "unified access" architecture serves
 | `/api/v1/filesystem` | connectors/filesystem | Filesystem access lifecycle |
 | `/api/v1/ingest` | upload | File/URL ingestion ETL |
 | `/api/v1/ap-fs` | version_engine/routers/access_point_fs | Puppyone CLI scoped filesystem API |
-| `/git/{project_id}.git`, `/git/ap/{access_key}.git` | version_engine/adapters/git/router | Git smart-HTTP clone/fetch/push |
+| `/git/{project_id}.git`, `/git/{project_id}/scopes/{scope_id}.git` | version_engine/entrypoints/git/router | Canonical Git smart-HTTP clone/fetch/push; credential is HTTP auth, not URL data |
+| `/git/ap/{access_key}.git` | version_engine/entrypoints/git/router | Bounded, instrumented legacy compatibility only; never construct for new clients |
 | `/api/v1/workspace` | workspace | Workspace management |
 | `/api/v1/db-connector` | db_connector | External database access |
 | `/api/v1/publishes` | context_publish | Public JSON short links |

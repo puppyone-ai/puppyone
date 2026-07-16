@@ -462,14 +462,17 @@ function GitSetupDialog({
           leading={<Terminal size={17} strokeWidth={1.75} />}
         />
         <DialogBody style={{ padding: '10px 20px 20px' }}>
-          {!hasRemote && onOpenGitSetup ? (
+          {onOpenGitSetup ? (
             <button
               type="button"
-              onClick={onOpenGitSetup}
+              onClick={() => {
+                onClose();
+                onOpenGitSetup();
+              }}
               className="mb-3 inline-flex items-center rounded-md border border-[var(--po-border)] bg-[color-mix(in_srgb,var(--po-panel)_58%,transparent)] px-3 text-[12px] font-medium text-[var(--po-text)] transition-colors hover:border-[var(--po-border-strong)] hover:bg-[color-mix(in_srgb,var(--po-panel)_72%,transparent)]"
               style={{ height: BUTTON_HEIGHT }}
             >
-              Create Git remote
+              {hasRemote ? 'Manage Git credential' : 'Create Git remote'}
             </button>
           ) : null}
 
