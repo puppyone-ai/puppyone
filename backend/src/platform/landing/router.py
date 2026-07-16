@@ -13,6 +13,8 @@ from src.infra.s3.dependencies import get_s3_service
 from src.infra.s3.service import S3Service
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
+from src.platform.authorization.dependencies import get_authorization_service
+from src.platform.authorization.service import AuthorizationService
 from src.platform.entitlements.dependencies import get_entitlement_service
 from src.platform.entitlements.service import EntitlementService
 from src.platform.landing import tickets
@@ -42,8 +44,9 @@ def get_landing_service(
     control_plane: ProjectControlPlaneService = Depends(get_project_control_plane_service),
     entitlements: EntitlementService = Depends(get_entitlement_service),
     version_engine: VersionWriteEngine = Depends(get_version_write_engine),
+    authorization: AuthorizationService = Depends(get_authorization_service),
 ) -> LandingService:
-    return LandingService(s3, control_plane, entitlements, version_engine)
+    return LandingService(s3, control_plane, entitlements, version_engine, authorization)
 
 
 def _check_proxy_secret(x_landing_secret: str | None) -> None:
@@ -77,16 +80,12 @@ def _rate_limit_preview(ip: str) -> None:
     now = time.monotonic()
     window = settings.LANDING_PREVIEW_RATE_WINDOW
     if len(_preview_hits) > _MAX_TRACKED_IPS:
-        stale = [
-            k for k, v in _preview_hits.items() if not v or now - v[-1] >= window
-        ]
+        stale = [k for k, v in _preview_hits.items() if not v or now - v[-1] >= window]
         for k in stale:
             del _preview_hits[k]
     _preview_hits[ip] = hits = [t for t in _preview_hits[ip] if now - t < window]
     if len(hits) >= settings.LANDING_PREVIEW_RATE_MAX:
-        raise HTTPException(
-            status_code=429, detail="Too many previews. Please try again later."
-        )
+        raise HTTPException(status_code=429, detail="Too many previews. Please try again later.")
     hits.append(now)
 
 
@@ -106,7 +105,7 @@ async def _verify_turnstile(token: str | None, ip: str) -> None:
                 data={"secret": secret, "response": token, "remoteip": ip},
             )
         ok = bool(resp.json().get("success")) if resp.status_code == 200 else False
-    except Exception:  # noqa: BLE001 - network/parse failure → treat as unverified
+    except Exception:
         logger.warning("turnstile verification call failed", exc_info=True)
         ok = False
     if not ok:
@@ -153,7 +152,7 @@ async def landing_preview(
         )
     except HTTPException:
         raise
-    except Exception as exc:  # noqa: BLE001 - surface parse/storage failures cleanly
+    except Exception as exc:
         logger.exception("landing preview failed for tool_kind=%s", tool_kind)
         raise HTTPException(status_code=502, detail="Preview failed") from exc
 
@@ -172,7 +171,9 @@ async def landing_claim(
 ):
     try:
         result = await service.claim(
-            ticket=payload.ticket, user_id=current_user.user_id
+            ticket=payload.ticket,
+            org_id=payload.org_id,
+            user_id=current_user.user_id,
         )
     except tickets.TicketError as exc:
         raise HTTPException(status_code=400, detail=f"Invalid ticket: {exc}")

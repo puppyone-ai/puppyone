@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class PreviewInfo(BaseModel):
@@ -21,7 +21,18 @@ class PreviewResponse(BaseModel):
 
 
 class ClaimRequest(BaseModel):
-    ticket: str
+    model_config = ConfigDict(extra="forbid")
+
+    ticket: str = Field(min_length=1, max_length=8192)
+    org_id: str = Field(min_length=1, max_length=128)
+
+    @field_validator("org_id")
+    @classmethod
+    def normalize_org_id(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("org_id must not be blank")
+        return normalized
 
 
 class ClaimMcp(BaseModel):

@@ -90,7 +90,7 @@ export async function getTemplate(templateId: string): Promise<TemplateDetail> {
 export async function instantiateTemplate(
   templateId: string,
   input: {
-    org_id?: string;
+    org_id: string;
     name?: string;
     description?: string;
     release_id?: string;

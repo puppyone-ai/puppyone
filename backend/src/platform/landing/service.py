@@ -21,11 +21,16 @@ from src.connectors.mcp_endpoint.schemas import McpAccessItem
 from src.connectors.mcp_endpoint.service import McpEndpointService
 from src.exceptions import AppException, ErrorCode
 from src.infra.s3.service import S3Service
+from src.platform.authorization.models import ProjectAction
+from src.platform.authorization.service import AuthorizationService
 from src.platform.entitlements.service import EntitlementService
 from src.platform.landing import tickets
 from src.platform.landing.registry import ToolSpec, get_tool_spec
 from src.platform.organization.dependencies import resolve_org_id
-from src.platform.project.control_plane import ProjectControlPlaneService
+from src.platform.project.control_plane import (
+    ProjectControlPlaneService,
+    ProjectCreationReplay,
+)
 from src.platform.project.models import Project
 from src.platform.project.orchestration import create_project_with_tree
 from src.repo.access_credentials import AccessCredentialRepository
@@ -40,6 +45,8 @@ LANDING_PREFIX = "landing"
 PREVIEW_TTL_SECONDS = 60 * 60 * 24  # 24h — must be <= the S3 lifecycle window
 PREVIEW_EXCERPT_CHARS = 1500
 SRC_PRESIGN_SECONDS = 900  # presigned URL lifetime handed to the OCR provider
+_LANDING_REQUEST_KIND = "landing-claim-request"
+_LANDING_RESULT_KIND = "landing-claim"
 
 
 def _landing_mcp_api_key(*, ticket_id: str, user_id: str) -> str:
@@ -61,6 +68,45 @@ def _landing_mcp_api_key(*, ticket_id: str, user_id: str) -> str:
     ).digest()
     encoded = base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
     return f"mcp_{encoded}"
+
+
+def _landing_request_fingerprint(*, ticket: str, org_id: str) -> dict[str, object]:
+    """Bind replay to the exact signed capability and explicit tenant choice."""
+
+    return {
+        "kind": _LANDING_REQUEST_KIND,
+        "version": 1,
+        "signed_ticket": ticket,
+        "org_id": org_id,
+    }
+
+
+def _landing_operation_key(payload: dict) -> str:
+    try:
+        operation_uuid = UUID(hex=str(payload["tid"]))
+    except (KeyError, TypeError, ValueError) as exc:
+        raise tickets.TicketError("ticket has an invalid operation id") from exc
+    if operation_uuid.version != 4:
+        raise tickets.TicketError("ticket operation id is not UUIDv4")
+    return str(operation_uuid)
+
+
+def _ticket_text(payload: dict, field: str) -> str:
+    value = payload.get(field)
+    if not isinstance(value, str) or not value:
+        raise tickets.TicketError(f"ticket has an invalid {field}")
+    return value
+
+
+def _landing_result_metadata(*, operation_key: str, spec: ToolSpec) -> dict[str, object]:
+    return {
+        "kind": _LANDING_RESULT_KIND,
+        "ticket_id": operation_key,
+        "tool_kind": spec.kind,
+        "repo": spec.scope_path,
+        "endpoint_name": f"{spec.kind}-mcp",
+        "credential_derivation_version": 1,
+    }
 
 
 def _safe_name(filename: str | None) -> str:
@@ -194,11 +240,13 @@ class LandingService:
         control_plane: ProjectControlPlaneService,
         entitlements: EntitlementService,
         version_engine: VersionWriteEngine,
+        authorization: AuthorizationService,
     ):
         self._s3 = s3_service
         self._control_plane = control_plane
         self._entitlements = entitlements
         self._version_engine = version_engine
+        self._authorization = authorization
 
     # ── preview: parse + stash, NO db rows ───────────────────────────
     async def preview(
@@ -214,19 +262,13 @@ class LandingService:
         name = _safe_name(filename)
 
         src_key = f"{LANDING_PREFIX}/{ticket_id}/source/{name}"
-        await self._s3.upload_file(
-            src_key, content, content_type or "application/octet-stream"
-        )
+        await self._s3.upload_file(src_key, content, content_type or "application/octet-stream")
 
-        markdown = await self._parse(
-            spec, src_key=src_key, content=content, ticket_id=ticket_id
-        )
+        markdown = await self._parse(spec, src_key=src_key, content=content, ticket_id=ticket_id)
 
         md_name = (PurePosixPath(name).stem or "document") + spec.output_ext
         md_key = f"{LANDING_PREFIX}/{ticket_id}/parsed/{md_name}"
-        await self._s3.upload_file(
-            md_key, markdown.encode("utf-8"), "text/markdown; charset=utf-8"
-        )
+        await self._s3.upload_file(md_key, markdown.encode("utf-8"), "text/markdown; charset=utf-8")
 
         exp = int(time.time()) + PREVIEW_TTL_SECONDS
         ticket = tickets.sign_ticket(
@@ -251,9 +293,7 @@ class LandingService:
             "expires_at": exp,
         }
 
-    async def _parse(
-        self, spec: ToolSpec, *, src_key: str, content: bytes, ticket_id: str
-    ) -> str:
+    async def _parse(self, spec: ToolSpec, *, src_key: str, content: bytes, ticket_id: str) -> str:
         if spec.parser == "passthrough":
             return content.decode("utf-8", errors="replace")
         if spec.parser == "openapi":
@@ -273,9 +313,7 @@ class LandingService:
             )
         if spec.parser == "ocr_parse":
             return await self._ocr_parse(src_key, ticket_id)
-        raise ValueError(
-            f"Unsupported parser '{spec.parser}' for tool '{spec.kind}'"
-        )
+        raise ValueError(f"Unsupported parser '{spec.parser}' for tool '{spec.kind}'")
 
     async def _ocr_parse(self, src_key: str, ticket_id: str) -> str:
         """Run the configured OCR provider over the stashed source. Returns ""
@@ -286,37 +324,60 @@ class LandingService:
             presigned = await self._s3.generate_presigned_download_url(
                 src_key, expires_in=SRC_PRESIGN_SECONDS
             )
-            parsed = await get_ocr_provider().parse_document(
-                presigned, data_id=ticket_id
-            )
+            parsed = await get_ocr_provider().parse_document(presigned, data_id=ticket_id)
             return parsed.markdown_content or ""
-        except Exception:  # noqa: BLE001 - provider missing/misconfigured → caller falls back
+        except Exception:
             logger.warning("OCR parse unavailable", exc_info=True)
             return ""
 
     # ── claim: born-owned create-chain for the logged-in user ────────
-    async def claim(self, *, ticket: str, user_id: str) -> dict:
-        body = tickets.verify_ticket(ticket)  # raises TicketError
-        spec = get_tool_spec(body["kind"])
-        md_bytes = await self._s3.download_file(body["md_key"])
-        content_sha256 = hashlib.sha256(md_bytes).hexdigest()
+    async def claim(self, *, ticket: str, org_id: str, user_id: str) -> dict:
+        # Authenticity is required before the journal lookup, but freshness is
+        # deliberately not: a completed operation remains replayable after the
+        # temporary preview capability and object have expired.
+        body = tickets.verify_ticket_signature(ticket)
+        operation_key = _landing_operation_key(body)
+        request_fingerprint = _landing_request_fingerprint(
+            ticket=ticket,
+            org_id=org_id,
+        )
+        replay = await asyncio.to_thread(
+            self._control_plane.preflight_project_creation,
+            operation_key=operation_key,
+            actor_user_id=user_id,
+            request_fingerprint=request_fingerprint,
+        )
+        if replay is not None:
+            return await self._replay_claim(
+                replay,
+                operation_key=operation_key,
+                org_id=org_id,
+                user_id=user_id,
+            )
 
+        # New work still requires both current tenant membership and a live
+        # preview capability before any retained object is downloaded.
+        resolved_org_id = resolve_org_id(org_id, user_id)
+        if resolved_org_id != org_id:
+            raise tickets.TicketError("claim organization could not be resolved exactly")
+        tickets.require_unexpired(body)
         try:
-            operation_uuid = UUID(hex=str(body["tid"]))
-        except (KeyError, TypeError, ValueError) as exc:
-            raise tickets.TicketError("ticket has an invalid operation id") from exc
-        if operation_uuid.version != 4:
-            raise tickets.TicketError("ticket operation id is not UUIDv4")
-        operation_key = str(operation_uuid)
+            spec = get_tool_spec(_ticket_text(body, "kind"))
+        except KeyError as exc:
+            raise tickets.TicketError(str(exc)) from exc
+        md_key = _ticket_text(body, "md_key")
+        md_name = _ticket_text(body, "md_name")
+        src_name = _ticket_text(body, "src_name")
+        md_bytes = await self._s3.download_file(md_key)
+        content_sha256 = hashlib.sha256(md_bytes).hexdigest()
         api_key = _landing_mcp_api_key(ticket_id=operation_key, user_id=user_id)
 
-        org_id = resolve_org_id(None, user_id)
         project_limit = await asyncio.to_thread(
             self._entitlements.enforced_limit_value,
             org_id,
             "projects.max",
         )
-        stem = PurePosixPath(body["src_name"]).stem or "Document"
+        stem = PurePosixPath(src_name).stem or "Document"
 
         # Shared born-owned create-chain (create Project row + init tree),
         # same as platform/project/router.create_project. The container is built
@@ -324,6 +385,7 @@ class LandingService:
         from src.version_engine.bootstrap.dependencies import (
             build_worker_version_engine_container,
         )
+
         container = build_worker_version_engine_container()
         endpoint_holder: dict[str, dict] = {}
 
@@ -340,12 +402,12 @@ class LandingService:
                 mode="rw",
             )
 
-            file_path = f"{spec.scope_path}/{body['md_name']}"
+            file_path = f"{spec.scope_path}/{md_name}"
             await container.write_commands().bulk_write(
                 project_id,
                 {file_path: md_bytes},
                 actor=f"landing:{user_id}",
-                message=f"Import {body['src_name']} ({spec.kind} → MCP)",
+                message=f"Import {src_name} ({spec.kind} → MCP)",
                 source_channel="upload",
             )
 
@@ -354,7 +416,7 @@ class LandingService:
                 project_id=project_id,
                 name=f"{spec.kind}-mcp",
                 path=spec.scope_path,
-                description=f"MCP for {body['src_name']}",
+                description=f"MCP for {src_name}",
                 accesses=[
                     McpAccessItem(
                         path=spec.scope_path,
@@ -371,7 +433,7 @@ class LandingService:
             version_engine=self._version_engine,
             operation_key=operation_key,
             name=f"{stem}{spec.name_suffix}",
-            description=f"Created from {body['src_name']} via Puppyone {spec.kind} → MCP.",
+            description=f"Created from {src_name} via Puppyone {spec.kind} → MCP.",
             org_id=org_id,
             created_by=user_id,
             project_limit=project_limit,
@@ -380,66 +442,145 @@ class LandingService:
                 "kind": "landing-claim",
                 "ticket_id": operation_key,
                 "tool_kind": spec.kind,
-                "source_key": body["md_key"],
+                "source_key": md_key,
                 "content_sha256": content_sha256,
             },
+            request_fingerprint=request_fingerprint,
+            result_metadata=_landing_result_metadata(
+                operation_key=operation_key,
+                spec=spec,
+            ),
             initialize=initialize,
         )
+        if publication.replayed:
+            replay = await asyncio.to_thread(
+                self._control_plane.preflight_project_creation,
+                operation_key=operation_key,
+                actor_user_id=user_id,
+                request_fingerprint=request_fingerprint,
+            )
+            if replay is None:
+                raise RuntimeError("Replayed landing claim has no durable operation")
+            return await self._replay_claim(
+                replay,
+                operation_key=operation_key,
+                org_id=org_id,
+                user_id=user_id,
+            )
+
         project = publication.project
         project_id = str(project.id)
         endpoint = endpoint_holder.get("endpoint")
         if endpoint is None:
-            # A completed idempotent replay must not create a second endpoint.
-            # Plaintext API keys are intentionally not persisted; the response
-            # therefore points at the existing endpoint without reissuing one.
-            endpoints = await asyncio.to_thread(
-                McpEndpointService().list_endpoints,
-                project_id,
-            )
-            endpoint = next(
-                (
-                    item
-                    for item in endpoints
-                    if item.get("name") == f"{spec.kind}-mcp"
-                    and item.get("path") == spec.scope_path
-                ),
-                {},
-            )
-            if not endpoint:
-                raise RuntimeError("Completed landing claim is missing its MCP endpoint")
-            credential = await asyncio.to_thread(
-                AccessCredentialRepository().get_active_by_token,
-                api_key,
-            )
-            if not credential or str(credential.get("access_surface_id")) != str(
-                endpoint.get("id")
-            ):
-                raise AppException(
-                    code=ErrorCode.VERSION_CONFLICT,
-                    status_code=409,
-                    message="The claimed MCP credential was rotated",
-                    details={
-                        "code": "landing_claim_credential_rotated",
-                        "project_id": project_id,
-                        "endpoint_id": endpoint.get("id"),
-                    },
-                )
-            endpoint = {
-                **endpoint,
-                "api_key": api_key,
-                "api_key_revealed": True,
-            }
+            raise RuntimeError("Completed landing claim is missing its MCP endpoint")
+        await asyncio.to_thread(
+            self._authorization.authorize,
+            project_id,
+            user_id,
+            ProjectAction.PROJECT_READ,
+        )
+        return self._claim_response(
+            project_id=project_id,
+            repo=spec.scope_path,
+            api_key=api_key,
+            endpoint_id=str(endpoint.get("id") or ""),
+        )
 
+    async def _replay_claim(
+        self,
+        replay: ProjectCreationReplay,
+        *,
+        operation_key: str,
+        org_id: str,
+        user_id: str,
+    ) -> dict:
+        project_id = str(replay.project.id)
+        if str(replay.project.org_id) != org_id:
+            raise RuntimeError("Landing replay crossed its persisted organization boundary")
+
+        metadata = replay.result_metadata
+        if (
+            metadata.get("kind") != _LANDING_RESULT_KIND
+            or metadata.get("ticket_id") != operation_key
+            or metadata.get("credential_derivation_version") != 1
+        ):
+            raise RuntimeError("Landing replay has invalid durable result metadata")
+        repo = metadata.get("repo")
+        if not isinstance(repo, str) or not repo:
+            raise RuntimeError("Landing replay is missing its repository scope")
+
+        # The journal's org membership check is not sufficient for a private
+        # Project. Re-evaluate the human grant before deriving or revealing the
+        # deterministic machine credential.
+        await asyncio.to_thread(
+            self._authorization.authorize,
+            project_id,
+            user_id,
+            ProjectAction.PROJECT_READ,
+        )
+        api_key = _landing_mcp_api_key(ticket_id=operation_key, user_id=user_id)
+        credential = await asyncio.to_thread(
+            AccessCredentialRepository().get_active_by_token,
+            api_key,
+        )
+        endpoint_id = str((credential or {}).get("access_surface_id") or "")
+        if (
+            not credential
+            or str(credential.get("project_id") or "") != project_id
+            or str(credential.get("org_id") or "") != org_id
+            or not endpoint_id
+        ):
+            self._raise_rotated_credential(project_id=project_id, endpoint_id=endpoint_id)
+
+        endpoint = await asyncio.to_thread(
+            McpEndpointService().get_endpoint,
+            endpoint_id,
+        )
+        if (
+            not endpoint
+            or str(endpoint.get("project_id") or "") != project_id
+            or str(endpoint.get("path") or "") != repo
+        ):
+            self._raise_rotated_credential(project_id=project_id, endpoint_id=endpoint_id)
+
+        return self._claim_response(
+            project_id=project_id,
+            repo=repo,
+            api_key=api_key,
+            endpoint_id=endpoint_id,
+        )
+
+    @staticmethod
+    def _raise_rotated_credential(*, project_id: str, endpoint_id: str) -> None:
+        raise AppException(
+            code=ErrorCode.VERSION_CONFLICT,
+            status_code=409,
+            message="The claimed MCP credential was rotated",
+            details={
+                "code": "landing_claim_credential_rotated",
+                "project_id": project_id,
+                "endpoint_id": endpoint_id,
+            },
+        )
+
+    @staticmethod
+    def _claim_response(
+        *,
+        project_id: str,
+        repo: str,
+        api_key: str,
+        endpoint_id: str,
+    ) -> dict:
         base = (settings.PUBLIC_URL or "").rstrip("/")
         return {
             "project_id": project_id,
-            "repo": spec.scope_path,
+            "repo": repo,
             "mcp": {
                 # External MCP clients connect here; the api_key (Bearer) selects
                 # this endpoint.
                 "server_url": f"{base}/api/v1/mcp/proxy" if base else "",
-                "api_key": endpoint.get("api_key", ""),
-                "endpoint_id": endpoint.get("id", ""),
+                "api_key": api_key,
+                "endpoint_id": endpoint_id,
             },
             # Relative — the website prepends its own app origin for the redirect.
             "deep_link": f"/projects/{project_id}",
