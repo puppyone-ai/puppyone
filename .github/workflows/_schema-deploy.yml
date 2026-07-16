@@ -7,15 +7,30 @@ on:
         description: Protected GitHub environment name
         required: true
         type: string
+      allow_data_migration_pause:
+        description: Treat an explicit DATA_MIGRATION_REQUIRED guard as a controlled pause
+        required: false
+        default: false
+        type: boolean
+    outputs:
+      schema_state:
+        description: deployed or data_migration_required
+        value: ${{ jobs.deploy_schema.outputs.schema_state }}
+      required_data_migration_id:
+        description: Data migration requested by the blocked contract migration
+        value: ${{ jobs.deploy_schema.outputs.required_data_migration_id }}
 
 permissions:
   contents: read
 
 jobs:
-  deploy-schema:
+  deploy_schema:
     name: Deploy schema to ${{ inputs.environment }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    outputs:
+      schema_state: ${{ steps.push.outputs.schema_state }}
+      required_data_migration_id: ${{ steps.push.outputs.required_data_migration_id }}
     environment: ${{ inputs.environment }}
     concurrency:
       group: database-${{ inputs.environment }}
@@ -26,6 +41,7 @@ jobs:
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      ALLOW_DATA_MIGRATION_PAUSE: ${{ inputs.allow_data_migration_pause }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
@@ -84,22 +100,31 @@ jobs:
           if [ "$status" -ne 0 ]; then
             if grep -q "DATA_MIGRATION_REQUIRED:" /tmp/schema-push.log; then
               migration_id=$(grep -oE 'DATA_MIGRATION_REQUIRED:[0-9A-Za-z_]+' /tmp/schema-push.log | head -n1 | cut -d: -f2)
+              echo "schema_state=data_migration_required" >> "$GITHUB_OUTPUT"
+              echo "required_data_migration_id=$migration_id" >> "$GITHUB_OUTPUT"
               {
                 echo "## Schema deployment paused safely"
                 echo
                 echo "Contract migration requires data migration: \`$migration_id\`."
-                echo "Run the protected Data Migration workflow, then re-run this deployment."
+                echo "Run and verify the protected data migration, then retry schema deployment."
               } >> "$GITHUB_STEP_SUMMARY"
+              if [ "$ALLOW_DATA_MIGRATION_PAUSE" = "true" ]; then
+                exit 0
+              fi
             fi
             exit "$status"
           fi
+          echo "schema_state=deployed" >> "$GITHUB_OUTPUT"
+          echo "required_data_migration_id=" >> "$GITHUB_OUTPUT"
 
       - name: Run database smoke contracts
+        if: steps.push.outputs.schema_state == 'deployed'
         run: >-
           psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1
           -f supabase/tests/_support/schema_contracts.inc
 
       - name: Fail on post-deploy schema drift
+        if: steps.push.outputs.schema_state == 'deployed'
         shell: bash
         run: |
           set -euo pipefail
@@ -115,6 +140,7 @@ jobs:
           fi
 
       - name: Publish schema attestation
+        if: steps.push.outputs.schema_state == 'deployed'
         shell: bash
         run: |
           set -euo pipefail

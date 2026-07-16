@@ -54,17 +54,50 @@ jobs:
           fi
           echo "migration_id=$migration_id" >> "$GITHUB_OUTPUT"
 
-  deploy:
+  deploy_push:
+    name: Deploy staging schema after qubits merge
+    if: github.event_name == 'push'
     needs: validate_ref
     uses: ./.github/workflows/_schema-deploy.yml
     secrets: inherit
     with:
       environment: staging
 
+  prepare_schema:
+    name: Apply compatible schema before staged data migration
+    if: github.event_name == 'workflow_dispatch'
+    needs: resolve_data_release
+    uses: ./.github/workflows/_schema-deploy.yml
+    secrets: inherit
+    with:
+      environment: staging
+      allow_data_migration_pause: true
+
+  validate_schema_pause:
+    name: Match schema guard to staged data migration
+    if: github.event_name == 'workflow_dispatch'
+    needs:
+      - prepare_schema
+      - resolve_data_release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      EXPECTED_MIGRATION_ID: ${{ needs.resolve_data_release.outputs.migration_id }}
+      REQUIRED_MIGRATION_ID: ${{ needs.prepare_schema.outputs.required_data_migration_id }}
+    steps:
+      - name: Reject a mismatched contract guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "$REQUIRED_MIGRATION_ID" ] && [ "$REQUIRED_MIGRATION_ID" != "$EXPECTED_MIGRATION_ID" ]; then
+            echo "::error::Schema requires $REQUIRED_MIGRATION_ID, but the staged release points to $EXPECTED_MIGRATION_ID."
+            exit 1
+          fi
+
   data_plan:
     if: github.event_name == 'workflow_dispatch'
     needs:
-      - deploy
+      - validate_schema_pause
       - resolve_data_release
     uses: ./.github/workflows/_data-migration.yml
     secrets: inherit
@@ -96,3 +129,12 @@ jobs:
       environment: staging
       migration_id: ${{ needs.resolve_data_release.outputs.migration_id }}
       operation: verify
+
+  deploy_after_data:
+    name: Deploy staging schema after data migration
+    if: github.event_name == 'workflow_dispatch'
+    needs: data_verify
+    uses: ./.github/workflows/_schema-deploy.yml
+    secrets: inherit
+    with:
+      environment: staging

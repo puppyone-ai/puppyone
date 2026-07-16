@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import re
 from pathlib import Path
 
 import yaml
@@ -53,9 +55,7 @@ def test_psql_receives_connection_uri_explicitly() -> None:
     assert "PGDATABASE:" not in validation
     assert 'psql "$DATABASE_URL"' in schema
     assert validation.count('psql "$DATABASE_URL"') == 2
-    upgrade_harness = (
-        REPOSITORY / "scripts" / "test-repository-target-migration.sh"
-    ).read_text()
+    upgrade_harness = (REPOSITORY / "scripts" / "test-repository-target-migration.sh").read_text()
     explicit_calls = upgrade_harness.count('psql "$database_url"')
     assert explicit_calls == upgrade_harness.count("psql ")
     assert explicit_calls >= 1
@@ -80,6 +80,7 @@ def test_hosted_schema_smoke_has_no_pgtap_runtime_dependency() -> None:
 
 def test_ordered_data_migration_fixtures_are_not_auto_discovered_by_supabase() -> None:
     supabase_tests = REPOSITORY / "supabase" / "tests"
+    supabase_test_fixtures = REPOSITORY / "supabase" / "test_fixtures"
     permission_migration = (
         REPOSITORY
         / "supabase"
@@ -87,21 +88,14 @@ def test_ordered_data_migration_fixtures_are_not_auto_discovered_by_supabase() -
         / "20260712_repo_user_permissions_to_project_members"
     )
     creator_migration = (
-        REPOSITORY
-        / "supabase"
-        / "data_migrations"
-        / "20260713_reconcile_project_creator_admin"
+        REPOSITORY / "supabase" / "data_migrations" / "20260713_reconcile_project_creator_admin"
     )
     validation = (WORKFLOWS / "validate-migrations.yml").read_text()
-    upgrade_harness = (
-        REPOSITORY / "scripts" / "test-repository-target-migration.sh"
-    ).read_text()
+    upgrade_harness = (REPOSITORY / "scripts" / "test-repository-target-migration.sh").read_text()
 
     assert not list(supabase_tests.glob("*fixture*.sql"))
     assert not list(supabase_tests.glob("*assert*.sql"))
-    assert (
-        supabase_tests / "fixtures" / "repository_target_upgrade_assert.sql"
-    ).is_file()
+    assert (supabase_test_fixtures / "repository_target_upgrade_assert.sql").is_file()
     for migration in (permission_migration, creator_migration):
         assert (migration / "test_fixture.sql").is_file()
         assert (migration / "test_assert.sql").is_file()
@@ -126,27 +120,55 @@ def test_reusable_database_workflows_receive_protected_secrets() -> None:
     # GitHub does not pass secrets to reusable workflows automatically. Every
     # direct caller must cross that boundary explicitly; the called job then
     # selects the protected staging/production Environment.
-    assert staging.count("secrets: inherit") == 4
+    assert staging.count("secrets: inherit") == 6
     assert production.count("secrets: inherit") == 1
     assert dispatcher.count("secrets: inherit") == 3
 
 
 def test_staging_manual_release_is_auditable_and_serial() -> None:
     staging = (WORKFLOWS / "migrate-staging.yml").read_text()
-    release = (
-        REPOSITORY / "supabase" / "releases" / "staging-data-migration.json"
-    ).read_text()
+    parsed = yaml.safe_load(staging)
+    jobs = parsed["jobs"]
+    release = json.loads(
+        (REPOSITORY / "supabase" / "releases" / "staging-data-migration.json").read_text()
+    )
 
     assert '"refs/heads/qubits"' in staging
     assert "github.event_name == 'workflow_dispatch'" in staging
     assert "supabase/releases/staging-data-migration.json" in staging
-    assert "needs:\n      - deploy\n      - resolve_data_release" in staging
-    assert "needs:\n      - data_plan\n      - resolve_data_release" in staging
-    assert "needs:\n      - data_run\n      - resolve_data_release" in staging
+    assert jobs["deploy_push"]["if"] == "github.event_name == 'push'"
+    assert jobs["deploy_push"]["needs"] == "validate_ref"
+    assert jobs["prepare_schema"]["needs"] == "resolve_data_release"
+    assert jobs["prepare_schema"]["with"]["allow_data_migration_pause"] is True
+    assert jobs["validate_schema_pause"]["needs"] == [
+        "prepare_schema",
+        "resolve_data_release",
+    ]
+    assert jobs["data_plan"]["needs"] == [
+        "validate_schema_pause",
+        "resolve_data_release",
+    ]
+    assert jobs["data_run"]["needs"] == ["data_plan", "resolve_data_release"]
+    assert jobs["data_verify"]["needs"] == ["data_run", "resolve_data_release"]
+    assert jobs["deploy_after_data"]["needs"] == "data_verify"
+    assert jobs["deploy_after_data"]["if"] == "github.event_name == 'workflow_dispatch'"
+    assert staging.count("uses: ./.github/workflows/_schema-deploy.yml") == 3
     assert staging.count("uses: ./.github/workflows/_data-migration.yml") == 3
     for operation in ("plan", "run", "verify"):
         assert f"operation: {operation}" in staging
-    assert "20260712_repo_user_permissions_to_project_members" in release
+    assert re.fullmatch(r"[0-9A-Za-z_]+", release["migration_id"])
+    assert (REPOSITORY / "supabase" / "data_migrations" / release["migration_id"]).is_dir()
+
+
+def test_schema_runner_only_pauses_for_an_explicit_data_migration_guard() -> None:
+    schema = (WORKFLOWS / "_schema-deploy.yml").read_text()
+
+    assert "allow_data_migration_pause:" in schema
+    assert 'grep -q "DATA_MIGRATION_REQUIRED:"' in schema
+    assert "schema_state=data_migration_required" in schema
+    assert 'if [ "$ALLOW_DATA_MIGRATION_PAUSE" = "true" ]' in schema
+    assert 'exit "$status"' in schema
+    assert "if: steps.push.outputs.schema_state == 'deployed'" in schema
 
 
 def test_needs_expressions_use_identifier_safe_job_ids() -> None:
