@@ -15,7 +15,7 @@ user Git credentials.
 ## Deploy order
 
 1. Apply database migrations through
-   `20260716000000_remove_workspace_binding_contract_cutover.sql`.
+   `20260716000000_remove_workspace_binding.sql`.
 2. Deploy Backend repository-context and Git-credential endpoints.
 3. Deploy Git transport using canonical root and Scope routes.
 4. Deploy Desktop canonical-remote discovery.

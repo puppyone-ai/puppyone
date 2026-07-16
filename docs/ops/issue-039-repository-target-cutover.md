@@ -22,7 +22,7 @@ Project
    `20260715000000_project_owned_repository_targets_contract_cutover.sql`.
 3. Verify legacy root-Scope rows became Project-root targets and real child
    Scopes retained their geometry.
-4. Apply `20260716000000_remove_workspace_binding_contract_cutover.sql`.
+4. Apply `20260716000000_remove_workspace_binding.sql`.
 5. Verify former checkout-owned Git credentials became user-owned credentials,
    then verify the checkout table and credential foreign key are absent.
 
