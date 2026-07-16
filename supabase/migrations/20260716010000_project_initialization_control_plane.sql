@@ -42,17 +42,60 @@ DROP FUNCTION IF EXISTS public.create_project_with_admin(
     text, text, text, text, uuid, text
 );
 
+-- Default-name allocation is part of the serialized create transaction.  A
+-- frontend may optimistically propose a slot, but two stale/concurrent clients
+-- cannot publish duplicate Untitled names because the Organization row is
+-- locked before this helper is evaluated.
+CREATE FUNCTION public._untitled_project_slot(p_name text)
+RETURNS bigint
+LANGUAGE plpgsql
+IMMUTABLE
+SET search_path = pg_catalog, public, pg_temp
+AS $$
+DECLARE
+    matched text[];
+    numeric_slot numeric;
+BEGIN
+    matched := regexp_match(
+        btrim(p_name),
+        '^Untitled Project(?: (?:(\d+)|\((\d+)\)))?$',
+        'i'
+    );
+    IF matched IS NULL THEN
+        RETURN NULL;
+    END IF;
+    IF matched[1] IS NULL AND matched[2] IS NULL THEN
+        RETURN 1;
+    END IF;
+    numeric_slot := COALESCE(matched[1], matched[2])::numeric;
+    IF numeric_slot <= 1 OR numeric_slot > 9223372036854775807 THEN
+        -- Preserve historical semantics: explicit slot 1 and values outside
+        -- the allocator range are custom names, not default-name requests.
+        RETURN NULL;
+    END IF;
+    RETURN numeric_slot::bigint;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public._untitled_project_slot(text)
+    FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public._untitled_project_slot(text)
+    TO service_role;
+
 CREATE TABLE public.project_create_operations (
     actor_user_id uuid NOT NULL,
     operation_key text NOT NULL,
     payload_hash text NOT NULL,
+    request_hash text NOT NULL,
     org_id text NOT NULL,
     project_id text NOT NULL,
     project_snapshot jsonb NOT NULL,
+    result_metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
     publication_mode text NOT NULL,
     status text NOT NULL DEFAULT 'initializing',
     initialization_attempts integer NOT NULL DEFAULT 0,
     initialization_available_at timestamptz NOT NULL DEFAULT now(),
+    initialization_deadline_at timestamptz NOT NULL DEFAULT now() + interval '24 hours',
     initialization_claimed_at timestamptz,
     initialization_claimed_by text,
     initialization_last_error text,
@@ -60,13 +103,18 @@ CREATE TABLE public.project_create_operations (
     ready_at timestamptz,
     replayed_at timestamptz,
     deleted_at timestamptz,
+    dead_lettered_at timestamptz,
     PRIMARY KEY (actor_user_id, operation_key),
     CONSTRAINT project_create_operations_key_check
       CHECK (operation_key ~ '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'),
     CONSTRAINT project_create_operations_hash_check
       CHECK (payload_hash ~ '^[0-9a-f]{64}$'),
+    CONSTRAINT project_create_operations_request_hash_check
+      CHECK (request_hash ~ '^[0-9a-f]{64}$'),
+    CONSTRAINT project_create_operations_result_metadata_check
+      CHECK (jsonb_typeof(result_metadata) = 'object'),
     CONSTRAINT project_create_operations_status_check
-      CHECK (status IN ('initializing', 'ready', 'deleted')),
+      CHECK (status IN ('initializing', 'ready', 'deleted', 'dead_lettered')),
     CONSTRAINT project_create_operations_publication_mode_check
       CHECK (publication_mode IN ('empty', 'deferred'))
 );
@@ -153,22 +201,17 @@ ALTER TABLE public.project_create_operations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.git_credential_issue_operations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.project_deletion_jobs ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY project_create_operations_service_role_all
-    ON public.project_create_operations FOR ALL TO service_role
-    USING (true) WITH CHECK (true);
-CREATE POLICY git_credential_issue_operations_service_role_all
-    ON public.git_credential_issue_operations FOR ALL TO service_role
-    USING (true) WITH CHECK (true);
-CREATE POLICY project_deletion_jobs_service_role_all
-    ON public.project_deletion_jobs FOR ALL TO service_role
-    USING (true) WITH CHECK (true);
-
-REVOKE ALL ON public.project_create_operations FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON public.git_credential_issue_operations FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON public.project_deletion_jobs FROM PUBLIC, anon, authenticated;
-GRANT ALL ON public.project_create_operations TO service_role;
-GRANT ALL ON public.git_credential_issue_operations TO service_role;
-GRANT ALL ON public.project_deletion_jobs TO service_role;
+-- These journals are private implementation state, not service-role data
+-- APIs. Every mutation and worker claim crosses a SECURITY DEFINER function
+-- below; otherwise a service caller could forge a tombstone, skip a lease, or
+-- enqueue arbitrary object deletion. The table owner used by those functions
+-- bypasses RLS without granting the transport principal direct access.
+REVOKE ALL ON public.project_create_operations
+    FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON public.git_credential_issue_operations
+    FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON public.project_deletion_jobs
+    FROM PUBLIC, anon, authenticated, service_role;
 
 -- Human authorization is a publication boundary as well as an ACL decision.
 -- An initializing row is deliberately indistinguishable from a missing
@@ -396,7 +439,9 @@ CREATE FUNCTION public.create_project_idempotent(
     p_created_by uuid,
     p_share_token text,
     p_publication_mode text,
-    p_project_limit integer DEFAULT NULL
+    p_project_limit integer DEFAULT NULL,
+    p_request_hash text DEFAULT NULL,
+    p_result_metadata jsonb DEFAULT '{}'::jsonb
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -407,10 +452,16 @@ DECLARE
     existing_operation public.project_create_operations%ROWTYPE;
     created_project public.projects%ROWTYPE;
     current_count bigint;
+    requested_name_slot bigint;
+    resolved_name_slot bigint;
+    resolved_project_name text;
 BEGIN
     IF p_operation_key !~ '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
        OR p_payload_hash !~ '^[0-9a-f]{64}$'
-       OR p_publication_mode NOT IN ('empty', 'deferred') THEN
+       OR COALESCE(p_request_hash, p_payload_hash) !~ '^[0-9a-f]{64}$'
+       OR p_project_id !~ '^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$'
+       OR p_publication_mode NOT IN ('empty', 'deferred')
+       OR jsonb_typeof(COALESCE(p_result_metadata, '{}'::jsonb)) <> 'object' THEN
         RETURN jsonb_build_object('outcome', 'invalid');
     END IF;
 
@@ -426,8 +477,13 @@ BEGIN
 
     IF FOUND THEN
         IF existing_operation.payload_hash IS DISTINCT FROM p_payload_hash
+           OR existing_operation.request_hash IS DISTINCT FROM
+              COALESCE(p_request_hash, p_payload_hash)
            OR existing_operation.publication_mode IS DISTINCT FROM p_publication_mode THEN
             RETURN jsonb_build_object('outcome', 'conflict');
+        END IF;
+        IF existing_operation.status = 'dead_lettered' THEN
+            RETURN jsonb_build_object('outcome', 'dead_lettered');
         END IF;
         IF existing_operation.status = 'deleted'
            OR NOT EXISTS (
@@ -479,6 +535,34 @@ BEGIN
         );
     END IF;
 
+    resolved_project_name := p_name;
+    requested_name_slot := public._untitled_project_slot(p_name);
+    IF requested_name_slot IS NOT NULL THEN
+        IF EXISTS (
+            SELECT 1
+            FROM public.projects project
+            WHERE project.org_id = p_org_id
+              AND public._untitled_project_slot(project.name) = requested_name_slot
+        ) THEN
+            SELECT candidate.slot INTO resolved_name_slot
+            FROM generate_series(1::bigint, current_count + 1) AS candidate(slot)
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM public.projects project
+                WHERE project.org_id = p_org_id
+                  AND public._untitled_project_slot(project.name) = candidate.slot
+            )
+            ORDER BY candidate.slot
+            LIMIT 1;
+        ELSE
+            resolved_name_slot := requested_name_slot;
+        END IF;
+        resolved_project_name := CASE resolved_name_slot
+            WHEN 1 THEN 'Untitled Project'
+            ELSE 'Untitled Project ' || resolved_name_slot::text
+        END;
+    END IF;
+
     -- Root refs deliberately remain uninitialized here.  The existing L5
     -- VersionWriteEngine.initialize_project_tree entry point owns the
     -- canonical empty-root write; this transaction prepares only Project,
@@ -487,7 +571,7 @@ BEGIN
         id, name, description, org_id, created_by, share_token,
         lifecycle_status
     ) VALUES (
-        p_project_id, p_name, p_description, p_org_id, p_created_by,
+        p_project_id, resolved_project_name, p_description, p_org_id, p_created_by,
         p_share_token, 'initializing'
     ) RETURNING * INTO created_project;
 
@@ -499,14 +583,21 @@ BEGIN
     );
 
     INSERT INTO public.project_create_operations (
-        actor_user_id, operation_key, payload_hash, org_id, project_id,
-        project_snapshot, publication_mode, initialization_available_at
+        actor_user_id, operation_key, payload_hash, request_hash, org_id, project_id,
+        project_snapshot, result_metadata, publication_mode,
+        initialization_available_at, initialization_deadline_at
     ) VALUES (
-        p_created_by, p_operation_key, p_payload_hash, p_org_id, p_project_id,
-        to_jsonb(created_project), p_publication_mode,
+        p_created_by, p_operation_key, p_payload_hash,
+        COALESCE(p_request_hash, p_payload_hash), p_org_id, p_project_id,
+        to_jsonb(created_project), COALESCE(p_result_metadata, '{}'::jsonb),
+        p_publication_mode,
         CASE p_publication_mode
             WHEN 'deferred' THEN now() + interval '6 hours'
             ELSE now()
+        END,
+        CASE p_publication_mode
+            WHEN 'deferred' THEN now() + interval '6 hours'
+            ELSE now() + interval '24 hours'
         END
     );
 
@@ -518,11 +609,87 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.create_project_idempotent(
-    text, text, text, text, text, text, uuid, text, text, integer
+    text, text, text, text, text, text, uuid, text, text, integer, text, jsonb
 ) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.create_project_idempotent(
-    text, text, text, text, text, text, uuid, text, text, integer
+    text, text, text, text, text, text, uuid, text, text, integer, text, jsonb
 ) TO service_role;
+
+-- Exact completed replay is intentionally independent of mutable workflow
+-- sources (Registry aliases, release availability, landing ticket expiry and
+-- preview-object retention). The actor/key plus the source-independent request
+-- hash identifies the durable response; initializing work still resumes
+-- through the normal workflow and never exposes its hidden Project snapshot.
+CREATE FUNCTION public.get_project_create_operation_replay(
+    p_operation_key text,
+    p_actor_user_id uuid,
+    p_request_hash text
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+STABLE
+SET search_path = pg_catalog, public, pg_temp
+AS $$
+DECLARE
+    operation public.project_create_operations%ROWTYPE;
+BEGIN
+    IF p_operation_key !~ '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+       OR p_request_hash !~ '^[0-9a-f]{64}$' THEN
+        RETURN jsonb_build_object('outcome', 'invalid');
+    END IF;
+
+    SELECT * INTO operation
+    FROM public.project_create_operations
+    WHERE actor_user_id = p_actor_user_id
+      AND operation_key = p_operation_key;
+
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object('outcome', 'not_found');
+    END IF;
+    IF operation.request_hash IS DISTINCT FROM p_request_hash THEN
+        RETURN jsonb_build_object('outcome', 'conflict');
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM public.org_members member
+        WHERE member.org_id = operation.org_id
+          AND member.user_id = p_actor_user_id
+    ) THEN
+        RETURN jsonb_build_object('outcome', 'forbidden');
+    END IF;
+    IF operation.status = 'deleted'
+       OR NOT EXISTS (
+           SELECT 1 FROM public.projects project
+           WHERE project.id = operation.project_id
+       ) THEN
+        RETURN jsonb_build_object('outcome', 'gone');
+    END IF;
+    IF operation.status = 'dead_lettered' THEN
+        RETURN jsonb_build_object('outcome', 'dead_lettered');
+    END IF;
+    IF operation.status <> 'ready' THEN
+        RETURN jsonb_build_object('outcome', 'initializing');
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM public.projects project
+        WHERE project.id = operation.project_id
+          AND project.lifecycle_status = 'ready'
+    ) THEN
+        RETURN jsonb_build_object('outcome', 'lifecycle_conflict');
+    END IF;
+
+    RETURN jsonb_build_object(
+        'outcome', 'replayed',
+        'project', operation.project_snapshot,
+        'result_metadata', operation.result_metadata
+    );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.get_project_create_operation_replay(text, uuid, text)
+    FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_project_create_operation_replay(text, uuid, text)
+    TO service_role;
 
 -- L5 calls this after initialize_project_tree has published the root ref.
 -- Completion never writes a ref; it verifies the L5 fact and makes the
@@ -694,16 +861,50 @@ WHERE actor_user_id = p_actor_user_id
 RETURNING true;
 $$;
 
+-- A worker that exhausts the retry/deadline budget must stop hot-looping even
+-- when fail-closed abandonment detects unexpected user state.  The Project
+-- remains hidden and an operator can inspect the durable error; the ordinary
+-- safe path below deletes the empty aggregate and writes a cleanup tombstone.
+CREATE FUNCTION public.dead_letter_project_initialization_operation(
+    p_operation_key text,
+    p_actor_user_id uuid,
+    p_worker_id text,
+    p_error text
+)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp
+AS $$
+UPDATE public.project_create_operations
+SET status = 'dead_lettered',
+    dead_lettered_at = COALESCE(dead_lettered_at, now()),
+    initialization_claimed_at = NULL,
+    initialization_claimed_by = NULL,
+    initialization_last_error = left(p_error, 2000)
+WHERE actor_user_id = p_actor_user_id
+  AND operation_key = p_operation_key
+  AND status = 'initializing'
+  AND initialization_claimed_by = p_worker_id
+RETURNING true;
+$$;
+
 REVOKE ALL ON FUNCTION public.claim_project_initialization_operations(text, integer, integer)
     FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.fail_project_initialization_operation(
     text, uuid, text, text, integer
+) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.dead_letter_project_initialization_operation(
+    text, uuid, text, text
 ) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.claim_project_initialization_operations(
     text, integer, integer
 ) TO service_role;
 GRANT EXECUTE ON FUNCTION public.fail_project_initialization_operation(
     text, uuid, text, text, integer
+) TO service_role;
+GRANT EXECUTE ON FUNCTION public.dead_letter_project_initialization_operation(
+    text, uuid, text, text
 ) TO service_role;
 
 -- Raw Git secrets are supplied by the trusted Desktop main process and are
@@ -816,6 +1017,13 @@ REVOKE ALL ON FUNCTION public.issue_user_git_http_credential_idempotent(
 GRANT EXECUTE ON FUNCTION public.issue_user_git_http_credential_idempotent(
     text, text, text, text, text, text, text, uuid, text, text, text, text, text
 ) TO service_role;
+
+-- The older function remains an internal SECURITY DEFINER implementation
+-- detail for the idempotent wrapper above.  Service callers must not be able
+-- to invoke it directly and bypass operation replay or the ready gate.
+REVOKE ALL ON FUNCTION public.issue_user_git_http_credential(
+    text, text, text, text, text, uuid, text, text, text, text, text
+) FROM service_role;
 
 -- Deferred/contentful creation is never user-visible before completion.  If
 -- its owner reports failure, or the reconciler claims it after the durable
@@ -937,10 +1145,10 @@ GRANT EXECUTE ON FUNCTION public.abort_deferred_project_publication(
     text, text, uuid, integer, text
 ) TO service_role;
 
--- Keep Abandon fail-closed as the schema grows.  Every direct ON DELETE
--- CASCADE dependent of Projects is a user-visible initialization side effect
--- unless abandon_project_initialization explicitly proves that exact table is
--- still in its canonical empty/bootstrap state.
+-- Keep Abandon fail-closed as the schema grows.  Every direct FK whose delete
+-- action mutates a child row (CASCADE, SET NULL, or SET DEFAULT) is a user-
+-- visible initialization side effect unless abandon_project_initialization
+-- explicitly proves that exact table is still canonical bootstrap state.
 CREATE FUNCTION public._project_initialization_has_cascade_dependents(
     p_project_id text
 )
@@ -983,7 +1191,7 @@ BEGIN
          AND parent_attribute.attnum = constraint_row.confkey[key_position.position]
         WHERE constraint_row.contype = 'f'
           AND constraint_row.confrelid = 'public.projects'::regclass
-          AND constraint_row.confdeltype = 'c'
+          AND constraint_row.confdeltype IN ('c', 'n', 'd')
           AND constraint_row.conrelid NOT IN (
               'public.project_members'::regclass,
               'public.access_surfaces'::regclass,
@@ -1025,7 +1233,8 @@ CREATE FUNCTION public.abandon_project_initialization(
     p_project_id text,
     p_operation_key text,
     p_actor_user_id uuid,
-    p_quiescence_seconds integer DEFAULT 3600
+    p_quiescence_seconds integer DEFAULT 3600,
+    p_worker_id text DEFAULT NULL
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -1068,6 +1277,13 @@ BEGIN
             'job', to_jsonb(deletion_job)
         );
     END IF;
+    IF p_worker_id IS NOT NULL
+       AND (
+           create_operation.status <> 'initializing'
+           OR create_operation.initialization_claimed_by IS DISTINCT FROM p_worker_id
+       ) THEN
+        RETURN jsonb_build_object('outcome', 'claim_lost');
+    END IF;
 
     SELECT * INTO project_row
     FROM public.projects
@@ -1076,15 +1292,39 @@ BEGIN
 
     IF project_row.id IS NOT NULL THEN
         IF project_row.created_by IS DISTINCT FROM p_actor_user_id
-           OR NOT EXISTS (
-               SELECT 1 FROM public.org_members om
-               WHERE om.org_id = project_row.org_id
-                 AND om.user_id = p_actor_user_id
+           OR (
+               p_worker_id IS NULL
+               AND NOT EXISTS (
+                   SELECT 1 FROM public.org_members om
+                   WHERE om.org_id = project_row.org_id
+                     AND om.user_id = p_actor_user_id
+               )
            ) THEN
             RETURN jsonb_build_object('outcome', 'forbidden');
         END IF;
-        IF COALESCE(project_row.version_root_hash, '') <> empty_tree
-           OR COALESCE(project_row.mut_root_hash, '') <> empty_tree
+        IF (
+               to_jsonb(project_row)
+                   - ARRAY[
+                       'version_root_hash', 'mut_root_hash',
+                       'updated_at', 'lifecycle_status'
+                   ]::text[]
+             ) IS DISTINCT FROM (
+               create_operation.project_snapshot
+                   - ARRAY[
+                       'version_root_hash', 'mut_root_hash',
+                       'updated_at', 'lifecycle_status'
+                   ]::text[]
+             )
+           OR NOT (
+               (
+                   COALESCE(project_row.version_root_hash, '') = ''
+                   AND COALESCE(project_row.mut_root_hash, '') = ''
+               )
+               OR (
+                   project_row.version_root_hash = empty_tree
+                   AND project_row.mut_root_hash = empty_tree
+               )
+           )
            OR EXISTS (
                SELECT 1 FROM public.version_scope_state state
                WHERE state.project_id = p_project_id
@@ -1249,9 +1489,13 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.abandon_project_initialization(text, text, uuid, integer)
+REVOKE ALL ON FUNCTION public.abandon_project_initialization(
+    text, text, uuid, integer, text
+)
     FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.abandon_project_initialization(text, text, uuid, integer)
+GRANT EXECUTE ON FUNCTION public.abandon_project_initialization(
+    text, text, uuid, integer, text
+)
     TO service_role;
 
 -- Ordinary Project deletion publishes the durable object cleanup job in the
@@ -1472,5 +1716,23 @@ GRANT EXECUTE ON FUNCTION public.schedule_project_deletion_verification(text, te
     TO service_role;
 GRANT EXECUTE ON FUNCTION public.fail_project_deletion_job(text, text, text, integer)
     TO service_role;
+
+-- The service role is an application transport principal, not a schema owner.
+-- Project creation, publication and deletion must cross the SECURITY DEFINER
+-- control-plane functions above. Keep ordinary metadata/root updates working
+-- through a fail-closed column allowlist while denying raw INSERT and every
+-- direct lifecycle transition. New columns receive no implicit write access.
+REVOKE INSERT, UPDATE ON public.projects FROM service_role;
+GRANT UPDATE (
+    name,
+    description,
+    visibility,
+    bound_git_branch,
+    prompt_template,
+    share_token,
+    mut_root_hash,
+    version_root_hash,
+    updated_at
+) ON public.projects TO service_role;
 
 COMMIT;

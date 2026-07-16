@@ -43,6 +43,7 @@ class AuthorizationRepository:
             self._client.table("projects")
             .select("id, org_id, visibility")
             .eq("id", project_id)
+            .eq("lifecycle_status", "ready")
             .limit(1)
             .execute()
         )
@@ -91,6 +92,7 @@ class AuthorizationRepository:
             self._client.table("projects")
             .select("id, org_id, visibility")
             .in_("id", normalized_ids)
+            .eq("lifecycle_status", "ready")
             .execute()
         ).data or []
         org_ids = list({str(row["org_id"]) for row in projects})

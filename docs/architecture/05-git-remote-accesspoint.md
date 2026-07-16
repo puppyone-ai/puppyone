@@ -103,9 +103,23 @@ POST /api/v1/projects/{project_id}/git-credentials
 DELETE /api/v1/projects/{project_id}/git-credentials/{credential_id}
 ```
 
-The issue response reveals plaintext once. Storage contains only a keyed hash,
-prefix/last-four hints, owner user ID, Project, Access Surface, target mode,
-status, and timestamps. It contains no local-client identity.
+The authenticated client generates the plaintext credential with a CSPRNG.
+Desktop puts it in operating-system protected storage; the web UI holds it only
+in memory for the one-time display. The POST request carries that value once so
+the backend can store its keyed hash. Its response contains only credential ID,
+mode, and canonical remote locator; the backend never generates or echoes the
+plaintext. Storage contains only a keyed hash, prefix/last-four hints, owner
+user ID, Project, Access Surface, target mode, status, and timestamps. It
+contains no local-client identity.
+
+Issuance requires a canonical UUIDv4 `Idempotency-Key`. The operation record is
+keyed by authenticated user and operation key. A same-payload retry resolves to
+the original credential ID; a changed payload is rejected. Thus a retried
+publish operation has at most one effective credential.
+
+The generic Access Surface `regenerate-key` route cannot issue human Git
+credentials and returns `410 Gone` for a Git Surface. This prevents a caller
+from bypassing client-generated, user-owned, idempotent issuance.
 
 Multiple clients may hold independent credentials for the same user and target.
 Revoking one credential does not revoke the others. Removing a local remote is
@@ -149,4 +163,5 @@ never crosses the Cloud API boundary.
 - No Git RuntimeGrant is derived from a human JWT alone.
 - No Project-root repository is represented as a synthetic Scope.
 - No raw credential is persisted in application data or returned by list/read.
+- No credential issue response contains raw credential material.
 - No arbitrary or legacy Git remote identifies Cloud UI context.

@@ -64,21 +64,33 @@ export async function getProject(projectId: string): Promise<ProjectInfo> {
   return apiRequest<ProjectInfo>(`/api/v1/projects/${projectId}`);
 }
 
-export async function createProject(
-  name: string,
-  description?: string,
-  orgId?: string,
-  seed?: boolean,
-  template?: string
-): Promise<ProjectInfo> {
+export interface CreateProjectInput {
+  name: string;
+  description?: string;
+  /** Plain project creation is always owned by one explicit organization. */
+  orgId: string;
+  /**
+   * Stable UUIDv4 for this user operation. Reuse it when retrying an
+   * uncertain response; generate a new key only for a new create intent.
+   */
+  idempotencyKey: string;
+}
+
+export async function createProject({
+  name,
+  description,
+  orgId,
+  idempotencyKey,
+}: CreateProjectInput): Promise<ProjectInfo> {
   return apiRequest<ProjectInfo>('/api/v1/projects/', {
     method: 'POST',
+    headers: {
+      'Idempotency-Key': idempotencyKey,
+    },
     body: JSON.stringify({
       name,
       description,
       org_id: orgId,
-      seed: seed ?? false,
-      template: template ?? null,
     }),
   });
 }
@@ -118,8 +130,14 @@ export async function updateProject(
   });
 }
 
-export async function deleteProject(projectId: string): Promise<void> {
-  return apiRequest<void>(`/api/v1/projects/${projectId}`, {
+export interface ProjectDeletionStatus {
+  project_id: string;
+  deletion_job_id: string;
+  status: 'pending' | 'running' | 'failed' | 'completed';
+}
+
+export async function deleteProject(projectId: string): Promise<ProjectDeletionStatus> {
+  return apiRequest<ProjectDeletionStatus>(`/api/v1/projects/${projectId}`, {
     method: 'DELETE',
   });
 }

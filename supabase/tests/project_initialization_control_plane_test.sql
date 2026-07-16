@@ -35,6 +35,11 @@ INSERT INTO public.organizations (
         'issue039-quota-org', 'ISSUE-039 Quota',
         'issue039-quota-org', 'team', 'enterprise', 10,
         '00000000-0000-4000-8000-000000039001'::uuid
+    ),
+    (
+        'issue039-pre-root-org', 'ISSUE-039 Pre Root',
+        'issue039-pre-root-org', 'team', 'enterprise', 10,
+        '00000000-0000-4000-8000-000000039001'::uuid
     );
 
 INSERT INTO public.org_members (id, org_id, user_id, role) VALUES
@@ -47,13 +52,17 @@ INSERT INTO public.org_members (id, org_id, user_id, role) VALUES
         '00000000-0000-4000-8000-000000039001'::uuid, 'owner'
     ),
     (
+        'issue039-member-pre-root', 'issue039-pre-root-org',
+        '00000000-0000-4000-8000-000000039001'::uuid, 'owner'
+    ),
+    (
         'issue039-member-second', 'issue039-same-key-org',
         '00000000-0000-4000-8000-000000039002'::uuid, 'member'
     );
 
 COMMIT;
 
-SELECT plan(61);
+SELECT plan(73);
 
 CREATE TEMP TABLE issue039_results (
     lane text NOT NULL,
@@ -90,6 +99,52 @@ SELECT is(
     ),
     NULL::regprocedure,
     'the legacy non-idempotent Project creation RPC is absent'
+);
+SELECT is(
+    (
+        public.create_project_idempotent(
+            '88888888-8888-4888-8888-888888888888', repeat('8', 64),
+            '../escape', 'Unsafe Project ID', NULL,
+            'issue039-pre-root-org',
+            '00000000-0000-4000-8000-000000039001'::uuid,
+            'issue039-unsafe-id-share', 'empty', 1
+        )->>'outcome'
+    ),
+    'invalid',
+    'Project creation rejects IDs that cannot be a safe storage segment'
+);
+
+-- A permanent failure before L5 writes either root must be compensatable;
+-- otherwise an invisible Project would consume quota forever.
+SELECT is(
+    (
+        public.create_project_idempotent(
+            '99999999-9999-4999-8999-999999999999', repeat('9', 64),
+            'issue039-pre-root-project', 'Pre-root failure', NULL,
+            'issue039-pre-root-org',
+            '00000000-0000-4000-8000-000000039001'::uuid,
+            'issue039-pre-root-share', 'empty', 1
+        )->>'outcome'
+    ),
+    'initializing_created',
+    'pre-root Project initialization is durably journaled'
+);
+SELECT is(
+    (
+        public.abandon_project_initialization(
+            'issue039-pre-root-project',
+            '99999999-9999-4999-8999-999999999999',
+            '00000000-0000-4000-8000-000000039001'::uuid,
+            1800
+        )->>'outcome'
+    ),
+    'accepted',
+    'both uninitialized roots are safely auto-abandonable'
+);
+SELECT is(
+    (SELECT count(*) FROM public.projects WHERE org_id = 'issue039-pre-root-org'),
+    0::bigint,
+    'pre-root abandonment releases Project quota immediately'
 );
 
 -- Same operation, same payload, two simultaneous requests: exactly one
@@ -230,6 +285,17 @@ SELECT is(
     )),
     'admin',
     'the completed Project becomes visible to ordinary authorization'
+);
+SELECT is(
+    (
+        public.get_project_create_operation_replay(
+            '11111111-1111-4111-8111-111111111111',
+            '00000000-0000-4000-8000-000000039001'::uuid,
+            repeat('a', 64)
+        )->>'outcome'
+    ),
+    'replayed',
+    'completed response replays from the journal without a mutable source'
 );
 
 -- Different operations racing for the final quota slot serialize on the
@@ -483,6 +549,29 @@ SELECT is(
 );
 DELETE FROM public.repository_scopes WHERE id = 'issue039-user-scope';
 
+UPDATE public.projects
+SET description = 'user edited while publish was in flight'
+WHERE id = (SELECT project_id FROM public.project_create_operations
+            WHERE operation_key = '11111111-1111-4111-8111-111111111111');
+SELECT is(
+    (
+        public.abandon_project_initialization(
+            (SELECT project_id FROM public.project_create_operations
+             WHERE operation_key = '11111111-1111-4111-8111-111111111111'),
+            '11111111-1111-4111-8111-111111111111',
+            '00000000-0000-4000-8000-000000039001'::uuid,
+            1800
+        )->>'outcome'
+    ),
+    'not_abandonable',
+    'a Project product-field edit makes stale initialization Abandon fail closed'
+);
+UPDATE public.projects project
+SET description = operation.project_snapshot->>'description'
+FROM public.project_create_operations operation
+WHERE project.id = operation.project_id
+  AND operation.operation_key = '11111111-1111-4111-8111-111111111111';
+
 -- The exact create + standard root Surfaces + same-operation credential are
 -- bootstrap resources, so the untouched initialization remains abandonable.
 SELECT is(
@@ -518,15 +607,12 @@ SELECT is(
 SELECT is(
     (SELECT object_prefixes FROM public.project_deletion_jobs
      WHERE source = 'initialization_abandon'),
-    jsonb_build_array(
-        'version/' || (SELECT project_id FROM public.project_create_operations
-                       WHERE operation_key = '11111111-1111-4111-8111-111111111111') || '/',
-        'mut/' || (SELECT project_id FROM public.project_create_operations
-                   WHERE operation_key = '11111111-1111-4111-8111-111111111111') || '/',
-        'projects/' || (SELECT project_id FROM public.project_create_operations
-                        WHERE operation_key = '11111111-1111-4111-8111-111111111111') || '/'
+    public._project_deletion_object_prefixes(
+        (SELECT project_id FROM public.project_create_operations
+         WHERE operation_key = '11111111-1111-4111-8111-111111111111'),
+        jsonb_build_array('00000000-0000-4000-8000-000000039001')
     ),
-    'deletion job covers every Project-owned object namespace'
+    'deletion job covers every exact Project-owned object namespace'
 );
 SELECT ok(
     (SELECT available_at >= created_at + interval '1800 seconds'
@@ -772,10 +858,52 @@ SELECT is(
 SELECT ok(
     NOT has_function_privilege(
         'authenticated',
-        'public.create_project_idempotent(text,text,text,text,text,text,uuid,text,text,integer)',
+        'public.create_project_idempotent(text,text,text,text,text,text,uuid,text,text,integer,text,jsonb)',
         'EXECUTE'
     ),
     'human clients cannot bypass the service control plane RPC'
+);
+SELECT ok(
+    NOT has_function_privilege(
+        'service_role',
+        'public.issue_user_git_http_credential(text,text,text,text,text,uuid,text,text,text,text,text)',
+        'EXECUTE'
+    ),
+    'service callers cannot bypass idempotent user Git credential issuance'
+);
+SELECT ok(
+    NOT has_table_privilege('service_role', 'public.projects', 'INSERT'),
+    'service callers cannot directly insert a ready Project'
+);
+SELECT ok(
+    NOT has_column_privilege(
+        'service_role', 'public.projects', 'lifecycle_status', 'UPDATE'
+    ),
+    'service callers cannot directly publish an initializing Project'
+);
+SELECT ok(
+    NOT has_table_privilege('service_role', 'public.project_create_operations', 'INSERT')
+    AND NOT has_table_privilege('service_role', 'public.project_create_operations', 'UPDATE')
+    AND NOT has_table_privilege('service_role', 'public.project_create_operations', 'DELETE'),
+    'service callers cannot forge Project creation operations'
+);
+SELECT ok(
+    NOT has_table_privilege(
+        'service_role', 'public.git_credential_issue_operations', 'INSERT'
+    )
+    AND NOT has_table_privilege(
+        'service_role', 'public.git_credential_issue_operations', 'UPDATE'
+    )
+    AND NOT has_table_privilege(
+        'service_role', 'public.git_credential_issue_operations', 'DELETE'
+    ),
+    'service callers cannot forge Git credential operations'
+);
+SELECT ok(
+    NOT has_table_privilege('service_role', 'public.project_deletion_jobs', 'INSERT')
+    AND NOT has_table_privilege('service_role', 'public.project_deletion_jobs', 'UPDATE')
+    AND NOT has_table_privilege('service_role', 'public.project_deletion_jobs', 'DELETE'),
+    'service callers cannot forge or complete Project deletion jobs'
 );
 
 -- A downgrade that commits while deletion is waiting on the Project row must
@@ -866,13 +994,13 @@ SELECT extensions.dblink_disconnect('issue039-c1');
 SELECT extensions.dblink_disconnect('issue039-c2');
 
 DELETE FROM public.project_deletion_jobs
-WHERE org_id IN ('issue039-same-key-org', 'issue039-quota-org');
+WHERE org_id IN ('issue039-same-key-org', 'issue039-quota-org', 'issue039-pre-root-org');
 DELETE FROM public.git_credential_issue_operations
-WHERE org_id IN ('issue039-same-key-org', 'issue039-quota-org');
+WHERE org_id IN ('issue039-same-key-org', 'issue039-quota-org', 'issue039-pre-root-org');
 DELETE FROM public.project_create_operations
-WHERE org_id IN ('issue039-same-key-org', 'issue039-quota-org');
+WHERE org_id IN ('issue039-same-key-org', 'issue039-quota-org', 'issue039-pre-root-org');
 DELETE FROM public.organizations
-WHERE id IN ('issue039-same-key-org', 'issue039-quota-org');
+WHERE id IN ('issue039-same-key-org', 'issue039-quota-org', 'issue039-pre-root-org');
 DELETE FROM auth.users
 WHERE id IN (
     '00000000-0000-4000-8000-000000039001'::uuid,

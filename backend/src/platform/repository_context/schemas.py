@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from src.platform.repository_context.models import GitCredentialMode
 from src.platform.repository_target.schemas import RepositoryTargetSchema
@@ -17,11 +17,11 @@ class GitRemoteOut(BaseModel):
 class GitCredentialIssueRequest(BaseModel):
     target: RepositoryTargetSchema
     mode: GitCredentialMode = GitCredentialMode.READ_WRITE
+    credential: str = Field(pattern=r"^pwg_[A-Za-z0-9_-]{43}$")
 
 
 class GitCredentialOut(BaseModel):
     id: str
-    credential: str
     mode: GitCredentialMode
     remote: GitRemoteOut
 

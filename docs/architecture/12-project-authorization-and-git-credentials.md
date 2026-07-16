@@ -36,12 +36,43 @@ Examples:
 - reading Project content requires `content.read`;
 - writing content requires `content.write`;
 - issuing a Git credential requires current access to its Project target;
-- revoking a user-owned credential requires current Project access and exact
-  credential ownership;
+- revoking a user-owned credential requires exact Project, credential, and
+  owner identity, but remains possible after Project access is lost;
 - Team, Billing, membership, and settings remain human control-plane actions.
 
 Project IDs, Scope IDs, Git locators, Runtime keys, ownership hints, and local
 paths never create a ProjectGrant.
+
+## Project publication lifecycle
+
+Every Project creation entry point uses one durable control plane. Its first
+transaction serializes tenant quota and default-name allocation, creates the
+Project and creator Admin as `initializing`, and records the authenticated
+actor, canonical UUIDv4 operation key, publication mode, and payload hash. The
+payload hash includes an immutable source fingerprint (for example template
+release and bundle digest), so one operation key can never be replayed against
+different source content.
+
+`empty` publication invokes the existing L5
+`VersionWriteEngine.initialize_project_tree` boundary and is reconciler-safe.
+`deferred` publication runs its contentful initializer exactly once while the
+Project remains hidden; failure or expiry durably aborts the aggregate instead
+of publishing an empty substitute. Only the completion transaction may change
+an initialized row to `ready`.
+
+An `initializing` Project is recovery state, not a product resource. Ordinary
+Project repositories, human authorization facts, share-token joins, Git
+credential issuance, and RuntimeGrant resolution all require `ready`. The
+durable initialization reconciler and the narrowly validated Abandon operation
+are the only consumers allowed to address an initializing row directly. This
+prevents a timeout between database preparation and L5 initialization from
+publishing a partially created Project.
+
+There is no lifecycle default and no legacy direct create API. The application
+service role cannot directly insert Projects or update `lifecycle_status`; it
+may update only an explicit allowlist of ordinary metadata and L5 root columns.
+Deletion similarly crosses the durable deletion control plane so storage
+prefix cleanup survives relational cascade.
 
 ## RuntimeGrant
 
@@ -89,14 +120,24 @@ remote the workspace is local-only and no context request is sent.
 User Git credentials are ordinary independently revocable credentials, similar
 to scoped personal access tokens:
 
-- plaintext is shown exactly once;
+- the authenticated client generates plaintext with a CSPRNG; Desktop stores
+  it in the OS credential vault, while the web UI keeps it only in memory for
+  the one-time display;
+- the issue request submits plaintext once for hashing, and no backend response
+  returns it;
 - only a keyed hash is stored;
+- issuance is operation-key idempotent, so replay returns the original
+  credential ID without creating a second effective credential;
 - each credential has one user owner, one Project, one Access Surface, and one
   maximum mode;
 - many credentials may coexist for different clients;
 - revocation addresses the credential ID and owner, not a local folder;
 - credential reads never recover plaintext;
 - shared service keys and expiring session keys remain separate lifecycles.
+
+The generic Access Surface `regenerate-key` route does not issue human Git
+credentials. Git callers must use the idempotent Project credential endpoint;
+the legacy Git branch returns `410 Gone`.
 
 Local Git remote removal and server credential revocation are separate actions.
 This avoids making the server infer a computer inventory from normal Git use.

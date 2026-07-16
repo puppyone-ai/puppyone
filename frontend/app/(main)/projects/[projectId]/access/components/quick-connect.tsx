@@ -168,6 +168,7 @@ function GitRemoteBody({
         connectorId={connector.id}
         gitUrl={gitUrl}
         scopeMode={scope.max_mode}
+        target={scope.target}
       />
       <ConnectPathChooser
         prompt={prompt}

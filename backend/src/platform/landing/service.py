@@ -5,22 +5,32 @@ See ``__init__.py`` for the architecture rationale (Option C).
 
 from __future__ import annotations
 
+import asyncio
+import base64
+import hashlib
+import hmac
 import json
 import logging
 import time
 from io import BytesIO
 from pathlib import PurePosixPath
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from src.config import settings
 from src.connectors.mcp_endpoint.schemas import McpAccessItem
 from src.connectors.mcp_endpoint.service import McpEndpointService
+from src.exceptions import AppException, ErrorCode
 from src.infra.s3.service import S3Service
+from src.platform.entitlements.service import EntitlementService
 from src.platform.landing import tickets
 from src.platform.landing.registry import ToolSpec, get_tool_spec
 from src.platform.organization.dependencies import resolve_org_id
-from src.platform.project.service import ProjectService
+from src.platform.project.control_plane import ProjectControlPlaneService
+from src.platform.project.models import Project
+from src.platform.project.orchestration import create_project_with_tree
+from src.repo.access_credentials import AccessCredentialRepository
 from src.repo.scope_service import ScopeService
+from src.version_engine.write_engine.engine import VersionWriteEngine
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +40,27 @@ LANDING_PREFIX = "landing"
 PREVIEW_TTL_SECONDS = 60 * 60 * 24  # 24h — must be <= the S3 lifecycle window
 PREVIEW_EXCERPT_CHARS = 1500
 SRC_PRESIGN_SECONDS = 900  # presigned URL lifetime handed to the OCR provider
+
+
+def _landing_mcp_api_key(*, ticket_id: str, user_id: str) -> str:
+    """Derive the replay-stable one-time MCP secret for a signed claim.
+
+    Only its HMAC hash is persisted by the credential repository.  The signed
+    ticket and authenticated user deterministically recover the same high-
+    entropy value after a successful response is lost, so idempotent replay
+    never creates a second endpoint or silently returns an empty credential.
+    """
+
+    secret = settings.JWT_SECRET or ""
+    if not secret:
+        raise tickets.TicketError("JWT_SECRET is not configured")
+    digest = hmac.new(
+        secret.encode(),
+        f"landing-mcp:v1:{ticket_id}:{user_id}".encode(),
+        hashlib.sha256,
+    ).digest()
+    encoded = base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+    return f"mcp_{encoded}"
 
 
 def _safe_name(filename: str | None) -> str:
@@ -157,9 +188,17 @@ def _csv_to_markdown(content: bytes, max_rows: int, max_cols: int) -> str:
 
 
 class LandingService:
-    def __init__(self, s3_service: S3Service, project_service: ProjectService):
+    def __init__(
+        self,
+        s3_service: S3Service,
+        control_plane: ProjectControlPlaneService,
+        entitlements: EntitlementService,
+        version_engine: VersionWriteEngine,
+    ):
         self._s3 = s3_service
-        self._projects = project_service
+        self._control_plane = control_plane
+        self._entitlements = entitlements
+        self._version_engine = version_engine
 
     # ── preview: parse + stash, NO db rows ───────────────────────────
     async def preview(
@@ -260,16 +299,22 @@ class LandingService:
         body = tickets.verify_ticket(ticket)  # raises TicketError
         spec = get_tool_spec(body["kind"])
         md_bytes = await self._s3.download_file(body["md_key"])
+        content_sha256 = hashlib.sha256(md_bytes).hexdigest()
+
+        try:
+            operation_uuid = UUID(hex=str(body["tid"]))
+        except (KeyError, TypeError, ValueError) as exc:
+            raise tickets.TicketError("ticket has an invalid operation id") from exc
+        if operation_uuid.version != 4:
+            raise tickets.TicketError("ticket operation id is not UUIDv4")
+        operation_key = str(operation_uuid)
+        api_key = _landing_mcp_api_key(ticket_id=operation_key, user_id=user_id)
 
         org_id = resolve_org_id(None, user_id)
-        # Enforce the same projects.max plan limit as the normal create path —
-        # the login-free → claim route must not bypass entitlements.
-        from src.platform.entitlements.service import EntitlementService
-
-        EntitlementService().require_capacity(
+        project_limit = await asyncio.to_thread(
+            self._entitlements.enforced_limit_value,
             org_id,
             "projects.max",
-            current_count=len(self._projects.get_by_org_id(org_id)),
         )
         stem = PurePosixPath(body["src_name"]).stem or "Document"
 
@@ -279,51 +324,111 @@ class LandingService:
         from src.version_engine.bootstrap.dependencies import (
             build_worker_version_engine_container,
         )
-        from src.platform.project.orchestration import create_project_with_tree
-
         container = build_worker_version_engine_container()
-        project = await create_project_with_tree(
-            project_service=self._projects,
-            admin_service=container.admin_service(),
+        endpoint_holder: dict[str, dict] = {}
+
+        async def initialize(project: Project) -> None:
+            project_id = str(project.id)
+            # A single named leaf scope == the "separate repo" the user sees,
+            # and is the narrowest scope for everything written under it.
+            await asyncio.to_thread(
+                ScopeService().create,
+                project_id=project_id,
+                name=spec.scope_path,
+                path=spec.scope_path,
+                exclude=[],
+                mode="rw",
+            )
+
+            file_path = f"{spec.scope_path}/{body['md_name']}"
+            await container.write_commands().bulk_write(
+                project_id,
+                {file_path: md_bytes},
+                actor=f"landing:{user_id}",
+                message=f"Import {body['src_name']} ({spec.kind} → MCP)",
+                source_channel="upload",
+            )
+
+            endpoint_holder["endpoint"] = await asyncio.to_thread(
+                McpEndpointService().create_endpoint,
+                project_id=project_id,
+                name=f"{spec.kind}-mcp",
+                path=spec.scope_path,
+                description=f"MCP for {body['src_name']}",
+                accesses=[
+                    McpAccessItem(
+                        path=spec.scope_path,
+                        json_path="",
+                        readonly=spec.readonly,
+                    )
+                ],
+                created_by=user_id,
+                api_key=api_key,
+            )
+
+        publication = await create_project_with_tree(
+            control_plane=self._control_plane,
+            version_engine=self._version_engine,
+            operation_key=operation_key,
             name=f"{stem}{spec.name_suffix}",
             description=f"Created from {body['src_name']} via Puppyone {spec.kind} → MCP.",
             org_id=org_id,
             created_by=user_id,
+            project_limit=project_limit,
+            publication_mode="deferred",
+            source_fingerprint={
+                "kind": "landing-claim",
+                "ticket_id": operation_key,
+                "tool_kind": spec.kind,
+                "source_key": body["md_key"],
+                "content_sha256": content_sha256,
+            },
+            initialize=initialize,
         )
+        project = publication.project
         project_id = str(project.id)
-
-        # A single named leaf scope == the "separate repo" the user sees, and
-        # it is the narrowest scope for everything written under it (so the
-        # upload-channel write is not shadowed by a sub-scope graft).
-        ScopeService().create(
-            project_id=project_id,
-            name=spec.scope_path,
-            path=spec.scope_path,
-            exclude=[],
-            mode="rw",
-        )
-
-        file_path = f"{spec.scope_path}/{body['md_name']}"
-        await container.write_commands().bulk_write(
-            project_id,
-            {file_path: md_bytes},
-            actor=f"landing:{user_id}",
-            message=f"Import {body['src_name']} ({spec.kind} → MCP)",
-            source_channel="upload",
-        )
-
-        endpoint = McpEndpointService().create_endpoint(
-            project_id=project_id,
-            name=f"{spec.kind}-mcp",
-            path=spec.scope_path,
-            description=f"MCP for {body['src_name']}",
-            accesses=[
-                McpAccessItem(
-                    path=spec.scope_path, json_path="", readonly=spec.readonly
+        endpoint = endpoint_holder.get("endpoint")
+        if endpoint is None:
+            # A completed idempotent replay must not create a second endpoint.
+            # Plaintext API keys are intentionally not persisted; the response
+            # therefore points at the existing endpoint without reissuing one.
+            endpoints = await asyncio.to_thread(
+                McpEndpointService().list_endpoints,
+                project_id,
+            )
+            endpoint = next(
+                (
+                    item
+                    for item in endpoints
+                    if item.get("name") == f"{spec.kind}-mcp"
+                    and item.get("path") == spec.scope_path
+                ),
+                {},
+            )
+            if not endpoint:
+                raise RuntimeError("Completed landing claim is missing its MCP endpoint")
+            credential = await asyncio.to_thread(
+                AccessCredentialRepository().get_active_by_token,
+                api_key,
+            )
+            if not credential or str(credential.get("access_surface_id")) != str(
+                endpoint.get("id")
+            ):
+                raise AppException(
+                    code=ErrorCode.VERSION_CONFLICT,
+                    status_code=409,
+                    message="The claimed MCP credential was rotated",
+                    details={
+                        "code": "landing_claim_credential_rotated",
+                        "project_id": project_id,
+                        "endpoint_id": endpoint.get("id"),
+                    },
                 )
-            ],
-            created_by=user_id,
-        )
+            endpoint = {
+                **endpoint,
+                "api_key": api_key,
+                "api_key_revealed": True,
+            }
 
         base = (settings.PUBLIC_URL or "").rstrip("/")
         return {

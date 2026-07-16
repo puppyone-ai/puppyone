@@ -6,7 +6,7 @@ Defines frontend API request/response models, matching the frontend ProjectInfo 
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ProjectOut(BaseModel):
@@ -38,27 +38,34 @@ class ProjectAuthorizationOut(BaseModel):
     capabilities: list[str]
 
 
+class ProjectDeletionOut(BaseModel):
+    """Public state of durable Project deletion; storage prefixes stay private."""
+
+    project_id: str
+    deletion_job_id: str
+    status: Literal["pending", "running", "failed", "completed"]
+
+
 class ProjectCreate(BaseModel):
-    """Create project request"""
+    """Strict empty-Project creation request.
+
+    Seeded/template workflows have their own explicit endpoints and are not
+    compatibility fields on this operation.
+    """
+
+    model_config = ConfigDict(extra="forbid")
 
     name: str = Field(min_length=1, max_length=200)
     description: str | None = None
-    org_id: str | None = None
-    seed: bool = False
-    template: str | None = Field(
-        default=None,
-        pattern=r"^[a-z0-9][a-z0-9._-]{0,127}$",
-    )
-    template_release_id: str | None = Field(
-        default=None,
-        pattern=r"^[A-Za-z0-9][A-Za-z0-9._+@-]{0,127}$",
-    )
+    org_id: str = Field(min_length=1, max_length=200)
 
-    @model_validator(mode="after")
-    def release_requires_template(self) -> "ProjectCreate":
-        if self.template_release_id and not self.template:
-            raise ValueError("template_release_id requires template")
-        return self
+    @field_validator("org_id")
+    @classmethod
+    def normalize_org_id(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("org_id must not be blank")
+        return normalized
 
 
 class ProjectUpdate(BaseModel):

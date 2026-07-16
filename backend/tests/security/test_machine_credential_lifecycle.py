@@ -265,7 +265,6 @@ def test_git_http_token_is_separate_from_cli_bearer_and_resolves_runtime_facts()
 
 
 def test_shared_git_read_and_readwrite_credentials_rotate_independently():
-    now = datetime.now(timezone.utc).isoformat()
     client = _MemoryClient(
         access_surfaces=[_surface(kind="git_remote", scope_id=None)],
         access_surface_credentials=[],
@@ -342,6 +341,7 @@ def test_user_git_credential_rechecks_current_role_and_clamps_write_mode():
     client = _MemoryClient(
         projects=[{
             "id": "project-1", "org_id": "org-1", "visibility": "private",
+            "lifecycle_status": "ready",
         }],
         org_members=[{
             "id": "org-member-1", "org_id": "org-1", "user_id": "user-1", "role": "member",
@@ -373,7 +373,10 @@ def test_user_git_credential_rechecks_current_role_and_clamps_write_mode():
 
 def test_shared_surface_rotation_does_not_revoke_user_git_credentials():
     client = _MemoryClient(
-        projects=[{"id": "project-1", "org_id": "org-1", "visibility": "private"}],
+        projects=[{
+            "id": "project-1", "org_id": "org-1", "visibility": "private",
+            "lifecycle_status": "ready",
+        }],
         org_members=[{
             "id": "org-member-1", "org_id": "org-1", "user_id": "user-1", "role": "member",
         }],

@@ -13,6 +13,8 @@ from src.infra.s3.dependencies import get_s3_service
 from src.infra.s3.service import S3Service
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
+from src.platform.entitlements.dependencies import get_entitlement_service
+from src.platform.entitlements.service import EntitlementService
 from src.platform.landing import tickets
 from src.platform.landing.registry import get_tool_spec
 from src.platform.landing.schemas import (
@@ -21,8 +23,10 @@ from src.platform.landing.schemas import (
     PreviewResponse,
 )
 from src.platform.landing.service import LandingService
-from src.platform.project.dependencies import get_project_service
-from src.platform.project.service import ProjectService
+from src.platform.project.control_plane import ProjectControlPlaneService
+from src.platform.project.control_plane_dependencies import get_project_control_plane_service
+from src.version_engine.bootstrap.dependencies import get_version_write_engine
+from src.version_engine.write_engine.engine import VersionWriteEngine
 
 logger = logging.getLogger(__name__)
 
@@ -35,9 +39,11 @@ MAX_PREVIEW_BYTES = 25 * 1024 * 1024
 
 def get_landing_service(
     s3: S3Service = Depends(get_s3_service),
-    projects: ProjectService = Depends(get_project_service),
+    control_plane: ProjectControlPlaneService = Depends(get_project_control_plane_service),
+    entitlements: EntitlementService = Depends(get_entitlement_service),
+    version_engine: VersionWriteEngine = Depends(get_version_write_engine),
 ) -> LandingService:
-    return LandingService(s3, projects)
+    return LandingService(s3, control_plane, entitlements, version_engine)
 
 
 def _check_proxy_secret(x_landing_secret: str | None) -> None:

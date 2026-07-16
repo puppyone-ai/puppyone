@@ -65,6 +65,7 @@ def test_instantiate_route_returns_authorized_project(monkeypatch) -> None:
             assert kwargs["template_id"] == "hello"
             assert kwargs["release_id"] == "1.0.0"
             assert kwargs["org_id"] == "org-1"
+            assert kwargs["operation_key"] == "123e4567-e89b-42d3-a456-426614174000"
             return TemplateInstantiationResult(
                 template_id="hello", release_id="1.0.0", project=project
             )
@@ -83,6 +84,7 @@ def test_instantiate_route_returns_authorized_project(monkeypatch) -> None:
     response = TestClient(app).post(
         "/api/v1/templates/hello/instantiate",
         json={"org_id": "org-1", "release_id": "1.0.0"},
+        headers={"Idempotency-Key": "123e4567-e89b-42d3-a456-426614174000"},
     )
 
     assert response.status_code == 201
@@ -90,3 +92,4 @@ def test_instantiate_route_returns_authorized_project(monkeypatch) -> None:
     assert body["release_id"] == "1.0.0"
     assert body["project"]["id"] == "project-1"
     assert body["project"]["effective_role"] == "admin"
+    assert response.headers["Idempotency-Replayed"] == "false"

@@ -51,6 +51,10 @@ PROJECT_ROUTE_AUTHORIZATION: dict[
     ("POST", "/api/v1/projects/{project_id}/git-view/rebuild-cache"): _human(ProjectAction.PROJECT_MANAGE),
     ("PUT", "/api/v1/projects/{project_id}"): _human(ProjectAction.PROJECT_MANAGE),
     ("DELETE", "/api/v1/projects/{project_id}"): _human(ProjectAction.PROJECT_DELETE),
+    (
+        "POST",
+        "/api/v1/projects/{project_id}/initialization/abandon",
+    ): _owner("project_initialization.operation_owner"),
     ("POST", "/api/v1/projects/{project_id}/seed"): _human(ProjectAction.CONTENT_WRITE),
     ("GET", "/api/v1/projects/{project_id}/members"): _human(ProjectAction.MEMBERS_READ),
     ("POST", "/api/v1/projects/{project_id}/members"): _human(ProjectAction.MEMBERS_MANAGE),
@@ -194,7 +198,7 @@ PROJECT_ROUTE_AUTHORIZATION.update({
     ("DELETE", "/api/v1/mcp/agents/{agent_id}/tools/{tool_id}"): _human(ProjectAction.AGENT_MANAGE),
 
     ("POST", "/api/v1/projects/{project_id}/repository-context"): _human(ProjectAction.PROJECT_READ),
-    ("DELETE", "/api/v1/projects/{project_id}/git-credentials/{credential_id}"): _human(ProjectAction.PROJECT_READ),
+    ("DELETE", "/api/v1/projects/{project_id}/git-credentials/{credential_id}"): _owner("git_credential.owner"),
 
     # Delegated internal human calls.
     ("POST", "/internal/nodes/resolve-path"): _human(ProjectAction.CONTENT_READ),

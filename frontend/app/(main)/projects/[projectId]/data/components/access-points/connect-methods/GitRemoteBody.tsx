@@ -1,5 +1,6 @@
 'use client';
 
+import type { RepositoryTarget } from '@puppyone/cloud-core';
 import { buildGitSyncPrompt } from '@/lib/accessPointCliPrompt';
 import { CommandBlock, LabeledCommandBlock } from './CommandBlock';
 import { Disclosure } from './Disclosure';
@@ -12,11 +13,13 @@ export function GitRemoteBody({
   gitUrl,
   scopeMode,
   scopeName,
+  target,
 }: {
   readonly connectorId: string;
   readonly gitUrl: string;
   readonly scopeMode: 'r' | 'rw';
   readonly scopeName: string;
+  readonly target: RepositoryTarget;
 }) {
   const {
     cloneLines,
@@ -31,6 +34,7 @@ export function GitRemoteBody({
         connectorId={connectorId}
         gitUrl={gitUrl}
         scopeMode={scopeMode}
+        target={target}
       />
       <PromptBlock prompt={prompt} />
       <Disclosure summary="Show Git commands">

@@ -4,7 +4,9 @@ Project Router
 Provides REST API endpoints for project CRUD operations.
 """
 
-from fastapi import APIRouter, Depends, Query, status
+import asyncio
+
+from fastapi import APIRouter, Depends, Query, Response, status
 
 from src.common_schemas import ApiResponse
 from src.infra.supabase.dependencies import get_supabase_client
@@ -19,37 +21,40 @@ from src.platform.authorization.models import ProjectAction
 from src.platform.authorization.service import AuthorizationService
 from src.platform.entitlements.dependencies import get_entitlement_service
 from src.platform.entitlements.service import EntitlementService
-from src.platform.organization.dependencies import resolve_org_id, resolve_org_ids
+from src.platform.idempotency import mark_idempotency_replay, require_idempotency_key
+from src.platform.organization.dependencies import resolve_org_ids
+from src.platform.project.control_plane import ProjectControlPlaneService
+from src.platform.project.control_plane_dependencies import get_project_control_plane_service
 from src.platform.project.dependencies import get_project_service
 from src.platform.project.git_view import ProjectGitViewService
+from src.platform.project.orchestration import create_project_with_tree
 from src.platform.project.presenters import project_to_out
 from src.platform.project.readiness import ProjectReadinessService
-from src.platform.repository_target.protocol import require_repository_target_contract
 from src.platform.project.schemas import (
     AddProjectMember,
     ProjectAuthorizationOut,
     ProjectCreate,
+    ProjectDeletionOut,
     ProjectMemberOut,
     ProjectOut,
     ProjectUpdate,
     UpdateProjectMemberRole,
 )
 from src.platform.project.service import ProjectService
+from src.platform.repository_target.protocol import require_repository_target_contract
 from src.platform.template_registry.dependencies import (
-    get_template_instantiation_service,
     get_template_registry_service,
 )
 from src.platform.template_registry.exceptions import TemplateRegistryError
 from src.platform.template_registry.http_errors import registry_http_exception
-from src.platform.template_registry.instantiation import TemplateInstantiationService
 from src.platform.template_registry.schemas import TemplateDetail, TemplateSummary
 from src.platform.template_registry.service import TemplateRegistryService
 from src.version_engine.bootstrap.dependencies import (
     get_repo_manager,
-    get_version_admin_service,
+    get_version_write_engine,
 )
 from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
-from src.version_engine.read.admin import VersionAdminService
+from src.version_engine.write_engine.engine import VersionWriteEngine
 
 router = APIRouter(
     prefix="/projects",
@@ -241,68 +246,61 @@ def get_project_authorization(
     "/",
     response_model=ApiResponse[ProjectOut],
     summary="Create project",
-    description="Create a new project. The project is automatically associated with the current user. When seed=true, default content is written.",
+    description=(
+        "Create one canonical empty Project in the explicitly selected Organization. "
+        "Template instantiation and content publication are separate operations."
+    ),
     response_description="Returns the created project information",
     status_code=status.HTTP_201_CREATED,
 )
 async def create_project(
     payload: ProjectCreate,
-    project_service: ProjectService = Depends(get_project_service),
+    response: Response,
+    idempotency_key: str = Depends(require_idempotency_key),
+    control_plane: ProjectControlPlaneService = Depends(get_project_control_plane_service),
     entitlement_service: EntitlementService = Depends(get_entitlement_service),
-    version_admin: VersionAdminService = Depends(get_version_admin_service),
-    template_instantiation: TemplateInstantiationService = Depends(
-        get_template_instantiation_service
-    ),
     authorization: AuthorizationService = Depends(get_authorization_service),
+    version_engine: VersionWriteEngine = Depends(get_version_write_engine),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    resolved_org_id = resolve_org_id(payload.org_id, current_user.user_id)
-    if payload.template:
-        try:
-            result = await template_instantiation.instantiate(
-                template_id=payload.template,
-                release_id=payload.template_release_id,
-                project_name=payload.name,
-                project_description=payload.description,
-                org_id=resolved_org_id,
-                actor_user_id=current_user.user_id,
-            )
-        except TemplateRegistryError as exc:
-            raise registry_http_exception(exc) from exc
-        project = result.project
-    else:
-        entitlement_service.require_capacity(
-            resolved_org_id,
-            "projects.max",
-            current_count=len(project_service.get_by_org_id(resolved_org_id)),
-        )
-
-        from src.platform.project.orchestration import create_project_with_tree
-
-        project = await create_project_with_tree(
-            project_service=project_service,
-            admin_service=version_admin,
-            name=payload.name,
-            description=payload.description,
-            org_id=resolved_org_id,
-            created_by=current_user.user_id,
-        )
-
-        if payload.seed:
-            from src.platform.project.seed_content import seed_default_content
-
-            await seed_default_content(
-                project_id=str(project.id),
-                created_by=current_user.user_id,
-            )
+    # The RPC is the authoritative membership + quota admission point.  Keep
+    # the caller-selected tenant explicit; never reinterpret it as "first org".
+    resolved_org_id = payload.org_id
+    project_limit = await asyncio.to_thread(
+        entitlement_service.enforced_limit_value,
+        resolved_org_id,
+        "projects.max",
+    )
+    result = await create_project_with_tree(
+        control_plane=control_plane,
+        version_engine=version_engine,
+        operation_key=idempotency_key,
+        name=payload.name,
+        description=payload.description,
+        org_id=resolved_org_id,
+        created_by=current_user.user_id,
+        project_limit=project_limit,
+        publication_mode="empty",
+        source_fingerprint={"kind": "empty-git-repository", "version": 1},
+    )
+    project = result.project
+    grant, access_point_counts = await asyncio.gather(
+        asyncio.to_thread(
+            authorization.authorize,
+            str(project.id),
+            current_user.user_id,
+            ProjectAction.PROJECT_READ,
+        ),
+        asyncio.to_thread(_count_user_access_points, [str(project.id)]),
+    )
+    response.status_code = status.HTTP_200_OK if result.replayed else status.HTTP_201_CREATED
+    mark_idempotency_replay(response, replayed=result.replayed)
 
     return ApiResponse.success(
         data=project_to_out(
             project,
-            authorization.authorize(
-                str(project.id), current_user.user_id, ProjectAction.PROJECT_READ
-            ),
-            access_point_count=_count_user_access_points([str(project.id)]).get(str(project.id), 0),
+            grant,
+            access_point_count=access_point_counts.get(str(project.id), 0),
         ),
         message="Project created successfully",
     )
@@ -340,20 +338,60 @@ def update_project(
 
 @router.delete(
     "/{project_id}",
-    response_model=ApiResponse[None],
+    response_model=ApiResponse[ProjectDeletionOut],
     summary="Delete project",
-    description="Delete the specified project.",
-    response_description="Deletion successful, returns empty data",
-    status_code=status.HTTP_200_OK,
+    description=(
+        "Remove Project authorization state and accept its durable object cleanup job. "
+        "A 202 response does not claim that asynchronous object cleanup has completed."
+    ),
+    response_description="Deletion accepted with its durable cleanup status",
+    status_code=status.HTTP_202_ACCEPTED,
 )
 def delete_project(
     authorized: AuthorizedProject = Depends(require_project_action(ProjectAction.PROJECT_DELETE)),
-    project_service: ProjectService = Depends(get_project_service),
+    control_plane: ProjectControlPlaneService = Depends(get_project_control_plane_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     project = authorized.project
-    project_service.delete(project.id)
-    return ApiResponse.success(message="Project deleted successfully")
+    result = control_plane.delete_project(
+        project_id=project.id,
+        actor_user_id=current_user.user_id,
+    )
+    return ApiResponse.success(
+        data=ProjectDeletionOut.model_validate(result.as_dict()),
+        message="Project deletion accepted",
+    )
+
+
+@router.post(
+    "/{project_id}/initialization/abandon",
+    response_model=ApiResponse[ProjectDeletionOut],
+    summary="Abandon an empty Project initialization",
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def abandon_project_initialization(
+    project_id: str,
+    response: Response,
+    idempotency_key: str = Depends(require_idempotency_key),
+    control_plane: ProjectControlPlaneService = Depends(get_project_control_plane_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    result = control_plane.abandon_initialization(
+        project_id=project_id,
+        operation_key=idempotency_key,
+        actor_user_id=current_user.user_id,
+    )
+    mark_idempotency_replay(response, replayed=result.replayed)
+    if result.replayed and result.status == "completed":
+        response.status_code = status.HTTP_200_OK
+    return ApiResponse.success(
+        data=ProjectDeletionOut.model_validate(result.as_dict()),
+        message=(
+            "Project deletion completed"
+            if result.status == "completed"
+            else "Project initialization abandonment accepted"
+        ),
+    )
 
 
 @router.post(

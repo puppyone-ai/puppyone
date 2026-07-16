@@ -413,6 +413,7 @@ function ManualCommandsPage({
               connectorId={connector.id}
               gitUrl={canonicalGitUrlForTarget(getApiBase(), scope.target)}
               scopeMode={scope.max_mode}
+              target={scope.target}
             />
           </div>
         ) : null}

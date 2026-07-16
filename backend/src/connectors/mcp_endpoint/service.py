@@ -27,6 +27,7 @@ class McpEndpointService:
         accesses: Optional[List[McpAccessItem]] = None,
         tools_config: Optional[Any] = None,
         created_by: Optional[str] = None,
+        api_key: Optional[str] = None,
     ) -> dict:
         return self._repo.create(
             project_id=project_id,
@@ -36,6 +37,7 @@ class McpEndpointService:
             accesses=[a.model_dump() for a in accesses] if accesses else [],
             tools_config=_dump_tools_config(tools_config),
             created_by=created_by,
+            api_key=api_key,
         )
 
     def update_endpoint(self, endpoint_id: str, **kwargs) -> Optional[dict]:

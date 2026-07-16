@@ -50,6 +50,24 @@ issuance triggers best-effort compensation for only the new credential.
 Revoking an owned credential remains allowed after Project access is lost,
 because revocation is monotonic and ownership is checked directly.
 
+Desktop main generates each user credential and persists it in the operating-
+system vault before submitting it once for hash-only backend persistence. The
+backend never generates or returns plaintext. Issuance is keyed by the publish operation's
+UUIDv4 `Idempotency-Key`; exact retries return the original credential ID and
+changed payloads fail closed, so an uncertain response cannot create duplicate
+effective credentials.
+
+### Project publication is a durable operation
+
+Creating a Cloud Project is not compensated merely because the local Git setup
+or the initiating HTTP response fails. The hidden `initializing` Project and
+its UUIDv4 operation journal are resumed with the same idempotency key. An
+explicit Abandon request may remove only the exact untouched bootstrap state;
+the reconciler applies a durable deadline and bounded retries, then publishes a
+deletion cleanup tombstone for a safe pre-root failure. Unexpected state is
+dead-lettered for inspection rather than retried forever or exposed as a
+half-created Project.
+
 ### No folder attestation
 
 `workspaceInstanceId` remains local-only. It is not sent to Cloud, stored in a

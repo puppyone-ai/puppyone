@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path, Query, status
+from fastapi import APIRouter, Depends, Path, Query, Response, status
 
 from src.common_schemas import ApiResponse
 from src.platform.auth.dependencies import get_current_user
@@ -12,6 +12,7 @@ from src.platform.auth.models import CurrentUser
 from src.platform.authorization.dependencies import get_authorization_service
 from src.platform.authorization.models import ProjectAction
 from src.platform.authorization.service import AuthorizationService
+from src.platform.idempotency import mark_idempotency_replay, require_idempotency_key
 from src.platform.organization.dependencies import resolve_org_id
 from src.platform.project.presenters import project_to_out
 
@@ -83,6 +84,8 @@ async def get_template(
 async def instantiate_template(
     template_id: TemplateId,
     payload: TemplateInstantiationRequest,
+    response: Response,
+    idempotency_key: str = Depends(require_idempotency_key),
     instantiation: TemplateInstantiationService = Depends(get_template_instantiation_service),
     authorization: AuthorizationService = Depends(get_authorization_service),
     current_user: CurrentUser = Depends(get_current_user),
@@ -96,6 +99,7 @@ async def instantiate_template(
             project_description=payload.description,
             org_id=org_id,
             actor_user_id=current_user.user_id,
+            operation_key=idempotency_key,
         )
     except TemplateRegistryError as exc:
         raise registry_http_exception(exc) from exc
@@ -105,6 +109,8 @@ async def instantiate_template(
         current_user.user_id,
         ProjectAction.PROJECT_READ,
     )
+    response.status_code = status.HTTP_200_OK if result.replayed else status.HTTP_201_CREATED
+    mark_idempotency_replay(response, replayed=result.replayed)
     return ApiResponse.success(
         data=TemplateInstantiation(
             template_id=result.template_id,

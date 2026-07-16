@@ -25,6 +25,7 @@ export function TemplateUseButton({
   const { currentOrg } = useOrganization();
   const [creating, setCreating] = useState(false);
   const inFlight = useRef(false);
+  const operationKey = useRef<string | null>(null);
 
   const create = async () => {
     if (inFlight.current) return;
@@ -32,10 +33,13 @@ export function TemplateUseButton({
     setCreating(true);
     onError?.(null);
     try {
+      operationKey.current ??= crypto.randomUUID();
       const result = await instantiateTemplate(templateId, {
         org_id: currentOrg?.id,
         release_id: releaseId,
+        idempotencyKey: operationKey.current,
       });
+      operationKey.current = null;
       void refreshProjects(result.project.org_id ?? currentOrg?.id);
       router.push(`/projects/${result.project.id}/data`);
     } catch (error) {

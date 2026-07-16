@@ -176,7 +176,7 @@ def test_application_issues_user_git_credentials_without_binding_rpcs():
         encoding="utf-8"
     )
 
-    assert '"issue_user_git_http_credential"' in repository
+    assert '"issue_user_git_http_credential_idempotent"' in repository
     assert "workspace_instance" not in repository
     assert "binding_id" not in repository
 
@@ -273,9 +273,36 @@ def test_web_one_time_git_credential_is_bound_to_displayed_target_and_mode():
     ).read_text(encoding="utf-8")
 
     assert "GIT_CREDENTIAL_PATTERN" in panel
-    assert "result.git_username !== 'x-puppyone-token'" in panel
-    assert "result.grant_mode !== grantMode" in panel
-    assert "!isSameCanonicalGitUrl(gitUrl, result.git_url)" in panel
+    assert "crypto.getRandomValues" in panel
+    assert "crypto.randomUUID()" in panel
+    assert "'Idempotency-Key': intent.operationKey" in panel
+    assert "/git-credentials`" in panel
+    assert "/regenerate-key" not in panel
+    assert "result.remote.username !== 'x-puppyone-token'" in panel
+    assert "result.mode !== intent.mode" in panel
+    assert "!sameRepositoryTarget(intent.target, result.remote.target)" in panel
+    assert "!isSameCanonicalGitUrl(gitUrl, result.remote.url)" in panel
+
+
+def test_legacy_access_router_cannot_issue_server_generated_human_git_secrets():
+    router = (ROOT / "backend/src/connectors/manager/router.py").read_text(encoding="utf-8")
+    git_branch = router.split('if provider == "git_remote":', 1)[1].split(
+        'if provider == "cli":', 1
+    )[0]
+
+    assert "HTTP_410_GONE" in git_branch
+    assert "/projects/{project_id}/git-credentials" in git_branch
+    assert "issue_git_http_token" not in git_branch
+
+    unified_create = router.split("# ── Unified Create", 1)[1]
+    assert 'if provider == "direct":' in unified_create
+    assert "HTTP_410_GONE" in unified_create
+    assert "legacy_direct_access_removed" in unified_create
+    assert "/projects/{project_id}/git-credentials" in unified_create
+    assert "issue_git_http_token" not in unified_create
+    assert '"provider": "direct"' not in router.split(
+        "# ── Unified Create", 1
+    )[0]
 
 
 @pytest.mark.parametrize(

@@ -7,14 +7,13 @@ External source relationships belong to Integration, not this router.
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, Request, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, status
 from pydantic import BaseModel, Field
 
 from src.common_schemas import ApiResponse
-from src.config import settings
-from src.exceptions import ErrorCode, NotFoundException
+from src.exceptions import AppException, ErrorCode, NotFoundException
 from src.infra.supabase.client import SupabaseClient
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
@@ -28,13 +27,10 @@ from src.platform.repository_target.models import ProjectRootTarget, ScopeTarget
 from src.platform.repository_target.protocol import require_repository_target_contract
 from src.platform.repository_target.schemas import (
     RepositoryTargetSchema,
-    repository_target_domain,
     repository_target_schema,
 )
 from src.repo.access_credentials import AccessCredentialRepository
 from src.repo.access_surface_repository import AccessSurfaceRepository
-from src.repo.scope_service import ScopeService
-from src.version_engine.entrypoints.git.locator import canonical_git_url
 
 router = APIRouter(
     prefix="/access",
@@ -72,10 +68,6 @@ class ConnectionUpdate(BaseModel):
     status: str | None = None
     trigger: dict | None = None
     config: dict | None = None
-
-
-class GitCredentialRotationRequest(BaseModel):
-    grant_mode: Literal["r", "rw"] | None = None
 
 
 # ── Helpers ─────────────────────────────────────────────────
@@ -501,9 +493,7 @@ def rename_connection(
     status_code=status.HTTP_200_OK,
 )
 def regenerate_key(
-    request: Request,
     connection_id: str = Path(...),
-    body: GitCredentialRotationRequest | None = Body(default=None),
     current_user: CurrentUser = Depends(get_current_user),
     authorization: AuthorizationService = Depends(get_authorization_service),
 ):
@@ -521,49 +511,14 @@ def regenerate_key(
 
     provider = row.get("kind", row.get("provider", ""))
     if provider == "git_remote":
-        scope = (
-            ScopeService().get(str(row["scope_id"]))
-            if row.get("scope_id") is not None
-            else None
-        )
-        if row.get("scope_id") is not None and scope is None:
-            raise NotFoundException("Scope not found", code=ErrorCode.NOT_FOUND)
-        target_max_mode = scope.max_mode if scope is not None else "rw"
-        grant_mode = body.grant_mode if body and body.grant_mode else target_max_mode
-        if grant_mode == "rw" and target_max_mode != "rw":
-            raise HTTPException(
-                status_code=400,
-                detail="Read-write Git credentials cannot exceed the Scope mode",
-            )
-        credential = AccessCredentialRepository(sb).issue_git_http_token(
-            access_surface_id=row["id"],
-            org_id=row["org_id"],
-            project_id=row["project_id"],
-            grant_mode=grant_mode,
-            prefix="git",
-            created_by=current_user.user_id,
-        )
-        configured_origin = settings.PUBLIC_URL
-        origin = configured_origin or f"{request.url.scheme}://{request.url.netloc}"
-        git_url = canonical_git_url(
-            origin,
-            row["project_id"],
-            scope.id if scope is not None else None,
-        )
-        target = (
-            ScopeTarget(project_id=row["project_id"], scope_id=scope.id)
-            if scope is not None
-            else ProjectRootTarget(project_id=row["project_id"])
-        )
-        return ApiResponse.success(
-            data={
-                "credential": credential,
-                "git_url": git_url,
-                "git_username": "x-puppyone-token",
-                "target": repository_target_schema(target).model_dump(),
-                "grant_mode": grant_mode,
-            },
-            message="Git credential regenerated",
+        raise AppException(
+            code=ErrorCode.CLIENT_UPGRADE_REQUIRED,
+            status_code=status.HTTP_410_GONE,
+            message=(
+                "Git credentials must be client-generated through "
+                "POST /api/v1/projects/{project_id}/git-credentials"
+            ),
+            details={"required_repository_contract": 2},
         )
     if provider == "cli":
         new_key = AccessCredentialRepository(sb).issue_bearer_token(
@@ -636,15 +591,6 @@ def list_connection_types():
     Returns available workspace Access surface types.
     """
     access_types = [
-        {
-            "provider": "direct",
-            "display_name": "Git Remote",
-            "description": "Scoped Git remote and CLI credentials",
-            "auth": "access_key",
-            "creation_mode": "direct",
-            "category": "access",
-            "icon": "git-branch",
-        },
         {
             "provider": "agent",
             "display_name": "Chat Agent",
@@ -827,79 +773,6 @@ def _create_sandbox(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
     )
 
 
-def _create_direct(
-    payload: UnifiedConnectionCreate,
-    *,
-    cloud_origin: str,
-    created_by: str,
-) -> UnifiedConnectionOut:
-    """Issue independent Git and CLI credentials for one exact target."""
-    surfaces = AccessSurfaceRepository()
-    if payload.target is None:
-        raise HTTPException(
-            status_code=422,
-            detail="Direct access requires an explicit repository target",
-        )
-    target = repository_target_domain(payload.target)
-    if target.project_id != payload.project_id:
-        raise HTTPException(status_code=404, detail="Repository target not found")
-    scope_model = None
-    scope_id = None
-    if isinstance(target, ScopeTarget):
-        scope_model = ScopeService().get(target.scope_id)
-        if scope_model is None or scope_model.project_id != payload.project_id:
-            raise HTTPException(status_code=404, detail="Repository target not found")
-        scope_id = scope_model.id
-    surfaces.ensure_target_defaults(
-        project_id=payload.project_id,
-        scope=scope_model,
-        created_by=created_by,
-    )
-    surface = surfaces.get_by_target_kind(
-        payload.project_id, scope_id, "git_remote"
-    )
-    cli_surface = surfaces.get_by_target_kind(
-        payload.project_id, scope_id, "cli"
-    )
-    if not surface or not cli_surface:
-        raise RuntimeError("direct Access Surfaces were not created")
-
-    max_mode = scope_model.max_mode if scope_model is not None else "rw"
-    cli_credential = AccessCredentialRepository().issue_bearer_token(
-        access_surface_id=str(cli_surface["id"]),
-        org_id=str(cli_surface["org_id"]),
-        project_id=payload.project_id,
-        prefix="cli",
-        created_by=created_by,
-    )
-    git_credential = AccessCredentialRepository().issue_git_http_token(
-        access_surface_id=str(surface["id"]),
-        org_id=str(surface["org_id"]),
-        project_id=payload.project_id,
-        grant_mode=max_mode,
-        prefix="git",
-        created_by=created_by,
-    )
-    git_url = canonical_git_url(
-        cloud_origin,
-        payload.project_id,
-        scope_id,
-    )
-
-    return UnifiedConnectionOut(
-        id=surface["id"],
-        project_id=payload.project_id,
-        provider="direct",
-        name=payload.name or "Direct Access",
-        status=surface.get("status", "active"),
-        cli_access_key=cli_credential,
-        target=repository_target_schema(target),
-        git_url=git_url,
-        git_username="x-puppyone-token",
-        git_credential=git_credential,
-    )
-
-
 @router.post(
     "/",
     response_model=ApiResponse[UnifiedConnectionOut],
@@ -908,7 +781,6 @@ def _create_direct(
 )
 async def create_connection(
     payload: UnifiedConnectionCreate,
-    request: Request,
     current_user: CurrentUser = Depends(get_current_user),
     entitlement_service: EntitlementService = Depends(get_entitlement_service),
     authorization: AuthorizationService = Depends(get_authorization_service),
@@ -920,12 +792,28 @@ async def create_connection(
     - agent: creates a chat agent
     - mcp: creates an MCP endpoint
     - sandbox: creates a sandbox endpoint
-    - direct: returns scoped Git Remote and FS CLI credentials
+    The removed ``direct`` provider returns 410 so legacy clients cannot cause
+    the server to generate a plaintext human Git credential. Human Git
+    credentials are accepted only by the client-generated, idempotent Project
+    credential endpoint.
     """
     from src.platform.project.repository import ProjectRepositorySupabase
 
     provider = payload.provider.lower()
-    if provider not in {"agent", "mcp", "sandbox", "direct"}:
+    if provider == "direct":
+        raise AppException(
+            code=ErrorCode.CLIENT_UPGRADE_REQUIRED,
+            status_code=status.HTTP_410_GONE,
+            message=(
+                "Direct Git credential creation was removed; use "
+                "POST /api/v1/projects/{project_id}/git-credentials"
+            ),
+            details={
+                "code": "legacy_direct_access_removed",
+                "required_repository_contract": 2,
+            },
+        )
+    if provider not in {"agent", "mcp", "sandbox"}:
         raise HTTPException(
             status_code=400,
             detail=(
@@ -938,7 +826,6 @@ async def create_connection(
         "agent": ProjectAction.AGENT_MANAGE,
         "mcp": ProjectAction.MCP_MANAGE,
         "sandbox": ProjectAction.SANDBOX_MANAGE,
-        "direct": ProjectAction.CREDENTIAL_MANAGE,
     }
     authorization.authorize(
         payload.project_id,
@@ -954,11 +841,8 @@ async def create_connection(
     # Block creation if an identical access surface already exists.
     # "Identical" = same project + provider + path + key config fields.
     surfaces = AccessSurfaceRepository()
-    existing = []
-    existing_scopes: dict[str, dict] = {}
-    if provider != "direct":
-        existing = surfaces.list_by_project(payload.project_id, kind=provider)
-        existing_scopes = surfaces.scope_rows_for(existing)
+    existing = surfaces.list_by_project(payload.project_id, kind=provider)
+    existing_scopes = surfaces.scope_rows_for(existing)
 
     for ex in existing:
         ex_scope = existing_scopes.get(ex.get("scope_id")) or {}
@@ -980,18 +864,17 @@ async def create_connection(
                 },
             )
 
-    if provider != "direct":
-        entitlement_service.require_allowed(
-            project.org_id,
-            "access_surface_kinds",
-            provider,
-        )
-        entitlement_service.require_feature(project.org_id, f"access_surface.{provider}")
-        entitlement_service.require_capacity(
-            project.org_id,
-            "access_surfaces.max_per_project",
-            current_count=surfaces.count_user_surfaces_by_project(payload.project_id),
-        )
+    entitlement_service.require_allowed(
+        project.org_id,
+        "access_surface_kinds",
+        provider,
+    )
+    entitlement_service.require_feature(project.org_id, f"access_surface.{provider}")
+    entitlement_service.require_capacity(
+        project.org_id,
+        "access_surfaces.max_per_project",
+        current_count=surfaces.count_user_surfaces_by_project(payload.project_id),
+    )
 
     try:
         if provider == "agent":
@@ -1000,17 +883,6 @@ async def create_connection(
             result = _create_mcp(payload, created_by=current_user.user_id)
         elif provider == "sandbox":
             result = _create_sandbox(payload)
-        elif provider == "direct":
-            configured_origin = settings.PUBLIC_URL
-            cloud_origin = (
-                configured_origin
-                or f"{request.url.scheme}://{request.url.netloc}"
-            )
-            result = _create_direct(
-                payload,
-                cloud_origin=cloud_origin,
-                created_by=current_user.user_id,
-            )
     except HTTPException:
         raise
     except Exception as e:

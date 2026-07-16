@@ -1,7 +1,10 @@
 from pathlib import Path
 
 from src.infra.data_migrations.catalog import DataMigrationCatalog
-from src.platform.authorization.manifest import PROJECT_ROUTE_AUTHORIZATION
+from src.platform.authorization.manifest import (
+    PROJECT_ROUTE_AUTHORIZATION,
+    AuthorizationPlane,
+)
 from src.platform.authorization.models import ACTION_CAPABILITY, ProjectAction
 
 BACKEND = Path(__file__).resolve().parents[2]
@@ -31,6 +34,15 @@ def test_project_routes_use_named_actions():
 
 def test_every_named_project_action_has_one_capability_contract():
     assert set(ACTION_CAPABILITY) == set(ProjectAction)
+
+
+def test_git_credential_revocation_is_an_owner_operation_not_project_read():
+    contract = PROJECT_ROUTE_AUTHORIZATION[
+        ("DELETE", "/api/v1/projects/{project_id}/git-credentials/{credential_id}")
+    ]
+
+    assert contract.plane is AuthorizationPlane.HUMAN_RESOURCE_OWNER
+    assert contract.action == "git_credential.owner"
 
 
 def test_authorization_failure_logs_do_not_emit_raw_principal_or_project_ids():

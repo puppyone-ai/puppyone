@@ -2,15 +2,16 @@
 Scheduler service for managing scheduled agent executions.
 """
 
-from typing import Optional
 from datetime import datetime
+from typing import Optional
+
 from apscheduler.executors.asyncio import AsyncIOExecutor
+from apscheduler.executors.pool import ThreadPoolExecutor
+from apscheduler.job import Job
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
-from apscheduler.executors.pool import ThreadPoolExecutor
-from apscheduler.job import Job
 
 from src.config import settings
 from src.infra.scheduler.config import scheduler_settings
@@ -19,15 +20,17 @@ from src.infra.scheduler.jobs import (
     execute_sync_pull,
     process_git_object_gc,
     process_object_integrity_scan,
+    process_project_deletion_cleanup,
+    process_project_initialization_reconciliation,
     process_sync_run_reaper,
     process_version_outbox,
 )
 from src.infra.scheduler.jobs.import_job_reaper import process_import_job_reaper
-from src.infra.scheduler.jobs.upload_job_reaper import process_upload_job_reaper
 from src.infra.scheduler.jobs.shadow_snapshot_reaper import (
     process_shadow_snapshot_reaper,
 )
-from src.utils.logger import log_info, log_error, log_warning
+from src.infra.scheduler.jobs.upload_job_reaper import process_upload_job_reaper
+from src.utils.logger import log_error, log_info, log_warning
 
 
 class SchedulerService:
@@ -116,6 +119,28 @@ class SchedulerService:
                 name="Version Engine Git Object GC",
                 replace_existing=True,
                 executor="threadpool",
+            )
+
+        if settings.PROJECT_DELETION_CLEANUP_ENABLED:
+            self.scheduler.add_job(
+                process_project_deletion_cleanup,
+                trigger=IntervalTrigger(
+                    seconds=settings.PROJECT_DELETION_CLEANUP_INTERVAL_SECONDS,
+                ),
+                id="project-deletion-cleanup",
+                name="Project Object Prefix Cleanup",
+                replace_existing=True,
+            )
+
+        if settings.PROJECT_INITIALIZATION_RECONCILE_ENABLED:
+            self.scheduler.add_job(
+                process_project_initialization_reconciliation,
+                trigger=IntervalTrigger(
+                    seconds=settings.PROJECT_INITIALIZATION_RECONCILE_INTERVAL_SECONDS,
+                ),
+                id="project-initialization-reconciler",
+                name="Project Root Initialization Reconciler",
+                replace_existing=True,
             )
 
         if settings.VERSION_INTEGRITY_SCAN_ENABLED:

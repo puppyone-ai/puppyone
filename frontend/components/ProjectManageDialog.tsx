@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { LayoutTemplate } from 'lucide-react';
 import type { ProjectInfo } from '../lib/projectsApi';
@@ -45,6 +45,11 @@ export function ProjectManageDialog({
 
   const [name, setName] = useState(project?.name || '');
   const [loading, setLoading] = useState(false);
+  const createOperationRef = useRef<{
+    idempotencyKey: string;
+    name: string;
+    orgId: string;
+  } | null>(null);
 
   useEffect(() => {
     if (project) {
@@ -73,13 +78,29 @@ export function ProjectManageDialog({
         await refreshProjects(currentOrg?.id);
         onClose();
       } else {
+        if (!currentOrg?.id) {
+          throw new Error('Select an organization before creating a project.');
+        }
+        setLoading(true);
+        const previousOperation = createOperationRef.current;
+        const operation =
+          previousOperation?.name === finalName &&
+          previousOperation.orgId === currentOrg.id
+            ? previousOperation
+            : {
+                idempotencyKey: crypto.randomUUID(),
+                name: finalName,
+                orgId: currentOrg.id,
+              };
+        createOperationRef.current = operation;
+        const created = await createProject({
+          name: finalName,
+          description: '',
+          orgId: currentOrg.id,
+          idempotencyKey: operation.idempotencyKey,
+        });
+        createOperationRef.current = null;
         onClose();
-        const created = await createProject(
-          finalName,
-          '',
-          currentOrg?.id,
-          false
-        );
         // Jump straight into the new project. Refresh the org project list in
         // the background so navigation is not blocked by a home-page reload.
         router.push(`/projects/${created.id}/data`);

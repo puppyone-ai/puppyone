@@ -17,6 +17,7 @@ from src.exceptions import (
 )
 from src.platform.authorization.models import ProjectAction
 from src.platform.authorization.service import AuthorizationService
+from src.platform.idempotency import canonical_payload_hash, raise_idempotency_outcome
 from src.platform.project.repository import ProjectRepositoryBase
 from src.platform.repository_context.models import (
     GitCredentialMode,
@@ -33,6 +34,7 @@ from src.platform.repository_target.schemas import (
     RepositoryTargetSchema,
     repository_target_domain,
 )
+from src.repo.access_credentials import access_token_hash
 
 _DEPENDENCY_READ_ATTEMPTS = 2
 _logger = logging.getLogger("puppyone.repository_context")
@@ -105,8 +107,10 @@ class RepositoryContextService:
         self,
         project_id: str,
         user_id: str,
+        operation_key: str,
         target_schema: RepositoryTargetSchema,
         mode: GitCredentialMode,
+        raw_token: str,
     ) -> IssuedGitCredential:
         target = repository_target_domain(target_schema)
         if target.project_id != project_id:
@@ -133,20 +137,40 @@ class RepositoryContextService:
                     "Git credential mode cannot exceed Scope mode",
                     code=ErrorCode.FORBIDDEN,
                 )
-        credential_id, raw_token = self._write_dependency(
+        credential_hash = access_token_hash(raw_token)
+        payload_hash = canonical_payload_hash(
+            {
+                "credential_hash": credential_hash,
+                "mode": mode.value,
+                "project_id": project_id,
+                "target": target_schema.model_dump(mode="json"),
+            }
+        )
+        outcome = self._write_dependency(
             "git_credential.issue",
             lambda: self._repository.issue_user_git_credential(
+                operation_key=operation_key,
+                payload_hash=payload_hash,
                 org_id=grant.org_id,
                 target=target,
                 user_id=user_id,
                 mode=mode,
+                raw_token=raw_token,
             ),
         )
+        result = str(outcome.get("outcome") or "")
+        if result in {"conflict", "gone", "invalid"}:
+            raise_idempotency_outcome(result, resource="git_credential")
+        if result not in {"created", "replayed"}:
+            raise RuntimeError(f"Unexpected Git credential issue outcome: {result or 'missing'}")
+        credential_id = str(outcome.get("credential_id") or "")
+        if not credential_id:
+            raise RuntimeError("Git credential issue outcome did not include a credential id")
         return IssuedGitCredential(
             credential_id=credential_id,
             target=target,
             mode=mode,
-            credential=raw_token,
+            replayed=result == "replayed",
         )
 
     def revoke_git_credential(
