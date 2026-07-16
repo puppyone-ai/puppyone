@@ -85,6 +85,41 @@ service role cannot directly insert or delete Projects or update
 transitions. Ordinary metadata and L5 root updates remain an explicit column
 allowlist.
 
+Rows created before the lifecycle journal existed are backfilled to `ready`.
+That is intentionally conservative: an old empty Project may be either an
+abandoned attempt or a legitimate empty Project, and without a durable
+`project_create_operations` row the system cannot prove which. The automatic
+reconciler therefore acts only on journal-owned initialization rows. Ambiguous
+legacy rows require an explicit operator decision; age, name, or empty refs are
+never treated as ownership evidence.
+
+Deletion similarly crosses one durable deletion control plane. Moving a
+Project to `deleting` atomically closes renewable write-lease admission. A
+worker drains every logical and physical writer before relational deletion,
+then purges and independently verifies all persisted manifests: S3 objects and
+multipart uploads, Turbopuffer namespaces, long-lived Scope sandboxes and
+request execution sandboxes, plus durable external OCR/provider jobs and their
+Redis/cache handles. Organization deletion waits for these authoritative jobs
+to be `completed`, not merely for the Project row to disappear.
+
+`WORKSPACE_BASE_DIR` and the Git view directory are different: they contain
+non-authoritative, reconstructable derived caches. Every Git read and write is
+admitted through the Project lifecycle fence, so after `deleting` no old cache
+can be served and no new cache can be created. The deleting replica scrubs its
+exact local paths best-effort, and every active replica repeats that scrub from
+durable deletion tombstones on startup/each cleanup cycle. A local filesystem
+check never claims global deletion completion. Hosted deployments must declare
+this storage `ephemeral`; startup rejects persistent replica-local workspace or
+Git cache storage until a shared/distributed cleanup adapter actually exists.
+
+Legacy `users/{principal}/.../{project}/` storage requires a one-time resumable
+inventory before deletion is enabled. The rollout scanner records principals,
+cleans strictly parsed prefixes for already-deleted Projects, uses the real S3
+object token and multipart `(KeyMarker, UploadIdMarker)` pair, and requires two
+identical full-listing digests before opening the deletion gate. Run
+`scripts/backfill_project_storage_principals.py` without flags to audit and
+with `--apply` to record, clean, verify, and enable deletion.
+
 ## RuntimeGrant
 
 A machine entry point resolves an explicit target and capability ceiling:

@@ -63,6 +63,17 @@ class VersionEngineStub:
             raise self.error
 
 
+class FakeWriteLease:
+    def __init__(self, *_args, **_kwargs) -> None:
+        pass
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_args):
+        return False
+
+
 def _operation(
     attempts=1,
     publication_mode="empty",
@@ -86,6 +97,7 @@ async def test_reconciler_resumes_one_operation_through_l5_and_marks_it_ready():
         repository,
         engine,
         worker_id="worker-1",
+        write_lease_factory=FakeWriteLease,
     )
 
     summary = await reconciler.run_once(lease_seconds=420)
@@ -113,6 +125,7 @@ async def test_reconciler_aborts_expired_deferred_publication_without_l5_publish
         repository,
         engine,
         worker_id="worker-1",
+        write_lease_factory=FakeWriteLease,
     )
 
     summary = await reconciler.run_once()
@@ -140,6 +153,7 @@ async def test_reconciler_keeps_failed_operation_durable_for_backoff_retry():
         repository,
         engine,
         worker_id="worker-1",
+        write_lease_factory=FakeWriteLease,
     )
 
     summary = await reconciler.run_once()
@@ -167,6 +181,7 @@ async def test_reconciler_abandons_pre_root_project_after_retry_budget_exhaustio
         engine,
         worker_id="worker-1",
         max_attempts=3,
+        write_lease_factory=FakeWriteLease,
     )
 
     summary = await reconciler.run_once()
@@ -198,6 +213,7 @@ async def test_reconciler_dead_letters_any_terminal_failure_it_cannot_delete(
         engine,
         worker_id="worker-1",
         max_attempts=3,
+        write_lease_factory=FakeWriteLease,
     )
 
     summary = await reconciler.run_once()
@@ -228,6 +244,7 @@ async def test_reconciler_abandons_expired_empty_operation_without_another_l5_wr
         repository,
         engine,
         worker_id="worker-1",
+        write_lease_factory=FakeWriteLease,
     )
 
     summary = await reconciler.run_once()
@@ -247,6 +264,7 @@ async def test_terminal_cleanup_exception_dead_letters_instead_of_retrying_forev
         engine,
         worker_id="worker-1",
         max_attempts=3,
+        write_lease_factory=FakeWriteLease,
     )
 
     summary = await reconciler.run_once()
@@ -267,6 +285,7 @@ async def test_deferred_cleanup_exception_dead_letters_after_its_deadline_claim(
         repository,
         VersionEngineStub(),
         worker_id="worker-1",
+        write_lease_factory=FakeWriteLease,
     )
 
     summary = await reconciler.run_once()

@@ -30,7 +30,7 @@ ALTER TABLE public.projects
     ALTER COLUMN lifecycle_status SET NOT NULL;
 ALTER TABLE public.projects
     ADD CONSTRAINT projects_lifecycle_status_check
-    CHECK (lifecycle_status IN ('initializing', 'ready'));
+    CHECK (lifecycle_status IN ('initializing', 'ready', 'deleting'));
 CREATE INDEX projects_ready_org_idx
     ON public.projects(org_id, created_at DESC)
     WHERE lifecycle_status = 'ready';
@@ -160,12 +160,11 @@ CREATE TABLE public.project_deletion_jobs (
     source text NOT NULL,
     source_operation_key text,
     object_prefixes jsonb NOT NULL,
-    phase text NOT NULL DEFAULT 'purge',
+    phase text NOT NULL DEFAULT 'drain',
     status text NOT NULL DEFAULT 'pending',
     attempts integer NOT NULL DEFAULT 0,
-    -- Persist the admission-quiescence barrier in the job itself.  Deleting
-    -- the Project prevents new runtime grants, while this delay lets requests
-    -- that already hold a grant finish any immutable-object flush.
+    -- Retained as the post-purge verification interval. Write admission itself
+    -- is closed and drained through project_write_leases before purge starts.
     quiescence_seconds integer NOT NULL,
     available_at timestamptz NOT NULL,
     claimed_at timestamptz,
@@ -181,7 +180,7 @@ CREATE TABLE public.project_deletion_jobs (
     CONSTRAINT project_deletion_jobs_status_check
       CHECK (status IN ('pending', 'running', 'failed', 'completed')),
     CONSTRAINT project_deletion_jobs_phase_check
-      CHECK (phase IN ('purge', 'verify')),
+      CHECK (phase IN ('drain', 'purge', 'verify')),
     CONSTRAINT project_deletion_jobs_quiescence_check
       CHECK (quiescence_seconds >= 1800),
     CONSTRAINT project_deletion_jobs_prefixes_check
@@ -194,12 +193,36 @@ CREATE TABLE public.project_deletion_jobs (
       )
 );
 
+-- Every externally-triggered Project write holds a short renewable lease.
+-- Deletion atomically closes admission by moving the Project to `deleting`,
+-- then waits for leases to be released or expire before relational deletion
+-- and object purge. This is the proof that no already-admitted writer can
+-- repopulate a prefix after cleanup; a time-based quiet window alone is not.
+CREATE TABLE public.project_write_leases (
+    id uuid PRIMARY KEY,
+    project_id text NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+    holder_id text NOT NULL,
+    operation text NOT NULL,
+    acquired_at timestamptz NOT NULL DEFAULT now(),
+    renewed_at timestamptz NOT NULL DEFAULT now(),
+    expires_at timestamptz NOT NULL,
+    CONSTRAINT project_write_leases_holder_check CHECK (
+        holder_id ~ '^[A-Za-z0-9][A-Za-z0-9:._-]{0,255}$'
+    ),
+    CONSTRAINT project_write_leases_operation_check CHECK (
+        operation ~ '^[A-Za-z0-9][A-Za-z0-9:._/-]{0,255}$'
+    )
+);
+CREATE INDEX project_write_leases_active_idx
+    ON public.project_write_leases(project_id, expires_at);
+
 CREATE INDEX project_deletion_jobs_claim_idx
     ON public.project_deletion_jobs(status, available_at, created_at);
 
 ALTER TABLE public.project_create_operations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.git_credential_issue_operations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.project_deletion_jobs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.project_write_leases ENABLE ROW LEVEL SECURITY;
 
 -- These journals are private implementation state, not service-role data
 -- APIs. Every mutation and worker claim crosses a SECURITY DEFINER function
@@ -211,6 +234,8 @@ REVOKE ALL ON public.project_create_operations
 REVOKE ALL ON public.git_credential_issue_operations
     FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON public.project_deletion_jobs
+    FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON public.project_write_leases
     FROM PUBLIC, anon, authenticated, service_role;
 
 -- Human authorization is a publication boundary as well as an ACL decision.
@@ -476,8 +501,12 @@ BEGIN
     FOR UPDATE;
 
     IF FOUND THEN
-        IF existing_operation.payload_hash IS DISTINCT FROM p_payload_hash
-           OR existing_operation.request_hash IS DISTINCT FROM
+        -- request_hash is the durable identity of the caller's intent.  The
+        -- payload hash may include a resolved mutable source (for example a
+        -- Registry `latest` release), so a retry after source drift must
+        -- replay the first admitted result instead of turning into a false
+        -- idempotency conflict.
+        IF existing_operation.request_hash IS DISTINCT FROM
               COALESCE(p_request_hash, p_payload_hash)
            OR existing_operation.publication_mode IS DISTINCT FROM p_publication_mode THEN
             RETURN jsonb_build_object('outcome', 'conflict');
@@ -489,6 +518,11 @@ BEGIN
            OR NOT EXISTS (
                SELECT 1 FROM public.projects p
                WHERE p.id = existing_operation.project_id
+           )
+           OR EXISTS (
+               SELECT 1 FROM public.projects p
+               WHERE p.id = existing_operation.project_id
+                 AND p.lifecycle_status = 'deleting'
            ) THEN
             RETURN jsonb_build_object(
                 'outcome', 'gone',
@@ -510,7 +544,8 @@ BEGIN
                 WHEN 'ready' THEN 'replayed'
                 ELSE 'initializing_replayed'
             END,
-            'project', existing_operation.project_snapshot
+            'project', existing_operation.project_snapshot,
+            'result_metadata', existing_operation.result_metadata
         );
     END IF;
 
@@ -603,7 +638,8 @@ BEGIN
 
     RETURN jsonb_build_object(
         'outcome', 'initializing_created',
-        'project', to_jsonb(created_project)
+        'project', to_jsonb(created_project),
+        'result_metadata', COALESCE(p_result_metadata, '{}'::jsonb)
     );
 END;
 $$;
@@ -661,6 +697,11 @@ BEGIN
        OR NOT EXISTS (
            SELECT 1 FROM public.projects project
            WHERE project.id = operation.project_id
+       )
+       OR EXISTS (
+           SELECT 1 FROM public.projects project
+           WHERE project.id = operation.project_id
+             AND project.lifecycle_status = 'deleting'
        ) THEN
         RETURN jsonb_build_object('outcome', 'gone');
     END IF;
@@ -668,7 +709,10 @@ BEGIN
         RETURN jsonb_build_object('outcome', 'dead_lettered');
     END IF;
     IF operation.status <> 'ready' THEN
-        RETURN jsonb_build_object('outcome', 'initializing');
+        RETURN jsonb_build_object(
+            'outcome', 'initializing',
+            'result_metadata', operation.result_metadata
+        );
     END IF;
     IF NOT EXISTS (
         SELECT 1 FROM public.projects project
@@ -1114,9 +1158,7 @@ BEGIN
             'projects/' || p_project_id || '/'
         ),
         GREATEST(COALESCE(p_quiescence_seconds, 3600), 1800),
-        now() + make_interval(
-            secs => GREATEST(COALESCE(p_quiescence_seconds, 3600), 1800)
-        )
+        now()
     )
     ON CONFLICT (project_id) DO UPDATE
       SET updated_at = now()
@@ -1129,7 +1171,9 @@ BEGIN
     SET status = 'deleted', deleted_at = COALESCE(deleted_at, now())
     WHERE actor_user_id = p_actor_user_id
       AND operation_key = p_operation_key;
-    DELETE FROM public.projects WHERE id = p_project_id;
+    UPDATE public.projects
+    SET lifecycle_status = 'deleting', updated_at = now()
+    WHERE id = p_project_id AND lifecycle_status = 'initializing';
 
     RETURN jsonb_build_object(
         'outcome', 'accepted',
@@ -1469,9 +1513,7 @@ BEGIN
             'projects/' || p_project_id || '/'
         ),
         GREATEST(COALESCE(p_quiescence_seconds, 3600), 1800),
-        now() + make_interval(
-            secs => GREATEST(COALESCE(p_quiescence_seconds, 3600), 1800)
-        )
+        now()
     )
     ON CONFLICT (project_id) DO UPDATE
       SET updated_at = now()
@@ -1480,7 +1522,9 @@ BEGIN
     UPDATE public.project_create_operations
     SET status = 'deleted', deleted_at = COALESCE(deleted_at, now())
     WHERE actor_user_id = p_actor_user_id AND operation_key = p_operation_key;
-    DELETE FROM public.projects WHERE id = p_project_id;
+    UPDATE public.projects
+    SET lifecycle_status = 'deleting', updated_at = now()
+    WHERE id = p_project_id AND lifecycle_status = 'initializing';
 
     RETURN jsonb_build_object(
         'outcome', 'accepted',
@@ -1498,8 +1542,148 @@ GRANT EXECUTE ON FUNCTION public.abandon_project_initialization(
 )
     TO service_role;
 
--- Ordinary Project deletion publishes the durable object cleanup job in the
--- same transaction that removes database authorization state.
+CREATE FUNCTION public.acquire_project_write_lease(
+    p_project_id text,
+    p_lease_id uuid,
+    p_holder_id text,
+    p_operation text,
+    p_ttl_seconds integer DEFAULT 120,
+    p_initialization_operation_key text DEFAULT NULL,
+    p_initialization_actor uuid DEFAULT NULL,
+    p_initialization_worker text DEFAULT NULL
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp
+AS $$
+DECLARE
+    project_status text;
+    lease public.project_write_leases%ROWTYPE;
+BEGIN
+    IF p_lease_id IS NULL
+       OR p_holder_id !~ '^[A-Za-z0-9][A-Za-z0-9:._-]{0,255}$'
+       OR p_operation !~ '^[A-Za-z0-9][A-Za-z0-9:._/-]{0,255}$' THEN
+        RETURN jsonb_build_object('outcome', 'invalid');
+    END IF;
+
+    SELECT project.lifecycle_status INTO project_status
+    FROM public.projects project
+    WHERE project.id = p_project_id
+    FOR UPDATE;
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object('outcome', 'unavailable');
+    END IF;
+    IF project_status = 'initializing' THEN
+        IF p_initialization_operation_key IS NULL
+           OR p_initialization_actor IS NULL
+           OR NOT EXISTS (
+               SELECT 1
+               FROM public.project_create_operations operation
+               WHERE operation.project_id = p_project_id
+                 AND operation.operation_key = p_initialization_operation_key
+                 AND operation.actor_user_id = p_initialization_actor
+                 AND operation.status = 'initializing'
+                 AND (
+                     p_initialization_worker IS NULL
+                     OR operation.initialization_claimed_by = p_initialization_worker
+                 )
+           ) THEN
+            RETURN jsonb_build_object('outcome', 'unavailable');
+        END IF;
+    ELSIF project_status <> 'ready' THEN
+        RETURN jsonb_build_object('outcome', 'unavailable');
+    END IF;
+
+    DELETE FROM public.project_write_leases expired
+    WHERE expired.project_id = p_project_id
+      AND expired.expires_at <= now();
+
+    SELECT * INTO lease
+    FROM public.project_write_leases existing
+    WHERE existing.id = p_lease_id
+    FOR UPDATE;
+    IF FOUND THEN
+        IF lease.project_id IS DISTINCT FROM p_project_id
+           OR lease.holder_id IS DISTINCT FROM p_holder_id
+           OR lease.operation IS DISTINCT FROM p_operation THEN
+            RETURN jsonb_build_object('outcome', 'conflict');
+        END IF;
+        UPDATE public.project_write_leases
+        SET renewed_at = now(),
+            expires_at = now() + make_interval(
+                secs => GREATEST(30, LEAST(COALESCE(p_ttl_seconds, 120), 7200))
+            )
+        WHERE id = p_lease_id
+        RETURNING * INTO lease;
+        RETURN jsonb_build_object('outcome', 'replayed', 'lease', to_jsonb(lease));
+    END IF;
+
+    INSERT INTO public.project_write_leases (
+        id, project_id, holder_id, operation, expires_at
+    ) VALUES (
+        p_lease_id, p_project_id, p_holder_id, p_operation,
+        now() + make_interval(
+            secs => GREATEST(30, LEAST(COALESCE(p_ttl_seconds, 120), 7200))
+        )
+    ) RETURNING * INTO lease;
+    RETURN jsonb_build_object('outcome', 'acquired', 'lease', to_jsonb(lease));
+END;
+$$;
+
+CREATE FUNCTION public.renew_project_write_lease(
+    p_lease_id uuid,
+    p_holder_id text,
+    p_ttl_seconds integer DEFAULT 120
+)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp
+AS $$
+UPDATE public.project_write_leases
+SET renewed_at = now(),
+    expires_at = now() + make_interval(
+        secs => GREATEST(30, LEAST(COALESCE(p_ttl_seconds, 120), 7200))
+    )
+WHERE id = p_lease_id
+  AND holder_id = p_holder_id
+  AND expires_at > now()
+RETURNING true;
+$$;
+
+CREATE FUNCTION public.release_project_write_lease(
+    p_lease_id uuid,
+    p_holder_id text
+)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp
+AS $$
+DELETE FROM public.project_write_leases
+WHERE id = p_lease_id AND holder_id = p_holder_id
+RETURNING true;
+$$;
+
+REVOKE ALL ON FUNCTION public.acquire_project_write_lease(
+    text, uuid, text, text, integer, text, uuid, text
+) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.renew_project_write_lease(uuid, text, integer)
+    FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.release_project_write_lease(uuid, text)
+    FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.acquire_project_write_lease(
+    text, uuid, text, text, integer, text, uuid, text
+) TO service_role;
+GRANT EXECUTE ON FUNCTION public.renew_project_write_lease(uuid, text, integer)
+    TO service_role;
+GRANT EXECUTE ON FUNCTION public.release_project_write_lease(uuid, text)
+    TO service_role;
+
+-- Ordinary Project deletion first closes write admission. Relational state is
+-- removed only after the durable worker proves every admitted writer released
+-- or lost its renewable lease.
 CREATE FUNCTION public.delete_project_control_plane(
     p_project_id text,
     p_actor_user_id uuid,
@@ -1567,9 +1751,7 @@ BEGIN
             'projects/' || p_project_id || '/'
         ),
         GREATEST(COALESCE(p_quiescence_seconds, 3600), 1800),
-        now() + make_interval(
-            secs => GREATEST(COALESCE(p_quiescence_seconds, 3600), 1800)
-        )
+        now()
     )
     ON CONFLICT (project_id) DO UPDATE
       SET updated_at = now()
@@ -1581,7 +1763,9 @@ BEGIN
     UPDATE public.git_credential_issue_operations
     SET status = 'deleted', revoked_at = COALESCE(revoked_at, now())
     WHERE project_id = p_project_id AND status = 'active';
-    DELETE FROM public.projects WHERE id = p_project_id;
+    UPDATE public.projects
+    SET lifecycle_status = 'deleting', updated_at = now()
+    WHERE id = p_project_id AND lifecycle_status = 'ready';
 
     RETURN jsonb_build_object(
         'outcome', 'deleted',
@@ -1593,6 +1777,79 @@ $$;
 REVOKE ALL ON FUNCTION public.delete_project_control_plane(text, uuid, integer)
     FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.delete_project_control_plane(text, uuid, integer)
+    TO service_role;
+
+CREATE FUNCTION public.drain_project_deletion_job(
+    p_job_id text,
+    p_worker_id text
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp
+AS $$
+DECLARE
+    job public.project_deletion_jobs%ROWTYPE;
+    active_count bigint;
+    next_expiry timestamptz;
+BEGIN
+    SELECT * INTO job
+    FROM public.project_deletion_jobs deletion_job
+    WHERE deletion_job.id = p_job_id
+    FOR UPDATE;
+    IF NOT FOUND
+       OR job.status <> 'running'
+       OR job.phase <> 'drain'
+       OR job.claimed_by IS DISTINCT FROM p_worker_id THEN
+        RETURN jsonb_build_object('outcome', 'claim_lost');
+    END IF;
+
+    DELETE FROM public.project_write_leases lease
+    WHERE lease.project_id = job.project_id AND lease.expires_at <= now();
+    SELECT count(*), min(lease.expires_at)
+      INTO active_count, next_expiry
+    FROM public.project_write_leases lease
+    WHERE lease.project_id = job.project_id AND lease.expires_at > now();
+
+    IF active_count > 0 THEN
+        UPDATE public.project_deletion_jobs
+        SET status = 'pending',
+            available_at = LEAST(next_expiry, now() + interval '60 seconds'),
+            claimed_at = NULL,
+            claimed_by = NULL,
+            updated_at = now()
+        WHERE id = p_job_id;
+        RETURN jsonb_build_object(
+            'outcome', 'waiting',
+            'active_leases', active_count,
+            'next_expiry', next_expiry
+        );
+    END IF;
+
+    UPDATE public.project_create_operations
+    SET status = 'deleted', deleted_at = COALESCE(deleted_at, now())
+    WHERE project_id = job.project_id
+      AND status IN ('initializing', 'ready', 'dead_lettered');
+    UPDATE public.git_credential_issue_operations
+    SET status = 'deleted', revoked_at = COALESCE(revoked_at, now())
+    WHERE project_id = job.project_id AND status = 'active';
+    DELETE FROM public.projects WHERE id = job.project_id;
+
+    UPDATE public.project_deletion_jobs
+    SET phase = 'purge',
+        status = 'pending',
+        available_at = now(),
+        claimed_at = NULL,
+        claimed_by = NULL,
+        updated_at = now()
+    WHERE id = p_job_id;
+    RETURN jsonb_build_object('outcome', 'drained');
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.drain_project_deletion_job(text, text)
+    FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.drain_project_deletion_job(text, text)
     TO service_role;
 
 CREATE FUNCTION public.claim_project_deletion_jobs(

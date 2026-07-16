@@ -63,6 +63,17 @@ class Engine:
         return "commit"
 
 
+class FakeWriteLease:
+    def __init__(self, *_args, **_kwargs) -> None:
+        pass
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_args):
+        return False
+
+
 def _kwargs(control_plane, engine, **overrides):
     values = {
         "control_plane": control_plane,
@@ -75,6 +86,7 @@ def _kwargs(control_plane, engine, **overrides):
         "project_limit": 3,
         "publication_mode": "empty",
         "source_fingerprint": {"kind": "empty-git-repository", "version": 1},
+        "write_lease_factory": FakeWriteLease,
     }
     values.update(overrides)
     return values

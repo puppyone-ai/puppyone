@@ -1,9 +1,9 @@
 """Sandbox abstract base class definitions."""
 
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Optional
-import time
 
 
 @dataclass
@@ -23,7 +23,14 @@ class SandboxBase(ABC):
     """
 
     @abstractmethod
-    async def start(self, session_id: str, data: Any, readonly: bool) -> dict:
+    async def start(
+        self,
+        session_id: str,
+        data: Any,
+        readonly: bool,
+        *,
+        project_id: str | None = None,
+    ) -> dict:
         """
         Create a sandbox session and preload a single JSON data into /workspace/data.json
 
@@ -43,7 +50,9 @@ class SandboxBase(ABC):
         session_id: str,
         files: list,
         readonly: bool,
-        s3_service: Optional[Any] = None
+        s3_service: Optional[Any] = None,
+        *,
+        project_id: str | None = None,
     ) -> dict:
         """
         Create a sandbox session and preload multiple files

@@ -7,9 +7,11 @@ from collections.abc import Callable
 from typing import TypeVar
 
 import httpx
+from postgrest.exceptions import APIError
 
 from src.exceptions import (
     AppException,
+    DatabaseSchemaOutdatedException,
     ErrorCode,
     NotFoundException,
     PermissionException,
@@ -41,6 +43,18 @@ _logger = logging.getLogger("puppyone.repository_context")
 _T = TypeVar("_T")
 
 
+def _postgrest_error_code(error: APIError) -> str:
+    """Read only the stable PostgREST code across client-library versions."""
+
+    code = getattr(error, "code", None)
+    if isinstance(code, str):
+        return code
+    if error.args and isinstance(error.args[0], dict):
+        raw = error.args[0].get("code")
+        return raw if isinstance(raw, str) else ""
+    return ""
+
+
 class RepositoryContextService:
     def __init__(
         self,
@@ -63,6 +77,18 @@ class RepositoryContextService:
         for attempt in range(1, max(1, attempts) + 1):
             try:
                 return callback()
+            except APIError as exc:
+                # PGRST202 means PostgREST cannot find the required RPC in its
+                # schema cache. During a rolling deploy that is a temporary
+                # service-version mismatch, not a bad credential. Never relay
+                # the raw error because it includes function names/signatures.
+                if _postgrest_error_code(exc) == "PGRST202":
+                    _logger.error(
+                        "repository_context_database_schema_outdated",
+                        extra={"operation": operation, "postgrest_code": "PGRST202"},
+                    )
+                    raise DatabaseSchemaOutdatedException() from exc
+                raise
             except httpx.TransportError as exc:
                 last_error = exc
                 _logger.warning(

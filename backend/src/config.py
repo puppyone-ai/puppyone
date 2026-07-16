@@ -220,6 +220,27 @@ class Settings(BaseSettings):
         return self
 
     @model_validator(mode="after")
+    def enforce_host_derived_storage_ephemerality(self):
+        """Hosted local workspaces/Git views must remain disposable caches.
+
+        Durable Project deletion is global, while this process can only scrub
+        its own filesystem. Until a shared/distributed cleanup adapter exists,
+        accepting persistent replica-local derived storage would create a false
+        deletion guarantee, so hosted startup fails closed.
+        """
+
+        if (
+            self.APP_ENV in {"staging", "production"}
+            and self.HOST_DERIVED_STORAGE_MODE != "ephemeral"
+        ):
+            raise ValueError(
+                "Hosted WORKSPACE_BASE_DIR and GIT_VIEW_CACHE_DIR must use "
+                "ephemeral derived storage; persistent host storage requires "
+                "an explicit shared/distributed cleanup adapter"
+            )
+        return self
+
+    @model_validator(mode="after")
     def enforce_access_credential_secret_safety(self):
         """Hosted runtimes must use a dedicated stable HMAC secret for Access keys."""
         if self.APP_ENV not in {"development", "test"}:
@@ -383,6 +404,10 @@ class Settings(BaseSettings):
     # - "fallback": Force full copy
     WORKSPACE_PROVIDER: str = "auto"
     WORKSPACE_BASE_DIR: str = "/tmp/contextbase"
+    # These paths contain only reconstructable, authorization-fenced derived
+    # state. "persistent" is allowed for local/self-hosted experimentation but
+    # hosted startup rejects it until a global cleanup adapter is implemented.
+    HOST_DERIVED_STORAGE_MODE: Literal["ephemeral", "persistent"] = "ephemeral"
 
     # Test configuration
     SKIP_AUTH: bool = False  # Whether to skip authentication (for test environments only)

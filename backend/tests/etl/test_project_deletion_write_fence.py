@@ -35,6 +35,20 @@ class Repository:
         self.calls += 1
         return self.first_task if self.calls == 1 else None
 
+    def update_task(self, task):
+        return task
+
+
+class NoopLease:
+    def __init__(self, *_args, **_kwargs):
+        pass
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_args):
+        return False
+
 
 class StateRepository:
     def __init__(self, state=None) -> None:
@@ -89,6 +103,7 @@ async def test_ocr_external_wait_revalidates_durable_task_before_artifact_upload
             "state_repo": state_repository,
             "arq_queue_name": "etl",
             "redis": SimpleNamespace(),
+            "project_write_lease_factory": NoopLease,
         },
         TASK_ID,
     )

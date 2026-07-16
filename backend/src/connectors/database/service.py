@@ -4,10 +4,10 @@ import logging
 from typing import Any, List
 
 from src.connectors.database.models import DBConnection
-from src.connectors.database.repository import DBConnectionRepository
 from src.connectors.database.providers import get_provider
 from src.connectors.database.providers.base import QueryResult, TableInfo
-from src.exceptions import NotFoundException, ErrorCode
+from src.connectors.database.repository import DBConnectionRepository
+from src.exceptions import ErrorCode, NotFoundException
 from src.platform.authorization.models import ProjectAction
 from src.platform.authorization.service import AuthorizationService
 
@@ -146,8 +146,10 @@ class DBConnectorService:
         }
 
         import json
-        from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
-        commands = build_worker_version_engine_container().write_commands()
+
+        from src.platform.project.write_lease import build_leased_worker_write_commands
+
+        commands = build_leased_worker_write_commands()
         content_bytes = json.dumps(content_data, ensure_ascii=False, indent=2).encode("utf-8")
         file_path = f"{name}.json" if not name.endswith(".json") else name
         await commands.write_bytes(

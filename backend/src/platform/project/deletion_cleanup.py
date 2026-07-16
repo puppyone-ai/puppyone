@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 import socket
 from dataclasses import dataclass
@@ -10,6 +11,35 @@ from uuid import uuid4
 from src.config import settings
 from src.infra.s3.service import S3Service, get_s3_service_instance
 from src.infra.supabase.client import SupabaseClient
+from src.infra.turbopuffer.service import TurbopufferSearchService
+from src.ingest.file.ocr.external_cleanup import (
+    ExternalIngestCleanup,
+    ExternalIngestCleanupSnapshot,
+)
+from src.platform.scope_sandbox.factory import provider_from_settings
+from src.platform.scope_sandbox.provider import SandboxState
+from src.platform.workspace.project_cleanup import (
+    ProjectHostCleanupPort,
+)
+
+_logger = logging.getLogger("puppyone.project_deletion")
+
+
+async def _await_cleanup_boundary(awaitable):
+    """Do not abandon a destructive provider operation on cancellation."""
+
+    task = asyncio.create_task(awaitable)
+    try:
+        return await asyncio.shield(task)
+    except asyncio.CancelledError as cancelled:
+        while not task.done():
+            try:
+                await asyncio.shield(task)
+            except asyncio.CancelledError:
+                continue
+        if not task.cancelled():
+            task.result()
+        raise cancelled
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,6 +51,8 @@ class ProjectDeletionCleanupSummary:
     aborted_multipart_uploads: int = 0
     verification_scheduled: int = 0
     late_object_cycles: int = 0
+    drained: int = 0
+    waiting_for_writers: int = 0
 
     def as_dict(self) -> dict[str, int]:
         return {
@@ -31,6 +63,8 @@ class ProjectDeletionCleanupSummary:
             "aborted_multipart_uploads": self.aborted_multipart_uploads,
             "verification_scheduled": self.verification_scheduled,
             "late_object_cycles": self.late_object_cycles,
+            "drained": self.drained,
+            "waiting_for_writers": self.waiting_for_writers,
         }
 
 
@@ -55,6 +89,60 @@ class ProjectDeletionJobRepository:
             {"p_job_id": job_id, "p_worker_id": worker_id},
         ).execute()
         return bool(response.data)
+
+    def drain(self, *, job_id: str, worker_id: str) -> dict[str, Any]:
+        response = self._client.rpc(
+            "drain_project_deletion_job",
+            {"p_job_id": job_id, "p_worker_id": worker_id},
+        ).execute()
+        data = response.data
+        if isinstance(data, list) and len(data) == 1:
+            data = data[0]
+        if not isinstance(data, dict):
+            raise RuntimeError("drain_project_deletion_job returned an invalid response")
+        return data
+
+    def persist_external_ingest_snapshot(
+        self,
+        *,
+        job_id: str,
+        worker_id: str,
+        external_ingest_resources: dict[str, Any],
+    ) -> dict[str, Any]:
+        response = self._client.rpc(
+            "persist_project_deletion_external_ingest_snapshot",
+            {
+                "p_job_id": job_id,
+                "p_worker_id": worker_id,
+                "p_external_ingest_resources": external_ingest_resources,
+            },
+        ).execute()
+        data = response.data
+        if isinstance(data, list) and len(data) == 1:
+            data = data[0]
+        if not isinstance(data, dict):
+            raise RuntimeError(
+                "persist_project_deletion_external_ingest_snapshot returned invalid data"
+            )
+        return data
+
+    def host_cleanup_tombstones(self) -> list[str]:
+        """Return every durable tombstone for this replica's local scrub."""
+
+        response = self._client.rpc(
+            "list_project_deletion_host_tombstones",
+            {},
+        ).execute()
+        rows = response.data or []
+        if not isinstance(rows, list):
+            raise RuntimeError("Host cleanup tombstone RPC returned invalid data")
+        return list(
+            dict.fromkeys(
+                str(row["project_id"])
+                for row in rows
+                if isinstance(row, dict) and row.get("project_id")
+            )
+        )
 
     def schedule_verification(
         self,
@@ -93,19 +181,117 @@ class ProjectDeletionJobRepository:
         return bool(response.data)
 
 
+class ProjectExternalResourceCleaner:
+    """Idempotently purge and verify non-S3 provider resources."""
+
+    def __init__(
+        self,
+        *,
+        search: TurbopufferSearchService | None = None,
+        sandbox_provider_factory=None,
+    ) -> None:
+        self._search = search or TurbopufferSearchService()
+        self._sandbox_provider_factory = sandbox_provider_factory or (
+            lambda name: provider_from_settings(settings, name=name)
+        )
+        self._sandbox_providers: dict[str, Any] = {}
+
+    async def purge(self, job: dict[str, Any]) -> None:
+        search_prefixes, sandboxes = _validated_external_resources(job)
+        for prefix in search_prefixes:
+            # Deletion mutates the result set. Re-read the first page until it
+            # is empty; a cursor from a pre-delete page can skip namespaces.
+            previous_ids: tuple[str, ...] | None = None
+            while True:
+                page = await self._search.list_namespaces(
+                    prefix=prefix,
+                    page_size=100,
+                )
+                ids = tuple(str(namespace.id) for namespace in page.namespaces)
+                if ids and ids == previous_ids:
+                    raise RuntimeError(
+                        "Search namespace deletion made no observable progress"
+                    )
+                for namespace in page.namespaces:
+                    await self._search.delete_namespace(namespace.id)
+                if not page.namespaces:
+                    break
+                previous_ids = ids
+        for resource in sandboxes:
+            await self._destroy_sandbox(resource)
+
+    async def absent(self, job: dict[str, Any]) -> bool:
+        search_prefixes, sandboxes = _validated_external_resources(job)
+        for prefix in search_prefixes:
+            page = await self._search.list_namespaces(prefix=prefix, page_size=1)
+            if page.namespaces:
+                return False
+        for resource in sandboxes:
+            if not await self._sandbox_absent(resource):
+                return False
+        return True
+
+    def _provider(self, name: str):
+        provider = self._sandbox_providers.get(name)
+        if provider is None:
+            provider = self._sandbox_provider_factory(name)
+            self._sandbox_providers[name] = provider
+        return provider
+
+    async def _destroy_sandbox(self, resource: dict[str, str]) -> None:
+        provider_name = resource["provider"]
+        resource_id = resource["resource_id"]
+        if provider_name == "docker":
+            process = await asyncio.create_subprocess_exec(
+                "docker",
+                "rm",
+                "-f",
+                resource_id,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            _stdout, stderr = await _await_cleanup_boundary(process.communicate())
+            if process.returncode != 0 and b"no such container" not in stderr.lower():
+                raise RuntimeError("Unable to remove Project execution container")
+            return
+        await _await_cleanup_boundary(
+            self._provider(provider_name).destroy(resource_id)
+        )
+
+    async def _sandbox_absent(self, resource: dict[str, str]) -> bool:
+        provider_name = resource["provider"]
+        resource_id = resource["resource_id"]
+        if provider_name == "docker":
+            process = await asyncio.create_subprocess_exec(
+                "docker",
+                "inspect",
+                resource_id,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            return await _await_cleanup_boundary(process.wait()) != 0
+        status = await _await_cleanup_boundary(
+            self._provider(provider_name).status(resource_id)
+        )
+        return status.state is SandboxState.DESTROYED
+
 class ProjectDeletionCleanupWorker:
     def __init__(
         self,
         repository: ProjectDeletionJobRepository,
         s3: S3Service,
+        external_resources: ProjectExternalResourceCleaner,
+        host_resources: ProjectHostCleanupPort,
+        external_ingest: ExternalIngestCleanup,
         *,
         worker_id: str | None = None,
-        verify_after_seconds: int = 60,
     ):
         self._repository = repository
         self._s3 = s3
+        self._external_resources = external_resources
+        self._host_resources = host_resources
+        self._external_ingest = external_ingest
         self._worker_id = worker_id or f"{socket.gethostname()}:{uuid4()}"
-        self._verify_after_seconds = max(10, verify_after_seconds)
 
     async def run_once(
         self,
@@ -115,6 +301,10 @@ class ProjectDeletionCleanupWorker:
         # Object deletion can outlive a short database lease.  Claim one job
         # with the full configured lease so no second worker can purge the
         # same Project while this worker is still walking paginated prefixes.
+        # Every active replica independently reconciles its non-authoritative
+        # local caches from durable deletion tombstones. No replica-local
+        # observation is allowed to claim global deletion completion.
+        await self._reconcile_host_tombstones()
         jobs = await asyncio.to_thread(
             self._repository.claim,
             worker_id=self._worker_id,
@@ -127,19 +317,65 @@ class ProjectDeletionCleanupWorker:
         aborted_multipart_uploads = 0
         verification_scheduled = 0
         late_object_cycles = 0
+        drained = 0
+        waiting_for_writers = 0
         for job in jobs:
             job_id = str(job.get("id") or "")
             attempts = max(1, int(job.get("attempts") or 1))
             try:
                 prefixes = _validated_project_prefixes(job)
                 phase = str(job.get("phase") or "")
-                if phase == "purge":
+                if phase == "drain":
+                    outcome = await asyncio.to_thread(
+                        self._repository.drain,
+                        job_id=job_id,
+                        worker_id=self._worker_id,
+                    )
+                    result = str(outcome.get("outcome") or "")
+                    if result == "snapshot_required":
+                        ingest_snapshot = await self._external_ingest.snapshot(
+                            str(job["project_id"])
+                        )
+                        if ingest_snapshot.errors:
+                            raise RuntimeError(
+                                "External ingest ownership snapshot is incomplete"
+                            )
+                        persisted = await asyncio.to_thread(
+                            self._repository.persist_external_ingest_snapshot,
+                            job_id=job_id,
+                            worker_id=self._worker_id,
+                            external_ingest_resources=ingest_snapshot.to_dict(),
+                        )
+                        if persisted.get("outcome") not in {"persisted", "replayed"}:
+                            raise RuntimeError(
+                                "Project deletion resource snapshot was not persisted"
+                            )
+                        job["external_ingest_resources"] = ingest_snapshot.to_dict()
+                        outcome = await asyncio.to_thread(
+                            self._repository.drain,
+                            job_id=job_id,
+                            worker_id=self._worker_id,
+                        )
+                        result = str(outcome.get("outcome") or "")
+                    if result == "drained":
+                        await self._purge_non_s3_resources(job)
+                        drained += 1
+                    elif result == "waiting":
+                        waiting_for_writers += 1
+                    else:
+                        raise RuntimeError(
+                            "Project deletion drain was not acknowledged: "
+                            f"{result or 'missing'}"
+                        )
+                elif phase == "purge":
+                    await self._purge_non_s3_resources(job)
                     for prefix in prefixes:
                         aborted_multipart_uploads += (
                             await self._abort_prefix_multipart_uploads(prefix)
                         )
                         deleted_objects += await self._purge_prefix(prefix)
-                    await self._schedule_verification(job_id)
+                    await self._external_resources.purge(job)
+                    await self._schedule_verification(job)
                     verification_scheduled += 1
                 elif phase == "verify":
                     # S3 is strongly consistent, but an already-admitted Git
@@ -147,19 +383,31 @@ class ProjectDeletionCleanupWorker:
                     # object restarts the entire quiet verification window.
                     has_late_objects = False
                     has_late_multipart_uploads = False
+                    has_late_external_resources = not (
+                        await self._external_resources.absent(job)
+                    )
+                    await self._scrub_host_project(str(job["project_id"]))
+                    ingest_result = await self._cleanup_external_ingest(job)
+                    has_late_ingest_resources = not ingest_result.complete
                     for prefix in prefixes:
                         if await self._prefix_has_objects(prefix):
                             has_late_objects = True
                         if await self._prefix_has_multipart_uploads(prefix):
                             has_late_multipart_uploads = True
-                    if has_late_objects or has_late_multipart_uploads:
+                    if (
+                        has_late_objects
+                        or has_late_multipart_uploads
+                        or has_late_external_resources
+                        or has_late_ingest_resources
+                    ):
                         late_object_cycles += 1
                         for prefix in prefixes:
                             aborted_multipart_uploads += (
                                 await self._abort_prefix_multipart_uploads(prefix)
                             )
                             deleted_objects += await self._purge_prefix(prefix)
-                        await self._schedule_verification(job_id)
+                        await self._external_resources.purge(job)
+                        await self._schedule_verification(job)
                         verification_scheduled += 1
                     else:
                         acknowledged = await asyncio.to_thread(
@@ -191,17 +439,93 @@ class ProjectDeletionCleanupWorker:
             aborted_multipart_uploads=aborted_multipart_uploads,
             verification_scheduled=verification_scheduled,
             late_object_cycles=late_object_cycles,
+            drained=drained,
+            waiting_for_writers=waiting_for_writers,
         )
 
-    async def _schedule_verification(self, job_id: str) -> None:
+    async def _schedule_verification(self, job: dict[str, Any]) -> None:
+        job_id = str(job.get("id") or "")
+        # The admission transaction persists this safety interval. Workers
+        # must not silently substitute a process-local default after restart.
+        raw_quiescence = job.get("quiescence_seconds")
+        if (
+            isinstance(raw_quiescence, bool)
+            or not isinstance(raw_quiescence, int)
+            or raw_quiescence < 1800
+        ):
+            raise RuntimeError(
+                "Project deletion job is missing its durable quiescence interval"
+            )
+        verify_after_seconds = raw_quiescence
         acknowledged = await asyncio.to_thread(
             self._repository.schedule_verification,
             job_id=job_id,
             worker_id=self._worker_id,
-            verify_after_seconds=self._verify_after_seconds,
+            verify_after_seconds=verify_after_seconds,
         )
         if not acknowledged:
             raise RuntimeError("deletion job lease was lost before verification scheduling")
+
+    def _persisted_ingest_snapshot(
+        self,
+        job: dict[str, Any],
+    ) -> ExternalIngestCleanupSnapshot:
+        value = job.get("external_ingest_resources")
+        if not isinstance(value, dict):
+            raise RuntimeError(
+                "Project deletion job has no durable external ingest snapshot"
+            )
+        snapshot = ExternalIngestCleanupSnapshot.from_dict(value)
+        if snapshot.project_id != str(job.get("project_id") or ""):
+            raise RuntimeError("External ingest snapshot ownership mismatch")
+        if snapshot.errors:
+            raise RuntimeError("External ingest ownership snapshot is incomplete")
+        return snapshot
+
+    async def _cleanup_external_ingest(self, job: dict[str, Any]):
+        result = await self._external_ingest.cleanup(
+            self._persisted_ingest_snapshot(job)
+        )
+        return result
+
+    async def _purge_non_s3_resources(self, job: dict[str, Any]) -> None:
+        await self._scrub_host_project(str(job["project_id"]))
+        ingest_result = await self._cleanup_external_ingest(job)
+        if not ingest_result.complete:
+            detail = "; ".join(ingest_result.errors[:3]) or ingest_result.state.value
+            raise RuntimeError(f"External ingest cleanup is not complete: {detail}")
+
+    async def _scrub_host_project(self, project_id: str) -> None:
+        try:
+            snapshot = self._host_resources.snapshot(project_id)
+            await self._host_resources.delete(snapshot)
+            verification = self._host_resources.verify(snapshot)
+            if not verification.complete:
+                raise RuntimeError("local derived cache remained after scrub")
+        except Exception as exc:
+            # Host workspaces and Git views are non-authoritative ephemeral
+            # caches. Project admission fencing prevents them from ever being
+            # served or rebuilt after the tombstone; periodic reconciliation
+            # retries local physical scrubbing without blocking global durable
+            # resource deletion.
+            _logger.warning(
+                "project_host_cache_scrub_failed",
+                extra={"project_id": project_id, "error_type": type(exc).__name__},
+            )
+
+    async def _reconcile_host_tombstones(self) -> None:
+        try:
+            project_ids = await asyncio.to_thread(
+                self._repository.host_cleanup_tombstones
+            )
+        except Exception as exc:
+            _logger.warning(
+                "project_host_tombstone_scan_failed",
+                extra={"error_type": type(exc).__name__},
+            )
+            return
+        for project_id in project_ids:
+            await self._scrub_host_project(project_id)
 
     async def _prefix_has_objects(self, prefix: str) -> bool:
         files, _, _, _ = await self._s3.list_files(prefix=prefix, max_keys=1)
@@ -298,14 +622,71 @@ def _validated_project_prefixes(job: dict[str, Any]) -> tuple[str, ...]:
     return prefixes
 
 
+def _validated_external_resources(
+    job: dict[str, Any],
+) -> tuple[tuple[str, ...], tuple[dict[str, str], ...]]:
+    project_id = str(job.get("project_id") or "")
+    if not _STORAGE_SEGMENT.fullmatch(project_id):
+        raise RuntimeError("Project deletion job has an invalid Project id")
+    raw_prefixes = job.get("search_namespace_prefixes")
+    expected = (
+        f"project_{project_id}_path_",
+        f"project_{project_id}_folder_",
+    )
+    if not isinstance(raw_prefixes, list) or tuple(raw_prefixes) != expected:
+        raise RuntimeError("Project deletion job has invalid search namespace prefixes")
+    raw_resources = job.get("sandbox_resources")
+    if not isinstance(raw_resources, list):
+        raise RuntimeError("Project deletion job has invalid sandbox resources")
+    resources: list[dict[str, str]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for raw in raw_resources:
+        if not isinstance(raw, dict):
+            raise RuntimeError("Project deletion job has invalid sandbox resources")
+        kind = str(raw.get("kind") or "")
+        provider = str(raw.get("provider") or "")
+        resource_id = str(raw.get("resource_id") or "")
+        identity = (kind, provider, resource_id)
+        if (
+            kind not in {"scope", "execution"}
+            or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}", provider)
+            or not resource_id
+            or len(resource_id) > 512
+            or identity in seen
+        ):
+            raise RuntimeError("Project deletion job has invalid sandbox resources")
+        seen.add(identity)
+        resources.append(
+            {"kind": kind, "provider": provider, "resource_id": resource_id}
+        )
+    return expected, tuple(resources)
+
+
 _STORAGE_SEGMENT = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}")
 
 
 async def process_project_deletion_cleanup() -> dict[str, int | str]:
+    # Import lazily so ordinary API startup does not construct provider SDKs
+    # or Redis connections. Historical providers remain registered forever:
+    # old durable handles must stay cancellable after the default changes.
+    from src.ingest.file.dependencies import get_etl_arq_pool
+    from src.ingest.file.ocr.factory import get_ocr_provider
+    from src.ingest.file.tasks.repository import ETLTaskRepositorySupabase
+
+    external_ingest = ExternalIngestCleanup(
+        task_source=ETLTaskRepositorySupabase(),
+        redis=await get_etl_arq_pool(),
+        providers={
+            name: get_ocr_provider(name)
+            for name in ("mineru", "reducto", "deepseek")
+        },
+    )
     worker = ProjectDeletionCleanupWorker(
         ProjectDeletionJobRepository(),
         get_s3_service_instance(),
-        verify_after_seconds=settings.PROJECT_DELETION_VERIFY_DELAY_SECONDS,
+        ProjectExternalResourceCleaner(),
+        ProjectHostCleanupPort(),
+        external_ingest,
     )
     summary = await worker.run_once(
         lease_seconds=settings.PROJECT_DELETION_CLEANUP_LEASE_SECONDS,

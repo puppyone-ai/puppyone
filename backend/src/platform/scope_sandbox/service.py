@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from src.config import settings
+from src.platform.project.write_lease import ProjectWriteLease, ProjectWriteLeaseFactory
 from src.platform.scope_sandbox import scope_provision, ssh_credentials, ssh_e2b
 from src.platform.scope_sandbox.factory import provider_from_settings, store_from_settings
 from src.platform.scope_sandbox.manager import AcquireResult, ScopeSandboxManager
@@ -75,6 +76,7 @@ class ScopeSandboxService:
         sidecar_starter=None,
         scope_credential_issuer=None,
         git_credential_issuer=None,
+        write_lease_factory: ProjectWriteLeaseFactory = ProjectWriteLease,
     ) -> None:
         # Shared durable store across providers (one row per scope).
         self._store = store or store_from_settings(settings)
@@ -90,6 +92,7 @@ class ScopeSandboxService:
             git_credential_issuer or self._issue_git_credential
         )
         self._managers: dict[str, ScopeSandboxManager] = {}
+        self._write_lease_factory = write_lease_factory
 
     # ── manager wiring ────────────────────────────────────────────────
 
@@ -186,6 +189,36 @@ class ScopeSandboxService:
     # ── connect / status / revoke ─────────────────────────────────────
 
     async def connect(
+        self,
+        *,
+        project_id: str,
+        scope_id: str,
+        user_id: str,
+        user_email: str,
+        user_name: str,
+        public_key: str,
+        public_base: str,
+        provider_name: str | None = None,
+        ttl_s: int = DEFAULT_TTL_S,
+        now: float | None = None,
+    ) -> ConnectInfo:
+        # Sandbox creation/resume/extension is an external Project write. Keep
+        # it inside the same deletion admission barrier as Git, S3 and search.
+        async with self._write_lease_factory(project_id, "sandbox.connect"):
+            return await self._connect_admitted(
+                project_id=project_id,
+                scope_id=scope_id,
+                user_id=user_id,
+                user_email=user_email,
+                user_name=user_name,
+                public_key=public_key,
+                public_base=public_base,
+                provider_name=provider_name,
+                ttl_s=ttl_s,
+                now=now,
+            )
+
+    async def _connect_admitted(
         self,
         *,
         project_id: str,

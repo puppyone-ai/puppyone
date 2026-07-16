@@ -105,6 +105,27 @@ class ServiceUnavailableException(AppException):
         )
 
 
+class DatabaseSchemaOutdatedException(AppException):
+    """The deployed API requires a database migration not visible to PostgREST.
+
+    This is deliberately safe and machine-readable: callers can distinguish a
+    rolling-deploy mismatch from an ordinary credential failure without ever
+    receiving the missing function name, SQL signature, or schema-cache body.
+    """
+
+    def __init__(self, *, retry_after_seconds: int = 30):
+        self.headers = {"Retry-After": str(max(1, retry_after_seconds))}
+        super().__init__(
+            code=ErrorCode.REPOSITORY_STORAGE_UNAVAILABLE,
+            message="Cloud service upgrade is still being applied; try again shortly",
+            status_code=503,
+            details={
+                "code": "database_schema_outdated",
+                "retryable": True,
+            },
+        )
+
+
 # Alias for HTTP 403 Forbidden (used by organization service)
 ForbiddenException = PermissionException
 

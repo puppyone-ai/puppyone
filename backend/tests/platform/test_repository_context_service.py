@@ -3,8 +3,15 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
+from postgrest.exceptions import APIError
 
-from src.exceptions import AppException, ErrorCode, NotFoundException, PermissionException
+from src.exceptions import (
+    AppException,
+    DatabaseSchemaOutdatedException,
+    ErrorCode,
+    NotFoundException,
+    PermissionException,
+)
 from src.platform.authorization.models import (
     ROLE_CAPABILITIES,
     GrantSource,
@@ -64,6 +71,18 @@ class RepositoryStub:
     def revoke_user_git_credential(self, **kwargs):
         self.revoked = kwargs
         return kwargs["credential_id"] == "credential-1"
+
+
+class MissingCredentialRpcRepository(RepositoryStub):
+    def issue_user_git_credential(self, **_kwargs):
+        raise APIError(
+            {
+                "code": "PGRST202",
+                "message": "Could not find a function in the schema cache",
+                "details": "public.secret_rpc(private_signature)",
+                "hint": "Reload the schema",
+            }
+        )
 
 
 class ProjectRepositoryStub:
@@ -188,6 +207,34 @@ def test_editor_issues_user_owned_root_git_credential():
     assert request["user_id"] == "user-1"
     assert request["mode"] is GitCredentialMode.READ_WRITE
     assert request["raw_token"] == RAW_CREDENTIAL
+
+
+def test_missing_git_credential_rpc_is_typed_retryable_service_upgrade():
+    payload = GitCredentialIssueRequest(
+        target={"kind": "project_root", "project_id": "project-1"},
+        mode=GitCredentialMode.READ_WRITE,
+        credential=RAW_CREDENTIAL,
+    )
+
+    with pytest.raises(DatabaseSchemaOutdatedException) as caught:
+        _service(MissingCredentialRpcRepository()).issue_git_credential(
+            "project-1",
+            "user-1",
+            OPERATION_KEY,
+            payload.target,
+            payload.mode,
+            payload.credential,
+        )
+
+    error = caught.value
+    assert error.status_code == 503
+    assert error.details == {
+        "code": "database_schema_outdated",
+        "retryable": True,
+    }
+    assert error.headers == {"Retry-After": "30"}
+    assert "function" not in error.message.lower()
+    assert "signature" not in error.message.lower()
 
 
 def test_viewer_may_issue_read_but_not_write_credential():

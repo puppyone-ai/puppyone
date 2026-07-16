@@ -15,7 +15,6 @@ from src.config import settings
 from .base import SandboxBase, SandboxSession
 from .store import ExecutionSession, ExecutionSessionStore, durable_execution_store
 
-
 # Docker session timeout (seconds)
 DEFAULT_DOCKER_SESSION_TIMEOUT = 600  # 10 minutes
 
@@ -270,7 +269,14 @@ class DockerSandbox(SandboxBase):
 
         return (False, "", f"Required image json-sandbox:3.19 failed to start: {stderr}")
 
-    async def start(self, session_id: str, data: Any, readonly: bool = False) -> dict:
+    async def start(
+        self,
+        session_id: str,
+        data: Any,
+        readonly: bool = False,
+        *,
+        project_id: str | None = None,
+    ) -> dict:
         """
         Create a sandbox session and preload a single JSON data into /workspace/data.json
 
@@ -300,6 +306,7 @@ class DockerSandbox(SandboxBase):
             claim = ExecutionSession(
                 session_id=session_id, provider="docker", resource_id="",
                 readonly=readonly, created_at=now, last_activity=now,
+                project_id=project_id,
             )
             if not self._store.insert(claim):
                 return {"success": False, "error": "Sandbox session is being started by another worker"}
@@ -354,7 +361,9 @@ class DockerSandbox(SandboxBase):
         session_id: str,
         files: list,
         readonly: bool = False,
-        s3_service: Optional[Any] = None
+        s3_service: Optional[Any] = None,
+        *,
+        project_id: str | None = None,
     ) -> dict:
         """
         Create a sandbox session and preload multiple files
@@ -388,6 +397,7 @@ class DockerSandbox(SandboxBase):
             claim = ExecutionSession(
                 session_id=session_id, provider="docker", resource_id="",
                 readonly=readonly, created_at=now, last_activity=now,
+                project_id=project_id,
             )
             if not self._store.insert(claim):
                 return {"success": False, "error": "Sandbox session is being started by another worker"}

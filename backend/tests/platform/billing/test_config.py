@@ -114,3 +114,14 @@ def test_runtime_recovery_fence_outlives_transport_retries() -> None:
             PUPPYPAY_TIMEOUT_SECONDS=20,
             RUNTIME_BILLING_RECOVERY_RETRY_SECONDS=30,
         )
+
+
+def test_hosted_replica_local_derived_storage_must_be_ephemeral() -> None:
+    value = settings(HOST_DERIVED_STORAGE_MODE="persistent")
+    value.APP_ENV = "production"
+
+    with pytest.raises(ValueError, match="ephemeral derived storage"):
+        value.enforce_host_derived_storage_ephemerality()
+
+    value.HOST_DERIVED_STORAGE_MODE = "ephemeral"
+    assert value.enforce_host_derived_storage_ephemerality() is value

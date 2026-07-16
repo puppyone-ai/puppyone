@@ -7,6 +7,25 @@ CREATE EXTENSION IF NOT EXISTS dblink WITH SCHEMA extensions;
 
 BEGIN;
 
+CREATE FUNCTION pg_temp.ingest_snapshot(p_project_id text)
+RETURNS jsonb LANGUAGE sql IMMUTABLE AS $$
+SELECT jsonb_build_object(
+    'project_id', p_project_id,
+    'provider_handles', '[]'::jsonb,
+    'redis_keys', '[]'::jsonb,
+    'cache_task_ids', '[]'::jsonb,
+    'etl_task_ids', '[]'::jsonb,
+    'arq_job_ids', '[]'::jsonb,
+    'errors', '[]'::jsonb
+)
+$$;
+
+-- Rollout inventory is exercised separately; this suite tests post-inventory
+-- lifecycle semantics.
+UPDATE public.project_storage_inventory_state
+SET inventory_complete = true, completed_at = now()
+WHERE singleton;
+
 INSERT INTO auth.users (
     instance_id, id, aud, role, email, encrypted_password,
     email_confirmed_at, raw_app_meta_data, raw_user_meta_data,
@@ -62,7 +81,7 @@ INSERT INTO public.org_members (id, org_id, user_id, role) VALUES
 
 COMMIT;
 
-SELECT plan(73);
+SELECT plan(79);
 
 CREATE TEMP TABLE issue039_results (
     lane text NOT NULL,
@@ -142,10 +161,35 @@ SELECT is(
     'both uninitialized roots are safely auto-abandonable'
 );
 SELECT is(
+    (SELECT count(*) FROM public.claim_project_deletion_jobs(
+        'issue039-pre-root-drain', 1, 300
+    )),
+    1::bigint,
+    'abandon closes write admission and makes the drain phase immediately claimable'
+);
+SELECT public.persist_project_deletion_external_ingest_snapshot(
+    (SELECT id FROM public.project_deletion_jobs
+     WHERE source_operation_key = '99999999-9999-4999-8999-999999999999'),
+    'issue039-pre-root-drain',
+    pg_temp.ingest_snapshot('issue039-pre-root-project')
+);
+SELECT is(
+    public.drain_project_deletion_job(
+        (SELECT id FROM public.project_deletion_jobs
+         WHERE source_operation_key = '99999999-9999-4999-8999-999999999999'),
+        'issue039-pre-root-drain'
+    )->>'outcome',
+    'drained',
+    'an unleased abandoned Project drains before relational deletion'
+);
+SELECT is(
     (SELECT count(*) FROM public.projects WHERE org_id = 'issue039-pre-root-org'),
     0::bigint,
-    'pre-root abandonment releases Project quota immediately'
+    'pre-root abandonment releases Project quota only after write drain'
 );
+UPDATE public.project_deletion_jobs
+SET available_at = now() + interval '1 day'
+WHERE source_operation_key = '99999999-9999-4999-8999-999999999999';
 
 -- Same operation, same payload, two simultaneous requests: exactly one
 -- Project is published and the loser returns the original operation snapshot.
@@ -588,15 +632,16 @@ SELECT is(
     'empty initialization may be abandoned by its original operation'
 );
 SELECT is(
-    (SELECT count(*) FROM public.projects WHERE org_id = 'issue039-same-key-org'),
-    0::bigint,
-    'abandon removes Project authorization state immediately'
+    (SELECT lifecycle_status FROM public.projects
+     WHERE org_id = 'issue039-same-key-org'),
+    'deleting',
+    'abandon immediately hides the Project while retaining its drain barrier'
 );
 SELECT is(
     (SELECT status FROM public.access_surface_credentials
      WHERE id = 'issue039-credential-a'),
-    NULL::text,
-    'Project cascade removes the operation credential row'
+    'revoked',
+    'abandon revokes the operation credential before relational drain'
 );
 SELECT is(
     (SELECT status FROM public.git_credential_issue_operations
@@ -606,7 +651,7 @@ SELECT is(
 );
 SELECT is(
     (SELECT object_prefixes FROM public.project_deletion_jobs
-     WHERE source = 'initialization_abandon'),
+     WHERE source_operation_key = '11111111-1111-4111-8111-111111111111'),
     public._project_deletion_object_prefixes(
         (SELECT project_id FROM public.project_create_operations
          WHERE operation_key = '11111111-1111-4111-8111-111111111111'),
@@ -615,10 +660,10 @@ SELECT is(
     'deletion job covers every exact Project-owned object namespace'
 );
 SELECT ok(
-    (SELECT available_at >= created_at + interval '1800 seconds'
+    (SELECT phase = 'drain' AND quiescence_seconds = 1800
      FROM public.project_deletion_jobs
-     WHERE source = 'initialization_abandon'),
-    'deletion job persists the full admission-quiescence barrier'
+     WHERE source_operation_key = '11111111-1111-4111-8111-111111111111'),
+    'deletion job persists drain before the post-purge verification interval'
 );
 SELECT is(
     (
@@ -723,8 +768,10 @@ SELECT is(
     'the owning worker atomically aborts an unpublished deferred aggregate'
 );
 SELECT ok(
-    NOT EXISTS (
-        SELECT 1 FROM public.projects WHERE id = 'issue039-deferred-project'
+    EXISTS (
+        SELECT 1 FROM public.projects
+        WHERE id = 'issue039-deferred-project'
+          AND lifecycle_status = 'deleting'
     )
     AND EXISTS (
         SELECT 1 FROM public.project_create_operations
@@ -736,7 +783,7 @@ SELECT ok(
         WHERE project_id = 'issue039-deferred-project'
           AND source = 'publication_abort'
     ),
-    'deferred abort hides authorization state and leaves durable cleanup tombstones'
+    'deferred abort hides authorization state behind a durable drain tombstone'
 );
 SELECT is(
     (
@@ -776,26 +823,76 @@ SELECT is(
 );
 SELECT is(
     (SELECT count(*) FROM public.claim_project_deletion_jobs(
-        'issue039-worker-before-grace', 10, 300
+        'issue039-worker-drain', 10, 300
     )),
-    0::bigint,
-    'cleanup cannot claim a Project before quiescence expires'
+    3::bigint,
+    'all newly deleted Projects enter an immediately claimable drain phase'
+);
+SELECT public.persist_project_deletion_external_ingest_snapshot(
+    job.id,
+    'issue039-worker-drain',
+    pg_temp.ingest_snapshot(job.project_id)
+)
+FROM public.project_deletion_jobs job
+WHERE job.claimed_by = 'issue039-worker-drain'
+  AND job.phase = 'drain';
+SELECT is(
+    public.drain_project_deletion_job(
+        (SELECT id FROM public.project_deletion_jobs
+         WHERE source_operation_key = '11111111-1111-4111-8111-111111111111'),
+        'issue039-worker-drain'
+    )->>'outcome',
+    'drained',
+    'initialization Abandon drains before relational deletion'
+);
+SELECT is(
+    public.drain_project_deletion_job(
+        (SELECT id FROM public.project_deletion_jobs
+         WHERE source_operation_key = '44444444-4444-4444-8444-444444444444'),
+        'issue039-worker-drain'
+    )->>'outcome',
+    'drained',
+    'deferred publication abort drains before relational deletion'
+);
+SELECT is(
+    public.drain_project_deletion_job(
+        (SELECT id FROM public.project_deletion_jobs
+         WHERE org_id = 'issue039-quota-org'),
+        'issue039-worker-drain'
+    )->>'outcome',
+    'drained',
+    'ordinary Project deletion drains before relational deletion'
+);
+SELECT ok(
+    NOT EXISTS (
+        SELECT 1 FROM public.projects
+        WHERE id IN (
+            'issue039-same-key-project-a',
+            'issue039-same-key-project-b',
+            'issue039-deferred-project'
+        ) OR org_id = 'issue039-quota-org'
+    ),
+    'drain removes every hidden Project only after admitted writers finish'
 );
 
 UPDATE public.project_deletion_jobs
-SET available_at = now()
-WHERE source = 'initialization_abandon';
+SET available_at = CASE
+        WHEN source_operation_key = '11111111-1111-4111-8111-111111111111'
+            THEN now()
+        ELSE now() + interval '1 day'
+    END
+WHERE status = 'pending';
 SELECT is(
     (SELECT count(*) FROM public.claim_project_deletion_jobs(
         'issue039-worker-purge', 10, 300
     )),
     1::bigint,
-    'expired quiescence makes the purge phase claimable'
+    'a drained Project enters the purge phase immediately'
 );
 SELECT is(
     public.complete_project_deletion_job(
         (SELECT id FROM public.project_deletion_jobs
-         WHERE source = 'initialization_abandon'),
+         WHERE source_operation_key = '11111111-1111-4111-8111-111111111111'),
         'issue039-worker-purge'
     ),
     NULL::boolean,
@@ -804,7 +901,7 @@ SELECT is(
 SELECT is(
     public.schedule_project_deletion_verification(
         (SELECT id FROM public.project_deletion_jobs
-         WHERE source = 'initialization_abandon'),
+         WHERE source_operation_key = '11111111-1111-4111-8111-111111111111'),
         'issue039-worker-purge', 10
     ),
     true,
@@ -812,7 +909,7 @@ SELECT is(
 );
 SELECT is(
     (SELECT phase FROM public.project_deletion_jobs
-     WHERE source = 'initialization_abandon'),
+     WHERE source_operation_key = '11111111-1111-4111-8111-111111111111'),
     'verify',
     'deletion job persists its verify phase'
 );
@@ -826,7 +923,7 @@ SELECT is(
 
 UPDATE public.project_deletion_jobs
 SET available_at = now()
-WHERE source = 'initialization_abandon';
+WHERE source_operation_key = '11111111-1111-4111-8111-111111111111';
 SELECT is(
     (SELECT count(*) FROM public.claim_project_deletion_jobs(
         'issue039-worker-verify', 10, 300
@@ -837,7 +934,7 @@ SELECT is(
 SELECT is(
     public.complete_project_deletion_job(
         (SELECT id FROM public.project_deletion_jobs
-         WHERE source = 'initialization_abandon'),
+         WHERE source_operation_key = '11111111-1111-4111-8111-111111111111'),
         'issue039-worker-verify'
     ),
     true,
@@ -845,7 +942,7 @@ SELECT is(
 );
 SELECT is(
     (SELECT status FROM public.project_deletion_jobs
-     WHERE source = 'initialization_abandon'),
+     WHERE source_operation_key = '11111111-1111-4111-8111-111111111111'),
     'completed',
     'completed deletion retains its durable tombstone'
 );

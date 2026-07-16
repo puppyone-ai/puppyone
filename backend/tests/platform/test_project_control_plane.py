@@ -5,7 +5,10 @@ from copy import deepcopy
 import pytest
 
 from src.exceptions import AppException
-from src.platform.project.control_plane import ProjectControlPlaneService
+from src.platform.project.control_plane import (
+    ProjectControlPlaneRepository,
+    ProjectControlPlaneService,
+)
 
 OPERATION_KEY = "123e4567-e89b-42d3-a456-426614174000"
 PROJECT_ROW = {
@@ -194,6 +197,22 @@ def test_in_progress_preflight_is_stable_and_never_falls_through_to_mutable_sour
     assert caught.value.details == {"code": "project_publication_in_progress"}
 
 
+def test_preflight_during_deletion_is_a_stable_gone_response_not_a_500() -> None:
+    service = ProjectControlPlaneService(
+        RepositoryStub(replay_outcomes=[{"outcome": "lifecycle_conflict"}])
+    )
+
+    with pytest.raises(AppException) as caught:
+        service.preflight_project_creation(
+            operation_key=OPERATION_KEY,
+            actor_user_id="00000000-0000-4000-8000-000000000001",
+            request_fingerprint={"kind": "template-request", "org_id": "org-1"},
+        )
+
+    assert caught.value.status_code == 410
+    assert caught.value.details["code"] == "idempotency_target_gone"
+
+
 @pytest.mark.parametrize(
     ("outcome", "status_code", "code"),
     [
@@ -306,3 +325,28 @@ def test_deferred_abort_is_a_durable_control_plane_operation():
             "worker_id": None,
         }
     ]
+
+
+def test_storage_inventory_rollout_gate_is_a_typed_503_not_database_noise() -> None:
+    class Request:
+        def execute(self):
+            raise RuntimeError("Project storage inventory is incomplete")
+
+    class Client:
+        def rpc(self, *_args, **_kwargs):
+            return Request()
+
+    repository = ProjectControlPlaneRepository(Client())
+
+    with pytest.raises(AppException) as caught:
+        repository.delete_project(
+            project_id="project-1",
+            actor_user_id="user-1",
+            quiescence_seconds=3600,
+        )
+
+    assert caught.value.status_code == 503
+    assert caught.value.details == {
+        "code": "project_storage_inventory_incomplete",
+        "retryable": True,
+    }

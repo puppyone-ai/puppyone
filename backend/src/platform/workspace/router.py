@@ -81,6 +81,7 @@ async def create_workspace(
     entitlement_service: EntitlementService = Depends(get_entitlement_service),
     ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
 ):
+    from src.platform.project.write_lease import ProjectWriteLease
     from src.platform.workspace.provider import get_workspace_provider
     from src.platform.workspace.sync_worker import SyncWorker
 
@@ -95,16 +96,19 @@ async def create_workspace(
     provider = get_workspace_provider()
     sync_worker = SyncWorker(
         ops=ops,
-        base_dir=provider._base_dir if hasattr(provider, "_base_dir") else "/tmp/contextbase",
+        base_dir=provider._base_dir,
     )
 
-    sync_result = await sync_worker.sync_project(request.project_id)
-
-    info = await provider.create_workspace(
-        agent_id=agent_id,
-        project_id=request.project_id,
-        base_commit_id=sync_result.get("head_commit_id") or None,
-    )
+    # Local materialization is Project-owned host state. Count it in the same
+    # deletion admission/drain protocol as durable writers so cleanup cannot
+    # race a late workspace recreation.
+    async with ProjectWriteLease(request.project_id, "workspace.create"):
+        sync_result = await sync_worker.sync_project(request.project_id)
+        info = await provider.create_workspace(
+            agent_id=agent_id,
+            project_id=request.project_id,
+            base_commit_id=sync_result.get("head_commit_id") or None,
+        )
 
     mount_cmd = f"docker run -v {info.path}:/workspace your-agent-image"
     log_info(f"[Workspace API] Created workspace: agent={agent_id}, path={info.path}")
@@ -148,7 +152,7 @@ async def complete_workspace(
     # Verify the agent's workspace actually belongs to the caller-supplied
     # project_id — otherwise a caller with access to project A could merge
     # another project B's workspace into A by supplying a mismatched agent_id.
-    ws_info = provider._registry.get(agent_id) if hasattr(provider, "_registry") else None
+    ws_info = provider.get_workspace_info(agent_id)
     if ws_info is not None and ws_info.project_id != project_id:
         raise HTTPException(
             status_code=403,
@@ -232,7 +236,7 @@ async def workspace_status(
     from src.platform.workspace.provider import get_workspace_provider
 
     provider = get_workspace_provider()
-    info = provider._registry.get(agent_id) if hasattr(provider, "_registry") else None
+    info = provider.get_workspace_info(agent_id)
 
     # A workspace is bound to a project — only members of that project may
     # observe its status/path. Without this any authenticated user could probe

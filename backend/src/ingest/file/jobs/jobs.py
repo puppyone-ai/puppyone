@@ -19,12 +19,19 @@ from typing import Any
 from src.infra.supabase.client import SupabaseClient
 from src.ingest.file.config import etl_config
 from src.ingest.file.exceptions import ETLTransformationError
-from src.ingest.file.ocr.base import OCRProvider, OCRProviderError
+from src.ingest.file.ocr.base import (
+    OCRExternalJob,
+    OCRExternalJobCompletion,
+    OCRProvider,
+    OCRProviderError,
+)
+from src.ingest.file.ocr.lifecycle import run_ocr_lifecycle_under_project_lease
 from src.ingest.file.rules.engine import RuleEngine
 from src.ingest.file.rules.repository_supabase import RuleRepositorySupabase
 from src.ingest.file.state.models import ETLPhase, ETLRuntimeState
 from src.ingest.file.state.repository import ETLStateRepositoryRedis
 from src.ingest.file.tasks.models import ETLTaskResult, ETLTaskStatus
+from src.platform.project.write_lease import ProjectWriteLease
 from src.version_engine.adapters.product.operation_adapter import BlobRef
 
 logger = logging.getLogger(__name__)
@@ -283,11 +290,65 @@ async def etl_ocr_job(ctx: dict, task_id: str | int) -> dict:
             source_key, expires_in=3600
         )
 
-        # Use pluggable OCR provider (MineRU, Reducto, etc.)
-        parsed = await ocr_provider.parse_document(
+        async def persist_provider_handle(
+            provider_job: OCRExternalJob,
+            *,
+            terminal: bool,
+        ) -> None:
+            metadata = {
+                **provider_job.persistence_metadata(),
+                "provider_task_terminal": terminal,
+            }
+            state.provider_name = provider_job.provider
+            state.provider_task_id = provider_job.task_id
+            state.provider_task_external = provider_job.external
+            state.provider_task_terminal = terminal
+            state.metadata.update(metadata)
+            state.touch()
+            # Do not begin the provider wait (or report it terminal) until both
+            # durable discovery sources contain the exact same handle.
+            await state_repo.set(state)
+            task.metadata.update(metadata)
+            persisted = await asyncio.to_thread(repo.update_task, task)
+            if persisted is None:
+                raise RuntimeError(
+                    "Unable to persist OCR provider lifecycle in SQL"
+                )
+
+        async def on_created(provider_job: OCRExternalJob) -> None:
+            await persist_provider_handle(
+                provider_job,
+                terminal=not provider_job.external,
+            )
+
+        async def on_terminal(completion: OCRExternalJobCompletion) -> None:
+            await persist_provider_handle(completion.job, terminal=True)
+
+        # The renewable Project lease spans provider creation, durable handle
+        # persistence, the external wait, and local materialization. Deletion
+        # can therefore snapshot only after this lifecycle is terminal.
+        parsed = await run_ocr_lifecycle_under_project_lease(
+            lease_factory=ctx.get("project_write_lease_factory", ProjectWriteLease),
+            project_id=task.project_id,
+            provider=ocr_provider,
             file_url=presigned_url,
             data_id=str(task_id),
+            on_created=on_created,
+            on_terminal=on_terminal,
         )
+
+        if state.provider_task_id is None:
+            # Inline providers expose no remote cancellable job, but persisting
+            # their terminal identity makes historical cleanup classification
+            # explicit instead of relying on a provider-name default.
+            await persist_provider_handle(
+                OCRExternalJob(
+                    provider=ocr_provider.name,
+                    task_id=parsed.task_id,
+                    external=False,
+                ),
+                terminal=True,
+            )
 
         # If user cancelled while we were waiting on provider, honor cancellation and avoid overwriting terminal state.
         latest = await state_repo.get(task_id)
@@ -488,8 +549,9 @@ async def finalize_upload_to_version(
             f"task={task_id} ({ref.size}B)"
         )
 
-        from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
-        commands = build_worker_version_engine_container().write_commands()
+        from src.platform.project.write_lease import build_leased_worker_write_commands
+
+        commands = build_leased_worker_write_commands()
         # ``verify_blobs=False`` because we just wrote the blob to
         # its version object key inside ``stage_blob_from_s3`` — it IS
         # there, no need to round-trip a HEAD.
@@ -817,8 +879,9 @@ async def finalize_uploads_to_version_batch(
     # ``verify_blobs=False`` is safe here because we just wrote each blob to
     # its version object key inside ``stage_blob_from_s3`` above — they ARE present, no
     # need to round-trip a HEAD per ref.
-    from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
-    commands = build_worker_version_engine_container().write_commands()
+    from src.platform.project.write_lease import build_leased_worker_write_commands
+
+    commands = build_leased_worker_write_commands()
     first_task = survivors[0]["task"]
     who = f"upload:{first_task.created_by or 'unknown'}"
     message = (
@@ -1069,8 +1132,9 @@ async def etl_postprocess_job(ctx: dict, task_id: str | int) -> dict:
         mount_json_path = task.metadata.get("mount_json_path") or ""
         mount_key = task.metadata.get("mount_key") or Path(task.filename).name
 
-        from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
-        commands = build_worker_version_engine_container().write_commands()
+        from src.platform.project.write_lease import build_leased_worker_write_commands
+
+        commands = build_leased_worker_write_commands()
 
         if not mount_path:
             auto_name = task.metadata.get("auto_node_name") or f"{task_id}"

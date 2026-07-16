@@ -136,6 +136,27 @@ def test_legacy_project_creation_rpc_is_removed_without_a_default_escape_hatch()
     assert "SET NOT NULL" in lifecycle_alter
 
 
+def test_legacy_projects_are_preserved_ready_without_empty_or_age_heuristics():
+    sql = _sql()
+    backfill = sql.split("ADD COLUMN lifecycle_status text;", 1)[1].split(
+        "ALTER TABLE public.projects", 1
+    )[0]
+    claims = _function(
+        sql,
+        "claim_project_initialization_operations",
+        "renew_project_initialization_claim",
+    )
+
+    assert backfill.count(
+        "UPDATE public.projects SET lifecycle_status = 'ready';"
+    ) == 1
+    assert "WHERE" not in backfill.upper()
+    assert "FROM public.project_create_operations operation" in claims
+    assert "version_root_hash IS NULL" not in claims
+    assert "created_at <" not in claims
+    assert "name =" not in claims
+
+
 def test_service_role_cannot_bypass_project_creation_or_publication_gate():
     sql = _sql()
     grants = sql.split(
@@ -277,8 +298,9 @@ def test_deferred_abort_is_service_only_and_always_persists_exact_prefix_cleanup
     mode_guard = function.index("operation.publication_mode <> 'deferred'")
     project_lookup = function.index("FROM public.projects")
     job_insert = function.index("INSERT INTO public.project_deletion_jobs")
-    project_delete = function.index("DELETE FROM public.projects")
-    assert mode_guard < project_lookup < job_insert < project_delete
+    admission_close = function.index("SET lifecycle_status = 'deleting'")
+    assert mode_guard < project_lookup < job_insert < admission_close
+    assert "DELETE FROM public.projects" not in function
     assert "operation.initialization_claimed_by IS DISTINCT FROM p_worker_id" in function
     assert "project_row.lifecycle_status <> 'initializing'" in function
     assert "project_row.org_id IS DISTINCT FROM operation.org_id" in function
@@ -300,19 +322,60 @@ def test_deferred_abort_is_service_only_and_always_persists_exact_prefix_cleanup
 def test_deletion_tombstone_survives_project_and_has_quiescent_two_phase_cleanup():
     sql = _sql()
     table = sql.split("CREATE TABLE public.project_deletion_jobs", 1)[1].split(
-        "ALTER TABLE public.project_create_operations", 1
+        "CREATE TABLE public.project_write_leases", 1
     )[0]
 
     assert "REFERENCES public.projects" not in table
     assert "quiescence_seconds integer NOT NULL" in table
     assert "CHECK (quiescence_seconds >= 1800)" in table
-    assert "phase IN ('purge', 'verify')" in table
+    assert "phase IN ('drain', 'purge', 'verify')" in table
+    assert "CREATE TABLE public.project_write_leases" in sql
+    assert "CREATE FUNCTION public.drain_project_deletion_job" in sql
+    drain = _function(
+        sql,
+        "drain_project_deletion_job",
+        "claim_project_deletion_jobs",
+    )
+    lease_count = drain.index("FROM public.project_write_leases lease")
+    project_delete = drain.index("DELETE FROM public.projects")
+    assert lease_count < project_delete
     assert "available_at = now() + make_interval" in sql
     assert "schedule_project_deletion_verification" in sql
     assert "AND phase = 'verify'" in sql
     assert "FOR UPDATE SKIP LOCKED" in sql
     for prefix in ("'version/'", "'mut/'", "'projects/'"):
         assert prefix in sql
+
+
+def test_write_admission_lease_closes_before_deletion_and_drains_before_cascade():
+    sql = _sql()
+    acquire = _function(
+        sql,
+        "acquire_project_write_lease",
+        "renew_project_write_lease",
+    )
+    delete = _function(
+        sql,
+        "delete_project_control_plane",
+        "drain_project_deletion_job",
+    )
+    drain = _function(
+        sql,
+        "drain_project_deletion_job",
+        "claim_project_deletion_jobs",
+    )
+
+    assert "lifecycle_status IN ('initializing', 'ready', 'deleting')" in sql
+    assert "CREATE TABLE public.project_write_leases" in sql
+    assert "FOR UPDATE" in acquire
+    assert "operation.status = 'initializing'" in acquire
+    assert "initialization_claimed_by = p_initialization_worker" in acquire
+    assert "COALESCE(p_ttl_seconds, 120), 7200" in acquire
+    assert "SET lifecycle_status = 'deleting'" in delete
+    lease_count = drain.index("FROM public.project_write_leases lease")
+    relational_delete = drain.index("DELETE FROM public.projects")
+    assert lease_count < relational_delete
+    assert "active_count > 0" in drain
 
 
 def test_project_delete_locks_authorization_facts_before_final_role_resolution():

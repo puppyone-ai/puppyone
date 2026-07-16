@@ -41,6 +41,10 @@ from src.platform.project.schemas import (
     UpdateProjectMemberRole,
 )
 from src.platform.project.service import ProjectService
+from src.platform.project.write_lease import (
+    ProjectWriteLeaseFactory,
+    get_project_write_lease_factory,
+)
 from src.platform.repository_target.protocol import require_repository_target_contract
 from src.platform.template_registry.dependencies import (
     get_template_registry_service,
@@ -261,6 +265,9 @@ async def create_project(
     entitlement_service: EntitlementService = Depends(get_entitlement_service),
     authorization: AuthorizationService = Depends(get_authorization_service),
     version_engine: VersionWriteEngine = Depends(get_version_write_engine),
+    write_lease_factory: ProjectWriteLeaseFactory = Depends(
+        get_project_write_lease_factory
+    ),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     # The RPC is the authoritative membership + quota admission point.  Keep
@@ -282,6 +289,7 @@ async def create_project(
         project_limit=project_limit,
         publication_mode="empty",
         source_fingerprint={"kind": "empty-git-repository", "version": 1},
+        write_lease_factory=write_lease_factory,
     )
     project = result.project
     grant, access_point_counts = await asyncio.gather(

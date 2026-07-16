@@ -41,6 +41,8 @@ def test_deletion_job_captures_all_physical_project_namespaces_before_cascade() 
     assert "COALESCE(upload.created_by::text, p_project_id)" in sql
     assert "NEW.storage_principals :=" in trigger
     assert "NEW.object_prefixes :=" in trigger
+    assert "NEW.search_namespace_prefixes :=" in trigger
+    assert "NEW.sandbox_resources :=" in trigger
     for namespace in (
         "version/",
         "mut/",
@@ -85,6 +87,29 @@ def test_deletion_job_manifest_is_constrained_to_the_exact_allowlist() -> None:
     )
     assert "p_storage_principals ? p_requested_by::text" in sql
     assert "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$" in sql
+    assert "project_deletion_jobs_search_prefixes_check" in sql
+    assert "project_deletion_jobs_sandbox_resources_check" in sql
+    assert "FROM public.scope_sandbox_sessions session" in sql
+    assert "FROM public.sandbox_execution_sessions session" in sql
+
+
+def test_storage_inventory_is_two_pass_fail_closed_and_tracks_orphans() -> None:
+    sql = _sql()
+
+    assert "inventory_complete boolean NOT NULL DEFAULT false" in sql
+    assert "CREATE TABLE public.project_storage_inventory_batches" in sql
+    assert "CREATE TABLE public.project_storage_orphan_prefixes" in sql
+    assert "finalize_project_storage_inventory_scan" in sql
+    assert "verify_project_storage_inventory" in sql
+    assert "verification_digest IS DISTINCT FROM state.inventory_digest" in sql
+    assert "orphan_cleanup_required" in sql
+    trigger = _function(
+        sql,
+        "_prepare_project_deletion_job_storage",
+        "REVOKE ALL ON FUNCTION public._prepare_project_deletion_job_storage",
+    )
+    assert "Project storage inventory is incomplete" in trigger
+    assert "ERRCODE = '55000'" in trigger
 
 
 def test_empty_organization_rpc_locks_before_final_owner_and_emptiness_proofs() -> None:
@@ -105,6 +130,9 @@ def test_empty_organization_rpc_locks_before_final_owner_and_emptiness_proofs() 
     assert function.count("FOR UPDATE") >= 2
     assert "actor_org_count <= 1" in function
     assert "'organization_not_empty'" in function
+    assert "'organization_deletion_in_progress'" in function
+    assert "FROM public.project_deletion_jobs job" in function
+    assert "job.status <> 'completed'" in function
 
 
 def test_direct_organization_delete_is_removed_from_the_application_role() -> None:
