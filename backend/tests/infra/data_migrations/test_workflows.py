@@ -96,6 +96,7 @@ def test_ordered_data_migration_fixtures_are_not_auto_discovered_by_supabase() -
     assert not list(supabase_tests.glob("*fixture*.sql"))
     assert not list(supabase_tests.glob("*assert*.sql"))
     assert (supabase_test_fixtures / "repository_target_upgrade_assert.sql").is_file()
+    assert (supabase_test_fixtures / "project_creator_admin_repair.sql").is_file()
     for migration in (permission_migration, creator_migration):
         assert (migration / "test_fixture.sql").is_file()
         assert (migration / "test_assert.sql").is_file()
