@@ -6,7 +6,7 @@ import asyncio
 import logging
 import socket
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from src.config import settings
@@ -253,8 +253,8 @@ def _deadline_expired(value: object) -> bool:
     try:
         deadline = value if isinstance(value, datetime) else datetime.fromisoformat(str(value))
         if deadline.tzinfo is None:
-            deadline = deadline.replace(tzinfo=timezone.utc)
-        return deadline <= datetime.now(timezone.utc)
+            deadline = deadline.replace(tzinfo=UTC)
+        return deadline <= datetime.now(UTC)
     except (TypeError, ValueError):
         return True
 

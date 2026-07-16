@@ -5,8 +5,9 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from typing import Any, Callable, Iterable
+from typing import Any
 
 from src.infra.supabase.client import SupabaseClient
 

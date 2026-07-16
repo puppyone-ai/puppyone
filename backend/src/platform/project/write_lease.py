@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
+from contextlib import suppress
 from contextvars import ContextVar, Token
 from types import TracebackType
 from typing import Any, Protocol
@@ -25,7 +26,7 @@ from src.version_engine.bootstrap.dependencies import get_version_engine_contain
 MAX_PROJECT_WRITE_LEASE_TTL_SECONDS = 7200
 PHYSICAL_S3_WRITE_LEASE_TTL_SECONDS = 7200
 
-_active_project_leases: ContextVar[tuple["ProjectWriteLease", ...]] = ContextVar(
+_active_project_leases: ContextVar[tuple[ProjectWriteLease, ...]] = ContextVar(
     "active_project_write_leases",
     default=(),
 )
@@ -236,10 +237,8 @@ class ProjectWriteLease:
         self._active = False
         if self._heartbeat is not None:
             self._heartbeat.cancel()
-            try:
+            with suppress(asyncio.CancelledError):
                 await self._heartbeat
-            except asyncio.CancelledError:
-                pass
         release_task = asyncio.create_task(
             asyncio.to_thread(
                 self.repository.release,
