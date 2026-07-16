@@ -27,6 +27,7 @@ from src.platform.project.control_plane import (
     ProjectPublicationMode,
 )
 from src.platform.project.models import Project
+from src.platform.project.write_lease import ProjectWriteLease, ProjectWriteLeaseFactory
 from src.version_engine.write_engine.engine import VersionWriteEngine
 
 logger = logging.getLogger(__name__)
@@ -63,6 +64,7 @@ async def create_project_with_tree(
     request_fingerprint: dict[str, Any] | None = None,
     result_metadata: dict[str, Any] | None = None,
     initialize: ProjectInitializer | None = None,
+    write_lease_factory: ProjectWriteLeaseFactory = ProjectWriteLease,
 ) -> IdempotentProjectResult:
     """Publish exactly one ready Project through the durable control plane.
 
@@ -105,20 +107,26 @@ async def create_project_with_tree(
 
     project_id = str(result.project.id)
     try:
-        await asyncio.to_thread(
-            initialize_project_tree_sync,
-            version_engine,
+        async with write_lease_factory(
             project_id,
-        )
-        if initialize is not None:
-            await initialize(result.project)
-        return await asyncio.to_thread(
-            control_plane.complete_project_initialization,
-            project_id=project_id,
-            operation_key=operation_key,
-            actor_user_id=created_by,
-            replayed=result.replayed,
-        )
+            "project.initialize",
+            initialization_operation_key=operation_key,
+            initialization_actor=created_by,
+        ):
+            await asyncio.to_thread(
+                initialize_project_tree_sync,
+                version_engine,
+                project_id,
+            )
+            if initialize is not None:
+                await initialize(result.project)
+            return await asyncio.to_thread(
+                control_plane.complete_project_initialization,
+                project_id=project_id,
+                operation_key=operation_key,
+                actor_user_id=created_by,
+                replayed=result.replayed,
+            )
     except Exception:
         if publication_mode == "deferred":
             try:

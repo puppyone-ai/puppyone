@@ -16,7 +16,7 @@ import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from src.platform.workspace.paths import (
     absolute_path,
@@ -88,6 +88,10 @@ class GitViewCacheHandle:
             raise ProjectHostResourceSafetyError("Git view handle escaped its Project directory")
         if self.lock_path != expected_project_dir / f".{self.view_dir.name}.lock":
             raise ProjectHostResourceSafetyError("Git view handle has an invalid lock path")
+        if not _VIEW_ID.fullmatch(self.metadata_digest):
+            raise ProjectHostResourceSafetyError(
+                "Git cache handle has an invalid metadata digest"
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,6 +119,94 @@ class ProjectHostResourceSnapshot:
             handle.validate()
             if handle.project_id != self.project_id:
                 raise ProjectHostResourceSafetyError("Git snapshot mixes Project ownership")
+
+    def to_dict(self) -> dict[str, Any]:
+        self.validate()
+        return {
+            "project_id": self.project_id,
+            "lower_cache": {
+                "kind": self.lower_cache.kind,
+                "project_id": self.lower_cache.project_id,
+                "root": str(self.lower_cache.root),
+                "path": str(self.lower_cache.path),
+            },
+            "workspace_tree": {
+                "kind": self.workspace_tree.kind,
+                "project_id": self.workspace_tree.project_id,
+                "root": str(self.workspace_tree.root),
+                "path": str(self.workspace_tree.path),
+            },
+            "git_views": [
+                {
+                    "project_id": handle.project_id,
+                    "cache_root": str(handle.cache_root),
+                    "project_dir": str(handle.project_dir),
+                    "view_dir": str(handle.view_dir),
+                    "lock_path": str(handle.lock_path),
+                    "metadata_digest": handle.metadata_digest,
+                }
+                for handle in self.git_views
+            ],
+            "unresolved_git_entries": [
+                str(path) for path in self.unresolved_git_entries
+            ],
+        }
+
+    @classmethod
+    def from_dict(cls, value: dict[str, Any]) -> ProjectHostResourceSnapshot:
+        try:
+            project_id = str(value["project_id"])
+            lower = value["lower_cache"]
+            workspace = value["workspace_tree"]
+            raw_views = value.get("git_views", [])
+            raw_unresolved = value.get("unresolved_git_entries", [])
+            if (
+                not isinstance(lower, dict)
+                or not isinstance(workspace, dict)
+                or not isinstance(raw_views, list)
+                or not isinstance(raw_unresolved, list)
+            ):
+                raise TypeError("snapshot resources have invalid shapes")
+            snapshot = cls(
+                project_id=project_id,
+                lower_cache=ProjectHostPathHandle(
+                    kind=str(lower["kind"]),  # type: ignore[arg-type]
+                    project_id=str(lower["project_id"]),
+                    root=Path(str(lower["root"])),
+                    path=Path(str(lower["path"])),
+                ),
+                workspace_tree=ProjectHostPathHandle(
+                    kind=str(workspace["kind"]),  # type: ignore[arg-type]
+                    project_id=str(workspace["project_id"]),
+                    root=Path(str(workspace["root"])),
+                    path=Path(str(workspace["path"])),
+                ),
+                git_views=tuple(
+                    GitViewCacheHandle(
+                        project_id=str(item["project_id"]),
+                        cache_root=Path(str(item["cache_root"])),
+                        project_dir=Path(str(item["project_dir"])),
+                        view_dir=Path(str(item["view_dir"])),
+                        lock_path=Path(str(item["lock_path"])),
+                        metadata_digest=str(item["metadata_digest"]),
+                    )
+                    for item in raw_views
+                    if isinstance(item, dict)
+                ),
+                unresolved_git_entries=tuple(
+                    Path(str(path)) for path in raw_unresolved
+                ),
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ProjectHostResourceSafetyError(
+                "persisted host cleanup snapshot is invalid"
+            ) from exc
+        if len(snapshot.git_views) != len(raw_views):
+            raise ProjectHostResourceSafetyError(
+                "persisted Git cleanup handles are invalid"
+            )
+        snapshot.validate()
+        return snapshot
 
 
 @dataclass(frozen=True, slots=True)
@@ -190,7 +282,7 @@ class ProjectHostCleanupPort:
     ) -> ProjectHostDeletionResult:
         """Delete a snapshot and wait for real filesystem work on cancellation."""
 
-        snapshot.validate()
+        self._validate_configured_snapshot(snapshot)
         task = asyncio.create_task(asyncio.to_thread(self._delete_sync, snapshot))
         try:
             result = await asyncio.shield(task)
@@ -216,7 +308,7 @@ class ProjectHostCleanupPort:
     ) -> ProjectHostCleanupVerification:
         """Re-scan the exact Project so post-snapshot cache creation is visible."""
 
-        snapshot.validate()
+        self._validate_configured_snapshot(snapshot)
         remaining_paths = tuple(
             handle.path
             for handle in (snapshot.lower_cache, snapshot.workspace_tree)
@@ -246,6 +338,34 @@ class ProjectHostCleanupPort:
             live_workspace_agents=live_agents,
         )
 
+    def restore(self, value: dict[str, Any]) -> ProjectHostResourceSnapshot:
+        snapshot = ProjectHostResourceSnapshot.from_dict(value)
+        self._validate_configured_snapshot(snapshot)
+        return snapshot
+
+    def _validate_configured_snapshot(
+        self,
+        snapshot: ProjectHostResourceSnapshot,
+    ) -> None:
+        snapshot.validate()
+        expected_lower = self._workspace_base / "lower"
+        expected_workspaces = self._workspace_base / "workspaces"
+        if (
+            snapshot.lower_cache.root != expected_lower
+            or snapshot.workspace_tree.root != expected_workspaces
+            or any(
+                handle.cache_root != self._git_cache_root
+                for handle in snapshot.git_views
+            )
+            or any(
+                path.parent != self._git_cache_root / snapshot.project_id[:80]
+                for path in snapshot.unresolved_git_entries
+            )
+        ):
+            raise ProjectHostResourceSafetyError(
+                "persisted host cleanup snapshot does not match configured roots"
+            )
+
     def _delete_sync(
         self,
         snapshot: ProjectHostResourceSnapshot,
@@ -258,6 +378,16 @@ class ProjectHostCleanupPort:
             else:
                 missing += 1
 
+        # A process can crash after creating a hash-addressed view directory
+        # but before publishing view.json. Under a non-truncated Project cache
+        # directory the path itself is an exact ownership proof; acquire the
+        # ordinary per-view lock before removing that partial state.
+        for entry in snapshot.unresolved_git_entries:
+            if self._delete_partial_git_view(snapshot.project_id, entry):
+                deleted += 1
+            else:
+                missing += 1
+
         for handle in (snapshot.workspace_tree, snapshot.lower_cache):
             if self._delete_project_path(handle):
                 deleted += 1
@@ -265,6 +395,34 @@ class ProjectHostCleanupPort:
                 missing += 1
 
         return deleted, missing
+
+    def _delete_partial_git_view(self, project_id: str, entry: Path) -> bool:
+        validate_storage_segment(project_id, label="project_id")
+        project_dir = self._git_cache_root / project_id[:80]
+        if len(project_id) >= 80 or entry.parent != project_dir:
+            raise ProjectHostResourceSafetyError(
+                "unresolved Git entry lacks an unambiguous Project owner"
+            )
+        if not _VIEW_ID.fullmatch(entry.name):
+            raise ProjectHostResourceSafetyError(
+                f"unresolved Git entry is not a view directory: {entry}"
+            )
+        lock_path = project_dir / f".{entry.name}.lock"
+        if lock_path.is_symlink():
+            raise ProjectHostResourceSafetyError(
+                f"Git view lock is a symlink: {lock_path}"
+            )
+        with try_file_exclusive_lock(lock_path) as acquired:
+            if not acquired:
+                raise ProjectHostResourceBusy(f"Git view is active: {entry}")
+            if not os.path.lexists(entry):
+                return False
+            if entry.is_symlink() or not entry.is_dir():
+                raise ProjectHostResourceSafetyError(
+                    f"partial Git view is not a real directory: {entry}"
+                )
+            shutil.rmtree(entry)
+        return True
 
     def _delete_git_view(self, handle: GitViewCacheHandle) -> bool:
         handle.validate()

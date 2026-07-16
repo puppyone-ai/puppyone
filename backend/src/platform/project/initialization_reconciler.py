@@ -12,6 +12,7 @@ from uuid import uuid4
 from src.config import settings
 from src.platform.project.control_plane import ProjectControlPlaneRepository
 from src.platform.project.orchestration import initialize_project_tree_sync
+from src.platform.project.write_lease import ProjectWriteLease, ProjectWriteLeaseFactory
 from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
 from src.version_engine.write_engine.engine import VersionWriteEngine
 
@@ -44,6 +45,7 @@ class ProjectInitializationReconciler:
         *,
         worker_id: str | None = None,
         max_attempts: int | None = None,
+        write_lease_factory: ProjectWriteLeaseFactory = ProjectWriteLease,
     ):
         self._repository = repository
         self._version_engine = version_engine
@@ -52,6 +54,7 @@ class ProjectInitializationReconciler:
             1,
             max_attempts or settings.PROJECT_INITIALIZATION_MAX_ATTEMPTS,
         )
+        self._write_lease_factory = write_lease_factory
 
     async def _terminalize_empty_initialization(
         self,
@@ -180,17 +183,24 @@ class ProjectInitializationReconciler:
                     project_id=project_id,
                     error="Project initialization deadline expired before publication",
                 )
-            await asyncio.to_thread(
-                initialize_project_tree_sync,
-                self._version_engine,
+            async with self._write_lease_factory(
                 project_id,
-            )
-            outcome = await asyncio.to_thread(
-                self._repository.complete_initialization,
-                project_id=project_id,
-                operation_key=operation_key,
-                actor_user_id=actor_user_id,
-            )
+                "project.reconcile_initialization",
+                initialization_operation_key=operation_key,
+                initialization_actor=actor_user_id,
+                initialization_worker=self._worker_id,
+            ):
+                await asyncio.to_thread(
+                    initialize_project_tree_sync,
+                    self._version_engine,
+                    project_id,
+                )
+                outcome = await asyncio.to_thread(
+                    self._repository.complete_initialization,
+                    project_id=project_id,
+                    operation_key=operation_key,
+                    actor_user_id=actor_user_id,
+                )
             if str(outcome.get("outcome") or "") not in {"completed", "replayed"}:
                 raise RuntimeError(
                     "Project initialization completion was not acknowledged: "

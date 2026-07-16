@@ -95,6 +95,17 @@ async def _noop_sidecar(*args, **kwargs):
     return None
 
 
+class _NoopLease:
+    def __init__(self, *_args, **_kwargs):
+        pass
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_args):
+        return False
+
+
 def _service(provider: FakeProvider):
     store = InMemorySandboxSessionStore()
     svc = ScopeSandboxService(
@@ -107,6 +118,7 @@ def _service(provider: FakeProvider):
         sidecar_starter=_noop_sidecar,   # keep connect tests hermetic (no DB/sidecar)
         scope_credential_issuer=lambda *_args: "secret-cli-token-value",
         git_credential_issuer=lambda *_args: "secret-git-token-value",
+        write_lease_factory=_NoopLease,
     )
     return svc
 

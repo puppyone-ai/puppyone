@@ -51,8 +51,9 @@ class TableService:
         return build_worker_version_engine_container().product_operations()
 
     def _get_write_commands(self):
-        from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
-        return build_worker_version_engine_container().write_commands()
+        from src.platform.project.write_lease import build_leased_worker_write_commands
+
+        return build_leased_worker_write_commands()
 
     def _table_version_path(self, _project_id: str, table_id: str) -> str:
         """Standard path for Table in the version tree"""

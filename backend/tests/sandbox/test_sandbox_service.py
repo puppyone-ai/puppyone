@@ -1,16 +1,19 @@
 """沙盒服务测试"""
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 import os
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from src.platform.scope_sandbox.execution.service import SandboxService, get_sandbox_type
-from src.platform.scope_sandbox.execution.e2b_sandbox import E2BSandbox
+import pytest
+
 from src.platform.scope_sandbox.execution import docker_sandbox as docker_sandbox_module
 from src.platform.scope_sandbox.execution.docker_sandbox import DockerSandbox
+from src.platform.scope_sandbox.execution.e2b_sandbox import E2BSandbox
+from src.platform.scope_sandbox.execution.service import SandboxService, get_sandbox_type
 from src.platform.scope_sandbox.execution.store import InMemoryExecutionSessionStore
-from src.platform.scope_sandbox.execution_policy import SandboxCommandRejected, assert_command_allowed
-
+from src.platform.scope_sandbox.execution_policy import (
+    SandboxCommandRejected,
+    assert_command_allowed,
+)
 
 # ==================== Fake E2B 实现 ====================
 
@@ -117,17 +120,52 @@ async def test_e2b_sandbox_status(e2b_sandbox_service):
     # 未启动时
     status = await e2b_sandbox_service.status("s1")
     assert status["active"] is False
-    
+
     # 启动后
     await e2b_sandbox_service.start(session_id="s1", data={"test": 1}, readonly=True)
     status = await e2b_sandbox_service.status("s1")
     assert status["active"] is True
     assert status["readonly"] is True
-    
+
     # 停止后
     await e2b_sandbox_service.stop("s1")
     status = await e2b_sandbox_service.status("s1")
     assert status["active"] is False
+
+
+@pytest.mark.anyio
+async def test_project_execution_creation_is_leased_and_persists_ownership():
+    sandbox = FakeSandbox()
+    store = InMemoryExecutionSessionStore()
+    impl = E2BSandbox(
+        sandbox_factory=lambda: sandbox,
+        sandbox_connector=lambda _sandbox_id: sandbox,
+        session_store=store,
+    )
+    leases: list[tuple[str, str]] = []
+
+    class Lease:
+        def __init__(self, project_id, operation, **_kwargs):
+            leases.append((project_id, operation))
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return False
+
+    service = SandboxService(sandbox_impl=impl, write_lease_factory=Lease)
+
+    result = await service.start(
+        "owned-session",
+        {"value": 1},
+        False,
+        audit_context={"project_id": "project-1", "source": "test"},
+    )
+
+    assert result["success"] is True
+    assert store.get("owned-session").project_id == "project-1"
+    assert leases == [("project-1", "sandbox.execution.start")]
 
 
 @pytest.mark.anyio

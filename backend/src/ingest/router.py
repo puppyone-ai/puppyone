@@ -225,9 +225,9 @@ async def submit_file_ingest(
     if mode == "ocr_parse":
         guard_unmetered_hosted_runtime("ingest.ocr_parse")
 
-    from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
+    from src.platform.project.write_lease import build_leased_worker_write_commands
 
-    commands = build_worker_version_engine_container().write_commands()
+    commands = build_leased_worker_write_commands()
 
     target_parent_path = (parent_path or parent_id or "").strip("/")
 

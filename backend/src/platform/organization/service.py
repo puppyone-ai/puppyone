@@ -112,6 +112,16 @@ class OrganizationService:
                 status_code=409,
                 details={"reason": "organization_not_empty"},
             )
+        if outcome == "organization_deletion_in_progress":
+            raise AppException(
+                code=ErrorCode.VERSION_CONFLICT,
+                message=(
+                    "Project deletion cleanup is still in progress; retry after "
+                    "Cloud resources have been verified as removed"
+                ),
+                status_code=409,
+                details={"reason": "organization_deletion_in_progress"},
+            )
         if outcome == "forbidden":
             raise ForbiddenException("Only owner can perform this action")
         if outcome == "not_found":

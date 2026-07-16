@@ -646,6 +646,20 @@ def create_app() -> FastAPI:
 
     app.add_middleware(RequestContextMiddleware)
 
+    # Keep lifecycle admission outside Version Engine internals while making
+    # every FastAPI Product command hold a renewable Project write lease.
+    from src.platform.project.write_lease import (
+        get_leased_version_write_command_service,
+        git_project_write_lease,
+    )
+    from src.version_engine.bootstrap.dependencies import (
+        get_version_write_command_service,
+    )
+
+    app.dependency_overrides[get_version_write_command_service] = (
+        get_leased_version_write_command_service
+    )
+
     # Register routes
     router_register_start = time.time()
     app.include_router(table_router, prefix="/api/v1", tags=["tables"])
@@ -697,7 +711,11 @@ def create_app() -> FastAPI:
     app.include_router(shadow_router, prefix="/api/v1", tags=["shadow-snapshots"])
     from src.version_engine.entrypoints.git.router import router as git_protocol_router
 
-    app.include_router(git_protocol_router, tags=["git-protocol"])
+    app.include_router(
+        git_protocol_router,
+        tags=["git-protocol"],
+        dependencies=[Depends(git_project_write_lease)],
+    )
     # WebSocket /ws — server→client commit_update notifications.
     from src.version_engine.entrypoints.http.websocket import ws_router as version_ws_router
 

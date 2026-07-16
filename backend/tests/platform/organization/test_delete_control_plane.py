@@ -53,6 +53,16 @@ def test_delete_preserves_the_users_only_organization() -> None:
     assert raised.value.status_code == 403
 
 
+def test_delete_waits_for_every_project_cleanup_job_to_complete() -> None:
+    with pytest.raises(AppException) as raised:
+        _delete("organization_deletion_in_progress")
+
+    assert raised.value.status_code == 409
+    assert raised.value.details == {
+        "reason": "organization_deletion_in_progress"
+    }
+
+
 def test_delete_maps_final_atomic_authorization_results() -> None:
     with pytest.raises(ForbiddenException, match="Only owner"):
         _delete("forbidden")

@@ -17,6 +17,8 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+from src.platform.project.write_lease import ProjectWriteLease, ProjectWriteLeaseFactory
+
 from .base import SandboxBase
 
 _SECRET_ASSIGNMENT = re.compile(
@@ -43,6 +45,7 @@ class SandboxService:
         self,
         sandbox_impl: SandboxBase | None = None,
         sandbox_factory: Callable[[], Any] | None = None,
+        write_lease_factory: ProjectWriteLeaseFactory = ProjectWriteLease,
     ):
         """
         Initialize sandbox service
@@ -66,6 +69,7 @@ class SandboxService:
         # None means billing was disabled or a shadow reservation failed.
         self._billing_runs: dict[str, str | None] = {}
         self._billing_timeout_tasks: dict[str, asyncio.Task[None]] = {}
+        self._write_lease_factory = write_lease_factory
 
     def _session_timeout_seconds(self) -> int:
         return max(1, int(getattr(self._impl, "_session_timeout", 600)))
@@ -152,17 +156,33 @@ class SandboxService:
         audit_context: dict[str, Any] | None = None,
     ) -> dict:
         """Create a sandbox session and preload a single JSON data"""
-        await self._begin_billing(session_id, audit_context)
-        try:
-            result = await self._impl.start(session_id, data, readonly)
-        except Exception:
-            await self._cancel_billing(session_id)
-            raise
-        if not result.get("success"):
-            await self._cancel_billing(session_id)
-        else:
-            self._arm_billing_timeout(session_id)
-        return result
+        project_id = str((audit_context or {}).get("project_id") or "")
+
+        async def admitted_start() -> dict:
+            await self._begin_billing(session_id, audit_context)
+            try:
+                if project_id:
+                    result = await self._impl.start(
+                        session_id,
+                        data,
+                        readonly,
+                        project_id=project_id,
+                    )
+                else:
+                    result = await self._impl.start(session_id, data, readonly)
+            except Exception:
+                await self._cancel_billing(session_id)
+                raise
+            if not result.get("success"):
+                await self._cancel_billing(session_id)
+            else:
+                self._arm_billing_timeout(session_id)
+            return result
+
+        if not project_id:
+            return await admitted_start()
+        async with self._write_lease_factory(project_id, "sandbox.execution.start"):
+            return await admitted_start()
 
     async def start_with_files(
         self,
@@ -174,17 +194,38 @@ class SandboxService:
         audit_context: dict[str, Any] | None = None,
     ) -> dict:
         """Create a sandbox session and preload multiple files"""
-        await self._begin_billing(session_id, audit_context)
-        try:
-            result = await self._impl.start_with_files(session_id, files, readonly, s3_service)
-        except Exception:
-            await self._cancel_billing(session_id)
-            raise
-        if not result.get("success"):
-            await self._cancel_billing(session_id)
-        else:
-            self._arm_billing_timeout(session_id)
-        return result
+        project_id = str((audit_context or {}).get("project_id") or "")
+
+        async def admitted_start() -> dict:
+            await self._begin_billing(session_id, audit_context)
+            try:
+                if project_id:
+                    result = await self._impl.start_with_files(
+                        session_id,
+                        files,
+                        readonly,
+                        s3_service,
+                        project_id=project_id,
+                    )
+                else:
+                    result = await self._impl.start_with_files(
+                        session_id, files, readonly, s3_service
+                    )
+            except Exception:
+                await self._cancel_billing(session_id)
+                raise
+            if not result.get("success"):
+                await self._cancel_billing(session_id)
+            else:
+                self._arm_billing_timeout(session_id)
+            return result
+
+        if not project_id:
+            return await admitted_start()
+        async with self._write_lease_factory(
+            project_id, "sandbox.execution.start_with_files"
+        ):
+            return await admitted_start()
 
     async def exec(
         self,

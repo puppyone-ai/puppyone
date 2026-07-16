@@ -1,4 +1,6 @@
+import asyncio
 import json
+import threading
 from pathlib import Path
 
 import pytest
@@ -170,3 +172,56 @@ async def test_active_git_view_is_retryable_and_not_deleted(tmp_path: Path):
 
     assert view_dir.exists()
     assert port.verify(snapshot).complete is False
+
+
+@pytest.mark.asyncio
+async def test_cancellation_waits_for_physical_host_deletion(
+    tmp_path: Path,
+    monkeypatch,
+):
+    port = ProjectHostCleanupPort(
+        workspace_base_dir=tmp_path / "workspace",
+        git_view_cache_dir=tmp_path / "git-cache",
+    )
+    snapshot = port.snapshot("project-1")
+    started = threading.Event()
+    finish = threading.Event()
+
+    def blocking_delete(_snapshot):
+        started.set()
+        finish.wait(timeout=5)
+        return 0, 2
+
+    monkeypatch.setattr(port, "_delete_sync", blocking_delete)
+    task = asyncio.create_task(port.delete(snapshot))
+    assert await asyncio.to_thread(started.wait, 1)
+
+    task.cancel()
+    await asyncio.sleep(0)
+
+    assert not task.done()
+    finish.set()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+
+@pytest.mark.asyncio
+async def test_partial_git_view_is_removed_under_project_lock(tmp_path: Path):
+    project_id = "project-1"
+    git_cache = tmp_path / "git-cache"
+    partial = git_cache / project_id / ("b" * 64)
+    partial.mkdir(parents=True)
+    (partial / "objects").mkdir()
+    (partial / "objects" / "partial-pack").write_bytes(b"secret")
+    port = ProjectHostCleanupPort(
+        workspace_base_dir=tmp_path / "workspace",
+        git_view_cache_dir=git_cache,
+    )
+
+    snapshot = port.snapshot(project_id)
+    assert snapshot.unresolved_git_entries == (partial,)
+
+    await port.delete(snapshot)
+
+    assert not partial.exists()
+    assert port.verify(snapshot).complete is True

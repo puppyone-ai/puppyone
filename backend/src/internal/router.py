@@ -26,7 +26,6 @@ from src.utils.logger import log_warning
 from src.version_engine.adapters.product.commands import VersionWriteCommandService
 from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
 from src.version_engine.bootstrap.dependencies import (
-    build_worker_version_engine_container,
     get_product_operation_adapter,
 )
 
@@ -125,7 +124,9 @@ def _enforce_acting_user_project_access(
 
 
 def _create_write_commands() -> VersionWriteCommandService:
-    return build_worker_version_engine_container().write_commands()
+    from src.platform.project.write_lease import build_leased_worker_write_commands
+
+    return build_leased_worker_write_commands()
 
 
 def _enforce_acting_user_table_access(

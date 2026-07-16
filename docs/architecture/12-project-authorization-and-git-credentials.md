@@ -53,6 +53,12 @@ payload hash includes an immutable source fingerprint (for example template
 release and bundle digest), so one operation key can never be replayed against
 different source content.
 
+Composite workflows also persist a source-independent request hash and their
+resolved result metadata. The request hash is the idempotency identity; the
+first admitted mutable source resolution wins. A retry after a `latest` alias
+or landing artifact changes replays that first durable Project/result instead
+of resolving a different source or reporting a false conflict.
+
 `empty` publication invokes the existing L5
 `VersionWriteEngine.initialize_project_tree` boundary and is reconciler-safe.
 `deferred` publication runs its contentful initializer exactly once while the
@@ -71,8 +77,40 @@ publishing a partially created Project.
 There is no lifecycle default and no legacy direct create API. The application
 service role cannot directly insert Projects or update `lifecycle_status`; it
 may update only an explicit allowlist of ordinary metadata and L5 root columns.
-Deletion similarly crosses the durable deletion control plane so storage
-prefix cleanup survives relational cascade.
+Rows created before the lifecycle journal existed are backfilled to `ready`.
+That is intentionally conservative: an old empty Project may be either an
+abandoned attempt or a legitimate empty Project, and without a durable
+`project_create_operations` row the system cannot prove which. The automatic
+reconciler therefore acts only on journal-owned initialization rows. Ambiguous
+legacy rows require an explicit operator decision; age, name, or empty refs are
+never treated as ownership evidence.
+
+Deletion similarly crosses one durable deletion control plane. Moving a
+Project to `deleting` atomically closes renewable write-lease admission. A
+worker drains every logical and physical writer before relational deletion,
+then purges and independently verifies all persisted manifests: S3 objects and
+multipart uploads, Turbopuffer namespaces, long-lived Scope sandboxes and
+request execution sandboxes, plus durable external OCR/provider jobs and their
+Redis/cache handles. Organization deletion waits for these authoritative jobs
+to be `completed`, not merely for the Project row to disappear.
+
+`WORKSPACE_BASE_DIR` and the Git view directory are different: they contain
+non-authoritative, reconstructable derived caches. Every Git read and write is
+admitted through the Project lifecycle fence, so after `deleting` no old cache
+can be served and no new cache can be created. The deleting replica scrubs its
+exact local paths best-effort, and every active replica repeats that scrub from
+durable deletion tombstones on startup/each cleanup cycle. A local filesystem
+check never claims global deletion completion. Hosted deployments must declare
+this storage `ephemeral`; startup rejects persistent replica-local workspace or
+Git cache storage until a shared/distributed cleanup adapter actually exists.
+
+Legacy `users/{principal}/.../{project}/` storage requires a one-time resumable
+inventory before deletion is enabled. The rollout scanner records principals,
+cleans strictly parsed prefixes for already-deleted Projects, uses the real S3
+object token and multipart `(KeyMarker, UploadIdMarker)` pair, and requires two
+identical full-listing digests before opening the deletion gate. Run
+`scripts/backfill_project_storage_principals.py` without flags to audit and
+with `--apply` to record, clean, verify, and enable deletion.
 
 ## RuntimeGrant
 

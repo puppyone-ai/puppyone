@@ -26,6 +26,7 @@ from src.platform.project.control_plane import (
 from src.platform.project.control_plane_dependencies import get_project_control_plane_service
 from src.platform.project.dependencies import get_project_repository
 from src.platform.project.models import Project
+from src.platform.project.write_lease import get_project_write_lease_factory
 from src.version_engine.bootstrap.dependencies import get_version_write_engine
 
 OPERATION_KEY = "123e4567-e89b-42d3-a456-426614174000"
@@ -143,6 +144,17 @@ class ProjectRepositoryStub:
         return _project()
 
 
+class NoopWriteLease:
+    def __init__(self, *_args, **_kwargs):
+        pass
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_args):
+        return False
+
+
 def _app(monkeypatch, control_plane: ControlPlaneStub | None = None):
     app = FastAPI()
     app.add_exception_handler(AppException, app_exception_handler)
@@ -164,6 +176,7 @@ def _app(monkeypatch, control_plane: ControlPlaneStub | None = None):
     app.dependency_overrides[get_authorization_service] = lambda: authorization
     app.dependency_overrides[get_project_repository] = ProjectRepositoryStub
     app.dependency_overrides[get_version_write_engine] = lambda: version_engine
+    app.dependency_overrides[get_project_write_lease_factory] = lambda: NoopWriteLease
 
     def count_access_points(_ids):
         access_count_threads.append(get_ident())

@@ -23,6 +23,22 @@ def _rpc_object(data: Any, *, operation: str) -> dict[str, Any]:
     return data
 
 
+def _raise_inventory_gate(error: Exception) -> None:
+    details = " ".join(str(part) for part in getattr(error, "args", (error,)))
+    details = f"{getattr(error, 'message', '')} {details}"
+    if "Project storage inventory is incomplete" not in details:
+        return
+    raise AppException(
+        code=ErrorCode.REPOSITORY_STORAGE_UNAVAILABLE,
+        status_code=503,
+        message="Project deletion is temporarily unavailable during storage inventory",
+        details={
+            "code": "project_storage_inventory_incomplete",
+            "retryable": True,
+        },
+    ) from error
+
+
 @dataclass(frozen=True, slots=True)
 class IdempotentProjectResult:
     project: Project
@@ -88,10 +104,14 @@ class ProjectControlPlaneRepository:
         }
         if worker_id is not None:
             params["p_worker_id"] = worker_id
-        response = self._client.rpc(
-            "abandon_project_initialization",
-            params,
-        ).execute()
+        try:
+            response = self._client.rpc(
+                "abandon_project_initialization",
+                params,
+            ).execute()
+        except Exception as error:
+            _raise_inventory_gate(error)
+            raise
         return _rpc_object(response.data, operation="abandon_project_initialization")
 
     def complete_initialization(
@@ -120,16 +140,20 @@ class ProjectControlPlaneRepository:
         quiescence_seconds: int,
         worker_id: str | None = None,
     ) -> dict[str, Any]:
-        response = self._client.rpc(
-            "abort_deferred_project_publication",
-            {
-                "p_project_id": project_id,
-                "p_operation_key": operation_key,
-                "p_actor_user_id": actor_user_id,
-                "p_quiescence_seconds": quiescence_seconds,
-                "p_worker_id": worker_id,
-            },
-        ).execute()
+        try:
+            response = self._client.rpc(
+                "abort_deferred_project_publication",
+                {
+                    "p_project_id": project_id,
+                    "p_operation_key": operation_key,
+                    "p_actor_user_id": actor_user_id,
+                    "p_quiescence_seconds": quiescence_seconds,
+                    "p_worker_id": worker_id,
+                },
+            ).execute()
+        except Exception as error:
+            _raise_inventory_gate(error)
+            raise
         return _rpc_object(
             response.data,
             operation="abort_deferred_project_publication",
@@ -199,14 +223,18 @@ class ProjectControlPlaneRepository:
         actor_user_id: str,
         quiescence_seconds: int,
     ) -> dict[str, Any]:
-        response = self._client.rpc(
-            "delete_project_control_plane",
-            {
-                "p_project_id": project_id,
-                "p_actor_user_id": actor_user_id,
-                "p_quiescence_seconds": quiescence_seconds,
-            },
-        ).execute()
+        try:
+            response = self._client.rpc(
+                "delete_project_control_plane",
+                {
+                    "p_project_id": project_id,
+                    "p_actor_user_id": actor_user_id,
+                    "p_quiescence_seconds": quiescence_seconds,
+                },
+            ).execute()
+        except Exception as error:
+            _raise_inventory_gate(error)
+            raise
         return _rpc_object(response.data, operation="delete_project_control_plane")
 
 
@@ -322,9 +350,9 @@ class ProjectControlPlaneService:
                 message="Project publication is already in progress",
                 details={"code": "project_publication_in_progress"},
             )
-        if result in {"conflict", "gone", "invalid"}:
+        if result in {"conflict", "gone", "invalid", "lifecycle_conflict"}:
             raise_idempotency_outcome(
-                "gone" if result == "gone" else result,
+                "gone" if result in {"gone", "lifecycle_conflict"} else result,
                 resource="project_create",
             )
         if result == "dead_lettered":

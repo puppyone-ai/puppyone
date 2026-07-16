@@ -1,5 +1,9 @@
 BEGIN;
 
+UPDATE public.project_storage_inventory_state
+SET inventory_complete = true, completed_at = now()
+WHERE singleton;
+
 SELECT plan(19);
 
 INSERT INTO auth.users (
