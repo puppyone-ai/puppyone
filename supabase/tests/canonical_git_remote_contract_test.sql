@@ -37,9 +37,19 @@ BEGIN
         ('canonical-git-owner-member', 'canonical-git-org', owner_id, 'owner'),
         ('canonical-git-editor-member', 'canonical-git-org', editor_id, 'member');
 
-    PERFORM * FROM public.create_project_with_admin(
+    INSERT INTO public.projects (
+        id, name, description, org_id, created_by, share_token,
+        lifecycle_status
+    ) VALUES (
         'canonical-git-project', 'Canonical Git Project', NULL,
-        'canonical-git-org', owner_id, 'canonical-git-share-token'
+        'canonical-git-org', owner_id, 'canonical-git-share-token',
+        'ready'
+    );
+    INSERT INTO public.project_members (
+        id, org_id, project_id, user_id, role, granted_by
+    ) VALUES (
+        'canonical-git-owner-project-member', 'canonical-git-org',
+        'canonical-git-project', owner_id, 'admin', owner_id
     );
     PERFORM * FROM public.add_project_member_authorized(
         'canonical-git-project', editor_id, 'editor', owner_id
