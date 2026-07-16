@@ -90,12 +90,30 @@ CREATE TEMP TABLE issue039_results (
 
 SELECT extensions.dblink_connect(
     'issue039-c1',
-    'host=127.0.0.1 port=5432 dbname=postgres user=postgres password=postgres'
+    format(
+        'hostaddr=%s port=%s dbname=%s user=postgres password=postgres',
+        host(inet_server_addr()), current_setting('port'), current_database()
+    )
 );
 SELECT extensions.dblink_connect(
     'issue039-c2',
-    'host=127.0.0.1 port=5432 dbname=postgres user=postgres password=postgres'
+    format(
+        'hostaddr=%s port=%s dbname=%s user=postgres password=postgres',
+        host(inet_server_addr()), current_setting('port'), current_database()
+    )
 );
+
+CREATE FUNCTION pg_temp.drain_dblink(p_connection text)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    -- libpq requires one final empty result after every async query before
+    -- the same connection can accept another command.
+    PERFORM result
+    FROM extensions.dblink_get_result(p_connection) AS response(result jsonb);
+END;
+$$;
 
 SELECT throws_ok(
     $$
@@ -218,6 +236,8 @@ FROM extensions.dblink_get_result('issue039-c1') AS response(result jsonb);
 INSERT INTO issue039_results
 SELECT 'same-key', result
 FROM extensions.dblink_get_result('issue039-c2') AS response(result jsonb);
+SELECT pg_temp.drain_dblink('issue039-c1');
+SELECT pg_temp.drain_dblink('issue039-c2');
 
 SELECT is(
     (SELECT array_agg(result->>'outcome' ORDER BY result->>'outcome')
@@ -369,6 +389,8 @@ FROM extensions.dblink_get_result('issue039-c1') AS response(result jsonb);
 INSERT INTO issue039_results
 SELECT 'quota', result
 FROM extensions.dblink_get_result('issue039-c2') AS response(result jsonb);
+SELECT pg_temp.drain_dblink('issue039-c1');
+SELECT pg_temp.drain_dblink('issue039-c2');
 
 SELECT is(
     (SELECT array_agg(result->>'outcome' ORDER BY result->>'outcome')
@@ -571,12 +593,12 @@ SELECT is(
 DELETE FROM public.project_members WHERE id = 'issue039-second-project-member';
 
 INSERT INTO public.repository_scopes (
-    id, project_id, name, path, access_key, max_mode
+    id, project_id, name, path, exclude, max_mode
 ) VALUES (
     'issue039-user-scope',
     (SELECT project_id FROM public.project_create_operations
      WHERE operation_key = '11111111-1111-4111-8111-111111111111'),
-    'Docs', 'docs', 'issue039-scope-access-key', 'rw'
+    'Docs', 'docs', '[]', 'rw'
 );
 SELECT is(
     (
@@ -1063,6 +1085,7 @@ SELECT extensions.dblink_exec('issue039-c1', 'COMMIT');
 INSERT INTO issue039_results
 SELECT 'delete-role-race', result
 FROM extensions.dblink_get_result('issue039-c2') AS response(result jsonb);
+SELECT pg_temp.drain_dblink('issue039-c2');
 SELECT is(
     (SELECT result->>'outcome' FROM issue039_results
      WHERE lane = 'delete-role-race'),

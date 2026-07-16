@@ -14,6 +14,9 @@ saved_initialization="$(mktemp "${TMPDIR:-/tmp}/issue039-initialization.XXXXXX.s
 closure_rel="supabase/migrations/20260716020000_project_deletion_storage_and_org_guard.sql"
 closure_path="$repository_root/$closure_rel"
 saved_closure="$(mktemp "${TMPDIR:-/tmp}/issue039-deletion-closure.XXXXXX.sql")"
+fence_rel="supabase/migrations/20260717000000_project_deletion_admission_fence.sql"
+fence_path="$repository_root/$fence_rel"
+saved_fence="$(mktemp "${TMPDIR:-/tmp}/issue039-deletion-fence.XXXXXX.sql")"
 database_url="${DATABASE_URL:-postgresql://postgres:postgres@127.0.0.1:54322/postgres}"
 export DATA_MIGRATION_DATABASE_URL="${DATA_MIGRATION_DATABASE_URL:-$database_url}"
 
@@ -21,6 +24,7 @@ contract_is_saved=false
 removal_is_saved=false
 initialization_is_saved=false
 closure_is_saved=false
+fence_is_saved=false
 restore_contract() {
     if [[ "$contract_is_saved" == true && -f "$saved_contract" ]]; then
         mv "$saved_contract" "$contract_path"
@@ -45,12 +49,19 @@ restore_closure() {
         closure_is_saved=false
     fi
 }
+restore_fence() {
+    if [[ "$fence_is_saved" == true && -f "$saved_fence" ]]; then
+        mv "$saved_fence" "$fence_path"
+        fence_is_saved=false
+    fi
+}
 cleanup() {
     restore_contract
     restore_removal
     restore_initialization
     restore_closure
-    rm -f "$saved_contract" "$saved_removal" "$saved_initialization" "$saved_closure"
+    restore_fence
+    rm -f "$saved_contract" "$saved_removal" "$saved_initialization" "$saved_closure" "$saved_fence"
 }
 trap cleanup EXIT
 
@@ -70,6 +81,10 @@ save_closure() {
     mv "$closure_path" "$saved_closure"
     closure_is_saved=true
 }
+save_fence() {
+    mv "$fence_path" "$saved_fence"
+    fence_is_saved=true
+}
 
 run_data_migration() {
     local migration_id="$1"
@@ -83,11 +98,12 @@ save_contract
 save_removal
 save_initialization
 save_closure
+save_fence
 (
     cd "$repository_root"
     supabase db reset --no-seed
     psql "$database_url" -X -v ON_ERROR_STOP=1 \
-        -f supabase/tests/fixtures/repository_target_legacy_upgrade.sql
+        -f supabase/test_fixtures/repository_target_legacy_upgrade.sql
 )
 
 run_data_migration 20260712_repo_user_permissions_to_project_members
@@ -98,7 +114,7 @@ run_data_migration 20260715_project_owned_repository_targets_preflight
 restore_contract
 (
     cd "$repository_root"
-    supabase migration up --local
+    supabase migration up --local --include-all
 
     psql "$database_url" -X -v ON_ERROR_STOP=1 \
         -c "INSERT INTO public.repository_scopes (id, project_id, name, path, exclude, max_mode) VALUES ('issue039-concurrent-scope', 'issue039-project', 'Concurrent Scope', 'concurrent/scope', '[]', 'rw')"
@@ -115,7 +131,7 @@ restore_contract
     psql "$database_url" -X -v ON_ERROR_STOP=1 \
         -c "DO \$\$ BEGIN IF (SELECT count(*) FROM public.access_surfaces WHERE project_id = 'issue039-project' AND scope_id = 'issue039-concurrent-scope' AND kind IN ('git_remote', 'cli')) <> 2 THEN RAISE EXCEPTION 'concurrent enable did not converge'; END IF; END \$\$"
     psql "$database_url" -X -v ON_ERROR_STOP=1 \
-        -f supabase/tests/fixtures/repository_target_upgrade_assert.sql
+        -f supabase/test_fixtures/repository_target_upgrade_assert.sql
 )
 
 # The previous assertion proves the Issue 039 geometry cutover on its own.
@@ -124,11 +140,12 @@ restore_contract
 restore_removal
 restore_initialization
 restore_closure
+restore_fence
 (
     cd "$repository_root"
-    supabase migration up --local
+    supabase migration up --local --include-all
     psql "$database_url" -X -v ON_ERROR_STOP=1 \
-        -f supabase/tests/fixtures/workspace_binding_removal_assert.sql
+        -f supabase/test_fixtures/workspace_binding_removal_assert.sql
 )
 
 # A non-empty installation cannot bypass the immutable data-preflight receipt.
@@ -136,16 +153,17 @@ save_contract
 save_removal
 save_initialization
 save_closure
+save_fence
 (
     cd "$repository_root"
     supabase db reset --no-seed
     psql "$database_url" -X -v ON_ERROR_STOP=1 \
-        -f supabase/tests/fixtures/repository_target_legacy_upgrade.sql
+        -f supabase/test_fixtures/repository_target_legacy_upgrade.sql
 )
 restore_contract
 if (
     cd "$repository_root"
-    supabase migration up --local
+    supabase migration up --local --include-all
 ); then
     echo "expected contract migration to reject a missing preflight receipt" >&2
     exit 1
@@ -158,16 +176,18 @@ fi
 restore_removal
 restore_initialization
 restore_closure
+restore_fence
 
 save_contract
 save_removal
 save_initialization
 save_closure
+save_fence
 (
     cd "$repository_root"
     supabase db reset --no-seed
     psql "$database_url" -X -v ON_ERROR_STOP=1 \
-        -f supabase/tests/fixtures/repository_target_corrupt_missing_root.sql
+        -f supabase/test_fixtures/repository_target_corrupt_missing_root.sql
 )
 
 if run_data_migration 20260715_project_owned_repository_targets_preflight; then
@@ -185,3 +205,4 @@ restore_contract
 restore_removal
 restore_initialization
 restore_closure
+restore_fence

@@ -32,6 +32,7 @@ jobs:
             'supabase/data_migrations/**' \
             'supabase/releases/**' \
             'supabase/tests/**' \
+            'supabase/test_fixtures/**' \
             'backend/src/infra/data_migrations/**' \
             'backend/tests/infra/data_migrations/**' \
             'backend/tests/security/test_credential_backfill_ci_contract.py' \
@@ -139,7 +140,7 @@ jobs:
         run: |
           supabase db reset --no-seed
           psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 \
-            -f supabase/data_migrations/20260713_reconcile_project_creator_admin/test_fixture.sql
+            -f supabase/test_fixtures/project_creator_admin_repair.sql
           cd backend
           uv run puppyone-db run 20260713_reconcile_project_creator_admin
           uv run puppyone-db run 20260713_reconcile_project_creator_admin

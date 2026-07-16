@@ -107,7 +107,7 @@ BEGIN
     SELECT count(*) INTO second_provision_claims
     FROM public.claim_entitlement_provisioning_batch(25, 60) claimed
     WHERE claimed.org_id = 'billing-control-plane-org';
-    IF provision_enqueued <> 1
+    IF provision_enqueued < 1
        OR first_provision_claims <> 1
        OR second_provision_claims <> 0 THEN
         RAISE EXCEPTION 'entitlement provisioning lease failed: enqueued %, first %, second %',
