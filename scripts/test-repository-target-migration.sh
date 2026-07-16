@@ -201,6 +201,17 @@ fi
         -c "DO \$\$ BEGIN IF to_regclass('public.repo_scopes') IS NULL THEN RAISE EXCEPTION 'failed preflight mutated the schema'; END IF; IF EXISTS (SELECT 1 FROM public.migration_log WHERE name = '20260715_project_owned_repository_targets_preflight') THEN RAISE EXCEPTION 'failed preflight wrote a receipt'; END IF; END \$\$"
 )
 
+# The released repair restores the missing root, never touches healthy
+# Projects, is idempotent, and unblocks the previously rejected preflight.
+run_data_migration 20260717_repair_missing_root_scopes
+run_data_migration 20260717_repair_missing_root_scopes
+(
+    cd "$repository_root"
+    psql "$database_url" -X -v ON_ERROR_STOP=1 \
+        -f supabase/test_fixtures/root_scope_repair_assert.sql
+)
+run_data_migration 20260715_project_owned_repository_targets_preflight
+
 restore_contract
 restore_removal
 restore_initialization

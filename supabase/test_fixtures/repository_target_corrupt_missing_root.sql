@@ -34,4 +34,22 @@ SELECT * FROM public.create_project_with_admin(
     'issue039-corrupt-share-token'
 );
 
+-- A healthy neighbor proves the root Scope repair never touches Projects
+-- that already own their single root.
+SELECT * FROM public.create_project_with_admin(
+    'issue039-healthy-root-project',
+    'Healthy Root Project',
+    NULL,
+    'issue039-corrupt-org',
+    '00000000-0000-0000-0000-000000039099'::uuid,
+    'issue039-healthy-share-token'
+);
+
+INSERT INTO public.repo_scopes (
+    id, project_id, name, path, exclude, mode, is_root
+) VALUES (
+    'issue039-healthy-root-scope', 'issue039-healthy-root-project',
+    'Root', '', '[]', 'rw', true
+);
+
 COMMIT;
