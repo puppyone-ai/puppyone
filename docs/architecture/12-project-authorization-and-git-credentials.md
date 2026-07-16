@@ -101,6 +101,13 @@ to scoped personal access tokens:
 Local Git remote removal and server credential revocation are separate actions.
 This avoids making the server infer a computer inventory from normal Git use.
 
+For first-time Desktop publication, “shown exactly once” means delivered only
+to the trusted Electron main caller. The Renderer never receives it. Electron
+main generates the operation credential, protects it in an OS-backed vault,
+and uses an idempotency key so a lost HTTP response can replay the same
+hash-only credential outcome. The durable publish journal contains only an
+opaque secret reference.
+
 ## Database constraints
 
 `access_surface_credentials.user_id` is required for the `user` lifecycle and

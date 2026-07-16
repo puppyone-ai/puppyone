@@ -117,6 +117,20 @@ Membership loss invalidates user credentials on their next request. A role
 downgrade dynamically caps an existing read-write credential to read-only;
 credential rows are not rewritten merely because a role changed.
 
+### Publish-operation credential
+
+First-time Desktop publication uses the same credential model with a narrower
+recovery contract. Electron main generates the secret, protects it in an
+OS-backed vault, and supplies an operation UUID as `Idempotency-Key`. The
+service persists only the keyed hash and redacted hints. Same operation key and
+same canonical target/mode/secret hash replay the credential identity; reuse
+with a different payload fails closed.
+
+This operation key makes response-loss recovery deterministic. It is not a
+client, checkout, device, or folder identity. After publication the resulting
+credential remains an ordinary independently revocable user Git credential.
+Abandon may revoke it only while the same operation's Project is still empty.
+
 ## Local state
 
 Git config is authoritative for Cloud discovery:
@@ -149,4 +163,6 @@ never crosses the Cloud API boundary.
 - No Git RuntimeGrant is derived from a human JWT alone.
 - No Project-root repository is represented as a synthetic Scope.
 - No raw credential is persisted in application data or returned by list/read.
+- No raw publish credential is persisted by Cloud or in a plaintext Desktop
+  journal; it stays behind Electron main's OS-backed secret-vault boundary.
 - No arbitrary or legacy Git remote identifies Cloud UI context.
