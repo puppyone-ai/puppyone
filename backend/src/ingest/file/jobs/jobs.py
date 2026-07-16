@@ -172,6 +172,41 @@ def _creator_id(task) -> str:
     return task.created_by or task.project_id or "unknown"
 
 
+def _reload_task_before_project_storage_write(repo, task_id: str | int, task):
+    """Revalidate the durable Project-owned task immediately before S3 PUT.
+
+    Project deletion cascades ``uploads`` in the same transaction that emits
+    the durable object-cleanup job.  OCR/LLM calls can outlive the cleanup
+    quiescence window, so a worker must not trust the task object it loaded
+    before an external wait.  Missing/cancelled/rebound rows close the write
+    fence; repository failures propagate so ARQ retries without writing.
+    """
+
+    durable = repo.get_task(task_id)
+    if durable is None:
+        logger.info(
+            "project storage write skipped because durable task disappeared: %s",
+            task_id,
+        )
+        return None
+    if durable.status == ETLTaskStatus.CANCELLED:
+        logger.info(
+            "project storage write skipped because durable task was cancelled: %s",
+            task_id,
+        )
+        return None
+    if (
+        durable.project_id != task.project_id
+        or _creator_id(durable) != _creator_id(task)
+    ):
+        logger.warning(
+            "project storage write skipped because durable task ownership changed: %s",
+            task_id,
+        )
+        return None
+    return durable
+
+
 def _artifact_markdown_key(task_id: str | int, creator_id: str, project_id: str) -> str:
     # Avoid using filename here (can have special chars). Use deterministic keys.
     return f"users/{creator_id}/etl_artifacts/{project_id}/{task_id}/mineru.md"
@@ -267,6 +302,8 @@ async def etl_ocr_job(ctx: dict, task_id: str | int) -> dict:
         await state_repo.set(state)
 
         # Upload markdown artifact to S3
+        if _reload_task_before_project_storage_write(repo, task_id, task) is None:
+            return {"ok": True, "skipped": "task_not_live"}
         md_key = _artifact_markdown_key(task_id, _creator_id(task), task.project_id)
         await s3.upload_file(
             key=md_key,
@@ -1011,6 +1048,8 @@ async def etl_postprocess_job(ctx: dict, task_id: str | int) -> dict:
         output_json = json.dumps(output_obj, indent=2, ensure_ascii=False).encode(
             "utf-8"
         )
+        if _reload_task_before_project_storage_write(repo, task_id, task) is None:
+            return {"ok": True, "skipped": "task_not_live"}
         await s3.upload_file(
             key=output_key,
             content=output_json,

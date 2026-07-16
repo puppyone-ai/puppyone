@@ -297,6 +297,11 @@ async def _init_version_trees() -> None:
         resp = (
             _sb.client.table("projects")
             .select("id")
+            # Startup compatibility repair is only for already-published
+            # legacy rows. New initializing rows belong exclusively to the
+            # durable creation reconciler; in particular, a deferred/template
+            # publication must never be replaced by an empty root here.
+            .eq("lifecycle_status", "ready")
             .or_(f"{PROJECT_ROOT_HASH_COLUMN}.is.null,{PROJECT_ROOT_HASH_COLUMN}.eq.")
             .execute()
         )

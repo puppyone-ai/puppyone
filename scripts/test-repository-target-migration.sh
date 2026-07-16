@@ -8,11 +8,19 @@ saved_contract="$(mktemp "${TMPDIR:-/tmp}/issue039-contract.XXXXXX.sql")"
 removal_rel="supabase/migrations/20260716000000_remove_workspace_binding.sql"
 removal_path="$repository_root/$removal_rel"
 saved_removal="$(mktemp "${TMPDIR:-/tmp}/issue039-removal.XXXXXX.sql")"
+initialization_rel="supabase/migrations/20260716010000_project_initialization_control_plane.sql"
+initialization_path="$repository_root/$initialization_rel"
+saved_initialization="$(mktemp "${TMPDIR:-/tmp}/issue039-initialization.XXXXXX.sql")"
+closure_rel="supabase/migrations/20260716020000_project_deletion_storage_and_org_guard.sql"
+closure_path="$repository_root/$closure_rel"
+saved_closure="$(mktemp "${TMPDIR:-/tmp}/issue039-deletion-closure.XXXXXX.sql")"
 database_url="${DATABASE_URL:-postgresql://postgres:postgres@127.0.0.1:54322/postgres}"
 export DATA_MIGRATION_DATABASE_URL="${DATA_MIGRATION_DATABASE_URL:-$database_url}"
 
 contract_is_saved=false
 removal_is_saved=false
+initialization_is_saved=false
+closure_is_saved=false
 restore_contract() {
     if [[ "$contract_is_saved" == true && -f "$saved_contract" ]]; then
         mv "$saved_contract" "$contract_path"
@@ -25,10 +33,24 @@ restore_removal() {
         removal_is_saved=false
     fi
 }
+restore_initialization() {
+    if [[ "$initialization_is_saved" == true && -f "$saved_initialization" ]]; then
+        mv "$saved_initialization" "$initialization_path"
+        initialization_is_saved=false
+    fi
+}
+restore_closure() {
+    if [[ "$closure_is_saved" == true && -f "$saved_closure" ]]; then
+        mv "$saved_closure" "$closure_path"
+        closure_is_saved=false
+    fi
+}
 cleanup() {
     restore_contract
     restore_removal
-    rm -f "$saved_contract" "$saved_removal"
+    restore_initialization
+    restore_closure
+    rm -f "$saved_contract" "$saved_removal" "$saved_initialization" "$saved_closure"
 }
 trap cleanup EXIT
 
@@ -39,6 +61,14 @@ save_contract() {
 save_removal() {
     mv "$removal_path" "$saved_removal"
     removal_is_saved=true
+}
+save_initialization() {
+    mv "$initialization_path" "$saved_initialization"
+    initialization_is_saved=true
+}
+save_closure() {
+    mv "$closure_path" "$saved_closure"
+    closure_is_saved=true
 }
 
 run_data_migration() {
@@ -51,6 +81,8 @@ run_data_migration() {
 
 save_contract
 save_removal
+save_initialization
+save_closure
 (
     cd "$repository_root"
     supabase db reset --no-seed
@@ -90,6 +122,8 @@ restore_contract
 # Apply the final architecture migration separately and prove that no checkout
 # registration entity or credential foreign key survives.
 restore_removal
+restore_initialization
+restore_closure
 (
     cd "$repository_root"
     supabase migration up --local
@@ -100,6 +134,8 @@ restore_removal
 # A non-empty installation cannot bypass the immutable data-preflight receipt.
 save_contract
 save_removal
+save_initialization
+save_closure
 (
     cd "$repository_root"
     supabase db reset --no-seed
@@ -120,9 +156,13 @@ fi
         -c "DO \$\$ BEGIN IF to_regclass('public.repo_scopes') IS NULL OR to_regclass('public.repository_scopes') IS NOT NULL THEN RAISE EXCEPTION 'receipt gate failure mutated the schema'; END IF; END \$\$"
 )
 restore_removal
+restore_initialization
+restore_closure
 
 save_contract
 save_removal
+save_initialization
+save_closure
 (
     cd "$repository_root"
     supabase db reset --no-seed
@@ -143,3 +183,5 @@ fi
 
 restore_contract
 restore_removal
+restore_initialization
+restore_closure

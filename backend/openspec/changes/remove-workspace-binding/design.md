@@ -45,10 +45,30 @@ semantics.
 
 Each user Git credential has its own ID and revocation endpoint. Multiple
 credentials may coexist for the same user and target. Removing a local remote
-does not revoke unrelated credentials; a local setup failure immediately after
-issuance triggers best-effort compensation for only the new credential.
+does not revoke unrelated credentials. A local setup failure after issuance
+stays in the durable publish journal and resumes with the same vault-backed
+secret. Only explicit Abandon may revoke that operation credential, after the
+server proves the same operation still owns an unpublished empty Project.
 Revoking an owned credential remains allowed after Project access is lost,
 because revocation is monotonic and ownership is checked directly.
+
+Desktop main generates each user credential and persists it in the operating-
+system vault before submitting it once for hash-only backend persistence. The
+backend never generates or returns plaintext. Issuance is keyed by the publish operation's
+UUIDv4 `Idempotency-Key`; exact retries return the original credential ID and
+changed payloads fail closed, so an uncertain response cannot create duplicate
+effective credentials.
+
+### Project publication is a durable operation
+
+Creating a Cloud Project is not compensated merely because the local Git setup
+or the initiating HTTP response fails. The hidden `initializing` Project and
+its UUIDv4 operation journal are resumed with the same idempotency key. An
+explicit Abandon request may remove only the exact untouched bootstrap state;
+the reconciler applies a durable deadline and bounded retries, then publishes a
+deletion cleanup tombstone for a safe pre-root failure. Unexpected state is
+dead-lettered for inspection rather than retried forever or exposed as a
+half-created Project.
 
 ### No folder attestation
 
@@ -79,5 +99,6 @@ metadata may cache only a secret-free hint parsed from the canonical Git remote.
 - Existing Desktop credentials remain usable after migration only when their
   former user still has sufficient current Project access.
 - Removing a local remote does not need a Cloud mutation. Local credential
-  cleanup is best-effort; server-side authorization remains current and
-  fail-closed.
+  helper cleanup may be retried locally; server-side authorization remains
+  current and fail-closed, and server credential revocation is always an
+  explicit operation.

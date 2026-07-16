@@ -89,17 +89,23 @@ export async function getTemplate(templateId: string): Promise<TemplateDetail> {
 
 export async function instantiateTemplate(
   templateId: string,
-  payload: {
-    org_id?: string;
+  input: {
+    org_id: string;
     name?: string;
     description?: string;
     release_id?: string;
-  } = {},
+    /** Reuse for retries of the same user intent. */
+    idempotencyKey: string;
+  },
 ): Promise<TemplateInstantiation> {
+  const { idempotencyKey, ...payload } = input;
   return apiRequest<TemplateInstantiation>(
     `/api/v1/templates/${encodeURIComponent(templateId)}/instantiate`,
     {
       method: 'POST',
+      headers: {
+        'Idempotency-Key': idempotencyKey,
+      },
       body: JSON.stringify(payload),
       // A remote immutable release may need to be downloaded and verified
       // before the Project is provisioned. Keep the normal API timeout short

@@ -200,6 +200,26 @@ class Settings(BaseSettings):
         return self
 
     @model_validator(mode="after")
+    def enforce_project_deletion_quiescence(self):
+        """Keep physical cleanup behind every admitted Git write window.
+
+        A Project delete removes authorization immediately, but a smart-HTTP
+        request that already received a runtime grant may still be flushing
+        immutable objects.  The S3 bridge has a 30-minute upper wait budget;
+        use that as a hard floor even when the Git subprocess timeout is
+        configured lower.
+        """
+
+        minimum_quiescence = max(self.GIT_SUBPROCESS_TIMEOUT_SECONDS, 30 * 60)
+        if minimum_quiescence > self.PROJECT_DELETION_QUIESCENCE_SECONDS:
+            raise ValueError(
+                "PROJECT_DELETION_QUIESCENCE_SECONDS must be at least "
+                f"{minimum_quiescence} seconds so admitted Git writes quiesce "
+                "before Project-owned objects are purged."
+            )
+        return self
+
+    @model_validator(mode="after")
     def enforce_access_credential_secret_safety(self):
         """Hosted runtimes must use a dedicated stable HMAC secret for Access keys."""
         if self.APP_ENV not in {"development", "test"}:
@@ -552,6 +572,30 @@ class Settings(BaseSettings):
     VERSION_OBJECT_GC_MAX_DELETE_PER_PROJECT: int = 1000
     VERSION_OBJECT_GC_REQUIRED_DRY_RUN_DAYS: int = 7
     VERSION_OBJECT_GC_PROJECT_ALLOWLIST: str = ""
+
+    # Project deletion is immediately authoritative in Postgres; Project-owned
+    # S3 prefixes are removed by this durable, retryable control-plane worker.
+    PROJECT_DELETION_CLEANUP_ENABLED: bool = True
+    PROJECT_DELETION_CLEANUP_INTERVAL_SECONDS: int = Field(default=60, ge=10, le=3600)
+    PROJECT_DELETION_QUIESCENCE_SECONDS: int = Field(default=3600, ge=1800, le=86_400)
+    PROJECT_DELETION_VERIFY_DELAY_SECONDS: int = Field(default=60, ge=10, le=3600)
+    PROJECT_DELETION_CLEANUP_LEASE_SECONDS: int = Field(default=3600, ge=300, le=86_400)
+
+    # Project rows are prepared transactionally but stay invisible while the
+    # initial root ref remains owned by L5. Resume any operation interrupted
+    # between those durable facts through VersionWriteEngine.initialize_project_tree.
+    PROJECT_INITIALIZATION_RECONCILE_ENABLED: bool = True
+    PROJECT_INITIALIZATION_RECONCILE_INTERVAL_SECONDS: int = Field(
+        default=30,
+        ge=10,
+        le=3600,
+    )
+    PROJECT_INITIALIZATION_RECONCILE_LEASE_SECONDS: int = Field(
+        default=300,
+        ge=30,
+        le=3600,
+    )
+    PROJECT_INITIALIZATION_MAX_ATTEMPTS: int = Field(default=8, ge=1, le=100)
 
     # Post-commit tree-closure tripwire. When on, every product write verifies
     # the freshly-published root resolves its entire subtree closure and fails

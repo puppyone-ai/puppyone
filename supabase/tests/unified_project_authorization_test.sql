@@ -45,9 +45,18 @@ BEGIN
         ('issue029-om-viewer', 'issue029-org', viewer_id, 'viewer'),
         ('issue029-om-baseline', 'issue029-org', baseline_id, 'member');
 
-    PERFORM * FROM public.create_project_with_admin(
+    INSERT INTO public.projects (
+        id, name, description, org_id, created_by, share_token,
+        lifecycle_status
+    ) VALUES (
         'issue029-private', 'Private Project', NULL, 'issue029-org',
-        owner_id, 'issue029-private-share-token'
+        owner_id, 'issue029-private-share-token', 'ready'
+    );
+    INSERT INTO public.project_members (
+        id, org_id, project_id, user_id, role, granted_by
+    ) VALUES (
+        'issue029-private-owner', 'issue029-org', 'issue029-private',
+        owner_id, 'admin', owner_id
     );
     UPDATE public.projects SET visibility = 'private'
     WHERE id = 'issue029-private';
@@ -58,9 +67,18 @@ BEGIN
         'issue029-private', viewer_id, 'viewer', owner_id
     );
 
-    PERFORM * FROM public.create_project_with_admin(
+    INSERT INTO public.projects (
+        id, name, description, org_id, created_by, share_token,
+        lifecycle_status
+    ) VALUES (
         'issue029-org-visible', 'Org Visible Project', NULL, 'issue029-org',
-        owner_id, 'issue029-org-share-token'
+        owner_id, 'issue029-org-share-token', 'ready'
+    );
+    INSERT INTO public.project_members (
+        id, org_id, project_id, user_id, role, granted_by
+    ) VALUES (
+        'issue029-org-visible-owner', 'issue029-org',
+        'issue029-org-visible', owner_id, 'admin', owner_id
     );
     UPDATE public.projects SET visibility = 'org'
     WHERE id = 'issue029-org-visible';
@@ -205,13 +223,16 @@ SELECT throws_ok(
     'project creator must retain explicit Project Admin membership',
     'tenant membership cannot be removed before ownership transfer'
 );
-SELECT throws_ok(
-    $$SELECT * FROM public.create_project_with_admin(
-        'issue029-rejected', 'Rejected', NULL, 'issue029-org',
-        '00000000-0000-0000-0000-000000029105'::uuid, 'rejected-token'
-    )$$,
-    '42501',
-    'project creator must be an organization member',
+SELECT is(
+    (
+        public.create_project_idempotent(
+            '99999999-9999-4999-8999-999999999999', repeat('9', 64),
+            'issue029-rejected', 'Rejected', NULL, 'issue029-org',
+            '00000000-0000-0000-0000-000000029105'::uuid,
+            'rejected-token', 'empty', 20
+        )->>'outcome'
+    ),
+    'forbidden',
     'a non-tenant creator cannot publish a partial Project fact'
 );
 SELECT is(

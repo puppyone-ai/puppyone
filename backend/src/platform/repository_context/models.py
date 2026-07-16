@@ -25,9 +25,9 @@ class RepositoryProjectContext:
 
 @dataclass(frozen=True, slots=True)
 class IssuedGitCredential:
-    """One-time Git credential for one exact repository target."""
+    """Hash-only issuance acknowledgement for one exact repository target."""
 
     credential_id: str
     target: RepositoryTarget
     mode: GitCredentialMode
-    credential: str
+    replayed: bool = False

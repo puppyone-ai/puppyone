@@ -13,7 +13,6 @@ from src.repo.access_credentials import (
     HASH_ALG,
     access_token_hash,
     access_token_metadata,
-    generate_access_token,
 )
 from src.utils.id_generator import generate_uuid_v7
 
@@ -40,20 +39,24 @@ class RepositoryContextRepository:
     def issue_user_git_credential(
         self,
         *,
+        operation_key: str,
+        payload_hash: str,
         org_id: str,
         target: RepositoryTarget,
         user_id: str,
         mode: GitCredentialMode,
-    ) -> tuple[str, str]:
-        """Issue a hash-only credential; the raw secret is returned once."""
+        raw_token: str,
+    ) -> dict:
+        """Idempotently publish a client-generated, hash-only credential."""
 
         credential_id = generate_uuid_v7()
         access_surface_id = generate_uuid_v7()
-        raw_token = generate_access_token("pwg")
         key_prefix, key_last4 = access_token_metadata(raw_token)
-        self._client.rpc(
-            "issue_user_git_http_credential",
+        response = self._client.rpc(
+            "issue_user_git_http_credential_idempotent",
             {
+                "p_operation_key": operation_key,
+                "p_payload_hash": payload_hash,
                 "p_credential_id": credential_id,
                 "p_access_surface_id": access_surface_id,
                 "p_org_id": org_id,
@@ -67,7 +70,12 @@ class RepositoryContextRepository:
                 "p_hash_alg": HASH_ALG,
             },
         ).execute()
-        return credential_id, raw_token
+        data = response.data
+        if isinstance(data, list) and len(data) == 1:
+            data = data[0]
+        if not isinstance(data, dict):
+            raise RuntimeError("Git credential issue RPC returned an invalid response")
+        return data
 
     def revoke_user_git_credential(
         self,

@@ -25,6 +25,7 @@ export function TemplateUseButton({
   const { currentOrg } = useOrganization();
   const [creating, setCreating] = useState(false);
   const inFlight = useRef(false);
+  const operationKey = useRef<string | null>(null);
 
   const create = async () => {
     if (inFlight.current) return;
@@ -32,11 +33,17 @@ export function TemplateUseButton({
     setCreating(true);
     onError?.(null);
     try {
+      if (!currentOrg?.id) {
+        throw new Error('Select an organization before creating a project.');
+      }
+      operationKey.current ??= crypto.randomUUID();
       const result = await instantiateTemplate(templateId, {
-        org_id: currentOrg?.id,
+        org_id: currentOrg.id,
         release_id: releaseId,
+        idempotencyKey: operationKey.current,
       });
-      void refreshProjects(result.project.org_id ?? currentOrg?.id);
+      operationKey.current = null;
+      void refreshProjects(result.project.org_id ?? currentOrg.id);
       router.push(`/projects/${result.project.id}/data`);
     } catch (error) {
       const message = error instanceof Error ? error.message : t('unknownError');

@@ -48,13 +48,27 @@ INSERT INTO public.org_members (org_id, user_id, role) VALUES
         'viewer'
     );
 
-SELECT public.create_project_with_admin(
+INSERT INTO public.projects (
+    id, name, description, org_id, created_by, share_token,
+    lifecycle_status
+) VALUES (
     'billing-control-plane-project',
     'Billing Control Plane Test Project',
     'Capability-derived seat test',
     'billing-control-plane-org',
     '00000000-0000-0000-0000-000000033001'::uuid,
-    'billing-control-plane-share-token'
+    'billing-control-plane-share-token',
+    'ready'
+);
+
+INSERT INTO public.project_members (
+    org_id, project_id, user_id, role, granted_by
+) VALUES (
+    'billing-control-plane-org',
+    'billing-control-plane-project',
+    '00000000-0000-0000-0000-000000033001'::uuid,
+    'admin',
+    '00000000-0000-0000-0000-000000033001'::uuid
 );
 
 INSERT INTO public.project_members (

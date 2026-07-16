@@ -90,10 +90,18 @@ class RemoteTemplateCatalog(StrictModel):
 
 
 class TemplateInstantiationRequest(StrictModel):
-    org_id: str | None = Field(default=None, max_length=128)
+    org_id: str = Field(min_length=1, max_length=128)
     name: str | None = Field(default=None, min_length=1, max_length=200)
     description: str | None = Field(default=None, max_length=2000)
     release_id: str | None = Field(default=None, pattern=RELEASE_ID_PATTERN)
+
+    @field_validator("org_id")
+    @classmethod
+    def normalize_org_id(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("org_id must not be blank")
+        return normalized
 
 
 class TemplateInstantiation(StrictModel):

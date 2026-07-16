@@ -2,16 +2,15 @@
 
 from typing import Any, Dict, List, Optional
 
-from src.repo.scope_service import ScopeService
 from src.repo.access_credentials import (
     AccessCredentialRepository,
     mask_access_token,
 )
 from src.repo.access_surface_repository import AccessSurfaceRepository
+from src.repo.scope_service import ScopeService
 from src.version_engine.scoped_fs.policy import (
     custom_tool_bindings_from_tools_config,
 )
-
 
 PROVIDER = "mcp"
 ACCESS_SURFACES_TABLE = "access_surfaces"
@@ -260,6 +259,7 @@ class McpEndpointRepository:
         accesses: Optional[list] = None,
         tools_config: Any = None,
         created_by: Optional[str] = None,
+        api_key: Optional[str] = None,
     ) -> dict:
         config = {
             "name": name,
@@ -282,13 +282,22 @@ class McpEndpointRepository:
         }
         resp = self._client.table(self.TABLE).insert(row).execute()
         inserted = resp.data[0]
-        api_key = self._credentials.issue_bearer_token(
-            access_surface_id=inserted["id"],
-            org_id=inserted.get("org_id"),
-            project_id=inserted["project_id"],
-            prefix="mcp",
-            created_by=created_by,
-        )
+        if api_key is None:
+            api_key = self._credentials.issue_bearer_token(
+                access_surface_id=inserted["id"],
+                org_id=inserted.get("org_id"),
+                project_id=inserted["project_id"],
+                prefix="mcp",
+                created_by=created_by,
+            )
+        else:
+            self._credentials.store_bearer_token(
+                access_surface_id=inserted["id"],
+                org_id=inserted.get("org_id"),
+                project_id=inserted["project_id"],
+                raw_token=api_key,
+                created_by=created_by,
+            )
         policy = self._upsert_policy(
             inserted["id"],
             accesses=accesses or [],

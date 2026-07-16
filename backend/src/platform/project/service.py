@@ -5,7 +5,6 @@ Handles business logic for Project
 """
 
 import logging
-import re
 from dataclasses import dataclass
 
 from src.exceptions import ErrorCode, NotFoundException, PermissionException
@@ -14,51 +13,6 @@ from src.platform.project.models import Project
 from src.platform.project.repository import ProjectRepositoryBase
 
 logger = logging.getLogger(__name__)
-
-DEFAULT_PROJECT_NAME = "Untitled Project"
-DEFAULT_PROJECT_NAME_RE = re.compile(
-    r"^Untitled Project(?: (?:(\d+)|\((\d+)\)))?$",
-    re.IGNORECASE,
-)
-
-
-def _untitled_project_slot(name: str) -> int | None:
-    match = DEFAULT_PROJECT_NAME_RE.match(name.strip())
-    if not match:
-        return None
-    raw_index = match.group(1) or match.group(2)
-    if raw_index is None:
-        return 1
-    index = int(raw_index)
-    return index if index > 1 else None
-
-
-def _format_untitled_project_name(index: int) -> str:
-    return DEFAULT_PROJECT_NAME if index == 1 else f"{DEFAULT_PROJECT_NAME} {index}"
-
-
-def resolve_untitled_project_name(
-    requested_name: str,
-    existing_projects: list[Project],
-) -> str:
-    """Return a collision-free default project name for Untitled-style names."""
-    requested_slot = _untitled_project_slot(requested_name)
-    if requested_slot is None:
-        return requested_name
-
-    occupied = {
-        slot
-        for project in existing_projects
-        if (slot := _untitled_project_slot(project.name)) is not None
-    }
-    if requested_slot not in occupied:
-        return _format_untitled_project_name(requested_slot)
-
-    next_slot = 1
-    while next_slot in occupied:
-        next_slot += 1
-    return _format_untitled_project_name(next_slot)
-
 
 @dataclass
 class TableInfo:
@@ -121,34 +75,6 @@ class ProjectService:
         """
         return self.repo.get_by_org_id(org_id)
 
-    def create(
-        self,
-        name: str,
-        description: str | None,
-        org_id: str,
-        created_by: str,
-    ) -> Project:
-        """
-        Create a project
-
-        Args:
-            name: Project name
-            description: Project description
-            org_id: Organization ID
-            created_by: Creator user ID
-
-        Returns:
-            Created Project object
-        """
-        name = resolve_untitled_project_name(name, self.repo.get_by_org_id(org_id))
-        project = self.repo.create(
-            name=name,
-            description=description,
-            org_id=org_id,
-            created_by=created_by,
-        )
-        return project
-
     def update(
         self,
         project_id: str,
@@ -182,20 +108,6 @@ class ProjectService:
         if not updated:
             raise NotFoundException(f"Project not found: {project_id}", code=ErrorCode.NOT_FOUND)
         return updated
-
-    def delete(self, project_id: str) -> None:
-        """
-        Delete a project
-
-        Args:
-            project_id: Project ID (UUID)
-
-        Raises:
-            NotFoundException: If project does not exist
-        """
-        success = self.repo.delete(project_id)
-        if not success:
-            raise NotFoundException(f"Project not found: {project_id}", code=ErrorCode.NOT_FOUND)
 
     def list_project_members(self, project_id: str) -> list:
         rows = self.memberships.list_by_project(project_id)

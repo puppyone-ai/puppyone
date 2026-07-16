@@ -20,6 +20,9 @@ from src.platform.repository_context.schemas import (
 from src.platform.repository_context.service import RepositoryContextService
 from src.platform.repository_target.models import ProjectRootTarget, ScopeTarget
 
+OPERATION_KEY = "123e4567-e89b-42d3-a456-426614174000"
+RAW_CREDENTIAL = "pwg_" + "A" * 43
+
 
 class AuthorizationStub:
     def __init__(self, role: ProjectRole):
@@ -56,7 +59,7 @@ class RepositoryStub:
 
     def issue_user_git_credential(self, **kwargs):
         self.issued.append(kwargs)
-        return "credential-1", "pwg_secret"
+        return {"outcome": "created", "credential_id": "credential-1"}
 
     def revoke_user_git_credential(self, **kwargs):
         self.revoked = kwargs
@@ -166,24 +169,25 @@ def test_editor_issues_user_owned_root_git_credential():
     payload = GitCredentialIssueRequest(
         target={"kind": "project_root", "project_id": "project-1"},
         mode=GitCredentialMode.READ_WRITE,
+        credential=RAW_CREDENTIAL,
     )
 
     issued = _service(repository).issue_git_credential(
-        "project-1", "user-1", payload.target, payload.mode
+        "project-1", "user-1", OPERATION_KEY, payload.target, payload.mode, payload.credential
     )
 
     assert issued.target == ProjectRootTarget(project_id="project-1")
     assert issued.credential_id == "credential-1"
-    assert issued.credential == "pwg_secret"
     assert repository.scope_reads == 0
-    assert repository.issued == [
-        {
-            "org_id": "org-1",
-            "target": ProjectRootTarget(project_id="project-1"),
-            "user_id": "user-1",
-            "mode": GitCredentialMode.READ_WRITE,
-        }
-    ]
+    assert len(repository.issued) == 1
+    request = repository.issued[0]
+    assert request["operation_key"] == OPERATION_KEY
+    assert len(request["payload_hash"]) == 64
+    assert request["org_id"] == "org-1"
+    assert request["target"] == ProjectRootTarget(project_id="project-1")
+    assert request["user_id"] == "user-1"
+    assert request["mode"] is GitCredentialMode.READ_WRITE
+    assert request["raw_token"] == RAW_CREDENTIAL
 
 
 def test_viewer_may_issue_read_but_not_write_credential():
@@ -192,10 +196,12 @@ def test_viewer_may_issue_read_but_not_write_credential():
     read_target = GitCredentialIssueRequest(
         target={"kind": "project_root", "project_id": "project-1"},
         mode=GitCredentialMode.READ,
+        credential=RAW_CREDENTIAL,
     )
     assert (
         service.issue_git_credential(
-            "project-1", "user-1", read_target.target, read_target.mode
+            "project-1", "user-1", OPERATION_KEY, read_target.target, read_target.mode,
+            read_target.credential,
         ).mode
         is GitCredentialMode.READ
     )
@@ -204,8 +210,10 @@ def test_viewer_may_issue_read_but_not_write_credential():
         service.issue_git_credential(
             "project-1",
             "user-1",
+            OPERATION_KEY,
             read_target.target,
             GitCredentialMode.READ_WRITE,
+            read_target.credential,
         )
 
 
@@ -218,16 +226,23 @@ def test_scope_mode_and_project_id_bound_credential_exactly():
             "scope_id": "scope-child",
         },
         mode=GitCredentialMode.READ_WRITE,
+        credential=RAW_CREDENTIAL,
     )
     with pytest.raises(PermissionException, match="cannot exceed Scope mode"):
-        service.issue_git_credential("project-1", "user-1", scoped.target, scoped.mode)
+        service.issue_git_credential(
+            "project-1", "user-1", OPERATION_KEY, scoped.target, scoped.mode, scoped.credential
+        )
 
     mismatched = GitCredentialIssueRequest(
         target={"kind": "project_root", "project_id": "project-2"},
         mode=GitCredentialMode.READ,
+        credential=RAW_CREDENTIAL,
     )
     with pytest.raises(AppException) as caught:
-        service.issue_git_credential("project-1", "user-1", mismatched.target, mismatched.mode)
+        service.issue_git_credential(
+            "project-1", "user-1", OPERATION_KEY, mismatched.target,
+            mismatched.mode, mismatched.credential,
+        )
     assert caught.value.code is ErrorCode.TARGET_KIND_MISMATCH
 
 

@@ -586,6 +586,7 @@ function GitSyncBlock({
               connectorId={gitRemote.id}
               gitUrl={apUrl}
               scopeMode={gitRemote.scope_mode === 'r' ? 'r' : 'rw'}
+              target={{ kind: 'project_root', project_id: projectId }}
             />
             <CmdLine
               cmd={connectCmd}

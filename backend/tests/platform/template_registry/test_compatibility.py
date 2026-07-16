@@ -28,6 +28,12 @@ async def test_legacy_template_shapes_preserve_cover_version_and_preview_fields(
     assert "preview_doc" in detail_payload
 
 
-def test_project_create_rejects_a_release_without_a_template_id() -> None:
-    with pytest.raises(ValidationError, match="requires template"):
-        ProjectCreate(name="Copy", template_release_id="1.0.0")
+def test_project_create_is_a_strict_empty_project_contract() -> None:
+    with pytest.raises(ValidationError, match="org_id"):
+        ProjectCreate(name="Copy")
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        ProjectCreate(
+            name="Copy",
+            org_id="org-1",
+            template="get-started",  # type: ignore[call-arg]
+        )

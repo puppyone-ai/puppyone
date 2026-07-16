@@ -34,7 +34,6 @@ Override base URL:
 
 from __future__ import annotations
 
-import json
 import os
 import sys
 import time
@@ -43,7 +42,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import httpx
-
 
 API = os.environ.get("PUPPYONE_API_URL", "https://qubits-api.puppyone.ai").rstrip("/")
 TIMEOUT = httpx.Timeout(30.0, connect=10.0)
@@ -149,10 +147,20 @@ class Smoke:
 
     def step_create_project(self):
         def run():
-            r = self.client.post("/api/v1/projects/", json={
-                "name": self.test_project_name,
-                "description": "smoke test — safe to delete",
-            })
+            orgs = self._expect_ok(
+                self.client.get("/api/v1/organizations/"),
+                hint="list organizations",
+            )["data"]
+            assert orgs, "authenticated user has no organization"
+            r = self.client.post(
+                "/api/v1/projects/",
+                headers={"Idempotency-Key": str(uuid.uuid4())},
+                json={
+                    "name": self.test_project_name,
+                    "description": "smoke test — safe to delete",
+                    "org_id": orgs[0]["id"],
+                },
+            )
             body = self._expect_ok(r, hint="create project")
             self.test_project_id = body["data"]["id"]
             return f"created {self.test_project_id} ({self.test_project_name!r})"
@@ -318,7 +326,7 @@ class Smoke:
             body = self._expect_ok(r, hint="pending conflicts")
             data = body.get("data", [])
             assert data == [] or data == {}, f"expected no pending conflicts, got {data}"
-            return f"no pending conflicts (clean project)"
+            return "no pending conflicts (clean project)"
         self.step("12. Conflict pending list (empty for fresh project)", run)
 
     def step_shadow_snapshot_small(self):
@@ -406,7 +414,7 @@ class Smoke:
             )
             # Read-only members might be refused; allow 200 or 403.
             if r.status_code == 403:
-                return f"403 (read-only or non-writer on this project)"
+                return "403 (read-only or non-writer on this project)"
             body = self._expect_ok(r, hint="rebuild cache")
             data = body.get("data", {})
             variants = data.get("variants", [])
@@ -422,8 +430,9 @@ class Smoke:
             if not self.test_project_id:
                 return "no project to clean up"
             r = self.client.delete(f"/api/v1/projects/{self.test_project_id}")
-            if r.status_code in (200, 204):
-                return f"deleted {self.test_project_id}"
+            if r.status_code == 202:
+                status = (r.json().get("data") or {}).get("status", "pending")
+                return f"deletion accepted for {self.test_project_id} ({status})"
             return f"cleanup HTTP {r.status_code}: {self._resp_text(r)}"
         self.step("17. Cleanup — delete temp project", run)
 
@@ -443,10 +452,20 @@ class Smoke:
             # Each iter: fresh project, single bulk_write, single move,
             # then immediate health check. Delete cleanup at end.
             try:
-                r = self.client.post("/api/v1/projects/", json={
-                    "name": f"stress-{int(time.time())}-{i}",
-                    "description": "race stress",
-                })
+                orgs = self._expect_ok(
+                    self.client.get("/api/v1/organizations/"),
+                    hint="list organizations",
+                )["data"]
+                assert orgs, "authenticated user has no organization"
+                r = self.client.post(
+                    "/api/v1/projects/",
+                    headers={"Idempotency-Key": str(uuid.uuid4())},
+                    json={
+                        "name": f"stress-{int(time.time())}-{i}",
+                        "description": "race stress",
+                        "org_id": orgs[0]["id"],
+                    },
+                )
                 pid = r.json()["data"]["id"]
             except Exception as exc:
                 print(f"  [iter {i:2d}] project create failed: {exc}")

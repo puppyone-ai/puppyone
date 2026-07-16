@@ -273,6 +273,7 @@ export function ConnectMethodsBlock({
             gitUrl={gitUrl}
             scopeMode={scope.max_mode}
             scopeName={scopeName}
+            target={scope.target}
           />
         </MethodCard>
       </MethodSection>

@@ -274,8 +274,8 @@ BEGIN
         RETURN;
     END IF;
 
-    INSERT INTO public.projects (id, name, org_id)
-    VALUES (probe_project_id, '__object_gc_rpc_smoke__', probe_org_id);
+    INSERT INTO public.projects (id, name, org_id, lifecycle_status)
+    VALUES (probe_project_id, '__object_gc_rpc_smoke__', probe_org_id, 'ready');
 
     SELECT array_agg(s.object_id) INTO matured_ids
     FROM public.sync_version_object_gc_candidates(

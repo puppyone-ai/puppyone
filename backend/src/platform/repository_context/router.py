@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Request, Response, status
 
 from src.common_schemas import ApiResponse
 from src.config import settings
@@ -8,6 +8,7 @@ from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
 from src.platform.authorization.dependencies import AuthorizedProject, require_project_action
 from src.platform.authorization.models import ProjectAction
+from src.platform.idempotency import mark_idempotency_replay, require_idempotency_key
 from src.platform.repository_context.dependencies import get_repository_context_service
 from src.platform.repository_context.schemas import (
     GitCredentialIssueRequest,
@@ -42,6 +43,8 @@ def _cloud_origin(request: Request) -> str:
 def issue_git_credential(
     payload: GitCredentialIssueRequest,
     request: Request,
+    response: Response,
+    idempotency_key: str = Depends(require_idempotency_key),
     authorized: AuthorizedProject = Depends(require_project_action(ProjectAction.CONTENT_READ)),
     current_user: CurrentUser = Depends(get_current_user),
     service: RepositoryContextService = Depends(get_repository_context_service),
@@ -49,14 +52,17 @@ def issue_git_credential(
     issued = service.issue_git_credential(
         authorized.project.id,
         current_user.user_id,
+        idempotency_key,
         payload.target,
         payload.mode,
+        payload.credential,
     )
+    response.status_code = status.HTTP_200_OK if issued.replayed else status.HTTP_201_CREATED
+    mark_idempotency_replay(response, replayed=issued.replayed)
     target = repository_target_schema(issued.target)
     return ApiResponse.success(
         data=GitCredentialOut(
             id=issued.credential_id,
-            credential=issued.credential,
             mode=issued.mode,
             remote=GitRemoteOut(
                 url=canonical_git_url(

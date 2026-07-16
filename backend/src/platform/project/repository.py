@@ -21,16 +21,6 @@ class ProjectRepositoryBase(ABC):
         """Get project list by organization ID"""
 
     @abstractmethod
-    def create(
-        self,
-        name: str,
-        description: str | None,
-        org_id: str,
-        created_by: str,
-    ) -> Project:
-        """Create a project"""
-
-    @abstractmethod
     def update(
         self,
         project_id: str,
@@ -41,9 +31,7 @@ class ProjectRepositoryBase(ABC):
     ) -> Project | None:
         """Update a project"""
 
-    @abstractmethod
-    def delete(self, project_id: str) -> bool:
-        """Delete a project"""
+
 
 class ProjectRepositorySupabase(ProjectRepositoryBase):
     """Supabase-based Project repository implementation"""
@@ -90,44 +78,6 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
         projects_response = self._supabase_repo.get_projects(org_id=org_id)
         return [self._project_response_to_project(p) for p in projects_response]
 
-    def create(
-        self,
-        name: str,
-        description: str | None,
-        org_id: str,
-        created_by: str,
-    ) -> Project:
-        """
-        Create a project
-
-        Args:
-            name: Project name
-            description: Project description
-            org_id: Organization ID
-            created_by: Creator user ID
-
-        Returns:
-            Created Project object
-        """
-        import secrets
-
-        from src.platform.project.supabase_schemas import ProjectCreate
-        from src.utils.id_generator import generate_uuid_v7
-
-        project_data = ProjectCreate(
-            id=generate_uuid_v7(),
-            name=name,
-            description=description,
-            org_id=org_id,
-            created_by=created_by,
-            # Per the share-link MVP: every project ships with a fresh
-            # URL-safe token at create time. 24 bytes → 32-char URL-safe
-            # string; same entropy budget we use for org-invite tokens.
-            share_token=secrets.token_urlsafe(24),
-        )
-        project_response = self._supabase_repo.create_project_with_admin(project_data)
-        return self._project_response_to_project(project_response)
-
     def rotate_share_token(self, project_id: str) -> Project | None:
         """Generate a new share token for ``project_id`` and persist it.
 
@@ -157,6 +107,7 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
             client.table("projects")
             .select("*")
             .eq("share_token", token)
+            .eq("lifecycle_status", "ready")
             .limit(1)
             .execute()
         )
@@ -210,18 +161,6 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
             return self._project_response_to_project(project_response)
         return None
 
-    def delete(self, project_id: str) -> bool:
-        """
-        Delete a project
-
-        Args:
-            project_id: Project ID
-
-        Returns:
-            Whether deletion was successful
-        """
-        return self._supabase_repo.delete_project(project_id)
-
     def _project_response_to_project(self, project_response) -> Project:
         """
         Convert ProjectResponse to Project model
@@ -237,10 +176,10 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
             name=project_response.name,
             description=project_response.description,
             org_id=project_response.org_id,
-            visibility=getattr(project_response, 'visibility', 'org'),
-            bound_git_branch=getattr(project_response, 'bound_git_branch', 'main'),
+            visibility=getattr(project_response, "visibility", "org"),
+            bound_git_branch=getattr(project_response, "bound_git_branch", "main"),
             created_by=project_response.created_by,
             created_at=project_response.created_at,
-            updated_at=getattr(project_response, 'updated_at', None),
-            share_token=getattr(project_response, 'share_token', None),
+            updated_at=getattr(project_response, "updated_at", None),
+            share_token=getattr(project_response, "share_token", None),
         )
