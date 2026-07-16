@@ -98,7 +98,7 @@ run_data_migration 20260715_project_owned_repository_targets_preflight
 restore_contract
 (
     cd "$repository_root"
-    supabase migration up --local
+    supabase migration up --local --include-all
 
     psql "$database_url" -X -v ON_ERROR_STOP=1 \
         -c "INSERT INTO public.repository_scopes (id, project_id, name, path, exclude, max_mode) VALUES ('issue039-concurrent-scope', 'issue039-project', 'Concurrent Scope', 'concurrent/scope', '[]', 'rw')"
@@ -126,7 +126,7 @@ restore_initialization
 restore_closure
 (
     cd "$repository_root"
-    supabase migration up --local
+    supabase migration up --local --include-all
     psql "$database_url" -X -v ON_ERROR_STOP=1 \
         -f supabase/test_fixtures/workspace_binding_removal_assert.sql
 )
@@ -145,7 +145,7 @@ save_closure
 restore_contract
 if (
     cd "$repository_root"
-    supabase migration up --local
+    supabase migration up --local --include-all
 ); then
     echo "expected contract migration to reject a missing preflight receipt" >&2
     exit 1

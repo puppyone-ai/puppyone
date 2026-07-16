@@ -172,6 +172,17 @@ def test_schema_runner_only_pauses_for_an_explicit_data_migration_guard() -> Non
     assert "if: steps.push.outputs.schema_state == 'deployed'" in schema
 
 
+def test_only_historical_upgrade_harness_can_insert_missing_older_migrations() -> None:
+    schema = (WORKFLOWS / "_schema-deploy.yml").read_text()
+    upgrade_harness = (REPOSITORY / "scripts" / "test-repository-target-migration.sh").read_text()
+
+    # This harness intentionally creates holes in local schema history so it can
+    # prove an existing installation upgrades correctly. Hosted deploys must keep
+    # Supabase's strict ordering guard and never normalize such history drift.
+    assert upgrade_harness.count("supabase migration up --local --include-all") == 3
+    assert "--include-all" not in schema
+
+
 def test_needs_expressions_use_identifier_safe_job_ids() -> None:
     for name in ("data-migration.yml", "migrate-staging.yml"):
         workflow = (WORKFLOWS / name).read_text()
