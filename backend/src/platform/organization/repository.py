@@ -59,9 +59,26 @@ class OrganizationRepository:
             return Organization(**resp.data[0])
         return None
 
-    def delete(self, org_id: str) -> bool:
-        resp = self._client.table("organizations").delete().eq("id", org_id).execute()
-        return len(resp.data) > 0
+    def delete_empty_control_plane(self, org_id: str, actor_user_id: str) -> dict:
+        """Atomically delete an Organization only after proving it has no Projects.
+
+        Project rows must be removed through the Project deletion control plane,
+        which durably records object cleanup before deleting relational state.
+        A direct Organizations DELETE would let the FK cascade bypass that
+        journal, so production code has no direct-delete repository primitive.
+        """
+
+        response = self._client.rpc(
+            "delete_empty_organization_control_plane",
+            {
+                "p_org_id": org_id,
+                "p_actor_user_id": actor_user_id,
+            },
+        ).execute()
+        data = response.data
+        if isinstance(data, list):
+            data = data[0] if data else None
+        return data if isinstance(data, dict) else {"outcome": "invalid_response"}
 
     # ── Members ──
 

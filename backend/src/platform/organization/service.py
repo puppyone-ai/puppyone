@@ -92,16 +92,43 @@ class OrganizationService:
         return self._repo.update(org_id, **kwargs)
 
     def delete(self, org_id: str, user_id: str) -> None:
-        self._require_owner(org_id, user_id)
-
-        user_orgs = self._repo.list_by_user(user_id)
-        if len(user_orgs) <= 1:
+        result = self._repo.delete_empty_control_plane(org_id, user_id)
+        outcome = str(result.get("outcome") or "")
+        if outcome == "deleted":
+            return
+        if outcome == "only_organization":
             raise AppException(
                 code=ErrorCode.FORBIDDEN,
                 message="Cannot delete your only organization",
+                status_code=403,
             )
-
-        self._repo.delete(org_id)
+        if outcome == "organization_not_empty":
+            raise AppException(
+                code=ErrorCode.BAD_REQUEST,
+                message=(
+                    "Delete every project in this organization and wait for "
+                    "its Cloud cleanup to be accepted before deleting the organization"
+                ),
+                status_code=409,
+                details={"reason": "organization_not_empty"},
+            )
+        if outcome == "forbidden":
+            raise ForbiddenException("Only owner can perform this action")
+        if outcome == "not_found":
+            raise NotFoundException(
+                f"Organization not found: {org_id}", code=ErrorCode.NOT_FOUND
+            )
+        if outcome == "invalid_request":
+            raise AppException(
+                code=ErrorCode.VALIDATION_ERROR,
+                message="Invalid organization deletion request",
+                status_code=422,
+            )
+        raise AppException(
+            code=ErrorCode.INTERNAL_SERVER_ERROR,
+            message="Organization deletion control plane returned an invalid response",
+            status_code=500,
+        )
 
     # ── Members ──
 
