@@ -32,6 +32,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       migration_id: ${{ steps.release.outputs.migration_id }}
+      repair_migration_id: ${{ steps.release.outputs.repair_migration_id }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -52,7 +53,21 @@ jobs:
             echo "::error::Staged data migration artifact does not exist."
             exit 1
           fi
+          repair_migration_id=$(jq -er '.repair_migration_id // "" | select(type == "string")' "$request")
+          if [ -n "$repair_migration_id" ]; then
+            case "$repair_migration_id" in
+              *[!0-9A-Za-z_]*)
+                echo "::error::Invalid staged repair data migration ID."
+                exit 1
+                ;;
+            esac
+            if [ ! -d "supabase/data_migrations/$repair_migration_id" ]; then
+              echo "::error::Staged repair data migration artifact does not exist."
+              exit 1
+            fi
+          fi
           echo "migration_id=$migration_id" >> "$GITHUB_OUTPUT"
+          echo "repair_migration_id=$repair_migration_id" >> "$GITHUB_OUTPUT"
 
   deploy_push:
     name: Deploy staging schema after qubits merge
@@ -94,10 +109,30 @@ jobs:
             exit 1
           fi
 
-  data_plan:
-    if: github.event_name == 'workflow_dispatch'
+  repair_run:
+    name: Run staged repair before the staged data migration
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      needs.resolve_data_release.outputs.repair_migration_id != ''
     needs:
       - validate_schema_pause
+      - resolve_data_release
+    uses: ./.github/workflows/_data-migration.yml
+    secrets: inherit
+    with:
+      environment: staging
+      migration_id: ${{ needs.resolve_data_release.outputs.repair_migration_id }}
+      operation: run
+
+  data_plan:
+    if: >-
+      always() && github.event_name == 'workflow_dispatch' &&
+      needs.validate_schema_pause.result == 'success' &&
+      needs.resolve_data_release.result == 'success' &&
+      (needs.repair_run.result == 'success' || needs.repair_run.result == 'skipped')
+    needs:
+      - validate_schema_pause
+      - repair_run
       - resolve_data_release
     uses: ./.github/workflows/_data-migration.yml
     secrets: inherit

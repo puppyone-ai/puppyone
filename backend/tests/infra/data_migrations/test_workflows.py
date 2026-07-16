@@ -121,7 +121,7 @@ def test_reusable_database_workflows_receive_protected_secrets() -> None:
     # GitHub does not pass secrets to reusable workflows automatically. Every
     # direct caller must cross that boundary explicitly; the called job then
     # selects the protected staging/production Environment.
-    assert staging.count("secrets: inherit") == 6
+    assert staging.count("secrets: inherit") == 7
     assert production.count("secrets: inherit") == 1
     assert dispatcher.count("secrets: inherit") == 3
 
@@ -145,20 +145,34 @@ def test_staging_manual_release_is_auditable_and_serial() -> None:
         "prepare_schema",
         "resolve_data_release",
     ]
-    assert jobs["data_plan"]["needs"] == [
+    assert jobs["repair_run"]["needs"] == [
         "validate_schema_pause",
         "resolve_data_release",
     ]
+    assert "outputs.repair_migration_id != ''" in jobs["repair_run"]["if"]
+    assert jobs["data_plan"]["needs"] == [
+        "validate_schema_pause",
+        "repair_run",
+        "resolve_data_release",
+    ]
+    # A staged repair may legitimately be absent (skipped), but its failure
+    # must stop the staged data migration from mutating the environment.
+    assert "needs.repair_run.result == 'success'" in jobs["data_plan"]["if"]
+    assert "needs.repair_run.result == 'skipped'" in jobs["data_plan"]["if"]
     assert jobs["data_run"]["needs"] == ["data_plan", "resolve_data_release"]
     assert jobs["data_verify"]["needs"] == ["data_run", "resolve_data_release"]
     assert jobs["deploy_after_data"]["needs"] == "data_verify"
     assert jobs["deploy_after_data"]["if"] == "github.event_name == 'workflow_dispatch'"
     assert staging.count("uses: ./.github/workflows/_schema-deploy.yml") == 3
-    assert staging.count("uses: ./.github/workflows/_data-migration.yml") == 3
+    assert staging.count("uses: ./.github/workflows/_data-migration.yml") == 4
     for operation in ("plan", "run", "verify"):
         assert f"operation: {operation}" in staging
     assert re.fullmatch(r"[0-9A-Za-z_]+", release["migration_id"])
     assert (REPOSITORY / "supabase" / "data_migrations" / release["migration_id"]).is_dir()
+    repair_id = release.get("repair_migration_id")
+    if repair_id:
+        assert re.fullmatch(r"[0-9A-Za-z_]+", repair_id)
+        assert (REPOSITORY / "supabase" / "data_migrations" / repair_id).is_dir()
 
 
 def test_schema_runner_only_pauses_for_an_explicit_data_migration_guard() -> None:
