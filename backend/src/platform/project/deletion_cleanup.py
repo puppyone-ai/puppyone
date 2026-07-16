@@ -18,6 +18,7 @@ class ProjectDeletionCleanupSummary:
     completed: int = 0
     failed: int = 0
     deleted_objects: int = 0
+    aborted_multipart_uploads: int = 0
     verification_scheduled: int = 0
     late_object_cycles: int = 0
 
@@ -27,6 +28,7 @@ class ProjectDeletionCleanupSummary:
             "completed": self.completed,
             "failed": self.failed,
             "deleted_objects": self.deleted_objects,
+            "aborted_multipart_uploads": self.aborted_multipart_uploads,
             "verification_scheduled": self.verification_scheduled,
             "late_object_cycles": self.late_object_cycles,
         }
@@ -122,6 +124,7 @@ class ProjectDeletionCleanupWorker:
         completed = 0
         failed = 0
         deleted_objects = 0
+        aborted_multipart_uploads = 0
         verification_scheduled = 0
         late_object_cycles = 0
         for job in jobs:
@@ -132,6 +135,9 @@ class ProjectDeletionCleanupWorker:
                 phase = str(job.get("phase") or "")
                 if phase == "purge":
                     for prefix in prefixes:
+                        aborted_multipart_uploads += (
+                            await self._abort_prefix_multipart_uploads(prefix)
+                        )
                         deleted_objects += await self._purge_prefix(prefix)
                     await self._schedule_verification(job_id)
                     verification_scheduled += 1
@@ -140,12 +146,18 @@ class ProjectDeletionCleanupWorker:
                     # request may finish after the first purge.  Seeing any
                     # object restarts the entire quiet verification window.
                     has_late_objects = False
+                    has_late_multipart_uploads = False
                     for prefix in prefixes:
                         if await self._prefix_has_objects(prefix):
                             has_late_objects = True
-                    if has_late_objects:
+                        if await self._prefix_has_multipart_uploads(prefix):
+                            has_late_multipart_uploads = True
+                    if has_late_objects or has_late_multipart_uploads:
                         late_object_cycles += 1
                         for prefix in prefixes:
+                            aborted_multipart_uploads += (
+                                await self._abort_prefix_multipart_uploads(prefix)
+                            )
                             deleted_objects += await self._purge_prefix(prefix)
                         await self._schedule_verification(job_id)
                         verification_scheduled += 1
@@ -176,6 +188,7 @@ class ProjectDeletionCleanupWorker:
             completed=completed,
             failed=failed,
             deleted_objects=deleted_objects,
+            aborted_multipart_uploads=aborted_multipart_uploads,
             verification_scheduled=verification_scheduled,
             late_object_cycles=late_object_cycles,
         )
@@ -193,6 +206,29 @@ class ProjectDeletionCleanupWorker:
     async def _prefix_has_objects(self, prefix: str) -> bool:
         files, _, _, _ = await self._s3.list_files(prefix=prefix, max_keys=1)
         return bool(files)
+
+    async def _prefix_has_multipart_uploads(self, prefix: str) -> bool:
+        uploads, _ = await self._s3.list_multipart_uploads(
+            prefix=prefix,
+            max_uploads=1,
+        )
+        return bool(uploads)
+
+    async def _abort_prefix_multipart_uploads(self, prefix: str) -> int:
+        aborted = 0
+        # Like object deletion, re-read the first page after every batch.  The
+        # S3 API's pagination markers refer to a changing set once uploads are
+        # aborted, so restarting cannot skip a remaining upload.
+        while True:
+            uploads, _ = await self._s3.list_multipart_uploads(
+                prefix=prefix,
+                max_uploads=1000,
+            )
+            if not uploads:
+                return aborted
+            for upload in uploads:
+                await self._s3.abort_multipart_upload(upload.key, upload.upload_id)
+                aborted += 1
 
     async def _purge_prefix(self, prefix: str) -> int:
         deleted = 0

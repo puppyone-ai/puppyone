@@ -40,6 +40,12 @@ class DeleteResult:
     message: str = ""
 
 
+@dataclass
+class MultipartUpload:
+    key: str
+    upload_id: str
+
+
 class RepositoryStub:
     def __init__(self, jobs):
         self.jobs = jobs
@@ -75,10 +81,12 @@ class RepositoryStub:
 
 
 class S3Stub:
-    def __init__(self, keys=()):
+    def __init__(self, keys=(), multipart_uploads=()):
         self.keys = set(keys)
+        self.multipart_uploads = set(multipart_uploads)
         self.listed: list[tuple[str, int]] = []
         self.deleted: list[str] = []
+        self.aborted: list[tuple[str, str]] = []
 
     async def list_files(self, *, prefix, max_keys):
         self.listed.append((prefix, max_keys))
@@ -90,6 +98,16 @@ class S3Stub:
             self.keys.discard(key)
             self.deleted.append(key)
         return [DeleteResult(key) for key in keys]
+
+    async def list_multipart_uploads(self, *, prefix, max_uploads):
+        matches = sorted(
+            item for item in self.multipart_uploads if item[0].startswith(prefix)
+        )[:max_uploads]
+        return [MultipartUpload(key, upload_id) for key, upload_id in matches], None
+
+    async def abort_multipart_upload(self, key, upload_id):
+        self.multipart_uploads.discard((key, upload_id))
+        self.aborted.append((key, upload_id))
 
 
 def _job(*, phase: str, prefixes=PREFIXES, principals=PRINCIPALS):
@@ -116,7 +134,11 @@ async def test_first_phase_purges_every_owned_namespace_then_waits_for_verificat
             f"users/{REQUESTED_BY}/raw/{PROJECT_ID}/raw.pdf",
             f"users/{OTHER_PRINCIPAL}/etl_artifacts/{PROJECT_ID}/task/mineru.md",
             f"users/{OTHER_PRINCIPAL}/processed/{PROJECT_ID}/task.json",
-        }
+        },
+        {
+            (f"projects/{PROJECT_ID}/uploads/{REQUESTED_BY}/large.bin", "upload-1"),
+            (f"users/{OTHER_PRINCIPAL}/raw/{PROJECT_ID}/legacy.bin", "upload-2"),
+        },
     )
     worker = ProjectDeletionCleanupWorker(
         repository,
@@ -128,7 +150,9 @@ async def test_first_phase_purges_every_owned_namespace_then_waits_for_verificat
     summary = await worker.run_once()
 
     assert not s3.keys
+    assert not s3.multipart_uploads
     assert summary.deleted_objects == 7
+    assert summary.aborted_multipart_uploads == 2
     assert summary.completed == 0
     assert summary.verification_scheduled == 1
     assert repository.completed == []
@@ -164,6 +188,27 @@ async def test_late_inflight_git_object_restarts_a_full_verification_window():
     summary = await worker.run_once()
 
     assert late_key in s3.deleted
+    assert summary.completed == 0
+    assert summary.late_object_cycles == 1
+    assert summary.verification_scheduled == 1
+    assert repository.completed == []
+
+
+@pytest.mark.asyncio
+async def test_late_multipart_upload_is_aborted_and_restarts_verification_window():
+    upload = (
+        f"projects/{PROJECT_ID}/uploads/{REQUESTED_BY}/late-large.bin",
+        "upload-late",
+    )
+    repository = RepositoryStub([_job(phase="verify")])
+    s3 = S3Stub(multipart_uploads={upload})
+    worker = ProjectDeletionCleanupWorker(repository, s3, worker_id="worker-1")
+
+    summary = await worker.run_once()
+
+    assert upload in s3.aborted
+    assert not s3.multipart_uploads
+    assert summary.aborted_multipart_uploads == 1
     assert summary.completed == 0
     assert summary.late_object_cycles == 1
     assert summary.verification_scheduled == 1
