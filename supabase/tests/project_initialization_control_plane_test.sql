@@ -90,11 +90,17 @@ CREATE TEMP TABLE issue039_results (
 
 SELECT extensions.dblink_connect(
     'issue039-c1',
-    'host=127.0.0.1 port=5432 dbname=postgres user=postgres password=postgres'
+    format(
+        'hostaddr=%s port=%s dbname=%s user=postgres password=postgres',
+        host(inet_server_addr()), current_setting('port'), current_database()
+    )
 );
 SELECT extensions.dblink_connect(
     'issue039-c2',
-    'host=127.0.0.1 port=5432 dbname=postgres user=postgres password=postgres'
+    format(
+        'hostaddr=%s port=%s dbname=%s user=postgres password=postgres',
+        host(inet_server_addr()), current_setting('port'), current_database()
+    )
 );
 
 SELECT throws_ok(

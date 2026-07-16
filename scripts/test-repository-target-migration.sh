@@ -87,7 +87,7 @@ save_closure
     cd "$repository_root"
     supabase db reset --no-seed
     psql "$database_url" -X -v ON_ERROR_STOP=1 \
-        -f supabase/tests/fixtures/repository_target_legacy_upgrade.sql
+        -f supabase/test_fixtures/repository_target_legacy_upgrade.sql
 )
 
 run_data_migration 20260712_repo_user_permissions_to_project_members
@@ -115,7 +115,7 @@ restore_contract
     psql "$database_url" -X -v ON_ERROR_STOP=1 \
         -c "DO \$\$ BEGIN IF (SELECT count(*) FROM public.access_surfaces WHERE project_id = 'issue039-project' AND scope_id = 'issue039-concurrent-scope' AND kind IN ('git_remote', 'cli')) <> 2 THEN RAISE EXCEPTION 'concurrent enable did not converge'; END IF; END \$\$"
     psql "$database_url" -X -v ON_ERROR_STOP=1 \
-        -f supabase/tests/fixtures/repository_target_upgrade_assert.sql
+        -f supabase/test_fixtures/repository_target_upgrade_assert.sql
 )
 
 # The previous assertion proves the Issue 039 geometry cutover on its own.
@@ -128,7 +128,7 @@ restore_closure
     cd "$repository_root"
     supabase migration up --local
     psql "$database_url" -X -v ON_ERROR_STOP=1 \
-        -f supabase/tests/fixtures/workspace_binding_removal_assert.sql
+        -f supabase/test_fixtures/workspace_binding_removal_assert.sql
 )
 
 # A non-empty installation cannot bypass the immutable data-preflight receipt.
@@ -140,7 +140,7 @@ save_closure
     cd "$repository_root"
     supabase db reset --no-seed
     psql "$database_url" -X -v ON_ERROR_STOP=1 \
-        -f supabase/tests/fixtures/repository_target_legacy_upgrade.sql
+        -f supabase/test_fixtures/repository_target_legacy_upgrade.sql
 )
 restore_contract
 if (
@@ -167,7 +167,7 @@ save_closure
     cd "$repository_root"
     supabase db reset --no-seed
     psql "$database_url" -X -v ON_ERROR_STOP=1 \
-        -f supabase/tests/fixtures/repository_target_corrupt_missing_root.sql
+        -f supabase/test_fixtures/repository_target_corrupt_missing_root.sql
 )
 
 if run_data_migration 20260715_project_owned_repository_targets_preflight; then
