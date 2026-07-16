@@ -180,6 +180,9 @@ def test_only_historical_upgrade_harness_can_insert_missing_older_migrations() -
     # prove an existing installation upgrades correctly. Hosted deploys must keep
     # Supabase's strict ordering guard and never normalize such history drift.
     assert upgrade_harness.count("supabase migration up --local --include-all") == 3
+    assert "20260717000000_project_deletion_admission_fence.sql" in upgrade_harness
+    assert upgrade_harness.count("save_fence") == 4
+    assert upgrade_harness.count("restore_fence") == 5
     assert "--include-all" not in schema
 
 
