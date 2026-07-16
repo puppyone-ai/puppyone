@@ -19,6 +19,7 @@ Read in this order:
 12. [Database Release Governance](architecture/13-database-release-governance.md)
 13. [Template Registry](architecture/14-template-registry.md)
 14. [Project-Owned Repository Targets](architecture/15-project-owned-repository-targets.md)
+15. [Project Publish Control Plane](architecture/16-project-publish-control-plane.md)
 
 Product and frontend design:
 
