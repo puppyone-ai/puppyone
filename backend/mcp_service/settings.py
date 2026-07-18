@@ -57,6 +57,18 @@ class Settings(BaseSettings):
     MAX_RETRIES: int = 3
     RETRY_DELAY: float = 0.5
 
+    # ============ CORS 配置 (ISSUE-008) ============
+    # 逗号分隔的可信来源。默认 "*" 配合 allow_credentials=False 是安全的：
+    # MCP 走 Authorization / api-key 头鉴权，不依赖 Cookie。生产可收敛到前端域。
+    CORS_ALLOWED_ORIGINS: str = "*"
+
+    @property
+    def cors_origins(self) -> list[str]:
+        raw = (self.CORS_ALLOWED_ORIGINS or "").strip()
+        if not raw or raw == "*":
+            return ["*"]
+        return [o.strip() for o in raw.split(",") if o.strip()]
+
     # ============ 辅助方法 ============
     def validate(self) -> None:
         """验证配置是否有效"""

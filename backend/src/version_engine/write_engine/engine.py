@@ -12,6 +12,7 @@ import asyncio
 import base64
 import hashlib
 import json
+import random
 import time
 from datetime import datetime, timezone
 from typing import Callable
@@ -71,6 +72,23 @@ from src.utils.logger import log_error, log_info, log_warning
 SpliceFn = Callable[[ObjectStore, str], "tuple[str, list[tuple[str, str]]]"]
 
 _MAX_CAS_ATTEMPTS = 5
+# CAS retry backoff (ISSUE-013). Losing writers on a hot scope/project root
+# previously retried immediately with no delay, forming a thundering herd that
+# wasted CPU (each retry re-reads + re-merges). Full-jitter exponential backoff
+# spreads contenders out and sheds load under concurrency.
+_CAS_BACKOFF_BASE_MS = 25
+_CAS_BACKOFF_MAX_MS = 500
+
+
+async def _cas_backoff(attempt: int) -> None:
+    """Sleep before a CAS retry using full-jitter exponential backoff.
+
+    ``attempt`` is 0-based; the first attempt (0) never sleeps.
+    """
+    if attempt <= 0:
+        return
+    ceiling_ms = min(_CAS_BACKOFF_BASE_MS * (2 ** (attempt - 1)), _CAS_BACKOFF_MAX_MS)
+    await asyncio.sleep(random.uniform(0, ceiling_ms) / 1000.0)
 
 
 class ConcurrentMutationError(RuntimeError):
@@ -487,6 +505,7 @@ class VersionWriteEngine:
         base_scope_hash: str | None = None
         merge_audit: dict | None = None
         for attempt in range(_MAX_CAS_ATTEMPTS):
+            await _cas_backoff(attempt)
             old_scope_hash, current_head_commit_id = _get_scope_state(repo, scope_norm)
             if (
                 intent.expected_head_commit_id is not None
@@ -846,6 +865,7 @@ class VersionWriteEngine:
         merge_base_root_hash: str | None = None
         merge_audit: dict | None = None
         for attempt in range(_MAX_CAS_ATTEMPTS):
+            await _cas_backoff(attempt)
             attempt_no = attempt + 1
             if attempt == 0 and write_state is not None:
                 old_root_hash = write_state.root_hash or ""
@@ -1090,6 +1110,7 @@ class VersionWriteEngine:
 
         last_error: Exception | None = None
         for attempt in range(_MAX_CAS_ATTEMPTS):
+            await _cas_backoff(attempt)
             promoted_objects = False
             old_scope_hash, current_head_commit_id = _get_scope_state(repo, scope_norm)
             if (
@@ -1428,6 +1449,7 @@ class VersionWriteEngine:
 
         last_error: Exception | None = None
         for attempt in range(_MAX_CAS_ATTEMPTS):
+            await _cas_backoff(attempt)
             old_scope_hash, current_head_commit_id = _get_scope_state(repo, scope_norm)
             current_files = await asyncio.to_thread(
                 _scope_files_for_head, repo, scope_norm, old_scope_hash,

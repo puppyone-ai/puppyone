@@ -11,8 +11,9 @@ import os
 import tempfile
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
+from src.config import settings
 from src.common_schemas import ApiResponse
 from src.version_engine.adapters.git.health import git_view_health_payload
 from src.version_engine.derived.git_transport_cache import rebuild_git_transport_view
@@ -114,25 +115,38 @@ async def _record_git_fetch_audit(
     await asyncio.to_thread(repo.record_audit, "git_fetch", actor, detail)
 
 
-async def _spool_git_request_body(request: Request) -> Path:
+async def _spool_git_request_body(request: Request, *, max_body_bytes: int | None = None) -> Path:
     """Spool a Git RPC request body to disk.
 
     Large Git pushes may arrive as chunked transfer bodies. Keeping them off
     the Python heap lets stock Git consume the exact decoded request bytes
     without requiring users to tune client-side buffering.
+
+    ``max_body_bytes`` fail-fast caps the compressed request body so a hostile
+    client cannot fill the spool disk (or feed an unbounded pack downstream).
+    Streaming is aborted and the partial file removed as soon as the cap is
+    crossed, raising HTTP 413.
     """
 
     tmp = tempfile.NamedTemporaryFile(
         prefix="puppyone-git-rpc-",
         delete=False,
     )
+    written = 0
     try:
         async for chunk in request.stream():
-            if chunk:
-                tmp.write(chunk)
+            if not chunk:
+                continue
+            written += len(chunk)
+            if max_body_bytes and written > max_body_bytes:
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"Git request body exceeds the {max_body_bytes} byte limit.",
+                )
+            tmp.write(chunk)
         tmp.close()
         return Path(tmp.name)
-    except Exception:
+    except BaseException:
         name = tmp.name
         tmp.close()
         try:
@@ -140,6 +154,22 @@ async def _spool_git_request_body(request: Request) -> Path:
         except FileNotFoundError:
             pass
         raise
+
+
+async def _read_capped_body(request: Request, max_bytes: int | None) -> bytes:
+    """Read a request body with an upper size bound (ISSUE-014).
+
+    Rejects early on a declared Content-Length over the cap, then guards against
+    a lying/chunked body after buffering. Used for upload-pack negotiation bodies.
+    """
+    if max_bytes:
+        declared = request.headers.get("content-length")
+        if declared and declared.isdigit() and int(declared) > max_bytes:
+            raise HTTPException(status_code=413, detail=f"Git request body exceeds the {max_bytes} byte limit.")
+    body = await request.body()
+    if max_bytes and len(body) > max_bytes:
+        raise HTTPException(status_code=413, detail=f"Git request body exceeds the {max_bytes} byte limit.")
+    return body
 
 
 def _unlink_temp(path: Path) -> None:
@@ -343,7 +373,9 @@ async def git_receive_pack(
 
     auth = await resolve_git_project_auth(project_id, request, scope)
     repo = repo_manager.get_server_repo(project_id)
-    request_path = await _spool_git_request_body(request)
+    request_path = await _spool_git_request_body(
+        request, max_body_bytes=settings.GIT_MAX_RECEIVE_PACK_BYTES or None
+    )
     actor = request_actor(request, auth)
     facade = repo_facade_from_auth(project_id, auth, kind="project_git_remote")
     try:
@@ -377,7 +409,9 @@ async def git_ap_receive_pack(
 
     project_id, auth = await resolve_git_access_point(access_key, request)
     repo = repo_manager.get_server_repo(project_id)
-    request_path = await _spool_git_request_body(request)
+    request_path = await _spool_git_request_body(
+        request, max_body_bytes=settings.GIT_MAX_RECEIVE_PACK_BYTES or None
+    )
     actor = request_actor(request, auth)
     facade = repo_facade_from_auth(project_id, auth, kind="access_point")
     try:
@@ -412,7 +446,7 @@ async def git_upload_pack(
 
     auth = await resolve_git_project_auth(project_id, request, scope)
     repo = repo_manager.get_server_repo(project_id)
-    body = await request.body()
+    body = await _read_capped_body(request, settings.GIT_MAX_UPLOAD_PACK_BYTES or None)
     actor = request_actor(request, auth)
     facade = repo_facade_from_auth(project_id, auth, kind="project_git_remote")
     await _record_git_fetch_audit(
@@ -440,7 +474,7 @@ async def git_ap_upload_pack(
 
     project_id, auth = await resolve_git_access_point(access_key, request)
     repo = repo_manager.get_server_repo(project_id)
-    body = await request.body()
+    body = await _read_capped_body(request, settings.GIT_MAX_UPLOAD_PACK_BYTES or None)
     actor = request_actor(request, auth)
     facade = repo_facade_from_auth(project_id, auth, kind="access_point")
     await _record_git_fetch_audit(

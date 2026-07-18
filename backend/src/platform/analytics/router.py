@@ -7,13 +7,34 @@ Data source: access_logs table (records each time a node is sent to sandbox).
 
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from src.infra.supabase import get_supabase_client
-from src.platform.auth.dependencies import get_current_user_optional
+from src.platform.auth.dependencies import get_current_user
+from src.platform.auth.models import CurrentUser
+from src.platform.project.repository import ProjectRepositorySupabase
 
 router = APIRouter(prefix="/api/v1/analytics", tags=["analytics"])
+
+# Cap the query window so analytics cannot be used as a bulk data-export
+# channel. 90 days is well beyond any dashboard use case.
+_MAX_RANGE_HOURS = 24 * 90
+
+
+def _require_project_access(project_id: str, user_id: str) -> None:
+    """Server-side tenant scoping: reject unless the caller is a member of the
+    project. ``project_id`` is client-controlled input and must never be trusted
+    as a scope boundary on its own.
+    """
+    role = ProjectRepositorySupabase().verify_project_access(project_id, user_id)
+    if not role:
+        # Do not distinguish "not a member" from "does not exist" beyond 403 —
+        # the response body must never carry another tenant's data.
+        raise HTTPException(
+            status_code=403,
+            detail="You do not have access to this project.",
+        )
 
 
 class TimeSeriesBucket(BaseModel):
@@ -30,11 +51,12 @@ class TimeSeriesResponse(BaseModel):
 
 @router.get("/access-timeseries", response_model=TimeSeriesResponse)
 async def get_access_timeseries(
+    project_id: str = Query(..., description="Project to report on (required)"),
     interval: str = Query("hour", description="'hour' or 'day'"),
-    range_hours: int = Query(168, description="Hours back (default 7 days)"),
+    range_hours: int = Query(168, ge=1, le=_MAX_RANGE_HOURS, description="Hours back (default 7 days)"),
     agent_id: str | None = Query(None),
     path: str | None = Query(None),
-    current_user=Depends(get_current_user_optional),
+    current_user: CurrentUser = Depends(get_current_user),
 ):
     """
     Time-series of context access events.
@@ -42,6 +64,7 @@ async def get_access_timeseries(
     Each data point = number of times context was sent to sandbox in that time bucket.
     This is the TRUE measure of data egress.
     """
+    _require_project_access(project_id, current_user.user_id)
     supabase = get_supabase_client()
 
     now = datetime.utcnow()
@@ -49,6 +72,7 @@ async def get_access_timeseries(
 
     query = supabase.table("access_logs") \
         .select("id, created_at, agent_id, path") \
+        .eq("project_id", project_id) \
         .gte("created_at", start_time.isoformat()) \
         .order("created_at", desc=False)
 
@@ -98,17 +122,20 @@ async def get_access_timeseries(
 
 @router.get("/access-summary")
 async def get_access_summary(
-    range_hours: int = Query(24),
-    current_user=Depends(get_current_user_optional),
+    project_id: str = Query(..., description="Project to report on (required)"),
+    range_hours: int = Query(24, ge=1, le=_MAX_RANGE_HOURS),
+    current_user: CurrentUser = Depends(get_current_user),
 ):
     """
     Summary stats for access monitoring.
     """
+    _require_project_access(project_id, current_user.user_id)
     supabase = get_supabase_client()
     start_time = datetime.utcnow() - timedelta(hours=range_hours)
 
     result = supabase.table("access_logs") \
         .select("agent_id, path") \
+        .eq("project_id", project_id) \
         .gte("created_at", start_time.isoformat()) \
         .execute()
 

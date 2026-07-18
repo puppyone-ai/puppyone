@@ -72,21 +72,16 @@ def _is_write_command(command: str) -> bool:
 
 
 def _validate_command(command: str, mounts: List[Dict[str, Any]]) -> None:
-    forbidden_patterns = [
-        r"\bsudo\b",
-        r"/etc/",
-        r"/proc/",
-        r"/sys/",
-        r"/dev/",
-        r"(^|\s)mount(\s|$)",
-        r"(^|\s)umount(\s|$)",
-        r"(^|\s)reboot(\s|$)",
-        r"(^|\s)shutdown(\s|$)",
-        r"(^|\s)mkfs(\s|$)",
-        r"169\.254\.169\.254",
-    ]
-    if any(re.search(pattern, command) for pattern in forbidden_patterns):
-        raise HTTPException(status_code=400, detail="Command contains forbidden operations")
+    # Forbidden-pattern policy lives in the shared choke point so the endpoint
+    # and the agent bash tool stay in lockstep (ISSUE-009).
+    from src.infra.sandbox.command_policy import (
+        SandboxCommandRejected,
+        assert_command_allowed,
+    )
+    try:
+        assert_command_allowed(command)
+    except SandboxCommandRejected as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
     readonly_mounts = [_normalize_mount_path(m.get("mount_path", "/workspace")) for m in mounts if (m.get("permissions") or {}).get("write") is False]
     if not readonly_mounts:

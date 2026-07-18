@@ -5,7 +5,7 @@ Called by internal services (e.g., MCP Server), authenticated via SECRET
 
 import hmac
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, Request
 from typing import Optional, Dict, Any
 from src.content.table.dependencies import get_table_service
 from src.config import settings
@@ -790,14 +790,14 @@ def _resolve_agent_via_connectors(mcp_api_key: str) -> dict:
     }
 
 
-@router.get(
-    "/agent-by-mcp-key/{mcp_api_key}",
+@router.post(
+    "/agent-by-mcp-key",
     summary="Get Agent and its access permissions and tools by MCP API key",
     description="MCP Server calls this endpoint to get Agent configuration for generating tool lists",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def get_agent_by_mcp_key(
-    mcp_api_key: str,
+    mcp_api_key: str = Body(..., embed=True),
 ):
     """Resolve an MCP API key to an agent's config + tools + accesses.
 
@@ -808,13 +808,13 @@ async def get_agent_by_mcp_key(
     return _resolve_agent_via_connectors(mcp_api_key)
 
 
-@router.get(
-    "/mcp-endpoint-by-key/{api_key}",
+@router.post(
+    "/mcp-endpoint-by-key",
     summary="Get standalone MCP endpoint configuration by API key",
     description="MCP Server calls this endpoint to get standalone MCP Endpoint configuration",
     dependencies=[Depends(verify_internal_secret)],
 )
-async def get_mcp_endpoint_by_key(api_key: str):
+async def get_mcp_endpoint_by_key(api_key: str = Body(..., embed=True)):
     from src.connectors.mcp_endpoint.repository import McpEndpointRepository
 
     repo = McpEndpointRepository()
@@ -870,13 +870,13 @@ async def get_mcp_endpoint_by_key(api_key: str):
     }
 
 
-@router.get(
-    "/sandbox-endpoint-by-key/{access_key}",
+@router.post(
+    "/sandbox-endpoint-by-key",
     summary="Get standalone Sandbox endpoint configuration by access key",
     description="External consumers call this to get Sandbox endpoint mounts, runtime, and other configuration before execution",
     dependencies=[Depends(verify_internal_secret)],
 )
-async def get_sandbox_endpoint_by_key(access_key: str):
+async def get_sandbox_endpoint_by_key(access_key: str = Body(..., embed=True)):
     from src.connectors.sandbox_endpoint.repository import SandboxEndpointRepository
 
     repo = SandboxEndpointRepository()

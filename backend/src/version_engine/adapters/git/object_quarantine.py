@@ -529,14 +529,21 @@ def official_receive_pack_quarantine(
 
 
 def _run_official_receive_pack(bare_dir: Path, request_path: Path) -> bytes:
+    # Bound wall-clock time so a hostile pack cannot hang receive-pack (ISSUE-014).
+    from src.config import settings
+    timeout = settings.GIT_SUBPROCESS_TIMEOUT_SECONDS or None
     with request_path.open("rb") as stdin:
-        proc = subprocess.run(
-            ["git", "receive-pack", "--stateless-rpc", str(bare_dir)],
-            stdin=stdin,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            check=False,
-        )
+        try:
+            proc = subprocess.run(
+                ["git", "receive-pack", "--stateless-rpc", str(bare_dir)],
+                stdin=stdin,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+                timeout=timeout,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError(f"git receive-pack timed out after {timeout}s") from exc
     if proc.returncode != 0:
         stderr = proc.stderr.decode("utf-8", errors="replace").strip()
         raise RuntimeError(stderr or "git receive-pack failed")

@@ -14,6 +14,7 @@ Tool types:
 from __future__ import annotations
 
 import contextlib
+import hmac
 import json
 from typing import Any, AsyncIterator
 
@@ -594,7 +595,18 @@ def build_starlette_app(*, json_response: bool = True) -> Starlette:
         """
         Main service notifies this MCP server that instance data has changed;
         the corresponding cache entries must be invalidated.
+
+        Authenticated with the shared internal secret (ISSUE-008): this endpoint
+        is a server-to-server hook, never client-facing. Without auth, anyone
+        reachable could probe cache state and trigger cache-stampede DoS.
         """
+        from .settings import settings as mcp_settings
+
+        expected_secret = (mcp_settings.INTERNAL_API_SECRET or "").strip()
+        provided_secret = request.headers.get("x-internal-secret", "")
+        if not expected_secret or not hmac.compare_digest(provided_secret, expected_secret):
+            return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
         try:
             body = await request.json()
             api_key = body.get("api_key")
@@ -629,10 +641,15 @@ def build_starlette_app(*, json_response: bool = True) -> Starlette:
         ],
         lifespan=lifespan,
     )
+    # CORS (ISSUE-008): never pair wildcard origins with credentials. MCP auth
+    # is header-based (Authorization / api-key), not cookie-based, so credentials
+    # are disabled and origins default to a config-driven allowlist.
+    from .settings import settings as mcp_settings
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
+        allow_origins=mcp_settings.cors_origins,
+        allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
     )
