@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import re
 import uuid
 from typing import Any
@@ -37,6 +38,7 @@ router = APIRouter(
         403: {"description": "Access denied"},
     },
 )
+logger = logging.getLogger(__name__)
 
 
 def _to_out(row: dict) -> SandboxEndpointOut:
@@ -333,7 +335,18 @@ async def exec_command(
     service: SandboxEndpointService = Depends(get_sandbox_endpoint_service),
     sandbox_service: SandboxService = Depends(get_sandbox_service),
 ):
-    endpoint = service.get_by_access_key(x_access_key)
+    try:
+        endpoint = service.get_by_access_key(x_access_key)
+    except Exception:
+        # Credential validation is the security boundary for this public route.
+        # A backing-store outage must fail closed with a retriable service error,
+        # rather than leaking an internal exception as HTTP 500 or proceeding
+        # toward sandbox execution.
+        logger.exception("sandbox_endpoint_credential_validation_unavailable")
+        raise HTTPException(
+            status_code=503,
+            detail="Sandbox credential validation is temporarily unavailable",
+        ) from None
     if not endpoint:
         raise HTTPException(status_code=403, detail="Invalid access key")
     if endpoint.get("id") != endpoint_id:

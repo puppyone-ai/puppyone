@@ -46,6 +46,10 @@ def run(api: str, mcp: str) -> None:
             "GET",
             f"{api}/api/v1/projects/cross-tenant-probe/scopes",
             {401, 403},
+            # Send the current public repository-contract version so this
+            # black-box assertion reaches the authorization boundary instead
+            # of being short-circuited by the independent upgrade guard.
+            headers={"X-PuppyOne-Repository-Contract": "2"},
         )
 
         # ISSUE-017: product MCP runtime is internal-only; transport exposes
@@ -74,7 +78,10 @@ def run(api: str, mcp: str) -> None:
             client,
             "POST",
             f"{api}/api/v1/sandbox-endpoints/probe/exec",
-            {403},
+            # An invalid key is 403 with a healthy credential store; a missing
+            # local/hosted store must fail closed as a typed 503, never 500 or
+            # sandbox execution.
+            {403, 503},
             headers={"X-Access-Key": "sbx_invalid"},
             json={"command": "echo probe"},
         )
