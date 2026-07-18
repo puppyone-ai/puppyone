@@ -72,6 +72,11 @@ def http_exception_handler(request: Request, exc: StarletteHTTPException):
             message=message,
             data=data,
         ).model_dump(),
+        # Starlette's default handler preserves HTTPException headers. Keep
+        # that contract when wrapping the body in ApiResponse: Git smart HTTP
+        # depends on WWW-Authenticate to trigger Basic credential lookup/retry,
+        # and other protocol responses may rely on Allow or Retry-After.
+        headers=exc.headers,
     )
     rid = request_id_var.get()
     if rid:
