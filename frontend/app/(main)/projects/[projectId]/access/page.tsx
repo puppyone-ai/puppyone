@@ -24,7 +24,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { ResizableSidebarColumn } from '@/components/sidebar/ResizableSidebarColumn';
 import { T } from './lib/tokens';
 import { useAccessData } from './hooks/useAccessData';
-import { AccessHeader, LoadingState, NoConnectorsState } from './components/page-shell';
+import { AccessHeader, AccessLoadError, LoadingState, NoConnectorsState } from './components/page-shell';
 import { ScopeSidebar } from './components/ScopeSidebar';
 import { ScopeDetailPanel } from './components/ScopeDetailPanel';
 import { CreateAccessModal } from './components/CreateAccessModal';
@@ -50,6 +50,7 @@ export default function AccessPointsPage({
 
   const {
     loading,
+    loadError,
     noScopes,
     allScopes,
     sortedScopes,
@@ -131,7 +132,9 @@ export default function AccessPointsPage({
         onCreate={canManageAccess ? () => openCreate() : undefined}
       />
 
-      {loading ? (
+      {loadError ? (
+        <AccessLoadError error={loadError} onRetry={() => { void refresh(); }} />
+      ) : loading ? (
         <LoadingState />
       ) : noScopes ? (
         <NoConnectorsState onCreateScope={canManageAccess ? () => openCreate() : undefined} />

@@ -11,6 +11,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "test:bff-contract": "node scripts/test-bff-contract-forwarding.mjs",
     "theme:audit": "node scripts/check-theme-colors.mjs",
     "font:audit": "node scripts/check-font-families.mjs",
     "shared-ui:test-markdown-html": "node scripts/test-shared-ui-markdown-html.mjs",
