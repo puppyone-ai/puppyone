@@ -91,6 +91,13 @@ class Settings(BaseSettings):
         if self.DEBUG is None:
             self.DEBUG = self.APP_ENV in {"development", "test"}
 
+        # Managed local runtimes need one narrow escape hatch from this
+        # repository's deliberate dotenv-before-environment precedence. The
+        # Desktop dev orchestrator uses it so a production PUBLIC_URL in the
+        # sibling backend .env cannot leak into loopback Git remote responses.
+        if self.PUPPYONE_PUBLIC_URL_OVERRIDE.strip():
+            self.PUBLIC_URL = self.PUPPYONE_PUBLIC_URL_OVERRIDE.strip()
+
         if self.ALLOWED_HOSTS is None:
             if self.APP_ENV in {"development", "test"}:
                 # Next.js auto-rolls forward (3000 → 3001 → 3002 → …) when
@@ -549,6 +556,7 @@ class Settings(BaseSettings):
     # - Railway: https://your-app.railway.app
     # - If not set, it will be auto-inferred from request headers
     PUBLIC_URL: str = ""
+    PUPPYONE_PUBLIC_URL_OVERRIDE: str = ""
 
     # Context Publish configuration
     PUBLISH_DEFAULT_EXPIRES_DAYS: int = 7
