@@ -16,6 +16,10 @@ const REQUEST_HEADERS_TO_FORWARD = [
   'if-none-match',
   'if-range',
   'range',
+  // Repository-scoped API routes require this compatibility version. The
+  // browser client supplies it, but the same-origin BFF must forward it to
+  // the backend rather than stripping it and provoking a 426 upgrade error.
+  'x-puppyone-repository-contract',
 ] as const;
 const RESPONSE_HEADERS_TO_FORWARD = [
   'accept-ranges',
