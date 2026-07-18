@@ -738,6 +738,11 @@ def _create_mcp(
         provider="mcp",
         name=row["name"],
         status=row["status"],
+        # MCP credentials are creation-only: the repository exposes the raw
+        # key on this freshly-created row, while list/detail hydration returns
+        # only its hint. Keep it in a separate field so consumers cannot
+        # mistake it for a durable access-list credential.
+        cli_access_key=row.get("api_key") or None,
     )
 
 

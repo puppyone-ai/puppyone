@@ -843,16 +843,21 @@ function _showAgentGuidance(out, agent, baseUrl) {
   out.info("  Chat:");
   out.info(`    puppyone chat ${agent.id}\n`);
   out.info("  Connect from Claude / Cursor:");
-  out.info(`    npx -y mcp-remote ${baseUrl}/mcp?api_key=${key}`);
+  out.info(`    ${_mcpRemoteCommand(baseUrl, key)}`);
 }
 
 function _showMcpGuidance(out, endpoint, baseUrl) {
-  const key = endpoint.api_key || endpoint.access_key;
+  const key = endpoint.cli_access_key || endpoint.api_key || endpoint.access_key;
   if (!key) return;
   out.info(`\n  API Key: ${key}`);
   out.info("  (save this key \u2014 it won't be shown again)\n");
   out.info("  Connect from Claude Desktop / Cursor:");
-  out.info(`    npx -y mcp-remote ${baseUrl}/mcp?api_key=${key}`);
+  out.info(`    ${_mcpRemoteCommand(baseUrl, key)}`);
+}
+
+function _mcpRemoteCommand(baseUrl, key) {
+  const proxyUrl = `${baseUrl.replace(/\/+$/, "")}/api/v1/mcp/proxy`;
+  return `npx -y mcp-remote ${proxyUrl} --header "Authorization: Bearer ${key}"`;
 }
 
 function _showSandboxGuidance(out, endpoint) {
@@ -892,13 +897,14 @@ function _showFsGuidance(out, connection, baseUrl, profileFallback = "file-acces
 
 function _showProviderGuidance(out, connection, baseUrl) {
   const { provider, access_key: key, id } = connection;
+  const mcpKey = connection.cli_access_key || connection.api_key || key;
   if (provider === "agent" && key) {
     out.info("  \u2500 How to use this agent:");
     out.info(`    Chat:         puppyone chat ${id}`);
-    out.info(`    MCP connect:  npx -y mcp-remote ${baseUrl}/mcp?api_key=${key}\n`);
-  } else if (provider === "mcp" && key) {
+    out.info(`    MCP connect:  ${_mcpRemoteCommand(baseUrl, key)}\n`);
+  } else if (provider === "mcp" && mcpKey) {
     out.info("  \u2500 How to connect:");
-    out.info(`    npx -y mcp-remote ${baseUrl}/mcp?api_key=${key}\n`);
+    out.info(`    ${_mcpRemoteCommand(baseUrl, mcpKey)}\n`);
   } else if (provider === "sandbox") {
     out.info("  \u2500 Execute via Agent or API.\n");
   } else if (provider === "direct" && key) {
