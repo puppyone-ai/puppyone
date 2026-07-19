@@ -187,8 +187,8 @@ jobs:
               contractIds.add(match[1]);
             }
 
-            async function hasSuccessfulVerification({sha, branch, environment, migrationId}) {
-              const runs = await successfulRuns('data-migration.yml', sha, branch);
+            async function hasSuccessfulVerification({workflow, sha, branch, environment, migrationId}) {
+              const runs = await successfulRuns(workflow, sha, branch);
               for (const run of runs) {
                 const jobs = await github.paginate(
                   github.rest.actions.listJobsForWorkflowRun,
@@ -209,6 +209,7 @@ jobs:
 
             for (const migrationId of contractIds) {
               const stagingVerified = await hasSuccessfulVerification({
+                workflow: 'migrate-staging.yml',
                 sha: pr.head.sha,
                 branch: 'qubits',
                 environment: 'staging',
@@ -222,6 +223,7 @@ jobs:
               }
 
               const productionVerified = await hasSuccessfulVerification({
+                workflow: 'migrate-production.yml',
                 sha: pr.base.sha,
                 branch: 'main',
                 environment: 'production',

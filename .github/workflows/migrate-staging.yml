@@ -26,7 +26,6 @@ jobs:
 
   resolve_data_release:
     name: Resolve staged data release
-    if: github.event_name == 'workflow_dispatch'
     needs: validate_ref
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -69,18 +68,8 @@ jobs:
           echo "migration_id=$migration_id" >> "$GITHUB_OUTPUT"
           echo "repair_migration_id=$repair_migration_id" >> "$GITHUB_OUTPUT"
 
-  deploy_push:
-    name: Deploy staging schema after qubits merge
-    if: github.event_name == 'push'
-    needs: validate_ref
-    uses: ./.github/workflows/_schema-deploy.yml
-    secrets: inherit
-    with:
-      environment: staging
-
   prepare_schema:
     name: Apply compatible schema before staged data migration
-    if: github.event_name == 'workflow_dispatch'
     needs: resolve_data_release
     uses: ./.github/workflows/_schema-deploy.yml
     secrets: inherit
@@ -90,7 +79,6 @@ jobs:
 
   validate_schema_pause:
     name: Match schema guard to staged data migration
-    if: github.event_name == 'workflow_dispatch'
     needs:
       - prepare_schema
       - resolve_data_release
@@ -112,7 +100,7 @@ jobs:
   repair_run:
     name: Run staged repair before the staged data migration
     if: >-
-      github.event_name == 'workflow_dispatch' &&
+      needs.validate_schema_pause.result == 'success' &&
       needs.resolve_data_release.outputs.repair_migration_id != ''
     needs:
       - validate_schema_pause
@@ -126,8 +114,7 @@ jobs:
 
   data_plan:
     if: >-
-      always() && github.event_name == 'workflow_dispatch' &&
-      needs.validate_schema_pause.result == 'success' &&
+      always() && needs.validate_schema_pause.result == 'success' &&
       needs.resolve_data_release.result == 'success' &&
       (needs.repair_run.result == 'success' || needs.repair_run.result == 'skipped')
     needs:
@@ -142,7 +129,7 @@ jobs:
       operation: plan
 
   data_run:
-    if: github.event_name == 'workflow_dispatch'
+    if: needs.data_plan.result == 'success'
     needs:
       - data_plan
       - resolve_data_release
@@ -154,7 +141,7 @@ jobs:
       operation: run
 
   data_verify:
-    if: github.event_name == 'workflow_dispatch'
+    if: needs.data_run.result == 'success'
     needs:
       - data_run
       - resolve_data_release
@@ -166,8 +153,8 @@ jobs:
       operation: verify
 
   deploy_after_data:
-    name: Deploy staging schema after data migration
-    if: github.event_name == 'workflow_dispatch'
+    name: Recheck staging schema after data migration
+    if: needs.data_verify.result == 'success'
     needs: data_verify
     uses: ./.github/workflows/_schema-deploy.yml
     secrets: inherit
