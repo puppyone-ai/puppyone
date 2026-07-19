@@ -243,3 +243,78 @@ class TestViewCachePrune:
         assert oldest.exists()
         assert not second.exists(), "pruner must continue after a failed deletion"
         assert newest.exists()
+
+
+class TestGitViewCacheInvalidation:
+    def _key(self):
+        from src.version_engine.adapters.git.view_cache import GitViewCacheKey
+
+        return GitViewCacheKey(
+            project_id="project-1",
+            object_store="test-store",
+            scope_path="",
+            scope_excludes=(),
+            projection_version="git-view-v1",
+            history_mode="full",
+            blob_mode="included",
+        )
+
+    def test_missing_cache_is_a_valid_first_rebuild_state(self, tmp_path, monkeypatch):
+        """A first rebuild must not fail merely because there is no cache yet."""
+        from src.version_engine.adapters.git import view_cache
+
+        root = tmp_path / "cache"
+        monkeypatch.setattr(view_cache, "git_view_cache_root", lambda: root)
+
+        view_cache.invalidate_git_view_cache(self._key())
+
+        assert not self._key().cache_dir().exists()
+
+    def test_existing_cache_is_removed(self, tmp_path, monkeypatch):
+        from src.version_engine.adapters.git import view_cache
+
+        root = tmp_path / "cache"
+        monkeypatch.setattr(view_cache, "git_view_cache_root", lambda: root)
+        cache_dir = self._key().cache_dir()
+        cache_dir.mkdir(parents=True)
+        (cache_dir / "view.json").write_text("{}", encoding="utf-8")
+
+        view_cache.invalidate_git_view_cache(self._key())
+
+        assert not cache_dir.exists()
+
+    def test_first_transport_rebuild_rewarms_without_a_prior_cache(
+        self, tmp_path, monkeypatch
+    ):
+        """The admin repair endpoint must work before a cache exists."""
+        from types import SimpleNamespace
+
+        from src.version_engine.adapters.git import view_cache
+        from src.version_engine.derived import git_transport_cache
+
+        root = tmp_path / "cache"
+        monkeypatch.setattr(view_cache, "git_view_cache_root", lambda: root)
+        calls = []
+
+        def fake_warm(repo, scope_path, scope_excludes, **kwargs):
+            calls.append((repo, scope_path, scope_excludes, kwargs))
+            return "new-canonical-head"
+
+        monkeypatch.setattr(
+            git_transport_cache, "warm_transport_bare_repo", fake_warm
+        )
+        repo = SimpleNamespace(
+            _project_id="project-1",
+            store=SimpleNamespace(dir=tmp_path / "object-store"),
+        )
+
+        result = git_transport_cache.rebuild_git_transport_view(
+            repo,
+            scope_path="",
+            scope_excludes=[],
+            follow_history=True,
+            include_blobs=True,
+        )
+
+        assert result["head"] == "new-canonical-head"
+        assert calls == [(repo, "", [], {"follow_history": True, "include_blobs": True})]

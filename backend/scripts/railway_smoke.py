@@ -9,10 +9,9 @@ exercises the deployed V2 surface end-to-end:
   4. bulk_write — multi-file atomicity
   5. Move + delete
   6. List + tree + stat
-  7. Health endpoint (project root + AP — both four states reachable
-     here? at least healthy + empty)
+  7. Human control-plane Git-view health endpoint (JWT + repository contract)
   8. Conflict pending list (should be empty for fresh project)
-  9. Shadow snapshot upsert (small) + 413 boundary
+  9. Shadow snapshot upsert (small) + 100,000-entry 413 boundary
  10. Rebuild-cache endpoint (project root)
  11. Cleanup — delete the temp project
 
@@ -45,6 +44,7 @@ import httpx
 
 API = os.environ.get("PUPPYONE_API_URL", "https://qubits-api.puppyone.ai").rstrip("/")
 TIMEOUT = httpx.Timeout(30.0, connect=10.0)
+REPOSITORY_CONTRACT_HEADERS = {"X-PuppyOne-Repository-Contract": "2"}
 
 
 def _load_token() -> str:
@@ -168,7 +168,10 @@ class Smoke:
 
     def step_initial_health(self):
         def run():
-            r = self.client.get(f"/git/{self.test_project_id}.git/health")
+            r = self.client.get(
+                f"/api/v1/projects/{self.test_project_id}/git-view/health",
+                headers=REPOSITORY_CONTRACT_HEADERS,
+            )
             body = self._expect_ok(r, hint="project health (empty)")
             data = body.get("data", {})
             state = data.get("health")
@@ -278,7 +281,10 @@ class Smoke:
 
     def step_health_after_writes(self):
         def run():
-            r = self.client.get(f"/git/{self.test_project_id}.git/health")
+            r = self.client.get(
+                f"/api/v1/projects/{self.test_project_id}/git-view/health",
+                headers=REPOSITORY_CONTRACT_HEADERS,
+            )
             body = self._expect_ok(r, hint="health after writes")
             data = body.get("data", {})
             state = data.get("health")
@@ -356,23 +362,27 @@ class Smoke:
 
     def step_shadow_snapshot_413(self):
         def run():
-            # Pack 20 MB of preview text — past the 8 MiB cap.
-            big = "x" * (20 * 1024 * 1024)
+            # JSONB size was intentionally retired when manifests moved to
+            # S3.  The product contract is now a 100,000-entry guard, which
+            # avoids treating a valid large text preview as an invalid
+            # snapshot.  Unique paths make this reach the semantic cap rather
+            # than a duplicate-path validator.
+            manifest = [
+                {
+                    "path": f"shadow/cap/{index}.txt",
+                    "mode": "100644",
+                    "blob_hash": "b" * 40,
+                    "size": 1,
+                }
+                for index in range(100_001)
+            ]
             r = self.client.post(
                 "/api/v1/local-snapshots",
                 json={
                     "project_id": self.test_project_id,
                     "machine_id": "smoke-host-413",
                     "ref_name": "main",
-                    "manifest": [
-                        {
-                            "path": "shadow/huge.md",
-                            "mode": "100644",
-                            "blob_hash": "b" * 40,
-                            "size": 23,
-                            "preview": big,
-                        },
-                    ],
+                    "manifest": manifest,
                 },
             )
             assert r.status_code == 413, (
@@ -391,7 +401,7 @@ class Smoke:
             cap = detail.get("cap") if isinstance(detail, dict) else None
             assert limit, f"413 body missing structured limit field: {self._resp_text(r)}"
             return f"413 limit={limit!r} actual={actual} cap={cap}"
-        self.step("14. Shadow snapshot 8 MiB cap → HTTP 413", run)
+        self.step("14. Shadow snapshot 100k-entry cap → HTTP 413", run)
 
     def step_shadow_list(self):
         def run():
@@ -410,7 +420,8 @@ class Smoke:
     def step_rebuild_cache(self):
         def run():
             r = self.client.post(
-                f"/git/{self.test_project_id}.git/rebuild-cache",
+                f"/api/v1/projects/{self.test_project_id}/git-view/rebuild-cache",
+                headers=REPOSITORY_CONTRACT_HEADERS,
             )
             # Read-only members might be refused; allow 200 or 403.
             if r.status_code == 403:
@@ -433,7 +444,10 @@ class Smoke:
             if r.status_code == 202:
                 status = (r.json().get("data") or {}).get("status", "pending")
                 return f"deletion accepted for {self.test_project_id} ({status})"
-            return f"cleanup HTTP {r.status_code}: {self._resp_text(r)}"
+            raise AssertionError(
+                "cleanup must be accepted by the deployment; "
+                f"got HTTP {r.status_code}: {self._resp_text(r)}"
+            )
         self.step("17. Cleanup — delete temp project", run)
 
     def stress_move_health_race(self, iterations: int = 12):
@@ -487,7 +501,10 @@ class Smoke:
                     json={"old_path": "x0.md", "new_path": "renamed-x0.md"},
                 )
                 # immediate health check
-                h = self.client.get(f"/git/{pid}.git/health")
+                h = self.client.get(
+                    f"/api/v1/projects/{pid}/git-view/health",
+                    headers=REPOSITORY_CONTRACT_HEADERS,
+                )
                 state = h.json().get("data", {}).get("health")
                 git_usable = h.json().get("data", {}).get("git_usable")
                 marker = "  ✓" if state in {"healthy", "history_degraded"} else "  ✗"
