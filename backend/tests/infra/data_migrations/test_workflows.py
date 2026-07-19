@@ -121,12 +121,12 @@ def test_reusable_database_workflows_receive_protected_secrets() -> None:
     # GitHub does not pass secrets to reusable workflows automatically. Every
     # direct caller must cross that boundary explicitly; the called job then
     # selects the protected staging/production Environment.
-    assert staging.count("secrets: inherit") == 7
-    assert production.count("secrets: inherit") == 1
+    assert staging.count("secrets: inherit") == 6
+    assert production.count("secrets: inherit") == 8
     assert dispatcher.count("secrets: inherit") == 3
 
 
-def test_staging_manual_release_is_auditable_and_serial() -> None:
+def test_staging_release_is_automatic_auditable_and_serial() -> None:
     staging = (WORKFLOWS / "migrate-staging.yml").read_text()
     parsed = yaml.safe_load(staging)
     jobs = parsed["jobs"]
@@ -135,10 +135,8 @@ def test_staging_manual_release_is_auditable_and_serial() -> None:
     )
 
     assert '"refs/heads/qubits"' in staging
-    assert "github.event_name == 'workflow_dispatch'" in staging
+    assert "github.event_name == 'workflow_dispatch'" not in staging
     assert "supabase/releases/staging-data-migration.json" in staging
-    assert jobs["deploy_push"]["if"] == "github.event_name == 'push'"
-    assert jobs["deploy_push"]["needs"] == "validate_ref"
     assert jobs["prepare_schema"]["needs"] == "resolve_data_release"
     assert jobs["prepare_schema"]["with"]["allow_data_migration_pause"] is True
     assert jobs["validate_schema_pause"]["needs"] == [
@@ -162,8 +160,8 @@ def test_staging_manual_release_is_auditable_and_serial() -> None:
     assert jobs["data_run"]["needs"] == ["data_plan", "resolve_data_release"]
     assert jobs["data_verify"]["needs"] == ["data_run", "resolve_data_release"]
     assert jobs["deploy_after_data"]["needs"] == "data_verify"
-    assert jobs["deploy_after_data"]["if"] == "github.event_name == 'workflow_dispatch'"
-    assert staging.count("uses: ./.github/workflows/_schema-deploy.yml") == 3
+    assert jobs["deploy_after_data"]["if"] == "needs.data_verify.result == 'success'"
+    assert staging.count("uses: ./.github/workflows/_schema-deploy.yml") == 2
     assert staging.count("uses: ./.github/workflows/_data-migration.yml") == 4
     for operation in ("plan", "run", "verify"):
         assert f"operation: {operation}" in staging
@@ -173,6 +171,37 @@ def test_staging_manual_release_is_auditable_and_serial() -> None:
     if repair_id:
         assert re.fullmatch(r"[0-9A-Za-z_]+", repair_id)
         assert (REPOSITORY / "supabase" / "data_migrations" / repair_id).is_dir()
+
+
+def test_production_release_is_automatic_and_requires_qubits_evidence() -> None:
+    production = (WORKFLOWS / "migrate-production.yml").read_text()
+    parsed = yaml.safe_load(production)
+    jobs = parsed["jobs"]
+    release = json.loads(
+        (REPOSITORY / "supabase" / "releases" / "production-data-migration.json").read_text()
+    )
+
+    assert '"refs/heads/main"' in production
+    assert "    paths:" not in production
+    assert "supabase/releases/production-data-migration.json" in production
+    assert jobs["prepare_schema"]["with"]["allow_data_migration_pause"] is True
+    assert jobs["staging_data_evidence"]["with"] == {
+        "environment": "staging",
+        "migration_id": "${{ needs.resolve_data_release.outputs.migration_id }}",
+        "operation": "verify",
+    }
+    assert "needs.staging_data_evidence.result == 'success'" in jobs["data_plan"]["if"]
+    assert jobs["data_plan"]["needs"] == [
+        "validate_schema_pause",
+        "repair_run",
+        "staging_data_evidence",
+        "resolve_data_release",
+    ]
+    assert jobs["deploy_after_data"]["if"] == "needs.data_verify.result == 'success'"
+    assert production.count("uses: ./.github/workflows/_schema-deploy.yml") == 2
+    assert production.count("uses: ./.github/workflows/_data-migration.yml") == 6
+    assert re.fullmatch(r"[0-9A-Za-z_]+", release["migration_id"])
+    assert (REPOSITORY / "supabase" / "data_migrations" / release["migration_id"]).is_dir()
 
 
 def test_schema_runner_only_pauses_for_an_explicit_data_migration_guard() -> None:
@@ -244,6 +273,7 @@ def test_main_gate_requires_exact_schema_and_contract_verification() -> None:
     assert "latestOwnerReview?.commit_id === pr.head.sha" in gate
     assert "labeled, unlabeled" in gate
     assert "migrate-staging.yml" in gate
+    assert "migrate-production.yml" in gate
     assert "requires-data-migration" in gate
     assert "stagingVerified" in gate
     assert "productionVerified" in gate

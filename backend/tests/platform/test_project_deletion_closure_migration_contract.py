@@ -6,9 +6,15 @@ MIGRATION = (
     Path(__file__).parents[3]
     / "supabase/migrations/20260716020000_project_deletion_storage_and_org_guard.sql"
 )
-REPOSITORY_TARGET_TEST = (
-    Path(__file__).parents[3] / "scripts/test-repository-target-migration.sh"
+INVENTORY_REPAIR = (
+    Path(__file__).parents[3]
+    / "supabase/migrations/20260718000000_repair_project_storage_inventory_control_plane.sql"
 )
+INVENTORY_STATUS = (
+    Path(__file__).parents[3]
+    / "supabase/migrations/20260720000000_project_storage_inventory_status_rpc.sql"
+)
+REPOSITORY_TARGET_TEST = Path(__file__).parents[3] / "scripts/test-repository-target-migration.sh"
 
 
 def _sql() -> str:
@@ -81,10 +87,7 @@ def test_deletion_job_manifest_is_constrained_to_the_exact_allowlist() -> None:
     assert "ALTER COLUMN storage_principals SET NOT NULL" in sql
     assert "project_deletion_jobs_principals_check" in sql
     assert "project_deletion_jobs_prefixes_check" in sql
-    assert (
-        "object_prefixes = public._project_deletion_object_prefixes("
-        in sql
-    )
+    assert "object_prefixes = public._project_deletion_object_prefixes(" in sql
     assert "p_storage_principals ? p_requested_by::text" in sql
     assert "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$" in sql
     assert "project_deletion_jobs_search_prefixes_check" in sql
@@ -110,6 +113,32 @@ def test_storage_inventory_is_two_pass_fail_closed_and_tracks_orphans() -> None:
     )
     assert "Project storage inventory is incomplete" in trigger
     assert "ERRCODE = '55000'" in trigger
+
+
+def test_inventory_control_plane_is_repaired_before_the_status_rpc() -> None:
+    """A false-positive legacy migration history must not block later releases."""
+    repair = INVENTORY_REPAIR.read_text(encoding="utf-8")
+    status = INVENTORY_STATUS.read_text(encoding="utf-8")
+
+    assert INVENTORY_REPAIR.name < INVENTORY_STATUS.name
+    for relation in (
+        "project_storage_principals",
+        "project_storage_inventory_state",
+        "project_storage_inventory_batches",
+        "project_storage_orphan_prefixes",
+    ):
+        assert f"CREATE TABLE IF NOT EXISTS public.{relation}" in repair
+    for function in (
+        "record_project_storage_inventory_batch",
+        "mark_project_storage_orphan_cleaned",
+        "finalize_project_storage_inventory_scan",
+        "verify_project_storage_inventory",
+        "complete_project_storage_inventory",
+    ):
+        assert f"CREATE OR REPLACE FUNCTION public.{function}" in repair
+    assert "INSERT INTO public.project_storage_inventory_state (singleton)" in repair
+    assert "GRANT SELECT ON public.project_storage_inventory_state TO service_role;" in repair
+    assert "FROM public.project_storage_inventory_state state" in status
 
 
 def test_empty_organization_rpc_locks_before_final_owner_and_emptiness_proofs() -> None:
@@ -168,7 +197,23 @@ def test_legacy_migration_fixture_never_runs_the_closure_without_its_base_table(
     ) in script
     assert lines.count("save_closure") == lines.count("save_initialization")
     assert lines.count("restore_closure") == lines.count("restore_initialization")
+    assert (
+        'inventory_repair_rel="supabase/migrations/'
+        '20260718000000_repair_project_storage_inventory_control_plane.sql"'
+    ) in script
+    assert (
+        'inventory_status_rel="supabase/migrations/'
+        '20260720000000_project_storage_inventory_status_rpc.sql"'
+    ) in script
+    assert lines.count("save_inventory_repair") == lines.count("save_closure")
+    assert lines.count("restore_inventory_repair") == lines.count("restore_closure")
+    assert lines.count("save_inventory_status") == lines.count("save_closure")
+    assert lines.count("restore_inventory_status") == lines.count("restore_closure")
     cleanup = script.split("cleanup() {", 1)[1].split("}", 1)[0]
     assert "restore_closure" in cleanup
+    assert "restore_inventory_repair" in cleanup
+    assert "restore_inventory_status" in cleanup
     assert 'rm -f "$saved_contract"' in cleanup
     assert '"$saved_closure"' in cleanup
+    assert '"$saved_inventory_repair"' in cleanup
+    assert '"$saved_inventory_status"' in cleanup

@@ -17,6 +17,12 @@ saved_closure="$(mktemp "${TMPDIR:-/tmp}/issue039-deletion-closure.XXXXXX.sql")"
 fence_rel="supabase/migrations/20260717000000_project_deletion_admission_fence.sql"
 fence_path="$repository_root/$fence_rel"
 saved_fence="$(mktemp "${TMPDIR:-/tmp}/issue039-deletion-fence.XXXXXX.sql")"
+inventory_repair_rel="supabase/migrations/20260718000000_repair_project_storage_inventory_control_plane.sql"
+inventory_repair_path="$repository_root/$inventory_repair_rel"
+saved_inventory_repair="$(mktemp "${TMPDIR:-/tmp}/issue039-inventory-repair.XXXXXX.sql")"
+inventory_status_rel="supabase/migrations/20260720000000_project_storage_inventory_status_rpc.sql"
+inventory_status_path="$repository_root/$inventory_status_rel"
+saved_inventory_status="$(mktemp "${TMPDIR:-/tmp}/issue039-inventory-status.XXXXXX.sql")"
 database_url="${DATABASE_URL:-postgresql://postgres:postgres@127.0.0.1:54322/postgres}"
 export DATA_MIGRATION_DATABASE_URL="${DATA_MIGRATION_DATABASE_URL:-$database_url}"
 
@@ -25,6 +31,8 @@ removal_is_saved=false
 initialization_is_saved=false
 closure_is_saved=false
 fence_is_saved=false
+inventory_repair_is_saved=false
+inventory_status_is_saved=false
 restore_contract() {
     if [[ "$contract_is_saved" == true && -f "$saved_contract" ]]; then
         mv "$saved_contract" "$contract_path"
@@ -55,13 +63,28 @@ restore_fence() {
         fence_is_saved=false
     fi
 }
+restore_inventory_repair() {
+    if [[ "$inventory_repair_is_saved" == true && -f "$saved_inventory_repair" ]]; then
+        mv "$saved_inventory_repair" "$inventory_repair_path"
+        inventory_repair_is_saved=false
+    fi
+}
+restore_inventory_status() {
+    if [[ "$inventory_status_is_saved" == true && -f "$saved_inventory_status" ]]; then
+        mv "$saved_inventory_status" "$inventory_status_path"
+        inventory_status_is_saved=false
+    fi
+}
 cleanup() {
     restore_contract
     restore_removal
     restore_initialization
     restore_closure
     restore_fence
-    rm -f "$saved_contract" "$saved_removal" "$saved_initialization" "$saved_closure" "$saved_fence"
+    restore_inventory_repair
+    restore_inventory_status
+    rm -f "$saved_contract" "$saved_removal" "$saved_initialization" "$saved_closure" "$saved_fence" \
+        "$saved_inventory_repair" "$saved_inventory_status"
 }
 trap cleanup EXIT
 
@@ -85,6 +108,14 @@ save_fence() {
     mv "$fence_path" "$saved_fence"
     fence_is_saved=true
 }
+save_inventory_repair() {
+    mv "$inventory_repair_path" "$saved_inventory_repair"
+    inventory_repair_is_saved=true
+}
+save_inventory_status() {
+    mv "$inventory_status_path" "$saved_inventory_status"
+    inventory_status_is_saved=true
+}
 
 run_data_migration() {
     local migration_id="$1"
@@ -99,6 +130,8 @@ save_removal
 save_initialization
 save_closure
 save_fence
+save_inventory_repair
+save_inventory_status
 (
     cd "$repository_root"
     supabase db reset --no-seed
@@ -141,6 +174,8 @@ restore_removal
 restore_initialization
 restore_closure
 restore_fence
+restore_inventory_repair
+restore_inventory_status
 (
     cd "$repository_root"
     supabase migration up --local --include-all
@@ -154,6 +189,8 @@ save_removal
 save_initialization
 save_closure
 save_fence
+save_inventory_repair
+save_inventory_status
 (
     cd "$repository_root"
     supabase db reset --no-seed
@@ -177,12 +214,16 @@ restore_removal
 restore_initialization
 restore_closure
 restore_fence
+restore_inventory_repair
+restore_inventory_status
 
 save_contract
 save_removal
 save_initialization
 save_closure
 save_fence
+save_inventory_repair
+save_inventory_status
 (
     cd "$repository_root"
     supabase db reset --no-seed
@@ -217,3 +258,5 @@ restore_removal
 restore_initialization
 restore_closure
 restore_fence
+restore_inventory_repair
+restore_inventory_status

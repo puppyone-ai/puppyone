@@ -116,9 +116,10 @@ Legacy `users/{principal}/.../{project}/` storage requires a one-time resumable
 inventory before deletion is enabled. The rollout scanner records principals,
 cleans strictly parsed prefixes for already-deleted Projects, uses the real S3
 object token and multipart `(KeyMarker, UploadIdMarker)` pair, and requires two
-identical full-listing digests before opening the deletion gate. Run
-`scripts/backfill_project_storage_principals.py` without flags to audit and
-with `--apply` to record, clean, verify, and enable deletion.
+identical full-listing digests before opening the deletion gate. Run the
+immutable `20260720_project_storage_inventory` data-migration artifact through
+the protected migration workflow; it records, cleans, verifies, and publishes
+a completion receipt before enabling deletion.
 
 ## RuntimeGrant
 

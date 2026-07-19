@@ -109,8 +109,11 @@ DATA_MIGRATION_DATABASE_URL='postgresql://...' \
   uv run puppyone-db verify <migration_id>
 ```
 
-Hosted operators use the `Data Migration` GitHub workflow. `plan` and `verify`
-are read-only. `run` mutates data and writes a receipt after verification.
+Protected `qubits` and `main` pushes use the environment release orchestrators
+to run schema deployment, data plan/run/verify, and a final schema check as one
+serialized release. The standalone `Data Migration` GitHub workflow remains
+for protected-branch diagnosis and idempotent recovery; `plan` and `verify`
+are read-only, while `run` mutates data and writes a receipt after verification.
 
 The bundled GitHub adapter targets Supabase Cloud and therefore validates a
 project ref against canonical direct/session-pooler hosts. Self-hosted PuppyOne
@@ -178,9 +181,12 @@ For non-owner releases, the owner's approval must also target the exact current
 head SHA; a commit pushed after review invalidates the gate. Database hotfix
 label changes re-run the same trusted metadata-only gate.
 
-The Qubits schema workflow runs on every `qubits` push, including code-only
-commits. This makes the exact-SHA requirement automatic instead of forcing a
-manual re-run after the last non-database commit in a release.
+The Qubits release orchestrator runs on every `qubits` push, including code-only
+commits. It resolves the staged release pointer and automatically executes the
+schema and data lanes for that exact SHA; a receipt makes already-completed
+artifacts a verified no-op. The Production orchestrator mirrors this sequence
+on `main`, but performs a read-only Qubits verification before any Production
+data write.
 
 ### Application deployment ordering
 
@@ -224,6 +230,11 @@ SUPABASE_DB_PASSWORD
 DATABASE_URL
 SUPABASE_SERVICE_ROLE_KEY
 ACCESS_CREDENTIAL_HASH_SECRET
+S3_ENDPOINT_URL
+S3_BUCKET_NAME
+S3_REGION
+S3_ACCESS_KEY_ID
+S3_SECRET_ACCESS_KEY
 ```
 
 The reusable workflows read only these environment secrets; callers do not
