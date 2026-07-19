@@ -197,7 +197,23 @@ def test_legacy_migration_fixture_never_runs_the_closure_without_its_base_table(
     ) in script
     assert lines.count("save_closure") == lines.count("save_initialization")
     assert lines.count("restore_closure") == lines.count("restore_initialization")
+    assert (
+        'inventory_repair_rel="supabase/migrations/'
+        '20260718000000_repair_project_storage_inventory_control_plane.sql"'
+    ) in script
+    assert (
+        'inventory_status_rel="supabase/migrations/'
+        '20260720000000_project_storage_inventory_status_rpc.sql"'
+    ) in script
+    assert lines.count("save_inventory_repair") == lines.count("save_closure")
+    assert lines.count("restore_inventory_repair") == lines.count("restore_closure")
+    assert lines.count("save_inventory_status") == lines.count("save_closure")
+    assert lines.count("restore_inventory_status") == lines.count("restore_closure")
     cleanup = script.split("cleanup() {", 1)[1].split("}", 1)[0]
     assert "restore_closure" in cleanup
+    assert "restore_inventory_repair" in cleanup
+    assert "restore_inventory_status" in cleanup
     assert 'rm -f "$saved_contract"' in cleanup
     assert '"$saved_closure"' in cleanup
+    assert '"$saved_inventory_repair"' in cleanup
+    assert '"$saved_inventory_status"' in cleanup
