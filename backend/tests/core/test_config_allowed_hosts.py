@@ -72,3 +72,36 @@ def test_allowed_hosts_default_for_development_without_debug() -> None:
         "http://localhost:5177",
         "http://127.0.0.1:5177",
     ]
+
+
+def test_auth_security_redis_url_prefers_dedicated_setting() -> None:
+    settings = Settings(
+        _env_file=None,
+        APP_ENV="test",
+        AUTH_SECURITY_REDIS_URL="redis://dedicated.invalid:6379/0",
+        RATELIMIT_REDIS_URL="redis://legacy-rate-limit.invalid:6379/0",
+        ETL_REDIS_URL="redis://legacy-etl.invalid:6379/0",
+    )
+
+    assert settings.auth_security_redis_url == "redis://dedicated.invalid:6379/0"
+
+
+def test_auth_security_redis_url_reuses_legacy_shared_etl_setting() -> None:
+    settings = Settings(
+        _env_file=None,
+        APP_ENV="test",
+        ETL_REDIS_URL="redis://legacy-etl.invalid:6379/0",
+    )
+
+    assert settings.auth_security_redis_url == "redis://legacy-etl.invalid:6379/0"
+
+
+def test_auth_security_redis_url_prefers_legacy_rate_limit_over_etl() -> None:
+    settings = Settings(
+        _env_file=None,
+        APP_ENV="test",
+        RATELIMIT_REDIS_URL="redis://legacy-rate-limit.invalid:6379/0",
+        ETL_REDIS_URL="redis://legacy-etl.invalid:6379/0",
+    )
+
+    assert settings.auth_security_redis_url == "redis://legacy-rate-limit.invalid:6379/0"

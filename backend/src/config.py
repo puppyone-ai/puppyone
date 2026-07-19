@@ -267,8 +267,11 @@ class Settings(BaseSettings):
     def enforce_auth_security_store_safety(self):
         """Hosted auth controls require one shared, cross-replica Redis."""
         if self.APP_ENV not in {"development", "test"}:
-            if not self.AUTH_SECURITY_REDIS_URL:
-                raise ValueError("AUTH_SECURITY_REDIS_URL is required outside development/test")
+            if not self.auth_security_redis_url:
+                raise ValueError(
+                    "AUTH_SECURITY_REDIS_URL (or legacy RATELIMIT_REDIS_URL / "
+                    "ETL_REDIS_URL) is required outside development/test"
+                )
             if not self.NOTIFICATIONS_REDIS_URL:
                 raise ValueError("NOTIFICATIONS_REDIS_URL is required outside development/test")
             if not self.DESKTOP_AUTH_PUBLIC_BASE_URL.startswith("https://"):
@@ -346,6 +349,11 @@ class Settings(BaseSettings):
     MCP_TOKEN_TTL_SECONDS: int = 30 * 24 * 60 * 60  # 30 days
     # Shared fail-closed store for OAuth one-time state and auth rate limits.
     AUTH_SECURITY_REDIS_URL: str = ""
+    # Compatibility inputs retained for deployments predating the shared auth
+    # security store. They are never fail-open fallbacks: when selected, the
+    # Redis store remains mandatory and every operation still fails closed.
+    RATELIMIT_REDIS_URL: str = ""
+    ETL_REDIS_URL: str = ""
     # Browser/CLI-reachable Supabase origin. Empty means SUPABASE_URL is already public.
     SUPABASE_PUBLIC_URL: str = ""
     # Browser-reachable Puppyone web origin used by the Desktop login handoff.
@@ -358,6 +366,29 @@ class Settings(BaseSettings):
     # commit_update events are fanned out across replicas via Redis pub/sub.
     # Local development may leave this empty; hosted validation requires it.
     NOTIFICATIONS_REDIS_URL: str = ""
+
+    @property
+    def auth_security_redis_url(self) -> str:
+        """Resolve the shared Redis store without breaking older deployments.
+
+        ``AUTH_SECURITY_REDIS_URL`` is the explicit modern setting. Before it
+        existed, hosted installs commonly supplied either the old rate-limit
+        URL or the shared ARQ URL. All three are Redis connection strings; the
+        auth store uses its own key namespace and remains fail-closed.
+        """
+
+        return next(
+            (
+                value.strip()
+                for value in (
+                    self.AUTH_SECURITY_REDIS_URL,
+                    self.RATELIMIT_REDIS_URL,
+                    self.ETL_REDIS_URL,
+                )
+                if value.strip()
+            ),
+            "",
+        )
 
     # Anthropic configuration
     ANTHROPIC_API_KEY: str = ""
