@@ -152,7 +152,11 @@ jobs:
       operation: plan
 
   data_run:
-    if: needs.data_plan.result == 'success'
+    # Keep the protected production chain live when no optional repair is
+    # staged.  See the matching Qubits workflow for the skipped-job case.
+    if: >-
+      always() && needs.data_plan.result == 'success' &&
+      needs.resolve_data_release.result == 'success'
     needs:
       - data_plan
       - resolve_data_release
@@ -164,7 +168,9 @@ jobs:
       operation: run
 
   data_verify:
-    if: needs.data_run.result == 'success'
+    if: >-
+      always() && needs.data_run.result == 'success' &&
+      needs.resolve_data_release.result == 'success'
     needs:
       - data_run
       - resolve_data_release
@@ -177,7 +183,7 @@ jobs:
 
   deploy_after_data:
     name: Recheck Production schema after data migration
-    if: needs.data_verify.result == 'success'
+    if: always() && needs.data_verify.result == 'success'
     needs: data_verify
     uses: ./.github/workflows/_schema-deploy.yml
     secrets: inherit
