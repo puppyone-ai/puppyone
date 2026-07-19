@@ -86,5 +86,4 @@ class RedisSecurityStore:
 
 @lru_cache(maxsize=1)
 def get_auth_security_store() -> RedisSecurityStore:
-    return RedisSecurityStore(settings.AUTH_SECURITY_REDIS_URL)
-
+    return RedisSecurityStore(settings.auth_security_redis_url)
