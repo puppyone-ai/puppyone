@@ -261,7 +261,15 @@ def invalidate_git_view_cache(key: GitViewCacheKey) -> None:
     with try_file_exclusive_lock(view_lock_path(cache_dir)) as acquired:
         if not acquired:
             raise RuntimeError("git view cache is active and cannot be invalidated")
-        shutil.rmtree(cache_dir, ignore_errors=False)
+        # A rebuild is also the cache's first materialization path.  In that
+        # case there is deliberately nothing to remove.  The existence check
+        # must live *inside* the view lock: another rebuild may have removed
+        # the directory after the path was resolved but before this caller
+        # acquired the lock.  Do not use ``ignore_errors=True`` here; I/O and
+        # permission failures still need to surface instead of being mistaken
+        # for a successful cache invalidation.
+        if cache_dir.exists():
+            shutil.rmtree(cache_dir, ignore_errors=False)
 
 
 def object_store_namespace(repo) -> str:

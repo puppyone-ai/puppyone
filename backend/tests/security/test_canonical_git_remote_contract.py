@@ -266,6 +266,16 @@ def test_web_git_health_uses_human_control_plane_not_git_runtime_routes():
     assert "rebuildGitScopeCache" not in api
 
 
+def test_railway_smoke_uses_human_git_control_plane_and_current_snapshot_cap():
+    smoke = (ROOT / "backend/scripts/railway_smoke.py").read_text(encoding="utf-8")
+
+    assert "/api/v1/projects/{self.test_project_id}/git-view/health" in smoke
+    assert "/api/v1/projects/{self.test_project_id}/git-view/rebuild-cache" in smoke
+    assert "X-PuppyOne-Repository-Contract" in smoke
+    assert "range(100_001)" in smoke
+    assert "cleanup must be accepted by the deployment" in smoke
+
+
 def test_web_one_time_git_credential_is_bound_to_displayed_target_and_mode():
     panel = (
         ROOT / "frontend/app/(main)/projects/[projectId]/data/components/access-points/"
