@@ -1,4 +1,4 @@
 {
-  "migration_id": "20260715_project_owned_repository_targets_preflight",
-  "repair_migration_id": "20260717_repair_missing_root_scopes"
+  "migration_id": "20260720_project_storage_inventory",
+  "repair_migration_id": ""
 }
