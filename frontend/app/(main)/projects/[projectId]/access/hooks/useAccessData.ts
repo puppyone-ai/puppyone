@@ -62,6 +62,7 @@ export type ConnectorEditPatch = Partial<{
 
 export interface UseAccessDataResult {
   loading: boolean;
+  loadError: Error | undefined;
   noScopes: boolean;
   allScopes: RepositoryView[];
   sortedScopes: RepositoryView[];
@@ -87,12 +88,12 @@ export interface UseAccessDataResult {
 }
 
 export function useAccessData(projectId: string): UseAccessDataResult {
-  const { data: scopes, mutate: mutateScopes } = useSWR(
+  const { data: scopes, error: scopesError, mutate: mutateScopes } = useSWR(
     projectId ? ['repo-scopes', projectId] : null,
     () => listScopes(projectId),
     { refreshInterval: 30000, revalidateOnFocus: false, dedupingInterval: 60000 },
   );
-  const { data: connectors, mutate: mutateConnectors } = useSWR(
+  const { data: connectors, error: connectorsError, mutate: mutateConnectors } = useSWR(
     projectId ? ['repo-connectors', projectId] : null,
     () => listConnectors(projectId),
     { refreshInterval: 30000, revalidateOnFocus: false, dedupingInterval: 60000 },
@@ -266,7 +267,8 @@ export function useAccessData(projectId: string): UseAccessDataResult {
     [projectId, mutateConnectors, mutateMcpEndpoints, withPending],
   );
 
-  const loading = scopes === undefined || connectors === undefined;
+  const loadError = asError(scopesError) ?? asError(connectorsError);
+  const loading = !loadError && (scopes === undefined || connectors === undefined);
   const noScopes = !loading && sortedScopes.length === 0;
   const allScopes = repositoryViews;
 
@@ -287,6 +289,7 @@ export function useAccessData(projectId: string): UseAccessDataResult {
 
   return {
     loading,
+    loadError,
     noScopes,
     allScopes,
     sortedScopes,
@@ -302,6 +305,12 @@ export function useAccessData(projectId: string): UseAccessDataResult {
     refresh,
     clearScopeSelection,
   };
+}
+
+function asError(value: unknown): Error | undefined {
+  if (value instanceof Error) return value;
+  if (value == null) return undefined;
+  return new Error('Could not load access data.');
 }
 
 function normalizeScopePath(path: string | null | undefined): string {

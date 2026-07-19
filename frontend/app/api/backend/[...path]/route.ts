@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerApiBaseUrl } from '@/lib/server-env';
+import { forwardBackendRequestHeaders } from '@/lib/backendProxyHeaders';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -7,16 +8,6 @@ export const dynamic = 'force-dynamic';
 
 const API_BASE_URL = getServerApiBaseUrl().replace(/\/+$/, '');
 const PROXY_PREFIX = '/api/backend';
-const REQUEST_HEADERS_TO_FORWARD = [
-  'accept',
-  'authorization',
-  'content-type',
-  'cookie',
-  'if-modified-since',
-  'if-none-match',
-  'if-range',
-  'range',
-] as const;
 const RESPONSE_HEADERS_TO_FORWARD = [
   'accept-ranges',
   'cache-control',
@@ -45,12 +36,7 @@ function buildBackendUrl(request: NextRequest): string {
 }
 
 function forwardRequestHeaders(request: NextRequest): Headers {
-  const headers = new Headers();
-  for (const headerName of REQUEST_HEADERS_TO_FORWARD) {
-    const value = request.headers.get(headerName);
-    if (value) headers.set(headerName, value);
-  }
-  return headers;
+  return forwardBackendRequestHeaders(request.headers);
 }
 
 function forwardResponseHeaders(response: Response): Headers {

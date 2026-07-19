@@ -89,6 +89,41 @@ export function LoadingState() {
   return <PageLoading variant="fill" />;
 }
 
+export function AccessLoadError({
+  error,
+  onRetry,
+}: {
+  readonly error: Error;
+  readonly onRetry: () => void;
+}) {
+  return (
+    <div
+      role="alert"
+      style={{
+        display: 'flex', flex: 1, flexDirection: 'column', alignItems: 'center',
+        justifyContent: 'center', gap: 12, padding: '0 32px', textAlign: 'center',
+        color: T.text3, fontFamily: T.fontSans,
+      }}
+    >
+      <div style={{ fontSize: 12, fontWeight: 600, color: T.text1 }}>Couldn’t load access points</div>
+      <div style={{ maxWidth: 560, fontSize: 12, lineHeight: 1.6, color: T.text2 }}>
+        {error.message || 'The backend rejected the request. Check your connection and try again.'}
+      </div>
+      <button
+        type="button"
+        onClick={onRetry}
+        style={{
+          height: 30, padding: '0 14px', borderRadius: 6, border: `1px solid ${T.border}`,
+          background: 'transparent', color: T.text2, fontSize: 12, fontWeight: 500,
+          fontFamily: T.fontSans, cursor: 'pointer',
+        }}
+      >
+        Retry
+      </button>
+    </div>
+  );
+}
+
 export function NoConnectorsState({ onCreateScope }: { readonly onCreateScope?: () => void }) {
   return (
     <div
