@@ -6,7 +6,7 @@
 -- silently widening or narrowing access is not an acceptable migration.
 --
 -- requires-data-migration: 20260712_repo_user_permissions_to_project_members
--- data-migration-checksum: 038bc26c63e5f192072ec74a3ab30ecbe051a8c421f6492039fe9c011bf38cdc
+-- data-migration-checksum: 649b84361ea1c8b72dfcef8f6c9e5beeafa520a1322b4d9f1ecbb79202fd6bce
 --
 -- This reviewed contract is intentionally outside supabase/migrations. Promote
 -- it by copying it to a new timestamped schema migration only after Qubits and
@@ -38,7 +38,7 @@ BEGIN
         WHERE name = '20260712_repo_user_permissions_to_project_members'
           AND COALESCE((summary->>'verified')::boolean, false)
           AND summary->>'artifact_checksum' =
-              '038bc26c63e5f192072ec74a3ab30ecbe051a8c421f6492039fe9c011bf38cdc'
+              '649b84361ea1c8b72dfcef8f6c9e5beeafa520a1322b4d9f1ecbb79202fd6bce'
     ) THEN
         RAISE EXCEPTION
           'DATA_MIGRATION_REQUIRED:20260712_repo_user_permissions_to_project_members';
