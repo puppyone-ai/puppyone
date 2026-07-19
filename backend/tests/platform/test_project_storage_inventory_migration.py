@@ -6,10 +6,12 @@ from pathlib import Path
 
 import pytest
 
+REPOSITORY = Path(__file__).resolve().parents[3]
+
 
 def _migration_module():
     path = (
-        Path(__file__).resolve().parents[3]
+        REPOSITORY
         / "supabase"
         / "data_migrations"
         / "20260720_project_storage_inventory"
@@ -85,3 +87,11 @@ def test_inventory_artifact_rejects_incomplete_multipart_pagination() -> None:
 
     with pytest.raises(RuntimeError, match="both pagination markers"):
         module.observe(s3, "bucket", 1000)
+
+
+def test_inventory_artifact_declares_the_forward_control_plane_repair() -> None:
+    manifest = (
+        REPOSITORY / "supabase/data_migrations/20260720_project_storage_inventory/manifest.yml"
+    ).read_text(encoding="utf-8")
+
+    assert '  - "20260718000000"' in manifest

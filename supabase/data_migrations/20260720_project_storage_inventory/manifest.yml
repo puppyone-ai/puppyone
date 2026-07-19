@@ -7,6 +7,7 @@ verify: verify.sql
 requires_schema:
   - "20260716020000"
   - "20260717000000"
+  - "20260718000000"
   - "20260720000000"
 required_env:
   - SUPABASE_URL
