@@ -158,9 +158,13 @@ def test_staging_release_is_automatic_auditable_and_serial() -> None:
     assert "needs.repair_run.result == 'success'" in jobs["data_plan"]["if"]
     assert "needs.repair_run.result == 'skipped'" in jobs["data_plan"]["if"]
     assert jobs["data_run"]["needs"] == ["data_plan", "resolve_data_release"]
+    assert "always()" in jobs["data_run"]["if"]
+    assert "needs.data_plan.result == 'success'" in jobs["data_run"]["if"]
     assert jobs["data_verify"]["needs"] == ["data_run", "resolve_data_release"]
+    assert "always()" in jobs["data_verify"]["if"]
+    assert "needs.data_run.result == 'success'" in jobs["data_verify"]["if"]
     assert jobs["deploy_after_data"]["needs"] == "data_verify"
-    assert jobs["deploy_after_data"]["if"] == "needs.data_verify.result == 'success'"
+    assert jobs["deploy_after_data"]["if"] == "always() && needs.data_verify.result == 'success'"
     assert staging.count("uses: ./.github/workflows/_schema-deploy.yml") == 2
     assert staging.count("uses: ./.github/workflows/_data-migration.yml") == 4
     for operation in ("plan", "run", "verify"):
@@ -197,7 +201,11 @@ def test_production_release_is_automatic_and_requires_qubits_evidence() -> None:
         "staging_data_evidence",
         "resolve_data_release",
     ]
-    assert jobs["deploy_after_data"]["if"] == "needs.data_verify.result == 'success'"
+    assert "always()" in jobs["data_run"]["if"]
+    assert "needs.data_plan.result == 'success'" in jobs["data_run"]["if"]
+    assert "always()" in jobs["data_verify"]["if"]
+    assert "needs.data_run.result == 'success'" in jobs["data_verify"]["if"]
+    assert jobs["deploy_after_data"]["if"] == "always() && needs.data_verify.result == 'success'"
     assert production.count("uses: ./.github/workflows/_schema-deploy.yml") == 2
     assert production.count("uses: ./.github/workflows/_data-migration.yml") == 6
     assert re.fullmatch(r"[0-9A-Za-z_]+", release["migration_id"])
