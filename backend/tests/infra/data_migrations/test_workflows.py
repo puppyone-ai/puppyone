@@ -16,6 +16,7 @@ def test_database_workflow_yaml_is_parseable() -> None:
         "migrate-staging.yml",
         "migrate-production.yml",
         "_data-migration.yml",
+        "_operator-data-verify.yml",
         "data-migration.yml",
         "validate-migrations.yml",
         "main-release-gate.yml",
@@ -29,7 +30,8 @@ def test_database_workflow_yaml_is_parseable() -> None:
 def test_schema_and_data_jobs_share_serialized_environment_boundary() -> None:
     schema = (WORKFLOWS / "_schema-deploy.yml").read_text()
     data = (WORKFLOWS / "_data-migration.yml").read_text()
-    for workflow in (schema, data):
+    operator_verify = (WORKFLOWS / "_operator-data-verify.yml").read_text()
+    for workflow in (schema, data, operator_verify):
         assert "environment: ${{ inputs.environment }}" in workflow
         assert "group: database-${{ inputs.environment }}" in workflow
         assert "cancel-in-progress: false" in workflow
@@ -45,6 +47,14 @@ def test_hosted_workflows_bind_connection_to_protected_project() -> None:
     assert "SUPABASE_URL=https://${SUPABASE_PROJECT_ID}.supabase.co" in data
     assert "secrets.DATABASE_URL" in schema
     assert "secrets.DATABASE_URL" in data
+    for name in (
+        "S3_ENDPOINT_URL",
+        "S3_BUCKET_NAME",
+        "S3_REGION",
+        "S3_ACCESS_KEY_ID",
+        "S3_SECRET_ACCESS_KEY",
+    ):
+        assert name not in data
 
 
 def test_psql_receives_connection_uri_explicitly() -> None:
@@ -121,8 +131,8 @@ def test_reusable_database_workflows_receive_protected_secrets() -> None:
     # GitHub does not pass secrets to reusable workflows automatically. Every
     # direct caller must cross that boundary explicitly; the called job then
     # selects the protected staging/production Environment.
-    assert staging.count("secrets: inherit") == 6
-    assert production.count("secrets: inherit") == 8
+    assert staging.count("secrets: inherit") == 7
+    assert production.count("secrets: inherit") == 10
     assert dispatcher.count("secrets: inherit") == 3
 
 
@@ -148,6 +158,7 @@ def test_staging_release_is_automatic_auditable_and_serial() -> None:
         "resolve_data_release",
     ]
     assert "outputs.repair_migration_id != ''" in jobs["repair_run"]["if"]
+    assert "outputs.execution_mode == 'ci'" in jobs["repair_run"]["if"]
     assert jobs["data_plan"]["needs"] == [
         "validate_schema_pause",
         "repair_run",
@@ -157,19 +168,30 @@ def test_staging_release_is_automatic_auditable_and_serial() -> None:
     # must stop the staged data migration from mutating the environment.
     assert "needs.repair_run.result == 'success'" in jobs["data_plan"]["if"]
     assert "needs.repair_run.result == 'skipped'" in jobs["data_plan"]["if"]
+    assert "outputs.execution_mode == 'ci'" in jobs["data_plan"]["if"]
     assert jobs["data_run"]["needs"] == ["data_plan", "resolve_data_release"]
     assert "always()" in jobs["data_run"]["if"]
     assert "needs.data_plan.result == 'success'" in jobs["data_run"]["if"]
     assert jobs["data_verify"]["needs"] == ["data_run", "resolve_data_release"]
     assert "always()" in jobs["data_verify"]["if"]
     assert "needs.data_run.result == 'success'" in jobs["data_verify"]["if"]
-    assert jobs["deploy_after_data"]["needs"] == "data_verify"
-    assert jobs["deploy_after_data"]["if"] == "always() && needs.data_verify.result == 'success'"
+    assert jobs["operator_data_verify"]["with"] == {
+        "environment": "staging",
+        "migration_id": "${{ needs.resolve_data_release.outputs.migration_id }}",
+    }
+    assert "needs.operator_data_verify.result == 'success'" in jobs["deploy_after_data"]["if"]
+    assert jobs["deploy_after_data"]["needs"] == [
+        "data_verify",
+        "operator_data_verify",
+        "resolve_data_release",
+    ]
     assert staging.count("uses: ./.github/workflows/_schema-deploy.yml") == 2
     assert staging.count("uses: ./.github/workflows/_data-migration.yml") == 4
+    assert staging.count("uses: ./.github/workflows/_operator-data-verify.yml") == 1
     for operation in ("plan", "run", "verify"):
         assert f"operation: {operation}" in staging
     assert re.fullmatch(r"[0-9A-Za-z_]+", release["migration_id"])
+    assert release["execution_mode"] in {"ci", "operator_local"}
     assert (REPOSITORY / "supabase" / "data_migrations" / release["migration_id"]).is_dir()
     repair_id = release.get("repair_migration_id")
     if repair_id:
@@ -195,6 +217,7 @@ def test_production_release_is_automatic_and_requires_qubits_evidence() -> None:
         "operation": "verify",
     }
     assert "needs.staging_data_evidence.result == 'success'" in jobs["data_plan"]["if"]
+    assert "outputs.execution_mode == 'ci'" in jobs["data_plan"]["if"]
     assert jobs["data_plan"]["needs"] == [
         "validate_schema_pause",
         "repair_run",
@@ -205,10 +228,20 @@ def test_production_release_is_automatic_and_requires_qubits_evidence() -> None:
     assert "needs.data_plan.result == 'success'" in jobs["data_run"]["if"]
     assert "always()" in jobs["data_verify"]["if"]
     assert "needs.data_run.result == 'success'" in jobs["data_verify"]["if"]
-    assert jobs["deploy_after_data"]["if"] == "always() && needs.data_verify.result == 'success'"
+    assert jobs["staging_operator_evidence"]["with"] == {
+        "environment": "staging",
+        "migration_id": "${{ needs.resolve_data_release.outputs.migration_id }}",
+    }
+    assert jobs["operator_data_verify"]["with"] == {
+        "environment": "production",
+        "migration_id": "${{ needs.resolve_data_release.outputs.migration_id }}",
+    }
+    assert "needs.operator_data_verify.result == 'success'" in jobs["deploy_after_data"]["if"]
     assert production.count("uses: ./.github/workflows/_schema-deploy.yml") == 2
     assert production.count("uses: ./.github/workflows/_data-migration.yml") == 6
+    assert production.count("uses: ./.github/workflows/_operator-data-verify.yml") == 2
     assert re.fullmatch(r"[0-9A-Za-z_]+", release["migration_id"])
+    assert release["execution_mode"] in {"ci", "operator_local"}
     assert (REPOSITORY / "supabase" / "data_migrations" / release["migration_id"]).is_dir()
 
 
@@ -299,6 +332,7 @@ def test_database_workflow_third_party_actions_are_sha_pinned() -> None:
     for name in (
         "_schema-deploy.yml",
         "_data-migration.yml",
+        "_operator-data-verify.yml",
         "migrate-staging.yml",
         "validate-migrations.yml",
         "main-release-gate.yml",
