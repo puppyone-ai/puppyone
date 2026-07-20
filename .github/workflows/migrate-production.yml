@@ -32,6 +32,7 @@ jobs:
     outputs:
       migration_id: ${{ steps.release.outputs.migration_id }}
       repair_migration_id: ${{ steps.release.outputs.repair_migration_id }}
+      execution_mode: ${{ steps.release.outputs.execution_mode }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -52,7 +53,19 @@ jobs:
             echo "::error::Production data migration artifact does not exist."
             exit 1
           fi
+          execution_mode=$(jq -er '.execution_mode // "ci" | select(type == "string")' "$request")
+          case "$execution_mode" in
+            ci|operator_local) ;;
+            *)
+              echo "::error::Invalid production data migration execution mode."
+              exit 1
+              ;;
+          esac
           repair_migration_id=$(jq -er '.repair_migration_id // "" | select(type == "string")' "$request")
+          if [ "$execution_mode" = "operator_local" ] && [ -n "$repair_migration_id" ]; then
+            echo "::error::Operator-local data migrations cannot declare a CI repair artifact."
+            exit 1
+          fi
           if [ -n "$repair_migration_id" ]; then
             case "$repair_migration_id" in
               *[!0-9A-Za-z_]*)
@@ -67,6 +80,7 @@ jobs:
           fi
           echo "migration_id=$migration_id" >> "$GITHUB_OUTPUT"
           echo "repair_migration_id=$repair_migration_id" >> "$GITHUB_OUTPUT"
+          echo "execution_mode=$execution_mode" >> "$GITHUB_OUTPUT"
 
   prepare_schema:
     name: Apply compatible schema before production data migration
@@ -99,7 +113,9 @@ jobs:
 
   staging_repair_evidence:
     name: Verify staged repair before Production write
-    if: needs.resolve_data_release.outputs.repair_migration_id != ''
+    if: >-
+      needs.resolve_data_release.outputs.execution_mode == 'ci' &&
+      needs.resolve_data_release.outputs.repair_migration_id != ''
     needs: resolve_data_release
     uses: ./.github/workflows/_data-migration.yml
     secrets: inherit
@@ -112,6 +128,7 @@ jobs:
     name: Run production repair after Qubits evidence
     if: >-
       needs.validate_schema_pause.result == 'success' &&
+      needs.resolve_data_release.outputs.execution_mode == 'ci' &&
       needs.staging_repair_evidence.result == 'success'
     needs:
       - validate_schema_pause
@@ -126,6 +143,7 @@ jobs:
 
   staging_data_evidence:
     name: Verify staged data migration before Production write
+    if: needs.resolve_data_release.outputs.execution_mode == 'ci'
     needs: resolve_data_release
     uses: ./.github/workflows/_data-migration.yml
     secrets: inherit
@@ -138,6 +156,7 @@ jobs:
     if: >-
       always() && needs.validate_schema_pause.result == 'success' &&
       needs.staging_data_evidence.result == 'success' &&
+      needs.resolve_data_release.outputs.execution_mode == 'ci' &&
       (needs.repair_run.result == 'success' || needs.repair_run.result == 'skipped')
     needs:
       - validate_schema_pause
@@ -156,7 +175,8 @@ jobs:
     # staged.  See the matching Qubits workflow for the skipped-job case.
     if: >-
       always() && needs.data_plan.result == 'success' &&
-      needs.resolve_data_release.result == 'success'
+      needs.resolve_data_release.result == 'success' &&
+      needs.resolve_data_release.outputs.execution_mode == 'ci'
     needs:
       - data_plan
       - resolve_data_release
@@ -170,7 +190,8 @@ jobs:
   data_verify:
     if: >-
       always() && needs.data_run.result == 'success' &&
-      needs.resolve_data_release.result == 'success'
+      needs.resolve_data_release.result == 'success' &&
+      needs.resolve_data_release.outputs.execution_mode == 'ci'
     needs:
       - data_run
       - resolve_data_release
@@ -181,10 +202,43 @@ jobs:
       migration_id: ${{ needs.resolve_data_release.outputs.migration_id }}
       operation: verify
 
+  staging_operator_evidence:
+    name: Verify Qubits operator-local data completion before Production
+    if: needs.resolve_data_release.outputs.execution_mode == 'operator_local'
+    needs: resolve_data_release
+    uses: ./.github/workflows/_operator-data-verify.yml
+    secrets: inherit
+    with:
+      environment: staging
+      migration_id: ${{ needs.resolve_data_release.outputs.migration_id }}
+
+  operator_data_verify:
+    name: Verify Production operator-local data completion
+    if: >-
+      needs.validate_schema_pause.result == 'success' &&
+      needs.staging_operator_evidence.result == 'success' &&
+      needs.resolve_data_release.outputs.execution_mode == 'operator_local'
+    needs:
+      - validate_schema_pause
+      - staging_operator_evidence
+      - resolve_data_release
+    uses: ./.github/workflows/_operator-data-verify.yml
+    secrets: inherit
+    with:
+      environment: production
+      migration_id: ${{ needs.resolve_data_release.outputs.migration_id }}
+
   deploy_after_data:
     name: Recheck Production schema after data migration
-    if: always() && needs.data_verify.result == 'success'
-    needs: data_verify
+    if: >-
+      always() && (
+        (needs.data_verify.result == 'success' && needs.resolve_data_release.outputs.execution_mode == 'ci') ||
+        (needs.operator_data_verify.result == 'success' && needs.resolve_data_release.outputs.execution_mode == 'operator_local')
+      )
+    needs:
+      - data_verify
+      - operator_data_verify
+      - resolve_data_release
     uses: ./.github/workflows/_schema-deploy.yml
     secrets: inherit
     with:

@@ -16,9 +16,19 @@ supabase/data_migrations -> puppyone-db -> public.migration_log
 
 Use `supabase/migrations` for DDL and small pure-SQL changes that are bounded,
 transactional, and need no pause, application secret, runtime code, or external
-service. Use `supabase/data_migrations` for everything that needs batching,
-retry/resume, Python, an application HMAC secret, S3/API access, or a release
-boundary between Expand and Contract.
+service. Use `supabase/data_migrations` for bounded database transformations
+that need batching, retry/resume, Python, an application HMAC secret, or a
+release boundary between Expand and Contract.
+
+GitHub-hosted CI is a **Supabase-only** control plane. It must never enumerate,
+delete, copy, or otherwise mutate an external data plane such as S3. An
+external inventory/legacy-cleanup release declares
+`"execution_mode": "operator_local"` in its environment release pointer.
+The versioned, reviewed operator script is run locally with that environment's
+credentials and an explicit `--apply`; CI then executes only the immutable
+artifact's `verify.sql` against Supabase to prove the recorded completion state.
+This preserves a deployment gate without scheduling an S3 scan or deletion on
+every push.
 
 `supabase/seed.sql` is only bootstrap/demo/test data. It is not a production
 upgrade mechanism.
@@ -110,10 +120,26 @@ DATA_MIGRATION_DATABASE_URL='postgresql://...' \
 ```
 
 Protected `qubits` and `main` pushes use the environment release orchestrators
-to run schema deployment, data plan/run/verify, and a final schema check as one
-serialized release. The standalone `Data Migration` GitHub workflow remains
-for protected-branch diagnosis and idempotent recovery; `plan` and `verify`
-are read-only, while `run` mutates data and writes a receipt after verification.
+to run schema deployment, CI-mode data plan/run/verify, and a final schema
+check as one serialized release. `operator_local` releases instead run their
+external-data script outside GitHub Actions, then the orchestrator verifies the
+Supabase completion SQL and performs the same final schema check. The standalone
+`Data Migration` GitHub workflow remains for protected-branch diagnosis and
+idempotent recovery of CI-mode artifacts; `plan` and `verify` are read-only,
+while `run` mutates database data and writes a receipt after verification.
+
+For the project-storage inventory, run the explicit operation from `backend/`
+against the intended environment only after a dry run:
+
+```bash
+uv run python ../scripts/backfill_project_storage_principals.py
+uv run python ../scripts/backfill_project_storage_principals.py --apply
+```
+
+The script owns any S3 listing and any approved cleanup. It is not invoked by a
+deployment workflow. Its database postcondition is the checked-in
+`20260720_project_storage_inventory/verify.sql`; a failed CI verification means
+the operator operation has not completed and blocks the release.
 
 The bundled GitHub adapter targets Supabase Cloud and therefore validates a
 project ref against canonical direct/session-pooler hosts. Self-hosted PuppyOne
@@ -230,17 +256,14 @@ SUPABASE_DB_PASSWORD
 DATABASE_URL
 SUPABASE_SERVICE_ROLE_KEY
 ACCESS_CREDENTIAL_HASH_SECRET
-S3_ENDPOINT_URL
-S3_BUCKET_NAME
-S3_REGION
-S3_ACCESS_KEY_ID
-S3_SECRET_ACCESS_KEY
 ```
 
-The reusable workflows read only these environment secrets; callers do not
-inherit the repository's other secrets. Allow `qubits` and `main` to reference
-`staging` (main performs the Production promotion check); allow only `main` to
-reference `production`. Require reviewers for Production writes.
+The reusable workflows read only these Supabase/database secrets; callers do
+not inherit the repository's other secrets. S3 credentials belong only in the
+operator's local target-environment `.env` (or equivalent local secret store),
+never in a GitHub Environment. Allow `qubits` and `main` to reference `staging`
+(main performs the Production promotion check); allow only `main` to reference
+`production`. Require reviewers for Production writes.
 
 `DATABASE_URL` should prefer the Supabase session pooler on port `5432` when
 direct IPv4 DNS is unavailable. Do not use transaction-pooler port `6543` for

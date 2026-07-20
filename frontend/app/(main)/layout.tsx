@@ -118,7 +118,15 @@ const MainLayoutInner = memo(function MainLayoutInner({
     (userMetadata?.picture as string) ||
     (userMetadata?.avatarUrl as string) ||
     undefined;
-  const environmentLabel = useMemo(() => getEnvironmentLabel(), []);
+  // ``getEnvironmentLabel`` reads ``window.location``.  Rendering it during
+  // SSR produced "Local" while the browser's first render produced "Cloud",
+  // which makes React discard the hydrated tree (#418) and can strand Access
+  // in its initial loading state.  Keep the server and hydration render
+  // identical; populate this cosmetic label only after hydration.
+  const [environmentLabel, setEnvironmentLabel] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    setEnvironmentLabel(getEnvironmentLabel());
+  }, []);
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', backgroundColor: 'var(--po-canvas)' }}>
