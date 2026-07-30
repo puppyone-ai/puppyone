@@ -128,6 +128,12 @@ Supabase completion SQL and performs the same final schema check. The standalone
 idempotent recovery of CI-mode artifacts; `plan` and `verify` are read-only,
 while `run` mutates database data and writes a receipt after verification.
 
+The final drift check is explicitly scoped to PuppyOne's `public` schema.
+Protected databases may colocate schemas owned by another service, such as
+PuppyPay's `puppypay` schema; those schemas are neither PuppyOne migration input
+nor drift. Cross-schema platform invariants that PuppyOne depends on, including
+its trigger on `auth.users`, remain covered by the preceding smoke contracts.
+
 For the project-storage inventory, run the explicit operation from `backend/`
 against the intended environment only after a dry run:
 

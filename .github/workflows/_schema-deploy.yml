@@ -128,7 +128,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if ! diff_output=$(supabase db diff --linked 2>&1); then
+          # PuppyOne owns public. A protected database may also host schemas
+          # owned by another service (for example PuppyPay's `puppypay`), which
+          # must not be adopted into or deleted by PuppyOne migrations.
+          if ! diff_output=$(supabase db diff --linked --schema public 2>&1); then
             echo "::error::Could not evaluate post-deploy schema drift."
             echo "$diff_output"
             exit 1
