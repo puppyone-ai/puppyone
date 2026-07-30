@@ -137,7 +137,6 @@ closure contains:
 
 ```text
 version/{project_id}/
-mut/{project_id}/
 projects/{project_id}/
 shadow-snapshots/{project_id}/
 users/{principal}/etl_artifacts/{project_id}/

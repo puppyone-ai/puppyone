@@ -13,8 +13,9 @@ CONTRACT_PATH = (
 
 def test_cloud_project_publish_contract_is_the_cross_repo_v1_fixture() -> None:
     payload = CONTRACT_PATH.read_bytes()
+    canonical_payload = payload.replace(b"\r\n", b"\n")
 
-    assert hashlib.sha256(payload).hexdigest() == CONTRACT_SHA256
+    assert hashlib.sha256(canonical_payload).hexdigest() == CONTRACT_SHA256
     contract = json.loads(payload)
     assert contract["contract"] == "puppyone.cloud-project-publish"
     assert contract["version"] == 1

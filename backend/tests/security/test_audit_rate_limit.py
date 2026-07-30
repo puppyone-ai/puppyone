@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import time
 from copy import deepcopy
 from threading import Lock
@@ -14,6 +16,11 @@ from fastapi.testclient import TestClient
 from src.config import settings
 from src.platform.auth import router as auth_router
 from src.platform.auth.shared_security_store import get_auth_security_store
+
+DESKTOP_VERIFIER = "desktop-verifier-abcdefghijklmnopqrstuvwxyz-0123456789-ABCDEFG"
+DESKTOP_CHALLENGE = base64.urlsafe_b64encode(
+    hashlib.sha256(DESKTOP_VERIFIER.encode("ascii")).digest()
+).rstrip(b"=").decode("ascii")
 
 
 class _SharedStore:
@@ -84,7 +91,12 @@ def test_desktop_oauth_crosses_instances_and_rejects_replay(monkeypatch):
 
     started = first.post(
         "/auth/desktop/start",
-        json={"provider": "google", "callback_url": "puppyone://auth/callback"},
+        json={
+            "provider": "google",
+            "callback_url": "puppyone://auth/callback",
+            "code_challenge": DESKTOP_CHALLENGE,
+            "code_challenge_method": "S256",
+        },
     ).json()["data"]
     state = started["state"]
     assert started["login_url"].startswith("https://login.example.com/auth/v1/authorize?")
@@ -101,13 +113,23 @@ def test_desktop_oauth_crosses_instances_and_rejects_replay(monkeypatch):
 
     exchanged = first.post(
         "/auth/desktop/exchange",
-        json={"code": exchange_code, "state": state},
+        json={
+            "code": exchange_code,
+            "state": state,
+            "code_verifier": DESKTOP_VERIFIER,
+            "redirect_uri": "puppyone://auth/callback",
+        },
     )
     assert exchanged.status_code == 200
     assert exchanged.json()["data"]["access_token"] == "access"
     assert second.post(
         "/auth/desktop/exchange",
-        json={"code": exchange_code, "state": state},
+        json={
+            "code": exchange_code,
+            "state": state,
+            "code_verifier": DESKTOP_VERIFIER,
+            "redirect_uri": "puppyone://auth/callback",
+        },
     ).status_code == 400
     assert first.get(
         "/auth/desktop/callback",
@@ -116,7 +138,12 @@ def test_desktop_oauth_crosses_instances_and_rejects_replay(monkeypatch):
 
     expired = first.post(
         "/auth/desktop/start",
-        json={"provider": "google", "callback_url": "puppyone://auth/callback"},
+        json={
+            "provider": "google",
+            "callback_url": "puppyone://auth/callback",
+            "code_challenge": DESKTOP_CHALLENGE,
+            "code_challenge_method": "S256",
+        },
     ).json()["data"]["state"]
     value, _deadline = store.values[("desktop-state", expired)]
     store.values[("desktop-state", expired)] = (value, 0)

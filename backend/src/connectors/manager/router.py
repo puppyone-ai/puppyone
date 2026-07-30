@@ -13,6 +13,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, status
 from pydantic import BaseModel, Field
 
 from src.common_schemas import ApiResponse
+from src.config import settings
 from src.exceptions import AppException, ErrorCode, NotFoundException
 from src.infra.supabase.client import SupabaseClient
 from src.platform.auth.dependencies import get_current_user
@@ -669,6 +670,19 @@ class UnifiedConnectionOut(BaseModel):
     git_username: str | None = None
     git_credential: str | None = None
     cli_access_key: str | None = None
+    mcp_api_key: str | None = Field(
+        None,
+        description="One-time MCP bearer credential returned only by creation",
+    )
+    mcp_server_url: str | None = Field(
+        None,
+        description="Canonical public MCP proxy URL; authenticate with Authorization: Bearer",
+    )
+
+
+def _public_mcp_server_url() -> str | None:
+    base = (settings.PUBLIC_URL or "").rstrip("/")
+    return f"{base}/api/v1/mcp/proxy" if base else None
 
 
 def _create_agent(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
@@ -708,6 +722,8 @@ def _create_agent(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
         provider="agent",
         name=agent.name,
         status="active",
+        mcp_api_key=agent.mcp_api_key,
+        mcp_server_url=_public_mcp_server_url(),
     )
 
 
@@ -738,6 +754,8 @@ def _create_mcp(
         provider="mcp",
         name=row["name"],
         status=row["status"],
+        mcp_api_key=row.get("api_key"),
+        mcp_server_url=_public_mcp_server_url(),
     )
 
 
