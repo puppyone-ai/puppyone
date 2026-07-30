@@ -332,7 +332,7 @@ def test_new_runtime_source_does_not_reintroduce_legacy_identity_types(forbidden
     )
     frontend_source = "\n".join(
         path.read_text(encoding="utf-8")
-        for root in (ROOT / "frontend", ROOT / "packages/cloud-core/src")
+        for root in (ROOT / "frontend",)
         for path in root.rglob("*.ts*")
         if "node_modules" not in path.parts
     )

@@ -13,12 +13,14 @@
     "start": "next start",
     "test:bff-contract": "node scripts/test-bff-contract-forwarding.mjs",
     "test:hydration-contract": "node scripts/test-hydration-safe-environment-label.mjs",
+    "test:deployment-contract": "node scripts/test-deployment-package-boundaries.mjs",
     "theme:audit": "node scripts/check-theme-colors.mjs",
     "font:audit": "node scripts/check-font-families.mjs",
     "shared-ui:test-markdown-html": "node scripts/test-shared-ui-markdown-html.mjs",
     "lint": "next lint"
   },
   "dependencies": {
+    "@puppyone/cloud-core": "file:packages/cloud-core",
     "@anthropic-ai/claude-agent-sdk": "^0.1.76",
     "@anthropic-ai/sdk": "^0.71.2",
     "@codemirror/commands": "^6.10.0",

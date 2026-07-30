@@ -75,7 +75,7 @@ export default function AccessPointsPage({
   const closeCreate = useCallback(() => {
     setCreateOpen(false);
     setCreateInitialPath(null);
-    if (searchParams.get('create')) {
+    if (searchParams?.get('create')) {
       router.replace(`/projects/${projectId}/access`, { scroll: false });
     }
   }, [projectId, router, searchParams]);
@@ -100,13 +100,13 @@ export default function AccessPointsPage({
   }, [projectId, refresh]);
 
   useEffect(() => {
-    const createMode = searchParams.get('create');
+    const createMode = searchParams?.get('create');
     if (createMode !== 'share-with-ai') return;
-    openCreate(searchParams.get('path') ?? '');
+    openCreate(searchParams?.get('path') ?? '');
   }, [openCreate, searchParams]);
 
   useEffect(() => {
-    const targetKey = searchParams.get('target');
+    const targetKey = searchParams?.get('target');
     if (!targetKey) return;
     setSelectedTargetKey(targetKey);
   }, [searchParams, setSelectedTargetKey]);
@@ -115,9 +115,9 @@ export default function AccessPointsPage({
   // Preselect the scope matching that folder so the user lands on its Remote Dev
   // (SSH) card; fall back to root/first if the folder isn't its own scope.
   useEffect(() => {
-    if (searchParams.get('remote') !== 'ssh') return;
+    if (searchParams?.get('remote') !== 'ssh') return;
     if (sortedScopes.length === 0) return;
-    const path = searchParams.get('path') ?? '';
+    const path = searchParams?.get('path') ?? '';
     const match =
       sortedScopes.find((s) => s.path === path) ??
       sortedScopes.find((s) => s.target.kind === 'project_root') ??

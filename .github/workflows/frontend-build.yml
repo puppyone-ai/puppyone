@@ -58,6 +58,10 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      - name: Verify deployable package boundaries
+        working-directory: frontend
+        run: npm run test:deployment-contract
+
       # `next build` does TypeScript type-checking and webpack compilation, so
       # this single step catches both type errors and missing dependencies.
       - name: Build (next build)
