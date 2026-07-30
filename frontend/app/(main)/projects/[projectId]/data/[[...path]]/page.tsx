@@ -124,8 +124,8 @@ export default function DataPage({ params }: DataPageProps) {
   } = useDataViewPreferences();
 
   // Legacy welcome query param — strip it without triggering old onboarding guide
-  const hasWelcomeParam = searchParams.get('welcome') === 'true';
-  const hasSetupParam = searchParams.get('setup') === 'true';
+  const hasWelcomeParam = searchParams?.get('welcome') === 'true';
+  const hasSetupParam = searchParams?.get('setup') === 'true';
   useEffect(() => {
     if (hasWelcomeParam) {
       router.replace(`/projects/${projectId}/data`);

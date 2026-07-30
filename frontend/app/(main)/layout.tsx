@@ -58,7 +58,7 @@ const MainLayoutInner = memo(function MainLayoutInner({
 }) {
   const selectedSegments = useSelectedLayoutSegments();
   const segments = useMemo(
-    () => selectedSegments.filter(segment => !segment.startsWith('(')),
+    () => (selectedSegments ?? []).filter(segment => !segment.startsWith('(')),
     [selectedSegments],
   );
   const { session, isAuthReady } = useAuth();

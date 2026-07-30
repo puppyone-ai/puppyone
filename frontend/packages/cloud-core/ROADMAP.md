@@ -34,15 +34,15 @@ strictly **platform-agnostic** — no Next.js, Electron, Supabase, or SWR import
   call-site churn**, single source of truth.
 - **Desktop** (Phase 2) will bind the same factories to an IPC transport.
 
-Sharing mechanism (decided): `packages/cloud-core` lives in the monorepo,
-consumed by `frontend/` via a tsconfig path alias; the standalone
+Sharing mechanism (decided): `frontend/packages/cloud-core` lives inside the
+web deployment context and is consumed as a frontend-local npm dependency; the standalone
 `puppyone-desktop` will consume it as a **git submodule** (or build artifact).
 
 ## Status
 
 ### ✅ Phase 1 — shared cloud-core + web consumption (DONE, verified)
 
-- `packages/cloud-core`: `transport.ts`, `accessProviders.ts`, and
+- `frontend/packages/cloud-core`: `transport.ts`, `accessProviders.ts`, and
   `endpoints/{scopes,connectors,mcpEndpoints,sandboxEndpoints}.ts` covering the
   core duplicated entities + pure helpers (`matchScopeForPath`, `isWithinScope`,
   `sortConnectorsBuiltinFirst`, connector normalization, …).

@@ -79,7 +79,7 @@ function DashboardPageContent() {
   // Handle ?create=true query param
   useEffect(() => {
     if (
-      searchParams.get('create') === 'true' &&
+      searchParams?.get('create') === 'true' &&
       !projectsLoading &&
       !creatingProjectRef.current &&
       !handledCreateParamRef.current

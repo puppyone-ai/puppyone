@@ -20,6 +20,7 @@ function loadVersion(): string {
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  transpilePackages: ['@puppyone/cloud-core'],
   output: 'standalone',
   outputFileTracingRoot: import.meta.dirname,
   env: {

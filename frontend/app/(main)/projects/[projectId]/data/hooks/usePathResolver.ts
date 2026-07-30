@@ -103,7 +103,7 @@ export function usePathResolver(
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const pathKey = path.join('/');
-  const typeHint = typeHintOverride ?? searchParams.get('type') ?? '';
+  const typeHint = typeHintOverride ?? searchParams?.get('type') ?? '';
 
   useEffect(() => {
     let cancelled = false;

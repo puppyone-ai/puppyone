@@ -12,9 +12,9 @@ function AirtableCallbackContent() {
 
   useEffect(() => {
     const handleCallback = async () => {
-      const code = searchParams.get('code');
-      const state = searchParams.get('state');
-      const error = searchParams.get('error');
+      const code = searchParams?.get('code');
+      const state = searchParams?.get('state');
+      const error = searchParams?.get('error');
 
       if (error) {
         setStatus('error');

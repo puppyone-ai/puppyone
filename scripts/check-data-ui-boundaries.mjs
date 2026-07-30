@@ -10,7 +10,7 @@ const checkedSrcDirs = [
   // ISSUE-022: shared cloud domain must stay platform-agnostic (no Next.js,
   // Electron, Supabase, or SWR) so both the web frontend and the desktop cloud
   // panel can consume it. Platform auth/HTTP is injected via CloudTransport.
-  path.join(repoRoot, "packages", "cloud-core", "src"),
+  path.join(repoRoot, "frontend", "packages", "cloud-core", "src"),
 ];
 
 const blockedImports = [
