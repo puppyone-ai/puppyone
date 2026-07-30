@@ -256,6 +256,14 @@ def test_schema_runner_only_pauses_for_an_explicit_data_migration_guard() -> Non
     assert "if: steps.push.outputs.schema_state == 'deployed'" in schema
 
 
+def test_schema_drift_is_scoped_to_puppyone_owned_public_schema() -> None:
+    schema = (WORKFLOWS / "_schema-deploy.yml").read_text()
+
+    assert "supabase db diff --linked --schema public" in schema
+    assert "supabase db diff --linked 2>&1" not in schema
+    assert "PuppyPay's `puppypay`" in schema
+
+
 def test_only_historical_upgrade_harness_can_insert_missing_older_migrations() -> None:
     schema = (WORKFLOWS / "_schema-deploy.yml").read_text()
     upgrade_harness = (REPOSITORY / "scripts" / "test-repository-target-migration.sh").read_text()
