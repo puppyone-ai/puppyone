@@ -93,7 +93,12 @@ async def test_desktop_oauth_pkce_state_and_exchange_are_single_use(monkeypatch)
     monkeypatch.setattr(auth_router.httpx, "AsyncClient", lambda: client)
 
     started = auth_router.desktop_auth_start(
-        auth_router.DesktopStartRequest(provider="github", callback_url=CALLBACK_URL),
+        auth_router.DesktopStartRequest(
+            provider="github",
+            callback_url=CALLBACK_URL,
+            code_challenge=DESKTOP_CHALLENGE,
+            code_challenge_method="S256",
+        ),
         store=store,
     )
     state = started.data.state
@@ -123,14 +128,24 @@ async def test_desktop_oauth_pkce_state_and_exchange_are_single_use(monkeypatch)
     assert ("desktop-state", state) not in store.values
 
     exchanged = auth_router.desktop_auth_exchange(
-        auth_router.DesktopExchangeRequest(code=exchange_code, state=state),
+        auth_router.DesktopExchangeRequest(
+            code=exchange_code,
+            state=state,
+            code_verifier=DESKTOP_VERIFIER,
+            redirect_uri=CALLBACK_URL,
+        ),
         store=store,
     )
     assert exchanged.data["access_token"] == "access-token"
 
     with pytest.raises(HTTPException) as replay:
         auth_router.desktop_auth_exchange(
-            auth_router.DesktopExchangeRequest(code=exchange_code, state=state),
+            auth_router.DesktopExchangeRequest(
+                code=exchange_code,
+                state=state,
+                code_verifier=DESKTOP_VERIFIER,
+                redirect_uri=CALLBACK_URL,
+            ),
             store=store,
         )
     assert replay.value.status_code == 400
@@ -380,6 +395,18 @@ def test_desktop_loopback_callback_requires_pkce():
     assert missing_pkce.value.status_code == 400
 
 
+def test_desktop_allowlisted_callback_still_requires_pkce():
+    with pytest.raises(HTTPException) as missing_pkce:
+        auth_router.desktop_auth_start(
+            auth_router.DesktopStartRequest(
+                provider="github",
+                callback_url=CALLBACK_URL,
+            ),
+            store=_MemorySecurityStore(),
+        )
+    assert missing_pkce.value.status_code == 400
+
+
 @pytest.mark.parametrize(
     ("challenge", "method"),
     [
@@ -418,7 +445,12 @@ def test_desktop_start_fails_closed_when_shared_store_is_unavailable():
 
     with pytest.raises(HTTPException) as unavailable:
         auth_router.desktop_auth_start(
-            auth_router.DesktopStartRequest(provider="google", callback_url=CALLBACK_URL),
+            auth_router.DesktopStartRequest(
+                provider="google",
+                callback_url=CALLBACK_URL,
+                code_challenge=DESKTOP_CHALLENGE,
+                code_challenge_method="S256",
+            ),
             store=_UnavailableStore(),
         )
     assert unavailable.value.status_code == 503

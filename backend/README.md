@@ -261,6 +261,9 @@ Notion / GitHub / Google (Sheets, Gmail, Drive, Calendar, Docs) / Linear / Airta
 
 | 端点 | 说明 |
 |------|------|
+| `POST /api/v1/auth/desktop/start` | 启动 Desktop OAuth；必须提交 S256 PKCE challenge |
+| `POST /api/v1/auth/desktop/exchange` | 使用一次性 code、state、verifier 与原始 redirect URI 换取会话 |
+| `POST /api/v1/auth/logout` | 使用 `refresh_token` 撤销当前 Supabase session；已失效 token 幂等成功 |
 | `GET /api/v1/oauth/{provider}/authorize` | OAuth 授权 |
 | `GET /api/v1/oauth/{provider}/callback` | OAuth 回调 |
 | `GET /health` | 健康检查 |

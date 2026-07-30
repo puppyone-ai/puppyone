@@ -3,6 +3,7 @@ Auth router — for CLI / external clients
 
 POST   /auth/login           Sign in with email + password, returns access_token
 POST   /auth/refresh         Refresh access_token
+POST   /auth/logout          Revoke the refresh-token session (idempotent)
 POST   /auth/initialize      Idempotent user initialization (profile + org)
 POST   /auth/check-email     Check if email is already registered (rate-limited)
 GET    /auth/config           Public Supabase config (URL + anon key) for Realtime
@@ -20,7 +21,7 @@ from urllib.parse import urlencode, urlparse
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, SecretStr
 from supabase import create_client
 
 from src.common_schemas import ApiResponse
@@ -85,6 +86,16 @@ class LoginResponse(BaseModel):
 
 class RefreshRequest(BaseModel):
     refresh_token: str
+
+
+class LogoutRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    refresh_token: SecretStr = Field(min_length=1, max_length=8192)
+
+
+class LogoutResponse(BaseModel):
+    revoked: bool
 
 
 class CheckEmailRequest(BaseModel):
@@ -162,9 +173,7 @@ _DESKTOP_LOOPBACK_PATH = "/auth/callback"
 def _validate_desktop_code_challenge(
     code_challenge: str | None,
     code_challenge_method: str | None,
-) -> str | None:
-    if code_challenge is None and code_challenge_method is None:
-        return None
+) -> str:
     challenge = (code_challenge or "").strip()
     method = (code_challenge_method or "").strip().upper()
     if method != "S256" or not _DESKTOP_PKCE_VALUE.fullmatch(challenge):
@@ -280,7 +289,7 @@ def desktop_auth_start(
     )
     callback_url = _validate_desktop_callback(
         body.callback_url,
-        allow_loopback=desktop_code_challenge is not None,
+        allow_loopback=True,
     )
     state = secrets.token_urlsafe(32)
     pending = {
@@ -595,6 +604,74 @@ def refresh_token(body: RefreshRequest):
         raise
     except Exception as e:
         raise HTTPException(status_code=401, detail=f"Refresh failed: {e!s}")
+
+
+@router.post("/logout", response_model=ApiResponse[LogoutResponse])
+async def logout(body: LogoutRequest):
+    """Revoke the Supabase session identified by a refresh token.
+
+    Desktop can hold a refresh token after its access JWT expires, while the
+    upstream logout endpoint requires a current access JWT. Rotate the supplied
+    refresh token once, then revoke that exact session with ``scope=local``.
+    Invalid/already-revoked tokens are an idempotent success; provider outages
+    remain visible so the client can report remote-revoke failure while still
+    completing its unconditional local logout.
+    """
+    refresh_value = body.refresh_token.get_secret_value().strip()
+    if not refresh_value:
+        raise HTTPException(status_code=400, detail="Refresh token is required")
+
+    supabase_url = os.environ.get("SUPABASE_URL", "").rstrip("/")
+    api_key = os.environ.get("SUPABASE_ANON_KEY", "") or os.environ.get("SUPABASE_KEY", "")
+    if not supabase_url or not api_key:
+        raise HTTPException(status_code=503, detail="Authentication provider is not configured")
+
+    provider_headers = {
+        "apikey": api_key,
+        "Content-Type": "application/json",
+    }
+    try:
+        async with httpx.AsyncClient() as client:
+            refreshed = await client.post(
+                f"{supabase_url}/auth/v1/token?grant_type=refresh_token",
+                headers=provider_headers,
+                json={"refresh_token": refresh_value},
+            )
+            if refreshed.status_code in {400, 401, 403}:
+                return ApiResponse.success(data=LogoutResponse(revoked=True))
+            if refreshed.status_code != 200:
+                raise HTTPException(status_code=502, detail="Authentication provider unavailable")
+            try:
+                access_token = str(refreshed.json().get("access_token", "")).strip()
+            except (TypeError, ValueError) as exc:
+                raise HTTPException(
+                    status_code=502,
+                    detail="Authentication provider returned an invalid session",
+                ) from exc
+            if not access_token:
+                raise HTTPException(
+                    status_code=502,
+                    detail="Authentication provider returned an invalid session",
+                )
+
+            revoked = await client.post(
+                f"{supabase_url}/auth/v1/logout?scope=local",
+                headers={
+                    **provider_headers,
+                    "Authorization": f"Bearer {access_token}",
+                },
+            )
+            if not (200 <= revoked.status_code < 300) and revoked.status_code not in {
+                401,
+                403,
+            }:
+                raise HTTPException(status_code=502, detail="Authentication provider unavailable")
+    except HTTPException:
+        raise
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail="Authentication provider unavailable") from exc
+
+    return ApiResponse.success(data=LogoutResponse(revoked=True))
 
 
 class InitializeResponse(BaseModel):
