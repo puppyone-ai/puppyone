@@ -177,8 +177,8 @@ class DataMigrationCatalog:
         digest = hashlib.sha256()
         for relative_name, content in (
             ("manifest", canonical_manifest),
-            (manifest.entrypoint, entrypoint_path.read_bytes()),
-            (manifest.verify, verify_path.read_bytes()),
+            (manifest.entrypoint, _canonical_text_bytes(entrypoint_path)),
+            (manifest.verify, _canonical_text_bytes(verify_path)),
         ):
             digest.update(relative_name.encode())
             digest.update(b"\0")
@@ -229,3 +229,9 @@ class DataMigrationCatalog:
                     f"Python data migration cannot import mutable application package "
                     f"{sorted(forbidden)[0]}: {entrypoint_path}"
                 )
+
+
+def _canonical_text_bytes(path: Path) -> bytes:
+    """Make immutable artifact checksums independent of Git checkout EOLs."""
+
+    return path.read_bytes().replace(b"\r\n", b"\n").replace(b"\r", b"\n")

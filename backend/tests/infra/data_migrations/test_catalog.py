@@ -70,6 +70,21 @@ def test_checksum_changes_when_executable_content_changes(tmp_path: Path) -> Non
     assert catalog.get("20260712_example").checksum != original
 
 
+def test_checksum_is_stable_across_line_endings(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    migration = repository / "supabase/data_migrations/20260712_example"
+    for name in ("run.sql", "verify.sql"):
+        migration.joinpath(name).write_bytes(b"SELECT 1;\n")
+
+    catalog = DataMigrationCatalog(repository)
+    original = catalog.get("20260712_example").checksum
+
+    for name in ("run.sql", "verify.sql"):
+        migration.joinpath(name).write_bytes(b"SELECT 1;\r\n")
+
+    assert catalog.get("20260712_example").checksum == original
+
+
 def test_manifest_cannot_escape_its_versioned_directory(tmp_path: Path) -> None:
     repository = _repository(tmp_path, entrypoint="../run.sql")
 
