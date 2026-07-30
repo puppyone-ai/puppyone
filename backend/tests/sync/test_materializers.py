@@ -299,7 +299,7 @@ class _EngineMaterializerV2:
 
 
 @pytest.mark.asyncio
-async def test_integration_engine_uses_pinned_materializer(monkeypatch):
+async def test_integration_engine_uses_pinned_materializer():
     registry = ConnectorRegistry()
     registry.register(_EngineConnector())
     registry.register_materializer(_EngineMaterializer())
@@ -320,25 +320,18 @@ async def test_integration_engine_uses_pinned_materializer(monkeypatch):
     run_repo = MagicMock()
     run_repo.create.return_value = run
 
-    write_result = SimpleNamespace(commit_id="commit-2")
-    commands = MagicMock()
-    commands.bulk_write = AsyncMock(return_value=SimpleNamespace(result=write_result))
-    commands.write_bytes = AsyncMock()
+    write_port = MagicMock()
+    write_port.write_plan = AsyncMock(
+        return_value=SimpleNamespace(commit_id="commit-2")
+    )
 
-    class _Container:
-        def write_commands(self):
-            return commands
+    result = await IntegrationEngine(
+        registry, repository, run_repo, write_port=write_port
+    ).execute(connection.id)
 
-    import src.version_engine.bootstrap.dependencies as deps
-
-    monkeypatch.setattr(deps, "build_worker_version_engine_container", lambda: _Container())
-
-    result = await IntegrationEngine(registry, repository, run_repo).execute(connection.id)
-
-    commands.write_bytes.assert_not_called()
-    commands.bulk_write.assert_awaited_once()
-    call = commands.bulk_write.await_args
-    assert set(call.args[1]) == {
+    write_port.write_plan.assert_awaited_once()
+    call = write_port.write_plan.await_args
+    assert set(call.kwargs["plan"].files) == {
         "Integrations/Mount/index.json",
         "Integrations/Mount/docs/item.md",
     }
@@ -375,7 +368,7 @@ async def test_integration_engine_direct_execute_skips_existing_active_run():
 
 
 @pytest.mark.asyncio
-async def test_integration_engine_direct_execute_creates_claims_and_completes_run(monkeypatch):
+async def test_integration_engine_direct_execute_creates_claims_and_completes_run():
     run_repo = _CreatedSingleLaneRunRepo()
     connector = _ClaimAwareConnector(run_repo)
     registry = ConnectorRegistry()
@@ -392,20 +385,14 @@ async def test_integration_engine_direct_execute_creates_claims_and_completes_ru
     repository = MagicMock()
     repository.get_by_id.return_value = connection
 
-    write_result = SimpleNamespace(commit_id="commit-claim")
-    commands = MagicMock()
-    commands.bulk_write = AsyncMock(return_value=SimpleNamespace(result=write_result))
-    commands.write_bytes = AsyncMock()
+    write_port = MagicMock()
+    write_port.write_plan = AsyncMock(
+        return_value=SimpleNamespace(commit_id="commit-claim")
+    )
 
-    class _Container:
-        def write_commands(self):
-            return commands
-
-    import src.version_engine.bootstrap.dependencies as deps
-
-    monkeypatch.setattr(deps, "build_worker_version_engine_container", lambda: _Container())
-
-    result = await IntegrationEngine(registry, repository, run_repo).execute(connection.id)
+    result = await IntegrationEngine(
+        registry, repository, run_repo, write_port=write_port
+    ).execute(connection.id)
 
     assert result is not None
     assert result["run_id"] == "run-created"
@@ -413,7 +400,7 @@ async def test_integration_engine_direct_execute_creates_claims_and_completes_ru
     assert run_repo.claimed == ["run-created"]
     assert run_repo.completed == [("run-created", "success", "Fetched")]
     assert connector.fetch_calls == 1
-    commands.bulk_write.assert_awaited_once()
+    write_port.write_plan.assert_awaited_once()
 
 
 @pytest.mark.asyncio
