@@ -157,6 +157,12 @@ def test_claim_request_requires_an_explicit_nonblank_organization() -> None:
     assert ClaimRequest(ticket="signed", org_id=" org-1 ").org_id == "org-1"
 
 
+def test_claim_request_rejects_unknown_landing_contract_version() -> None:
+    assert ClaimRequest(ticket="signed", org_id="org-1").contract_version == 1
+    with pytest.raises(ValidationError, match="contract_version"):
+        ClaimRequest(ticket="signed", org_id="org-1", contract_version=2)
+
+
 def test_ticket_signature_and_expiry_can_be_checked_separately(monkeypatch) -> None:
     monkeypatch.setattr(settings, "JWT_SECRET", "landing-test-secret")
     ticket, _ = _ticket(expires_at=int(time.time()) - 60)

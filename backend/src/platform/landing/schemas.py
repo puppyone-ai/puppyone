@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+LANDING_CONTRACT_VERSION = 1
 
 
 class PreviewInfo(BaseModel):
@@ -15,6 +19,7 @@ class PreviewInfo(BaseModel):
 
 
 class PreviewResponse(BaseModel):
+    contract_version: Literal[1] = LANDING_CONTRACT_VERSION
     ticket: str = Field(..., description="Signed capability ticket to present at /landing/claim")
     preview: PreviewInfo
     expires_at: int = Field(..., description="Unix epoch seconds when the ticket/preview expires")
@@ -23,6 +28,7 @@ class PreviewResponse(BaseModel):
 class ClaimRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    contract_version: Literal[1] = LANDING_CONTRACT_VERSION
     ticket: str = Field(min_length=1, max_length=8192)
     org_id: str = Field(min_length=1, max_length=128)
 
@@ -42,6 +48,7 @@ class ClaimMcp(BaseModel):
 
 
 class ClaimResponse(BaseModel):
+    contract_version: Literal[1] = LANDING_CONTRACT_VERSION
     project_id: str
     repo: str = Field(..., description="Scope/folder path the content lives under")
     mcp: ClaimMcp
