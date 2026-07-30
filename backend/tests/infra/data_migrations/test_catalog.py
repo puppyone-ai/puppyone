@@ -107,10 +107,15 @@ def test_data_migration_directory_cannot_be_a_symlink(tmp_path: Path) -> None:
     repository = _repository(tmp_path)
     outside = repository / "outside_migration"
     outside.mkdir()
-    (repository / "supabase/data_migrations/20260713_link").symlink_to(
-        outside,
-        target_is_directory=True,
-    )
+    try:
+        (repository / "supabase/data_migrations/20260713_link").symlink_to(
+            outside,
+            target_is_directory=True,
+        )
+    except OSError as error:
+        if getattr(error, "winerror", None) == 1314:
+            pytest.skip("Windows account cannot create the symlink attack fixture")
+        raise
 
     with pytest.raises(ManifestError, match="cannot be symlinks"):
         DataMigrationCatalog(repository).load_all()
