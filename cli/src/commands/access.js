@@ -842,8 +842,7 @@ function _showAgentGuidance(out, agent, baseUrl) {
   out.info(`\n  Access Key: ${key}\n`);
   out.info("  Chat:");
   out.info(`    puppyone chat ${agent.id}\n`);
-  out.info("  Connect from Claude / Cursor:");
-  out.info(`    npx -y mcp-remote ${baseUrl}/mcp?api_key=${key}`);
+  _showMcpConnection(out, baseUrl, key);
 }
 
 function _showMcpGuidance(out, endpoint, baseUrl) {
@@ -851,8 +850,18 @@ function _showMcpGuidance(out, endpoint, baseUrl) {
   if (!key) return;
   out.info(`\n  API Key: ${key}`);
   out.info("  (save this key \u2014 it won't be shown again)\n");
+  _showMcpConnection(out, baseUrl, key);
+}
+
+function _showMcpConnection(out, baseUrl, key) {
   out.info("  Connect from Claude Desktop / Cursor:");
-  out.info(`    npx -y mcp-remote ${baseUrl}/mcp?api_key=${key}`);
+  out.info(`    MCP URL: ${_mcpProxyUrl(baseUrl)}`);
+  out.info(`    Authorization: Bearer ${key}`);
+  out.info("    Configure the URL and Authorization header in your MCP client.");
+}
+
+function _mcpProxyUrl(baseUrl) {
+  return `${String(baseUrl).replace(/\/+$/, "")}/api/v1/mcp/proxy`;
 }
 
 function _showSandboxGuidance(out, endpoint) {
@@ -895,10 +904,12 @@ function _showProviderGuidance(out, connection, baseUrl) {
   if (provider === "agent" && key) {
     out.info("  \u2500 How to use this agent:");
     out.info(`    Chat:         puppyone chat ${id}`);
-    out.info(`    MCP connect:  npx -y mcp-remote ${baseUrl}/mcp?api_key=${key}\n`);
+    _showMcpConnection(out, baseUrl, key);
+    out.info("");
   } else if (provider === "mcp" && key) {
     out.info("  \u2500 How to connect:");
-    out.info(`    npx -y mcp-remote ${baseUrl}/mcp?api_key=${key}\n`);
+    _showMcpConnection(out, baseUrl, key);
+    out.info("");
   } else if (provider === "sandbox") {
     out.info("  \u2500 Execute via Agent or API.\n");
   } else if (provider === "direct" && key) {

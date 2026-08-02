@@ -3,6 +3,7 @@ Auth router — for CLI / external clients
 
 POST   /auth/login           Sign in with email + password, returns access_token
 POST   /auth/refresh         Refresh access_token
+POST   /auth/logout          Revoke the refresh-token session
 POST   /auth/initialize      Idempotent user initialization (profile + org)
 POST   /auth/check-email     Check if email is already registered (rate-limited)
 GET    /auth/config           Public Supabase config (URL + anon key) for Realtime
@@ -85,6 +86,14 @@ class LoginResponse(BaseModel):
 
 class RefreshRequest(BaseModel):
     refresh_token: str
+
+
+class LogoutRequest(BaseModel):
+    refresh_token: str
+
+
+class LogoutResponse(BaseModel):
+    revoked: bool
 
 
 class CheckEmailRequest(BaseModel):
@@ -595,6 +604,36 @@ def refresh_token(body: RefreshRequest):
         raise
     except Exception as e:
         raise HTTPException(status_code=401, detail=f"Refresh failed: {e!s}")
+
+
+@router.post("/logout", response_model=ApiResponse[LogoutResponse])
+def logout(body: LogoutRequest):
+    """Revoke a refresh-token session without persisting the token locally.
+
+    Supabase requires an access token to sign out. Refreshing first both proves
+    possession of the supplied high-entropy credential and rotates the old
+    refresh token; ``sign_out(scope=local)`` then revokes the newly-issued
+    session. This gives native clients a real remote logout even though they
+    intentionally persist only a refresh credential.
+    """
+    refresh_token_value = body.refresh_token.strip()
+    if not refresh_token_value:
+        raise HTTPException(status_code=400, detail="Refresh token is required")
+
+    try:
+        auth_client = _make_auth_client()
+        refreshed = auth_client.auth.refresh_session(refresh_token_value)
+        if not refreshed.session:
+            raise HTTPException(status_code=401, detail="Logout failed: invalid session")
+        auth_client.auth.sign_out({"scope": "local"})
+        return ApiResponse.success(data=LogoutResponse(revoked=True))
+    except HTTPException:
+        raise
+    except Exception as exc:
+        message = str(exc)
+        if "invalid" in message.lower() or "session" in message.lower():
+            raise HTTPException(status_code=401, detail="Logout failed: invalid session") from exc
+        raise HTTPException(status_code=502, detail="Logout failed: authentication provider unavailable") from exc
 
 
 class InitializeResponse(BaseModel):

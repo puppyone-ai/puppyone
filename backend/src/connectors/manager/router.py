@@ -669,6 +669,9 @@ class UnifiedConnectionOut(BaseModel):
     git_username: str | None = None
     git_credential: str | None = None
     cli_access_key: str | None = None
+    # Only populated by POST /access creation responses. List/detail endpoints
+    # use ConnectionOut and deliberately redact raw credentials.
+    access_key: str | None = None
 
 
 def _create_agent(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
@@ -738,6 +741,7 @@ def _create_mcp(
         provider="mcp",
         name=row["name"],
         status=row["status"],
+        access_key=row.get("api_key") or None,
     )
 
 

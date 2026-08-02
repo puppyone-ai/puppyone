@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+from types import SimpleNamespace
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
@@ -422,6 +423,58 @@ def test_desktop_start_fails_closed_when_shared_store_is_unavailable():
             store=_UnavailableStore(),
         )
     assert unavailable.value.status_code == 503
+
+
+def test_logout_rotates_then_revokes_the_refresh_token_session(monkeypatch):
+    class _Auth:
+        def __init__(self) -> None:
+            self.refresh_tokens: list[str] = []
+            self.sign_out_options: list[dict] = []
+
+        def refresh_session(self, refresh_token: str):
+            self.refresh_tokens.append(refresh_token)
+            return SimpleNamespace(session=SimpleNamespace(access_token="rotated-access"))
+
+        def sign_out(self, options: dict):
+            self.sign_out_options.append(options)
+
+    auth = _Auth()
+    monkeypatch.setattr(
+        auth_router,
+        "_make_auth_client",
+        lambda: SimpleNamespace(auth=auth),
+    )
+
+    response = auth_router.logout(auth_router.LogoutRequest(refresh_token="desktop-refresh"))
+
+    assert response.data.revoked is True
+    assert auth.refresh_tokens == ["desktop-refresh"]
+    assert auth.sign_out_options == [{"scope": "local"}]
+
+
+def test_logout_rejects_an_invalid_refresh_token_without_signing_out(monkeypatch):
+    class _Auth:
+        sign_out_called = False
+
+        @staticmethod
+        def refresh_session(_refresh_token: str):
+            return SimpleNamespace(session=None)
+
+        def sign_out(self, _options: dict):
+            self.sign_out_called = True
+
+    auth = _Auth()
+    monkeypatch.setattr(
+        auth_router,
+        "_make_auth_client",
+        lambda: SimpleNamespace(auth=auth),
+    )
+
+    with pytest.raises(HTTPException) as invalid:
+        auth_router.logout(auth_router.LogoutRequest(refresh_token="revoked-refresh"))
+
+    assert invalid.value.status_code == 401
+    assert auth.sign_out_called is False
 
 
 def test_security_store_dependency_failure_is_reported_as_service_unavailable():
