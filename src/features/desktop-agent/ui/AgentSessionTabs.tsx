@@ -48,6 +48,7 @@ export function AgentSessionTabs({
                 id={agentTabId(tab.id)}
                 type="button"
                 className="desktop-agent-tab-select"
+                data-po-interaction="navigation"
                 role="tab"
                 aria-controls={agentPanelId(tab.id)}
                 aria-label={t("agent.tabs.tabLabel", { number: tab.ordinal, title: tab.title })}

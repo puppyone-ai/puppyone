@@ -92,7 +92,7 @@
   "appearance.headerElements.external-open": "외부에서 열기",
   "appearance.headerElements.terminal": "터미널",
   "appearance.pointerCursors.title": "포인터 커서",
-  "appearance.pointerCursors.detail": "클릭 가능한 컨트롤 위에 손 모양 커서를 표시합니다.",
+  "appearance.pointerCursors.detail": "작업 컨트롤에도 손 모양 커서를 표시합니다. 링크와 탐색에는 항상 사용됩니다.",
   "account.title": "계정",
   "account.detail": "PuppyOne Cloud 계정 및 데스크톱 로그인 세션입니다.",
   "account.statusLabel": "상태",

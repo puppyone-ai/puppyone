@@ -92,7 +92,7 @@
   "appearance.headerElements.external-open": "在外部打开",
   "appearance.headerElements.terminal": "终端",
   "appearance.pointerCursors.title": "指针光标",
-  "appearance.pointerCursors.detail": "在可点击控件上显示手形光标。",
+  "appearance.pointerCursors.detail": "也在操作控件上显示手形光标。链接和导航始终使用手形光标。",
   "account.title": "账户",
   "account.detail": "PuppyOne Cloud 账户和桌面端登录会话。",
   "account.statusLabel": "状态",

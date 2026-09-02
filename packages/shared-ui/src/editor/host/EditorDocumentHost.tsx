@@ -328,7 +328,11 @@ function EditorUnavailableState({
       <strong>{title}</strong>
       <span dir="auto">{message}</span>
       {openExternalFile && (
-        <button type="button" onClick={() => void openExternalFile(documentPath)}>
+        <button
+          type="button"
+          data-po-interaction="navigation"
+          onClick={() => void openExternalFile(documentPath)}
+        >
           {openLabel}
         </button>
       )}

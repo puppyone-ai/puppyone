@@ -1515,7 +1515,7 @@ function OfficeEmptyState({
       <strong>{title}</strong>
       <span dir="auto">{message}</span>
       {documentPath && openExternalFile && (
-        <button type="button" onClick={openExternally}>
+        <button type="button" data-po-interaction="navigation" onClick={openExternally}>
           {t("editor.openDefaultApp")}
         </button>
       )}

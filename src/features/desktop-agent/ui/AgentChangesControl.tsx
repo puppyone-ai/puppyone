@@ -23,6 +23,7 @@ export function AgentChangesControl({ projection, onViewChanges }: AgentChangesC
       <button
         type="button"
         className="desktop-agent-changes-control"
+        data-po-interaction="navigation"
         aria-label={t("agent.changes.ariaLabel", { additions: summary.additions, deletions: summary.deletions })}
         disabled={!onViewChanges}
         onClick={onViewChanges}

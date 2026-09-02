@@ -120,6 +120,7 @@ export function CsvCellEditor({
           <button
             type="button"
             className="csv-table-editor__reference-action"
+            data-po-interaction="navigation"
             disabled={!openable}
             aria-label={actionLabel}
             title={actionLabel}

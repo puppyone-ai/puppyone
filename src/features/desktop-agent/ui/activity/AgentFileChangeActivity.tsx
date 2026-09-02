@@ -36,7 +36,7 @@ export function AgentFileChangeActivity({ activity, onOpenFile }: { activity: Ag
                   {changes.map((change) => (
                     <li key={change.path}>
                       {onOpenFile
-                        ? <button type="button" title={change.path} onClick={() => onOpenFile(change.path)}>{change.path}</button>
+                        ? <button type="button" data-po-interaction="navigation" title={change.path} onClick={() => onOpenFile(change.path)}>{change.path}</button>
                         : <span>{change.path}</span>}
                       <small><b>+{change.additions}</b><i>−{change.deletions}</i></small>
                     </li>

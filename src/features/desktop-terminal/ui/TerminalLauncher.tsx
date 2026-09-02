@@ -188,6 +188,7 @@ export function TerminalLauncher({
               <button
                 type="button"
                 className="desktop-terminal-launcher-shell"
+                data-po-interaction="navigation"
                 onClick={() => onLaunch(shell.id)}
                 disabled={busy}
                 aria-label={`${t("terminal.title")}. ${t(shell.descriptionMessage)}`}
@@ -218,6 +219,7 @@ export function TerminalLauncher({
             <button
               type="button"
               className="desktop-terminal-launcher-history"
+              data-po-interaction="navigation"
               onClick={() => setHistoryOpen(true)}
               disabled={busy}
               aria-label={history.label}
@@ -251,6 +253,7 @@ function TerminalAgentButton({
     <button
       type="button"
       className="desktop-terminal-launcher-tool"
+      data-po-interaction="navigation"
       disabled={!launchAvailable}
       aria-label={`${t("terminal.launcher.title")}: ${label}. ${description}`}
       title={description}
@@ -284,6 +287,7 @@ function ChatRecipeButton({
     <button
       type="button"
       className="desktop-terminal-launcher-tool"
+      data-po-interaction="navigation"
       data-status={recipe.status}
       disabled={!available}
       aria-label={`${t("terminal.launcher.title")}: ${title}`}
