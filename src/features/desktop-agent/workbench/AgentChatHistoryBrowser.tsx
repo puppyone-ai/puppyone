@@ -45,6 +45,7 @@ export function AgentChatHistoryBrowser({
             <button
               type="button"
               className="desktop-agent-history-toolbar-button"
+              data-po-interaction="navigation"
               aria-label={t("agent.history.back")}
               title={t("agent.history.back")}
               onClick={onBack}

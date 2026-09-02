@@ -75,6 +75,7 @@ export function AgentConversationHistory({
         <button
           type="button"
           className="desktop-agent-history-toolbar-button"
+          data-po-interaction="navigation"
           aria-label={t("agent.history.back")}
           title={t("agent.history.back")}
           onClick={onBack}
@@ -142,6 +143,7 @@ export function AgentConversationHistory({
                 <button
                   type="button"
                   className="desktop-agent-history-option"
+                  data-po-interaction="navigation"
                   aria-label={t("agent.history.open", { title: session.title })}
                   aria-busy={openingSessionId === session.id || undefined}
                   title={session.title}

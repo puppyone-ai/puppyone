@@ -92,7 +92,7 @@
   "appearance.headerElements.external-open": "外部で開く",
   "appearance.headerElements.terminal": "ターミナル",
   "appearance.pointerCursors.title": "ポインターカーソル",
-  "appearance.pointerCursors.detail": "クリック可能な操作項目に手のカーソルを表示します。",
+  "appearance.pointerCursors.detail": "操作コントロールにも手のカーソルを表示します。リンクとナビゲーションでは常に使用されます。",
   "account.title": "アカウント",
   "account.detail": "PuppyOne Cloud アカウントとデスクトップのサインインセッションです。",
   "account.statusLabel": "ステータス",

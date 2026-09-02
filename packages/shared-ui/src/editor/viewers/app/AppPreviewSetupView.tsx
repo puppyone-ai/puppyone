@@ -136,7 +136,7 @@ export function AppPreviewSetupView({
           && screen !== "detected"
           && !(screen === "methods" && detection.projects.length === 0)
           && !settings ? (
-          <button className="app-setup-back" type="button" onClick={() => {
+          <button className="app-setup-back" type="button" data-po-interaction="navigation" onClick={() => {
             setError(null);
             setScreen(detection.projects.length === 1 ? "detected" : "methods");
           }}>
@@ -163,7 +163,7 @@ export function AppPreviewSetupView({
               <Play size={14} aria-hidden="true" />
               {busy ? t("editor.app.setup.starting") : t("editor.app.setup.startProject")}
             </button>
-            <button className="app-setup-link" type="button" disabled={busy} onClick={() => setScreen("methods")}>
+            <button className="app-setup-link" type="button" data-po-interaction="navigation" disabled={busy} onClick={() => setScreen("methods")}>
               {t("editor.app.setup.anotherMethod")}
             </button>
           </SetupHero>
@@ -190,7 +190,7 @@ export function AppPreviewSetupView({
               <Play size={14} aria-hidden="true" />
               {busy ? t("editor.app.setup.starting") : t("editor.app.setup.startSelected")}
             </button>
-            <button className="app-setup-link" type="button" disabled={busy} onClick={() => setScreen("methods")}>
+            <button className="app-setup-link" type="button" data-po-interaction="navigation" disabled={busy} onClick={() => setScreen("methods")}>
               {t("editor.app.setup.anotherMethod")}
             </button>
           </SetupHero>
@@ -344,7 +344,7 @@ function ProjectCard({ candidate, recommended = false }: { candidate: AppPreview
 
 function MethodButton({ icon, title, detail, onClick }: { icon: React.ReactNode; title: string; detail: string; onClick: () => void }) {
   return (
-    <button className="app-setup-method" type="button" onClick={onClick}>
+    <button className="app-setup-method" type="button" data-po-interaction="navigation" onClick={onClick}>
       <span className="app-setup-method-icon">{icon}</span>
       <span><strong>{title}</strong><small>{detail}</small></span>
       <ChevronRight size={16} aria-hidden="true" />

@@ -59,6 +59,7 @@ export function AgentRuntimeLauncher({
                       key={entry.descriptor.id}
                       type="button"
                       className="desktop-agent-runtime-launcher-option"
+                      data-po-interaction="navigation"
                       aria-label={entry.descriptor.displayName}
                       title={detail || entry.descriptor.displayName}
                       onClick={() => onLaunch(entry.descriptor.id)}

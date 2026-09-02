@@ -92,7 +92,7 @@
   "appearance.headerElements.external-open": "Open external",
   "appearance.headerElements.terminal": "Terminal",
   "appearance.pointerCursors.title": "Pointer cursors",
-  "appearance.pointerCursors.detail": "Show a hand cursor over clickable controls.",
+  "appearance.pointerCursors.detail": "Also show a hand cursor over action controls. Links and navigation always use it.",
   "account.title": "Account",
   "account.detail": "PuppyOne Cloud account and desktop sign-in session.",
   "account.statusLabel": "Status",
