@@ -11,6 +11,7 @@ import {
 } from "../registry/viewerPackAdapter";
 import type {
   ContextMapWorkspaceEnvironment,
+  DocumentNavigationPort,
   EditorDocument,
   EditorInteractionPreferences,
   EditorSaveMode,
@@ -63,6 +64,7 @@ export type EditorDocumentHostProps = {
   workspaceId?: string;
   workspaceRoot?: string | null;
   markdownEnvironment?: MarkdownWorkspaceEnvironment | null;
+  documentNavigation?: DocumentNavigationPort | null;
   contextMapEnvironment?: ContextMapWorkspaceEnvironment | null;
   appPreview?: AppPreviewController | null;
   openExternalFile?: (path: string) => Promise<void>;
@@ -106,6 +108,7 @@ function EditorDocumentSurface({
   workspaceId = "",
   workspaceRoot = null,
   markdownEnvironment = null,
+  documentNavigation = null,
   contextMapEnvironment = null,
   appPreview = null,
   openExternalFile,
@@ -237,6 +240,7 @@ function EditorDocumentSurface({
         workspaceId,
         workspaceRoot,
         markdownEnvironment,
+        documentNavigation,
         contextMapEnvironment,
         appPreview,
         openExternalFile,

@@ -74,20 +74,35 @@ describe("DataWorkspace Markdown environment", () => {
     await act(async () => root?.render(<Harness />));
     await waitForCondition(() => latestState?.tree.length === nodes.length);
     const initialEnvironment = latestState!.markdownEnvironment;
+    const initialDocumentNavigation = latestState!.documentNavigation;
     const initialRevision = initialEnvironment.linkGraph?.revision;
 
     await act(async () => setActivePath("b.md"));
     await act(async () => setActivePath("c.md"));
 
     expect(latestState!.markdownEnvironment).toBe(initialEnvironment);
+    expect(latestState!.documentNavigation).toBe(initialDocumentNavigation);
     expect(latestState!.markdownEnvironment.linkGraph?.revision).toBe(initialRevision);
     expect(new Set(readyEnvironments)).toEqual(new Set([initialEnvironment]));
+
+    const workspaceReference = initialDocumentNavigation.resolveReference("a.md", "[[b]]");
+    expect(workspaceReference).toMatchObject({
+      kind: "workspace",
+      status: "resolved",
+      path: "b.md",
+    });
+    if (!workspaceReference) throw new Error("Workspace reference did not resolve.");
+    await act(async () => {
+      await initialDocumentNavigation.openReference(workspaceReference);
+      await Promise.resolve();
+    });
+    expect(activePathChanges.at(-1)).toBe("c.md->b.md");
 
     await act(async () => {
       latestState!.markdownEnvironment.linkCommands.openPath?.("a.md");
       await Promise.resolve();
     });
-    expect(activePathChanges.at(-1)).toBe("c.md->a.md");
+    expect(activePathChanges.at(-1)).toBe("b.md->a.md");
   });
 });
 

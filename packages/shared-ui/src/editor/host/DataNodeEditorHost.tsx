@@ -14,6 +14,7 @@ import {
 import type { AiEditFile } from "../ai-edits/types";
 import type {
   ContextMapWorkspaceEnvironment,
+  DocumentNavigationPort,
   DocumentSourceKind,
   EditorInteractionPreferences,
   MarkdownDialectId,
@@ -47,6 +48,7 @@ export type DataNodeEditorHostProps = {
   workspaceRoot?: string | null;
   markdownDialect?: MarkdownDialectId | null;
   markdownEnvironment?: MarkdownWorkspaceEnvironment | null;
+  documentNavigation?: DocumentNavigationPort | null;
   contextMapEnvironment?: ContextMapWorkspaceEnvironment | null;
   appPreview?: AppPreviewController | null;
   openExternalFile?: (path: string) => Promise<void>;
@@ -80,6 +82,7 @@ export function DataNodeEditorHost({
   workspaceRoot = null,
   markdownDialect = null,
   markdownEnvironment = null,
+  documentNavigation = null,
   contextMapEnvironment = null,
   appPreview = null,
   openExternalFile,
@@ -124,6 +127,7 @@ export function DataNodeEditorHost({
       workspaceId={workspaceId}
       workspaceRoot={workspaceRoot}
       markdownEnvironment={markdownEnvironment}
+      documentNavigation={documentNavigation}
       contextMapEnvironment={contextMapEnvironment}
       appPreview={appPreview}
       openExternalFile={openExternalFile}

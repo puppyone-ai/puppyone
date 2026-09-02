@@ -37,6 +37,7 @@ import {
   type MarkdownLinkGraphIndexSnapshot,
 } from "../editor/markdown/linkIndex";
 import { resolveMarkdownAssetPath } from "../editor/markdown/assetResolution";
+import { createDocumentNavigationPort } from "../editor/navigation/documentNavigation";
 import { ExplorerTree } from "./ExplorerTree";
 import { FilePreview, type FilePreviewProps } from "../editor/host/FilePreview";
 import { useFileResourceLease } from "../editor/resource/useFileResourceLease";
@@ -44,6 +45,7 @@ import { ProjectsHeader } from "./ProjectsHeader";
 import type { EditorSaveMode } from "../editor/host/EditorDocumentHost";
 import type {
   DocumentSourceKind,
+  DocumentNavigationPort,
   EditorInteractionPreferences,
   MarkdownAssetUrlResolver,
   MarkdownHtmlTrustMode,
@@ -95,6 +97,7 @@ export type DataWorkspaceState = {
   fileUrlLoading: boolean;
   fileUrlError: string | null;
   markdownEnvironment: MarkdownWorkspaceEnvironment;
+  documentNavigation: DocumentNavigationPort;
 };
 
 type MoveOperation = {
@@ -902,6 +905,28 @@ export function DataWorkspace({
     assetUrlResolver: markdownAssetUrlResolver,
     assetResolverRevision: markdownAssetResolverRevisionRef.current.revision,
   }), [markdownAssetUrlResolver, markdownLinkCommands, markdownLinkGraph]);
+  const resolveDocumentReferenceCommand = useStableEventCallback(
+    (sourcePath: string, target: string) => (
+      markdownLinkGraph.resolveWikiLink(sourcePath, target)
+    ),
+  );
+  const canOpenExternalDocumentReference = Boolean(onOpenExternalUrl);
+  const documentNavigation = useMemo(() => createDocumentNavigationPort({
+    resolveWorkspaceReference(sourcePath, target) {
+      return resolveDocumentReferenceCommand(sourcePath, target);
+    },
+    openWorkspaceCandidates(paths) {
+      return openMarkdownLinkCandidatesCommand(paths);
+    },
+    openExternalUrl: canOpenExternalDocumentReference
+      ? (href) => openExternalMarkdownUrlCommand(href)
+      : undefined,
+  }), [
+    canOpenExternalDocumentReference,
+    openExternalMarkdownUrlCommand,
+    openMarkdownLinkCandidatesCommand,
+    resolveDocumentReferenceCommand,
+  ]);
   const workspaceState: DataWorkspaceState = {
     tree,
     activePath: resolvedActivePath,
@@ -920,6 +945,7 @@ export function DataWorkspace({
     fileUrlLoading: selectedFileUrlLoading,
     fileUrlError: selectedFileUrlError,
     markdownEnvironment,
+    documentNavigation,
   };
   const previewAccessory = renderWorkspaceSlot(previewAccessorySlot, workspaceState);
 
@@ -1420,6 +1446,7 @@ export function DataWorkspace({
                   workspaceRoot={workspace.path}
                   markdownDialect={workspace.markdownDialect ?? null}
                   markdownEnvironment={markdownEnvironment}
+                  documentNavigation={documentNavigation}
                   appPreview={dataPort.appPreview ?? null}
                   openExternalFile={dataPort.openExternalFile}
                   convertOfficeDocumentToDocx={dataPort.convertOfficeDocumentToDocx}

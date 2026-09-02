@@ -128,6 +128,35 @@ if (!officeViewerSource.includes("maxBytes: maxSourceBytes")) {
   errors.push("Office Preview no longer consumes the canonical source byte budget");
 }
 
+const documentNavigationSource = readFileSync(
+  path.join(repoRoot, "packages/shared-ui/src/editor/navigation/documentNavigation.ts"),
+  "utf8",
+);
+for (const token of [
+  "parseDocumentReferenceIntent",
+  "new WeakSet<object>()",
+  "canOpenReference",
+  '["http:", "https:", "mailto:"]',
+  "openWorkspaceCandidates",
+]) {
+  if (!documentNavigationSource.includes(token)) {
+    errors.push(`Document navigation admission boundary is missing ${token}`);
+  }
+}
+
+const csvCellEditorSource = readFileSync(
+  path.join(repoRoot, "packages/shared-ui/src/editor/viewers/csv/CsvCellEditor.tsx"),
+  "utf8",
+);
+if (!csvCellEditorSource.includes("navigation.openReference(reference)")) {
+  errors.push("CSV references no longer delegate activation through DocumentNavigationPort");
+}
+for (const forbidden of ["window.open", "puppyoneDesktop", "<a "]) {
+  if (csvCellEditorSource.includes(forbidden)) {
+    errors.push(`CSV reference projection bypasses the Host navigation port (${forbidden})`);
+  }
+}
+
 for (const relativePath of [
   "packages/shared-ui/src/editor/viewers/html/HtmlViewer.tsx",
   "packages/shared-ui/src/editor/viewers/app/SandboxedAppFrame.tsx",
