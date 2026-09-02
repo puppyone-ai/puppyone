@@ -6,6 +6,10 @@ import {
   type ResolvedTypography,
 } from "../typography";
 import {
+  applySurfaceAppearanceToElement,
+  type ResolvedSurfaceAppearance,
+} from "../appearance/AppearanceRuntime";
+import {
   useNativeSurfaceOcclusionLease,
   useNativeSurfaceOcclusionObserver,
 } from "../native-surfaces";
@@ -24,6 +28,7 @@ export type DesktopOverlayPortalProps = {
   typography?: ResolvedTypography;
   pointerCursors?: boolean;
   diffMarkers?: DiffMarkers;
+  appearance?: ResolvedSurfaceAppearance;
 };
 
 export function DesktopOverlayPortal({
@@ -36,12 +41,18 @@ export function DesktopOverlayPortal({
   typography,
   pointerCursors,
   diffMarkers,
+  appearance,
 }: DesktopOverlayPortalProps) {
   useNativeSurfaceOcclusionObserver();
   const root = useDesktopOverlayRoot();
 
   useLayoutEffect(() => {
-    if (!root || !theme) return;
+    if (!root) return;
+    if (appearance) {
+      applySurfaceAppearanceToElement(root, appearance);
+      return;
+    }
+    if (!theme) return;
     applyDesktopOverlayTheme(
       root,
       theme,
@@ -53,7 +64,7 @@ export function DesktopOverlayPortal({
       pointerCursors,
       diffMarkers,
     );
-  }, [root, theme, subThemeId, lightThemePreset, darkThemePreset, textSize, typography, pointerCursors, diffMarkers]);
+  }, [appearance, root, theme, subThemeId, lightThemePreset, darkThemePreset, textSize, typography, pointerCursors, diffMarkers]);
 
   if (!root) return null;
   return createPortal(children, root);

@@ -6,7 +6,8 @@ import ReactDOM from "react-dom/client";
 import { LocalizationProvider } from "@puppyone/localization/react";
 import { PdfDocumentPreview } from "@puppyone/shared-ui/pdf-document-preview";
 import { bootstrapRendererLocalization } from "./localization";
-import { PageLoading } from "./components/loading";
+import { LoadingAnimationProvider, PageLoading } from "./components/loading";
+import { parseLoadingAnimationPreset } from "./preferences";
 
 type SurfaceBootstrap = Readonly<{
   sessionId: string;
@@ -60,6 +61,7 @@ function IsolatedEditorSurface() {
 
   useEffect(() => bridge.onAppearance((appearance) => {
     applyAppearance(appearance);
+    setBootstrap((current) => current ? { ...current, appearance } : current);
   }), []);
 
   useEffect(() => {
@@ -91,26 +93,30 @@ function IsolatedEditorSurface() {
     throw new Error(`Unsupported isolated Viewer ${bootstrap.viewerId}.`);
   }
   return (
-    <div className="isolated-editor-surface" data-po-appearance-root>
-      <div
-        className="po-viewer-surface-boundary isolated-editor-viewer-boundary"
-        data-viewer-id="pdf-preview"
-        data-viewer-surface-family="document"
-        data-viewer-surface-traits="paginated zoomable scrollable"
-      >
-        <PdfDocumentPreview
-          url={bootstrap.resourceUrl}
-          title={bootstrap.title}
-          safeMode={bootstrap.safeMode}
-          resourcePolicy={bootstrap.resourcePolicy}
-        />
-        {!ready ? (
-          <div className="isolated-editor-loading-state">
-            <PageLoading variant="fill" label={null} />
-          </div>
-        ) : null}
+    <LoadingAnimationProvider preset={parseLoadingAnimationPreset(
+      bootstrap.appearance.attributes["data-loading-animation-preset"],
+    )}>
+      <div className="isolated-editor-surface" data-po-appearance-root>
+        <div
+          className="po-viewer-surface-boundary isolated-editor-viewer-boundary"
+          data-viewer-id="pdf-preview"
+          data-viewer-surface-family="document"
+          data-viewer-surface-traits="paginated zoomable scrollable"
+        >
+          <PdfDocumentPreview
+            url={bootstrap.resourceUrl}
+            title={bootstrap.title}
+            safeMode={bootstrap.safeMode}
+            resourcePolicy={bootstrap.resourcePolicy}
+          />
+          {!ready ? (
+            <div className="isolated-editor-loading-state">
+              <PageLoading variant="fill" label={null} />
+            </div>
+          ) : null}
+        </div>
       </div>
-    </div>
+    </LoadingAnimationProvider>
   );
 }
 

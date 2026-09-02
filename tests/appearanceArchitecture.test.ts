@@ -112,7 +112,7 @@ describe("appearance profile architecture", () => {
     expect(xp).not.toHaveProperty("surfaceAdapters");
   });
 
-  it("migrates legacy intent, preserves per-root and per-mode intent, and round-trips V4", () => {
+  it("migrates legacy intent, preserves per-root and per-mode intent, and round-trips V5", () => {
     const legacy = legacySnapshot();
     const result = readAppearancePreferences(JSON.stringify({
       schemaVersion: 2,
@@ -152,7 +152,7 @@ describe("appearance profile architecture", () => {
 
     const serialized = serializeAppearancePreferences(result.preferences);
     const roundTrip = readAppearancePreferences(serialized, legacy);
-    expect(roundTrip.source).toBe("v4");
+    expect(roundTrip.source).toBe("v5");
     expect(roundTrip.preferences).toEqual(result.preferences);
   });
 

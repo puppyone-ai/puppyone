@@ -36,15 +36,15 @@ export function MarkdownThemeInheritanceSmokeHarness() {
   const subTheme = BUILTIN_SUB_THEMES.find((candidate) => candidate.id === subThemeId);
   if (!subTheme) throw new Error(`Missing smoke Sub Theme: ${subThemeId}`);
 
-  const typographyPreferences = explicitSystemFont
-    ? {
+  const typographyPreferences = useMemo(() => explicitSystemFont
+    ? Object.freeze({
         ...DEFAULT_TYPOGRAPHY_PREFERENCES,
-        contentFontId: BUILTIN_FONT_IDS.systemSans,
-      }
-    : DEFAULT_TYPOGRAPHY_PREFERENCES;
+        contentFont: { mode: "explicit" as const, fontId: BUILTIN_FONT_IDS.systemSans },
+      })
+    : DEFAULT_TYPOGRAPHY_PREFERENCES, [explicitSystemFont]);
   const typography = useMemo(
     () => resolveTypography(typographyPreferences),
-    [explicitSystemFont],
+    [typographyPreferences],
   );
   const typographyRootProps = useMemo(
     () => createTypographyRootProps(typography),

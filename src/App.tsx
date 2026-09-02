@@ -8,7 +8,6 @@ import {
   isDataResourceUri,
   isDocumentDataNode,
   qualifyDataResourcePath,
-  EditorAppearanceProvider,
   type DataNode,
   type WorkspaceContentChange,
   type WorkspaceFolder,
@@ -97,10 +96,13 @@ import { createRepositoryRefreshReason } from "./features/source-control/reposit
 import { shouldBlockWorkspaceCloudResolution } from "./features/cloud/workspace/workspaceCloudResolutionKey";
 import { useCloudInitialization } from "./features/cloud/initialization/useCloudInitialization";
 import {
-  createTypographyRootProps,
   useTypographyCatalog,
   useTypographyRuntime,
 } from "./features/typography";
+import {
+  resolveSurfaceAppearance,
+  SurfaceAppearanceProvider,
+} from "./features/appearance/AppearanceRuntime";
 import { useDesktopEditorWorkbench } from "./features/editor-workbench/controller/useDesktopEditorWorkbench";
 import type {
   AuxiliaryWorkbenchCloseAdapter,
@@ -111,7 +113,6 @@ import {
   AGENT_CHAT_CREATION_RECIPES,
   localAgentIdForAgentChatRuntime,
 } from "./features/app-shell/auxiliary-workbench/agentChatCreationRecipes";
-import { SubThemeStyleHost } from "./features/themes/SubThemeStyleHost";
 import { useSubThemeCatalog, useSubThemeNativeMenu } from "./features/themes/useSubThemeCatalog";
 
 const AgentChatWorkbenchItem = lazy(loadAgentChatWorkbenchItem);
@@ -143,7 +144,6 @@ function AppContent() {
     fontCatalog,
     locale,
   );
-  const typographyRootProps = useMemo(() => createTypographyRootProps(typography), [typography]);
   const cloudAvailable = useFeatureFlag("cloudWorkspace");
   // The build flag only marks availability; PuppyOne Cloud stays hidden until
   // the user opts into the experiment in Settings.
@@ -197,7 +197,6 @@ function AppContent() {
     }, []),
   });
   const {
-    activeThemeMode,
     aiEditAssistEnabled,
     createNewMenuSettings,
     explorerWidth,
@@ -226,7 +225,6 @@ function AppContent() {
     lightThemePreset,
     markdownPresentation,
     pointerCursors,
-    textSize,
     setAiEditAssistEnabled,
     setExplorerWidth,
     setFileIconTheme,
@@ -242,6 +240,25 @@ function AppContent() {
     setSidebarNavigationLayout,
     setThemeMode,
   } = preferences;
+  const surfaceAppearance = useMemo(() => resolveSurfaceAppearance({
+    appearance: resolvedAppearance,
+    typography,
+    markdownPresentation,
+    loadingAnimationPreset: preferences.loadingAnimationPreset,
+    lightThemePreset,
+    darkThemePreset,
+    pointerCursors,
+    diffMarkers,
+  }), [
+    darkThemePreset,
+    diffMarkers,
+    lightThemePreset,
+    markdownPresentation,
+    pointerCursors,
+    preferences.loadingAnimationPreset,
+    resolvedAppearance,
+    typography,
+  ]);
   const createNewItems = useMemo(
     () => resolveVisibleCreateNewMenuItems(createNewMenuSettings, experimentalSettings),
     [createNewMenuSettings, experimentalSettings],
@@ -1064,35 +1081,20 @@ function AppContent() {
   );
 
   const themeRuntime = (content: ReactNode) => (
-    <EditorAppearanceProvider revision={resolvedAppearance.appearanceRevision}>
-      <SubThemeStyleHost
-        subTheme={resolvedAppearance.subTheme}
-        colorMode={resolvedAppearance.effectiveColorMode}
-        markdownPresentation={markdownPresentation}
-      />
+    <SurfaceAppearanceProvider value={surfaceAppearance}>
       <div
         className={`desktop-theme-bootstrap-surface ${resolvedTheme === "dark" ? "dark" : ""}`}
-        data-po-appearance-root="true"
-        data-root-theme-id={interfaceStyle}
-        data-sub-theme-id={resolvedAppearance.subThemeId}
+        {...surfaceAppearance.rootProps}
       >
         {content}
       </div>
-    </EditorAppearanceProvider>
+    </SurfaceAppearanceProvider>
   );
 
   if (restoringWorkspace && !workspace) {
     return themeRuntime(
       <RestoringWorkspaceScreen
-        themeMode={activeThemeMode}
-        lightThemePreset={lightThemePreset}
-        darkThemePreset={darkThemePreset}
-        textSize={textSize}
-        typography={typography}
-        pointerCursors={pointerCursors}
-        diffMarkers={diffMarkers}
-        resolvedTheme={resolvedTheme}
-        subThemeId={resolvedAppearance.subThemeId}
+        appearance={surfaceAppearance}
       />,
     );
   }
@@ -1109,15 +1111,7 @@ function AppContent() {
         onRemoveProject={removeWorkspaceFromRecents}
         recentWorkspaces={recentWorkspaceItems}
         initialError={restoreWorkspaceError}
-        themeMode={activeThemeMode}
-        lightThemePreset={lightThemePreset}
-        darkThemePreset={darkThemePreset}
-        textSize={textSize}
-        typography={typography}
-        pointerCursors={pointerCursors}
-        diffMarkers={diffMarkers}
-        resolvedTheme={resolvedTheme}
-        subThemeId={resolvedAppearance.subThemeId}
+        appearance={surfaceAppearance}
       />,
     );
   }
@@ -1177,14 +1171,7 @@ function AppContent() {
   );
   const feedbackLauncher = (
     <DesktopHelpLauncher
-      theme={resolvedTheme}
-      subThemeId={resolvedAppearance.subThemeId}
-      lightThemePreset={lightThemePreset}
-      darkThemePreset={darkThemePreset}
-      textSize={textSize}
-      typography={typography}
-      pointerCursors={pointerCursors}
-      diffMarkers={diffMarkers}
+      appearance={surfaceAppearance}
     />
   );
   const feedbackInNavigationToolbar = toolsInNavigationToolbar
@@ -1204,38 +1191,12 @@ function AppContent() {
     ) : undefined;
 
   return (
-    <EditorAppearanceProvider revision={resolvedAppearance.appearanceRevision}>
-      <SubThemeStyleHost
-        subTheme={resolvedAppearance.subTheme}
-        colorMode={resolvedAppearance.effectiveColorMode}
-        markdownPresentation={markdownPresentation}
-      />
+    <SurfaceAppearanceProvider value={surfaceAppearance}>
       <div
-      className={`app-shell cloud-runtime ${resolvedTheme === "dark" ? "dark" : ""}`}
-      data-po-appearance-root="true"
-      data-root-theme-id={interfaceStyle}
-      data-sub-theme-id={resolvedAppearance.subThemeId}
-      data-theme-mode={activeThemeMode}
-      data-interface-style={interfaceStyle}
-      data-interface-style-family={resolvedAppearance.profile.family}
-      data-interface-style-variant={resolvedAppearance.profile.variant}
-      data-interface-style-palette={resolvedAppearance.profile.palette}
-      data-appearance-token-set={resolvedAppearance.tokenSet}
-      data-shell-composition={resolvedAppearance.composition.shell}
-      data-titlebar-composition={resolvedAppearance.composition.titlebar}
-      data-navigation-composition={resolvedAppearance.composition.navigation}
-      data-location-bar-composition={resolvedAppearance.composition.locationBar}
-      data-scrollbar-composition={resolvedAppearance.composition.scrollbar}
-      data-icon-pack={resolvedAppearance.composition.iconPack}
-      data-light-theme-preset={lightThemePreset}
-      data-dark-theme-preset={darkThemePreset}
-      data-content-text-size={textSize}
-      data-pointer-cursors={pointerCursors ? "true" : "false"}
-      data-diff-markers={diffMarkers}
-      {...typographyRootProps}
-      style={typographyRootProps.style}
-    >
-      <DesktopCloudShell
+        className={`app-shell cloud-runtime ${resolvedTheme === "dark" ? "dark" : ""}`}
+        {...surfaceAppearance.rootProps}
+      >
+        <DesktopCloudShell
           leftSidebarCollapsed={sidebarCollapsed}
           leftSidebarPresent={Boolean(dataPort)}
           leftSidebarWidth={explorerWidth}
@@ -1255,20 +1216,20 @@ function AppContent() {
           onRightSidebarOpenChange={setRightSidebarOpen}
           onRightSidebarWidthChange={setRightSidebarWidth}
           rightSidebar={desktopRightSidebarEnabled ? (
-          <div className="desktop-right-sidebar-stack">
-            <div className="desktop-right-sidebar-surface is-active">
-              <RightTerminalPanel
-                workspace={focusedWorkspace ?? workspace}
-                active={rightSidebarOpen}
-                terminalEnabled={desktopTerminalEnabled}
-                hiddenAgentIds={localAgentsSettings.hiddenTerminalAgentIds}
-                contributions={auxiliaryWorkbenchContributions}
-              />
+            <div className="desktop-right-sidebar-stack">
+              <div className="desktop-right-sidebar-surface is-active">
+                <RightTerminalPanel
+                  workspace={focusedWorkspace ?? workspace}
+                  active={rightSidebarOpen}
+                  terminalEnabled={desktopTerminalEnabled}
+                  hiddenAgentIds={localAgentsSettings.hiddenTerminalAgentIds}
+                  contributions={auxiliaryWorkbenchContributions}
+                />
+              </div>
             </div>
-          </div>
-        ) : undefined}
-      >
-        <DesktopWorkspaceContent
+          ) : undefined}
+        >
+          <DesktopWorkspaceContent
           activeAiEditRequest={activeAiEditRequest}
           activeDocumentPath={activeDocumentPath}
           activeExplorerPath={activeExplorerPath}
@@ -1342,18 +1303,11 @@ function AppContent() {
           )}
           sidebarUtility={feedbackInNavigationToolbar ? undefined : feedbackLauncher}
         />
-      </DesktopCloudShell>
-      <DesktopOverlayPortal
-        theme={resolvedTheme}
-        subThemeId={resolvedAppearance.subThemeId}
-        lightThemePreset={lightThemePreset}
-        darkThemePreset={darkThemePreset}
-        textSize={textSize}
-        typography={typography}
-        pointerCursors={pointerCursors}
-        diffMarkers={diffMarkers}
-      >
-        <>
+        </DesktopCloudShell>
+        <DesktopOverlayPortal
+          appearance={surfaceAppearance}
+        >
+          <>
           {pendingBranchSwitch && (
             <BranchSwitchConflictDialog
               branchName={pendingBranchSwitch.branchName}
@@ -1431,10 +1385,10 @@ function AppContent() {
               onRevealInFinder={revealNodeInFinderFromMenu}
             />
           )}
-        </>
-      </DesktopOverlayPortal>
+          </>
+        </DesktopOverlayPortal>
       </div>
-    </EditorAppearanceProvider>
+    </SurfaceAppearanceProvider>
   );
 }
 

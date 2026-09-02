@@ -7,17 +7,7 @@ import {
   useState,
   type DragEvent as ReactDragEvent,
 } from "react";
-import {
-  createTypographyRootProps,
-  type ResolvedTypography,
-} from "../features/typography";
-import type {
-  DarkThemePreset,
-  DiffMarkers,
-  LightThemePreset,
-  TextSize,
-  ThemeMode,
-} from "../preferences";
+import type { ResolvedSurfaceAppearance } from "../features/appearance/AppearanceRuntime";
 import { useWorkspaceFolderDrop } from "../features/app-shell/useWorkspaceFolderDrop";
 import {
   getProjectName,
@@ -58,15 +48,7 @@ export type MinimalOnboardingProps = {
   projectItems?: ProjectHomeItem[];
   operationStatus?: OnboardingOperationStatus | null;
   initialError?: string | null;
-  themeMode: ThemeMode;
-  lightThemePreset: LightThemePreset;
-  darkThemePreset: DarkThemePreset;
-  textSize: TextSize;
-  typography: ResolvedTypography;
-  pointerCursors: boolean;
-  diffMarkers: DiffMarkers;
-  resolvedTheme: "light" | "dark";
-  subThemeId: string;
+  appearance: ResolvedSurfaceAppearance;
 };
 
 /** Local repository entrypoint. Cloud is entered from an open repository only. */
@@ -81,15 +63,7 @@ export function MinimalOnboarding({
   recentWorkspaces = [],
   projectItems,
   initialError = null,
-  themeMode,
-  lightThemePreset,
-  darkThemePreset,
-  textSize,
-  typography,
-  pointerCursors,
-  diffMarkers,
-  resolvedTheme,
-  subThemeId,
+  appearance,
 }: MinimalOnboardingProps) {
   const { t } = useLocalization();
   const [error, setError] = useState<string | null>(initialError);
@@ -220,21 +194,14 @@ export function MinimalOnboarding({
   }, [showEmptyStateIntro]);
 
   const completeEmptyStateIntro = () => setShowEmptyStateIntro(false);
+  const resolvedTheme = appearance.appearance.effectiveColorMode;
 
   return (
     <main
       className={`onboarding-shell onboarding-homepage-shell ${resolvedTheme === "dark" ? "dark" : ""} ${folderDrop.dragging ? "dragging" : ""} ${showEmptyStateIntro ? "is-empty-state-intro" : ""}`}
       data-onboarding-state={onboardingState}
-      data-po-appearance-root="true"
-      data-sub-theme-id={subThemeId}
       data-po-scrollbar="content"
-      data-theme-mode={themeMode}
-      data-light-theme-preset={lightThemePreset}
-      data-dark-theme-preset={darkThemePreset}
-      data-content-text-size={textSize}
-      data-pointer-cursors={pointerCursors ? "true" : "false"}
-      data-diff-markers={diffMarkers}
-      {...createTypographyRootProps(typography)}
+      {...appearance.rootProps}
       onDragEnter={folderDrop.onDragEnter}
       onDragOver={folderDrop.onDragOver}
       onDragLeave={folderDrop.onDragLeave}

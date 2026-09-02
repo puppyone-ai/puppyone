@@ -17,12 +17,34 @@ const FALLBACK_GEOMETRY: NativeSurfaceGeometry = Object.freeze({
 });
 
 const APPEARANCE_ATTRIBUTES = [
+  "data-root-theme-id",
   "data-interface-style",
   "data-interface-style-family",
   "data-interface-style-variant",
   "data-interface-style-palette",
+  "data-appearance-token-set",
+  "data-shell-composition",
+  "data-titlebar-composition",
+  "data-navigation-composition",
+  "data-location-bar-composition",
+  "data-scrollbar-composition",
+  "data-icon-pack",
   "data-sub-theme-id",
-  "data-text-size",
+  "data-theme-mode",
+  "data-content-text-size",
+  "data-loading-animation-preset",
+  "data-pointer-cursors",
+  "data-diff-markers",
+  "data-font-ui",
+  "data-font-ui-category",
+  "data-font-content",
+  "data-font-content-category",
+  "data-font-editor-content-mode",
+  "data-font-editor-content",
+  "data-font-code",
+  "data-font-code-category",
+  "data-font-terminal",
+  "data-font-terminal-category",
 ] as const;
 
 const APPEARANCE_VARIABLES = [
@@ -43,6 +65,11 @@ const APPEARANCE_VARIABLES = [
   "--po-scrollbar-thumb-hover",
   "--po-font-sans",
   "--po-font-mono",
+  "--po-font-ui-primary",
+  "--po-font-content-primary",
+  "--po-font-code-primary",
+  "--po-font-terminal-primary",
+  "--po-font-editor-content-user",
   "--po-text-size-body",
   "--po-line-height-body",
 ] as const;

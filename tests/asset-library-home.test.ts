@@ -7,11 +7,8 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AssetLibraryHome } from "../src/components/AssetLibraryHome";
 import type { MinimalOnboardingProps, ProjectHomeItem } from "../src/components/MinimalOnboarding";
-import {
-  DEFAULT_TYPOGRAPHY_PREFERENCES,
-  resolveTypography,
-} from "../src/features/typography";
 import { renderWithTestLocalization, stripBidiIsolation } from "./testLocalization";
+import { createTestSurfaceAppearance } from "./testSurfaceAppearance";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -71,15 +68,7 @@ function renderLibrary(overrides: Partial<MinimalOnboardingProps> = {}) {
     onOpenDroppedWorkspace: vi.fn(async () => undefined),
     onOpenWorkspacePath: vi.fn(async () => undefined),
     projectItems: items,
-    themeMode: "dark",
-    lightThemePreset: "neutral",
-    darkThemePreset: "default",
-    textSize: "default",
-    typography: resolveTypography(DEFAULT_TYPOGRAPHY_PREFERENCES),
-    pointerCursors: false,
-    diffMarkers: "color",
-    resolvedTheme: "dark",
-    subThemeId: "default.neutral",
+    appearance: createTestSurfaceAppearance(),
     ...overrides,
   };
 

@@ -113,7 +113,6 @@ export const TEXT_SIZE_STORAGE_KEY = "puppyone.desktop.textSize";
 export const TYPOGRAPHY_STORAGE_KEY = "puppyone.desktop.typography";
 export const POINTER_CURSORS_STORAGE_KEY = "puppyone.desktop.pointerCursors";
 export const LOADING_ANIMATION_STORAGE_KEY = "puppyone.desktop.loadingAnimation";
-export const LOADING_ANIMATION_CHANGE_EVENT = "puppyone:loading-animation-change";
 export const DIFF_MARKERS_STORAGE_KEY = "puppyone.desktop.diffMarkers";
 export const MARKDOWN_PRESENTATION_STORAGE_KEY = "puppyone.desktop.markdownPresentation";
 /** @deprecated Legacy single-value emphasis preset storage. */

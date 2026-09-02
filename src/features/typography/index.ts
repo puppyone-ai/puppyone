@@ -2,10 +2,11 @@ export {
   BUILTIN_FONT_CATALOG,
   BUILTIN_FONT_IDS,
   DEFAULT_TYPOGRAPHY_PREFERENCES,
-  THEME_CONTENT_FONT_ID,
   TYPOGRAPHY_PREFERENCE_VERSION,
   createCatalogFontFamily,
+  followThemeContentFont,
   getFontCatalogEntries,
+  isFollowingThemeContentFont,
   isValidFontCatalogEntry,
   parseTypographyPreferences,
   resolveTypography,
@@ -14,8 +15,10 @@ export {
 export type {
   FontCatalogEntry,
   FontCategory,
+  ContentFontPreference,
   FontSourceKind,
   ResolvedTypography,
+  ResolvedContentFontDecision,
   TypographyPreferences,
   TypographyRole,
 } from "./fontCatalog";
