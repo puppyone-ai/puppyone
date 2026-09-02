@@ -8,6 +8,8 @@
   "appearance.themes.openFolder": "テーマフォルダを開く",
   "appearance.themes.diagnostics": "テーマ読み込みの問題",
   "appearance.themes.missing": "不足しているテーマ：{id}",
+  "appearance.themes.markdownFontOverride": "Markdown フォントはエディター設定で上書きされています。",
+  "appearance.themes.useThemeFont": "テーマのフォントを使用",
   "appearance.interfaceStyle.title": "インターフェーススタイル",
   "appearance.interfaceStyle.ariaLabel": "インターフェーススタイル",
   "appearance.interfaceStyle.default": "デフォルト",

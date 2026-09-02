@@ -8,6 +8,8 @@
   "appearance.themes.openFolder": "打开主题文件夹",
   "appearance.themes.diagnostics": "主题加载问题",
   "appearance.themes.missing": "缺少主题：{id}",
+  "appearance.themes.markdownFontOverride": "Markdown 字体已在编辑器设置中覆盖。",
+  "appearance.themes.useThemeFont": "使用主题字体",
   "appearance.interfaceStyle.title": "界面风格",
   "appearance.interfaceStyle.ariaLabel": "界面风格",
   "appearance.interfaceStyle.default": "默认",

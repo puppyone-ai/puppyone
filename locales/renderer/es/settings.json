@@ -8,6 +8,8 @@
   "appearance.themes.openFolder": "Abrir carpeta de temas",
   "appearance.themes.diagnostics": "Problemas al cargar temas",
   "appearance.themes.missing": "Tema ausente: {id}",
+  "appearance.themes.markdownFontOverride": "La fuente de Markdown está reemplazada en la configuración del editor.",
+  "appearance.themes.useThemeFont": "Usar fuente del tema",
   "appearance.interfaceStyle.title": "Estilo de interfaz",
   "appearance.interfaceStyle.ariaLabel": "Estilo de interfaz",
   "appearance.interfaceStyle.default": "Predeterminado",

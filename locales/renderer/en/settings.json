@@ -8,6 +8,8 @@
   "appearance.themes.openFolder": "Open Themes Folder",
   "appearance.themes.diagnostics": "Theme loading issues",
   "appearance.themes.missing": "Missing theme: {id}",
+  "appearance.themes.markdownFontOverride": "Markdown font is overridden in Editor settings.",
+  "appearance.themes.useThemeFont": "Use theme font",
   "appearance.interfaceStyle.title": "Interface style",
   "appearance.interfaceStyle.ariaLabel": "Interface style",
   "appearance.interfaceStyle.default": "Default",

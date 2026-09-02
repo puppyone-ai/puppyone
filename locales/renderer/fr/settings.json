@@ -8,6 +8,8 @@
   "appearance.themes.openFolder": "Ouvrir le dossier des thèmes",
   "appearance.themes.diagnostics": "Problèmes de chargement des thèmes",
   "appearance.themes.missing": "Thème manquant : {id}",
+  "appearance.themes.markdownFontOverride": "La police Markdown est remplacée dans les réglages de l’éditeur.",
+  "appearance.themes.useThemeFont": "Utiliser la police du thème",
   "appearance.interfaceStyle.title": "Style de l’interface",
   "appearance.interfaceStyle.ariaLabel": "Style de l’interface",
   "appearance.interfaceStyle.default": "Par défaut",
