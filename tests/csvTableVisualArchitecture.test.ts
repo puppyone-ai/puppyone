@@ -37,6 +37,10 @@ const csvViewerSource = readFileSync(
   new URL("../packages/shared-ui/src/editor/viewers/csv/CsvViewer.tsx", import.meta.url),
   "utf8",
 );
+const csvCellEditorSource = readFileSync(
+  new URL("../packages/shared-ui/src/editor/viewers/csv/CsvCellEditor.tsx", import.meta.url),
+  "utf8",
+);
 const textEditorFrameSource = readFileSync(
   new URL("../packages/shared-ui/src/editor/viewers/shared/TextEditorFrame.tsx", import.meta.url),
   "utf8",
@@ -63,6 +67,18 @@ const markdownTableCss = readFileSync(
 );
 
 describe("CSV table visual architecture", () => {
+  it("projects links through the format-neutral navigation port", () => {
+    expect(csvEditorSource).toContain("documentNavigation?.resolveReference");
+    expect(csvViewerSource).toContain("documentNavigation={context.documentNavigation}");
+    expect(csvCellEditorSource).toContain("navigation.openReference(reference)");
+    expect(csvCellEditorSource).toContain("event.metaKey || event.ctrlKey");
+    expect(csvCellEditorSource).not.toContain("window.open");
+    expect(csvCellEditorSource).not.toContain("puppyoneDesktop");
+    expect(csvCellEditorSource).not.toContain("<a");
+    expect(csvTableCss).toContain("--po-csv-link-color");
+    expect(csvTableCss).toContain(".csv-table-editor__reference-preview");
+  });
+
   it("keeps CSV semantic while sharing the Markdown table language", () => {
     expect(csvEditorSource).toContain("<table");
     expect(csvEditorSource).toContain("<thead>");

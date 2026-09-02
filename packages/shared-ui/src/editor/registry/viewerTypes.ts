@@ -11,6 +11,17 @@ import type { AiEditFile } from "../ai-edits/types";
 import type { PresetViewerResourcePolicy, PresetViewerSource } from "./viewerContract";
 import type { DocumentSourceKind } from "../documentSource";
 import type { PresetViewerDefinition } from "./presetViewerManifest";
+import type { DocumentNavigationPort } from "../navigation/documentNavigation";
+
+export type {
+  DocumentDeniedReference,
+  DocumentExternalReference,
+  DocumentNavigationPort,
+  DocumentReference,
+  DocumentReferenceSyntax,
+  DocumentWorkspaceReference,
+  DocumentWorkspaceReferenceStatus,
+} from "../navigation/documentNavigation";
 
 export type { DocumentSourceKind } from "../documentSource";
 
@@ -168,6 +179,7 @@ export type PresetViewerRenderContext = EditorViewerMatch & {
   workspaceId?: string;
   workspaceRoot?: string | null;
   markdownEnvironment?: MarkdownWorkspaceEnvironment | null;
+  documentNavigation?: DocumentNavigationPort | null;
   contextMapEnvironment?: ContextMapWorkspaceEnvironment | null;
   appPreview?: AppPreviewController | null;
   openExternalFile?: (path: string) => Promise<void>;

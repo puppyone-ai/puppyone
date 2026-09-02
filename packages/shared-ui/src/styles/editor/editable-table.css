@@ -53,7 +53,11 @@
   );
   --po-editable-table-cell-min-width: 96px;
   --po-editable-table-cell-max-width: 280px;
-  --po-editable-table-cell-padding: 6px 10px;
+  --po-editable-table-cell-padding-block: 6px;
+  --po-editable-table-cell-padding-inline: 10px;
+  --po-editable-table-cell-padding:
+    var(--po-editable-table-cell-padding-block)
+    var(--po-editable-table-cell-padding-inline);
   --po-editable-table-font-size: 12.5px;
   --po-editable-table-line-height: 1.45;
   --po-editable-table-row-min-height: 31px;

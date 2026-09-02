@@ -8,6 +8,7 @@ import {
   type DataNode,
   type DataPort,
   type DocumentDataNode,
+  type DocumentNavigationPort,
   type ContextMapWorkspaceEnvironment,
   type EditorGroupState,
   type EditorInteractionPreferences,
@@ -28,6 +29,7 @@ export type EditorPaneDocumentRuntimeProps = Readonly<{
   editorInteractionPreferences: EditorInteractionPreferences;
   fileIconTheme: FileIconThemeId;
   markdownEnvironment: MarkdownWorkspaceEnvironment;
+  documentNavigation: DocumentNavigationPort;
   refreshKey?: WorkspaceContentChange;
   treeNode: DataNode | null;
   viewerExtensionAdapter?: ViewerExtensionHostAdapter | null;
@@ -45,6 +47,7 @@ export const EditorPaneDocumentRuntime = memo(function EditorPaneDocumentRuntime
   editorInteractionPreferences,
   fileIconTheme,
   markdownEnvironment,
+  documentNavigation,
   refreshKey,
   treeNode,
   viewerExtensionAdapter = null,
@@ -60,6 +63,7 @@ export const EditorPaneDocumentRuntime = memo(function EditorPaneDocumentRuntime
       editorInteractionPreferences={editorInteractionPreferences}
       fileIconTheme={fileIconTheme}
       markdownEnvironment={markdownEnvironment}
+      documentNavigation={documentNavigation}
       refreshKey={refreshKey}
       treeNode={treeNode}
       viewerExtensionAdapter={viewerExtensionAdapter}
@@ -79,6 +83,7 @@ function RegularEditorPaneDocumentRuntime({
   editorInteractionPreferences,
   fileIconTheme,
   markdownEnvironment,
+  documentNavigation,
   refreshKey,
   treeNode,
   viewerExtensionAdapter = null,
@@ -145,6 +150,7 @@ function RegularEditorPaneDocumentRuntime({
       workspaceRoot={workspaceRoot}
       markdownDialect={markdownDialect ?? null}
       markdownEnvironment={markdownEnvironment}
+      documentNavigation={documentNavigation}
       contextMapEnvironment={contextMapEnvironment}
       appPreview={dataPort.appPreview ?? null}
       openExternalFile={dataPort.openExternalFile}
@@ -177,6 +183,7 @@ export function areEditorPaneDocumentRuntimePropsEqual(
       next.treeNode,
       next.editor?.resource ?? null,
     )
+    && previous.documentNavigation === next.documentNavigation
     && sameDocumentRefresh(previous.refreshKey, next.refreshKey, next.editor?.resource ?? null)
     && sameDocumentDescriptor(previous.treeNode, next.treeNode)
     && previous.viewerExtensionAdapter === next.viewerExtensionAdapter

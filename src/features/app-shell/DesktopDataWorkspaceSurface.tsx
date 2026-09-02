@@ -454,6 +454,7 @@ export function DesktopDataWorkspaceSurface({
                   fileIconTheme={preferences.fileIconTheme}
                   layout={editorWorkbench.paneLayout}
                   markdownEnvironment={state.markdownEnvironment}
+                  documentNavigation={state.documentNavigation}
                   refreshKey={workspaceRefreshToken}
                   viewerExtensionAdapter={viewerExtensionAdapter}
                   workspace={workspace}

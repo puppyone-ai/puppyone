@@ -1,5 +1,13 @@
 export { MarkdownCodeMirrorEditor } from "./MarkdownCodeMirrorEditor";
 export * from "./linkIndex";
+export {
+  findMarkdownLinkTokens,
+  type MarkdownLinkToken,
+} from "./core/links/markdownLinkModel";
+export {
+  findWikiLinkTokens,
+  type MarkdownWikiLinkToken,
+} from "./core/links/wikiLinkModel";
 export { resolveMarkdownAssetPath } from "./features/media/markdownMediaReference";
 export {
   getMarkdownConformanceSnapshot,

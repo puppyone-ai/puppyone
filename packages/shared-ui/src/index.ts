@@ -126,6 +126,21 @@ export {
 
 export { DataWorkspace } from "./data/DataWorkspace";
 export {
+  createDocumentNavigationPort,
+  parseDocumentReferenceIntent,
+} from "./editor/navigation/documentNavigation";
+export type {
+  DocumentDeniedReference,
+  DocumentExternalReference,
+  DocumentNavigationOptions,
+  DocumentNavigationPort,
+  DocumentReference,
+  DocumentReferenceSyntax,
+  DocumentWorkspaceReference,
+  DocumentWorkspaceReferenceStatus,
+  WorkspaceDocumentReferenceResolution,
+} from "./editor/navigation/documentNavigation";
+export {
   createMarkdownLinkGraphIndex,
   MarkdownLinkIndexCoordinator,
 } from "./editor/markdown/linkIndex";
