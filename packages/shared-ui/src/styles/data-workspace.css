@@ -428,7 +428,7 @@ body.data-sidebar-resizing .data-content:not([data-explorer-collapsed="true"]) {
   text-align: left;
   user-select: none;
   outline: none;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .tree-row.root {
@@ -441,7 +441,7 @@ body.data-sidebar-resizing .data-content:not([data-explorer-collapsed="true"]) {
 }
 
 .tree-row.root.root-command {
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .tree-row.root.root-command:hover {

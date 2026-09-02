@@ -93,7 +93,7 @@
   color: inherit;
   font: inherit;
   text-align: start;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .desktop-agent-run-status-toggle:hover,
@@ -192,7 +192,7 @@
   border-radius: 50%;
   background: transparent;
   color: inherit;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   pointer-events: auto;
   touch-action: manipulation;
   transition: transform 100ms ease-out;
@@ -446,7 +446,7 @@
   color: var(--agent-text-muted);
   font: inherit;
   font-size: var(--agent-font-size);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 .desktop-agent-markdown-disclosure:hover { border-color: var(--po-border-strong); background: var(--po-hover); color: var(--po-text); }
 
@@ -481,7 +481,7 @@
   background: transparent;
   color: var(--agent-text-subtle);
   font: inherit;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 .desktop-agent-code-copy:hover { background: var(--po-hover); color: var(--agent-text); }
 .desktop-agent-code-block pre {

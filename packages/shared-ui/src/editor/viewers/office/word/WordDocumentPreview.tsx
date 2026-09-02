@@ -327,7 +327,7 @@ const WORD_PREVIEW_SHADOW_CSS = `${OFFICE_FONT_COMPATIBILITY_CSS}
   }
 
   [${CONTROLLED_DOCX_EXTERNAL_HREF_ATTRIBUTE}] {
-    cursor: var(--po-clickable-cursor, pointer);
+    cursor: var(--po-clickable-cursor, default);
     text-decoration: underline;
   }
 

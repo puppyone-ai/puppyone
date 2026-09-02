@@ -167,7 +167,7 @@
   border: 0;
   background: transparent;
   color: inherit;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   font: inherit;
   font-size: var(--desktop-sidebar-font-size, var(--po-text-size-sidebar, 13px));
   line-height: var(--desktop-sidebar-line-height, 18px);

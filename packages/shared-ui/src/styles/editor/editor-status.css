@@ -175,7 +175,7 @@
   font-size: 12px;
   font-weight: 650;
   letter-spacing: 0;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .editor-state--stacked button:hover {
@@ -221,7 +221,7 @@
   background: var(--po-control);
   color: var(--po-text);
   font: inherit;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .editor-conflict-actions button:hover {

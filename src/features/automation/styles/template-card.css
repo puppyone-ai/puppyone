@@ -160,7 +160,7 @@
   font-size: var(--po-text-size-body, 13px);
   font-weight: 400;
   line-height: 18px;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transition: border-color 0.12s ease, background 0.12s ease;
 }
 

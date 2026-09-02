@@ -92,7 +92,7 @@
   "appearance.headerElements.external-open": "Extern öffnen",
   "appearance.headerElements.terminal": "Terminal",
   "appearance.pointerCursors.title": "Zeigercursor",
-  "appearance.pointerCursors.detail": "Zeigt den Handcursor auch über Aktionssteuerelementen. Links und Navigation verwenden ihn immer.",
+  "appearance.pointerCursors.detail": "Zeigt den Handcursor nur über Links und Navigationszielen.",
   "account.title": "Konto",
   "account.detail": "PuppyOne-Cloud-Konto und Desktop-Anmeldesitzung.",
   "account.statusLabel": "Status",

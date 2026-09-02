@@ -116,7 +116,7 @@
   border-radius: 6px;
   background: transparent;
   color: var(--po-text-subtle);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transition: background 0.12s ease, color 0.12s ease;
 }
 

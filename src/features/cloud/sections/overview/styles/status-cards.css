@@ -30,7 +30,7 @@
 
 .desktop-cloud-overview-header-fact--interactive {
   border-radius: 7px;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transition: background 100ms ease;
 }
 

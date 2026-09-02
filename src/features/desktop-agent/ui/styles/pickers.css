@@ -24,7 +24,7 @@
   font: inherit;
   font-size: var(--agent-font-size);
   font-weight: 500;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .desktop-agent-picker-trigger:hover:not(:disabled) {

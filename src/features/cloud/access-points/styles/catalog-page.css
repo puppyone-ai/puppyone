@@ -89,7 +89,7 @@
   font-size: 12px;
   font-weight: 500;
   line-height: 18px;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transition: background 0.12s ease, border-color 0.12s ease, transform 0.12s ease;
 }
 
@@ -138,7 +138,7 @@
   font-weight: 400;
   line-height: 18px;
   white-space: nowrap;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transition: background 0.12s ease, color 0.12s ease;
 }
 
@@ -208,7 +208,7 @@
   font: inherit;
   font-size: 12px;
   line-height: 18px;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .desktop-cloud-access-status-filter:focus {

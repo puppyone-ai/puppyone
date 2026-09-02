@@ -92,7 +92,7 @@
   "appearance.headerElements.external-open": "Ouverture externe",
   "appearance.headerElements.terminal": "Terminal",
   "appearance.pointerCursors.title": "Curseurs de pointeur",
-  "appearance.pointerCursors.detail": "Affiche aussi le curseur main sur les commandes d’action. Les liens et la navigation l’utilisent toujours.",
+  "appearance.pointerCursors.detail": "Affiche le curseur main uniquement sur les liens et les destinations de navigation.",
   "account.title": "Compte",
   "account.detail": "Compte PuppyOne Cloud et session de connexion à l’application.",
   "account.statusLabel": "Statut",

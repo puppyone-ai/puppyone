@@ -96,7 +96,7 @@
   border-radius: 4px;
   background: transparent;
   color: var(--po-text-subtle);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   pointer-events: auto;
 }
 
@@ -193,7 +193,7 @@
   border-radius: 6px;
   background: transparent;
   color: var(--po-text-muted);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   font: inherit;
   text-align: start;
 }

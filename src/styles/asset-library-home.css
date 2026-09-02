@@ -73,7 +73,7 @@
   border-radius: var(--desktop-control-radius, 6px);
   background: var(--po-control);
   color: var(--po-text);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   font: inherit;
   font-size: var(--po-text-size-meta, 12px);
   font-weight: 600;
@@ -123,7 +123,7 @@
   border-radius: var(--desktop-control-radius, 6px);
   background: transparent;
   color: var(--po-text-muted);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   text-align: start;
 }
 
@@ -167,7 +167,7 @@
   border-radius: var(--desktop-control-radius, 6px);
   background: transparent;
   color: var(--po-text-subtle);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   font: inherit;
   font-size: var(--po-text-size-caption, 11px);
   font-weight: 580;
@@ -245,7 +245,7 @@
   background: var(--po-panel);
   box-shadow: 0 0 0 transparent;
   color: inherit;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   text-align: start;
   transition:
     background 150ms ease,
@@ -448,7 +448,7 @@
   background: transparent;
   color: var(--po-text-subtle);
   box-shadow: 0 0 0 transparent;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   font: inherit;
   font-size: 11.5px;
   font-weight: 580;

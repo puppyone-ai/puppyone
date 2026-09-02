@@ -200,7 +200,7 @@
   font-weight: 500;
   line-height: 16px;
   white-space: nowrap;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
 }
 
@@ -290,7 +290,7 @@
   line-height: 1;
   white-space: nowrap;
   box-shadow: none;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transform: translate(-50%, -50%);
   transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease, opacity 0.14s ease;
 }

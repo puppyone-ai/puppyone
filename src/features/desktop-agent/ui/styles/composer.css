@@ -203,7 +203,7 @@
   background: transparent;
   box-shadow: none;
   color: var(--agent-canvas);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transition: opacity 120ms ease;
 }
 .desktop-agent-composer-action::before {
@@ -326,7 +326,7 @@
   border-radius: var(--desktop-control-radius);
   background: transparent;
   color: var(--agent-text-subtle);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 .desktop-agent-reference-trigger:hover:not(:disabled) { background: var(--agent-row-hover-surface); color: var(--agent-text-muted); }
 .desktop-agent-reference-trigger:disabled { cursor: default; color: var(--agent-text-subtle); opacity: 0.48; }

@@ -118,7 +118,7 @@
   font-weight: 500;
   line-height: 18px;
   white-space: nowrap;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease, transform 0.12s ease;
 }
 
@@ -365,7 +365,7 @@
   color: var(--po-text-muted);
   font-size: 12px;
   font-weight: 500;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .desktop-cloud-org-card-footer button:hover {
@@ -593,7 +593,7 @@
   color: var(--po-text-muted);
   font-size: 12px;
   font-weight: 500;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .desktop-cloud-billing-plan-card > button.primary {
@@ -619,7 +619,7 @@
   color: var(--po-text-muted);
   font-size: 12px;
   font-weight: 500;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .desktop-cloud-billing-usage-grid {
@@ -713,7 +713,7 @@
   color: var(--po-text-muted);
   font-size: 12px;
   font-weight: 500;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .desktop-cloud-billing-notice {
@@ -755,7 +755,7 @@
   color: var(--po-text);
   font-size: 12px;
   font-weight: 500;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .desktop-cloud-billing-notice > button:disabled {

@@ -37,7 +37,7 @@
   border-radius: 10px;
   font: inherit;
   font-size: var(--agent-font-size);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 .desktop-agent-button.is-secondary { background: var(--po-control, var(--po-inset)); color: var(--po-text); }
 .desktop-agent-button.is-primary { border-color: var(--agent-accent); background: var(--agent-accent); color: #ffffff; }

@@ -45,7 +45,7 @@
   color: var(--po-text-muted);
   font: inherit;
   font-size: 12px;
-  cursor: pointer;
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .desktop-cloud-git-prerequisite-organization button:hover {

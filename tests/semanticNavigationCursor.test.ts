@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 function source(relativePath: string) {
@@ -6,12 +6,16 @@ function source(relativePath: string) {
 }
 
 describe("semantic navigation cursor contract", () => {
-  it("keeps navigation discoverable independently from the optional action cursor preference", () => {
+  it("enables the hand cursor only for destinations when the preference is on", () => {
     const base = source("src/styles/base.css");
 
     expect(base).toContain("--po-action-cursor: default;");
+    expect(base).not.toContain("--po-action-cursor: pointer;");
     expect(base).toMatch(
-      /:where\(\s*a\[href\],[\s\S]*?\[role="link"\][\s\S]*?\[role="tab"\][\s\S]*?\[data-navigation-item\][\s\S]*?\[data-po-interaction="navigation"\][\s\S]*?\)\s*\{[\s\S]*?--po-clickable-cursor:\s*pointer;[\s\S]*?cursor:\s*pointer;/,
+      /\[data-pointer-cursors="true"\][\s\S]*?:where\(\s*a\[href\],[\s\S]*?\[role="link"\][\s\S]*?\[role="tab"\][\s\S]*?\[data-navigation-item\][\s\S]*?\[data-po-interaction="navigation"\][\s\S]*?\)\s*\{[\s\S]*?--po-clickable-cursor:\s*pointer;[\s\S]*?cursor:\s*pointer;/,
+    );
+    expect(base).toMatch(
+      /\[data-pointer-cursors\][\s\S]*?:where\(\s*button:not\(:disabled\),\s*a\[href\],[\s\S]*?\[data-po-interaction="navigation"\][\s\S]*?\)\s*\{\s*cursor:\s*default;/,
     );
     expect(base).toMatch(
       /:where\(button, input, select, textarea\):disabled,[\s\S]*?\[aria-disabled="true"\],[\s\S]*?\{[\s\S]*?--po-clickable-cursor:\s*default;[\s\S]*?cursor:\s*default;/,
@@ -57,6 +61,23 @@ describe("semantic navigation cursor contract", () => {
     expect(appPreview).toContain('data-po-interaction={navigation ? "navigation" : undefined}');
     expect(markdownDecorations).toContain('role: "link"');
     expect(markdownCss).toMatch(/\.cm-md-link-label\.is-resolved,[\s\S]*?cursor:\s*text;/);
-    expect(markdownCss).toMatch(/\.cm-editor\.cm-md-open-modifier-down[\s\S]*?cursor:\s*var\(--po-clickable-cursor, pointer\);/);
+    expect(markdownCss).toMatch(/\.cm-editor\.cm-md-open-modifier-down[\s\S]*?cursor:\s*var\(--po-clickable-cursor, default\);/);
+  });
+
+  it("forbids feature CSS from creating pointer cursors outside the policy boundary", () => {
+    const violations = ["src", "packages/shared-ui/src"]
+      .flatMap((directory) => collectCssFiles(new URL(`../${directory}/`, import.meta.url)))
+      .filter((file) => !file.endsWith("/src/styles/base.css"))
+      .filter((file) => /(?:cursor:\s*pointer|var\(--po-clickable-cursor, pointer\))/.test(readFileSync(file, "utf8")));
+
+    expect(violations).toEqual([]);
   });
 });
+
+function collectCssFiles(directory: URL): string[] {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const child = new URL(entry.name + (entry.isDirectory() ? "/" : ""), directory);
+    if (entry.isDirectory()) return collectCssFiles(child);
+    return entry.isFile() && entry.name.endsWith(".css") ? [child.pathname] : [];
+  });
+}

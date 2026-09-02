@@ -230,7 +230,7 @@
   padding: 0;
   border: 0;
   background: transparent;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   font: inherit;
   opacity: 0;
   transition: opacity 120ms ease;
@@ -379,7 +379,7 @@
   border-radius: var(--po-menu-item-radius);
   background: transparent;
   color: var(--po-text-muted);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   font: inherit;
   font-size: 13px;
   font-weight: 500;

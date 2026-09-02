@@ -92,7 +92,7 @@
   border-radius: 10px;
   background: transparent;
   color: var(--po-text-muted);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   font-family: var(--po-font-sans);
   text-align: start;
   transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
@@ -253,7 +253,7 @@
 }
 
 .desktop-cloud-create-access-tree-row.folder {
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transition: background 0.12s ease, color 0.12s ease;
 }
 
@@ -318,7 +318,7 @@
   gap: 6px;
   border: 0;
   background: transparent;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   font-family: inherit;
 }
 
@@ -564,7 +564,7 @@
   border: 1px solid var(--po-switch-border-off);
   border-radius: 999px;
   background: var(--po-switch-track-off);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transition: background 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
 }
 

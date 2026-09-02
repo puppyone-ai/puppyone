@@ -279,7 +279,7 @@
 }
 
 .desktop-local-agent-hook-option {
-  cursor: pointer;
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .desktop-local-agent-hook-option:has(.desktop-local-agent-hook-checkbox:disabled) {
@@ -293,7 +293,7 @@
   flex: 0 0 14px;
   margin: 0;
   accent-color: var(--po-accent);
-  cursor: pointer;
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .desktop-settings-code {
@@ -464,7 +464,7 @@
   height: 20px;
   flex: 0 0 auto;
   align-items: center;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .desktop-settings-switch input {

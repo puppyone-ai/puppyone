@@ -42,7 +42,7 @@
   color: inherit;
   background: transparent;
   font: inherit;
-  cursor: pointer;
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .folder-relationship-view {
@@ -163,7 +163,7 @@
 }
 
 button.folder-relationship-radial-node > .folder-relationship-card-hitarea {
-  cursor: pointer;
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .folder-relationship-radial-node[data-root="true"] {
@@ -258,7 +258,7 @@ button.folder-relationship-radial-node > .folder-relationship-card-hitarea {
 }
 
 button.folder-relationship-layered-node > .folder-relationship-card-hitarea {
-  cursor: pointer;
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .folder-relationship-layered-node[data-root="true"] {
@@ -653,7 +653,7 @@ button.folder-relationship-layered-node > .folder-relationship-card-hitarea {
   background: transparent;
   font: inherit;
   transition: color 140ms ease, background 140ms ease;
-  cursor: pointer;
+  cursor: var(--po-clickable-cursor, default);
   touch-action: auto;
 }
 

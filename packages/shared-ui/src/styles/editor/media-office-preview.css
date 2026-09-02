@@ -67,7 +67,7 @@
   border-radius: var(--desktop-control-radius, 6px);
   background: transparent;
   color: var(--po-text-muted);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .office-preview__toolbar-button:hover {
@@ -109,7 +109,7 @@
   border-radius: var(--desktop-control-radius, 6px);
   background: var(--po-control);
   color: var(--po-text);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   font: inherit;
   font-size: 11px;
   font-weight: 650;
@@ -258,7 +258,7 @@
   font-size: 12px;
   font-weight: 650;
   letter-spacing: 0;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .office-warning-note button:hover,
@@ -389,7 +389,7 @@
   letter-spacing: 0;
   text-overflow: ellipsis;
   white-space: nowrap;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .office-spreadsheet-tabs button:hover {
@@ -704,7 +704,7 @@
   border-radius: 7px;
   background: transparent;
   color: var(--po-text-subtle);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .office-pptx-thumbnail:hover {
@@ -907,7 +907,7 @@
   border-radius: 6px;
   background: transparent;
   color: inherit;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .office-pptx-navigation button:hover:not(:disabled) {
@@ -944,7 +944,7 @@
   background: transparent;
   color: var(--po-text-muted);
   text-align: left;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .office-pptx-text-thumbnail:hover {

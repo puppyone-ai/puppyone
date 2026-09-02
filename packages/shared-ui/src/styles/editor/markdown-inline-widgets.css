@@ -128,7 +128,7 @@
 .markdown-codemirror-editor[data-readonly="true"] .cm-md-wiki-link-label.is-resolved,
 .markdown-codemirror-editor[data-readonly="true"] .cm-md-wiki-link-label.is-missing,
 .markdown-codemirror-editor .cm-md-wiki-link-inline {
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .markdown-codemirror-editor .cm-md-wiki-link-label,

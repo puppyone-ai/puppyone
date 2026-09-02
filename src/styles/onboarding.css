@@ -281,7 +281,7 @@
   font-weight: var(--onboarding-row-font-weight);
   line-height: var(--onboarding-row-line-height);
   text-align: start;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transition:
     border-color 130ms ease-out,
     background 130ms ease-out,

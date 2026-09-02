@@ -22,7 +22,7 @@
   color: inherit;
   font: inherit;
   text-align: start;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transition: border-color 0.12s ease, background 0.12s ease, box-shadow 0.12s ease;
 }
 

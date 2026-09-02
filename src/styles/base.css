@@ -35,19 +35,15 @@ button {
   font: inherit;
 }
 
-:where([data-po-appearance-root], .app-shell, .onboarding-shell, .desktop-overlay-root)[data-pointer-cursors="false"] {
+:where([data-po-appearance-root], .app-shell, .onboarding-shell, .desktop-overlay-root)[data-pointer-cursors] {
   --po-action-cursor: default;
-  --po-clickable-cursor: var(--po-action-cursor);
-}
-
-:where([data-po-appearance-root], .app-shell, .onboarding-shell, .desktop-overlay-root)[data-pointer-cursors="true"] {
-  --po-action-cursor: pointer;
   --po-clickable-cursor: var(--po-action-cursor);
 }
 
 :where([data-po-appearance-root], .app-shell, .onboarding-shell, .desktop-overlay-root)[data-pointer-cursors]
   :where(
     button:not(:disabled),
+    a[href],
     select:not(:disabled),
     summary,
     input[type="button"]:not(:disabled),
@@ -59,6 +55,7 @@ button {
     [role="button"]:not([aria-disabled="true"]),
     [role="checkbox"]:not([aria-disabled="true"]),
     [role="combobox"]:not([aria-disabled="true"]),
+    [role="link"]:not([aria-disabled="true"]),
     [role="menuitem"]:not([aria-disabled="true"]),
     [role="menuitemcheckbox"]:not([aria-disabled="true"]),
     [role="menuitemradio"]:not([aria-disabled="true"]),
@@ -67,18 +64,21 @@ button {
     [role="switch"]:not([aria-disabled="true"]),
     [role="tab"]:not([aria-disabled="true"]),
     [role="treeitem"]:not([aria-disabled="true"]),
+    [data-navigation-item],
+    [data-po-interaction="navigation"]:not(:disabled):not([aria-disabled="true"]),
     .desktop-settings-switch:not(:has(input:disabled))
   ) {
-  cursor: var(--po-clickable-cursor, default);
+  cursor: default;
 }
 
 /*
- * Navigation is a product affordance, not an appearance preference. Native
- * links opt in automatically; button-backed routes use the public
- * data-po-interaction contract. Rebinding the legacy component cursor token
- * locally keeps feature CSS compatible without relying on cascade order.
+ * Linear-style pointer cursors are reserved for destinations and only appear
+ * when the preference is enabled. Native links opt in automatically;
+ * button-backed routes use the public data-po-interaction contract. Rebinding
+ * the legacy component cursor token locally keeps feature CSS compatible
+ * without relying on cascade order.
  */
-:where([data-po-appearance-root], .app-shell, .onboarding-shell, .desktop-overlay-root)[data-pointer-cursors]
+:where([data-po-appearance-root], .app-shell, .onboarding-shell, .desktop-overlay-root)[data-pointer-cursors="true"]
   :where(
     a[href],
     [role="link"]:not([aria-disabled="true"]),

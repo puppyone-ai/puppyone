@@ -22,7 +22,7 @@
 }
 
 button.desktop-cloud-branch-graph-row {
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .desktop-cloud-branch-graph-row:hover,

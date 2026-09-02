@@ -461,7 +461,7 @@
   border-radius: 4px;
   background: transparent;
   color: inherit;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   font: inherit;
   place-items: center;
   line-height: 1;
@@ -489,7 +489,7 @@
   border-radius: 1.5px;
   background: transparent;
   color: var(--po-text-inverse);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   text-indent: 0;
   text-decoration: none;
   transition:
@@ -699,7 +699,7 @@
   min-height: 38px;
   padding: 0 1px 9px;
   white-space: nowrap;
-  cursor: pointer;
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .markdown-codemirror-editor .cm-md-mdx-tab::after {
@@ -731,7 +731,7 @@
 .markdown-codemirror-editor .cm-md-mdx-source-toggle {
   flex: 0 0 auto;
   padding: 0 2px 10px;
-  cursor: pointer;
+  cursor: var(--po-clickable-cursor, default);
   font-family: var(--po-font-mono);
   font-size: 11px;
   opacity: 0;

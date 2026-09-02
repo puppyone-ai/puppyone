@@ -92,7 +92,7 @@
   "appearance.headerElements.external-open": "Abrir externamente",
   "appearance.headerElements.terminal": "Terminal",
   "appearance.pointerCursors.title": "Cursores de puntero",
-  "appearance.pointerCursors.detail": "También muestra el cursor de mano sobre los controles de acción. Los enlaces y la navegación siempre lo usan.",
+  "appearance.pointerCursors.detail": "Muestra el cursor de mano solo sobre enlaces y destinos de navegación.",
   "account.title": "Cuenta",
   "account.detail": "Cuenta de PuppyOne Cloud y sesión de inicio de sesión del escritorio.",
   "account.statusLabel": "Estado",

@@ -345,7 +345,7 @@
 }
 
 .markdown-codemirror-editor .cm-md-html-rendered-surface summary {
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .markdown-codemirror-editor .cm-md-html-rendered-surface img {

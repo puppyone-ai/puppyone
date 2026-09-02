@@ -275,7 +275,7 @@
   border: 1px solid var(--po-divider);
   background: var(--po-canvas);
   color: var(--po-text);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .desktop-data-workspace-wrap {

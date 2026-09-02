@@ -102,7 +102,7 @@
   border-radius: 6px;
   background: transparent;
   color: var(--po-text-muted);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 

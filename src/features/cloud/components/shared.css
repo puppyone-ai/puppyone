@@ -104,7 +104,7 @@
   background: transparent;
   color: var(--po-text-muted);
   text-align: center;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transition:
     background 150ms ease,
     border-color 150ms ease,

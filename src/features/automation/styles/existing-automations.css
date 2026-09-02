@@ -119,7 +119,7 @@
   color: var(--po-text-muted);
   font: inherit;
   font-size: 12px;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .desktop-cloud-automation-creation-echo-actions > button:last-child {

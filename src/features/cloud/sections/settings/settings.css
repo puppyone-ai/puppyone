@@ -95,7 +95,7 @@
   font-weight: 400;
   line-height: 18px;
   white-space: nowrap;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transition: background 0.12s ease, color 0.12s ease;
 }
 
@@ -196,7 +196,7 @@
   font-weight: 500;
   line-height: 18px;
   white-space: nowrap;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease, transform 0.12s ease;
 }
 
@@ -366,7 +366,7 @@
   color: var(--po-text);
   font: inherit;
   text-align: start;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transition: background 0.12s ease, border-color 0.12s ease, transform 0.12s ease;
 }
 

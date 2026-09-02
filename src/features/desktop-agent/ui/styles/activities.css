@@ -20,7 +20,7 @@
   font-size: var(--agent-font-size);
   text-align: start;
 }
-.desktop-agent-activity-summary:not(:disabled) { cursor: var(--po-clickable-cursor, pointer); }
+.desktop-agent-activity-summary:not(:disabled) { cursor: var(--po-clickable-cursor, default); }
 .desktop-agent-activity-summary:hover:not(:disabled) { background: var(--agent-row-hover-surface); }
 .desktop-agent-activity-summary span { overflow: hidden; color: var(--agent-text-muted); text-overflow: ellipsis; white-space: nowrap; }
 .desktop-agent-activity-summary small { color: var(--agent-text-subtle); font-size: var(--agent-font-size-meta); text-transform: capitalize; }
@@ -51,7 +51,7 @@
   color: var(--po-accent-text);
   font: inherit;
   font-size: var(--agent-font-size-meta);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 .desktop-agent-review-change { margin-inline-end: 5px; }
 .desktop-agent-review-change:hover,
@@ -134,7 +134,7 @@
   font: inherit;
   text-align: start;
 }
-.desktop-agent-tool-row:not(:disabled) { cursor: var(--po-clickable-cursor, pointer); }
+.desktop-agent-tool-row:not(:disabled) { cursor: var(--po-clickable-cursor, default); }
 .desktop-agent-tool-row:hover:not(:disabled),
 .desktop-agent-tool-row:focus-visible { background: var(--agent-row-hover-surface); color: var(--agent-text); }
 .desktop-agent-tool-row:disabled { opacity: 1; }
@@ -336,7 +336,7 @@
   border-radius: 6px;
   background: color-mix(in srgb, var(--agent-report-surface) 92%, transparent);
   color: var(--agent-text-subtle);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 .desktop-agent-tool-copy:hover,
 .desktop-agent-tool-copy:focus-visible { background: var(--agent-row-hover-surface); color: var(--agent-text); }
@@ -390,7 +390,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.desktop-agent-file-list li > button { cursor: var(--po-clickable-cursor, pointer); }
+.desktop-agent-file-list li > button { cursor: var(--po-clickable-cursor, default); }
 .desktop-agent-file-list li > button:hover { color: var(--po-accent-text); }
 .desktop-agent-file-list small { display: inline-flex; gap: 5px; font-style: normal; }
 .desktop-agent-file-list b { color: var(--po-success); font-weight: 500; }
@@ -468,7 +468,7 @@
   background: color-mix(in srgb, var(--agent-report-surface) 94%, transparent);
   box-shadow: none;
   color: var(--agent-text);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transform: translateX(-50%);
 }
 .desktop-agent-jump-latest:hover { background: var(--agent-row-hover-surface); }
@@ -493,7 +493,7 @@
   color: var(--agent-text-muted);
   font: inherit;
   font-size: var(--agent-font-size);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .desktop-agent-changes-control:hover:not(:disabled) {

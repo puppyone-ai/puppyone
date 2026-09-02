@@ -167,7 +167,7 @@
   background: var(--po-panel-raised);
   color: var(--po-text-muted);
   font: inherit;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transition: border-color 120ms ease, background 120ms ease, color 120ms ease;
 }
 

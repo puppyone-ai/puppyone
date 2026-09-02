@@ -30,7 +30,7 @@
   background: var(--po-control);
   color: var(--po-text);
   font: inherit;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 .application-render-fallback > button:hover { background: var(--po-hover); }
 

@@ -315,7 +315,7 @@
   border-radius: var(--desktop-toolbar-action-radius);
   background: transparent;
   color: var(--desktop-titlebar-text-muted, var(--po-text-muted));
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transition: background 0.1s ease, color 0.1s ease;
 }
 

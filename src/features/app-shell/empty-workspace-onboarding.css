@@ -38,7 +38,7 @@
   border-radius: 9px;
   background: var(--po-panel-raised);
   color: var(--po-text);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transition: border-color 120ms ease, background 120ms ease;
 }
 
