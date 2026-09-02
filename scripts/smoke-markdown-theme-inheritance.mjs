@@ -17,7 +17,7 @@ const windows = [];
 async function runSmoke() {
   await fsp.access(indexPath);
   const followTheme = await runScenario("theme");
-  assert(followTheme.before.editorContentFont === "theme", "Follow-theme scenario started with a user font override.");
+  assert(followTheme.before.editorContentFontMode === "follow-theme", "Follow-theme scenario started with a user font override.");
   assert(
     followTheme.after.fontFamily.includes("PuppyOne PT Serif")
       && followTheme.after.fontFamily.includes("Songti SC"),
@@ -36,7 +36,8 @@ async function runSmoke() {
 
   const explicitSystem = await runScenario("system");
   assert(
-    explicitSystem.before.editorContentFont === "builtin:system-sans",
+    explicitSystem.before.editorContentFontMode === "explicit"
+      && explicitSystem.before.editorContentFont === "builtin:system-sans",
     "Explicit-font scenario did not publish its override identity.",
   );
   assert(
@@ -101,6 +102,7 @@ async function readSnapshot(window, captureHost) {
     const rootStyle = getComputedStyle(root);
     return {
       subThemeId: root.dataset.subThemeId,
+      editorContentFontMode: root.dataset.fontEditorContentMode,
       editorContentFont: root.dataset.fontEditorContent,
       hostFont: rootStyle.getPropertyValue('--po-host-md-content-font').trim(),
       fontFamily: getComputedStyle(content).fontFamily,

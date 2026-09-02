@@ -19,11 +19,10 @@ import {
   pulseGridFrame,
   type PulseGridFrames,
 } from "@puppyone/shared-ui";
-import { PulseGrid as DesktopPulseGrid } from "../src/components/loading";
 import {
-  LOADING_ANIMATION_CHANGE_EVENT,
-  LOADING_ANIMATION_STORAGE_KEY,
-} from "../src/preferences";
+  LoadingAnimationProvider,
+  PulseGrid as DesktopPulseGrid,
+} from "../src/components/loading";
 import { withTestLocalization } from "./testLocalization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -34,7 +33,6 @@ afterEach(() => {
   act(() => root?.unmount());
   root = null;
   vi.useRealTimers();
-  window.localStorage.removeItem(LOADING_ANIMATION_STORAGE_KEY);
   document.body.innerHTML = "";
 });
 
@@ -156,22 +154,28 @@ describe("PulseGridLoader frame sequencing", () => {
     expect(container.querySelector("[data-puppy-loader]")?.getAttribute("data-pulse-grid-frame")).toBe("0");
   });
 
-  it("switches the desktop loader immediately when Appearance changes the stored preset", () => {
+  it("switches the desktop loader immediately when the resolved Appearance changes", () => {
     vi.useFakeTimers();
-    window.localStorage.setItem(LOADING_ANIMATION_STORAGE_KEY, "ymca");
     const container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
 
-    act(() => root?.render(<DesktopPulseGrid frameDurationMs={1000} ariaLabel="Working" />));
+    act(() => root?.render(
+      <LoadingAnimationProvider preset="ymca">
+        <DesktopPulseGrid frameDurationMs={1000} ariaLabel="Working" />
+      </LoadingAnimationProvider>,
+    ));
     expect(brightPoints(container)).toEqual([
       PULSE_GRID_POINTS.topLeft,
       PULSE_GRID_POINTS.topRight,
     ]);
 
     act(() => {
-      window.localStorage.setItem(LOADING_ANIMATION_STORAGE_KEY, "siu");
-      window.dispatchEvent(new Event(LOADING_ANIMATION_CHANGE_EVENT));
+      root?.render(
+        <LoadingAnimationProvider preset="siu">
+          <DesktopPulseGrid frameDurationMs={1000} ariaLabel="Working" />
+        </LoadingAnimationProvider>,
+      );
     });
     expect(brightPoints(container)).toEqual([PULSE_GRID_POINTS.middleLeft]);
   });

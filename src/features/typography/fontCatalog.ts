@@ -1,9 +1,12 @@
-export const TYPOGRAPHY_PREFERENCE_VERSION = 3 as const;
-export const THEME_CONTENT_FONT_ID = "theme" as const;
+export const TYPOGRAPHY_PREFERENCE_VERSION = 4 as const;
 
 export type TypographyRole = "ui" | "content" | "code" | "terminal";
 export type FontSourceKind = "bundled" | "system" | "imported";
 export type FontCategory = "sans" | "serif" | "monospace";
+
+export type ContentFontPreference =
+  | Readonly<{ mode: "follow-theme" }>
+  | Readonly<{ mode: "explicit"; fontId: string }>;
 
 export type FontCatalogEntry = Readonly<{
   id: string;
@@ -18,15 +21,22 @@ export type FontCatalogEntry = Readonly<{
 
 export type TypographyPreferences = Readonly<{
   version: typeof TYPOGRAPHY_PREFERENCE_VERSION;
-  contentFontId: string;
+  contentFont: ContentFontPreference;
   codeFontId: string;
   terminalFontId: string;
+}>;
+
+export type ResolvedContentFontDecision = Readonly<{
+  requestedValue: ContentFontPreference;
+  effectiveFontId: string | null;
+  source: "theme" | "user" | "fallback";
 }>;
 
 export type ResolvedTypography = Readonly<{
   ui: FontCatalogEntry;
   content: FontCatalogEntry;
   editorContentOverride: FontCatalogEntry | null;
+  editorContentDecision: ResolvedContentFontDecision;
   code: FontCatalogEntry;
   terminal: FontCatalogEntry;
 }>;
@@ -89,7 +99,7 @@ export const BUILTIN_FONT_CATALOG = [
 
 export const DEFAULT_TYPOGRAPHY_PREFERENCES: TypographyPreferences = Object.freeze({
   version: TYPOGRAPHY_PREFERENCE_VERSION,
-  contentFontId: THEME_CONTENT_FONT_ID,
+  contentFont: Object.freeze({ mode: "follow-theme" }),
   codeFontId: BUILTIN_FONT_IDS.geistMono,
   terminalFontId: BUILTIN_FONT_IDS.terminalSystemMono,
 });
@@ -97,7 +107,7 @@ export const DEFAULT_TYPOGRAPHY_PREFERENCES: TypographyPreferences = Object.free
 type TypographyPreferenceRole = Exclude<TypographyRole, "ui">;
 
 const DEFAULT_FONT_ID_BY_ROLE: Readonly<Record<TypographyPreferenceRole, string>> = {
-  content: DEFAULT_TYPOGRAPHY_PREFERENCES.contentFontId,
+  content: BUILTIN_FONT_IDS.geistSans,
   code: DEFAULT_TYPOGRAPHY_PREFERENCES.codeFontId,
   terminal: DEFAULT_TYPOGRAPHY_PREFERENCES.terminalFontId,
 };
@@ -156,19 +166,12 @@ export function createCatalogFontFamily(entry: FontCatalogEntry) {
 export function parseTypographyPreferences(value: string | null | undefined): TypographyPreferences {
   if (!value) return DEFAULT_TYPOGRAPHY_PREFERENCES;
   try {
-    const parsed = JSON.parse(value) as (
-      Partial<Omit<TypographyPreferences, "version">> & { version?: unknown }
-    ) | null;
+    const parsed = JSON.parse(value) as Record<string, unknown> | null;
     if (!parsed || typeof parsed !== "object") return DEFAULT_TYPOGRAPHY_PREFERENCES;
-    const contentFontId = normalizeFontId(parsed.contentFontId, "content");
+    const contentFont = parseContentFontPreference(parsed);
     return Object.freeze({
       version: TYPOGRAPHY_PREFERENCE_VERSION,
-      contentFontId: (
-        (parsed.version === 1 || parsed.version === 2 || parsed.version === undefined)
-        && contentFontId === BUILTIN_FONT_IDS.geistSans
-      )
-        ? THEME_CONTENT_FONT_ID
-        : contentFontId,
+      contentFont,
       codeFontId: normalizeFontId(parsed.codeFontId, "code"),
       terminalFontId: normalizeFontId(parsed.terminalFontId, "terminal"),
     });
@@ -181,12 +184,12 @@ export function resolveTypography(
   preferences: TypographyPreferences,
   catalog: readonly FontCatalogEntry[] = BUILTIN_FONT_CATALOG,
 ): ResolvedTypography {
+  const contentDecision = resolveContentFontPreference(preferences.contentFont, catalog);
   return Object.freeze({
     ui: resolveFontForRole(PRODUCT_FONT_ID_BY_ROLE.ui, "ui", catalog),
     content: resolveFontForRole(PRODUCT_FONT_ID_BY_ROLE.content, "content", catalog),
-    editorContentOverride: preferences.contentFontId === THEME_CONTENT_FONT_ID
-      ? null
-      : resolveFontForRole(preferences.contentFontId, "content", catalog),
+    editorContentOverride: contentDecision.override,
+    editorContentDecision: contentDecision.decision,
     code: resolveFontForRole(preferences.codeFontId, "code", catalog),
     terminal: resolveFontForRole(preferences.terminalFontId, "terminal", catalog),
   });
@@ -201,10 +204,26 @@ export function withTypographyFont(
   return Object.freeze({
     ...preferences,
     version: TYPOGRAPHY_PREFERENCE_VERSION,
-    ...(role === "content" ? { contentFontId: normalizedId } : {}),
+    ...(role === "content"
+      ? { contentFont: Object.freeze({ mode: "explicit" as const, fontId: normalizedId }) }
+      : {}),
     ...(role === "code" ? { codeFontId: normalizedId } : {}),
     ...(role === "terminal" ? { terminalFontId: normalizedId } : {}),
   });
+}
+
+export function followThemeContentFont(
+  preferences: TypographyPreferences,
+): TypographyPreferences {
+  return Object.freeze({
+    ...preferences,
+    version: TYPOGRAPHY_PREFERENCE_VERSION,
+    contentFont: Object.freeze({ mode: "follow-theme" }),
+  });
+}
+
+export function isFollowingThemeContentFont(preferences: TypographyPreferences): boolean {
+  return preferences.contentFont.mode === "follow-theme";
 }
 
 function resolveFontForRole(
@@ -224,9 +243,81 @@ function resolveFontForRole(
   throw new Error(`Font catalog has no ${role} font.`);
 }
 
+function resolveContentFontPreference(
+  preference: ContentFontPreference,
+  catalog: readonly FontCatalogEntry[],
+): Readonly<{
+  override: FontCatalogEntry | null;
+  decision: ResolvedContentFontDecision;
+}> {
+  if (preference.mode === "follow-theme") {
+    return Object.freeze({
+      override: null,
+      decision: Object.freeze({
+        requestedValue: preference,
+        effectiveFontId: null,
+        source: "theme",
+      }),
+    });
+  }
+
+  const requested = catalog.find((entry) => (
+    entry.id === preference.fontId && entry.roles.includes("content")
+  ));
+  const override = requested ?? resolveFontForRole(
+    PRODUCT_FONT_ID_BY_ROLE.content,
+    "content",
+    catalog,
+  );
+  return Object.freeze({
+    override,
+    decision: Object.freeze({
+      requestedValue: preference,
+      effectiveFontId: override.id,
+      source: requested ? "user" : "fallback",
+    }),
+  });
+}
+
+function parseContentFontPreference(parsed: Record<string, unknown>): ContentFontPreference {
+  if (parsed.version === TYPOGRAPHY_PREFERENCE_VERSION) {
+    if (!isRecord(parsed.contentFont)) return DEFAULT_TYPOGRAPHY_PREFERENCES.contentFont;
+    if (parsed.contentFont.mode === "follow-theme") {
+      return Object.freeze({ mode: "follow-theme" });
+    }
+    if (parsed.contentFont.mode === "explicit") {
+      const fontId = typeof parsed.contentFont.fontId === "string"
+        ? parsed.contentFont.fontId.trim()
+        : "";
+      if (!FONT_ID_PATTERN.test(fontId)) return DEFAULT_TYPOGRAPHY_PREFERENCES.contentFont;
+      return Object.freeze({
+        mode: "explicit",
+        fontId,
+      });
+    }
+    return DEFAULT_TYPOGRAPHY_PREFERENCES.contentFont;
+  }
+
+  const legacyId = typeof parsed.contentFontId === "string"
+    ? parsed.contentFontId.trim()
+    : "";
+  if (!legacyId || legacyId === "theme") return Object.freeze({ mode: "follow-theme" });
+  const normalizedId = normalizeFontId(legacyId, "content");
+  if (
+    (parsed.version === 1 || parsed.version === 2 || parsed.version === undefined)
+    && normalizedId === BUILTIN_FONT_IDS.geistSans
+  ) {
+    return Object.freeze({ mode: "follow-theme" });
+  }
+  return Object.freeze({ mode: "explicit", fontId: normalizedId });
+}
+
 function normalizeFontId(value: unknown, role: TypographyPreferenceRole) {
   if (typeof value !== "string") return DEFAULT_FONT_ID_BY_ROLE[role];
   const normalized = value.trim();
-  if (role === "content" && normalized === THEME_CONTENT_FONT_ID) return normalized;
   return FONT_ID_PATTERN.test(normalized) ? normalized : DEFAULT_FONT_ID_BY_ROLE[role];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }

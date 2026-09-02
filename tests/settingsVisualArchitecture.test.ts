@@ -102,6 +102,7 @@ describe("settings visual architecture", () => {
     const settingsView = source("src/features/settings/SettingsView.tsx");
     const editorSettings = source("src/features/settings/main/EditorSettingsView.tsx");
     const preferences = source("src/preferences.ts");
+    const loading = source("src/components/loading/index.tsx");
     const app = source("src/App.tsx");
     const reviewRuntime = source("src/features/data-workspace/useAiEditReviewRequest.ts");
     const reviewEngine = source("local-api/edit-review.mjs");
@@ -123,7 +124,8 @@ describe("settings visual architecture", () => {
     expect(preferences).toContain("AI_EDIT_ASSIST_STORAGE_KEY");
     expect(preferences).toContain("DIFF_MARKERS_STORAGE_KEY");
     expect(app).toContain("useAiEditReviewRequest");
-    expect(app).toContain("data-diff-markers={diffMarkers}");
+    expect(app).toContain("diffMarkers,");
+    expect(app).toContain("{...surfaceAppearance.rootProps}");
     expect(reviewRuntime).toContain("subscribeAiEditReviewUpdates");
     expect(reviewEngine).toContain("flushWorkspaceEditReviewChanges");
   });
@@ -224,7 +226,8 @@ describe("settings visual architecture", () => {
 
   it("offers every loading animation preset from Appearance with localized labels", () => {
     const view = source("src/features/settings/SettingsView.tsx");
-    const preferences = source("src/preferences.ts");
+    const appearancePreferences = source("src/features/appearance/appearancePreferences.ts");
+    const loading = source("src/components/loading/index.tsx");
     const manifest = JSON.parse(source("locales/manifest.json")) as {
       locales: Array<{ locale: string }>;
     };
@@ -234,7 +237,9 @@ describe("settings visual architecture", () => {
     expect(view).toContain("onLoadingAnimationPresetChange(presetId)");
     expect(view.indexOf('settings.appearance.loadingAnimation.title'))
       .toBeGreaterThan(view.indexOf('settings.appearance.navigation.title'));
-    expect(preferences).toContain('LOADING_ANIMATION_STORAGE_KEY = "puppyone.desktop.loadingAnimation"');
+    expect(appearancePreferences).toContain("loadingAnimationPreset: LoadingAnimationPreset");
+    expect(loading).toContain("LoadingAnimationContext");
+    expect(loading).not.toContain("localStorage");
 
     for (const { locale } of manifest.locales) {
       const catalog = JSON.parse(source(`locales/renderer/${locale}/settings.json`)) as Record<string, string>;

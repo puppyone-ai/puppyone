@@ -22,7 +22,8 @@ export type TypographyRootProps = {
   "data-font-ui-category": FontCatalogEntry["category"];
   "data-font-content": string;
   "data-font-content-category": FontCatalogEntry["category"];
-  "data-font-editor-content": string;
+  "data-font-editor-content-mode": "follow-theme" | "explicit";
+  "data-font-editor-content"?: string;
   "data-font-code": string;
   "data-font-code-category": FontCatalogEntry["category"];
   "data-font-terminal": string;
@@ -102,7 +103,10 @@ export function createTypographyRootProps(resolved: ResolvedTypography): Typogra
     "data-font-ui-category": resolved.ui.category,
     "data-font-content": resolved.content.id,
     "data-font-content-category": resolved.content.category,
-    "data-font-editor-content": resolved.editorContentOverride?.id ?? "theme",
+    "data-font-editor-content-mode": resolved.editorContentOverride ? "explicit" : "follow-theme",
+    ...(resolved.editorContentOverride
+      ? { "data-font-editor-content": resolved.editorContentOverride.id }
+      : {}),
     "data-font-code": resolved.code.id,
     "data-font-code-category": resolved.code.category,
     "data-font-terminal": resolved.terminal.id,
@@ -124,7 +128,9 @@ export function applyTypographyToElement(element: HTMLElement, resolved: Resolve
   element.dataset.fontUiCategory = resolved.ui.category;
   element.dataset.fontContent = resolved.content.id;
   element.dataset.fontContentCategory = resolved.content.category;
-  element.dataset.fontEditorContent = resolved.editorContentOverride?.id ?? "theme";
+  element.dataset.fontEditorContentMode = resolved.editorContentOverride ? "explicit" : "follow-theme";
+  if (resolved.editorContentOverride) element.dataset.fontEditorContent = resolved.editorContentOverride.id;
+  else delete element.dataset.fontEditorContent;
   element.dataset.fontCode = resolved.code.id;
   element.dataset.fontCodeCategory = resolved.code.category;
   element.dataset.fontTerminal = resolved.terminal.id;

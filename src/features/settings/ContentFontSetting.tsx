@@ -28,10 +28,10 @@ export function ContentFontSetting({
         {contentFonts.map((font) => (
           <button
             key={font.id}
-            className={preferences.contentFontId === font.id ? "active" : ""}
+            className={preferences.contentFont.mode === "explicit" && preferences.contentFont.fontId === font.id ? "active" : ""}
             type="button"
             aria-label={t("settings.appearance.contentFont.use", { font: bidiIsolate(font.label) })}
-            aria-pressed={preferences.contentFontId === font.id}
+            aria-pressed={preferences.contentFont.mode === "explicit" && preferences.contentFont.fontId === font.id}
             onClick={() => onChange(withTypographyFont(preferences, "content", font.id))}
           >
             <span style={{ fontFamily: createCatalogFontFamily(font) }}>{font.label}</span>

@@ -7,7 +7,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { MarkdownFontSetting } from "../src/features/settings/MarkdownFontSetting";
 import {
   DEFAULT_TYPOGRAPHY_PREFERENCES,
-  THEME_CONTENT_FONT_ID,
   TypographyCatalogProvider,
   type FontCatalogEntry,
 } from "../src/features/typography";
@@ -46,7 +45,7 @@ describe("MarkdownFontSetting", () => {
         === "Follow the active theme font for Markdown text"
       ));
     expect(themeButton?.getAttribute("aria-pressed")).toBe("true");
-    expect(DEFAULT_TYPOGRAPHY_PREFERENCES.contentFontId).toBe(THEME_CONTENT_FONT_ID);
+    expect(DEFAULT_TYPOGRAPHY_PREFERENCES.contentFont).toEqual({ mode: "follow-theme" });
 
     const serifButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
       .find((candidate) => (
@@ -86,7 +85,7 @@ describe("MarkdownFontSetting", () => {
     act(() => buttons.at(-1)?.click());
     expect(onChange).toHaveBeenCalledWith({
       ...DEFAULT_TYPOGRAPHY_PREFERENCES,
-      contentFontId: importedFont.id,
+      contentFont: { mode: "explicit", fontId: importedFont.id },
     });
   });
 });

@@ -11,11 +11,8 @@ import { PUPPY_BRAND_MARK_ASSETS } from "../src/components/brand/PuppyBrandMark"
 import {
   EMPTY_STATE_INTRO_FALLBACK_TIMEOUT_MS,
 } from "../src/components/onboarding/emptyStateIntro";
-import {
-  DEFAULT_TYPOGRAPHY_PREFERENCES,
-  resolveTypography,
-} from "../src/features/typography";
 import { renderWithTestLocalization } from "./testLocalization";
+import { createTestSurfaceAppearance } from "./testSurfaceAppearance";
 import type { DesktopTelemetryState } from "../src/types/electron";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -48,17 +45,17 @@ describe("project folder home", () => {
     const styles = document.createElement("style");
     styles.textContent = `
       .onboarding-shell.dark { --po-surface-canvas: #161413; }
-      [data-po-appearance-root][data-sub-theme-id="default.forest"].dark {
+      [data-po-appearance-root][data-sub-theme-id="default.newspaper"].dark {
         --po-surface-canvas: #092d30;
       }
     `;
     document.head.append(styles);
 
-    const container = renderHome({ subThemeId: "default.forest" });
+    const container = renderHome({}, { subThemeId: "default.newspaper" });
     const surface = requireSurface(container);
 
     expect(surface.dataset.poAppearanceRoot).toBe("true");
-    expect(surface.dataset.subThemeId).toBe("default.forest");
+    expect(surface.dataset.subThemeId).toBe("default.newspaper");
     expect(getComputedStyle(surface).getPropertyValue("--po-surface-canvas").trim())
       .toBe("#092d30");
     styles.remove();
@@ -189,7 +186,7 @@ describe("project folder home", () => {
   });
 
   it("uses Puppy Lite only when the resolved theme is light", () => {
-    const container = renderHome({ resolvedTheme: "light" });
+    const container = renderHome({}, { themeMode: "light" });
 
     expectBrandLockup(
       container,
@@ -601,7 +598,10 @@ describe("project folder home", () => {
   });
 });
 
-function renderHome(overrides: Partial<MinimalOnboardingProps> = {}) {
+function renderHome(
+  overrides: Partial<Omit<MinimalOnboardingProps, "appearance">> & Pick<Partial<MinimalOnboardingProps>, "appearance"> = {},
+  appearanceInput: Parameters<typeof createTestSurfaceAppearance>[0] = {},
+) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
@@ -609,15 +609,7 @@ function renderHome(overrides: Partial<MinimalOnboardingProps> = {}) {
     onChooseWorkspace: vi.fn(async () => undefined),
     onOpenDroppedWorkspace: vi.fn(async () => undefined),
     onOpenWorkspacePath: vi.fn(async () => undefined),
-    themeMode: "dark",
-    lightThemePreset: "neutral",
-    darkThemePreset: "default",
-    textSize: "default",
-    typography: resolveTypography(DEFAULT_TYPOGRAPHY_PREFERENCES),
-    pointerCursors: false,
-    diffMarkers: "color",
-    resolvedTheme: "dark",
-    subThemeId: "default.neutral",
+    appearance: createTestSurfaceAppearance(appearanceInput),
     ...overrides,
   };
   act(() => renderWithTestLocalization(root, React.createElement(MinimalOnboarding, props)));

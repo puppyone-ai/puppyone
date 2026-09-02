@@ -3,21 +3,21 @@ import type { FileIconThemeId } from "@puppyone/shared-ui";
 import {
   getDefaultSubThemeId,
   getInterfaceStyleFirstPaint,
-  LEGACY_APPEARANCE_PREFERENCES_STORAGE_KEY,
   supportsThemePreset,
 } from "../appearance/interfaceStyles";
 import {
   APPEARANCE_PREFERENCES_STORAGE_KEY,
-  createAppearancePreferencesV4,
+  createAppearancePreferencesV5,
   readAppearancePreferences,
   serializeAppearancePreferences,
   type RootThemeAppearancePreferences,
 } from "../appearance/appearancePreferences";
-import { resolveAppearance } from "../appearance/resolveAppearance";
 import {
-  LEGACY_SURFACE_THEME_PREFERENCES_STORAGE_KEY,
-  readLegacySurfaceSubThemeId,
-} from "../themes/subThemePreferences";
+  readLegacyAppearanceDocument,
+  readLegacyAppearanceSnapshot,
+  removeLegacyAppearancePreferences,
+} from "../appearance/legacyAppearancePreferences";
+import { resolveAppearance } from "../appearance/resolveAppearance";
 import { BUILTIN_SUB_THEMES } from "../themes/builtinSubThemes";
 import type { SubThemeCatalogSnapshot } from "../themes/themeTypes";
 import {
@@ -25,29 +25,15 @@ import {
   AGENT_FILE_ACTIVITY_INDICATORS_STORAGE_KEY,
   CREATE_NEW_MENU_STORAGE_KEY,
   DIFF_MARKERS_STORAGE_KEY,
-  MARKDOWN_PRESENTATION_STORAGE_KEY,
   EXPERIMENTAL_SETTINGS_STORAGE_KEY,
   FILES_VISIBILITY_STORAGE_KEY,
-  FILE_ICON_THEME_STORAGE_KEY,
   GIT_DISPLAY_MODE_STORAGE_KEY,
   GIT_SIDEBAR_LAYOUT_STORAGE_KEY,
-  INTERFACE_STYLE_STORAGE_KEY,
-  DARK_THEME_PRESET_STORAGE_KEY,
-  LIGHT_THEME_PRESET_STORAGE_KEY,
-  LOADING_ANIMATION_CHANGE_EVENT,
-  LOADING_ANIMATION_STORAGE_KEY,
   LOCAL_AGENTS_STORAGE_KEY,
-  POINTER_CURSORS_STORAGE_KEY,
   RIGHT_SIDEBAR_TOOLS_STORAGE_KEY,
-  SIDEBAR_NAVIGATION_LAYOUT_STORAGE_KEY,
   SIDEBAR_NAVIGATION_VISIBILITY_STORAGE_KEY,
-  TEXT_SIZE_STORAGE_KEY,
-  TYPOGRAPHY_STORAGE_KEY,
-  THEME_STORAGE_KEY,
   TITLEBAR_ACTIONS_STORAGE_KEY,
-  parseLoadingAnimationPreset,
   parseCreateNewMenuSettings,
-  parseTypography,
   type CreateNewMenuSettings,
   type DiffMarkers,
   type ExperimentalSettings,
@@ -65,10 +51,7 @@ import {
   type TypographyPreferences,
   type TitlebarActionsSettings,
 } from "../../preferences";
-import {
-  serializeMarkdownPresentationSettings,
-  type MarkdownPresentationSettings,
-} from "../markdown/markdownPresentation";
+import type { MarkdownPresentationSettings } from "../markdown/markdownPresentation";
 import {
   AGENT_ROUTING_PREFERENCES_STORAGE_KEY,
   AGENT_PREFERRED_RUNTIME_STORAGE_KEY,
@@ -84,28 +67,17 @@ import {
   readInitialCreateNewMenuSettings,
   readInitialExperimentalSettings,
   readInitialExplorerWidth,
-  readInitialFileIconTheme,
   readInitialFilesVisibilitySettings,
   readInitialGitDisplayMode,
   readInitialGitSidebarLayout,
-  readInitialInterfaceStyle,
   readInitialRightSidebarToolsSettings,
   readInitialRightSidebarWidth,
   readInitialRightSidebarSurface,
   readInitialSidebarCollapsed,
-  readInitialSidebarNavigationLayout,
   readInitialSidebarNavigationVisibilitySettings,
   readInitialTitlebarActionsSettings,
   readInitialDiffMarkers,
-  readInitialDarkThemePreset,
-  readInitialLightThemePreset,
-  readInitialMarkdownPresentationSettings,
-  readInitialLoadingAnimationPreset,
   readInitialLocalAgentsSettings,
-  readInitialPointerCursors,
-  readInitialTextSize,
-  readInitialTypographyPreferences,
-  readInitialThemeMode,
   readSystemDarkMode,
 } from "./preferences";
 import {
@@ -124,26 +96,14 @@ const BUILTIN_SUB_THEME_CATALOG: SubThemeCatalogSnapshot = Object.freeze({
 export function useDesktopPreferences(
   subThemeCatalog: SubThemeCatalogSnapshot = BUILTIN_SUB_THEME_CATALOG,
 ) {
-  const [initialAppearanceRead] = useState(() => readAppearancePreferences(
-    window.localStorage.getItem(APPEARANCE_PREFERENCES_STORAGE_KEY)
-      ?? window.localStorage.getItem(LEGACY_APPEARANCE_PREFERENCES_STORAGE_KEY),
-    {
-      activeStyle: readInitialInterfaceStyle(),
-      themeMode: readInitialThemeMode(),
-      lightThemePreset: readInitialLightThemePreset(),
-      darkThemePreset: readInitialDarkThemePreset(),
-      legacySubThemeId: readLegacySurfaceSubThemeId(
-        window.localStorage.getItem(LEGACY_SURFACE_THEME_PREFERENCES_STORAGE_KEY),
-      ),
-      markdownPresentation: readInitialMarkdownPresentationSettings(),
-      textSize: readInitialTextSize(),
-      typography: readInitialTypographyPreferences(),
-      pointerCursors: readInitialPointerCursors(),
-      loadingAnimationPreset: readInitialLoadingAnimationPreset(),
-      fileIconTheme: readInitialFileIconTheme(),
-      sidebarNavigationLayout: readInitialSidebarNavigationLayout(),
-    },
-  ));
+  const [initialAppearanceRead] = useState(() => {
+    const legacy = readLegacyAppearanceSnapshot();
+    return readAppearancePreferences(
+      window.localStorage.getItem(APPEARANCE_PREFERENCES_STORAGE_KEY)
+        ?? readLegacyAppearanceDocument(),
+      legacy,
+    );
+  });
   const initialAppearance = initialAppearanceRead.preferences;
   const [interfaceStyle, setInterfaceStyle] = useState<InterfaceStyle>(
     initialAppearance.activeRootThemeId,
@@ -268,12 +228,7 @@ export function useDesktopPreferences(
     ));
   }, [interfaceStyle, resolvedAppearance.effectiveColorMode]);
 
-  useEffect(() => {
-    window.localStorage.setItem(THEME_STORAGE_KEY, themeMode);
-  }, [themeMode]);
-
   useLayoutEffect(() => {
-    window.localStorage.setItem(INTERFACE_STYLE_STORAGE_KEY, interfaceStyle);
     const root = document.documentElement;
     const firstPaint = getInterfaceStyleFirstPaint(
       interfaceStyle,
@@ -309,70 +264,12 @@ export function useDesktopPreferences(
   }, [activeThemeMode, activeThemePreset, interfaceStyle, resolvedAppearance, resolvedTheme]);
 
   useEffect(() => {
-    window.localStorage.setItem(LIGHT_THEME_PRESET_STORAGE_KEY, lightThemePreset);
-  }, [lightThemePreset]);
-
-  useEffect(() => {
-    window.localStorage.setItem(DARK_THEME_PRESET_STORAGE_KEY, darkThemePreset);
-  }, [darkThemePreset]);
-
-  useEffect(() => {
-    window.localStorage.setItem(TEXT_SIZE_STORAGE_KEY, textSize);
-  }, [textSize]);
-
-  useEffect(() => {
-    window.localStorage.setItem(TYPOGRAPHY_STORAGE_KEY, JSON.stringify(typographyPreferences));
-  }, [typographyPreferences]);
-
-  useEffect(() => {
-    const syncTypographyAcrossWindows = (event: StorageEvent) => {
-      if (event.key !== TYPOGRAPHY_STORAGE_KEY && event.key !== null) return;
-      setTypographyPreferences(parseTypography(event.key === null ? null : event.newValue));
-    };
-    window.addEventListener("storage", syncTypographyAcrossWindows);
-    return () => window.removeEventListener("storage", syncTypographyAcrossWindows);
-  }, []);
-
-  useEffect(() => {
-    window.localStorage.setItem(POINTER_CURSORS_STORAGE_KEY, pointerCursors ? "true" : "false");
-  }, [pointerCursors]);
-
-  useEffect(() => {
-    window.localStorage.setItem(LOADING_ANIMATION_STORAGE_KEY, loadingAnimationPreset);
-    window.dispatchEvent(new Event(LOADING_ANIMATION_CHANGE_EVENT));
-  }, [loadingAnimationPreset]);
-
-  useEffect(() => {
-    const syncLoadingAnimationAcrossWindows = (event: StorageEvent) => {
-      if (event.key !== LOADING_ANIMATION_STORAGE_KEY && event.key !== null) return;
-      setLoadingAnimationPreset(parseLoadingAnimationPreset(event.key === null ? null : event.newValue));
-    };
-    window.addEventListener("storage", syncLoadingAnimationAcrossWindows);
-    return () => window.removeEventListener("storage", syncLoadingAnimationAcrossWindows);
-  }, []);
-
-  useEffect(() => {
     window.localStorage.setItem(DIFF_MARKERS_STORAGE_KEY, diffMarkers);
   }, [diffMarkers]);
 
   useEffect(() => {
-    window.localStorage.setItem(
-      MARKDOWN_PRESENTATION_STORAGE_KEY,
-      serializeMarkdownPresentationSettings(markdownPresentation),
-    );
-  }, [markdownPresentation]);
-
-  useEffect(() => {
-    window.localStorage.setItem(FILE_ICON_THEME_STORAGE_KEY, fileIconTheme);
-  }, [fileIconTheme]);
-
-  useEffect(() => {
-    window.localStorage.setItem(SIDEBAR_NAVIGATION_LAYOUT_STORAGE_KEY, sidebarNavigationLayout);
-  }, [sidebarNavigationLayout]);
-
-  useEffect(() => {
     if (!initialAppearanceRead.writable) return;
-    const preferences = createAppearancePreferencesV4({
+    const preferences = createAppearancePreferencesV5({
       activeRootThemeId: interfaceStyle,
       shared: {
         textSize,
@@ -385,10 +282,15 @@ export function useDesktopPreferences(
       byRootTheme,
       bySurface: { markdown: markdownPresentation },
     });
-    window.localStorage.setItem(
-      APPEARANCE_PREFERENCES_STORAGE_KEY,
-      serializeAppearancePreferences(preferences),
-    );
+    try {
+      window.localStorage.setItem(
+        APPEARANCE_PREFERENCES_STORAGE_KEY,
+        serializeAppearancePreferences(preferences),
+      );
+      removeLegacyAppearancePreferences();
+    } catch {
+      // Persistence failure must not crash the renderer or erase migration inputs.
+    }
   }, [
     byRootTheme,
     fileIconTheme,

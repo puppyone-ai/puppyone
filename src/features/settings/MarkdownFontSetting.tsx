@@ -2,8 +2,9 @@ import type { TypographyPreferences } from "../../preferences";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
 import {
   createCatalogFontFamily,
+  followThemeContentFont,
   getFontCatalogEntries,
-  THEME_CONTENT_FONT_ID,
+  isFollowingThemeContentFont,
   useTypographyCatalog,
   withTypographyFont,
 } from "../typography";
@@ -27,21 +28,21 @@ export function MarkdownFontSetting({
         aria-label={t("settings.editor.typography.textFont.ariaLabel")}
       >
         <button
-          className={preferences.contentFontId === THEME_CONTENT_FONT_ID ? "active" : ""}
+          className={isFollowingThemeContentFont(preferences) ? "active" : ""}
           type="button"
           aria-label={t("settings.editor.typography.textFont.theme.use")}
-          aria-pressed={preferences.contentFontId === THEME_CONTENT_FONT_ID}
-          onClick={() => onChange(withTypographyFont(preferences, "content", THEME_CONTENT_FONT_ID))}
+          aria-pressed={isFollowingThemeContentFont(preferences)}
+          onClick={() => onChange(followThemeContentFont(preferences))}
         >
           <span>{t("settings.editor.typography.textFont.theme.label")}</span>
         </button>
         {markdownFonts.map((font) => (
           <button
             key={font.id}
-            className={preferences.contentFontId === font.id ? "active" : ""}
+            className={preferences.contentFont.mode === "explicit" && preferences.contentFont.fontId === font.id ? "active" : ""}
             type="button"
             aria-label={t("settings.editor.typography.textFont.use", { font: bidiIsolate(font.label) })}
-            aria-pressed={preferences.contentFontId === font.id}
+            aria-pressed={preferences.contentFont.mode === "explicit" && preferences.contentFont.fontId === font.id}
             onClick={() => onChange(withTypographyFont(preferences, "content", font.id))}
           >
             <span style={{ fontFamily: createCatalogFontFamily(font) }}>{font.label}</span>

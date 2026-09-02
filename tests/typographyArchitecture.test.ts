@@ -24,36 +24,48 @@ describe("typography architecture", () => {
       terminalFontId: BUILTIN_FONT_IDS.terminalSystemMono,
     }));
 
-    expect(migrated.version).toBe(3);
+    expect(migrated.version).toBe(4);
     expect(migrated).not.toHaveProperty("uiFontId");
     expect(resolveTypography(migrated).ui.id).toBe(BUILTIN_FONT_IDS.geistSans);
   });
 
   it("defaults content typography to Theme and migrates the legacy default font", () => {
-    expect(DEFAULT_TYPOGRAPHY_PREFERENCES.contentFontId).toBe("theme");
+    expect(DEFAULT_TYPOGRAPHY_PREFERENCES.contentFont).toEqual({ mode: "follow-theme" });
     expect(parseTypographyPreferences(JSON.stringify({
       version: 1,
       uiFontId: BUILTIN_FONT_IDS.geistSans,
       contentFontId: BUILTIN_FONT_IDS.geistSans,
       codeFontId: BUILTIN_FONT_IDS.geistMono,
       terminalFontId: BUILTIN_FONT_IDS.terminalSystemMono,
-    })).contentFontId).toBe("theme");
+    })).contentFont).toEqual({ mode: "follow-theme" });
     expect(parseTypographyPreferences(JSON.stringify({
       version: 2,
       contentFontId: BUILTIN_FONT_IDS.geistSans,
       codeFontId: BUILTIN_FONT_IDS.geistMono,
       terminalFontId: BUILTIN_FONT_IDS.terminalSystemMono,
-    })).contentFontId).toBe("theme");
+    })).contentFont).toEqual({ mode: "follow-theme" });
     expect(parseTypographyPreferences(JSON.stringify({
       version: 1,
       contentFontId: BUILTIN_FONT_IDS.systemSerif,
-    })).contentFontId).toBe(BUILTIN_FONT_IDS.systemSerif);
+    })).contentFont).toEqual({ mode: "explicit", fontId: BUILTIN_FONT_IDS.systemSerif });
     expect(parseTypographyPreferences(JSON.stringify({
       version: 3,
       contentFontId: BUILTIN_FONT_IDS.geistSans,
       codeFontId: BUILTIN_FONT_IDS.geistMono,
       terminalFontId: BUILTIN_FONT_IDS.terminalSystemMono,
-    })).contentFontId).toBe(BUILTIN_FONT_IDS.geistSans);
+    })).contentFont).toEqual({ mode: "explicit", fontId: BUILTIN_FONT_IDS.geistSans });
+    expect(parseTypographyPreferences(JSON.stringify({
+      version: 4,
+      contentFont: { mode: "follow-theme" },
+    })).contentFont).toEqual({ mode: "follow-theme" });
+    expect(parseTypographyPreferences(JSON.stringify({
+      version: 3,
+      codeFontId: BUILTIN_FONT_IDS.geistMono,
+    })).contentFont).toEqual({ mode: "follow-theme" });
+    expect(parseTypographyPreferences(JSON.stringify({
+      version: 4,
+      contentFont: { mode: "explicit", fontId: "font-family: serif" },
+    })).contentFont).toEqual({ mode: "follow-theme" });
   });
 
   it("keeps preferences source-agnostic and resolves unavailable fonts safely", () => {
@@ -65,8 +77,11 @@ describe("typography architecture", () => {
       codeFontId: BUILTIN_FONT_IDS.geistMono,
     }));
 
-    expect(preferences.contentFontId).toBe(importedId);
-    expect(resolveTypography(preferences).content.id).toBe(BUILTIN_FONT_IDS.geistSans);
+    expect(preferences.contentFont).toEqual({ mode: "explicit", fontId: importedId });
+    expect(resolveTypography(preferences).editorContentDecision).toMatchObject({
+      effectiveFontId: BUILTIN_FONT_IDS.geistSans,
+      source: "fallback",
+    });
 
     const importedEntry: FontCatalogEntry = {
       id: importedId,
@@ -83,6 +98,7 @@ describe("typography architecture", () => {
     expect(createTypographyRootProps(resolved)).toMatchObject({
       "data-font-content": BUILTIN_FONT_IDS.geistSans,
       "data-font-content-category": "sans",
+      "data-font-editor-content-mode": "explicit",
       "data-font-editor-content": importedId,
       style: {
         "--po-font-content-primary": '"Geist Sans"',
@@ -117,7 +133,7 @@ describe("typography architecture", () => {
 
     expect(next).toEqual({
       ...DEFAULT_TYPOGRAPHY_PREFERENCES,
-      contentFontId: BUILTIN_FONT_IDS.systemSerif,
+      contentFont: { mode: "explicit", fontId: BUILTIN_FONT_IDS.systemSerif },
     });
     const explicit = resolveTypography(next);
     expect(explicit.editorContentOverride?.id).toBe(BUILTIN_FONT_IDS.systemSerif);
@@ -182,6 +198,7 @@ describe("typography architecture", () => {
     const plainTextEditor = source("packages/shared-ui/src/editor/viewers/code/PlainTextEditor.tsx");
     const agentMarkdown = source("src/features/desktop-agent/ui/markdown/AgentMarkdownDocument.tsx");
     const typographyRuntime = source("src/features/typography/typographyRuntime.ts");
+    const appearanceRuntime = source("src/features/appearance/AppearanceRuntime.tsx");
     const app = source("src/App.tsx");
 
     expect(styles).toContain('@import "./styles/typography/foundations.css" layer(tokens);');
@@ -216,7 +233,7 @@ describe("typography architecture", () => {
     expect(markdownContent).toContain("--po-md-content-font-fallback: var(--po-font-content-fallback");
     expect(markdownContent).toContain("--po-md-content-font: var(--po-host-md-content-font, var(--po-md-content-font-primary), var(--po-md-content-font-fallback));");
     expect(markdownContent).toContain("--po-editor-content-font: var(--po-font-editor-content-user, var(--po-md-content-font));");
-    expect(markdownContent).toContain('[data-font-editor-content]:not([data-font-editor-content="theme"])');
+    expect(markdownContent).toContain('[data-font-editor-content-mode="explicit"]');
     expect(markdownContent).toContain("font-family: var(--po-font-editor-content-user) !important;");
     expect(markdownContent).toContain(".cm-line:not(.cm-md-code-block-line)");
     expect(markdownContent).toContain('[data-po-theme-surface="markdown"] .cm-md-inline-code,');
@@ -245,13 +262,15 @@ describe("typography architecture", () => {
     expect(typographyRuntime).toContain('"--po-font-editor-content-user"');
     expect(typographyRuntime).not.toContain('"--po-font-content": resolved.content.family');
     expect(app).toContain("fontCatalog,\n    locale,");
-    expect(app).toContain("data-content-text-size={textSize}");
+    expect(appearanceRuntime).toContain('"data-content-text-size": appearance.textSize');
+    expect(appearanceRuntime).toContain("SurfaceAppearanceProvider");
+    expect(app).toContain("...surfaceAppearance.rootProps");
     expect(app).not.toContain("data-interface-text-size={textSize}");
     expect(app).not.toContain("data-terminal-text-size={textSize}");
     expect(app).not.toContain("data-text-size={textSize}");
     expect(terminalAppearanceSync).not.toContain('"data-terminal-text-size"');
     expect(terminalAppearanceSync).not.toContain('"data-text-size"');
-    expect(overlayPortal).toContain("root.dataset.contentTextSize = textSize");
+    expect(overlayPortal).toContain("applySurfaceAppearanceToElement(root, appearance)");
     expect(overlayPortal).not.toContain("root.dataset.interfaceTextSize");
     expect(overlayPortal).not.toContain("root.dataset.terminalTextSize");
     expect(overlayPortal).not.toContain("root.dataset.textSize");

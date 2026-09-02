@@ -31,7 +31,7 @@ import { isSubThemeId, normalizeSubThemeId } from "../themes/subThemePreferences
 
 export { APPEARANCE_PREFERENCES_STORAGE_KEY };
 
-export const APPEARANCE_PREFERENCES_SCHEMA_VERSION = 4 as const;
+export const APPEARANCE_PREFERENCES_SCHEMA_VERSION = 5 as const;
 
 export type AppearanceSharedPreferences = Readonly<{
   textSize: TextSize;
@@ -51,7 +51,7 @@ export type AppearanceSurfaceOverridePreferences = Readonly<{
   markdown: MarkdownPresentationSettings;
 }>;
 
-export type AppearancePreferencesV4 = Readonly<{
+export type AppearancePreferencesV5 = Readonly<{
   schemaVersion: typeof APPEARANCE_PREFERENCES_SCHEMA_VERSION;
   activeRootThemeId: InterfaceStyle;
   shared: AppearanceSharedPreferences;
@@ -75,8 +75,8 @@ export type LegacyAppearanceSnapshot = Readonly<{
 }>;
 
 export type AppearancePreferencesReadResult = Readonly<{
-  preferences: AppearancePreferencesV4;
-  source: "v4" | "migrated" | "legacy" | "future";
+  preferences: AppearancePreferencesV5;
+  source: "v5" | "migrated" | "legacy" | "future";
   writable: boolean;
 }>;
 
@@ -107,23 +107,23 @@ export function readAppearancePreferences(
 
   return {
     preferences: parsed.schemaVersion === APPEARANCE_PREFERENCES_SCHEMA_VERSION
-      ? normalizeV4(parsed, legacy)
+      ? normalizeV5(parsed, legacy)
       : migrateLegacyDocument(parsed, legacy),
-    source: parsed.schemaVersion === APPEARANCE_PREFERENCES_SCHEMA_VERSION ? "v4" : "migrated",
+    source: parsed.schemaVersion === APPEARANCE_PREFERENCES_SCHEMA_VERSION ? "v5" : "migrated",
     writable: true,
   };
 }
 
-export function serializeAppearancePreferences(preferences: AppearancePreferencesV4): string {
+export function serializeAppearancePreferences(preferences: AppearancePreferencesV5): string {
   return JSON.stringify(preferences);
 }
 
-export function createAppearancePreferencesV4(input: {
+export function createAppearancePreferencesV5(input: {
   activeRootThemeId: InterfaceStyle;
   shared: AppearanceSharedPreferences;
   byRootTheme: Readonly<Record<string, RootThemeAppearancePreferences>>;
   bySurface?: Partial<AppearanceSurfaceOverridePreferences>;
-}): AppearancePreferencesV4 {
+}): AppearancePreferencesV5 {
   return Object.freeze({
     schemaVersion: APPEARANCE_PREFERENCES_SCHEMA_VERSION,
     activeRootThemeId: input.activeRootThemeId,
@@ -137,9 +137,9 @@ export function createAppearancePreferencesV4(input: {
   });
 }
 
-function fromLegacy(legacy: LegacyAppearanceSnapshot): AppearancePreferencesV4 {
+function fromLegacy(legacy: LegacyAppearanceSnapshot): AppearancePreferencesV5 {
   const activeRootThemeId = legacy.activeStyle;
-  return createAppearancePreferencesV4({
+  return createAppearancePreferencesV5({
     activeRootThemeId,
     shared: sharedFromLegacy(legacy),
     byRootTheme: createDefaultRootThemePreferences({
@@ -156,7 +156,7 @@ function fromLegacy(legacy: LegacyAppearanceSnapshot): AppearancePreferencesV4 {
 function migrateLegacyDocument(
   input: Record<string, unknown>,
   legacy: LegacyAppearanceSnapshot,
-): AppearancePreferencesV4 {
+): AppearancePreferencesV5 {
   const shared = isRecord(input.shared) ? input.shared : input;
   const activeRootThemeId = parseInterfaceStyle(
     asString(input.activeRootThemeId)
@@ -176,7 +176,7 @@ function migrateLegacyDocument(
     : readLegacyByStyle(input.byStyle, requestedColorMode, requestedSubThemeIds);
   const bySurface = isRecord(input.bySurface) ? input.bySurface : {};
 
-  return createAppearancePreferencesV4({
+  return createAppearancePreferencesV5({
     activeRootThemeId,
     shared: normalizeShared({
       ...shared,
@@ -196,10 +196,10 @@ function migrateLegacyDocument(
   });
 }
 
-function normalizeV4(
+function normalizeV5(
   input: Record<string, unknown>,
   legacy: LegacyAppearanceSnapshot,
-): AppearancePreferencesV4 {
+): AppearancePreferencesV5 {
   const activeRootThemeId = parseInterfaceStyle(
     asString(input.activeRootThemeId) ?? legacy.activeStyle,
   );
@@ -213,7 +213,7 @@ function normalizeV4(
     fallbackSubThemeIds,
   );
 
-  return createAppearancePreferencesV4({
+  return createAppearancePreferencesV5({
     activeRootThemeId,
     shared: normalizeShared(shared, legacy),
     byRootTheme: {
