@@ -73,6 +73,39 @@
   color: var(--po-danger);
 }
 
+.desktop-theme-font-override {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-inline: 10px;
+  color: var(--po-text-subtle);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.desktop-theme-font-override button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--po-accent-text);
+  font: inherit;
+  white-space: nowrap;
+}
+
+.desktop-theme-font-override button:hover {
+  color: var(--po-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.desktop-theme-font-override button:focus-visible {
+  border-radius: 2px;
+  outline: 2px solid color-mix(in srgb, var(--po-focus-ring) 72%, transparent);
+  outline-offset: 2px;
+}
+
 .desktop-theme-pack-controls {
   display: flex;
   width: max-content;

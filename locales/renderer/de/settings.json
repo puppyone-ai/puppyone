@@ -8,6 +8,8 @@
   "appearance.themes.openFolder": "Designordner öffnen",
   "appearance.themes.diagnostics": "Probleme beim Laden von Designs",
   "appearance.themes.missing": "Fehlendes Design: {id}",
+  "appearance.themes.markdownFontOverride": "Die Markdown-Schriftart wird in den Editor-Einstellungen überschrieben.",
+  "appearance.themes.useThemeFont": "Theme-Schrift verwenden",
   "appearance.interfaceStyle.title": "Oberflächenstil",
   "appearance.interfaceStyle.ariaLabel": "Oberflächenstil",
   "appearance.interfaceStyle.default": "Standard",

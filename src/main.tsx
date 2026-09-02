@@ -105,6 +105,11 @@ async function renderApplication() {
   } else if (window.location.hash === "#markdown-line-geometry-smoke") {
     const { MarkdownLineGeometrySmokeHarness } = await import("./performance/MarkdownLineGeometrySmokeHarness");
     surface = <MarkdownLineGeometrySmokeHarness />;
+  } else if (window.location.hash === "#markdown-theme-inheritance-smoke") {
+    const { MarkdownThemeInheritanceSmokeHarness } = await import(
+      "./features/appearance/MarkdownThemeInheritanceSmokeHarness"
+    );
+    surface = <MarkdownThemeInheritanceSmokeHarness />;
   } else if (window.location.hash === "#appearance-visual-smoke") {
     const { AppearanceVisualSmokeHarness } = await import(
       "./features/appearance/AppearanceVisualSmokeHarness"

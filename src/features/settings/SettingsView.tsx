@@ -14,6 +14,7 @@ import {
   isAppearanceValueAllowed,
 } from "../appearance/resolveAppearance";
 import { useFeatureFlag } from "../flags";
+import { THEME_CONTENT_FONT_ID, withTypographyFont } from "../typography";
 import { LocalAgentsSettingsView } from "../local-agents";
 import { SettingsSectionHeader } from "./components";
 import { AccountSettingsView } from "./main/AccountSettingsView";
@@ -277,7 +278,11 @@ export function SettingsView({
                 requestedSubThemeId={requestedSubThemeId}
                 effectiveSubThemeId={resolvedAppearance.subThemeId}
                 effectiveColorMode={resolvedAppearance.effectiveColorMode}
+                markdownFontOverrideActive={typographyPreferences.contentFontId !== THEME_CONTENT_FONT_ID}
                 onSubThemeChange={onSubThemeChange}
+                onUseThemeMarkdownFont={() => onTypographyPreferencesChange(
+                  withTypographyFont(typographyPreferences, "content", THEME_CONTENT_FONT_ID),
+                )}
               />
               <div className="desktop-settings-row desktop-settings-row-control desktop-settings-wide-control-row">
                 <span>{t("settings.appearance.fileIcons.title")}</span>

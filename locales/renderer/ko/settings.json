@@ -8,6 +8,8 @@
   "appearance.themes.openFolder": "테마 폴더 열기",
   "appearance.themes.diagnostics": "테마 불러오기 문제",
   "appearance.themes.missing": "누락된 테마: {id}",
+  "appearance.themes.markdownFontOverride": "Markdown 글꼴이 편집기 설정에서 재정의되었습니다.",
+  "appearance.themes.useThemeFont": "테마 글꼴 사용",
   "appearance.interfaceStyle.title": "인터페이스 스타일",
   "appearance.interfaceStyle.ariaLabel": "인터페이스 스타일",
   "appearance.interfaceStyle.default": "기본",
