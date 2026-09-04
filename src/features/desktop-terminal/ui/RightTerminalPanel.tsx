@@ -330,7 +330,12 @@ export function RightTerminalPanel({
 
   useTerminalAppearanceSync(panelRef, workbench.runtimeRegistry);
   return (
-    <section ref={panelRef} className="desktop-terminal-panel" aria-label={t("terminal.title")}>
+    <section
+      ref={panelRef}
+      className="desktop-terminal-panel"
+      data-terminal-appearance-source
+      aria-label={t("terminal.title")}
+    >
       <div className={`desktop-terminal-body ${workbench.items.length === 0 ? "is-empty" : ""}`}>
         {creationFailure && (
           <TerminalWorkbenchCreationFailure

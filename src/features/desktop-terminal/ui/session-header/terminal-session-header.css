@@ -146,8 +146,8 @@
   background: color-mix(in srgb, var(--po-surface) 94%, transparent);
   box-shadow: var(--po-elevation-popover);
   color: var(--po-text);
-  font-size: var(--desktop-sidebar-font-size, var(--po-text-size-sidebar, 13px));
-  line-height: 18px;
+  font-size: var(--po-type-header-content, 15px);
+  line-height: var(--po-type-header-line-height, 20px);
   opacity: 0.94;
   pointer-events: none;
   text-overflow: ellipsis;
@@ -169,8 +169,8 @@
   color: inherit;
   cursor: var(--po-clickable-cursor, default);
   font: inherit;
-  font-size: var(--desktop-sidebar-font-size, var(--po-text-size-sidebar, 13px));
-  line-height: var(--desktop-sidebar-line-height, 18px);
+  font-size: var(--po-type-header-content, 15px);
+  line-height: var(--po-type-header-line-height, 20px);
   text-align: start;
 }
 

@@ -194,6 +194,7 @@ async function runMultiRootPtyLifecycle(window) {
 async function runProductionTerminalLayout(window) {
   const url = pathToFileURL(rendererPath);
   url.searchParams.set("workspacePath", workspaceRoots[0]);
+  url.searchParams.set("theme", "dark");
   url.hash = "terminal-p0-smoke";
   await window.loadURL(url.href);
   await waitForRenderer(window, `Boolean(

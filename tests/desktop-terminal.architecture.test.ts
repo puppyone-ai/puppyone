@@ -322,7 +322,7 @@ describe("Desktop Terminal architecture boundaries", () => {
     expect(launcher).toContain('"agent.history.continueTitle"');
     expect(launcher).toContain('aria-label={t("terminal.launcher.scanAgain")}');
     expect(launcherCss).toMatch(/\.desktop-terminal-launcher-content\s*\{[^}]*gap:\s*28px;/s);
-    expect(launcherCss).toMatch(/\.desktop-terminal-launcher-heading h2\s*\{[^}]*font-size:\s*12px;[^}]*font-weight:\s*500;/s);
+    expect(launcherCss).toMatch(/\.desktop-terminal-launcher-heading h2\s*\{[^}]*font-size:\s*var\(--po-type-right-sidebar-meta, 13px\);[^}]*font-weight:\s*500;/s);
     expect(launcherCss).toMatch(/\.desktop-terminal-launcher-tool,\s*\.desktop-terminal-launcher-shell,\s*\.desktop-terminal-launcher-history\s*\{[^}]*min-height:\s*34px;[^}]*border-radius:\s*6px;/s);
     expect(launcherCss).toContain('.desktop-terminal-launcher-tool[data-status="coming-soon"]::after');
     expect(launcherCss).not.toContain("aspect-ratio:");
@@ -402,7 +402,7 @@ describe("Desktop Terminal architecture boundaries", () => {
       /\.desktop-terminal-subheader\s*\{[^}]*height:\s*var\(--desktop-terminal-group-header-size, 38px\);/s,
     );
     expect(headerCss).toMatch(
-      /\.desktop-terminal-tab-select\s*\{[^}]*font-size:\s*var\(--desktop-sidebar-font-size, var\(--po-text-size-sidebar, 13px\)\);/s,
+      /\.desktop-terminal-tab-select\s*\{[^}]*font-size:\s*var\(--po-type-header-content, 15px\);/s,
     );
     expect(headerCss).toMatch(
       /\.desktop-terminal-tab-title\s*\{[^}]*font-weight:\s*var\(--desktop-sidebar-font-weight, var\(--po-text-weight-medium, 500\)\);/s,

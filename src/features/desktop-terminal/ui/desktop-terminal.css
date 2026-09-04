@@ -37,7 +37,8 @@
   background: color-mix(in srgb, var(--po-terminal-bg) 94%, var(--po-danger));
   box-shadow: 0 6px 18px color-mix(in srgb, #000 20%, transparent);
   color: var(--po-text);
-  font-size: 12px;
+  font-size: var(--po-type-right-sidebar-meta, 13px);
+  line-height: var(--po-type-right-sidebar-meta-line-height, 19px);
   inset-block-start: 46px;
   inset-inline: 8px;
 }
@@ -672,14 +673,17 @@
 
 .desktop-terminal-split-smoke-session span {
   color: var(--po-text-muted);
-  font-size: 11px;
+  font-size: var(--po-type-right-sidebar-caption, 12px);
+  line-height: var(--po-type-right-sidebar-caption-line-height, 17px);
 }
 
 .desktop-terminal-split-smoke-output {
   width: min(920px, calc(100vw - 48px));
   overflow: hidden;
   color: var(--po-text-muted);
-  font: 11px/16px var(--po-font-mono);
+  font-family: var(--po-font-mono);
+  font-size: var(--po-type-right-sidebar-caption, 12px);
+  line-height: var(--po-type-right-sidebar-caption-line-height, 17px);
   text-overflow: ellipsis;
   white-space: nowrap;
 }

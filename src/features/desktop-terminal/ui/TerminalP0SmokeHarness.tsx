@@ -3,7 +3,9 @@ import { RightTerminalPanel } from "./RightTerminalPanel";
 
 /** Production Terminal surface used only by the real Electron P0 smoke. */
 export function TerminalP0SmokeHarness() {
-  const workspacePath = new URLSearchParams(window.location.search).get("workspacePath");
+  const search = new URLSearchParams(window.location.search);
+  const workspacePath = search.get("workspacePath");
+  const dark = search.get("theme") === "dark";
   if (!workspacePath) throw new Error("Terminal P0 smoke requires workspacePath.");
   const workspace: Workspace = {
     id: workspacePath,
@@ -14,7 +16,9 @@ export function TerminalP0SmokeHarness() {
 
   return (
     <main
-      className="desktop-terminal-split-smoke"
+      className={`desktop-terminal-split-smoke${dark ? " dark" : ""}`}
+      data-po-appearance-root="true"
+      data-sub-theme-id="default.neutral"
       data-terminal-p0-smoke-ready="true"
     >
       <section className="desktop-terminal-split-smoke-panel">
