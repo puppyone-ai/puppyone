@@ -1579,6 +1579,40 @@ describe("Desktop Agent renderer surfaces", () => {
     expect(buttons.every((button) => button.disabled)).toBe(true);
   });
 
+  it("keeps approval copy concise and preserves every provider decision", () => {
+    const onResolve = vi.fn();
+    const repeatedCopy = "Web search: Notion launch screenshots";
+    const container = render(React.createElement(AgentApprovalDock, {
+      approval: {
+        requestId: "req-search",
+        turnId: "turn-1",
+        itemId: "item-1",
+        kind: "command",
+        title: repeatedCopy,
+        command: null,
+        cwd: null,
+        commandActions: [],
+        networkApprovalContext: null,
+        grantRoot: null,
+        policyChangeRequested: false,
+        reason: `  ${repeatedCopy}  `,
+        availableDecisions: ["accept", "acceptForSession", "decline", "cancel"],
+        sequence: 1,
+      },
+      queueLength: 1,
+      resolving: false,
+      onResolve,
+    }));
+
+    expect(container.textContent?.split(repeatedCopy)).toHaveLength(2);
+    const buttons = Array.from(container.querySelectorAll<HTMLButtonElement>("button"));
+    expect(buttons.map((button) => button.textContent)).toEqual(["Deny", "Allow for session", "Allow once"]);
+    act(() => buttons[0].click());
+    act(() => buttons[1].click());
+    act(() => buttons[2].click());
+    expect(onResolve.mock.calls.map(([decision]) => decision)).toEqual(["decline", "acceptForSession", "accept"]);
+  });
+
   it("renders material network and filesystem approval scope", () => {
     const container = render(React.createElement(AgentApprovalDock, {
       approval: {

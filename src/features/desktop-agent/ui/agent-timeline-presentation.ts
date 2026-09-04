@@ -42,6 +42,10 @@ export function buildAgentTimeline(projection: AgentProjection): AgentTimeline {
 
 export function isVisibleAgentTimelinePart(part: AgentPart | undefined): part is AgentPart {
   if (!part || part.kind === "usage") return false;
+  // Resolved approvals remain in the durable projection for replay/audit, but
+  // are no longer conversation content. Removing their row also lets the
+  // surrounding tool activity collapse back into one compact visual group.
+  if (part.kind === "permission" && part.state === "resolved") return false;
   if (part.kind !== "reasoning") return true;
   if (isLiveAgentActivityStatus(part.status)) return false;
   const summary = typeof part.detail.delta === "string"

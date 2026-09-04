@@ -51,6 +51,7 @@ describe("Desktop Agent transcript projection", () => {
       event(8, "turn.completed", { status: "completed" }, "turn-order"),
     ] satisfies AgentEvent[];
 
+    const waiting = applyAgentEvents(createAgentProjection(), events.slice(0, 4));
     const live = applyAgentEvents(createAgentProjection(), events.slice(0, 7));
     const settled = applyAgentEvent(live, events[7]);
     const replayed = applyAgentEvents(createAgentProjection(), events);
@@ -58,9 +59,10 @@ describe("Desktop Agent transcript projection", () => {
       .filter((row) => row.kind !== "turn-summary")
       .map((row) => row.kind);
 
-    expect(visibleKinds(live)).toEqual(["user", "assistant", "command", "permission", "assistant"]);
-    expect(visibleKinds(settled)).toEqual(["user", "assistant", "command", "permission", "assistant"]);
-    expect(visibleKinds(replayed)).toEqual(["user", "assistant", "command", "permission", "assistant"]);
+    expect(visibleKinds(waiting)).toEqual(["user", "assistant", "command", "permission"]);
+    expect(visibleKinds(live)).toEqual(["user", "assistant", "command", "assistant"]);
+    expect(visibleKinds(settled)).toEqual(["user", "assistant", "command", "assistant"]);
+    expect(visibleKinds(replayed)).toEqual(["user", "assistant", "command", "assistant"]);
     expect(live.parts.filter((part) => part.kind === "assistant")).toEqual([
       expect.objectContaining({
         sequence: 2,

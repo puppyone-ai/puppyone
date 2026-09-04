@@ -18,7 +18,7 @@
   overflow: hidden;
   background: var(--po-editor-bg);
   font-family: var(--po-font-sans);
-  font-size: var(--desktop-sidebar-font-size, var(--po-text-size-sidebar, 13px));
+  font-size: var(--po-type-header-content, 15px);
 }
 
 .desktop-agent-tabs-subheader {
@@ -84,8 +84,8 @@
   color: inherit;
   cursor: var(--po-clickable-cursor, default);
   font: inherit;
-  font-size: var(--desktop-sidebar-font-size, var(--po-text-size-sidebar, 13px));
-  line-height: var(--desktop-sidebar-line-height, 18px);
+  font-size: var(--po-type-header-content, 15px);
+  line-height: var(--po-type-header-line-height, 20px);
   text-align: start;
 }
 

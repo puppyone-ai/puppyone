@@ -63,10 +63,10 @@
   overflow: hidden;
   color: var(--agent-text-subtle);
   font-family: var(--po-font-sans);
-  font-size: 12px;
+  font-size: var(--agent-font-size-meta);
   font-weight: 500;
   letter-spacing: 0;
-  line-height: 18px;
+  line-height: var(--agent-meta-line-height);
   text-align: start;
   white-space: nowrap;
 }
@@ -165,9 +165,9 @@
   min-width: 0;
   flex: 1;
   overflow: hidden;
-  font-size: 12px;
+  font-size: var(--agent-font-size);
   font-weight: 500;
-  line-height: 18px;
+  line-height: var(--agent-control-line-height);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -184,8 +184,8 @@
   justify-content: center;
   padding: 3px 8px;
   color: var(--agent-text-subtle);
-  font-size: 11px;
-  line-height: 16px;
+  font-size: var(--agent-font-size-caption);
+  line-height: var(--agent-caption-line-height);
   text-align: center;
 }
 
@@ -220,9 +220,9 @@
 .desktop-agent-history-permission-content > p {
   margin: 0;
   color: var(--agent-text-muted);
-  font-size: var(--po-text-size-body, 13px);
+  font-size: var(--agent-font-size);
   font-weight: var(--po-text-weight-regular, 400);
-  line-height: 20px;
+  line-height: var(--agent-conversation-line-height);
   text-align: center;
 }
 
@@ -238,7 +238,7 @@
   color: var(--po-canvas);
   cursor: var(--po-clickable-cursor, default);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--agent-font-size);
   font-weight: 600;
   line-height: 1;
 }
@@ -289,9 +289,9 @@
   overflow: hidden;
   color: var(--agent-text-muted);
   font-family: var(--po-font-sans);
-  font-size: 13px;
+  font-size: var(--po-type-header-content, 15px);
   font-weight: 500;
-  line-height: 20px;
+  line-height: var(--po-type-header-line-height, 20px);
   text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -366,9 +366,9 @@
   background: transparent;
   color: var(--agent-text-muted);
   font: inherit;
-  font-size: var(--desktop-sidebar-font-size-meta, var(--po-text-size-meta, 12px));
+  font-size: var(--agent-font-size-meta);
   font-weight: var(--po-text-weight-regular, 400);
-  line-height: 18px;
+  line-height: var(--agent-meta-line-height);
 }
 
 .desktop-agent-history-search input::placeholder {
@@ -413,9 +413,9 @@
   color: var(--agent-text-muted);
   cursor: var(--po-clickable-cursor, default);
   font-family: inherit;
-  font-size: var(--desktop-sidebar-font-size, var(--po-text-size-sidebar, 13px));
+  font-size: var(--agent-font-size);
   font-weight: var(--desktop-sidebar-font-weight, var(--po-text-weight-medium, 500));
-  line-height: var(--desktop-sidebar-line-height, 18px);
+  line-height: var(--agent-control-line-height);
   text-align: start;
   transition:
     background-color 120ms ease,
@@ -467,9 +467,9 @@
   flex: 0 0 auto;
   color: var(--agent-text-subtle);
   font-family: inherit;
-  font-size: var(--desktop-sidebar-font-size-meta, var(--po-text-size-meta, 12px));
+  font-size: var(--agent-font-size-meta);
   font-weight: var(--po-text-weight-regular, 400);
-  line-height: var(--desktop-sidebar-line-height, 18px);
+  line-height: var(--agent-meta-line-height);
   white-space: nowrap;
 }
 
@@ -481,8 +481,8 @@
   gap: 6px;
   padding: 3px 8px;
   color: var(--agent-text-subtle);
-  font-size: 11px;
-  line-height: 16px;
+  font-size: var(--agent-font-size-caption);
+  line-height: var(--agent-caption-line-height);
   text-align: center;
 }
 
@@ -508,8 +508,8 @@
   color: var(--agent-text-subtle);
   cursor: var(--po-clickable-cursor, default);
   font: inherit;
-  font-size: 10px;
-  line-height: 16px;
+  font-size: var(--agent-font-size-micro);
+  line-height: var(--agent-micro-line-height);
 }
 
 .desktop-agent-history-more:hover {
@@ -525,8 +525,8 @@
 .desktop-agent-history-error {
   margin: 0;
   color: var(--po-warning, #b7791f);
-  font-size: 10px;
-  line-height: 14px;
+  font-size: var(--agent-font-size-micro);
+  line-height: var(--agent-micro-line-height);
   text-align: center;
 }
 

@@ -71,6 +71,31 @@ describe("Agent stream presentation", () => {
       tail: "",
     });
   });
+
+  it("streams complete GFM table rows without remounting the table viewport", () => {
+    const first = [
+      "| Tool | State |",
+      "| --- | --- |",
+      "| Read | complete |",
+      "| Bash | run",
+    ].join("\n");
+    const container = mount(withTestLocalization(<SafeMarkdown text={first} streaming />));
+    const viewport = container.querySelector(".desktop-agent-markdown-table-scroll");
+
+    expect(viewport?.querySelectorAll("tbody tr")).toHaveLength(1);
+    expect(container.querySelector(".desktop-agent-markdown-stream-tail")?.textContent).toContain("| Bash | run");
+
+    const second = `${first}ning |\n| Edit | wai`;
+    rerender(withTestLocalization(<SafeMarkdown text={second} streaming />));
+    expect(container.querySelector(".desktop-agent-markdown-table-scroll")).toBe(viewport);
+    expect(viewport?.querySelectorAll("tbody tr")).toHaveLength(2);
+    expect(viewport?.textContent).toContain("running");
+    expect(container.querySelector(".desktop-agent-markdown-stream-tail")?.textContent).toContain("| Edit | wai");
+
+    rerender(withTestLocalization(<SafeMarkdown text={`${second}ting |`} streaming={false} />));
+    expect(container.querySelectorAll(".desktop-agent-markdown-table-scroll tbody tr")).toHaveLength(3);
+    expect(container.querySelector(".desktop-agent-markdown-stream-tail")).toBeNull();
+  });
 });
 
 function StreamHarness({

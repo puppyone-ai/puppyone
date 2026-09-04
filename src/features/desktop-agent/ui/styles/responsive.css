@@ -9,6 +9,11 @@
   .desktop-agent-readiness > button { grid-column: 2; justify-self: start; }
 }
 
+@container desktop-agent (max-width: 359px) {
+  .desktop-agent-approval-actions { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .desktop-agent-approval-actions .desktop-agent-button { width: 100%; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .desktop-agent-stream-caret,
   .desktop-agent-spin,

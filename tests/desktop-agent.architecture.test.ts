@@ -115,7 +115,7 @@ describe("Desktop Agent architecture boundaries", () => {
     expect(theme).not.toContain("--agent-prompt-surface:");
     expect(foundation).not.toMatch(/--agent-(?:composer|user-message)-(?:surface|border):/);
     expect(pickers).toMatch(
-      /\.desktop-agent-picker\.is-header \.desktop-agent-picker-trigger\s*\{[^}]*color:\s*var\(--desktop-titlebar-text-muted, var\(--po-text-muted\)\);[^}]*font-size:\s*var\(--po-font-size-chrome, 13px\);[^}]*font-weight:\s*var\(--po-font-weight-chrome, 500\);[^}]*line-height:\s*18px;/s,
+      /\.desktop-agent-picker\.is-header \.desktop-agent-picker-trigger\s*\{[^}]*color:\s*var\(--desktop-titlebar-text-muted, var\(--po-text-muted\)\);[^}]*font-size:\s*var\(--po-type-header-content, 15px\);[^}]*font-weight:\s*var\(--po-font-weight-chrome, 500\);[^}]*line-height:\s*var\(--po-type-header-line-height, 20px\);/s,
     );
     expect(css).not.toContain("max-width: 759px");
     expect(css).toContain("max-width: 559px");

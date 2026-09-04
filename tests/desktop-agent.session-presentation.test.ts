@@ -72,6 +72,72 @@ describe("Agent streaming presentation policy", () => {
       tail: "```ts\nconst pending = true;",
     });
   });
+
+  it("promotes a validated GFM table one completed row at a time", () => {
+    expect(splitStreamingMarkdown([
+      "Before",
+      "",
+      "| Name | State |",
+      "| --- | ---: |",
+      "| Parser | run",
+    ].join("\n"))).toEqual({
+      stable: "Before\n\n| Name | State |\n| --- | ---: |\n",
+      tail: "| Parser | run",
+    });
+
+    expect(splitStreamingMarkdown([
+      "Before",
+      "",
+      "| Name | State |",
+      "| --- | ---: |",
+      "| Parser | running |",
+      "| Renderer | wai",
+    ].join("\n"))).toEqual({
+      stable: "Before\n\n| Name | State |\n| --- | ---: |\n| Parser | running |\n",
+      tail: "| Renderer | wai",
+    });
+
+    // GFM accepts pipe-less rows and pads their missing cells. They should
+    // receive the same row-by-row streaming treatment as conventional rows.
+    expect(splitStreamingMarkdown([
+      "| Name | State |",
+      "| --- | --- |",
+      "Parser",
+      "Renderer",
+    ].join("\n"))).toEqual({
+      stable: "| Name | State |\n| --- | --- |\nParser\n",
+      tail: "Renderer",
+    });
+
+    expect(splitStreamingMarkdown("| State |\n| --- |\ncomplete\npen")).toEqual({
+      stable: "| State |\n| --- |\ncomplete\n",
+      tail: "pen",
+    });
+  });
+
+  it("does not promote malformed or ambiguous pipe text as a streaming table", () => {
+    expect(splitStreamingMarkdown("| One | Two |\n| --- |\n| value | other |\n")).toEqual({
+      stable: "",
+      tail: "| One | Two |\n| --- |\n| value | other |\n",
+    });
+    expect(splitStreamingMarkdown("Introductory prose\nOne | Two\n--- | ---\n")).toEqual({
+      stable: "",
+      tail: "Introductory prose\nOne | Two\n--- | ---\n",
+    });
+  });
+
+  it("ends table streaming before a competing CommonMark flow block", () => {
+    expect(splitStreamingMarkdown([
+      "| Name | State |",
+      "| --- | --- |",
+      "| Parser | complete |",
+      "# Result",
+      "Still streaming",
+    ].join("\n"))).toEqual({
+      stable: "| Name | State |\n| --- | --- |\n| Parser | complete |\n",
+      tail: "# Result\nStill streaming",
+    });
+  });
 });
 
 function inspection({

@@ -76,7 +76,7 @@
   border-radius: 50%;
   background: var(--agent-presence-accent);
   color: #fff;
-  font-size: 7px;
+  font-size: var(--po-text-size-glyph, 8px);
   font-weight: 750;
   letter-spacing: -0.02em;
 }

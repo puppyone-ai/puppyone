@@ -153,9 +153,9 @@
   min-width: 0;
   padding-inline: var(--agent-message-content-inset);
   color: var(--agent-text-subtle);
-  font-size: var(--agent-font-size);
+  font-size: var(--agent-font-size-meta);
   font-weight: 400;
-  line-height: 1.66;
+  line-height: var(--agent-meta-line-height);
   text-align: start;
   white-space: nowrap;
 }
@@ -276,8 +276,8 @@
 .desktop-agent-message.is-assistant:has(.desktop-agent-message-status) { padding-inline-end: 84px; }
 .desktop-agent-message-text {
   color: var(--agent-text);
-  font-size: var(--agent-font-size);
-  line-height: 1.55;
+  font-size: var(--agent-conversation-font-size);
+  line-height: var(--agent-conversation-line-height);
   white-space: pre-wrap;
 }
 .desktop-agent-history-mention {
@@ -333,28 +333,30 @@
   overflow-wrap: anywhere;
   color: var(--agent-text);
   font-family: var(--po-font-content, var(--po-font-sans));
-  font-size: var(--agent-font-size);
-  letter-spacing: -0.004em;
-  line-height: 1.66;
+  font-size: var(--agent-conversation-font-size);
+  font-weight: var(--po-content-reading-weight, 450);
+  letter-spacing: var(--po-content-reading-letter-spacing, 0);
+  line-height: var(--agent-response-line-height);
 }
 .desktop-agent-markdown > :first-child { margin-top: 0; }
 .desktop-agent-markdown > :last-child { margin-bottom: 0; }
-.desktop-agent-markdown p { margin: 6px 0; white-space: pre-wrap; }
+.desktop-agent-markdown p { margin: 4px 0; white-space: pre-wrap; }
 .desktop-agent-markdown h1,
 .desktop-agent-markdown h2,
 .desktop-agent-markdown h3,
 .desktop-agent-markdown h4,
 .desktop-agent-markdown h5,
-.desktop-agent-markdown h6 { margin: 20px 0 10px; color: var(--agent-text); line-height: 1.4; letter-spacing: -0.015em; }
-.desktop-agent-markdown h1 { margin-top: 24px; font-size: var(--po-text-size-page-title, 20px); }
-.desktop-agent-markdown h2 { font-size: var(--po-text-size-title, 16px); }
+.desktop-agent-markdown h6 { margin: 16px 0 8px; color: var(--agent-text); font-weight: var(--po-text-weight-semibold, 600); line-height: 1.4; letter-spacing: -0.01em; }
+.desktop-agent-markdown h1 { margin-top: 20px; font-size: var(--po-type-right-sidebar-heading-1, 20px); }
+.desktop-agent-markdown h2 { font-size: var(--po-type-right-sidebar-heading-2, 16px); }
 .desktop-agent-markdown h3,
 .desktop-agent-markdown h4,
 .desktop-agent-markdown h5,
-.desktop-agent-markdown h6 { margin-top: 16px; font-size: var(--po-text-size-body-lg, 14px); }
+.desktop-agent-markdown h6 { margin-top: 12px; font-size: var(--agent-conversation-font-size); }
+.desktop-agent-markdown :is(strong, b) { font-weight: var(--po-text-weight-semibold, 600); }
 .desktop-agent-markdown ul,
-.desktop-agent-markdown ol { margin: 0.58em 0; padding-inline-start: 1.55em; }
-.desktop-agent-markdown li { margin: 0.24em 0; }
+.desktop-agent-markdown ol { margin: 0.5em 0; padding-inline-start: 1.55em; }
+.desktop-agent-markdown li { margin: 0.18em 0; }
 .desktop-agent-markdown li > :is(ul, ol) { margin-block: 0.24em; }
 .desktop-agent-markdown .contains-task-list { padding-inline-start: 0.25em; list-style: none; }
 .desktop-agent-markdown .task-list-item { display: flex; align-items: flex-start; gap: 7px; }
@@ -381,7 +383,7 @@
   border-radius: 6px;
   background: var(--agent-control-surface);
   font-family: var(--po-font-mono);
-  font-size: 0.92em;
+  font-size: var(--agent-code-font-size);
 }
 .desktop-agent-markdown-table-scroll {
   width: 100%;
@@ -509,7 +511,7 @@
   color: var(--agent-text-subtle);
   font-family: var(--po-font-mono);
   font-size: var(--agent-font-size-caption);
-  line-height: 18px;
+  line-height: var(--agent-caption-line-height);
 }
 .desktop-agent-mermaid-stage { position: relative; display: grid; min-height: 92px; place-items: center; overflow: auto; padding: 12px; }
 .desktop-agent-mermaid-host { width: 100%; min-width: 0; }

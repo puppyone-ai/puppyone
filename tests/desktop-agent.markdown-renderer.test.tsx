@@ -41,6 +41,13 @@ afterEach(() => {
 });
 
 describe("Agent Markdown renderer", () => {
+  it("uses the message language for locale-aware reading typography", () => {
+    const container = render("用户访谈已经完成，接下来修复编辑器问题。");
+
+    expect(container.querySelector(".desktop-agent-markdown")?.getAttribute("lang"))
+      .toBe("zh-Hans");
+  });
+
   it("renders semantic GFM tables inside a bounded horizontal viewport", () => {
     const container = render([
       "| Level | Action | Meaning |",

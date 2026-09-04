@@ -1,4 +1,10 @@
 export { MarkdownCodeMirrorEditor } from "./MarkdownCodeMirrorEditor";
+export {
+  normalizeContentLanguage,
+  resolveMarkdownContentLanguage,
+  type MarkdownContentLanguageResolution,
+  type MarkdownContentLanguageSource,
+} from "./core/presentation/markdownContentLanguage";
 export * from "./linkIndex";
 export {
   findMarkdownLinkTokens,

@@ -33,6 +33,69 @@ describe("Desktop Agent compact tool groups", () => {
     expect(rows[2].partIds).toEqual(["tool:grep"]);
   });
 
+  it("removes resolved approval rows and rejoins the surrounding tool flow", () => {
+    const projection = createAgentProjection();
+    projection.parts = [
+      toolPart("tool:grep-before", "turn:approval", "tool", 1, "grep", "before", "match"),
+      {
+        id: "permission:search",
+        turnId: "turn:approval",
+        itemId: "tool:grep-before",
+        kind: "permission",
+        requestId: "search",
+        state: "resolved",
+        sequence: 2,
+        updatedSequence: 3,
+      },
+      toolPart("tool:grep-after", "turn:approval", "tool", 4, "grep", "after", "match"),
+    ];
+    projection.rows = projection.parts.map((part) => ({
+      id: `row:${part.id}`,
+      partId: part.id,
+      turnId: part.turnId,
+      kind: part.kind,
+      sequence: part.sequence,
+      updatedSequence: part.updatedSequence ?? part.sequence,
+      estimatedHeight: 34,
+    }));
+
+    const timeline = buildAgentTimeline(projection);
+    const rows = groupAgentToolRows(timeline.rows, timeline.parts);
+    expect(timeline.parts.get("permission:search")).toMatchObject({ state: "resolved" });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].partIds).toEqual(["tool:grep-before", "tool:grep-after"]);
+
+    const container = render(<AgentTranscript projection={projection} loading={false} />);
+    expect(container.textContent).not.toContain("Permission resolved");
+    expect(container.querySelectorAll(".desktop-agent-tool-group-item")).toHaveLength(2);
+  });
+
+  it("keeps a pending approval visible until the user decides", () => {
+    const projection = createAgentProjection();
+    projection.parts = [{
+      id: "permission:pending",
+      turnId: "turn:approval",
+      itemId: "tool:grep",
+      kind: "permission",
+      requestId: "pending",
+      state: "pending",
+      sequence: 1,
+    }];
+    projection.rows = [{
+      id: "row:permission:pending",
+      partId: "permission:pending",
+      turnId: "turn:approval",
+      kind: "permission",
+      sequence: 1,
+      estimatedHeight: 34,
+    }];
+
+    const timeline = buildAgentTimeline(projection);
+    expect(timeline.rows).toHaveLength(1);
+    const container = render(<AgentTranscript projection={projection} loading={false} />);
+    expect(container.textContent).toContain("Permission pending");
+  });
+
   it("bounds each visual group so a very long native tool run stays virtualizable", () => {
     const projection = createAgentProjection();
     projection.parts = Array.from({ length: AGENT_TOOL_GROUP_LIMIT * 2 + 3 }, (_, index) => (

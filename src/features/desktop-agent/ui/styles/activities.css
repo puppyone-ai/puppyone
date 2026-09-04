@@ -34,7 +34,7 @@
   color: var(--agent-text-muted);
   font-size: var(--agent-font-size);
 }
-.desktop-agent-activity-detail pre { margin: 0; overflow-wrap: anywhere; font-family: var(--po-font-mono); line-height: 1.5; white-space: pre-wrap; }
+.desktop-agent-activity-detail pre { margin: 0; overflow-wrap: anywhere; font-family: var(--po-font-mono); font-size: var(--agent-code-font-size); line-height: 1.5; white-space: pre-wrap; }
 .desktop-agent-activity-detail ul,
 .desktop-agent-activity-detail ol,
 .desktop-agent-plan-list { margin: 0; padding-inline-start: 17px; }
@@ -159,7 +159,7 @@
   min-width: 0;
   overflow: hidden;
   color: var(--agent-text-subtle);
-  font-size: var(--agent-font-size);
+  font-size: var(--agent-font-size-meta);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -196,7 +196,7 @@
   padding-inline: var(--agent-evidence-rail-inline) 0;
   color: var(--agent-text-subtle);
   font-family: var(--po-font-mono);
-  font-size: var(--agent-font-size-meta);
+  font-size: var(--agent-code-font-size);
   line-height: 1.5;
   contain: layout paint;
 }
@@ -296,7 +296,7 @@
   padding: 0;
   color: inherit;
   font-family: var(--po-font-mono);
-  font-size: inherit;
+  font-size: var(--agent-code-font-size);
   line-height: inherit;
   overflow: auto;
   white-space: pre;
@@ -312,7 +312,7 @@
   background: transparent;
   color: var(--agent-text-subtle);
   font-family: var(--po-font-mono);
-  font-size: inherit;
+  font-size: var(--agent-code-font-size);
   line-height: 1.5;
   white-space: pre;
 }
@@ -354,7 +354,7 @@
 .desktop-agent-activity-render-fallback > svg { flex: 0 0 auto; color: var(--po-danger); }
 .desktop-agent-activity-render-fallback > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .desktop-agent-evidence-content .desktop-agent-search-results,
-.desktop-agent-evidence-content .desktop-agent-file-list { font-size: inherit; }
+.desktop-agent-evidence-content .desktop-agent-file-list { font-size: var(--agent-code-font-size); }
 .desktop-agent-file-change-detail { display: grid; gap: 7px; }
 .desktop-agent-file-list {
   display: grid;
@@ -373,7 +373,7 @@
   padding: 0 7px;
   border-radius: 6px;
   color: var(--agent-text-muted);
-  font-size: var(--agent-font-size-meta);
+  font-size: var(--agent-code-font-size);
 }
 .desktop-agent-file-list li:hover { background: var(--po-hover); }
 .desktop-agent-file-list li > span,

@@ -81,10 +81,14 @@ export {
 export {
   getMermaidThemeSnapshot,
   mountSanitizedMermaidSvg,
+  normalizeContentLanguage,
   renderMermaidDiagram,
+  resolveMarkdownContentLanguage,
   subscribeMermaidThemeChanges,
 } from "./editor/markdown";
 export type {
+  MarkdownContentLanguageResolution,
+  MarkdownContentLanguageSource,
   MermaidRenderRequest,
   MermaidRenderResult,
   MermaidSvgMount,

@@ -59,9 +59,9 @@
   border: 0;
   background: transparent;
   color: var(--desktop-titlebar-text-muted, var(--po-text-muted));
-  font-size: var(--po-font-size-chrome, 13px);
+  font-size: var(--po-type-header-content, 15px);
   font-weight: var(--po-font-weight-chrome, 500);
-  line-height: 18px;
+  line-height: var(--po-type-header-line-height, 20px);
 }
 .desktop-agent-picker.is-header .desktop-agent-picker-trigger:hover:not(:disabled) {
   border-color: transparent;
@@ -109,7 +109,8 @@
   background: transparent;
   color: var(--po-text-muted);
   font: inherit;
-  font-size: var(--po-text-size-sidebar, 13px);
+  font-size: var(--po-menu-item-font-size);
+  line-height: var(--po-menu-item-line-height);
   font-weight: 400;
 }
 .desktop-agent-picker-search input::placeholder { color: var(--po-text-subtle); }
@@ -127,7 +128,7 @@
   place-items: center;
   color: color-mix(in srgb, var(--po-warning) 76%, var(--po-text-muted));
 }
-.desktop-agent-picker-empty { padding: 22px 12px; color: var(--po-text-muted); font-size: var(--po-text-size-sidebar, 13px); text-align: center; }
+.desktop-agent-picker-empty { padding: 22px 12px; color: var(--po-text-muted); font-size: var(--po-menu-meta-font-size); line-height: var(--po-menu-meta-line-height); text-align: center; }
 .desktop-agent-picker-footer {
   display: flex;
   min-height: 32px;
@@ -140,7 +141,8 @@
 .desktop-agent-picker-footer > span {
   min-width: 0;
   overflow: hidden;
-  font-size: var(--po-text-size-caption, 11px);
+  font-size: var(--po-menu-meta-font-size);
+  line-height: var(--po-menu-meta-line-height);
   font-weight: 400;
   text-overflow: ellipsis;
   white-space: nowrap;

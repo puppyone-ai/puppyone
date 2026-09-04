@@ -4,6 +4,7 @@ import { bidiIsolate } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
 import { DesktopOverlayPortal } from "../../app-shell/DesktopOverlayPortal";
 import { AgentComposer } from "./AgentComposer";
+import { AgentApprovalDock } from "./AgentApprovalDock";
 import { AgentChangesControl } from "./AgentChangesControl";
 import { AgentPanelLayout } from "./AgentPanelLayout";
 import { AgentRuntimePicker } from "./AgentRuntimePicker";
@@ -18,6 +19,7 @@ import type {
   AgentRuntimeCatalogEntry,
 } from "../domain/agent-contract";
 import type { AgentSessionControl } from "../domain/agent-session-controls";
+import type { AgentApproval } from "../domain/agent-projection-types";
 import "./desktop-agent.css";
 
 const agentRuntimes: AgentRuntimeCatalogEntry[] = [
@@ -84,6 +86,23 @@ const smokeReferences: AgentDraftReference[] = [
   },
 ];
 
+const smokeApproval: AgentApproval = {
+  requestId: "visual-smoke-approval",
+  turnId: "turn-approval",
+  itemId: "tool-web-search",
+  kind: "command",
+  title: "Web search: Notion 1.0 2016 launch Product Hunt original version screenshots Ivan Zhao Kyoto rewrite",
+  command: null,
+  cwd: null,
+  commandActions: [],
+  networkApprovalContext: null,
+  grantRoot: null,
+  policyChangeRequested: false,
+  reason: "Web search: Notion 1.0 2016 launch Product Hunt original version screenshots Ivan Zhao Kyoto rewrite",
+  availableDecisions: ["accept", "acceptForSession", "decline", "cancel"],
+  sequence: 13,
+};
+
 export function AgentVisualSmokeHarness() {
   const { t } = useLocalization();
   const [draft, setDraft] = useState("");
@@ -92,8 +111,11 @@ export function AgentVisualSmokeHarness() {
   const [selectedModel, setSelectedModel] = useState(modelsByRuntime[runtimeId][0].model);
   const [selectedEffort, setSelectedEffort] = useState("medium");
   const [references, setReferences] = useState(smokeReferences);
+  const smokeState = new URLSearchParams(window.location.search).get("state");
   const theme = new URLSearchParams(window.location.search).get("theme") === "light" ? "light" : "dark";
-  const startupLoading = new URLSearchParams(window.location.search).get("state") === "loading";
+  const startupLoading = smokeState === "loading";
+  const streamingTableSmoke = smokeState === "streaming-table";
+  const approvalSmoke = smokeState === "approval";
   const selectedRuntime = agentRuntimes.find((entry) => entry.descriptor.id === runtimeId) ?? agentRuntimes[0];
   const models = modelsByRuntime[runtimeId];
   const sessionControls: AgentSessionControl[] = [
@@ -178,6 +200,23 @@ export function AgentVisualSmokeHarness() {
         sequence: 6,
       },
     ];
+    if (streamingTableSmoke) {
+      value.messages.push({
+        id: "assistant:streaming-table",
+        role: "assistant",
+        turnId: "turn-streaming-table",
+        itemId: "message-streaming-table",
+        text: [
+          "| Tool | State |",
+          "| --- | --- |",
+          "| Read | complete |",
+          "| Bash | run",
+        ].join("\n"),
+        streaming: true,
+        terminalState: null,
+        sequence: 12,
+      });
+    }
     value.activities = [
       {
         id: "activity:duration",
@@ -282,10 +321,10 @@ export function AgentVisualSmokeHarness() {
         partIds: ["user:2", "assistant:2"],
       },
     ];
-    value.lastSequence = 10;
+    value.lastSequence = streamingTableSmoke ? 12 : 10;
     value.terminalState = "completed";
     return value;
-  }, []);
+  }, [streamingTableSmoke]);
   const visibleProjection = startupLoading ? startupProjection : projection;
 
   return (
@@ -313,8 +352,15 @@ export function AgentVisualSmokeHarness() {
           />}
           conversation={<AgentTranscript projection={visibleProjection} loading={startupLoading} runtimeLabel={selectedRuntime.descriptor.displayName} />}
           dock={startupLoading ? null : <>
+            {approvalSmoke && <AgentApprovalDock
+              approval={smokeApproval}
+              queueLength={1}
+              resolving={false}
+              runtimeLabel={selectedRuntime.descriptor.displayName}
+              onResolve={() => {}}
+            />}
             <AgentComposer
-              floatingAccessory={<AgentChangesControl projection={visibleProjection} onViewChanges={() => {}} />}
+              floatingAccessory={approvalSmoke ? null : <AgentChangesControl projection={visibleProjection} onViewChanges={() => {}} />}
               draft={draft}
               draftMentions={draftMentions}
               onDraftChange={setDraft}
@@ -322,8 +368,8 @@ export function AgentVisualSmokeHarness() {
                 setDraft(nextDraft);
                 setDraftMentions(nextMentions);
               }}
-              disabled={startupLoading}
-              running={false}
+              disabled={startupLoading || approvalSmoke}
+              running={approvalSmoke}
               stopping={false}
               submitting={false}
               configurationDisabled={startupLoading}

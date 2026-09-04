@@ -94,7 +94,7 @@
   background: transparent;
   color: var(--agent-text);
   font: inherit;
-  font-size: var(--agent-font-size);
+  font-size: var(--agent-conversation-font-size);
   line-height: var(--agent-composer-line-height);
 }
 .desktop-agent-prompt-editor .cm-editor.cm-focused { outline: 0; }
@@ -262,7 +262,7 @@
 }
 .desktop-agent-reference-card-copy { display: grid; min-width: 0; gap: 3px; line-height: 1.15; }
 .desktop-agent-reference-card-copy strong { overflow: hidden; font-size: var(--agent-font-size); font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
-.desktop-agent-reference-card-copy small { overflow: hidden; color: var(--agent-text-subtle); font-size: var(--agent-font-size-caption); text-overflow: ellipsis; white-space: nowrap; }
+.desktop-agent-reference-card-copy small { overflow: hidden; color: var(--agent-text-subtle); font-size: var(--agent-font-size-caption); line-height: var(--agent-caption-line-height); text-overflow: ellipsis; white-space: nowrap; }
 .desktop-agent-reference-card.is-image-card {
   width: var(--agent-reference-card-height);
   flex: 0 0 var(--agent-reference-card-height);

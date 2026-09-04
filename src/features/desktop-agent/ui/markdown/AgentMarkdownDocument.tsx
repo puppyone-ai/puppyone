@@ -3,6 +3,7 @@ import { useId, useMemo, useState, type AnchorHTMLAttributes, type ImgHTMLAttrib
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useLocalization } from "@puppyone/localization/react";
+import { resolveMarkdownContentLanguage } from "@puppyone/shared-ui";
 import { splitStreamingMarkdown } from "../../domain/agent-stream-presentation";
 import { AgentMarkdownCodeBlock } from "./AgentMarkdownCodeBlock";
 import { useAgentMarkdownEnvironment } from "./AgentMarkdownEnvironment";
@@ -24,6 +25,10 @@ export function AgentMarkdownDocument({ text, streaming = false, blockRegistry }
   const { locale, t } = useLocalization();
   const { openExternalUrl } = useAgentMarkdownEnvironment();
   const [expanded, setExpanded] = useState(false);
+  const contentLanguage = useMemo(
+    () => resolveMarkdownContentLanguage(text, locale),
+    [locale, text],
+  );
   const initial = useMemo(() => createInitialAgentMarkdownWindow(text), [text]);
   const candidate = expanded ? text : initial.source;
   const presentation = useMemo(
@@ -36,7 +41,11 @@ export function AgentMarkdownDocument({ text, streaming = false, blockRegistry }
   );
   const documentId = useId().replace(/[^A-Za-z0-9_-]/g, "");
   return (
-    <div className="desktop-agent-markdown" data-po-typography-role="content" lang={locale}>
+    <div
+      className="desktop-agent-markdown"
+      data-po-typography-role="content"
+      lang={contentLanguage.language}
+    >
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={components}
