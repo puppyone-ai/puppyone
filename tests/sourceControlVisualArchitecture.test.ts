@@ -361,7 +361,7 @@ describe("source-control visual architecture", () => {
     expect(actionSlot).toContain("place-items: center;");
     expect(state).toContain("flex: 0 0 auto;");
     expect(state).toContain("color: var(--po-text-disabled);");
-    expect(state).toContain("font-size: 10px;");
+    expect(state).toContain("font-size: var(--po-type-ui-micro, 11px);");
     expect(state).toContain("font-weight: var(--po-text-weight-regular, 400);");
     expect(state).not.toContain("var(--po-success)");
     expect(state).not.toContain("var(--po-warning)");
@@ -395,7 +395,7 @@ describe("source-control visual architecture", () => {
     expect(sourceControlSidebarSource).toContain('t("source-control.status.noRepository")');
     expect(sourceControlSidebarSource).not.toContain('"Initialize Repository"');
     expect(desktopEntryStateCss).toContain("width: min(420px, 100%);");
-    expect(versionControlSetupCss).toContain("height: 30px;");
+    expect(versionControlSetupCss).toContain("height: var(--po-control-size);");
   });
 
   it("shares the responsive setup type scale with the Cloud entry state", () => {
@@ -554,7 +554,7 @@ describe("source-control visual architecture", () => {
     expect(contract).toContain("--git-action-size: 24px;");
     expect(contract).toContain("--git-action-radius: var(--desktop-toolbar-action-radius);");
     expect(contract).toContain("--git-action-padding-inline: 7px;");
-    expect(contract).toContain("--git-action-font-size: 12px;");
+    expect(contract).toContain("--git-action-font-size: var(--po-type-ui-meta, 13px);");
     expect(operation).toContain("height: var(--git-action-size);");
     expect(operation).toContain("padding: 0 var(--git-action-padding-inline);");
     expect(operation).not.toContain("height: 28px;");
@@ -639,7 +639,7 @@ describe("source-control visual architecture", () => {
     const linePrefix = compact(readCssBlock(diffCss, ".desktop-diff-line .line-prefix"));
     const lineCode = compact(readCssBlock(diffCss, ".desktop-diff-line code"));
 
-    expect(lines).toContain("font-size: 12px;");
+    expect(lines).toContain("font-size: var(--po-type-ui-meta, 13px);");
     expect(lines).toContain("line-height: 18px;");
     expect(surface).toContain(
       "--desktop-git-diff-code-bg: color-mix(in srgb, var(--po-panel) 62%, var(--po-inset));",
@@ -681,10 +681,10 @@ describe("source-control visual architecture", () => {
     ));
 
     expect(sidebar).toContain(
-      "--git-font-main: var(--desktop-sidebar-font-size, var(--po-text-size-sidebar, 13px));",
+      "--git-font-main: var(--desktop-sidebar-font-size, var(--po-type-left-sidebar-content, 14px));",
     );
     expect(sidebar).toContain(
-      "--git-font-small: var(--desktop-sidebar-font-size-meta, var(--po-text-size-meta, 12px));",
+      "--git-font-small: var(--desktop-sidebar-font-size-meta, var(--po-type-left-sidebar-meta, 12px));",
     );
     expect(sidebar).toContain(
       "--git-line-height: var(--desktop-sidebar-line-height, 18px);",
@@ -737,7 +737,7 @@ describe("source-control visual architecture", () => {
     expect(message).toContain("overflow: hidden;");
     expect(message).toContain("text-overflow: ellipsis;");
     expect(message).toContain("white-space: nowrap;");
-    expect(stat).toContain("font-size: 10px;");
+    expect(stat).toContain("font-size: var(--po-type-ui-micro, 11px);");
     expect(stat).toContain("font-variant-numeric: tabular-nums;");
     expect(added).toContain("var(--po-success) 48%");
     expect(deleted).toContain("var(--po-danger) 48%");

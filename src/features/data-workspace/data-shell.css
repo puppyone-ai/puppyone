@@ -159,7 +159,7 @@ body.data-sidebar-resizing * {
 
 .desktop-explorer-toolbar > span {
   color: var(--po-text-muted);
-  font-size: var(--po-text-size-sidebar, 13px);
+  font-size: var(--po-type-left-sidebar-content, 14px);
   font-weight: 650;
 }
 
@@ -173,8 +173,8 @@ body.data-sidebar-resizing * {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: var(--po-control-size-compact);
+  height: var(--po-control-size-compact);
   border: 0;
   border-radius: var(--desktop-control-radius);
   background: transparent;
@@ -397,7 +397,7 @@ body.data-sidebar-resizing * {
   border-radius: var(--desktop-control-radius);
   background: color-mix(in srgb, var(--po-warning) 14%, var(--po-panel-raised));
   color: color-mix(in srgb, var(--po-warning) 78%, var(--po-text));
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 620;
   line-height: 1.35;
   box-shadow: var(--po-elevation-low);
@@ -415,7 +415,7 @@ body.data-sidebar-resizing * {
   border-radius: var(--desktop-control-radius);
   background: color-mix(in srgb, var(--po-panel-raised) 94%, transparent);
   color: var(--po-text);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 620;
   line-height: 1.35;
   box-shadow: var(--po-elevation-low);
@@ -495,7 +495,7 @@ body.data-sidebar-resizing * {
   border-radius: var(--desktop-control-radius);
   background: transparent;
   color: var(--po-text-muted);
-  font-size: var(--po-text-size-sidebar, 13px);
+  font-size: var(--po-type-left-sidebar-content, 14px);
   font-weight: 650;
   line-height: 18px;
   text-align: start;
@@ -584,7 +584,7 @@ body.data-sidebar-resizing * {
   background: var(--po-notification);
   box-shadow: 0 0 0 1px var(--po-sidebar);
   color: var(--po-notification-text);
-  font-size: 10px;
+  font-size: var(--po-type-ui-micro, 11px);
   font-style: normal;
   font-weight: 780;
   line-height: 1;

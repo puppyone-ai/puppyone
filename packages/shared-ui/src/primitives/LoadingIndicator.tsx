@@ -155,6 +155,7 @@ export function DotsLoader({
 
 export function InlineLoading({
   label,
+  ariaLabel,
   size = "xs",
   tone = "neutral",
   indicator = "pulse-grid",
@@ -164,6 +165,7 @@ export function InlineLoading({
   style,
 }: {
   label?: ReactNode | null;
+  ariaLabel?: string;
   size?: LoaderSize;
   tone?: LoaderTone;
   indicator?: "pulse-grid" | "dots";
@@ -174,17 +176,18 @@ export function InlineLoading({
 }) {
   const { t } = useLocalization();
   const resolvedLabel = label === undefined ? t("shared-ui.loading") : label;
-  const ariaLabel = typeof resolvedLabel === "string" ? resolvedLabel : t("shared-ui.loading");
+  const resolvedAriaLabel = ariaLabel
+    ?? (typeof resolvedLabel === "string" ? resolvedLabel : t("shared-ui.loading"));
 
   return (
     <span className={className} style={{ display: "inline-flex", alignItems: "center", gap: 8, ...style }}>
       {indicator === "dots" ? (
-        <DotsLoader size={size} tone={tone} ariaLabel={ariaLabel} />
+        <DotsLoader size={size} tone={tone} ariaLabel={resolvedAriaLabel} />
       ) : (
         <PulseGridLoader
           size={size}
           tone={tone}
-          ariaLabel={ariaLabel}
+          ariaLabel={resolvedAriaLabel}
           frames={frames}
           frameDurationMs={frameDurationMs}
         />

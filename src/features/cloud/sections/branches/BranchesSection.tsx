@@ -1,6 +1,10 @@
-import { Fragment, type CSSProperties } from "react";
+import { Fragment, useRef, type CSSProperties } from "react";
 import { ExternalLink, GitBranch, RefreshCw } from "lucide-react";
-import type { Workspace } from "@puppyone/shared-ui";
+import {
+  STANDARD_CONTROL_SIZE,
+  useCssPixelCustomProperty,
+  type Workspace,
+} from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
 import "./branches.css";
 import type { DesktopCloudSession } from "../../../../lib/cloudApi";
@@ -31,7 +35,6 @@ import {
 const GRAPH_LANE_WIDTH = 16;
 const GRAPH_LEFT_PAD = 10;
 const GRAPH_RIGHT_PAD = 12;
-const GRAPH_ROW_HEIGHT = 30;
 const GRAPH_CONTINUATION_HEIGHT = 8;
 const GRAPH_STROKE_WIDTH = 2.2;
 
@@ -55,6 +58,12 @@ export function CloudBranchesSection({
   onOpenProject: (projectId: string, section?: CloudWorkspaceSection) => void;
 }) {
   const { formatNumber, t } = useLocalization();
+  const sectionRef = useRef<HTMLElement>(null);
+  const graphRowHeight = useCssPixelCustomProperty(
+    sectionRef,
+    "--cloud-branches-row-height",
+    STANDARD_CONTROL_SIZE,
+  );
   const gitGraphStatus = useCloudBranchesGitStatus({
     rootPath: workspace.path,
     fallbackStatus: status,
@@ -104,7 +113,7 @@ export function CloudBranchesSection({
       : formatCloudGraphWarning(diagnostics, t);
 
   return (
-    <section className="desktop-cloud-branches-page">
+    <section ref={sectionRef} className="desktop-cloud-branches-page">
       <header className="desktop-cloud-branches-header">
         <div>
           <span>{t("cloud.route.branches.title")}</span>
@@ -164,6 +173,7 @@ export function CloudBranchesSection({
                     projectId={projectId}
                     row={row}
                     graphWidth={graphWidth}
+                    rowHeight={graphRowHeight}
                   />
                   {row.continuationLines.map((line, index) => (
                     <BranchGraphContinuationLine
@@ -186,10 +196,12 @@ function BranchGraphRow({
   projectId,
   row,
   graphWidth,
+  rowHeight,
 }: {
   projectId: string;
   row: CloudBranchGraphRow;
   graphWidth: number;
+  rowHeight: number;
 }) {
   const localization = useLocalization();
   const { t } = localization;
@@ -201,7 +213,7 @@ function BranchGraphRow({
       <span className="desktop-cloud-branch-graph-cell" style={{ width: graphWidth }} aria-hidden="true" dir="ltr">
         <BranchGraphVisual
           graphWidth={graphWidth}
-          height={GRAPH_ROW_HEIGHT}
+          height={rowHeight}
           line={row}
           refMarkers={row.refMarkers}
           node={row.kind === "commit"

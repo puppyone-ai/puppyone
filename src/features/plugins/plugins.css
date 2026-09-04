@@ -6,11 +6,11 @@
 
 .desktop-plugins-sidebar-heading {
   display: flex;
-  height: 32px;
+  height: var(--desktop-sidebar-row-height);
   align-items: center;
   padding: 0 var(--desktop-sidebar-row-content-left);
   color: var(--po-text);
-  font-size: var(--desktop-sidebar-font-size, 13px);
+  font-size: var(--desktop-sidebar-font-size, var(--po-type-left-sidebar-content, 14px));
   font-weight: var(--desktop-sidebar-font-weight, 500);
   line-height: var(--desktop-sidebar-line-height, 18px);
 }
@@ -78,7 +78,7 @@
 
 .desktop-plugins-header {
   display: flex;
-  min-height: 32px;
+  min-height: var(--po-control-size);
   align-items: center;
   justify-content: space-between;
   gap: 20px;
@@ -103,7 +103,7 @@
 .desktop-plugins-install-action,
 .desktop-plugins-empty-action {
   display: inline-flex;
-  height: 30px;
+  height: var(--po-control-size);
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
@@ -115,7 +115,7 @@
   background: var(--po-accent);
   color: var(--po-accent-contrast, white);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 550;
   line-height: 18px;
 }
@@ -139,7 +139,7 @@
   border-inline-start: 2px solid var(--po-success);
   background: color-mix(in srgb, var(--po-success) 5%, transparent);
   color: var(--po-success);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 18px;
 }
 
@@ -176,7 +176,7 @@
   background: transparent;
   color: var(--po-text);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   line-height: 18px;
 }
 
@@ -195,7 +195,7 @@
   gap: 12px;
   margin-bottom: -8px;
   color: var(--po-text);
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   font-weight: 550;
   line-height: 18px;
 }
@@ -245,7 +245,7 @@
   min-width: 0;
   overflow: hidden;
   color: var(--po-text);
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   font-weight: 600;
   line-height: 18px;
   text-overflow: ellipsis;
@@ -258,7 +258,7 @@
   min-width: 0;
   overflow: hidden;
   color: var(--po-text-subtle);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-weight: 450;
   line-height: 16px;
   text-overflow: ellipsis;
@@ -267,7 +267,7 @@
 
 .desktop-official-plugin-row > small {
   color: var(--po-text-subtle);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-weight: 500;
 }
 
@@ -295,8 +295,8 @@
 
 .desktop-plugin-menu > summary {
   display: inline-flex;
-  width: 28px;
-  height: 28px;
+  width: var(--po-control-size-compact);
+  height: var(--po-control-size-compact);
   align-items: center;
   justify-content: center;
   border-radius: 6px;
@@ -331,7 +331,7 @@
 .desktop-plugin-menu button {
   display: flex;
   width: 100%;
-  height: 28px;
+  height: var(--po-control-size-compact);
   align-items: center;
   gap: 7px;
   padding: 0 8px;
@@ -340,7 +340,7 @@
   background: transparent;
   color: var(--po-danger);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   text-align: start;
 }
 
@@ -373,7 +373,7 @@
   place-items: center;
   border-top: 1px solid var(--po-divider);
   color: var(--po-text-subtle);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
 }
 
 @media (max-width: 860px) {
@@ -390,6 +390,6 @@
   }
 
   .desktop-plugins-title-row h1 {
-    font-size: 20px;
+    font-size: var(--po-type-ui-page-title, 21px);
   }
 }

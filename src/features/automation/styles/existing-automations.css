@@ -1,7 +1,7 @@
 .desktop-cloud-automation-existing-loading {
   margin-top: 32px;
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 18px;
 }
 
@@ -52,7 +52,7 @@
 
 .desktop-cloud-automation-add-more-header p {
   color: var(--po-text-muted);
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   line-height: 18px;
 }
 
@@ -77,7 +77,7 @@
 
 .desktop-cloud-automation-creation-echo strong {
   color: var(--po-text);
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   font-weight: 600;
   line-height: 18px;
 }
@@ -85,7 +85,7 @@
 .desktop-cloud-automation-creation-echo span {
   overflow: hidden;
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 17px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -108,7 +108,7 @@
 
 .desktop-cloud-automation-creation-echo-actions > button {
   display: inline-flex;
-  height: 28px;
+  height: var(--po-control-size-compact);
   flex: 0 0 auto;
   align-items: center;
   gap: 6px;
@@ -118,7 +118,7 @@
   background: transparent;
   color: var(--po-text-muted);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   cursor: var(--po-clickable-cursor, default);
 }
 
@@ -152,7 +152,7 @@
   border-radius: 999px;
   background: var(--po-active);
   color: var(--po-text-muted);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-variant-numeric: tabular-nums;
   line-height: 18px;
 }
@@ -160,4 +160,3 @@
 .desktop-cloud-automation-detail {
   min-width: 0;
 }
-

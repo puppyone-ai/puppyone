@@ -73,7 +73,7 @@
     max-width: 330px;
     margin: 0;
     color: var(--po-text-muted);
-    font-size: 13px;
+    font-size: var(--po-type-ui-body, 14px);
     font-weight: 450;
     letter-spacing: -0.012em;
     line-height: 1.55;
@@ -102,7 +102,7 @@
     display: inline-flex;
     width: auto;
     min-width: 0;
-    height: 33px;
+    height: var(--po-control-size);
     align-items: center;
     justify-content: center;
     gap: 7px;
@@ -112,7 +112,7 @@
     background: #24231f;
     color: #fff;
     font: inherit;
-    font-size: 13px;
+    font-size: var(--po-type-ui-body, 14px);
     font-weight: 620;
     letter-spacing: -0.012em;
     line-height: 1;
@@ -339,7 +339,7 @@
   }
 
   .desktop-cloud-activation-schedule-card strong {
-    font-size: 15px;
+    font-size: var(--po-type-ui-section-title, 16px);
     font-weight: 540;
     letter-spacing: -0.018em;
   }
@@ -706,7 +706,7 @@
   .desktop-cloud-channel-command b {
     color: #85c8ff;
     font: inherit;
-    font-size: 11px;
+    font-size: var(--po-type-ui-caption, 12px);
     font-weight: 600;
   }
 
@@ -768,7 +768,7 @@
 
   .desktop-cloud-channel-commit {
     display: grid;
-    grid-template-columns: 9px 1fr 30px;
+    grid-template-columns: 9px 1fr var(--po-control-size);
     align-items: center;
     gap: 9px;
   }

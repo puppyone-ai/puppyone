@@ -32,7 +32,7 @@ describe("Sub Theme settings", () => {
     expect(section).toContain("desktop-settings-select");
     const styles = source("src/styles/settings-controls.css");
     expect(styles).toMatch(/\.desktop-theme-pack-controls\s*\{[\s\S]*flex-wrap:\s*nowrap/);
-    expect(styles).toMatch(/\.desktop-theme-pack-controls\s*\{[^}]*height:\s*28px/);
+    expect(styles).toMatch(/\.desktop-theme-pack-controls\s*\{[^}]*height:\s*var\(--po-control-size-compact\)/);
     expect(styles).not.toMatch(/\.desktop-theme-pack-controls\s*\{[^}]*(?:padding|border|background):/);
     expect(styles).toMatch(/\.desktop-theme-pack-label\s*\{[^}]*white-space:\s*nowrap/);
     expect(styles).toMatch(/\.desktop-theme-pack-controls\s*\{[^}]*width:\s*max-content[^}]*max-width:\s*100%/);
@@ -42,7 +42,7 @@ describe("Sub Theme settings", () => {
     expect(section).not.toContain("desktop-theme-settings-action-row");
     expect(section.match(/desktop-settings-row desktop-settings-row-control/g)).toHaveLength(1);
     expect(section.indexOf("desktop-theme-pack-select")).toBeLessThan(section.indexOf("catalog.openDirectory"));
-    expect(styles).toMatch(/\.desktop-theme-pack-icon-action\s*\{[^}]*width:\s*28px[^}]*height:\s*28px[^}]*border:\s*0/);
+    expect(styles).toMatch(/\.desktop-theme-pack-icon-action\s*\{[^}]*width:\s*var\(--po-control-size-compact\)[^}]*height:\s*var\(--po-control-size-compact\)[^}]*border:\s*0/);
     expect(styles).not.toMatch(/@media\s*\(max-width:\s*760px\)[\s\S]*\.desktop-theme-pack-controls\s*\{[^}]*width:\s*100%/);
   });
 

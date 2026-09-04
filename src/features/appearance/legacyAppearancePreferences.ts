@@ -23,18 +23,20 @@ import {
   MARKDOWN_PRESENTATION_STORAGE_KEY,
   POINTER_CURSORS_STORAGE_KEY,
   SIDEBAR_NAVIGATION_LAYOUT_STORAGE_KEY,
-  TEXT_SIZE_STORAGE_KEY,
   TYPOGRAPHY_STORAGE_KEY,
   parseDarkThemePreset,
   parseLightThemePreset,
   parseLoadingAnimationPreset,
   parsePointerCursors,
   parseSidebarNavigationLayout,
-  parseTextSize,
   parseThemeMode,
   parseTypography,
 } from "../../preferences";
 import type { LegacyAppearanceSnapshot } from "./appearancePreferences";
+import {
+  LEGACY_TEXT_SIZE_STORAGE_KEY,
+  parseLegacyTextSize,
+} from "./legacyTextSizeMigration";
 
 /**
  * One-way migration input for releases that predate the canonical Appearance
@@ -59,7 +61,7 @@ export function readLegacyAppearanceSnapshot(
       storage.getItem(MARKDOWN_PRESENTATION_STORAGE_KEY)
         ?? storage.getItem(MARKDOWN_EMPHASIS_STORAGE_KEY),
     ) || DEFAULT_MARKDOWN_PRESENTATION_SETTINGS,
-    textSize: parseTextSize(storage.getItem(TEXT_SIZE_STORAGE_KEY)),
+    legacyTextSize: parseLegacyTextSize(storage.getItem(LEGACY_TEXT_SIZE_STORAGE_KEY)),
     typography: parseTypography(storage.getItem(TYPOGRAPHY_STORAGE_KEY)),
     pointerCursors: parsePointerCursors(storage.getItem(POINTER_CURSORS_STORAGE_KEY)),
     loadingAnimationPreset: parseLoadingAnimationPreset(
@@ -92,7 +94,7 @@ export const LEGACY_APPEARANCE_STORAGE_KEYS = Object.freeze([
   DARK_THEME_PRESET_STORAGE_KEY,
   LEGACY_THEME_PRESET_STORAGE_KEY,
   LEGACY_SURFACE_THEME_PREFERENCES_STORAGE_KEY,
-  TEXT_SIZE_STORAGE_KEY,
+  LEGACY_TEXT_SIZE_STORAGE_KEY,
   TYPOGRAPHY_STORAGE_KEY,
   POINTER_CURSORS_STORAGE_KEY,
   LOADING_ANIMATION_STORAGE_KEY,

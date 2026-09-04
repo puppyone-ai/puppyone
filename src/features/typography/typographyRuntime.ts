@@ -11,40 +11,7 @@ import {
 } from "./fontCatalog";
 
 type TypographyCustomProperties = CSSProperties & {
-  "--po-font-ui-primary": string;
-  "--po-font-content-primary": string;
-  "--po-font-code-primary": string;
-  "--po-font-terminal-primary": string;
-  "--po-font-editor-content-user"?: string;
-  "--po-user-left-sidebar-font-size": string;
-  "--po-user-left-sidebar-meta-font-size": string;
-  "--po-user-left-sidebar-line-height": string;
-  "--po-user-header-font-size": string;
-  "--po-user-header-line-height": string;
-  "--po-user-header-meta-font-size": string;
-  "--po-user-header-meta-line-height": string;
-  "--po-user-text-size-content": string;
-  "--po-user-editor-line-height": string;
-  "--po-user-text-size-data": string;
-  "--po-user-code-font-size": string;
-  "--po-user-editor-heading-1-font-size": string;
-  "--po-user-editor-heading-2-font-size": string;
-  "--po-user-editor-heading-3-font-size": string;
-  "--po-user-editor-heading-4-font-size": string;
-  "--po-user-editor-heading-5-font-size": string;
-  "--po-user-editor-heading-6-font-size": string;
-  "--po-user-text-size-conversation": string;
-  "--po-user-right-sidebar-control-line-height": string;
-  "--po-user-right-sidebar-meta-font-size": string;
-  "--po-user-right-sidebar-meta-line-height": string;
-  "--po-user-right-sidebar-caption-font-size": string;
-  "--po-user-right-sidebar-caption-line-height": string;
-  "--po-user-right-sidebar-micro-font-size": string;
-  "--po-user-right-sidebar-micro-line-height": string;
-  "--po-user-right-sidebar-code-font-size": string;
-  "--po-user-terminal-font-size": string;
-  "--po-user-right-sidebar-heading-1-font-size": string;
-  "--po-user-right-sidebar-heading-2-font-size": string;
+  [name: `--po-${string}`]: string | undefined;
 };
 
 export type TypographyRootProps = {
@@ -58,10 +25,7 @@ export type TypographyRootProps = {
   "data-font-code-category": FontCatalogEntry["category"];
   "data-font-terminal": string;
   "data-font-terminal-category": FontCatalogEntry["category"];
-  "data-typography-left-sidebar-scale": ResolvedTypography["scales"]["leftSidebar"];
-  "data-typography-header-scale": ResolvedTypography["scales"]["header"];
-  "data-typography-editor-scale": ResolvedTypography["scales"]["editor"];
-  "data-typography-right-sidebar-scale": ResolvedTypography["scales"]["rightSidebar"];
+  "data-typography-scale": ResolvedTypography["scale"];
   style: TypographyCustomProperties;
 };
 
@@ -134,16 +98,82 @@ export function useTypographyRuntime(
 }
 
 function serializeTypographySizes(resolved: ResolvedTypography): string {
-  return [
-    resolved.scales.leftSidebar,
-    resolved.scales.header,
-    resolved.scales.editor,
-    resolved.scales.rightSidebar,
-  ].join(",");
+  return resolved.scale;
 }
 
 export function createTypographyRootProps(resolved: ResolvedTypography): TypographyRootProps {
+  return {
+    ...buildTypographyDataAttributes(resolved),
+    style: buildTypographyCustomProperties(resolved),
+  };
+}
+
+/** The only runtime projection from the typed scale profile to CSS. App roots,
+ * portals, visual fixtures, and independently mounted surfaces all consume
+ * this same map so their typography cannot drift. */
+export function buildTypographyCustomProperties(
+  resolved: ResolvedTypography,
+): TypographyCustomProperties {
   const metrics = resolveScaleMetrics(resolved);
+  return {
+    "--po-control-size": `${metrics.geometry.controlSize}px`,
+    "--po-font-ui-primary": resolved.ui.family,
+    "--po-font-content-primary": resolved.content.family,
+    "--po-font-code-primary": resolved.code.family,
+    "--po-font-terminal-primary": resolved.terminal.family,
+    ...(resolved.editorContentOverride
+      ? { "--po-font-editor-content-user": createCatalogFontFamily(resolved.editorContentOverride) }
+      : {}),
+    "--po-user-ui-glyph-font-size": `${metrics.ui.glyph}px`,
+    "--po-user-ui-micro-font-size": `${metrics.ui.micro}px`,
+    "--po-user-ui-caption-font-size": `${metrics.ui.caption}px`,
+    "--po-user-ui-hint-font-size": `${metrics.ui.hint}px`,
+    "--po-user-ui-meta-font-size": `${metrics.ui.meta}px`,
+    "--po-user-ui-label-font-size": `${metrics.ui.label}px`,
+    "--po-user-ui-control-font-size": `${metrics.ui.control}px`,
+    "--po-user-ui-body-font-size": `${metrics.ui.body}px`,
+    "--po-user-ui-body-large-font-size": `${metrics.ui.bodyLarge}px`,
+    "--po-user-ui-section-title-font-size": `${metrics.ui.sectionTitle}px`,
+    "--po-user-ui-title-font-size": `${metrics.ui.title}px`,
+    "--po-user-ui-heading-font-size": `${metrics.ui.heading}px`,
+    "--po-user-ui-page-title-font-size": `${metrics.ui.pageTitle}px`,
+    "--po-user-ui-display-font-size": `${metrics.ui.display}px`,
+    "--po-user-ui-hero-font-size": `${metrics.ui.hero}px`,
+    "--po-user-left-sidebar-font-size": `${metrics.leftSidebar.content}px`,
+    "--po-user-left-sidebar-meta-font-size": `${metrics.leftSidebar.meta}px`,
+    "--po-user-left-sidebar-line-height": `${metrics.leftSidebar.lineHeight}px`,
+    "--po-user-header-font-size": `${metrics.header.content}px`,
+    "--po-user-header-line-height": `${metrics.header.lineHeight}px`,
+    "--po-user-header-meta-font-size": `${metrics.header.meta}px`,
+    "--po-user-header-meta-line-height": `${metrics.header.metaLineHeight}px`,
+    "--po-user-text-size-content": `${metrics.editor.content}px`,
+    "--po-user-editor-line-height": `${metrics.editor.lineHeight}px`,
+    "--po-user-text-size-data": `${metrics.editor.data}px`,
+    "--po-user-code-font-size": `${metrics.editor.code}px`,
+    "--po-user-editor-heading-1-font-size": `${metrics.editor.heading1}px`,
+    "--po-user-editor-heading-2-font-size": `${metrics.editor.heading2}px`,
+    "--po-user-editor-heading-3-font-size": `${metrics.editor.heading3}px`,
+    "--po-user-editor-heading-4-font-size": `${metrics.editor.heading4}px`,
+    "--po-user-editor-heading-5-font-size": `${metrics.editor.heading5}px`,
+    "--po-user-editor-heading-6-font-size": `${metrics.editor.heading6}px`,
+    "--po-user-text-size-conversation": `${metrics.rightSidebar.content}px`,
+    "--po-user-right-sidebar-control-line-height": `${metrics.rightSidebar.controlLineHeight}px`,
+    "--po-user-right-sidebar-meta-font-size": `${metrics.rightSidebar.meta}px`,
+    "--po-user-right-sidebar-meta-line-height": `${metrics.rightSidebar.metaLineHeight}px`,
+    "--po-user-right-sidebar-caption-font-size": `${metrics.rightSidebar.caption}px`,
+    "--po-user-right-sidebar-caption-line-height": `${metrics.rightSidebar.captionLineHeight}px`,
+    "--po-user-right-sidebar-micro-font-size": `${metrics.rightSidebar.micro}px`,
+    "--po-user-right-sidebar-micro-line-height": `${metrics.rightSidebar.microLineHeight}px`,
+    "--po-user-right-sidebar-code-font-size": `${metrics.rightSidebar.code}px`,
+    "--po-user-terminal-font-size": `${metrics.rightSidebar.terminal}px`,
+    "--po-user-right-sidebar-heading-1-font-size": `${metrics.rightSidebar.heading1}px`,
+    "--po-user-right-sidebar-heading-2-font-size": `${metrics.rightSidebar.heading2}px`,
+  };
+}
+
+function buildTypographyDataAttributes(
+  resolved: ResolvedTypography,
+): Omit<TypographyRootProps, "style"> {
   return {
     "data-font-ui": resolved.ui.id,
     "data-font-ui-category": resolved.ui.category,
@@ -157,151 +187,54 @@ export function createTypographyRootProps(resolved: ResolvedTypography): Typogra
     "data-font-code-category": resolved.code.category,
     "data-font-terminal": resolved.terminal.id,
     "data-font-terminal-category": resolved.terminal.category,
-    "data-typography-left-sidebar-scale": resolved.scales.leftSidebar,
-    "data-typography-header-scale": resolved.scales.header,
-    "data-typography-editor-scale": resolved.scales.editor,
-    "data-typography-right-sidebar-scale": resolved.scales.rightSidebar,
-    style: {
-      "--po-font-ui-primary": resolved.ui.family,
-      "--po-font-content-primary": resolved.content.family,
-      "--po-font-code-primary": resolved.code.family,
-      "--po-font-terminal-primary": resolved.terminal.family,
-      ...(resolved.editorContentOverride
-        ? { "--po-font-editor-content-user": createCatalogFontFamily(resolved.editorContentOverride) }
-        : {}),
-      "--po-user-left-sidebar-font-size": `${metrics.leftSidebar.content}px`,
-      "--po-user-left-sidebar-meta-font-size": `${metrics.leftSidebar.meta}px`,
-      "--po-user-left-sidebar-line-height": `${metrics.leftSidebar.lineHeight}px`,
-      "--po-user-header-font-size": `${metrics.header.content}px`,
-      "--po-user-header-line-height": `${metrics.header.lineHeight}px`,
-      "--po-user-header-meta-font-size": `${metrics.header.meta}px`,
-      "--po-user-header-meta-line-height": `${metrics.header.metaLineHeight}px`,
-      "--po-user-text-size-content": `${metrics.editor.content}px`,
-      "--po-user-editor-line-height": `${metrics.editor.lineHeight}px`,
-      "--po-user-text-size-data": `${metrics.editor.data}px`,
-      "--po-user-code-font-size": `${metrics.editor.code}px`,
-      "--po-user-editor-heading-1-font-size": `${metrics.editor.heading1}px`,
-      "--po-user-editor-heading-2-font-size": `${metrics.editor.heading2}px`,
-      "--po-user-editor-heading-3-font-size": `${metrics.editor.heading3}px`,
-      "--po-user-editor-heading-4-font-size": `${metrics.editor.heading4}px`,
-      "--po-user-editor-heading-5-font-size": `${metrics.editor.heading5}px`,
-      "--po-user-editor-heading-6-font-size": `${metrics.editor.heading6}px`,
-      "--po-user-text-size-conversation": `${metrics.rightSidebar.content}px`,
-      "--po-user-right-sidebar-control-line-height": `${metrics.rightSidebar.controlLineHeight}px`,
-      "--po-user-right-sidebar-meta-font-size": `${metrics.rightSidebar.meta}px`,
-      "--po-user-right-sidebar-meta-line-height": `${metrics.rightSidebar.metaLineHeight}px`,
-      "--po-user-right-sidebar-caption-font-size": `${metrics.rightSidebar.caption}px`,
-      "--po-user-right-sidebar-caption-line-height": `${metrics.rightSidebar.captionLineHeight}px`,
-      "--po-user-right-sidebar-micro-font-size": `${metrics.rightSidebar.micro}px`,
-      "--po-user-right-sidebar-micro-line-height": `${metrics.rightSidebar.microLineHeight}px`,
-      "--po-user-right-sidebar-code-font-size": `${metrics.rightSidebar.code}px`,
-      "--po-user-terminal-font-size": `${metrics.rightSidebar.terminal}px`,
-      "--po-user-right-sidebar-heading-1-font-size": `${metrics.rightSidebar.heading1}px`,
-      "--po-user-right-sidebar-heading-2-font-size": `${metrics.rightSidebar.heading2}px`,
-    },
+    "data-typography-scale": resolved.scale,
   };
 }
 
 export function applyTypographyToElement(element: HTMLElement, resolved: ResolvedTypography) {
-  const metrics = resolveScaleMetrics(resolved);
-  element.dataset.fontUi = resolved.ui.id;
-  element.dataset.fontUiCategory = resolved.ui.category;
-  element.dataset.fontContent = resolved.content.id;
-  element.dataset.fontContentCategory = resolved.content.category;
-  element.dataset.fontEditorContentMode = resolved.editorContentOverride ? "explicit" : "follow-theme";
-  if (resolved.editorContentOverride) element.dataset.fontEditorContent = resolved.editorContentOverride.id;
-  else delete element.dataset.fontEditorContent;
-  element.dataset.fontCode = resolved.code.id;
-  element.dataset.fontCodeCategory = resolved.code.category;
-  element.dataset.fontTerminal = resolved.terminal.id;
-  element.dataset.fontTerminalCategory = resolved.terminal.category;
-  element.dataset.typographyLeftSidebarScale = resolved.scales.leftSidebar;
-  element.dataset.typographyHeaderScale = resolved.scales.header;
-  element.dataset.typographyEditorScale = resolved.scales.editor;
-  element.dataset.typographyRightSidebarScale = resolved.scales.rightSidebar;
-  delete element.dataset.textSizeContentMode;
-  delete element.dataset.textSizeConversationMode;
-  delete element.dataset.textSizeMonospaceMode;
-  element.style.removeProperty("--po-font-ui");
-  element.style.removeProperty("--po-font-content");
-  element.style.removeProperty("--po-font-code");
-  element.style.removeProperty("--po-font-terminal");
-  element.style.removeProperty("--po-font-editor-content-user");
-  element.style.removeProperty("--po-user-left-sidebar-font-size");
-  element.style.removeProperty("--po-user-left-sidebar-meta-font-size");
-  element.style.removeProperty("--po-user-left-sidebar-line-height");
-  element.style.removeProperty("--po-user-header-font-size");
-  element.style.removeProperty("--po-user-header-line-height");
-  element.style.removeProperty("--po-user-header-meta-font-size");
-  element.style.removeProperty("--po-user-header-meta-line-height");
-  element.style.removeProperty("--po-user-text-size-content");
-  element.style.removeProperty("--po-user-editor-line-height");
-  element.style.removeProperty("--po-user-text-size-data");
-  element.style.removeProperty("--po-user-text-size-conversation");
-  element.style.removeProperty("--po-user-right-sidebar-control-line-height");
-  element.style.removeProperty("--po-user-right-sidebar-meta-font-size");
-  element.style.removeProperty("--po-user-right-sidebar-meta-line-height");
-  element.style.removeProperty("--po-user-right-sidebar-caption-font-size");
-  element.style.removeProperty("--po-user-right-sidebar-caption-line-height");
-  element.style.removeProperty("--po-user-right-sidebar-micro-font-size");
-  element.style.removeProperty("--po-user-right-sidebar-micro-line-height");
-  element.style.removeProperty("--po-user-right-sidebar-code-font-size");
-  element.style.removeProperty("--po-user-code-font-size");
-  element.style.removeProperty("--po-user-terminal-font-size");
-  element.style.removeProperty("--po-user-editor-heading-1-font-size");
-  element.style.removeProperty("--po-user-editor-heading-2-font-size");
-  element.style.removeProperty("--po-user-editor-heading-3-font-size");
-  element.style.removeProperty("--po-user-editor-heading-4-font-size");
-  element.style.removeProperty("--po-user-editor-heading-5-font-size");
-  element.style.removeProperty("--po-user-editor-heading-6-font-size");
-  element.style.removeProperty("--po-user-right-sidebar-heading-1-font-size");
-  element.style.removeProperty("--po-user-right-sidebar-heading-2-font-size");
-  element.style.setProperty("--po-font-ui-primary", resolved.ui.family);
-  element.style.setProperty("--po-font-content-primary", resolved.content.family);
-  element.style.setProperty("--po-font-code-primary", resolved.code.family);
-  element.style.setProperty("--po-font-terminal-primary", resolved.terminal.family);
-  if (resolved.editorContentOverride) {
-    element.style.setProperty(
-      "--po-font-editor-content-user",
-      createCatalogFontFamily(resolved.editorContentOverride),
-    );
+  const props = createTypographyRootProps(resolved);
+
+  for (const attribute of [...element.attributes]) {
+    if (isTypographyAttribute(attribute.name)) element.removeAttribute(attribute.name);
   }
-  element.style.setProperty("--po-user-left-sidebar-font-size", `${metrics.leftSidebar.content}px`);
-  element.style.setProperty("--po-user-left-sidebar-meta-font-size", `${metrics.leftSidebar.meta}px`);
-  element.style.setProperty("--po-user-left-sidebar-line-height", `${metrics.leftSidebar.lineHeight}px`);
-  element.style.setProperty("--po-user-header-font-size", `${metrics.header.content}px`);
-  element.style.setProperty("--po-user-header-line-height", `${metrics.header.lineHeight}px`);
-  element.style.setProperty("--po-user-header-meta-font-size", `${metrics.header.meta}px`);
-  element.style.setProperty("--po-user-header-meta-line-height", `${metrics.header.metaLineHeight}px`);
-  element.style.setProperty("--po-user-text-size-content", `${metrics.editor.content}px`);
-  element.style.setProperty("--po-user-editor-line-height", `${metrics.editor.lineHeight}px`);
-  element.style.setProperty("--po-user-text-size-data", `${metrics.editor.data}px`);
-  element.style.setProperty("--po-user-code-font-size", `${metrics.editor.code}px`);
-  element.style.setProperty("--po-user-editor-heading-1-font-size", `${metrics.editor.heading1}px`);
-  element.style.setProperty("--po-user-editor-heading-2-font-size", `${metrics.editor.heading2}px`);
-  element.style.setProperty("--po-user-editor-heading-3-font-size", `${metrics.editor.heading3}px`);
-  element.style.setProperty("--po-user-editor-heading-4-font-size", `${metrics.editor.heading4}px`);
-  element.style.setProperty("--po-user-editor-heading-5-font-size", `${metrics.editor.heading5}px`);
-  element.style.setProperty("--po-user-editor-heading-6-font-size", `${metrics.editor.heading6}px`);
-  element.style.setProperty("--po-user-text-size-conversation", `${metrics.rightSidebar.content}px`);
-  element.style.setProperty("--po-user-right-sidebar-control-line-height", `${metrics.rightSidebar.controlLineHeight}px`);
-  element.style.setProperty("--po-user-right-sidebar-meta-font-size", `${metrics.rightSidebar.meta}px`);
-  element.style.setProperty("--po-user-right-sidebar-meta-line-height", `${metrics.rightSidebar.metaLineHeight}px`);
-  element.style.setProperty("--po-user-right-sidebar-caption-font-size", `${metrics.rightSidebar.caption}px`);
-  element.style.setProperty("--po-user-right-sidebar-caption-line-height", `${metrics.rightSidebar.captionLineHeight}px`);
-  element.style.setProperty("--po-user-right-sidebar-micro-font-size", `${metrics.rightSidebar.micro}px`);
-  element.style.setProperty("--po-user-right-sidebar-micro-line-height", `${metrics.rightSidebar.microLineHeight}px`);
-  element.style.setProperty("--po-user-right-sidebar-code-font-size", `${metrics.rightSidebar.code}px`);
-  element.style.setProperty("--po-user-terminal-font-size", `${metrics.rightSidebar.terminal}px`);
-  element.style.setProperty("--po-user-right-sidebar-heading-1-font-size", `${metrics.rightSidebar.heading1}px`);
-  element.style.setProperty("--po-user-right-sidebar-heading-2-font-size", `${metrics.rightSidebar.heading2}px`);
+  for (const [name, value] of Object.entries(props)) {
+    if (name !== "style" && value !== undefined) element.setAttribute(name, String(value));
+  }
+
+  const existingStyleProperties = Array.from(
+    { length: element.style.length },
+    (_, index) => element.style.item(index),
+  );
+  for (const name of existingStyleProperties) {
+    if (isTypographyCustomProperty(name)) element.style.removeProperty(name);
+  }
+  for (const [name, value] of Object.entries(props.style)) {
+    if (value !== undefined && value !== null) element.style.setProperty(name, String(value));
+  }
+}
+
+function isTypographyAttribute(name: string): boolean {
+  return name === "data-content-text-size"
+    || name.startsWith("data-font-")
+    || name.startsWith("data-typography-")
+    || name.startsWith("data-text-size-");
+}
+
+function isTypographyCustomProperty(name: string): boolean {
+  return name === "--po-control-size"
+    || name === "--po-font-editor-content-user"
+    || /^--po-font-(?:ui|content|code|terminal)(?:-primary)?$/.test(name)
+    || name.startsWith("--po-user-");
 }
 
 function resolveScaleMetrics(resolved: ResolvedTypography) {
+  const metrics = TYPOGRAPHY_SCALE_METRICS[resolved.scale];
   return {
-    leftSidebar: TYPOGRAPHY_SCALE_METRICS[resolved.scales.leftSidebar].leftSidebar,
-    header: TYPOGRAPHY_SCALE_METRICS[resolved.scales.header].header,
-    editor: TYPOGRAPHY_SCALE_METRICS[resolved.scales.editor].editor,
-    rightSidebar: TYPOGRAPHY_SCALE_METRICS[resolved.scales.rightSidebar].rightSidebar,
+    geometry: metrics.geometry,
+    ui: metrics.ui,
+    leftSidebar: metrics.leftSidebar,
+    header: metrics.header,
+    editor: metrics.editor,
+    rightSidebar: metrics.rightSidebar,
   };
 }

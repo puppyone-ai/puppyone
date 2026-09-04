@@ -10,11 +10,11 @@
 .code-preview-toolbar {
   display: flex;
   align-items: center;
-  height: 34px;
+  height: var(--po-control-size-large);
   padding: 0 12px;
   border-bottom: 1px solid var(--po-editor-line);
   color: var(--po-text-subtle);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-weight: 800;
 }
 
@@ -24,7 +24,7 @@
   overflow: auto;
   color: var(--po-text);
   font-family: var(--po-font-mono);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 1.6;
 }
 
@@ -111,7 +111,7 @@
 .code-codemirror-editor .cm-foldGutter .cm-gutterElement {
   width: 16px;
   color: color-mix(in srgb, var(--po-text) 48%, transparent);
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   text-align: center;
 }
 

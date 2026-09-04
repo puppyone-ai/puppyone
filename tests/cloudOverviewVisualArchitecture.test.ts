@@ -48,9 +48,9 @@ describe("Cloud Overview visual architecture", () => {
     const name = compact(readCssBlock(resourceCss, ".desktop-cloud-overview-file-name"));
     const metadata = compact(readCssBlock(resourceCss, ".desktop-cloud-overview-file-modified"));
 
-    expect(name).toContain("font-size: 12px;");
+    expect(name).toContain("font-size: var(--po-type-ui-meta, 13px);");
     expect(name).toContain("font-weight: 500;");
-    expect(metadata).toContain("font-size: 11px;");
+    expect(metadata).toContain("font-size: var(--po-type-ui-caption, 12px);");
     expect(metadata).toContain("font-weight: 400;");
     expect(dashboardSource).toContain("FileGlyphIcon");
     expect(dashboardSource).toContain("getCloudOverviewEntryUpdatedAt(entry, history)");

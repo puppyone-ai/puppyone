@@ -37,7 +37,7 @@
   max-width: 52%;
   overflow: hidden;
   color: var(--po-text-subtle);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   line-height: 16px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -147,7 +147,7 @@
 .desktop-cloud-automation-template-add {
   display: inline-flex;
   min-width: 42px;
-  height: 28px;
+  height: var(--po-control-size-compact);
   align-items: center;
   justify-content: center;
   margin-top: auto;
@@ -177,7 +177,7 @@
   border-radius: 8px;
   background: var(--po-control);
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 18px;
 }
 

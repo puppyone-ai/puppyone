@@ -1,5 +1,6 @@
 import { isContextCompactionActivity } from "../domain/agent-activity-presentation";
 import type { AgentPart, TimelineRow } from "../domain/agent-projection-types";
+import { STANDARD_CONTROL_SIZE } from "@puppyone/shared-ui";
 
 export type AgentTranscriptRow = TimelineRow & Readonly<{
   partIds: readonly string[];
@@ -15,6 +16,7 @@ export const AGENT_TOOL_GROUP_LIMIT = 12;
 export function groupAgentToolRows(
   rows: readonly TimelineRow[],
   parts: ReadonlyMap<string, AgentPart>,
+  compactRowHeight = STANDARD_CONTROL_SIZE,
 ): AgentTranscriptRow[] {
   const grouped: AgentTranscriptRow[] = [];
   for (let index = 0; index < rows.length;) {
@@ -41,7 +43,7 @@ export function groupAgentToolRows(
       ...row,
       id: `tool-group:${row.id}`,
       updatedSequence: Math.max(...toolRows.map((entry) => entry.updatedSequence ?? entry.sequence)),
-      estimatedHeight: 30 * Math.max(1, Math.ceil(toolRows.length / 2)),
+      estimatedHeight: compactRowHeight * Math.max(1, Math.ceil(toolRows.length / 2)),
       partIds: toolRows.map((entry) => entry.partId),
       toolGroup: true,
     });

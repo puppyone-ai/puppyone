@@ -12,10 +12,22 @@ import {
   getInterfaceStyleDefinition,
   parseInterfaceStyle,
 } from "./interfaceStyles";
+import {
+  createTypographyRootProps,
+  DEFAULT_TYPOGRAPHY_PREFERENCES,
+  resolveTypography,
+  TYPOGRAPHY_SCALE_OPTIONS,
+  withTypographyScale,
+} from "../typography";
 import "./appearance-visual-smoke.css";
 
-const style = parseInterfaceStyle(new URLSearchParams(window.location.search).get("style"));
-const dialogFixture = new URLSearchParams(window.location.search).get("dialog");
+const searchParams = new URLSearchParams(window.location.search);
+const style = parseInterfaceStyle(searchParams.get("style"));
+const dialogFixture = searchParams.get("dialog");
+const requestedTypographyScale = searchParams.get("scale");
+const typographyScale = TYPOGRAPHY_SCALE_OPTIONS.find(
+  (candidate) => candidate === requestedTypographyScale,
+) ?? DEFAULT_TYPOGRAPHY_PREFERENCES.scale;
 const profile = getInterfaceStyleDefinition(style);
 const root = document.documentElement;
 root.dataset.interfaceStyle = style;
@@ -30,6 +42,9 @@ root.dataset.navigationComposition = profile.composition.navigation;
 root.dataset.locationBarComposition = profile.composition.locationBar;
 root.dataset.scrollbarComposition = profile.composition.scrollbar;
 root.dataset.iconPack = profile.composition.iconPack;
+const typographyRootProps = createTypographyRootProps(
+  resolveTypography(withTypographyScale(DEFAULT_TYPOGRAPHY_PREFERENCES, typographyScale)),
+);
 
 const surfaceFamilies = [
   "document",
@@ -78,7 +93,9 @@ export function AppearanceVisualSmokeHarness() {
 
   return (
     <main
+      {...typographyRootProps}
       className="app-shell appearance-visual-smoke"
+      data-po-appearance-root="true"
       data-appearance-token-set={profile.tokenSet}
       data-appearance-visual-ready="true"
       data-icon-pack={profile.composition.iconPack}

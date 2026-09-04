@@ -116,14 +116,14 @@
 
 .desktop-feedback-required-marker {
   color: var(--po-danger);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: var(--po-text-weight-semibold);
   line-height: 1;
 }
 
 .desktop-feedback-contact-input {
   width: 100%;
-  height: 32px;
+  height: var(--po-control-size);
   box-sizing: border-box;
   padding: 0 9px;
   border: 1px solid var(--po-divider);
@@ -201,7 +201,7 @@
 
 .desktop-feedback-attachment-row {
   display: flex;
-  min-height: 30px;
+  min-height: var(--po-control-size);
   align-items: center;
   justify-content: flex-start;
   margin-block-start: 6px;
@@ -228,8 +228,8 @@
 
 .desktop-feedback-attach {
   display: grid;
-  width: 28px;
-  height: 28px;
+  width: var(--po-control-size-compact);
+  height: var(--po-control-size-compact);
   flex: 0 0 auto;
   place-items: center;
   padding: 0;
@@ -255,8 +255,8 @@
 
 .desktop-feedback-screenshot {
   position: relative;
-  width: 30px;
-  height: 30px;
+  width: var(--po-control-size);
+  height: var(--po-control-size);
   flex: 0 0 auto;
   overflow: hidden;
   padding: 0;
@@ -303,7 +303,7 @@
 }
 
 .desktop-feedback-footer {
-  min-height: 30px;
+  min-height: var(--po-control-size);
   justify-content: space-between;
 }
 

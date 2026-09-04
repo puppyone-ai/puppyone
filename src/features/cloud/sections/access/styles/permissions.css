@@ -9,7 +9,7 @@
 .desktop-cloud-access-permission-label {
   color: var(--po-text-muted);
   font-family: var(--po-font-sans);
-  font-size: 14px;
+  font-size: var(--po-type-ui-body-large, 15px);
   font-weight: 600;
   line-height: 18px;
 }
@@ -60,7 +60,7 @@
   flex: 0 0 auto;
   color: var(--po-text);
   font-family: var(--po-font-sans);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 500;
   line-height: 18px;
   white-space: nowrap;
@@ -71,7 +71,7 @@
   overflow: hidden;
   color: var(--po-text-muted);
   font-family: var(--po-font-sans);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-style: normal;
   font-weight: 400;
   line-height: 16px;
@@ -91,7 +91,7 @@
   background: transparent;
   color: var(--po-text-muted);
   font-family: var(--po-font-sans);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 400;
   line-height: 16px;
   cursor: var(--po-clickable-cursor, default);
@@ -150,7 +150,7 @@
   background: transparent;
   color: var(--po-text-subtle);
   font-family: var(--po-font-sans);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 400;
   line-height: 16px;
   cursor: var(--po-clickable-cursor, default);
@@ -187,7 +187,7 @@
 .desktop-cloud-access-permission-help {
   color: var(--po-text-muted);
   font-family: var(--po-font-sans);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   line-height: 16px;
 }
 
@@ -198,7 +198,7 @@
   background: color-mix(in srgb, var(--po-danger) 8%, transparent);
   color: var(--po-danger);
   font-family: var(--po-font-sans);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   line-height: 16px;
 }
 

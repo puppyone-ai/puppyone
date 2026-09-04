@@ -1,4 +1,13 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   closeAllDocumentWorkingCopies,
   closeDocumentWorkingCopy,
@@ -19,6 +28,7 @@ import { CLOUD_HUB_ENTRY_SECTION, type CloudWorkspaceSection } from "./features/
 import {
   MinimalOnboarding,
 } from "./components/MinimalOnboarding";
+import { OnboardingProjectEntryDialog } from "./components/OnboardingProjectEntryDialog";
 import { AssetLibraryHome } from "./components/AssetLibraryHome";
 import {
   closeAgentChatWorkbenchItem,
@@ -83,6 +93,7 @@ import {
 } from "./features/data-workspace/nodeActions";
 import { createExplorerDataPort } from "./features/data-workspace/explorer";
 import { createWorkbenchDataService } from "./features/data-workspace/workbenchDataPort";
+import { useProjectExplorerSelection } from "./features/data-workspace/useProjectExplorerSession";
 import { useDataNodeActions } from "./features/data-workspace/useDataNodeActions";
 import { useAiEditReviewRequest } from "./features/data-workspace/useAiEditReviewRequest";
 import { useWorkbenchWorkspaceContentWatch } from "./features/data-workspace/useWorkbenchWorkspaceContentWatch";
@@ -114,6 +125,11 @@ import {
   localAgentIdForAgentChatRuntime,
 } from "./features/app-shell/auxiliary-workbench/agentChatCreationRecipes";
 import { useSubThemeCatalog, useSubThemeNativeMenu } from "./features/themes/useSubThemeCatalog";
+import {
+  PROJECT_SWITCHER_RAIL_WIDTH,
+  ProjectSwitcherRail,
+} from "./features/app-shell/ProjectSwitcherRail";
+import { ProjectEntryLauncherDialog } from "./features/app-shell/ProjectEntryLauncherDialog";
 
 const AgentChatWorkbenchItem = lazy(loadAgentChatWorkbenchItem);
 const AgentChatHistoryBrowser = lazy(loadAgentChatHistoryBrowser);
@@ -157,6 +173,7 @@ function AppContent() {
   } = useDesktopCloudSession(cloudEnabled);
   const [activeCloudSection, setActiveCloudSection] = useState<CloudWorkspaceSection>("initialize");
   const [switcherOpen, setSwitcherOpen] = useState(false);
+  const [projectEntryDialog, setProjectEntryDialog] = useState<"launcher" | "create" | "clone" | null>(null);
   const {
     addProject,
     addExistingProject,
@@ -184,10 +201,8 @@ function AppContent() {
   } = useWorkspaceLifecycle({
     multiRootWorkspacesEnabled,
     onWorkspaceActivated: useCallback(() => {
-      setActiveView("data");
       setSwitcherOpen(false);
-      setRightSidebarOpen(true);
-    }, [setRightSidebarOpen]),
+    }, []),
     onWorkspaceCleared: useCallback(() => {
       setActiveView("data");
       setSwitcherOpen(false);
@@ -298,7 +313,8 @@ function AppContent() {
   const documentStorageIdentity = dataPort?.documentPersistence?.storageIdentity ?? null;
   const resolveEditorResource = useCallback((path: string) => {
     if (!workbenchDataService) return null;
-    const resolved = workbenchDataService.resolveResource(path);
+    const resolved = workbenchDataService.tryResolveResource(path);
+    if (!resolved) return null;
     if (!resolved.providerPath) return null;
     return {
       rootUri: resolved.folder.uri,
@@ -308,7 +324,7 @@ function AppContent() {
   }, [workbenchDataService]);
   const resolveWorkspaceResource = useCallback((path: string | null) => {
     if (!path || !workbenchDataService) return null;
-    return workbenchDataService.resolveResource(path);
+    return workbenchDataService.tryResolveResource(path);
   }, [workbenchDataService]);
   const resolveAgentWorkspaceReference = useCallback(async (resource: string) => {
     if (!workbenchDataService || !isDataResourceUri(resource)) return null;
@@ -355,9 +371,11 @@ function AppContent() {
     }
     editorWorkbench.closeUnderResource(path);
   }, [documentStorageIdentity, editorWorkbench]);
-  const [activeExplorerNode, setActiveExplorerNode] = useState<DataNode | null>(null);
+  const [activeExplorerNode, setActiveExplorerNode] = useProjectExplorerSelection(workspace);
+  const activeDocumentResource = resolveWorkspaceResource(activeDocumentPath);
+  const currentActiveDocumentPath = activeDocumentResource ? activeDocumentPath : null;
   const focusedWorkspaceResource = resolveWorkspaceResource(
-    activeDocumentPath ?? activeExplorerNode?.path ?? null,
+    currentActiveDocumentPath ?? activeExplorerNode?.path ?? null,
   );
   const focusedWorkspaceFolder = focusedWorkspaceResource?.folder
     ?? workbenchWorkspace?.folders[0]
@@ -370,12 +388,12 @@ function AppContent() {
     editorWorkbench.closeUnderResource(folder.uri);
     if (activeExplorerNode?.workspaceFolderId === folder.id) setActiveExplorerNode(null);
     await removeProject(folder.workspace.path);
-  }, [activeExplorerNode?.workspaceFolderId, documentStorageIdentity, editorWorkbench, removeProject]);
-  const activeExplorerPath = activeExplorerNode?.path ?? activeDocumentPath;
+  }, [activeExplorerNode?.workspaceFolderId, documentStorageIdentity, editorWorkbench, removeProject, setActiveExplorerNode]);
+  const activeExplorerPath = activeExplorerNode?.path ?? currentActiveDocumentPath;
   const activateDataNode = useCallback((node: DataNode) => {
     setActiveExplorerNode(node);
     if (isDocumentDataNode(node)) editorWorkbench.openDocument(node);
-  }, [editorWorkbench]);
+  }, [editorWorkbench, setActiveExplorerNode]);
   const [documentNavigationError, setDocumentNavigationError] = useState<string | null>(null);
   const documentNavigationRequestRef = useRef(0);
   const desktopViewNavigationRequestRef = useRef(0);
@@ -584,9 +602,7 @@ function AppContent() {
   useEffect(() => {
     setGitOperationError(null);
     setGitOperationLoading(null);
-    setActiveSettingsSection("general");
     setBranchSwitcherOpen(false);
-    setActiveExplorerNode(null);
     resetDataNodeActions();
   }, [resetDataNodeActions, setBranchSwitcherOpen, setGitOperationError, setGitOperationLoading, workspace?.path]);
 
@@ -646,6 +662,16 @@ function AppContent() {
     setRestoreWorkspaceError,
     setRightSidebarOpen,
   ]);
+
+  const switchProjectFromRail = useCallback(async (path: string) => {
+    if (path === workspace?.path) return;
+    try {
+      if (!await drainWorkspaceNavigation()) return;
+      await openWorkspacePath(path);
+    } catch (error) {
+      setRestoreWorkspaceError(error instanceof Error ? error.message : String(error));
+    }
+  }, [drainWorkspaceNavigation, openWorkspacePath, setRestoreWorkspaceError, workspace?.path]);
 
   const navigateDesktopView = useCallback((view: DesktopView) => {
     const requestId = ++desktopViewNavigationRequestRef.current;
@@ -727,7 +753,7 @@ function AppContent() {
         setDocumentNavigationError(error instanceof Error ? error.message : String(error));
       }
     }
-  }, [activateDataNode, dataPort]);
+  }, [activateDataNode, dataPort, setActiveExplorerNode]);
   const handleEditorClose = useCallback(async (editorId: string) => {
     try {
       const resourcePath = editorWorkbench.state.editors
@@ -773,7 +799,7 @@ function AppContent() {
     setActiveExplorerNode((current) => (
       hasSameActiveDataNodeIdentity(current, node) ? current : node
     ));
-  }, []);
+  }, [setActiveExplorerNode]);
 
   const handleFilesVisibilitySettingsChange = useCallback((nextSettings: FilesVisibilitySettings) => {
     setFilesVisibilitySettings(nextSettings);
@@ -968,6 +994,7 @@ function AppContent() {
     handleActiveDataPathChange,
     navigateDesktopView,
     resolveWorkspaceResource,
+    setActiveExplorerNode,
     workbenchWorkspace,
     workspace,
   ]);
@@ -1197,6 +1224,15 @@ function AppContent() {
         {...surfaceAppearance.rootProps}
       >
         <DesktopCloudShell
+          leadingRail={experimentalSettings.enableProjectSwitcherRail ? (
+            <ProjectSwitcherRail
+              activeWorkspace={workspace}
+              recentWorkspaces={recentWorkspaceItems}
+              onCreateNew={() => setProjectEntryDialog("launcher")}
+              onSelectProject={switchProjectFromRail}
+            />
+          ) : undefined}
+          leadingRailWidth={PROJECT_SWITCHER_RAIL_WIDTH}
           leftSidebarCollapsed={sidebarCollapsed}
           leftSidebarPresent={Boolean(dataPort)}
           leftSidebarWidth={explorerWidth}
@@ -1318,6 +1354,37 @@ function AppContent() {
               onCancel={() => setPendingBranchSwitch(null)}
               onStashAndSwitch={() => void handleStashAndCheckoutBranch()}
               onCommitAndSwitch={() => void handleCommitAndCheckoutBranch()}
+            />
+          )}
+          {projectEntryDialog === "launcher" && (
+            <ProjectEntryLauncherDialog
+              canCreateProject
+              canCloneRepository
+              onClose={() => setProjectEntryDialog(null)}
+              onOpenFolder={() => {
+                setProjectEntryDialog(null);
+                void openFolder();
+              }}
+              onCreateProject={() => setProjectEntryDialog("create")}
+              onCloneRepository={() => setProjectEntryDialog("clone")}
+            />
+          )}
+          {projectEntryDialog === "create" && (
+            <OnboardingProjectEntryDialog
+              kind="create"
+              onClose={() => setProjectEntryDialog(null)}
+              onChooseLocation={chooseProjectLocation}
+              onSubmit={(value, locationGrantId) => createProject({
+                name: value,
+                locationGrantId: locationGrantId ?? "",
+              })}
+            />
+          )}
+          {projectEntryDialog === "clone" && (
+            <OnboardingProjectEntryDialog
+              kind="clone"
+              onClose={() => setProjectEntryDialog(null)}
+              onSubmit={(value) => cloneRepository({ repositoryUrl: value })}
             />
           )}
           {gitOperationError && !pendingBranchSwitch && (

@@ -98,6 +98,24 @@ describe("Explorer bounded rendering", () => {
     );
   });
 
+  it("keeps virtual row geometry synchronized with the resolved application scale", () => {
+    const nodes = makeNodes(2);
+    const container = renderExplorer({ nodes, activePath: nodes[0]?.path ?? null });
+    const scroll = container.querySelector<HTMLElement>(".explorer-tree-scroll")!;
+
+    act(() => {
+      scroll.style.setProperty("--tree-row-height", "36px");
+      document.dispatchEvent(new CustomEvent("puppyone:typography-change", {
+        detail: { generation: 1, phase: "applied" },
+      }));
+    });
+
+    const rows = container.querySelectorAll<HTMLElement>(".explorer-tree-virtual-row");
+    expect(rows[1]?.style.transform).toBe("translateY(38px)");
+    expect(container.querySelector<HTMLElement>(".explorer-tree-virtual-canvas")?.style.height)
+      .toBe("76px");
+  });
+
   it("builds bounded FLIP enter, move and exit instructions without measuring a subtree", () => {
     const folder: DataNode = {
       id: "folder",

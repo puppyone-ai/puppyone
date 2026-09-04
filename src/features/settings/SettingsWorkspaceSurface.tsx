@@ -12,7 +12,6 @@ import type {
   RightSidebarToolsSettings,
   SidebarNavigationLayout,
   SidebarNavigationVisibilitySettings,
-  TextSize,
   ThemeMode,
   TitlebarActionsSettings,
   TypographyPreferences,
@@ -38,7 +37,6 @@ export type SettingsPreferencesPort = {
   darkThemePreset: DarkThemePreset;
   loadingAnimationPreset: LoadingAnimationPreset;
   localAgentsSettings: LocalAgentsSettings;
-  textSize: TextSize;
   typographyPreferences: TypographyPreferences;
   pointerCursors: boolean;
   markdownPresentation: MarkdownPresentationSettings;
@@ -57,7 +55,6 @@ export type SettingsPreferencesPort = {
   setLoadingAnimationPreset: (value: LoadingAnimationPreset) => void;
   setLocalAgentsSettings: (value: LocalAgentsSettings) => void;
   setAgentFileActivityIndicatorsEnabled: (value: boolean) => void;
-  setTextSize: (value: TextSize) => void;
   setTypographyPreferences: (value: TypographyPreferences) => void;
   setPointerCursors: (value: boolean) => void;
   setMarkdownPresentation: (value: MarkdownPresentationSettings) => void;
@@ -141,7 +138,6 @@ export function createSettingsWorkspaceSurface({
         darkThemePreset={preferences.darkThemePreset}
         loadingAnimationPreset={preferences.loadingAnimationPreset}
         localAgentsSettings={preferences.localAgentsSettings}
-        textSize={preferences.textSize}
         typographyPreferences={preferences.typographyPreferences}
         pointerCursors={preferences.pointerCursors}
         requestedSubThemeId={preferences.requestedSubThemeId}
@@ -169,7 +165,6 @@ export function createSettingsWorkspaceSurface({
         onLoadingAnimationPresetChange={preferences.setLoadingAnimationPreset}
         onLocalAgentsSettingsChange={preferences.setLocalAgentsSettings}
         onAgentFileActivityIndicatorsEnabledChange={preferences.setAgentFileActivityIndicatorsEnabled}
-        onTextSizeChange={preferences.setTextSize}
         onTypographyPreferencesChange={preferences.setTypographyPreferences}
         onPointerCursorsChange={preferences.setPointerCursors}
         onSubThemeChange={preferences.setSubThemeId}

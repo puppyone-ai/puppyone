@@ -165,7 +165,7 @@ body.desktop-git-sidebar-resizing {
   border-radius: var(--git-inner-radius);
   background: transparent;
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 520;
   outline: none;
 }

@@ -54,7 +54,6 @@ import {
 } from "./explorer/explorerReferenceDrag";
 import {
   EXPLORER_VIRTUAL_MAX_MOUNTED_ROWS,
-  EXPLORER_VIRTUAL_ROW_SIZE,
   useExplorerVirtualWindow,
 } from "./explorer/useExplorerVirtualWindow";
 
@@ -223,7 +222,7 @@ export function ExplorerTree({
     mountedRows: visibleRows,
     startIndex: virtualWindow.startIndex,
     endIndex: virtualWindow.endIndex,
-    rowSize: EXPLORER_VIRTUAL_ROW_SIZE,
+    rowSize: virtualWindow.rowSize,
     maxMountedRows: EXPLORER_VIRTUAL_MAX_MOUNTED_ROWS,
   });
   const scrollEdgeState = useScrollEdgeState(scrollRef, {
@@ -652,7 +651,7 @@ export function ExplorerTree({
                   data-depth={getExplorerPresentationDepth(row.depth, softWorkspaceGrouping)}
                   style={{
                     "--depth": getExplorerPresentationDepth(row.depth, softWorkspaceGrouping),
-                    transform: `translateY(${row.index * EXPLORER_VIRTUAL_ROW_SIZE}px)`,
+                    transform: `translateY(${row.index * virtualWindow.rowSize}px)`,
                   } as CSSProperties}
                 >
                   <ExplorerVirtualMotionShell
@@ -1120,7 +1119,8 @@ function ExplorerTreeMetaRow({
     <div className={`tree-meta-row ${loading ? "loading" : ""}`} style={{ "--depth": depth } as CSSProperties}>
       {loading ? (
         <InlineLoading
-          label={children}
+          label={null}
+          ariaLabel={typeof children === "string" ? children : undefined}
           size="sm"
           indicator="dots"
           className="tree-meta-loading"

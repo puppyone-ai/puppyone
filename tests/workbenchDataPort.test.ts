@@ -217,6 +217,26 @@ describe("WorkbenchDataService", () => {
     expect(() => service.resolveResource("new.md")).toThrow(/ambiguous.*Resource URI/i);
   });
 
+  it("returns null for stale resources from a different Workbench without weakening strict access", () => {
+    const previousWorkbench = createWorkbenchWorkspace([
+      workspace("a", "Alpha", "/alpha"),
+    ]);
+    const currentWorkbench = createWorkbenchWorkspace([
+      workspace("b", "Beta", "/beta"),
+    ]);
+    const staleResource = createWorkspaceResourceUri(
+      previousWorkbench.folders[0]!.uri,
+      "README.md",
+    );
+    const service = createWorkbenchDataService(currentWorkbench, {
+      createProvider: () => provider("Beta"),
+    });
+
+    expect(service.tryResolveResource(staleResource)).toBeNull();
+    expect(() => service.resolveResource(staleResource))
+      .toThrow(/outside the current Workbench Workspace/i);
+  });
+
   it("rejects cross-Project moves without mutating either provider", async () => {
     const workbench = createWorkbenchWorkspace([
       workspace("a", "Alpha", "/alpha"),

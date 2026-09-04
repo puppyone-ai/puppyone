@@ -89,24 +89,24 @@
 }
 
 :root,
-:where(.app-shell, .onboarding-shell, .desktop-overlay-root, .desktop-theme-preview-surface, .dark) {
-  /* Structural control geometry stays fixed, while readable navigation and
-     titlebar labels share one bounded, user-selectable App Chrome scale. */
-  --po-type-ui-glyph: 8px;
-  --po-type-ui-micro: 10px;
-  --po-type-ui-caption: 11px;
-  --po-type-ui-hint: 12px;
-  --po-type-ui-meta: 12px;
-  --po-type-ui-label: 13px;
-  --po-type-ui-control: var(--po-theme-text-size-interface, 13px);
+:where([data-po-appearance-root], .app-shell, .onboarding-shell, .desktop-overlay-root, .desktop-theme-preview-surface, .dark) {
+  /* Standard control geometry and readable product text share one bounded,
+     user-selectable application scale. Compact chrome variants stay semantic. */
+  --po-type-ui-glyph: var(--po-user-ui-glyph-font-size, 8px);
+  --po-type-ui-micro: var(--po-user-ui-micro-font-size, 11px);
+  --po-type-ui-caption: var(--po-user-ui-caption-font-size, 12px);
+  --po-type-ui-hint: var(--po-user-ui-hint-font-size, 13px);
+  --po-type-ui-meta: var(--po-user-ui-meta-font-size, 13px);
+  --po-type-ui-label: var(--po-user-ui-label-font-size, 14px);
+  --po-type-ui-control: var(--po-user-ui-control-font-size, 14px);
   --po-type-ui-body: var(--po-type-ui-control);
-  --po-type-ui-body-large: 14px;
-  --po-type-ui-section-title: 15px;
-  --po-type-ui-title: 16px;
-  --po-type-ui-heading: 18px;
-  --po-type-ui-page-title: 20px;
-  --po-type-ui-display: 24px;
-  --po-type-ui-hero: 28px;
+  --po-type-ui-body-large: var(--po-user-ui-body-large-font-size, 15px);
+  --po-type-ui-section-title: var(--po-user-ui-section-title-font-size, 16px);
+  --po-type-ui-title: var(--po-user-ui-title-font-size, 17px);
+  --po-type-ui-heading: var(--po-user-ui-heading-font-size, 19px);
+  --po-type-ui-page-title: var(--po-user-ui-page-title-font-size, 21px);
+  --po-type-ui-display: var(--po-user-ui-display-font-size, 25px);
+  --po-type-ui-hero: var(--po-user-ui-hero-font-size, 29px);
 
   --po-type-left-sidebar-content: var(--po-user-left-sidebar-font-size, 14px);
   --po-type-left-sidebar-meta: var(--po-user-left-sidebar-meta-font-size, 12px);
@@ -116,8 +116,8 @@
   --po-type-header-meta: var(--po-user-header-meta-font-size, 13px);
   --po-type-header-meta-line-height: var(--po-user-header-meta-line-height, 18px);
 
-  /* User-facing scales are surface presets rather than independent pixel
-     knobs. Editor values move Markdown, data tables, and code together. */
+  /* The user-facing application scale drives every surface as one preset.
+     Editor values move Markdown, data tables, and code together. */
   --po-type-editor-content: var(
     --po-user-text-size-content,
     var(--po-theme-text-size-content, 16px)
@@ -181,7 +181,7 @@
   --po-text-size-meta: var(--po-type-ui-meta);
   --po-text-size-label: var(--po-type-ui-label);
   --po-text-size-interface: var(--po-type-ui-control);
-  --po-text-size-sidebar: var(--po-type-ui-control);
+  --po-text-size-sidebar: var(--po-type-left-sidebar-content);
   --po-text-size-body: var(--po-type-ui-body);
   --po-text-size-body-lg: var(--po-type-ui-body-large);
   --po-text-size-section-title: var(--po-type-ui-section-title);
@@ -204,5 +204,5 @@
    default (commonly 0.833em). Components may select a more specific semantic
    token, but an unclassified <small> always resolves to an integer pixel size. */
 small {
-  font-size: var(--po-type-ui-meta, 12px);
+  font-size: var(--po-type-ui-meta, 13px);
 }

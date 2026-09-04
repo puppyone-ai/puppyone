@@ -38,7 +38,7 @@
   margin: 0;
   color: var(--po-text);
   font-family: var(--po-font-sans);
-  font-size: 20px;
+  font-size: var(--po-type-ui-page-title, 21px);
   font-weight: 600;
   letter-spacing: 0;
   line-height: 1.25;
@@ -54,13 +54,13 @@
   gap: 8px;
   color: var(--po-text-muted);
   font-family: var(--po-font-sans);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 16px;
 }
 
 .desktop-cloud-access-web-aggregate strong {
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 600;
 }
 
@@ -94,7 +94,7 @@
   overflow: hidden;
   color: var(--po-text-muted);
   font-family: var(--po-font-mono);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 16px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -103,9 +103,9 @@
 .desktop-cloud-access-settings-button {
   position: relative;
   display: inline-flex;
-  width: 30px;
-  height: 30px;
-  flex: 0 0 30px;
+  width: var(--po-control-size);
+  height: var(--po-control-size);
+  flex: 0 0 var(--po-control-size);
   align-items: center;
   justify-content: center;
   margin-top: 2px;
@@ -134,7 +134,7 @@
 .desktop-cloud-access-section-label {
   color: var(--po-text-subtle);
   font-family: var(--po-font-sans);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-weight: 700;
   letter-spacing: 0.02em;
   line-height: 14px;

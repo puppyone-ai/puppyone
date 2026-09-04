@@ -10,7 +10,7 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  height: 28px;
+  height: var(--po-control-size-compact);
   padding: 0 9px;
   border: 1px solid var(--po-divider);
   border-radius: 6px;
@@ -109,7 +109,7 @@
 .desktop-theme-pack-controls {
   display: flex;
   width: max-content;
-  height: 28px;
+  height: var(--po-control-size-compact);
   max-width: 100%;
   min-width: 0;
   flex: 0 1 auto;
@@ -143,8 +143,8 @@
 
 .desktop-theme-pack-icon-action {
   display: inline-flex;
-  width: 28px;
-  height: 28px;
+  width: var(--po-control-size-compact);
+  height: var(--po-control-size-compact);
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
@@ -294,7 +294,7 @@
   grid-template-columns: minmax(0, max-content) auto;
   align-items: center;
   gap: 8px;
-  height: 30px;
+  height: var(--po-control-size);
   padding-block: 0;
   padding-inline: 8px 0;
   border: 1px solid transparent;
@@ -341,7 +341,7 @@
   align-items: center;
   justify-content: center;
   gap: 5px;
-  height: 26px;
+  height: var(--po-control-size-small);
   padding: 0 8px;
   border: 0;
   border-radius: 5px;

@@ -33,12 +33,16 @@ export function createWorkspaceWatchService({ logger = console, fsModule = fs } 
     }
 
     const subscriptionId = `workspace-watch-${(workspaceWatchSubscriptionSequence += 1)}-${Date.now().toString(36)}`;
+    const onSenderDestroyed = () => stop(subscriptionId);
     entry.clients.set(subscriptionId, sender);
-    subscriptions.set(subscriptionId, { root: resolvedRoot, senderId: sender.id });
+    subscriptions.set(subscriptionId, {
+      root: resolvedRoot,
+      senderId: sender.id,
+      sender,
+      onSenderDestroyed,
+    });
     if (typeof sender.once === "function") {
-      sender.once("destroyed", () => {
-        stop(subscriptionId);
-      });
+      sender.once("destroyed", onSenderDestroyed);
     }
 
     return { subscriptionId, rootPath: resolvedRoot };
@@ -72,6 +76,7 @@ export function createWorkspaceWatchService({ logger = console, fsModule = fs } 
       return { ok: true };
     }
     subscriptions.delete(subscriptionId);
+    subscription.sender.removeListener?.("destroyed", subscription.onSenderDestroyed);
 
     const entry = watchers.get(subscription.root);
     if (!entry) return { ok: true };
@@ -102,6 +107,9 @@ export function createWorkspaceWatchService({ logger = console, fsModule = fs } 
   }
 
   function closeAll() {
+    for (const subscriptionId of Array.from(subscriptions.keys())) {
+      stop(subscriptionId);
+    }
     for (const [rootPath, entry] of Array.from(watchers.entries())) {
       disposeWatcher(entry, rootPath);
     }

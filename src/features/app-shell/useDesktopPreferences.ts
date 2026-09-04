@@ -7,7 +7,7 @@ import {
 } from "../appearance/interfaceStyles";
 import {
   APPEARANCE_PREFERENCES_STORAGE_KEY,
-  createAppearancePreferencesV5,
+  createAppearancePreferencesV6,
   readAppearancePreferences,
   serializeAppearancePreferences,
   type RootThemeAppearancePreferences,
@@ -47,7 +47,6 @@ import {
   type SidebarNavigationLayout,
   type SidebarNavigationVisibilitySettings,
   type ThemeMode,
-  type TextSize,
   type TypographyPreferences,
   type TitlebarActionsSettings,
 } from "../../preferences";
@@ -113,7 +112,6 @@ export function useDesktopPreferences(
     ?? createDefaultRootThemePreference(interfaceStyle);
   const themeMode = rootThemePreference.requestedColorMode;
   const requestedSubThemeIds = rootThemePreference.requestedSubThemeIds;
-  const [textSize, setTextSize] = useState<TextSize>(initialAppearance.shared.textSize);
   const [typographyPreferences, setTypographyPreferences] = useState<TypographyPreferences>(
     initialAppearance.shared.typography,
   );
@@ -188,7 +186,6 @@ export function useDesktopPreferences(
     requestedSubThemeIds,
     subThemeCatalog,
     sidebarNavigationLayout,
-    textSize,
     fileIconTheme,
   }), [
     fileIconTheme,
@@ -197,7 +194,6 @@ export function useDesktopPreferences(
     sidebarNavigationLayout,
     subThemeCatalog,
     systemDark,
-    textSize,
     themeMode,
   ]);
   const activeThemeMode = resolvedAppearance.themeMode;
@@ -261,7 +257,13 @@ export function useDesktopPreferences(
     void window.puppyoneDesktop?.setWindowChromeProfile?.({
       titlebar: resolvedAppearance.composition.titlebar,
     }).catch(() => undefined);
-  }, [activeThemeMode, activeThemePreset, interfaceStyle, resolvedAppearance, resolvedTheme]);
+  }, [
+    activeThemeMode,
+    activeThemePreset,
+    interfaceStyle,
+    resolvedAppearance,
+    resolvedTheme,
+  ]);
 
   useEffect(() => {
     window.localStorage.setItem(DIFF_MARKERS_STORAGE_KEY, diffMarkers);
@@ -269,10 +271,9 @@ export function useDesktopPreferences(
 
   useEffect(() => {
     if (!initialAppearanceRead.writable) return;
-    const preferences = createAppearancePreferencesV5({
+    const preferences = createAppearancePreferencesV6({
       activeRootThemeId: interfaceStyle,
       shared: {
-        textSize,
         typography: typographyPreferences,
         pointerCursors,
         loadingAnimationPreset,
@@ -300,7 +301,6 @@ export function useDesktopPreferences(
     markdownPresentation,
     pointerCursors,
     sidebarNavigationLayout,
-    textSize,
     typographyPreferences,
   ]);
 
@@ -314,7 +314,7 @@ export function useDesktopPreferences(
         darkThemePreset,
         legacySubThemeId: requestedSubThemeId,
         markdownPresentation,
-        textSize,
+        legacyTextSize: "default",
         typography: typographyPreferences,
         pointerCursors,
         loadingAnimationPreset,
@@ -325,7 +325,6 @@ export function useDesktopPreferences(
       const next = result.preferences;
       setInterfaceStyle(next.activeRootThemeId);
       setByRootTheme(next.byRootTheme);
-      setTextSize(next.shared.textSize);
       setTypographyPreferences(next.shared.typography);
       setPointerCursors(next.shared.pointerCursors);
       setLoadingAnimationPreset(next.shared.loadingAnimationPreset);
@@ -345,7 +344,6 @@ export function useDesktopPreferences(
     pointerCursors,
     requestedSubThemeId,
     sidebarNavigationLayout,
-    textSize,
     themeMode,
     typographyPreferences,
   ]);
@@ -533,7 +531,6 @@ export function useDesktopPreferences(
     loadingAnimationPreset,
     localAgentsSettings,
     themeMode,
-    textSize: resolvedAppearance.textSize,
     typographyPreferences,
     pointerCursors,
     setAiEditAssistEnabled,
@@ -563,7 +560,6 @@ export function useDesktopPreferences(
     setLoadingAnimationPreset,
     setLocalAgentsSettings,
     setPointerCursors,
-    setTextSize,
     setThemeMode,
     setTypographyPreferences,
   };

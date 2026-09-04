@@ -64,7 +64,7 @@
 
 .desktop-slides-template-preview strong {
   max-width: 8ch;
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   line-height: .95;
   letter-spacing: -.04em;
 }
@@ -88,7 +88,7 @@
 
 .desktop-slides-template-copy span {
   color: var(--po-text-muted);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   line-height: 1.35;
 }
 
@@ -100,7 +100,7 @@
   border-radius: 50%;
   background: var(--po-accent);
   color: white;
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
 }
 
 .desktop-file-dialog-body {
@@ -180,7 +180,7 @@
   display: block;
   min-width: 0;
   color: var(--po-text-subtle);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-weight: 600;
   letter-spacing: 0.04em;
   line-height: 14px;
@@ -190,7 +190,7 @@
 .desktop-dialog-field input,
 .desktop-dialog-field select {
   width: 100%;
-  height: 32px;
+  height: var(--po-control-size);
   box-sizing: border-box;
   margin-top: 8px;
   padding: 0 10px;
@@ -199,7 +199,7 @@
   background: var(--po-panel-raised);
   color: var(--po-text);
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--po-type-left-sidebar-content, 14px);
   letter-spacing: 0;
   line-height: 18px;
   outline: none;
@@ -246,7 +246,7 @@
   backdrop-filter: blur(20px);
   color: var(--po-text);
   box-shadow: var(--po-menu-shadow);
-  font-size: 13px;
+  font-size: var(--po-type-left-sidebar-content, 14px);
 }
 
 .desktop-create-entry-menu.desktop-node-action-menu {
@@ -254,7 +254,7 @@
   border-color: var(--po-menu-border);
   border-radius: var(--po-menu-radius);
   background: var(--po-menu-bg);
-  font-size: 13px;
+  font-size: var(--po-type-left-sidebar-content, 14px);
   box-shadow: var(--po-menu-shadow);
   overflow: visible;
 }
@@ -303,7 +303,7 @@
   overflow-x: hidden;
   overflow-y: auto;
   padding: var(--po-menu-padding);
-  font-size: 13px;
+  font-size: var(--po-type-left-sidebar-content, 14px);
 }
 
 .desktop-create-entry-submenu-wrap[data-submenu-side="start"] > .desktop-create-entry-submenu {
@@ -358,6 +358,6 @@
 .desktop-node-action-error {
   margin: 4px 8px 2px;
   color: var(--po-danger);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--po-type-left-sidebar-meta, 12px);
+  line-height: var(--po-type-left-sidebar-line-height, 19px);
 }

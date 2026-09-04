@@ -3,7 +3,7 @@
   --git-action-size: 24px;
   --git-action-radius: var(--desktop-toolbar-action-radius);
   --git-action-padding-inline: 7px;
-  --git-action-font-size: 12px;
+  --git-action-font-size: var(--po-type-ui-meta, 13px);
 }
 
 .desktop-git-sidebar {
@@ -30,8 +30,8 @@
   --git-inner-radius: 6px;
   --git-row-radius: var(--desktop-sidebar-row-radius);
   /* Mirror Data explorer row typography via the shared desktop sidebar contract. */
-  --git-font-main: var(--desktop-sidebar-font-size, var(--po-text-size-sidebar, 13px));
-  --git-font-small: var(--desktop-sidebar-font-size-meta, var(--po-text-size-meta, 12px));
+  --git-font-main: var(--desktop-sidebar-font-size, var(--po-type-left-sidebar-content, 14px));
+  --git-font-small: var(--desktop-sidebar-font-size-meta, var(--po-type-left-sidebar-meta, 12px));
   --git-line-height: var(--desktop-sidebar-line-height, 18px);
   --git-weight-regular: var(--desktop-sidebar-font-weight, var(--po-text-weight-medium, 500));
   --git-weight-strong: var(--desktop-sidebar-font-weight-emphasis, 650);
@@ -116,7 +116,7 @@
 .desktop-git-preview-summary {
   display: flex;
   align-items: start;
-  min-height: 34px;
+  min-height: var(--po-control-size-large);
   margin: 4px 0 0;
   padding-block: 6px 0;
   padding-inline:
@@ -128,7 +128,7 @@
     )
     calc(var(--git-sidebar-right-gap) + var(--git-sidebar-content-right) - var(--git-sidebar-scrollbar-width));
   color: var(--po-text-subtle);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 500;
   line-height: 1.35;
 }

@@ -36,7 +36,6 @@ const APPEARANCE_ATTRIBUTES = [
   "data-icon-pack",
   "data-sub-theme-id",
   "data-theme-mode",
-  "data-content-text-size",
   "data-loading-animation-preset",
   "data-pointer-cursors",
   "data-diff-markers",
@@ -50,8 +49,7 @@ const APPEARANCE_ATTRIBUTES = [
   "data-font-code-category",
   "data-font-terminal",
   "data-font-terminal-category",
-  "data-typography-editor-scale",
-  "data-typography-right-sidebar-scale",
+  "data-typography-scale",
 ] as const;
 
 const APPEARANCE_VARIABLES = [

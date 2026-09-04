@@ -1,4 +1,5 @@
 import { Terminal, type ITheme } from "@xterm/xterm";
+import { TYPOGRAPHY_SCALE_METRICS } from "../../typography";
 
 export type TerminalRgbColor = [number, number, number];
 
@@ -75,7 +76,9 @@ export function readTerminalFontSize(element: HTMLElement) {
   const source = resolveTerminalAppearanceSource(element);
   const value = getComputedStyle(source).getPropertyValue("--po-terminal-font-size").trim();
   const fontSize = Number.parseFloat(value);
-  return Number.isInteger(fontSize) ? fontSize : 13;
+  return Number.isInteger(fontSize)
+    ? fontSize
+    : TYPOGRAPHY_SCALE_METRICS.medium.rightSidebar.terminal;
 }
 
 /**

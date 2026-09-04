@@ -165,16 +165,16 @@ describe("gitRefreshScheduler", () => {
     const epochB = scheduler.getState().rootEpoch;
     expect(epochB).toBeGreaterThan(epochA);
     scheduler.refreshNow(refreshReason("initial", "repository", "initial"));
-    // Physical single-flight: B waits until A's promise settles.
-    expect(call).toBe(1);
-    expect(scheduler.getState().physicalInFlight).toBe(1);
-    expect(scheduler.getState().dirty).toBe(true);
+    // Repository single-flight is scoped to the active root. A provider that
+    // ignores abort must not keep the newly selected Project waiting.
+    expect(call).toBe(2);
+    expect(scheduler.getState().physicalInFlight).toBe(2);
+    expect(scheduler.getState().dirty).toBe(false);
 
     repoA.resolve({ label: "repo-a-stale" });
     await flushMicrotasks();
 
     expect(snapshots).toEqual([]);
-    expect(call).toBe(2);
     expect(roots).toEqual(["/repo-a", "/repo-b"]);
 
     repoB.resolve({ label: "repo-b-fresh" });
@@ -214,24 +214,23 @@ describe("gitRefreshScheduler", () => {
 
     scheduler.setRootPath("/repo-b");
     scheduler.refreshNow(refreshReason("initial", "repository", "initial"));
-    firstA?.resolve({ label: "stale-a" });
-    await flushMicrotasks();
-
     const firstB = pendingByRoot.get("/repo-b")?.[0];
     expect(firstB).toBeTruthy();
 
     scheduler.setRootPath("/repo-a");
     scheduler.refreshNow(refreshReason("initial", "repository", "initial"));
-    // B is still physically in flight; A is dirty until B settles.
-    expect(scheduler.getState().physicalInFlight).toBe(1);
+    const secondA = pendingByRoot.get("/repo-a")?.[1];
+    expect(secondA).toBeTruthy();
+    expect(scheduler.getState().physicalInFlight).toBe(3);
+
+    firstA?.resolve({ label: "stale-a" });
+    await flushMicrotasks();
 
     firstB?.resolve({ label: "late-b" });
     await flushMicrotasks();
 
     expect(snapshots.some((entry) => entry.label === "late-b")).toBe(false);
 
-    const secondA = pendingByRoot.get("/repo-a")?.[1];
-    expect(secondA).toBeTruthy();
     secondA?.resolve({ label: "fresh-a" });
     await flushMicrotasks();
 

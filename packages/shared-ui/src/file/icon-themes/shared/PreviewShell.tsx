@@ -64,7 +64,7 @@ export function renderFolderPreview(
             background: "var(--po-panel-raised)",
             border: "1px solid var(--po-border)",
             color: "var(--po-text-muted)",
-            fontSize: 10,
+            fontSize: "var(--po-type-ui-micro, 11px)",
             fontWeight: 700,
             lineHeight: 1,
           }}

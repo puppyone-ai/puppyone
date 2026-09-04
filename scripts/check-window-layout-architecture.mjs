@@ -59,8 +59,14 @@ if (
 ) {
   errors.push("BrowserWindow and runtime chrome switching must share the reviewed Default traffic-light position.");
 }
-if (!windowLayoutIpcSource.includes("applyWindowChromeProfile(ownerWindow, request?.titlebar)")) {
+if (!/applyWindowChromeProfile\(\s*ownerWindow,\s*request\?\.titlebar\s*\)/.test(windowLayoutIpcSource)) {
   errors.push("Window chrome IPC must resolve titlebar IDs through the trusted main-process profile registry.");
+}
+if (
+  windowLayoutIpcSource.includes("request?.leadingRail")
+  || windowChromeProfileSource.includes("LEADING_RAIL_MACOS_WINDOW_BUTTON_POSITION")
+) {
+  errors.push("Native traffic-light coordinates must not depend on renderer leading-rail layout.");
 }
 if (!windowChromeProfileSource.includes("setWindowButtonPosition?.({ ...profile.windowButtonPosition })")) {
   errors.push("Restoring native macOS buttons must reapply their reviewed position after visibility changes.");

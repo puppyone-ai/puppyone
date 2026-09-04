@@ -49,7 +49,6 @@ export type {
 
 export type LightThemePreset = "neutral" | "warm" | "graphite";
 export type DarkThemePreset = "default" | "warm" | "graphite";
-export type TextSize = "small" | "default" | "large";
 export type DiffMarkers = "color" | "symbols";
 export type GitDisplayMode = "simple" | "professional";
 export type GitSidebarLayout = "cards" | "dividers";
@@ -98,6 +97,7 @@ export type ExperimentalSettings = {
   enableMarkdownBlockDrag: boolean;
   enableMultiRootWorkspaces: boolean;
   enablePuppyFlowFiles: boolean;
+  enableProjectSwitcherRail: boolean;
   enableViewerPlugins: boolean;
 };
 
@@ -109,7 +109,6 @@ export type CreateNewMenuSettings = {
   hidden: CreateNewItemId[];
 };
 
-export const TEXT_SIZE_STORAGE_KEY = "puppyone.desktop.textSize";
 export const TYPOGRAPHY_STORAGE_KEY = "puppyone.desktop.typography";
 export const POINTER_CURSORS_STORAGE_KEY = "puppyone.desktop.pointerCursors";
 export const LOADING_ANIMATION_STORAGE_KEY = "puppyone.desktop.loadingAnimation";
@@ -134,7 +133,6 @@ export const CREATE_NEW_MENU_STORAGE_KEY = "puppyone.desktop.createNewMenu";
 export const DEFAULT_THEME_MODE: ThemeMode = "system";
 export const DEFAULT_LIGHT_THEME_PRESET: LightThemePreset = "neutral";
 export const DEFAULT_DARK_THEME_PRESET: DarkThemePreset = "default";
-export const DEFAULT_TEXT_SIZE: TextSize = "default";
 export { DEFAULT_TYPOGRAPHY_PREFERENCES };
 export const DEFAULT_POINTER_CURSORS = false;
 export const DEFAULT_LOADING_ANIMATION_PRESET: LoadingAnimationPreset = "ikun";
@@ -188,6 +186,7 @@ export const DEFAULT_EXPERIMENTAL_SETTINGS: ExperimentalSettings = {
   enableMarkdownBlockDrag: false,
   enableMultiRootWorkspaces: false,
   enablePuppyFlowFiles: false,
+  enableProjectSwitcherRail: false,
   enableViewerPlugins: false,
 };
 const DEFAULT_CREATE_NEW_MENU_LAYOUT = getDefaultCreateNewMenuLayout();
@@ -280,32 +279,6 @@ export const DARK_THEME_PRESETS = [
   swatches: readonly [string, string, string];
 }>;
 
-export const TEXT_SIZE_PRESETS = [
-  {
-    value: "small",
-    label: "Small",
-    description: "Editor content 14px.",
-    sizes: { content: 14 },
-  },
-  {
-    value: "default",
-    label: "Default",
-    description: "Editor content 15px.",
-    sizes: { content: 15 },
-  },
-  {
-    value: "large",
-    label: "Large",
-    description: "Editor content 16px.",
-    sizes: { content: 16 },
-  },
-] as const satisfies ReadonlyArray<{
-  value: TextSize;
-  label: string;
-  description: string;
-  sizes: { content: number };
-}>;
-
 export function parseThemeMode(value: string | null | undefined): ThemeMode {
   return value === "light" || value === "dark" || value === "system" ? value : DEFAULT_THEME_MODE;
 }
@@ -324,10 +297,6 @@ export function parseDarkThemePreset(value: string | null | undefined): DarkThem
 
 export function isDarkThemePreset(value: string | null | undefined): value is DarkThemePreset {
   return value === "default" || value === "warm" || value === "graphite";
-}
-
-export function parseTextSize(value: string | null | undefined): TextSize {
-  return value === "small" || value === "large" || value === "default" ? value : DEFAULT_TEXT_SIZE;
 }
 
 export function parseTypography(value: string | null | undefined): TypographyPreferences {
@@ -517,6 +486,7 @@ export function parseExperimentalSettings(value: string | null | undefined): Exp
       enableMarkdownBlockDrag: parsed.enableMarkdownBlockDrag === true,
       enableMultiRootWorkspaces: parsed.enableMultiRootWorkspaces === true,
       enablePuppyFlowFiles: parsed.enablePuppyFlowFiles === true,
+      enableProjectSwitcherRail: parsed.enableProjectSwitcherRail === true,
       enableViewerPlugins: parsed.enableViewerPlugins === true,
     };
   } catch {

@@ -48,7 +48,7 @@
   overflow: hidden;
   max-width: 100%;
   color: var(--po-text-muted);
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   font-weight: 650;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -104,12 +104,12 @@
 }
 
 .review-copy strong {
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
 }
 
 .review-copy small {
   color: var(--po-text-subtle);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
 }
 
 .diff-preview-panel {
@@ -144,7 +144,7 @@
   padding: 0 12px;
   border-bottom: 1px solid var(--po-editor-line);
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 800;
   line-height: 36px;
 }

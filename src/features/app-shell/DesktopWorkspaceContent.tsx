@@ -244,7 +244,6 @@ export function DesktopWorkspaceContent({
       workspace={workspace}
       workspaceFolders={workspaceFolders}
       resolveWorkspaceResource={resolveWorkspaceResource}
-      workspaceKey={workspaceKey}
       workspaceRefreshToken={workspaceRefreshToken}
       workspaceSurfaceError={workspaceSurfaceError}
       sidebarCreateMenuOpen={sidebarCreateMenuOpen}

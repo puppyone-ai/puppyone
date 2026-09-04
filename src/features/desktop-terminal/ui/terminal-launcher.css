@@ -185,7 +185,7 @@
   display: flex;
   width: 100%;
   min-width: 0;
-  min-height: 34px;
+  min-height: var(--po-control-size-large);
   align-items: center;
   gap: 9px;
   padding: 5px 8px;

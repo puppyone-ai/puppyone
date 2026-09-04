@@ -200,7 +200,7 @@
 .desktop-menu-icon-button {
   display: inline-flex;
   width: 22px;
-  height: 22px;
+  height: var(--po-control-size-mini);
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;

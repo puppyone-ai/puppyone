@@ -3,14 +3,12 @@ import {
   parseLoadingAnimationPreset,
   parsePointerCursors,
   parseSidebarNavigationLayout,
-  parseTextSize,
   parseThemeMode,
   parseTypography,
   type DarkThemePreset,
   type LightThemePreset,
   type LoadingAnimationPreset,
   type SidebarNavigationLayout,
-  type TextSize,
   type ThemeMode,
   type TypographyPreferences,
 } from "../../preferences";
@@ -29,13 +27,16 @@ import {
 } from "./interfaceStyles";
 import { isSubThemeId, normalizeSubThemeId } from "../themes/subThemePreferences";
 import { withTypographyScale } from "../typography";
+import {
+  parseLegacyTextSize,
+  type LegacyTextSize,
+} from "./legacyTextSizeMigration";
 
 export { APPEARANCE_PREFERENCES_STORAGE_KEY };
 
-export const APPEARANCE_PREFERENCES_SCHEMA_VERSION = 5 as const;
+export const APPEARANCE_PREFERENCES_SCHEMA_VERSION = 6 as const;
 
 export type AppearanceSharedPreferences = Readonly<{
-  textSize: TextSize;
   typography: TypographyPreferences;
   pointerCursors: boolean;
   loadingAnimationPreset: LoadingAnimationPreset;
@@ -52,7 +53,7 @@ export type AppearanceSurfaceOverridePreferences = Readonly<{
   markdown: MarkdownPresentationSettings;
 }>;
 
-export type AppearancePreferencesV5 = Readonly<{
+export type AppearancePreferencesV6 = Readonly<{
   schemaVersion: typeof APPEARANCE_PREFERENCES_SCHEMA_VERSION;
   activeRootThemeId: InterfaceStyle;
   shared: AppearanceSharedPreferences;
@@ -67,7 +68,7 @@ export type LegacyAppearanceSnapshot = Readonly<{
   darkThemePreset: DarkThemePreset;
   legacySubThemeId?: string | null;
   markdownPresentation?: MarkdownPresentationSettings;
-  textSize: TextSize;
+  legacyTextSize: LegacyTextSize;
   typography: TypographyPreferences;
   pointerCursors: boolean;
   loadingAnimationPreset: LoadingAnimationPreset;
@@ -76,8 +77,8 @@ export type LegacyAppearanceSnapshot = Readonly<{
 }>;
 
 export type AppearancePreferencesReadResult = Readonly<{
-  preferences: AppearancePreferencesV5;
-  source: "v5" | "migrated" | "legacy" | "future";
+  preferences: AppearancePreferencesV6;
+  source: "v6" | "migrated" | "legacy" | "future";
   writable: boolean;
 }>;
 
@@ -108,23 +109,23 @@ export function readAppearancePreferences(
 
   return {
     preferences: parsed.schemaVersion === APPEARANCE_PREFERENCES_SCHEMA_VERSION
-      ? normalizeV5(parsed, legacy)
+      ? normalizeV6(parsed, legacy)
       : migrateLegacyDocument(parsed, legacy),
-    source: parsed.schemaVersion === APPEARANCE_PREFERENCES_SCHEMA_VERSION ? "v5" : "migrated",
+    source: parsed.schemaVersion === APPEARANCE_PREFERENCES_SCHEMA_VERSION ? "v6" : "migrated",
     writable: true,
   };
 }
 
-export function serializeAppearancePreferences(preferences: AppearancePreferencesV5): string {
+export function serializeAppearancePreferences(preferences: AppearancePreferencesV6): string {
   return JSON.stringify(preferences);
 }
 
-export function createAppearancePreferencesV5(input: {
+export function createAppearancePreferencesV6(input: {
   activeRootThemeId: InterfaceStyle;
   shared: AppearanceSharedPreferences;
   byRootTheme: Readonly<Record<string, RootThemeAppearancePreferences>>;
   bySurface?: Partial<AppearanceSurfaceOverridePreferences>;
-}): AppearancePreferencesV5 {
+}): AppearancePreferencesV6 {
   return Object.freeze({
     schemaVersion: APPEARANCE_PREFERENCES_SCHEMA_VERSION,
     activeRootThemeId: input.activeRootThemeId,
@@ -138,9 +139,9 @@ export function createAppearancePreferencesV5(input: {
   });
 }
 
-function fromLegacy(legacy: LegacyAppearanceSnapshot): AppearancePreferencesV5 {
+function fromLegacy(legacy: LegacyAppearanceSnapshot): AppearancePreferencesV6 {
   const activeRootThemeId = legacy.activeStyle;
-  return createAppearancePreferencesV5({
+  return createAppearancePreferencesV6({
     activeRootThemeId,
     shared: sharedFromLegacy(legacy),
     byRootTheme: createDefaultRootThemePreferences({
@@ -157,7 +158,7 @@ function fromLegacy(legacy: LegacyAppearanceSnapshot): AppearancePreferencesV5 {
 function migrateLegacyDocument(
   input: Record<string, unknown>,
   legacy: LegacyAppearanceSnapshot,
-): AppearancePreferencesV5 {
+): AppearancePreferencesV6 {
   const shared = isRecord(input.shared) ? input.shared : input;
   const activeRootThemeId = parseInterfaceStyle(
     asString(input.activeRootThemeId)
@@ -176,13 +177,20 @@ function migrateLegacyDocument(
     ? readRootThemePreferences(input.byRootTheme, requestedColorMode, requestedSubThemeIds)
     : readLegacyByStyle(input.byStyle, requestedColorMode, requestedSubThemeIds);
   const bySurface = isRecord(input.bySurface) ? input.bySurface : {};
+  const serializedLegacyTextSize = asString(shared.textSize);
 
-  return createAppearancePreferencesV5({
+  return createAppearancePreferencesV6({
     activeRootThemeId,
-    shared: normalizeShared({
-      ...shared,
-      sidebarNavigationLayout: shared.sidebarNavigationLayout ?? input.navigationLayout,
-    }, legacy),
+    shared: normalizeShared(
+      {
+        ...shared,
+        sidebarNavigationLayout: shared.sidebarNavigationLayout ?? input.navigationLayout,
+      },
+      legacy,
+      serializedLegacyTextSize === undefined
+        ? undefined
+        : parseLegacyTextSize(serializedLegacyTextSize),
+    ),
     byRootTheme: {
       ...createDefaultRootThemePreferences({
         activeRootThemeId,
@@ -197,10 +205,10 @@ function migrateLegacyDocument(
   });
 }
 
-function normalizeV5(
+function normalizeV6(
   input: Record<string, unknown>,
   legacy: LegacyAppearanceSnapshot,
-): AppearancePreferencesV5 {
+): AppearancePreferencesV6 {
   const activeRootThemeId = parseInterfaceStyle(
     asString(input.activeRootThemeId) ?? legacy.activeStyle,
   );
@@ -214,7 +222,7 @@ function normalizeV5(
     fallbackSubThemeIds,
   );
 
-  return createAppearancePreferencesV5({
+  return createAppearancePreferencesV6({
     activeRootThemeId,
     shared: normalizeShared(shared, legacy),
     byRootTheme: {
@@ -234,19 +242,18 @@ function normalizeV5(
 function normalizeShared(
   shared: Record<string, unknown>,
   legacy: LegacyAppearanceSnapshot,
+  legacyTextSize?: LegacyTextSize,
 ): AppearanceSharedPreferences {
   const rawFileIconTheme = typeof shared.fileIconTheme === "string" ? shared.fileIconTheme : null;
-  const legacyTextSize = parseTextSize(asString(shared.textSize) ?? legacy.textSize);
-  const typography = migrateLegacyContentSize(
-    parseTypography(
-      shared.typography === undefined
-        ? JSON.stringify(legacy.typography)
-        : JSON.stringify(shared.typography),
-    ),
-    legacyTextSize,
+  const parsedTypography = parseTypography(
+    shared.typography === undefined
+      ? JSON.stringify(legacy.typography)
+      : JSON.stringify(shared.typography),
   );
+  const typography = legacyTextSize
+    ? migrateLegacyContentSize(parsedTypography, legacyTextSize)
+    : parsedTypography;
   return {
-    textSize: "default",
     typography,
     pointerCursors: typeof shared.pointerCursors === "boolean"
       ? shared.pointerCursors
@@ -265,8 +272,7 @@ function normalizeShared(
 
 function sharedFromLegacy(legacy: LegacyAppearanceSnapshot): AppearanceSharedPreferences {
   return {
-    textSize: "default",
-    typography: migrateLegacyContentSize(legacy.typography, legacy.textSize),
+    typography: migrateLegacyContentSize(legacy.typography, legacy.legacyTextSize),
     pointerCursors: legacy.pointerCursors,
     loadingAnimationPreset: legacy.loadingAnimationPreset,
     fileIconTheme: legacy.fileIconTheme,
@@ -276,10 +282,10 @@ function sharedFromLegacy(legacy: LegacyAppearanceSnapshot): AppearanceSharedPre
 
 function migrateLegacyContentSize(
   typography: TypographyPreferences,
-  textSize: TextSize,
+  legacyTextSize: LegacyTextSize,
 ): TypographyPreferences {
-  if (textSize === "default") return typography;
-  return withTypographyScale(typography, "editor", textSize === "small" ? "small" : "large");
+  if (legacyTextSize === "default") return typography;
+  return withTypographyScale(typography, legacyTextSize === "small" ? "small" : "large");
 }
 
 function createDefaultRootThemePreferences({

@@ -4,7 +4,6 @@ import { readFileSync } from "node:fs";
 import {
   DEFAULT_EXPERIMENTAL_SETTINGS,
   DEFAULT_CREATE_NEW_MENU_SETTINGS,
-  TEXT_SIZE_PRESETS,
   parseCreateNewMenuSettings,
   parseDarkThemePreset,
   parseDiffMarkers,
@@ -15,9 +14,9 @@ import {
   parseAgentFileActivityIndicatorsEnabled,
   parsePointerCursors,
   parseSidebarNavigationVisibilitySettings,
-  parseTextSize,
   resolveVisibleCreateNewMenuItems,
 } from "../src/preferences";
+import { parseLegacyTextSize } from "../src/features/appearance/legacyTextSizeMigration";
 
 describe("Git sidebar layout preferences", () => {
   it("defaults to cards and accepts only the two comparison layouts", () => {
@@ -139,21 +138,6 @@ describe("appearance preferences", () => {
     expect(parseAgentFileActivityIndicatorsEnabled("invalid")).toBe(false);
   });
 
-  it("defines content-only integer typography presets", () => {
-    expect(TEXT_SIZE_PRESETS.map((preset) => ({
-      value: preset.value,
-      content: preset.sizes.content,
-    }))).toEqual([
-      { value: "small", content: 14 },
-      { value: "default", content: 15 },
-      { value: "large", content: 16 },
-    ]);
-
-    for (const preset of TEXT_SIZE_PRESETS) {
-      expect(Object.values(preset.sizes).every(Number.isInteger)).toBe(true);
-    }
-  });
-
   it("keeps the CSS typography token sets aligned with the preset contract", () => {
     const css = readFileSync(
       new URL("../src/styles/typography/foundations.css", import.meta.url),
@@ -171,13 +155,13 @@ describe("appearance preferences", () => {
     expect(css).not.toContain("data-text-size");
 
     expect(tokens).toMatch(
-      /:root,\s*:where\(\.app-shell, \.onboarding-shell, \.desktop-overlay-root, \.desktop-theme-preview-surface, \.dark\)\s*\{[^}]*--desktop-sidebar-font-size:\s*var\(--po-text-size-sidebar\);[^}]*--desktop-sidebar-font-size-meta:\s*var\(--po-text-size-meta\);/s,
+      /:root,\s*:where\(\.app-shell, \.onboarding-shell, \.desktop-overlay-root, \.desktop-theme-preview-surface, \.dark\)\s*\{[^}]*--desktop-sidebar-font-size:\s*var\(--po-type-left-sidebar-content\);[^}]*--desktop-sidebar-font-size-meta:\s*var\(--po-type-left-sidebar-meta\);/s,
     );
   });
 
   it("accepts only curated appearance values", () => {
-    expect(parseTextSize("large")).toBe("large");
-    expect(parseTextSize("17px")).toBe("default");
+    expect(parseLegacyTextSize("large")).toBe("large");
+    expect(parseLegacyTextSize("17px")).toBe("default");
     expect(parseDarkThemePreset("warm")).toBe("warm");
     expect(parseDarkThemePreset("custom")).toBe("default");
     expect(parseDiffMarkers("symbols")).toBe("symbols");
@@ -233,6 +217,7 @@ describe("experimental preferences", () => {
       enableMarkdownBlockDrag: false,
       enableMultiRootWorkspaces: false,
       enablePuppyFlowFiles: false,
+      enableProjectSwitcherRail: false,
       enableViewerPlugins: false,
     });
     expect(parseExperimentalSettings(JSON.stringify({ enableAgentCompanion: true })).enableAgentChat).toBe(true);
@@ -251,6 +236,15 @@ describe("experimental preferences", () => {
     expect(parseExperimentalSettings(JSON.stringify({ enableMultiRootWorkspaces: false })).enableMultiRootWorkspaces)
       .toBe(false);
     expect(parseExperimentalSettings(JSON.stringify({ enableMultiRootWorkspaces: true })).enableMultiRootWorkspaces)
+      .toBe(true);
+  });
+
+  it("keeps the Project switcher rail off unless the user explicitly opts in", () => {
+    expect(parseExperimentalSettings(null).enableProjectSwitcherRail).toBe(false);
+    expect(parseExperimentalSettings("not-json").enableProjectSwitcherRail).toBe(false);
+    expect(parseExperimentalSettings(JSON.stringify({ enableProjectSwitcherRail: false })).enableProjectSwitcherRail)
+      .toBe(false);
+    expect(parseExperimentalSettings(JSON.stringify({ enableProjectSwitcherRail: true })).enableProjectSwitcherRail)
       .toBe(true);
   });
 

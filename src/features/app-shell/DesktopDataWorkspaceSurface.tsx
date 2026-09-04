@@ -57,6 +57,7 @@ import {
 import { DesktopShellNavigationToolbarPortal } from "./DesktopShellAccessoryContext";
 import { RemoteUpdateNotice } from "../data-workspace/RemoteUpdateNotice";
 import type { ResolvedWorkbenchDataResource } from "../data-workspace/workbenchDataPort";
+import { useProjectExplorerSession } from "../data-workspace/useProjectExplorerSession";
 import {
   EmptyWorkspaceOnboardingDialog,
   markFirstProjectStarterCompleted,
@@ -116,7 +117,6 @@ export type DesktopDataWorkspaceSurfaceProps = {
   workspace: Workspace;
   workspaceFolders: readonly WorkspaceFolder[];
   resolveWorkspaceResource: (path: string | null) => ResolvedWorkbenchDataResource | null;
-  workspaceKey: string;
   workspaceRefreshToken: WorkspaceContentChange;
   workspaceSurfaceError: string | null;
   sidebarCreateMenuOpen: boolean;
@@ -151,7 +151,6 @@ export function DesktopDataWorkspaceSurface({
   workspace,
   workspaceFolders,
   resolveWorkspaceResource,
-  workspaceKey,
   workspaceRefreshToken,
   workspaceSurfaceError,
   sidebarCreateMenuOpen,
@@ -177,6 +176,7 @@ export function DesktopDataWorkspaceSurface({
   const activeWorkspaceRootPath = activeWorkspaceResource?.folder.uri
     ?? workspaceFolders[0]?.uri
     ?? null;
+  const explorerSession = useProjectExplorerSession(workspace, workspaceFolders);
   const defaultExpandedWorkspaceRoots = useMemo(
     () => workspaceFolders.length > 1
       ? workspaceFolders.map((folder) => folder.uri)
@@ -193,7 +193,7 @@ export function DesktopDataWorkspaceSurface({
         : { workspaceKey: nextWorkspaceKey, status }
     ));
   }, []);
-  const currentWorkspaceRootStatus = workspaceRootStatus?.workspaceKey === workspaceKey
+  const currentWorkspaceRootStatus = workspaceRootStatus?.workspaceKey === explorerSession.key
     ? workspaceRootStatus.status
     : null;
   const showEmptyWorkspaceOnboarding = shouldShowFirstProjectStarter({
@@ -291,11 +291,13 @@ export function DesktopDataWorkspaceSurface({
         </div>
       )}
       <DataWorkspace
-        key={workspaceKey}
+        key={explorerSession.key}
         workspace={workspace}
         labels={{ root: workspace.name }}
         dataPort={dataPort}
         defaultExpandedPaths={defaultExpandedWorkspaceRoots}
+        initialExplorerSession={explorerSession.initialSession}
+        onExplorerSessionChange={explorerSession.onSessionChange}
         activePath={activeExplorerPath}
         onResourceMove={onResourceMove}
         onActivePathChange={onActiveDataPathChange}
@@ -438,7 +440,7 @@ export function DesktopDataWorkspaceSurface({
           ? (state) => (
               <>
                 <WorkspaceRootOnboardingStatusReporter
-                  workspaceKey={workspaceKey}
+                  workspaceKey={explorerSession.key}
                   rootLoading={state.rootLoading}
                   loadError={state.loadError}
                   rootEntryCount={state.tree.length}

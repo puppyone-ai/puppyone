@@ -16,11 +16,11 @@
   text-align: center;
 }
 
-.application-render-fallback > strong { color: var(--po-text); font-size: 15px; font-weight: 600; }
-.application-render-fallback > p { max-width: 420px; margin: 0; font-size: 13px; line-height: 1.5; }
+.application-render-fallback > strong { color: var(--po-text); font-size: var(--po-type-ui-section-title, 16px); font-weight: 600; }
+.application-render-fallback > p { max-width: 420px; margin: 0; font-size: var(--po-type-ui-body, 14px); line-height: 1.5; }
 .application-render-fallback > button {
   display: inline-flex;
-  height: 32px;
+  height: var(--po-control-size);
   align-items: center;
   gap: 7px;
   margin-top: 4px;
@@ -76,7 +76,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
 }
 
 .utility-row span {
@@ -97,7 +97,7 @@
   width: min(760px, 100%);
   margin-top: 14px;
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
 }
 
 .recording-strip {
@@ -111,7 +111,7 @@
   border-bottom: 1px solid rgba(180, 83, 9, 0.24);
   background: color-mix(in srgb, var(--po-warning) 10%, var(--po-panel-raised));
   color: var(--po-warning);
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   font-weight: 650;
 }
 
@@ -146,6 +146,6 @@
   background: color-mix(in srgb, var(--po-danger) 9%, var(--po-panel-raised));
   color: var(--po-danger);
   box-shadow: var(--po-elevation-low);
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   font-weight: 750;
 }

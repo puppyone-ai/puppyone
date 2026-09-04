@@ -195,9 +195,12 @@ describe("Desktop Agent renderer surfaces", () => {
   it("renders the structural regions and applies the real layout CSS contract", () => {
     const style = document.createElement("style");
     style.dataset.agentLayoutTest = "true";
-    style.textContent = ["theme.css", "foundation.css", "composer.css", "pickers.css"]
-      .map((file) => readFileSync(`${process.cwd()}/src/features/desktop-agent/ui/styles/${file}`, "utf8"))
-      .join("\n");
+    style.textContent = [
+      readFileSync(`${process.cwd()}/packages/shared-ui/src/styles/control-geometry.css`, "utf8"),
+      readFileSync(`${process.cwd()}/src/styles/tokens.css`, "utf8"),
+      ...["theme.css", "foundation.css", "composer.css", "pickers.css"]
+        .map((file) => readFileSync(`${process.cwd()}/src/features/desktop-agent/ui/styles/${file}`, "utf8")),
+    ].join("\n");
     document.head.appendChild(style);
 
     const container = render(React.createElement(AgentPanelLayout, {
@@ -253,10 +256,10 @@ describe("Desktop Agent renderer surfaces", () => {
     const sendControl = container.querySelector('button[aria-label="Send message"]') as HTMLElement;
     const composerSurface = container.querySelector(".desktop-agent-composer") as HTMLElement;
     const promptEditor = container.querySelector(".cm-content") as HTMLElement;
-    expect(window.getComputedStyle(providerControl).height).toBe("26px");
-    expect(window.getComputedStyle(sendControl).width).toBe("30px");
-    expect(window.getComputedStyle(sendControl).height).toBe("30px");
-    expect(window.getComputedStyle(modelControl).height).toBe("30px");
+    expect(window.getComputedStyle(providerControl).height).toBe("calc(32px - 6px)");
+    expect(window.getComputedStyle(sendControl).width).toBe("32px");
+    expect(window.getComputedStyle(sendControl).height).toBe("32px");
+    expect(window.getComputedStyle(modelControl).height).toBe("32px");
     expect(window.getComputedStyle(composerSurface).cursor).not.toBe("text");
     expect(window.getComputedStyle(promptEditor).cursor).toBe("text");
   });

@@ -17,7 +17,7 @@ afterEach(() => {
 });
 
 describe("Typography settings", () => {
-  it("exposes independent Left sidebar, Header, Editor, and Right sidebar scales", () => {
+  it("exposes one application-wide Small, Medium, and Large scale", () => {
     const host = document.createElement("div");
     host.dataset.poAppearanceRoot = "true";
     document.body.append(host);
@@ -31,14 +31,11 @@ describe("Typography settings", () => {
       />,
     )));
 
-    expect(host.querySelector('[aria-label="Left sidebar text size"]')).not.toBeNull();
-    expect(host.querySelector('[aria-label="Header text size"]')).not.toBeNull();
-    expect(host.querySelector('[aria-label="Editor text size"]')).not.toBeNull();
-    expect(host.querySelector('[aria-label="Right sidebar text size"]')).not.toBeNull();
-    expect(host.querySelectorAll('[aria-label="Left sidebar text size"] button')).toHaveLength(3);
-    expect(host.querySelectorAll('[aria-label="Header text size"] button')).toHaveLength(3);
-    expect(host.querySelectorAll('[aria-label="Editor text size"] button')).toHaveLength(3);
-    expect(host.querySelectorAll('[aria-label="Right sidebar text size"] button')).toHaveLength(3);
+    const scale = host.querySelector('[aria-label="Application text size"]');
+    expect(scale).not.toBeNull();
+    expect(scale?.querySelectorAll("button")).toHaveLength(3);
+    expect(host.textContent).toContain("Entire application");
+    expect(host.querySelectorAll('[aria-pressed="true"]')).toHaveLength(1);
     expect(host.textContent).not.toContain("px");
     expect(host.textContent).not.toContain("Follow theme");
     expect(host.querySelector('[aria-label="Heading size"]')).toBeNull();
@@ -80,7 +77,7 @@ describe("Typography settings", () => {
     expect(body?.querySelector("strong")?.textContent).toBe("comfortable reading experience");
   });
 
-  it("updates a surface scale without exposing individual typography roles", () => {
+  it("updates the single application scale without exposing custom values", () => {
     const onChange = vi.fn();
     const host = document.createElement("div");
     host.dataset.poAppearanceRoot = "true";
@@ -94,56 +91,14 @@ describe("Typography settings", () => {
       />,
     )));
 
-    const rightSidebarButton = host.querySelector<HTMLButtonElement>(
-      '[aria-label="Use Large text for Right sidebar"]',
+    const largeButton = host.querySelector<HTMLButtonElement>(
+      '[aria-label="Use Large text throughout PuppyOne"]',
     );
-    act(() => rightSidebarButton?.click());
+    act(() => largeButton?.click());
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
-      scales: expect.objectContaining({
-        rightSidebar: "large",
-      }),
+      scale: "large",
     }));
-  });
-
-  it("updates the sidebar and header scales independently", () => {
-    const onChange = vi.fn();
-    const host = document.createElement("div");
-    host.dataset.poAppearanceRoot = "true";
-    document.body.append(host);
-    root = createRoot(host);
-
-    act(() => root?.render(withTestLocalization(
-      <TypographyScaleSetting
-        preferences={DEFAULT_TYPOGRAPHY_PREFERENCES}
-        onChange={onChange}
-      />,
-    )));
-
-    const leftSidebarButton = host.querySelector<HTMLButtonElement>(
-      '[aria-label="Use Large text for Left sidebar"]',
-    );
-    act(() => leftSidebarButton?.click());
-    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
-      scales: expect.objectContaining({
-        leftSidebar: "large",
-        header: "medium",
-        editor: "medium",
-        rightSidebar: "medium",
-      }),
-    }));
-
-    const headerButton = host.querySelector<HTMLButtonElement>(
-      '[aria-label="Use Small text for Header"]',
-    );
-    act(() => headerButton?.click());
-    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({
-      scales: expect.objectContaining({
-        leftSidebar: "medium",
-        header: "small",
-        editor: "medium",
-        rightSidebar: "medium",
-      }),
-    }));
-
+    expect(onChange.mock.calls[0]?.[0]).not.toHaveProperty("scales");
+    expect(host.querySelector('input[type="number"]')).toBeNull();
   });
 });

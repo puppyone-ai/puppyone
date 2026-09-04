@@ -657,6 +657,28 @@ export type RecentWorkspacesResult = {
   hydrated?: boolean;
 };
 
+export type ProjectAppearance = Readonly<{
+  projectIdentity: string;
+  icon: Readonly<{
+    kind: "asset";
+    assetId: string;
+    mediaType: "image/png";
+    updatedAt: string;
+    url: string;
+  }> | Readonly<{
+    kind: "emoji";
+    value: string;
+    updatedAt: string;
+  }> | null;
+}>;
+
+export type ProjectIconSelectionResult = Readonly<{
+  status: "cancelled";
+}> | Readonly<{
+  status: "updated";
+  appearance: ProjectAppearance;
+}>;
+
 export type WorkspaceOpenResult = {
   status: "opened-current" | "opened-new-window" | "focused-existing";
   workspaceId: string | null;
@@ -912,7 +934,9 @@ declare global {
   interface Window {
     puppyoneDesktop?: {
       getWindowChromeState: () => Promise<{ fullScreen: boolean; maximized: boolean }>;
-      setWindowChromeProfile: (request: { titlebar: string }) => Promise<{
+      setWindowChromeProfile: (request: {
+        titlebar: string;
+      }) => Promise<{
         applied: boolean;
         customControls?: boolean;
       }>;
@@ -1136,6 +1160,18 @@ declare global {
       getLastWorkspace: () => Promise<LastWorkspaceResult>;
       getRecentWorkspaces: () => Promise<RecentWorkspacesResult>;
       hydrateRecentWorkspaces: () => Promise<RecentWorkspacesResult>;
+      projectAppearance: {
+        list: (request: { projectIdentities: string[] }) => Promise<ProjectAppearance[]>;
+        chooseIcon: (request: {
+          projectIdentity: string;
+        }) => Promise<ProjectIconSelectionResult>;
+        resetIcon: (request: { projectIdentity: string }) => Promise<ProjectAppearance>;
+        setEmoji: (request: {
+          projectIdentity: string;
+          emoji: string;
+        }) => Promise<ProjectAppearance>;
+        onChanged: (callback: (appearance: ProjectAppearance) => void) => () => void;
+      };
       removeRecentWorkspace: (folderPath: string) => Promise<{
         ok: true;
         removed: true;

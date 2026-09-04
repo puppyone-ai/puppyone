@@ -1,11 +1,13 @@
 import { ChevronRight, Minus, Plus, Undo2 } from "lucide-react";
 import {
   FileGlyphIcon,
+  STANDARD_CONTROL_SIZE,
   VirtualSidebarList,
   shouldVirtualizeSidebarList,
+  useCssPixelCustomProperty,
   type FileIconThemeId,
 } from "@puppyone/shared-ui";
-import { Fragment, type ReactNode } from "react";
+import { Fragment, useRef, type ReactNode } from "react";
 import type { GitSourceControlResource } from "../../types/electron";
 import type { GitWorkingSelection } from "./types";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
@@ -102,6 +104,12 @@ export function SourceControlPreviewResourceList({
   ariaLabel: string;
   onSelectWorkingFile: (selection: GitWorkingSelection) => void;
 }) {
+  const virtualListRef = useRef<HTMLOListElement | null>(null);
+  const virtualRowSize = useCssPixelCustomProperty(
+    virtualListRef,
+    "--desktop-sidebar-virtual-row-size",
+    STANDARD_CONTROL_SIZE + 2,
+  );
   const renderResource = (resource: GitSourceControlResource) => (
     <SourceControlPreviewResourceRow
       resource={resource}
@@ -118,7 +126,8 @@ export function SourceControlPreviewResourceList({
         className={`desktop-git-remote-preview desktop-git-${origin}-preview desktop-git-preview-virtual-list`}
         ariaLabel={ariaLabel}
         items={resources}
-        rowSize={32}
+        listRef={virtualListRef}
+        rowSize={virtualRowSize}
         getKey={(resource) => resource.id}
         renderRow={renderResource}
       />

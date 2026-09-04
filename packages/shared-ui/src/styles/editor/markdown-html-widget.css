@@ -66,7 +66,7 @@
   border-radius: 6px;
   background: color-mix(in srgb, var(--po-panel) 26%, transparent);
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
 }
 
 .markdown-codemirror-editor .cm-md-html-deferred-load {

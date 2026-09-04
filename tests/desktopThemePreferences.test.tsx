@@ -5,7 +5,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   APPEARANCE_PREFERENCES_STORAGE_KEY,
-  type AppearancePreferencesV5,
+  type AppearancePreferencesV6,
 } from "../src/features/appearance/appearancePreferences";
 import { LEGACY_APPEARANCE_STORAGE_KEYS } from "../src/features/appearance/legacyAppearancePreferences";
 import { LEGACY_SURFACE_THEME_PREFERENCES_STORAGE_KEY } from "../src/features/themes/subThemePreferences";
@@ -45,7 +45,7 @@ afterEach(() => {
 });
 
 describe("desktop appearance preferences", () => {
-  it("persists one canonical V5 document and remembers Sub Themes independently by mode and Root Theme", () => {
+  it("persists one canonical V6 document and remembers Sub Themes independently by mode and Root Theme", () => {
     act(() => root.render(<Harness />));
 
     act(() => {
@@ -76,7 +76,8 @@ describe("desktop appearance preferences", () => {
     expect(latest?.themeMode).toBe("dark");
     act(() => latest?.setThemeMode("light"));
     expect(latest?.requestedSubThemeId).toBe("default.github");
-    expect(readStored().schemaVersion).toBe(5);
+    expect(readStored().schemaVersion).toBe(6);
+    expect(readStored().shared).not.toHaveProperty("textSize");
     expect(LEGACY_APPEARANCE_STORAGE_KEYS.every(
       (key) => window.localStorage.getItem(key) === null,
     )).toBe(true);
@@ -84,7 +85,7 @@ describe("desktop appearance preferences", () => {
 
   it("synchronizes the canonical appearance document across windows", () => {
     act(() => root.render(<Harness />));
-    const remote: AppearancePreferencesV5 = {
+    const remote: AppearancePreferencesV6 = {
       ...readStored(),
       activeRootThemeId: "windows-xp",
       byRootTheme: {
@@ -170,7 +171,7 @@ describe("desktop appearance preferences", () => {
 
     act(() => root.render(<Harness />));
 
-    expect(readStored().schemaVersion).toBe(5);
+    expect(readStored().schemaVersion).toBe(6);
     expect(readStored().shared.typography.contentFont).toEqual({
       mode: "explicit",
       fontId: BUILTIN_FONT_IDS.systemSans,
@@ -238,7 +239,7 @@ function Harness() {
   return null;
 }
 
-function readStored(): AppearancePreferencesV5 {
+function readStored(): AppearancePreferencesV6 {
   return JSON.parse(
     window.localStorage.getItem(APPEARANCE_PREFERENCES_STORAGE_KEY) ?? "null",
   );

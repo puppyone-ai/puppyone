@@ -25,7 +25,7 @@
   gap: 7px;
   padding: 0 8px;
   color: var(--po-text-muted);
-  font-size: 14px;
+  font-size: var(--po-type-ui-body-large, 15px);
   font-weight: 600;
 }
 

@@ -1,14 +1,14 @@
 import {
+  STANDARD_CONTROL_SIZE,
   VirtualSidebarList,
   shouldVirtualizeSidebarList,
   type FileIconThemeId,
+  useCssPixelCustomProperty,
 } from "@puppyone/shared-ui";
 import type { GitSourceControlResource } from "../../../types/electron";
-import { Fragment } from "react";
+import { Fragment, useRef } from "react";
 import { SourceControlWorkingTreeRow } from "../components";
 import type { GitWorkingSelection } from "../types";
-
-const WORKING_TREE_VIRTUAL_ROW_SIZE = 32;
 
 export function SourceControlWorkingResourceList({
   resources,
@@ -29,6 +29,12 @@ export function SourceControlWorkingResourceList({
   onUnstagePaths: (paths: string[]) => Promise<boolean>;
   onDiscardPaths: (paths: string[]) => Promise<boolean>;
 }) {
+  const virtualListRef = useRef<HTMLOListElement | null>(null);
+  const virtualRowSize = useCssPixelCustomProperty(
+    virtualListRef,
+    "--desktop-sidebar-virtual-row-size",
+    STANDARD_CONTROL_SIZE + 2,
+  );
   const renderResource = (resource: GitSourceControlResource) => (
     <SourceControlWorkingTreeRow
       resource={resource}
@@ -48,7 +54,8 @@ export function SourceControlWorkingResourceList({
       <VirtualSidebarList
         className="desktop-working-tree-list desktop-working-tree-virtual-list"
         items={resources}
-        rowSize={WORKING_TREE_VIRTUAL_ROW_SIZE}
+        listRef={virtualListRef}
+        rowSize={virtualRowSize}
         getKey={(resource) => resource.id}
         renderRow={renderResource}
       />

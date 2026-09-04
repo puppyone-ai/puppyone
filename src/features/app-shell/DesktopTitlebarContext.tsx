@@ -34,12 +34,13 @@ export function DesktopTitlebarContext({
   const { t } = useLocalization();
   const workspaceTitlebarLabel = workspace.name.trim() || workspace.name;
   const branchReady = activeGitStatus?.isRepo === true;
+  const branchPending = activeGitStatus === null && gitStatusLoading;
   const branchLabel = branchReady
     ? (activeGitStatus.branch ?? t("shell.branch.detached"))
-    : gitStatusLoading
+    : branchPending
       ? t("shell.branch.loading")
       : t("shell.branch.noGit");
-  const branchTitlebarLabel = branchLabel.trim() || branchLabel;
+  const branchTitlebarLabel = branchPending ? "" : branchLabel.trim() || branchLabel;
 
   return (
     <div className="desktop-titlebar-context">
@@ -139,12 +140,19 @@ function DesktopBranchSwitcher({
         aria-haspopup="menu"
         disabled={disabled}
         title={disabled
-          ? branchLabel
+          ? loading ? undefined : branchLabel
           : t("shell.branch.title", { branch: bidiIsolate(branchLabel) })}
         onClick={onToggle}
       >
         <GitBranch size={13} strokeWidth={1.8} aria-hidden="true" />
-        <span>{titlebarLabel}</span>
+        <span
+          className="desktop-titlebar-branch-label"
+          data-loading={loading && !titlebarLabel ? "true" : undefined}
+        >
+          {titlebarLabel || (loading ? (
+            <span className="desktop-titlebar-branch-placeholder" aria-hidden="true" />
+          ) : null)}
+        </span>
       </button>
 
       <DesktopTitlebarMenuLayer
@@ -155,14 +163,7 @@ function DesktopBranchSwitcher({
         open={open && !disabled}
         preferredMaxHeight={440}
       >
-        {loading ? (
-          <DesktopMenuItem
-            className="desktop-branch-menu-row"
-            disabled
-            icon={<GitBranch size={13} strokeWidth={1.8} />}
-            label={t("shell.branch.loadingBranches")}
-          />
-        ) : hasBranches ? (
+        {hasBranches ? (
           <>
             <BranchMenuGroup
               title={t("shell.branch.localBranches")}
@@ -179,7 +180,7 @@ function DesktopBranchSwitcher({
               onDone={onDone}
             />
           </>
-        ) : (
+        ) : loading ? null : (
           <DesktopMenuItem
             className="desktop-branch-menu-row"
             disabled

@@ -11,6 +11,7 @@ import {
   DEFAULT_TYPOGRAPHY_PREFERENCES,
   resolveTypography,
   withTypographyFont,
+  withTypographyScale,
 } from "../src/features/typography";
 import { DEFAULT_MARKDOWN_PRESENTATION_SETTINGS } from "../src/features/markdown/markdownPresentation";
 
@@ -28,7 +29,6 @@ describe("resolved surface appearance", () => {
       "data-root-theme-id": "default",
       "data-sub-theme-id": "default.neutral",
       "data-font-editor-content-mode": "follow-theme",
-      "data-content-text-size": "default",
       "data-loading-animation-preset": "ikun",
     });
     expect(surface.rootProps).not.toHaveProperty("data-font-editor-content");
@@ -58,10 +58,39 @@ describe("resolved surface appearance", () => {
     expect(host.style.getPropertyValue("--po-font-editor-content-user")).toBe("");
   });
 
-  it("changes the revision for theme, typography, size, and Markdown presentation inputs", () => {
+  it("propagates scaled control geometry to independently mounted hosts", () => {
+    const host = document.createElement("div");
+    const large = createSurface({
+      typography: resolveTypography(withTypographyScale(
+        DEFAULT_TYPOGRAPHY_PREFERENCES,
+        "large",
+      )),
+    });
+    const small = createSurface({
+      typography: resolveTypography(withTypographyScale(
+        DEFAULT_TYPOGRAPHY_PREFERENCES,
+        "small",
+      )),
+    });
+
+    applySurfaceAppearanceToElement(host, large);
+    expect(host.dataset.typographyScale).toBe("large");
+    expect(host.style.getPropertyValue("--po-control-size")).toBe("34px");
+
+    applySurfaceAppearanceToElement(host, small);
+    expect(host.dataset.typographyScale).toBe("small");
+    expect(host.style.getPropertyValue("--po-control-size")).toBe("30px");
+  });
+
+  it("changes the revision for theme, typography scale, font, and Markdown presentation inputs", () => {
     const baseline = createSurface();
     const newspaper = createSurface({ subThemeId: "default.newspaper" });
-    const large = createSurface({ textSize: "large" });
+    const large = createSurface({
+      typography: resolveTypography(withTypographyScale(
+        DEFAULT_TYPOGRAPHY_PREFERENCES,
+        "large",
+      )),
+    });
     const explicit = createSurface({
       typography: resolveTypography(withTypographyFont(
         DEFAULT_TYPOGRAPHY_PREFERENCES,
@@ -90,12 +119,10 @@ describe("resolved surface appearance", () => {
 
 function createSurface(overrides: {
   subThemeId?: string;
-  textSize?: "small" | "default" | "large";
   typography?: ReturnType<typeof resolveTypography>;
   markdownPresentation?: typeof DEFAULT_MARKDOWN_PRESENTATION_SETTINGS;
   loadingAnimationPreset?: "ikun" | "ymca" | "siu";
 } = {}) {
-  const textSize = overrides.textSize ?? "default";
   const appearance = resolveAppearance({
     interfaceStyle: "default",
     themeMode: "light",
@@ -104,7 +131,6 @@ function createSurface(overrides: {
       dark: overrides.subThemeId ?? "default.neutral",
     },
     sidebarNavigationLayout: "bottom-horizontal",
-    textSize,
     fileIconTheme: "default",
   });
   return resolveSurfaceAppearance({

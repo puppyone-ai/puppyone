@@ -39,7 +39,7 @@
   align-items: center;
   gap: 5px;
   color: #ffffff;
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   line-height: 1;
   white-space: nowrap;
 }
@@ -65,14 +65,14 @@
   height: 26px;
   padding-inline: 2px 6px;
   color: #ffffff;
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   font-weight: 700;
 }
 
 :root[data-interface-style="windows-xp"]
   :where(.desktop-titlebar-workspace-name, .desktop-titlebar-branch-button span) {
   color: #ffffff;
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   font-weight: 700;
   line-height: 18px;
 }
@@ -256,7 +256,7 @@
   background: transparent;
   color: #000000;
   font-family: Tahoma, "Segoe UI", Arial, sans-serif;
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   font-weight: 400;
   line-height: 18px;
   text-shadow: none;
@@ -468,8 +468,8 @@
   .desktop-shell-location-bar-host {
   position: relative;
   box-sizing: border-box;
-  height: 32px;
-  min-height: 32px;
+  height: var(--po-control-size);
+  min-height: var(--po-control-size);
   padding: 3px 5px 3px 6px;
   border: 0;
   background: #f5f4ee;
@@ -518,7 +518,7 @@
   gap: 3px;
   color: #000000;
   font-family: "Segoe UI", Tahoma, Arial, sans-serif;
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   font-weight: 400;
   line-height: 24px;
   -webkit-font-smoothing: antialiased;
@@ -561,7 +561,7 @@
   outline: 0;
   background: transparent;
   color: #000000;
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   line-height: 20px;
   box-shadow: none;
   text-overflow: ellipsis;
@@ -609,7 +609,7 @@
   background: transparent;
   color: #000000;
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   line-height: 24px;
   white-space: nowrap;
 }
@@ -692,7 +692,7 @@
   margin-inline-end: 3px;
   color: #ffffff;
   font-family: Tahoma, "Segoe UI", Arial, sans-serif;
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   font-weight: 700;
   line-height: 18px;
   white-space: nowrap;

@@ -3,7 +3,7 @@ export {
   BUILTIN_FONT_IDS,
   DEFAULT_TYPOGRAPHY_PREFERENCES,
   TYPOGRAPHY_PREFERENCE_VERSION,
-  TYPOGRAPHY_PRODUCT_DEFAULT_SCALES,
+  TYPOGRAPHY_PRODUCT_DEFAULT_SCALE,
   TYPOGRAPHY_SCALE_METRICS,
   TYPOGRAPHY_SCALE_OPTIONS,
   createCatalogFontFamily,
@@ -26,11 +26,10 @@ export type {
   TypographyPreferences,
   TypographyRole,
   TypographyScale,
-  TypographyScalePreferences,
-  TypographyScaleSurface,
 } from "./fontCatalog";
 export {
   applyTypographyToElement,
+  buildTypographyCustomProperties,
   createTypographyRootProps,
   useTypographyRuntime,
 } from "./typographyRuntime";

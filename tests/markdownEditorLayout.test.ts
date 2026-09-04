@@ -649,7 +649,7 @@ describe("Markdown table affordance layout", () => {
     expect(columnVisualRule).toContain("width: 26px;");
     expect(columnVisualRule).toContain("height: 13px;");
     expect(rowHandleRule).toContain("width: 24px;");
-    expect(rowHandleRule).toContain("height: 32px;");
+    expect(rowHandleRule).toContain("height: var(--po-control-size);");
     expect(rowVisualRule).toContain("width: 13px;");
     expect(rowVisualRule).toContain("height: 26px;");
     expect(markdownTableCss).not.toContain(

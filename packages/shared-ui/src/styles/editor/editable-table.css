@@ -145,7 +145,7 @@
 
 .po-editable-table-row-handle {
   width: 24px;
-  height: 32px;
+  height: var(--po-control-size);
   transform: translate(calc(-1 * var(--po-editable-table-handle-gutter)), -50%);
 }
 
@@ -355,7 +355,7 @@
 .po-editable-table-context-menu .desktop-menu-section-label {
   padding: 0 var(--po-menu-item-padding-inline) 4px;
   color: var(--po-text-disabled);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-weight: 650;
   letter-spacing: 0;
   line-height: 15px;
@@ -381,7 +381,7 @@
   color: var(--po-text-muted);
   cursor: var(--po-clickable-cursor, default);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   font-weight: 500;
   line-height: 18px;
   text-align: start;

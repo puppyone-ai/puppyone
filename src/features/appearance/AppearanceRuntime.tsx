@@ -37,7 +37,6 @@ export type SurfaceAppearanceRootProps = TypographyRootProps & Readonly<{
   "data-icon-pack": string;
   "data-light-theme-preset": LightThemePreset;
   "data-dark-theme-preset": DarkThemePreset;
-  "data-content-text-size": string;
   "data-loading-animation-preset": LoadingAnimationPreset;
   "data-pointer-cursors": "true" | "false";
   "data-diff-markers": DiffMarkers;
@@ -106,7 +105,6 @@ export function resolveSurfaceAppearance({
     "data-icon-pack": appearance.composition.iconPack,
     "data-light-theme-preset": lightThemePreset,
     "data-dark-theme-preset": darkThemePreset,
-    "data-content-text-size": appearance.textSize,
     "data-loading-animation-preset": loadingAnimationPreset,
     "data-pointer-cursors": pointerCursors ? "true" : "false",
     "data-diff-markers": diffMarkers,
@@ -185,7 +183,6 @@ function createSurfaceAppearanceRevision({
 }: ResolveSurfaceAppearanceInput) {
   return [
     appearance.appearanceRevision,
-    `size:${appearance.textSize}`,
     `content:${typography.editorContentDecision.source}:${typography.editorContentDecision.effectiveFontId ?? "follow-theme"}`,
     `code:${typography.code.id}:${typography.code.family}`,
     `terminal:${typography.terminal.id}:${typography.terminal.family}`,
@@ -199,5 +196,5 @@ function createSurfaceAppearanceRevision({
 }
 
 function serializeTypographySizes(typography: ResolvedTypography): string {
-  return `${typography.scales.editor},${typography.scales.rightSidebar}`;
+  return typography.scale;
 }

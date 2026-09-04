@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   setWindowChromeProfile: (request) => (
     ipcRenderer.invoke("window-layout:set-chrome-profile", {
       titlebar: request?.titlebar,
+      leadingRail: request?.leadingRail === true,
     })
   ),
   performWindowAction: (request) => (
@@ -220,6 +221,29 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   getLastWorkspace: () => ipcRenderer.invoke("workspace:get-last"),
   getRecentWorkspaces: () => ipcRenderer.invoke("workspace:get-recent"),
   hydrateRecentWorkspaces: () => ipcRenderer.invoke("workspace:hydrate-recent"),
+  projectAppearance: {
+    list: (request) => ipcRenderer.invoke("project-appearance:list", {
+      projectIdentities: Array.isArray(request?.projectIdentities)
+        ? request.projectIdentities
+        : [],
+    }),
+    chooseIcon: (request) => ipcRenderer.invoke("project-appearance:choose-icon", {
+      projectIdentity: request?.projectIdentity,
+    }),
+    resetIcon: (request) => ipcRenderer.invoke("project-appearance:reset-icon", {
+      projectIdentity: request?.projectIdentity,
+    }),
+    setEmoji: (request) => ipcRenderer.invoke("project-appearance:set-emoji", {
+      projectIdentity: request?.projectIdentity,
+      emoji: request?.emoji,
+    }),
+    onChanged: (callback) => {
+      if (typeof callback !== "function") return () => {};
+      const listener = (_event, appearance) => callback(appearance);
+      ipcRenderer.on("project-appearance:changed", listener);
+      return () => ipcRenderer.removeListener("project-appearance:changed", listener);
+    },
+  },
   removeRecentWorkspace: (folderPath) => ipcRenderer.invoke("workspace:remove-recent", folderPath),
   forgetLastWorkspace: () => ipcRenderer.invoke("workspace:forget-last"),
   showHomepage: () => ipcRenderer.invoke("workspace:show-homepage"),

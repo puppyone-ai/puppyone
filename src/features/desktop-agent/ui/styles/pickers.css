@@ -102,7 +102,7 @@
 }
 .desktop-agent-picker-search input {
   width: 100%;
-  height: 28px;
+  height: var(--po-control-size-compact);
   padding: 0;
   border: 0;
   outline: 0 !important;
@@ -131,7 +131,7 @@
 .desktop-agent-picker-empty { padding: 22px 12px; color: var(--po-text-muted); font-size: var(--po-menu-meta-font-size); line-height: var(--po-menu-meta-line-height); text-align: center; }
 .desktop-agent-picker-footer {
   display: flex;
-  min-height: 32px;
+  min-height: var(--po-control-size);
   align-items: center;
   justify-content: space-between;
   gap: 8px;

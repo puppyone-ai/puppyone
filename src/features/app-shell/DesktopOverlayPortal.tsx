@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import type { DarkThemePreset, DiffMarkers, LightThemePreset, TextSize } from "../../preferences";
+import type { DarkThemePreset, DiffMarkers, LightThemePreset } from "../../preferences";
 import {
   applyTypographyToElement,
   type ResolvedTypography,
@@ -24,7 +24,6 @@ export type DesktopOverlayPortalProps = {
   subThemeId?: string;
   lightThemePreset?: LightThemePreset;
   darkThemePreset?: DarkThemePreset;
-  textSize?: TextSize;
   typography?: ResolvedTypography;
   pointerCursors?: boolean;
   diffMarkers?: DiffMarkers;
@@ -37,7 +36,6 @@ export function DesktopOverlayPortal({
   subThemeId,
   lightThemePreset,
   darkThemePreset,
-  textSize,
   typography,
   pointerCursors,
   diffMarkers,
@@ -59,12 +57,11 @@ export function DesktopOverlayPortal({
       subThemeId,
       lightThemePreset,
       darkThemePreset,
-      textSize,
       typography,
       pointerCursors,
       diffMarkers,
     );
-  }, [appearance, root, theme, subThemeId, lightThemePreset, darkThemePreset, textSize, typography, pointerCursors, diffMarkers]);
+  }, [appearance, root, theme, subThemeId, lightThemePreset, darkThemePreset, typography, pointerCursors, diffMarkers]);
 
   if (!root) return null;
   return createPortal(children, root);
@@ -109,7 +106,6 @@ function applyDesktopOverlayTheme(
   subThemeId?: string,
   lightThemePreset?: LightThemePreset,
   darkThemePreset?: DarkThemePreset,
-  textSize?: TextSize,
   typography?: ResolvedTypography,
   pointerCursors?: boolean,
   diffMarkers?: DiffMarkers,
@@ -121,8 +117,6 @@ function applyDesktopOverlayTheme(
   else delete root.dataset.subThemeId;
   if (lightThemePreset) root.dataset.lightThemePreset = lightThemePreset;
   if (darkThemePreset) root.dataset.darkThemePreset = darkThemePreset;
-  if (textSize) root.dataset.contentTextSize = textSize;
-  else delete root.dataset.contentTextSize;
   if (typography) applyTypographyToElement(root, typography);
   if (pointerCursors !== undefined) root.dataset.pointerCursors = pointerCursors ? "true" : "false";
   if (diffMarkers) root.dataset.diffMarkers = diffMarkers;

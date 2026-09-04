@@ -93,7 +93,7 @@
 .desktop-cloud-overview-settings-button {
   display: inline-flex;
   width: 26px;
-  height: 26px;
+  height: var(--po-control-size-small);
   flex: 0 0 26px;
   align-items: center;
   justify-content: center;

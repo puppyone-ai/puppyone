@@ -8,7 +8,7 @@
   bottom: 4px;
   display: inline-flex;
   max-width: min(520px, calc(100% - 16px));
-  height: 28px;
+  height: var(--po-control-size-compact);
   align-items: center;
   gap: 7px;
   padding: 0 9px;
@@ -21,7 +21,7 @@
 
 .desktop-cloud-source-dock strong {
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 700;
   white-space: nowrap;
 }
@@ -31,7 +31,7 @@
   overflow: hidden;
   color: var(--po-text-subtle);
   font-family: var(--po-font-mono);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-style: normal;
   font-weight: 650;
   text-overflow: ellipsis;
@@ -49,7 +49,7 @@
 .desktop-cloud-path-breadcrumb button {
   display: inline-flex;
   min-width: 0;
-  height: 28px;
+  height: var(--po-control-size-compact);
   align-items: center;
   gap: 2px;
   padding: 0 6px;
@@ -57,7 +57,7 @@
   border-radius: 6px;
   background: transparent;
   color: var(--po-text-subtle);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 600;
 }
 
@@ -154,7 +154,7 @@
   border-radius: 8px;
   background: var(--po-panel-raised);
   color: var(--po-text-muted);
-  font-size: 10px;
+  font-size: var(--po-type-ui-micro, 11px);
   font-style: normal;
   font-weight: 650;
   line-height: 14px;
@@ -166,7 +166,7 @@
   min-width: 0;
   overflow: hidden;
   color: currentColor;
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 650;
   line-height: 1.2;
   text-overflow: ellipsis;
@@ -178,7 +178,7 @@
   min-width: 0;
   overflow: hidden;
   color: var(--po-text-subtle);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -198,8 +198,8 @@
 
 .desktop-cloud-project-row > span {
   display: inline-flex;
-  width: 30px;
-  height: 30px;
+  width: var(--po-control-size);
+  height: var(--po-control-size);
   align-items: center;
   justify-content: center;
   border: 1px solid var(--po-divider);
@@ -217,7 +217,7 @@
 .desktop-cloud-project-row strong {
   overflow: hidden;
   color: var(--po-text);
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   font-weight: 680;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -226,7 +226,7 @@
 .desktop-cloud-project-row small {
   overflow: hidden;
   color: var(--po-text-subtle);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -239,7 +239,7 @@
 
 .desktop-cloud-project-row-actions button {
   display: inline-flex;
-  height: 28px;
+  height: var(--po-control-size-compact);
   align-items: center;
   justify-content: center;
   padding: 0 8px;
@@ -247,7 +247,7 @@
   border-radius: 6px;
   background: transparent;
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 680;
   white-space: nowrap;
 }
@@ -295,8 +295,8 @@
 }
 
 .desktop-cloud-inline-empty > span {
-  width: 30px;
-  height: 30px;
+  width: var(--po-control-size);
+  height: var(--po-control-size);
   border-radius: 7px;
 }
 
@@ -310,7 +310,7 @@
 .desktop-cloud-empty-state strong,
 .desktop-cloud-inline-empty strong {
   color: var(--po-text);
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   font-weight: 700;
 }
 
@@ -318,7 +318,7 @@
 .desktop-cloud-inline-empty small {
   margin: 0;
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 1.45;
 }
 
@@ -333,7 +333,7 @@
 .desktop-cloud-main-metric span {
   overflow: hidden;
   color: var(--po-text-subtle);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -342,7 +342,7 @@
 .desktop-cloud-main-metric strong {
   overflow: hidden;
   color: var(--po-text);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 650;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -350,7 +350,7 @@
 
 .desktop-cloud-main-metric.mono strong {
   font-family: var(--po-font-mono);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
 }
 
 .desktop-cloud-main-metric.ready strong {
@@ -377,4 +377,3 @@
 }
 
 }
-

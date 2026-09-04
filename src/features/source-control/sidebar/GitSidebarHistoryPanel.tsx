@@ -1,7 +1,11 @@
 import { ChevronRight, GitBranch } from "lucide-react";
-import { VirtualSidebarList } from "@puppyone/shared-ui";
+import {
+  STANDARD_CONTROL_SIZE,
+  VirtualSidebarList,
+  useCssPixelCustomProperty,
+} from "@puppyone/shared-ui";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
-import { useId } from "react";
+import { useId, useRef } from "react";
 import type { GitCommitSummary, GitStatusSnapshot } from "../../../types/electron";
 import { displayGitBranch } from "../viewModel";
 import { SourceControlDots } from "./GitSidebarPrimitives";
@@ -25,6 +29,12 @@ export function GitSidebarHistoryPanel({
 }) {
   const { t, formatNumber } = useLocalization();
   const historyContentId = useId();
+  const virtualListRef = useRef<HTMLOListElement | null>(null);
+  const virtualRowSize = useCssPixelCustomProperty(
+    virtualListRef,
+    "--desktop-sidebar-virtual-row-size",
+    STANDARD_CONTROL_SIZE + 2,
+  );
   const historyIsConfirmedEmpty = status?.isRepo === true && status.totalCommits === 0;
 
   return (
@@ -48,7 +58,8 @@ export function GitSidebarHistoryPanel({
               className="desktop-history-list desktop-history-virtual-list"
               ariaLabel={t("source-control.history.ariaLabel")}
               items={commits}
-              rowSize={32}
+              listRef={virtualListRef}
+              rowSize={virtualRowSize}
               activeIndex={commits.findIndex((commit) => commit.commit_id === selectedCommitId)}
               getKey={(commit) => commit.commit_id}
               renderRow={(commit, index) => (

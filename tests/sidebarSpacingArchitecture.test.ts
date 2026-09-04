@@ -35,11 +35,11 @@ const cloudHistorySidebarCss = readCss("../src/features/cloud/history/styles/sid
 const changesCss = readCss("../src/features/changes/changes.css");
 
 describe("sidebar spacing architecture", () => {
-  it("keeps Workspace menu rows on the shared 30px control geometry", () => {
+  it("keeps Workspace menu rows on the shared control geometry", () => {
     const root = compact(readCssBlock(tokensCss, ":root"));
     const workspaceMenu = compact(readCssBlock(layoutCss, ".desktop-project-menu"));
 
-    expect(root).toContain("--desktop-sidebar-row-height: 30px;");
+    expect(root).toContain("--desktop-sidebar-row-height: var(--po-control-size);");
     expect(root).toContain("--po-menu-item-height: var(--desktop-sidebar-row-height);");
     expect(workspaceMenu).not.toContain("--po-menu-item-height:");
   });
@@ -96,13 +96,13 @@ describe("sidebar spacing architecture", () => {
     expect(root).toContain("--desktop-sidebar-row-content-left: 6px;");
     expect(root).toContain("--desktop-sidebar-row-content-right: 6px;");
     expect(root).toContain("--desktop-sidebar-list-padding-block: 8px;");
-    expect(root).toContain("--desktop-sidebar-font-size: var(--po-text-size-sidebar);");
-    expect(root).toContain("--desktop-sidebar-font-size-meta: var(--po-text-size-meta);");
-    expect(root).toContain("--desktop-sidebar-section-title-font-size: var(--po-text-size-meta);");
+    expect(root).toContain("--desktop-sidebar-font-size: var(--po-type-left-sidebar-content);");
+    expect(root).toContain("--desktop-sidebar-font-size-meta: var(--po-type-left-sidebar-meta);");
+    expect(root).toContain("--desktop-sidebar-section-title-font-size: var(--po-type-left-sidebar-meta);");
     expect(root).toContain("--desktop-sidebar-section-title-font-weight: var(--po-text-weight-medium);");
-    expect(root).toContain("--desktop-sidebar-section-title-line-height: 18px;");
+    expect(root).toContain("--desktop-sidebar-section-title-line-height: var(--po-type-left-sidebar-line-height);");
     expect(semanticThemeScope).toContain(
-      "--desktop-sidebar-section-title-font-size: var(--po-text-size-meta);",
+      "--desktop-sidebar-section-title-font-size: var(--po-type-left-sidebar-meta);",
     );
     expect(semanticThemeScope).toContain(
       "--desktop-sidebar-section-title-color: var(--po-text-subtle);",
@@ -115,7 +115,7 @@ describe("sidebar spacing architecture", () => {
     );
     expect(root).toContain("--desktop-sidebar-font-weight: var(--po-text-weight-medium);");
     expect(root).toContain("--desktop-sidebar-font-weight-emphasis: 650;");
-    expect(root).toContain("--desktop-sidebar-line-height: 18px;");
+    expect(root).toContain("--desktop-sidebar-line-height: var(--po-type-left-sidebar-line-height);");
     expect(root).toContain("--desktop-sidebar-icon-label-gap: 4px;");
     expect(semanticThemeScope).toContain(
       "--po-shell-divider: color-mix(in srgb, var(--po-text) 10%, transparent);",

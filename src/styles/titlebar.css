@@ -355,6 +355,32 @@
   white-space: nowrap;
 }
 
+.desktop-titlebar-branch-label {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.desktop-titlebar-branch-placeholder {
+  display: block;
+  width: 42px;
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, currentColor 10%, transparent),
+    color-mix(in srgb, currentColor 22%, transparent),
+    color-mix(in srgb, currentColor 10%, transparent)
+  );
+  background-size: 200% 100%;
+  animation: desktop-titlebar-placeholder-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes desktop-titlebar-placeholder-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+
 .desktop-titlebar-workspace-button:hover .desktop-titlebar-workspace-name,
 .desktop-titlebar-workspace-button[aria-expanded="true"] .desktop-titlebar-workspace-name {
   color: var(--desktop-titlebar-text);
@@ -488,7 +514,7 @@
 
 .desktop-branch-menu-action {
   justify-self: start;
-  height: 24px;
+  height: var(--po-control-size-tight);
   padding: 0 8px;
   border: 1px solid color-mix(in srgb, var(--po-danger) 22%, transparent);
   border-radius: 5px;

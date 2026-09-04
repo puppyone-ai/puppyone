@@ -33,6 +33,15 @@ describe("Desktop Agent compact tool groups", () => {
     expect(rows[2].partIds).toEqual(["tool:grep"]);
   });
 
+  it("uses the active application control size for compact grid estimates", () => {
+    const projection = fixtureProjection();
+    const timeline = buildAgentTimeline(projection, 34);
+    const rows = groupAgentToolRows(timeline.rows, timeline.parts, 34);
+
+    expect(rows[0].estimatedHeight).toBe(34);
+    expect(rows[2].estimatedHeight).toBe(34);
+  });
+
   it("removes resolved approval rows and rejoins the surrounding tool flow", () => {
     const projection = createAgentProjection();
     projection.parts = [

@@ -355,7 +355,7 @@
   place-items: center;
   background: var(--po-editor-bg);
   color: var(--po-text-subtle);
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   font-weight: 500;
   line-height: 18px;
   text-align: center;

@@ -51,7 +51,7 @@
 }
 
 .built-in-editor-surface-actions button {
-  min-height: 30px;
+  min-height: var(--po-control-size);
   padding: 0 12px;
   border: 1px solid var(--po-border);
   border-radius: 6px;

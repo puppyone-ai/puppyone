@@ -5,7 +5,7 @@
   border-radius: 8px;
   background: color-mix(in srgb, var(--po-warning) 12%, transparent);
   color: var(--po-text);
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
 }
 
 .conflict-marker-banner-row {
@@ -20,7 +20,7 @@
   border-radius: 4px;
   background: var(--po-warning);
   color: var(--po-text-inverse);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -43,7 +43,7 @@
   border-radius: 5px;
   background: var(--po-control);
   color: var(--po-text);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
 }
 
 .conflict-marker-banner button:hover,
@@ -64,7 +64,7 @@
   border-radius: 6px;
   background: var(--po-panel);
   font-family: var(--po-font-mono);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
 }
 
 .conflict-marker-block-title {
@@ -72,7 +72,7 @@
   border-bottom: 1px solid var(--po-border-subtle);
   background: var(--po-control);
   color: var(--po-text-muted);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
 }
 
 .conflict-marker-sides {
@@ -95,7 +95,7 @@
   gap: 8px;
   padding: 4px 10px;
   color: var(--po-text-muted);
-  font-size: 10px;
+  font-size: var(--po-type-ui-micro, 11px);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -106,7 +106,7 @@
 
 .conflict-marker-side-title button {
   padding: 1px 8px;
-  font-size: 10px;
+  font-size: var(--po-type-ui-micro, 11px);
 }
 
 .conflict-marker-side pre {
@@ -136,7 +136,7 @@
   place-items: center;
   background: var(--po-editor-bg);
   color: var(--po-text-subtle);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
 }
 
 .editor-state.danger,
@@ -153,7 +153,7 @@
 
 .editor-state--stacked strong {
   color: var(--po-text);
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   font-weight: 680;
 }
 
@@ -163,7 +163,7 @@
 }
 
 .editor-state--stacked button {
-  height: 30px;
+  height: var(--po-control-size);
   justify-self: center;
   margin-top: 6px;
   padding: 0 11px;
@@ -172,7 +172,7 @@
   background: var(--po-control);
   color: var(--po-text);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 650;
   letter-spacing: 0;
   cursor: var(--po-clickable-cursor, default);
@@ -196,14 +196,14 @@
 
 .editor-crash-state strong {
   color: var(--po-text);
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   font-weight: 680;
 }
 
 .editor-crash-state span {
   max-width: 520px;
   overflow-wrap: anywhere;
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
 }
 
 .editor-conflict-actions {
@@ -214,7 +214,7 @@
 }
 
 .editor-conflict-actions button {
-  min-height: 26px;
+  min-height: var(--po-control-size-small);
   padding: 3px 8px;
   border: 1px solid color-mix(in srgb, var(--po-danger) 30%, var(--po-border));
   border-radius: 5px;
@@ -237,5 +237,5 @@
   padding: 6px 8px;
   border-radius: 6px;
   background: color-mix(in srgb, var(--po-danger) 10%, var(--po-panel));
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
 }

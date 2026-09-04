@@ -3,6 +3,7 @@ import type {
   AgentProjection,
   TimelineRow,
 } from "../domain/agent-projection-types";
+import { STANDARD_CONTROL_SIZE } from "@puppyone/shared-ui";
 import { outputForActivity } from "../domain/agent-activity-presentation";
 import { isLiveAgentActivityStatus } from "../domain/agent-turn-lifecycle";
 
@@ -15,12 +16,17 @@ export type AgentTimeline = {
  * Projects durable Agent state into visible transcript rows. Non-visual state,
  * such as token usage, must not occupy virtual-list geometry.
  */
-export function buildAgentTimeline(projection: AgentProjection): AgentTimeline {
+export function buildAgentTimeline(
+  projection: AgentProjection,
+  compactRowHeight = STANDARD_CONTROL_SIZE,
+): AgentTimeline {
   let parts: AgentPart[];
   let rows: TimelineRow[];
   if (projection.rows.length > 0 && projection.parts.length > 0) {
     parts = [...projection.parts];
-    rows = [...projection.rows];
+    rows = projection.rows.map((row) => row.kind === "turn-summary"
+      ? { ...row, estimatedHeight: compactRowHeight }
+      : row);
   } else {
     // Compatibility for consumers constructing the original projection shape.
     parts = [
@@ -37,7 +43,7 @@ export function buildAgentTimeline(projection: AgentProjection): AgentTimeline {
       estimatedHeight: estimateLegacyPartHeight(part),
     }));
   }
-  return appendTurnSummaries(rows, parts, projection.turns);
+  return appendTurnSummaries(rows, parts, projection.turns, compactRowHeight);
 }
 
 export function isVisibleAgentTimelinePart(part: AgentPart | undefined): part is AgentPart {
@@ -58,6 +64,7 @@ function appendTurnSummaries(
   rows: TimelineRow[],
   parts: AgentPart[],
   turns: AgentProjection["turns"],
+  compactRowHeight: number,
 ): AgentTimeline {
   const partMap = new Map(parts.map((part) => [part.id, part]));
   const nextRows = rows.filter((row) => isVisibleAgentTimelinePart(partMap.get(row.partId)));
@@ -86,7 +93,7 @@ function appendTurnSummaries(
       kind: "turn-summary",
       sequence,
       updatedSequence: turn.completedAtSequence,
-      estimatedHeight: 30,
+      estimatedHeight: compactRowHeight,
     });
   }
   return {

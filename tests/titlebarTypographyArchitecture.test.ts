@@ -76,10 +76,15 @@ describe("titlebar typography architecture", () => {
   it("keeps chrome text at the shared medium-weight contract", () => {
     const typographyRoot = readCssBlock(typographyFoundationsCss, ":root");
     const layoutRoot = readCssBlock(`\n${tokensCss}`, ":root");
+    const controlGeometry = readFileSync(
+      new URL("../packages/shared-ui/src/styles/control-geometry.css", import.meta.url),
+      "utf8",
+    );
 
     expect(typographyRoot).toContain("--po-text-weight-medium: 500;");
     expect(typographyRoot).toContain("--po-font-weight-chrome: var(--po-text-weight-medium);");
-    expect(layoutRoot).toContain("--desktop-chrome-control-size: 30px;");
+    expect(controlGeometry).toContain("--po-control-size: 32px;");
+    expect(layoutRoot).toContain("--desktop-chrome-control-size: var(--po-control-size);");
     expect(layoutRoot).toContain("--desktop-toolbar-action-radius: 5px;");
     expect(layoutRoot).toContain("--desktop-titlebar-control-height: 24px;");
     expect(layoutRoot).toContain("--desktop-titlebar-tool-action-width: 34px;");

@@ -231,7 +231,7 @@ function activityPart(activity: AgentActivity): AgentPart {
 function estimatePartHeight(part: AgentPart) {
   if (part.kind === "user") return 64;
   if (part.kind === "assistant") return Math.min(640, 50 + Math.ceil(part.text.length / 64) * 20);
-  if (part.kind === "turn-summary") return 30;
+  if (part.kind === "turn-summary") return 32;
   if (part.kind === "permission" || part.kind === "question" || part.kind === "usage") return 36;
   return 42;
 }

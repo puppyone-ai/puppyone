@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./control-geometry.css": "./src/styles/control-geometry.css",
     "./shared-ui.css": "./src/styles/shared-ui.css",
     "./shared-ui-patterns.css": "./src/styles/shared-ui-patterns.css",
     "./editor.css": "./src/styles/editor.css",

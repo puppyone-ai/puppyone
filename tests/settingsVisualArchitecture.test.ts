@@ -160,10 +160,8 @@ describe("settings visual architecture", () => {
         "detail",
         "textSize.title",
         "textSize.detail",
-        "textSize.editor.title",
-        "textSize.editor.ariaLabel",
-        "textSize.rightSidebar.title",
-        "textSize.rightSidebar.ariaLabel",
+        "textSize.application.title",
+        "textSize.ariaLabel",
         "textSize.scale.small",
         "textSize.scale.medium",
         "textSize.scale.large",
@@ -350,12 +348,12 @@ describe("settings visual architecture", () => {
     expect(settings).toMatch(/\.desktop-settings-remote-setting-name\s*{[^}]*font-weight:\s*var\(--po-text-weight-regular, 400\);/s);
     expect(controls).toMatch(/\.desktop-settings-row-control\s*{[^}]*min-height:\s*42px;/s);
     expect(controls).not.toContain("min-height: 38px");
-    expect(settings).toMatch(/\.desktop-settings-value-row\s*{[^}]*min-height:\s*30px;/s);
-    expect(settings).toMatch(/\.desktop-settings-select,[\s\S]*?height:\s*28px;[\s\S]*?border-radius:\s*6px;[\s\S]*?font-weight:\s*var\(--po-text-weight-regular, 400\);/);
-    expect(controls).toMatch(/\.desktop-settings-action\s*{[^}]*height:\s*28px;[^}]*border-radius:\s*6px;[^}]*font-size:\s*var\(--po-text-size-meta, 12px\);[^}]*font-weight:\s*var\(--po-text-weight-medium, 500\);/s);
+    expect(settings).toMatch(/\.desktop-settings-value-row\s*{[^}]*min-height:\s*var\(--po-control-size\);/s);
+    expect(settings).toMatch(/\.desktop-settings-select,[\s\S]*?height:\s*var\(--po-control-size-compact\);[\s\S]*?border-radius:\s*6px;[\s\S]*?font-weight:\s*var\(--po-text-weight-regular, 400\);/);
+    expect(controls).toMatch(/\.desktop-settings-action\s*{[^}]*height:\s*var\(--po-control-size-compact\);[^}]*border-radius:\s*6px;[^}]*font-size:\s*var\(--po-text-size-meta, 12px\);[^}]*font-weight:\s*var\(--po-text-weight-medium, 500\);/s);
     expect(controls).toMatch(/\.desktop-build-version-text\s*{[^}]*font-weight:\s*400;/s);
     expect(controls).toMatch(/\.desktop-theme-segment\s*{[^}]*border-radius:\s*7px;/s);
-    expect(controls).toMatch(/\.desktop-theme-segment button\s*{[^}]*height:\s*26px;[^}]*border-radius:\s*5px;/s);
+    expect(controls).toMatch(/\.desktop-theme-segment button\s*{[^}]*height:\s*var\(--po-control-size-small\);[^}]*border-radius:\s*5px;/s);
     expect(controls).toMatch(/\.desktop-appearance-option-segment\s*{[^}]*width:\s*min\(100%, 360px\);[^}]*grid-auto-columns:\s*minmax\(0, 1fr\);/s);
     expect(controls).toMatch(/\.desktop-appearance-option-segment\.desktop-appearance-hug-segment\s*{[^}]*width:\s*fit-content;[^}]*max-width:\s*100%;[^}]*grid-auto-columns:\s*max-content;/s);
     expect(controls).toMatch(/\.desktop-settings-tool-list\s*{[^}]*width:\s*fit-content;[^}]*max-width:\s*100%;/s);

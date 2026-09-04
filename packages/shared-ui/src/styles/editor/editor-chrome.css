@@ -42,7 +42,7 @@
   align-items: center;
   justify-content: center;
   width: 24px;
-  height: 24px;
+  height: var(--po-control-size-tight);
   border: var(--po-surface-editor-mode-button-border, 0);
   border-radius: var(--po-surface-editor-mode-button-radius, 4px);
   background: transparent;
@@ -61,11 +61,11 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 30px;
+  height: var(--po-control-size);
   padding: 0 10px;
   border: 0;
   border-radius: 6px;
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   font-weight: 500;
   letter-spacing: 0;
   white-space: nowrap;
@@ -174,7 +174,7 @@ button.editor-save-chip {
 
 .plain-text-editor__surface[data-technical="true"] {
   font-family: var(--po-font-mono);
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   line-height: 20px;
 }
 

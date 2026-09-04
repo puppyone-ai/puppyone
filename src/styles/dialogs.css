@@ -1,4 +1,7 @@
 .desktop-overlay-root {
+  position: relative;
+  z-index: var(--po-overlay-root-z-index, 1000);
+  isolation: isolate;
   color: var(--po-text);
   font-family: var(--po-font-sans);
 }
@@ -29,6 +32,7 @@
   overflow: hidden;
   border: 1px solid var(--po-border);
   border-radius: 12px;
+  outline: none;
   background: var(--po-overlay);
   box-shadow: 0 24px 48px var(--po-shadow);
   color: var(--po-text);
@@ -108,7 +112,7 @@
 .desktop-dialog-icon-button {
   display: inline-flex;
   width: 24px;
-  height: 24px;
+  height: var(--po-control-size-tight);
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
@@ -235,7 +239,7 @@
 
 .desktop-dialog-button {
   display: inline-flex;
-  height: 30px;
+  height: var(--po-control-size);
   align-items: center;
   justify-content: center;
   padding: 0 14px;

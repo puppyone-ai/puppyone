@@ -7,6 +7,15 @@
   background: var(--po-canvas);
 }
 
+.desktop-shell-pane-group {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  background: var(--po-canvas);
+}
+
 .desktop-shell-navigation-toolbar-host {
   display: flex;
   width: 100%;
@@ -493,8 +502,8 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 
 .desktop-identity-button,
 .desktop-rail-button {
-  width: 32px;
-  height: 32px;
+  width: var(--po-control-size);
+  height: var(--po-control-size);
   border-radius: 6px;
 }
 

@@ -5,11 +5,11 @@ import {
   DEFAULT_LIGHT_THEME_PRESET,
   DEFAULT_LOADING_ANIMATION_PRESET,
   DEFAULT_POINTER_CURSORS,
-  DEFAULT_TEXT_SIZE,
   DEFAULT_THEME_MODE,
   DEFAULT_TYPOGRAPHY_PREFERENCES,
   type SidebarNavigationLayout,
 } from "../src/preferences";
+import { DEFAULT_LEGACY_TEXT_SIZE } from "../src/features/appearance/legacyTextSizeMigration";
 import {
   APPEARANCE_PREFERENCES_SCHEMA_VERSION,
   readAppearancePreferences,
@@ -39,7 +39,6 @@ describe("appearance profile architecture", () => {
       interfaceStyle: "windows-xp",
       themeMode: "dark",
       sidebarNavigationLayout: requested,
-      textSize: "large",
       fileIconTheme: "material",
     });
 
@@ -60,7 +59,6 @@ describe("appearance profile architecture", () => {
       interfaceStyle: "default",
       themeMode: "dark",
       sidebarNavigationLayout: requested,
-      textSize: "large",
       fileIconTheme: "material",
     });
     expect(restored.sidebarNavigationLayout).toBe(requested);
@@ -100,7 +98,6 @@ describe("appearance profile architecture", () => {
       interfaceStyle: "windows-xp",
       themeMode: "light",
       sidebarNavigationLayout: "bottom-horizontal",
-      textSize: "medium",
       fileIconTheme: "default",
     });
 
@@ -112,7 +109,7 @@ describe("appearance profile architecture", () => {
     expect(xp).not.toHaveProperty("surfaceAdapters");
   });
 
-  it("migrates legacy intent, preserves per-root and per-mode intent, and round-trips V5", () => {
+  it("migrates legacy intent, preserves per-root and per-mode intent, and round-trips V6", () => {
     const legacy = legacySnapshot();
     const result = readAppearancePreferences(JSON.stringify({
       schemaVersion: 2,
@@ -152,7 +149,7 @@ describe("appearance profile architecture", () => {
 
     const serialized = serializeAppearancePreferences(result.preferences);
     const roundTrip = readAppearancePreferences(serialized, legacy);
-    expect(roundTrip.source).toBe("v5");
+    expect(roundTrip.source).toBe("v6");
     expect(roundTrip.preferences).toEqual(result.preferences);
   });
 
@@ -182,8 +179,33 @@ describe("appearance profile architecture", () => {
       bySurface: {},
     }), legacySnapshot());
 
-    expect(result.preferences.shared.textSize).toBe("default");
-    expect(result.preferences.shared.typography.scales.editor).toBe("large");
+    expect(result.preferences.shared.typography.scale).toBe("large");
+    expect(result.preferences.shared).not.toHaveProperty("textSize");
+    expect(serializeAppearancePreferences(result.preferences)).not.toContain("textSize");
+  });
+
+  it("ignores the retired field once a canonical V6 document has been written", () => {
+    const result = readAppearancePreferences(JSON.stringify({
+      schemaVersion: 6,
+      activeRootThemeId: "default",
+      shared: {
+        textSize: "large",
+        typography: {
+          ...DEFAULT_TYPOGRAPHY_PREFERENCES,
+          scale: "medium",
+        },
+        pointerCursors: false,
+        loadingAnimationPreset: "ikun",
+        fileIconTheme: "default",
+        sidebarNavigationLayout: "bottom-horizontal",
+      },
+      byRootTheme: {},
+      bySurface: {},
+    }), legacySnapshot());
+
+    expect(result.source).toBe("v6");
+    expect(result.preferences.shared.typography.scale).toBe("medium");
+    expect(result.preferences.shared).not.toHaveProperty("textSize");
   });
 
   it("migrates legacy Light and Dark presets into independent Sub Theme memories", () => {
@@ -208,7 +230,6 @@ describe("appearance profile architecture", () => {
       interfaceStyle: "default" as const,
       requestedSubThemeIds,
       sidebarNavigationLayout: "bottom-horizontal" as const,
-      textSize: "medium" as const,
       fileIconTheme: "default" as const,
     };
 
@@ -239,7 +260,6 @@ describe("appearance profile architecture", () => {
         diagnostics: [],
       },
       sidebarNavigationLayout: "bottom-horizontal",
-      textSize: "medium",
       fileIconTheme: "default",
     });
 
@@ -273,7 +293,6 @@ describe("appearance profile architecture", () => {
         diagnostics: [],
       },
       sidebarNavigationLayout: "bottom-horizontal",
-      textSize: "medium",
       fileIconTheme: "default",
     });
 
@@ -324,6 +343,25 @@ describe("appearance profile architecture", () => {
     expect(shell).toContain("preferences.sidebarNavigationPlacement");
     expect(settings).not.toMatch(/interfaceStyle\s*===\s*["']windows-xp["']/);
     expect(shell).not.toMatch(/interfaceStyle\s*===\s*["']windows-xp["']/);
+  });
+
+  it("keeps the retired text-size channel inside the v5 migration boundary only", () => {
+    for (const file of [
+      "src/features/appearance/resolveAppearance.ts",
+      "src/features/appearance/AppearanceRuntime.tsx",
+      "src/features/appearance/interface-style-manifest.json",
+      "src/features/app-shell/DesktopOverlayPortal.tsx",
+      "src/features/settings/types.ts",
+      "src/features/settings/SettingsWorkspaceSurface.tsx",
+    ]) {
+      const contents = source(file);
+      expect(contents, file).not.toMatch(/\btextSize\b|data-content-text-size|contentTextSize/);
+    }
+
+    const migration = source("src/features/appearance/appearancePreferences.ts");
+    expect(migration).toContain("shared.textSize");
+    expect(migration).toContain("migrateLegacyContentSize");
+    expect(migration).toContain("APPEARANCE_PREFERENCES_SCHEMA_VERSION = 6");
   });
 
   it("keeps the Dock icon fixed to the canonical product asset", () => {
@@ -407,7 +445,7 @@ function legacySnapshot(): LegacyAppearanceSnapshot {
     themeMode: DEFAULT_THEME_MODE,
     lightThemePreset: DEFAULT_LIGHT_THEME_PRESET,
     darkThemePreset: DEFAULT_DARK_THEME_PRESET,
-    textSize: DEFAULT_TEXT_SIZE,
+    legacyTextSize: DEFAULT_LEGACY_TEXT_SIZE,
     typography: DEFAULT_TYPOGRAPHY_PREFERENCES,
     pointerCursors: DEFAULT_POINTER_CURSORS,
     loadingAnimationPreset: DEFAULT_LOADING_ANIMATION_PRESET,

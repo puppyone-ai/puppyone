@@ -47,7 +47,7 @@
   z-index: 2;
   display: inline-flex;
   min-width: 78px;
-  height: 32px;
+  height: var(--po-control-size);
   align-items: center;
   justify-content: center;
   gap: 7px;
@@ -293,7 +293,7 @@
   display: inline-grid;
   width: fit-content;
   max-width: 220px;
-  height: 30px;
+  height: var(--po-control-size);
   flex: 0 0 auto;
   grid-template-columns: 20px minmax(0, 1fr);
   align-items: center;
@@ -422,8 +422,8 @@
 }
 
 .puppyflow-step-actions button {
-  width: 28px;
-  height: 28px;
+  width: var(--po-control-size-compact);
+  height: var(--po-control-size-compact);
   padding: 0;
 }
 
@@ -440,7 +440,7 @@
 
 .puppyflow-toggle {
   position: relative;
-  width: 30px !important;
+  width: var(--po-control-size) !important;
   border-color: color-mix(in srgb, var(--po-border) 70%, transparent) !important;
   border-radius: 999px !important;
   background: transparent !important;

@@ -1,19 +1,13 @@
-export const TYPOGRAPHY_PREFERENCE_VERSION = 10 as const;
+export const TYPOGRAPHY_PREFERENCE_VERSION = 11 as const;
 
 export type TypographyRole = "ui" | "content" | "code" | "terminal";
 export type TypographyScale = "small" | "medium" | "large";
-export type TypographyScaleSurface = "leftSidebar" | "header" | "editor" | "rightSidebar";
 export type FontSourceKind = "bundled" | "system" | "imported";
 export type FontCategory = "sans" | "serif" | "monospace";
 
 export type ContentFontPreference =
   | Readonly<{ mode: "follow-theme" }>
   | Readonly<{ mode: "explicit"; fontId: string }>;
-
-export type TypographyScalePreferences = Readonly<Record<
-  TypographyScaleSurface,
-  TypographyScale
->>;
 
 export type FontCatalogEntry = Readonly<{
   id: string;
@@ -31,7 +25,7 @@ export type TypographyPreferences = Readonly<{
   contentFont: ContentFontPreference;
   codeFontId: string;
   terminalFontId: string;
-  scales: TypographyScalePreferences;
+  scale: TypographyScale;
 }>;
 
 export type ResolvedContentFontDecision = Readonly<{
@@ -47,7 +41,7 @@ export type ResolvedTypography = Readonly<{
   editorContentDecision: ResolvedContentFontDecision;
   code: FontCatalogEntry;
   terminal: FontCatalogEntry;
-  scales: TypographyScalePreferences;
+  scale: TypographyScale;
 }>;
 
 export const TYPOGRAPHY_SCALE_OPTIONS = Object.freeze([
@@ -56,15 +50,30 @@ export const TYPOGRAPHY_SCALE_OPTIONS = Object.freeze([
   "large",
 ] as const satisfies readonly TypographyScale[]);
 
-export const TYPOGRAPHY_PRODUCT_DEFAULT_SCALES = Object.freeze({
-  leftSidebar: "medium",
-  header: "medium",
-  editor: "medium",
-  rightSidebar: "medium",
-} as const satisfies TypographyScalePreferences);
+export const TYPOGRAPHY_PRODUCT_DEFAULT_SCALE: TypographyScale = "medium";
 
 export const TYPOGRAPHY_SCALE_METRICS = Object.freeze({
   small: Object.freeze({
+    geometry: Object.freeze({
+      controlSize: 30,
+    }),
+    ui: Object.freeze({
+      glyph: 8,
+      micro: 10,
+      caption: 11,
+      hint: 12,
+      meta: 12,
+      label: 13,
+      control: 13,
+      body: 13,
+      bodyLarge: 14,
+      sectionTitle: 15,
+      title: 16,
+      heading: 18,
+      pageTitle: 20,
+      display: 24,
+      hero: 28,
+    }),
     leftSidebar: Object.freeze({
       content: 13,
       meta: 11,
@@ -104,6 +113,26 @@ export const TYPOGRAPHY_SCALE_METRICS = Object.freeze({
     }),
   }),
   medium: Object.freeze({
+    geometry: Object.freeze({
+      controlSize: 32,
+    }),
+    ui: Object.freeze({
+      glyph: 8,
+      micro: 11,
+      caption: 12,
+      hint: 13,
+      meta: 13,
+      label: 14,
+      control: 14,
+      body: 14,
+      bodyLarge: 15,
+      sectionTitle: 16,
+      title: 17,
+      heading: 19,
+      pageTitle: 21,
+      display: 25,
+      hero: 29,
+    }),
     leftSidebar: Object.freeze({
       content: 14,
       meta: 12,
@@ -143,6 +172,26 @@ export const TYPOGRAPHY_SCALE_METRICS = Object.freeze({
     }),
   }),
   large: Object.freeze({
+    geometry: Object.freeze({
+      controlSize: 34,
+    }),
+    ui: Object.freeze({
+      glyph: 8,
+      micro: 12,
+      caption: 13,
+      hint: 14,
+      meta: 14,
+      label: 16,
+      control: 16,
+      body: 16,
+      bodyLarge: 16,
+      sectionTitle: 18,
+      title: 19,
+      heading: 21,
+      pageTitle: 23,
+      display: 27,
+      hero: 31,
+    }),
     leftSidebar: Object.freeze({
       content: 16,
       meta: 14,
@@ -182,6 +231,26 @@ export const TYPOGRAPHY_SCALE_METRICS = Object.freeze({
     }),
   }),
 } as const satisfies Readonly<Record<TypographyScale, Readonly<{
+  geometry: Readonly<{
+    controlSize: number;
+  }>;
+  ui: Readonly<{
+    glyph: number;
+    micro: number;
+    caption: number;
+    hint: number;
+    meta: number;
+    label: number;
+    control: number;
+    body: number;
+    bodyLarge: number;
+    sectionTitle: number;
+    title: number;
+    heading: number;
+    pageTitle: number;
+    display: number;
+    hero: number;
+  }>;
   leftSidebar: Readonly<{
     content: number;
     meta: number;
@@ -282,7 +351,7 @@ export const DEFAULT_TYPOGRAPHY_PREFERENCES: TypographyPreferences = Object.free
   contentFont: Object.freeze({ mode: "follow-theme" }),
   codeFontId: BUILTIN_FONT_IDS.geistMono,
   terminalFontId: BUILTIN_FONT_IDS.terminalSystemMono,
-  scales: TYPOGRAPHY_PRODUCT_DEFAULT_SCALES,
+  scale: TYPOGRAPHY_PRODUCT_DEFAULT_SCALE,
 });
 
 type TypographyPreferenceRole = Exclude<TypographyRole, "ui">;
@@ -355,7 +424,7 @@ export function parseTypographyPreferences(value: string | null | undefined): Ty
       contentFont,
       codeFontId: normalizeFontId(parsed.codeFontId, "code"),
       terminalFontId: normalizeFontId(parsed.terminalFontId, "terminal"),
-      scales: parseTypographyScalePreferences(parsed),
+      scale: parseTypographyScale(parsed),
     });
   } catch {
     return DEFAULT_TYPOGRAPHY_PREFERENCES;
@@ -374,7 +443,7 @@ export function resolveTypography(
     editorContentDecision: contentDecision.decision,
     code: resolveFontForRole(preferences.codeFontId, "code", catalog),
     terminal: resolveFontForRole(preferences.terminalFontId, "terminal", catalog),
-    scales: preferences.scales,
+    scale: preferences.scale,
   });
 }
 
@@ -407,16 +476,12 @@ export function followThemeContentFont(
 
 export function withTypographyScale(
   preferences: TypographyPreferences,
-  surface: TypographyScaleSurface,
   scale: TypographyScale,
 ): TypographyPreferences {
   return Object.freeze({
     ...preferences,
     version: TYPOGRAPHY_PREFERENCE_VERSION,
-    scales: Object.freeze({
-      ...preferences.scales,
-      [surface]: normalizeTypographyScale(scale),
-    }),
+    scale: normalizeTypographyScale(scale),
   });
 }
 
@@ -480,6 +545,7 @@ function resolveContentFontPreference(
 function parseContentFontPreference(parsed: Record<string, unknown>): ContentFontPreference {
   if (
     parsed.version === TYPOGRAPHY_PREFERENCE_VERSION
+    || parsed.version === 10
     || parsed.version === 9
     || parsed.version === 8
     || parsed.version === 7
@@ -518,60 +584,27 @@ function parseContentFontPreference(parsed: Record<string, unknown>): ContentFon
   return Object.freeze({ mode: "explicit", fontId: normalizedId });
 }
 
-function parseTypographyScalePreferences(parsed: Record<string, unknown>): TypographyScalePreferences {
-  if (parsed.version === TYPOGRAPHY_PREFERENCE_VERSION && isRecord(parsed.scales)) {
-    return Object.freeze({
-      leftSidebar: normalizeTypographyScale(parsed.scales.leftSidebar),
-      header: normalizeTypographyScale(parsed.scales.header),
-      editor: normalizeTypographyScale(parsed.scales.editor),
-      rightSidebar: normalizeTypographyScale(parsed.scales.rightSidebar),
-    });
+function parseTypographyScale(parsed: Record<string, unknown>): TypographyScale {
+  if (parsed.version === TYPOGRAPHY_PREFERENCE_VERSION) {
+    return normalizeTypographyScale(parsed.scale);
   }
 
-  if (parsed.version === 9 && isRecord(parsed.scales)) {
-    return Object.freeze({
-      leftSidebar: normalizeTypographyScale(parsed.scales.fileTree),
-      header: normalizeTypographyScale(parsed.scales.header),
-      editor: normalizeTypographyScale(parsed.scales.editor),
-      rightSidebar: normalizeTypographyScale(parsed.scales.rightSidebar),
-    });
-  }
-
-  if (parsed.version === 8 && isRecord(parsed.scales)) {
-    return Object.freeze({
-      leftSidebar: normalizeTypographyScale(parsed.scales.leftSidebar),
-      header: normalizeTypographyScale(parsed.scales.header),
-      editor: normalizeTypographyScale(parsed.scales.editor),
-      rightSidebar: normalizeTypographyScale(parsed.scales.rightSidebar),
-    });
-  }
-
-  if (parsed.version === 7 && isRecord(parsed.scales)) {
-    const appChrome = normalizeTypographyScale(parsed.scales.appChrome);
-    return Object.freeze({
-      leftSidebar: appChrome,
-      header: appChrome,
-      editor: normalizeTypographyScale(parsed.scales.editor),
-      rightSidebar: normalizeTypographyScale(parsed.scales.rightSidebar),
-    });
-  }
-
-  if (parsed.version === 6 && isRecord(parsed.scales)) {
-    return Object.freeze({
-      leftSidebar: "medium",
-      header: "medium",
-      editor: normalizeTypographyScale(parsed.scales.editor),
-      rightSidebar: normalizeTypographyScale(parsed.scales.rightSidebar),
-    });
+  // Versions 6-10 stored independent surface scales. The editor was the
+  // primary reading-size choice, so it is the deterministic migration source
+  // when those values disagree.
+  if (
+    (parsed.version === 10
+      || parsed.version === 9
+      || parsed.version === 8
+      || parsed.version === 7
+      || parsed.version === 6)
+    && isRecord(parsed.scales)
+  ) {
+    return normalizeTypographyScale(parsed.scales.editor);
   }
 
   const legacySizes = isRecord(parsed.sizes) ? parsed.sizes : {};
-  return Object.freeze({
-    leftSidebar: "medium",
-    header: "medium",
-    editor: inferLegacyScale(legacySizes.content, [14, 15, 16]),
-    rightSidebar: inferLegacyScale(legacySizes.conversation, [13, 14, 16]),
-  });
+  return inferLegacyScale(legacySizes.content, [14, 15, 16]);
 }
 
 function normalizeTypographyScale(value: unknown): TypographyScale {

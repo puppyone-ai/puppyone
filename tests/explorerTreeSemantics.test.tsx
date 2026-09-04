@@ -105,7 +105,7 @@ describe("ExplorerTree interactive semantics", () => {
     expect(container.querySelector(".explorer-tree-virtual-canvas")?.getAttribute("data-visible-row-count")).toBe("1");
   });
 
-  it("retains explicit root loading feedback", () => {
+  it("retains accessible root loading feedback without visible Loading copy", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -122,7 +122,9 @@ describe("ExplorerTree interactive semantics", () => {
       />,
     ));
 
-    expect(container.querySelector(".tree-meta-row.loading")?.textContent).toContain("Loading workspace");
+    const loadingRow = container.querySelector(".tree-meta-row.loading");
+    expect(loadingRow?.textContent).toBe("");
+    expect(loadingRow?.querySelector('[aria-label="Loading workspace"]')).not.toBeNull();
   });
 
   it("keeps row actions outside button ancestry and preserves keyboard activation", () => {

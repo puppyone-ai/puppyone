@@ -1,5 +1,9 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useScrollEdgeState } from "@puppyone/shared-ui";
+import {
+  STANDARD_CONTROL_SIZE,
+  useCssPixelCustomProperty,
+  useScrollEdgeState,
+} from "@puppyone/shared-ui";
 import { bidiIsolate, type MessageFormatter } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
 import { ArrowDown, CircleAlert } from "lucide-react";
@@ -72,6 +76,11 @@ function AgentTranscriptView({
   const { t, formatNumber } = useLocalization();
   const runtimeLabel = runtimeLabelProp || t("agent.name");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const compactRowHeight = useCssPixelCustomProperty(
+    scrollRef,
+    "--agent-control-size",
+    STANDARD_CONTROL_SIZE,
+  );
   const [measurements, setMeasurements] = useState<Record<string, number>>(() => ({ ...initialMeasurements }));
   const measurementsRef = useRef(measurements);
   const scrollTopRef = useRef(initialScrollTop);
@@ -86,11 +95,14 @@ function AgentTranscriptView({
   const [viewportHeight, setViewportHeight] = useState(DEFAULT_VIEWPORT_HEIGHT);
   const [pinned, setPinned] = useState(initialPinned);
   const [unreadCount, setUnreadCount] = useState(0);
-  const sourceTimeline = useMemo(() => buildAgentTimeline(projection), [projection]);
+  const sourceTimeline = useMemo(
+    () => buildAgentTimeline(projection, compactRowHeight),
+    [compactRowHeight, projection],
+  );
   const timeline = useMemo(() => ({
     parts: sourceTimeline.parts,
-    rows: groupAgentToolRows(sourceTimeline.rows, sourceTimeline.parts),
-  }), [sourceTimeline]);
+    rows: groupAgentToolRows(sourceTimeline.rows, sourceTimeline.parts, compactRowHeight),
+  }), [compactRowHeight, sourceTimeline]);
   const layout = useMemo(
     () => buildAgentTimelineLayout(timeline.rows, measurements),
     [measurements, timeline.rows],
@@ -103,6 +115,7 @@ function AgentTranscriptView({
   const pendingMeasurementsRef = useRef(new Map<string, number>());
   const measurementFrameRef = useRef<number | null>(null);
   const pendingScrollAnchorRef = useRef<AgentTimelineScrollAnchor | null>(null);
+  const measuredCompactRowHeightRef = useRef(compactRowHeight);
   const range = useMemo(
     () => visibleAgentTimelineRange(layout.offsets, timeline.rows.length, scrollTop, viewportHeight),
     [layout.offsets, scrollTop, timeline.rows.length, viewportHeight],
@@ -145,6 +158,14 @@ function AgentTranscriptView({
   const scrollEdgeState = useScrollEdgeState(scrollRef, {
     revision: `${timeline.rows.length}:${layout.totalHeight}:${hasLiveTail ? "live" : "settled"}`,
   });
+
+  useLayoutEffect(() => {
+    if (measuredCompactRowHeightRef.current === compactRowHeight) return;
+    measuredCompactRowHeightRef.current = compactRowHeight;
+    pendingMeasurementsRef.current.clear();
+    measurementsRef.current = {};
+    setMeasurements({});
+  }, [compactRowHeight]);
   if (!seededPartIdsRef.current) {
     for (const row of timeline.rows) seenPartIdsRef.current.add(row.partId);
     seededPartIdsRef.current = true;

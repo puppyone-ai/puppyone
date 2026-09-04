@@ -121,7 +121,7 @@
 .desktop-agent-tool-row {
   display: grid;
   min-width: 0;
-  min-height: 30px;
+  min-height: var(--po-control-size);
   flex: 1 1 auto;
   grid-template-columns: auto auto minmax(0, 1fr) auto;
   align-items: center;
@@ -343,7 +343,7 @@
 .desktop-agent-activity-render-fallback {
   display: flex;
   min-width: 0;
-  min-height: 30px;
+  min-height: var(--po-control-size);
   align-items: center;
   gap: 7px;
   margin: 0 4px var(--agent-work-handoff-gap);
@@ -483,7 +483,7 @@
 
 .desktop-agent-changes-control {
   display: inline-flex;
-  min-height: 28px;
+  min-height: var(--po-control-size-compact);
   align-items: center;
   gap: 5px;
   padding: 0 9px;

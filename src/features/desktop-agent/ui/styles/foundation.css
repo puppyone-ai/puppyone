@@ -4,7 +4,7 @@
   --agent-inline-inset: var(--desktop-sidebar-row-left-gap, 12px);
   --agent-dock-padding-top: 12px;
   --agent-dock-padding-bottom: 12px;
-  --agent-control-size: 30px;
+  --agent-control-size: var(--po-control-size);
   --agent-primary-action-visual-size: 28px;
   --agent-primary-action-separation: 4px;
   --agent-radius-composer: 8px;
@@ -191,7 +191,7 @@
 .desktop-agent-brand-mark.is-fallback { border: 1px solid var(--agent-border-subtle); background: var(--agent-control-surface); color: var(--agent-text-muted); }
 
 .desktop-agent-header-region {
-  --desktop-sidebar-control-size: 26px;
+  --desktop-sidebar-control-size: calc(var(--po-control-size) - 6px);
   --desktop-sidebar-navigation-height: var(--desktop-chrome-height);
   --desktop-sidebar-navigation-padding-outer: 6px;
   --desktop-sidebar-navigation-padding-inner: 6px;

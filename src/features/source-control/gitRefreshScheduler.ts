@@ -177,15 +177,22 @@ export function createGitRefreshScheduler<TSnapshot>(
     return inFlightReads.length;
   }
 
+  function blockingInFlightCount() {
+    return inFlightReads.filter((read) => (
+      read.epoch === rootEpoch && read.rootPath === rootPath
+    )).length;
+  }
+
   function setLoading(loading: boolean, generation: number, epoch: number) {
     options.onLoadingChange?.(loading, generation, epoch);
   }
 
   function startRead(priority: GitRefreshPriority, reason: GitRefreshReason) {
     if (disposed || !rootPath) return;
-    // Physical single-flight: never start a second status while any promise is live,
-    // including reads that were made non-publishable by a mutation or root switch.
-    if (physicalInFlightCount() > 0) {
+    // Preserve single-flight within one repository. An aborted read from an old
+    // repository must not block the newly selected Project if its provider is
+    // slow to settle after cancellation.
+    if (blockingInFlightCount() > 0) {
       dirty = true;
       queuedPriority = mergePriority(queuedPriority, priority);
       lastReason = reason;
@@ -329,7 +336,7 @@ export function createGitRefreshScheduler<TSnapshot>(
   }
 
   function maybeRunTrailing() {
-    if (!dirty || physicalInFlightCount() > 0) return;
+    if (!dirty || blockingInFlightCount() > 0) return;
     const priority = queuedPriority ?? "debounced";
     dirty = false;
     queuedPriority = null;
@@ -354,7 +361,7 @@ export function createGitRefreshScheduler<TSnapshot>(
       return;
     }
 
-    if (physicalInFlightCount() > 0) {
+    if (blockingInFlightCount() > 0) {
       dirty = true;
       queuedPriority = mergePriority(queuedPriority, priority);
       return;

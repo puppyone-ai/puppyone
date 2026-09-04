@@ -585,7 +585,7 @@ button.folder-relationship-layered-node > .folder-relationship-card-hitarea {
   right: 42px;
   left: 12px;
   display: flex;
-  height: 30px;
+  height: var(--po-control-size);
   min-width: 0;
   align-items: center;
   gap: 7px;

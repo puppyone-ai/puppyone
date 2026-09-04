@@ -1,5 +1,17 @@
 import { Check, FileText } from "lucide-react";
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
+import {
+  STANDARD_CONTROL_SIZE,
+  useCssPixelCustomProperty,
+} from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
 import { PageLoading } from "../../../../components/loading";
 import type {
@@ -11,6 +23,8 @@ import {
   normalizeAccessPath,
 } from "./createAccessModel";
 import { useCreateAccessFolderEntries } from "./useCreateAccessFolderEntries";
+
+const AccessTreeRowHeightContext = createContext(STANDARD_CONTROL_SIZE);
 
 export function CreateAccessFolderTree({
   projectId,
@@ -32,6 +46,12 @@ export function CreateAccessFolderTree({
   onSelect: (path: string) => void;
 }) {
   const { t } = useLocalization();
+  const treeRef = useRef<HTMLElement>(null);
+  const rowHeight = useCssPixelCustomProperty(
+    treeRef,
+    "--po-control-size",
+    STANDARD_CONTROL_SIZE,
+  );
   const [expandedPaths, setExpandedPaths] = useState<ReadonlySet<string>>(
     () => new Set(["", ...ancestorPaths(initialExpandedPath ?? "")]),
   );
@@ -59,25 +79,27 @@ export function CreateAccessFolderTree({
   };
 
   return (
-    <section className="desktop-cloud-create-access-tree">
+    <section ref={treeRef} className="desktop-cloud-create-access-tree">
       <header>{t("cloud.access.create.chooseFromFiles")}</header>
-      <div className="desktop-cloud-create-access-tree-body" data-po-scrollbar="content">
-        <TreeRootRow />
-        <FolderChildren
-          projectId={projectId}
-          cloudSession={cloudSession}
-          apiBaseUrl={apiBaseUrl}
-          parentPath=""
-          depth={1}
-          ancestorLastSiblings={[]}
-          selectedPath={selectedPath}
-          existingPathSet={existingPathSet}
-          isExpanded={isExpanded}
-          onToggle={toggleExpanded}
-          onSelect={onSelect}
-          onCloudSessionChange={onCloudSessionChange}
-        />
-      </div>
+      <AccessTreeRowHeightContext.Provider value={rowHeight}>
+        <div className="desktop-cloud-create-access-tree-body" data-po-scrollbar="content">
+          <TreeRootRow />
+          <FolderChildren
+            projectId={projectId}
+            cloudSession={cloudSession}
+            apiBaseUrl={apiBaseUrl}
+            parentPath=""
+            depth={1}
+            ancestorLastSiblings={[]}
+            selectedPath={selectedPath}
+            existingPathSet={existingPathSet}
+            isExpanded={isExpanded}
+            onToggle={toggleExpanded}
+            onSelect={onSelect}
+            onCloudSessionChange={onCloudSessionChange}
+          />
+        </div>
+      </AccessTreeRowHeightContext.Provider>
     </section>
   );
 }
@@ -350,9 +372,9 @@ function TreeGuides({
   isLastSibling: boolean;
   ancestorLastSiblings: readonly boolean[];
 }) {
+  const rowHeight = useContext(AccessTreeRowHeightContext);
   if (depth <= 0) return null;
   const width = 8 + depth * 16 + 8;
-  const rowHeight = 30;
   const lineOverdraw = 2;
   const lineHeight = rowHeight + lineOverdraw * 2;
   const hookY = lineOverdraw + rowHeight / 2;

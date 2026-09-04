@@ -207,6 +207,44 @@ describe("titlebar Portal menu interactions", () => {
     expect(onCheckoutBranch).toHaveBeenCalledWith("feature/menu", false);
     expect(onCloseBranchSwitcher).toHaveBeenCalledOnce();
   });
+
+  it("reserves branch space without rendering Loading copy during initial Git hydration", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root?.render(withTestLocalization(
+        <DesktopTitlebarContext
+          activeGitStatus={null}
+          branchSwitcherOpen={false}
+          branchSwitcherRef={createRef<HTMLDivElement>()}
+          gitStatusLoading
+          gitOperationLoading={null}
+          localBranches={[]}
+          remoteBranches={[]}
+          workspace={createWorkspace("one", "Workspace one")}
+          workspaceFolders={[]}
+          multiRootWorkspacesEnabled={false}
+          workspaceSwitcherOpen={false}
+          workspaceSwitcherRef={createRef<HTMLDivElement>()}
+          onCheckoutBranch={vi.fn(async () => false)}
+          onCloseBranchSwitcher={vi.fn()}
+          onCloseWorkspaceSwitcher={vi.fn()}
+          onGoHome={vi.fn()}
+          onAddProject={vi.fn()}
+          onAddExistingProject={vi.fn()}
+          onToggleBranchSwitcher={vi.fn()}
+          onToggleWorkspaceSwitcher={vi.fn()}
+        />,
+      ));
+      await Promise.resolve();
+    });
+
+    const branchButton = container.querySelector<HTMLButtonElement>(".desktop-titlebar-branch-button");
+    expect(branchButton?.textContent).not.toContain("Loading");
+    expect(branchButton?.querySelector(".desktop-titlebar-branch-placeholder")).not.toBeNull();
+  });
 });
 
 function requireMenu(): HTMLElement {

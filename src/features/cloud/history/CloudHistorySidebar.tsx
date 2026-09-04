@@ -3,9 +3,14 @@ import {
   Clock3,
   RefreshCw,
 } from "lucide-react";
-import type { CSSProperties } from "react";
+import { useRef, type CSSProperties } from "react";
 import { useLocalization } from "@puppyone/localization/react";
-import { SidebarRoot, VirtualSidebarList } from "@puppyone/shared-ui";
+import {
+  SidebarRoot,
+  STANDARD_CONTROL_SIZE,
+  VirtualSidebarList,
+  useCssPixelCustomProperty,
+} from "@puppyone/shared-ui";
 import { PageLoading } from "../../../components/loading";
 import type { CloudBranchGraphRow } from "../graph/model";
 import {
@@ -14,11 +19,7 @@ import {
   formatCloudGraphRowMessage,
 } from "../cloudPresentation";
 import { formatRelativeTime, shortCommit } from "../utils";
-import {
-  HISTORY_GRAPH_ROW_HEIGHT,
-  HistoryGraphVisual,
-  getHistoryGraphWidth,
-} from "../graph/HistoryGraphVisual";
+import { HistoryGraphVisual, getHistoryGraphWidth } from "../graph/HistoryGraphVisual";
 import type { CloudProjectHistoryProps } from "./types";
 
 export function CloudProjectHistorySidebar({
@@ -44,11 +45,17 @@ export function CloudProjectHistorySidebar({
   | "onLoadMore"
 >) {
   const { t } = useLocalization();
+  const sidebarRef = useRef<HTMLElement>(null);
+  const rowHeight = useCssPixelCustomProperty(
+    sidebarRef,
+    "--cloud-history-row-height",
+    STANDARD_CONTROL_SIZE,
+  );
   const graphWidth = getHistoryGraphWidth(rows);
   const notice = error ?? warning;
 
   return (
-    <SidebarRoot className="desktop-cloud-history-sidebar" aria-label={t("cloud.history.projectHistory")}>
+    <SidebarRoot ref={sidebarRef} className="desktop-cloud-history-sidebar" aria-label={t("cloud.history.projectHistory")}>
       {notice && rows.length > 0 && (
         <div className="desktop-cloud-history-sidebar-warning" role="status">
           {notice}
@@ -60,13 +67,14 @@ export function CloudProjectHistorySidebar({
           className="desktop-cloud-history-sidebar-list"
           ariaLabel={t("cloud.history.commitHistory")}
           items={rows}
-          rowSize={HISTORY_GRAPH_ROW_HEIGHT}
+          rowSize={rowHeight}
           activeIndex={rows.findIndex((row) => row.id === selectedCommitId)}
           getKey={(row) => row.id}
           renderRow={(row) => (
             <CloudHistorySidebarRow
               row={row}
               graphWidth={graphWidth}
+              rowHeight={rowHeight}
               selected={row.id === selectedCommitId}
               onSelect={onSelectCommit}
             />
@@ -109,11 +117,13 @@ export function CloudProjectHistorySidebar({
 function CloudHistorySidebarRow({
   row,
   graphWidth,
+  rowHeight,
   selected,
   onSelect,
 }: {
   row: CloudBranchGraphRow;
   graphWidth: number;
+  rowHeight: number;
   selected: boolean;
   onSelect: (commitId: string) => void;
 }) {
@@ -138,7 +148,7 @@ function CloudHistorySidebarRow({
       >
         <HistoryGraphVisual
           graphWidth={graphWidth}
-          height={HISTORY_GRAPH_ROW_HEIGHT}
+          height={rowHeight}
           line={row}
           continuationLines={row.continuationLines}
           refMarkers={row.refMarkers}

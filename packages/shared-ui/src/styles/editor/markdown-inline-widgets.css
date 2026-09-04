@@ -43,7 +43,7 @@
   border-radius: 4px;
   background: color-mix(in srgb, var(--po-control) 26%, transparent);
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
 }
 
 .markdown-codemirror-editor .cm-md-image-placeholder.is-loading {
@@ -80,7 +80,7 @@
   justify-content: center;
   padding: 16px;
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   overflow-wrap: anywhere;
 }
 

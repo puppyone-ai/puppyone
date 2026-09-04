@@ -3,6 +3,8 @@
  * earlier ones (e.g. markdown widget files refine markdown-editor base rules).
  */
 
+@import "./control-geometry.css" layer(tokens);
+
 /* Preview hosts and shells (native, html, app previews) */
 @import "./editor/preview-surfaces.css";
 

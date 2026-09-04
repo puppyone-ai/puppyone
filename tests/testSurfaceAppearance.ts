@@ -13,14 +13,12 @@ import {
 import type {
   DiffMarkers,
   LoadingAnimationPreset,
-  TextSize,
   ThemeMode,
 } from "../src/preferences";
 
 export function createTestSurfaceAppearance(input: Readonly<{
   themeMode?: ThemeMode;
   subThemeId?: string;
-  textSize?: TextSize;
   typography?: ResolvedTypography;
   loadingAnimationPreset?: LoadingAnimationPreset;
   pointerCursors?: boolean;
@@ -35,7 +33,6 @@ export function createTestSurfaceAppearance(input: Readonly<{
     systemColorMode: "dark",
     requestedSubThemeIds: { light: subThemeId, dark: subThemeId },
     sidebarNavigationLayout: "bottom-horizontal",
-    textSize: input.textSize ?? "default",
     fileIconTheme: input.fileIconTheme ?? "default",
   });
   return resolveSurfaceAppearance({

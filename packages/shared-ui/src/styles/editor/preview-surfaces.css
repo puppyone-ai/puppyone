@@ -93,7 +93,7 @@
 .html-preview-toolbar button {
   display: inline-grid;
   width: 26px;
-  height: 24px;
+  height: var(--po-control-size-tight);
   place-items: center;
   padding: 0;
   border: 0;
@@ -162,7 +162,7 @@
   min-width: 0;
   max-width: 280px;
   overflow: hidden;
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   font-weight: 700;
   line-height: 1.2;
   text-overflow: ellipsis;
@@ -171,7 +171,7 @@
 
 .app-preview-title span {
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 600;
   line-height: 1;
 }
@@ -220,7 +220,7 @@
 .app-preview-toolbar button {
   display: inline-grid;
   width: 26px;
-  height: 24px;
+  height: var(--po-control-size-tight);
   place-items: center;
   padding: 0;
   border: 0;
@@ -300,7 +300,9 @@
   border-radius: 6px;
   background: var(--po-panel-raised);
   color: var(--po-text-muted);
-  font: 12px/1.55 var(--po-font-mono);
+  font-family: var(--po-font-mono);
+  font-size: var(--po-type-ui-meta, 13px);
+  line-height: 1.55;
   white-space: pre-wrap;
 }
 
@@ -318,13 +320,13 @@
 
 .app-preview-state strong {
   color: var(--po-text);
-  font-size: 15px;
+  font-size: var(--po-type-ui-section-title, 16px);
   line-height: 1.25;
 }
 
 .app-preview-state span {
   max-width: 460px;
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   line-height: 1.45;
 }
 
@@ -365,7 +367,10 @@
   border-radius: 5px;
   background: transparent;
   color: var(--po-text-muted);
-  font: 500 12px/1 var(--po-font-sans);
+  font-family: var(--po-font-sans);
+  font-size: var(--po-type-ui-meta, 13px);
+  font-weight: 500;
+  line-height: 1;
   cursor: var(--po-clickable-cursor, default);
 }
 
@@ -401,7 +406,7 @@
 .app-setup-form h2 {
   margin: 0;
   color: var(--po-text);
-  font-size: 18px;
+  font-size: var(--po-type-ui-heading, 19px);
   font-weight: 680;
   letter-spacing: -0.018em;
   line-height: 1.25;
@@ -412,7 +417,7 @@
   max-width: 500px;
   margin: 8px 0 26px;
   color: var(--po-text-muted);
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   line-height: 1.55;
 }
 
@@ -426,7 +431,7 @@
   border-radius: 8px;
   background: var(--po-panel-raised);
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
 }
 
 .app-setup-spinner {
@@ -461,7 +466,7 @@
 
 .app-setup-project-heading strong {
   color: var(--po-text);
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   font-weight: 650;
 }
 
@@ -470,19 +475,21 @@
   border-radius: 999px;
   background: var(--po-control-hover);
   color: var(--po-text-muted);
-  font-size: 10px;
+  font-size: var(--po-type-ui-micro, 11px);
   font-weight: 600;
 }
 
 .app-setup-project-card > span:not(.app-setup-project-heading) {
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
 }
 
 .app-setup-project-card code {
   overflow: hidden;
   color: var(--po-text-muted);
-  font: 11px/1.35 var(--po-font-mono);
+  font-family: var(--po-font-mono);
+  font-size: var(--po-type-ui-caption, 12px);
+  line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -491,7 +498,7 @@
 .app-setup-secondary {
   display: inline-flex;
   min-width: 124px;
-  height: 34px;
+  height: var(--po-control-size-large);
   align-items: center;
   justify-content: center;
   gap: 7px;
@@ -500,7 +507,10 @@
   border-radius: 7px;
   background: var(--po-control-bg);
   color: var(--po-text);
-  font: 600 12px/1 var(--po-font-sans);
+  font-family: var(--po-font-sans);
+  font-size: var(--po-type-ui-meta, 13px);
+  font-weight: 600;
+  line-height: 1;
   cursor: var(--po-clickable-cursor, default);
 }
 
@@ -531,7 +541,10 @@
   border-radius: 5px;
   background: transparent;
   color: var(--po-text-muted);
-  font: 500 12px/1.2 var(--po-font-sans);
+  font-family: var(--po-font-sans);
+  font-size: var(--po-type-ui-meta, 13px);
+  font-weight: 500;
+  line-height: 1.2;
   cursor: var(--po-clickable-cursor, default);
 }
 
@@ -617,8 +630,8 @@
 
 .app-setup-method-icon {
   display: grid;
-  width: 30px;
-  height: 30px;
+  width: var(--po-control-size);
+  height: var(--po-control-size);
   place-items: center;
   border-radius: 7px;
   background: var(--po-control-hover);
@@ -640,7 +653,7 @@
 .app-setup-method small {
   overflow: hidden;
   color: var(--po-text-muted);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -672,14 +685,14 @@
 
 .app-setup-field > span {
   color: var(--po-text);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 600;
 }
 
 .app-setup-field input,
 .app-setup-field select {
   width: 100%;
-  height: 36px;
+  height: var(--po-control-size-roomy);
   box-sizing: border-box;
   padding: 0 11px;
   border: 1px solid var(--po-border);
@@ -687,7 +700,9 @@
   outline: 0;
   background: var(--po-panel-raised);
   color: var(--po-text);
-  font: 12px/1 var(--po-font-sans);
+  font-family: var(--po-font-sans);
+  font-size: var(--po-type-ui-meta, 13px);
+  line-height: 1;
 }
 
 .app-setup-field input:focus,
@@ -698,7 +713,7 @@
 
 .app-setup-field small {
   color: var(--po-text-muted);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   line-height: 1.4;
 }
 
@@ -717,7 +732,7 @@
   border-radius: 6px;
   background: color-mix(in srgb, var(--po-danger) 8%, transparent);
   color: var(--po-danger);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 1.4;
   text-align: left;
 }
@@ -735,13 +750,13 @@
 
 .app-preview-invalid strong {
   color: var(--po-text);
-  font-size: 15px;
+  font-size: var(--po-type-ui-section-title, 16px);
 }
 
 .app-preview-invalid span,
 .app-preview-invalid code {
   max-width: 480px;
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
 }
 
 .app-preview-invalid code {
@@ -752,7 +767,7 @@
 }
 
 .app-preview-invalid button {
-  height: 32px;
+  height: var(--po-control-size);
   padding: 0 13px;
   border: 1px solid var(--po-border);
   border-radius: 6px;
@@ -784,7 +799,7 @@
 
 .app-preview-runtime-summary dt {
   color: var(--po-text-muted);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
 }
 
 .app-preview-runtime-summary dd {
@@ -792,7 +807,7 @@
   margin: 0;
   overflow: hidden;
   color: var(--po-text);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -837,7 +852,7 @@
 .app-preview-state button {
   display: inline-flex;
   min-width: 92px;
-  height: 32px;
+  height: var(--po-control-size);
   align-items: center;
   justify-content: center;
   gap: 6px;
@@ -846,7 +861,10 @@
   border-radius: 6px;
   background: var(--po-control-bg);
   color: var(--po-text);
-  font: 600 13px/1 var(--po-font-sans);
+  font-family: var(--po-font-sans);
+  font-size: var(--po-type-ui-body, 14px);
+  font-weight: 600;
+  line-height: 1;
   cursor: var(--po-clickable-cursor, default);
 }
 

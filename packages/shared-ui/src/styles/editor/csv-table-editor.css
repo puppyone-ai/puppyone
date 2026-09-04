@@ -48,8 +48,8 @@
 
 .csv-table-editor__settings-button {
   display: grid;
-  width: 28px;
-  height: 28px;
+  width: var(--po-control-size-compact);
+  height: var(--po-control-size-compact);
   place-items: center;
   padding: 0;
   border: 1px solid color-mix(in srgb, var(--po-divider) 88%, var(--po-text-muted) 12%);
@@ -86,7 +86,7 @@
 }
 
 .csv-table-editor__view-action {
-  min-height: 32px;
+  min-height: var(--po-control-size);
   padding: 7px 8px;
   border: 0;
   border-radius: 5px;
@@ -621,7 +621,7 @@
 
 .csv-table-editor__reference-kind {
   color: var(--po-text-muted);
-  font-size: 10px;
+  font-size: var(--po-type-ui-micro, 11px);
   font-weight: 600;
   letter-spacing: 0.02em;
 }

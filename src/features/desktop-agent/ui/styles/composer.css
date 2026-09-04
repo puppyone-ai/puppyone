@@ -288,8 +288,8 @@
 }
 .desktop-agent-reference-card-actions > button {
   display: grid;
-  width: 20px;
-  height: 20px;
+  width: var(--po-control-size-micro);
+  height: var(--po-control-size-micro);
   flex: 0 0 auto;
   place-items: center;
   padding: 0;

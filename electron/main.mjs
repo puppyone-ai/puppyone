@@ -1,5 +1,5 @@
 import { installBrokenStdioGuards } from "./main/stdio-guard.mjs";
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, powerMonitor, protocol, safeStorage, session as electronSession, shell, webContents, WebContentsView } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, nativeTheme, powerMonitor, protocol, safeStorage, session as electronSession, shell, webContents, WebContentsView } from "electron";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import fs from "node:fs";
 import { createRequire } from "node:module";
@@ -81,9 +81,13 @@ import { registerWorkspaceGitIpcHandlers } from "./main/ipc/workspace-git-ipc.mj
 import { registerWorkspaceNavigationIpcHandlers } from "./main/ipc/workspace-navigation-ipc.mjs";
 import { registerWorkspaceWatchIpcHandlers } from "./main/ipc/workspace-watch-ipc.mjs";
 import { registerWindowLayoutIpcHandlers } from "./main/ipc/window-layout-ipc.mjs";
+import { registerProjectAppearanceIpcHandlers } from "./main/ipc/project-appearance-ipc.mjs";
 import { registerGitMetadataWatchIpcHandlers } from "./main/ipc/git-metadata-watch-ipc.mjs";
 import { registerLocalFileProtocol } from "./main/local-file-protocol.mjs";
 import { createLocalFileCapabilityStore } from "./main/local-file-capabilities.mjs";
+import { createProjectAppearanceStore } from "./main/project-appearance/project-appearance-store.mjs";
+import { createProjectAppearanceService } from "./main/project-appearance/project-appearance-service.mjs";
+import { registerProjectIconProtocol } from "./main/project-appearance/project-icon-protocol.mjs";
 import { createEditorSurfaceResourceAdmission } from "./main/editor-surfaces/resource-admission.mjs";
 import { installWindowNavigationSecurity, requireNonEmptyString } from "./main/security.mjs";
 import { createTerminalService } from "./main/terminal-service.mjs";
@@ -196,6 +200,15 @@ const privilegedSchemes = [
       stream: true,
     },
   },
+  {
+    scheme: "puppyone-asset",
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+    },
+  },
 ];
 
 privilegedSchemes.push(...getViewerPackPrivilegedSchemes(
@@ -236,6 +249,15 @@ const themeService = createThemeService({
   userDataPath: app.getPath("userData"),
   bundledThemesPath: path.join(app.getAppPath(), "electron", "themes"),
   shell,
+});
+const projectAppearanceStore = createProjectAppearanceStore({
+  userDataPath: app.getPath("userData"),
+});
+const projectAppearanceService = createProjectAppearanceService({
+  store: projectAppearanceStore,
+  dialog,
+  nativeImage,
+  getDialogOwnerWindow,
 });
 const localeService = createDesktopLocaleService({
   app,
@@ -692,6 +714,11 @@ app.whenReady().then(async () => {
     resolveCapability: localFileCapabilities.resolve,
     applicationUrl: rendererApplicationUrl,
   });
+  registerProjectIconProtocol({
+    protocol,
+    store: projectAppearanceStore,
+    applicationUrl: rendererApplicationUrl,
+  });
   const editorSurfaceBrowserSession = electronSession.fromPartition(
     "persist:puppyone-pdf-viewer",
     { cache: false },
@@ -837,6 +864,11 @@ function registerIpcHandlers() {
     BrowserWindow,
     nativeTheme,
   });
+  registerProjectAppearanceIpcHandlers({
+    ipcMain: trustedIpcMain,
+    service: projectAppearanceService,
+    getWindows: () => BrowserWindow.getAllWindows(),
+  });
   registerThemeIpcHandlers({
     ipcMain: trustedIpcMain,
     themeService,
@@ -845,6 +877,7 @@ function registerIpcHandlers() {
   registerWindowLayoutIpcHandlers({
     ipcMain: trustedIpcMain,
     BrowserWindow,
+    platform: desktopPlatformHost.platform,
   });
   registerNativeSurfaceOcclusionIpcHandlers({
     ipcMain: trustedIpcMain,

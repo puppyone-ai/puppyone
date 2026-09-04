@@ -32,6 +32,8 @@ type UseGitRepositoryLifecycleOptions = {
   remoteUpdatesActive: boolean;
 };
 
+const MAX_CACHED_GIT_WORKSPACES = 12;
+
 export function useGitRepositoryLifecycle({
   workspace,
   remoteUpdatesActive,
@@ -39,6 +41,7 @@ export function useGitRepositoryLifecycle({
   const workspacePathRef = useRef<string | null>(null);
   const gitStatusRef = useRef<GitStatusSnapshot | null>(null);
   const schedulerRef = useRef<ReturnType<typeof createGitRefreshScheduler<GitStatusSnapshot>> | null>(null);
+  const gitStatusCacheRef = useRef(new Map<string, GitStatusSnapshot>());
   const historyEpochRef = useRef(0);
   const fetchRequestsRef = useRef(new Map<string, Promise<boolean>>());
   const lastRemoteFetchAttemptRef = useRef(new Map<string, number>());
@@ -71,6 +74,7 @@ export function useGitRepositoryLifecycle({
           setHistoryEpoch(historyEpochRef.current);
         }
         const merged = mergePreservedHistory(gitStatusRef.current, nextStatus, { invalidateHistory });
+        putBoundedGitStatus(gitStatusCacheRef.current, rootPath, merged);
         gitStatusRef.current = merged;
         setGitStatus(merged);
         setGitStatusPath(rootPath);
@@ -147,6 +151,7 @@ export function useGitRepositoryLifecycle({
       totalCommits: Math.max(current.totalCommits, graph.commits.length),
     };
     gitStatusRef.current = merged;
+    putBoundedGitStatus(gitStatusCacheRef.current, context.rootPath, merged);
     setGitStatus(merged);
     return true;
   }, [isGitRepositoryContextCurrent]);
@@ -275,14 +280,17 @@ export function useGitRepositoryLifecycle({
   ]);
 
   useEffect(() => {
-    workspacePathRef.current = workspace?.path ?? null;
-    gitStatusRef.current = null;
+    const rootPath = workspace?.path ?? null;
+    const cachedStatus = rootPath ? gitStatusCacheRef.current.get(rootPath) ?? null : null;
+    workspacePathRef.current = rootPath;
+    gitStatusRef.current = cachedStatus;
     historyEpochRef.current += 1;
     setHistoryEpoch(historyEpochRef.current);
-    setGitStatus(null);
-    setGitStatusPath(null);
+    setGitStatus(cachedStatus);
+    setGitStatusPath(cachedStatus ? rootPath : null);
+    setGitStatusLoading(Boolean(rootPath));
     setGitStatusError(null);
-    ensureScheduler().setRootPath(workspace?.path ?? null);
+    ensureScheduler().setRootPath(rootPath);
   }, [ensureScheduler, workspace?.path]);
 
   useEffect(() => {
@@ -377,4 +385,18 @@ export function useGitRepositoryLifecycle({
     refreshGitStatusWithFetch,
     reportGitStatusError,
   };
+}
+
+function putBoundedGitStatus(
+  cache: Map<string, GitStatusSnapshot>,
+  rootPath: string,
+  status: GitStatusSnapshot,
+) {
+  cache.delete(rootPath);
+  cache.set(rootPath, status);
+  while (cache.size > MAX_CACHED_GIT_WORKSPACES) {
+    const oldestRoot = cache.keys().next().value;
+    if (typeof oldestRoot !== "string") break;
+    cache.delete(oldestRoot);
+  }
 }

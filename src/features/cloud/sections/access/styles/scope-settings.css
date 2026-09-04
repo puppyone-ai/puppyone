@@ -37,7 +37,7 @@
   min-width: 0;
   gap: 7px;
   color: var(--po-text);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 650;
 }
 
@@ -49,7 +49,7 @@
 .desktop-cloud-scope-settings-card em {
   margin: 0;
   color: var(--po-text-subtle);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-style: normal;
   line-height: 1.45;
 }
@@ -63,12 +63,12 @@
   background: var(--po-inset);
   color: var(--po-text);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 500;
 }
 
 .desktop-cloud-scope-settings-field input {
-  height: 32px;
+  height: var(--po-control-size);
   padding: 0 10px;
 }
 
@@ -104,12 +104,12 @@
 }
 
 .desktop-cloud-scope-mode-control button {
-  height: 28px;
+  height: var(--po-control-size-compact);
   border: 1px solid transparent;
   border-radius: 5px;
   background: transparent;
   color: var(--po-text-subtle);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 650;
 }
 
@@ -123,7 +123,7 @@
 .desktop-cloud-scope-settings-card.danger > button,
 .desktop-cloud-scope-settings-footer button {
   display: inline-flex;
-  height: 30px;
+  height: var(--po-control-size);
   align-items: center;
   justify-content: center;
   gap: 6px;
@@ -131,7 +131,7 @@
   border-radius: 6px;
   background: transparent;
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 700;
 }
 
@@ -162,7 +162,7 @@
   border-radius: 7px;
   background: color-mix(in srgb, var(--po-danger) 8%, transparent);
   color: var(--po-danger);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 1.4;
 }
 
@@ -181,7 +181,7 @@
   flex: 1;
   min-width: 0;
   color: var(--po-text-subtle);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
 }
 
 .desktop-cloud-scope-settings-footer button {
@@ -193,4 +193,3 @@
   background: var(--po-text);
   color: var(--po-text-inverse);
 }
-

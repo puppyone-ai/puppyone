@@ -1,4 +1,9 @@
 export * from "./core/types";
+export { STANDARD_CONTROL_SIZE } from "./core/controlGeometry";
+export {
+  resolveCssPixelCustomProperty,
+  useCssPixelCustomProperty,
+} from "./core/useCssPixelCustomProperty";
 export { RENDERER_ASSET_PATHS } from "./core/rendererAssetCatalog";
 export { resolveRendererPublicAssetUrl } from "./core/rendererPublicAsset";
 export {
@@ -155,6 +160,7 @@ export type {
   MarkdownLinkIndexRequest,
 } from "./editor/markdown/linkIndex";
 export type {
+  DataWorkspaceExplorerSession,
   DataWorkspaceFolderExpansionStrategy,
   DataWorkspaceProps,
   DataWorkspaceState,

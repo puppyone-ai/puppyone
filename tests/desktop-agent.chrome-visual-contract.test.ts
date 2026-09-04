@@ -25,7 +25,7 @@ describe("Desktop Agent and Terminal chrome visual contract", () => {
     expect(launcherCss).toMatch(/padding:\s*18px/);
     expect(launcherCss).toMatch(/inset-inline-start:\s*22px/);
     expect(launcherCss).toMatch(/font-weight:\s*500/);
-    expect(launcherCss).toMatch(/min-height:\s*34px/);
+    expect(launcherCss).toMatch(/min-height:\s*var\(--po-control-size-large\)/);
     expect(launcherCss).toMatch(/gap:\s*9px/);
     expect(launcherCss).toMatch(/padding:\s*5px 8px/);
 
@@ -48,7 +48,7 @@ describe("Desktop Agent and Terminal chrome visual contract", () => {
     expect(launcherCss).toMatch(/\.desktop-agent-history-permission-button\s*\{[^}]*background:\s*var\(--po-text\)[^}]*color:\s*var\(--po-canvas\)/s);
     expect(launcherCss).not.toMatch(/\.desktop-agent-history-permission-view\s*\{[^}]*(?:position:\s*(?:fixed|absolute)|box-shadow|border:|background:)/s);
     expect(launcherCss).toMatch(/\.desktop-agent-history-list\s*\{[^}]*overflow-y:\s*auto/s);
-    expect(launcherCss).toMatch(/\.desktop-agent-history-option\s*\{[^}]*height:\s*var\(--desktop-sidebar-row-height, 30px\)[^}]*border:\s*0[^}]*font-size:\s*var\(--agent-font-size\)[^}]*font-weight:\s*var\(--desktop-sidebar-font-weight,[^}]*line-height:\s*var\(--agent-control-line-height\)/s);
+    expect(launcherCss).toMatch(/\.desktop-agent-history-option\s*\{[^}]*height:\s*var\(--desktop-sidebar-row-height, var\(--po-control-size\)\)[^}]*border:\s*0[^}]*font-size:\s*var\(--agent-font-size\)[^}]*font-weight:\s*var\(--desktop-sidebar-font-weight,[^}]*line-height:\s*var\(--agent-control-line-height\)/s);
     expect(launcherCss).toMatch(/\.desktop-agent-history-option \.desktop-agent-brand-mark\s*\{[^}]*width:\s*14px[^}]*height:\s*14px[^}]*color:\s*var\(--agent-text-subtle\)/s);
     expect(launcherCss).toMatch(/\.desktop-agent-history-option:hover:not\(:disabled\)\s*\{[^}]*background:\s*var\(--po-hover\)[^}]*color:\s*var\(--agent-text\)[^}]*\}/s);
     expect(launcherCss).not.toMatch(/\.desktop-agent-history-option:hover:not\(:disabled\)\s*\{[^}]*(?:border|box-shadow):/s);
@@ -63,7 +63,7 @@ describe("Desktop Agent and Terminal chrome visual contract", () => {
     expect(terminalLauncherCss).toMatch(/\.desktop-terminal-launcher-content\s*\{[^}]*gap:\s*28px/s);
     expect(terminalLauncherCss).toMatch(/\.desktop-terminal-launcher-group\s*\{[^}]*padding:\s*18px[^}]*border:\s*1px solid var\(--po-border\)[^}]*border-radius:\s*0/s);
     expect(terminalLauncherCss).toMatch(/\.desktop-terminal-launcher-tools\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)[^}]*gap:\s*1px/s);
-    expect(terminalLauncherCss).toMatch(/\.desktop-terminal-launcher-tool,\s*\.desktop-terminal-launcher-shell,\s*\.desktop-terminal-launcher-history\s*\{[^}]*min-height:\s*34px[^}]*gap:\s*9px[^}]*padding:\s*5px 8px/s);
+    expect(terminalLauncherCss).toMatch(/\.desktop-terminal-launcher-tool,\s*\.desktop-terminal-launcher-shell,\s*\.desktop-terminal-launcher-history\s*\{[^}]*min-height:\s*var\(--po-control-size-large\)[^}]*gap:\s*9px[^}]*padding:\s*5px 8px/s);
     expect(terminalLauncherCss).toMatch(/\.desktop-terminal-launcher-heading h2\s*\{[^}]*font-size:\s*var\(--po-type-right-sidebar-meta, 13px\)[^}]*line-height:\s*var\(--po-type-right-sidebar-meta-line-height, 19px\)/s);
     expect(terminalLauncherCss).toMatch(/\.desktop-terminal-launcher-tool > span:last-child,[^}]*\{[^}]*font-size:\s*var\(--po-type-right-sidebar-content, 14px\)[^}]*line-height:\s*var\(--po-type-right-sidebar-control-line-height, 19px\)/s);
     expect(terminalLauncherCss).toMatch(/\.desktop-terminal-launcher-divider\s*\{[^}]*height:\s*1px/s);

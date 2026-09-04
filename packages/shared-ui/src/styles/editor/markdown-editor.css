@@ -212,11 +212,11 @@
 }
 
 .cm-ai-edit-delete-preview-tooltip__header {
-  min-height: 28px;
+  min-height: var(--po-control-size-compact);
   padding: 7px 10px 5px;
   border-bottom: 1px solid var(--po-divider);
   color: color-mix(in srgb, var(--po-text) 82%, var(--po-text-muted));
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-weight: 700;
   line-height: 1.2;
 }
@@ -236,7 +236,7 @@
   min-height: 22px;
   color: color-mix(in srgb, var(--po-text) 82%, var(--po-text-muted));
   font-family: var(--po-editor-content-font, var(--po-font-content, var(--po-font-sans)));
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 1.58;
 }
 
@@ -255,7 +255,7 @@
   padding: 6px 10px;
   border-top: 1px solid var(--po-divider);
   color: var(--po-text-subtle);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   line-height: 1.2;
 }
 
@@ -601,7 +601,7 @@
   color: var(--po-text-subtle);
   cursor: grab;
   font-family: var(--po-font-ui, var(--po-font-sans));
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 400;
   line-height: 1;
   opacity: 0;
@@ -733,7 +733,7 @@
   padding: 0 2px 10px;
   cursor: var(--po-clickable-cursor, default);
   font-family: var(--po-font-mono);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   opacity: 0;
   transition: opacity 140ms ease;
 }

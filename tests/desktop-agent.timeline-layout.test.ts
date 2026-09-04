@@ -115,7 +115,7 @@ describe("Desktop Agent timeline layout policy", () => {
       partIds: [assistant.id, usage.id],
     }];
 
-    const timeline = buildAgentTimeline(projection);
+    const timeline = buildAgentTimeline(projection, 34);
     const layout = buildAgentTimelineLayout(timeline.rows, {
       "row:assistant:one": 40,
       "row:turn-summary:turn:one": 20,
@@ -123,6 +123,7 @@ describe("Desktop Agent timeline layout policy", () => {
     });
 
     expect(timeline.rows.map((entry) => entry.kind)).toEqual(["assistant", "turn-summary", "user"]);
+    expect(timeline.rows.find((entry) => entry.kind === "turn-summary")?.estimatedHeight).toBe(34);
     expect(timeline.rows.some((entry) => entry.partId === usage.id)).toBe(false);
     expect(layout.gaps[1]).toBe(agentTimelineSpacing.turnHandoff);
     expect(layout.offsets[2] - layout.offsets[1] - 20).toBe(agentTimelineSpacing.turnHandoff);

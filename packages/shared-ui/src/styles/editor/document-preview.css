@@ -14,7 +14,7 @@
 
 .document-preview__eyebrow {
   color: var(--po-text-disabled);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-weight: 750;
   letter-spacing: 0.08em;
   line-height: 1.2;
@@ -25,7 +25,7 @@
   max-width: 100%;
   margin: 0;
   color: var(--po-text);
-  font-size: 15px;
+  font-size: var(--po-type-ui-section-title, 16px);
   font-weight: 720;
   line-height: 1.35;
   overflow-wrap: anywhere;
@@ -34,7 +34,7 @@
 .document-preview__status {
   margin: 0;
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 1.5;
 }
 
@@ -42,7 +42,7 @@
   max-width: 100%;
   color: var(--po-text-disabled);
   font-family: var(--po-font-mono);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   line-height: 1.5;
   overflow-wrap: anywhere;
 }

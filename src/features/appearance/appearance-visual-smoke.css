@@ -35,7 +35,7 @@
   justify-content: center;
   border: 1px solid currentColor;
   background: rgba(255, 255, 255, 0.22);
-  font-size: 10px;
+  font-size: var(--po-type-ui-micro, 11px);
 }
 
 .appearance-visual-smoke .appearance-visual-explorer > .desktop-sidebar-top-navigation {

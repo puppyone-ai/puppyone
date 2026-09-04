@@ -11,7 +11,7 @@
   background: color-mix(in srgb, var(--po-panel) 88%, var(--agent-presence-accent));
   color: var(--po-text);
   box-shadow: var(--po-elevation-low);
-  font-size: 10px;
+  font-size: var(--po-type-ui-micro, 11px);
   font-weight: 600;
   line-height: 1;
   pointer-events: none;

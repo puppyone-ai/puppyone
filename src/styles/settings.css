@@ -15,7 +15,7 @@
   align-items: center;
   justify-content: center;
   width: 28px;
-  height: 28px;
+  height: var(--po-control-size-compact);
   border: 0;
   border-radius: 6px;
   background: transparent;
@@ -42,7 +42,7 @@
 .desktop-utility-empty {
   display: flex;
   align-items: center;
-  height: 32px;
+  height: var(--desktop-sidebar-row-height);
   padding: 0 10px;
   color: var(--po-text-subtle);
   font-size: var(--po-text-size-label, 13px);
@@ -113,7 +113,7 @@
   align-items: center;
   justify-content: space-between;
   min-width: 0;
-  min-height: 30px;
+  min-height: var(--po-control-size);
   gap: 18px;
   padding: 0 10px;
   border-radius: 6px;
@@ -171,7 +171,7 @@
 }
 
 .desktop-local-agent-row {
-  min-height: 30px;
+  min-height: var(--po-control-size);
 }
 
 .desktop-local-agent-identity {
@@ -250,7 +250,7 @@
 }
 
 .desktop-settings-row-action.desktop-local-agent-group-action {
-  height: 20px;
+  height: var(--po-control-size-micro);
   padding: 0 4px;
   border: 0;
   border-radius: 4px;
@@ -269,7 +269,7 @@
 }
 
 .desktop-local-agent-settings-table > .desktop-settings-row {
-  min-height: 34px;
+  min-height: var(--po-control-size-large);
   padding-inline: 8px;
   border-radius: 6px;
 }
@@ -324,7 +324,7 @@
 }
 
 .desktop-settings-value-row {
-  min-height: 30px;
+  min-height: var(--po-control-size);
 }
 
 .desktop-settings-value {
@@ -358,7 +358,7 @@
 .desktop-settings-account-feedback {
   display: flex;
   align-items: center;
-  min-height: 34px;
+  min-height: var(--po-control-size-large);
   padding: 6px 10px;
   color: var(--po-text-subtle);
   font-size: var(--po-text-size-hint, 12px);
@@ -378,7 +378,7 @@
   align-items: center;
   justify-content: center;
   gap: 5px;
-  height: 28px;
+  height: var(--po-control-size-compact);
   flex: 0 0 auto;
   padding: 0 9px;
   border: 1px solid var(--po-divider);
@@ -424,7 +424,7 @@
 .desktop-settings-text-input {
   box-sizing: border-box;
   width: min(100%, 220px);
-  height: 28px;
+  height: var(--po-control-size-compact);
   min-width: 0;
   border: 1px solid var(--po-divider);
   border-radius: 6px;
@@ -593,7 +593,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 28px;
+  height: var(--po-control-size-compact);
   min-width: 82px;
   padding: 0 9px;
   border: 0;
@@ -745,7 +745,7 @@
   justify-content: center;
   width: fit-content;
   max-width: 100%;
-  height: 22px;
+  height: var(--po-control-size-mini);
   padding: 0 7px;
   border-radius: 999px;
   background: var(--po-control);

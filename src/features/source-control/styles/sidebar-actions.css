@@ -127,7 +127,7 @@
 
 .desktop-git-remote-prompt small {
   color: var(--po-text-subtle);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-weight: 540;
 }
 
