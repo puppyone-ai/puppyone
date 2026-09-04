@@ -10,6 +10,7 @@ import {
   readWorkspaceTextFile,
   readWorkspaceFile,
   statWorkspaceFile,
+  resolveExistingWorkspacePath as resolveLocalWorkspaceFilePath,
   resolveLocalWorkspaceIdentity,
   resolveWorkspacePath as resolveLocalWorkspacePath,
   workspaceFromPath,
@@ -141,9 +142,7 @@ const require = createRequire(import.meta.url);
 const packageMetadata = require("../package.json");
 const projectRoot = path.resolve(__dirname, "..");
 const preloadPath = path.join(__dirname, "preload.cjs");
-const editorSurfacePreloadPath = path.join(__dirname, "editor-surface-preload.cjs");
 const rendererDistPath = path.join(projectRoot, "dist", "index.html");
-const editorSurfaceDistPath = path.join(projectRoot, "dist", "isolated-editor.html");
 const desktopBuildInfo = loadDesktopBuildInfo({
   app,
   packageMetadata,
@@ -172,9 +171,6 @@ if (!gotSingleInstanceLock) {
 
 const devServerUrl = process.env.PUPPYONE_DESKTOP_DEV_URL;
 const rendererApplicationUrl = devServerUrl || pathToFileURL(rendererDistPath).toString();
-const editorSurfaceApplicationUrl = devServerUrl
-  ? new URL("isolated-editor.html", devServerUrl).toString()
-  : pathToFileURL(editorSurfaceDistPath).toString();
 if (devServerUrl) app.commandLine.appendSwitch("remote-debugging-port", "9222");
 const viewerPackFeatureProfile = resolveViewerPackFeatureProfile({
   packageMetadata,
@@ -681,7 +677,6 @@ app.whenReady().then(async () => {
   });
   stopLocaleNativeRefresh = localeService.onDidChange((state) => {
     nativeMenuService.refresh();
-    editorSurfaceManager?.broadcastLocale(state);
   });
   setDefaultDockIcon();
   nativeMenuService.refresh();
@@ -697,37 +692,24 @@ app.whenReady().then(async () => {
     resolveCapability: localFileCapabilities.resolve,
     applicationUrl: rendererApplicationUrl,
   });
+  const editorSurfaceBrowserSession = electronSession.fromPartition(
+    "persist:puppyone-pdf-viewer",
+    { cache: false },
+  );
+  editorSurfaceBrowserSession.setPermissionRequestHandler(
+    (_webContents, _permission, callback) => callback(false),
+  );
+  editorSurfaceBrowserSession.setPermissionCheckHandler(() => false);
   editorSurfaceManager = createEditorSurfaceSessionManager({
     WebContentsView,
-    sessionFromPartition: (partition, options) => electronSession.fromPartition(partition, options),
+    browserSession: editorSurfaceBrowserSession,
     getOwnerWindow: (ownerWebContentsId) => windowsById.get(ownerWebContentsId) ?? null,
-    preloadPath: editorSurfacePreloadPath,
-    surfaceUrl: editorSurfaceApplicationUrl,
-    configurePartition: ({ partitionSession, applicationUrl }) => {
-      registerLocalFileProtocol({
-        protocol: partitionSession.protocol,
-        readWorkspaceFile,
-        openWorkspaceFileRangeStream,
-        statWorkspaceFile,
-        getMimeType,
-        canonicalizeWorkspacePath,
-        isOpenWorkspaceRoot,
-        resolveCapability: localFileCapabilities.resolve,
-        applicationUrl,
-      });
-      return () => {
-        try {
-          partitionSession.protocol.unhandle("puppyone-local");
-        } catch {
-          // Ephemeral partition teardown is best-effort.
-        }
-      };
-    },
     nativeSurfaceOcclusion,
     nativeSurfacePointerPassthrough,
     admitResource: createEditorSurfaceResourceAdmission({
       inspectLocalCapability: localFileCapabilities.inspect,
       statWorkspaceFile,
+      resolveWorkspaceFilePath: resolveLocalWorkspaceFilePath,
       canonicalizeWorkspacePath,
       isOpenWorkspaceRoot,
     }),
@@ -848,9 +830,7 @@ app.on("before-quit", createAgentQuitCoordinator({
 function registerIpcHandlers() {
   registerEditorSurfaceIpcHandlers({
     trustedIpcMain,
-    rawIpcMain: ipcMain,
     manager: editorSurfaceManager,
-    localeService,
   });
   registerAppearanceIpcHandlers({
     ipcMain: trustedIpcMain,

@@ -3,12 +3,12 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const manifestJson = require("../../../packages/shared-ui/src/editor/registry/presetViewerManifest.json");
 
-const CONTRACT_VERSION = 6;
+const CONTRACT_VERSION = 7;
 const CAPABILITIES = new Set(["edit", "preview", "placeholder"]);
 const SOURCES = new Set(["content", "resource", "content-and-resource", "none"]);
 const RUNTIMES = new Set(["eager", "lazy"]);
 const SURFACE_ISOLATIONS = new Set(["inline", "isolated-webcontents"]);
-const COMPUTE_ISOLATIONS = new Set(["main-thread", "worker"]);
+const COMPUTE_ISOLATIONS = new Set(["main-thread", "worker", "browser-engine"]);
 const CONTENT_SANDBOXES = new Set(["none", "sandboxed-frame"]);
 const MEMORY_CLASSES = new Set(["small", "medium", "large"]);
 const SURFACE_PREPARATIONS = new Set(["hidden-safe", "requires-visible"]);
@@ -194,6 +194,21 @@ function parseDefinition(input, index) {
   if (record.computeIsolation === "main-thread" && resourcePolicy.maxWorkers !== 0) {
     throw new TypeError(`Main-thread preset viewer ${record.id} cannot declare worker capacity.`);
   }
+  if (record.computeIsolation === "browser-engine") {
+    if (record.surfaceIsolation !== "isolated-webcontents") {
+      throw new TypeError(`Browser-engine preset viewer ${record.id} must use an isolated surface.`);
+    }
+    if (record.source !== "resource" || record.runtime !== "eager") {
+      throw new TypeError(`Browser-engine preset viewer ${record.id} must eagerly navigate to a resource.`);
+    }
+    if (
+      resourcePolicy.maxWorkers !== 0
+      || resourcePolicy.maxCanvasPixels !== 0
+      || resourcePolicy.maxActiveCanvases !== 0
+    ) {
+      throw new TypeError(`Browser-engine preset viewer ${record.id} cannot declare app-owned worker or Canvas budgets.`);
+    }
+  }
   if (record.computeIsolation === "worker" && record.runtime !== "lazy") {
     throw new TypeError(`Worker-compute preset viewer ${record.id} must keep its runtime lazy.`);
   }
@@ -207,7 +222,8 @@ function parseDefinition(input, index) {
     throw new TypeError(`Safe-mode preset viewer ${record.id} must use an isolated surface.`);
   }
   if (
-    (record.surfaceFamily === "canvas" || record.surfaceTraits.includes("paginated"))
+    record.computeIsolation !== "browser-engine"
+    && (record.surfaceFamily === "canvas" || record.surfaceTraits.includes("paginated"))
     && (resourcePolicy.maxCanvasPixels === 0 || resourcePolicy.maxActiveCanvases === 0)
   ) {
     throw new TypeError(`Canvas or paginated preset viewer ${record.id} must declare positive Canvas limits.`);

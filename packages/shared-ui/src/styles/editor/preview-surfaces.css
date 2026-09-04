@@ -67,53 +67,6 @@
   background: var(--po-panel-raised);
 }
 
-.puppyone-pdf-preview {
-  position: relative;
-  overflow: hidden;
-  background: color-mix(in srgb, var(--po-editor-bg) 82%, var(--po-text) 18%);
-}
-
-.puppyone-pdf-pages {
-  display: flex;
-  width: 100%;
-  min-width: 0;
-  min-height: 100%;
-  flex: 1;
-  flex-direction: column;
-  align-items: center;
-  gap: 18px;
-  overflow: auto;
-  padding: 18px;
-  box-sizing: border-box;
-}
-
-.puppyone-pdf-page {
-  position: relative;
-  display: flex;
-  width: min(100%, 1200px);
-  min-width: 0;
-  aspect-ratio: var(--pdf-page-aspect-ratio, 0.7727);
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-}
-
-.puppyone-pdf-page canvas {
-  display: block;
-  max-width: 100%;
-  border-radius: 2px;
-  background: #fff;
-  box-shadow: 0 2px 12px rgb(0 0 0 / 20%);
-}
-
-.puppyone-pdf-page-error {
-  display: grid;
-  min-height: 220px;
-  place-items: center;
-  color: var(--po-danger);
-  font-size: 12px;
-}
-
 .html-preview-shell {
   position: relative;
   display: flex;
@@ -631,7 +584,7 @@
   width: min(100%, 500px);
   margin: -9px 0 9px;
   color: var(--po-text-muted);
-  font-size: 11.5px;
+  font-size: var(--po-text-size-hint, 12px);
   font-weight: 560;
   line-height: 1.35;
   text-align: left;
@@ -680,7 +633,7 @@
 
 .app-setup-method strong {
   color: var(--po-text);
-  font-size: 12.5px;
+  font-size: var(--po-text-size-label, 13px);
   font-weight: 620;
 }
 

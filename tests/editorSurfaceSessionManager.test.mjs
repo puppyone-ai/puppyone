@@ -5,6 +5,7 @@ import { createEditorSurfaceSessionManager } from "../electron/main/editor-surfa
 const createdViews = [];
 let nextWebContentsId = 100;
 let loadUrlBehavior = null;
+let pdfViewerFrameAvailable = true;
 
 class FakeWebContents extends EventEmitter {
   constructor() {
@@ -12,6 +13,13 @@ class FakeWebContents extends EventEmitter {
     this.id = nextWebContentsId++;
     this.destroyed = false;
     this.sent = [];
+    this.mainFrame = {
+      get frames() {
+        return pdfViewerFrameAvailable
+          ? [{ url: "chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/index.html", frames: [] }]
+          : [];
+      },
+    };
   }
 
   async loadURL(url) {
@@ -33,9 +41,11 @@ class FakeWebContentsView {
     this.webContents = new FakeWebContents();
     this.visible = true;
     this.bounds = null;
+    this.backgroundColor = null;
     createdViews.push(this);
   }
 
+  setBackgroundColor(color) { this.backgroundColor = color; }
   setBounds(bounds) { this.bounds = bounds; }
   getBounds() { return this.bounds; }
   setVisible(visible) { this.visible = visible; }
@@ -50,6 +60,7 @@ class FakeOwnerWindow extends EventEmitter {
     this.webContents.id = id;
     this.webContents.sent = [];
     this.webContents.destroyed = false;
+    this.webContents.session = { ownerWebContentsId: id };
     this.webContents.isDestroyed = () => this.webContents.destroyed;
     this.webContents.send = (channel, payload) => this.webContents.sent.push([channel, payload]);
     this.contentView = {
@@ -73,7 +84,7 @@ function request(ownerWebContentsId = 7) {
     documentRevision: "revision:1",
     resourceUrl: "puppyone-local://file/token/file-preview/reports/large.pdf",
     title: "large.pdf",
-    safeMode: false,
+    safeMode: true,
     bounds: { x: 20, y: 30, width: 800, height: 600 },
     geometryRevision: 1,
     visible: true,
@@ -82,34 +93,32 @@ function request(ownerWebContentsId = 7) {
 }
 
 function createHarness(owner, options = {}) {
-  const partition = {
-    setPermissionRequestHandler: vi.fn(),
-    setPermissionCheckHandler: vi.fn(),
-    clearStorageData: vi.fn(async () => undefined),
-  };
-  const releasePartition = vi.fn();
+  const browserSession = { partition: "persist:puppyone-pdf-viewer" };
+  const admitResource = vi.fn(async () => ({
+    byteLength: 20,
+    navigationUrl: "file:///workspace/reports/large.pdf",
+  }));
   const manager = createEditorSurfaceSessionManager({
     WebContentsView: FakeWebContentsView,
-    sessionFromPartition: vi.fn(() => partition),
+    browserSession,
     getOwnerWindow: (id) => id === owner.webContents.id ? owner : null,
-    preloadPath: "/app/editor-surface-preload.cjs",
-    surfaceUrl: "file:///app/dist/isolated-editor.html",
-    configurePartition: vi.fn(() => releasePartition),
+    admitResource,
     ...options,
   });
-  return { manager, partition, releasePartition };
+  return { manager, admitResource, browserSession };
 }
 
-describe("built-in Editor Surface fault domain", () => {
+describe("browser-engine Editor Surface fault domain", () => {
   beforeEach(() => {
     createdViews.length = 0;
     nextWebContentsId = 100;
     loadUrlBehavior = null;
+    pdfViewerFrameAvailable = true;
   });
 
-  it("launches PDF in a sandboxed process and publishes first-frame readiness", async () => {
+  it("loads an admitted PDF directly in Chromium's sandboxed native viewer", async () => {
     const owner = new FakeOwnerWindow(7);
-    const { manager, partition } = createHarness(owner);
+    const { manager, browserSession } = createHarness(owner);
     const session = await manager.activate(request());
     const view = createdViews[0];
 
@@ -118,67 +127,47 @@ describe("built-in Editor Surface fault domain", () => {
       contextIsolation: true,
       nodeIntegration: false,
       webSecurity: true,
-      session: partition,
+      plugins: true,
+      session: browserSession,
     });
-    expect(view.webContents.url).toBe("file:///app/dist/isolated-editor.html");
+    expect(view.options.webPreferences).not.toHaveProperty("preload");
+    expect(view.options.webPreferences).not.toHaveProperty("partition");
+    expect(view.options.webPreferences.session).not.toBe(owner.webContents.session);
+    expect(view.webContents.url).toBe(
+      "file:///workspace/reports/large.pdf#toolbar=0&navpanes=0",
+    );
     expect(view.webContents.sent).toEqual([]);
-    const bootstrap = manager.getBootstrapForChild(view.webContents.id);
-    expect(bootstrap).toMatchObject({
-      sessionId: session.sessionId,
-      viewerId: "pdf-preview",
-      resourcePolicy: {
-        maxSourceBytes: 536_870_912,
-        maxCanvasPixels: 8_388_608,
-        maxActiveCanvases: 6,
-        maxWorkers: 1,
-      },
-    });
-
-    expect(manager.reportReady(session.sessionId, view.webContents.id)).toBe(true);
+    expect(view.backgroundColor).toBe("#202124");
+    expect(session).toMatchObject({ status: "ready", safeMode: false });
+    expect(manager.values()[0].resourcePolicy).toEqual(expect.objectContaining({
+      maxSourceBytes: 536_870_912,
+      maxCanvasPixels: 0,
+      maxActiveCanvases: 0,
+      maxWorkers: 0,
+    }));
     expect(owner.webContents.sent.at(-1)).toEqual([
       "editor-surface:state",
       expect.objectContaining({ sessionId: session.sessionId, status: "ready" }),
     ]);
   });
 
-  it("serves bootstrap as replayable child-owned state after page load", async () => {
+  it("preserves admitted PDF open parameters while forcing browser chrome off", async () => {
     const owner = new FakeOwnerWindow(7);
-    const { manager } = createHarness(owner);
-    const session = await manager.activate(request());
-    const childId = createdViews[0].webContents.id;
+    const { manager } = createHarness(owner, {
+      admitResource: vi.fn(async () => ({
+        byteLength: 20,
+        navigationUrl: "https://example.com/report.pdf#page=3&zoom=125",
+      })),
+    });
 
-    const first = manager.getBootstrapForChild(childId);
-    const replay = manager.getBootstrapForChild(childId);
+    await manager.activate(request());
 
-    expect(replay).toEqual(first);
-    expect(replay.sessionId).toBe(session.sessionId);
-    expect(() => manager.getBootstrapForChild(owner.webContents.id)).toThrow(/untrusted/i);
+    expect(createdViews[0].webContents.url).toBe(
+      "https://example.com/report.pdf#page=3&zoom=125&toolbar=0&navpanes=0",
+    );
   });
 
-  it("turns a missing child bootstrap into a pane-local error", async () => {
-    vi.useFakeTimers();
-    try {
-      const owner = new FakeOwnerWindow(7);
-      const { manager } = createHarness(owner, { bootstrapTimeoutMs: 10 });
-      const session = await manager.activate(request());
-
-      await vi.advanceTimersByTimeAsync(11);
-
-      expect(manager.values()).toEqual([]);
-      expect(owner.webContents.sent).toContainEqual([
-        "editor-surface:state",
-        expect.objectContaining({
-          sessionId: session.sessionId,
-          status: "error",
-          reason: "bootstrap-timeout",
-        }),
-      ]);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it("bounds navigation before the isolated page can bootstrap", async () => {
+  it("bounds native PDF navigation before allocating a long-lived surface", async () => {
     vi.useFakeTimers();
     try {
       loadUrlBehavior = () => new Promise(() => {});
@@ -200,33 +189,31 @@ describe("built-in Editor Surface fault domain", () => {
     }
   });
 
-  it("turns a missing first frame into a pane-local error", async () => {
+  it("does not report ready when Chromium's PDF Viewer frame never attaches", async () => {
     vi.useFakeTimers();
     try {
+      pdfViewerFrameAvailable = false;
       const owner = new FakeOwnerWindow(7);
-      const { manager } = createHarness(owner, { firstFrameTimeoutMs: 10 });
-      const session = await manager.activate(request());
-      manager.getBootstrapForChild(createdViews[0].webContents.id);
+      const { manager } = createHarness(owner, { viewerAttachTimeoutMs: 10 });
+      const activation = manager.activate(request());
+      const rejection = expect(activation).rejects.toThrow(/did not attach/i);
 
-      await vi.advanceTimersByTimeAsync(11);
+      await vi.advanceTimersByTimeAsync(60);
+      await rejection;
 
       expect(manager.values()).toEqual([]);
       expect(owner.webContents.sent).toContainEqual([
         "editor-surface:state",
-        expect.objectContaining({
-          sessionId: session.sessionId,
-          status: "error",
-          reason: "first-frame-timeout",
-        }),
+        expect.objectContaining({ status: "error", reason: "viewer-attach-timeout" }),
       ]);
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it("contains an out-of-memory crash to one Editor Surface", async () => {
+  it("contains an out-of-memory crash to one native PDF Surface", async () => {
     const owner = new FakeOwnerWindow(7);
-    const { manager, releasePartition } = createHarness(owner);
+    const { manager } = createHarness(owner);
     const first = await manager.activate(request());
     const second = await manager.activate({ ...request(), documentPath: "reports/sibling.pdf" });
 
@@ -239,7 +226,6 @@ describe("built-in Editor Surface fault domain", () => {
     expect(owner.destroyed).toBe(false);
     expect(manager.values().map(({ sessionId }) => sessionId)).toEqual([second.sessionId]);
     expect(owner.children).toEqual([createdViews[1]]);
-    expect(releasePartition).toHaveBeenCalledOnce();
     expect(owner.webContents.sent).toContainEqual([
       "editor-surface:state",
       expect.objectContaining({ sessionId: first.sessionId, status: "crashed", reason: "oom" }),
@@ -252,7 +238,6 @@ describe("built-in Editor Surface fault domain", () => {
     const session = await manager.activate(request());
     const view = createdViews[0];
 
-    manager.reportReady(session.sessionId, view.webContents.id);
     view.webContents.emit("unresponsive");
     expect(view.visible).toBe(false);
 
@@ -269,7 +254,6 @@ describe("built-in Editor Surface fault domain", () => {
     const { manager } = createHarness(owner);
     const session = await manager.activate(request());
     const view = createdViews[0];
-    manager.reportReady(session.sessionId, view.webContents.id);
 
     expect(manager.setBounds(
       session.sessionId,
@@ -302,14 +286,27 @@ describe("built-in Editor Surface fault domain", () => {
     expect(view.visible).toBe(true);
   });
 
-  it("rejects non-isolated Viewers and non-capability resource URLs", async () => {
+  it("rejects non-browser-engine Viewers and direct renderer-supplied file URLs", async () => {
     const owner = new FakeOwnerWindow(7);
     const { manager } = createHarness(owner);
 
     await expect(manager.activate({ ...request(), viewerId: "markdown" }))
-      .rejects.toThrow(/not admitted/i);
+      .rejects.toThrow(/browser-engine/i);
     await expect(manager.activate({ ...request(), resourceUrl: "file:///tmp/private.pdf" }))
       .rejects.toThrow(/not allowed/i);
+    expect(createdViews).toHaveLength(0);
+  });
+
+  it("rejects a non-file navigation target returned by resource admission", async () => {
+    const owner = new FakeOwnerWindow(7);
+    const { manager } = createHarness(owner, {
+      admitResource: vi.fn(async () => ({
+        byteLength: 20,
+        navigationUrl: "javascript:alert(1)",
+      })),
+    });
+
+    await expect(manager.activate(request())).rejects.toThrow(/not allowed/i);
     expect(createdViews).toHaveLength(0);
   });
 

@@ -15,7 +15,6 @@ for (const requiredPath of [
   "electron/main/editor-surfaces/session-manager.mjs",
   "electron/main/editor-surfaces/resource-admission.mjs",
   "electron/main/editor-surfaces/ipc.mjs",
-  "electron/editor-surface-preload.cjs",
   "src/features/native-surfaces/nativeSurfaceOcclusion.ts",
   "src/features/native-surfaces/nativeSurfacePointerRoutingRegions.ts",
   "src/features/native-surfaces/useNativeSurfacePointerRoutingRegion.ts",
@@ -171,6 +170,29 @@ for (const token of [
 ]) {
   if (!editorSurfaceManager.includes(token)) {
     errors.push(`Editor Surface manager does not reject stale geometry (${token})`);
+  }
+}
+for (const token of [
+  "browserSession,",
+  "session: browserSession",
+  "plugins: true",
+  "entry.view.webContents.loadURL(entry.navigationUrl)",
+  "waitForChromiumPdfViewer(entry)",
+]) {
+  if (!editorSurfaceManager.includes(token)) {
+    errors.push(`Chromium PDF Surface is missing its native browser contract (${token})`);
+  }
+}
+if (existsSync(absolute("electron/editor-surface-preload.cjs"))) {
+  errors.push("Chromium PDF Surface must not restore the deprecated application preload");
+}
+for (const token of [
+  '"persist:puppyone-pdf-viewer"',
+  "editorSurfaceBrowserSession.setPermissionRequestHandler",
+  "editorSurfaceBrowserSession.setPermissionCheckHandler",
+]) {
+  if (!mainSource.includes(token)) {
+    errors.push(`Electron main does not isolate the Chromium PDF browser session (${token})`);
   }
 }
 for (const token of [

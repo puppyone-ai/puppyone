@@ -7,6 +7,11 @@ import {
   useNativeSurfaceGeometry,
   type NativeSurfaceGeometry,
 } from "../native-surfaces";
+import {
+  createSurfaceRecoveryState,
+  resolveAutomaticSurfaceRecovery,
+  resolveManualSurfaceRecovery,
+} from "./surfaceRecoveryPolicy";
 import "./editor-surfaces.css";
 
 type SurfaceStatus = "activating" | "loading" | "ready" | "unresponsive" | "crashed" | "error";
@@ -45,6 +50,8 @@ const APPEARANCE_ATTRIBUTES = [
   "data-font-code-category",
   "data-font-terminal",
   "data-font-terminal-category",
+  "data-typography-editor-scale",
+  "data-typography-right-sidebar-scale",
 ] as const;
 
 const APPEARANCE_VARIABLES = [
@@ -72,6 +79,16 @@ const APPEARANCE_VARIABLES = [
   "--po-font-editor-content-user",
   "--po-text-size-body",
   "--po-line-height-body",
+  "--po-type-editor-content",
+  "--po-type-editor-line-height",
+  "--po-type-editor-data",
+  "--po-type-editor-code",
+  "--po-type-editor-heading-1",
+  "--po-type-editor-heading-2",
+  "--po-type-editor-heading-3",
+  "--po-type-editor-heading-4",
+  "--po-type-editor-heading-5",
+  "--po-type-editor-heading-6",
 ] as const;
 
 export function BuiltInEditorSurfaceController({
@@ -87,9 +104,19 @@ export function BuiltInEditorSurfaceController({
   const latestGeometryRef = useRef<NativeSurfaceGeometry>(FALLBACK_GEOMETRY);
   const [status, setStatus] = useState<SurfaceStatus>("activating");
   const [error, setError] = useState<string | null>(null);
-  const [retryGeneration, setRetryGeneration] = useState(0);
-  const [safeMode, setSafeMode] = useState(false);
   const bridge = window.puppyoneDesktop?.editorSurfaces ?? null;
+  const recoveryIdentity = [
+    viewer.id,
+    context.document.path,
+    context.document.version ?? "",
+    context.fileUrl ?? "",
+  ].join("\u0000");
+  const [recoveryState, setRecoveryState] = useState(() => (
+    createSurfaceRecoveryState(recoveryIdentity)
+  ));
+  const recoveryMatchesDocument = recoveryState.identity === recoveryIdentity;
+  const safeMode = recoveryMatchesDocument ? recoveryState.safeMode : false;
+  const retryGeneration = recoveryMatchesDocument ? recoveryState.retryGeneration : 0;
 
   const collectAppearance = useCallback(() => {
     const root = document.documentElement;
@@ -129,18 +156,33 @@ export function BuiltInEditorSurfaceController({
       if (event.status === "ready") {
         setStatus("ready");
         setError(null);
-      } else if (
-        event.status === "unresponsive"
-        || event.status === "crashed"
-        || event.status === "error"
-      ) {
+      } else if (event.status === "crashed") {
+        const recovery = resolveAutomaticSurfaceRecovery({
+          current: recoveryState,
+          identity: recoveryIdentity,
+          policy: viewer.recoveryPolicy,
+        });
+        if (recovery) {
+          setStatus("activating");
+          setError(null);
+          setRecoveryState(recovery);
+          return;
+        }
+        setStatus(event.status);
+        setError(event.message ?? event.reason ?? null);
+      } else if (event.status === "unresponsive" || event.status === "error") {
         setStatus(event.status);
         setError(event.message ?? event.reason ?? null);
       } else if (event.status === "loading") {
         setStatus("loading");
       }
     });
-  }, [bridge]);
+  }, [
+    bridge,
+    recoveryIdentity,
+    recoveryState,
+    viewer.recoveryPolicy,
+  ]);
 
   useEffect(() => {
     if (!bridge || !context.fileUrl || !hostElement) return undefined;
@@ -265,8 +307,11 @@ export function BuiltInEditorSurfaceController({
             <button
               type="button"
               onClick={() => {
-                setSafeMode(viewer.recoveryPolicy.supportsSafeMode);
-                setRetryGeneration((current) => current + 1);
+                setRecoveryState((current) => resolveManualSurfaceRecovery({
+                  current,
+                  identity: recoveryIdentity,
+                  policy: viewer.recoveryPolicy,
+                }));
               }}
             >
               {t("common.action.retry")}

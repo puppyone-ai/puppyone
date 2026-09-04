@@ -1,9 +1,11 @@
 import { parseLocalFileUrl } from "../local-file-protocol.mjs";
+import { pathToFileURL } from "node:url";
 
 /** Main-process authority for source budget and local capability admission. */
 export function createEditorSurfaceResourceAdmission({
   inspectLocalCapability,
   statWorkspaceFile,
+  resolveWorkspaceFilePath,
   canonicalizeWorkspacePath,
   isOpenWorkspaceRoot,
 }) {
@@ -13,7 +15,9 @@ export function createEditorSurfaceResourceAdmission({
     resourcePolicy,
   }) {
     const url = new URL(resourceUrl);
-    if (url.protocol === "https:") return Object.freeze({ byteLength: null });
+    if (url.protocol === "https:") {
+      return Object.freeze({ byteLength: null, navigationUrl: url.toString() });
+    }
     if (url.protocol !== "puppyone-local:") {
       throw new Error("Editor Surface resource protocol is not admitted.");
     }
@@ -39,7 +43,14 @@ export function createEditorSurfaceResourceAdmission({
     if (metadata.size > maxBytes) {
       throw new Error(`This file exceeds the ${formatBytes(maxBytes)} safe preview limit.`);
     }
-    return Object.freeze({ byteLength: metadata.size });
+    if (typeof resolveWorkspaceFilePath !== "function") {
+      throw new Error("Editor Surface native resource resolver is unavailable.");
+    }
+    const filePath = await resolveWorkspaceFilePath(canonicalRoot, capability.relativePath);
+    return Object.freeze({
+      byteLength: metadata.size,
+      navigationUrl: pathToFileURL(filePath).toString(),
+    });
   };
 }
 

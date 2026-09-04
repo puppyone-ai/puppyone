@@ -4,7 +4,7 @@
  * registry; a viewer contribution only declares host capabilities.
  */
 
-export const PRESET_VIEWER_CONTRACT_VERSION = 6 as const;
+export const PRESET_VIEWER_CONTRACT_VERSION = 7 as const;
 
 export const PRESET_VIEWER_CAPABILITIES = ["edit", "preview", "placeholder"] as const;
 export type CoreViewerCapability = (typeof PRESET_VIEWER_CAPABILITIES)[number];
@@ -33,9 +33,13 @@ export const PRESET_VIEWER_SURFACE_ISOLATIONS = [
 export type PresetViewerSurfaceIsolation =
   (typeof PRESET_VIEWER_SURFACE_ISOLATIONS)[number];
 
-/** Where CPU-intensive format work executes. A worker preserves UI
- * responsiveness, but is not a renderer-process fault boundary. */
-export const PRESET_VIEWER_COMPUTE_ISOLATIONS = ["main-thread", "worker"] as const;
+/** Where CPU-intensive format work executes. `browser-engine` delegates both
+ * parsing and rasterization to a Chromium-owned native document runtime. */
+export const PRESET_VIEWER_COMPUTE_ISOLATIONS = [
+  "main-thread",
+  "worker",
+  "browser-engine",
+] as const;
 export type PresetViewerComputeIsolation =
   (typeof PRESET_VIEWER_COMPUTE_ISOLATIONS)[number];
 

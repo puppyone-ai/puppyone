@@ -123,7 +123,11 @@ export function normalizePresetViewerContribution(
   ) {
     throw new TypeError(`Preset viewer ${record.id} cannot normalize content it does not receive.`);
   }
-  if (definition.runtime === "eager") {
+  if (definition.computeIsolation === "browser-engine") {
+    if (record.render !== undefined || record.load !== undefined) {
+      throw new TypeError(`Browser-engine preset viewer ${record.id} cannot ship a renderer implementation.`);
+    }
+  } else if (definition.runtime === "eager") {
     if (typeof record.render !== "function" || record.load !== undefined) {
       throw new TypeError(`Eager preset viewer ${record.id} must define render and cannot define load.`);
     }

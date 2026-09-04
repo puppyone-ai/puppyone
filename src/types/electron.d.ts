@@ -848,7 +848,7 @@ export type PuppyoneWorkspaceConfig = {
   updatedAt?: string;
 };
 
-export type DesktopThemeTarget = "application" | "markdown" | "csv";
+export type DesktopThemeTarget = "application" | "typography" | "markdown" | "csv";
 export type DesktopThemeColorMode = "light" | "dark";
 export type DesktopThemeFirstPaint = Readonly<{
   background: string;
@@ -1501,30 +1501,6 @@ declare global {
         providerId: string;
         enabled: boolean;
       }) => Promise<{ enrollment: string; reason?: string }>;
-    };
-    puppyoneEditorSurface?: {
-      getBootstrap: () => Promise<Readonly<{
-        sessionId: string;
-        viewerId: "pdf-preview";
-        resourceUrl: string;
-        title: string;
-        safeMode: boolean;
-        resourcePolicy: Readonly<{
-          memoryClass: "small" | "medium" | "large";
-          maxSourceBytes: number;
-          maxCanvasPixels: number;
-          maxActiveCanvases: number;
-          maxWorkers: number;
-        }>;
-        appearance: EditorSurfaceAppearance;
-      }>>;
-      onAppearance: (callback: (appearance: EditorSurfaceAppearance) => void) => () => void;
-      reportReady: (request: { sessionId: string }) => void;
-      reportError: (request: {
-        sessionId?: string;
-        message: string;
-        componentStack?: string;
-      }) => void;
     };
   }
 }

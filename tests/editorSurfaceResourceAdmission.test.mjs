@@ -8,9 +8,11 @@ describe("Editor Surface resource admission", () => {
       relativePath: "docs/report.pdf",
     }));
     const statWorkspaceFile = vi.fn(async () => ({ size: 20 }));
+    const resolveWorkspaceFilePath = vi.fn(async () => "/workspace/docs/report.pdf");
     const admit = createEditorSurfaceResourceAdmission({
       inspectLocalCapability,
       statWorkspaceFile,
+      resolveWorkspaceFilePath,
       canonicalizeWorkspacePath: async (value) => value,
       isOpenWorkspaceRoot: () => true,
     });
@@ -32,6 +34,7 @@ describe("Editor Surface resource admission", () => {
     const admit = createEditorSurfaceResourceAdmission({
       inspectLocalCapability: () => null,
       statWorkspaceFile: vi.fn(),
+      resolveWorkspaceFilePath: vi.fn(),
       canonicalizeWorkspacePath: async (value) => value,
       isOpenWorkspaceRoot: () => true,
     });
@@ -46,6 +49,7 @@ describe("Editor Surface resource admission", () => {
     const admit = createEditorSurfaceResourceAdmission({
       inspectLocalCapability: vi.fn(),
       statWorkspaceFile: vi.fn(),
+      resolveWorkspaceFilePath: vi.fn(),
       canonicalizeWorkspacePath: vi.fn(),
       isOpenWorkspaceRoot: vi.fn(),
     });
@@ -53,7 +57,32 @@ describe("Editor Surface resource admission", () => {
       resourceUrl: "https://example.com/report.pdf",
       ownerWebContentsId: 7,
       resourcePolicy: { maxSourceBytes: 10 },
-    })).resolves.toEqual({ byteLength: null });
+    })).resolves.toEqual({
+      byteLength: null,
+      navigationUrl: "https://example.com/report.pdf",
+    });
+  });
+
+  it("returns only a canonical file URL after local capability admission", async () => {
+    const admit = createEditorSurfaceResourceAdmission({
+      inspectLocalCapability: () => ({
+        rootPath: "/workspace",
+        relativePath: "docs/report.pdf",
+      }),
+      statWorkspaceFile: async () => ({ size: 20 }),
+      resolveWorkspaceFilePath: async () => "/canonical/workspace/docs/report.pdf",
+      canonicalizeWorkspacePath: async (value) => value,
+      isOpenWorkspaceRoot: () => true,
+    });
+
+    await expect(admit({
+      resourceUrl: localUrl(),
+      ownerWebContentsId: 7,
+      resourcePolicy: { maxSourceBytes: 100 },
+    })).resolves.toEqual({
+      byteLength: 20,
+      navigationUrl: "file:///canonical/workspace/docs/report.pdf",
+    });
   });
 });
 

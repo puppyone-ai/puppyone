@@ -231,6 +231,21 @@ function parseDefinition(input: unknown, index: number): PresetViewerDefinition 
   if (record.computeIsolation === "main-thread" && resourcePolicy.maxWorkers !== 0) {
     throw new TypeError(`Main-thread preset viewer ${record.id} cannot declare worker capacity.`);
   }
+  if (record.computeIsolation === "browser-engine") {
+    if (record.surfaceIsolation !== "isolated-webcontents") {
+      throw new TypeError(`Browser-engine preset viewer ${record.id} must use an isolated surface.`);
+    }
+    if (record.source !== "resource" || record.runtime !== "eager") {
+      throw new TypeError(`Browser-engine preset viewer ${record.id} must eagerly navigate to a resource.`);
+    }
+    if (
+      resourcePolicy.maxWorkers !== 0
+      || resourcePolicy.maxCanvasPixels !== 0
+      || resourcePolicy.maxActiveCanvases !== 0
+    ) {
+      throw new TypeError(`Browser-engine preset viewer ${record.id} cannot declare app-owned worker or Canvas budgets.`);
+    }
+  }
   if (record.computeIsolation === "worker" && record.runtime !== "lazy") {
     throw new TypeError(`Worker-compute preset viewer ${record.id} must keep its runtime lazy.`);
   }
@@ -250,7 +265,8 @@ function parseDefinition(input: unknown, index: number): PresetViewerDefinition 
     throw new TypeError(`Safe-mode preset viewer ${record.id} must use an isolated surface.`);
   }
   if (
-    (record.surfaceFamily === "canvas" || (record.surfaceTraits as unknown[]).includes("paginated"))
+    record.computeIsolation !== "browser-engine"
+    && (record.surfaceFamily === "canvas" || (record.surfaceTraits as unknown[]).includes("paginated"))
     && (resourcePolicy.maxCanvasPixels === 0 || resourcePolicy.maxActiveCanvases === 0)
   ) {
     throw new TypeError(`Canvas or paginated preset viewer ${record.id} must declare positive Canvas limits.`);

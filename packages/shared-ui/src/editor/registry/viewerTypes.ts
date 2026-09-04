@@ -213,9 +213,17 @@ export type LazyPresetViewerImplementation = PresetViewerImplementationBase & Re
   render?: never;
 }>;
 
+/** A surface implemented by the browser engine itself. The renderer Host only
+ * contributes matching metadata; Electron owns navigation and presentation. */
+export type BrowserEnginePresetViewerImplementation = PresetViewerImplementationBase & Readonly<{
+  load?: never;
+  render?: never;
+}>;
+
 export type PresetViewerImplementation =
   | EagerPresetViewerImplementation
-  | LazyPresetViewerImplementation;
+  | LazyPresetViewerImplementation
+  | BrowserEnginePresetViewerImplementation;
 
 /**
  * Versioned contract for a viewer that ships with PuppyOne. Contributions are
@@ -227,8 +235,13 @@ export type EagerPresetViewerContribution = PresetViewerDefinition &
 export type LazyPresetViewerContribution = PresetViewerDefinition &
   Omit<LazyPresetViewerImplementation, "id">;
 
+export type BrowserEnginePresetViewerContribution = PresetViewerDefinition &
+  Omit<BrowserEnginePresetViewerImplementation, "id">;
+
 export type PresetViewerContribution = Readonly<
-  EagerPresetViewerContribution | LazyPresetViewerContribution
+  | EagerPresetViewerContribution
+  | LazyPresetViewerContribution
+  | BrowserEnginePresetViewerContribution
 >;
 
 /** @deprecated Prefer the product-semantic PresetViewerContribution name. */

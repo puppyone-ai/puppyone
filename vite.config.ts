@@ -62,10 +62,6 @@ export default defineConfig({
         replacement: fileURLToPath(new URL("./packages/shared-ui/src/styles/editor.css", import.meta.url)),
       },
       {
-        find: "@puppyone/shared-ui/pdf-document-preview",
-        replacement: fileURLToPath(new URL("./packages/shared-ui/src/editor/viewers/pdf/PdfViewer.tsx", import.meta.url)),
-      },
-      {
         find: "@puppyone/shared-ui/markdown-presentation-preview",
         replacement: fileURLToPath(new URL("./packages/shared-ui/src/editor/markdown/MarkdownPresentationPreview.tsx", import.meta.url)),
       },
@@ -102,10 +98,6 @@ export default defineConfig({
     rollupOptions: {
       input: {
         index: path.resolve(fileURLToPath(new URL(".", import.meta.url)), "index.html"),
-        "isolated-editor": path.resolve(
-          fileURLToPath(new URL(".", import.meta.url)),
-          "isolated-editor.html",
-        ),
       },
     },
   },

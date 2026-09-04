@@ -6,25 +6,22 @@ const APPEARANCE_ATTRIBUTE_PATTERN = /^data-[a-z0-9-]{1,80}$/;
 const APPEARANCE_VARIABLE_PATTERN = /^--po-[a-z0-9-]{1,80}$/;
 const UNRESPONSIVE_TIMEOUT_MS = 12_000;
 const NAVIGATION_TIMEOUT_MS = 15_000;
-const BOOTSTRAP_TIMEOUT_MS = 10_000;
-const FIRST_FRAME_TIMEOUT_MS = 60_000;
+const VIEWER_ATTACH_TIMEOUT_MS = 10_000;
+const CHROMIUM_PDF_VIEWER_URL_PREFIX =
+  "chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/";
 const MAX_SESSIONS_PER_OWNER = 8;
 const MAX_SESSIONS_TOTAL = 24;
 
 /** Owns one sandboxed built-in Viewer runtime per committed Editor pane. */
 export function createEditorSurfaceSessionManager({
   WebContentsView,
-  sessionFromPartition,
+  browserSession,
   getOwnerWindow,
-  preloadPath,
-  surfaceUrl,
-  configurePartition,
   nativeSurfaceOcclusion = null,
   nativeSurfacePointerPassthrough = null,
   admitResource = null,
   navigationTimeoutMs = NAVIGATION_TIMEOUT_MS,
-  bootstrapTimeoutMs = BOOTSTRAP_TIMEOUT_MS,
-  firstFrameTimeoutMs = FIRST_FRAME_TIMEOUT_MS,
+  viewerAttachTimeoutMs = VIEWER_ATTACH_TIMEOUT_MS,
   onStateChange = null,
   logger = console,
 }) {
@@ -53,15 +50,10 @@ export function createEditorSurfaceSessionManager({
     sessions.delete(sessionId);
     if (entry.unresponsiveTimer) clearTimeout(entry.unresponsiveTimer);
     if (entry.navigationTimer) clearTimeout(entry.navigationTimer);
-    if (entry.bootstrapTimer) clearTimeout(entry.bootstrapTimer);
-    if (entry.firstFrameTimer) clearTimeout(entry.firstFrameTimer);
     entry.unresponsiveTimer = null;
     entry.navigationTimer = null;
-    entry.bootstrapTimer = null;
-    entry.firstFrameTimer = null;
     entry.releaseOcclusion?.();
     entry.releasePointerPassthrough?.();
-    entry.releasePartition?.();
     for (const [emitter, eventName, listener] of entry.listeners) {
       try {
         emitter.removeListener?.(eventName, listener);
@@ -88,11 +80,6 @@ export function createEditorSurfaceSessionManager({
     } catch {
       // Ignore a renderer that already exited.
     }
-    try {
-      entry.partitionSession?.clearStorageData?.().catch?.(() => undefined);
-    } catch {
-      // Best-effort ephemeral partition cleanup.
-    }
     if (publishDisposed) publish(entry, "disposed", { reason });
     return true;
   }
@@ -112,35 +99,6 @@ export function createEditorSurfaceSessionManager({
     }
   }
 
-  function assertChild(sessionId, senderId) {
-    const entry = sessions.get(sessionId);
-    if (!entry || entry.view.webContents?.id !== senderId) return null;
-    return entry;
-  }
-
-  function findChild(senderId) {
-    return [...sessions.values()].find((entry) => entry.view.webContents?.id === senderId) ?? null;
-  }
-
-  function failPendingSession(entry, reason, message) {
-    if (sessions.get(entry.sessionId) !== entry) return;
-    publish(entry, "error", { reason, message });
-    destroySession(entry.sessionId, { reason });
-  }
-
-  function armBootstrapTimeout(entry) {
-    if (entry.bootstrapAcknowledged || entry.bootstrapTimer || sessions.get(entry.sessionId) !== entry) return;
-    entry.bootstrapTimer = setTimeout(() => {
-      entry.bootstrapTimer = null;
-      failPendingSession(
-        entry,
-        "bootstrap-timeout",
-        "Editor Surface did not request its bootstrap state.",
-      );
-    }, bootstrapTimeoutMs);
-    entry.bootstrapTimer.unref?.();
-  }
-
   async function navigate(entry) {
     const timeout = new Promise((_, reject) => {
       entry.navigationTimer = setTimeout(() => {
@@ -152,24 +110,27 @@ export function createEditorSurfaceSessionManager({
       entry.navigationTimer.unref?.();
     });
     try {
-      await Promise.race([entry.view.webContents.loadURL(surfaceUrl), timeout]);
+      await Promise.race([entry.view.webContents.loadURL(entry.navigationUrl), timeout]);
     } finally {
       if (entry.navigationTimer) clearTimeout(entry.navigationTimer);
       entry.navigationTimer = null;
     }
   }
 
-  function armFirstFrameTimeout(entry) {
-    if (entry.firstFrameTimer || entry.status === "ready" || sessions.get(entry.sessionId) !== entry) return;
-    entry.firstFrameTimer = setTimeout(() => {
-      entry.firstFrameTimer = null;
-      failPendingSession(
-        entry,
-        "first-frame-timeout",
-        "Editor Surface did not produce a first frame in time.",
-      );
-    }, firstFrameTimeoutMs);
-    entry.firstFrameTimer.unref?.();
+  async function waitForChromiumPdfViewer(entry) {
+    const deadline = Date.now() + viewerAttachTimeoutMs;
+    do {
+      if (sessions.get(entry.sessionId) !== entry) {
+        throw new Error("Editor Surface was disposed while attaching its native Viewer.");
+      }
+      if (hasFrameWithUrlPrefix(entry.view.webContents.mainFrame, CHROMIUM_PDF_VIEWER_URL_PREFIX)) {
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    } while (Date.now() < deadline);
+    const error = new Error("Chromium PDF Viewer did not attach in time.");
+    error.code = "viewer-attach-timeout";
+    throw error;
   }
 
   return Object.freeze({
@@ -191,33 +152,38 @@ export function createEditorSurfaceSessionManager({
       }
       const viewerId = requireString(request?.viewerId, "Editor Surface Viewer id is required.", 100);
       const definition = getPresetViewerDefinitionForViewerId(viewerId);
-      if (definition.id !== viewerId || definition.surfaceIsolation !== "isolated-webcontents") {
-        throw new Error(`Preset Viewer ${viewerId} is not admitted to an isolated runtime.`);
+      if (
+        definition.id !== viewerId
+        || definition.surfaceIsolation !== "isolated-webcontents"
+        || definition.computeIsolation !== "browser-engine"
+      ) {
+        throw new Error(`Preset Viewer ${viewerId} is not admitted to a browser-engine runtime.`);
       }
       const resourceUrl = normalizeResourceUrl(request?.resourceUrl);
-      await admitResource?.({
+      const admission = await admitResource?.({
         resourceUrl,
         ownerWebContentsId,
         resourcePolicy: definition.resourcePolicy,
       });
+      const admittedNavigationUrl = normalizeBrowserEngineNavigationUrl(admission?.navigationUrl);
+      const navigationUrl = viewerId === "pdf-preview"
+        ? configureChromiumPdfViewerUrl(admittedNavigationUrl)
+        : admittedNavigationUrl;
       const title = requireString(request?.title, "Editor Surface title is required.", 500);
       const bounds = normalizeBounds(request?.bounds, window);
       const geometryRevision = normalizeGeometryRevision(request?.geometryRevision, 0);
       const appearance = normalizeAppearance(request?.appearance);
-      const safeMode = request?.safeMode === true && definition.recoveryPolicy.supportsSafeMode;
+      const safeMode = false;
       const sessionId = `bes_${randomUUID()}`;
-      const partition = `temp:built-in-editor-${sessionId}`;
-      const partitionSession = sessionFromPartition(partition, { cache: false });
-      const releasePartition = configurePartition?.({
-        partitionSession,
-        applicationUrl: surfaceUrl,
-      }) ?? null;
-      partitionSession.setPermissionRequestHandler?.((_webContents, _permission, callback) => callback(false));
-      partitionSession.setPermissionCheckHandler?.(() => false);
+      // Chromium's built-in PDF extension does not initialize inside an
+      // ephemeral Electron partition created after the App Shell. The host
+      // supplies one dedicated persistent browser session so PDFium works
+      // without sharing the App Shell's cookies or storage.
+      if (!browserSession) throw new Error("Editor Surface browser session is unavailable.");
 
       const view = new WebContentsView({
         webPreferences: {
-          session: partitionSession,
+          session: browserSession,
           sandbox: true,
           contextIsolation: true,
           nodeIntegration: false,
@@ -225,10 +191,10 @@ export function createEditorSurfaceSessionManager({
           nodeIntegrationInSubFrames: false,
           webSecurity: true,
           webviewTag: false,
+          plugins: true,
           spellcheck: false,
           devTools: false,
           backgroundThrottling: false,
-          preload: preloadPath,
         },
       });
       const entry = {
@@ -239,6 +205,7 @@ export function createEditorSurfaceSessionManager({
           ? request.documentRevision.slice(0, 500)
           : null,
         resourceUrl,
+        navigationUrl,
         title,
         safeMode,
         resourcePolicy: definition.resourcePolicy,
@@ -246,8 +213,7 @@ export function createEditorSurfaceSessionManager({
         ownerWebContentsId,
         window,
         view,
-        partitionSession,
-        releasePartition,
+        browserSession,
         requestedBounds: bounds,
         geometryRevision,
         geometryVisible: request?.visible !== false,
@@ -260,16 +226,14 @@ export function createEditorSurfaceSessionManager({
         releasePointerPassthrough: null,
         unresponsiveTimer: null,
         navigationTimer: null,
-        bootstrapTimer: null,
-        firstFrameTimer: null,
-        bootstrapAcknowledged: false,
         statusBeforeUnresponsive: null,
       };
       sessions.set(sessionId, entry);
       view.setBounds(bounds);
+      view.setBackgroundColor?.(appearance.dark ? "#202124" : "#f1f3f4");
       view.setVisible?.(false);
       view.webContents?.setAudioMuted?.(true);
-      installNavigationGuard(view.webContents, surfaceUrl);
+      installNavigationGuard(view.webContents, navigationUrl);
 
       entry.releaseOcclusion = nativeSurfaceOcclusion?.register?.({
         ownerWebContentsId,
@@ -329,12 +293,14 @@ export function createEditorSurfaceSessionManager({
       try {
         await navigate(entry);
         if (sessions.get(sessionId) !== entry) throw new Error("Editor Surface was disposed while loading.");
-        armBootstrapTimeout(entry);
+        await waitForChromiumPdfViewer(entry);
+        publish(entry, "ready");
+        applyVisibility(entry);
       } catch (error) {
         if (sessions.get(sessionId) !== entry) throw error;
-        const navigationTimedOut = error?.code === "navigation-timeout";
-        publish(entry, navigationTimedOut ? "error" : "crashed", {
-          reason: navigationTimedOut ? "navigation-timeout" : "launch-failed",
+        const timedOut = error?.code === "navigation-timeout" || error?.code === "viewer-attach-timeout";
+        publish(entry, timedOut ? "error" : "crashed", {
+          reason: timedOut ? error.code : "launch-failed",
           message: normalizeMessage(error),
         });
         destroySession(sessionId, { reason: "launch-failed" });
@@ -372,28 +338,8 @@ export function createEditorSurfaceSessionManager({
       const entry = sessions.get(sessionId);
       if (!entry || entry.ownerWebContentsId !== ownerWebContentsId) return { ok: false };
       entry.appearance = normalizeAppearance(appearance);
-      if (!entry.view.webContents.isDestroyed()) {
-        entry.view.webContents.send("editor-surface:appearance", entry.appearance);
-      }
+      entry.view.setBackgroundColor?.(entry.appearance.dark ? "#202124" : "#f1f3f4");
       return { ok: true };
-    },
-
-    getBootstrapForChild(senderId) {
-      const entry = findChild(senderId);
-      if (!entry) throw new Error("Untrusted Editor Surface bootstrap request.");
-      entry.bootstrapAcknowledged = true;
-      if (entry.bootstrapTimer) clearTimeout(entry.bootstrapTimer);
-      entry.bootstrapTimer = null;
-      armFirstFrameTimeout(entry);
-      return {
-        sessionId: entry.sessionId,
-        viewerId: entry.viewerId,
-        resourceUrl: entry.resourceUrl,
-        title: entry.title,
-        safeMode: entry.safeMode,
-        resourcePolicy: entry.resourcePolicy,
-        appearance: entry.appearance,
-      };
     },
 
     destroy(sessionId, ownerWebContentsId) {
@@ -402,32 +348,6 @@ export function createEditorSurfaceSessionManager({
       return { ok: destroySession(sessionId) };
     },
 
-    reportReady(sessionId, senderId) {
-      const entry = assertChild(sessionId, senderId);
-      if (!entry) return false;
-      if (entry.firstFrameTimer) clearTimeout(entry.firstFrameTimer);
-      entry.firstFrameTimer = null;
-      publish(entry, "ready");
-      applyVisibility(entry);
-      return true;
-    },
-
-    reportError(sessionId, senderId, request) {
-      const entry = assertChild(sessionId, senderId);
-      if (!entry) return false;
-      if (entry.bootstrapTimer) clearTimeout(entry.bootstrapTimer);
-      if (entry.firstFrameTimer) clearTimeout(entry.firstFrameTimer);
-      entry.bootstrapTimer = null;
-      entry.firstFrameTimer = null;
-      publish(entry, "error", { message: normalizeMessage(request?.message) });
-      entry.visible = false;
-      applyVisibility(entry);
-      return true;
-    },
-
-    hasChild(senderId) {
-      return Boolean(findChild(senderId));
-    },
 
     destroyForOwner(ownerWebContentsId) {
       for (const [sessionId, entry] of [...sessions.entries()]) {
@@ -444,14 +364,6 @@ export function createEditorSurfaceSessionManager({
     values() {
       return [...sessions.values()];
     },
-
-    broadcastLocale(state) {
-      for (const entry of sessions.values()) {
-        if (!entry.view.webContents.isDestroyed()) {
-          entry.view.webContents.send("editor-surface:locale-changed", state);
-        }
-      }
-    },
   });
 }
 
@@ -460,8 +372,8 @@ function listen(entry, emitter, eventName, listener) {
   entry.listeners.push([emitter, eventName, listener]);
 }
 
-function installNavigationGuard(webContents, applicationUrl) {
-  const trusted = new URL(applicationUrl);
+function installNavigationGuard(webContents, navigationUrl) {
+  const trusted = new URL(navigationUrl);
   webContents.setWindowOpenHandler?.(() => ({ action: "deny" }));
   webContents.on?.("will-navigate", (event, target) => {
     const next = new URL(target);
@@ -470,6 +382,65 @@ function installNavigationGuard(webContents, applicationUrl) {
     }
     event.preventDefault();
   });
+}
+
+function hasFrameWithUrlPrefix(frame, prefix) {
+  if (!frame) return false;
+  const pending = [...(frame.frames ?? [])];
+  while (pending.length > 0) {
+    const candidate = pending.shift();
+    if (candidate?.url?.startsWith(prefix)) return true;
+    pending.push(...(candidate?.frames ?? []));
+  }
+  return false;
+}
+
+function normalizeBrowserEngineNavigationUrl(value) {
+  if (typeof value !== "string" || value.length === 0) {
+    throw new Error("Browser-engine Editor Surface resource was not admitted.");
+  }
+  const url = new URL(value);
+  if (
+    (url.protocol !== "file:" && url.protocol !== "https:")
+    || url.username
+    || url.password
+  ) {
+    throw new Error("Browser-engine Editor Surface navigation URL is not allowed.");
+  }
+  return url.toString();
+}
+
+/**
+ * Keeps Chromium/PDFium as the PDF runtime while removing browser-owned chrome.
+ * These fragment parameters are part of Chromium's supported PDF open-parameter
+ * contract, so this does not depend on the component extension's private DOM.
+ */
+function configureChromiumPdfViewerUrl(value) {
+  const url = new URL(value);
+  const rawFragment = url.hash.slice(1);
+  const params = new URLSearchParams();
+
+  if (rawFragment) {
+    if (!rawFragment.includes("=") && !rawFragment.includes("&")) {
+      params.set("nameddest", safelyDecodeURIComponent(rawFragment));
+    } else {
+      const existing = new URLSearchParams(rawFragment);
+      for (const [name, fragmentValue] of existing) params.append(name, fragmentValue);
+    }
+  }
+
+  params.set("toolbar", "0");
+  params.set("navpanes", "0");
+  url.hash = params.toString();
+  return url.toString();
+}
+
+function safelyDecodeURIComponent(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }
 
 function normalizeBounds(value, window) {
