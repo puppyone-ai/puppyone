@@ -33,9 +33,9 @@ import { isSettingsSectionAvailable } from "./sidebar/settingsSidebarModel";
 import type { SettingsViewProps } from "./types";
 import { writeClipboardText } from "./utils";
 
-const EditorSettingsView = lazy(async () => {
-  const module = await import("./main/EditorSettingsView");
-  return { default: module.EditorSettingsView };
+const TypographySettingsView = lazy(async () => {
+  const module = await import("./main/TypographySettingsView");
+  return { default: module.TypographySettingsView };
 });
 
 export function SettingsView({
@@ -76,7 +76,6 @@ export function SettingsView({
   onLoadingAnimationPresetChange,
   onLocalAgentsSettingsChange,
   onAgentFileActivityIndicatorsEnabledChange,
-  onTextSizeChange,
   onTypographyPreferencesChange,
   onPointerCursorsChange,
   onSubThemeChange,
@@ -235,14 +234,12 @@ export function SettingsView({
     );
   }
 
-  if (activeSection === "editor") {
+  if (activeSection === "typography") {
     return (
       <Suspense fallback={null}>
-        <EditorSettingsView
-          textSizeDecision={resolvedAppearance.decisions.textSize}
+        <TypographySettingsView
           typographyPreferences={typographyPreferences}
           markdownThemeId={resolvedAppearance.subThemeId}
-          onTextSizeChange={onTextSizeChange}
           onTypographyPreferencesChange={onTypographyPreferencesChange}
         />
       </Suspense>
@@ -278,9 +275,9 @@ export function SettingsView({
                 requestedSubThemeId={requestedSubThemeId}
                 effectiveSubThemeId={resolvedAppearance.subThemeId}
                 effectiveColorMode={resolvedAppearance.effectiveColorMode}
-                markdownFontOverrideActive={!isFollowingThemeContentFont(typographyPreferences)}
+                contentFontOverrideActive={!isFollowingThemeContentFont(typographyPreferences)}
                 onSubThemeChange={onSubThemeChange}
-                onUseThemeMarkdownFont={() => onTypographyPreferencesChange(
+                onUseThemeContentFont={() => onTypographyPreferencesChange(
                   followThemeContentFont(typographyPreferences),
                 )}
               />

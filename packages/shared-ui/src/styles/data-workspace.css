@@ -834,7 +834,7 @@ body.data-sidebar-resizing .data-content:not([data-explorer-collapsed="true"]) {
   height: 100%;
   place-items: center;
   color: var(--po-text-subtle);
-  font-size: 12.5px;
+  font-size: var(--po-text-size-label, 13px);
 }
 
 .folder-state.compact {

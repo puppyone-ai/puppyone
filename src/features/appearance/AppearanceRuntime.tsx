@@ -189,10 +189,15 @@ function createSurfaceAppearanceRevision({
     `content:${typography.editorContentDecision.source}:${typography.editorContentDecision.effectiveFontId ?? "follow-theme"}`,
     `code:${typography.code.id}:${typography.code.family}`,
     `terminal:${typography.terminal.id}:${typography.terminal.family}`,
+    `sizes:${serializeTypographySizes(typography)}`,
     `markdown:${serializeMarkdownPresentationSettings(markdownPresentation)}`,
     `loading:${loadingAnimationPreset}`,
     `pointer:${pointerCursors ? "true" : "false"}`,
     `diff:${diffMarkers}`,
     `legacy-presets:${lightThemePreset}:${darkThemePreset}`,
   ].join("|");
+}
+
+function serializeTypographySizes(typography: ResolvedTypography): string {
+  return `${typography.scales.editor},${typography.scales.rightSidebar}`;
 }

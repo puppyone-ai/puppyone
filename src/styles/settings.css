@@ -45,7 +45,7 @@
   height: 32px;
   padding: 0 10px;
   color: var(--po-text-subtle);
-  font-size: 12.5px;
+  font-size: var(--po-text-size-label, 13px);
 }
 
 .desktop-utility-empty.danger {
@@ -97,14 +97,14 @@
 .desktop-settings-section-header h2 {
   margin: 0;
   color: var(--po-text);
-  font-size: 15px;
+  font-size: var(--po-text-size-section-title, 15px);
   font-weight: var(--po-text-weight-medium, 500);
   line-height: 20px;
 }
 
 .desktop-settings-section-header span {
   color: var(--po-text-subtle);
-  font-size: 12px;
+  font-size: var(--po-text-size-meta, 12px);
   line-height: 1.35;
 }
 
@@ -118,7 +118,7 @@
   padding: 0 10px;
   border-radius: 6px;
   color: var(--po-text-muted);
-  font-size: 12.5px;
+  font-size: var(--po-text-size-label, 13px);
 }
 
 .desktop-settings-row > span {
@@ -130,7 +130,7 @@
   min-width: 0;
   overflow: hidden;
   color: var(--po-text);
-  font-size: 12.5px;
+  font-size: var(--po-text-size-label, 13px);
   font-weight: var(--po-text-weight-regular, 400);
   text-align: end;
   text-overflow: ellipsis;
@@ -140,7 +140,7 @@
 .desktop-product-analytics-error {
   margin-inline-start: 8px;
   color: var(--po-danger);
-  font-size: 11px;
+  font-size: var(--po-text-size-caption, 11px);
   font-weight: var(--po-text-weight-regular, 400);
 }
 
@@ -154,7 +154,7 @@
 
 .desktop-product-analyze-learn-more {
   color: var(--po-text-muted);
-  font-size: 11.5px;
+  font-size: var(--po-text-size-hint, 12px);
   text-decoration-color: color-mix(in srgb, currentColor 42%, transparent);
   text-underline-offset: 2px;
 }
@@ -199,7 +199,7 @@
 .desktop-local-agent-name {
   overflow: hidden;
   color: var(--po-text);
-  font-size: 12.5px;
+  font-size: var(--po-text-size-label, 13px);
   font-weight: var(--po-text-weight-regular, 400);
   line-height: 18px;
   text-overflow: ellipsis;
@@ -209,7 +209,7 @@
 .desktop-local-agent-row-copy small {
   overflow: hidden;
   color: var(--po-text-subtle);
-  font-size: 11px;
+  font-size: var(--po-text-size-caption, 11px);
   font-weight: 400;
   line-height: 1.25;
   text-overflow: ellipsis;
@@ -244,7 +244,7 @@
 .desktop-local-agent-group-title {
   display: block;
   color: var(--po-text-muted);
-  font-size: 12.5px;
+  font-size: var(--po-text-size-label, 13px);
   font-weight: var(--po-text-weight-regular, 400);
   line-height: 18px;
 }
@@ -255,7 +255,7 @@
   border: 0;
   border-radius: 4px;
   color: var(--po-text-subtle);
-  font-size: 11px;
+  font-size: var(--po-text-size-caption, 11px);
   font-weight: var(--po-text-weight-regular, 400);
 }
 
@@ -298,7 +298,7 @@
 
 .desktop-settings-code {
   font-family: var(--po-font-mono);
-  font-size: 11.5px !important;
+  font-size: var(--po-text-size-hint, 12px) !important;
 }
 
 .desktop-settings-subsection {
@@ -312,7 +312,7 @@
   min-height: 18px;
   padding-inline: 10px;
   color: var(--po-text-subtle);
-  font-size: 12px;
+  font-size: var(--po-text-size-meta, 12px);
   font-weight: 500;
   line-height: 18px;
 }
@@ -340,7 +340,7 @@
   min-width: 0;
   overflow: hidden;
   color: var(--po-text);
-  font-size: 12.5px;
+  font-size: var(--po-text-size-label, 13px);
   font-weight: var(--po-text-weight-regular, 400);
   text-align: end;
   text-overflow: ellipsis;
@@ -361,7 +361,7 @@
   min-height: 34px;
   padding: 6px 10px;
   color: var(--po-text-subtle);
-  font-size: 11.5px;
+  font-size: var(--po-text-size-hint, 12px);
   font-weight: var(--po-text-weight-regular, 400);
 }
 
@@ -385,7 +385,7 @@
   border-radius: 6px;
   background: transparent;
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-text-size-meta, 12px);
   font-weight: var(--po-text-weight-medium, 500);
 }
 
@@ -431,7 +431,7 @@
   background: var(--po-input, var(--po-panel-raised));
   color: var(--po-text);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--po-text-size-meta, 12px);
   font-weight: var(--po-text-weight-regular, 400);
   outline: none;
 }
@@ -545,7 +545,7 @@
   background: var(--po-input, var(--po-panel-raised));
   color: var(--po-text);
   font-family: var(--po-font-mono);
-  font-size: 11.5px;
+  font-size: var(--po-text-size-hint, 12px);
   line-height: 17px;
 }
 
@@ -561,7 +561,7 @@
   justify-content: flex-end;
   gap: 6px;
   color: var(--po-text-subtle);
-  font-size: 11.5px;
+  font-size: var(--po-text-size-hint, 12px);
 }
 
 .desktop-settings-muted-row {
@@ -571,7 +571,7 @@
   align-items: center;
   padding: 0 10px;
   color: var(--po-text-subtle);
-  font-size: 12.5px;
+  font-size: var(--po-text-size-label, 13px);
 }
 
 .desktop-hosting-service-panel {
@@ -622,7 +622,7 @@
   min-width: 0;
   overflow: hidden;
   color: inherit;
-  font-size: 12px;
+  font-size: var(--po-text-size-meta, 12px);
   font-weight: var(--po-text-weight-regular, 400);
   line-height: 1;
   text-align: center;
@@ -647,7 +647,7 @@
   gap: 12px;
   padding: 7px 10px;
   color: var(--po-text-subtle);
-  font-size: 11.5px;
+  font-size: var(--po-text-size-hint, 12px);
 }
 
 .desktop-puppyone-config-footer > span {
@@ -673,7 +673,7 @@
   gap: 12px;
   padding: 0 10px;
   color: var(--po-text-muted);
-  font-size: 12.5px;
+  font-size: var(--po-text-size-label, 13px);
 }
 
 .desktop-settings-remote-setting + .desktop-settings-remote-setting {
@@ -691,7 +691,7 @@
   min-width: 0;
   overflow: hidden;
   color: var(--po-text);
-  font-size: 12.5px;
+  font-size: var(--po-text-size-label, 13px);
   font-weight: var(--po-text-weight-regular, 400);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -709,7 +709,7 @@
 
 .desktop-settings-remote-setting-meta span {
   color: var(--po-text-subtle);
-  font-size: 12px;
+  font-size: var(--po-text-size-meta, 12px);
 }
 
 .desktop-settings-remote-setting-url {
@@ -726,7 +726,7 @@
   overflow: hidden;
   color: var(--po-text);
   font-family: var(--po-font-mono);
-  font-size: 11.5px;
+  font-size: var(--po-text-size-hint, 12px);
   font-weight: var(--po-text-weight-regular, 400);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -735,7 +735,7 @@
 .desktop-settings-remote-setting-url small {
   color: var(--po-text-subtle);
   font-family: inherit;
-  font-size: 11.5px;
+  font-size: var(--po-text-size-hint, 12px);
   font-weight: var(--po-text-weight-regular, 400);
 }
 
@@ -750,7 +750,7 @@
   border-radius: 999px;
   background: var(--po-control);
   color: var(--po-text-subtle);
-  font-size: 11px;
+  font-size: var(--po-text-size-caption, 11px);
   font-weight: var(--po-text-weight-medium, 500);
   text-transform: none;
 }

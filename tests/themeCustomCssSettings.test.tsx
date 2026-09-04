@@ -86,8 +86,8 @@ describe("Appearance theme settings", () => {
     expect(document.getElementById("desktop-theme-add-status")).toBeNull();
   });
 
-  it("makes an active Markdown font override visible and lets the user restore theme control", async () => {
-    const onUseThemeMarkdownFont = vi.fn();
+  it("makes an active reading-font override visible and lets the user restore theme control", async () => {
+    const onUseThemeContentFont = vi.fn();
     await act(async () => {
       root.render(withTestLocalization(
         <SubThemeSettingsSection
@@ -96,21 +96,21 @@ describe("Appearance theme settings", () => {
           requestedSubThemeId="default.newspaper"
           effectiveSubThemeId="default.newspaper"
           effectiveColorMode="light"
-          markdownFontOverrideActive
+          contentFontOverrideActive
           onSubThemeChange={vi.fn()}
-          onUseThemeMarkdownFont={onUseThemeMarkdownFont}
+          onUseThemeContentFont={onUseThemeContentFont}
         />,
       ));
       await Promise.resolve();
     });
 
     const notice = document.querySelector<HTMLElement>(".desktop-theme-font-override");
-    expect(notice?.textContent).toContain("Markdown font is overridden in Editor settings.");
+    expect(notice?.textContent).toContain("Reading font is overridden in Typography settings.");
     const restore = notice?.querySelector<HTMLButtonElement>("button");
     expect(restore?.textContent).toBe("Use theme font");
 
     act(() => restore?.click());
-    expect(onUseThemeMarkdownFont).toHaveBeenCalledOnce();
+    expect(onUseThemeContentFont).toHaveBeenCalledOnce();
   });
 });
 

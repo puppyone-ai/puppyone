@@ -1,6 +1,10 @@
 .desktop-menu-surface,
 .desktop-titlebar-menu,
 .desktop-node-action-menu {
+  --po-menu-item-font-size: var(--po-type-ui-control, 13px);
+  --po-menu-item-line-height: 18px;
+  --po-menu-meta-font-size: var(--po-type-ui-meta, 12px);
+  --po-menu-meta-line-height: 15px;
   box-sizing: border-box;
   border: 1px solid var(--po-menu-border);
   border-radius: var(--po-menu-radius);
@@ -9,6 +13,20 @@
   color: var(--po-text);
   box-shadow: var(--po-menu-shadow);
   backdrop-filter: blur(20px);
+}
+
+.desktop-menu-surface[data-menu-typography-surface="header"] {
+  --po-menu-item-font-size: var(--po-type-header-content, 15px);
+  --po-menu-item-line-height: var(--po-type-header-line-height, 20px);
+  --po-menu-meta-font-size: var(--po-type-header-meta, 13px);
+  --po-menu-meta-line-height: var(--po-type-header-meta-line-height, 18px);
+}
+
+.desktop-menu-surface[data-menu-typography-surface="right-sidebar"] {
+  --po-menu-item-font-size: var(--po-type-right-sidebar-content, 14px);
+  --po-menu-item-line-height: var(--po-type-right-sidebar-control-line-height, 19px);
+  --po-menu-meta-font-size: var(--po-type-right-sidebar-meta, 13px);
+  --po-menu-meta-line-height: var(--po-type-right-sidebar-meta-line-height, 19px);
 }
 
 .desktop-menu-surface[data-menu-elevation="compact"] {
@@ -46,10 +64,10 @@
 .desktop-menu-section-label {
   padding: 0 var(--po-menu-item-padding-inline) 4px;
   color: var(--po-text-disabled);
-  font-size: 11px;
+  font-size: var(--po-menu-meta-font-size);
   font-weight: 650;
   letter-spacing: 0;
-  line-height: 15px;
+  line-height: var(--po-menu-meta-line-height);
   text-transform: uppercase;
 }
 
@@ -73,9 +91,9 @@
   color: var(--po-text-muted);
   cursor: var(--po-clickable-cursor, default);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--po-menu-item-font-size);
   font-weight: 500;
-  line-height: 18px;
+  line-height: var(--po-menu-item-line-height);
   text-align: start;
   transition: background 0.1s ease, color 0.1s ease;
 }
@@ -138,21 +156,21 @@
 
 .desktop-menu-item-label {
   flex: 0 1 auto;
-  font-size: 13px;
+  font-size: var(--po-menu-item-font-size);
   font-weight: 500;
 }
 
 .desktop-menu-item-detail {
   flex: 1 1 auto;
   color: var(--po-text-subtle);
-  font-size: 11.5px;
+  font-size: var(--po-menu-meta-font-size);
   font-weight: 500;
 }
 
 .desktop-menu-item-trailing {
   flex: 0 0 auto;
   color: var(--po-text-disabled);
-  font-size: 11.5px;
+  font-size: var(--po-menu-meta-font-size);
   font-weight: 650;
   text-transform: uppercase;
 }

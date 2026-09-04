@@ -173,7 +173,7 @@
   overflow: auto;
   color: inherit;
   font-family: var(--po-font-mono);
-  font-size: inherit;
+  font-size: var(--po-type-editor-code, 13px);
   line-height: 1.45;
   white-space: pre-wrap;
 }

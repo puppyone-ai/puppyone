@@ -4,7 +4,7 @@ import { compileThemeCss } from "../electron/main/themes/theme-css-compiler.mjs"
 describe("Sub Theme CSS compiler", () => {
   it("maps public Markdown tokens onto the host boundary", async () => {
     const result = await compileThemeCss({
-      css: ":root { --po-md-content-color: #332f2a; --po-md-h1-size: 2em; --po-md-h1-weight: 700 }",
+      css: ":root { --po-md-content-color: #332f2a; --po-md-h1-size: 32px; --po-md-h1-weight: 700 }",
       themeId: "com.example.newsprint",
       target: "markdown",
     });
@@ -12,7 +12,7 @@ describe("Sub Theme CSS compiler", () => {
     const host = '[data-po-appearance-root][data-sub-theme-id="com.example.newsprint"]';
     expect(result.css).toContain(`${host} {`);
     expect(result.css).toContain("--po-host-md-content-color: #332f2a");
-    expect(result.css).toContain("--po-host-md-h1-size: 2em");
+    expect(result.css).toContain("--po-host-md-h1-size: 32px");
     expect(result.css).toContain("--po-host-md-h1-weight: 700");
     expect(result.css).not.toContain("--po-md-content-color:");
   });
@@ -28,6 +28,42 @@ describe("Sub Theme CSS compiler", () => {
     expect(result.css).toContain("--po-host-csv-table-border: #ddd");
     expect(result.css).not.toMatch(/\.csv-table-editor|\.editable-table/);
   });
+
+  it("maps bounded typography defaults onto a private theme layer", async () => {
+    const result = await compileThemeCss({
+      css: ":root { --po-text-size-content: 17px; --po-text-size-conversation: 15px; --po-terminal-font-size: 13px }",
+      themeId: "com.example.readable",
+      target: "typography",
+      supportedModes: ["light", "dark"],
+    });
+
+    expect(result.css).toContain("--po-theme-text-size-content: 17px");
+    expect(result.css).toContain("--po-theme-text-size-conversation: 15px");
+    expect(result.css).toContain("--po-theme-terminal-font-size: 13px");
+    expect(result.css).not.toContain("--po-text-size-content:");
+  });
+
+  it.each(["13.5px", "100px", "1rem", "calc(10px + 1vw)"])(
+    "rejects unsafe or unbounded typography size %s",
+    async (size) => {
+      await expect(compileThemeCss({
+        css: `:root { --po-text-size-content: ${size} }`,
+        themeId: "com.example.unsafe-type",
+        target: "typography",
+      })).rejects.toThrow("plain pixel value");
+    },
+  );
+
+  it.each(["1.5em", "23.5px", "clamp(20px, 3vw, 32px)"])(
+    "rejects non-integer Markdown size %s",
+    async (size) => {
+      await expect(compileThemeCss({
+        css: `:root { --po-md-h2-size: ${size} }`,
+        themeId: "com.example.unsafe-markdown-type",
+        target: "markdown",
+      })).rejects.toThrow("plain integer pixel value");
+    },
+  );
 
   it("inlines package-local token imports", async () => {
     const loadImport = vi.fn(async (specifier) => {

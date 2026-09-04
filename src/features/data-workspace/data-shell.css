@@ -621,7 +621,7 @@ body.data-sidebar-resizing * {
   background: var(--desktop-git-bubble-bg);
   box-shadow: var(--po-elevation-low);
   color: var(--desktop-git-bubble-text);
-  font-size: 11.5px;
+  font-size: var(--po-text-size-hint, 12px);
   font-weight: 680;
   line-height: 1;
   letter-spacing: 0;

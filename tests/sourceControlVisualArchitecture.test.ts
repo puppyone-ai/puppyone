@@ -741,7 +741,7 @@ describe("source-control visual architecture", () => {
     expect(stat).toContain("font-variant-numeric: tabular-nums;");
     expect(added).toContain("var(--po-success) 48%");
     expect(deleted).toContain("var(--po-danger) 48%");
-    expect(head).toContain("font-size: 9px;");
+    expect(head).toContain("font-size: var(--po-text-size-micro, 10px);");
     expect(sourceControlSidebarSectionsSource).toContain('notation: "compact"');
     expect(sourceControlSidebarSectionsSource).toContain("maximumFractionDigits: 1");
     expect(historyListCss).not.toContain(".desktop-history-row-title > span:last-child");

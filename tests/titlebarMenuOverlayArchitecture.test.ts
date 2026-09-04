@@ -15,6 +15,7 @@ describe("titlebar menu overlay architecture", () => {
     expect(layerSource).toContain('data-titlebar-context-menu="true"');
     expect(projectSource).toContain("<DesktopTitlebarMenuLayer");
     expect(branchSource).toContain("<DesktopTitlebarMenuLayer");
+    expect(layerSource).toContain('typographySurface="header"');
     expect(titlebarCss).toMatch(
       /\.desktop-titlebar-menu\.desktop-titlebar-menu-overlay\s*\{[^}]*position:\s*fixed;[^}]*inset-inline-start:\s*auto;/s,
     );

@@ -201,8 +201,7 @@ describe("CSV table visual architecture", () => {
     );
     expect(csvTableCss).toMatch(/\.csv-table-editor__record-index-label\s*\{[^}]*min-height:\s*calc\(var\(--po-editable-table-row-min-height\) - 1px\)[^}]*justify-content:\s*center[^}]*padding:\s*0/s);
     expect(csvTableCss).toMatch(/\.csv-table-editor__table th,[\s\S]*?\.csv-table-editor__table td\s*\{[^}]*box-sizing:\s*border-box[^}]*height:\s*var\(--po-editable-table-row-min-height\)/s);
-    expect(csvTableCss).toContain("font-size: inherit");
-    expect(csvTableCss).not.toContain("font-size: 10.5px");
+    expect(csvTableCss).toContain("font-size: var(--po-editable-table-font-size, var(--po-type-editor-data, 13px))");
     expect(csvTableCss).toContain(".csv-table-editor__table td:focus-within");
     expect(csvViewSettingsSource).toContain("csv-table-editor__settings-button");
     expect(csvViewSettingsSource).toContain("csv-table-editor__settings-popover");

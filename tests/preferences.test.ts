@@ -144,8 +144,8 @@ describe("appearance preferences", () => {
       value: preset.value,
       content: preset.sizes.content,
     }))).toEqual([
-      { value: "small", content: 13 },
-      { value: "default", content: 14 },
+      { value: "small", content: 14 },
+      { value: "default", content: 15 },
       { value: "large", content: 16 },
     ]);
 
@@ -160,25 +160,11 @@ describe("appearance preferences", () => {
       "utf8",
     );
     const tokens = readFileSync(new URL("../src/styles/tokens.css", import.meta.url), "utf8");
-    const blocks = {
-      small: readCssBlock(
-        css,
-        ':where(.app-shell, .onboarding-shell, .desktop-overlay-root)[data-content-text-size="small"]',
-      ),
-      default: readCssBlock(
-        css,
-        ":root,\n:where(.app-shell, .onboarding-shell, .desktop-overlay-root, .desktop-theme-preview-surface, .dark)",
-      ),
-      large: readCssBlock(
-        css,
-        ':where(.app-shell, .onboarding-shell, .desktop-overlay-root)[data-content-text-size="large"]',
-      ),
-    };
-
-    for (const preset of TEXT_SIZE_PRESETS) {
-      const block = blocks[preset.value];
-      expect(block).toContain(`--po-text-size-content: ${preset.sizes.content}px;`);
-    }
+    expect(css).toContain("--po-type-editor-content:");
+    expect(css).toContain("--po-user-text-size-content");
+    expect(css).toContain("--po-type-editor-line-height:");
+    expect(css).not.toContain('[data-content-text-size="small"]');
+    expect(css).not.toContain('[data-content-text-size="large"]');
 
     expect(css).not.toContain("data-interface-text-size");
     expect(css).not.toContain("data-terminal-text-size");
@@ -232,15 +218,6 @@ describe("local Agent preferences", () => {
     });
   });
 });
-
-function readCssBlock(css: string, selector: string): string {
-  const start = css.indexOf(`${selector} {`);
-  if (start < 0) throw new Error(`Missing CSS block for ${selector}`);
-  const bodyStart = start + selector.length + 2;
-  const end = css.indexOf("\n}", bodyStart);
-  if (end < 0) throw new Error(`Unclosed CSS block for ${selector}`);
-  return css.slice(bodyStart, end);
-}
 
 describe("experimental preferences", () => {
   it("keeps Agent Chat off unless the user explicitly opts in", () => {

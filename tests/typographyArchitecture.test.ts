@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   BUILTIN_FONT_CATALOG,
@@ -10,7 +10,9 @@ import {
   isValidFontCatalogEntry,
   parseTypographyPreferences,
   resolveTypography,
+  TYPOGRAPHY_SCALE_METRICS,
   withTypographyFont,
+  withTypographyScale,
   type FontCatalogEntry,
 } from "../src/features/typography";
 
@@ -24,7 +26,7 @@ describe("typography architecture", () => {
       terminalFontId: BUILTIN_FONT_IDS.terminalSystemMono,
     }));
 
-    expect(migrated.version).toBe(4);
+    expect(migrated.version).toBe(10);
     expect(migrated).not.toHaveProperty("uiFontId");
     expect(resolveTypography(migrated).ui.id).toBe(BUILTIN_FONT_IDS.geistSans);
   });
@@ -59,6 +61,10 @@ describe("typography architecture", () => {
       contentFont: { mode: "follow-theme" },
     })).contentFont).toEqual({ mode: "follow-theme" });
     expect(parseTypographyPreferences(JSON.stringify({
+      version: 4,
+      contentFont: { mode: "explicit", fontId: BUILTIN_FONT_IDS.systemSerif },
+    })).contentFont).toEqual({ mode: "explicit", fontId: BUILTIN_FONT_IDS.systemSerif });
+    expect(parseTypographyPreferences(JSON.stringify({
       version: 3,
       codeFontId: BUILTIN_FONT_IDS.geistMono,
     })).contentFont).toEqual({ mode: "follow-theme" });
@@ -66,6 +72,228 @@ describe("typography architecture", () => {
       version: 4,
       contentFont: { mode: "explicit", fontId: "font-family: serif" },
     })).contentFont).toEqual({ mode: "follow-theme" });
+  });
+
+  it("coordinates semantic typography roles through four bounded surface scales", () => {
+    expect(DEFAULT_TYPOGRAPHY_PREFERENCES.scales).toEqual({
+      leftSidebar: "medium",
+      header: "medium",
+      editor: "medium",
+      rightSidebar: "medium",
+    });
+
+    const preferences = withTypographyScale(withTypographyScale(withTypographyScale(
+      withTypographyScale(DEFAULT_TYPOGRAPHY_PREFERENCES, "leftSidebar", "large"),
+      "header",
+      "small",
+    ), "editor", "large"), "rightSidebar", "small");
+    const props = createTypographyRootProps(resolveTypography(preferences));
+    expect(props.style).toMatchObject({
+      "--po-user-left-sidebar-font-size": "16px",
+      "--po-user-left-sidebar-meta-font-size": "14px",
+      "--po-user-left-sidebar-line-height": "21px",
+      "--po-user-header-font-size": "14px",
+      "--po-user-header-line-height": "19px",
+      "--po-user-header-meta-font-size": "12px",
+      "--po-user-header-meta-line-height": "17px",
+      "--po-user-text-size-content": "16px",
+      "--po-user-editor-line-height": "26px",
+      "--po-user-text-size-data": "14px",
+      "--po-user-code-font-size": "14px",
+      "--po-user-editor-heading-1-font-size": "32px",
+      "--po-user-editor-heading-2-font-size": "24px",
+      "--po-user-editor-heading-3-font-size": "20px",
+      "--po-user-editor-heading-4-font-size": "18px",
+      "--po-user-editor-heading-5-font-size": "17px",
+      "--po-user-editor-heading-6-font-size": "16px",
+      "--po-user-text-size-conversation": "13px",
+      "--po-user-right-sidebar-control-line-height": "18px",
+      "--po-user-right-sidebar-meta-font-size": "12px",
+      "--po-user-right-sidebar-meta-line-height": "18px",
+      "--po-user-right-sidebar-caption-font-size": "11px",
+      "--po-user-right-sidebar-caption-line-height": "16px",
+      "--po-user-right-sidebar-micro-font-size": "10px",
+      "--po-user-right-sidebar-micro-line-height": "14px",
+      "--po-user-right-sidebar-code-font-size": "12px",
+      "--po-user-terminal-font-size": "12px",
+      "--po-user-right-sidebar-heading-1-font-size": "19px",
+      "--po-user-right-sidebar-heading-2-font-size": "15px",
+    });
+    expect(props["data-typography-left-sidebar-scale"]).toBe("large");
+    expect(props["data-typography-header-scale"]).toBe("small");
+    expect(props["data-typography-editor-scale"]).toBe("large");
+    expect(props["data-typography-right-sidebar-scale"]).toBe("small");
+    expect(TYPOGRAPHY_SCALE_METRICS.medium).toEqual({
+      leftSidebar: {
+        content: 14,
+        meta: 12,
+        lineHeight: 19,
+      },
+      header: {
+        content: 15,
+        lineHeight: 20,
+        meta: 13,
+        metaLineHeight: 18,
+      },
+      editor: {
+        content: 15,
+        lineHeight: 24,
+        data: 13,
+        code: 13,
+        heading1: 30,
+        heading2: 23,
+        heading3: 19,
+        heading4: 17,
+        heading5: 16,
+        heading6: 15,
+      },
+      rightSidebar: {
+        content: 14,
+        controlLineHeight: 19,
+        meta: 13,
+        metaLineHeight: 19,
+        caption: 12,
+        captionLineHeight: 17,
+        micro: 11,
+        microLineHeight: 15,
+        code: 13,
+        terminal: 13,
+        heading1: 20,
+        heading2: 16,
+      },
+    });
+
+    const migrated = parseTypographyPreferences(JSON.stringify({
+      version: 5,
+      sizes: {
+        content: { mode: "explicit", sizePx: 18 },
+        conversation: { mode: "explicit", sizePx: 13 },
+        monospace: { mode: "explicit", sizePx: 14 },
+      },
+    }));
+    expect(migrated.scales).toEqual({
+      leftSidebar: "medium",
+      header: "medium",
+      editor: "large",
+      rightSidebar: "small",
+    });
+
+    const normalized = parseTypographyPreferences(JSON.stringify({
+      version: 10,
+      scales: {
+        leftSidebar: "large",
+        header: "small",
+        editor: "custom",
+        rightSidebar: "large",
+      },
+    }));
+    expect(normalized.scales).toEqual({
+      leftSidebar: "large",
+      header: "small",
+      editor: "medium",
+      rightSidebar: "large",
+    });
+
+    const migratedV9 = parseTypographyPreferences(JSON.stringify({
+      version: 9,
+      scales: {
+        leftSidebar: "large",
+        fileTree: "small",
+        header: "large",
+        editor: "small",
+        rightSidebar: "large",
+      },
+    }));
+    expect(migratedV9.scales).toEqual({
+      leftSidebar: "small",
+      header: "large",
+      editor: "small",
+      rightSidebar: "large",
+    });
+
+    const migratedV6 = parseTypographyPreferences(JSON.stringify({
+      version: 6,
+      contentFont: { mode: "follow-theme" },
+      scales: { editor: "small", rightSidebar: "large" },
+    }));
+    expect(migratedV6.scales).toEqual({
+      leftSidebar: "medium",
+      header: "medium",
+      editor: "small",
+      rightSidebar: "large",
+    });
+
+    const migratedV7 = parseTypographyPreferences(JSON.stringify({
+      version: 7,
+      contentFont: { mode: "follow-theme" },
+      scales: { appChrome: "large", editor: "small", rightSidebar: "large" },
+    }));
+    expect(migratedV7.scales).toEqual({
+      leftSidebar: "large",
+      header: "large",
+      editor: "small",
+      rightSidebar: "large",
+    });
+
+    const migratedV8 = parseTypographyPreferences(JSON.stringify({
+      version: 8,
+      contentFont: { mode: "follow-theme" },
+      scales: {
+        leftSidebar: "small",
+        header: "large",
+        editor: "large",
+        rightSidebar: "small",
+      },
+    }));
+    expect(migratedV8.scales).toEqual({
+      leftSidebar: "small",
+      header: "large",
+      editor: "large",
+      rightSidebar: "small",
+    });
+  });
+
+  it("keeps every product-owned font size on the integer type scale", () => {
+    for (const metrics of Object.values(TYPOGRAPHY_SCALE_METRICS)) {
+      expect(Object.values(metrics.leftSidebar).every(Number.isInteger)).toBe(true);
+      expect(Object.values(metrics.header).every(Number.isInteger)).toBe(true);
+      expect(Object.values(metrics.editor).every(Number.isInteger)).toBe(true);
+      expect(Object.values(metrics.rightSidebar).every(Number.isInteger)).toBe(true);
+    }
+
+    const fractionalCssTypeSize = /(?:font-size|--[\w-]*(?:font|text|type|heading|md-h\d)[\w-]*size)\s*:[^;\n}]*\d+\.\d+(?:px|em|rem|pt|vw)/i;
+    const fractionalInlineTypeSize = /fontSize\s*[:=]\s*(?:["'{]\s*)?\d+\.\d+/;
+    const relativeCssTypeSize = /font-size\s*:\s*(?:inherit|smaller|larger|[^;\n}]*(?:\d+(?:\.\d+)?(?:em|rem|%)|calc\())/i;
+    const undersizedCssText = /font-size\s*:\s*[1-9]px/i;
+    const roots = ["src", "packages", "electron", "local-api", "sub-themes", "public"];
+    for (const root of roots) {
+      for (const file of sourceFiles(new URL(`../${root}/`, import.meta.url))) {
+        const contents = readFileSync(file, "utf8");
+        expect(contents, file.pathname).not.toMatch(fractionalCssTypeSize);
+        expect(contents, file.pathname).not.toMatch(fractionalInlineTypeSize);
+        expect(contents, file.pathname).not.toMatch(relativeCssTypeSize);
+        expect(contents, file.pathname).not.toMatch(undersizedCssText);
+      }
+    }
+
+    const foundations = source("src/styles/typography/foundations.css");
+    expect(foundations).toMatch(/small\s*\{[^}]*font-size:\s*var\(--po-type-ui-meta, 12px\)/s);
+  });
+
+  it("keeps Right sidebar text sizes behind semantic typography roles", () => {
+    const roots = [
+      "src/features/desktop-agent",
+      "src/features/desktop-terminal",
+      "src/features/app-shell/auxiliary-workbench",
+    ];
+    const directPixelTextSize = /(?:font-size|font)\s*:\s*\d+(?:\.\d+)?px/i;
+
+    for (const root of roots) {
+      for (const file of sourceFiles(new URL(`../${root}/`, import.meta.url))) {
+        if (!file.pathname.endsWith(".css")) continue;
+        expect(readFileSync(file, "utf8"), file.pathname).not.toMatch(directPixelTextSize);
+      }
+    }
   });
 
   it("keeps preferences source-agnostic and resolves unavailable fonts safely", () => {
@@ -189,7 +417,10 @@ describe("typography architecture", () => {
     const markdown = source("packages/shared-ui/src/styles/editor/markdown-editor.css");
     const markdownContent = source("packages/shared-ui/src/styles/editor/markdown-content.css");
     const plainText = source("packages/shared-ui/src/styles/editor/editor-chrome.css");
+    const editableTable = source("packages/shared-ui/src/styles/editor/editable-table.css");
+    const officePreview = source("packages/shared-ui/src/styles/editor/media-office-preview.css");
     const agentTranscript = source("src/features/desktop-agent/ui/styles/transcript.css");
+    const agentActivities = source("src/features/desktop-agent/ui/styles/activities.css");
     const terminalAppearance = source("src/features/desktop-terminal/runtime/terminalAppearance.ts");
     const terminalAppearanceSync = source("src/features/desktop-terminal/runtime/useTerminalAppearanceSync.ts");
     const overlayPortal = source("src/features/app-shell/DesktopOverlayPortal.tsx");
@@ -205,9 +436,18 @@ describe("typography architecture", () => {
     expect(styles).toContain('@import "./styles/typography/locales.css" layer(tokens);');
     expect(styles).toContain('@import "./styles/typography/roles.css" layer(tokens);');
     expect(foundations).toContain('font-family: "Geist Sans";');
-    expect(foundations).toContain("--po-text-size-content: 14px;");
+    expect(foundations).toContain("var(--po-theme-text-size-content, 16px)");
+    expect(foundations).toContain("--po-type-ui-control:");
+    expect(foundations).toContain("--po-type-left-sidebar-content:");
+    expect(foundations).toContain("--po-type-header-content:");
+    expect(foundations).toContain("--po-type-editor-data:");
+    expect(foundations).toContain("--po-type-right-sidebar-meta:");
+    expect(foundations).toContain("--po-type-right-sidebar-caption:");
+    expect(foundations).toContain("--po-type-right-sidebar-micro:");
+    expect(foundations).toContain("--po-right-sidebar-code-font-size:");
+    expect(foundations).toContain("--po-user-text-size-conversation");
     expect(foundations).toContain("--po-text-weight-medium: 500;");
-    expect(foundations).toContain("--po-content-reading-line-height: 1.7142857143;");
+    expect(foundations).toContain("--po-content-reading-line-height: var(--po-type-editor-line-height, 24px);");
     expect(foundations).toContain("--po-content-reading-letter-spacing: 0;");
     expect(roles).toContain("--po-font-ui-primary: \"Geist Sans\";");
     expect(roles).toContain("--po-font-content-primary: \"Geist Sans\";");
@@ -243,9 +483,19 @@ describe("typography architecture", () => {
     expect(markdown).toContain("font-weight: var(--po-md-content-weight);");
     expect(markdown).toContain("font-feature-settings: normal;");
     expect(plainText).toContain("font-family: var(--po-font-editor-content-user, var(--po-font-content, var(--po-font-sans)));");
-    expect(plainText).toContain("font-size: var(--po-text-size-content, 14px);");
+    expect(plainText).toContain("font-size: var(--po-text-size-content, 16px);");
     expect(plainText).toContain("font-weight: var(--po-text-weight-medium);");
+    expect(source("src/features/data-workspace/browser.css"))
+      .toContain("--po-tree-row-font-size: var(--po-type-left-sidebar-content);");
+    expect(source("src/features/data-workspace/browser.css"))
+      .toContain("--po-tree-workspace-group-font-size: var(--po-type-left-sidebar-content);");
+    expect(editableTable).toContain("--po-editable-table-font-size: var(--po-type-editor-data");
+    expect(officePreview).toContain("--office-sheet-default-font-size: var(--po-type-editor-data");
+    expect(officePreview).toContain("font-size: var(--po-type-editor-content");
     expect(agentTranscript).toContain("font-family: var(--po-font-content, var(--po-font-sans));");
+    expect(agentTranscript).toContain("font-size: var(--agent-conversation-font-size);");
+    expect(agentTranscript).toContain("font-size: var(--agent-font-size-meta);");
+    expect(agentActivities).toContain("font-size: var(--agent-code-font-size);");
     expect(terminalAppearance).toContain('getPropertyValue("--po-font-terminal")');
     expect(terminalAppearance).toContain('getPropertyValue("--po-terminal-font-size")');
     expect(terminalAppearanceSync).toContain("subscribeTypographyChanges(document, applyAppearance)");
@@ -279,4 +529,13 @@ describe("typography architecture", () => {
 
 function source(relativePath: string) {
   return readFileSync(new URL(`../${relativePath}`, import.meta.url), "utf8");
+}
+
+function sourceFiles(directory: URL): URL[] {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    if (entry.name === "node_modules" || entry.name === "dist") return [];
+    const child = new URL(entry.name + (entry.isDirectory() ? "/" : ""), directory);
+    if (entry.isDirectory()) return sourceFiles(child);
+    return /\.(?:css|ts|tsx|js|jsx|mjs|cjs|html|svg)$/.test(entry.name) ? [child] : [];
+  });
 }

@@ -167,7 +167,7 @@
   overflow: auto;
   color: var(--po-text);
   font-family: var(--po-font-mono);
-  font-size: 12.5px;
+  font-size: var(--po-text-size-label, 13px);
   line-height: 1.6;
   white-space: pre-wrap;
 }

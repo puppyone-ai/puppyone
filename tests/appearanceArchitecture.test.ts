@@ -167,6 +167,25 @@ describe("appearance profile architecture", () => {
     expect(result.preferences.shared.sidebarNavigationLayout).toBe("left-vertical");
   });
 
+  it("migrates the retired content-size switch into the semantic typography preference", () => {
+    const result = readAppearancePreferences(JSON.stringify({
+      schemaVersion: 5,
+      activeRootThemeId: "default",
+      shared: {
+        textSize: "large",
+        typography: {
+          version: 4,
+          contentFont: { mode: "follow-theme" },
+        },
+      },
+      byRootTheme: {},
+      bySurface: {},
+    }), legacySnapshot());
+
+    expect(result.preferences.shared.textSize).toBe("default");
+    expect(result.preferences.shared.typography.scales.editor).toBe("large");
+  });
+
   it("migrates legacy Light and Dark presets into independent Sub Theme memories", () => {
     const result = readAppearancePreferences(null, {
       ...legacySnapshot(),
@@ -287,12 +306,16 @@ describe("appearance profile architecture", () => {
 
   it("keeps Settings and Shell on the shared resolver rather than Style-ID branches", () => {
     const settings = source("src/features/settings/SettingsView.tsx");
+    const typographySettings = source("src/features/settings/main/TypographySettingsView.tsx");
     const preferences = source("src/features/app-shell/useDesktopPreferences.ts");
     const shell = source("src/features/app-shell/DesktopDataWorkspaceSurface.tsx");
 
     expect(preferences).toContain("resolveAppearance({");
     expect(settings).toContain("resolvedAppearance.decisions.sidebarNavigationLayout");
-    expect(settings).toContain("resolvedAppearance.decisions.textSize");
+    expect(settings).not.toContain("<TypographyScaleSetting");
+    expect(typographySettings).toContain("<TypographyScaleSetting");
+    expect(typographySettings).toContain("preferences={typographyPreferences}");
+    expect(settings).not.toContain("onLegacyContentSizeChange");
     expect(settings).toContain("resolvedAppearance.decisions.fileIconTheme");
     expect(settings).not.toContain("editorPresentation");
     expect(preferences).not.toContain("editorPresentation");

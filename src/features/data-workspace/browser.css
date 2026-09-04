@@ -12,7 +12,7 @@
 .section-kicker {
   display: block;
   color: var(--po-text-subtle);
-  font-size: 10.5px;
+  font-size: var(--po-text-size-caption, 11px);
   font-weight: 800;
   line-height: 1.4;
   text-transform: uppercase;
@@ -287,13 +287,13 @@
   --po-tree-row-content-left: var(--desktop-sidebar-row-content-left);
   --po-tree-row-content-right: var(--desktop-sidebar-row-content-right);
   --po-tree-row-icon-label-gap: var(--desktop-sidebar-icon-label-gap);
-  --po-tree-row-font-size: var(--desktop-sidebar-font-size);
+  --po-tree-row-font-size: var(--po-type-left-sidebar-content);
   --po-tree-row-font-weight: var(--desktop-sidebar-font-weight);
-  --po-tree-row-line-height: var(--desktop-sidebar-line-height);
+  --po-tree-row-line-height: var(--po-type-left-sidebar-line-height);
   --po-tree-workspace-group-color: var(--desktop-sidebar-section-title-color);
-  --po-tree-workspace-group-font-size: var(--desktop-sidebar-section-title-font-size);
+  --po-tree-workspace-group-font-size: var(--po-type-left-sidebar-content);
   --po-tree-workspace-group-font-weight: var(--desktop-sidebar-section-title-font-weight);
-  --po-tree-workspace-group-line-height: var(--desktop-sidebar-section-title-line-height);
+  --po-tree-workspace-group-line-height: var(--po-type-left-sidebar-line-height);
   --po-tree-workspace-group-divider: var(--po-sidebar-divider, var(--po-divider));
   --po-tree-root-top-gap: var(--desktop-sidebar-section-top-gap);
   --po-tree-no-root-top-gap: var(--desktop-sidebar-list-padding-block);
@@ -408,7 +408,7 @@
 }
 
 .desktop-data-workspace-wrap .tree-row.root .tree-label {
-  font-size: var(--desktop-sidebar-font-size, var(--po-text-size-sidebar, 13px));
+  font-size: var(--po-type-left-sidebar-content, 14px);
   font-weight: 600;
-  line-height: var(--desktop-sidebar-line-height, 18px);
+  line-height: var(--po-type-left-sidebar-line-height, 19px);
 }

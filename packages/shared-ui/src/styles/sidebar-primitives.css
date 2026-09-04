@@ -133,7 +133,7 @@
   padding-block: 0;
   padding-inline: var(--desktop-sidebar-row-content-left) var(--desktop-sidebar-row-content-right);
   color: var(--po-text-subtle);
-  font-size: 12.5px;
+  font-size: var(--po-text-size-label, 13px);
 }
 
 .po-sidebar-empty.vertical {
@@ -162,12 +162,12 @@
 .po-sidebar-empty.compact {
   min-height: 26px;
   padding-inline-start: calc(var(--desktop-sidebar-row-content-left) + 20px);
-  font-size: 12px;
+  font-size: var(--po-text-size-meta, 12px);
 }
 
 .po-sidebar-error-text {
   color: var(--po-danger);
-  font-size: 11.5px;
+  font-size: var(--po-text-size-hint, 12px);
   line-height: 1.35;
 }
 

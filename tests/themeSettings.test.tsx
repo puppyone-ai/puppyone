@@ -50,7 +50,7 @@ describe("Sub Theme settings", () => {
     const app = source("src/App.tsx");
     const surface = source("src/features/settings/SettingsWorkspaceSurface.tsx");
     const view = source("src/features/settings/SettingsView.tsx");
-    const editor = source("src/features/settings/main/EditorSettingsView.tsx");
+    const typography = source("src/features/settings/main/TypographySettingsView.tsx");
 
     expect(app).toContain("subThemeCatalog={subThemeCatalog}");
     expect(surface).toContain("subThemeCatalog: SubThemeCatalogController");
@@ -61,6 +61,6 @@ describe("Sub Theme settings", () => {
     expect(view).toContain("requestedSubThemeId={requestedSubThemeId}");
     expect(view.indexOf("<SubThemeSettingsSection")).toBeGreaterThan(view.indexOf('activeSection === "appearance"'));
     expect(view.indexOf("<SubThemeSettingsSection")).toBeGreaterThan(view.indexOf("<InterfacePaletteSettings"));
-    expect(editor).not.toContain("ThemeSettingsSection");
+    expect(typography).not.toContain("ThemeSettingsSection");
   });
 });

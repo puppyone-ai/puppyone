@@ -22,7 +22,7 @@
 .desktop-create-new-group-title {
   display: block;
   color: var(--po-text-muted);
-  font-size: 12.5px;
+  font-size: var(--po-text-size-label, 13px);
   font-weight: var(--po-text-weight-regular, 400);
   line-height: 18px;
 }
@@ -48,7 +48,7 @@
   padding-inline: 8px;
   border-radius: 6px;
   color: var(--po-text-muted);
-  font-size: 12.5px;
+  font-size: var(--po-text-size-label, 13px);
   font-weight: var(--po-text-weight-regular, 400);
   line-height: 18px;
 }
@@ -202,7 +202,7 @@
   margin: 0 8px;
   border-radius: 5px;
   color: var(--po-text-subtle);
-  font-size: 11.5px;
+  font-size: var(--po-text-size-hint, 12px);
   line-height: 16px;
   text-align: center;
 }

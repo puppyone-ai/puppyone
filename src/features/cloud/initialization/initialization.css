@@ -332,7 +332,7 @@
 
 .desktop-cloud-publish-summary strong {
   color: var(--po-text-muted);
-  font-size: 12.5px;
+  font-size: var(--po-text-size-label, 13px);
   font-weight: 600;
   line-height: 1.45;
 }
@@ -475,7 +475,7 @@
   margin: 0;
   padding-inline-start: 42px;
   color: color-mix(in srgb, var(--po-text-subtle) 86%, transparent);
-  font-size: 11.5px;
+  font-size: var(--po-text-size-hint, 12px);
   line-height: 1.5;
   text-align: start;
 }

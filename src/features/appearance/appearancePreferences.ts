@@ -28,6 +28,7 @@ import {
   type ResolvedTheme,
 } from "./interfaceStyles";
 import { isSubThemeId, normalizeSubThemeId } from "../themes/subThemePreferences";
+import { withTypographyScale } from "../typography";
 
 export { APPEARANCE_PREFERENCES_STORAGE_KEY };
 
@@ -235,13 +236,18 @@ function normalizeShared(
   legacy: LegacyAppearanceSnapshot,
 ): AppearanceSharedPreferences {
   const rawFileIconTheme = typeof shared.fileIconTheme === "string" ? shared.fileIconTheme : null;
-  return {
-    textSize: parseTextSize(asString(shared.textSize) ?? legacy.textSize),
-    typography: parseTypography(
+  const legacyTextSize = parseTextSize(asString(shared.textSize) ?? legacy.textSize);
+  const typography = migrateLegacyContentSize(
+    parseTypography(
       shared.typography === undefined
         ? JSON.stringify(legacy.typography)
         : JSON.stringify(shared.typography),
     ),
+    legacyTextSize,
+  );
+  return {
+    textSize: "default",
+    typography,
     pointerCursors: typeof shared.pointerCursors === "boolean"
       ? shared.pointerCursors
       : parsePointerCursors(String(legacy.pointerCursors)),
@@ -259,13 +265,21 @@ function normalizeShared(
 
 function sharedFromLegacy(legacy: LegacyAppearanceSnapshot): AppearanceSharedPreferences {
   return {
-    textSize: legacy.textSize,
-    typography: legacy.typography,
+    textSize: "default",
+    typography: migrateLegacyContentSize(legacy.typography, legacy.textSize),
     pointerCursors: legacy.pointerCursors,
     loadingAnimationPreset: legacy.loadingAnimationPreset,
     fileIconTheme: legacy.fileIconTheme,
     sidebarNavigationLayout: legacy.sidebarNavigationLayout,
   };
+}
+
+function migrateLegacyContentSize(
+  typography: TypographyPreferences,
+  textSize: TextSize,
+): TypographyPreferences {
+  if (textSize === "default") return typography;
+  return withTypographyScale(typography, "editor", textSize === "small" ? "small" : "large");
 }
 
 function createDefaultRootThemePreferences({

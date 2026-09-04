@@ -43,7 +43,7 @@
   background: transparent;
   color: var(--po-text);
   font: inherit;
-  font-size: 12.5px;
+  font-size: var(--po-text-size-label, 13px);
 }
 
 .editor-find-widget input::placeholder {

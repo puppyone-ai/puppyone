@@ -16,7 +16,7 @@
   border-radius: 6px;
   background: transparent;
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-text-size-meta, 12px);
   font-weight: var(--po-text-weight-medium, 500);
 }
 
@@ -65,7 +65,7 @@
 .desktop-theme-settings-error {
   margin: 0;
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-text-size-meta, 12px);
   line-height: 1.45;
 }
 
@@ -81,7 +81,7 @@
   gap: 8px;
   padding-inline: 10px;
   color: var(--po-text-subtle);
-  font-size: 11.5px;
+  font-size: var(--po-text-size-hint, 12px);
   line-height: 1.45;
 }
 
@@ -175,7 +175,7 @@
   margin: 8px 0 0;
   width: min(100%, 360px);
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-text-size-meta, 12px);
   line-height: 1.45;
   text-align: end;
 }
@@ -206,7 +206,7 @@
   margin: 0;
   padding-inline-start: 20px;
   color: var(--po-text-muted);
-  font-size: 11.5px;
+  font-size: var(--po-text-size-hint, 12px);
   line-height: 1.45;
 }
 
@@ -236,7 +236,7 @@
   min-width: 0;
   overflow: hidden;
   color: var(--po-text);
-  font-size: 12.5px;
+  font-size: var(--po-text-size-label, 13px);
   font-weight: 400;
   text-align: end;
   text-overflow: ellipsis;
@@ -249,15 +249,8 @@
   padding: 0;
 }
 
-.desktop-content-font-segment,
-.desktop-markdown-font-segment {
-  max-width: 50%;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.desktop-editor-typography-preview.markdown-codemirror-editor {
-  container-name: desktop-editor-typography-preview;
+.desktop-typography-preview.markdown-codemirror-editor {
+  container-name: desktop-typography-preview;
   width: auto;
   height: auto;
   min-height: 0;
@@ -268,23 +261,16 @@
   cursor: default;
 }
 
-.desktop-editor-typography-preview .cm-md-html-rendered-surface {
+.desktop-typography-preview .cm-md-html-rendered-surface {
   padding: 22px 24px;
 }
 
-.desktop-editor-typography-preview .desktop-editor-typography-preview-body {
+.desktop-typography-preview .desktop-typography-preview-body {
   margin-block-end: 0;
 }
 
-@media (max-width: 760px) {
-  .desktop-content-font-segment,
-  .desktop-markdown-font-segment {
-    max-width: 100%;
-  }
-}
-
 @container (max-width: 560px) {
-  .desktop-editor-typography-preview .cm-md-html-rendered-surface {
+  .desktop-typography-preview .cm-md-html-rendered-surface {
     padding: 18px;
   }
 }
@@ -323,7 +309,7 @@
   align-items: center;
   gap: 7px;
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-text-size-meta, 12px);
   font-weight: var(--po-text-weight-regular, 400);
 }
 
@@ -361,7 +347,7 @@
   border-radius: 5px;
   background: transparent;
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-text-size-meta, 12px);
   font-weight: var(--po-text-weight-regular, 400);
 }
 
@@ -405,7 +391,7 @@
   border-radius: 8px;
   background: color-mix(in srgb, var(--po-panel-raised) 82%, transparent);
   color: var(--po-text-muted);
-  font-size: 11.5px;
+  font-size: var(--po-text-size-hint, 12px);
   font-weight: var(--po-text-weight-regular, 400);
   text-align: start;
 }
@@ -549,8 +535,25 @@
   grid-column: 2;
   width: min(100%, 360px);
   color: var(--po-text-muted);
-  font-size: var(--po-font-size-caption);
+  font-size: var(--po-text-size-caption, 11px);
   line-height: 1.3;
+}
+
+.desktop-typography-scale-help {
+  margin: 0 10px 4px;
+  color: var(--po-text-subtle);
+  font-size: var(--po-text-size-caption, 11px);
+  line-height: 1.4;
+}
+
+.desktop-typography-scale-list {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.desktop-typography-scale-segment button:first-child {
+  padding-inline: 9px;
 }
 
 @media (max-width: 760px) {
@@ -594,18 +597,18 @@
 .desktop-markdown-theme-summary span,
 .desktop-markdown-presentation-toolbar > span {
   color: var(--po-text-muted);
-  font-size: 11px;
+  font-size: var(--po-text-size-caption, 11px);
   font-weight: 600;
 }
 
 .desktop-markdown-theme-summary strong {
   color: var(--po-text);
-  font-size: 13px;
+  font-size: var(--po-text-size-interface, 13px);
 }
 
 .desktop-markdown-theme-summary small {
   color: var(--po-text-subtle);
-  font-size: 11px;
+  font-size: var(--po-text-size-caption, 11px);
   line-height: 1.35;
 }
 
@@ -651,14 +654,14 @@
 
 .desktop-markdown-presentation-setting__copy > span {
   color: var(--po-text-muted);
-  font-size: 12.5px;
+  font-size: var(--po-text-size-label, 13px);
   font-weight: var(--po-text-weight-medium, 500);
   line-height: 18px;
 }
 
 .desktop-markdown-presentation-setting__copy > small {
   color: var(--po-text-subtle);
-  font-size: 11px;
+  font-size: var(--po-text-size-caption, 11px);
   line-height: 1.35;
 }
 

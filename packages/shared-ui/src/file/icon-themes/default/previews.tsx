@@ -55,7 +55,7 @@ export function renderDefaultPreview(
             overflow: "hidden",
             color: context.kind === "json" ? "var(--po-file-accent-json)" : "var(--po-text-muted)",
             fontFamily: "var(--po-font-sans)",
-            fontSize: Math.max(4, context.size * 0.078),
+            fontSize: Math.round(Math.max(4, context.size * 0.078)),
             lineHeight: 1.45,
             whiteSpace: "pre-wrap",
             wordBreak: "break-word",

@@ -284,14 +284,14 @@ export const TEXT_SIZE_PRESETS = [
   {
     value: "small",
     label: "Small",
-    description: "Editor content 13px.",
-    sizes: { content: 13 },
+    description: "Editor content 14px.",
+    sizes: { content: 14 },
   },
   {
     value: "default",
     label: "Default",
-    description: "Editor content 14px.",
-    sizes: { content: 14 },
+    description: "Editor content 15px.",
+    sizes: { content: 15 },
   },
   {
     value: "large",

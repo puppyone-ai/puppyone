@@ -151,7 +151,7 @@
   border-radius: 3px;
   background: color-mix(in srgb, var(--po-success) 12%, transparent);
   color: var(--po-success);
-  font-size: 9px;
+  font-size: var(--po-text-size-micro, 10px);
   font-weight: 620;
   line-height: 1;
   text-overflow: ellipsis;
@@ -269,7 +269,7 @@
   border-radius: 5px;
   background: transparent;
   color: var(--po-text-subtle);
-  font-size: 10.5px;
+  font-size: var(--po-text-size-caption, 11px);
   font-weight: 550;
 }
 

@@ -17,6 +17,7 @@ export type DesktopMenuSurfaceProps = HTMLAttributes<HTMLDivElement> & {
   elevation?: "default" | "compact";
   style?: CSSProperties;
   tone?: "default" | "quiet";
+  typographySurface?: "ui" | "header" | "editor" | "left-sidebar" | "right-sidebar";
 };
 
 export const DesktopMenuSurface = forwardRef<HTMLDivElement, DesktopMenuSurfaceProps>(function DesktopMenuSurface(
@@ -27,6 +28,7 @@ export const DesktopMenuSurface = forwardRef<HTMLDivElement, DesktopMenuSurfaceP
     elevation = "default",
     role = "menu",
     tone = "default",
+    typographySurface = "ui",
     ...props
   },
   ref,
@@ -41,6 +43,7 @@ export const DesktopMenuSurface = forwardRef<HTMLDivElement, DesktopMenuSurfaceP
       aria-label={ariaLabel}
       data-menu-elevation={elevation === "compact" ? elevation : undefined}
       data-menu-tone={tone === "quiet" ? tone : undefined}
+      data-menu-typography-surface={typographySurface}
       data-native-surface-occluder="true"
       data-po-scrollbar="menu"
       data-window-no-drag="true"

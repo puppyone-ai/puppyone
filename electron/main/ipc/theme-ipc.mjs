@@ -38,10 +38,11 @@ const SUB_THEME_ID_PATTERN = /^[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*){2,}$/;
 const BUILTIN_SUB_THEME_ID_PATTERN = /^[a-z][a-z0-9-]*\.[a-z][a-z0-9-]*$/;
 
 function parseThemeMenuState(value) {
-  const targets = ["application", "markdown", "csv"];
+  const targets = ["application", "typography", "markdown", "csv"];
+  const defaultRequiredTargets = ["application", "markdown", "csv"];
   const requiredTargets = Array.isArray(value?.requiredTargets)
     ? parseThemeTargets(value.requiredTargets, targets)
-    : [...targets];
+    : defaultRequiredTargets;
   const pack = parseThemeId(value?.pack) ?? FALLBACK_SUB_THEME_ID;
   const themes = [];
   const knownIds = new Set();

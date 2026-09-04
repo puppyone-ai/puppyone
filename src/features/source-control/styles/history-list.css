@@ -259,7 +259,7 @@
   border-radius: 3px;
   background: color-mix(in srgb, var(--po-success) 7%, transparent);
   color: color-mix(in srgb, var(--po-success) 52%, var(--po-text-muted));
-  font-size: 9px;
+  font-size: var(--po-text-size-micro, 10px);
   font-weight: 620;
   line-height: 1;
 }

@@ -65,13 +65,13 @@
 
 .desktop-git-sidebar-empty-history strong {
   color: var(--po-text-muted);
-  font-size: 12.5px;
+  font-size: var(--po-text-size-label, 13px);
   font-weight: 620;
 }
 
 .desktop-git-sidebar-empty-history span {
   color: var(--po-text-subtle);
-  font-size: 11.5px;
+  font-size: var(--po-text-size-hint, 12px);
   font-weight: 500;
   line-height: 1.35;
 }

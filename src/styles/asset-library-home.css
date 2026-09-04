@@ -47,7 +47,7 @@
 .asset-library-home-heading p {
   margin: 0;
   color: var(--po-text-subtle);
-  font-size: 11.5px;
+  font-size: var(--po-text-size-hint, 12px);
   font-weight: 520;
   line-height: 1.4;
 }
@@ -147,7 +147,7 @@
 
 .asset-library-home-create-menu small {
   color: var(--po-text-subtle);
-  font-size: 10.5px;
+  font-size: var(--po-text-size-caption, 11px);
   font-weight: 500;
 }
 
@@ -201,7 +201,7 @@
   border-radius: 8px;
   background: color-mix(in srgb, var(--po-panel-raised) 54%, transparent);
   color: var(--po-text-muted);
-  font-size: 11.5px;
+  font-size: var(--po-text-size-hint, 12px);
 }
 
 .asset-library-home-operation > span:last-child {
@@ -402,7 +402,7 @@
   min-width: 0;
   overflow: hidden;
   color: var(--po-text-subtle);
-  font-size: 10.5px;
+  font-size: var(--po-text-size-caption, 11px);
   font-weight: 520;
   line-height: 1.3;
   text-align: end;
@@ -450,7 +450,7 @@
   box-shadow: 0 0 0 transparent;
   cursor: var(--po-clickable-cursor, default);
   font: inherit;
-  font-size: 11.5px;
+  font-size: var(--po-text-size-hint, 12px);
   font-weight: 580;
   transition:
     background 150ms ease,

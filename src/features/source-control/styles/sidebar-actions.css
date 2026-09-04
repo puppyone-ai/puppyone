@@ -121,7 +121,7 @@
 
 .desktop-git-remote-prompt > div:first-child > span {
   color: var(--po-text);
-  font-size: 12.5px;
+  font-size: var(--po-text-size-label, 13px);
   font-weight: 680;
 }
 

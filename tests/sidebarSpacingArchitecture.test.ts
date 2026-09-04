@@ -257,11 +257,11 @@ describe("sidebar spacing architecture", () => {
     expect(adapter).toContain("--po-tree-no-root-top-gap: var(--desktop-sidebar-list-padding-block);");
     expect(adapter).toContain("--po-tree-list-bottom-gap: var(--desktop-sidebar-list-padding-block);");
     expect(adapter).toContain("--po-tree-row-icon-label-gap: var(--desktop-sidebar-icon-label-gap);");
-    expect(adapter).toContain("--po-tree-row-font-size: var(--desktop-sidebar-font-size);");
+    expect(adapter).toContain("--po-tree-row-font-size: var(--po-type-left-sidebar-content);");
     expect(adapter).toContain("--po-tree-row-font-weight: var(--desktop-sidebar-font-weight);");
-    expect(adapter).toContain("--po-tree-row-line-height: var(--desktop-sidebar-line-height);");
+    expect(adapter).toContain("--po-tree-row-line-height: var(--po-type-left-sidebar-line-height);");
     expect(adapter).toContain("--po-tree-workspace-group-color: var(--desktop-sidebar-section-title-color);");
-    expect(adapter).toContain("--po-tree-workspace-group-font-size: var(--desktop-sidebar-section-title-font-size);");
+    expect(adapter).toContain("--po-tree-workspace-group-font-size: var(--po-type-left-sidebar-content);");
     expect(adapter).toContain("--po-tree-workspace-group-font-weight: var(--desktop-sidebar-section-title-font-weight);");
     expect(workspaceGroupHeader).toContain("color: var(--tree-workspace-group-color);");
     expect(workspaceGroupHeader).toContain("font-size: var(--tree-workspace-group-font-size);");

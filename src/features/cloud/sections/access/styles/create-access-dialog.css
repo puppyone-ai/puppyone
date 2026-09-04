@@ -62,7 +62,7 @@
 .desktop-cloud-create-access-intent-header strong {
   color: var(--po-text);
   font-family: var(--po-font-sans);
-  font-size: 17px;
+  font-size: var(--po-text-size-heading, 18px);
   font-weight: 650;
   letter-spacing: 0;
   line-height: 22px;

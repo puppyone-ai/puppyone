@@ -354,7 +354,7 @@
 ) {
   color: inherit;
   font-family: inherit;
-  font-size: inherit;
+  font-size: var(--po-type-editor-content, 15px);
   font-style: normal;
   font-weight: inherit;
   text-decoration: none;
@@ -432,7 +432,7 @@
 .markdown-codemirror-editor .cm-md-task-line {
   --md-task-checkbox-size: 1.05em;
   --md-task-checkbox-hit-size: 24px;
-  /* Checkbox (~14.7px) + ~9px gap to the text — the to-do list convention;
+  /* Checkbox (~15px) + ~9px gap to the text — the to-do list convention;
      wider gaps read as disconnected. */
   --md-task-prefix-width: calc(24px + var(--md-list-depth, 0) * 16px);
   position: relative;

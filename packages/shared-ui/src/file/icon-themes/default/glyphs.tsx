@@ -145,7 +145,7 @@ function renderDefaultJsonGlyph({
 }: FileIconRenderContext): ReactNode {
   return (
     <svg width={size} height={size} viewBox="0 0 18 18" fill="none" aria-hidden>
-      <text x="9" y="12.35" textAnchor="middle" fontSize="9.5" fontWeight="800" fontFamily="var(--po-font-sans)" fill={color}>
+      <text x="9" y="12.35" textAnchor="middle" fontSize="10" fontWeight="800" fontFamily="var(--po-font-sans)" fill={color}>
         {"{}"}
       </text>
     </svg>

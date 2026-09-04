@@ -430,7 +430,7 @@
 .cm-md-table-context-menu .desktop-menu-item-trailing {
   flex: 0 0 auto;
   color: var(--po-text-disabled);
-  font-size: 11.5px;
+  font-size: var(--po-text-size-hint, 12px);
   font-weight: 650;
   text-transform: uppercase;
 }

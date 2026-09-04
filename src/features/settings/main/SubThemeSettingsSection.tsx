@@ -14,18 +14,18 @@ export function SubThemeSettingsSection({
   requestedSubThemeId,
   effectiveSubThemeId,
   effectiveColorMode,
-  markdownFontOverrideActive = false,
+  contentFontOverrideActive = false,
   onSubThemeChange,
-  onUseThemeMarkdownFont,
+  onUseThemeContentFont,
 }: {
   catalog: SubThemeCatalogController;
   rootThemeId: InterfaceStyle;
   requestedSubThemeId: string;
   effectiveSubThemeId: string;
   effectiveColorMode: ResolvedTheme;
-  markdownFontOverrideActive?: boolean;
+  contentFontOverrideActive?: boolean;
   onSubThemeChange: (subThemeId: string) => void;
-  onUseThemeMarkdownFont?: () => void;
+  onUseThemeContentFont?: () => void;
 }) {
   const { t } = useLocalization();
   const allowedTargets = getInterfaceStyleSubThemePolicy(rootThemeId).allowedTargets;
@@ -98,10 +98,10 @@ export function SubThemeSettingsSection({
           </div>
         </div>
       </div>
-      {markdownFontOverrideActive && onUseThemeMarkdownFont && (
+      {contentFontOverrideActive && onUseThemeContentFont && (
         <div className="desktop-theme-font-override" role="status">
-          <span>{t("settings.appearance.themes.markdownFontOverride")}</span>
-          <button type="button" onClick={onUseThemeMarkdownFont}>
+          <span>{t("settings.appearance.themes.contentFontOverride")}</span>
+          <button type="button" onClick={onUseThemeContentFont}>
             {t("settings.appearance.themes.useThemeFont")}
           </button>
         </div>

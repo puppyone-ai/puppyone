@@ -108,7 +108,7 @@ button.desktop-cloud-branch-graph-row {
 .desktop-cloud-branch-graph-ref-count {
   fill: var(--po-canvas);
   font-family: var(--po-font-sans);
-  font-size: 7.5px;
+  font-size: var(--po-text-size-glyph, 8px);
   font-weight: 800;
   dominant-baseline: central;
   text-anchor: middle;
@@ -150,7 +150,7 @@ button.desktop-cloud-branch-graph-row {
   background: color-mix(in srgb, var(--po-control) 45%, transparent);
   color: var(--po-text-disabled);
   font-family: var(--po-font-mono);
-  font-size: 10.5px;
+  font-size: var(--po-text-size-caption, 11px);
   font-weight: 620;
   letter-spacing: 0;
   line-height: 1;
@@ -280,7 +280,7 @@ button.desktop-cloud-branch-graph-row {
   --cloud-branches-row-height: 30px;
   --cloud-branches-continuation-height: 8px;
   --cloud-branches-text-size: 13px;
-  --cloud-branches-meta-size: 11.5px;
+  --cloud-branches-meta-size: 12px;
   --cloud-branches-label-size: 11px;
 
   display: flex;

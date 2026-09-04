@@ -53,7 +53,7 @@
 
 .desktop-dialog-title-row h2 {
   color: var(--po-text-muted);
-  font-size: 13px;
+  font-size: var(--po-text-size-interface, 13px);
   font-weight: 500;
   line-height: 18px;
 }
@@ -61,7 +61,7 @@
 .desktop-dialog-title-row p {
   margin-top: 4px;
   color: var(--po-text-muted);
-  font-size: 13px;
+  font-size: var(--po-text-size-interface, 13px);
   line-height: 18px;
 }
 
@@ -136,7 +136,7 @@
   overflow: auto;
   padding: 12px 24px 18px;
   color: var(--po-text-muted);
-  font-size: 13px;
+  font-size: var(--po-text-size-interface, 13px);
   line-height: 20px;
 }
 
@@ -159,7 +159,7 @@
   border-radius: 6px;
   background: color-mix(in srgb, var(--po-warning) 14%, transparent);
   color: var(--po-warning);
-  font-size: 12px;
+  font-size: var(--po-text-size-meta, 12px);
   font-weight: 750;
 }
 
@@ -169,20 +169,20 @@
 
 .desktop-dialog-note {
   color: var(--po-text-subtle);
-  font-size: 12px;
+  font-size: var(--po-text-size-meta, 12px);
   line-height: 18px;
 }
 
 .desktop-dialog-error {
   color: var(--po-danger);
-  font-size: 12px;
+  font-size: var(--po-text-size-meta, 12px);
   line-height: 18px;
 }
 
 .desktop-git-error-dialog-message {
   margin: 0;
   color: var(--po-text-muted);
-  font-size: 13px;
+  font-size: var(--po-text-size-interface, 13px);
   line-height: 20px;
   white-space: pre-wrap;
   word-break: break-word;
@@ -199,7 +199,7 @@
 
 .desktop-git-error-dialog-raw > span {
   color: var(--po-text-subtle);
-  font-size: 12px;
+  font-size: var(--po-text-size-meta, 12px);
   font-weight: 650;
 }
 
@@ -213,7 +213,7 @@
   background: color-mix(in srgb, var(--po-text) 7%, transparent);
   color: var(--po-text-muted);
   font-family: var(--po-font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
-  font-size: 11.5px;
+  font-size: var(--po-text-size-hint, 12px);
   line-height: 17px;
   white-space: pre-wrap;
   word-break: break-word;
@@ -244,7 +244,7 @@
   background: transparent;
   color: var(--po-text-muted);
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--po-text-size-interface, 13px);
   font-weight: 500;
   line-height: 1;
   white-space: nowrap;

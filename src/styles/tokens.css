@@ -206,6 +206,16 @@
   --po-menu-shadow: var(--po-elevation-popover);
 }
 
+/* Left-sidebar scaling is intentionally bounded to left-side navigation and
+ * shell-hosted navigation. Header and right-sidebar controls retain their own
+ * typography contracts instead of inheriting this setting. */
+:where(.explorer-column, .desktop-settings-sidebar, .desktop-shell-navigation-toolbar-host) {
+  --desktop-sidebar-font-size: var(--po-type-left-sidebar-content);
+  --desktop-sidebar-font-size-meta: var(--po-type-left-sidebar-meta);
+  --desktop-sidebar-section-title-font-size: var(--po-type-left-sidebar-meta);
+  --desktop-sidebar-line-height: var(--po-type-left-sidebar-line-height);
+}
+
 .dark {
   color-scheme: dark;
   --po-project-card-tab: color-mix(in srgb, var(--po-panel-raised) 84%, var(--po-canvas) 16%);

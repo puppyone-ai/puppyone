@@ -189,7 +189,7 @@ body.desktop-git-sidebar-resizing {
 
 .desktop-git-sidebar-tabs small {
   color: var(--po-text-subtle);
-  font-size: 10.5px;
+  font-size: var(--po-text-size-caption, 11px);
   font-weight: 520;
 }
 

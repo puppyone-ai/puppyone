@@ -289,7 +289,7 @@
   box-shadow:
     0 1px 2px color-mix(in srgb, var(--po-shadow) 12%, transparent),
     0 12px 32px color-mix(in srgb, var(--po-shadow) 13%, transparent);
-  font-size: 13px;
+  font-size: var(--po-type-editor-content, var(--po-text-size-content, 16px));
   line-height: 1.65;
 }
 
@@ -303,15 +303,15 @@
 }
 
 .office-document-page h1 {
-  font-size: 22px;
+  font-size: var(--po-type-editor-heading-1, 30px);
 }
 
 .office-document-page h2 {
-  font-size: 18px;
+  font-size: var(--po-type-editor-heading-2, 23px);
 }
 
 .office-document-page h3 {
-  font-size: 15px;
+  font-size: var(--po-type-editor-heading-3, 19px);
 }
 
 .office-document-page p,
@@ -341,7 +341,7 @@
   --office-sheet-grid-subtle: #edf0f2;
   --office-sheet-header: #f3f4f6;
   --office-sheet-default-font-family: "Aptos", "Calibri", "Segoe UI", Arial, sans-serif;
-  --office-sheet-default-font-size: 12.5px;
+  --office-sheet-default-font-size: var(--po-type-editor-data, var(--po-text-size-data, 13px));
   box-sizing: border-box;
   display: flex;
   flex: 1;
@@ -440,7 +440,7 @@
 .office-spreadsheet-formula-bar__fx {
   color: var(--po-text-subtle);
   font-family: Georgia, "Times New Roman", serif;
-  font-size: 19px;
+  font-size: var(--po-type-editor-heading-3, 19px);
   font-style: italic;
 }
 
@@ -998,7 +998,7 @@
 .office-pptx-text-slide h2 {
   margin: 0 0 8px;
   color: inherit;
-  font-size: clamp(20px, 3vw, 36px);
+  font-size: var(--po-type-editor-heading-1, 30px);
   font-weight: 600;
   line-height: 1.35;
 }
@@ -1007,7 +1007,7 @@
 .office-pptx-text-slide p {
   margin: 0;
   color: #555;
-  font-size: clamp(13px, 1.6vw, 20px);
+  font-size: var(--po-type-editor-content, var(--po-text-size-content, 15px));
   line-height: 1.5;
 }
 
