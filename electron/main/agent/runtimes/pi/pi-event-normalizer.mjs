@@ -82,7 +82,7 @@ export function normalizePiHistory(messages, providerSessionId) {
     if (!turnId) return;
     events.push(event("turn.completed", { turnId, providerSessionId }, null, {
       status: "completed",
-      historical: true,
+      restored: true,
     }));
     turnId = null;
     tools.clear();
@@ -95,7 +95,7 @@ export function normalizePiHistory(messages, providerSessionId) {
       events.push(event("turn.started", { turnId, providerSessionId }, null, {
         status: "running",
         prompt: messageText(message),
-        historical: true,
+        restored: true,
       }));
       continue;
     }
@@ -104,7 +104,7 @@ export function normalizePiHistory(messages, providerSessionId) {
       turnId = `pi:history:${turnNumber}`;
       events.push(event("turn.started", { turnId, providerSessionId }, null, {
         status: "running",
-        historical: true,
+        restored: true,
       }));
     }
     const state = createPiEventState({ turnId, providerSessionId });
@@ -117,7 +117,7 @@ export function normalizePiHistory(messages, providerSessionId) {
       events.push(event("tool.completed", state, toolCallId, {
         ...toolPayload(metadata.toolName, metadata.args, message.isError ? "failed" : "completed"),
         outputPreview: resultText(message).slice(-32 * 1024),
-        historical: true,
+        restored: true,
       }));
     }
   }
@@ -317,17 +317,16 @@ function messageText(message) {
 
 function normalizeUsage(value) {
   return boundRendererValue({
-    input: nonNegativeNumber(value?.input),
-    output: nonNegativeNumber(value?.output),
-    cacheRead: nonNegativeNumber(value?.cacheRead),
-    cacheWrite: nonNegativeNumber(value?.cacheWrite),
+    inputTokens: nonNegativeNumber(value?.input),
+    outputTokens: nonNegativeNumber(value?.output),
+    cachedTokens: nonNegativeNumber(value?.cacheRead) + nonNegativeNumber(value?.cacheWrite),
     totalTokens: nonNegativeNumber(value?.totalTokens),
     cost: value?.cost ?? null,
   });
 }
 
 function withHistorical(value) {
-  return { ...value, payload: { ...value.payload, historical: true } };
+  return { ...value, payload: { ...value.payload, restored: true } };
 }
 
 function event(type, state, itemId, payload) {

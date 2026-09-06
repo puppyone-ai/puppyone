@@ -1,50 +1,19 @@
-import { createAgentEventEnvelope, countTextBytes, redactSecretText } from "../agent-events.mjs";
+import { redactSecretText } from "../agent-events.mjs";
 import { normalizeAgentEventWorkspacePaths } from "../domain/agent-event-workspace-paths.mjs";
 
-const MAX_REPLAY_EVENTS = 1_000;
-const MAX_REPLAY_BYTES = 2 * 1024 * 1024;
 const PERSIST_DEBOUNCE_MS = 750;
 
-/** Owns bounded live-event delivery and process-local recovery snapshots. */
+/** Commits canonical facts and schedules process-local recovery snapshots. */
 export function createAgentEventJournal({ sessionCache, logger = console }) {
-  function sendSessionExit(session, reason) {
-    if (session.sender?.isDestroyed?.()) return;
-    try {
-      session.sender.send("agent:session-exit", { sessionId: session.id, reason });
-    } catch (error) {
-      logger.warn?.("Unable to deliver Desktop Agent session-exit:", redactSecretText(error?.message || String(error)));
-    }
-  }
-
-  function emit(session, adapterEvent, { deliver = true } = {}) {
+  function emit(session, adapterEvent) {
     const normalizedEvent = normalizeAgentEventWorkspacePaths(adapterEvent, session.workspaceRoot);
-    const envelope = createAgentEventEnvelope({
-      sequence: ++session.sequence,
+    const envelope = session.actor.appendEvent({
       sessionId: session.id,
       runtimeId: session.runtimeId,
       providerSessionId: normalizedEvent.providerSessionId ?? session.providerSessionId,
-      turnId: normalizedEvent.turnId ?? null,
-      itemId: normalizedEvent.itemId ?? null,
-      type: normalizedEvent.type,
-      payload: normalizedEvent.payload ?? {},
+      event: normalizedEvent,
     });
-    session.events.push(envelope);
-    session.replayBytes += countTextBytes(envelope);
-    while (
-      session.events.length > MAX_REPLAY_EVENTS
-      || (session.replayBytes > MAX_REPLAY_BYTES && session.events.length > 1)
-    ) {
-      const removed = session.events.shift();
-      session.replayBytes -= countTextBytes(removed);
-    }
     session.updatedAt = envelope.emittedAt;
-    if (deliver && !session.sender.isDestroyed?.()) {
-      try {
-        session.sender.send("agent:event", envelope);
-      } catch (error) {
-        logger.warn?.("Unable to deliver Desktop Agent event:", redactSecretText(error?.message || String(error)));
-      }
-    }
     persistSoon(session);
     return envelope;
   }
@@ -86,7 +55,7 @@ export function createAgentEventJournal({ sessionCache, logger = console }) {
     });
   }
 
-  return { emit, persistNow, persistSoon, sendSessionExit };
+  return { emit, persistNow, persistSoon };
 }
 
 function hasDurableConversationEvidence(events) {
@@ -96,7 +65,7 @@ function hasDurableConversationEvidence(events) {
 }
 
 export const agentEventJournalLimits = Object.freeze({
-  maxReplayEvents: MAX_REPLAY_EVENTS,
-  maxReplayBytes: MAX_REPLAY_BYTES,
+  maxReplayEvents: 1_000,
+  maxReplayBytes: 2 * 1024 * 1024,
   persistDebounceMs: PERSIST_DEBOUNCE_MS,
 });

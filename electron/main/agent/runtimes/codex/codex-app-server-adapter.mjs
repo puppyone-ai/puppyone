@@ -31,6 +31,7 @@ export const CODEX_CAPABILITIES = Object.freeze({
   slashCommands: false,
   sessionHistory: true,
   history: Object.freeze({ discovery: "paged", exactOpen: "supported", hydration: "paged" }),
+  recovery: Object.freeze({ strategy: "object-reconciliation", activeExecution: "outcome-unknown", atomicHandoff: false }),
   usage: true,
   accountState: true,
   mcp: true,
@@ -307,7 +308,7 @@ export class CodexAppServerAdapter {
     if (references.length > 0) throw new Error("Codex steer does not accept reference inputs.");
     await this.connection.request("turn/steer", {
       threadId: this.threadId,
-      turnId,
+      expectedTurnId: turnId,
       input: buildCodexTurnInput(message, []),
     });
   }
@@ -625,7 +626,17 @@ export function normalizeCodexNotification(message) {
     case "item/agentMessage/delta":
       return [{ type: "assistant.delta", providerSessionId: threadId, turnId, itemId, payload: { delta: String(params.delta ?? "") } }];
     case "item/reasoning/summaryTextDelta":
-      return [{ type: "reasoning.summary.delta", providerSessionId: threadId, turnId, itemId, payload: { delta: String(params.delta ?? ""), summaryIndex: params.summaryIndex ?? 0 } }];
+      return [{
+        type: "reasoning.summary.delta",
+        providerSessionId: threadId,
+        turnId,
+        itemId,
+        payload: {
+          delta: String(params.delta ?? ""),
+          summaryIndex: params.summaryIndex ?? 0,
+          updateMode: "append",
+        },
+      }];
     case "item/reasoning/summaryPartAdded":
       // This is a section boundary, not hidden chain-of-thought content. It is
       // enough to surface the native working state before readable summary text
@@ -634,7 +645,13 @@ export function normalizeCodexNotification(message) {
     case "turn/plan/updated":
       return [{ type: "plan.updated", providerSessionId: threadId, turnId, payload: { explanation: stringOrNull(params.explanation), steps: normalizePlan(params.plan) } }];
     case "item/plan/delta":
-      return [{ type: "plan.updated", providerSessionId: threadId, turnId, itemId, payload: { text: String(params.delta ?? ""), streaming: true } }];
+      return [{
+        type: "plan.updated",
+        providerSessionId: threadId,
+        turnId,
+        itemId,
+        payload: { text: String(params.delta ?? ""), streaming: true, updateMode: "append" },
+      }];
     case "item/commandExecution/outputDelta":
       return [{ type: "command.output.delta", providerSessionId: threadId, turnId, itemId, payload: { delta: String(params.delta ?? "") } }];
     case "item/fileChange/outputDelta":
@@ -698,8 +715,10 @@ export function normalizeHistoricalThread(thread) {
     for (const item of items) {
       events.push(...normalizeItemLifecycle(item, "completed", thread.id, turnId));
     }
-    const type = turn.status === "interrupted" ? "turn.interrupted" : turn.status === "failed" ? "turn.failed" : "turn.completed";
-    events.push({ type, providerSessionId: thread.id, turnId, payload: { status: normalizeTurnStatus(turn.status), restored: true } });
+    const type = historicalTerminalEventType(turn.status);
+    if (type) {
+      events.push({ type, providerSessionId: thread.id, turnId, payload: { status: normalizeTurnStatus(turn.status), restored: true } });
+    }
   }
   return events;
 }
@@ -713,7 +732,17 @@ function normalizeItemLifecycle(item, phase, threadId, turnId) {
       : [];
   }
   if (item.type === "plan") {
-    return [{ type: "plan.updated", providerSessionId: threadId, turnId, itemId, payload: { text: String(item.text ?? ""), completed: phase === "completed" } }];
+    return [{
+      type: "plan.updated",
+      providerSessionId: threadId,
+      turnId,
+      itemId,
+      payload: {
+        text: String(item.text ?? ""),
+        completed: phase === "completed",
+        updateMode: "replace",
+      },
+    }];
   }
   if (item.type === "reasoning") {
     return (Array.isArray(item.summary) ? item.summary : []).map((summary, index) => ({
@@ -721,7 +750,12 @@ function normalizeItemLifecycle(item, phase, threadId, turnId) {
       providerSessionId: threadId,
       turnId,
       itemId,
-      payload: { delta: String(summary), summaryIndex: index, completed: phase === "completed" },
+      payload: {
+        delta: String(summary),
+        summaryIndex: index,
+        completed: phase === "completed",
+        updateMode: "replace",
+      },
     }));
   }
   if (item.type === "fileChange") {
@@ -740,7 +774,16 @@ function normalizeItemLifecycle(item, phase, threadId, turnId) {
     ];
   }
   const tool = summarizeToolItem(item, phase);
-  return tool ? [{ type: phase === "started" ? "tool.started" : "tool.completed", providerSessionId: threadId, turnId, itemId, payload: tool }] : [];
+  if (tool) return [{ type: phase === "started" ? "tool.started" : "tool.completed", providerSessionId: threadId, turnId, itemId, payload: tool }];
+  return phase === "completed" && typeof item.type === "string"
+    ? [{
+        type: "provider.warning",
+        providerSessionId: threadId,
+        turnId,
+        itemId,
+        payload: { message: `Codex returned an unsupported content item (${item.type}).`, recoverable: true },
+      }]
+    : [];
 }
 
 function summarizeToolItem(item, phase) {
@@ -759,6 +802,7 @@ function summarizeToolItem(item, phase) {
     });
   }
   if (item.type === "mcpToolCall" || item.type === "dynamicToolCall") {
+    const result = normalizeCanonicalToolResult(item);
     return boundRendererValue(redactSecrets({
       kind: item.type === "mcpToolCall" ? "mcp" : "tool",
       tool: String(item.tool || (item.type === "mcpToolCall" ? "mcp" : "tool")).trim().toLowerCase(),
@@ -766,6 +810,7 @@ function summarizeToolItem(item, phase) {
       status: normalizeToolStatus(item.status, phase),
       input: item.arguments ?? null,
       durationMs: Number.isFinite(item.durationMs) ? item.durationMs : null,
+      ...(result ? { result, outputPreview: canonicalToolResultText(result) } : {}),
     }));
   }
   if (item.type === "webSearch") return { kind: "search", tool: "websearch", label: item.query || "Web search", query: item.query || "", input: { query: item.query || "" }, status: phase === "completed" ? "completed" : "running" };
@@ -801,6 +846,67 @@ function normalizeTurnStatus(status) {
   if (status === "failed") return "failed";
   if (status === "inProgress") return "running";
   return "completed";
+}
+
+function historicalTerminalEventType(status) {
+  if (status === "completed") return "turn.completed";
+  if (status === "failed") return "turn.failed";
+  if (status === "interrupted") return "turn.interrupted";
+  return null;
+}
+
+function normalizeCanonicalToolResult(item) {
+  const content = [];
+  const append = (entry) => {
+    if (typeof entry === "string" && entry) {
+      content.push({ type: "text", text: entry });
+      return;
+    }
+    if (!entry || typeof entry !== "object") return;
+    if (entry.type === "text" && typeof entry.text === "string") {
+      content.push({ type: "text", text: entry.text });
+      return;
+    }
+    if (entry.type === "resource" && entry.resource && typeof entry.resource === "object") {
+      content.push({
+        type: "artifact",
+        uri: typeof entry.resource.uri === "string" ? entry.resource.uri : "",
+        mimeType: typeof entry.resource.mimeType === "string" ? entry.resource.mimeType : null,
+        text: typeof entry.resource.text === "string" ? entry.resource.text : null,
+      });
+      return;
+    }
+    content.push({ type: "json", value: entry });
+  };
+  const nativeResult = item.result;
+  if (Array.isArray(nativeResult?.content)) nativeResult.content.forEach(append);
+  else if (nativeResult !== undefined && nativeResult !== null) append(nativeResult);
+  if (Array.isArray(item.contentItems)) item.contentItems.forEach(append);
+  const error = item.error == null
+    ? null
+    : typeof item.error === "string"
+      ? item.error
+      : typeof item.error?.message === "string"
+        ? item.error.message
+        : JSON.stringify(item.error);
+  if (content.length === 0 && !error && item.success === undefined) return null;
+  return {
+    content,
+    error,
+    success: typeof item.success === "boolean" ? item.success : null,
+    truncated: false,
+  };
+}
+
+function canonicalToolResultText(result) {
+  const pieces = result.content.flatMap((entry) => {
+    if (entry.type === "text") return [entry.text];
+    if (entry.type === "artifact" && entry.text) return [entry.text];
+    if (entry.type === "json") return [JSON.stringify(entry.value)];
+    return [];
+  });
+  if (result.error) pieces.push(result.error);
+  return pieces.join("\n").slice(-16 * 1024);
 }
 
 function normalizeToolStatus(status, phase) {

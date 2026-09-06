@@ -23,7 +23,7 @@ describe("normalized AgentEvent envelopes", () => {
       sessionId: "session-1",
       runtimeId: "fake-runtime",
       type: "codex/raw/event",
-    })).toThrow(/invalid normalized/i);
+    })).toThrow(/Agent contract.*not supported/i);
     expect(() => createAgentEventEnvelope({
       sequence: 2,
       sessionId: "session-1",
@@ -34,7 +34,7 @@ describe("normalized AgentEvent envelopes", () => {
   });
 
   it("bounds hostile object shapes before renderer delivery", () => {
-    const payload = JSON.parse('{"__proto__":{"polluted":true},"constructor":{"prototype":{"polluted":true}},"safe":"ok"}');
+    const payload = JSON.parse('{"__proto__":{"polluted":true},"constructor":{"prototype":{"polluted":true}},"label":"ok","unknown":"drop"}');
     const event = createAgentEventEnvelope({
       sequence: 1,
       sessionId: "session-1",
@@ -42,7 +42,7 @@ describe("normalized AgentEvent envelopes", () => {
       type: "tool.completed",
       payload,
     });
-    expect(event.payload).toEqual({ safe: "ok" });
+    expect(event.payload).toEqual({ label: "ok" });
     expect({}.polluted).toBeUndefined();
   });
 

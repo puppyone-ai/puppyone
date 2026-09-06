@@ -110,12 +110,6 @@ export function createSender(id) {
   };
 }
 
-export function sentAgentEvents(sender) {
-  return sender.send.mock.calls
-    .filter(([channel]) => channel === "agent:event")
-    .map(([, event]) => event);
-}
-
 export function ipcSnapshot() {
   return {
     session: {

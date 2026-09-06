@@ -28,7 +28,6 @@ import { chooseAgentEffort, chooseAgentMode } from "./agent-controller-values";
 import { AgentReferenceDraftManager } from "./AgentReferenceDraftManager";
 import {
   AgentTurnSubmissionCoordinator,
-  agentTurnSubmissionLimits,
 } from "./AgentTurnSubmissionCoordinator";
 
 export type { AgentControllerPhase, AgentControllerState } from "./agent-controller-state";
@@ -62,6 +61,8 @@ export class AgentSessionController {
       phase: "idle",
       inspection: null,
       session: null,
+      control: null,
+      replicaStatus: "detached",
       projection: createAgentProjection(),
       selectedRuntimeId: null,
       selectedProviderId: null,
@@ -110,7 +111,7 @@ export class AgentSessionController {
       bridgeProvider,
       this.getSnapshot,
       (patch) => this.patch(patch),
-      this.submission.drainQueuedIntent,
+      () => {},
       scheduleStreamFlush,
     );
     this.sessionLifecycle = new AgentSessionLifecycle({
@@ -150,10 +151,8 @@ export class AgentSessionController {
     this.sessionUi.clear();
     void this.referenceDrafts.revoke([
       ...this.state.references,
-      ...this.submission.ownedReferences(),
       ...(this.state.pendingIntent?.references ?? []),
     ]);
-    this.submission.clearQueue();
     this.referenceDrafts.disposeRendererResources();
     this.listeners.clear();
   }
@@ -212,9 +211,7 @@ export class AgentSessionController {
     if (plan.alreadySelected) return true;
     await this.referenceDrafts.rotate([
       ...this.state.references,
-      ...this.submission.ownedReferences(),
     ]);
-    this.submission.clearQueue();
     this.patch(plan.patch);
     try {
       if (plan.sessionId) {
@@ -244,10 +241,8 @@ export class AgentSessionController {
     const bridge = this.requireBridge("discoverAgentRuntimes", "openAgentSession");
     await this.referenceDrafts.reset([
       ...this.state.references,
-      ...this.submission.ownedReferences(),
       ...(this.state.pendingIntent?.references ?? []),
     ]);
-    this.submission.clearQueue();
     if (this.state.session) {
       await this.requireBridge("closeAgentSession").closeAgentSession({
         rootPath: this.workspaceRoot,
@@ -289,7 +284,7 @@ export class AgentSessionController {
         runtimeId,
       });
       if (result.status === "failed") throw new AgentSessionOpenError(result.error);
-      this.applySnapshot(result.snapshot);
+      await this.applySnapshot(result.snapshot);
       this.patch({
         phase: result.snapshot.session.activeTurnId ? "running" : "ready",
         sessionPreparation: "ready",
@@ -333,7 +328,7 @@ export class AgentSessionController {
       }
       this.patch({ phase: "restoring" });
       const restored = await bridge.resumeAgentSession({ rootPath: this.workspaceRoot, runtimeId });
-      if (restored) this.applySnapshot(restored);
+      if (restored) await this.applySnapshot(restored);
       this.patch({
         phase: restored?.session.activeTurnId ? "running" : "ready",
         sessionPreparation: restored ? "ready" : "idle",
@@ -473,10 +468,8 @@ export class AgentSessionController {
     if (this.state.projection.runningTurnId) return this.sessionLifecycle.newSession();
     await this.referenceDrafts.reset([
       ...this.state.references,
-      ...this.submission.ownedReferences(),
       ...(this.state.pendingIntent?.references ?? []),
     ]);
-    this.submission.clearQueue();
     return this.sessionLifecycle.newSession();
   }
 
@@ -485,10 +478,8 @@ export class AgentSessionController {
     if (!closed) return false;
     await this.referenceDrafts.reset([
       ...this.state.references,
-      ...this.submission.ownedReferences(),
       ...(this.state.pendingIntent?.references ?? []),
     ]);
-    this.submission.clearQueue();
     return true;
   }
 
@@ -516,7 +507,13 @@ export class AgentSessionController {
     const bridge = this.requireBridge("interruptAgentTurn");
     this.patch({ stopping: true, error: null });
     try {
-      await bridge.interruptAgentTurn({ rootPath: this.workspaceRoot, sessionId, turnId });
+      await bridge.interruptAgentTurn({
+        rootPath: this.workspaceRoot,
+        sessionId,
+        turnId,
+        commandId: controlCommandId("interrupt"),
+        ...commandPreconditions(this.state),
+      });
     } catch (error) {
       this.patch({ stopping: false, error: formatAgentError(error) });
     }
@@ -534,6 +531,8 @@ export class AgentSessionController {
         sessionId: session.id,
         turnId: approval.turnId,
         requestId: approval.requestId,
+        commandId: controlCommandId("approval"),
+        ...commandPreconditions(this.state),
         decision,
       });
     } catch (error) {
@@ -557,6 +556,8 @@ export class AgentSessionController {
         sessionId: session.id,
         turnId: question.turnId,
         requestId: question.requestId,
+        commandId: controlCommandId("question"),
+        ...commandPreconditions(this.state),
       });
     } catch (error) {
       this.patch({ error: formatAgentError(error) });
@@ -581,7 +582,16 @@ export class AgentSessionController {
     });
   }
 
-  private applySnapshot(snapshot: AgentSessionSnapshot) {
+  private async applySnapshot(snapshot: AgentSessionSnapshot) {
+    this.applySnapshotState(snapshot);
+    const feedSnapshot = await this.eventSynchronizer.attachSession(snapshot.session.id);
+    if (!feedSnapshot || this.disposed || this.state.session?.id !== snapshot.session.id) return;
+    this.applySnapshotState(feedSnapshot);
+    await this.eventSynchronizer.activateSessionFeed(snapshot.session.id);
+    if (!this.disposed && this.state.session?.id === snapshot.session.id) this.patch({ replicaStatus: "live" });
+  }
+
+  private applySnapshotState(snapshot: AgentSessionSnapshot) {
     this.eventSynchronizer.flush();
     const inspection = this.state.inspection ? {
       ...this.state.inspection,
@@ -600,8 +610,44 @@ export class AgentSessionController {
     const selectedModelEntry = inspection?.models.find((model) => model.model === selectedModel);
     const selectedProviderId = agentProviderIdForModel(selectedModelEntry)
       || chooseAgentProvider(inspection, this.state.selectedProviderId, selectedModel);
+    const snapshotEvents = [
+      ...(snapshot.timeline?.checkpointEvents ?? []),
+      ...snapshot.events,
+    ].filter((event, index, events) => events.findIndex((candidate) => candidate.sequence === event.sequence) === index);
+    let projection = applyAgentEvents(
+      createAgentProjection({ partialHistory: snapshot.partial }),
+      snapshotEvents,
+      { partialHistory: snapshot.partial },
+    );
+    // The event window is deliberately bounded. Current control state comes
+    // from the snapshot checkpoint, never from the presence of turn.started in
+    // that bounded timeline slice.
+    const authoritativeTurnId = snapshot.control?.execution.activeTurnId ?? snapshot.session.activeTurnId;
+    if (authoritativeTurnId) {
+      projection = {
+        ...projection,
+        runningTurnId: authoritativeTurnId,
+        terminalState: null,
+      };
+    }
+    const eventsDuringRestore = this.eventSynchronizer.takePreSessionEvents(
+      snapshot.session.id,
+      projection.lastSequence,
+    );
+    projection = applyAgentEvents(projection, eventsDuringRestore, { partialHistory: snapshot.partial });
+    const session = {
+      ...snapshot.session,
+      activeTurnId: projection.runningTurnId,
+      terminalState: projection.runningTurnId
+        ? "running"
+        : projection.terminalState || snapshot.session.terminalState,
+      lastSequence: projection.lastSequence,
+      updatedAt: eventsDuringRestore.at(-1)?.emittedAt ?? snapshot.session.updatedAt,
+    };
     this.patch({
-      session: snapshot.session,
+      session,
+      control: snapshot.control ?? null,
+      replicaStatus: snapshot.cursor ? "subscribing" : "detached",
       inspection,
       selectedRuntimeId: snapshot.session.runtimeId || snapshot.session.provider || this.state.selectedRuntimeId,
       selectedProviderId,
@@ -611,7 +657,7 @@ export class AgentSessionController {
         snapshot.session.selectedEffort || this.state.selectedEffort,
       ),
       selectedMode: snapshot.session.selectedMode || this.state.selectedMode || chooseAgentMode(inspection, null),
-      projection: applyAgentEvents(createAgentProjection({ partialHistory: snapshot.partial }), snapshot.events, { partialHistory: snapshot.partial }),
+      projection,
       stopping: false,
       sessionPreparation: "ready",
     });
@@ -622,7 +668,12 @@ export class AgentSessionController {
     if (patch.phase && patch.phase !== this.state.phase && !agentControllerTransitions[this.state.phase].includes(patch.phase)) {
       throw new Error(`Invalid Agent controller transition: ${this.state.phase} -> ${patch.phase}`);
     }
-    this.state = { ...this.state, ...patch };
+    let next = { ...this.state, ...patch };
+    if (patch.session === null && patch.control === undefined) {
+      next = { ...next, control: null, replicaStatus: "detached" };
+    }
+    if (next.control && next.session) next = deriveControlReplicaState(next);
+    this.state = next;
     this.emit();
   }
 
@@ -653,7 +704,64 @@ export class AgentSessionController {
 
 }
 
+function deriveControlReplicaState(state: AgentControllerState): AgentControllerState {
+  const control = state.control;
+  const session = state.session;
+  if (!control || !session) return state;
+  const activeTurnId = control.execution.activeTurnId;
+  const activeInterrupt = control.commands.find((command) => (
+    command.kind === "interrupt"
+    && command.targetTurnId === activeTurnId
+    && (command.status === "dispatching" || command.status === "accepted")
+  ));
+  const phase = control.connection.status === "exited"
+    ? "runtime-exited"
+    : activeTurnId
+      ? control.interaction.approvals.length || control.interaction.questions.length ? "waiting" : "running"
+      : control.execution.status === "starting" ? "creating"
+        : state.phase === "discovering" || state.phase === "restoring" ? state.phase : "ready";
+  return {
+    ...state,
+    phase,
+    session: {
+      ...session,
+      activeTurnId,
+      terminalState: control.connection.status === "exited"
+          ? "provider-exited"
+        : activeTurnId ? "running"
+          : control.execution.status === "outcome-unknown" ? "outcome-unknown"
+            : control.execution.nativeOutcome ?? "idle",
+    },
+    projection: {
+      ...state.projection,
+      runningTurnId: activeTurnId,
+      terminalState: activeTurnId ? null : control.execution.nativeOutcome ?? state.projection.terminalState,
+    },
+    pendingPrompt: control.pendingSubmission?.prompt ?? null,
+    pendingIntent: null,
+    submitting: control.execution.status === "starting",
+    stopping: Boolean(activeInterrupt),
+    resolvingBlocker: control.commands.some((command) => (
+      (command.kind === "approval" || command.kind === "question") && command.status === "dispatching"
+    )),
+  };
+}
+
+function controlCommandId(kind: string) {
+  const identity = globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  return `${kind}-${identity}`;
+}
+
+function commandPreconditions(state: AgentControllerState) {
+  const control = state.control;
+  if (!control) return {};
+  return {
+    expectedSessionEpoch: control.sessionEpoch,
+    expectedAdapterGeneration: control.adapterGeneration,
+    expectedRunGeneration: control.runGeneration,
+  };
+}
+
 export const agentSessionControllerLimits = Object.freeze({
   discoveryCacheTtlMs: AGENT_RUNTIME_DISCOVERY_CACHE_TTL_MS,
-  maxQueuedPrompts: agentTurnSubmissionLimits.maxQueuedPrompts,
 });

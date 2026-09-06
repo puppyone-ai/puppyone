@@ -7,6 +7,7 @@ import { createAgentProcessSupervisor } from "./processes/agent-process-supervis
 import { createAgentSessionCommands } from "./session/agent-session-commands.mjs";
 import { createAgentSessionLifecycle } from "./session/agent-session-lifecycle.mjs";
 import { createAgentSessionRuntime } from "./session/agent-session-runtime.mjs";
+import { AgentSessionFeed } from "./session/agent-session-feed.mjs";
 import { createAgentTurnCoordinator } from "./turn/agent-turn-coordinator.mjs";
 
 /**
@@ -48,6 +49,7 @@ export function createAgentService({
     processSupervisor,
   });
   const journal = createAgentEventJournal({ sessionCache: cache, logger });
+  const sessionFeed = new AgentSessionFeed({ logger });
   const runtimeSession = createAgentSessionRuntime({
     runtimeRegistry,
     runtimeResolutionCoordinator,
@@ -58,7 +60,6 @@ export function createAgentService({
     logger,
     emit: journal.emit,
     persistNow: journal.persistNow,
-    sendSessionExit: journal.sendSessionExit,
   });
   lifecycle = createAgentSessionLifecycle({
     runtimeRegistry,
@@ -75,6 +76,7 @@ export function createAgentService({
     runtimeSession,
     emit: journal.emit,
     persistSoon: journal.persistSoon,
+    attachmentStore,
   });
   const commands = createAgentSessionCommands({
     runtimeResolutionCoordinator,
@@ -85,6 +87,12 @@ export function createAgentService({
     emit: journal.emit,
     persistNow: journal.persistNow,
   });
+
+  const requireFeedSession = (sender, request, workspaceRoot) => {
+    const session = sessionStore.requireOwned(sender, request?.sessionId);
+    if (session.workspaceRoot !== workspaceRoot) throw new Error("Agent session workspace does not match the authorized workspace.");
+    return session;
+  };
 
   return {
     discoverProviders: (_sender, request = {}, workspaceRoot = null) => runtimeCatalog.discover(request, workspaceRoot),
@@ -100,15 +108,47 @@ export function createAgentService({
     resolveApproval: turns.resolveApproval,
     resolveQuestion: turns.resolveQuestion,
     replay: turns.replay,
+    attachSession: (sender, request, workspaceRoot) => sessionFeed.attach(requireFeedSession(sender, request, workspaceRoot)),
+    acknowledgeSession: (sender, request, workspaceRoot) => {
+      const session = requireFeedSession(sender, request, workspaceRoot);
+      return sessionFeed.acknowledge(session, request);
+    },
+    readSessionWatermark: (sender, request, workspaceRoot) => {
+      const session = requireFeedSession(sender, request, workspaceRoot);
+      return sessionFeed.watermark(session, request?.subscriptionId);
+    },
+    detachSession: (sender, request, workspaceRoot) => {
+      const session = requireFeedSession(sender, request, workspaceRoot);
+      return sessionFeed.detach(session, request?.subscriptionId);
+    },
     listSessions: commands.listSessions,
     forkSession: commands.forkSession,
     archiveSession: commands.archiveSession,
     deleteSession: commands.deleteSession,
     compactSession: commands.compactSession,
-    closeSession: lifecycle.closeSession,
-    closeSessionsForWindow: lifecycle.closeSessionsForWindow,
-    closeSessionsForWorkspaceRoot: lifecycle.closeSessionsForWorkspaceRoot,
-    closeAll: lifecycle.closeAll,
+    closeSession: async (...args) => {
+      const sessionId = args[1]?.sessionId;
+      const result = await lifecycle.closeSession(...args);
+      if (sessionId) sessionFeed.releaseSession(sessionId);
+      return result;
+    },
+    closeSessionsForWindow: async (ownerId) => {
+      const sessionIds = sessionStore.values().filter((session) => session.ownerId === ownerId).map((session) => session.id);
+      await lifecycle.closeSessionsForWindow(ownerId);
+      sessionIds.forEach((sessionId) => sessionFeed.releaseSession(sessionId));
+    },
+    closeSessionsForWorkspaceRoot: async (ownerId, workspaceRoot) => {
+      const sessionIds = sessionStore.values()
+        .filter((session) => session.ownerId === ownerId && session.workspaceRoot === workspaceRoot)
+        .map((session) => session.id);
+      const result = await lifecycle.closeSessionsForWorkspaceRoot(ownerId, workspaceRoot);
+      sessionIds.forEach((sessionId) => sessionFeed.releaseSession(sessionId));
+      return result;
+    },
+    closeAll: async () => {
+      await lifecycle.closeAll();
+      sessionFeed.releaseAll();
+    },
     getSessionCount: lifecycle.getSessionCount,
     getRetainedSessionCount: lifecycle.getRetainedSessionCount,
     hasRuntimeResources: lifecycle.hasRuntimeResources,

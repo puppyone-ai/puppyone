@@ -179,6 +179,14 @@ describe("Desktop Agent transcript projection", () => {
     expect(projection.approvals).toEqual([]);
   });
 
+  it("keeps the first command output delta even without a preceding tool event", () => {
+    const projection = applyAgentEvent(
+      createAgentProjection(),
+      event(1, "command.output.delta", { delta: "first output" }, "turn-1", "tool-1"),
+    );
+    expect(projection.activities[0]?.output).toBe("first output");
+  });
+
   it("preserves canonical tool identity and upgrades legacy arguments to structured input", () => {
     const projection = applyAgentEvents(createAgentProjection(), [
       event(1, "tool.started", {

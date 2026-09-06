@@ -8,8 +8,6 @@ import type { AgentControllerState } from "./agent-controller-state";
 import { AgentKnownError, createAgentError, formatAgentError } from "./agent-error";
 import type { AgentReferenceDraftManager } from "./AgentReferenceDraftManager";
 
-const MAX_QUEUED_PROMPTS = 20;
-
 type AgentTurnSubmissionCoordinatorOptions = {
   workspaceRoot: string;
   bridgeProvider: AgentClientProvider;
@@ -22,8 +20,6 @@ type AgentTurnSubmissionCoordinatorOptions = {
 
 /** Captures and advances immutable prompt/configuration/reference intents. */
 export class AgentTurnSubmissionCoordinator {
-  private queuedIntents: AgentSubmissionIntent[] = [];
-
   constructor(private readonly options: AgentTurnSubmissionCoordinatorOptions) {}
 
   async submit(prompt: string) {
@@ -61,7 +57,9 @@ export class AgentTurnSubmissionCoordinator {
         await bridge.steerAgentTurn({
           rootPath: this.options.workspaceRoot,
           sessionId: state.session.id,
+          commandId: intent.id,
           turnId: activeTurnId,
+          ...commandPreconditions(state),
           message: text,
           referenceEpoch: intent.referenceEpoch,
           references: intent.references,
@@ -77,36 +75,15 @@ export class AgentTurnSubmissionCoordinator {
       }
     }
     if (activeTurnId && state.inspection?.capabilities?.queue) {
-      if (this.queuedIntents.length >= MAX_QUEUED_PROMPTS) {
-        this.options.patch({ error: createAgentError("prompt-queue-full", { limit: MAX_QUEUED_PROMPTS }) });
-        return false;
-      }
-      this.queuedIntents.push(intent);
-      this.options.patch({ draft: "", draftMentions: [], references: [], error: null });
-      this.options.writeDraft("", []);
-      return true;
+      return this.startIntent(intent, true);
     }
     if (activeTurnId) return false;
     return this.startIntent(intent, true);
   }
 
-  drainQueuedIntent = () => {
-    const state = this.options.readState();
-    if (state.projection.runningTurnId || state.pendingIntent || this.queuedIntents.length === 0) return;
-    const intent = this.queuedIntents.shift();
-    if (intent) queueMicrotask(() => { void this.startIntent(intent, false); });
-  };
-
-  ownedReferences() {
-    return this.queuedIntents.flatMap((intent) => intent.references);
-  }
-
-  clearQueue() {
-    this.queuedIntents = [];
-  }
-
   private async startIntent(intent: AgentSubmissionIntent, captureCurrentDraft: boolean) {
     const bridge = this.requireBridge("startAgentTurn");
+    const previousTurnId = this.options.readState().projection.runningTurnId;
     this.options.patch({
       submitting: true,
       pendingPrompt: intent.prompt,
@@ -125,6 +102,8 @@ export class AgentTurnSubmissionCoordinator {
       await bridge.startAgentTurn({
         rootPath: this.options.workspaceRoot,
         sessionId: session.id,
+        commandId: intent.id,
+        ...commandPreconditions(this.options.readState()),
         prompt: intent.prompt,
         model: intent.model,
         effort: intent.effort,
@@ -134,10 +113,12 @@ export class AgentTurnSubmissionCoordinator {
         promptMentions: intent.promptMentions,
       });
       this.options.references.releasePreviews(intent.references);
-      this.options.patch({ phase: "running" });
+      // The request result is a delivery acknowledgement, not execution
+      // authority. turn.started/terminal facts alone drive the visible phase.
       return true;
     } catch (error) {
-      const accepted = Boolean(this.options.readState().projection.runningTurnId);
+      const observedTurnId = this.options.readState().projection.runningTurnId;
+      const accepted = Boolean(observedTurnId && observedTurnId !== previousTurnId);
       if (accepted) this.options.references.releasePreviews(intent.references);
       if (!captureCurrentDraft && !accepted) {
         const state = this.options.readState();
@@ -210,6 +191,16 @@ export class AgentTurnSubmissionCoordinator {
   }
 }
 
+function commandPreconditions(state: AgentControllerState) {
+  const control = state.control;
+  if (!control) return {};
+  return {
+    expectedSessionEpoch: control.sessionEpoch,
+    expectedAdapterGeneration: control.adapterGeneration,
+    expectedRunGeneration: control.runGeneration,
+  };
+}
+
 function createSubmissionIntent({
   referenceEpoch,
   prompt,
@@ -270,5 +261,3 @@ function mergeFailedDraft(
     ],
   };
 }
-
-export const agentTurnSubmissionLimits = Object.freeze({ maxQueuedPrompts: MAX_QUEUED_PROMPTS });

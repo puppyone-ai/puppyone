@@ -9,7 +9,7 @@ type AgentSessionPreparerOptions = {
   readState: () => AgentControllerState;
   patch: (patch: Partial<AgentControllerState>) => void;
   createSession: () => Promise<AgentSessionSnapshot>;
-  applySnapshot: (snapshot: AgentSessionSnapshot) => void;
+  applySnapshot: (snapshot: AgentSessionSnapshot) => Promise<void>;
 };
 
 /** Owns concurrency and stale-result cleanup for reusable native-session preparation. */
@@ -39,7 +39,7 @@ export class AgentSessionPreparer {
           await this.closeStale(snapshot);
           return false;
         }
-        this.options.applySnapshot(snapshot);
+        await this.options.applySnapshot(snapshot);
         return true;
       } catch (error) {
         if (this.isCurrent(epoch, selection)) {

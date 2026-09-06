@@ -412,6 +412,10 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   resumeAgentSession: (request) => ipcRenderer.invoke("agent:session-resume", request),
   openAgentSession: (request) => ipcRenderer.invoke("agent:session-open", request),
   replayAgentSession: (request) => ipcRenderer.invoke("agent:session-replay", request),
+  attachAgentSession: (request) => ipcRenderer.invoke("agent:session-attach", request),
+  acknowledgeAgentSession: (request) => ipcRenderer.invoke("agent:session-feed-ack", request),
+  readAgentSessionWatermark: (request) => ipcRenderer.invoke("agent:session-feed-watermark", request),
+  detachAgentSession: (request) => ipcRenderer.invoke("agent:session-detach", request),
   listAgentSessions: (request) => ipcRenderer.invoke("agent:sessions-list", request),
   forkAgentSession: (request) => ipcRenderer.invoke("agent:session-fork", request),
   archiveAgentSession: (request) => ipcRenderer.invoke("agent:session-archive", request),
@@ -432,21 +436,16 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   revokeAgentAttachments: (request) => ipcRenderer.invoke("agent:reference-revoke", request),
   resolveAgentWorkspaceReferences: (request) => ipcRenderer.invoke("agent:reference-resolve-workspace", request),
   pickAgentWorkspaceReferences: (request) => ipcRenderer.invoke("agent:reference-pick-workspace", request),
-  startAgentTurn: (request) => ipcRenderer.invoke("agent:turn-start", request),
-  steerAgentTurn: (request) => ipcRenderer.invoke("agent:turn-steer", request),
-  interruptAgentTurn: (request) => ipcRenderer.invoke("agent:turn-interrupt", request),
+  startAgentTurn: (request) => ipcRenderer.invoke("agent:command-dispatch", { ...request, kind: "start" }),
+  steerAgentTurn: (request) => ipcRenderer.invoke("agent:command-dispatch", { ...request, kind: "steer" }),
+  interruptAgentTurn: (request) => ipcRenderer.invoke("agent:command-dispatch", { ...request, kind: "interrupt" }),
   compactAgentSession: (request) => ipcRenderer.invoke("agent:session-compact", request),
-  resolveAgentApproval: (request) => ipcRenderer.invoke("agent:approval-resolve", request),
-  resolveAgentQuestion: (request) => ipcRenderer.invoke("agent:question-resolve", request),
-  onAgentEvent: (callback) => {
+  resolveAgentApproval: (request) => ipcRenderer.invoke("agent:command-dispatch", { ...request, kind: "approval" }),
+  resolveAgentQuestion: (request) => ipcRenderer.invoke("agent:command-dispatch", { ...request, kind: "question" }),
+  onAgentSessionFrame: (callback) => {
     const listener = (_event, payload) => callback(payload);
-    ipcRenderer.on("agent:event", listener);
-    return () => ipcRenderer.removeListener("agent:event", listener);
-  },
-  onAgentSessionExit: (callback) => {
-    const listener = (_event, payload) => callback(payload);
-    ipcRenderer.on("agent:session-exit", listener);
-    return () => ipcRenderer.removeListener("agent:session-exit", listener);
+    ipcRenderer.on("agent:session-frame", listener);
+    return () => ipcRenderer.removeListener("agent:session-frame", listener);
   },
   ...(externalViewerPacksEnabled ? {
     viewerPacks: {

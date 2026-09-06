@@ -12,7 +12,7 @@ type AgentSessionLifecycleOptions = {
   readState: () => AgentControllerState;
   patch: StatePatch;
   createSession: () => Promise<AgentSessionSnapshot>;
-  applySnapshot: (snapshot: AgentSessionSnapshot) => void;
+  applySnapshot: (snapshot: AgentSessionSnapshot) => Promise<void>;
   deleteSessionUi: (sessionId: string) => void;
 };
 
@@ -43,7 +43,7 @@ export class AgentSessionLifecycle {
         draftMentions: [],
       });
       const snapshot = await this.options.createSession();
-      this.options.applySnapshot(snapshot);
+      await this.options.applySnapshot(snapshot);
       this.options.patch({ phase: "ready" });
     } catch (error) {
       this.options.patch({

@@ -88,6 +88,7 @@ function updateTurn(projection: AgentProjection, event: AgentEvent) {
     indexes.turns.set(event.turnId, turnIndex);
     projection.turns.push(turn);
   }
+  if (!turn) return null;
   const eventAtMs = parseAgentEventTime(event.emittedAt);
   if (
     (event.type === "approval.requested" || event.type === "question.requested")
@@ -103,8 +104,9 @@ function updateTurn(projection: AgentProjection, event: AgentEvent) {
   ) {
     turn = closeAgentTurnUserWait(turn, eventAtMs);
   }
-  const terminalState = agentTurnTerminalState(event);
-  if (terminalState) {
+  if (event.type === "turn.completed" || event.type === "turn.failed" || event.type === "turn.interrupted") {
+    const terminalState = agentTurnTerminalState(event);
+    if (!terminalState) return turn;
     turn = closeAgentTurnUserWait(turn, eventAtMs);
     turn = {
       ...turn,

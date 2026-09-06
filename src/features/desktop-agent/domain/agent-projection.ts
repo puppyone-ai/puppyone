@@ -148,7 +148,6 @@ function applyLegacyAgentEvent(next: AgentProjection, event: AgentEvent): AgentP
     next.missingRanges.push({ from: 1, to: event.sequence - 1 });
   }
   next.lastSequence = event.sequence;
-  const payload = event.payload ?? {};
   if (ASSISTANT_SEGMENT_BOUNDARY_EVENTS.has(event.type)) {
     sealStreamingAssistantSegments(next, event.turnId);
   }
@@ -166,6 +165,7 @@ function applyLegacyAgentEvent(next: AgentProjection, event: AgentEvent): AgentP
       next.runningTurnId = null;
       return next;
     case "turn.started": {
+      const payload = event.payload;
       next.sessionState = "active";
       next.runningTurnId = event.turnId;
       next.terminalState = null;
@@ -202,28 +202,33 @@ function applyLegacyAgentEvent(next: AgentProjection, event: AgentEvent): AgentP
       return next;
     }
     case "assistant.delta":
-      return upsertAssistant(next, event, readString(payload.delta), true, false);
+      return upsertAssistant(next, event, readString(event.payload.delta), true, false);
     case "assistant.completed":
-      return upsertAssistant(next, event, readString(payload.text), false, true);
-    case "reasoning.summary.delta":
+      return upsertAssistant(next, event, readString(event.payload.text), false, true);
+    case "reasoning.summary.delta": {
+      const payload = event.payload;
       return upsertActivity(next, event, {
         kind: "reasoning",
         label: "",
         labelCode: "reasoning-summary",
         status: payload.completed ? "completed" : "running",
         detail: payload,
-      }, { appendDetailField: "delta" });
-    case "plan.updated":
+      }, payload.updateMode === "replace" ? {} : { appendDetailField: "delta" });
+    }
+    case "plan.updated": {
+      const payload = event.payload;
       return upsertActivity(next, { ...event, itemId: event.itemId ?? "current-plan" }, {
         kind: "plan",
         label: "",
         labelCode: "plan-updated",
         status: payload.completed ? "completed" : "running",
         detail: payload,
-      });
+      }, payload.updateMode === "append" || payload.streaming ? { appendDetailField: "text" } : {});
+    }
     case "tool.started":
     case "tool.progress":
     case "tool.completed": {
+      const payload = event.payload;
       const kind = payload.kind === "command" ? "command" : payload.kind === "file-change" ? "file-change" : "tool";
       return upsertActivity(next, event, {
         kind,
@@ -234,6 +239,7 @@ function applyLegacyAgentEvent(next: AgentProjection, event: AgentEvent): AgentP
       });
     }
     case "command.output.delta": {
+      const payload = event.payload;
       const id = activityId(event);
       const indexes = projectionIndexes(next);
       const existingIndex = indexes.activities.get(id);
@@ -247,7 +253,7 @@ function applyLegacyAgentEvent(next: AgentProjection, event: AgentEvent): AgentP
           labelCode: "command-output",
           status: "running",
           detail: {},
-          output: "",
+          output: readString(payload.delta).slice(-MAX_COMMAND_OUTPUT),
           sequence: event.sequence,
           updatedSequence: event.sequence,
         };
@@ -263,7 +269,8 @@ function applyLegacyAgentEvent(next: AgentProjection, event: AgentEvent): AgentP
       }
       return next;
     }
-    case "file.change.updated":
+    case "file.change.updated": {
+      const payload = event.payload;
       if (!hasRenderableFileChange(payload)) {
         clearProjectedFileChange(next, event);
         return next;
@@ -275,10 +282,12 @@ function applyLegacyAgentEvent(next: AgentProjection, event: AgentEvent): AgentP
         status: normalizeAgentActivityStatus(payload.status, "running"),
         detail: payload,
       });
+    }
     case "usage.updated":
-      next.usage = pickUsage(payload);
+      next.usage = pickUsage(event.payload);
       return next;
     case "approval.requested": {
+      const payload = event.payload;
       const requestId = readString(payload.requestId);
       if (!requestId || !event.turnId || next.approvals.some((approval) => approval.requestId === requestId)) return next;
       next.approvals.push({
@@ -304,11 +313,13 @@ function applyLegacyAgentEvent(next: AgentProjection, event: AgentEvent): AgentP
       return next;
     }
     case "approval.resolved": {
+      const payload = event.payload;
       const requestId = readString(payload.requestId);
       next.approvals = next.approvals.filter((approval) => approval.requestId !== requestId);
       return next;
     }
     case "question.requested": {
+      const payload = event.payload;
       const requestId = readString(payload.requestId);
       if (!requestId || !event.turnId || next.questions.some((question) => question.requestId === requestId)) return next;
       next.questions.push({
@@ -321,13 +332,15 @@ function applyLegacyAgentEvent(next: AgentProjection, event: AgentEvent): AgentP
       return next;
     }
     case "question.resolved": {
+      const payload = event.payload;
       const requestId = readString(payload.requestId);
       next.questions = next.questions.filter((question) => question.requestId !== requestId);
       return next;
     }
     case "session.updated":
       return next;
-    case "provider.activity":
+    case "provider.activity": {
+      const payload = event.payload;
       return upsertActivity(next, event, {
         kind: "tool",
         label: readString(payload.label),
@@ -335,7 +348,9 @@ function applyLegacyAgentEvent(next: AgentProjection, event: AgentEvent): AgentP
         status: normalizeAgentActivityStatus(payload.status, "running"),
         detail: pickSafeActivityDetail(payload),
       });
+    }
     case "provider.connection.updated": {
+      const payload = event.payload;
       if (payload.state === "connected") {
         next.connectionStatus = null;
         return next;
@@ -353,6 +368,7 @@ function applyLegacyAgentEvent(next: AgentProjection, event: AgentEvent): AgentP
     }
     case "provider.warning":
     case "provider.error": {
+      const payload = event.payload;
       const kind = event.type === "provider.error" ? "error" : "warning";
       const label = readProviderMessage(payload.message);
       const legacyConnection = legacyProviderConnectionUpdate(event, label);

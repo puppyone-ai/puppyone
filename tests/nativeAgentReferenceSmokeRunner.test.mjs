@@ -280,7 +280,9 @@ describe("native Agent smoke runtime selection", () => {
 });
 
 function fakeService({ sender, runtimeId, capabilities, answer }) {
+  const feed = fakeSessionFeed(sender);
   return {
+    ...feed.methods,
     createSession: vi.fn(async () => ({
       session: {
         id: "product-session",
@@ -295,8 +297,10 @@ function fakeService({ sender, runtimeId, capabilities, answer }) {
         throw new Error("The selected Agent does not accept this reference attachment.");
       }
       queueMicrotask(() => {
-        sender.send("agent:event", event(request.sessionId, "assistant.completed", { text: answer }));
-        sender.send("agent:event", event(request.sessionId, "turn.completed", { status: "completed" }));
+        feed.publish([
+          event(request.sessionId, "assistant.completed", { text: answer }),
+          event(request.sessionId, "turn.completed", { status: "completed" }),
+        ]);
       });
       return { sessionId: request.sessionId, turnId: "turn-visible" };
     }),
@@ -351,4 +355,39 @@ function smokeSender() {
 
 function event(sessionId, type, payload) {
   return { sessionId, runtimeId: "fixture-runtime", type, payload, turnId: "turn-visible" };
+}
+
+function fakeSessionFeed(sender) {
+  let subscription = null;
+  let revision = 0;
+  return {
+    methods: {
+      attachSession: vi.fn(async (_sender, request) => {
+        revision = 0;
+        subscription = { id: "subscription-1", streamId: "stream-1", sessionId: request.sessionId };
+        return {
+          subscriptionId: subscription.id,
+          snapshot: { cursor: { streamId: subscription.streamId, revision } },
+        };
+      }),
+      acknowledgeSession: vi.fn(async () => ({ synchronized: true })),
+      detachSession: vi.fn(async () => {
+        subscription = null;
+        return { detached: true };
+      }),
+    },
+    publish(events) {
+      if (!subscription) throw new Error("The fake Agent feed is not attached.");
+      const baseRevision = revision;
+      revision += 1;
+      sender.send("agent:session-frame", {
+        type: "delta",
+        subscriptionId: subscription.id,
+        streamId: subscription.streamId,
+        baseRevision,
+        revision,
+        events,
+      });
+    },
+  };
 }

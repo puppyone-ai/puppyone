@@ -103,7 +103,7 @@ export function createAgentSessionCommands({
       const historicalEvents = typeof history?.hydrate === "function"
         ? await history.hydrate()
         : [];
-      for (const historicalEvent of historicalEvents) emit(session, historicalEvent, { deliver: false });
+      for (const historicalEvent of historicalEvents) emit(session, historicalEvent);
       emit(session, {
         type: "session.resumed",
         providerSessionId: session.providerSessionId,

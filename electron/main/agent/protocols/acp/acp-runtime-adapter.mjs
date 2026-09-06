@@ -63,6 +63,7 @@ export const BASE_ACP_CAPABILITIES = Object.freeze({
   slashCommands: true,
   sessionHistory: false,
   history: Object.freeze({ discovery: "unsupported", exactOpen: "unsupported", hydration: "unsupported" }),
+  recovery: Object.freeze({ strategy: "unsupported", activeExecution: "outcome-unknown", atomicHandoff: false }),
   usage: true,
   accountState: true,
   mcp: true,
@@ -539,6 +540,11 @@ export class AcpRuntimeAdapter {
         discovery: canDiscoverHistory ? "paged" : "unsupported",
         exactOpen: canOpenHistory ? "supported" : "unsupported",
         hydration: canOpenHistory ? "push-replay" : "unsupported",
+      },
+      recovery: {
+        strategy: canOpenHistory ? "snapshot-reload" : "unsupported",
+        activeExecution: "outcome-unknown",
+        atomicHandoff: false,
       },
       referenceInputs: {
         ...BASE_ACP_CAPABILITIES.referenceInputs,

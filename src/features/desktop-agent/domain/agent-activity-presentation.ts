@@ -151,10 +151,30 @@ export function outputForActivity(activity: AgentActivity) {
   return firstText(
     activity.output,
     activity.detail.outputPreview,
+    canonicalToolResultText(activity.detail.result),
     activity.detail.content,
     activity.detail.error,
     typeof activity.detail.detail === "string" ? activity.detail.detail : "",
   );
+}
+
+function canonicalToolResultText(value: unknown) {
+  const result = record(value);
+  const content = Array.isArray(result.content) ? result.content : [];
+  const rendered = content.slice(0, 100).flatMap((entry) => {
+    const item = record(entry);
+    if (item.type === "text") return [text(item.text)];
+    if (item.type === "artifact") return [firstText(item.text, item.uri)];
+    if (item.type === "json" && item.value !== undefined) {
+      try {
+        return [JSON.stringify(item.value, null, 2)];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  }).filter(Boolean).join("\n");
+  return firstText(rendered, result.error);
 }
 
 export function commandMetadata(activity: AgentActivity) {

@@ -200,6 +200,7 @@
   "turn.status.failed": "失敗",
   "turn.status.interrupted": "中断",
   "turn.status.provider-exited": "プロバイダー終了",
+  "turn.status.outcome-unknown": "結果を確認中",
   "duration.lessThanSecond": "1秒未満",
   "duration.days": "{value}日",
   "duration.hours": "{value}時間",

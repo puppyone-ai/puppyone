@@ -1,9 +1,9 @@
-import { countTextBytes, isAgentEventEnvelope } from "../agent-events.mjs";
-import { normalizeCapabilitySnapshot, sanitizeAgentRuntimeDescriptor } from "../../../../shared/agent-contract/schema.mjs";
+import { isAgentEventEnvelope } from "../agent-events.mjs";
+import { normalizeCapabilitySnapshot, sanitizeAgentEventEnvelope, sanitizeAgentRuntimeDescriptor } from "../../../../shared/agent-contract/schema.mjs";
 import { normalizeAgentEventWorkspacePaths } from "./agent-event-workspace-paths.mjs";
+import { AgentSessionActor } from "./agent-session-actor.mjs";
 
 const MAX_REPLAY_EVENTS = 1_000;
-const MAX_TERMINAL_TURN_IDS = 128;
 
 export function createAgentSessionRecord({
   id,
@@ -19,15 +19,21 @@ export function createAgentSessionRecord({
   sequence = 0,
   createdAt,
   title,
+  terminalState = "idle",
 }) {
   const restoredEvents = Array.isArray(events)
     ? events
       .filter(isAgentEventEnvelope)
       .slice(-MAX_REPLAY_EVENTS)
-      .map((event) => normalizeAgentEventWorkspacePaths(event, workspaceRoot))
+      .map((event) => normalizeAgentEventWorkspacePaths(sanitizeAgentEventEnvelope(event), workspaceRoot))
     : [];
   const highestSequence = restoredEvents.reduce((highest, event) => Math.max(highest, event.sequence), 0);
-  return {
+  const actor = new AgentSessionActor({
+    events: restoredEvents,
+    sequence: Math.max(normalizeSequence(sequence), highestSequence),
+    terminalState,
+  });
+  const session = {
     id,
     ownerId,
     sender,
@@ -36,22 +42,9 @@ export function createAgentSessionRecord({
     runtime: runtime ? { ...runtime } : { id: runtimeId, displayName: runtimeId },
     providerSessionId: null,
     adapter: null,
-    activeTurnId: null,
-    activeTurnStartedAtMs: null,
-    lastStartedTurnId: null,
-    pendingPrompt: null,
-    pendingPromptMentions: [],
-    pendingReferenceDisplays: [],
+    actor,
     privateReferencePaths: new Map(),
     activeReferenceTokens: [],
-    turnStarting: false,
-    interruptingTurnId: null,
-    terminalTurnIds: new Set(),
-    pendingApprovals: new Map(),
-    pendingQuestions: new Map(),
-    sequence: Math.max(normalizeSequence(sequence), highestSequence),
-    events: restoredEvents,
-    replayBytes: restoredEvents.reduce((total, event) => total + countTextBytes(event), 0),
     account: null,
     providers: [],
     models: [],
@@ -64,13 +57,33 @@ export function createAgentSessionRecord({
     title: title || `${runtime?.displayName || "Agent"} session`,
     createdAt: createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    terminalState: "idle",
     persistTimer: null,
     interruptFallbackTimer: null,
     closing: false,
-    providerExited: false,
     lifecycleEventSeen: false,
   };
+  Object.defineProperties(session, {
+    activeTurnId: { enumerable: true, get: () => actor.control.execution.activeTurnId },
+    activeTurnStartedAtMs: { enumerable: true, get: () => actor.control.execution.startedAtMs },
+    lastStartedTurnId: { enumerable: true, get: () => actor.control.execution.activeTurnId },
+    pendingPrompt: { enumerable: true, get: () => actor.control.pendingSubmission?.prompt ?? null },
+    pendingPromptMentions: { enumerable: true, get: () => actor.control.pendingSubmission?.promptMentions ?? [] },
+    pendingReferenceDisplays: { enumerable: true, get: () => actor.control.pendingSubmission?.referenceDisplays ?? [] },
+    turnStarting: { enumerable: true, get: () => actor.control.execution.status === "starting" },
+    interruptingTurnId: {
+      enumerable: true,
+      get: () => actor.control.commands.find((entry) => entry.kind === "interrupt" && entry.status === "dispatching")?.targetTurnId ?? null,
+    },
+    terminalTurnIds: { enumerable: false, get: () => new Set(actor.control.terminalTurns) },
+    pendingApprovals: { enumerable: false, get: () => new Map(actor.control.interaction.approvals.map((entry) => [entry.requestId, entry])) },
+    pendingQuestions: { enumerable: false, get: () => new Map(actor.control.interaction.questions.map((entry) => [entry.requestId, entry])) },
+    sequence: { enumerable: true, get: () => actor.sequence },
+    events: { enumerable: true, get: () => actor.events() },
+    replayBytes: { enumerable: false, get: () => actor.replayBytes },
+    terminalState: { enumerable: true, get: () => terminalStateFromControl(actor.control) },
+    providerExited: { enumerable: true, get: () => actor.control.connection.status === "exited" },
+  });
+  return session;
 }
 
 export function requireConnectedSession(session) {
@@ -97,14 +110,6 @@ export function persistedRecordFromSession(session) {
     lastSequence: session.sequence,
     events: session.events,
   };
-}
-
-export function rememberTerminalTurn(session, turnId) {
-  if (typeof turnId !== "string" || turnId.length === 0) return;
-  session.terminalTurnIds.add(turnId);
-  if (session.terminalTurnIds.size > MAX_TERMINAL_TURN_IDS) {
-    session.terminalTurnIds.delete(session.terminalTurnIds.values().next().value);
-  }
 }
 
 export function applyProviderSession(session, providerSession) {
@@ -197,6 +202,7 @@ export function sessionMetadata(session) {
 }
 
 export function sessionSnapshot(session) {
+  const actorSnapshot = session.actor.snapshot();
   return {
     session: sessionMetadata(session),
     account: session.account,
@@ -206,11 +212,21 @@ export function sessionSnapshot(session) {
     commands: session.commands,
     capabilities: session.capabilities,
     runtime: session.runtime,
-    events: session.events,
-    partial: Boolean(session.events[0] && session.events[0].sequence > 1),
-    firstAvailableSequence: session.events[0]?.sequence ?? session.sequence + 1,
-    lastSequence: session.sequence,
+    cursor: actorSnapshot.cursor,
+    control: actorSnapshot.control,
+    timeline: actorSnapshot.timeline,
+    events: actorSnapshot.timeline.events,
+    partial: actorSnapshot.timeline.partial,
+    firstAvailableSequence: actorSnapshot.timeline.firstAvailableSequence,
+    lastSequence: actorSnapshot.timeline.lastSequence,
   };
+}
+
+function terminalStateFromControl(control) {
+  if (control.connection.status === "exited") return "provider-exited";
+  if (control.execution.activeTurnId) return "running";
+  if (control.execution.status === "outcome-unknown") return "outcome-unknown";
+  return control.execution.nativeOutcome || "idle";
 }
 
 function modelProviderId(model) {

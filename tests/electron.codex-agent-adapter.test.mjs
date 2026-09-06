@@ -574,7 +574,7 @@ describe("Codex app-server normalization", () => {
     await expect(adapter.forkSession({ messageId: "message-1" })).resolves.toEqual({ providerSessionId: "thread-fork" });
     await adapter.compactSession();
     expect(connection.requests).toEqual(expect.arrayContaining([
-      expect.objectContaining({ method: "turn/steer", params: expect.objectContaining({ threadId: "thread-1", turnId: "turn-1" }) }),
+      expect.objectContaining({ method: "turn/steer", params: expect.objectContaining({ threadId: "thread-1", expectedTurnId: "turn-1" }) }),
       expect.objectContaining({ method: "thread/fork", params: { threadId: "thread-1", messageId: "message-1", excludeTurns: true } }),
       expect.objectContaining({ method: "thread/compact/start", params: { threadId: "thread-1" } }),
     ]));

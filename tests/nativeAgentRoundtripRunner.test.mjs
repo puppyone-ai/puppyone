@@ -10,15 +10,19 @@ describe("native Agent round-trip smoke runner", () => {
     "verifies the complete %s create, answer, locator, exact resume, follow-up and close contract",
     async (runtimeId) => {
       const sender = smokeSender();
+      const feed = fakeSessionFeed(sender);
       let turn = 0;
       const service = {
+        ...feed.methods,
         createSession: vi.fn(async () => snapshot("product-session", runtimeId)),
         startTurn: vi.fn(async (_sender, request) => {
           turn += 1;
           const token = request.prompt.match(/PUPPYONE_SMOKE_[A-Z0-9_]+/u)?.[0];
           queueMicrotask(() => {
-            sender.send("agent:event", event(request.sessionId, "assistant.completed", { text: token }, `turn-${turn}`, runtimeId));
-            sender.send("agent:event", event(request.sessionId, "turn.completed", { status: "completed" }, `turn-${turn}`, runtimeId));
+            feed.publish([
+              event(request.sessionId, "assistant.completed", { text: token }, `turn-${turn}`, runtimeId),
+              event(request.sessionId, "turn.completed", { status: "completed" }, `turn-${turn}`, runtimeId),
+            ]);
           });
           return { sessionId: request.sessionId, turnId: `turn-${turn}` };
         }),
@@ -59,12 +63,16 @@ describe("native Agent round-trip smoke runner", () => {
 
   it("fails closed when a runtime completes without the requested answer token", async () => {
     const sender = smokeSender();
+    const feed = fakeSessionFeed(sender);
     const service = {
+      ...feed.methods,
       createSession: vi.fn(async () => snapshot("product-session")),
       startTurn: vi.fn(async (_sender, request) => {
         queueMicrotask(() => {
-          sender.send("agent:event", event(request.sessionId, "assistant.completed", { text: "wrong answer" }, "turn-1"));
-          sender.send("agent:event", event(request.sessionId, "turn.completed", { status: "completed" }, "turn-1"));
+          feed.publish([
+            event(request.sessionId, "assistant.completed", { text: "wrong answer" }, "turn-1"),
+            event(request.sessionId, "turn.completed", { status: "completed" }, "turn-1"),
+          ]);
         });
         return { sessionId: request.sessionId, turnId: "turn-1" };
       }),
@@ -129,4 +137,45 @@ function snapshot(id, runtimeId = "codex") {
 
 function event(sessionId, type, payload, turnId, runtimeId = "codex") {
   return { sessionId, runtimeId, type, payload, turnId };
+}
+
+function fakeSessionFeed(sender) {
+  let attachment = 0;
+  let subscription = null;
+  let revision = 0;
+  return {
+    methods: {
+      attachSession: vi.fn(async (_sender, request) => {
+        attachment += 1;
+        revision = 0;
+        subscription = {
+          id: `subscription-${attachment}`,
+          streamId: `stream-${attachment}`,
+          sessionId: request.sessionId,
+        };
+        return {
+          subscriptionId: subscription.id,
+          snapshot: { cursor: { streamId: subscription.streamId, revision } },
+        };
+      }),
+      acknowledgeSession: vi.fn(async () => ({ synchronized: true })),
+      detachSession: vi.fn(async () => {
+        subscription = null;
+        return { detached: true };
+      }),
+    },
+    publish(events) {
+      if (!subscription) throw new Error("The fake Agent feed is not attached.");
+      const baseRevision = revision;
+      revision += 1;
+      sender.send("agent:session-frame", {
+        type: "delta",
+        subscriptionId: subscription.id,
+        streamId: subscription.streamId,
+        baseRevision,
+        revision,
+        events,
+      });
+    },
+  };
 }

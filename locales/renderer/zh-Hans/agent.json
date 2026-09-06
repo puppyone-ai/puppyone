@@ -200,6 +200,7 @@
   "turn.status.failed": "失败",
   "turn.status.interrupted": "中断",
   "turn.status.provider-exited": "提供商已退出",
+  "turn.status.outcome-unknown": "结果待确认",
   "duration.lessThanSecond": "不到 1 秒",
   "duration.days": "{value}天",
   "duration.hours": "{value}小时",

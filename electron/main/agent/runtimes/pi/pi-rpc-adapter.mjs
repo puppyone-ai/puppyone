@@ -34,6 +34,7 @@ export const PI_CAPABILITIES = Object.freeze({
   slashCommands: true,
   sessionHistory: true,
   history: Object.freeze({ discovery: "unsupported", exactOpen: "supported", hydration: "snapshot" }),
+  recovery: Object.freeze({ strategy: "snapshot-reload", activeExecution: "outcome-unknown", atomicHandoff: false }),
   usage: true,
   accountState: true,
   mcp: false,

@@ -12,6 +12,34 @@ import {
 import { normalizeAgentWorkspaceRelativePath } from "./reference-identity.mjs";
 
 const EVENT_TYPE_SET = new Set(AGENT_EVENT_TYPES);
+const PAYLOAD_KEYS = Object.freeze({
+  "session.started": ["title", "status"],
+  "session.resumed": ["title", "status"],
+  "session.updated": ["title", "status"],
+  "session.closed": ["status"],
+  "turn.started": ["prompt", "status", "referenceDisplays", "promptMentions", "model", "effort", "mode", "restored"],
+  "turn.completed": ["status", "durationMs", "restored"],
+  "turn.failed": ["status", "message", "durationMs", "restored"],
+  "turn.interrupted": ["status", "message", "durationMs", "restored"],
+  "assistant.delta": ["delta", "text", "streaming", "updateMode", "truncated", "restored"],
+  "assistant.completed": ["text", "streaming", "updateMode", "truncated", "restored"],
+  "reasoning.summary.delta": ["delta", "text", "summaryIndex", "completed", "boundary", "updateMode", "truncated", "restored"],
+  "plan.updated": ["text", "explanation", "steps", "completed", "streaming", "updateMode", "truncated", "restored"],
+  "tool.started": activityPayloadKeys(),
+  "tool.progress": activityPayloadKeys(),
+  "tool.completed": activityPayloadKeys(),
+  "command.output.delta": activityPayloadKeys("delta"),
+  "file.change.updated": activityPayloadKeys("changes", "diff", "patch"),
+  "usage.updated": ["inputTokens", "outputTokens", "totalTokens", "cachedTokens", "cost", "contextWindow", "tokens"],
+  "approval.requested": blockerPayloadKeys("availableDecisions", "commandActions", "networkApprovalContext", "grantRoot", "proposedExecpolicyAmendment", "proposedNetworkPolicyAmendments"),
+  "approval.resolved": blockerPayloadKeys("decision", "reason"),
+  "question.requested": blockerPayloadKeys("questions"),
+  "question.resolved": blockerPayloadKeys("resolution", "rejected", "reason"),
+  "provider.activity": activityPayloadKeys(),
+  "provider.connection.updated": ["state", "message", "attempt", "maxAttempts", "maxRetries"],
+  "provider.warning": ["message", "recoverable", "diagnostic", "attempt", "maxAttempts", "maxRetries"],
+  "provider.error": ["message", "recoverable", "diagnostic"],
+});
 
 export function assertAgentEventEnvelope(value) {
   const event = assertRecord(value, "AgentEvent");
@@ -39,6 +67,36 @@ export function assertAgentEventEnvelope(value) {
     assertPromptMentions(payload.promptMentions, payload.prompt);
   }
   return value;
+}
+
+/** Removes additive native provenance before an envelope crosses Main IPC. */
+export function sanitizeAgentEventPayload(type, value) {
+  if (!EVENT_TYPE_SET.has(type)) throw contractError("AgentEvent.type", "is not supported");
+  const payload = assertRecord(value, `AgentEvent(${type}).payload`);
+  return Object.fromEntries(PAYLOAD_KEYS[type]
+    .filter((key) => Object.prototype.hasOwnProperty.call(payload, key))
+    .map((key) => [key, payload[key]]));
+}
+
+export function sanitizeAgentEventEnvelope(value) {
+  assertAgentEventEnvelope(value);
+  return {
+    ...value,
+    payload: sanitizeAgentEventPayload(value.type, value.payload),
+  };
+}
+
+function activityPayloadKeys(...extra) {
+  return [
+    "kind", "tool", "label", "description", "status", "input", "arguments", "command", "cwd", "path", "query",
+    "changes", "outputPreview", "result", "error", "content", "detail", "metadata", "recoverable", "exitCode",
+    "duration", "durationMs", "elapsedMs", "diff", "patch", "outputPaths", "truncated", ...extra,
+    "restored",
+  ];
+}
+
+function blockerPayloadKeys(...extra) {
+  return ["requestId", "kind", "title", "command", "cwd", "reason", ...extra];
 }
 
 function assertPromptMentions(value, prompt) {

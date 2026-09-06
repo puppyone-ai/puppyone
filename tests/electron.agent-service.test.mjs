@@ -5,7 +5,6 @@ import {
   createSender,
   createServiceHarness,
   semanticReferenceCapabilities,
-  sentAgentEvents,
 } from "./helpers/agentServiceHarness.mjs";
 
 describe("Electron AgentService ownership and lifecycle", () => {
@@ -214,7 +213,7 @@ describe("Electron AgentService ownership and lifecycle", () => {
     expect(replay.events.find((event) => event.type === "turn.completed")?.payload.durationMs).toEqual(expect.any(Number));
   });
 
-  it("fails pending approvals closed and emits terminal failure on provider exit", async () => {
+  it("fails pending approvals closed without fabricating a terminal outcome on provider exit", async () => {
     const harness = createServiceHarness();
     const owner = createSender(4);
     const snapshot = await harness.service.createSession(owner, { runtimeId: "codex" }, "/workspace");
@@ -228,9 +227,11 @@ describe("Electron AgentService ownership and lifecycle", () => {
       payload: { requestId: "codex:1", kind: "command", availableDecisions: ["accept", "decline", "cancel"] },
     });
     adapter.exit({ expected: false, diagnostics: "token=secret-value" });
-    const events = sentAgentEvents(owner);
+    const replay = harness.service.replay(owner, { sessionId: snapshot.session.id, afterSequence: 0 }, "/workspace");
+    const events = replay.events;
     expect(events.some((event) => event.type === "approval.resolved" && event.payload.decision === "cancel")).toBe(true);
-    expect(events.some((event) => event.type === "turn.failed")).toBe(true);
+    expect(events.some((event) => event.type === "turn.failed")).toBe(false);
+    expect(replay.control.execution).toMatchObject({ status: "outcome-unknown", uncertainTurnId: "turn-1", certainty: "unknown" });
     expect(JSON.stringify(events)).not.toContain("secret-value");
     expect(adapter.disposed).toBe(true);
     expect(harness.service.getSessionCount()).toBe(0);
@@ -391,6 +392,31 @@ describe("Electron AgentService ownership and lifecycle", () => {
     ]));
   });
 
+  it("reconciles an unconfirmed persisted turn with the native terminal object on resume", async () => {
+    const harness = createServiceHarness({
+      historicalEvents: [
+        { type: "turn.started", providerSessionId: "thread-1", turnId: "turn-1", payload: { status: "running", restored: true } },
+        { type: "assistant.completed", providerSessionId: "thread-1", turnId: "turn-1", itemId: "answer-1", payload: { text: "done" } },
+        { type: "turn.completed", providerSessionId: "thread-1", turnId: "turn-1", payload: { status: "completed", restored: true } },
+      ],
+    });
+    const owner = createSender(48);
+    const created = await harness.service.createSession(owner, { runtimeId: "codex" }, "/workspace");
+    await harness.service.startTurn(owner, { sessionId: created.session.id, prompt: "Run" }, "/workspace");
+    await harness.service.closeSession(owner, { sessionId: created.session.id, removePersistence: false }, "/workspace");
+
+    const resumed = await harness.service.resumeSession(owner, { sessionId: created.session.id }, "/workspace");
+
+    expect(harness.adapters[1].readHistory).toHaveBeenCalledOnce();
+    expect(resumed.control.execution).toMatchObject({
+      status: "ended",
+      activeTurnId: null,
+      uncertainTurnId: null,
+      nativeOutcome: "completed",
+      certainty: "confirmed",
+    });
+  });
+
   it("rejects stale approvals and bounds retained replay for a slow renderer", async () => {
     const harness = createServiceHarness();
     const owner = createSender(5);
@@ -509,9 +535,11 @@ describe("Electron AgentService ownership and lifecycle", () => {
       // authoritative turn/completed notification.
       await vi.advanceTimersByTimeAsync(5_100);
 
-      const events = sentAgentEvents(owner);
+      const replay = harness.service.replay(owner, { sessionId: snapshot.session.id, afterSequence: 0 }, "/workspace");
+      const events = replay.events;
       expect(events.filter((event) => event.type === "turn.interrupted")).toHaveLength(0);
-      expect(events.some((event) => event.type === "turn.failed" && String(event.payload.message).includes("did not confirm"))).toBe(true);
+      expect(events.some((event) => event.type === "turn.failed")).toBe(false);
+      expect(replay.control.execution).toMatchObject({ status: "outcome-unknown", uncertainTurnId: "turn-1", certainty: "unknown" });
       expect(harness.adapters[0].disposed).toBe(true);
       expect(harness.service.getSessionCount()).toBe(0);
     } finally {
@@ -609,7 +637,10 @@ describe("Electron AgentService ownership and lifecycle", () => {
       payload: { message: `native echo ${privatePath} ${snapshotUrl}` },
     });
 
-    const serialized = JSON.stringify(sentAgentEvents(owner));
+    const serialized = JSON.stringify(harness.service.replay(owner, {
+      sessionId: snapshot.session.id,
+      afterSequence: 0,
+    }, "/workspace").events);
     expect(serialized).not.toContain(privatePath);
     expect(serialized).not.toContain(snapshotUrl);
     expect(serialized).toContain("[attachment:photo.png]");
@@ -643,7 +674,10 @@ describe("Electron AgentService ownership and lifecycle", () => {
       prompt: `Review \`${privatePath}\` in this turn`,
       references: [expect.objectContaining({ id: "ref-notes", inlineMentioned: true })],
     }));
-    const started = sentAgentEvents(owner).find((event) => event.type === "turn.started");
+    const started = harness.service.replay(owner, {
+      sessionId: snapshot.session.id,
+      afterSequence: 0,
+    }, "/workspace-a").events.find((event) => event.type === "turn.started");
     expect(started.payload).toMatchObject({
       prompt,
       promptMentions: [{ referenceId: "ref-notes", start: 7, end: 16 }],

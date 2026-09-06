@@ -22,12 +22,16 @@ import type {
   AgentRuntimeRequest,
   AgentSessionCloseRequest,
   AgentSessionCreateRequest,
-  AgentSessionExitEvent,
   AgentSessionMutationRequest,
   AgentSessionOpenRequest,
   AgentSessionOpenResult,
   AgentSessionResumeRequest,
   AgentSessionSnapshot,
+  AgentSessionAttachRequest,
+  AgentSessionFeedAckRequest,
+  AgentSessionFeedReceipt,
+  AgentSessionDetachRequest,
+  AgentSessionFrame,
   AgentSessionsListRequest,
   AgentSessionsListResponse,
   AgentTurnInterruptRequest,
@@ -1459,6 +1463,10 @@ declare global {
       resumeAgentSession: (request: AgentSessionResumeRequest) => Promise<AgentSessionSnapshot | null>;
       openAgentSession: (request: AgentSessionOpenRequest) => Promise<AgentSessionOpenResult>;
       replayAgentSession: (request: AgentReplayRequest) => Promise<AgentSessionSnapshot>;
+      attachAgentSession: (request: AgentSessionAttachRequest) => Promise<AgentSessionFeedReceipt>;
+      acknowledgeAgentSession: (request: AgentSessionFeedAckRequest) => Promise<{ subscriptionId: string; streamId: string; revision: number; synchronized: boolean }>;
+      readAgentSessionWatermark: (request: AgentSessionDetachRequest) => Promise<{ subscriptionId: string; streamId: string; revision: number; acknowledgedRevision: number; resyncRequired: boolean }>;
+      detachAgentSession: (request: AgentSessionDetachRequest) => Promise<{ subscriptionId: string; detached: boolean }>;
       listAgentSessions: (request: AgentSessionsListRequest) => Promise<AgentSessionsListResponse>;
       forkAgentSession: (request: AgentSessionMutationRequest) => Promise<AgentSessionSnapshot>;
       archiveAgentSession: (request: AgentSessionMutationRequest) => Promise<{ sessionId: string; archived: boolean }>;
@@ -1485,8 +1493,7 @@ declare global {
         sessionId: string;
         requestId: string;
       }>;
-      onAgentEvent: (callback: (event: AgentEvent) => void) => () => void;
-      onAgentSessionExit: (callback: (event: AgentSessionExitEvent) => void) => () => void;
+      onAgentSessionFrame: (callback: (frame: AgentSessionFrame) => void) => () => void;
       viewerPacks?: {
         getSnapshot: () => Promise<import("@puppyone/shared-ui").ViewerPackSnapshot>;
         installLocal: () => Promise<

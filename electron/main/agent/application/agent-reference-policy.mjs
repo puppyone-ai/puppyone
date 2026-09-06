@@ -40,18 +40,22 @@ export function beginAgentTurnReferences(session, request) {
     ? (reference) => session.adapter.referenceMentionDelivery(reference)
     : undefined;
   const input = prepareAgentTurnReferenceInput(request, session.capabilities, deliveryForReference);
-  session.pendingPrompt = input.displayPrompt;
-  session.pendingPromptMentions = input.promptMentions;
-  session.pendingReferenceDisplays = input.referenceDisplays;
+  session.actor.dispatch({
+    type: "submission.prepared",
+    startedAtMs: Date.now(),
+    submission: {
+      prompt: input.displayPrompt,
+      promptMentions: input.promptMentions,
+      referenceDisplays: input.referenceDisplays,
+    },
+  });
   session.privateReferencePaths = input.privateReferencePaths;
   session.activeReferenceTokens = privateReferenceLeaseTokens(request);
   return input;
 }
 
 export function abandonAgentTurnReferences(session) {
-  session.pendingPrompt = null;
-  session.pendingPromptMentions = [];
-  session.pendingReferenceDisplays = [];
+  session.actor.dispatch({ type: "submission.abandoned" });
   session.privateReferencePaths.clear();
   session.activeReferenceTokens = [];
 }

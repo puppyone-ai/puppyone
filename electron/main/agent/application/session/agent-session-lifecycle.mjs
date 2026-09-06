@@ -118,9 +118,9 @@ export function createAgentSessionLifecycle({
         sequence: persisted.lastSequence,
         createdAt: persisted.createdAt,
         title: persisted.title,
+        terminalState: persisted.terminalState || "idle",
       });
       session.providerSessionId = persisted.providerSessionId;
-      session.terminalState = persisted.terminalState || "idle";
       sessionStore.add(session);
       try {
         session.adapter = runtimeSession.createAdapterForSession(session, selected.readiness);
@@ -131,13 +131,14 @@ export function createAgentSessionLifecycle({
         });
         applyProviderSession(session, providerSession);
         recordRuntimeSuccess(session, selected, inspection);
-        if (!hasConversationReplay(session.events)) {
-          const history = resolveAgentSessionHistoryPort(session.adapter);
-          const historicalEvents = typeof history?.hydrate === "function"
-            ? await history.hydrate()
-            : [];
-          for (const historicalEvent of historicalEvents) emit(session, historicalEvent, { deliver: false });
-        }
+        // Resume always reconciles against native objects. The bounded local
+        // ledger is a presentation cache and cannot prove that an old active
+        // turn has (or has not) reached a native terminal state.
+        const history = resolveAgentSessionHistoryPort(session.adapter);
+        const historicalEvents = typeof history?.hydrate === "function"
+          ? await history.hydrate()
+          : [];
+        for (const historicalEvent of historicalEvents) emit(session, historicalEvent);
         if (!session.lifecycleEventSeen) {
           emit(session, {
             type: "session.resumed",
@@ -247,10 +248,4 @@ export function createAgentSessionLifecycle({
     openSession,
     resumeSession,
   };
-}
-
-function hasConversationReplay(events) {
-  return Array.isArray(events) && events.some((event) => (
-    typeof event?.type === "string" && event.type.startsWith("turn.")
-  ));
 }

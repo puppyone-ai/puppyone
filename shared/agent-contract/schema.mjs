@@ -74,6 +74,26 @@ export function parseAgentIpcRequest(channel, value) {
         sessionId: requiredOpaqueId(input.sessionId, "sessionId"),
         afterSequence: nonNegativeInteger(input.afterSequence, "afterSequence"),
       };
+    case "agent:session-attach":
+      return {
+        rootPath: requiredString(input.rootPath, "rootPath", MAX_PATH_LENGTH),
+        sessionId: requiredOpaqueId(input.sessionId, "sessionId"),
+      };
+    case "agent:session-feed-ack":
+      return {
+        rootPath: requiredString(input.rootPath, "rootPath", MAX_PATH_LENGTH),
+        sessionId: requiredOpaqueId(input.sessionId, "sessionId"),
+        subscriptionId: requiredOpaqueId(input.subscriptionId, "subscriptionId"),
+        streamId: requiredOpaqueId(input.streamId, "streamId"),
+        revision: nonNegativeInteger(input.revision, "revision"),
+      };
+    case "agent:session-feed-watermark":
+    case "agent:session-detach":
+      return {
+        rootPath: requiredString(input.rootPath, "rootPath", MAX_PATH_LENGTH),
+        sessionId: requiredOpaqueId(input.sessionId, "sessionId"),
+        subscriptionId: requiredOpaqueId(input.subscriptionId, "subscriptionId"),
+      };
     case "agent:sessions-list":
       return compact({
         rootPath: requiredString(input.rootPath, "rootPath", MAX_PATH_LENGTH),
@@ -118,10 +138,23 @@ export function parseAgentIpcRequest(channel, value) {
       };
     case "agent:reference-pick-workspace":
       return { rootPath: requiredString(input.rootPath, "rootPath", MAX_PATH_LENGTH) };
+    case "agent:command-dispatch": {
+      const kind = enumValue(input.kind, "kind", ["start", "steer", "interrupt", "approval", "question"]);
+      const channelForKind = {
+        start: "agent:turn-start",
+        steer: "agent:turn-steer",
+        interrupt: "agent:turn-interrupt",
+        approval: "agent:approval-resolve",
+        question: "agent:question-resolve",
+      };
+      return { kind, ...parseAgentIpcRequest(channelForKind[kind], input) };
+    }
     case "agent:turn-start":
       return compact({
         rootPath: requiredString(input.rootPath, "rootPath", MAX_PATH_LENGTH),
         sessionId: requiredOpaqueId(input.sessionId, "sessionId"),
+        commandId: optionalOpaqueId(input.commandId, "commandId"),
+        ...commandPreconditions(input),
         prompt: requiredString(input.prompt, "prompt", MAX_MESSAGE_LENGTH, { allowEmpty: true, preserveWhitespace: true }),
         model: optionalString(input.model, "model", 512),
         effort: optionalString(input.effort, "effort", 160),
@@ -137,6 +170,8 @@ export function parseAgentIpcRequest(channel, value) {
         rootPath: requiredString(input.rootPath, "rootPath", MAX_PATH_LENGTH),
         sessionId: requiredOpaqueId(input.sessionId, "sessionId"),
         turnId: requiredOpaqueId(input.turnId, "turnId"),
+        commandId: optionalOpaqueId(input.commandId, "commandId"),
+        ...commandPreconditions(input),
         message: requiredString(input.message, "message", MAX_MESSAGE_LENGTH, { allowEmpty: true, preserveWhitespace: true }),
         referenceEpoch: optionalOpaqueId(input.referenceEpoch, "referenceEpoch"),
         references: optionalDraftReferences(input.references, "references"),
@@ -147,6 +182,8 @@ export function parseAgentIpcRequest(channel, value) {
       return compact({
         rootPath: requiredString(input.rootPath, "rootPath", MAX_PATH_LENGTH),
         sessionId: requiredOpaqueId(input.sessionId, "sessionId"),
+        commandId: optionalOpaqueId(input.commandId, "commandId"),
+        ...(channel === "agent:turn-interrupt" ? commandPreconditions(input) : {}),
         turnId: channel === "agent:turn-interrupt" ? requiredOpaqueId(input.turnId, "turnId") : undefined,
       });
     case "agent:approval-resolve":
@@ -155,6 +192,8 @@ export function parseAgentIpcRequest(channel, value) {
         sessionId: requiredOpaqueId(input.sessionId, "sessionId"),
         turnId: requiredOpaqueId(input.turnId, "turnId"),
         requestId: requiredOpaqueId(input.requestId, "requestId"),
+        commandId: optionalOpaqueId(input.commandId, "commandId"),
+        ...commandPreconditions(input),
         decision: enumValue(input.decision, "decision", ["accept", "acceptForSession", "decline", "cancel"]),
       };
     case "agent:question-resolve":
@@ -163,6 +202,8 @@ export function parseAgentIpcRequest(channel, value) {
         sessionId: requiredOpaqueId(input.sessionId, "sessionId"),
         turnId: requiredOpaqueId(input.turnId, "turnId"),
         requestId: requiredOpaqueId(input.requestId, "requestId"),
+        commandId: optionalOpaqueId(input.commandId, "commandId"),
+        ...commandPreconditions(input),
         answer: optionalQuestionAnswer(input.answer, "answer"),
         answers: optionalAnswerMatrix(input.answers, "answers"),
         rejected: optionalBoolean(input.rejected, "rejected"),
@@ -190,6 +231,12 @@ export function assertAgentIpcResponse(channel, value) {
       return assertAgentSessionSnapshot(value);
     case "agent:session-resume":
       return value === null ? value : assertAgentSessionSnapshot(value);
+    case "agent:session-attach": {
+      const receipt = assertRecord(value, "Agent session feed receipt");
+      requiredOpaqueId(receipt.subscriptionId, "subscriptionId");
+      assertAgentSessionSnapshot(receipt.snapshot);
+      return value;
+    }
     case "agent:session-open":
       return sanitizeAgentSessionOpenResult(value);
     case "agent:sessions-list":
@@ -197,7 +244,11 @@ export function assertAgentIpcResponse(channel, value) {
     case "agent:session-archive":
     case "agent:session-delete":
     case "agent:session-close":
+    case "agent:session-feed-ack":
+    case "agent:session-feed-watermark":
+    case "agent:session-detach":
     case "agent:reference-revoke":
+    case "agent:command-dispatch":
     case "agent:turn-start":
     case "agent:turn-steer":
     case "agent:turn-interrupt":
@@ -231,6 +282,111 @@ function assertAgentSessionSnapshot(value) {
   assertArray(snapshot.events, "Agent session events").forEach(assertAgentEventEnvelope);
   if (!Number.isSafeInteger(snapshot.firstAvailableSequence) || snapshot.firstAvailableSequence < 0) throw contractError("firstAvailableSequence", "must be a non-negative integer");
   if (!Number.isSafeInteger(snapshot.lastSequence) || snapshot.lastSequence < 0) throw contractError("lastSequence", "must be a non-negative integer");
+  if (snapshot.cursor !== undefined) assertAgentSessionCursor(snapshot.cursor, "Agent session snapshot.cursor");
+  if (snapshot.control !== undefined) assertAgentSessionControl(snapshot.control, "Agent session snapshot.control");
+  if (snapshot.timeline !== undefined) {
+    const timeline = assertRecord(snapshot.timeline, "Agent session snapshot.timeline");
+    assertArray(timeline.events, "Agent session snapshot.timeline.events").forEach(assertAgentEventEnvelope);
+    if (timeline.checkpointEvents !== undefined) {
+      assertArray(timeline.checkpointEvents, "Agent session snapshot.timeline.checkpointEvents").forEach(assertAgentEventEnvelope);
+    }
+    nonNegativeInteger(timeline.firstAvailableSequence, "Agent session snapshot.timeline.firstAvailableSequence");
+    nonNegativeInteger(timeline.lastSequence, "Agent session snapshot.timeline.lastSequence");
+  }
+  if (snapshot.cursor && snapshot.control && (
+    snapshot.cursor.streamId !== snapshot.control.streamId
+    || snapshot.cursor.revision !== snapshot.control.revision
+  )) throw contractError("Agent session snapshot.cursor", "must match the control state version");
+  return value;
+}
+
+function assertAgentSessionCursor(value, label) {
+  const cursor = assertRecord(value, label);
+  requiredOpaqueId(cursor.streamId, `${label}.streamId`);
+  nonNegativeInteger(cursor.revision, `${label}.revision`);
+}
+
+export function assertAgentSessionControl(value, label = "Agent session control") {
+  const control = assertRecord(value, label);
+  if (control.schemaVersion !== 1) throw contractError(`${label}.schemaVersion`, "must equal 1");
+  requiredOpaqueId(control.streamId, `${label}.streamId`);
+  requiredOpaqueId(control.sessionEpoch, `${label}.sessionEpoch`);
+  nonNegativeInteger(control.revision, `${label}.revision`);
+  nonNegativeInteger(control.adapterGeneration, `${label}.adapterGeneration`);
+  nonNegativeInteger(control.runGeneration, `${label}.runGeneration`);
+  const connection = assertRecord(control.connection, `${label}.connection`);
+  enumValue(connection.status, `${label}.connection.status`, ["connecting", "connected", "recovering", "disconnected", "exited"]);
+  if (connection.reason !== null && connection.reason !== undefined) optionalString(connection.reason, `${label}.connection.reason`, 1_000);
+  const execution = assertRecord(control.execution, `${label}.execution`);
+  enumValue(execution.status, `${label}.execution.status`, ["idle", "starting", "active", "ended", "outcome-unknown"]);
+  optionalOpaqueId(execution.activeTurnId, `${label}.execution.activeTurnId`, { nullable: true });
+  optionalOpaqueId(execution.uncertainTurnId, `${label}.execution.uncertainTurnId`, { nullable: true });
+  if (execution.startedAtMs !== null && execution.startedAtMs !== undefined) nonNegativeInteger(execution.startedAtMs, `${label}.execution.startedAtMs`);
+  if (execution.nativeOutcome !== null && execution.nativeOutcome !== undefined) {
+    enumValue(execution.nativeOutcome, `${label}.execution.nativeOutcome`, ["completed", "failed", "interrupted"]);
+  }
+  enumValue(execution.certainty, `${label}.execution.certainty`, ["confirmed", "unknown"]);
+  const commands = assertArray(control.commands, `${label}.commands`);
+  const commandIds = new Set();
+  commands.forEach((entry, index) => {
+    const command = assertRecord(entry, `${label}.commands[${index}]`);
+    const commandId = requiredOpaqueId(command.commandId, `${label}.commands[${index}].commandId`);
+    if (commandIds.has(commandId)) throw contractError(`${label}.commands`, "must not contain duplicate command ids");
+    commandIds.add(commandId);
+    optionalOpaqueId(command.operationId, `${label}.commands[${index}].operationId`, { nullable: true });
+    optionalOpaqueId(command.targetTurnId, `${label}.commands[${index}].targetTurnId`, { nullable: true });
+    enumValue(command.kind, `${label}.commands[${index}].kind`, ["start", "steer", "interrupt", "approval", "question"]);
+    enumValue(command.status, `${label}.commands[${index}].status`, ["queued", "dispatching", "accepted", "rejected", "outcome-unknown"]);
+    if (command.error !== null && command.error !== undefined) optionalString(command.error, `${label}.commands[${index}].error`, 1_000);
+  });
+  const queue = assertArray(control.queue, `${label}.queue`).map((entry, index) => requiredOpaqueId(entry, `${label}.queue[${index}]`));
+  if (new Set(queue).size !== queue.length) throw contractError(`${label}.queue`, "must not contain duplicate command ids");
+  for (const commandId of queue) {
+    if (!commands.some((command) => command.commandId === commandId && command.status === "queued")) {
+      throw contractError(`${label}.queue`, "must reference queued command records");
+    }
+  }
+  const interaction = assertRecord(control.interaction, `${label}.interaction`);
+  assertArray(interaction.approvals, `${label}.interaction.approvals`).forEach((entry, index) => (
+    assertControlBlocker(entry, `${label}.interaction.approvals[${index}]`)
+  ));
+  assertArray(interaction.questions, `${label}.interaction.questions`).forEach((entry, index) => (
+    assertControlBlocker(entry, `${label}.interaction.questions[${index}]`, true)
+  ));
+  assertArray(control.terminalTurns, `${label}.terminalTurns`).forEach((entry, index) => requiredOpaqueId(entry, `${label}.terminalTurns[${index}]`));
+  if (control.pendingSubmission !== null && control.pendingSubmission !== undefined) {
+    const submission = assertRecord(control.pendingSubmission, `${label}.pendingSubmission`);
+    requiredString(submission.prompt, `${label}.pendingSubmission.prompt`, MAX_MESSAGE_LENGTH, { allowEmpty: true, preserveWhitespace: true });
+    assertArray(submission.promptMentions, `${label}.pendingSubmission.promptMentions`);
+    assertArray(submission.referenceDisplays, `${label}.pendingSubmission.referenceDisplays`);
+  }
+  return value;
+}
+
+function assertControlBlocker(value, label, question = false) {
+  const blocker = assertRecord(value, label);
+  requiredOpaqueId(blocker.requestId, `${label}.requestId`);
+  optionalOpaqueId(blocker.turnId, `${label}.turnId`, { nullable: true });
+  optionalOpaqueId(blocker.itemId, `${label}.itemId`, { nullable: true });
+  assertRuntimeId(blocker.runtimeId, `${label}.runtimeId`);
+  if (question) assertArray(blocker.questions, `${label}.questions`);
+  if (blocker.event !== undefined) assertAgentEventEnvelope(blocker.event);
+}
+
+export function assertAgentSessionFrame(value) {
+  const frame = assertRecord(value, "Agent session frame");
+  requiredOpaqueId(frame.subscriptionId, "Agent session frame.subscriptionId");
+  requiredOpaqueId(frame.streamId, "Agent session frame.streamId");
+  const revision = nonNegativeInteger(frame.revision, "Agent session frame.revision");
+  if (frame.type === "resync-required") return value;
+  if (frame.type !== "delta") throw contractError("Agent session frame.type", "is not supported");
+  const baseRevision = nonNegativeInteger(frame.baseRevision, "Agent session frame.baseRevision");
+  if (revision <= baseRevision) throw contractError("Agent session frame.revision", "must advance baseRevision");
+  const control = assertAgentSessionControl(frame.control, "Agent session frame.control");
+  if (control.streamId !== frame.streamId || control.revision !== revision) {
+    throw contractError("Agent session frame.control", "must match the frame version");
+  }
+  assertArray(frame.events, "Agent session frame.events").forEach(assertAgentEventEnvelope);
   return value;
 }
 
@@ -296,7 +452,7 @@ function sanitizeAgentSessionListItem(value, label) {
     createdAt: isoTimestamp(session.createdAt, `${label}.createdAt`),
     updatedAt: isoTimestamp(session.updatedAt, `${label}.updatedAt`),
     terminalState: enumValue(session.terminalState, `${label}.terminalState`, [
-      "idle", "running", "completed", "failed", "interrupted", "provider-exited",
+      "idle", "running", "completed", "failed", "interrupted", "provider-exited", "outcome-unknown",
     ]),
     selectedModel: optionalString(session.selectedModel, `${label}.selectedModel`, 512) ?? null,
     selectedEffort: optionalString(session.selectedEffort, `${label}.selectedEffort`, 160) ?? null,
@@ -333,6 +489,18 @@ function optionalReferences(value, label) {
       name: optionalString(reference.name, `${label}[${index}].name`, 512),
     });
   });
+}
+
+function commandPreconditions(input) {
+  return compact({
+    expectedSessionEpoch: optionalOpaqueId(input.expectedSessionEpoch, "expectedSessionEpoch"),
+    expectedAdapterGeneration: optionalNonNegativeInteger(input.expectedAdapterGeneration, "expectedAdapterGeneration"),
+    expectedRunGeneration: optionalNonNegativeInteger(input.expectedRunGeneration, "expectedRunGeneration"),
+  });
+}
+
+function optionalNonNegativeInteger(value, label) {
+  return value === undefined || value === null ? undefined : nonNegativeInteger(value, label);
 }
 
 function optionalDraftReferences(value, label) {

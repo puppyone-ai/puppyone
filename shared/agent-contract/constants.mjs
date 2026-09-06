@@ -61,10 +61,12 @@ export const AGENT_SESSION_OPEN_ERROR_CODES = Object.freeze([
 
 export const AGENT_IPC_CHANNELS = Object.freeze([
   "agent:providers-discover", "agent:local-connections-discover", "agent:models-list", "agent:account-read",
-  "agent:session-create", "agent:session-resume", "agent:session-open", "agent:session-replay", "agent:sessions-list",
+  "agent:session-create", "agent:session-resume", "agent:session-open", "agent:session-replay",
+  "agent:session-attach", "agent:session-feed-ack", "agent:session-feed-watermark", "agent:session-detach", "agent:sessions-list",
   "agent:session-fork", "agent:session-archive", "agent:session-delete", "agent:session-close",
   "agent:reference-stage", "agent:reference-revoke", "agent:reference-resolve-workspace",
   "agent:reference-pick-workspace",
+  "agent:command-dispatch",
   "agent:turn-start", "agent:turn-steer", "agent:turn-interrupt", "agent:session-compact",
   "agent:approval-resolve", "agent:question-resolve",
 ]);

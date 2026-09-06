@@ -6,6 +6,7 @@ export function createClaudeEventState({ turnId = null, resumed = false } = {}) 
     resumed,
     lifecycleEmitted: false,
     reasoningStarted: false,
+    assistantMessageId: null,
     streamedText: new Set(),
     startedTools: new Set(),
     toolMetadata: new Map(),
@@ -83,7 +84,7 @@ export function normalizeClaudeHistory(messages, providerSessionId) {
   let state = null;
   const finish = () => {
     if (!turnId) return;
-    events.push(event("turn.completed", providerSessionId, turnId, null, { status: "completed", historical: true }));
+    events.push(event("turn.completed", providerSessionId, turnId, null, { status: "completed", restored: true }));
     turnId = null;
     state = null;
   };
@@ -96,13 +97,13 @@ export function normalizeClaudeHistory(messages, providerSessionId) {
       finish();
       turnId = `claude:history:${safeId(message.uuid) || events.length + 1}`;
       state = createClaudeEventState({ turnId, resumed: true });
-      events.push(event("turn.started", providerSessionId, turnId, null, { status: "running", prompt: humanText, historical: true }));
+      events.push(event("turn.started", providerSessionId, turnId, null, { status: "running", prompt: humanText, restored: true }));
       continue;
     }
     if (!turnId) {
       turnId = `claude:history:${safeId(message?.uuid) || events.length + 1}`;
       state = createClaudeEventState({ turnId, resumed: true });
-      events.push(event("turn.started", providerSessionId, turnId, null, { status: "running", historical: true }));
+      events.push(event("turn.started", providerSessionId, turnId, null, { status: "running", restored: true }));
     }
     events.push(...normalizeClaudeMessage({ ...message, session_id: providerSessionId }, state));
   }
@@ -112,7 +113,11 @@ export function normalizeClaudeHistory(messages, providerSessionId) {
 
 function normalizeStreamEvent(message, state, sessionId) {
   const native = message.event ?? {};
-  const itemId = safeId(message.uuid) || `claude:assistant:${state.turnId}`;
+  if (native.type === "message_start") {
+    state.assistantMessageId = safeId(native.message?.id) || state.assistantMessageId;
+    return [];
+  }
+  const itemId = assistantSegmentId(state, native.index);
   if (native.type === "content_block_delta" && native.delta?.type === "text_delta") {
     state.streamedText.add(itemId);
     return [event("assistant.delta", sessionId, state.turnId, itemId, { delta: text(native.delta.text) })];
@@ -128,15 +133,17 @@ function normalizeStreamEvent(message, state, sessionId) {
     return startTool(native.content_block, state, sessionId);
   }
   if (native.type === "message_delta" && native.usage) {
-    return [event("usage.updated", sessionId, state.turnId, null, boundRendererValue(native.usage))];
+    return [event("usage.updated", sessionId, state.turnId, null, normalizeClaudeUsage(native.usage))];
   }
   return [];
 }
 
 function normalizeAssistant(message, state, sessionId) {
   const result = [];
-  const itemId = safeId(message.uuid) || `claude:assistant:${state.turnId}`;
-  for (const block of asArray(message.message?.content)) {
+  const messageId = safeId(message.message?.id) || state.assistantMessageId;
+  if (messageId) state.assistantMessageId = messageId;
+  for (const [index, block] of asArray(message.message?.content).entries()) {
+    const itemId = assistantSegmentId(state, index);
     if (block?.type === "text" && text(block.text)) {
       result.push(event("assistant.completed", sessionId, state.turnId, itemId, { text: text(block.text) }));
     } else if (block?.type === "thinking" && text(block.thinking)) {
@@ -146,6 +153,11 @@ function normalizeAssistant(message, state, sessionId) {
       }
     } else if (block?.type === "tool_use") {
       result.push(...startTool(block, state, sessionId));
+    } else if (typeof block?.type === "string") {
+      result.push(event("provider.warning", sessionId, state.turnId, itemId, {
+        message: `Claude Code returned an unsupported content block (${block.type}).`,
+        recoverable: true,
+      }));
     }
   }
   if (message.error) {
@@ -155,6 +167,21 @@ function normalizeAssistant(message, state, sessionId) {
     }));
   }
   return result;
+}
+
+function assistantSegmentId(state, index = 0) {
+  const messageId = state.assistantMessageId || `claude:assistant:${state.turnId}`;
+  const blockIndex = Number.isSafeInteger(index) && index >= 0 ? index : 0;
+  return `${messageId}:block:${blockIndex}`;
+}
+
+function normalizeClaudeUsage(value) {
+  const usage = record(value);
+  const inputTokens = nonNegativeNumber(usage.input_tokens ?? usage.inputTokens);
+  const outputTokens = nonNegativeNumber(usage.output_tokens ?? usage.outputTokens);
+  const cachedTokens = nonNegativeNumber(usage.cache_read_input_tokens ?? usage.cacheReadInputTokens)
+    + nonNegativeNumber(usage.cache_creation_input_tokens ?? usage.cacheCreationInputTokens);
+  return boundRendererValue({ inputTokens, outputTokens, totalTokens: inputTokens + outputTokens, cachedTokens });
 }
 
 function startTool(block, state, sessionId) {
@@ -173,13 +200,19 @@ function startTool(block, state, sessionId) {
 function normalizeToolResults(message, state, sessionId) {
   return asArray(message.message?.content).flatMap((block) => {
     if (block?.type !== "tool_result") return [];
-    const output = typeof block.content === "string"
-      ? block.content
-      : asArray(block.content).filter((part) => part?.type === "text").map((part) => text(part.text)).join("\n");
+    const content = typeof block.content === "string"
+      ? [{ type: "text", text: redactSecretText(block.content) }]
+      : asArray(block.content).map((part) => part?.type === "text"
+        ? { type: "text", text: redactSecretText(text(part.text)) }
+        : { type: "json", value: boundRendererValue(redactSecrets(part)) });
+    const error = block.is_error ? content.filter((part) => part.type === "text").map((part) => part.text).join("\n") : null;
+    const result = { content, error: error || null, success: !block.is_error, truncated: false };
+    const output = content.filter((part) => part.type === "text").map((part) => part.text).join("\n");
     const toolId = safeId(block.tool_use_id);
     const metadata = toolId ? state.toolMetadata.get(toolId) : null;
     return [event("tool.completed", sessionId, state.turnId, safeId(block.tool_use_id), {
       ...toolPayload(metadata?.name || "Tool", metadata?.input ?? {}, block.is_error ? "failed" : "completed"),
+      result,
       outputPreview: redactSecretText(output).slice(-16 * 1024),
     })];
   });
@@ -190,12 +223,10 @@ function normalizeResult(message, state, sessionId) {
   state.terminal = true;
   const result = [];
   if (message.usage) {
-    result.push(event("usage.updated", sessionId, state.turnId, null, boundRendererValue({
-      ...message.usage,
-      totalCostUsd: Number(message.total_cost_usd) || 0,
-      durationMs: Number(message.duration_ms) || 0,
-      modelUsage: message.modelUsage ?? {},
-    })));
+    result.push(event("usage.updated", sessionId, state.turnId, null, {
+      ...normalizeClaudeUsage(message.usage),
+      cost: Math.max(0, Number(message.total_cost_usd) || 0),
+    }));
   }
   const failed = message.subtype !== "success" || message.is_error === true;
   if (failed) {
@@ -282,4 +313,9 @@ function asArray(value) {
 
 function record(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function nonNegativeNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : 0;
 }

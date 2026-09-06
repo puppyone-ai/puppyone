@@ -200,6 +200,7 @@
   "turn.status.failed": "실패함",
   "turn.status.interrupted": "중단됨",
   "turn.status.provider-exited": "제공자 종료",
+  "turn.status.outcome-unknown": "결과 확인 대기 중",
   "duration.lessThanSecond": "1초 미만",
   "duration.days": "{value}일",
   "duration.hours": "{value}시간",

@@ -200,6 +200,7 @@
   "turn.status.failed": "failed",
   "turn.status.interrupted": "interrupted",
   "turn.status.provider-exited": "provider exited",
+  "turn.status.outcome-unknown": "result pending confirmation",
   "duration.lessThanSecond": "<1s",
   "duration.days": "{value}d",
   "duration.hours": "{value}h",

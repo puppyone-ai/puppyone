@@ -71,7 +71,7 @@ export function pickUsage(payload: Record<string, unknown>) {
 
 export function pickSafeActivityDetail(payload: Record<string, unknown>) {
   const detail: Record<string, unknown> = {};
-  for (const key of ["command", "cwd", "delta", "status", "kind", "tool", "description", "path", "query", "changes", "steps", "title", "message", "input", "outputPreview", "error", "content", "detail", "metadata", "recoverable", "exitCode", "duration", "durationMs", "elapsedMs", "diff", "patch", "outputPaths"]) {
+  for (const key of ["command", "cwd", "delta", "text", "updateMode", "summaryIndex", "status", "kind", "tool", "description", "path", "query", "changes", "steps", "title", "message", "input", "result", "outputPreview", "error", "content", "detail", "metadata", "recoverable", "truncated", "exitCode", "duration", "durationMs", "elapsedMs", "diff", "patch", "outputPaths"]) {
     if (!(key in payload)) continue;
     detail[key] = boundProjectionValue(payload[key]);
   }
@@ -84,7 +84,10 @@ export function pickSafeActivityDetail(payload: Record<string, unknown>) {
 }
 
 export function activityId(event: AgentEvent) {
-  return `activity:${event.itemId ?? event.turnId ?? event.type}`;
+  const nativeIdentity = event.itemId ?? event.turnId ?? event.type;
+  return event.type === "reasoning.summary.delta"
+    ? `activity:${nativeIdentity}:summary:${Number.isSafeInteger(event.payload.summaryIndex) ? event.payload.summaryIndex : 0}`
+    : `activity:${nativeIdentity}`;
 }
 
 export function readString(value: unknown) {

@@ -34,6 +34,7 @@ const rendererUiRoot = path.join(rendererRoot, "ui");
 const rendererComposerRoot = path.join(rendererUiRoot, "composer");
 const rendererCompositionRoot = path.join(rendererUiRoot, "RightAgentPanel.tsx");
 const electronAgentClient = path.join(rendererInfrastructureRoot, "electron", "electronAgentClient.ts");
+const preloadPath = path.join(repoRoot, "electron", "preload.cjs");
 const sharedContractRoot = path.join(repoRoot, "shared", "agent-contract");
 const allowedCompositionRoot = path.join(mainRoot, "bootstrap", "create-agent-runtime-host.mjs");
 const allowedProviderNamedCoreFiles = new Set([
@@ -62,10 +63,51 @@ const errors = [];
 const codexAdapterPath = path.join(codexRuntimeRoot, "codex-app-server-adapter.mjs");
 const codexHistoryReaderPath = path.join(codexRuntimeRoot, "codex-history-reader.mjs");
 const sessionLifecyclePath = path.join(mainRoot, "application", "session", "agent-session-lifecycle.mjs");
+const sessionActorPath = path.join(mainDomainRoot, "agent-session-actor.mjs");
+const sessionControlPath = path.join(mainDomainRoot, "agent-session-control.mjs");
+const sessionFeedPath = path.join(mainApplicationRoot, "session", "agent-session-feed.mjs");
 const sessionHistoryPortPath = path.join(mainRuntimeRoot, "agent-session-history-port.mjs");
 const historyControllerPath = path.join(rendererApplicationRoot, "ConversationHistoryController.ts");
 const historyBrowserPath = path.join(rendererRoot, "workbench", "AgentChatHistoryBrowser.tsx");
 const controllerRegistryPath = path.join(rendererApplicationRoot, "controllerRegistry.ts");
+for (const requiredPath of [sessionActorPath, sessionControlPath, sessionFeedPath]) {
+  if (!existsSync(requiredPath)) errors.push(`${relative(requiredPath)} is required for the Main-owned Agent control plane`);
+}
+if (existsSync(sessionActorPath)) {
+  const actorSource = readFileSync(sessionActorPath, "utf8");
+  for (const requiredText of ["class AgentSessionActor", "appendEvent", "streamId", "baseRevision", "checkpointEvents"]) {
+    if (!actorSource.includes(requiredText)) errors.push(`${relative(sessionActorPath)} is missing ${requiredText}`);
+  }
+}
+if (existsSync(sessionFeedPath)) {
+  const feedSource = readFileSync(sessionFeedPath, "utf8");
+  for (const requiredText of ["resync-required", "baseRevision", "acknowledgedRevision", "MAX_PENDING_FRAMES"]) {
+    if (!feedSource.includes(requiredText)) errors.push(`${relative(sessionFeedPath)} is missing ${requiredText}`);
+  }
+}
+if (readFileSync(preloadPath, "utf8").includes('ipcRenderer.on("agent:event"')) {
+  errors.push("Production preload cannot expose the retired unversioned agent:event feed");
+}
+if (/session\.sender\.send\(["']agent:event["']/.test(readFileSync(path.join(mainApplicationRoot, "agent-event-journal.mjs"), "utf8"))) {
+  errors.push("Main must publish Agent facts through the versioned session feed only");
+}
+if (readFileSync(preloadPath, "utf8").includes('ipcRenderer.on("agent:session-exit"')) {
+  errors.push("Production preload cannot expose session-exit outside the versioned Agent feed");
+}
+
+const retiredMutableSessionFields = [
+  "activeTurnId", "activeTurnStartedAtMs", "lastStartedTurnId", "pendingPrompt", "pendingPromptMentions",
+  "pendingReferenceDisplays", "turnStarting", "interruptingTurnId", "terminalTurnIds", "pendingApprovals",
+  "pendingQuestions", "sequence", "events", "replayBytes", "terminalState", "providerExited",
+].join("|");
+const retiredSessionMutation = new RegExp(`\\bsession\\.(?:${retiredMutableSessionFields})\\s*(?:=(?!=)|\\+\\+|--|\\.(?:set|delete|clear|push|splice)\\s*\\()`, "g");
+for (const filePath of walkSourceFiles(mainApplicationRoot)) {
+  const applicationSource = stripComments(readFileSync(filePath, "utf8"));
+  if (retiredSessionMutation.test(applicationSource)) {
+    errors.push(`${relative(filePath)} mutates SessionActor-owned state directly`);
+  }
+  retiredSessionMutation.lastIndex = 0;
+}
 if (!existsSync(codexHistoryReaderPath)) {
   errors.push(`${relative(codexHistoryReaderPath)} is required; Codex History pagination must not live in the runtime adapter facade`);
 } else {
@@ -85,11 +127,8 @@ if (!existsSync(codexHistoryReaderPath)) {
 }
 
 const sessionLifecycleSource = readFileSync(sessionLifecyclePath, "utf8");
-if (!sessionLifecycleSource.includes("hasConversationReplay(session.events)")) {
-  errors.push("Agent session resume must distinguish conversation replay from lifecycle and diagnostic events");
-}
-if (/session\.events\.length\s*===\s*0/.test(stripComments(sessionLifecycleSource))) {
-  errors.push("Agent session history hydration cannot use an empty-event-array gate; resume diagnostics may arrive first");
+if (/hasConversationReplay\s*\(|session\.events\.length\s*(?:===|>|<)/.test(stripComments(sessionLifecycleSource))) {
+  errors.push("Agent session resume must reconcile native objects regardless of the bounded local event window");
 }
 if (!existsSync(sessionHistoryPortPath)) {
   errors.push(`${relative(sessionHistoryPortPath)} is required; optional native History operations need one explicit method group`);

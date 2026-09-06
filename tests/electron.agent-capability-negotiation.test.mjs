@@ -34,6 +34,7 @@ describe("Agent capability negotiation", () => {
       },
       constraints: { modelSwitch: "turn-boundary", forkRequiresIdle: true, unsafe: "drop" },
       history: { discovery: "paged", exactOpen: "supported", hydration: "paged", unsafe: "drop" },
+      recovery: { strategy: "object-reconciliation", activeExecution: "outcome-unknown", atomicHandoff: false, unsafe: true },
       unknownCapability: true,
     })).toMatchObject({
       streamingText: true,
@@ -46,6 +47,7 @@ describe("Agent capability negotiation", () => {
       },
       constraints: { modelSwitch: "turn-boundary", forkRequiresIdle: true },
       history: { discovery: "paged", exactOpen: "supported", hydration: "paged" },
+      recovery: { strategy: "object-reconciliation", activeExecution: "outcome-unknown", atomicHandoff: false },
     });
   });
 

@@ -43,9 +43,12 @@ export function reconcileTerminalAgentTurn(projection: AgentProjection, event: A
   if (!terminalState) return;
 
   const turnId = event.turnId;
-  projection.runningTurnId = null;
-  projection.terminalState = terminalState;
-  projection.connectionStatus = null;
+  const endsCurrentTurn = !turnId || projection.runningTurnId === turnId;
+  if (endsCurrentTurn) {
+    projection.runningTurnId = null;
+    projection.terminalState = terminalState;
+    projection.connectionStatus = null;
+  }
 
   projection.messages = projection.messages.map((message) => (
     turnId && message.turnId === turnId && message.role === "assistant"

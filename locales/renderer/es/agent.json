@@ -200,6 +200,7 @@
   "turn.status.failed": "fallido",
   "turn.status.interrupted": "interrumpido",
   "turn.status.provider-exited": "proveedor cerrado",
+  "turn.status.outcome-unknown": "resultado pendiente de confirmación",
   "duration.lessThanSecond": "<1 s",
   "duration.days": "{value} d",
   "duration.hours": "{value} h",

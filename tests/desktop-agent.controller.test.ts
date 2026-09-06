@@ -500,7 +500,7 @@ describe("AgentSessionController", () => {
     expect(bridge.discoverLocalAgentConnections).toHaveBeenLastCalledWith({ rootPath: "/workspace", refresh: true });
   });
 
-  it("bounds queued prompts and reports backpressure instead of silently dropping work", async () => {
+  it("delegates queue admission to the Main command transaction", async () => {
     let eventListener: ((event: AgentEvent) => void) | null = null;
     const bridge = bridgeFixture((listener) => { eventListener = listener; }, { queue: true });
     const controller = new AgentSessionController("/workspace", () => bridge as never);
@@ -508,11 +508,12 @@ describe("AgentSessionController", () => {
     eventListener?.(event(2, "turn.started", { prompt: "Long task" }, "turn-queue"));
     await new Promise((resolve) => setTimeout(resolve, 45));
 
-    for (let index = 0; index < agentSessionControllerLimits.maxQueuedPrompts; index += 1) {
-      await expect(controller.submit(`Follow-up ${index}`)).resolves.toBe(true);
-    }
-    await expect(controller.submit("Overflow")).resolves.toBe(false);
-    expect(controller.getSnapshot().error).toEqual({ code: "prompt-queue-full", params: { limit: 20 } });
+    await expect(controller.submit("Follow-up")).resolves.toBe(true);
+    expect(bridge.startAgentTurn).toHaveBeenCalledOnce();
+    expect(bridge.startAgentTurn).toHaveBeenCalledWith(expect.objectContaining({
+      prompt: "Follow-up",
+      commandId: expect.stringMatching(/^intent-/),
+    }));
   });
 
   it("publishes an optimistic prompt immediately and clears it on the native turn-start event", async () => {
@@ -709,7 +710,7 @@ describe("AgentSessionController", () => {
     expect(listener).toHaveBeenCalledTimes(1);
   });
 
-  it("captures references inside immutable queued submission intents", async () => {
+  it("captures references inside the immutable command sent to Main", async () => {
     let eventListener: ((event: AgentEvent) => void) | null = null;
     const bridge = bridgeFixture((listener) => { eventListener = listener; }, { queue: true });
     const controller = new AgentSessionController("/workspace", () => bridge as never);
@@ -719,26 +720,14 @@ describe("AgentSessionController", () => {
 
     await controller.addWorkspacePaths(["a.md"]);
     await expect(controller.submit("First queued")).resolves.toBe(true);
-    await controller.addWorkspacePaths(["b.md"]);
-    await expect(controller.submit("Second queued")).resolves.toBe(true);
     expect(controller.getSnapshot().references).toEqual([]);
-
-    eventListener?.(event(3, "turn.completed", { status: "completed" }, "turn-running"));
-    await vi.waitFor(() => expect(bridge.startAgentTurn).toHaveBeenCalledTimes(1));
     expect(bridge.startAgentTurn.mock.calls[0][0]).toMatchObject({
       prompt: "First queued",
       references: [expect.objectContaining({ relativePath: "a.md" })],
     });
-    eventListener?.(event(4, "turn.started", { prompt: "First queued" }, "turn-first"));
-    eventListener?.(event(5, "turn.completed", { status: "completed" }, "turn-first"));
-    await vi.waitFor(() => expect(bridge.startAgentTurn).toHaveBeenCalledTimes(2));
-    expect(bridge.startAgentTurn.mock.calls[1][0]).toMatchObject({
-      prompt: "Second queued",
-      references: [expect.objectContaining({ relativePath: "b.md" })],
-    });
   });
 
-  it("restores a failed queued intent to the visible Composer instead of stranding it", async () => {
+  it("restores a rejected Main queue command without stranding its draft", async () => {
     let eventListener: ((event: AgentEvent) => void) | null = null;
     const bridge = bridgeFixture((listener) => { eventListener = listener; }, { queue: true });
     const controller = new AgentSessionController("/workspace", () => bridge as never);
@@ -746,12 +735,13 @@ describe("AgentSessionController", () => {
     eventListener?.(event(2, "turn.started", { prompt: "Long task" }, "turn-running"));
     await new Promise((resolve) => setTimeout(resolve, 45));
     await controller.addWorkspacePaths(["queued.md"]);
-    await expect(controller.submit("Queued request")).resolves.toBe(true);
-    controller.setDraft("New draft");
-    bridge.startAgentTurn.mockRejectedValueOnce(new Error("queued native start failed"));
-
-    eventListener?.(event(3, "turn.completed", { status: "completed" }, "turn-running"));
+    let rejectStart: ((error: Error) => void) | null = null;
+    bridge.startAgentTurn.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectStart = reject; }));
+    const submission = controller.submit("Queued request");
     await vi.waitFor(() => expect(bridge.startAgentTurn).toHaveBeenCalledTimes(1));
+    controller.setDraft("New draft");
+    rejectStart?.(new Error("queued native start failed"));
+    await expect(submission).resolves.toBe(false);
     await vi.waitFor(() => expect(controller.getSnapshot().pendingIntent).toBeNull());
     expect(controller.getSnapshot()).toMatchObject({
       draft: "Queued request\n\nNew draft",

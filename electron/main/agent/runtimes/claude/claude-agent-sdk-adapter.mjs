@@ -43,6 +43,7 @@ export const CLAUDE_CAPABILITIES = Object.freeze({
   slashCommands: true,
   sessionHistory: true,
   history: Object.freeze({ discovery: "paged", exactOpen: "supported", hydration: "snapshot" }),
+  recovery: Object.freeze({ strategy: "snapshot-reload", activeExecution: "outcome-unknown", atomicHandoff: false }),
   usage: true,
   accountState: true,
   mcp: true,

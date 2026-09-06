@@ -1,6 +1,7 @@
 import {
   AGENT_EVENT_TYPES,
   assertAgentEventEnvelope,
+  sanitizeAgentEventPayload,
 } from "../../../shared/agent-contract/schema.mjs";
 
 const SECRET_PATTERNS = [
@@ -71,7 +72,7 @@ export function createAgentEventEnvelope({
     itemId,
     emittedAt,
     type,
-    payload: redactSecrets(boundRendererValue(payload)),
+    payload: sanitizeAgentEventPayload(type, redactSecrets(boundRendererValue(payload))),
   };
   if (!isAgentEventEnvelope(event)) {
     throw new TypeError(`Invalid normalized AgentEvent: ${String(type)}`);

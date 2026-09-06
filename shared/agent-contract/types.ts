@@ -147,6 +147,13 @@ export type AgentCapabilities = {
     exactOpen: "unsupported" | "supported";
     hydration: "unsupported" | "push-replay" | "snapshot" | "paged";
   };
+  /** What native state can be recovered after PuppyOne loses the live connection. */
+  recovery?: {
+    strategy: "unsupported" | "cursor-replay" | "snapshot-reload" | "object-reconciliation";
+    activeExecution: "confirmed" | "outcome-unknown";
+    /** True only when native snapshot capture and subsequent events have no race window. */
+    atomicHandoff: boolean;
+  };
   /** Changes whenever the runtime's effective negotiated capability surface changes. */
   revision?: string;
   /** Versioned native protocol and explicitly negotiated extension metadata. */
@@ -223,7 +230,7 @@ export type AgentSessionMetadata = {
   title: string;
   createdAt: string;
   updatedAt: string;
-  terminalState: AgentTurnTerminalState | "idle" | "running" | "provider-exited";
+  terminalState: AgentTurnTerminalState | "idle" | "running" | "provider-exited" | "outcome-unknown";
   selectedModel: string | null;
   selectedEffort?: string | null;
   selectedMode?: string | null;
@@ -284,63 +291,137 @@ export type AgentEventType =
   | "provider.warning"
   | "provider.error";
 
-type AgentEventPayloadBase = Record<string, unknown>;
+export type AgentCanonicalToolResult = {
+  content: Array<
+    | { type: "text"; text: string }
+    | { type: "artifact"; uri: string; mimeType: string | null; text: string | null }
+    | { type: "json"; value: unknown }
+  >;
+  error: string | null;
+  success: boolean | null;
+  truncated: boolean;
+};
 
 export type AgentEventPayloadMap = {
-  "session.started": AgentEventPayloadBase & { title?: string; status?: string };
-  "session.resumed": AgentEventPayloadBase & { title?: string; status?: string };
-  "session.updated": AgentEventPayloadBase & { title?: string; status?: string };
-  "session.closed": AgentEventPayloadBase & { status?: string };
-  "turn.started": AgentEventPayloadBase & {
+  "session.started": { title?: string; status?: string };
+  "session.resumed": { title?: string; status?: string };
+  "session.updated": { title?: string; status?: string };
+  "session.closed": { status?: string };
+  "turn.started": AgentRestoredPayload & {
     prompt?: string;
     status?: string;
     referenceDisplays?: AgentReferenceDisplay[];
     promptMentions?: AgentPromptReferenceMention[];
+    model?: string | null;
+    effort?: string | null;
+    mode?: string | null;
   };
-  "turn.completed": AgentEventPayloadBase & { status?: string; durationMs?: number };
-  "turn.failed": AgentEventPayloadBase & { status?: string; message?: string; durationMs?: number };
-  "turn.interrupted": AgentEventPayloadBase & { status?: string; message?: string; durationMs?: number };
-  "assistant.delta": AgentEventPayloadBase & { delta?: string; text?: string };
-  "assistant.completed": AgentEventPayloadBase & { text?: string };
-  "reasoning.summary.delta": AgentEventPayloadBase & { delta?: string; text?: string };
-  "plan.updated": AgentEventPayloadBase & { steps?: unknown[]; explanation?: string };
-  "tool.started": AgentEventPayloadBase & AgentActivityPayload;
-  "tool.progress": AgentEventPayloadBase & AgentActivityPayload;
-  "tool.completed": AgentEventPayloadBase & AgentActivityPayload;
-  "command.output.delta": AgentEventPayloadBase & AgentActivityPayload & { delta?: string };
-  "file.change.updated": AgentEventPayloadBase & AgentActivityPayload;
-  "usage.updated": AgentEventPayloadBase & { inputTokens?: number; outputTokens?: number; totalTokens?: number };
-  "approval.requested": AgentEventPayloadBase & AgentBlockingPayload;
-  "approval.resolved": AgentEventPayloadBase & AgentBlockingPayload & { decision?: AgentApprovalDecision };
-  "question.requested": AgentEventPayloadBase & AgentBlockingPayload & { questions: unknown[] };
-  "question.resolved": AgentEventPayloadBase & AgentBlockingPayload & { rejected?: boolean };
-  "provider.activity": AgentEventPayloadBase & AgentActivityPayload;
-  "provider.connection.updated": AgentEventPayloadBase & {
+  "turn.completed": AgentRestoredPayload & { status?: string; durationMs?: number };
+  "turn.failed": AgentRestoredPayload & { status?: string; message?: string; durationMs?: number };
+  "turn.interrupted": AgentRestoredPayload & { status?: string; message?: string; durationMs?: number };
+  "assistant.delta": AgentTextUpdatePayload & { delta?: string; text?: string };
+  "assistant.completed": AgentTextUpdatePayload & { text?: string };
+  "reasoning.summary.delta": AgentTextUpdatePayload & {
+    delta?: string;
+    text?: string;
+    summaryIndex?: number;
+    completed?: boolean;
+    boundary?: boolean;
+  };
+  "plan.updated": AgentTextUpdatePayload & { steps?: unknown[]; explanation?: string | null; completed?: boolean };
+  "tool.started": AgentActivityPayload;
+  "tool.progress": AgentActivityPayload;
+  "tool.completed": AgentActivityPayload;
+  "command.output.delta": AgentActivityPayload & { delta?: string };
+  "file.change.updated": AgentActivityPayload;
+  "usage.updated": {
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
+    cachedTokens?: number;
+    cost?: number;
+    contextWindow?: number;
+    tokens?: number;
+  };
+  "approval.requested": AgentBlockingPayload & {
+    availableDecisions?: AgentApprovalDecision[];
+    commandActions?: Array<Record<string, unknown>>;
+    networkApprovalContext?: Record<string, unknown> | null;
+    grantRoot?: string | null;
+    proposedExecpolicyAmendment?: unknown;
+    proposedNetworkPolicyAmendments?: unknown;
+  };
+  "approval.resolved": AgentBlockingPayload & { decision?: AgentApprovalDecision };
+  "question.requested": AgentBlockingPayload & { questions: unknown[] };
+  "question.resolved": AgentBlockingPayload & { resolution?: string; rejected?: boolean };
+  "provider.activity": AgentActivityPayload;
+  "provider.connection.updated": {
     state: "reconnecting" | "fallback" | "connected";
     message?: string;
     attempt?: number;
     maxAttempts?: number;
+    maxRetries?: number;
   };
-  "provider.warning": AgentEventPayloadBase & { message?: string };
-  "provider.error": AgentEventPayloadBase & { message?: string };
+  "provider.warning": AgentDiagnosticPayload & {
+    attempt?: number;
+    maxAttempts?: number;
+    maxRetries?: number;
+  };
+  "provider.error": AgentDiagnosticPayload;
+};
+
+type AgentRestoredPayload = { restored?: boolean };
+
+type AgentTextUpdatePayload = AgentRestoredPayload & {
+  updateMode?: "append" | "replace";
+  streaming?: boolean;
+  truncated?: boolean;
 };
 
 type AgentActivityPayload = {
   kind?: string;
   tool?: string;
   label?: string;
+  description?: string;
   status?: string;
   input?: Record<string, unknown> | null;
+  arguments?: Record<string, unknown> | null;
   command?: string | null;
+  cwd?: string | null;
   path?: string | null;
   query?: string | null;
   changes?: unknown[];
   outputPreview?: string;
+  result?: AgentCanonicalToolResult;
+  error?: string | Record<string, unknown> | null;
+  content?: unknown;
+  detail?: unknown;
+  metadata?: Record<string, unknown>;
+  recoverable?: boolean;
+  exitCode?: number | null;
+  duration?: number;
+  durationMs?: number;
+  elapsedMs?: number;
+  diff?: string;
+  patch?: string;
+  outputPaths?: string[];
+  truncated?: boolean;
+  restored?: boolean;
 };
 
 type AgentBlockingPayload = {
   requestId: string;
   kind?: string;
+  title?: string;
+  command?: string;
+  cwd?: string;
+  reason?: string | null;
+};
+
+type AgentDiagnosticPayload = {
+  message?: string;
+  recoverable?: boolean;
+  diagnostic?: string;
 };
 
 export type AgentEventEnvelope<TType extends AgentEventType> = {
@@ -435,7 +516,88 @@ export type AgentSessionSnapshot = {
   partial: boolean;
   firstAvailableSequence: number;
   lastSequence: number;
+  /** Present for Main-authored V2 snapshots; omitted only by legacy fixtures. */
+  cursor?: AgentSessionCursor;
+  control?: AgentSessionControl;
+  timeline?: AgentTimelineWindow;
 };
+
+export type AgentSessionCursor = { streamId: string; revision: number };
+
+export type AgentCommandDeliveryStatus = "queued" | "dispatching" | "accepted" | "rejected" | "outcome-unknown";
+
+export type AgentSessionControl = {
+  schemaVersion: 1;
+  streamId: string;
+  revision: number;
+  sessionEpoch: string;
+  adapterGeneration: number;
+  runGeneration: number;
+  connection: {
+    status: "connecting" | "connected" | "recovering" | "disconnected" | "exited";
+    reason: string | null;
+  };
+  execution: {
+    status: "idle" | "starting" | "active" | "ended" | "outcome-unknown";
+    activeTurnId: string | null;
+    uncertainTurnId: string | null;
+    startedAtMs: number | null;
+    nativeOutcome: AgentTurnTerminalState | null;
+    certainty: "confirmed" | "unknown";
+  };
+  interaction: {
+    approvals: Array<{ requestId: string; turnId: string | null; itemId: string | null; runtimeId: string; event?: AgentEvent }>;
+    questions: Array<{ requestId: string; turnId: string | null; itemId: string | null; runtimeId: string; questions: unknown[]; event?: AgentEvent }>;
+  };
+  commands: Array<{
+    commandId: string;
+    operationId: string | null;
+    kind: "start" | "steer" | "interrupt" | "approval" | "question";
+    targetTurnId: string | null;
+    status: AgentCommandDeliveryStatus;
+    error: string | null;
+  }>;
+  queue: string[];
+  terminalTurns: string[];
+  pendingSubmission: {
+    prompt: string;
+    promptMentions: AgentPromptReferenceMention[];
+    referenceDisplays: AgentReferenceDisplay[];
+  } | null;
+};
+
+export type AgentTimelineWindow = {
+  events: AgentEvent[];
+  /** Current facts whose original event fell outside the bounded content window. */
+  checkpointEvents?: AgentEvent[];
+  partial: boolean;
+  firstAvailableSequence: number;
+  lastSequence: number;
+};
+
+export type AgentSessionAttachRequest = { rootPath: string; sessionId: string };
+export type AgentSessionFeedReceipt = {
+  subscriptionId: string;
+  snapshot: AgentSessionSnapshot;
+};
+export type AgentSessionFeedAckRequest = AgentSessionAttachRequest & AgentSessionCursor & { subscriptionId: string };
+export type AgentSessionDetachRequest = AgentSessionAttachRequest & { subscriptionId: string };
+export type AgentSessionFrame =
+  | {
+      type: "delta";
+      subscriptionId: string;
+      streamId: string;
+      baseRevision: number;
+      revision: number;
+      control: AgentSessionControl;
+      events: AgentEvent[];
+    }
+  | {
+      type: "resync-required";
+      subscriptionId: string;
+      streamId: string;
+      revision: number;
+    };
 
 export type AgentRuntimeRequest = {
   rootPath?: string | null;
@@ -583,9 +745,19 @@ export type AgentSubmissionIntent = {
   promptMentions: AgentPromptReferenceMention[];
 };
 
-export type AgentTurnStartRequest = {
+export type AgentCommandPrecondition = {
+  /** Rejects a command captured for an older Main SessionActor instance. */
+  expectedSessionEpoch?: string;
+  /** Rejects a command captured before the native adapter was replaced. */
+  expectedAdapterGeneration?: number;
+  /** Rejects turn-scoped intent captured for an older active run. */
+  expectedRunGeneration?: number;
+};
+
+export type AgentTurnStartRequest = AgentCommandPrecondition & {
   rootPath: string;
   sessionId: string;
+  commandId?: string;
   prompt: string;
   model?: string | null;
   effort?: string | null;
@@ -597,10 +769,11 @@ export type AgentTurnStartRequest = {
   references?: AgentDraftReference[];
 };
 
-export type AgentTurnSteerRequest = {
+export type AgentTurnSteerRequest = AgentCommandPrecondition & {
   rootPath: string;
   sessionId: string;
   turnId: string;
+  commandId?: string;
   message: string;
   referenceEpoch?: string;
   promptMentions?: AgentPromptReferenceMention[];
@@ -623,27 +796,30 @@ export type AgentWorkspaceReferenceResolveRequest = {
   paths: string[];
 };
 
-export type AgentTurnInterruptRequest = {
+export type AgentTurnInterruptRequest = AgentCommandPrecondition & {
   rootPath: string;
   sessionId: string;
   turnId: string;
+  commandId?: string;
 };
 
 export type AgentApprovalDecision = "accept" | "acceptForSession" | "decline" | "cancel";
 
-export type AgentApprovalResolution = {
+export type AgentApprovalResolution = AgentCommandPrecondition & {
   rootPath: string;
   sessionId: string;
   turnId: string;
   requestId: string;
+  commandId?: string;
   decision: AgentApprovalDecision;
 };
 
-export type AgentQuestionResolution = {
+export type AgentQuestionResolution = AgentCommandPrecondition & {
   rootPath: string;
   sessionId: string;
   turnId: string;
   requestId: string;
+  commandId?: string;
   answer?: string | string[] | string[][] | null;
   answers?: string[][] | null;
   rejected?: boolean;
@@ -669,6 +845,10 @@ export type AgentIpcChannel =
   | "agent:session-resume"
   | "agent:session-open"
   | "agent:session-replay"
+  | "agent:session-attach"
+  | "agent:session-feed-ack"
+  | "agent:session-feed-watermark"
+  | "agent:session-detach"
   | "agent:sessions-list"
   | "agent:session-fork"
   | "agent:session-archive"
@@ -678,6 +858,7 @@ export type AgentIpcChannel =
   | "agent:reference-revoke"
   | "agent:reference-resolve-workspace"
   | "agent:reference-pick-workspace"
+  | "agent:command-dispatch"
   | "agent:turn-start"
   | "agent:turn-steer"
   | "agent:turn-interrupt"

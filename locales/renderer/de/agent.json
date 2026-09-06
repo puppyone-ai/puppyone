@@ -200,6 +200,7 @@
   "turn.status.failed": "fehlgeschlagen",
   "turn.status.interrupted": "unterbrochen",
   "turn.status.provider-exited": "Anbieter beendet",
+  "turn.status.outcome-unknown": "Ergebnis wartet auf Bestätigung",
   "duration.lessThanSecond": "<1 s",
   "duration.days": "{value} T",
   "duration.hours": "{value} Std.",

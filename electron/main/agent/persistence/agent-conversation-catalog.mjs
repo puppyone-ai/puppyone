@@ -242,7 +242,7 @@ function safeId(value) {
 }
 
 function terminalState(value) {
-  return ["idle", "running", "completed", "failed", "interrupted", "provider-exited"].includes(value)
+  return ["idle", "running", "completed", "failed", "interrupted", "provider-exited", "outcome-unknown"].includes(value)
     ? value
     : "idle";
 }
