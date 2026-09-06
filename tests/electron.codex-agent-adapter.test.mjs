@@ -8,6 +8,7 @@ import {
   normalizeCodexNotification,
 } from "../electron/main/agent/runtimes/codex/codex-app-server-adapter.mjs";
 import { AgentProviderSessionUnavailableError } from "../electron/main/agent/runtime/agent-runtime-port.mjs";
+import { JsonlRpcRequestTimeoutError } from "../electron/main/agent/transports/jsonl-rpc-connection.mjs";
 
 describe("Codex app-server normalization", () => {
   it("discovers workspace threads from the native state index without scanning rollout transcripts", async () => {
@@ -191,6 +192,21 @@ describe("Codex app-server normalization", () => {
     })]);
 
     expect(normalizeCodexNotification({
+      method: "item/completed",
+      params: {
+        threadId: "thread-1",
+        turnId: "turn-1",
+        item: { id: "user-1", type: "userMessage", content: [{ type: "text", text: "follow up" }] },
+      },
+    })).toEqual([expect.objectContaining({
+      type: "user.message",
+      providerSessionId: "thread-1",
+      turnId: "turn-1",
+      itemId: "user-1",
+      payload: { text: "follow up" },
+    })]);
+
+    expect(normalizeCodexNotification({
       method: "item/reasoning/summaryPartAdded",
       params: { threadId: "thread-1", turnId: "turn-1", itemId: "reasoning-1", summaryIndex: 1 },
     })).toEqual([expect.objectContaining({
@@ -353,6 +369,28 @@ describe("Codex app-server normalization", () => {
     adapter.dispose();
   });
 
+  it("preserves native user identity when turn delivery is ambiguous", async () => {
+    const connection = new FakeConnection();
+    connection.results.set("thread/start", { thread: { id: "thread-1" } });
+    connection.failures.set("turn/start", new JsonlRpcRequestTimeoutError("turn/start"));
+    const adapter = new CodexAppServerAdapter({
+      executablePath: "/usr/local/bin/codex",
+      environment: {},
+      workspaceRoot: "/workspace",
+      appVersion: "test",
+      connectionFactory: () => connection,
+    });
+    await adapter.createSession({ model: "gpt-5" });
+
+    const failure = await adapter.startTurn({ prompt: "hello", model: "gpt-5" }).catch((error) => error);
+    expect(failure).toMatchObject({
+      code: "JSONL_RPC_TIMEOUT",
+      deliveryOutcome: "unknown",
+      clientUserMessageId: expect.stringMatching(/^[A-Fa-f0-9-]{36}$/),
+    });
+    adapter.dispose();
+  });
+
   it("classifies a missing native rollout as an unavailable saved session", async () => {
     const connection = new FakeConnection();
     connection.failures.set("thread/resume", new Error("thread/resume: no rollout found for thread id thread-stale"));
@@ -430,6 +468,9 @@ describe("Codex app-server normalization", () => {
     expect(connection.requests.some((request) => request.method === "thread/read")).toBe(false);
     expect(events.filter((event) => event.type === "turn.started").map((event) => event.payload.prompt))
       .toEqual(["old prompt", "new prompt"]);
+    expect(events.filter((event) => event.type === "user.message").map((event) => [event.itemId, event.payload.text]))
+      .toEqual([["old-user", "old prompt"], ["new-user", "new prompt"]]);
+    expect(events.filter((event) => event.type === "provider.warning")).toHaveLength(0);
     expect(events.filter((event) => event.type === "assistant.completed").map((event) => event.payload.text))
       .toEqual(["old answer", "new answer"]);
     adapter.dispose();

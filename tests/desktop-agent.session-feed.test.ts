@@ -42,6 +42,40 @@ describe("Renderer Agent session replica", () => {
     controller.dispose();
   });
 
+  it("lets connected Main control clear content-derived connection presentation", async () => {
+    let onFrame: ((frame: any) => void) | null = null;
+    const initial = feedSnapshot(1, idleControl(1));
+    const bridge = {
+      discoverAgentRuntimes: vi.fn(async () => inspection()),
+      resumeAgentSession: vi.fn(async () => initial),
+      attachAgentSession: vi.fn(async () => ({ subscriptionId: "subscription-1", snapshot: initial })),
+      acknowledgeAgentSession: vi.fn(async (request: any) => ({ ...request, synchronized: true })),
+      detachAgentSession: vi.fn(async () => ({ subscriptionId: "subscription-1", detached: true })),
+      onAgentSessionFrame: vi.fn((callback) => { onFrame = callback; return () => { onFrame = null; }; }),
+    };
+    const controller = new AgentSessionController("/workspace", () => bridge as never);
+    await controller.initialize();
+
+    onFrame?.({
+      type: "delta",
+      subscriptionId: "subscription-1",
+      streamId: "stream-1",
+      baseRevision: 1,
+      revision: 2,
+      control: idleControl(2),
+      events: [event(2, "provider.warning", "turn-A", {
+        message: "Optional content could not be displayed.",
+        recoverable: true,
+      })],
+    });
+
+    expect(controller.getSnapshot().projection.connectionStatus).toBeNull();
+    expect(controller.getSnapshot().projection.activities).toEqual([
+      expect.objectContaining({ kind: "warning", label: "Optional content could not be displayed." }),
+    ]);
+    controller.dispose();
+  });
+
   it("repairs a lost final terminal frame from the Main watermark", async () => {
     vi.useFakeTimers();
     try {
@@ -195,10 +229,15 @@ function feedSnapshot(revision: number, control: AgentSessionControl): AgentSess
   };
 }
 
-function event(sequence: number, type: AgentEvent["type"], turnId: string | null): AgentEvent {
+function event(
+  sequence: number,
+  type: AgentEvent["type"],
+  turnId: string | null,
+  payload: Record<string, unknown> = {},
+): AgentEvent {
   return {
     schemaVersion: 1, sequence, sessionId: "session-1", runtimeId: "codex", provider: "codex", providerSessionId: "thread-1",
-    turnId, itemId: null, emittedAt: "2026-09-06T00:00:00.000Z", type, payload: {},
+    turnId, itemId: null, emittedAt: "2026-09-06T00:00:00.000Z", type, payload,
   } as AgentEvent;
 }
 

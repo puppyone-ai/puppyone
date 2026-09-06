@@ -44,7 +44,10 @@ export function legacyProviderConnectionUpdate(event: AgentEvent, label: string)
     ?? positiveInteger(event.payload.maxRetries)
     ?? fraction?.maxAttempts
     ?? null;
-  if (event.payload.recoverable === true || attempt !== null) {
+  // `recoverable` describes diagnostic severity, not transport state. Only a
+  // legacy retry-shaped notice may be migrated, and callers additionally gate
+  // this helper to snapshot hydration rather than the live event path.
+  if (/\breconnect(?:ing|ion)?\b/i.test(label) && (attempt !== null || fraction !== null)) {
     return { state: "reconnecting", attempt, maxAttempts };
   }
   if (/\bfalling back\b.*\btransport\b/i.test(label)) {

@@ -280,15 +280,25 @@ export class CodexAppServerAdapter {
       references.length > 0 ? references : [...contextReferences, ...attachments],
       this.workspaceRoot,
     );
-    const result = await this.connection.request("turn/start", {
-      threadId: this.threadId,
-      clientUserMessageId,
-      input,
-      cwd: this.workspaceRoot,
-      approvalPolicy: "on-request",
-      ...(model ? { model } : {}),
-      ...(effort ? { effort } : {}),
-    });
+    let result;
+    try {
+      result = await this.connection.request("turn/start", {
+        threadId: this.threadId,
+        clientUserMessageId,
+        input,
+        cwd: this.workspaceRoot,
+        approvalPolicy: "on-request",
+        ...(model ? { model } : {}),
+        ...(effort ? { effort } : {}),
+      });
+    } catch (error) {
+      // The request identity remains useful even when delivery is ambiguous:
+      // a native user item may still arrive and confirm that exact command.
+      if (error && typeof error === "object") {
+        try { error.clientUserMessageId = clientUserMessageId; } catch { /* preserve the original failure */ }
+      }
+      throw error;
+    }
     this.activeTurnId = requireString(result?.turn?.id, "Codex turn/start did not return a turn id.");
     return { turnId: this.activeTurnId, clientUserMessageId };
   }
@@ -713,17 +723,22 @@ export function normalizeHistoricalThread(thread) {
   for (const turn of thread.turns) {
     const turnId = stringOrNull(turn?.id);
     const items = Array.isArray(turn?.items) ? turn.items : [];
-    const prompt = items
-      .filter((item) => item?.type === "userMessage")
-      .flatMap((item) => Array.isArray(item.content) ? item.content : [])
-      .filter((content) => content?.type === "text" && typeof content.text === "string")
-      .map((content) => content.text)
-      .join("\n");
+    // turn.started retains the first prompt for older projection consumers.
+    // Every native user item is also normalized below with its own identity;
+    // follow-ups must never be flattened into the initial turn prompt.
+    const firstUserMessage = items.find((item) => item?.type === "userMessage");
+    const prompt = readCodexUserMessageText(firstUserMessage);
+    const userMessageId = stringOrNull(firstUserMessage?.id);
     events.push({
       type: "turn.started",
       providerSessionId: thread.id,
       turnId,
-      payload: { status: "running", restored: true, ...(prompt ? { prompt } : {}) },
+      payload: {
+        status: "running",
+        restored: true,
+        ...(prompt ? { prompt } : {}),
+        ...(userMessageId ? { userMessageId } : {}),
+      },
     });
     for (const item of items) {
       events.push(...normalizeItemLifecycle(item, "completed", thread.id, turnId));
@@ -739,6 +754,17 @@ export function normalizeHistoricalThread(thread) {
 function normalizeItemLifecycle(item, phase, threadId, turnId) {
   if (!item || typeof item !== "object") return [];
   const itemId = stringOrNull(item.id);
+  if (item.type === "userMessage") {
+    return phase === "completed"
+      ? [{
+          type: "user.message",
+          providerSessionId: threadId,
+          turnId,
+          itemId,
+          payload: { text: readCodexUserMessageText(item) },
+        }]
+      : [];
+  }
   if (item.type === "agentMessage") {
     return phase === "completed"
       ? [{ type: "assistant.completed", providerSessionId: threadId, turnId, itemId, payload: { text: String(item.text ?? "") } }]
@@ -797,6 +823,13 @@ function normalizeItemLifecycle(item, phase, threadId, turnId) {
         payload: { message: `Codex returned an unsupported content item (${item.type}).`, recoverable: true },
       }]
     : [];
+}
+
+function readCodexUserMessageText(item) {
+  const text = (Array.isArray(item?.content) ? item.content : [])
+    .flatMap((content) => content?.type === "text" && typeof content.text === "string" ? [content.text] : [])
+    .join("\n");
+  return text.slice(0, 128 * 1024);
 }
 
 function summarizeToolItem(item, phase) {

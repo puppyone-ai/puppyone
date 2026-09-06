@@ -35,6 +35,49 @@ describe("Desktop Agent transcript projection", () => {
     });
   });
 
+  it("confirms the optimistic prompt by native identity and preserves same-turn follow-ups", () => {
+    const events = [
+      event(1, "turn.started", { prompt: "Initial", userMessageId: "user-initial" }, "turn-user"),
+      event(2, "user.message", { text: "Initial\nProvider-compiled context" }, "turn-user", "user-initial"),
+      event(3, "user.message", { text: "Follow up" }, "turn-user", "user-followup"),
+      event(4, "user.message", { text: "Follow up" }, "turn-user", "user-followup"),
+    ] satisfies AgentEvent[];
+    const projection = applyAgentEvents(createAgentProjection(), events);
+
+    expect(projection.messages.filter((message) => message.role === "user")).toEqual([
+      expect.objectContaining({
+        id: "user:user-initial",
+        itemId: "user-initial",
+        text: "Initial",
+        sequence: 1,
+        updatedSequence: 2,
+      }),
+      expect.objectContaining({
+        id: "user:user-followup",
+        itemId: "user-followup",
+        text: "Follow up",
+        sequence: 3,
+        updatedSequence: 4,
+      }),
+    ]);
+    expect(buildAgentTimeline(projection).rows.map((row) => row.kind)).toEqual(["user", "user"]);
+  });
+
+  it("does not interpret a recoverable content diagnostic as live connection state", () => {
+    const projection = applyAgentEvents(createAgentProjection(), [
+      event(1, "turn.started", { prompt: "Hello" }, "turn-warning"),
+      event(2, "provider.warning", {
+        message: "Optional content could not be displayed.",
+        recoverable: true,
+      }, "turn-warning", "content-warning"),
+    ]);
+
+    expect(projection.connectionStatus).toBeNull();
+    expect(projection.activities).toEqual([
+      expect.objectContaining({ kind: "warning", label: "Optional content could not be displayed." }),
+    ]);
+  });
+
   it("keeps first-observed timeline order immutable while blocks stream and settle", () => {
     const events = [
       event(1, "turn.started", { prompt: "Inspect it" }, "turn-order"),
@@ -334,7 +377,7 @@ describe("Desktop Agent transcript projection", () => {
       event(4, "provider.warning", {
         message: "Falling back from WebSockets to HTTPS transport. request timed out",
       }, "turn-1", "fallback"),
-    ]);
+    ], { legacyProviderConnectionWarnings: true });
 
     expect(projection.connectionStatus).toMatchObject({ state: "fallback", sequence: 4 });
     expect(projection.activities).toHaveLength(0);

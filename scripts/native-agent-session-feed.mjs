@@ -75,10 +75,11 @@ export async function attachNativeAgentSessionFeed({
   }
 
   return Object.freeze({
-    waitForTurn(timeoutMs = DEFAULT_TIMEOUT_MS) {
+    waitForTurn(timeoutMs = DEFAULT_TIMEOUT_MS, { expectedUserMessage = null } = {}) {
       if (closed) throw new Error("Agent session feed is closed.");
       if (pending) throw new Error("Only one Agent turn may be observed at a time.");
       let text = "";
+      let observedUserMessage = expectedUserMessage === null;
       let resolvePromise;
       let rejectPromise;
       const promise = new Promise((resolve, reject) => {
@@ -106,7 +107,12 @@ export async function attachNativeAgentSessionFeed({
           if (event.type === "assistant.completed" && typeof event.payload?.text === "string") {
             text = appendBounded(text, event.payload.text);
           }
-          if (event.type === "turn.completed") settle(() => resolvePromise(text));
+          if (event.type === "user.message" && event.payload?.text === expectedUserMessage) {
+            observedUserMessage = true;
+          }
+          if (event.type === "turn.completed" && !observedUserMessage) {
+            settle(() => rejectPromise(new Error("Agent user message was not observed.")));
+          } else if (event.type === "turn.completed") settle(() => resolvePromise(text));
           if (event.type === "turn.failed" || event.type === "turn.interrupted") {
             settle(() => rejectPromise(new Error("Agent turn did not complete.")));
           }

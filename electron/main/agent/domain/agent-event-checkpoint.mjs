@@ -10,6 +10,7 @@ const TRUNCATION_MARKER = "\n… earlier output truncated …\n";
 
 const CHECKPOINT_TYPES = new Set([
   "turn.started",
+  "user.message",
   "assistant.delta", "assistant.completed", "reasoning.summary.delta", "plan.updated",
   "tool.started", "tool.progress", "tool.completed", "command.output.delta",
   "file.change.updated", "usage.updated", "approval.requested", "approval.resolved",

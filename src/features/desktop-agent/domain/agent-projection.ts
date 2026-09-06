@@ -38,6 +38,7 @@ const MAX_COMMAND_OUTPUT = 64 * 1024;
 const MAX_MESSAGE_TEXT = 128 * 1024;
 const MAX_ACTIVITY_TEXT = 64 * 1024;
 const ASSISTANT_SEGMENT_BOUNDARY_EVENTS = new Set<AgentEvent["type"]>([
+  "user.message",
   "reasoning.summary.delta",
   "plan.updated",
   "tool.started",
@@ -59,6 +60,7 @@ const CONNECTION_RECOVERY_PROGRESS_EVENTS = new Set<AgentEvent["type"]>([
   "turn.completed",
   "turn.failed",
   "turn.interrupted",
+  "user.message",
   "assistant.delta",
   "assistant.completed",
   "reasoning.summary.delta",
@@ -113,7 +115,7 @@ export function createAgentProjection(options: { partialHistory?: boolean } = {}
 export function applyAgentEvents(
   initial: AgentProjection,
   events: AgentEvent[],
-  options: { partialHistory?: boolean } = {},
+  options: AgentProjectionApplyOptions = {},
 ): AgentProjection {
   const relevant = events
     .filter((event) => event.sequence > initial.lastSequence)
@@ -123,23 +125,37 @@ export function applyAgentEvents(
   if (options.partialHistory) next.partialHistory = true;
   for (const event of relevant) {
     if (event.sequence <= next.lastSequence) continue;
-    applyLegacyAgentEvent(next, event);
-    projectTypedPart(next, event);
+    applyLegacyAgentEvent(next, event, options);
+    projectTypedPart(next, event, options);
     reconcileTerminalAgentTurn(next, event);
   }
   return next;
 }
 
-export function applyAgentEvent(previous: AgentProjection, event: AgentEvent): AgentProjection {
+export function applyAgentEvent(
+  previous: AgentProjection,
+  event: AgentEvent,
+  options: AgentProjectionApplyOptions = {},
+): AgentProjection {
   if (event.sequence <= previous.lastSequence) return previous;
   const next = cloneAgentProjection(previous);
-  applyLegacyAgentEvent(next, event);
-  projectTypedPart(next, event);
+  applyLegacyAgentEvent(next, event, options);
+  projectTypedPart(next, event, options);
   reconcileTerminalAgentTurn(next, event);
   return next;
 }
 
-function applyLegacyAgentEvent(next: AgentProjection, event: AgentEvent): AgentProjection {
+type AgentProjectionApplyOptions = {
+  partialHistory?: boolean;
+  /** Only snapshot hydration may reinterpret pre-V2 retry warnings. */
+  legacyProviderConnectionWarnings?: boolean;
+};
+
+function applyLegacyAgentEvent(
+  next: AgentProjection,
+  event: AgentEvent,
+  options: AgentProjectionApplyOptions,
+): AgentProjection {
   if (event.sequence <= next.lastSequence) return next;
   if (next.lastSequence > 0 && event.sequence > next.lastSequence + 1) {
     next.partialHistory = true;
@@ -173,15 +189,16 @@ function applyLegacyAgentEvent(next: AgentProjection, event: AgentEvent): AgentP
       const prompt = readString(payload.prompt).slice(0, MAX_MESSAGE_TEXT);
       const references = readReferenceDisplays(payload.referenceDisplays);
       const promptMentions = readPromptMentions(payload.promptMentions, prompt, references);
+      const userMessageId = typeof payload.userMessageId === "string" ? payload.userMessageId : null;
       const indexes = projectionIndexes(next);
       const turnMessages = event.turnId ? indexes.messagesByTurn.get(event.turnId) ?? [] : [];
       if ((prompt || references.length > 0) && !turnMessages.some((index) => next.messages[index]?.role === "user")) {
         const messageIndex = next.messages.length;
         next.messages.push({
-          id: `user:${event.turnId ?? event.sequence}`,
+          id: `user:${userMessageId ?? event.turnId ?? event.sequence}`,
           role: "user",
           turnId: event.turnId,
-          itemId: null,
+          itemId: userMessageId,
           text: prompt,
           references,
           promptMentions,
@@ -190,7 +207,7 @@ function applyLegacyAgentEvent(next: AgentProjection, event: AgentEvent): AgentP
           sequence: event.sequence,
           updatedSequence: event.sequence,
         });
-        indexes.messages.set(`user:${event.turnId ?? event.sequence}`, messageIndex);
+        indexes.messages.set(`user:${userMessageId ?? event.turnId ?? event.sequence}`, messageIndex);
         if (event.turnId) indexes.messagesByTurn.set(event.turnId, [...turnMessages, messageIndex]);
       }
       return next;
@@ -202,6 +219,8 @@ function applyLegacyAgentEvent(next: AgentProjection, event: AgentEvent): AgentP
       // settles every compatibility collection and semantic part exactly once.
       return next;
     }
+    case "user.message":
+      return upsertUserMessage(next, event);
     case "assistant.delta":
       return upsertAssistant(next, event, readString(event.payload.delta), true, false);
     case "assistant.completed":
@@ -374,7 +393,9 @@ function applyLegacyAgentEvent(next: AgentProjection, event: AgentEvent): AgentP
       const payload = event.payload;
       const kind = event.type === "provider.error" ? "error" : "warning";
       const label = readProviderMessage(payload.message);
-      const legacyConnection = legacyProviderConnectionUpdate(event, label);
+      const legacyConnection = options.legacyProviderConnectionWarnings
+        ? legacyProviderConnectionUpdate(event, label)
+        : null;
       if (legacyConnection) {
         next.connectionStatus = {
           ...legacyConnection,
@@ -438,6 +459,70 @@ function readReferenceDisplays(value: unknown): AgentReferenceDisplay[] {
       ...(Number.isSafeInteger(candidate.size) && Number(candidate.size) >= 0 ? { size: Number(candidate.size) } : {}),
     }];
   });
+}
+
+/**
+ * Reconciles native user-message facts with the optimistic prompt materialized
+ * by turn.started. Native item identity wins, while the original ledger
+ * position and locally-known reference metadata remain stable.
+ */
+function upsertUserMessage(projection: AgentProjection, event: AgentEvent<"user.message">) {
+  const indexes = projectionIndexes(projection);
+  const text = readString(event.payload.text).slice(0, MAX_MESSAGE_TEXT);
+  const references = readReferenceDisplays(event.payload.referenceDisplays);
+  const promptMentions = readPromptMentions(event.payload.promptMentions, text, references);
+  const nativeIndex = event.itemId
+    ? projection.messages.findIndex((message) => message.role === "user" && message.itemId === event.itemId)
+    : -1;
+  const syntheticIndex = nativeIndex < 0 && event.turnId
+    ? projection.messages.findIndex((message) => (
+        message.role === "user"
+        && message.turnId === event.turnId
+        && message.itemId === null
+        && message.id === `user:${event.turnId}`
+        && message.text === text
+      ))
+    : -1;
+  const existingIndex = nativeIndex >= 0 ? nativeIndex : syntheticIndex;
+  if (existingIndex >= 0) {
+    const existing = projection.messages[existingIndex];
+    projection.messages[existingIndex] = {
+      ...existing,
+      itemId: event.itemId ?? existing.itemId,
+      // User messages are immutable. When Main already materialized the
+      // submitted display prompt, the native echo only confirms identity; it
+      // must not replace user-facing text with provider-compiled context.
+      text: existing.text,
+      references: references.length > 0 ? references : existing.references,
+      promptMentions: promptMentions.length > 0 ? promptMentions : existing.promptMentions,
+      updatedSequence: event.sequence,
+    };
+    return projection;
+  }
+
+  const id = event.itemId ? `user:${event.itemId}` : `user:event:${event.sequence}`;
+  const messageIndex = projection.messages.length;
+  projection.messages.push({
+    id,
+    role: "user",
+    turnId: event.turnId,
+    itemId: event.itemId,
+    text,
+    references,
+    promptMentions,
+    streaming: false,
+    terminalState: null,
+    sequence: event.sequence,
+    updatedSequence: event.sequence,
+  });
+  indexes.messages.set(id, messageIndex);
+  if (event.turnId) {
+    indexes.messagesByTurn.set(event.turnId, [
+      ...(indexes.messagesByTurn.get(event.turnId) ?? []),
+      messageIndex,
+    ]);
+  }
+  return projection;
 }
 
 function upsertAssistant(

@@ -15,6 +15,7 @@ import {
   contractError,
   enumValue,
   nonNegativeInteger,
+  positiveInteger,
   optionalBoolean,
   optionalOpaqueId,
   optionalRecord,
@@ -321,6 +322,14 @@ export function assertAgentSessionControl(value, label = "Agent session control"
   const connection = assertRecord(control.connection, `${label}.connection`);
   enumValue(connection.status, `${label}.connection.status`, ["connecting", "connected", "recovering", "disconnected", "exited"]);
   if (connection.reason !== null && connection.reason !== undefined) optionalString(connection.reason, `${label}.connection.reason`, MAX_CONTROL_REASON_LENGTH);
+  if (connection.recoveryState !== null && connection.recoveryState !== undefined) {
+    enumValue(connection.recoveryState, `${label}.connection.recoveryState`, ["reconnecting", "fallback"]);
+  }
+  if (connection.attempt !== null && connection.attempt !== undefined) positiveInteger(connection.attempt, `${label}.connection.attempt`);
+  if (connection.maxAttempts !== null && connection.maxAttempts !== undefined) positiveInteger(connection.maxAttempts, `${label}.connection.maxAttempts`);
+  if (connection.status !== "recovering" && (
+    connection.recoveryState != null || connection.attempt != null || connection.maxAttempts != null
+  )) throw contractError(`${label}.connection`, "must not retain recovery details outside recovery");
   const execution = assertRecord(control.execution, `${label}.execution`);
   enumValue(execution.status, `${label}.execution.status`, ["idle", "starting", "active", "ended", "outcome-unknown"]);
   optionalOpaqueId(execution.activeTurnId, `${label}.execution.activeTurnId`, { nullable: true });
@@ -339,6 +348,7 @@ export function assertAgentSessionControl(value, label = "Agent session control"
     commandIds.add(commandId);
     optionalOpaqueId(command.operationId, `${label}.commands[${index}].operationId`, { nullable: true });
     optionalOpaqueId(command.targetTurnId, `${label}.commands[${index}].targetTurnId`, { nullable: true });
+    optionalOpaqueId(command.userMessageId, `${label}.commands[${index}].userMessageId`, { nullable: true });
     const kind = enumValue(command.kind, `${label}.commands[${index}].kind`, ["start", "steer", "interrupt", "approval", "question"]);
     enumValue(command.status, `${label}.commands[${index}].status`, ["queued", "dispatching", "accepted", "rejected", "cancelled", "outcome-unknown"]);
     if (command.error !== null && command.error !== undefined) optionalString(command.error, `${label}.commands[${index}].error`, MAX_COMMAND_ERROR_LENGTH);

@@ -1,8 +1,9 @@
-import { AGENT_EVENT_TYPES } from "./constants.mjs";
+import { AGENT_EVENT_TYPES, agentContractLimits } from "./constants.mjs";
 import {
   assertRecord,
   assertRuntimeId,
   contractError,
+  enumValue,
   isOpaqueId,
   nonNegativeInteger,
   optionalOpaqueId,
@@ -17,10 +18,11 @@ const PAYLOAD_KEYS = Object.freeze({
   "session.resumed": ["title", "status"],
   "session.updated": ["title", "status"],
   "session.closed": ["status"],
-  "turn.started": ["prompt", "status", "referenceDisplays", "promptMentions", "model", "effort", "mode", "restored"],
+  "turn.started": ["prompt", "userMessageId", "status", "referenceDisplays", "promptMentions", "model", "effort", "mode", "restored"],
   "turn.completed": ["status", "durationMs", "restored"],
   "turn.failed": ["status", "message", "durationMs", "restored"],
   "turn.interrupted": ["status", "message", "durationMs", "restored"],
+  "user.message": ["text", "referenceDisplays", "promptMentions", "restored"],
   "assistant.delta": ["delta", "text", "streaming", "updateMode", "truncated", "restored"],
   "assistant.completed": ["text", "streaming", "updateMode", "truncated", "restored"],
   "reasoning.summary.delta": ["delta", "text", "summaryIndex", "completed", "boundary", "updateMode", "truncated", "restored"],
@@ -60,11 +62,28 @@ export function assertAgentEventEnvelope(value) {
   if (event.type === "question.requested" && !Array.isArray(payload.questions)) {
     throw contractError("AgentEvent(question.requested).payload.questions", "must be an array");
   }
-  if (event.type === "turn.started" && payload.referenceDisplays !== undefined) {
-    assertReferenceDisplays(payload.referenceDisplays);
+  if (event.type === "user.message") {
+    requiredString(payload.text, "AgentEvent(user.message).payload.text", agentContractLimits.maxMessageLength, {
+      allowEmpty: true,
+      preserveWhitespace: true,
+    });
   }
-  if (event.type === "turn.started" && payload.promptMentions !== undefined) {
-    assertPromptMentions(payload.promptMentions, payload.prompt);
+  if (event.type === "turn.started" && payload.userMessageId !== undefined) {
+    optionalOpaqueId(payload.userMessageId, "AgentEvent(turn.started).payload.userMessageId");
+  }
+  if ((event.type === "turn.started" || event.type === "user.message") && payload.referenceDisplays !== undefined) {
+    assertReferenceDisplays(payload.referenceDisplays, event.type);
+  }
+  if ((event.type === "turn.started" || event.type === "user.message") && payload.promptMentions !== undefined) {
+    assertPromptMentions(payload.promptMentions, event.type === "user.message" ? payload.text : payload.prompt, event.type);
+  }
+  if (event.type === "provider.connection.updated") {
+    enumValue(payload.state, "AgentEvent(provider.connection.updated).payload.state", ["reconnecting", "fallback", "connected"]);
+    for (const key of ["attempt", "maxAttempts", "maxRetries"]) {
+      if (payload[key] !== undefined && payload[key] !== null) {
+        positiveInteger(payload[key], `AgentEvent(provider.connection.updated).payload.${key}`);
+      }
+    }
   }
   return value;
 }
@@ -99,14 +118,14 @@ function blockerPayloadKeys(...extra) {
   return ["requestId", "kind", "title", "command", "cwd", "reason", ...extra];
 }
 
-function assertPromptMentions(value, prompt) {
+function assertPromptMentions(value, prompt, eventType = "turn.started") {
   if (!Array.isArray(value) || value.length > 32) {
-    throw contractError("AgentEvent(turn.started).payload.promptMentions", "must contain at most 32 entries");
+    throw contractError(`AgentEvent(${eventType}).payload.promptMentions`, "must contain at most 32 entries");
   }
   const text = typeof prompt === "string" ? prompt : "";
   let boundary = 0;
   value.forEach((entry, index) => {
-    const label = `AgentEvent(turn.started).payload.promptMentions[${index}]`;
+    const label = `AgentEvent(${eventType}).payload.promptMentions[${index}]`;
     const mention = assertRecord(entry, label);
     if (!isOpaqueId(mention.referenceId)) throw contractError(`${label}.referenceId`, "is invalid");
     const start = nonNegativeInteger(mention.start, `${label}.start`);
@@ -116,13 +135,13 @@ function assertPromptMentions(value, prompt) {
   });
 }
 
-function assertReferenceDisplays(value) {
+function assertReferenceDisplays(value, eventType = "turn.started") {
   if (!Array.isArray(value) || value.length > 32) {
-    throw contractError("AgentEvent(turn.started).payload.referenceDisplays", "must contain at most 32 entries");
+    throw contractError(`AgentEvent(${eventType}).payload.referenceDisplays`, "must contain at most 32 entries");
   }
   const allowedKeys = new Set(["id", "kind", "displayName", "relativePath", "mime", "size"]);
   value.forEach((entry, index) => {
-    const label = `AgentEvent(turn.started).payload.referenceDisplays[${index}]`;
+    const label = `AgentEvent(${eventType}).payload.referenceDisplays[${index}]`;
     const reference = assertRecord(entry, label);
     for (const key of Object.keys(reference)) {
       if (!allowedKeys.has(key)) throw contractError(`${label}.${key}`, "is not renderer-safe reference metadata");

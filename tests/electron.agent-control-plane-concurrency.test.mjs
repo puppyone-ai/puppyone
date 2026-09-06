@@ -102,13 +102,23 @@ describe("Agent control-plane concurrency invariants", () => {
       executablePath: "/usr/local/bin/codex", args: [], cwd: "/workspace", env: {}, spawn: () => child,
     });
     rpc.on("exit", adapter.exit);
-    adapter.startTurn.mockImplementationOnce(() => rpc.request("turn/start", {}, { timeoutMs: 20 }));
+    adapter.startTurn.mockImplementationOnce(async () => {
+      try {
+        return await rpc.request("turn/start", {}, { timeoutMs: 20 });
+      } catch (error) {
+        error.clientUserMessageId = "native-user-ambiguous";
+        throw error;
+      }
+    });
     const pending = harness.service.startTurn(harness.owner, request(harness, "ambiguous"), "/workspace");
     await vi.advanceTimersByTimeAsync(25);
     await pending;
 
     const control = snapshot(harness).control;
-    expect(control.commands.find((entry) => entry.commandId === "ambiguous")?.status).toBe("outcome-unknown");
+    expect(control.commands.find((entry) => entry.commandId === "ambiguous")).toMatchObject({
+      status: "outcome-unknown",
+      userMessageId: "native-user-ambiguous",
+    });
     expect(control.execution).toMatchObject({ status: "outcome-unknown", certainty: "unknown" });
   });
 

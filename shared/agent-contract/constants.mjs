@@ -1,6 +1,7 @@
 export const AGENT_EVENT_TYPES = Object.freeze([
   "session.started", "session.resumed", "session.updated", "session.closed",
   "turn.started", "turn.completed", "turn.failed", "turn.interrupted",
+  "user.message",
   "assistant.delta", "assistant.completed", "reasoning.summary.delta", "plan.updated",
   "tool.started", "tool.progress", "tool.completed", "command.output.delta",
   "file.change.updated", "usage.updated", "approval.requested", "approval.resolved",

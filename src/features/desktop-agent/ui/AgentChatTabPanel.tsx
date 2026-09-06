@@ -8,6 +8,7 @@ import { listAgentRuntimes, listVisibleAgentRuntimes } from "../domain/agent-bac
 import type { AgentChatTabPresentation } from "../domain/agent-chat-tabs";
 import type { AgentRoutePreference } from "../domain/agent-route-preference";
 import { deriveAgentSessionControls } from "../domain/agent-session-controls";
+import { agentStartCommandNeedsTranscriptFallback } from "../domain/agent-command-visibility";
 import { AgentApprovalDock } from "./AgentApprovalDock";
 import { AgentChangesControl } from "./AgentChangesControl";
 import { AgentComposer, DEFAULT_AGENT_COMPOSER_PLACEHOLDER_ID } from "./AgentComposer";
@@ -116,9 +117,12 @@ export function AgentChatTabPanel({
   const queuedSubmissions = useMemo<AgentQueuedSubmission[]>(() => (
     state.control?.commands.flatMap((command) => {
       if (command.kind !== "start" || !command.intent) return [];
-      const remainsVisible = command.status === "queued"
-        || command.status === "dispatching"
-        || (command.wasQueued && ["rejected", "cancelled", "outcome-unknown"].includes(command.status));
+      const remainsVisible = agentStartCommandNeedsTranscriptFallback(
+        command,
+        state.projection.messages,
+        state.control?.pendingSubmission?.commandId ?? null,
+        state.control?.execution.activeTurnId ?? null,
+      );
       return remainsVisible ? [{
         commandId: command.commandId,
         status: command.status,
@@ -127,7 +131,7 @@ export function AgentChatTabPanel({
         references: command.intent.referenceDisplays,
       }] : [];
     }) ?? []
-  ), [state.control]);
+  ), [state.control, state.projection.messages]);
   const submissionStage: AgentSubmissionStage = state.pendingPrompt && !state.projection.runningTurnId
     ? !state.session || preparingSession ? "preparing-session" : "starting-turn"
     : null;

@@ -20,6 +20,7 @@ describe("native Agent round-trip smoke runner", () => {
           const token = request.prompt.match(/PUPPYONE_SMOKE_[A-Z0-9_]+/u)?.[0];
           queueMicrotask(() => {
             feed.publish([
+              event(request.sessionId, "user.message", { text: request.prompt }, `turn-${turn}`, runtimeId),
               event(request.sessionId, "assistant.completed", { text: token }, `turn-${turn}`, runtimeId),
               event(request.sessionId, "turn.completed", { status: "completed" }, `turn-${turn}`, runtimeId),
             ]);
@@ -70,6 +71,7 @@ describe("native Agent round-trip smoke runner", () => {
       startTurn: vi.fn(async (_sender, request) => {
         queueMicrotask(() => {
           feed.publish([
+            event(request.sessionId, "user.message", { text: request.prompt }, "turn-1"),
             event(request.sessionId, "assistant.completed", { text: "wrong answer" }, "turn-1"),
             event(request.sessionId, "turn.completed", { status: "completed" }, "turn-1"),
           ]);
@@ -120,6 +122,32 @@ describe("native Agent round-trip smoke runner", () => {
     });
     expect(failure).not.toHaveProperty("cause");
     expect(failure.message).not.toContain("private-workspace");
+  });
+
+  it("fails closed when the canonical feed omits the submitted user message", async () => {
+    const sender = smokeSender();
+    const feed = fakeSessionFeed(sender);
+    const service = {
+      ...feed.methods,
+      createSession: vi.fn(async () => snapshot("product-session")),
+      startTurn: vi.fn(async (_sender, request) => {
+        queueMicrotask(() => feed.publish([
+          event(request.sessionId, "assistant.completed", { text: "PUPPYONE_SMOKE_EXPECTED" }, "turn-1"),
+          event(request.sessionId, "turn.completed", { status: "completed" }, "turn-1"),
+        ]));
+        return { sessionId: request.sessionId, turnId: "turn-1" };
+      }),
+      closeSession: vi.fn(async (_sender, request) => ({ sessionId: request.sessionId, closed: true })),
+    };
+
+    await expect(runNativeAgentRoundtrip({
+      service,
+      sender,
+      workspaceRoot: "/workspace",
+      runtimeId: "codex",
+      timeoutMs: 1_000,
+      tokenFactory: () => "PUPPYONE_SMOKE_EXPECTED",
+    })).rejects.toMatchObject({ stage: "first-answer", code: "runtime" });
   });
 });
 

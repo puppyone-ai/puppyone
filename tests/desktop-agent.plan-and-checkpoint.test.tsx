@@ -45,6 +45,17 @@ describe("Desktop Agent canonical content update semantics", () => {
     expect(read(live)).toBe("Hello world");
     expect(read(restored)).toBe(read(live));
   });
+
+  it("retains native user-message identity in an active-turn checkpoint", () => {
+    const message = {
+      ...reasoningEvent(4, { text: "FOLLOWUP_SENTINEL" }),
+      itemId: "user-followup",
+      type: "user.message",
+      payload: { text: "FOLLOWUP_SENTINEL" },
+    } as AgentEvent;
+
+    expect(foldAgentEventCheckpoint([], message)).toEqual([message]);
+  });
 });
 
 function reasoningEvent(sequence: number, payload: Record<string, unknown>): AgentEvent {

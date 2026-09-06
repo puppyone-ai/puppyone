@@ -272,6 +272,7 @@ export type AgentEventType =
   | "turn.completed"
   | "turn.failed"
   | "turn.interrupted"
+  | "user.message"
   | "assistant.delta"
   | "assistant.completed"
   | "reasoning.summary.delta"
@@ -309,6 +310,7 @@ export type AgentEventPayloadMap = {
   "session.closed": { status?: string };
   "turn.started": AgentRestoredPayload & {
     prompt?: string;
+    userMessageId?: string;
     status?: string;
     referenceDisplays?: AgentReferenceDisplay[];
     promptMentions?: AgentPromptReferenceMention[];
@@ -319,6 +321,11 @@ export type AgentEventPayloadMap = {
   "turn.completed": AgentRestoredPayload & { status?: string; durationMs?: number };
   "turn.failed": AgentRestoredPayload & { status?: string; message?: string; durationMs?: number };
   "turn.interrupted": AgentRestoredPayload & { status?: string; message?: string; durationMs?: number };
+  "user.message": AgentRestoredPayload & {
+    text: string;
+    referenceDisplays?: AgentReferenceDisplay[];
+    promptMentions?: AgentPromptReferenceMention[];
+  };
   "assistant.delta": AgentTextUpdatePayload & { delta?: string; text?: string };
   "assistant.completed": AgentTextUpdatePayload & { text?: string };
   "reasoning.summary.delta": AgentTextUpdatePayload & {
@@ -545,6 +552,10 @@ export type AgentSessionControl = {
   connection: {
     status: "connecting" | "connected" | "recovering" | "disconnected" | "exited";
     reason: string | null;
+    /** Structured recovery presentation copied from the canonical connection fact. */
+    recoveryState?: "reconnecting" | "fallback" | null;
+    attempt?: number | null;
+    maxAttempts?: number | null;
   };
   execution: {
     status: "idle" | "starting" | "active" | "ended" | "outcome-unknown";
@@ -567,6 +578,8 @@ export type AgentSessionControl = {
     error: string | null;
     intentFingerprint: string | null;
     wasQueued: boolean;
+    /** Native user-item identity when the runtime exposes it. */
+    userMessageId?: string | null;
     intent?: AgentControlStartIntent;
   }>;
   queue: string[];

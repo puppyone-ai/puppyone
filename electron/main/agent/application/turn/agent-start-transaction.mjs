@@ -52,13 +52,23 @@ export async function executeAgentStartTransaction(context, {
         type: "turn.started",
         providerSessionId: session.providerSessionId,
         turnId: result.turnId,
-        payload: { status: "running", prompt: displayPrompt, model, effort, mode, referenceDisplays, promptMentions },
+        payload: {
+          status: "running",
+          prompt: displayPrompt,
+          ...(result.clientUserMessageId ? { userMessageId: result.clientUserMessageId } : {}),
+          model,
+          effort,
+          mode,
+          referenceDisplays,
+          promptMentions,
+        },
       });
     }
     const accepted = session.actor.dispatch({
       type: "submission.accepted",
       ...identity,
       turnId: result.turnId,
+      userMessageId: result.clientUserMessageId ?? null,
       terminalOutcome,
     });
     if (!accepted.changed) {
@@ -71,7 +81,12 @@ export async function executeAgentStartTransaction(context, {
   } catch (error) {
     const message = redactSecretText(error instanceof Error ? error.message : String(error));
     if (isAgentDeliveryOutcomeUnknown(error)) {
-      session.actor.dispatch({ type: "submission.outcome-unknown", ...identity, error: message });
+      session.actor.dispatch({
+        type: "submission.outcome-unknown",
+        ...identity,
+        error: message,
+        userMessageId: agentUserMessageIdentity(error),
+      });
       return { sessionId: session.id, commandId, queued: false, turnId: null, outcomeUnknown: true };
     }
     abandonAgentTurnReferences(session, identity);
@@ -81,4 +96,9 @@ export async function executeAgentStartTransaction(context, {
   } finally {
     onSettled(session);
   }
+}
+
+function agentUserMessageIdentity(error) {
+  const value = error?.clientUserMessageId;
+  return typeof value === "string" && /^[A-Za-z0-9:._-]{1,256}$/.test(value) ? value : null;
 }

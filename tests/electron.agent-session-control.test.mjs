@@ -220,6 +220,31 @@ describe("Main Agent SessionActor and versioned feed", () => {
     expect(control.connection.reason).toHaveLength(1_000);
   });
 
+  it("carries structured recovery presentation in the authoritative control snapshot", () => {
+    const actor = new AgentSessionActor();
+    actor.dispatch({ type: "adapter.attached" });
+    actor.appendEvent({
+      sessionId: "session-1",
+      runtimeId: "codex",
+      providerSessionId: "thread-1",
+      event: nativeEvent("provider.connection.updated", "A", {
+        state: "fallback",
+        message: "Switching transport",
+        attempt: 2,
+        maxAttempts: 5,
+      }),
+    });
+
+    expect(actor.control.connection).toEqual({
+      status: "recovering",
+      reason: "Switching transport",
+      recoveryState: "fallback",
+      attempt: 2,
+      maxAttempts: 5,
+    });
+    expect(() => assertAgentSessionControl(actor.control)).not.toThrow();
+  });
+
   it("materializes the evicted prefix of a long active turn", () => {
     const actor = new AgentSessionActor();
     const append = (event) => actor.appendEvent({ sessionId: "session-1", runtimeId: "codex", providerSessionId: "thread-1", event });

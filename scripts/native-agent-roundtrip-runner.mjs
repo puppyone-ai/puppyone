@@ -127,11 +127,12 @@ async function runTurn({
   stage,
   feed,
 }) {
-  const waiter = feed.waitForTurn(timeoutMs);
+  const prompt = `Reply with exactly ${token}. Do not use tools, inspect files, or add formatting.`;
+  const waiter = feed.waitForTurn(timeoutMs, { expectedUserMessage: prompt });
   try {
     await service.startTurn(sender, {
       sessionId,
-      prompt: `Reply with exactly ${token}. Do not use tools, inspect files, or add formatting.`,
+      prompt,
     }, workspaceRoot);
     return await waiter.promise;
   } catch (error) {

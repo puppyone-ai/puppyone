@@ -143,7 +143,7 @@ function selectCompleteTurnWindow(descendingTurns) {
 
 function estimatedProjectedEventCount(turn) {
   return 2 + (Array.isArray(turn?.items) ? turn.items.reduce((count, item) => (
-    count + (item?.type === "userMessage" ? 0 : item?.type === "fileChange" ? 2 : 1)
+    count + (item?.type === "fileChange" ? 2 : 1)
   ), 0) : 0);
 }
 

@@ -29,6 +29,7 @@ import { AgentReferenceDraftManager } from "./AgentReferenceDraftManager";
 import {
   AgentTurnSubmissionCoordinator,
 } from "./AgentTurnSubmissionCoordinator";
+import { reconcileAgentProjectionWithControl } from "./agent-control-projection";
 
 export type { AgentControllerPhase, AgentControllerState } from "./agent-controller-state";
 export { agentControllerTransitions } from "./agent-controller-state";
@@ -617,7 +618,7 @@ export class AgentSessionController {
     let projection = applyAgentEvents(
       createAgentProjection({ partialHistory: snapshot.partial }),
       snapshotEvents,
-      { partialHistory: snapshot.partial },
+      { partialHistory: snapshot.partial, legacyProviderConnectionWarnings: !snapshot.control },
     );
     // The event window is deliberately bounded. Current control state comes
     // from the snapshot checkpoint, never from the presence of turn.started in
@@ -732,11 +733,7 @@ function deriveControlReplicaState(state: AgentControllerState): AgentController
           : control.execution.status === "outcome-unknown" ? "outcome-unknown"
             : control.execution.nativeOutcome ?? "idle",
     },
-    projection: {
-      ...state.projection,
-      runningTurnId: activeTurnId,
-      terminalState: activeTurnId ? null : control.execution.nativeOutcome ?? state.projection.terminalState,
-    },
+    projection: reconcileAgentProjectionWithControl(state.projection, control),
     pendingPrompt: control.pendingSubmission?.prompt ?? null,
     pendingIntent: null,
     submitting: control.execution.status === "starting",

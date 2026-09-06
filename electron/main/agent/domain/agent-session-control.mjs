@@ -246,6 +246,9 @@ function applyCanonicalEvent(state, event) {
       state.connection = {
         status: payload.state === "connected" ? "connected" : "recovering",
         reason: boundedReason(payload.message),
+        recoveryState: payload.state === "reconnecting" || payload.state === "fallback" ? payload.state : null,
+        attempt: positiveIntegerOrNull(payload.attempt),
+        maxAttempts: positiveIntegerOrNull(payload.maxAttempts ?? payload.maxRetries),
       };
       return true;
     default:
@@ -267,6 +270,7 @@ function acceptSubmission(state, input) {
     commandId: input.commandId,
     operationId: input.operationId,
     turnId: input.turnId,
+    userMessageId: input.userMessageId,
   });
   if (!changed || !pendingMatches) return changed;
   state.pendingSubmission = null;
@@ -298,6 +302,7 @@ function markSubmissionOutcomeUnknown(state, input) {
     commandId: input.commandId,
     operationId: input.operationId,
     error: input.error,
+    userMessageId: input.userMessageId,
   });
   state.pendingSubmission = null;
   state.execution = {
@@ -338,6 +343,7 @@ function receiveCommand(state, command) {
     operationId: command.operationId ?? null,
     intentFingerprint: command.intentFingerprint ?? null,
     wasQueued: command.status === "queued" || command.wasQueued === true,
+    userMessageId: command.userMessageId ?? null,
     ...(command.intent ? { intent: clonePlain(command.intent) } : {}),
     error: null,
   };
@@ -359,6 +365,7 @@ function transitionCommand(state, input) {
     status,
     operationId: input.operationId ?? current.operationId,
     targetTurnId: input.turnId ?? current.targetTurnId,
+    userMessageId: input.userMessageId ?? current.userMessageId ?? null,
     error: input.error ? String(input.error).slice(0, MAX_COMMAND_ERROR) : null,
   };
   if (status !== "queued") state.queue = state.queue.filter((id) => id !== input.commandId);
@@ -420,6 +427,10 @@ function rememberTerminal(state, turnId) {
   if (typeof turnId !== "string" || !turnId || state.terminalTurns.includes(turnId)) return;
   state.terminalTurns.push(turnId);
   if (state.terminalTurns.length > MAX_TERMINAL_TURNS) state.terminalTurns.splice(0, state.terminalTurns.length - MAX_TERMINAL_TURNS);
+}
+
+function positiveIntegerOrNull(value) {
+  return Number.isSafeInteger(value) && value > 0 ? value : null;
 }
 
 function hydrateControl(state, control) {

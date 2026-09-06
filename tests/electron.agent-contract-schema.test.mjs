@@ -166,6 +166,16 @@ describe("shared Agent contract", () => {
     })).toThrow(/workspaceRoot/i);
     expect(() => assertAgentEventEnvelope(event("approval.requested", {}))).toThrow(/requestId/i);
     expect(assertAgentEventEnvelope(event("assistant.delta", { delta: "safe" }))).toBeTruthy();
+    expect(assertAgentEventEnvelope(event("user.message", { text: "follow up" }))).toBeTruthy();
+    expect(() => assertAgentEventEnvelope(event("user.message", {}))).toThrow(/user\.message.*text/i);
+    expect(assertAgentEventEnvelope(event("provider.connection.updated", {
+      state: "reconnecting",
+      attempt: 2,
+      maxAttempts: 5,
+    }))).toBeTruthy();
+    expect(() => assertAgentEventEnvelope(event("provider.connection.updated", {
+      state: "maybe",
+    }))).toThrow(/connection\.updated.*state/i);
     const referenceDisplay = { id: "ref-1", kind: "attachment", displayName: "capture.png", mime: "image/png", size: 3 };
     expect(assertAgentEventEnvelope(event("turn.started", { referenceDisplays: [referenceDisplay] }))).toBeTruthy();
     expect(assertAgentEventEnvelope(event("turn.started", {

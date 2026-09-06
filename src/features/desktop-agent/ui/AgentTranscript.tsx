@@ -427,13 +427,15 @@ function AgentTranscriptView({
                   terminalState: null,
                   sequence: Number.MAX_SAFE_INTEGER,
                 }} runtimeLabel={runtimeLabel} />
-                <span className="desktop-agent-queued-submission-status" role="status">
-                  {submission.status === "queued" || submission.status === "dispatching"
-                    ? t("agent.status.queued")
-                    : submission.status === "outcome-unknown"
-                      ? t("agent.status.deliveryUnknown")
-                      : t("agent.status.notSent")}
-                </span>
+                {submission.status !== "accepted" && (
+                  <span className="desktop-agent-queued-submission-status" role="status">
+                    {submission.status === "queued" || submission.status === "dispatching"
+                      ? t("agent.status.queued")
+                      : submission.status === "outcome-unknown"
+                        ? t("agent.status.deliveryUnknown")
+                        : t("agent.status.notSent")}
+                  </span>
+                )}
               </div>
             ))}
             {(pendingPrompt || pendingReferences.length > 0) && <AgentMessagePart part={{

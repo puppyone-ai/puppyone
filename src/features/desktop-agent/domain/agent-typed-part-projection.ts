@@ -22,10 +22,14 @@ import {
 import { parseAgentEventTime, readAgentTurnDurationMs } from "./agent-turn-timing";
 import { agentTurnTerminalState } from "./agent-turn-lifecycle";
 
-export function projectTypedPart(projection: AgentProjection, event: AgentEvent) {
+export function projectTypedPart(
+  projection: AgentProjection,
+  event: AgentEvent,
+  options: { legacyProviderConnectionWarnings?: boolean } = {},
+) {
   if (event.type === "provider.connection.updated") return;
   const turn = updateTurn(projection, event);
-  const part = partForEvent(projection, event);
+  const part = partForEvent(projection, event, options);
   if (!part) return;
   const indexes = projectionIndexes(projection);
   const existingIndex = indexes.parts.get(part.id);
@@ -132,7 +136,11 @@ function closeAgentTurnUserWait(turn: AgentProjection["turns"][number], eventAtM
   };
 }
 
-function partForEvent(projection: AgentProjection, event: AgentEvent): AgentPart | null {
+function partForEvent(
+  projection: AgentProjection,
+  event: AgentEvent,
+  options: { legacyProviderConnectionWarnings?: boolean },
+): AgentPart | null {
   if (event.type === "turn.started") {
     const indexes = projectionIndexes(projection);
     const message = (event.turnId ? indexes.messagesByTurn.get(event.turnId) ?? [] : [])
@@ -150,6 +158,15 @@ function partForEvent(projection: AgentProjection, event: AgentEvent): AgentPart
     )) ?? null;
     return message ? messagePart(message) : null;
   }
+  if (event.type === "user.message") {
+    const message = [...projection.messages].reverse().find((entry) => (
+      entry.role === "user"
+      && entry.turnId === event.turnId
+      && (event.itemId ? entry.itemId === event.itemId : entry.updatedSequence === event.sequence)
+      && (entry.updatedSequence ?? entry.sequence) === event.sequence
+    )) ?? null;
+    return message ? messagePart(message) : null;
+  }
   if (event.type === "reasoning.summary.delta" || event.type === "plan.updated"
     || event.type.startsWith("tool.") || event.type === "command.output.delta"
     || event.type === "file.change.updated" || event.type === "provider.activity") {
@@ -159,7 +176,7 @@ function partForEvent(projection: AgentProjection, event: AgentEvent): AgentPart
   }
   if (event.type === "provider.warning" || event.type === "provider.error") {
     const label = readProviderMessage(event.payload.message);
-    if (legacyProviderConnectionUpdate(event, label)) return null;
+    if (options.legacyProviderConnectionWarnings && legacyProviderConnectionUpdate(event, label)) return null;
     if (label && isNonDiagnosticProviderStatusMessage(label)) return null;
     const activityIndex = projectionIndexes(projection).activities.get(providerActivityIdentity(
       projection,

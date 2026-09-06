@@ -4,6 +4,7 @@ import type { AgentControllerState } from "./agent-controller-state";
 import { phaseForProjection } from "./agent-controller-state";
 import { createAgentError, formatAgentError } from "./agent-error";
 import type { AgentClientPort, AgentClientProvider } from "./AgentClientPort";
+import { reconcileAgentProjectionWithControl } from "./agent-control-projection";
 
 type StatePatch = (patch: Partial<AgentControllerState>) => void;
 
@@ -347,21 +348,7 @@ export class AgentEventSynchronizer {
     const state = this.readState();
     if (!state.session || control.streamId !== this.feedStreamId) return;
     const activeTurnId = control.execution.activeTurnId;
-    const projection = {
-      ...state.projection,
-      runningTurnId: activeTurnId,
-      terminalState: activeTurnId ? null : control.execution.nativeOutcome ?? state.projection.terminalState,
-      connectionStatus: control.connection.status === "recovering"
-        ? {
-            state: "reconnecting" as const,
-            message: control.connection.reason ?? "",
-            attempt: null,
-            maxAttempts: null,
-            turnId: activeTurnId,
-            sequence: state.projection.lastSequence,
-          }
-        : state.projection.connectionStatus,
-    };
+    const projection = reconcileAgentProjectionWithControl(state.projection, control);
     this.patch({
       control,
       projection,
@@ -391,7 +378,7 @@ export class AgentEventSynchronizer {
           createProjectionForFeed(snapshot),
           [...(snapshot.timeline?.checkpointEvents ?? []), ...snapshot.events]
             .filter((event, index, events) => events.findIndex((candidate) => candidate.sequence === event.sequence) === index),
-          { partialHistory: snapshot.partial },
+          { partialHistory: snapshot.partial, legacyProviderConnectionWarnings: !snapshot.control },
         );
         this.patch({
           control: snapshot.control ?? null,
