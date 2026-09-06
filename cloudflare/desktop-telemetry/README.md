@@ -1,7 +1,8 @@
 # PuppyOne Desktop telemetry edge
 
-This Cloudflare Worker accepts the single public Desktop telemetry event,
-enforces the shared schema, and maintains exact active-installation sets in D1.
+This Cloudflare Worker accepts the two public Desktop telemetry events,
+enforces the shared schema, and maintains exact active-installation and bounded
+retention sets in D1.
 The checked-in configuration represents the active production service: the D1
 binding targets the production database, `TELEMETRY_MODE` is `accept`, and the
 Stable Desktop client pins the first-party ingestion route.
@@ -9,13 +10,20 @@ Stable Desktop client pins the first-party ingestion route.
 ## Runtime boundary
 
 - `POST /v1/desktop/events` accepts one versioned batch of at most 16 events.
+- Schema v2 accepts `desktop_first_run` once for a fresh local installation and
+  `desktop_daily_active` at most once per UTC day while the app is foregrounded.
+  Schema v1 daily-active batches remain accepted during client migration.
 - `GET /healthz` reports only the operational mode.
 - The Worker does not read or persist IP, User-Agent, account, repository, or
   workspace information.
 - `INGEST_RATE_LIMITER` is keyed by the monthly rotating pseudonymous ID.
 - D1 primary keys make daily and calendar-month active counts exact.
+- A separately scoped `r1_` identifier links the first-run cohort to activity
+  days only during its first 100 lifecycle days. Raw retention identifiers are
+  deleted after 100 days; aggregate
+  lifecycle-week counts contain no identifier and may be kept longer.
 - The scheduled handler runs at 00:17 UTC to roll up the previous day/month and
-  delete expired pseudonymous rows.
+  recompute bounded retention cohorts before deleting expired pseudonymous rows.
 - Wrangler usage metrics and dependency instrumentation are disabled for this
   project in addition to Worker invocation logs.
 
@@ -36,6 +44,11 @@ npm run test:desktop-telemetry
 npm run check:boundaries
 npx wrangler dev --config cloudflare/desktop-telemetry/wrangler.jsonc
 ```
+
+Retention week `0` covers lifecycle days 0–6, week `1` covers days 7–13,
+and so on through completed week `13`. A cohort member counts once in a week
+when the installation has at least one foreground activity day in that window;
+completed weeks with no retained installations are stored explicitly as zero.
 
 The checked-in database ID is the production binding. Do not reuse it for local,
 preview, or third-party deployments.

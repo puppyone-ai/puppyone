@@ -90,10 +90,10 @@
   "build.copy.action": "버전 정보 복사",
   "build.copy.copied": "버전 정보를 복사했습니다",
   "telemetry.notice.title": "puppyone 개선에 참여해 주세요",
-  "telemetry.notice.description": "파일이나 프롬프트 없이 익명의 일일 활동만 공유합니다.",
+  "telemetry.notice.description": "파일이나 프롬프트 없이 익명의 최초 실행 및 일일 활동만 공유합니다.",
   "telemetry.notice.learnMore": "자세히",
   "telemetry.notice.showLess": "접기",
-  "telemetry.notice.details": "UTC 기준 하루에 최대 한 건의 익명 활동 기록을 전송합니다. 식별자는 매월 변경됩니다.",
+  "telemetry.notice.details": "최초 실행 기록 한 건을 전송한 뒤 UTC 기준 하루에 최대 한 건의 활동 기록을 전송합니다. 활동 ID는 매월 변경되며 별도의 리텐션 ID는 최대 100일 동안 보관됩니다.",
   "telemetry.notice.notNow": "나중에",
   "telemetry.notice.understand": "이해했습니다",
   "telemetry.notice.error": "분석 환경설정을 업데이트하지 못했습니다. 다시 시도해 주세요."

@@ -90,10 +90,10 @@
   "build.copy.action": "Copiar informações da versão",
   "build.copy.copied": "Informações da versão copiadas",
   "telemetry.notice.title": "Ajude a melhorar o puppyone",
-  "telemetry.notice.description": "Compartilhe atividade diária anônima — nunca arquivos ou prompts.",
+  "telemetry.notice.description": "Compartilhe de forma anônima a primeira execução e a atividade diária — nunca arquivos ou prompts.",
   "telemetry.notice.learnMore": "Detalhes",
   "telemetry.notice.showLess": "Menos",
-  "telemetry.notice.details": "No máximo um registro de atividade anônimo é enviado por dia UTC. O identificador muda a cada mês do calendário.",
+  "telemetry.notice.details": "Um registro é enviado na primeira execução e, depois, no máximo um por dia UTC. O ID de atividade muda todo mês; um ID de retenção separado é mantido por até 100 dias.",
   "telemetry.notice.notNow": "Depois",
   "telemetry.notice.understand": "Entendi",
   "telemetry.notice.error": "Não foi possível atualizar a preferência de análise. Tente novamente."

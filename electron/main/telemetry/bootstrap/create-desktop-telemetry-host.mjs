@@ -9,6 +9,7 @@ import {
 import { normalizeDesktopOsMajor } from "../domain/daily-active-event.mjs";
 import { createTelemetryHttpTransport } from "../infrastructure/telemetry-http-transport.mjs";
 import { createTelemetryIdentityStore } from "../infrastructure/telemetry-identity-store.mjs";
+import { createTelemetryLifecycleStore } from "../infrastructure/telemetry-lifecycle-store.mjs";
 import { createTelemetryPreferenceStore } from "../infrastructure/telemetry-preference-store.mjs";
 import { createTelemetryQueueStore } from "../infrastructure/telemetry-queue-store.mjs";
 
@@ -39,6 +40,10 @@ export function createDesktopTelemetryHost({
     filePath: path.join(storageRoot, "identity-v1.json"),
     fsModule,
   });
+  const lifecycleStore = createTelemetryLifecycleStore({
+    filePath: path.join(storageRoot, "lifecycle-v1.json"),
+    fsModule,
+  });
   const queueStore = createTelemetryQueueStore({
     filePath: path.join(storageRoot, "queue-v1.json"),
     fsModule,
@@ -51,6 +56,7 @@ export function createDesktopTelemetryHost({
     buildInfo,
     identityStore,
     isPackaged: app.isPackaged,
+    lifecycleStore,
     logger,
     osMajor: normalizeDesktopOsMajor(systemVersion),
     platform: process.platform,

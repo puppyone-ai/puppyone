@@ -90,10 +90,10 @@
   "build.copy.action": "Copy version information",
   "build.copy.copied": "Version information copied",
   "telemetry.notice.title": "Help improve puppyone",
-  "telemetry.notice.description": "Share anonymous daily activity—never files or prompts.",
+  "telemetry.notice.description": "Share anonymous first-run and daily activity—never files or prompts.",
   "telemetry.notice.learnMore": "Details",
   "telemetry.notice.showLess": "Less",
-  "telemetry.notice.details": "At most one anonymous activity record is sent per UTC day. The identifier changes every calendar month.",
+  "telemetry.notice.details": "One first-run record is sent, then at most one activity record per UTC day. The activity ID changes monthly; a separate retention ID is kept for up to 100 days.",
   "telemetry.notice.notNow": "Later",
   "telemetry.notice.understand": "I understand",
   "telemetry.notice.error": "Couldn’t update your analytics preference. Please try again."

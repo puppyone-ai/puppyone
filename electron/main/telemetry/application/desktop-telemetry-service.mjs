@@ -6,10 +6,18 @@ import {
   getDesktopTelemetryDisclosure,
   isDesktopTelemetryLevel,
 } from "../../../../shared/desktop-telemetry-contract.mjs";
-import { createDesktopDailyActiveEvent } from "../domain/daily-active-event.mjs";
+import {
+  createDesktopDailyActiveEvent,
+  createDesktopFirstRunEvent,
+} from "../domain/daily-active-event.mjs";
+import {
+  createInitialTelemetryLifecycle,
+  neutralizeTelemetryLifecycle,
+} from "../infrastructure/telemetry-lifecycle-store.mjs";
 
 const MAX_BATCH_SIZE = 16;
 const QUEUE_RETENTION_DAYS = 7;
+const RETENTION_MEASUREMENT_DAYS = 100;
 const RETRY_BASE_DELAY_MS = 60 * 1000;
 const RETRY_MAX_DELAY_MS = 6 * 60 * 60 * 1000;
 
@@ -18,6 +26,7 @@ export function createDesktopTelemetryService({
   buildInfo,
   identityStore,
   isPackaged,
+  lifecycleStore,
   logger = console,
   now = () => new Date(),
   osMajor,
@@ -31,7 +40,13 @@ export function createDesktopTelemetryService({
   transport = null,
 }) {
   const identity = assertDesktopBuildInfo(buildInfo);
-  requirePort(identityStore, "identityStore", ["getMonthlyAnonymousId", "clear"]);
+  requirePort(identityStore, "identityStore", [
+    "clear",
+    "getMonthlyAnonymousId",
+    "getRetentionAnonymousId",
+    "hasStoredIdentity",
+  ]);
+  requirePort(lifecycleStore, "lifecycleStore", ["read", "write"]);
   requirePort(preferenceStore, "preferenceStore", ["read", "write"]);
   requirePort(queueStore, "queueStore", ["read", "write", "clear"]);
 
@@ -39,6 +54,7 @@ export function createDesktopTelemetryService({
   const listeners = new Set();
   let preference = null;
   let queue = null;
+  let lifecycle = null;
   let started = false;
   let disposed = false;
   let initializationPromise = null;
@@ -54,14 +70,19 @@ export function createDesktopTelemetryService({
   };
 
   async function initialize() {
-    if (preference && queue) return snapshot();
+    if (preference && queue && lifecycle) return snapshot();
     if (!initializationPromise) {
       initializationPromise = Promise.all([
+        identityStore.hasStoredIdentity(),
+        lifecycleStore.read(),
         preferenceStore.read(),
         queueStore.read(),
-      ]).then(([storedPreference, storedQueue]) => {
+      ]).then(async ([hasStoredIdentity, storedLifecycle, storedPreference, storedQueue]) => {
         preference = storedPreference;
         queue = storedQueue;
+        lifecycle = storedLifecycle ?? await lifecycleStore.write(createInitialTelemetryLifecycle({
+          fresh: !hasPriorTelemetryState({ hasStoredIdentity, preference, queue }),
+        }));
         return snapshot();
       }).catch((error) => {
         initializationPromise = null;
@@ -80,7 +101,7 @@ export function createDesktopTelemetryService({
   }
 
   function snapshot() {
-    if (!preference || !queue) throw new Error("Desktop telemetry has not been initialized.");
+    if (!preference || !queue || !lifecycle) throw new Error("Desktop telemetry has not been initialized.");
     const reason = getDisabledReason();
     return Object.freeze({
       schemaVersion: DESKTOP_TELEMETRY_SCHEMA_VERSION,
@@ -126,10 +147,15 @@ export function createDesktopTelemetryService({
     if (!isDesktopTelemetryLevel(level)) throw new TypeError("Unsupported desktop telemetry level.");
     return serialize(async () => {
       await initialize();
-      if (preference.level !== level) {
+      const acknowledgeCurrentNotice = level === "basic"
+        && preference.notice_seen_version < DESKTOP_TELEMETRY_NOTICE_VERSION;
+      if (preference.level !== level || acknowledgeCurrentNotice) {
         preference = await preferenceStore.write({
           ...preference,
           level,
+          notice_seen_version: acknowledgeCurrentNotice
+            ? DESKTOP_TELEMETRY_NOTICE_VERSION
+            : preference.notice_seen_version,
           updated_at: now().toISOString(),
         });
       }
@@ -137,6 +163,7 @@ export function createDesktopTelemetryService({
         cancelRetry();
         queue = await queueStore.clear();
         await identityStore.clear();
+        lifecycle = await lifecycleStore.write(neutralizeTelemetryLifecycle());
       }
       publish();
       return snapshot();
@@ -149,6 +176,7 @@ export function createDesktopTelemetryService({
       cancelRetry();
       await identityStore.clear();
       queue = await queueStore.clear();
+      lifecycle = await lifecycleStore.write(neutralizeTelemetryLifecycle());
       publish();
       return snapshot();
     });
@@ -160,25 +188,56 @@ export function createDesktopTelemetryService({
       if (getDisabledReason()) return { enqueued: false, state: snapshot() };
       const currentTime = now();
       const utcDay = currentTime.toISOString().slice(0, 10);
-      if (queue.last_enqueued_utc_day === utcDay) {
+      const shouldEnqueueFirstRun = lifecycle.cohort_status === "fresh"
+        && lifecycle.first_run_enqueued !== true;
+      const shouldEnqueueDailyActive = queue.last_enqueued_utc_day !== utcDay;
+      if (!shouldEnqueueFirstRun && !shouldEnqueueDailyActive) {
         if (queue.events.length > 0) scheduleFlush(0);
         return { enqueued: false, state: snapshot() };
       }
+      const shouldIncludeRetention = shouldEnqueueFirstRun
+        || isWithinRetentionMeasurementWindow(lifecycle.first_run_utc_day, utcDay);
       const anonymousId = await identityStore.getMonthlyAnonymousId(currentTime);
-      const event = createDesktopDailyActiveEvent({
-        activityDay: utcDay,
-        anonymousId,
-        appVersion: identity.version,
-        architecture,
-        eventId: randomUUID(),
-        osMajor,
-        platform,
-      });
+      const retentionId = shouldIncludeRetention
+        ? await identityStore.getRetentionAnonymousId()
+        : undefined;
+      const events = [];
+      if (shouldEnqueueFirstRun) {
+        events.push(createDesktopFirstRunEvent({
+          activityDay: utcDay,
+          anonymousId,
+          appVersion: identity.version,
+          architecture,
+          eventId: randomUUID(),
+          osMajor,
+          platform,
+          retentionId,
+        }));
+      }
+      if (shouldEnqueueDailyActive) {
+        events.push(createDesktopDailyActiveEvent({
+          activityDay: utcDay,
+          anonymousId,
+          appVersion: identity.version,
+          architecture,
+          eventId: randomUUID(),
+          osMajor,
+          platform,
+          retentionId,
+        }));
+      }
       queue = await queueStore.write({
         version: queue.version,
-        last_enqueued_utc_day: utcDay,
-        events: [...queue.events, event].slice(-32),
+        last_enqueued_utc_day: shouldEnqueueDailyActive ? utcDay : queue.last_enqueued_utc_day,
+        events: [...queue.events, ...events].slice(-32),
       });
+      if (shouldEnqueueFirstRun) {
+        lifecycle = await lifecycleStore.write({
+          ...lifecycle,
+          first_run_utc_day: utcDay,
+          first_run_enqueued: true,
+        });
+      }
       publish();
       scheduleFlush(0);
       return { enqueued: true, state: snapshot() };
@@ -311,10 +370,27 @@ function requirePort(value, name, methods) {
   }
 }
 
+function hasPriorTelemetryState({ hasStoredIdentity, preference, queue }) {
+  return hasStoredIdentity
+    || preference.notice_seen_version > 0
+    || preference.updated_at !== null
+    || queue.last_enqueued_utc_day !== null
+    || queue.events.length > 0;
+}
+
 function getFirstRetainedUtcDay(value, retentionDays) {
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) throw new TypeError("A valid telemetry retention time is required.");
   date.setUTCHours(0, 0, 0, 0);
   date.setUTCDate(date.getUTCDate() - (retentionDays - 1));
   return date.toISOString().slice(0, 10);
+}
+
+function isWithinRetentionMeasurementWindow(firstRunDay, activityDay) {
+  if (!firstRunDay) return false;
+  const first = new Date(`${firstRunDay}T00:00:00.000Z`);
+  const activity = new Date(`${activityDay}T00:00:00.000Z`);
+  if (!Number.isFinite(first.getTime()) || !Number.isFinite(activity.getTime())) return false;
+  const elapsedDays = Math.floor((activity.getTime() - first.getTime()) / 86_400_000);
+  return elapsedDays >= 0 && elapsedDays < RETENTION_MEASUREMENT_DAYS;
 }

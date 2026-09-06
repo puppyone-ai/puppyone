@@ -90,10 +90,10 @@
   "build.copy.action": "Versionsinformationen kopieren",
   "build.copy.copied": "Versionsinformationen kopiert",
   "telemetry.notice.title": "Hilf, puppyone zu verbessern",
-  "telemetry.notice.description": "Teile anonyme tägliche Nutzung – niemals Dateien oder Prompts.",
+  "telemetry.notice.description": "Teile anonym den ersten Start und die tägliche Nutzung – niemals Dateien oder Prompts.",
   "telemetry.notice.learnMore": "Details",
   "telemetry.notice.showLess": "Weniger",
-  "telemetry.notice.details": "Pro UTC-Tag wird höchstens ein anonymer Aktivitätseintrag gesendet. Die Kennung wechselt jeden Kalendermonat.",
+  "telemetry.notice.details": "Beim ersten Start wird ein Eintrag gesendet, danach höchstens ein Aktivitätseintrag pro UTC-Tag. Die Aktivitäts-ID wechselt monatlich; eine separate Bindungs-ID wird bis zu 100 Tage aufbewahrt.",
   "telemetry.notice.notNow": "Später",
   "telemetry.notice.understand": "Verstanden",
   "telemetry.notice.error": "Die Analyse-Einstellung konnte nicht aktualisiert werden. Bitte versuche es erneut."

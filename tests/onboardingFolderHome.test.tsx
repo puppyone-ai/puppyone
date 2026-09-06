@@ -645,14 +645,14 @@ function requireSurface(container: HTMLElement): HTMLElement {
 
 function installFirstLaunchTelemetryBridge() {
   const initial: DesktopTelemetryState = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     defaultLevel: "basic",
     level: "basic",
     effectiveLevel: "off",
     enabled: false,
     eligible: true,
     disabledReason: "notice-required",
-    noticeVersion: 1,
+    noticeVersion: 2,
     noticeSeenVersion: 0,
     noticeRequired: true,
     transportConfigured: true,
@@ -663,7 +663,7 @@ function installFirstLaunchTelemetryBridge() {
     effectiveLevel: "basic",
     enabled: true,
     disabledReason: null,
-    noticeSeenVersion: 1,
+    noticeSeenVersion: 2,
     noticeRequired: false,
   };
   const bridge = {
