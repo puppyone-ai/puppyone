@@ -19,3 +19,18 @@ export function agentEventContentUpdate(event) {
       return null;
   }
 }
+
+/** Applies one canonical content mutation with the same bounded semantics everywhere. */
+export function applyAgentEventContentUpdate(current, event, limit) {
+  const update = agentEventContentUpdate(event);
+  if (!update) return null;
+  const existing = typeof current === "string" ? current : "";
+  const incoming = typeof event?.payload?.[update.field] === "string" ? event.payload[update.field] : "";
+  const combined = update.mode === "replace" ? incoming : `${existing}${incoming}`;
+  const boundedLimit = Number.isSafeInteger(limit) && limit >= 0 ? limit : combined.length;
+  return {
+    ...update,
+    text: combined.slice(0, boundedLimit),
+    truncated: combined.length > boundedLimit,
+  };
+}

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { countTextBytes, createAgentEventEnvelope } from "../agent-events.mjs";
-import { createAgentSessionControl, reduceAgentSessionControl } from "./agent-session-control.mjs";
+import { agentSessionControlLimits, createAgentSessionControl, reduceAgentSessionControl } from "./agent-session-control.mjs";
 import { foldAgentEventCheckpoint } from "./agent-event-checkpoint.mjs";
 import { assertAgentSessionControl } from "../../../../shared/agent-contract/schema.mjs";
 
@@ -14,6 +14,7 @@ export class AgentSessionActor {
   #sequence;
   #replayBytes;
   #checkpointByTurn = new Map();
+  #terminalOutcomeByTurn = new Map();
   #listeners = new Set();
 
   constructor({ events = [], sequence = 0, terminalState = "idle" } = {}) {
@@ -26,6 +27,7 @@ export class AgentSessionActor {
       terminalState,
     });
     for (const event of this.#events) {
+      this.#rememberTerminalOutcome(event);
       this.#control = reduceAgentSessionControl(this.#control, { type: "event.accepted", event });
     }
     if (this.#events.length > 0) {
@@ -42,6 +44,7 @@ export class AgentSessionActor {
   get sequence() { return this.#sequence; }
   get replayBytes() { return this.#replayBytes; }
   events() { return [...this.#events]; }
+  terminalOutcome(turnId) { return this.#terminalOutcomeByTurn.get(turnId) ?? null; }
 
   subscribe(listener) {
     this.#listeners.add(listener);
@@ -80,6 +83,7 @@ export class AgentSessionActor {
     const previous = this.#control;
     const next = reduceAgentSessionControl(previous, { type: "event.accepted", event: envelope });
     assertAgentSessionControl(next);
+    this.#rememberTerminalOutcome(envelope);
     this.#sequence = envelope.sequence;
     this.#events.push(envelope);
     this.#replayBytes += countTextBytes(envelope);
@@ -125,6 +129,15 @@ export class AgentSessionActor {
   #notify(commit) {
     for (const listener of this.#listeners) {
       try { listener(commit); } catch { /* subscriber isolation */ }
+    }
+  }
+
+  #rememberTerminalOutcome(event) {
+    if (!event?.turnId || !["turn.completed", "turn.failed", "turn.interrupted"].includes(event.type)) return;
+    this.#terminalOutcomeByTurn.delete(event.turnId);
+    this.#terminalOutcomeByTurn.set(event.turnId, event.type.slice("turn.".length));
+    while (this.#terminalOutcomeByTurn.size > agentSessionControlLimits.maxTerminalTurns) {
+      this.#terminalOutcomeByTurn.delete(this.#terminalOutcomeByTurn.keys().next().value);
     }
   }
 

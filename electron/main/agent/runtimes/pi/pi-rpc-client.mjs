@@ -17,6 +17,17 @@ export class PiRpcRequestTimeoutError extends Error {
     super(`Pi RPC request timed out: ${command}`);
     this.name = "PiRpcRequestTimeoutError";
     this.code = "PI_RPC_TIMEOUT";
+    this.deliveryOutcome = "unknown";
+    this.command = command;
+  }
+}
+
+export class PiRpcDeliveryUnknownError extends Error {
+  constructor(command, message) {
+    super(redactSecretText(message));
+    this.name = "PiRpcDeliveryUnknownError";
+    this.code = "PI_RPC_DELIVERY_UNKNOWN";
+    this.deliveryOutcome = "unknown";
     this.command = command;
   }
 }
@@ -147,7 +158,14 @@ export class PiRpcClient extends EventEmitter {
     if (Buffer.byteLength(line, "utf8") > this.maxLineBytes) {
       throw new Error("Pi RPC request exceeded the safety limit.");
     }
-    this.child.stdin.write(line, "utf8");
+    try {
+      this.child.stdin.write(line, "utf8");
+    } catch (error) {
+      throw new PiRpcDeliveryUnknownError(
+        typeof message?.type === "string" ? message.type : "response",
+        error?.message || "Pi RPC write outcome is unknown.",
+      );
+    }
   }
 
   #receiveStdout(chunk) {
@@ -251,7 +269,9 @@ export class PiRpcClient extends EventEmitter {
   #rejectPending(error) {
     for (const pending of this.pending.values()) {
       if (pending.timer) clearTimeout(pending.timer);
-      pending.reject(error);
+      pending.reject(error?.deliveryOutcome === "unknown"
+        ? error
+        : new PiRpcDeliveryUnknownError(pending.type, error?.message || String(error)));
     }
     this.pending.clear();
   }

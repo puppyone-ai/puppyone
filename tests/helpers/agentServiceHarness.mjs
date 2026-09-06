@@ -203,6 +203,7 @@ function createFakeAdapter(
       return { turnId: "turn-1" };
     }),
     referenceMentionDelivery: vi.fn(() => "path"),
+    steerTurn: vi.fn(async () => undefined),
     interruptTurn: vi.fn(async () => undefined),
     resolveApproval: vi.fn(),
     dispose: vi.fn(function dispose() { this.disposed = true; }),

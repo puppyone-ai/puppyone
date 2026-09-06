@@ -8,11 +8,12 @@ import {
   requireMatchingWorkspace,
 } from "../agent-input-policy.mjs";
 import {
-  abandonAgentTurnReferences,
-  beginAgentTurnReferences,
+  abandonAgentSteerReferences,
+  acceptAgentSteerReferences,
+  beginAgentSteerReferences,
   prepareAgentTurnReferenceInput,
   prepareAgentSteerReferenceInput,
-  withAgentSteerReferenceTokens,
+  releaseAgentReferenceLease,
 } from "../agent-reference-policy.mjs";
 import { sessionMetadata } from "../../domain/agent-session-model.mjs";
 import {
@@ -24,6 +25,10 @@ import {
   requireCommandPreconditions,
   startCommandIntent,
 } from "./agent-command-policy.mjs";
+import {
+  isAgentDeliveryOutcomeUnknown,
+} from "./agent-command-outcome-policy.mjs";
+import { executeAgentStartTransaction } from "./agent-start-transaction.mjs";
 import { agentTurnQueueLimits, createAgentTurnQueue } from "./agent-turn-queue.mjs";
 
 /** Owns user-driven turn and blocking-interaction commands for live sessions. */
@@ -33,7 +38,16 @@ export function createAgentTurnCoordinator({
   persistSoon,
   attachmentStore = null,
 }) {
-  const turnQueue = createAgentTurnQueue({ attachmentStore, executeStart });
+  const turnQueue = createAgentTurnQueue({
+    attachmentStore,
+    executeStart: (context) => executeAgentStartTransaction(context, {
+      runtimeSession,
+      emit,
+      persistSoon,
+      attachmentStore,
+      onSettled: (session) => turnQueue.schedule(session),
+    }),
+  });
 
   async function startTurn(sender, request, workspaceRoot = null) {
     const session = runtimeSession.requireOwnedSession(sender, request?.sessionId);
@@ -54,6 +68,7 @@ export function createAgentTurnCoordinator({
     });
     const repeated = repeatedCommand(session, request?.commandId, "start", fingerprint);
     if (repeated) return commandReceipt(session, repeated);
+    const operationId = operationIdentity(commandId);
     runtimeSession.requireConnectedSession(session);
     runtimeSession.requireAvailableModel(session, model);
     runtimeSession.requireAvailableEffort(session, model, effort);
@@ -69,6 +84,7 @@ export function createAgentTurnCoordinator({
           kind: "start",
           status: "queued",
           targetTurnId: null,
+          operationId,
           intentFingerprint: fingerprint,
           intent: publicIntent,
         },
@@ -81,6 +97,7 @@ export function createAgentTurnCoordinator({
         effort,
         mode,
         commandId,
+        operationId,
         queued: true,
       });
       return { sessionId: session.id, commandId, queued: true, turnId: session.activeTurnId };
@@ -92,68 +109,15 @@ export function createAgentTurnCoordinator({
         kind: "start",
         status: "dispatching",
         targetTurnId: null,
+        operationId,
         intentFingerprint: fingerprint,
         intent: publicIntent,
       },
     });
-    return executeStart({ session, request, preparedInput, model, effort, mode, commandId, queued: false });
-  }
-
-  async function executeStart({ session, request, preparedInput, model, effort, mode, commandId, queued }) {
-    const operationGeneration = session.actor.control.adapterGeneration;
-    const operationId = operationIdentity(commandId);
-    session.actor.dispatch({ type: "command.dispatching", commandId, operationId });
-    const operationIdentityFields = { commandId, operationId, adapterGeneration: operationGeneration };
-    try {
-      const { references, referenceDisplays, prompt, displayPrompt, promptMentions } = beginAgentTurnReferences(
-        session,
-        request,
-        operationIdentityFields,
-        preparedInput,
-      );
-      session.selectedModel = model;
-      session.selectedEffort = effort;
-      session.selectedMode = mode;
-      const result = await session.adapter.startTurn({
-        prompt,
-        model,
-        ...(effort ? { effort } : {}),
-        mode,
-        references,
-        attachments: references.filter((entry) => entry.kind === "staged-attachment"),
-        contextReferences: references.filter((entry) => entry.kind === "workspace-entry"),
-      });
-      if (!runtimeSession.isCurrent(session)
-        || session.actor.control.adapterGeneration !== operationGeneration
-        || ["exited", "disconnected"].includes(session.actor.control.connection.status)) {
-        session.actor.dispatch({ type: "command.outcome-unknown", commandId, operationId, error: "session-generation-changed" });
-        throw new Error("The Agent session changed before turn acceptance could be confirmed.");
-      }
-      const alreadyTerminal = session.terminalTurnIds.has(result.turnId);
-      if (!alreadyTerminal && session.lastStartedTurnId !== result.turnId) {
-        emit(session, {
-          type: "turn.started",
-          providerSessionId: session.providerSessionId,
-          turnId: result.turnId,
-          payload: { status: "running", prompt: displayPrompt, model, effort, mode, referenceDisplays, promptMentions },
-        });
-      }
-      session.actor.dispatch({ type: "command.accepted", commandId, operationId, turnId: result.turnId });
-      persistSoon(session);
-      return { sessionId: session.id, commandId, queued: false, turnId: result.turnId };
-    } catch (error) {
-      abandonAgentTurnReferences(session, operationIdentityFields);
-      session.actor.dispatch({
-        type: "command.rejected",
-        commandId,
-        operationId,
-        error: redactSecretText(error instanceof Error ? error.message : String(error)),
-      });
-      if (queued) await releaseQueuedLease(session, request);
-      throw new Error(redactSecretText(error instanceof Error ? error.message : String(error)));
-    } finally {
-      turnQueue.schedule(session);
-    }
+    return executeAgentStartTransaction(
+      { session, request, preparedInput, model, effort, mode, commandId, operationId },
+      { runtimeSession, emit, persistSoon, attachmentStore, onSettled: (current) => turnQueue.schedule(current) },
+    );
   }
 
   async function steerTurn(sender, request, workspaceRoot = null) {
@@ -165,7 +129,8 @@ export function createAgentTurnCoordinator({
     const deliveryForReference = typeof session.adapter?.referenceMentionDelivery === "function"
       ? (reference) => session.adapter.referenceMentionDelivery(reference)
       : undefined;
-    const { message, references, promptMentions } = prepareAgentSteerReferenceInput(request, session.capabilities, deliveryForReference);
+    const preparedInput = prepareAgentSteerReferenceInput(request, session.capabilities, deliveryForReference);
+    const { message, references, promptMentions } = preparedInput;
     const fingerprint = commandFingerprint("steer", { turnId, message, references, promptMentions });
     const repeated = repeatedCommand(session, request?.commandId, "steer", fingerprint);
     if (repeated) return { ...commandReceipt(session, repeated), steered: true };
@@ -179,13 +144,30 @@ export function createAgentTurnCoordinator({
       command: { commandId, kind: "steer", status: "dispatching", targetTurnId: turnId, intentFingerprint: fingerprint },
     });
     const operationId = operationIdentity(commandId);
+    const operationIdentityFields = {
+      commandId,
+      operationId,
+      adapterGeneration: session.actor.control.adapterGeneration,
+    };
     session.actor.dispatch({ type: "command.dispatching", commandId, operationId });
+    beginAgentSteerReferences(session, request, operationIdentityFields, preparedInput);
     try {
-      await withAgentSteerReferenceTokens(session, request, () => session.adapter.steerTurn({ turnId, message, references }));
-      session.actor.dispatch({ type: "command.accepted", commandId, operationId, turnId });
+      await session.adapter.steerTurn({ turnId, message, references });
+      const accepted = session.actor.dispatch({ type: "command.accepted", commandId, operationId, turnId });
+      if (!accepted.changed) {
+        return { sessionId: session.id, commandId, turnId, steered: true, outcomeUnknown: true };
+      }
+      acceptAgentSteerReferences(session, operationIdentityFields, turnId);
       return { sessionId: session.id, commandId, turnId, steered: true };
     } catch (error) {
-      session.actor.dispatch({ type: "command.rejected", commandId, operationId, error: redactSecretText(error instanceof Error ? error.message : String(error)) });
+      const message = redactSecretText(error instanceof Error ? error.message : String(error));
+      if (isAgentDeliveryOutcomeUnknown(error)) {
+        session.actor.dispatch({ type: "command.outcome-unknown", commandId, operationId, error: message });
+        return { sessionId: session.id, commandId, turnId, steered: true, outcomeUnknown: true };
+      }
+      abandonAgentSteerReferences(session, operationIdentityFields);
+      session.actor.dispatch({ type: "command.rejected", commandId, operationId, error: message });
+      await releaseAgentReferenceLease(session, request, attachmentStore);
       throw error;
     }
   }
@@ -216,14 +198,23 @@ export function createAgentTurnCoordinator({
     try {
       await session.adapter.interruptTurn({ turnId });
     } catch (error) {
-      session.actor.dispatch({ type: "command.rejected", commandId, operationId, error: redactSecretText(error instanceof Error ? error.message : String(error)) });
+      const message = redactSecretText(error instanceof Error ? error.message : String(error));
+      if (isAgentDeliveryOutcomeUnknown(error)) {
+        session.actor.dispatch({ type: "command.outcome-unknown", commandId, operationId, error: message });
+        if (session.activeTurnId === turnId) runtimeSession.scheduleInterruptFallback(session, turnId);
+        return { sessionId: session.id, commandId, turnId, interruptRequested: true, outcomeUnknown: true };
+      }
+      session.actor.dispatch({ type: "command.rejected", commandId, operationId, error: message });
       runtimeSession.clearInterruptFallback(session);
-      throw new Error(redactSecretText(error instanceof Error ? error.message : String(error)));
+      throw new Error(message);
     }
-    session.actor.dispatch({ type: "command.accepted", commandId, operationId, turnId });
+    const accepted = session.actor.dispatch({ type: "command.accepted", commandId, operationId, turnId });
+    if (!accepted.changed) {
+      return { sessionId: session.id, commandId, turnId, interruptRequested: true, outcomeUnknown: true };
+    }
     // Keep blocking requests actionable until the runtime accepts interruption.
-    runtimeSession.failPendingApprovalsClosed(session, "turn-interrupted");
-    runtimeSession.failPendingQuestionsClosed(session, "turn-interrupted");
+    runtimeSession.failPendingApprovalsForTurn(session, turnId, "turn-interrupted");
+    runtimeSession.failPendingQuestionsForTurn(session, turnId, "turn-interrupted");
     if (session.activeTurnId === turnId) runtimeSession.scheduleInterruptFallback(session, turnId);
     return { sessionId: session.id, commandId, turnId, interruptRequested: true };
   }
@@ -261,9 +252,15 @@ export function createAgentTurnCoordinator({
     session.actor.dispatch({ type: "command.dispatching", commandId, operationId });
     try {
       await session.adapter.resolveQuestion({ requestId, answers: answers ?? [], rejected, turnId });
-      session.actor.dispatch({ type: "command.accepted", commandId, operationId, turnId });
+      const accepted = session.actor.dispatch({ type: "command.accepted", commandId, operationId, turnId });
+      if (!accepted.changed) return { sessionId: session.id, commandId, requestId, outcomeUnknown: true };
     } catch (error) {
-      session.actor.dispatch({ type: "command.rejected", commandId, operationId, error: redactSecretText(error instanceof Error ? error.message : String(error)) });
+      const message = redactSecretText(error instanceof Error ? error.message : String(error));
+      if (isAgentDeliveryOutcomeUnknown(error)) {
+        session.actor.dispatch({ type: "command.outcome-unknown", commandId, operationId, error: message });
+        return { sessionId: session.id, commandId, requestId, outcomeUnknown: true };
+      }
+      session.actor.dispatch({ type: "command.rejected", commandId, operationId, error: message });
       throw error;
     }
     if (session.pendingQuestions.has(requestId)) {
@@ -301,7 +298,8 @@ export function createAgentTurnCoordinator({
     const operationId = operationIdentity(commandId);
     session.actor.dispatch({ type: "command.dispatching", commandId, operationId });
     const finalize = () => {
-      session.actor.dispatch({ type: "command.accepted", commandId, operationId, turnId });
+      const accepted = session.actor.dispatch({ type: "command.accepted", commandId, operationId, turnId });
+      if (!accepted.changed) return { sessionId: session.id, commandId, requestId, outcomeUnknown: true };
       if (session.pendingApprovals.has(requestId)) {
         emit(session, {
           type: "approval.resolved",
@@ -314,7 +312,12 @@ export function createAgentTurnCoordinator({
       return { sessionId: session.id, commandId, requestId, decision };
     };
     const reject = (error) => {
-      session.actor.dispatch({ type: "command.rejected", commandId, operationId, error: redactSecretText(error instanceof Error ? error.message : String(error)) });
+      const message = redactSecretText(error instanceof Error ? error.message : String(error));
+      if (isAgentDeliveryOutcomeUnknown(error)) {
+        session.actor.dispatch({ type: "command.outcome-unknown", commandId, operationId, error: message });
+        return { sessionId: session.id, commandId, requestId, outcomeUnknown: true };
+      }
+      session.actor.dispatch({ type: "command.rejected", commandId, operationId, error: message });
       throw error;
     };
     let resolution;

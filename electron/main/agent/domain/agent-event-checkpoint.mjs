@@ -1,4 +1,7 @@
-import { agentEventContentUpdate } from "../../../../shared/agent-contract/event-content-update.mjs";
+import {
+  agentEventContentUpdate,
+  applyAgentEventContentUpdate,
+} from "../../../../shared/agent-contract/event-content-update.mjs";
 
 const MAX_CHECKPOINT_EVENTS_PER_TURN = 512;
 const MAX_ASSISTANT_TEXT = 128 * 1024;
@@ -21,10 +24,12 @@ const CHECKPOINT_TYPES = new Set([
 export function foldAgentEventCheckpoint(previous, event) {
   if (!event?.turnId || !CHECKPOINT_TYPES.has(event.type)) return previous;
   const events = previous.map(clonePlain);
-  const last = events.at(-1);
-  const merged = mergeAdjacentTextDelta(last, event);
-  if (merged) events[events.length - 1] = merged;
-  else events.push(clonePlain(event));
+  if (!materializeObjectTextUpdate(events, event)) {
+    const last = events.at(-1);
+    const merged = mergeAdjacentTextDelta(last, event);
+    if (merged) events[events.length - 1] = merged;
+    else events.push(clonePlain(event));
+  }
   if (events.length <= MAX_CHECKPOINT_EVENTS_PER_TURN) return events;
 
   const started = events.find((entry) => entry.type === "turn.started") ?? null;
@@ -32,6 +37,47 @@ export function foldAgentEventCheckpoint(previous, event) {
   const retained = material.slice(-(MAX_CHECKPOINT_EVENTS_PER_TURN - (started ? 2 : 1)));
   const warning = checkpointWarning(event, events[0]?.sequence ?? event.sequence);
   return [...(started ? [started] : []), warning, ...retained];
+}
+
+/**
+ * Reasoning summaries and plans are mutable logical objects, not neighboring
+ * log lines. Collapse every checkpoint fragment for that object so a later
+ * replace invalidates older text even when unrelated events interleaved it.
+ */
+function materializeObjectTextUpdate(events, event) {
+  if (event.type !== "reasoning.summary.delta" && event.type !== "plan.updated") return false;
+  const identity = checkpointIdentity(event);
+  const matchingIndexes = events.flatMap((candidate, index) => (
+    candidate.type === event.type
+      && candidate.turnId === event.turnId
+      && checkpointIdentity(candidate) === identity
+      ? [index]
+      : []
+  ));
+  if (matchingIndexes.length === 0) return false;
+  const firstIndex = matchingIndexes[0];
+  const first = events[firstIndex];
+  let text = "";
+  let truncated = false;
+  let payload = {};
+  for (const candidate of [...matchingIndexes.map((index) => events[index]), event]) {
+    const mutation = applyAgentEventContentUpdate(text, candidate, MAX_ACTIVITY_TEXT);
+    if (!mutation) continue;
+    text = mutation.text;
+    truncated = mutation.mode === "replace" ? mutation.truncated : truncated || mutation.truncated;
+    payload = { ...payload, ...clonePlain(candidate.payload), [mutation.field]: text, updateMode: "replace" };
+  }
+  if (truncated) payload.truncated = true;
+  else delete payload.truncated;
+  const materialized = {
+    ...clonePlain(event),
+    sequence: first.sequence,
+    emittedAt: first.emittedAt,
+    payload,
+  };
+  for (const index of [...matchingIndexes].reverse()) events.splice(index, 1);
+  events.splice(firstIndex, 0, materialized);
+  return true;
 }
 
 function mergeAdjacentTextDelta(previous, event) {

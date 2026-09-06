@@ -43,6 +43,7 @@ export function createAgentSessionRecord({
     providerSessionId: null,
     adapter: null,
     actor,
+    referenceClaims: new Map(),
     privateReferencePaths: new Map(),
     activeReferenceTokens: [],
     account: null,

@@ -95,6 +95,10 @@ function applyInput(state, input) {
         state.execution = { status: "starting", activeTurnId: null, uncertainTurnId: null, startedAtMs: input.startedAtMs ?? Date.now(), nativeOutcome: null, certainty: "unknown" };
       }
       return true;
+    case "submission.accepted":
+      return acceptSubmission(state, input);
+    case "submission.outcome-unknown":
+      return markSubmissionOutcomeUnknown(state, input);
     case "submission.abandoned":
       if (!matchesPendingSubmission(state.pendingSubmission, input)) return false;
       state.pendingSubmission = null;
@@ -115,6 +119,8 @@ function applyInput(state, input) {
       });
     case "command.received":
       return receiveCommand(state, input.command);
+    case "queue.dispatch-reserved":
+      return reserveQueuedStart(state, input);
     case "command.dispatching":
     case "command.accepted":
     case "command.rejected":
@@ -247,6 +253,79 @@ function applyCanonicalEvent(state, event) {
       // total-order every canonical fact even when control fields are unchanged.
       return true;
   }
+}
+
+function acceptSubmission(state, input) {
+  if (input.adapterGeneration !== state.adapterGeneration) return false;
+  const command = state.commands.find((entry) => entry.commandId === input.commandId);
+  if (!command || command.kind !== "start" || command.status !== "dispatching" || command.operationId !== input.operationId) {
+    return false;
+  }
+  const pendingMatches = matchesPendingSubmission(state.pendingSubmission, input);
+  const changed = transitionCommand(state, {
+    type: "command.accepted",
+    commandId: input.commandId,
+    operationId: input.operationId,
+    turnId: input.turnId,
+  });
+  if (!changed || !pendingMatches) return changed;
+  state.pendingSubmission = null;
+  const outcome = terminalOutcome(input.terminalOutcome);
+  if (outcome) {
+    // No turn.started fact was observed for this operation, so receipt-time
+    // correlation is the single point that advances the run generation.
+    state.runGeneration += 1;
+    state.execution = {
+      status: "ended",
+      activeTurnId: null,
+      uncertainTurnId: null,
+      startedAtMs: null,
+      nativeOutcome: outcome,
+      certainty: "confirmed",
+    };
+  }
+  return true;
+}
+
+function markSubmissionOutcomeUnknown(state, input) {
+  if (!matchesPendingSubmission(state.pendingSubmission, input)) return false;
+  const command = state.commands.find((entry) => entry.commandId === input.commandId);
+  if (!command || command.kind !== "start" || command.status !== "dispatching" || command.operationId !== input.operationId) {
+    return false;
+  }
+  transitionCommand(state, {
+    type: "command.outcome-unknown",
+    commandId: input.commandId,
+    operationId: input.operationId,
+    error: input.error,
+  });
+  state.pendingSubmission = null;
+  state.execution = {
+    status: "outcome-unknown",
+    activeTurnId: null,
+    uncertainTurnId: null,
+    startedAtMs: state.execution.startedAtMs,
+    nativeOutcome: null,
+    certainty: "unknown",
+  };
+  return true;
+}
+
+/** Atomically validates and reserves the next queued effect before any I/O. */
+function reserveQueuedStart(state, input) {
+  if (input.adapterGeneration !== state.adapterGeneration || state.connection.status !== "connected") return false;
+  if (state.queue[0] !== input.commandId || state.pendingSubmission) return false;
+  if (state.execution.activeTurnId || state.execution.uncertainTurnId
+    || state.execution.status === "starting" || state.execution.status === "outcome-unknown") return false;
+  if (state.commands.some((entry) => entry.kind === "interrupt" && entry.status === "dispatching")) return false;
+  const index = state.commands.findIndex((entry) => entry.commandId === input.commandId);
+  const command = state.commands[index];
+  if (!command || command.kind !== "start" || command.status !== "queued" || command.operationId !== input.operationId) {
+    return false;
+  }
+  state.commands[index] = { ...command, status: "dispatching", error: null };
+  state.queue.shift();
+  return true;
 }
 
 function receiveCommand(state, command) {

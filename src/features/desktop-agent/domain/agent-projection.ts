@@ -30,7 +30,7 @@ import {
 } from "./agent-provider-notice-policy";
 import { projectTypedPart } from "./agent-typed-part-projection";
 import { reconcileTerminalAgentTurn } from "./agent-turn-lifecycle";
-import { agentEventContentUpdate } from "../../../../shared/agent-contract/event-content-update.mjs";
+import { agentEventContentUpdate, applyAgentEventContentUpdate } from "../../../../shared/agent-contract/event-content-update.mjs";
 
 export type * from "./agent-projection-types";
 
@@ -215,7 +215,7 @@ function applyLegacyAgentEvent(next: AgentProjection, event: AgentEvent): AgentP
         labelCode: "reasoning-summary",
         status: payload.completed ? "completed" : "running",
         detail: payload,
-      }, update ? { detailField: update.field, updateMode: update.mode } : {});
+      }, update ? { detailField: update.field, contentEvent: event } : {});
     }
     case "plan.updated": {
       const payload = event.payload;
@@ -226,7 +226,7 @@ function applyLegacyAgentEvent(next: AgentProjection, event: AgentEvent): AgentP
         labelCode: "plan-updated",
         status: payload.completed ? "completed" : "running",
         detail: payload,
-      }, update ? { detailField: update.field, updateMode: update.mode } : {});
+      }, update ? { detailField: update.field, contentEvent: event } : {});
     }
     case "tool.started":
     case "tool.progress":
@@ -550,7 +550,7 @@ function upsertActivity(
   projection: AgentProjection,
   event: AgentEvent,
   value: Pick<AgentActivity, "kind" | "label" | "labelCode" | "status" | "detail">,
-  options: { detailField?: string; updateMode?: "append" | "replace" } = {},
+  options: { detailField?: string; contentEvent?: AgentEvent } = {},
 ) {
   const id = activityId(event);
   const indexes = projectionIndexes(projection);
@@ -561,17 +561,18 @@ function upsertActivity(
     let detail;
     if (options.detailField) {
       const field = options.detailField;
+      const mutation = applyAgentEventContentUpdate(
+        readString(existing.detail[field]),
+        options.contentEvent ?? event,
+        MAX_ACTIVITY_TEXT,
+      );
       detail = {
         ...existing.detail,
         ...safeDetail,
-        [field]: options.updateMode === "replace"
-          ? readString(safeDetail[field]).slice(0, MAX_ACTIVITY_TEXT)
-          : appendBounded(
-              readString(existing.detail[field]),
-              readString(safeDetail[field]),
-              MAX_ACTIVITY_TEXT,
-            ),
+        [field]: mutation?.text ?? readString(safeDetail[field]).slice(0, MAX_ACTIVITY_TEXT),
       };
+      if (mutation?.truncated) detail.truncated = true;
+      else if (mutation?.mode === "replace") delete detail.truncated;
     } else {
       detail = { ...existing.detail, ...safeDetail };
     }
@@ -584,13 +585,23 @@ function upsertActivity(
       updatedSequence: event.sequence,
     };
   } else {
+    const initialMutation = options.detailField
+      ? applyAgentEventContentUpdate("", options.contentEvent ?? event, MAX_ACTIVITY_TEXT)
+      : null;
+    const detail = initialMutation
+      ? {
+          ...safeDetail,
+          [options.detailField!]: initialMutation.text,
+          ...(initialMutation.truncated ? { truncated: true } : {}),
+        }
+      : safeDetail;
     indexes.activities.set(id, projection.activities.length);
     projection.activities.push({
       id,
       turnId: event.turnId,
       itemId: event.itemId,
       ...value,
-      detail: safeDetail,
+      detail,
       output: "",
       sequence: event.sequence,
       updatedSequence: event.sequence,

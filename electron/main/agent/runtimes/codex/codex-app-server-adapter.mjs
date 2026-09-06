@@ -299,8 +299,8 @@ export class CodexAppServerAdapter {
       threadId: this.threadId,
       turnId,
     });
-    this.#clearPendingApprovals("cancel", true);
-    this.#clearPendingQuestions(true);
+    this.#clearPendingApprovalsForTurn(turnId, "turn-interrupted", true);
+    this.#clearPendingQuestionsForTurn(turnId, true);
   }
 
   async steerTurn({ turnId, message, references = [] }) {
@@ -514,10 +514,17 @@ export class CodexAppServerAdapter {
     });
   }
 
-  #clearPendingApprovalsForTurn(turnId, reason) {
+  #clearPendingApprovalsForTurn(turnId, reason, respond = false) {
     if (!turnId) return;
     for (const pending of Array.from(this.pendingApprovals.values())) {
       if (pending.turnId !== turnId) continue;
+      if (respond && this.connection && !this.connection.closed) {
+        try {
+          this.connection.respond(pending.rpcId, { decision: "cancel" });
+        } catch {
+          // A closed provider cannot execute an unapproved action.
+        }
+      }
       this.pendingApprovals.delete(pending.requestId);
       this.onEvent({
         type: "approval.resolved",
@@ -549,10 +556,16 @@ export class CodexAppServerAdapter {
     this.pendingApprovals.clear();
   }
 
-  #clearPendingQuestionsForTurn(turnId) {
+  #clearPendingQuestionsForTurn(turnId, respond = false) {
     for (const pending of Array.from(this.pendingQuestions.values())) {
       if (pending.turnId !== turnId) continue;
-      if (this.connection && !this.connection.closed) this.connection.respond(pending.rpcId, { answers: {} });
+      if (respond && this.connection && !this.connection.closed) {
+        try {
+          this.connection.respond(pending.rpcId, { answers: {} });
+        } catch {
+          // A closed provider cannot keep waiting for user input.
+        }
+      }
       this.pendingQuestions.delete(pending.requestId);
     }
   }

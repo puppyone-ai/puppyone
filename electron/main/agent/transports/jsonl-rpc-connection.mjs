@@ -14,6 +14,17 @@ export class JsonlRpcRequestTimeoutError extends Error {
     super(`JSONL-RPC request timed out: ${method}`);
     this.name = "JsonlRpcRequestTimeoutError";
     this.code = "JSONL_RPC_TIMEOUT";
+    this.deliveryOutcome = "unknown";
+    this.method = method;
+  }
+}
+
+export class JsonlRpcDeliveryUnknownError extends Error {
+  constructor(method, message) {
+    super(redactSecretText(message));
+    this.name = "JsonlRpcDeliveryUnknownError";
+    this.code = "JSONL_RPC_DELIVERY_UNKNOWN";
+    this.deliveryOutcome = "unknown";
     this.method = method;
   }
 }
@@ -178,7 +189,14 @@ export class JsonlRpcConnection extends EventEmitter {
     if (Buffer.byteLength(line, "utf8") > this.maxLineBytes) {
       throw new Error("JSONL-RPC request exceeded the safety limit.");
     }
-    this.child.stdin.write(line, "utf8");
+    try {
+      this.child.stdin.write(line, "utf8");
+    } catch (error) {
+      throw new JsonlRpcDeliveryUnknownError(
+        typeof message?.method === "string" ? message.method : "response",
+        error?.message || "JSONL-RPC write outcome is unknown.",
+      );
+    }
   }
 
   #receiveStdout(chunk) {
@@ -301,7 +319,9 @@ export class JsonlRpcConnection extends EventEmitter {
   #rejectPending(error) {
     for (const pending of this.pending.values()) {
       if (pending.timer) clearTimeout(pending.timer);
-      pending.reject(error);
+      pending.reject(error?.deliveryOutcome === "unknown"
+        ? error
+        : new JsonlRpcDeliveryUnknownError(pending.method, error?.message || String(error)));
     }
     this.pending.clear();
   }
