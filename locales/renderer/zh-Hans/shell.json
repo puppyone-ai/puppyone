@@ -90,10 +90,10 @@
   "build.copy.action": "复制版本信息",
   "build.copy.copied": "版本信息已复制",
   "telemetry.notice.title": "帮助改进 puppyone",
-  "telemetry.notice.description": "共享匿名日活数据，不包含文件或提示词。",
+  "telemetry.notice.description": "共享匿名首次运行和日活数据，不包含文件或提示词。",
   "telemetry.notice.learnMore": "详情",
   "telemetry.notice.showLess": "收起",
-  "telemetry.notice.details": "每天最多发送一条匿名活跃记录；匿名标识会在每个自然月轮换。",
+  "telemetry.notice.details": "首次运行时发送一条记录；之后每个 UTC 日最多发送一条活跃记录。活跃标识每月轮换，单独的留存标识最多保留 100 天。",
   "telemetry.notice.notNow": "稍后",
   "telemetry.notice.understand": "我已了解",
   "telemetry.notice.error": "无法更新匿名分析偏好，请重试。"

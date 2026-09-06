@@ -489,7 +489,7 @@ export type DesktopPlatformCapabilities = {
 export type DesktopTelemetryLevel = "off" | "basic";
 
 export type DesktopTelemetryState = {
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 2;
   readonly defaultLevel: DesktopTelemetryLevel;
   readonly level: DesktopTelemetryLevel;
   readonly effectiveLevel: DesktopTelemetryLevel;
@@ -504,7 +504,7 @@ export type DesktopTelemetryState = {
 };
 
 export type DesktopTelemetryDisclosure = {
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 2;
   readonly noticeVersion: number;
   readonly levels: ReadonlyArray<{
     readonly id: DesktopTelemetryLevel;

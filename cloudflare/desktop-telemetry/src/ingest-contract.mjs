@@ -1,4 +1,7 @@
-import { DESKTOP_TELEMETRY_SCHEMA_VERSION } from "../../../shared/desktop-telemetry-contract.mjs";
+import {
+  DESKTOP_TELEMETRY_SCHEMA_VERSION,
+  isDesktopTelemetrySchemaVersion,
+} from "../../../shared/desktop-telemetry-contract.mjs";
 import { isDesktopTelemetryEvent } from "../../../shared/desktop-telemetry-event.mjs";
 
 export const DESKTOP_TELEMETRY_MAX_BATCH_SIZE = 16;
@@ -32,7 +35,7 @@ export async function parseDesktopTelemetryRequest(request, {
   if (!hasExactKeys(payload, ["events", "schema_version", "sent_at"])) {
     throw new TelemetryRequestError(400, "invalid_envelope");
   }
-  if (payload.schema_version !== DESKTOP_TELEMETRY_SCHEMA_VERSION) {
+  if (!isDesktopTelemetrySchemaVersion(payload.schema_version)) {
     throw new TelemetryRequestError(400, "unsupported_schema");
   }
   if (!isCanonicalTimestamp(payload.sent_at)) {
@@ -43,6 +46,9 @@ export async function parseDesktopTelemetryRequest(request, {
     || payload.events.length === 0
     || payload.events.length > DESKTOP_TELEMETRY_MAX_BATCH_SIZE
     || !payload.events.every(isDesktopTelemetryEvent)
+    || (payload.schema_version === 1 && payload.events.some((event) => event.schema_version !== 1))
+    || (payload.schema_version === DESKTOP_TELEMETRY_SCHEMA_VERSION
+      && payload.events.some((event) => event.schema_version > DESKTOP_TELEMETRY_SCHEMA_VERSION))
   ) {
     throw new TelemetryRequestError(400, "invalid_events");
   }

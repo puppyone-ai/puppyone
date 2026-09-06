@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createDesktopTelemetryService } from "../electron/main/telemetry/application/desktop-telemetry-service.mjs";
 import { createDefaultTelemetryPreference } from "../electron/main/telemetry/infrastructure/telemetry-preference-store.mjs";
 import { createEmptyTelemetryQueue } from "../electron/main/telemetry/infrastructure/telemetry-queue-store.mjs";
+import { neutralizeTelemetryLifecycle } from "../electron/main/telemetry/infrastructure/telemetry-lifecycle-store.mjs";
 import { resolveDesktopBuildIdentity } from "../shared/desktop-build-identity.mjs";
 
 const commitSha = "e".repeat(40);
@@ -53,6 +54,32 @@ describe("Desktop telemetry service", () => {
     expect(fixture.transport.send).toHaveBeenCalledTimes(2);
   });
 
+  it("queues one first-run cohort signal alongside the first daily activity for a fresh install", async () => {
+    const fixture = createServiceFixture({ hasStoredIdentity: false });
+    await fixture.service.start();
+    await fixture.service.markNoticeSeen();
+
+    expect(await fixture.service.noteForegroundActivity()).toMatchObject({ enqueued: true });
+    expect(await fixture.service.noteForegroundActivity()).toMatchObject({ enqueued: false });
+    expect(fixture.readQueue().events.map((event) => event.event)).toEqual([
+      "desktop_first_run",
+      "desktop_daily_active",
+    ]);
+    expect(fixture.readLifecycle()).toEqual({
+      version: 1,
+      cohort_status: "fresh",
+      first_run_utc_day: "2026-08-27",
+      first_run_enqueued: true,
+    });
+
+    await fixture.service.flush();
+    expect(fixture.transport.send).toHaveBeenCalledTimes(1);
+    expect(fixture.transport.send.mock.calls[0][0]).toEqual([
+      expect.objectContaining({ event: "desktop_first_run", retention_id: `r1_${"b".repeat(43)}` }),
+      expect.objectContaining({ event: "desktop_daily_active", retention_id: `r1_${"b".repeat(43)}` }),
+    ]);
+  });
+
   it("clears queued events and the local identity immediately when switched off", async () => {
     const fixture = createServiceFixture();
     await fixture.service.start();
@@ -70,6 +97,36 @@ describe("Desktop telemetry service", () => {
     });
     expect(fixture.identityStore.clear).toHaveBeenCalledTimes(1);
     expect(fixture.queueStore.clear).toHaveBeenCalledTimes(1);
+    expect(fixture.readLifecycle()).toEqual(neutralizeTelemetryLifecycle());
+  });
+
+  it("treats an explicit Basic selection as acknowledgment of the current notice", async () => {
+    const fixture = createServiceFixture();
+    await fixture.service.start();
+
+    expect(fixture.service.getSnapshot().noticeRequired).toBe(true);
+    await fixture.service.setLevel("basic");
+
+    expect(fixture.service.getSnapshot()).toMatchObject({
+      enabled: true,
+      noticeRequired: false,
+      noticeSeenVersion: 2,
+    });
+  });
+
+  it("stops sending the retention ID after the bounded 100-day measurement window", async () => {
+    const fixture = createServiceFixture({ hasStoredIdentity: false });
+    await fixture.service.start();
+    await fixture.service.markNoticeSeen();
+    await fixture.service.noteForegroundActivity();
+    await fixture.service.flush();
+
+    fixture.setNow("2026-12-05T07:00:00.000Z");
+    await fixture.service.noteForegroundActivity();
+
+    const event = fixture.readQueue().events[0];
+    expect(event).toMatchObject({ event: "desktop_daily_active", activity_day: "2026-12-05" });
+    expect(event).not.toHaveProperty("retention_id");
   });
 
   it("keeps the default-on preference without sending from unpackaged or non-Stable builds", async () => {
@@ -134,11 +191,14 @@ function createServiceFixture({
     commitSha,
   }),
   defaultLevel = "basic",
+  hasStoredIdentity = true,
+  initialLifecycle = null,
   isPackaged = true,
 } = {}) {
   let currentNow = new Date("2026-08-27T07:00:00.000Z");
   let preference = createDefaultTelemetryPreference(defaultLevel);
   let queue = createEmptyTelemetryQueue();
+  let lifecycle = initialLifecycle;
   const preferenceStore = {
     read: vi.fn(async () => preference),
     write: vi.fn(async (value) => {
@@ -162,8 +222,17 @@ function createServiceFixture({
     }),
   };
   const identityStore = {
+    hasStoredIdentity: vi.fn(async () => hasStoredIdentity),
     getMonthlyAnonymousId: vi.fn(async () => `m1_${"a".repeat(43)}`),
+    getRetentionAnonymousId: vi.fn(async () => `r1_${"b".repeat(43)}`),
     clear: vi.fn(async () => undefined),
+  };
+  const lifecycleStore = {
+    read: vi.fn(async () => lifecycle),
+    write: vi.fn(async (value) => {
+      lifecycle = Object.freeze({ ...value, version: 1 });
+      return lifecycle;
+    }),
   };
   const transport = {
     send: vi.fn(async (events) => ({ acceptedEventIds: events.map((event) => event.event_id) })),
@@ -175,6 +244,7 @@ function createServiceFixture({
     buildInfo,
     identityStore,
     isPackaged,
+    lifecycleStore,
     logger,
     now: () => new Date(currentNow),
     osMajor: "15",
@@ -196,9 +266,12 @@ function createServiceFixture({
   });
   return {
     identityStore,
+    lifecycleStore,
     logger,
     preferenceStore,
     queueStore,
+    readLifecycle: () => lifecycle,
+    readQueue: () => queue,
     service,
     setNow: (value) => { currentNow = new Date(value); },
     timers,

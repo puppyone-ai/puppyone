@@ -84,7 +84,7 @@ export function ProductAnalyticsSettingsRow() {
         )}
       </div>
       <SettingsToggle
-        checked={state?.level !== "off"}
+        checked={state?.noticeRequired ? false : state?.level !== "off"}
         description={detail}
         disabled={loading || saving || !canChange}
         label={title}
