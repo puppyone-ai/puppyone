@@ -1,3 +1,5 @@
+import { agentEventContentUpdate } from "../../../../shared/agent-contract/event-content-update.mjs";
+
 const MAX_CHECKPOINT_EVENTS_PER_TURN = 512;
 const MAX_ASSISTANT_TEXT = 128 * 1024;
 const MAX_ACTIVITY_TEXT = 64 * 1024;
@@ -36,31 +38,30 @@ function mergeAdjacentTextDelta(previous, event) {
   if (!previous || previous.type !== event.type || previous.turnId !== event.turnId || checkpointIdentity(previous) !== checkpointIdentity(event)) {
     return null;
   }
-  const field = event.type === "assistant.delta" || event.type === "reasoning.summary.delta" || event.type === "command.output.delta"
-    ? "delta"
-    : event.type === "plan.updated" && (event.payload?.updateMode === "append" || event.payload?.streaming)
-      ? "text"
-      : null;
-  if (!field) return null;
+  const update = agentEventContentUpdate(event);
+  if (!update) return null;
+  const { field, mode } = update;
   const limit = event.type === "assistant.delta" ? MAX_ASSISTANT_TEXT : MAX_ACTIVITY_TEXT;
   const current = typeof previous.payload?.[field] === "string" ? previous.payload[field] : "";
   const incoming = typeof event.payload?.[field] === "string" ? event.payload[field] : "";
-  const combined = `${current}${incoming}`;
-  const wasTruncated = previous.payload?.truncated === true;
+  const combined = mode === "replace" ? incoming : `${current}${incoming}`;
+  const wasTruncated = mode === "append" && previous.payload?.truncated === true;
   const truncated = wasTruncated || combined.length > limit;
   const text = event.type === "command.output.delta"
     ? truncated ? `${TRUNCATION_MARKER}${combined.slice(-(limit - TRUNCATION_MARKER.length))}` : combined
     : wasTruncated ? current : combined.length > limit
       ? `${combined.slice(0, limit - TRUNCATION_MARKER.length)}${TRUNCATION_MARKER}`
       : combined;
+  const payload = {
+    ...clonePlain(previous.payload),
+    ...clonePlain(event.payload),
+    [field]: text,
+  };
+  if (truncated) payload.truncated = true;
+  else delete payload.truncated;
   return {
     ...clonePlain(event),
-    payload: {
-      ...clonePlain(previous.payload),
-      ...clonePlain(event.payload),
-      [field]: text,
-      ...(truncated ? { truncated: true } : {}),
-    },
+    payload,
   };
 }
 

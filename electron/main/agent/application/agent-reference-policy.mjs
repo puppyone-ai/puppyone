@@ -35,29 +35,35 @@ export function prepareAgentTurnReferenceInput(request, capabilities, deliveryFo
   };
 }
 
-export function beginAgentTurnReferences(session, request) {
+export function beginAgentTurnReferences(session, request, identity, preparedInput = null) {
   const deliveryForReference = typeof session.adapter?.referenceMentionDelivery === "function"
     ? (reference) => session.adapter.referenceMentionDelivery(reference)
     : undefined;
-  const input = prepareAgentTurnReferenceInput(request, session.capabilities, deliveryForReference);
-  session.actor.dispatch({
+  const input = preparedInput ?? prepareAgentTurnReferenceInput(request, session.capabilities, deliveryForReference);
+  const result = session.actor.dispatch({
     type: "submission.prepared",
     startedAtMs: Date.now(),
     submission: {
+      commandId: identity.commandId,
+      operationId: identity.operationId,
+      adapterGeneration: identity.adapterGeneration,
       prompt: input.displayPrompt,
       promptMentions: input.promptMentions,
       referenceDisplays: input.referenceDisplays,
     },
   });
+  if (!result.changed) throw new Error("The Agent start operation is no longer current.");
   session.privateReferencePaths = input.privateReferencePaths;
   session.activeReferenceTokens = privateReferenceLeaseTokens(request);
   return input;
 }
 
-export function abandonAgentTurnReferences(session) {
-  session.actor.dispatch({ type: "submission.abandoned" });
+export function abandonAgentTurnReferences(session, identity) {
+  const result = session.actor.dispatch({ type: "submission.abandoned", ...identity });
+  if (!result.changed) return false;
   session.privateReferencePaths.clear();
   session.activeReferenceTokens = [];
+  return true;
 }
 
 export function prepareAgentSteerReferenceInput(request, capabilities, deliveryForReference) {

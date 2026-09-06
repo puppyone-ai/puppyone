@@ -403,7 +403,10 @@ export class AgentEventSynchronizer {
           session: snapshot.session,
         });
         await this.activateSessionFeed(sessionId);
-        this.patch({ replicaStatus: "live" });
+        this.patch({
+          replicaStatus: "live",
+          ...(this.readState().error?.code === "event-gap" ? { error: null } : {}),
+        });
       } catch (error) {
         if (!this.disposed) this.patch({ error: formatAgentError(error) });
       }
@@ -436,7 +439,8 @@ export class AgentEventSynchronizer {
         await this.resubscribeFromFeed();
       }
     } catch {
-      this.patch({ replicaStatus: "stale" });
+      this.patch({ replicaStatus: "stale", error: createAgentError("event-gap") });
+      await this.resubscribeFromFeed();
     } finally {
       this.scheduleWatermarkCheck();
     }

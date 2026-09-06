@@ -212,6 +212,8 @@
   "status.completed": "完成",
   "status.stopped": "已停止",
   "status.queued": "已排队",
+  "status.notSent": "未发送",
+  "status.deliveryUnknown": "发送结果未确认",
   "status.waitingForUser": "等待用户",
   "status.unknown": "未知状态",
   "tool.bash": "Bash",

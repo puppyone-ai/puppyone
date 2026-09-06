@@ -30,6 +30,7 @@ import {
 } from "./agent-provider-notice-policy";
 import { projectTypedPart } from "./agent-typed-part-projection";
 import { reconcileTerminalAgentTurn } from "./agent-turn-lifecycle";
+import { agentEventContentUpdate } from "../../../../shared/agent-contract/event-content-update.mjs";
 
 export type * from "./agent-projection-types";
 
@@ -207,23 +208,25 @@ function applyLegacyAgentEvent(next: AgentProjection, event: AgentEvent): AgentP
       return upsertAssistant(next, event, readString(event.payload.text), false, true);
     case "reasoning.summary.delta": {
       const payload = event.payload;
+      const update = agentEventContentUpdate(event);
       return upsertActivity(next, event, {
         kind: "reasoning",
         label: "",
         labelCode: "reasoning-summary",
         status: payload.completed ? "completed" : "running",
         detail: payload,
-      }, payload.updateMode === "replace" ? {} : { appendDetailField: "delta" });
+      }, update ? { detailField: update.field, updateMode: update.mode } : {});
     }
     case "plan.updated": {
       const payload = event.payload;
+      const update = agentEventContentUpdate(event);
       return upsertActivity(next, { ...event, itemId: event.itemId ?? "current-plan" }, {
         kind: "plan",
         label: "",
         labelCode: "plan-updated",
         status: payload.completed ? "completed" : "running",
         detail: payload,
-      }, payload.updateMode === "append" || payload.streaming ? { appendDetailField: "text" } : {});
+      }, update ? { detailField: update.field, updateMode: update.mode } : {});
     }
     case "tool.started":
     case "tool.progress":
@@ -547,7 +550,7 @@ function upsertActivity(
   projection: AgentProjection,
   event: AgentEvent,
   value: Pick<AgentActivity, "kind" | "label" | "labelCode" | "status" | "detail">,
-  options: { appendDetailField?: string } = {},
+  options: { detailField?: string; updateMode?: "append" | "replace" } = {},
 ) {
   const id = activityId(event);
   const indexes = projectionIndexes(projection);
@@ -556,16 +559,18 @@ function upsertActivity(
   if (existingIndex !== undefined) {
     const existing = projection.activities[existingIndex];
     let detail;
-    if (options.appendDetailField) {
-      const field = options.appendDetailField;
+    if (options.detailField) {
+      const field = options.detailField;
       detail = {
         ...existing.detail,
         ...safeDetail,
-        [field]: appendBounded(
-          readString(existing.detail[field]),
-          readString(safeDetail[field]),
-          MAX_ACTIVITY_TEXT,
-        ),
+        [field]: options.updateMode === "replace"
+          ? readString(safeDetail[field]).slice(0, MAX_ACTIVITY_TEXT)
+          : appendBounded(
+              readString(existing.detail[field]),
+              readString(safeDetail[field]),
+              MAX_ACTIVITY_TEXT,
+            ),
       };
     } else {
       detail = { ...existing.detail, ...safeDetail };

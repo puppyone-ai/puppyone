@@ -1,5 +1,9 @@
+import { agentContractLimits } from "../../../../shared/agent-contract/constants.mjs";
+
 const MAX_COMMAND_RECORDS = 128;
 const MAX_TERMINAL_TURNS = 128;
+const MAX_CONTROL_REASON = agentContractLimits.maxControlReasonLength;
+const MAX_COMMAND_ERROR = agentContractLimits.maxCommandErrorLength;
 
 export function createAgentSessionControl({
   streamId,
@@ -7,7 +11,9 @@ export function createAgentSessionControl({
   terminalState = "idle",
   revision = 0,
 } = {}) {
-  const outcomeUnknown = terminalState === "provider-exited" || terminalState === "outcome-unknown";
+  const outcomeUnknown = terminalState === "running"
+    || terminalState === "provider-exited"
+    || terminalState === "outcome-unknown";
   return Object.freeze({
     schemaVersion: 1,
     streamId,
@@ -44,37 +50,53 @@ export function reduceAgentSessionControl(previous, input) {
 function applyInput(state, input) {
   switch (input?.type) {
     case "adapter.attached":
-      if (state.adapterGeneration > 0) settleDispatchingCommands(state, "outcome-unknown", "adapter-generation-changed");
+      if (state.adapterGeneration > 0) {
+        settleOutstandingCommands(state, "adapter-generation-changed");
+        if (state.execution.activeTurnId || state.execution.status === "starting") {
+          state.execution = {
+            status: "outcome-unknown",
+            activeTurnId: null,
+            uncertainTurnId: state.execution.activeTurnId ?? null,
+            startedAtMs: state.execution.startedAtMs,
+            nativeOutcome: null,
+            certainty: "unknown",
+          };
+        }
+        state.pendingSubmission = null;
+      }
       state.adapterGeneration += 1;
       state.connection = { status: "connected", reason: null };
       return true;
     case "adapter.exited":
       if (input.adapterGeneration != null && input.adapterGeneration !== state.adapterGeneration) return false;
-      state.connection = { status: "exited", reason: input.reason || "provider-exited" };
-      if (state.execution.activeTurnId) {
+      state.connection = { status: "exited", reason: boundedReason(input.reason || "provider-exited") };
+      if (state.execution.activeTurnId || state.execution.status === "starting") {
         state.execution = {
           status: "outcome-unknown",
           activeTurnId: null,
-          uncertainTurnId: state.execution.activeTurnId,
+          uncertainTurnId: state.execution.activeTurnId ?? null,
           startedAtMs: state.execution.startedAtMs,
           nativeOutcome: null,
           certainty: "unknown",
         };
       }
-      settleDispatchingCommands(state, "outcome-unknown", input.reason || "provider-exited");
+      state.pendingSubmission = null;
+      settleOutstandingCommands(state, input.reason || "provider-exited");
       return true;
     case "connection.connecting":
-      state.connection = { status: "connecting", reason: input.reason || null };
+      state.connection = { status: "connecting", reason: boundedReason(input.reason) };
       return true;
     case "event.accepted":
       return applyCanonicalEvent(state, input.event);
     case "submission.prepared":
+      if (!matchesDispatchingStart(state, input.submission)) return false;
       state.pendingSubmission = clonePlain(input.submission);
       if (!state.execution.activeTurnId) {
         state.execution = { status: "starting", activeTurnId: null, uncertainTurnId: null, startedAtMs: input.startedAtMs ?? Date.now(), nativeOutcome: null, certainty: "unknown" };
       }
       return true;
     case "submission.abandoned":
+      if (!matchesPendingSubmission(state.pendingSubmission, input)) return false;
       state.pendingSubmission = null;
       if (!state.execution.activeTurnId && state.execution.status === "starting") {
         state.execution = { status: "idle", activeTurnId: null, uncertainTurnId: null, startedAtMs: null, nativeOutcome: null, certainty: "confirmed" };
@@ -87,6 +109,8 @@ function applyInput(state, input) {
         kind: "interrupt",
         targetTurnId: input.turnId,
         status: "dispatching",
+        intentFingerprint: input.intentFingerprint ?? null,
+        wasQueued: false,
         error: null,
       });
     case "command.received":
@@ -94,6 +118,7 @@ function applyInput(state, input) {
     case "command.dispatching":
     case "command.accepted":
     case "command.rejected":
+    case "command.cancelled":
     case "command.outcome-unknown":
       return transitionCommand(state, input);
     case "control.hydrated":
@@ -108,7 +133,8 @@ function applyInput(state, input) {
         nativeOutcome: null,
         certainty: "unknown",
       };
-      settleDispatchingCommands(state, "outcome-unknown", input.reason || "native-state-unconfirmed");
+      state.pendingSubmission = null;
+      settleOutstandingCommands(state, input.reason || "native-state-unconfirmed");
       return true;
     default:
       return false;
@@ -144,12 +170,25 @@ function applyCanonicalEvent(state, event) {
         };
       }
       state.interaction = { approvals: [], questions: [] };
-      settleDispatchingCommands(state, "outcome-unknown", "session-closed");
+      state.pendingSubmission = null;
+      settleOutstandingCommands(state, "session-closed");
       return true;
     case "turn.started": {
-      if (payload.restored === true) return true;
       const turnId = event.turnId;
       if (!turnId || state.terminalTurns.includes(turnId)) return true;
+      if (payload.restored === true) {
+        if (state.execution.activeTurnId !== turnId && state.execution.uncertainTurnId !== turnId) state.runGeneration += 1;
+        state.execution = {
+          status: "outcome-unknown",
+          activeTurnId: null,
+          uncertainTurnId: turnId,
+          startedAtMs: Date.parse(event.emittedAt) || null,
+          nativeOutcome: null,
+          certainty: "unknown",
+        };
+        state.pendingSubmission = null;
+        return true;
+      }
       if (state.execution.activeTurnId !== turnId) state.runGeneration += 1;
       state.execution = {
         status: "active",
@@ -173,10 +212,10 @@ function applyCanonicalEvent(state, event) {
         approvals: state.interaction.approvals.filter((entry) => !turnId || entry.turnId !== turnId),
         questions: state.interaction.questions.filter((entry) => !turnId || entry.turnId !== turnId),
       };
-      if (!turnId
-        || state.execution.activeTurnId === turnId
+      if (turnId && (
+        state.execution.activeTurnId === turnId
         || state.execution.uncertainTurnId === turnId
-        || state.execution.status === "starting") {
+      )) {
         state.execution = {
           status: "ended",
           activeTurnId: null,
@@ -200,7 +239,7 @@ function applyCanonicalEvent(state, event) {
     case "provider.connection.updated":
       state.connection = {
         status: payload.state === "connected" ? "connected" : "recovering",
-        reason: typeof payload.message === "string" ? payload.message : null,
+        reason: boundedReason(payload.message),
       };
       return true;
     default:
@@ -218,6 +257,9 @@ function receiveCommand(state, command) {
     targetTurnId: command.targetTurnId ?? null,
     status: command.status === "queued" ? "queued" : "dispatching",
     operationId: command.operationId ?? null,
+    intentFingerprint: command.intentFingerprint ?? null,
+    wasQueued: command.status === "queued" || command.wasQueued === true,
+    ...(command.intent ? { intent: clonePlain(command.intent) } : {}),
     error: null,
   };
   state.commands.push(record);
@@ -238,10 +280,18 @@ function transitionCommand(state, input) {
     status,
     operationId: input.operationId ?? current.operationId,
     targetTurnId: input.turnId ?? current.targetTurnId,
-    error: input.error ? String(input.error).slice(0, 1_000) : null,
+    error: input.error ? String(input.error).slice(0, MAX_COMMAND_ERROR) : null,
   };
   if (status !== "queued") state.queue = state.queue.filter((id) => id !== input.commandId);
-  if (status === "rejected" && current.kind === "start" && !state.execution.activeTurnId && state.execution.status === "starting") {
+  if ((status === "rejected" || status === "cancelled")
+    && current.kind === "start"
+    && matchesPendingSubmission(state.pendingSubmission, {
+      commandId: input.commandId,
+      operationId: input.operationId ?? current.operationId,
+      adapterGeneration: state.adapterGeneration,
+    })
+    && !state.execution.activeTurnId
+    && state.execution.status === "starting") {
     state.execution = { status: "idle", activeTurnId: null, uncertainTurnId: null, startedAtMs: null, nativeOutcome: null, certainty: "confirmed" };
     state.pendingSubmission = null;
   }
@@ -256,9 +306,13 @@ function upsertCommand(state, command) {
   return true;
 }
 
-function settleDispatchingCommands(state, status, reason) {
+function settleOutstandingCommands(state, reason) {
   state.commands = state.commands.map((entry) => (
-    entry.status === "dispatching" ? { ...entry, status, error: reason } : entry
+    entry.status === "dispatching"
+      ? { ...entry, status: "outcome-unknown", error: boundedCommandError(reason) }
+      : entry.status === "queued"
+        ? { ...entry, status: "cancelled", error: boundedCommandError(reason) }
+        : entry
   ));
   state.queue = [];
 }
@@ -340,7 +394,31 @@ function trimCommands(state) {
 }
 
 function isFinalCommandStatus(value) {
-  return value === "accepted" || value === "rejected" || value === "outcome-unknown";
+  return value === "accepted" || value === "rejected" || value === "cancelled" || value === "outcome-unknown";
+}
+
+function matchesDispatchingStart(state, submission) {
+  if (!submission || submission.adapterGeneration !== state.adapterGeneration) return false;
+  return state.commands.some((command) => command.commandId === submission.commandId
+    && command.kind === "start"
+    && command.status === "dispatching"
+    && command.operationId === submission.operationId);
+}
+
+function matchesPendingSubmission(submission, identity) {
+  return Boolean(submission
+    && identity
+    && submission.commandId === identity.commandId
+    && submission.operationId === identity.operationId
+    && submission.adapterGeneration === identity.adapterGeneration);
+}
+
+function boundedReason(value) {
+  return typeof value === "string" && value ? value.slice(0, MAX_CONTROL_REASON) : null;
+}
+
+function boundedCommandError(value) {
+  return typeof value === "string" && value ? value.slice(0, MAX_COMMAND_ERROR) : null;
 }
 
 function terminalOutcome(value) {

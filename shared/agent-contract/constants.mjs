@@ -74,6 +74,9 @@ export const AGENT_IPC_CHANNELS = Object.freeze([
 export const agentContractLimits = Object.freeze({
   maxPathLength: 4_096,
   maxMessageLength: 128 * 1024,
+  maxControlReasonLength: 1_000,
+  maxCommandErrorLength: 1_000,
+  maxCommandFingerprintLength: 128,
   maxReferenceCount: 32,
   maxReferenceBytes: 25 * 1024 * 1024,
   maxTotalReferenceBytes: 25 * 1024 * 1024,

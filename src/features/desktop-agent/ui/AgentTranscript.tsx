@@ -10,7 +10,7 @@ import { ArrowDown, CircleAlert } from "lucide-react";
 import { InlineLoading, PageLoading } from "../../../components/loading";
 import type { AgentSubmissionStage } from "../application/agent-controller-state";
 import { formatAgentDuration, outputForActivity } from "../domain/agent-activity-presentation";
-import type { AgentDraftReference, AgentPromptReferenceMention, AgentReferenceDisplay } from "../domain/agent-contract";
+import type { AgentCommandDeliveryStatus, AgentDraftReference, AgentPromptReferenceMention, AgentReferenceDisplay } from "../domain/agent-contract";
 import type { AgentPart, AgentProjection } from "../domain/agent-projection-types";
 import { AgentConnectionStatus } from "./AgentConnectionStatus";
 import { AgentMessagePart } from "./AgentMessagePart";
@@ -44,6 +44,7 @@ type AgentTranscriptProps = {
   pendingPrompt?: string | null;
   pendingPromptMentions?: AgentPromptReferenceMention[];
   pendingReferences?: AgentDraftReference[];
+  queuedSubmissions?: AgentQueuedSubmission[];
   submissionStage?: AgentSubmissionStage;
   working?: boolean;
   runtimeLabel?: string;
@@ -55,6 +56,14 @@ type AgentTranscriptProps = {
   onOpenFile?: (path: string) => void;
 };
 
+export type AgentQueuedSubmission = {
+  commandId: string;
+  status: AgentCommandDeliveryStatus;
+  prompt: string;
+  promptMentions: AgentPromptReferenceMention[];
+  references: AgentReferenceDisplay[];
+};
+
 const DEFAULT_VIEWPORT_HEIGHT = 640;
 
 function AgentTranscriptView({
@@ -63,6 +72,7 @@ function AgentTranscriptView({
   pendingPrompt = null,
   pendingPromptMentions = [],
   pendingReferences = [],
+  queuedSubmissions = [],
   submissionStage = null,
   working = false,
   runtimeLabel: runtimeLabelProp,
@@ -148,6 +158,7 @@ function AgentTranscriptView({
         : runStatusLabel);
   const hasLiveTail = Boolean(pendingPrompt)
     || pendingReferences.length > 0
+    || queuedSubmissions.length > 0
     || Boolean(projection.connectionStatus)
     || Boolean(workingStatus);
   const showEmptyState = Boolean(emptyState)
@@ -402,6 +413,29 @@ function AgentTranscriptView({
         )}
         {hasLiveTail && (
           <div className="desktop-agent-live-tail">
+            {queuedSubmissions.map((submission) => (
+              <div className="desktop-agent-queued-submission" key={submission.commandId}>
+                <AgentMessagePart part={{
+                  id: `queued:${submission.commandId}`,
+                  kind: "user",
+                  turnId: null,
+                  itemId: null,
+                  text: submission.prompt,
+                  references: submission.references,
+                  promptMentions: submission.promptMentions,
+                  streaming: false,
+                  terminalState: null,
+                  sequence: Number.MAX_SAFE_INTEGER,
+                }} runtimeLabel={runtimeLabel} />
+                <span className="desktop-agent-queued-submission-status" role="status">
+                  {submission.status === "queued" || submission.status === "dispatching"
+                    ? t("agent.status.queued")
+                    : submission.status === "outcome-unknown"
+                      ? t("agent.status.deliveryUnknown")
+                      : t("agent.status.notSent")}
+                </span>
+              </div>
+            ))}
             {(pendingPrompt || pendingReferences.length > 0) && <AgentMessagePart part={{
               id: "optimistic:user",
               kind: "user",

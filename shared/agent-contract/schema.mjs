@@ -27,12 +27,16 @@ import { normalizeAgentWorkspaceRelativePath } from "./reference-identity.mjs";
 
 export * from "./constants.mjs";
 export * from "./event-schema.mjs";
+export * from "./event-content-update.mjs";
 export * from "./local-connection-schema.mjs";
 export * from "./runtime-schema.mjs";
 
 const {
   maxPathLength: MAX_PATH_LENGTH,
   maxMessageLength: MAX_MESSAGE_LENGTH,
+  maxControlReasonLength: MAX_CONTROL_REASON_LENGTH,
+  maxCommandErrorLength: MAX_COMMAND_ERROR_LENGTH,
+  maxCommandFingerprintLength: MAX_COMMAND_FINGERPRINT_LENGTH,
   maxReferenceCount: MAX_REFERENCE_COUNT,
 } = agentContractLimits;
 
@@ -316,7 +320,7 @@ export function assertAgentSessionControl(value, label = "Agent session control"
   nonNegativeInteger(control.runGeneration, `${label}.runGeneration`);
   const connection = assertRecord(control.connection, `${label}.connection`);
   enumValue(connection.status, `${label}.connection.status`, ["connecting", "connected", "recovering", "disconnected", "exited"]);
-  if (connection.reason !== null && connection.reason !== undefined) optionalString(connection.reason, `${label}.connection.reason`, 1_000);
+  if (connection.reason !== null && connection.reason !== undefined) optionalString(connection.reason, `${label}.connection.reason`, MAX_CONTROL_REASON_LENGTH);
   const execution = assertRecord(control.execution, `${label}.execution`);
   enumValue(execution.status, `${label}.execution.status`, ["idle", "starting", "active", "ended", "outcome-unknown"]);
   optionalOpaqueId(execution.activeTurnId, `${label}.execution.activeTurnId`, { nullable: true });
@@ -335,9 +339,16 @@ export function assertAgentSessionControl(value, label = "Agent session control"
     commandIds.add(commandId);
     optionalOpaqueId(command.operationId, `${label}.commands[${index}].operationId`, { nullable: true });
     optionalOpaqueId(command.targetTurnId, `${label}.commands[${index}].targetTurnId`, { nullable: true });
-    enumValue(command.kind, `${label}.commands[${index}].kind`, ["start", "steer", "interrupt", "approval", "question"]);
-    enumValue(command.status, `${label}.commands[${index}].status`, ["queued", "dispatching", "accepted", "rejected", "outcome-unknown"]);
-    if (command.error !== null && command.error !== undefined) optionalString(command.error, `${label}.commands[${index}].error`, 1_000);
+    const kind = enumValue(command.kind, `${label}.commands[${index}].kind`, ["start", "steer", "interrupt", "approval", "question"]);
+    enumValue(command.status, `${label}.commands[${index}].status`, ["queued", "dispatching", "accepted", "rejected", "cancelled", "outcome-unknown"]);
+    if (command.error !== null && command.error !== undefined) optionalString(command.error, `${label}.commands[${index}].error`, MAX_COMMAND_ERROR_LENGTH);
+    requiredString(command.intentFingerprint, `${label}.commands[${index}].intentFingerprint`, MAX_COMMAND_FINGERPRINT_LENGTH);
+    if (typeof command.wasQueued !== "boolean") throw contractError(`${label}.commands[${index}].wasQueued`, "must be a boolean");
+    if (kind === "start") {
+      assertControlCommandIntent(command.intent, `${label}.commands[${index}].intent`);
+    } else if (command.intent !== null && command.intent !== undefined) {
+      throw contractError(`${label}.commands[${index}].intent`, "is only valid for start commands");
+    }
   });
   const queue = assertArray(control.queue, `${label}.queue`).map((entry, index) => requiredOpaqueId(entry, `${label}.queue[${index}]`));
   if (new Set(queue).size !== queue.length) throw contractError(`${label}.queue`, "must not contain duplicate command ids");
@@ -356,11 +367,48 @@ export function assertAgentSessionControl(value, label = "Agent session control"
   assertArray(control.terminalTurns, `${label}.terminalTurns`).forEach((entry, index) => requiredOpaqueId(entry, `${label}.terminalTurns[${index}]`));
   if (control.pendingSubmission !== null && control.pendingSubmission !== undefined) {
     const submission = assertRecord(control.pendingSubmission, `${label}.pendingSubmission`);
+    requiredOpaqueId(submission.commandId, `${label}.pendingSubmission.commandId`);
+    requiredOpaqueId(submission.operationId, `${label}.pendingSubmission.operationId`);
+    nonNegativeInteger(submission.adapterGeneration, `${label}.pendingSubmission.adapterGeneration`);
     requiredString(submission.prompt, `${label}.pendingSubmission.prompt`, MAX_MESSAGE_LENGTH, { allowEmpty: true, preserveWhitespace: true });
     assertArray(submission.promptMentions, `${label}.pendingSubmission.promptMentions`);
     assertArray(submission.referenceDisplays, `${label}.pendingSubmission.referenceDisplays`);
   }
   return value;
+}
+
+function assertControlCommandIntent(value, label) {
+  const intent = assertRecord(value, label);
+  requiredString(intent.prompt, `${label}.prompt`, MAX_MESSAGE_LENGTH, { allowEmpty: true, preserveWhitespace: true });
+  assertControlPromptMentions(assertArray(intent.promptMentions ?? [], `${label}.promptMentions`), intent.prompt, `${label}.promptMentions`);
+  assertControlReferenceDisplays(assertArray(intent.referenceDisplays ?? [], `${label}.referenceDisplays`), `${label}.referenceDisplays`);
+  if (intent.model !== null && intent.model !== undefined) optionalString(intent.model, `${label}.model`, 512);
+  if (intent.effort !== null && intent.effort !== undefined) optionalString(intent.effort, `${label}.effort`, 160);
+  if (intent.mode !== null && intent.mode !== undefined) optionalString(intent.mode, `${label}.mode`, 160);
+}
+
+function assertControlPromptMentions(mentions, prompt, label) {
+  if (mentions.length > MAX_REFERENCE_COUNT) throw contractError(label, `may contain at most ${MAX_REFERENCE_COUNT} entries`);
+  mentions.forEach((entry, index) => {
+    const mention = assertRecord(entry, `${label}[${index}]`);
+    requiredOpaqueId(mention.referenceId, `${label}[${index}].referenceId`);
+    const start = nonNegativeInteger(mention.start, `${label}[${index}].start`);
+    const end = nonNegativeInteger(mention.end, `${label}[${index}].end`);
+    if (end <= start || end > prompt.length) throw contractError(`${label}[${index}]`, "must identify a non-empty prompt range");
+  });
+}
+
+function assertControlReferenceDisplays(displays, label) {
+  if (displays.length > MAX_REFERENCE_COUNT) throw contractError(label, `may contain at most ${MAX_REFERENCE_COUNT} entries`);
+  displays.forEach((entry, index) => {
+    const display = assertRecord(entry, `${label}[${index}]`);
+    requiredOpaqueId(display.id, `${label}[${index}].id`);
+    enumValue(display.kind, `${label}[${index}].kind`, ["workspace-file", "workspace-directory", "attachment"]);
+    requiredString(display.displayName, `${label}[${index}].displayName`, 512);
+    if (display.relativePath !== undefined) requiredString(display.relativePath, `${label}[${index}].relativePath`, MAX_PATH_LENGTH);
+    if (display.mime !== undefined) requiredString(display.mime, `${label}[${index}].mime`, 160);
+    if (display.size !== undefined) nonNegativeInteger(display.size, `${label}[${index}].size`);
+  });
 }
 
 function assertControlBlocker(value, label, question = false) {

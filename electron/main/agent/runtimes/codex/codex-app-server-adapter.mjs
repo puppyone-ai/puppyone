@@ -304,7 +304,7 @@ export class CodexAppServerAdapter {
   }
 
   async steerTurn({ turnId, message, references = [] }) {
-    if (!this.threadId || this.activeTurnId !== turnId) throw new Error("That Codex turn is no longer running.");
+    if (!this.threadId) throw new Error("No Codex thread is active.");
     if (references.length > 0) throw new Error("Codex steer does not accept reference inputs.");
     await this.connection.request("turn/steer", {
       threadId: this.threadId,
@@ -378,7 +378,7 @@ export class CodexAppServerAdapter {
       if (event.type.startsWith("turn.") && event.turnId) {
         if (event.type === "turn.started") this.activeTurnId = event.turnId;
         if (["turn.completed", "turn.failed", "turn.interrupted"].includes(event.type)) {
-          this.activeTurnId = null;
+          if (this.activeTurnId === event.turnId) this.activeTurnId = null;
           this.#clearPendingApprovalsForTurn(event.turnId, "turn-ended");
           this.#clearPendingQuestionsForTurn(event.turnId);
         }

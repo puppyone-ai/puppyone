@@ -526,3 +526,10 @@
   animation: desktop-agent-caret 0.9s step-end infinite;
 }
 @keyframes desktop-agent-caret { 50% { opacity: 0; } }
+.desktop-agent-queued-submission { display: grid; gap: 4px; }
+.desktop-agent-queued-submission-status {
+  color: var(--po-text-muted);
+  font-size: var(--agent-font-size-meta);
+  padding-inline: 10px;
+  text-align: end;
+}

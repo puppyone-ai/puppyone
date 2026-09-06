@@ -212,6 +212,8 @@
   "status.completed": "Completado",
   "status.stopped": "Detenido",
   "status.queued": "En cola",
+  "status.notSent": "No enviado",
+  "status.deliveryUnknown": "Entrega no confirmada",
   "status.waitingForUser": "Esperando al usuario",
   "status.unknown": "Estado desconocido",
   "tool.bash": "Bash",

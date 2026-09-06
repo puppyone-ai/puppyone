@@ -16,7 +16,7 @@ import { AgentPanelLayout } from "./AgentPanelLayout";
 import { AgentPanelStatus } from "./AgentPanelStatus";
 import { AgentQuestionDock } from "./AgentQuestionDock";
 import { AgentRuntimeLauncher } from "./AgentRuntimeLauncher";
-import { AgentTranscript } from "./AgentTranscript";
+import { AgentTranscript, type AgentQueuedSubmission } from "./AgentTranscript";
 import { readinessStatusCode, sessionStatusCode } from "./agentPanelPresentation";
 import { useAgentReferenceIngestion } from "./useAgentReferenceIngestion";
 import type { AgentWorkspaceReferenceResolver } from "./useAgentReferenceIngestion";
@@ -113,6 +113,21 @@ export function AgentChatTabPanel({
   )) && routingPreferences.preferencesReady);
   const preparingSession = state.sessionPreparation === "preparing";
   const submissionPending = state.submitting || Boolean(state.pendingPrompt);
+  const queuedSubmissions = useMemo<AgentQueuedSubmission[]>(() => (
+    state.control?.commands.flatMap((command) => {
+      if (command.kind !== "start" || !command.intent) return [];
+      const remainsVisible = command.status === "queued"
+        || command.status === "dispatching"
+        || (command.wasQueued && ["rejected", "cancelled", "outcome-unknown"].includes(command.status));
+      return remainsVisible ? [{
+        commandId: command.commandId,
+        status: command.status,
+        prompt: command.intent.prompt,
+        promptMentions: command.intent.promptMentions,
+        references: command.intent.referenceDisplays,
+      }] : [];
+    }) ?? []
+  ), [state.control]);
   const submissionStage: AgentSubmissionStage = state.pendingPrompt && !state.projection.runningTurnId
     ? !state.session || preparingSession ? "preparing-session" : "starting-turn"
     : null;
@@ -190,6 +205,7 @@ export function AgentChatTabPanel({
       key={sessionKey} projection={state.projection} loading={startupLoading}
       pendingPrompt={state.pendingPrompt} pendingReferences={state.pendingIntent?.references ?? []}
       pendingPromptMentions={state.pendingIntent?.promptMentions ?? []}
+      queuedSubmissions={queuedSubmissions}
       submissionStage={submissionStage} working={state.submitting || Boolean(state.projection.runningTurnId)}
       runtimeLabel={runtimeLabel} initialScrollTop={viewport.scrollTop}
       initialMeasurements={viewport.measurements} initialPinned={viewport.pinned}

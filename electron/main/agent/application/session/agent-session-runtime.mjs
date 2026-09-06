@@ -118,7 +118,11 @@ export function createAgentSessionRuntime({
       }
     }
     if (["turn.completed", "turn.failed", "turn.interrupted"].includes(event.type)) {
-      const activeTurnEnded = session.turnStarting || !event.turnId || session.activeTurnId === event.turnId;
+      const execution = session.actor.control.execution;
+      const activeTurnEnded = Boolean(event.turnId) && (
+        execution.activeTurnId === event.turnId
+        || execution.uncertainTurnId === event.turnId
+      );
       event.payload = withTurnDuration(event.payload, activeTurnEnded ? session.activeTurnStartedAtMs : null);
       failPendingApprovalsForTurn(session, event.turnId, "turn-ended");
       failPendingQuestionsForTurn(session, event.turnId, "turn-ended");

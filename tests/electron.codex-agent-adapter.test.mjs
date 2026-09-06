@@ -588,6 +588,35 @@ describe("Codex app-server normalization", () => {
     adapter.dispose();
   });
 
+  it("keeps the current turn steerable after an older terminal notification arrives late", async () => {
+    const connection = new FakeConnection();
+    connection.results.set("turn/steer", {});
+    const adapter = new CodexAppServerAdapter({
+      executablePath: "/usr/local/bin/codex",
+      environment: {},
+      workspaceRoot: "/workspace",
+      appVersion: "test",
+      connectionFactory: () => connection,
+    });
+    await adapter.connect();
+    adapter.threadId = "thread-1";
+    for (const [method, id, status] of [
+      ["turn/started", "A", "inProgress"],
+      ["turn/completed", "A", "interrupted"],
+      ["turn/started", "B", "inProgress"],
+      ["turn/completed", "A", "completed"],
+    ]) {
+      connection.emit("notification", { method, params: { threadId: "thread-1", turn: { id, status } } });
+    }
+
+    await expect(adapter.steerTurn({ turnId: "B", message: "continue", references: [] })).resolves.toBeUndefined();
+    expect(connection.requests.at(-1)).toMatchObject({
+      method: "turn/steer",
+      params: { expectedTurnId: "B" },
+    });
+    adapter.dispose();
+  });
+
   it("cancels pending approvals only after Codex accepts an interrupt", async () => {
     const connection = new FakeConnection();
     connection.results.set("turn/interrupt", {});

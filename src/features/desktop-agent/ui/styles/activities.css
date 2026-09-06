@@ -422,6 +422,7 @@
   white-space: pre-wrap;
 }
 .desktop-agent-plan .desktop-agent-plan-list { padding: 0; list-style: none; }
+.desktop-agent-plan-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .desktop-agent-plan-step {
   position: relative;
   padding-inline-start: 16px;

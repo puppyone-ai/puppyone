@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { countTextBytes, createAgentEventEnvelope } from "../agent-events.mjs";
 import { createAgentSessionControl, reduceAgentSessionControl } from "./agent-session-control.mjs";
 import { foldAgentEventCheckpoint } from "./agent-event-checkpoint.mjs";
+import { assertAgentSessionControl } from "../../../../shared/agent-contract/schema.mjs";
 
 const MAX_REPLAY_EVENTS = 1_000;
 const MAX_REPLAY_BYTES = 2 * 1024 * 1024;
@@ -33,6 +34,7 @@ export class AgentSessionActor {
         reason: "native-state-unconfirmed-after-main-restart",
       });
     }
+    assertAgentSessionControl(this.#control);
     this.#enforceReplayLimits();
   }
 
@@ -50,6 +52,7 @@ export class AgentSessionActor {
     const previous = this.#control;
     const next = reduceAgentSessionControl(previous, input);
     if (next === previous) return { changed: false, control: previous };
+    assertAgentSessionControl(next);
     this.#control = next;
     const commit = Object.freeze({
       streamId: next.streamId,
@@ -76,6 +79,7 @@ export class AgentSessionActor {
     }));
     const previous = this.#control;
     const next = reduceAgentSessionControl(previous, { type: "event.accepted", event: envelope });
+    assertAgentSessionControl(next);
     this.#sequence = envelope.sequence;
     this.#events.push(envelope);
     this.#replayBytes += countTextBytes(envelope);

@@ -212,6 +212,8 @@
   "status.completed": "完了",
   "status.stopped": "停止",
   "status.queued": "キュー済み",
+  "status.notSent": "未送信",
+  "status.deliveryUnknown": "配信未確認",
   "status.waitingForUser": "ユーザーの操作待ち",
   "status.unknown": "不明な状態",
   "tool.bash": "Bash",

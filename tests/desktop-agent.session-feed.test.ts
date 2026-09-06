@@ -99,6 +99,44 @@ describe("Renderer Agent session replica", () => {
       vi.useRealTimers();
     }
   });
+
+  it("replaces a subscription that Main has already retired", async () => {
+    vi.useFakeTimers();
+    try {
+      const initial = feedSnapshot(1, runningControl(1, "turn-A"));
+      const terminal = feedSnapshot(2, completedControl(2));
+      let subscription = 0;
+      const bridge = {
+        discoverAgentRuntimes: vi.fn(async () => inspection()),
+        resumeAgentSession: vi.fn(async () => initial),
+        attachAgentSession: vi.fn(async () => ({
+          subscriptionId: `subscription-${++subscription}`,
+          snapshot: subscription === 1 ? initial : terminal,
+        })),
+        acknowledgeAgentSession: vi.fn(async (request: any) => ({ ...request, synchronized: true })),
+        readAgentSessionWatermark: vi.fn(async () => {
+          throw new Error("Agent session subscription is stale or not owned by this window.");
+        }),
+        detachAgentSession: vi.fn(async (request: any) => ({ subscriptionId: request.subscriptionId, detached: true })),
+        onAgentSessionFrame: vi.fn(() => () => {}),
+      };
+      const controller = new AgentSessionController("/workspace", () => bridge as never);
+      await controller.initialize();
+
+      await vi.advanceTimersByTimeAsync(5_000);
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(bridge.attachAgentSession).toHaveBeenCalledTimes(2);
+      expect(controller.getSnapshot()).toMatchObject({
+        replicaStatus: "live",
+        error: null,
+        control: { execution: { activeTurnId: null } },
+      });
+      controller.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 function idleControl(revision: number): AgentSessionControl {

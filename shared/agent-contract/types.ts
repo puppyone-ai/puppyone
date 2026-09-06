@@ -524,7 +524,16 @@ export type AgentSessionSnapshot = {
 
 export type AgentSessionCursor = { streamId: string; revision: number };
 
-export type AgentCommandDeliveryStatus = "queued" | "dispatching" | "accepted" | "rejected" | "outcome-unknown";
+export type AgentCommandDeliveryStatus = "queued" | "dispatching" | "accepted" | "rejected" | "cancelled" | "outcome-unknown";
+
+export type AgentControlStartIntent = {
+  prompt: string;
+  promptMentions: AgentPromptReferenceMention[];
+  referenceDisplays: AgentReferenceDisplay[];
+  model: string | null;
+  effort: string | null;
+  mode: string | null;
+};
 
 export type AgentSessionControl = {
   schemaVersion: 1;
@@ -556,10 +565,16 @@ export type AgentSessionControl = {
     targetTurnId: string | null;
     status: AgentCommandDeliveryStatus;
     error: string | null;
+    intentFingerprint: string | null;
+    wasQueued: boolean;
+    intent?: AgentControlStartIntent;
   }>;
   queue: string[];
   terminalTurns: string[];
   pendingSubmission: {
+    commandId: string;
+    operationId: string;
+    adapterGeneration: number;
     prompt: string;
     promptMentions: AgentPromptReferenceMention[];
     referenceDisplays: AgentReferenceDisplay[];

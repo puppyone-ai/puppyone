@@ -71,7 +71,7 @@ export function pickUsage(payload: Record<string, unknown>) {
 
 export function pickSafeActivityDetail(payload: Record<string, unknown>) {
   const detail: Record<string, unknown> = {};
-  for (const key of ["command", "cwd", "delta", "text", "updateMode", "summaryIndex", "status", "kind", "tool", "description", "path", "query", "changes", "steps", "title", "message", "input", "result", "outputPreview", "error", "content", "detail", "metadata", "recoverable", "truncated", "exitCode", "duration", "durationMs", "elapsedMs", "diff", "patch", "outputPaths"]) {
+  for (const key of ["command", "cwd", "delta", "text", "explanation", "updateMode", "summaryIndex", "status", "kind", "tool", "description", "path", "query", "changes", "steps", "title", "message", "input", "result", "outputPreview", "error", "content", "detail", "metadata", "recoverable", "truncated", "exitCode", "duration", "durationMs", "elapsedMs", "diff", "patch", "outputPaths"]) {
     if (!(key in payload)) continue;
     detail[key] = boundProjectionValue(payload[key]);
   }
