@@ -41,9 +41,15 @@ import {
   type SidebarNavigationVisibilitySettings,
   type TitlebarActionsSettings,
 } from "../../preferences";
+import {
+  clampProjectSwitcherExpandedWidth,
+  DEFAULT_PROJECT_SWITCHER_EXPANDED_WIDTH,
+} from "./projectSwitcherRailGeometry";
 
 export const EXPLORER_WIDTH_STORAGE_KEY = "puppyone.desktop.explorerWidth";
 export const SIDEBAR_COLLAPSED_STORAGE_KEY = "puppyone.desktop.sidebarCollapsed";
+export const PROJECT_SWITCHER_EXPANDED_STORAGE_KEY = "puppyone.desktop.projectSwitcherExpanded";
+export const PROJECT_SWITCHER_WIDTH_STORAGE_KEY = "puppyone.desktop.projectSwitcherWidth";
 export const RIGHT_SIDEBAR_WIDTH_STORAGE_KEY = "puppyone.desktop.rightSidebarWidth";
 export const RIGHT_SIDEBAR_SURFACE_STORAGE_KEY = "puppyone.desktop.rightSidebarSurface";
 export const AGENT_ROUTING_PREFERENCES_STORAGE_KEY = "puppyone.desktop.agentRoutingPreferences.v1";
@@ -181,6 +187,18 @@ export function readInitialExplorerWidth(): number {
 export function readInitialSidebarCollapsed(): boolean {
   if (typeof window === "undefined") return false;
   return window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === "true";
+}
+
+export function readInitialProjectSwitcherExpanded(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem(PROJECT_SWITCHER_EXPANDED_STORAGE_KEY) === "true";
+}
+
+export function readInitialProjectSwitcherWidth(): number {
+  if (typeof window === "undefined") return DEFAULT_PROJECT_SWITCHER_EXPANDED_WIDTH;
+  const storedValue = window.localStorage.getItem(PROJECT_SWITCHER_WIDTH_STORAGE_KEY);
+  if (storedValue === null) return DEFAULT_PROJECT_SWITCHER_EXPANDED_WIDTH;
+  return clampProjectSwitcherExpandedWidth(Number(storedValue));
 }
 
 export function readInitialRightSidebarWidth(): number {

@@ -68,6 +68,8 @@
   "workspaceSwitcher.localProjects": "Lokale Projekte",
   "workspaceSwitcher.addProject": "Projekt hinzufügen…",
   "workspaceSwitcher.projects": "Projekte",
+  "workspaceSwitcher.expandProjects": "Projektleiste erweitern",
+  "workspaceSwitcher.resizeProjects": "Breite der Projektleiste ändern",
   "workspaceSwitcher.openFolder": "Ordner öffnen…",
   "workspaceSwitcher.removeProject": "Projekt entfernen",
   "workspaceSwitcher.removeProjectNamed": "{name} aus diesem Arbeitsbereich entfernen",

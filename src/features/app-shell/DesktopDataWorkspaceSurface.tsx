@@ -55,7 +55,10 @@ import {
   toWorkspaceRelativePath,
 } from "../desktop-agent-presence";
 import { DesktopShellNavigationToolbarPortal } from "./DesktopShellAccessoryContext";
-import { RemoteUpdateNotice } from "../data-workspace/RemoteUpdateNotice";
+import {
+  getRemoteUpdateNoticeModel,
+  RemoteUpdateNotice,
+} from "../data-workspace/RemoteUpdateNotice";
 import type { ResolvedWorkbenchDataResource } from "../data-workspace/workbenchDataPort";
 import { useProjectExplorerSession } from "../data-workspace/useProjectExplorerSession";
 import {
@@ -95,6 +98,8 @@ export type DesktopDataWorkspaceSurfaceProps = {
     workspaceChangeCount: number;
     onNavigate: (view: DesktopView) => void;
     onOpenSettings: () => void;
+    showSettings: boolean;
+    showWorkspaceNavigation: boolean;
     onPullGit: () => Promise<boolean>;
   };
   navigationComposition: string;
@@ -118,6 +123,7 @@ export type DesktopDataWorkspaceSurfaceProps = {
   workspaceFolders: readonly WorkspaceFolder[];
   resolveWorkspaceResource: (path: string | null) => ResolvedWorkbenchDataResource | null;
   workspaceRefreshToken: WorkspaceContentChange;
+  workspaceAtomicRefreshToken: number;
   workspaceSurfaceError: string | null;
   sidebarCreateMenuOpen: boolean;
 };
@@ -152,6 +158,7 @@ export function DesktopDataWorkspaceSurface({
   workspaceFolders,
   resolveWorkspaceResource,
   workspaceRefreshToken,
+  workspaceAtomicRefreshToken,
   workspaceSurfaceError,
   sidebarCreateMenuOpen,
 }: DesktopDataWorkspaceSurfaceProps) {
@@ -253,11 +260,15 @@ export function DesktopDataWorkspaceSurface({
     workspaceChangeCount: navigation.workspaceChangeCount,
     onNavigate: navigation.onNavigate,
     onOpenSettings: navigation.onOpenSettings,
+    showSettings: navigation.showSettings,
     utilitySlot: sidebarUtility,
   } as const;
+  const remoteUpdateNoticeVisible = navigation.showWorkspaceNavigation
+    && getRemoteUpdateNoticeModel(navigation.gitStatus) !== null;
   const shellHostedTopNavigation = navigationComposition === "sidebar-top-toolbar"
     && preferences.sidebarNavigationPlacement === "top";
-  const topNavigation = preferences.sidebarNavigationPlacement === "top" ? (
+  const topNavigation = navigation.showWorkspaceNavigation
+    && preferences.sidebarNavigationPlacement === "top" ? (
     <DesktopSidebarTopNavigation
       {...navigationCommon}
       orientation={preferences.sidebarNavigationOrientation}
@@ -336,13 +347,7 @@ export function DesktopDataWorkspaceSurface({
         onCutNodes={fileClipboardController.cutNodes}
         onPasteNodes={fileClipboardController.pasteNodes}
         onDuplicateNodes={fileClipboardController.duplicateNodes}
-        explorerListStartSlot={(
-          <RemoteUpdateNotice
-            status={navigation.gitStatus}
-            operationLoading={navigation.gitOperationLoading}
-            onPull={navigation.onPullGit}
-          />
-        )}
+        explorerLoadingPresentation="skeleton"
         explorerListEndSlot={(
           <div
             className="desktop-explorer-list-end-create"
@@ -373,7 +378,8 @@ export function DesktopDataWorkspaceSurface({
         )}
         showExplorerToolbar={!shellHostedTopNavigation && Boolean(topNavigation)}
         explorerToolbarSlot={shellHostedTopNavigation ? undefined : (topNavigation ?? undefined)}
-        explorerRailSlot={preferences.sidebarNavigationPlacement === "left" ? (
+        explorerRailSlot={navigation.showWorkspaceNavigation
+          && preferences.sidebarNavigationPlacement === "left" ? (
           <DesktopSidebarRailNavigation {...navigationCommon} />
         ) : undefined}
         showPreviewHeader={false}
@@ -387,6 +393,7 @@ export function DesktopDataWorkspaceSurface({
         enableMarkdownLinkContentIndexing
         folderExpansionStrategy="load-before-expand"
         refreshKey={workspaceRefreshToken}
+        atomicRefreshKey={workspaceAtomicRefreshToken}
         explorerNodeActionSlot={(state, node) => {
           const agentPresencePath = node.type === "file"
             ? node.workspaceFolderId
@@ -426,9 +433,22 @@ export function DesktopDataWorkspaceSurface({
         explorerSlot={resolvedSurface.id === "data"
           ? undefined
           : <WorkspaceSurfaceOutlet region="sidebar" surface={resolvedSurface} />}
-        explorerFooterSlot={sidebarCompanion || preferences.sidebarNavigationPlacement === "bottom"
+        explorerFooterSlot={navigation.showWorkspaceNavigation && (
+          remoteUpdateNoticeVisible
+          || sidebarCompanion
+          || preferences.sidebarNavigationPlacement === "bottom"
+        )
           ? (
               <div className="desktop-sidebar-companion-host">
+                {remoteUpdateNoticeVisible && (
+                  <div className="desktop-sidebar-lower-notice">
+                    <RemoteUpdateNotice
+                      status={navigation.gitStatus}
+                      operationLoading={navigation.gitOperationLoading}
+                      onPull={navigation.onPullGit}
+                    />
+                  </div>
+                )}
                 {sidebarCompanion}
                 {preferences.sidebarNavigationPlacement === "bottom" && (
                   <DesktopSidebarFooterNavigation {...navigationCommon} />

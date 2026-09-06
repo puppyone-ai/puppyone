@@ -57,8 +57,10 @@ import {
   useExplorerVirtualWindow,
 } from "./explorer/useExplorerVirtualWindow";
 
+export type ExplorerLoadingPresentation = "dots" | "skeleton" | "none";
+
 export type ExplorerTreeProps = {
-  nodes: DataNode[];
+  nodes: readonly DataNode[];
   activePath: string | null;
   selectedPaths?: ReadonlySet<string>;
   cutPaths?: ReadonlySet<string>;
@@ -71,6 +73,7 @@ export type ExplorerTreeProps = {
   rootLabel?: string;
   showRoot?: boolean;
   loadingLabel?: string;
+  loadingPresentation?: ExplorerLoadingPresentation;
   fileIconTheme?: FileIconThemeId;
   /** Stable workspace identity embedded in outbound reference drags. */
   dragWorkspaceId?: string;
@@ -139,6 +142,7 @@ export function ExplorerTree({
   rootLabel,
   showRoot = true,
   loadingLabel,
+  loadingPresentation = "dots",
   fileIconTheme = "default",
   dragWorkspaceId = "",
   canMoveNodes = false,
@@ -182,6 +186,7 @@ export function ExplorerTree({
     loadingPaths: resolvedLoadingPaths,
     loadingLabel: resolvedLoadingLabel,
   }), [expandedPaths, nodes, resolvedLoadingLabel, resolvedLoadingPaths]);
+  const initialLoading = rootLoading && nodes.length === 0;
   const softWorkspaceGrouping = useMemo(
     () => nodes.filter((node) => node.workspaceFolderRoot).length > 1,
     [nodes],
@@ -627,15 +632,19 @@ export function ExplorerTree({
         onScroll={virtualWindow.onScroll}
       >
         <div className="explorer-tree-list">
-          {renderListStart && (
+          {!initialLoading && renderListStart && (
             <div className="explorer-tree-list-start">
               {renderListStart()}
             </div>
           )}
-          {rootError && nodes.length === 0 ? (
+          {initialLoading ? (
+            loadingPresentation === "skeleton"
+              ? <ExplorerTreeSkeleton loadingLabel={resolvedLoadingLabel} />
+              : loadingPresentation === "dots"
+                ? <ExplorerTreeMetaRow depth={0} loading>{resolvedLoadingLabel}</ExplorerTreeMetaRow>
+                : null
+          ) : rootError && nodes.length === 0 ? (
             <ExplorerTreeMetaRow depth={0}>{rootError}</ExplorerTreeMetaRow>
-          ) : rootLoading && nodes.length === 0 ? (
-            <ExplorerTreeMetaRow depth={0} loading>{resolvedLoadingLabel}</ExplorerTreeMetaRow>
           ) : nodes.length > 0 ? (
             <div
               className="explorer-tree-virtual-canvas"
@@ -660,12 +669,12 @@ export function ExplorerTree({
                     instruction={motionPlan?.instructions.get(row.key)}
                   >
                     {row.kind === "meta" ? (
-                      <ExplorerTreeMetaRow
+                      <ExplorerTreeLoadingRow
                         depth={getExplorerPresentationDepth(row.depth, softWorkspaceGrouping)}
+                        label={row.label}
                         loading={row.loading}
-                      >
-                        {row.label}
-                      </ExplorerTreeMetaRow>
+                        presentation={loadingPresentation}
+                      />
                     ) : (
                       <TreeNodeRow
                         row={row}
@@ -674,6 +683,7 @@ export function ExplorerTree({
                         isExpanded={row.node.type === "folder" && expandedPaths.has(row.path)}
                         focusable={activePath ? activePath === row.path : row.index === firstNavigableIndex}
                         interaction={selectExplorerRowInteraction(row.path, rowStateSources)}
+                        loadingPresentation={loadingPresentation}
                         fileIconTheme={fileIconTheme}
                         onToggleFolder={toggleFolder}
                         onSelectNode={selectNode}
@@ -708,13 +718,14 @@ export function ExplorerTree({
                       softWorkspaceGrouping={softWorkspaceGrouping}
                       expandedPaths={expandedPaths}
                       fileIconTheme={fileIconTheme}
+                      loadingPresentation={loadingPresentation}
                     />
                   </ExplorerVirtualMotionShell>
                 </div>
               ))}
             </div>
           ) : null}
-          {renderListEnd && (
+          {!initialLoading && renderListEnd && (
             <ExplorerListEndMotionShell
               generation={motionPlan?.generation ?? 0}
               offsetY={motionPlan?.listEndOffsetY ?? 0}
@@ -735,6 +746,7 @@ type TreeNodeRowProps = {
   isExpanded: boolean;
   focusable: boolean;
   interaction: ExplorerRowInteractionState;
+  loadingPresentation: ExplorerLoadingPresentation;
   fileIconTheme: FileIconThemeId;
   onToggleFolder: (node: DataNode, expanded: boolean) => void;
   onSelectNode: ExplorerTreeProps["onSelectNode"];
@@ -751,6 +763,7 @@ const TreeNodeRow = memo(function TreeNodeRow({
   isExpanded,
   focusable,
   interaction,
+  loadingPresentation,
   fileIconTheme,
   onToggleFolder,
   onSelectNode,
@@ -899,7 +912,7 @@ const TreeNodeRow = memo(function TreeNodeRow({
         {node.status && node.status !== "clean" && (
           <span className={`tree-status ${node.status}`}>{shortStatus(node.status)}</span>
         )}
-        {interaction.loading && (
+        {interaction.loading && loadingPresentation === "dots" && (
           <DotsLoader
             size="sm"
             className="tree-loading-indicator"
@@ -923,6 +936,7 @@ function areTreeNodeRowPropsEqual(left: TreeNodeRowProps, right: TreeNodeRowProp
     && left.isExpanded === right.isExpanded
     && left.focusable === right.focusable
     && equalExplorerRowInteraction(left.interaction, right.interaction)
+    && left.loadingPresentation === right.loadingPresentation
     && left.fileIconTheme === right.fileIconTheme
     && left.onToggleFolder === right.onToggleFolder
     && left.onSelectNode === right.onSelectNode
@@ -1023,15 +1037,24 @@ function ExplorerExitGhostRow({
   softWorkspaceGrouping,
   expandedPaths,
   fileIconTheme,
+  loadingPresentation,
 }: {
   row: ExplorerVisibleRow;
   presentationDepth: number;
   softWorkspaceGrouping: boolean;
   expandedPaths: ReadonlySet<string>;
   fileIconTheme: FileIconThemeId;
+  loadingPresentation: ExplorerLoadingPresentation;
 }) {
   if (row.kind === "meta") {
-    return <ExplorerTreeMetaRow depth={presentationDepth} loading={row.loading}>{row.label}</ExplorerTreeMetaRow>;
+    return (
+      <ExplorerTreeLoadingRow
+        depth={presentationDepth}
+        label={row.label}
+        loading={row.loading}
+        presentation={loadingPresentation}
+      />
+    );
   }
 
   const displayName = getExplorerDisplayName(row.node);
@@ -1128,6 +1151,61 @@ function ExplorerTreeMetaRow({
       ) : (
         <span>{children}</span>
       )}
+    </div>
+  );
+}
+
+function ExplorerTreeLoadingRow({
+  depth,
+  label,
+  loading,
+  presentation,
+}: {
+  depth: number;
+  label: string;
+  loading: boolean;
+  presentation: ExplorerLoadingPresentation;
+}) {
+  if (!loading) return <ExplorerTreeMetaRow depth={depth}>{label}</ExplorerTreeMetaRow>;
+  if (presentation === "none") return null;
+  if (presentation === "dots") {
+    return <ExplorerTreeMetaRow depth={depth} loading>{label}</ExplorerTreeMetaRow>;
+  }
+  return (
+    <div
+      className="explorer-tree-skeleton explorer-tree-branch-skeleton"
+      role="status"
+      aria-label={label}
+    >
+      <ExplorerTreeSkeletonRow />
+    </div>
+  );
+}
+
+function ExplorerTreeSkeleton({ loadingLabel }: { loadingLabel: string }) {
+  return (
+    <div
+      className="explorer-tree-skeleton"
+      role="status"
+      aria-label={loadingLabel}
+      data-testid="explorer-tree-skeleton"
+    >
+      {[0, 1, 1, 0, 1, 1].map((depth, index) => (
+        <ExplorerTreeSkeletonRow depth={depth} key={`${depth}-${index}`} />
+      ))}
+    </div>
+  );
+}
+
+function ExplorerTreeSkeletonRow({ depth }: { depth?: number }) {
+  return (
+    <div
+      className="explorer-tree-skeleton-row"
+      data-depth={depth}
+      aria-hidden="true"
+    >
+      <span className="explorer-tree-skeleton-icon" />
+      <span className="explorer-tree-skeleton-label" />
     </div>
   );
 }

@@ -203,10 +203,8 @@ body.data-sidebar-resizing * {
 }
 
 .desktop-sidebar-navigation-surface[data-placement="bottom"] {
-  padding:
-    var(--desktop-sidebar-navigation-padding-inner)
-    var(--desktop-sidebar-navigation-padding-inline)
-    var(--desktop-sidebar-navigation-padding-outer);
+  padding-block: var(--desktop-sidebar-navigation-padding-balanced);
+  padding-inline: var(--desktop-sidebar-navigation-padding-inline);
 }
 
 .desktop-data-workspace-wrap[data-sidebar-navigation-placement="bottom"] {

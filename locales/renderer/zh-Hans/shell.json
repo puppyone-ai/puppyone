@@ -68,6 +68,8 @@
   "workspaceSwitcher.localProjects": "本地项目",
   "workspaceSwitcher.addProject": "添加项目…",
   "workspaceSwitcher.projects": "项目",
+  "workspaceSwitcher.expandProjects": "展开项目栏",
+  "workspaceSwitcher.resizeProjects": "调整项目侧栏宽度",
   "workspaceSwitcher.openFolder": "打开文件夹…",
   "workspaceSwitcher.removeProject": "移除项目",
   "workspaceSwitcher.removeProjectNamed": "从当前工作区移除 {name}",

@@ -3,6 +3,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
 import type { Workspace } from "@puppyone/shared-ui";
 import { Plus } from "lucide-react";
@@ -12,9 +13,16 @@ import {
   useProjectAppearanceCatalog,
 } from "../project-appearance/useProjectAppearanceCatalog";
 import { ProjectDetailsDialog } from "./ProjectDetailsDialog";
+import { DesktopSidebarSettingsButton } from "./navigation/DesktopNavigationItems";
+import type { DesktopView } from "../../components/DesktopCloudShell";
+export {
+  DEFAULT_PROJECT_SWITCHER_EXPANDED_WIDTH,
+  MAX_PROJECT_SWITCHER_EXPANDED_WIDTH,
+  MIN_PROJECT_SWITCHER_EXPANDED_WIDTH,
+  PROJECT_SWITCHER_RAIL_COLLAPSED_WIDTH,
+  resolveProjectSwitcherRailWidth,
+} from "./projectSwitcherRailGeometry";
 import type { RecentWorkspaceHomeItem } from "./workspaceHomeModel";
-
-export const PROJECT_SWITCHER_RAIL_WIDTH = 64;
 
 export type ProjectSwitcherRailItem = Readonly<{
   workspace: Workspace;
@@ -30,10 +38,14 @@ type ProjectDetailsState = Readonly<{
 }>;
 
 type ProjectSwitcherRailProps = Readonly<{
+  activeView?: DesktopView;
   activeWorkspace: Workspace;
+  expanded?: boolean;
   recentWorkspaces: readonly RecentWorkspaceHomeItem[];
   onCreateNew: () => void;
+  onOpenSettings?: () => void;
   onSelectProject: (path: string) => void | Promise<void>;
+  utilitySlot?: ReactNode;
 }>;
 
 /**
@@ -41,10 +53,14 @@ type ProjectSwitcherRailProps = Readonly<{
  * Project registry and never owns Workspace lifecycle or persistence itself.
  */
 export function ProjectSwitcherRail({
+  activeView = "data",
   activeWorkspace,
+  expanded = false,
   recentWorkspaces,
   onCreateNew,
+  onOpenSettings,
   onSelectProject,
+  utilitySlot,
 }: ProjectSwitcherRailProps) {
   const { t } = useLocalization();
   const [pendingPath, setPendingPath] = useState<string | null>(null);
@@ -82,7 +98,10 @@ export function ProjectSwitcherRail({
   }, [nextProjectOrder, projectOrder]);
 
   const selectProject = async (project: Workspace) => {
-    if (project.path === activeWorkspace.path || project.path === pendingPath) return;
+    if (
+      (project.path === activeWorkspace.path && activeView !== "settings")
+      || project.path === pendingPath
+    ) return;
     queuedProjectRef.current = project;
     setPendingPath(project.path);
     if (switchInFlightRef.current) return;
@@ -104,14 +123,15 @@ export function ProjectSwitcherRail({
     <nav
       className="desktop-project-switcher-rail"
       aria-label={t("shell.workspaceSwitcher.projects")}
+      data-expanded={expanded ? "true" : "false"}
       data-window-no-drag="true"
     >
       <div
-        className="desktop-project-switcher-rail-list"
-        data-po-scrollbar="content"
+        className={`desktop-project-switcher-rail-list${expanded ? " po-sidebar-list" : ""}`}
+        data-po-scrollbar={expanded ? "sidebar" : "content"}
       >
         {projects.map(({ workspace, initial, appearanceIdentity }) => {
-          const active = workspace.path === activeWorkspace.path;
+          const active = activeView !== "settings" && workspace.path === activeWorkspace.path;
           const appearance = appearanceIdentity
             ? appearanceCatalog.appearances.get(appearanceIdentity)
             : null;
@@ -120,7 +140,7 @@ export function ProjectSwitcherRail({
           });
           return (
             <button
-              className="desktop-project-switcher-rail-button desktop-project-switcher-rail-project"
+              className={`desktop-project-switcher-rail-button desktop-project-switcher-rail-project${expanded ? ` po-sidebar-row${active ? " active" : ""}` : ""}`}
               type="button"
               aria-current={active ? "page" : undefined}
               aria-label={label}
@@ -160,11 +180,16 @@ export function ProjectSwitcherRail({
                 emoji={appearance?.icon?.kind === "emoji" ? appearance.icon.value : null}
                 initial={initial}
               />
+              {expanded && (
+                <span className="desktop-project-switcher-rail-label po-sidebar-row__label">
+                  {workspace.name}
+                </span>
+              )}
             </button>
           );
         })}
         <button
-          className="desktop-project-switcher-rail-button desktop-project-switcher-rail-create"
+          className={`desktop-project-switcher-rail-button desktop-project-switcher-rail-create${expanded ? " po-sidebar-row" : ""}`}
           type="button"
           aria-label={t("shell.workspaceSwitcher.createNew")}
           disabled={Boolean(pendingPath)}
@@ -175,10 +200,32 @@ export function ProjectSwitcherRail({
           }}
         >
           <span className="desktop-project-switcher-rail-avatar" aria-hidden="true">
-            <Plus size={17} strokeWidth={1.8} />
+            <Plus size={16} />
           </span>
+          {expanded && (
+            <span className="desktop-project-switcher-rail-label po-sidebar-row__label">
+              {t("shell.workspaceSwitcher.createNew")}
+            </span>
+          )}
         </button>
       </div>
+      {(onOpenSettings || utilitySlot) && (
+        <div
+          className="desktop-project-switcher-rail-utilities desktop-sidebar-navigation-surface"
+          data-placement="bottom"
+        >
+          <div className="desktop-sidebar-footer-actions">
+            {onOpenSettings && (
+              <DesktopSidebarSettingsButton
+                activeView={activeView}
+                buttonClassName="desktop-sidebar-footer-button"
+                onOpenSettings={onOpenSettings}
+              />
+            )}
+            {utilitySlot}
+          </div>
+        </div>
+      )}
       {projectDetails && (
         <ProjectDetailsDialog
           appearance={appearanceCatalog.appearances.get(projectDetails.projectIdentity) ?? null}

@@ -68,6 +68,8 @@
   "workspaceSwitcher.localProjects": "Local projects",
   "workspaceSwitcher.addProject": "Add Project…",
   "workspaceSwitcher.projects": "Projects",
+  "workspaceSwitcher.expandProjects": "Expand projects",
+  "workspaceSwitcher.resizeProjects": "Resize project sidebar",
   "workspaceSwitcher.openFolder": "Open Folder…",
   "workspaceSwitcher.removeProject": "Remove Project",
   "workspaceSwitcher.removeProjectNamed": "Remove {name} from this workspace",

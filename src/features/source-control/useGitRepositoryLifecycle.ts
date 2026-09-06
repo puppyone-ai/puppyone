@@ -51,7 +51,25 @@ export function useGitRepositoryLifecycle({
   const [gitStatusError, setGitStatusError] = useState<string | null>(null);
   const [historyEpoch, setHistoryEpoch] = useState(0);
 
-  const activeGitStatus = gitStatusPath === workspace?.path ? gitStatus : null;
+  const workspacePath = workspace?.path ?? null;
+  const cachedGitStatus = workspacePath
+    ? gitStatusCacheRef.current.get(workspacePath) ?? null
+    : null;
+  const activeGitStatus = resolveActiveGitStatus(
+    workspacePath,
+    gitStatusPath,
+    gitStatus,
+    cachedGitStatus,
+  );
+  // Effects intentionally own cache promotion and scheduler lifecycle, but a
+  // Workspace identity change is already visible during render. Derive this
+  // pending edge synchronously so consumers never paint the previous root's
+  // metadata (or a misleading "No Git") for one frame.
+  const activeGitStatusLoading = isGitStatusContextLoading(
+    workspace?.path ?? null,
+    gitStatusPath,
+    gitStatusLoading,
+  );
 
   const bumpHistoryEpoch = useCallback(() => {
     historyEpochRef.current += 1;
@@ -224,7 +242,10 @@ export function useGitRepositoryLifecycle({
   useEffect(() => {
     const rootPath = workspace?.path ?? null;
     const remoteName = remoteFetchTarget?.remoteName ?? null;
-    if (!rootPath || !remoteName) return undefined;
+    // A cached snapshot may render synchronously on Project return, but the
+    // scheduler context is promoted in an effect. Wait for that matching
+    // context before starting the independent remote revalidation.
+    if (!rootPath || !remoteName || gitStatusPath !== rootPath) return undefined;
 
     const fetchIdentity = `${rootPath}:${remoteName}`;
     const isForeground = () => {
@@ -272,6 +293,7 @@ export function useGitRepositoryLifecycle({
       window.removeEventListener("online", handleOnline);
     };
   }, [
+    gitStatusPath,
     remoteFetchTarget?.remoteName,
     remoteFetchTargetKey,
     refreshGitStatusWithFetch,
@@ -372,7 +394,7 @@ export function useGitRepositoryLifecycle({
     activeGitStatus,
     gitStatus,
     gitStatusError,
-    gitStatusLoading,
+    gitStatusLoading: activeGitStatusLoading,
     gitStatusPath,
     historyEpoch,
     applyGitHistory,
@@ -385,6 +407,24 @@ export function useGitRepositoryLifecycle({
     refreshGitStatusWithFetch,
     reportGitStatusError,
   };
+}
+
+export function isGitStatusContextLoading(
+  workspacePath: string | null,
+  statusPath: string | null,
+  loading: boolean,
+): boolean {
+  return Boolean(workspacePath) && (statusPath !== workspacePath || loading);
+}
+
+export function resolveActiveGitStatus(
+  workspacePath: string | null,
+  statusPath: string | null,
+  status: GitStatusSnapshot | null,
+  cachedStatus: GitStatusSnapshot | null,
+): GitStatusSnapshot | null {
+  if (!workspacePath) return null;
+  return statusPath === workspacePath ? status : cachedStatus;
 }
 
 function putBoundedGitStatus(

@@ -17,6 +17,7 @@ export function DesktopSidebarTopNavigation({
   workspaceChangeCount,
   onNavigate,
   onOpenSettings,
+  showSettings = true,
   utilitySlot,
   shellToolbar = false,
   useToolLabels = false,
@@ -74,13 +75,15 @@ export function DesktopSidebarTopNavigation({
               showLabel
             />
           )}
-          <DesktopSidebarSettingsButton
-            activeView={activeView}
-            buttonClassName={buttonClassName}
-            onOpenSettings={onOpenSettings}
-            shellToolbar={shellToolbar}
-            showLabel
-          />
+          {showSettings && (
+            <DesktopSidebarSettingsButton
+              activeView={activeView}
+              buttonClassName={buttonClassName}
+              onOpenSettings={onOpenSettings}
+              shellToolbar={shellToolbar}
+              showLabel
+            />
+          )}
         </div>
         {utilitySlot != null && (
           <div className="desktop-sidebar-top-navigation-utility">

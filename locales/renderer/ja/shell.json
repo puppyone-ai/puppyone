@@ -68,6 +68,8 @@
   "workspaceSwitcher.localProjects": "ローカルプロジェクト",
   "workspaceSwitcher.addProject": "プロジェクトを追加…",
   "workspaceSwitcher.projects": "プロジェクト",
+  "workspaceSwitcher.expandProjects": "プロジェクトバーを展開",
+  "workspaceSwitcher.resizeProjects": "プロジェクトサイドバーの幅を変更",
   "workspaceSwitcher.openFolder": "フォルダーを開く…",
   "workspaceSwitcher.removeProject": "プロジェクトを削除",
   "workspaceSwitcher.removeProjectNamed": "このワークスペースから {name} を削除",

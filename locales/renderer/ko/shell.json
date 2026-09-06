@@ -68,6 +68,8 @@
   "workspaceSwitcher.localProjects": "로컬 프로젝트",
   "workspaceSwitcher.addProject": "프로젝트 추가…",
   "workspaceSwitcher.projects": "프로젝트",
+  "workspaceSwitcher.expandProjects": "프로젝트 표시줄 펼치기",
+  "workspaceSwitcher.resizeProjects": "프로젝트 사이드바 너비 조절",
   "workspaceSwitcher.openFolder": "폴더 열기…",
   "workspaceSwitcher.removeProject": "프로젝트 제거",
   "workspaceSwitcher.removeProjectNamed": "이 워크스페이스에서 {name} 제거",

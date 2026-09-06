@@ -68,6 +68,8 @@
   "workspaceSwitcher.localProjects": "Proyectos locales",
   "workspaceSwitcher.addProject": "Añadir proyecto…",
   "workspaceSwitcher.projects": "Proyectos",
+  "workspaceSwitcher.expandProjects": "Expandir barra de proyectos",
+  "workspaceSwitcher.resizeProjects": "Cambiar ancho de la barra de proyectos",
   "workspaceSwitcher.openFolder": "Abrir carpeta…",
   "workspaceSwitcher.removeProject": "Quitar proyecto",
   "workspaceSwitcher.removeProjectNamed": "Quitar {name} de este espacio de trabajo",

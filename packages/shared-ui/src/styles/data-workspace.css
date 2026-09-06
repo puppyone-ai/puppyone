@@ -758,6 +758,73 @@ body.data-sidebar-resizing .data-content:not([data-explorer-collapsed="true"]) {
   height: 10px;
 }
 
+.explorer-tree-skeleton {
+  display: grid;
+  width: 100%;
+  gap: 2px;
+  pointer-events: none;
+  user-select: none;
+}
+
+.explorer-tree-branch-skeleton {
+  height: var(--tree-row-height);
+}
+
+.explorer-tree-skeleton-row {
+  display: flex;
+  height: var(--tree-row-height);
+  box-sizing: border-box;
+  align-items: center;
+  gap: var(--tree-row-icon-label-gap);
+  padding-inline-start: calc(
+    var(--tree-row-content-left)
+    + var(--depth, 0) * var(--tree-row-indent)
+  );
+}
+
+.explorer-tree-skeleton-row[data-depth="0"] { --depth: 0; }
+.explorer-tree-skeleton-row[data-depth="1"] { --depth: 1; }
+
+.explorer-tree-skeleton-icon,
+.explorer-tree-skeleton-label {
+  flex: 0 0 auto;
+  background:
+    linear-gradient(
+      100deg,
+      var(--po-skeleton-base) 22%,
+      var(--po-skeleton-shimmer) 48%,
+      var(--po-skeleton-base) 74%
+    );
+  background-size: 220% 100%;
+  animation: explorer-tree-skeleton-shimmer 1.45s ease-in-out infinite;
+}
+
+.explorer-tree-skeleton-icon {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+}
+
+.explorer-tree-skeleton-label {
+  width: 52%;
+  height: 9px;
+  border-radius: 999px;
+}
+
+.explorer-tree-skeleton-row:nth-child(2) .explorer-tree-skeleton-label { width: 44%; }
+.explorer-tree-skeleton-row:nth-child(3) .explorer-tree-skeleton-label { width: 58%; }
+.explorer-tree-skeleton-row:nth-child(4) .explorer-tree-skeleton-label { width: 64%; }
+.explorer-tree-skeleton-row:nth-child(5) .explorer-tree-skeleton-label { width: 38%; }
+.explorer-tree-skeleton-row:nth-child(6) .explorer-tree-skeleton-label { width: 49%; }
+
+.explorer-tree-skeleton-row:nth-child(2n) > span { animation-delay: -0.18s; }
+.explorer-tree-skeleton-row:nth-child(3n) > span { animation-delay: -0.36s; }
+
+@keyframes explorer-tree-skeleton-shimmer {
+  from { background-position: 180% 0; }
+  to { background-position: -40% 0; }
+}
+
 .tree-loading-indicator {
   margin-right: 2px;
 }
@@ -795,6 +862,12 @@ body.data-sidebar-resizing .data-content:not([data-explorer-collapsed="true"]) {
 
   .tree-disclosure-marker {
     transition: none !important;
+  }
+
+  .explorer-tree-skeleton-icon,
+  .explorer-tree-skeleton-label {
+    animation: none;
+    background: var(--po-skeleton-base);
   }
 
   .explorer-tree-motion-shell[data-explorer-motion],

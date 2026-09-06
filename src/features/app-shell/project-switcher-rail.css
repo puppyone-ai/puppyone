@@ -7,15 +7,72 @@
   min-height: 0;
   flex: 0 0 var(--desktop-shell-leading-rail-width, 0px);
   align-self: stretch;
-  overflow: hidden;
+  overflow: visible;
+}
+
+/* In the Project-switcher experiment, the gray rail owns app-level context.
+   The adjacent Explorer joins the Editor canvas so both read as one Project. */
+.desktop-shell[data-leading-rail="true"] .desktop-data-workspace-wrap {
+  --po-sidebar: var(--po-canvas);
+}
+
+.desktop-project-switcher-resizer {
+  inset-inline-start: auto;
+  inset-inline-end: calc(1px - var(--po-pane-resizer-hit-size, 8px));
+  background: transparent;
+}
+
+.desktop-project-switcher-resizer.po-collapsed-pane-edge-handle--inline-start {
+  inset-inline-start: auto;
+  inset-inline-end: calc(1px - var(--po-collapsed-pane-edge-hit-size, 12px));
+}
+
+.desktop-project-switcher-resizer.po-collapsed-pane-edge-handle--inline-start
+  .po-collapsed-pane-edge-glyph {
+  inset-inline-start: auto;
+  inset-inline-end: 0;
+}
+
+.desktop-project-switcher-resizer::after {
+  background: transparent;
+  transition: background 120ms ease, box-shadow 120ms ease;
+}
+
+.desktop-project-switcher-resizer:hover::after,
+.desktop-project-switcher-resizer:focus-visible::after {
+  background: var(--po-pane-resizer-hover-color);
+}
+
+body.desktop-project-switcher-resizing .desktop-project-switcher-resizer::after {
+  background: var(--po-pane-resizer-active-color);
+  box-shadow: 0 0 0 1px var(--po-pane-resizer-active-ring);
+}
+
+body.desktop-project-switcher-resizing,
+body.desktop-project-switcher-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
 }
 
 .desktop-project-switcher-rail {
-  --desktop-project-switcher-button-size: calc(var(--po-control-size) + 8px);
-  --desktop-project-switcher-avatar-size: calc(var(--po-control-size) + 2px);
-  --desktop-project-switcher-avatar: color-mix(in srgb, var(--po-sidebar) 97%, var(--po-text));
-  --desktop-project-switcher-avatar-hover: color-mix(in srgb, var(--po-sidebar) 93%, var(--po-text));
-  --desktop-project-switcher-avatar-active: color-mix(in srgb, var(--po-sidebar) 88%, var(--po-text));
+  --desktop-project-switcher-button-size: var(--desktop-sidebar-row-height);
+  --desktop-project-switcher-avatar-size: 18px;
+  --desktop-project-switcher-avatar: color-mix(in srgb, var(--po-sidebar) 86%, var(--po-text));
+  --desktop-project-switcher-avatar-hover: color-mix(in srgb, var(--po-sidebar) 80%, var(--po-text));
+  --desktop-project-switcher-avatar-active: color-mix(in srgb, var(--po-sidebar) 72%, var(--po-text));
+  --desktop-project-switcher-row-hover: var(
+    --po-tree-row-hover-bg,
+    color-mix(in srgb, var(--po-hover) 86%, transparent)
+  );
+  --desktop-project-switcher-row-selected: var(
+    --po-tree-row-selected-bg,
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--po-selected) 96%, transparent) 0%,
+      color-mix(in srgb, var(--po-selected) 88%, transparent) calc(100% - 36px),
+      color-mix(in srgb, var(--po-selected) 62%, transparent) 100%
+    )
+  );
 
   display: flex;
   box-sizing: border-box;
@@ -24,40 +81,121 @@
   min-height: 0;
   flex-direction: column;
   align-items: center;
-  padding: 10px 0 8px;
+  padding: 0;
   border-inline-end: 1px solid var(--po-sidebar-divider, var(--po-divider));
   background: var(--po-sidebar);
   color: var(--po-text-muted);
   user-select: none;
 }
 
+.desktop-project-switcher-rail[data-expanded="true"] {
+  align-items: stretch;
+}
+
 .desktop-project-switcher-rail-list {
-  display: flex;
+  display: grid;
   box-sizing: border-box;
   width: 100%;
   min-height: 0;
   flex: 1 1 auto;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding-inline: 12px;
+  align-content: start;
+  align-items: start;
+  justify-items: center;
+  gap: 0;
+  padding-block:
+    var(--desktop-sidebar-row-left-gap)
+    var(--desktop-sidebar-list-padding-block);
+  padding-inline: 0;
   overflow-x: hidden;
   overflow-y: auto;
+}
+
+.desktop-project-switcher-rail[data-expanded="true"]
+  .desktop-project-switcher-rail-list {
+  display: grid;
+  align-content: start;
+  align-items: stretch;
+  justify-items: stretch;
+  gap: 0;
+  padding-block:
+    var(--desktop-sidebar-row-left-gap)
+    var(--desktop-sidebar-list-padding-block);
+  padding-inline:
+    var(--desktop-sidebar-row-left-gap)
+    var(--desktop-sidebar-scroll-right-gap);
+  scrollbar-gutter: stable;
+}
+
+.desktop-project-switcher-rail-utilities {
+  display: flex;
+  box-sizing: border-box;
+  width: 100%;
+  flex: 0 0 auto;
+  align-items: center;
+  min-height: 0;
+  padding: 0;
+}
+
+.desktop-project-switcher-rail:not([data-expanded="true"])
+  .desktop-project-switcher-rail-utilities.desktop-sidebar-navigation-surface {
+  --desktop-project-switcher-compact-utilities-height: calc(
+    2 * var(--desktop-sidebar-virtual-row-size)
+    + var(--desktop-sidebar-list-padding-block)
+  );
+
+  flex: 0 0 var(--desktop-project-switcher-compact-utilities-height);
+  align-items: flex-start;
+  justify-content: center;
+  min-height: var(--desktop-project-switcher-compact-utilities-height);
+  padding-block: 0 var(--desktop-sidebar-list-padding-block);
+  padding-inline: 0;
+}
+
+.desktop-project-switcher-rail:not([data-expanded="true"])
+  .desktop-project-switcher-rail-utilities
+  .desktop-sidebar-footer-actions {
+  width: var(--desktop-project-switcher-button-size);
+  flex-direction: column-reverse;
+  align-items: stretch;
+  gap: 0;
+}
+
+.desktop-project-switcher-rail:not([data-expanded="true"])
+  .desktop-project-switcher-rail-utilities
+  :is(.desktop-sidebar-footer-button, .desktop-feedback) {
+  width: var(--desktop-project-switcher-button-size);
+  height: var(--desktop-project-switcher-button-size);
+  flex: 0 0 var(--desktop-project-switcher-button-size);
+  margin: 1px 0;
+}
+
+.desktop-project-switcher-rail[data-expanded="true"]
+  .desktop-project-switcher-rail-utilities {
+  flex: 0 0 var(--desktop-sidebar-navigation-height);
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: var(--desktop-sidebar-navigation-height);
+  padding-block: var(--desktop-sidebar-navigation-padding-balanced);
+  padding-inline: var(--desktop-sidebar-navigation-padding-inline);
 }
 
 .desktop-project-switcher-rail-button {
   position: relative;
   appearance: none;
-  display: grid;
+  display: flex;
+  box-sizing: border-box;
   width: var(--desktop-project-switcher-button-size);
   height: var(--desktop-project-switcher-button-size);
   min-width: var(--desktop-project-switcher-button-size);
   min-height: var(--desktop-project-switcher-button-size);
   flex: 0 0 var(--desktop-project-switcher-button-size);
-  place-items: center;
+  align-items: center;
+  justify-content: center;
+  margin: 1px 0;
   padding: 0;
   border: 0;
-  border-radius: 12px;
+  border-radius: var(--desktop-control-radius);
   outline: 0;
   background: transparent;
   color: var(--po-text-subtle);
@@ -67,7 +205,9 @@
 .desktop-project-switcher-rail-button::after {
   position: absolute;
   inset-block: 50% auto;
-  inset-inline-start: -12px;
+  inset-inline-start: calc(
+    (var(--desktop-project-switcher-button-size) - var(--desktop-chrome-height)) / 2
+  );
   width: 2px;
   height: 0;
   border-radius: 0 2px 2px 0;
@@ -83,7 +223,6 @@
 }
 
 .desktop-project-switcher-rail-button:hover:not(:disabled) .desktop-project-switcher-rail-avatar {
-  border-radius: 9px;
   background: var(--desktop-project-switcher-avatar-hover);
 }
 
@@ -105,7 +244,6 @@
 }
 
 .desktop-project-switcher-rail-button[aria-current="page"] .desktop-project-switcher-rail-avatar {
-  border-radius: 9px;
   background: var(--desktop-project-switcher-avatar-active);
 }
 
@@ -124,6 +262,71 @@
   animation: desktop-project-switcher-pending 1.1s ease-in-out infinite;
 }
 
+.desktop-project-switcher-rail[data-expanded="true"]
+  .desktop-project-switcher-rail-button {
+  display: flex;
+  width: 100%;
+  height: var(--desktop-sidebar-row-height);
+  min-width: 0;
+  min-height: var(--desktop-sidebar-row-height);
+  flex: 0 0 var(--desktop-sidebar-row-height);
+  justify-content: flex-start;
+  /* The Project mark has a filled tile, so it needs the full Sidebar row gap
+     used by the shared row primitive to keep the label optically separate. */
+  gap: 6px;
+  margin: 1px 0;
+  padding-inline:
+    var(--desktop-sidebar-row-content-left)
+    var(--desktop-sidebar-row-content-right);
+  border-radius: var(--desktop-sidebar-row-radius);
+  font-size: var(--desktop-sidebar-font-size);
+  font-weight: var(--desktop-sidebar-font-weight);
+  line-height: var(--desktop-sidebar-line-height);
+  text-align: start;
+}
+
+.desktop-project-switcher-rail[data-expanded="true"]
+  .desktop-project-switcher-rail-button::after {
+  display: none;
+}
+
+.desktop-project-switcher-rail[data-expanded="true"]
+  .desktop-project-switcher-rail-project:not([aria-current="page"]) {
+  color: var(--po-text-muted);
+}
+
+.desktop-project-switcher-rail[data-expanded="true"]
+  .desktop-project-switcher-rail-button:hover:not(:disabled) {
+  background: var(--desktop-project-switcher-row-hover);
+  color: var(--po-text);
+}
+
+.desktop-project-switcher-rail[data-expanded="true"]
+  .desktop-project-switcher-rail-project.active,
+.desktop-project-switcher-rail[data-expanded="true"]
+  .desktop-project-switcher-rail-project[aria-current="page"] {
+  background: var(--desktop-project-switcher-row-hover);
+  color: var(--po-text);
+}
+
+.desktop-project-switcher-rail[data-expanded="true"]
+  .desktop-project-switcher-rail-project.active:hover:not(:disabled),
+.desktop-project-switcher-rail[data-expanded="true"]
+  .desktop-project-switcher-rail-project[aria-current="page"]:hover:not(:disabled) {
+  background: var(--desktop-project-switcher-row-selected);
+}
+
+.desktop-project-switcher-rail[data-expanded="true"]
+  .desktop-project-switcher-rail-button:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--po-focus-ring);
+}
+
+.desktop-project-switcher-rail[data-expanded="true"]
+  .desktop-project-switcher-rail-button:focus-visible
+  .desktop-project-switcher-rail-avatar {
+  box-shadow: none;
+}
+
 @keyframes desktop-project-switcher-pending {
   0%, 100% { opacity: 0.62; }
   50% { opacity: 1; }
@@ -135,11 +338,12 @@
   place-items: center;
   width: var(--desktop-project-switcher-avatar-size);
   height: var(--desktop-project-switcher-avatar-size);
-  border-radius: 10px;
+  flex: 0 0 var(--desktop-project-switcher-avatar-size);
+  border-radius: 4px;
   overflow: hidden;
   background: var(--desktop-project-switcher-avatar);
   color: inherit;
-  font-size: var(--po-type-ui-section-title, 16px);
+  font-size: var(--po-type-ui-caption, 12px);
   font-weight: var(--po-text-weight-semibold, 600);
   line-height: 1;
   text-overflow: clip;
@@ -147,8 +351,37 @@
   white-space: nowrap;
   transition:
     background-color 150ms ease,
-    border-radius 150ms ease,
     box-shadow 150ms ease;
+}
+
+.desktop-project-switcher-rail[data-expanded="true"]
+  .desktop-project-switcher-rail-create
+  .desktop-project-switcher-rail-avatar,
+.desktop-project-switcher-rail[data-expanded="true"]
+  .desktop-project-switcher-rail-create:hover:not(:disabled)
+  .desktop-project-switcher-rail-avatar {
+  background: transparent;
+}
+
+.desktop-project-switcher-rail[data-expanded="true"]
+  .desktop-project-switcher-rail-emoji {
+  font-size: var(--po-type-ui-body, 15px);
+}
+
+.desktop-project-switcher-rail[data-expanded="true"]
+  .desktop-project-switcher-rail-project:hover:not(:disabled)
+  .desktop-project-switcher-rail-avatar {
+  background: var(--desktop-project-switcher-avatar-hover);
+}
+
+.desktop-project-switcher-rail[data-expanded="true"]
+  .desktop-project-switcher-rail-project[aria-current="page"]
+  .desktop-project-switcher-rail-avatar {
+  background: var(--desktop-project-switcher-avatar-active);
+}
+
+.desktop-project-switcher-rail-label {
+  text-align: start;
 }
 
 .desktop-project-switcher-rail-image {
@@ -176,7 +409,7 @@
 
 .desktop-project-switcher-rail-emoji {
   font-family: var(--po-font-emoji);
-  font-size: var(--po-type-ui-heading, 19px);
+  font-size: var(--po-type-ui-body, 15px);
   font-weight: 400;
 }
 
@@ -443,6 +676,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .desktop-project-switcher-resizer::after,
   .desktop-project-switcher-rail-button,
   .desktop-project-switcher-rail-button::after {
     transition: none;

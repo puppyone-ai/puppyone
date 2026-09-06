@@ -10,6 +10,7 @@ import {
   getProjectSwitcherInitial,
   mergeProjectSwitcherRailOrder,
   ProjectSwitcherRail,
+  resolveProjectSwitcherRailWidth,
   resolveProjectSwitcherRailItems,
 } from "../src/features/app-shell/ProjectSwitcherRail";
 import { ProjectEntryLauncherDialog } from "../src/features/app-shell/ProjectEntryLauncherDialog";
@@ -28,6 +29,113 @@ afterEach(() => {
 });
 
 describe("Project switcher rail", () => {
+  it("matches the collapsed rail to the Header height", () => {
+    expect(resolveProjectSwitcherRailWidth()).toBe(38);
+    expect(resolveProjectSwitcherRailWidth(true)).toBe(220);
+    expect(resolveProjectSwitcherRailWidth(true, 284)).toBe(284);
+    expect(resolveProjectSwitcherRailWidth(true, 80)).toBe(160);
+    expect(resolveProjectSwitcherRailWidth(true, 500)).toBe(360);
+  });
+
+  it("renders the expanded rail with full Sidebar rows and no collapse button", async () => {
+    const active = workspace("active", "Alpha", "/projects/alpha");
+    const beta = workspace("beta", "Beta", "/projects/beta");
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+
+    await act(async () => root?.render(withTestLocalization(
+      <ProjectSwitcherRail
+        activeWorkspace={active}
+        expanded
+        recentWorkspaces={[{ workspace: beta }]}
+        onCreateNew={() => undefined}
+        onSelectProject={() => undefined}
+      />,
+    )));
+
+    const rail = host.querySelector<HTMLElement>(".desktop-project-switcher-rail");
+    const rows = host.querySelectorAll<HTMLButtonElement>(
+      ".desktop-project-switcher-rail-project",
+    );
+    expect(rail?.dataset.expanded).toBe("true");
+    expect(Array.from(rows, ({ textContent }) => textContent)).toEqual(["AAlpha", "BBeta"]);
+    expect(rows[0]?.classList.contains("po-sidebar-row")).toBe(true);
+    expect(rows[0]?.classList.contains("active")).toBe(true);
+    expect(rows[0]?.querySelector(".desktop-project-switcher-rail-avatar")?.textContent).toBe("A");
+
+    expect(host.querySelector(".desktop-project-switcher-rail-toggle")).toBeNull();
+    expect(host.querySelector(".desktop-project-switcher-rail-footer")).toBeNull();
+    expect(rail?.querySelector(".desktop-project-switcher-rail-title")).toBeNull();
+  });
+
+  it("keeps app-level Settings and Feedback utilities at the bottom of the expanded rail", async () => {
+    const active = workspace("active", "Alpha", "/projects/alpha");
+    const onOpenSettings = vi.fn();
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+
+    await act(async () => root?.render(withTestLocalization(
+      <ProjectSwitcherRail
+        activeView="settings"
+        activeWorkspace={active}
+        expanded
+        recentWorkspaces={[]}
+        onCreateNew={() => undefined}
+        onOpenSettings={onOpenSettings}
+        onSelectProject={() => undefined}
+        utilitySlot={<button type="button" data-testid="feedback">Feedback</button>}
+      />,
+    )));
+
+    const utilities = host.querySelector(".desktop-project-switcher-rail-utilities");
+    const settings = utilities?.querySelector<HTMLButtonElement>("[data-navigation-item='settings']");
+    const feedback = utilities?.querySelector<HTMLButtonElement>("[data-testid='feedback']");
+    expect(utilities?.parentElement?.classList.contains("desktop-project-switcher-rail")).toBe(true);
+    expect(utilities?.classList.contains("desktop-sidebar-navigation-surface")).toBe(true);
+    expect(utilities?.getAttribute("data-placement")).toBe("bottom");
+    expect(settings?.classList.contains("desktop-sidebar-footer-button")).toBe(true);
+    expect(settings?.getAttribute("aria-current")).toBe("page");
+    expect(settings?.getAttribute("aria-label")).toBe("Settings");
+    expect(settings?.querySelector(".desktop-sidebar-nav-label")).toBeNull();
+    expect(feedback?.textContent).toBe("Feedback");
+
+    await act(async () => settings?.click());
+    expect(onOpenSettings).toHaveBeenCalledOnce();
+  });
+
+  it("keeps Settings and Projects as peer destinations", async () => {
+    const active = workspace("active", "Alpha", "/projects/alpha");
+    const onSelectProject = vi.fn(async () => undefined);
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+
+    await act(async () => root?.render(withTestLocalization(
+      <ProjectSwitcherRail
+        activeView="settings"
+        activeWorkspace={active}
+        expanded
+        recentWorkspaces={[]}
+        onCreateNew={() => undefined}
+        onOpenSettings={() => undefined}
+        onSelectProject={onSelectProject}
+      />,
+    )));
+
+    const project = host.querySelector<HTMLButtonElement>(
+      ".desktop-project-switcher-rail-project",
+    );
+    const settings = host.querySelector<HTMLButtonElement>("[data-navigation-item='settings']");
+    expect(project?.hasAttribute("aria-current")).toBe(false);
+    expect(project?.classList.contains("active")).toBe(false);
+    expect(settings?.getAttribute("aria-current")).toBe("page");
+
+    await act(async () => project?.click());
+    expect(onSelectProject).toHaveBeenCalledWith("/projects/alpha");
+  });
+
   it("keeps the active Project first and de-duplicates the recent registry", () => {
     const active = workspace("active", "Alpha", "/projects/alpha");
     const beta = workspace("beta", "Beta", "/projects/beta");

@@ -126,14 +126,17 @@ import {
 } from "./features/app-shell/auxiliary-workbench/agentChatCreationRecipes";
 import { useSubThemeCatalog, useSubThemeNativeMenu } from "./features/themes/useSubThemeCatalog";
 import {
-  PROJECT_SWITCHER_RAIL_WIDTH,
+  MAX_PROJECT_SWITCHER_EXPANDED_WIDTH,
+  MIN_PROJECT_SWITCHER_EXPANDED_WIDTH,
   ProjectSwitcherRail,
+  resolveProjectSwitcherRailWidth,
 } from "./features/app-shell/ProjectSwitcherRail";
 import { ProjectEntryLauncherDialog } from "./features/app-shell/ProjectEntryLauncherDialog";
 
 const AgentChatWorkbenchItem = lazy(loadAgentChatWorkbenchItem);
 const AgentChatHistoryBrowser = lazy(loadAgentChatHistoryBrowser);
 const EMPTY_WORKSPACE_FOLDERS: readonly WorkspaceFolder[] = Object.freeze([]);
+type ProjectDesktopView = Exclude<DesktopView, "settings">;
 
 export function App() {
   return <AppContent />;
@@ -143,6 +146,7 @@ function AppContent() {
   const { locale, t } = useLocalization();
   const desktopUpdates = useDesktopUpdates();
   const [activeView, setActiveView] = useState<DesktopView>("data");
+  const lastProjectViewRef = useRef<ProjectDesktopView>("data");
   const subThemeCatalog = useSubThemeCatalog();
   const preferences = useDesktopPreferences(subThemeCatalog.snapshot);
   const multiRootWorkspacesEnabled = preferences.experimentalSettings.enableMultiRootWorkspaces;
@@ -159,6 +163,15 @@ function AppContent() {
     preferences.typographyPreferences,
     fontCatalog,
     locale,
+  );
+  const projectSwitcherCompactWidth = resolveProjectSwitcherRailWidth();
+  const projectSwitcherExpandedWidth = resolveProjectSwitcherRailWidth(
+    true,
+    preferences.projectSwitcherWidth,
+  );
+  const setProjectSwitcherCollapsed = useCallback(
+    (collapsed: boolean) => preferences.setProjectSwitcherExpanded(!collapsed),
+    [preferences.setProjectSwitcherExpanded],
   );
   const cloudAvailable = useFeatureFlag("cloudWorkspace");
   // The build flag only marks availability; PuppyOne Cloud stays hidden until
@@ -300,6 +313,7 @@ function AppContent() {
     sequence: 0,
     entries: [],
   });
+  const [workspaceAtomicRefreshToken, setWorkspaceAtomicRefreshToken] = useState(0);
   const workbenchDataService = useMemo(
     () => (workbenchWorkspace ? createWorkbenchDataService(workbenchWorkspace) : null),
     [workbenchWorkspace],
@@ -435,17 +449,26 @@ function AppContent() {
   const refreshWorkspaceContent = useCallback((
     paths: readonly string[] | string | null = null,
     workspaceFolderId: string | null = null,
+    presentation: "incremental" | "atomic" = "incremental",
   ) => {
     setWorkspaceRefreshToken((current) => appendWorkbenchWorkspaceContentChange(
       current,
       workbenchWorkspace,
       { paths, workspaceFolderId },
     ));
+    if (presentation === "atomic") {
+      setWorkspaceAtomicRefreshToken((current) => current + 1);
+    }
   }, [workbenchWorkspace]);
+  const refreshWorkspaceContentFromGit = useCallback((
+    presentation: "incremental" | "atomic" = "incremental",
+  ) => {
+    refreshWorkspaceContent(null, null, presentation);
+  }, [refreshWorkspaceContent]);
   const git = useDesktopGitController({
     workspace: focusedWorkspace,
     gitViewActive: activeView === "git",
-    onWorkspaceContentChanged: refreshWorkspaceContent,
+    onWorkspaceContentChanged: refreshWorkspaceContentFromGit,
     onEnterGitView: () => setActiveView("git"),
   });
   const invalidateGitStatus = git.invalidateGitStatus;
@@ -663,16 +686,6 @@ function AppContent() {
     setRightSidebarOpen,
   ]);
 
-  const switchProjectFromRail = useCallback(async (path: string) => {
-    if (path === workspace?.path) return;
-    try {
-      if (!await drainWorkspaceNavigation()) return;
-      await openWorkspacePath(path);
-    } catch (error) {
-      setRestoreWorkspaceError(error instanceof Error ? error.message : String(error));
-    }
-  }, [drainWorkspaceNavigation, openWorkspacePath, setRestoreWorkspaceError, workspace?.path]);
-
   const navigateDesktopView = useCallback((view: DesktopView) => {
     const requestId = ++desktopViewNavigationRequestRef.current;
     const routesToData = (
@@ -727,6 +740,31 @@ function AppContent() {
     cloudEnabled,
     experimentalSettings.enableViewerPlugins,
     setSidebarCollapsed,
+  ]);
+
+  useEffect(() => {
+    if (activeView !== "settings") lastProjectViewRef.current = activeView;
+  }, [activeView]);
+
+  const switchProjectFromRail = useCallback(async (path: string) => {
+    const projectView = lastProjectViewRef.current;
+    if (path === workspace?.path) {
+      navigateDesktopView(projectView);
+      return;
+    }
+    try {
+      if (!await drainWorkspaceNavigation()) return;
+      await openWorkspacePath(path);
+      navigateDesktopView(projectView);
+    } catch (error) {
+      setRestoreWorkspaceError(error instanceof Error ? error.message : String(error));
+    }
+  }, [
+    drainWorkspaceNavigation,
+    navigateDesktopView,
+    openWorkspacePath,
+    setRestoreWorkspaceError,
+    workspace?.path,
   ]);
 
   const handleActiveDataPathChange = useCallback(async (
@@ -1201,7 +1239,11 @@ function AppContent() {
       appearance={surfaceAppearance}
     />
   );
-  const feedbackInNavigationToolbar = toolsInNavigationToolbar
+  const projectSwitcherRailEnabled = experimentalSettings.enableProjectSwitcherRail;
+  const settingsWorkspaceActive = projectSwitcherRailEnabled && activeView === "settings";
+  const projectSwitcherRailVisible = projectSwitcherRailEnabled;
+  const feedbackInNavigationToolbar = !projectSwitcherRailVisible
+    && toolsInNavigationToolbar
     && sidebarNavigationPlacement === "top";
   const navigationToolbarActions = toolsInNavigationToolbar
     && (desktopRightSidebarEnabled || feedbackInNavigationToolbar) ? (
@@ -1224,19 +1266,38 @@ function AppContent() {
         {...surfaceAppearance.rootProps}
       >
         <DesktopCloudShell
-          leadingRail={experimentalSettings.enableProjectSwitcherRail ? (
+          leadingRail={projectSwitcherRailVisible ? (
             <ProjectSwitcherRail
+              activeView={activeView}
               activeWorkspace={workspace}
+              expanded={preferences.projectSwitcherExpanded}
               recentWorkspaces={recentWorkspaceItems}
               onCreateNew={() => setProjectEntryDialog("launcher")}
+              onOpenSettings={() => navigateDesktopView("settings")}
               onSelectProject={switchProjectFromRail}
+              utilitySlot={(
+                <DesktopHelpLauncher
+                  appearance={surfaceAppearance}
+                />
+              )}
             />
           ) : undefined}
-          leadingRailWidth={PROJECT_SWITCHER_RAIL_WIDTH}
-          leftSidebarCollapsed={sidebarCollapsed}
+          leadingRailWidth={projectSwitcherExpandedWidth}
+          leadingRailMinWidth={MIN_PROJECT_SWITCHER_EXPANDED_WIDTH}
+          leadingRailMaxWidth={MAX_PROJECT_SWITCHER_EXPANDED_WIDTH}
+          leadingRailCollapsed={!preferences.projectSwitcherExpanded}
+          leadingRailCollapsedWidth={projectSwitcherCompactWidth}
+          leadingRailCollapsedCssWidth="var(--desktop-chrome-height)"
+          leadingRailCollapseThreshold={MIN_PROJECT_SWITCHER_EXPANDED_WIDTH / 2}
+          resizableLeadingRail
+          onLeadingRailCollapsedChange={setProjectSwitcherCollapsed}
+          onLeadingRailWidthChange={preferences.setProjectSwitcherWidth}
+          leftSidebarCollapsed={settingsWorkspaceActive ? false : sidebarCollapsed}
           leftSidebarPresent={Boolean(dataPort)}
           leftSidebarWidth={explorerWidth}
-          titlebarSidebarSlot={titlebarSidebarSlot}
+          titlebarSidebarSlot={projectSwitcherRailEnabled
+            ? undefined
+            : titlebarSidebarSlot}
           titlebarActions={titlebarActions}
           navigationToolbarActions={navigationToolbarActions}
           locationBar={locationBarVisible ? (
@@ -1245,7 +1306,7 @@ function AppContent() {
               onNavigate={handleLocationBarNavigate}
             />
           ) : undefined}
-          rightSidebarOpen={rightSidebarOpen && desktopRightSidebarEnabled}
+          rightSidebarOpen={!settingsWorkspaceActive && rightSidebarOpen && desktopRightSidebarEnabled}
           resizableRightSidebar
           rightSidebarWidth={rightSidebarWidth}
           onLeftSidebarExpand={() => setSidebarCollapsed(false)}
@@ -1325,6 +1386,8 @@ function AppContent() {
           puppyoneConfigLoading={puppyoneConfigLoading}
           puppyoneConfigSaving={puppyoneConfigSaving}
           settingsSection={activeSettingsSection}
+          settingsNavigationVisible={!projectSwitcherRailEnabled}
+          workspaceNavigationVisible={!settingsWorkspaceActive}
           subThemeCatalog={subThemeCatalog}
           workspace={focusedWorkspace ?? workspace}
           workspaceFolders={workbenchWorkspace?.folders ?? []}
@@ -1332,12 +1395,15 @@ function AppContent() {
           workspaceSurfaceError={restoreWorkspaceError ?? documentNavigationError ?? workspaceSurfaceError}
           workspaceKey={workspaceKey}
           workspaceRefreshToken={workspaceRefreshToken}
+          workspaceAtomicRefreshToken={workspaceAtomicRefreshToken}
           sidebarCreateMenuOpen={Boolean(
             createEntryDraft
             && !createEntryDraft.selectedKind
             && createEntryDraft.anchor.placement === "auto-end"
           )}
-          sidebarUtility={feedbackInNavigationToolbar ? undefined : feedbackLauncher}
+          sidebarUtility={projectSwitcherRailVisible || feedbackInNavigationToolbar
+            ? undefined
+            : feedbackLauncher}
         />
         </DesktopCloudShell>
         <DesktopOverlayPortal

@@ -77,6 +77,8 @@ type DesktopWorkspaceContentProps = {
   puppyoneConfigLoading: boolean;
   puppyoneConfigSaving: boolean;
   settingsSection: SettingsSection;
+  settingsNavigationVisible?: boolean;
+  workspaceNavigationVisible?: boolean;
   sidebarCompanion?: ReactNode;
   sidebarUtility?: ReactNode;
   subThemeCatalog: SubThemeCatalogController;
@@ -86,6 +88,7 @@ type DesktopWorkspaceContentProps = {
   workspaceSurfaceError?: string | null;
   workspaceKey: string;
   workspaceRefreshToken: WorkspaceContentChange;
+  workspaceAtomicRefreshToken: number;
   sidebarCreateMenuOpen: boolean;
 };
 
@@ -123,6 +126,8 @@ export function DesktopWorkspaceContent({
   puppyoneConfigLoading,
   puppyoneConfigSaving,
   settingsSection,
+  settingsNavigationVisible = true,
+  workspaceNavigationVisible = true,
   sidebarCompanion,
   sidebarUtility,
   subThemeCatalog,
@@ -132,6 +137,7 @@ export function DesktopWorkspaceContent({
   workspaceSurfaceError = null,
   workspaceKey,
   workspaceRefreshToken,
+  workspaceAtomicRefreshToken,
   sidebarCreateMenuOpen,
 }: DesktopWorkspaceContentProps) {
   const { t } = useLocalization();
@@ -225,6 +231,8 @@ export function DesktopWorkspaceContent({
         workspaceChangeCount,
         onNavigate,
         onOpenSettings,
+        showSettings: settingsNavigationVisible,
+        showWorkspaceNavigation: workspaceNavigationVisible,
         onPullGit: git.handlePullGit,
       }}
       navigationComposition={navigationComposition}
@@ -245,6 +253,7 @@ export function DesktopWorkspaceContent({
       workspaceFolders={workspaceFolders}
       resolveWorkspaceResource={resolveWorkspaceResource}
       workspaceRefreshToken={workspaceRefreshToken}
+      workspaceAtomicRefreshToken={workspaceAtomicRefreshToken}
       workspaceSurfaceError={workspaceSurfaceError}
       sidebarCreateMenuOpen={sidebarCreateMenuOpen}
     />

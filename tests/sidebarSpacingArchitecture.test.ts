@@ -7,6 +7,7 @@ const titlebarCss = readCss("../src/styles/titlebar.css");
 const sidebarPrimitivesCss = readCss("../packages/shared-ui/src/styles/sidebar-primitives.css");
 const sidebarPatternsCss = readCss("../src/styles/sidebar/patterns.css");
 const dataAdapterCss = readCss("../src/features/data-workspace/browser.css");
+const projectSwitcherCss = readCss("../src/features/app-shell/project-switcher-rail.css");
 const dataShellCss = readCss("../src/features/data-workspace/data-shell.css");
 const dataTreeCss = readCss("../packages/shared-ui/src/styles/data-workspace.css");
 const dataWorkspaceSource = readFileSync(
@@ -240,6 +241,15 @@ describe("sidebar spacing architecture", () => {
 
   it("maps the Data tree onto the shared edge contract", () => {
     const adapter = readCssBlock(dataAdapterCss, ".desktop-data-workspace-wrap");
+    const projectRail = readCssBlock(projectSwitcherCss, ".desktop-project-switcher-rail");
+    const projectRailButton = readCssBlock(
+      projectSwitcherCss,
+      ".desktop-project-switcher-rail-button",
+    );
+    const projectRailList = readCssBlock(
+      projectSwitcherCss,
+      ".desktop-project-switcher-rail-list",
+    );
     const list = compact(readCssBlock(dataTreeCss, ".explorer-tree-list"));
     const treeShell = compact(readCssBlock(dataTreeCss, ".explorer-tree-shell"));
     const treeRow = compact(readCssBlock(dataTreeCss, ".tree-row"));
@@ -254,9 +264,55 @@ describe("sidebar spacing architecture", () => {
     expect(adapter).toContain("--po-tree-row-left-gap: var(--desktop-sidebar-row-left-gap);");
     expect(adapter).toContain("--po-tree-row-right-gap: var(--desktop-sidebar-row-right-gap);");
     expect(adapter).toContain("--po-tree-row-radius: var(--desktop-sidebar-row-radius);");
-    expect(adapter).toContain("--po-tree-no-root-top-gap: var(--desktop-sidebar-list-padding-block);");
+    expect(adapter).toContain("--po-tree-root-top-gap: var(--desktop-sidebar-row-left-gap);");
+    expect(adapter).toContain("--po-tree-no-root-top-gap: var(--desktop-sidebar-row-left-gap);");
     expect(adapter).toContain("--po-tree-list-bottom-gap: var(--desktop-sidebar-list-padding-block);");
     expect(adapter).toContain("--po-tree-row-icon-label-gap: var(--desktop-sidebar-icon-label-gap);");
+    expect(dataAdapterCss).toContain(`.app-shell.dark :is(
+  .desktop-project-switcher-rail,
+  .desktop-data-workspace-wrap .explorer-column
+)`);
+    expect(projectSwitcherCss).toContain("gap: 6px;");
+    expect(projectRail).toContain(
+      "--desktop-project-switcher-button-size: var(--desktop-sidebar-row-height);",
+    );
+    expect(projectRail).toContain("--desktop-project-switcher-avatar-size: 18px;");
+    expect(projectRailButton).toContain("width: var(--desktop-project-switcher-button-size);");
+    expect(projectRailButton).toContain("height: var(--desktop-project-switcher-button-size);");
+    expect(projectRailButton).toContain("margin: 1px 0;");
+    expect(projectRailButton).toContain("justify-content: center;");
+    expect(projectRailButton).toContain("padding: 0;");
+    expect(projectRailList).toContain("justify-items: center;");
+    expect(projectRailList).toContain("padding-inline: 0;");
+    expect(projectSwitcherCss).toMatch(
+      /\.desktop-project-switcher-rail-avatar\s*\{[^}]*width:\s*var\(--desktop-project-switcher-avatar-size\);[^}]*height:\s*var\(--desktop-project-switcher-avatar-size\);/s,
+    );
+    expect(compact(projectSwitcherCss)).toContain(compact(`
+      .desktop-project-switcher-rail:not([data-expanded="true"])
+        .desktop-project-switcher-rail-utilities.desktop-sidebar-navigation-surface {
+        --desktop-project-switcher-compact-utilities-height: calc(
+          2 * var(--desktop-sidebar-virtual-row-size)
+          + var(--desktop-sidebar-list-padding-block)
+        );
+
+        flex: 0 0 var(--desktop-project-switcher-compact-utilities-height);
+        align-items: flex-start;
+        justify-content: center;
+        min-height: var(--desktop-project-switcher-compact-utilities-height);
+        padding-block: 0 var(--desktop-sidebar-list-padding-block);
+        padding-inline: 0;
+      }
+    `));
+    expect(compact(projectSwitcherCss)).toContain(compact(`
+      .desktop-project-switcher-rail:not([data-expanded="true"])
+        .desktop-project-switcher-rail-utilities
+        .desktop-sidebar-footer-actions {
+        width: var(--desktop-project-switcher-button-size);
+        flex-direction: column-reverse;
+        align-items: stretch;
+        gap: 0;
+      }
+    `));
     expect(adapter).toContain("--po-tree-row-font-size: var(--po-type-left-sidebar-content);");
     expect(adapter).toContain("--po-tree-row-font-weight: var(--desktop-sidebar-font-weight);");
     expect(adapter).toContain("--po-tree-row-line-height: var(--po-type-left-sidebar-line-height);");

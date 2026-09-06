@@ -68,6 +68,8 @@
   "workspaceSwitcher.localProjects": "Projets locaux",
   "workspaceSwitcher.addProject": "Ajouter un projet…",
   "workspaceSwitcher.projects": "Projets",
+  "workspaceSwitcher.expandProjects": "Développer le volet des projets",
+  "workspaceSwitcher.resizeProjects": "Redimensionner le volet des projets",
   "workspaceSwitcher.openFolder": "Ouvrir un dossier…",
   "workspaceSwitcher.removeProject": "Retirer le projet",
   "workspaceSwitcher.removeProjectNamed": "Retirer {name} de cet espace de travail",

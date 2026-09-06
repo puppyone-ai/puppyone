@@ -295,10 +295,13 @@
   --po-tree-workspace-group-font-weight: var(--desktop-sidebar-section-title-font-weight);
   --po-tree-workspace-group-line-height: var(--po-type-left-sidebar-line-height);
   --po-tree-workspace-group-divider: var(--po-sidebar-divider, var(--po-divider));
-  --po-tree-root-top-gap: var(--desktop-sidebar-section-top-gap);
-  --po-tree-no-root-top-gap: var(--desktop-sidebar-list-padding-block);
+  /* The first file row shares one optical edge inset on both axes. Keeping
+     rooted and rootless trees on the horizontal row token prevents their top
+     alignment from drifting when Sidebar spacing changes. */
+  --po-tree-root-top-gap: var(--desktop-sidebar-row-left-gap);
+  --po-tree-no-root-top-gap: var(--desktop-sidebar-row-left-gap);
   --po-tree-list-bottom-gap: var(--desktop-sidebar-list-padding-block);
-  --data-explorer-footer-height: var(--desktop-sidebar-navigation-height);
+  --data-explorer-footer-height: auto;
   --data-explorer-footer-min-height: var(--desktop-sidebar-navigation-height);
 
   position: relative;
@@ -352,11 +355,18 @@
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
   align-items: center;
-  margin: 0 0 8px;
+  margin: 0;
   padding: 9px 9px 8px 10px;
   border: 0;
   border-radius: 8px;
   background: color-mix(in srgb, var(--po-text) 11%, var(--po-sidebar));
+}
+
+.desktop-sidebar-lower-notice {
+  padding:
+    var(--desktop-sidebar-navigation-padding-inner)
+    var(--desktop-sidebar-navigation-padding-inline)
+    0;
 }
 
 .desktop-remote-update-notice[data-diverged="true"] {
@@ -390,7 +400,10 @@
   grid-row: 1;
 }
 
-.app-shell.dark .desktop-data-workspace-wrap .explorer-column {
+.app-shell.dark :is(
+  .desktop-project-switcher-rail,
+  .desktop-data-workspace-wrap .explorer-column
+) {
   --po-text: #d2cec5;
   --po-text-muted: #b9b6ae;
   --po-text-subtle: #87837c;

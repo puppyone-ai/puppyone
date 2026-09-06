@@ -9,10 +9,19 @@ import {
   type RefObject,
 } from "react";
 import { PanelLeft } from "lucide-react";
+import {
+  SidebarResizeHandle,
+  useCollapsiblePaneResize,
+  type SidebarResizeIntent,
+} from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization";
 import { AuxiliaryPanelHost } from "../features/app-shell/auxiliary";
 import { DesktopShellAccessoryProvider } from "../features/app-shell/DesktopShellAccessoryContext";
 import { DesktopPaneLayoutProvider } from "../features/app-shell/layout/DesktopPaneLayoutContext";
+import {
+  useNativeSurfacePointerPassthroughActivity,
+  useNativeSurfacePointerRoutingRegion,
+} from "../features/native-surfaces";
 import {
   DEFAULT_EXPLORER_WIDTH,
   DEFAULT_RIGHT_SIDEBAR_WIDTH,
@@ -33,6 +42,13 @@ type DesktopCloudShellProps = {
   children: ReactNode;
   leadingRail?: ReactNode;
   leadingRailWidth?: number;
+  leadingRailMinWidth?: number;
+  leadingRailMaxWidth?: number;
+  leadingRailCollapsed?: boolean;
+  leadingRailCollapsedWidth?: number;
+  leadingRailCollapsedCssWidth?: string;
+  leadingRailCollapseThreshold?: number;
+  resizableLeadingRail?: boolean;
   titlebarSidebarSlot?: ReactNode;
   titlebarEditorSlot?: ReactNode;
   titlebarActions?: ReactNode;
@@ -51,6 +67,8 @@ type DesktopCloudShellProps = {
   maxRightSidebarWidth?: number;
   resizableRightSidebar?: boolean;
   onLeftSidebarExpand?: () => void;
+  onLeadingRailCollapsedChange?: (collapsed: boolean) => void;
+  onLeadingRailWidthChange?: (width: number) => void;
   onRightSidebarOpenChange?: (open: boolean) => void;
   onRightSidebarWidthChange?: (width: number) => void;
 };
@@ -59,6 +77,13 @@ export function DesktopCloudShell({
   children,
   leadingRail,
   leadingRailWidth = 0,
+  leadingRailMinWidth = 160,
+  leadingRailMaxWidth = 360,
+  leadingRailCollapsed = false,
+  leadingRailCollapsedWidth = 0,
+  leadingRailCollapsedCssWidth,
+  leadingRailCollapseThreshold,
+  resizableLeadingRail = false,
   titlebarSidebarSlot,
   titlebarEditorSlot,
   titlebarActions,
@@ -77,15 +102,59 @@ export function DesktopCloudShell({
   maxRightSidebarWidth,
   resizableRightSidebar = false,
   onLeftSidebarExpand,
+  onLeadingRailCollapsedChange,
+  onLeadingRailWidthChange,
   onRightSidebarOpenChange,
   onRightSidebarWidthChange,
 }: DesktopCloudShellProps) {
   const { t } = useLocalization();
   const bodyRef = useRef<HTMLDivElement>(null);
   const [navigationToolbarHost, setNavigationToolbarHost] = useState<HTMLDivElement | null>(null);
+  const [leadingRailResizerElement, setLeadingRailResizerElement] = useState<HTMLDivElement | null>(null);
   const bodyWidth = useObservedElementWidth(bodyRef);
+  const resolvedLeadingRailMinWidth = Math.max(0, Math.round(leadingRailMinWidth));
+  const resolvedLeadingRailMaxWidth = Math.max(
+    resolvedLeadingRailMinWidth,
+    Math.round(leadingRailMaxWidth),
+  );
+  const resolvedLeadingRailCollapsedWidth = clamp(
+    Math.round(leadingRailCollapsedWidth),
+    0,
+    resolvedLeadingRailMinWidth,
+  );
+  const resolvedLeadingRailCollapseThreshold = clamp(
+    Math.round(leadingRailCollapseThreshold ?? resolvedLeadingRailMinWidth / 2),
+    0,
+    resolvedLeadingRailMinWidth,
+  );
+  const leadingRailResizable = Boolean(
+    leadingRail && resizableLeadingRail && onLeadingRailWidthChange,
+  );
+  const leadingRailCanCollapse = Boolean(onLeadingRailCollapsedChange);
+  const onLeadingRailResizeActiveChange = useNativeSurfacePointerPassthroughActivity(
+    "explorer-resize",
+  );
+  useNativeSurfacePointerRoutingRegion("explorer-resize", leadingRailResizerElement);
+  const leadingRailResize = useCollapsiblePaneResize({
+    bodyClassName: "desktop-project-switcher-resizing",
+    collapsed: leadingRailCollapsed,
+    collapsedWidth: resolvedLeadingRailCollapsedWidth,
+    collapseThreshold: leadingRailCanCollapse ? resolvedLeadingRailCollapseThreshold : 0,
+    direction: getDocumentDirection(),
+    enabled: leadingRailResizable,
+    maxWidth: resolvedLeadingRailMaxWidth,
+    minWidth: resolvedLeadingRailMinWidth,
+    side: "inline-start",
+    width: leadingRailWidth,
+    widthChangeMode: "end",
+    onCollapsedChange: onLeadingRailCollapsedChange,
+    onDragActiveChange: onLeadingRailResizeActiveChange,
+    onWidthChange: onLeadingRailWidthChange ?? noopWidthChange,
+  });
   const resolvedLeadingRailWidth = leadingRail
-    ? Math.max(0, Math.round(leadingRailWidth))
+    ? leadingRailResizable
+      ? leadingRailResize.width
+      : Math.max(0, Math.round(leadingRailWidth))
     : 0;
   const paneLayout = useMemo(() => resolveDesktopPaneLayout({
     // The Project rail sits beside the workspace column below the Header, so
@@ -134,7 +203,9 @@ export function DesktopCloudShell({
       : "expanded";
   const shellStyle = {
     "--desktop-shell-explorer-width": `${paneLayout.explorer.width}px`,
-    "--desktop-shell-leading-rail-width": `${resolvedLeadingRailWidth}px`,
+    "--desktop-shell-leading-rail-width": leadingRailCollapsed && leadingRailCollapsedCssWidth
+      ? leadingRailCollapsedCssWidth
+      : `${resolvedLeadingRailWidth}px`,
   } as CSSProperties;
 
   useEffect(() => {
@@ -144,6 +215,47 @@ export function DesktopCloudShell({
   useEffect(() => () => {
     publishWindowMinimumWidth(0);
   }, []);
+
+  const resizeLeadingRailByKeyboard = (
+    intent: SidebarResizeIntent,
+    accelerated: boolean,
+  ) => {
+    if (!leadingRailResizable || !onLeadingRailWidthChange) return;
+    if (intent === "minimum") {
+      if (leadingRailCanCollapse) {
+        onLeadingRailCollapsedChange?.(true);
+        return;
+      }
+      onLeadingRailWidthChange(resolvedLeadingRailMinWidth);
+      return;
+    }
+    if (intent === "maximum") {
+      onLeadingRailCollapsedChange?.(false);
+      onLeadingRailWidthChange(resolvedLeadingRailMaxWidth);
+      return;
+    }
+    const step = accelerated ? 24 : 12;
+    const physicalDirection = intent === "decrease" ? -1 : 1;
+    const directionMultiplier = getDocumentDirection() === "rtl" ? -1 : 1;
+    const nextWidth = resolvedLeadingRailWidth
+      + physicalDirection * directionMultiplier * step;
+    if (leadingRailCollapsed) {
+      if (nextWidth > resolvedLeadingRailCollapsedWidth) {
+        onLeadingRailCollapsedChange?.(false);
+        onLeadingRailWidthChange(resolvedLeadingRailMinWidth);
+      }
+      return;
+    }
+    if (leadingRailCanCollapse && nextWidth < resolvedLeadingRailMinWidth) {
+      onLeadingRailCollapsedChange?.(true);
+      return;
+    }
+    onLeadingRailWidthChange(clamp(
+      nextWidth,
+      resolvedLeadingRailMinWidth,
+      resolvedLeadingRailMaxWidth,
+    ));
+  };
 
   return (
     <div
@@ -187,6 +299,28 @@ export function DesktopCloudShell({
           {leadingRail && (
             <div className="desktop-shell-leading-rail">
               {leadingRail}
+              {leadingRailResizable && (
+                <SidebarResizeHandle
+                  ref={setLeadingRailResizerElement}
+                  className="desktop-project-switcher-resizer"
+                  collapsedEdgeSide={leadingRailCollapsed ? "inline-start" : undefined}
+                  paneEdge
+                  orientation="vertical"
+                  label={t(leadingRailCollapsed
+                    ? "shell.workspaceSwitcher.expandProjects"
+                    : "shell.workspaceSwitcher.resizeProjects")}
+                  min={leadingRailCanCollapse
+                    ? resolvedLeadingRailCollapsedWidth
+                    : resolvedLeadingRailMinWidth}
+                  max={resolvedLeadingRailMaxWidth}
+                  value={resolvedLeadingRailWidth}
+                  onCollapsedActivate={leadingRailCollapsed
+                    ? () => onLeadingRailCollapsedChange?.(false)
+                    : undefined}
+                  onPointerDown={leadingRailResize.onPointerDown}
+                  onKeyboardResize={resizeLeadingRailByKeyboard}
+                />
+              )}
             </div>
           )}
           <div className="desktop-shell-workspace-column">
@@ -284,3 +418,13 @@ function publishWindowMinimumWidth(width: number) {
     // Browser-only surfaces intentionally have no Electron bridge.
   }
 }
+
+function getDocumentDirection() {
+  return document.documentElement.dir === "rtl" ? "rtl" : "ltr";
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function noopWidthChange() {}

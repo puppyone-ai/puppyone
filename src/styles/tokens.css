@@ -15,6 +15,7 @@
   --desktop-sidebar-nav-padding: 4px;
   --desktop-sidebar-navigation-padding-outer: 12px;
   --desktop-sidebar-navigation-padding-inner: 4px;
+  --desktop-sidebar-navigation-padding-balanced: 8px;
   --desktop-sidebar-navigation-padding-inline: 12px;
   --desktop-sidebar-navigation-height: calc(
     var(--desktop-sidebar-control-size)

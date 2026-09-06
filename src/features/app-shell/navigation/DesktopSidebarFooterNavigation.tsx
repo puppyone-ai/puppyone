@@ -14,6 +14,7 @@ export function DesktopSidebarFooterNavigation({
   workspaceChangeCount,
   onNavigate,
   onOpenSettings,
+  showSettings = true,
   utilitySlot,
 }: DesktopNavigationProps) {
   const { cloudHubItems, localItems } = resolveNavigationItems({
@@ -42,11 +43,13 @@ export function DesktopSidebarFooterNavigation({
         {cloudHubItems.length > 0 && (
           <DesktopNavigationItems {...runtime} buttonClassName="desktop-sidebar-footer-button" items={cloudHubItems} />
         )}
-        <DesktopSidebarSettingsButton
-          activeView={activeView}
-          buttonClassName="desktop-sidebar-footer-button"
-          onOpenSettings={onOpenSettings}
-        />
+        {showSettings && (
+          <DesktopSidebarSettingsButton
+            activeView={activeView}
+            buttonClassName="desktop-sidebar-footer-button"
+            onOpenSettings={onOpenSettings}
+          />
+        )}
       </div>
       {utilitySlot != null && (
         <div className="desktop-sidebar-footer-actions desktop-sidebar-footer-actions-right">

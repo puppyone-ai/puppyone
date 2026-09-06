@@ -56,6 +56,8 @@ import {
   AGENT_PREFERRED_RUNTIME_STORAGE_KEY,
   AGENT_PREFERRED_MODEL_STORAGE_KEY,
   EXPLORER_WIDTH_STORAGE_KEY,
+  PROJECT_SWITCHER_EXPANDED_STORAGE_KEY,
+  PROJECT_SWITCHER_WIDTH_STORAGE_KEY,
   RIGHT_SIDEBAR_WIDTH_STORAGE_KEY,
   RIGHT_SIDEBAR_SURFACE_STORAGE_KEY,
   SIDEBAR_COLLAPSED_STORAGE_KEY,
@@ -66,6 +68,8 @@ import {
   readInitialCreateNewMenuSettings,
   readInitialExperimentalSettings,
   readInitialExplorerWidth,
+  readInitialProjectSwitcherExpanded,
+  readInitialProjectSwitcherWidth,
   readInitialFilesVisibilitySettings,
   readInitialGitDisplayMode,
   readInitialGitSidebarLayout,
@@ -148,6 +152,12 @@ export function useDesktopPreferences(
   const [aiEditAssistEnabled, setAiEditAssistEnabled] = useState(() => readInitialAiEditAssistEnabled());
   const [explorerWidth, setExplorerWidth] = useState(() => readInitialExplorerWidth());
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readInitialSidebarCollapsed());
+  const [projectSwitcherExpanded, setProjectSwitcherExpanded] = useState(
+    () => readInitialProjectSwitcherExpanded(),
+  );
+  const [projectSwitcherWidth, setProjectSwitcherWidth] = useState(
+    () => readInitialProjectSwitcherWidth(),
+  );
   const [rightSidebarOpen, setRightSidebarOpen] = useState(false);
   const [rightSidebarWidth, setRightSidebarWidth] = useState(() => readInitialRightSidebarWidth());
   const [rightSidebarSurface, setRightSidebarSurface] = useState(() => readInitialRightSidebarSurface());
@@ -464,6 +474,17 @@ export function useDesktopPreferences(
   }, [sidebarCollapsed]);
 
   useEffect(() => {
+    window.localStorage.setItem(
+      PROJECT_SWITCHER_EXPANDED_STORAGE_KEY,
+      projectSwitcherExpanded ? "true" : "false",
+    );
+  }, [projectSwitcherExpanded]);
+
+  useEffect(() => {
+    window.localStorage.setItem(PROJECT_SWITCHER_WIDTH_STORAGE_KEY, String(projectSwitcherWidth));
+  }, [projectSwitcherWidth]);
+
+  useEffect(() => {
     window.localStorage.setItem(RIGHT_SIDEBAR_WIDTH_STORAGE_KEY, String(rightSidebarWidth));
   }, [rightSidebarWidth]);
 
@@ -533,6 +554,8 @@ export function useDesktopPreferences(
     themeMode,
     typographyPreferences,
     pointerCursors,
+    projectSwitcherExpanded,
+    projectSwitcherWidth,
     setAiEditAssistEnabled,
     setDiffMarkers,
     setMarkdownPresentation,
@@ -560,6 +583,8 @@ export function useDesktopPreferences(
     setLoadingAnimationPreset,
     setLocalAgentsSettings,
     setPointerCursors,
+    setProjectSwitcherExpanded,
+    setProjectSwitcherWidth,
     setThemeMode,
     setTypographyPreferences,
   };

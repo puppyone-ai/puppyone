@@ -127,6 +127,36 @@ describe("ExplorerTree interactive semantics", () => {
     expect(loadingRow?.querySelector('[aria-label="Loading workspace"]')).not.toBeNull();
   });
 
+  it("uses file-row skeletons instead of dot loaders for nested folder hydration", () => {
+    const folder: DataNode = {
+      id: "folder",
+      name: "folder",
+      path: "folder",
+      type: "folder",
+    };
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    act(() => renderWithTestLocalization(root,
+      <ExplorerTree
+        nodes={[folder]}
+        activePath={null}
+        expandedPaths={new Set([folder.path])}
+        loadingPaths={new Set([folder.path])}
+        loadingPresentation="skeleton"
+        showRoot={false}
+        loadingLabel="Loading folder"
+        onSelectNode={vi.fn()}
+      />,
+    ));
+
+    expect(container.querySelector("[data-puppy-loader]")).toBeNull();
+    expect(container.querySelector(".explorer-tree-branch-skeleton")).not.toBeNull();
+    expect(container.querySelector('[data-explorer-path="folder"]')?.getAttribute("aria-busy")).toBe("true");
+    expect(container.querySelector('[aria-label="Loading folder"]')).not.toBeNull();
+  });
+
   it("keeps row actions outside button ancestry and preserves keyboard activation", () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const onSelectNode = vi.fn();

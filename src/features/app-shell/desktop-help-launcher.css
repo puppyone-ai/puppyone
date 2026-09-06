@@ -17,7 +17,7 @@
   border: 0;
   border-radius: var(--desktop-control-radius);
   background: transparent;
-  color: color-mix(in srgb, var(--po-text-subtle) 88%, transparent);
+  color: var(--po-text-muted);
   box-shadow: none;
   cursor: var(--po-clickable-cursor, default);
   transition:
@@ -37,13 +37,13 @@
 }
 
 .desktop-help-launcher:hover {
-  background: transparent;
-  color: var(--po-text-muted);
+  background: var(--po-hover);
+  color: var(--po-text);
 }
 
 .desktop-feedback[data-open="true"] .desktop-help-launcher {
-  background: transparent;
-  color: var(--po-text-muted);
+  background: var(--po-selected);
+  color: var(--po-text);
 }
 
 .desktop-help-launcher:focus-visible {

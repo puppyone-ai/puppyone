@@ -40,7 +40,10 @@ import {
 } from "../editor/markdown/linkIndex";
 import { resolveMarkdownAssetPath } from "../editor/markdown/assetResolution";
 import { createDocumentNavigationPort } from "../editor/navigation/documentNavigation";
-import { ExplorerTree } from "./ExplorerTree";
+import {
+  ExplorerTree,
+  type ExplorerLoadingPresentation,
+} from "./ExplorerTree";
 import { FilePreview, type FilePreviewProps } from "../editor/host/FilePreview";
 import { useFileResourceLease } from "../editor/resource/useFileResourceLease";
 import { ProjectsHeader } from "./ProjectsHeader";
@@ -144,6 +147,7 @@ export type DataWorkspaceProps = {
   collapsedExplorerSlot?: DataWorkspaceSlot;
   explorerListStartSlot?: DataWorkspaceSlot;
   explorerListEndSlot?: DataWorkspaceSlot;
+  explorerLoadingPresentation?: ExplorerLoadingPresentation;
   showExplorerRoot?: boolean;
   explorerRootContentSlot?: DataWorkspaceSlot;
   explorerRootActionSlot?: DataWorkspaceSlot;
@@ -176,6 +180,12 @@ export type DataWorkspaceProps = {
   enableMarkdownLinkContentIndexing?: boolean;
   folderExpansionStrategy?: DataWorkspaceFolderExpansionStrategy;
   refreshKey?: WorkspaceContentChange;
+  /**
+   * Changes only for snapshot-replacing refreshes such as a Git checkout.
+   * The Explorer keeps the replacement private until its expanded tree is
+   * coherent, while ordinary file notifications remain incremental.
+   */
+  atomicRefreshKey?: number;
   onExplorerWidthChange?: (width: number) => void;
   onExplorerCollapsedChange?: (collapsed: boolean) => void;
   onExplorerResizeActiveChange?: (active: boolean) => void;
@@ -209,6 +219,7 @@ export type DataWorkspaceProps = {
 
 const ROOT_FOLDER_KEY = "__puppyone_workspace_root__";
 const EMPTY_PATH_LIST: readonly string[] = Object.freeze([]);
+const EMPTY_DATA_NODE_LIST: readonly DataNode[] = Object.freeze([]);
 const DEFAULT_EXPLORER_WIDTH = 320;
 const MIN_EXPLORER_WIDTH = 240;
 const MAX_EXPLORER_WIDTH = 520;
@@ -236,6 +247,7 @@ export function DataWorkspace({
   collapsedExplorerSlot,
   explorerListStartSlot,
   explorerListEndSlot,
+  explorerLoadingPresentation = "dots",
   showExplorerRoot = true,
   explorerRootContentSlot,
   explorerRootActionSlot,
@@ -268,6 +280,7 @@ export function DataWorkspace({
   enableMarkdownLinkContentIndexing = true,
   folderExpansionStrategy = "load-before-expand",
   refreshKey,
+  atomicRefreshKey = 0,
   onExplorerWidthChange,
   onExplorerCollapsedChange,
   onExplorerResizeActiveChange,
@@ -298,6 +311,10 @@ export function DataWorkspace({
   ));
   const [selectionAnchorPath, setSelectionAnchorPath] = useState<string | null>(defaultActivePath);
   const [rootLoaded, setRootLoadedState] = useState(initialExplorerSession?.rootLoaded ?? false);
+  const [initialExplorerHydrationPending, setInitialExplorerHydrationPending] = useState(
+    () => !initialExplorerSession?.rootLoaded,
+  );
+  const [completedAtomicRefreshKey, setCompletedAtomicRefreshKey] = useState(atomicRefreshKey);
   const [loadingFolderPaths, setLoadingFolderPaths] = useState<Set<string>>(() => (
     initialExplorerSession?.rootLoaded ? new Set() : new Set([ROOT_FOLDER_KEY])
   ));
@@ -494,6 +511,7 @@ export function DataWorkspace({
     setSelectionAnchorPath(defaultActivePath);
     setTree([...(initialExplorerSession?.tree ?? [])]);
     setRootLoaded(initialExplorerSession?.rootLoaded ?? false);
+    setInitialExplorerHydrationPending(!initialExplorerSession?.rootLoaded);
     setExpandedFolderPaths(new Set([
       ...(initialExplorerSession?.expandedPaths ?? EMPTY_PATH_LIST),
       ...defaultExpandedPaths,
@@ -532,17 +550,29 @@ export function DataWorkspace({
 
   useEffect(() => {
     const requestGeneration = loadGenerationRef.current;
+    let cancelled = false;
     void (async () => {
-      const rootReady = await loadFolder(null, true);
-      if (!rootReady || requestGeneration !== loadGenerationRef.current) return;
-      const foldersToRevalidate = [...expandedFolderPathsRef.current]
-        .sort((left, right) => left.split("/").length - right.split("/").length);
-      for (const folderPath of foldersToRevalidate) {
-        if (requestGeneration !== loadGenerationRef.current) return;
-        if (failedFolderPathsRef.current.has(folderPath)) continue;
-        await loadFolder(folderPath, true);
+      try {
+        const rootReady = await loadFolder(null, true);
+        if (!rootReady || requestGeneration !== loadGenerationRef.current) return;
+        const foldersToRevalidate = [...expandedFolderPathsRef.current]
+          .sort((left, right) => left.split("/").length - right.split("/").length);
+        for (const folderPath of foldersToRevalidate) {
+          if (requestGeneration !== loadGenerationRef.current) return;
+          if (failedFolderPathsRef.current.has(folderPath)) continue;
+          const folder = findDataNode(treeRef.current, folderPath);
+          if (!folder || folder.type !== "folder") continue;
+          await loadFolder(folderPath, true);
+        }
+      } finally {
+        if (!cancelled && requestGeneration === loadGenerationRef.current) {
+          setInitialExplorerHydrationPending(false);
+        }
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [dataPort, loadFolder, workspace.id, workspace.path]);
 
   useEffect(() => {
@@ -572,20 +602,40 @@ export function DataWorkspace({
     }
 
     lastRefreshKeyRef.current = refreshKey;
+    const pendingAtomicRefreshKey = atomicRefreshKey;
+    const atomicRefresh = completedAtomicRefreshKey !== pendingAtomicRefreshKey;
+    if (atomicRefresh) {
+      loadGenerationRef.current += 1;
+      folderLoadRequestsRef.current.clear();
+      setLoadingFolderPaths(new Set([ROOT_FOLDER_KEY]));
+      failedFolderPathsRef.current = new Set();
+      setFailedFolderPathsState(failedFolderPathsRef.current);
+      setLoadError(null);
+    }
     const loadedFolderPaths = Array.from(new Set([
       ...collectLoadedFolderPaths(tree),
       ...collectAncestorFolderPaths(resolvedActivePath),
     ])).sort((left, right) => left.split("/").length - right.split("/").length);
     const requestGeneration = loadGenerationRef.current;
     void (async () => {
-      const rootReady = await loadFolder(null, true);
-      if (!rootReady || requestGeneration !== loadGenerationRef.current) return;
-      for (const folderPath of loadedFolderPaths) {
-        if (requestGeneration !== loadGenerationRef.current) return;
-        await loadFolder(folderPath, true);
+      try {
+        const rootReady = await loadFolder(null, true);
+        if (!rootReady || requestGeneration !== loadGenerationRef.current) return;
+        for (const folderPath of loadedFolderPaths) {
+          if (requestGeneration !== loadGenerationRef.current) return;
+          const folder = findDataNode(treeRef.current, folderPath);
+          if (!folder || folder.type !== "folder") continue;
+          await loadFolder(folderPath, true);
+        }
+      } finally {
+        if (atomicRefresh && requestGeneration === loadGenerationRef.current) {
+          setCompletedAtomicRefreshKey(pendingAtomicRefreshKey);
+        }
       }
     })();
   }, [
+    atomicRefreshKey,
+    completedAtomicRefreshKey,
     loadFolder,
     refreshKey,
     resolvedActivePath,
@@ -644,6 +694,11 @@ export function DataWorkspace({
     .map((label) => ({ label }));
   const loadingPath = getFirstSetValue(loadingFolderPaths);
   const rootLoading = loadingFolderPaths.has(ROOT_FOLDER_KEY);
+  const atomicRefreshPending = completedAtomicRefreshKey !== atomicRefreshKey;
+  const explorerPresentationPending = (
+    initialExplorerHydrationPending
+    || atomicRefreshPending
+  );
   const filesExplorerActive = !explorerSlot;
 
   useEffect(() => {
@@ -1382,7 +1437,7 @@ export function DataWorkspace({
                     aria-hidden={filesExplorerActive ? undefined : true}
                   >
                     <ExplorerTree
-                      nodes={tree}
+                      nodes={explorerPresentationPending ? EMPTY_DATA_NODE_LIST : tree}
                       dragWorkspaceId={workspace.id}
                       activePath={resolvedActivePath}
                       selectedPaths={selectedNodePaths}
@@ -1390,7 +1445,8 @@ export function DataWorkspace({
                       currentFolderPath={currentFolderPath}
                       expandedPaths={expandedFolderPaths}
                       loadingPaths={loadingFolderPaths}
-                      rootLoading={rootLoading}
+                      rootLoading={explorerPresentationPending || rootLoading}
+                      loadingPresentation={explorerLoadingPresentation}
                       rootError={loadError}
                       rootLabel={labels?.root ?? t("shared-ui.explorer.root")}
                       showRoot={showExplorerRoot}
