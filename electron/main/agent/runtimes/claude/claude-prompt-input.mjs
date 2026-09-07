@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { formatAuthorizedWorkspaceReferencePrompt } from "../../security/authorized-workspace-reference-prompt.mjs";
+import { authorizedWorkspaceReferencePath, formatAuthorizedWorkspaceReferencePrompt } from "../../security/authorized-workspace-reference-prompt.mjs";
 import {
   AGENT_REFERENCE_ERROR_CODES,
   agentReferenceError,
@@ -28,7 +28,7 @@ export async function buildClaudeUserMessageContent({ prompt, references = [], w
     if (seen.has(filename)) continue;
     seen.add(filename);
     const referenceKind = reference.kind === "staged-attachment" ? "staged-attachment" : "workspace-entry";
-    if (referenceKind === "workspace-entry" && !isInsideWorkspace(workspaceRoot, filename)) {
+    if (referenceKind === "workspace-entry" && !authorizedWorkspaceReferencePath(reference, workspaceRoot)) {
       throw referenceError(
         AGENT_REFERENCE_ERROR_CODES.unauthorized,
         "Claude Code received an unauthorized workspace reference outside the assigned workspace.",
@@ -75,12 +75,6 @@ async function materializeImage(reference, filename) {
       data: bytes.toString("base64"),
     },
   };
-}
-
-function isInsideWorkspace(workspaceRoot, filename) {
-  if (typeof workspaceRoot !== "string" || !path.isAbsolute(workspaceRoot)) return false;
-  const relative = path.relative(path.resolve(workspaceRoot), filename);
-  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 }
 
 function referenceError(code, message, cause) {

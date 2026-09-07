@@ -1,4 +1,5 @@
 import { assertAgentDisplay, assertAgentDisplayPatch } from "./display-schema.mjs";
+import { parseWorkspaceResourceReference } from "../workspace-resource-reference.mjs";
 import { AGENT_SESSION_OPEN_ERROR_CODES, agentContractLimits } from "./constants.mjs";
 import { assertAgentEventEnvelope } from "./event-schema.mjs";
 import { sanitizeAgentLocalConnectionsSnapshot } from "./local-connection-schema.mjs";
@@ -140,7 +141,7 @@ export function parseAgentIpcRequest(channel, value) {
     case "agent:reference-resolve-workspace":
       return {
         rootPath: requiredString(input.rootPath, "rootPath", MAX_PATH_LENGTH),
-        paths: boundedStringArray(input.paths, "paths", MAX_REFERENCE_COUNT, MAX_PATH_LENGTH),
+        paths: boundedStringArray(input.paths, "paths", MAX_REFERENCE_COUNT, 16_384),
       };
     case "agent:reference-pick-workspace":
       return { rootPath: requiredString(input.rootPath, "rootPath", MAX_PATH_LENGTH) };
@@ -618,10 +619,15 @@ function sanitizeDraftReference(value, label, requireReady) {
   if (kind === "workspace-entry") {
     const relativePath = normalizeAgentWorkspaceRelativePath(reference.relativePath);
     if (!relativePath) throw contractError(`${label}.relativePath`, "must remain workspace-relative");
+    const resourceUri = reference.resourceUri === undefined ? null : requiredString(reference.resourceUri, `${label}.resourceUri`, 16_384);
+    const resource = resourceUri ? parseWorkspaceResourceReference(resourceUri) : null;
+    if (resource && resource.relativePath !== relativePath) throw contractError(`${label}.resourceUri`, "must match the relative path");
     return {
       ...base,
       entryType: enumValue(reference.entryType, `${label}.entryType`, ["file", "directory"]),
       relativePath,
+      ...(resource ? { resourceUri, workspaceFolderId: resource.folderId } : {}),
+      ...(reference.workspaceName === undefined ? {} : { workspaceName: requiredString(reference.workspaceName, `${label}.workspaceName`, 512) }),
       ...(reference.mime === undefined ? {} : { mime: requiredString(reference.mime, `${label}.mime`, 160) }),
       ...(reference.size === undefined ? {} : { size: nonNegativeInteger(reference.size, `${label}.size`) }),
     };

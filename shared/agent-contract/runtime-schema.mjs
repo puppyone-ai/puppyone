@@ -133,6 +133,7 @@ export function normalizeReferenceInputCapabilities(value, legacy = {}) {
   return {
     schemaVersion: 1,
     workspace: {
+      ...(workspace.crossRoots === true ? { crossRoots: true } : {}),
       files: workspace.files === true
         || (workspace.files === undefined && (source.workspaceFiles === true || (source.workspaceFiles === undefined && legacyContext))),
       directories: workspace.directories === true

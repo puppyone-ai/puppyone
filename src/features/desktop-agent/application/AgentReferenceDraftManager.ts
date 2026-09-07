@@ -10,6 +10,7 @@ import type { AgentClientPort, AgentClientProvider } from "./AgentClientPort";
 import type { AgentControllerState } from "./agent-controller-state";
 import { AgentKnownError, formatAgentError } from "./agent-error";
 import { mergeAgentReferences } from "./agent-controller-values";
+import { parseWorkspaceResourceReference } from "../../../../shared/workspace-resource-reference.mjs";
 import {
   AgentReferencePreviewStore,
   createAgentFileVisualPreview,
@@ -30,6 +31,7 @@ export class AgentReferenceDraftManager {
   private retryWorkspacePaths = new Map<string, string>();
   private readonly previews = new AgentReferencePreviewStore();
   private epoch = createReferenceEpoch();
+  private acquisitionGeneration = 0;
 
   constructor(private readonly options: AgentReferenceDraftManagerOptions) {}
 
@@ -45,6 +47,7 @@ export class AgentReferenceDraftManager {
     paths: string[],
     visualPreviews: ReadonlyMap<string, AgentReferenceVisualPreview> = new Map(),
   ) {
+    const generation = this.acquisitionGeneration;
     const uniquePaths = Array.from(new Set(paths.filter(Boolean))).slice(0, 32);
     const acceptedPaths = new Set(uniquePaths);
     let bridge: AgentClientPort;
@@ -63,17 +66,26 @@ export class AgentReferenceDraftManager {
           rootPath: this.options.workspaceRoot,
           paths: [path],
         });
+        if (generation !== this.acquisitionGeneration) {
+          safeReleaseVisualPreview(visualPreviews.get(path));
+          return [];
+        }
         const preview = visualPreviews.get(path);
         if (preview && references.length > 0) this.previews.set(references[0]!.id, preview);
         else safeReleaseVisualPreview(preview);
         return references.map((reference) => this.withCapabilityStatus(reference));
       } catch (error) {
+        if (generation !== this.acquisitionGeneration) {
+          safeReleaseVisualPreview(visualPreviews.get(path));
+          return [];
+        }
         const reference = workspaceReferenceError(path, error);
         this.retryWorkspacePaths.set(reference.id, path);
         this.previews.set(reference.id, visualPreviews.get(path));
         return [reference];
       }
     }));
+    if (generation !== this.acquisitionGeneration) return 0;
     const references = resolved.flat();
     const state = this.options.readState();
     const existingIds = new Set(state.references.map((reference) => reference.id));
@@ -191,7 +203,7 @@ export class AgentReferenceDraftManager {
     void (async () => {
       await this.revoke([reference]);
       if (file) await this.stageExternalFiles([file]);
-      else if (reference.kind === "workspace-entry") await this.addWorkspacePaths([workspacePath ?? reference.relativePath]);
+      else if (reference.kind === "workspace-entry") await this.addWorkspacePaths([workspacePath ?? reference.resourceUri ?? reference.relativePath]);
     })();
   }
 
@@ -227,6 +239,7 @@ export class AgentReferenceDraftManager {
   }
 
   async rotate(references: AgentDraftReference[]) {
+    this.acquisitionGeneration += 1;
     await this.revoke(references);
     this.retryFiles.clear();
     this.retryWorkspacePaths.clear();
@@ -244,6 +257,7 @@ export class AgentReferenceDraftManager {
   }
 
   disposeRendererResources() {
+    this.acquisitionGeneration += 1;
     this.retryFiles.clear();
     this.retryWorkspacePaths.clear();
     this.previews.clear();
@@ -294,6 +308,7 @@ function attachmentReferenceError(file: File, error: unknown): AgentDraftReferen
 }
 
 function workspaceReferenceError(referencePath: string, error: unknown): AgentDraftReference {
+  try { referencePath = parseWorkspaceResourceReference(referencePath).relativePath; } catch { /* Legacy relative path. */ }
   const displayName = safeReferenceName(referencePath.split(/[\\/]/).filter(Boolean).at(-1) || "workspace item");
   return {
     id: `error-${createReferenceEpoch()}`,
@@ -315,6 +330,9 @@ function unsupportedReferenceFailure(
     return referenceFailure("reference-size", "This reference exceeds the selected Agent's size limit.");
   }
   if (reference.kind === "workspace-entry") {
+    if (reference.workspaceName && capabilities.workspace.crossRoots !== true) {
+      return referenceFailure("workspace-cross-root-unsupported", "The selected Agent does not accept references from another project.");
+    }
     if (reference.entryType === "directory" && !capabilities.workspace.directories) {
       return referenceFailure("workspace-directory-unsupported", "The selected Agent does not accept workspace directories.");
     }

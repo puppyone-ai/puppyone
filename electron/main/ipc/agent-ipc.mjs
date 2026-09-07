@@ -9,6 +9,7 @@ export function registerAgentIpcHandlers({
   agentService,
   localAgentInventory,
   authorizeWorkspaceRoot,
+  resolveWorkspaceResource,
   attachmentStore,
   dialog,
   getDialogOwnerWindow,
@@ -27,6 +28,9 @@ export function registerAgentIpcHandlers({
     request.rootPath ? authorizeWorkspaceRoot(event, request.rootPath) : null
   );
   const authorizeRequiredRoot = (event, request) => authorizeWorkspaceRoot(event, request.rootPath);
+  const resourceResolver = (event, workspaceRoot) => resolveWorkspaceResource
+    ? (resource) => resolveWorkspaceResource(event, resource, { legacyRoot: workspaceRoot })
+    : undefined;
   const dispatchSteer = async (event, request) => {
     const workspaceRoot = await authorizeRequiredRoot(event, request);
     const referenceCapabilities = agentService.getReferenceInputCapabilities(event.sender, request.sessionId, workspaceRoot);
@@ -37,6 +41,7 @@ export function registerAgentIpcHandlers({
       epoch: request.referenceEpoch,
       references: request.references,
       referenceCapabilities,
+      resolveResource: resourceResolver(event, workspaceRoot),
     });
     return withStagedReferenceLease({
       attachmentStore,
@@ -65,6 +70,7 @@ export function registerAgentIpcHandlers({
       epoch: request.referenceEpoch,
       references: Array.isArray(request.references) ? request.references : legacyReferences,
       referenceCapabilities,
+      resolveResource: resourceResolver(event, workspaceRoot),
     });
     return withStagedReferenceLease({
       attachmentStore,
@@ -151,7 +157,7 @@ export function registerAgentIpcHandlers({
   });
   register("agent:reference-resolve-workspace", async (event, request) => {
     const workspaceRoot = await authorizeRequiredRoot(event, request);
-    return workspaceDraftReferences(await authorizeAgentReferences({ workspaceRoot, references: request.paths }));
+    return workspaceDraftReferences(await authorizeAgentReferences({ workspaceRoot, references: request.paths, resolveResource: resourceResolver(event, workspaceRoot) }));
   });
   register("agent:reference-pick-workspace", async (event, request) => {
     const workspaceRoot = await authorizeRequiredRoot(event, request);
@@ -160,7 +166,7 @@ export function registerAgentIpcHandlers({
       properties: ["openFile", "openDirectory", "multiSelections"],
     });
     if (result.canceled || result.filePaths.length === 0) return [];
-    return workspaceDraftReferences(await authorizeAgentReferences({ workspaceRoot, references: result.filePaths }));
+    return workspaceDraftReferences(await authorizeAgentReferences({ workspaceRoot, references: result.filePaths, resolveResource: resourceResolver(event, workspaceRoot) }));
   });
   register("agent:turn-steer", dispatchSteer);
   register("agent:turn-interrupt", async (event, request) => (
@@ -208,6 +214,7 @@ async function authorizeTurnReferences({
   epoch,
   references,
   referenceCapabilities,
+  resolveResource,
 }) {
   const values = Array.isArray(references) ? references : [];
   requireSupportedAgentReferences({ referenceInputs: referenceCapabilities }, values);
@@ -216,6 +223,7 @@ async function authorizeTurnReferences({
     workspaceRoot,
     references: values.filter((entry) => entry?.kind !== "staged-attachment"),
     budget,
+    resolveResource,
   });
   const stagedDrafts = values.filter((entry) => entry?.kind === "staged-attachment");
   if (stagedDrafts.length > budget.remainingReferences) {
@@ -226,6 +234,7 @@ async function authorizeTurnReferences({
     : [];
   const stagedBytes = staged.reduce((total, entry) => total + (entry.size ?? 0), 0);
   if (stagedBytes > budget.remainingBytes) throw new Error("Agent references exceed the 25 MB total safety limit.");
+  requireSupportedAgentReferences({ referenceInputs: referenceCapabilities }, [...workspace, ...staged]);
   return {
     authorized: [...workspace, ...staged],
     stagedTokens: Array.from(new Set(stagedDrafts.map((entry) => entry.token))),

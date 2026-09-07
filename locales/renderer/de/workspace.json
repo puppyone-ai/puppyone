@@ -1,4 +1,6 @@
 {
+  "drag.exportHint": "Beim Ziehen Option/Alt gedrückt halten, um Dateien in eine andere App zu exportieren.",
+  "drag.exportFailed": "Diese Dateien konnten nicht exportiert werden. Prüfe, ob Projekt und Dateien noch verfügbar sind, und versuche es erneut.",
   "restoring.ariaLabel": "Letztes Projekt wird geöffnet",
   "restoring.message": "Letztes Projekt wird geöffnet…",
   "viewerPack.rootUnavailable": "Der Arbeitsbereichsstamm ist für die Aktivierung des Viewer Packs nicht verfügbar.",

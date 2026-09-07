@@ -1,7 +1,8 @@
 import type { DataNode } from "../../core/types";
+import { isDataResourceUri } from "../../core/dataResourcePath";
 
 export const EXPLORER_REFERENCE_DRAG_TYPE = "application/x-puppyone-workspace-entries+json";
-export const EXPLORER_REFERENCE_DRAG_VERSION = 1;
+export const EXPLORER_REFERENCE_DRAG_VERSION = 2;
 export const EXPLORER_TREE_NODE_DRAG_TYPE = "application/x-puppyone-data-node-path";
 
 export type ExplorerReferenceDragEntry = {
@@ -11,17 +12,18 @@ export type ExplorerReferenceDragEntry = {
 };
 
 export type ExplorerReferenceDragPayload = {
-  version: 1;
+  version: 1 | 2;
   workspaceId: string;
   entries: ExplorerReferenceDragEntry[];
 };
 
 export function serializeExplorerReferenceDrag(workspaceId: string, nodes: DataNode[]) {
-  const payload: ExplorerReferenceDragPayload = {
-    version: EXPLORER_REFERENCE_DRAG_VERSION,
+  const qualified = nodes.every((node) => isDataResourceUri(node.resourceUri ?? node.path));
+  const payload = {
+    version: qualified ? EXPLORER_REFERENCE_DRAG_VERSION : 1,
     workspaceId: workspaceId.slice(0, 256),
     entries: nodes.slice(0, 32).map((node) => ({
-      path: node.path.slice(0, 4_096),
+      ...(qualified ? { resourceUri: node.resourceUri ?? node.path } : { path: node.path }),
       name: node.name.slice(0, 512),
       entryType: node.type === "folder" ? "directory" : "file",
     })),
@@ -30,21 +32,23 @@ export function serializeExplorerReferenceDrag(workspaceId: string, nodes: DataN
 }
 
 export function parseExplorerReferenceDrag(value: string): ExplorerReferenceDragPayload | null {
-  if (!value || value.length > 160_000) return null;
+  if (!value || value.length > 550_000) return null;
   try {
-    const payload = JSON.parse(value) as Partial<ExplorerReferenceDragPayload>;
-    if (payload.version !== EXPLORER_REFERENCE_DRAG_VERSION) return null;
+    const payload = JSON.parse(value) as { version?: number; workspaceId?: string; entries?: Array<Partial<ExplorerReferenceDragEntry> & { resourceUri?: string }> };
+    if (payload.version !== 1 && payload.version !== EXPLORER_REFERENCE_DRAG_VERSION) return null;
     if (typeof payload.workspaceId !== "string" || payload.workspaceId.length === 0 || payload.workspaceId.length > 256) return null;
     if (!Array.isArray(payload.entries) || payload.entries.length === 0 || payload.entries.length > 32) return null;
     const entries = payload.entries.flatMap((entry) => {
       if (!entry || typeof entry !== "object") return [];
-      if (typeof entry.path !== "string" || entry.path.length === 0 || entry.path.length > 4_096) return [];
+      const resourcePath = payload.version === 2 ? entry.resourceUri : entry.path;
+      if (typeof resourcePath !== "string" || resourcePath.length === 0 || resourcePath.length > 16_384) return [];
+      if (payload.version === 2 && !isDataResourceUri(resourcePath)) return [];
       if (typeof entry.name !== "string" || entry.name.length === 0 || entry.name.length > 512) return [];
       if (entry.entryType !== "file" && entry.entryType !== "directory") return [];
-      return [{ path: entry.path, name: entry.name, entryType: entry.entryType }];
+      return [{ path: resourcePath, name: entry.name, entryType: entry.entryType }];
     });
     if (entries.length !== payload.entries.length) return null;
-    return { version: 1, workspaceId: payload.workspaceId, entries };
+    return { version: payload.version, workspaceId: payload.workspaceId, entries };
   } catch {
     return null;
   }

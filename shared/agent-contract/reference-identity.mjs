@@ -4,8 +4,8 @@ const MAX_REFERENCE_LABEL_LENGTH = 4_096;
 /**
  * Normalize the portable identity of a workspace reference.
  *
- * Workspace references cross the Renderer/Main boundary as POSIX-style paths
- * relative to the Agent session root. Absolute paths, traversal and control
+ * Paths are POSIX-style and relative to the resource's owning root (the Agent
+ * session root for legacy references). Absolute paths, traversal and control
  * characters are rejected instead of being silently repaired.
  */
 export function normalizeAgentWorkspaceRelativePath(value) {
@@ -23,7 +23,10 @@ export function normalizeAgentWorkspaceRelativePath(value) {
 export function agentReferenceMentionLabel(reference) {
   if (reference?.kind === "workspace-entry") {
     const relativePath = normalizeAgentWorkspaceRelativePath(reference.relativePath);
-    if (relativePath && relativePath !== ".") return relativePath.slice(0, MAX_REFERENCE_LABEL_LENGTH);
+    if (relativePath) {
+      const label = relativePath !== "." ? relativePath.slice(0, MAX_REFERENCE_LABEL_LENGTH) : safeReferenceDisplayName(reference.displayName ?? reference.name);
+      return reference.workspaceName ? `${label} · ${safeReferenceDisplayName(reference.workspaceName)}` : label;
+    }
   }
   return safeReferenceDisplayName(reference?.displayName ?? reference?.name);
 }

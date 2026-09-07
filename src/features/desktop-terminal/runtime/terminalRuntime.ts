@@ -102,6 +102,7 @@ export function createTerminalPtyRequest({
 }
 
 export interface TerminalRuntimeHandle {
+  readonly inputShell?: string;
   readonly activity: boolean;
   readonly ready: boolean;
   readonly scrollbarState: TerminalScrollbarState;
@@ -122,6 +123,7 @@ export interface TerminalRuntimeHandle {
 }
 
 export class TerminalRuntime implements TerminalRuntimeHandle {
+  inputShell = "";
   private readonly sessionId: string;
   private readonly launcherId: DesktopTerminalLauncherId;
   private readonly workspacePath: string;
@@ -487,6 +489,7 @@ export class TerminalRuntime implements TerminalRuntimeHandle {
         return;
       }
       this.ptyReady = true;
+      this.inputShell = result.inputShell;
       this.syncDefaultColorsToPty();
       this.onStatus(this.sessionId, "running", result.shell);
       this.syncSizeToPty(this.pendingPtySize ?? {

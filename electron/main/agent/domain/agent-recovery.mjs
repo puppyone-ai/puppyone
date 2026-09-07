@@ -10,6 +10,8 @@ export function reduceAgentRecoveries(previous = [], event, control) {
   const payload = event.payload ?? {};
   const scope = payload.scope === 'transport' ? 'transport' : 'upstream-request';
   const turnId = scope === 'transport' ? null : event.turnId ?? control.execution.activeTurnId;
+  // Model retries belong to a turn; an uncorrelated late notice must not reopen a settled run.
+  if (scope === 'upstream-request' && !turnId) return previous;
   if (turnId && control.terminalTurns.includes(turnId)) return previous;
   const requestId = payload.requestId ?? null;
   const id = payload.recoveryId ?? `${scope}:${control.adapterGeneration}:${turnId ?? 'connection'}:${requestId ?? 'request'}`;
@@ -27,6 +29,6 @@ export function reduceAgentRecoveries(previous = [], event, control) {
 export function activeAgentRecovery(control) {
   const entries = control.recoveries ?? [];
   return entries.findLast(entry => entry.adapterGeneration === control.adapterGeneration
-    && (entry.scope === 'transport' || entry.turnId === control.execution.activeTurnId || entry.turnId === control.execution.uncertainTurnId)) ?? null;
+    && (entry.scope === 'transport' || (entry.turnId !== null && (entry.turnId === control.execution.activeTurnId || entry.turnId === control.execution.uncertainTurnId)))) ?? null;
 }
 function positive(value) { return Number.isSafeInteger(value) && value > 0 ? value : null; }

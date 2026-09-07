@@ -360,6 +360,7 @@ function readReferenceDisplays(value) {
                 kind,
                 displayName: candidate.displayName.replace(/[\u0000-\u001f\u007f]/g, "").slice(0, 512),
                 ...(typeof candidate.relativePath === "string" ? { relativePath: candidate.relativePath.slice(0, 4_096) } : {}),
+                ...(typeof candidate.workspaceName === "string" ? { workspaceName: candidate.workspaceName.slice(0, 512) } : {}),
                 ...(typeof candidate.mime === "string" ? { mime: candidate.mime.slice(0, 200) } : {}),
                 ...(Number.isSafeInteger(candidate.size) && Number(candidate.size) >= 0 ? { size: Number(candidate.size) } : {}),
             }];

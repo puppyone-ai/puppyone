@@ -72,7 +72,7 @@ export function useAgentReferenceIngestion({
           ? t("agent.reference.resourceUnavailable")
           : "");
       if (typeof result === "number") announceBatchResult(beforeIds, result);
-    });
+    }).catch(() => setAnnouncement(t("agent.reference.resourceUnavailable")));
   }, [announceBatchResult, controller, resolveWorkspaceReference, t, workspaceId]);
 
   const onDrop = useCallback((event: DragEvent<HTMLElement>) => {
@@ -135,7 +135,7 @@ function canIngestDataTransfer(
   }
   if (!capabilities) return false;
   if (source.kind === "workspace-entries") {
-    if (source.workspaceId && source.workspaceId !== workspaceId) return false;
+    if (source.workspaceId && source.workspaceId !== workspaceId && source.entries.some((entry) => !isDataResourceUri(entry.path))) return false;
     return source.entries.every((entry) => entry.entryType === "directory"
       ? capabilities.workspace.directories
       : capabilities.workspace.files);
@@ -157,31 +157,31 @@ async function ingestDataTransfer(
 ): Promise<number | "workspace-mismatch" | "resource-unavailable"> {
   const source = classifyReferenceDataTransfer(dataTransfer);
   if (source.kind === "workspace-entries") {
-    if (source.workspaceId && source.workspaceId !== workspaceId) return "workspace-mismatch";
     const paths: string[] = [];
-    const resolutions: AgentWorkspaceReferenceResolution[] = [];
+    const resolutions: Array<{ resourceUri: string; resolved: AgentWorkspaceReferenceResolution }> = [];
     for (const entry of source.entries) {
       if (!isDataResourceUri(entry.path)) {
+        if (source.workspaceId && source.workspaceId !== workspaceId) return "workspace-mismatch";
         paths.push(entry.path);
         continue;
       }
-      const resolved = await resolveWorkspaceReference?.(entry.path) ?? null;
-      if (!resolved) return "resource-unavailable";
-      if (resolved.workspaceRoot !== controller.workspaceRoot) return "workspace-mismatch";
-      paths.push(resolved.referencePath);
-      resolutions.push(resolved);
+      const resolved = await Promise.resolve(resolveWorkspaceReference?.(entry.path)).catch(() => null);
+      // Preserve the owner through Main authorization and native delivery. The
+      // session's cwd is not the identity of a reference from another root.
+      paths.push(entry.path);
+      if (resolved) resolutions.push({ resourceUri: entry.path, resolved });
     }
     const visualPreviews = new Map<string, AgentReferenceVisualPreview>();
-    await Promise.all(resolutions.map(async (resolved) => {
+    await Promise.all(resolutions.map(async ({ resourceUri, resolved }) => {
       if (!resolved.loadVisualPreview) return;
       const preview = await resolved.loadVisualPreview().catch(() => null);
       if (preview) {
         try {
-          visualPreviews.get(resolved.referencePath)?.release?.();
+          visualPreviews.get(resourceUri)?.release?.();
         } catch {
           // A stale duplicate preview must not block the valid reference.
         }
-        visualPreviews.set(resolved.referencePath, preview);
+        visualPreviews.set(resourceUri, preview);
       }
     }));
     return controller.addWorkspacePaths(paths, visualPreviews);

@@ -77,6 +77,9 @@ export type ExplorerTreeProps = {
   fileIconTheme?: FileIconThemeId;
   /** Stable workspace identity embedded in outbound reference drags. */
   dragWorkspaceId?: string;
+  /** Host-owned projection for native/text export; internal identity remains intact. */
+  onExportNodes?: (nodes: readonly DataNode[], event: ReactDragEvent<HTMLElement>) => void;
+  dragExportHint?: string;
   canMoveNodes?: boolean;
   onSelectNode: (node: DataNode | null, intent?: ExplorerSelectionIntent) => void;
   onToggleFolder?: (node: DataNode, expanded: boolean) => void;
@@ -112,6 +115,7 @@ type TreeDropTarget = {
 
 type TreeDragController = {
   enabled: boolean;
+  exportHint?: string;
   onNodeDragStart: (event: ReactDragEvent<HTMLDivElement>, node: DataNode) => void;
   onNodeDragEnd: () => void;
   onRowDragOver: (
@@ -145,6 +149,8 @@ export function ExplorerTree({
   loadingPresentation = "dots",
   fileIconTheme = "default",
   dragWorkspaceId = "",
+  onExportNodes,
+  dragExportHint,
   canMoveNodes = false,
   onSelectNode,
   onToggleFolder,
@@ -366,14 +372,17 @@ export function ExplorerTree({
         serializeExplorerReferenceDrag(dragWorkspaceId, movingNodes),
       );
     }
-    event.dataTransfer.setData("text/plain", movingNodes.map((item) => item.path).join("\n"));
+    // Generic consumers receive readable names. A local host supplies real paths.
+    event.dataTransfer.setData("text/plain", movingNodes.map((item) => item.name).join("\n"));
+    onExportNodes?.(movingNodes, event);
+    if (event.defaultPrevented) return;
     // Native drag events are not coupled to React's commit timing. Seed the
     // operation ref synchronously so an immediate dragover/drop cannot observe
     // the previous render's empty state.
     draggedNodesRef.current = movingNodes;
     setDraggedNodes(movingNodes);
     setDropTarget(null);
-  }, [dragWorkspaceId, moveEnabled]);
+  }, [dragWorkspaceId, moveEnabled, onExportNodes]);
 
   const dragOverRow = useCallback((
     event: ReactDragEvent<HTMLElement>,
@@ -459,12 +468,14 @@ export function ExplorerTree({
   const dragController = useMemo<TreeDragController>(() => ({
     // Outbound copy/context drag is independent from in-tree move support.
     enabled: true,
+    exportHint: dragExportHint,
     onNodeDragStart: beginNodeDrag,
     onNodeDragEnd: clearDragState,
     onRowDragOver: dragOverRow,
     onRowDrop: dropOnRow,
   }), [
     beginNodeDrag,
+    dragExportHint,
     clearDragState,
     dragOverRow,
     dropOnRow,
@@ -843,7 +854,9 @@ const TreeNodeRow = memo(function TreeNodeRow({
       aria-label={interaction.cut
         ? t("shared-ui.explorer.cutLabel", { name: bidiIsolate(node.name) })
         : node.name}
-      title={displayName.hidden || showExtensionDisambiguator ? node.name : undefined}
+      title={dragController.exportHint && !node.workspaceFolderRoot
+        ? `${node.name}\n${dragController.exportHint}`
+        : displayName.hidden || showExtensionDisambiguator ? node.name : undefined}
       onDragStart={(event) => dragController.onNodeDragStart(event, node)}
       onDragEnd={dragController.onNodeDragEnd}
       onDragEnter={(event) => {

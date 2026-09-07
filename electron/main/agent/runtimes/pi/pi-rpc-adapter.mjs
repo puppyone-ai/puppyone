@@ -50,7 +50,7 @@ export const PI_CAPABILITIES = Object.freeze({
   }),
   referenceInputs: Object.freeze({
     schemaVersion: 1,
-    workspace: Object.freeze({ files: true, directories: true }),
+    workspace: Object.freeze({ files: true, directories: true, crossRoots: true }),
     attachments: Object.freeze({
       image: Object.freeze({
         accepted: true,

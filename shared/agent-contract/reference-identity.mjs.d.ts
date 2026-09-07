@@ -1,6 +1,7 @@
 export type AgentReferenceMentionIdentity = {
   kind?: "workspace-entry" | "staged-attachment" | string;
   relativePath?: string;
+  workspaceName?: string;
   displayName?: string;
   name?: string;
 };

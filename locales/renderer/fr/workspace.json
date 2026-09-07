@@ -1,4 +1,6 @@
 {
+  "drag.exportHint": "Maintenez Option/Alt en faisant glisser pour exporter des fichiers vers une autre application.",
+  "drag.exportFailed": "Impossible d’exporter ces fichiers. Vérifiez que le projet et les fichiers sont toujours disponibles, puis réessayez.",
   "restoring.ariaLabel": "Ouverture du dernier projet",
   "restoring.message": "Ouverture du dernier projet…",
   "viewerPack.rootUnavailable": "Racine de l’espace de travail indisponible pour l’activation du Viewer Pack.",

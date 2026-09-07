@@ -265,6 +265,8 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   createLocalProject: (request) => ipcRenderer.invoke("workspace:create-project-current", request),
   cloneRepository: (request) => ipcRenderer.invoke("workspace:clone-repository-current", request),
   getPathForFile: (file) => webUtils.getPathForFile(file),
+  resolveResourceReferences: (request) => ipcRenderer.invoke("resource-transfer:resolve", request),
+  startResourceDrag: (request) => ipcRenderer.invoke("resource-transfer:start-drag", request),
   listFolderChildren: (request) => ipcRenderer.invoke("workspace:list-folder-children", request),
   resolveNode: (request) => ipcRenderer.invoke("workspace:resolve-node", request),
   readFile: (request) => ipcRenderer.invoke("workspace:read-file", request),

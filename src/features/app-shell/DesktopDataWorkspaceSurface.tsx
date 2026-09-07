@@ -21,6 +21,7 @@ import {
 } from "@puppyone/shared-ui";
 import { AiResponseChangesCard } from "../../ai-edits/AiResponseChangesCard";
 import { openExternalUrl } from "../../lib/localFiles";
+import { useResourceDragExport } from "../data-workspace/useResourceDragExport";
 import {
   DesktopExplorerRowActions,
   rectToCreateEntryAnchor,
@@ -162,6 +163,8 @@ export function DesktopDataWorkspaceSurface({
   workspaceSurfaceError,
   sidebarCreateMenuOpen,
 }: DesktopDataWorkspaceSurfaceProps) {
+  const [dragExportFailed, setDragExportFailed] = useState(false);
+  const exportNodes = useResourceDragExport(resolveWorkspaceResource, setDragExportFailed);
   const onExplorerResizeActiveChange = useNativeSurfacePointerPassthroughActivity(
     "explorer-resize",
   );
@@ -290,6 +293,9 @@ export function DesktopDataWorkspaceSurface({
       {workspaceSurfaceError && (
         <div className="desktop-workspace-surface-alert" role="status">{workspaceSurfaceError}</div>
       )}
+      {dragExportFailed && (
+        <div className="desktop-workspace-surface-alert" role="alert">{t("workspace.drag.exportFailed")}</div>
+      )}
       {fileClipboardController.notice && fileOperationNotice && (
         <div
           className="desktop-file-operation-notice"
@@ -302,6 +308,8 @@ export function DesktopDataWorkspaceSurface({
         </div>
       )}
       <DataWorkspace
+        onExportNodes={exportNodes}
+        dragExportHint={t("workspace.drag.exportHint")}
         key={explorerSession.key}
         workspace={workspace}
         labels={{ root: workspace.name }}

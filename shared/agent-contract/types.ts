@@ -110,6 +110,8 @@ export type AgentReferenceInputCapabilities = {
   workspace: {
     files: boolean;
     directories: boolean;
+    /** Explicit support for references owned by another admitted local root. */
+    crossRoots?: boolean;
   };
   attachments: Record<AgentAttachmentKind, AgentAttachmentInputCapability>;
   limits: {

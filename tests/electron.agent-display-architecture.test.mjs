@@ -26,6 +26,14 @@ describe('Main-owned Agent display contract across native adapters',()=>{
     expect(actor.display.parts.filter(p=>p.kind==='user')).toHaveLength(1);
     expect(assertAgentDisplay(actor.snapshot().display)).toBe(actor.display);
   });
+  it('preserves admitted cross-root reference labels through native echo and display patches',()=>{
+    const actor=new AgentSessionActor();
+    const reference={id:'reference-other-root',kind:'workspace-file',displayName:'README.md',relativePath:'README.md',workspaceName:'Other project'};
+    actor.dispatch({type:'command.received',command:{commandId:'command-1',kind:'start',operationId:'op',intentFingerprint:'input',userMessageId:'client-command-1',intent:{prompt:'你好',referenceDisplays:[reference],promptMentions:[],model:null,effort:null,mode:null}}});
+    event(actor,{type:'turn.started',turnId:'turn-1',payload:{userMessageId:'client-command-1'}}); echo(actor);
+    expect(actor.display.messages[0].references).toEqual([reference]);
+    expect(actor.display.parts.find(part=>part.kind==='user').references).toEqual([reference]);
+  });
   it('preserves distinct submissions with identical text and same-turn native follow-ups',()=>{
     const actor=new AgentSessionActor();command(actor);echo(actor);
     command(actor,'command-2');echo(actor,'native-user-2','client-command-2');
@@ -61,6 +69,14 @@ describe('Main-owned Agent display contract across native adapters',()=>{
     await new Promise(resolve=>setImmediate(resolve));
     expect(calls).toEqual(['next']);expect(actor.control.queue).toEqual([]);
     expect(actor.display.connectionStatus).toBeNull();
+  });
+  it('does not reopen recovery presentation for an uncorrelated retry after completion',()=>{
+    const actor=new AgentSessionActor(); actor.dispatch({type:'adapter.attached'});
+    event(actor,{type:'turn.started',turnId:'turn-1',payload:{}});
+    event(actor,{type:'turn.completed',turnId:'turn-1',payload:{}});
+    event(actor,{type:'provider.connection.updated',payload:{state:'reconnecting',message:'Late retry'}});
+    expect(actor.display.connectionStatus).toBeNull();
+    expect(actor.control.recoveries).toEqual([]);
   });
   it('keeps a transport recovery separate from a completed upstream turn',()=>{
     const actor=new AgentSessionActor();actor.dispatch({type:'adapter.attached'});

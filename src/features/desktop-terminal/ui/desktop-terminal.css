@@ -233,6 +233,7 @@
 }
 
 .desktop-terminal-session {
+  position: relative;
   box-sizing: border-box;
   display: block;
   grid-area: 1 / 1;
@@ -249,6 +250,19 @@
 .desktop-terminal-session.is-presented {
   visibility: visible;
   pointer-events: auto;
+}
+
+.desktop-terminal-drop-error {
+  position: absolute;
+  z-index: 1;
+  inset: 8px 12px auto;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--po-terminal-bg);
+  color: var(--po-terminal-fg);
+  border: 1px solid var(--po-border);
+  font-size: var(--po-type-right-sidebar-caption, 12px);
+  line-height: var(--po-type-right-sidebar-caption-line-height, 17px);
 }
 
 .desktop-terminal-session:not(.is-ready) .desktop-terminal-xterm {
