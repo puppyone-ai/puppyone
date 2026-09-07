@@ -62,6 +62,7 @@ import { getAiEditFileForPath } from "../editor/ai-edits/diff";
 import type { AiEditRequest } from "../editor/ai-edits/types";
 import type { DocumentPersistedCommit } from "../editor/document-session/types";
 import { flushActiveDocumentSessions } from "../editor/document-session/activeDocumentSessions";
+import { readDocumentStorageSnapshot } from "../editor/document-session/documentStorageReads";
 import type { FileIconThemeId } from "../file/fileIcons";
 import { useCollapsiblePaneResize } from "../primitives/useCollapsiblePaneResize";
 import {
@@ -1104,16 +1105,16 @@ export function DataWorkspace({
     setFileLoading(true);
     setFileError(null);
     setFileErrorPath(null);
-    dataPort.readFile(selectedFile.path, { signal: request.signal })
-      .then((content) => {
-        request.commit(() => {
-          if (trace && fileOpenTraceRef.current?.id === trace.id) {
-            rendererPerformance.mark(trace.id, "content_ready");
-          }
-          setFileContent(content);
-          setFileContentCache((current) => putBoundedFileContent(current, content));
-        });
-      })
+    readDocumentStorageSnapshot(dataPort, selectedFile.path, {
+      signal: request.signal,
+      accept: (content) => request.commit(() => {
+        if (trace && fileOpenTraceRef.current?.id === trace.id) {
+          rendererPerformance.mark(trace.id, "content_ready");
+        }
+        setFileContent(content);
+        setFileContentCache((current) => putBoundedFileContent(current, content));
+      }),
+    })
       .catch((error) => {
         if (!request.isCurrent() || request.signal.aborted) return;
         request.commit(() => {

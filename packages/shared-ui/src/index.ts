@@ -322,6 +322,7 @@ export {
   useEditorFindCommand,
 } from "./editor/find/editorFind";
 export { useFileResourceLease } from "./editor/resource/useFileResourceLease";
+export { readDocumentStorageSnapshot } from "./editor/document-session/documentStorageReads";
 export type {
   EditorFindAdapter,
   EditorFindCommand,
