@@ -323,7 +323,10 @@ export class AcpRuntimeAdapter {
   }
 
   async readHistoryResult() {
-    return agentHistoryReadResult({ providerSessionId: this.sessionId, events: await this.readHistory(), coverage: this.historyCoverage ?? "unknown" });
+    return agentHistoryReadResult({ providerSessionId: this.sessionId, events: await this.readHistory(),
+      coverage: this.historyCoverage ?? "unknown",
+      reason: this.historyCoverage === "partial" ? "read-limit"
+        : this.client?.agentCapabilities?.loadSession === true ? "replay-unverified" : "unsupported" });
   }
 
   async forkSession({ messageId = null } = {}) {

@@ -53,6 +53,13 @@ export function useAuxiliaryWorkbenchContributions({
   const onCommitRef = useRef(onCommit);
   const onReserveRef = useRef(onReserve);
   const preparingKindsRef = useRef(new Set<string>());
+  const failedCreationRef = useRef<{
+    failure: AuxiliaryWorkbenchCreationFailure;
+    contribution: AuxiliaryWorkbenchContribution;
+    targetGroupId: string | null;
+    recipe: AuxiliaryWorkbenchCreationRecipe | null;
+    historyTarget: AuxiliaryWorkbenchHistoryTarget | null;
+  } | null>(null);
   contributionByKindRef.current = contributionByKind;
   itemsRef.current = items;
   onCommitRef.current = onCommit;
@@ -87,6 +94,7 @@ export function useAuxiliaryWorkbenchContributions({
     preparingKindsRef.current.add(contribution.kind);
     setPreparingKinds(new Set(preparingKindsRef.current));
     setCreationFailure((current) => current?.kind === contribution.kind ? null : current);
+    if (failedCreationRef.current?.contribution.kind === contribution.kind) failedCreationRef.current = null;
     let preparation: AuxiliaryWorkbenchPreparationContext | null = null;
     let committed = false;
     try {
@@ -110,8 +118,10 @@ export function useAuxiliaryWorkbenchContributions({
       committed = true;
       return itemId;
     } catch (error) {
-      if (mountedRef.current) {
-        setCreationFailure(creationFailureFromError(contribution, error));
+      if (mountedRef.current && contributionByKindRef.current.get(contribution.kind) === contribution) {
+        const failure = creationFailureFromError(contribution, error);
+        failedCreationRef.current = { failure, contribution, targetGroupId, recipe, historyTarget };
+        setCreationFailure(failure);
       }
       return null;
     } finally {
@@ -127,7 +137,18 @@ export function useAuxiliaryWorkbenchContributions({
     }
   }, [canCreate]);
 
-  const dismissCreationFailure = useCallback(() => setCreationFailure(null), []);
+  const retryCreation = useCallback(async () => {
+    const intent = failedCreationRef.current;
+    if (!mountedRef.current || !intent || intent.failure !== creationFailure || !intent.failure.retryable) return null;
+    // Re-enter normal admission with the exact failed target. Registration,
+    // ownership and limits are checked again; no fallback to a new chat.
+    return create(intent.contribution, intent.targetGroupId, intent.recipe, intent.historyTarget);
+  }, [create, creationFailure]);
+
+  const dismissCreationFailure = useCallback(() => {
+    failedCreationRef.current = null;
+    setCreationFailure(null);
+  }, []);
 
   return {
     canCreate,
@@ -135,6 +156,7 @@ export function useAuxiliaryWorkbenchContributions({
     create,
     creationFailure,
     dismissCreationFailure,
+    retryCreation,
     preparingKinds,
   };
 }

@@ -4,13 +4,14 @@ export const DISPLAY_COLLECTION_KEYS = Object.freeze({
   turns: 'id', parts: 'id', rows: 'id',
 });
 export const DISPLAY_VALUE_KEYS = Object.freeze([
-  'sessionState', 'lastSequence', 'partialHistory', 'missingRanges',
+  'sessionState', 'lastSequence', 'history', 'displayWindow', 'missingRanges',
   'connectionStatus', 'runningTurnId', 'terminalState', 'usage', 'presentation',
 ]);
 
-export function createEmptyAgentDisplay({ partialHistory = false } = {}) {
+export function createEmptyAgentDisplay() {
   return {
-    schemaVersion: 1, sessionState: 'empty', lastSequence: 0, partialHistory,
+    schemaVersion: 1, sessionState: 'empty', lastSequence: 0,
+    history: { coverage: 'not-requested', reason: null }, displayWindow: { truncated: false },
     missingRanges: [], messages: [], activities: [], approvals: [], questions: [],
     turns: [], parts: [], rows: [], connectionStatus: null, runningTurnId: null,
     terminalState: null, usage: null,

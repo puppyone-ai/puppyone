@@ -18,6 +18,7 @@ import { AgentQuestionDock } from "./AgentQuestionDock";
 import { AgentRuntimeLauncher } from "./AgentRuntimeLauncher";
 import { useTranscriptScope } from "./transcript/useTranscriptScope";
 import { AgentTranscript } from "./AgentTranscript";
+import { agentHistoryNotice } from "./agent-history-presentation";
 import { readinessStatusCode, sessionStatusCode } from "./agentPanelPresentation";
 import { useAgentReferenceIngestion } from "./useAgentReferenceIngestion";
 import type { AgentWorkspaceReferenceResolver } from "./useAgentReferenceIngestion";
@@ -142,7 +143,7 @@ export function AgentChatTabPanel({
     && !loading
     && !hasStatus
     && !hasSubmittedConversation
-    && !state.projection.partialHistory
+    && !agentHistoryNotice(state.projection)
     && !state.projection.connectionStatus;
   useEffect(() => {
     onPresentationChange({

@@ -195,6 +195,46 @@ describe("Auxiliary Workbench contribution admission", () => {
       detail: "This saved chat is no longer available.",
       retryable: false,
     });
+    await expect(current().retryCreation()).resolves.toBeNull();
+    expect(prepare).toHaveBeenCalledOnce();
+  });
+
+  it("retries the exact saved target through fresh admission after cleanup", async () => {
+    const prepare = vi.fn().mockRejectedValueOnce(Object.assign(new Error("History messages could not be loaded"), {
+      code: "HISTORY_READ_FAILED", retryable: true,
+    })).mockResolvedValueOnce(undefined);
+    const discard = vi.fn();
+    const contribution = Object.freeze({
+      ...createContribution(prepare, undefined, discard),
+      history: { label: "History", iconKey: null, renderBrowser: () => null },
+    });
+    const target = Object.freeze({ id: "saved-chat", title: "Saved", iconKey: "codex", payload: { runtimeId: "codex" } });
+    const reserve = vi.fn(() => ({ ...reservedItem, id: `reserved-${reserve.mock.calls.length}` }));
+    const commit = vi.fn((_contribution, item) => item.id);
+    renderRegistry([contribution], reserve, commit);
+    await act(async () => { await current().create(contribution, "group-1", null, target); });
+    expect(discard).toHaveBeenCalledOnce();
+    expect(commit).not.toHaveBeenCalled();
+    await act(async () => { await current().retryCreation(); });
+    expect(reserve).toHaveBeenCalledTimes(2);
+    expect(prepare.mock.calls[1][0]).toMatchObject({ item: { id: "reserved-2" }, recipe: null, historyTarget: target });
+    expect(commit).toHaveBeenCalledWith(contribution, expect.objectContaining({ id: "reserved-2" }), "group-1", null, target);
+    expect(current().creationFailure).toBeNull();
+  });
+
+  it("does not retry a stale registration or a dismissed failure", async () => {
+    const prepare = vi.fn().mockRejectedValue(Object.assign(new Error("History read failed"), { code: "HISTORY_READ_FAILED", retryable: true }));
+    const contribution = createContribution(prepare);
+    const rerender = renderRegistry([contribution], () => reservedItem, vi.fn());
+    await act(async () => { await current().create(contribution, null); });
+    const retry = current().retryCreation;
+    rerender([]);
+    await act(async () => { expect(await retry()).toBeNull(); });
+    expect(prepare).toHaveBeenCalledOnce();
+    rerender([contribution]);
+    act(() => current().dismissCreationFailure());
+    await act(async () => { expect(await retry()).toBeNull(); });
+    expect(prepare).toHaveBeenCalledOnce();
   });
 });
 

@@ -38,7 +38,7 @@ describe("Desktop Agent canonical content update semantics", () => {
     ];
     const checkpoint = events.reduce(foldAgentEventCheckpoint, []);
     const live = applyAgentEvents(createAgentProjection(), events);
-    const restored = applyAgentEvents(createAgentProjection({ partialHistory: true }), checkpoint, { partialHistory: true });
+    const restored = applyAgentEvents(createAgentProjection(), checkpoint);
     const read = (projection: ReturnType<typeof createAgentProjection>) => (
       projection.activities.find((activity) => activity.kind === "reasoning")?.detail.delta
     );

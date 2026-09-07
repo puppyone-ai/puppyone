@@ -198,7 +198,8 @@ describe("Desktop Agent transcript projection", () => {
     projection = applyAgentEvent(projection, event(3, "assistant.delta", { delta: " duplicate" }, "turn-1", "message-1"));
     projection = applyAgentEvent(projection, event(4, "turn.interrupted", {}, "turn-1"));
 
-    expect(projection.partialHistory).toBe(true);
+    expect(projection.history.coverage).toBe("not-requested");
+    expect(projection.displayWindow.truncated).toBe(false);
     expect(projection.missingRanges).toEqual([{ from: 2, to: 2 }]);
     expect(projection.messages[1]).toMatchObject({ text: "Partial", terminalState: "interrupted" });
   });
@@ -455,7 +456,7 @@ describe("Desktop Agent transcript projection", () => {
       ],
     }, "turn-reference");
     const committed = applyAgentEvent(createAgentProjection(), started);
-    const replayed = applyAgentEvents(createAgentProjection({ partialHistory: true }), [started], { partialHistory: true });
+    const replayed = applyAgentEvents(createAgentProjection(), [started]);
 
     expect(committed.messages[0]).toMatchObject({
       role: "user",

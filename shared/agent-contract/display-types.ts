@@ -169,12 +169,20 @@ export type AgentDisplayPresentation = {
   stopping: boolean;
 };
 
+/** Native content coverage is independent of event replay and UI window limits. */
+export type AgentHistoryCoverage = {
+  coverage: "not-requested" | "complete" | "partial" | "unknown";
+  reason: "read-limit" | "replay-unverified" | "unsupported" | "unverified" | null;
+};
+
 export type AgentProjection = {
   presentation: AgentDisplayPresentation;
   schemaVersion: 1;
   sessionState: "empty" | "active" | "closed";
   lastSequence: number;
-  partialHistory: boolean;
+  history: AgentHistoryCoverage;
+  displayWindow: { truncated: boolean };
+  /** Diagnostic gaps in the local event ledger, not proof of missing native messages. */
   missingRanges: Array<{ from: number; to: number }>;
   messages: AgentTranscriptMessage[];
   activities: AgentActivity[];
@@ -191,7 +199,7 @@ export type AgentProjection = {
 
 export type AgentDisplayPatch = {
   schemaVersion: 1;
-  values: Partial<Pick<AgentProjection, "sessionState" | "lastSequence" | "partialHistory" | "missingRanges" | "connectionStatus" | "runningTurnId" | "terminalState" | "usage" | "presentation">>;
+  values: Partial<Pick<AgentProjection, "sessionState" | "lastSequence" | "history" | "displayWindow" | "missingRanges" | "connectionStatus" | "runningTurnId" | "terminalState" | "usage" | "presentation">>;
   collections: Partial<{ [K in "messages" | "activities" | "approvals" | "questions" | "turns" | "parts" | "rows"]: {
     remove: string[];
     upsert: AgentProjection[K][number][];

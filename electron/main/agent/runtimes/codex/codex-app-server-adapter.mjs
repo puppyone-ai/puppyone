@@ -271,7 +271,8 @@ export class CodexAppServerAdapter {
       request: (method, params) => this.connection.request(method, params),
       threadId: this.threadId,
     });
-    return agentHistoryReadResult({ providerSessionId: this.threadId, events: normalizeHistoricalThread(thread), coverage: thread.coverage ?? "unknown" });
+    return agentHistoryReadResult({ providerSessionId: this.threadId, events: normalizeHistoricalThread(thread),
+      coverage: thread.coverage ?? "unknown", reason: thread.coverage === "partial" ? "read-limit" : null });
   }
 
   async startTurn({ prompt, clientUserMessageId = randomUUID(), model = null, effort: requestedEffort = null, references = [], attachments = [], contextReferences = [] }) {

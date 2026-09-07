@@ -49,7 +49,11 @@ export class AgentSessionActor {
         reason: "native-state-unconfirmed-after-main-restart",
       });
     }
-    this.#display = deepFreeze(boundAgentDisplay(projectAgentDisplayControl(applyAgentEvents(createAgentProjection(), this.#events), this.#control), this.#control));
+    const projection = applyAgentEvents(createAgentProjection(), this.#events);
+    // A new display starts at the persisted ledger position. Native history
+    // will supply its content; old event numbers are not missing messages.
+    projection.lastSequence = this.#sequence;
+    this.#display = deepFreeze(boundAgentDisplay(projectAgentDisplayControl(projection, this.#control), this.#control));
     assertAgentDisplay(this.#display);
     assertAgentSessionControl(this.#control);
     this.#enforceReplayLimits();
@@ -104,8 +108,9 @@ export class AgentSessionActor {
     // Admission is a product display fact, not a fabricated native history event.
     const admitted = input.type === "command.received" && input.command.kind === "start"
       ? projectAgentUserSubmission(this.#display, next.commands.find(command => command.commandId === input.command.commandId))
-      : input.type === "history.loaded" && input.coverage !== "complete"
-        ? { ...this.#display, partialHistory: true } : this.#display;
+      : input.type === "history.loaded"
+        ? { ...this.#display, history: { coverage: input.coverage,
+          reason: input.coverage === "complete" ? null : input.reason ?? "unverified" } } : this.#display;
     const display = deepFreeze(boundAgentDisplay(projectAgentDisplayControl(admitted, next), next));
     assertAgentDisplay(display);
     const displayPatch = deepFreeze(createAgentDisplayPatch(this.#display, display));

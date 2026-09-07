@@ -49,7 +49,7 @@ export function boundAgentDisplay(display, control) {
   }
   if (!removed.size && !removedTurns.size) return display;
   return {
-    ...display, partialHistory: true,
+    ...display, displayWindow: { truncated: true },
     parts: display.parts.filter(part => !removed.has(part.id)),
     rows: display.rows.filter(row => !removed.has(row.partId)),
     messages: display.messages.filter(entry => !removed.has(entry.id)),

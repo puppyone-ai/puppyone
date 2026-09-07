@@ -178,7 +178,7 @@ describe('Agent display failure and request isolation', () => {
     const actor=new AgentSessionActor();
     const display={...actor.display,turns:Array.from({length:2_100},(_,i)=>({id:`empty-${i}`,status:'outcome-unknown',startedAtSequence:i,startedAtMs:null,completedAtSequence:null,durationMs:null,partIds:[]}))};
     const bounded=boundAgentDisplay(display,actor.control);
-    expect(bounded.partialHistory).toBe(true);
+    expect(bounded.displayWindow.truncated).toBe(true);
     expect(bounded.turns.length).toBeLessThan(2_000);
     expect(assertAgentDisplay(bounded)).toBe(bounded);
   });
@@ -186,7 +186,7 @@ describe('Agent display failure and request isolation', () => {
     const actor=new AgentSessionActor(); command(actor);
     event(actor,{type:'turn.started',turnId:'turn-1',payload:{prompt:'Hello',userMessageId:'client-command-1'}});
     for(let index=0;index<50;index++) event(actor,{type:'assistant.completed',turnId:'turn-1',itemId:`answer-${index}`,payload:{text:'中'.repeat(60_000)}});
-    expect(actor.display.partialHistory).toBe(true);
+    expect(actor.display.displayWindow.truncated).toBe(true);
     expect(actor.display.messages.some(entry=>entry.role==='user')).toBe(true);
     expect(actor.display.messages.at(-1).itemId).toBe('answer-49');
     expect(assertAgentDisplay(actor.display)).toBe(actor.display);

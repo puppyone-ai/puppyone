@@ -6,13 +6,15 @@ import {
 } from "@puppyone/shared-ui";
 import { bidiIsolate, type MessageFormatter } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
-import { ArrowDown, CircleAlert } from "lucide-react";
+import { ArrowDown } from "lucide-react";
 import { PageLoading } from "../../../components/loading";
 import type { AgentSubmissionStage } from "../application/agent-controller-state";
 import { formatAgentDuration, outputForActivity } from "../domain/agent-activity-presentation";
 import type { AgentDraftReference, AgentPromptReferenceMention } from "../domain/agent-contract";
 import type { AgentPart, AgentProjection } from "../domain/agent-projection-types";
 import { AgentConnectionStatus } from "./AgentConnectionStatus";
+import { AgentHistoryNotice } from "./AgentHistoryNotice";
+import { agentHistoryNotice } from "./agent-history-presentation";
 import { AgentPartRenderer } from "./AgentPartRenderer";
 import { AgentRunFeedback } from "./AgentRunFeedback";
 import { AgentToolActivityGroup } from "./AgentToolActivityGroup";
@@ -125,11 +127,12 @@ function AgentTranscriptView({
         : runStatusLabel);
   const hasLiveTail = Boolean(projection.connectionStatus)
     || Boolean(workingStatus);
+  const historyNotice = agentHistoryNotice(projection);
   const showEmptyState = Boolean(emptyState)
     && !loading
     && timeline.rows.length === 0
     && !hasLiveTail
-    && !projection.partialHistory;
+    && !historyNotice;
 
   if (!seededPartIdsRef.current) {
     for (const row of timeline.rows) seenPartIdsRef.current.add(row.partId);
@@ -159,11 +162,7 @@ function AgentTranscriptView({
         aria-label={t("agent.transcript.conversation", { agent: bidiIsolate(runtimeLabel) })}
         tabIndex={0}
       >
-        {projection.partialHistory && (
-          <div className="desktop-agent-history-warning" role="status">
-            <CircleAlert size={14} /> {t("agent.transcript.partialHistory")}
-          </div>
-        )}
+        <AgentHistoryNotice notice={historyNotice} />
         {loading && timeline.rows.length === 0 && !hasLiveTail && (
           <PageLoading
             variant="fill"

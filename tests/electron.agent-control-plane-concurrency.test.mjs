@@ -246,10 +246,10 @@ describe("Agent control-plane concurrency invariants", () => {
     }
     const live = applyAgentEvents(createAgentProjection(), all);
     const saved = actor.snapshot();
-    const restored = applyAgentEvents(createAgentProjection({ partialHistory: true }), [
+    const restored = applyAgentEvents(createAgentProjection(), [
       ...saved.timeline.checkpointEvents,
       ...saved.timeline.events,
-    ], { partialHistory: true });
+    ]);
     const read = (projection) => projection.activities.find((activity) => activity.kind === "reasoning")?.detail.delta;
     expect(read(live)).toBe("NEW tail");
     expect(read(restored)).toBe(read(live));

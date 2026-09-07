@@ -53,6 +53,24 @@
   flex: 1 1 auto;
 }
 
+.desktop-terminal-workbench-create-retry {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border: 1px solid var(--po-divider);
+  border-radius: 4px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.desktop-terminal-workbench-create-retry:hover {
+  background: var(--po-hover);
+}
+
 .desktop-terminal-group-viewport,
 .desktop-terminal-split,
 .desktop-terminal-tab-group,

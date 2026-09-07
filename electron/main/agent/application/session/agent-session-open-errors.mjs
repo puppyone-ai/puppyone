@@ -15,6 +15,9 @@ export function classifySessionOpenFailure(error) {
   if (code === "AUTHENTICATION_REQUIRED" || /sign[ -]?in|log[ -]?in|authentication required|not authenticated/iu.test(message)) {
     return sessionOpenFailure("AUTH_REQUIRED", "Sign in to this Agent before opening the saved session.", true);
   }
+  if (error?.stage === "history-read" || code === "HISTORY_READ_FAILED") {
+    return sessionOpenFailure("HISTORY_READ_FAILED", "History messages could not be loaded. Try again.", true);
+  }
   if (/timed out|timeout/iu.test(message)) {
     return sessionOpenFailure("RESUME_TIMED_OUT", "Opening the saved Agent session timed out.", true);
   }

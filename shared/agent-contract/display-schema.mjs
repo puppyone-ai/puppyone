@@ -67,7 +67,18 @@ function validateValues(value, complete) {
   }
   if (has('sessionState')) enumValue(value.sessionState, 'sessionState', ['empty', 'active', 'closed']);
   if (has('lastSequence')) nonNegativeInteger(value.lastSequence, 'lastSequence');
-  if (has('partialHistory') && typeof value.partialHistory !== 'boolean') throw contractError('partialHistory', 'must be boolean');
+  if (has('history')) {
+    const history = assertRecord(value.history, 'history');
+    enumValue(history.coverage, 'history.coverage', ['not-requested', 'complete', 'partial', 'unknown']);
+    if (history.reason !== null) enumValue(history.reason, 'history.reason', ['read-limit', 'replay-unverified', 'unsupported', 'unverified']);
+    if (['not-requested', 'complete'].includes(history.coverage) && history.reason !== null) {
+      throw contractError('history.reason', 'must be null for complete or unrequested history');
+    }
+  }
+  if (has('displayWindow')) {
+    const window = assertRecord(value.displayWindow, 'displayWindow');
+    if (typeof window.truncated !== 'boolean') throw contractError('displayWindow.truncated', 'must be boolean');
+  }
   if (has('runningTurnId') && value.runningTurnId !== null) idValue(value.runningTurnId);
   if (has('terminalState') && value.terminalState !== null) enumValue(value.terminalState, 'terminalState', ['completed', 'failed', 'interrupted']);
   if (has('missingRanges')) for (const range of boundedArray(value.missingRanges, 'missingRanges')) {

@@ -126,6 +126,7 @@ export function RightTerminalPanel({
     create: createContributionItem,
     creationFailure,
     dismissCreationFailure,
+    retryCreation,
     preparingKinds,
   } = useAuxiliaryWorkbenchContributions({
     contributions,
@@ -341,6 +342,7 @@ export function RightTerminalPanel({
           <TerminalWorkbenchCreationFailure
             failure={creationFailure}
             onDismiss={dismissCreationFailure}
+            onRetry={() => { void retryCreation(); }}
           />
         )}
         {workbench.items.length === 0 ? (

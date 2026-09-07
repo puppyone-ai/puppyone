@@ -26,8 +26,8 @@ async function catalog(maxRecords = 2) {
   return { filePath, catalog: createAgentConversationCatalog({ filePath, maxRecords }) };
 }
 
-async function service({ source = "default", create, hydrate } = {}) {
-  const store = await catalog();
+async function service({ source = "default", create, hydrate, store: persistedStore } = {}) {
+  const store = persistedStore ?? await catalog();
   const adapters = [];
   const definition = createCodexRuntimeDefinition({ discovery: { discover: async () => ({
     runtimeId: "codex", status: "ready", code: "READY", executablePath: "/usr/bin/fake", environment: {},
@@ -163,9 +163,58 @@ describe("Agent history identity and opening boundaries", () => {
     const result = await h.api.openSession(createSender(1), { sessionId: saved.sessionId, runtimeId: "codex" }, "/workspace");
     expect(result.status).toBe("opened");
     expect(result.snapshot.session.historyCoverage).toBe("partial");
-    expect(result.snapshot.display.partialHistory).toBe(true);
+    expect(result.snapshot.display.history.coverage).toBe("partial");
     expect(result.snapshot.control.execution).toMatchObject({ status: "ended", nativeOutcome: "completed" });
     expect(result.snapshot.events.at(-2).type).toBe("turn.completed");
+  });
+
+  it("restores complete native history after a restart without treating old event numbers as lost messages", async () => {
+    const first = await service();
+    const owner = createSender(1);
+    const created = await first.api.createSession(owner, { runtimeId: "codex" }, "/workspace");
+    await first.api.startTurn(owner, { sessionId: created.session.id, prompt: "Hello" }, "/workspace");
+    first.adapters[0].options.onEvent({ type: "turn.completed", providerSessionId: "native-1", turnId: "turn-1", payload: { status: "completed" } });
+    first.adapters[0].options.onSessionPersisted({ providerSessionId: "native-1", sourceScopeId: "default" });
+    await first.api.closeAll();
+    const persisted = await first.catalog.findById(created.session.id);
+    expect(persisted.lastSequence).toBeGreaterThan(0);
+    expect(persisted).not.toHaveProperty("events");
+
+    const restarted = await service({ store: {
+      filePath: first.filePath, catalog: createAgentConversationCatalog({ filePath: first.filePath }),
+    }, hydrate: async (_options, id) => ({ providerSessionId: id, coverage: "complete", events: [
+      { type: "turn.started", providerSessionId: id, turnId: "turn-1", payload: { restored: true, prompt: "Hello" } },
+      { type: "assistant.completed", providerSessionId: id, turnId: "turn-1", itemId: "answer", payload: { text: "Hello back" } },
+      { type: "turn.completed", providerSessionId: id, turnId: "turn-1", payload: { status: "completed" } },
+    ] }) });
+    const opened = await restarted.api.openSession(createSender(2), { sessionId: created.session.id, runtimeId: "codex" }, "/workspace");
+    expect(opened.status).toBe("opened");
+    expect(opened.snapshot.session.id).toBe(created.session.id);
+    expect(opened.snapshot.events[0].sequence).toBeGreaterThan(persisted.lastSequence);
+    expect(opened.snapshot.partial).toBe(true); // Local replay remains bounded; native content is complete.
+    expect(opened.snapshot.display.history).toEqual({ coverage: "complete", reason: null });
+    expect(opened.snapshot.display.displayWindow.truncated).toBe(false);
+    expect(opened.snapshot.display.missingRanges).toEqual([]);
+    expect(opened.snapshot.display.messages.map((message) => message.text)).toEqual(["Hello", "Hello back"]);
+    expect(restarted.adapters[0].createSession).not.toHaveBeenCalled();
+  });
+
+  it("keeps the same saved target retryable after a transient history read failure", async () => {
+    const hydrate = vi.fn().mockRejectedValueOnce(new Error("Native read timed out"))
+      .mockImplementationOnce(async (_options, id) => ({ providerSessionId: id, events: [], coverage: "complete" }));
+    const h = await service({ hydrate });
+    const saved = await h.catalog.upsertNative(metadata());
+    const request = { sessionId: saved.sessionId, runtimeId: "codex" };
+    const owner = createSender(1);
+    expect(await h.api.openSession(owner, request, "/workspace")).toMatchObject({
+      status: "failed", error: { code: "HISTORY_READ_FAILED", retryable: true },
+    });
+    expect((await h.catalog.findById(saved.sessionId)).availability).toBe("available");
+    expect(h.api.getSessionCount()).toBe(0);
+    expect(await h.api.openSession(owner, request, "/workspace")).toMatchObject({
+      status: "opened", snapshot: { session: { id: saved.sessionId, providerSessionId: saved.providerSessionId } },
+    });
+    expect(h.adapters.every((adapter) => adapter.createSession.mock.calls.length === 0)).toBe(true);
   });
 
   it("refuses another conversation's history and a live session from another workspace", async () => {

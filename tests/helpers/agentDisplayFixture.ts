@@ -26,7 +26,7 @@ export function finalizeDisplay(display: any) {
 export function displaySnapshot(raw: any) {
   let control = raw.control ?? createAgentSessionControl({ streamId: `stream:${raw.session.id}`, sessionEpoch: `epoch:${raw.session.id}` });
   if (!raw.control) control = reduceAgentSessionControl(control, { type: 'adapter.attached' });
-  let display = createAgentProjection({ partialHistory: raw.partial });
+  let display = createAgentProjection();
   for (const event of raw.events ?? []) {
     display = reduceContent(display, event);
     if (!raw.control) control = reduceAgentSessionControl(control, { type: 'event.accepted', event });

@@ -9,5 +9,6 @@ export async function readClaudeHistory({ sdk, workspaceRoot, providerSessionId 
   return agentHistoryReadResult({ providerSessionId,
     events: normalizeClaudeHistory(messages, providerSessionId),
     coverage: messages.length >= 1000 ? "partial" : "complete",
+    reason: messages.length >= 1000 ? "read-limit" : null,
   });
 }

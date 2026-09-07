@@ -47,11 +47,9 @@ export function applyAgentEvents(initial, events, options = {}) {
     const relevant = events
         .filter((event) => event.sequence > initial.lastSequence)
         .sort((left, right) => left.sequence - right.sequence);
-    if (relevant.length === 0 && !options.partialHistory)
+    if (relevant.length === 0)
         return initial;
     const next = cloneAgentProjection(initial);
-    if (options.partialHistory)
-        next.partialHistory = true;
     for (const event of relevant) {
         if (event.sequence <= next.lastSequence)
             continue;
@@ -74,11 +72,9 @@ function applyLegacyAgentEvent(next, event, options) {
     if (event.sequence <= next.lastSequence)
         return next;
     if (next.lastSequence > 0 && event.sequence > next.lastSequence + 1) {
-        next.partialHistory = true;
         next.missingRanges.push({ from: next.lastSequence + 1, to: event.sequence - 1 });
     }
     else if (next.lastSequence === 0 && event.sequence > 1) {
-        next.partialHistory = true;
         next.missingRanges.push({ from: 1, to: event.sequence - 1 });
     }
     next.lastSequence = event.sequence;
