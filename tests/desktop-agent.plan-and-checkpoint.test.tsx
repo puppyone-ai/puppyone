@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { foldAgentEventCheckpoint } from "../electron/main/agent/domain/agent-event-checkpoint.mjs";
 import { normalizeCodexNotification } from "../electron/main/agent/runtimes/codex/codex-app-server-adapter.mjs";
-import { applyAgentEvents, createAgentProjection } from "../src/features/desktop-agent/domain/agent-projection";
+import { applyAgentEvents, createAgentProjection } from "./helpers/agentDisplayFixture";
 import type { AgentEvent } from "../src/features/desktop-agent/domain/agent-contract";
 import type { AgentActivity } from "../src/features/desktop-agent/domain/agent-projection-types";
 import { AgentPlanActivity } from "../src/features/desktop-agent/ui/activity/AgentPlanActivity";

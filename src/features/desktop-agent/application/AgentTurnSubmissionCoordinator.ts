@@ -83,7 +83,6 @@ export class AgentTurnSubmissionCoordinator {
 
   private async startIntent(intent: AgentSubmissionIntent, captureCurrentDraft: boolean) {
     const bridge = this.requireBridge("startAgentTurn");
-    const previousTurnId = this.options.readState().projection.runningTurnId;
     this.options.patch({
       submitting: true,
       pendingPrompt: intent.prompt,
@@ -117,8 +116,10 @@ export class AgentTurnSubmissionCoordinator {
       // authority. turn.started/terminal facts alone drive the visible phase.
       return true;
     } catch (error) {
-      const observedTurnId = this.options.readState().projection.runningTurnId;
-      const accepted = Boolean(observedTurnId && observedTurnId !== previousTurnId);
+      const observed = this.options.readState();
+      const command = observed.control?.commands.find(entry => entry.commandId === intent.id);
+      const accepted = Boolean(command && ["accepted", "outcome-unknown"].includes(command.status))
+        || observed.projection.messages.some(message => message.submissionId === intent.id);
       if (accepted) this.options.references.releasePreviews(intent.references);
       if (!captureCurrentDraft && !accepted) {
         const state = this.options.readState();
@@ -149,7 +150,9 @@ export class AgentTurnSubmissionCoordinator {
       if (!accepted) this.options.writeDraft(restored.prompt, restored.mentions);
       return false;
     } finally {
-      this.options.patch({ submitting: false });
+      if (this.options.readState().pendingIntent?.id === intent.id) {
+        this.options.patch({ submitting: false, pendingIntent: null, pendingPrompt: null });
+      }
     }
   }
 

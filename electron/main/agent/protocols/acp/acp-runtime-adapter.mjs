@@ -1,3 +1,6 @@
+import { isUnavailableAcpSessionError, publicModels, publicProviders, publicModes, event, array, record, safeId, text, normalizeDate } from "./acp-native-values.mjs";
+export { mergeJsonConfig } from "./acp-native-values.mjs";
+import { acpResolveApproval, acpResolveQuestion, acpRequestPermission, acpHandleExtensionRequest, acpResolvePending } from "./acp-interactions.mjs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { JsonlRpcConnection } from "../../transports/jsonl-rpc-connection.mjs";
@@ -15,7 +18,7 @@ import {
   formatAuthorizedProjectInstructions,
   loadAuthorizedProjectInstructions,
 } from "../../security/authorized-project-instructions.mjs";
-import { boundRendererValue, redactSecrets, redactSecretText } from "../../agent-events.mjs";
+import { redactSecretText } from "../../agent-events.mjs";
 import { ACP_INLINE_IMAGE_MAX_BYTES } from "./acp-limits.mjs";
 import {
   ACP_NATIVE_IMAGE_MIME_TYPES,
@@ -369,29 +372,10 @@ export class AcpRuntimeAdapter {
     this.activeTurn.interrupted = true;
     this.client.cancel({ sessionId: this.sessionId });
   }
+  resolveApproval(...args) { return acpResolveApproval(this, ...args); }
 
-  resolveApproval({ requestId, decision, turnId }) {
-    const pending = this.pendingApprovals.get(requestId);
-    if (!pending || pending.turnId !== turnId || this.activeTurn?.turnId !== turnId) {
-      throw new Error(`Approval correlation did not match the active ${this.runtimeDescriptor.displayName} turn.`);
-    }
-    this.pendingApprovals.delete(requestId);
-    const option = selectPermissionOption(pending.options, decision);
-    pending.resolve(option
-      ? { outcome: { outcome: "selected", optionId: option.optionId } }
-      : { outcome: { outcome: "cancelled" } });
-  }
+  resolveQuestion(...args) { return acpResolveQuestion(this, ...args); }
 
-  resolveQuestion({ requestId, answers, rejected, turnId }) {
-    const pending = this.pendingQuestions.get(requestId);
-    if (!pending || pending.turnId !== turnId || this.activeTurn?.turnId !== turnId) {
-      throw new Error(`Question correlation did not match the active ${this.runtimeDescriptor.displayName} turn.`);
-    }
-    this.pendingQuestions.delete(requestId);
-    pending.resolve(rejected
-      ? { outcome: "cancelled" }
-      : { outcome: "answered", answers: questionAnswerMap(pending.questions, answers) });
-  }
 
   forceTerminate(reason = `${this.runtimeDescriptor.displayName} ACP runtime stopped.`) {
     return this.#disconnect(reason, { expected: false });
@@ -400,7 +384,7 @@ export class AcpRuntimeAdapter {
   async dispose(reason = `${this.runtimeDescriptor.displayName} ACP adapter closed.`) {
     if (this.disposed) return;
     this.disposed = true;
-    this.#resolvePending(reason);
+    acpResolvePending(this, reason);
     await this.#disconnect(reason);
     this.onDispose(this);
   }
@@ -433,7 +417,7 @@ export class AcpRuntimeAdapter {
       }));
     } finally {
       if (this.activeTurn === active) {
-        this.#resolvePending(`${this.runtimeDescriptor.displayName} turn ended before a client request was resolved.`);
+        acpResolvePending(this, `${this.runtimeDescriptor.displayName} turn ended before a client request was resolved.`);
         this.activeTurn = null;
       }
     }
@@ -458,7 +442,7 @@ export class AcpRuntimeAdapter {
       this.client = null;
       this.connectionMode = null;
       if (!this.exitExpected && !this.disposed) {
-        this.#resolvePending(`${this.runtimeDescriptor.displayName} ACP process exited.`);
+        acpResolvePending(this, `${this.runtimeDescriptor.displayName} ACP process exited.`);
         this.onExit({
           code: info?.code ?? null,
           signal: info?.signal ?? null,
@@ -475,10 +459,10 @@ export class AcpRuntimeAdapter {
       delegate: {
         readTextFile: (request) => this.#withSession(request, () => fileSystem.readTextFile(request)),
         writeTextFile: (request) => this.#withSession(request, () => fileSystem.writeTextFile(request)),
-        requestPermission: (request) => this.#requestPermission(request),
+        requestPermission: (request) => acpRequestPermission(this, request),
         onSessionUpdate: (notification) => this.#handleSessionUpdate(notification),
         canHandleRequest: (method) => this.questionMethods.has(method),
-        handleRequest: (method, request) => this.#handleExtensionRequest(method, request),
+        handleRequest: (method, request) => acpHandleExtensionRequest(this, method, request),
       },
     });
     await this.client.initialize();
@@ -722,65 +706,11 @@ export class AcpRuntimeAdapter {
     for (const normalized of this.activeTurn.normalizer.normalize(notification)) this.onEvent(normalized);
   }
 
-  #requestPermission(request) {
-    if (!this.activeTurn || request?.sessionId !== this.sessionId) {
-      return Promise.resolve({ outcome: { outcome: "cancelled" } });
-    }
-    const options = array(request.options).filter((option) => safeId(option?.optionId));
-    const requestId = `${this.runtimeDescriptor.id}:${safeId(request.toolCall?.toolCallId) ?? randomUUID()}:${randomUUID()}`;
-    const input = record(request.toolCall?.rawInput);
-    return new Promise((resolve) => {
-      this.pendingApprovals.set(requestId, {
-        requestId,
-        turnId: this.activeTurn.turnId,
-        options,
-        resolve,
-      });
-      this.onEvent(event("approval.requested", this.sessionId, this.activeTurn.turnId,
-        safeId(request.toolCall?.toolCallId), {
-          requestId,
-          title: text(request.toolCall?.title, 300) || "Approval required",
-          kind: approvalKind(request.toolCall?.kind),
-          command: text(input.command, 8_192) || null,
-          reason: text(request.toolCall?.title, 2_000) || null,
-          availableDecisions: availableDecisions(options),
-          arguments: boundRendererValue(redactSecrets(input)),
-        }));
-    });
-  }
-
-  #handleExtensionRequest(method, request) {
-    if (!this.questionMethods.has(method)) return undefined;
-    if (!this.activeTurn) return { outcome: "cancelled" };
-    const questions = normalizeQuestions(request?.questions);
-    const requestId = `${this.runtimeDescriptor.id}:question:${safeId(request?.toolCallId) ?? randomUUID()}:${randomUUID()}`;
-    return new Promise((resolve) => {
-      this.pendingQuestions.set(requestId, {
-        requestId,
-        turnId: this.activeTurn.turnId,
-        questions,
-        resolve,
-      });
-      this.onEvent(event("question.requested", this.sessionId, this.activeTurn.turnId,
-        safeId(request?.toolCallId), { requestId, questions }));
-    });
-  }
-
   #withSession(request, operation) {
     if (!this.sessionId || request?.sessionId !== this.sessionId) {
       throw new Error(`ACP file request does not belong to the active ${this.runtimeDescriptor.displayName} session.`);
     }
     return operation();
-  }
-
-  #resolvePending(message) {
-    for (const pending of this.pendingApprovals.values()) {
-      pending.resolve({ outcome: { outcome: "cancelled" } });
-    }
-    for (const pending of this.pendingQuestions.values()) pending.resolve({ outcome: "cancelled" });
-    if (this.pendingApprovals.size > 0 || this.pendingQuestions.size > 0) this.logger.warn?.(redactSecretText(message));
-    this.pendingApprovals.clear();
-    this.pendingQuestions.clear();
   }
 
   #assertIdle() {
@@ -792,113 +722,6 @@ export class AcpRuntimeAdapter {
     if (this.disposed) throw new Error(`${this.runtimeDescriptor.displayName} ACP adapter is closed.`);
     if (!this.readiness.executablePath) throw new Error(`${this.runtimeDescriptor.displayName} ACP executable is unavailable.`);
   }
-}
-
-function isUnavailableAcpSessionError(error) {
-  const message = error instanceof Error ? error.message : String(error);
-  return error?.code === -32602
-    || /invalid params|unknown session|session.{0,32}(?:not found|does not exist|unavailable)/iu.test(message);
-}
-
-function publicModels(config, fallbackProviderId) {
-  const variants = config.efforts.available.map((entry) => entry.id);
-  return config.models.available.map((model, index) => {
-    const providerId = model.id.includes("/") ? model.id.slice(0, model.id.indexOf("/")) : fallbackProviderId;
-    const modelId = model.id.includes("/") ? model.id.slice(model.id.indexOf("/") + 1) : model.id;
-    return {
-      id: model.id,
-      model: model.id,
-      providerId,
-      modelId,
-      displayName: model.name || model.id,
-      description: model.description || "",
-      isDefault: model.id === config.models.currentId || (!config.models.currentId && index === 0),
-      variants,
-      defaultVariant: variants.includes(config.efforts.currentId) ? config.efforts.currentId : variants[0] ?? null,
-    };
-  });
-}
-
-function publicProviders(models) {
-  const groups = new Map();
-  for (const model of models) {
-    const id = model.providerId || "opencode";
-    const current = groups.get(id) ?? { id, displayName: humanize(id), source: "native", defaultModel: null, modelCount: 0 };
-    current.modelCount += 1;
-    if (model.isDefault) current.defaultModel = model.model;
-    groups.set(id, current);
-  }
-  return Array.from(groups.values());
-}
-
-function publicModes(config) {
-  return config.modes.available.map((mode, index) => ({
-    id: mode.id,
-    displayName: mode.name || humanize(mode.id),
-    description: mode.description || "",
-    isDefault: mode.id === config.modes.currentId || (!config.modes.currentId && index === 0),
-  }));
-}
-
-function selectPermissionOption(options, decision) {
-  const desired = decision === "acceptForSession"
-    ? ["allow_always", "allow_once"]
-    : decision === "accept"
-      ? ["allow_once", "allow_always"]
-      : decision === "decline"
-        ? ["reject_once", "reject_always"]
-        : [];
-  return desired.map((kind) => options.find((option) => option.kind === kind)).find(Boolean) ?? null;
-}
-
-function availableDecisions(options) {
-  const decisions = [];
-  if (options.some((option) => option.kind === "allow_once" || option.kind === "allow_always")) decisions.push("accept");
-  if (options.some((option) => option.kind === "allow_always")) decisions.push("acceptForSession");
-  if (options.some((option) => option.kind === "reject_once" || option.kind === "reject_always")) decisions.push("decline");
-  decisions.push("cancel");
-  return decisions;
-}
-
-function approvalKind(kind) {
-  return ["edit", "delete", "move"].includes(kind) ? "file-change" : kind === "execute" ? "command" : "tool";
-}
-
-export function mergeJsonConfig(value, overlay) {
-  let base = {};
-  try {
-    const parsed = value ? JSON.parse(value) : {};
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) base = parsed;
-  } catch {
-    // A malformed inherited inline config is not forwarded into the managed runtime.
-  }
-  return JSON.stringify({
-    ...base,
-    ...overlay,
-    agent: { ...(record(base.agent)), ...(record(overlay.agent)) },
-  });
-}
-
-function normalizeQuestions(value) {
-  return array(value).slice(0, 16).map((question, index) => ({
-    id: safeId(question?.id) || `question-${index + 1}`,
-    header: text(question?.header, 160) || text(question?.title, 160) || `Question ${index + 1}`,
-    question: text(question?.question, 2_000) || text(question?.prompt, 2_000) || "Input required",
-    multiple: Boolean(question?.multiple || question?.multiSelect),
-    custom: question?.custom !== false,
-    options: array(question?.options).slice(0, 64).map((option) => ({
-      id: safeId(option?.id) || safeId(option?.value) || null,
-      label: text(option?.label, 300) || text(option?.name, 300) || text(option?.value, 300),
-      description: text(option?.description, 1_000),
-    })).filter((option) => option.label),
-  }));
-}
-
-function questionAnswerMap(questions, answers) {
-  return Object.fromEntries(questions.map((question, index) => [
-    question.id,
-    array(answers?.[index]).map((answer) => text(answer, 2_000)).filter(Boolean),
-  ]));
 }
 
 function extensionVersions(value) {
@@ -920,10 +743,6 @@ function emptySessionConfig() {
   };
 }
 
-function event(type, providerSessionId, turnId, itemId, payload) {
-  return { type, providerSessionId: safeId(providerSessionId), turnId: safeId(turnId), itemId: safeId(itemId), payload };
-}
-
 function cleanEnvironment(value) {
   return Object.fromEntries(Object.entries(value).filter(([, entry]) => typeof entry === "string"));
 }
@@ -932,32 +751,6 @@ function requiredId(value, label) {
   const id = safeId(value);
   if (!id) throw new Error(`${label} is invalid.`);
   return id;
-}
-
-function safeId(value) {
-  return typeof value === "string" && /^[A-Za-z0-9:._-]{1,256}$/.test(value) ? value : null;
-}
-
-function text(value, limit) {
-  return typeof value === "string" ? value.trim().slice(0, limit) : "";
-}
-
-function normalizeDate(value) {
-  if (typeof value !== "string") return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date.toISOString();
-}
-
-function record(value) {
-  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
-}
-
-function array(value) {
-  return Array.isArray(value) ? value : [];
-}
-
-function humanize(value) {
-  return text(value, 160).replace(/[-_.]+/gu, " ").replace(/\b\w/gu, (character) => character.toUpperCase());
 }
 
 function delay(milliseconds) {

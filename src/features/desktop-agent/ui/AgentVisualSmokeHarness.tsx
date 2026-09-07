@@ -1,4 +1,7 @@
 import { useMemo, useState } from "react";
+import { BUILTIN_SUB_THEMES } from "../../themes/builtinSubThemes";
+import { SubThemeStyleHost } from "../../themes/SubThemeStyleHost";
+import { DEFAULT_MARKDOWN_PRESENTATION_SETTINGS } from "../../markdown/markdownPresentation";
 import { AGENT_BRAND_CATALOG, resolveRendererPublicAssetUrl } from "@puppyone/shared-ui";
 import { bidiIsolate } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
@@ -10,7 +13,7 @@ import { AgentPanelLayout } from "./AgentPanelLayout";
 import { AgentRuntimePicker } from "./AgentRuntimePicker";
 import { AgentSurfaceHeader } from "./AgentSurfaceHeader";
 import { AgentTranscript } from "./AgentTranscript";
-import { createAgentProjection } from "../domain/agent-projection";
+import { createEmptyAgentDisplay as createAgentProjection } from "../../../../shared/agent-contract/display-state.mjs";
 import type {
   AgentDraftReference,
   AgentModel,
@@ -329,7 +332,9 @@ export function AgentVisualSmokeHarness() {
 
   return (
     <>
-      <main className={`desktop-agent-visual-smoke${theme === "dark" ? " dark" : ""}`} data-smoke-theme={theme}>
+      <SubThemeStyleHost subTheme={BUILTIN_SUB_THEMES.find(entry => entry.id === "default.neutral")!} colorMode={theme} markdownPresentation={DEFAULT_MARKDOWN_PRESENTATION_SETTINGS} />
+      <main className={`desktop-agent-visual-smoke${theme === "dark" ? " dark" : ""}`} data-smoke-theme={theme}
+        data-po-appearance-root="true" data-root-theme-id="default" data-sub-theme-id="default.neutral">
         <AgentPanelLayout
           ariaLabel={t("agent.panel.chat", { agent: bidiIsolate(selectedRuntime.descriptor.displayName) })}
           header={<AgentSurfaceHeader

@@ -1,9 +1,17 @@
 import { randomUUID } from "node:crypto";
 import { redactSecretText } from "../../agent-events.mjs";
-import { sessionSnapshot } from "../../domain/agent-session-model.mjs";
+import { sessionSnapshot, sessionMetadata } from "../../domain/agent-session-model.mjs";
 import { assertAgentSessionFrame } from "../../../../../shared/agent-contract/schema.mjs";
 
 const MAX_PENDING_FRAMES = 512;
+const MAX_PENDING_BYTES = 8 * 1024 * 1024;
+const frameSizes = new WeakMap();
+function pendingBytes(frames) {
+  return frames.reduce((sum, frame) => {
+    if (!frameSizes.has(frame)) frameSizes.set(frame, Buffer.byteLength(JSON.stringify(frame)));
+    return sum + frameSizes.get(frame);
+  }, 0);
+}
 
 /** Versioned snapshot + change feed for disposable Renderer replicas. */
 export class AgentSessionFeed {
@@ -135,12 +143,13 @@ export class AgentSessionFeed {
         baseRevision: commit.baseRevision,
         revision: commit.revision,
         control: commit.control,
-        events: commit.events,
+        displayPatch: commit.displayPatch,
+        session: Object.freeze({ ...sessionMetadata(session, commit.control), lastSequence: commit.sequence, updatedAt: commit.emittedAt ?? session.updatedAt }),
       });
       if (subscription.ready) this.#deliverDelta(subscription, frame);
       else if (!subscription.needsResync) {
         subscription.bufferedFrames.push(frame);
-        if (subscription.bufferedFrames.length > MAX_PENDING_FRAMES) {
+        if (subscription.bufferedFrames.length > MAX_PENDING_FRAMES || pendingBytes(subscription.bufferedFrames) > MAX_PENDING_BYTES) {
           subscription.bufferedFrames = [];
           subscription.needsResync = true;
         }
@@ -164,7 +173,7 @@ export class AgentSessionFeed {
   #deliverDelta(subscription, frame) {
     if (subscription.needsResync) return;
     subscription.unacknowledgedFrames.push(frame);
-    if (subscription.unacknowledgedFrames.length > MAX_PENDING_FRAMES) {
+    if (subscription.unacknowledgedFrames.length > MAX_PENDING_FRAMES || pendingBytes(subscription.unacknowledgedFrames) > MAX_PENDING_BYTES) {
       subscription.unacknowledgedFrames = [];
       subscription.needsResync = true;
       this.#send(subscription, {
@@ -201,4 +210,4 @@ export class AgentSessionFeed {
   }
 }
 
-export const agentSessionFeedLimits = Object.freeze({ maxPendingFrames: MAX_PENDING_FRAMES });
+export const agentSessionFeedLimits = Object.freeze({ maxPendingFrames: MAX_PENDING_FRAMES, maxPendingBytes: MAX_PENDING_BYTES });

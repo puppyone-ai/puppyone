@@ -1,4 +1,5 @@
-import { applyAgentEvents, createAgentProjection } from "../domain/agent-projection";
+import { createEmptyAgentDisplay as createAgentProjection } from "../../../../shared/agent-contract/display-state.mjs";
+import { assertAgentSessionSnapshot } from "../../../../shared/agent-contract/schema.mjs";
 import {
   agentProviderIdForModel,
   chooseAgentModel,
@@ -11,7 +12,7 @@ import type {
   AgentSessionSnapshot,
 } from "../domain/agent-contract";
 import { AgentSessionOpenError } from "../domain/agent-session-open-error";
-import { AgentEventSynchronizer, type AgentStreamFlushScheduler } from "./AgentEventSynchronizer";
+import { AgentSessionReplica } from "./AgentSessionReplica";
 import { agentControllerTransitions, type AgentControllerState } from "./agent-controller-state";
 import { AgentKnownError, createAgentError, formatAgentError } from "./agent-error";
 import { SessionUiStateStore, type SessionUiState } from "./SessionUiStateStore";
@@ -29,7 +30,6 @@ import { AgentReferenceDraftManager } from "./AgentReferenceDraftManager";
 import {
   AgentTurnSubmissionCoordinator,
 } from "./AgentTurnSubmissionCoordinator";
-import { reconcileAgentProjectionWithControl } from "./agent-control-projection";
 
 export type { AgentControllerPhase, AgentControllerState } from "./agent-controller-state";
 export { agentControllerTransitions } from "./agent-controller-state";
@@ -41,7 +41,7 @@ export class AgentSessionController {
   readonly workspaceRoot: string;
   private state: AgentControllerState;
   private listeners = new Set<Listener>();
-  private readonly eventSynchronizer: AgentEventSynchronizer;
+  private readonly sessionReplica: AgentSessionReplica;
   private initializePromise: Promise<void> | null = null;
   private readonly sessionUi = new SessionUiStateStore();
   private readonly localConnectionLoader: LocalAgentConnectionLoader;
@@ -55,7 +55,6 @@ export class AgentSessionController {
   constructor(
     workspaceRoot: string,
     private readonly bridgeProvider: AgentClientProvider,
-    scheduleStreamFlush?: AgentStreamFlushScheduler,
   ) {
     this.workspaceRoot = workspaceRoot;
     this.state = {
@@ -83,7 +82,6 @@ export class AgentSessionController {
       error: null,
       submitting: false,
       stopping: false,
-      resolvingBlocker: false,
       initialized: false,
     };
     this.localConnectionLoader = new LocalAgentConnectionLoader(
@@ -107,13 +105,11 @@ export class AgentSessionController {
       writeDraft: (draft, draftMentions) => this.writeCurrentSessionUi({ draft, draftMentions }),
       prepareSession: () => this.prepareSession(),
     });
-    this.eventSynchronizer = new AgentEventSynchronizer(
+    this.sessionReplica = new AgentSessionReplica(
       workspaceRoot,
       bridgeProvider,
       this.getSnapshot,
       (patch) => this.patch(patch),
-      () => {},
-      scheduleStreamFlush,
     );
     this.sessionLifecycle = new AgentSessionLifecycle({
       workspaceRoot,
@@ -132,7 +128,7 @@ export class AgentSessionController {
       createSession: () => this.createSession(),
       applySnapshot: (snapshot) => this.applySnapshot(snapshot),
     });
-    this.eventSynchronizer.connect();
+    this.sessionReplica.connect();
   }
 
   getSnapshot = () => this.state;
@@ -147,7 +143,7 @@ export class AgentSessionController {
     if (this.disposed) return;
     this.disposed = true;
     this.sessionPreparer.dispose();
-    this.eventSynchronizer.dispose();
+    this.sessionReplica.dispose();
     this.localConnectionLoader.dispose();
     this.sessionUi.clear();
     void this.referenceDrafts.revoke([
@@ -238,7 +234,7 @@ export class AgentSessionController {
       this.patch({ error: createAgentError("active-turn") });
       return false;
     }
-    this.eventSynchronizer.connect();
+    this.sessionReplica.connect();
     const bridge = this.requireBridge("discoverAgentRuntimes", "openAgentSession");
     await this.referenceDrafts.reset([
       ...this.state.references,
@@ -298,7 +294,7 @@ export class AgentSessionController {
   }
 
   private async runInitialize(refresh: boolean, restoreLatest: boolean) {
-    this.eventSynchronizer.connect();
+    this.sessionReplica.connect();
     const bridge = restoreLatest
       ? this.requireBridge("discoverAgentRuntimes", "resumeAgentSession")
       : this.requireBridge("discoverAgentRuntimes");
@@ -525,7 +521,7 @@ export class AgentSessionController {
     const session = this.state.session;
     if (!approval || !session) return;
     const bridge = this.requireBridge("resolveAgentApproval");
-    this.patch({ resolvingBlocker: true, error: null });
+    this.patch({ error: null });
     try {
       await bridge.resolveAgentApproval({
         rootPath: this.workspaceRoot,
@@ -538,9 +534,7 @@ export class AgentSessionController {
       });
     } catch (error) {
       this.patch({ error: formatAgentError(error) });
-      await this.eventSynchronizer.repairFrom(this.state.projection.lastSequence);
-    } finally {
-      this.patch({ resolvingBlocker: false });
+      await this.sessionReplica.repairFrom(this.state.projection.lastSequence);
     }
   }
 
@@ -549,7 +543,7 @@ export class AgentSessionController {
     const session = this.state.session;
     if (!question || !session) return;
     const bridge = this.requireBridge("resolveAgentQuestion");
-    this.patch({ resolvingBlocker: true, error: null });
+    this.patch({ error: null });
     try {
       await bridge.resolveAgentQuestion({
         ...resolution,
@@ -562,9 +556,7 @@ export class AgentSessionController {
       });
     } catch (error) {
       this.patch({ error: formatAgentError(error) });
-      await this.eventSynchronizer.repairFrom(this.state.projection.lastSequence);
-    } finally {
-      this.patch({ resolvingBlocker: false });
+      await this.sessionReplica.repairFrom(this.state.projection.lastSequence);
     }
   }
 
@@ -585,15 +577,14 @@ export class AgentSessionController {
 
   private async applySnapshot(snapshot: AgentSessionSnapshot) {
     this.applySnapshotState(snapshot);
-    const feedSnapshot = await this.eventSynchronizer.attachSession(snapshot.session.id);
+    const feedSnapshot = await this.sessionReplica.attachSession(snapshot.session.id);
     if (!feedSnapshot || this.disposed || this.state.session?.id !== snapshot.session.id) return;
     this.applySnapshotState(feedSnapshot);
-    await this.eventSynchronizer.activateSessionFeed(snapshot.session.id);
-    if (!this.disposed && this.state.session?.id === snapshot.session.id) this.patch({ replicaStatus: "live" });
+    await this.sessionReplica.activateSessionFeed(snapshot.session.id);
   }
 
   private applySnapshotState(snapshot: AgentSessionSnapshot) {
-    this.eventSynchronizer.flush();
+    assertAgentSessionSnapshot(snapshot);
     const inspection = this.state.inspection ? {
       ...this.state.inspection,
       runtime: snapshot.runtime ?? snapshot.session.runtime ?? this.state.inspection.runtime,
@@ -611,40 +602,8 @@ export class AgentSessionController {
     const selectedModelEntry = inspection?.models.find((model) => model.model === selectedModel);
     const selectedProviderId = agentProviderIdForModel(selectedModelEntry)
       || chooseAgentProvider(inspection, this.state.selectedProviderId, selectedModel);
-    const snapshotEvents = [
-      ...(snapshot.timeline?.checkpointEvents ?? []),
-      ...snapshot.events,
-    ].filter((event, index, events) => events.findIndex((candidate) => candidate.sequence === event.sequence) === index);
-    let projection = applyAgentEvents(
-      createAgentProjection({ partialHistory: snapshot.partial }),
-      snapshotEvents,
-      { partialHistory: snapshot.partial, legacyProviderConnectionWarnings: !snapshot.control },
-    );
-    // The event window is deliberately bounded. Current control state comes
-    // from the snapshot checkpoint, never from the presence of turn.started in
-    // that bounded timeline slice.
-    const authoritativeTurnId = snapshot.control?.execution.activeTurnId ?? snapshot.session.activeTurnId;
-    if (authoritativeTurnId) {
-      projection = {
-        ...projection,
-        runningTurnId: authoritativeTurnId,
-        terminalState: null,
-      };
-    }
-    const eventsDuringRestore = this.eventSynchronizer.takePreSessionEvents(
-      snapshot.session.id,
-      projection.lastSequence,
-    );
-    projection = applyAgentEvents(projection, eventsDuringRestore, { partialHistory: snapshot.partial });
-    const session = {
-      ...snapshot.session,
-      activeTurnId: projection.runningTurnId,
-      terminalState: projection.runningTurnId
-        ? "running"
-        : projection.terminalState || snapshot.session.terminalState,
-      lastSequence: projection.lastSequence,
-      updatedAt: eventsDuringRestore.at(-1)?.emittedAt ?? snapshot.session.updatedAt,
-    };
+    const projection = snapshot.display;
+    const session = snapshot.session;
     this.patch({
       session,
       control: snapshot.control ?? null,
@@ -679,7 +638,9 @@ export class AgentSessionController {
   }
 
   private emit() {
-    for (const listener of this.listeners) listener();
+    for (const listener of this.listeners) {
+      try { listener(); } catch (error) { console.error("Agent display subscriber failed", error); }
+    }
   }
 
   private requireBridge<K extends keyof AgentClientPort>(...methods: K[]): AgentClientPort {
@@ -706,41 +667,17 @@ export class AgentSessionController {
 }
 
 function deriveControlReplicaState(state: AgentControllerState): AgentControllerState {
-  const control = state.control;
-  const session = state.session;
-  if (!control || !session) return state;
-  const activeTurnId = control.execution.activeTurnId;
-  const activeInterrupt = control.commands.find((command) => (
-    command.kind === "interrupt"
-    && command.targetTurnId === activeTurnId
-    && (command.status === "dispatching" || command.status === "accepted")
-  ));
-  const phase = control.connection.status === "exited"
-    ? "runtime-exited"
-    : activeTurnId
-      ? control.interaction.approvals.length || control.interaction.questions.length ? "waiting" : "running"
-      : control.execution.status === "starting" ? "creating"
-        : state.phase === "discovering" || state.phase === "restoring" ? state.phase : "ready";
+  if (!state.control || !state.session) return state;
+  const view = state.projection.presentation;
+  const admitted = state.pendingIntent && state.control.commands.some(command => command.commandId === state.pendingIntent?.id);
+  const localPending = state.pendingIntent && !admitted ? state.pendingIntent.prompt : null;
   return {
     ...state,
-    phase,
-    session: {
-      ...session,
-      activeTurnId,
-      terminalState: control.connection.status === "exited"
-          ? "provider-exited"
-        : activeTurnId ? "running"
-          : control.execution.status === "outcome-unknown" ? "outcome-unknown"
-            : control.execution.nativeOutcome ?? "idle",
-    },
-    projection: reconcileAgentProjectionWithControl(state.projection, control),
-    pendingPrompt: control.pendingSubmission?.prompt ?? null,
-    pendingIntent: null,
-    submitting: control.execution.status === "starting",
-    stopping: Boolean(activeInterrupt),
-    resolvingBlocker: control.commands.some((command) => (
-      (command.kind === "approval" || command.kind === "question") && command.status === "dispatching"
-    )),
+    phase: state.phase === "discovering" || state.phase === "restoring" ? state.phase : view.phase,
+    session: { ...state.session, activeTurnId: state.projection.runningTurnId, terminalState: view.terminalState },
+    pendingPrompt: view.pendingPrompt ?? localPending,
+    submitting: view.submitting || Boolean(localPending),
+    stopping: view.stopping,
   };
 }
 

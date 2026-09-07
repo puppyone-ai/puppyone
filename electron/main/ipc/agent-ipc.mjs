@@ -1,3 +1,4 @@
+import { agentOperationFailure } from "../agent/runtime/agent-operation-error.mjs";
 import { randomUUID } from "node:crypto";
 import { authorizeAgentReferences, createAgentReferenceBudget, workspaceDraftReferences } from "../agent/agent-reference-authorization.mjs";
 import { requireSupportedAgentReferences } from "../agent/application/agent-input-policy.mjs";
@@ -14,9 +15,11 @@ export function registerAgentIpcHandlers({
 }) {
   const register = (channel, handler) => {
     ipcMain.handle(channel, async (event, rawRequest) => {
-      const request = parseAgentIpcRequest(channel, rawRequest);
-      const response = await handler(event, request);
-      return assertAgentIpcResponse(channel, response);
+      try {
+        const request = parseAgentIpcRequest(channel, rawRequest);
+        const response = await handler(event, request);
+        return assertAgentIpcResponse(channel, response);
+      } catch (error) { return agentOperationFailure(error); }
     });
   };
 

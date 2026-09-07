@@ -4,7 +4,7 @@ import {
   applyAgentEvent,
   applyAgentEvents,
   createAgentProjection,
-} from "../src/features/desktop-agent/agentProjection";
+} from "./helpers/agentDisplayFixture";
 import type { AgentEvent, AgentEventType } from "../src/features/desktop-agent/agentTypes";
 import { buildAgentTimeline } from "../src/features/desktop-agent/ui/agent-timeline-presentation";
 
@@ -38,7 +38,7 @@ describe("Desktop Agent transcript projection", () => {
   it("confirms the optimistic prompt by native identity and preserves same-turn follow-ups", () => {
     const events = [
       event(1, "turn.started", { prompt: "Initial", userMessageId: "user-initial" }, "turn-user"),
-      event(2, "user.message", { text: "Initial\nProvider-compiled context" }, "turn-user", "user-initial"),
+      event(2, "user.message", { text: "Initial\nProvider-compiled context", clientUserMessageId: "user-initial" }, "turn-user", "user-initial"),
       event(3, "user.message", { text: "Follow up" }, "turn-user", "user-followup"),
       event(4, "user.message", { text: "Follow up" }, "turn-user", "user-followup"),
     ] satisfies AgentEvent[];
@@ -365,7 +365,8 @@ describe("Desktop Agent transcript projection", () => {
     expect(recovering.rows.filter((row) => row.kind === "warning")).toHaveLength(0);
 
     const progressed = applyAgentEvent(recovering, event(5, "assistant.delta", { delta: "Recovered" }, "turn-1", "assistant-1"));
-    expect(progressed.connectionStatus).toBeNull();
+    expect(progressed.connectionStatus?.state).toBe("fallback");
+    expect(applyAgentEvent(progressed, event(6, "turn.completed", {}, "turn-1")).connectionStatus).toBeNull();
     expect(progressed.messages.find((message) => message.role === "assistant")?.text).toBe("Recovered");
   });
 
@@ -379,7 +380,7 @@ describe("Desktop Agent transcript projection", () => {
       }, "turn-1", "fallback"),
     ], { legacyProviderConnectionWarnings: true });
 
-    expect(projection.connectionStatus).toMatchObject({ state: "fallback", sequence: 4 });
+    expect(projection.connectionStatus).toBeNull();
     expect(projection.activities).toHaveLength(0);
     expect(projection.parts.filter((part) => part.kind === "warning")).toHaveLength(0);
     expect(projection.rows.filter((row) => row.kind === "warning")).toHaveLength(0);
@@ -407,8 +408,8 @@ describe("Desktop Agent transcript projection", () => {
     ]);
 
     const settled = applyAgentEvent(running, event(5, type, { status: expectedStatus }, "turn-1"));
-    expect(settled.activities[0]?.status).toBe(expectedStatus);
-    expect(settled.parts.find((part) => part.kind === "command")).toMatchObject({ status: expectedStatus });
+    expect(settled.activities[0]?.status).toBe("unknown");
+    expect(settled.parts.find((part) => part.kind === "command")).toMatchObject({ status: "unknown" });
     expect(settled.parts.find((part) => part.kind === "permission")).toMatchObject({ state: "resolved" });
     expect(settled.parts.find((part) => part.kind === "question")).toMatchObject({ state: "resolved" });
     expect(settled.approvals).toHaveLength(0);

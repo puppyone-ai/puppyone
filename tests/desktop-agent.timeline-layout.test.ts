@@ -1,5 +1,6 @@
+import { finalizeDisplay } from "./helpers/agentDisplayFixture";
 import { describe, expect, it } from "vitest";
-import { createAgentProjection, type AgentPart, type TimelineRow } from "../src/features/desktop-agent/agentProjection";
+import { createAgentProjection, type AgentPart, type TimelineRow } from "./helpers/agentDisplayFixture";
 import {
   agentTimelineLimits,
   agentTimelineSpacing,
@@ -115,7 +116,7 @@ describe("Desktop Agent timeline layout policy", () => {
       partIds: [assistant.id, usage.id],
     }];
 
-    const timeline = buildAgentTimeline(projection, 34);
+    const timeline = buildAgentTimeline(finalizeDisplay(projection), 34);
     const layout = buildAgentTimelineLayout(timeline.rows, {
       "row:assistant:one": 40,
       "row:turn-summary:turn:one": 20,

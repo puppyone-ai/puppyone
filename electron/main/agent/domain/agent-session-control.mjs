@@ -1,3 +1,4 @@
+import { reduceAgentRecoveries } from "./agent-recovery.mjs";
 import { agentContractLimits } from "../../../../shared/agent-contract/constants.mjs";
 
 const MAX_COMMAND_RECORDS = 128;
@@ -35,6 +36,7 @@ export function createAgentSessionControl({
     queue: Object.freeze([]),
     terminalTurns: Object.freeze([]),
     pendingSubmission: null,
+    recoveries: Object.freeze([]),
   });
 }
 
@@ -65,10 +67,12 @@ function applyInput(state, input) {
         state.pendingSubmission = null;
       }
       state.adapterGeneration += 1;
+      state.recoveries = [];
       state.connection = { status: "connected", reason: null };
       return true;
     case "adapter.exited":
       if (input.adapterGeneration != null && input.adapterGeneration !== state.adapterGeneration) return false;
+      state.recoveries = [];
       state.connection = { status: "exited", reason: boundedReason(input.reason || "provider-exited") };
       if (state.execution.activeTurnId || state.execution.status === "starting") {
         state.execution = {
@@ -92,7 +96,7 @@ function applyInput(state, input) {
       if (!matchesDispatchingStart(state, input.submission)) return false;
       state.pendingSubmission = clonePlain(input.submission);
       if (!state.execution.activeTurnId) {
-        state.execution = { status: "starting", activeTurnId: null, uncertainTurnId: null, startedAtMs: input.startedAtMs ?? Date.now(), nativeOutcome: null, certainty: "unknown" };
+        state.execution = { status: "starting", activeTurnId: null, uncertainTurnId: null, startedAtMs: input.startedAtMs ?? null, nativeOutcome: null, certainty: "unknown" };
       }
       return true;
     case "submission.accepted":
@@ -149,6 +153,7 @@ function applyInput(state, input) {
 
 function applyCanonicalEvent(state, event) {
   const payload = event?.payload ?? {};
+  state.recoveries = reduceAgentRecoveries(state.recoveries, event, state);
   switch (event?.type) {
     case "session.started":
     case "session.resumed":
@@ -202,7 +207,7 @@ function applyCanonicalEvent(state, event) {
         uncertainTurnId: null,
         startedAtMs: state.execution.status === "starting" && state.execution.startedAtMs != null
           ? state.execution.startedAtMs
-          : Date.parse(event.emittedAt) || Date.now(),
+          : Date.parse(event.emittedAt) || null,
         nativeOutcome: null,
         certainty: "confirmed",
       };
@@ -243,6 +248,7 @@ function applyCanonicalEvent(state, event) {
     case "question.resolved":
       return removeBlocker(state, "questions", payload.requestId);
     case "provider.connection.updated":
+      if (payload.scope !== "transport") return true;
       state.connection = {
         status: payload.state === "connected" ? "connected" : "recovering",
         reason: boundedReason(payload.message),
@@ -339,6 +345,7 @@ function receiveCommand(state, command) {
     commandId: command.commandId,
     kind: command.kind,
     targetTurnId: command.targetTurnId ?? null,
+    requestId: command.requestId ?? null,
     status: command.status === "queued" ? "queued" : "dispatching",
     operationId: command.operationId ?? null,
     intentFingerprint: command.intentFingerprint ?? null,
@@ -468,6 +475,7 @@ function freezeControl(state) {
   });
   state.commands = Object.freeze(state.commands.map((entry) => Object.freeze(entry)));
   state.queue = Object.freeze([...state.queue]);
+  state.recoveries = Object.freeze((state.recoveries ?? []).map(entry => Object.freeze({ ...entry })));
   state.terminalTurns = Object.freeze([...state.terminalTurns]);
   if (state.pendingSubmission) state.pendingSubmission = deepFreeze(clonePlain(state.pendingSubmission));
   return Object.freeze(state);

@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { AgentSessionActor } from "../electron/main/agent/domain/agent-session-actor.mjs";
 import { JsonlRpcConnection } from "../electron/main/agent/transports/jsonl-rpc-connection.mjs";
 import { CodexAppServerAdapter } from "../electron/main/agent/runtimes/codex/codex-app-server-adapter.mjs";
-import { applyAgentEvents, createAgentProjection } from "../src/features/desktop-agent/domain/agent-projection.ts";
+import { applyAgentEvents, createAgentProjection } from "../electron/main/agent/domain/transcript/transcript-reducer.mjs";
 import { createSender, createServiceHarness } from "./helpers/agentServiceHarness.mjs";
 
 const services = [];

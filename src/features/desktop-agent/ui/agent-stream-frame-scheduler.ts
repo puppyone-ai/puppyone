@@ -1,4 +1,4 @@
-import type { AgentStreamFlushScheduler } from "../application/AgentEventSynchronizer";
+export type AgentStreamFlushScheduler = (callback: () => void) => () => void;
 
 const STREAM_FRAME_MS = 16;
 

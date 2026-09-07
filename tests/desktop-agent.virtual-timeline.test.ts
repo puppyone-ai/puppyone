@@ -1,3 +1,4 @@
+import { finalizeDisplay } from "./helpers/agentDisplayFixture";
 /** @vitest-environment happy-dom */
 import React from "react";
 import { act } from "react";
@@ -5,7 +6,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AgentTranscript, agentTimelineLimits } from "../src/features/desktop-agent/ui/AgentTranscript";
 import { SafeMarkdown, safeMarkdownLimits } from "../src/features/desktop-agent/ui/SafeMarkdown";
-import { createAgentProjection, type AgentPart } from "../src/features/desktop-agent/agentProjection";
+import { createAgentProjection, type AgentPart } from "./helpers/agentDisplayFixture";
 import { withTestLocalization } from "./testLocalization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -350,5 +351,5 @@ function settledTurnProjection(includeNextUser: boolean) {
     durationMs: 7_000,
     partIds: [assistant.id],
   }];
-  return projection;
+  return finalizeDisplay(projection);
 }

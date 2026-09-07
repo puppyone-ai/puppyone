@@ -1,3 +1,4 @@
+import { finalizeDisplay } from "./helpers/agentDisplayFixture";
 /**
  * @vitest-environment happy-dom
  */
@@ -27,7 +28,7 @@ import { registerAgentToolRenderer } from "../src/features/desktop-agent/ui/Agen
 import { registerAgentPartRenderer } from "../src/features/desktop-agent/ui/AgentPartRenderer";
 import { agentToolEvidenceLimits } from "../src/features/desktop-agent/domain/agent-tool-evidence";
 import { resolveAnchoredOverlayPosition } from "../src/features/app-shell/useAnchoredOverlayPosition";
-import { applyAgentEvents, createAgentProjection } from "../src/features/desktop-agent/agentProjection";
+import { applyAgentEvents, createAgentProjection } from "./helpers/agentDisplayFixture";
 import {
   listAgentRuntimes,
   listEnabledAgentRuntimes,
@@ -428,7 +429,7 @@ describe("Desktop Agent renderer surfaces", () => {
     }];
 
     const container = render(React.createElement(AgentTranscript, {
-      projection,
+      projection: finalizeDisplay(projection),
       loading: false,
       runtimeLabel: "Codex",
     }));

@@ -1,5 +1,5 @@
+import { sanitizeAgentOperationError } from "../../runtime/agent-operation-error.mjs";
 import { randomUUID } from "node:crypto";
-import { redactSecretText } from "../../agent-events.mjs";
 import {
   normalizeOptionalId,
   normalizeOptionalString,
@@ -75,7 +75,7 @@ export function createAgentSessionLifecycle({
     } catch (error) {
       recordRuntimeFailure(session);
       await runtimeSession.closeSessionRecord(session, { persist: false });
-      throw new Error(redactSecretText(error instanceof Error ? error.message : String(error)));
+      throw sanitizeAgentOperationError(error);
     }
   }
 
@@ -157,7 +157,7 @@ export function createAgentSessionLifecycle({
           logger.warn?.(`Discarded unavailable ${runtimeId} session metadata; a new native session will be created on demand.`);
           return null;
         }
-        throw new Error(`Unable to resume Agent session: ${redactSecretText(error instanceof Error ? error.message : String(error))}`);
+        throw sanitizeAgentOperationError(error);
       }
     } finally {
       sessionCreations.delete(creationKey);

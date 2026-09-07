@@ -80,10 +80,7 @@ export function normalizePiHistory(messages, providerSessionId) {
   const tools = new Map();
   const finishTurn = () => {
     if (!turnId) return;
-    events.push(event("turn.completed", { turnId, providerSessionId }, null, {
-      status: "completed",
-      restored: true,
-    }));
+    // Snapshot grouping has no native execution-outcome evidence.
     turnId = null;
     tools.clear();
   };

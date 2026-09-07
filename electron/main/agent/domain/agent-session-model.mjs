@@ -182,7 +182,7 @@ export function publicSessionRecord(record) {
   };
 }
 
-export function sessionMetadata(session) {
+export function sessionMetadata(session, control = session.actor.control) {
   return {
     id: session.id,
     runtimeId: session.runtimeId,
@@ -193,11 +193,11 @@ export function sessionMetadata(session) {
     title: session.title,
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,
-    terminalState: session.terminalState,
+    terminalState: terminalStateFromControl(control),
     selectedModel: session.selectedModel,
     selectedEffort: session.selectedEffort,
     selectedMode: session.selectedMode,
-    activeTurnId: session.activeTurnId,
+    activeTurnId: control.execution.activeTurnId,
     lastSequence: session.sequence,
   };
 }
@@ -215,6 +215,7 @@ export function sessionSnapshot(session) {
     runtime: session.runtime,
     cursor: actorSnapshot.cursor,
     control: actorSnapshot.control,
+    display: actorSnapshot.display,
     timeline: actorSnapshot.timeline,
     events: actorSnapshot.timeline.events,
     partial: actorSnapshot.timeline.partial,

@@ -1,3 +1,7 @@
+import type { AgentProjection, AgentDisplayPatch } from "./display-types";
+import type { AgentFileReference, AgentReferenceStatus, AgentReferenceError, AgentWorkspaceEntryReference, AgentStagedAttachmentReference, AgentDraftReference, AgentPromptReferenceMention, AgentReferenceDisplay, AgentSubmissionIntent } from "./user-message-types";
+export type * from "./user-message-types";
+export type * from "./display-types";
 /** Serializable DTOs shared by Renderer, preload declarations, and Electron main contract tests. */
 export type AgentRuntimeId = string;
 /** @deprecated Compatibility alias for the original Codex-only persistence format. */
@@ -311,6 +315,7 @@ export type AgentEventPayloadMap = {
   "turn.started": AgentRestoredPayload & {
     prompt?: string;
     userMessageId?: string;
+    submissionId?: string;
     status?: string;
     referenceDisplays?: AgentReferenceDisplay[];
     promptMentions?: AgentPromptReferenceMention[];
@@ -363,6 +368,9 @@ export type AgentEventPayloadMap = {
   "question.resolved": AgentBlockingPayload & { resolution?: string; rejected?: boolean };
   "provider.activity": AgentActivityPayload;
   "provider.connection.updated": {
+    scope?: "upstream-request" | "transport";
+    requestId?: string;
+    recoveryId?: string;
     state: "reconnecting" | "fallback" | "connected";
     message?: string;
     attempt?: number;
@@ -426,6 +434,10 @@ type AgentBlockingPayload = {
 };
 
 type AgentDiagnosticPayload = {
+  code?: string;
+  stage?: string;
+  source?: string;
+  actions?: string[];
   message?: string;
   recoverable?: boolean;
   diagnostic?: string;
@@ -511,6 +523,7 @@ export type AgentLocalConnectionsSnapshot = {
 };
 
 export type AgentSessionSnapshot = {
+  display: AgentProjection;
   session: AgentSessionMetadata;
   runtime?: AgentRuntimeDescriptor;
   account: AgentAccountState | null;
@@ -523,9 +536,9 @@ export type AgentSessionSnapshot = {
   partial: boolean;
   firstAvailableSequence: number;
   lastSequence: number;
-  /** Present for Main-authored V2 snapshots; omitted only by legacy fixtures. */
-  cursor?: AgentSessionCursor;
-  control?: AgentSessionControl;
+  /** Atomic Main state and its stream cursor accompany every display snapshot. */
+  cursor: AgentSessionCursor;
+  control: AgentSessionControl;
   timeline?: AgentTimelineWindow;
 };
 
@@ -574,14 +587,16 @@ export type AgentSessionControl = {
     operationId: string | null;
     kind: "start" | "steer" | "interrupt" | "approval" | "question";
     targetTurnId: string | null;
+    requestId?: string | null;
     status: AgentCommandDeliveryStatus;
     error: string | null;
     intentFingerprint: string | null;
     wasQueued: boolean;
-    /** Native user-item identity when the runtime exposes it. */
+    /** Main-allocated client input identity, available before native delivery. */
     userMessageId?: string | null;
     intent?: AgentControlStartIntent;
   }>;
+  recoveries?: Array<{id: string; scope: "upstream-request" | "transport"; turnId: string | null; requestId: string | null; adapterGeneration: number; runGeneration: number; state: "reconnecting" | "fallback"; message: string; attempt: number | null; maxAttempts: number | null}>;
   queue: string[];
   terminalTurns: string[];
   pendingSubmission: {
@@ -618,7 +633,8 @@ export type AgentSessionFrame =
       baseRevision: number;
       revision: number;
       control: AgentSessionControl;
-      events: AgentEvent[];
+      displayPatch: AgentDisplayPatch;
+      session: AgentSessionMetadata;
     }
   | {
       type: "resync-required";
@@ -703,74 +719,6 @@ export type AgentSessionMutationRequest = {
   messageId?: string | null;
   archiveNative?: boolean;
   deleteNative?: boolean;
-};
-
-export type AgentFileReference = {
-  path: string;
-  name?: string | null;
-};
-
-export type AgentReferenceStatus = "resolving" | "ready" | "error";
-
-export type AgentReferenceError = {
-  code: string;
-  message: string;
-};
-
-export type AgentWorkspaceEntryReference = {
-  id: string;
-  kind: "workspace-entry";
-  entryType: "file" | "directory";
-  /** Portable identity resolved against the owning Agent session at send time. */
-  relativePath: string;
-  displayName: string;
-  mime?: string;
-  size?: number;
-  status: AgentReferenceStatus;
-  error?: AgentReferenceError;
-};
-
-export type AgentStagedAttachmentReference = {
-  id: string;
-  kind: "staged-attachment";
-  token?: string;
-  displayName: string;
-  mime: string;
-  size: number;
-  status: AgentReferenceStatus;
-  error?: AgentReferenceError;
-};
-
-/** Renderer draft/request representation. It never contains external paths or bytes. */
-export type AgentDraftReference = AgentWorkspaceEntryReference | AgentStagedAttachmentReference;
-
-/** A renderer-safe atomic file mention embedded in the user's prompt text. */
-export type AgentPromptReferenceMention = {
-  referenceId: string;
-  /** UTF-16 offsets into the associated prompt string. */
-  start: number;
-  end: number;
-};
-
-/** Renderer-safe transcript representation. */
-export type AgentReferenceDisplay = {
-  id: string;
-  kind: "workspace-file" | "workspace-directory" | "attachment";
-  displayName: string;
-  relativePath?: string;
-  mime?: string;
-  size?: number;
-};
-
-export type AgentSubmissionIntent = {
-  id: string;
-  referenceEpoch: string;
-  prompt: string;
-  model: string | null;
-  effort: string | null;
-  mode: string | null;
-  references: AgentDraftReference[];
-  promptMentions: AgentPromptReferenceMention[];
 };
 
 export type AgentCommandPrecondition = {

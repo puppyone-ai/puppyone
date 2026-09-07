@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from "react";
-import { createAgentProjection } from "../domain/agent-projection";
+import { createEmptyAgentDisplay as createAgentProjection } from "../../../../shared/agent-contract/display-state.mjs";
 import { agentToolEvidenceLimits } from "../domain/agent-tool-evidence";
 import { AgentTranscript, agentTimelineLimits } from "./AgentTranscript";
 import { registerAgentToolRenderer } from "./AgentToolRendererRegistry";

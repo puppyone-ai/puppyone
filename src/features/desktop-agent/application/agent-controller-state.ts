@@ -54,7 +54,6 @@ export type AgentControllerState = {
   error: AgentErrorDescriptor | null;
   submitting: boolean;
   stopping: boolean;
-  resolvingBlocker: boolean;
   initialized: boolean;
 };
 
@@ -69,10 +68,3 @@ export const agentControllerTransitions: Readonly<Record<AgentControllerPhase, r
   "runtime-exited": ["discovering", "restoring", "creating", "ready", "failed"],
   failed: ["discovering", "restoring", "creating", "ready", "runtime-exited"],
 });
-
-export function phaseForProjection(projection: AgentProjection, current: AgentControllerPhase): AgentControllerPhase {
-  if (projection.runningTurnId) {
-    return projection.approvals.length || projection.questions.length ? "waiting" : "running";
-  }
-  return projection.terminalState ? "ready" : current;
-}

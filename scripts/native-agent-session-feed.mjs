@@ -1,3 +1,6 @@
+import { assertAgentDisplay } from "../shared/agent-contract/display-schema.mjs";
+import { applyAgentDisplayPatch } from "../shared/agent-contract/display-state.mjs";
+import { assertAgentSessionFrame, assertAgentSessionSnapshot } from "../shared/agent-contract/schema.mjs";
 const DEFAULT_TIMEOUT_MS = 120_000;
 
 /**
@@ -23,6 +26,7 @@ export async function attachNativeAgentSessionFeed({
   const subscriptionId = requiredText(receipt?.subscriptionId, "subscription");
   const streamId = requiredText(receipt?.snapshot?.cursor?.streamId, "stream");
   let revision = requiredRevision(receipt?.snapshot?.cursor?.revision);
+  let display = assertAgentSessionSnapshot(receipt.snapshot).display;
   let closed = false;
   let pending = null;
 
@@ -46,13 +50,16 @@ export async function attachNativeAgentSessionFeed({
       || candidate.baseRevision !== revision
       || !Number.isSafeInteger(candidate.revision)
       || candidate.revision <= revision
-      || !Array.isArray(candidate.events)
     ) {
       fail(new Error("Agent session feed is discontinuous."));
       return;
     }
+    try {
+      assertAgentSessionFrame(candidate);
+      display = assertAgentDisplay(applyAgentDisplayPatch(display, candidate.displayPatch));
+    } catch (error) { fail(error); return; }
     revision = candidate.revision;
-    for (const event of candidate.events) pending?.accept(event);
+    pending?.accept(display);
     Promise.resolve(service.acknowledgeSession(sender, {
       sessionId,
       subscriptionId,
@@ -79,7 +86,7 @@ export async function attachNativeAgentSessionFeed({
       if (closed) throw new Error("Agent session feed is closed.");
       if (pending) throw new Error("Only one Agent turn may be observed at a time.");
       let text = "";
-      let observedUserMessage = expectedUserMessage === null;
+      const baselineSequence = display.lastSequence;
       let resolvePromise;
       let rejectPromise;
       const promise = new Promise((resolve, reject) => {
@@ -99,21 +106,17 @@ export async function attachNativeAgentSessionFeed({
       pending = {
         timer,
         reject: rejectPromise,
-        accept(event) {
-          if (event?.sessionId !== sessionId) return;
-          if (event.type === "assistant.delta" && typeof event.payload?.delta === "string") {
-            text = appendBounded(text, event.payload.delta);
-          }
-          if (event.type === "assistant.completed" && typeof event.payload?.text === "string") {
-            text = appendBounded(text, event.payload.text);
-          }
-          if (event.type === "user.message" && event.payload?.text === expectedUserMessage) {
-            observedUserMessage = true;
-          }
-          if (event.type === "turn.completed" && !observedUserMessage) {
-            settle(() => rejectPromise(new Error("Agent user message was not observed.")));
-          } else if (event.type === "turn.completed") settle(() => resolvePromise(text));
-          if (event.type === "turn.failed" || event.type === "turn.interrupted") {
+        accept(nextDisplay) {
+          const turn = nextDisplay.turns.findLast(entry => entry.startedAtSequence > baselineSequence);
+          if (!turn) return;
+          const messages = nextDisplay.messages.filter(entry => entry.turnId === turn.id);
+          text = messages.filter(entry => entry.role === "assistant").map(entry => entry.text).join("").slice(-256 * 1024);
+          if (turn.status === "completed") {
+            const inputs = messages.filter(entry => entry.role === "user");
+            if (expectedUserMessage !== null && (inputs.length !== 1 || inputs[0].text !== expectedUserMessage)) {
+              settle(() => rejectPromise(new Error("Agent user message is missing or duplicated.")));
+            } else settle(() => resolvePromise(text));
+          } else if (["failed", "interrupted", "outcome-unknown"].includes(turn.status)) {
             settle(() => rejectPromise(new Error("Agent turn did not complete.")));
           }
         },
@@ -141,10 +144,6 @@ function requiredText(value, kind) {
 function requiredRevision(value) {
   if (!Number.isSafeInteger(value) || value < 0) throw new Error("Agent session revision is invalid.");
   return value;
-}
-
-function appendBounded(previous, value) {
-  return `${previous}${value}`.slice(-256 * 1024);
 }
 
 function boundedTimeout(value) {

@@ -1,3 +1,4 @@
+import { assertAgentDisplay, assertAgentDisplayPatch } from "./display-schema.mjs";
 import { AGENT_SESSION_OPEN_ERROR_CODES, agentContractLimits } from "./constants.mjs";
 import { assertAgentEventEnvelope } from "./event-schema.mjs";
 import { sanitizeAgentLocalConnectionsSnapshot } from "./local-connection-schema.mjs";
@@ -279,16 +280,17 @@ function optionalPageSize(value, label) {
   return normalized;
 }
 
-function assertAgentSessionSnapshot(value) {
+export function assertAgentSessionSnapshot(value) {
   const snapshot = assertRecord(value, "Agent session snapshot");
   assertAgentSessionMetadata(snapshot.session);
+  assertAgentDisplay(snapshot.display);
   assertArray(snapshot.providers ?? [], "Agent session providers").forEach(assertAgentInferenceProvider);
   assertArray(snapshot.models ?? [], "Agent session models").forEach(assertAgentModel);
   assertArray(snapshot.events, "Agent session events").forEach(assertAgentEventEnvelope);
   if (!Number.isSafeInteger(snapshot.firstAvailableSequence) || snapshot.firstAvailableSequence < 0) throw contractError("firstAvailableSequence", "must be a non-negative integer");
   if (!Number.isSafeInteger(snapshot.lastSequence) || snapshot.lastSequence < 0) throw contractError("lastSequence", "must be a non-negative integer");
-  if (snapshot.cursor !== undefined) assertAgentSessionCursor(snapshot.cursor, "Agent session snapshot.cursor");
-  if (snapshot.control !== undefined) assertAgentSessionControl(snapshot.control, "Agent session snapshot.control");
+  assertAgentSessionCursor(snapshot.cursor, "Agent session snapshot.cursor");
+  assertAgentSessionControl(snapshot.control, "Agent session snapshot.control");
   if (snapshot.timeline !== undefined) {
     const timeline = assertRecord(snapshot.timeline, "Agent session snapshot.timeline");
     assertArray(timeline.events, "Agent session snapshot.timeline.events").forEach(assertAgentEventEnvelope);
@@ -330,6 +332,24 @@ export function assertAgentSessionControl(value, label = "Agent session control"
   if (connection.status !== "recovering" && (
     connection.recoveryState != null || connection.attempt != null || connection.maxAttempts != null
   )) throw contractError(`${label}.connection`, "must not retain recovery details outside recovery");
+  const recoveries = assertArray(control.recoveries ?? [], `${label}.recoveries`);
+  if (recoveries.length > 64) throw contractError(`${label}.recoveries`, "exceeds the recovery budget");
+  const recoveryIds = new Set();
+  for (const entry of recoveries) {
+    assertRecord(entry, "recovery");
+    requiredOpaqueId(entry.id, "recovery.id");
+    if (recoveryIds.has(entry.id)) throw contractError("recovery.id", "must be unique");
+    recoveryIds.add(entry.id);
+    enumValue(entry.scope, "recovery.scope", ["transport", "upstream-request"]);
+    enumValue(entry.state, "recovery.state", ["reconnecting", "fallback"]);
+    optionalOpaqueId(entry.turnId, "recovery.turnId", { nullable: true });
+    optionalOpaqueId(entry.requestId, "recovery.requestId", { nullable: true });
+    nonNegativeInteger(entry.adapterGeneration, "recovery.adapterGeneration");
+    nonNegativeInteger(entry.runGeneration, "recovery.runGeneration");
+    optionalString(entry.message, "recovery.message", MAX_CONTROL_REASON_LENGTH);
+    if (entry.attempt !== null) positiveInteger(entry.attempt, "recovery.attempt");
+    if (entry.maxAttempts !== null) positiveInteger(entry.maxAttempts, "recovery.maxAttempts");
+  }
   const execution = assertRecord(control.execution, `${label}.execution`);
   enumValue(execution.status, `${label}.execution.status`, ["idle", "starting", "active", "ended", "outcome-unknown"]);
   optionalOpaqueId(execution.activeTurnId, `${label}.execution.activeTurnId`, { nullable: true });
@@ -346,6 +366,7 @@ export function assertAgentSessionControl(value, label = "Agent session control"
     const commandId = requiredOpaqueId(command.commandId, `${label}.commands[${index}].commandId`);
     if (commandIds.has(commandId)) throw contractError(`${label}.commands`, "must not contain duplicate command ids");
     commandIds.add(commandId);
+    optionalOpaqueId(command.requestId, `${label}.commands[${index}].requestId`, { nullable: true });
     optionalOpaqueId(command.operationId, `${label}.commands[${index}].operationId`, { nullable: true });
     optionalOpaqueId(command.targetTurnId, `${label}.commands[${index}].targetTurnId`, { nullable: true });
     optionalOpaqueId(command.userMessageId, `${label}.commands[${index}].userMessageId`, { nullable: true });
@@ -433,6 +454,7 @@ function assertControlBlocker(value, label, question = false) {
 
 export function assertAgentSessionFrame(value) {
   const frame = assertRecord(value, "Agent session frame");
+  if (frame.type === "delta") assertAgentDisplayPatch(frame.displayPatch);
   requiredOpaqueId(frame.subscriptionId, "Agent session frame.subscriptionId");
   requiredOpaqueId(frame.streamId, "Agent session frame.streamId");
   const revision = nonNegativeInteger(frame.revision, "Agent session frame.revision");
@@ -444,7 +466,7 @@ export function assertAgentSessionFrame(value) {
   if (control.streamId !== frame.streamId || control.revision !== revision) {
     throw contractError("Agent session frame.control", "must match the frame version");
   }
-  assertArray(frame.events, "Agent session frame.events").forEach(assertAgentEventEnvelope);
+  assertAgentSessionMetadata(frame.session);
   return value;
 }
 

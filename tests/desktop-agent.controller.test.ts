@@ -1,3 +1,4 @@
+import { withDisplayFeed, displaySnapshot } from "./helpers/agentDisplayFixture";
 import { describe, expect, it, vi } from "vitest";
 import {
   AgentSessionController,
@@ -117,7 +118,7 @@ describe("AgentSessionController", () => {
     expect(bridge.resumeAgentSession).not.toHaveBeenCalled();
   });
 
-  it("rebuilds a deterministic projection, repairs sequence gaps, and preserves the old locator on New Chat", async () => {
+  it("renders Main display revisions and preserves the old locator on New Chat", async () => {
     let eventListener: ((event: AgentEvent) => void) | null = null;
     const bridge = bridgeFixture((listener) => { eventListener = listener; });
     const controller = new AgentSessionController("/workspace", () => bridge as never);
@@ -133,7 +134,7 @@ describe("AgentSessionController", () => {
 
     eventListener?.(event(5, "turn.completed", { status: "completed" }, "turn-1"));
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(bridge.replayAgentSession).toHaveBeenCalledWith({ rootPath: "/workspace", sessionId: "session-1", afterSequence: 3 });
+    expect(bridge.replayAgentSession).not.toHaveBeenCalled();
     expect(controller.getSnapshot().projection.lastSequence).toBe(5);
     expect(controller.getSnapshot().projection.terminalState).toBe("completed");
 
@@ -430,7 +431,7 @@ describe("AgentSessionController", () => {
     expect(bridge.resumeAgentSession).toHaveBeenCalledTimes(1);
   });
 
-  it("quarantines a provider after an authoritative credential rejection", async () => {
+  it("displays provider diagnostics without rewriting the discovered provider catalog", async () => {
     let eventListener: ((event: AgentEvent) => void) | null = null;
     const bridge = bridgeFixture((listener) => { eventListener = listener; });
     const controller = new AgentSessionController("/workspace", () => bridge as never);
@@ -440,9 +441,10 @@ describe("AgentSessionController", () => {
     eventListener?.(event(3, "provider.error", { message: "API key not valid. Please pass a valid API key." }, "turn-auth", "assistant-auth"));
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(controller.getSnapshot()).toMatchObject({ selectedProviderId: null, selectedModel: null });
-    expect(controller.getSnapshot().inspection?.readiness).toMatchObject({ status: "installed-not-authenticated" });
-    expect(controller.getSnapshot().projection.activities.filter((activity) => activity.kind === "error")).toHaveLength(1);
+    expect(controller.getSnapshot()).toMatchObject({ selectedProviderId: "openai", selectedModel: "openai/gpt-5" });
+    expect(controller.getSnapshot().projection.activities).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "error" }),
+    ]));
   });
 
   it("reuses workspace Agent discovery on presentation remounts and lets Refresh bypass the cache", async () => {
@@ -901,7 +903,7 @@ function bridgeFixture(
   onEvent: (listener: (event: AgentEvent) => void) => void,
   capabilityOverrides: Partial<ReturnType<typeof capabilities>> = {},
 ) {
-  return {
+  return withDisplayFeed({
     discoverAgentRuntimes: vi.fn(async () => ({
       runtimes: [{ descriptor: { id: "opencode", displayName: "OpenCode", priority: 100 }, readiness: readiness() }],
       selectedRuntimeId: "opencode",
@@ -959,9 +961,7 @@ function bridgeFixture(
       },
       warnings: [],
     })),
-    onAgentEvent: vi.fn((listener: (event: AgentEvent) => void) => { onEvent(listener); return () => {}; }),
-    onAgentSessionExit: vi.fn(() => () => {}),
-  };
+  }, onEvent);
 }
 
 function snapshot(

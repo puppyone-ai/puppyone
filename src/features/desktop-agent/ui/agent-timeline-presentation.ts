@@ -5,7 +5,7 @@ import type {
 } from "../domain/agent-projection-types";
 import { STANDARD_CONTROL_SIZE } from "@puppyone/shared-ui";
 import { outputForActivity } from "../domain/agent-activity-presentation";
-import { isLiveAgentActivityStatus } from "../domain/agent-turn-lifecycle";
+
 
 export type AgentTimeline = {
   rows: TimelineRow[];
@@ -13,7 +13,7 @@ export type AgentTimeline = {
 };
 
 /**
- * Projects durable Agent state into visible transcript rows. Non-visual state,
+ * Arranges Main-authored display data into visible transcript rows. Non-visual state,
  * such as token usage, must not occupy virtual-list geometry.
  */
 export function buildAgentTimeline(
@@ -43,63 +43,22 @@ export function buildAgentTimeline(
       estimatedHeight: estimateLegacyPartHeight(part),
     }));
   }
-  return appendTurnSummaries(rows, parts, projection.turns, compactRowHeight);
+  const partMap = new Map(parts.map(part => [part.id, part]));
+  return { rows: rows.filter(row => isVisibleAgentTimelinePart(partMap.get(row.partId))), parts: partMap };
 }
 
 export function isVisibleAgentTimelinePart(part: AgentPart | undefined): part is AgentPart {
   if (!part || part.kind === "usage") return false;
-  // Resolved approvals remain in the durable projection for replay/audit, but
+  // Resolved approvals remain in the display snapshot, but
   // are no longer conversation content. Removing their row also lets the
   // surrounding tool activity collapse back into one compact visual group.
-  if (part.kind === "permission" && part.state === "resolved") return false;
+  if (part.kind === "permission" && part.state !== "pending") return false;
   if (part.kind !== "reasoning") return true;
-  if (isLiveAgentActivityStatus(part.status)) return false;
+  if (["queued", "running", "pending", "in-progress", "waiting-for-user"].includes(part.status)) return false;
   const summary = typeof part.detail.delta === "string"
     ? part.detail.delta
     : outputForActivity(part);
   return summary.trim().length > 0;
-}
-
-function appendTurnSummaries(
-  rows: TimelineRow[],
-  parts: AgentPart[],
-  turns: AgentProjection["turns"],
-  compactRowHeight: number,
-): AgentTimeline {
-  const partMap = new Map(parts.map((part) => [part.id, part]));
-  const nextRows = rows.filter((row) => isVisibleAgentTimelinePart(partMap.get(row.partId)));
-  for (const turn of turns) {
-    if (turn.status === "running" || turn.durationMs === null || turn.completedAtSequence === null) continue;
-    const id = `turn-summary:${turn.id}`;
-    const lastTurnSequence = nextRows.reduce((latest, row) => (
-      row.turnId === turn.id ? Math.max(latest, row.sequence) : latest
-    ), turn.completedAtSequence);
-    const sequence = lastTurnSequence + 0.5;
-    const part: AgentPart = {
-      id,
-      kind: "turn-summary",
-      turnId: turn.id,
-      itemId: null,
-      durationMs: turn.durationMs,
-      status: turn.status,
-      sequence,
-      updatedSequence: turn.completedAtSequence,
-    };
-    partMap.set(id, part);
-    nextRows.push({
-      id: `row:${id}`,
-      partId: id,
-      turnId: turn.id,
-      kind: "turn-summary",
-      sequence,
-      updatedSequence: turn.completedAtSequence,
-      estimatedHeight: compactRowHeight,
-    });
-  }
-  return {
-    rows: nextRows.sort((left, right) => left.sequence - right.sequence),
-    parts: partMap,
-  };
 }
 
 function estimateLegacyPartHeight(part: AgentPart) {

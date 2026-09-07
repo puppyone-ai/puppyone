@@ -34,6 +34,7 @@ export async function executeAgentStartTransaction(context, {
     session.selectedMode = mode;
     const result = await session.adapter.startTurn({
       prompt,
+      clientUserMessageId: session.actor.control.commands.find(entry => entry.commandId === commandId)?.userMessageId,
       model,
       ...(effort ? { effort } : {}),
       mode,
@@ -55,7 +56,8 @@ export async function executeAgentStartTransaction(context, {
         payload: {
           status: "running",
           prompt: displayPrompt,
-          ...(result.clientUserMessageId ? { userMessageId: result.clientUserMessageId } : {}),
+          userMessageId: session.actor.control.commands.find(entry => entry.commandId === commandId)?.userMessageId,
+          submissionId: commandId,
           model,
           effort,
           mode,
@@ -68,7 +70,7 @@ export async function executeAgentStartTransaction(context, {
       type: "submission.accepted",
       ...identity,
       turnId: result.turnId,
-      userMessageId: result.clientUserMessageId ?? null,
+      userMessageId: session.actor.control.commands.find(entry => entry.commandId === commandId)?.userMessageId ?? null,
       terminalOutcome,
     });
     if (!accepted.changed) {

@@ -18,11 +18,11 @@ const PAYLOAD_KEYS = Object.freeze({
   "session.resumed": ["title", "status"],
   "session.updated": ["title", "status"],
   "session.closed": ["status"],
-  "turn.started": ["prompt", "userMessageId", "status", "referenceDisplays", "promptMentions", "model", "effort", "mode", "restored"],
+  "turn.started": ["prompt", "userMessageId", "submissionId", "status", "referenceDisplays", "promptMentions", "model", "effort", "mode", "restored"],
   "turn.completed": ["status", "durationMs", "restored"],
   "turn.failed": ["status", "message", "durationMs", "restored"],
   "turn.interrupted": ["status", "message", "durationMs", "restored"],
-  "user.message": ["text", "referenceDisplays", "promptMentions", "restored"],
+  "user.message": ["text", "clientUserMessageId", "userMessageId", "submissionId", "referenceDisplays", "promptMentions", "restored"],
   "assistant.delta": ["delta", "text", "streaming", "updateMode", "truncated", "restored"],
   "assistant.completed": ["text", "streaming", "updateMode", "truncated", "restored"],
   "reasoning.summary.delta": ["delta", "text", "summaryIndex", "completed", "boundary", "updateMode", "truncated", "restored"],
@@ -38,9 +38,9 @@ const PAYLOAD_KEYS = Object.freeze({
   "question.requested": blockerPayloadKeys("questions"),
   "question.resolved": blockerPayloadKeys("resolution", "rejected", "reason"),
   "provider.activity": activityPayloadKeys(),
-  "provider.connection.updated": ["state", "message", "attempt", "maxAttempts", "maxRetries"],
-  "provider.warning": ["message", "recoverable", "diagnostic", "attempt", "maxAttempts", "maxRetries"],
-  "provider.error": ["message", "recoverable", "diagnostic"],
+  "provider.connection.updated": ["scope", "requestId", "recoveryId", "state", "message", "attempt", "maxAttempts", "maxRetries"],
+  "provider.warning": ["code", "stage", "source", "actions", "message", "recoverable", "diagnostic", "attempt", "maxAttempts", "maxRetries"],
+  "provider.error": ["code", "stage", "source", "actions", "message", "recoverable", "diagnostic"],
 });
 
 export function assertAgentEventEnvelope(value) {
@@ -61,6 +61,9 @@ export function assertAgentEventEnvelope(value) {
   }
   if (event.type === "question.requested" && !Array.isArray(payload.questions)) {
     throw contractError("AgentEvent(question.requested).payload.questions", "must be an array");
+  }
+  for (const key of ["clientUserMessageId", "userMessageId", "submissionId", "requestId", "recoveryId"]) {
+    if (payload[key] !== undefined) optionalOpaqueId(payload[key], `AgentEvent.payload.${key}`);
   }
   if (event.type === "user.message") {
     requiredString(payload.text, "AgentEvent(user.message).payload.text", agentContractLimits.maxMessageLength, {

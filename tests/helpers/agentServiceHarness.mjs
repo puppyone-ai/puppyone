@@ -1,3 +1,4 @@
+import { AgentSessionActor } from "../../electron/main/agent/domain/agent-session-actor.mjs";
 import { vi } from "vitest";
 import { createAgentService } from "../../electron/main/agent/agent-service.mjs";
 import { createCodexRuntimeDefinition } from "../../electron/main/agent/runtimes/codex/codex-runtime-definition.mjs";
@@ -111,7 +112,9 @@ export function createSender(id) {
 }
 
 export function ipcSnapshot() {
+  const actor = new AgentSessionActor();
   return {
+    ...actor.snapshot(),
     session: {
       id: "session-1",
       runtimeId: "codex",

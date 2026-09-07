@@ -2,7 +2,7 @@
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it } from "vitest";
-import type { AgentStreamFlushScheduler } from "../src/features/desktop-agent/application/AgentEventSynchronizer";
+import type { AgentStreamFlushScheduler } from "../src/features/desktop-agent/ui/agent-stream-frame-scheduler";
 import { SafeMarkdown } from "../src/features/desktop-agent/ui/SafeMarkdown";
 import { splitStreamingMarkdown } from "../src/features/desktop-agent/domain/agent-stream-presentation";
 import { useAgentStreamPresentation } from "../src/features/desktop-agent/ui/useAgentStreamPresentation";

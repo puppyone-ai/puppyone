@@ -13,7 +13,6 @@ import type { AgentChatTabPresentation } from "../domain/agent-chat-tabs";
 import type { AgentRoutePreference } from "../domain/agent-route-preference";
 import { getElectronAgentClient, openExternalAgentUrl } from "../infrastructure/electron/electronAgentClient";
 import { AgentChatTabPanel } from "../ui/AgentChatTabPanel";
-import { scheduleAgentStreamFrame } from "../ui/agent-stream-frame-scheduler";
 import type { AgentWorkspaceReferenceResolver } from "../ui/useAgentReferenceIngestion";
 import { AgentMarkdownEnvironmentProvider } from "../ui/markdown/AgentMarkdownEnvironment";
 import "../ui/desktop-agent.css";
@@ -48,7 +47,7 @@ export function AgentChatWorkbenchItem({
 }: AgentChatWorkbenchItemProps) {
   const { t } = useLocalization();
   const controller = useMemo(
-    () => getAgentSessionController(item.rootId, getElectronAgentClient, item.id, scheduleAgentStreamFrame),
+    () => getAgentSessionController(item.rootId, getElectronAgentClient, item.id),
     [item.id, item.rootId],
   );
   const present = useCallback((agent: AgentChatTabPresentation) => {
@@ -87,7 +86,7 @@ export function prepareAgentChatWorkbenchItem(
   runtimeId: string | null,
 ) {
   if (!runtimeId) return;
-  const controller = getAgentSessionController(rootId, getElectronAgentClient, itemId, scheduleAgentStreamFrame);
+  const controller = getAgentSessionController(rootId, getElectronAgentClient, itemId);
   controller.beginInitializeForRuntime(runtimeId);
 }
 
@@ -101,7 +100,6 @@ export async function restoreAgentChatWorkbenchItem(
     rootId,
     getElectronAgentClient,
     itemId,
-    scheduleAgentStreamFrame,
   );
   await controller.openSavedSession(sessionId, runtimeId);
 }

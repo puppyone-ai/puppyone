@@ -2,7 +2,6 @@ import type {
   AgentAccountReadRequest,
   AgentAccountState,
   AgentApprovalResolution,
-  AgentEvent,
   AgentLocalConnectionsRequest,
   AgentLocalConnectionsSnapshot,
   AgentModel,
@@ -16,7 +15,6 @@ import type {
   AgentRuntimeRequest,
   AgentSessionCloseRequest,
   AgentSessionCreateRequest,
-  AgentSessionExitEvent,
   AgentSessionMutationRequest,
   AgentSessionOpenRequest,
   AgentSessionOpenResult,
@@ -68,11 +66,7 @@ export interface AgentClientPort {
     decision: AgentApprovalResolution["decision"];
   }>;
   resolveAgentQuestion(request: AgentQuestionResolution): Promise<{ sessionId: string; requestId: string }>;
-  /** Test/older-shell fallback. Production preload exposes only the versioned session feed. */
-  onAgentEvent?(callback: (event: AgentEvent) => void): () => void;
   onAgentSessionFrame?(callback: (frame: AgentSessionFrame) => void): () => void;
-  /** Test/older-shell fallback paired with the unversioned event stream. */
-  onAgentSessionExit?(callback: (event: AgentSessionExitEvent) => void): () => void;
 }
 
 export type AgentClientProvider = () => AgentClientPort | undefined;

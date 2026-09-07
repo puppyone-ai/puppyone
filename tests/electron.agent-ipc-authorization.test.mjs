@@ -1,3 +1,4 @@
+import { clientHandler } from "./helpers/agentIpcClient.mjs";
 import { describe, expect, it, vi } from "vitest";
 import { registerAgentIpcHandlers } from "../electron/main/ipc/agent-ipc.mjs";
 import {
@@ -18,7 +19,7 @@ describe("Agent IPC workspace authorization", () => {
       discover: vi.fn(async () => ({ connections: [], scannedAt: new Date(0).toISOString(), warnings: [] })),
     };
     registerAgentIpcHandlers({
-      ipcMain: { handle: (channel, listener) => handlers.set(channel, listener) },
+      ipcMain: { handle: (channel, listener) => handlers.set(channel, clientHandler(listener)) },
       agentService,
       localAgentInventory,
       authorizeWorkspaceRoot,
@@ -57,7 +58,7 @@ describe("Agent IPC workspace authorization", () => {
     const handlers = new Map();
     const agentService = createMockAgentService();
     registerAgentIpcHandlers({
-      ipcMain: { handle: (channel, listener) => handlers.set(channel, listener) },
+      ipcMain: { handle: (channel, listener) => handlers.set(channel, clientHandler(listener)) },
       agentService,
       localAgentInventory: {
         discover: vi.fn(async () => ({ connections: [], scannedAt: new Date(0).toISOString(), warnings: [] })),

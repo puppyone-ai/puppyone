@@ -1,0 +1,18 @@
+import type { AgentEvent } from "../../../../../shared/agent-contract/types";
+import type { AgentProjection } from "../../../../../shared/agent-contract/display-types";
+export type * from "../../../../../shared/agent-contract/display-types";
+export declare function createAgentProjection(options?: {
+    partialHistory?: boolean;
+}): AgentProjection;
+export declare function applyAgentEvents(initial: AgentProjection, events: AgentEvent[], options?: AgentProjectionApplyOptions): AgentProjection;
+export declare function applyAgentEvent(previous: AgentProjection, event: AgentEvent, options?: AgentProjectionApplyOptions): AgentProjection;
+type AgentProjectionApplyOptions = {
+    partialHistory?: boolean;
+    /** Only snapshot hydration may reinterpret pre-V2 retry warnings. */
+    legacyProviderConnectionWarnings?: boolean;
+};
+export declare const agentProjectionLimits: Readonly<{
+    maxMessageText: number;
+    maxCommandOutput: number;
+    maxActivityText: number;
+}>;

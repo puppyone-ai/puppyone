@@ -59,7 +59,7 @@ describe("Desktop Agent architecture boundaries", () => {
     const picker = source("src/features/desktop-agent/ui/AgentPickerPopover.tsx");
     const pickerPresentation = source("src/features/desktop-agent/ui/agent-picker-presentation.ts");
     const desktopMenu = source("src/components/DesktopMenu.tsx");
-    const eventSynchronizer = source("src/features/desktop-agent/application/AgentEventSynchronizer.ts");
+    const eventSynchronizer = source("src/features/desktop-agent/application/AgentSessionReplica.ts");
     const streamScheduler = source("src/features/desktop-agent/ui/agent-stream-frame-scheduler.ts");
     const streamPresentation = source("src/features/desktop-agent/ui/useAgentStreamPresentation.ts");
     const streamPolicy = source("src/features/desktop-agent/domain/agent-stream-presentation.ts");
@@ -76,7 +76,7 @@ describe("Desktop Agent architecture boundaries", () => {
     expect(timelinePresentation).toContain("buildAgentTimeline");
     expect(timelinePresentation).toContain('part.kind === "usage"');
     expect(timelinePresentation).toContain('part.kind !== "reasoning"');
-    expect(timelinePresentation).toContain("isLiveAgentActivityStatus(part.status)");
+    expect(timelinePresentation).toContain(".includes(part.status)");
     expect(timeline).toContain("buildAgentTimeline(projection, compactRowHeight)");
     expect(timeline).toContain("buildAgentTimelineLayout(timeline.rows");
     expect(timeline).not.toContain("function buildLayout(");
@@ -142,10 +142,10 @@ describe("Desktop Agent architecture boundaries", () => {
     expect(streamPresentation).not.toContain("useDeferredValue");
     expect(streamPolicy).toContain("TARGET_CATCH_UP_FRAMES");
     expect(eventSynchronizer).not.toMatch(/requestAnimationFrame|document\.|window\./);
-    expect(eventSynchronizer).toContain("AgentStreamFlushScheduler");
+    expect(eventSynchronizer).toContain("applyAgentDisplayPatch");
     expect(streamScheduler).toContain('typeof window.requestAnimationFrame === "function"');
     expect(streamScheduler).toContain("document.visibilityState !== \"hidden\"");
-    expect(eventSynchronizer).toContain("STREAM_FRAME_MS = 16");
+    expect(eventSynchronizer).toContain("assertAgentDisplay");
     expect(composerToolbar.split("\n").length).toBeLessThan(130);
     expect(attachmentButton).not.toMatch(/useState|DesktopOverlayLayer|role="menu"/);
     expect(commandSuggestions).not.toMatch(/useState|AgentSessionController/);
@@ -267,11 +267,11 @@ describe("Desktop Agent architecture boundaries", () => {
   });
 
   it("models provider recovery as replaceable live state rather than transcript history", () => {
-    const projection = source("src/features/desktop-agent/domain/agent-projection.ts");
-    const typedProjection = source("src/features/desktop-agent/domain/agent-typed-part-projection.ts");
+    const projection = source("electron/main/agent/domain/transcript/transcript-reducer.mjs");
+    const typedProjection = source("electron/main/agent/domain/transcript/display-projection.mjs");
     const notice = source("src/features/desktop-agent/ui/activity/AgentNoticeActivity.tsx");
     const connection = source("src/features/desktop-agent/ui/AgentConnectionStatus.tsx");
-    const codex = source("electron/main/agent/runtimes/codex/codex-app-server-adapter.mjs");
+    const codex = source("electron/main/agent/runtimes/codex/codex-events.mjs");
     const claude = source("electron/main/agent/runtimes/claude/claude-events.mjs");
     expect(projection).toContain('case "provider.connection.updated"');
     expect(typedProjection).toContain('event.type === "provider.connection.updated"');
@@ -283,9 +283,9 @@ describe("Desktop Agent architecture boundaries", () => {
   });
 
   it("uses one terminal lifecycle authority and a provider-neutral semantic Renderer registry", () => {
-    const lifecycle = source("src/features/desktop-agent/domain/agent-turn-lifecycle.ts");
-    const projection = source("src/features/desktop-agent/domain/agent-projection.ts");
-    const typedProjection = source("src/features/desktop-agent/domain/agent-typed-part-projection.ts");
+    const lifecycle = source("electron/main/agent/domain/transcript/turn-lifecycle.mjs");
+    const projection = source("electron/main/agent/domain/transcript/transcript-reducer.mjs");
+    const typedProjection = source("electron/main/agent/domain/transcript/display-projection.mjs");
     const renderer = source("src/features/desktop-agent/ui/AgentPartRenderer.tsx");
     const registry = source("src/features/desktop-agent/ui/AgentPartRendererRegistry.tsx");
 

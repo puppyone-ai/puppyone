@@ -84,7 +84,7 @@ export function normalizeClaudeHistory(messages, providerSessionId) {
   let state = null;
   const finish = () => {
     if (!turnId) return;
-    events.push(event("turn.completed", providerSessionId, turnId, null, { status: "completed", restored: true }));
+    // A history page/group ending is not evidence that the native turn succeeded.
     turnId = null;
     state = null;
   };
@@ -161,8 +161,9 @@ function normalizeAssistant(message, state, sessionId) {
     }
   }
   if (message.error) {
-    result.push(event("provider.error", sessionId, state.turnId, itemId, {
+    result.push(event("provider.error", sessionId, state.turnId, messageId, {
       message: redactSecretText(`Claude Code assistant error: ${message.error}`),
+      code: String(message.error),
       recoverable: true,
     }));
   }

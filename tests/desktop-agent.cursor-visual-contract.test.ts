@@ -88,7 +88,7 @@ describe("Desktop Agent Cursor-style sidebar visual contract", () => {
     expect(responsiveCss).not.toMatch(/desktop-agent-virtual-row\[data-kind="assistant"\]/);
     expect(responsiveCss).not.toMatch(/desktop-agent-message\.is-(?:assistant|user)/);
     expect(responsiveCss).not.toMatch(/desktop-agent-turn-summary/);
-    expect(timelinePresentation).toContain('kind: "turn-summary"');
+    expect(fs.readFileSync(path.join(root, "electron/main/agent/domain/transcript/display-control.mjs"), "utf8")).toContain('kind: "turn-summary"');
     expect(transcript).not.toContain("style={{");
     expect(transcript).toContain("agentVirtualCanvasGeometry(layout.totalHeight)");
     expect(transcript).toContain("agentVirtualRowGeometry(top)");

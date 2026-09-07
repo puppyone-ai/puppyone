@@ -75,7 +75,7 @@ describe("Claude Code event normalization", () => {
       { type: "assistant", uuid: "assistant-1", message: { content: [{ type: "text", text: "Done" }] } },
     ], "session-1");
 
-    expect(events.map((event) => event.type)).toEqual(["turn.started", "assistant.completed", "turn.completed"]);
+    expect(events.map((event) => event.type)).toEqual(["turn.started", "assistant.completed"]);
     expect(events[0].payload.prompt).toBe("Fix it");
     expect(events[1].payload.text).toBe("Done");
   });

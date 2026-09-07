@@ -198,7 +198,7 @@ export function AgentChatTabPanel({
     phase={state.phase} announcement={referenceIngestion.announcement}
     onDragOver={referenceIngestion.onDragOver} onDrop={referenceIngestion.onDrop}
     status={hasStatus ? <AgentPanelStatus
-      unavailable={unavailable} failed={failed} error={state.error}
+      unavailable={unavailable} failed={failed} error={state.error ?? (state.phase === "runtime-exited" ? { code: "runtime-exited", params: { runtime: runtimeLabel } } : null)}
       runtimeLabel={runtimeLabel} readiness={readiness ?? undefined}
       onRetry={() => void controller.initialize(true)}
     /> : null}
@@ -218,12 +218,12 @@ export function AgentChatTabPanel({
     dock={startupLoading ? null : <>
       {state.projection.approvals[0] && <AgentApprovalDock
         approval={state.projection.approvals[0]} queueLength={state.projection.approvals.length}
-        resolving={state.resolvingBlocker} runtimeLabel={runtimeLabel}
+        resolving={replyInFlight(state.projection.approvals[0]?.replyStatus)} runtimeLabel={runtimeLabel}
         onResolve={(decision) => void controller.resolveApproval(decision)}
       />}
       {state.projection.questions[0] && <AgentQuestionDock
         key={state.projection.questions[0].requestId} request={state.projection.questions[0]}
-        queueLength={state.projection.questions.length} resolving={state.resolvingBlocker}
+        queueLength={state.projection.questions.length} resolving={replyInFlight(state.projection.questions[0]?.replyStatus)}
         onResolve={(resolution) => void controller.resolveQuestion(resolution)}
       />}
       <AgentComposer
@@ -248,4 +248,8 @@ export function AgentChatTabPanel({
       />
     </>}
   />;
+}
+
+function replyInFlight(status: string | null | undefined) {
+  return status != null && ["dispatching", "accepted", "outcome-unknown"].includes(status);
 }

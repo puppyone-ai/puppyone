@@ -217,7 +217,8 @@ describe("Main Agent SessionActor and versioned feed", () => {
       sessionId: created.session.id, afterSequence: 0,
     }, "/workspace").control;
     expect(() => assertAgentSessionControl(control)).not.toThrow();
-    expect(control.connection.reason).toHaveLength(1_000);
+    expect(control.recoveries[0].message).toHaveLength(1_000);
+    expect(control.connection.status).toBe("connected");
   });
 
   it("carries structured recovery presentation in the authoritative control snapshot", () => {
@@ -235,10 +236,11 @@ describe("Main Agent SessionActor and versioned feed", () => {
       }),
     });
 
-    expect(actor.control.connection).toEqual({
-      status: "recovering",
-      reason: "Switching transport",
-      recoveryState: "fallback",
+    expect(actor.control.connection.status).toBe("connected");
+    expect(actor.control.recoveries[0]).toMatchObject({
+      scope: "upstream-request",
+      message: "Switching transport",
+      state: "fallback",
       attempt: 2,
       maxAttempts: 5,
     });

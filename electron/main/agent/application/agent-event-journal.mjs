@@ -6,13 +6,34 @@ const PERSIST_DEBOUNCE_MS = 750;
 /** Commits canonical facts and schedules process-local recovery snapshots. */
 export function createAgentEventJournal({ sessionCache, logger = console }) {
   function emit(session, adapterEvent) {
-    const normalizedEvent = normalizeAgentEventWorkspacePaths(adapterEvent, session.workspaceRoot);
-    const envelope = session.actor.appendEvent({
-      sessionId: session.id,
-      runtimeId: session.runtimeId,
-      providerSessionId: normalizedEvent.providerSessionId ?? session.providerSessionId,
-      event: normalizedEvent,
-    });
+    let envelope;
+    try {
+      const normalizedEvent = normalizeAgentEventWorkspacePaths(adapterEvent, session.workspaceRoot);
+      envelope = session.actor.appendEvent({
+        sessionId: session.id,
+        runtimeId: session.runtimeId,
+        providerSessionId: normalizedEvent.providerSessionId ?? session.providerSessionId,
+        event: normalizedEvent,
+      });
+    } catch (error) {
+      // A bad display item must not terminate the native stream consumer. Keep
+      // the failure visible and let later, valid native objects continue.
+      const type = typeof adapterEvent?.type === "string" ? adapterEvent.type.slice(0, 80) : "unknown";
+      logger.warn?.("Agent display translation rejected an item", { type, stage: "main-commit" });
+      envelope = session.actor.appendEvent({ sessionId: session.id, runtimeId: session.runtimeId,
+        providerSessionId: session.providerSessionId, event: { type: "provider.error", turnId: session.activeTurnId,
+          itemId: null, payload: { code: "AGENT_DISPLAY_ITEM_INVALID", stage: "main-commit", recoverable: true,
+            message: "An Agent content item could not be displayed.", diagnostic: redactSecretText(error?.message || String(error)).slice(0, 1_000) } } });
+      if (["turn.completed", "turn.failed", "turn.interrupted"].includes(type)) {
+        try {
+          session.actor.appendEvent({ sessionId: session.id, runtimeId: session.runtimeId,
+            providerSessionId: session.providerSessionId,
+            event: { type, turnId: adapterEvent.turnId, payload: { status: type.slice(5) } } });
+        } catch { session.actor.dispatch({ type: "recovery.unconfirmed", reason: "invalid-native-terminal-identity" }); }
+      } else if (type === "approval.requested" || type === "question.requested") {
+        session.actor.dispatch({ type: "recovery.unconfirmed", reason: "invalid-native-request-identity" });
+      }
+    }
     session.updatedAt = envelope.emittedAt;
     persistSoon(session);
     return envelope;

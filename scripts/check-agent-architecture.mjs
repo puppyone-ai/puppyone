@@ -211,7 +211,7 @@ if (existsSync(semanticPartRenderer)) {
   }
 }
 
-const turnLifecyclePolicy = path.join(rendererDomainRoot, "agent-turn-lifecycle.ts");
+const turnLifecyclePolicy = path.join(mainDomainRoot, "transcript", "turn-lifecycle.mjs");
 if (!existsSync(turnLifecyclePolicy)) {
   errors.push(`${relative(turnLifecyclePolicy)} is required; terminal reconciliation needs one domain authority`);
 } else {
@@ -221,12 +221,12 @@ if (!existsSync(turnLifecyclePolicy)) {
   }
 }
 for (const projectionPath of [
-  path.join(rendererDomainRoot, "agent-projection.ts"),
-  path.join(rendererDomainRoot, "agent-typed-part-projection.ts"),
+  path.join(mainDomainRoot, "transcript", "transcript-reducer.mjs"),
+  path.join(mainDomainRoot, "transcript", "display-projection.mjs"),
 ]) {
   const projectionSource = readFileSync(projectionPath, "utf8");
   if (/function\s+(?:activityTerminalStatus|isLiveActivityStatus|isTerminalTurnEvent)\b|const\s+LIVE_ACTIVITY_STATUSES\b/.test(projectionSource)) {
-    errors.push(`${relative(projectionPath)} duplicates terminal lifecycle policy; use agent-turn-lifecycle.ts`);
+    errors.push(`${relative(projectionPath)} duplicates terminal lifecycle policy; use domain/transcript/turn-lifecycle.mjs`);
   }
 }
 
@@ -294,6 +294,26 @@ for (const filePath of walkSourceFiles(mainRoot)) {
   ) {
     errors.push(`${relative(filePath)} names a concrete runtime outside a runtime implementation, composition root, or migration edge`);
   }
+}
+
+// A Renderer is a disposable display replica; native event reducers live only in Main.
+for (const required of ["display-types.ts", "user-message-types.ts", "display-schema.mjs", "display-state.mjs"]) {
+  if (!existsSync(path.join(sharedContractRoot, required))) errors.push(`Shared Agent contract missing ${required}`);
+}
+for (const filePath of walkSourceFiles(rendererRoot)) {
+  const source = stripComments(readFileSync(filePath, "utf8"));
+  if (/\b(?:applyAgentEvent|applyAgentEvents|normalizeCodexNotification|normalizeClaudeMessage|reconcileTerminalAgentTurn|rejectedProviderPatch)\s*\(/.test(source)) {
+    errors.push(`${relative(filePath)} interprets native events; consume Main-authored display JSON`);
+  }
+  for (const specifier of collectSpecifiers(source)) {
+    const target = resolveRelativeModule(filePath, specifier);
+    if (target && isInsideOrSame(target, mainRoot)) errors.push(`${relative(filePath)} imports Main code into Renderer`);
+    if (specifier.includes("agent-contract/event-")) errors.push(`${relative(filePath)} imports an event decoder into Renderer`);
+  }
+}
+const replicaSource = readFileSync(path.join(rendererApplicationRoot, "AgentSessionReplica.ts"), "utf8");
+for (const required of ["assertAgentDisplay", "assertAgentSessionFrame", "applyAgentDisplayPatch", "baseRevision", "readAgentSessionWatermark", "REQUEST_TIMEOUT_MS"]) {
+  if (!replicaSource.includes(required)) errors.push(`AgentSessionReplica is missing ${required}`);
 }
 
 for (const filePath of walkSourceFiles(rendererRoot)) {

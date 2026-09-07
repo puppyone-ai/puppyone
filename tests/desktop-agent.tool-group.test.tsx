@@ -2,7 +2,7 @@
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it } from "vitest";
-import { createAgentProjection, type AgentPart } from "../src/features/desktop-agent/agentProjection";
+import { createAgentProjection, type AgentPart } from "./helpers/agentDisplayFixture";
 import { AgentTranscript } from "../src/features/desktop-agent/ui/AgentTranscript";
 import {
   AGENT_TOOL_GROUP_LIMIT,

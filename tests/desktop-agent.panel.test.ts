@@ -1,3 +1,4 @@
+import { withDisplayFeed } from "./helpers/agentDisplayFixture";
 /**
  * @vitest-environment happy-dom
  */
@@ -317,7 +318,7 @@ describe("Desktop Agent panel lifecycle", () => {
     expect(container.querySelector('button[aria-label="Retry Agent engine"]')).not.toBeNull();
   });
 
-  it("buffers live events while replay fills a sequence gap", async () => {
+  it("renders the Main-authored transcript without requesting raw event replay", async () => {
     const harness = createBridgeHarness();
     harness.bridge.replayAgentSession = vi.fn(async () => snapshot([
       event(2, "turn.started", { prompt: "Fix it" }, "turn-1"),
@@ -326,6 +327,7 @@ describe("Desktop Agent panel lifecycle", () => {
     const container = renderPanel(harness.bridge);
     await flushEffects();
 
+    act(() => harness.eventListener?.(event(2, "turn.started", { prompt: "Fix it" }, "turn-1")));
     act(() => harness.eventListener?.(event(
       3,
       "assistant.delta",
@@ -335,7 +337,7 @@ describe("Desktop Agent panel lifecycle", () => {
     )));
     await flushEffects();
 
-    expect(harness.bridge.replayAgentSession).toHaveBeenCalledWith({ rootPath: "/workspace", sessionId: "session-1", afterSequence: 1 });
+    expect(harness.bridge.replayAgentSession).not.toHaveBeenCalled();
     expect(container.textContent).toContain("Fix it");
     expect(container.textContent).toContain("Working");
   });
@@ -375,7 +377,7 @@ function createBridgeHarness() {
     exitListener: null,
     bridge: {},
   };
-  harness.bridge = {
+  harness.bridge = withDisplayFeed({
     discoverAgentProviders: vi.fn(async () => readyInspection()),
     resumeAgentSession: vi.fn(async () => snapshot([
       event(1, "session.resumed", { title: "Session" }),
@@ -398,15 +400,7 @@ function createBridgeHarness() {
       },
       warnings: [],
     })),
-    onAgentEvent: ((listener: (event: AgentEvent) => void) => {
-      harness.eventListener = listener;
-      return () => { harness.eventListener = null; };
-    }) as never,
-    onAgentSessionExit: ((listener: (event: { sessionId: string; reason: "closed" | "provider-exited" }) => void) => {
-      harness.exitListener = listener;
-      return () => { harness.exitListener = null; };
-    }) as never,
-  };
+  }, listener => { harness.eventListener = listener; }, listener => { harness.exitListener = listener; });
   return harness;
 }
 

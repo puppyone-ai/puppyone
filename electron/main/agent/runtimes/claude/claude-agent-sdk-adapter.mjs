@@ -1,6 +1,9 @@
+import { normalizeModels, compatibleClaudeEffort, normalizeCommands, normalizeAccount, cleanEnvironment, bounded, safeId, asArray, normalizeDate, numericCursor, boundedPageSize } from "./claude-native-values.mjs";
+
+import { claudeResolveApproval, claudeResolveQuestion, claudeRequestPermission, claudeResolvePending } from "./claude-interactions.mjs";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
-import { boundRendererValue, redactSecrets, redactSecretText } from "../../agent-events.mjs";
+import { redactSecretText } from "../../agent-events.mjs";
 import {
   formatAuthorizedProjectInstructions,
   loadAuthorizedProjectInstructions,
@@ -284,46 +287,10 @@ export class ClaudeAgentSdkAdapter {
     // native turn; AgentService force-terminates the process if it never
     // confirms the interruption.
   }
+  resolveApproval(...args) { return claudeResolveApproval(this, ...args); }
 
-  resolveApproval({ requestId, decision, turnId }) {
-    const pending = this.pendingApprovals.get(requestId);
-    if (!pending || pending.turnId !== turnId || turnId !== this.activeTurnId) {
-      throw new Error("Approval correlation did not match the active Claude Code turn.");
-    }
-    this.pendingApprovals.delete(requestId);
-    if (decision === "accept" || decision === "acceptForSession") {
-      const updatedPermissions = decision === "acceptForSession"
-        ? asArray(pending.suggestions).filter((suggestion) => suggestion?.destination === "session")
-        : [];
-      pending.resolve({
-        behavior: "allow",
-        updatedInput: pending.input,
-        ...(updatedPermissions.length ? { updatedPermissions } : {}),
-      });
-      return;
-    }
-    pending.resolve({
-      behavior: "deny",
-      message: decision === "cancel" ? "User interrupted." : "User denied this action.",
-      interrupt: decision === "cancel",
-    });
-  }
+  resolveQuestion(...args) { return claudeResolveQuestion(this, ...args); }
 
-  resolveQuestion({ requestId, answers, rejected, turnId }) {
-    const pending = this.pendingQuestions.get(requestId);
-    if (!pending || pending.turnId !== turnId || turnId !== this.activeTurnId) {
-      throw new Error("Question correlation did not match the active Claude Code turn.");
-    }
-    this.pendingQuestions.delete(requestId);
-    if (rejected) {
-      pending.resolve({ behavior: "deny", message: "User declined to answer.", interrupt: true });
-      return;
-    }
-    pending.resolve({
-      behavior: "allow",
-      updatedInput: { ...pending.input, answers: questionAnswerMap(pending.questions, answers) },
-    });
-  }
 
   async forkSession({ messageId = null } = {}) {
     if (!this.sessionId) throw new Error("No Claude Code session is active.");
@@ -340,7 +307,7 @@ export class ClaudeAgentSdkAdapter {
     if (this.disposed) return;
     this.disposed = true;
     this.interruptRequested = true;
-    this.#resolvePending(reason);
+    claudeResolvePending(this, reason);
     await this.#closePersistentQuery(reason);
     this.#clearActive();
   }
@@ -354,7 +321,14 @@ export class ClaudeAgentSdkAdapter {
         channel.setSessionId(this.sessionId ?? "");
         const state = this.activeState;
         if (!state) continue;
-        const normalized = normalizeClaudeMessage(message, state);
+        let normalized;
+        try { normalized = normalizeClaudeMessage(message, state); }
+        catch (error) {
+          this.onEvent({ type: "provider.error", providerSessionId: this.sessionId, turnId: state.turnId,
+            itemId: null, payload: { code: "ADAPTER_EVENT_INVALID", stage: "display-translation", recoverable: true,
+              message: redactSecretText(error instanceof Error ? error.message : String(error)) } });
+          continue;
+        }
         for (const event of normalized) {
           const output = this.interruptRequested && ["turn.completed", "turn.failed"].includes(event.type)
             ? { ...event, type: "turn.interrupted", payload: { ...event.payload, status: "interrupted" } }
@@ -400,7 +374,7 @@ export class ClaudeAgentSdkAdapter {
             payload: { status: this.interruptRequested ? "interrupted" : "failed" },
           });
         }
-        this.#resolvePending("Claude Code query closed before the request was resolved.");
+        claudeResolvePending(this, "Claude Code query closed before the request was resolved.");
         channel.close();
         this.activeQuery = null;
         this.activeController = null;
@@ -467,7 +441,7 @@ export class ClaudeAgentSdkAdapter {
       await Promise.race([Promise.resolve(this.queryConsumer).catch(() => {}), delay(1_000)]);
     }
     this.queryConsumer = null;
-    if (reason && this.pendingApprovals.size + this.pendingQuestions.size > 0) this.#resolvePending(reason);
+    if (reason && this.pendingApprovals.size + this.pendingQuestions.size > 0) claudeResolvePending(this, reason);
   }
 
   #queryOptions({
@@ -492,7 +466,7 @@ export class ClaudeAgentSdkAdapter {
       ...(effort ? { effort } : {}),
       ...(resume ? { resume } : {}),
       permissionMode: mode === "plan" ? "plan" : "default",
-      canUseTool: (toolName, input, options) => this.#requestPermission(toolName, input, options),
+      canUseTool: (toolName, input, options) => claudeRequestPermission(this, toolName, input, options),
       spawnClaudeCodeProcess: this.spawnClaudeCodeProcess,
       stderr: (data) => {
         const diagnostic = redactSecretText(String(data)).trim().slice(-4_000);
@@ -506,80 +480,6 @@ export class ClaudeAgentSdkAdapter {
         ...(append ? { append } : {}),
       },
     };
-  }
-
-  #requestPermission(toolName, input, options = {}) {
-    if (this.disposed || !this.activeTurnId) {
-      return Promise.resolve({ behavior: "deny", message: "No active Claude Code session owns this request." });
-    }
-    if (toolName === "AskUserQuestion") return this.#requestQuestion(input, options);
-    const requestId = `claude:${safeId(options.toolUseID) || randomUUID()}`;
-    return new Promise((resolve) => {
-      const pending = {
-        requestId,
-        turnId: this.activeTurnId,
-        input: input ?? {},
-        suggestions: options.suggestions,
-        resolve,
-      };
-      this.pendingApprovals.set(requestId, pending);
-      listenForAbort(options.signal, () => {
-        if (!this.pendingApprovals.delete(requestId)) return;
-        resolve({ behavior: "deny", message: "Approval request was cancelled.", interrupt: true });
-      });
-      this.onEvent({
-        type: "approval.requested",
-        providerSessionId: this.sessionId,
-        turnId: this.activeTurnId,
-        itemId: safeId(options.toolUseID),
-        payload: {
-          requestId,
-          title: bounded(options.title, 300) || `Allow ${humanize(toolName)}`,
-          description: bounded(options.description, 2_000) || bounded(options.decisionReason, 2_000),
-          displayName: bounded(options.displayName, 160) || humanize(toolName),
-          kind: permissionKind(toolName),
-          toolName: bounded(toolName, 160),
-          input: boundRendererValue(redactSecrets(input)),
-          availableDecisions: ["accept", "acceptForSession", "decline", "cancel"],
-        },
-      });
-    });
-  }
-
-  #requestQuestion(input, options) {
-    const requestId = `claude:${safeId(options.toolUseID) || randomUUID()}`;
-    const questions = normalizeQuestions(input?.questions);
-    return new Promise((resolve) => {
-      this.pendingQuestions.set(requestId, {
-        requestId,
-        turnId: this.activeTurnId,
-        input: input ?? {},
-        questions,
-        resolve,
-      });
-      listenForAbort(options.signal, () => {
-        if (!this.pendingQuestions.delete(requestId)) return;
-        resolve({ behavior: "deny", message: "Question request was cancelled.", interrupt: true });
-      });
-      this.onEvent({
-        type: "question.requested",
-        providerSessionId: this.sessionId,
-        turnId: this.activeTurnId,
-        itemId: safeId(options.toolUseID),
-        payload: { requestId, questions },
-      });
-    });
-  }
-
-  #resolvePending(message) {
-    for (const pending of this.pendingApprovals.values()) {
-      pending.resolve({ behavior: "deny", message, interrupt: true });
-    }
-    for (const pending of this.pendingQuestions.values()) {
-      pending.resolve({ behavior: "deny", message, interrupt: true });
-    }
-    this.pendingApprovals.clear();
-    this.pendingQuestions.clear();
   }
 
   async #loadSdk() {
@@ -605,84 +505,6 @@ export class ClaudeAgentSdkAdapter {
     this.activeState = null;
     this.interruptRequested = false;
   }
-}
-
-function normalizeModels(value) {
-  return asArray(value).slice(0, 100).map((model, index) => {
-    const variants = asArray(model?.supportedEffortLevels)
-      .filter((effort) => ["low", "medium", "high", "xhigh", "max"].includes(effort));
-    return {
-      id: bounded(model?.value, 512),
-      model: bounded(model?.value, 512),
-      displayName: bounded(model?.displayName, 300) || bounded(model?.value, 300),
-      description: bounded(model?.description, 2_000),
-      isDefault: index === 0,
-      variants,
-      defaultVariant: variants.includes("high") ? "high" : variants[0] ?? null,
-    };
-  }).filter((model) => model.id);
-}
-
-function compatibleClaudeEffort(model, requested) {
-  if (!requested) return model?.defaultVariant ?? null;
-  if (model?.variants?.includes(requested)) return requested;
-  throw new Error("The selected Claude Code reasoning effort is no longer available for this model.");
-}
-
-function normalizeCommands(value) {
-  return asArray(value).slice(0, 500).map((command) => ({
-    name: bounded(command?.name, 160),
-    description: bounded(command?.description, 1_000),
-    argumentHint: bounded(command?.argumentHint, 500),
-    source: "claude-code",
-  })).filter((command) => command.name);
-}
-
-function normalizeAccount(value, models, environment = {}) {
-  const account = value && typeof value === "object" ? value : {};
-  const hasNativeIdentity = Boolean(
-    account.email || account.organization || account.subscriptionType || account.tokenSource
-    || account.apiKeySource || account.apiProvider,
-  );
-  const hasApiKey = Boolean(account.apiKeySource || environment?.ANTHROPIC_API_KEY);
-  const supportedCloud = Boolean(account.apiProvider && account.apiProvider !== "firstParty");
-  const authenticated = hasApiKey || supportedCloud;
-  return {
-    account: authenticated ? {
-      type: bounded(account.apiProvider, 80) || "claude-code",
-      email: bounded(account.email, 300) || null,
-      planType: bounded(account.subscriptionType, 160) || null,
-    } : null,
-    requiresOpenaiAuth: false,
-    requiresRuntimeSetup: !authenticated,
-    ...(!authenticated ? {
-      setupReason: "runtime-setup-required",
-      error: hasNativeIdentity && !authenticated
-        ? "Claude subscription OAuth cannot be used by a third-party product. Configure an Anthropic API key or a supported cloud provider, then refresh."
-        : models.length
-          ? "Configure an Anthropic API key or a supported cloud provider for Claude Code, then refresh."
-          : "Claude Code authentication and model access are unavailable.",
-    } : {}),
-  };
-}
-
-function normalizeQuestions(value) {
-  return asArray(value).slice(0, 8).map((question) => ({
-    header: bounded(question?.header, 80),
-    question: bounded(question?.question, 4_000),
-    multiple: question?.multiSelect === true,
-    custom: question?.isOther !== false,
-    options: asArray(question?.options).slice(0, 20).map((option) => typeof option === "string"
-      ? { label: bounded(option, 120), description: "" }
-      : { label: bounded(option?.label, 120), description: bounded(option?.description, 1_000) }),
-  })).filter((question) => question.question);
-}
-
-function questionAnswerMap(questions, answers) {
-  return Object.fromEntries(questions.map((question, index) => {
-    const row = asArray(answers?.[index]).map((answer) => bounded(answer, 4_000)).filter(Boolean);
-    return [question.question, question.multiple ? row : row[0] ?? ""];
-  }));
 }
 
 export function formatClaudePrompt(prompt, references, workspaceRoot) {
@@ -717,46 +539,6 @@ async function* idleInput(signal) {
   });
 }
 
-function listenForAbort(signal, callback) {
-  if (!signal) return;
-  if (signal.aborted) callback();
-  else signal.addEventListener("abort", callback, { once: true });
-}
-
-function cleanEnvironment(value) {
-  return Object.fromEntries(Object.entries(value).filter(([, entry]) => typeof entry === "string"));
-}
-
-function permissionKind(toolName) {
-  const name = String(toolName).toLowerCase();
-  if (name === "bash") return "command";
-  if (["write", "edit", "multiedit", "notebookedit"].includes(name)) return "file-change";
-  if (name.includes("web")) return "network";
-  return "tool";
-}
-
-function humanize(value) {
-  const normalized = bounded(value, 160).replace(/[_-]+/g, " ");
-  return normalized ? normalized.replace(/\b\w/g, (character) => character.toUpperCase()) : "tool";
-}
-
-function bounded(value, limit) {
-  return typeof value === "string" ? value.trim().slice(0, limit) : "";
-}
-
-function safeId(value) {
-  return typeof value === "string" && /^[A-Za-z0-9:._-]{1,256}$/.test(value) ? value : null;
-}
-
-function asArray(value) {
-  return Array.isArray(value) ? value : [];
-}
-
-function normalizeDate(value) {
-  const date = new Date(Number.isFinite(value) ? value : value || Date.now());
-  return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
-}
-
 function withTimeout(promise, timeoutMs, message) {
   let timer;
   return Promise.race([
@@ -770,14 +552,4 @@ function withTimeout(promise, timeoutMs, message) {
 
 function delay(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
-}
-
-function numericCursor(value) {
-  if (value == null || value === "") return 0;
-  const parsed = Number(value);
-  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : 0;
-}
-
-function boundedPageSize(value) {
-  return Number.isSafeInteger(value) && value > 0 ? Math.min(value, 100) : 50;
 }

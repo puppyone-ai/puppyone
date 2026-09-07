@@ -1,3 +1,9 @@
+import { createAgentProjection, applyAgentEvents, applyAgentEvent } from "./transcript/transcript-reducer.mjs";
+import { associateAgentUserMessage } from "./transcript/message-identity.mjs";
+import { projectAgentDisplayControl } from "./transcript/display-control.mjs";
+import { boundAgentDisplay } from "./transcript/display-window.mjs";
+import { createAgentDisplayPatch } from "../../../../shared/agent-contract/display-state.mjs";
+import { assertAgentDisplay } from "../../../../shared/agent-contract/display-schema.mjs";
 import { randomUUID } from "node:crypto";
 import { countTextBytes, createAgentEventEnvelope } from "../agent-events.mjs";
 import { agentSessionControlLimits, createAgentSessionControl, reduceAgentSessionControl } from "./agent-session-control.mjs";
@@ -9,7 +15,13 @@ const MAX_REPLAY_BYTES = 2 * 1024 * 1024;
 
 /** Single mutable owner of one session's product control state and ledger. */
 export class AgentSessionActor {
+  #mailbox = [];
+  #committing = false;
   #control;
+  #display;
+  #notifications = [];
+  #publishing = false;
+  #clock;
   #events;
   #sequence;
   #replayBytes;
@@ -17,7 +29,8 @@ export class AgentSessionActor {
   #terminalOutcomeByTurn = new Map();
   #listeners = new Set();
 
-  constructor({ events = [], sequence = 0, terminalState = "idle" } = {}) {
+  constructor({ events = [], sequence = 0, terminalState = "idle", clock = Date.now } = {}) {
+    this.#clock = clock;
     this.#events = events.map((event) => deepFreeze(clonePlain(event)));
     this.#sequence = Math.max(sequence, ...this.#events.map((event) => event.sequence), 0);
     this.#replayBytes = this.#events.reduce((total, event) => total + countTextBytes(event), 0);
@@ -36,10 +49,13 @@ export class AgentSessionActor {
         reason: "native-state-unconfirmed-after-main-restart",
       });
     }
+    this.#display = deepFreeze(boundAgentDisplay(projectAgentDisplayControl(applyAgentEvents(createAgentProjection(), this.#events), this.#control), this.#control));
+    assertAgentDisplay(this.#display);
     assertAgentSessionControl(this.#control);
     this.#enforceReplayLimits();
   }
 
+  get display() { return this.#display; }
   get control() { return this.#control; }
   get sequence() { return this.#sequence; }
   get replayBytes() { return this.#replayBytes; }
@@ -51,27 +67,63 @@ export class AgentSessionActor {
     return () => this.#listeners.delete(listener);
   }
 
-  dispatch(input) {
+  dispatch(input) { return this.#accept({ kind: "control", input }); }
+  appendEvent(input) { return this.#accept({ kind: "event", input }); }
+
+  // Mailbox transactions are synchronous and contain no native I/O. Effects run
+  // in application coordinators after admission; their receipts re-enter here.
+  #accept(message) {
+    const entry = { message, result: null, error: null };
+    if (this.#committing) throw new Error("Agent state reduction cannot re-enter its mailbox.");
+    this.#mailbox.push(entry);
+    this.#committing = true;
+    const commits = [];
+    try {
+      while (this.#mailbox.length) {
+        const current = this.#mailbox.shift();
+        try {
+          const transaction = current.message.kind === "control"
+            ? this.#applyControl(current.message.input) : this.#applyEvent(current.message.input);
+          current.result = transaction.result;
+          if (transaction.commit) commits.push(transaction.commit);
+        } catch (error) { current.error = error; }
+      }
+    } finally { this.#committing = false; }
+    for (const commit of commits) this.#notify(commit);
+    if (entry.error) throw entry.error;
+    return entry.result;
+  }
+
+  #applyControl(input) {
+    if (input.type === "command.received" && input.command?.kind === "start" && !input.command.userMessageId) input = { ...input, command: { ...input.command, userMessageId: randomUUID() } };
+    if (input.type === "submission.prepared" && input.startedAtMs == null) input = { ...input, startedAtMs: this.#clock() };
     const previous = this.#control;
     const next = reduceAgentSessionControl(previous, input);
-    if (next === previous) return { changed: false, control: previous };
+    if (next === previous) return { result: { changed: false, control: previous } };
     assertAgentSessionControl(next);
+    const display = deepFreeze(boundAgentDisplay(projectAgentDisplayControl(this.#display, next), next));
+    assertAgentDisplay(display);
+    const displayPatch = deepFreeze(createAgentDisplayPatch(this.#display, display));
+    this.#display = display;
     this.#control = next;
     const commit = Object.freeze({
       streamId: next.streamId,
       baseRevision: previous.revision,
       revision: next.revision,
       control: next,
+      sequence: this.#sequence,
       input,
+      displayPatch,
       events: Object.freeze([]),
     });
-    this.#notify(commit);
-    return { changed: true, control: next, commit };
+    return { result: { changed: true, control: next, commit }, commit };
   }
 
-  appendEvent({ sessionId, runtimeId, providerSessionId, event }) {
+  #applyEvent({ sessionId, runtimeId, providerSessionId, event }) {
+    event = associateAgentUserMessage(event, this.#control);
     const envelope = deepFreeze(createAgentEventEnvelope({
       sequence: this.#sequence + 1,
+      emittedAt: event.emittedAt ?? new Date(this.#clock()).toISOString(),
       sessionId,
       runtimeId,
       providerSessionId: event.providerSessionId ?? providerSessionId,
@@ -83,22 +135,28 @@ export class AgentSessionActor {
     const previous = this.#control;
     const next = reduceAgentSessionControl(previous, { type: "event.accepted", event: envelope });
     assertAgentSessionControl(next);
+    const display = deepFreeze(boundAgentDisplay(projectAgentDisplayControl(applyAgentEvent(this.#display, envelope), next), next));
+    assertAgentDisplay(display);
+    const displayPatch = deepFreeze(createAgentDisplayPatch(this.#display, display));
+    this.#display = display;
     this.#rememberTerminalOutcome(envelope);
     this.#sequence = envelope.sequence;
     this.#events.push(envelope);
     this.#replayBytes += countTextBytes(envelope);
-    this.#enforceReplayLimits();
     this.#control = next;
+    this.#enforceReplayLimits();
     const commit = Object.freeze({
       streamId: next.streamId,
       baseRevision: previous.revision,
       revision: next.revision,
       control: next,
+      sequence: envelope.sequence,
+      emittedAt: envelope.emittedAt,
       input: Object.freeze({ type: "event.accepted", event: envelope }),
+      displayPatch,
       events: Object.freeze([envelope]),
     });
-    this.#notify(commit);
-    return envelope;
+    return { result: envelope, commit };
   }
 
   snapshot() {
@@ -116,6 +174,7 @@ export class AgentSessionActor {
     return Object.freeze({
       cursor: Object.freeze({ streamId: this.#control.streamId, revision: this.#control.revision }),
       control: this.#control,
+      display: this.#display,
       timeline: Object.freeze({
         events: Object.freeze(events),
         checkpointEvents: Object.freeze(checkpointEvents),
@@ -127,9 +186,17 @@ export class AgentSessionActor {
   }
 
   #notify(commit) {
-    for (const listener of this.#listeners) {
-      try { listener(commit); } catch { /* subscriber isolation */ }
-    }
+    this.#notifications.push(commit);
+    if (this.#publishing) return;
+    this.#publishing = true;
+    try {
+      while (this.#notifications.length) {
+        const committed = this.#notifications.shift();
+        for (const listener of this.#listeners) {
+          try { listener(committed); } catch { /* one subscriber cannot stop later revisions */ }
+        }
+      }
+    } finally { this.#publishing = false; }
   }
 
   #rememberTerminalOutcome(event) {

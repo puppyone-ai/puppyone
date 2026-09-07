@@ -236,6 +236,7 @@ export function createAgentTurnCoordinator({
     if (repeated) return { ...commandReceipt(session, repeated), requestId };
     const pending = session.pendingQuestions.get(requestId);
     if (!pending) throw new Error("This question is stale or already resolved.");
+    requireReplyAvailable(session, requestId);
     if (pending.turnId !== turnId || pending.runtimeId !== session.runtimeId) {
       throw new Error("Question correlation does not match the active request.");
     }
@@ -246,7 +247,7 @@ export function createAgentTurnCoordinator({
     const rejected = request?.rejected === true || answers === null;
     session.actor.dispatch({
       type: "command.received",
-      command: { commandId, kind: "question", status: "dispatching", targetTurnId: turnId, intentFingerprint: fingerprint },
+      command: { commandId, kind: "question", requestId, status: "dispatching", targetTurnId: turnId, intentFingerprint: fingerprint },
     });
     const operationId = operationIdentity(commandId);
     session.actor.dispatch({ type: "command.dispatching", commandId, operationId });
@@ -288,12 +289,13 @@ export function createAgentTurnCoordinator({
     if (repeated) return { ...commandReceipt(session, repeated), requestId, decision };
     const pending = session.pendingApprovals.get(requestId);
     if (!pending) throw new Error("This approval is stale or already resolved.");
+    requireReplyAvailable(session, requestId);
     if (pending.turnId !== turnId || pending.runtimeId !== session.runtimeId) {
       throw new Error("Approval correlation does not match the active request.");
     }
     session.actor.dispatch({
       type: "command.received",
-      command: { commandId, kind: "approval", status: "dispatching", targetTurnId: turnId, intentFingerprint: fingerprint },
+      command: { commandId, kind: "approval", requestId, status: "dispatching", targetTurnId: turnId, intentFingerprint: fingerprint },
     });
     const operationId = operationIdentity(commandId);
     session.actor.dispatch({ type: "command.dispatching", commandId, operationId });
@@ -353,6 +355,7 @@ export function createAgentTurnCoordinator({
       runtime: session.runtime,
       cursor: actorSnapshot.cursor,
       control: actorSnapshot.control,
+      display: actorSnapshot.display,
       timeline: {
         ...actorSnapshot.timeline,
         events,
@@ -382,3 +385,10 @@ export function createAgentTurnCoordinator({
 }
 
 export const agentTurnCoordinatorLimits = agentTurnQueueLimits;
+
+function requireReplyAvailable(session, requestId) {
+  if (session.actor.control.commands.some(command => command.requestId === requestId
+    && ["dispatching", "accepted", "outcome-unknown"].includes(command.status))) {
+    throw new Error("A response to this Agent request is already being delivered or awaiting confirmation.");
+  }
+}

@@ -1,3 +1,4 @@
+import { fakeSessionFeed } from "./helpers/nativeSmokeFeed.mjs";
 import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -165,45 +166,4 @@ function snapshot(id, runtimeId = "codex") {
 
 function event(sessionId, type, payload, turnId, runtimeId = "codex") {
   return { sessionId, runtimeId, type, payload, turnId };
-}
-
-function fakeSessionFeed(sender) {
-  let attachment = 0;
-  let subscription = null;
-  let revision = 0;
-  return {
-    methods: {
-      attachSession: vi.fn(async (_sender, request) => {
-        attachment += 1;
-        revision = 0;
-        subscription = {
-          id: `subscription-${attachment}`,
-          streamId: `stream-${attachment}`,
-          sessionId: request.sessionId,
-        };
-        return {
-          subscriptionId: subscription.id,
-          snapshot: { cursor: { streamId: subscription.streamId, revision } },
-        };
-      }),
-      acknowledgeSession: vi.fn(async () => ({ synchronized: true })),
-      detachSession: vi.fn(async () => {
-        subscription = null;
-        return { detached: true };
-      }),
-    },
-    publish(events) {
-      if (!subscription) throw new Error("The fake Agent feed is not attached.");
-      const baseRevision = revision;
-      revision += 1;
-      sender.send("agent:session-frame", {
-        type: "delta",
-        subscriptionId: subscription.id,
-        streamId: subscription.streamId,
-        baseRevision,
-        revision,
-        events,
-      });
-    },
-  };
 }

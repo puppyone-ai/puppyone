@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { AgentStreamFlushScheduler } from "../application/AgentEventSynchronizer";
+import type { AgentStreamFlushScheduler } from "./agent-stream-frame-scheduler";
 import { nextAgentStreamText } from "../domain/agent-stream-presentation";
 import { scheduleAgentStreamFrame } from "./agent-stream-frame-scheduler";
 

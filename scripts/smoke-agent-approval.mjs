@@ -60,13 +60,14 @@ async function runSmoke() {
     }
   }
 
+  console.log(JSON.stringify({ schema: "puppyone-agent-approval-smoke/v1", results }, null, 2));
   for (const result of results) {
     assert(result.titleOccurrences === 1, `${result.label}: provider copy was repeated.`);
     assert(!result.hasDuplicateDetails, `${result.label}: duplicate reason left an empty details region.`);
     assert(result.cardWithinBoundary, `${result.label}: approval card escaped the Agent boundary.`);
     assert(result.actionsWithinCard, `${result.label}: approval actions escaped their card.`);
     assert(!result.buttonsOverlap, `${result.label}: approval buttons overlap.`);
-    assert(result.buttonHeights.every((height) => Math.abs(height - 30) <= 0.5), `${result.label}: approval controls left the 30px product scale.`);
+    assert(result.controlSize > 0 && result.buttonHeights.every((height) => Math.abs(height - result.controlSize) <= 0.5), `${result.label}: approval controls left the shared product scale.`);
     assert(result.cardRadius === result.composerRadius, `${result.label}: approval and Composer radii diverged.`);
     assert(result.buttonRadii.every((radius) => radius === "6px"), `${result.label}: approval buttons left the product radius.`);
     assert(result.primaryUsesThemeForeground, `${result.label}: primary action did not follow the neutral theme ramp.`);
@@ -76,7 +77,6 @@ async function runSmoke() {
   }
   if (renderProcessFailure) throw new Error(`Agent approval smoke renderer exited: ${renderProcessFailure}`);
 
-  console.log(JSON.stringify({ schema: "puppyone-agent-approval-smoke/v1", results }, null, 2));
 }
 
 async function inspect(theme, width) {
@@ -106,6 +106,7 @@ async function inspect(theme, width) {
       cardWithinBoundary: cardRect.left >= boundaryRect.left - 0.5 && cardRect.right <= boundaryRect.right + 0.5,
       actionsWithinCard: actionsRect.left >= cardRect.left - 0.5 && actionsRect.right <= cardRect.right + 0.5,
       buttonsOverlap: overlaps,
+      controlSize: parseFloat(getComputedStyle(boundary).getPropertyValue("--po-control-size")),
       buttonHeights: buttonRects.map((rect) => rect.height),
       cardRadius: getComputedStyle(card).borderRadius,
       composerRadius: getComputedStyle(composer).borderRadius,
