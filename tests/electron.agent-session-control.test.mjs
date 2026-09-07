@@ -203,6 +203,7 @@ describe("Main Agent SessionActor and versioned feed", () => {
     const harness = createServiceHarness();
     const owner = createSender(508);
     const created = await harness.service.createSession(owner, { runtimeId: "codex" }, "/workspace");
+    await harness.service.startTurn(owner, { sessionId: created.session.id, prompt: "Run" }, "/workspace");
     const receipt = harness.service.attachSession(owner, { sessionId: created.session.id }, "/workspace");
     harness.service.acknowledgeSession(owner, {
       sessionId: created.session.id,
