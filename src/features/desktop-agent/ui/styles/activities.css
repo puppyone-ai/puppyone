@@ -238,7 +238,7 @@
   grid-column: 2;
   align-items: center;
   justify-content: center;
-  color: var(--agent-activity-accent-text);
+  color: var(--agent-text-muted);
   font-weight: 500;
   user-select: none;
 }
@@ -246,13 +246,10 @@
   min-width: 0;
   min-height: var(--agent-evidence-row-height);
   grid-column: 2 / -1;
-  color: var(--agent-text);
+  color: var(--agent-text-muted);
 }
 .desktop-agent-evidence-marker + .desktop-agent-evidence-content { grid-column: 3; }
 .desktop-agent-evidence-content > .desktop-agent-tool-text-evidence { padding-block: 4px; }
-.desktop-agent-evidence-node.is-command .desktop-agent-evidence-content { color: var(--agent-text-muted); }
-.desktop-agent-evidence-node.is-deletion :is(.desktop-agent-evidence-marker, .desktop-agent-tool-output) { color: var(--agent-diff-removed-text); }
-.desktop-agent-evidence-node.is-addition :is(.desktop-agent-evidence-marker, .desktop-agent-tool-output) { color: var(--agent-diff-added-text); }
 .desktop-agent-evidence-node:is(.is-addition, .is-deletion) .desktop-agent-tool-output { min-height: 1.5em; }
 
 .desktop-agent-command {
@@ -307,7 +304,7 @@
   border: 0;
   border-radius: 0;
   background: transparent;
-  color: var(--agent-text);
+  color: var(--agent-text-muted);
   font-family: var(--po-font-mono);
   font-size: var(--agent-code-font-size);
   line-height: 1.5;
@@ -362,7 +359,7 @@
   min-height: var(--agent-evidence-row-height);
   display: flex;
   align-items: center;
-  color: var(--agent-text);
+  color: var(--agent-text-muted);
   font-family: var(--po-font-mono);
   font-size: var(--agent-code-font-size);
 }

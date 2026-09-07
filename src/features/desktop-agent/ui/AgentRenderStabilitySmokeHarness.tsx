@@ -250,7 +250,10 @@ async function runSmoke(update: (fixture: Fixture) => void, active: () => boolea
         const stats = edit.querySelector<HTMLElement>(".desktop-agent-tool-diff-stats")!;
         const addition = getComputedStyle(stats.querySelector(".is-addition")!);
         const deletion = getComputedStyle(stats.querySelector(".is-deletion")!);
-        assert(evidenceStyle.color === deletion.color && getComputedStyle(addedEvidence).color === addition.color, "Edit blocks and counts disagree on semantic colors");
+        const detailColor = getComputedStyle(edit.querySelector(".desktop-agent-tool-name")!).color;
+        assert(evidenceStyle.color === detailColor && getComputedStyle(addedEvidence).color === detailColor, "Expanded tool text did not use the common muted role");
+        assert([...document.querySelectorAll(".desktop-agent-evidence-marker, .desktop-agent-tool-file-path")]
+          .every(node => getComputedStyle(node).color === detailColor), "Expanded tool markers or file path lost their muted color");
         assert(messageColors(addedEvidence).contrast >= 4.5, `${theme}: added content is unreadable`);
         assert(stats.textContent === "+2−1" && addition.color !== deletion.color, "Edit counts lost semantic colors");
         assert(messageColors(stats.querySelector<HTMLElement>(".is-addition")!).contrast >= 4.5

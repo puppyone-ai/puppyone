@@ -325,7 +325,7 @@ describe("Desktop Agent Cursor-style sidebar visual contract", () => {
     expect(css).toMatch(/\.desktop-agent-tool-file-path\s*\{[^}]*min-height:\s*var\(--agent-evidence-row-height\)/s);
     expect(css).not.toContain(".desktop-agent-inline-diff");
     expect(css).not.toContain(".desktop-agent-file-list");
-    expect(css).toMatch(/\.desktop-agent-command-output,[^{]*\.desktop-agent-tool-output\s*\{[^}]*padding:\s*0[^}]*border:\s*0[^}]*color:\s*var\(--agent-text\)[^}]*font-size:\s*var\(--agent-code-font-size\)/s);
+    expect(css).toMatch(/\.desktop-agent-command-output,[^{]*\.desktop-agent-tool-output\s*\{[^}]*padding:\s*0[^}]*border:\s*0[^}]*color:\s*var\(--agent-text-muted\)[^}]*font-size:\s*var\(--agent-code-font-size\)/s);
     expect(evidenceTree).toContain('type AgentToolEvidenceNodeKind = "command" | "request" | "result"');
     expect(commandActivity).toContain('<AgentToolEvidenceNode kind="command" marker="$">');
     expect(commandActivity).toContain('<AgentToolEvidenceNode kind="result">');
