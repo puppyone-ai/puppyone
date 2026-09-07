@@ -1,3 +1,4 @@
+import { nativeSessionId } from "../../../../../shared/agent-contract/native-session-id.mjs";
 import { boundRendererValue, redactSecrets, redactSecretText } from "../../agent-events.mjs";
 import { createAgentFileChangeEvidence } from "../../runtime/agent-file-change-evidence.mjs";
 
@@ -19,7 +20,7 @@ export class AcpEventNormalizer {
   }
 
   normalize(notification) {
-    const sessionId = safeId(notification?.sessionId);
+    const sessionId = nativeSessionId(notification?.sessionId);
     const update = notification?.update;
     if (!update || typeof update !== "object") return [];
     switch (update.sessionUpdate) {
@@ -59,7 +60,7 @@ export class AcpEventNormalizer {
   completeAssistant(sessionId) {
     return Array.from(this.messages.entries()).flatMap(([itemId, state]) => (
       state.role === "assistant" && state.text
-        ? [event("assistant.completed", safeId(sessionId), this.turnId, itemId, { text: state.text, ...(state.truncated ? {truncated:true} : {}) })]
+        ? [event("assistant.completed", nativeSessionId(sessionId), this.turnId, itemId, { text: state.text, ...(state.truncated ? {truncated:true} : {}) })]
         : []
     ));
   }

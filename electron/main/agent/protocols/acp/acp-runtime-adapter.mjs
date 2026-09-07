@@ -1,4 +1,6 @@
-import { isUnavailableAcpSessionError, publicModels, publicProviders, publicModes, event, array, record, safeId, text, normalizeDate } from "./acp-native-values.mjs";
+import { nativeSessionId } from "../../../../../shared/agent-contract/native-session-id.mjs";
+import { discoverAcpHistory } from "./acp-history-discovery.mjs";
+import { isUnavailableAcpSessionError, publicModels, publicProviders, publicModes, event, array, record, text } from "./acp-native-values.mjs";
 export { mergeJsonConfig } from "./acp-native-values.mjs";
 import { acpResolveApproval, acpResolveQuestion, acpRequestPermission, acpHandleExtensionRequest, acpResolvePending } from "./acp-interactions.mjs";
 import path from "node:path";
@@ -249,7 +251,7 @@ export class AcpRuntimeAdapter {
         await delay(METADATA_SETTLE_MS);
       } finally {
         this.historicalEvents = this.historyCollector?.events(
-          safeId(response?.sessionId) ?? safeId(threadId),
+          nativeSessionId(response?.sessionId) ?? nativeSessionId(threadId),
         ) ?? [];
         this.historyCollector = null;
       }
@@ -274,30 +276,13 @@ export class AcpRuntimeAdapter {
     };
   }
 
-  async discoverSessions({ cursor = null, limit = 50 } = {}) {
+  async discoverSessions(options = {}) {
     this.#assertUsable();
+    options.signal?.throwIfAborted();
     await this.#connect("history");
     try {
-      const native = this.client?.agentCapabilities ?? {};
-      const supported = native.sessionCapabilities?.list != null || native.listSessions === true;
-      if (!supported) return { supported: false, sessions: [], nextCursor: null };
-      const response = await this.client.listSessions({
-        cwd: this.workspaceRoot,
-        ...(cursor ? { cursor } : {}),
-        limit: boundedPageSize(limit),
-      });
-      return {
-        supported: true,
-        sessions: array(response?.sessions).filter((session) => (
-          safeId(session?.sessionId) && (!session?.cwd || path.resolve(session.cwd) === this.workspaceRoot)
-        )).slice(0, boundedPageSize(limit)).map((session) => ({
-          providerSessionId: session.sessionId,
-          title: text(session.title, 500) || this.sessionTitles.resumed,
-          createdAt: normalizeDate(session.createdAt ?? session.updatedAt),
-          updatedAt: normalizeDate(session.updatedAt),
-        })),
-        nextCursor: text(response?.nextCursor, 1_024) || null,
-      };
+      return await discoverAcpHistory({ client: this.client, workspaceRoot: this.workspaceRoot,
+        fallbackTitle: this.sessionTitles.resumed }, options);
     } finally {
       await this.#disconnect(`${this.runtimeDescriptor.displayName} ACP history discovery completed.`);
     }
@@ -684,7 +669,7 @@ export class AcpRuntimeAdapter {
 
   async #handleSessionUpdate(notification) {
     if (!notification) return;
-    if (!this.sessionId && safeId(notification.sessionId)) this.sessionId = notification.sessionId;
+    if (!this.sessionId && nativeSessionId(notification.sessionId)) this.sessionId = notification.sessionId;
     if (notification.sessionId !== this.sessionId) return;
     const update = notification.update;
     if (this.historyCollector) this.historyCollector.accept(notification);
@@ -751,15 +736,11 @@ function cleanEnvironment(value) {
 }
 
 function requiredId(value, label) {
-  const id = safeId(value);
+  const id = nativeSessionId(value);
   if (!id) throw new Error(`${label} is invalid.`);
   return id;
 }
 
 function delay(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
-}
-
-function boundedPageSize(value) {
-  return Number.isSafeInteger(value) && value > 0 ? Math.min(value, 100) : 50;
 }

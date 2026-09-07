@@ -95,6 +95,17 @@ export function createServiceHarness({
   const service = createAgentService({
     runtimeRegistry,
     persistence,
+    conversationCatalog: {
+      list: persistence.list,
+      getRevision: async () => 0,
+      getCoverage: async () => ({ truncated: false, capacity: 500, retained: persisted.size }),
+      applyNativePage: async ({ entries, scope, reconcileMissing, guard }) => {
+        guard();
+        await Promise.all(entries.map((entry) => persistence.upsertNative(entry)));
+        if (reconcileMissing) await persistence.reconcileNative(scope);
+        return { indexed: entries.length, truncated: false };
+      },
+    },
     logger: { warn: vi.fn() },
     attachmentStore,
   });

@@ -347,6 +347,7 @@ void agentAttachmentStore.initialize().catch((error) => {
 const agentService = createAgentService({
   runtimeRegistry: agentRuntimeRegistry,
   sessionCache: agentSessionRepository,
+  conversationCatalog: agentConversationCatalog,
   attachmentStore: agentAttachmentStore,
   processSupervisor: agentProcessSupervisor,
 });

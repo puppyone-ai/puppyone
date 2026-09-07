@@ -22,6 +22,7 @@ describe("Claude Agent SDK runtime adapter", () => {
 
     await expect(adapter.discoverSessions({ cursor: "20", limit: 20 })).resolves.toEqual({
       supported: true,
+      coverage: { scopeComplete: false, snapshotId: null },
       sessions: [expect.objectContaining({ providerSessionId: "claude-native", title: "Auth review" })],
       nextCursor: null,
     });

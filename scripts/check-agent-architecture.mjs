@@ -619,6 +619,8 @@ const runtimeResolutionSource = readFileSync(
 const agentServiceFacadePath = path.join(mainApplicationRoot, "agent-service.mjs");
 const agentServiceFacadeSource = readFileSync(agentServiceFacadePath, "utf8");
 const agentServiceModules = [
+  ["history/agent-history-queries.mjs", "createAgentHistoryQueries"],
+  ["history/native-conversation-indexer.mjs", "createNativeConversationIndexer"],
   ["session/agent-session-lifecycle.mjs", "createAgentSessionLifecycle"],
   ["session/agent-session-runtime.mjs", "createAgentSessionRuntime"],
   ["session/agent-session-commands.mjs", "createAgentSessionCommands"],
@@ -647,7 +649,17 @@ for (const [relativePath, factoryName] of agentServiceModules) {
     errors.push(`${relative(modulePath)} exceeds the focused application-module budget; split by behavior, not provider`);
   }
 }
-for (const lifecycleFile of ["agent-service.mjs", "native-conversation-indexer.mjs"]) {
+for (const file of ["history/agent-history-queries.mjs", "history/native-conversation-indexer.mjs"]) {
+  const source = stripComments(readFileSync(path.join(mainApplicationRoot, file), "utf8"));
+  if (/agent-session-model|agent-session-actor|\b(?:sessionStore|sessionRepository|sessionCache|eventCache|AgentSessionActor|sessionFeed)\b/.test(source)
+    || /\.\s*(?:startTurn|steerTurn|resumeSession|createSession|recordOperationFailure)\s*\(/.test(source)) {
+    errors.push(`${file} must receive metadata/query capabilities only and cannot mutate live Session state or readiness`);
+  }
+}
+if (/\bfunction\s+listSessions\b/.test(stripComments(readFileSync(path.join(mainApplicationRoot, "session/agent-session-commands.mjs"), "utf8")))) {
+  errors.push("History list queries belong to application/history, outside Session commands");
+}
+for (const lifecycleFile of ["agent-service.mjs", "history/native-conversation-indexer.mjs"]) {
   const lifecycleSource = readFileSync(path.join(mainApplicationRoot, lifecycleFile), "utf8");
   if (/runtimeRegistry\.discover\s*\(/.test(stripComments(lifecycleSource))) {
     errors.push(`${lifecycleFile} bypasses RuntimeResolutionCoordinator with direct Registry discovery`);

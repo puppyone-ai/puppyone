@@ -522,12 +522,17 @@
   opacity: 0.5;
 }
 
-.desktop-agent-history-error {
+.desktop-agent-history-error,
+.desktop-agent-history-source-status {
   margin: 0;
   color: var(--po-warning);
   font-size: var(--agent-font-size-micro);
   line-height: var(--agent-micro-line-height);
   text-align: center;
+}
+
+.desktop-agent-history-source-status {
+  color: var(--agent-text-subtle);
 }
 
 .desktop-agent-runtime-launcher .is-spinning {

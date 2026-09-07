@@ -1,191 +1,211 @@
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { historyNativeId } from "../../../../shared/agent-contract/history-schema.mjs";
 
 const CATALOG_VERSION = 1;
 const MAX_RECORDS = 500;
 
-/**
- * Durable metadata-only index of native Agent sessions.
- * Transcripts, tool payloads, prompts and credentials intentionally have no
- * serialization path here; the selected native harness remains authoritative.
- */
-export function createAgentConversationCatalog({ filePath, logger = console } = {}) {
+/** Durable metadata-only index. Native harnesses alone own the transcript. */
+export function createAgentConversationCatalog({ filePath, logger = console, maxRecords = MAX_RECORDS } = {}) {
   if (typeof filePath !== "string" || !path.isAbsolute(filePath)) {
     throw new TypeError("Agent conversation catalog requires an absolute file path.");
   }
-  let loaded = false;
+  const capacity = Number.isSafeInteger(maxRecords) && maxRecords > 0 ? Math.min(maxRecords, MAX_RECORDS) : MAX_RECORDS;
   let records = [];
+  let loadPromise;
   let writeChain = Promise.resolve();
+  let revision = 0;
+  const changedAt = new Map();
+  let truncated = false;
 
-  async function load() {
-    if (loaded) return;
-    loaded = true;
+  function load() {
+    if (!loadPromise) loadPromise = (async () => {
+      try {
+        const parsed = JSON.parse(await fs.promises.readFile(filePath, "utf8"));
+        if (parsed?.version !== CATALOG_VERSION || !Array.isArray(parsed.records)) {
+          throw new Error("Agent conversation catalog has an unsupported format.");
+        }
+        const normalized = parsed.records.map(normalizeRecord);
+        if (normalized.some((record) => !record)) throw new Error("Agent conversation catalog contains invalid metadata.");
+        truncated = parsed.truncated === true || normalized.length > capacity;
+        records = normalized.slice(0, capacity);
+      } catch (error) {
+        if (error?.code === "ENOENT") return;
+        logger.warn?.("Agent conversation catalog could not be read; preserving the existing file.");
+        throw error;
+      }
+    })();
+    return loadPromise;
+  }
+
+  async function persist(next, wasTruncated, guard) {
+    await fs.promises.mkdir(path.dirname(filePath), { recursive: true, mode: 0o700 });
+    const temporaryPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
     try {
-      const parsed = JSON.parse(await fs.promises.readFile(filePath, "utf8"));
-      if (parsed?.version !== CATALOG_VERSION || !Array.isArray(parsed.records)) return;
-      records = parsed.records.map(normalizeRecord).filter(Boolean).slice(0, MAX_RECORDS);
-    } catch (error) {
-      if (error?.code !== "ENOENT") logger.warn?.("Agent conversation catalog could not be read; starting with an empty index.");
+      await fs.promises.writeFile(temporaryPath,
+        `${JSON.stringify({ version: CATALOG_VERSION, records: next, truncated: wasTruncated }, null, 2)}\n`,
+        { encoding: "utf8", mode: 0o600 });
+      guard?.();
+      await fs.promises.rename(temporaryPath, filePath);
+    } finally {
+      await fs.promises.unlink(temporaryPath).catch(() => {});
     }
   }
 
-  async function persist() {
-    await fs.promises.mkdir(path.dirname(filePath), { recursive: true, mode: 0o700 });
-    const temporaryPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
-    const payload = `${JSON.stringify({ version: CATALOG_VERSION, records }, null, 2)}\n`;
-    await fs.promises.writeFile(temporaryPath, payload, { encoding: "utf8", mode: 0o600 });
-    await fs.promises.rename(temporaryPath, filePath);
+  // Serialize the entire read/modify/persist operation, not only file writes.
+  // Memory is published only after a successful atomic replacement.
+  function mutate(operation, guard) {
+    const result = writeChain.then(async () => {
+      await load();
+      guard?.();
+      const draft = records.map(clone);
+      const outcome = operation(draft);
+      if (outcome.unchanged) return outcome.value;
+      const next = draft.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, capacity);
+      const nextTruncated = truncated || draft.length > capacity;
+      await persist(next, nextTruncated, guard);
+      revision += 1;
+      for (const record of next) {
+        const previous = records.find((entry) => entry.sessionId === record.sessionId);
+        if (outcome.touched?.includes(record.sessionId) || JSON.stringify(previous) !== JSON.stringify(record)) {
+          changedAt.set(record.sessionId, revision);
+        }
+      }
+      records = next;
+      truncated = nextTruncated;
+      const retained = new Set(next.map((record) => record.sessionId));
+      for (const id of changedAt.keys()) if (!retained.has(id)) changedAt.delete(id);
+      return outcome.value;
+    });
+    writeChain = result.catch(() => {});
+    return result;
   }
 
-  function schedulePersist() {
-    writeChain = writeChain.then(persist, persist);
-    return writeChain;
-  }
-
-  async function saveRecord(record) {
+  async function read(operation) {
     await load();
-    const normalized = normalizeRecord(record);
+    // Readers see the last atomically published snapshot, even while a write is settling.
+    return operation();
+  }
+
+  function put(draft, value) {
+    const normalized = normalizeRecord(value);
     if (!normalized) throw new TypeError("Agent conversation metadata is invalid.");
-    const index = records.findIndex((entry) => entry.sessionId === normalized.sessionId);
-    if (index >= 0) records.splice(index, 1);
-    records.unshift(normalized);
-    records = records
-      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
-      .slice(0, MAX_RECORDS);
-    await schedulePersist();
+    const identity = nativeKey(normalized);
+    const existing = draft.find((entry) => nativeKey(entry) === identity);
+    if (existing && existing.sessionId !== normalized.sessionId) {
+      throw new Error("Native conversation identity already has a product session id.");
+    }
+    const index = draft.findIndex((entry) => entry.sessionId === normalized.sessionId);
+    if (index >= 0) draft.splice(index, 1);
+    draft.push(normalized);
     return clone(normalized);
   }
 
-  return {
-    async save(record) {
-      await load();
-      const existing = records.find((entry) => entry.sessionId === safeId(record?.sessionId));
-      return saveRecord({
-        ...record,
-        origin: record?.origin ?? existing?.origin ?? "puppyone",
-        availability: record?.availability ?? existing?.availability ?? "unverified",
-        lastSeenAt: record?.lastSeenAt ?? existing?.lastSeenAt,
-        unavailableAt: record?.unavailableAt ?? existing?.unavailableAt,
-      });
-    },
+  function upsert(draft, record) {
+    const normalized = normalizeRecord({ ...record, sessionId: "native-candidate" });
+    if (!normalized) throw new TypeError("Agent conversation metadata is invalid.");
+    const existing = draft.find((entry) => nativeKey(entry) === nativeKey(normalized));
+    return put(draft, {
+      ...existing,
+      ...Object.fromEntries(Object.entries(record).filter(([, value]) => value != null)),
+      sessionId: existing?.sessionId ?? randomUUID(),
+      updatedAtKnown: record.updatedAtKnown !== false,
+      ...(record.updatedAtKnown === false && existing?.updatedAtKnown !== false && existing?.updatedAt
+        ? { updatedAt: existing.updatedAt, createdAt: existing.createdAt, updatedAtKnown: true } : {}),
+      // Discovery cannot change product-owned selections, archive or session observations.
+      ...(existing ? Object.fromEntries(["archivedAt", "terminalState", "lastSequence", "selectedProviderId",
+        "selectedModel", "selectedVariant", "selectedEffort", "selectedMode", "capabilityRevision"]
+        .filter((key) => existing[key] != null).map((key) => [key, existing[key]])) : {}),
+      origin: existing?.origin ?? "native-discovery",
+      availability: "available",
+      lastSeenAt: new Date().toISOString(),
+      unavailableAt: null,
+    });
+  }
 
-    async upsertNative(record) {
-      await load();
-      const workspaceRoot = absolutePath(record?.workspaceRoot);
-      const runtimeId = safeId(record?.runtimeId ?? record?.runtime?.id);
-      const providerSessionId = safeId(record?.providerSessionId);
-      const existing = records.find((entry) => (
-        entry.workspaceRoot === workspaceRoot
-        && entry.runtimeId === runtimeId
-        && entry.providerSessionId === providerSessionId
-      ));
-      return saveRecord({
-        ...record,
-        sessionId: existing?.sessionId ?? randomUUID(),
-        origin: existing?.origin ?? "native-discovery",
-        availability: "available",
-        lastSeenAt: new Date().toISOString(),
-        unavailableAt: null,
-      });
-    },
-
-    /** Reconcile only after one authoritative, fully-paginated native scan. */
-    async reconcileNative({ workspaceRoot, runtimeId, providerSessionIds, reconciledAt = new Date().toISOString() }) {
-      await load();
-      const root = absolutePath(workspaceRoot);
-      const runtime = safeId(runtimeId);
-      const seen = new Set((Array.isArray(providerSessionIds) ? providerSessionIds : []).map(safeId).filter(Boolean));
-      const timestamp = isoDate(reconciledAt) ?? new Date().toISOString();
-      const unavailableSessionIds = [];
-      let changed = false;
-      records = records.map((entry) => {
-        if (entry.workspaceRoot !== root || entry.runtimeId !== runtime || entry.archivedAt) return entry;
-        if (seen.has(entry.providerSessionId)) {
-          if (entry.availability === "available" && !entry.unavailableAt) return entry;
-          changed = true;
-          return { ...entry, availability: "available", lastSeenAt: timestamp, unavailableAt: undefined };
-        }
-        if (entry.availability === "unavailable") {
-          unavailableSessionIds.push(entry.sessionId);
-          return entry;
-        }
+  function reconcile(draft, { workspaceRoot, runtimeId, sourceScopeId = "default", providerSessionIds,
+    reconciledAt = new Date().toISOString(), startedRevision = revision }) {
+    const seen = new Set(providerSessionIds);
+    const unavailableSessionIds = [];
+    let changed = false;
+    for (let i = 0; i < draft.length; i += 1) {
+      const entry = draft[i];
+      if (entry.workspaceRoot !== path.resolve(workspaceRoot) || entry.runtimeId !== runtimeId
+        || entry.sourceScopeId !== sourceScopeId || entry.archivedAt || seen.has(entry.providerSessionId)
+        || (changedAt.get(entry.sessionId) ?? 0) > startedRevision) continue;
+      unavailableSessionIds.push(entry.sessionId);
+      if (entry.availability !== "unavailable") {
+        draft[i] = { ...entry, availability: "unavailable", unavailableAt: reconciledAt };
         changed = true;
-        unavailableSessionIds.push(entry.sessionId);
-        return { ...entry, availability: "unavailable", unavailableAt: timestamp };
+      }
+    }
+    return { unavailableSessionIds, changed };
+  }
+
+  const catalog = {
+    save(record) {
+      return mutate((draft) => {
+        const existing = draft.find((entry) => entry.sessionId === safeId(record?.sessionId));
+        const saved = put(draft, { ...existing, ...record,
+          origin: existing?.origin ?? record?.origin ?? "puppyone",
+          archivedAt: existing?.archivedAt ?? record?.archivedAt,
+          availability: record?.availability ?? existing?.availability ?? "unverified",
+        });
+        return { value: saved, touched: [saved.sessionId] };
       });
-      if (changed) await schedulePersist();
-      return { unavailableSessionIds };
     },
-
-    async markUnavailable(sessionId, unavailableAt = new Date().toISOString()) {
-      await load();
-      const index = records.findIndex((entry) => entry.sessionId === safeId(sessionId));
-      if (index < 0) return false;
-      records[index] = {
-        ...records[index],
-        availability: "unavailable",
-        unavailableAt: isoDate(unavailableAt) ?? new Date().toISOString(),
-      };
-      await schedulePersist();
-      return true;
+    upsertNative: (record) => mutate((draft) => {
+      const saved = upsert(draft, record);
+      return { value: saved, touched: [saved.sessionId] };
+    }),
+    // One native page is validated and committed atomically with an optional final reconciliation.
+    applyNativePage({ entries, scope, reconcileMissing = false, guard }) {
+      return mutate((draft) => {
+        const saved = entries.map((record) => upsert(draft, record));
+        const result = reconcileMissing ? reconcile(draft, scope) : { unavailableSessionIds: [] };
+        return { touched: saved.map((record) => record.sessionId), value: { indexed: saved.length, unavailableSessionIds: result.unavailableSessionIds,
+          truncated: truncated || draft.length > capacity } };
+      }, guard);
     },
-
-    async findById(sessionId, workspaceRoot = null) {
-      await load();
-      const id = safeId(sessionId);
-      const root = workspaceRoot == null ? null : absolutePath(workspaceRoot);
-      return clone(records.find((entry) => entry.sessionId === id && (!root || entry.workspaceRoot === root)) ?? null);
-    },
-
-    async findLatest(workspaceRoot, runtimeId = null) {
-      await load();
-      const root = absolutePath(workspaceRoot);
-      const runtime = runtimeId == null ? null : safeId(runtimeId);
-      return clone(records.find((entry) => (
-        !entry.archivedAt
-        && entry.availability === "available"
-        && entry.workspaceRoot === root
-        && (!runtime || entry.runtimeId === runtime)
-      )) ?? null);
-    },
-
-    async list(workspaceRoot = null, {
-      runtimeId = null,
-      includeArchived = false,
-      includeUnavailable = false,
-      includeUnverified = false,
-    } = {}) {
-      await load();
-      const root = workspaceRoot == null ? null : absolutePath(workspaceRoot);
-      const runtime = runtimeId == null ? null : safeId(runtimeId);
-      return records.filter((entry) => (
-        (!root || entry.workspaceRoot === root)
-        && (!runtime || entry.runtimeId === runtime)
-        && (includeArchived || !entry.archivedAt)
-        && (includeUnavailable || entry.availability !== "unavailable")
-        && (includeUnverified || entry.availability !== "unverified")
-      )).map(clone);
-    },
-
-    async archive(sessionId, archivedAt = new Date().toISOString()) {
-      await load();
-      const index = records.findIndex((entry) => entry.sessionId === safeId(sessionId));
-      if (index < 0) return false;
-      records[index] = { ...records[index], archivedAt: isoDate(archivedAt) ?? new Date().toISOString() };
-      await schedulePersist();
-      return true;
-    },
-
-    async remove(sessionId) {
-      await load();
-      const next = records.filter((entry) => entry.sessionId !== safeId(sessionId));
-      if (next.length === records.length) return false;
-      records = next;
-      await schedulePersist();
-      return true;
-    },
+    reconcileNative: (scope) => mutate((draft) => {
+      const result = reconcile(draft, scope);
+      return { unchanged: !result.changed, value: { unavailableSessionIds: result.unavailableSessionIds } };
+    }),
+    markUnavailable: (id, unavailableAt = new Date().toISOString()) => update(id, { availability: "unavailable", unavailableAt }),
+    archive: (id, archivedAt = new Date().toISOString()) => update(id, { archivedAt }),
+    remove: (id) => mutate((draft) => {
+      const index = draft.findIndex((entry) => entry.sessionId === safeId(id));
+      if (index < 0) return { unchanged: true, value: false };
+      draft.splice(index, 1);
+      return { value: true };
+    }),
+    findById: (id, workspaceRoot = null) => read(() => clone(records.find((entry) => entry.sessionId === safeId(id)
+      && (!workspaceRoot || entry.workspaceRoot === absolutePath(workspaceRoot))) ?? null)),
+    findLatest: (workspaceRoot, runtimeId = null) => read(() => clone(records.find((entry) => !entry.archivedAt
+      && entry.availability === "available" && entry.workspaceRoot === absolutePath(workspaceRoot)
+      && (!runtimeId || entry.runtimeId === runtimeId)) ?? null)),
+    list: (workspaceRoot = null, { runtimeId = null, includeArchived = false, includeUnavailable = false, includeUnverified = false } = {}) => read(() => records.filter((entry) => (
+      (!workspaceRoot || entry.workspaceRoot === absolutePath(workspaceRoot)) && (!runtimeId || entry.runtimeId === runtimeId)
+      && (includeArchived || !entry.archivedAt) && (includeUnavailable || entry.availability !== "unavailable")
+      && (includeUnverified || entry.availability !== "unverified")
+    )).map(clone)),
+    getRevision: () => read(() => revision),
+    getCoverage: () => read(() => ({ truncated, capacity, retained: records.length })),
   };
+  function update(id, patch) {
+    return mutate((draft) => {
+      const index = draft.findIndex((entry) => entry.sessionId === safeId(id));
+      if (index < 0) return { unchanged: true, value: false };
+      draft[index] = normalizeRecord({ ...draft[index], ...patch });
+      return { value: true };
+    });
+  }
+  return catalog;
+}
+
+function nativeKey(record) {
+  return JSON.stringify([record.workspaceRoot, record.runtimeId, record.sourceScopeId, record.providerSessionId]);
 }
 
 function normalizeRecord(value) {
@@ -193,19 +213,22 @@ function normalizeRecord(value) {
   const sessionId = safeId(value.sessionId);
   const workspaceRoot = absolutePath(value.workspaceRoot);
   const runtimeId = safeId(value.runtimeId ?? value.runtime?.id);
-  const providerSessionId = safeId(value.providerSessionId);
+  const providerSessionId = historyNativeId(value.providerSessionId);
   const createdAt = isoDate(value.createdAt);
   const updatedAt = isoDate(value.updatedAt);
-  if (!sessionId || !workspaceRoot || !runtimeId || !providerSessionId || !createdAt || !updatedAt) return null;
+  if (!sessionId || !workspaceRoot || !runtimeId || !providerSessionId || !createdAt || !updatedAt
+    || (value.sourceScopeId != null && !historyNativeId(value.sourceScopeId))) return null;
   return compact({
     sessionId,
     workspaceRoot,
     runtimeId,
     runtime: normalizeRuntime(value.runtime, runtimeId),
     providerSessionId,
+    sourceScopeId: historyNativeId(value.sourceScopeId) ?? "default",
     title: bounded(value.title, 500) || "Agent session",
     createdAt,
     updatedAt,
+    ...(value.updatedAtKnown === false ? { updatedAtKnown: false } : {}),
     archivedAt: isoDate(value.archivedAt),
     terminalState: terminalState(value.terminalState),
     lastSequence: Number.isSafeInteger(value.lastSequence) && value.lastSequence >= 0 ? value.lastSequence : 0,
@@ -272,5 +295,5 @@ function compact(value) {
 }
 
 function clone(value) {
-  return value ? { ...value } : null;
+  return value ? structuredClone(value) : null;
 }

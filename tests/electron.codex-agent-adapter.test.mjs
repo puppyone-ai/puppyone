@@ -36,6 +36,7 @@ describe("Codex app-server normalization", () => {
 
     await expect(adapter.discoverSessions({ cursor: "page-1", limit: 25 })).resolves.toEqual({
       supported: true,
+      coverage: { scopeComplete: false, snapshotId: null },
       sessions: [expect.objectContaining({ providerSessionId: "thread-native", title: "Fix history" })],
       nextCursor: "next-page",
     });

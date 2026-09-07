@@ -730,3 +730,42 @@ describe("Electron AgentService ownership and lifecycle", () => {
     }));
   });
 });
+
+
+describe("History discovery and active Chat isolation", () => {
+  it.each(["archiveSession", "deleteSession"])("keeps %s workspace and ownership checks after extracting list queries", async (method) => {
+    const harness = createServiceHarness();
+    const owner = createSender(93);
+    const created = await harness.service.createSession(owner, { runtimeId: "codex" }, "/workspace");
+    const request = { sessionId: created.session.id };
+    await expect(harness.service[method](owner, request, "/different-workspace")).rejects.toThrow(/workspace/);
+    await expect(harness.service[method](createSender(94), request, "/workspace")).rejects.toThrow();
+    await expect(harness.service[method](owner, request, "/workspace")).resolves.toMatchObject({ sessionId: request.sessionId });
+    expect(harness.service.getSessionCount()).toBe(0);
+    await harness.service.closeAll();
+  });
+
+  it("keeps an active turn, replay and ownership intact when the catalog says unavailable", async () => {
+    const harness = createServiceHarness();
+    const owner = createSender(91);
+    const created = await harness.service.createSession(owner, { runtimeId: "codex" }, "/workspace");
+    const sessionId = created.session.id;
+    await harness.service.startTurn(owner, { sessionId, prompt: "Continue the current task" });
+    const before = harness.service.replay(owner, { sessionId });
+    await harness.persistence.markUnavailable(sessionId);
+    await harness.service.listSessions(owner, { runtimeId: "codex", discoverNative: true }, "/workspace");
+    expect(harness.service.replay(owner, { sessionId })).toEqual(before);
+    expect(harness.adapters[0].disposed).toBe(false);
+    expect(harness.adapters[1].disposed).toBe(true);
+    expect(harness.service.getSessionCount()).toBe(1);
+    await expect(harness.service.openSession(owner, { sessionId, runtimeId: "codex" }, "/workspace"))
+      .resolves.toMatchObject({ status: "opened", snapshot: { session: { id: sessionId } } });
+    for (const [sender, runtimeId, root] of [[createSender(92), "codex", "/workspace"],
+      [owner, "cursor", "/workspace"], [owner, "codex", "/different-workspace"]]) {
+      await expect(harness.service.openSession(sender, { sessionId, runtimeId }, root)).resolves.toMatchObject({ status: "failed" });
+    }
+    expect(harness.adapters).toHaveLength(2);
+    expect(harness.adapters[0].resumeSession).not.toHaveBeenCalled();
+    await harness.service.closeAll();
+  });
+});

@@ -148,6 +148,56 @@ describe("ConversationHistoryController", () => {
       scanId: "scan-a",
     }));
   });
+  it("publishes a healthy source while another native source is still waiting", async () => {
+    const slow = deferred<ReturnType<typeof catalog>>();
+    const listAgentSessions = vi.fn((request: { discoverNative?: boolean; runtimeId?: string }) => {
+      if (!request.discoverNative) return Promise.resolve(catalog());
+      if (request.runtimeId === "cursor") return slow.promise;
+      return Promise.resolve(catalog([savedSession("ready-now")], {
+        runtimeId: "codex", status: "complete", indexed: 1, nextCursor: null, scanId: null, warnings: [],
+      }));
+    });
+    const client = historyClient({ listAgentSessions, runtimes: [runtime("codex"), runtime("cursor")] });
+    const controller = new ConversationHistoryController("/workspace", () => client as never);
+    controller.activate();
+    await vi.waitFor(() => expect(controller.getSnapshot().sessions.map((entry) => entry.id)).toEqual(["ready-now"]));
+    expect(controller.getSnapshot().refreshing).toBe(true);
+    expect(controller.getSnapshot().sources.codex.status).toBe("complete");
+    slow.resolve(catalog([], { runtimeId: "cursor", status: "failed", indexed: 0,
+      nextCursor: null, scanId: null, warnings: ["source failed"] }));
+    await controller.refresh();
+    expect(controller.getSnapshot().sessions.map((entry) => entry.id)).toEqual(["ready-now"]);
+    expect(controller.getSnapshot().error).toContain("cursor");
+    expect(client.openAgentSession).not.toHaveBeenCalled();
+    controller.deactivate();
+  });
+
+  it("preserves rows and retry position for a resolved failed page, and clears expired positions", async () => {
+    let call = 0;
+    const listAgentSessions = vi.fn(async (request: { discoverNative?: boolean; cursor?: string }) => {
+      if (!request.discoverNative) return catalog([savedSession("kept")]);
+      call += 1;
+      if (call === 1) return catalog([savedSession("kept")], {
+        runtimeId: "codex", status: "partial", indexed: 1, nextCursor: "page-2", scanId: "scan-a", warnings: [],
+      });
+      return { ...catalog([], { runtimeId: "codex", status: "failed", indexed: 0,
+        nextCursor: null, scanId: null, warnings: ["page failed"] }),
+        discovery: { runtimeId: "codex", status: "failed", indexed: 0, nextCursor: null,
+          scanId: null, warnings: ["page failed"], retryable: call === 2 } };
+    });
+    const client = historyClient({ listAgentSessions, runtimes: [runtime("codex")] });
+    const controller = new ConversationHistoryController("/workspace", () => client as never);
+    controller.activate();
+    await vi.waitFor(() => expect(controller.getSnapshot().nextCursors.codex).toBeDefined());
+    await controller.loadMore();
+    expect(controller.getSnapshot().nextCursors.codex).toEqual({ cursor: "page-2", scanId: "scan-a" });
+    expect(controller.getSnapshot().sessions.map((entry) => entry.id)).toEqual(["kept"]);
+    await controller.loadMore();
+    expect(controller.getSnapshot().nextCursors).toEqual({});
+    expect(controller.getSnapshot().sessions.map((entry) => entry.id)).toEqual(["kept"]);
+    controller.deactivate();
+  });
+
 });
 
 function historyClient({

@@ -28,7 +28,7 @@ describe("normalized AgentEvent envelopes", () => {
       sequence: 2,
       sessionId: "session-1",
       runtimeId: "fake-runtime",
-      providerSessionId: "x".repeat(257),
+      providerSessionId: "x".repeat(513),
       type: "assistant.delta",
     })).toThrow(/invalid normalized/i);
   });

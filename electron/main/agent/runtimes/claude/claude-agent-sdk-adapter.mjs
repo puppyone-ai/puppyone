@@ -1,4 +1,5 @@
-import { normalizeModels, compatibleClaudeEffort, normalizeCommands, normalizeAccount, cleanEnvironment, bounded, safeId, asArray, normalizeDate, numericCursor, boundedPageSize } from "./claude-native-values.mjs";
+import { discoverClaudeHistory } from "./claude-history-discovery.mjs";
+import { normalizeModels, compatibleClaudeEffort, normalizeCommands, normalizeAccount, cleanEnvironment, bounded, normalizeDate } from "./claude-native-values.mjs";
 
 import { claudeResolveApproval, claudeResolveQuestion, claudeRequestPermission, claudeResolvePending } from "./claude-interactions.mjs";
 import path from "node:path";
@@ -178,26 +179,10 @@ export class ClaudeAgentSdkAdapter {
     }
   }
 
-  async discoverSessions({ cursor = null, limit = 50 } = {}) {
+  async discoverSessions(options = {}) {
     this.#assertUsable();
-    const sdk = await this.#loadSdk();
-    if (typeof sdk.listSessions !== "function") return { supported: false, sessions: [], nextCursor: null };
-    const offset = numericCursor(cursor);
-    const pageSize = boundedPageSize(limit);
-    const sessions = await sdk.listSessions({ dir: this.workspaceRoot, limit: pageSize, offset });
-    const normalized = asArray(sessions).filter((session) => (
-      safeId(session?.sessionId) && (!session?.cwd || path.resolve(session.cwd) === this.workspaceRoot)
-    )).slice(0, pageSize).map((session) => ({
-      providerSessionId: session.sessionId,
-      title: bounded(session.customTitle || session.summary || session.firstPrompt, 500) || "Claude Code session",
-      createdAt: normalizeDate(session.createdAt ?? session.lastModified),
-      updatedAt: normalizeDate(session.lastModified),
-    }));
-    return {
-      supported: true,
-      sessions: normalized,
-      nextCursor: normalized.length === pageSize ? String(offset + normalized.length) : null,
-    };
+    options.signal?.throwIfAborted();
+    return discoverClaudeHistory({ sdk: await this.#loadSdk(), workspaceRoot: this.workspaceRoot }, options);
   }
 
   async createSession({ model = null, effort = null, mode = "agent" } = {}) {

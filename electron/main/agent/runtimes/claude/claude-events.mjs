@@ -1,3 +1,4 @@
+import { nativeSessionId } from "../../../../../shared/agent-contract/native-session-id.mjs";
 import { boundRendererValue, redactSecrets, redactSecretText } from "../../agent-events.mjs";
 import { createAgentFileChangeEvidence } from "../../runtime/agent-file-change-evidence.mjs";
 
@@ -17,7 +18,7 @@ export function createClaudeEventState({ turnId = null, resumed = false } = {}) 
 
 export function normalizeClaudeMessage(message, state = createClaudeEventState()) {
   if (!message || typeof message !== "object") return [];
-  const sessionId = safeId(message.session_id);
+  const sessionId = nativeSessionId(message.session_id);
   const turnId = state.turnId;
   if (message.type === "system" && message.subtype === "init") {
     if (state.lifecycleEmitted) return [];
@@ -307,7 +308,7 @@ function canonicalToolName(name) {
 }
 
 function event(type, providerSessionId, turnId, itemId, payload) {
-  return { type, providerSessionId: safeId(providerSessionId), turnId: safeId(turnId), itemId: safeId(itemId), payload: payload ?? {} };
+  return { type, providerSessionId: nativeSessionId(providerSessionId), turnId: safeId(turnId), itemId: safeId(itemId), payload: payload ?? {} };
 }
 
 function safeId(value) {

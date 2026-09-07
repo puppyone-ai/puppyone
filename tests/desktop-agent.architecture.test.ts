@@ -240,7 +240,7 @@ describe("Desktop Agent architecture boundaries", () => {
     const historyController = source("src/features/desktop-agent/application/ConversationHistoryController.ts");
     const registry = source("src/features/desktop-agent/application/controllerRegistry.ts");
     const historyPort = source("electron/main/agent/runtime/agent-session-history-port.mjs");
-    const indexer = source("electron/main/agent/application/native-conversation-indexer.mjs");
+    const indexer = source("electron/main/agent/application/history/native-conversation-indexer.mjs");
     const lifecycle = source("electron/main/agent/application/session/agent-session-lifecycle.mjs");
 
     expect(browser).toContain("new ConversationHistoryController");

@@ -1,7 +1,9 @@
+import { createHistoryCatalogPort } from "./history/history-catalog-port.mjs";
+import { createAgentHistoryQueries } from "./history/agent-history-queries.mjs";
 import { createAgentRuntimeCatalog } from "./agent-runtime-catalog.mjs";
 import { createRuntimeResolutionCoordinator } from "./runtime-resolution/runtime-resolution-coordinator.mjs";
 import { createAgentEventJournal } from "./agent-event-journal.mjs";
-import { createNativeConversationIndexer } from "./native-conversation-indexer.mjs";
+import { createNativeConversationIndexer } from "./history/native-conversation-indexer.mjs";
 import { AgentSessionStore } from "./agent-session-store.mjs";
 import { createAgentProcessSupervisor } from "./processes/agent-process-supervisor.mjs";
 import { createAgentSessionCommands } from "./session/agent-session-commands.mjs";
@@ -20,6 +22,7 @@ import { createAgentTurnCoordinator } from "./turn/agent-turn-coordinator.mjs";
 export function createAgentService({
   runtimeRegistry,
   sessionCache = null,
+  conversationCatalog = null,
   persistence: legacyPersistence = null,
   logger = console,
   attachmentStore = null,
@@ -42,12 +45,14 @@ export function createAgentService({
     processSupervisor,
   });
   const runtimeCatalog = createAgentRuntimeCatalog({ runtimeResolutionCoordinator });
+  const historyCatalog = createHistoryCatalogPort(conversationCatalog ?? cache.historyCatalog);
   const nativeConversationIndexer = createNativeConversationIndexer({
     runtimeRegistry,
     runtimeResolutionCoordinator,
-    sessionRepository: cache,
+    catalog: historyCatalog,
     processSupervisor,
   });
+  const history = createAgentHistoryQueries({ catalog: historyCatalog, nativeConversationIndexer });
   const journal = createAgentEventJournal({ sessionCache: cache, logger });
   const sessionFeed = new AgentSessionFeed({ logger });
   const runtimeSession = createAgentSessionRuntime({
@@ -80,7 +85,6 @@ export function createAgentService({
   });
   const commands = createAgentSessionCommands({
     runtimeResolutionCoordinator,
-    nativeConversationIndexer,
     sessionStore,
     cache,
     runtimeSession,
@@ -121,7 +125,7 @@ export function createAgentService({
       const session = requireFeedSession(sender, request, workspaceRoot);
       return sessionFeed.detach(session, request?.subscriptionId);
     },
-    listSessions: commands.listSessions,
+    listSessions: history.listSessions,
     forkSession: commands.forkSession,
     archiveSession: commands.archiveSession,
     deleteSession: commands.deleteSession,
@@ -146,6 +150,7 @@ export function createAgentService({
       return result;
     },
     closeAll: async () => {
+      nativeConversationIndexer.dispose();
       await lifecycle.closeAll();
       sessionFeed.releaseAll();
     },

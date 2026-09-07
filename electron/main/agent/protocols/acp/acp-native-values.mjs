@@ -1,3 +1,4 @@
+import { nativeSessionId } from "../../../../../shared/agent-contract/native-session-id.mjs";
 
 
 export function isUnavailableAcpSessionError(error) {
@@ -62,7 +63,7 @@ export function mergeJsonConfig(value, overlay) {
 }
 
 export function event(type, providerSessionId, turnId, itemId, payload) {
-  return { type, providerSessionId: safeId(providerSessionId), turnId: safeId(turnId), itemId: safeId(itemId), payload };
+  return { type, providerSessionId: nativeSessionId(providerSessionId), turnId: safeId(turnId), itemId: safeId(itemId), payload };
 }
 
 export function safeId(value) {

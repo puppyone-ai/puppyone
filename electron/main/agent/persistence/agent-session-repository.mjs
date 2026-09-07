@@ -8,6 +8,12 @@ export function createAgentSessionRepository({ eventCache, conversationCatalog }
     throw new TypeError("Agent session repository requires an event cache and conversation catalog.");
   }
   return {
+    historyCatalog: Object.freeze({
+      list: (...args) => conversationCatalog.list(...args),
+      getRevision: () => conversationCatalog.getRevision(),
+      getCoverage: () => conversationCatalog.getCoverage(),
+      applyNativePage: (page) => conversationCatalog.applyNativePage(page),
+    }),
     async save(record, { promoteCatalog = true } = {}) {
       await Promise.all([
         eventCache.save(record),
@@ -17,15 +23,8 @@ export function createAgentSessionRepository({ eventCache, conversationCatalog }
     upsertNative(record) {
       return conversationCatalog.upsertNative(record);
     },
-    async reconcileNative(scope) {
-      const result = await conversationCatalog.reconcileNative(scope);
-      await Promise.all(result.unavailableSessionIds.map((sessionId) => eventCache.remove(sessionId)));
-      return result;
-    },
-    async markUnavailable(sessionId, unavailableAt) {
-      await eventCache.remove(sessionId);
-      return conversationCatalog.markUnavailable(sessionId, unavailableAt);
-    },
+    reconcileNative: (scope) => conversationCatalog.reconcileNative(scope),
+    markUnavailable: (sessionId, unavailableAt) => conversationCatalog.markUnavailable(sessionId, unavailableAt),
     async findById(sessionId, workspaceRoot = null) {
       const [liveRecord, catalogRecord] = await Promise.all([
         eventCache.findById(sessionId, workspaceRoot),

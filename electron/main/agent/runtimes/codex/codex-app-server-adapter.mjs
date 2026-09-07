@@ -1,7 +1,8 @@
+import { discoverCodexHistory } from "./codex-history-discovery.mjs";
 import { codexResolveApproval, codexResolveQuestion, codexHandleServerRequest, codexHandleServerRequestResolved, codexClearPendingApprovalsForTurn, codexClearPendingApprovals, codexClearPendingQuestionsForTurn, codexClearPendingQuestions } from "./codex-interactions.mjs";
 import { normalizeCodexNotification } from "./codex-events.mjs";
 import { normalizeHistoricalThread } from "./codex-history-projection.mjs";
-import { normalizeProviderSession, normalizeAccount, normalizeModels, compatibleReasoningEffort, requireString, stringOrNull, toIsoFromSeconds, boundedPageSize } from "./codex-native-values.mjs";
+import { normalizeProviderSession, normalizeAccount, normalizeModels, compatibleReasoningEffort, requireString } from "./codex-native-values.mjs";
 export { normalizeCodexNotification } from "./codex-events.mjs";
 export { normalizeHistoricalThread } from "./codex-history-projection.mjs";
 import { randomUUID } from "node:crypto";
@@ -195,33 +196,10 @@ export class CodexAppServerAdapter {
     };
   }
 
-  async discoverSessions({ cursor = null, limit = 50 } = {}) {
+  async discoverSessions(options = {}) {
+    options.signal?.throwIfAborted();
     await this.connect();
-    const result = await this.connection.request("thread/list", {
-      cwd: this.workspaceRoot,
-      cursor,
-      limit: boundedPageSize(limit),
-      archived: false,
-      sortKey: "updated_at",
-      sortDirection: "desc",
-      // History discovery must query Codex's native metadata index only. It
-      // must never trigger a rollout scan merely because the launcher opened.
-      useStateDbOnly: true,
-    });
-    return {
-      supported: true,
-      sessions: (Array.isArray(result?.data) ? result.data : [])
-        .filter((thread) => !thread?.ephemeral && thread?.cwd === this.workspaceRoot)
-        .slice(0, boundedPageSize(limit))
-        .map((thread) => ({
-          providerSessionId: requireString(thread.id, "Codex thread/list returned an invalid thread id."),
-          title: stringOrNull(thread.name) || stringOrNull(thread.preview) || "Codex session",
-          createdAt: toIsoFromSeconds(thread.createdAt),
-          updatedAt: toIsoFromSeconds(thread.updatedAt),
-          selectedProviderId: stringOrNull(thread.modelProvider),
-        })),
-      nextCursor: stringOrNull(result?.nextCursor),
-    };
+    return discoverCodexHistory({ request: this.connection.request.bind(this.connection), workspaceRoot: this.workspaceRoot }, options);
   }
 
   async createSession({ model = null, effort = null } = {}) {

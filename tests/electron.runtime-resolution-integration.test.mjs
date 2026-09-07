@@ -204,6 +204,15 @@ function createHarness(readiness) {
     service: createAgentService({
       runtimeRegistry: registry,
       persistence,
+      conversationCatalog: {
+        list: async () => [],
+        getRevision: async () => 0,
+        getCoverage: async () => ({ truncated: false, capacity: 500, retained: 0 }),
+        applyNativePage: async ({ entries }) => {
+          await Promise.all(entries.map((entry) => persistence.upsertNative(entry)));
+          return { indexed: entries.length, truncated: false };
+        },
+      },
       logger: { warn: vi.fn() },
     }),
   };

@@ -245,6 +245,7 @@ export type AgentSessionMetadata = {
 };
 
 export type AgentSessionListItem = Omit<AgentSessionMetadata, "activeTurnId"> & {
+  updatedAtKnown?: boolean;
   archivedAt?: string | null;
   partial?: boolean;
   /** Who first recorded the locator; never implies transcript ownership. */
@@ -254,6 +255,7 @@ export type AgentSessionListItem = Omit<AgentSessionMetadata, "activeTurnId"> & 
 export type AgentSessionDiscoveryStatus = "not-requested" | "unsupported" | "partial" | "complete" | "failed";
 
 export type AgentSessionsListResponse = {
+  catalogCoverage?: { truncated: boolean; capacity: number; retained: number };
   sessions: AgentSessionListItem[];
   discovery: {
     runtimeId: AgentRuntimeId | null;
@@ -262,6 +264,10 @@ export type AgentSessionsListResponse = {
     /** Opaque product scan identity required only while pagination is partial. */
     scanId: string | null;
     indexed: number;
+    retryable?: boolean;
+    catalogCommit?: "pending";
+    sourceScopeId?: string;
+    coverage?: "complete" | "unknown";
     warnings: string[];
   };
   warnings: string[];

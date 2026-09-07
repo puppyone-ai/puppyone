@@ -84,6 +84,8 @@ export function AgentChatHistoryBrowser({
         loadingMore={history.loadingMore}
         hasMore={history.hasMore}
         error={history.error}
+        sources={history.sources}
+        catalogTruncated={history.catalogCoverage?.truncated}
         openingSessionId={openingTargetId}
         onOpen={(session) => onOpen(createAgentChatHistoryTarget(session))}
         onRefresh={() => void history.refreshNative()}

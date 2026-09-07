@@ -4,6 +4,7 @@ import { useLocalization } from "@puppyone/localization/react";
 import type {
   AgentRuntimeCatalogEntry,
   AgentSessionListItem,
+  AgentSessionsListResponse,
 } from "../domain/agent-contract";
 import { AgentBrandMark } from "./AgentBrandMark";
 
@@ -15,6 +16,8 @@ type Props = {
   loadingMore: boolean;
   hasMore: boolean;
   error: string | null;
+  sources?: Readonly<Record<string, AgentSessionsListResponse["discovery"]>>;
+  catalogTruncated?: boolean;
   openingSessionId?: string | null;
   onOpen: (session: AgentSessionListItem) => void;
   onRefresh: () => void;
@@ -31,6 +34,8 @@ export function AgentConversationHistory({
   loadingMore,
   hasMore,
   error,
+  sources = {},
+  catalogTruncated = false,
   openingSessionId = null,
   onOpen,
   onRefresh,
@@ -159,7 +164,7 @@ export function AgentConversationHistory({
                     <span className="desktop-agent-history-title">{session.title}</span>
                   </span>
                   <time className="desktop-agent-history-time" dateTime={session.updatedAt}>
-                    {formatHistoryDate(session.updatedAt)}
+                    {session.updatedAtKnown === false ? "" : formatHistoryDate(session.updatedAt)}
                   </time>
                 </button>
               </li>
@@ -169,6 +174,17 @@ export function AgentConversationHistory({
       )}
 
       <footer className="desktop-agent-history-footer">
+        {Object.entries(sources).map(([runtimeId, source]) => {
+          const label = runtimeById.get(runtimeId)?.descriptor.displayName || runtimeId;
+          const message = source.status === "failed" ? t("agent.history.refreshFailed")
+            : source.status === "unsupported" ? t("agent.history.sourceUnsupported")
+              : source.status === "partial" ? t("agent.history.sourcePartial")
+                : source.coverage === "unknown" ? t("agent.history.sourceUnverified") : null;
+          return message ? <p key={runtimeId} className={source.status === "failed" ? "desktop-agent-history-error" : "desktop-agent-history-source-status"} role="status">
+            {label}: {message}
+          </p> : null;
+        })}
+        {catalogTruncated && <p className="desktop-agent-history-error" role="status">{t("agent.history.catalogTruncated")}</p>}
         {hasMore && (
           <button
             type="button"
@@ -179,7 +195,7 @@ export function AgentConversationHistory({
             {loadingMore ? t("agent.history.loadingMore") : t("agent.history.loadMore")}
           </button>
         )}
-        {error && sessions.length > 0 && (
+        {error && sessions.length > 0 && !Object.values(sources).some((source) => source.status === "failed") && (
           <p className="desktop-agent-history-error" role="status">{t("agent.history.refreshFailed")}</p>
         )}
       </footer>

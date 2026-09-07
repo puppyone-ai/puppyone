@@ -168,6 +168,15 @@ export function createAgentSessionLifecycle({
     requireWorkspaceRoot(workspaceRoot);
     const sessionId = normalizeRequiredId(request?.sessionId, "Agent session id");
     const runtimeId = normalizeRuntimeId(request?.runtimeId);
+    const live = sessionStore.get(sessionId);
+    if (live && !live.providerExited) {
+      try {
+        const owned = runtimeSession.requireOwnedSession(sender, sessionId);
+        requireMatchingWorkspace(owned, workspaceRoot);
+        if (owned.runtimeId !== runtimeId) return sessionOpenFailure("SESSION_NOT_FOUND", "Agent runtime does not match the session.", false);
+        return { status: "opened", snapshot: sessionSnapshot(owned) };
+      } catch (error) { return classifySessionOpenFailure(error); }
+    }
     const persisted = await cache.findById(sessionId, workspaceRoot);
     if (
       !persisted

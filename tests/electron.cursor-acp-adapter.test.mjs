@@ -153,6 +153,7 @@ describe("Cursor ACP runtime", () => {
 
     await expect(adapter.discoverSessions({ cursor: "opaque", limit: 20 })).resolves.toEqual({
       supported: true,
+      coverage: { scopeComplete: false, snapshotId: null },
       sessions: [expect.objectContaining({ providerSessionId: "cursor-history", title: "Fix tabs" })],
       nextCursor: null,
     });

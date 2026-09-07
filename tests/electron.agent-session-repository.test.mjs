@@ -18,15 +18,17 @@ describe("Agent session repository durability boundary", () => {
     });
   });
 
-  it("evicts process-local replay when an authoritative scan tombstones a locator", async () => {
+  it("preserves process-local replay when discovery changes catalog availability", async () => {
     const eventCache = cacheFixture();
     const conversationCatalog = catalogFixture();
     conversationCatalog.reconcileNative.mockResolvedValueOnce({ unavailableSessionIds: ["stale-a", "stale-b"] });
     const repository = createAgentSessionRepository({ eventCache, conversationCatalog });
 
     await repository.reconcileNative({ workspaceRoot: "/workspace", runtimeId: "cursor", providerSessionIds: [] });
+    await repository.markUnavailable("stale-a");
+    expect(eventCache.remove).not.toHaveBeenCalled();
+    await repository.remove("stale-a");
     expect(eventCache.remove).toHaveBeenCalledWith("stale-a");
-    expect(eventCache.remove).toHaveBeenCalledWith("stale-b");
   });
 
   it("joins live replay with the catalog's authoritative availability for exact open", async () => {

@@ -1,3 +1,4 @@
+import { historyCursor, historyNativeId } from "./history-schema.mjs";
 import { assertAgentDisplay, assertAgentDisplayPatch } from "./display-schema.mjs";
 import { parseWorkspaceResourceReference } from "../workspace-resource-reference.mjs";
 import { AGENT_SESSION_OPEN_ERROR_CODES, agentContractLimits } from "./constants.mjs";
@@ -107,7 +108,7 @@ export function parseAgentIpcRequest(channel, value) {
         runtimeId: optionalRuntimeId(input.runtimeId),
         includeArchived: optionalBoolean(input.includeArchived, "includeArchived"),
         discoverNative: optionalBoolean(input.discoverNative, "discoverNative"),
-        cursor: optionalString(input.cursor, "cursor", 1_024),
+        cursor: historyCursor(input.cursor) ?? undefined,
         scanId: optionalOpaqueId(input.scanId, "scanId"),
         limit: optionalPageSize(input.limit, "limit"),
       });
@@ -500,6 +501,11 @@ function sanitizeAgentSessionsListResponse(value) {
   const response = assertRecord(value, "session list");
   const discovery = assertRecord(response.discovery, "session list.discovery");
   return {
+    ...(response.catalogCoverage ? { catalogCoverage: {
+      truncated: optionalBoolean(response.catalogCoverage.truncated, "catalog.truncated") === true,
+      capacity: nonNegativeInteger(response.catalogCoverage.capacity, "catalog.capacity"),
+      retained: nonNegativeInteger(response.catalogCoverage.retained, "catalog.retained"),
+    } } : {}),
     sessions: assertArray(response.sessions, "session list.sessions")
       .slice(0, 500)
       .map((session, index) => sanitizeAgentSessionListItem(session, `session list.sessions[${index}]`)),
@@ -508,8 +514,12 @@ function sanitizeAgentSessionsListResponse(value) {
       status: enumValue(discovery.status, "session list.discovery.status", [
         "not-requested", "unsupported", "partial", "complete", "failed",
       ]),
-      nextCursor: optionalString(discovery.nextCursor, "session list.discovery.nextCursor", 1_024) ?? null,
+      nextCursor: historyCursor(discovery.nextCursor),
       scanId: optionalOpaqueId(discovery.scanId, "session list.discovery.scanId", { nullable: true }) ?? null,
+      ...(discovery.catalogCommit == null ? {} : { catalogCommit: enumValue(discovery.catalogCommit, "history.catalogCommit", ["pending"]) }),
+      ...(discovery.retryable == null ? {} : { retryable: optionalBoolean(discovery.retryable, "history.retryable") }),
+      ...(discovery.sourceScopeId == null ? {} : { sourceScopeId: requireHistoryNativeId(discovery.sourceScopeId) }),
+      ...(discovery.coverage == null ? {} : { coverage: enumValue(discovery.coverage, "history.coverage", ["complete", "unknown"]) }),
       indexed: nonNegativeInteger(discovery.indexed, "session list.discovery.indexed"),
       warnings: safeWarnings(discovery.warnings, "session list.discovery.warnings"),
     },
@@ -543,11 +553,12 @@ function sanitizeAgentSessionListItem(value, label) {
     runtimeId,
     runtime: session.runtime == null ? undefined : sanitizeAgentRuntimeDescriptor(session.runtime),
     provider,
-    providerSessionId: optionalOpaqueId(session.providerSessionId, `${label}.providerSessionId`, { nullable: true }) ?? null,
+    providerSessionId: session.providerSessionId == null ? null : requireHistoryNativeId(session.providerSessionId),
     workspaceRoot: requiredString(session.workspaceRoot, `${label}.workspaceRoot`, MAX_PATH_LENGTH),
     title: requiredString(session.title, `${label}.title`, 512),
     createdAt: isoTimestamp(session.createdAt, `${label}.createdAt`),
     updatedAt: isoTimestamp(session.updatedAt, `${label}.updatedAt`),
+    updatedAtKnown: optionalBoolean(session.updatedAtKnown, `${label}.updatedAtKnown`),
     terminalState: enumValue(session.terminalState, `${label}.terminalState`, [
       "idle", "running", "completed", "failed", "interrupted", "provider-exited", "outcome-unknown",
     ]),
@@ -691,4 +702,10 @@ function optionalAnswerMatrix(value, label) {
 
 function boundedAnswer(value, label) {
   return requiredString(value, label, 8_192, { allowEmpty: true, preserveWhitespace: true });
+}
+
+function requireHistoryNativeId(value) {
+  const id = historyNativeId(value);
+  if (!id) throw new TypeError("Invalid native History session id.");
+  return id;
 }

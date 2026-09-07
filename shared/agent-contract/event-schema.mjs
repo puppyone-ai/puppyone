@@ -1,3 +1,4 @@
+import { nativeSessionId } from "./native-session-id.mjs";
 import { AGENT_EVENT_TYPES, agentContractLimits } from "./constants.mjs";
 import {
   assertRecord,
@@ -50,7 +51,9 @@ export function assertAgentEventEnvelope(value) {
   requiredString(event.sessionId, "AgentEvent.sessionId", 256);
   assertRuntimeId(event.runtimeId ?? event.provider, "AgentEvent.runtimeId");
   assertRuntimeId(event.provider, "AgentEvent.provider");
-  optionalOpaqueId(event.providerSessionId, "AgentEvent.providerSessionId", { nullable: true });
+  if (event.providerSessionId != null && !nativeSessionId(event.providerSessionId)) {
+    throw contractError("AgentEvent.providerSessionId", "is invalid");
+  }
   optionalOpaqueId(event.turnId, "AgentEvent.turnId", { nullable: true });
   optionalOpaqueId(event.itemId, "AgentEvent.itemId", { nullable: true });
   requiredString(event.emittedAt, "AgentEvent.emittedAt", 64);
