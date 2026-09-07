@@ -10,6 +10,7 @@ import {
   isTerminalAgentDisplayReady,
 } from "./terminal-shell-host.mjs";
 import { resolveCanonicalWorkspaceDirectory } from "./workspace-authorization.mjs";
+import { projectSessionError } from "../../shared/project-session-contract/schema.mjs";
 
 const DEFAULT_AGENT_REVEAL_TIMEOUT_MS = 2_400;
 const TERMINAL_DEFAULT_COLOR_QUERIES = Object.freeze([
@@ -34,10 +35,22 @@ export function createTerminalService({
   }),
   terminalAgentActivityHost = null,
   agentRevealTimeoutMs = DEFAULT_AGENT_REVEAL_TIMEOUT_MS,
+  closeTimeoutMs = 5_000,
 }) {
   const sessions = new Map();
+  const closedInstances = new Map();
+  const pendingIds = new Set();
 
-  async function create(sender, request, workspaceRoot = null) {
+  async function create(sender, request, workspaceRoot = null, operation = null) {
+    const id = normalizeTerminalId(request?.id);
+    if (pendingIds.has(id)) throw projectSessionError("SESSION_EXISTS", "This terminal is already starting.");
+    pendingIds.add(id);
+    try { return await createReserved(sender, { ...request, id }, workspaceRoot, operation); }
+    finally { pendingIds.delete(id); }
+  }
+
+  async function createReserved(sender, request, workspaceRoot, operation) {
+    operation?.assertCurrent();
     const senderId = requireSenderId(sender);
     if (typeof workspaceRoot !== "string" || workspaceRoot.trim().length === 0) {
       throw new Error("No local workspace is assigned to this window.");
@@ -54,12 +67,13 @@ export function createTerminalService({
       request?.launcherId,
       { environment, platform, resolveTerminalAgentLaunch },
     );
+    operation?.assertCurrent();
 
     const existing = get(id);
     if (existing && existing.sender.id !== senderId) {
       throw new Error("Terminal session id is already owned by another window.");
     }
-    if (existing) closeSession(existing);
+    if (existing) throw projectSessionError("SESSION_EXISTS", "This terminal instance already exists.");
     await initializeWorkspaceEditReview(workspaceRoot).catch((error) => {
       logger.warn("Unable to initialize edit review baseline:", error);
     });
@@ -80,6 +94,7 @@ export function createTerminalService({
 
     let terminal;
     try {
+      operation?.assertCurrent();
       const terminalEnvironment = {
         ...buildTerminalEnvironment(environment, {
           appVersion,
@@ -102,11 +117,16 @@ export function createTerminalService({
       });
     } catch (error) {
       terminalAgentActivityHost?.closeTerminalSession?.(id);
+      if (error?.code?.startsWith("PROJECT_")) throw error;
       throw new Error(`Failed to start terminal: ${error instanceof Error ? error.message : String(error)}`);
     }
 
     const session = {
       id,
+      instanceId: randomUUID(),
+      closing: false,
+      closePromise: null,
+      exited: false,
       terminal,
       sender,
       workspaceRoot: path.resolve(workspaceRoot),
@@ -116,6 +136,7 @@ export function createTerminalService({
     };
 
     sessions.set(id, session);
+    session.exitPromise = new Promise((resolve) => { session.resolveExit = resolve; });
 
     const agentRevealGate = spawnConfig.kind === "agent"
       ? createAgentRevealGate(agentRevealTimeoutMs)
@@ -137,12 +158,15 @@ export function createTerminalService({
       agentRevealGate?.observe(data);
     });
     terminal.onExit(({ exitCode, signal }) => {
+      session.exited = true;
       const trailingData = session.defaultColorResponder?.flush() ?? "";
       if (trailingData.length > 0) sendTerminalData(session, trailingData);
       agentRevealGate?.settle();
       sendTerminalExit(session, exitCode, signal ? String(signal) : null);
       if (sessions.get(id) === session) sessions.delete(id);
-      terminalAgentActivityHost?.closeTerminalSession?.(id);
+      rememberClosed(session);
+      try { terminalAgentActivityHost?.closeTerminalSession?.(id); }
+      finally { session.resolveExit(); }
     });
 
     if (spawnConfig.agentBootstrapInput) {
@@ -151,14 +175,17 @@ export function createTerminalService({
         terminal.write(spawnConfig.agentBootstrapInput);
       } catch (error) {
         agentRevealGate?.settle();
-        closeSession(session);
+        await closeSession(session);
         throw new Error(`TERMINAL_AGENT_START_FAILED: ${error instanceof Error ? error.message : String(error)}`);
       }
       await agentRevealGate?.wait();
     }
 
+    try { operation?.assertCurrent(); } catch (error) { await closeSession(session); throw error; }
+
     return {
       id,
+      instanceId: session.instanceId,
       pid: terminal.pid ?? null,
       shell: spawnConfig.displayShell,
       inputShell: spawnConfig.file,
@@ -167,7 +194,7 @@ export function createTerminalService({
   }
 
   function input(sender, request) {
-    const session = getOwnedSession(sender, request?.id);
+    const session = getOwnedSession(sender, request?.id, request?.instanceId);
     const data = request?.data;
     if (!session || typeof data !== "string" || data.length === 0) return false;
     session.terminal.write(data);
@@ -175,7 +202,7 @@ export function createTerminalService({
   }
 
   function resize(sender, request) {
-    const session = getOwnedSession(sender, request?.id);
+    const session = getOwnedSession(sender, request?.id, request?.instanceId);
     if (!session) return false;
     const cols = normalizeTerminalSize(request?.cols, 80, 20, 400);
     const rows = normalizeTerminalSize(request?.rows, 24, 8, 120);
@@ -186,7 +213,7 @@ export function createTerminalService({
   }
 
   function appearance(sender, request) {
-    const session = getOwnedSession(sender, request?.id);
+    const session = getOwnedSession(sender, request?.id, request?.instanceId);
     if (!session) return false;
     if (session.defaultColorResponder?.updateColors(request?.defaultColors)) return true;
     const responder = createTerminalDefaultColorResponder(request?.defaultColors);
@@ -195,49 +222,57 @@ export function createTerminalService({
     return true;
   }
 
-  function close(sender, id) {
-    const session = getOwnedSession(sender, id);
-    if (!session) return false;
-    closeSession(session);
+  async function close(sender, request) {
+    const id = typeof request === "string" ? request : request?.id;
+    const instanceId = typeof request === "object" ? request?.instanceId : null;
+    if (instanceId && closedInstances.get(`${sender.id}:${instanceId}`)?.id === id) return true;
+    const session = getOwnedSession(sender, id, instanceId, true);
+    if (!session) throw projectSessionError("SESSION_NOT_FOUND", "This terminal instance no longer exists.");
+    await closeSession(session);
     return true;
   }
 
   function closeSession(session) {
-    sessions.delete(session.id);
-    terminalAgentActivityHost?.closeTerminalSession?.(session.id);
-    try {
+    if (session.exited) return Promise.resolve();
+    if (session.closePromise) return session.closePromise;
+    session.closing = true;
+    session.closePromise = Promise.resolve().then(async () => {
       session.terminal.kill();
-    } catch {
-      // The PTY may already be gone.
-    }
+      let timer;
+      try {
+        await Promise.race([session.exitPromise, new Promise((_, reject) => {
+          timer = setTimeout(() => reject(projectSessionError("TERMINAL_CLOSE_TIMEOUT", "The terminal has not stopped yet. Retry closing it.", true)), closeTimeoutMs);
+        })]);
+      } finally { clearTimeout(timer); }
+    }).finally(() => { session.closePromise = null; });
+    return session.closePromise;
   }
 
-  function closeSessionsForWindow(webContentsId) {
-    for (const session of Array.from(sessions.values())) {
-      if (session.sender.id === webContentsId) {
-        closeSession(session);
-      }
-    }
+  async function closeSessionsForWindow(webContentsId) {
+    await closeMatching((session) => session.sender.id === webContentsId);
   }
 
-  function closeSessionsForWorkspaceRoot(webContentsId, workspaceRoot) {
+  async function closeSessionsForWorkspaceRoot(webContentsId, workspaceRoot) {
     const canonicalRoot = typeof workspaceRoot === "string" && workspaceRoot.trim()
       ? path.resolve(workspaceRoot)
       : null;
     if (!Number.isInteger(webContentsId) || !canonicalRoot) return 0;
-    let closed = 0;
-    for (const session of Array.from(sessions.values())) {
-      if (session.sender.id !== webContentsId || session.workspaceRoot !== canonicalRoot) continue;
-      closeSession(session);
-      closed += 1;
-    }
-    return closed;
+    return closeMatching((session) => session.sender.id === webContentsId && session.workspaceRoot === canonicalRoot);
   }
 
-  function closeAll() {
-    for (const session of Array.from(sessions.values())) {
-      closeSession(session);
-    }
+  async function closeMatching(predicate) {
+    const matching = Array.from(sessions.values()).filter(predicate);
+    const results = await Promise.allSettled(matching.map(closeSession));
+    const failures = results.filter((result) => result.status === "rejected");
+    if (failures.length) throw new AggregateError(failures.map((result) => result.reason), "Terminal shutdown could not release every resource.");
+    return matching.length;
+  }
+
+  const closeAll = () => closeMatching(() => true);
+
+  function rememberClosed(session) {
+    closedInstances.set(`${session.sender.id}:${session.instanceId}`, { id: session.id, rootPath: session.workspaceRoot });
+    while (closedInstances.size > 512) closedInstances.delete(closedInstances.keys().next().value);
   }
 
   function getSessionCount() {
@@ -249,13 +284,26 @@ export function createTerminalService({
     return sessions.get(id) ?? null;
   }
 
-  function getOwnedSession(sender, id) {
+  function getOwnedSession(sender, id, instanceId = null, allowClosing = false) {
     const session = get(id);
-    return session && sender?.id === session.sender.id ? session : null;
+    if (!session || sender?.id !== session.sender.id) return null;
+    if (instanceId && instanceId !== session.instanceId) throw projectSessionError("SESSION_STALE", "This terminal instance has ended.");
+    if (session.closing && !allowClosing) return null;
+    return session;
+  }
+
+  function assertSessionInstance(sender, request, rootPath, { allowClosed = false } = {}) {
+    if (typeof request?.instanceId !== "string") throw projectSessionError("SESSION_STALE", "The terminal instance identity is required.");
+    const closed = closedInstances.get(`${sender.id}:${request.instanceId}`);
+    if (allowClosed && closed?.id === request.id && closed.rootPath === rootPath) return;
+    const session = getOwnedSession(sender, request.id, request.instanceId, allowClosed);
+    if (!session) throw projectSessionError("SESSION_NOT_FOUND", "This terminal instance no longer exists.");
+    if (session.workspaceRoot !== rootPath) throw projectSessionError("PROJECT_UNAUTHORIZED", "This terminal belongs to another project.");
   }
 
   return {
     create,
+    assertSessionInstance,
     input,
     resize,
     appearance,
@@ -575,17 +623,19 @@ function normalizePathEntry(value, platform) {
 
 function sendTerminalData(session, data) {
   if (session.sender.isDestroyed()) return;
-  session.sender.send("terminal:data", {
+  try { session.sender.send("terminal:data", {
     id: session.id,
+    instanceId: session.instanceId,
     data: String(data),
-  });
+  }); } catch { /* A detached renderer does not own the native terminal lifetime. */ }
 }
 
 function sendTerminalExit(session, code, signal) {
   if (session.sender.isDestroyed()) return;
-  session.sender.send("terminal:exit", {
+  try { session.sender.send("terminal:exit", {
     id: session.id,
+    instanceId: session.instanceId,
     code,
     signal,
-  });
+  }); } catch { /* Native exit must still settle when its window disappears. */ }
 }

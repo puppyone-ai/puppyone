@@ -18,6 +18,7 @@ import {
   splitEditorPane,
   updateEditorSplitRatio,
   isDocumentDataNode,
+  isDataResourceUri,
   type DataNode,
   type DocumentDataNode,
   type EditorGroupState,
@@ -307,7 +308,7 @@ export function useDesktopEditorWorkbench(
 
   const closeUnderResource = useCallback((resource: string) => {
     updateWorkbench((current) => {
-      const target = toEditorResource(resource);
+      const target = isDataResourceUri(resource) ? resource : toEditorResource(resource);
       const group = closeEditorsUnderResource(current.group, target);
       const retainedEditorIds = new Set(group.editors.map((editor) => editor.id));
       const removedEditorIds = current.group.editors

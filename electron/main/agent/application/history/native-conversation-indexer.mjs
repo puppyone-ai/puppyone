@@ -53,13 +53,13 @@ export function createNativeConversationIndexer({ runtimeRegistry, runtimeResolu
         const previous = latest.get(key);
         if (previous) expire(previous, historyFailure("History scan was superseded.", "HISTORY_SCAN_EXPIRED", false));
         if (scans.size >= maxScans || (!resources.has(key) && resources.size >= maxScans)) throw historyFailure("Too many History scans. Try again after a scan finishes.");
-        scan = { id: randomUUID(), key, workspaceRoot, runtimeId, startedAt: now, expiresAt: now + SCAN_TTL_MS,
+        scan = { id: randomUUID(), key, workspaceRoot, runtimeId, ownerId: request.ownerId, startedAt: now, expiresAt: now + SCAN_TTL_MS,
           providerSessionIds: new Set(), cursors: new Set(), nextCursor: null, pages: 0, pageSize, snapshot: null,
           authoritative: true, sourceScopeId: null, startedRevision: null, pending: null };
         scans.set(scan.id, scan);
         latest.set(key, scan);
       }
-      const operation = runPage(scan, cursor, pageSize).finally(() => {
+      const operation = runPage(scan, cursor, pageSize, request.operation).finally(() => {
         if (scan.pending === operation) scan.pending = null;
       });
       scan.pending = operation;
@@ -69,25 +69,30 @@ export function createNativeConversationIndexer({ runtimeRegistry, runtimeResolu
     }
   }
 
-  async function runPage(scan, cursor, limit) {
+  async function runPage(scan, cursor, limit, projectOperation) {
     const controller = new AbortController();
     scan.controller = controller;
+    const cancelProject = () => expire(scan, historyFailure("The project has closed.", "PROJECT_STALE", false));
+    projectOperation?.signal.addEventListener("abort", cancelProject, { once: true });
     const remaining = Math.min(discoveryTimeoutMs, scanTimeoutMs - (Date.now() - scan.startedAt));
     const timer = setTimeout(() => controller.abort(historyFailure("History query timed out.")), Math.max(1, remaining));
     let adapter;
-    let releaseResource;
+    let resource;
     let indexed = 0;
     let commitPending = false;
     const guard = () => {
+      projectOperation?.assertCurrent();
       if (!current(scan)) throw historyFailure("History scan was superseded. Refresh history.", "HISTORY_SCAN_EXPIRED", false);
       if (controller.signal.aborted) throw controller.signal.reason;
     };
     try {
       // Includes waiting for cleanup, runtime resolution, process admission and catalog submission.
       const page = await observeHistoryOperation(async () => {
-        if (resources.has(scan.key)) await resources.get(scan.key);
+        if (resources.has(scan.key)) await resources.get(scan.key).done;
         guard();
-        resources.set(scan.key, new Promise((resolve) => { releaseResource = resolve; }));
+        resource = { key: scan.key, workspaceRoot: scan.workspaceRoot, ownerId: scan.ownerId, adapter: null, cleanup: null, closed: false };
+        resource.done = new Promise((resolve) => { resource.release = resolve; });
+        resources.set(scan.key, resource);
         if (scan.startedRevision === null) scan.startedRevision = await catalog.getRevision();
         guard();
         const selected = await runtimeResolutionCoordinator.resolveForOperation({
@@ -100,6 +105,7 @@ export function createNativeConversationIndexer({ runtimeRegistry, runtimeResolu
             guard();
             adapter = runtimeRegistry.createAdapter(scan.runtimeId, { readiness: selected.readiness,
               workspaceRoot: scan.workspaceRoot, onEvent: () => {}, onExit: () => {} });
+            resource.adapter = adapter;
             const port = resolveAgentSessionHistoryPort(adapter);
             if (typeof port?.discover !== "function") return null;
             if (scan.sourceScopeId && port.sourceScopeId != null && port.sourceScopeId !== scan.sourceScopeId) {
@@ -175,22 +181,39 @@ export function createNativeConversationIndexer({ runtimeRegistry, runtimeResolu
         retryable, nextCursor: retryable ? cursor : null, scanId: retryable && cursor ? scan.id : null };
     } finally {
       clearTimeout(timer);
-      if (releaseResource) {
+      projectOperation?.signal.removeEventListener("abort", cancelProject);
+      if (resource) {
         // Keep a stalled cleanup quarantined; repeated refreshes cannot spawn more native resources.
-        const cleanup = Promise.resolve().then(() => adapter?.dispose?.());
-        const cleanupDone = cleanup.then(() => {
-          releaseResource();
-          resources.delete(scan.key);
-        }, () => { /* Resource state is unknown; the source remains quarantined. */ });
+        const cleanupDone = disposeResource(resource).catch(() => {});
         let cleanupTimer;
         await Promise.race([cleanupDone, new Promise((resolve) => { cleanupTimer = setTimeout(resolve, CLEANUP_TIMEOUT_MS); })]);
         clearTimeout(cleanupTimer);
       }
     }
   }
-  return { refresh, dispose() {
+  function disposeResource(resource) {
+    if (resource.closed) return Promise.resolve();
+    if (resource.cleanup) return resource.cleanup;
+    resource.cleanup = Promise.resolve().then(() => resource.adapter?.dispose?.()).then(() => {
+      resource.closed = true;
+      resource.release();
+      if (resources.get(resource.key) === resource) resources.delete(resource.key);
+    }).finally(() => { resource.cleanup = null; });
+    return resource.cleanup;
+  }
+  async function closeMatching(matches) {
+    for (const scan of scans.values()) if (matches(scan)) expire(scan, historyFailure("The project has closed.", "PROJECT_STALE", false));
+    const results = await Promise.allSettled([...resources.values()].filter(matches).map(disposeResource));
+    const failures = results.filter((entry) => entry.status === "rejected");
+    if (failures.length) throw new AggregateError(failures.map((entry) => entry.reason), "History query resources could not be closed.");
+  }
+  return { refresh,
+    closeWorkspace: (workspaceRoot) => closeMatching((resource) => resource.workspaceRoot === path.resolve(workspaceRoot)),
+    closeOwner: (ownerId) => closeMatching((resource) => resource.ownerId === ownerId),
+    dispose() {
     disposed = true;
     for (const scan of scans.values()) expire(scan, historyFailure("History queries are closed.", "HISTORY_CLOSED", false));
+    return closeMatching(() => true);
   } };
 }
 

@@ -1,5 +1,6 @@
 import { AlertCircle, History, RefreshCw } from "lucide-react";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
+import { WorkbenchLauncherState } from "../../app-shell/auxiliary-workbench/WorkbenchLauncherState";
 import { useLocalization } from "@puppyone/localization/react";
 import type {
   AuxiliaryWorkbenchCreationRecipe,
@@ -26,6 +27,7 @@ type TerminalAgentLauncherDefinition = Exclude<
 >;
 
 type TerminalLauncherProps = {
+  state?: WorkbenchLauncherState;
   agentMode: TerminalLauncherAgentMode;
   discoveryPhase: TerminalAgentDiscoveryPhase;
   availableAgentIds: readonly AvailableTerminalAgentId[];
@@ -52,6 +54,7 @@ type TerminalLauncherProps = {
  * Items or launch detected Terminal CLIs. Shell always resolves to a Terminal.
  */
 export function TerminalLauncher({
+  state: ownedState,
   agentMode,
   discoveryPhase,
   availableAgentIds,
@@ -72,9 +75,9 @@ export function TerminalLauncher({
   titleId = "desktop-terminal-launcher-title",
 }: TerminalLauncherProps) {
   const { t } = useLocalization();
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [openingTargetId, setOpeningTargetId] = useState<string | null>(null);
-  const [historyRevision, setHistoryRevision] = useState(0);
+  const [localState] = useState(() => new WorkbenchLauncherState());
+  const state = ownedState ?? localState;
+  const { historyOpen, openingTargetId, historyRevision } = useSyncExternalStore(state.subscribe, state.getSnapshot);
   const shell = getDesktopTerminalLauncher("shell");
   const scanning = discoveryPhase === "idle" || discoveryPhase === "loading";
   const busy = launching || chatPreparing;
@@ -102,17 +105,16 @@ export function TerminalLauncher({
           excludedResourceIds: excludedHistoryResourceIds,
           openingTargetId,
           onBack: () => {
-            if (!openingTargetId) setHistoryOpen(false);
+            if (!openingTargetId) state.patch({ historyOpen: false });
           },
           onOpen: (target) => {
-            if (openingTargetId) return;
-            setOpeningTargetId(target.id);
+            if (state.getSnapshot().openingTargetId) return;
+            state.patch({ openingTargetId: target.id });
             void onRestoreHistoryTarget(target).then((opened) => {
               if (!opened) {
-                setOpeningTargetId(null);
                 // The main process may have tombstoned a stale locator. Remount
                 // the locator-only browser so its catalog projection catches up.
-                setHistoryRevision((current) => current + 1);
+                state.patch({ openingTargetId: null, historyRevision: state.getSnapshot().historyRevision + 1 });
               }
             });
           },
@@ -220,7 +222,7 @@ export function TerminalLauncher({
               type="button"
               className="desktop-terminal-launcher-history"
               data-po-interaction="navigation"
-              onClick={() => setHistoryOpen(true)}
+              onClick={() => state.patch({ historyOpen: true })}
               disabled={busy}
               aria-label={history.label}
             >

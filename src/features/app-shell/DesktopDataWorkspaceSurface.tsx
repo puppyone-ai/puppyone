@@ -437,7 +437,7 @@ export function DesktopDataWorkspaceSurface({
                 node={node}
                 parentPath={node.type === "folder" ? node.path : null}
                 showMoreActions={!node.workspaceFolderRoot}
-                onRemoveWorkspaceRoot={workspaceFolders.length > 1
+                onRemoveWorkspaceRoot={workspaceFolders.length > 0
                   ? () => {
                       const folder = workspaceFolders.find((item) => item.id === node.workspaceFolderId);
                       if (folder) void onRemoveProject(folder);

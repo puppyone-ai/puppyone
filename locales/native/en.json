@@ -1,4 +1,7 @@
 {
+  "native.projectClose.quitDetail": "The app will stay open. Try quitting again to finish stopping these tasks.",
+  "native.projectClose.message": "Some project tasks have not stopped yet.",
+  "native.projectClose.detail": "The window will stay open. Try closing it again to finish stopping these tasks.",
   "native.messageUnavailable": "This text is unavailable.",
   "native.dock.newWindow": "New Window",
   "native.menu.file": "File",

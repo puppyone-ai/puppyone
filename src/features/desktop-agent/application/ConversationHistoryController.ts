@@ -46,7 +46,7 @@ const INITIAL_STATE: ConversationHistoryState = Object.freeze({
   error: null,
 });
 
-/** Page-scoped, query-only state owner. It never creates or resumes a live Chat session. */
+/** Project-scoped, query-only state owner. It never creates or resumes a live Chat session. */
 export class ConversationHistoryController {
   private state = INITIAL_STATE;
   private readonly listeners = new Set<Listener>();
@@ -90,6 +90,8 @@ export class ConversationHistoryController {
     this.refreshPromise = null;
     this.loadMorePromise = null;
   }
+
+  dispose() { this.deactivate(); this.listeners.clear(); }
 
   refresh() {
     if (!this.active) return Promise.resolve();

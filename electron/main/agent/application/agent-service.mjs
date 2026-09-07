@@ -93,12 +93,14 @@ export function createAgentService({
   });
 
   const requireFeedSession = (sender, request, workspaceRoot) => {
+    if (request?.instanceId) sessionStore.assertInstance(sender, request, workspaceRoot);
     const session = sessionStore.requireOwned(sender, request?.sessionId);
     if (session.workspaceRoot !== workspaceRoot) throw new Error("Agent session workspace does not match the authorized workspace.");
     return session;
   };
 
   return {
+    assertSessionInstance: (sender, request, root, options) => sessionStore.assertInstance(sender, request, root, options),
     discoverProviders: (_sender, request = {}, workspaceRoot = null) => runtimeCatalog.discover(request, workspaceRoot),
     listModels: (_sender, request = {}, workspaceRoot = null) => runtimeCatalog.listModels(request, workspaceRoot),
     readAccount: (_sender, request = {}, workspaceRoot = null) => runtimeCatalog.readAccount(request, workspaceRoot),
@@ -132,26 +134,26 @@ export function createAgentService({
     compactSession: commands.compactSession,
     closeSession: async (...args) => {
       const sessionId = args[1]?.sessionId;
+      const closingSession = sessionStore.get(sessionId);
       const result = await lifecycle.closeSession(...args);
-      if (sessionId) sessionFeed.releaseSession(sessionId);
+      if (closingSession && !sessionStore.isCurrent(closingSession)) sessionFeed.releaseSession(sessionId, closingSession.instanceId);
       return result;
     },
     closeSessionsForWindow: async (ownerId) => {
-      const sessionIds = sessionStore.values().filter((session) => session.ownerId === ownerId).map((session) => session.id);
-      await lifecycle.closeSessionsForWindow(ownerId);
-      sessionIds.forEach((sessionId) => sessionFeed.releaseSession(sessionId));
+      const sessions = sessionStore.values().filter((session) => session.ownerId === ownerId);
+      try { await Promise.all([nativeConversationIndexer.closeOwner(ownerId), lifecycle.closeSessionsForWindow(ownerId)]); }
+      finally { sessions.filter((session) => !sessionStore.isCurrent(session)).forEach((session) => sessionFeed.releaseSession(session.id, session.instanceId)); }
     },
     closeSessionsForWorkspaceRoot: async (ownerId, workspaceRoot) => {
-      const sessionIds = sessionStore.values()
-        .filter((session) => session.ownerId === ownerId && session.workspaceRoot === workspaceRoot)
-        .map((session) => session.id);
-      const result = await lifecycle.closeSessionsForWorkspaceRoot(ownerId, workspaceRoot);
-      sessionIds.forEach((sessionId) => sessionFeed.releaseSession(sessionId));
-      return result;
+      const sessions = sessionStore.values()
+        .filter((session) => session.ownerId === ownerId && session.workspaceRoot === workspaceRoot);
+      try {
+        const [, result] = await Promise.all([nativeConversationIndexer.closeWorkspace(workspaceRoot), lifecycle.closeSessionsForWorkspaceRoot(ownerId, workspaceRoot)]);
+        return result;
+      } finally { sessions.filter((session) => !sessionStore.isCurrent(session)).forEach((session) => sessionFeed.releaseSession(session.id, session.instanceId)); }
     },
     closeAll: async () => {
-      nativeConversationIndexer.dispose();
-      try { await lifecycle.closeAll(); } finally { sessionFeed.releaseAll(); }
+      try { await Promise.all([nativeConversationIndexer.dispose(), lifecycle.closeAll()]); } finally { sessionFeed.releaseAll(); }
     },
     getSessionCount: lifecycle.getSessionCount,
     getRetainedSessionCount: lifecycle.getRetainedSessionCount,

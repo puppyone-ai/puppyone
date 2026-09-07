@@ -2,16 +2,19 @@ import { describe, expect, it } from "vitest";
 import { SessionUiStateStore } from "../src/features/desktop-agent/application/SessionUiStateStore";
 
 describe("SessionUiStateStore", () => {
-  it("bounds sessions with least-recently-used eviction", () => {
+  it("bounds reconstructible caches without evicting unsent drafts", () => {
     const store = new SessionUiStateStore(2, 10);
     store.patch("old", { draft: "old" });
-    store.patch("kept", { draft: "kept" });
+    store.patch("kept", { draft: "kept", measurements: { row: 100 } });
     store.read("old");
     store.patch("new", { draft: "new" });
 
     expect(store.read("old").draft).toBe("old");
-    expect(store.read("kept").draft).toBe("");
+    expect(store.read("kept").draft).toBe("kept");
+    expect(store.read("kept").measurements).toEqual({});
     expect(store.read("new").draft).toBe("new");
+    store.delete("kept");
+    expect(store.read("kept").draft).toBe("");
   });
 
   it("retains only the newest bounded measurement entries and returns defensive copies", () => {

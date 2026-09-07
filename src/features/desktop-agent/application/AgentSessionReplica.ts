@@ -3,7 +3,7 @@ import { assertAgentDisplay } from '../../../../shared/agent-contract/display-sc
 import { assertAgentSessionFrame, assertAgentSessionSnapshot } from '../../../../shared/agent-contract/schema.mjs';
 import type { AgentSessionFrame, AgentSessionSnapshot } from '../domain/agent-contract';
 import type { AgentControllerState } from './agent-controller-state';
-import { AgentKnownError, createAgentError } from './agent-error';
+import { AgentKnownError, AgentOperationError, createAgentError } from './agent-error';
 import type { AgentClientPort, AgentClientProvider } from './AgentClientPort';
 
 type StatePatch = (patch: Partial<AgentControllerState>) => void;
@@ -14,11 +14,12 @@ const REQUEST_TIMEOUT_MS = 8_000;
 export class AgentSessionReplica {
   private frameCleanup: (() => void) | null = null;
   private connectedBridge: AgentClientPort | null = null;
-  private subscription: { id: string; sessionId: string; streamId: string; revision: number; epoch: number } | null = null;
+  private subscription: { id: string; sessionId: string; instanceId?: string; streamId: string; revision: number; epoch: number } | null = null;
   private epoch = 0;
   private repairPromise: Promise<void> | null = null;
   private watermarkTimer: ReturnType<typeof setTimeout> | null = null;
   private disposed = false;
+  private ended = false;
 
   constructor(
     private readonly workspaceRoot: string,
@@ -52,14 +53,15 @@ export class AgentSessionReplica {
     this.subscription = null;
     if (this.watermarkTimer) clearTimeout(this.watermarkTimer);
     this.watermarkTimer = null;
-    if (previous) this.detach(this.connectedBridge, previous.sessionId, previous.id);
+    if (previous) this.detach(this.connectedBridge, previous.sessionId, previous.id, previous.instanceId);
   }
 
-  private detach(bridge: AgentClientPort | null, sessionId: string, subscriptionId: string) {
-    void bridge?.detachAgentSession?.({ rootPath: this.workspaceRoot, sessionId, subscriptionId }).catch(() => {});
+  private detach(bridge: AgentClientPort | null, sessionId: string, subscriptionId: string, instanceId?: string) {
+    void bridge?.detachAgentSession?.({ rootPath: this.workspaceRoot, sessionId, subscriptionId, ...(instanceId ? { instanceId } : {}) }).catch(() => {});
   }
 
   async attachSession(sessionId: string): Promise<AgentSessionSnapshot | null> {
+    this.ended = false;
     this.connect();
     const bridge = this.connectedBridge;
     if (!bridge?.attachAgentSession || !bridge.acknowledgeAgentSession || !bridge.onAgentSessionFrame) {
@@ -67,18 +69,21 @@ export class AgentSessionReplica {
     }
     this.invalidate();
     const epoch = this.epoch;
+    const instanceId = this.readState().session?.id === sessionId ? this.readState().session?.instanceId : undefined;
     this.patch({ replicaStatus: 'subscribing' });
     let timedOut = false;
     const attach = bridge.attachAgentSession.bind(bridge);
-    const pending = Promise.resolve().then(() => attach({ rootPath: this.workspaceRoot, sessionId }));
+    const pending = Promise.resolve().then(() => attach({ rootPath: this.workspaceRoot, sessionId, ...(instanceId ? { instanceId } : {}) }));
     // An expired attach can still create a Main subscription; release its late receipt.
     void pending.then(receipt => {
-      if (timedOut || this.disposed || epoch !== this.epoch) this.detach(bridge, sessionId, receipt.subscriptionId);
+      if (timedOut || this.disposed || epoch !== this.epoch) this.detach(bridge, sessionId, receipt.subscriptionId, instanceId);
     }, () => {});
     let receipt;
     try { receipt = await withTimeout(pending); }
     catch (error) {
       timedOut = true;
+      if (this.disposed || epoch !== this.epoch) return null;
+      if (this.handleEnded(error)) throw new AgentKnownError('session-ended');
       this.subscriptionFailed(epoch);
       throw new AgentKnownError('event-gap');
     }
@@ -86,10 +91,10 @@ export class AgentSessionReplica {
     try {
       const snapshot = assertAgentSessionSnapshot(receipt.snapshot);
       if (snapshot.session.id !== sessionId || !snapshot.cursor || !snapshot.control) throw new Error('Invalid Agent display snapshot.');
-      this.subscription = { id: receipt.subscriptionId, sessionId, ...snapshot.cursor, epoch };
+      this.subscription = { id: receipt.subscriptionId, sessionId, instanceId: snapshot.session.instanceId, ...snapshot.cursor, epoch };
       return snapshot;
     } catch (error) {
-      this.detach(bridge, sessionId, receipt.subscriptionId);
+      this.detach(bridge, sessionId, receipt.subscriptionId, instanceId);
       this.subscriptionFailed(epoch);
       throw new AgentKnownError('event-gap');
     }
@@ -102,7 +107,9 @@ export class AgentSessionReplica {
       const synchronized = await this.acknowledge(subscription);
       if (this.current(subscription)) this.patch({ replicaStatus: synchronized ? 'live' : 'stale' });
       return synchronized && this.current(subscription);
-    } catch {
+    } catch (error) {
+      if (!this.current(subscription)) return false;
+      if (this.handleEnded(error)) return false;
       this.subscriptionFailed(subscription.epoch);
       return false;
     } finally {
@@ -111,13 +118,13 @@ export class AgentSessionReplica {
   }
 
   private subscriptionFailed(epoch: number) {
-    if (this.disposed || epoch !== this.epoch) return;
+    if (this.disposed || this.ended || epoch !== this.epoch) return;
     this.patch({ replicaStatus: 'stale', error: createAgentError('event-gap') });
     this.scheduleWatermarkCheck();
   }
 
   repairFrom(_afterSequence?: number) {
-    if (this.disposed) return Promise.resolve();
+    if (this.disposed || this.ended) return Promise.resolve();
     if (this.repairPromise) return this.repairPromise;
     const sessionId = this.readState().session?.id;
     if (!sessionId) return Promise.resolve();
@@ -134,7 +141,9 @@ export class AgentSessionReplica {
         if (synchronized && !this.disposed && this.readState().session?.id === sessionId) this.patch({ replicaStatus: 'live',
           ...(this.readState().error?.code === 'event-gap' ? { error: null } : {}),
         });
-      } catch {
+      } catch (error) {
+        if (this.disposed || this.epoch !== repairEpoch) return;
+        if (this.handleEnded(error)) return;
         if (!this.disposed && this.epoch === repairEpoch && this.readState().session?.id === sessionId) this.patch({ replicaStatus: 'stale', error: createAgentError('event-gap') });
       }
     })().finally(() => {
@@ -155,6 +164,7 @@ export class AgentSessionReplica {
       const projection = assertAgentDisplay(applyAgentDisplayPatch(this.readState().projection, frame.displayPatch));
       // Validate and publish the complete transaction before moving the cursor or ACKing it.
       this.patch({ projection, control: frame.control, session: frame.session });
+      if (frame.control.connection.reason === 'session-closed') { this.endInstance(); return; }
       subscription.revision = frame.revision;
       void this.acknowledge(subscription).catch(() => { if (this.current(subscription)) void this.repairFrom(); });
     } catch {
@@ -173,6 +183,7 @@ export class AgentSessionReplica {
     if (!bridge?.acknowledgeAgentSession) throw new Error('The Agent display feed cannot acknowledge changes.');
     const result = await withTimeout(bridge.acknowledgeAgentSession({
       rootPath: this.workspaceRoot, sessionId: subscription.sessionId, subscriptionId: subscription.id,
+      ...(subscription.instanceId ? { instanceId: subscription.instanceId } : {}),
       streamId: subscription.streamId, revision: subscription.revision,
     }));
     if (this.current(subscription) && !result.synchronized) {
@@ -183,7 +194,7 @@ export class AgentSessionReplica {
   }
 
   private scheduleWatermarkCheck() {
-    if (this.disposed || this.watermarkTimer || !this.readState().session) return;
+    if (this.disposed || this.ended || this.watermarkTimer || !this.readState().session) return;
     this.watermarkTimer = setTimeout(() => { this.watermarkTimer = null; void this.checkWatermark(); }, WATERMARK_INTERVAL_MS);
   }
 
@@ -196,13 +207,29 @@ export class AgentSessionReplica {
       }
       const watermark = await withTimeout(bridge.readAgentSessionWatermark({
         rootPath: this.workspaceRoot, sessionId: subscription.sessionId, subscriptionId: subscription.id,
+        ...(subscription.instanceId ? { instanceId: subscription.instanceId } : {}),
       }));
       if (!this.current(subscription)) return;
       // Frames may advance while this read is in flight. A lower watermark is harmless.
       if (watermark.resyncRequired || watermark.streamId !== subscription.streamId || watermark.revision > subscription.revision) await this.repairFrom();
-    } catch {
+    } catch (error) {
+      if (subscription && !this.current(subscription)) return;
+      if (this.handleEnded(error)) return;
       if (!subscription || this.current(subscription)) await this.repairFrom();
     } finally { this.scheduleWatermarkCheck(); }
+  }
+
+  private handleEnded(error: unknown) {
+    const code = error instanceof AgentOperationError ? error.failure.code : error instanceof AgentKnownError ? error.code : null;
+    if (!code || !['SESSION_NOT_FOUND', 'SESSION_STALE', 'PROJECT_STALE', 'PROJECT_CLOSING', 'session-ended'].includes(code)) return false;
+    this.endInstance();
+    return true;
+  }
+
+  private endInstance() {
+    this.ended = true;
+    this.invalidate();
+    this.patch({ phase: 'runtime-exited', replicaStatus: 'detached', error: createAgentError('session-ended') });
   }
 }
 

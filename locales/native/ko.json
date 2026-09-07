@@ -1,4 +1,7 @@
 {
+  "native.projectClose.quitDetail": "앱이 열린 상태로 유지됩니다. 작업을 중지하려면 앱 종료를 다시 시도하세요.",
+  "native.projectClose.message": "일부 프로젝트 작업이 아직 중지되지 않았습니다.",
+  "native.projectClose.detail": "창이 열린 상태로 유지됩니다. 작업을 중지하려면 창 닫기를 다시 시도하세요.",
   "native.messageUnavailable": "이 텍스트를 사용할 수 없습니다.",
   "native.dock.newWindow": "새 윈도우",
   "native.menu.file": "파일",

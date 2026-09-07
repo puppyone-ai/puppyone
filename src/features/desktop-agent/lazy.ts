@@ -1,4 +1,4 @@
-import type { AuxiliaryWorkbenchPreparationContext } from "../app-shell/auxiliary-workbench/types";
+import type { AuxiliaryWorkbenchPreparationContext, AuxiliaryWorkbenchProject } from "../app-shell/auxiliary-workbench/types";
 import { parseAgentChatHistoryTarget } from "./domain/agent-chat-history-target";
 export { isDesktopAgentChatEnabled } from "./featureGate";
 export { resolveAgentWorkspaceProviderPath } from "./domain/agent-workspace-path";
@@ -25,6 +25,7 @@ export function loadAgentChatHistoryBrowser() {
 
 export async function prepareAgentChatWorkbenchItem(context: AuxiliaryWorkbenchPreparationContext) {
   const module = await getAgentChatWorkbenchItemModule();
+  context.project?.assertOpen();
   if (context.historyTarget) {
     const target = parseAgentChatHistoryTarget(context.historyTarget);
     if (!target) throw new Error("Invalid Agent chat history target.");
@@ -33,6 +34,7 @@ export async function prepareAgentChatWorkbenchItem(context: AuxiliaryWorkbenchP
       context.item.id,
       target.sessionId,
       target.runtimeId,
+      context.project,
     );
     return;
   }
@@ -40,6 +42,7 @@ export async function prepareAgentChatWorkbenchItem(context: AuxiliaryWorkbenchP
     context.item.rootId,
     context.item.id,
     context.recipe?.id ?? null,
+    context.project,
   );
 }
 
@@ -49,12 +52,13 @@ export async function discardPreparedAgentChatWorkbenchItem(
   await resolvedWorkbenchItemModule?.discardPreparedAgentChatWorkbenchItem(
     context.item.rootId,
     context.item.id,
+    context.project,
   );
 }
 
-export async function closeAgentChatWorkbenchItem(rootId: string, itemId: string) {
+export async function closeAgentChatWorkbenchItem(rootId: string, itemId: string, project?: AuxiliaryWorkbenchProject) {
   const module = await getAgentChatWorkbenchItemModule();
-  return module.requestCloseAgentChatWorkbenchItem(rootId, itemId);
+  return module.requestCloseAgentChatWorkbenchItem(rootId, itemId, project);
 }
 
 function getAgentChatWorkbenchItemModule() {

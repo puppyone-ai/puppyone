@@ -7,6 +7,7 @@ import { Terminal, type IDisposable } from "@xterm/xterm";
 import type { TerminalCreateRequest } from "../../../types/electron";
 import type { DesktopTerminalSessionStatus } from "../model/terminalSessions";
 import type { DesktopTerminalLauncherId } from "../model/terminalLaunchers";
+import { unwrapProjectSessionResult } from "../../../../shared/project-session-contract/schema.mjs";
 import {
   applyTerminalAppearance,
   readTerminalFontFamily,
@@ -54,6 +55,7 @@ const INITIAL_SCROLLBAR_STATE: TerminalScrollbarState = {
 };
 
 type TerminalRuntimeOptions = {
+  projectContext?: import("../../../../shared/project-session-contract/types").ProjectSessionContext;
   sessionId: string;
   launcherId: DesktopTerminalLauncherId;
   workspacePath: string;
@@ -108,6 +110,7 @@ export interface TerminalRuntimeHandle {
   readonly scrollbarState: TerminalScrollbarState;
   applyAppearance: () => void;
   dispose: () => void;
+  close?: () => Promise<void>;
   focus: () => void;
   getMinimumViewportSize: () => TerminalMinimumViewportSize;
   mount: (container: HTMLDivElement) => void;
@@ -124,6 +127,10 @@ export interface TerminalRuntimeHandle {
 
 export class TerminalRuntime implements TerminalRuntimeHandle {
   inputShell = "";
+  private readonly projectContext: TerminalRuntimeOptions["projectContext"];
+  private instanceId: string | undefined;
+  private startPromise: Promise<void> | null = null;
+  private closePromise: Promise<void> | null = null;
   private readonly sessionId: string;
   private readonly launcherId: DesktopTerminalLauncherId;
   private readonly workspacePath: string;
@@ -163,12 +170,14 @@ export class TerminalRuntime implements TerminalRuntimeHandle {
   private measuredCellHeight = 16;
 
   constructor({
+    projectContext,
     sessionId,
     launcherId,
     workspacePath,
     getMessageFormatter,
     onStatus,
   }: TerminalRuntimeOptions) {
+    this.projectContext = projectContext;
     this.sessionId = sessionId;
     this.launcherId = launcherId;
     this.workspacePath = workspacePath;
@@ -272,7 +281,7 @@ export class TerminalRuntime implements TerminalRuntimeHandle {
   write(data: string) {
     if (this.disposed || data.length === 0) return;
     window.puppyoneDesktop?.writeTerminal?.({
-      id: this.sessionId,
+      ...this.requestIdentity(),
       data,
     });
   }
@@ -303,6 +312,25 @@ export class TerminalRuntime implements TerminalRuntimeHandle {
     this.scheduleFit();
   }
 
+  private requestIdentity() {
+    return { id: this.sessionId, ...(this.instanceId ? { instanceId: this.instanceId } : {}), ...(this.projectContext ? { projectContext: this.projectContext } : {}) };
+  }
+
+  close() {
+    if (this.closePromise) return this.closePromise;
+    this.closePromise = (async () => {
+      await this.startPromise;
+      if (this.instanceId || (!this.projectContext && this.ptyReady)) {
+        const bridge = window.puppyoneDesktop;
+        if (!bridge?.closeTerminal) throw new Error(this.message("terminal.bridgeUnavailable"));
+        unwrapProjectSessionResult(await bridge.closeTerminal(this.requestIdentity()));
+      }
+      this.dispose();
+    })().finally(() => { this.closePromise = null; });
+    return this.closePromise;
+  }
+
+  /** Releases the local screen after its project confirms native shutdown. */
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
@@ -336,7 +364,6 @@ export class TerminalRuntime implements TerminalRuntimeHandle {
     this.webglAddon = null;
     this.unicode11Addon = null;
     this.disposables.splice(0).forEach(safeDispose);
-    void window.puppyoneDesktop?.closeTerminal?.(this.sessionId);
     this.terminal?.dispose();
     this.terminal = null;
     this.fitAddon = null;
@@ -450,11 +477,13 @@ export class TerminalRuntime implements TerminalRuntimeHandle {
 
     this.removeDataListener = bridge.onTerminalData((event) => {
       if (event.id !== this.sessionId || this.disposed) return;
+      if (this.instanceId && event.instanceId && event.instanceId !== this.instanceId) return;
       this.activityController.noteOutput(event.data);
       this.terminal?.write(event.data);
     });
     this.removeExitListener = bridge.onTerminalExit((event) => {
       if (event.id !== this.sessionId || this.disposed) return;
+      if (this.instanceId && event.instanceId && event.instanceId !== this.instanceId) return;
       const terminalExit = { code: event.code, signal: event.signal };
       if (!this.ptyReady) {
         this.pendingExit = terminalExit;
@@ -476,16 +505,17 @@ export class TerminalRuntime implements TerminalRuntimeHandle {
 
     const terminal = this.terminal;
     if (!terminal) return;
-    void bridge.createTerminal(createTerminalPtyRequest({
+    this.startPromise = bridge.createTerminal({ ...createTerminalPtyRequest({
       sessionId: this.sessionId,
       workspacePath: this.workspacePath,
       cols: terminal.cols,
       rows: terminal.rows,
       launcherId: this.launcherId,
       defaultColors: this.defaultColors,
-    })).then((result) => {
+    }), ...(this.projectContext ? { projectContext: this.projectContext } : {}) }).then(unwrapProjectSessionResult).then((result) => {
+      this.instanceId = result.instanceId;
       if (this.disposed) {
-        void bridge.closeTerminal(result.id);
+        void bridge.closeTerminal(this.requestIdentity()).catch(() => {});
         return;
       }
       this.ptyReady = true;
@@ -517,7 +547,7 @@ export class TerminalRuntime implements TerminalRuntimeHandle {
   private syncDefaultColorsToPty() {
     if (!this.ptyReady || !this.defaultColors) return;
     window.puppyoneDesktop?.updateTerminalAppearance?.({
-      id: this.sessionId,
+      ...this.requestIdentity(),
       defaultColors: this.defaultColors,
     });
   }
@@ -623,7 +653,7 @@ export class TerminalRuntime implements TerminalRuntimeHandle {
     this.lastPtySize = size;
     if (resizingExistingPty) this.activityController.beginPresentationRefresh();
     bridge.resizeTerminal({
-      id: this.sessionId,
+      ...this.requestIdentity(),
       cols: size.cols,
       rows: size.rows,
     });

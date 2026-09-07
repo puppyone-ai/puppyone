@@ -91,10 +91,11 @@ export class AgentSessionLifecycle {
   }
 
   private async closeActiveSession(removePersistence: boolean) {
-    const sessionId = this.options.readState().session?.id;
+    const session = this.options.readState().session;
+    const sessionId = session?.id;
     const bridge = this.options.bridgeProvider();
     if (!sessionId || !bridge?.closeAgentSession) return;
-    await bridge.closeAgentSession({ rootPath: this.options.workspaceRoot, sessionId, removePersistence });
+    await bridge.closeAgentSession({ rootPath: this.options.workspaceRoot, sessionId, ...(session?.instanceId ? { instanceId: session.instanceId } : {}), removePersistence });
   }
 
   private requireBridge<K extends keyof AgentClientPort>(...methods: K[]): AgentClientPort {

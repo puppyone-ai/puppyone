@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AgentSessionController } from '../src/features/desktop-agent/application/AgentSessionController';
+import { AgentOperationError } from '../src/features/desktop-agent/application/agent-error';
 import { createServiceHarness, createSender } from './helpers/agentServiceHarness.mjs';
 
 const cleanup: Array<() => void | Promise<void>> = [];
@@ -31,6 +32,18 @@ async function harness() {
 }
 
 describe('Renderer display replica against the Main SessionActor and feed', () => {
+  it('ends a missing runtime instance instead of retrying it as a history gap', async () => {
+    vi.useFakeTimers(); const h = await harness(); await h.controller.initialize();
+    h.bridge.readAgentSessionWatermark.mockRejectedValue(new AgentOperationError({
+      schemaVersion: 1, code: 'SESSION_NOT_FOUND', message: 'The runtime instance has ended.', retryable: false, actions: [],
+    }));
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(h.controller.getSnapshot()).toMatchObject({ replicaStatus: 'detached', error: { code: 'session-ended' } });
+    const calls = h.bridge.attachAgentSession.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(h.bridge.attachAgentSession).toHaveBeenCalledTimes(calls);
+    expect(h.bridge.readAgentSessionWatermark).toHaveBeenCalledOnce();
+  });
   it.each(['attach', 'ack'] as const)('recovers an initial %s failure without sending another native command', async failure => {
     vi.useFakeTimers();
     const h = await harness();

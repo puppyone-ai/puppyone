@@ -109,7 +109,7 @@ export function createServiceHarness({
     logger: { warn: vi.fn() },
     attachmentStore,
   });
-  return { service, adapters, persistence };
+  return { service, adapters, persistence, runtimeRegistry };
 }
 
 export function createSender(id) {
@@ -230,5 +230,6 @@ function createFakeAdapter(
     sourceScopeId: "default",
     hydrate: async () => ({ events: await adapter.readHistory(), coverage: "unknown", providerSessionId: adapter.resumeSession.mock.calls.at(-1)?.[0].threadId ?? "thread-1" }),
   });
+  adapter.disposeNative = adapter.dispose;
   return adapter;
 }

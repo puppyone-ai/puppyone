@@ -3,6 +3,15 @@ import { randomUUID } from "node:crypto";
 import { authorizeAgentReferences, createAgentReferenceBudget, workspaceDraftReferences } from "../agent/agent-reference-authorization.mjs";
 import { requireSupportedAgentReferences } from "../agent/application/agent-input-policy.mjs";
 import { assertAgentIpcResponse, parseAgentIpcRequest } from "../../../shared/agent-contract/schema.mjs";
+import { projectSessionError } from "../../../shared/project-session-contract/schema.mjs";
+
+const LIVE_SESSION_CHANNELS = new Set([
+  "agent:session-replay", "agent:session-attach", "agent:session-feed-ack", "agent:session-feed-watermark",
+  "agent:session-detach", "agent:session-close", "agent:turn-start", "agent:turn-steer", "agent:turn-interrupt",
+  "agent:session-compact", "agent:approval-resolve", "agent:question-resolve", "agent:command-dispatch",
+]);
+const PROJECT_OPERATION = Symbol("project-operation");
+const AUTHORIZED_PROJECT = Symbol("authorized-project");
 
 export function registerAgentIpcHandlers({
   ipcMain,
@@ -13,12 +22,29 @@ export function registerAgentIpcHandlers({
   attachmentStore,
   dialog,
   getDialogOwnerWindow,
+  projectSessions = null,
 }) {
   const register = (channel, handler) => {
     ipcMain.handle(channel, async (event, rawRequest) => {
       try {
         const request = parseAgentIpcRequest(channel, rawRequest);
-        const response = await handler(event, request);
+        const invoke = async (operation = null) => {
+          if (operation) request[PROJECT_OPERATION] = operation;
+          if (projectSessions && LIVE_SESSION_CHANNELS.has(channel)) {
+            agentService.assertSessionInstance(event.sender, request, request.rootPath, { allowClosed: channel === "agent:session-close" });
+          }
+          return handler(event, request);
+        };
+        let response;
+        if (projectSessions && request.rootPath) {
+          const context = rawRequest?.projectContext;
+          const record = projectSessions.require(event.sender.id, context, { allowClosing: channel === "agent:session-close" || channel === "agent:session-detach", allowClosed: channel === "agent:session-close" });
+          if (record.rootPath !== request.rootPath) throw projectSessionError("PROJECT_UNAUTHORIZED", "The operation belongs to another project.");
+          request[AUTHORIZED_PROJECT] = record;
+          response = channel === "agent:session-close" || channel === "agent:session-detach"
+            ? await invoke()
+            : await projectSessions.run(event.sender.id, context, invoke);
+        } else response = await invoke();
         return assertAgentIpcResponse(channel, response);
       } catch (error) { return agentOperationFailure(error); }
     });
@@ -27,7 +53,9 @@ export function registerAgentIpcHandlers({
   const authorizeOptionalRoot = async (event, request) => (
     request.rootPath ? authorizeWorkspaceRoot(event, request.rootPath) : null
   );
-  const authorizeRequiredRoot = (event, request) => authorizeWorkspaceRoot(event, request.rootPath);
+  const authorizeRequiredRoot = (event, request) => request[AUTHORIZED_PROJECT]
+    ? request[AUTHORIZED_PROJECT].rootPath
+    : authorizeWorkspaceRoot(event, request.rootPath);
   const resourceResolver = (event, workspaceRoot) => resolveWorkspaceResource
     ? (resource) => resolveWorkspaceResource(event, resource, { legacyRoot: workspaceRoot })
     : undefined;
@@ -104,13 +132,13 @@ export function registerAgentIpcHandlers({
     agentService.readAccount(event.sender, request, await authorizeOptionalRoot(event, request))
   ));
   register("agent:session-create", async (event, request) => (
-    agentService.createSession(event.sender, request, await authorizeRequiredRoot(event, request))
+    agentService.createSession(event.sender, request, await authorizeRequiredRoot(event, request), request[PROJECT_OPERATION])
   ));
   register("agent:session-resume", async (event, request) => (
-    agentService.resumeSession(event.sender, request, await authorizeRequiredRoot(event, request))
+    agentService.resumeSession(event.sender, request, await authorizeRequiredRoot(event, request), request[PROJECT_OPERATION])
   ));
   register("agent:session-open", async (event, request) => (
-    agentService.openSession(event.sender, request, await authorizeRequiredRoot(event, request))
+    agentService.openSession(event.sender, request, await authorizeRequiredRoot(event, request), request[PROJECT_OPERATION])
   ));
   register("agent:session-replay", async (event, request) => (
     agentService.replay(event.sender, request, await authorizeRequiredRoot(event, request))
@@ -128,7 +156,7 @@ export function registerAgentIpcHandlers({
     agentService.detachSession(event.sender, request, await authorizeRequiredRoot(event, request))
   ));
   register("agent:sessions-list", async (event, request) => (
-    agentService.listSessions(event.sender, request, await authorizeRequiredRoot(event, request))
+    agentService.listSessions(event.sender, request, await authorizeRequiredRoot(event, request), request[PROJECT_OPERATION])
   ));
   register("agent:session-fork", async (event, request) => (
     agentService.forkSession(event.sender, request, await authorizeRequiredRoot(event, request))

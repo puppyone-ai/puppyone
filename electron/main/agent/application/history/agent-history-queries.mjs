@@ -5,7 +5,8 @@ import { resolvePersistedRuntimeId } from "../../migrations/legacy-session-forma
 
 /** History queries receive only catalog and native discovery capabilities. */
 export function createAgentHistoryQueries({ catalog, nativeConversationIndexer }) {
-  async function listSessions(_sender, request, workspaceRoot) {
+  async function listSessions(sender, request, workspaceRoot, operation = null) {
+    operation?.assertCurrent();
     requireWorkspaceRoot(workspaceRoot);
     const runtimeId = normalizeRuntimeId(request?.runtimeId);
     const discovery = request?.discoverNative && runtimeId
@@ -15,6 +16,8 @@ export function createAgentHistoryQueries({ catalog, nativeConversationIndexer }
         cursor: request?.cursor ?? null,
         scanId: request?.scanId ?? null,
         limit: request?.limit,
+        ownerId: sender?.id,
+        operation,
       })
       : {
         runtimeId: runtimeId ?? null,
@@ -25,6 +28,7 @@ export function createAgentHistoryQueries({ catalog, nativeConversationIndexer }
         warnings: [],
       };
     const controller = new AbortController();
+    operation?.assertCurrent();
     const timer = setTimeout(() => controller.abort(historyFailure("History catalog read timed out.")), 2_000);
     let records;
     let catalogNextCursor;
@@ -41,6 +45,7 @@ export function createAgentHistoryQueries({ catalog, nativeConversationIndexer }
       clearTimeout(timer);
     }
     if (!Array.isArray(records)) { catalogNextCursor = records.nextCursor; excludedSessionIds = records.excludedSessionIds; records = records.sessions; }
+    operation?.assertCurrent();
     if (Array.isArray(discovery.sessions)) records = discovery.sessions.filter((record) => request?.includeArchived || !record.archivedAt);
     const publicDiscovery = { ...discovery };
     delete publicDiscovery.sessions;

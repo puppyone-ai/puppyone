@@ -38,11 +38,13 @@ export function createAgentSessionLifecycle({
 }) {
   const sessionCreations = new Set();
 
-  async function createSession(sender, request, workspaceRoot) {
+  async function createSession(sender, request, workspaceRoot, operation = null) {
+    operation?.assertCurrent();
     const ownerId = requireSenderId(sender);
     requireWorkspaceRoot(workspaceRoot);
     sessionStore.discardRetired(ownerId, workspaceRoot);
     const selected = await runtimeSession.resolveRuntimeForOperation(request?.runtimeId, workspaceRoot, "create");
+    operation?.assertCurrent();
     const session = createAgentSessionRecord({
       id: randomUUID(),
       ownerId,
@@ -55,6 +57,7 @@ export function createAgentSessionLifecycle({
       mode: normalizeOptionalString(request?.mode),
     });
     sessionStore.add(session);
+    session.projectOperation = operation;
     try {
       session.adapter = runtimeSession.createAdapterForSession(session, selected.readiness);
       const { inspection, providerSession } = await runtimeSession.bootstrapNativeSession(session, selected, {
@@ -80,7 +83,8 @@ export function createAgentSessionLifecycle({
     }
   }
 
-  async function resumeSession(sender, request, workspaceRoot) {
+  async function resumeSession(sender, request, workspaceRoot, operation = null) {
+    operation?.assertCurrent();
     const ownerId = requireSenderId(sender);
     requireWorkspaceRoot(workspaceRoot);
     const connected = sessionStore.findOwned(ownerId, workspaceRoot, { connectedOnly: true });
@@ -107,7 +111,9 @@ export function createAgentSessionLifecycle({
       const existing = sessionStore.get(persisted.sessionId);
       if (existing) return sessionSnapshot(runtimeSession.requireOwnedSession(sender, existing.id));
       const runtimeId = resolvePersistedRuntimeId(persisted, normalizeRuntimeId(request?.runtimeId));
+      operation?.assertCurrent();
       const selected = await runtimeSession.resolveRuntimeForOperation(runtimeId, workspaceRoot, "resume");
+      operation?.assertCurrent();
       const session = createAgentSessionRecord({
         id: persisted.sessionId,
         ownerId,
@@ -127,6 +133,7 @@ export function createAgentSessionLifecycle({
       session.providerSessionId = persisted.providerSessionId;
       session.sourceScopeId = persisted.sourceScopeId ?? "default";
       sessionStore.add(session);
+      session.projectOperation = operation;
       try {
         session.adapter = runtimeSession.createAdapterForSession(session, selected.readiness);
         const { inspection, providerSession } = await runtimeSession.bootstrapNativeSession(session, selected, {
@@ -140,6 +147,7 @@ export function createAgentSessionLifecycle({
         // ledger is a presentation cache and cannot prove that an old active
         // turn has (or has not) reached a native terminal state.
         await hydrateAgentSession(session, emit);
+        operation?.assertCurrent();
         runtimeSession.finishNativeSession(session);
         if (!session.lifecycleEventSeen) {
           emit(session, {
@@ -166,7 +174,8 @@ export function createAgentSessionLifecycle({
     }
   }
 
-  async function openSession(sender, request, workspaceRoot) {
+  async function openSession(sender, request, workspaceRoot, operation = null) {
+    operation?.assertCurrent();
     requireWorkspaceRoot(workspaceRoot);
     const sessionId = normalizeRequiredId(request?.sessionId, "Agent session id");
     const runtimeId = normalizeRuntimeId(request?.runtimeId);
@@ -180,6 +189,7 @@ export function createAgentSessionLifecycle({
       } catch (error) { return classifySessionOpenFailure(error); }
     }
     const persisted = await cache.findById(sessionId, workspaceRoot);
+    operation?.assertCurrent();
     if (
       !persisted
       || persisted.availability !== "available"
@@ -188,7 +198,7 @@ export function createAgentSessionLifecycle({
       return sessionOpenFailure("SESSION_NOT_FOUND", "This saved Agent session is no longer available.", false);
     }
     try {
-      const snapshot = await resumeSession(sender, { sessionId, runtimeId }, workspaceRoot);
+      const snapshot = await resumeSession(sender, { sessionId, runtimeId }, workspaceRoot, operation);
       return snapshot
         ? { status: "opened", snapshot }
         : sessionOpenFailure("SESSION_NOT_FOUND", "This saved Agent session is no longer available.", false);
@@ -198,7 +208,9 @@ export function createAgentSessionLifecycle({
   }
 
   async function closeSession(sender, request, workspaceRoot = null) {
+    if (sessionStore.wasClosed(sender, request, workspaceRoot)) return { sessionId: request.sessionId, closed: true };
     const session = runtimeSession.requireOwnedSession(sender, request?.sessionId);
+    if (request?.instanceId) sessionStore.assertInstance(sender, request, workspaceRoot);
     requireMatchingWorkspace(session, workspaceRoot);
     const removePersistence = Boolean(request?.removePersistence);
     await runtimeSession.closeSessionRecord(session, { persist: !removePersistence, removePersistence });

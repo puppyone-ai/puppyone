@@ -1,4 +1,8 @@
 {
+  "projectSessions.sessionCloseFailed": "会话还未关闭，请重试。",
+  "projectSessions.closing": "正在关闭此项目…",
+  "projectSessions.closeFailed": "部分项目任务未能停止。",
+  "projectSessions.retryClose": "重试关闭",
   "drag.exportHint": "拖到文件夹、Terminal、Agent 或其他应用。",
   "drag.exportFailed": "无法完成拖拽。请确认来源和目标仍然可用，且目标支持此操作。",
   "restoring.ariaLabel": "正在打开上次的项目",

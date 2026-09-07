@@ -27,8 +27,10 @@ import { createEphemeralAgentSessionCache } from "./main/agent/cache/ephemeral-a
 import { createAgentConversationCatalog } from "./main/agent/persistence/agent-conversation-catalog.mjs";
 import { createAgentSessionRepository } from "./main/agent/persistence/agent-session-repository.mjs";
 import { createAgentProcessSupervisor } from "./main/agent/application/processes/agent-process-supervisor.mjs";
-import { createAgentQuitCoordinator } from "./main/agent/agent-shutdown.mjs";
+import { createApplicationCloseCoordinator } from "./main/workspace/project-sessions/application-close-coordinator.mjs";
 import { createAgentService } from "./main/agent/application/agent-service.mjs";
+import { createProjectSessionHost } from "./main/bootstrap/create-project-session-host.mjs";
+import { registerProjectSessionIpc } from "./main/ipc/project-session-ipc.mjs";
 import { createAgentAttachmentStore } from "./main/agent/infrastructure/attachments/agent-attachment-store.mjs";
 import { createLocalAgentInventory } from "./main/agent/connections/local-agent-inventory.mjs";
 import { createDefaultAgentRuntimeHost } from "./main/agent/bootstrap/create-agent-runtime-host.mjs";
@@ -103,7 +105,7 @@ import { createSenderWorkspaceAuthorization } from "./main/workspace-authorizati
 import { createWorkspaceStateStore } from "./main/workspace-state-store.mjs";
 import { WindowWorkspaceState } from "./main/window-workspace-state.mjs";
 import { createWindowWorkspaceCompositionService } from "./main/window-workspace-composition.mjs";
-import { createDetachedWorkspaceCleanup } from "./main/detached-workspace-cleanup.mjs";
+import { createWindowWorkspaceOperationQueue } from "./main/workspace/project-sessions/window-workspace-operation-queue.mjs";
 import {
   createProjectEntryService,
   requireGitRepository,
@@ -305,13 +307,14 @@ const documentSessionCloseCoordinator = createDocumentSessionCloseCoordinator({
   dialog,
   t: (messageId, values) => localeService.t(messageId, values),
   onCloseCancelled: applicationQuitIntent.cancel,
+  closeResources: (window) => projectSessions.closeWindow(window.webContents.id).then((result) => result.closed),
 });
 documentSessionCloseCoordinator.registerIpc(trustedIpcMain);
 const authorizeWorkspaceRoot = createSenderWorkspaceAuthorization({
   getWorkspaceRootsForSender,
 });
 const resolveWorkspaceResource = createWorkspaceResourceResolver({
-  getFoldersForSender: (sender) => windowStateById.get(sender.id)?.folders ?? [],
+  getFoldersForSender: (sender) => projectSessions.folders(sender.id),
   authorizeWorkspaceRoot,
 });
 const terminalAgentActivityHost = createDefaultTerminalAgentActivityHost({
@@ -388,31 +391,43 @@ const gitAutoCommitHost = createGitAutoCommitHost({
   workspaceWatchService,
   gitMetadataWatchService,
 });
-const cleanupDetachedWorkspace = createDetachedWorkspaceCleanup({
+const projectSessions = createProjectSessionHost({
   agentService,
-  getAppPreviewRuntime: () => appPreviewRuntime,
-  getWindowState: getOrCreateWindowState,
-  gitAutoCommitHost,
-  gitMetadataWatchService,
-  localFileCapabilities,
-  resolveWindowTitle,
   terminalService,
-  workspaceWatchService,
+  getSender: (id) => webContents.fromId(id),
+  closeProjectServices: async (owner, root) => {
+    await Promise.all([
+      appPreviewRuntime?.closeSessionsForWorkspaceRoot(owner, root),
+      workspaceWatchService.stopForWorkspaceRoot(owner, root),
+      gitMetadataWatchService.stopForWorkspaceRoot(owner, root),
+      localFileCapabilities.revokeWorkspaceRoot(owner, root),
+    ]);
+  },
 });
 const windowWorkspaceCompositionService = createWindowWorkspaceCompositionService({
   canonicalizeWorkspacePath,
-  cleanupDetachedWorkspace,
+  cleanupDetachedWorkspace: (window, folder) => projectSessions.closeRoot(window.webContents.id, folder.path),
+  openProject: (window, folder) => projectSessions.open(window.webContents.id, folder),
   getWindowState: getOrCreateWindowState,
   getWorkspaceWindow,
   indexWorkspacePath: (folderPath, window) => workspaceWindowByPath.set(folderPath, window),
   persistWorkspaceComposition: (workspaces, workbenchWorkspaceId) => (
-    workspaceStateStore.rememberWorkspaceComposition(workspaces, { workbenchWorkspaceId })
+    workspaces.length
+      ? workspaceStateStore.rememberWorkspaceComposition(workspaces, { workbenchWorkspaceId })
+      : workspaceStateStore.clearActiveWorkspaceComposition(workbenchWorkspaceId)
   ),
-  revealWindow,
+  revealWindow: revealWorkspaceWindow,
   unindexWorkspacePath: (folderPath, window) => {
     if (workspaceWindowByPath.get(folderPath) === window) workspaceWindowByPath.delete(folderPath);
   },
   workspaceFromPath,
+});
+const workspaceNavigation = createWindowWorkspaceOperationQueue({
+  assertOpen: (ownerId) => {
+    const sender = webContents.fromId(ownerId);
+    if (!sender || sender.isDestroyed()) throw new Error("The window has closed.");
+    projectSessions.assertWindowOpen(ownerId);
+  },
 });
 const cloudPublishSecretVault = createCloudPublishSecretVault({
   baseDirectory: path.join(app.getPath("userData"), "cloud-publish-secrets-v1"),
@@ -477,6 +492,10 @@ async function createWindow(options = {}) {
     externalNavigation,
   });
   windowsById.set(webContentsId, window);
+  window.webContents.once("destroyed", () => {
+    // Fence admission even if the renderer disappears during initial loading.
+    void projectSessions.closeWindow(webContentsId).catch((error) => console.error("Project shutdown after renderer destruction failed:", error));
+  });
   windowStateById.set(webContentsId, new WindowWorkspaceState({
     initialWorkspaceId: options.initialWorkspaceId ?? null,
     initialWorkspacePaths,
@@ -589,14 +608,15 @@ async function createWindow(options = {}) {
   revealWindow(window);
 
   window.on("closed", () => {
+    void projectSessions.closeWindow(webContentsId).then(({ closed }) => {
+      if (closed) projectSessions.releaseWindow(webContentsId);
+    }).catch((error) => console.error("Project shutdown failed:", error));
     releaseWindowWorkspaceById(webContentsId, window);
     viewerPackHost?.destroySessionsForOwner(webContentsId);
     editorSurfaceManager?.destroyForOwner(webContentsId);
     appPreviewRuntime?.closeSessionsForWindow(webContentsId);
     nativeSurfaceOcclusion.releaseOwner(webContentsId);
     nativeSurfacePointerPassthrough.releaseOwner(webContentsId);
-    terminalService.closeSessionsForWindow(webContentsId);
-    void agentService.closeSessionsForWindow(webContentsId);
     workspaceWatchService.stopForWindow(webContentsId);
     gitMetadataWatchService.stopForWindow(webContentsId);
     windowsById.delete(webContentsId);
@@ -854,7 +874,6 @@ app.on("will-quit", () => {
   markdownWebEmbedService?.dispose();
   nativeSurfaceOcclusion.dispose();
   nativeSurfacePointerPassthrough.dispose();
-  terminalService.closeAll();
   void terminalAgentActivityHost.dispose();
   terminalAgentLocator.dispose();
   localAgentInventory.dispose();
@@ -868,15 +887,22 @@ app.on("will-quit", () => {
 
 app.on("before-quit", applicationQuitIntent.markRequested);
 
-app.on("before-quit", createAgentQuitCoordinator({
+app.on("before-quit", createApplicationCloseCoordinator({
   app,
-  agentService,
-  // Agent runtimes require an asynchronous pre-quit drain. General services
-  // are intentionally disposed in will-quit, after document persistence.
-  disposeApplicationServices: () => undefined,
+  getWindows: () => BrowserWindow.getAllWindows(),
+  closeResources: async () => {
+    await projectSessions.closeAllWindows();
+    await Promise.all([agentService.closeAll(), terminalService.closeAll()]);
+  },
+  onFailure: async () => {
+    applicationQuitIntent.cancel();
+    await dialog.showMessageBox({ type: "warning", buttons: [localeService.t("native.appPreview.run.cancel")],
+      message: localeService.t("native.projectClose.message"), detail: localeService.t("native.projectClose.quitDetail") });
+  },
 }));
 
 function registerIpcHandlers() {
+  registerProjectSessionIpc({ ipcMain: trustedIpcMain, projectSessions });
   const resourceTransfer = registerResourceTransferIpcHandlers({
     ipcMain: trustedIpcMain,
     resolveWorkspaceResource,
@@ -1032,6 +1058,7 @@ function registerIpcHandlers() {
     terminalAgentLocator,
     terminalService,
     authorizeWorkspaceRoot,
+    projectSessions,
   });
   registerAgentActivityIpcHandlers({
     ipcMain: trustedIpcMain,
@@ -1046,6 +1073,7 @@ function registerIpcHandlers() {
     attachmentStore: agentAttachmentStore,
     dialog,
     getDialogOwnerWindow,
+    projectSessions,
   });
 
   if (viewerPackHost && viewerPackRuntime) {
@@ -1172,7 +1200,7 @@ async function getInitialWorkspaceResultForWindow(sender) {
       const canonicalPath = await canonicalizeWorkspacePath(workspace.path);
       const existingWindow = getWorkspaceWindow(canonicalPath);
       if (existingWindow && existingWindow !== window) {
-        revealWindow(existingWindow);
+        revealWorkspaceWindow(existingWindow, canonicalPath);
         throw new Error(`${workspace.name} is already open in another puppyone window.`);
       }
       folders.push({ path: canonicalPath, workspace });
@@ -1307,6 +1335,10 @@ async function runProjectEntryOperation(sender, operation) {
 }
 
 async function openWorkspaceInCurrentWindow(sender, folderPath, options = {}) {
+  return workspaceNavigation.run(sender.id, (assertOpen) => openWorkspaceInCurrentWindowNow(sender, folderPath, options, assertOpen));
+}
+
+async function openWorkspaceInCurrentWindowNow(sender, folderPath, options, assertOpen) {
   const window = BrowserWindow.fromWebContents(sender);
   if (!window || window.isDestroyed()) {
     throw new Error("No active window is available for this workspace.");
@@ -1314,9 +1346,10 @@ async function openWorkspaceInCurrentWindow(sender, folderPath, options = {}) {
 
   const workspace = await workspaceFromPath(folderPath);
   const canonicalPath = await canonicalizeWorkspacePath(workspace.path);
+  assertOpen();
   const existingWindow = getWorkspaceWindow(canonicalPath);
   if (existingWindow && existingWindow !== window) {
-    revealWindow(existingWindow);
+    revealWorkspaceWindow(existingWindow, canonicalPath);
     const existingState = getOrCreateWindowState(existingWindow);
     if (options.remember !== false) {
       await workspaceStateStore.rememberWorkspaceComposition(
@@ -1332,14 +1365,21 @@ async function openWorkspaceInCurrentWindow(sender, folderPath, options = {}) {
     };
   }
 
-  const state = assignWindowWorkspace(window, workspace, canonicalPath);
+  const state = getOrCreateWindowState(window);
+  const folders = (state.compositionForPath(canonicalPath) ?? [{ workspace, path: canonicalPath }])
+    .map((folder) => folder.path === canonicalPath ? { workspace, path: canonicalPath } : folder);
+  const workspaceId = state.activationIdentity(folders);
   if (options.remember !== false) {
-    await workspaceStateStore.rememberWorkspaceComposition([workspace], {
-      workbenchWorkspaceId: state.workspaceId,
+    await workspaceStateStore.rememberWorkspaceComposition(folders.map((folder) => folder.workspace), {
+      workbenchWorkspaceId: workspaceId,
     });
   }
+  assertOpen();
+  state.beginNewWorkspace(workspaceId);
+  assignWindowWorkspaceComposition(window, folders);
   return {
     status: "opened-current",
+    workspaces: state.folders.map((folder) => folder.workspace),
     workspaceId: state.workspaceId,
     path: canonicalPath,
     workspace,
@@ -1351,7 +1391,7 @@ async function openWorkspaceInNewWindow(folderPath, options = {}) {
   const canonicalPath = await canonicalizeWorkspacePath(workspace.path);
   const existingWindow = getWorkspaceWindow(canonicalPath);
   if (existingWindow) {
-    revealWindow(existingWindow);
+    revealWorkspaceWindow(existingWindow, canonicalPath);
     const existingState = getOrCreateWindowState(existingWindow);
     if (options.remember !== false) {
       await workspaceStateStore.rememberWorkspaceComposition(
@@ -1385,6 +1425,10 @@ async function openWorkspaceInNewWindow(folderPath, options = {}) {
 }
 
 async function attachWorkspaceToCurrentWindow(sender, folderPath) {
+  return workspaceNavigation.run(sender.id, () => attachWorkspaceToCurrentWindowNow(sender, folderPath));
+}
+
+async function attachWorkspaceToCurrentWindowNow(sender, folderPath) {
   const window = BrowserWindow.fromWebContents(sender);
   if (!window || window.isDestroyed()) {
     throw new Error("No active window is available for this Workspace composition.");
@@ -1393,19 +1437,31 @@ async function attachWorkspaceToCurrentWindow(sender, folderPath) {
 }
 
 async function detachWorkspaceFromCurrentWindow(sender, folderPath) {
+  return workspaceNavigation.run(sender.id, () => detachWorkspaceFromCurrentWindowNow(sender, folderPath));
+}
+
+async function detachWorkspaceFromCurrentWindowNow(sender, folderPath) {
   const window = BrowserWindow.fromWebContents(sender);
   if (!window || window.isDestroyed()) {
     throw new Error("No active window is available for this Workspace composition.");
   }
-  return windowWorkspaceCompositionService.detach(window, folderPath);
+  const result = await windowWorkspaceCompositionService.detach(window, folderPath);
+  const primary = getOrCreateWindowState(window).folderPaths[0];
+  if (primary) await gitAutoCommitHost.assignWorkspace(sender, primary);
+  else gitAutoCommitHost.releaseWindow(sender.id);
+  if (!window.isDestroyed()) {
+    window.setTitle(window.isFullScreen() ? "" : resolveWindowTitle(window));
+    window.setRepresentedFilename?.(primary ?? "");
+  }
+  return result;
 }
 
 function assignWindowWorkspace(window, workspace, canonicalPath, options = {}) {
   const state = getOrCreateWindowState(window);
-  const alreadySameSingleFolder = state.folderPaths.length === 1
-    && state.folderPaths[0] === canonicalPath;
-  if (state.folders.length > 0 && !alreadySameSingleFolder) state.beginNewWorkspace();
-  assignWindowWorkspaceComposition(window, [{ workspace, path: canonicalPath }], options);
+  const folders = (state.compositionForPath(canonicalPath) ?? [{ workspace, path: canonicalPath }])
+    .map((folder) => folder.path === canonicalPath ? { workspace, path: canonicalPath } : folder);
+  state.activateFolders(folders);
+  assignWindowWorkspaceComposition(window, folders, options);
   return state;
 }
 
@@ -1421,21 +1477,15 @@ function assignWindowWorkspaceComposition(window, folders, options = {}) {
   if (replacingComposition && previousPaths.length > 0) {
     viewerPackHost?.destroySessionsForOwner(webContentsId);
     localFileCapabilities.revokeSender(webContentsId);
-    for (const previousPath of previousPaths) {
-      const previousWindow = workspaceWindowByPath.get(previousPath);
-      if (previousWindow === window || previousWindow?.isDestroyed()) {
-        workspaceWindowByPath.delete(previousPath);
-      }
-    }
     if (options.cleanupPrevious !== false) {
       appPreviewRuntime?.closeSessionsForWindow(webContentsId);
-      terminalService.closeSessionsForWindow(webContentsId);
-      void agentService.closeSessionsForWindow(webContentsId);
       workspaceWatchService.stopForWindow(webContentsId);
       gitMetadataWatchService.stopForWindow(webContentsId);
     }
   }
 
+  projectSessions.assertWindowOpen(webContentsId);
+  for (const folder of folders) projectSessions.retainForPresentation(webContentsId, folder);
   state.replaceFolders(folders);
   for (const folder of folders) workspaceWindowByPath.set(folder.path, window);
   const primaryPath = folders[0]?.path ?? null;
@@ -1452,18 +1502,13 @@ function assignWindowWorkspaceComposition(window, folders, options = {}) {
   }
 }
 
-function releaseWindowWorkspace(window) {
-  if (!window) return null;
-  return releaseWindowWorkspaceById(window.webContents.id, window);
-}
-
 function releaseWindowWorkspaceById(webContentsId, window = null) {
   gitAutoCommitHost.releaseWindow(webContentsId);
   viewerPackHost?.destroySessionsForOwner(webContentsId);
   editorSurfaceManager?.destroyForOwner(webContentsId);
   localFileCapabilities.revokeSender(webContentsId);
   const state = windowStateById.get(webContentsId);
-  const workspacePaths = state?.folderPaths ?? [];
+  const workspacePaths = [...new Set([...(state?.folderPaths ?? []), ...projectSessions.snapshot(webContentsId).projects.map((project) => project.rootPath)])];
   for (const workspacePath of workspacePaths) {
     const existingWindow = workspaceWindowByPath.get(workspacePath);
     if (existingWindow === window || existingWindow?.isDestroyed()) {
@@ -1480,18 +1525,24 @@ function releaseWindowWorkspaceById(webContentsId, window = null) {
 }
 
 async function forgetCurrentWindowWorkspace(sender) {
+  return workspaceNavigation.run(sender.id, () => forgetCurrentWindowWorkspaceNow(sender));
+}
+
+async function forgetCurrentWindowWorkspaceNow(sender) {
   const window = BrowserWindow.fromWebContents(sender);
   if (!window || window.isDestroyed()) {
     await workspaceStateStore.forgetLastWorkspacePath();
     return;
   }
 
-  const releasedPath = releaseWindowWorkspace(window);
-  appPreviewRuntime?.closeSessionsForWindow(window.webContents.id);
-  terminalService.closeSessionsForWindow(window.webContents.id);
-  void agentService.closeSessionsForWindow(window.webContents.id);
-  workspaceWatchService.stopForWindow(window.webContents.id);
-  gitMetadataWatchService.stopForWindow(window.webContents.id);
+  const state = getOrCreateWindowState(window);
+  const releasedPath = state.folderPaths[0] ?? null;
+  for (const root of state.folderPaths) {
+    await projectSessions.closeRoot(window.webContents.id, root);
+    state.forgetFolder(root);
+    if (workspaceWindowByPath.get(root) === window) workspaceWindowByPath.delete(root);
+  }
+  state.releaseFolders();
   if (releasedPath) await workspaceStateStore.removeRecentWorkspacePath(releasedPath);
 }
 
@@ -1510,6 +1561,13 @@ function resolveWindowTitle(window) {
   return workspace ? `${appName} - ${workspace.name}` : appName;
 }
 
+function revealWorkspaceWindow(window, rootPath) {
+  revealWindow(window);
+  if (rootPath && !window.isDestroyed() && !getOrCreateWindowState(window).folderPaths.includes(rootPath)) {
+    window.webContents.send("workspace:open-requested", { rootPath });
+  }
+}
+
 function getWorkspaceWindow(canonicalPath) {
   const window = workspaceWindowByPath.get(canonicalPath);
   if (!window || window.isDestroyed()) {
@@ -1524,8 +1582,7 @@ function isOpenWorkspaceRoot(canonicalPath) {
 }
 
 function getWorkspaceRootsForSender(sender) {
-  const state = windowStateById.get(sender.id);
-  return state?.folderPaths ?? [];
+  return projectSessions.roots(sender.id);
 }
 
 function getDialogOwnerWindow(sender) {
@@ -1540,12 +1597,14 @@ async function canonicalizeWorkspacePath(folderPath) {
 }
 
 async function showHomepageForCurrentWindow(sender) {
+  return workspaceNavigation.run(sender.id, () => showHomepageForCurrentWindowNow(sender));
+}
+
+async function showHomepageForCurrentWindowNow(sender) {
   const window = BrowserWindow.fromWebContents(sender);
   if (!window || window.isDestroyed()) return;
-  releaseWindowWorkspace(window);
+  getOrCreateWindowState(window).releaseFolders();
   appPreviewRuntime?.closeSessionsForWindow(window.webContents.id);
-  terminalService.closeSessionsForWindow(window.webContents.id);
-  void agentService.closeSessionsForWindow(window.webContents.id);
   workspaceWatchService.stopForWindow(window.webContents.id);
   gitMetadataWatchService.stopForWindow(window.webContents.id);
 }

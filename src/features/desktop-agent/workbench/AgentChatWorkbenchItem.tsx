@@ -3,6 +3,7 @@ import { useLocalization } from "@puppyone/localization/react";
 import type {
   AuxiliaryWorkbenchItemRenderContext,
   AuxiliaryWorkbenchItemSnapshot,
+  AuxiliaryWorkbenchProject,
 } from "../../app-shell/auxiliary-workbench/types";
 import {
   closeAgentSessionController,
@@ -10,8 +11,9 @@ import {
   getAgentSessionController,
 } from "../application/controllerRegistry";
 import type { AgentChatTabPresentation } from "../domain/agent-chat-tabs";
+import { AgentControllerRegistry } from "../application/AgentControllerRegistry";
 import type { AgentRoutePreference } from "../domain/agent-route-preference";
-import { getElectronAgentClient, openExternalAgentUrl } from "../infrastructure/electron/electronAgentClient";
+import { createProjectAgentClientProvider, getElectronAgentClient, openExternalAgentUrl } from "../infrastructure/electron/electronAgentClient";
 import { AgentChatTabPanel } from "../ui/AgentChatTabPanel";
 import type { AgentWorkspaceReferenceResolver } from "../ui/useAgentReferenceIngestion";
 import { AgentMarkdownEnvironmentProvider } from "../ui/markdown/AgentMarkdownEnvironment";
@@ -32,6 +34,7 @@ export type AgentChatWorkbenchItemProps = AuxiliaryWorkbenchItemRenderContext & 
 export function AgentChatWorkbenchItem({
   hiddenRuntimeIds,
   item,
+  project,
   onOpenFile,
   onPreferredModelChange,
   onPreferredRouteChange,
@@ -45,8 +48,8 @@ export function AgentChatWorkbenchItem({
 }: AgentChatWorkbenchItemProps) {
   const { t } = useLocalization();
   const controller = useMemo(
-    () => getAgentSessionController(item.rootId, getElectronAgentClient, item.id),
-    [item.id, item.rootId],
+    () => getController(item.rootId, item.id, project),
+    [item.id, item.rootId, project],
   );
   const present = useCallback((agent: AgentChatTabPresentation) => {
     onPresentationChange(presentAgentChatWorkbenchItem(agent, t("agent.name")));
@@ -73,17 +76,27 @@ export function AgentChatWorkbenchItem({
   );
 }
 
-export async function requestCloseAgentChatWorkbenchItem(rootId: string, itemId: string) {
-  return closeAgentSessionController(rootId, itemId);
+function projectRegistry(project: AuxiliaryWorkbenchProject) {
+  return project.getResource("agent", () => new AgentControllerRegistry(project.context.rootPath, () => createProjectAgentClientProvider(project.context)));
+}
+
+function getController(rootId: string, itemId: string, project?: AuxiliaryWorkbenchProject) {
+  return project ? projectRegistry(project).get(itemId) : getAgentSessionController(rootId, getElectronAgentClient, itemId);
+}
+
+export async function requestCloseAgentChatWorkbenchItem(rootId: string, itemId: string, project?: AuxiliaryWorkbenchProject) {
+  return project ? projectRegistry(project).close(itemId) : closeAgentSessionController(rootId, itemId);
 }
 
 export function prepareAgentChatWorkbenchItem(
   rootId: string,
   itemId: string,
   runtimeId: string | null,
+  project?: AuxiliaryWorkbenchProject,
 ) {
+  project?.assertOpen();
   if (!runtimeId) return;
-  const controller = getAgentSessionController(rootId, getElectronAgentClient, itemId);
+  const controller = getController(rootId, itemId, project);
   controller.beginInitializeForRuntime(runtimeId);
 }
 
@@ -92,17 +105,17 @@ export async function restoreAgentChatWorkbenchItem(
   itemId: string,
   sessionId: string,
   runtimeId: string,
+  project?: AuxiliaryWorkbenchProject,
 ) {
-  const controller = getAgentSessionController(
-    rootId,
-    getElectronAgentClient,
-    itemId,
-  );
+  project?.assertOpen();
+  const controller = getController(rootId, itemId, project);
   await controller.openSavedSession(sessionId, runtimeId);
 }
 
-export async function discardPreparedAgentChatWorkbenchItem(rootId: string, itemId: string) {
-  await discardPreparedAgentSessionController(rootId, itemId);
+export async function discardPreparedAgentChatWorkbenchItem(rootId: string, itemId: string, project?: AuxiliaryWorkbenchProject) {
+  if (project?.disposed) return;
+  if (project) await projectRegistry(project).discard(itemId);
+  else await discardPreparedAgentSessionController(rootId, itemId);
 }
 
 export function presentAgentChatWorkbenchItem(

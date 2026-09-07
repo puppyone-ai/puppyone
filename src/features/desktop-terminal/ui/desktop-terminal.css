@@ -64,7 +64,7 @@
   color: inherit;
   background: transparent;
   font: inherit;
-  cursor: pointer;
+  cursor: var(--po-action-cursor, default);
 }
 
 .desktop-terminal-workbench-create-retry:hover {

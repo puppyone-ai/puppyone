@@ -41,8 +41,13 @@ import {
 } from "./features/desktop-agent/lazy";
 import {
   isDesktopTerminalEnabled,
-  RightTerminalPanel,
 } from "./features/desktop-terminal";
+import { createTerminalWorkbenchContribution } from "./features/desktop-terminal/workbench/TerminalWorkbenchContribution";
+import { AuxiliaryWorkbenchPanel } from "./features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchPanel";
+import { AuxiliaryWorkbenchLauncher } from "./features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchLauncher";
+import { ProjectSessionManager } from "./features/app-shell/project-sessions/ProjectSessionManager";
+import { getProjectSessionClient } from "./features/app-shell/project-sessions/projectSessionClient";
+import { useProjectSession } from "./features/app-shell/project-sessions/useProjectSession";
 import { useDesktopUpdates } from "./features/updates";
 import {
   readPuppyoneWorkspaceConfig,
@@ -157,7 +162,7 @@ function AppContent() {
     selectedSubThemeId: preferences.resolvedAppearance.subThemeId,
     onSubThemeChange: preferences.setSubThemeId,
   });
-  const { setRightSidebarOpen } = preferences;
+  const { setRightSidebarOpen, setProjectSwitcherExpanded } = preferences;
   const fontCatalog = useTypographyCatalog();
   const typography = useTypographyRuntime(
     preferences.typographyPreferences,
@@ -170,8 +175,8 @@ function AppContent() {
     preferences.projectSwitcherWidth,
   );
   const setProjectSwitcherCollapsed = useCallback(
-    (collapsed: boolean) => preferences.setProjectSwitcherExpanded(!collapsed),
-    [preferences.setProjectSwitcherExpanded],
+    (collapsed: boolean) => setProjectSwitcherExpanded(!collapsed),
+    [setProjectSwitcherExpanded],
   );
   const cloudAvailable = useFeatureFlag("cloudWorkspace");
   // The build flag only marks availability; PuppyOne Cloud stays hidden until
@@ -767,6 +772,10 @@ function AppContent() {
     workspace?.path,
   ]);
 
+  useEffect(() => window.puppyoneDesktop?.onWorkspaceOpenRequested?.(({ rootPath }) => {
+    void switchProjectFromRail(rootPath);
+  }), [switchProjectFromRail]);
+
   const handleActiveDataPathChange = useCallback(async (
     path: string | null,
     node: DataNode | null = null,
@@ -1116,7 +1125,7 @@ function AppContent() {
               }),
             })
           : Object.freeze({ kind: "close" as const }),
-        commit: ({ item }) => closeAgentChatWorkbenchItem(item.rootId, item.id),
+        commit: ({ item, project }) => closeAgentChatWorkbenchItem(item.rootId, item.id, project),
       }),
     });
   }, [
@@ -1135,9 +1144,15 @@ function AppContent() {
     t,
   ]);
   const auxiliaryWorkbenchContributions = useMemo(
-    () => agentChatContribution ? [agentChatContribution] : [],
-    [agentChatContribution],
+    () => [...(desktopTerminalEnabled ? [createTerminalWorkbenchContribution(t)] : []), ...(agentChatContribution ? [agentChatContribution] : [])],
+    [agentChatContribution, desktopTerminalEnabled, t],
   );
+  const [projectSessions] = useState(() => new ProjectSessionManager());
+  useEffect(() => {
+    const client = getProjectSessionClient();
+    return client ? projectSessions.connect(client) : undefined;
+  }, [projectSessions]);
+  const projectWorkbench = useProjectSession(projectSessions, (focusedWorkspace ?? workspace)?.path ?? null);
 
   const themeRuntime = (content: ReactNode) => (
     <SurfaceAppearanceProvider value={surfaceAppearance}>
@@ -1309,13 +1324,17 @@ function AppContent() {
           rightSidebar={desktopRightSidebarEnabled ? (
             <div className="desktop-right-sidebar-stack">
               <div className="desktop-right-sidebar-surface is-active">
-                <RightTerminalPanel
-                  workspace={focusedWorkspace ?? workspace}
+                {projectWorkbench && <AuxiliaryWorkbenchPanel
+                  key={projectWorkbench.context.generation}
+                  store={projectWorkbench}
                   active={rightSidebarOpen}
-                  terminalEnabled={desktopTerminalEnabled}
-                  hiddenAgentIds={localAgentsSettings.hiddenTerminalAgentIds}
                   contributions={auxiliaryWorkbenchContributions}
-                />
+                  onRetryProjectClose={() => {
+                    const folder = workbenchWorkspace?.folders.find((entry) => entry.workspace.path === projectWorkbench.context.rootPath);
+                    if (folder) void handleRemoveProject(folder);
+                  }}
+                  renderLauncher={(context) => <AuxiliaryWorkbenchLauncher {...context} store={projectWorkbench} contributions={auxiliaryWorkbenchContributions} hiddenAgentIds={localAgentsSettings.hiddenTerminalAgentIds} />}
+                />}
               </div>
             </div>
           ) : undefined}

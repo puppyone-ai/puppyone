@@ -385,6 +385,7 @@ export type GitBranchGraphSnapshot = {
 };
 
 export type TerminalCreateRequest = {
+  projectContext?: import("../../shared/project-session-contract/types").ProjectSessionContext;
   id: string;
   /** Explicit Folder capability required when a window has multiple roots. */
   rootPath: string;
@@ -399,6 +400,8 @@ export type TerminalCreateRequest = {
 };
 
 export type TerminalAppearanceRequest = {
+  projectContext?: import("../../shared/project-session-contract/types").ProjectSessionContext;
+  instanceId?: string;
   id: string;
   defaultColors: {
     foreground: [number, number, number];
@@ -422,6 +425,7 @@ export type TerminalAgentLocationProgressEvent = {
 };
 
 export type TerminalCreateResult = {
+  instanceId?: string;
   id: string;
   pid: number | null;
   shell: string;
@@ -430,11 +434,15 @@ export type TerminalCreateResult = {
 };
 
 export type TerminalInputRequest = {
+  projectContext?: import("../../shared/project-session-contract/types").ProjectSessionContext;
+  instanceId?: string;
   id: string;
   data: string;
 };
 
 export type TerminalResizeRequest = {
+  projectContext?: import("../../shared/project-session-contract/types").ProjectSessionContext;
+  instanceId?: string;
   id: string;
   cols: number;
   rows: number;
@@ -442,11 +450,13 @@ export type TerminalResizeRequest = {
 
 export type TerminalDataEvent = {
   id: string;
+  instanceId?: string;
   data: string;
 };
 
 export type TerminalExitEvent = {
   id: string;
+  instanceId?: string;
   code: number | null;
   signal: string | null;
 };
@@ -689,6 +699,7 @@ export type WorkspaceOpenResult = {
   workspaceId: string | null;
   path: string | null;
   workspace: Workspace | null;
+  workspaces?: Workspace[];
 };
 
 export type WorkspaceAttachResult = {
@@ -1184,6 +1195,9 @@ declare global {
       }>;
       forgetLastWorkspace: () => Promise<void>;
       showHomepage: () => Promise<{ ok: boolean }>;
+      readProjectSessions: () => Promise<import("../../shared/project-session-contract/types").ProjectSessionSnapshot>;
+      onWorkspaceOpenRequested: (callback: (request: { rootPath: string }) => void) => () => void;
+      onProjectSessionsChanged: (callback: (snapshot: import("../../shared/project-session-contract/types").ProjectSessionSnapshot) => void) => () => void;
       openWorkspaceInCurrentWindow: (folderPath: string) => Promise<WorkspaceOpenResult>;
       openWorkspaceInNewWindow: (folderPath: string) => Promise<WorkspaceOpenResult>;
       openDroppedWorkspaceInCurrentWindow: (folder: File) => Promise<WorkspaceOpenResult>;
@@ -1548,11 +1562,11 @@ declare global {
       onTerminalAgentLocationProgress: (
         callback: (event: TerminalAgentLocationProgressEvent) => void,
       ) => () => void;
-      createTerminal: (request: TerminalCreateRequest) => Promise<TerminalCreateResult>;
+      createTerminal: (request: TerminalCreateRequest) => Promise<TerminalCreateResult | import("../../shared/project-session-contract/types").ProjectSessionFailure>;
       writeTerminal: (request: TerminalInputRequest) => void;
       resizeTerminal: (request: TerminalResizeRequest) => void;
       updateTerminalAppearance: (request: TerminalAppearanceRequest) => void;
-      closeTerminal: (id: string) => Promise<void>;
+      closeTerminal: (request: string | { id: string; instanceId?: string; projectContext?: import("../../shared/project-session-contract/types").ProjectSessionContext }) => Promise<boolean | import("../../shared/project-session-contract/types").ProjectSessionFailure>;
       onTerminalData: (callback: (event: TerminalDataEvent) => void) => () => void;
       onTerminalExit: (callback: (event: TerminalExitEvent) => void) => () => void;
       subscribeAgentActivity: () => Promise<AgentActivitySnapshot>;

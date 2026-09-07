@@ -1,4 +1,5 @@
 {
+  "agent.error.session-ended": "Esta sessão terminou. Abra-a pelo histórico para continuar.",
   "name": "Agente",
   "panel.chat": "Chat do {agent}",
   "empty.prompt": "Em que vamos trabalhar?",

@@ -1,4 +1,5 @@
 {
+  "agent.error.session-ended": "이 세션이 종료되었습니다. 계속하려면 기록에서 다시 여세요.",
   "name": "에이전트",
   "panel.chat": "{agent} 채팅",
   "empty.prompt": "무엇을 함께 해볼까요?",

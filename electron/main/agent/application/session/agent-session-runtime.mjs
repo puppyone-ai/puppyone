@@ -38,7 +38,11 @@ export function createAgentSessionRuntime({
 }) {
   const runRuntimeStart = (session, operation, start) => processSupervisor.runStart({
     label: `${session.runtimeId}:${operation}`,
-  }, start);
+  }, () => {
+    session.projectOperation?.assertCurrent();
+    if (session.closing) throw new Error("Agent session closed during startup.");
+    return start();
+  });
 
   async function resolveRuntimeForOperation(value, workspaceRoot, operation) {
     const requested = normalizeRuntimeId(value);
@@ -118,11 +122,13 @@ export function createAgentSessionRuntime({
   }
 
   function finishNativeSession(session) {
+    session.projectOperation?.assertCurrent();
     if (session.bootstrapError) throw session.bootstrapError;
     if (!sessionStore.isCurrent(session) || session.closing || session.providerExited) throw new Error("Agent session closed during startup.");
     const events = session.bootstrapEvents ?? [];
     session.bootstrapEvents = null;
     for (const event of events) handleAdapterEvent(session, session.actor.control.adapterGeneration, event);
+    session.projectOperation = null;
   }
 
   function handleAdapterEvent(session, adapterGeneration, adapterEvent) {
@@ -320,18 +326,21 @@ export function createAgentSessionRuntime({
     session.adapter = null;
   }
 
-  async function closeSessionRecord(session, { persist, removePersistence = false }) {
-    if (session.closing) return;
+  function closeSessionRecord(session, { persist, removePersistence = false }) {
+    if (session.closePromise) return session.closePromise;
+    if (session.closed) return Promise.resolve();
     session.closing = true;
     clearTimeout(session.persistTimer);
     session.persistTimer = null;
     clearInterruptFallback(session);
     failPendingApprovalsClosed(session, "session-closed");
     failPendingQuestionsClosed(session, "session-closed");
-    try {
+    session.closePromise = (async () => {
+      // Keep the record on failure so the project can retry actual cleanup.
       await session.adapter?.dispose();
-    } finally {
       await revokeActiveAgentReferences(session, attachmentStore);
+      if (removePersistence) await cache.remove(session.id);
+      else if (persist) await persistNow(session);
       if (sessionStore.isCurrent(session)) {
         session.closing = false;
         emit(session, {
@@ -340,11 +349,12 @@ export function createAgentSessionRuntime({
           payload: { terminalState: session.terminalState },
         });
         session.closing = true;
+        sessionStore.rememberClosed(session);
         sessionStore.remove(session);
       }
-      if (removePersistence) await cache.remove(session.id);
-      else if (persist) await persistNow(session);
-    }
+      session.closed = true;
+    })().finally(() => { session.closePromise = null; });
+    return session.closePromise;
   }
 
   function requireOwnedSession(sender, id) {

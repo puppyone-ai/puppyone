@@ -28,9 +28,9 @@ describe("Agent IPC workspace authorization", () => {
     await expect(handlers.get("agent:session-create")(event, { rootPath: "/other" })).rejects.toThrow(/does not match/i);
     expect(agentService.createSession).not.toHaveBeenCalled();
     await handlers.get("agent:session-create")(event, { rootPath: "/workspace" });
-    expect(agentService.createSession).toHaveBeenCalledWith(event.sender, { rootPath: "/workspace" }, "/canonical/workspace");
+    expect(agentService.createSession).toHaveBeenCalledWith(event.sender, { rootPath: "/workspace" }, "/canonical/workspace", undefined);
     await handlers.get("agent:session-resume")(event, { rootPath: "/workspace" });
-    expect(agentService.resumeSession).toHaveBeenCalledWith(event.sender, { rootPath: "/workspace" }, "/canonical/workspace");
+    expect(agentService.resumeSession).toHaveBeenCalledWith(event.sender, { rootPath: "/workspace" }, "/canonical/workspace", undefined);
     await handlers.get("agent:session-open")(event, {
       rootPath: "/workspace",
       sessionId: "saved-session",
@@ -40,7 +40,7 @@ describe("Agent IPC workspace authorization", () => {
       rootPath: "/workspace",
       sessionId: "saved-session",
       runtimeId: "codex",
-    }, "/canonical/workspace");
+    }, "/canonical/workspace", undefined);
     await handlers.get("agent:local-connections-discover")(event, {
       rootPath: "/workspace",
       refresh: true,

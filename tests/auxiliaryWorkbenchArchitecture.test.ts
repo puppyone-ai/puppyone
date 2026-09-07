@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-describe("Unified Terminal Workbench architecture", () => {
+describe("Project-owned auxiliary workbench architecture", () => {
   it("keeps serializable topology independent from feature runtimes", () => {
     const model = source(
       "packages/shared-ui/src/workbench/auxiliary-workbench/auxiliaryWorkbenchModel.ts",
@@ -20,7 +20,7 @@ describe("Unified Terminal Workbench architecture", () => {
     const lazyEntry = source("src/features/desktop-agent/lazy.ts");
     expect(app).toContain("lazy(loadAgentChatWorkbenchItem)");
     expect(app).toContain("contributions={auxiliaryWorkbenchContributions}");
-    expect(app).toContain("terminalEnabled={desktopTerminalEnabled}");
+    expect(app).toContain("createTerminalWorkbenchContribution(t)");
     expect(app).toContain('className="desktop-right-sidebar-surface is-active"');
     expect(app).not.toContain("<RightAgentPanel");
     expect(app).not.toContain('key={focusedWorkspace?.path ?? workspace.path}');
@@ -28,20 +28,20 @@ describe("Unified Terminal Workbench architecture", () => {
   });
 
   it("preserves Item views across Tab reorder and keeps close feature-authoritative", () => {
-    const panel = source("src/features/desktop-terminal/ui/RightTerminalPanel.tsx");
+    const panel = source("src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchPanel.tsx");
     const closeContract = source("src/features/app-shell/auxiliary-workbench/types.ts");
     const closeCoordinator = source(
       "src/features/app-shell/auxiliary-workbench/useAuxiliaryWorkbenchCloseCoordinator.ts",
     );
     const hostOwner = source(
-      "src/features/desktop-terminal/layout/session-host/usePersistentTerminalSessionHosts.ts",
+      "src/features/app-shell/auxiliary-workbench/layout/usePersistentWorkbenchItemHosts.ts",
     );
     const hostSlot = source(
-      "src/features/desktop-terminal/workbench/TerminalWorkbenchItemHostSlot.tsx",
+      "src/features/app-shell/auxiliary-workbench/layout/AuxiliaryWorkbenchItemHostSlot.tsx",
     );
     expect(panel).toContain("createPortal(");
     expect(panel).toContain("useAuxiliaryWorkbenchCloseCoordinator");
-    expect(panel).toContain("adapter: contribution.close");
+    expect(panel).toContain("byKind.get(item.kind)?.close");
     expect(closeContract).toContain('kind: "close"');
     expect(closeContract).toContain('kind: "confirm"');
     expect(closeContract).toContain('kind: "blocked"');
@@ -56,13 +56,13 @@ describe("Unified Terminal Workbench architecture", () => {
 
   it("separates visible, presented, command-target and DOM-focus state", () => {
     const contract = source("src/features/app-shell/auxiliary-workbench/types.ts");
-    const panel = source("src/features/desktop-terminal/ui/RightTerminalPanel.tsx");
+    const panel = source("src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchPanel.tsx");
     expect(contract).toContain("sidebarVisible: boolean");
     expect(contract).toContain("presented: boolean");
     expect(contract).toContain("commandTarget: boolean");
     expect(contract).toContain("domFocused: boolean");
-    expect(panel).toContain("active && presentedItemIdSet.has(item.id)");
-    expect(panel).toContain("active && workbench.activeItemId === item.id");
+    expect(panel).toContain("presented && workbench.presentedItemIds.includes(item.id)");
+    expect(panel).toContain("itemPresented && workbench.activeItemId === item.id");
   });
 
   it("keeps feature branding in the generic Item snapshot and Workbench chrome", () => {
@@ -88,9 +88,9 @@ describe("Unified Terminal Workbench architecture", () => {
   });
 
   it("keeps Tab Bar chrome outside the content split-drop coordinate space", () => {
-    const pane = source("src/features/desktop-terminal/layout/TerminalGroupPane.tsx");
+    const pane = source("src/features/app-shell/auxiliary-workbench/layout/WorkbenchGroupPane.tsx");
     const resolver = source(
-      "src/features/desktop-terminal/interactions/terminalContentDropTarget.ts",
+      "src/features/app-shell/auxiliary-workbench/layout/interactions/workbenchContentDropTarget.ts",
     );
     expect(pane).toContain("{header}");
     expect(pane).toContain('className="desktop-terminal-tab-group-content"');
@@ -105,11 +105,11 @@ describe("Unified Terminal Workbench architecture", () => {
 
   it("pins every Terminal runtime to the Item root captured at creation", () => {
     const pool = source(
-      "src/features/desktop-terminal/workbench/TerminalRuntimePool.ts",
+      "src/features/desktop-terminal/runtime/TerminalRuntimePool.ts",
     );
-    expect(pool).toContain("rootByItemId");
-    expect(pool).toContain("this.rootByItemId.set(itemId, workspacePath)");
-    expect(pool).toContain("workspacePath,");
+    expect(pool).toContain("private readonly project: AuxiliaryWorkbenchProject");
+    expect(pool).toContain("workspacePath: this.project.context.rootPath");
+    expect(pool).toContain("projectContext: this.project.context");
     expect(pool).not.toContain("focusedWorkspace");
   });
 });

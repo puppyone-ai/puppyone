@@ -1,4 +1,5 @@
 import { WindowWorkspaceState } from "./window-workspace-state.mjs";
+import { createWindowWorkspaceOperationQueue } from "./workspace/project-sessions/window-workspace-operation-queue.mjs";
 
 /**
  * Main-process transaction boundary for adding one local Folder to a window's
@@ -8,6 +9,7 @@ import { WindowWorkspaceState } from "./window-workspace-state.mjs";
 export function createWindowWorkspaceCompositionService({
   canonicalizeWorkspacePath,
   cleanupDetachedWorkspace = async () => undefined,
+  openProject = () => undefined,
   getWindowState,
   getWorkspaceWindow,
   indexWorkspacePath,
@@ -16,19 +18,20 @@ export function createWindowWorkspaceCompositionService({
   unindexWorkspacePath = () => undefined,
   workspaceFromPath,
 }) {
+  const transactions = createWindowWorkspaceOperationQueue();
   return Object.freeze({
-    async attach(window, folderPath) {
+    attach(window, folderPath) { return transactions.run(window, async () => {
       const workspace = await workspaceFromPath(folderPath);
       const canonicalPath = await canonicalizeWorkspacePath(workspace.path);
       const state = getWindowState(window);
       const currentWorkspaces = () => state.folders.map((folder) => folder.workspace);
       const existingWindow = getWorkspaceWindow(canonicalPath);
 
-      if (existingWindow === window) {
+      if (existingWindow === window && state.folderPaths.includes(canonicalPath)) {
         return createResult("already-attached", canonicalPath, workspace, currentWorkspaces(), state.workspaceId);
       }
-      if (existingWindow) {
-        revealWindow(existingWindow);
+      if (existingWindow && existingWindow !== window) {
+        revealWindow(existingWindow, canonicalPath);
         const existingState = getWindowState(existingWindow);
         return createResult(
           "focused-existing",
@@ -48,11 +51,12 @@ export function createWindowWorkspaceCompositionService({
         state.workspaceId,
       );
 
+      openProject(window, { path: canonicalPath, workspace });
       state.replaceFolders(nextFolders);
       indexWorkspacePath(canonicalPath, window);
       return createResult("attached-current", canonicalPath, workspace, currentWorkspaces(), state.workspaceId);
-    },
-    async detach(window, folderPath) {
+    }); },
+    detach(window, folderPath) { return transactions.run(window, async () => {
       const canonicalPath = await canonicalizeWorkspacePath(folderPath);
       const state = getWindowState(window);
       const detachedFolder = state.folders.find((folder) => folder.path === canonicalPath);
@@ -65,18 +69,15 @@ export function createWindowWorkspaceCompositionService({
           state.workspaceId,
         );
       }
-      if (state.folders.length <= 1) {
-        throw new Error("The last Project cannot be removed from this Workspace. Go Home instead.");
-      }
-
       const nextFolders = state.folders.filter((folder) => folder !== detachedFolder);
+      await cleanupDetachedWorkspace(window, detachedFolder);
       await persistWorkspaceComposition(
         nextFolders.map((folder) => folder.workspace),
         state.workspaceId,
       );
+      state.forgetFolder(canonicalPath);
       state.replaceFolders(nextFolders);
       unindexWorkspacePath(canonicalPath, window);
-      await cleanupDetachedWorkspace(window, detachedFolder);
       return createResult(
         "detached-current",
         canonicalPath,
@@ -84,7 +85,7 @@ export function createWindowWorkspaceCompositionService({
         nextFolders.map((folder) => folder.workspace),
         state.workspaceId,
       );
-    },
+    }); },
   });
 }
 

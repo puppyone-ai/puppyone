@@ -1,4 +1,8 @@
 {
+  "projectSessions.sessionCloseFailed": "セッションを閉じられませんでした。再試行してください。",
+  "projectSessions.closing": "プロジェクトを閉じています…",
+  "projectSessions.closeFailed": "一部のプロジェクトのタスクを停止できませんでした。",
+  "projectSessions.retryClose": "もう一度閉じる",
   "drag.exportHint": "フォルダ、ターミナル、Agent、または他のアプリへドラッグします。",
   "drag.exportFailed": "ドロップを完了できません。元の項目と移動先が利用可能で、この操作に対応しているか確認してください。",
   "restoring.ariaLabel": "前回のプロジェクトを開いています",

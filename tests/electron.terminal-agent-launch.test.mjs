@@ -237,6 +237,7 @@ describe("Terminal Agent launch boundary", () => {
     expect(terminal.write).toHaveBeenNthCalledWith(3, "\u001b]11;rgb:fbfb/fafa/f7f7\u001b\\");
     expect(sender.send).toHaveBeenCalledWith("terminal:data", {
       id: "terminal_codex_colors",
+      instanceId: expect.any(String),
       data: "beforemiddleafter\u001b[?1049h",
     });
 
@@ -344,15 +345,16 @@ async function makeTemporaryDirectory() {
 
 function createFakeTerminal() {
   let dataListener = null;
+  let exitListener = null;
   return {
     pid: 123,
     write: vi.fn(),
     resize: vi.fn(),
-    kill: vi.fn(),
+    kill: vi.fn(() => exitListener?.({ exitCode: 0, signal: 15 })),
     onData: vi.fn((listener) => {
       dataListener = listener;
     }),
-    onExit: vi.fn(),
+    onExit: vi.fn((listener) => { exitListener = listener; }),
     emitData(data) {
       dataListener?.(data);
     },

@@ -247,6 +247,17 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   removeRecentWorkspace: (folderPath) => ipcRenderer.invoke("workspace:remove-recent", folderPath),
   forgetLastWorkspace: () => ipcRenderer.invoke("workspace:forget-last"),
   showHomepage: () => ipcRenderer.invoke("workspace:show-homepage"),
+  readProjectSessions: () => ipcRenderer.invoke("project-sessions:read"),
+  onWorkspaceOpenRequested: (callback) => {
+    const listener = (_event, value) => callback(value);
+    ipcRenderer.on("workspace:open-requested", listener);
+    return () => ipcRenderer.removeListener("workspace:open-requested", listener);
+  },
+  onProjectSessionsChanged: (callback) => {
+    const listener = (_event, snapshot) => callback(snapshot);
+    ipcRenderer.on("project-sessions:changed", listener);
+    return () => ipcRenderer.removeListener("project-sessions:changed", listener);
+  },
   openWorkspaceInCurrentWindow: (folderPath) => ipcRenderer.invoke("workspace:open-current", folderPath),
   openWorkspaceInNewWindow: (folderPath) => ipcRenderer.invoke("workspace:open-new-window", folderPath),
   openDroppedWorkspaceInCurrentWindow: (folder) => {

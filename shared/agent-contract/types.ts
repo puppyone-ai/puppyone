@@ -227,6 +227,8 @@ export type AgentCommand = {
 };
 
 export type AgentSessionMetadata = {
+  /** One live allocation; never persisted as the product conversation identity. */
+  instanceId?: string;
   historyCoverage?: "complete" | "partial" | "unknown";
   sourceScopeId?: string;
   id: string;
@@ -655,7 +657,7 @@ export type AgentTimelineWindow = {
   lastSequence: number;
 };
 
-export type AgentSessionAttachRequest = { rootPath: string; sessionId: string };
+export type AgentSessionAttachRequest = { rootPath: string; sessionId: string; instanceId?: string };
 export type AgentSessionFeedReceipt = {
   subscriptionId: string;
   snapshot: AgentSessionSnapshot;
@@ -750,6 +752,7 @@ export type AgentSessionsListRequest = {
 export type AgentSessionCloseRequest = {
   rootPath: string;
   sessionId: string;
+  instanceId?: string;
   removePersistence?: boolean;
 };
 
@@ -762,6 +765,8 @@ export type AgentSessionMutationRequest = {
 };
 
 export type AgentCommandPrecondition = {
+  /** Live runtime identity; distinct from the durable conversation id. */
+  instanceId?: string;
   /** Rejects a command captured for an older Main SessionActor instance. */
   expectedSessionEpoch?: string;
   /** Rejects a command captured before the native adapter was replaced. */

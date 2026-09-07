@@ -4,6 +4,7 @@ export type AgentErrorCode =
   | "model-required"
   | "prompt-queue-full"
   | "runtime-exited"
+  | "session-ended"
   | "event-gap"
   | "provider-credentials-rejected"
   | "active-turn"

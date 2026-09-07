@@ -103,7 +103,8 @@ export class AgentSessionFeed {
     return { subscriptionId, detached: true };
   }
 
-  releaseSession(sessionId) {
+  releaseSession(sessionId, instanceId = null) {
+    if (instanceId && this.actorCleanups.get(sessionId)?.instanceId !== instanceId) return;
     for (const subscriptionId of this.sessionSubscriptions.get(sessionId) ?? []) {
       const subscription = this.subscriptions.get(subscriptionId);
       if (subscription) this.#remove(subscription);
@@ -128,6 +129,7 @@ export class AgentSessionFeed {
       existing.cleanup();
     }
     this.actorCleanups.set(session.id, {
+      instanceId: session.instanceId,
       sessionEpoch,
       cleanup: session.actor.subscribe((commit) => this.#publish(session, commit)),
     });

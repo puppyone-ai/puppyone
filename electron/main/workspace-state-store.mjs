@@ -233,6 +233,14 @@ export function createWorkspaceStateStore({
     });
   }
 
+  function clearActiveWorkspaceComposition(workbenchWorkspaceId) {
+    return enqueueMutation(async () => {
+      const state = normalizeWorkspaceState(await readWorkspaceState());
+      if (state.lastActiveWorkbenchWorkspaceId !== workbenchWorkspaceId) return;
+      await writeWorkspaceState(createPersistedState(state.recentWorkspaceRecords, [], workbenchWorkspaceId));
+    });
+  }
+
   function forgetLastWorkspacePath() {
     return enqueueMutation(async () => {
       await fsApi.rm(getWorkspaceStatePath(), { force: true });
@@ -348,6 +356,7 @@ export function createWorkspaceStateStore({
     readLastActiveWorkspacePaths,
     readLastActiveWorkspaceComposition,
     rememberWorkspaceComposition,
+    clearActiveWorkspaceComposition,
     rememberRecentWorkspacePath,
     requireRecentWorkspacePath,
     removeRecentWorkspacePath,
@@ -452,7 +461,7 @@ function normalizeActiveWorkspacePaths(state, records) {
     if (activePaths.includes(resolvedPath)) continue;
     activePaths.push(resolvedPath);
   }
-  if (activePaths.length > 0) return activePaths;
+  if (activePaths.length > 0 || Array.isArray(state?.lastActiveWorkspacePaths)) return activePaths;
   return records[0] ? [records[0].path] : [];
 }
 

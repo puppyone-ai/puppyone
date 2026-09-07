@@ -151,7 +151,7 @@
 }
 
 .desktop-agent-history-notice { color: var(--agent-text-subtle); font-size: var(--agent-font-size-meta); }
-.desktop-agent-history-notice summary { display: flex; align-items: center; gap: 7px; cursor: pointer; list-style: none; }
+.desktop-agent-history-notice summary { display: flex; align-items: center; gap: 7px; cursor: var(--po-action-cursor, default); list-style: none; }
 .desktop-agent-history-notice summary::-webkit-details-marker { display: none; }
 .desktop-agent-history-notice p { margin: 6px 0 0; }
 

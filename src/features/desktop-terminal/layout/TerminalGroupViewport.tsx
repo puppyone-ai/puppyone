@@ -21,7 +21,7 @@ import type {
   DesktopTerminalLayoutSplit,
   DesktopTerminalSession,
 } from "../model/terminalSessions";
-import type { TerminalRuntimeRegistry } from "../runtime/terminalRuntimeRegistry";
+import type { TerminalRuntimeLookup } from "../runtime/TerminalRuntimeLookup";
 import { TerminalSessionHeader } from "../ui/session-header/TerminalSessionHeader";
 import {
   terminalPanelId,
@@ -41,7 +41,7 @@ export type TerminalGroupViewportProps = Readonly<{
   groups: readonly DesktopTerminalGroup[];
   hosts: PersistentTerminalSessionHosts;
   root: DesktopTerminalLayoutNode;
-  runtimeRegistry: Pick<TerminalRuntimeRegistry, "get" | "require">;
+  runtimeRegistry: TerminalRuntimeLookup;
   sessions: readonly DesktopTerminalSession[];
   sessionMove: TerminalTabMoveDragController;
   workspacePath: string;

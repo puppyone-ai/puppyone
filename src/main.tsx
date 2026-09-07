@@ -85,11 +85,6 @@ async function renderApplication() {
       "./features/desktop-terminal/visual-smoke"
     );
     surface = <TerminalSplitVisualSmokeHarness />;
-  } else if (window.location.hash === "#terminal-p0-smoke") {
-    const { TerminalP0SmokeHarness } = await import(
-      "./features/desktop-terminal/visual-smoke"
-    );
-    surface = <TerminalP0SmokeHarness />;
   } else if (window.location.hash === "#agent-visual-smoke") {
     const { AgentVisualSmokeHarness } = await import("./features/desktop-agent/visual-smoke");
     surface = <AgentVisualSmokeHarness />;

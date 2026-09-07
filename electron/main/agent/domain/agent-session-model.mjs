@@ -1,4 +1,5 @@
 import { isAgentEventEnvelope } from "../agent-events.mjs";
+import { randomUUID } from "node:crypto";
 import { normalizeCapabilitySnapshot, sanitizeAgentEventEnvelope, sanitizeAgentRuntimeDescriptor } from "../../../../shared/agent-contract/schema.mjs";
 import { normalizeAgentEventWorkspacePaths } from "./agent-event-workspace-paths.mjs";
 import { AgentSessionActor } from "./agent-session-actor.mjs";
@@ -36,6 +37,7 @@ export function createAgentSessionRecord({
   });
   const session = {
     id,
+    instanceId: randomUUID(),
     ownerId,
     sender,
     workspaceRoot,
@@ -161,6 +163,7 @@ export function applyInspection(session, inspection) {
 
 export function sessionMetadata(session, control = session.actor.control) {
   return {
+    instanceId: session.instanceId,
     id: session.id,
     runtimeId: session.runtimeId,
     runtime: session.runtime,

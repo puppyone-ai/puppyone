@@ -45,6 +45,12 @@ const {
 } = agentContractLimits;
 
 export function parseAgentIpcRequest(channel, value) {
+  const request = parseAgentRequestBody(channel, value);
+  if (value?.instanceId != null) request.instanceId = requiredOpaqueId(value.instanceId, "instanceId");
+  return request;
+}
+
+function parseAgentRequestBody(channel, value) {
   const input = optionalRecord(value, channel);
   switch (channel) {
     case "agent:providers-discover":
@@ -492,6 +498,7 @@ export function assertAgentSessionFrame(value) {
 function assertAgentSessionMetadata(value) {
   const session = assertRecord(value, "Agent session");
   requiredOpaqueId(session.id, "Agent session.id");
+  if (session.instanceId != null) requiredOpaqueId(session.instanceId, "Agent session.instanceId");
   assertRuntimeId(session.runtimeId ?? session.provider, "Agent session.runtimeId");
   requiredString(session.workspaceRoot, "Agent session.workspaceRoot", MAX_PATH_LENGTH);
   requiredString(session.title, "Agent session.title", 512);

@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { projectSessionError } from "../../../../../shared/project-session-contract/schema.mjs";
 
 export function commandIdentity(value) {
   return typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/.test(value)
@@ -7,6 +8,8 @@ export function commandIdentity(value) {
 }
 
 export function requireCommandPreconditions(session, request) {
+  if (session.closing) throw projectSessionError("SESSION_CLOSING", "This conversation is closing.", true);
+  if (request?.instanceId && request.instanceId !== session.instanceId) throw projectSessionError("SESSION_STALE", "This conversation instance has ended.");
   const control = session.actor.control;
   if (request?.expectedSessionEpoch !== undefined && request.expectedSessionEpoch !== control.sessionEpoch) {
     throw new Error("The Agent command belongs to an older session generation.");
