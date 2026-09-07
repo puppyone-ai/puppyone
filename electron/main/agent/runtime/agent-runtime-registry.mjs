@@ -1,4 +1,5 @@
 import { assertAgentRuntimePort } from "./agent-runtime-port.mjs";
+import { RuntimeDiscoverySupervisor } from "./runtime-discovery-supervisor.mjs";
 import { sanitizeAgentRuntimeDescriptor } from "../../../../shared/agent-contract/runtime-schema.mjs";
 import {
   defineAgentRuntimeManifest,
@@ -9,7 +10,8 @@ import {
 } from "../../../../shared/agent-contract/schema.mjs";
 
 export class AgentRuntimeRegistry {
-  constructor(definitions, { defaultRuntimeId = null } = {}) {
+  constructor(definitions, { defaultRuntimeId = null, discoveryTimeoutMs } = {}) {
+    this.discoverySupervisor = new RuntimeDiscoverySupervisor({ timeoutMs: discoveryTimeoutMs });
     this.definitions = new Map();
     for (const candidate of definitions) {
       validateDefinition(candidate);
@@ -38,12 +40,18 @@ export class AgentRuntimeRegistry {
     return this.descriptors().map((descriptor) => this.require(descriptor.id).manifest);
   }
 
-  async discover({ refresh = false } = {}) {
-    const results = await Promise.all(this.descriptors().map(async (descriptor) => {
+  async discover({ refresh = false, runtimeId = null } = {}) {
+    const descriptors = this.descriptors().filter(descriptor => !runtimeId || descriptor.id === runtimeId);
+    const results = await Promise.all(descriptors.map(async (descriptor) => {
       const definition = this.require(descriptor.id);
       try {
-        const readiness = await definition.discovery.discover({ refresh });
-        assertAgentRuntimeReadiness(readiness);
+        const readiness = await this.discoverySupervisor.run(descriptor.id, async (signal) => {
+          const result = await definition.discovery.discover({ refresh, signal });
+          assertAgentRuntimeReadiness(result);
+          const reportedId = result.runtimeId ?? result.provider;
+          if (reportedId && reportedId !== descriptor.id) throw new Error("Discovery returned a different Agent runtime identity.");
+          return result;
+        });
         return { descriptor, readiness };
       } catch (error) {
         return {
@@ -82,12 +90,14 @@ export class AgentRuntimeRegistry {
   }
 
   async dispose() {
+    this.discoverySupervisor.dispose();
     const results = await Promise.allSettled(Array.from(this.definitions.values()).map((definition) => definition.dispose?.()));
     const failures = results.filter((result) => result.status === "rejected").map((result) => result.reason);
     if (failures.length) throw new AggregateError(failures, "One or more Agent runtimes failed to dispose cleanly.");
   }
 
   hasActiveResources() {
+    if (this.discoverySupervisor.hasActiveResources()) return true;
     for (const definition of this.definitions.values()) {
       try {
         if (definition.hasActiveResources?.() === true) return true;

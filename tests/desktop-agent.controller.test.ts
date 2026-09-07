@@ -6,7 +6,154 @@ import {
 } from "../src/features/desktop-agent/application/AgentSessionController";
 import type { AgentEvent, AgentSessionSnapshot } from "../src/features/desktop-agent/agentTypes";
 
+it("preparation failure releases submission state and allows retry", async () => {
+  const bridge = bridgeFixture(() => {});
+  bridge.resumeAgentSession.mockResolvedValueOnce(null);
+  bridge.createAgentSession.mockRejectedValueOnce(new Error("cannot create"));
+  const controller = new AgentSessionController("/workspace", () => bridge as never);
+  try {
+    await controller.initialize();
+    controller.setDraft("retry this message");
+    expect(await controller.submit("retry this message")).toBe(false);
+    expect(controller.getSnapshot().draft).toBe("retry this message");
+    expect(controller.getSnapshot().submitting).toBe(false);
+    expect(await controller.submit("retry this message")).toBe(true);
+  } finally { controller.dispose(); }
+});
+
+it("steer receipt must preserve a newer draft", async () => {
+  let emit: any;
+  const bridge = bridgeFixture(listener => { emit = listener; }, { steer: true });
+  const controller = new AgentSessionController("/workspace", () => bridge as never);
+  try {
+    await controller.initialize();
+    emit(event(2, "turn.started", { prompt: "Running" }, "turn-running"));
+    expect(controller.getSnapshot().projection.runningTurnId).toBe("turn-running");
+    let resolveSteer: any;
+    bridge.steerAgentTurn.mockImplementationOnce(() => new Promise(resolve => { resolveSteer = resolve; }));
+    controller.setDraft("first instruction");
+    const pending = controller.submit("first instruction");
+    await vi.waitFor(() => expect(bridge.steerAgentTurn).toHaveBeenCalledTimes(1));
+    controller.setDraft("newer unsent draft");
+    resolveSteer({ steered: true });
+    await pending;
+    expect(controller.getSnapshot().draft).toBe("newer unsent draft");
+  } finally { controller.dispose(); }
+});
+
+it("repeated send while the same steer is pending has one dispatch", async () => {
+  let emit: any;
+  const bridge = bridgeFixture(listener => { emit = listener; }, { steer: true });
+  const controller = new AgentSessionController("/workspace", () => bridge as never);
+  try {
+    await controller.initialize();
+    emit(event(2, "turn.started", { prompt: "Running" }, "turn-running"));
+    const receipts: Array<(v: unknown) => void> = [];
+    bridge.steerAgentTurn.mockImplementation(() => new Promise(resolve => receipts.push(resolve)));
+    controller.setDraft("single instruction");
+    const first = controller.submit("single instruction");
+    const second = controller.submit("single instruction");
+    for (const resolve of receipts) resolve({ steered: true });
+    await Promise.all([first, second]);
+    expect(bridge.steerAgentTurn).toHaveBeenCalledTimes(1);
+  } finally { controller.dispose(); }
+});
+
 describe("AgentSessionController", () => {
+  it.each([true, false])("keeps newer steer drafts, references and mentions on receipt (accepted=%s)", async (accepted) => {
+    let emit: (event: AgentEvent) => void = () => {};
+    const bridge = bridgeFixture(listener => { emit = listener; }, {
+      steer: true, referenceInputs: { ...referenceCapabilities(), steer: true },
+    });
+    const receipt = Promise.withResolvers<{ sessionId: string; turnId: string; steered: boolean }>();
+    bridge.steerAgentTurn.mockReturnValueOnce(receipt.promise);
+    const controller = new AgentSessionController("/workspace", () => bridge as never);
+    try {
+      await controller.initialize();
+      emit(event(2, "turn.started", { prompt: "Running" }, "turn-running"));
+      await controller.addWorkspacePaths(["a.md"]);
+      const firstReference = controller.getSnapshot().references[0]!;
+      controller.setDraftDocument("@a.md", [{ referenceId: firstReference.id, start: 0, end: 5 }]);
+      const pending = controller.submit("@a.md");
+      expect(controller.getSnapshot()).toMatchObject({ submitting: true, draft: "", references: [] });
+      await controller.addWorkspacePaths(["b.md"]);
+      const newerReference = controller.getSnapshot().references[0]!;
+      controller.setDraftDocument("@b.md", [{ referenceId: newerReference.id, start: 0, end: 5 }]);
+      if (accepted) receipt.resolve({ sessionId: "session-1", turnId: "turn-running", steered: true });
+      else receipt.reject(new Error("native rejected instruction"));
+      expect(await pending).toBe(accepted);
+      const next = controller.getSnapshot();
+      expect(next.submitting).toBe(false);
+      expect(next.pendingIntent).toBeNull();
+      expect(next.draft).toBe(accepted ? "@b.md" : "@a.md\n\n@b.md");
+      expect(next.references.map(reference => reference.id)).toEqual(accepted ? [newerReference.id] : [firstReference.id, newerReference.id]);
+      expect(next.draftMentions.at(-1)).toEqual({ referenceId: newerReference.id, start: accepted ? 0 : 7, end: accepted ? 5 : 12 });
+      if (!accepted) expect(await controller.submit(next.draft)).toBe(true);
+    } finally { controller.dispose(); }
+  });
+
+  it.each([true, false])("keeps attachment-only steer submissions busy until acknowledgement (accepted=%s)", async (accepted) => {
+    let emit: (event: AgentEvent) => void = () => {};
+    const bridge = bridgeFixture(listener => { emit = listener; }, {
+      steer: true, referenceInputs: { ...referenceCapabilities(), steer: true, attachmentOnly: true },
+    });
+    const receipt = Promise.withResolvers<{ sessionId: string; turnId: string; steered: boolean }>();
+    bridge.steerAgentTurn.mockReturnValueOnce(receipt.promise);
+    const controller = new AgentSessionController("/workspace", () => bridge as never);
+    try {
+      await controller.initialize();
+      emit(event(2, "turn.started", { prompt: "Running" }, "turn-running"));
+      await controller.addWorkspacePaths(["a.md"]);
+      const pending = controller.submit("");
+      expect(controller.getSnapshot().submitting).toBe(true);
+      expect(await controller.submit("repeated Enter")).toBe(false);
+      controller.setDraft("new draft");
+      if (accepted) receipt.resolve({ sessionId: "session-1", turnId: "turn-running", steered: true });
+      else receipt.reject(new Error("attachment rejected"));
+      expect(await pending).toBe(accepted);
+      expect(controller.getSnapshot().draft).toBe("new draft");
+      expect(controller.getSnapshot().references).toHaveLength(accepted ? 0 : 1);
+      expect(controller.getSnapshot().submitting).toBe(false);
+    } finally { controller.dispose(); }
+  });
+
+  it("does not restore a late rejected steer into a replacement conversation", async () => {
+    let emit: (event: AgentEvent) => void = () => {};
+    const bridge = bridgeFixture(listener => { emit = listener; }, { steer: true });
+    const receipt = Promise.withResolvers<{ sessionId: string; turnId: string; steered: boolean }>();
+    bridge.steerAgentTurn.mockReturnValueOnce(receipt.promise);
+    const controller = new AgentSessionController("/workspace", () => bridge as never);
+    try {
+      await controller.initialize();
+      emit(event(2, "turn.started", { prompt: "Running" }, "turn-running"));
+      const pending = controller.submit("old instruction");
+      emit(event(3, "turn.completed", {}, "turn-running"));
+      await controller.newSession();
+      controller.setDraft("new conversation draft");
+      receipt.reject(new Error("late rejection"));
+      expect(await pending).toBe(false);
+      expect(controller.getSnapshot()).toMatchObject({ draft: "new conversation draft", error: null, submitting: false, pendingIntent: null });
+    } finally { controller.dispose(); }
+  });
+
+  it("ignores receipts and new submissions after disposal", async () => {
+    let emit: (event: AgentEvent) => void = () => {};
+    const bridge = bridgeFixture(listener => { emit = listener; }, { steer: true });
+    const receipt = Promise.withResolvers<{ sessionId: string; turnId: string; steered: boolean }>();
+    bridge.steerAgentTurn.mockReturnValueOnce(receipt.promise);
+    const controller = new AgentSessionController("/workspace", () => bridge as never);
+    await controller.initialize();
+    emit(event(2, "turn.started", { prompt: "Running" }, "turn-running"));
+    const pending = controller.submit("old instruction");
+    controller.dispose();
+    const disposedState = controller.getSnapshot();
+    receipt.reject(new Error("late rejection"));
+    expect(await pending).toBe(false);
+    expect(await controller.submit("after dispose")).toBe(false);
+    expect(controller.getSnapshot()).toBe(disposedState);
+    expect(bridge.steerAgentTurn).toHaveBeenCalledOnce();
+  });
+
   it("discovers installed Agents without selecting or resuming one on first open", async () => {
     const bridge = bridgeFixture(() => {});
     bridge.discoverAgentRuntimes.mockResolvedValueOnce({

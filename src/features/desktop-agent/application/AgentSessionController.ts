@@ -142,6 +142,7 @@ export class AgentSessionController {
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
+    this.submission.dispose();
     this.sessionPreparer.dispose();
     this.sessionReplica.dispose();
     this.localConnectionLoader.dispose();
@@ -206,6 +207,7 @@ export class AgentSessionController {
     const plan = planAgentRuntimeSwitch(this.state, runtimeId);
     if (!plan) return false;
     if (plan.alreadySelected) return true;
+    this.submission.invalidate();
     await this.referenceDrafts.rotate([
       ...this.state.references,
     ]);
@@ -234,11 +236,13 @@ export class AgentSessionController {
       this.patch({ error: createAgentError("active-turn") });
       return false;
     }
+    const pendingReferences = this.state.pendingIntent?.references ?? [];
+    this.submission.invalidate();
     this.sessionReplica.connect();
     const bridge = this.requireBridge("discoverAgentRuntimes", "openAgentSession");
     await this.referenceDrafts.reset([
       ...this.state.references,
-      ...(this.state.pendingIntent?.references ?? []),
+      ...pendingReferences,
     ]);
     if (this.state.session) {
       await this.requireBridge("closeAgentSession").closeAgentSession({
@@ -465,9 +469,11 @@ export class AgentSessionController {
 
   async newSession() {
     if (this.state.projection.runningTurnId) return this.sessionLifecycle.newSession();
+    const pendingReferences = this.state.pendingIntent?.references ?? [];
+    this.submission.invalidate();
     await this.referenceDrafts.reset([
       ...this.state.references,
-      ...(this.state.pendingIntent?.references ?? []),
+      ...pendingReferences,
     ]);
     return this.sessionLifecycle.newSession();
   }
@@ -475,9 +481,11 @@ export class AgentSessionController {
   async closeTabSession() {
     const closed = await this.sessionLifecycle.closeSession();
     if (!closed) return false;
+    const pendingReferences = this.state.pendingIntent?.references ?? [];
+    this.submission.invalidate();
     await this.referenceDrafts.reset([
       ...this.state.references,
-      ...(this.state.pendingIntent?.references ?? []),
+      ...pendingReferences,
     ]);
     return true;
   }
@@ -678,7 +686,7 @@ function deriveControlReplicaState(state: AgentControllerState): AgentController
     phase: state.phase === "discovering" || state.phase === "restoring" ? state.phase : view.phase,
     session: { ...state.session, activeTurnId: state.projection.runningTurnId, terminalState: view.terminalState },
     pendingPrompt: view.pendingPrompt ?? localPending,
-    submitting: view.submitting || Boolean(localPending),
+    submitting: view.submitting || Boolean(state.pendingIntent),
     stopping: view.stopping,
   };
 }

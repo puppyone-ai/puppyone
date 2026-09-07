@@ -75,8 +75,9 @@ export function createRuntimeResolutionCoordinator({
   }
 
   async function resolveForOperation({ runtimeId, workspaceRoot, operation, refresh = false }) {
+    validateRequestedRuntime(runtimeId, true);
     if (refresh) readinessStore.clear();
-    const catalog = await runtimeRegistry.discover({ refresh });
+    const catalog = await runtimeRegistry.discover({ refresh, runtimeId });
     const selected = selectRequestedRuntime(catalog, runtimeId, { required: true });
     const publicReadiness = publicRuntimeReadiness(selected);
     const protocolVerificationRequired = publicReadiness.status !== "ready"
@@ -163,14 +164,21 @@ export function createRuntimeResolutionCoordinator({
 }
 
 function selectRequestedRuntime(catalog, value, { required = false } = {}) {
+  validateRequestedRuntime(value, required);
   if (value === undefined || value === null) {
-    if (required) throw new Error("Choose an Agent before starting an Agent session.");
     return null;
   }
-  if (!/^[a-z][a-z0-9-]{1,39}$/.test(value)) throw new Error("Agent runtime selection is invalid.");
   const selected = catalog.find((entry) => entry.descriptor.id === value) ?? null;
   if (!selected && required) throw new Error(`Agent runtime ${value} is not registered.`);
   return selected;
+}
+
+function validateRequestedRuntime(value, required) {
+  if (value === undefined || value === null) {
+    if (required) throw new Error("Choose an Agent before starting an Agent session.");
+    return;
+  }
+  if (!/^[a-z][a-z0-9-]{1,39}$/.test(value)) throw new Error("Agent runtime selection is invalid.");
 }
 
 function allowsProtocolVerification(readiness) {
