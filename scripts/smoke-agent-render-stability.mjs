@@ -57,21 +57,27 @@ async function runSmoke() {
 }
 
 async function pollForResult(window) {
-  let lastWheelId = 0;
+  let lastInputId = 0;
   for (let attempt = 0; attempt < 600; attempt += 1) {
     if (renderProcessFailure) throw new Error(`Agent render smoke renderer exited: ${renderProcessFailure}`);
-    const { result, wheel } = await window.webContents.executeJavaScript(
-      "({ result: window.__PUPPYONE_AGENT_RENDER_STABILITY_SMOKE_RESULT__ || null, wheel: window.__PUPPYONE_AGENT_RENDER_WHEEL__ || null })",
+    const { result, input } = await window.webContents.executeJavaScript(
+      "({ result: window.__PUPPYONE_AGENT_RENDER_STABILITY_SMOKE_RESULT__ || null, input: window.__PUPPYONE_AGENT_RENDER_INPUT__ || null })",
       true,
     );
     if (result) return result;
-    if (wheel && Number.isInteger(wheel.id) && wheel.id > lastWheelId) {
-      lastWheelId = wheel.id;
+    if (input && Number.isInteger(input.id) && input.id > lastInputId) {
+      lastInputId = input.id;
       // Targets only this hidden test WebContents. It never moves the desktop
       // pointer or sends input to the user's running application.
-      window.webContents.sendInputEvent({ type: "mouseWheel", x: wheel.x, y: wheel.y,
-        deltaY: wheel.deltaY, deltaX: 0, hasPreciseScrollingDeltas: true });
-      await window.webContents.executeJavaScript(`window.__PUPPYONE_AGENT_RENDER_WHEEL_ACK__ = ${lastWheelId}`);
+      if (input.type === "wheel") {
+        window.webContents.sendInputEvent({ type: "mouseWheel", x: input.x, y: input.y,
+          deltaY: input.deltaY, deltaX: 0, hasPreciseScrollingDeltas: true });
+      } else if (input.type === "key" && input.keyCode === "PageUp") {
+        window.webContents.focus();
+        window.webContents.sendInputEvent({ type: "keyDown", keyCode: input.keyCode });
+        window.webContents.sendInputEvent({ type: "keyUp", keyCode: input.keyCode });
+      } else throw new Error("Unsupported renderer smoke input");
+      await window.webContents.executeJavaScript(`window.__PUPPYONE_AGENT_RENDER_INPUT_ACK__ = ${lastInputId}`);
     }
     await new Promise((resolve) => setTimeout(resolve, 50));
   }

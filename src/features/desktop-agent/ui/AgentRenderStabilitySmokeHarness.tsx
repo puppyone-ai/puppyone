@@ -130,6 +130,32 @@ async function runSmoke(update: (fixture: Fixture) => void, active: () => boolea
   let maxFeedbackDrift = 0;
   const cases: object[] = [];
   const html = document.documentElement;
+  update({ theme: "light", history: 0, width: 560, generation: ++generation, stage: "ready", draft: prompt });
+  await frames();
+  const inputView = EditorView.findFromDOM(document.querySelector<HTMLElement>(".cm-editor")!)!;
+  inputView.focus();
+  // Exercise the installed browser's public composition surface. This is an
+  // event-protocol fixture, not an operating-system IME driver.
+  const compositionTarget = (inputView.contentDOM as HTMLElement & { editContext?: EventTarget | null }).editContext
+    ?? inputView.contentDOM;
+  compositionTarget.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+  assert(inputView.compositionStarted && !inputView.composing, "Early IME composition was not established");
+  for (const shiftKey of [false, true]) {
+    const confirm = new KeyboardEvent("keydown", {
+      key: "Enter", code: "Enter", keyCode: 13, shiftKey, isComposing: true, bubbles: true, cancelable: true,
+    });
+    flushSync(() => inputView.contentDOM.dispatchEvent(confirm));
+    await frames();
+    assert(!user() && inputView.state.doc.toString() === prompt && !confirm.defaultPrevented,
+      "IME confirmation submitted, changed the draft or cancelled native composition");
+  }
+  compositionTarget.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true }));
+  flushSync(() => inputView.contentDOM.dispatchEvent(new KeyboardEvent("keydown", {
+    key: "Enter", code: "Enter", keyCode: 13, bubbles: true, cancelable: true,
+  })));
+  await frames();
+  assert(user()?.textContent === prompt && inputView.state.doc.length === 0,
+    "Enter after composition did not submit the preserved draft");
   for (const theme of ["light", "dark", "windows-xp"] as const) {
     html.dataset.interfaceStyle = theme === "windows-xp" ? "windows-xp" : "default";
     html.classList.toggle("dark", theme === "dark");
@@ -237,6 +263,20 @@ async function runSmoke(update: (fixture: Fixture) => void, active: () => boolea
   }
   assert(scroller.scrollTop !== bottom && scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop > 80,
     "Repeated small scrolls could not leave the bottom");
+  document.querySelector<HTMLButtonElement>(".desktop-agent-jump-latest")!.click();
+  await frames();
+  const keyboardStart = scroller.scrollTop;
+  scroller.focus({ preventScroll: true });
+  await nativeScrollInput({ type: "key", keyCode: "PageUp" });
+  assert(scroller.scrollTop < keyboardStart - 1 && document.querySelector(".desktop-agent-jump-latest"),
+    "Keyboard scrolling did not release following");
+  // Chromium animates PageUp. Its user-requested movement must finish before
+  // asserting that an unrelated update preserves the resulting reading point.
+  await scrollSettled(scroller);
+  const keyboardPosition = readingPosition(scroller);
+  update({ ...fixture, activity: true });
+  await frames();
+  assertReadingPosition(keyboardPosition, "Incoming activity after PageUp");
   scroller.scrollTop = scroller.scrollHeight * 0.45;
   scroller.dispatchEvent(new Event("scroll", { bubbles: true }));
   await frames();
@@ -245,6 +285,12 @@ async function runSmoke(update: (fixture: Fixture) => void, active: () => boolea
     .find(row => row.getBoundingClientRect().bottom > top + 2)!;
   const anchorId = anchor.dataset.rowId!;
   const anchorY = anchor.getBoundingClientRect().top;
+  update({ ...fixture, draft: "Reading history while editing a multiline draft.\n".repeat(12) });
+  await frames();
+  assertReadingPosition({ id: anchorId, y: anchorY }, "Composer growth while reading");
+  update(fixture);
+  await frames();
+  assertReadingPosition({ id: anchorId, y: anchorY }, "Composer shrink while reading");
   update({ ...fixture, width: 420 });
   await frames();
   const afterWidth = document.querySelector<HTMLElement>(`[data-row-id="${anchorId}"]`)!;
@@ -279,7 +325,8 @@ async function runSmoke(update: (fixture: Fixture) => void, active: () => boolea
   const pinned = document.querySelector<HTMLElement>(".desktop-agent-transcript")!;
   assert(Math.abs(pinned.scrollHeight - pinned.clientHeight - pinned.scrollTop) <= 1, "Composer growth lost bottom pinning");
   return { cases, samples, maxDrift, sendSamples, maxSendDrift, feedbackSamples, maxFeedbackDrift,
-    nativeWheel: true, smallScrolls: true, readingAnchor: anchorId, composerPinning: true, semanticColor: afterColor };
+    nativeWheel: true, keyboardScrolling: true, smallScrolls: true, readingAnchor: anchorId,
+    composerReadingAnchor: true, composerPinning: true, semanticColor: afterColor };
 }
 
 function readingPosition(scroller: HTMLElement) {
@@ -289,23 +336,40 @@ function readingPosition(scroller: HTMLElement) {
   return { id: row.dataset.rowId, y: row.getBoundingClientRect().y };
 }
 
+async function scrollSettled(scroller: HTMLElement) {
+  let previous = scroller.scrollTop;
+  let stableFrames = 0;
+  for (let i = 0; i < 120; i++) {
+    await frame();
+    const top = scroller.scrollTop;
+    stableFrames = Math.abs(top - previous) < 0.5 ? stableFrames + 1 : 0;
+    if (stableFrames >= 4) return;
+    previous = top;
+  }
+  throw new Error("Native scroll did not settle");
+}
+
 function assertReadingPosition(position: ReturnType<typeof readingPosition>, phase: string) {
   const row = document.querySelector<HTMLElement>(`[data-row-id="${position.id}"]`);
   assert(row && Math.abs(row.getBoundingClientRect().y - position.y) <= 1,
     `${phase} moved reading anchor ${position.id}: ${position.y} -> ${row?.getBoundingClientRect().y}`);
 }
 
+type ScrollInput = { type: "wheel"; x: number; y: number; deltaY: number } | { type: "key"; keyCode: "PageUp" };
 type SmokeInputWindow = Window & {
-  __PUPPYONE_AGENT_RENDER_WHEEL__?: { id: number; x: number; y: number; deltaY: number };
-  __PUPPYONE_AGENT_RENDER_WHEEL_ACK__?: number;
+  __PUPPYONE_AGENT_RENDER_INPUT__?: ScrollInput & { id: number };
+  __PUPPYONE_AGENT_RENDER_INPUT_ACK__?: number;
 };
-let wheelSequence = 0;
+let inputSequence = 0;
 async function nativeWheel(x: number, y: number, deltaY: number) {
+  await nativeScrollInput({ type: "wheel", x, y, deltaY });
+}
+async function nativeScrollInput(input: ScrollInput) {
   const scope = window as SmokeInputWindow;
-  const id = ++wheelSequence;
-  scope.__PUPPYONE_AGENT_RENDER_WHEEL__ = { id, x, y, deltaY };
-  for (let i = 0; i < 180 && scope.__PUPPYONE_AGENT_RENDER_WHEEL_ACK__ !== id; i++) await frame();
-  assert(scope.__PUPPYONE_AGENT_RENDER_WHEEL_ACK__ === id, "Isolated Electron wheel driver did not acknowledge input");
+  const id = ++inputSequence;
+  scope.__PUPPYONE_AGENT_RENDER_INPUT__ = { ...input, id };
+  for (let i = 0; i < 180 && scope.__PUPPYONE_AGENT_RENDER_INPUT_ACK__ !== id; i++) await frame();
+  assert(scope.__PUPPYONE_AGENT_RENDER_INPUT_ACK__ === id, "Isolated Electron input driver did not acknowledge input");
   await frames(10);
 }
 

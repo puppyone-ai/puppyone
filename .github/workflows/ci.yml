@@ -94,6 +94,29 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Test Agent submission and viewport in Electron
+        timeout-minutes: 2
+        env:
+          ELECTRON_DISABLE_SANDBOX: "1"
+          PUPPYONE_AGENT_RENDER_ARTIFACT_DIR: artifacts/agent-renderer/viewport
+        run: xvfb-run --auto-servernum node scripts/run-agent-render-stability-smoke.mjs
+
+      - name: Test Agent tool rendering and failure isolation in Electron
+        timeout-minutes: 2
+        env:
+          ELECTRON_DISABLE_SANDBOX: "1"
+          PUPPYONE_AGENT_TOOL_ARTIFACT_DIR: artifacts/agent-renderer/tools
+        run: xvfb-run --auto-servernum node scripts/run-agent-tool-stability-smoke.mjs
+
+      - name: Retain Agent renderer verification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: agent-renderer-verification
+          path: artifacts/agent-renderer
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Test Terminal P0 lifecycle and split identity in Electron
         env:
           ELECTRON_DISABLE_SANDBOX: "1"
