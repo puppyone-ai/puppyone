@@ -65,7 +65,7 @@ describe("Agent capability negotiation", () => {
   });
 
   it("represents Pi resume hydration without pretending it can discover sessions", () => {
-    const adapter = Object.create(PiRpcAdapter.prototype);
+    const adapter = Object.assign(Object.create(PiRpcAdapter.prototype), { historySource: { sourceScopeId: "default" } });
     expect(() => assertAgentSessionHistoryCapabilities(adapter, PI_CAPABILITIES, "pi")).not.toThrow();
     expect(PI_CAPABILITIES.history).toEqual({
       discovery: "unsupported",
@@ -94,7 +94,7 @@ describe("Agent capability negotiation", () => {
       protocol: { name: "acp", version: 1 },
     }],
   ])("keeps the %s adapter and advertised operations conformant", (runtimeId, Adapter, capabilities) => {
-    const adapter = Object.create(Adapter.prototype);
+    const adapter = Object.assign(Object.create(Adapter.prototype), { historySource: { sourceScopeId: "default" }, sourceScopeId: "default" });
     expect(() => assertAgentRuntimePort(adapter, runtimeId)).not.toThrow();
     const normalized = assertAgentRuntimeCapabilities(adapter, capabilities, runtimeId);
     expect(() => assertAgentSessionHistoryCapabilities(adapter, normalized, runtimeId)).not.toThrow();

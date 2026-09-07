@@ -227,6 +227,8 @@ export type AgentCommand = {
 };
 
 export type AgentSessionMetadata = {
+  historyCoverage?: "complete" | "partial" | "unknown";
+  sourceScopeId?: string;
   id: string;
   runtimeId?: AgentRuntimeId;
   runtime?: AgentRuntimeDescriptor | null;
@@ -255,6 +257,9 @@ export type AgentSessionListItem = Omit<AgentSessionMetadata, "activeTurnId"> & 
 export type AgentSessionDiscoveryStatus = "not-requested" | "unsupported" | "partial" | "complete" | "failed";
 
 export type AgentSessionsListResponse = {
+  catalogNextCursor?: string | null;
+  excludedSessionIds?: string[];
+  sessionListKind?: "page";
   catalogCoverage?: { truncated: boolean; capacity: number; retained: number };
   sessions: AgentSessionListItem[];
   discovery: {
@@ -708,6 +713,7 @@ export type AgentSessionOpenRequest = {
 
 export type AgentSessionOpenErrorCode =
   | "SESSION_NOT_FOUND"
+  | "SOURCE_CHANGED"
   | "AUTH_REQUIRED"
   | "AUTH_EXPIRED"
   | "RUNTIME_UNAVAILABLE"
@@ -733,6 +739,7 @@ export type AgentSessionsListRequest = {
   includeArchived?: boolean;
   /** Explicit user-requested native metadata discovery; false never starts a harness. */
   discoverNative?: boolean;
+  catalogCursor?: string;
   cursor?: string | null;
   /** Opaque product scan identity returned with a partial discovery page. */
   scanId?: string | null;

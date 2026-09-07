@@ -252,7 +252,8 @@ describe("Desktop Agent architecture boundaries", () => {
     expect(registry).toContain("await controller.rollbackPreparation()");
     expect(historyPort).toContain("assertAgentSessionHistoryCapabilities");
     expect(indexer).toContain("resolveAgentSessionHistoryPort(adapter)");
-    expect(lifecycle).toContain("resolveAgentSessionHistoryPort(session.adapter)");
+    expect(lifecycle).toContain("hydrateAgentSession(session, emit)");
+    expect(source("electron/main/agent/application/session/agent-history-hydration.mjs")).toContain("resolveAgentSessionHistoryPort(session.adapter)");
     expect(lifecycle).not.toMatch(/adapter\.readHistory/);
   });
 

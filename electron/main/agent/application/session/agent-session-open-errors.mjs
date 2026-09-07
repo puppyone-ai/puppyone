@@ -8,6 +8,7 @@ export function sessionOpenFailure(code, message, retryable) {
 export function classifySessionOpenFailure(error) {
   const message = redactSecretText(error instanceof Error ? error.message : String(error)).slice(0, 1_000);
   const code = typeof error?.code === "string" ? error.code : "";
+  if (code === "HISTORY_SOURCE_CHANGED") return sessionOpenFailure("SOURCE_CHANGED", "The Agent history source changed. Restore the original profile or refresh History.", false);
   if (code === "AUTHENTICATION_EXPIRED" || /auth(?:entication)?.{0,24}expired|login.{0,24}expired/iu.test(message)) {
     return sessionOpenFailure("AUTH_EXPIRED", "The Agent login has expired. Reconnect the Agent and try again.", true);
   }

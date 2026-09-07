@@ -2,6 +2,22 @@ import { describe, expect, it, vi } from "vitest";
 import { ConversationHistoryController } from "../src/features/desktop-agent/application/ConversationHistoryController";
 
 describe("ConversationHistoryController", () => {
+  it("loads catalog pages beyond the initial window without invoking a live Session", async () => {
+    const listAgentSessions = vi.fn().mockResolvedValueOnce({ ...catalog([savedSession("first")]), sessionListKind: "page", catalogNextCursor: "catalog-page-2" })
+      .mockResolvedValueOnce({ ...catalog([savedSession("older")]), sessionListKind: "page", catalogNextCursor: null, excludedSessionIds: ["first"] });
+    const client = historyClient({ listAgentSessions });
+    const controller = new ConversationHistoryController("/workspace", () => client as never);
+    controller.activate();
+    await vi.waitFor(() => expect(controller.getSnapshot().loaded).toBe(true));
+    expect(controller.getSnapshot().catalogNextCursor).toBe("catalog-page-2");
+    await controller.loadMore();
+    expect(listAgentSessions.mock.calls[1][0]).toMatchObject({ catalogCursor: "catalog-page-2", discoverNative: false });
+    expect(controller.getSnapshot().sessions.map((entry) => entry.id)).toEqual(["older"]);
+    expect(controller.getSnapshot().catalogNextCursor).toBeNull();
+    expect(client.openAgentSession).not.toHaveBeenCalled();
+    controller.deactivate();
+  });
+
   it("makes an earlier workspace generation inert after deactivation", async () => {
     const firstCatalog = deferred<ReturnType<typeof catalog>>();
     const listAgentSessions = vi.fn()

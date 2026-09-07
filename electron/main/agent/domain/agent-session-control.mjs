@@ -131,6 +131,8 @@ function applyInput(state, input) {
     case "command.cancelled":
     case "command.outcome-unknown":
       return transitionCommand(state, input);
+    case "history.loaded":
+      return true;
     case "control.hydrated":
       return hydrateControl(state, input.control);
     case "recovery.unconfirmed":

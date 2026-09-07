@@ -1,3 +1,5 @@
+import { createNativePersistenceReporter } from "../../runtime/native-persistence-reporter.mjs";
+import { agentHistoryReadResult } from "../../runtime/agent-history-read-result.mjs";
 import { nativeSessionId } from "../../../../../shared/agent-contract/native-session-id.mjs";
 import { discoverAcpHistory } from "./acp-history-discovery.mjs";
 import { isUnavailableAcpSessionError, publicModels, publicProviders, publicModes, event, array, record, text } from "./acp-native-values.mjs";
@@ -109,19 +111,22 @@ export class AcpRuntimeAdapter {
 
   getSessionHistoryPort() {
     return Object.freeze({
+      sourceScopeId: this.sourceScopeId,
       discover: (request) => this.discoverSessions(request),
-      hydrate: () => this.readHistory(),
+      hydrate: () => this.readHistoryResult(),
     });
   }
 
   constructor({
     readiness,
+    sourceScopeId = "default",
     workspaceRoot,
     runtimeDescriptor,
     managed = false,
     appVersion = "0.0.0",
     onEvent = () => {},
     onExit = () => {},
+    onSessionPersisted = () => {},
     logger = console,
     connectionFactory = (options) => new JsonlRpcConnection(options),
     fileSystemFactory = createAcpWorkspaceFileSystem,
@@ -139,12 +144,23 @@ export class AcpRuntimeAdapter {
   }) {
     if (!runtimeDescriptor?.id) throw new TypeError("ACP runtime adapter requires a runtime descriptor.");
     this.readiness = readiness ?? {};
+    this.sourceScopeId = sourceScopeId;
     this.workspaceRoot = path.resolve(workspaceRoot);
     this.runtimeDescriptor = runtimeDescriptor;
     this.managed = managed;
     this.appVersion = appVersion;
     this.onEvent = onEvent;
     this.onExit = onExit;
+    this.persistenceReporter = createNativePersistenceReporter({
+      isClosed: () => this.disposed,
+      verify: async () => {
+        const id = this.sessionId;
+        const page = await discoverAcpHistory({ client: this.client, workspaceRoot: this.workspaceRoot, fallbackTitle: this.sessionTitles.created });
+        return page.supported && page.sessions.some((entry) => entry.providerSessionId === id)
+          ? { providerSessionId: id, sourceScopeId: this.sourceScopeId } : null;
+      },
+      report: onSessionPersisted,
+    });
     this.logger = logger;
     this.connectionFactory = connectionFactory;
     this.fileSystemFactory = fileSystemFactory;
@@ -165,6 +181,7 @@ export class AcpRuntimeAdapter {
     this.eventSource = eventSource;
     this.onDispose = onDispose;
     this.connection = null;
+    this.closingConnections = new Set();
     this.client = null;
     this.connectionMode = null;
     this.sessionId = null;
@@ -250,6 +267,7 @@ export class AcpRuntimeAdapter {
         this.#syncSession(response);
         await delay(METADATA_SETTLE_MS);
       } finally {
+        this.historyCoverage = this.historyCollector?.truncated ? "partial" : "unknown";
         this.historicalEvents = this.historyCollector?.events(
           nativeSessionId(response?.sessionId) ?? nativeSessionId(threadId),
         ) ?? [];
@@ -302,6 +320,10 @@ export class AcpRuntimeAdapter {
     // PuppyOne deliberately does not persist this replay or create a second
     // transcript authority; it is only the initial projection for this process.
     return this.historicalEvents.slice();
+  }
+
+  async readHistoryResult() {
+    return agentHistoryReadResult({ providerSessionId: this.sessionId, events: await this.readHistory(), coverage: this.historyCoverage ?? "unknown" });
   }
 
   async forkSession({ messageId = null } = {}) {
@@ -367,7 +389,11 @@ export class AcpRuntimeAdapter {
   }
 
   async dispose(reason = `${this.runtimeDescriptor.displayName} ACP adapter closed.`) {
-    if (this.disposed) return;
+    if (this.disposed) {
+      await Promise.all([...this.closingConnections].map((connection) => connection.waitForExit?.()));
+      this.closingConnections.clear();
+      return;
+    }
     this.disposed = true;
     acpResolvePending(this, reason);
     await this.#disconnect(reason);
@@ -382,6 +408,7 @@ export class AcpRuntimeAdapter {
       });
       if (this.activeTurn !== active || this.disposed) return;
       for (const event of active.normalizer.completeAssistant(this.sessionId)) this.onEvent(event);
+      void this.persistenceReporter.confirm();
       const usage = normalizeAcpPromptUsage(response?.usage);
       if (usage) this.onEvent(event("usage.updated", this.sessionId, active.turnId, null, usage));
       this.onEvent(event(active.interrupted ? "turn.interrupted" : "turn.completed", this.sessionId, active.turnId, null, {
@@ -390,6 +417,10 @@ export class AcpRuntimeAdapter {
       }));
     } catch (error) {
       if (this.activeTurn !== active || this.disposed) return;
+      if (error?.deliveryOutcome === "unknown") {
+        this.onExit({ expected: false, error: redactSecretText(error.message || String(error)) });
+        return;
+      }
       const interrupted = active.interrupted;
       if (!interrupted) {
         this.onEvent(event("provider.error", this.sessionId, active.turnId, null, {
@@ -469,8 +500,10 @@ export class AcpRuntimeAdapter {
     this.connection = null;
     this.connectionMode = null;
     client?.dispose();
+    if (connection) this.closingConnections.add(connection);
     connection?.dispose?.(reason, { expected });
-    await Promise.resolve();
+    await connection?.waitForExit?.();
+    this.closingConnections.delete(connection);
   }
 
   #environment(mode) {
@@ -511,7 +544,7 @@ export class AcpRuntimeAdapter {
       history: {
         discovery: canDiscoverHistory ? "paged" : "unsupported",
         exactOpen: canOpenHistory ? "supported" : "unsupported",
-        hydration: canOpenHistory ? "push-replay" : "unsupported",
+        hydration: native.loadSession === true ? "push-replay" : "unsupported",
       },
       recovery: {
         strategy: canOpenHistory ? "snapshot-reload" : "unsupported",

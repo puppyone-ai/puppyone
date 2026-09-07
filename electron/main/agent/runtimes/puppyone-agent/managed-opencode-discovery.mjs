@@ -5,7 +5,7 @@ import crypto from "node:crypto";
 import { spawn as nodeSpawn } from "node:child_process";
 import { redactSecretText } from "../../agent-events.mjs";
 import { createCachedRuntimeDiscovery } from "../../connections/runtime-discovery-cache.mjs";
-import { compareVersions, discoverExecutable, runBounded } from "../../runtime/executable-discovery.mjs";
+import { compareVersions, discoverExecutable, runBounded } from "../../transports/executable-discovery.mjs";
 import { PUPPYONE_AGENT_RUNTIME_ID } from "./puppyone-agent-identity.mjs";
 import { OPENCODE_RELEASE_ARTIFACTS, OPENCODE_UPSTREAM } from "../opencode-protocol/opencode-manifest.mjs";
 import { OPEN_CODE_LOCKED_ENVIRONMENT } from "../opencode-protocol/opencode-security-policy.mjs";
@@ -14,12 +14,13 @@ import { parseOpenCodeVersion } from "../opencode-protocol/opencode-version.mjs"
 export function createOpenCodeDiscovery(options = {}) {
   const { cache: cacheOptions, ...discoveryOptions } = options;
   return createCachedRuntimeDiscovery(
-    () => discoverOpenCodeExecutable(discoveryOptions),
+    ({ signal }) => discoverOpenCodeExecutable({ ...discoveryOptions, signal }),
     cacheOptions,
   );
 }
 
 export async function discoverOpenCodeExecutable({
+  signal,
   fsModule = fs,
   spawn = nodeSpawn,
   env = process.env,
@@ -47,6 +48,7 @@ export async function discoverOpenCodeExecutable({
     ? path.resolve(env.PUPPYONE_OPENCODE_BIN.trim())
     : null;
   const result = await discoverExecutable({
+      signal,
     executableNames: allowExternal ? [executableName] : [],
     additionalCandidates: [
       explicitCandidate,

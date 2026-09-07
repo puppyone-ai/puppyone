@@ -11,7 +11,7 @@ import {
   sessionMetadata,
   sessionSnapshot,
 } from "../../domain/agent-session-model.mjs";
-import { resolveAgentSessionHistoryPort } from "../../runtime/agent-session-history-port.mjs";
+import { hydrateAgentSession } from "./agent-history-hydration.mjs";
 
 /** Owns explicit session management commands. */
 export function createAgentSessionCommands({
@@ -46,6 +46,7 @@ export function createAgentSessionCommands({
       mode: source.selectedMode,
       title: `${source.title} (fork)`,
     });
+    session.sourceScopeId = source.sourceScopeId;
     sessionStore.add(session);
     try {
       session.adapter = runtimeSession.createAdapterForSession(session, selected.readiness);
@@ -62,11 +63,8 @@ export function createAgentSessionCommands({
         descriptor: selected.descriptor,
         inspection,
       });
-      const history = resolveAgentSessionHistoryPort(session.adapter);
-      const historicalEvents = typeof history?.hydrate === "function"
-        ? await history.hydrate()
-        : [];
-      for (const historicalEvent of historicalEvents) emit(session, historicalEvent);
+      await hydrateAgentSession(session, emit);
+      runtimeSession.finishNativeSession(session);
       emit(session, {
         type: "session.resumed",
         providerSessionId: session.providerSessionId,

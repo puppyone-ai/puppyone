@@ -56,6 +56,7 @@ export function createAgentEventJournal({ sessionCache, logger = console }) {
       runtimeId: session.runtimeId,
       runtime: session.runtime,
       providerSessionId: session.providerSessionId,
+      sourceScopeId: session.sourceScopeId ?? "default",
       title: session.title,
       createdAt: session.createdAt,
       updatedAt: session.updatedAt,
@@ -68,21 +69,14 @@ export function createAgentEventJournal({ sessionCache, logger = console }) {
       events: session.events,
     };
     return Promise.resolve(sessionCache.save(record, {
-      // Allocation is process-local. A real turn or native resume is the
-      // durable-history checkpoint that promotes this locator to the catalog.
-      promoteCatalog: hasDurableConversationEvidence(session.events),
+      // Only adapter/native-store evidence can make a locator reopenable.
+      promoteCatalog: session.nativePersistenceConfirmed === true,
     })).catch((error) => {
       logger.warn?.("Unable to update the Agent conversation metadata catalog:", redactSecretText(error?.message || String(error)));
     });
   }
 
   return { emit, persistNow, persistSoon };
-}
-
-function hasDurableConversationEvidence(events) {
-  return Array.isArray(events) && events.some((event) => (
-    event?.type === "turn.started" || event?.type === "session.resumed"
-  ));
 }
 
 export const agentEventJournalLimits = Object.freeze({

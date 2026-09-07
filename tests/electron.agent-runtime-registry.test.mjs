@@ -134,6 +134,8 @@ describe("Agent runtime registry", () => {
     expect(registry.createAdapter("direct", { workspaceRoot: "/workspace" })).toBe(adapter);
     expect(registry.descriptors().map((entry) => entry.id)).toEqual(["offline", "harness", "direct"]);
     expect(registry.manifests().map((entry) => entry.id)).toEqual(["offline", "harness", "direct"]);
+    expect(registry.hasActiveResources()).toBe(true);
+    await registry.dispose();
     expect(registry.hasActiveResources()).toBe(false);
   });
 

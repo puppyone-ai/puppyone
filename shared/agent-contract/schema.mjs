@@ -108,6 +108,7 @@ export function parseAgentIpcRequest(channel, value) {
         runtimeId: optionalRuntimeId(input.runtimeId),
         includeArchived: optionalBoolean(input.includeArchived, "includeArchived"),
         discoverNative: optionalBoolean(input.discoverNative, "discoverNative"),
+        catalogCursor: historyCursor(input.catalogCursor) ?? undefined,
         cursor: historyCursor(input.cursor) ?? undefined,
         scanId: optionalOpaqueId(input.scanId, "scanId"),
         limit: optionalPageSize(input.limit, "limit"),
@@ -506,8 +507,11 @@ function sanitizeAgentSessionsListResponse(value) {
       capacity: nonNegativeInteger(response.catalogCoverage.capacity, "catalog.capacity"),
       retained: nonNegativeInteger(response.catalogCoverage.retained, "catalog.retained"),
     } } : {}),
+    ...(response.excludedSessionIds === undefined ? {} : { excludedSessionIds: assertArray(response.excludedSessionIds, "session list.excludedSessionIds").slice(0, 500).map((id) => requiredOpaqueId(id, "excluded session id")) }),
+    ...(response.catalogNextCursor === undefined ? {} : { catalogNextCursor: historyCursor(response.catalogNextCursor) }),
+    ...(response.sessionListKind === undefined ? {} : { sessionListKind: enumValue(response.sessionListKind, "sessionListKind", ["page"]) }),
     sessions: assertArray(response.sessions, "session list.sessions")
-      .slice(0, 500)
+      .slice(0, 1000)
       .map((session, index) => sanitizeAgentSessionListItem(session, `session list.sessions[${index}]`)),
     discovery: {
       runtimeId: optionalRuntimeId(discovery.runtimeId) ?? null,

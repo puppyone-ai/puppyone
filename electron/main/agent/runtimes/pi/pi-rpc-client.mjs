@@ -1,3 +1,4 @@
+import { createJsonlFramer, writeJsonlFrame } from "../../transports/jsonl-stream.mjs";
 import { EventEmitter } from "node:events";
 import { spawn as nodeSpawn } from "node:child_process";
 import path from "node:path";
@@ -5,6 +6,7 @@ import { redactSecretText } from "../../agent-events.mjs";
 import {
   createManagedAgentProcess,
   terminateManagedAgentProcess,
+  waitForManagedAgentExit,
 } from "../../transports/managed-agent-process.mjs";
 
 export const PI_RPC_MAX_LINE_BYTES = 8 * 1024 * 1024;
@@ -63,7 +65,12 @@ export class PiRpcClient extends EventEmitter {
     this.nextRequestId = 1;
     this.pending = new Map();
     this.seenResponseIds = new Set();
-    this.stdoutBuffer = "";
+    this.receiveStdout = createJsonlFramer({
+      maxLineBytes,
+      onLine: (line) => this.#receiveLine(line),
+      onFailure: () => this.#protocolFailure("Pi RPC emitted a line larger than the safety limit."),
+      isClosed: () => this.closed,
+    });
     this.stderrBuffer = "";
     this.closed = false;
     this.exitInfo = null;
@@ -82,15 +89,19 @@ export class PiRpcClient extends EventEmitter {
       },
     });
     this.child = this.processHandle.child;
+    this.child.stdin?.on?.("error", (error) => {
+      if (!this.closed) this.dispose(redactSecretText(error?.message || "Native RPC stdin failed."), { expected: false });
+    });
     this.child.stdout?.setEncoding?.("utf8");
     this.child.stderr?.setEncoding?.("utf8");
-    this.child.stdout?.on("data", (chunk) => this.#receiveStdout(chunk));
+    this.child.stdout?.on("data", (chunk) => this.receiveStdout(chunk));
     this.child.stderr?.on("data", (chunk) => this.#receiveStderr(chunk));
     this.child.once("error", (error) => this.#handleExit(null, null, error));
     this.child.once("close", (code, signal) => this.#handleExit(code, signal, null));
   }
 
-  request(type, payload = {}, { timeoutMs = 20_000 } = {}) {
+  request(type, payload = {}, { timeoutMs = 20_000, signal } = {}) {
+    if (signal?.aborted) return Promise.reject(signal.reason ?? new Error("Native RPC request aborted before dispatch."));
     if (this.closed) return Promise.reject(new Error("Pi RPC is not connected."));
     if (this.pending.size >= this.maxPending) return Promise.reject(new Error("Too many pending Pi RPC requests."));
     if (typeof type !== "string" || !/^[a-z][a-z0-9_]{0,79}$/u.test(type)) {
@@ -100,6 +111,7 @@ export class PiRpcClient extends EventEmitter {
     return new Promise((resolve, reject) => {
       const timer = timeoutMs > 0
         ? setTimeout(() => {
+          this.pending.get(id)?.cleanup();
           this.pending.delete(id);
           const error = new PiRpcRequestTimeoutError(type);
           reject(error);
@@ -109,11 +121,14 @@ export class PiRpcClient extends EventEmitter {
         }, timeoutMs)
         : null;
       timer?.unref?.();
-      this.pending.set(id, { type, resolve, reject, timer });
+      const onAbort = () => this.dispose("Native RPC request aborted after dispatch.", { expected: false });
+      signal?.addEventListener("abort", onAbort, { once: true });
+      const cleanup = () => { if (timer) clearTimeout(timer); signal?.removeEventListener("abort", onAbort); };
+      this.pending.set(id, { type, resolve, reject, timer, cleanup });
       try {
         this.#write({ id, type, ...boundedPayload(payload) });
       } catch (error) {
-        if (timer) clearTimeout(timer);
+        cleanup();
         this.pending.delete(id);
         reject(error);
       }
@@ -126,6 +141,8 @@ export class PiRpcClient extends EventEmitter {
     }
     this.#write(message);
   }
+
+  waitForExit(options) { return waitForManagedAgentExit(this, options); }
 
   getDiagnostics() {
     return redactSecretText(this.stderrBuffer.slice(-this.maxStderrBytes));
@@ -159,32 +176,17 @@ export class PiRpcClient extends EventEmitter {
       throw new Error("Pi RPC request exceeded the safety limit.");
     }
     try {
-      this.child.stdin.write(line, "utf8");
+      writeJsonlFrame(this.child.stdin, line, {
+        maxBufferedBytes: this.maxLineBytes * 4,
+        onError: (error) => {
+          if (!this.closed) this.dispose(redactSecretText(error?.message || "Native RPC write failed."), { expected: false });
+        },
+      });
     } catch (error) {
       throw new PiRpcDeliveryUnknownError(
         typeof message?.type === "string" ? message.type : "response",
         error?.message || "Pi RPC write outcome is unknown.",
       );
-    }
-  }
-
-  #receiveStdout(chunk) {
-    if (this.closed) return;
-    this.stdoutBuffer += String(chunk);
-    if (Buffer.byteLength(this.stdoutBuffer, "utf8") > this.maxLineBytes && !this.stdoutBuffer.includes("\n")) {
-      this.#protocolFailure("Pi RPC emitted a line larger than the safety limit.");
-      return;
-    }
-    let newlineIndex = this.stdoutBuffer.indexOf("\n");
-    while (newlineIndex >= 0 && !this.closed) {
-      const line = this.stdoutBuffer.slice(0, newlineIndex).replace(/\r$/u, "");
-      this.stdoutBuffer = this.stdoutBuffer.slice(newlineIndex + 1);
-      if (Buffer.byteLength(line, "utf8") > this.maxLineBytes) {
-        this.#protocolFailure("Pi RPC emitted a line larger than the safety limit.");
-        return;
-      }
-      if (line.trim()) this.#receiveLine(line);
-      newlineIndex = this.stdoutBuffer.indexOf("\n");
     }
   }
 
@@ -219,7 +221,7 @@ export class PiRpcClient extends EventEmitter {
       return;
     }
     this.pending.delete(id);
-    if (pending.timer) clearTimeout(pending.timer);
+    pending.cleanup();
     this.seenResponseIds.add(id);
     if (this.seenResponseIds.size > 512) this.seenResponseIds.delete(this.seenResponseIds.values().next().value);
     if (message.command !== pending.type) {
@@ -268,7 +270,7 @@ export class PiRpcClient extends EventEmitter {
 
   #rejectPending(error) {
     for (const pending of this.pending.values()) {
-      if (pending.timer) clearTimeout(pending.timer);
+      pending.cleanup();
       pending.reject(error?.deliveryOutcome === "unknown"
         ? error
         : new PiRpcDeliveryUnknownError(pending.type, error?.message || String(error)));

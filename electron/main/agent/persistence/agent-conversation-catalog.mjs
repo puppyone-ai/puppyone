@@ -1,9 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { historyNativeId } from "../../../../shared/agent-contract/history-schema.mjs";
 
-const CATALOG_VERSION = 1;
+const CATALOG_VERSION = 2;
 const MAX_RECORDS = 500;
 
 /** Durable metadata-only index. Native harnesses alone own the transcript. */
@@ -23,13 +23,16 @@ export function createAgentConversationCatalog({ filePath, logger = console, max
     if (!loadPromise) loadPromise = (async () => {
       try {
         const parsed = JSON.parse(await fs.promises.readFile(filePath, "utf8"));
-        if (parsed?.version !== CATALOG_VERSION || !Array.isArray(parsed.records)) {
+        if (![1, CATALOG_VERSION].includes(parsed?.version) || !Array.isArray(parsed.records)) {
           throw new Error("Agent conversation catalog has an unsupported format.");
         }
         const normalized = parsed.records.map(normalizeRecord);
         if (normalized.some((record) => !record)) throw new Error("Agent conversation catalog contains invalid metadata.");
-        truncated = parsed.truncated === true || normalized.length > capacity;
-        records = normalized.slice(0, capacity);
+        const nativeIds = new Set(normalized.map(nativeKey));
+        const productIds = new Set(normalized.map((entry) => entry.sessionId));
+        if (nativeIds.size !== normalized.length || productIds.size !== normalized.length) throw new Error("Agent conversation catalog contains conflicting identities.");
+        truncated = parsed.truncated === true;
+        records = normalized.sort(compareRecords);
       } catch (error) {
         if (error?.code === "ENOENT") return;
         logger.warn?.("Agent conversation catalog could not be read; preserving the existing file.");
@@ -62,12 +65,13 @@ export function createAgentConversationCatalog({ filePath, logger = console, max
       const draft = records.map(clone);
       const outcome = operation(draft);
       if (outcome.unchanged) return outcome.value;
-      const next = draft.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, capacity);
-      const nextTruncated = truncated || draft.length > capacity;
+      const next = draft.sort(compareRecords);
+      const nextTruncated = truncated;
       await persist(next, nextTruncated, guard);
       revision += 1;
+      const previousById = new Map(records.map((entry) => [entry.sessionId, entry]));
       for (const record of next) {
-        const previous = records.find((entry) => entry.sessionId === record.sessionId);
+        const previous = previousById.get(record.sessionId);
         if (outcome.touched?.includes(record.sessionId) || JSON.stringify(previous) !== JSON.stringify(record)) {
           changedAt.set(record.sessionId, revision);
         }
@@ -97,6 +101,7 @@ export function createAgentConversationCatalog({ filePath, logger = console, max
       throw new Error("Native conversation identity already has a product session id.");
     }
     const index = draft.findIndex((entry) => entry.sessionId === normalized.sessionId);
+    if (index >= 0 && nativeKey(draft[index]) !== identity) throw new Error("Product session id cannot be rebound to a different native conversation.");
     if (index >= 0) draft.splice(index, 1);
     draft.push(normalized);
     return clone(normalized);
@@ -144,6 +149,17 @@ export function createAgentConversationCatalog({ filePath, logger = console, max
   }
 
   const catalog = {
+    // Reserve identity before a live Session becomes visible; reservation is not persistence proof.
+    bindNative(record) {
+      return mutate((draft) => {
+        const candidate = normalizeRecord(record);
+        if (!candidate) throw new TypeError("Agent conversation identity is invalid.");
+        const existing = draft.find((entry) => nativeKey(entry) === nativeKey(candidate));
+        if (existing) return { unchanged: true, value: clone(existing) };
+        const saved = put(draft, { ...record, availability: "unverified" });
+        return { value: saved, touched: [saved.sessionId] };
+      });
+    },
     save(record) {
       return mutate((draft) => {
         const existing = draft.find((entry) => entry.sessionId === safeId(record?.sessionId));
@@ -165,7 +181,7 @@ export function createAgentConversationCatalog({ filePath, logger = console, max
         const saved = entries.map((record) => upsert(draft, record));
         const result = reconcileMissing ? reconcile(draft, scope) : { unavailableSessionIds: [] };
         return { touched: saved.map((record) => record.sessionId), value: { indexed: saved.length, unavailableSessionIds: result.unavailableSessionIds,
-          truncated: truncated || draft.length > capacity } };
+          sessions: saved, truncated } };
       }, guard);
     },
     reconcileNative: (scope) => mutate((draft) => {
@@ -190,6 +206,31 @@ export function createAgentConversationCatalog({ filePath, logger = console, max
       && (includeArchived || !entry.archivedAt) && (includeUnavailable || entry.availability !== "unavailable")
       && (includeUnverified || entry.availability !== "unverified")
     )).map(clone)),
+    listPage: (workspaceRoot, options = {}) => read(() => {
+      const { runtimeId = null, includeArchived = false, cursor = null } = options;
+      const scope = [absolutePath(workspaceRoot), runtimeId, Boolean(includeArchived)];
+      const scopeId = createHash("sha256").update(JSON.stringify(scope)).digest("hex");
+      let after = null;
+      if (cursor) {
+        let decoded;
+        try { decoded = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8")); } catch { throw new TypeError("History catalog cursor is invalid."); }
+        if (decoded.scope !== scopeId || !isoDate(decoded.updatedAt) || !safeId(decoded.sessionId)) {
+          throw new TypeError("History catalog cursor does not match this query.");
+        }
+        after = decoded;
+      }
+      const eligible = records.filter((entry) => entry.workspaceRoot === scope[0]
+        && (!runtimeId || entry.runtimeId === runtimeId)
+        && entry.availability !== "unverified" && (!after || compareRecords(entry, after) > 0));
+      // Explicit removals share the page budget; absence from a page proves nothing.
+      const page = eligible.slice(0, capacity);
+      const visible = (entry) => entry.availability === "available" && (includeArchived || !entry.archivedAt);
+      const sessions = page.filter(visible).map(clone);
+      const last = page.at(-1);
+      const excludedSessionIds = page.filter((entry) => !visible(entry)).map((entry) => entry.sessionId);
+      return { sessions, excludedSessionIds, nextCursor: eligible.length > capacity
+        ? Buffer.from(JSON.stringify({ scope: scopeId, updatedAt: last.updatedAt, sessionId: last.sessionId })).toString("base64url") : null };
+    }),
     getRevision: () => read(() => revision),
     getCoverage: () => read(() => ({ truncated, capacity, retained: records.length })),
   };
@@ -296,4 +337,8 @@ function compact(value) {
 
 function clone(value) {
   return value ? structuredClone(value) : null;
+}
+
+function compareRecords(left, right) {
+  return right.updatedAt.localeCompare(left.updatedAt) || left.sessionId.localeCompare(right.sessionId);
 }

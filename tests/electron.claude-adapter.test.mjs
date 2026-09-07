@@ -6,6 +6,22 @@ import {
 import { AgentProviderSessionUnavailableError } from "../electron/main/agent/runtime/agent-runtime-port.mjs";
 
 describe("Claude Agent SDK runtime adapter", () => {
+  it("keeps an unexpected SDK stream failure distinct from a native terminal result", async () => {
+    const controller = persistentQueryController();
+    const sdk = { query: vi.fn((request) => controller.connect(request.prompt, request.options)) };
+    const onEvent = vi.fn(), onExit = vi.fn();
+    const adapter = createAdapter({ sdk, onEvent, onExit });
+    const created = await adapter.createSession();
+    expect(created.providerSessionId).toMatch(/^[a-f0-9-]{36}$/);
+    await adapter.startTurn({ prompt: "Hello" });
+    expect(sdk.query.mock.calls[0][0].options.sessionId).toBe(created.providerSessionId);
+    await vi.waitFor(() => expect(controller.messages).toHaveLength(1));
+    controller.fail(new Error("Stream disconnected"));
+    await vi.waitFor(() => expect(onExit).toHaveBeenCalledWith(expect.objectContaining({ expected: false })));
+    expect(onEvent.mock.calls.some(([event]) => ["turn.failed", "turn.interrupted", "turn.completed"].includes(event.type))).toBe(false);
+    await adapter.dispose();
+  });
+
   it("discovers workspace sessions through the native SDK metadata API", async () => {
     const sdk = {
       query: vi.fn(),
@@ -111,7 +127,7 @@ describe("Claude Agent SDK runtime adapter", () => {
     const sdk = {
       query: vi.fn((request) => sdk.query.mock.calls.length === 1
         ? inspection
-        : controller.connect(request.prompt)),
+        : controller.connect(request.prompt, request.options)),
     };
     const onEvent = vi.fn();
     const adapter = createAdapter({ sdk, onEvent });
@@ -154,7 +170,7 @@ describe("Claude Agent SDK runtime adapter", () => {
 
   it("restarts the native query when authorized project instructions change without changing size", async () => {
     const controllers = [persistentQueryController(), persistentQueryController()];
-    const sdk = { query: vi.fn((request) => controllers[sdk.query.mock.calls.length - 1].connect(request.prompt)) };
+    const sdk = { query: vi.fn((request) => controllers[sdk.query.mock.calls.length - 1].connect(request.prompt, request.options)) };
     let instructions = { source: "AGENTS.md", text: "alpha", bytes: 5 };
     const onEvent = vi.fn();
     const adapter = createAdapter({
@@ -182,7 +198,7 @@ describe("Claude Agent SDK runtime adapter", () => {
 
   it("correlates native approvals and structured questions without persisting permission changes", async () => {
     const controller = persistentQueryController();
-    const sdk = { query: vi.fn((request) => controller.connect(request.prompt)) };
+    const sdk = { query: vi.fn((request) => controller.connect(request.prompt, request.options)) };
     const onEvent = vi.fn();
     const adapter = createAdapter({ sdk, onEvent });
     await adapter.createSession({ model: "claude-sonnet", mode: "agent" });
@@ -226,6 +242,7 @@ describe("Claude Agent SDK runtime adapter", () => {
 function createAdapter({
   sdk,
   onEvent = vi.fn(),
+  onExit = vi.fn(),
   environment = { PATH: "/usr/bin", HOME: "/home/test", ANTHROPIC_API_KEY: "test-key" },
   projectInstructionLoader = vi.fn(async () => []),
 }) {
@@ -241,6 +258,7 @@ function createAdapter({
     appVersion: "1.2.3",
     sdkLoader: vi.fn(async () => sdk),
     onEvent,
+    onExit,
     projectInstructionLoader,
     spawnClaudeCodeProcess: vi.fn(),
   });
@@ -265,6 +283,7 @@ function inspectionQuery(account = {
 
 function persistentQueryController() {
   let input = null;
+  let nativeId = null;
   let turnGate = null;
   const messages = [];
   const query = {
@@ -274,7 +293,7 @@ function persistentQueryController() {
     interrupt: vi.fn(async () => undefined),
     close: vi.fn(),
     async *[Symbol.asyncIterator]() {
-      yield { type: "system", subtype: "init", session_id: "claude-session-1", model: "claude-sonnet", permissionMode: "default" };
+      yield { type: "system", subtype: "init", session_id: nativeId, model: "claude-sonnet", permissionMode: "default" };
       for await (const message of input) {
         messages.push(message);
         const completion = deferred();
@@ -282,27 +301,29 @@ function persistentQueryController() {
         const text = await completion.promise;
         yield {
           type: "stream_event",
-          session_id: "claude-session-1",
+          session_id: nativeId,
           uuid: `assistant-${messages.length}`,
           event: { type: "content_block_delta", delta: { type: "text_delta", text } },
         };
         yield {
           type: "assistant",
-          session_id: "claude-session-1",
+          session_id: nativeId,
           uuid: `assistant-${messages.length}`,
           message: { content: [{ type: "text", text }] },
         };
-        yield { type: "result", subtype: "success", session_id: "claude-session-1", usage: {}, num_turns: 1 };
+        yield { type: "result", subtype: "success", session_id: nativeId, usage: {}, num_turns: 1 };
       }
     },
   };
   return {
     query,
     messages,
-    connect(channel) {
+    connect(channel, options) {
       input = channel;
+      nativeId = options.resume ?? options.sessionId;
       return query;
     },
+    fail(error) { turnGate.reject(error); turnGate = null; },
     finish(text) {
       if (!turnGate) throw new Error("No Claude turn is waiting for completion.");
       const gate = turnGate;

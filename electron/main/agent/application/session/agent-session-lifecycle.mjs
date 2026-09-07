@@ -1,3 +1,4 @@
+import { hydrateAgentSession } from "./agent-history-hydration.mjs";
 import { sanitizeAgentOperationError } from "../../runtime/agent-operation-error.mjs";
 import { randomUUID } from "node:crypto";
 import {
@@ -18,7 +19,6 @@ import {
 } from "../../domain/agent-session-model.mjs";
 import { resolvePersistedRuntimeId } from "../../migrations/legacy-session-format.mjs";
 import { isAgentProviderSessionUnavailableError } from "../../runtime/agent-runtime-port.mjs";
-import { resolveAgentSessionHistoryPort } from "../../runtime/agent-session-history-port.mjs";
 import {
   classifySessionOpenFailure,
   sessionOpenFailure,
@@ -62,6 +62,7 @@ export function createAgentSessionLifecycle({
         operation: "create",
       });
       applyProviderSession(session, providerSession);
+      runtimeSession.finishNativeSession(session);
       recordRuntimeSuccess(session, selected, inspection);
       if (!session.lifecycleEventSeen) {
         emit(session, {
@@ -73,7 +74,7 @@ export function createAgentSessionLifecycle({
       persistSoon(session);
       return sessionSnapshot(session);
     } catch (error) {
-      recordRuntimeFailure(session);
+      recordRuntimeFailure(session, error);
       await runtimeSession.closeSessionRecord(session, { persist: false });
       throw sanitizeAgentOperationError(error);
     }
@@ -86,7 +87,10 @@ export function createAgentSessionLifecycle({
     const requestedSessionId = normalizeOptionalId(request?.sessionId);
     const requestedLive = requestedSessionId ? sessionStore.get(requestedSessionId) : null;
     if (requestedLive && !requestedLive.providerExited) {
-      return sessionSnapshot(runtimeSession.requireOwnedSession(sender, requestedSessionId));
+      const owned = runtimeSession.requireOwnedSession(sender, requestedSessionId);
+      requireMatchingWorkspace(owned, workspaceRoot);
+      if (request?.runtimeId && normalizeRuntimeId(request.runtimeId) !== owned.runtimeId) throw new Error("Agent runtime does not match the session.");
+      return sessionSnapshot(owned);
     }
     if (connected && !requestedSessionId) return sessionSnapshot(connected);
     const creationKey = `${ownerId}\0${workspaceRoot}\0resume\0${requestedSessionId || normalizeRuntimeId(request?.runtimeId) || "latest"}`;
@@ -121,6 +125,7 @@ export function createAgentSessionLifecycle({
         terminalState: persisted.terminalState || "idle",
       });
       session.providerSessionId = persisted.providerSessionId;
+      session.sourceScopeId = persisted.sourceScopeId ?? "default";
       sessionStore.add(session);
       try {
         session.adapter = runtimeSession.createAdapterForSession(session, selected.readiness);
@@ -134,11 +139,8 @@ export function createAgentSessionLifecycle({
         // Resume always reconciles against native objects. The bounded local
         // ledger is a presentation cache and cannot prove that an old active
         // turn has (or has not) reached a native terminal state.
-        const history = resolveAgentSessionHistoryPort(session.adapter);
-        const historicalEvents = typeof history?.hydrate === "function"
-          ? await history.hydrate()
-          : [];
-        for (const historicalEvent of historicalEvents) emit(session, historicalEvent);
+        await hydrateAgentSession(session, emit);
+        runtimeSession.finishNativeSession(session);
         if (!session.lifecycleEventSeen) {
           emit(session, {
             type: "session.resumed",
@@ -149,7 +151,7 @@ export function createAgentSessionLifecycle({
         persistSoon(session);
         return sessionSnapshot(session);
       } catch (error) {
-        recordRuntimeFailure(session);
+        recordRuntimeFailure(session, error);
         await runtimeSession.closeSessionRecord(session, { persist: false });
         if (isAgentProviderSessionUnavailableError(error)) {
           if (typeof cache.markUnavailable === "function") await cache.markUnavailable(persisted.sessionId);
@@ -221,11 +223,15 @@ export function createAgentSessionLifecycle({
   }
 
   async function closeAll() {
-    await Promise.all(sessionStore.values()
+    const sessions = await Promise.allSettled(sessionStore.values()
       .map((session) => runtimeSession.closeSessionRecord(session, { persist: true })));
-    await attachmentStore?.close?.();
     runtimeResolutionCoordinator.clear();
-    await runtimeRegistry.dispose?.();
+    const resources = await Promise.allSettled([
+      Promise.resolve().then(() => attachmentStore?.close?.()),
+      Promise.resolve().then(() => runtimeRegistry.dispose?.()),
+    ]);
+    const failures = [...sessions, ...resources].filter((result) => result.status === "rejected").map((result) => result.reason);
+    if (failures.length) throw new AggregateError(failures, "Agent shutdown could not release every resource.");
   }
 
   function recordRuntimeSuccess(session, selected, inspection) {
@@ -238,7 +244,8 @@ export function createAgentSessionLifecycle({
     });
   }
 
-  function recordRuntimeFailure(session) {
+  function recordRuntimeFailure(session, error) {
+    if (isAgentProviderSessionUnavailableError(error) || error?.code === "HISTORY_SOURCE_CHANGED") return;
     runtimeResolutionCoordinator.recordOperationFailure({
       runtimeId: session.runtimeId,
       workspaceRoot: session.workspaceRoot,

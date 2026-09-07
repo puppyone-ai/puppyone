@@ -104,7 +104,8 @@ export class AgentSessionActor {
     // Admission is a product display fact, not a fabricated native history event.
     const admitted = input.type === "command.received" && input.command.kind === "start"
       ? projectAgentUserSubmission(this.#display, next.commands.find(command => command.commandId === input.command.commandId))
-      : this.#display;
+      : input.type === "history.loaded" && input.coverage !== "complete"
+        ? { ...this.#display, partialHistory: true } : this.#display;
     const display = deepFreeze(boundAgentDisplay(projectAgentDisplayControl(admitted, next), next));
     assertAgentDisplay(display);
     const displayPatch = deepFreeze(createAgentDisplayPatch(this.#display, display));

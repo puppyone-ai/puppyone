@@ -102,6 +102,9 @@ export function createNativeConversationIndexer({ runtimeRegistry, runtimeResolu
               workspaceRoot: scan.workspaceRoot, onEvent: () => {}, onExit: () => {} });
             const port = resolveAgentSessionHistoryPort(adapter);
             if (typeof port?.discover !== "function") return null;
+            if (scan.sourceScopeId && port.sourceScopeId != null && port.sourceScopeId !== scan.sourceScopeId) {
+              throw historyFailure("History source changed. Refresh history.", "HISTORY_SOURCE_CHANGED", false);
+            }
             const result = await port.discover({ cursor, limit, signal: controller.signal });
             guard();
             if (result?.supported === false) return null;
@@ -114,7 +117,7 @@ export function createNativeConversationIndexer({ runtimeRegistry, runtimeResolu
             if (scan.pages >= maxPages || scan.providerSessionIds.size + locators.length > maxEntries) {
               throw historyFailure("History scan reached its resource limit. Refresh history.", "HISTORY_SCAN_LIMIT", false);
             }
-            const sourceScopeId = result.sourceScopeId ?? "default";
+            const sourceScopeId = result.sourceScopeId ?? port.sourceScopeId ?? "default";
             if (typeof sourceScopeId !== "string" || !/^[A-Za-z0-9:._/-]{1,512}$/.test(sourceScopeId)) {
               throw historyFailure("Native history returned an invalid source identity.");
             }
@@ -148,7 +151,7 @@ export function createNativeConversationIndexer({ runtimeRegistry, runtimeResolu
             if (cursor) scan.cursors.add(cursor);
             scan.nextCursor = nextCursor;
             scan.expiresAt = Date.now() + SCAN_TTL_MS;
-            return { nextCursor, authoritative, sourceScopeId, truncated: committed.truncated };
+            return { nextCursor, authoritative, sourceScopeId, sessions: committed.sessions, truncated: committed.truncated };
           }, controller.signal));
       }, controller.signal);
       guard();
@@ -159,6 +162,7 @@ export function createNativeConversationIndexer({ runtimeRegistry, runtimeResolu
       if (!page.nextCursor) expire(scan);
       return { ...response(scan.runtimeId, page.nextCursor ? "partial" : "complete"), indexed,
         nextCursor: page.nextCursor, scanId: page.nextCursor ? scan.id : null, sourceScopeId: page.sourceScopeId,
+        sessions: page.sessions,
         coverage: page.authoritative && !page.nextCursor ? "complete" : "unknown",
         warnings: page.truncated ? ["The local history catalog reached its capacity; some records are not retained."] : [],
       };

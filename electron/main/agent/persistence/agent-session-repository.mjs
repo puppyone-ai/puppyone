@@ -9,11 +9,13 @@ export function createAgentSessionRepository({ eventCache, conversationCatalog }
   }
   return {
     historyCatalog: Object.freeze({
+      listPage: (...args) => conversationCatalog.listPage(...args),
       list: (...args) => conversationCatalog.list(...args),
       getRevision: () => conversationCatalog.getRevision(),
       getCoverage: () => conversationCatalog.getCoverage(),
       applyNativePage: (page) => conversationCatalog.applyNativePage(page),
     }),
+    bindNative: (record) => conversationCatalog.bindNative(record),
     async save(record, { promoteCatalog = true } = {}) {
       await Promise.all([
         eventCache.save(record),

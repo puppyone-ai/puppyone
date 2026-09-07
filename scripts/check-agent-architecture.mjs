@@ -138,7 +138,7 @@ if (!existsSync(sessionHistoryPortPath)) {
   for (const requiredText of ["resolveAgentSessionHistoryPort", "assertAgentSessionHistoryCapabilities", "discover", "hydrate"]) {
     if (!historyPortSource.includes(requiredText)) errors.push(`${relative(sessionHistoryPortPath)} is missing ${requiredText}`);
   }
-  if (!sessionLifecycleSource.includes("resolveAgentSessionHistoryPort")) {
+  if (!sessionLifecycleSource.includes("hydrateAgentSession") || !readFileSync(path.join(mainApplicationRoot, "session/agent-history-hydration.mjs"), "utf8").includes("resolveAgentSessionHistoryPort")) {
     errors.push("Agent session lifecycle must hydrate through SessionHistoryPort, not adapter duck typing");
   }
 }

@@ -5,6 +5,7 @@ export function createHistoryCatalogPort(catalog) {
     return catalog[method](...args);
   };
   return Object.freeze({
+    ...(typeof catalog?.listPage === "function" ? { listPage: (...args) => call("listPage", args) } : {}),
     list: (...args) => call("list", args),
     getRevision: () => call("getRevision", []),
     getCoverage: () => call("getCoverage", []),

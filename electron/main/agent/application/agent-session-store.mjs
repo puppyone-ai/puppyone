@@ -15,6 +15,14 @@ export class AgentSessionStore {
     return session;
   }
 
+  adoptIdentity(session, id) {
+    if (session.id === id) return;
+    if (!this.isCurrent(session) || session.sequence > 0 || this.sessions.has(id)) throw new Error("Native conversation is already owned by another Agent session.");
+    this.remove(session);
+    session.id = id;
+    this.add(session);
+  }
+
   get(id) { return this.sessions.get(id) ?? null; }
   isCurrent(session) { return this.sessions.get(session.id) === session; }
   values() { return Array.from(this.sessions.values()); }

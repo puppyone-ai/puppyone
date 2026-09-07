@@ -252,7 +252,8 @@ function fakeAcpAdapter({ onExit = () => {} } = {}) {
   };
   adapter.getSessionHistoryPort = () => ({
     discover: (request) => adapter.discoverSessions(request),
-    hydrate: () => adapter.readHistory(),
+    sourceScopeId: "default",
+    hydrate: async () => ({ events: await adapter.readHistory(), coverage: "unknown", providerSessionId: adapter.bootstrapSession.mock.calls.at(-1)?.[0].threadId ?? "cursor-session" }),
   });
   return adapter;
 }

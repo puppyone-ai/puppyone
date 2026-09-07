@@ -1,3 +1,5 @@
+import { resolveAgentSessionHistoryPort } from "../../runtime/agent-session-history-port.mjs";
+import { assertHistorySourceScope } from "../../runtime/history-source-scope.mjs";
 import { redactSecretText } from "../../agent-events.mjs";
 import {
   assertAuthenticated,
@@ -9,6 +11,8 @@ import {
 } from "../agent-reference-policy.mjs";
 import {
   applyInspection,
+  applyProviderSession,
+  persistedRecordFromSession,
   requireConnectedSession,
 } from "../../domain/agent-session-model.mjs";
 import { assertAgentRuntimeInspection } from "../../runtime/agent-runtime-port.mjs";
@@ -48,18 +52,29 @@ export function createAgentSessionRuntime({
   }
 
   function createAdapterForSession(session, internalReadiness) {
+    session.bootstrapEvents = [];
     const adapterGeneration = session.actor.control.adapterGeneration + 1;
     const adapter = runtimeRegistry.createAdapter(session.runtimeId, {
       readiness: { ...internalReadiness, workspaceRoot: session.workspaceRoot },
       workspaceRoot: session.workspaceRoot,
       onEvent: (event) => handleAdapterEvent(session, adapterGeneration, event),
       onExit: (info) => handleAdapterExit(session, adapterGeneration, info),
+      onSessionPersisted: (identity) => {
+        if (!sessionStore.isCurrent(session) || session.closing || session.actor.control.adapterGeneration !== adapterGeneration
+          || identity?.providerSessionId !== session.providerSessionId || identity?.sourceScopeId !== session.sourceScopeId) return;
+        session.nativePersistenceConfirmed = true;
+        void persistNow(session);
+      },
     });
     session.actor.dispatch({ type: "adapter.attached" });
     return adapter;
   }
 
   async function bootstrapNativeSession(session, selected, { kind, operation, threadId = null }) {
+    const history = resolveAgentSessionHistoryPort(session.adapter);
+    const sourceScopeId = history?.sourceScopeId ?? "default";
+    if (session.sourceScopeId != null) assertHistorySourceScope(sourceScopeId, session.sourceScopeId);
+    session.sourceScopeId = sourceScopeId;
     const selection = {
       model: session.selectedModel,
       ...(session.selectedEffort ? { effort: session.selectedEffort } : {}),
@@ -89,11 +104,38 @@ export function createAgentSessionRuntime({
         }))
         : await runRuntimeStart(session, operation, () => session.adapter.createSession(selection));
     }
+    if (!sessionStore.isCurrent(session) || session.closing || session.sender.isDestroyed?.()) throw new Error("Agent session closed during startup.");
+    if (kind === "resume" && providerSession?.providerSessionId !== threadId) throw new Error("Agent resumed a different native conversation.");
+    applyProviderSession(session, providerSession);
+    if (session.providerSessionId && typeof cache.bindNative === "function") {
+      const bound = await cache.bindNative(persistedRecordFromSession(session));
+      if (!sessionStore.isCurrent(session) || session.closing) throw new Error("Agent session closed while registering its identity.");
+      sessionStore.adoptIdentity(session, bound.sessionId);
+    }
+    // Exact native resume is provider evidence; merely allocating an id is not.
+    if (kind === "resume") session.nativePersistenceConfirmed = true;
     return { inspection, providerSession };
+  }
+
+  function finishNativeSession(session) {
+    if (session.bootstrapError) throw session.bootstrapError;
+    if (!sessionStore.isCurrent(session) || session.closing || session.providerExited) throw new Error("Agent session closed during startup.");
+    const events = session.bootstrapEvents ?? [];
+    session.bootstrapEvents = null;
+    for (const event of events) handleAdapterEvent(session, session.actor.control.adapterGeneration, event);
   }
 
   function handleAdapterEvent(session, adapterGeneration, adapterEvent) {
     if (!sessionStore.isCurrent(session) || session.closing || session.providerExited || session.actor.control.adapterGeneration !== adapterGeneration) return;
+    if (Array.isArray(session.bootstrapEvents)) {
+      if (session.bootstrapEvents.length >= 1000) session.bootstrapError = new Error("Native Agent startup replay exceeded its limit.");
+      else session.bootstrapEvents.push(structuredClone(adapterEvent));
+      return;
+    }
+    if (adapterEvent.providerSessionId && session.providerSessionId && adapterEvent.providerSessionId !== session.providerSessionId) {
+      retireProviderSession(session, { providerMessage: "The native Agent changed conversation identity unexpectedly.", diagnostic: "Native conversation identity mismatch." });
+      return;
+    }
     const event = { ...adapterEvent };
     event.payload = scrubPrivateReferencePaths(event.payload, session.privateReferencePaths);
     if (event.type === "session.started" || event.type === "session.resumed") {
@@ -329,6 +371,7 @@ export function createAgentSessionRuntime({
 
   return {
     bootstrapNativeSession,
+    finishNativeSession,
     clearInterruptFallback,
     closeSessionRecord,
     createAdapterForSession,

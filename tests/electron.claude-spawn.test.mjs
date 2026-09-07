@@ -30,6 +30,28 @@ describe("Claude Code Electron spawn adapter", () => {
     );
   });
 
+  it("closes every owned process and waits for exit before releasing the SDK adapter", async () => {
+    const children = [];
+    const launch = createClaudeSpawn({ spawn: () => { const child = fakeChild(); children.push(child); return child; } });
+    const controller = new AbortController();
+    const options = { command: "/tools/claude", args: [], cwd: "/workspace", env: {} };
+    launch({ ...options, signal: controller.signal });
+    launch(options);
+    controller.abort();
+    expect(children[0].kill).toHaveBeenCalledWith("SIGTERM");
+    let closed = false;
+    const disposing = launch.dispose().then(() => { closed = true; });
+    children[0].emit("close", 0, null);
+    await Promise.resolve();
+    expect(closed).toBe(false);
+    expect(children[1].kill).toHaveBeenCalledWith("SIGTERM");
+    children[1].emit("close", 0, null);
+    await disposing;
+    expect(closed).toBe(true);
+    expect(() => launch(options)).toThrow(/owner has closed/);
+    await launch.dispose();
+  });
+
   it("rejects relative commands and control characters before spawning", () => {
     const spawn = vi.fn(() => fakeChild());
     const launch = createClaudeSpawn({ spawn });

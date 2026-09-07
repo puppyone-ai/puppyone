@@ -8,7 +8,7 @@ import {
   buildAgentEnvironment,
   discoverExecutable,
   runBounded,
-} from "../../runtime/executable-discovery.mjs";
+} from "../../transports/executable-discovery.mjs";
 import {
   parseOpenCodeVersion,
 } from "../opencode-protocol/opencode-version.mjs";
@@ -17,12 +17,13 @@ import { OPEN_CODE_HOST_SAFETY_ENVIRONMENT } from "../opencode-protocol/opencode
 export function createUserOpenCodeDiscovery(options = {}) {
   const { cache: cacheOptions, ...discoveryOptions } = options;
   return createCachedRuntimeDiscovery(
-    () => discoverUserOpenCodeExecutable(discoveryOptions),
+    ({ signal }) => discoverUserOpenCodeExecutable({ ...discoveryOptions, signal }),
     cacheOptions,
   );
 }
 
 export async function discoverUserOpenCodeExecutable({
+  signal,
   fsModule = fs,
   spawn = nodeSpawn,
   env = process.env,
@@ -31,6 +32,7 @@ export async function discoverUserOpenCodeExecutable({
   configuredExecutable = null,
 } = {}) {
   const result = await discoverExecutable({
+      signal,
     executableNames: [platform === "win32" ? "opencode.exe" : "opencode"],
     additionalCandidates: [
       configuredExecutable,
@@ -50,6 +52,7 @@ export async function discoverUserOpenCodeExecutable({
   if (result.status === "ready" && result.executablePath) {
     try {
       const probe = await runBounded(spawn, result.executablePath, ["acp", "--help"], {
+        signal,
         env: result.environment,
         timeoutMs: 4_000,
         maxBytes: 64 * 1024,

@@ -1,3 +1,4 @@
+import { runBoundedProcessProbe } from "./bounded-process-probe.mjs";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -11,7 +12,9 @@ export async function readLoginShellEnvironment({
   spawn = nodeSpawn,
   env = process.env,
   platform = process.platform,
+  signal,
 } = {}) {
+  signal?.throwIfAborted();
   if (platform === "win32") return {};
   const shell = typeof env.SHELL === "string" && path.isAbsolute(env.SHELL)
     ? env.SHELL
@@ -21,6 +24,7 @@ export async function readLoginShellEnvironment({
     timeoutMs: LOGIN_ENV_TIMEOUT_MS,
     maxBytes: MAX_DISCOVERY_OUTPUT,
     label: "Agent login-shell environment",
+    signal,
   });
   if (result.code !== 0) throw new Error("Unable to read the login-shell environment.");
   const parsed = {};
@@ -48,12 +52,14 @@ export async function discoverExecutable({
   validateCandidate,
   searchPath = true,
   loadLoginShellEnvironment = false,
+  signal,
 }) {
+  signal?.throwIfAborted();
   let loginEnv = {};
   let environmentWarning = null;
   if (searchPath && loadLoginShellEnvironment) {
     try {
-      loginEnv = await readLoginShellEnvironment({ spawn, env, platform });
+      loginEnv = await readLoginShellEnvironment({ spawn, env, platform, signal });
     } catch (error) {
       environmentWarning = error instanceof Error ? error.message : String(error);
     }
@@ -68,7 +74,9 @@ export async function discoverExecutable({
     platform,
     validateCandidate,
     searchPath,
+    signal,
   });
+  signal?.throwIfAborted();
   if (!executablePath) {
     return {
       status: "not-installed",
@@ -92,6 +100,7 @@ export async function discoverExecutable({
       timeoutMs: VERSION_TIMEOUT_MS,
       maxBytes: MAX_DISCOVERY_OUTPUT,
       label,
+      signal,
     });
     const version = parseVersion(`${result.stdout}\n${result.stderr}`);
     if (result.code !== 0 || !version) {
@@ -150,6 +159,7 @@ export async function resolveExecutable({
   platform,
   validateCandidate,
   searchPath = true,
+  signal,
 }) {
   const separator = platform === "win32" ? ";" : ":";
   const names = Array.isArray(executableNames) ? executableNames : [executableNames];
@@ -169,6 +179,7 @@ export async function resolveExecutable({
     }
   }
   for (const candidate of candidates) {
+    signal?.throwIfAborted();
     try {
       await fsModule.promises.access(candidate, fsModule.constants.X_OK);
       const resolvedPath = await fsModule.promises.realpath(candidate);
@@ -181,55 +192,8 @@ export async function resolveExecutable({
   return null;
 }
 
-export function runBounded(spawn, file, args, {
-  env,
-  timeoutMs,
-  maxBytes,
-  label = "Agent executable",
-}) {
-  return new Promise((resolve, reject) => {
-    let child;
-    try {
-      child = spawn(file, args, {
-        env,
-        shell: false,
-        stdio: ["ignore", "pipe", "pipe"],
-        windowsHide: true,
-      });
-    } catch (error) {
-      reject(error);
-      return;
-    }
-    let stdout = "";
-    let stderr = "";
-    let totalBytes = 0;
-    let settled = false;
-    const finish = (callback) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      callback();
-    };
-    const append = (target, chunk) => {
-      const text = String(chunk);
-      totalBytes += Buffer.byteLength(text);
-      if (totalBytes > maxBytes) {
-        child.kill();
-        finish(() => reject(new Error(`${label} discovery output exceeded the safety limit.`)));
-        return target;
-      }
-      return target + text;
-    };
-    child.stdout?.on("data", (chunk) => { stdout = append(stdout, chunk); });
-    child.stderr?.on("data", (chunk) => { stderr = append(stderr, chunk); });
-    child.once("error", (error) => finish(() => reject(error)));
-    child.once("close", (code, signal) => finish(() => resolve({ stdout, stderr, code, signal })));
-    const timer = setTimeout(() => {
-      child.kill();
-      finish(() => reject(new Error(`${label} discovery timed out.`)));
-    }, timeoutMs);
-    timer.unref?.();
-  });
+export function runBounded(spawn, file, args, { env, timeoutMs, maxBytes, label = "Agent executable", signal }) {
+  return runBoundedProcessProbe(file, args, { spawn, env, timeoutMs, maxOutputBytes: maxBytes, label: `${label} discovery`, signal });
 }
 
 export function buildAgentEnvironment(baseEnv, loginEnv, {

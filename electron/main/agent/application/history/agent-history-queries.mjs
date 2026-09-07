@@ -27,22 +27,32 @@ export function createAgentHistoryQueries({ catalog, nativeConversationIndexer }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(historyFailure("History catalog read timed out.")), 2_000);
     let records;
+    let catalogNextCursor;
+    let excludedSessionIds;
     let catalogCoverage;
     try {
       [records, catalogCoverage] = await observeHistoryOperation(() => Promise.all([
-        catalog.list(workspaceRoot, { runtimeId, includeArchived: Boolean(request?.includeArchived) }),
+        typeof catalog.listPage === "function"
+          ? catalog.listPage(workspaceRoot, { runtimeId: request?.discoverNative ? null : runtimeId, includeArchived: Boolean(request?.includeArchived), cursor: request?.catalogCursor })
+          : catalog.list(workspaceRoot, { runtimeId, includeArchived: Boolean(request?.includeArchived) }),
         catalog.getCoverage(),
       ]), controller.signal);
     } finally {
       clearTimeout(timer);
     }
+    if (!Array.isArray(records)) { catalogNextCursor = records.nextCursor; excludedSessionIds = records.excludedSessionIds; records = records.sessions; }
+    if (Array.isArray(discovery.sessions)) records = discovery.sessions.filter((record) => request?.includeArchived || !record.archivedAt);
+    const publicDiscovery = { ...discovery };
+    delete publicDiscovery.sessions;
     return {
+      ...(catalogNextCursor !== undefined ? { catalogNextCursor, sessionListKind: "page" } : {}),
+      ...(excludedSessionIds ? { excludedSessionIds } : {}),
       ...(catalogCoverage ? { catalogCoverage } : {}),
       sessions: records.map((record) => publicSessionRecord({
         ...record,
         runtimeId: resolvePersistedRuntimeId(record, runtimeId),
       })),
-      discovery,
+      discovery: publicDiscovery,
       warnings: discovery.warnings,
     };
   }

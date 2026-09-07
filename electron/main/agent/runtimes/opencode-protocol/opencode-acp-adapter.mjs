@@ -1,3 +1,4 @@
+import { openCodeHistorySource } from "./opencode-history-source.mjs";
 import {
   AcpRuntimeAdapter,
   mergeJsonConfig,
@@ -12,6 +13,7 @@ export class OpenCodeAcpAdapter extends AcpRuntimeAdapter {
   constructor(options) {
     super({
       ...options,
+      sourceScopeId: openCodeHistorySource(options.readiness?.environment ?? process.env),
       accountType: options.managed ? "puppyone-agent" : "opencode-native",
       sessionTitles: options.managed
         ? { created: "New PuppyOne Agent session", resumed: "PuppyOne Agent session" }

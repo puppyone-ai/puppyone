@@ -26,6 +26,7 @@ export type ConversationHistoryState = Readonly<{
   refreshing: boolean;
   loadingMore: boolean;
   nextCursors: CursorMap;
+  catalogNextCursor: string | null;
   sources: Readonly<Record<string, AgentSessionsListResponse["discovery"]>>;
   catalogCoverage: AgentSessionsListResponse["catalogCoverage"] | null;
   error: string | null;
@@ -39,6 +40,7 @@ const INITIAL_STATE: ConversationHistoryState = Object.freeze({
   refreshing: false,
   loadingMore: false,
   nextCursors: Object.freeze({}),
+  catalogNextCursor: null,
   sources: Object.freeze({}),
   catalogCoverage: null,
   error: null,
@@ -76,7 +78,7 @@ export class ConversationHistoryController {
     this.catalogLoaded = false;
     this.runtimeInspectionComplete = false;
     this.autoRefreshGeneration = -1;
-    this.patch({ loading: true, loaded: false, error: null, nextCursors: Object.freeze({}), sources: Object.freeze({}), catalogCoverage: null });
+    this.patch({ loading: true, loaded: false, error: null, nextCursors: Object.freeze({}), catalogNextCursor: null, sources: Object.freeze({}), catalogCoverage: null });
     void this.loadInitialCatalog(generation);
     void this.inspectRuntimes(generation);
   }
@@ -177,10 +179,14 @@ export class ConversationHistoryController {
   private async runLoadMore(generation: number) {
     if (this.refreshPromise) return;
     const pending = Object.entries(this.state.nextCursors);
-    if (pending.length === 0) return;
+    const catalogCursor = this.state.catalogNextCursor;
+    if (pending.length === 0 && !catalogCursor) return;
     this.patch({ loadingMore: true, error: null });
     try {
-      await Promise.all(pending.map(([runtimeId, continuation]) => this.loadSource(generation, runtimeId, continuation)));
+      await Promise.all([
+        ...pending.map(([runtimeId, continuation]) => this.loadSource(generation, runtimeId, continuation)),
+        ...(catalogCursor ? [this.loadCatalogPage(generation, catalogCursor)] : []),
+      ]);
     } finally {
       if (this.isCurrent(generation)) this.patch({ loadingMore: false });
     }
@@ -204,16 +210,18 @@ export class ConversationHistoryController {
         delete cursors[runtimeId];
       }
       const sources = Object.freeze({ ...this.state.sources, [runtimeId]: discovery });
-      // Each response contains this source's catalog. Merge it immediately,
-      // without waiting for another source or for a second catalog read.
+      // Merge this native page immediately. Only explicit exclusions remove rows;
+      // absence from a page is not evidence that a conversation disappeared.
+      const excluded = new Set(response.excludedSessionIds ?? []);
       const others = this.state.sessions.filter((entry) => (entry.runtimeId ?? entry.provider) !== runtimeId);
       const incoming = response.sessions.filter((entry) => (entry.runtimeId ?? entry.provider) === runtimeId);
-      const retained = discovery.status === "failed"
+      const retained = discovery.status === "failed" || response.sessionListKind === "page"
         ? this.state.sessions.filter((entry) => (entry.runtimeId ?? entry.provider) === runtimeId) : [];
       const sourceSessions = [...new Map([...retained, ...incoming].map((entry) => [entry.id, entry])).values()];
       this.catalogRequest += 1;
       this.patch({ sources, nextCursors: Object.freeze(cursors),
-        sessions: Object.freeze(sortSessions([...others, ...sourceSessions])),
+        sessions: Object.freeze(sortSessions([...others, ...sourceSessions].filter((entry) => !excluded.has(entry.id)))),
+        ...(!continuation && response.catalogNextCursor ? { catalogNextCursor: response.catalogNextCursor } : {}),
         catalogCoverage: response.catalogCoverage ?? this.state.catalogCoverage,
         error: sourceWarnings(sources),
       });
@@ -240,8 +248,23 @@ export class ConversationHistoryController {
     );
     if (this.isCurrent(generation) && request === this.catalogRequest) this.patch({
       sessions: Object.freeze(sortSessions(response.sessions)), catalogCoverage: response.catalogCoverage ?? null,
+      catalogNextCursor: response.catalogNextCursor ?? null,
     });
     return response;
+  }
+
+  private async loadCatalogPage(generation: number, cursor: string) {
+    try {
+      const response = await withDeadline(this.requireClient().listAgentSessions({
+        rootPath: this.workspaceRoot, discoverNative: false, catalogCursor: cursor,
+      }), AGENT_HISTORY_CATALOG_TIMEOUT_MS, "Chat history catalog");
+      if (!this.isCurrent(generation) || this.state.catalogNextCursor !== cursor) return;
+      const excluded = new Set(response.excludedSessionIds ?? []);
+      const merged = new Map([...this.state.sessions, ...response.sessions].filter((entry) => !excluded.has(entry.id)).map((entry) => [entry.id, entry]));
+      this.patch({ sessions: Object.freeze(sortSessions([...merged.values()])), catalogNextCursor: response.catalogNextCursor ?? null });
+    } catch (error) {
+      if (this.isCurrent(generation)) this.patch({ error: messageOf(error) });
+    }
   }
 
   private requireClient() {

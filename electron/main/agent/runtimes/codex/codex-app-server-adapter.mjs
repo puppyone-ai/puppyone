@@ -1,3 +1,6 @@
+import { createNativePersistenceReporter } from "../../runtime/native-persistence-reporter.mjs";
+import { codexHistorySource } from "./codex-history-source.mjs";
+import { agentHistoryReadResult } from "../../runtime/agent-history-read-result.mjs";
 import { discoverCodexHistory } from "./codex-history-discovery.mjs";
 import { codexResolveApproval, codexResolveQuestion, codexHandleServerRequest, codexHandleServerRequestResolved, codexClearPendingApprovalsForTurn, codexClearPendingApprovals, codexClearPendingQuestionsForTurn, codexClearPendingQuestions } from "./codex-interactions.mjs";
 import { normalizeCodexNotification } from "./codex-events.mjs";
@@ -76,8 +79,9 @@ export class CodexAppServerAdapter {
 
   getSessionHistoryPort() {
     return Object.freeze({
+      sourceScopeId: this.historySource.sourceScopeId,
       discover: (request) => this.discoverSessions(request),
-      hydrate: () => this.readHistory(),
+      hydrate: () => this.readHistoryResult(),
     });
   }
 
@@ -90,15 +94,28 @@ export class CodexAppServerAdapter {
     connectionFactory,
     onEvent = () => {},
     onExit = () => {},
+    onSessionPersisted = () => {},
   }) {
     this.executablePath = executablePath;
     this.environment = environment;
+    this.historySource = codexHistorySource(environment ?? process.env);
     this.workspaceRoot = workspaceRoot;
     this.appVersion = appVersion;
     this.spawn = spawn;
     this.connectionFactory = connectionFactory;
     this.onEvent = onEvent;
     this.onExit = onExit;
+    this.persistenceReporter = createNativePersistenceReporter({
+      isClosed: () => this.disposed,
+      verify: async () => {
+        const id = this.threadId;
+        if (!id) return null;
+        const verified = await (async () => { const page = await discoverCodexHistory({ request: (method, params) => this.connection.request(method, params), workspaceRoot: this.workspaceRoot }, { limit: 100 });
+        return page.sessions.some((entry) => entry.providerSessionId === id); })();
+        return verified && this.threadId === id ? { providerSessionId: id, sourceScopeId: this.historySource.sourceScopeId } : null;
+      },
+      report: onSessionPersisted,
+    });
     this.connection = null;
     this.threadId = null;
     this.activeTurnId = null;
@@ -246,13 +263,15 @@ export class CodexAppServerAdapter {
     return { ...normalizeProviderSession(result), effort };
   }
 
-  async readHistory() {
+  async readHistory() { return (await this.readHistoryResult()).events; }
+
+  async readHistoryResult() {
     if (!this.threadId) throw new Error("No Codex thread is active.");
     const thread = await readCodexHistory({
       request: (method, params) => this.connection.request(method, params),
       threadId: this.threadId,
     });
-    return normalizeHistoricalThread(thread);
+    return agentHistoryReadResult({ providerSessionId: this.threadId, events: normalizeHistoricalThread(thread), coverage: thread.coverage ?? "unknown" });
   }
 
   async startTurn({ prompt, clientUserMessageId = randomUUID(), model = null, effort: requestedEffort = null, references = [], attachments = [], contextReferences = [] }) {
@@ -333,12 +352,13 @@ export class CodexAppServerAdapter {
   resolveQuestion(...args) { return codexResolveQuestion(this, ...args); }
 
 
-  dispose(reason = "Codex app-server adapter closed.") {
-    if (this.disposed) return;
+  async dispose(reason = "Codex app-server adapter closed.") {
+    if (this.disposed) return this.connection?.waitForExit?.();
     this.disposed = true;
     codexClearPendingApprovals(this, "cancel", true);
     codexClearPendingQuestions(this, true);
     this.connection?.dispose(reason);
+    await this.connection?.waitForExit?.();
   }
 
   #handleNotification(message) {
@@ -354,6 +374,7 @@ export class CodexAppServerAdapter {
       if (event.type.startsWith("turn.") && event.turnId) {
         if (event.type === "turn.started" && !this.terminalTurnIds.has(event.turnId)) this.activeTurnId = event.turnId;
         if (["turn.completed", "turn.failed", "turn.interrupted"].includes(event.type)) {
+          void this.persistenceReporter.confirm();
           this.terminalTurnIds.add(event.turnId);
           while (this.terminalTurnIds.size > 128) this.terminalTurnIds.delete(this.terminalTurnIds.values().next().value);
           if (this.activeTurnId === event.turnId) this.activeTurnId = null;

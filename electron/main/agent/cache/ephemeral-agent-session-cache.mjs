@@ -1,3 +1,4 @@
+import { nativeSessionId } from "../../../../shared/agent-contract/native-session-id.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import { countTextBytes, isAgentEventEnvelope, redactSecrets } from "../agent-events.mjs";
@@ -120,7 +121,8 @@ function normalizeRecord(record) {
     runtimeId,
     provider: runtimeId,
     runtime: normalizeRuntime(record?.runtime, runtimeId),
-    providerSessionId: normalizeOptionalId(record?.providerSessionId),
+    providerSessionId: nativeSessionId(record?.providerSessionId),
+    sourceScopeId: nativeSessionId(record?.sourceScopeId) ?? "default",
     title: normalizeText(record?.title, 200) || "Agent session",
     createdAt: normalizeDate(record?.createdAt),
     updatedAt: normalizeDate(record?.updatedAt),
@@ -170,10 +172,6 @@ function normalizeRuntimeId(value) {
 function normalizeId(value) {
   if (typeof value !== "string" || !/^[A-Za-z0-9:_-]{1,160}$/.test(value)) throw new Error("Invalid Agent session id.");
   return value;
-}
-
-function normalizeOptionalId(value) {
-  return typeof value === "string" && /^[A-Za-z0-9:_-]{1,240}$/.test(value) ? value : null;
 }
 
 function normalizePath(value) {

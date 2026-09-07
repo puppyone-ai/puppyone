@@ -1,8 +1,64 @@
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
 import { PiRpcAdapter } from "../electron/main/agent/runtimes/pi/pi-rpc-adapter.mjs";
 
 describe("Pi native RuntimePort adapter", () => {
+  it("does not invent a failed turn when native prompt delivery is unknown", async () => {
+    const clients = [], events = [];
+    const onExit = vi.fn();
+    const adapter = createAdapter({ clients, events, onExit });
+    await adapter.createSession();
+    const request = clients[0].request.bind(clients[0]);
+    clients[0].request = vi.fn((type, payload) => type === "prompt"
+      ? Promise.reject(Object.assign(new Error("Pipe lost"), { deliveryOutcome: "unknown" }))
+      : request(type, payload));
+    await expect(adapter.startTurn({ prompt: "Hello" })).rejects.toMatchObject({ deliveryOutcome: "unknown" });
+    expect(events.some((event) => ["turn.failed", "turn.interrupted", "turn.completed"].includes(event.type))).toBe(false);
+    expect(onExit).toHaveBeenCalledWith(expect.objectContaining({ expected: false }));
+    await adapter.dispose();
+  });
+
+  it("owns inspection processes until OS exit, including shutdown during inspection", async () => {
+    const clients = [];
+    const adapter = createAdapter({ clients });
+    const inspection = adapter.inspect();
+    const exited = Promise.withResolvers();
+    clients[0].waitForExit = vi.fn(() => exited.promise);
+    await vi.waitFor(() => expect(clients[0].closed).toBe(true));
+    let disposed = false;
+    const closing = adapter.dispose().then(() => { disposed = true; });
+    await Promise.resolve();
+    expect(disposed).toBe(false);
+    expect(adapter.hasActiveProcess()).toBe(true);
+    exited.resolve();
+    await Promise.all([inspection, closing]);
+    expect(adapter.hasActiveProcess()).toBe(false);
+  });
+
+  it("reports persistence only from the exact native session artifact and includes its source", async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "pi-persistence-test-"));
+    const clients = [], events = [];
+    const report = vi.fn();
+    const adapter = createAdapter({ clients, events, onSessionPersisted: report });
+    try {
+      await adapter.createSession();
+      const file = path.join(directory, "session.jsonl");
+      await fs.writeFile(file, "native fixture\n");
+      clients[0].state.sessionFile = file;
+      await adapter.startTurn({ prompt: "Hello" });
+      clients[0].emit("event", { type: "agent_settled" });
+      await vi.waitFor(() => expect(report).toHaveBeenCalledWith({
+        providerSessionId: "pi-session", sourceScopeId: adapter.getSessionHistoryPort().sourceScopeId,
+      }));
+    } finally {
+      await adapter.dispose();
+      await fs.rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it("discovers Pi-owned providers, models, reasoning levels, and commands", async () => {
     const clients = [];
     const adapter = createAdapter({ clients });
@@ -112,7 +168,7 @@ describe("Pi native RuntimePort adapter", () => {
   });
 });
 
-function createAdapter({ clients, events = [], onDispose = () => {} }) {
+function createAdapter({ clients, events = [], onDispose = () => {}, onExit = () => {}, onSessionPersisted = () => {} }) {
   return new PiRpcAdapter({
     readiness: {
       executablePath: "/usr/local/bin/pi",
@@ -124,6 +180,8 @@ function createAdapter({ clients, events = [], onDispose = () => {} }) {
     workspaceRoot: "/workspace",
     onEvent: (event) => events.push(event),
     onDispose,
+    onExit,
+    onSessionPersisted,
     clientFactory: (options) => {
       const client = new FakePiClient(options);
       clients.push(client);

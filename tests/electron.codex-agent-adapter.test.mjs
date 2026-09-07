@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { readFileSync } from "node:fs";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   CODEX_CAPABILITIES,
   CodexAppServerAdapter,
@@ -652,7 +652,7 @@ describe("Codex app-server normalization", () => {
     }
 
     await expect(adapter.steerTurn({ turnId: "B", message: "continue", references: [] })).resolves.toBeUndefined();
-    expect(connection.requests.at(-1)).toMatchObject({
+    expect(connection.requests.findLast((entry) => entry.method === "turn/steer")).toMatchObject({
       method: "turn/steer",
       params: { expectedTurnId: "B" },
     });

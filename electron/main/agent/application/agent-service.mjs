@@ -151,8 +151,7 @@ export function createAgentService({
     },
     closeAll: async () => {
       nativeConversationIndexer.dispose();
-      await lifecycle.closeAll();
-      sessionFeed.releaseAll();
+      try { await lifecycle.closeAll(); } finally { sessionFeed.releaseAll(); }
     },
     getSessionCount: lifecycle.getSessionCount,
     getRetainedSessionCount: lifecycle.getRetainedSessionCount,

@@ -109,7 +109,7 @@ describe("Electron AgentService ownership and lifecycle", () => {
     );
   });
 
-  it("keeps an allocated empty session out of durable History until its first accepted turn", async () => {
+  it("keeps an allocated empty session out of durable History until native persistence is confirmed", async () => {
     const harness = createServiceHarness();
     const owner = createSender(36);
     const empty = await harness.service.createSession(owner, { runtimeId: "codex" }, "/workspace");
@@ -121,6 +121,7 @@ describe("Electron AgentService ownership and lifecycle", () => {
 
     const durable = await harness.service.createSession(owner, { runtimeId: "codex" }, "/workspace");
     await harness.service.startTurn(owner, { sessionId: durable.session.id, prompt: "Persist me" }, "/workspace");
+    harness.adapters.at(-1).confirmPersistence();
     await harness.service.closeSession(owner, { sessionId: durable.session.id }, "/workspace");
     expect(harness.persistence.save).toHaveBeenLastCalledWith(
       expect.objectContaining({ sessionId: durable.session.id }),
@@ -261,6 +262,7 @@ describe("Electron AgentService ownership and lifecycle", () => {
     const owner = createSender(43);
     const created = await harness.service.createSession(owner, { runtimeId: "codex" }, "/workspace");
     await harness.service.startTurn(owner, { sessionId: created.session.id, prompt: "Make this conversation durable" });
+    harness.adapters.at(-1).confirmPersistence();
     await harness.service.closeSessionsForWindow(owner.id);
 
     await expect(harness.service.resumeSession(owner, { runtimeId: "codex" }, "/workspace"))

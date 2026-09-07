@@ -146,13 +146,13 @@ describe("History catalog transaction and identity", () => {
     }, warnings: [] }).discovery.nextCursor).toBe(cursor);
   });
 
-  it("makes retained catalog capacity visible independently of source scan completion", async () => {
+  it("retains identity metadata independently of catalog page capacity", async () => {
     const { catalog, filePath } = await fixture({ maxRecords: 1 });
     await catalog.upsertNative(record("a"));
     const result = await catalog.applyNativePage({ entries: [record("b")], scope: {} });
-    expect(result.truncated).toBe(true);
-    expect(await catalog.getCoverage()).toEqual({ truncated: true, capacity: 1, retained: 1 });
-    expect(await createAgentConversationCatalog({ filePath }).getCoverage()).toMatchObject({ truncated: true });
+    expect(result.truncated).toBe(false);
+    expect(await catalog.getCoverage()).toEqual({ truncated: false, capacity: 1, retained: 2 });
+    expect(await createAgentConversationCatalog({ filePath }).getCoverage()).toMatchObject({ truncated: false, retained: 2 });
   });
 });
 

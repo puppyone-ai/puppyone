@@ -1,3 +1,6 @@
+import { createNativePersistenceReporter } from "../../runtime/native-persistence-reporter.mjs";
+import { claudeHistorySource } from "./claude-history-source.mjs";
+import { readClaudeHistory } from "./claude-history-reader.mjs";
 import { discoverClaudeHistory } from "./claude-history-discovery.mjs";
 import { normalizeModels, compatibleClaudeEffort, normalizeCommands, normalizeAccount, cleanEnvironment, bounded, normalizeDate } from "./claude-native-values.mjs";
 
@@ -11,7 +14,6 @@ import {
 } from "../../security/authorized-project-instructions.mjs";
 import {
   createClaudeEventState,
-  normalizeClaudeHistory,
   normalizeClaudeMessage,
 } from "./claude-events.mjs";
 import { CLAUDE_RUNTIME_DESCRIPTOR } from "./claude-identity.mjs";
@@ -90,8 +92,9 @@ export class ClaudeAgentSdkAdapter {
 
   getSessionHistoryPort() {
     return Object.freeze({
+      sourceScopeId: this.historySource.sourceScopeId,
       discover: (request) => this.discoverSessions(request),
-      hydrate: () => this.readHistory(),
+      hydrate: () => this.readHistoryResult(),
     });
   }
 
@@ -102,6 +105,7 @@ export class ClaudeAgentSdkAdapter {
     sdkLoader = () => import("@anthropic-ai/claude-agent-sdk"),
     onEvent = () => {},
     onExit = () => {},
+    onSessionPersisted = () => {},
     projectInstructionLoader = (root) => loadAuthorizedProjectInstructions(root, {
       instructionNames: CLAUDE_PROJECT_INSTRUCTION_NAMES,
     }),
@@ -109,11 +113,25 @@ export class ClaudeAgentSdkAdapter {
     logger = console,
   }) {
     this.readiness = readiness ?? {};
+    // SDK history helpers use the parent process profile. Launch the SDK query in that same profile.
+    this.historySource = claudeHistorySource(process.env);
     this.workspaceRoot = path.resolve(workspaceRoot);
     this.appVersion = appVersion;
     this.sdkLoader = sdkLoader;
     this.onEvent = onEvent;
     this.onExit = onExit;
+    this.persistenceReporter = createNativePersistenceReporter({
+      isClosed: () => this.disposed,
+      verify: async () => {
+        const id = this.sessionId;
+        if (!id) return null;
+        const sdk = await this.#loadSdk();
+        const info = await sdk.getSessionInfo(id, { dir: this.workspaceRoot });
+        return info?.sessionId === id && this.sessionId === id
+          ? { providerSessionId: id, sourceScopeId: this.historySource.sourceScopeId } : null;
+      },
+      report: onSessionPersisted,
+    });
     this.projectInstructionLoader = projectInstructionLoader;
     this.spawnClaudeCodeProcess = spawnClaudeCodeProcess ?? createClaudeSpawn({
       onStderr: (data) => {
@@ -176,6 +194,7 @@ export class ClaudeAgentSdkAdapter {
     } finally {
       controller.abort();
       query.close?.();
+      await this.spawnClaudeCodeProcess.waitForExit?.({ signal: controller.signal });
     }
   }
 
@@ -188,11 +207,11 @@ export class ClaudeAgentSdkAdapter {
   async createSession({ model = null, effort = null, mode = "agent" } = {}) {
     this.#assertIdle();
     await this.#closePersistentQuery("Starting a new Claude Code session.");
-    this.sessionId = null;
+    this.sessionId = randomUUID();
     this.resuming = false;
     const now = new Date().toISOString();
     return {
-      providerSessionId: null,
+      providerSessionId: this.sessionId,
       title: "New Claude Code session",
       model,
       effort,
@@ -223,15 +242,10 @@ export class ClaudeAgentSdkAdapter {
     };
   }
 
-  async readHistory() {
-    if (!this.sessionId) return [];
-    const sdk = await this.#loadSdk();
-    const messages = await sdk.getSessionMessages(this.sessionId, {
-      dir: this.workspaceRoot,
-      limit: 1_000,
-      includeSystemMessages: false,
-    });
-    return normalizeClaudeHistory(messages, this.sessionId);
+  async readHistory() { return (await this.readHistoryResult()).events; }
+
+  async readHistoryResult() {
+    return readClaudeHistory({ sdk: await this.#loadSdk(), workspaceRoot: this.workspaceRoot, providerSessionId: this.sessionId });
   }
 
   async startTurn({ prompt, model = null, effort = null, mode = "agent", references: allReferences = [], attachments = [], contextReferences = [] }) {
@@ -247,7 +261,7 @@ export class ClaudeAgentSdkAdapter {
     });
     const turnId = `claude:${randomUUID()}`;
     const controller = new AbortController();
-    const state = createClaudeEventState({ turnId, resumed: this.resuming || Boolean(this.sessionId) });
+    const state = createClaudeEventState({ turnId, resumed: this.resuming });
     const selectedEffort = compatibleClaudeEffort(this.modelProfiles.get(model), effort);
     await this.#ensurePersistentQuery({ sdk, controller, model, effort: selectedEffort, mode, projectInstructions });
     this.activeTurnId = turnId;
@@ -298,11 +312,15 @@ export class ClaudeAgentSdkAdapter {
   }
 
   async #consumePersistent(query, channel) {
-    let emittedTerminal = false;
+    let exitReported = false;
     try {
       for await (const message of query) {
         if (this.disposed || this.activeQuery !== query) return;
-        if (typeof message?.session_id === "string" && message.session_id) this.sessionId = message.session_id;
+        if (typeof message?.session_id === "string" && message.session_id) {
+          if (this.sessionId && this.sessionId !== message.session_id) throw new Error("Claude Code returned a different native session identity.");
+          this.sessionId = message.session_id;
+          this.resuming = true;
+        }
         channel.setSessionId(this.sessionId ?? "");
         const state = this.activeState;
         if (!state) continue;
@@ -321,6 +339,7 @@ export class ClaudeAgentSdkAdapter {
           this.onEvent(output);
         }
         if (state.terminal && this.activeState === state) {
+          void this.persistenceReporter.confirm();
           channel.onTurnComplete();
           this.#clearActive();
         }
@@ -328,36 +347,17 @@ export class ClaudeAgentSdkAdapter {
     } catch (error) {
       const state = this.activeState;
       if (!this.disposed && this.activeQuery === query && state && !state.terminal) {
-        const interrupted = this.interruptRequested || this.activeController?.signal.aborted;
-        if (!interrupted) {
-          this.onEvent({
-            type: "provider.error",
-            providerSessionId: this.sessionId,
-            turnId: state.turnId,
-            itemId: null,
-            payload: { message: redactSecretText(error instanceof Error ? error.message : String(error)), recoverable: true },
-          });
-        }
-        this.onEvent({
-          type: interrupted ? "turn.interrupted" : "turn.failed",
-          providerSessionId: this.sessionId,
-          turnId: state.turnId,
-          itemId: null,
-          payload: { status: interrupted ? "interrupted" : "failed" },
-        });
-        emittedTerminal = true;
+        // Stream failure is a lost observation, not a native terminal result.
+        this.onEvent({ type: "provider.error", providerSessionId: this.sessionId, turnId: state.turnId, itemId: null,
+          payload: { message: redactSecretText(error instanceof Error ? error.message : String(error)), recoverable: true } });
+        exitReported = true;
+        this.onExit({ expected: false, error: "Claude Code stream ended without a native result." });
       }
     } finally {
       if (this.activeQuery === query) {
         const state = this.activeState;
-        if (!this.disposed && state && !state.terminal && !emittedTerminal) {
-          this.onEvent({
-            type: this.interruptRequested ? "turn.interrupted" : "turn.failed",
-            providerSessionId: this.sessionId,
-            turnId: state.turnId,
-            itemId: null,
-            payload: { status: this.interruptRequested ? "interrupted" : "failed" },
-          });
+        if (!this.disposed && state && !state.terminal && !exitReported) {
+          this.onExit({ expected: false, error: "Claude Code stream ended without a native result." });
         }
         claudeResolvePending(this, "Claude Code query closed before the request was resolved.");
         channel.close();
@@ -395,7 +395,8 @@ export class ClaudeAgentSdkAdapter {
         model,
         effort,
         mode,
-        resume: this.sessionId,
+        resume: this.resuming ? this.sessionId : null,
+        sessionId: this.resuming ? null : this.sessionId,
         projectInstructions,
       }),
     });
@@ -406,6 +407,7 @@ export class ClaudeAgentSdkAdapter {
     this.queryConsumer = this.#consumePersistent(query, channel);
     try {
       await withTimeout(query.initializationResult(), INSPECTION_TIMEOUT_MS, "Claude Code startup timed out.");
+      if (this.activeQuery !== query || this.disposed) throw new Error("Claude Code query closed during initialization.");
     } catch (error) {
       await this.#closePersistentQuery("Claude Code startup failed.");
       throw error;
@@ -426,6 +428,7 @@ export class ClaudeAgentSdkAdapter {
       await Promise.race([Promise.resolve(this.queryConsumer).catch(() => {}), delay(1_000)]);
     }
     this.queryConsumer = null;
+    if (controller) await this.spawnClaudeCodeProcess.waitForExit?.({ signal: controller.signal });
     if (reason && this.pendingApprovals.size + this.pendingQuestions.size > 0) claudeResolvePending(this, reason);
   }
 
@@ -435,6 +438,7 @@ export class ClaudeAgentSdkAdapter {
     effort = null,
     mode = "agent",
     resume = null,
+    sessionId = null,
     projectInstructions = [],
   } = {}) {
     const append = formatAuthorizedProjectInstructions(projectInstructions);
@@ -443,13 +447,14 @@ export class ClaudeAgentSdkAdapter {
       cwd: this.workspaceRoot,
       env: cleanEnvironment({
         ...(this.readiness.environment ?? {}),
+        CLAUDE_CONFIG_DIR: this.historySource.root,
         CLAUDE_AGENT_SDK_CLIENT_APP: `puppyone-desktop/${this.appVersion}`,
         PUPPYONE_AGENT_BACKEND: "claude",
       }),
       ...(this.readiness.executablePath ? { pathToClaudeCodeExecutable: this.readiness.executablePath } : {}),
       ...(model ? { model } : {}),
       ...(effort ? { effort } : {}),
-      ...(resume ? { resume } : {}),
+      ...(resume ? { resume } : sessionId ? { sessionId } : {}),
       permissionMode: mode === "plan" ? "plan" : "default",
       canUseTool: (toolName, input, options) => claudeRequestPermission(this, toolName, input, options),
       spawnClaudeCodeProcess: this.spawnClaudeCodeProcess,

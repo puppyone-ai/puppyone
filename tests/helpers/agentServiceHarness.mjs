@@ -194,11 +194,11 @@ function createFakeAdapter(
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     })),
-    resumeSession: vi.fn(async () => {
+    resumeSession: vi.fn(async ({ threadId }) => {
       if (resumeSessionError) throw resumeSessionError;
       for (const event of resumeEvents) options.onEvent(event);
       return {
-        providerSessionId: "thread-1",
+        providerSessionId: threadId,
         title: "Test session",
         model: "gpt-5",
         createdAt: new Date().toISOString(),
@@ -223,10 +223,12 @@ function createFakeAdapter(
     dispose: vi.fn(function dispose() { this.disposed = true; }),
     emit: options.onEvent,
     exit: options.onExit,
+    confirmPersistence: (id = "thread-1") => options.onSessionPersisted({ providerSessionId: id, sourceScopeId: "default" }),
   };
   adapter.getSessionHistoryPort = () => ({
     discover: (request) => adapter.discoverSessions(request),
-    hydrate: () => adapter.readHistory(),
+    sourceScopeId: "default",
+    hydrate: async () => ({ events: await adapter.readHistory(), coverage: "unknown", providerSessionId: adapter.resumeSession.mock.calls.at(-1)?.[0].threadId ?? "thread-1" }),
   });
   return adapter;
 }

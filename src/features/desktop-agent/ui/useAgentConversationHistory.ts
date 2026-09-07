@@ -49,7 +49,7 @@ export function useAgentConversationHistory({
   return {
     ...state,
     sessions: visibleSessions,
-    hasMore: Object.keys(state.nextCursors).length > 0,
+    hasMore: Boolean(state.catalogNextCursor) || Object.keys(state.nextCursors).length > 0,
     refreshNative: controller.refresh.bind(controller),
     loadMoreNative: controller.loadMore.bind(controller),
   };
