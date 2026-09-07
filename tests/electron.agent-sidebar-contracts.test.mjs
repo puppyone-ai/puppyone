@@ -100,6 +100,22 @@ describe('Agent sidebar protocol and display invariants', () => {
     expect(actor.display.messages.at(-1)).toMatchObject({text:'y'.repeat(128*1024),truncated:true});
   });
 
+  it('does not repeat an incomplete final prefix after a tool boundary', () => {
+    const actor = new AgentSessionActor();
+    append(actor,{type:'assistant.delta',turnId:'turn',itemId:'answer',payload:{delta:'Full streamed answer'}});
+    append(actor,{type:'tool.completed',turnId:'turn',itemId:'tool',payload:{kind:'tool',label:'Read',status:'completed'}});
+    append(actor,{type:'assistant.completed',turnId:'turn',itemId:'answer',payload:{text:'Full streamed',truncated:true}});
+    expect(actor.display.messages).toHaveLength(1);
+    expect(actor.display.messages[0].text).toBe('Full streamed answer');
+  });
+
+  it('uses an explicit native historical duration without using the replay clock', () => {
+    const actor = new AgentSessionActor({clock:()=>9_000_000});
+    append(actor,{type:'turn.started',turnId:'old',payload:{restored:true}});
+    append(actor,{type:'turn.completed',turnId:'old',payload:{restored:true,durationMs:4321}});
+    expect(actor.display.parts.find(part=>part.kind==='turn-summary')?.durationMs).toBe(4321);
+  });
+
   it.each(['claude','pi','acp'])('does not silently clip %s final text in the adapter', provider => {
     const text = 'a'.repeat(40_000) + 'END'; let events;
     if (provider === 'claude') events = normalizeClaudeMessage({type:'assistant',message:{id:'answer',content:[{type:'text',text}]}},createClaudeEventState({turnId:'turn'}));

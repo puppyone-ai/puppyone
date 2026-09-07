@@ -464,7 +464,7 @@ function upsertAssistant(projection, event, text, streaming, authoritative) {
         : authoritative && matchingIndexes.length > 1
             ? textForExistingAssistantSegment(projection, matchingIndexes, text)
             : text;
-    const createSegment = boundaryAfterLatest && segmentedText.length > 0;
+    const createSegment = !incompletePrefix && boundaryAfterLatest && segmentedText.length > 0;
     const id = createSegment ? `${baseId}:segment:${event.sequence}` : baseId;
     const existingIndex = createSegment ? undefined : latestIndex;
     if (existingIndex !== undefined) {
