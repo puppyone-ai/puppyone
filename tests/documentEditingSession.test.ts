@@ -141,6 +141,97 @@ describe("DocumentEditingSession", () => {
     expect(session.getState()).toMatchObject({ status: "clean", error: null });
   });
 
+  it.each(["auto", "manual"] as const)("accepts external content after an unsaved edit was undone (%s)", async (mode) => {
+    const persist = vi.fn(async () => ({ ok: true as const, version: "unexpected" }));
+    const session = createSession(persist, mode);
+    const source = bindSource(session, { revision: "r1", content: "one" });
+    source.change({ revision: "r2", content: "temporary edit" });
+    source.change({ revision: "r3", content: "one" });
+
+    expect(session.reconcileExternalBaseline("agent edit", "agent-v2")).toBe("applied");
+    await nextMicrotask();
+    expect(source.snapshot().content).toBe("agent edit");
+    expect(session.hasUnpersistedChanges()).toBe(false);
+    expect(persist).not.toHaveBeenCalled();
+  });
+
+  it("accepts an external update after detached edits were undone without restoring the obsolete snapshot", () => {
+    const session = createSession(vi.fn(), "manual");
+    const first = bindSource(session, { revision: "r1", content: "one" });
+    first.change({ revision: "r2", content: "temporary edit" });
+    first.change({ revision: "r3", content: "one" });
+    first.detach();
+    expect(session.reconcileExternalBaseline("agent edit", "agent-v2")).toBe("applied");
+    const remounted = bindSource(session, { revision: "r4", content: "one" });
+    expect(remounted.snapshot().content).toBe("agent edit");
+    expect(session.hasUnpersistedChanges()).toBe(false);
+  });
+
+  it("does not leave a phantom edit when model revisions change during a successful save", async () => {
+    const write = deferred<{ ok: true; version: string }>();
+    const persist = vi.fn(() => write.promise);
+    const session = createSession(persist, "manual");
+    const source = bindSource(session, { revision: "r1", content: "one" });
+    source.change({ revision: "r2", content: "two" });
+    const saved = session.requestSave();
+    source.change({ revision: "remounted:r1", content: "two" }, false);
+    write.resolve({ ok: true, version: "v2" });
+    await saved;
+
+    expect(session.hasUnpersistedChanges()).toBe(false);
+    expect(session.reconcileExternalBaseline("agent edit", "agent-v3")).toBe("applied");
+    expect(source.snapshot().content).toBe("agent edit");
+    expect(persist).toHaveBeenCalledTimes(1);
+  });
+
+  it("acknowledges a conditional write that discovers its candidate already on disk", async () => {
+    const persist = vi.fn(async () => ({
+      ok: false as const, kind: "conflict" as const, content: "two", version: "agent-v2",
+    }));
+    const session = createSession(persist, "manual");
+    const source = bindSource(session, { revision: "r1", content: "one" });
+    source.change({ revision: "r2", content: "two" });
+    await session.requestSave();
+
+    expect(session.hasUnpersistedChanges()).toBe(false);
+    expect(session.getState()).toMatchObject({ error: null, storageVersion: "agent-v2" });
+    expect(persist).toHaveBeenCalledTimes(1);
+  });
+
+  it("settles queued saves when a rejected older write finds the latest edit already on disk", async () => {
+    const write = deferred<{ ok: false; kind: "conflict"; content: string; version: string }>();
+    const persist = vi.fn(() => write.promise);
+    const session = createSession(persist, "manual");
+    const source = bindSource(session, { revision: "r1", content: "one" });
+    source.change({ revision: "r2", content: "two" });
+    const firstSave = session.requestSave();
+    source.change({ revision: "r3", content: "three" });
+    const latestSave = session.requestSave();
+    write.resolve({ ok: false, kind: "conflict", content: "three", version: "agent-v3" });
+    await Promise.all([firstSave, latestSave]);
+
+    expect(session.hasUnpersistedChanges()).toBe(false);
+    expect(source.snapshot().content).toBe("three");
+    expect(session.getState()).toMatchObject({ error: null, storageVersion: "agent-v3" });
+    expect(persist).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not let a converged conditional-write result erase a newer known external conflict", async () => {
+    const write = deferred<{ ok: false; kind: "conflict"; content: string; version: string }>();
+    const session = createSession(vi.fn(() => write.promise), "manual");
+    const source = bindSource(session, { revision: "r1", content: "one" });
+    source.change({ revision: "r2", content: "two" });
+    const saved = session.requestSave();
+    const rejected = expect(saved).rejects.toThrow("changed outside the editor");
+    session.reconcileExternalBaseline("newer external", "agent-v3");
+    write.resolve({ ok: false, kind: "conflict", content: "two", version: "v2" });
+    await rejected;
+    expect(session.getState().status).toBe("conflict");
+    expect(source.snapshot().content).toBe("two");
+    await session.resolveExternalConflict("reload-external");
+    expect(source.snapshot().content).toBe("newer external");
+  });
+
   it("promotes a pending edit to the navigation drain reason", async () => {
     const first = deferred<{ ok: true; version: string }>();
     const second = deferred<{ ok: true; version: string }>();

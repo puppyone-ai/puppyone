@@ -11,7 +11,7 @@ describe("preset viewer preload cache", () => {
       "utf8",
     );
     const selectionPreload = workspaceSource.indexOf("preloadPresetViewer(selectedFileViewer)");
-    const contentRead = workspaceSource.indexOf("dataPort.readFile(selectedFile.path");
+    const contentRead = workspaceSource.indexOf("readDocumentStorageSnapshot(dataPort, selectedFile.path");
 
     expect(selectionPreload).toBeGreaterThan(-1);
     expect(contentRead).toBeGreaterThan(selectionPreload);

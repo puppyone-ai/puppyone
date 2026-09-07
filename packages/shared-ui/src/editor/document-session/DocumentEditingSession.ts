@@ -1,4 +1,5 @@
 import type {
+  DocumentPersistenceConflict,
   DocumentPersistenceReason,
   DocumentPersistenceResult,
 } from "../../core/types";
@@ -8,6 +9,7 @@ import type {
   EditorSourceSnapshotPort,
 } from "../sourceSnapshot";
 import type { EditorSaveMode } from "../registry/viewerTypes";
+import { invalidateDocumentStorageReads } from "./documentStorageReads";
 import type {
   DocumentEditingSessionOptions,
   DocumentPersistedCommit,
@@ -265,7 +267,12 @@ export class DocumentEditingSession implements DocumentEditingSessionHandle {
       return "acknowledged";
     }
 
-    if (this.hasUnpersistedChanges()) {
+    // Revision/dirty flags are conservative between save boundaries. An undo
+    // can restore the exact baseline before autosave runs. Only divergent
+    // local bytes require a conflict; an active write still owns its snapshot.
+    const revertedToBaseline = !this.hasActiveCommit()
+      && currentSnapshot?.content === this.persistedContent;
+    if (this.hasUnpersistedChanges() && !revertedToBaseline) {
       this.cancelImmediateCommit();
       this.externalConflict = { content, version };
       this.dirty = true;
@@ -279,7 +286,11 @@ export class DocumentEditingSession implements DocumentEditingSessionHandle {
 
     this.persistedContent = content;
     this.storageVersion = version;
+    this.cancelImmediateCommit();
     const replacement = this.source?.replaceContent(content) ?? null;
+    this.detachedSnapshot = this.source ? null : (
+      currentSnapshot ? { ...currentSnapshot, content } : null
+    );
     this.currentRevision = replacement?.revision ?? null;
     this.persistedRevision = replacement?.revision ?? null;
     this.externalConflict = null;
@@ -494,8 +505,11 @@ export class DocumentEditingSession implements DocumentEditingSessionHandle {
       if (result.ok) {
         this.acknowledge(candidate, result);
       } else if (result.kind === "conflict") {
-        this.reconcileExternalBaseline(result.content, result.version);
-        failure = createExternalConflictError(this.documentId);
+        invalidateDocumentStorageReads(this.persistence, this.documentId);
+        if (!this.acknowledgeConvergedWrite(candidate, result)) {
+          this.reconcileExternalBaseline(result.content, result.version);
+          failure = createExternalConflictError(this.documentId);
+        }
       } else {
         failure = new Error(result.message);
       }
@@ -531,6 +545,31 @@ export class DocumentEditingSession implements DocumentEditingSessionHandle {
     }
   }
 
+  private acknowledgeConvergedWrite(candidate: CommitCandidate, result: DocumentPersistenceConflict): boolean {
+    const currentSnapshot = this.source?.readSnapshot() ?? this.detachedSnapshot;
+    const convergedSnapshot = currentSnapshot?.content === result.content ? currentSnapshot : null;
+    const newerExternalConflict = this.externalConflict && (
+      this.externalConflict.content !== result.content || this.externalConflict.version !== result.version
+    );
+    if (newerExternalConflict || (!convergedSnapshot && candidate.snapshot.content !== result.content)) {
+      return false;
+    }
+    // A failed CAS can still prove these exact bytes are already durable.
+    // Settle obsolete queued saves too if the latest model has converged.
+    this.externalConflict = null;
+    const acknowledged = convergedSnapshot ? {
+      ...candidate,
+      sequence: this.pending?.sequence ?? candidate.sequence,
+      snapshot: convergedSnapshot,
+    } : candidate;
+    if (convergedSnapshot) {
+      this.pending = null;
+      this.cancelImmediateCommit();
+    }
+    this.acknowledge(acknowledged, { ok: true, version: result.version });
+    return true;
+  }
+
   private rejectPendingForExternalConflict(): void {
     if (!this.pending) return;
     const blocked = this.pending;
@@ -542,13 +581,19 @@ export class DocumentEditingSession implements DocumentEditingSessionHandle {
     candidate: CommitCandidate,
     result: Extract<DocumentPersistenceResult, { ok: true }>,
   ): void {
+    invalidateDocumentStorageReads(this.persistence, this.documentId);
     this.persistedContent = candidate.snapshot.content;
     this.persistedRevision = candidate.snapshot.revision;
-    if (sameSnapshot(this.detachedSnapshot, candidate.snapshot)) {
+    const currentSnapshot = this.source?.readSnapshot() ?? this.detachedSnapshot;
+    if (currentSnapshot?.content === candidate.snapshot.content) {
+      this.currentRevision = currentSnapshot.revision;
+      this.persistedRevision = currentSnapshot.revision;
+    }
+    if (this.detachedSnapshot?.content === candidate.snapshot.content) {
       this.detachedSnapshot = null;
     }
     this.storageVersion = result.version;
-    this.dirty = this.currentRevision !== null && this.currentRevision !== candidate.snapshot.revision;
+    this.dirty = this.currentRevision !== null && this.currentRevision !== this.persistedRevision;
     this.resolveWaitersThrough(candidate.sequence);
 
     try {

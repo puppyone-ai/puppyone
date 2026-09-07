@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   getEditorSourceRequirement,
+  readDocumentStorageSnapshot,
   shouldReadEditorContent,
   useFileResourceLease,
   workspaceContentChangeMatchesResource,
@@ -23,6 +24,7 @@ export function useEditorPaneSource(
   const lastRefreshSequenceRef = useRef(refreshKey?.sequence ?? Number.NEGATIVE_INFINITY);
   const nodePath = node?.path ?? null;
   const readFile = dataPort.readFile;
+  const documentPersistence = dataPort.documentPersistence;
   const needsContent = Boolean(node && readFile && shouldReadEditorContent(node));
   const sourceRequirement = node ? getEditorSourceRequirement(node) : "none";
   const needsResource = Boolean(
@@ -57,10 +59,10 @@ export function useEditorPaneSource(
     const controller = new AbortController();
     setError(null);
     setLoading(true);
-    readFile(nodePath, { signal: controller.signal })
-      .then((nextContent) => {
-        if (!controller.signal.aborted) setContent(nextContent);
-      })
+    readDocumentStorageSnapshot({ readFile, documentPersistence }, nodePath, {
+      signal: controller.signal,
+      accept: setContent,
+    })
       .catch((nextError) => {
         if (!controller.signal.aborted) {
           setError(nextError instanceof Error ? nextError.message : String(nextError));
@@ -70,7 +72,7 @@ export function useEditorPaneSource(
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [needsContent, nodePath, readFile, reloadSequence]);
+  }, [documentPersistence, needsContent, nodePath, readFile, reloadSequence]);
 
   const resource = useFileResourceLease({
     dataPort,
