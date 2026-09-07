@@ -97,6 +97,7 @@ import { createTerminalService } from "./main/terminal-service.mjs";
 import { createTerminalAgentLocator } from "./main/terminal-agent/terminal-agent-locator.mjs";
 import { createDefaultTerminalAgentActivityHost } from "./main/terminal-agent/activity/bootstrap/create-terminal-agent-activity-host.mjs";
 import { createTrustedIpcMain } from "./main/trusted-ipc.mjs";
+import { acquireRendererOutputLease } from "./main/renderer-output-lease.mjs";
 import { createThemeService } from "./main/themes/theme-service.mjs";
 import { createSenderWorkspaceAuthorization } from "./main/workspace-authorization.mjs";
 import { createWorkspaceStateStore } from "./main/workspace-state-store.mjs";
@@ -177,6 +178,19 @@ if (!gotSingleInstanceLock) {
 }
 
 const devServerUrl = process.env.PUPPYONE_DESKTOP_DEV_URL;
+if (!app.isPackaged && !devServerUrl) {
+  try {
+    const releaseRendererOutput = acquireRendererOutputLease({
+      outputDirectory: path.dirname(rendererDistPath),
+      mode: "preview",
+    });
+    app.once("quit", releaseRendererOutput);
+  } catch (error) {
+    console.error("Unable to open the renderer:", error);
+    dialog.showErrorBox("PuppyOne Development", error.message);
+    app.exit(1);
+  }
+}
 const rendererApplicationUrl = devServerUrl || pathToFileURL(rendererDistPath).toString();
 if (devServerUrl) app.commandLine.appendSwitch("remote-debugging-port", "9222");
 const viewerPackFeatureProfile = resolveViewerPackFeatureProfile({

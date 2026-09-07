@@ -1,5 +1,6 @@
 node_modules/
 dist/
+.*.puppyone-leases/
 /release/
 artifacts/terminal-preview/
 generated/
