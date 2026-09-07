@@ -19,7 +19,6 @@ export type RightAgentPanelHandle = { newSession: () => void };
 type RightAgentPanelProps = {
   workspace: Workspace;
   active: boolean;
-  onViewChanges?: () => void;
   onOpenFile?: (path: string) => void;
   onRunningChange?: (running: boolean) => void;
   preferredRuntimeId?: string | null;
@@ -36,7 +35,6 @@ type RightAgentPanelProps = {
 export const RightAgentPanel = forwardRef<RightAgentPanelHandle, RightAgentPanelProps>(function RightAgentPanel({
   workspace,
   active,
-  onViewChanges,
   onOpenFile,
   onRunningChange,
   preferredRuntimeId = null,
@@ -88,7 +86,6 @@ export const RightAgentPanel = forwardRef<RightAgentPanelHandle, RightAgentPanel
                 active={active && tab.id === tabs.activeTabId}
                 workspace={workspace}
                 onPresentationChange={tabs.presentTab}
-                onViewChanges={onViewChanges}
                 onOpenFile={onOpenFile}
                 preferredRuntimeId={preferredRuntimeId}
                 onPreferredRuntimeChange={onPreferredRuntimeChange}

@@ -29,7 +29,6 @@ describe("semantic navigation cursor contract", () => {
     const agentHistory = source("src/features/desktop-agent/ui/AgentConversationHistory.tsx");
     const historyPermission = source("src/features/desktop-agent/workbench/AgentChatHistoryBrowser.tsx");
     const tabs = source("src/features/desktop-agent/ui/AgentSessionTabs.tsx");
-    const changes = source("src/features/desktop-agent/ui/AgentChangesControl.tsx");
 
     expect(shellNavigation).toContain("data-navigation-item={item.view}");
     expect(shellNavigation).toContain('data-navigation-item="settings"');
@@ -38,7 +37,6 @@ describe("semantic navigation cursor contract", () => {
     expect(agentHistory.match(/data-po-interaction="navigation"/g)).toHaveLength(2);
     expect(historyPermission).toContain('data-po-interaction="navigation"');
     expect(tabs).toContain('data-po-interaction="navigation"');
-    expect(changes).toContain('data-po-interaction="navigation"');
   });
 
   it("marks document-reference actions while preserving editable text cursors", () => {

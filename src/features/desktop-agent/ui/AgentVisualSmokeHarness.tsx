@@ -8,7 +8,6 @@ import { useLocalization } from "@puppyone/localization/react";
 import { DesktopOverlayPortal } from "../../app-shell/DesktopOverlayPortal";
 import { AgentComposer } from "./AgentComposer";
 import { AgentApprovalDock } from "./AgentApprovalDock";
-import { AgentChangesControl } from "./AgentChangesControl";
 import { AgentPanelLayout } from "./AgentPanelLayout";
 import { AgentRuntimePicker } from "./AgentRuntimePicker";
 import { AgentSurfaceHeader } from "./AgentSurfaceHeader";
@@ -365,7 +364,6 @@ export function AgentVisualSmokeHarness() {
               onResolve={() => {}}
             />}
             <AgentComposer
-              floatingAccessory={approvalSmoke ? null : <AgentChangesControl projection={visibleProjection} onViewChanges={() => {}} />}
               draft={draft}
               draftMentions={draftMentions}
               onDraftChange={setDraft}

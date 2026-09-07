@@ -292,8 +292,6 @@
   "approval.deny": "거부",
   "approval.allowSession": "이 세션에서 허용",
   "approval.allowOnce": "한 번 허용",
-  "changes.ariaLabel": "변경 보기: 추가 {additions, number}, 삭제 {deletions, number}",
-  "changes.label": "변경",
   "markdown.collapse": "긴 답변 접기",
   "markdown.showFull": "전체 답변 표시",
   "markdown.diagram": "Mermaid",

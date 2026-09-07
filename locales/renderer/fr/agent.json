@@ -292,8 +292,6 @@
   "approval.deny": "Refuser",
   "approval.allowSession": "Autoriser la session",
   "approval.allowOnce": "Autoriser une fois",
-  "changes.ariaLabel": "Afficher les modifications : ajouts {additions, number} et suppressions {deletions, number}",
-  "changes.label": "Changements",
   "markdown.collapse": "Réduire la réponse longue",
   "markdown.showFull": "Afficher la réponse complète",
   "markdown.diagram": "Mermaid",

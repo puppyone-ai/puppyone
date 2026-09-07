@@ -292,8 +292,6 @@
   "approval.deny": "拒绝",
   "approval.allowSession": "本会话允许",
   "approval.allowOnce": "仅允许一次",
-  "changes.ariaLabel": "查看更改：新增 {additions, number} 行，删除 {deletions, number} 行",
-  "changes.label": "更改",
   "markdown.collapse": "收起长回复",
   "markdown.showFull": "显示完整回复",
   "markdown.diagram": "Mermaid",

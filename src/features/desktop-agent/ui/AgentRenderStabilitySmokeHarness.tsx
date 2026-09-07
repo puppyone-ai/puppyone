@@ -256,6 +256,8 @@ async function runSmoke(update: (fixture: Fixture) => void, active: () => boolea
           .every(node => getComputedStyle(node).color === detailColor), "Expanded tool markers or file path lost their muted color");
         assert(messageColors(addedEvidence).contrast >= 4.5, `${theme}: added content is unreadable`);
         assert(stats.textContent === "+2−1" && addition.color !== deletion.color, "Edit counts lost semantic colors");
+        assert(document.querySelectorAll(".desktop-agent-tool-diff-stats").length === 1
+          && !document.querySelector(".desktop-agent-changes-control, .desktop-agent-composer-floating"), "File-change counts were duplicated above the composer");
         assert(messageColors(stats.querySelector<HTMLElement>(".is-addition")!).contrast >= 4.5
           && messageColors(stats.querySelector<HTMLElement>(".is-deletion")!).contrast >= 4.5,
         `${theme}: edit counts are unreadable against the active theme`);

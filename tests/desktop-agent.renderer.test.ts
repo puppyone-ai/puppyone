@@ -11,7 +11,6 @@ import { createRoot, type Root } from "react-dom/client";
 import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AgentApprovalDock } from "../src/features/desktop-agent/ui/AgentApprovalDock";
-import { AgentChangesControl, summarizeAgentChanges } from "../src/features/desktop-agent/ui/AgentChangesControl";
 import { AgentComposer } from "../src/features/desktop-agent/ui/AgentComposer";
 import { AgentEmptyState } from "../src/features/desktop-agent/ui/AgentEmptyState";
 import { AgentMessagePart } from "../src/features/desktop-agent/ui/AgentMessagePart";
@@ -1170,33 +1169,6 @@ describe("Desktop Agent renderer surfaces", () => {
     expect(document.activeElement).toBe(trigger);
   });
 
-  it("summarizes real file changes in the compact Changes control", () => {
-    const projection = createAgentProjection();
-    projection.activities.push({
-      id: "change-1",
-      turnId: "turn-1",
-      itemId: "tool-1",
-      kind: "file-change",
-      label: "Edited files",
-      status: "completed",
-      output: "",
-      detail: {
-        changes: [
-          { path: "src/a.ts", additions: 86, deletions: 12 },
-          { path: "src/b.ts", additions: 4, deletions: 1 },
-        ],
-      },
-      sequence: 1,
-    });
-    expect(summarizeAgentChanges(projection)).toEqual({ additions: 90, deletions: 13, files: 2 });
-    const onViewChanges = vi.fn();
-    const container = render(React.createElement(AgentChangesControl, { projection, onViewChanges }));
-    const button = container.querySelector(".desktop-agent-changes-control") as HTMLButtonElement;
-    expect(button.textContent).toBe("+90-13");
-    act(() => button.click());
-    expect(onViewChanges).toHaveBeenCalledTimes(1);
-  });
-
   it("renders Bash activity as a compact product row with a bounded expandable transcript", () => {
     const projection = createAgentProjection();
     projection.activities.push({
@@ -1376,7 +1348,6 @@ describe("Desktop Agent renderer surfaces", () => {
     expect(container.querySelector(".desktop-agent-evidence-node.is-deletion pre")?.textContent).toBe("old");
     expect(container.querySelector(".desktop-agent-evidence-node.is-addition pre")?.textContent).toBe("new");
     expect(container.querySelector(".desktop-agent-tool-diff-stats")).toBeNull();
-    expect(summarizeAgentChanges(projection).files).toBe(0);
   });
 
   it("does not render a generic File Change row or Review action without a real change", () => {

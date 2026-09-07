@@ -292,8 +292,6 @@
   "approval.deny": "Deny",
   "approval.allowSession": "Allow for session",
   "approval.allowOnce": "Allow once",
-  "changes.ariaLabel": "View changes: {additions, number} additions and {deletions, number} deletions",
-  "changes.label": "Changes",
   "markdown.collapse": "Collapse long response",
   "markdown.showFull": "Show full response",
   "markdown.diagram": "Mermaid",

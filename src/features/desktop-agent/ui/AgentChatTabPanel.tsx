@@ -10,7 +10,6 @@ import type { AgentChatTabPresentation } from "../domain/agent-chat-tabs";
 import type { AgentRoutePreference } from "../domain/agent-route-preference";
 import { deriveAgentSessionControls } from "../domain/agent-session-controls";
 import { AgentApprovalDock } from "./AgentApprovalDock";
-import { AgentChangesControl } from "./AgentChangesControl";
 import { AgentComposer, DEFAULT_AGENT_COMPOSER_PLACEHOLDER_ID } from "./AgentComposer";
 import { AgentEmptyState } from "./AgentEmptyState";
 import { AgentPanelLayout } from "./AgentPanelLayout";
@@ -33,7 +32,6 @@ type AgentChatTabPanelProps = {
   controller: AgentSessionController;
   workspaceId: string;
   onPresentationChange: (presentation: AgentChatTabPresentation) => void;
-  onViewChanges?: () => void;
   onOpenFile?: (path: string) => void;
   preferredRuntimeId: string | null;
   onPreferredRuntimeChange?: (runtimeId: string | null) => void;
@@ -52,7 +50,6 @@ export function AgentChatTabPanel({
   controller,
   workspaceId,
   onPresentationChange,
-  onViewChanges,
   onOpenFile,
   preferredRuntimeId,
   onPreferredRuntimeChange,
@@ -213,7 +210,6 @@ export function AgentChatTabPanel({
         onResolve={(resolution) => void controller.resolveQuestion(resolution)}
       />}
       <AgentComposer
-        floatingAccessory={state.projection.approvals.length === 0 && state.projection.questions.length === 0 ? <AgentChangesControl projection={state.projection} onViewChanges={onViewChanges} /> : null}
         draft={state.draft} draftMentions={state.draftMentions} onDraftChange={handleDraftChange}
         onDraftDocumentChange={handleDraftDocumentChange}
         disabled={loading || unavailable || failed || !routingReady || state.projection.approvals.length > 0 || state.projection.questions.length > 0}

@@ -292,8 +292,6 @@
   "approval.deny": "Denegar",
   "approval.allowSession": "Permitir durante la sesión",
   "approval.allowOnce": "Permitir una vez",
-  "changes.ariaLabel": "Ver cambios: {additions, number} adiciones y {deletions, number} eliminaciones",
-  "changes.label": "Cambios",
   "markdown.collapse": "Contraer respuesta larga",
   "markdown.showFull": "Mostrar respuesta completa",
   "markdown.diagram": "Mermaid",

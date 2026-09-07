@@ -1037,10 +1037,6 @@ function AppContent() {
     workspace,
   ]);
 
-  const handleAgentViewChanges = useCallback(() => {
-    setActiveView("git");
-    setSidebarCollapsed(false);
-  }, [setSidebarCollapsed]);
   const handleAgentOpenFile = useCallback((workspaceRootPath: string, path: string) => {
     const folder = workbenchWorkspace?.folders.find(
       (candidate) => candidate.workspace.path === workspaceRootPath,
@@ -1104,7 +1100,6 @@ function AppContent() {
             onPreferredRouteChange={setAgentPreferredRoute}
             preferredModel={agentPreferredModel}
             onPreferredModelChange={setAgentPreferredModel}
-            onViewChanges={handleAgentViewChanges}
             onOpenFile={(path) => handleAgentOpenFile(context.item.rootId, path)}
             resolveWorkspaceReference={resolveAgentWorkspaceReference}
           />
@@ -1131,7 +1126,6 @@ function AppContent() {
     agentChatRuntimeVisibility,
     desktopAgentChatEnabled,
     handleAgentOpenFile,
-    handleAgentViewChanges,
     localAgentsSettings,
     resolveAgentWorkspaceReference,
     setAgentPreferredModel,

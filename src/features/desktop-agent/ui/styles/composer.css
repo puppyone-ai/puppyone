@@ -6,19 +6,6 @@
   padding: 0;
 }
 
-.desktop-agent-composer-floating {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  inset-inline-end: 8px;
-  inset-inline-start: auto;
-  z-index: 2;
-  width: max-content;
-  max-width: calc(100% - 16px);
-  pointer-events: none;
-}
-
-.desktop-agent-composer-floating > * { pointer-events: auto; }
-
 .desktop-agent-composer {
   position: relative;
   display: flex;

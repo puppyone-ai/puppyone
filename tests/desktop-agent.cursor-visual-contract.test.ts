@@ -125,7 +125,6 @@ describe("Desktop Agent Cursor-style sidebar visual contract", () => {
     expect(panel).toContain("conversationOverlay={showReadyEmptyState");
     expect(panel).not.toContain("emptyState={showReadyEmptyState");
     expect(css).toMatch(/\.desktop-agent-composer-shell\s*\{[^}]*padding:\s*0/s);
-    expect(css).toMatch(/\.desktop-agent-composer-floating\s*\{[^}]*position:\s*absolute[^}]*bottom:\s*calc\(100% \+ 8px\)[^}]*inset-inline-end:\s*8px[^}]*inset-inline-start:\s*auto[^}]*pointer-events:\s*none/s);
     expect(css).toMatch(/--agent-sidebar-border:\s*var\(--po-divider\)/);
     expect(css).toMatch(/--agent-config-border:\s*var\(--po-border-subtle\)/);
     expect(css).toMatch(/--agent-row-hover-surface:\s*color-mix\(in srgb, var\(--po-hover\) 86%, transparent\)/);
@@ -194,7 +193,6 @@ describe("Desktop Agent Cursor-style sidebar visual contract", () => {
     expect(brandImageCss).toMatch(/\.dark \.po-agent-brand-image\[data-agent-brand-theme="dark"\]\s*\{[^}]*display:\s*block/s);
     expect(panel).toContain("loading={startupLoading}");
     expect(panel).toContain("dock={startupLoading ? null");
-    expect(panel).toContain("floatingAccessory=");
     expect(composerToolbar).toContain("<AgentAttachmentButton");
     expect(attachmentButton).toContain("inputRef.current?.click()");
     expect(attachmentButton).not.toContain("DesktopOverlayLayer");
@@ -348,10 +346,6 @@ describe("Desktop Agent Cursor-style sidebar visual contract", () => {
     expect(css).toMatch(/@container desktop-agent \(max-width:\s*559px\)/);
     expect(css).toMatch(/@container desktop-agent \(max-width:\s*419px\)/);
     expect(responsiveCss).not.toMatch(/desktop-agent-transcript\s*\{[^}]*padding-bottom:/s);
-    expect(css).toMatch(/\.desktop-agent-changes-control\s*\{[^}]*min-height:\s*var\(--po-control-size-compact\)[^}]*border-radius:\s*6px[^}]*background:\s*var\(--agent-report-surface\)[^}]*color:\s*var\(--agent-text-muted\)/s);
-    expect(css).toMatch(/\.desktop-agent-changes-control strong\s*\{[^}]*font-weight:\s*400/s);
-    expect(css).toMatch(/\.desktop-agent-changes-control \.is-addition\s*\{[^}]*color:\s*var\(--po-success\)/s);
-    expect(css).toMatch(/\.desktop-agent-changes-control \.is-deletion\s*\{[^}]*color:\s*var\(--po-danger\)/s);
     expect(css).not.toContain(".desktop-agent-changes-pill");
     expect(css).toMatch(/\.desktop-agent-tool-call\s*\{[^}]*margin:\s*0 4px var\(--agent-work-handoff-gap\)[^}]*padding:\s*0[^}]*border:\s*0[^}]*background:\s*transparent/s);
     expect(css).not.toContain(".desktop-agent-tool-call::before");

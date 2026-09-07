@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import { bidiIsolate } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
 import type {
@@ -27,7 +26,6 @@ type AgentComposerProps = {
   stopping: boolean;
   submitting: boolean;
   placeholder?: string;
-  floatingAccessory?: ReactNode;
   runtimeLabel?: string;
   configurationDisabled?: boolean;
   sessionControls?: AgentSessionControl[];
@@ -62,7 +60,6 @@ export function AgentComposer({
   stopping,
   submitting,
   placeholder = "",
-  floatingAccessory = null,
   runtimeLabel: runtimeLabelProp,
   configurationDisabled = false,
   sessionControls = [],
@@ -108,9 +105,6 @@ export function AgentComposer({
   const mediaReferences = references.filter((reference) => isAgentMediaReference(reference) || reference.status === "error");
   return (
     <div className="desktop-agent-composer-shell">
-      {floatingAccessory && visibleCommands.length === 0 && (
-        <div className="desktop-agent-composer-floating">{floatingAccessory}</div>
-      )}
       <AgentCommandSuggestions
         commands={visibleCommands}
         onSelect={(command) => updateDraftDocument(`/${command.name} `, [])}

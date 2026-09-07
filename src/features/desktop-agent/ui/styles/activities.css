@@ -439,36 +439,3 @@
   transform: translateX(-50%);
 }
 .desktop-agent-jump-latest:hover { background: var(--agent-row-hover-surface); }
-
-.desktop-agent-changes-control-wrap {
-  display: flex;
-  width: max-content;
-  max-width: 100%;
-  flex: 0 0 auto;
-  padding: 0;
-}
-
-.desktop-agent-changes-control {
-  display: inline-flex;
-  min-height: var(--po-control-size-compact);
-  align-items: center;
-  gap: 5px;
-  padding: 0 9px;
-  border: 1px solid var(--agent-border-subtle);
-  border-radius: 6px;
-  background: var(--agent-report-surface);
-  color: var(--agent-text-muted);
-  font: inherit;
-  font-size: var(--agent-font-size);
-  cursor: var(--po-clickable-cursor, default);
-}
-
-.desktop-agent-changes-control:hover:not(:disabled) {
-  background: var(--agent-row-hover-surface);
-  color: var(--agent-text);
-}
-
-.desktop-agent-changes-control:disabled { cursor: default; }
-.desktop-agent-changes-control strong { font-weight: 400; }
-.desktop-agent-changes-control .is-addition { color: var(--po-success); }
-.desktop-agent-changes-control .is-deletion { color: var(--po-danger); }

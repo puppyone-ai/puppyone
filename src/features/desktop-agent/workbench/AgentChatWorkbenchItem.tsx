@@ -23,7 +23,6 @@ export type AgentChatWorkbenchItemProps = AuxiliaryWorkbenchItemRenderContext & 
   onPreferredModelChange?: (model: string) => void;
   onPreferredRouteChange?: (route: AgentRoutePreference) => void;
   onPreferredRuntimeChange?: (runtimeId: string | null) => void;
-  onViewChanges?: () => void;
   preferredModel: string | null;
   preferredRoute: Readonly<AgentRoutePreference>;
   preferredRuntimeId: string | null;
@@ -38,7 +37,6 @@ export function AgentChatWorkbenchItem({
   onPreferredRouteChange,
   onPreferredRuntimeChange,
   onPresentationChange,
-  onViewChanges,
   preferredModel,
   preferredRoute,
   preferredRuntimeId,
@@ -61,7 +59,6 @@ export function AgentChatWorkbenchItem({
         controller={controller}
         workspaceId={item.contextId}
         onPresentationChange={present}
-        onViewChanges={onViewChanges}
         onOpenFile={onOpenFile}
         preferredRuntimeId={preferredRuntimeId}
         onPreferredRuntimeChange={onPreferredRuntimeChange}
