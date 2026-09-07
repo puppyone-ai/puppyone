@@ -85,7 +85,7 @@
 }
 .desktop-agent-button.is-secondary:hover:not(:disabled) { border-color: var(--agent-border); background: var(--agent-row-hover-surface); color: var(--agent-text); }
 .desktop-agent-button.is-primary { border-color: var(--agent-text); background: var(--agent-text); color: var(--agent-canvas); font-weight: 600; }
-.desktop-agent-button.is-primary:hover:not(:disabled) { border-color: color-mix(in srgb, var(--agent-text) 88%, var(--agent-canvas)); background: color-mix(in srgb, var(--agent-text) 88%, var(--agent-canvas)); }
+.desktop-agent-button.is-primary:hover:not(:disabled) { border-color: var(--agent-primary-hover-surface); background: var(--agent-primary-hover-surface); }
 .desktop-agent-button:disabled { cursor: default; opacity: 0.45; }
 .desktop-agent-question-dock fieldset { min-width: 0; margin: 10px 0 0; padding: 10px; border: 1px solid var(--agent-border-subtle); border-radius: 10px; }
 .desktop-agent-question-dock legend { padding: 0 5px; color: var(--agent-text-muted); font-size: var(--agent-font-size-meta); }
@@ -96,4 +96,4 @@
 .desktop-agent-question-input { width: 100%; height: var(--po-control-size-roomy); padding: 0 10px; border: 1px solid var(--agent-border); border-radius: 10px; background: var(--agent-control-surface); color: var(--agent-text); font-size: var(--agent-font-size); }
 .desktop-agent-question-dock footer { display: flex; justify-content: flex-end; gap: 6px; margin-top: 9px; }
 .desktop-agent-question-dock footer button { display: inline-flex; min-height: var(--agent-control-size); align-items: center; gap: 5px; padding: 0 12px; border: 1px solid var(--agent-border-subtle); border-radius: 10px; background: var(--agent-control-surface); color: var(--agent-text); font: inherit; font-size: var(--agent-font-size); }
-.desktop-agent-question-dock footer button.is-primary { border-color: var(--agent-accent); background: var(--agent-accent); color: #ffffff; }
+.desktop-agent-question-dock footer button.is-primary { border-color: var(--agent-text); background: var(--agent-text); color: var(--agent-canvas); }

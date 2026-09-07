@@ -26,7 +26,7 @@ const cloudSidebarSource = readFileSync(
   new URL("../src/features/cloud/CloudServiceSidebar.tsx", import.meta.url),
   "utf8",
 );
-const agentFoundationCss = readCss("../src/features/desktop-agent/ui/styles/foundation.css");
+const agentThemeCss = readCss("../src/features/desktop-agent/ui/styles/theme.css");
 const gitLayoutCss = readCss("../src/features/source-control/styles/sidebar-layout.css");
 const gitResourcesCss = readCss("../src/features/source-control/styles/sidebar-providers.css");
 const gitHistoryCss = readCss("../src/features/source-control/styles/history-list.css");
@@ -356,7 +356,7 @@ describe("sidebar spacing architecture", () => {
   it("keeps Data row colors authoritative while Agent mirrors them one way", () => {
     const treeShell = compact(readCssBlock(dataTreeCss, ".explorer-tree-shell"));
     const agentBoundary = compact(readCssBlock(
-      agentFoundationCss,
+      agentThemeCss,
       ".desktop-agent-boundary,\n.desktop-agent-overlay",
     ));
 

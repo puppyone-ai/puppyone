@@ -34,23 +34,57 @@
   --agent-blocking-icon-foreground: color-mix(in srgb, var(--po-warning) 62%, var(--agent-text-muted));
   --agent-accent: var(--po-accent);
   --agent-accent-soft: color-mix(in srgb, var(--po-accent) 16%, transparent);
+  /* Shared interaction roles; feature geometry remains in foundation.css. */
+  --agent-row-hover-surface: color-mix(in srgb, var(--po-hover) 86%, transparent);
+  --agent-row-selected-surface: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--po-selected) 96%, transparent) 0%,
+    color-mix(in srgb, var(--po-selected) 88%, transparent) calc(100% - 36px),
+    color-mix(in srgb, var(--po-selected) 62%, transparent) 100%
+  );
+  --agent-launcher-selected-surface: color-mix(in srgb, var(--po-text) 86%, var(--po-canvas) 14%);
+  --agent-launcher-placeholder-surface: color-mix(in srgb, var(--agent-control-surface) 64%, transparent);
+  --agent-launcher-placeholder-text: color-mix(in srgb, var(--agent-text-subtle) 82%, transparent);
+  --agent-launcher-focus-border: color-mix(in srgb, var(--po-focus-ring) 58%, var(--agent-border-subtle));
+  --agent-activity-detail-surface: color-mix(in srgb, var(--agent-control-surface) 58%, transparent);
+  --agent-activity-accent-text: color-mix(in srgb, var(--agent-accent) 68%, var(--agent-text-muted));
+  --agent-tool-output-surface: color-mix(in srgb, var(--agent-control-surface) 84%, var(--agent-canvas));
+  --agent-diff-surface: color-mix(in srgb, var(--agent-report-surface) 92%, transparent);
+  --agent-diff-added-surface: color-mix(in srgb, var(--po-success) 11%, transparent);
+  --agent-diff-added-text: color-mix(in srgb, var(--po-success) 74%, var(--po-text));
+  --agent-diff-removed-surface: color-mix(in srgb, var(--po-danger) 10%, transparent);
+  --agent-diff-removed-text: color-mix(in srgb, var(--po-danger) 72%, var(--po-text));
+  --agent-notice-error-text: color-mix(in srgb, var(--po-danger) 72%, var(--agent-text-muted));
+  --agent-question-surface: color-mix(in srgb, var(--agent-report-surface) 94%, transparent);
+  --agent-edge-fade-surface: color-mix(in srgb, var(--agent-canvas) 78%, transparent);
+  --agent-markdown-disclosure-surface: color-mix(in srgb, var(--agent-control-surface) 36%, transparent);
+  --agent-focus-ring: color-mix(in srgb, var(--agent-accent) 68%, transparent);
+  --agent-table-header-surface: color-mix(in srgb, var(--agent-control-surface) 76%, var(--agent-canvas));
+  --agent-table-alternate-surface: color-mix(in srgb, var(--agent-control-surface) 28%, transparent);
+  --agent-code-surface: color-mix(in srgb, var(--agent-control-surface) 88%, var(--agent-canvas));
+  --agent-code-header-surface: color-mix(in srgb, var(--agent-control-surface) 30%, transparent);
+  --agent-readiness-border: color-mix(in srgb, var(--po-warning) 35%, var(--po-divider));
+  --agent-readiness-surface: color-mix(in srgb, var(--po-warning) 7%, var(--po-panel));
+  --agent-picker-warning-text: color-mix(in srgb, var(--po-warning) 76%, var(--po-text-muted));
+  --agent-selection-surface: color-mix(in srgb, var(--agent-text) 16%, transparent);
+  --agent-mention-border: color-mix(in srgb, var(--agent-accent) 36%, var(--agent-border-subtle));
+  --agent-mention-surface: color-mix(in srgb, var(--agent-accent-soft) 58%, transparent);
+  --agent-mention-text: color-mix(in srgb, var(--agent-accent) 78%, var(--agent-text));
+  --agent-action-disabled-text: color-mix(in srgb, var(--agent-text) 48%, transparent);
+  --agent-action-disabled-surface: color-mix(in srgb, var(--agent-text) 14%, transparent);
+  --agent-reference-error-border: color-mix(in srgb, var(--po-danger) 46%, var(--agent-border-subtle));
+  --agent-primary-hover-surface: color-mix(in srgb, var(--agent-text) 88%, var(--agent-canvas));
 }
 
-.dark .desktop-agent-boundary,
-.dark .desktop-agent-overlay {
-  --agent-canvas: var(--po-editor-bg);
-  --agent-report-surface: #18181b;
-  --agent-control-surface: color-mix(in srgb, var(--po-header) 82%, var(--po-panel-raised));
-  --agent-border: #3a3a3a;
-  --agent-border-subtle: rgba(255, 255, 255, 0.08);
-  --agent-text: #e5e5e5;
-  --agent-text-muted: #a0a0a0;
-  --agent-text-subtle: #737373;
-  --agent-accent: #4a90e2;
-  --agent-accent-soft: rgba(74, 144, 226, 0.15);
-}
 
 /* Agent Chat becomes application chrome inside the auxiliary sidebar. */
 .desktop-right-sidebar .desktop-agent-boundary {
   --agent-canvas: var(--po-terminal-bg);
+}
+
+.desktop-agent-workspace {
+  --agent-text: var(--po-text);
+  --agent-text-muted: var(--po-text-muted);
+  --agent-border-subtle: var(--po-divider);
+  --agent-control-surface: var(--po-control);
 }

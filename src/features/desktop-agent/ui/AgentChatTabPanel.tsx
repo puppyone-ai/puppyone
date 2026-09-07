@@ -1,3 +1,4 @@
+import type { AgentViewportGeometry } from "../domain/agent-ui-state";
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import { bidiIsolate } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
@@ -16,6 +17,7 @@ import { AgentPanelLayout } from "./AgentPanelLayout";
 import { AgentPanelStatus } from "./AgentPanelStatus";
 import { AgentQuestionDock } from "./AgentQuestionDock";
 import { AgentRuntimeLauncher } from "./AgentRuntimeLauncher";
+import { useTranscriptScope } from "./transcript/useTranscriptScope";
 import { AgentTranscript } from "./AgentTranscript";
 import { readinessStatusCode, sessionStatusCode } from "./agentPanelPresentation";
 import { useAgentReferenceIngestion } from "./useAgentReferenceIngestion";
@@ -84,7 +86,7 @@ export function AgentChatTabPanel({
   const hasCommittedTranscript = [state.projection.rows, state.projection.parts, state.projection.messages, state.projection.activities]
     .some((entries) => entries.length > 0);
   const startupLoading = presented && (!state.initialized || loading) && !state.pendingPrompt && !hasCommittedTranscript;
-  const sessionKey = state.session?.id || "new-agent-session";
+  const sessionKey = useTranscriptScope(controller, state.session?.id ?? null, state.selectedRuntimeId);
   const viewport = useMemo(() => ({ sessionKey, value: controller.readViewport() }), [controller, sessionKey]).value;
   const agentRuntimes = listVisibleAgentRuntimes(inspection, hiddenRuntimeIds);
   const selectedRuntimeRegistered = listAgentRuntimes(inspection).some((entry) => (
@@ -153,8 +155,8 @@ export function AgentChatTabPanel({
     });
   }, [agentRuntimeSelected, onPresentationChange, runtimeIconKey, runtimeLabel, state.projection.runningTurnId, state.session?.id, statusCode, title]);
 
-  const handleViewportChange = useCallback((scrollTop: number, measurements: Record<string, number>, pinned: boolean) => {
-    controller.rememberViewport(scrollTop, measurements, pinned);
+  const handleViewportChange = useCallback((scrollTop: number, measurements: Record<string, number>, pinned: boolean, geometry: AgentViewportGeometry) => {
+    controller.rememberViewport(scrollTop, measurements, pinned, geometry);
   }, [controller]);
   const handleDraftChange = useCallback((draft: string) => controller.setDraft(draft), [controller]);
   const handleDraftDocumentChange = useCallback((draft: string, mentions: AgentPromptReferenceMention[]) => {
@@ -188,11 +190,12 @@ export function AgentChatTabPanel({
       : null}
     conversation={<AgentTranscript
       key={sessionKey} projection={state.projection} loading={startupLoading}
+      pendingSubmissionId={state.pendingIntent?.id}
       pendingPrompt={state.pendingPrompt} pendingReferences={state.pendingPrompt !== null ? state.pendingIntent?.references ?? [] : []}
       pendingPromptMentions={state.pendingIntent?.promptMentions ?? []}
       submissionStage={submissionStage} working={state.submitting || Boolean(state.projection.runningTurnId)}
       runtimeLabel={runtimeLabel} initialScrollTop={viewport.scrollTop}
-      initialMeasurements={viewport.measurements} initialPinned={viewport.pinned}
+      initialMeasurements={viewport.measurements} initialPinned={viewport.pinned} initialGeometry={viewport.geometry}
       onViewportChange={handleViewportChange} onOpenFile={onOpenFile}
     />}
     dock={startupLoading ? null : <>

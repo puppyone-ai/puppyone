@@ -1,6 +1,6 @@
 /* Tool and plan activity */
 .desktop-agent-activity { margin: 0 4px 4px; border: 1px solid transparent; border-radius: 14px; }
-.desktop-agent-activity:has(.desktop-agent-activity-detail) { border-color: var(--agent-border-subtle); background: color-mix(in srgb, var(--agent-control-surface) 58%, transparent); }
+.desktop-agent-activity:has(.desktop-agent-activity-detail) { border-color: var(--agent-border-subtle); background: var(--agent-activity-detail-surface); }
 .desktop-agent-activity.has-review { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
 .desktop-agent-activity.has-review .desktop-agent-activity-detail { grid-column: 1 / -1; }
 .desktop-agent-activity-summary {
@@ -235,7 +235,7 @@
   grid-column: 2;
   align-items: center;
   justify-content: center;
-  color: color-mix(in srgb, var(--agent-accent) 68%, var(--agent-text-muted));
+  color: var(--agent-activity-accent-text);
   font-weight: 500;
   user-select: none;
 }
@@ -284,7 +284,7 @@
   margin: 0;
   border: 1px solid var(--agent-border-subtle);
   border-radius: 10px;
-  background: color-mix(in srgb, var(--agent-control-surface) 84%, var(--agent-canvas));
+  background: var(--agent-tool-output-surface);
   font-family: var(--po-font-mono);
   font-size: var(--agent-code-font-size);
 }
@@ -334,7 +334,7 @@
   padding: 0;
   border: 0;
   border-radius: 6px;
-  background: color-mix(in srgb, var(--agent-report-surface) 92%, transparent);
+  background: var(--agent-diff-surface);
   color: var(--agent-text-subtle);
   cursor: var(--po-clickable-cursor, default);
 }
@@ -408,8 +408,8 @@
   padding: 0 9px;
   color: var(--po-text-muted);
 }
-.desktop-agent-diff-line.is-addition { background: color-mix(in srgb, var(--po-success) 11%, transparent); color: color-mix(in srgb, var(--po-success) 74%, var(--po-text)); }
-.desktop-agent-diff-line.is-deletion { background: color-mix(in srgb, var(--po-danger) 10%, transparent); color: color-mix(in srgb, var(--po-danger) 72%, var(--po-text)); }
+.desktop-agent-diff-line.is-addition { background: var(--agent-diff-added-surface); color: var(--agent-diff-added-text); }
+.desktop-agent-diff-line.is-deletion { background: var(--agent-diff-removed-surface); color: var(--agent-diff-removed-text); }
 .desktop-agent-diff-line.is-hunk { color: var(--po-accent-text); }
 .desktop-agent-reasoning { opacity: 0.92; }
 .desktop-agent-reasoning-copy {
@@ -450,7 +450,7 @@
   line-height: 1.45;
 }
 .desktop-agent-notice > svg { flex: 0 0 auto; }
-.desktop-agent-notice.is-error { color: color-mix(in srgb, var(--po-danger) 72%, var(--agent-text-muted)); }
+.desktop-agent-notice.is-error { color: var(--agent-notice-error-text); }
 .desktop-agent-notice.is-error > svg { color: var(--po-danger); }
 
 .desktop-agent-jump-latest {
@@ -466,7 +466,7 @@
   padding: 0;
   border: 1px solid var(--agent-border-subtle);
   border-radius: 50%;
-  background: color-mix(in srgb, var(--agent-report-surface) 94%, transparent);
+  background: var(--agent-question-surface);
   box-shadow: none;
   color: var(--agent-text);
   cursor: var(--po-clickable-cursor, default);

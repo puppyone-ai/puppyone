@@ -94,15 +94,18 @@ describe("Desktop Agent virtual transcript", () => {
       projection: empty,
       loading: false,
       pendingPrompt: "Inspect the first-turn path",
+      pendingSubmissionId: "submission:first",
       submissionStage: "starting-turn",
       working: true,
     }));
-    expect(container.querySelector(".desktop-agent-live-tail .desktop-agent-message.is-user")?.textContent)
+    const previewNode = container.querySelector(".desktop-agent-virtual-row");
+    expect(previewNode?.textContent)
       .toContain("Inspect the first-turn path");
 
     const committed = createAgentProjection();
     const user: AgentPart = {
       id: "user:turn:first",
+      submissionId: "submission:first",
       turnId: "turn:first",
       itemId: null,
       kind: "user",
@@ -128,7 +131,8 @@ describe("Desktop Agent virtual transcript", () => {
       working: true,
     }))));
 
-    const committedRow = container.querySelector('[data-row-id="row:user:turn:first"]');
+    expect(container.querySelector(".desktop-agent-virtual-row")).toBe(previewNode);
+    const committedRow = container.querySelector('[data-row-id="row:submission:submission:first"]');
     expect(committedRow).not.toBeNull();
     expect(committedRow?.classList.contains("is-new")).toBe(false);
     expect(container.querySelector(".desktop-agent-live-tail .desktop-agent-message.is-user")).toBeNull();
@@ -202,9 +206,9 @@ describe("Desktop Agent virtual transcript", () => {
     globalThis.ResizeObserver = CapturingResizeObserver as unknown as typeof ResizeObserver;
     try {
       render(React.createElement(AgentTranscript, { projection: projectionWithMessages(12), loading: false }));
-      // Transcript viewport, shared scroll-edge observer, and one shared row
-      // observer: mounted row count must not create observer-per-row fan-out.
-      expect(observerCount).toBeLessThanOrEqual(3);
+      // The transcript owns one observer for viewport, rows and live status.
+      // The fade shares those measurements; it does not observe the canvas again.
+      expect(observerCount).toBe(1);
       expect(observedBoxes).toContain("border-box");
     } finally {
       globalThis.ResizeObserver = OriginalResizeObserver;
@@ -240,7 +244,14 @@ describe("Desktop Agent virtual transcript", () => {
       const canvas = container.querySelector<HTMLElement>(".desktop-agent-virtual-canvas");
       if (!transcript || !canvas) throw new Error("Transcript fixture did not mount.");
       Object.defineProperty(canvas, "offsetTop", { configurable: true, value: 12 });
-      transcript.scrollTop = 70;
+      Object.defineProperty(transcript, "scrollHeight", { configurable: true, value: 800 });
+      Object.defineProperty(transcript, "clientHeight", { configurable: true, value: 200 });
+      act(() => {
+        transcript.scrollTop = 80;
+        transcript.dispatchEvent(new Event("scroll", { bubbles: true }));
+        transcript.scrollTop = 70;
+        transcript.dispatchEvent(new Event("scroll", { bubbles: true }));
+      });
       onViewportChange.mockClear();
 
       const rowObserver = observers.find((observer) => (
@@ -259,7 +270,7 @@ describe("Desktop Agent virtual transcript", () => {
       });
 
       expect(onViewportChange).toHaveBeenCalledTimes(1);
-      expect(onViewportChange).toHaveBeenLastCalledWith(98, expect.any(Object), false);
+      expect(onViewportChange).toHaveBeenLastCalledWith(98, expect.any(Object), false, expect.any(Object));
       expect(transcript.scrollTop).toBe(98);
       expect(rows[1].style.getPropertyValue("--agent-virtual-row-offset")).toBe("76px");
     } finally {

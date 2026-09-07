@@ -93,6 +93,9 @@ async function renderApplication() {
   } else if (window.location.hash === "#agent-visual-smoke") {
     const { AgentVisualSmokeHarness } = await import("./features/desktop-agent/visual-smoke");
     surface = <AgentVisualSmokeHarness />;
+  } else if (window.location.hash === "#agent-render-stability-smoke") {
+    const { AgentRenderStabilitySmokeHarness } = await import("./features/desktop-agent/visual-smoke");
+    surface = <AgentRenderStabilitySmokeHarness />;
   } else if (window.location.hash === "#agent-tool-stability-smoke") {
     const { AgentToolStabilitySmokeHarness } = await import("./features/desktop-agent/visual-smoke");
     surface = <AgentToolStabilitySmokeHarness />;

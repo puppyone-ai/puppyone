@@ -1,8 +1,4 @@
 .desktop-agent-workspace {
-  --agent-text: var(--po-text);
-  --agent-text-muted: var(--po-text-muted);
-  --agent-border-subtle: var(--po-divider);
-  --agent-control-surface: var(--po-control);
   --desktop-agent-tab-control-height: 28px;
   --desktop-agent-tab-width: 144px;
   --desktop-agent-tabs-gap: 3px;

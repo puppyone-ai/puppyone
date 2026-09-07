@@ -41,8 +41,8 @@ describe("Desktop Agent architecture boundaries", () => {
 
   it("enforces virtual, responsive, safe presentation contracts", () => {
     const timeline = source("src/features/desktop-agent/ui/AgentTranscript.tsx");
-    const timelineLayout = source("src/features/desktop-agent/ui/agent-timeline-layout.ts");
-    const timelinePresentation = source("src/features/desktop-agent/ui/agent-timeline-presentation.ts");
+    const timelineLayout = source("src/features/desktop-agent/ui/transcript/transcript-layout.ts");
+    const timelinePresentation = source("src/features/desktop-agent/ui/transcript/transcript-rows.ts");
     const emptyState = source("src/features/desktop-agent/ui/AgentEmptyState.tsx");
     const markdown = source("src/features/desktop-agent/ui/SafeMarkdown.tsx");
     const markdownDocument = source("src/features/desktop-agent/ui/markdown/AgentMarkdownDocument.tsx");
@@ -77,8 +77,9 @@ describe("Desktop Agent architecture boundaries", () => {
     expect(timelinePresentation).toContain('part.kind === "usage"');
     expect(timelinePresentation).toContain('part.kind !== "reasoning"');
     expect(timelinePresentation).toContain(".includes(part.status)");
-    expect(timeline).toContain("buildAgentTimeline(projection, compactRowHeight)");
-    expect(timeline).toContain("buildAgentTimelineLayout(timeline.rows");
+    expect(timeline).toContain("buildAgentTimeline(projection, compactRowHeight,");
+    expect(timeline).toContain("useTranscriptViewport(");
+    expect(source("src/features/desktop-agent/ui/transcript/useTranscriptViewport.ts")).toContain("buildAgentTimelineLayout(rows");
     expect(timeline).not.toContain("function buildLayout(");
     expect(timeline).toContain("emptyState?: ReactNode");
     expect(timeline).toContain("showEmptyState && emptyState");

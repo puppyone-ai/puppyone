@@ -1,3 +1,4 @@
+import postcss from "postcss";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -375,7 +376,9 @@ for (const filePath of walkSourceFiles(rendererRoot)) {
     if (/\bstyle=\{\{/.test(source)) {
       errors.push(`${relative(filePath)} contains a literal inline style object; static Agent presentation belongs in feature CSS`);
     }
-    if (/\.style(?:\.|\[)/.test(stripComments(source))) {
+    // Only the isolated visual fixture may simulate external Appearance changes.
+    // It is reachable through visual-smoke.ts, never the Agent production entry.
+    if (!filePath.endsWith("/ui/AgentRenderStabilitySmokeHarness.tsx") && /\.style(?:\.|\[)/.test(stripComments(source))) {
       errors.push(`${relative(filePath)} mutates CSS through the DOM; static Agent presentation belongs in feature CSS`);
     }
     for (const match of source.matchAll(/\bstyle=\{([^}\n]+)\}/g)) {
@@ -414,6 +417,28 @@ const styleEntryBody = styleEntrySource
   .trim();
 if (!styleEntrySource.includes('@import "./styles/') || styleEntryBody !== "") {
   errors.push("src/features/desktop-agent/ui/desktop-agent.css must remain an import-only public style entry");
+}
+// Parse the CSS contract, not import order or a handful of selected colors.
+postcss.parse(styleEntrySource).walkAtRules("import", rule => {
+  if (!/layer\(features\)\s*$/.test(rule.params)) errors.push(`${relative(agentStyleEntry)} must import Agent styles into layer(features)`);
+});
+for (const name of readdirSync(agentStyleRoot).filter(name => name.endsWith(".css"))) {
+  const file = path.join(agentStyleRoot, name);
+  const css = postcss.parse(readFileSync(file, "utf8"), { from: file });
+  css.walkRules(rule => {
+    if (/\.dark\b|data-theme-mode/.test(rule.selector)) errors.push(`${relative(file)} owns a competing theme-mode palette; consume Appearance semantic tokens`);
+  });
+  css.walkDecls(declaration => {
+    if (/#(?:[\da-f]{3,8})\b|\b(?:rgb|rgba|hsl|hsla|oklch|oklab)\(/i.test(declaration.value)) {
+      errors.push(`${relative(file)}:${declaration.source.start.line} contains a literal color; consume semantic tokens`);
+    }
+    if (name !== "theme.css" && /\bcolor-mix\(/.test(declaration.value)) {
+      errors.push(`${relative(file)}:${declaration.source.start.line} derives a component color outside theme.css`);
+    }
+    if (name !== "theme.css" && declaration.prop.startsWith("--agent-") && /var\(--(?:po|agent)-[^)]*(?:text|surface|border|canvas|accent|danger|success|warning|hover|selected)\)/.test(declaration.value)) {
+      errors.push(`${relative(file)}:${declaration.source.start.line} defines a color role outside theme.css`);
+    }
+  });
 }
 const themeStylePath = path.join(agentStyleRoot, "theme.css");
 const foundationStylePath = path.join(agentStyleRoot, "foundation.css");

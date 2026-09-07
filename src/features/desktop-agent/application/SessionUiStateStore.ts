@@ -1,3 +1,4 @@
+import type { AgentViewportGeometry } from "../domain/agent-ui-state";
 import type { AgentPromptReferenceMention } from "../domain/agent-contract";
 
 export type SessionUiState = {
@@ -6,6 +7,7 @@ export type SessionUiState = {
   scrollTop: number;
   measurements: Record<string, number>;
   pinned: boolean;
+  geometry?: AgentViewportGeometry;
 };
 
 const EMPTY_SESSION_UI: Readonly<SessionUiState> = Object.freeze({
@@ -45,6 +47,7 @@ export class SessionUiStateStore {
       ...value,
       draftMentions: value.draftMentions.map((mention) => ({ ...mention })),
       measurements: { ...value.measurements },
+      ...(value.geometry ? { geometry: cloneGeometry(value.geometry) } : {}),
     };
   }
 
@@ -61,6 +64,7 @@ export class SessionUiStateStore {
         ? value.draftMentions.map((mention) => ({ ...mention }))
         : current.draftMentions,
       measurements,
+      ...(value.geometry ? { geometry: cloneGeometry(value.geometry) } : {}),
     });
     while (this.entries.size > this.maxEntries) {
       const oldest = this.entries.keys().next().value;
@@ -82,3 +86,7 @@ export const agentSessionUiStateLimits = Object.freeze({
   maxEntries: DEFAULT_MAX_ENTRIES,
   maxMeasurementsPerSession: DEFAULT_MAX_MEASUREMENTS_PER_SESSION,
 });
+
+function cloneGeometry(value: AgentViewportGeometry): AgentViewportGeometry {
+  return { layoutSignature: value.layoutSignature, anchor: value.anchor ? { ...value.anchor } : null };
+}

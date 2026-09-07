@@ -1,9 +1,8 @@
-import type { TimelineRow } from "../domain/agent-projection-types";
-import type { AgentTimelineLayout } from "./agent-timeline-layout";
+import type { TimelineRow } from "../../domain/agent-projection-types";
+import type { AgentTimelineLayout } from "./transcript-layout";
 
-export type AgentTimelineScrollAnchor =
-  | { kind: "row"; rowId: string; offset: number }
-  | { kind: "absolute"; scrollTop: number };
+import type { AgentTimelineScrollAnchor } from "../../domain/agent-ui-state";
+export type { AgentTimelineScrollAnchor } from "../../domain/agent-ui-state";
 
 /**
  * Captures one stable viewport coordinate before a width-driven reflow.
@@ -37,10 +36,26 @@ export function resolveAgentTimelineScrollAnchor(
   layout: AgentTimelineLayout,
   rowIndexById: ReadonlyMap<string, number>,
   timelineTop: number,
+  previousRows?: readonly TimelineRow[],
+  previousLayout?: AgentTimelineLayout,
 ) {
   if (anchor.kind === "absolute") return anchor.scrollTop;
   const index = rowIndexById.get(anchor.rowId);
-  if (index === undefined) return null;
+  if (index === undefined) {
+    if (!previousRows || !previousLayout) return null;
+    const oldIndex = previousRows.findIndex(row => row.id === anchor.rowId);
+    if (oldIndex < 0) return null;
+    for (let distance = 1; distance < previousRows.length; distance++) {
+      for (const candidate of [oldIndex + distance, oldIndex - distance]) {
+        const row = previousRows[candidate];
+        const replacement = row ? rowIndexById.get(row.id) : undefined;
+        if (replacement === undefined) continue;
+        const offset = anchor.offset + previousLayout.offsets[oldIndex] - previousLayout.offsets[candidate];
+        return Math.max(0, timelineTop + layout.offsets[replacement] + offset);
+      }
+    }
+    return null;
+  }
   return Math.max(0, timelineTop + layout.offsets[index] + anchor.offset);
 }
 

@@ -51,14 +51,6 @@
    * micro = low-priority pagination and recovery status;
    * code = commands, diffs, and machine output.
    * Workbench/page headers intentionally use --po-type-header-* instead. */
-  /* One-way visual mirror of the existing Data tree row states. */
-  --agent-row-hover-surface: color-mix(in srgb, var(--po-hover) 86%, transparent);
-  --agent-row-selected-surface: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--po-selected) 96%, transparent) 0%,
-    color-mix(in srgb, var(--po-selected) 88%, transparent) calc(100% - 36px),
-    color-mix(in srgb, var(--po-selected) 62%, transparent) 100%
-  );
   color: var(--agent-text);
   font-family: var(--po-font-sans);
   font-size: var(--agent-font-size);
@@ -102,16 +94,6 @@
   user-select: text;
 }
 
-.dark .desktop-agent-boundary,
-.dark .desktop-agent-overlay {
-  --agent-row-hover-surface: color-mix(in srgb, rgba(211, 208, 197, 0.075) 86%, transparent);
-  --agent-row-selected-surface: linear-gradient(
-    90deg,
-    color-mix(in srgb, rgba(211, 208, 197, 0.14) 96%, transparent) 0%,
-    color-mix(in srgb, rgba(211, 208, 197, 0.14) 88%, transparent) calc(100% - 36px),
-    color-mix(in srgb, rgba(211, 208, 197, 0.14) 62%, transparent) 100%
-  );
-}
 
 .desktop-agent-panel {
   position: relative;
@@ -147,7 +129,7 @@
 .desktop-agent-overlay button:focus-visible,
 .desktop-agent-overlay input:focus-visible,
 .desktop-agent-transcript:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--agent-accent) 68%, transparent);
+  outline: 2px solid var(--agent-focus-ring);
   outline-offset: 2px;
 }
 
@@ -185,7 +167,7 @@
 .desktop-agent-brand-mark.is-claude { --desktop-agent-brand-mark-scale: 0.84; background: transparent; }
 .desktop-agent-brand-mark.is-cursor { background: transparent; }
 .desktop-agent-brand-mark.is-cursor img { object-fit: contain; }
-.desktop-agent-brand-mark.is-opencode { background: #131010; }
+.desktop-agent-brand-mark.is-opencode { background: var(--po-canvas); }
 .desktop-agent-brand-mark.is-pi { background: transparent; }
 .desktop-agent-brand-mark.is-pi img { object-fit: contain; }
 .desktop-agent-brand-mark.is-fallback { border: 1px solid var(--agent-border-subtle); background: var(--agent-control-surface); color: var(--agent-text-muted); }
@@ -411,9 +393,9 @@
   gap: 12px;
   margin: 0;
   padding: 14px 16px;
-  border: 1px solid color-mix(in srgb, var(--po-warning) 35%, var(--po-divider));
+  border: 1px solid var(--agent-readiness-border);
   border-radius: 14px;
-  background: color-mix(in srgb, var(--po-warning) 7%, var(--po-panel));
+  background: var(--agent-readiness-surface);
   color: var(--po-text);
   font-size: var(--agent-font-size);
 }

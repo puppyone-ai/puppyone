@@ -6,8 +6,8 @@ import {
   agentTimelineSpacing,
   buildAgentTimelineLayout,
   visibleAgentTimelineRange,
-} from "../src/features/desktop-agent/ui/agent-timeline-layout";
-import { buildAgentTimeline } from "../src/features/desktop-agent/ui/agent-timeline-presentation";
+} from "../src/features/desktop-agent/ui/transcript/transcript-layout";
+import { buildAgentTimeline } from "../src/features/desktop-agent/ui/transcript/transcript-rows";
 
 describe("Desktop Agent timeline layout policy", () => {
   it("uses one deterministic rhythm for work flow and turn handoffs", () => {

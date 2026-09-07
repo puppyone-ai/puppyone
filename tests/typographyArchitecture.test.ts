@@ -315,7 +315,7 @@ describe("typography architecture", () => {
     const nodeActions = source("src/features/data-workspace/nodeActions.tsx");
     const agentTranscript = source("src/features/desktop-agent/ui/AgentTranscript.tsx");
     const agentTimelinePresentation = source(
-      "src/features/desktop-agent/ui/agent-timeline-presentation.ts",
+      "src/features/desktop-agent/ui/transcript/transcript-rows.ts",
     );
     const agentToolGroupPresentation = source(
       "src/features/desktop-agent/ui/agent-tool-group-presentation.ts",

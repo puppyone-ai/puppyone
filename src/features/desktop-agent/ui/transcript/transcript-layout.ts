@@ -1,6 +1,9 @@
-import type { TimelineRow } from "../domain/agent-projection-types";
+import type { TimelineRow } from "../../domain/agent-projection-types";
 
-export const agentTimelineSpacing = Object.freeze({
+export type AgentTimelineSpacing = Readonly<{ compact: number; default: number; workHandoff: number; turnHandoff: number }>;
+
+/** CSS metrics are supplied by the viewport; these defaults also support non-DOM callers. */
+export const agentTimelineSpacing: AgentTimelineSpacing = Object.freeze({
   compact: 0,
   default: 2,
   workHandoff: 8,
@@ -24,30 +27,31 @@ export type AgentTimelineLayout = {
  * Measurements contain row content only; semantic gaps are deterministic.
  */
 export function buildAgentTimelineLayout(
-  rows: TimelineRow[],
+  rows: readonly TimelineRow[],
   measurements: Readonly<Record<string, number>>,
+  spacing: AgentTimelineSpacing = agentTimelineSpacing,
 ): AgentTimelineLayout {
   const offsets = new Array<number>(rows.length + 1);
   const gaps = new Array<number>(rows.length);
   offsets[0] = 0;
   for (let index = 0; index < rows.length; index += 1) {
-    const gap = agentTimelineGapAfter(rows[index], rows[index + 1]);
+    const gap = agentTimelineGapAfter(rows[index], rows[index + 1], spacing);
     gaps[index] = gap;
     offsets[index + 1] = offsets[index] + measuredOrEstimatedHeight(rows[index], measurements) + gap;
   }
   return { offsets, gaps, totalHeight: offsets.at(-1) ?? 0 };
 }
 
-export function agentTimelineGapAfter(row: TimelineRow, next: TimelineRow | undefined) {
-  if (next && isTurnBoundary(row, next)) return agentTimelineSpacing.turnHandoff;
-  if (row.kind === "user") return agentTimelineSpacing.turnHandoff;
+export function agentTimelineGapAfter(row: TimelineRow, next: TimelineRow | undefined, spacing: AgentTimelineSpacing = agentTimelineSpacing) {
+  if (next && isTurnBoundary(row, next)) return spacing.turnHandoff;
+  if (row.kind === "user") return spacing.turnHandoff;
   if (row.kind === "assistant" || row.kind === "turn-summary") {
-    return agentTimelineSpacing.workHandoff;
+    return spacing.workHandoff;
   }
   if (row.kind === "tool" || row.kind === "command" || row.kind === "file-change") {
-    return agentTimelineSpacing.compact;
+    return spacing.compact;
   }
-  return agentTimelineSpacing.default;
+  return spacing.default;
 }
 
 export function visibleAgentTimelineRange(

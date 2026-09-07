@@ -19,7 +19,7 @@
     linear-gradient(
       to bottom,
       var(--agent-canvas) 0%,
-      color-mix(in srgb, var(--agent-canvas) 78%, transparent) 46%,
+      var(--agent-edge-fade-surface) 46%,
       transparent 100%
     );
   content: "";
@@ -57,10 +57,6 @@
   gap: var(--agent-message-turn-gap);
   margin: 0 auto;
   padding: 0 0 20px;
-}
-
-.desktop-agent-live-tail > .desktop-agent-message.is-user {
-  margin-top: 0;
 }
 
 .desktop-agent-working-indicator {
@@ -143,8 +139,8 @@
 .desktop-agent-virtual-row[data-kind="assistant"] { padding-top: 2px; }
 .desktop-agent-virtual-row.is-new > * { animation: desktop-agent-part-in 140ms cubic-bezier(0.2, 0.75, 0.25, 1); }
 @keyframes desktop-agent-part-in {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .desktop-agent-history-warning { display: flex; align-items: center; gap: 7px; color: var(--agent-text-subtle); font-size: var(--agent-font-size-meta); }
@@ -252,6 +248,7 @@
 }
 
 .desktop-agent-message.is-user {
+  position: relative;
   box-sizing: border-box;
   width: 100%;
   max-width: none;
@@ -392,11 +389,11 @@
   overflow-x: auto;
   border: 1px solid var(--agent-border-subtle);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--agent-control-surface) 36%, transparent);
+  background: var(--agent-markdown-disclosure-surface);
   scrollbar-gutter: stable;
 }
 .desktop-agent-markdown-table-scroll:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--agent-accent) 68%, transparent);
+  outline: 2px solid var(--agent-focus-ring);
   outline-offset: 2px;
 }
 .desktop-agent-markdown table { width: max-content; min-width: 100%; border-collapse: collapse; font-size: var(--agent-font-size-meta); line-height: 1.5; }
@@ -416,11 +413,11 @@
 .desktop-agent-markdown td:last-child { border-inline-end: 0; }
 .desktop-agent-markdown tbody tr:last-child td { border-block-end: 0; }
 .desktop-agent-markdown th {
-  background: color-mix(in srgb, var(--agent-control-surface) 76%, var(--agent-canvas));
+  background: var(--agent-table-header-surface);
   color: var(--agent-text);
   font-weight: var(--po-font-weight-semibold, 600);
 }
-.desktop-agent-markdown tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--agent-control-surface) 28%, transparent); }
+.desktop-agent-markdown tbody tr:nth-child(even) td { background: var(--agent-table-alternate-surface); }
 .desktop-agent-markdown [data-footnotes] { margin-top: 16px; padding-top: 8px; border-top: 1px solid var(--agent-border-subtle); color: var(--agent-text-muted); font-size: var(--agent-font-size-meta); }
 .desktop-agent-markdown [data-footnotes] > h2 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
 .desktop-agent-markdown-image-placeholder {
@@ -458,7 +455,7 @@
   overflow: hidden;
   border: 1px solid var(--agent-border);
   border-radius: 10px;
-  background: color-mix(in srgb, var(--agent-control-surface) 88%, var(--agent-canvas));
+  background: var(--agent-code-surface);
 }
 .desktop-agent-code-toolbar {
   display: flex;
@@ -502,7 +499,7 @@
   overflow: hidden;
   border: 1px solid var(--agent-border-subtle);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--agent-control-surface) 30%, transparent);
+  background: var(--agent-code-header-surface);
 }
 .desktop-agent-mermaid > figcaption {
   min-height: var(--po-control-size);
@@ -527,9 +524,21 @@
 }
 @keyframes desktop-agent-caret { 50% { opacity: 0; } }
 .desktop-agent-queued-submission { display: grid; gap: 4px; }
+/* Delivery feedback occupies the existing user-to-next-row gap. Its lifecycle
+ * never changes the measured bubble height, including immediate acceptance. */
 .desktop-agent-queued-submission-status {
-  color: var(--po-text-muted);
+  position: absolute;
+  inset-block-start: calc(100% + 2px);
+  inset-inline: var(--agent-message-content-inset);
+  display: block;
+  overflow: hidden;
+  color: var(--agent-text-muted);
   font-size: var(--agent-font-size-meta);
-  padding-inline: 10px;
+  line-height: var(--agent-meta-line-height);
+  white-space: nowrap;
+  text-overflow: ellipsis;
   text-align: end;
+}
+@media (prefers-reduced-motion: reduce) {
+  .desktop-agent-virtual-row.is-new > * { animation: none; }
 }

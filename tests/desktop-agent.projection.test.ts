@@ -6,7 +6,7 @@ import {
   createAgentProjection,
 } from "./helpers/agentDisplayFixture";
 import type { AgentEvent, AgentEventType } from "../src/features/desktop-agent/agentTypes";
-import { buildAgentTimeline } from "../src/features/desktop-agent/ui/agent-timeline-presentation";
+import { buildAgentTimeline } from "../src/features/desktop-agent/ui/transcript/transcript-rows";
 
 describe("Desktop Agent transcript projection", () => {
   it("concatenates assistant deltas and lets completed content finalize authoritatively", () => {

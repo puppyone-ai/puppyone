@@ -126,7 +126,7 @@
   width: 20px;
   height: 20px;
   place-items: center;
-  color: color-mix(in srgb, var(--po-warning) 76%, var(--po-text-muted));
+  color: var(--agent-picker-warning-text);
 }
 .desktop-agent-picker-empty { padding: 22px 12px; color: var(--po-text-muted); font-size: var(--po-menu-meta-font-size); line-height: var(--po-menu-meta-line-height); text-align: center; }
 .desktop-agent-picker-footer {

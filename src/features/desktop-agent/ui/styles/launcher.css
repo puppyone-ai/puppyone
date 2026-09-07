@@ -174,7 +174,7 @@
 
 .desktop-agent-runtime-launcher-warning {
   flex: 0 0 auto;
-  color: var(--po-warning, #b7791f);
+  color: var(--po-warning);
 }
 
 .desktop-agent-runtime-launcher-empty {
@@ -244,8 +244,8 @@
 }
 
 .desktop-agent-history-permission-button:hover {
-  border-color: color-mix(in srgb, var(--po-text) 86%, var(--po-canvas) 14%);
-  background: color-mix(in srgb, var(--po-text) 86%, var(--po-canvas) 14%);
+  border-color: var(--agent-launcher-selected-surface);
+  background: var(--agent-launcher-selected-surface);
 }
 
 .desktop-agent-history-permission-button:focus-visible {
@@ -344,15 +344,15 @@
     var(--desktop-sidebar-row-content-left, 6px);
   border: 1px solid transparent;
   border-radius: var(--desktop-sidebar-row-radius, 6px);
-  background: color-mix(in srgb, var(--agent-control-surface) 64%, transparent);
-  color: color-mix(in srgb, var(--agent-text-subtle) 82%, transparent);
+  background: var(--agent-launcher-placeholder-surface);
+  color: var(--agent-launcher-placeholder-text);
   transition:
     border-color 120ms ease,
     background-color 120ms ease;
 }
 
 .desktop-agent-history-search:focus-within {
-  border-color: color-mix(in srgb, var(--po-focus-ring) 58%, var(--agent-border-subtle));
+  border-color: var(--agent-launcher-focus-border);
   background: var(--agent-control-surface);
 }
 
@@ -372,7 +372,7 @@
 }
 
 .desktop-agent-history-search input::placeholder {
-  color: color-mix(in srgb, var(--agent-text-subtle) 82%, transparent);
+  color: var(--agent-launcher-placeholder-text);
   opacity: 1;
 }
 
@@ -524,7 +524,7 @@
 
 .desktop-agent-history-error {
   margin: 0;
-  color: var(--po-warning, #b7791f);
+  color: var(--po-warning);
   font-size: var(--agent-font-size-micro);
   line-height: var(--agent-micro-line-height);
   text-align: center;

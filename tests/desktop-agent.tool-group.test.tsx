@@ -8,7 +8,7 @@ import {
   AGENT_TOOL_GROUP_LIMIT,
   groupAgentToolRows,
 } from "../src/features/desktop-agent/ui/agent-tool-group-presentation";
-import { buildAgentTimeline } from "../src/features/desktop-agent/ui/agent-timeline-presentation";
+import { buildAgentTimeline } from "../src/features/desktop-agent/ui/transcript/transcript-rows";
 import { withTestLocalization } from "./testLocalization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

@@ -1,3 +1,4 @@
+import type { AgentViewportGeometry } from "../domain/agent-ui-state";
 import { createEmptyAgentDisplay as createAgentProjection } from "../../../../shared/agent-contract/display-state.mjs";
 import { assertAgentSessionSnapshot } from "../../../../shared/agent-contract/schema.mjs";
 import {
@@ -459,8 +460,8 @@ export class AgentSessionController {
     this.setDraftDocument(draft, this.state.draftMentions);
   }
 
-  rememberViewport(scrollTop: number, measurements: Record<string, number> = {}, pinned = true) {
-    this.writeCurrentSessionUi({ scrollTop, measurements, pinned });
+  rememberViewport(scrollTop: number, measurements: Record<string, number> = {}, pinned = true, geometry?: AgentViewportGeometry) {
+    this.writeCurrentSessionUi({ scrollTop, measurements, pinned, ...(geometry ? { geometry } : {}) });
   }
 
   readViewport() {
