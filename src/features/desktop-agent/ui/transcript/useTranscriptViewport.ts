@@ -7,7 +7,7 @@ import { agentTimelineSpacing, buildAgentTimelineLayout, visibleAgentTimelineRan
 import { captureAgentTimelineScrollAnchor, resolveAgentTimelineScrollAnchor, type AgentTimelineScrollAnchor } from "./transcript-viewport";
 
 const MAX_MEASUREMENTS = 1_000;
-const BOTTOM_THRESHOLD = 80;
+const BOTTOM_EPSILON = 1;
 
 /** One owner for row measurements, canvas geometry and outer-transcript scrolling. */
 export function useTranscriptViewport({ rows, scrollRef, initialScrollTop, initialMeasurements, initialPinned, initialGeometry, onViewportChange }: {
@@ -115,8 +115,9 @@ export function useTranscriptViewport({ rows, scrollRef, initialScrollTop, initi
   const writeScroll = useCallback((target: number) => {
     const element = scrollRef.current;
     if (!element) return;
-    if (Math.abs(element.scrollTop - target) >= 0.5) {
-      element.scrollTop = target;
+    const clamped = Math.max(0, Math.min(target, element.scrollHeight - element.clientHeight));
+    if (Math.abs(element.scrollTop - clamped) >= 0.5) {
+      element.scrollTop = clamped;
       programmaticScroll.current = element.scrollTop;
     }
     scrollTopRef.current = element.scrollTop;
@@ -168,6 +169,7 @@ export function useTranscriptViewport({ rows, scrollRef, initialScrollTop, initi
     alive.current = true;
     const element = scrollRef.current;
     if (!element) return;
+    const pendingMeasurements = pending.current;
     if (!initialized.current) {
       initialized.current = true;
       writeScroll(initialScrollTop);
@@ -220,7 +222,7 @@ export function useTranscriptViewport({ rows, scrollRef, initialScrollTop, initi
       unsubscribe();
       document.fonts?.removeEventListener("loadingdone", fontsLoaded);
       window.removeEventListener("resize", typographyChanged);
-      pending.current.clear();
+      pendingMeasurements.clear();
     };
   }, [captureReadingPosition, flushMeasurements, initialScrollTop, readGeometry, scrollRef, settleViewport, writeScroll]);
 
@@ -238,8 +240,12 @@ export function useTranscriptViewport({ rows, scrollRef, initialScrollTop, initi
       return;
     }
     programmaticScroll.current = null;
+    // Following is user intent, not proximity: even a small upward gesture
+    // leaves the live tail. Only scrolling back to the bottom (or Latest)
+    // reattaches. Otherwise each render would undo a gentle trackpad scroll.
+    const movedUp = top < scrollTopRef.current - 0.5;
+    pinnedRef.current = !movedUp && element.scrollHeight - top - element.clientHeight <= BOTTOM_EPSILON;
     scrollTopRef.current = top;
-    pinnedRef.current = element.scrollHeight - top - element.clientHeight < BOTTOM_THRESHOLD;
     setScrollTop(top);
     updateEdges(element);
     setPinned(pinnedRef.current);
@@ -253,7 +259,17 @@ export function useTranscriptViewport({ rows, scrollRef, initialScrollTop, initi
     readingAnchor.current = null;
     settleViewport();
   }, [settleViewport]);
-  const range = useMemo(() => visibleAgentTimelineRange(layout.offsets, rows.length, scrollTop, viewportHeight), [layout, rows.length, scrollTop, viewportHeight]);
+  const range = useMemo(() => {
+    // Select rows at the position this layout will restore, not at the old
+    // pixel offset. Invalidating font/width measurements can otherwise unmount
+    // the visible reading row before the layout effect restores its anchor.
+    const top = !pinned && readingAnchor.current
+      ? resolveAgentTimelineScrollAnchor(readingAnchor.current, layout,
+        new Map(rows.map((row, index) => [row.id, index])), canvasRef.current?.offsetTop ?? 0,
+        committed.current.rows, committed.current.layout) ?? scrollTop
+      : scrollTop;
+    return visibleAgentTimelineRange(layout.offsets, rows.length, top, viewportHeight);
+  }, [layout, rows, scrollTop, viewportHeight, pinned]);
   return { canvasRef, observeTail, scrollEdgeState, layout, range, pinned, observeMeasuredRow, commitMeasurement, handleScroll, jumpToLatest };
 }
 

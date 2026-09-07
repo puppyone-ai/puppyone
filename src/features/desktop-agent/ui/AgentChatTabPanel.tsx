@@ -115,7 +115,10 @@ export function AgentChatTabPanel({
   )) && routingPreferences.preferencesReady);
   const preparingSession = state.sessionPreparation === "preparing";
   const submissionPending = state.submitting || Boolean(state.pendingPrompt);
-  const submissionStage: AgentSubmissionStage = state.pendingPrompt && !state.projection.runningTurnId
+  // Main admission replaces the local preview before the native turn starts.
+  // Keep the submission feedback throughout that interval, including inputs
+  // made only of attachments; preview text is not a lifecycle signal.
+  const submissionStage: AgentSubmissionStage = submissionPending && !state.projection.runningTurnId
     ? !state.session || preparingSession ? "preparing-session" : "starting-turn"
     : null;
   useAgentSessionPreparation(controller, state, commandTarget && routingReady);

@@ -56,6 +56,3 @@
 .desktop-agent-render-smoke[data-width="420"] { width: 420px; }
 .desktop-agent-render-smoke[data-width="560"] { width: 560px; }
 .desktop-agent-render-smoke[data-width="760"] { width: 760px; }
-.desktop-agent-render-smoke-panel { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-.desktop-agent-render-smoke-panel > .desktop-agent-transcript-wrap { flex: 1; min-height: 0; }
-.desktop-agent-render-smoke-panel > .desktop-agent-composer-shell { flex: none; }

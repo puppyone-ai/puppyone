@@ -1,16 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
+import { EditorView } from "@codemirror/view";
 import { createEmptyAgentDisplay } from "../../../../shared/agent-contract/display-state.mjs";
 import type { AgentPart, AgentProjection } from "../domain/agent-projection-types";
 import { BUILTIN_SUB_THEMES } from "../../themes/builtinSubThemes";
 import { SubThemeStyleHost } from "../../themes/SubThemeStyleHost";
 import { DEFAULT_MARKDOWN_PRESENTATION_SETTINGS } from "../../markdown/markdownPresentation";
-import { AgentTranscript } from "./AgentTranscript";
-import { AgentComposer } from "./AgentComposer";
+import { AgentChatTabPanel } from "./AgentChatTabPanel";
+import type { AgentSessionController, AgentControllerState } from "../application/AgentSessionController";
 import "./desktop-agent.css";
 
-type Stage = "preview" | "dispatching" | "accepted" | "completed";
-type Fixture = { theme: "light" | "dark" | "windows-xp"; history: number; stage: Stage; width: number; generation: number; draft: string; activity?: boolean };
+type Stage = "ready" | "preview" | "dispatching" | "accepted" | "completed";
+type Fixture = { theme: "light" | "dark" | "windows-xp"; history: number; stage: Stage; width: number; generation: number; draft: string; activity?: boolean; message?: string };
 const prompt = "检查消息提交之后的位置，以及较长的中文和 English 内容换行时是否稳定。";
 const frame = () => new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
 async function frames(count = 3) { for (let i = 0; i < count; i++) await frame(); }
@@ -49,26 +50,65 @@ export function AgentRenderStabilitySmokeHarness() {
       data-po-appearance-root="true" data-root-theme-id={fixture.theme === "windows-xp" ? "windows-xp" : "default"}
       data-sub-theme-id={subThemeId}>
 
-    <section className="desktop-agent-boundary desktop-agent-render-smoke-panel">
-      <AgentTranscript key={fixture.generation} projection={projection(fixture.history, fixture.stage, fixture.activity)}
-        pendingSubmissionId="submission:smoke" pendingPrompt={fixture.stage === "preview" ? prompt : null}
-        submissionStage={["accepted", "completed"].includes(fixture.stage) ? null : "starting-turn"}
-        working={fixture.stage !== "completed"} loading={false} />
-      <AgentComposer draft={fixture.draft} onDraftChange={noOp} disabled={false}
-        running={false} stopping={false} submitting={false} hideConfiguration
-        onSubmit={async () => true} onStop={noOp} />
-    </section>
+      <RenderFixture key={fixture.generation} fixture={fixture} update={setFixture} />
   </main></>;
 }
 
-function projection(history: number, stage: Stage, activity = false): AgentProjection {
+/** Controlled application-state fixture. The complete production panel derives
+ * status, overlay, composer and transcript props; the fixture never invents
+ * submissionStage or calls a native Harness. */
+function RenderFixture({ fixture, update }: { fixture: Fixture; update: (fixture: Fixture) => void }) {
+  const snapshot = useMemo((): AgentControllerState => {
+    const runtime = { id: "codex", displayName: "Codex", iconKey: "codex" };
+    const readiness = { provider: "codex", status: "ready" as const, code: "READY" as const,
+      version: null, minimumVersion: null, message: "Ready" };
+    const display = projection(fixture.history, fixture.stage, fixture.activity, fixture.message);
+    const message = fixture.message ?? prompt;
+    return {
+      phase: fixture.stage === "accepted" ? "running" : "ready", initialized: true,
+      inspection: { runtime, selectedRuntimeId: "codex", runtimes: [{ descriptor: runtime, readiness }],
+        readiness, account: null, models: [], capabilities: null, warnings: [] },
+      session: { id: "session:smoke", runtimeId: "codex", runtime, provider: "codex", providerSessionId: null,
+        workspaceRoot: "/smoke", title: "Smoke", createdAt: "2026-01-01", updatedAt: "2026-01-01",
+        terminalState: "idle", selectedModel: null, activeTurnId: display.runningTurnId, lastSequence: 0 },
+      control: null, replicaStatus: "live", projection: display,
+      selectedRuntimeId: "codex", selectedProviderId: null, selectedModel: null, selectedEffort: null, selectedMode: null,
+      localConnections: [], localConnectionsPhase: "idle", localConnectionsScannedAt: null, localConnectionsError: null,
+      draft: fixture.draft, draftMentions: [], references: [], error: null, stopping: false,
+      submitting: fixture.stage === "preview" || fixture.stage === "dispatching",
+      pendingPrompt: fixture.stage === "preview" ? message : null,
+      pendingIntent: fixture.stage === "preview" ? { id: "submission:smoke", referenceEpoch: "smoke", prompt: message,
+        model: null, effort: null, mode: null, references: [], promptMentions: [] } : null,
+      sessionPreparation: "ready",
+    };
+  }, [fixture]);
+  const latest = useRef({ snapshot, fixture, update });
+  latest.current = { snapshot, fixture, update };
+  const controller = useMemo(() => ({
+    getSnapshot: () => latest.current.snapshot,
+    subscribe: () => noOp,
+    readViewport: () => ({ scrollTop: 0, pinned: true, measurements: {} }),
+    rememberViewport: noOp,
+    setDraftDocument: (draft: string) => {
+      if (draft !== latest.current.fixture.draft) latest.current.update({ ...latest.current.fixture, draft });
+    },
+    submit: async (message: string) => {
+      latest.current.update({ ...latest.current.fixture, message, draft: "", stage: "preview" });
+      return true;
+    },
+  }) as unknown as AgentSessionController, []);
+  return <AgentChatTabPanel controller={controller} workspaceId="smoke" presented commandTarget={false}
+    onPresentationChange={noOp} preferredRuntimeId="codex" preferredRoute={{}} preferredModel={null} hiddenRuntimeIds={[]} />;
+}
+
+function projection(history: number, stage: Stage, activity = false, message = prompt): AgentProjection {
   const display = createEmptyAgentDisplay();
   display.parts = Array.from({ length: history }, (_, i): AgentPart => ({
     id: `assistant:${i}`, kind: "assistant", text: `已有回复 ${i + 1}：检查消息布局与行高。`,
     turnId: `turn:${i}`, itemId: null, streaming: false, terminalState: null, sequence: i + 1,
   }));
-  if (stage !== "preview") display.parts.push({ id: "user:smoke", submissionId: "submission:smoke",
-    kind: "user", text: prompt, turnId: stage === "dispatching" ? null : "turn:next", itemId: null,
+  if (stage !== "preview" && stage !== "ready") display.parts.push({ id: "user:smoke", submissionId: "submission:smoke",
+    kind: "user", text: message, turnId: stage === "dispatching" ? null : "turn:next", itemId: null,
     streaming: false, terminalState: null, sequence: history + 1, deliveryStatus: stage === "completed" ? "accepted" : stage });
   if (activity) display.parts.push({ id: "tool:smoke", kind: "tool", turnId: "turn:next", itemId: null,
     sequence: history + 2, label: "Read", status: "completed", detail: {}, output: "Done" });
@@ -84,6 +124,8 @@ async function runSmoke(update: (fixture: Fixture) => void, active: () => boolea
   let generation = 0;
   let maxDrift = 0;
   let samples = 0;
+  let sendSamples = 0;
+  let maxSendDrift = 0;
   let feedbackSamples = 0;
   let maxFeedbackDrift = 0;
   const cases: object[] = [];
@@ -94,11 +136,30 @@ async function runSmoke(update: (fixture: Fixture) => void, active: () => boolea
     for (const width of [420, 560, 760]) {
       for (const history of [0, 1, 24]) {
         if (!active()) throw new Error("Smoke cancelled");
-        const fixture: Fixture = { theme, history, width, generation: ++generation, stage: "preview", draft: "" };
-        update(fixture);
+        const message = history === 1 ? `${prompt}\n多行输入第二行。\n多行输入第三行。` : prompt;
+        const fixture: Fixture = { theme, history, width, generation: ++generation, stage: "preview", draft: "", message };
+        update({ ...fixture, stage: "ready", draft: message });
         await frames();
+        const send = document.querySelector<HTMLButtonElement>(".desktop-agent-composer-action")!;
+        assert(send && !send.disabled, "Production Send action is unavailable");
+        smokePhase = `${theme}/${width}/${history}/click-send`;
+        flushSync(() => send.click());
         const node = user();
         const baseline = snapshot();
+        const composer = document.querySelector(".desktop-agent-composer-shell")!.getBoundingClientRect();
+        for (let i = 0; i < 5; i++) {
+          await frame();
+          const next = snapshot();
+          const nextComposer = document.querySelector(".desktop-agent-composer-shell")!.getBoundingClientRect();
+          const drift = Math.max(Math.abs(next.y - baseline.y), Math.abs(next.height - baseline.height),
+            Math.abs(next.workingY - baseline.workingY), Math.abs(nextComposer.y - composer.y), Math.abs(nextComposer.height - composer.height));
+          maxSendDrift = Math.max(maxSendDrift, drift);
+          assert(drift <= 1, `${smokePhase}: sending/clearing the draft moved ${drift}px`);
+          assert(user() === node, "First-send transition replaced the user DOM node");
+          assert(EditorView.findFromDOM(document.querySelector<HTMLElement>(".cm-editor")!)!.state.doc.length === 0,
+            "Submitted draft remained visible");
+          sendSamples++;
+        }
         const colors = messageColors(node);
         assert(colors.contrast >= 4.5, `${theme}: message contrast is too low: ${JSON.stringify(colors)}`);
         assert(theme === "dark" ? colors.textLuminance > colors.backgroundLuminance : colors.textLuminance < colors.backgroundLuminance,
@@ -110,7 +171,7 @@ async function runSmoke(update: (fixture: Fixture) => void, active: () => boolea
             const next = snapshot();
             assert(user() === node, "Submission handoff replaced the user DOM node");
             assert(document.querySelectorAll(".desktop-agent-message.is-user").length === 1, "Duplicate user prompt");
-            assert(user().textContent === prompt && !user().querySelector('[role="status"], [data-puppy-loader]'), "Routine delivery added a transient user-message label or loader");
+            assert(user().textContent === message && !user().querySelector('[role="status"], [data-puppy-loader]'), "Routine delivery added a transient user-message label or loader");
             const drift = Math.max(Math.abs(next.y - baseline.y), Math.abs(next.height - baseline.height),
               Math.abs(next.workingY - baseline.workingY), Math.abs(next.scrollTop - baseline.scrollTop));
             maxDrift = Math.max(maxDrift, drift);
@@ -156,6 +217,26 @@ async function runSmoke(update: (fixture: Fixture) => void, active: () => boolea
   update(fixture);
   await frames();
   const scroller = document.querySelector<HTMLElement>(".desktop-agent-transcript")!;
+  const beforeWheel = scroller.scrollTop;
+  const scrollRect = scroller.getBoundingClientRect();
+  for (let i = 0; i < 3; i++) {
+    await nativeWheel(Math.round(scrollRect.x + scrollRect.width / 2), Math.round(scrollRect.y + 30), 10);
+  }
+  assert(scroller.scrollTop < beforeWheel - 1, "Native wheel input could not leave bottom following");
+  const bottom = scroller.scrollTop;
+  for (const delta of [1, 10, 79]) {
+    const expected = scroller.scrollTop - delta;
+    scroller.scrollTop = expected;
+    const position = readingPosition(scroller);
+    scroller.dispatchEvent(new Event("scroll", { bubbles: true }));
+    await frames();
+    assertReadingPosition(position, `Small upward scroll (${delta}px)`);
+    update({ ...fixture, activity: true });
+    await frames();
+    assertReadingPosition(position, "Incoming activity");
+  }
+  assert(scroller.scrollTop !== bottom && scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop > 80,
+    "Repeated small scrolls could not leave the bottom");
   scroller.scrollTop = scroller.scrollHeight * 0.45;
   scroller.dispatchEvent(new Event("scroll", { bubbles: true }));
   await frames();
@@ -178,6 +259,7 @@ async function runSmoke(update: (fixture: Fixture) => void, active: () => boolea
   smokePhase = "font-restore";
   appearance.style.removeProperty("--po-font-sans");
   await frames();
+  assert(document.querySelector(`[data-row-id="${anchorId}"]`) === afterWidth, "Font reflow replaced the visible reading row");
   // Palette-only changes propagate to component computed styles without replacing rows.
   const beforeColor = getComputedStyle(afterWidth).color;
   const beforeTop = scroller.scrollTop;
@@ -196,7 +278,35 @@ async function runSmoke(update: (fixture: Fixture) => void, active: () => boolea
   await frames();
   const pinned = document.querySelector<HTMLElement>(".desktop-agent-transcript")!;
   assert(Math.abs(pinned.scrollHeight - pinned.clientHeight - pinned.scrollTop) <= 1, "Composer growth lost bottom pinning");
-  return { cases, samples, maxDrift, feedbackSamples, maxFeedbackDrift, readingAnchor: anchorId, composerPinning: true, semanticColor: afterColor };
+  return { cases, samples, maxDrift, sendSamples, maxSendDrift, feedbackSamples, maxFeedbackDrift,
+    nativeWheel: true, smallScrolls: true, readingAnchor: anchorId, composerPinning: true, semanticColor: afterColor };
+}
+
+function readingPosition(scroller: HTMLElement) {
+  const top = scroller.getBoundingClientRect().top;
+  const row = Array.from(scroller.querySelectorAll<HTMLElement>(".desktop-agent-virtual-row"))
+    .find(element => element.getBoundingClientRect().bottom > top)!;
+  return { id: row.dataset.rowId, y: row.getBoundingClientRect().y };
+}
+
+function assertReadingPosition(position: ReturnType<typeof readingPosition>, phase: string) {
+  const row = document.querySelector<HTMLElement>(`[data-row-id="${position.id}"]`);
+  assert(row && Math.abs(row.getBoundingClientRect().y - position.y) <= 1,
+    `${phase} moved reading anchor ${position.id}: ${position.y} -> ${row?.getBoundingClientRect().y}`);
+}
+
+type SmokeInputWindow = Window & {
+  __PUPPYONE_AGENT_RENDER_WHEEL__?: { id: number; x: number; y: number; deltaY: number };
+  __PUPPYONE_AGENT_RENDER_WHEEL_ACK__?: number;
+};
+let wheelSequence = 0;
+async function nativeWheel(x: number, y: number, deltaY: number) {
+  const scope = window as SmokeInputWindow;
+  const id = ++wheelSequence;
+  scope.__PUPPYONE_AGENT_RENDER_WHEEL__ = { id, x, y, deltaY };
+  for (let i = 0; i < 180 && scope.__PUPPYONE_AGENT_RENDER_WHEEL_ACK__ !== id; i++) await frame();
+  assert(scope.__PUPPYONE_AGENT_RENDER_WHEEL_ACK__ === id, "Isolated Electron wheel driver did not acknowledge input");
+  await frames(10);
 }
 
 function feedbackSnapshot() {
@@ -210,9 +320,12 @@ function feedbackSnapshot() {
 
 function user() { return document.querySelector<HTMLElement>(".desktop-agent-message.is-user")!; }
 function snapshot() {
+  assert(user(), `${smokePhase}: user message disappeared`);
   const rect = user().getBoundingClientRect();
+  const feedback = document.querySelector(".desktop-agent-working-indicator");
+  assert(feedback, `${smokePhase}: in-flight submission lost its feedback line`);
   return { y: rect.y, height: rect.height,
-    workingY: document.querySelector(".desktop-agent-working-indicator")!.getBoundingClientRect().y,
+    workingY: feedback.getBoundingClientRect().y,
     scrollTop: document.querySelector(".desktop-agent-transcript")!.scrollTop };
 }
 function assert(value: unknown, message: string): asserts value { if (!value) throw new Error(message); }

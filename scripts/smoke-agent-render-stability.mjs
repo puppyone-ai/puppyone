@@ -57,13 +57,22 @@ async function runSmoke() {
 }
 
 async function pollForResult(window) {
+  let lastWheelId = 0;
   for (let attempt = 0; attempt < 600; attempt += 1) {
     if (renderProcessFailure) throw new Error(`Agent render smoke renderer exited: ${renderProcessFailure}`);
-    const result = await window.webContents.executeJavaScript(
-      "window.__PUPPYONE_AGENT_RENDER_STABILITY_SMOKE_RESULT__ || null",
+    const { result, wheel } = await window.webContents.executeJavaScript(
+      "({ result: window.__PUPPYONE_AGENT_RENDER_STABILITY_SMOKE_RESULT__ || null, wheel: window.__PUPPYONE_AGENT_RENDER_WHEEL__ || null })",
       true,
     );
     if (result) return result;
+    if (wheel && Number.isInteger(wheel.id) && wheel.id > lastWheelId) {
+      lastWheelId = wheel.id;
+      // Targets only this hidden test WebContents. It never moves the desktop
+      // pointer or sends input to the user's running application.
+      window.webContents.sendInputEvent({ type: "mouseWheel", x: wheel.x, y: wheel.y,
+        deltaY: wheel.deltaY, deltaX: 0, hasPreciseScrollingDeltas: true });
+      await window.webContents.executeJavaScript(`window.__PUPPYONE_AGENT_RENDER_WHEEL_ACK__ = ${lastWheelId}`);
+    }
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
   throw new Error("Agent render stability smoke did not publish a result within 30 seconds.");
