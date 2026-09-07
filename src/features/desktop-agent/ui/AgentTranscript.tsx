@@ -495,6 +495,7 @@ function draftReferenceDisplay(reference: AgentDraftReference): AgentReferenceDi
       : reference.entryType === "directory" ? "workspace-directory" : "workspace-file",
     displayName: reference.displayName,
     ...(reference.kind === "workspace-entry" ? { relativePath: reference.relativePath } : {}),
+    ...(reference.kind === "workspace-entry" && reference.workspaceName ? { workspaceName: reference.workspaceName } : {}),
     ...(reference.kind === "staged-attachment" ? { mime: reference.mime, size: reference.size } : {}),
   };
 }

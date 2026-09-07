@@ -106,6 +106,8 @@ export type AgentReferenceInputCapabilities = {
   workspace: {
     files: boolean;
     directories: boolean;
+    /** Explicit support for references owned by another admitted local root. */
+    crossRoots?: boolean;
   };
   attachments: Record<AgentAttachmentKind, AgentAttachmentInputCapability>;
   limits: {
@@ -721,7 +723,12 @@ export type AgentWorkspaceEntryReference = {
   id: string;
   kind: "workspace-entry";
   entryType: "file" | "directory";
-  /** Portable identity resolved against the owning Agent session at send time. */
+  /** Owning-root identity; legacy references without a URI remain session-relative. */
+  resourceUri?: string;
+  workspaceFolderId?: string;
+  /** Disambiguating safe label for a reference from another root. */
+  workspaceName?: string;
+  /** Provider-relative display path, never relative to the currently focused project. */
   relativePath: string;
   displayName: string;
   mime?: string;
@@ -758,6 +765,7 @@ export type AgentReferenceDisplay = {
   kind: "workspace-file" | "workspace-directory" | "attachment";
   displayName: string;
   relativePath?: string;
+  workspaceName?: string;
   mime?: string;
   size?: number;
 };

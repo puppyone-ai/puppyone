@@ -139,7 +139,7 @@ function assertReferenceDisplays(value, eventType = "turn.started") {
   if (!Array.isArray(value) || value.length > 32) {
     throw contractError(`AgentEvent(${eventType}).payload.referenceDisplays`, "must contain at most 32 entries");
   }
-  const allowedKeys = new Set(["id", "kind", "displayName", "relativePath", "mime", "size"]);
+  const allowedKeys = new Set(["id", "kind", "displayName", "relativePath", "workspaceName", "mime", "size"]);
   value.forEach((entry, index) => {
     const label = `AgentEvent(${eventType}).payload.referenceDisplays[${index}]`;
     const reference = assertRecord(entry, label);
@@ -151,6 +151,7 @@ function assertReferenceDisplays(value, eventType = "turn.started") {
       throw contractError(`${label}.kind`, "is invalid");
     }
     requiredString(reference.displayName, `${label}.displayName`, 512);
+    if (reference.workspaceName !== undefined) requiredString(reference.workspaceName, `${label}.workspaceName`, 512);
     if (reference.relativePath !== undefined) {
       const relativePath = requiredString(reference.relativePath, `${label}.relativePath`, 4_096);
       if (!normalizeAgentWorkspaceRelativePath(relativePath)) {

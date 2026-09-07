@@ -1,4 +1,5 @@
 {
+  "dropFailed": "Could not insert these paths. Check that the files are available and the terminal is running.",
   "title": "Terminal",
   "actions": "Terminal actions",
   "new": "New terminal",

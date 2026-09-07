@@ -161,6 +161,7 @@ export function createTerminalService({
       id,
       pid: terminal.pid ?? null,
       shell: spawnConfig.displayShell,
+      inputShell: spawnConfig.file,
       cwd,
     };
   }

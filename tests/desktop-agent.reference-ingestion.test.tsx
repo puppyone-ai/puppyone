@@ -82,7 +82,7 @@ describe("Desktop Agent reference ingestion", () => {
     )));
 
     await vi.waitFor(() => expect(controller.addWorkspacePaths).toHaveBeenCalledWith(
-      ["guanqun.md"],
+      [resource],
       expect.any(Map),
     ));
     expect(resolveWorkspaceReference).toHaveBeenCalledWith(resource);
@@ -115,7 +115,7 @@ describe("Desktop Agent reference ingestion", () => {
     await act(async () => promptEditor.dispatchEvent(drop));
 
     await vi.waitFor(() => expect(controller.addWorkspacePaths).toHaveBeenCalledWith(
-      ["notes.md"],
+      [resource],
       expect.any(Map),
     ));
     expect(controller.addWorkspacePaths).toHaveBeenCalledTimes(1);
@@ -145,12 +145,12 @@ describe("Desktop Agent reference ingestion", () => {
 
     await vi.waitFor(() => expect(controller.addWorkspacePaths).toHaveBeenCalled());
     const [paths, previews] = controller.addWorkspacePaths.mock.calls[0]!;
-    expect(paths).toEqual(["capture.png"]);
-    expect(previews.get("capture.png")?.url).toBe("puppyone-local://preview/capture");
+    expect(paths).toEqual([resource]);
+    expect(previews.get(resource)?.url).toBe("puppyone-local://preview/capture");
     expect(loadVisualPreview).toHaveBeenCalledTimes(1);
   });
 
-  it("rejects a resource URI owned by another attached workspace root", async () => {
+  it("preserves another attached root's URI through native authorization", async () => {
     const controller = controllerFixture();
     const resource = "puppyone-local://workspace/folder-2/secret.md";
     const loadVisualPreview = vi.fn(async () => ({ url: "puppyone-local://preview/secret" }));
@@ -170,9 +170,8 @@ describe("Desktop Agent reference ingestion", () => {
       typedWorkspaceTransfer("workspace-1", [resource]),
     )));
 
-    expect(controller.addWorkspacePaths).not.toHaveBeenCalled();
-    expect(loadVisualPreview).not.toHaveBeenCalled();
-    expect(container.querySelector("[role='status']")?.textContent).toContain("another workspace");
+    expect(controller.addWorkspacePaths).toHaveBeenCalledWith([resource], expect.any(Map));
+    expect(loadVisualPreview).toHaveBeenCalledOnce();
   });
 
   it("routes Finder drop, picker and every semantically supported pasted File through one staging method", async () => {

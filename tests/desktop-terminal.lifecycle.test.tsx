@@ -11,6 +11,7 @@ import {
 } from "@puppyone/shared-ui";
 import type { TerminalRuntimeHandle } from "../src/features/desktop-terminal/runtime/terminalRuntime";
 import { TerminalSessionView } from "../src/features/desktop-terminal/ui/TerminalSessionView";
+import { withTestLocalization } from "./testLocalization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -21,7 +22,7 @@ describe("Terminal session view lifecycle", () => {
     document.body.appendChild(container);
     const root = createRoot(container);
 
-    act(() => root.render(
+    act(() => root.render(withTestLocalization(
       <StrictMode>
         <TerminalSessionView
           focused
@@ -31,7 +32,7 @@ describe("Terminal session view lifecycle", () => {
           workspacePath="/workspace"
         />
       </StrictMode>,
-    ));
+    )));
 
     expect(runtime.mount).toHaveBeenCalled();
     expect(runtime.setPresented).toHaveBeenCalledWith(true);
@@ -40,7 +41,7 @@ describe("Terminal session view lifecycle", () => {
     expect(container.querySelector(".desktop-terminal-session")?.classList.contains("is-ready"))
       .toBe(true);
 
-    act(() => root.render(
+    act(() => root.render(withTestLocalization(
       <TerminalSessionView
         focused={false}
         panelId="terminal-panel-a"
@@ -48,7 +49,7 @@ describe("Terminal session view lifecycle", () => {
         runtime={runtime}
         workspacePath="/workspace"
       />,
-    ));
+    )));
     expect(runtime.setPresented).toHaveBeenLastCalledWith(true);
     expect(runtime.setFocused).toHaveBeenLastCalledWith(false);
 
@@ -58,13 +59,15 @@ describe("Terminal session view lifecycle", () => {
     container.remove();
   });
 
-  it("keeps file-reference drops independent in a presented non-focused pane", () => {
+  it("resolves the owning repo before dropping into a presented non-focused pane", async () => {
+    const resolve = vi.fn(async () => [{ absolutePath: "/another-repo/folder/file name.md" }]);
+    window.puppyoneDesktop = { resolveResourceReferences: resolve } as unknown as NonNullable<typeof window.puppyoneDesktop>;
     const runtime = createRuntime();
     const onFocus = vi.fn();
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root = createRoot(container);
-    act(() => root.render(
+    act(() => root.render(withTestLocalization(
       <TerminalSessionView
         focused={false}
         onFocus={onFocus}
@@ -72,14 +75,14 @@ describe("Terminal session view lifecycle", () => {
         runtime={runtime}
         workspacePath="/workspace"
       />,
-    ));
+    )));
     const transfer = new DataTransfer();
     transfer.setData(
       EXPLORER_REFERENCE_DRAG_TYPE,
       serializeExplorerReferenceDrag("workspace", [{
         id: "file",
         name: "file name.md",
-        path: "folder/file name.md",
+        path: "puppyone-local://workspace/repo-b/folder/file%20name.md",
         type: "file",
         source: "local",
       }]),
@@ -90,18 +93,21 @@ describe("Terminal session view lifecycle", () => {
     };
     Object.defineProperty(event, "dataTransfer", { value: transfer });
 
-    act(() => target.dispatchEvent(event));
-    expect(runtime.write).toHaveBeenCalledWith("'/workspace/folder/file name.md'");
+    await act(async () => target.dispatchEvent(event));
+    expect(resolve).toHaveBeenCalledWith({ resources: ["puppyone-local://workspace/repo-b/folder/file%20name.md"], rootPath: "/workspace" });
+    expect(runtime.write).toHaveBeenCalledWith("'/another-repo/folder/file name.md'");
     expect(runtime.focus).toHaveBeenCalledOnce();
     expect(onFocus).toHaveBeenCalled();
 
     act(() => root.unmount());
     container.remove();
+    delete window.puppyoneDesktop;
   });
 });
 
 function createRuntime(): TerminalRuntimeHandle {
   return {
+    inputShell: "/bin/zsh",
     activity: false,
     ready: true,
     scrollbarState: {

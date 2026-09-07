@@ -1,4 +1,5 @@
 {
+  "dropFailed": "Die Pfade konnten nicht eingefügt werden. Prüfen Sie, ob die Dateien verfügbar sind und das Terminal läuft.",
   "title": "Terminal",
   "actions": "Terminalaktionen",
   "new": "Neues Terminal",

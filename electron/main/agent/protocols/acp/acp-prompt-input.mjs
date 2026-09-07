@@ -3,6 +3,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { ACP_INLINE_IMAGE_MAX_BYTES } from "./acp-limits.mjs";
 import { classifyAgentAttachment } from "../../../../../shared/agent-contract/reference-input.mjs";
+import { authorizedWorkspaceReferencePath } from "../../security/authorized-workspace-reference-prompt.mjs";
 import {
   AGENT_REFERENCE_ERROR_CODES,
   agentReferenceError,
@@ -76,7 +77,7 @@ export function buildAcpPromptBlocks({ prompt, instructions, references, workspa
       throw unsupportedAttachmentError(kind);
     }
     const filename = typeof reference?.path === "string" ? path.resolve(reference.path) : null;
-    if (!filename || !isInsideWorkspace(workspaceRoot, filename)) {
+    if (!filename || !authorizedWorkspaceReferencePath(reference, workspaceRoot)) {
       throw new Error("ACP received an invalid workspace reference.");
     }
     if (seen.has(filename)) continue;
@@ -91,11 +92,6 @@ function dataUrlParts(value) {
   if (typeof value !== "string" || value.length > Math.ceil(ACP_INLINE_IMAGE_MAX_BYTES * 4 / 3) + 256) return null;
   const match = /^data:([^;,]{1,160});base64,([A-Za-z0-9+/=]+)$/.exec(value);
   return match ? { mime: match[1], data: match[2] } : null;
-}
-
-function isInsideWorkspace(workspaceRoot, filename) {
-  const relative = path.relative(workspaceRoot, filename);
-  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 }
 
 function attachmentUri(reference) {

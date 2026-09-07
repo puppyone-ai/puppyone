@@ -425,6 +425,7 @@ export type TerminalCreateResult = {
   id: string;
   pid: number | null;
   shell: string;
+  inputShell: string;
   cwd: string;
 };
 
@@ -1199,6 +1200,16 @@ declare global {
         request: WorkspaceCloneRepositoryRequest,
       ) => Promise<WorkspaceOpenResult | null>;
       getPathForFile: (file: File) => string;
+      startResourceDrag: (request: { resources: string[] }) => Promise<boolean>;
+      resolveResourceReferences: (request: { resources: string[]; rootPath?: string; sourceWorkspaceId?: string }) => Promise<Array<{
+        resourceUri: string;
+        folderId: string;
+        workspaceRoot: string;
+        workspaceName: string;
+        relativePath: string;
+        absolutePath: string;
+        entryType: "file" | "directory";
+      }>>;
       stageAgentAttachments: (request: {
         rootPath: string;
         epoch: string;

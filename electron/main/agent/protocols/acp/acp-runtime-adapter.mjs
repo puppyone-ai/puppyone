@@ -71,7 +71,7 @@ export const BASE_ACP_CAPABILITIES = Object.freeze({
   compaction: false,
   referenceInputs: Object.freeze({
     schemaVersion: 1,
-    workspace: Object.freeze({ files: true, directories: true }),
+    workspace: Object.freeze({ files: true, directories: true, crossRoots: true }),
     attachments: Object.freeze({
       image: Object.freeze({
         accepted: false,
@@ -356,7 +356,7 @@ export class AcpRuntimeAdapter {
       workspaceRoot: this.workspaceRoot,
       profile: referenceProfile,
     });
-    const active = { turnId, normalizer, interrupted: false };
+    const active = { turnId, normalizer, interrupted: false, references: allReferences };
     this.activeTurn = active;
     void this.#runPrompt(active, blocks);
     return { turnId };
@@ -468,7 +468,10 @@ export class AcpRuntimeAdapter {
         });
       }
     });
-    const fileSystem = this.fileSystemFactory({ workspaceRoot: this.workspaceRoot });
+    const fileSystem = this.fileSystemFactory({
+      workspaceRoot: this.workspaceRoot,
+      getReadReferences: () => this.activeTurn?.references ?? [],
+    });
     this.client = new AcpClient({
       connection,
       clientInfo: { name: "puppyone-desktop", title: "PuppyOne Desktop", version: this.appVersion },

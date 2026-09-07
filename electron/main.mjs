@@ -46,6 +46,8 @@ import {
   handleSecondInstanceLaunch,
 } from "./main/desktop-launch-intent.mjs";
 import { registerAgentIpcHandlers } from "./main/ipc/agent-ipc.mjs";
+import { createWorkspaceResourceResolver } from "./main/workspace-resource-resolver.mjs";
+import { registerResourceTransferIpcHandlers } from "./main/ipc/resource-transfer-ipc.mjs";
 import { registerAgentActivityIpcHandlers } from "./main/ipc/agent-activity-ipc.mjs";
 import { registerAppearanceIpcHandlers } from "./main/ipc/appearance-ipc.mjs";
 import {
@@ -292,6 +294,10 @@ const documentSessionCloseCoordinator = createDocumentSessionCloseCoordinator({
 documentSessionCloseCoordinator.registerIpc(trustedIpcMain);
 const authorizeWorkspaceRoot = createSenderWorkspaceAuthorization({
   getWorkspaceRootsForSender,
+});
+const resolveWorkspaceResource = createWorkspaceResourceResolver({
+  getFoldersForSender: (sender) => windowStateById.get(sender.id)?.folders ?? [],
+  authorizeWorkspaceRoot,
 });
 const terminalAgentActivityHost = createDefaultTerminalAgentActivityHost({
   appPath: app.getAppPath(),
@@ -855,6 +861,11 @@ app.on("before-quit", createAgentQuitCoordinator({
 }));
 
 function registerIpcHandlers() {
+  registerResourceTransferIpcHandlers({
+    ipcMain: trustedIpcMain,
+    resolveWorkspaceResource,
+    getFileIcon: (filePath, options) => app.getFileIcon(filePath, options),
+  });
   registerEditorSurfaceIpcHandlers({
     trustedIpcMain,
     manager: editorSurfaceManager,
@@ -1013,6 +1024,7 @@ function registerIpcHandlers() {
     agentService,
     localAgentInventory,
     authorizeWorkspaceRoot,
+    resolveWorkspaceResource,
     attachmentStore: agentAttachmentStore,
     dialog,
     getDialogOwnerWindow,

@@ -6,8 +6,8 @@ const WORKSPACE_REFERENCE_HEADING = "Authorized context files for this turn:";
  * Render authorized, live workspace references as ordinary prompt text.
  *
  * The caller still owns authorization. This helper only preserves the common
- * Claude/Codex delivery contract and refuses to surface paths outside the
- * assigned workspace.
+ * delivery contract and refuses paths outside the session or the individual
+ * reference's Main-authorized owning root.
  */
 export function formatAuthorizedWorkspaceReferencePrompt(prompt, references, workspaceRoot) {
   const paths = authorizedWorkspaceReferencePaths(references, workspaceRoot);
@@ -31,7 +31,11 @@ export function authorizedWorkspaceReferencePaths(references, workspaceRoot) {
  */
 export function authorizedWorkspaceReferencePath(reference, workspaceRoot) {
   if (typeof workspaceRoot !== "string" || typeof reference?.path !== "string") return null;
-  const root = path.resolve(workspaceRoot);
+  // Only Main-authorized records may carry an additional owning root. A URI or
+  // Renderer-supplied absolute path on its own never widens the session boundary.
+  const root = path.resolve(reference.authorized === true && typeof reference.authorizedWorkspaceRoot === "string"
+    ? reference.authorizedWorkspaceRoot
+    : workspaceRoot);
   const filename = path.isAbsolute(reference.path)
     ? path.resolve(reference.path)
     : path.resolve(root, reference.path);

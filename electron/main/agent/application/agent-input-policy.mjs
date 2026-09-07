@@ -125,7 +125,12 @@ export function normalizeAuthorizedReferences(value) {
       name: normalizeReferenceDisplayName(entry.name ?? entry.displayName),
       displayName: normalizeReferenceDisplayName(entry.displayName ?? entry.name) || "reference",
       ...(kind === "workspace-entry"
-        ? { relativePath }
+        ? {
+            relativePath,
+            ...(entry.resourceUri ? { resourceUri: entry.resourceUri, workspaceFolderId: entry.workspaceFolderId } : {}),
+            ...(entry.authorizedWorkspaceRoot ? { authorizedWorkspaceRoot: entry.authorizedWorkspaceRoot } : {}),
+            ...(entry.workspaceName ? { workspaceName: normalizeReferenceDisplayName(entry.workspaceName) } : {}),
+          }
         : {}),
       mime: normalizeOptionalString(entry.mime),
       size: Number.isSafeInteger(entry.size) && entry.size >= 0 ? entry.size : 0,
@@ -220,6 +225,9 @@ export function requireSupportedAgentReferences(capabilities, references) {
       );
     }
     if (reference.kind === "workspace-entry") {
+      if (reference.workspaceName && input.workspace.crossRoots !== true) {
+        throw agentReferenceError(AGENT_REFERENCE_ERROR_CODES.unsupportedKind, "The selected Agent does not accept references from another project.");
+      }
       if (reference.entryType === "directory" && input.workspace.directories !== true) {
         throw agentReferenceError(
           AGENT_REFERENCE_ERROR_CODES.unsupportedKind,
@@ -261,6 +269,7 @@ export function normalizeReferenceDisplays(references) {
       ? "attachment"
       : reference.entryType === "directory" ? "workspace-directory" : "workspace-file",
     displayName: normalizeReferenceDisplayName(reference.displayName ?? reference.name) || "reference",
+    ...(reference.workspaceName ? { workspaceName: normalizeReferenceDisplayName(reference.workspaceName) } : {}),
     ...(reference.kind === "workspace-entry" && typeof reference.relativePath === "string"
       ? { relativePath: reference.relativePath.slice(0, 4_096) }
       : {}),
