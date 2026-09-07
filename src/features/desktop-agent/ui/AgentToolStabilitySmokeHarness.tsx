@@ -4,6 +4,9 @@ import { agentToolEvidenceLimits } from "../domain/agent-tool-evidence";
 import { AgentTranscript, agentTimelineLimits } from "./AgentTranscript";
 import { registerAgentToolRenderer } from "./AgentToolRendererRegistry";
 import "./desktop-agent.css";
+import { BUILTIN_SUB_THEMES } from "../../themes/builtinSubThemes";
+import { SubThemeStyleHost } from "../../themes/SubThemeStyleHost";
+import { DEFAULT_MARKDOWN_PRESENTATION_SETTINGS } from "../../markdown/markdownPresentation";
 
 const smokeToolId = "fixture-render-crash";
 registerAgentToolRenderer(smokeToolId, () => {
@@ -90,13 +93,16 @@ export function AgentToolStabilitySmokeHarness() {
     };
   }, []);
 
-  return (
-    <main className="desktop-agent-visual-smoke dark desktop-agent-tool-stability-smoke">
+  return <>
+    <SubThemeStyleHost subTheme={BUILTIN_SUB_THEMES.find(theme => theme.id === "default.neutral")!}
+      colorMode="dark" markdownPresentation={DEFAULT_MARKDOWN_PRESENTATION_SETTINGS} />
+    <main className="desktop-agent-visual-smoke dark desktop-agent-tool-stability-smoke"
+      data-po-appearance-root="true" data-root-theme-id="default" data-sub-theme-id="default.neutral">
       <section className="desktop-agent-boundary desktop-agent-tool-stability-panel">
         <AgentTranscript projection={projection} loading={false} runtimeLabel="Codex" />
       </section>
     </main>
-  );
+  </>;
 }
 
 async function runSmoke(): Promise<Omit<SmokeResult, "uncaughtErrors" | "longTasks">> {
@@ -136,6 +142,10 @@ async function runSmoke(): Promise<Omit<SmokeResult, "uncaughtErrors" | "longTas
     }
   }
   const durationMs = performance.now() - start;
+  // Publish the screenshot after the final disclosure has finished fading in.
+  await Promise.allSettled(Array.from(document.querySelectorAll(".desktop-agent-tool-branch"))
+    .flatMap(node => node.getAnimations().map(animation => animation.finished)));
+  await frames(1);
   const fallbackCount = document.querySelectorAll(".desktop-agent-activity-render-fallback").length;
   const mountedRows = document.querySelectorAll(".desktop-agent-virtual-row").length;
   const sentinelVisible = document.querySelector('.desktop-agent-virtual-row[data-kind="assistant"]') !== null;
@@ -215,7 +225,7 @@ function createSmokeProjection() {
       detail: {
         tool: "edit",
         path: "src/fixture.ts",
-        changes: [{ path: "src/fixture.ts", additions: 2, deletions: 1 }],
+        changes: [{ path: "src/fixture.ts", additions: 2, deletions: 1, diff: "@@ -1,1 +1,2 @@\n-old\n+new\n+extra" }],
       },
       output: "",
       sequence: 6,
@@ -240,12 +250,12 @@ function measureVisibleEvidenceGeometry() {
   const detail = document.querySelector<HTMLElement>(".desktop-agent-tool-group-detail");
   const commandNode = detail?.querySelector<HTMLElement>(".desktop-agent-evidence-node.is-command");
   const resultNode = detail?.querySelector<HTMLElement>(".desktop-agent-evidence-node.is-result");
-  const fileNode = detail?.querySelector<HTMLElement>(".desktop-agent-file-list")
+  const fileNode = detail?.querySelector<HTMLElement>(".desktop-agent-tool-file-path")
     ?.closest<HTMLElement>(".desktop-agent-evidence-node.is-result");
   const commandLine = commandNode?.querySelector<HTMLElement>(".desktop-agent-command-line");
   const commandOutput = resultNode?.querySelector<HTMLElement>(".desktop-agent-command-output");
   const commandMarker = commandNode?.querySelector<HTMLElement>(".desktop-agent-evidence-marker");
-  const fileRow = fileNode?.querySelector<HTMLElement>(".desktop-agent-file-list li");
+  const fileRow = fileNode?.querySelector<HTMLElement>(".desktop-agent-tool-file-path");
   return {
     railErrors: selectedItem === firstItem && commandNode
       ? [railAlignmentError(selectedItem, commandNode)]

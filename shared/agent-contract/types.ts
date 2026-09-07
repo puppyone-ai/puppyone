@@ -395,6 +395,18 @@ type AgentTextUpdatePayload = AgentRestoredPayload & {
   truncated?: boolean;
 };
 
+/** Display evidence for one reported edit; never a second source-control history.
+ * Missing counts mean unknown. Fragment diffs need not contain absolute line numbers. */
+export type AgentFileChangeEvidence = {
+  path: string;
+  kind?: string;
+  additions?: number;
+  deletions?: number;
+  diff?: string;
+  truncated?: boolean;
+  basis?: "request" | "native";
+};
+
 type AgentActivityPayload = {
   kind?: string;
   tool?: string;
@@ -407,7 +419,7 @@ type AgentActivityPayload = {
   cwd?: string | null;
   path?: string | null;
   query?: string | null;
-  changes?: unknown[];
+  changes?: AgentFileChangeEvidence[];
   outputPreview?: string;
   result?: AgentCanonicalToolResult;
   error?: string | Record<string, unknown> | null;

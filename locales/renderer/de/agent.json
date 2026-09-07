@@ -242,6 +242,7 @@
   "activity.fileChanges": "{count, plural, =0 {Dateiänderungen} one {# Datei geändert} other {# Dateien geändert}}",
   "activity.fileCount": "{count, plural, one {# Datei} other {# Dateien}}",
   "activity.inlineDiff": "Dateivergleich im Text",
+  "activity.diffPartial": "Die Vorschau zeigt nur einen Teil dieser Änderung.",
   "activity.noResults": "Keine Ergebnisse",
   "activity.moreResults": "… {count, plural, one {{value} weiteres Ergebnis} other {{value} weitere Ergebnisse}}",
   "activity.outputOmitted": "… {lines} Zeilen / {characters} Zeichen ausgelassen …",

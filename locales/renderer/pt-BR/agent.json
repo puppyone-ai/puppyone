@@ -242,6 +242,7 @@
   "activity.fileChanges": "{count, plural, =0 {Alterações de arquivos} one {# arquivo alterado} other {# arquivos alterados}}",
   "activity.fileCount": "{count, plural, one {# arquivo} other {# arquivos}}",
   "activity.inlineDiff": "Diferença de arquivo embutida",
+  "activity.diffPartial": "A prévia mostra apenas parte desta alteração.",
   "activity.noResults": "Nenhum resultado",
   "activity.moreResults": "… {count, plural, one {{value} resultado a mais} other {{value} resultados a mais}}",
   "activity.outputOmitted": "… {lines} linhas / {characters} caracteres omitidos …",

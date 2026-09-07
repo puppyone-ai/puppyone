@@ -1,62 +1,48 @@
 import { FilePenLine } from "lucide-react";
 import { useLocalization } from "@puppyone/localization/react";
 import {
-  agentActivityToolId,
-  formatAgentToolName,
-  diffLinesForActivity,
-  fileChangesForActivity,
-  pathForActivity,
+  agentActivityToolId, formatAgentToolName, fileChangesForActivity, fileChangeTotals, pathForActivity, outputForActivity,
 } from "../../domain/agent-activity-presentation";
 import type { AgentActivity } from "../../domain/agent-projection-types";
 import { AgentActivityShell } from "./AgentActivityShell";
 import { AgentToolEvidenceNode, AgentToolEvidenceTree } from "./AgentToolEvidenceTree";
+import { AgentToolTextEvidence } from "./AgentToolTextEvidence";
 
 export function AgentFileChangeActivity({ activity, onOpenFile }: { activity: AgentActivity; onOpenFile?: (path: string) => void }) {
-  const { t } = useLocalization();
+  const { t, formatNumber } = useLocalization();
   const changes = fileChangesForActivity(activity);
-  const diffLines = diffLinesForActivity(activity);
+  const totals = fileChangeTotals(changes);
   const path = pathForActivity(activity);
-  const reviewable = changes.length > 0 || diffLines.length > 0 || Boolean(path);
-  if (!reviewable) return null;
-  const tool = agentActivityToolId(activity);
-  const title = formatAgentToolName(tool, t);
+  const output = outputForActivity(activity);
+  if (!changes.length && !path && !output) return null;
+  const files = changes.length ? changes : path ? [{ path, diff: "", truncated: false }] : [];
   return (
     <AgentActivityShell
-      title={title}
+      title={formatAgentToolName(agentActivityToolId(activity), t)}
       status={activity.status}
       icon={<FilePenLine size={13} />}
+      metadata={totals && <span className="desktop-agent-tool-diff-stats" dir="ltr">
+        <span className="is-addition">+{formatNumber(totals.additions)}</span>
+        <span className="is-deletion">−{formatNumber(totals.deletions)}</span>
+      </span>}
       className="desktop-agent-file-change"
     >
-      {(changes.length > 0 || diffLines.length > 0) && (
-        <AgentToolEvidenceTree>
-          <AgentToolEvidenceNode kind="result">
-            <div className="desktop-agent-file-change-detail">
-              {changes.length > 0 && (
-                <ul className="desktop-agent-file-list" dir="ltr">
-                  {changes.map((change) => (
-                    <li key={change.path}>
-                      {onOpenFile
-                        ? <button type="button" data-po-interaction="navigation" title={change.path} onClick={() => onOpenFile(change.path)}>{change.path}</button>
-                        : <span>{change.path}</span>}
-                      <small><b>+{change.additions}</b><i>−{change.deletions}</i></small>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {diffLines.length > 0 && (
-                <pre
-                  className="desktop-agent-inline-diff"
-                  data-po-scrollbar="content"
-                  aria-label={t("agent.activity.inlineDiff")}
-                  dir="ltr"
-                >
-                  {diffLines.map((line, index) => <span className={`desktop-agent-diff-line is-${line.kind}`} key={`${index}:${line.text}`}>{line.text || " "}</span>)}
-                </pre>
-              )}
+      <AgentToolEvidenceTree>
+        {files.map((file, index) => (
+          <AgentToolEvidenceNode key={`${index}:${file.path}`} kind="result">
+            <div className="desktop-agent-tool-file-path" dir="ltr">
+              {onOpenFile
+                ? <button type="button" data-po-interaction="navigation" title={file.path} onClick={() => onOpenFile(file.path)}>{file.path}</button>
+                : <span>{file.path}</span>}
             </div>
+            {file.diff && <AgentToolTextEvidence text={file.diff} dir="ltr" />}
+            {file.truncated && <span className="desktop-agent-tool-empty">{t("agent.activity.diffPartial")}</span>}
           </AgentToolEvidenceNode>
-        </AgentToolEvidenceTree>
-      )}
+        ))}
+        {output && (
+          <AgentToolEvidenceNode kind="result"><AgentToolTextEvidence text={output} dir="ltr" /></AgentToolEvidenceNode>
+        )}
+      </AgentToolEvidenceTree>
     </AgentActivityShell>
   );
 }

@@ -110,8 +110,9 @@ function projection(history: number, stage: Stage, activity = false, message = p
   if (stage !== "preview" && stage !== "ready") display.parts.push({ id: "user:smoke", submissionId: "submission:smoke",
     kind: "user", text: message, turnId: stage === "dispatching" ? null : "turn:next", itemId: null,
     streaming: false, terminalState: null, sequence: history + 1, deliveryStatus: stage === "completed" ? "accepted" : stage });
-  if (activity) display.parts.push({ id: "tool:smoke", kind: "tool", turnId: "turn:next", itemId: null,
-    sequence: history + 2, label: "Read", status: "completed", detail: {}, output: "Done" });
+  if (activity) display.parts.push({ id: "tool:smoke", kind: "file-change", turnId: "turn:next", itemId: null,
+    sequence: history + 2, label: "Edit", status: "completed", detail: { tool: "edit",
+      changes: [{ path: "src/example.ts", additions: 2, deletions: 1, diff: "@@ -1,1 +1,2 @@\n-old\n+new\n+extra" }] }, output: "" });
   if (stage === "completed") display.parts.push({ id: "turn-summary:next", kind: "turn-summary",
     turnId: "turn:next", itemId: null, sequence: history + 3, durationMs: 4_000, status: "completed" });
   display.rows = display.parts.map(part => ({ id: `row:${part.id}`, partId: part.id,
@@ -128,6 +129,7 @@ async function runSmoke(update: (fixture: Fixture) => void, active: () => boolea
   let maxSendDrift = 0;
   let feedbackSamples = 0;
   let maxFeedbackDrift = 0;
+  let editDetailCases = 0;
   const cases: object[] = [];
   const html = document.documentElement;
   update({ theme: "light", history: 0, width: 560, generation: ++generation, stage: "ready", draft: prompt });
@@ -232,6 +234,29 @@ async function runSmoke(update: (fixture: Fixture) => void, active: () => boolea
         const style = getComputedStyle(editor!);
         assert(parseFloat(style.fontSize) >= 12 && Math.abs(parseFloat(style.lineHeight) - (parseFloat(style.fontSize) + 7)) <= 0.5, "CodeMirror overrode composer typography");
         assert(document.documentElement.scrollWidth <= window.innerWidth + 1, "Document overflow");
+        const edit = document.querySelector<HTMLButtonElement>(".desktop-agent-file-change .desktop-agent-tool-row")!;
+        assert(edit && edit.getAttribute("aria-expanded") === "false", "Edit disclosure is missing");
+        edit.click();
+        await frames();
+        const evidence = document.querySelector<HTMLElement>(".desktop-agent-tool-text-evidence > .desktop-agent-tool-output")!;
+        assert(evidence?.textContent?.includes("-old\n+new\n+extra"), "One click did not reveal the changed lines");
+        const evidenceStyle = getComputedStyle(evidence);
+        assert(evidenceStyle.borderTopWidth === "0px" && evidenceStyle.borderRadius === "0px"
+          && evidenceStyle.backgroundColor === "rgba(0, 0, 0, 0)", "Edit introduced a separate detail card");
+        assert(messageColors(evidence).contrast >= 4.5, `${theme}: tool output is unreadable against the active theme`);
+        const stats = edit.querySelector<HTMLElement>(".desktop-agent-tool-diff-stats")!;
+        const addition = getComputedStyle(stats.querySelector(".is-addition")!);
+        const deletion = getComputedStyle(stats.querySelector(".is-deletion")!);
+        assert(stats.textContent === "+2−1" && addition.color !== deletion.color, "Edit counts lost semantic colors");
+        assert(messageColors(stats.querySelector<HTMLElement>(".is-addition")!).contrast >= 4.5
+          && messageColors(stats.querySelector<HTMLElement>(".is-deletion")!).contrast >= 4.5,
+        `${theme}: edit counts are unreadable against the active theme`);
+        const statsRect = stats.getBoundingClientRect();
+        const editRect = edit.getBoundingClientRect();
+        assert(statsRect.left >= editRect.left && statsRect.right <= editRect.right + 1
+          && Math.abs(statsRect.y + statsRect.height / 2 - editRect.y - editRect.height / 2) <= 1,
+        "Edit counts overflowed or shifted off the tool row");
+        editDetailCases++;
         cases.push({ theme, width, history, messageHeight: baseline.height, fontSize: style.fontSize, lineHeight: style.lineHeight, contrast: colors.contrast });
       }
     }
@@ -324,7 +349,7 @@ async function runSmoke(update: (fixture: Fixture) => void, active: () => boolea
   await frames();
   const pinned = document.querySelector<HTMLElement>(".desktop-agent-transcript")!;
   assert(Math.abs(pinned.scrollHeight - pinned.clientHeight - pinned.scrollTop) <= 1, "Composer growth lost bottom pinning");
-  return { cases, samples, maxDrift, sendSamples, maxSendDrift, feedbackSamples, maxFeedbackDrift,
+  return { cases, samples, maxDrift, sendSamples, maxSendDrift, feedbackSamples, maxFeedbackDrift, editDetailCases,
     nativeWheel: true, keyboardScrolling: true, smallScrolls: true, readingAnchor: anchorId,
     composerReadingAnchor: true, composerPinning: true, semanticColor: afterColor };
 }

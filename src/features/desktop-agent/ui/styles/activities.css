@@ -194,7 +194,7 @@
   gap: 0;
   padding-block: 2px;
   padding-inline: var(--agent-evidence-rail-inline) 0;
-  color: var(--agent-text-subtle);
+  color: var(--agent-text);
   font-family: var(--po-font-mono);
   font-size: var(--agent-code-font-size);
   line-height: 1.5;
@@ -243,7 +243,7 @@
   min-width: 0;
   min-height: var(--agent-evidence-row-height);
   grid-column: 2 / -1;
-  color: var(--agent-text-subtle);
+  color: var(--agent-text);
 }
 .desktop-agent-evidence-marker + .desktop-agent-evidence-content { grid-column: 3; }
 .desktop-agent-evidence-content > .desktop-agent-tool-text-evidence { padding-block: 4px; }
@@ -280,15 +280,6 @@
   from { opacity: 0; transform: translateY(-2px); }
   to { opacity: 1; transform: translateY(0); }
 }
-.desktop-agent-inline-diff {
-  margin: 0;
-  border: 1px solid var(--agent-border-subtle);
-  border-radius: 10px;
-  background: var(--agent-tool-output-surface);
-  font-family: var(--po-font-mono);
-  font-size: var(--agent-code-font-size);
-}
-.desktop-agent-inline-diff { overflow: auto; }
 .desktop-agent-command-line {
   display: block;
   min-width: 0;
@@ -310,7 +301,7 @@
   border: 0;
   border-radius: 0;
   background: transparent;
-  color: var(--agent-text-subtle);
+  color: var(--agent-text);
   font-family: var(--po-font-mono);
   font-size: var(--agent-code-font-size);
   line-height: 1.5;
@@ -353,31 +344,23 @@
 }
 .desktop-agent-activity-render-fallback > svg { flex: 0 0 auto; color: var(--po-danger); }
 .desktop-agent-activity-render-fallback > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.desktop-agent-evidence-content .desktop-agent-search-results,
-.desktop-agent-evidence-content .desktop-agent-file-list { font-size: var(--agent-code-font-size); }
-.desktop-agent-file-change-detail { display: grid; gap: 7px; }
-.desktop-agent-file-list {
-  display: grid;
-  gap: 2px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.desktop-agent-file-list li {
-  display: grid;
+.desktop-agent-evidence-content .desktop-agent-search-results { font-size: var(--agent-code-font-size); }
+.desktop-agent-tool-row.has-metadata { grid-template-columns: auto minmax(0, auto) auto auto; }
+.desktop-agent-tool-row.has-metadata .desktop-agent-tool-status { grid-column: 4; }
+.desktop-agent-tool-metadata { grid-column: 3; font-size: var(--agent-font-size); }
+.desktop-agent-tool-diff-stats { display: inline-flex; gap: 5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.desktop-agent-tool-diff-stats .is-addition { color: var(--agent-diff-added-text); }
+.desktop-agent-tool-diff-stats .is-deletion { color: var(--agent-diff-removed-text); }
+.desktop-agent-tool-file-path {
   min-width: 0;
   min-height: var(--agent-evidence-row-height);
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 7px;
-  border-radius: 6px;
-  color: var(--agent-text-muted);
+  color: var(--agent-text);
+  font-family: var(--po-font-mono);
   font-size: var(--agent-code-font-size);
 }
-.desktop-agent-file-list li:hover { background: var(--po-hover); }
-.desktop-agent-file-list li > span,
-.desktop-agent-file-list li > button {
+.desktop-agent-tool-file-path > :is(button, span) {
   min-width: 0;
   overflow: hidden;
   padding: 0;
@@ -385,32 +368,12 @@
   background: transparent;
   color: inherit;
   font: inherit;
-  font-family: var(--po-font-mono);
   text-align: start;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.desktop-agent-file-list li > button { cursor: var(--po-clickable-cursor, default); }
-.desktop-agent-file-list li > button:hover { color: var(--po-accent-text); }
-.desktop-agent-file-list small { display: inline-flex; gap: 5px; font-style: normal; }
-.desktop-agent-file-list b { color: var(--po-success); font-weight: 500; }
-.desktop-agent-file-list i { color: var(--po-danger); font-style: normal; }
-.desktop-agent-inline-diff {
-  display: block;
-  max-height: 290px;
-  padding: 5px 0;
-  line-height: 1.5;
-  white-space: pre;
-}
-.desktop-agent-diff-line {
-  display: block;
-  min-width: max-content;
-  padding: 0 9px;
-  color: var(--po-text-muted);
-}
-.desktop-agent-diff-line.is-addition { background: var(--agent-diff-added-surface); color: var(--agent-diff-added-text); }
-.desktop-agent-diff-line.is-deletion { background: var(--agent-diff-removed-surface); color: var(--agent-diff-removed-text); }
-.desktop-agent-diff-line.is-hunk { color: var(--po-accent-text); }
+.desktop-agent-tool-file-path > button { cursor: var(--po-clickable-cursor, default); }
+.desktop-agent-tool-file-path > button:is(:hover, :focus-visible) { color: var(--po-accent-text); }
 .desktop-agent-reasoning { opacity: 0.92; }
 .desktop-agent-reasoning-copy {
   max-height: 220px;

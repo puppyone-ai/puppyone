@@ -1,3 +1,5 @@
+import { legacyFileChangeEvidence } from "../../migrations/legacy-file-change-evidence.mjs";
+
 const ACTIVITY_STATUS_ALIASES = Object.freeze({
     queued: "queued",
     running: "running",
@@ -64,6 +66,7 @@ export function pickUsage(payload) {
 }
 export function pickSafeActivityDetail(payload) {
     const detail = {};
+    const legacyChanges = legacyFileChangeEvidence(payload);
     for (const key of ["command", "cwd", "delta", "text", "explanation", "updateMode", "summaryIndex", "status", "kind", "tool", "description", "path", "query", "changes", "steps", "title", "message", "input", "result", "outputPreview", "error", "content", "detail", "metadata", "recoverable", "truncated", "exitCode", "duration", "durationMs", "elapsedMs", "diff", "patch", "outputPaths"]) {
         if (!(key in payload))
             continue;
@@ -74,6 +77,7 @@ export function pickSafeActivityDetail(payload) {
     if (!("input" in detail) && "arguments" in payload) {
         detail.input = boundProjectionValue(payload.arguments);
     }
+    if (legacyChanges) detail.changes = boundProjectionValue(legacyChanges);
     return detail;
 }
 export function activityId(event) {

@@ -1,4 +1,5 @@
 import { finalizeDisplay } from "./helpers/agentDisplayFixture";
+import { agentFileChangeFixture, fileChangeRuntimeIds } from "./helpers/agentFileChangeFixture.mjs";
 import { AgentSessionActor } from "../electron/main/agent/domain/agent-session-actor.mjs";
 /**
  * @vitest-environment happy-dom
@@ -1293,7 +1294,19 @@ describe("Desktop Agent renderer surfaces", () => {
     expect(onOpenFile).toHaveBeenCalledWith("src/a.ts");
   });
 
-  it("renders Write/Edit activity with file stats and inline diff lines without row action clutter", () => {
+  it.each(fileChangeRuntimeIds)("uses the same tool detail for %s edits", (runtimeId) => {
+    const { actor } = agentFileChangeFixture(runtimeId);
+    const container = render(React.createElement(AgentTranscript, { projection: actor.display, loading: false }));
+    const row = container.querySelector<HTMLButtonElement>(".desktop-agent-tool-row")!;
+    expect(row.querySelector(".desktop-agent-tool-diff-stats")?.textContent).toBe("+2−1");
+    expect(row.getAttribute("aria-expanded")).toBe("false");
+    act(() => row.click());
+    expect(container.querySelector(".desktop-agent-tool-text-evidence > .desktop-agent-tool-output")?.textContent).toContain("-old\n+new\n+extra");
+    expect(container.querySelectorAll(".desktop-agent-tool-diff-stats")).toHaveLength(1);
+    expect(container.querySelector(".desktop-agent-inline-diff, .desktop-agent-file-list")).toBeNull();
+  });
+
+  it("renders Write/Edit activity through shared evidence without row action clutter", () => {
     const projection = createAgentProjection();
     projection.activities.push({
       id: "edit-1",
@@ -1306,8 +1319,7 @@ describe("Desktop Agent renderer surfaces", () => {
       detail: {
         tool: "edit",
         path: "src/app.ts",
-        changes: [{ path: "src/app.ts", additions: 2, deletions: 1 }],
-        input: { patch: "@@ -1,2 +1,3 @@\n-old\n+new\n context" },
+        changes: [{ path: "src/app.ts", additions: 2, deletions: 1, diff: "@@ -1,2 +1,3 @@\n-old\n+new\n+extra\n context" }],
       },
       sequence: 1,
     });
@@ -1318,13 +1330,28 @@ describe("Desktop Agent renderer surfaces", () => {
     expect(row.textContent).not.toContain("src/app.ts");
     act(() => row.click());
     expect(row.textContent).not.toContain("src/app.ts");
-    expect(container.querySelector(".desktop-agent-file-list")?.textContent).toContain("src/app.ts");
-    expect(container.querySelectorAll(".desktop-agent-diff-line.is-addition")).toHaveLength(1);
-    expect(container.querySelectorAll(".desktop-agent-diff-line.is-deletion")).toHaveLength(1);
+    expect(container.querySelector(".desktop-agent-tool-file-path")?.textContent).toContain("src/app.ts");
+    expect(container.querySelector(".desktop-agent-tool-text-evidence pre")?.textContent).toContain("-old\n+new\n+extra");
+    expect(container.querySelector(".desktop-agent-inline-diff, .desktop-agent-file-list")).toBeNull();
+    expect(row.querySelector(".desktop-agent-tool-diff-stats")?.textContent).toBe("+2−1");
     expect(container.textContent).toContain("+2");
     expect(container.querySelector('button[aria-label="Review file changes"]')).toBeNull();
-    act(() => (container.querySelector('.desktop-agent-file-list button[title="src/app.ts"]') as HTMLButtonElement).click());
+    act(() => (container.querySelector('.desktop-agent-tool-file-path button[title="src/app.ts"]') as HTMLButtonElement).click());
     expect(onOpenFile).toHaveBeenCalledWith("src/app.ts");
+  });
+
+  it("keeps a failed edit's output visible without inventing zero line counts", () => {
+    const projection = createAgentProjection();
+    projection.activities.push({ id: "failed-edit", turnId: "turn", itemId: "edit", kind: "file-change",
+      label: "Edit", status: "failed", output: "Permission denied", sequence: 1,
+      detail: { tool: "edit", changes: [{ path: "src/file.ts", diff: "-old\n+new", basis: "request" }] },
+    });
+    const container = render(React.createElement(AgentTranscript, { projection, loading: false }));
+    act(() => container.querySelector<HTMLButtonElement>(".desktop-agent-tool-row")!.click());
+    expect(container.textContent).toContain("Permission denied");
+    expect(container.textContent).toContain("-old\n+new");
+    expect(container.querySelector(".desktop-agent-tool-diff-stats")).toBeNull();
+    expect(summarizeAgentChanges(projection).files).toBe(0);
   });
 
   it("does not render a generic File Change row or Review action without a real change", () => {

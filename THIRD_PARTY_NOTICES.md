@@ -1,5 +1,12 @@
 # Third-party notices
 
+## jsdiff
+
+Agent edit previews use the `diff` package (jsdiff), redistributed under the
+BSD 3-Clause License. The complete license and copyright notices are included
+in `node_modules/diff/LICENSE` with the packaged dependency.
+Upstream source: https://github.com/kpdecker/jsdiff
+
 ## Open Sans
 
 The built-in GitHub Theme Pack includes Open Sans font files. Copyright 2020

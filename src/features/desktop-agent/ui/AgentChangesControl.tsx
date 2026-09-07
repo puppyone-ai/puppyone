@@ -45,6 +45,7 @@ export function summarizeAgentChanges(projection: AgentProjection): AgentChangeS
   let files = 0;
 
   for (const candidate of candidates) {
+    if (!["completed", "succeeded"].includes(candidate.status)) continue;
     const changes = Array.isArray(candidate.detail.changes) ? candidate.detail.changes : [];
     if (changes.length === 0) {
       const directAdditions = boundedCount(candidate.detail.additions);

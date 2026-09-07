@@ -1,5 +1,6 @@
 import { stringOrNull, toIsoFromSeconds } from "./codex-native-values.mjs";
 import { boundRendererValue, redactSecrets, redactSecretText } from "../../agent-events.mjs";
+import { createAgentFileChangeEvidence } from "../../runtime/agent-file-change-evidence.mjs";
 
 export function normalizeCodexNotification(message) {
   const method = message?.method;
@@ -178,6 +179,7 @@ export function normalizeItemLifecycle(item, phase, threadId, turnId) {
         kind: "file-change",
         tool: "edit",
         label: changes.length > 1 ? `Edit ${changes.length} files` : path ? `Edit ${path}` : "Edit files",
+        changes,
         input: { changes },
         path,
         status: normalizeToolStatus(item.status, phase),
@@ -240,16 +242,12 @@ export function summarizeToolItem(item, phase) {
 
 export function summarizeFileChanges(changes) {
   if (!Array.isArray(changes)) return [];
-  return changes.slice(0, 100).map((change) => {
-    const diff = typeof change?.diff === "string" ? change.diff : "";
-    const lines = diff.split("\n");
-    return {
-      path: typeof change?.path === "string" ? change.path : "Unknown file",
-      kind: typeof change?.kind === "string" ? change.kind : "update",
-      additions: lines.filter((line) => line.startsWith("+") && !line.startsWith("+++")).length,
-      deletions: lines.filter((line) => line.startsWith("-") && !line.startsWith("---")).length,
-    };
-  });
+  return createAgentFileChangeEvidence(changes.slice(0, 100).map((change) => ({
+    path: change?.path,
+    kind: typeof change?.kind === "string" ? change.kind : change?.kind?.type || "update",
+    diff: change?.diff,
+    basis: "native",
+  })));
 }
 
 export function normalizePlan(plan) {

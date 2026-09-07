@@ -1,4 +1,5 @@
 import { boundRendererValue, redactSecrets, redactSecretText } from "../../agent-events.mjs";
+import { createAgentFileChangeEvidence } from "../../runtime/agent-file-change-evidence.mjs";
 
 export function createClaudeEventState({ turnId = null, resumed = false } = {}) {
   return {
@@ -251,6 +252,15 @@ function toolPayload(name, input, status) {
     tool,
     label: toolLabel(name, safeInput),
     status,
+    ...(["edit", "write"].includes(tool) ? { changes: createAgentFileChangeEvidence(
+      (Array.isArray(input?.edits) ? input.edits.slice(0, 100) : [input]).map((edit) => ({
+        path: input?.file_path || input?.path,
+        before: edit?.old_string,
+        after: tool === "write" ? input?.content : edit?.new_string,
+        scope: "fragment", basis: "request",
+        unknownMultiplicity: edit?.replace_all === true || input?.replace_all === true,
+      })),
+    ) } : {}),
     input: safeInput,
     path: text(safeInput.file_path || safeInput.path) || null,
     command: text(safeInput.command) || null,

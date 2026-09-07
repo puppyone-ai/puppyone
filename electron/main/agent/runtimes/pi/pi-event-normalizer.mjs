@@ -1,4 +1,5 @@
 import { boundRendererValue, redactSecrets, redactSecretText } from "../../agent-events.mjs";
+import { createAgentFileChangeEvidence } from "../../runtime/agent-file-change-evidence.mjs";
 
 export function createPiEventState({ turnId = null, providerSessionId = null } = {}) {
   return {
@@ -218,15 +219,19 @@ function finishTool(message, state) {
   const output = resultText(message.result);
   state.tools.delete(toolCallId);
   const status = message.isError ? "failed" : "completed";
+  const payload = toolPayload(previous.toolName, previous.args, status);
+  const path = toolPath(previous.args);
+  if (payload.kind === "file-change" && path && typeof message.result?.details?.diff === "string") {
+    payload.changes = createAgentFileChangeEvidence([{ path, diff: message.result.details.diff, basis: "native" }]);
+  }
   const result = [event("tool.completed", state, toolCallId, {
-    ...toolPayload(previous.toolName, previous.args, status),
+    ...payload,
     outputPreview: output.slice(-32 * 1024),
   })];
-  const path = toolPath(previous.args);
   if (path && ["edit", "write"].includes(canonicalToolName(previous.toolName))) {
     result.push(event("file.change.updated", state, toolCallId, {
       status,
-      changes: [{ path, status: message.isError ? "failed" : "updated" }],
+      changes: payload.changes,
     }));
   }
   return result;
@@ -264,6 +269,11 @@ function toolPayload(name, args, status) {
     tool,
     label: toolLabel(name, safeInput),
     status,
+    ...(["edit", "write"].includes(tool) ? { changes: createAgentFileChangeEvidence([{
+      path: toolPath(args), before: args?.oldText,
+      after: tool === "write" ? args?.content : args?.newText,
+      scope: "fragment", basis: "request",
+    }]) } : {}),
     input: safeInput,
     path: toolPath(safeInput),
     command: text(safeInput.command) || null,

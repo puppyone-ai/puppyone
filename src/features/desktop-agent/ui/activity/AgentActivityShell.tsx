@@ -8,6 +8,7 @@ import { useAgentToolGroupDisclosure } from "../AgentToolGroupContext";
 type AgentActivityShellProps = {
   title: string;
   summary?: string;
+  metadata?: ReactNode;
   status: AgentActivityStatus;
   icon: ReactNode;
   children?: ReactNode;
@@ -18,6 +19,7 @@ type AgentActivityShellProps = {
 export function AgentActivityShell({
   title,
   summary,
+  metadata,
   status,
   icon,
   children,
@@ -47,13 +49,14 @@ export function AgentActivityShell({
       <div className="desktop-agent-tool-header">
         <button
           type="button"
-          className="desktop-agent-tool-row"
+          className={`desktop-agent-tool-row${metadata ? " has-metadata" : ""}`}
           disabled={!hasDetail}
           aria-expanded={hasDetail ? expanded : undefined}
           onClick={toggleExpanded}
         >
           <span className="desktop-agent-tool-icon" aria-hidden="true">{icon}</span>
           <strong className="desktop-agent-tool-name">{title}</strong>
+          {metadata && <span className="desktop-agent-tool-metadata">{metadata}</span>}
           {visibleSummary && <span className="desktop-agent-tool-summary">{visibleSummary}</span>}
           <StatusIcon status={status} />
         </button>

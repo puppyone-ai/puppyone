@@ -322,8 +322,10 @@ describe("Desktop Agent Cursor-style sidebar visual contract", () => {
     expect(css).toMatch(/\.desktop-agent-evidence-marker\s*\{[^}]*height:\s*var\(--agent-evidence-row-height\)[^}]*grid-column:\s*2[^}]*align-items:\s*center/s);
     expect(css).toMatch(/\.desktop-agent-evidence-marker \+ \.desktop-agent-evidence-content\s*\{[^}]*grid-column:\s*3/s);
     expect(css).toMatch(/\.desktop-agent-command-line\s*\{[^}]*margin:\s*0[^}]*padding:\s*0/s);
-    expect(css).toMatch(/\.desktop-agent-file-list li\s*\{[^}]*min-height:\s*var\(--agent-evidence-row-height\)/s);
-    expect(css).toMatch(/\.desktop-agent-command-output,[^{]*\.desktop-agent-tool-output\s*\{[^}]*padding:\s*0[^}]*border:\s*0[^}]*color:\s*var\(--agent-text-subtle\)[^}]*font-size:\s*var\(--agent-code-font-size\)/s);
+    expect(css).toMatch(/\.desktop-agent-tool-file-path\s*\{[^}]*min-height:\s*var\(--agent-evidence-row-height\)/s);
+    expect(css).not.toContain(".desktop-agent-inline-diff");
+    expect(css).not.toContain(".desktop-agent-file-list");
+    expect(css).toMatch(/\.desktop-agent-command-output,[^{]*\.desktop-agent-tool-output\s*\{[^}]*padding:\s*0[^}]*border:\s*0[^}]*color:\s*var\(--agent-text\)[^}]*font-size:\s*var\(--agent-code-font-size\)/s);
     expect(evidenceTree).toContain('type AgentToolEvidenceNodeKind = "command" | "request" | "result"');
     expect(commandActivity).toContain('<AgentToolEvidenceNode kind="command" marker="$">');
     expect(commandActivity).toContain('<AgentToolEvidenceNode kind="result">');
@@ -355,7 +357,7 @@ describe("Desktop Agent Cursor-style sidebar visual contract", () => {
     expect(css).not.toContain(".desktop-agent-tool-call::before");
     expect(css).not.toContain("desktop-agent-research-pulse");
     expect(css).toMatch(/\.desktop-agent-command\s*\{[^}]*overflow:\s*visible[^}]*border:\s*0[^}]*border-radius:\s*6px/s);
-    expect(css).not.toContain(".desktop-agent-tool-meta");
+    expect(css).not.toMatch(/\.desktop-agent-tool-meta(?:\s|[{:.,])/u);
     expect(css).not.toContain(".desktop-agent-tool-action");
     expect(css).toMatch(/\.desktop-agent-context-divider\s*\{[^}]*grid-template-columns:\s*minmax\(18px, 1fr\) auto minmax\(18px, 1fr\)/s);
     expect(css).toMatch(/\.desktop-agent-picker-popover\s*\{[^}]*position:\s*fixed[^}]*top:\s*var\(--agent-overlay-top, 0px\)[^}]*left:\s*var\(--agent-overlay-left, 0px\)[^}]*z-index:\s*1300[^}]*width:\s*var\(--agent-overlay-width, 0px\)[^}]*max-height:\s*var\(--agent-overlay-max-height, 0px\)/s);

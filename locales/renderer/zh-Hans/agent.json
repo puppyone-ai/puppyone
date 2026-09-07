@@ -242,6 +242,7 @@
   "activity.fileChanges": "{count, plural, =0 {文件更改} other {已更改 # 个文件}}",
   "activity.fileCount": "{count, plural, other {# 个文件}}",
   "activity.inlineDiff": "行内文件差异",
+  "activity.diffPartial": "这里只能预览部分修改内容。",
   "activity.noResults": "没有结果",
   "activity.moreResults": "…另外 {count, plural, other {{value} 条结果}}",
   "activity.outputOmitted": "… 已省略 {lines} 行 / {characters} 个字符 …",

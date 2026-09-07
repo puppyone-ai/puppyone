@@ -1,4 +1,5 @@
 import { boundRendererValue, redactSecrets, redactSecretText } from "../../agent-events.mjs";
+import { createAgentFileChangeEvidence } from "../../runtime/agent-file-change-evidence.mjs";
 
 const TERMINAL_TOOL_STATUSES = new Set(["completed", "failed"]);
 
@@ -116,12 +117,17 @@ export class AcpEventNormalizer {
       ? renderToolOutput(update.content, update.rawOutput) : previous.output;
     const status = Object.hasOwn(update, "status") ? text(update.status, 40) : previous.status;
     const locations = Object.hasOwn(update, "locations") ? array(update.locations) : previous.locations;
-    const changes = Object.hasOwn(update, "content") ? array(update.content).filter(part => part?.type === "diff").slice(0, 200).map(part => ({
-      path: text(part.path, 4_096), kind: "update",
-    })).filter(change => change.path) : previous.changes;
+    const changes = Object.hasOwn(update, "content")
+      ? createAgentFileChangeEvidence(array(update.content).filter(part => part?.type === "diff").slice(0, 100).map(part => ({
+          path: part.path, kind: part.oldText === null ? "add" : "update",
+          before: part.oldText === null ? "" : part.oldText, after: part.newText, basis: "native",
+        })))
+      : previous.changes;
     const canonicalStatus = status === "failed" ? "failed" : status === "completed" ? "completed" : status === "pending" ? "pending" : "running";
     const payload = {
-      kind, tool, label, status: canonicalStatus, input: boundRendererValue(redactSecrets(input)),
+      kind, tool, label, status: canonicalStatus,
+      ...(kind === "file-change" || changes.length ? { changes } : {}),
+      input: boundRendererValue(redactSecrets(input)),
       path: toolPath({ locations }, input),
       command: kind === "command" ? text(input.command, 8_192) || null : null,
       outputPreview: redactSecretText(output).slice(-16 * 1024),
@@ -181,7 +187,8 @@ function renderContent(content, limit = 128 * 1024) {
 function renderToolOutput(content, rawOutput) {
   const rendered = array(content).map((part) => {
     if (part?.type === "content") return renderContent(part.content);
-    if (part?.type === "diff") return `Diff: ${text(part.path, 4_096)}`;
+    // File evidence has its own canonical field; don't add a second path-only result.
+    if (part?.type === "diff") return "";
     if (part?.type === "terminal") return `Terminal: ${text(part.terminalId, 512)}`;
     return "";
   }).filter(Boolean).join("\n\n");
