@@ -192,6 +192,8 @@
   "transcript.jumpLatest": "最新へ移動",
   "transcript.jumpLatestUnread": "最新へ移動、未読の更新 {count, plural, other {# 件}}",
   "message.you": "あなた",
+  "message.partial": "この画面では返信の一部のみを表示しています。",
+  "status.sending": "送信中",
   "turn.workedFor": "処理時間：{duration}",
   "turn.status.ready": "準備完了",
   "turn.status.idle": "待機中",

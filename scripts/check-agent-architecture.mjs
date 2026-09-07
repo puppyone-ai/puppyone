@@ -302,6 +302,9 @@ for (const required of ["display-types.ts", "user-message-types.ts", "display-sc
 }
 for (const filePath of walkSourceFiles(rendererRoot)) {
   const source = stripComments(readFileSync(filePath, "utf8"));
+  if (filePath.includes(`${path.sep}ui${path.sep}`) && /\bcommand\.(?:intent|targetTurnId|userMessageId)\b|agentStartCommandNeedsTranscriptFallback|queuedSubmissions/.test(source)) {
+    errors.push(`${relative(filePath)} reconstructs transcript input from command internals; render Main-authored user parts`);
+  }
   if (/\b(?:applyAgentEvent|applyAgentEvents|normalizeCodexNotification|normalizeClaudeMessage|reconcileTerminalAgentTurn|rejectedProviderPatch)\s*\(/.test(source)) {
     errors.push(`${relative(filePath)} interprets native events; consume Main-authored display JSON`);
   }

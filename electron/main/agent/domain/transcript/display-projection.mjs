@@ -64,7 +64,8 @@ function updateTurn(projection, event) {
             id: event.turnId,
             status: event.payload?.restored ? "outcome-unknown" : "running",
             startedAtSequence: event.sequence,
-            startedAtMs: parseAgentEventTime(event.emittedAt),
+            // Main's replay observation time is not native execution time.
+            startedAtMs: event.payload?.restored ? null : parseAgentEventTime(event.emittedAt),
             userWaitStartedAtMs: null,
             userWaitDurationMs: 0,
             completedAtSequence: null,

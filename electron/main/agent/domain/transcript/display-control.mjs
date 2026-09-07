@@ -2,6 +2,10 @@ import { activeAgentRecovery } from '../agent-recovery.mjs';
 
 /** Control and transcript are committed together; no content event votes on current control state. */
 export function projectAgentDisplayControl(display, control) {
+  const deliveryById = new Map(control.commands.filter(command => command.kind === "start").map(command => [command.commandId, command.status]));
+  const delivery = message => deliveryById.has(message.submissionId) && message.deliveryStatus !== deliveryById.get(message.submissionId)
+    ? { ...message, deliveryStatus: deliveryById.get(message.submissionId) } : message;
+  display = { ...display, messages: display.messages.map(delivery), parts: display.parts.map(delivery) };
   display = withUncertainOutcome(display, control);
   display = withTurnSummaries(display);
   const recovery = activeAgentRecovery(control);
@@ -14,7 +18,7 @@ export function projectAgentDisplayControl(display, control) {
           : control.execution.status === "starting" ? "creating" : "ready",
       terminalState: control.connection.status === "exited" ? "provider-exited"
         : activeTurnId ? "running" : control.execution.status === "outcome-unknown" ? "outcome-unknown" : control.execution.nativeOutcome ?? "idle",
-      pendingPrompt: control.pendingSubmission?.prompt ?? null,
+      pendingPrompt: null,
       submitting: control.execution.status === "starting",
       stopping: Boolean(activeTurnId && control.commands.some(command => command.kind === "interrupt"
         && command.targetTurnId === activeTurnId && ["dispatching", "accepted"].includes(command.status))),
@@ -33,18 +37,21 @@ export function projectAgentDisplayControl(display, control) {
 /** A summary exists only when the native transcript confirms an outcome and timing. */
 function withTurnSummaries(display) {
   const parts = display.parts.filter(part => part.kind !== "turn-summary");
-  const rows = display.rows.filter(row => row.kind !== "turn-summary");
+  const rows = [...display.rows];
   const lastRowByTurn = new Map();
-  for (const row of rows) lastRowByTurn.set(row.turnId, Math.max(lastRowByTurn.get(row.turnId) ?? 0, row.sequence));
+  for (const row of rows) if (row.kind !== "turn-summary") lastRowByTurn.set(row.turnId, Math.max(lastRowByTurn.get(row.turnId) ?? 0, row.sequence));
   for (const turn of display.turns) {
     if (!["completed", "failed", "interrupted"].includes(turn.status) || turn.durationMs === null || turn.completedAtSequence === null) continue;
     const id = `turn-summary:${turn.id}`;
     const sequence = Math.max(turn.completedAtSequence, lastRowByTurn.get(turn.id) ?? 0);
     parts.push({ id, kind: "turn-summary", turnId: turn.id, itemId: null, durationMs: turn.durationMs, status: turn.status, sequence, updatedSequence: turn.completedAtSequence });
-    rows.push({ id: `row:${id}`, partId: id, turnId: turn.id, kind: "turn-summary", sequence, updatedSequence: turn.completedAtSequence, estimatedHeight: 34 });
+    const row = { id: `row:${id}`, partId: id, turnId: turn.id, kind: "turn-summary", sequence, updatedSequence: turn.completedAtSequence, estimatedHeight: 34 };
+    const index = rows.findIndex(entry => entry.id === row.id);
+    if (index >= 0) rows[index] = row; else rows.push(row);
   }
   rows.sort((left, right) => left.sequence - right.sequence);
-  return { ...display, parts, rows };
+  const partIds = new Set(parts.map(part => part.id));
+  return { ...display, parts, rows: rows.filter(row => partIds.has(row.partId)) };
 }
 
 function withUncertainOutcome(display, control) {

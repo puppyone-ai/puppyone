@@ -1,4 +1,4 @@
-import { createAgentProjection, applyAgentEvents, applyAgentEvent } from "./transcript/transcript-reducer.mjs";
+import { createAgentProjection, applyAgentEvents, applyAgentEvent, projectAgentUserSubmission } from "./transcript/transcript-reducer.mjs";
 import { associateAgentUserMessage } from "./transcript/message-identity.mjs";
 import { projectAgentDisplayControl } from "./transcript/display-control.mjs";
 import { boundAgentDisplay } from "./transcript/display-window.mjs";
@@ -101,7 +101,11 @@ export class AgentSessionActor {
     const next = reduceAgentSessionControl(previous, input);
     if (next === previous) return { result: { changed: false, control: previous } };
     assertAgentSessionControl(next);
-    const display = deepFreeze(boundAgentDisplay(projectAgentDisplayControl(this.#display, next), next));
+    // Admission is a product display fact, not a fabricated native history event.
+    const admitted = input.type === "command.received" && input.command.kind === "start"
+      ? projectAgentUserSubmission(this.#display, next.commands.find(command => command.commandId === input.command.commandId))
+      : this.#display;
+    const display = deepFreeze(boundAgentDisplay(projectAgentDisplayControl(admitted, next), next));
     assertAgentDisplay(display);
     const displayPatch = deepFreeze(createAgentDisplayPatch(this.#display, display));
     this.#display = display;

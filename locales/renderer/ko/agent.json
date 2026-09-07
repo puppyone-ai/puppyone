@@ -192,6 +192,8 @@
   "transcript.jumpLatest": "최신 항목으로 이동",
   "transcript.jumpLatestUnread": "최신 항목으로 이동, 읽지 않은 업데이트 {count, plural, other {#개}}",
   "message.you": "나",
+  "message.partial": "이 화면에는 답변의 일부만 표시됩니다.",
+  "status.sending": "전송 중",
   "turn.workedFor": "작업 시간 {duration}",
   "turn.status.ready": "준비됨",
   "turn.status.idle": "대기 중",

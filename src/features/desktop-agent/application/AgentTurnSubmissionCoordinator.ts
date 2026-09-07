@@ -118,8 +118,9 @@ export class AgentTurnSubmissionCoordinator {
     } catch (error) {
       const observed = this.options.readState();
       const command = observed.control?.commands.find(entry => entry.commandId === intent.id);
-      const accepted = Boolean(command && ["accepted", "outcome-unknown"].includes(command.status))
-        || observed.projection.messages.some(message => message.submissionId === intent.id);
+      // A visible input proves local admission, not native delivery. Only Main's
+      // delivery state determines whether a failed request may restore the draft.
+      const accepted = Boolean(command && ["queued", "dispatching", "accepted", "outcome-unknown"].includes(command.status));
       if (accepted) this.options.references.releasePreviews(intent.references);
       if (!captureCurrentDraft && !accepted) {
         const state = this.options.readState();

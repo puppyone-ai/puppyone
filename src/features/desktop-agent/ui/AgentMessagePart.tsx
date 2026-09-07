@@ -40,6 +40,14 @@ export function AgentMessagePart({ part, runtimeLabel }: AgentMessagePartProps) 
           <span className={`desktop-agent-message-state is-${part.terminalState}`}>{t(`agent.turn.status.${part.terminalState}`)}</span>
         </footer>
       )}
+      {!isAssistant && part.deliveryStatus && part.deliveryStatus !== "accepted" && (
+        <span className="desktop-agent-queued-submission-status" role="status">
+          {t(part.deliveryStatus === "queued" ? "agent.status.queued" : part.deliveryStatus === "dispatching"
+            ? "agent.status.sending" : part.deliveryStatus === "outcome-unknown"
+              ? "agent.status.deliveryUnknown" : "agent.status.notSent")}
+        </span>
+      )}
+      {isAssistant && part.truncated && <span className="desktop-agent-message-status" role="status">{t("agent.message.partial")}</span>}
     </article>
   );
 }

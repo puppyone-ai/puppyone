@@ -8,16 +8,18 @@ export function associateAgentUserMessage(event, control) {
   if (!command && event.type === 'turn.started' && control.pendingSubmission) {
     command = control.commands.find(entry => entry.commandId === control.pendingSubmission.commandId);
   }
-  if (!command?.intent) return event;
+  if (!command) return event;
   return {
     ...event,
     payload: {
       ...event.payload,
       userMessageId: command.userMessageId,
       submissionId: command.commandId,
-      ...(event.type === 'turn.started' ? { prompt: command.intent.prompt } : { text: command.intent.prompt }),
-      referenceDisplays: command.intent.referenceDisplays,
-      promptMentions: command.intent.promptMentions,
+      ...(command.intent ? {
+        ...(event.type === 'turn.started' ? { prompt: command.intent.prompt } : { text: command.intent.prompt }),
+        referenceDisplays: command.intent.referenceDisplays,
+        promptMentions: command.intent.promptMentions,
+      } : {}),
     },
   };
 }

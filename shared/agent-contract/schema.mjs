@@ -291,7 +291,7 @@ export function assertAgentSessionSnapshot(value) {
   if (!Number.isSafeInteger(snapshot.firstAvailableSequence) || snapshot.firstAvailableSequence < 0) throw contractError("firstAvailableSequence", "must be a non-negative integer");
   if (!Number.isSafeInteger(snapshot.lastSequence) || snapshot.lastSequence < 0) throw contractError("lastSequence", "must be a non-negative integer");
   assertAgentSessionCursor(snapshot.cursor, "Agent session snapshot.cursor");
-  assertAgentSessionControl(snapshot.control, "Agent session snapshot.control");
+  assertAgentSessionControlView(snapshot.control, "Agent session snapshot.control");
   if (snapshot.timeline !== undefined) {
     const timeline = assertRecord(snapshot.timeline, "Agent session snapshot.timeline");
     assertArray(timeline.events, "Agent session snapshot.timeline.events").forEach(assertAgentEventEnvelope);
@@ -315,6 +315,16 @@ function assertAgentSessionCursor(value, label) {
 }
 
 export function assertAgentSessionControl(value, label = "Agent session control") {
+  return validateSessionControl(value, label, false);
+}
+
+export function assertAgentSessionControlView(value, label = "Agent control view") {
+  validateSessionControl(value, label, true);
+  if (new TextEncoder().encode(JSON.stringify(value)).byteLength > 1024 * 1024) throw contractError(label, "exceeds the control transport budget");
+  return value;
+}
+
+function validateSessionControl(value, label, view) {
   const control = assertRecord(value, label);
   if (control.schemaVersion !== 1) throw contractError(`${label}.schemaVersion`, "must equal 1");
   requiredOpaqueId(control.streamId, `${label}.streamId`);
@@ -376,9 +386,10 @@ export function assertAgentSessionControl(value, label = "Agent session control"
     if (command.error !== null && command.error !== undefined) optionalString(command.error, `${label}.commands[${index}].error`, MAX_COMMAND_ERROR_LENGTH);
     requiredString(command.intentFingerprint, `${label}.commands[${index}].intentFingerprint`, MAX_COMMAND_FINGERPRINT_LENGTH);
     if (typeof command.wasQueued !== "boolean") throw contractError(`${label}.commands[${index}].wasQueued`, "must be a boolean");
-    if (kind === "start") {
+    if (view && command.intent !== undefined) throw contractError(label, "must not expose command input bodies");
+    if (!view && kind === "start" && (["queued", "dispatching"].includes(command.status) || command.intent !== undefined)) {
       assertControlCommandIntent(command.intent, `${label}.commands[${index}].intent`);
-    } else if (command.intent !== null && command.intent !== undefined) {
+    } else if (kind !== "start" && command.intent !== null && command.intent !== undefined) {
       throw contractError(`${label}.commands[${index}].intent`, "is only valid for start commands");
     }
   });
@@ -391,10 +402,10 @@ export function assertAgentSessionControl(value, label = "Agent session control"
   }
   const interaction = assertRecord(control.interaction, `${label}.interaction`);
   assertArray(interaction.approvals, `${label}.interaction.approvals`).forEach((entry, index) => (
-    assertControlBlocker(entry, `${label}.interaction.approvals[${index}]`)
+    assertControlBlocker(entry, `${label}.interaction.approvals[${index}]`, false, view)
   ));
   assertArray(interaction.questions, `${label}.interaction.questions`).forEach((entry, index) => (
-    assertControlBlocker(entry, `${label}.interaction.questions[${index}]`, true)
+    assertControlBlocker(entry, `${label}.interaction.questions[${index}]`, true, view)
   ));
   assertArray(control.terminalTurns, `${label}.terminalTurns`).forEach((entry, index) => requiredOpaqueId(entry, `${label}.terminalTurns[${index}]`));
   if (control.pendingSubmission !== null && control.pendingSubmission !== undefined) {
@@ -402,9 +413,13 @@ export function assertAgentSessionControl(value, label = "Agent session control"
     requiredOpaqueId(submission.commandId, `${label}.pendingSubmission.commandId`);
     requiredOpaqueId(submission.operationId, `${label}.pendingSubmission.operationId`);
     nonNegativeInteger(submission.adapterGeneration, `${label}.pendingSubmission.adapterGeneration`);
-    requiredString(submission.prompt, `${label}.pendingSubmission.prompt`, MAX_MESSAGE_LENGTH, { allowEmpty: true, preserveWhitespace: true });
-    assertArray(submission.promptMentions, `${label}.pendingSubmission.promptMentions`);
-    assertArray(submission.referenceDisplays, `${label}.pendingSubmission.referenceDisplays`);
+    if (view) {
+      if (["prompt", "promptMentions", "referenceDisplays"].some(key => key in submission)) throw contractError(label, "must not expose pending input bodies");
+    } else {
+      requiredString(submission.prompt, `${label}.pendingSubmission.prompt`, MAX_MESSAGE_LENGTH, { allowEmpty: true, preserveWhitespace: true });
+      assertArray(submission.promptMentions, `${label}.pendingSubmission.promptMentions`);
+      assertArray(submission.referenceDisplays, `${label}.pendingSubmission.referenceDisplays`);
+    }
   }
   return value;
 }
@@ -443,13 +458,14 @@ function assertControlReferenceDisplays(displays, label) {
   });
 }
 
-function assertControlBlocker(value, label, question = false) {
+function assertControlBlocker(value, label, question = false, view = false) {
   const blocker = assertRecord(value, label);
   requiredOpaqueId(blocker.requestId, `${label}.requestId`);
   optionalOpaqueId(blocker.turnId, `${label}.turnId`, { nullable: true });
   optionalOpaqueId(blocker.itemId, `${label}.itemId`, { nullable: true });
   assertRuntimeId(blocker.runtimeId, `${label}.runtimeId`);
-  if (question) assertArray(blocker.questions, `${label}.questions`);
+  if (view && (blocker.event !== undefined || blocker.questions !== undefined)) throw contractError(label, "must not expose native blocker bodies");
+  if (question && !view) assertArray(blocker.questions, `${label}.questions`);
   if (blocker.event !== undefined) assertAgentEventEnvelope(blocker.event);
 }
 
@@ -463,7 +479,7 @@ export function assertAgentSessionFrame(value) {
   if (frame.type !== "delta") throw contractError("Agent session frame.type", "is not supported");
   const baseRevision = nonNegativeInteger(frame.baseRevision, "Agent session frame.baseRevision");
   if (revision <= baseRevision) throw contractError("Agent session frame.revision", "must advance baseRevision");
-  const control = assertAgentSessionControl(frame.control, "Agent session frame.control");
+  const control = assertAgentSessionControlView(frame.control, "Agent session frame.control");
   if (control.streamId !== frame.streamId || control.revision !== revision) {
     throw contractError("Agent session frame.control", "must match the frame version");
   }

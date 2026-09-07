@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { projectAgentControlView } from "../../domain/agent-control-view.mjs";
 import { redactSecretText } from "../../agent-events.mjs";
 import { sessionSnapshot, sessionMetadata } from "../../domain/agent-session-model.mjs";
 import { assertAgentSessionFrame } from "../../../../../shared/agent-contract/schema.mjs";
@@ -142,7 +143,7 @@ export class AgentSessionFeed {
         streamId: commit.streamId,
         baseRevision: commit.baseRevision,
         revision: commit.revision,
-        control: commit.control,
+        control: projectAgentControlView(commit.control),
         displayPatch: commit.displayPatch,
         session: Object.freeze({ ...sessionMetadata(session, commit.control), lastSequence: commit.sequence, updatedAt: commit.emittedAt ?? session.updatedAt }),
       });

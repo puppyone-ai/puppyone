@@ -6,7 +6,7 @@ import type {
   AgentRuntimeInspection,
   AgentRuntimeId,
   AgentSessionMetadata,
-  AgentSessionControl,
+  AgentSessionControlView,
 } from "../domain/agent-contract";
 import type { AgentErrorDescriptor } from "./agent-error";
 
@@ -29,7 +29,7 @@ export type AgentControllerState = {
   inspection: AgentRuntimeInspection | null;
   session: AgentSessionMetadata | null;
   /** Main-owned business state. Renderer-only fields are derived from this checkpoint. */
-  control: AgentSessionControl | null;
+  control: AgentSessionControlView | null;
   replicaStatus: "detached" | "subscribing" | "live" | "stale";
   projection: AgentProjection;
   selectedRuntimeId: AgentRuntimeId | null;

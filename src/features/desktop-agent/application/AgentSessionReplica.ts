@@ -3,7 +3,7 @@ import { assertAgentDisplay } from '../../../../shared/agent-contract/display-sc
 import { assertAgentSessionFrame, assertAgentSessionSnapshot } from '../../../../shared/agent-contract/schema.mjs';
 import type { AgentSessionFrame, AgentSessionSnapshot } from '../domain/agent-contract';
 import type { AgentControllerState } from './agent-controller-state';
-import { createAgentError, formatAgentError } from './agent-error';
+import { AgentKnownError, createAgentError } from './agent-error';
 import type { AgentClientPort, AgentClientProvider } from './AgentClientPort';
 
 type StatePatch = (patch: Partial<AgentControllerState>) => void;
@@ -69,14 +69,19 @@ export class AgentSessionReplica {
     const epoch = this.epoch;
     this.patch({ replicaStatus: 'subscribing' });
     let timedOut = false;
-    const pending = bridge.attachAgentSession({ rootPath: this.workspaceRoot, sessionId });
+    const attach = bridge.attachAgentSession.bind(bridge);
+    const pending = Promise.resolve().then(() => attach({ rootPath: this.workspaceRoot, sessionId }));
     // An expired attach can still create a Main subscription; release its late receipt.
     void pending.then(receipt => {
       if (timedOut || this.disposed || epoch !== this.epoch) this.detach(bridge, sessionId, receipt.subscriptionId);
     }, () => {});
     let receipt;
     try { receipt = await withTimeout(pending); }
-    catch (error) { timedOut = true; throw error; }
+    catch (error) {
+      timedOut = true;
+      this.subscriptionFailed(epoch);
+      throw new AgentKnownError('event-gap');
+    }
     if (this.disposed || epoch !== this.epoch) return null;
     try {
       const snapshot = assertAgentSessionSnapshot(receipt.snapshot);
@@ -85,19 +90,30 @@ export class AgentSessionReplica {
       return snapshot;
     } catch (error) {
       this.detach(bridge, sessionId, receipt.subscriptionId);
-      throw error;
+      this.subscriptionFailed(epoch);
+      throw new AgentKnownError('event-gap');
     }
   }
 
   async activateSessionFeed(sessionId: string) {
     const subscription = this.subscription;
     if (!subscription || subscription.sessionId !== sessionId) return false;
-    const synchronized = await this.acknowledge(subscription);
-    if (this.current(subscription)) {
-      this.patch({ replicaStatus: synchronized ? 'live' : 'stale' });
-      this.scheduleWatermarkCheck();
+    try {
+      const synchronized = await this.acknowledge(subscription);
+      if (this.current(subscription)) this.patch({ replicaStatus: synchronized ? 'live' : 'stale' });
+      return synchronized && this.current(subscription);
+    } catch {
+      this.subscriptionFailed(subscription.epoch);
+      return false;
+    } finally {
+      if (this.current(subscription)) this.scheduleWatermarkCheck();
     }
-    return synchronized && this.current(subscription);
+  }
+
+  private subscriptionFailed(epoch: number) {
+    if (this.disposed || epoch !== this.epoch) return;
+    this.patch({ replicaStatus: 'stale', error: createAgentError('event-gap') });
+    this.scheduleWatermarkCheck();
   }
 
   repairFrom(_afterSequence?: number) {
@@ -107,16 +123,19 @@ export class AgentSessionReplica {
     if (!sessionId) return Promise.resolve();
     this.patch({ replicaStatus: 'stale' });
     this.repairPromise = (async () => {
+      let repairEpoch = this.epoch;
       try {
-        const snapshot = await this.attachSession(sessionId);
+        const pending = this.attachSession(sessionId);
+        repairEpoch = this.epoch;
+        const snapshot = await pending;
         if (!snapshot || this.disposed || this.readState().session?.id !== sessionId) return;
         this.patch({ session: snapshot.session, control: snapshot.control!, projection: snapshot.display });
         const synchronized = await this.activateSessionFeed(sessionId);
         if (synchronized && !this.disposed && this.readState().session?.id === sessionId) this.patch({ replicaStatus: 'live',
           ...(this.readState().error?.code === 'event-gap' ? { error: null } : {}),
         });
-      } catch (error) {
-        if (!this.disposed && this.readState().session?.id === sessionId) this.patch({ replicaStatus: 'stale', error: formatAgentError(error) });
+      } catch {
+        if (!this.disposed && this.epoch === repairEpoch && this.readState().session?.id === sessionId) this.patch({ replicaStatus: 'stale', error: createAgentError('event-gap') });
       }
     })().finally(() => {
       this.repairPromise = null;

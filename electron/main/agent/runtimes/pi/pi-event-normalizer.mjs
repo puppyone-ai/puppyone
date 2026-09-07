@@ -151,7 +151,7 @@ function normalizeMessageEnd(message, state) {
   asArray(message.content).forEach((block, index) => {
     if (block?.type === "text" && text(block.text)) {
       result.push(event("assistant.completed", state, `pi:assistant:${state.turnId || "turn"}:${index}`, {
-        text: text(block.text),
+        text: block.text,
       }));
     } else if (block?.type === "thinking" && !state.reasoningBlocks.has(index)) {
       state.reasoningBlocks.add(index);

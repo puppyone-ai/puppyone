@@ -192,6 +192,8 @@
   "transcript.jumpLatest": "Jump to latest",
   "transcript.jumpLatestUnread": "Jump to latest, {count, plural, one {# unread update} other {# unread updates}}",
   "message.you": "You",
+  "message.partial": "Only part of this reply is available in this view.",
+  "status.sending": "Sending",
   "turn.workedFor": "Worked for {duration}",
   "turn.status.ready": "ready",
   "turn.status.idle": "idle",

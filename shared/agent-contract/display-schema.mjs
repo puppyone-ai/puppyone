@@ -83,6 +83,10 @@ function validateValues(value, complete) {
 
 function validateEntry(key, entry) {
   assertRecord(entry, key); idValue(entry[DISPLAY_COLLECTION_KEYS[key]]);
+  if (key === 'messages' || key === 'parts') {
+    if (entry.truncated !== undefined && typeof entry.truncated !== 'boolean') throw contractError(key+'.truncated', 'must be boolean');
+    if (entry.deliveryStatus !== undefined) enumValue(entry.deliveryStatus, key+'.deliveryStatus', ['queued', 'dispatching', 'accepted', 'rejected', 'cancelled', 'outcome-unknown']);
+  }
   if (key !== 'turns') nonNegativeInteger(entry.sequence, key+'.sequence');
   if (key === 'messages') {
     enumValue(entry.role, 'message.role', ['user', 'assistant']); textValue(entry.text, 'message.text');

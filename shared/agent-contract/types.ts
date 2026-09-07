@@ -346,7 +346,7 @@ export type AgentEventPayloadMap = {
   "tool.started": AgentActivityPayload;
   "tool.progress": AgentActivityPayload;
   "tool.completed": AgentActivityPayload;
-  "command.output.delta": AgentActivityPayload & { delta?: string };
+  "command.output.delta": AgentActivityPayload & { delta?: string; updateMode?: "append" | "replace" };
   "file.change.updated": AgentActivityPayload;
   "usage.updated": {
     inputTokens?: number;
@@ -540,7 +540,7 @@ export type AgentSessionSnapshot = {
   lastSequence: number;
   /** Atomic Main state and its stream cursor accompany every display snapshot. */
   cursor: AgentSessionCursor;
-  control: AgentSessionControl;
+  control: AgentSessionControlView;
   timeline?: AgentTimelineWindow;
 };
 
@@ -611,6 +611,16 @@ export type AgentSessionControl = {
   } | null;
 };
 
+/** Renderer receives identities and delivery state, never executable input bodies. */
+export type AgentSessionControlView = Omit<AgentSessionControl, "commands" | "pendingSubmission" | "interaction"> & {
+  commands: Array<Omit<AgentSessionControl["commands"][number], "intent">>;
+  pendingSubmission: Pick<NonNullable<AgentSessionControl["pendingSubmission"]>, "commandId" | "operationId" | "adapterGeneration"> | null;
+  interaction: {
+    approvals: Array<Omit<AgentSessionControl["interaction"]["approvals"][number], "event">>;
+    questions: Array<Omit<AgentSessionControl["interaction"]["questions"][number], "event" | "questions">>;
+  };
+};
+
 export type AgentTimelineWindow = {
   events: AgentEvent[];
   /** Current facts whose original event fell outside the bounded content window. */
@@ -634,7 +644,7 @@ export type AgentSessionFrame =
       streamId: string;
       baseRevision: number;
       revision: number;
-      control: AgentSessionControl;
+      control: AgentSessionControlView;
       displayPatch: AgentDisplayPatch;
       session: AgentSessionMetadata;
     }

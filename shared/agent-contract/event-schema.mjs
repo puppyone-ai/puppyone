@@ -30,7 +30,7 @@ const PAYLOAD_KEYS = Object.freeze({
   "tool.started": activityPayloadKeys(),
   "tool.progress": activityPayloadKeys(),
   "tool.completed": activityPayloadKeys(),
-  "command.output.delta": activityPayloadKeys("delta"),
+  "command.output.delta": activityPayloadKeys("delta", "updateMode"),
   "file.change.updated": activityPayloadKeys("changes", "diff", "patch"),
   "usage.updated": ["inputTokens", "outputTokens", "totalTokens", "cachedTokens", "cost", "contextWindow", "tokens"],
   "approval.requested": blockerPayloadKeys("availableDecisions", "commandActions", "networkApprovalContext", "grantRoot", "proposedExecpolicyAmendment", "proposedNetworkPolicyAmendments"),
@@ -56,6 +56,8 @@ export function assertAgentEventEnvelope(value) {
   requiredString(event.emittedAt, "AgentEvent.emittedAt", 64);
   if (!EVENT_TYPE_SET.has(event.type)) throw contractError("AgentEvent.type", "is not supported");
   const payload = assertRecord(event.payload, "AgentEvent.payload");
+  if (payload.updateMode !== undefined) enumValue(payload.updateMode, "AgentEvent.payload.updateMode", ["append", "replace"]);
+  if (payload.truncated !== undefined && typeof payload.truncated !== "boolean") throw contractError("AgentEvent.payload.truncated", "must be boolean");
   if ((event.type === "approval.requested" || event.type === "approval.resolved" || event.type === "question.requested" || event.type === "question.resolved") && !isOpaqueId(payload.requestId)) {
     throw contractError(`AgentEvent(${event.type}).payload.requestId`, "is required");
   }

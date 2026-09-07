@@ -101,6 +101,7 @@ export class CodexAppServerAdapter {
     this.connection = null;
     this.threadId = null;
     this.activeTurnId = null;
+    this.terminalTurnIds = new Set();
     this.pendingApprovals = new Map();
     this.pendingQuestions = new Map();
     this.modelProfiles = new Map();
@@ -303,8 +304,11 @@ export class CodexAppServerAdapter {
       }
       throw error;
     }
-    this.activeTurnId = requireString(result?.turn?.id, "Codex turn/start did not return a turn id.");
-    return { turnId: this.activeTurnId, clientUserMessageId };
+    const turnId = requireString(result?.turn?.id, "Codex turn/start did not return a turn id.");
+    // A receipt confirms delivery. Notifications received while awaiting it
+    // already describe newer native execution state and must win.
+    if (!this.terminalTurnIds.has(turnId) && (!this.activeTurnId || this.activeTurnId === turnId)) this.activeTurnId = turnId;
+    return { turnId, clientUserMessageId };
   }
 
   async interruptTurn({ turnId }) {
@@ -370,8 +374,10 @@ export class CodexAppServerAdapter {
         event.type = "session.resumed";
       }
       if (event.type.startsWith("turn.") && event.turnId) {
-        if (event.type === "turn.started") this.activeTurnId = event.turnId;
+        if (event.type === "turn.started" && !this.terminalTurnIds.has(event.turnId)) this.activeTurnId = event.turnId;
         if (["turn.completed", "turn.failed", "turn.interrupted"].includes(event.type)) {
+          this.terminalTurnIds.add(event.turnId);
+          while (this.terminalTurnIds.size > 128) this.terminalTurnIds.delete(this.terminalTurnIds.values().next().value);
           if (this.activeTurnId === event.turnId) this.activeTurnId = null;
           codexClearPendingApprovalsForTurn(this, event.turnId, "turn-ended");
           codexClearPendingQuestionsForTurn(this, event.turnId);

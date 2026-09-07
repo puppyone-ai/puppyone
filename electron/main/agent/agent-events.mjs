@@ -3,6 +3,7 @@ import {
   assertAgentEventEnvelope,
   sanitizeAgentEventPayload,
 } from "../../../shared/agent-contract/schema.mjs";
+import { agentDisplayLimits } from "../../../shared/agent-contract/display-schema.mjs";
 
 const SECRET_PATTERNS = [
   { pattern: /\bsk-[A-Za-z0-9_-]{12,}\b/g, replacement: "[redacted]" },
@@ -72,12 +73,26 @@ export function createAgentEventEnvelope({
     itemId,
     emittedAt,
     type,
-    payload: sanitizeAgentEventPayload(type, redactSecrets(boundRendererValue(payload))),
+    payload: normalizeDisplayPayload(type, payload),
   };
   if (!isAgentEventEnvelope(event)) {
     throw new TypeError(`Invalid normalized AgentEvent: ${String(type)}`);
   }
   return event;
+}
+
+function normalizeDisplayPayload(type, payload) {
+  const field = type === "assistant.completed" ? "text" : type === "assistant.delta" ? "delta" : null;
+  if (!field || typeof payload[field] !== "string") return sanitizeAgentEventPayload(type, redactSecrets(boundRendererValue(payload)));
+  const { [field]: content, ...metadata } = payload;
+  const text = redactSecretText(content);
+  // Text completeness is explicit. A generic metadata preview must never
+  // silently become an authoritative replacement for an accumulated answer.
+  return sanitizeAgentEventPayload(type, {
+    ...redactSecrets(boundRendererValue(metadata)),
+    [field]: text.slice(0, agentDisplayLimits.maxText),
+    ...(payload.truncated === true || text.length > agentDisplayLimits.maxText ? { truncated: true } : {}),
+  });
 }
 
 export function redactSecrets(value, depth = 0) {

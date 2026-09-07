@@ -2,6 +2,7 @@ import { isAgentEventEnvelope } from "../agent-events.mjs";
 import { normalizeCapabilitySnapshot, sanitizeAgentEventEnvelope, sanitizeAgentRuntimeDescriptor } from "../../../../shared/agent-contract/schema.mjs";
 import { normalizeAgentEventWorkspacePaths } from "./agent-event-workspace-paths.mjs";
 import { AgentSessionActor } from "./agent-session-actor.mjs";
+import { projectAgentControlView } from "./agent-control-view.mjs";
 
 const MAX_REPLAY_EVENTS = 1_000;
 
@@ -214,7 +215,7 @@ export function sessionSnapshot(session) {
     capabilities: session.capabilities,
     runtime: session.runtime,
     cursor: actorSnapshot.cursor,
-    control: actorSnapshot.control,
+    control: projectAgentControlView(actorSnapshot.control),
     display: actorSnapshot.display,
     timeline: actorSnapshot.timeline,
     events: actorSnapshot.timeline.events,

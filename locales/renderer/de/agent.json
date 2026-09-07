@@ -192,6 +192,8 @@
   "transcript.jumpLatest": "Zum neuesten Eintrag springen",
   "transcript.jumpLatestUnread": "Zum neuesten Eintrag springen, {count, plural, one {# ungelesene Aktualisierung} other {# ungelesene Aktualisierungen}}",
   "message.you": "Du",
+  "message.partial": "In dieser Ansicht ist nur ein Teil dieser Antwort verfügbar.",
+  "status.sending": "Wird gesendet",
   "turn.workedFor": "Bearbeitungszeit: {duration}",
   "turn.status.ready": "bereit",
   "turn.status.idle": "inaktiv",

@@ -186,6 +186,10 @@ function applyCanonicalEvent(state, event) {
       return true;
     case "turn.started": {
       const turnId = event.turnId;
+      // A correlated native start is a delivery receipt even if the RPC reply is lost.
+      if (turnId && !payload.restored && payload.submissionId) transitionCommand(state, {
+        type: "command.accepted", commandId: payload.submissionId, turnId, userMessageId: payload.userMessageId,
+      });
       if (!turnId || state.terminalTurns.includes(turnId)) return true;
       if (payload.restored === true) {
         if (state.execution.activeTurnId !== turnId && state.execution.uncertainTurnId !== turnId) state.runGeneration += 1;
@@ -267,6 +271,7 @@ function applyCanonicalEvent(state, event) {
 function acceptSubmission(state, input) {
   if (input.adapterGeneration !== state.adapterGeneration) return false;
   const command = state.commands.find((entry) => entry.commandId === input.commandId);
+  if (command?.status === "accepted" && command.operationId === input.operationId && command.targetTurnId === input.turnId) return true;
   if (!command || command.kind !== "start" || command.status !== "dispatching" || command.operationId !== input.operationId) {
     return false;
   }
@@ -341,6 +346,11 @@ function reserveQueuedStart(state, input) {
 
 function receiveCommand(state, command) {
   if (!command?.commandId || state.commands.some((entry) => entry.commandId === command.commandId)) return false;
+  if (state.commands.length >= MAX_COMMAND_RECORDS) {
+    const settled = state.commands.findIndex(entry => ["accepted", "rejected", "cancelled"].includes(entry.status));
+    if (settled < 0) throw new Error("Agent command capacity is full; unresolved deliveries must be settled first.");
+    state.commands.splice(settled, 1);
+  }
   const record = {
     commandId: command.commandId,
     kind: command.kind,
@@ -366,7 +376,8 @@ function transitionCommand(state, input) {
   if (index < 0) return false;
   const current = state.commands[index];
   if (input.operationId && current.operationId && input.operationId !== current.operationId) return false;
-  if (isFinalCommandStatus(current.status)) return false;
+  const confirmsUnknownStart = current.kind === "start" && current.status === "outcome-unknown" && status === "accepted" && input.turnId;
+  if (isFinalCommandStatus(current.status) && !confirmsUnknownStart) return false;
   state.commands[index] = {
     ...current,
     status,
@@ -375,6 +386,7 @@ function transitionCommand(state, input) {
     userMessageId: input.userMessageId ?? current.userMessageId ?? null,
     error: input.error ? String(input.error).slice(0, MAX_COMMAND_ERROR) : null,
   };
+  if (["accepted", "rejected", "cancelled"].includes(status)) delete state.commands[index].intent;
   if (status !== "queued") state.queue = state.queue.filter((id) => id !== input.commandId);
   if ((status === "rejected" || status === "cancelled")
     && current.kind === "start"
@@ -473,7 +485,7 @@ function freezeControl(state) {
     approvals: Object.freeze(state.interaction.approvals.map((entry) => deepFreeze(entry))),
     questions: Object.freeze(state.interaction.questions.map((entry) => deepFreeze(entry))),
   });
-  state.commands = Object.freeze(state.commands.map((entry) => Object.freeze(entry)));
+  state.commands = Object.freeze(state.commands.map((entry) => deepFreeze(entry)));
   state.queue = Object.freeze([...state.queue]);
   state.recoveries = Object.freeze((state.recoveries ?? []).map(entry => Object.freeze({ ...entry })));
   state.terminalTurns = Object.freeze([...state.terminalTurns]);
@@ -485,7 +497,7 @@ function trimCommands(state) {
   if (state.commands.length <= MAX_COMMAND_RECORDS) return;
   const protectedIds = new Set(state.queue);
   while (state.commands.length > MAX_COMMAND_RECORDS) {
-    const index = state.commands.findIndex((entry) => !protectedIds.has(entry.commandId) && isFinalCommandStatus(entry.status));
+    const index = state.commands.findIndex((entry) => !protectedIds.has(entry.commandId) && ["accepted", "rejected", "cancelled"].includes(entry.status));
     if (index < 0) break;
     state.commands.splice(index, 1);
   }

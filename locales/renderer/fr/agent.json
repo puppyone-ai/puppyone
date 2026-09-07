@@ -192,6 +192,8 @@
   "transcript.jumpLatest": "Aller au dernier",
   "transcript.jumpLatestUnread": "Aller au dernier, {count, plural, one {# mise à jour non lue} other {# mises à jour non lues}}",
   "message.you": "Vous",
+  "message.partial": "Seule une partie de cette réponse est disponible dans cette vue.",
+  "status.sending": "Envoi en cours",
   "turn.workedFor": "A travaillé pour {duration}",
   "turn.status.ready": "prêt",
   "turn.status.idle": "inactif",

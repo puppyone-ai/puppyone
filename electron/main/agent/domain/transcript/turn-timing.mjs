@@ -4,7 +4,7 @@ export function parseAgentEventTime(value) {
     return Number.isFinite(timestamp) ? timestamp : null;
 }
 export function readAgentTurnDurationMs(value, startedAtMs, emittedAt) {
-    const nativeDuration = Number(value);
+    const nativeDuration = typeof value === "number" ? value : NaN;
     if (Number.isFinite(nativeDuration) && nativeDuration >= 0) {
         return Math.min(MAX_TURN_DURATION_MS, Math.round(nativeDuration));
     }

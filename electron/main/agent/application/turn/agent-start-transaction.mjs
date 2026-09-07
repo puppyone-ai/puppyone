@@ -81,6 +81,14 @@ export async function executeAgentStartTransaction(context, {
     persistSoon(session);
     return { sessionId: session.id, commandId, queued: false, turnId: result.turnId };
   } catch (error) {
+    const confirmed = session.actor.control.commands.find(command => command.commandId === commandId && command.operationId === operationId && command.status === "accepted");
+    if (confirmed?.targetTurnId && runtimeSession.isCurrent(session) && session.actor.control.adapterGeneration === adapterGeneration) {
+      // Correlated native execution is stronger evidence than a missing RPC receipt.
+      if (session.actor.terminalOutcome(confirmed.targetTurnId)) await revokeAgentOperationReferences(session, identity, attachmentStore);
+      else acceptAgentTurnReferences(session, identity, confirmed.targetTurnId);
+      persistSoon(session);
+      return { sessionId: session.id, commandId, queued: false, turnId: confirmed.targetTurnId };
+    }
     const message = redactSecretText(error instanceof Error ? error.message : String(error));
     if (isAgentDeliveryOutcomeUnknown(error)) {
       session.actor.dispatch({

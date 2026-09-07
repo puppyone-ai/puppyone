@@ -67,7 +67,7 @@ export function normalizeClaudeMessage(message, state = createClaudeEventState()
     })];
   }
   if (message.type === "system" && message.subtype === "local_command_output" && text(message.content)) {
-    return [event("assistant.completed", sessionId, turnId, safeId(message.uuid), { text: text(message.content) })];
+    return [event("assistant.completed", sessionId, turnId, safeId(message.uuid), { text: message.content })];
   }
   if (message.type === "auth_status") {
     return [event(message.error ? "provider.error" : "provider.activity", sessionId, turnId, null, {
@@ -120,7 +120,7 @@ function normalizeStreamEvent(message, state, sessionId) {
   const itemId = assistantSegmentId(state, native.index);
   if (native.type === "content_block_delta" && native.delta?.type === "text_delta") {
     state.streamedText.add(itemId);
-    return [event("assistant.delta", sessionId, state.turnId, itemId, { delta: text(native.delta.text) })];
+    return [event("assistant.delta", sessionId, state.turnId, itemId, { delta: typeof native.delta.text === "string" ? native.delta.text : "" })];
   }
   if (native.type === "content_block_delta" && native.delta?.type === "thinking_delta") {
     if (state.reasoningStarted) return [];
@@ -145,7 +145,7 @@ function normalizeAssistant(message, state, sessionId) {
   for (const [index, block] of asArray(message.message?.content).entries()) {
     const itemId = assistantSegmentId(state, index);
     if (block?.type === "text" && text(block.text)) {
-      result.push(event("assistant.completed", sessionId, state.turnId, itemId, { text: text(block.text) }));
+      result.push(event("assistant.completed", sessionId, state.turnId, itemId, { text: block.text }));
     } else if (block?.type === "thinking" && text(block.thinking)) {
       if (!state.reasoningStarted) {
         state.reasoningStarted = true;

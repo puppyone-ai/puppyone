@@ -105,6 +105,9 @@ function applyLegacyAgentEvent(next, event, options) {
             const promptMentions = readPromptMentions(payload.promptMentions, prompt, references);
             const userMessageId = typeof payload.userMessageId === "string" ? payload.userMessageId : null;
             const indexes = projectionIndexes(next);
+            if (findAgentUserMessage(next.messages, event) >= 0) {
+                return upsertUserMessage(next, { ...event, payload: { ...payload, text: prompt } });
+            }
             const turnMessages = event.turnId ? indexes.messagesByTurn.get(event.turnId) ?? [] : [];
             if ((prompt || references.length > 0) && findAgentUserMessage(next.messages, event) < 0 && !turnMessages.some((index) => next.messages[index]?.role === "user")) {
                 const messageIndex = next.messages.length;
@@ -202,7 +205,7 @@ function applyLegacyAgentEvent(next, event, options) {
                 const activity = next.activities[existingIndex];
                 next.activities[existingIndex] = {
                     ...activity,
-                    output: `${activity.output}${readString(payload.delta)}`.slice(-MAX_COMMAND_OUTPUT),
+                    output: (payload.updateMode === "replace" ? readString(payload.delta) : `${activity.output}${readString(payload.delta)}`).slice(-MAX_COMMAND_OUTPUT),
                     updatedSequence: event.sequence,
                 };
             }
@@ -379,6 +382,10 @@ function upsertUserMessage(projection, event) {
     const existingIndex = findAgentUserMessage(projection.messages, event);
     if (existingIndex >= 0) {
         const existing = projection.messages[existingIndex];
+        if (event.turnId && event.turnId !== existing.turnId) {
+            if (existing.turnId) indexes.messagesByTurn.set(existing.turnId, (indexes.messagesByTurn.get(existing.turnId) ?? []).filter(index => index !== existingIndex));
+            indexes.messagesByTurn.set(event.turnId, [...(indexes.messagesByTurn.get(event.turnId) ?? []), existingIndex]);
+        }
         projection.messages[existingIndex] = {
             ...existing,
             itemId: event.itemId ?? existing.itemId,
@@ -422,6 +429,18 @@ function upsertUserMessage(projection, event) {
     }
     return projection;
 }
+/** Materialize an admitted input once, including queued and failed deliveries. */
+export function projectAgentUserSubmission(display, command) {
+    if (!command?.intent) return display;
+    const next = cloneAgentProjection(display);
+    const event = { type: "user.message", sequence: display.lastSequence, turnId: null, itemId: null, payload: {
+        text: command.intent.prompt, userMessageId: command.userMessageId, submissionId: command.commandId,
+        referenceDisplays: command.intent.referenceDisplays, promptMentions: command.intent.promptMentions,
+    } };
+    upsertUserMessage(next, event);
+    projectTypedPart(next, event);
+    return next;
+}
 function upsertAssistant(projection, event, text, streaming, authoritative) {
     const indexes = projectionIndexes(projection);
     const nativeIdentity = event.itemId ?? event.turnId ?? String(event.sequence);
@@ -433,6 +452,8 @@ function upsertAssistant(projection, event, text, streaming, authoritative) {
         : []));
     const latestIndex = matchingIndexes.at(-1);
     const latest = latestIndex === undefined ? null : projection.messages[latestIndex];
+    const incompletePrefix = authoritative && event.payload.truncated === true
+        && matchingIndexes.map(index => projection.messages[index].text).join("").startsWith(text);
     const boundaryAfterLatest = Boolean(latest && projection.rows.some((row) => (row.turnId === event.turnId
         && row.kind !== "assistant"
         && row.kind !== "user"
@@ -450,9 +471,10 @@ function upsertAssistant(projection, event, text, streaming, authoritative) {
         const existing = projection.messages[existingIndex];
         projection.messages[existingIndex] = {
             ...existing,
-            text: authoritative
+            text: incompletePrefix ? existing.text : authoritative
                 ? (boundaryAfterLatest && !createSegment ? existing.text : segmentedText.slice(0, MAX_MESSAGE_TEXT))
                 : appendBounded(existing.text, segmentedText, MAX_MESSAGE_TEXT),
+            truncated: event.payload.truncated === true || (authoritative ? segmentedText.length > MAX_MESSAGE_TEXT : existing.truncated === true || existing.text.length + segmentedText.length > MAX_MESSAGE_TEXT),
             streaming,
             updatedSequence: event.sequence,
         };
@@ -465,6 +487,7 @@ function upsertAssistant(projection, event, text, streaming, authoritative) {
             turnId: event.turnId,
             itemId: event.itemId,
             text: segmentedText.slice(0, MAX_MESSAGE_TEXT),
+            truncated: event.payload.truncated === true || segmentedText.length > MAX_MESSAGE_TEXT,
             streaming,
             terminalState: null,
             sequence: event.sequence,

@@ -14,7 +14,7 @@ export function agentEventContentUpdate(event) {
         mode: event.payload?.updateMode === "append" || event.payload?.streaming === true ? "append" : "replace",
       };
     case "command.output.delta":
-      return { field: "delta", mode: "append" };
+      return { field: "delta", mode: event.payload?.updateMode === "replace" ? "replace" : "append" };
     default:
       return null;
   }

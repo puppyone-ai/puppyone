@@ -518,7 +518,7 @@ describe("AgentSessionController", () => {
     }));
   });
 
-  it("publishes an optimistic prompt immediately and clears it on the native turn-start event", async () => {
+  it("hands the local preview to Main's admitted input before the native start receipt", async () => {
     let eventListener: ((event: AgentEvent) => void) | null = null;
     let acceptTurn: ((value: { turnId: string }) => void) | null = null;
     const bridge = bridgeFixture((listener) => { eventListener = listener; });
@@ -531,8 +531,9 @@ describe("AgentSessionController", () => {
 
     expect(controller.getSnapshot()).toMatchObject({
       draft: "",
-      pendingPrompt: "Explain the architecture",
+      pendingPrompt: null,
       submitting: true,
+      projection: { messages: [expect.objectContaining({text:"Explain the architecture",deliveryStatus:"dispatching"})] },
     });
     eventListener?.(event(2, "turn.started", { prompt: "Explain the architecture" }, "turn-live"));
     expect(controller.getSnapshot()).toMatchObject({
@@ -593,7 +594,8 @@ describe("AgentSessionController", () => {
     expect(controller.getSnapshot()).toMatchObject({
       session: { id: "session-2" },
       sessionPreparation: "ready",
-      pendingPrompt: "Inspect the first-turn path",
+      pendingPrompt: null,
+      projection: { messages: [expect.objectContaining({text:"Inspect the first-turn path",deliveryStatus:"dispatching"})] },
     });
 
     eventListener?.(event(2, "turn.started", { prompt: "Inspect the first-turn path" }, "turn-first", null, "session-2"));

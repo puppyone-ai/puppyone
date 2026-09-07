@@ -31,6 +31,45 @@ async function harness() {
 }
 
 describe('Renderer display replica against the Main SessionActor and feed', () => {
+  it.each(['attach', 'ack'] as const)('recovers an initial %s failure without sending another native command', async failure => {
+    vi.useFakeTimers();
+    const h = await harness();
+    if (failure === 'attach') h.bridge.attachAgentSession.mockRejectedValueOnce(new Error('Temporary IPC failure'));
+    else h.bridge.acknowledgeAgentSession.mockRejectedValueOnce(new Error('Temporary IPC failure'));
+    await h.controller.initialize();
+    expect(h.controller.getSnapshot().replicaStatus).toBe('stale');
+    h.emit('turn.started');
+    h.emit('assistant.completed', {text: 'Output while disconnected'}, 'answer');
+    h.emit('turn.completed');
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(h.controller.getSnapshot().replicaStatus).toBe('live');
+    expect(h.controller.getSnapshot().error).toBeNull();
+    expect(h.controller.getSnapshot().projection).toEqual(h.read().display);
+    expect(mainStartCount(h.main)).toBe(0);
+  });
+  it('recovers a timed out first attach and detaches its late receipt', async () => {
+    vi.useFakeTimers(); const h = await harness();
+    const attach = h.bridge.attachAgentSession.getMockImplementation()!;
+    let late: ((receipt:any)=>void) | undefined;
+    const receipt = await attach({rootPath:'/workspace',sessionId:h.snapshot.session.id});
+    h.bridge.attachAgentSession.mockImplementationOnce(() => new Promise(resolve => {late=resolve;}));
+    const initialized = h.controller.initialize();
+    await vi.advanceTimersByTimeAsync(8_000); await initialized;
+    expect(h.controller.getSnapshot().replicaStatus).toBe('stale');
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(h.controller.getSnapshot().replicaStatus).toBe('live');
+    late?.(receipt); await vi.advanceTimersByTimeAsync(0);
+    expect(h.bridge.detachAgentSession).toHaveBeenCalledWith(expect.objectContaining({subscriptionId:receipt.subscriptionId}));
+    expect(mainStartCount(h.main)).toBe(0);
+  });
+
+  it('stops first-attach recovery after disposal', async () => {
+    vi.useFakeTimers(); const h = await harness();
+    h.bridge.attachAgentSession.mockRejectedValue(new Error('Unavailable'));
+    await h.controller.initialize(); h.controller.dispose();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(h.bridge.attachAgentSession).toHaveBeenCalledTimes(1);
+  });
   it('applies frames emitted between snapshot creation and initial ACK exactly once', async () => {
     const h = await harness();
     const attach = h.bridge.attachAgentSession.getMockImplementation()!;

@@ -192,6 +192,8 @@
   "transcript.jumpLatest": "跳到最新内容",
   "transcript.jumpLatestUnread": "跳到最新内容，{count, plural, other {# 条未读更新}}",
   "message.you": "你",
+  "message.partial": "当前视图只显示了这条回复的部分内容。",
+  "status.sending": "发送中",
   "turn.workedFor": "耗时 {duration}",
   "turn.status.ready": "就绪",
   "turn.status.idle": "空闲",

@@ -8,7 +8,6 @@ import { listAgentRuntimes, listVisibleAgentRuntimes } from "../domain/agent-bac
 import type { AgentChatTabPresentation } from "../domain/agent-chat-tabs";
 import type { AgentRoutePreference } from "../domain/agent-route-preference";
 import { deriveAgentSessionControls } from "../domain/agent-session-controls";
-import { agentStartCommandNeedsTranscriptFallback } from "../domain/agent-command-visibility";
 import { AgentApprovalDock } from "./AgentApprovalDock";
 import { AgentChangesControl } from "./AgentChangesControl";
 import { AgentComposer, DEFAULT_AGENT_COMPOSER_PLACEHOLDER_ID } from "./AgentComposer";
@@ -17,7 +16,7 @@ import { AgentPanelLayout } from "./AgentPanelLayout";
 import { AgentPanelStatus } from "./AgentPanelStatus";
 import { AgentQuestionDock } from "./AgentQuestionDock";
 import { AgentRuntimeLauncher } from "./AgentRuntimeLauncher";
-import { AgentTranscript, type AgentQueuedSubmission } from "./AgentTranscript";
+import { AgentTranscript } from "./AgentTranscript";
 import { readinessStatusCode, sessionStatusCode } from "./agentPanelPresentation";
 import { useAgentReferenceIngestion } from "./useAgentReferenceIngestion";
 import type { AgentWorkspaceReferenceResolver } from "./useAgentReferenceIngestion";
@@ -114,24 +113,6 @@ export function AgentChatTabPanel({
   )) && routingPreferences.preferencesReady);
   const preparingSession = state.sessionPreparation === "preparing";
   const submissionPending = state.submitting || Boolean(state.pendingPrompt);
-  const queuedSubmissions = useMemo<AgentQueuedSubmission[]>(() => (
-    state.control?.commands.flatMap((command) => {
-      if (command.kind !== "start" || !command.intent) return [];
-      const remainsVisible = agentStartCommandNeedsTranscriptFallback(
-        command,
-        state.projection.messages,
-        state.control?.pendingSubmission?.commandId ?? null,
-        state.control?.execution.activeTurnId ?? null,
-      );
-      return remainsVisible ? [{
-        commandId: command.commandId,
-        status: command.status,
-        prompt: command.intent.prompt,
-        promptMentions: command.intent.promptMentions,
-        references: command.intent.referenceDisplays,
-      }] : [];
-    }) ?? []
-  ), [state.control, state.projection.messages]);
   const submissionStage: AgentSubmissionStage = state.pendingPrompt && !state.projection.runningTurnId
     ? !state.session || preparingSession ? "preparing-session" : "starting-turn"
     : null;
@@ -207,9 +188,8 @@ export function AgentChatTabPanel({
       : null}
     conversation={<AgentTranscript
       key={sessionKey} projection={state.projection} loading={startupLoading}
-      pendingPrompt={state.pendingPrompt} pendingReferences={state.pendingIntent?.references ?? []}
+      pendingPrompt={state.pendingPrompt} pendingReferences={state.pendingPrompt !== null ? state.pendingIntent?.references ?? [] : []}
       pendingPromptMentions={state.pendingIntent?.promptMentions ?? []}
-      queuedSubmissions={queuedSubmissions}
       submissionStage={submissionStage} working={state.submitting || Boolean(state.projection.runningTurnId)}
       runtimeLabel={runtimeLabel} initialScrollTop={viewport.scrollTop}
       initialMeasurements={viewport.measurements} initialPinned={viewport.pinned}

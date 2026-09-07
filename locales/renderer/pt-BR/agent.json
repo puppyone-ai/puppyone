@@ -192,6 +192,8 @@
   "transcript.jumpLatest": "Ir para o mais recente",
   "transcript.jumpLatestUnread": "Ir para o mais recente, {count, plural, one {# atualização não lida} other {# atualizações não lidas}}",
   "message.you": "Você",
+  "message.partial": "Apenas parte desta resposta está disponível nesta visualização.",
+  "status.sending": "Enviando",
   "turn.workedFor": "Trabalhou por {duration}",
   "turn.status.ready": "pronto",
   "turn.status.idle": "ocioso",

@@ -1,10 +1,12 @@
-import type { AgentPromptReferenceMention, AgentReferenceDisplay, AgentTurnTerminalState } from "./types";
+import type { AgentCommandDeliveryStatus, AgentPromptReferenceMention, AgentReferenceDisplay, AgentTurnTerminalState } from "./types";
 
 export type AgentTranscriptMessage = {
   id: string;
   role: "user" | "assistant";
   clientUserMessageId?: string;
   submissionId?: string;
+  deliveryStatus?: AgentCommandDeliveryStatus;
+  truncated?: boolean;
   turnId: string | null;
   itemId: string | null;
   text: string;
@@ -125,8 +127,8 @@ type AgentPartBase = {
 };
 
 export type AgentPart =
-  | (AgentPartBase & { kind: "user"; text: string; references?: AgentReferenceDisplay[]; promptMentions?: AgentPromptReferenceMention[]; streaming: boolean; terminalState: AgentTurnTerminalState | null })
-  | (AgentPartBase & { kind: "assistant"; text: string; streaming: boolean; terminalState: AgentTurnTerminalState | null })
+  | (AgentPartBase & { kind: "user"; text: string; submissionId?: string; deliveryStatus?: AgentCommandDeliveryStatus; references?: AgentReferenceDisplay[]; promptMentions?: AgentPromptReferenceMention[]; streaming: boolean; terminalState: AgentTurnTerminalState | null })
+  | (AgentPartBase & { kind: "assistant"; text: string; truncated?: boolean; streaming: boolean; terminalState: AgentTurnTerminalState | null })
   | (AgentPartBase & { kind: "turn-summary"; durationMs: number; status: AgentTurnTerminalState })
   | AgentActivity
   | (AgentPartBase & { kind: "usage"; usage: Record<string, unknown> })

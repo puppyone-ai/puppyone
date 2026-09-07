@@ -1,4 +1,5 @@
 import { finalizeDisplay } from "./helpers/agentDisplayFixture";
+import { AgentSessionActor } from "../electron/main/agent/domain/agent-session-actor.mjs";
 /**
  * @vitest-environment happy-dom
  */
@@ -86,6 +87,33 @@ function modelSessionControl(models: Array<{ model: string; displayName: string;
 }
 
 describe("Desktop Agent renderer surfaces", () => {
+  it('renders the same Main user part through admission, echo and completion without a duplicate bubble', () => {
+    const actor = new AgentSessionActor();
+    actor.dispatch({type:'command.received',command:{commandId:'one',operationId:'operation',kind:'start',status:'dispatching',userMessageId:'client',intentFingerprint:'fingerprint',intent:{prompt:'Hello once',promptMentions:[],referenceDisplays:[],model:null,effort:null,mode:null}}});
+    const container = render(React.createElement(AgentTranscript,{projection:actor.display,loading:false}));
+    expect(container.querySelectorAll('.desktop-agent-message.is-user')).toHaveLength(1);
+    expect(container.textContent).toContain('Sending');
+    for (const event of [
+      {type:'turn.started',payload:{userMessageId:'client',submissionId:'one'}},
+      {type:'user.message',itemId:'native',payload:{clientUserMessageId:'client',text:'Native compiled input'}},
+      {type:'turn.completed',payload:{}},
+    ]) {
+      actor.appendEvent({sessionId:'session',runtimeId:'codex',event:{...event,turnId:'turn'}});
+      act(()=>root?.render(withTestLocalization(React.createElement(AgentTranscript,{projection:actor.display,loading:false}))));
+      expect(container.querySelectorAll('.desktop-agent-message.is-user')).toHaveLength(1);
+      expect(container.textContent).toContain('Hello once');
+      expect(container.textContent).not.toContain('Native compiled input');
+    }
+    expect(container.textContent).not.toContain('Sending');
+  });
+
+  it('discloses partial reply content without pretending the native turn failed', () => {
+    const actor = new AgentSessionActor();
+    actor.appendEvent({sessionId:'session',runtimeId:'codex',event:{type:'assistant.completed',turnId:'turn',itemId:'answer',payload:{text:'Visible prefix',truncated:true}}});
+    const container = render(React.createElement(AgentTranscript,{projection:actor.display,loading:false}));
+    expect(container.textContent).toContain('Only part of this reply is available in this view.');
+    expect(container.querySelector('.desktop-agent-message-state.is-failed')).toBeNull();
+  });
   it.each([
     [
       "explicit sign-out",

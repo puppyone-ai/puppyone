@@ -8,6 +8,8 @@ const encoder = new TextEncoder();
 export function boundAgentDisplay(display, control) {
   const protectedTurns = new Set([control.execution.activeTurnId, control.execution.uncertainTurnId].filter(Boolean));
   const protectedIds = new Set();
+  const pendingInputs = new Set(control.commands.filter(command => ["queued", "dispatching", "outcome-unknown"].includes(command.status)).map(command => command.commandId));
+  for (const part of display.parts) if (part.kind === 'user' && pendingInputs.has(part.submissionId)) protectedIds.add(part.id);
   // Keep the current input, rather than every historical follow-up in a long turn.
   for (const turnId of protectedTurns) {
     const input = display.parts.findLast(part => part.kind === 'user' && part.turnId === turnId);
@@ -20,7 +22,8 @@ export function boundAgentDisplay(display, control) {
   let bytes = 0; let nodes = 0;
   for (const key of COLLECTIONS) for (const entry of display[key]) { bytes += size(entry); nodes += nodeCount(entry); }
   const overBudget = () => Object.values(counts).some(count => count > agentDisplayLimits.maxEntries - 32)
-    || bytes > agentDisplayLimits.maxBytes - 256 * 1024 || nodes > agentDisplayLimits.maxNodes - 8_000;
+    // Leave transport room for control metadata, patch identities and envelope.
+    || bytes > agentDisplayLimits.maxBytes - 2 * 1024 * 1024 || nodes > agentDisplayLimits.maxNodes - 8_000;
   if (!overBudget()) return display;
 
   const mirrors = Object.fromEntries(['messages', 'activities'].map(key => [key, new Map(display[key].map(entry => [entry.id, entry]))]));

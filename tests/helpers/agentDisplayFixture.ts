@@ -1,7 +1,8 @@
 import { associateAgentUserMessage } from "../../electron/main/agent/domain/transcript/message-identity.mjs";
 import { vi } from 'vitest';
 import { createAgentSessionControl, reduceAgentSessionControl } from '../../electron/main/agent/domain/agent-session-control.mjs';
-import { applyAgentEvent as reduceContent, createAgentProjection } from '../../electron/main/agent/domain/transcript/transcript-reducer.mjs';
+import { applyAgentEvent as reduceContent, createAgentProjection, projectAgentUserSubmission } from '../../electron/main/agent/domain/transcript/transcript-reducer.mjs';
+import { projectAgentControlView } from '../../electron/main/agent/domain/agent-control-view.mjs';
 import { projectAgentDisplayControl } from '../../electron/main/agent/domain/transcript/display-control.mjs';
 import { createAgentDisplayPatch } from '../../shared/agent-contract/display-state.mjs';
 export type * from '../../shared/agent-contract/display-types';
@@ -48,7 +49,7 @@ export function withDisplayFeed<T extends Record<string, any>>(bridge: T, bind?:
     for (const [subscriptionId, subscription] of subscriptions) {
       if (subscription.sessionId !== sessionId) continue;
       const frame = { type: 'delta', subscriptionId, streamId: next.control.streamId, baseRevision: previous.control.revision,
-        revision: next.control.revision, control: next.control, session: next.session, displayPatch: createAgentDisplayPatch(previous.display, next.display) };
+        revision: next.control.revision, control: projectAgentControlView(next.control), session: next.session, displayPatch: createAgentDisplayPatch(previous.display, next.display) };
       if (subscription.ready) callback?.(frame); else subscription.frames.push(frame);
     }
   };
@@ -74,7 +75,8 @@ export function withDisplayFeed<T extends Record<string, any>>(bridge: T, bind?:
     attachAgentSession: vi.fn(async ({ sessionId }) => {
       const subscriptionId = `subscription-${++nextId}`;
       subscriptions.set(subscriptionId, { sessionId, ready: false, frames: [] });
-      return { subscriptionId, snapshot: snapshots.get(sessionId) };
+      const snapshot = snapshots.get(sessionId);
+      return { subscriptionId, snapshot: { ...snapshot, control: projectAgentControlView(snapshot.control) } };
     }),
     acknowledgeAgentSession: vi.fn(async (request) => {
       const subscription = subscriptions.get(request.subscriptionId);
@@ -98,13 +100,21 @@ export function withDisplayFeed<T extends Record<string, any>>(bridge: T, bind?:
           let control = reduceAgentSessionControl(previous.control, { type: 'command.received', command: { commandId: request.commandId, kind: 'start', status: 'dispatching', userMessageId: `client:${request.commandId}`, intentFingerprint: request.commandId, intent } });
           control = reduceAgentSessionControl(control, { type: 'command.dispatching', commandId: request.commandId, operationId });
           control = reduceAgentSessionControl(control, { type: 'submission.prepared', submission: { commandId: request.commandId, operationId, adapterGeneration: control.adapterGeneration, prompt: request.prompt, promptMentions: [], referenceDisplays: [] }, startedAtMs: Date.now() });
-          publish(request.sessionId, { ...previous, control, display: projectAgentDisplayControl(previous.display, control) });
+          const display = projectAgentUserSubmission(previous.display, control.commands.find((command:any) => command.commandId === request.commandId));
+          publish(request.sessionId, { ...previous, control, display: projectAgentDisplayControl(display, control) });
         }
       }
       return Promise.resolve(Reflect.apply(method, receiver, args)).then(result => {
         const snapshot = result?.snapshot ?? result;
         if (snapshot?.session) snapshots.set(snapshot.session.id, displaySnapshot(snapshot));
         return result?.snapshot ? { ...result, snapshot: snapshots.get(snapshot.session.id) } : snapshot?.session ? snapshots.get(snapshot.session.id) : result;
+      }, error => {
+        if (key === 'startAgentTurn') {
+          const request = args[0]; const previous = snapshots.get(request.sessionId);
+          const control = reduceAgentSessionControl(previous.control, {type:'command.rejected',commandId:request.commandId,error:String(error)});
+          publish(request.sessionId,{...previous,control,display:projectAgentDisplayControl(previous.display,control)});
+        }
+        throw error;
       });
     } }));
     return wrappers.get(value);
