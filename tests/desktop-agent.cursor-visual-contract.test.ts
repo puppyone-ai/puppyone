@@ -52,7 +52,7 @@ describe("Desktop Agent Cursor-style sidebar visual contract", () => {
     expect(css).toMatch(/--agent-radius-composer:\s*8px/);
     expect(css).toMatch(/--agent-radius-message:\s*var\(--agent-radius-composer\)/);
     expect(css).toMatch(/\.desktop-agent-transcript\s*\{[^}]*padding:\s*12px\s*var\(--desktop-sidebar-scroll-right-gap, var\(--agent-inline-inset\)\)\s*24px\s*var\(--agent-inline-inset\)[^}]*scrollbar-gutter:\s*stable/s);
-    expect(css).toMatch(/\.desktop-agent-live-tail\s*\{[^}]*gap:\s*var\(--agent-message-turn-gap\)[^}]*padding:\s*0 0 20px/s);
+    expect(css).toMatch(/\.desktop-agent-live-tail\s*\{[^}]*gap:\s*var\(--agent-message-turn-gap\)[^}]*padding:\s*0 0 var\(--agent-work-handoff-gap\)/s);
     expect(css).toMatch(/--agent-composer-surface:\s*var\(--po-active\)/);
     expect(css).toMatch(/--agent-user-message-surface:\s*var\(--po-hover\)/);
     expect(css).toMatch(/--agent-user-message-border:\s*color-mix\(in srgb, var\(--agent-border-subtle\) 62%, transparent\)/);
@@ -85,7 +85,7 @@ describe("Desktop Agent Cursor-style sidebar visual contract", () => {
     expect(css).toMatch(/\.desktop-agent-message-text\s*\{[^}]*font-size:\s*var\(--agent-conversation-font-size\)[^}]*line-height:\s*var\(--agent-conversation-line-height\)/s);
     expect(css).toMatch(/\.desktop-agent-markdown\s*\{[^}]*font-size:\s*var\(--agent-conversation-font-size\)[^}]*font-weight:\s*var\(--po-content-reading-weight, 450\)[^}]*line-height:\s*var\(--agent-response-line-height\)/s);
     expect(messagePart).toContain('data-message-surface={isAssistant ? "document" : "row"}');
-    expect(css).toMatch(/\.desktop-agent-turn-summary\s*\{[^}]*padding-inline:\s*var\(--agent-message-content-inset\)[^}]*color:\s*var\(--agent-text-subtle\)[^}]*font-size:\s*var\(--agent-font-size-meta\)[^}]*line-height:\s*var\(--agent-meta-line-height\)[^}]*text-align:\s*start/s);
+    expect(css).toMatch(/\.desktop-agent-run-feedback\s*\{[^}]*padding:\s*0 var\(--agent-message-content-inset\)[^}]*color:\s*var\(--agent-text-subtle\)[^}]*font-size:\s*var\(--agent-font-size-meta\)[^}]*line-height:\s*var\(--agent-meta-line-height\)[^}]*text-align:\s*start/s);
     expect(css).not.toContain("desktop-agent-turn-summary-line");
     expect(responsiveCss).not.toMatch(/desktop-agent-virtual-row\[data-kind="assistant"\]/);
     expect(responsiveCss).not.toMatch(/desktop-agent-message\.is-(?:assistant|user)/);
@@ -288,7 +288,7 @@ describe("Desktop Agent Cursor-style sidebar visual contract", () => {
   });
 
   it("uses one centered product loader for startup without a duplicate status loader", () => {
-    expect(transcript).toContain('import { InlineLoading, PageLoading } from "../../../components/loading"');
+    expect(transcript).toContain('import { PageLoading } from "../../../components/loading"');
     expect(transcript).toContain('className="desktop-agent-startup-loading"');
     expect(transcript).toContain("label={null}");
     expect(css).toMatch(/\.desktop-agent-startup-loading\s*\{[^}]*min-height:\s*100%[^}]*pointer-events:\s*none/s);

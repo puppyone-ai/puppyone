@@ -39,14 +39,14 @@ async function runSmoke() {
   console.log("Agent render stability renderer result:", JSON.stringify(result, null, 2));
   if (renderProcessFailure) throw new Error(`Agent render smoke renderer exited: ${renderProcessFailure}`);
   if (unresponsive) throw new Error("Agent render smoke renderer became unresponsive.");
-  if (!result.passed || result.error) throw new Error(result.error || "Agent render stability smoke failed.");
-  if (result.errors.length) throw new Error(result.errors.join(" | "));
   const artifactRoot = process.env.PUPPYONE_AGENT_RENDER_ARTIFACT_DIR;
   if (artifactRoot) {
     await fsp.mkdir(artifactRoot, { recursive: true });
     await fsp.writeFile(path.join(artifactRoot, "result.json"), JSON.stringify(result, null, 2));
     await fsp.writeFile(path.join(artifactRoot, "render.png"), (await ownerWindow.webContents.capturePage()).toPNG());
   }
+  if (!result.passed || result.error) throw new Error(result.error || "Agent render stability smoke failed.");
+  if (result.errors.length) throw new Error(result.errors.join(" | "));
   console.log(JSON.stringify({
     schema: "puppyone-agent-render-stability/v1",
     platform: process.platform,

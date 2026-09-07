@@ -69,11 +69,9 @@ export function buildAgentTimeline(
 }
 
 export function isVisibleAgentTimelinePart(part: AgentPart | undefined): part is AgentPart {
-  if (!part || part.kind === "usage") return false;
-  // Resolved approvals remain in the display snapshot, but
-  // are no longer conversation content. Removing their row also lets the
-  // surrounding tool activity collapse back into one compact visual group.
-  if (part.kind === "permission" && part.state !== "pending") return false;
+  // Interaction state belongs to the actionable docks, not a second transcript
+  // label. Keep the snapshot intact and omit geometry in every interaction state.
+  if (!part || part.kind === "usage" || part.kind === "permission" || part.kind === "question") return false;
   if (part.kind !== "reasoning") return true;
   if (["queued", "running", "pending", "in-progress", "waiting-for-user"].includes(part.status)) return false;
   const summary = typeof part.detail.delta === "string"

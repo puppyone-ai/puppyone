@@ -9,8 +9,8 @@ import { AgentTranscript } from "./AgentTranscript";
 import { AgentComposer } from "./AgentComposer";
 import "./desktop-agent.css";
 
-type Stage = "preview" | "dispatching" | "accepted";
-type Fixture = { theme: "light" | "dark" | "windows-xp"; history: number; stage: Stage; width: number; generation: number; draft: string };
+type Stage = "preview" | "dispatching" | "accepted" | "completed";
+type Fixture = { theme: "light" | "dark" | "windows-xp"; history: number; stage: Stage; width: number; generation: number; draft: string; activity?: boolean };
 const prompt = "检查消息提交之后的位置，以及较长的中文和 English 内容换行时是否稳定。";
 const frame = () => new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
 async function frames(count = 3) { for (let i = 0; i < count; i++) await frame(); }
@@ -45,14 +45,15 @@ export function AgentRenderStabilitySmokeHarness() {
   return <>
     <SubThemeStyleHost subTheme={BUILTIN_SUB_THEMES.find(theme => theme.id === subThemeId)!}
       colorMode={colorMode} markdownPresentation={DEFAULT_MARKDOWN_PRESENTATION_SETTINGS} />
-    <main className={`desktop-agent-render-smoke${colorMode === "dark" ? " dark" : ""}`} data-width={fixture.width}
+    <main className={`desktop-agent-render-smoke desktop-theme-preview-surface${colorMode === "dark" ? " dark" : ""}`} data-width={fixture.width}
       data-po-appearance-root="true" data-root-theme-id={fixture.theme === "windows-xp" ? "windows-xp" : "default"}
       data-sub-theme-id={subThemeId}>
 
     <section className="desktop-agent-boundary desktop-agent-render-smoke-panel">
-      <AgentTranscript key={fixture.generation} projection={projection(fixture.history, fixture.stage)}
+      <AgentTranscript key={fixture.generation} projection={projection(fixture.history, fixture.stage, fixture.activity)}
         pendingSubmissionId="submission:smoke" pendingPrompt={fixture.stage === "preview" ? prompt : null}
-        submissionStage={fixture.stage === "accepted" ? null : "starting-turn"} working loading={false} />
+        submissionStage={["accepted", "completed"].includes(fixture.stage) ? null : "starting-turn"}
+        working={fixture.stage !== "completed"} loading={false} />
       <AgentComposer draft={fixture.draft} onDraftChange={noOp} disabled={false}
         running={false} stopping={false} submitting={false} hideConfiguration
         onSubmit={async () => true} onStop={noOp} />
@@ -60,15 +61,19 @@ export function AgentRenderStabilitySmokeHarness() {
   </main></>;
 }
 
-function projection(history: number, stage: Stage): AgentProjection {
+function projection(history: number, stage: Stage, activity = false): AgentProjection {
   const display = createEmptyAgentDisplay();
   display.parts = Array.from({ length: history }, (_, i): AgentPart => ({
     id: `assistant:${i}`, kind: "assistant", text: `已有回复 ${i + 1}：检查消息布局与行高。`,
     turnId: `turn:${i}`, itemId: null, streaming: false, terminalState: null, sequence: i + 1,
   }));
   if (stage !== "preview") display.parts.push({ id: "user:smoke", submissionId: "submission:smoke",
-    kind: "user", text: prompt, turnId: stage === "accepted" ? "turn:next" : null, itemId: null,
-    streaming: false, terminalState: null, sequence: history + 1, deliveryStatus: stage });
+    kind: "user", text: prompt, turnId: stage === "dispatching" ? null : "turn:next", itemId: null,
+    streaming: false, terminalState: null, sequence: history + 1, deliveryStatus: stage === "completed" ? "accepted" : stage });
+  if (activity) display.parts.push({ id: "tool:smoke", kind: "tool", turnId: "turn:next", itemId: null,
+    sequence: history + 2, label: "Read", status: "completed", detail: {}, output: "Done" });
+  if (stage === "completed") display.parts.push({ id: "turn-summary:next", kind: "turn-summary",
+    turnId: "turn:next", itemId: null, sequence: history + 3, durationMs: 4_000, status: "completed" });
   display.rows = display.parts.map(part => ({ id: `row:${part.id}`, partId: part.id,
     kind: part.kind, turnId: part.turnId, sequence: part.sequence, estimatedHeight: 64 }));
   if (stage === "accepted") display.runningTurnId = "turn:next";
@@ -79,6 +84,8 @@ async function runSmoke(update: (fixture: Fixture) => void, active: () => boolea
   let generation = 0;
   let maxDrift = 0;
   let samples = 0;
+  let feedbackSamples = 0;
+  let maxFeedbackDrift = 0;
   const cases: object[] = [];
   const html = document.documentElement;
   for (const theme of ["light", "dark", "windows-xp"] as const) {
@@ -93,7 +100,7 @@ async function runSmoke(update: (fixture: Fixture) => void, active: () => boolea
         const node = user();
         const baseline = snapshot();
         const colors = messageColors(node);
-        assert(colors.contrast >= 4.5, `${theme}: message contrast ${colors.contrast} is too low`);
+        assert(colors.contrast >= 4.5, `${theme}: message contrast is too low: ${JSON.stringify(colors)}`);
         assert(theme === "dark" ? colors.textLuminance > colors.backgroundLuminance : colors.textLuminance < colors.backgroundLuminance,
           `${theme}: fixture did not apply the real theme palette`);
         for (const stage of ["dispatching", "accepted"] as const) {
@@ -103,11 +110,33 @@ async function runSmoke(update: (fixture: Fixture) => void, active: () => boolea
             const next = snapshot();
             assert(user() === node, "Submission handoff replaced the user DOM node");
             assert(document.querySelectorAll(".desktop-agent-message.is-user").length === 1, "Duplicate user prompt");
+            assert(user().textContent === prompt && !user().querySelector('[role="status"], [data-puppy-loader]'), "Routine delivery added a transient user-message label or loader");
             const drift = Math.max(Math.abs(next.y - baseline.y), Math.abs(next.height - baseline.height),
               Math.abs(next.workingY - baseline.workingY), Math.abs(next.scrollTop - baseline.scrollTop));
             maxDrift = Math.max(maxDrift, drift);
             assert(drift <= 1, `${theme}/${width}/${history}/${stage}: handoff moved ${drift}px`);
             samples++;
+            await frame();
+          }
+        }
+        for (const activity of [false, true]) {
+          update({ ...fixture, stage: "accepted", activity });
+          await frames();
+          const feedback = feedbackSnapshot();
+          const beforeCompletion = user().getBoundingClientRect();
+          update({ ...fixture, stage: "completed", activity });
+          for (let i = 0; i < 5; i++) {
+            const next = feedbackSnapshot();
+            const afterCompletion = user().getBoundingClientRect();
+            const drift = Math.max(Math.abs(next.x - feedback.x), Math.abs(next.y - feedback.y),
+              Math.abs(next.height - feedback.height), Math.abs(afterCompletion.y - beforeCompletion.y));
+            maxFeedbackDrift = Math.max(maxFeedbackDrift, drift);
+            assert(next.font === feedback.font && next.lineHeight === feedback.lineHeight && next.color === feedback.color,
+              "Run completion changed feedback typography or color");
+            assert(drift <= 1, `${theme}/${width}/${history}/${activity ? "working" : "thinking"}: completion moved ${drift}px`);
+            assert(next.opacity === "1" && document.querySelectorAll(".desktop-agent-run-feedback").length === 1,
+              "Run completion faded or duplicated the feedback line");
+            feedbackSamples++;
             await frame();
           }
         }
@@ -167,7 +196,16 @@ async function runSmoke(update: (fixture: Fixture) => void, active: () => boolea
   await frames();
   const pinned = document.querySelector<HTMLElement>(".desktop-agent-transcript")!;
   assert(Math.abs(pinned.scrollHeight - pinned.clientHeight - pinned.scrollTop) <= 1, "Composer growth lost bottom pinning");
-  return { cases, samples, maxDrift, readingAnchor: anchorId, composerPinning: true, semanticColor: afterColor };
+  return { cases, samples, maxDrift, feedbackSamples, maxFeedbackDrift, readingAnchor: anchorId, composerPinning: true, semanticColor: afterColor };
+}
+
+function feedbackSnapshot() {
+  const label = document.querySelector<HTMLElement>(".desktop-agent-run-feedback-label")!;
+  const rect = label.getBoundingClientRect();
+  const style = getComputedStyle(label);
+  const row = label.closest(".desktop-agent-virtual-row");
+  return { x: rect.x, y: rect.y, height: rect.height, font: style.fontSize, lineHeight: style.lineHeight,
+    color: style.color, opacity: getComputedStyle(row?.firstElementChild ?? label.parentElement!).opacity };
 }
 
 function user() { return document.querySelector<HTMLElement>(".desktop-agent-message.is-user")!; }
@@ -198,6 +236,6 @@ function messageColors(element: HTMLElement) {
   const backgroundLuminance = luminance();
   context.fillStyle = style.color; context.fillRect(0, 0, 1, 1);
   const textLuminance = luminance();
-  return { textLuminance, backgroundLuminance,
+  return { textLuminance, backgroundLuminance, text: style.color, background: style.backgroundColor, canvas: style.getPropertyValue("--agent-canvas"),
     contrast: (Math.max(textLuminance, backgroundLuminance) + 0.05) / (Math.min(textLuminance, backgroundLuminance) + 0.05) };
 }

@@ -79,30 +79,32 @@ describe("Desktop Agent compact tool groups", () => {
     expect(container.querySelectorAll(".desktop-agent-tool-group-item")).toHaveLength(2);
   });
 
-  it("keeps a pending approval visible until the user decides", () => {
+  it.each(["permission", "question"] as const)("keeps %s state available without duplicate transcript rows", (kind) => {
+    for (const state of ["pending", "resolved", "unavailable"] as const) {
     const projection = createAgentProjection();
     projection.parts = [{
-      id: "permission:pending",
+      id: "interaction",
       turnId: "turn:approval",
       itemId: "tool:grep",
-      kind: "permission",
+      kind,
       requestId: "pending",
-      state: "pending",
+      state,
       sequence: 1,
     }];
     projection.rows = [{
-      id: "row:permission:pending",
-      partId: "permission:pending",
+      id: "row:interaction",
+      partId: "interaction",
       turnId: "turn:approval",
-      kind: "permission",
+      kind,
       sequence: 1,
       estimatedHeight: 34,
     }];
 
     const timeline = buildAgentTimeline(projection);
-    expect(timeline.rows).toHaveLength(1);
-    const container = render(<AgentTranscript projection={projection} loading={false} />);
-    expect(container.textContent).toContain("Permission pending");
+    expect(timeline.rows).toHaveLength(0);
+    expect(timeline.parts.get("interaction")).toMatchObject({ kind, state });
+    expect(projection.parts).toHaveLength(1);
+    }
   });
 
   it("bounds each visual group so a very long native tool run stays virtualizable", () => {

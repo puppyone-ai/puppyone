@@ -102,7 +102,8 @@ describe("Desktop Agent transcript projection", () => {
       .filter((row) => row.kind !== "turn-summary")
       .map((row) => row.kind);
 
-    expect(visibleKinds(waiting)).toEqual(["user", "assistant", "command", "permission"]);
+    expect(visibleKinds(waiting)).toEqual(["user", "assistant", "command"]);
+    expect(waiting.approvals).toEqual([expect.objectContaining({ requestId: "approval-order" })]);
     expect(visibleKinds(live)).toEqual(["user", "assistant", "command", "assistant"]);
     expect(visibleKinds(settled)).toEqual(["user", "assistant", "command", "assistant"]);
     expect(visibleKinds(replayed)).toEqual(["user", "assistant", "command", "assistant"]);

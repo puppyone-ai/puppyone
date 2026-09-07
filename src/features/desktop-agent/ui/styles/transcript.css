@@ -56,21 +56,28 @@
   min-width: 0;
   gap: var(--agent-message-turn-gap);
   margin: 0 auto;
-  padding: 0 0 20px;
+  padding: 0 0 var(--agent-work-handoff-gap);
 }
 
-.desktop-agent-working-indicator {
-  display: inline-flex;
+.desktop-agent-run-feedback {
+  display: flex;
   width: fit-content;
-  min-height: var(--po-control-size-compact);
+  max-width: 100%;
+  min-width: 0;
+  min-height: var(--agent-meta-line-height);
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   padding: 0 var(--agent-message-content-inset);
-  color: var(--agent-text-muted);
-  font-size: var(--agent-font-size);
+  color: var(--agent-text-subtle);
+  font-size: var(--agent-font-size-meta);
   font-weight: 400;
-  letter-spacing: -0.004em;
+  line-height: var(--agent-meta-line-height);
+  letter-spacing: normal;
+  text-align: start;
+  white-space: nowrap;
 }
+.desktop-agent-run-feedback-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.desktop-agent-run-feedback > [data-puppy-loader] { flex: 0 0 auto; }
 
 .desktop-agent-run-status {
   display: grid;
@@ -145,16 +152,6 @@
 
 .desktop-agent-history-warning { display: flex; align-items: center; gap: 7px; color: var(--agent-text-subtle); font-size: var(--agent-font-size-meta); }
 
-.desktop-agent-turn-summary {
-  min-width: 0;
-  padding-inline: var(--agent-message-content-inset);
-  color: var(--agent-text-subtle);
-  font-size: var(--agent-font-size-meta);
-  font-weight: 400;
-  line-height: var(--agent-meta-line-height);
-  text-align: start;
-  white-space: nowrap;
-}
 .desktop-agent-startup-loading {
   min-height: 100%;
   pointer-events: none;
@@ -523,21 +520,13 @@
   animation: desktop-agent-caret 0.9s step-end infinite;
 }
 @keyframes desktop-agent-caret { 50% { opacity: 0; } }
-.desktop-agent-queued-submission { display: grid; gap: 4px; }
-/* Delivery feedback occupies the existing user-to-next-row gap. Its lifecycle
- * never changes the measured bubble height, including immediate acceptance. */
-.desktop-agent-queued-submission-status {
-  position: absolute;
-  inset-block-start: calc(100% + 2px);
-  inset-inline: var(--agent-message-content-inset);
+.desktop-agent-delivery-notice {
   display: block;
-  overflow: hidden;
+  margin-top: 4px;
   color: var(--agent-text-muted);
   font-size: var(--agent-font-size-meta);
   line-height: var(--agent-meta-line-height);
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  text-align: end;
+  text-align: start;
 }
 @media (prefers-reduced-motion: reduce) {
   .desktop-agent-virtual-row.is-new > * { animation: none; }

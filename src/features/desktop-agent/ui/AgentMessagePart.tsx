@@ -17,9 +17,11 @@ type AgentMessagePartProps = {
 export function AgentMessagePart({ part, runtimeLabel }: AgentMessagePartProps) {
   const { t } = useLocalization();
   const isAssistant = part.kind === "assistant";
-  const deliveryLabel = !isAssistant && part.deliveryStatus && part.deliveryStatus !== "accepted"
-    ? t(part.deliveryStatus === "queued" ? "agent.status.queued" : part.deliveryStatus === "dispatching"
-      ? "agent.status.sending" : part.deliveryStatus === "outcome-unknown" ? "agent.status.deliveryUnknown" : "agent.status.notSent")
+  // Routine delivery is silent. Keep only exceptional states that change what
+  // the user needs to know, without a transient footer outside the bubble.
+  const deliveryLabel = !isAssistant && part.deliveryStatus && !["accepted", "dispatching"].includes(part.deliveryStatus)
+    ? t(part.deliveryStatus === "queued" ? "agent.status.queued"
+      : part.deliveryStatus === "outcome-unknown" ? "agent.status.deliveryUnknown" : "agent.status.notSent")
     : null;
   const presentedText = useAgentStreamPresentation(part.text, isAssistant && part.streaming);
   return (
@@ -44,10 +46,7 @@ export function AgentMessagePart({ part, runtimeLabel }: AgentMessagePartProps) 
           <span className={`desktop-agent-message-state is-${part.terminalState}`}>{t(`agent.turn.status.${part.terminalState}`)}</span>
         </footer>
       )}
-      {!isAssistant && <span className="desktop-agent-queued-submission-status"
-        role={deliveryLabel ? "status" : undefined} aria-hidden={deliveryLabel ? undefined : true}
-        title={deliveryLabel ?? undefined}
-      >{deliveryLabel}</span>}
+      {deliveryLabel && <span className="desktop-agent-delivery-notice" role="status">{deliveryLabel}</span>}
       {isAssistant && part.truncated && <span className="desktop-agent-message-status" role="status">{t("agent.message.partial")}</span>}
     </article>
   );

@@ -7,13 +7,14 @@ import {
 import { bidiIsolate, type MessageFormatter } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
 import { ArrowDown, CircleAlert } from "lucide-react";
-import { InlineLoading, PageLoading } from "../../../components/loading";
+import { PageLoading } from "../../../components/loading";
 import type { AgentSubmissionStage } from "../application/agent-controller-state";
 import { formatAgentDuration, outputForActivity } from "../domain/agent-activity-presentation";
 import type { AgentDraftReference, AgentPromptReferenceMention } from "../domain/agent-contract";
 import type { AgentPart, AgentProjection } from "../domain/agent-projection-types";
 import { AgentConnectionStatus } from "./AgentConnectionStatus";
 import { AgentPartRenderer } from "./AgentPartRenderer";
+import { AgentRunFeedback } from "./AgentRunFeedback";
 import { AgentToolActivityGroup } from "./AgentToolActivityGroup";
 import { TranscriptRow } from "./transcript/TranscriptRow";
 import { useTranscriptViewport } from "./transcript/useTranscriptViewport";
@@ -184,7 +185,7 @@ function AgentTranscriptView({
               // User prompts are already shown optimistically. Animating their
               // committed replacement makes the same message visibly enter
               // twice during the first-turn handoff.
-              const animate = part.kind !== "user" && !seenPartIdsRef.current.has(part.id);
+              const animate = part.kind !== "user" && part.kind !== "turn-summary" && !seenPartIdsRef.current.has(part.id);
               for (const visiblePart of parts) seenPartIdsRef.current.add(visiblePart.id);
               return (
                 <TranscriptRow
@@ -257,10 +258,9 @@ function AgentRunStatus({ label, ariaLabel, reasoningSummary }: {
 }) {
   const [expanded, setExpanded] = useState(false);
   const indicator = (
-    <InlineLoading
+    <AgentRunFeedback
       className="desktop-agent-working-indicator"
-      size="xs"
-      tone="neutral"
+      busy
       label={label}
       ariaLabel={ariaLabel}
     />
