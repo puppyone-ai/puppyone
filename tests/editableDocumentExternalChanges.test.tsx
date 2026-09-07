@@ -47,42 +47,29 @@ describe("editable document external changes", () => {
     expect(persistence.persist).not.toHaveBeenCalled();
   });
 
-  it("preserves a dirty local snapshot and blocks blind save after an external change", async () => {
+  it("replaces unsaved local input with disk content without a conflict prompt", async () => {
     const persistence = createPersistence();
     const harness = createHarness(persistence);
-
     await act(async () => harness.render("one", "v1"));
     act(() => harness.change("human update"));
     await act(async () => harness.render("agent update", "v2"));
-
-    expect(harness.value()).toBe("human update");
-    expect(harness.container.querySelector(".editor-inline-error")?.textContent)
-      .toContain("changed outside");
-
-    expect(harness.container.querySelector(".editor-save-chip.error")).toBeNull();
-    expect(persistence.persist).not.toHaveBeenCalled();
-
-    await act(async () => harness.conflictAction("Load external version").click());
     expect(harness.value()).toBe("agent update");
     expect(harness.container.querySelector(".editor-inline-error")).toBeNull();
     expect(persistence.persist).not.toHaveBeenCalled();
   });
 
-  it("overwrites only after the user explicitly keeps local content", async () => {
+  it("saves subsequent typing against the latest disk baseline", async () => {
     const persistence = createPersistence();
     const harness = createHarness(persistence);
-
     await act(async () => harness.render("one", "v1"));
-    act(() => harness.change("human update"));
+    act(() => harness.change("discarded human update"));
     await act(async () => harness.render("agent update", "v2"));
-    await act(async () => harness.conflictAction("Keep local and save").click());
-
-    expect(persistence.persist).toHaveBeenCalledWith(expect.objectContaining({
-      content: "human update",
-      baseVersion: "v2",
-      reason: "manual",
+    act(() => harness.change("agent update plus new typing"));
+    await act(async () => harness.save());
+    expect(persistence.persist).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      content: "agent update plus new typing", baseVersion: "v2", reason: "manual",
     }));
-    expect(harness.value()).toBe("human update");
+    expect(harness.value()).toBe("agent update plus new typing");
   });
 
   it("does not show an external-conflict banner for its own in-flight save echo", async () => {
@@ -177,11 +164,10 @@ function createHarness(
     value() {
       return container.querySelector("[data-editor-value]")?.getAttribute("data-editor-value");
     },
-    conflictAction(label: string) {
-      const button = [...container.querySelectorAll<HTMLButtonElement>(".editor-conflict-actions button")]
-        .find((candidate) => candidate.textContent === label);
-      if (!button) throw new Error(`Missing conflict action: ${label}`);
-      return button;
+    save() {
+      container.querySelector(".editor-document-session-boundary")!.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "s", ctrlKey: true, bubbles: true, cancelable: true }),
+      );
     },
   };
 }

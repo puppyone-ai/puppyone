@@ -27,7 +27,7 @@ describe("document storage observation ordering", () => {
     harness.session.dispose();
   });
 
-  it("preserves a real external revert to previously saved bytes instead of suppressing known content", async () => {
+  it("adopts a real external revert over local typing instead of suppressing known content", async () => {
     const harness = createHarness();
     const stale = deferred<FileContent>();
     const readFile = vi.fn().mockReturnValueOnce(stale.promise).mockResolvedValueOnce(file("one", "v1"));
@@ -40,10 +40,9 @@ describe("document storage observation ordering", () => {
     harness.edit("three");
     stale.resolve(file("one", "v1"));
     await read;
-    expect(harness.session.getState().status).toBe("conflict");
-    expect(harness.content()).toBe("three");
+    expect(harness.session.getState().status).toBe("clean");
+    expect(harness.content()).toBe("one");
     expect(harness.persistence.persist).toHaveBeenCalledTimes(1);
-    await harness.session.resolveExternalConflict("reload-external");
     expect(harness.content()).toBe("one");
     harness.session.dispose();
   });

@@ -469,8 +469,11 @@ const localFilesSource = readFileSync(localFilesPath, "utf8");
 if (!/documentPersistence:[\s\S]*?path:\s*canonicalizeResourcePath\(path\)/.test(localFilesSource)) {
   errors.push(`${relative(localFilesPath)} does not validate provider-relative paths before local persistence IPC`);
 }
-if (!/"conflict"/.test(readFileSync(path.join(sharedEditorRoot, "document-session/types.ts"), "utf8"))) {
-  errors.push("Document Session does not expose conflict as a first-class status");
+if (/"conflict"|ExternalConflictResolution/.test(readFileSync(path.join(sharedEditorRoot, "document-session/types.ts"), "utf8"))) {
+  errors.push("Document Session must adopt disk updates without a user-facing conflict state");
+}
+if (!/readDocumentStorageSnapshot/.test(paneSourceSource) || !/readDocumentStorageSnapshot/.test(dataWorkspaceSource)) {
+  errors.push("Editable document reads must share storage observation ordering");
 }
 
 const resourceLeasePath = path.join(sharedEditorRoot, "resource/useFileResourceLease.ts");
@@ -560,8 +563,8 @@ for (const requiredContract of [
   "requires every editable preset Viewer family to have a P0 consistency fixture",
   "adopts a clean Agent update in the open Pane with zero writeback",
   "restores the Agent version after the complete Pane tree remounts without saving",
-  "preserves dirty local content and exposes an explicit external conflict",
-  "saves local content only after explicit conflict resolution against the latest version",
+  "adopts disk updates over dirty local content without a conflict prompt",
+  "saves subsequent edits against the adopted disk version",
   "updates different format Panes from one watcher batch without cross-reading or writeback",
   "discards an obsolete read that resolves after a newer matching watcher event",
 ]) {

@@ -62,7 +62,7 @@ export function DocumentSessionBoundary({
   useLayoutEffect(() => {
     // Every read result is an explicit storage event. This is deliberately
     // independent from Viewer mount state: the Working Copy decides whether
-    // to adopt it, acknowledge an own-write echo, or enter conflict.
+    // to adopt it or acknowledge an own-write echo without replacing typing.
     session.reconcileExternalBaseline(initialContent, initialVersion);
   }, [initialContent, initialVersion, session]);
 
@@ -70,18 +70,9 @@ export function DocumentSessionBoundary({
     session.setSaveMode(saveMode);
   }, [saveMode, session]);
 
-  const saveBlocked = sessionState.status === "conflict";
-  const showSaveChrome = showSaveStatus
-    || (sessionState.status === "error" && !saveBlocked);
+  const showSaveChrome = showSaveStatus || sessionState.status === "error";
   const save = useCallback(() => {
-    if (saveBlocked) return;
     observeSessionOperation(session.requestSave(), "manual save");
-  }, [saveBlocked, session]);
-  const resolveExternalConflict = useCallback((keepLocal: boolean) => {
-    observeSessionOperation(
-      session.resolveExternalConflict(keepLocal ? "keep-local" : "reload-external"),
-      "external conflict resolution",
-    );
   }, [session]);
 
   const handleKeyDown = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -103,7 +94,6 @@ export function DocumentSessionBoundary({
             <EditorSaveButton
               status={sessionState.status}
               manual={saveMode === "manual"}
-              retryable={!saveBlocked}
               onSave={save}
             />
           </div>
@@ -111,16 +101,6 @@ export function DocumentSessionBoundary({
         {sessionError && (
           <div className="editor-inline-error" role="alert" dir="auto">
             <span>{sessionError}</span>
-            {saveBlocked && (
-              <div className="editor-conflict-actions">
-                <button type="button" onClick={() => resolveExternalConflict(false)}>
-                  {t("editor.session.reloadExternal")}
-                </button>
-                <button type="button" onClick={() => resolveExternalConflict(true)}>
-                  {t("editor.session.keepLocal")}
-                </button>
-              </div>
-            )}
           </div>
         )}
         {children}

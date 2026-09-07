@@ -59,9 +59,9 @@ const FORMAT_CASES: readonly FormatCase[] = [
     readEditorMarker: readContextMapMarker,
     applyLocalEdit: (container) => {
       const collapse = container.querySelector<HTMLButtonElement>(
-        '.folder-relationship-group[data-node-path="alpha"] .folder-relationship-collapse',
+        '.folder-relationship-group:is([data-node-path="alpha"], [data-node-path="agent"]) .folder-relationship-collapse',
       ) ?? container.querySelector<HTMLButtonElement>(
-        'button.folder-relationship-card[data-node-path="alpha"][data-expanded="true"]',
+        'button.folder-relationship-card:is([data-node-path="alpha"], [data-node-path="agent"])[data-expanded="true"]',
       );
       const expand = container.querySelector<HTMLButtonElement>(
         'button.folder-relationship-card[data-node-path="human"]',
@@ -217,7 +217,7 @@ describe("P0 editor external-consistency matrix", () => {
   );
 
   it.each(FORMAT_CASES)(
-    "$label: preserves dirty local content and exposes an explicit external conflict",
+    "$label: adopts disk updates over dirty local content without a conflict prompt",
     async (formatCase) => {
       const harness = await createEditorHarness(formatCase);
 
@@ -227,14 +227,6 @@ describe("P0 editor external-consistency matrix", () => {
       await waitForMarker(formatCase.readEditorMarker, harness.container, "human");
 
       await harness.render(formatCase.external, "v2");
-      await waitFor(() => harness.container.querySelector(".editor-inline-error") !== null);
-
-      expect(formatCase.readEditorMarker(harness.container)).toBe("human");
-      expect(harness.container.querySelector(".editor-inline-error")?.textContent)
-        .toContain("changed outside");
-      expect(harness.persist).not.toHaveBeenCalled();
-
-      await act(async () => harness.conflictAction("Load external version").click());
       await waitForMarker(formatCase.readEditorMarker, harness.container, "agent");
       expect(harness.container.querySelector(".editor-inline-error")).toBeNull();
       expect(harness.persist).not.toHaveBeenCalled();
@@ -242,7 +234,7 @@ describe("P0 editor external-consistency matrix", () => {
   );
 
   it.each(FORMAT_CASES)(
-    "$label: saves local content only after explicit conflict resolution against the latest version",
+    "$label: saves subsequent edits against the adopted disk version",
     async (formatCase) => {
       const harness = await createEditorHarness(formatCase);
 
@@ -251,9 +243,10 @@ describe("P0 editor external-consistency matrix", () => {
       act(() => formatCase.applyLocalEdit(harness.container));
       await waitForMarker(formatCase.readEditorMarker, harness.container, "human");
       await harness.render(formatCase.external, "v2");
-      await waitFor(() => harness.container.querySelector(".editor-inline-error") !== null);
-
-      await act(async () => harness.conflictAction("Keep local and save").click());
+      await waitForMarker(formatCase.readEditorMarker, harness.container, "agent");
+      act(() => formatCase.applyLocalEdit(harness.container));
+      await waitForMarker(formatCase.readEditorMarker, harness.container, "human");
+      await act(async () => harness.save());
       await waitFor(() => harness.persist.mock.calls.length === 1);
 
       expect(harness.persist).toHaveBeenCalledWith(expect.objectContaining({
@@ -493,12 +486,10 @@ async function createEditorHarness(formatCase: FormatCase) {
         />,
       )));
     },
-    conflictAction(label: string) {
-      const action = [...container.querySelectorAll<HTMLButtonElement>(
-        ".editor-conflict-actions button",
-      )].find((candidate) => candidate.textContent === label);
-      if (!action) throw new Error(`Missing conflict action: ${label}`);
-      return action;
+    save() {
+      container.querySelector(".editor-document-session-boundary")!.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "s", ctrlKey: true, bubbles: true, cancelable: true }),
+      );
     },
   };
 }
