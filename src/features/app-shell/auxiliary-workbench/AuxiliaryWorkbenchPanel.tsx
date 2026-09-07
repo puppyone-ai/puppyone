@@ -53,7 +53,9 @@ export function AuxiliaryWorkbenchPanel({ store, contributions, active, renderLa
     return (item && snapshot && contribution?.getMinimumSize?.({ item, snapshot, project: store }))
       || contribution?.minimumSize || { width: 280, height: 260 };
   }, [byKind, store, workbench.items, workbench.snapshots]);
-  const maximum = (values: readonly WorkbenchSplitMinimumSize[]) => values.reduce((result, value) => ({ width: Math.max(result.width, value.width), height: Math.max(result.height, value.height) }), { width: 280, height: 260 });
+  const maximum = (values: readonly WorkbenchSplitMinimumSize[]) => values.length
+    ? values.reduce((result, value) => ({ width: Math.max(result.width, value.width), height: Math.max(result.height, value.height) }), { width: 1, height: 1 })
+    : { width: 280, height: 260 };
   const canDrop = useCallback((source: string, target: string, edge: WorkbenchSplitDropEdge, element: HTMLElement) => {
     const sourceGroup = workbench.groups.find((group) => group.itemIds.includes(source));
     const targetGroup = workbench.groups.find((group) => group.id === target);

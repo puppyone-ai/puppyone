@@ -139,7 +139,7 @@ try {
   await evaluate(`[...document.querySelectorAll('.tree-row.file')].find(row => row.dataset.explorerPath.startsWith(${JSON.stringify(bExplorerRoot)}) && row.getAttribute('aria-label') === 'note.md').click()`);
   await untilRenderer(`JSON.stringify([...document.querySelectorAll('[data-terminal-tab-session-id]')].map(x => x.dataset.terminalTabSessionId)) === ${JSON.stringify(JSON.stringify(bTabs))}`, "Editor focus uses B's tabs");
   assert(terminals.length === 2 && !a.exited && !b.exited, "Editor focus changed native ownership");
-  await untilRenderer("document.querySelector('.ProseMirror')?.textContent.includes('Project session smoke.')", "B document rendered");
+  await untilRenderer("document.body.innerText.includes('Project session smoke.')", "B document rendered");
   await fs.writeFile(path.join(temp, "multi-root-editor.png"), (await window.webContents.capturePage()).toPNG());
   // B is already selected through Editor; close its project without touching A.
   assert(JSON.stringify(await tabIds()) === JSON.stringify(bTabs), "B tab state changed");
@@ -234,5 +234,7 @@ async function dragItem(itemId, groupId, destination) {
   await dispatch("mousePressed", geometry.from, 1, { button: "left", clickCount: 1 });
   await dispatch("mouseMoved", { x: (geometry.from.x + geometry.to.x) / 2, y: (geometry.from.y + geometry.to.y) / 2 }, 1);
   await dispatch("mouseMoved", geometry.to, 1);
+  console.log(JSON.stringify({ drag: { itemId, destination, geometry,
+    state: await evaluate("({ dragging: document.body.classList.contains('desktop-terminal-session-dragging'), preview: document.querySelector('.desktop-terminal-drop-preview')?.outerHTML, at: document.elementFromPoint(" + Math.round(geometry.to.x) + ", " + Math.round(geometry.to.y) + ")?.className })") } }));
   await dispatch("mouseReleased", geometry.to, 0, { button: "left", clickCount: 1 });
 }

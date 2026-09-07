@@ -1,5 +1,5 @@
 {
-  "agent.error.session-ended": "このセッションは終了しました。続けるには履歴から開き直してください。",
+  "error.session-ended": "このセッションは終了しました。続けるには履歴から開き直してください。",
   "name": "エージェント",
   "panel.chat": "{agent} チャット",
   "empty.prompt": "何に取り組みますか？",

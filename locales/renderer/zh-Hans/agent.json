@@ -1,5 +1,5 @@
 {
-  "agent.error.session-ended": "此会话已结束。请从历史对话中重新打开后继续。",
+  "error.session-ended": "此会话已结束。请从历史对话中重新打开后继续。",
   "name": "智能体",
   "panel.chat": "{agent} 对话",
   "empty.prompt": "想从哪里开始？",

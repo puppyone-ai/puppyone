@@ -7,6 +7,7 @@ import { TerminalRuntimePool } from "../runtime/TerminalRuntimePool";
 import { TerminalSessionView } from "../ui/TerminalSessionView";
 import { TerminalSessionHeaderStatus } from "../ui/session-header/TerminalSessionHeaderStatus";
 import { getTerminalClosePolicy } from "../model/terminalClosePolicy";
+import { terminalLeafMinimumSize } from "../model/terminalSplitConstraints";
 import { useTerminalAppearanceSync } from "../runtime/useTerminalAppearanceSync";
 import "@xterm/xterm/css/xterm.css";
 import "../ui/desktop-terminal.css";
@@ -19,9 +20,9 @@ function requirePool(project: AuxiliaryWorkbenchProject | undefined, t: MessageF
 
 export function createTerminalWorkbenchContribution(t: MessageFormatter): AuxiliaryWorkbenchContribution {
   return {
-    kind: "terminal", label: t("terminal.title"), createLabel: t("terminal.new"), minimumSize: { width: 280, height: 260 }, maximumItems: 32,
+    kind: "terminal", label: t("terminal.title"), createLabel: t("terminal.new"), minimumSize: terminalLeafMinimumSize(null), maximumItems: 32,
     initialSnapshot: { title: t("terminal.title"), accessibleLabel: t("terminal.title"), detail: null, iconKey: null, status: "starting", running: false, resourceId: null },
-    getMinimumSize: ({ project, item }) => requirePool(project, t).get(item.id)?.runtime.getMinimumViewportSize() ?? null,
+    getMinimumSize: ({ project, item }) => terminalLeafMinimumSize(requirePool(project, t).get(item.id)?.runtime.getMinimumViewportSize()),
     creationRecipes: DESKTOP_TERMINAL_LAUNCHERS.map((launcher) => ({ id: launcher.id, label: t(launcher.nameMessage), iconKey: launcher.id, status: "available" })),
     prepare: async ({ project, item, recipe }) => {
       const launcher = DESKTOP_TERMINAL_LAUNCHERS.find((entry) => entry.id === recipe?.id);
