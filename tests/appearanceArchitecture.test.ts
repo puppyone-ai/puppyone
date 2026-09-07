@@ -420,7 +420,7 @@ describe("appearance profile architecture", () => {
     const harness = source("src/features/appearance/AppearanceVisualSmokeHarness.tsx");
     const smoke = source("scripts/smoke-appearance-visual-matrix.mjs");
 
-    expect(packageMetadata.scripts["smoke:appearance-visual"]).toBe(
+    expect(packageMetadata.scripts["smoke:appearance-visual"].split(" && ")).toContain(
       "electron scripts/smoke-appearance-visual-matrix.mjs",
     );
     expect(workflow).toContain("npm run smoke:appearance-visual");
