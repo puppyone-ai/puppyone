@@ -221,8 +221,9 @@ function finishTool(message, state) {
   const status = message.isError ? "failed" : "completed";
   const payload = toolPayload(previous.toolName, previous.args, status);
   const path = toolPath(previous.args);
-  if (payload.kind === "file-change" && path && typeof message.result?.details?.diff === "string") {
-    payload.changes = createAgentFileChangeEvidence([{ path, diff: message.result.details.diff, basis: "native" }]);
+  const nativeDiff = piEditPatch(message.result?.details);
+  if (payload.kind === "file-change" && path && nativeDiff !== null) {
+    payload.changes = createAgentFileChangeEvidence([{ path, diff: nativeDiff, basis: "native" }]);
   }
   const result = [event("tool.completed", state, toolCallId, {
     ...payload,
@@ -272,12 +273,27 @@ function toolPayload(name, args, status) {
     ...(["edit", "write"].includes(tool) ? { changes: createAgentFileChangeEvidence([{
       path: toolPath(args), before: args?.oldText,
       after: tool === "write" ? args?.content : args?.newText,
+      ...(tool === "edit" && Array.isArray(args?.edits) ? { fragments: args.edits.slice(0, 101).map(edit => ({ before: edit?.oldText, after: edit?.newText })) } : {}),
       scope: "fragment", basis: "request",
     }]) } : {}),
     input: safeInput,
     path: toolPath(safeInput),
     command: text(safeInput.command) || null,
   };
+}
+
+// Pi exposes both a unified patch and a terminal-oriented diff with line-number
+// columns. Decode its native display format here, never in the common Renderer.
+function piEditPatch(details) {
+  if (typeof details?.patch === "string") return details.patch;
+  if (typeof details?.diff !== "string") return null;
+  if (/^@@(?:\s|$)/mu.test(details.diff)) return details.diff;
+  const lines = details.diff.split(/\r?\n/u);
+  if (!lines.some(line => /^[+-]\s*\d+ /u.test(line))) return details.diff;
+  return lines.map(line => {
+    const match = /^([ +\-])\s*\d+ (.*)$/u.exec(line);
+    return match ? match[1] + match[2] : /^\s+\.\.\.$/u.test(line) ? "@@" : line;
+  }).join("\n");
 }
 
 function toolKind(name) {

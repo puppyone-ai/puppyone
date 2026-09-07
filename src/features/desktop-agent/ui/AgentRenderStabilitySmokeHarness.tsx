@@ -112,7 +112,7 @@ function projection(history: number, stage: Stage, activity = false, message = p
     streaming: false, terminalState: null, sequence: history + 1, deliveryStatus: stage === "completed" ? "accepted" : stage });
   if (activity) display.parts.push({ id: "tool:smoke", kind: "file-change", turnId: "turn:next", itemId: null,
     sequence: history + 2, label: "Edit", status: "completed", detail: { tool: "edit",
-      changes: [{ path: "src/example.ts", additions: 2, deletions: 1, diff: "@@ -1,1 +1,2 @@\n-old\n+new\n+extra" }] }, output: "" });
+      changes: [{ path: "src/example.ts", additions: 2, deletions: 1, blocks: [{ removed: "old", added: "new\nextra" }], diff: "@@ -1,1 +1,2 @@\n-old\n+new\n+extra" }] }, output: "" });
   if (stage === "completed") display.parts.push({ id: "turn-summary:next", kind: "turn-summary",
     turnId: "turn:next", itemId: null, sequence: history + 3, durationMs: 4_000, status: "completed" });
   display.rows = display.parts.map(part => ({ id: `row:${part.id}`, partId: part.id,
@@ -238,8 +238,11 @@ async function runSmoke(update: (fixture: Fixture) => void, active: () => boolea
         assert(edit && edit.getAttribute("aria-expanded") === "false", "Edit disclosure is missing");
         edit.click();
         await frames();
-        const evidence = document.querySelector<HTMLElement>(".desktop-agent-tool-text-evidence > .desktop-agent-tool-output")!;
-        assert(evidence?.textContent?.includes("-old\n+new\n+extra"), "One click did not reveal the changed lines");
+        const evidence = document.querySelector<HTMLElement>(".desktop-agent-evidence-node.is-deletion .desktop-agent-tool-output")!;
+        const addedEvidence = document.querySelector<HTMLElement>(".desktop-agent-evidence-node.is-addition .desktop-agent-tool-output")!;
+        assert(evidence?.textContent === "old" && addedEvidence?.textContent === "new\nextra", "One click did not reveal the paired changed lines");
+        assert(evidence.getBoundingClientRect().bottom <= addedEvidence.getBoundingClientRect().top, "Removed and added blocks are out of order");
+        assert(!document.querySelector(".desktop-agent-evidence-tree")?.textContent?.includes("@@"), "Patch headers leaked into normal edit detail");
         const evidenceStyle = getComputedStyle(evidence);
         assert(evidenceStyle.borderTopWidth === "0px" && evidenceStyle.borderRadius === "0px"
           && evidenceStyle.backgroundColor === "rgba(0, 0, 0, 0)", "Edit introduced a separate detail card");
@@ -247,6 +250,8 @@ async function runSmoke(update: (fixture: Fixture) => void, active: () => boolea
         const stats = edit.querySelector<HTMLElement>(".desktop-agent-tool-diff-stats")!;
         const addition = getComputedStyle(stats.querySelector(".is-addition")!);
         const deletion = getComputedStyle(stats.querySelector(".is-deletion")!);
+        assert(evidenceStyle.color === deletion.color && getComputedStyle(addedEvidence).color === addition.color, "Edit blocks and counts disagree on semantic colors");
+        assert(messageColors(addedEvidence).contrast >= 4.5, `${theme}: added content is unreadable`);
         assert(stats.textContent === "+2−1" && addition.color !== deletion.color, "Edit counts lost semantic colors");
         assert(messageColors(stats.querySelector<HTMLElement>(".is-addition")!).contrast >= 4.5
           && messageColors(stats.querySelector<HTMLElement>(".is-deletion")!).contrast >= 4.5,
@@ -256,6 +261,14 @@ async function runSmoke(update: (fixture: Fixture) => void, active: () => boolea
         assert(statsRect.left >= editRect.left && statsRect.right <= editRect.right + 1
           && Math.abs(statsRect.y + statsRect.height / 2 - editRect.y - editRect.height / 2) <= 1,
         "Edit counts overflowed or shifted off the tool row");
+        // Native pointer events target only this isolated WebContents.
+        const name = edit.querySelector<HTMLElement>(".desktop-agent-tool-name")!;
+        const idleColor = getComputedStyle(name).color;
+        await nativeScrollInput({ type: "move", x: Math.round(editRect.x + 6), y: Math.round(editRect.y + editRect.height / 2) });
+        assert(edit.matches(":hover") && getComputedStyle(name).color !== idleColor, "Tool hover did not strengthen its neutral text");
+        assert(getComputedStyle(name).color === getComputedStyle(edit).color, "Tool hover did not use the common text role");
+        await nativeScrollInput({ type: "move", x: window.innerWidth - 2, y: 2 });
+        assert(getComputedStyle(name).color === idleColor, "Tool hover color did not restore");
         editDetailCases++;
         cases.push({ theme, width, history, messageHeight: baseline.height, fontSize: style.fontSize, lineHeight: style.lineHeight, contrast: colors.contrast });
       }
@@ -380,7 +393,8 @@ function assertReadingPosition(position: ReturnType<typeof readingPosition>, pha
     `${phase} moved reading anchor ${position.id}: ${position.y} -> ${row?.getBoundingClientRect().y}`);
 }
 
-type ScrollInput = { type: "wheel"; x: number; y: number; deltaY: number } | { type: "key"; keyCode: "PageUp" };
+type ScrollInput = { type: "wheel"; x: number; y: number; deltaY: number } | { type: "key"; keyCode: "PageUp" }
+  | { type: "move"; x: number; y: number };
 type SmokeInputWindow = Window & {
   __PUPPYONE_AGENT_RENDER_INPUT__?: ScrollInput & { id: number };
   __PUPPYONE_AGENT_RENDER_INPUT_ACK__?: number;

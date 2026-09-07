@@ -298,8 +298,8 @@ describe("Desktop Agent Cursor-style sidebar visual contract", () => {
   });
 
   it("keeps native tool rows quiet until the user asks for detail", () => {
-    expect(css).toMatch(/--agent-tool-action-foreground:\s*color-mix\(in srgb, var\(--po-warning\) 72%, var\(--agent-text-muted\)\)/);
-    expect(css).toMatch(/--agent-tool-evidence-rail:\s*color-mix\(in srgb, var\(--agent-tool-action-foreground\) 84%, transparent\)/);
+    expect(css).toMatch(/--agent-tool-action-foreground:\s*var\(--agent-text-muted\)/);
+    expect(css).toMatch(/--agent-tool-evidence-rail:\s*var\(--agent-border\)/);
     expect(css).toMatch(/\.desktop-agent-tool-icon\s*\{[^}]*display:\s*grid[^}]*color:\s*var\(--agent-tool-action-foreground\)/s);
     expect(css).toMatch(/\.desktop-agent-tool-name\s*\{[^}]*color:\s*var\(--agent-tool-action-foreground\)/s);
     expect(css).toMatch(/\.desktop-agent-reasoning \.desktop-agent-tool-name\s*\{[^}]*color:\s*var\(--agent-text-muted\)/s);

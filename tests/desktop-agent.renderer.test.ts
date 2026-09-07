@@ -1301,7 +1301,10 @@ describe("Desktop Agent renderer surfaces", () => {
     expect(row.querySelector(".desktop-agent-tool-diff-stats")?.textContent).toBe("+2−1");
     expect(row.getAttribute("aria-expanded")).toBe("false");
     act(() => row.click());
-    expect(container.querySelector(".desktop-agent-tool-text-evidence > .desktop-agent-tool-output")?.textContent).toContain("-old\n+new\n+extra");
+    expect(container.querySelector(".desktop-agent-evidence-node.is-deletion pre")?.textContent).toBe("old");
+    expect(container.querySelector(".desktop-agent-evidence-node.is-addition pre")?.textContent).toBe("new\nextra");
+    expect(container.textContent).not.toContain("@@");
+    expect(container.textContent).not.toContain("source");
     expect(container.querySelectorAll(".desktop-agent-tool-diff-stats")).toHaveLength(1);
     expect(container.querySelector(".desktop-agent-inline-diff, .desktop-agent-file-list")).toBeNull();
   });
@@ -1319,7 +1322,7 @@ describe("Desktop Agent renderer surfaces", () => {
       detail: {
         tool: "edit",
         path: "src/app.ts",
-        changes: [{ path: "src/app.ts", additions: 2, deletions: 1, diff: "@@ -1,2 +1,3 @@\n-old\n+new\n+extra\n context" }],
+        changes: [{ path: "src/app.ts", additions: 2, deletions: 1, blocks: [{ removed: "old", added: "new\nextra" }], diff: "@@ -1,2 +1,3 @@\n-old\n+new\n+extra\n context" }],
       },
       sequence: 1,
     });
@@ -1331,7 +1334,9 @@ describe("Desktop Agent renderer surfaces", () => {
     act(() => row.click());
     expect(row.textContent).not.toContain("src/app.ts");
     expect(container.querySelector(".desktop-agent-tool-file-path")?.textContent).toContain("src/app.ts");
-    expect(container.querySelector(".desktop-agent-tool-text-evidence pre")?.textContent).toContain("-old\n+new\n+extra");
+    expect(container.querySelector(".desktop-agent-evidence-node.is-deletion pre")?.textContent).toBe("old");
+    expect(container.querySelector(".desktop-agent-evidence-node.is-addition pre")?.textContent).toBe("new\nextra");
+    expect(container.textContent).not.toContain("@@");
     expect(container.querySelector(".desktop-agent-inline-diff, .desktop-agent-file-list")).toBeNull();
     expect(row.querySelector(".desktop-agent-tool-diff-stats")?.textContent).toBe("+2−1");
     expect(container.textContent).toContain("+2");
@@ -1340,16 +1345,36 @@ describe("Desktop Agent renderer surfaces", () => {
     expect(onOpenFile).toHaveBeenCalledWith("src/app.ts");
   });
 
+  it.each([
+    { label: "added blank line", blocks: [{ added: "" }], expected: [["addition", ""]] },
+    { label: "removed blank line", blocks: [{ removed: "" }], expected: [["deletion", ""]] },
+    { label: "separate replacements", blocks: [{ removed: "first", added: "next" }, { removed: "second", added: "last" }],
+      expected: [["deletion", "first"], ["addition", "next"], ["deletion", "second"], ["addition", "last"]] },
+  ])("preserves $label without inventing an absent side", ({ blocks, expected }) => {
+    const projection = createAgentProjection();
+    projection.activities.push({ id: "edit-blocks", turnId: "turn", itemId: "edit", kind: "file-change",
+      label: "Edit", status: "completed", output: "", sequence: 1,
+      detail: { tool: "edit", changes: [{ path: "src/file.ts", blocks, diff: "raw fallback" }] },
+    });
+    const container = render(React.createElement(AgentTranscript, { projection, loading: false }));
+    act(() => container.querySelector<HTMLButtonElement>(".desktop-agent-tool-row")!.click());
+    const nodes = [...container.querySelectorAll('.desktop-agent-evidence-node[role="group"]')];
+    expect(nodes.map(node => [node.classList.contains("is-deletion") ? "deletion" : "addition", node.querySelector("pre")?.textContent])).toEqual(expected);
+    expect(nodes.every(node => Boolean(node.getAttribute("aria-label")))).toBe(true);
+    expect(container.textContent).not.toContain("raw fallback");
+  });
+
   it("keeps a failed edit's output visible without inventing zero line counts", () => {
     const projection = createAgentProjection();
     projection.activities.push({ id: "failed-edit", turnId: "turn", itemId: "edit", kind: "file-change",
       label: "Edit", status: "failed", output: "Permission denied", sequence: 1,
-      detail: { tool: "edit", changes: [{ path: "src/file.ts", diff: "-old\n+new", basis: "request" }] },
+      detail: { tool: "edit", changes: [{ path: "src/file.ts", diff: "-old\n+new", blocks: [{ removed: "old", added: "new" }], basis: "request" }] },
     });
     const container = render(React.createElement(AgentTranscript, { projection, loading: false }));
     act(() => container.querySelector<HTMLButtonElement>(".desktop-agent-tool-row")!.click());
     expect(container.textContent).toContain("Permission denied");
-    expect(container.textContent).toContain("-old\n+new");
+    expect(container.querySelector(".desktop-agent-evidence-node.is-deletion pre")?.textContent).toBe("old");
+    expect(container.querySelector(".desktop-agent-evidence-node.is-addition pre")?.textContent).toBe("new");
     expect(container.querySelector(".desktop-agent-tool-diff-stats")).toBeNull();
     expect(summarizeAgentChanges(projection).files).toBe(0);
   });

@@ -7,6 +7,7 @@ export type AgentFileChangeSummary = {
   additions: number | null;
   deletions: number | null;
   diff: string;
+  blocks: { removed?: string; added?: string }[];
   truncated: boolean;
 };
 
@@ -222,6 +223,13 @@ export function fileChangesForActivity(activity: AgentActivity): AgentFileChange
       additions: typeof value.additions === "number" && Number.isFinite(value.additions) ? boundedCount(value.additions) : null,
       deletions: typeof value.deletions === "number" && Number.isFinite(value.deletions) ? boundedCount(value.deletions) : null,
       diff: typeof value.diff === "string" ? value.diff : "",
+      blocks: Array.isArray(value.blocks) ? value.blocks.slice(0, 100).flatMap(block => {
+        const item = record(block);
+        return typeof item.removed === "string" || typeof item.added === "string" ? [{
+          ...(typeof item.removed === "string" ? { removed: item.removed } : {}),
+          ...(typeof item.added === "string" ? { added: item.added } : {}),
+        }] : [];
+      }) : [],
       truncated: value.truncated === true,
     }];
   });

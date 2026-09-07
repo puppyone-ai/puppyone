@@ -28,8 +28,9 @@ export function agentFileChangeFixture(runtimeId) {
   } else if (runtimeId === "pi") {
     const state = createPiEventState({ turnId: "turn", providerSessionId: "native" });
     events = [
-      { type: "tool_execution_start", toolCallId: "edit", toolName: "edit", args: { path, oldText: editBefore, newText: editAfter } },
-      { type: "tool_execution_end", toolCallId: "edit", isError: false, result: { content: [{ type: "text", text: "Updated" }], details: { diff: editDiff } } },
+      { type: "tool_execution_start", toolCallId: "edit", toolName: "edit", args: { path, edits: [{ oldText: editBefore, newText: editAfter }] } },
+      { type: "tool_execution_end", toolCallId: "edit", isError: false, result: { content: [{ type: "text", text: "Updated" }],
+        details: { patch: editDiff, diff: " 1 source\n-2 old\n+2 new\n+3 extra\n 4 end", firstChangedLine: 2 } } },
     ].flatMap(message => normalizePiRpcEvent(message, state));
   } else {
     const normalizer = new AcpEventNormalizer({ turnId: "turn" });

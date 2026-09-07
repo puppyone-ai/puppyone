@@ -403,6 +403,8 @@ export type AgentFileChangeEvidence = {
   additions?: number;
   deletions?: number;
   diff?: string;
+  /** Ordered changed regions only; omitted side differs from an edited blank line. */
+  blocks?: { removed?: string; added?: string }[];
   truncated?: boolean;
   basis?: "request" | "native";
 };

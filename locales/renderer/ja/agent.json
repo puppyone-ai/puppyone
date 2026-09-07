@@ -243,6 +243,8 @@
   "activity.fileCount": "{count, plural, other {# ファイル}}",
   "activity.inlineDiff": "インラインファイル差分",
   "activity.diffPartial": "この変更は一部のみプレビューできます。",
+  "activity.removedLines": "削除した内容",
+  "activity.addedLines": "追加した内容",
   "activity.noResults": "結果なし",
   "activity.moreResults": "…ほか {count, plural, other {{value} 件の結果}}",
   "activity.outputOmitted": "… {lines} 行 / {characters} 文字を省略 …",

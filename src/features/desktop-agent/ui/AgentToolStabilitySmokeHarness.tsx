@@ -225,7 +225,7 @@ function createSmokeProjection() {
       detail: {
         tool: "edit",
         path: "src/fixture.ts",
-        changes: [{ path: "src/fixture.ts", additions: 2, deletions: 1, diff: "@@ -1,1 +1,2 @@\n-old\n+new\n+extra" }],
+        changes: [{ path: "src/fixture.ts", additions: 2, deletions: 1, blocks: [{ removed: "old", added: "new\nextra" }], diff: "@@ -1,1 +1,2 @@\n-old\n+new\n+extra" }],
       },
       output: "",
       sequence: 6,

@@ -243,6 +243,8 @@
   "activity.fileCount": "{count, plural, one {# file} other {# files}}",
   "activity.inlineDiff": "Inline file diff",
   "activity.diffPartial": "Only part of this change is available in the preview.",
+  "activity.removedLines": "Removed content",
+  "activity.addedLines": "Added content",
   "activity.noResults": "No results",
   "activity.moreResults": "… {count, plural, one {{value} more result} other {{value} more results}}",
   "activity.outputOmitted": "… {lines} lines / {characters} characters omitted …",

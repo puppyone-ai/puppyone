@@ -252,14 +252,14 @@ function toolPayload(name, input, status) {
     tool,
     label: toolLabel(name, safeInput),
     status,
-    ...(["edit", "write"].includes(tool) ? { changes: createAgentFileChangeEvidence(
-      (Array.isArray(input?.edits) ? input.edits.slice(0, 100) : [input]).map((edit) => ({
+    ...(["edit", "write"].includes(tool) ? { changes: createAgentFileChangeEvidence([{
         path: input?.file_path || input?.path,
-        before: edit?.old_string,
-        after: tool === "write" ? input?.content : edit?.new_string,
+        before: input?.old_string,
+        after: tool === "write" ? input?.content : input?.new_string,
+        ...(Array.isArray(input?.edits) ? { fragments: input.edits.slice(0, 101).map(edit => ({ before: edit?.old_string, after: edit?.new_string })) } : {}),
         scope: "fragment", basis: "request",
-        unknownMultiplicity: edit?.replace_all === true || input?.replace_all === true,
-      })),
+        unknownMultiplicity: input?.replace_all === true || (Array.isArray(input?.edits) && input.edits.some(edit => edit?.replace_all === true)),
+      }],
     ) } : {}),
     input: safeInput,
     path: text(safeInput.file_path || safeInput.path) || null,

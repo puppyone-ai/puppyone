@@ -72,6 +72,8 @@ async function pollForResult(window) {
       if (input.type === "wheel") {
         window.webContents.sendInputEvent({ type: "mouseWheel", x: input.x, y: input.y,
           deltaY: input.deltaY, deltaX: 0, hasPreciseScrollingDeltas: true });
+      } else if (input.type === "move") {
+        window.webContents.sendInputEvent({ type: "mouseMove", x: input.x, y: input.y });
       } else if (input.type === "key" && input.keyCode === "PageUp") {
         window.webContents.focus();
         window.webContents.sendInputEvent({ type: "keyDown", keyCode: input.keyCode });

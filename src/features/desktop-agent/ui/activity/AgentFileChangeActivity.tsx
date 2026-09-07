@@ -1,4 +1,5 @@
 import { FilePenLine } from "lucide-react";
+import { Fragment } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 import {
   agentActivityToolId, formatAgentToolName, fileChangesForActivity, fileChangeTotals, pathForActivity, outputForActivity,
@@ -15,7 +16,7 @@ export function AgentFileChangeActivity({ activity, onOpenFile }: { activity: Ag
   const path = pathForActivity(activity);
   const output = outputForActivity(activity);
   if (!changes.length && !path && !output) return null;
-  const files = changes.length ? changes : path ? [{ path, diff: "", truncated: false }] : [];
+  const files = changes.length ? changes : path ? [{ path, diff: "", blocks: [], truncated: false }] : [];
   return (
     <AgentActivityShell
       title={formatAgentToolName(agentActivityToolId(activity), t)}
@@ -29,15 +30,31 @@ export function AgentFileChangeActivity({ activity, onOpenFile }: { activity: Ag
     >
       <AgentToolEvidenceTree>
         {files.map((file, index) => (
-          <AgentToolEvidenceNode key={`${index}:${file.path}`} kind="result">
-            <div className="desktop-agent-tool-file-path" dir="ltr">
-              {onOpenFile
-                ? <button type="button" data-po-interaction="navigation" title={file.path} onClick={() => onOpenFile(file.path)}>{file.path}</button>
-                : <span>{file.path}</span>}
-            </div>
-            {file.diff && <AgentToolTextEvidence text={file.diff} dir="ltr" />}
-            {file.truncated && <span className="desktop-agent-tool-empty">{t("agent.activity.diffPartial")}</span>}
-          </AgentToolEvidenceNode>
+          <Fragment key={`${index}:${file.path}`}>
+            <AgentToolEvidenceNode kind="result">
+              <div className="desktop-agent-tool-file-path" dir="ltr">
+                {onOpenFile
+                  ? <button type="button" data-po-interaction="navigation" title={file.path} onClick={() => onOpenFile(file.path)}>{file.path}</button>
+                  : <span>{file.path}</span>}
+              </div>
+            </AgentToolEvidenceNode>
+            {file.blocks.map((block, blockIndex) => (
+              <Fragment key={blockIndex}>
+                {block.removed !== undefined && <AgentToolEvidenceNode kind="result" marker="−" tone="deletion" label={t("agent.activity.removedLines")}>
+                  <AgentToolTextEvidence text={block.removed} dir="ltr" />
+                </AgentToolEvidenceNode>}
+                {block.added !== undefined && <AgentToolEvidenceNode kind="result" marker="+" tone="addition" label={t("agent.activity.addedLines")}>
+                  <AgentToolTextEvidence text={block.added} dir="ltr" />
+                </AgentToolEvidenceNode>}
+              </Fragment>
+            ))}
+            {!file.blocks.length && file.diff && <AgentToolEvidenceNode kind="result">
+              <AgentToolTextEvidence text={file.diff} dir="ltr" />
+            </AgentToolEvidenceNode>}
+            {file.truncated && <AgentToolEvidenceNode kind="result">
+              <span className="desktop-agent-tool-empty">{t("agent.activity.diffPartial")}</span>
+            </AgentToolEvidenceNode>}
+          </Fragment>
         ))}
         {output && (
           <AgentToolEvidenceNode kind="result"><AgentToolTextEvidence text={output} dir="ltr" /></AgentToolEvidenceNode>
