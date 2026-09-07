@@ -116,6 +116,17 @@ it("does not start without a live source gesture and passes its captured identit
   expect(f.native.start).toHaveBeenCalledWith(1, ["/repo/docs/file.md"], expect.any(String), expect.any(Function), 42);
 });
 
+it("does not turn an in-root alias into a destructive move of its referent", async () => {
+  const f = fixture();
+  const original = f.resolveEntries.getMockImplementation();
+  f.resolveEntries.mockImplementation((event, request) => original(event, {
+    resources: request.resources.map((resource) => resource === uri("alias.md") ? uri("docs/file.md") : resource),
+  }));
+  await f.service.start(f.source, { resources: [uri("alias.md")] });
+  f.end();
+  await expect(f.claim("explorer-move", uri("dest"))).rejects.toThrow(/different path/);
+});
+
 it("rechecks the admitted path after asynchronous preparation", async () => {
   const f = fixture();
   const original = f.resolveEntries.getMockImplementation();

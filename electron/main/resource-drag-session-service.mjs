@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import path from "node:path";
+import { isWorkspaceResourceReference, parseWorkspaceResourceReference } from "../../shared/workspace-resource-reference.mjs";
 
 /** One owner for native tracking, source identity, drop admission and disposal. */
 export function createResourceDragSessionService({ native, resolveEntries, getWindow, now = Date.now, settleMs = 5000 }) {
@@ -112,6 +113,14 @@ export function createResourceDragSessionService({ native, resolveEntries, getWi
         }
         const entries = await revalidate(session, event);
         if (request.intent === "explorer-move") {
+          // Reads/export may follow an in-root symlink. A move must never turn
+          // a selected alias (or a file replaced by an alias) into its target.
+          if (entries.some((entry, index) => {
+            const original = session.request.resources[index];
+            const selectedPath = isWorkspaceResourceReference(original)
+              ? parseWorkspaceResourceReference(original).relativePath : original;
+            return selectedPath !== entry.relativePath;
+          })) throw new Error("The selected move source resolves through a different path.");
           const [target] = await resolveEntries(event, { resources: [request.targetResource] });
           if (target.entryType !== "directory" || entries.some((entry) => {
             const relative = path.relative(entry.absolutePath, target.absolutePath);
