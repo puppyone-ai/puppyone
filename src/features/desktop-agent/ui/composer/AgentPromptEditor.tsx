@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
+import { defaultKeymap, history, historyKeymap, insertNewlineAndIndent } from "@codemirror/commands";
 import { Compartment, EditorState, Prec, StateEffect, StateField } from "@codemirror/state";
 import {
   Decoration,
@@ -124,13 +124,16 @@ export function AgentPromptEditor({
         Prec.high(keymap.of([{
           key: "Enter",
           run: (view) => {
-            if (view.composing) return false;
+            // Composition starts before its first document change. Leave its
+            // confirmation key to the IME, without submitting or inserting a newline.
+            if (view.compositionStarted) return false;
             callbacksRef.current.onSubmit();
             return true;
           },
-          shift: () => false,
+          shift: (view) => view.compositionStarted ? false : insertNewlineAndIndent(view),
         }])),
-        keymap.of([...defaultKeymap, ...historyKeymap]),
+        // A fallback Enter binding would insert a newline when the IME guard declines.
+        keymap.of([...defaultKeymap.filter((binding) => binding.key !== "Enter"), ...historyKeymap]),
         EditorView.domEventHandlers({
           drop: (event) => {
             if (event.dataTransfer) callbacksRef.current.onDrop?.({

@@ -4,6 +4,7 @@ import { AgentSessionActor } from "../electron/main/agent/domain/agent-session-a
  * @vitest-environment happy-dom
  */
 import React from "react";
+import { EditorView } from "@codemirror/view";
 import { readFileSync } from "node:fs";
 import { createRoot, type Root } from "react-dom/client";
 import { act } from "react";
@@ -354,6 +355,64 @@ describe("Desktop Agent renderer surfaces", () => {
 
     act(() => sendControl.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 0 })));
     expect(document.activeElement).toBe(sendControl);
+  });
+
+  it.each([false, true])("leaves early IME Enter to native composition (shift=%s)", (shiftKey) => {
+    const onSubmit = vi.fn(async () => true);
+    const onDraftChange = vi.fn();
+    const container = render(React.createElement(AgentComposer, {
+      draft: "正在输入", onDraftChange, disabled: false, running: false,
+      stopping: false, submitting: false, onSubmit, onStop: vi.fn(),
+    }));
+    const content = container.querySelector<HTMLElement>(".cm-content")!;
+    const view = EditorView.findFromDOM(content)!;
+    const confirm = new KeyboardEvent("keydown", {
+      key: "Enter", code: "Enter", keyCode: 13, isComposing: true, shiftKey, bubbles: true, cancelable: true,
+    });
+    act(() => {
+      content.focus();
+      content.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true, data: "你" }));
+      expect(view.compositionStarted).toBe(true);
+      expect(view.composing).toBe(false); // IME is active before the first text change.
+      content.dispatchEvent(confirm);
+    });
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(onDraftChange).not.toHaveBeenCalled();
+    expect(view.state.doc.toString()).toBe("正在输入");
+    expect(confirm.defaultPrevented).toBe(false);
+    act(() => content.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true })));
+    expect(view.compositionStarted).toBe(false);
+    act(() => content.dispatchEvent(new KeyboardEvent("keydown", {
+      key: "Enter", code: "Enter", keyCode: 13, bubbles: true, cancelable: true,
+    })));
+    expect(onSubmit).toHaveBeenCalledExactlyOnceWith("正在输入");
+  });
+
+  it("uses Shift+Enter for a newline and plain Enter for one submission", () => {
+    const onSubmit = vi.fn(async () => true);
+    function ControlledComposer() {
+      const [draft, setDraft] = React.useState("Draft");
+      return React.createElement(AgentComposer, {
+        draft, onDraftChange: setDraft, disabled: false, running: false,
+        stopping: false, submitting: false, onSubmit, onStop: vi.fn(),
+      });
+    }
+    const container = render(React.createElement(ControlledComposer));
+    const content = container.querySelector<HTMLElement>(".cm-content")!;
+    const view = EditorView.findFromDOM(content)!;
+    act(() => {
+      content.focus();
+      view.dispatch({ selection: { anchor: view.state.doc.length } });
+      content.dispatchEvent(new KeyboardEvent("keydown", {
+        key: "Enter", code: "Enter", keyCode: 13, shiftKey: true, bubbles: true, cancelable: true,
+      }));
+    });
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(view.state.doc.toString()).toBe("Draft\n");
+    act(() => content.dispatchEvent(new KeyboardEvent("keydown", {
+      key: "Enter", code: "Enter", keyCode: 13, bubbles: true, cancelable: true,
+    })));
+    expect(onSubmit).toHaveBeenCalledExactlyOnceWith("Draft\n");
   });
 
   it("removes the Agent header region when Minimal Mode supplies no header", () => {
