@@ -26,8 +26,10 @@ describe("root-qualified reference drafts", () => {
     let complete!: (value: typeof reference[]) => void;
     const f = fixture(() => new Promise((resolve) => { complete = resolve; }));
     const release = vi.fn();
+    const isCurrent = f.manager.captureAcquisition();
     const pending = f.manager.addWorkspacePaths([reference.resourceUri], new Map([[reference.resourceUri, { url: "blob:preview", release }]]));
     await f.manager.reset([]);
+    expect(isCurrent()).toBe(false);
     complete([reference]);
     expect(await pending).toBe(0);
     expect(f.readState().references).toEqual([]);

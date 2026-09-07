@@ -426,6 +426,8 @@ export class AgentSessionController {
 
   getReferencePreviewUrl = (id: string) => this.referenceDrafts.previewUrl(id);
 
+  captureReferenceAcquisition = () => this.referenceDrafts.captureAcquisition();
+
   async pickWorkspaceReferences() {
     return this.referenceDrafts.pickWorkspaceReferences();
   }

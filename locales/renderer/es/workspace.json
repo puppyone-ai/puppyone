@@ -1,6 +1,6 @@
 {
-  "drag.exportHint": "Mantén pulsada Opción/Alt al arrastrar para exportar archivos a otra aplicación.",
-  "drag.exportFailed": "No se pudieron exportar estos archivos. Comprueba que el proyecto y los archivos sigan disponibles e inténtalo de nuevo.",
+  "drag.exportHint": "Arrastra a una carpeta, Terminal, Agent u otra aplicación.",
+  "drag.exportFailed": "No se pudo completar la operación. Comprueba que el origen y el destino estén disponibles y que el destino admita esta operación.",
   "restoring.ariaLabel": "Abriendo el último proyecto",
   "restoring.message": "Abriendo el último proyecto…",
   "viewerPack.rootUnavailable": "La raíz del espacio de trabajo no está disponible para activar Viewer Pack.",

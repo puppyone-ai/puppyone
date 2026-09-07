@@ -1,6 +1,6 @@
 {
-  "drag.exportHint": "Option／Alt を押しながらドラッグすると、他のアプリにファイルを書き出せます。",
-  "drag.exportFailed": "ファイルを書き出せませんでした。プロジェクトとファイルが利用可能か確認して、再試行してください。",
+  "drag.exportHint": "フォルダ、ターミナル、Agent、または他のアプリへドラッグします。",
+  "drag.exportFailed": "ドロップを完了できません。元の項目と移動先が利用可能で、この操作に対応しているか確認してください。",
   "restoring.ariaLabel": "前回のプロジェクトを開いています",
   "restoring.message": "前回のプロジェクトを開いています…",
   "viewerPack.rootUnavailable": "Viewer Pack を有効にするためのワークスペースルートを利用できません。",

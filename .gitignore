@@ -27,3 +27,5 @@ yarn-error.log*
 *.mobileprovision
 
 *.tsbuildinfo
+
+/electron/main/platform/macos/native/*.node

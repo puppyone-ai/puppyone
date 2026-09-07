@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { DragEvent } from "react";
 import {
   classifyReferenceDataTransfer,
@@ -13,6 +13,8 @@ import {
   acceptsAgentAttachment,
   hasAgentAttachmentSupport,
 } from "../domain/agent-reference-capabilities";
+import { resolveResourceDropSource } from "../../../platform/resourceDragSession";
+import { useResourceDragPreview } from "../../../platform/useResourceDragPreview";
 import type { AgentReferenceDropEvent } from "./agentReferenceDropEvent";
 
 export type AgentWorkspaceReferenceResolution = Readonly<{
@@ -38,6 +40,9 @@ export function useAgentReferenceIngestion({
 }) {
   const { t } = useLocalization();
   const [announcement, setAnnouncement] = useState("");
+  const dragPreview = useResourceDragPreview();
+  const dropEpoch = useRef(0);
+  useEffect(() => () => { dropEpoch.current += 1; }, [controller, workspaceId]);
   const announceBatchResult = useCallback((beforeIds: Set<string>, count: number) => {
     const failed = controller.getSnapshot().references
       .filter((reference) => reference.status === "error" && !beforeIds.has(reference.id)).length;
@@ -50,29 +55,33 @@ export function useAgentReferenceIngestion({
     if (!hasReferenceDataTransferSource(event.dataTransfer)) return;
     event.preventDefault();
     event.stopPropagation();
-    event.dataTransfer.dropEffect = canIngestDataTransfer(event.dataTransfer, workspaceId, capabilities)
+    event.dataTransfer.dropEffect = canIngestDataTransfer(event.dataTransfer, workspaceId, capabilities, dragPreview)
       ? "copy"
       : "none";
-  }, [capabilities, workspaceId]);
+  }, [capabilities, dragPreview, workspaceId]);
 
   const ingestDrop = useCallback((event: AgentReferenceDropEvent) => {
     if (!hasReferenceDataTransferSource(event.dataTransfer)) return;
     event.preventDefault();
     event.stopPropagation();
     const beforeIds = new Set(controller.getSnapshot().references.map((reference) => reference.id));
+    const epoch = dropEpoch.current;
+    const acquisitionCurrent = controller.captureReferenceAcquisition();
     void ingestDataTransfer(
       event.dataTransfer,
       workspaceId,
       controller,
       resolveWorkspaceReference,
+      () => epoch === dropEpoch.current && acquisitionCurrent(),
     ).then((result) => {
+      if (epoch !== dropEpoch.current || !acquisitionCurrent()) return;
       setAnnouncement(result === "workspace-mismatch"
         ? t("agent.reference.workspaceMismatch")
         : result === "resource-unavailable"
           ? t("agent.reference.resourceUnavailable")
           : "");
       if (typeof result === "number") announceBatchResult(beforeIds, result);
-    }).catch(() => setAnnouncement(t("agent.reference.resourceUnavailable")));
+    }).catch(() => { if (epoch === dropEpoch.current && acquisitionCurrent()) setAnnouncement(t("agent.reference.resourceUnavailable")); });
   }, [announceBatchResult, controller, resolveWorkspaceReference, t, workspaceId]);
 
   const onDrop = useCallback((event: DragEvent<HTMLElement>) => {
@@ -125,12 +134,15 @@ function canIngestDataTransfer(
   dataTransfer: DataTransfer,
   workspaceId: string,
   capabilities: AgentReferenceInputCapabilities | undefined,
+  preview: ReturnType<typeof useResourceDragPreview>,
 ) {
-  const source = classifyReferenceDataTransfer(dataTransfer);
+  const source = preview
+    ? { kind: "workspace-entries" as const, workspaceId: null, entries: preview.entries }
+    : classifyReferenceDataTransfer(dataTransfer);
   if (source.kind === "text") return true;
   if (source.kind === "none") {
     const types = Array.from(dataTransfer.types ?? []);
-    if (types.includes("Files")) return hasAgentAttachmentSupport(capabilities);
+    if (types.includes("Files")) return Boolean(capabilities?.workspace.files || capabilities?.workspace.directories || hasAgentAttachmentSupport(capabilities));
     return true;
   }
   if (!capabilities) return false;
@@ -154,8 +166,10 @@ async function ingestDataTransfer(
   workspaceId: string,
   controller: AgentSessionController,
   resolveWorkspaceReference: AgentWorkspaceReferenceResolver | undefined,
+  isCurrent: () => boolean,
 ): Promise<number | "workspace-mismatch" | "resource-unavailable"> {
-  const source = classifyReferenceDataTransfer(dataTransfer);
+  const source = await resolveResourceDropSource(classifyReferenceDataTransfer(dataTransfer), "agent-reference");
+  if (!isCurrent()) return 0;
   if (source.kind === "workspace-entries") {
     const paths: string[] = [];
     const resolutions: Array<{ resourceUri: string; resolved: AgentWorkspaceReferenceResolution }> = [];
@@ -184,6 +198,10 @@ async function ingestDataTransfer(
         visualPreviews.set(resourceUri, preview);
       }
     }));
+    if (!isCurrent()) {
+      for (const preview of visualPreviews.values()) preview.release?.();
+      return 0;
+    }
     return controller.addWorkspacePaths(paths, visualPreviews);
   }
   if (source.kind === "files") return controller.stageExternalFiles(source.files);

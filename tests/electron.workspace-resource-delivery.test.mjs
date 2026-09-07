@@ -1,3 +1,4 @@
+import { EventEmitter } from "node:events";
 import { clientHandler } from "./helpers/agentIpcClient.mjs";
 import fs from "node:fs/promises";
 import { authorizeAgentReferences } from "../electron/main/agent/agent-reference-authorization.mjs";
@@ -29,7 +30,7 @@ async function fixture() {
     await fs.writeFile(path.join(folder.path, "docs/README.md"), folder.workspace.name);
     await fs.writeFile(path.join(folder.path, "private.md"), "not referenced");
   }
-  const event = { sender: { id: 7, isDestroyed: () => false, startDrag: vi.fn() } };
+  const event = { sender: Object.assign(new EventEmitter(), { id: 7, isDestroyed: () => false, send: vi.fn() }) };
   const getFolders = (sender) => sender.id === 7 ? folders : [];
   const authorizeWorkspaceRoot = createSenderWorkspaceAuthorization({ getWorkspaceRootsForSender: (sender) => getFolders(sender).map((entry) => entry.path) });
   const resolveWorkspaceResource = createWorkspaceResourceResolver({ getFoldersForSender: getFolders, authorizeWorkspaceRoot });
@@ -67,25 +68,16 @@ describe("resource delivery ownership", () => {
     expect(resolved.resourceUri).toBe(uri("repo-a"));
   });
 
-  it("native export rechecks roots after asynchronous icon preparation", async () => {
+  it("exports multiple native files only after source authorization", async () => {
     const f = await fixture();
     const handlers = new Map();
-    registerResourceTransferIpcHandlers({
-      ipcMain: { handle: (channel, callback) => handlers.set(channel, callback) },
-      resolveWorkspaceResource: f.resolveWorkspaceResource,
-      getFileIcon: async () => { f.detachB(); return {}; },
-    });
-    await expect(handlers.get("resource-transfer:start-drag")(f.event, { resources: [uri("repo-b")] })).rejects.toThrow(/attached/);
-    expect(f.event.sender.startDrag).not.toHaveBeenCalled();
-  });
-
-  it("exports multiple native files using authorized filesystem paths", async () => {
-    const f = await fixture();
-    const handlers = new Map();
-    const icon = {};
-    registerResourceTransferIpcHandlers({ ipcMain: { handle: (channel, callback) => handlers.set(channel, callback) }, resolveWorkspaceResource: f.resolveWorkspaceResource, getFileIcon: async () => icon });
-    await handlers.get("resource-transfer:start-drag")(f.event, { resources: [uri("repo-a"), uri("repo-b", "docs")] });
-    expect(f.event.sender.startDrag).toHaveBeenCalledWith({ files: [path.join(f.rootA, "docs/README.md"), path.join(f.rootB, "docs")], icon });
+    const native = { start: vi.fn(() => true), inspect: () => "", captureGesture: () => 1 };
+    const handle = Buffer.alloc(8);
+    const transfer = registerResourceTransferIpcHandlers({ ipcMain: { handle: (channel, callback) => handlers.set(channel, callback) }, resolveWorkspaceResource: f.resolveWorkspaceResource, nativeDrag: native, getWindow: () => ({ isDestroyed: () => false, getNativeWindowHandle: () => handle }) });
+    try {
+      await handlers.get("resource-transfer:start-drag")(f.event, { resources: [uri("repo-a"), uri("repo-b", "docs")] });
+      expect(native.start).toHaveBeenCalledWith(handle, [path.join(f.rootA, "docs/README.md"), path.join(f.rootB, "docs")], expect.any(String), expect.any(Function), 1);
+    } finally { transfer.dispose(); }
   });
 
   it("refuses to bind an ambiguous legacy drag to the receiving terminal root", async () => {

@@ -358,6 +358,33 @@ describe("ExplorerTree interactive semantics", () => {
     expect(onMoveNodes).toHaveBeenCalledWith([source], parent.path);
   });
 
+
+  it("routes a claimed native file through move and keeps external files on the import path", async () => {
+    const source: DataNode = { id: "source", name: "file.md", path: "docs/file.md", type: "file" };
+    const target: DataNode = { id: "target", name: "target", path: "target", type: "folder" };
+    const onMoveNodes = vi.fn(async () => undefined);
+    const onImportFiles = vi.fn(async () => undefined);
+    const resolve = vi.fn(async () => [{ path: source.path, name: source.name, entryType: "file" as const }]);
+    const container = document.createElement("div"); document.body.appendChild(container); root = createRoot(container);
+    act(() => renderWithTestLocalization(root, <ExplorerTree nodes={[source, target]} activePath={null} expandedPaths={new Set()} showRoot={false}
+      canMoveNodes onSelectNode={vi.fn()} onMoveNodes={onMoveNodes} onImportFiles={onImportFiles} onResolveFileDrop={resolve} />));
+    const targetRow = container.querySelector<HTMLElement>('[data-explorer-path="target"]')!;
+    mockRowBounds(targetRow);
+    const transfer = fakeDataTransfer();
+    Object.assign(transfer, { files: [new File([""], "file.md")], types: ["Files"] });
+    await act(async () => { targetRow.dispatchEvent(dragEvent("drop", transfer)); });
+    expect(onMoveNodes).toHaveBeenCalledWith([source], "target");
+    expect(onImportFiles).not.toHaveBeenCalled();
+    resolve.mockResolvedValueOnce(null as never);
+    await act(async () => { targetRow.dispatchEvent(dragEvent("drop", transfer)); });
+    expect(onImportFiles).toHaveBeenCalledOnce();
+    resolve.mockRejectedValueOnce(new Error("expired"));
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    await act(async () => { targetRow.dispatchEvent(dragEvent("drop", transfer)); });
+    expect(onImportFiles).toHaveBeenCalledOnce();
+    expect(onMoveNodes).toHaveBeenCalledOnce();
+  });
+
   it("recovers an internal move from the typed native drag payload", async () => {
     const source: DataNode = {
       id: "payload-source",

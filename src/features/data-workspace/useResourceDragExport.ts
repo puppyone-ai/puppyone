@@ -3,7 +3,7 @@ import type { ExplorerTreeProps } from "@puppyone/shared-ui";
 import { writeLocalResourceDragData } from "./resourceDragExport";
 import type { ResolvedWorkbenchDataResource } from "./workbenchDataPort";
 
-/** HTML drag inside the workbench; Option/Alt drag explicitly exports OS files. */
+/** One native session carries both OS files and a Main-owned resource identity. */
 export function useResourceDragExport(
   resolveResource: (resource: string) => ResolvedWorkbenchDataResource | null,
   onFailure?: (failed: boolean) => void,
@@ -13,7 +13,7 @@ export function useResourceDragExport(
     try {
       writeLocalResourceDragData(nodes, event, resolveResource);
       const startNativeDrag = window.puppyoneDesktop?.startResourceDrag;
-      if (event.altKey && startNativeDrag) {
+      if (window.puppyoneDesktop?.resourceDragSessionSupported && startNativeDrag) {
         // Electron requires cancelling HTML drag at its start. Starting another
         // session at dragleave does not upgrade the active HTML payload.
         event.preventDefault();
