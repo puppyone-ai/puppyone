@@ -80,8 +80,8 @@ export const TYPOGRAPHY_SCALE_METRICS = Object.freeze({
       lineHeight: 18,
     }),
     header: Object.freeze({
-      content: 14,
-      lineHeight: 19,
+      content: 13,
+      lineHeight: 18,
       meta: 12,
       metaLineHeight: 17,
     }),
@@ -139,8 +139,8 @@ export const TYPOGRAPHY_SCALE_METRICS = Object.freeze({
       lineHeight: 19,
     }),
     header: Object.freeze({
-      content: 15,
-      lineHeight: 20,
+      content: 14,
+      lineHeight: 19,
       meta: 13,
       metaLineHeight: 18,
     }),

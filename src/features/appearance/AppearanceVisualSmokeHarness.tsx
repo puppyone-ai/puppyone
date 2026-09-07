@@ -1,3 +1,5 @@
+import { DesktopMenuItem, DesktopMenuSurface } from "../../components/DesktopMenu";
+import { OnboardingProjectList } from "../../components/onboarding/OnboardingProjectList";
 import { DesktopWindowChrome } from "../../components/DesktopWindowChrome";
 import { DesktopShellLocationBar } from "../app-shell/DesktopShellLocationBar";
 import { AuxiliaryWorkbenchCloseDialog } from "../app-shell/auxiliary-workbench/AuxiliaryWorkbenchCloseDialog";
@@ -176,6 +178,29 @@ export function AppearanceVisualSmokeHarness() {
           </section>
         </div>
       </div>
+      <section hidden data-typography-hierarchy-fixture="true">
+        <div className="desktop-titlebar">
+          <span className="desktop-titlebar-context-name">{t(profile.labelKey)}</span>
+        </div>
+        <div className="onboarding-homepage">
+          <OnboardingProjectList
+            items={[{ id: "typography-project", label: "PuppyOne", localPath: "/Users/demo/Desktop/PuppyOne", lastOpenedAt: null }]}
+            busy={false}
+            openingPath={null}
+            removingPath={null}
+            draggingPath={null}
+            onOpen={() => undefined}
+            onDragStart={() => undefined}
+            onDragEnd={() => undefined}
+          />
+        </div>
+        <DesktopMenuItem className="typography-standalone-row" label={t(profile.labelKey)} detail={fixtureTreeNodes[2].name} />
+        {(["header", "right-sidebar"] as const).map((surface) => (
+          <DesktopMenuSurface key={surface} typographySurface={surface}>
+            <DesktopMenuItem label={t(profile.labelKey)} detail={fixtureTreeNodes[2].name} />
+          </DesktopMenuSurface>
+        ))}
+      </section>
       {dialogFixture === "terminal-close" && (
         <AuxiliaryWorkbenchCloseDialog
           pending={Object.freeze({

@@ -157,8 +157,8 @@ describe("typography architecture", () => {
         lineHeight: 19,
       },
       header: {
-        content: 15,
-        lineHeight: 20,
+        content: 14,
+        lineHeight: 19,
         meta: 13,
         metaLineHeight: 18,
       },
@@ -253,6 +253,14 @@ describe("typography architecture", () => {
       version: 11,
       scale: "custom",
     })).scale).toBe("medium");
+  });
+
+  it("keeps Header and Right Sidebar text aligned across all application presets", () => {
+    for (const metrics of Object.values(TYPOGRAPHY_SCALE_METRICS)) {
+      expect(metrics.header.content).toBe(metrics.rightSidebar.content);
+      expect(metrics.header.lineHeight).toBe(metrics.rightSidebar.controlLineHeight);
+      expect(metrics.ui.meta).toBeLessThan(metrics.ui.body);
+    }
   });
 
   it("keeps every product-owned font size on the integer type scale", () => {

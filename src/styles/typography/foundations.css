@@ -111,8 +111,8 @@
   --po-type-left-sidebar-content: var(--po-user-left-sidebar-font-size, 14px);
   --po-type-left-sidebar-meta: var(--po-user-left-sidebar-meta-font-size, 12px);
   --po-type-left-sidebar-line-height: var(--po-user-left-sidebar-line-height, 19px);
-  --po-type-header-content: var(--po-user-header-font-size, 15px);
-  --po-type-header-line-height: var(--po-user-header-line-height, 20px);
+  --po-type-header-content: var(--po-user-header-font-size, 14px);
+  --po-type-header-line-height: var(--po-user-header-line-height, 19px);
   --po-type-header-meta: var(--po-user-header-meta-font-size, 13px);
   --po-type-header-meta-line-height: var(--po-user-header-meta-line-height, 18px);
 
@@ -140,7 +140,7 @@
 
   /* Right Sidebar values move conversation copy, controls, supporting text,
      tables/tool evidence, code, and terminal cells as one optical family.
-     Workbench tab labels use the independent Header scale. */
+     Workbench tab labels retain their Header role and match the content size. */
   --po-type-right-sidebar-content: var(
     --po-user-text-size-conversation,
     var(--po-theme-text-size-conversation, 14px)

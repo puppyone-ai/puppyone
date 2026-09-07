@@ -64,10 +64,10 @@
 .desktop-menu-section-label {
   padding: 0 var(--po-menu-item-padding-inline) 4px;
   color: var(--po-text-disabled);
-  font-size: var(--po-menu-meta-font-size);
+  font-size: var(--po-menu-meta-font-size, var(--po-type-ui-meta, 13px));
   font-weight: 650;
   letter-spacing: 0;
-  line-height: var(--po-menu-meta-line-height);
+  line-height: var(--po-menu-meta-line-height, 15px);
   text-transform: uppercase;
 }
 
@@ -77,6 +77,9 @@
   min-width: 0;
 }
 
+/* Rows also appear outside DesktopMenuSurface (for example on the project
+ * homepage). Keep semantic defaults at consumption sites so an inherited
+ * Header/Right Sidebar menu profile still takes precedence when present. */
 .desktop-menu-item {
   display: flex;
   align-items: center;
@@ -91,9 +94,9 @@
   color: var(--po-text-muted);
   cursor: var(--po-clickable-cursor, default);
   font: inherit;
-  font-size: var(--po-menu-item-font-size);
+  font-size: var(--po-menu-item-font-size, var(--po-type-ui-control, 14px));
   font-weight: 500;
-  line-height: var(--po-menu-item-line-height);
+  line-height: var(--po-menu-item-line-height, 18px);
   text-align: start;
   transition: background 0.1s ease, color 0.1s ease;
 }
@@ -156,21 +159,21 @@
 
 .desktop-menu-item-label {
   flex: 0 1 auto;
-  font-size: var(--po-menu-item-font-size);
+  font-size: var(--po-menu-item-font-size, var(--po-type-ui-control, 14px));
   font-weight: 500;
 }
 
 .desktop-menu-item-detail {
   flex: 1 1 auto;
   color: var(--po-text-subtle);
-  font-size: var(--po-menu-meta-font-size);
+  font-size: var(--po-menu-meta-font-size, var(--po-type-ui-meta, 13px));
   font-weight: 500;
 }
 
 .desktop-menu-item-trailing {
   flex: 0 0 auto;
   color: var(--po-text-disabled);
-  font-size: var(--po-menu-meta-font-size);
+  font-size: var(--po-menu-meta-font-size, var(--po-type-ui-meta, 13px));
   font-weight: 650;
   text-transform: uppercase;
 }
