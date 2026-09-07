@@ -24,4 +24,20 @@ describe("Terminal resource path delivery", () => {
     await expect(resolveTerminalDropPaths({ kind: "workspace-entries", workspaceId: "window", typed: true, entries: [{ path: resource, name: "README.md", entryType: "file" }] }, "/repo-a")).resolves.toEqual(["/repo-b/README.md"]);
     expect(resolve).toHaveBeenCalledWith({ resources: [resource], rootPath: "/repo-a" });
   });
+  it("claims native workbench files as references and does not bypass a rejected session", async () => {
+    const file = new File([""], "README.md");
+    const resource = "puppyone-local://workspace/repo-b/README.md";
+    const claim = vi.fn(async () => ({ entries: [{ path: resource, name: "README.md", entryType: "file" }] }));
+    const resolve = vi.fn(async () => [{ absolutePath: "/repo-b/README.md" }]);
+    const rawPath = vi.fn(() => "/untrusted/README.md");
+    window.puppyoneDesktop = { claimResourceDrop: claim, resolveResourceReferences: resolve, getPathForFile: rawPath } as unknown as NonNullable<typeof window.puppyoneDesktop>;
+    const source = { kind: "files" as const, files: [file] };
+    await expect(resolveTerminalDropPaths(source, "/repo-a")).resolves.toEqual(["/repo-b/README.md"]);
+    expect(rawPath).not.toHaveBeenCalled();
+    expect(claim).toHaveBeenCalledWith({ files: [file], intent: "terminal-path", targetResource: undefined });
+    claim.mockRejectedValueOnce(new Error("expired"));
+    await expect(resolveTerminalDropPaths(source, "/repo-a")).rejects.toThrow("expired");
+    expect(rawPath).not.toHaveBeenCalled();
+  });
+
 });

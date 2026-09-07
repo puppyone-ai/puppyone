@@ -47,6 +47,7 @@ import {
 } from "./main/desktop-launch-intent.mjs";
 import { registerAgentIpcHandlers } from "./main/ipc/agent-ipc.mjs";
 import { createWorkspaceResourceResolver } from "./main/workspace-resource-resolver.mjs";
+import { loadMacosResourceDrag } from "./main/platform/macos/resource-drag.mjs";
 import { registerResourceTransferIpcHandlers } from "./main/ipc/resource-transfer-ipc.mjs";
 import { registerAgentActivityIpcHandlers } from "./main/ipc/agent-activity-ipc.mjs";
 import { registerAppearanceIpcHandlers } from "./main/ipc/appearance-ipc.mjs";
@@ -861,11 +862,13 @@ app.on("before-quit", createAgentQuitCoordinator({
 }));
 
 function registerIpcHandlers() {
-  registerResourceTransferIpcHandlers({
+  const resourceTransfer = registerResourceTransferIpcHandlers({
     ipcMain: trustedIpcMain,
     resolveWorkspaceResource,
-    getFileIcon: (filePath, options) => app.getFileIcon(filePath, options),
+    nativeDrag: desktopPlatformHost.platform === "macos" ? loadMacosResourceDrag() : null,
+    getWindow: (sender) => BrowserWindow.fromWebContents(sender),
   });
+  app.once("will-quit", () => resourceTransfer.dispose());
   registerEditorSurfaceIpcHandlers({
     trustedIpcMain,
     manager: editorSurfaceManager,

@@ -39,6 +39,11 @@ export class AgentReferenceDraftManager {
     return this.epoch;
   }
 
+  captureAcquisition() {
+    const generation = this.acquisitionGeneration;
+    return () => generation === this.acquisitionGeneration;
+  }
+
   previewUrl(id: string) {
     return this.previews.getUrl(id);
   }

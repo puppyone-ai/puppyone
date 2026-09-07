@@ -49,6 +49,7 @@ import { useExplorerMotion } from "./explorer/useExplorerMotion";
 import {
   EXPLORER_REFERENCE_DRAG_TYPE,
   EXPLORER_TREE_NODE_DRAG_TYPE,
+  type ExplorerReferenceDragEntry,
   parseExplorerReferenceDrag,
   serializeExplorerReferenceDrag,
 } from "./explorer/explorerReferenceDrag";
@@ -80,6 +81,9 @@ export type ExplorerTreeProps = {
   /** Host-owned projection for native/text export; internal identity remains intact. */
   onExportNodes?: (nodes: readonly DataNode[], event: ReactDragEvent<HTMLElement>) => void;
   dragExportHint?: string;
+  /** Host-authenticated native source preview; never used as drop authority. */
+  resourceDragEntries?: readonly ExplorerReferenceDragEntry[] | null;
+  onResolveFileDrop?: (files: File[], targetFolderPath: string | null) => Promise<readonly ExplorerReferenceDragEntry[] | null>;
   canMoveNodes?: boolean;
   onSelectNode: (node: DataNode | null, intent?: ExplorerSelectionIntent) => void;
   onToggleFolder?: (node: DataNode, expanded: boolean) => void;
@@ -150,6 +154,8 @@ export function ExplorerTree({
   fileIconTheme = "default",
   dragWorkspaceId = "",
   onExportNodes,
+  resourceDragEntries,
+  onResolveFileDrop,
   dragExportHint,
   canMoveNodes = false,
   onSelectNode,
@@ -182,6 +188,7 @@ export function ExplorerTree({
   const [dropTarget, setDropTarget] = useState<TreeDropTarget>(null);
   const moveEnabled = Boolean(canMoveNodes && (onMoveNodes || onMoveNode));
   const importEnabled = Boolean(onImportFiles);
+  const fileDropEnabled = importEnabled || Boolean(onResolveFileDrop && moveEnabled);
   const dropEnabled = moveEnabled || importEnabled;
   const resolvedLoadingPaths = useMemo<ReadonlySet<string>>(
     () => loadingPaths ?? (loadingPath ? new Set([loadingPath]) : EMPTY_PATH_SET),
@@ -277,8 +284,13 @@ export function ExplorerTree({
   const draggedNodesRef = useRef<DataNode[]>([]);
   selectedPathsRef.current = selectedPaths;
   selectedDragNodesRef.current = selectedDragNodes;
-  const dragCallbacksRef = useRef({ onImportFiles, onMoveNode, onMoveNodes });
-  dragCallbacksRef.current = { onImportFiles, onMoveNode, onMoveNodes };
+  const dragCallbacksRef = useRef({ onImportFiles, onMoveNode, onMoveNodes, onResolveFileDrop });
+  dragCallbacksRef.current = { onImportFiles, onMoveNode, onMoveNodes, onResolveFileDrop };
+  const dropGeneration = useRef(0);
+  useEffect(() => () => { dropGeneration.current += 1; }, []);
+  const nativeDraggedNodes = useMemo(() => resourceDragEntries?.map((entry) => nodeIndex.get(entry.path) ?? {
+    id: entry.path, path: entry.path, name: entry.name, type: entry.entryType === "directory" ? "folder" as const : "file" as const,
+  }) ?? [], [nodeIndex, resourceDragEntries]);
 
   const clearDropTarget = useCallback(() => {
     dragEnterDepthRef.current = 0;
@@ -390,7 +402,15 @@ export function ExplorerTree({
     targetFolderPath: string | null,
     mode: "folder" | "parent",
   ) => {
-    if (importEnabled && hasDataTransferFiles(event.dataTransfer)) {
+    if (nativeDraggedNodes.length && hasDataTransferFiles(event.dataTransfer)) {
+      const valid = moveEnabled && isValidMoveTargetForNodes(nativeDraggedNodes, targetFolderPath);
+      event.preventDefault();
+      event.stopPropagation();
+      event.dataTransfer.dropEffect = valid ? "move" : "none";
+      setNextDropTarget(rowPath, targetFolderPath, mode, valid);
+      return valid;
+    }
+    if (fileDropEnabled && hasDataTransferFiles(event.dataTransfer)) {
       event.preventDefault();
       event.stopPropagation();
       event.dataTransfer.dropEffect = "copy";
@@ -415,18 +435,18 @@ export function ExplorerTree({
     event.dataTransfer.dropEffect = valid ? "move" : "none";
     setNextDropTarget(rowPath, targetFolderPath, mode, valid);
     return valid;
-  }, [importEnabled, moveEnabled, setNextDropTarget]);
+  }, [fileDropEnabled, moveEnabled, nativeDraggedNodes, setNextDropTarget]);
 
   const enterTree = useCallback((event: ReactDragEvent<HTMLDivElement>) => {
     const transferTypes = Array.from(event.dataTransfer.types);
-    const accepted = (importEnabled && hasDataTransferFiles(event.dataTransfer))
+    const accepted = (fileDropEnabled && hasDataTransferFiles(event.dataTransfer))
       || (moveEnabled && (
         draggedNodesRef.current.length > 0
         || transferTypes.includes(EXPLORER_TREE_NODE_DRAG_TYPE)
       ));
     if (!accepted) return;
     dragEnterDepthRef.current += 1;
-  }, [importEnabled, moveEnabled]);
+  }, [fileDropEnabled, moveEnabled]);
 
   const leaveTree = useCallback(() => {
     dragEnterDepthRef.current = Math.max(0, dragEnterDepthRef.current - 1);
@@ -435,12 +455,28 @@ export function ExplorerTree({
 
   const dropOnRow = useCallback((event: ReactDragEvent<HTMLElement>, targetFolderPath: string | null) => {
     const importedFiles = getDataTransferFiles(event.dataTransfer);
-    if (importEnabled && importedFiles.length > 0) {
+    if (fileDropEnabled && importedFiles.length > 0) {
       event.preventDefault();
       event.stopPropagation();
       clearDragState();
-      void Promise.resolve(dragCallbacksRef.current.onImportFiles?.(importedFiles, targetFolderPath)).catch((error) => {
-        console.error("Unable to import dropped files:", error);
+      const generation = ++dropGeneration.current;
+      const callbacks = dragCallbacksRef.current;
+      void (async () => {
+        const entries = await callbacks.onResolveFileDrop?.(importedFiles, targetFolderPath);
+        if (generation !== dropGeneration.current) return;
+        if (entries) {
+          const nodes = entries.map((entry) => nodeIndex.get(entry.path) ?? {
+            id: entry.path, path: entry.path, name: entry.name,
+            type: entry.entryType === "directory" ? "folder" as const : "file" as const,
+          });
+          if (!moveEnabled || !isValidMoveTargetForNodes(nodes, targetFolderPath)) return;
+          if (callbacks.onMoveNodes) await callbacks.onMoveNodes(nodes, targetFolderPath);
+          else await Promise.all(nodes.map((node) => callbacks.onMoveNode?.(node, targetFolderPath)));
+        } else {
+          await callbacks.onImportFiles?.(importedFiles, targetFolderPath);
+        }
+      })().catch((error) => {
+        console.error("Unable to complete the file drop:", error);
       });
       return;
     }
@@ -463,7 +499,7 @@ export function ExplorerTree({
     void Promise.resolve(moveResult).catch((error) => {
       console.error("Unable to move explorer item:", error);
     });
-  }, [clearDragState, importEnabled, moveEnabled, recoverDraggedNodes]);
+  }, [clearDragState, fileDropEnabled, moveEnabled, nodeIndex, recoverDraggedNodes]);
 
   const dragController = useMemo<TreeDragController>(() => ({
     // Outbound copy/context drag is independent from in-tree move support.

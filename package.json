@@ -35,13 +35,13 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "prepare:desktop-build:dev": "node scripts/prepare-desktop-build.mjs --channel dev",
-    "dev": "npm run prepare:desktop-build:dev && node scripts/prepare-opencode-dev-runtime.mjs --optional && node scripts/dev-electron.mjs",
+    "dev": "npm run build:native-drag && npm run prepare:desktop-build:dev && node scripts/prepare-opencode-dev-runtime.mjs --optional && node scripts/dev-electron.mjs",
     "dev:update-preview": "VITE_DESKTOP_UPDATE_PREVIEW=available VITE_DESKTOP_UPDATE_PREVIEW_VERSION=0.3.0-preview.1 VITE_DESKTOP_CLOUD_API_URL=https://api.puppyone.ai/api/v1 VITE_DESKTOP_CLOUD_WEB_URL=https://app.puppyone.ai npm run dev",
     "dev:renderer": "vite",
     "dev:browser": "vite --host 127.0.0.1",
     "dev:desktop-telemetry-edge": "wrangler dev --config cloudflare/desktop-telemetry/wrangler.jsonc",
     "postinstall": "node scripts/fix-node-pty-permissions.mjs && node scripts/patch-xterm-webgl-atlas.mjs && node scripts/patch-dmg-builder-window-size.mjs",
-    "build": "node scripts/check-desktop-build-environment.mjs && npm run check:boundaries && tsc && vite build && node scripts/check-renderer-public-assets.mjs && node scripts/check-bundle-budget.mjs && node scripts/check-packaged-artifact-budgets.mjs",
+    "build": "node scripts/check-desktop-build-environment.mjs && npm run build:native-drag && npm run check:boundaries && tsc && vite build && node scripts/check-renderer-public-assets.mjs && node scripts/check-bundle-budget.mjs && node scripts/check-packaged-artifact-budgets.mjs",
     "package:viewer-pack": "node scripts/package-viewer-pack.mjs",
     "check:artifact-budgets": "node scripts/check-packaged-artifact-budgets.mjs",
     "check:viewer-pack-trust": "node scripts/check-viewer-pack-release.mjs",
@@ -93,7 +93,9 @@
     "test:desktop-telemetry": "vitest run tests/electron.desktop-telemetry-*.test.mjs tests/cloudflare.desktop-telemetry-*.test.mjs",
     "check:desktop-telemetry-edge": "wrangler deploy --dry-run --config cloudflare/desktop-telemetry/wrangler.jsonc",
     "test:watch": "vitest",
-    "bench:performance": "vitest bench --run benchmarks/performance --no-file-parallelism --maxWorkers=1"
+    "bench:performance": "vitest bench --run benchmarks/performance --no-file-parallelism --maxWorkers=1",
+    "build:native-drag": "node scripts/build-native-resource-drag.mjs",
+    "smoke:resource-transfer": "npm run build:native-drag && electron scripts/smoke-resource-transfer.mjs"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.159",
@@ -148,6 +150,7 @@
     "happy-dom": "^20.10.6",
     "lucide-react": "^0.562.0",
     "mermaid": "^11.16.1",
+    "node-api-headers": "1.9.0",
     "pdfjs-dist": "^6.2.108",
     "plist": "3.1.0",
     "react": "^18.3.1",
@@ -164,7 +167,8 @@
     "electronUpdaterCompatibility": ">=2.16",
     "asar": true,
     "asarUnpack": [
-      "node_modules/node-pty/**"
+      "node_modules/node-pty/**",
+      "electron/main/platform/macos/native/*.node"
     ],
     "directories": {
       "output": "release"

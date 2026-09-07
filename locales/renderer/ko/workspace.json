@@ -1,6 +1,6 @@
 {
-  "drag.exportHint": "Option/Alt 키를 누른 채 드래그하여 다른 앱으로 파일을 내보내세요.",
-  "drag.exportFailed": "파일을 내보낼 수 없습니다. 프로젝트와 파일을 사용할 수 있는지 확인한 후 다시 시도하세요.",
+  "drag.exportHint": "폴더, 터미널, Agent 또는 다른 앱으로 드래그하세요.",
+  "drag.exportFailed": "드롭을 완료할 수 없습니다. 원본과 대상이 사용 가능하고 대상이 이 작업을 지원하는지 확인하세요.",
   "restoring.ariaLabel": "마지막 프로젝트 여는 중",
   "restoring.message": "마지막 프로젝트를 여는 중…",
   "viewerPack.rootUnavailable": "Viewer Pack을 활성화할 작업 영역 루트를 사용할 수 없습니다.",

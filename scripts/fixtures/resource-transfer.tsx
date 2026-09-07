@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { resolveResourceDropSource } from "../../src/platform/resourceDragSession";
 import { useResourceDragExport } from "../../src/features/data-workspace/useResourceDragExport";
 import { serializeExplorerReferenceDrag, EXPLORER_REFERENCE_DRAG_TYPE } from "@puppyone/shared-ui";
 
@@ -13,14 +14,17 @@ function Harness() {
   const [result, setResult] = useState("Drop here");
   useEffect(() => {
     const record = (event: DragEvent) => window.resourceSmoke.record({ mode, event: event.type, x: event.clientX, y: event.clientY, related: Boolean(event.relatedTarget) });
-    for (const type of ["dragstart", "dragleave", "dragend", "drop"]) window.addEventListener(type, record, true);
-    return () => { for (const type of ["dragstart", "dragleave", "dragend", "drop"]) window.removeEventListener(type, record, true); };
+    for (const type of ["dragstart", "dragend", "drop"]) window.addEventListener(type, record, true);
+    return () => { for (const type of ["dragstart", "dragend", "drop"]) window.removeEventListener(type, record, true); };
   }, []);
   const exportNodes = useResourceDragExport((resource) => ({ folder, resourceUri: resource, providerPath: resource === directory.path ? "docs" : "docs/中文 file.md" }));
   const receive = (event) => {
     event.preventDefault();
     const entry = { mode, types: [...event.dataTransfer.types], text: event.dataTransfer.getData("text/plain"), internal: event.dataTransfer.getData(EXPLORER_REFERENCE_DRAG_TYPE), files: [...event.dataTransfer.files].map((file) => ({ name: file.name, path: window.puppyoneDesktop.getPathForFile(file) })) };
     window.resourceSmoke.record(entry);
+    void resolveResourceDropSource({kind: "files", files: [...event.dataTransfer.files]}, "agent-reference").then((source) => {
+      window.resourceSmoke.record({ claimed: source });
+    }).catch((error) => window.resourceSmoke.record({ claimError: String(error) }));
     setResult(JSON.stringify(entry, null, 2));
   };
   return <main style={{ padding: 24, font: "16px system-ui" }}>

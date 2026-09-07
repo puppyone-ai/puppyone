@@ -26,6 +26,7 @@ afterEach(() => {
   act(() => root?.unmount());
   root = null;
   document.body.innerHTML = "";
+  delete window.puppyoneDesktop;
   vi.restoreAllMocks();
 });
 
@@ -48,6 +49,32 @@ describe("Desktop Agent reference ingestion", () => {
     ));
     expect(controller.submit).not.toHaveBeenCalled();
     expect(container.querySelector("[role='status']")?.textContent).toContain("2 references");
+  });
+
+
+  it("uses the native drag session owner instead of staging the same file as an attachment", async () => {
+    const controller = controllerFixture();
+    const file = new File(["fixture"], "README.md");
+    const resource = "puppyone-local://workspace/repo-b/README.md";
+    window.puppyoneDesktop = { claimResourceDrop: vi.fn(async () => ({ entries: [{ path: resource, name: "README.md", entryType: "file" }] })) } as unknown as NonNullable<typeof window.puppyoneDesktop>;
+    const container = render(<IngestionHarness controller={controller} />);
+    const boundary = container.querySelector<HTMLElement>(".desktop-agent-boundary")!;
+    await act(async () => boundary.dispatchEvent(dragEvent("drop", fileTransfer([file]))));
+    await vi.waitFor(() => expect(controller.addWorkspacePaths).toHaveBeenCalledWith([resource], expect.any(Map)));
+    expect(controller.stageExternalFiles).not.toHaveBeenCalled();
+  });
+
+  it("discards late native drop admission after its target unmounts", async () => {
+    const controller = controllerFixture();
+    let finish!: (value: unknown) => void;
+    window.puppyoneDesktop = { claimResourceDrop: () => new Promise((resolve) => { finish = resolve; }) } as unknown as NonNullable<typeof window.puppyoneDesktop>;
+    const container = render(<IngestionHarness controller={controller} />);
+    const boundary = container.querySelector<HTMLElement>(".desktop-agent-boundary")!;
+    act(() => boundary.dispatchEvent(dragEvent("drop", fileTransfer([new File([""], "file.md")]))));
+    act(() => root?.unmount()); root = null;
+    await act(async () => { finish({ entries: [{ path: "puppyone-local://workspace/a/file.md", name: "file.md", entryType: "file" }] }); });
+    expect(controller.addWorkspacePaths).not.toHaveBeenCalled();
+    expect(controller.stageExternalFiles).not.toHaveBeenCalled();
   });
 
   it("marks cross-workspace drags invalid and never grants their paths", async () => {
@@ -457,6 +484,7 @@ function StructuredMentionHarness({ onRemove }: { onRemove: (id: string) => void
 
 function controllerFixture() {
   return {
+    captureReferenceAcquisition: () => () => true,
     workspaceRoot: "/workspace",
     getSnapshot: vi.fn(() => ({ references: [] as Array<{ id: string; status: string; error?: { message: string } }> })),
     addWorkspacePaths: vi.fn(async (

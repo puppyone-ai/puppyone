@@ -1,8 +1,10 @@
 import type { ReferenceDataTransferSource } from "@puppyone/shared-ui";
 import { isWorkspaceResourceReference } from "../../../../shared/workspace-resource-reference.mjs";
+import { resolveResourceDropSource } from "../../../platform/resourceDragSession";
 
 /** Capture DataTransfer before awaiting IPC; its store is unreadable after drop. */
 export async function resolveTerminalDropPaths(source: ReferenceDataTransferSource, rootPath: string): Promise<string[]> {
+  source = await resolveResourceDropSource(source, "terminal-path");
   const bridge = window.puppyoneDesktop;
   if (source.kind === "workspace-entries") {
     if (!bridge?.resolveResourceReferences) throw new Error("Resource resolution is unavailable.");

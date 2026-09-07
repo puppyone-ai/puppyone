@@ -266,6 +266,17 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   cloneRepository: (request) => ipcRenderer.invoke("workspace:clone-repository-current", request),
   getPathForFile: (file) => webUtils.getPathForFile(file),
   resolveResourceReferences: (request) => ipcRenderer.invoke("resource-transfer:resolve", request),
+  resourceDragSessionSupported: process.platform === "darwin",
+  previewResourceDrag: () => ipcRenderer.invoke("resource-transfer:preview-drag"),
+  claimResourceDrop: (request) => ipcRenderer.invoke("resource-transfer:claim-drop", {
+    intent: request.intent, targetResource: request.targetResource,
+    paths: request.files.map((file) => webUtils.getPathForFile(file)),
+  }),
+  onResourceDragState: (listener) => {
+    const handler = (_event, state) => listener(state);
+    ipcRenderer.on("resource-transfer:state", handler);
+    return () => ipcRenderer.removeListener("resource-transfer:state", handler);
+  },
   startResourceDrag: (request) => ipcRenderer.invoke("resource-transfer:start-drag", request),
   listFolderChildren: (request) => ipcRenderer.invoke("workspace:list-folder-children", request),
   resolveNode: (request) => ipcRenderer.invoke("workspace:resolve-node", request),

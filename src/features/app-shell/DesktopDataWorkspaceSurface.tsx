@@ -21,6 +21,8 @@ import {
 } from "@puppyone/shared-ui";
 import { AiResponseChangesCard } from "../../ai-edits/AiResponseChangesCard";
 import { openExternalUrl } from "../../lib/localFiles";
+import { useResourceDragPreview } from "../../platform/useResourceDragPreview";
+import { resolveResourceDropSource } from "../../platform/resourceDragSession";
 import { useResourceDragExport } from "../data-workspace/useResourceDragExport";
 import {
   DesktopExplorerRowActions,
@@ -165,6 +167,18 @@ export function DesktopDataWorkspaceSurface({
 }: DesktopDataWorkspaceSurfaceProps) {
   const [dragExportFailed, setDragExportFailed] = useState(false);
   const exportNodes = useResourceDragExport(resolveWorkspaceResource, setDragExportFailed);
+  const resourceDragPreview = useResourceDragPreview();
+  const resolveFileDrop = useCallback<NonNullable<DataWorkspaceProps["onResolveFileDrop"]>>(async (files, target) => {
+    setDragExportFailed(false);
+    try {
+      const targetResource = resolveWorkspaceResource(target)?.resourceUri;
+      const source = await resolveResourceDropSource({ kind: "files", files }, "explorer-move", targetResource);
+      return source.kind === "workspace-entries" ? source.entries : null;
+    } catch (error) {
+      setDragExportFailed(true);
+      throw error;
+    }
+  }, [resolveWorkspaceResource]);
   const onExplorerResizeActiveChange = useNativeSurfacePointerPassthroughActivity(
     "explorer-resize",
   );
@@ -309,6 +323,8 @@ export function DesktopDataWorkspaceSurface({
       )}
       <DataWorkspace
         onExportNodes={exportNodes}
+        resourceDragEntries={resourceDragPreview?.entries}
+        onResolveFileDrop={resolveFileDrop}
         dragExportHint={t("workspace.drag.exportHint")}
         key={explorerSession.key}
         workspace={workspace}

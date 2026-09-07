@@ -8,6 +8,7 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import { createServer } from "vite";
 import { createWorkspaceResourceResolver } from "../electron/main/workspace-resource-resolver.mjs";
 import { createSenderWorkspaceAuthorization } from "../electron/main/workspace-authorization.mjs";
+import { loadMacosResourceDrag } from "../electron/main/platform/macos/resource-drag.mjs";
 import { registerResourceTransferIpcHandlers } from "../electron/main/ipc/resource-transfer-ipc.mjs";
 
 // Manual OS smoke: drag the three source rows to the other native window, Finder
@@ -23,7 +24,9 @@ app.whenReady().then(async () => {
   const windows = [];
   const authorizeWorkspaceRoot = createSenderWorkspaceAuthorization({ getWorkspaceRootsForSender: () => [workspacePath] });
   const resolver = createWorkspaceResourceResolver({ getFoldersForSender: () => folders, authorizeWorkspaceRoot });
-  registerResourceTransferIpcHandlers({ ipcMain, resolveWorkspaceResource: resolver, getFileIcon: (file, options) => app.getFileIcon(file, options) });
+  const nativeDrag = loadMacosResourceDrag();
+  const transfer = registerResourceTransferIpcHandlers({ ipcMain, resolveWorkspaceResource: resolver, nativeDrag, getWindow: (sender) => BrowserWindow.fromWebContents(sender) });
+  app.once("will-quit", () => transfer.dispose());
   const log = async (entry) => {
     console.log(JSON.stringify(entry));
     await fs.appendFile(path.join(temporaryRoot, "events.jsonl"), JSON.stringify(entry) + "\n");
