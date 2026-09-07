@@ -36,7 +36,7 @@ describe("Desktop Terminal architecture boundaries", () => {
     const launcher = source("src/features/desktop-terminal/ui/TerminalLauncher.tsx");
     const launcherCss = source("src/features/desktop-terminal/ui/terminal-launcher.css");
     const launcherIconCss = source(
-      "src/features/desktop-terminal/ui/terminal-launcher-icon.css",
+      "src/components/brand/agent-launcher-icon.css",
     );
     const activityGridCss = source(
       "src/features/desktop-terminal/ui/terminal-activity-grid.css",
@@ -66,7 +66,7 @@ describe("Desktop Terminal architecture boundaries", () => {
       "src/features/app-shell/auxiliary-workbench/layout/useWorkbenchSessionHeaderLayout.ts",
     );
     const headerCss = source(
-      "src/features/desktop-terminal/ui/session-header/terminal-session-header.css",
+      "src/features/app-shell/auxiliary-workbench/layout/auxiliary-workbench-header.css",
     );
     const xpTokensCss = source("src/styles/interfaces/windows-xp/tokens.css");
     const terminalActivity = source(
@@ -116,7 +116,7 @@ describe("Desktop Terminal architecture boundaries", () => {
     expect(launcherCss).toMatch(/\.desktop-terminal-launcher-tool,\s*\.desktop-terminal-launcher-shell,\s*\.desktop-terminal-launcher-history\s*\{[^}]*min-height:\s*var\(--po-control-size-large\);[^}]*border-radius:\s*6px;/s);
     expect(launcherCss).toContain('.desktop-terminal-launcher-tool[data-status="coming-soon"]::after');
     expect(launcherCss).not.toContain("aspect-ratio:");
-    expect(header).toContain('import "./terminal-session-header.css"');
+    expect(header).toContain('import "../../../app-shell/auxiliary-workbench/layout/auxiliary-workbench-header.css"');
     expect(header).toContain("<TerminalSessionTab");
     expect(header).toContain("<TerminalSessionOverflowMenu");
     expect(header).toContain("useTerminalSessionHeaderController");
@@ -127,7 +127,7 @@ describe("Desktop Terminal architecture boundaries", () => {
     expect(headerPresentation).toContain("presentTerminalSessionHeader");
     expect(headerStatus).toContain("runtime.subscribeActivity(setActive)");
     expect(headerStatus).toContain("<TerminalActivityGrid");
-    expect(headerStatus).toContain("<TerminalLauncherIcon");
+    expect(headerStatus).toContain("<AgentLauncherIcon");
     expect(headerLayout).toContain('mode: "full"');
     expect(headerLayout).toContain('"compact"');
     expect(headerLayout).toContain('"overflow"');

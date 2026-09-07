@@ -33,7 +33,6 @@ const rendererApplicationRoot = path.join(rendererRoot, "application");
 const rendererInfrastructureRoot = path.join(rendererRoot, "infrastructure");
 const rendererUiRoot = path.join(rendererRoot, "ui");
 const rendererComposerRoot = path.join(rendererUiRoot, "composer");
-const rendererCompositionRoot = path.join(rendererUiRoot, "RightAgentPanel.tsx");
 const electronAgentClient = path.join(rendererInfrastructureRoot, "electron", "electronAgentClient.ts");
 const preloadPath = path.join(repoRoot, "electron", "preload.cjs");
 const sharedContractRoot = path.join(repoRoot, "shared", "agent-contract");
@@ -70,7 +69,14 @@ const sessionFeedPath = path.join(mainApplicationRoot, "session", "agent-session
 const sessionHistoryPortPath = path.join(mainRuntimeRoot, "agent-session-history-port.mjs");
 const historyControllerPath = path.join(rendererApplicationRoot, "ConversationHistoryController.ts");
 const historyBrowserPath = path.join(rendererRoot, "workbench", "AgentChatHistoryBrowser.tsx");
-const controllerRegistryPath = path.join(rendererApplicationRoot, "controllerRegistry.ts");
+const controllerRegistryPath = path.join(rendererApplicationRoot, "AgentControllerRegistry.ts");
+for (const retired of [
+  "application/controllerRegistry.ts", "application/agent-chat-tab-state-registry.ts",
+  "ui/RightAgentPanel.tsx", "ui/AgentSessionTabs.tsx", "ui/useAgentChatTabs.ts",
+  "domain/agent-chat-tabs.ts",
+]) {
+  if (existsSync(path.join(rendererRoot, retired))) errors.push(`Retired Agent ownership entrypoint: ${retired}`);
+}
 for (const requiredPath of [sessionActorPath, sessionControlPath, sessionFeedPath]) {
   if (!existsSync(requiredPath)) errors.push(`${relative(requiredPath)} is required for the Main-owned Agent control plane`);
 }
@@ -303,6 +309,12 @@ for (const required of ["display-types.ts", "user-message-types.ts", "display-sc
 }
 for (const filePath of walkSourceFiles(rendererRoot)) {
   const source = stripComments(readFileSync(filePath, "utf8"));
+  if (filePath !== controllerRegistryPath && /\bnew\s+AgentSessionController\s*\(/.test(source)) {
+    errors.push(`${relative(filePath)} allocates a Controller outside the project-owned AgentControllerRegistry`);
+  }
+  if (filePath !== path.join(rendererRoot, "workbench/projectAgentControllers.ts") && /\bnew\s+AgentControllerRegistry\s*\(/.test(source)) {
+    errors.push(`${relative(filePath)} allocates a Registry outside projectAgentControllers`);
+  }
   if (filePath.includes(`${path.sep}ui${path.sep}`) && /\bcommand\.(?:intent|targetTurnId|userMessageId)\b|agentStartCommandNeedsTranscriptFallback|queuedSubmissions/.test(source)) {
     errors.push(`${relative(filePath)} reconstructs transcript input from command internals; render Main-authored user parts`);
   }
@@ -347,11 +359,10 @@ for (const filePath of walkSourceFiles(rendererRoot)) {
     }
     if (
       isInside(filePath, rendererUiRoot)
-      && filePath !== rendererCompositionRoot
       && target
       && isInsideOrSame(target, rendererInfrastructureRoot)
     ) {
-      errors.push(`${relative(filePath)} imports infrastructure; only RightAgentPanel may compose the Electron adapter`);
+      errors.push(`${relative(filePath)} imports infrastructure; compose the Electron adapter under workbench/`);
     }
     if (isInside(filePath, rendererInfrastructureRoot) && target && isInsideOrSame(target, rendererUiRoot)) {
       errors.push(`${relative(filePath)} imports ${relative(target)}; renderer infrastructure cannot depend on UI`);

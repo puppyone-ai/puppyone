@@ -1,5 +1,4 @@
-import type { DesktopTerminalLauncherId } from "../model/terminalLaunchers";
-import { TerminalLauncherIcon } from "./TerminalLauncherIcon";
+import { AgentLauncherIcon } from "../../../../components/brand/AgentLauncherIcon";
 
 export function WorkbenchLauncherIcon({
   compact = false,
@@ -8,10 +7,10 @@ export function WorkbenchLauncherIcon({
 }: Readonly<{
   compact?: boolean;
   iconKey?: string | null;
-  launcherId?: DesktopTerminalLauncherId;
+  launcherId?: string;
 }>) {
   return (
-    <TerminalLauncherIcon
+    <AgentLauncherIcon
       compact={compact}
       fallback="chat"
       iconKey={iconKey}

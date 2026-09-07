@@ -1,7 +1,7 @@
 import { AlertCircle, RefreshCw, X } from "lucide-react";
 import { useLocalization } from "@puppyone/localization/react";
 import { DesktopMenuIconButton } from "../../../../components/DesktopMenu";
-import type { AuxiliaryWorkbenchCreationFailure } from "../useAuxiliaryWorkbenchContributions";
+import type { AuxiliaryWorkbenchCreationFailure } from "../types";
 
 export function AuxiliaryWorkbenchCreationFailure({
   failure,

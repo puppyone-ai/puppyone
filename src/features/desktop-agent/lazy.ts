@@ -3,11 +3,6 @@ import { parseAgentChatHistoryTarget } from "./domain/agent-chat-history-target"
 export { isDesktopAgentChatEnabled } from "./featureGate";
 export { resolveAgentWorkspaceProviderPath } from "./domain/agent-workspace-path";
 
-/** Public lazy entrypoint for the experimental Agent Chat renderer. */
-export function loadRightAgentPanel() {
-  return import("./ui/RightAgentPanel").then(({ RightAgentPanel }) => ({ default: RightAgentPanel }));
-}
-
 let workbenchItemModule: ReturnType<typeof importAgentChatWorkbenchItem> | null = null;
 let resolvedWorkbenchItemModule: Awaited<ReturnType<typeof importAgentChatWorkbenchItem>> | null = null;
 
@@ -25,24 +20,22 @@ export function loadAgentChatHistoryBrowser() {
 
 export async function prepareAgentChatWorkbenchItem(context: AuxiliaryWorkbenchPreparationContext) {
   const module = await getAgentChatWorkbenchItemModule();
-  context.project?.assertOpen();
+  context.project.assertOpen();
   if (context.historyTarget) {
     const target = parseAgentChatHistoryTarget(context.historyTarget);
     if (!target) throw new Error("Invalid Agent chat history target.");
     await module.restoreAgentChatWorkbenchItem(
-      context.item.rootId,
+      context.project,
       context.item.id,
       target.sessionId,
       target.runtimeId,
-      context.project,
     );
     return;
   }
   await module.prepareAgentChatWorkbenchItem(
-    context.item.rootId,
+    context.project,
     context.item.id,
     context.recipe?.id ?? null,
-    context.project,
   );
 }
 
@@ -50,15 +43,14 @@ export async function discardPreparedAgentChatWorkbenchItem(
   context: AuxiliaryWorkbenchPreparationContext,
 ) {
   await resolvedWorkbenchItemModule?.discardPreparedAgentChatWorkbenchItem(
-    context.item.rootId,
-    context.item.id,
     context.project,
+    context.item.id,
   );
 }
 
-export async function closeAgentChatWorkbenchItem(rootId: string, itemId: string, project?: AuxiliaryWorkbenchProject) {
+export async function closeAgentChatWorkbenchItem(project: AuxiliaryWorkbenchProject, itemId: string) {
   const module = await getAgentChatWorkbenchItemModule();
-  return module.requestCloseAgentChatWorkbenchItem(rootId, itemId, project);
+  return module.requestCloseAgentChatWorkbenchItem(project, itemId);
 }
 
 function getAgentChatWorkbenchItemModule() {

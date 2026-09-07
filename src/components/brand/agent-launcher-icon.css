@@ -1,3 +1,4 @@
+/* Shared Agent/Terminal launcher identity, independent of feature runtimes. */
 .desktop-terminal-launcher-icon {
   display: grid;
   width: 18px;

@@ -3,9 +3,8 @@ import {
   type AuxiliaryWorkbenchAction, type AuxiliaryWorkbenchItem, type AuxiliaryWorkbenchState,
 } from "@puppyone/shared-ui";
 import type { ProjectSessionContext } from "../../../../shared/project-session-contract/types";
-import type { AuxiliaryWorkbenchCreationFailure } from "./useAuxiliaryWorkbenchContributions";
 import type {
-  AuxiliaryWorkbenchContribution, AuxiliaryWorkbenchCreationRecipe, AuxiliaryWorkbenchHistoryTarget,
+  AuxiliaryWorkbenchContribution, AuxiliaryWorkbenchCreationRecipe, AuxiliaryWorkbenchHistoryTarget, AuxiliaryWorkbenchCreationFailure,
   AuxiliaryWorkbenchItemSnapshot, AuxiliaryWorkbenchPreparationContext, AuxiliaryWorkbenchProject,
 } from "./types";
 

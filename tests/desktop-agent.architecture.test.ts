@@ -2,8 +2,8 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 describe("Desktop Agent architecture boundaries", () => {
-  it("keeps RightAgentPanel as composition and the controller framework independent", () => {
-    const panel = source("src/features/desktop-agent/ui/RightAgentPanel.tsx");
+  it("composes Chat Items through the project and keeps the controller framework independent", () => {
+    const panel = source("src/features/desktop-agent/workbench/AgentChatWorkbenchItem.tsx");
     const tabPanel = source("src/features/desktop-agent/ui/AgentChatTabPanel.tsx");
     const workbenchItem = source(
       "src/features/desktop-agent/workbench/AgentChatWorkbenchItem.tsx",
@@ -13,11 +13,11 @@ describe("Desktop Agent architecture boundaries", () => {
     const preparer = source("src/features/desktop-agent/application/AgentSessionPreparer.ts");
     expect(panel.split("\n").length).toBeLessThan(230);
     expect(panel).not.toMatch(/useState|bufferedEvents|replayInFlight|applyAgentEvent/);
-    expect(panel).toContain("<AgentSessionTabs");
+    expect(panel).toContain("projectAgentControllers(project).get(item.id)");
     expect(panel).toContain("<AgentChatTabPanel");
     expect(tabPanel).toContain("<AgentPanelLayout");
-    expect(tabPanel).toContain("const presented = presentedProp ?? active");
-    expect(tabPanel).toContain("const commandTarget = commandTargetProp ?? active");
+    expect(tabPanel).toContain("presented: boolean");
+    expect(tabPanel).toContain("commandTarget: boolean");
     expect(tabPanel).toContain("active: commandTarget, controller");
     expect(workbenchItem).toContain("commandTarget={presentation.commandTarget}");
     expect(workbenchItem).toContain("presented={presentation.presented}");
@@ -238,7 +238,7 @@ describe("Desktop Agent architecture boundaries", () => {
   it("separates History queries, prepared-session ownership, and optional Harness History operations", () => {
     const browser = source("src/features/desktop-agent/workbench/AgentChatHistoryBrowser.tsx");
     const historyController = source("src/features/desktop-agent/application/ConversationHistoryController.ts");
-    const registry = source("src/features/desktop-agent/application/controllerRegistry.ts");
+    const registry = source("src/features/desktop-agent/application/AgentControllerRegistry.ts");
     const historyPort = source("electron/main/agent/runtime/agent-session-history-port.mjs");
     const indexer = source("electron/main/agent/application/history/native-conversation-indexer.mjs");
     const lifecycle = source("electron/main/agent/application/session/agent-session-lifecycle.mjs");
@@ -260,7 +260,7 @@ describe("Desktop Agent architecture boundaries", () => {
   it("keeps native transport internals out of Renderer", () => {
     const preload = source("electron/preload.cjs");
     const renderer = [
-      source("src/features/desktop-agent/ui/RightAgentPanel.tsx"),
+      source("src/features/desktop-agent/workbench/AgentChatWorkbenchItem.tsx"),
       source("src/features/desktop-agent/application/AgentSessionController.ts"),
       source("src/features/desktop-agent/agentTypes.ts"),
     ].join("\n");

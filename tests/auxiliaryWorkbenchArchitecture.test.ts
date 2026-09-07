@@ -68,13 +68,13 @@ describe("Project-owned auxiliary workbench architecture", () => {
   it("keeps feature branding in the generic Item snapshot and Workbench chrome", () => {
     const contract = source("src/features/app-shell/auxiliary-workbench/types.ts");
     const status = source(
-      "src/features/desktop-terminal/workbench/TerminalWorkbenchStatus.tsx",
+      "src/features/app-shell/auxiliary-workbench/layout/AuxiliaryWorkbenchStatus.tsx",
     );
     const workbenchIcon = source(
-      "src/features/desktop-terminal/ui/WorkbenchLauncherIcon.tsx",
+      "src/features/app-shell/auxiliary-workbench/layout/WorkbenchLauncherIcon.tsx",
     );
     const launcherIcon = source(
-      "src/features/desktop-terminal/ui/TerminalLauncherIcon.tsx",
+      "src/components/brand/AgentLauncherIcon.tsx",
     );
     expect(contract).toContain("iconKey: string | null");
     expect(status).toContain(

@@ -28,7 +28,7 @@ describe("semantic navigation cursor contract", () => {
     const agentLauncher = source("src/features/desktop-agent/ui/AgentRuntimeLauncher.tsx");
     const agentHistory = source("src/features/desktop-agent/ui/AgentConversationHistory.tsx");
     const historyPermission = source("src/features/desktop-agent/workbench/AgentChatHistoryBrowser.tsx");
-    const tabs = source("src/features/desktop-agent/ui/AgentSessionTabs.tsx");
+    const tabs = source("src/features/app-shell/auxiliary-workbench/layout/AuxiliaryWorkbenchTab.tsx");
 
     expect(shellNavigation).toContain("data-navigation-item={item.view}");
     expect(shellNavigation).toContain('data-navigation-item="settings"');
@@ -36,7 +36,7 @@ describe("semantic navigation cursor contract", () => {
     expect(agentLauncher).toContain('data-po-interaction="navigation"');
     expect(agentHistory.match(/data-po-interaction="navigation"/g)).toHaveLength(2);
     expect(historyPermission).toContain('data-po-interaction="navigation"');
-    expect(tabs).toContain('data-po-interaction="navigation"');
+    expect(tabs).toContain('role="tab"');
   });
 
   it("marks document-reference actions while preserving editable text cursors", () => {

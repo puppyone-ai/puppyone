@@ -17,7 +17,7 @@ import {
   type DesktopTerminalLauncherId,
 } from "../model/terminalLaunchers";
 import { TerminalActivityGrid } from "./TerminalActivityGrid";
-import { WorkbenchLauncherIcon } from "./WorkbenchLauncherIcon";
+import { WorkbenchLauncherIcon } from "../../app-shell/auxiliary-workbench/layout/WorkbenchLauncherIcon";
 import "./terminal-launcher.css";
 
 export type TerminalLauncherAgentMode = "chat" | "terminal";

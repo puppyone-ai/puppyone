@@ -5,7 +5,6 @@
  */
 @import "./styles/theme.css" layer(features);
 @import "./styles/foundation.css" layer(features);
-@import "./styles/tabs.css" layer(features);
 @import "./styles/launcher.css" layer(features);
 @import "./styles/transcript.css" layer(features);
 @import "./styles/activities.css" layer(features);

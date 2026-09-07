@@ -6,7 +6,6 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AuxiliaryWorkbenchHistoryTarget } from "../src/features/app-shell/auxiliary-workbench/types";
-import { clearAgentControllerRegistryForTests } from "../src/features/desktop-agent/application/controllerRegistry";
 import {
   AGENT_HISTORY_CATALOG_TIMEOUT_MS,
   AGENT_HISTORY_RUNTIME_TIMEOUT_MS,
@@ -22,7 +21,6 @@ let root: Root | null = null;
 afterEach(() => {
   act(() => root?.unmount());
   vi.useRealTimers();
-  clearAgentControllerRegistryForTests();
   root = null;
   document.body.replaceChildren();
   delete (window as Window & { puppyoneDesktop?: unknown }).puppyoneDesktop;

@@ -17,7 +17,7 @@ import { useWorkbenchSessionHeaderLayout } from "./useWorkbenchSessionHeaderLayo
 import type { AuxiliaryWorkbenchHeaderItem } from "./AuxiliaryWorkbenchHeader.types";
 import { AuxiliaryWorkbenchOverflowMenu } from "./AuxiliaryWorkbenchOverflowMenu";
 import { AuxiliaryWorkbenchTab } from "./AuxiliaryWorkbenchTab";
-import "../../../desktop-terminal/ui/session-header/terminal-session-header.css";
+import "./auxiliary-workbench-header.css";
 
 type AuxiliaryWorkbenchHeaderProps = Readonly<{
   activeItemId: string | null;

@@ -399,3 +399,4 @@
     transition: none;
   }
 }
+/* Shared Workbench tab chrome. Selectors remain stable for theme overrides. */

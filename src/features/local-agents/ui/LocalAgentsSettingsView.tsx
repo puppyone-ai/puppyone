@@ -5,7 +5,7 @@ import type { LocalAgentsSettings } from "../../../preferences";
 import { AGENT_CHAT_LOCAL_AGENT_IDS } from "../../app-shell/auxiliary-workbench/agentChatCreationRecipes";
 import { useTerminalAgentLocator } from "../../desktop-terminal/controller/useTerminalAgentLocator";
 import { DESKTOP_TERMINAL_LAUNCHERS } from "../../desktop-terminal/model/terminalLaunchers";
-import { TerminalLauncherIcon } from "../../desktop-terminal/ui/TerminalLauncherIcon";
+import { AgentLauncherIcon } from "../../../components/brand/AgentLauncherIcon";
 import { SettingsSectionHeader } from "../../settings/components";
 import {
   isTerminalAgentVisible,
@@ -78,7 +78,7 @@ export function LocalAgentsSettingsView({
                       key={launcher.id}
                     >
                       <span className="desktop-local-agent-identity">
-                        <TerminalLauncherIcon launcherId={launcher.id} />
+                        <AgentLauncherIcon launcherId={launcher.id} />
                         <span className="desktop-local-agent-row-copy">
                           <span className="desktop-local-agent-name">{displayName}</span>
                         </span>

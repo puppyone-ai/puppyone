@@ -6,27 +6,28 @@ import React from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { RightAgentPanel } from "../src/features/desktop-agent";
-import {
-  clearAgentControllerRegistryForTests,
-  getAgentSessionController,
-} from "../src/features/desktop-agent/application/controllerRegistry";
+import { AuxiliaryWorkbenchPanel } from "../src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchPanel";
+import { ProjectWorkbenchStore } from "../src/features/app-shell/auxiliary-workbench/ProjectWorkbenchStore";
+import type { AuxiliaryWorkbenchContribution } from "../src/features/app-shell/auxiliary-workbench/types";
+import { AgentChatWorkbenchItem, requestCloseAgentChatWorkbenchItem } from "../src/features/desktop-agent/workbench/AgentChatWorkbenchItem";
+import { projectAgentControllers } from "../src/features/desktop-agent/workbench/projectAgentControllers";
 import type { AgentEvent, AgentSessionSnapshot } from "../src/features/desktop-agent/agentTypes";
 import { stripBidiIsolation, withTestLocalization } from "./testLocalization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 let root: Root | null = null;
+let project: ProjectWorkbenchStore;
 
 afterEach(() => {
   act(() => root?.unmount());
-  clearAgentControllerRegistryForTests();
+  project?.dispose();
   root = null;
   delete (window as Window & { puppyoneDesktop?: unknown }).puppyoneDesktop;
   document.body.innerHTML = "";
 });
 
-describe("Desktop Agent panel lifecycle", () => {
+describe("Project-owned Agent Chat Workbench lifecycle", () => {
   it("keeps history out of the runtime chooser so choosing an Agent always starts a new chat", async () => {
     const harness = createBridgeHarness();
     const codex = {
@@ -106,6 +107,7 @@ describe("Desktop Agent panel lifecycle", () => {
 
     const launcher = container.querySelector(".desktop-agent-runtime-launcher") as HTMLElement;
     expect(harness.bridge.discoverAgentProviders).toHaveBeenNthCalledWith(1, {
+      projectContext: project.context,
       rootPath: "/workspace",
       runtimeId: null,
       refresh: false,
@@ -124,6 +126,7 @@ describe("Desktop Agent panel lifecycle", () => {
     await flushEffects();
     await flushEffects();
     expect(harness.bridge.discoverAgentProviders).toHaveBeenLastCalledWith({
+      projectContext: project.context,
       rootPath: "/workspace",
       runtimeId: "claude",
       refresh: false,
@@ -173,8 +176,8 @@ describe("Desktop Agent panel lifecycle", () => {
     await flushEffects();
 
     const panel = activeTabPanel(container);
-    const tabId = panel.id.replace("desktop-agent-panel-", "");
-    const controller = getAgentSessionController("/workspace", () => null, tabId);
+    const tabId = panel.dataset.terminalSessionPaneId!;
+    const controller = projectAgentControllers(project).get(tabId);
     const emptyOverlay = panel.querySelector(".desktop-agent-conversation-overlay");
     expect(panel.querySelector(".desktop-agent-empty-state")).not.toBeNull();
     expect(panel.querySelector(".desktop-agent-empty-state")?.closest(".desktop-agent-conversation-overlay")).not.toBeNull();
@@ -197,14 +200,10 @@ describe("Desktop Agent panel lifecycle", () => {
     expect(stripBidiIsolation(container.textContent)).toContain("OpenCode stopped unexpectedly");
     expect(container.querySelector(".cm-content")?.getAttribute("aria-disabled")).toBe("false");
     expect((container.querySelector('button[aria-label="Send message"]') as HTMLButtonElement).disabled).toBe(true);
-    expect(container.querySelector(".desktop-agent-tab-status.is-provider-exited")).not.toBeNull();
-
-    const newTabButton = container.querySelector<HTMLButtonElement>('button[aria-label="New chat tab"]');
-    expect(newTabButton).not.toBeNull();
-    act(() => newTabButton?.click());
+    await createChat();
     await flushEffects();
     expect(container.querySelectorAll('[role="tab"]')).toHaveLength(2);
-    expect(container.querySelectorAll('[role="tabpanel"]')).toHaveLength(2);
+    expect(project.getSnapshot().topology.items).toHaveLength(2);
     expect(harness.bridge.closeAgentSession).not.toHaveBeenCalled();
   });
 
@@ -228,7 +227,7 @@ describe("Desktop Agent panel lifecycle", () => {
     expect(activeTabPanel(container).querySelector(".desktop-agent-header-region")).toBeNull();
     expect(activeTabPanel(container).querySelector(".cm-content")).not.toBeNull();
 
-    act(() => container.querySelector<HTMLButtonElement>('button[aria-label="New chat tab"]')?.click());
+    await createChat();
     await flushEffects();
     const tabs = container.querySelectorAll<HTMLButtonElement>('[role="tab"]');
     expect(tabs).toHaveLength(2);
@@ -255,7 +254,7 @@ describe("Desktop Agent panel lifecycle", () => {
     const harness = createBridgeHarness();
     const container = renderPanel(harness.bridge);
     await flushEffects();
-    act(() => container.querySelector<HTMLButtonElement>('button[aria-label="New chat tab"]')?.click());
+    await createChat();
     await flushEffects();
     expect(container.querySelectorAll('[role="tab"]')).toHaveLength(2);
 
@@ -265,7 +264,7 @@ describe("Desktop Agent panel lifecycle", () => {
     await flushEffects();
 
     expect(container.querySelectorAll('[role="tab"]')).toHaveLength(2);
-    expect(container.querySelectorAll('[role="tabpanel"]')).toHaveLength(2);
+    expect(project.getSnapshot().topology.items).toHaveLength(2);
   });
 
   it("owns incompatible-engine recovery instead of asking users to update OpenCode", async () => {
@@ -348,6 +347,8 @@ function renderPanel(
   preferredRuntimeId: string | null = null,
 ) {
   (window as Window & { puppyoneDesktop?: unknown }).puppyoneDesktop = bridge;
+  project = new ProjectWorkbenchStore({ projectId: "workspace", generation: "open-1", rootPath: "/workspace" });
+  project.dispatch({ type: "create", item: { id: "chat-1", kind: "agent-chat", rootId: "/workspace", contextId: "workspace" }, groupId: "group-1", targetGroupId: null });
   const container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
@@ -356,11 +357,22 @@ function renderPanel(
 }
 
 function renderPanelContent(preferredRuntimeId: string | null = null) {
-  act(() => root?.render(withTestLocalization(React.createElement(RightAgentPanel, {
-    workspace: { id: "workspace", name: "Workspace", path: "/workspace" },
-    active: true,
-    preferredRuntimeId,
+  const contribution: AuxiliaryWorkbenchContribution = {
+    kind: "agent-chat", label: "Chat", createLabel: "New chat", maximumItems: 8,
+    minimumSize: { width: 280, height: 260 },
+    initialSnapshot: { title: "New chat", accessibleLabel: "New chat", detail: null, iconKey: null, status: "idle", running: false, resourceId: null },
+    renderItem: (context) => React.createElement(AgentChatWorkbenchItem, {
+      ...context, hiddenRuntimeIds: [], preferredRuntimeId, preferredRoute: {}, preferredModel: null,
+    }),
+    close: { decide: () => ({ kind: "close" }), commit: ({ project, item }) => requestCloseAgentChatWorkbenchItem(project, item.id) },
+  };
+  act(() => root?.render(withTestLocalization(React.createElement(AuxiliaryWorkbenchPanel, {
+    store: project, contributions: [contribution], active: true, renderLauncher: () => null,
   }))));
+}
+
+async function createChat() {
+  await act(async () => { await project.create("agent-chat", null); });
 }
 
 function activeTabPanel(container: HTMLElement) {

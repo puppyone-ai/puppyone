@@ -20,7 +20,7 @@ import { terminalPanelId, terminalTabId } from "./terminalSessionHeaderIds";
 import type { TerminalSessionHeaderItem } from "./types";
 import { useTerminalSessionHeaderController } from "./useTerminalSessionHeaderController";
 import { useTerminalSessionHeaderLayout } from "./useTerminalSessionHeaderLayout";
-import "./terminal-session-header.css";
+import "../../../app-shell/auxiliary-workbench/layout/auxiliary-workbench-header.css";
 
 type TerminalSessionHeaderProps = {
   activeSessionId: string | null;

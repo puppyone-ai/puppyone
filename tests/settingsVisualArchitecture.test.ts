@@ -43,7 +43,7 @@ describe("settings visual architecture", () => {
     expect(localAgents).toContain('detail={t("settings.localAgents.detail")}');
     expect(localAgents).toContain("useTerminalAgentLocator");
     expect(localAgents).toContain("DESKTOP_TERMINAL_LAUNCHERS");
-    expect(localAgents).toContain("<TerminalLauncherIcon");
+    expect(localAgents).toContain("<AgentLauncherIcon");
     expect(localAgents).toContain("desktop-settings-switch");
     expect(localAgents).toContain("setTerminalAgentVisible");
     expect(localAgents).toContain("<LocalAgentHooksSettingsSection");
@@ -51,7 +51,7 @@ describe("settings visual architecture", () => {
     expect(localAgentHooks).toContain("setAgentActivityEnrollment");
     expect(localAgentHooks).toContain("selectableProviders.map");
     expect(localAgentHooks).toContain("provider.configurable");
-    expect(localAgentHooks).toContain("<TerminalLauncherIcon");
+    expect(localAgentHooks).toContain("<AgentLauncherIcon");
     expect(localAgents).toContain("settings.localAgents.activeChat.title");
     expect(localAgents).toContain("desktop-local-agent-settings-layout");
     expect(localAgents).toContain("desktop-local-agent-group-title");

@@ -15,7 +15,7 @@ import {
   getDesktopTerminalLauncher,
 } from "../src/features/desktop-terminal/model/terminalLaunchers";
 import { TerminalLauncher } from "../src/features/desktop-terminal/ui/TerminalLauncher";
-import { WorkbenchLauncherIcon } from "../src/features/desktop-terminal/ui/WorkbenchLauncherIcon";
+import { WorkbenchLauncherIcon } from "../src/features/app-shell/auxiliary-workbench/layout/WorkbenchLauncherIcon";
 import { withTestLocalization } from "./testLocalization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })

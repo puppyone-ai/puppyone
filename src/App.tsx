@@ -1125,7 +1125,7 @@ function AppContent() {
               }),
             })
           : Object.freeze({ kind: "close" as const }),
-        commit: ({ item, project }) => closeAgentChatWorkbenchItem(item.rootId, item.id, project),
+        commit: ({ item, project }) => closeAgentChatWorkbenchItem(project, item.id),
       }),
     });
   }, [

@@ -32,7 +32,7 @@ export type AuxiliaryWorkbenchItemSnapshot = Readonly<{
 }>;
 
 export type AuxiliaryWorkbenchItemRenderContext = Readonly<{
-  project?: AuxiliaryWorkbenchProject;
+  project: AuxiliaryWorkbenchProject;
   item: AuxiliaryWorkbenchItem;
   presentation: AuxiliaryWorkbenchPresentationState;
   peerSnapshots: ReadonlyMap<string, AuxiliaryWorkbenchItemSnapshot>;
@@ -75,14 +75,22 @@ export type AuxiliaryWorkbenchCreationRecipe = Readonly<{
 }>;
 
 export type AuxiliaryWorkbenchPreparationContext = Readonly<{
-  project?: AuxiliaryWorkbenchProject;
+  project: AuxiliaryWorkbenchProject;
   item: AuxiliaryWorkbenchItem;
   recipe: AuxiliaryWorkbenchCreationRecipe | null;
   historyTarget: AuxiliaryWorkbenchHistoryTarget | null;
 }>;
 
+export type AuxiliaryWorkbenchCreationFailure = Readonly<{
+  kind: string;
+  label: string;
+  code: string | null;
+  detail: string | null;
+  retryable: boolean;
+}>;
+
 export type AuxiliaryWorkbenchCloseContext = Readonly<{
-  project?: AuxiliaryWorkbenchProject;
+  project: AuxiliaryWorkbenchProject;
   item: AuxiliaryWorkbenchItem;
   snapshot: AuxiliaryWorkbenchItemSnapshot;
 }>;

@@ -6,7 +6,7 @@ import type { AgentSessionController } from "../application/AgentSessionControll
 import type { AgentSubmissionStage } from "../application/agent-controller-state";
 import type { AgentPromptReferenceMention } from "../domain/agent-contract";
 import { listAgentRuntimes, listVisibleAgentRuntimes } from "../domain/agent-backend-routing";
-import type { AgentChatTabPresentation } from "../domain/agent-chat-tabs";
+import type { AgentChatTabPresentation } from "../domain/agent-chat-presentation";
 import type { AgentRoutePreference } from "../domain/agent-route-preference";
 import { deriveAgentSessionControls } from "../domain/agent-session-controls";
 import { AgentApprovalDock } from "./AgentApprovalDock";
@@ -26,10 +26,8 @@ import { useAgentRoutingPreferences } from "./useAgentRoutingPreferences";
 import { useAgentSessionPreparation } from "./useAgentSessionPreparation";
 
 type AgentChatTabPanelProps = {
-  /** Compatibility alias for the legacy single-Group Agent panel. */
-  active?: boolean;
-  presented?: boolean;
-  commandTarget?: boolean;
+  presented: boolean;
+  commandTarget: boolean;
   controller: AgentSessionController;
   workspaceId: string;
   onPresentationChange: (presentation: AgentChatTabPresentation) => void;
@@ -45,9 +43,8 @@ type AgentChatTabPanelProps = {
 };
 
 export function AgentChatTabPanel({
-  active = false,
-  presented: presentedProp,
-  commandTarget: commandTargetProp,
+  presented,
+  commandTarget,
   controller,
   workspaceId,
   onPresentationChange,
@@ -61,8 +58,6 @@ export function AgentChatTabPanel({
   hiddenRuntimeIds,
   resolveWorkspaceReference,
 }: AgentChatTabPanelProps) {
-  const presented = presentedProp ?? active;
-  const commandTarget = commandTargetProp ?? active;
   const { t } = useLocalization();
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot);
   const referenceIngestion = useAgentReferenceIngestion({

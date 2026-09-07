@@ -11,10 +11,8 @@ function source(relativePath: string) {
 
 const launcher = source("src/features/desktop-agent/ui/AgentRuntimeLauncher.tsx");
 const launcherCss = source("src/features/desktop-agent/ui/styles/launcher.css");
-const tabs = source("src/features/desktop-agent/ui/AgentSessionTabs.tsx");
-const tabsCss = source("src/features/desktop-agent/ui/styles/tabs.css");
 const terminalLauncherCss = source("src/features/desktop-terminal/ui/terminal-launcher.css");
-const terminalTabsCss = source("src/features/desktop-terminal/ui/session-header/terminal-session-header.css");
+const terminalTabsCss = source("src/features/app-shell/auxiliary-workbench/layout/auxiliary-workbench-header.css");
 
 describe("Desktop Agent and Terminal chrome visual contract", () => {
   it("keeps the in-chat runtime chooser compact and free of global history navigation", () => {
@@ -72,7 +70,7 @@ describe("Desktop Agent and Terminal chrome visual contract", () => {
     expect(terminalLauncherCss).not.toMatch(/scrollbar-(?:width|color)\s*:/);
   });
 
-  it("matches Terminal tab typography and control geometry", () => {
+  it("uses shared tab typography and control geometry for Agent and Terminal", () => {
     expect(terminalTabsCss).toContain("--desktop-terminal-tab-control-height: 28px;");
     expect(terminalTabsCss).toContain("--desktop-terminal-tab-width: 144px;");
     expect(terminalTabsCss).toMatch(
@@ -80,15 +78,5 @@ describe("Desktop Agent and Terminal chrome visual contract", () => {
     );
     expect(terminalTabsCss).toMatch(/\.desktop-terminal-tab-select\s*\{[^}]*font-size:\s*var\(--po-type-header-content, 15px\)[^}]*line-height:\s*var\(--po-type-header-line-height, 20px\)/s);
 
-    expect(tabsCss).toContain("--desktop-agent-tab-control-height: 28px;");
-    expect(tabsCss).toContain("--desktop-agent-tab-width: 144px;");
-    expect(tabsCss).toContain("--desktop-agent-tabs-gap: 3px;");
-    expect(tabsCss).toMatch(/\.desktop-agent-workspace\s*\{[^}]*grid-template-rows:\s*38px minmax\(0, 1fr\)[^}]*font-family:\s*var\(--po-font-sans\)[^}]*font-size:\s*var\(--po-type-header-content, 15px\)/s);
-    expect(tabsCss).toMatch(/\.desktop-agent-tabs-subheader\s*\{[^}]*height:\s*38px[^}]*padding:\s*4px 6px 6px/s);
-    expect(tabsCss).toMatch(/\.desktop-agent-tab-select\s*\{[^}]*grid-template-columns:\s*var\(--desktop-agent-tab-control-height\) minmax\(0, 1fr\)[^}]*font-size:\s*var\(--po-type-header-content, 15px\)[^}]*line-height:\s*var\(--po-type-header-line-height, 20px\)/s);
-    expect(tabsCss).toMatch(/\.desktop-agent-tab \.desktop-agent-brand-mark\s*\{[^}]*width:\s*14px[^}]*height:\s*14px/s);
-    expect(tabsCss).not.toMatch(/\.desktop-agent-tab\s*\{[^}]*height:\s*30px/s);
-    expect(tabs).toContain('className="desktop-agent-tab-leading"');
-    expect(tabs).toContain('size={14}');
   });
 });

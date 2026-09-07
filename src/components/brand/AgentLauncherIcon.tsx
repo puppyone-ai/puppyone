@@ -3,11 +3,10 @@ import {
   AgentBrandImage,
   resolveAgentBrand,
 } from "@puppyone/shared-ui";
-import { PuppyBrandMark } from "../../../components/brand/PuppyBrandMark";
-import type { DesktopTerminalLauncherId } from "../model/terminalLaunchers";
-import "./terminal-launcher-icon.css";
+import { PuppyBrandMark } from "./PuppyBrandMark";
+import "./agent-launcher-icon.css";
 
-export function TerminalLauncherIcon({
+export function AgentLauncherIcon({
   className = "",
   compact = false,
   fallback = "terminal",
@@ -18,7 +17,7 @@ export function TerminalLauncherIcon({
   compact?: boolean;
   fallback?: "chat" | "terminal";
   iconKey?: string | null;
-  launcherId?: DesktopTerminalLauncherId | null;
+  launcherId?: string | null;
 }) {
   const identity = `${launcherId || ""} ${iconKey || ""}`.toLowerCase();
   const puppyone = identity.includes("puppyone");
