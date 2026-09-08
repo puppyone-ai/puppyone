@@ -58,7 +58,10 @@ async function runSmoke() {
 
 async function pollForResult(window) {
   let lastInputId = 0;
-  for (let attempt = 0; attempt < 600; attempt += 1) {
+  // The 27-case matrix measures more than 1,500 real animation frames. A 30s
+  // deadline depends on the host refresh rate and is too short for 60Hz CI.
+  const deadline = Date.now() + 90_000;
+  while (Date.now() < deadline) {
     if (renderProcessFailure) throw new Error(`Agent render smoke renderer exited: ${renderProcessFailure}`);
     const { result, input } = await window.webContents.executeJavaScript(
       "({ result: window.__PUPPYONE_AGENT_RENDER_STABILITY_SMOKE_RESULT__ || null, input: window.__PUPPYONE_AGENT_RENDER_INPUT__ || null })",
@@ -83,10 +86,30 @@ async function pollForResult(window) {
     }
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
-  throw new Error("Agent render stability smoke did not publish a result within 30 seconds.");
+  const progress = await window.webContents.executeJavaScript(
+    "window.__PUPPYONE_AGENT_RENDER_STABILITY_SMOKE_PROGRESS__ || null",
+  );
+  throw new Error(`Agent render stability smoke exceeded 90 seconds; last progress: ${JSON.stringify(progress)}.`);
 }
 
 async function finish(exitCode, error = null) {
+  const artifactRoot = process.env.PUPPYONE_AGENT_RENDER_ARTIFACT_DIR;
+  if (error && artifactRoot && ownerWindow && !ownerWindow.isDestroyed()) {
+    try {
+      await fsp.mkdir(artifactRoot, { recursive: true });
+      const diagnostics = await ownerWindow.webContents.executeJavaScript(`({
+        progress: window.__PUPPYONE_AGENT_RENDER_STABILITY_SMOKE_PROGRESS__ || null,
+        result: window.__PUPPYONE_AGENT_RENDER_STABILITY_SMOKE_RESULT__ || null,
+        visibility: document.visibilityState,
+        readyState: document.readyState,
+        text: document.body.innerText.slice(0, 3000)
+      })`);
+      await fsp.writeFile(path.join(artifactRoot, "failure.json"), JSON.stringify({
+        error: String(error?.stack || error), renderProcessFailure, unresponsive, ...diagnostics,
+      }, null, 2));
+      await fsp.writeFile(path.join(artifactRoot, "failure.png"), (await ownerWindow.webContents.capturePage()).toPNG());
+    } catch (captureError) { console.error("Could not retain Agent smoke failure evidence:", captureError); }
+  }
   if (statusPath) {
     await fsp.writeFile(statusPath, `${JSON.stringify({
       exitCode,

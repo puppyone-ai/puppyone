@@ -24,6 +24,10 @@ export function AgentRenderStabilitySmokeHarness() {
   useEffect(() => {
     let active = true;
     const errors: string[] = [];
+    Object.defineProperty(window, "__PUPPYONE_AGENT_RENDER_STABILITY_SMOKE_PROGRESS__", {
+      configurable: true,
+      get: () => ({ phase: smokePhase }),
+    });
     const onError = (event: ErrorEvent) => errors.push(`${smokePhase}: ${event.message}`);
     const onRejection = (event: PromiseRejectionEvent) => errors.push(String(event.reason));
     window.addEventListener("error", onError);
