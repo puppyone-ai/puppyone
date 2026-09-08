@@ -1,0 +1,71 @@
+{
+  "$schema": "./checks.schema.json",
+  "schemaVersion": 1,
+  "environment": {
+    "VITE_DESKTOP_CLOUD_API_URL": "https://api.puppyone.ai/api/v1",
+    "VITE_DESKTOP_CLOUD_WEB_URL": "https://app.puppyone.ai"
+  },
+  "checks": [
+    {
+      "id": "lint", "name": "Source lint", "group": "source",
+      "command": ["npm", "run", "lint"], "platforms": ["linux", "darwin", "win32"],
+      "dependsOn": [], "timeoutSeconds": 120, "runtime": "node", "artifacts": []
+    },
+    {
+      "id": "updater-p0", "name": "Updater monotonicity P0 and coverage", "group": "source",
+      "command": ["npm", "run", "test:updater-p0:coverage"], "platforms": ["linux", "darwin", "win32"],
+      "dependsOn": [], "timeoutSeconds": 120, "runtime": "node", "artifacts": ["coverage"]
+    },
+    {
+      "id": "tests", "name": "Unit, component and contract tests", "group": "source",
+      "command": ["npm", "test"], "platforms": ["linux", "darwin", "win32"],
+      "dependsOn": [], "timeoutSeconds": 600, "runtime": "node", "artifacts": []
+    },
+    {
+      "id": "markdown-focus", "name": "Markdown pane focus continuity", "group": "app",
+      "command": ["npm", "run", "smoke:markdown-pane-focus-continuity"], "platforms": ["linux", "darwin"],
+      "dependsOn": [], "timeoutSeconds": 120, "runtime": "electron", "artifacts": []
+    },
+    {
+      "id": "build", "name": "Production build, types, architecture and budgets", "group": "app",
+      "command": ["npm", "run", "build"], "platforms": ["linux", "darwin"],
+      "dependsOn": [], "timeoutSeconds": 300, "runtime": "node", "artifacts": ["dist"]
+    },
+    {
+      "id": "agent-viewport", "name": "Agent submission and viewport", "group": "app",
+      "command": ["node", "scripts/run-agent-render-stability-smoke.mjs"], "platforms": ["linux", "darwin"],
+      "dependsOn": ["build"], "timeoutSeconds": 120, "runtime": "electron",
+      "environment": {"PUPPYONE_AGENT_RENDER_ARTIFACT_DIR": "{checkDir}/viewport"},
+      "artifacts": ["{checkDir}/viewport/result.json", "{checkDir}/viewport/render.png"]
+    },
+    {
+      "id": "agent-tools", "name": "Agent tools and failure isolation", "group": "app",
+      "command": ["node", "scripts/run-agent-tool-stability-smoke.mjs"], "platforms": ["linux", "darwin"],
+      "dependsOn": ["build"], "timeoutSeconds": 120, "runtime": "electron",
+      "environment": {"PUPPYONE_AGENT_TOOL_ARTIFACT_DIR": "{checkDir}/tools"},
+      "artifacts": ["{checkDir}/tools/result.json", "{checkDir}/tools/render.png"]
+    },
+    {
+      "id": "project-sessions", "name": "Project sessions and Terminal lifecycle", "group": "app",
+      "command": ["npm", "run", "smoke:terminal-p0"], "platforms": ["linux", "darwin"],
+      "dependsOn": ["build"], "timeoutSeconds": 180, "runtime": "electron", "artifacts": []
+    },
+    {
+      "id": "appearance", "name": "Appearance and typography", "group": "app",
+      "command": ["npm", "run", "smoke:appearance-visual"], "platforms": ["linux", "darwin"],
+      "dependsOn": ["build"], "timeoutSeconds": 180, "runtime": "electron", "artifacts": []
+    },
+    {
+      "id": "auxiliary-appearance", "name": "Auxiliary workbench appearance and startup colors", "group": "app",
+      "command": ["npm", "run", "smoke:auxiliary-appearance"], "platforms": ["linux", "darwin"],
+      "dependsOn": ["build"], "timeoutSeconds": 180, "runtime": "electron",
+      "environment": {"PUPPYONE_AUXILIARY_ARTIFACT_DIR": "{checkDir}/evidence"},
+      "artifacts": ["{checkDir}/evidence/result.json"]
+    },
+    {
+      "id": "platform-contracts", "name": "Native platform contracts", "group": "platform",
+      "command": ["npm", "run", "test:desktop-platform-contracts"], "platforms": ["linux", "darwin", "win32"],
+      "dependsOn": [], "timeoutSeconds": 180, "runtime": "node", "artifacts": []
+    }
+  ]
+}

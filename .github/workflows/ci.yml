@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   resolve-desktop-targets:
     name: Resolve Desktop targets
@@ -51,15 +55,21 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
-      - name: Test target contracts
-        run: npm run test:desktop-platform-contracts
+      - name: Pre-release Checks — platform
+        run: npm run check:release -- --group platform
 
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    env:
-      VITE_DESKTOP_CLOUD_API_URL: https://api.puppyone.ai/api/v1
-      VITE_DESKTOP_CLOUD_WEB_URL: https://app.puppyone.ai
+      - name: Retain pre-release check results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-checks-${{ matrix.id }}
+          path: artifacts/release-checks/
+          retention-days: 7
+
+  source-checks:
+    name: Pre-release Checks (source)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -74,78 +84,63 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint
-        run: npm run lint
+      - name: Pre-release Checks — source
+        run: npm run check:release -- --group source
 
-      - name: Test updater monotonicity P0
-        run: npm run test:updater-p0:coverage
-
-      - name: Test
-        run: npm test
-
-      - name: Test MDI focus continuity in Chromium
-        env:
-          # npm-installed Electron cannot provide a root-owned SUID sandbox on
-          # GitHub-hosted runners. Limit the test-only fallback to this local
-          # fixture instead of weakening the application or the whole CI job.
-          ELECTRON_DISABLE_SANDBOX: "1"
-        run: xvfb-run --auto-servernum npm run smoke:markdown-pane-focus-continuity
-
-      - name: Build
-        run: npm run build
-
-      - name: Install fonts for multilingual renderer fixtures
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes fonts-noto-cjk
-
-      - name: Test Agent submission and viewport in Electron
-        timeout-minutes: 2
-        env:
-          ELECTRON_DISABLE_SANDBOX: "1"
-          PUPPYONE_AGENT_RENDER_ARTIFACT_DIR: artifacts/agent-renderer/viewport
-        run: xvfb-run --auto-servernum node scripts/run-agent-render-stability-smoke.mjs
-
-      - name: Test Agent tool rendering and failure isolation in Electron
-        timeout-minutes: 2
-        env:
-          ELECTRON_DISABLE_SANDBOX: "1"
-          PUPPYONE_AGENT_TOOL_ARTIFACT_DIR: artifacts/agent-renderer/tools
-        run: xvfb-run --auto-servernum node scripts/run-agent-tool-stability-smoke.mjs
-
-      - name: Retain Agent renderer verification evidence
+      - name: Retain pre-release check results
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: agent-renderer-verification
-          path: artifacts/agent-renderer
-          if-no-files-found: ignore
+          name: release-checks-source
+          path: artifacts/release-checks/
           retention-days: 7
 
-      - name: Test project sessions and Terminal lifecycle in Electron
-        timeout-minutes: 3
-        env:
-          ELECTRON_DISABLE_SANDBOX: "1"
-        run: xvfb-run --auto-servernum npm run smoke:terminal-p0
+  app-checks:
+    name: Pre-release Checks (app)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - name: Test representative Appearance matrix in Chromium
-        env:
-          ELECTRON_DISABLE_SANDBOX: "1"
-        run: xvfb-run --auto-servernum npm run smoke:appearance-visual
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
 
-      - name: Test auxiliary workbench appearance and startup colors
-        timeout-minutes: 3
-        env:
-          ELECTRON_DISABLE_SANDBOX: "1"
-          PUPPYONE_AUXILIARY_ARTIFACT_DIR: artifacts/auxiliary-appearance
-        run: xvfb-run --auto-servernum npm run smoke:auxiliary-appearance
+      - name: Install locked dependencies
+        run: npm ci
 
-      - name: Retain auxiliary appearance evidence
+      - name: Prepare Linux display and multilingual fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes xvfb fonts-noto-cjk
+
+      - name: Pre-release Checks — app
+        run: npm run check:release -- --group app
+
+      - name: Retain pre-release check results and renderer evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: auxiliary-appearance
-          path: |
-            artifacts/auxiliary-appearance/*.png
-            artifacts/auxiliary-appearance/*.json
-          if-no-files-found: ignore
+          name: release-checks-app
+          path: artifacts/release-checks/
+          retention-days: 7
+
+  build:
+    # Preserve the protected branch's existing required check name.
+    name: Build
+    if: always()
+    needs: [source-checks, app-checks, platform-contracts]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require every pre-release check group
+        env:
+          SOURCE_RESULT: ${{ needs.source-checks.result }}
+          APP_RESULT: ${{ needs.app-checks.result }}
+          PLATFORM_RESULT: ${{ needs.platform-contracts.result }}
+        run: |
+          test "$SOURCE_RESULT" = success
+          test "$APP_RESULT" = success
+          test "$PLATFORM_RESULT" = success

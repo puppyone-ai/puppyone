@@ -18,6 +18,7 @@
     "gitAutoCommit": false
   },
   "scripts": {
+    "check:release": "node scripts/release-checks/run.mjs",
     "generate:dmg-background": "node scripts/render-dmg-background.mjs",
     "generate:interface-styles": "node scripts/generate-interface-styles.mjs",
     "generate:sub-themes": "node scripts/generate-builtin-sub-themes.mjs",
@@ -148,6 +149,7 @@
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/addon-webgl": "^0.19.0",
     "@xterm/xterm": "^6.0.0",
+    "ajv": "8.20.0",
     "autoprefixer": "^10.5.0",
     "docx-preview": "^0.4.0",
     "electron": "^41.10.3",
