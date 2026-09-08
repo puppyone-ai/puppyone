@@ -449,9 +449,19 @@ describe("Electron AgentService ownership and lifecycle", () => {
       adapter.emit({ type: "provider.warning", payload: { message: `warning ${index}` } });
     }
     const replay = harness.service.replay(owner, { sessionId: snapshot.session.id, afterSequence: 0 });
-    expect(replay.events.length).toBeLessThanOrEqual(1_000);
+    expect(replay.events).toHaveLength(1_000);
     expect(replay.firstAvailableSequence).toBeGreaterThan(1);
-  });
+    expect(replay.events[0].sequence).toBe(replay.firstAvailableSequence);
+    expect(replay.events.at(-1)).toMatchObject({
+      type: "provider.warning",
+      payload: { message: "warning 1099" },
+    });
+    expect(replay.events.every((event, index) => (
+      event.sequence === replay.firstAvailableSequence + index
+    ))).toBe(true);
+    // This exercises 1,100 complete production display commits, not a latency
+    // budget. Shared CI CPUs need headroom beyond Vitest's default five seconds.
+  }, 20_000);
 
   it("deduplicates blocking requests replayed during runtime reconciliation", async () => {
     const harness = createServiceHarness();
