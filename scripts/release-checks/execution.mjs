@@ -165,13 +165,16 @@ export async function runChecks(manifest, {
       const artifacts = [];
       for (const artifact of check.artifacts) {
         const artifactPath = path.resolve(repositoryRoot, expand(artifact));
-        artifacts.push({ path: artifactPath, exists: await access(artifactPath).then(() => true, () => false) });
+        const base = artifact.includes("{checkDir}") ? "run" : "repository";
+        artifacts.push({ base,
+          path: path.relative(base === "run" ? runDirectory : repositoryRoot, artifactPath).split(path.sep).join("/"),
+          exists: await access(artifactPath).then(() => true, () => false) });
       }
       if (result.status === "passed" && artifacts.some((artifact) => !artifact.exists)) {
         result = { ...result, status: "failed", message: "A declared check artifact was not produced." };
       }
       const entry = { id: check.id, name: check.name, command: check.command, ...result, artifacts,
-        logPath: path.join(checkDir, "output.log"), resultPath: path.join(checkDir, "result.json") };
+        logPath: `${check.id}/output.log`, resultPath: `${check.id}/result.json` };
       report.checks[resultIndex] = entry;
       await writeFile(path.join(checkDir, "result.json"), `${JSON.stringify(entry, null, 2)}\n`);
       await save();

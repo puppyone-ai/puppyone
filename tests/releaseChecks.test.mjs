@@ -64,6 +64,7 @@ describe("pre-release execution and evidence", () => {
     expect(result.exitCode).toBe(1);
     expect(result.report.checks.map((entry) => entry.status)).toEqual(["failed", "blocked", "passed"]);
     expect(JSON.parse(await readFile(result.reportPath, "utf8")).source.commit).toBe("test-commit");
+    expect(result.report.checks[0].logPath).toBe("build/output.log");
     expect(await access(path.join(root, "artifacts/release-checks/.lock")).then(() => true, () => false)).toBe(false);
   });
 
@@ -99,6 +100,7 @@ describe("pre-release execution and evidence", () => {
     });
     expect(result.exitCode).toBe(1);
     expect(result.report.checks[0].message).toContain("artifact");
+    expect(result.report.checks[0].artifacts).toEqual([{ base: "run", path: "a/missing.json", exists: false }]);
   });
 
   it("does not overwrite or adopt another invocation's lock", async () => {
