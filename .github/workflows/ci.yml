@@ -126,3 +126,9 @@ jobs:
         env:
           ELECTRON_DISABLE_SANDBOX: "1"
         run: xvfb-run --auto-servernum npm run smoke:appearance-visual
+
+      - name: Test project-owned sessions in Electron
+        timeout-minutes: 3
+        env:
+          ELECTRON_DISABLE_SANDBOX: "1"
+        run: xvfb-run --auto-servernum node_modules/.bin/electron scripts/smoke-project-sessions.mjs
