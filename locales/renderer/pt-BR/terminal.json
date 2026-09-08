@@ -1,4 +1,5 @@
 {
+  "dropFailed": "Não foi possível inserir os caminhos. Verifique se os arquivos estão disponíveis e o terminal está em execução.",
   "title": "Terminal",
   "actions": "Ações do terminal",
   "new": "Novo terminal",

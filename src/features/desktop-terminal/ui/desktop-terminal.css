@@ -37,7 +37,8 @@
   background: color-mix(in srgb, var(--po-terminal-bg) 94%, var(--po-danger));
   box-shadow: 0 6px 18px color-mix(in srgb, #000 20%, transparent);
   color: var(--po-text);
-  font-size: 12px;
+  font-size: var(--po-type-right-sidebar-meta, 13px);
+  line-height: var(--po-type-right-sidebar-meta-line-height, 19px);
   inset-block-start: 46px;
   inset-inline: 8px;
 }
@@ -50,6 +51,24 @@
 .desktop-terminal-workbench-create-failure > span {
   min-width: 0;
   flex: 1 1 auto;
+}
+
+.desktop-terminal-workbench-create-retry {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border: 1px solid var(--po-divider);
+  border-radius: 4px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  cursor: var(--po-action-cursor, default);
+}
+
+.desktop-terminal-workbench-create-retry:hover {
+  background: var(--po-hover);
 }
 
 .desktop-terminal-group-viewport,
@@ -232,6 +251,7 @@
 }
 
 .desktop-terminal-session {
+  position: relative;
   box-sizing: border-box;
   display: block;
   grid-area: 1 / 1;
@@ -248,6 +268,19 @@
 .desktop-terminal-session.is-presented {
   visibility: visible;
   pointer-events: auto;
+}
+
+.desktop-terminal-drop-error {
+  position: absolute;
+  z-index: 1;
+  inset: 8px 12px auto;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--po-terminal-bg);
+  color: var(--po-terminal-fg);
+  border: 1px solid var(--po-border);
+  font-size: var(--po-type-right-sidebar-caption, 12px);
+  line-height: var(--po-type-right-sidebar-caption-line-height, 17px);
 }
 
 .desktop-terminal-session:not(.is-ready) .desktop-terminal-xterm {
@@ -672,14 +705,17 @@
 
 .desktop-terminal-split-smoke-session span {
   color: var(--po-text-muted);
-  font-size: 11px;
+  font-size: var(--po-type-right-sidebar-caption, 12px);
+  line-height: var(--po-type-right-sidebar-caption-line-height, 17px);
 }
 
 .desktop-terminal-split-smoke-output {
   width: min(920px, calc(100vw - 48px));
   overflow: hidden;
   color: var(--po-text-muted);
-  font: 11px/16px var(--po-font-mono);
+  font-family: var(--po-font-mono);
+  font-size: var(--po-type-right-sidebar-caption, 12px);
+  line-height: var(--po-type-right-sidebar-caption-line-height, 17px);
   text-overflow: ellipsis;
   white-space: nowrap;
 }

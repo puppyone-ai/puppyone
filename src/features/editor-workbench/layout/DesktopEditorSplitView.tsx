@@ -15,6 +15,7 @@ import {
   type DataNode,
   type DataPort,
   type DocumentDataNode,
+  type DocumentNavigationPort,
   type EditorGroupState,
   type EditorFindCommand,
   type EditorInteractionPreferences,
@@ -60,6 +61,7 @@ export type DesktopEditorSplitViewProps = Readonly<{
   layout: EditorPaneLayoutState;
   editorTree: readonly DataNode[];
   markdownEnvironment: MarkdownWorkspaceEnvironment;
+  documentNavigation: DocumentNavigationPort;
   refreshKey?: WorkspaceContentChange;
   viewerExtensionAdapter?: ViewerExtensionHostAdapter | null;
   workspace: Workspace;
@@ -101,6 +103,7 @@ export function DesktopEditorSplitView({
   layout,
   editorTree,
   markdownEnvironment,
+  documentNavigation,
   refreshKey,
   viewerExtensionAdapter = null,
   workspace,
@@ -160,6 +163,7 @@ export function DesktopEditorSplitView({
           paneMove={paneMove}
           openActionsPaneId={openActionsPaneId}
           markdownEnvironment={markdownEnvironment}
+          documentNavigation={documentNavigation}
           refreshKey={refreshKey}
           viewerExtensionAdapter={viewerExtensionAdapter}
           workspace={workspace}
@@ -254,6 +258,7 @@ type EditorPaneProps = Readonly<{
   paneMove: PaneMoveDragController;
   openActionsPaneId: string | null;
   markdownEnvironment: MarkdownWorkspaceEnvironment;
+  documentNavigation: DocumentNavigationPort;
   refreshKey?: WorkspaceContentChange;
   viewerExtensionAdapter?: ViewerExtensionHostAdapter | null;
   workspace: Workspace;
@@ -279,6 +284,7 @@ function EditorPane({
   paneMove,
   openActionsPaneId,
   markdownEnvironment,
+  documentNavigation,
   refreshKey,
   viewerExtensionAdapter,
   workspace,
@@ -354,6 +360,7 @@ function EditorPane({
           editorInteractionPreferences={editorInteractionPreferences}
           fileIconTheme={fileIconTheme}
           markdownEnvironment={markdownEnvironment}
+          documentNavigation={documentNavigation}
           refreshKey={refreshKey}
           treeNode={treeNode}
           viewerExtensionAdapter={viewerExtensionAdapter}

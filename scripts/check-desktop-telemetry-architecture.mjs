@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   DESKTOP_TELEMETRY_DAILY_ACTIVE_EVENT,
+  DESKTOP_TELEMETRY_FIRST_RUN_EVENT,
   DESKTOP_TELEMETRY_LEVELS,
   getDesktopTelemetryDisclosure,
 } from "../shared/desktop-telemetry-contract.mjs";
@@ -20,17 +21,21 @@ if (DESKTOP_TELEMETRY_LEVELS.join(",") !== "off,basic") {
 
 const disclosure = getDesktopTelemetryDisclosure();
 if (
-  disclosure.events.length !== 1
-  || disclosure.events[0]?.name !== DESKTOP_TELEMETRY_DAILY_ACTIVE_EVENT
+  disclosure.events.length !== 2
+  || disclosure.events[0]?.name !== DESKTOP_TELEMETRY_FIRST_RUN_EVENT
+  || disclosure.events[1]?.name !== DESKTOP_TELEMETRY_DAILY_ACTIVE_EVENT
 ) {
-  errors.push("the basic level must disclose exactly one daily-active event");
+  errors.push("the basic level must disclose exactly one first-run and one daily-active event");
 }
-if (
-  !disclosure.events[0]?.fields.includes("activity_day")
-  || disclosure.events[0]?.fields.includes("occurred_at")
-  || disclosure.events[0]?.fields.includes("properties.channel")
-) {
-  errors.push("the public event must expose only a calendar activity day and must not expose time-of-day or build channel");
+for (const event of disclosure.events) {
+  if (
+    !event?.fields.includes("activity_day")
+    || !event?.fields.includes("retention_id")
+    || event?.fields.includes("occurred_at")
+    || event?.fields.includes("properties.channel")
+  ) {
+    errors.push("public events must disclose the bounded retention ID and calendar day without time-of-day or build channel");
+  }
 }
 
 if (DESKTOP_STABLE_TELEMETRY_INGEST_URL !== null) {
@@ -69,6 +74,14 @@ requireSource(serviceSource, 'preference.level === "off"', "the application serv
 requireSource(serviceSource, "notice_seen_version", "the current product notice must gate telemetry delivery");
 requireSource(serviceSource, "await queueStore.clear()", "switching off must delete queued events");
 requireSource(serviceSource, "await identityStore.clear()", "switching off must delete the local identity secret");
+requireSource(serviceSource, "createDesktopFirstRunEvent", "the application service must own the bounded first-run signal");
+requireSource(serviceSource, "neutralizeTelemetryLifecycle", "opt-out and identity reset must not create false new-install cohorts");
+
+const identitySource = await readText("electron/main/telemetry/infrastructure/telemetry-identity-store.mjs");
+requireSource(identitySource, 'deriveAnonymousId("m1"', "daily activity must keep its calendar-month identifier");
+requireSource(identitySource, 'deriveAnonymousId("r1"', "retention must use a separate scoped identifier");
+const lifecycleSource = await readText("electron/main/telemetry/infrastructure/telemetry-lifecycle-store.mjs");
+requireSource(lifecycleSource, 'cohort_status: fresh ? "fresh" : "baseline"', "first-run eligibility must be persisted independently from identity");
 
 const transportSource = await readText("electron/main/telemetry/infrastructure/telemetry-http-transport.mjs");
 requireSource(transportSource, 'credentials: "omit"', "telemetry requests must omit application and browser credentials");
@@ -90,6 +103,10 @@ requireSource(edgeSource, "parseDesktopTelemetryRequest", "the Cloudflare Worker
 requireSource(edgeSource, "INGEST_RATE_LIMITER", "the Cloudflare Worker must enforce a bounded ingest rate");
 requireSource(edgeSource, "telemetry_daily_active", "D1 must maintain the exact daily active set");
 requireSource(edgeSource, "telemetry_monthly_active", "D1 must maintain the exact calendar-month active set");
+requireSource(edgeSource, "telemetry_first_runs", "D1 must maintain the anonymous first-run cohort set");
+requireSource(edgeSource, "telemetry_retention_daily_active", "D1 must maintain bounded retention activity detail");
+requireSource(edgeSource, "telemetry_retention_rollups", "D1 must persist lifecycle-week retention aggregates");
+requireSource(edgeSource, "RETENTION_DETAIL_RETENTION_DAYS = 100", "raw retention identifiers must be bounded to 100 days");
 requireSource(edgeSource, 'mode === "discard"', "the edge must retain an emergency privacy discard mode");
 for (const forbidden of ["cf-connecting-ip", "x-forwarded-for", "user-agent", "console.log", "console.error"]) {
   if (edgeSource.toLowerCase().includes(forbidden)) {
@@ -97,9 +114,14 @@ for (const forbidden of ["cf-connecting-ip", "x-forwarded-for", "user-agent", "c
   }
 }
 
-const migrationSource = await readText("cloudflare/desktop-telemetry/migrations/0001_initial.sql");
+const migrationSource = [
+  await readText("cloudflare/desktop-telemetry/migrations/0001_initial.sql"),
+  await readText("cloudflare/desktop-telemetry/migrations/0002_first_run_retention.sql"),
+].join("\n");
 requireSource(migrationSource, "PRIMARY KEY (activity_day, anonymous_id)", "D1 must deduplicate daily activity exactly");
 requireSource(migrationSource, "PRIMARY KEY (activity_month, anonymous_id)", "D1 must deduplicate calendar-month activity exactly");
+requireSource(migrationSource, "PRIMARY KEY (activity_day, retention_id)", "D1 must deduplicate retention activity exactly");
+requireSource(migrationSource, "PRIMARY KEY (cohort_day, retention_week)", "D1 must deduplicate retention aggregates exactly");
 if (/ip_address|user_agent|email|account|workspace|repository/i.test(migrationSource)) {
   errors.push("the telemetry D1 schema must not add network, account, or workspace identifiers");
 }
@@ -117,9 +139,13 @@ if (DESKTOP_STABLE_TELEMETRY_INGEST_URL !== null && !/"TELEMETRY_MODE"\s*:\s*"ac
 const publicTelemetrySource = await readText("src/features/telemetry/publicDisclosure.ts");
 requireSource(
   publicTelemetrySource,
-  "https://github.com/puppyone-ai/puppy-issues/blob/main/document/puppyone-desktop/privacy/telemetry-disclosure.md",
-  "the product must link to the governed public telemetry disclosure",
+  "https://github.com/puppyone-ai/puppyone-desktop/blob/main/README.md#privacy",
+  "the product must link to the disclosure in the public Desktop repository",
 );
+const publicReadme = await readText("README.md");
+for (const term of ["## Privacy", "desktop_first_run", "desktop_daily_active", "100 days", "Settings → Privacy", "shared/desktop-telemetry-contract.mjs"]) {
+  requireSource(publicReadme, term, `the public disclosure must include ${term}`);
+}
 
 const ipcSource = await readText("electron/main/ipc/telemetry-ipc.mjs");
 const registeredChannels = [...ipcSource.matchAll(/ipcMain\.handle\("([^"]+)"/g)].map((match) => match[1]);

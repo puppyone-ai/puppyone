@@ -81,7 +81,7 @@
 
 .desktop-cloud-settings-tabs button {
   display: inline-flex;
-  height: 28px;
+  height: var(--po-control-size-compact);
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
@@ -91,11 +91,11 @@
   background: transparent;
   color: var(--po-text-muted);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   font-weight: 400;
   line-height: 18px;
   white-space: nowrap;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transition: background 0.12s ease, color 0.12s ease;
 }
 
@@ -119,7 +119,7 @@
   border-radius: 8px;
   background: var(--po-control);
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 18px;
 }
 
@@ -172,7 +172,7 @@
 .desktop-cloud-settings-panel-header p {
   max-width: 640px;
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 18px;
 }
 
@@ -181,7 +181,7 @@
 .desktop-cloud-settings-remove-button,
 .desktop-cloud-settings-restricted button {
   display: inline-flex;
-  height: 30px;
+  height: var(--po-control-size);
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
@@ -192,11 +192,11 @@
   background: transparent;
   color: var(--po-text);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 500;
   line-height: 18px;
   white-space: nowrap;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease, transform 0.12s ease;
 }
 
@@ -250,7 +250,7 @@
 .desktop-cloud-settings-field > span,
 .desktop-cloud-settings-id-row > div:first-child > span {
   color: var(--po-text);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 500;
   line-height: 17px;
 }
@@ -260,7 +260,7 @@
   max-width: 210px;
   margin-top: 2px;
   color: var(--po-text-muted);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-weight: 400;
   line-height: 16px;
 }
@@ -280,13 +280,13 @@
   background: var(--po-control);
   color: var(--po-text);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 18px;
   transition: border-color 0.12s ease, box-shadow 0.12s ease;
 }
 
 .desktop-cloud-settings-field > input {
-  height: 32px;
+  height: var(--po-control-size);
 }
 
 .desktop-cloud-settings-field > textarea {
@@ -338,7 +338,7 @@
   background: var(--po-inset);
   color: var(--po-text-muted);
   font-family: var(--po-font-mono);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   line-height: 16px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -366,7 +366,7 @@
   color: var(--po-text);
   font: inherit;
   text-align: start;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transition: background 0.12s ease, border-color 0.12s ease, transform 0.12s ease;
 }
 
@@ -389,7 +389,7 @@
 .desktop-cloud-settings-choice-grid strong {
   grid-column: 1;
   grid-row: 1;
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   font-weight: 500;
   line-height: 18px;
 }
@@ -397,7 +397,7 @@
 .desktop-cloud-settings-choice-grid small {
   grid-column: 1 / -1;
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 18px;
 }
 
@@ -463,14 +463,14 @@
 
 .desktop-cloud-settings-connection-row strong {
   color: var(--po-text);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 500;
   line-height: 17px;
 }
 
 .desktop-cloud-settings-connection-row small {
   color: var(--po-text-muted);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   line-height: 16px;
 }
 
@@ -516,14 +516,14 @@
 
 .desktop-cloud-settings-restricted h2 {
   color: var(--po-text);
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   font-weight: 500;
   line-height: 18px;
 }
 
 .desktop-cloud-settings-restricted p {
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 18px;
 }
 

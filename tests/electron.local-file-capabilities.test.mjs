@@ -23,6 +23,18 @@ describe("local file capability store", () => {
     expect(store.validate({ token, rootPath: ROOT, relativePath: "docs/secret.txt" })).toBe(false);
     expect(store.validate({ token, rootPath: "/other", relativePath: "docs/report.docx" })).toBe(false);
     expect(store.issue({ senderId: 7, rootPath: ROOT, relativePath: "docs/report.docx" })).toBe(token);
+    expect(store.inspect({
+      token,
+      senderId: 7,
+      purpose: "file-preview",
+      requestPath: "report.docx",
+    })).toEqual({ rootPath: ROOT, relativePath: "docs/report.docx" });
+    expect(store.inspect({
+      token,
+      senderId: 8,
+      purpose: "file-preview",
+      requestPath: "report.docx",
+    })).toBeNull();
 
     store.revokeSender(7);
     expect(store.validate({ token, rootPath: ROOT, relativePath: "docs/report.docx" })).toBe(false);

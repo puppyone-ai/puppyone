@@ -10,7 +10,7 @@ import {
   DESKTOP_TERMINAL_LAUNCHERS,
   type DesktopTerminalLauncherId,
 } from "../../desktop-terminal/model/terminalLaunchers";
-import { TerminalLauncherIcon } from "../../desktop-terminal/ui/TerminalLauncherIcon";
+import { AgentLauncherIcon } from "../../../components/brand/AgentLauncherIcon";
 
 type EnrollmentPhase = "loading" | "ready" | "error";
 
@@ -124,7 +124,7 @@ export function LocalAgentHooksSettingsSection({
               key={provider.providerId}
             >
               <span className="desktop-local-agent-identity">
-                <TerminalLauncherIcon launcherId={providerLauncherId(provider.providerId)} />
+                <AgentLauncherIcon launcherId={providerLauncherId(provider.providerId)} />
                 <span className="desktop-local-agent-row-copy">
                   <span className="desktop-local-agent-name">{provider.displayName}</span>
                 </span>

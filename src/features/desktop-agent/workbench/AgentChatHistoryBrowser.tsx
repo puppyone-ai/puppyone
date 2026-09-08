@@ -4,7 +4,7 @@ import type { AuxiliaryWorkbenchHistoryBrowserContext } from "../../app-shell/au
 import { useLocalization } from "@puppyone/localization/react";
 import { ConversationHistoryController } from "../application/ConversationHistoryController";
 import { createAgentChatHistoryTarget } from "../domain/agent-chat-history-target";
-import { getElectronAgentClient } from "../infrastructure/electron/electronAgentClient";
+import { createProjectAgentClientProvider, getElectronAgentClient } from "../infrastructure/electron/electronAgentClient";
 import { AgentConversationHistory } from "../ui/AgentConversationHistory";
 import { useAgentConversationHistory } from "../ui/useAgentConversationHistory";
 import "../ui/desktop-agent.css";
@@ -15,6 +15,7 @@ import "../ui/desktop-agent.css";
  */
 export function AgentChatHistoryBrowser({
   rootPath,
+  project,
   excludedResourceIds,
   openingTargetId,
   onBack,
@@ -27,13 +28,16 @@ export function AgentChatHistoryBrowser({
 }>) {
   const { t } = useLocalization();
   const controller = useMemo(
-    () => new ConversationHistoryController(rootPath, getElectronAgentClient),
-    [rootPath],
+    () => project
+      ? project.getResource("agent-history", () => new ConversationHistoryController(rootPath, createProjectAgentClientProvider(project.context)))
+      : new ConversationHistoryController(rootPath, getElectronAgentClient),
+    [rootPath, project],
   );
   const history = useAgentConversationHistory({
     active: historyDiscoveryEnabled,
     controller,
     excludedSessionIds: excludedResourceIds,
+    retainWhileHidden: Boolean(project),
   });
 
   if (!historyDiscoveryEnabled) {
@@ -45,6 +49,7 @@ export function AgentChatHistoryBrowser({
             <button
               type="button"
               className="desktop-agent-history-toolbar-button"
+              data-po-interaction="navigation"
               aria-label={t("agent.history.back")}
               title={t("agent.history.back")}
               onClick={onBack}
@@ -83,6 +88,8 @@ export function AgentChatHistoryBrowser({
         loadingMore={history.loadingMore}
         hasMore={history.hasMore}
         error={history.error}
+        sources={history.sources}
+        catalogTruncated={history.catalogCoverage?.truncated}
         openingSessionId={openingTargetId}
         onOpen={(session) => onOpen(createAgentChatHistoryTarget(session))}
         onRefresh={() => void history.refreshNative()}

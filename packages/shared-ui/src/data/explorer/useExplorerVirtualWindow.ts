@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { STANDARD_CONTROL_SIZE } from "../../core/controlGeometry";
+import { useCssPixelCustomProperty } from "../../core/useCssPixelCustomProperty";
 
-export const EXPLORER_VIRTUAL_ROW_SIZE = 32;
+export const EXPLORER_VIRTUAL_ROW_GAP = 2;
+export const EXPLORER_VIRTUAL_ROW_SIZE = STANDARD_CONTROL_SIZE + EXPLORER_VIRTUAL_ROW_GAP;
 export const EXPLORER_VIRTUAL_OVERSCAN = 10;
 export const EXPLORER_VIRTUAL_MAX_MOUNTED_ROWS = 100;
 const EXPLORER_VIRTUAL_FALLBACK_VIEWPORT_HEIGHT = 640;
@@ -8,6 +11,7 @@ const EXPLORER_VIRTUAL_FALLBACK_VIEWPORT_HEIGHT = 640;
 export type ExplorerVirtualWindow = {
   startIndex: number;
   endIndex: number;
+  rowSize: number;
   totalHeight: number;
   onScroll: () => void;
 };
@@ -21,6 +25,12 @@ export function useExplorerVirtualWindow({
   scrollRef: RefObject<HTMLDivElement>;
   activeIndex: number | null;
 }): ExplorerVirtualWindow {
+  const rowHeight = useCssPixelCustomProperty(
+    scrollRef,
+    "--tree-row-height",
+    STANDARD_CONTROL_SIZE,
+  );
+  const rowSize = rowHeight + EXPLORER_VIRTUAL_ROW_GAP;
   const [viewport, setViewport] = useState({
     height: EXPLORER_VIRTUAL_FALLBACK_VIEWPORT_HEIGHT,
     scrollTop: 0,
@@ -61,8 +71,8 @@ export function useExplorerVirtualWindow({
   }, []);
 
   const visibleWindow = useMemo(() => {
-    const firstVisibleIndex = Math.floor(viewport.scrollTop / EXPLORER_VIRTUAL_ROW_SIZE);
-    const visibleCount = Math.max(1, Math.ceil(viewport.height / EXPLORER_VIRTUAL_ROW_SIZE));
+    const firstVisibleIndex = Math.floor(viewport.scrollTop / rowSize);
+    const visibleCount = Math.max(1, Math.ceil(viewport.height / rowSize));
     const desiredCount = Math.min(
       EXPLORER_VIRTUAL_MAX_MOUNTED_ROWS,
       visibleCount + EXPLORER_VIRTUAL_OVERSCAN * 2,
@@ -76,25 +86,26 @@ export function useExplorerVirtualWindow({
     );
     const endIndex = Math.min(rowCount, startIndex + desiredCount);
     return { startIndex, endIndex };
-  }, [rowCount, viewport.height, viewport.scrollTop]);
+  }, [rowCount, rowSize, viewport.height, viewport.scrollTop]);
 
   useLayoutEffect(() => {
     const element = scrollRef.current;
     if (!element || activeIndex === null || activeIndex < 0 || activeIndex >= rowCount) return;
 
-    const rowTop = activeIndex * EXPLORER_VIRTUAL_ROW_SIZE;
-    const rowBottom = rowTop + EXPLORER_VIRTUAL_ROW_SIZE;
+    const rowTop = activeIndex * rowSize;
+    const rowBottom = rowTop + rowSize;
     const viewportTop = element.scrollTop;
     const viewportBottom = viewportTop + (element.clientHeight || EXPLORER_VIRTUAL_FALLBACK_VIEWPORT_HEIGHT);
     if (rowTop < viewportTop) element.scrollTop = rowTop;
     else if (rowBottom > viewportBottom) element.scrollTop = Math.max(0, rowBottom - (element.clientHeight || viewport.height));
     else return;
     readViewport();
-  }, [activeIndex, readViewport, rowCount, scrollRef, viewport.height]);
+  }, [activeIndex, readViewport, rowCount, rowSize, scrollRef, viewport.height]);
 
   return {
     ...visibleWindow,
-    totalHeight: rowCount * EXPLORER_VIRTUAL_ROW_SIZE,
+    rowSize,
+    totalHeight: rowCount * rowSize,
     onScroll,
   };
 }

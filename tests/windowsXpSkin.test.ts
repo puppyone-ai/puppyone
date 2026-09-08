@@ -183,14 +183,14 @@ describe("Interface style registry", () => {
     expect(invalidPreset.dataset.initialSubThemeId).toBe("default.neutral");
     expect(invalidPreset.properties["--initial-shell-background"]).toBe("#fafafa");
 
-    const v4Selection = runFirstPaint({
+    const v5Selection = runFirstPaint({
       bootstrap,
       subThemeBootstrap,
       initialTheme,
       interfaceStyle: "default",
       themeMode: "light",
       appearancePreferences: JSON.stringify({
-        schemaVersion: 4,
+        schemaVersion: 5,
         activeRootThemeId: "default",
         byRootTheme: {
           default: {
@@ -201,8 +201,8 @@ describe("Interface style registry", () => {
       }),
       systemDark: false,
     });
-    expect(v4Selection.dataset.initialSubThemeId).toBe("default.github");
-    expect(v4Selection.properties["--initial-shell-background"]).toBe("#0d1117");
+    expect(v5Selection.dataset.initialSubThemeId).toBe("default.github");
+    expect(v5Selection.properties["--initial-shell-background"]).toBe("#0d1117");
 
     const damagedSelection = runFirstPaint({
       bootstrap,

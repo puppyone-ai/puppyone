@@ -1,10 +1,11 @@
-import { useRef, type CSSProperties, type Key, type ReactNode } from "react";
+import { useCallback, useRef, type CSSProperties, type Key, type MutableRefObject, type ReactNode } from "react";
 import { joinSidebarClassNames } from "./classNames";
 import { useVirtualSidebarWindow } from "./useVirtualSidebarWindow";
 
 export type VirtualSidebarListProps<T> = {
   items: readonly T[];
   rowSize: number;
+  listRef?: MutableRefObject<HTMLOListElement | null>;
   renderRow: (item: T, index: number) => ReactNode;
   getKey: (item: T, index: number) => Key;
   activeIndex?: number | null;
@@ -20,19 +21,24 @@ export function VirtualSidebarList<T>({
   className,
   getKey,
   items,
+  listRef,
   maxMountedRows,
   overscan,
   renderRow,
   rowSize,
 }: VirtualSidebarListProps<T>) {
-  const scrollRef = useRef<HTMLOListElement>(null);
+  const internalScrollRef = useRef<HTMLOListElement | null>(null);
+  const setScrollElement = useCallback((element: HTMLOListElement | null) => {
+    internalScrollRef.current = element;
+    if (listRef) listRef.current = element;
+  }, [listRef]);
   const windowState = useVirtualSidebarWindow({
     activeIndex,
     maxMountedRows,
     overscan,
     rowCount: items.length,
     rowSize,
-    scrollRef,
+    scrollRef: internalScrollRef,
   });
   const visibleItems = items.slice(windowState.startIndex, windowState.endIndex);
   const leadingSpacerStyle = {
@@ -48,7 +54,7 @@ export function VirtualSidebarList<T>({
 
   return (
     <ol
-      ref={scrollRef}
+      ref={setScrollElement}
       className={joinSidebarClassNames("po-sidebar-virtual-scroll", className)}
       data-po-scrollbar="sidebar"
       aria-label={ariaLabel}

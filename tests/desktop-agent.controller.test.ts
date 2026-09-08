@@ -1,3 +1,4 @@
+import { withDisplayFeed, displaySnapshot } from "./helpers/agentDisplayFixture";
 import { describe, expect, it, vi } from "vitest";
 import {
   AgentSessionController,
@@ -5,7 +6,154 @@ import {
 } from "../src/features/desktop-agent/application/AgentSessionController";
 import type { AgentEvent, AgentSessionSnapshot } from "../src/features/desktop-agent/agentTypes";
 
+it("preparation failure releases submission state and allows retry", async () => {
+  const bridge = bridgeFixture(() => {});
+  bridge.resumeAgentSession.mockResolvedValueOnce(null);
+  bridge.createAgentSession.mockRejectedValueOnce(new Error("cannot create"));
+  const controller = new AgentSessionController("/workspace", () => bridge as never);
+  try {
+    await controller.initialize();
+    controller.setDraft("retry this message");
+    expect(await controller.submit("retry this message")).toBe(false);
+    expect(controller.getSnapshot().draft).toBe("retry this message");
+    expect(controller.getSnapshot().submitting).toBe(false);
+    expect(await controller.submit("retry this message")).toBe(true);
+  } finally { controller.dispose(); }
+});
+
+it("steer receipt must preserve a newer draft", async () => {
+  let emit: any;
+  const bridge = bridgeFixture(listener => { emit = listener; }, { steer: true });
+  const controller = new AgentSessionController("/workspace", () => bridge as never);
+  try {
+    await controller.initialize();
+    emit(event(2, "turn.started", { prompt: "Running" }, "turn-running"));
+    expect(controller.getSnapshot().projection.runningTurnId).toBe("turn-running");
+    let resolveSteer: any;
+    bridge.steerAgentTurn.mockImplementationOnce(() => new Promise(resolve => { resolveSteer = resolve; }));
+    controller.setDraft("first instruction");
+    const pending = controller.submit("first instruction");
+    await vi.waitFor(() => expect(bridge.steerAgentTurn).toHaveBeenCalledTimes(1));
+    controller.setDraft("newer unsent draft");
+    resolveSteer({ steered: true });
+    await pending;
+    expect(controller.getSnapshot().draft).toBe("newer unsent draft");
+  } finally { controller.dispose(); }
+});
+
+it("repeated send while the same steer is pending has one dispatch", async () => {
+  let emit: any;
+  const bridge = bridgeFixture(listener => { emit = listener; }, { steer: true });
+  const controller = new AgentSessionController("/workspace", () => bridge as never);
+  try {
+    await controller.initialize();
+    emit(event(2, "turn.started", { prompt: "Running" }, "turn-running"));
+    const receipts: Array<(v: unknown) => void> = [];
+    bridge.steerAgentTurn.mockImplementation(() => new Promise(resolve => receipts.push(resolve)));
+    controller.setDraft("single instruction");
+    const first = controller.submit("single instruction");
+    const second = controller.submit("single instruction");
+    for (const resolve of receipts) resolve({ steered: true });
+    await Promise.all([first, second]);
+    expect(bridge.steerAgentTurn).toHaveBeenCalledTimes(1);
+  } finally { controller.dispose(); }
+});
+
 describe("AgentSessionController", () => {
+  it.each([true, false])("keeps newer steer drafts, references and mentions on receipt (accepted=%s)", async (accepted) => {
+    let emit: (event: AgentEvent) => void = () => {};
+    const bridge = bridgeFixture(listener => { emit = listener; }, {
+      steer: true, referenceInputs: { ...referenceCapabilities(), steer: true },
+    });
+    const receipt = Promise.withResolvers<{ sessionId: string; turnId: string; steered: boolean }>();
+    bridge.steerAgentTurn.mockReturnValueOnce(receipt.promise);
+    const controller = new AgentSessionController("/workspace", () => bridge as never);
+    try {
+      await controller.initialize();
+      emit(event(2, "turn.started", { prompt: "Running" }, "turn-running"));
+      await controller.addWorkspacePaths(["a.md"]);
+      const firstReference = controller.getSnapshot().references[0]!;
+      controller.setDraftDocument("@a.md", [{ referenceId: firstReference.id, start: 0, end: 5 }]);
+      const pending = controller.submit("@a.md");
+      expect(controller.getSnapshot()).toMatchObject({ submitting: true, draft: "", references: [] });
+      await controller.addWorkspacePaths(["b.md"]);
+      const newerReference = controller.getSnapshot().references[0]!;
+      controller.setDraftDocument("@b.md", [{ referenceId: newerReference.id, start: 0, end: 5 }]);
+      if (accepted) receipt.resolve({ sessionId: "session-1", turnId: "turn-running", steered: true });
+      else receipt.reject(new Error("native rejected instruction"));
+      expect(await pending).toBe(accepted);
+      const next = controller.getSnapshot();
+      expect(next.submitting).toBe(false);
+      expect(next.pendingIntent).toBeNull();
+      expect(next.draft).toBe(accepted ? "@b.md" : "@a.md\n\n@b.md");
+      expect(next.references.map(reference => reference.id)).toEqual(accepted ? [newerReference.id] : [firstReference.id, newerReference.id]);
+      expect(next.draftMentions.at(-1)).toEqual({ referenceId: newerReference.id, start: accepted ? 0 : 7, end: accepted ? 5 : 12 });
+      if (!accepted) expect(await controller.submit(next.draft)).toBe(true);
+    } finally { controller.dispose(); }
+  });
+
+  it.each([true, false])("keeps attachment-only steer submissions busy until acknowledgement (accepted=%s)", async (accepted) => {
+    let emit: (event: AgentEvent) => void = () => {};
+    const bridge = bridgeFixture(listener => { emit = listener; }, {
+      steer: true, referenceInputs: { ...referenceCapabilities(), steer: true, attachmentOnly: true },
+    });
+    const receipt = Promise.withResolvers<{ sessionId: string; turnId: string; steered: boolean }>();
+    bridge.steerAgentTurn.mockReturnValueOnce(receipt.promise);
+    const controller = new AgentSessionController("/workspace", () => bridge as never);
+    try {
+      await controller.initialize();
+      emit(event(2, "turn.started", { prompt: "Running" }, "turn-running"));
+      await controller.addWorkspacePaths(["a.md"]);
+      const pending = controller.submit("");
+      expect(controller.getSnapshot().submitting).toBe(true);
+      expect(await controller.submit("repeated Enter")).toBe(false);
+      controller.setDraft("new draft");
+      if (accepted) receipt.resolve({ sessionId: "session-1", turnId: "turn-running", steered: true });
+      else receipt.reject(new Error("attachment rejected"));
+      expect(await pending).toBe(accepted);
+      expect(controller.getSnapshot().draft).toBe("new draft");
+      expect(controller.getSnapshot().references).toHaveLength(accepted ? 0 : 1);
+      expect(controller.getSnapshot().submitting).toBe(false);
+    } finally { controller.dispose(); }
+  });
+
+  it("does not restore a late rejected steer into a replacement conversation", async () => {
+    let emit: (event: AgentEvent) => void = () => {};
+    const bridge = bridgeFixture(listener => { emit = listener; }, { steer: true });
+    const receipt = Promise.withResolvers<{ sessionId: string; turnId: string; steered: boolean }>();
+    bridge.steerAgentTurn.mockReturnValueOnce(receipt.promise);
+    const controller = new AgentSessionController("/workspace", () => bridge as never);
+    try {
+      await controller.initialize();
+      emit(event(2, "turn.started", { prompt: "Running" }, "turn-running"));
+      const pending = controller.submit("old instruction");
+      emit(event(3, "turn.completed", {}, "turn-running"));
+      await controller.newSession();
+      controller.setDraft("new conversation draft");
+      receipt.reject(new Error("late rejection"));
+      expect(await pending).toBe(false);
+      expect(controller.getSnapshot()).toMatchObject({ draft: "new conversation draft", error: null, submitting: false, pendingIntent: null });
+    } finally { controller.dispose(); }
+  });
+
+  it("ignores receipts and new submissions after disposal", async () => {
+    let emit: (event: AgentEvent) => void = () => {};
+    const bridge = bridgeFixture(listener => { emit = listener; }, { steer: true });
+    const receipt = Promise.withResolvers<{ sessionId: string; turnId: string; steered: boolean }>();
+    bridge.steerAgentTurn.mockReturnValueOnce(receipt.promise);
+    const controller = new AgentSessionController("/workspace", () => bridge as never);
+    await controller.initialize();
+    emit(event(2, "turn.started", { prompt: "Running" }, "turn-running"));
+    const pending = controller.submit("old instruction");
+    controller.dispose();
+    const disposedState = controller.getSnapshot();
+    receipt.reject(new Error("late rejection"));
+    expect(await pending).toBe(false);
+    expect(await controller.submit("after dispose")).toBe(false);
+    expect(controller.getSnapshot()).toBe(disposedState);
+    expect(bridge.steerAgentTurn).toHaveBeenCalledOnce();
+  });
+
   it("discovers installed Agents without selecting or resuming one on first open", async () => {
     const bridge = bridgeFixture(() => {});
     bridge.discoverAgentRuntimes.mockResolvedValueOnce({
@@ -117,7 +265,7 @@ describe("AgentSessionController", () => {
     expect(bridge.resumeAgentSession).not.toHaveBeenCalled();
   });
 
-  it("rebuilds a deterministic projection, repairs sequence gaps, and preserves the old locator on New Chat", async () => {
+  it("renders Main display revisions and preserves the old locator on New Chat", async () => {
     let eventListener: ((event: AgentEvent) => void) | null = null;
     const bridge = bridgeFixture((listener) => { eventListener = listener; });
     const controller = new AgentSessionController("/workspace", () => bridge as never);
@@ -133,7 +281,7 @@ describe("AgentSessionController", () => {
 
     eventListener?.(event(5, "turn.completed", { status: "completed" }, "turn-1"));
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(bridge.replayAgentSession).toHaveBeenCalledWith({ rootPath: "/workspace", sessionId: "session-1", afterSequence: 3 });
+    expect(bridge.replayAgentSession).not.toHaveBeenCalled();
     expect(controller.getSnapshot().projection.lastSequence).toBe(5);
     expect(controller.getSnapshot().projection.terminalState).toBe("completed");
 
@@ -430,7 +578,7 @@ describe("AgentSessionController", () => {
     expect(bridge.resumeAgentSession).toHaveBeenCalledTimes(1);
   });
 
-  it("quarantines a provider after an authoritative credential rejection", async () => {
+  it("displays provider diagnostics without rewriting the discovered provider catalog", async () => {
     let eventListener: ((event: AgentEvent) => void) | null = null;
     const bridge = bridgeFixture((listener) => { eventListener = listener; });
     const controller = new AgentSessionController("/workspace", () => bridge as never);
@@ -440,9 +588,10 @@ describe("AgentSessionController", () => {
     eventListener?.(event(3, "provider.error", { message: "API key not valid. Please pass a valid API key." }, "turn-auth", "assistant-auth"));
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(controller.getSnapshot()).toMatchObject({ selectedProviderId: null, selectedModel: null });
-    expect(controller.getSnapshot().inspection?.readiness).toMatchObject({ status: "installed-not-authenticated" });
-    expect(controller.getSnapshot().projection.activities.filter((activity) => activity.kind === "error")).toHaveLength(1);
+    expect(controller.getSnapshot()).toMatchObject({ selectedProviderId: "openai", selectedModel: "openai/gpt-5" });
+    expect(controller.getSnapshot().projection.activities).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "error" }),
+    ]));
   });
 
   it("reuses workspace Agent discovery on presentation remounts and lets Refresh bypass the cache", async () => {
@@ -500,7 +649,7 @@ describe("AgentSessionController", () => {
     expect(bridge.discoverLocalAgentConnections).toHaveBeenLastCalledWith({ rootPath: "/workspace", refresh: true });
   });
 
-  it("bounds queued prompts and reports backpressure instead of silently dropping work", async () => {
+  it("delegates queue admission to the Main command transaction", async () => {
     let eventListener: ((event: AgentEvent) => void) | null = null;
     const bridge = bridgeFixture((listener) => { eventListener = listener; }, { queue: true });
     const controller = new AgentSessionController("/workspace", () => bridge as never);
@@ -508,14 +657,15 @@ describe("AgentSessionController", () => {
     eventListener?.(event(2, "turn.started", { prompt: "Long task" }, "turn-queue"));
     await new Promise((resolve) => setTimeout(resolve, 45));
 
-    for (let index = 0; index < agentSessionControllerLimits.maxQueuedPrompts; index += 1) {
-      await expect(controller.submit(`Follow-up ${index}`)).resolves.toBe(true);
-    }
-    await expect(controller.submit("Overflow")).resolves.toBe(false);
-    expect(controller.getSnapshot().error).toEqual({ code: "prompt-queue-full", params: { limit: 20 } });
+    await expect(controller.submit("Follow-up")).resolves.toBe(true);
+    expect(bridge.startAgentTurn).toHaveBeenCalledOnce();
+    expect(bridge.startAgentTurn).toHaveBeenCalledWith(expect.objectContaining({
+      prompt: "Follow-up",
+      commandId: expect.stringMatching(/^intent-/),
+    }));
   });
 
-  it("publishes an optimistic prompt immediately and clears it on the native turn-start event", async () => {
+  it("hands the local preview to Main's admitted input before the native start receipt", async () => {
     let eventListener: ((event: AgentEvent) => void) | null = null;
     let acceptTurn: ((value: { turnId: string }) => void) | null = null;
     const bridge = bridgeFixture((listener) => { eventListener = listener; });
@@ -528,8 +678,9 @@ describe("AgentSessionController", () => {
 
     expect(controller.getSnapshot()).toMatchObject({
       draft: "",
-      pendingPrompt: "Explain the architecture",
+      pendingPrompt: null,
       submitting: true,
+      projection: { messages: [expect.objectContaining({text:"Explain the architecture",deliveryStatus:"dispatching"})] },
     });
     eventListener?.(event(2, "turn.started", { prompt: "Explain the architecture" }, "turn-live"));
     expect(controller.getSnapshot()).toMatchObject({
@@ -590,7 +741,8 @@ describe("AgentSessionController", () => {
     expect(controller.getSnapshot()).toMatchObject({
       session: { id: "session-2" },
       sessionPreparation: "ready",
-      pendingPrompt: "Inspect the first-turn path",
+      pendingPrompt: null,
+      projection: { messages: [expect.objectContaining({text:"Inspect the first-turn path",deliveryStatus:"dispatching"})] },
     });
 
     eventListener?.(event(2, "turn.started", { prompt: "Inspect the first-turn path" }, "turn-first", null, "session-2"));
@@ -709,7 +861,7 @@ describe("AgentSessionController", () => {
     expect(listener).toHaveBeenCalledTimes(1);
   });
 
-  it("captures references inside immutable queued submission intents", async () => {
+  it("captures references inside the immutable command sent to Main", async () => {
     let eventListener: ((event: AgentEvent) => void) | null = null;
     const bridge = bridgeFixture((listener) => { eventListener = listener; }, { queue: true });
     const controller = new AgentSessionController("/workspace", () => bridge as never);
@@ -719,26 +871,14 @@ describe("AgentSessionController", () => {
 
     await controller.addWorkspacePaths(["a.md"]);
     await expect(controller.submit("First queued")).resolves.toBe(true);
-    await controller.addWorkspacePaths(["b.md"]);
-    await expect(controller.submit("Second queued")).resolves.toBe(true);
     expect(controller.getSnapshot().references).toEqual([]);
-
-    eventListener?.(event(3, "turn.completed", { status: "completed" }, "turn-running"));
-    await vi.waitFor(() => expect(bridge.startAgentTurn).toHaveBeenCalledTimes(1));
     expect(bridge.startAgentTurn.mock.calls[0][0]).toMatchObject({
       prompt: "First queued",
       references: [expect.objectContaining({ relativePath: "a.md" })],
     });
-    eventListener?.(event(4, "turn.started", { prompt: "First queued" }, "turn-first"));
-    eventListener?.(event(5, "turn.completed", { status: "completed" }, "turn-first"));
-    await vi.waitFor(() => expect(bridge.startAgentTurn).toHaveBeenCalledTimes(2));
-    expect(bridge.startAgentTurn.mock.calls[1][0]).toMatchObject({
-      prompt: "Second queued",
-      references: [expect.objectContaining({ relativePath: "b.md" })],
-    });
   });
 
-  it("restores a failed queued intent to the visible Composer instead of stranding it", async () => {
+  it("restores a rejected Main queue command without stranding its draft", async () => {
     let eventListener: ((event: AgentEvent) => void) | null = null;
     const bridge = bridgeFixture((listener) => { eventListener = listener; }, { queue: true });
     const controller = new AgentSessionController("/workspace", () => bridge as never);
@@ -746,12 +886,13 @@ describe("AgentSessionController", () => {
     eventListener?.(event(2, "turn.started", { prompt: "Long task" }, "turn-running"));
     await new Promise((resolve) => setTimeout(resolve, 45));
     await controller.addWorkspacePaths(["queued.md"]);
-    await expect(controller.submit("Queued request")).resolves.toBe(true);
-    controller.setDraft("New draft");
-    bridge.startAgentTurn.mockRejectedValueOnce(new Error("queued native start failed"));
-
-    eventListener?.(event(3, "turn.completed", { status: "completed" }, "turn-running"));
+    let rejectStart: ((error: Error) => void) | null = null;
+    bridge.startAgentTurn.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectStart = reject; }));
+    const submission = controller.submit("Queued request");
     await vi.waitFor(() => expect(bridge.startAgentTurn).toHaveBeenCalledTimes(1));
+    controller.setDraft("New draft");
+    rejectStart?.(new Error("queued native start failed"));
+    await expect(submission).resolves.toBe(false);
     await vi.waitFor(() => expect(controller.getSnapshot().pendingIntent).toBeNull());
     expect(controller.getSnapshot()).toMatchObject({
       draft: "Queued request\n\nNew draft",
@@ -911,7 +1052,7 @@ function bridgeFixture(
   onEvent: (listener: (event: AgentEvent) => void) => void,
   capabilityOverrides: Partial<ReturnType<typeof capabilities>> = {},
 ) {
-  return {
+  return withDisplayFeed({
     discoverAgentRuntimes: vi.fn(async () => ({
       runtimes: [{ descriptor: { id: "opencode", displayName: "OpenCode", priority: 100 }, readiness: readiness() }],
       selectedRuntimeId: "opencode",
@@ -969,9 +1110,7 @@ function bridgeFixture(
       },
       warnings: [],
     })),
-    onAgentEvent: vi.fn((listener: (event: AgentEvent) => void) => { onEvent(listener); return () => {}; }),
-    onAgentSessionExit: vi.fn(() => () => {}),
-  };
+  }, onEvent);
 }
 
 function snapshot(

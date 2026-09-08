@@ -217,7 +217,7 @@ describe("Markdown source snapshot boundary", () => {
     }));
   });
 
-  it("reloads an explicitly chosen external version into CodeMirror", async () => {
+  it("adopts disk content over unsaved CodeMirror input without asking for a version", async () => {
     const persistence = {
       kind: "local-fs" as const,
       storageIdentity: "test:markdown-source",
@@ -263,12 +263,7 @@ describe("Markdown source snapshot boundary", () => {
       userEvent: "input.type",
     }));
     await act(async () => root?.render(render("agent version", "v2")));
-    expect(getEditorView(container).state.doc.toString()).toBe("alpha human");
-
-    const reload = [...container.querySelectorAll<HTMLButtonElement>(".editor-conflict-actions button")]
-      .find((button) => button.textContent === "Load external version");
-    await act(async () => reload?.click());
-
+    expect(container.querySelector(".editor-inline-error")).toBeNull();
     expect(getEditorView(container).state.doc.toString()).toBe("agent version");
     expect(persistence.persist).not.toHaveBeenCalled();
   });

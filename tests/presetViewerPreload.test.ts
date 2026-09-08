@@ -11,7 +11,7 @@ describe("preset viewer preload cache", () => {
       "utf8",
     );
     const selectionPreload = workspaceSource.indexOf("preloadPresetViewer(selectedFileViewer)");
-    const contentRead = workspaceSource.indexOf("dataPort.readFile(selectedFile.path");
+    const contentRead = workspaceSource.indexOf("readDocumentStorageSnapshot(dataPort, selectedFile.path");
 
     expect(selectionPreload).toBeGreaterThan(-1);
     expect(contentRead).toBeGreaterThan(selectionPreload);
@@ -38,6 +38,18 @@ describe("preset viewer preload cache", () => {
     await expect(preloadPresetViewer(viewer)).rejects.toThrow("transient chunk failure");
     await expect(preloadPresetViewer(viewer)).resolves.toBeUndefined();
     expect(load).toHaveBeenCalledTimes(2);
+  });
+
+  it("never evaluates an isolated Viewer implementation in the shell renderer", async () => {
+    const load = vi.fn(async () => ({ default: () => null }));
+    const viewer: LazyPresetViewerContribution = {
+      ...getPresetViewerDefinition("pdf-preview"),
+      match: () => true,
+      load,
+    };
+
+    await expect(preloadPresetViewer(viewer)).resolves.toBeUndefined();
+    expect(load).not.toHaveBeenCalled();
   });
 });
 

@@ -1,36 +1,41 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useScrollEdgeState } from "@puppyone/shared-ui";
+import type { AgentViewportGeometry } from "../domain/agent-ui-state";
+import { memo, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  STANDARD_CONTROL_SIZE,
+  useCssPixelCustomProperty,
+} from "@puppyone/shared-ui";
 import { bidiIsolate, type MessageFormatter } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
-import { ArrowDown, CircleAlert, LoaderCircle } from "lucide-react";
+import { ArrowDown } from "lucide-react";
 import { PageLoading } from "../../../components/loading";
 import type { AgentSubmissionStage } from "../application/agent-controller-state";
-import type { AgentDraftReference, AgentPromptReferenceMention, AgentReferenceDisplay } from "../domain/agent-contract";
+import { formatAgentDuration, outputForActivity } from "../domain/agent-activity-presentation";
+import type { AgentDraftReference, AgentPromptReferenceMention } from "../domain/agent-contract";
 import type { AgentPart, AgentProjection } from "../domain/agent-projection-types";
 import { AgentConnectionStatus } from "./AgentConnectionStatus";
-import { AgentMessagePart } from "./AgentMessagePart";
+import { AgentHistoryNotice } from "./AgentHistoryNotice";
+import { agentHistoryNotice } from "./agent-history-presentation";
 import { AgentPartRenderer } from "./AgentPartRenderer";
-import {
-  agentTimelineLimits,
-  buildAgentTimelineLayout,
-  visibleAgentTimelineRange,
-} from "./agent-timeline-layout";
-import {
-  captureAgentTimelineScrollAnchor,
-  resolveAgentTimelineScrollAnchor,
-  type AgentTimelineScrollAnchor,
-} from "./agent-timeline-viewport";
-import { buildAgentTimeline } from "./agent-timeline-presentation";
+import { AgentRunFeedback } from "./AgentRunFeedback";
+import { AgentToolActivityGroup } from "./AgentToolActivityGroup";
+import { TranscriptRow } from "./transcript/TranscriptRow";
+import { useTranscriptViewport } from "./transcript/useTranscriptViewport";
+import { buildAgentTimeline } from "./transcript/transcript-rows";
+import { groupAgentToolRows } from "./agent-tool-group-presentation";
 import {
   agentTranscriptFadeGeometry,
   agentVirtualCanvasGeometry,
-  agentVirtualRowGeometry,
 } from "./agent-runtime-geometry";
+import {
+  AGENT_RUN_ELAPSED_LABEL_THRESHOLD_MS,
+  useAgentRunActiveElapsed,
+} from "./useAgentRunActiveElapsed";
 
 type AgentTranscriptProps = {
   projection: AgentProjection;
   loading: boolean;
   pendingPrompt?: string | null;
+  pendingSubmissionId?: string | null;
   pendingPromptMentions?: AgentPromptReferenceMention[];
   pendingReferences?: AgentDraftReference[];
   submissionStage?: AgentSubmissionStage;
@@ -40,18 +45,21 @@ type AgentTranscriptProps = {
   initialScrollTop?: number;
   initialMeasurements?: Record<string, number>;
   initialPinned?: boolean;
-  onViewportChange?: (scrollTop: number, measurements: Record<string, number>, pinned: boolean) => void;
+  initialGeometry?: AgentViewportGeometry;
+  onViewportChange?: (scrollTop: number, measurements: Record<string, number>, pinned: boolean, geometry: AgentViewportGeometry) => void;
   onOpenFile?: (path: string) => void;
 };
 
-const DEFAULT_VIEWPORT_HEIGHT = 640;
+const EMPTY_REFERENCES: AgentDraftReference[] = [];
+const EMPTY_MENTIONS: AgentPromptReferenceMention[] = [];
 
 function AgentTranscriptView({
   projection,
   loading,
   pendingPrompt = null,
-  pendingPromptMentions = [],
-  pendingReferences = [],
+  pendingSubmissionId = null,
+  pendingPromptMentions = EMPTY_MENTIONS,
+  pendingReferences = EMPTY_REFERENCES,
   submissionStage = null,
   working = false,
   runtimeLabel: runtimeLabelProp,
@@ -59,220 +67,86 @@ function AgentTranscriptView({
   initialScrollTop = 0,
   initialMeasurements = {},
   initialPinned = true,
+  initialGeometry,
   onViewportChange,
   onOpenFile,
 }: AgentTranscriptProps) {
-  const { t } = useLocalization();
+  const { t, formatNumber } = useLocalization();
   const runtimeLabel = runtimeLabelProp || t("agent.name");
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [measurements, setMeasurements] = useState<Record<string, number>>(() => ({ ...initialMeasurements }));
-  const measurementsRef = useRef(measurements);
-  const scrollTopRef = useRef(initialScrollTop);
-  const pinnedRef = useRef(initialPinned);
+  const compactRowHeight = useCssPixelCustomProperty(
+    scrollRef,
+    "--agent-control-size",
+    STANDARD_CONTROL_SIZE,
+  );
+  const fallbackSubmissionId = useId();
   const seenPartIdsRef = useRef(new Set<string>());
   const seededPartIdsRef = useRef(false);
   const previousTimelineRef = useRef({ rows: 0, sequence: 0 });
-  const rowMetaRef = useRef(new Map<string, { index: number; estimatedHeight: number }>());
-  const rowIndexRef = useRef(new Map<string, number>());
-  const onViewportChangeRef = useRef(onViewportChange);
-  const [scrollTop, setScrollTop] = useState(initialScrollTop);
-  const [viewportHeight, setViewportHeight] = useState(DEFAULT_VIEWPORT_HEIGHT);
-  const [pinned, setPinned] = useState(initialPinned);
   const [unreadCount, setUnreadCount] = useState(0);
-  const timeline = useMemo(() => buildAgentTimeline(projection), [projection]);
-  const layout = useMemo(
-    () => buildAgentTimelineLayout(timeline.rows, measurements),
-    [measurements, timeline.rows],
+  const sourceTimeline = useMemo(
+    () => buildAgentTimeline(projection, compactRowHeight,
+      pendingPrompt || pendingReferences.length > 0 ? {
+        id: pendingSubmissionId ?? fallbackSubmissionId, prompt: pendingPrompt || "",
+        references: pendingReferences, promptMentions: pendingPromptMentions,
+      } : null),
+    [compactRowHeight, projection, pendingSubmissionId, fallbackSubmissionId, pendingPrompt, pendingReferences, pendingPromptMentions],
   );
-  const canvasRef = useRef<HTMLDivElement>(null);
-  const layoutRef = useRef(layout);
-  const timelineRowsRef = useRef(timeline.rows);
-  const rowElementsRef = useRef(new Map<string, HTMLDivElement>());
-  const rowObserverRef = useRef<ResizeObserver | null>(null);
-  const pendingMeasurementsRef = useRef(new Map<string, number>());
-  const measurementFrameRef = useRef<number | null>(null);
-  const pendingScrollAnchorRef = useRef<AgentTimelineScrollAnchor | null>(null);
-  const range = useMemo(
-    () => visibleAgentTimelineRange(layout.offsets, timeline.rows.length, scrollTop, viewportHeight),
-    [layout.offsets, scrollTop, timeline.rows.length, viewportHeight],
-  );
+  const timeline = useMemo(() => ({
+    parts: sourceTimeline.parts,
+    rows: groupAgentToolRows(sourceTimeline.rows, sourceTimeline.parts, compactRowHeight),
+  }), [compactRowHeight, sourceTimeline]);
+  const { canvasRef, observeTail, layout, range, pinned, observeMeasuredRow, commitMeasurement,
+    handleScroll, jumpToLatest, scrollEdgeState } = useTranscriptViewport({ rows: timeline.rows, scrollRef,
+      initialScrollTop, initialMeasurements, initialPinned, initialGeometry, onViewportChange });
   const visibleRows = timeline.rows.slice(range.start, range.end);
-  const latestSequence = timeline.rows.at(-1)?.sequence ?? 0;
+  // Ledger freshness and visual order are separate axes. A completion event
+  // revises an existing row without moving it, but still counts as new work.
+  const latestSequence = projection.lastSequence;
   const submissionStatus = agentSubmissionStatusLabel(submissionStage, runtimeLabel, t);
-  const showThinking = !projection.connectionStatus && !submissionStatus && shouldShowAgentThinking(projection, working);
+  const runStatus = !projection.connectionStatus && !submissionStatus
+    ? agentRunStatusCode(projection, working)
+    : null;
+  const showThinking = runStatus === "thinking";
+  const runningTurn = projection.turns.find((turn) => turn.id === projection.runningTurnId) ?? null;
+  const runElapsedMs = useAgentRunActiveElapsed(runningTurn, runStatus !== null);
+  const runDuration = runElapsedMs !== null && runElapsedMs >= AGENT_RUN_ELAPSED_LABEL_THRESHOLD_MS
+    ? formatAgentDuration(Math.floor(runElapsedMs / 1_000) * 1_000, t, formatNumber)
+    : null;
+  const runStatusLabel = runStatus === "thinking"
+    ? t("agent.activity.thinking")
+    : runStatus === "working" ? t("agent.activity.working") : null;
+  const liveReasoningSummary = runStatus === "thinking"
+    ? currentAgentReasoningSummary(projection)
+    : null;
   const workingStatus = projection.connectionStatus
     ? null
-    : submissionStatus || (showThinking ? t("agent.activity.thinking") : null);
-  const hasLiveTail = Boolean(pendingPrompt)
-    || pendingReferences.length > 0
-    || Boolean(projection.connectionStatus)
+    : submissionStatus
+      || (runStatusLabel && runDuration
+        ? t("agent.transcript.runElapsed", { status: runStatusLabel, duration: runDuration })
+        : runStatusLabel);
+  const hasLiveTail = Boolean(projection.connectionStatus)
     || Boolean(workingStatus);
+  const historyNotice = agentHistoryNotice(projection);
   const showEmptyState = Boolean(emptyState)
     && !loading
     && timeline.rows.length === 0
     && !hasLiveTail
-    && !projection.partialHistory;
-  const scrollEdgeState = useScrollEdgeState(scrollRef, {
-    revision: `${timeline.rows.length}:${layout.totalHeight}:${hasLiveTail ? "live" : "settled"}`,
-  });
+    && !historyNotice;
+
   if (!seededPartIdsRef.current) {
     for (const row of timeline.rows) seenPartIdsRef.current.add(row.partId);
     seededPartIdsRef.current = true;
     previousTimelineRef.current = { rows: timeline.rows.length, sequence: latestSequence };
   }
-  layoutRef.current = layout;
-  timelineRowsRef.current = timeline.rows;
-  rowMetaRef.current = new Map(timeline.rows.map((row, index) => [row.id, { index, estimatedHeight: row.estimatedHeight }]));
-  rowIndexRef.current = new Map(timeline.rows.map((row, index) => [row.id, index]));
-  onViewportChangeRef.current = onViewportChange;
-
-  const flushMeasurements = useCallback(() => {
-    measurementFrameRef.current = null;
-    const pending = pendingMeasurementsRef.current;
-    pendingMeasurementsRef.current = new Map();
-    let nextMeasurements: Record<string, number> | null = null;
-
-    for (const [rowId, height] of pending) {
-      const meta = rowMetaRef.current.get(rowId);
-      if (!meta) continue;
-      const previousHeight = measurementsRef.current[rowId] ?? meta.estimatedHeight;
-      if (!Number.isFinite(height) || height <= 0 || Math.abs(previousHeight - height) < 1) continue;
-      nextMeasurements ??= { ...measurementsRef.current };
-      nextMeasurements[rowId] = height;
-    }
-
-    if (!nextMeasurements) return;
-    const element = scrollRef.current;
-    if (element && !pinnedRef.current) {
-      pendingScrollAnchorRef.current = captureAgentTimelineScrollAnchor(
-        timelineRowsRef.current,
-        layoutRef.current,
-        scrollTopRef.current,
-        canvasRef.current?.offsetTop ?? 0,
-      );
-    }
-    measurementsRef.current = nextMeasurements;
-    setMeasurements(nextMeasurements);
-  }, []);
-
-  const queueMeasurement = useCallback((rowId: string, height: number) => {
-    pendingMeasurementsRef.current.set(rowId, height);
-    if (measurementFrameRef.current !== null) return;
-    measurementFrameRef.current = window.requestAnimationFrame(flushMeasurements);
-  }, [flushMeasurements]);
-
-  const observeMeasuredRow = useCallback((rowId: string, element: HTMLDivElement | null) => {
-    const previous = rowElementsRef.current.get(rowId);
-    if (previous === element) return;
-    if (previous) rowObserverRef.current?.unobserve(previous);
-    if (!element) {
-      rowElementsRef.current.delete(rowId);
-      pendingMeasurementsRef.current.delete(rowId);
-      return;
-    }
-    rowElementsRef.current.set(rowId, element);
-    rowObserverRef.current?.observe(element, { box: "border-box" });
-    queueMeasurement(rowId, element.getBoundingClientRect().height);
-  }, [queueMeasurement]);
-
-  useLayoutEffect(() => {
-    const element = scrollRef.current;
-    if (!element) return undefined;
-    element.scrollTop = initialScrollTop;
-    scrollTopRef.current = element.scrollTop;
-    pinnedRef.current = initialPinned;
-    setScrollTop(element.scrollTop);
-    setPinned(initialPinned);
-    const observer = typeof ResizeObserver === "function" ? new ResizeObserver(([entry]) => {
-      if (entry?.contentRect.height > 0) setViewportHeight(entry.contentRect.height);
-    }) : null;
-    observer?.observe(element);
-    return () => observer?.disconnect();
-  }, [initialPinned, initialScrollTop]);
-
-  useEffect(() => {
-    if (typeof ResizeObserver !== "function") return undefined;
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const rowId = (entry.target as HTMLElement).dataset.rowId;
-        if (rowId) queueMeasurement(rowId, resizeObserverBorderBoxHeight(entry));
-      }
-    });
-    rowObserverRef.current = observer;
-    for (const element of rowElementsRef.current.values()) {
-      observer.observe(element, { box: "border-box" });
-    }
-    return () => {
-      observer.disconnect();
-      if (rowObserverRef.current === observer) rowObserverRef.current = null;
-    };
-  }, [queueMeasurement]);
-
-  useEffect(() => () => {
-    if (measurementFrameRef.current !== null) {
-      window.cancelAnimationFrame(measurementFrameRef.current);
-      measurementFrameRef.current = null;
-    }
-    pendingMeasurementsRef.current.clear();
-  }, []);
-
-  useLayoutEffect(() => {
-    if (pendingMeasurementsRef.current.size === 0) return;
-    // A newly committed row replaces the optimistic live-tail message. Resolve
-    // its real geometry before paint so the virtual canvas never exposes its
-    // coarse estimate for one frame and moves the working indicator afterward.
-    if (measurementFrameRef.current !== null) {
-      window.cancelAnimationFrame(measurementFrameRef.current);
-      measurementFrameRef.current = null;
-    }
-    flushMeasurements();
-  }, [flushMeasurements, timeline.rows.length]);
-
-  useLayoutEffect(() => {
-    const element = scrollRef.current;
-    if (!element) return;
-    if (pinnedRef.current) {
-      element.scrollTop = element.scrollHeight;
-    } else if (pendingScrollAnchorRef.current) {
-      const nextScrollTop = resolveAgentTimelineScrollAnchor(
-        pendingScrollAnchorRef.current,
-        layout,
-        rowIndexRef.current,
-        canvasRef.current?.offsetTop ?? 0,
-      );
-      pendingScrollAnchorRef.current = null;
-      if (nextScrollTop !== null) element.scrollTop = nextScrollTop;
-    } else {
-      return;
-    }
-    scrollTopRef.current = element.scrollTop;
-    setScrollTop(element.scrollTop);
-    onViewportChangeRef.current?.(element.scrollTop, measurementsRef.current, pinnedRef.current);
-  }, [layout, pendingPrompt, projection.approvals.length, projection.questions.length, workingStatus]);
-
   useEffect(() => {
     const previous = previousTimelineRef.current;
-    if (latestSequence <= previous.sequence && timeline.rows.length <= previous.rows) return;
-    if (pinnedRef.current) setUnreadCount(0);
-    else {
-      const addedRows = Math.max(0, timeline.rows.length - previous.rows);
-      setUnreadCount((current) => Math.min(99, current + Math.max(1, addedRows)));
+    if (pinned) setUnreadCount(0);
+    else if (latestSequence > previous.sequence || timeline.rows.length > previous.rows) {
+      setUnreadCount(value => Math.min(99, value + Math.max(1, timeline.rows.length - previous.rows)));
     }
     previousTimelineRef.current = { rows: timeline.rows.length, sequence: latestSequence };
-  }, [latestSequence, timeline.rows.length]);
-
-  const handleScroll = () => {
-    const element = scrollRef.current;
-    if (!element) return;
-    const nextScrollTop = element.scrollTop;
-    const nextPinned = element.scrollHeight - nextScrollTop - element.clientHeight < 80;
-    scrollTopRef.current = nextScrollTop;
-    pinnedRef.current = nextPinned;
-    setScrollTop(nextScrollTop);
-    setPinned(nextPinned);
-    if (nextPinned) setUnreadCount(0);
-    onViewportChangeRef.current?.(nextScrollTop, measurementsRef.current, nextPinned);
-  };
+  }, [pinned, latestSequence, timeline.rows.length]);
 
   return (
     <div
@@ -288,11 +162,7 @@ function AgentTranscriptView({
         aria-label={t("agent.transcript.conversation", { agent: bidiIsolate(runtimeLabel) })}
         tabIndex={0}
       >
-        {projection.partialHistory && (
-          <div className="desktop-agent-history-warning" role="status">
-            <CircleAlert size={14} /> {t("agent.transcript.partialHistory")}
-          </div>
-        )}
+        <AgentHistoryNotice notice={historyNotice} />
         {loading && timeline.rows.length === 0 && !hasLiveTail && (
           <PageLoading
             variant="fill"
@@ -306,55 +176,54 @@ function AgentTranscriptView({
           <div ref={canvasRef} className="desktop-agent-virtual-canvas" style={agentVirtualCanvasGeometry(layout.totalHeight)}>
             {visibleRows.map((row, relativeIndex) => {
               const index = range.start + relativeIndex;
-              const part = timeline.parts.get(row.partId);
+              const parts = row.partIds
+                .map((partId) => timeline.parts.get(partId))
+                .filter((part): part is AgentPart => Boolean(part));
+              const part = parts[0];
               if (!part) return null;
               // User prompts are already shown optimistically. Animating their
               // committed replacement makes the same message visibly enter
               // twice during the first-turn handoff.
-              const animate = part.kind !== "user" && !seenPartIdsRef.current.has(part.id);
-              seenPartIdsRef.current.add(part.id);
+              const animate = part.kind !== "user" && part.kind !== "turn-summary" && !seenPartIdsRef.current.has(part.id);
+              for (const visiblePart of parts) seenPartIdsRef.current.add(visiblePart.id);
               return (
-                <MeasuredRow
+                <TranscriptRow
                   key={row.id}
                   rowId={row.id}
                   kind={part.kind}
                   top={layout.offsets[index]}
                   gapAfter={layout.gaps[index]}
                   animate={animate}
+                  parts={parts}
                   onMeasureElement={observeMeasuredRow}
+                  onContentSizeChange={commitMeasurement}
                 >
-                  <MemoAgentPartRenderer part={part} runtimeLabel={runtimeLabel} onOpenFile={onOpenFile} />
-                </MeasuredRow>
+                  {row.toolGroup
+                    ? <AgentToolActivityGroup
+                        parts={parts}
+                        rowId={row.id}
+                        runtimeLabel={runtimeLabel}
+                        onOpenFile={onOpenFile}
+                        onRowHeightChange={commitMeasurement}
+                      />
+                    : <MemoAgentPartRenderer part={part} runtimeLabel={runtimeLabel} onOpenFile={onOpenFile} />}
+                </TranscriptRow>
               );
             })}
           </div>
         )}
         {hasLiveTail && (
-          <div className="desktop-agent-live-tail">
-            {(pendingPrompt || pendingReferences.length > 0) && <AgentMessagePart part={{
-              id: "optimistic:user",
-              kind: "user",
-              turnId: null,
-              itemId: null,
-              text: pendingPrompt || "",
-              references: pendingReferences.map(draftReferenceDisplay),
-              promptMentions: pendingPromptMentions,
-              streaming: false,
-              terminalState: null,
-              sequence: Number.MAX_SAFE_INTEGER,
-            }} runtimeLabel={runtimeLabel} />}
+          <div ref={observeTail} className="desktop-agent-live-tail">
             {projection.connectionStatus && <AgentConnectionStatus status={projection.connectionStatus} />}
             {workingStatus && (
-              <div
-                className="desktop-agent-working-indicator"
-                role="status"
-                aria-label={showThinking
-                  ? t("agent.transcript.thinkingAria", { agent: bidiIsolate(runtimeLabel) })
-                  : workingStatus}
-              >
-                <LoaderCircle size={13} className="desktop-agent-spin" aria-hidden="true" />
-                <span>{workingStatus}</span>
-              </div>
+              <AgentRunStatus
+                key={liveReasoningSummary?.id ?? projection.runningTurnId ?? "run-status"}
+                label={workingStatus}
+                ariaLabel={showThinking
+                    ? t("agent.transcript.thinkingAria", { agent: bidiIsolate(runtimeLabel) })
+                    : workingStatus}
+                reasoningSummary={liveReasoningSummary?.text ?? null}
+              />
             )}
           </div>
         )}
@@ -368,13 +237,7 @@ function AgentTranscriptView({
         </div>
       </div>
       {!pinned && timeline.rows.length > 0 && (
-        <button className="desktop-agent-jump-latest" type="button" onClick={() => {
-          const element = scrollRef.current;
-          if (element) element.scrollTop = element.scrollHeight;
-          pinnedRef.current = true;
-          setPinned(true);
-          setUnreadCount(0);
-        }} aria-label={unreadCount
+        <button className="desktop-agent-jump-latest" type="button" onClick={() => { jumpToLatest(); setUnreadCount(0); }} aria-label={unreadCount
           ? t("agent.transcript.jumpLatestUnread", { count: unreadCount })
           : t("agent.transcript.jumpLatest")} title={t("agent.transcript.jumpLatest")}><ArrowDown size={15} /></button>
       )}
@@ -382,63 +245,78 @@ function AgentTranscriptView({
   );
 }
 
-function draftReferenceDisplay(reference: AgentDraftReference): AgentReferenceDisplay {
-  return {
-    id: reference.id,
-    kind: reference.kind === "staged-attachment"
-      ? "attachment"
-      : reference.entryType === "directory" ? "workspace-directory" : "workspace-file",
-    displayName: reference.displayName,
-    ...(reference.kind === "workspace-entry" ? { relativePath: reference.relativePath } : {}),
-    ...(reference.kind === "staged-attachment" ? { mime: reference.mime, size: reference.size } : {}),
-  };
-}
-
 export const AgentTranscript = memo(AgentTranscriptView);
 AgentTranscript.displayName = "AgentTranscript";
 
 const MemoAgentPartRenderer = memo(AgentPartRenderer);
 
-function MeasuredRow({ rowId, kind, top, gapAfter, animate, onMeasureElement, children }: {
-  rowId: string;
-  kind: AgentPart["kind"];
-  top: number;
-  gapAfter: number;
-  animate: boolean;
-  onMeasureElement: (rowId: string, element: HTMLDivElement | null) => void;
-  children: React.ReactNode;
+function AgentRunStatus({ label, ariaLabel, reasoningSummary }: {
+  label: string;
+  ariaLabel: string;
+  reasoningSummary: string | null;
 }) {
-  const [entering, setEntering] = useState(animate);
-  const registerElement = useCallback((element: HTMLDivElement | null) => {
-    onMeasureElement(rowId, element);
-  }, [onMeasureElement, rowId]);
-  useEffect(() => setEntering(animate), [animate, rowId]);
-  return <div
-    ref={registerElement}
-    className={`desktop-agent-virtual-row${entering ? " is-new" : ""}`}
-    data-row-id={rowId}
-    data-kind={kind}
-    data-gap-after={gapAfter}
-    style={agentVirtualRowGeometry(top)}
-    onAnimationEnd={() => setEntering(false)}
-  >{children}</div>;
+  const [expanded, setExpanded] = useState(false);
+  const indicator = (
+    <AgentRunFeedback
+      className="desktop-agent-working-indicator"
+      busy
+      label={label}
+      ariaLabel={ariaLabel}
+    />
+  );
+  if (!reasoningSummary) return indicator;
+  return (
+    <div className={`desktop-agent-run-status${expanded ? " is-expanded" : ""}`}>
+      <button
+        className="desktop-agent-run-status-toggle"
+        type="button"
+        aria-expanded={expanded}
+        onClick={() => setExpanded((value) => !value)}
+      >
+        {indicator}
+      </button>
+      {expanded && (
+        <div className="desktop-agent-run-summary-preview" dir="auto">
+          {reasoningSummary}
+        </div>
+      )}
+    </div>
+  );
 }
 
-function resizeObserverBorderBoxHeight(entry: ResizeObserverEntry) {
-  const borderBox = Array.isArray(entry.borderBoxSize)
-    ? entry.borderBoxSize[0]
-    : entry.borderBoxSize;
-  return borderBox?.blockSize || entry.target.getBoundingClientRect().height;
+export function currentAgentReasoningSummary(projection: AgentProjection) {
+  const turnId = projection.runningTurnId;
+  if (!turnId) return null;
+  const parts = projection.parts.length > 0
+    ? projection.parts
+    : projection.activities.map((activity): AgentPart => ({ ...activity }));
+  const reasoning = parts
+    .filter((part): part is Extract<AgentPart, { kind: "reasoning" }> => (
+      part.kind === "reasoning" && part.turnId === turnId
+    ))
+    .sort((left, right) => (
+      (left.updatedSequence ?? left.sequence) - (right.updatedSequence ?? right.sequence)
+    ))
+    .at(-1);
+  if (!reasoning) return null;
+  const text = (typeof reasoning.detail.delta === "string"
+    ? reasoning.detail.delta
+    : outputForActivity(reasoning)).trim().slice(0, 2_048);
+  return text ? { id: reasoning.id, text } : null;
 }
 
-/** Presentation-only working state; never fabricates or persists model text. */
-export function shouldShowAgentThinking(
+/** Presentation only: never fabricates model content or Harness history. */
+export function shouldShowAgentThinking(projection: AgentProjection, working: boolean) {
+  return agentRunStatusCode(projection, working) === "thinking";
+}
+
+export function agentRunStatusCode(
   projection: AgentProjection,
   working: boolean,
-) {
-  if (!working || projection.approvals.length > 0 || projection.questions.length > 0) return false;
+): "thinking" | "working" | null {
+  if (!working || projection.approvals.length > 0 || projection.questions.length > 0) return null;
   const turnId = projection.runningTurnId;
-  if (!turnId) return false;
+  if (!turnId) return null;
   const typedParts = projection.parts.length > 0
     ? projection.parts
     : [
@@ -447,17 +325,19 @@ export function shouldShowAgentThinking(
     ];
   const visible = typedParts
     .filter((part) => part.turnId === turnId && !["user", "usage", "permission", "question"].includes(part.kind))
-    .sort((left, right) => left.sequence - right.sequence);
+    .sort((left, right) => (
+      (left.updatedSequence ?? left.sequence) - (right.updatedSequence ?? right.sequence)
+    ));
   const latest = visible.at(-1);
-  if (!latest) return true;
-  if (latest.kind === "assistant") return false;
-  if (latest.kind === "error" || latest.kind === "warning") return false;
+  if (!latest) return "thinking";
+  if (latest.kind === "assistant") return latest.streaming ? null : "working";
+  if (latest.kind === "error" || latest.kind === "warning") return null;
   if ("status" in latest && ["running", "pending", "in-progress", "waiting-for-user", "blocked"].includes(latest.status)) {
-    return false;
+    return latest.kind === "reasoning" ? "thinking" : "working";
   }
   // A completed tool/reasoning item while the turn is still active means the
   // native harness has resumed work and needs a fresh, non-persistent pulse.
-  return true;
+  return "working";
 }
 
 export function agentSubmissionStatusLabel(
@@ -472,4 +352,4 @@ export function agentSubmissionStatusLabel(
   return null;
 }
 
-export { agentTimelineLimits } from "./agent-timeline-layout";
+export { agentTimelineLimits } from "./transcript/transcript-layout";

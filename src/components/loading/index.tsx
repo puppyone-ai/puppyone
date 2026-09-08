@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { createContext, useContext, type CSSProperties, type ReactNode } from "react";
 import {
   DEFAULT_PULSE_GRID_FRAME_DURATION_MS,
   PULSE_GRID_PRESET_FRAMES,
@@ -7,11 +7,7 @@ import {
   type PulseGridFrames,
   type PulseGridPoint,
 } from "@puppyone/shared-ui";
-import {
-  LOADING_ANIMATION_CHANGE_EVENT,
-  LOADING_ANIMATION_STORAGE_KEY,
-  parseLoadingAnimationPreset,
-} from "../../preferences";
+import { DEFAULT_LOADING_ANIMATION_PRESET, type LoadingAnimationPreset } from "../../preferences";
 
 type LoaderSize = "xs" | "sm";
 type LoaderTone = "neutral" | "info" | "success" | "danger";
@@ -41,6 +37,23 @@ const TONE_MAP: Record<LoaderTone, { active: string }> = {
 const PULSE_GRID_TRANSITION_MS = 70;
 const PULSE_GRID_POINT_COUNT = 9;
 const PULSE_GRID_IDLE_OPACITY = 0.18;
+const LoadingAnimationContext = createContext<LoadingAnimationPreset>(
+  DEFAULT_LOADING_ANIMATION_PRESET,
+);
+
+export function LoadingAnimationProvider({
+  children,
+  preset,
+}: {
+  children: ReactNode;
+  preset: LoadingAnimationPreset;
+}) {
+  return (
+    <LoadingAnimationContext.Provider value={preset}>
+      {children}
+    </LoadingAnimationContext.Provider>
+  );
+}
 
 export function PulseGrid({
   size = "sm",
@@ -106,28 +119,8 @@ export function PulseGrid({
 }
 
 function usePreferredPulseGridFrames(frames: PulseGridFrames | undefined): PulseGridFrames {
-  const [preset, setPreset] = useState(() => readLoadingAnimationPreset());
-
-  useEffect(() => {
-    const sync = () => setPreset(readLoadingAnimationPreset());
-    const syncStorage = (event: StorageEvent) => {
-      if (event.key !== LOADING_ANIMATION_STORAGE_KEY && event.key !== null) return;
-      sync();
-    };
-    window.addEventListener("storage", syncStorage);
-    window.addEventListener(LOADING_ANIMATION_CHANGE_EVENT, sync);
-    return () => {
-      window.removeEventListener("storage", syncStorage);
-      window.removeEventListener(LOADING_ANIMATION_CHANGE_EVENT, sync);
-    };
-  }, []);
-
+  const preset = useContext(LoadingAnimationContext);
   return frames ?? PULSE_GRID_PRESET_FRAMES[preset];
-}
-
-function readLoadingAnimationPreset() {
-  if (typeof window === "undefined") return parseLoadingAnimationPreset(null);
-  return parseLoadingAnimationPreset(window.localStorage.getItem(LOADING_ANIMATION_STORAGE_KEY));
 }
 
 export function Dots({
@@ -136,20 +129,21 @@ export function Dots({
   className,
   style,
   ariaLabel = "Loading",
+  ariaHidden = false,
 }: {
   size?: LoaderSize;
   tone?: LoaderTone;
   className?: string;
   style?: CSSProperties;
   ariaLabel?: string;
+  ariaHidden?: boolean;
 }) {
   const { dot, gap } = DOTS_SIZE[size];
   const { active } = TONE_MAP[tone];
 
   return (
     <span
-      role="status"
-      aria-label={ariaLabel}
+      {...(ariaHidden ? { "aria-hidden": true } : { role: "status", "aria-label": ariaLabel })}
       data-puppy-loader="dots"
       className={className}
       style={{ display: "inline-flex", alignItems: "center", gap, verticalAlign: "middle", ...style }}
@@ -225,16 +219,23 @@ export function InlineLoading({
   tone = "neutral",
   className,
   style,
+  ariaLabel,
 }: {
   label?: ReactNode | null;
   size?: LoaderSize;
   tone?: LoaderTone;
   className?: string;
   style?: CSSProperties;
+  ariaLabel?: string;
 }) {
   return (
-    <span className={className} style={{ display: "inline-flex", alignItems: "center", gap: 7, ...style }}>
-      <Dots size={size} tone={tone} />
+    <span
+      className={className}
+      role="status"
+      aria-label={ariaLabel || (typeof label === "string" ? label : "Loading")}
+      style={{ display: "inline-flex", alignItems: "center", gap: 7, ...style }}
+    >
+      <Dots size={size} tone={tone} ariaHidden />
       {label != null && <span>{label}</span>}
     </span>
   );

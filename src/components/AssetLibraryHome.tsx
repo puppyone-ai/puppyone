@@ -1,7 +1,6 @@
 import { AlertTriangle, FolderOpen, Monitor, Plus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
-import { createTypographyRootProps } from "../features/typography";
 import { useWorkspaceFolderDrop } from "../features/app-shell/useWorkspaceFolderDrop";
 import type { MinimalOnboardingProps } from "./MinimalOnboarding";
 import type { ProjectHomeItem } from "../features/app-shell/workspaceHomeModel";
@@ -17,15 +16,7 @@ export function AssetLibraryHome({
   projectItems,
   operationStatus = null,
   initialError = null,
-  themeMode,
-  lightThemePreset,
-  darkThemePreset,
-  textSize,
-  typography,
-  pointerCursors,
-  diffMarkers,
-  resolvedTheme,
-  subThemeId,
+  appearance,
 }: MinimalOnboardingProps) {
   const { t, formatDate, formatRelativeTime } = useLocalization();
   const [error, setError] = useState<string | null>(initialError);
@@ -87,19 +78,12 @@ export function AssetLibraryHome({
     onDropFolder: openDroppedFolder,
     onInvalidDrop: () => setError(t("onboarding.library.error.dropLocalFolder")),
   });
+  const resolvedTheme = appearance.appearance.effectiveColorMode;
   return (
     <main
       className={`onboarding-shell asset-library-home-shell ${resolvedTheme === "dark" ? "dark" : ""} ${folderDrop.dragging ? "is-dragging" : ""}`}
-      data-po-appearance-root="true"
-      data-sub-theme-id={subThemeId}
       data-po-scrollbar="content"
-      data-theme-mode={themeMode}
-      data-light-theme-preset={lightThemePreset}
-      data-dark-theme-preset={darkThemePreset}
-      data-content-text-size={textSize}
-      data-pointer-cursors={pointerCursors ? "true" : "false"}
-      data-diff-markers={diffMarkers}
-      {...createTypographyRootProps(typography)}
+      {...appearance.rootProps}
       onDragEnter={folderDrop.onDragEnter}
       onDragOver={folderDrop.onDragOver}
       onDragLeave={folderDrop.onDragLeave}

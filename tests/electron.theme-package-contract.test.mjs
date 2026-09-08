@@ -46,6 +46,16 @@ describe("CSS theme package manifest", () => {
     expect(Object.isFrozen(manifest.compatibleRootThemeIds)).toBe(true);
   });
 
+  it("accepts an optional typography target with its own entrypoint", () => {
+    const manifest = parseThemeManifest(validManifest({
+      targets: ["typography", "markdown"],
+      entrypoints: { typography: "typography.css", markdown: "markdown.css" },
+    }));
+
+    expect(manifest.targets).toEqual(["typography", "markdown"]);
+    expect(manifest.entrypoints.typography).toBe("typography.css");
+  });
+
   it.each([[[]], [["Default"]], [["windows xp"]], [["default", "default"]]])
     ("rejects invalid Root Theme compatibility %j", (compatibleRootThemeIds) => {
       expect(() => parseThemeManifest(validManifest({ compatibleRootThemeIds })))

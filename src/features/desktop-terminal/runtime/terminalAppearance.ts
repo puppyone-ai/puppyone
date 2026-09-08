@@ -1,4 +1,5 @@
 import { Terminal, type ITheme } from "@xterm/xterm";
+import { TYPOGRAPHY_SCALE_METRICS } from "../../typography";
 
 export type TerminalRgbColor = [number, number, number];
 
@@ -8,43 +9,44 @@ export type TerminalDefaultColors = {
 };
 
 export function readTerminalTheme(element: HTMLElement): ITheme {
+  const source = resolveTerminalAppearanceSource(element);
   return {
     background: cssColor(
-      element,
+      source,
       "--po-terminal-bg",
-      cssColor(element, "--po-surface-terminal", "#fafafa"),
+      cssColor(source, "--po-surface-terminal", "#fafafa"),
     ),
-    foreground: cssColor(element, "--po-terminal-fg", cssColor(element, "--po-text", "#2f2a23")),
-    cursor: cssColor(element, "--po-terminal-cursor", cssColor(element, "--po-text", "#2f2a23")),
+    foreground: cssColor(source, "--po-terminal-fg", cssColor(source, "--po-text", "#2f2a23")),
+    cursor: cssColor(source, "--po-terminal-cursor", cssColor(source, "--po-text", "#2f2a23")),
     selectionBackground: cssColor(
-      element,
+      source,
       "--po-terminal-selection",
-      cssColor(element, "--po-selected", "rgba(73, 55, 35, 0.17)"),
+      cssColor(source, "--po-selected", "rgba(73, 55, 35, 0.17)"),
     ),
     scrollbarSliderBackground: "transparent",
     scrollbarSliderHoverBackground: "transparent",
     scrollbarSliderActiveBackground: "transparent",
     overviewRulerBorder: "transparent",
-    black: cssColor(element, "--po-terminal-black", cssColor(element, "--po-text", "#2f2a23")),
-    red: cssColor(element, "--po-terminal-red", cssColor(element, "--po-danger", "#dc2626")),
-    green: cssColor(element, "--po-terminal-green", cssColor(element, "--po-success", "#15803d")),
-    yellow: cssColor(element, "--po-terminal-yellow", cssColor(element, "--po-warning", "#b45309")),
-    blue: cssColor(element, "--po-terminal-blue", cssColor(element, "--po-accent", "#2563eb")),
-    magenta: cssColor(element, "--po-terminal-magenta", cssColor(element, "--po-purple", "#8057a8")),
-    cyan: cssColor(element, "--po-terminal-cyan", cssColor(element, "--po-info", "#0284c7")),
-    white: cssColor(element, "--po-terminal-white", cssColor(element, "--po-inset", "#e6ded1")),
+    black: cssColor(source, "--po-terminal-black", cssColor(source, "--po-text", "#2f2a23")),
+    red: cssColor(source, "--po-terminal-red", cssColor(source, "--po-danger", "#dc2626")),
+    green: cssColor(source, "--po-terminal-green", cssColor(source, "--po-success", "#15803d")),
+    yellow: cssColor(source, "--po-terminal-yellow", cssColor(source, "--po-warning", "#b45309")),
+    blue: cssColor(source, "--po-terminal-blue", cssColor(source, "--po-accent", "#2563eb")),
+    magenta: cssColor(source, "--po-terminal-magenta", cssColor(source, "--po-purple", "#8057a8")),
+    cyan: cssColor(source, "--po-terminal-cyan", cssColor(source, "--po-info", "#0284c7")),
+    white: cssColor(source, "--po-terminal-white", cssColor(source, "--po-inset", "#e6ded1")),
     brightBlack: cssColor(
-      element,
+      source,
       "--po-terminal-bright-black",
-      cssColor(element, "--po-text-muted", "#70685e"),
+      cssColor(source, "--po-text-muted", "#70685e"),
     ),
-    brightRed: cssColor(element, "--po-terminal-bright-red", cssColor(element, "--po-danger", "#dc2626")),
-    brightGreen: cssColor(element, "--po-terminal-bright-green", cssColor(element, "--po-success", "#15803d")),
-    brightYellow: cssColor(element, "--po-terminal-bright-yellow", cssColor(element, "--po-warning", "#b45309")),
-    brightBlue: cssColor(element, "--po-terminal-bright-blue", cssColor(element, "--po-accent", "#2563eb")),
-    brightMagenta: cssColor(element, "--po-terminal-bright-magenta", cssColor(element, "--po-purple", "#8057a8")),
-    brightCyan: cssColor(element, "--po-terminal-bright-cyan", cssColor(element, "--po-info", "#0284c7")),
-    brightWhite: cssColor(element, "--po-terminal-bright-white", cssColor(element, "--po-text", "#2f2a23")),
+    brightRed: cssColor(source, "--po-terminal-bright-red", cssColor(source, "--po-danger", "#dc2626")),
+    brightGreen: cssColor(source, "--po-terminal-bright-green", cssColor(source, "--po-success", "#15803d")),
+    brightYellow: cssColor(source, "--po-terminal-bright-yellow", cssColor(source, "--po-warning", "#b45309")),
+    brightBlue: cssColor(source, "--po-terminal-bright-blue", cssColor(source, "--po-accent", "#2563eb")),
+    brightMagenta: cssColor(source, "--po-terminal-bright-magenta", cssColor(source, "--po-purple", "#8057a8")),
+    brightCyan: cssColor(source, "--po-terminal-bright-cyan", cssColor(source, "--po-info", "#0284c7")),
+    brightWhite: cssColor(source, "--po-terminal-bright-white", cssColor(source, "--po-text", "#2f2a23")),
   };
 }
 
@@ -65,14 +67,34 @@ export function terminalDefaultColorsFromTheme(theme: ITheme): TerminalDefaultCo
 }
 
 export function readTerminalFontFamily(element: HTMLElement) {
-  return getComputedStyle(element).getPropertyValue("--po-font-terminal").trim()
+  const source = resolveTerminalAppearanceSource(element);
+  return getComputedStyle(source).getPropertyValue("--po-font-terminal").trim()
     || '"Geist Mono", "SFMono-Regular", "SF Mono", Consolas, "Liberation Mono", monospace';
 }
 
 export function readTerminalFontSize(element: HTMLElement) {
-  const value = getComputedStyle(element).getPropertyValue("--po-terminal-font-size").trim();
+  const source = resolveTerminalAppearanceSource(element);
+  const value = getComputedStyle(source).getPropertyValue("--po-terminal-font-size").trim();
   const fontSize = Number.parseFloat(value);
-  return Number.isInteger(fontSize) ? fontSize : 13;
+  return Number.isInteger(fontSize)
+    ? fontSize
+    : TYPOGRAPHY_SCALE_METRICS.medium.rightSidebar.terminal;
+}
+
+/**
+ * Persistent terminal hosts may be detached while their tabs are parked. A
+ * detached node has no inherited CSS custom properties, so reading from it
+ * would silently select the light hardcoded fallbacks and tell the PTY that a
+ * dark session is light. Resolve to the live workbench appearance boundary in
+ * that case; the runtime container remains the most specific source whenever
+ * it is connected.
+ */
+export function resolveTerminalAppearanceSource(element: HTMLElement): HTMLElement {
+  if (element.isConnected) return element;
+  const ownerDocument = element.ownerDocument;
+  return ownerDocument.querySelector<HTMLElement>("[data-terminal-appearance-source]")
+    ?? ownerDocument.querySelector<HTMLElement>("[data-po-appearance-root]")
+    ?? ownerDocument.documentElement;
 }
 
 function cssColor(element: HTMLElement, name: string, fallback: string) {

@@ -7,6 +7,15 @@
   background: var(--po-canvas);
 }
 
+.desktop-shell-pane-group {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  background: var(--po-canvas);
+}
+
 .desktop-shell-navigation-toolbar-host {
   display: flex;
   width: 100%;
@@ -292,7 +301,7 @@
   justify-content: center;
   padding: 16px;
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-text-size-meta, 12px);
   text-align: center;
 }
 
@@ -493,8 +502,8 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 
 .desktop-identity-button,
 .desktop-rail-button {
-  width: 32px;
-  height: 32px;
+  width: var(--po-control-size);
+  height: var(--po-control-size);
   border-radius: 6px;
 }
 
@@ -514,7 +523,7 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   border-radius: 5px;
   background: #4599df;
   color: var(--po-text-inverse);
-  font-size: 10px;
+  font-size: var(--po-text-size-micro, 10px);
   font-weight: 800;
   text-transform: uppercase;
 }
@@ -530,17 +539,17 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 }
 
 .desktop-project-menu .desktop-menu-item {
-  font-size: 13px;
+  font-size: var(--po-text-size-interface, 13px);
   font-weight: 500;
 }
 
 .desktop-project-menu .desktop-menu-item-label {
-  font-size: 13px;
+  font-size: var(--po-text-size-interface, 13px);
   font-weight: 500;
 }
 
 .desktop-project-menu .desktop-menu-item-detail {
-  font-size: 12px;
+  font-size: var(--po-text-size-meta, 12px);
   font-weight: 500;
 }
 
@@ -658,12 +667,12 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 
 .desktop-view-placeholder span {
   color: var(--po-text-disabled);
-  font-size: 12px;
+  font-size: var(--po-text-size-meta, 12px);
   text-transform: capitalize;
 }
 
 .desktop-view-placeholder strong {
   display: block;
   color: var(--po-text);
-  font-size: 14px;
+  font-size: var(--po-text-size-body-lg, 14px);
 }

@@ -82,16 +82,46 @@ describe("desktop explorer Header expansion", () => {
     expect(onLeftSidebarExpand).toHaveBeenCalledWith();
     expect(button.getAttribute("aria-label")).toBe("Expand sidebar");
   });
+
+  it("mounts an optional cross-Project rail below the full-width Header", () => {
+    const container = renderShell({
+      leftSidebarCollapsed: false,
+      leadingRail: <nav>Projects</nav>,
+      leadingRailWidth: 60,
+    });
+    const shell = container.querySelector<HTMLElement>(".desktop-shell");
+    const workbench = shell?.querySelector<HTMLElement>(":scope > .desktop-shell-workbench");
+    const belowHeader = workbench?.querySelector<HTMLElement>(":scope > .desktop-shell-below-header");
+    const rail = belowHeader?.querySelector<HTMLElement>(":scope > .desktop-shell-leading-rail");
+    const workspaceColumn = belowHeader?.querySelector<HTMLElement>(":scope > .desktop-shell-workspace-column");
+    const body = workspaceColumn?.querySelector<HTMLElement>(".desktop-shell-body");
+    const panes = body?.querySelector<HTMLElement>(":scope > .desktop-shell-pane-group");
+
+    expect(rail?.textContent).toBe("Projects");
+    expect(panes?.textContent).toContain("Editor");
+    expect(workbench?.querySelector(":scope > .desktop-titlebar")).not.toBeNull();
+    expect(workbench?.querySelector(":scope > .desktop-titlebar")?.nextElementSibling).toBe(belowHeader);
+    expect(rail?.nextElementSibling).toBe(workspaceColumn);
+    expect(body?.querySelector(".desktop-shell-leading-rail")).toBeNull();
+    expect(shell?.getAttribute("data-leading-rail")).toBe("true");
+    expect(shell?.style.getPropertyValue(
+      "--desktop-shell-leading-rail-width",
+    )).toBe("60px");
+  });
 });
 
 function renderShell({
   leftSidebarCollapsed,
+  leadingRail,
+  leadingRailWidth,
   onLeftSidebarExpand = vi.fn(),
   rightSidebar,
   rightSidebarOpen = false,
   titlebarEditorSlot = <div>Editors</div>,
 }: {
   leftSidebarCollapsed: boolean;
+  leadingRail?: React.ReactNode;
+  leadingRailWidth?: number;
   onLeftSidebarExpand?: () => void;
   rightSidebar?: React.ReactNode;
   rightSidebarOpen?: boolean;
@@ -103,6 +133,8 @@ function renderShell({
   act(() => {
     root?.render(withTestLocalization(
       <DesktopCloudShell
+        leadingRail={leadingRail}
+        leadingRailWidth={leadingRailWidth}
         leftSidebarCollapsed={leftSidebarCollapsed}
         onLeftSidebarExpand={onLeftSidebarExpand}
         rightSidebar={rightSidebar}

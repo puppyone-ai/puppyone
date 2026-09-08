@@ -115,7 +115,8 @@ describe("editor split-pane architecture", () => {
   it("keeps file selection out of the Header", () => {
     expect(appSource).not.toContain("DesktopEditorTabs");
     expect(appSource).not.toContain("titlebarEditorSlot");
-    expect(appSource).toContain("titlebarSidebarSlot={titlebarSidebarSlot}");
+    // The project rail may conditionally own this slot; the fallback remains sidebar chrome.
+    expect(appSource).toMatch(/titlebarSidebarSlot=\{[^}]*\btitlebarSidebarSlot\b[^}]*\}/);
   });
 
   it("projects the pane tree inside the Data editor region", () => {

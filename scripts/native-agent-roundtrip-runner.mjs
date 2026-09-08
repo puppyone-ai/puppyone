@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { attachNativeAgentSessionFeed } from "./native-agent-session-feed.mjs";
 
 const DEFAULT_TIMEOUT_MS = 120_000;
 const SAFE_TOKEN = /^PUPPYONE_SMOKE_[A-Z0-9_]{4,96}$/u;
@@ -28,20 +29,24 @@ export async function runNativeAgentRoundtrip({
 }) {
   let stage = "create";
   let activeSessionId = null;
+  let feed = null;
   try {
     const created = await service.createSession(sender, { runtimeId }, workspaceRoot);
     activeSessionId = requiredSessionId(created, runtimeId, stage);
     const providerSessionId = requiredProviderSessionId(created, runtimeId, stage);
+    feed = await attachNativeAgentSessionFeed({ service, sender, sessionId: activeSessionId, workspaceRoot });
 
     stage = "first-answer";
     const firstToken = requiredToken(tokenFactory(1), runtimeId, stage);
     const firstAnswer = await runTurn({
-      service, sender, workspaceRoot, sessionId: activeSessionId, runtimeId,
+      service, sender, workspaceRoot, sessionId: activeSessionId, runtimeId, feed,
       token: firstToken, timeoutMs, stage,
     });
     if (!firstAnswer.includes(firstToken)) throw new NativeAgentRoundtripError(runtimeId, stage);
 
     stage = "close-before-resume";
+    await feed.detach();
+    feed = null;
     await service.closeSession(sender, {
       sessionId: activeSessionId,
       removePersistence: false,
@@ -73,16 +78,19 @@ export async function runNativeAgentRoundtrip({
     ) {
       throw new NativeAgentRoundtripError(runtimeId, stage);
     }
+    feed = await attachNativeAgentSessionFeed({ service, sender, sessionId: activeSessionId, workspaceRoot });
 
     stage = "follow-up";
     const followUpToken = requiredToken(tokenFactory(2), runtimeId, stage);
     const followUpAnswer = await runTurn({
-      service, sender, workspaceRoot, sessionId: activeSessionId, runtimeId,
+      service, sender, workspaceRoot, sessionId: activeSessionId, runtimeId, feed,
       token: followUpToken, timeoutMs, stage,
     });
     if (!followUpAnswer.includes(followUpToken)) throw new NativeAgentRoundtripError(runtimeId, stage);
 
     stage = "close";
+    await feed.detach();
+    feed = null;
     await service.closeSession(sender, {
       sessionId: activeSessionId,
       removePersistence: false,
@@ -98,6 +106,7 @@ export async function runNativeAgentRoundtrip({
     if (error instanceof NativeAgentRoundtripError) throw error;
     throw new NativeAgentRoundtripError(runtimeId, stage, classifyFailure(error));
   } finally {
+    await Promise.resolve(feed?.detach()).catch(() => {});
     if (activeSessionId) {
       await Promise.resolve(service.closeSession(sender, {
         sessionId: activeSessionId,
@@ -116,12 +125,14 @@ async function runTurn({
   token,
   timeoutMs,
   stage,
+  feed,
 }) {
-  const waiter = createTurnWaiter(sender, sessionId, timeoutMs);
+  const prompt = `Reply with exactly ${token}. Do not use tools, inspect files, or add formatting.`;
+  const waiter = feed.waitForTurn(timeoutMs, { expectedUserMessage: prompt });
   try {
     await service.startTurn(sender, {
       sessionId,
-      prompt: `Reply with exactly ${token}. Do not use tools, inspect files, or add formatting.`,
+      prompt,
     }, workspaceRoot);
     return await waiter.promise;
   } catch (error) {
@@ -129,45 +140,6 @@ async function runTurn({
   } finally {
     waiter.cancel();
   }
-}
-
-function createTurnWaiter(sender, sessionId, timeoutMs) {
-  let settled = false;
-  let text = "";
-  let resolvePromise;
-  let rejectPromise;
-  const promise = new Promise((resolve, reject) => {
-    resolvePromise = resolve;
-    rejectPromise = reject;
-  });
-  const onEvent = (event) => {
-    if (settled || event?.sessionId !== sessionId) return;
-    if (event.type === "assistant.delta" && typeof event.payload?.delta === "string") {
-      text = appendBounded(text, event.payload.delta);
-    }
-    if (event.type === "assistant.completed" && typeof event.payload?.text === "string") {
-      text = appendBounded(text, event.payload.text);
-    }
-    if (event.type === "turn.completed") settle(() => resolvePromise(text));
-    if (event.type === "turn.failed" || event.type === "turn.interrupted") {
-      settle(() => rejectPromise(new Error("Agent turn did not complete.")));
-    }
-  };
-  const settle = (finish) => {
-    if (settled) return;
-    settled = true;
-    clearTimeout(timer);
-    sender.off("agent:event", onEvent);
-    finish();
-  };
-  const timer = setTimeout(() => {
-    settle(() => rejectPromise(new Error("Agent turn timed out.")));
-  }, boundedTimeout(timeoutMs));
-  sender.on("agent:event", onEvent);
-  return {
-    promise,
-    cancel: () => settle(() => resolvePromise(text)),
-  };
 }
 
 function requiredSessionId(snapshot, runtimeId, stage) {
@@ -195,16 +167,6 @@ function requiredToken(value, runtimeId, stage) {
 
 function randomToken(index) {
   return `PUPPYONE_SMOKE_${index}_${randomBytes(12).toString("hex").toUpperCase()}`;
-}
-
-function appendBounded(previous, value) {
-  return `${previous}${value}`.slice(-256 * 1024);
-}
-
-function boundedTimeout(value) {
-  return Number.isFinite(value) && value >= 1_000
-    ? Math.min(Math.floor(value), 10 * 60_000)
-    : DEFAULT_TIMEOUT_MS;
 }
 
 function classifyFailure(error) {

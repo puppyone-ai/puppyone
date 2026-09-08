@@ -2,6 +2,7 @@ import {
   createNativeReferenceSmokeFixtures,
   createNativeReferenceSmokeTokens,
 } from "./native-agent-reference-smoke-fixtures.mjs";
+import { attachNativeAgentSessionFeed } from "./native-agent-session-feed.mjs";
 
 const DEFAULT_TIMEOUT_MS = 180_000;
 
@@ -30,6 +31,7 @@ export async function runNativeAgentReferenceSmoke({
   tokenFactory = createNativeReferenceSmokeTokens,
 }) {
   let activeSessionId = null;
+  let feed = null;
   let stage = "create";
   try {
     const created = await service.createSession(sender, { runtimeId }, workspaceRoot);
@@ -57,7 +59,8 @@ export async function runNativeAgentReferenceSmoke({
     stage = "model-visibility";
     const selected = selectSupportedReferences(input, fixtures, runtimeId);
     const composed = composeReferencePrompt(selected.references, visibilityPrompt(selected.expected.length));
-    const waiter = createTurnWaiter(sender, activeSessionId, timeoutMs);
+    feed = await attachNativeAgentSessionFeed({ service, sender, sessionId: activeSessionId, workspaceRoot });
+    const waiter = feed.waitForTurn(timeoutMs);
     try {
       await service.startTurn(sender, {
         sessionId: activeSessionId,
@@ -74,6 +77,8 @@ export async function runNativeAgentReferenceSmoke({
     }
 
     stage = "close";
+    await feed.detach();
+    feed = null;
     await service.closeSession(sender, {
       sessionId: activeSessionId,
       removePersistence: true,
@@ -91,6 +96,7 @@ export async function runNativeAgentReferenceSmoke({
     if (error instanceof NativeAgentReferenceSmokeError) throw error;
     throw new NativeAgentReferenceSmokeError(runtimeId, stage, classifyFailure(error));
   } finally {
+    await Promise.resolve(feed?.detach()).catch(() => {});
     if (activeSessionId) {
       await Promise.resolve(service.closeSession(sender, {
         sessionId: activeSessionId,
@@ -197,45 +203,6 @@ function visibilityPrompt(expectedCount) {
   ].join(" ");
 }
 
-function createTurnWaiter(sender, sessionId, timeoutMs) {
-  let settled = false;
-  let text = "";
-  let resolvePromise;
-  let rejectPromise;
-  const promise = new Promise((resolve, reject) => {
-    resolvePromise = resolve;
-    rejectPromise = reject;
-  });
-  const onEvent = (event) => {
-    if (settled || event?.sessionId !== sessionId) return;
-    if (event.type === "assistant.delta" && typeof event.payload?.delta === "string") {
-      text = appendBounded(text, event.payload.delta);
-    }
-    if (event.type === "assistant.completed" && typeof event.payload?.text === "string") {
-      text = appendBounded(text, event.payload.text);
-    }
-    if (event.type === "turn.completed") settle(() => resolvePromise(text));
-    if (event.type === "turn.failed" || event.type === "turn.interrupted") {
-      settle(() => rejectPromise(new Error("Agent reference turn did not complete.")));
-    }
-  };
-  const settle = (finish) => {
-    if (settled) return;
-    settled = true;
-    clearTimeout(timer);
-    sender.off("agent:event", onEvent);
-    finish();
-  };
-  const timer = setTimeout(() => {
-    settle(() => rejectPromise(new Error("Agent reference turn timed out.")));
-  }, boundedTimeout(timeoutMs));
-  sender.on("agent:event", onEvent);
-  return {
-    promise,
-    cancel: () => settle(() => resolvePromise(text)),
-  };
-}
-
 function requiredSessionId(snapshot, runtimeId, stage) {
   const value = snapshot?.session?.id;
   if (typeof value !== "string" || !/^[A-Za-z0-9:._-]{1,256}$/u.test(value)) {
@@ -250,16 +217,6 @@ function requiredModelId(snapshot, runtimeId) {
     throw new NativeAgentReferenceSmokeError(runtimeId, "capability", "model-unavailable");
   }
   return value;
-}
-
-function appendBounded(previous, value) {
-  return `${previous}${value}`.slice(-256 * 1024);
-}
-
-function boundedTimeout(value) {
-  return Number.isFinite(value) && value >= 1_000
-    ? Math.min(Math.floor(value), 10 * 60_000)
-    : DEFAULT_TIMEOUT_MS;
 }
 
 function classifyFailure(error) {

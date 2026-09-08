@@ -4,8 +4,9 @@ import {
   applyAgentEvent,
   applyAgentEvents,
   createAgentProjection,
-} from "../src/features/desktop-agent/agentProjection";
+} from "./helpers/agentDisplayFixture";
 import type { AgentEvent, AgentEventType } from "../src/features/desktop-agent/agentTypes";
+import { buildAgentTimeline } from "../src/features/desktop-agent/ui/transcript/transcript-rows";
 
 describe("Desktop Agent transcript projection", () => {
   it("concatenates assistant deltas and lets completed content finalize authoritatively", () => {
@@ -28,8 +29,145 @@ describe("Desktop Agent transcript projection", () => {
     expect(projection.turns[0]).toMatchObject({
       status: "completed",
       startedAtMs: 1_000,
+      userWaitStartedAtMs: null,
+      userWaitDurationMs: 0,
       durationMs: 4_000,
     });
+  });
+
+  it("confirms the optimistic prompt by native identity and preserves same-turn follow-ups", () => {
+    const events = [
+      event(1, "turn.started", { prompt: "Initial", userMessageId: "user-initial" }, "turn-user"),
+      event(2, "user.message", { text: "Initial\nProvider-compiled context", clientUserMessageId: "user-initial" }, "turn-user", "user-initial"),
+      event(3, "user.message", { text: "Follow up" }, "turn-user", "user-followup"),
+      event(4, "user.message", { text: "Follow up" }, "turn-user", "user-followup"),
+    ] satisfies AgentEvent[];
+    const projection = applyAgentEvents(createAgentProjection(), events);
+
+    expect(projection.messages.filter((message) => message.role === "user")).toEqual([
+      expect.objectContaining({
+        id: "user:user-initial",
+        itemId: "user-initial",
+        text: "Initial",
+        sequence: 1,
+        updatedSequence: 2,
+      }),
+      expect.objectContaining({
+        id: "user:user-followup",
+        itemId: "user-followup",
+        text: "Follow up",
+        sequence: 3,
+        updatedSequence: 4,
+      }),
+    ]);
+    expect(buildAgentTimeline(projection).rows.map((row) => row.kind)).toEqual(["user", "user"]);
+  });
+
+  it("does not interpret a recoverable content diagnostic as live connection state", () => {
+    const projection = applyAgentEvents(createAgentProjection(), [
+      event(1, "turn.started", { prompt: "Hello" }, "turn-warning"),
+      event(2, "provider.warning", {
+        message: "Optional content could not be displayed.",
+        recoverable: true,
+      }, "turn-warning", "content-warning"),
+    ]);
+
+    expect(projection.connectionStatus).toBeNull();
+    expect(projection.activities).toEqual([
+      expect.objectContaining({ kind: "warning", label: "Optional content could not be displayed." }),
+    ]);
+  });
+
+  it("keeps first-observed timeline order immutable while blocks stream and settle", () => {
+    const events = [
+      event(1, "turn.started", { prompt: "Inspect it" }, "turn-order"),
+      event(2, "assistant.delta", { delta: "I will inspect it." }, "turn-order", "assistant-order"),
+      event(3, "tool.started", { kind: "command", label: "List", status: "running" }, "turn-order", "tool-order"),
+      event(4, "approval.requested", {
+        requestId: "approval-order",
+        kind: "command",
+        title: "List files",
+      }, "turn-order", "tool-order"),
+      event(5, "approval.resolved", { requestId: "approval-order", decision: "accept" }, "turn-order", "tool-order"),
+      event(6, "tool.completed", { kind: "command", label: "List", status: "completed" }, "turn-order", "tool-order"),
+      event(7, "assistant.completed", { text: "Inspection complete." }, "turn-order", "assistant-order"),
+      event(8, "turn.completed", { status: "completed" }, "turn-order"),
+    ] satisfies AgentEvent[];
+
+    const waiting = applyAgentEvents(createAgentProjection(), events.slice(0, 4));
+    const live = applyAgentEvents(createAgentProjection(), events.slice(0, 7));
+    const settled = applyAgentEvent(live, events[7]);
+    const replayed = applyAgentEvents(createAgentProjection(), events);
+    const visibleKinds = (projection: typeof settled) => buildAgentTimeline(projection).rows
+      .filter((row) => row.kind !== "turn-summary")
+      .map((row) => row.kind);
+
+    expect(visibleKinds(waiting)).toEqual(["user", "assistant", "command"]);
+    expect(waiting.approvals).toEqual([expect.objectContaining({ requestId: "approval-order" })]);
+    expect(visibleKinds(live)).toEqual(["user", "assistant", "command", "assistant"]);
+    expect(visibleKinds(settled)).toEqual(["user", "assistant", "command", "assistant"]);
+    expect(visibleKinds(replayed)).toEqual(["user", "assistant", "command", "assistant"]);
+    expect(live.parts.filter((part) => part.kind === "assistant")).toEqual([
+      expect.objectContaining({
+        sequence: 2,
+        updatedSequence: 2,
+        text: "I will inspect it.",
+        streaming: false,
+      }),
+      expect.objectContaining({
+        sequence: 7,
+        updatedSequence: 7,
+        text: "Inspection complete.",
+      }),
+    ]);
+    expect(live.parts.find((part) => part.kind === "command")).toMatchObject({
+      sequence: 3,
+      updatedSequence: 6,
+      status: "completed",
+    });
+    expect(live.parts.find((part) => part.kind === "permission")).toMatchObject({
+      sequence: 4,
+      updatedSequence: 5,
+      state: "resolved",
+    });
+    expect(JSON.stringify(replayed)).toBe(JSON.stringify(settled));
+    expect(settled.turns[0]).toMatchObject({
+      userWaitStartedAtMs: null,
+      userWaitDurationMs: 1_000,
+    });
+  });
+
+  it("keeps a native assistant item segmented when its authoritative completion spans a tool", () => {
+    const projection = applyAgentEvents(createAgentProjection(), [
+      event(1, "turn.started", { prompt: "Inspect" }, "turn-segments"),
+      event(2, "assistant.delta", { delta: "Before tool. " }, "turn-segments", "native-message"),
+      event(3, "tool.started", { kind: "command", label: "List", status: "running" }, "turn-segments", "tool"),
+      event(4, "tool.completed", { kind: "command", label: "List", status: "completed" }, "turn-segments", "tool"),
+      event(5, "assistant.delta", { delta: "After " }, "turn-segments", "native-message"),
+      event(6, "assistant.delta", { delta: "tool." }, "turn-segments", "native-message"),
+      event(7, "assistant.completed", { text: "Before tool. After tool." }, "turn-segments", "native-message"),
+    ]);
+
+    expect(projection.messages.filter((message) => message.role === "assistant").map((message) => message.text))
+      .toEqual(["Before tool. ", "After tool."]);
+    expect(buildAgentTimeline(projection).rows.map((row) => row.kind))
+      .toEqual(["user", "assistant", "command", "assistant"]);
+  });
+
+  it("seals rather than erases assistant text when a late completion adds nothing after a tool", () => {
+    const projection = applyAgentEvents(createAgentProjection(), [
+      event(1, "turn.started", { prompt: "Inspect" }, "turn-seal"),
+      event(2, "assistant.delta", { delta: "I will inspect." }, "turn-seal", "native-message"),
+      event(3, "tool.started", { kind: "command", label: "List", status: "running" }, "turn-seal", "tool"),
+      event(4, "tool.completed", { kind: "command", label: "List", status: "completed" }, "turn-seal", "tool"),
+      event(5, "assistant.completed", { text: "I will inspect." }, "turn-seal", "native-message"),
+    ]);
+
+    expect(projection.messages.filter((message) => message.role === "assistant")).toEqual([
+      expect.objectContaining({ text: "I will inspect.", streaming: false, sequence: 2, updatedSequence: 5 }),
+    ]);
+    expect(buildAgentTimeline(projection).rows.map((row) => row.kind))
+      .toEqual(["user", "assistant", "command"]);
   });
 
   it("prefers the provider's normalized turn duration over envelope timing", () => {
@@ -60,7 +198,8 @@ describe("Desktop Agent transcript projection", () => {
     projection = applyAgentEvent(projection, event(3, "assistant.delta", { delta: " duplicate" }, "turn-1", "message-1"));
     projection = applyAgentEvent(projection, event(4, "turn.interrupted", {}, "turn-1"));
 
-    expect(projection.partialHistory).toBe(true);
+    expect(projection.history.coverage).toBe("not-requested");
+    expect(projection.displayWindow.truncated).toBe(false);
     expect(projection.missingRanges).toEqual([{ from: 2, to: 2 }]);
     expect(projection.messages[1]).toMatchObject({ text: "Partial", terminalState: "interrupted" });
   });
@@ -83,6 +222,14 @@ describe("Desktop Agent transcript projection", () => {
     expect(projection.activities[0]).toMatchObject({ status: "completed", label: "npm test" });
     expect(projection.activities[0].output.length).toBe(64 * 1024);
     expect(projection.approvals).toEqual([]);
+  });
+
+  it("keeps the first command output delta even without a preceding tool event", () => {
+    const projection = applyAgentEvent(
+      createAgentProjection(),
+      event(1, "command.output.delta", { delta: "first output" }, "turn-1", "tool-1"),
+    );
+    expect(projection.activities[0]?.output).toBe("first output");
   });
 
   it("preserves canonical tool identity and upgrades legacy arguments to structured input", () => {
@@ -220,7 +367,8 @@ describe("Desktop Agent transcript projection", () => {
     expect(recovering.rows.filter((row) => row.kind === "warning")).toHaveLength(0);
 
     const progressed = applyAgentEvent(recovering, event(5, "assistant.delta", { delta: "Recovered" }, "turn-1", "assistant-1"));
-    expect(progressed.connectionStatus).toBeNull();
+    expect(progressed.connectionStatus?.state).toBe("fallback");
+    expect(applyAgentEvent(progressed, event(6, "turn.completed", {}, "turn-1")).connectionStatus).toBeNull();
     expect(progressed.messages.find((message) => message.role === "assistant")?.text).toBe("Recovered");
   });
 
@@ -232,9 +380,9 @@ describe("Desktop Agent transcript projection", () => {
       event(4, "provider.warning", {
         message: "Falling back from WebSockets to HTTPS transport. request timed out",
       }, "turn-1", "fallback"),
-    ]);
+    ], { legacyProviderConnectionWarnings: true });
 
-    expect(projection.connectionStatus).toMatchObject({ state: "fallback", sequence: 4 });
+    expect(projection.connectionStatus).toBeNull();
     expect(projection.activities).toHaveLength(0);
     expect(projection.parts.filter((part) => part.kind === "warning")).toHaveLength(0);
     expect(projection.rows.filter((row) => row.kind === "warning")).toHaveLength(0);
@@ -262,8 +410,8 @@ describe("Desktop Agent transcript projection", () => {
     ]);
 
     const settled = applyAgentEvent(running, event(5, type, { status: expectedStatus }, "turn-1"));
-    expect(settled.activities[0]?.status).toBe(expectedStatus);
-    expect(settled.parts.find((part) => part.kind === "command")).toMatchObject({ status: expectedStatus });
+    expect(settled.activities[0]?.status).toBe("unknown");
+    expect(settled.parts.find((part) => part.kind === "command")).toMatchObject({ status: "unknown" });
     expect(settled.parts.find((part) => part.kind === "permission")).toMatchObject({ state: "resolved" });
     expect(settled.parts.find((part) => part.kind === "question")).toMatchObject({ state: "resolved" });
     expect(settled.approvals).toHaveLength(0);
@@ -308,7 +456,7 @@ describe("Desktop Agent transcript projection", () => {
       ],
     }, "turn-reference");
     const committed = applyAgentEvent(createAgentProjection(), started);
-    const replayed = applyAgentEvents(createAgentProjection({ partialHistory: true }), [started], { partialHistory: true });
+    const replayed = applyAgentEvents(createAgentProjection(), [started]);
 
     expect(committed.messages[0]).toMatchObject({
       role: "user",

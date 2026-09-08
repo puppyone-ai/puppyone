@@ -16,7 +16,7 @@
   overflow: hidden;
   color: var(--po-text-muted);
   font-family: var(--po-font-mono);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-weight: 400;
   line-height: 15px;
   text-overflow: ellipsis;

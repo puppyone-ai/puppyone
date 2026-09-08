@@ -21,6 +21,7 @@ describe("Desktop telemetry HTTP transport", () => {
       eventId: "123e4567-e89b-42d3-a456-426614174000",
       osMajor: "15",
       platform: "darwin",
+      retentionId: `r1_${"c".repeat(43)}`,
     });
 
     await expect(transport.send([event])).resolves.toEqual({
@@ -30,7 +31,7 @@ describe("Desktop telemetry HTTP transport", () => {
     expect(url).toBe("https://telemetry.puppyone.ai/v1/desktop/events");
     expect(request).toMatchObject({ method: "POST", credentials: "omit", redirect: "error" });
     expect(JSON.parse(request.body)).toEqual({
-      schema_version: 1,
+      schema_version: 2,
       sent_at: "2026-08-27T08:00:00.000Z",
       events: [event],
     });

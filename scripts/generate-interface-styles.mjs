@@ -22,7 +22,6 @@ const STYLE_COMPONENT_KEYS = [
 const STYLE_POLICY_KEYS = [
   "themeMode",
   "sidebarNavigationLayout",
-  "textSize",
   "fileIconTheme",
 ];
 const STYLE_PROFILE_KEYS = ["family", "variant", "palette"];

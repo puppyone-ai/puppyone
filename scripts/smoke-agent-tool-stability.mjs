@@ -20,7 +20,8 @@ let unresponsive = false;
 async function runSmoke() {
   await fsp.access(indexPath);
   ownerWindow = new BrowserWindow({
-    show: false,
+    // Frame measurements require a mapped compositor surface (Xvfb in CI).
+    show: true,
     width: 960,
     height: 800,
     webPreferences: {
@@ -39,6 +40,12 @@ async function runSmoke() {
   console.log("Agent tool stability renderer result:", JSON.stringify(result, null, 2));
   if (renderProcessFailure) throw new Error(`Agent tool smoke renderer exited: ${renderProcessFailure}`);
   if (unresponsive) throw new Error("Agent tool smoke renderer became unresponsive.");
+  const artifactRoot = process.env.PUPPYONE_AGENT_TOOL_ARTIFACT_DIR;
+  if (artifactRoot) {
+    await fsp.mkdir(artifactRoot, { recursive: true });
+    await fsp.writeFile(path.join(artifactRoot, "result.json"), JSON.stringify(result, null, 2));
+    await fsp.writeFile(path.join(artifactRoot, "render.png"), (await ownerWindow.webContents.capturePage()).toPNG());
+  }
   if (!result.passed || result.error) throw new Error(result.error || "Agent tool stability smoke failed.");
   if (result.uncaughtErrors.length > 0) throw new Error(`Uncaught renderer errors: ${result.uncaughtErrors.join(" | ")}`);
   if (result.longTasks.some((duration) => duration > 250)) {

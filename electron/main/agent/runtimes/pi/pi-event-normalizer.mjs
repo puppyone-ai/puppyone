@@ -1,4 +1,5 @@
 import { boundRendererValue, redactSecrets, redactSecretText } from "../../agent-events.mjs";
+import { createAgentFileChangeEvidence } from "../../runtime/agent-file-change-evidence.mjs";
 
 export function createPiEventState({ turnId = null, providerSessionId = null } = {}) {
   return {
@@ -80,10 +81,7 @@ export function normalizePiHistory(messages, providerSessionId) {
   const tools = new Map();
   const finishTurn = () => {
     if (!turnId) return;
-    events.push(event("turn.completed", { turnId, providerSessionId }, null, {
-      status: "completed",
-      historical: true,
-    }));
+    // Snapshot grouping has no native execution-outcome evidence.
     turnId = null;
     tools.clear();
   };
@@ -95,7 +93,7 @@ export function normalizePiHistory(messages, providerSessionId) {
       events.push(event("turn.started", { turnId, providerSessionId }, null, {
         status: "running",
         prompt: messageText(message),
-        historical: true,
+        restored: true,
       }));
       continue;
     }
@@ -104,7 +102,7 @@ export function normalizePiHistory(messages, providerSessionId) {
       turnId = `pi:history:${turnNumber}`;
       events.push(event("turn.started", { turnId, providerSessionId }, null, {
         status: "running",
-        historical: true,
+        restored: true,
       }));
     }
     const state = createPiEventState({ turnId, providerSessionId });
@@ -117,7 +115,7 @@ export function normalizePiHistory(messages, providerSessionId) {
       events.push(event("tool.completed", state, toolCallId, {
         ...toolPayload(metadata.toolName, metadata.args, message.isError ? "failed" : "completed"),
         outputPreview: resultText(message).slice(-32 * 1024),
-        historical: true,
+        restored: true,
       }));
     }
   }
@@ -154,7 +152,7 @@ function normalizeMessageEnd(message, state) {
   asArray(message.content).forEach((block, index) => {
     if (block?.type === "text" && text(block.text)) {
       result.push(event("assistant.completed", state, `pi:assistant:${state.turnId || "turn"}:${index}`, {
-        text: text(block.text),
+        text: block.text,
       }));
     } else if (block?.type === "thinking" && !state.reasoningBlocks.has(index)) {
       state.reasoningBlocks.add(index);
@@ -221,15 +219,20 @@ function finishTool(message, state) {
   const output = resultText(message.result);
   state.tools.delete(toolCallId);
   const status = message.isError ? "failed" : "completed";
+  const payload = toolPayload(previous.toolName, previous.args, status);
+  const path = toolPath(previous.args);
+  const nativeDiff = piEditPatch(message.result?.details);
+  if (payload.kind === "file-change" && path && nativeDiff !== null) {
+    payload.changes = createAgentFileChangeEvidence([{ path, diff: nativeDiff, basis: "native" }]);
+  }
   const result = [event("tool.completed", state, toolCallId, {
-    ...toolPayload(previous.toolName, previous.args, status),
+    ...payload,
     outputPreview: output.slice(-32 * 1024),
   })];
-  const path = toolPath(previous.args);
   if (path && ["edit", "write"].includes(canonicalToolName(previous.toolName))) {
     result.push(event("file.change.updated", state, toolCallId, {
       status,
-      changes: [{ path, status: message.isError ? "failed" : "updated" }],
+      changes: payload.changes,
     }));
   }
   return result;
@@ -267,10 +270,30 @@ function toolPayload(name, args, status) {
     tool,
     label: toolLabel(name, safeInput),
     status,
+    ...(["edit", "write"].includes(tool) ? { changes: createAgentFileChangeEvidence([{
+      path: toolPath(args), before: args?.oldText,
+      after: tool === "write" ? args?.content : args?.newText,
+      ...(tool === "edit" && Array.isArray(args?.edits) ? { fragments: args.edits.slice(0, 101).map(edit => ({ before: edit?.oldText, after: edit?.newText })) } : {}),
+      scope: "fragment", basis: "request",
+    }]) } : {}),
     input: safeInput,
     path: toolPath(safeInput),
     command: text(safeInput.command) || null,
   };
+}
+
+// Pi exposes both a unified patch and a terminal-oriented diff with line-number
+// columns. Decode its native display format here, never in the common Renderer.
+function piEditPatch(details) {
+  if (typeof details?.patch === "string") return details.patch;
+  if (typeof details?.diff !== "string") return null;
+  if (/^@@(?:\s|$)/mu.test(details.diff)) return details.diff;
+  const lines = details.diff.split(/\r?\n/u);
+  if (!lines.some(line => /^[+-]\s*\d+ /u.test(line))) return details.diff;
+  return lines.map(line => {
+    const match = /^([ +\-])\s*\d+ (.*)$/u.exec(line);
+    return match ? match[1] + match[2] : /^\s+\.\.\.$/u.test(line) ? "@@" : line;
+  }).join("\n");
 }
 
 function toolKind(name) {
@@ -317,17 +340,16 @@ function messageText(message) {
 
 function normalizeUsage(value) {
   return boundRendererValue({
-    input: nonNegativeNumber(value?.input),
-    output: nonNegativeNumber(value?.output),
-    cacheRead: nonNegativeNumber(value?.cacheRead),
-    cacheWrite: nonNegativeNumber(value?.cacheWrite),
+    inputTokens: nonNegativeNumber(value?.input),
+    outputTokens: nonNegativeNumber(value?.output),
+    cachedTokens: nonNegativeNumber(value?.cacheRead) + nonNegativeNumber(value?.cacheWrite),
     totalTokens: nonNegativeNumber(value?.totalTokens),
     cost: value?.cost ?? null,
   });
 }
 
 function withHistorical(value) {
-  return { ...value, payload: { ...value.payload, historical: true } };
+  return { ...value, payload: { ...value.payload, restored: true } };
 }
 
 function event(type, state, itemId, payload) {

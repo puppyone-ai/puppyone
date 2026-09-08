@@ -7,12 +7,13 @@ import { resolveFirstExecutable } from "../../connections/probes/executable-cand
 export function createCursorDiscovery(options = {}) {
   const { cache: cacheOptions, ...discoveryOptions } = options;
   return createCachedRuntimeDiscovery(
-    () => discoverCursorBackend(discoveryOptions),
+    ({ signal }) => discoverCursorBackend({ ...discoveryOptions, signal }),
     cacheOptions,
   );
 }
 
 export async function discoverCursorBackend({
+  signal,
   env = process.env,
   homedir = os.homedir(),
   platform = process.platform,
@@ -24,8 +25,9 @@ export async function discoverCursorBackend({
   }),
   probe = probeCursorLocal,
 } = {}) {
+  signal?.throwIfAborted();
   const candidate = await resolveCandidate();
-  const result = await probe({ candidate, env });
+  const result = await probe({ candidate, env, signal });
   const base = {
     runtimeId: "cursor",
     provider: "cursor",

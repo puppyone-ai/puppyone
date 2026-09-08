@@ -1,3 +1,4 @@
+import type { AgentViewportGeometry } from "../domain/agent-ui-state";
 import type { AgentPromptReferenceMention } from "../domain/agent-contract";
 
 export type SessionUiState = {
@@ -6,6 +7,7 @@ export type SessionUiState = {
   scrollTop: number;
   measurements: Record<string, number>;
   pinned: boolean;
+  geometry?: AgentViewportGeometry;
 };
 
 const EMPTY_SESSION_UI: Readonly<SessionUiState> = Object.freeze({
@@ -22,6 +24,8 @@ const DEFAULT_MAX_MEASUREMENTS_PER_SESSION = 1_000;
 /** Renderer-only ephemeral state keyed by application session id. */
 export class SessionUiStateStore {
   private readonly entries = new Map<string, SessionUiState>();
+  // Unsent input is user state, never an evictable measurement cache.
+  private readonly drafts = new Map<string, Pick<SessionUiState, "draft" | "draftMentions">>();
 
   constructor(
     private readonly maxEntries = DEFAULT_MAX_ENTRIES,
@@ -40,16 +44,17 @@ export class SessionUiStateStore {
       this.entries.delete(key);
       this.entries.set(key, stored);
     }
-    const value = stored ?? EMPTY_SESSION_UI;
+    const value = { ...(stored ?? EMPTY_SESSION_UI), ...this.drafts.get(key) };
     return {
       ...value,
       draftMentions: value.draftMentions.map((mention) => ({ ...mention })),
       measurements: { ...value.measurements },
+      ...(value.geometry ? { geometry: cloneGeometry(value.geometry) } : {}),
     };
   }
 
   patch(key: string, value: Partial<SessionUiState>) {
-    const current = this.entries.get(key) ?? EMPTY_SESSION_UI;
+    const current = this.read(key);
     const measurements = value.measurements
       ? Object.fromEntries(Object.entries(value.measurements).slice(-this.maxMeasurementsPerSession))
       : current.measurements;
@@ -61,7 +66,11 @@ export class SessionUiStateStore {
         ? value.draftMentions.map((mention) => ({ ...mention }))
         : current.draftMentions,
       measurements,
+      ...(value.geometry ? { geometry: cloneGeometry(value.geometry) } : {}),
     });
+    const updated = this.entries.get(key)!;
+    if (updated.draft || updated.draftMentions.length) this.drafts.set(key, { draft: updated.draft, draftMentions: updated.draftMentions.map((mention) => ({ ...mention })) });
+    else this.drafts.delete(key);
     while (this.entries.size > this.maxEntries) {
       const oldest = this.entries.keys().next().value;
       if (typeof oldest !== "string") break;
@@ -71,10 +80,12 @@ export class SessionUiStateStore {
 
   delete(key: string) {
     this.entries.delete(key);
+    this.drafts.delete(key);
   }
 
   clear() {
     this.entries.clear();
+    this.drafts.clear();
   }
 }
 
@@ -82,3 +93,7 @@ export const agentSessionUiStateLimits = Object.freeze({
   maxEntries: DEFAULT_MAX_ENTRIES,
   maxMeasurementsPerSession: DEFAULT_MAX_MEASUREMENTS_PER_SESSION,
 });
+
+function cloneGeometry(value: AgentViewportGeometry): AgentViewportGeometry {
+  return { layoutSignature: value.layoutSignature, anchor: value.anchor ? { ...value.anchor } : null };
+}

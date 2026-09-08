@@ -1,3 +1,4 @@
+import { clientHandler } from "./helpers/agentIpcClient.mjs";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -220,7 +221,7 @@ describe("Agent reference IPC authorization", () => {
 function registerHandlers({ workspace, store, startTurn }) {
   const handlers = new Map();
   registerAgentIpcHandlers({
-    ipcMain: { handle: (channel, listener) => handlers.set(channel, listener) },
+    ipcMain: { handle: (channel, listener) => handlers.set(channel, clientHandler(listener)) },
     agentService: { startTurn, getReferenceInputCapabilities: () => ({
       schemaVersion: 1,
       workspace: { files: true, directories: true },

@@ -2,6 +2,8 @@ import type { Plugin } from "vite";
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import { fileURLToPath, URL } from "node:url";
+import path from "node:path";
+import { rendererOutputLeasePlugin } from "./tooling/desktop/build/renderer-output-lease-plugin.mjs";
 
 const DESKTOP_CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
@@ -12,7 +14,7 @@ const DESKTOP_CONTENT_SECURITY_POLICY = [
   // top-level navigation/window creation, so do not advertise a false guard.
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: puppyone-local: http: https:",
+  "img-src 'self' data: blob: puppyone-local: puppyone-asset: http: https:",
   "font-src 'self' data: blob:",
   "media-src 'self' data: blob: puppyone-local: http: https:",
   "connect-src 'self' puppyone-local: http: https: ws: wss:",
@@ -40,7 +42,7 @@ const desktopContentSecurityPolicyPlugin: Plugin = {
 
 export default defineConfig({
   base: "./",
-  plugins: [react(), desktopContentSecurityPolicyPlugin],
+  plugins: [rendererOutputLeasePlugin(), react(), desktopContentSecurityPolicyPlugin],
   clearScreen: false,
   resolve: {
     alias: [
@@ -51,6 +53,10 @@ export default defineConfig({
       {
         find: "@puppyone/shared-ui/shared-ui.css",
         replacement: fileURLToPath(new URL("./packages/shared-ui/src/styles/shared-ui.css", import.meta.url)),
+      },
+      {
+        find: "@puppyone/shared-ui/control-geometry.css",
+        replacement: fileURLToPath(new URL("./packages/shared-ui/src/styles/control-geometry.css", import.meta.url)),
       },
       {
         find: "@puppyone/shared-ui/shared-ui-patterns.css",
@@ -92,6 +98,13 @@ export default defineConfig({
   },
   worker: {
     format: "es",
+  },
+  build: {
+    rollupOptions: {
+      input: {
+        index: path.resolve(fileURLToPath(new URL(".", import.meta.url)), "index.html"),
+      },
+    },
   },
   server: {
     strictPort: true,

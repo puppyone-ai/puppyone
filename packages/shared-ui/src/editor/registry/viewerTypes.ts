@@ -8,9 +8,20 @@ import type {
 import type { FileFormat } from "../../core/fileFormats";
 import type { FileIconThemeId } from "../../file/fileIcons";
 import type { AiEditFile } from "../ai-edits/types";
-import type { PresetViewerSource } from "./viewerContract";
+import type { PresetViewerResourcePolicy, PresetViewerSource } from "./viewerContract";
 import type { DocumentSourceKind } from "../documentSource";
 import type { PresetViewerDefinition } from "./presetViewerManifest";
+import type { DocumentNavigationPort } from "../navigation/documentNavigation";
+
+export type {
+  DocumentDeniedReference,
+  DocumentExternalReference,
+  DocumentNavigationPort,
+  DocumentReference,
+  DocumentReferenceSyntax,
+  DocumentWorkspaceReference,
+  DocumentWorkspaceReferenceStatus,
+} from "../navigation/documentNavigation";
 
 export type { DocumentSourceKind } from "../documentSource";
 
@@ -152,6 +163,8 @@ export type EditorViewerMatch = {
 
 export type PresetViewerRenderContext = EditorViewerMatch & {
   content: string;
+  /** Host-admitted immutable budget for this concrete Viewer execution. */
+  resourcePolicy: PresetViewerResourcePolicy;
   aiEditFile?: AiEditFile | null;
   fileUrl?: string | null;
   fileUrlLoading: boolean;
@@ -166,6 +179,7 @@ export type PresetViewerRenderContext = EditorViewerMatch & {
   workspaceId?: string;
   workspaceRoot?: string | null;
   markdownEnvironment?: MarkdownWorkspaceEnvironment | null;
+  documentNavigation?: DocumentNavigationPort | null;
   contextMapEnvironment?: ContextMapWorkspaceEnvironment | null;
   appPreview?: AppPreviewController | null;
   openExternalFile?: (path: string) => Promise<void>;
@@ -199,9 +213,17 @@ export type LazyPresetViewerImplementation = PresetViewerImplementationBase & Re
   render?: never;
 }>;
 
+/** A surface implemented by the browser engine itself. The renderer Host only
+ * contributes matching metadata; Electron owns navigation and presentation. */
+export type BrowserEnginePresetViewerImplementation = PresetViewerImplementationBase & Readonly<{
+  load?: never;
+  render?: never;
+}>;
+
 export type PresetViewerImplementation =
   | EagerPresetViewerImplementation
-  | LazyPresetViewerImplementation;
+  | LazyPresetViewerImplementation
+  | BrowserEnginePresetViewerImplementation;
 
 /**
  * Versioned contract for a viewer that ships with PuppyOne. Contributions are
@@ -213,8 +235,13 @@ export type EagerPresetViewerContribution = PresetViewerDefinition &
 export type LazyPresetViewerContribution = PresetViewerDefinition &
   Omit<LazyPresetViewerImplementation, "id">;
 
+export type BrowserEnginePresetViewerContribution = PresetViewerDefinition &
+  Omit<BrowserEnginePresetViewerImplementation, "id">;
+
 export type PresetViewerContribution = Readonly<
-  EagerPresetViewerContribution | LazyPresetViewerContribution
+  | EagerPresetViewerContribution
+  | LazyPresetViewerContribution
+  | BrowserEnginePresetViewerContribution
 >;
 
 /** @deprecated Prefer the product-semantic PresetViewerContribution name. */

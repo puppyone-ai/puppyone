@@ -4,6 +4,23 @@ import { CursorAcpAdapter } from "../electron/main/agent/runtimes/cursor/cursor-
 import { discoverCursorBackend } from "../electron/main/agent/runtimes/cursor/cursor-discovery.mjs";
 
 describe("Cursor ACP runtime", () => {
+  it("does not turn a lost ACP response into a native failed turn", async () => {
+    const connection = new FakeCursorConnection();
+    const onEvent = vi.fn(), onExit = vi.fn();
+    const adapter = new CursorAcpAdapter({
+      readiness: { executablePath: "/tools/agent", environment: {} }, workspaceRoot: "/workspace", onEvent, onExit,
+      connectionFactory: () => connection,
+      fileSystemFactory: () => ({ readTextFile: vi.fn(), writeTextFile: vi.fn() }),
+      projectInstructionLoader: async () => ({ source: null, text: "", bytes: 0 }),
+    });
+    await adapter.createSession();
+    await adapter.startTurn({ prompt: "Hello" });
+    connection.prompt.reject(Object.assign(new Error("Pipe lost"), { deliveryOutcome: "unknown" }));
+    await vi.waitFor(() => expect(onExit).toHaveBeenCalledWith(expect.objectContaining({ expected: false })));
+    expect(onEvent.mock.calls.some(([event]) => ["turn.failed", "turn.interrupted", "turn.completed"].includes(event.type))).toBe(false);
+    await adapter.dispose();
+  });
+
   it("classifies a detected signed-in Cursor CLI as an ACP-ready Agent", async () => {
     const readiness = await discoverCursorBackend({
       resolveCandidate: async () => ({ executablePath: "/tools/agent", argsPrefix: [], source: "path-installation" }),
@@ -153,12 +170,13 @@ describe("Cursor ACP runtime", () => {
 
     await expect(adapter.discoverSessions({ cursor: "opaque", limit: 20 })).resolves.toEqual({
       supported: true,
+      coverage: { scopeComplete: false, snapshotId: null },
       sessions: [expect.objectContaining({ providerSessionId: "cursor-history", title: "Fix tabs" })],
       nextCursor: null,
     });
     await adapter.resumeSession({ threadId: "cursor-history" });
     await expect(adapter.readHistory()).resolves.toEqual(expect.arrayContaining([
-      expect.objectContaining({ type: "turn.started", payload: { prompt: "Fix tabs" } }),
+      expect.objectContaining({ type: "turn.started", payload: { prompt: "Fix tabs", restored: true } }),
       expect.objectContaining({ type: "assistant.completed", payload: { text: "Done" } }),
     ]));
     await adapter.dispose();

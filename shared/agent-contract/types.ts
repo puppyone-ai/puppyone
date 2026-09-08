@@ -1,3 +1,7 @@
+import type { AgentProjection, AgentDisplayPatch } from "./display-types";
+import type { AgentFileReference, AgentReferenceStatus, AgentReferenceError, AgentWorkspaceEntryReference, AgentStagedAttachmentReference, AgentDraftReference, AgentPromptReferenceMention, AgentReferenceDisplay, AgentSubmissionIntent } from "./user-message-types";
+export type * from "./user-message-types";
+export type * from "./display-types";
 /** Serializable DTOs shared by Renderer, preload declarations, and Electron main contract tests. */
 export type AgentRuntimeId = string;
 /** @deprecated Compatibility alias for the original Codex-only persistence format. */
@@ -106,6 +110,8 @@ export type AgentReferenceInputCapabilities = {
   workspace: {
     files: boolean;
     directories: boolean;
+    /** Explicit support for references owned by another admitted local root. */
+    crossRoots?: boolean;
   };
   attachments: Record<AgentAttachmentKind, AgentAttachmentInputCapability>;
   limits: {
@@ -146,6 +152,13 @@ export type AgentCapabilities = {
     discovery: "unsupported" | "paged";
     exactOpen: "unsupported" | "supported";
     hydration: "unsupported" | "push-replay" | "snapshot" | "paged";
+  };
+  /** What native state can be recovered after PuppyOne loses the live connection. */
+  recovery?: {
+    strategy: "unsupported" | "cursor-replay" | "snapshot-reload" | "object-reconciliation";
+    activeExecution: "confirmed" | "outcome-unknown";
+    /** True only when native snapshot capture and subsequent events have no race window. */
+    atomicHandoff: boolean;
   };
   /** Changes whenever the runtime's effective negotiated capability surface changes. */
   revision?: string;
@@ -214,6 +227,10 @@ export type AgentCommand = {
 };
 
 export type AgentSessionMetadata = {
+  /** One live allocation; never persisted as the product conversation identity. */
+  instanceId?: string;
+  historyCoverage?: "complete" | "partial" | "unknown";
+  sourceScopeId?: string;
   id: string;
   runtimeId?: AgentRuntimeId;
   runtime?: AgentRuntimeDescriptor | null;
@@ -223,7 +240,7 @@ export type AgentSessionMetadata = {
   title: string;
   createdAt: string;
   updatedAt: string;
-  terminalState: AgentTurnTerminalState | "idle" | "running" | "provider-exited";
+  terminalState: AgentTurnTerminalState | "idle" | "running" | "provider-exited" | "outcome-unknown";
   selectedModel: string | null;
   selectedEffort?: string | null;
   selectedMode?: string | null;
@@ -232,6 +249,7 @@ export type AgentSessionMetadata = {
 };
 
 export type AgentSessionListItem = Omit<AgentSessionMetadata, "activeTurnId"> & {
+  updatedAtKnown?: boolean;
   archivedAt?: string | null;
   partial?: boolean;
   /** Who first recorded the locator; never implies transcript ownership. */
@@ -241,6 +259,10 @@ export type AgentSessionListItem = Omit<AgentSessionMetadata, "activeTurnId"> & 
 export type AgentSessionDiscoveryStatus = "not-requested" | "unsupported" | "partial" | "complete" | "failed";
 
 export type AgentSessionsListResponse = {
+  catalogNextCursor?: string | null;
+  excludedSessionIds?: string[];
+  sessionListKind?: "page";
+  catalogCoverage?: { truncated: boolean; capacity: number; retained: number };
   sessions: AgentSessionListItem[];
   discovery: {
     runtimeId: AgentRuntimeId | null;
@@ -249,6 +271,10 @@ export type AgentSessionsListResponse = {
     /** Opaque product scan identity required only while pagination is partial. */
     scanId: string | null;
     indexed: number;
+    retryable?: boolean;
+    catalogCommit?: "pending";
+    sourceScopeId?: string;
+    coverage?: "complete" | "unknown";
     warnings: string[];
   };
   warnings: string[];
@@ -265,6 +291,7 @@ export type AgentEventType =
   | "turn.completed"
   | "turn.failed"
   | "turn.interrupted"
+  | "user.message"
   | "assistant.delta"
   | "assistant.completed"
   | "reasoning.summary.delta"
@@ -284,63 +311,165 @@ export type AgentEventType =
   | "provider.warning"
   | "provider.error";
 
-type AgentEventPayloadBase = Record<string, unknown>;
+export type AgentCanonicalToolResult = {
+  content: Array<
+    | { type: "text"; text: string }
+    | { type: "artifact"; uri: string; mimeType: string | null; text: string | null }
+    | { type: "json"; value: unknown }
+  >;
+  error: string | null;
+  success: boolean | null;
+  truncated: boolean;
+};
 
 export type AgentEventPayloadMap = {
-  "session.started": AgentEventPayloadBase & { title?: string; status?: string };
-  "session.resumed": AgentEventPayloadBase & { title?: string; status?: string };
-  "session.updated": AgentEventPayloadBase & { title?: string; status?: string };
-  "session.closed": AgentEventPayloadBase & { status?: string };
-  "turn.started": AgentEventPayloadBase & {
+  "session.started": { title?: string; status?: string };
+  "session.resumed": { title?: string; status?: string };
+  "session.updated": { title?: string; status?: string };
+  "session.closed": { status?: string };
+  "turn.started": AgentRestoredPayload & {
     prompt?: string;
+    userMessageId?: string;
+    submissionId?: string;
     status?: string;
     referenceDisplays?: AgentReferenceDisplay[];
     promptMentions?: AgentPromptReferenceMention[];
+    model?: string | null;
+    effort?: string | null;
+    mode?: string | null;
   };
-  "turn.completed": AgentEventPayloadBase & { status?: string; durationMs?: number };
-  "turn.failed": AgentEventPayloadBase & { status?: string; message?: string; durationMs?: number };
-  "turn.interrupted": AgentEventPayloadBase & { status?: string; message?: string; durationMs?: number };
-  "assistant.delta": AgentEventPayloadBase & { delta?: string; text?: string };
-  "assistant.completed": AgentEventPayloadBase & { text?: string };
-  "reasoning.summary.delta": AgentEventPayloadBase & { delta?: string; text?: string };
-  "plan.updated": AgentEventPayloadBase & { steps?: unknown[]; explanation?: string };
-  "tool.started": AgentEventPayloadBase & AgentActivityPayload;
-  "tool.progress": AgentEventPayloadBase & AgentActivityPayload;
-  "tool.completed": AgentEventPayloadBase & AgentActivityPayload;
-  "command.output.delta": AgentEventPayloadBase & AgentActivityPayload & { delta?: string };
-  "file.change.updated": AgentEventPayloadBase & AgentActivityPayload;
-  "usage.updated": AgentEventPayloadBase & { inputTokens?: number; outputTokens?: number; totalTokens?: number };
-  "approval.requested": AgentEventPayloadBase & AgentBlockingPayload;
-  "approval.resolved": AgentEventPayloadBase & AgentBlockingPayload & { decision?: AgentApprovalDecision };
-  "question.requested": AgentEventPayloadBase & AgentBlockingPayload & { questions: unknown[] };
-  "question.resolved": AgentEventPayloadBase & AgentBlockingPayload & { rejected?: boolean };
-  "provider.activity": AgentEventPayloadBase & AgentActivityPayload;
-  "provider.connection.updated": AgentEventPayloadBase & {
+  "turn.completed": AgentRestoredPayload & { status?: string; durationMs?: number };
+  "turn.failed": AgentRestoredPayload & { status?: string; message?: string; durationMs?: number };
+  "turn.interrupted": AgentRestoredPayload & { status?: string; message?: string; durationMs?: number };
+  "user.message": AgentRestoredPayload & {
+    text: string;
+    referenceDisplays?: AgentReferenceDisplay[];
+    promptMentions?: AgentPromptReferenceMention[];
+  };
+  "assistant.delta": AgentTextUpdatePayload & { delta?: string; text?: string };
+  "assistant.completed": AgentTextUpdatePayload & { text?: string };
+  "reasoning.summary.delta": AgentTextUpdatePayload & {
+    delta?: string;
+    text?: string;
+    summaryIndex?: number;
+    completed?: boolean;
+    boundary?: boolean;
+  };
+  "plan.updated": AgentTextUpdatePayload & { steps?: unknown[]; explanation?: string | null; completed?: boolean };
+  "tool.started": AgentActivityPayload;
+  "tool.progress": AgentActivityPayload;
+  "tool.completed": AgentActivityPayload;
+  "command.output.delta": AgentActivityPayload & { delta?: string; updateMode?: "append" | "replace" };
+  "file.change.updated": AgentActivityPayload;
+  "usage.updated": {
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
+    cachedTokens?: number;
+    cost?: number;
+    contextWindow?: number;
+    tokens?: number;
+  };
+  "approval.requested": AgentBlockingPayload & {
+    availableDecisions?: AgentApprovalDecision[];
+    commandActions?: Array<Record<string, unknown>>;
+    networkApprovalContext?: Record<string, unknown> | null;
+    grantRoot?: string | null;
+    proposedExecpolicyAmendment?: unknown;
+    proposedNetworkPolicyAmendments?: unknown;
+  };
+  "approval.resolved": AgentBlockingPayload & { decision?: AgentApprovalDecision };
+  "question.requested": AgentBlockingPayload & { questions: unknown[] };
+  "question.resolved": AgentBlockingPayload & { resolution?: string; rejected?: boolean };
+  "provider.activity": AgentActivityPayload;
+  "provider.connection.updated": {
+    scope?: "upstream-request" | "transport";
+    requestId?: string;
+    recoveryId?: string;
     state: "reconnecting" | "fallback" | "connected";
     message?: string;
     attempt?: number;
     maxAttempts?: number;
+    maxRetries?: number;
   };
-  "provider.warning": AgentEventPayloadBase & { message?: string };
-  "provider.error": AgentEventPayloadBase & { message?: string };
+  "provider.warning": AgentDiagnosticPayload & {
+    attempt?: number;
+    maxAttempts?: number;
+    maxRetries?: number;
+  };
+  "provider.error": AgentDiagnosticPayload;
+};
+
+type AgentRestoredPayload = { restored?: boolean };
+
+type AgentTextUpdatePayload = AgentRestoredPayload & {
+  updateMode?: "append" | "replace";
+  streaming?: boolean;
+  truncated?: boolean;
+};
+
+/** Display evidence for one reported edit; never a second source-control history.
+ * Missing counts mean unknown. Fragment diffs need not contain absolute line numbers. */
+export type AgentFileChangeEvidence = {
+  path: string;
+  kind?: string;
+  additions?: number;
+  deletions?: number;
+  diff?: string;
+  /** Ordered changed regions only; omitted side differs from an edited blank line. */
+  blocks?: { removed?: string; added?: string }[];
+  truncated?: boolean;
+  basis?: "request" | "native";
 };
 
 type AgentActivityPayload = {
   kind?: string;
   tool?: string;
   label?: string;
+  description?: string;
   status?: string;
   input?: Record<string, unknown> | null;
+  arguments?: Record<string, unknown> | null;
   command?: string | null;
+  cwd?: string | null;
   path?: string | null;
   query?: string | null;
-  changes?: unknown[];
+  changes?: AgentFileChangeEvidence[];
   outputPreview?: string;
+  result?: AgentCanonicalToolResult;
+  error?: string | Record<string, unknown> | null;
+  content?: unknown;
+  detail?: unknown;
+  metadata?: Record<string, unknown>;
+  recoverable?: boolean;
+  exitCode?: number | null;
+  duration?: number;
+  durationMs?: number;
+  elapsedMs?: number;
+  diff?: string;
+  patch?: string;
+  outputPaths?: string[];
+  truncated?: boolean;
+  restored?: boolean;
 };
 
 type AgentBlockingPayload = {
   requestId: string;
   kind?: string;
+  title?: string;
+  command?: string;
+  cwd?: string;
+  reason?: string | null;
+};
+
+type AgentDiagnosticPayload = {
+  code?: string;
+  stage?: string;
+  source?: string;
+  actions?: string[];
+  message?: string;
+  recoverable?: boolean;
+  diagnostic?: string;
 };
 
 export type AgentEventEnvelope<TType extends AgentEventType> = {
@@ -423,6 +552,7 @@ export type AgentLocalConnectionsSnapshot = {
 };
 
 export type AgentSessionSnapshot = {
+  display: AgentProjection;
   session: AgentSessionMetadata;
   runtime?: AgentRuntimeDescriptor;
   account: AgentAccountState | null;
@@ -435,7 +565,122 @@ export type AgentSessionSnapshot = {
   partial: boolean;
   firstAvailableSequence: number;
   lastSequence: number;
+  /** Atomic Main state and its stream cursor accompany every display snapshot. */
+  cursor: AgentSessionCursor;
+  control: AgentSessionControlView;
+  timeline?: AgentTimelineWindow;
 };
+
+export type AgentSessionCursor = { streamId: string; revision: number };
+
+export type AgentCommandDeliveryStatus = "queued" | "dispatching" | "accepted" | "rejected" | "cancelled" | "outcome-unknown";
+
+export type AgentControlStartIntent = {
+  prompt: string;
+  promptMentions: AgentPromptReferenceMention[];
+  referenceDisplays: AgentReferenceDisplay[];
+  model: string | null;
+  effort: string | null;
+  mode: string | null;
+};
+
+export type AgentSessionControl = {
+  schemaVersion: 1;
+  streamId: string;
+  revision: number;
+  sessionEpoch: string;
+  adapterGeneration: number;
+  runGeneration: number;
+  connection: {
+    status: "connecting" | "connected" | "recovering" | "disconnected" | "exited";
+    reason: string | null;
+    /** Structured recovery presentation copied from the canonical connection fact. */
+    recoveryState?: "reconnecting" | "fallback" | null;
+    attempt?: number | null;
+    maxAttempts?: number | null;
+  };
+  execution: {
+    status: "idle" | "starting" | "active" | "ended" | "outcome-unknown";
+    activeTurnId: string | null;
+    uncertainTurnId: string | null;
+    startedAtMs: number | null;
+    nativeOutcome: AgentTurnTerminalState | null;
+    certainty: "confirmed" | "unknown";
+  };
+  interaction: {
+    approvals: Array<{ requestId: string; turnId: string | null; itemId: string | null; runtimeId: string; event?: AgentEvent }>;
+    questions: Array<{ requestId: string; turnId: string | null; itemId: string | null; runtimeId: string; questions: unknown[]; event?: AgentEvent }>;
+  };
+  commands: Array<{
+    commandId: string;
+    operationId: string | null;
+    kind: "start" | "steer" | "interrupt" | "approval" | "question";
+    targetTurnId: string | null;
+    requestId?: string | null;
+    status: AgentCommandDeliveryStatus;
+    error: string | null;
+    intentFingerprint: string | null;
+    wasQueued: boolean;
+    /** Main-allocated client input identity, available before native delivery. */
+    userMessageId?: string | null;
+    intent?: AgentControlStartIntent;
+  }>;
+  recoveries?: Array<{id: string; scope: "upstream-request" | "transport"; turnId: string | null; requestId: string | null; adapterGeneration: number; runGeneration: number; state: "reconnecting" | "fallback"; message: string; attempt: number | null; maxAttempts: number | null}>;
+  queue: string[];
+  terminalTurns: string[];
+  pendingSubmission: {
+    commandId: string;
+    operationId: string;
+    adapterGeneration: number;
+    prompt: string;
+    promptMentions: AgentPromptReferenceMention[];
+    referenceDisplays: AgentReferenceDisplay[];
+  } | null;
+};
+
+/** Renderer receives identities and delivery state, never executable input bodies. */
+export type AgentSessionControlView = Omit<AgentSessionControl, "commands" | "pendingSubmission" | "interaction"> & {
+  commands: Array<Omit<AgentSessionControl["commands"][number], "intent">>;
+  pendingSubmission: Pick<NonNullable<AgentSessionControl["pendingSubmission"]>, "commandId" | "operationId" | "adapterGeneration"> | null;
+  interaction: {
+    approvals: Array<Omit<AgentSessionControl["interaction"]["approvals"][number], "event">>;
+    questions: Array<Omit<AgentSessionControl["interaction"]["questions"][number], "event" | "questions">>;
+  };
+};
+
+export type AgentTimelineWindow = {
+  events: AgentEvent[];
+  /** Current facts whose original event fell outside the bounded content window. */
+  checkpointEvents?: AgentEvent[];
+  partial: boolean;
+  firstAvailableSequence: number;
+  lastSequence: number;
+};
+
+export type AgentSessionAttachRequest = { rootPath: string; sessionId: string; instanceId?: string };
+export type AgentSessionFeedReceipt = {
+  subscriptionId: string;
+  snapshot: AgentSessionSnapshot;
+};
+export type AgentSessionFeedAckRequest = AgentSessionAttachRequest & AgentSessionCursor & { subscriptionId: string };
+export type AgentSessionDetachRequest = AgentSessionAttachRequest & { subscriptionId: string };
+export type AgentSessionFrame =
+  | {
+      type: "delta";
+      subscriptionId: string;
+      streamId: string;
+      baseRevision: number;
+      revision: number;
+      control: AgentSessionControlView;
+      displayPatch: AgentDisplayPatch;
+      session: AgentSessionMetadata;
+    }
+  | {
+      type: "resync-required";
+      subscriptionId: string;
+      streamId: string;
+      revision: number;
+    };
 
 export type AgentRuntimeRequest = {
   rootPath?: string | null;
@@ -470,11 +715,13 @@ export type AgentSessionOpenRequest = {
 
 export type AgentSessionOpenErrorCode =
   | "SESSION_NOT_FOUND"
+  | "SOURCE_CHANGED"
   | "AUTH_REQUIRED"
   | "AUTH_EXPIRED"
   | "RUNTIME_UNAVAILABLE"
   | "RESUME_UNSUPPORTED"
   | "RESUME_TIMED_OUT"
+  | "HISTORY_READ_FAILED"
   | "WORKSPACE_MISMATCH"
   | "PROTOCOL_ERROR";
 
@@ -495,6 +742,7 @@ export type AgentSessionsListRequest = {
   includeArchived?: boolean;
   /** Explicit user-requested native metadata discovery; false never starts a harness. */
   discoverNative?: boolean;
+  catalogCursor?: string;
   cursor?: string | null;
   /** Opaque product scan identity returned with a partial discovery page. */
   scanId?: string | null;
@@ -504,6 +752,7 @@ export type AgentSessionsListRequest = {
 export type AgentSessionCloseRequest = {
   rootPath: string;
   sessionId: string;
+  instanceId?: string;
   removePersistence?: boolean;
 };
 
@@ -515,77 +764,21 @@ export type AgentSessionMutationRequest = {
   deleteNative?: boolean;
 };
 
-export type AgentFileReference = {
-  path: string;
-  name?: string | null;
+export type AgentCommandPrecondition = {
+  /** Live runtime identity; distinct from the durable conversation id. */
+  instanceId?: string;
+  /** Rejects a command captured for an older Main SessionActor instance. */
+  expectedSessionEpoch?: string;
+  /** Rejects a command captured before the native adapter was replaced. */
+  expectedAdapterGeneration?: number;
+  /** Rejects turn-scoped intent captured for an older active run. */
+  expectedRunGeneration?: number;
 };
 
-export type AgentReferenceStatus = "resolving" | "ready" | "error";
-
-export type AgentReferenceError = {
-  code: string;
-  message: string;
-};
-
-export type AgentWorkspaceEntryReference = {
-  id: string;
-  kind: "workspace-entry";
-  entryType: "file" | "directory";
-  /** Portable identity resolved against the owning Agent session at send time. */
-  relativePath: string;
-  displayName: string;
-  mime?: string;
-  size?: number;
-  status: AgentReferenceStatus;
-  error?: AgentReferenceError;
-};
-
-export type AgentStagedAttachmentReference = {
-  id: string;
-  kind: "staged-attachment";
-  token?: string;
-  displayName: string;
-  mime: string;
-  size: number;
-  status: AgentReferenceStatus;
-  error?: AgentReferenceError;
-};
-
-/** Renderer draft/request representation. It never contains external paths or bytes. */
-export type AgentDraftReference = AgentWorkspaceEntryReference | AgentStagedAttachmentReference;
-
-/** A renderer-safe atomic file mention embedded in the user's prompt text. */
-export type AgentPromptReferenceMention = {
-  referenceId: string;
-  /** UTF-16 offsets into the associated prompt string. */
-  start: number;
-  end: number;
-};
-
-/** Renderer-safe transcript representation. */
-export type AgentReferenceDisplay = {
-  id: string;
-  kind: "workspace-file" | "workspace-directory" | "attachment";
-  displayName: string;
-  relativePath?: string;
-  mime?: string;
-  size?: number;
-};
-
-export type AgentSubmissionIntent = {
-  id: string;
-  referenceEpoch: string;
-  prompt: string;
-  model: string | null;
-  effort: string | null;
-  mode: string | null;
-  references: AgentDraftReference[];
-  promptMentions: AgentPromptReferenceMention[];
-};
-
-export type AgentTurnStartRequest = {
+export type AgentTurnStartRequest = AgentCommandPrecondition & {
   rootPath: string;
   sessionId: string;
+  commandId?: string;
   prompt: string;
   model?: string | null;
   effort?: string | null;
@@ -597,10 +790,11 @@ export type AgentTurnStartRequest = {
   references?: AgentDraftReference[];
 };
 
-export type AgentTurnSteerRequest = {
+export type AgentTurnSteerRequest = AgentCommandPrecondition & {
   rootPath: string;
   sessionId: string;
   turnId: string;
+  commandId?: string;
   message: string;
   referenceEpoch?: string;
   promptMentions?: AgentPromptReferenceMention[];
@@ -623,27 +817,30 @@ export type AgentWorkspaceReferenceResolveRequest = {
   paths: string[];
 };
 
-export type AgentTurnInterruptRequest = {
+export type AgentTurnInterruptRequest = AgentCommandPrecondition & {
   rootPath: string;
   sessionId: string;
   turnId: string;
+  commandId?: string;
 };
 
 export type AgentApprovalDecision = "accept" | "acceptForSession" | "decline" | "cancel";
 
-export type AgentApprovalResolution = {
+export type AgentApprovalResolution = AgentCommandPrecondition & {
   rootPath: string;
   sessionId: string;
   turnId: string;
   requestId: string;
+  commandId?: string;
   decision: AgentApprovalDecision;
 };
 
-export type AgentQuestionResolution = {
+export type AgentQuestionResolution = AgentCommandPrecondition & {
   rootPath: string;
   sessionId: string;
   turnId: string;
   requestId: string;
+  commandId?: string;
   answer?: string | string[] | string[][] | null;
   answers?: string[][] | null;
   rejected?: boolean;
@@ -669,6 +866,10 @@ export type AgentIpcChannel =
   | "agent:session-resume"
   | "agent:session-open"
   | "agent:session-replay"
+  | "agent:session-attach"
+  | "agent:session-feed-ack"
+  | "agent:session-feed-watermark"
+  | "agent:session-detach"
   | "agent:sessions-list"
   | "agent:session-fork"
   | "agent:session-archive"
@@ -678,6 +879,7 @@ export type AgentIpcChannel =
   | "agent:reference-revoke"
   | "agent:reference-resolve-workspace"
   | "agent:reference-pick-workspace"
+  | "agent:command-dispatch"
   | "agent:turn-start"
   | "agent:turn-steer"
   | "agent:turn-interrupt"

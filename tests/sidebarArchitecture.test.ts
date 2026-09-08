@@ -20,6 +20,8 @@ const sourceControlResourceLists = read("../src/features/source-control/sidebar/
 const sourceControlHistory = read("../src/features/source-control/sidebar/GitSidebarHistoryPanel.tsx");
 const cloudHistorySidebar = read("../src/features/cloud/history/CloudHistorySidebar.tsx");
 const virtualizationPolicy = read("../packages/shared-ui/src/sidebar/virtualizationPolicy.ts");
+const virtualSidebarList = read("../packages/shared-ui/src/sidebar/VirtualSidebarList.tsx");
+const tokens = read("../src/styles/tokens.css");
 
 describe("Sidebar architecture", () => {
   it("keeps the dependency direction and CSS ownership explicit", () => {
@@ -150,6 +152,12 @@ describe("Sidebar architecture", () => {
     expect(sourceControlResourceLists).toContain("VirtualSidebarList");
     expect(sourceControlHistory).toContain("VirtualSidebarList");
     expect(cloudHistorySidebar).toContain("VirtualSidebarList");
+    expect(virtualSidebarList).toContain("listRef?: MutableRefObject<HTMLOListElement | null>");
+    expect(sourceControlResourceLists).toContain('"--desktop-sidebar-virtual-row-size"');
+    expect(sourceControlHistory).toContain('"--desktop-sidebar-virtual-row-size"');
+    expect(sourceControlResourceLists).not.toMatch(/rowSize=\{(?:30|32|34)\}/);
+    expect(sourceControlHistory).not.toMatch(/rowSize=\{(?:30|32|34)\}/);
+    expect(tokens).toContain("--desktop-sidebar-virtual-row-size: calc(var(--desktop-sidebar-row-height) + 2px)");
   });
 
   it.each([

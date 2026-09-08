@@ -51,9 +51,10 @@ export function createGitMetadataWatchService({
     const identity = await resolveIdentity(rootPath);
     const subscriptionId = `git-watch-${(subscriptionSequence += 1)}-${Date.now().toString(36)}`;
     const workspaceRoot = identity.workspaceRoot || path.resolve(rootPath);
+    const onSenderDestroyed = () => stop(subscriptionId);
 
     if (typeof sender.once === "function") {
-      sender.once("destroyed", () => stop(subscriptionId));
+      sender.once("destroyed", onSenderDestroyed);
     }
 
     if (!identity.repository || !identity.gitDir) {
@@ -61,6 +62,7 @@ export function createGitMetadataWatchService({
         kind: "pending",
         senderId: sender.id,
         sender,
+        onSenderDestroyed,
         workspaceRoot,
         identityKey: null,
       });
@@ -77,11 +79,12 @@ export function createGitMetadataWatchService({
     return attachRepositorySubscription({
       subscriptionId,
       sender,
+      onSenderDestroyed,
       identity,
     });
   }
 
-  function attachRepositorySubscription({ subscriptionId, sender, identity }) {
+  function attachRepositorySubscription({ subscriptionId, sender, onSenderDestroyed, identity }) {
     const identityKey = buildIdentityKey(identity);
     let repository = repositories.get(identityKey);
     if (!repository) {
@@ -95,6 +98,7 @@ export function createGitMetadataWatchService({
       kind: "repository",
       senderId: sender.id,
       sender,
+      onSenderDestroyed,
       workspaceRoot: identity.topLevel,
       identityKey,
     });
@@ -117,6 +121,7 @@ export function createGitMetadataWatchService({
       return { ok: true };
     }
     subscriptions.delete(subscriptionId);
+    subscription.sender.removeListener?.("destroyed", subscription.onSenderDestroyed);
 
     if (subscription.kind === "pending") {
       const pending = pendingRoots.get(subscription.workspaceRoot);
@@ -164,6 +169,9 @@ export function createGitMetadataWatchService({
   }
 
   function closeAll() {
+    for (const subscriptionId of Array.from(subscriptions.keys())) {
+      stop(subscriptionId);
+    }
     for (const repository of repositories.values()) {
       disposeRepositoryWatch(repository);
     }
@@ -364,6 +372,7 @@ export function createGitMetadataWatchService({
       attachRepositorySubscription({
         subscriptionId,
         sender: subscription.sender,
+        onSenderDestroyed: subscription.onSenderDestroyed,
         identity,
       });
       broadcastToSubscription(subscriptionId, identity.topLevel, reason);

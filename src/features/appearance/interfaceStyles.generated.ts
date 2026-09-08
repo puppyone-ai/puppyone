@@ -38,9 +38,6 @@ export const INTERFACE_STYLE_MANIFEST = {
         "sidebarNavigationLayout": {
           "mode": "inherit"
         },
-        "textSize": {
-          "mode": "inherit"
-        },
         "fileIconTheme": {
           "mode": "inherit"
         }
@@ -98,9 +95,6 @@ export const INTERFACE_STYLE_MANIFEST = {
           "mode": "force",
           "value": "top-horizontal",
           "reasonKey": "settings.appearance.controlledBy.windowsXpNavigation"
-        },
-        "textSize": {
-          "mode": "inherit"
         },
         "fileIconTheme": {
           "mode": "inherit"

@@ -1,4 +1,5 @@
 .desktop-titlebar {
+  --po-font-size-chrome: var(--po-type-header-content);
   --desktop-titlebar-bg: var(--po-header);
   --desktop-titlebar-text: var(--po-text);
   --desktop-titlebar-text-muted: var(--po-text-muted);
@@ -131,7 +132,7 @@
   overflow: hidden;
   font-size: var(--po-font-size-chrome, 13px);
   font-weight: var(--po-font-weight-chrome, 500);
-  line-height: 18px;
+  line-height: var(--po-type-header-line-height, 20px);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -229,7 +230,7 @@
   color: color-mix(in srgb, var(--desktop-titlebar-update-accent) 72%, var(--desktop-titlebar-text));
   font-size: var(--po-font-size-chrome, 13px);
   font-weight: var(--po-text-weight-regular, 400);
-  line-height: 18px;
+  line-height: var(--po-type-header-line-height, 20px);
   text-overflow: ellipsis;
 }
 
@@ -349,9 +350,35 @@
   color: var(--desktop-titlebar-text-muted);
   font-size: var(--po-font-size-chrome, 13px);
   font-weight: var(--po-font-weight-chrome, 500);
-  line-height: 18px;
+  line-height: var(--po-type-header-line-height, 20px);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.desktop-titlebar-branch-label {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.desktop-titlebar-branch-placeholder {
+  display: block;
+  width: 42px;
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, currentColor 10%, transparent),
+    color-mix(in srgb, currentColor 22%, transparent),
+    color-mix(in srgb, currentColor 10%, transparent)
+  );
+  background-size: 200% 100%;
+  animation: desktop-titlebar-placeholder-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes desktop-titlebar-placeholder-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
 }
 
 .desktop-titlebar-workspace-button:hover .desktop-titlebar-workspace-name,
@@ -432,7 +459,7 @@
   overflow: hidden;
   font-size: var(--po-font-size-chrome, 13px);
   font-weight: var(--po-font-weight-chrome, 500);
-  line-height: 18px;
+  line-height: var(--po-type-header-line-height, 20px);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -455,7 +482,8 @@
 .desktop-branch-menu-group > .desktop-menu-section-label {
   padding: 0 7px 4px;
   color: var(--po-text-disabled);
-  font-size: 11px;
+  font-size: var(--po-menu-meta-font-size);
+  line-height: var(--po-menu-meta-line-height);
   font-weight: 600;
   letter-spacing: 0;
   text-transform: none;
@@ -480,19 +508,19 @@
   border-radius: 6px;
   background: color-mix(in srgb, var(--po-danger) 9%, transparent);
   color: var(--po-danger);
-  font-size: 11px;
+  font-size: var(--po-menu-meta-font-size);
   line-height: 1.35;
 }
 
 .desktop-branch-menu-action {
   justify-self: start;
-  height: 24px;
+  height: var(--po-control-size-tight);
   padding: 0 8px;
   border: 1px solid color-mix(in srgb, var(--po-danger) 22%, transparent);
   border-radius: 5px;
   background: transparent;
   color: var(--po-danger);
-  font-size: 11px;
+  font-size: var(--po-menu-meta-font-size);
   font-weight: 650;
 }
 

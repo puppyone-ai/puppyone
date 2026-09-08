@@ -4,16 +4,23 @@ import {
   type NativeSurfacePointerPassthroughLease,
   type NativeSurfacePointerPassthroughOwner,
 } from "./nativeSurfacePointerPassthrough";
+import {
+  acquireNativeSurfaceLayoutLease,
+  type NativeSurfaceLayoutLease,
+} from "./nativeSurfaceGeometry";
 
 /** Adapts boolean drag callbacks to a component-owned, idempotent lease. */
 export function useNativeSurfacePointerPassthroughActivity(
   owner: NativeSurfacePointerPassthroughOwner,
 ): (active: boolean) => void {
   const leaseRef = useRef<NativeSurfacePointerPassthroughLease | null>(null);
+  const layoutLeaseRef = useRef<NativeSurfaceLayoutLease | null>(null);
 
   const release = useCallback(() => {
     leaseRef.current?.release();
     leaseRef.current = null;
+    layoutLeaseRef.current?.release();
+    layoutLeaseRef.current = null;
   }, []);
 
   useEffect(() => {
@@ -38,6 +45,7 @@ export function useNativeSurfacePointerPassthroughActivity(
     }
     if (!leaseRef.current) {
       leaseRef.current = acquireNativeSurfacePointerPassthroughLease(owner);
+      layoutLeaseRef.current = acquireNativeSurfaceLayoutLease(`${owner}:drag`);
     }
   }, [owner, release]);
 }

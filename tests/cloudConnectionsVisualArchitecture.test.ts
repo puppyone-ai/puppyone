@@ -44,7 +44,7 @@ describe("Cloud Connections visual architecture", () => {
     const row = compact(readCssBlock(accessPointListCss, ".desktop-cloud-access-point-row"));
 
     expect(list).toContain("gap: 7px;");
-    expect(row).toContain("grid-template-columns: 30px minmax(0, 1fr) minmax(260px, 330px);");
+    expect(row).toContain("grid-template-columns: var(--po-control-size) minmax(0, 1fr) minmax(260px, 330px);");
     expect(row).toContain("border: 1px solid var(--po-border-subtle);");
     expect(catalogSource).toContain("AccessPointList");
     expect(routeRegistrySource).toContain('mcp: "mcp"');

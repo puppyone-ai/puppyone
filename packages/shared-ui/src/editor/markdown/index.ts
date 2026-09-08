@@ -1,5 +1,19 @@
 export { MarkdownCodeMirrorEditor } from "./MarkdownCodeMirrorEditor";
+export {
+  normalizeContentLanguage,
+  resolveMarkdownContentLanguage,
+  type MarkdownContentLanguageResolution,
+  type MarkdownContentLanguageSource,
+} from "./core/presentation/markdownContentLanguage";
 export * from "./linkIndex";
+export {
+  findMarkdownLinkTokens,
+  type MarkdownLinkToken,
+} from "./core/links/markdownLinkModel";
+export {
+  findWikiLinkTokens,
+  type MarkdownWikiLinkToken,
+} from "./core/links/wikiLinkModel";
 export { resolveMarkdownAssetPath } from "./features/media/markdownMediaReference";
 export {
   getMarkdownConformanceSnapshot,
@@ -21,3 +35,15 @@ export {
   isMarkdownFormatCommand,
   type MarkdownFormatCommand,
 } from "./core/commands/markdownFormatHotkeys";
+export {
+  getMermaidThemeSnapshot,
+  mountSanitizedMermaidSvg,
+  renderMermaidDiagram,
+  subscribeMermaidThemeChanges,
+} from "./features/mermaid/mermaidRenderer";
+export type {
+  MermaidRenderRequest,
+  MermaidRenderResult,
+  MermaidSvgMount,
+  MermaidThemeSnapshot,
+} from "./features/mermaid/mermaidRenderer";

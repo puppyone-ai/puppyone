@@ -15,8 +15,9 @@ describe("settings visual architecture", () => {
     const language = source("src/features/settings/LanguageSetting.tsx");
 
     expect(types).toContain('"general" | "privacy" | "local-project"');
-    expect(types).toContain('"appearance" | "local-agents" | "editor" | "new-menu"');
-    expect(types).toContain('| "editor"');
+    expect(types).toContain('"appearance" | "typography" | "local-agents" | "new-menu"');
+    expect(types).toContain('| "typography"');
+    expect(types).not.toContain('| "editor"');
     expect(types).not.toContain('"external-apps"');
     expect(types).not.toContain('"local-agent-hooks"');
     expect(types).not.toContain('| "language"');
@@ -42,7 +43,7 @@ describe("settings visual architecture", () => {
     expect(localAgents).toContain('detail={t("settings.localAgents.detail")}');
     expect(localAgents).toContain("useTerminalAgentLocator");
     expect(localAgents).toContain("DESKTOP_TERMINAL_LAUNCHERS");
-    expect(localAgents).toContain("<TerminalLauncherIcon");
+    expect(localAgents).toContain("<AgentLauncherIcon");
     expect(localAgents).toContain("desktop-settings-switch");
     expect(localAgents).toContain("setTerminalAgentVisible");
     expect(localAgents).toContain("<LocalAgentHooksSettingsSection");
@@ -50,7 +51,7 @@ describe("settings visual architecture", () => {
     expect(localAgentHooks).toContain("setAgentActivityEnrollment");
     expect(localAgentHooks).toContain("selectableProviders.map");
     expect(localAgentHooks).toContain("provider.configurable");
-    expect(localAgentHooks).toContain("<TerminalLauncherIcon");
+    expect(localAgentHooks).toContain("<AgentLauncherIcon");
     expect(localAgents).toContain("settings.localAgents.activeChat.title");
     expect(localAgents).toContain("desktop-local-agent-settings-layout");
     expect(localAgents).toContain("desktop-local-agent-group-title");
@@ -79,13 +80,14 @@ describe("settings visual architecture", () => {
     expectInOrder(desktopAppItems, [
       'labelId: "settings.sidebar.general"',
       'labelId: "settings.sidebar.appearance"',
+      'labelId: "settings.sidebar.typography"',
       'labelId: "settings.sidebar.localAgents"',
       'labelId: "settings.sidebar.createNew"',
-      'labelId: "settings.sidebar.editor"',
       'labelId: "settings.sidebar.privacy"',
       'labelId: "settings.sidebar.experimental"',
     ]);
-    expect(desktopAppItems).toContain("settings.sidebar.editor");
+    expect(desktopAppItems).toContain("settings.sidebar.typography");
+    expect(desktopAppItems).not.toContain("settings.sidebar.editor");
     expect(desktopAppItems).not.toContain("settings.sidebar.language");
     expect(desktopAppItems).not.toContain("settings.sidebar.localAgentHooks");
     expect(sidebarModel).toContain('labelId: "settings.sidebar.localProject"');
@@ -97,38 +99,44 @@ describe("settings visual architecture", () => {
     expect(language).not.toContain("<button");
   });
 
-  it("exposes Editor typography without Markdown presentation overrides", () => {
+  it("owns cross-surface text controls in Typography rather than Appearance or Editor", () => {
     const sidebarModel = source("src/features/settings/sidebar/settingsSidebarModel.ts");
     const settingsView = source("src/features/settings/SettingsView.tsx");
-    const editorSettings = source("src/features/settings/main/EditorSettingsView.tsx");
+    const typographySettings = source("src/features/settings/main/TypographySettingsView.tsx");
     const preferences = source("src/preferences.ts");
+    const loading = source("src/components/loading/index.tsx");
     const app = source("src/App.tsx");
     const reviewRuntime = source("src/features/data-workspace/useAiEditReviewRequest.ts");
     const reviewEngine = source("local-api/edit-review.mjs");
 
-    expect(sidebarModel).toContain('id: "editor"');
-    expect(settingsView).toContain("<EditorSettingsView");
-    expect(settingsView).toContain('import("./main/EditorSettingsView")');
+    expect(sidebarModel).toContain('id: "typography"');
+    expect(sidebarModel).not.toContain('id: "editor"');
+    expect(settingsView).toContain("<TypographySettingsView");
+    expect(settingsView).toContain('import("./main/TypographySettingsView")');
     expect(settingsView).not.toContain("ContentFontSetting");
     expect(settingsView).not.toContain("settings.appearance.textSize");
-    expect(editorSettings).toContain("settings.editor.typography");
-    expect(editorSettings).toContain("MarkdownFontSetting");
-    expect(editorSettings).not.toContain("markdownPresentation");
-    expect(editorSettings).not.toContain("<MarkdownPresentationPreview");
-    expect(editorSettings).not.toContain("markdownPresentation.headingScale");
-    expect(editorSettings).not.toContain("aiEditAssistEnabled");
-    expect(editorSettings).not.toContain("diffMarkers");
+    expect(settingsView).not.toContain("<TypographySizeSetting");
+    expect(typographySettings).toContain("settings.typography");
+    expect(typographySettings).toContain("TypographyScaleSetting");
+    expect(typographySettings).not.toContain("TypographyFontFamilySetting");
+    expect(typographySettings).not.toContain("TypographySizeSetting");
+    expect(typographySettings).not.toContain("markdownPresentation");
+    expect(typographySettings).not.toContain("<MarkdownPresentationPreview");
+    expect(typographySettings).not.toContain("markdownPresentation.headingScale");
+    expect(typographySettings).not.toContain("aiEditAssistEnabled");
+    expect(typographySettings).not.toContain("diffMarkers");
     expect(settingsView).not.toContain("onAiEditAssistEnabledChange");
     expect(settingsView).not.toContain("onDiffMarkersChange");
     expect(preferences).toContain("AI_EDIT_ASSIST_STORAGE_KEY");
     expect(preferences).toContain("DIFF_MARKERS_STORAGE_KEY");
     expect(app).toContain("useAiEditReviewRequest");
-    expect(app).toContain("data-diff-markers={diffMarkers}");
+    expect(app).toContain("diffMarkers,");
+    expect(app).toContain("{...surfaceAppearance.rootProps}");
     expect(reviewRuntime).toContain("subscribeAiEditReviewUpdates");
     expect(reviewEngine).toContain("flushWorkspaceEditReviewChanges");
   });
 
-  it("keeps every supported locale complete for General and Local Project", () => {
+  it("keeps every supported locale complete for core settings and Typography", () => {
     const manifest = JSON.parse(source("locales/manifest.json")) as {
       locales: Array<{ locale: string }>;
     };
@@ -141,10 +149,28 @@ describe("settings visual architecture", () => {
       expect(catalog["sidebar.projectInfo"], locale).toBeTruthy();
       expect(catalog["sidebar.localAgents"], locale).toBeTruthy();
       expect(catalog["sidebar.createNew"], locale).toBeTruthy();
+      expect(catalog["sidebar.typography"], locale).toBeTruthy();
+      expect(catalog["sidebar.editor"], locale).toBeUndefined();
       expect(catalog["sidebar.defaultApps"], locale).toBeUndefined();
       expect(catalog["sidebar.localAgentHooks"], locale).toBeUndefined();
       expect(catalog["general.title"], locale).toBeTruthy();
       expect(catalog["general.detail"], locale).toBeTruthy();
+      for (const key of [
+        "title",
+        "detail",
+        "textSize.title",
+        "textSize.detail",
+        "textSize.application.title",
+        "textSize.ariaLabel",
+        "textSize.scale.small",
+        "textSize.scale.medium",
+        "textSize.scale.large",
+        "textSize.useScale",
+        "preview.title",
+        "preview.ariaLabel",
+      ]) {
+        expect(catalog[`typography.${key}`], `${locale}: settings.typography.${key}`).toBeTruthy();
+      }
       for (const key of [
         "title",
         "detail",
@@ -224,7 +250,8 @@ describe("settings visual architecture", () => {
 
   it("offers every loading animation preset from Appearance with localized labels", () => {
     const view = source("src/features/settings/SettingsView.tsx");
-    const preferences = source("src/preferences.ts");
+    const appearancePreferences = source("src/features/appearance/appearancePreferences.ts");
+    const loading = source("src/components/loading/index.tsx");
     const manifest = JSON.parse(source("locales/manifest.json")) as {
       locales: Array<{ locale: string }>;
     };
@@ -234,7 +261,9 @@ describe("settings visual architecture", () => {
     expect(view).toContain("onLoadingAnimationPresetChange(presetId)");
     expect(view.indexOf('settings.appearance.loadingAnimation.title'))
       .toBeGreaterThan(view.indexOf('settings.appearance.navigation.title'));
-    expect(preferences).toContain('LOADING_ANIMATION_STORAGE_KEY = "puppyone.desktop.loadingAnimation"');
+    expect(appearancePreferences).toContain("loadingAnimationPreset: LoadingAnimationPreset");
+    expect(loading).toContain("LoadingAnimationContext");
+    expect(loading).not.toContain("localStorage");
 
     for (const { locale } of manifest.locales) {
       const catalog = JSON.parse(source(`locales/renderer/${locale}/settings.json`)) as Record<string, string>;
@@ -278,7 +307,7 @@ describe("settings visual architecture", () => {
     expect(settings).not.toContain(".desktop-settings-line");
     expect(settings).not.toContain(".desktop-settings-label-stack");
     expect(settings).toMatch(/\.desktop-settings-subsection-body\s*{[^}]*display:\s*grid;/s);
-    expect(settings).toMatch(/\.desktop-settings-subsection-title\s*{[^}]*font-size:\s*12px;[^}]*font-weight:\s*500;/s);
+    expect(settings).toMatch(/\.desktop-settings-subsection-title\s*{[^}]*font-size:\s*var\(--po-text-size-meta, 12px\);[^}]*font-weight:\s*500;/s);
 
     for (const detailId of [
       "settings.appearance.detail",
@@ -312,19 +341,19 @@ describe("settings visual architecture", () => {
     expect(settings).toMatch(/\.desktop-settings-heading-row\s*{[^}]*padding-inline:\s*10px;/s);
     expect(settings).toMatch(/\.desktop-settings-section-header\s*{[^}]*padding-inline:\s*10px;/s);
     expect(settings).toMatch(/\.desktop-settings-heading-row \.desktop-settings-section-header\s*{[^}]*padding-inline:\s*0;/s);
-    expect(settings).toMatch(/\.desktop-settings-section-header h2\s*{[^}]*font-size:\s*15px;[^}]*font-weight:\s*var\(--po-text-weight-medium, 500\);[^}]*line-height:\s*20px;/s);
+    expect(settings).toMatch(/\.desktop-settings-section-header h2\s*{[^}]*font-size:\s*var\(--po-text-size-section-title, 15px\);[^}]*font-weight:\s*var\(--po-text-weight-medium, 500\);[^}]*line-height:\s*20px;/s);
     expect(settings).toMatch(/\.desktop-settings-row\s*{[^}]*gap:\s*18px;[^}]*padding:\s*0 10px;/s);
     expect(settings).toMatch(/\.desktop-settings-row > \.desktop-settings-row-value\s*{[^}]*font-weight:\s*var\(--po-text-weight-regular, 400\);/s);
     expect(settings).toMatch(/\.desktop-settings-value-text\s*{[^}]*font-weight:\s*var\(--po-text-weight-regular, 400\);/s);
     expect(settings).toMatch(/\.desktop-settings-remote-setting-name\s*{[^}]*font-weight:\s*var\(--po-text-weight-regular, 400\);/s);
     expect(controls).toMatch(/\.desktop-settings-row-control\s*{[^}]*min-height:\s*42px;/s);
     expect(controls).not.toContain("min-height: 38px");
-    expect(settings).toMatch(/\.desktop-settings-value-row\s*{[^}]*min-height:\s*30px;/s);
-    expect(settings).toMatch(/\.desktop-settings-select,[\s\S]*?height:\s*28px;[\s\S]*?border-radius:\s*6px;[\s\S]*?font-weight:\s*var\(--po-text-weight-regular, 400\);/);
-    expect(controls).toMatch(/\.desktop-settings-action\s*{[^}]*height:\s*28px;[^}]*border-radius:\s*6px;[^}]*font-size:\s*12px;[^}]*font-weight:\s*var\(--po-text-weight-medium, 500\);/s);
+    expect(settings).toMatch(/\.desktop-settings-value-row\s*{[^}]*min-height:\s*var\(--po-control-size\);/s);
+    expect(settings).toMatch(/\.desktop-settings-select,[\s\S]*?height:\s*var\(--po-control-size-compact\);[\s\S]*?border-radius:\s*6px;[\s\S]*?font-weight:\s*var\(--po-text-weight-regular, 400\);/);
+    expect(controls).toMatch(/\.desktop-settings-action\s*{[^}]*height:\s*var\(--po-control-size-compact\);[^}]*border-radius:\s*6px;[^}]*font-size:\s*var\(--po-text-size-meta, 12px\);[^}]*font-weight:\s*var\(--po-text-weight-medium, 500\);/s);
     expect(controls).toMatch(/\.desktop-build-version-text\s*{[^}]*font-weight:\s*400;/s);
     expect(controls).toMatch(/\.desktop-theme-segment\s*{[^}]*border-radius:\s*7px;/s);
-    expect(controls).toMatch(/\.desktop-theme-segment button\s*{[^}]*height:\s*26px;[^}]*border-radius:\s*5px;/s);
+    expect(controls).toMatch(/\.desktop-theme-segment button\s*{[^}]*height:\s*var\(--po-control-size-small\);[^}]*border-radius:\s*5px;/s);
     expect(controls).toMatch(/\.desktop-appearance-option-segment\s*{[^}]*width:\s*min\(100%, 360px\);[^}]*grid-auto-columns:\s*minmax\(0, 1fr\);/s);
     expect(controls).toMatch(/\.desktop-appearance-option-segment\.desktop-appearance-hug-segment\s*{[^}]*width:\s*fit-content;[^}]*max-width:\s*100%;[^}]*grid-auto-columns:\s*max-content;/s);
     expect(controls).toMatch(/\.desktop-settings-tool-list\s*{[^}]*width:\s*fit-content;[^}]*max-width:\s*100%;/s);

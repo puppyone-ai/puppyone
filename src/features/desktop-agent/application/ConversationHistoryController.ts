@@ -2,6 +2,7 @@ import { listEnabledAgentRuntimes } from "../domain/agent-backend-routing";
 import type {
   AgentRuntimeCatalogEntry,
   AgentSessionListItem,
+  AgentSessionsListResponse,
 } from "../domain/agent-contract";
 import type { AgentClientPort } from "./AgentClientPort";
 import { AgentKnownError } from "./agent-error";
@@ -9,7 +10,7 @@ import { AgentKnownError } from "./agent-error";
 const HISTORY_PAGE_SIZE = 20;
 export const AGENT_HISTORY_CATALOG_TIMEOUT_MS = 8_000;
 export const AGENT_HISTORY_RUNTIME_TIMEOUT_MS = 8_000;
-export const AGENT_HISTORY_SOURCE_TIMEOUT_MS = 15_000;
+export const AGENT_HISTORY_SOURCE_TIMEOUT_MS = 20_000;
 
 type Listener = () => void;
 export type AgentHistoryClientPort = Pick<AgentClientPort, "discoverAgentRuntimes" | "listAgentSessions">;
@@ -25,6 +26,9 @@ export type ConversationHistoryState = Readonly<{
   refreshing: boolean;
   loadingMore: boolean;
   nextCursors: CursorMap;
+  catalogNextCursor: string | null;
+  sources: Readonly<Record<string, AgentSessionsListResponse["discovery"]>>;
+  catalogCoverage: AgentSessionsListResponse["catalogCoverage"] | null;
   error: string | null;
 }>;
 
@@ -36,14 +40,18 @@ const INITIAL_STATE: ConversationHistoryState = Object.freeze({
   refreshing: false,
   loadingMore: false,
   nextCursors: Object.freeze({}),
+  catalogNextCursor: null,
+  sources: Object.freeze({}),
+  catalogCoverage: null,
   error: null,
 });
 
-/** Page-scoped, query-only state owner. It never creates or resumes a live Chat session. */
+/** Project-scoped, query-only state owner. It never creates or resumes a live Chat session. */
 export class ConversationHistoryController {
   private state = INITIAL_STATE;
   private readonly listeners = new Set<Listener>();
   private generation = 0;
+  private catalogRequest = 0;
   private active = false;
   private catalogLoaded = false;
   private runtimeInspectionComplete = false;
@@ -70,7 +78,7 @@ export class ConversationHistoryController {
     this.catalogLoaded = false;
     this.runtimeInspectionComplete = false;
     this.autoRefreshGeneration = -1;
-    this.patch({ loading: true, loaded: false, error: null, nextCursors: Object.freeze({}) });
+    this.patch({ loading: true, loaded: false, error: null, nextCursors: Object.freeze({}), catalogNextCursor: null, sources: Object.freeze({}), catalogCoverage: null });
     void this.loadInitialCatalog(generation);
     void this.inspectRuntimes(generation);
   }
@@ -82,6 +90,8 @@ export class ConversationHistoryController {
     this.refreshPromise = null;
     this.loadMorePromise = null;
   }
+
+  dispose() { this.deactivate(); this.listeners.clear(); }
 
   refresh() {
     if (!this.active) return Promise.resolve();
@@ -158,46 +168,11 @@ export class ConversationHistoryController {
 
   private async runRefresh(generation: number) {
     if (this.loadMorePromise) return;
-    const nativeRuntimes = historyRuntimes(this.state.runtimes);
-    if (nativeRuntimes.length === 0) return;
-    this.patch({ refreshing: true, error: null });
-    const cursors: Record<string, NativeScanContinuation> = {};
-    const warnings: string[] = [];
+    const runtimes = historyRuntimes(this.state.runtimes);
+    if (runtimes.length === 0) return;
+    this.patch({ refreshing: true, error: null, nextCursors: Object.freeze({}), sources: Object.freeze({}) });
     try {
-      const responses = await Promise.all(nativeRuntimes.map(async (runtime) => {
-        try {
-          return await withDeadline(
-            this.requireClient().listAgentSessions({
-              rootPath: this.workspaceRoot,
-              runtimeId: runtime.descriptor.id,
-              discoverNative: true,
-              limit: HISTORY_PAGE_SIZE,
-            }),
-            AGENT_HISTORY_SOURCE_TIMEOUT_MS,
-            `${runtime.descriptor.displayName} history`,
-          );
-        } catch (error) {
-          warnings.push(messageOf(error));
-          return null;
-        }
-      }));
-      if (!this.isCurrent(generation)) return;
-      for (const response of responses) {
-        if (!response) continue;
-        const runtimeId = response.discovery.runtimeId;
-        if (runtimeId && response.discovery.nextCursor && response.discovery.scanId) {
-          cursors[runtimeId] = {
-            cursor: response.discovery.nextCursor,
-            scanId: response.discovery.scanId,
-          };
-        }
-        warnings.push(...response.warnings);
-      }
-      this.patch({ nextCursors: Object.freeze(cursors) });
-      await this.loadCatalog(generation);
-      if (this.isCurrent(generation)) this.patch({ error: warnings[0] ?? null });
-    } catch (error) {
-      if (this.isCurrent(generation)) this.patch({ error: messageOf(error) });
+      await Promise.all(runtimes.map((runtime) => this.loadSource(generation, runtime.descriptor.id)));
     } finally {
       if (this.isCurrent(generation)) this.patch({ refreshing: false });
     }
@@ -206,56 +181,64 @@ export class ConversationHistoryController {
   private async runLoadMore(generation: number) {
     if (this.refreshPromise) return;
     const pending = Object.entries(this.state.nextCursors);
-    if (pending.length === 0) return;
+    const catalogCursor = this.state.catalogNextCursor;
+    if (pending.length === 0 && !catalogCursor) return;
     this.patch({ loadingMore: true, error: null });
-    const cursors: Record<string, NativeScanContinuation> = { ...this.state.nextCursors };
-    const warnings: string[] = [];
     try {
-      const responses = await Promise.all(pending.map(async ([runtimeId, continuation]) => {
-        try {
-          const response = await withDeadline(
-            this.requireClient().listAgentSessions({
-              rootPath: this.workspaceRoot,
-              runtimeId,
-              discoverNative: true,
-              cursor: continuation.cursor,
-              scanId: continuation.scanId,
-              limit: HISTORY_PAGE_SIZE,
-            }),
-            AGENT_HISTORY_SOURCE_TIMEOUT_MS,
-            `${runtimeId} history`,
-          );
-          return { runtimeId, response };
-        } catch (error) {
-          warnings.push(messageOf(error));
-          return null;
-        }
-      }));
-      if (!this.isCurrent(generation)) return;
-      for (const entry of responses) {
-        if (!entry) continue;
-        const { runtimeId, response } = entry;
-        if (response.discovery.nextCursor && response.discovery.scanId) {
-          cursors[runtimeId] = {
-            cursor: response.discovery.nextCursor,
-            scanId: response.discovery.scanId,
-          };
-        } else {
-          delete cursors[runtimeId];
-        }
-        warnings.push(...response.warnings);
-      }
-      this.patch({ nextCursors: Object.freeze(cursors) });
-      await this.loadCatalog(generation);
-      if (this.isCurrent(generation)) this.patch({ error: warnings[0] ?? null });
-    } catch (error) {
-      if (this.isCurrent(generation)) this.patch({ error: messageOf(error) });
+      await Promise.all([
+        ...pending.map(([runtimeId, continuation]) => this.loadSource(generation, runtimeId, continuation)),
+        ...(catalogCursor ? [this.loadCatalogPage(generation, catalogCursor)] : []),
+      ]);
     } finally {
       if (this.isCurrent(generation)) this.patch({ loadingMore: false });
     }
   }
 
+  private async loadSource(generation: number, runtimeId: string, continuation?: NativeScanContinuation) {
+    try {
+      const response = await withDeadline(this.requireClient().listAgentSessions({
+        rootPath: this.workspaceRoot, runtimeId, discoverNative: true, limit: HISTORY_PAGE_SIZE,
+        ...(continuation ? { cursor: continuation.cursor, scanId: continuation.scanId } : {}),
+      }), AGENT_HISTORY_SOURCE_TIMEOUT_MS, `${runtimeId} history`);
+      if (!this.isCurrent(generation)) return;
+      if (response.discovery.runtimeId !== runtimeId) throw new Error("History response has a different Agent identity.");
+      const cursors = { ...this.state.nextCursors };
+      const discovery = response.discovery;
+      if (discovery.nextCursor && discovery.scanId) {
+        cursors[runtimeId] = { cursor: discovery.nextCursor, scanId: discovery.scanId };
+      } else if (discovery.status === "failed" && discovery.retryable !== false && continuation) {
+        cursors[runtimeId] = continuation;
+      } else {
+        delete cursors[runtimeId];
+      }
+      const sources = Object.freeze({ ...this.state.sources, [runtimeId]: discovery });
+      // Merge this native page immediately. Only explicit exclusions remove rows;
+      // absence from a page is not evidence that a conversation disappeared.
+      const excluded = new Set(response.excludedSessionIds ?? []);
+      const others = this.state.sessions.filter((entry) => (entry.runtimeId ?? entry.provider) !== runtimeId);
+      const incoming = response.sessions.filter((entry) => (entry.runtimeId ?? entry.provider) === runtimeId);
+      const retained = discovery.status === "failed" || response.sessionListKind === "page"
+        ? this.state.sessions.filter((entry) => (entry.runtimeId ?? entry.provider) === runtimeId) : [];
+      const sourceSessions = [...new Map([...retained, ...incoming].map((entry) => [entry.id, entry])).values()];
+      this.catalogRequest += 1;
+      this.patch({ sources, nextCursors: Object.freeze(cursors),
+        sessions: Object.freeze(sortSessions([...others, ...sourceSessions].filter((entry) => !excluded.has(entry.id)))),
+        ...(!continuation && response.catalogNextCursor ? { catalogNextCursor: response.catalogNextCursor } : {}),
+        catalogCoverage: response.catalogCoverage ?? this.state.catalogCoverage,
+        error: sourceWarnings(sources),
+      });
+    } catch (error) {
+      if (!this.isCurrent(generation)) return;
+      const sources = Object.freeze({ ...this.state.sources, [runtimeId]: {
+        runtimeId, status: "failed" as const, indexed: 0, nextCursor: continuation?.cursor ?? null,
+        scanId: continuation?.scanId ?? null, retryable: true, warnings: [messageOf(error)],
+      } });
+      this.patch({ sources, error: sourceWarnings(sources) });
+    }
+  }
+
   private async loadCatalog(generation: number) {
+    const request = ++this.catalogRequest;
     const response = await withDeadline(
       this.requireClient().listAgentSessions({
         rootPath: this.workspaceRoot,
@@ -265,8 +248,25 @@ export class ConversationHistoryController {
       AGENT_HISTORY_CATALOG_TIMEOUT_MS,
       "Chat history catalog",
     );
-    if (this.isCurrent(generation)) this.patch({ sessions: Object.freeze(sortSessions(response.sessions)) });
+    if (this.isCurrent(generation) && request === this.catalogRequest) this.patch({
+      sessions: Object.freeze(sortSessions(response.sessions)), catalogCoverage: response.catalogCoverage ?? null,
+      catalogNextCursor: response.catalogNextCursor ?? null,
+    });
     return response;
+  }
+
+  private async loadCatalogPage(generation: number, cursor: string) {
+    try {
+      const response = await withDeadline(this.requireClient().listAgentSessions({
+        rootPath: this.workspaceRoot, discoverNative: false, catalogCursor: cursor,
+      }), AGENT_HISTORY_CATALOG_TIMEOUT_MS, "Chat history catalog");
+      if (!this.isCurrent(generation) || this.state.catalogNextCursor !== cursor) return;
+      const excluded = new Set(response.excludedSessionIds ?? []);
+      const merged = new Map([...this.state.sessions, ...response.sessions].filter((entry) => !excluded.has(entry.id)).map((entry) => [entry.id, entry]));
+      this.patch({ sessions: Object.freeze(sortSessions([...merged.values()])), catalogNextCursor: response.catalogNextCursor ?? null });
+    } catch (error) {
+      if (this.isCurrent(generation)) this.patch({ error: messageOf(error) });
+    }
   }
 
   private requireClient() {
@@ -318,3 +318,8 @@ function withDeadline<T>(operation: Promise<T>, timeoutMs: number, label: string
 }
 
 export const conversationHistoryLimits = Object.freeze({ pageSize: HISTORY_PAGE_SIZE });
+
+function sourceWarnings(sources: Readonly<Record<string, AgentSessionsListResponse["discovery"]>>) {
+  const warnings = Object.entries(sources).flatMap(([id, source]) => source.warnings.map((warning) => `${id}: ${warning}`));
+  return warnings.length ? warnings.join("\n") : null;
+}

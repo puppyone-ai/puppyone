@@ -56,6 +56,7 @@ export function useWorkspaceLifecycle({
   const [restoreWorkspaceError, setRestoreWorkspaceError] = useState<string | null>(null);
   const [activeWorkspaceEntryKind, setActiveWorkspaceEntryKind] = useState<WorkspaceEntryKind>("restored");
   const recentWorkspaceRequestRef = useRef(0);
+  const navigationRequestRef = useRef(0);
   const workbenchWorkspaceContextRef = useRef<WorkbenchWorkspaceContext | null>(null);
 
   // This experiment gates attachment affordances only. The active composition,
@@ -96,7 +97,12 @@ export function useWorkspaceLifecycle({
     nextWorkspaces: readonly Workspace[],
     workbenchWorkspaceId: string,
   ) => {
-    if (nextWorkspaces.length === 0) return;
+    if (nextWorkspaces.length === 0) {
+      workbenchWorkspaceContextRef.current = null;
+      setWorkbenchWorkspace(null);
+      onWorkspaceCleared();
+      return;
+    }
     const nextFolders = nextWorkspaces.map((item, index) => createWorkspaceFolder(item, { index }));
     const context = workbenchWorkspaceContextRef.current;
     if (!context || context.getWorkspace().id !== workbenchWorkspaceId) {
@@ -104,6 +110,7 @@ export function useWorkspaceLifecycle({
       return;
     }
     const nextWorkbenchWorkspace = await context.replaceFolders(nextFolders);
+    if (workbenchWorkspaceContextRef.current !== context) return;
     setWorkspaces((current) => {
       const nextIds = new Set(nextWorkspaces.map((item) => item.id));
       return [...nextWorkspaces, ...current.filter((item) => !nextIds.has(item.id))];
@@ -111,7 +118,7 @@ export function useWorkspaceLifecycle({
     setWorkbenchWorkspace(nextWorkbenchWorkspace);
     setRestoreWorkspaceError(null);
     onWorkspaceActivated();
-  }, [activateWorkspaceComposition, onWorkspaceActivated]);
+  }, [activateWorkspaceComposition, onWorkspaceActivated, onWorkspaceCleared]);
 
   const refreshRecentWorkspaceList = useCallback(async () => {
     const requestId = recentWorkspaceRequestRef.current + 1;
@@ -144,7 +151,7 @@ export function useWorkspaceLifecycle({
     if (!result) return;
     if (result.status === "opened-current" && result.workspace) {
       setActiveWorkspaceEntryKind(entryKind);
-      activateWorkspace(result.workspace, result.workspaceId);
+      activateWorkspaceComposition(result.workspaces?.length ? result.workspaces : [result.workspace], result.workspaceId);
     } else {
       setRestoreWorkspaceError(null);
       onWorkspaceOpenSettled();
@@ -152,36 +159,41 @@ export function useWorkspaceLifecycle({
     void refreshRecentWorkspaceList().catch((error) => {
       console.warn("Unable to refresh recent puppyone workspaces:", error);
     });
-  }, [activateWorkspace, onWorkspaceOpenSettled, refreshRecentWorkspaceList]);
+  }, [activateWorkspaceComposition, onWorkspaceOpenSettled, refreshRecentWorkspaceList]);
 
   const openWorkspacePath = useCallback(async (folderPath: string) => {
+    const request = ++navigationRequestRef.current;
     const result = await openWorkspaceTarget({
       kind: "local",
       path: folderPath,
       placement: "current-window",
     });
-    handleWorkspaceOpenResult(result);
+    if (request === navigationRequestRef.current) handleWorkspaceOpenResult(result);
   }, [handleWorkspaceOpenResult]);
 
   const openDroppedWorkspace = useCallback(async (folder: File) => {
+    const request = ++navigationRequestRef.current;
     const result = await openDroppedWorkspaceTarget(folder);
-    handleWorkspaceOpenResult(result);
+    if (request === navigationRequestRef.current) handleWorkspaceOpenResult(result);
   }, [handleWorkspaceOpenResult]);
 
   const openFolder = useCallback(async () => {
+    const request = ++navigationRequestRef.current;
     const result = await selectLocalWorkspaceFolder({
       placement: workspace ? "dedicated-window" : "current-window",
     });
-    handleWorkspaceOpenResult(result);
+    if (request === navigationRequestRef.current) handleWorkspaceOpenResult(result);
   }, [handleWorkspaceOpenResult, workspace]);
 
   const addProject = useCallback(async () => {
+    const request = ++navigationRequestRef.current;
     if (!workspaceFolderAttachmentEnabled) {
       onWorkspaceOpenSettled();
       return;
     }
     try {
       const result = await selectWorkspaceFolderToAttach();
+      if (request !== navigationRequestRef.current) return;
       if (!result) {
         onWorkspaceOpenSettled();
         return;
@@ -207,12 +219,14 @@ export function useWorkspaceLifecycle({
   ]);
 
   const addExistingProject = useCallback(async (folderPath: string) => {
+    const request = ++navigationRequestRef.current;
     if (!workspaceFolderAttachmentEnabled) {
       onWorkspaceOpenSettled();
       return;
     }
     try {
       const result = await attachWorkspaceFolder(folderPath);
+      if (request !== navigationRequestRef.current) return;
       if (result.status !== "focused-existing" && result.workspaces.length > 0) {
         await reconcileWorkspaceComposition(result.workspaces, result.workspaceId);
       } else {
@@ -234,11 +248,11 @@ export function useWorkspaceLifecycle({
   ]);
 
   const removeProject = useCallback(async (folderPath: string) => {
+    const request = ++navigationRequestRef.current;
     try {
       const result = await detachWorkspaceFolder(folderPath);
-      if (result.workspaces.length > 0) {
-        await reconcileWorkspaceComposition(result.workspaces, result.workspaceId);
-      }
+      if (request !== navigationRequestRef.current) return;
+      await reconcileWorkspaceComposition(result.workspaces, result.workspaceId);
       setRestoreWorkspaceError(null);
       onWorkspaceOpenSettled();
     } catch (error) {
@@ -248,8 +262,9 @@ export function useWorkspaceLifecycle({
   }, [onWorkspaceOpenSettled, reconcileWorkspaceComposition]);
 
   const createProject = useCallback(async (request: WorkspaceCreateProjectRequest) => {
+    const navigation = ++navigationRequestRef.current;
     const result = await createLocalProjectTarget(request);
-    handleWorkspaceOpenResult(result, "created");
+    if (navigation === navigationRequestRef.current) handleWorkspaceOpenResult(result, "created");
     return result !== null;
   }, [handleWorkspaceOpenResult]);
 
@@ -258,8 +273,9 @@ export function useWorkspaceLifecycle({
   }, []);
 
   const cloneRepository = useCallback(async (request: WorkspaceCloneRepositoryRequest) => {
+    const navigation = ++navigationRequestRef.current;
     const result = await cloneRepositoryTarget(request);
-    handleWorkspaceOpenResult(result, "cloned");
+    if (navigation === navigationRequestRef.current) handleWorkspaceOpenResult(result, "cloned");
     return result !== null;
   }, [handleWorkspaceOpenResult]);
 
@@ -271,6 +287,7 @@ export function useWorkspaceLifecycle({
   }, []);
 
   const clearWorkspace = useCallback(() => {
+    navigationRequestRef.current += 1;
     workbenchWorkspaceContextRef.current = null;
     setActiveWorkspaceEntryKind("restored");
     setWorkbenchWorkspace(null);
@@ -278,8 +295,10 @@ export function useWorkspaceLifecycle({
   }, [onWorkspaceCleared]);
 
   const forgetActiveWorkspace = useCallback(async () => {
+    const navigation = ++navigationRequestRef.current;
     const currentWorkspaceId = workspace?.id ?? null;
     await forgetLastWorkspace();
+    if (navigation !== navigationRequestRef.current) return;
     recentWorkspaceRequestRef.current += 1;
     if (currentWorkspaceId) {
       setWorkspaces((current) => current.filter((item) => item.id !== currentWorkspaceId));
@@ -295,6 +314,7 @@ export function useWorkspaceLifecycle({
 
   useEffect(() => {
     let cancelled = false;
+    const navigation = navigationRequestRef.current;
     const recentRequestId = recentWorkspaceRequestRef.current + 1;
     recentWorkspaceRequestRef.current = recentRequestId;
 
@@ -311,7 +331,7 @@ export function useWorkspaceLifecycle({
         const initialComposition = initialWorkspace.workspaces?.length
           ? initialWorkspace.workspaces
           : initialWorkspace.workspace ? [initialWorkspace.workspace] : [];
-        if (initialComposition.length > 0) {
+        if (initialComposition.length > 0 && navigation === navigationRequestRef.current) {
           activateWorkspaceComposition(initialComposition, initialWorkspace.workspaceId);
         } else if (initialWorkspace.error) {
           setRestoreWorkspaceError(initialWorkspace.error);

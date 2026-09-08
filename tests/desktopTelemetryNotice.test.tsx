@@ -69,7 +69,7 @@ describe("OnboardingTelemetryDisclosure", () => {
       enabled: true,
       disabledReason: null,
       noticeRequired: false,
-      noticeSeenVersion: 1,
+      noticeSeenVersion: 2,
     }));
     act(() => root?.render(<OnboardingTelemetryDisclosure ready />));
     await act(async () => { await Promise.resolve(); });
@@ -84,12 +84,12 @@ describe("OnboardingTelemetryDisclosure", () => {
 
     const disclosure = container.querySelector<HTMLAnchorElement>(".onboarding-telemetry-disclosure a");
     expect(disclosure?.href).toBe(
-      "https://github.com/puppyone-ai/puppy-issues/blob/main/document/puppyone-desktop/privacy/telemetry-disclosure.md",
+      "https://github.com/puppyone-ai/puppyone-desktop/blob/main/README.md#privacy",
     );
     await act(async () => disclosure?.click());
 
     expect(bridge.openExternalUrl).toHaveBeenCalledWith(
-      "https://github.com/puppyone-ai/puppy-issues/blob/main/document/puppyone-desktop/privacy/telemetry-disclosure.md",
+      "https://github.com/puppyone-ai/puppyone-desktop/blob/main/README.md#privacy",
     );
   });
 });
@@ -100,7 +100,7 @@ function installTelemetryBridge(initial = telemetryState()) {
     enabled: initial.transportConfigured,
     disabledReason: initial.transportConfigured ? null : "transport-unconfigured",
     noticeRequired: false,
-    noticeSeenVersion: 1,
+      noticeSeenVersion: 2,
   });
   const bridge = {
     getTelemetryState: vi.fn().mockResolvedValue(initial),
@@ -123,14 +123,14 @@ function installTelemetryBridge(initial = telemetryState()) {
 
 function telemetryState(overrides: Partial<DesktopTelemetryState> = {}): DesktopTelemetryState {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     defaultLevel: "basic",
     level: "basic",
     effectiveLevel: "off",
     enabled: false,
     eligible: true,
     disabledReason: "notice-required",
-    noticeVersion: 1,
+    noticeVersion: 2,
     noticeSeenVersion: 0,
     noticeRequired: true,
     transportConfigured: true,

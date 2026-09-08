@@ -1,4 +1,7 @@
 {
+  "native.projectClose.quitDetail": "アプリは起動したままになります。もう一度終了して、タスクの停止を再試行してください。",
+  "native.projectClose.message": "一部のプロジェクトのタスクがまだ停止していません。",
+  "native.projectClose.detail": "ウインドウは開いたままになります。もう一度閉じて、タスクの停止を再試行してください。",
   "native.messageUnavailable": "このテキストは利用できません。",
   "native.dock.newWindow": "新規ウインドウ",
   "native.menu.file": "ファイル",

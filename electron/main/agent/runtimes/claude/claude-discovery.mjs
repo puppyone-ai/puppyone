@@ -8,7 +8,7 @@ import {
   buildAgentEnvironment,
   discoverExecutable,
   runBounded,
-} from "../../runtime/executable-discovery.mjs";
+} from "../../transports/executable-discovery.mjs";
 import { claudeCliCandidates } from "./claude-cli-candidates.mjs";
 
 export const CLAUDE_AGENT_SDK_VERSION = "0.3.159";
@@ -21,12 +21,13 @@ export const CLAUDE_CODE_TESTED_BASELINE = null;
 export function createClaudeDiscovery(options = {}) {
   const { cache: cacheOptions, ...discoveryOptions } = options;
   return createCachedRuntimeDiscovery(
-    () => discoverClaudeRuntime(discoveryOptions),
+    ({ signal }) => discoverClaudeRuntime({ ...discoveryOptions, signal }),
     cacheOptions,
   );
 }
 
 export async function discoverClaudeRuntime({
+  signal,
   fsModule = fs,
   spawn = nodeSpawn,
   env = process.env,
@@ -62,6 +63,7 @@ export async function discoverClaudeRuntime({
   try {
     const additionalCandidates = await claudeCliCandidates({ fsModule, env, homedir, platform });
     local = await discoverExecutable({
+      signal,
       executableNames: [platform === "win32" ? "claude.exe" : "claude"],
       additionalCandidates,
       fsModule,
@@ -103,6 +105,7 @@ export async function discoverClaudeRuntime({
         path.join(tmpdir, "puppyone-claude-capability-probe-"),
       );
       const probe = await runBounded(spawn, local.executablePath, ["--help"], {
+        signal,
         env: { ...local.environment, CLAUDE_CONFIG_DIR: capabilityProbeDirectory },
         timeoutMs: 4_000,
         maxBytes: 64 * 1024,

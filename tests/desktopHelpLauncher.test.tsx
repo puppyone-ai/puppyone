@@ -284,7 +284,7 @@ describe("DesktopHelpLauncher", () => {
     expect(auxiliaryPanel?.contains(launcher)).toBe(false);
   });
 
-  it("keeps the launcher in fixed navigation slots and the modal in the global overlay", () => {
+  it("moves the launcher to the Project rail experiment while keeping the modal in the global overlay", () => {
     const appSource = readFileSync("src/App.tsx", "utf8");
     const dataShellCss = readFileSync("src/features/data-workspace/data-shell.css", "utf8");
     const dialogCss = readFileSync("src/styles/dialogs.css", "utf8");
@@ -293,10 +293,22 @@ describe("DesktopHelpLauncher", () => {
       "utf8",
     );
 
-    expect(appSource).toContain(
-      "sidebarUtility={feedbackInNavigationToolbar ? undefined : feedbackLauncher}",
+    expect(appSource).toMatch(
+      /sidebarUtility=\{projectSwitcherRailVisible \|\| feedbackInNavigationToolbar[\s\S]*?feedbackLauncher\}/,
     );
+    expect(appSource).toContain(
+      'const settingsWorkspaceActive = projectSwitcherRailEnabled && activeView === "settings";',
+    );
+    expect(appSource).toContain("leadingRail={projectSwitcherRailVisible ? (");
+    expect(appSource).toContain(
+      "leftSidebarCollapsed={settingsWorkspaceActive ? false : sidebarCollapsed}",
+    );
+    expect(appSource).toContain("workspaceNavigationVisible={!settingsWorkspaceActive}");
     expect(appSource).toContain("{feedbackInNavigationToolbar && feedbackLauncher}");
+    expect(appSource).toContain("settingsNavigationVisible={!projectSwitcherRailEnabled}");
+    expect(appSource).toMatch(
+      /<ProjectSwitcherRail[\s\S]*?utilitySlot=\{\([\s\S]*?<DesktopHelpLauncher/,
+    );
     expect(launcherCss).toMatch(
       /\.desktop-feedback\s*\{[^}]*display:\s*flex[^}]*pointer-events:\s*auto/s,
     );
@@ -343,19 +355,17 @@ describe("DesktopHelpLauncher", () => {
     expect(launcherRule).toContain("height: var(--desktop-sidebar-control-size)");
     expect(launcherRule).toContain("border: 0");
     expect(launcherRule).toContain("background: transparent");
-    expect(launcherRule).toContain(
-      "color: color-mix(in srgb, var(--po-text-subtle) 88%, transparent)",
-    );
+    expect(launcherRule).toContain("color: var(--po-text-muted)");
     expect(launcherRule).toContain("padding: 0");
     expect(launcherRule).not.toContain("backdrop-filter");
     expect(launcherCss).toMatch(
       /\.desktop-help-launcher-icon-slot\s*\{[^}]*width:\s*100%[^}]*height:\s*100%[^}]*place-items:\s*center/s,
     );
     expect(launcherCss).toMatch(
-      /\.desktop-help-launcher:hover\s*\{[^}]*background:\s*transparent[^}]*color:\s*var\(--po-text-muted\)/s,
+      /\.desktop-help-launcher:hover\s*\{[^}]*background:\s*var\(--po-hover\)[^}]*color:\s*var\(--po-text\)/s,
     );
     expect(launcherCss).toMatch(
-      /\.desktop-feedback\[data-open="true"\] \.desktop-help-launcher\s*\{[^}]*background:\s*transparent[^}]*color:\s*var\(--po-text-muted\)/s,
+      /\.desktop-feedback\[data-open="true"\] \.desktop-help-launcher\s*\{[^}]*background:\s*var\(--po-selected\)[^}]*color:\s*var\(--po-text\)/s,
     );
     expect(launcherCss).not.toMatch(
       /\.desktop-feedback\s*\{[^}]*position:\s*(?:absolute|fixed)/s,

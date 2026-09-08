@@ -100,12 +100,13 @@ describe("Agent event workspace path policy", () => {
       },
     });
 
-    expect(sender.send).toHaveBeenCalledWith("agent:event", expect.objectContaining({
+    expect(session.events.at(-1)).toEqual(expect.objectContaining({
       payload: {
         path: "new.md",
         changes: [{ path: "new.md" }],
       },
     }));
+    expect(sender.send).not.toHaveBeenCalled();
     clearTimeout(session.persistTimer);
   });
 });

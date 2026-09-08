@@ -1,12 +1,13 @@
+import { finalizeDisplay } from "./helpers/agentDisplayFixture";
 import { describe, expect, it } from "vitest";
-import { createAgentProjection, type AgentPart, type TimelineRow } from "../src/features/desktop-agent/agentProjection";
+import { createAgentProjection, type AgentPart, type TimelineRow } from "./helpers/agentDisplayFixture";
 import {
   agentTimelineLimits,
   agentTimelineSpacing,
   buildAgentTimelineLayout,
   visibleAgentTimelineRange,
-} from "../src/features/desktop-agent/ui/agent-timeline-layout";
-import { buildAgentTimeline } from "../src/features/desktop-agent/ui/agent-timeline-presentation";
+} from "../src/features/desktop-agent/ui/transcript/transcript-layout";
+import { buildAgentTimeline } from "../src/features/desktop-agent/ui/transcript/transcript-rows";
 
 describe("Desktop Agent timeline layout policy", () => {
   it("uses one deterministic rhythm for work flow and turn handoffs", () => {
@@ -115,7 +116,7 @@ describe("Desktop Agent timeline layout policy", () => {
       partIds: [assistant.id, usage.id],
     }];
 
-    const timeline = buildAgentTimeline(projection);
+    const timeline = buildAgentTimeline(finalizeDisplay(projection), 34);
     const layout = buildAgentTimelineLayout(timeline.rows, {
       "row:assistant:one": 40,
       "row:turn-summary:turn:one": 20,
@@ -123,6 +124,7 @@ describe("Desktop Agent timeline layout policy", () => {
     });
 
     expect(timeline.rows.map((entry) => entry.kind)).toEqual(["assistant", "turn-summary", "user"]);
+    expect(timeline.rows.find((entry) => entry.kind === "turn-summary")?.estimatedHeight).toBe(34);
     expect(timeline.rows.some((entry) => entry.partId === usage.id)).toBe(false);
     expect(layout.gaps[1]).toBe(agentTimelineSpacing.turnHandoff);
     expect(layout.offsets[2] - layout.offsets[1] - 20).toBe(agentTimelineSpacing.turnHandoff);

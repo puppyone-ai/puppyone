@@ -76,9 +76,20 @@ describe("preset viewer contribution contract", () => {
       || viewer.surfacePreparation === "requires-visible"
     ))).toBe(true);
     expect(resolveEditorViewer(document("report.pdf")).viewer).toMatchObject({
-      runtime: "lazy",
+      runtime: "eager",
+      surfaceIsolation: "isolated-webcontents",
+      computeIsolation: "browser-engine",
+      contentSandbox: "none",
+      resourcePolicy: {
+        memoryClass: "large",
+        maxSourceBytes: 536_870_912,
+        maxCanvasPixels: 0,
+        maxActiveCanvases: 0,
+        maxWorkers: 0,
+      },
+      recoveryPolicy: { maxAutomaticRetries: 1, supportsSafeMode: false },
       surfacePreparation: "requires-visible",
-      readinessSignal: "first-rendered-frame",
+      readinessSignal: "frame-paint",
     });
     expect(resolveEditorViewer(document("page.html")).viewer.surfacePreparation)
       .toBe("hidden-safe");
@@ -86,6 +97,22 @@ describe("preset viewer contribution contract", () => {
       .toBe("requires-visible");
     expect(resolveEditorViewer(document("photo.png")).viewer.surfacePreparation)
       .toBe("hidden-safe");
+    expect(PRESET_VIEWER_MANIFEST.viewers.every((viewer) => (
+      Object.isFrozen(viewer.resourcePolicy) && Object.isFrozen(viewer.recoveryPolicy)
+    ))).toBe(true);
+    expect(PRESET_VIEWER_MANIFEST.viewers.every((viewer) => (
+      (viewer.source === "none") === (viewer.resourcePolicy.maxSourceBytes === 0)
+    ))).toBe(true);
+    expect(PRESET_VIEWER_MANIFEST.viewers.every((viewer) => (
+      viewer.computeIsolation === "worker"
+        ? viewer.resourcePolicy.maxWorkers > 0
+        : viewer.resourcePolicy.maxWorkers === 0
+    ))).toBe(true);
+    expect(PRESET_VIEWER_MANIFEST.viewers.every((viewer) => (
+      viewer.contentSandbox === "sandboxed-frame"
+        ? viewer.surfaceTraits.includes("sandboxed")
+        : !viewer.surfaceTraits.includes("sandboxed")
+    ))).toBe(true);
   });
 
   it.each([

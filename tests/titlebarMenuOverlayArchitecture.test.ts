@@ -7,6 +7,7 @@ const layerSource = source("src/features/app-shell/DesktopTitlebarMenuLayer.tsx"
 const projectSource = source("src/features/app-shell/DesktopWorkspaceSwitcher.tsx");
 const branchSource = source("src/features/app-shell/DesktopTitlebarContext.tsx");
 const titlebarCss = source("src/styles/titlebar.css");
+const dialogCss = source("src/styles/dialogs.css");
 
 describe("titlebar menu overlay architecture", () => {
   it("portals project and branch menus out of the clipped Header tree", () => {
@@ -15,8 +16,15 @@ describe("titlebar menu overlay architecture", () => {
     expect(layerSource).toContain('data-titlebar-context-menu="true"');
     expect(projectSource).toContain("<DesktopTitlebarMenuLayer");
     expect(branchSource).toContain("<DesktopTitlebarMenuLayer");
+    expect(layerSource).toContain('typographySurface="header"');
     expect(titlebarCss).toMatch(
       /\.desktop-titlebar-menu\.desktop-titlebar-menu-overlay\s*\{[^}]*position:\s*fixed;[^}]*inset-inline-start:\s*auto;/s,
+    );
+  });
+
+  it("keeps every portal-owned overlay above App Shell chrome", () => {
+    expect(dialogCss).toMatch(
+      /\.desktop-overlay-root\s*\{[^}]*position:\s*relative;[^}]*z-index:\s*var\(--po-overlay-root-z-index,\s*1000\);[^}]*isolation:\s*isolate;/s,
     );
   });
 
@@ -104,6 +112,7 @@ describe("titlebar menu overlay architecture", () => {
     expect(position.top).toBe(447);
     expect(position.maxHeight).toBe(145);
   });
+
 });
 
 function source(path: string) {

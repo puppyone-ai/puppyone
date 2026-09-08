@@ -1,3 +1,4 @@
+import { nativeSessionId } from "../../../../shared/agent-contract/native-session-id.mjs";
 const DISCOVERY_KINDS = new Set(["unsupported", "paged"]);
 const EXACT_OPEN_KINDS = new Set(["unsupported", "supported"]);
 const HYDRATION_KINDS = new Set(["unsupported", "push-replay", "snapshot", "paged"]);
@@ -9,6 +10,7 @@ export function resolveAgentSessionHistoryPort(adapter) {
   if (!port || typeof port !== "object" || Array.isArray(port)) {
     throw new TypeError("Agent SessionHistoryPort must be an object.");
   }
+  if (port.sourceScopeId != null && !nativeSessionId(port.sourceScopeId)) throw new TypeError("Agent History source identity is invalid.");
   return port;
 }
 

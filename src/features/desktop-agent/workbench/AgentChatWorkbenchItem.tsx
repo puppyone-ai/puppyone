@@ -3,18 +3,15 @@ import { useLocalization } from "@puppyone/localization/react";
 import type {
   AuxiliaryWorkbenchItemRenderContext,
   AuxiliaryWorkbenchItemSnapshot,
+  AuxiliaryWorkbenchProject,
 } from "../../app-shell/auxiliary-workbench/types";
-import {
-  closeAgentSessionController,
-  discardPreparedAgentSessionController,
-  getAgentSessionController,
-} from "../application/controllerRegistry";
-import type { AgentChatTabPresentation } from "../domain/agent-chat-tabs";
+import type { AgentChatTabPresentation } from "../domain/agent-chat-presentation";
+import { projectAgentControllers } from "./projectAgentControllers";
 import type { AgentRoutePreference } from "../domain/agent-route-preference";
-import { getElectronAgentClient } from "../infrastructure/electron/electronAgentClient";
+import { openExternalAgentUrl } from "../infrastructure/electron/electronAgentClient";
 import { AgentChatTabPanel } from "../ui/AgentChatTabPanel";
-import { scheduleAgentStreamFrame } from "../ui/agent-stream-frame-scheduler";
 import type { AgentWorkspaceReferenceResolver } from "../ui/useAgentReferenceIngestion";
+import { AgentMarkdownEnvironmentProvider } from "../ui/markdown/AgentMarkdownEnvironment";
 import "../ui/desktop-agent.css";
 
 export type AgentChatWorkbenchItemProps = AuxiliaryWorkbenchItemRenderContext & Readonly<{
@@ -23,7 +20,6 @@ export type AgentChatWorkbenchItemProps = AuxiliaryWorkbenchItemRenderContext & 
   onPreferredModelChange?: (model: string) => void;
   onPreferredRouteChange?: (route: AgentRoutePreference) => void;
   onPreferredRuntimeChange?: (runtimeId: string | null) => void;
-  onViewChanges?: () => void;
   preferredModel: string | null;
   preferredRoute: Readonly<AgentRoutePreference>;
   preferredRuntimeId: string | null;
@@ -33,12 +29,12 @@ export type AgentChatWorkbenchItemProps = AuxiliaryWorkbenchItemRenderContext & 
 export function AgentChatWorkbenchItem({
   hiddenRuntimeIds,
   item,
+  project,
   onOpenFile,
   onPreferredModelChange,
   onPreferredRouteChange,
   onPreferredRuntimeChange,
   onPresentationChange,
-  onViewChanges,
   preferredModel,
   preferredRoute,
   preferredRuntimeId,
@@ -47,62 +43,64 @@ export function AgentChatWorkbenchItem({
 }: AgentChatWorkbenchItemProps) {
   const { t } = useLocalization();
   const controller = useMemo(
-    () => getAgentSessionController(item.rootId, getElectronAgentClient, item.id, scheduleAgentStreamFrame),
-    [item.id, item.rootId],
+    () => projectAgentControllers(project).get(item.id),
+    [item.id, project],
   );
   const present = useCallback((agent: AgentChatTabPresentation) => {
     onPresentationChange(presentAgentChatWorkbenchItem(agent, t("agent.name")));
   }, [onPresentationChange, t]);
-  return <AgentChatTabPanel
-    commandTarget={presentation.commandTarget}
-    presented={presentation.presented}
-    controller={controller}
-    workspaceId={item.contextId}
-    onPresentationChange={present}
-    onViewChanges={onViewChanges}
-    onOpenFile={onOpenFile}
-    preferredRuntimeId={preferredRuntimeId}
-    onPreferredRuntimeChange={onPreferredRuntimeChange}
-    preferredRoute={preferredRoute}
-    onPreferredRouteChange={onPreferredRouteChange}
-    preferredModel={preferredModel}
-    onPreferredModelChange={onPreferredModelChange}
-    hiddenRuntimeIds={hiddenRuntimeIds}
-    resolveWorkspaceReference={resolveWorkspaceReference}
-  />;
+  return (
+    <AgentMarkdownEnvironmentProvider openExternalUrl={openExternalAgentUrl}>
+      <AgentChatTabPanel
+        commandTarget={presentation.commandTarget}
+        presented={presentation.presented}
+        controller={controller}
+        workspaceId={item.contextId}
+        onPresentationChange={present}
+        onOpenFile={onOpenFile}
+        preferredRuntimeId={preferredRuntimeId}
+        onPreferredRuntimeChange={onPreferredRuntimeChange}
+        preferredRoute={preferredRoute}
+        onPreferredRouteChange={onPreferredRouteChange}
+        preferredModel={preferredModel}
+        onPreferredModelChange={onPreferredModelChange}
+        hiddenRuntimeIds={hiddenRuntimeIds}
+        resolveWorkspaceReference={resolveWorkspaceReference}
+      />
+    </AgentMarkdownEnvironmentProvider>
+  );
 }
 
-export async function requestCloseAgentChatWorkbenchItem(rootId: string, itemId: string) {
-  return closeAgentSessionController(rootId, itemId);
+export async function requestCloseAgentChatWorkbenchItem(project: AuxiliaryWorkbenchProject, itemId: string) {
+  if (project.disposed) return true;
+  return projectAgentControllers(project).close(itemId);
 }
 
 export function prepareAgentChatWorkbenchItem(
-  rootId: string,
+  project: AuxiliaryWorkbenchProject,
   itemId: string,
   runtimeId: string | null,
 ) {
+  project.assertOpen();
   if (!runtimeId) return;
-  const controller = getAgentSessionController(rootId, getElectronAgentClient, itemId, scheduleAgentStreamFrame);
+  const controller = projectAgentControllers(project).get(itemId);
   controller.beginInitializeForRuntime(runtimeId);
 }
 
 export async function restoreAgentChatWorkbenchItem(
-  rootId: string,
+  project: AuxiliaryWorkbenchProject,
   itemId: string,
   sessionId: string,
   runtimeId: string,
 ) {
-  const controller = getAgentSessionController(
-    rootId,
-    getElectronAgentClient,
-    itemId,
-    scheduleAgentStreamFrame,
-  );
+  project.assertOpen();
+  const controller = projectAgentControllers(project).get(itemId);
   await controller.openSavedSession(sessionId, runtimeId);
 }
 
-export async function discardPreparedAgentChatWorkbenchItem(rootId: string, itemId: string) {
-  await discardPreparedAgentSessionController(rootId, itemId);
+export async function discardPreparedAgentChatWorkbenchItem(project: AuxiliaryWorkbenchProject, itemId: string) {
+  if (project.disposed) return;
+  await projectAgentControllers(project).discard(itemId);
 }
 
 export function presentAgentChatWorkbenchItem(

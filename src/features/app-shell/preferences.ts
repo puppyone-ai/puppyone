@@ -1,10 +1,4 @@
-import { isFileIconThemeId, type FileIconThemeId } from "@puppyone/shared-ui";
 import type { PuppyoneWorkspaceConfig } from "../../types/electron";
-import {
-  DEFAULT_MARKDOWN_PRESENTATION_SETTINGS,
-  parseMarkdownPresentationSettings,
-  type MarkdownPresentationSettings,
-} from "../markdown/markdownPresentation";
 import {
   DEFAULT_EXPLORER_WIDTH,
   DEFAULT_RIGHT_SIDEBAR_WIDTH,
@@ -16,72 +10,46 @@ import {
   AGENT_FILE_ACTIVITY_INDICATORS_STORAGE_KEY,
   CREATE_NEW_MENU_STORAGE_KEY,
   DIFF_MARKERS_STORAGE_KEY,
-  MARKDOWN_EMPHASIS_STORAGE_KEY,
-  MARKDOWN_PRESENTATION_STORAGE_KEY,
-  DEFAULT_SIDEBAR_NAVIGATION_LAYOUT,
-  DEFAULT_THEME_MODE,
   EXPERIMENTAL_SETTINGS_STORAGE_KEY,
   FILES_VISIBILITY_STORAGE_KEY,
-  FILE_ICON_THEME_STORAGE_KEY,
   GIT_DISPLAY_MODE_STORAGE_KEY,
   GIT_SIDEBAR_LAYOUT_STORAGE_KEY,
-  INTERFACE_STYLE_STORAGE_KEY,
-  DARK_THEME_PRESET_STORAGE_KEY,
-  LEGACY_THEME_PRESET_STORAGE_KEY,
-  LIGHT_THEME_PRESET_STORAGE_KEY,
   LOCAL_AGENTS_STORAGE_KEY,
-  LOADING_ANIMATION_STORAGE_KEY,
-  POINTER_CURSORS_STORAGE_KEY,
   RIGHT_SIDEBAR_TOOLS_STORAGE_KEY,
-  SIDEBAR_NAVIGATION_LAYOUT_STORAGE_KEY,
   SIDEBAR_NAVIGATION_VISIBILITY_STORAGE_KEY,
-  TEXT_SIZE_STORAGE_KEY,
-  TYPOGRAPHY_STORAGE_KEY,
-  THEME_STORAGE_KEY,
   TITLEBAR_ACTIONS_STORAGE_KEY,
   parseAiEditAssistEnabled,
   parseAgentFileActivityIndicatorsEnabled,
   parseCreateNewMenuSettings,
-  parseDarkThemePreset,
   parseDiffMarkers,
   parseExperimentalSettings,
   parseFilesVisibilitySettings,
   parseGitDisplayMode,
   parseGitSidebarLayout,
-  parseInterfaceStyle,
-  parseLightThemePreset,
-  parseLoadingAnimationPreset,
   parseLocalAgentsSettings,
-  parsePointerCursors,
   parseRightSidebarToolsSettings,
-  parseSidebarNavigationLayout,
   parseSidebarNavigationVisibilitySettings,
-  parseThemeMode,
-  parseTextSize,
-  parseTypography,
   parseTitlebarActionsSettings,
-  type DarkThemePreset,
   type CreateNewMenuSettings,
   type DiffMarkers,
   type ExperimentalSettings,
   type FilesVisibilitySettings,
   type GitDisplayMode,
   type GitSidebarLayout,
-  type InterfaceStyle,
-  type LightThemePreset,
-  type LoadingAnimationPreset,
   type LocalAgentsSettings,
   type RightSidebarToolsSettings,
-  type SidebarNavigationLayout,
   type SidebarNavigationVisibilitySettings,
-  type ThemeMode,
-  type TextSize,
-  type TypographyPreferences,
   type TitlebarActionsSettings,
 } from "../../preferences";
+import {
+  clampProjectSwitcherExpandedWidth,
+  DEFAULT_PROJECT_SWITCHER_EXPANDED_WIDTH,
+} from "./projectSwitcherRailGeometry";
 
 export const EXPLORER_WIDTH_STORAGE_KEY = "puppyone.desktop.explorerWidth";
 export const SIDEBAR_COLLAPSED_STORAGE_KEY = "puppyone.desktop.sidebarCollapsed";
+export const PROJECT_SWITCHER_EXPANDED_STORAGE_KEY = "puppyone.desktop.projectSwitcherExpanded";
+export const PROJECT_SWITCHER_WIDTH_STORAGE_KEY = "puppyone.desktop.projectSwitcherWidth";
 export const RIGHT_SIDEBAR_WIDTH_STORAGE_KEY = "puppyone.desktop.rightSidebarWidth";
 export const RIGHT_SIDEBAR_SURFACE_STORAGE_KEY = "puppyone.desktop.rightSidebarSurface";
 export const AGENT_ROUTING_PREFERENCES_STORAGE_KEY = "puppyone.desktop.agentRoutingPreferences.v1";
@@ -91,70 +59,9 @@ export const AGENT_PREFERRED_RUNTIME_STORAGE_KEY = "puppyone.desktop.agentPrefer
 export const AGENT_PREFERRED_MODEL_STORAGE_KEY = "puppyone.desktop.agentPreferredModel";
 export type RightSidebarSurface = "chat" | "terminal";
 
-export function readInitialThemeMode(): ThemeMode {
-  if (typeof window === "undefined") return DEFAULT_THEME_MODE;
-  return parseThemeMode(window.localStorage.getItem(THEME_STORAGE_KEY));
-}
-
-export function readInitialInterfaceStyle(): InterfaceStyle {
-  if (typeof window === "undefined") return parseInterfaceStyle(null);
-  return parseInterfaceStyle(window.localStorage.getItem(INTERFACE_STYLE_STORAGE_KEY));
-}
-
-export function readInitialLightThemePreset(): LightThemePreset {
-  if (typeof window === "undefined") return parseLightThemePreset(null);
-  return parseLightThemePreset(
-    window.localStorage.getItem(LIGHT_THEME_PRESET_STORAGE_KEY)
-      ?? window.localStorage.getItem(LEGACY_THEME_PRESET_STORAGE_KEY),
-  );
-}
-
-export function readInitialDarkThemePreset(): DarkThemePreset {
-  if (typeof window === "undefined") return parseDarkThemePreset(null);
-  return parseDarkThemePreset(window.localStorage.getItem(DARK_THEME_PRESET_STORAGE_KEY));
-}
-
-export function readInitialTextSize(): TextSize {
-  if (typeof window === "undefined") return parseTextSize(null);
-  return parseTextSize(window.localStorage.getItem(TEXT_SIZE_STORAGE_KEY));
-}
-
-export function readInitialTypographyPreferences(): TypographyPreferences {
-  if (typeof window === "undefined") return parseTypography(null);
-  return parseTypography(window.localStorage.getItem(TYPOGRAPHY_STORAGE_KEY));
-}
-
-export function readInitialPointerCursors(): boolean {
-  if (typeof window === "undefined") return parsePointerCursors(null);
-  return parsePointerCursors(window.localStorage.getItem(POINTER_CURSORS_STORAGE_KEY));
-}
-
-export function readInitialLoadingAnimationPreset(): LoadingAnimationPreset {
-  if (typeof window === "undefined") return parseLoadingAnimationPreset(null);
-  return parseLoadingAnimationPreset(window.localStorage.getItem(LOADING_ANIMATION_STORAGE_KEY));
-}
-
 export function readInitialDiffMarkers(): DiffMarkers {
   if (typeof window === "undefined") return parseDiffMarkers(null);
   return parseDiffMarkers(window.localStorage.getItem(DIFF_MARKERS_STORAGE_KEY));
-}
-
-export function readInitialMarkdownPresentationSettings(): MarkdownPresentationSettings {
-  if (typeof window === "undefined") return DEFAULT_MARKDOWN_PRESENTATION_SETTINGS;
-  const stored = window.localStorage.getItem(MARKDOWN_PRESENTATION_STORAGE_KEY)
-    ?? window.localStorage.getItem(MARKDOWN_EMPHASIS_STORAGE_KEY);
-  return parseMarkdownPresentationSettings(stored);
-}
-
-export function readInitialFileIconTheme(): FileIconThemeId {
-  if (typeof window === "undefined") return "default";
-  const stored = window.localStorage.getItem(FILE_ICON_THEME_STORAGE_KEY);
-  return isFileIconThemeId(stored) ? stored : "default";
-}
-
-export function readInitialSidebarNavigationLayout(): SidebarNavigationLayout {
-  if (typeof window === "undefined") return DEFAULT_SIDEBAR_NAVIGATION_LAYOUT;
-  return parseSidebarNavigationLayout(window.localStorage.getItem(SIDEBAR_NAVIGATION_LAYOUT_STORAGE_KEY));
 }
 
 export function readInitialSidebarNavigationVisibilitySettings(): SidebarNavigationVisibilitySettings {
@@ -280,6 +187,18 @@ export function readInitialExplorerWidth(): number {
 export function readInitialSidebarCollapsed(): boolean {
   if (typeof window === "undefined") return false;
   return window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === "true";
+}
+
+export function readInitialProjectSwitcherExpanded(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem(PROJECT_SWITCHER_EXPANDED_STORAGE_KEY) === "true";
+}
+
+export function readInitialProjectSwitcherWidth(): number {
+  if (typeof window === "undefined") return DEFAULT_PROJECT_SWITCHER_EXPANDED_WIDTH;
+  const storedValue = window.localStorage.getItem(PROJECT_SWITCHER_WIDTH_STORAGE_KEY);
+  if (storedValue === null) return DEFAULT_PROJECT_SWITCHER_EXPANDED_WIDTH;
+  return clampProjectSwitcherExpandedWidth(Number(storedValue));
 }
 
 export function readInitialRightSidebarWidth(): number {

@@ -71,11 +71,11 @@ describe("Automation landing visual architecture", () => {
 
     expect(title).toContain("font-size: var(--po-text-size-page-title, 20px);");
     expect(description).toContain("font-size: var(--po-text-size-body-lg, 14px);");
-    expect(primaryAction).toContain("height: 30px;");
+    expect(primaryAction).toContain("height: var(--po-control-size);");
     expect(primaryAction).toContain("padding: 0 11px;");
     expect(primaryAction).toContain("font-size: var(--po-text-size-body, 13px);");
     expect(primaryAction).toContain("line-height: 18px;");
-    expect(categoryAction).toContain("height: 28px;");
+    expect(categoryAction).toContain("height: var(--po-control-size-compact);");
     expect(categoryAction).toContain("padding: 0 11px;");
     expect(categoryAction).toContain("font-size: var(--po-text-size-body, 13px);");
     expect(cardTitle).toContain("font-size: var(--po-text-size-body-lg, 14px);");
@@ -83,7 +83,7 @@ describe("Automation landing visual architecture", () => {
     expect(cardDescription).toContain("font-size: var(--po-text-size-body, 13px);");
     expect(cardDescription).toContain("line-height: 18px;");
     expect(cardAction).toContain("min-width: 42px;");
-    expect(cardAction).toContain("height: 28px;");
+    expect(cardAction).toContain("height: var(--po-control-size-compact);");
     expect(cardAction).toContain("padding: 0 9px;");
     expect(cardAction).toContain("font-size: var(--po-text-size-body, 13px);");
   });

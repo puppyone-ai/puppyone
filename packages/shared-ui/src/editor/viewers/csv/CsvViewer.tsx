@@ -10,6 +10,7 @@ type CsvViewerProps = Pick<
   | "content"
   | "canEdit"
   | "hideSourceView"
+  | "documentNavigation"
 >;
 
 export function CsvViewer(context: CsvViewerProps) {
@@ -31,6 +32,7 @@ export function CsvViewer(context: CsvViewerProps) {
           nodeName={context.document.name}
           delimiter={getDelimitedTableDelimiter(context.document)}
           readOnly={!controls.canEdit}
+          documentNavigation={context.documentNavigation}
           onSourceRevisionChange={controls.onSourceRevisionChange}
           onSnapshotPortChange={controls.onSnapshotPortChange}
         />

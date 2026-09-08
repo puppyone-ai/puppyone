@@ -16,6 +16,7 @@ import {
 import type { EditorSaveMode } from "./EditorDocumentHost";
 import type {
   ContextMapWorkspaceEnvironment,
+  DocumentNavigationPort,
   DocumentSourceKind,
   EditorInteractionPreferences,
   MarkdownDialectId,
@@ -53,6 +54,7 @@ export type FilePreviewProps = {
   workspaceRoot?: string | null;
   markdownDialect?: MarkdownDialectId | null;
   markdownEnvironment?: MarkdownWorkspaceEnvironment | null;
+  documentNavigation?: DocumentNavigationPort | null;
   contextMapEnvironment?: ContextMapWorkspaceEnvironment | null;
   appPreview?: AppPreviewController | null;
   openExternalFile?: (path: string) => Promise<void>;
@@ -86,6 +88,7 @@ export function FilePreview({
   workspaceRoot = null,
   markdownDialect = null,
   markdownEnvironment = null,
+  documentNavigation = null,
   contextMapEnvironment = null,
   appPreview = null,
   openExternalFile,
@@ -173,6 +176,7 @@ export function FilePreview({
                 workspaceRoot={workspaceRoot}
                 markdownDialect={markdownDialect}
                 markdownEnvironment={markdownEnvironment}
+                documentNavigation={documentNavigation}
                 contextMapEnvironment={contextMapEnvironment}
                 appPreview={appPreview}
                 openExternalFile={openExternalFile}

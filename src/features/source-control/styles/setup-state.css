@@ -20,7 +20,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 30px;
+  height: var(--po-control-size);
   padding: 0 10px;
   border: 1px solid color-mix(in srgb, var(--po-text) 72%, transparent);
   border-radius: 6px;

@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 
-export type SaveStatus = "clean" | "dirty" | "saving" | "saved" | "conflict" | "error";
+export type SaveStatus = "clean" | "dirty" | "saving" | "saved" | "error";
 
 export type EditorSaveButtonProps = {
   status: SaveStatus;
@@ -26,7 +26,7 @@ export function EditorSaveButton({
     setShortcutHint(/Mac/i.test(navigator.platform) ? "Cmd+S" : "Ctrl+S");
   }, []);
 
-  if (status === "clean" || status === "conflict" || (status === "dirty" && !manual)) return null;
+  if (status === "clean" || (status === "dirty" && !manual)) return null;
 
   if (status === "saving") {
     return (

@@ -7,6 +7,7 @@ const titlebarCss = readCss("../src/styles/titlebar.css");
 const sidebarPrimitivesCss = readCss("../packages/shared-ui/src/styles/sidebar-primitives.css");
 const sidebarPatternsCss = readCss("../src/styles/sidebar/patterns.css");
 const dataAdapterCss = readCss("../src/features/data-workspace/browser.css");
+const projectSwitcherCss = readCss("../src/features/app-shell/project-switcher-rail.css");
 const dataShellCss = readCss("../src/features/data-workspace/data-shell.css");
 const dataTreeCss = readCss("../packages/shared-ui/src/styles/data-workspace.css");
 const dataWorkspaceSource = readFileSync(
@@ -25,7 +26,7 @@ const cloudSidebarSource = readFileSync(
   new URL("../src/features/cloud/CloudServiceSidebar.tsx", import.meta.url),
   "utf8",
 );
-const agentFoundationCss = readCss("../src/features/desktop-agent/ui/styles/foundation.css");
+const agentThemeCss = readCss("../src/features/desktop-agent/ui/styles/theme.css");
 const gitLayoutCss = readCss("../src/features/source-control/styles/sidebar-layout.css");
 const gitResourcesCss = readCss("../src/features/source-control/styles/sidebar-providers.css");
 const gitHistoryCss = readCss("../src/features/source-control/styles/history-list.css");
@@ -35,11 +36,11 @@ const cloudHistorySidebarCss = readCss("../src/features/cloud/history/styles/sid
 const changesCss = readCss("../src/features/changes/changes.css");
 
 describe("sidebar spacing architecture", () => {
-  it("keeps Workspace menu rows on the shared 30px control geometry", () => {
+  it("keeps Workspace menu rows on the shared control geometry", () => {
     const root = compact(readCssBlock(tokensCss, ":root"));
     const workspaceMenu = compact(readCssBlock(layoutCss, ".desktop-project-menu"));
 
-    expect(root).toContain("--desktop-sidebar-row-height: 30px;");
+    expect(root).toContain("--desktop-sidebar-row-height: var(--po-control-size);");
     expect(root).toContain("--po-menu-item-height: var(--desktop-sidebar-row-height);");
     expect(workspaceMenu).not.toContain("--po-menu-item-height:");
   });
@@ -96,13 +97,13 @@ describe("sidebar spacing architecture", () => {
     expect(root).toContain("--desktop-sidebar-row-content-left: 6px;");
     expect(root).toContain("--desktop-sidebar-row-content-right: 6px;");
     expect(root).toContain("--desktop-sidebar-list-padding-block: 8px;");
-    expect(root).toContain("--desktop-sidebar-font-size: var(--po-text-size-sidebar);");
-    expect(root).toContain("--desktop-sidebar-font-size-meta: var(--po-text-size-meta);");
-    expect(root).toContain("--desktop-sidebar-section-title-font-size: var(--po-text-size-meta);");
+    expect(root).toContain("--desktop-sidebar-font-size: var(--po-type-left-sidebar-content);");
+    expect(root).toContain("--desktop-sidebar-font-size-meta: var(--po-type-left-sidebar-meta);");
+    expect(root).toContain("--desktop-sidebar-section-title-font-size: var(--po-type-left-sidebar-meta);");
     expect(root).toContain("--desktop-sidebar-section-title-font-weight: var(--po-text-weight-medium);");
-    expect(root).toContain("--desktop-sidebar-section-title-line-height: 18px;");
+    expect(root).toContain("--desktop-sidebar-section-title-line-height: var(--po-type-left-sidebar-line-height);");
     expect(semanticThemeScope).toContain(
-      "--desktop-sidebar-section-title-font-size: var(--po-text-size-meta);",
+      "--desktop-sidebar-section-title-font-size: var(--po-type-left-sidebar-meta);",
     );
     expect(semanticThemeScope).toContain(
       "--desktop-sidebar-section-title-color: var(--po-text-subtle);",
@@ -115,7 +116,7 @@ describe("sidebar spacing architecture", () => {
     );
     expect(root).toContain("--desktop-sidebar-font-weight: var(--po-text-weight-medium);");
     expect(root).toContain("--desktop-sidebar-font-weight-emphasis: 650;");
-    expect(root).toContain("--desktop-sidebar-line-height: 18px;");
+    expect(root).toContain("--desktop-sidebar-line-height: var(--po-type-left-sidebar-line-height);");
     expect(root).toContain("--desktop-sidebar-icon-label-gap: 4px;");
     expect(semanticThemeScope).toContain(
       "--po-shell-divider: color-mix(in srgb, var(--po-text) 10%, transparent);",
@@ -240,6 +241,15 @@ describe("sidebar spacing architecture", () => {
 
   it("maps the Data tree onto the shared edge contract", () => {
     const adapter = readCssBlock(dataAdapterCss, ".desktop-data-workspace-wrap");
+    const projectRail = readCssBlock(projectSwitcherCss, ".desktop-project-switcher-rail");
+    const projectRailButton = readCssBlock(
+      projectSwitcherCss,
+      ".desktop-project-switcher-rail-button",
+    );
+    const projectRailList = readCssBlock(
+      projectSwitcherCss,
+      ".desktop-project-switcher-rail-list",
+    );
     const list = compact(readCssBlock(dataTreeCss, ".explorer-tree-list"));
     const treeShell = compact(readCssBlock(dataTreeCss, ".explorer-tree-shell"));
     const treeRow = compact(readCssBlock(dataTreeCss, ".tree-row"));
@@ -254,14 +264,60 @@ describe("sidebar spacing architecture", () => {
     expect(adapter).toContain("--po-tree-row-left-gap: var(--desktop-sidebar-row-left-gap);");
     expect(adapter).toContain("--po-tree-row-right-gap: var(--desktop-sidebar-row-right-gap);");
     expect(adapter).toContain("--po-tree-row-radius: var(--desktop-sidebar-row-radius);");
-    expect(adapter).toContain("--po-tree-no-root-top-gap: var(--desktop-sidebar-list-padding-block);");
+    expect(adapter).toContain("--po-tree-root-top-gap: var(--desktop-sidebar-row-left-gap);");
+    expect(adapter).toContain("--po-tree-no-root-top-gap: var(--desktop-sidebar-row-left-gap);");
     expect(adapter).toContain("--po-tree-list-bottom-gap: var(--desktop-sidebar-list-padding-block);");
     expect(adapter).toContain("--po-tree-row-icon-label-gap: var(--desktop-sidebar-icon-label-gap);");
-    expect(adapter).toContain("--po-tree-row-font-size: var(--desktop-sidebar-font-size);");
+    expect(dataAdapterCss).toContain(`.app-shell.dark :is(
+  .desktop-project-switcher-rail,
+  .desktop-data-workspace-wrap .explorer-column
+)`);
+    expect(projectSwitcherCss).toContain("gap: 6px;");
+    expect(projectRail).toContain(
+      "--desktop-project-switcher-button-size: var(--desktop-sidebar-row-height);",
+    );
+    expect(projectRail).toContain("--desktop-project-switcher-avatar-size: 18px;");
+    expect(projectRailButton).toContain("width: var(--desktop-project-switcher-button-size);");
+    expect(projectRailButton).toContain("height: var(--desktop-project-switcher-button-size);");
+    expect(projectRailButton).toContain("margin: 1px 0;");
+    expect(projectRailButton).toContain("justify-content: center;");
+    expect(projectRailButton).toContain("padding: 0;");
+    expect(projectRailList).toContain("justify-items: center;");
+    expect(projectRailList).toContain("padding-inline: 0;");
+    expect(projectSwitcherCss).toMatch(
+      /\.desktop-project-switcher-rail-avatar\s*\{[^}]*width:\s*var\(--desktop-project-switcher-avatar-size\);[^}]*height:\s*var\(--desktop-project-switcher-avatar-size\);/s,
+    );
+    expect(compact(projectSwitcherCss)).toContain(compact(`
+      .desktop-project-switcher-rail:not([data-expanded="true"])
+        .desktop-project-switcher-rail-utilities.desktop-sidebar-navigation-surface {
+        --desktop-project-switcher-compact-utilities-height: calc(
+          2 * var(--desktop-sidebar-virtual-row-size)
+          + var(--desktop-sidebar-list-padding-block)
+        );
+
+        flex: 0 0 var(--desktop-project-switcher-compact-utilities-height);
+        align-items: flex-start;
+        justify-content: center;
+        min-height: var(--desktop-project-switcher-compact-utilities-height);
+        padding-block: 0 var(--desktop-sidebar-list-padding-block);
+        padding-inline: 0;
+      }
+    `));
+    expect(compact(projectSwitcherCss)).toContain(compact(`
+      .desktop-project-switcher-rail:not([data-expanded="true"])
+        .desktop-project-switcher-rail-utilities
+        .desktop-sidebar-footer-actions {
+        width: var(--desktop-project-switcher-button-size);
+        flex-direction: column-reverse;
+        align-items: stretch;
+        gap: 0;
+      }
+    `));
+    expect(adapter).toContain("--po-tree-row-font-size: var(--po-type-left-sidebar-content);");
     expect(adapter).toContain("--po-tree-row-font-weight: var(--desktop-sidebar-font-weight);");
-    expect(adapter).toContain("--po-tree-row-line-height: var(--desktop-sidebar-line-height);");
+    expect(adapter).toContain("--po-tree-row-line-height: var(--po-type-left-sidebar-line-height);");
     expect(adapter).toContain("--po-tree-workspace-group-color: var(--desktop-sidebar-section-title-color);");
-    expect(adapter).toContain("--po-tree-workspace-group-font-size: var(--desktop-sidebar-section-title-font-size);");
+    expect(adapter).toContain("--po-tree-workspace-group-font-size: var(--po-type-left-sidebar-content);");
     expect(adapter).toContain("--po-tree-workspace-group-font-weight: var(--desktop-sidebar-section-title-font-weight);");
     expect(workspaceGroupHeader).toContain("color: var(--tree-workspace-group-color);");
     expect(workspaceGroupHeader).toContain("font-size: var(--tree-workspace-group-font-size);");
@@ -300,7 +356,7 @@ describe("sidebar spacing architecture", () => {
   it("keeps Data row colors authoritative while Agent mirrors them one way", () => {
     const treeShell = compact(readCssBlock(dataTreeCss, ".explorer-tree-shell"));
     const agentBoundary = compact(readCssBlock(
-      agentFoundationCss,
+      agentThemeCss,
       ".desktop-agent-boundary,\n.desktop-agent-overlay",
     ));
 

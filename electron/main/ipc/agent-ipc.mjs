@@ -1,29 +1,120 @@
+import { agentOperationFailure } from "../agent/runtime/agent-operation-error.mjs";
 import { randomUUID } from "node:crypto";
 import { authorizeAgentReferences, createAgentReferenceBudget, workspaceDraftReferences } from "../agent/agent-reference-authorization.mjs";
 import { requireSupportedAgentReferences } from "../agent/application/agent-input-policy.mjs";
 import { assertAgentIpcResponse, parseAgentIpcRequest } from "../../../shared/agent-contract/schema.mjs";
+import { projectSessionError } from "../../../shared/project-session-contract/schema.mjs";
+
+const LIVE_SESSION_CHANNELS = new Set([
+  "agent:session-replay", "agent:session-attach", "agent:session-feed-ack", "agent:session-feed-watermark",
+  "agent:session-detach", "agent:session-close", "agent:turn-start", "agent:turn-steer", "agent:turn-interrupt",
+  "agent:session-compact", "agent:approval-resolve", "agent:question-resolve", "agent:command-dispatch",
+]);
+const PROJECT_OPERATION = Symbol("project-operation");
+const AUTHORIZED_PROJECT = Symbol("authorized-project");
 
 export function registerAgentIpcHandlers({
   ipcMain,
   agentService,
   localAgentInventory,
   authorizeWorkspaceRoot,
+  resolveWorkspaceResource,
   attachmentStore,
   dialog,
   getDialogOwnerWindow,
+  projectSessions = null,
 }) {
   const register = (channel, handler) => {
     ipcMain.handle(channel, async (event, rawRequest) => {
-      const request = parseAgentIpcRequest(channel, rawRequest);
-      const response = await handler(event, request);
-      return assertAgentIpcResponse(channel, response);
+      try {
+        const request = parseAgentIpcRequest(channel, rawRequest);
+        const invoke = async (operation = null) => {
+          if (operation) request[PROJECT_OPERATION] = operation;
+          if (projectSessions && LIVE_SESSION_CHANNELS.has(channel)) {
+            agentService.assertSessionInstance(event.sender, request, request.rootPath, { allowClosed: channel === "agent:session-close" });
+          }
+          return handler(event, request);
+        };
+        let response;
+        if (projectSessions && request.rootPath) {
+          const context = rawRequest?.projectContext;
+          const record = projectSessions.require(event.sender.id, context, { allowClosing: channel === "agent:session-close" || channel === "agent:session-detach", allowClosed: channel === "agent:session-close" });
+          if (record.rootPath !== request.rootPath) throw projectSessionError("PROJECT_UNAUTHORIZED", "The operation belongs to another project.");
+          request[AUTHORIZED_PROJECT] = record;
+          response = channel === "agent:session-close" || channel === "agent:session-detach"
+            ? await invoke()
+            : await projectSessions.run(event.sender.id, context, invoke);
+        } else response = await invoke();
+        return assertAgentIpcResponse(channel, response);
+      } catch (error) { return agentOperationFailure(error); }
     });
   };
 
   const authorizeOptionalRoot = async (event, request) => (
     request.rootPath ? authorizeWorkspaceRoot(event, request.rootPath) : null
   );
-  const authorizeRequiredRoot = (event, request) => authorizeWorkspaceRoot(event, request.rootPath);
+  const authorizeRequiredRoot = (event, request) => request[AUTHORIZED_PROJECT]
+    ? request[AUTHORIZED_PROJECT].rootPath
+    : authorizeWorkspaceRoot(event, request.rootPath);
+  const resourceResolver = (event, workspaceRoot) => resolveWorkspaceResource
+    ? (resource) => resolveWorkspaceResource(event, resource, { legacyRoot: workspaceRoot })
+    : undefined;
+  const dispatchSteer = async (event, request) => {
+    const workspaceRoot = await authorizeRequiredRoot(event, request);
+    const referenceCapabilities = agentService.getReferenceInputCapabilities(event.sender, request.sessionId, workspaceRoot);
+    const { authorized, stagedTokens } = await authorizeTurnReferences({
+      attachmentStore,
+      ownerId: event.sender.id,
+      workspaceRoot,
+      epoch: request.referenceEpoch,
+      references: request.references,
+      referenceCapabilities,
+      resolveResource: resourceResolver(event, workspaceRoot),
+    });
+    return withStagedReferenceLease({
+      attachmentStore,
+      ownerId: event.sender.id,
+      workspaceRoot,
+      epoch: request.referenceEpoch,
+      tokens: stagedTokens,
+      invoke: (privateReferenceLease) => agentService.steerTurn(event.sender, {
+        ...request,
+        ...(authorized.length > 0 ? { references: authorized } : {}),
+        ...(privateReferenceLease ? { privateReferenceLease } : {}),
+      }, workspaceRoot),
+    });
+  };
+  const dispatchStart = async (event, request) => {
+    const workspaceRoot = await authorizeRequiredRoot(event, request);
+    const referenceCapabilities = agentService.getReferenceInputCapabilities(event.sender, request.sessionId, workspaceRoot);
+    const legacyReferences = [
+      ...(Array.isArray(request.contextReferences) ? request.contextReferences : []),
+      ...(Array.isArray(request.attachments) ? request.attachments : []),
+    ].map((entry) => ({ ...entry, kind: "workspace-entry", entryType: "file" }));
+    const { authorized, stagedTokens } = await authorizeTurnReferences({
+      attachmentStore,
+      ownerId: event.sender.id,
+      workspaceRoot,
+      epoch: request.referenceEpoch,
+      references: Array.isArray(request.references) ? request.references : legacyReferences,
+      referenceCapabilities,
+      resolveResource: resourceResolver(event, workspaceRoot),
+    });
+    return withStagedReferenceLease({
+      attachmentStore,
+      ownerId: event.sender.id,
+      workspaceRoot,
+      epoch: request.referenceEpoch,
+      tokens: stagedTokens,
+      invoke: (privateReferenceLease) => agentService.startTurn(event.sender, {
+        ...request,
+        references: authorized,
+        attachments: undefined,
+        contextReferences: undefined,
+        ...(privateReferenceLease ? { privateReferenceLease } : {}),
+      }, workspaceRoot),
+    });
+  };
 
   register("agent:providers-discover", async (event, request) => (
     agentService.discoverProviders(event.sender, request, await authorizeOptionalRoot(event, request))
@@ -41,19 +132,31 @@ export function registerAgentIpcHandlers({
     agentService.readAccount(event.sender, request, await authorizeOptionalRoot(event, request))
   ));
   register("agent:session-create", async (event, request) => (
-    agentService.createSession(event.sender, request, await authorizeRequiredRoot(event, request))
+    agentService.createSession(event.sender, request, await authorizeRequiredRoot(event, request), request[PROJECT_OPERATION])
   ));
   register("agent:session-resume", async (event, request) => (
-    agentService.resumeSession(event.sender, request, await authorizeRequiredRoot(event, request))
+    agentService.resumeSession(event.sender, request, await authorizeRequiredRoot(event, request), request[PROJECT_OPERATION])
   ));
   register("agent:session-open", async (event, request) => (
-    agentService.openSession(event.sender, request, await authorizeRequiredRoot(event, request))
+    agentService.openSession(event.sender, request, await authorizeRequiredRoot(event, request), request[PROJECT_OPERATION])
   ));
   register("agent:session-replay", async (event, request) => (
     agentService.replay(event.sender, request, await authorizeRequiredRoot(event, request))
   ));
+  register("agent:session-attach", async (event, request) => (
+    agentService.attachSession(event.sender, request, await authorizeRequiredRoot(event, request))
+  ));
+  register("agent:session-feed-ack", async (event, request) => (
+    agentService.acknowledgeSession(event.sender, request, await authorizeRequiredRoot(event, request))
+  ));
+  register("agent:session-feed-watermark", async (event, request) => (
+    agentService.readSessionWatermark(event.sender, request, await authorizeRequiredRoot(event, request))
+  ));
+  register("agent:session-detach", async (event, request) => (
+    agentService.detachSession(event.sender, request, await authorizeRequiredRoot(event, request))
+  ));
   register("agent:sessions-list", async (event, request) => (
-    agentService.listSessions(event.sender, request, await authorizeRequiredRoot(event, request))
+    agentService.listSessions(event.sender, request, await authorizeRequiredRoot(event, request), request[PROJECT_OPERATION])
   ));
   register("agent:session-fork", async (event, request) => (
     agentService.forkSession(event.sender, request, await authorizeRequiredRoot(event, request))
@@ -82,7 +185,7 @@ export function registerAgentIpcHandlers({
   });
   register("agent:reference-resolve-workspace", async (event, request) => {
     const workspaceRoot = await authorizeRequiredRoot(event, request);
-    return workspaceDraftReferences(await authorizeAgentReferences({ workspaceRoot, references: request.paths }));
+    return workspaceDraftReferences(await authorizeAgentReferences({ workspaceRoot, references: request.paths, resolveResource: resourceResolver(event, workspaceRoot) }));
   });
   register("agent:reference-pick-workspace", async (event, request) => {
     const workspaceRoot = await authorizeRequiredRoot(event, request);
@@ -91,32 +194,9 @@ export function registerAgentIpcHandlers({
       properties: ["openFile", "openDirectory", "multiSelections"],
     });
     if (result.canceled || result.filePaths.length === 0) return [];
-    return workspaceDraftReferences(await authorizeAgentReferences({ workspaceRoot, references: result.filePaths }));
+    return workspaceDraftReferences(await authorizeAgentReferences({ workspaceRoot, references: result.filePaths, resolveResource: resourceResolver(event, workspaceRoot) }));
   });
-  register("agent:turn-steer", async (event, request) => {
-    const workspaceRoot = await authorizeRequiredRoot(event, request);
-    const referenceCapabilities = agentService.getReferenceInputCapabilities(event.sender, request.sessionId, workspaceRoot);
-    const { authorized, stagedTokens } = await authorizeTurnReferences({
-      attachmentStore,
-      ownerId: event.sender.id,
-      workspaceRoot,
-      epoch: request.referenceEpoch,
-      references: request.references,
-      referenceCapabilities,
-    });
-    return withStagedReferenceLease({
-      attachmentStore,
-      ownerId: event.sender.id,
-      workspaceRoot,
-      epoch: request.referenceEpoch,
-      tokens: stagedTokens,
-      invoke: (privateReferenceLease) => agentService.steerTurn(event.sender, {
-        ...request,
-        ...(authorized.length > 0 ? { references: authorized } : {}),
-        ...(privateReferenceLease ? { privateReferenceLease } : {}),
-      }, workspaceRoot),
-    });
-  });
+  register("agent:turn-steer", dispatchSteer);
   register("agent:turn-interrupt", async (event, request) => (
     agentService.interruptTurn(event.sender, request, await authorizeRequiredRoot(event, request))
   ));
@@ -130,35 +210,16 @@ export function registerAgentIpcHandlers({
     agentService.resolveQuestion(event.sender, request, await authorizeRequiredRoot(event, request))
   ));
 
-  register("agent:turn-start", async (event, request) => {
-    const workspaceRoot = await authorizeRequiredRoot(event, request);
-    const referenceCapabilities = agentService.getReferenceInputCapabilities(event.sender, request.sessionId, workspaceRoot);
-    const legacyReferences = [
-      ...(Array.isArray(request.contextReferences) ? request.contextReferences : []),
-      ...(Array.isArray(request.attachments) ? request.attachments : []),
-    ].map((entry) => ({ ...entry, kind: "workspace-entry", entryType: "file" }));
-    const { authorized, stagedTokens } = await authorizeTurnReferences({
-      attachmentStore,
-      ownerId: event.sender.id,
-      workspaceRoot,
-      epoch: request.referenceEpoch,
-      references: Array.isArray(request.references) ? request.references : legacyReferences,
-      referenceCapabilities,
-    });
-    return withStagedReferenceLease({
-      attachmentStore,
-      ownerId: event.sender.id,
-      workspaceRoot,
-      epoch: request.referenceEpoch,
-      tokens: stagedTokens,
-      invoke: (privateReferenceLease) => agentService.startTurn(event.sender, {
-        ...request,
-        references: authorized,
-        attachments: undefined,
-        contextReferences: undefined,
-        ...(privateReferenceLease ? { privateReferenceLease } : {}),
-      }, workspaceRoot),
-    });
+  register("agent:turn-start", dispatchStart);
+  register("agent:command-dispatch", async (event, request) => {
+    switch (request.kind) {
+      case "start": return dispatchStart(event, request);
+      case "steer": return dispatchSteer(event, request);
+      case "interrupt": return agentService.interruptTurn(event.sender, request, await authorizeRequiredRoot(event, request));
+      case "approval": return agentService.resolveApproval(event.sender, request, await authorizeRequiredRoot(event, request));
+      case "question": return agentService.resolveQuestion(event.sender, request, await authorizeRequiredRoot(event, request));
+      default: throw new Error("Unsupported Agent command kind.");
+    }
   });
 }
 
@@ -181,6 +242,7 @@ async function authorizeTurnReferences({
   epoch,
   references,
   referenceCapabilities,
+  resolveResource,
 }) {
   const values = Array.isArray(references) ? references : [];
   requireSupportedAgentReferences({ referenceInputs: referenceCapabilities }, values);
@@ -189,6 +251,7 @@ async function authorizeTurnReferences({
     workspaceRoot,
     references: values.filter((entry) => entry?.kind !== "staged-attachment"),
     budget,
+    resolveResource,
   });
   const stagedDrafts = values.filter((entry) => entry?.kind === "staged-attachment");
   if (stagedDrafts.length > budget.remainingReferences) {
@@ -199,6 +262,7 @@ async function authorizeTurnReferences({
     : [];
   const stagedBytes = staged.reduce((total, entry) => total + (entry.size ?? 0), 0);
   if (stagedBytes > budget.remainingBytes) throw new Error("Agent references exceed the 25 MB total safety limit.");
+  requireSupportedAgentReferences({ referenceInputs: referenceCapabilities }, [...workspace, ...staged]);
   return {
     authorized: [...workspace, ...staged],
     stagedTokens: Array.from(new Set(stagedDrafts.map((entry) => entry.token))),

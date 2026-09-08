@@ -31,7 +31,7 @@
 
 :root[data-interface-style="windows-xp"] .desktop-dialog-title-row h2 {
   color: #ffffff;
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   font-weight: 700;
   line-height: 18px;
 }

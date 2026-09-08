@@ -35,6 +35,7 @@ describe("titlebar typography architecture", () => {
     expect(neutralThemeCss).toContain("--po-cloud-titlebar-bg: #dbeaf1;");
     expect(neutralThemeCss).toContain("--po-cloud-titlebar-bg: #263a45;");
     expect(titlebarRule).toContain("--desktop-titlebar-bg: var(--po-header);");
+    expect(titlebarRule).toContain("--po-font-size-chrome: var(--po-type-header-content);");
     expect(titlebarRule).toContain("background: var(--desktop-titlebar-bg);");
     expect(cloudTitlebarRule).toContain("--desktop-titlebar-bg: var(--po-cloud-titlebar-bg);");
     expect(cloudTitlebarRule).toContain("--desktop-titlebar-divider: var(--po-cloud-titlebar-divider);");
@@ -75,10 +76,15 @@ describe("titlebar typography architecture", () => {
   it("keeps chrome text at the shared medium-weight contract", () => {
     const typographyRoot = readCssBlock(typographyFoundationsCss, ":root");
     const layoutRoot = readCssBlock(`\n${tokensCss}`, ":root");
+    const controlGeometry = readFileSync(
+      new URL("../packages/shared-ui/src/styles/control-geometry.css", import.meta.url),
+      "utf8",
+    );
 
     expect(typographyRoot).toContain("--po-text-weight-medium: 500;");
     expect(typographyRoot).toContain("--po-font-weight-chrome: var(--po-text-weight-medium);");
-    expect(layoutRoot).toContain("--desktop-chrome-control-size: 30px;");
+    expect(controlGeometry).toContain("--po-control-size: 32px;");
+    expect(layoutRoot).toContain("--desktop-chrome-control-size: var(--po-control-size);");
     expect(layoutRoot).toContain("--desktop-toolbar-action-radius: 5px;");
     expect(layoutRoot).toContain("--desktop-titlebar-control-height: 24px;");
     expect(layoutRoot).toContain("--desktop-titlebar-tool-action-width: 34px;");
@@ -124,7 +130,7 @@ describe("titlebar typography architecture", () => {
 
     expect(rule).toContain("font-size: var(--po-font-size-chrome, 13px);");
     expect(rule).toContain("font-weight: var(--po-font-weight-chrome, 500);");
-    expect(rule).toContain("line-height: 18px;");
+    expect(rule).toContain("line-height: var(--po-type-header-line-height, 20px);");
   });
 
   it("keeps the project quiet and distinguishes the branch with its semantic glyph", () => {
@@ -161,7 +167,8 @@ describe("titlebar typography architecture", () => {
       ".desktop-branch-menu-row .desktop-menu-item-trailing",
     );
 
-    expect(sectionLabel).toContain("font-size: 11px;");
+    expect(sectionLabel).toContain("font-size: var(--po-menu-meta-font-size);");
+    expect(sectionLabel).toContain("line-height: var(--po-menu-meta-line-height);");
     expect(sectionLabel).toContain("font-weight: 600;");
     expect(sectionLabel).toContain("text-transform: none;");
     expect(currentLabel).toContain("font-weight: 500;");

@@ -11,7 +11,7 @@
   background: color-mix(in srgb, var(--po-panel) 88%, var(--agent-presence-accent));
   color: var(--po-text);
   box-shadow: var(--po-elevation-low);
-  font-size: 10px;
+  font-size: var(--po-type-ui-micro, 11px);
   font-weight: 600;
   line-height: 1;
   pointer-events: none;
@@ -76,7 +76,7 @@
   border-radius: 50%;
   background: var(--agent-presence-accent);
   color: #fff;
-  font-size: 7px;
+  font-size: var(--po-text-size-glyph, 8px);
   font-weight: 750;
   letter-spacing: -0.02em;
 }

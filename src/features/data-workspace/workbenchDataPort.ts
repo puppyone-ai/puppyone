@@ -28,6 +28,7 @@ export type WorkbenchDataService = Readonly<{
   dataPort: DataPort;
   rootResourcePaths: readonly ResourceUri[];
   resolveResource: (path: string | null) => ResolvedWorkbenchDataResource;
+  tryResolveResource: (path: string | null) => ResolvedWorkbenchDataResource | null;
 }>;
 
 const resourceIdentity = new ResourceUriIdentityService();
@@ -80,6 +81,13 @@ export function createWorkbenchDataService(
       providerPath: getWorkspaceResourcePath(folder.uri, path) || null,
       resourceUri: path,
     };
+  };
+  const tryResolveResource = (path: string | null): ResolvedWorkbenchDataResource | null => {
+    try {
+      return resolveResource(path);
+    } catch {
+      return null;
+    }
   };
   const requireProvider = (folder: WorkspaceFolder): DataPort => {
     const provider = providers.get(folder.id);
@@ -287,6 +295,7 @@ export function createWorkbenchDataService(
     dataPort: Object.freeze(dataPort),
     rootResourcePaths: Object.freeze(workbench.folders.map((folder) => folder.uri)),
     resolveResource,
+    tryResolveResource,
   });
 }
 

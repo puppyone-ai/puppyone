@@ -5,7 +5,8 @@
   --desktop-window-min-width: 640px;
   --desktop-toolbar-action-radius: 5px;
   --desktop-chrome-height: 38px;
-  --desktop-chrome-control-size: 30px;
+  /* Standard control geometry is owned by shared-ui/control-geometry.css. */
+  --desktop-chrome-control-size: var(--po-control-size);
   --desktop-titlebar-control-height: 24px;
   --desktop-titlebar-tool-action-width: 34px;
   --desktop-titlebar-button-gap: 3px;
@@ -14,6 +15,7 @@
   --desktop-sidebar-nav-padding: 4px;
   --desktop-sidebar-navigation-padding-outer: 12px;
   --desktop-sidebar-navigation-padding-inner: 4px;
+  --desktop-sidebar-navigation-padding-balanced: 8px;
   --desktop-sidebar-navigation-padding-inline: 12px;
   --desktop-sidebar-navigation-height: calc(
     var(--desktop-sidebar-control-size)
@@ -26,7 +28,8 @@
   --desktop-sidebar-toolbar-height: 46px;
   --desktop-sidebar-toolbar-padding-start: 22px;
   --desktop-sidebar-toolbar-padding-end: 16px;
-  --desktop-sidebar-row-height: 30px;
+  --desktop-sidebar-row-height: var(--po-control-size);
+  --desktop-sidebar-virtual-row-size: calc(var(--desktop-sidebar-row-height) + 2px);
   --desktop-sidebar-row-radius: 6px;
   --desktop-sidebar-row-left-gap: 12px;
   --desktop-sidebar-row-right-gap: 12px;
@@ -34,16 +37,16 @@
    * Shared sidebar list typography. Data explorer rows and Git working-tree
    * rows both consume these so file-name weight/size/line-height cannot drift.
    */
-  --desktop-sidebar-font-size: var(--po-text-size-sidebar);
-  --desktop-sidebar-font-size-meta: var(--po-text-size-meta);
-  --desktop-sidebar-section-title-font-size: var(--po-text-size-meta);
+  --desktop-sidebar-font-size: var(--po-type-left-sidebar-content);
+  --desktop-sidebar-font-size-meta: var(--po-type-left-sidebar-meta);
+  --desktop-sidebar-section-title-font-size: var(--po-type-left-sidebar-meta);
   --desktop-sidebar-section-title-font-weight: var(--po-text-weight-medium);
-  --desktop-sidebar-section-title-line-height: 18px;
+  --desktop-sidebar-section-title-line-height: var(--po-type-left-sidebar-line-height);
   --desktop-sidebar-section-title-color: var(--po-text-subtle);
   --desktop-sidebar-section-title-disabled-color: var(--po-text-disabled);
   --desktop-sidebar-font-weight: var(--po-text-weight-medium);
   --desktop-sidebar-font-weight-emphasis: 650;
-  --desktop-sidebar-line-height: 18px;
+  --desktop-sidebar-line-height: var(--po-type-left-sidebar-line-height);
   --desktop-sidebar-icon-label-gap: 4px;
   /*
    * Modern macOS-style scrollbar contract: a forgiving 12px interaction
@@ -69,6 +72,9 @@
   --po-pane-resizer-hit-size: 8px;
   --po-pane-resizer-line-size: 1px;
   --po-pane-resizer-z-index: 35;
+  /* Every portal-owned menu and dialog paints above App Shell chrome. Feature
+     overlays keep their local ordering inside this isolated root. */
+  --po-overlay-root-z-index: 1000;
   --po-pane-resizer-blue: light-dark(#3b82f6, #60a5fa);
   --po-pane-resizer-hover-color: color-mix(in srgb, var(--po-pane-resizer-blue) 55%, var(--po-divider));
   --po-pane-resizer-active-color: var(--po-pane-resizer-blue);
@@ -139,11 +145,22 @@
    * :root aliases would freeze them at the default scale instead of following
    * the shell's data-text-size override.
    */
-  --desktop-sidebar-font-size: var(--po-text-size-sidebar);
-  --desktop-sidebar-font-size-meta: var(--po-text-size-meta);
-  --desktop-sidebar-section-title-font-size: var(--po-text-size-meta);
+  --desktop-chrome-control-size: var(--po-control-size);
+  --desktop-sidebar-control-size: var(--desktop-chrome-control-size);
+  --desktop-sidebar-nav-height: calc(var(--desktop-sidebar-control-size) + 8px);
+  --desktop-sidebar-navigation-height: calc(
+    var(--desktop-sidebar-control-size)
+    + var(--desktop-sidebar-navigation-padding-outer)
+    + var(--desktop-sidebar-navigation-padding-inner)
+  );
+  --desktop-sidebar-row-height: var(--po-control-size);
+  --desktop-sidebar-virtual-row-size: calc(var(--desktop-sidebar-row-height) + 2px);
+  --po-menu-item-height: var(--desktop-sidebar-row-height);
+  --desktop-sidebar-font-size: var(--po-type-left-sidebar-content);
+  --desktop-sidebar-font-size-meta: var(--po-type-left-sidebar-meta);
+  --desktop-sidebar-section-title-font-size: var(--po-type-left-sidebar-meta);
   --desktop-sidebar-section-title-font-weight: var(--po-text-weight-medium);
-  --desktop-sidebar-section-title-line-height: 18px;
+  --desktop-sidebar-section-title-line-height: var(--po-type-left-sidebar-line-height);
   --desktop-sidebar-section-title-color: var(--po-text-subtle);
   --desktop-sidebar-section-title-disabled-color: var(--po-text-disabled);
   /*
@@ -204,6 +221,16 @@
     color-mix(in srgb, var(--po-shadow) 64%, transparent);
   --po-menu-shadow-compact: var(--po-elevation-low);
   --po-menu-shadow: var(--po-elevation-popover);
+}
+
+/* Left-sidebar scaling is intentionally bounded to left-side navigation and
+ * shell-hosted navigation. Header and right-sidebar controls retain their own
+ * typography contracts instead of inheriting this setting. */
+:where(.explorer-column, .desktop-settings-sidebar, .desktop-shell-navigation-toolbar-host) {
+  --desktop-sidebar-font-size: var(--po-type-left-sidebar-content);
+  --desktop-sidebar-font-size-meta: var(--po-type-left-sidebar-meta);
+  --desktop-sidebar-section-title-font-size: var(--po-type-left-sidebar-meta);
+  --desktop-sidebar-line-height: var(--po-type-left-sidebar-line-height);
 }
 
 .dark {

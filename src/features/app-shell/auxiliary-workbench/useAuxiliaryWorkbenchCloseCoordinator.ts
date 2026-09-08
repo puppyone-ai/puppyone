@@ -28,6 +28,7 @@ export function useAuxiliaryWorkbenchCloseCoordinator({
   onClosed,
 }: UseAuxiliaryWorkbenchCloseCoordinatorOptions) {
   const [pending, setPending] = useState<AuxiliaryWorkbenchPendingClose | null>(null);
+  const [failure, setFailure] = useState<{ itemId: string; detail: string } | null>(null);
   const [commitCount, setCommitCount] = useState(0);
   const committing = commitCount > 0;
   const evaluatingItemIdsRef = useRef(new Set<string>());
@@ -37,11 +38,15 @@ export function useAuxiliaryWorkbenchCloseCoordinator({
     const itemId = target.context.item.id;
     if (activeItemIdsRef.current.has(itemId)) return false;
     activeItemIdsRef.current.add(itemId);
+    setFailure(null);
     setCommitCount((count) => count + 1);
     try {
       const closed = await target.adapter.commit(target.context);
       if (closed) onClosed(itemId);
       return closed;
+    } catch (error) {
+      setFailure({ itemId, detail: error instanceof Error ? error.message : String(error) });
+      return false;
     } finally {
       activeItemIdsRef.current.delete(itemId);
       setCommitCount((count) => Math.max(0, count - 1));
@@ -70,6 +75,8 @@ export function useAuxiliaryWorkbenchCloseCoordinator({
         return;
       }
       if (!await commit(target)) await presentLatestDecision(itemId);
+    } catch (error) {
+      setFailure({ itemId, detail: error instanceof Error ? error.message : String(error) });
     } finally {
       evaluatingItemIdsRef.current.delete(itemId);
     }
@@ -90,8 +97,9 @@ export function useAuxiliaryWorkbenchCloseCoordinator({
       setPending(null);
       return;
     }
-    await presentLatestDecision(pending.itemId);
+    try { await presentLatestDecision(pending.itemId); }
+    catch (error) { setFailure({ itemId: pending.itemId, detail: error instanceof Error ? error.message : String(error) }); }
   }, [commit, committing, pending, presentLatestDecision, resolveTarget]);
 
-  return Object.freeze({ committing, confirm, dismiss, pending, requestClose });
+  return Object.freeze({ committing, confirm, dismiss, pending, requestClose, failure, dismissFailure: () => setFailure(null) });
 }

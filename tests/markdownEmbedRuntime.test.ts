@@ -37,6 +37,11 @@ const mermaidMocks = vi.hoisted(() => ({
 
 vi.mock("../packages/shared-ui/src/editor/markdown/features/mermaid/mermaidRenderer", () => ({
   getMermaidThemeSnapshot: () => ({ key: "test-theme", config: {} }),
+  mountSanitizedMermaidSvg: (host: HTMLElement) => {
+    const element = document.createElement("span");
+    host.replaceChildren(element);
+    return { element, dispose: () => element.remove() };
+  },
   renderMermaidDiagram: mermaidMocks.render,
   subscribeMermaidThemeChanges: mermaidMocks.subscribe,
 }));

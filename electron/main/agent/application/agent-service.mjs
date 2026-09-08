@@ -1,12 +1,15 @@
+import { createHistoryCatalogPort } from "./history/history-catalog-port.mjs";
+import { createAgentHistoryQueries } from "./history/agent-history-queries.mjs";
 import { createAgentRuntimeCatalog } from "./agent-runtime-catalog.mjs";
 import { createRuntimeResolutionCoordinator } from "./runtime-resolution/runtime-resolution-coordinator.mjs";
 import { createAgentEventJournal } from "./agent-event-journal.mjs";
-import { createNativeConversationIndexer } from "./native-conversation-indexer.mjs";
+import { createNativeConversationIndexer } from "./history/native-conversation-indexer.mjs";
 import { AgentSessionStore } from "./agent-session-store.mjs";
 import { createAgentProcessSupervisor } from "./processes/agent-process-supervisor.mjs";
 import { createAgentSessionCommands } from "./session/agent-session-commands.mjs";
 import { createAgentSessionLifecycle } from "./session/agent-session-lifecycle.mjs";
 import { createAgentSessionRuntime } from "./session/agent-session-runtime.mjs";
+import { AgentSessionFeed } from "./session/agent-session-feed.mjs";
 import { createAgentTurnCoordinator } from "./turn/agent-turn-coordinator.mjs";
 
 /**
@@ -19,6 +22,7 @@ import { createAgentTurnCoordinator } from "./turn/agent-turn-coordinator.mjs";
 export function createAgentService({
   runtimeRegistry,
   sessionCache = null,
+  conversationCatalog = null,
   persistence: legacyPersistence = null,
   logger = console,
   attachmentStore = null,
@@ -41,13 +45,16 @@ export function createAgentService({
     processSupervisor,
   });
   const runtimeCatalog = createAgentRuntimeCatalog({ runtimeResolutionCoordinator });
+  const historyCatalog = createHistoryCatalogPort(conversationCatalog ?? cache.historyCatalog);
   const nativeConversationIndexer = createNativeConversationIndexer({
     runtimeRegistry,
     runtimeResolutionCoordinator,
-    sessionRepository: cache,
+    catalog: historyCatalog,
     processSupervisor,
   });
+  const history = createAgentHistoryQueries({ catalog: historyCatalog, nativeConversationIndexer });
   const journal = createAgentEventJournal({ sessionCache: cache, logger });
+  const sessionFeed = new AgentSessionFeed({ logger });
   const runtimeSession = createAgentSessionRuntime({
     runtimeRegistry,
     runtimeResolutionCoordinator,
@@ -58,7 +65,6 @@ export function createAgentService({
     logger,
     emit: journal.emit,
     persistNow: journal.persistNow,
-    sendSessionExit: journal.sendSessionExit,
   });
   lifecycle = createAgentSessionLifecycle({
     runtimeRegistry,
@@ -75,10 +81,10 @@ export function createAgentService({
     runtimeSession,
     emit: journal.emit,
     persistSoon: journal.persistSoon,
+    attachmentStore,
   });
   const commands = createAgentSessionCommands({
     runtimeResolutionCoordinator,
-    nativeConversationIndexer,
     sessionStore,
     cache,
     runtimeSession,
@@ -86,7 +92,15 @@ export function createAgentService({
     persistNow: journal.persistNow,
   });
 
+  const requireFeedSession = (sender, request, workspaceRoot) => {
+    if (request?.instanceId) sessionStore.assertInstance(sender, request, workspaceRoot);
+    const session = sessionStore.requireOwned(sender, request?.sessionId);
+    if (session.workspaceRoot !== workspaceRoot) throw new Error("Agent session workspace does not match the authorized workspace.");
+    return session;
+  };
+
   return {
+    assertSessionInstance: (sender, request, root, options) => sessionStore.assertInstance(sender, request, root, options),
     discoverProviders: (_sender, request = {}, workspaceRoot = null) => runtimeCatalog.discover(request, workspaceRoot),
     listModels: (_sender, request = {}, workspaceRoot = null) => runtimeCatalog.listModels(request, workspaceRoot),
     readAccount: (_sender, request = {}, workspaceRoot = null) => runtimeCatalog.readAccount(request, workspaceRoot),
@@ -100,15 +114,47 @@ export function createAgentService({
     resolveApproval: turns.resolveApproval,
     resolveQuestion: turns.resolveQuestion,
     replay: turns.replay,
-    listSessions: commands.listSessions,
+    attachSession: (sender, request, workspaceRoot) => sessionFeed.attach(requireFeedSession(sender, request, workspaceRoot)),
+    acknowledgeSession: (sender, request, workspaceRoot) => {
+      const session = requireFeedSession(sender, request, workspaceRoot);
+      return sessionFeed.acknowledge(session, request);
+    },
+    readSessionWatermark: (sender, request, workspaceRoot) => {
+      const session = requireFeedSession(sender, request, workspaceRoot);
+      return sessionFeed.watermark(session, request?.subscriptionId);
+    },
+    detachSession: (sender, request, workspaceRoot) => {
+      const session = requireFeedSession(sender, request, workspaceRoot);
+      return sessionFeed.detach(session, request?.subscriptionId);
+    },
+    listSessions: history.listSessions,
     forkSession: commands.forkSession,
     archiveSession: commands.archiveSession,
     deleteSession: commands.deleteSession,
     compactSession: commands.compactSession,
-    closeSession: lifecycle.closeSession,
-    closeSessionsForWindow: lifecycle.closeSessionsForWindow,
-    closeSessionsForWorkspaceRoot: lifecycle.closeSessionsForWorkspaceRoot,
-    closeAll: lifecycle.closeAll,
+    closeSession: async (...args) => {
+      const sessionId = args[1]?.sessionId;
+      const closingSession = sessionStore.get(sessionId);
+      const result = await lifecycle.closeSession(...args);
+      if (closingSession && !sessionStore.isCurrent(closingSession)) sessionFeed.releaseSession(sessionId, closingSession.instanceId);
+      return result;
+    },
+    closeSessionsForWindow: async (ownerId) => {
+      const sessions = sessionStore.values().filter((session) => session.ownerId === ownerId);
+      try { await Promise.all([nativeConversationIndexer.closeOwner(ownerId), lifecycle.closeSessionsForWindow(ownerId)]); }
+      finally { sessions.filter((session) => !sessionStore.isCurrent(session)).forEach((session) => sessionFeed.releaseSession(session.id, session.instanceId)); }
+    },
+    closeSessionsForWorkspaceRoot: async (ownerId, workspaceRoot) => {
+      const sessions = sessionStore.values()
+        .filter((session) => session.ownerId === ownerId && session.workspaceRoot === workspaceRoot);
+      try {
+        const [, result] = await Promise.all([nativeConversationIndexer.closeWorkspace(workspaceRoot), lifecycle.closeSessionsForWorkspaceRoot(ownerId, workspaceRoot)]);
+        return result;
+      } finally { sessions.filter((session) => !sessionStore.isCurrent(session)).forEach((session) => sessionFeed.releaseSession(session.id, session.instanceId)); }
+    },
+    closeAll: async () => {
+      try { await Promise.all([nativeConversationIndexer.dispose(), lifecycle.closeAll()]); } finally { sessionFeed.releaseAll(); }
+    },
     getSessionCount: lifecycle.getSessionCount,
     getRetainedSessionCount: lifecycle.getRetainedSessionCount,
     hasRuntimeResources: lifecycle.hasRuntimeResources,

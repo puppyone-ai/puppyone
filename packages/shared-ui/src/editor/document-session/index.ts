@@ -34,6 +34,5 @@ export type {
   DocumentSessionStatus,
   DocumentEditingSessionHandle,
   EditableDocumentSource,
-  ExternalConflictResolution,
   ExternalBaselineResult,
 } from "./types";

@@ -1,3 +1,8 @@
+import fs from "node:fs";
+import path from "node:path";
+import { createNativePersistenceReporter } from "../../runtime/native-persistence-reporter.mjs";
+import { piHistorySource } from "./pi-history-source.mjs";
+import { agentHistoryReadResult } from "../../runtime/agent-history-read-result.mjs";
 import { randomUUID } from "node:crypto";
 import { redactSecretText } from "../../agent-events.mjs";
 import { AgentProviderSessionUnavailableError } from "../../runtime/agent-runtime-port.mjs";
@@ -34,6 +39,7 @@ export const PI_CAPABILITIES = Object.freeze({
   slashCommands: true,
   sessionHistory: true,
   history: Object.freeze({ discovery: "unsupported", exactOpen: "supported", hydration: "snapshot" }),
+  recovery: Object.freeze({ strategy: "snapshot-reload", activeExecution: "outcome-unknown", atomicHandoff: false }),
   usage: true,
   accountState: true,
   mcp: false,
@@ -49,7 +55,7 @@ export const PI_CAPABILITIES = Object.freeze({
   }),
   referenceInputs: Object.freeze({
     schemaVersion: 1,
-    workspace: Object.freeze({ files: true, directories: true }),
+    workspace: Object.freeze({ files: true, directories: true, crossRoots: true }),
     attachments: Object.freeze({
       image: Object.freeze({
         accepted: true,
@@ -81,7 +87,7 @@ export class PiRpcAdapter {
   }
 
   getSessionHistoryPort() {
-    return Object.freeze({ hydrate: () => this.readHistory() });
+    return Object.freeze({ sourceScopeId: this.historySource.sourceScopeId, hydrate: () => this.readHistoryResult() });
   }
 
   constructor({
@@ -89,15 +95,32 @@ export class PiRpcAdapter {
     workspaceRoot,
     onEvent = () => {},
     onExit = () => {},
+    onSessionPersisted = () => {},
     spawn,
     clientFactory = (options) => new PiRpcClient(options),
     logger = console,
     onDispose = () => {},
   }) {
     this.readiness = readiness;
+    this.historySource = piHistorySource(readiness.environment ?? process.env);
+    this.clients = new Set();
     this.workspaceRoot = workspaceRoot;
     this.onEvent = onEvent;
     this.onExit = onExit;
+    this.persistenceReporter = createNativePersistenceReporter({
+      isClosed: () => this.disposed,
+      verify: async () => {
+        const id = this.sessionId;
+        if (!id) return null;
+        const state = await this.client.request("get_state");
+        if (state?.sessionId !== id || typeof state.sessionFile !== "string" || !path.isAbsolute(state.sessionFile)) return null;
+        // Stat only the exact artifact returned by the native RPC, never scan or parse its store.
+        const artifact = await fs.promises.stat(state.sessionFile);
+        return artifact.isFile() && artifact.size > 0 && this.sessionId === id
+          ? { providerSessionId: id, sourceScopeId: this.historySource.sourceScopeId } : null;
+      },
+      report: onSessionPersisted,
+    });
     this.spawn = spawn;
     this.clientFactory = clientFactory;
     this.logger = logger;
@@ -155,7 +178,7 @@ export class PiRpcAdapter {
         client.getDiagnostics?.(),
       ].filter(Boolean).join(" ")));
     } finally {
-      client.dispose?.("Pi RPC inspection complete.");
+      await this.#releaseClient(client, "Pi RPC inspection complete.");
     }
   }
 
@@ -188,10 +211,13 @@ export class PiRpcAdapter {
     }
   }
 
-  async readHistory() {
+  async readHistory() { return (await this.readHistoryResult()).events; }
+
+  async readHistoryResult() {
     this.#assertConnected();
     const result = await this.client.request("get_messages");
-    return normalizePiHistory(result?.messages, this.sessionId);
+    if (!Array.isArray(result?.messages)) throw new TypeError("Pi returned an invalid history snapshot.");
+    return agentHistoryReadResult({ providerSessionId: this.sessionId, events: normalizePiHistory(result.messages, this.sessionId), coverage: "complete" });
   }
 
   async startTurn({
@@ -224,6 +250,10 @@ export class PiRpcAdapter {
       return { turnId };
     } catch (error) {
       if (this.activeState === state) this.activeState = null;
+      if (error?.deliveryOutcome === "unknown") {
+        this.onExit({ expected: false, error: errorText(error) });
+        throw error;
+      }
       this.onEvent({
         type: "turn.failed",
         providerSessionId: this.sessionId,
@@ -283,15 +313,14 @@ export class PiRpcAdapter {
   }
 
   hasActiveProcess() {
-    return Boolean(this.client && !this.client.closed);
+    return this.clients.size > 0;
   }
 
   forceTerminate(reason = "Pi RPC runtime stopped.") {
-    this.client?.dispose?.(reason, { expected: false });
+    for (const client of this.clients) client.dispose?.(reason, { expected: false });
   }
 
   async dispose(reason = "Pi RPC adapter closed.") {
-    if (this.disposed) return;
     this.disposed = true;
     for (const pending of this.pendingQuestions.values()) {
       try {
@@ -301,11 +330,12 @@ export class PiRpcAdapter {
       }
     }
     this.pendingQuestions.clear();
-    const client = this.client;
     this.client = null;
     this.activeState = null;
-    client?.dispose?.(reason);
-    this.onDispose();
+    const results = await Promise.allSettled([...this.clients].map((client) => this.#releaseClient(client, reason)));
+    const failures = results.filter((result) => result.status === "rejected").map((result) => result.reason);
+    if (failures.length) throw new AggregateError(failures, "Pi processes have not all exited.");
+    if (!this.disposeNotified) { this.disposeNotified = true; this.onDispose(); }
   }
 
   async #connect(extraArgs) {
@@ -323,21 +353,29 @@ export class PiRpcAdapter {
       this.#rememberSessionState(state);
     } catch (error) {
       const diagnostic = client.getDiagnostics?.();
-      client.dispose?.("Pi RPC startup failed.", { expected: false });
       this.client = null;
+      await this.#releaseClient(client, "Pi RPC startup failed.", { expected: false });
       throw new Error(redactSecretText([errorText(error), diagnostic].filter(Boolean).join(" ")));
     }
   }
 
   #createClient(args) {
     if (!this.readiness.executablePath) throw new Error("Pi executable is unavailable.");
-    return this.clientFactory({
+    const client = this.clientFactory({
       executablePath: this.readiness.executablePath,
       args,
       cwd: this.workspaceRoot,
       env: this.readiness.environment ?? process.env,
       ...(this.spawn ? { spawn: this.spawn } : {}),
     });
+    this.clients.add(client);
+    return client;
+  }
+
+  async #releaseClient(client, reason, options) {
+    client.dispose?.(reason, options);
+    await client.waitForExit?.();
+    this.clients.delete(client);
   }
 
   async #applySelection(model, effort) {
@@ -372,6 +410,7 @@ export class PiRpcAdapter {
     const normalized = normalizePiRpcEvent(message, state);
     for (const event of normalized) this.onEvent(event);
     if (normalized.some((event) => ["turn.completed", "turn.failed", "turn.interrupted"].includes(event.type))) {
+      void this.persistenceReporter.confirm();
       if (this.activeState === state) this.activeState = null;
     }
   }

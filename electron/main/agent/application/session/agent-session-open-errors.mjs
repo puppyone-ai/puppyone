@@ -8,11 +8,15 @@ export function sessionOpenFailure(code, message, retryable) {
 export function classifySessionOpenFailure(error) {
   const message = redactSecretText(error instanceof Error ? error.message : String(error)).slice(0, 1_000);
   const code = typeof error?.code === "string" ? error.code : "";
+  if (code === "HISTORY_SOURCE_CHANGED") return sessionOpenFailure("SOURCE_CHANGED", "The Agent history source changed. Restore the original profile or refresh History.", false);
   if (code === "AUTHENTICATION_EXPIRED" || /auth(?:entication)?.{0,24}expired|login.{0,24}expired/iu.test(message)) {
     return sessionOpenFailure("AUTH_EXPIRED", "The Agent login has expired. Reconnect the Agent and try again.", true);
   }
   if (code === "AUTHENTICATION_REQUIRED" || /sign[ -]?in|log[ -]?in|authentication required|not authenticated/iu.test(message)) {
     return sessionOpenFailure("AUTH_REQUIRED", "Sign in to this Agent before opening the saved session.", true);
+  }
+  if (error?.stage === "history-read" || code === "HISTORY_READ_FAILED") {
+    return sessionOpenFailure("HISTORY_READ_FAILED", "History messages could not be loaded. Try again.", true);
   }
   if (/timed out|timeout/iu.test(message)) {
     return sessionOpenFailure("RESUME_TIMED_OUT", "Opening the saved Agent session timed out.", true);

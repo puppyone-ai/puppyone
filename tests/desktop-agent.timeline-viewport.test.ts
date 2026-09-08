@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { TimelineRow } from "../src/features/desktop-agent/domain/agent-projection-types";
-import { buildAgentTimelineLayout } from "../src/features/desktop-agent/ui/agent-timeline-layout";
+import { buildAgentTimelineLayout } from "../src/features/desktop-agent/ui/transcript/transcript-layout";
 import {
   captureAgentTimelineScrollAnchor,
   resolveAgentTimelineScrollAnchor,
-} from "../src/features/desktop-agent/ui/agent-timeline-viewport";
+} from "../src/features/desktop-agent/ui/transcript/transcript-viewport";
 
 describe("Desktop Agent timeline viewport anchoring", () => {
   it("keeps the same visible row coordinate when many earlier rows reflow together", () => {
@@ -37,6 +37,17 @@ describe("Desktop Agent timeline viewport anchoring", () => {
 
     expect(anchor).toEqual({ kind: "absolute", scrollTop: 8 });
     expect(resolveAgentTimelineScrollAnchor(anchor, layout, new Map([["one", 0]]), 24)).toBe(8);
+  });
+
+  it("preserves the nearest surviving row coordinate when the anchored row is filtered", () => {
+    const beforeRows = [row("one"), row("two"), row("three")];
+    const before = buildAgentTimelineLayout(beforeRows, { one: 40, two: 40, three: 40 });
+    const anchor = captureAgentTimelineScrollAnchor(beforeRows, before, 70, 0);
+    const rows = [beforeRows[0], beforeRows[2]];
+    const after = buildAgentTimelineLayout(rows, { one: 40, three: 40 });
+    const restored = resolveAgentTimelineScrollAnchor(anchor, after, new Map([["one", 0], ["three", 1]]), 0, beforeRows, before);
+    expect(restored).toBe(22);
+    expect(after.offsets[1] - restored!).toBe(before.offsets[2] - 70);
   });
 
   it("does not guess a replacement row when the anchored row disappears", () => {

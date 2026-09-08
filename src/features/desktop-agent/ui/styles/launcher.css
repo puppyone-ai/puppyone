@@ -63,10 +63,10 @@
   overflow: hidden;
   color: var(--agent-text-subtle);
   font-family: var(--po-font-sans);
-  font-size: 12px;
+  font-size: var(--agent-font-size-meta);
   font-weight: 500;
   letter-spacing: 0;
-  line-height: 18px;
+  line-height: var(--agent-meta-line-height);
   text-align: start;
   white-space: nowrap;
 }
@@ -87,7 +87,7 @@
   border-radius: 4px;
   background: transparent;
   color: var(--agent-text-subtle);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   pointer-events: auto;
 }
 
@@ -130,7 +130,7 @@
   display: flex;
   width: 100%;
   min-width: 0;
-  min-height: 34px;
+  min-height: var(--po-control-size-large);
   align-items: center;
   gap: 9px;
   padding: 5px 8px;
@@ -138,7 +138,7 @@
   border-radius: 6px;
   background: transparent;
   color: var(--agent-text-muted);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   font: inherit;
   text-align: start;
   animation: desktop-agent-runtime-launcher-option-enter 140ms cubic-bezier(0.2, 0, 0, 1) both;
@@ -165,27 +165,27 @@
   min-width: 0;
   flex: 1;
   overflow: hidden;
-  font-size: 12px;
+  font-size: var(--agent-font-size);
   font-weight: 500;
-  line-height: 18px;
+  line-height: var(--agent-control-line-height);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .desktop-agent-runtime-launcher-warning {
   flex: 0 0 auto;
-  color: var(--po-warning, #b7791f);
+  color: var(--po-warning);
 }
 
 .desktop-agent-runtime-launcher-empty {
   display: flex;
-  min-height: 34px;
+  min-height: var(--po-control-size-large);
   align-items: center;
   justify-content: center;
   padding: 3px 8px;
   color: var(--agent-text-subtle);
-  font-size: 11px;
-  line-height: 16px;
+  font-size: var(--agent-font-size-caption);
+  line-height: var(--agent-caption-line-height);
   text-align: center;
 }
 
@@ -220,15 +220,15 @@
 .desktop-agent-history-permission-content > p {
   margin: 0;
   color: var(--agent-text-muted);
-  font-size: var(--po-text-size-body, 13px);
+  font-size: var(--agent-font-size);
   font-weight: var(--po-text-weight-regular, 400);
-  line-height: 20px;
+  line-height: var(--agent-conversation-line-height);
   text-align: center;
 }
 
 .desktop-agent-history-permission-button {
   display: inline-flex;
-  height: 30px;
+  height: var(--po-control-size);
   align-items: center;
   justify-content: center;
   padding: 0 14px;
@@ -236,16 +236,16 @@
   border-radius: 6px;
   background: var(--po-text);
   color: var(--po-canvas);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--agent-font-size);
   font-weight: 600;
   line-height: 1;
 }
 
 .desktop-agent-history-permission-button:hover {
-  border-color: color-mix(in srgb, var(--po-text) 86%, var(--po-canvas) 14%);
-  background: color-mix(in srgb, var(--po-text) 86%, var(--po-canvas) 14%);
+  border-color: var(--agent-launcher-selected-surface);
+  background: var(--agent-launcher-selected-surface);
 }
 
 .desktop-agent-history-permission-button:focus-visible {
@@ -289,9 +289,9 @@
   overflow: hidden;
   color: var(--agent-text-muted);
   font-family: var(--po-font-sans);
-  font-size: 13px;
+  font-size: var(--po-type-header-content, 15px);
   font-weight: 500;
-  line-height: 20px;
+  line-height: var(--po-type-header-line-height, 20px);
   text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -299,15 +299,15 @@
 
 .desktop-agent-history-toolbar-button {
   display: grid;
-  width: 28px;
-  height: 28px;
+  width: var(--po-control-size-compact);
+  height: var(--po-control-size-compact);
   place-items: center;
   padding: 0;
   border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;
   color: var(--agent-text-subtle);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .desktop-agent-history-toolbar-button:hover:not(:disabled) {
@@ -328,7 +328,7 @@
 .desktop-agent-history-search {
   display: grid;
   min-width: 0;
-  height: 30px;
+  height: var(--po-control-size);
   grid-template-columns: 16px minmax(0, 1fr);
   align-items: center;
   gap: 6px;
@@ -344,15 +344,15 @@
     var(--desktop-sidebar-row-content-left, 6px);
   border: 1px solid transparent;
   border-radius: var(--desktop-sidebar-row-radius, 6px);
-  background: color-mix(in srgb, var(--agent-control-surface) 64%, transparent);
-  color: color-mix(in srgb, var(--agent-text-subtle) 82%, transparent);
+  background: var(--agent-launcher-placeholder-surface);
+  color: var(--agent-launcher-placeholder-text);
   transition:
     border-color 120ms ease,
     background-color 120ms ease;
 }
 
 .desktop-agent-history-search:focus-within {
-  border-color: color-mix(in srgb, var(--po-focus-ring) 58%, var(--agent-border-subtle));
+  border-color: var(--agent-launcher-focus-border);
   background: var(--agent-control-surface);
 }
 
@@ -366,13 +366,13 @@
   background: transparent;
   color: var(--agent-text-muted);
   font: inherit;
-  font-size: var(--desktop-sidebar-font-size-meta, var(--po-text-size-meta, 12px));
+  font-size: var(--agent-font-size-meta);
   font-weight: var(--po-text-weight-regular, 400);
-  line-height: 18px;
+  line-height: var(--agent-meta-line-height);
 }
 
 .desktop-agent-history-search input::placeholder {
-  color: color-mix(in srgb, var(--agent-text-subtle) 82%, transparent);
+  color: var(--agent-launcher-placeholder-text);
   opacity: 1;
 }
 
@@ -400,9 +400,9 @@
 .desktop-agent-history-option {
   display: flex;
   width: 100%;
-  height: var(--desktop-sidebar-row-height, 30px);
+  height: var(--desktop-sidebar-row-height, var(--po-control-size));
   min-width: 0;
-  min-height: var(--desktop-sidebar-row-height, 30px);
+  min-height: var(--desktop-sidebar-row-height, var(--po-control-size));
   align-items: center;
   gap: 6px;
   margin: 1px 0;
@@ -411,11 +411,11 @@
   border-radius: var(--desktop-sidebar-row-radius, 6px);
   background: transparent;
   color: var(--agent-text-muted);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   font-family: inherit;
-  font-size: var(--desktop-sidebar-font-size, var(--po-text-size-sidebar, 13px));
+  font-size: var(--agent-font-size);
   font-weight: var(--desktop-sidebar-font-weight, var(--po-text-weight-medium, 500));
-  line-height: var(--desktop-sidebar-line-height, 18px);
+  line-height: var(--agent-control-line-height);
   text-align: start;
   transition:
     background-color 120ms ease,
@@ -467,22 +467,22 @@
   flex: 0 0 auto;
   color: var(--agent-text-subtle);
   font-family: inherit;
-  font-size: var(--desktop-sidebar-font-size-meta, var(--po-text-size-meta, 12px));
+  font-size: var(--agent-font-size-meta);
   font-weight: var(--po-text-weight-regular, 400);
-  line-height: var(--desktop-sidebar-line-height, 18px);
+  line-height: var(--agent-meta-line-height);
   white-space: nowrap;
 }
 
 .desktop-agent-history-empty {
   display: flex;
-  min-height: 34px;
+  min-height: var(--po-control-size-large);
   align-items: center;
   justify-content: center;
   gap: 6px;
   padding: 3px 8px;
   color: var(--agent-text-subtle);
-  font-size: 11px;
-  line-height: 16px;
+  font-size: var(--agent-font-size-caption);
+  line-height: var(--agent-caption-line-height);
   text-align: center;
 }
 
@@ -506,10 +506,10 @@
   border-radius: 4px;
   background: transparent;
   color: var(--agent-text-subtle);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   font: inherit;
-  font-size: 10px;
-  line-height: 16px;
+  font-size: var(--agent-font-size-micro);
+  line-height: var(--agent-micro-line-height);
 }
 
 .desktop-agent-history-more:hover {
@@ -522,12 +522,17 @@
   opacity: 0.5;
 }
 
-.desktop-agent-history-error {
+.desktop-agent-history-error,
+.desktop-agent-history-source-status {
   margin: 0;
-  color: var(--po-warning, #b7791f);
-  font-size: 10px;
-  line-height: 14px;
+  color: var(--po-warning);
+  font-size: var(--agent-font-size-micro);
+  line-height: var(--agent-micro-line-height);
   text-align: center;
+}
+
+.desktop-agent-history-source-status {
+  color: var(--agent-text-subtle);
 }
 
 .desktop-agent-runtime-launcher .is-spinning {

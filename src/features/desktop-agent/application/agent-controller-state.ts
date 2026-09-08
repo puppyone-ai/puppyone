@@ -6,6 +6,7 @@ import type {
   AgentRuntimeInspection,
   AgentRuntimeId,
   AgentSessionMetadata,
+  AgentSessionControlView,
 } from "../domain/agent-contract";
 import type { AgentErrorDescriptor } from "./agent-error";
 
@@ -27,6 +28,9 @@ export type AgentControllerState = {
   phase: AgentControllerPhase;
   inspection: AgentRuntimeInspection | null;
   session: AgentSessionMetadata | null;
+  /** Main-owned business state. Renderer-only fields are derived from this checkpoint. */
+  control: AgentSessionControlView | null;
+  replicaStatus: "detached" | "subscribing" | "live" | "stale";
   projection: AgentProjection;
   selectedRuntimeId: AgentRuntimeId | null;
   selectedProviderId: string | null;
@@ -50,7 +54,6 @@ export type AgentControllerState = {
   error: AgentErrorDescriptor | null;
   submitting: boolean;
   stopping: boolean;
-  resolvingBlocker: boolean;
   initialized: boolean;
 };
 
@@ -65,10 +68,3 @@ export const agentControllerTransitions: Readonly<Record<AgentControllerPhase, r
   "runtime-exited": ["discovering", "restoring", "creating", "ready", "failed"],
   failed: ["discovering", "restoring", "creating", "ready", "runtime-exited"],
 });
-
-export function phaseForProjection(projection: AgentProjection, current: AgentControllerPhase): AgentControllerPhase {
-  if (projection.runningTurnId) {
-    return projection.approvals.length || projection.questions.length ? "waiting" : "running";
-  }
-  return projection.terminalState ? "ready" : current;
-}

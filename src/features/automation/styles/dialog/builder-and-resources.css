@@ -44,7 +44,7 @@
 .desktop-cloud-automation-resource-search {
   display: flex;
   min-width: 0;
-  height: 30px;
+  height: var(--po-control-size);
   box-sizing: border-box;
   align-items: center;
   gap: 7px;
@@ -67,7 +67,7 @@
   background: transparent;
   color: var(--po-text);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
 }
 
 .desktop-cloud-automation-selected-resource {
@@ -84,14 +84,14 @@
 
 .desktop-cloud-automation-selected-resource > span {
   color: var(--po-success);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
 }
 
 .desktop-cloud-automation-selected-resource strong {
   min-width: 0;
   overflow: hidden;
   color: var(--po-text);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -103,9 +103,9 @@
   background: transparent;
   color: var(--po-text-muted);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   text-align: start;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .desktop-cloud-automation-link-button {
@@ -140,9 +140,9 @@
   background: transparent;
   color: var(--po-text-muted);
   font: inherit;
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   text-align: start;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .desktop-cloud-automation-resource-list > button:hover:not(:disabled),
@@ -171,13 +171,13 @@
 
 .desktop-cloud-automation-resource-list strong {
   color: var(--po-text);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 550;
 }
 
 .desktop-cloud-automation-resource-list small {
   color: var(--po-text-subtle);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
 }
 
 .desktop-cloud-automation-resource-state,
@@ -186,7 +186,7 @@
   border-radius: 6px;
   background: var(--po-control);
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 17px;
 }
 
@@ -208,13 +208,13 @@
   background: transparent;
   color: var(--po-accent);
   font: inherit;
-  font-size: 12px;
-  cursor: var(--po-clickable-cursor, pointer);
+  font-size: var(--po-type-ui-meta, 13px);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .desktop-cloud-automation-inline-note,
 .desktop-cloud-automation-inline-error {
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 17px;
 }
 
@@ -229,7 +229,7 @@
   border-radius: 6px;
   background: var(--po-control);
   color: var(--po-text-muted);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   line-height: 16px;
 }
 
@@ -247,9 +247,9 @@
   background: transparent;
   color: var(--po-text-muted);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   text-align: start;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .desktop-cloud-automation-folder-toggle svg:last-child {
@@ -278,7 +278,7 @@
 .desktop-cloud-automation-folder-row > button {
   display: inline-flex;
   min-width: 0;
-  height: 26px;
+  height: var(--po-control-size-small);
   align-items: center;
   gap: 6px;
   padding: 0 5px;
@@ -286,8 +286,8 @@
   background: transparent;
   color: var(--po-text-muted);
   font: inherit;
-  font-size: 12px;
-  cursor: var(--po-clickable-cursor, pointer);
+  font-size: var(--po-type-ui-meta, 13px);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .desktop-cloud-automation-folder-row > button:last-child span {
@@ -302,4 +302,3 @@
   border-radius: 7px;
   background: color-mix(in srgb, var(--po-danger) 6%, transparent);
 }
-

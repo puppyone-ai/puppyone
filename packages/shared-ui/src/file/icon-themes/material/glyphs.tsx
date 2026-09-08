@@ -211,7 +211,7 @@ function renderMaterialJsonDocumentGlyph(
       x="8.8"
       y="12.2"
       textAnchor="middle"
-      fontSize="8.3"
+      fontSize="8"
       fontWeight="850"
       fontFamily="var(--po-font-sans)"
       fill={context.color}
@@ -230,7 +230,7 @@ function renderMaterialPdfDocumentGlyph(
       x="8.75"
       y="11.65"
       textAnchor="middle"
-      fontSize="4.4"
+      fontSize="4"
       fontWeight="850"
       fontFamily="var(--po-font-sans)"
       fill={context.color}

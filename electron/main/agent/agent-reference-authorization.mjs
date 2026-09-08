@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { normalizeAgentWorkspaceRelativePath } from "../../../shared/agent-contract/reference-identity.mjs";
+import { isWorkspaceResourceReference, parseWorkspaceResourceReference } from "../../../shared/workspace-resource-reference.mjs";
 
 const MAX_REFERENCES = 32;
 const MAX_REFERENCE_BYTES = 25 * 1024 * 1024;
@@ -16,6 +17,7 @@ export async function authorizeAgentReferences({
   references,
   budget = createAgentReferenceBudget(),
   fsModule = fs,
+  resolveResource,
 }) {
   if (!Array.isArray(references) || references.length === 0) return [];
   assertReferenceBudget(budget);
@@ -30,17 +32,26 @@ export async function authorizeAgentReferences({
     if (typeof reference === "object" && reference !== null && "relativePath" in reference && !portablePath) {
       throw new Error("Agent workspace references require a valid workspace-relative identity.");
     }
-    const requestedPath = typeof reference === "string" ? reference : portablePath ?? reference?.path;
+    const requestedPath = typeof reference === "string" ? reference : reference?.resourceUri ?? portablePath ?? reference?.path;
     if (typeof requestedPath !== "string" || requestedPath.trim().length === 0) {
       throw new Error("Agent workspace references require a valid path.");
     }
-    const resolvedPath = path.isAbsolute(requestedPath)
+    const resourceUri = isWorkspaceResourceReference(requestedPath) ? requestedPath : null;
+    if (resourceUri && !resolveResource) throw new Error("Workspace resource resolution is unavailable.");
+    if (resourceUri && portablePath && parseWorkspaceResourceReference(resourceUri).relativePath !== portablePath) {
+      throw new Error("Agent reference path does not match its resource identity.");
+    }
+    const resource = resolveResource
+      ? await resolveResource(path.isAbsolute(requestedPath) ? path.relative(canonicalRoot, requestedPath) || "." : requestedPath)
+      : null;
+    const owningRoot = resource?.workspaceRoot ?? canonicalRoot;
+    const resolvedPath = resource?.absolutePath ?? (path.isAbsolute(requestedPath)
       ? path.resolve(requestedPath)
-      : path.resolve(canonicalRoot, requestedPath);
+      : path.resolve(canonicalRoot, requestedPath));
     const canonicalPath = await fsModule.promises.realpath(resolvedPath).catch(() => {
       throw new Error("An Agent file reference no longer exists.");
     });
-    if (!isSameOrInsidePath(canonicalRoot, canonicalPath)) {
+    if (!isSameOrInsidePath(owningRoot, canonicalPath)) {
       throw new Error("Agent file references must stay inside the assigned workspace.");
     }
     if (seen.has(canonicalPath)) continue;
@@ -74,17 +85,25 @@ export async function authorizeAgentReferences({
     }
     budget.remainingReferences -= 1;
     seen.add(canonicalPath);
-    const requestPath = path.relative(canonicalRoot, canonicalPath) || ".";
+    const requestPath = path.relative(owningRoot, canonicalPath) || ".";
     const relativePath = normalizeAgentWorkspaceRelativePath(requestPath);
     if (!relativePath) throw new Error("Agent workspace reference identity could not be normalized.");
     const name = safeDisplayName(reference?.displayName || reference?.name || path.basename(canonicalPath) || path.basename(canonicalRoot));
     authorized.push({
       authorized: true,
-      id: workspaceReferenceId(relativePath, entryType),
+      // Keep pre-upgrade draft mentions valid; new acquisitions always receive
+      // root-qualified IDs. A legacy relative reference stays scoped to its session.
+      id: workspaceReferenceId(portablePath && !resourceUri ? relativePath : resource?.resourceUri ?? relativePath, entryType),
       kind: "workspace-entry",
       entryType,
       path: canonicalPath,
       relativePath,
+      ...(resource ? {
+        resourceUri: resource.resourceUri,
+        workspaceFolderId: resource.folderId,
+        authorizedWorkspaceRoot: owningRoot,
+        ...(owningRoot !== canonicalRoot ? { workspaceName: safeDisplayName(resource.workspaceName) } : {}),
+      } : {}),
       displayName: name,
       name,
       mime: entryType === "file" ? inferMimeType(canonicalPath) : "inode/directory",
@@ -102,6 +121,8 @@ export function workspaceDraftReferences(references) {
     kind: "workspace-entry",
     entryType: reference.entryType,
     relativePath: reference.relativePath,
+    ...(reference.resourceUri ? { resourceUri: reference.resourceUri, workspaceFolderId: reference.workspaceFolderId } : {}),
+    ...(reference.workspaceName ? { workspaceName: reference.workspaceName } : {}),
     displayName: reference.displayName,
     mime: reference.mime,
     size: reference.size,

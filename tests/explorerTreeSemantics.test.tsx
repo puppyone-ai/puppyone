@@ -105,7 +105,7 @@ describe("ExplorerTree interactive semantics", () => {
     expect(container.querySelector(".explorer-tree-virtual-canvas")?.getAttribute("data-visible-row-count")).toBe("1");
   });
 
-  it("retains explicit root loading feedback", () => {
+  it("retains accessible root loading feedback without visible Loading copy", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -122,7 +122,39 @@ describe("ExplorerTree interactive semantics", () => {
       />,
     ));
 
-    expect(container.querySelector(".tree-meta-row.loading")?.textContent).toContain("Loading workspace");
+    const loadingRow = container.querySelector(".tree-meta-row.loading");
+    expect(loadingRow?.textContent).toBe("");
+    expect(loadingRow?.querySelector('[aria-label="Loading workspace"]')).not.toBeNull();
+  });
+
+  it("uses file-row skeletons instead of dot loaders for nested folder hydration", () => {
+    const folder: DataNode = {
+      id: "folder",
+      name: "folder",
+      path: "folder",
+      type: "folder",
+    };
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    act(() => renderWithTestLocalization(root,
+      <ExplorerTree
+        nodes={[folder]}
+        activePath={null}
+        expandedPaths={new Set([folder.path])}
+        loadingPaths={new Set([folder.path])}
+        loadingPresentation="skeleton"
+        showRoot={false}
+        loadingLabel="Loading folder"
+        onSelectNode={vi.fn()}
+      />,
+    ));
+
+    expect(container.querySelector("[data-puppy-loader]")).toBeNull();
+    expect(container.querySelector(".explorer-tree-branch-skeleton")).not.toBeNull();
+    expect(container.querySelector('[data-explorer-path="folder"]')?.getAttribute("aria-busy")).toBe("true");
+    expect(container.querySelector('[aria-label="Loading folder"]')).not.toBeNull();
   });
 
   it("keeps row actions outside button ancestry and preserves keyboard activation", () => {
@@ -167,6 +199,26 @@ describe("ExplorerTree interactive semantics", () => {
     act(() => action?.click());
     expect(onAction).toHaveBeenCalledTimes(1);
     expect(onSelectNode).not.toHaveBeenCalled();
+  });
+
+  it("does not leave an internal move active when a host takes over native export", () => {
+    const node: DataNode = { id: "readme", name: "README.md", path: "README.md", type: "markdown" };
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    const onExportNodes = vi.fn((_nodes, event) => event.preventDefault());
+    act(() => renderWithTestLocalization(root,
+      <ExplorerTree nodes={[node]} activePath={node.path} expandedPaths={new Set()} showRoot={false}
+        dragWorkspaceId="workspace" onSelectNode={vi.fn()} onExportNodes={onExportNodes}
+        dragExportHint="Option-drag to export files" />,
+    ));
+    const row = container.querySelector<HTMLElement>("[role='treeitem']")!;
+    const event = dragEvent("dragstart", fakeDataTransfer());
+    act(() => row.dispatchEvent(event));
+    expect(onExportNodes).toHaveBeenCalledOnce();
+    expect(event.defaultPrevented).toBe(true);
+    expect(row.getAttribute("aria-grabbed")).not.toBe("true");
+    expect(row.title).toContain("Option-drag");
   });
 
   it("keeps outbound reference drag available when in-tree move is read-only", () => {
@@ -304,6 +356,33 @@ describe("ExplorerTree interactive semantics", () => {
     });
 
     expect(onMoveNodes).toHaveBeenCalledWith([source], parent.path);
+  });
+
+
+  it("routes a claimed native file through move and keeps external files on the import path", async () => {
+    const source: DataNode = { id: "source", name: "file.md", path: "docs/file.md", type: "file" };
+    const target: DataNode = { id: "target", name: "target", path: "target", type: "folder" };
+    const onMoveNodes = vi.fn(async () => undefined);
+    const onImportFiles = vi.fn(async () => undefined);
+    const resolve = vi.fn(async () => [{ path: source.path, name: source.name, entryType: "file" as const }]);
+    const container = document.createElement("div"); document.body.appendChild(container); root = createRoot(container);
+    act(() => renderWithTestLocalization(root, <ExplorerTree nodes={[source, target]} activePath={null} expandedPaths={new Set()} showRoot={false}
+      canMoveNodes onSelectNode={vi.fn()} onMoveNodes={onMoveNodes} onImportFiles={onImportFiles} onResolveFileDrop={resolve} />));
+    const targetRow = container.querySelector<HTMLElement>('[data-explorer-path="target"]')!;
+    mockRowBounds(targetRow);
+    const transfer = fakeDataTransfer();
+    Object.assign(transfer, { files: [new File([""], "file.md")], types: ["Files"] });
+    await act(async () => { targetRow.dispatchEvent(dragEvent("drop", transfer)); });
+    expect(onMoveNodes).toHaveBeenCalledWith([source], "target");
+    expect(onImportFiles).not.toHaveBeenCalled();
+    resolve.mockResolvedValueOnce(null as never);
+    await act(async () => { targetRow.dispatchEvent(dragEvent("drop", transfer)); });
+    expect(onImportFiles).toHaveBeenCalledOnce();
+    resolve.mockRejectedValueOnce(new Error("expired"));
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    await act(async () => { targetRow.dispatchEvent(dragEvent("drop", transfer)); });
+    expect(onImportFiles).toHaveBeenCalledOnce();
+    expect(onMoveNodes).toHaveBeenCalledOnce();
   });
 
   it("recovers an internal move from the typed native drag payload", async () => {

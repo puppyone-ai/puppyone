@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   applyAgentEvents,
   createAgentProjection,
-} from "../src/features/desktop-agent/agentProjection";
+} from "./helpers/agentDisplayFixture";
 import type { AgentEvent, AgentEventType } from "../src/features/desktop-agent/agentTypes";
-import { LIVE_AGENT_ACTIVITY_STATUSES } from "../src/features/desktop-agent/domain/agent-turn-lifecycle";
+import { LIVE_AGENT_ACTIVITY_STATUSES } from "../electron/main/agent/domain/transcript/turn-lifecycle.mjs";
+import { buildAgentTimeline } from "../src/features/desktop-agent/ui/transcript/transcript-rows";
 
 const harnessFixtures = [
   {
@@ -116,6 +117,44 @@ describe("Desktop Agent normalized Harness lifecycle conformance", () => {
     expect(projection.parts.find((part) => part.kind === "assistant")).toMatchObject({
       streaming: false,
       terminalState: expectedStatus,
+    });
+  });
+
+  it.each(harnessFixtures)("keeps $runtimeId semantic rows stable across later completion events", ({ runtimeId }) => {
+    const projection = applyAgentEvents(createAgentProjection(), [
+      event(runtimeId, 1, "turn.started", { prompt: "Inspect it" }),
+      event(runtimeId, 2, "assistant.delta", { delta: "Inspecting" }, "shared-message"),
+      event(runtimeId, 3, "tool.started", {
+        kind: "command",
+        tool: "shell",
+        label: "List",
+        status: "running",
+      }, "shared-tool"),
+      event(runtimeId, 4, "tool.completed", {
+        kind: "command",
+        tool: "shell",
+        label: "List",
+        status: "completed",
+      }, "shared-tool"),
+      event(runtimeId, 5, "assistant.completed", { text: "Done" }, "shared-message"),
+      event(runtimeId, 6, "turn.completed", { status: "completed" }),
+    ]);
+    const timeline = buildAgentTimeline(projection);
+
+    expect(timeline.rows.map((row) => row.kind)).toEqual([
+      "user",
+      "assistant",
+      "command",
+      "assistant",
+      "turn-summary",
+    ]);
+    expect(timeline.rows.filter((row) => row.kind === "assistant")).toEqual([
+      expect.objectContaining({ sequence: 2, updatedSequence: 2 }),
+      expect.objectContaining({ sequence: 5, updatedSequence: 5 }),
+    ]);
+    expect(timeline.rows.find((row) => row.kind === "command")).toMatchObject({
+      sequence: 3,
+      updatedSequence: 4,
     });
   });
 });

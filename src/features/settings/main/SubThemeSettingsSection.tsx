@@ -14,14 +14,18 @@ export function SubThemeSettingsSection({
   requestedSubThemeId,
   effectiveSubThemeId,
   effectiveColorMode,
+  contentFontOverrideActive = false,
   onSubThemeChange,
+  onUseThemeContentFont,
 }: {
   catalog: SubThemeCatalogController;
   rootThemeId: InterfaceStyle;
   requestedSubThemeId: string;
   effectiveSubThemeId: string;
   effectiveColorMode: ResolvedTheme;
+  contentFontOverrideActive?: boolean;
   onSubThemeChange: (subThemeId: string) => void;
+  onUseThemeContentFont?: () => void;
 }) {
   const { t } = useLocalization();
   const allowedTargets = getInterfaceStyleSubThemePolicy(rootThemeId).allowedTargets;
@@ -94,6 +98,14 @@ export function SubThemeSettingsSection({
           </div>
         </div>
       </div>
+      {contentFontOverrideActive && onUseThemeContentFont && (
+        <div className="desktop-theme-font-override" role="status">
+          <span>{t("settings.appearance.themes.contentFontOverride")}</span>
+          <button type="button" onClick={onUseThemeContentFont}>
+            {t("settings.appearance.themes.useThemeFont")}
+          </button>
+        </div>
+      )}
       {catalog.error && <p className="desktop-theme-settings-error" role="alert">{catalog.error}</p>}
       {catalog.snapshot.diagnostics.length > 0 && (
         <ul className="desktop-theme-settings-diagnostics" aria-label={t("settings.appearance.themes.diagnostics")}>

@@ -56,7 +56,7 @@ describe("window Workspace composition service", () => {
     const result = await service.attach(window, "/b");
 
     expect(result.status).toBe("focused-existing");
-    expect(revealWindow).toHaveBeenCalledWith(otherWindow);
+    expect(revealWindow).toHaveBeenCalledWith(otherWindow, "/b");
     expect(state.folderPaths).toEqual(["/a"]);
   });
 
@@ -77,7 +77,7 @@ describe("window Workspace composition service", () => {
     expect(indexedPaths.has("/b")).toBe(false);
   });
 
-  it("persists and publishes before cleaning up one detached Folder", async () => {
+  it("stops project resources before persisting and publishing a detached Folder", async () => {
     const window = { id: "window-a" };
     const state = stateWith("a", "b");
     const indexedPaths = new Map([["/a", window], ["/b", window]]);
@@ -92,7 +92,7 @@ describe("window Workspace composition service", () => {
 
     const result = await service.detach(window, "/b");
 
-    expect(events).toEqual(["persisted", "published", "cleaned"]);
+    expect(events).toEqual(["cleaned", "persisted", "published"]);
     expect(result).toMatchObject({ status: "detached-current", path: "/b" });
     expect(result.workspaceId).toBe(state.workspaceId);
     expect(result.workspaces.map((item) => item.id)).toEqual(["a"]);
@@ -117,16 +117,16 @@ describe("window Workspace composition service", () => {
     await expect(service.detach(window, "/b")).rejects.toThrow(/disk full/i);
     expect(state.folderPaths).toEqual(["/a", "/b"]);
     expect(indexedPaths.get("/b")).toBe(window);
-    expect(cleanupDetachedWorkspace).not.toHaveBeenCalled();
+    expect(cleanupDetachedWorkspace).toHaveBeenCalledOnce();
   });
 
-  it("refuses to detach the last Project", async () => {
+  it("closes the last Project and leaves an empty composition", async () => {
     const window = { id: "window-a" };
     const state = stateWith("a");
     const service = createService({ state, indexedPaths: new Map([["/a", window]]) });
 
-    await expect(service.detach(window, "/a")).rejects.toThrow(/last Project/i);
-    expect(state.folderPaths).toEqual(["/a"]);
+    await expect(service.detach(window, "/a")).resolves.toMatchObject({ status: "detached-current", workspaces: [] });
+    expect(state.folderPaths).toEqual([]);
   });
 });
 

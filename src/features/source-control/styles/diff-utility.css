@@ -46,7 +46,7 @@
   max-width: 112px;
   overflow: hidden;
   color: var(--po-text);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-weight: 650;
   line-height: 18px;
   text-overflow: ellipsis;
@@ -73,14 +73,14 @@
 .desktop-file-diff-name {
   flex: 0 1 auto;
   color: var(--po-text);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 600;
 }
 
 .desktop-file-diff-directory {
   flex: 0 2 auto;
   color: var(--po-text-subtle);
-  font-size: 10px;
+  font-size: var(--po-type-ui-micro, 11px);
   font-weight: 500;
 }
 
@@ -89,7 +89,7 @@
   flex: 0 0 auto;
   gap: 6px;
   font-variant-numeric: tabular-nums;
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-weight: 650;
 }
 
@@ -102,7 +102,7 @@
   border-radius: 4px;
   background: var(--po-control);
   color: var(--po-text-muted);
-  font-size: 10px;
+  font-size: var(--po-type-ui-micro, 11px);
   font-weight: 600;
 }
 
@@ -136,7 +136,7 @@
   min-height: 18px;
   align-items: flex-start;
   font-family: var(--po-font-mono);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 18px;
 }
 
@@ -206,7 +206,7 @@
 .desktop-commit-empty {
   padding: 14px 16px;
   color: var(--po-text-subtle);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-style: italic;
 }
 
@@ -240,14 +240,14 @@
 
 .desktop-binary-diff-heading strong {
   color: var(--po-text);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 650;
 }
 
 .desktop-binary-diff-heading span,
 .desktop-binary-diff-warning {
   color: var(--po-text-subtle);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   line-height: 1.45;
 }
 
@@ -268,7 +268,7 @@
   border-radius: 5px;
   background: color-mix(in srgb, var(--po-control) 40%, transparent);
   color: var(--po-text-subtle);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
 }
 
 .desktop-binary-diff-side strong {
@@ -297,7 +297,7 @@
   padding: 14px;
   background: color-mix(in srgb, var(--po-panel) 72%, var(--po-inset));
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
 }
 
 .desktop-docx-diff-state > div {
@@ -308,7 +308,7 @@
 
 .desktop-docx-diff-state span {
   color: var(--po-text-subtle);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
 }
 
 .desktop-docx-diff-state.error {
@@ -320,7 +320,7 @@
   flex-wrap: wrap;
   gap: 6px 12px;
   color: var(--po-text-subtle);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-variant-numeric: tabular-nums;
 }
 
@@ -330,7 +330,7 @@
   border-radius: 4px;
   background: color-mix(in srgb, var(--po-accent) 8%, transparent);
   color: var(--po-accent);
-  font-size: 10px;
+  font-size: var(--po-type-ui-micro, 11px);
   font-weight: 650;
   letter-spacing: 0.02em;
   text-transform: uppercase;
@@ -382,20 +382,20 @@
   align-content: start;
   gap: 1px;
   color: var(--po-text-subtle);
-  font-size: 10px;
+  font-size: var(--po-type-ui-micro, 11px);
 }
 
 .desktop-docx-redline-location code {
   color: var(--po-text-disabled);
   font-family: var(--po-font-mono);
-  font-size: 10px;
+  font-size: var(--po-type-ui-micro, 11px);
 }
 
 .desktop-docx-redline-block p {
   min-width: 0;
   margin: 0;
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 1.6;
   white-space: pre-wrap;
 }
@@ -420,7 +420,7 @@
   padding-top: 8px;
   border-top: 1px solid var(--po-border-subtle);
   color: var(--po-text-disabled);
-  font-size: 10px;
+  font-size: var(--po-type-ui-micro, 11px);
   line-height: 1.45;
 }
 
@@ -461,14 +461,14 @@
 
 .desktop-utility-center strong {
   color: var(--po-text);
-  font-size: 14px;
+  font-size: var(--po-type-ui-body-large, 15px);
   font-weight: 650;
 }
 
 .desktop-utility-center span {
   max-width: min(520px, 80%);
   color: var(--po-text-subtle);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 1.45;
 }
 
@@ -501,7 +501,7 @@
 .secondary-action,
 .danger-action {
   display: inline-flex;
-  height: 32px;
+  height: var(--po-control-size);
   align-items: center;
   justify-content: center;
   gap: 8px;
@@ -510,7 +510,7 @@
   border-radius: 6px;
   background: var(--po-panel-raised);
   color: var(--po-text);
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   font-weight: 600;
   white-space: nowrap;
 }

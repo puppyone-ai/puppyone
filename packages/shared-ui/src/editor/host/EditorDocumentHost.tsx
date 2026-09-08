@@ -11,6 +11,7 @@ import {
 } from "../registry/viewerPackAdapter";
 import type {
   ContextMapWorkspaceEnvironment,
+  DocumentNavigationPort,
   EditorDocument,
   EditorInteractionPreferences,
   EditorSaveMode,
@@ -40,6 +41,7 @@ import {
   DocumentSurfacePending,
   DocumentSurfaceReadinessBoundary,
 } from "./DocumentSurfaceHost";
+import { exceedsUtf8ByteLimit, formatByteLimit } from "./sourceAdmission";
 
 export type { EditorDocument, EditorDocumentKind, EditorSaveMode, MarkdownHtmlTrustMode } from "../registry/viewerTypes";
 
@@ -62,6 +64,7 @@ export type EditorDocumentHostProps = {
   workspaceId?: string;
   workspaceRoot?: string | null;
   markdownEnvironment?: MarkdownWorkspaceEnvironment | null;
+  documentNavigation?: DocumentNavigationPort | null;
   contextMapEnvironment?: ContextMapWorkspaceEnvironment | null;
   appPreview?: AppPreviewController | null;
   openExternalFile?: (path: string) => Promise<void>;
@@ -105,6 +108,7 @@ function EditorDocumentSurface({
   workspaceId = "",
   workspaceRoot = null,
   markdownEnvironment = null,
+  documentNavigation = null,
   contextMapEnvironment = null,
   appPreview = null,
   openExternalFile,
@@ -116,6 +120,7 @@ function EditorDocumentSurface({
   const { viewer, format, resolvedExtension } = resolveEditorViewer(document);
   const preloadWhileReading = Boolean(
     !viewerExtensionAdapter
+    && viewer.surfaceIsolation !== "isolated-webcontents"
     && loading
     && !document.content
     && !document.preview,
@@ -165,6 +170,22 @@ function EditorDocumentSurface({
     ? document.content ?? ""
     : document.content ?? document.preview ?? "";
   const content = viewer.normalizeContent?.(rawContent, document) ?? rawContent;
+  if (
+    (viewer.source === "content" || viewer.source === "content-and-resource")
+    && exceedsUtf8ByteLimit(content, viewer.resourcePolicy.maxSourceBytes)
+  ) {
+    return (
+      <EditorUnavailableState
+        title={t("editor.unavailable.title")}
+        message={t("editor.unavailable.resourceLimit", {
+          limit: formatByteLimit(viewer.resourcePolicy.maxSourceBytes),
+        })}
+        documentPath={document.path}
+        openExternalFile={openExternalFile}
+        openLabel={t("editor.openDefaultApp")}
+      />
+    );
+  }
   const editorAccess = resolveEditorAccess({
     document,
     format,
@@ -204,6 +225,7 @@ function EditorDocumentSurface({
         format,
         resolvedExtension,
         content,
+        resourcePolicy: viewer.resourcePolicy,
         aiEditFile,
         fileUrl: document.url,
         fileUrlLoading,
@@ -218,6 +240,7 @@ function EditorDocumentSurface({
         workspaceId,
         workspaceRoot,
         markdownEnvironment,
+        documentNavigation,
         contextMapEnvironment,
         appPreview,
         openExternalFile,
@@ -305,7 +328,11 @@ function EditorUnavailableState({
       <strong>{title}</strong>
       <span dir="auto">{message}</span>
       {openExternalFile && (
-        <button type="button" onClick={() => void openExternalFile(documentPath)}>
+        <button
+          type="button"
+          data-po-interaction="navigation"
+          onClick={() => void openExternalFile(documentPath)}
+        >
           {openLabel}
         </button>
       )}

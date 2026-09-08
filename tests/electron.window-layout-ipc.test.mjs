@@ -89,6 +89,52 @@ describe("native window layout IPC", () => {
     expect(ownerWindow.setWindowButtonPosition).not.toHaveBeenCalled();
   });
 
+  it("keeps native traffic lights fixed when the leading rail changes", () => {
+    const ownerWindow = createWindow();
+    const handlers = registerHandlers(ownerWindow);
+    const applyProfile = handlers.get("window-layout:set-chrome-profile");
+
+    expect(applyProfile(createEvent(), {
+      titlebar: "default-titlebar-v1",
+      leadingRail: true,
+    })).toEqual({
+      applied: true,
+      customControls: false,
+    });
+    expect(ownerWindow.setWindowButtonVisibility).toHaveBeenLastCalledWith(true);
+    expect(ownerWindow.setWindowButtonPosition).toHaveBeenLastCalledWith({ x: 13, y: 12 });
+    ownerWindow.setWindowButtonVisibility.mockClear();
+    ownerWindow.setWindowButtonPosition.mockClear();
+    expect(reapplyWindowChromeProfile(ownerWindow)).toMatchObject({ customControls: false });
+    expect(ownerWindow.setWindowButtonVisibility).not.toHaveBeenCalled();
+    expect(ownerWindow.setWindowButtonPosition).toHaveBeenCalledExactlyOnceWith({ x: 13, y: 12 });
+
+    expect(applyProfile(createEvent(), {
+      titlebar: "default-titlebar-v1",
+      leadingRail: false,
+    })).toEqual({
+      applied: true,
+      customControls: false,
+    });
+    expect(ownerWindow.setWindowButtonVisibility).toHaveBeenLastCalledWith(true);
+    expect(ownerWindow.setWindowButtonPosition).toHaveBeenLastCalledWith({ x: 13, y: 12 });
+  });
+
+  it("keeps the platform-native controls outside macOS", () => {
+    const ownerWindow = createWindow();
+    const handlers = registerHandlers(ownerWindow, "windows");
+
+    expect(handlers.get("window-layout:set-chrome-profile")(createEvent(), {
+      titlebar: "default-titlebar-v1",
+      leadingRail: true,
+    })).toEqual({
+      applied: true,
+      customControls: false,
+    });
+    expect(ownerWindow.setWindowButtonVisibility).toHaveBeenLastCalledWith(true);
+    expect(ownerWindow.setWindowButtonPosition).toHaveBeenLastCalledWith({ x: 13, y: 12 });
+  });
+
   it("repositions default traffic lights on focus without rebuilding their safe area", () => {
     const ownerWindow = createWindow();
     const handlers = registerHandlers(ownerWindow);
@@ -126,7 +172,7 @@ function register(ownerWindow) {
   return handler;
 }
 
-function registerHandlers(ownerWindow) {
+function registerHandlers(ownerWindow, platform = "macos") {
   const handlers = new Map();
   registerWindowLayoutIpcHandlers({
     ipcMain: {
@@ -137,6 +183,7 @@ function registerHandlers(ownerWindow) {
     BrowserWindow: {
       fromWebContents: () => ownerWindow,
     },
+    platform,
   });
   return handlers;
 }

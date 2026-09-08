@@ -16,3 +16,13 @@ export {
   type NativeSurfacePointerRoutingRegionLease,
 } from "./nativeSurfacePointerRoutingRegions";
 export { useNativeSurfacePointerRoutingRegion } from "./useNativeSurfacePointerRoutingRegion";
+export {
+  acquireNativeSurfaceLayoutLease,
+  isNativeSurfaceLayoutStable,
+  measureNativeSurfaceBounds,
+  type NativeSurfaceBounds,
+  type NativeSurfaceGeometry,
+  type NativeSurfaceLayoutLease,
+} from "./nativeSurfaceGeometry";
+export { useNativeSurfaceGeometry } from "./useNativeSurfaceGeometry";
+export { useNativeSurfaceLayoutTransition } from "./useNativeSurfaceLayoutTransition";

@@ -10,6 +10,7 @@ const windowChromeComponent = readFileSync(
 );
 const electronMain = readFileSync(new URL("../electron/main.mjs", import.meta.url), "utf8");
 const desktopShell = readFileSync(new URL("../src/components/DesktopCloudShell.tsx", import.meta.url), "utf8");
+const shellCss = readFileSync(new URL("../src/styles/shell.css", import.meta.url), "utf8");
 const desktopMenu = readFileSync(new URL("../src/components/DesktopMenu.tsx", import.meta.url), "utf8");
 const sharedWorkspaceCss = readFileSync(
   new URL("../packages/shared-ui/src/styles/data-workspace.css", import.meta.url),
@@ -43,6 +44,20 @@ describe("titlebar drag-region architecture", () => {
     expect(desktopMenu).toContain('data-window-no-drag="true"');
     expect(sharedWorkspaceCss).not.toContain("-webkit-app-region");
     expect(sharedWorkspaceCss).not.toContain("data-window-drag-region");
+  });
+
+  it("keeps the Header full width and mounts the optional Project rail below it", () => {
+    expect(desktopShell).toContain('data-leading-rail={leadingRail ? "true" : undefined}');
+    expect(desktopShell).toContain('className="desktop-shell-workbench"');
+    expect(desktopShell.indexOf("<DesktopWindowChrome")).toBeLessThan(
+      desktopShell.indexOf('className="desktop-shell-leading-rail"'),
+    );
+    expect(desktopShell).toContain('className="desktop-shell-below-header"');
+    expect(desktopShell).toContain('className="desktop-shell-workspace-column"');
+    expect(shellCss).toMatch(/\.desktop-shell\s*\{[^}]*flex-direction:\s*column;/s);
+    expect(shellCss).toMatch(/\.desktop-shell-workbench\s*\{[^}]*flex-direction:\s*column;/s);
+    expect(shellCss).toMatch(/\.desktop-shell-below-header\s*\{[^}]*flex-direction:\s*row;/s);
+    expect(titlebarCss).not.toContain('.desktop-shell[data-leading-rail="true"] .desktop-titlebar');
   });
 
   it("keeps the native fullscreen reveal bar free of application titles", () => {

@@ -11,7 +11,7 @@
 
 .desktop-cloud-project-history-empty button {
   display: inline-flex;
-  height: 26px;
+  height: var(--po-control-size-small);
   align-items: center;
   justify-content: center;
   gap: 5px;
@@ -20,7 +20,7 @@
   border-radius: 5px;
   background: var(--po-control);
   color: var(--po-text-muted);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-weight: 560;
 }
 
@@ -61,7 +61,7 @@
 .desktop-cloud-commit-actions button {
   display: inline-flex;
   width: 24px;
-  height: 24px;
+  height: var(--po-control-size-tight);
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
@@ -93,7 +93,7 @@
   border-radius: 3px;
   background: color-mix(in srgb, var(--po-accent) 9%, transparent);
   color: var(--po-accent);
-  font-size: 9px;
+  font-size: var(--po-text-size-micro, 10px);
   font-weight: 620;
   line-height: 1;
   text-overflow: ellipsis;
@@ -152,14 +152,14 @@
 
 .desktop-cloud-project-history-empty strong {
   color: var(--po-text);
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   font-weight: 650;
 }
 
 .desktop-cloud-project-history-empty p {
   max-width: 430px;
   margin: 0 0 4px;
-  font-size: 11.5px;
+  font-size: var(--po-text-size-hint, 12px);
   line-height: 1.5;
 }
 

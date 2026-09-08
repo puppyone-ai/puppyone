@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { commandPresentationForActivity } from "../src/features/desktop-agent/domain/agent-activity-presentation";
+import { commandPresentationForActivity, outputForActivity } from "../src/features/desktop-agent/domain/agent-activity-presentation";
 import type { AgentActivity } from "../src/features/desktop-agent/domain/agent-projection-types";
 
 describe("Desktop Agent Shell presentation semantics", () => {
@@ -21,6 +21,24 @@ describe("Desktop Agent Shell presentation semantics", () => {
     "rg needle src | xargs rm",
   ])("keeps ambiguous or mutating shell syntax as Bash: %s", (command) => {
     expect(commandPresentationForActivity(activity(command))).toMatchObject({ tool: "bash", title: "Bash", viaShell: false });
+  });
+
+  it("renders a structured tool result even when an adapter supplies no preview", () => {
+    expect(outputForActivity({
+      ...activity("tool"),
+      kind: "mcp",
+      detail: {
+        tool: "lookup",
+        result: {
+          content: [
+            { type: "text", text: "visible result" },
+            { type: "artifact", uri: "artifact://report" },
+            { type: "json", value: { count: 2 } },
+          ],
+          error: null,
+        },
+      },
+    })).toContain("visible result\nartifact://report\n{\n  \"count\": 2\n}");
   });
 });
 

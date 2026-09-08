@@ -1,13 +1,19 @@
+import { createNativePersistenceReporter } from "../../runtime/native-persistence-reporter.mjs";
+import { claudeHistorySource } from "./claude-history-source.mjs";
+import { readClaudeHistory } from "./claude-history-reader.mjs";
+import { discoverClaudeHistory } from "./claude-history-discovery.mjs";
+import { normalizeModels, compatibleClaudeEffort, normalizeCommands, normalizeAccount, cleanEnvironment, bounded, normalizeDate } from "./claude-native-values.mjs";
+
+import { claudeResolveApproval, claudeResolveQuestion, claudeRequestPermission, claudeResolvePending } from "./claude-interactions.mjs";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
-import { boundRendererValue, redactSecrets, redactSecretText } from "../../agent-events.mjs";
+import { redactSecretText } from "../../agent-events.mjs";
 import {
   formatAuthorizedProjectInstructions,
   loadAuthorizedProjectInstructions,
 } from "../../security/authorized-project-instructions.mjs";
 import {
   createClaudeEventState,
-  normalizeClaudeHistory,
   normalizeClaudeMessage,
 } from "./claude-events.mjs";
 import { CLAUDE_RUNTIME_DESCRIPTOR } from "./claude-identity.mjs";
@@ -43,6 +49,7 @@ export const CLAUDE_CAPABILITIES = Object.freeze({
   slashCommands: true,
   sessionHistory: true,
   history: Object.freeze({ discovery: "paged", exactOpen: "supported", hydration: "snapshot" }),
+  recovery: Object.freeze({ strategy: "snapshot-reload", activeExecution: "outcome-unknown", atomicHandoff: false }),
   usage: true,
   accountState: true,
   mcp: true,
@@ -58,7 +65,7 @@ export const CLAUDE_CAPABILITIES = Object.freeze({
   }),
   referenceInputs: Object.freeze({
     schemaVersion: 1,
-    workspace: Object.freeze({ files: true, directories: true }),
+    workspace: Object.freeze({ files: true, directories: true, crossRoots: true }),
     attachments: Object.freeze({
       image: Object.freeze({
         accepted: true,
@@ -85,8 +92,9 @@ export class ClaudeAgentSdkAdapter {
 
   getSessionHistoryPort() {
     return Object.freeze({
+      sourceScopeId: this.historySource.sourceScopeId,
       discover: (request) => this.discoverSessions(request),
-      hydrate: () => this.readHistory(),
+      hydrate: () => this.readHistoryResult(),
     });
   }
 
@@ -97,6 +105,7 @@ export class ClaudeAgentSdkAdapter {
     sdkLoader = () => import("@anthropic-ai/claude-agent-sdk"),
     onEvent = () => {},
     onExit = () => {},
+    onSessionPersisted = () => {},
     projectInstructionLoader = (root) => loadAuthorizedProjectInstructions(root, {
       instructionNames: CLAUDE_PROJECT_INSTRUCTION_NAMES,
     }),
@@ -104,11 +113,25 @@ export class ClaudeAgentSdkAdapter {
     logger = console,
   }) {
     this.readiness = readiness ?? {};
+    // SDK history helpers use the parent process profile. Launch the SDK query in that same profile.
+    this.historySource = claudeHistorySource(process.env);
     this.workspaceRoot = path.resolve(workspaceRoot);
     this.appVersion = appVersion;
     this.sdkLoader = sdkLoader;
     this.onEvent = onEvent;
     this.onExit = onExit;
+    this.persistenceReporter = createNativePersistenceReporter({
+      isClosed: () => this.disposed,
+      verify: async () => {
+        const id = this.sessionId;
+        if (!id) return null;
+        const sdk = await this.#loadSdk();
+        const info = await sdk.getSessionInfo(id, { dir: this.workspaceRoot });
+        return info?.sessionId === id && this.sessionId === id
+          ? { providerSessionId: id, sourceScopeId: this.historySource.sourceScopeId } : null;
+      },
+      report: onSessionPersisted,
+    });
     this.projectInstructionLoader = projectInstructionLoader;
     this.spawnClaudeCodeProcess = spawnClaudeCodeProcess ?? createClaudeSpawn({
       onStderr: (data) => {
@@ -171,39 +194,24 @@ export class ClaudeAgentSdkAdapter {
     } finally {
       controller.abort();
       query.close?.();
+      await this.spawnClaudeCodeProcess.waitForExit?.({ signal: controller.signal });
     }
   }
 
-  async discoverSessions({ cursor = null, limit = 50 } = {}) {
+  async discoverSessions(options = {}) {
     this.#assertUsable();
-    const sdk = await this.#loadSdk();
-    if (typeof sdk.listSessions !== "function") return { supported: false, sessions: [], nextCursor: null };
-    const offset = numericCursor(cursor);
-    const pageSize = boundedPageSize(limit);
-    const sessions = await sdk.listSessions({ dir: this.workspaceRoot, limit: pageSize, offset });
-    const normalized = asArray(sessions).filter((session) => (
-      safeId(session?.sessionId) && (!session?.cwd || path.resolve(session.cwd) === this.workspaceRoot)
-    )).slice(0, pageSize).map((session) => ({
-      providerSessionId: session.sessionId,
-      title: bounded(session.customTitle || session.summary || session.firstPrompt, 500) || "Claude Code session",
-      createdAt: normalizeDate(session.createdAt ?? session.lastModified),
-      updatedAt: normalizeDate(session.lastModified),
-    }));
-    return {
-      supported: true,
-      sessions: normalized,
-      nextCursor: normalized.length === pageSize ? String(offset + normalized.length) : null,
-    };
+    options.signal?.throwIfAborted();
+    return discoverClaudeHistory({ sdk: await this.#loadSdk(), workspaceRoot: this.workspaceRoot }, options);
   }
 
   async createSession({ model = null, effort = null, mode = "agent" } = {}) {
     this.#assertIdle();
     await this.#closePersistentQuery("Starting a new Claude Code session.");
-    this.sessionId = null;
+    this.sessionId = randomUUID();
     this.resuming = false;
     const now = new Date().toISOString();
     return {
-      providerSessionId: null,
+      providerSessionId: this.sessionId,
       title: "New Claude Code session",
       model,
       effort,
@@ -234,15 +242,10 @@ export class ClaudeAgentSdkAdapter {
     };
   }
 
-  async readHistory() {
-    if (!this.sessionId) return [];
-    const sdk = await this.#loadSdk();
-    const messages = await sdk.getSessionMessages(this.sessionId, {
-      dir: this.workspaceRoot,
-      limit: 1_000,
-      includeSystemMessages: false,
-    });
-    return normalizeClaudeHistory(messages, this.sessionId);
+  async readHistory() { return (await this.readHistoryResult()).events; }
+
+  async readHistoryResult() {
+    return readClaudeHistory({ sdk: await this.#loadSdk(), workspaceRoot: this.workspaceRoot, providerSessionId: this.sessionId });
   }
 
   async startTurn({ prompt, model = null, effort = null, mode = "agent", references: allReferences = [], attachments = [], contextReferences = [] }) {
@@ -258,7 +261,7 @@ export class ClaudeAgentSdkAdapter {
     });
     const turnId = `claude:${randomUUID()}`;
     const controller = new AbortController();
-    const state = createClaudeEventState({ turnId, resumed: this.resuming || Boolean(this.sessionId) });
+    const state = createClaudeEventState({ turnId, resumed: this.resuming });
     const selectedEffort = compatibleClaudeEffort(this.modelProfiles.get(model), effort);
     await this.#ensurePersistentQuery({ sdk, controller, model, effort: selectedEffort, mode, projectInstructions });
     this.activeTurnId = turnId;
@@ -283,46 +286,10 @@ export class ClaudeAgentSdkAdapter {
     // native turn; AgentService force-terminates the process if it never
     // confirms the interruption.
   }
+  resolveApproval(...args) { return claudeResolveApproval(this, ...args); }
 
-  resolveApproval({ requestId, decision, turnId }) {
-    const pending = this.pendingApprovals.get(requestId);
-    if (!pending || pending.turnId !== turnId || turnId !== this.activeTurnId) {
-      throw new Error("Approval correlation did not match the active Claude Code turn.");
-    }
-    this.pendingApprovals.delete(requestId);
-    if (decision === "accept" || decision === "acceptForSession") {
-      const updatedPermissions = decision === "acceptForSession"
-        ? asArray(pending.suggestions).filter((suggestion) => suggestion?.destination === "session")
-        : [];
-      pending.resolve({
-        behavior: "allow",
-        updatedInput: pending.input,
-        ...(updatedPermissions.length ? { updatedPermissions } : {}),
-      });
-      return;
-    }
-    pending.resolve({
-      behavior: "deny",
-      message: decision === "cancel" ? "User interrupted." : "User denied this action.",
-      interrupt: decision === "cancel",
-    });
-  }
+  resolveQuestion(...args) { return claudeResolveQuestion(this, ...args); }
 
-  resolveQuestion({ requestId, answers, rejected, turnId }) {
-    const pending = this.pendingQuestions.get(requestId);
-    if (!pending || pending.turnId !== turnId || turnId !== this.activeTurnId) {
-      throw new Error("Question correlation did not match the active Claude Code turn.");
-    }
-    this.pendingQuestions.delete(requestId);
-    if (rejected) {
-      pending.resolve({ behavior: "deny", message: "User declined to answer.", interrupt: true });
-      return;
-    }
-    pending.resolve({
-      behavior: "allow",
-      updatedInput: { ...pending.input, answers: questionAnswerMap(pending.questions, answers) },
-    });
-  }
 
   async forkSession({ messageId = null } = {}) {
     if (!this.sessionId) throw new Error("No Claude Code session is active.");
@@ -339,21 +306,32 @@ export class ClaudeAgentSdkAdapter {
     if (this.disposed) return;
     this.disposed = true;
     this.interruptRequested = true;
-    this.#resolvePending(reason);
+    claudeResolvePending(this, reason);
     await this.#closePersistentQuery(reason);
     this.#clearActive();
   }
 
   async #consumePersistent(query, channel) {
-    let emittedTerminal = false;
+    let exitReported = false;
     try {
       for await (const message of query) {
         if (this.disposed || this.activeQuery !== query) return;
-        if (typeof message?.session_id === "string" && message.session_id) this.sessionId = message.session_id;
+        if (typeof message?.session_id === "string" && message.session_id) {
+          if (this.sessionId && this.sessionId !== message.session_id) throw new Error("Claude Code returned a different native session identity.");
+          this.sessionId = message.session_id;
+          this.resuming = true;
+        }
         channel.setSessionId(this.sessionId ?? "");
         const state = this.activeState;
         if (!state) continue;
-        const normalized = normalizeClaudeMessage(message, state);
+        let normalized;
+        try { normalized = normalizeClaudeMessage(message, state); }
+        catch (error) {
+          this.onEvent({ type: "provider.error", providerSessionId: this.sessionId, turnId: state.turnId,
+            itemId: null, payload: { code: "ADAPTER_EVENT_INVALID", stage: "display-translation", recoverable: true,
+              message: redactSecretText(error instanceof Error ? error.message : String(error)) } });
+          continue;
+        }
         for (const event of normalized) {
           const output = this.interruptRequested && ["turn.completed", "turn.failed"].includes(event.type)
             ? { ...event, type: "turn.interrupted", payload: { ...event.payload, status: "interrupted" } }
@@ -361,6 +339,7 @@ export class ClaudeAgentSdkAdapter {
           this.onEvent(output);
         }
         if (state.terminal && this.activeState === state) {
+          void this.persistenceReporter.confirm();
           channel.onTurnComplete();
           this.#clearActive();
         }
@@ -368,38 +347,19 @@ export class ClaudeAgentSdkAdapter {
     } catch (error) {
       const state = this.activeState;
       if (!this.disposed && this.activeQuery === query && state && !state.terminal) {
-        const interrupted = this.interruptRequested || this.activeController?.signal.aborted;
-        if (!interrupted) {
-          this.onEvent({
-            type: "provider.error",
-            providerSessionId: this.sessionId,
-            turnId: state.turnId,
-            itemId: null,
-            payload: { message: redactSecretText(error instanceof Error ? error.message : String(error)), recoverable: true },
-          });
-        }
-        this.onEvent({
-          type: interrupted ? "turn.interrupted" : "turn.failed",
-          providerSessionId: this.sessionId,
-          turnId: state.turnId,
-          itemId: null,
-          payload: { status: interrupted ? "interrupted" : "failed" },
-        });
-        emittedTerminal = true;
+        // Stream failure is a lost observation, not a native terminal result.
+        this.onEvent({ type: "provider.error", providerSessionId: this.sessionId, turnId: state.turnId, itemId: null,
+          payload: { message: redactSecretText(error instanceof Error ? error.message : String(error)), recoverable: true } });
+        exitReported = true;
+        this.onExit({ expected: false, error: "Claude Code stream ended without a native result." });
       }
     } finally {
       if (this.activeQuery === query) {
         const state = this.activeState;
-        if (!this.disposed && state && !state.terminal && !emittedTerminal) {
-          this.onEvent({
-            type: this.interruptRequested ? "turn.interrupted" : "turn.failed",
-            providerSessionId: this.sessionId,
-            turnId: state.turnId,
-            itemId: null,
-            payload: { status: this.interruptRequested ? "interrupted" : "failed" },
-          });
+        if (!this.disposed && state && !state.terminal && !exitReported) {
+          this.onExit({ expected: false, error: "Claude Code stream ended without a native result." });
         }
-        this.#resolvePending("Claude Code query closed before the request was resolved.");
+        claudeResolvePending(this, "Claude Code query closed before the request was resolved.");
         channel.close();
         this.activeQuery = null;
         this.activeController = null;
@@ -435,7 +395,8 @@ export class ClaudeAgentSdkAdapter {
         model,
         effort,
         mode,
-        resume: this.sessionId,
+        resume: this.resuming ? this.sessionId : null,
+        sessionId: this.resuming ? null : this.sessionId,
         projectInstructions,
       }),
     });
@@ -446,6 +407,7 @@ export class ClaudeAgentSdkAdapter {
     this.queryConsumer = this.#consumePersistent(query, channel);
     try {
       await withTimeout(query.initializationResult(), INSPECTION_TIMEOUT_MS, "Claude Code startup timed out.");
+      if (this.activeQuery !== query || this.disposed) throw new Error("Claude Code query closed during initialization.");
     } catch (error) {
       await this.#closePersistentQuery("Claude Code startup failed.");
       throw error;
@@ -466,7 +428,8 @@ export class ClaudeAgentSdkAdapter {
       await Promise.race([Promise.resolve(this.queryConsumer).catch(() => {}), delay(1_000)]);
     }
     this.queryConsumer = null;
-    if (reason && this.pendingApprovals.size + this.pendingQuestions.size > 0) this.#resolvePending(reason);
+    if (controller) await this.spawnClaudeCodeProcess.waitForExit?.({ signal: controller.signal });
+    if (reason && this.pendingApprovals.size + this.pendingQuestions.size > 0) claudeResolvePending(this, reason);
   }
 
   #queryOptions({
@@ -475,6 +438,7 @@ export class ClaudeAgentSdkAdapter {
     effort = null,
     mode = "agent",
     resume = null,
+    sessionId = null,
     projectInstructions = [],
   } = {}) {
     const append = formatAuthorizedProjectInstructions(projectInstructions);
@@ -483,15 +447,16 @@ export class ClaudeAgentSdkAdapter {
       cwd: this.workspaceRoot,
       env: cleanEnvironment({
         ...(this.readiness.environment ?? {}),
+        CLAUDE_CONFIG_DIR: this.historySource.root,
         CLAUDE_AGENT_SDK_CLIENT_APP: `puppyone-desktop/${this.appVersion}`,
         PUPPYONE_AGENT_BACKEND: "claude",
       }),
       ...(this.readiness.executablePath ? { pathToClaudeCodeExecutable: this.readiness.executablePath } : {}),
       ...(model ? { model } : {}),
       ...(effort ? { effort } : {}),
-      ...(resume ? { resume } : {}),
+      ...(resume ? { resume } : sessionId ? { sessionId } : {}),
       permissionMode: mode === "plan" ? "plan" : "default",
-      canUseTool: (toolName, input, options) => this.#requestPermission(toolName, input, options),
+      canUseTool: (toolName, input, options) => claudeRequestPermission(this, toolName, input, options),
       spawnClaudeCodeProcess: this.spawnClaudeCodeProcess,
       stderr: (data) => {
         const diagnostic = redactSecretText(String(data)).trim().slice(-4_000);
@@ -505,80 +470,6 @@ export class ClaudeAgentSdkAdapter {
         ...(append ? { append } : {}),
       },
     };
-  }
-
-  #requestPermission(toolName, input, options = {}) {
-    if (this.disposed || !this.activeTurnId) {
-      return Promise.resolve({ behavior: "deny", message: "No active Claude Code session owns this request." });
-    }
-    if (toolName === "AskUserQuestion") return this.#requestQuestion(input, options);
-    const requestId = `claude:${safeId(options.toolUseID) || randomUUID()}`;
-    return new Promise((resolve) => {
-      const pending = {
-        requestId,
-        turnId: this.activeTurnId,
-        input: input ?? {},
-        suggestions: options.suggestions,
-        resolve,
-      };
-      this.pendingApprovals.set(requestId, pending);
-      listenForAbort(options.signal, () => {
-        if (!this.pendingApprovals.delete(requestId)) return;
-        resolve({ behavior: "deny", message: "Approval request was cancelled.", interrupt: true });
-      });
-      this.onEvent({
-        type: "approval.requested",
-        providerSessionId: this.sessionId,
-        turnId: this.activeTurnId,
-        itemId: safeId(options.toolUseID),
-        payload: {
-          requestId,
-          title: bounded(options.title, 300) || `Allow ${humanize(toolName)}`,
-          description: bounded(options.description, 2_000) || bounded(options.decisionReason, 2_000),
-          displayName: bounded(options.displayName, 160) || humanize(toolName),
-          kind: permissionKind(toolName),
-          toolName: bounded(toolName, 160),
-          input: boundRendererValue(redactSecrets(input)),
-          availableDecisions: ["accept", "acceptForSession", "decline", "cancel"],
-        },
-      });
-    });
-  }
-
-  #requestQuestion(input, options) {
-    const requestId = `claude:${safeId(options.toolUseID) || randomUUID()}`;
-    const questions = normalizeQuestions(input?.questions);
-    return new Promise((resolve) => {
-      this.pendingQuestions.set(requestId, {
-        requestId,
-        turnId: this.activeTurnId,
-        input: input ?? {},
-        questions,
-        resolve,
-      });
-      listenForAbort(options.signal, () => {
-        if (!this.pendingQuestions.delete(requestId)) return;
-        resolve({ behavior: "deny", message: "Question request was cancelled.", interrupt: true });
-      });
-      this.onEvent({
-        type: "question.requested",
-        providerSessionId: this.sessionId,
-        turnId: this.activeTurnId,
-        itemId: safeId(options.toolUseID),
-        payload: { requestId, questions },
-      });
-    });
-  }
-
-  #resolvePending(message) {
-    for (const pending of this.pendingApprovals.values()) {
-      pending.resolve({ behavior: "deny", message, interrupt: true });
-    }
-    for (const pending of this.pendingQuestions.values()) {
-      pending.resolve({ behavior: "deny", message, interrupt: true });
-    }
-    this.pendingApprovals.clear();
-    this.pendingQuestions.clear();
   }
 
   async #loadSdk() {
@@ -604,84 +495,6 @@ export class ClaudeAgentSdkAdapter {
     this.activeState = null;
     this.interruptRequested = false;
   }
-}
-
-function normalizeModels(value) {
-  return asArray(value).slice(0, 100).map((model, index) => {
-    const variants = asArray(model?.supportedEffortLevels)
-      .filter((effort) => ["low", "medium", "high", "xhigh", "max"].includes(effort));
-    return {
-      id: bounded(model?.value, 512),
-      model: bounded(model?.value, 512),
-      displayName: bounded(model?.displayName, 300) || bounded(model?.value, 300),
-      description: bounded(model?.description, 2_000),
-      isDefault: index === 0,
-      variants,
-      defaultVariant: variants.includes("high") ? "high" : variants[0] ?? null,
-    };
-  }).filter((model) => model.id);
-}
-
-function compatibleClaudeEffort(model, requested) {
-  if (!requested) return model?.defaultVariant ?? null;
-  if (model?.variants?.includes(requested)) return requested;
-  throw new Error("The selected Claude Code reasoning effort is no longer available for this model.");
-}
-
-function normalizeCommands(value) {
-  return asArray(value).slice(0, 500).map((command) => ({
-    name: bounded(command?.name, 160),
-    description: bounded(command?.description, 1_000),
-    argumentHint: bounded(command?.argumentHint, 500),
-    source: "claude-code",
-  })).filter((command) => command.name);
-}
-
-function normalizeAccount(value, models, environment = {}) {
-  const account = value && typeof value === "object" ? value : {};
-  const hasNativeIdentity = Boolean(
-    account.email || account.organization || account.subscriptionType || account.tokenSource
-    || account.apiKeySource || account.apiProvider,
-  );
-  const hasApiKey = Boolean(account.apiKeySource || environment?.ANTHROPIC_API_KEY);
-  const supportedCloud = Boolean(account.apiProvider && account.apiProvider !== "firstParty");
-  const authenticated = hasApiKey || supportedCloud;
-  return {
-    account: authenticated ? {
-      type: bounded(account.apiProvider, 80) || "claude-code",
-      email: bounded(account.email, 300) || null,
-      planType: bounded(account.subscriptionType, 160) || null,
-    } : null,
-    requiresOpenaiAuth: false,
-    requiresRuntimeSetup: !authenticated,
-    ...(!authenticated ? {
-      setupReason: "runtime-setup-required",
-      error: hasNativeIdentity && !authenticated
-        ? "Claude subscription OAuth cannot be used by a third-party product. Configure an Anthropic API key or a supported cloud provider, then refresh."
-        : models.length
-          ? "Configure an Anthropic API key or a supported cloud provider for Claude Code, then refresh."
-          : "Claude Code authentication and model access are unavailable.",
-    } : {}),
-  };
-}
-
-function normalizeQuestions(value) {
-  return asArray(value).slice(0, 8).map((question) => ({
-    header: bounded(question?.header, 80),
-    question: bounded(question?.question, 4_000),
-    multiple: question?.multiSelect === true,
-    custom: question?.isOther !== false,
-    options: asArray(question?.options).slice(0, 20).map((option) => typeof option === "string"
-      ? { label: bounded(option, 120), description: "" }
-      : { label: bounded(option?.label, 120), description: bounded(option?.description, 1_000) }),
-  })).filter((question) => question.question);
-}
-
-function questionAnswerMap(questions, answers) {
-  return Object.fromEntries(questions.map((question, index) => {
-    const row = asArray(answers?.[index]).map((answer) => bounded(answer, 4_000)).filter(Boolean);
-    return [question.question, question.multiple ? row : row[0] ?? ""];
-  }));
 }
 
 export function formatClaudePrompt(prompt, references, workspaceRoot) {
@@ -716,46 +529,6 @@ async function* idleInput(signal) {
   });
 }
 
-function listenForAbort(signal, callback) {
-  if (!signal) return;
-  if (signal.aborted) callback();
-  else signal.addEventListener("abort", callback, { once: true });
-}
-
-function cleanEnvironment(value) {
-  return Object.fromEntries(Object.entries(value).filter(([, entry]) => typeof entry === "string"));
-}
-
-function permissionKind(toolName) {
-  const name = String(toolName).toLowerCase();
-  if (name === "bash") return "command";
-  if (["write", "edit", "multiedit", "notebookedit"].includes(name)) return "file-change";
-  if (name.includes("web")) return "network";
-  return "tool";
-}
-
-function humanize(value) {
-  const normalized = bounded(value, 160).replace(/[_-]+/g, " ");
-  return normalized ? normalized.replace(/\b\w/g, (character) => character.toUpperCase()) : "tool";
-}
-
-function bounded(value, limit) {
-  return typeof value === "string" ? value.trim().slice(0, limit) : "";
-}
-
-function safeId(value) {
-  return typeof value === "string" && /^[A-Za-z0-9:._-]{1,256}$/.test(value) ? value : null;
-}
-
-function asArray(value) {
-  return Array.isArray(value) ? value : [];
-}
-
-function normalizeDate(value) {
-  const date = new Date(Number.isFinite(value) ? value : value || Date.now());
-  return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
-}
-
 function withTimeout(promise, timeoutMs, message) {
   let timer;
   return Promise.race([
@@ -769,14 +542,4 @@ function withTimeout(promise, timeoutMs, message) {
 
 function delay(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
-}
-
-function numericCursor(value) {
-  if (value == null || value === "") return 0;
-  const parsed = Number(value);
-  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : 0;
-}
-
-function boundedPageSize(value) {
-  return Number.isSafeInteger(value) && value > 0 ? Math.min(value, 100) : 50;
 }

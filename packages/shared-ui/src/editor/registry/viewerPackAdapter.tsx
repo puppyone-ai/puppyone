@@ -42,7 +42,7 @@ export function resolveViewerRouteForDocument(
 /**
  * Resolves the layout requirement before DocumentSurfaceHost mounts a Viewer.
  * External Viewer Pack surfaces are conservatively visible-first because the
- * Host may attach a native/WebGL/worker-backed renderer outside React's DOM.
+ * Host may attach a native, WebGL, or process-isolated renderer outside React's DOM.
  */
 export function resolveViewerSurfacePreparationForDocument(
   document: EditorDocument,

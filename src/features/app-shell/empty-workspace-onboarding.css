@@ -14,7 +14,7 @@
 .empty-workspace-starter-intro {
   margin: 0;
   color: var(--po-text-muted);
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   line-height: 19px;
 }
 
@@ -38,7 +38,7 @@
   border-radius: 9px;
   background: var(--po-panel-raised);
   color: var(--po-text);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transition: border-color 120ms ease, background 120ms ease;
 }
 
@@ -95,14 +95,14 @@
 }
 
 .empty-workspace-starter-copy > strong {
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   font-weight: 600;
   line-height: 18px;
 }
 
 .empty-workspace-starter-copy > span {
   color: var(--po-text-muted);
-  font-size: 11.5px;
+  font-size: var(--po-text-size-hint, 12px);
   line-height: 16px;
 }
 

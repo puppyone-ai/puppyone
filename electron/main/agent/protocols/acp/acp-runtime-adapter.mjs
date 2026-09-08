@@ -1,3 +1,10 @@
+import { createNativePersistenceReporter } from "../../runtime/native-persistence-reporter.mjs";
+import { agentHistoryReadResult } from "../../runtime/agent-history-read-result.mjs";
+import { nativeSessionId } from "../../../../../shared/agent-contract/native-session-id.mjs";
+import { discoverAcpHistory } from "./acp-history-discovery.mjs";
+import { isUnavailableAcpSessionError, publicModels, publicProviders, publicModes, event, array, record, text } from "./acp-native-values.mjs";
+export { mergeJsonConfig } from "./acp-native-values.mjs";
+import { acpResolveApproval, acpResolveQuestion, acpRequestPermission, acpHandleExtensionRequest, acpResolvePending } from "./acp-interactions.mjs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { JsonlRpcConnection } from "../../transports/jsonl-rpc-connection.mjs";
@@ -15,7 +22,7 @@ import {
   formatAuthorizedProjectInstructions,
   loadAuthorizedProjectInstructions,
 } from "../../security/authorized-project-instructions.mjs";
-import { boundRendererValue, redactSecrets, redactSecretText } from "../../agent-events.mjs";
+import { redactSecretText } from "../../agent-events.mjs";
 import { ACP_INLINE_IMAGE_MAX_BYTES } from "./acp-limits.mjs";
 import {
   ACP_NATIVE_IMAGE_MIME_TYPES,
@@ -63,6 +70,7 @@ export const BASE_ACP_CAPABILITIES = Object.freeze({
   slashCommands: true,
   sessionHistory: false,
   history: Object.freeze({ discovery: "unsupported", exactOpen: "unsupported", hydration: "unsupported" }),
+  recovery: Object.freeze({ strategy: "unsupported", activeExecution: "outcome-unknown", atomicHandoff: false }),
   usage: true,
   accountState: true,
   mcp: true,
@@ -70,7 +78,7 @@ export const BASE_ACP_CAPABILITIES = Object.freeze({
   compaction: false,
   referenceInputs: Object.freeze({
     schemaVersion: 1,
-    workspace: Object.freeze({ files: true, directories: true }),
+    workspace: Object.freeze({ files: true, directories: true, crossRoots: true }),
     attachments: Object.freeze({
       image: Object.freeze({
         accepted: false,
@@ -103,19 +111,22 @@ export class AcpRuntimeAdapter {
 
   getSessionHistoryPort() {
     return Object.freeze({
+      sourceScopeId: this.sourceScopeId,
       discover: (request) => this.discoverSessions(request),
-      hydrate: () => this.readHistory(),
+      hydrate: () => this.readHistoryResult(),
     });
   }
 
   constructor({
     readiness,
+    sourceScopeId = "default",
     workspaceRoot,
     runtimeDescriptor,
     managed = false,
     appVersion = "0.0.0",
     onEvent = () => {},
     onExit = () => {},
+    onSessionPersisted = () => {},
     logger = console,
     connectionFactory = (options) => new JsonlRpcConnection(options),
     fileSystemFactory = createAcpWorkspaceFileSystem,
@@ -133,12 +144,23 @@ export class AcpRuntimeAdapter {
   }) {
     if (!runtimeDescriptor?.id) throw new TypeError("ACP runtime adapter requires a runtime descriptor.");
     this.readiness = readiness ?? {};
+    this.sourceScopeId = sourceScopeId;
     this.workspaceRoot = path.resolve(workspaceRoot);
     this.runtimeDescriptor = runtimeDescriptor;
     this.managed = managed;
     this.appVersion = appVersion;
     this.onEvent = onEvent;
     this.onExit = onExit;
+    this.persistenceReporter = createNativePersistenceReporter({
+      isClosed: () => this.disposed,
+      verify: async () => {
+        const id = this.sessionId;
+        const page = await discoverAcpHistory({ client: this.client, workspaceRoot: this.workspaceRoot, fallbackTitle: this.sessionTitles.created });
+        return page.supported && page.sessions.some((entry) => entry.providerSessionId === id)
+          ? { providerSessionId: id, sourceScopeId: this.sourceScopeId } : null;
+      },
+      report: onSessionPersisted,
+    });
     this.logger = logger;
     this.connectionFactory = connectionFactory;
     this.fileSystemFactory = fileSystemFactory;
@@ -159,6 +181,7 @@ export class AcpRuntimeAdapter {
     this.eventSource = eventSource;
     this.onDispose = onDispose;
     this.connection = null;
+    this.closingConnections = new Set();
     this.client = null;
     this.connectionMode = null;
     this.sessionId = null;
@@ -244,8 +267,9 @@ export class AcpRuntimeAdapter {
         this.#syncSession(response);
         await delay(METADATA_SETTLE_MS);
       } finally {
+        this.historyCoverage = this.historyCollector?.truncated ? "partial" : "unknown";
         this.historicalEvents = this.historyCollector?.events(
-          safeId(response?.sessionId) ?? safeId(threadId),
+          nativeSessionId(response?.sessionId) ?? nativeSessionId(threadId),
         ) ?? [];
         this.historyCollector = null;
       }
@@ -270,30 +294,13 @@ export class AcpRuntimeAdapter {
     };
   }
 
-  async discoverSessions({ cursor = null, limit = 50 } = {}) {
+  async discoverSessions(options = {}) {
     this.#assertUsable();
+    options.signal?.throwIfAborted();
     await this.#connect("history");
     try {
-      const native = this.client?.agentCapabilities ?? {};
-      const supported = native.sessionCapabilities?.list != null || native.listSessions === true;
-      if (!supported) return { supported: false, sessions: [], nextCursor: null };
-      const response = await this.client.listSessions({
-        cwd: this.workspaceRoot,
-        ...(cursor ? { cursor } : {}),
-        limit: boundedPageSize(limit),
-      });
-      return {
-        supported: true,
-        sessions: array(response?.sessions).filter((session) => (
-          safeId(session?.sessionId) && (!session?.cwd || path.resolve(session.cwd) === this.workspaceRoot)
-        )).slice(0, boundedPageSize(limit)).map((session) => ({
-          providerSessionId: session.sessionId,
-          title: text(session.title, 500) || this.sessionTitles.resumed,
-          createdAt: normalizeDate(session.createdAt ?? session.updatedAt),
-          updatedAt: normalizeDate(session.updatedAt),
-        })),
-        nextCursor: text(response?.nextCursor, 1_024) || null,
-      };
+      return await discoverAcpHistory({ client: this.client, workspaceRoot: this.workspaceRoot,
+        fallbackTitle: this.sessionTitles.resumed }, options);
     } finally {
       await this.#disconnect(`${this.runtimeDescriptor.displayName} ACP history discovery completed.`);
     }
@@ -313,6 +320,13 @@ export class AcpRuntimeAdapter {
     // PuppyOne deliberately does not persist this replay or create a second
     // transcript authority; it is only the initial projection for this process.
     return this.historicalEvents.slice();
+  }
+
+  async readHistoryResult() {
+    return agentHistoryReadResult({ providerSessionId: this.sessionId, events: await this.readHistory(),
+      coverage: this.historyCoverage ?? "unknown",
+      reason: this.historyCoverage === "partial" ? "read-limit"
+        : this.client?.agentCapabilities?.loadSession === true ? "replay-unverified" : "unsupported" });
   }
 
   async forkSession({ messageId = null } = {}) {
@@ -355,7 +369,7 @@ export class AcpRuntimeAdapter {
       workspaceRoot: this.workspaceRoot,
       profile: referenceProfile,
     });
-    const active = { turnId, normalizer, interrupted: false };
+    const active = { turnId, normalizer, interrupted: false, references: allReferences };
     this.activeTurn = active;
     void this.#runPrompt(active, blocks);
     return { turnId };
@@ -368,38 +382,23 @@ export class AcpRuntimeAdapter {
     this.activeTurn.interrupted = true;
     this.client.cancel({ sessionId: this.sessionId });
   }
+  resolveApproval(...args) { return acpResolveApproval(this, ...args); }
 
-  resolveApproval({ requestId, decision, turnId }) {
-    const pending = this.pendingApprovals.get(requestId);
-    if (!pending || pending.turnId !== turnId || this.activeTurn?.turnId !== turnId) {
-      throw new Error(`Approval correlation did not match the active ${this.runtimeDescriptor.displayName} turn.`);
-    }
-    this.pendingApprovals.delete(requestId);
-    const option = selectPermissionOption(pending.options, decision);
-    pending.resolve(option
-      ? { outcome: { outcome: "selected", optionId: option.optionId } }
-      : { outcome: { outcome: "cancelled" } });
-  }
+  resolveQuestion(...args) { return acpResolveQuestion(this, ...args); }
 
-  resolveQuestion({ requestId, answers, rejected, turnId }) {
-    const pending = this.pendingQuestions.get(requestId);
-    if (!pending || pending.turnId !== turnId || this.activeTurn?.turnId !== turnId) {
-      throw new Error(`Question correlation did not match the active ${this.runtimeDescriptor.displayName} turn.`);
-    }
-    this.pendingQuestions.delete(requestId);
-    pending.resolve(rejected
-      ? { outcome: "cancelled" }
-      : { outcome: "answered", answers: questionAnswerMap(pending.questions, answers) });
-  }
 
   forceTerminate(reason = `${this.runtimeDescriptor.displayName} ACP runtime stopped.`) {
     return this.#disconnect(reason, { expected: false });
   }
 
   async dispose(reason = `${this.runtimeDescriptor.displayName} ACP adapter closed.`) {
-    if (this.disposed) return;
+    if (this.disposed) {
+      await Promise.all([...this.closingConnections].map((connection) => connection.waitForExit?.()));
+      this.closingConnections.clear();
+      return;
+    }
     this.disposed = true;
-    this.#resolvePending(reason);
+    acpResolvePending(this, reason);
     await this.#disconnect(reason);
     this.onDispose(this);
   }
@@ -412,6 +411,7 @@ export class AcpRuntimeAdapter {
       });
       if (this.activeTurn !== active || this.disposed) return;
       for (const event of active.normalizer.completeAssistant(this.sessionId)) this.onEvent(event);
+      void this.persistenceReporter.confirm();
       const usage = normalizeAcpPromptUsage(response?.usage);
       if (usage) this.onEvent(event("usage.updated", this.sessionId, active.turnId, null, usage));
       this.onEvent(event(active.interrupted ? "turn.interrupted" : "turn.completed", this.sessionId, active.turnId, null, {
@@ -420,6 +420,10 @@ export class AcpRuntimeAdapter {
       }));
     } catch (error) {
       if (this.activeTurn !== active || this.disposed) return;
+      if (error?.deliveryOutcome === "unknown") {
+        this.onExit({ expected: false, error: redactSecretText(error.message || String(error)) });
+        return;
+      }
       const interrupted = active.interrupted;
       if (!interrupted) {
         this.onEvent(event("provider.error", this.sessionId, active.turnId, null, {
@@ -432,7 +436,7 @@ export class AcpRuntimeAdapter {
       }));
     } finally {
       if (this.activeTurn === active) {
-        this.#resolvePending(`${this.runtimeDescriptor.displayName} turn ended before a client request was resolved.`);
+        acpResolvePending(this, `${this.runtimeDescriptor.displayName} turn ended before a client request was resolved.`);
         this.activeTurn = null;
       }
     }
@@ -457,7 +461,7 @@ export class AcpRuntimeAdapter {
       this.client = null;
       this.connectionMode = null;
       if (!this.exitExpected && !this.disposed) {
-        this.#resolvePending(`${this.runtimeDescriptor.displayName} ACP process exited.`);
+        acpResolvePending(this, `${this.runtimeDescriptor.displayName} ACP process exited.`);
         this.onExit({
           code: info?.code ?? null,
           signal: info?.signal ?? null,
@@ -467,17 +471,20 @@ export class AcpRuntimeAdapter {
         });
       }
     });
-    const fileSystem = this.fileSystemFactory({ workspaceRoot: this.workspaceRoot });
+    const fileSystem = this.fileSystemFactory({
+      workspaceRoot: this.workspaceRoot,
+      getReadReferences: () => this.activeTurn?.references ?? [],
+    });
     this.client = new AcpClient({
       connection,
       clientInfo: { name: "puppyone-desktop", title: "PuppyOne Desktop", version: this.appVersion },
       delegate: {
         readTextFile: (request) => this.#withSession(request, () => fileSystem.readTextFile(request)),
         writeTextFile: (request) => this.#withSession(request, () => fileSystem.writeTextFile(request)),
-        requestPermission: (request) => this.#requestPermission(request),
+        requestPermission: (request) => acpRequestPermission(this, request),
         onSessionUpdate: (notification) => this.#handleSessionUpdate(notification),
         canHandleRequest: (method) => this.questionMethods.has(method),
-        handleRequest: (method, request) => this.#handleExtensionRequest(method, request),
+        handleRequest: (method, request) => acpHandleExtensionRequest(this, method, request),
       },
     });
     await this.client.initialize();
@@ -496,8 +503,10 @@ export class AcpRuntimeAdapter {
     this.connection = null;
     this.connectionMode = null;
     client?.dispose();
+    if (connection) this.closingConnections.add(connection);
     connection?.dispose?.(reason, { expected });
-    await Promise.resolve();
+    await connection?.waitForExit?.();
+    this.closingConnections.delete(connection);
   }
 
   #environment(mode) {
@@ -538,7 +547,12 @@ export class AcpRuntimeAdapter {
       history: {
         discovery: canDiscoverHistory ? "paged" : "unsupported",
         exactOpen: canOpenHistory ? "supported" : "unsupported",
-        hydration: canOpenHistory ? "push-replay" : "unsupported",
+        hydration: native.loadSession === true ? "push-replay" : "unsupported",
+      },
+      recovery: {
+        strategy: canOpenHistory ? "snapshot-reload" : "unsupported",
+        activeExecution: "outcome-unknown",
+        atomicHandoff: false,
       },
       referenceInputs: {
         ...BASE_ACP_CAPABILITIES.referenceInputs,
@@ -691,7 +705,7 @@ export class AcpRuntimeAdapter {
 
   async #handleSessionUpdate(notification) {
     if (!notification) return;
-    if (!this.sessionId && safeId(notification.sessionId)) this.sessionId = notification.sessionId;
+    if (!this.sessionId && nativeSessionId(notification.sessionId)) this.sessionId = notification.sessionId;
     if (notification.sessionId !== this.sessionId) return;
     const update = notification.update;
     if (this.historyCollector) this.historyCollector.accept(notification);
@@ -716,65 +730,11 @@ export class AcpRuntimeAdapter {
     for (const normalized of this.activeTurn.normalizer.normalize(notification)) this.onEvent(normalized);
   }
 
-  #requestPermission(request) {
-    if (!this.activeTurn || request?.sessionId !== this.sessionId) {
-      return Promise.resolve({ outcome: { outcome: "cancelled" } });
-    }
-    const options = array(request.options).filter((option) => safeId(option?.optionId));
-    const requestId = `${this.runtimeDescriptor.id}:${safeId(request.toolCall?.toolCallId) ?? randomUUID()}:${randomUUID()}`;
-    const input = record(request.toolCall?.rawInput);
-    return new Promise((resolve) => {
-      this.pendingApprovals.set(requestId, {
-        requestId,
-        turnId: this.activeTurn.turnId,
-        options,
-        resolve,
-      });
-      this.onEvent(event("approval.requested", this.sessionId, this.activeTurn.turnId,
-        safeId(request.toolCall?.toolCallId), {
-          requestId,
-          title: text(request.toolCall?.title, 300) || "Approval required",
-          kind: approvalKind(request.toolCall?.kind),
-          command: text(input.command, 8_192) || null,
-          reason: text(request.toolCall?.title, 2_000) || null,
-          availableDecisions: availableDecisions(options),
-          arguments: boundRendererValue(redactSecrets(input)),
-        }));
-    });
-  }
-
-  #handleExtensionRequest(method, request) {
-    if (!this.questionMethods.has(method)) return undefined;
-    if (!this.activeTurn) return { outcome: "cancelled" };
-    const questions = normalizeQuestions(request?.questions);
-    const requestId = `${this.runtimeDescriptor.id}:question:${safeId(request?.toolCallId) ?? randomUUID()}:${randomUUID()}`;
-    return new Promise((resolve) => {
-      this.pendingQuestions.set(requestId, {
-        requestId,
-        turnId: this.activeTurn.turnId,
-        questions,
-        resolve,
-      });
-      this.onEvent(event("question.requested", this.sessionId, this.activeTurn.turnId,
-        safeId(request?.toolCallId), { requestId, questions }));
-    });
-  }
-
   #withSession(request, operation) {
     if (!this.sessionId || request?.sessionId !== this.sessionId) {
       throw new Error(`ACP file request does not belong to the active ${this.runtimeDescriptor.displayName} session.`);
     }
     return operation();
-  }
-
-  #resolvePending(message) {
-    for (const pending of this.pendingApprovals.values()) {
-      pending.resolve({ outcome: { outcome: "cancelled" } });
-    }
-    for (const pending of this.pendingQuestions.values()) pending.resolve({ outcome: "cancelled" });
-    if (this.pendingApprovals.size > 0 || this.pendingQuestions.size > 0) this.logger.warn?.(redactSecretText(message));
-    this.pendingApprovals.clear();
-    this.pendingQuestions.clear();
   }
 
   #assertIdle() {
@@ -786,113 +746,6 @@ export class AcpRuntimeAdapter {
     if (this.disposed) throw new Error(`${this.runtimeDescriptor.displayName} ACP adapter is closed.`);
     if (!this.readiness.executablePath) throw new Error(`${this.runtimeDescriptor.displayName} ACP executable is unavailable.`);
   }
-}
-
-function isUnavailableAcpSessionError(error) {
-  const message = error instanceof Error ? error.message : String(error);
-  return error?.code === -32602
-    || /invalid params|unknown session|session.{0,32}(?:not found|does not exist|unavailable)/iu.test(message);
-}
-
-function publicModels(config, fallbackProviderId) {
-  const variants = config.efforts.available.map((entry) => entry.id);
-  return config.models.available.map((model, index) => {
-    const providerId = model.id.includes("/") ? model.id.slice(0, model.id.indexOf("/")) : fallbackProviderId;
-    const modelId = model.id.includes("/") ? model.id.slice(model.id.indexOf("/") + 1) : model.id;
-    return {
-      id: model.id,
-      model: model.id,
-      providerId,
-      modelId,
-      displayName: model.name || model.id,
-      description: model.description || "",
-      isDefault: model.id === config.models.currentId || (!config.models.currentId && index === 0),
-      variants,
-      defaultVariant: variants.includes(config.efforts.currentId) ? config.efforts.currentId : variants[0] ?? null,
-    };
-  });
-}
-
-function publicProviders(models) {
-  const groups = new Map();
-  for (const model of models) {
-    const id = model.providerId || "opencode";
-    const current = groups.get(id) ?? { id, displayName: humanize(id), source: "native", defaultModel: null, modelCount: 0 };
-    current.modelCount += 1;
-    if (model.isDefault) current.defaultModel = model.model;
-    groups.set(id, current);
-  }
-  return Array.from(groups.values());
-}
-
-function publicModes(config) {
-  return config.modes.available.map((mode, index) => ({
-    id: mode.id,
-    displayName: mode.name || humanize(mode.id),
-    description: mode.description || "",
-    isDefault: mode.id === config.modes.currentId || (!config.modes.currentId && index === 0),
-  }));
-}
-
-function selectPermissionOption(options, decision) {
-  const desired = decision === "acceptForSession"
-    ? ["allow_always", "allow_once"]
-    : decision === "accept"
-      ? ["allow_once", "allow_always"]
-      : decision === "decline"
-        ? ["reject_once", "reject_always"]
-        : [];
-  return desired.map((kind) => options.find((option) => option.kind === kind)).find(Boolean) ?? null;
-}
-
-function availableDecisions(options) {
-  const decisions = [];
-  if (options.some((option) => option.kind === "allow_once" || option.kind === "allow_always")) decisions.push("accept");
-  if (options.some((option) => option.kind === "allow_always")) decisions.push("acceptForSession");
-  if (options.some((option) => option.kind === "reject_once" || option.kind === "reject_always")) decisions.push("decline");
-  decisions.push("cancel");
-  return decisions;
-}
-
-function approvalKind(kind) {
-  return ["edit", "delete", "move"].includes(kind) ? "file-change" : kind === "execute" ? "command" : "tool";
-}
-
-export function mergeJsonConfig(value, overlay) {
-  let base = {};
-  try {
-    const parsed = value ? JSON.parse(value) : {};
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) base = parsed;
-  } catch {
-    // A malformed inherited inline config is not forwarded into the managed runtime.
-  }
-  return JSON.stringify({
-    ...base,
-    ...overlay,
-    agent: { ...(record(base.agent)), ...(record(overlay.agent)) },
-  });
-}
-
-function normalizeQuestions(value) {
-  return array(value).slice(0, 16).map((question, index) => ({
-    id: safeId(question?.id) || `question-${index + 1}`,
-    header: text(question?.header, 160) || text(question?.title, 160) || `Question ${index + 1}`,
-    question: text(question?.question, 2_000) || text(question?.prompt, 2_000) || "Input required",
-    multiple: Boolean(question?.multiple || question?.multiSelect),
-    custom: question?.custom !== false,
-    options: array(question?.options).slice(0, 64).map((option) => ({
-      id: safeId(option?.id) || safeId(option?.value) || null,
-      label: text(option?.label, 300) || text(option?.name, 300) || text(option?.value, 300),
-      description: text(option?.description, 1_000),
-    })).filter((option) => option.label),
-  }));
-}
-
-function questionAnswerMap(questions, answers) {
-  return Object.fromEntries(questions.map((question, index) => [
-    question.id,
-    array(answers?.[index]).map((answer) => text(answer, 2_000)).filter(Boolean),
-  ]));
 }
 
 function extensionVersions(value) {
@@ -914,50 +767,16 @@ function emptySessionConfig() {
   };
 }
 
-function event(type, providerSessionId, turnId, itemId, payload) {
-  return { type, providerSessionId: safeId(providerSessionId), turnId: safeId(turnId), itemId: safeId(itemId), payload };
-}
-
 function cleanEnvironment(value) {
   return Object.fromEntries(Object.entries(value).filter(([, entry]) => typeof entry === "string"));
 }
 
 function requiredId(value, label) {
-  const id = safeId(value);
+  const id = nativeSessionId(value);
   if (!id) throw new Error(`${label} is invalid.`);
   return id;
 }
 
-function safeId(value) {
-  return typeof value === "string" && /^[A-Za-z0-9:._-]{1,256}$/.test(value) ? value : null;
-}
-
-function text(value, limit) {
-  return typeof value === "string" ? value.trim().slice(0, limit) : "";
-}
-
-function normalizeDate(value) {
-  if (typeof value !== "string") return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date.toISOString();
-}
-
-function record(value) {
-  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
-}
-
-function array(value) {
-  return Array.isArray(value) ? value : [];
-}
-
-function humanize(value) {
-  return text(value, 160).replace(/[-_.]+/gu, " ").replace(/\b\w/gu, (character) => character.toUpperCase());
-}
-
 function delay(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
-}
-
-function boundedPageSize(value) {
-  return Number.isSafeInteger(value) && value > 0 ? Math.min(value, 100) : 50;
 }

@@ -1,4 +1,4 @@
-import { createAgentProjection } from "../domain/agent-projection";
+import { createEmptyAgentDisplay as createAgentProjection } from "../../../../shared/agent-contract/display-state.mjs";
 import { listAgentRuntimes } from "../domain/agent-backend-routing";
 import type { AgentControllerState } from "./agent-controller-state";
 

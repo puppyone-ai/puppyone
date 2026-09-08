@@ -15,7 +15,7 @@
 }
 
 .desktop-cloud-history-sidebar {
-  --cloud-history-row-height: 32px;
+  --cloud-history-row-height: var(--desktop-sidebar-row-height);
 
   background: var(--po-sidebar);
 }
@@ -125,7 +125,7 @@
   gap: 6px;
   overflow: hidden;
   color: currentColor;
-  font-size: var(--po-text-size-sidebar, 13px);
+  font-size: var(--po-type-left-sidebar-content, 14px);
   font-weight: 520;
   line-height: var(--cloud-history-row-height);
   white-space: nowrap;
@@ -151,7 +151,7 @@
   border-radius: 3px;
   background: color-mix(in srgb, var(--po-success) 12%, transparent);
   color: var(--po-success);
-  font-size: 9px;
+  font-size: var(--po-text-size-micro, 10px);
   font-weight: 620;
   line-height: 1;
   text-overflow: ellipsis;
@@ -183,7 +183,7 @@
   gap: 5px;
   flex: 0 0 auto;
   color: var(--po-text-subtle);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-variant-numeric: tabular-nums;
   font-weight: 500;
   white-space: nowrap;
@@ -202,7 +202,7 @@
   overflow: hidden;
   justify-self: end;
   color: var(--po-text-subtle);
-  font-size: 10px;
+  font-size: var(--po-type-ui-micro, 11px);
   font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -216,7 +216,7 @@
   border-radius: 6px;
   background: color-mix(in srgb, var(--po-warning) 8%, transparent);
   color: var(--po-text-muted);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   line-height: 1.35;
 }
 
@@ -239,13 +239,13 @@
 
 .desktop-cloud-history-sidebar-empty strong {
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 620;
 }
 
 .desktop-cloud-history-sidebar-empty span {
   max-width: 210px;
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   line-height: 1.4;
 }
 
@@ -259,7 +259,7 @@
 
 .desktop-cloud-history-sidebar-load-more button {
   display: inline-flex;
-  height: 24px;
+  height: var(--po-control-size-tight);
   align-items: center;
   justify-content: center;
   gap: 4px;
@@ -269,7 +269,7 @@
   border-radius: 5px;
   background: transparent;
   color: var(--po-text-subtle);
-  font-size: 10.5px;
+  font-size: var(--po-text-size-caption, 11px);
   font-weight: 550;
 }
 

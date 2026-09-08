@@ -1,9 +1,12 @@
 import { useEffect, useMemo } from "react";
-import { createAgentProjection } from "../domain/agent-projection";
+import { createEmptyAgentDisplay as createAgentProjection } from "../../../../shared/agent-contract/display-state.mjs";
 import { agentToolEvidenceLimits } from "../domain/agent-tool-evidence";
 import { AgentTranscript, agentTimelineLimits } from "./AgentTranscript";
 import { registerAgentToolRenderer } from "./AgentToolRendererRegistry";
 import "./desktop-agent.css";
+import { BUILTIN_SUB_THEMES } from "../../themes/builtinSubThemes";
+import { SubThemeStyleHost } from "../../themes/SubThemeStyleHost";
+import { DEFAULT_MARKDOWN_PRESENTATION_SETTINGS } from "../../markdown/markdownPresentation";
 
 const smokeToolId = "fixture-render-crash";
 registerAgentToolRenderer(smokeToolId, () => {
@@ -20,6 +23,11 @@ type SmokeResult = {
   previewCount: number;
   searchContainerCount: number;
   sentinelVisible: boolean;
+  toolGroupCount: number;
+  toolGroupItems: number;
+  maxExpandedDetails: number;
+  documentOverflowPx: number;
+  maxFollowingRowOverlapPx: number;
   maxRailAlignmentErrorPx: number;
   maxElbowCenterErrorPx: number;
   commandResultGapPx: number;
@@ -63,6 +71,11 @@ export function AgentToolStabilitySmokeHarness() {
         previewCount: 0,
         searchContainerCount: 0,
         sentinelVisible: false,
+        toolGroupCount: 0,
+        toolGroupItems: 0,
+        maxExpandedDetails: 0,
+        documentOverflowPx: Number.POSITIVE_INFINITY,
+        maxFollowingRowOverlapPx: Number.POSITIVE_INFINITY,
         maxRailAlignmentErrorPx: Number.POSITIVE_INFINITY,
         maxElbowCenterErrorPx: Number.POSITIVE_INFINITY,
         commandResultGapPx: Number.POSITIVE_INFINITY,
@@ -80,41 +93,82 @@ export function AgentToolStabilitySmokeHarness() {
     };
   }, []);
 
-  return (
-    <main className="desktop-agent-visual-smoke dark desktop-agent-tool-stability-smoke">
+  return <>
+    <SubThemeStyleHost subTheme={BUILTIN_SUB_THEMES.find(theme => theme.id === "default.neutral")!}
+      colorMode="dark" markdownPresentation={DEFAULT_MARKDOWN_PRESENTATION_SETTINGS} />
+    <main className="desktop-agent-visual-smoke dark desktop-agent-tool-stability-smoke"
+      data-po-appearance-root="true" data-root-theme-id="default" data-sub-theme-id="default.neutral">
       <section className="desktop-agent-boundary desktop-agent-tool-stability-panel">
         <AgentTranscript projection={projection} loading={false} runtimeLabel="Codex" />
       </section>
     </main>
-  );
+  </>;
 }
 
 async function runSmoke(): Promise<Omit<SmokeResult, "uncaughtErrors" | "longTasks">> {
   await frames(2);
   const start = performance.now();
+  const previewTools = new Set<number>();
+  const searchTools = new Set<number>();
+  let maxPreviewChars = 0;
+  let maxSearchRows = 0;
+  let maxExpandedDetails = 0;
+  let maxFollowingRowOverlapPx = 0;
+  const railErrors: number[] = [];
+  const elbowErrors: number[] = [];
+  const commandResultGaps: number[] = [];
   for (let cycle = 0; cycle < 11; cycle += 1) {
     const disclosures = Array.from(document.querySelectorAll<HTMLButtonElement>(".desktop-agent-tool-row:not(:disabled)"));
-    for (const disclosure of disclosures) disclosure.click();
-    await frames(2);
+    for (const [index, disclosure] of disclosures.entries()) {
+      disclosure.click();
+      await frames(1);
+      const previewLengths = Array.from(document.querySelectorAll<HTMLElement>(".desktop-agent-tool-text-evidence pre"))
+        .map((node) => node.textContent?.length ?? 0);
+      const searchRows = Array.from(document.querySelectorAll(".desktop-agent-search-results"))
+        .map((node) => node.querySelectorAll(":scope > span, :scope > button").length);
+      if (previewLengths.length > 0) previewTools.add(index);
+      if (searchRows.length > 0) searchTools.add(index);
+      maxPreviewChars = Math.max(maxPreviewChars, ...previewLengths);
+      maxSearchRows = Math.max(maxSearchRows, ...searchRows);
+      maxExpandedDetails = Math.max(
+        maxExpandedDetails,
+        document.querySelectorAll(".desktop-agent-tool-group-detail > .desktop-agent-tool-branch").length,
+      );
+      maxFollowingRowOverlapPx = Math.max(maxFollowingRowOverlapPx, followingRowOverlap());
+      const geometry = measureVisibleEvidenceGeometry();
+      railErrors.push(...geometry.railErrors);
+      elbowErrors.push(...geometry.elbowErrors);
+      commandResultGaps.push(...geometry.commandResultGaps);
+    }
   }
   const durationMs = performance.now() - start;
+  // Publish the screenshot after the final disclosure has finished fading in.
+  await Promise.allSettled(Array.from(document.querySelectorAll(".desktop-agent-tool-branch"))
+    .flatMap(node => node.getAnimations().map(animation => animation.finished)));
+  await frames(1);
   const fallbackCount = document.querySelectorAll(".desktop-agent-activity-render-fallback").length;
   const mountedRows = document.querySelectorAll(".desktop-agent-virtual-row").length;
-  const previewLengths = Array.from(document.querySelectorAll<HTMLElement>(".desktop-agent-tool-text-evidence pre"))
-    .map((node) => node.textContent?.length ?? 0);
-  const searchRows = Array.from(document.querySelectorAll(".desktop-agent-search-results"))
-    .map((node) => node.querySelectorAll(":scope > span, :scope > button").length);
   const sentinelVisible = document.querySelector('.desktop-agent-virtual-row[data-kind="assistant"]') !== null;
-  const maxPreviewChars = Math.max(0, ...previewLengths);
-  const maxSearchRows = Math.max(0, ...searchRows);
-  const evidenceGeometry = measureEvidenceGeometry();
+  const toolGroupCount = document.querySelectorAll(".desktop-agent-tool-group").length;
+  const toolGroupItems = document.querySelectorAll(".desktop-agent-tool-group-item").length;
+  const documentOverflowPx = document.documentElement.scrollWidth - document.documentElement.clientWidth;
+  const evidenceGeometry = {
+    maxRailAlignmentErrorPx: Math.max(0, ...railErrors),
+    maxElbowCenterErrorPx: Math.max(0, ...elbowErrors),
+    commandResultGapPx: commandResultGaps[0] ?? Number.POSITIVE_INFINITY,
+  };
   const passed = fallbackCount === 1
     && sentinelVisible
     && mountedRows <= agentTimelineLimits.maxMountedRows
-    && previewLengths.length >= 3
+    && toolGroupCount === 1
+    && toolGroupItems === 6
+    && maxExpandedDetails === 1
+    && maxFollowingRowOverlapPx <= 1
+    && previewTools.size >= 3
     && maxPreviewChars <= agentToolEvidenceLimits.maxChars + 256
-    && searchRows.length === 1
+    && searchTools.size === 1
     && maxSearchRows <= 80
+    && documentOverflowPx <= 1
     && evidenceGeometry.maxRailAlignmentErrorPx <= 1
     && evidenceGeometry.maxElbowCenterErrorPx <= 1
     && evidenceGeometry.commandResultGapPx >= 0
@@ -126,12 +180,24 @@ async function runSmoke(): Promise<Omit<SmokeResult, "uncaughtErrors" | "longTas
     mountedRows,
     maxPreviewChars,
     maxSearchRows,
-    previewCount: previewLengths.length,
-    searchContainerCount: searchRows.length,
+    previewCount: previewTools.size,
+    searchContainerCount: searchTools.size,
     sentinelVisible,
+    toolGroupCount,
+    toolGroupItems,
+    maxExpandedDetails,
+    documentOverflowPx,
+    maxFollowingRowOverlapPx,
     ...evidenceGeometry,
     ...(passed ? {} : { error: "Agent tool stability DOM contract failed." }),
   };
+}
+
+function followingRowOverlap() {
+  const detail = document.querySelector<HTMLElement>(".desktop-agent-tool-group-detail > .desktop-agent-tool-branch");
+  const following = document.querySelector<HTMLElement>('.desktop-agent-virtual-row[data-kind="assistant"]');
+  if (!detail || !following) return 0;
+  return Math.max(0, detail.getBoundingClientRect().bottom - following.getBoundingClientRect().top);
 }
 
 function createSmokeProjection() {
@@ -159,7 +225,7 @@ function createSmokeProjection() {
       detail: {
         tool: "edit",
         path: "src/fixture.ts",
-        changes: [{ path: "src/fixture.ts", additions: 2, deletions: 1 }],
+        changes: [{ path: "src/fixture.ts", additions: 2, deletions: 1, blocks: [{ removed: "old", added: "new\nextra" }], diff: "@@ -1,1 +1,2 @@\n-old\n+new\n+extra" }],
       },
       output: "",
       sequence: 6,
@@ -178,30 +244,29 @@ function createSmokeProjection() {
   return projection;
 }
 
-function measureEvidenceGeometry() {
-  const commandTool = document.querySelector<HTMLElement>(".desktop-agent-command");
-  const fileTool = document.querySelector<HTMLElement>(".desktop-agent-file-change");
-  const commandNode = commandTool?.querySelector<HTMLElement>(".desktop-agent-evidence-node.is-command");
-  const resultNode = commandTool?.querySelector<HTMLElement>(".desktop-agent-evidence-node.is-result");
-  const fileNode = fileTool?.querySelector<HTMLElement>(".desktop-agent-evidence-node.is-result");
+function measureVisibleEvidenceGeometry() {
+  const selectedItem = document.querySelector<HTMLElement>(".desktop-agent-tool-group-item.is-selected");
+  const firstItem = document.querySelector<HTMLElement>(".desktop-agent-tool-group-item");
+  const detail = document.querySelector<HTMLElement>(".desktop-agent-tool-group-detail");
+  const commandNode = detail?.querySelector<HTMLElement>(".desktop-agent-evidence-node.is-command");
+  const resultNode = detail?.querySelector<HTMLElement>(".desktop-agent-evidence-node.is-result");
+  const fileNode = detail?.querySelector<HTMLElement>(".desktop-agent-tool-file-path")
+    ?.closest<HTMLElement>(".desktop-agent-evidence-node.is-result");
   const commandLine = commandNode?.querySelector<HTMLElement>(".desktop-agent-command-line");
   const commandOutput = resultNode?.querySelector<HTMLElement>(".desktop-agent-command-output");
   const commandMarker = commandNode?.querySelector<HTMLElement>(".desktop-agent-evidence-marker");
-  const fileRow = fileNode?.querySelector<HTMLElement>(".desktop-agent-file-list li");
-  const railErrors = [
-    railAlignmentError(commandTool, commandNode),
-    railAlignmentError(fileTool, fileNode),
-  ];
-  const elbowErrors = [
-    elbowCenterError(commandNode, commandMarker),
-    elbowCenterError(fileNode, fileRow),
-  ];
+  const fileRow = fileNode?.querySelector<HTMLElement>(".desktop-agent-tool-file-path");
   return {
-    maxRailAlignmentErrorPx: Math.max(...railErrors),
-    maxElbowCenterErrorPx: Math.max(...elbowErrors),
-    commandResultGapPx: commandLine && commandOutput
-      ? commandOutput.getBoundingClientRect().top - commandLine.getBoundingClientRect().bottom
-      : Number.POSITIVE_INFINITY,
+    railErrors: selectedItem === firstItem && commandNode
+      ? [railAlignmentError(selectedItem, commandNode)]
+      : [],
+    elbowErrors: [
+      commandNode && commandMarker ? elbowCenterError(commandNode, commandMarker) : null,
+      fileNode && fileRow ? elbowCenterError(fileNode, fileRow) : null,
+    ].filter((value): value is number => value !== null),
+    commandResultGaps: commandLine && commandOutput
+      ? [commandOutput.getBoundingClientRect().top - commandLine.getBoundingClientRect().bottom]
+      : [],
   };
 }
 

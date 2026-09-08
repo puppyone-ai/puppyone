@@ -174,7 +174,7 @@ describe("renderer Sub Theme style host", () => {
       "appearance-overrides",
     ]);
     expect(styles[1]?.textContent).toContain("@layer appearance-overrides");
-    expect(styles[1]?.textContent).toContain("--po-user-md-h1-size: 2.25em");
+    expect(styles[1]?.textContent).toContain("--po-user-md-h1-size: 34px");
     expect(styles[1]?.textContent).toContain("[data-po-appearance-root][data-sub-theme-id]");
   });
 });

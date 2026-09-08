@@ -44,3 +44,30 @@
   background: var(--po-canvas);
   color: var(--po-text);
 }
+
+.desktop-shell-workbench {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.desktop-shell-below-header {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: row;
+  overflow: hidden;
+}
+
+.desktop-shell-workspace-column {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  overflow: hidden;
+}

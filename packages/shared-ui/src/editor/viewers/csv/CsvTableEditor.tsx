@@ -11,6 +11,7 @@ import {
   useSyncExternalStore,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
+import type { DocumentNavigationPort } from "../../navigation/documentNavigation";
 import type {
   EditorSourceRevision,
   EditorSourceSnapshotPort,
@@ -27,6 +28,7 @@ import {
 import { useRegisterEditorFindAdapter } from "../../find/editorFind";
 import { useEditorAppearanceRevision } from "../../../core/appearance/EditorAppearanceContext";
 import { CsvTableControls } from "./CsvTableControls";
+import { CsvCellEditor } from "./CsvCellEditor";
 import { CsvColumnResizeLayer } from "./CsvColumnResizeLayer";
 import { CsvColumnLayoutModel } from "./CsvColumnLayoutModel";
 import { CsvDocumentModel, type CsvModelRow } from "./CsvDocumentModel";
@@ -55,6 +57,7 @@ export type CsvTableEditorProps = {
   nodeName?: string;
   delimiter?: "," | "\t";
   readOnly?: boolean;
+  documentNavigation?: DocumentNavigationPort | null;
   onSourceRevisionChange?: (revision: EditorSourceRevision) => void;
   onSnapshotPortChange?: (port: EditorSourceSnapshotPort | null) => void;
 };
@@ -77,6 +80,7 @@ export function CsvTableEditor({
   nodeName = "",
   delimiter,
   readOnly = true,
+  documentNavigation = null,
   onSourceRevisionChange,
   onSnapshotPortChange,
 }: CsvTableEditorProps) {
@@ -536,6 +540,8 @@ export function CsvTableEditor({
                       displayRowNumber={item.index + 1}
                       key={row.id}
                       matchKeys={csvFind.matchKeys}
+                      documentNavigation={documentNavigation}
+                      documentPath={resolvedDocumentId}
                       onActivate={setActiveCell}
                       onCellKeyDown={handleCellKeyDown}
                       onUpdateCell={updateCell}
@@ -639,6 +645,8 @@ type CsvRowProjectionProps = Readonly<{
   ariaColumnOffset: number;
   columnItems: readonly TabularProjectionItem[];
   currentMatch: CsvFindMatch | null;
+  documentNavigation?: DocumentNavigationPort | null;
+  documentPath?: string;
   matchKeys: ReadonlySet<string>;
   onActivate: (cell: ActiveCell) => void;
   onCellKeyDown: (
@@ -727,6 +735,8 @@ const MemoCsvBodyRow = memo(function CsvBodyRow({
   ariaColumnOffset,
   columnItems,
   currentMatch,
+  documentNavigation = null,
+  documentPath = "",
   displayRowNumber,
   matchKeys,
   onActivate,
@@ -779,21 +789,21 @@ const MemoCsvBodyRow = memo(function CsvBodyRow({
           data-find-current={currentMatch?.rowIndex === rowIndex && currentMatch.columnIndex === item.index ? "true" : undefined}
           aria-colindex={item.index + ariaColumnOffset}
         >
-          <input
+          <CsvCellEditor
             value={row.cells[item.index] ?? ""}
             readOnly={readOnly}
-            onChange={(event) => onUpdateCell(rowIndex, item.index, event.currentTarget.value)}
-            onFocus={() => onActivate({ rowIndex, columnIndex: item.index })}
-            onKeyDown={(event) => onCellKeyDown(event, rowIndex, item.index)}
-            aria-label={t("editor.csv.cell", {
-              row: displayRowNumber,
-              column: item.index + 1,
-            })}
-            aria-haspopup="menu"
-            aria-expanded="false"
-            data-csv-row={rowIndex}
-            data-csv-column={item.index}
-            spellCheck={false}
+            rowIndex={rowIndex}
+            columnIndex={item.index}
+            displayRowNumber={displayRowNumber}
+            reference={documentNavigation?.resolveReference(
+              documentPath,
+              row.cells[item.index] ?? "",
+            ) ?? null}
+            navigation={documentNavigation}
+            onActivate={() => onActivate({ rowIndex, columnIndex: item.index })}
+            onCellKeyDown={(event) => onCellKeyDown(event, rowIndex, item.index)}
+            onUpdate={(value) => onUpdateCell(rowIndex, item.index, value)}
+            t={t}
           />
         </td>
       ))}

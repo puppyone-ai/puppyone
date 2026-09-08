@@ -63,7 +63,7 @@ describe("editor find architecture", () => {
       editorFindStyles.indexOf("}", widgetRuleStart) + 1,
     );
     expect(widgetRule).toContain("width: min(304px, calc(100% - 24px))");
-    expect(widgetRule).toContain("height: 30px");
+    expect(widgetRule).toContain("height: var(--po-control-size)");
     expect(widgetRule).toContain("var(--po-panel-raised)");
     expect(widgetRule).toContain("var(--po-border-subtle)");
     expect(widgetRule).toContain("border-radius: 8px");

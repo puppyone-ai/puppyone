@@ -62,9 +62,9 @@ const MARKDOWN_HEADING_SIZE: Record<
   Exclude<MarkdownHeadingScale, "theme">,
   Readonly<{ h1: string; h2: string; h3: string }>
 > = {
-  compact: { h1: "1.75em", h2: "1.375em", h3: "1.125em" },
-  default: { h1: "2em", h2: "1.5em", h3: "1.25em" },
-  large: { h1: "2.25em", h2: "1.625em", h3: "1.375em" },
+  compact: { h1: "26px", h2: "20px", h3: "17px" },
+  default: { h1: "30px", h2: "23px", h3: "19px" },
+  large: { h1: "34px", h2: "26px", h3: "21px" },
 };
 
 const MARKDOWN_STRONG_WEIGHT: Record<Exclude<MarkdownStrongWeight, "theme">, string> = {

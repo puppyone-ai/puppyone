@@ -3,14 +3,13 @@
  * semantic PuppyOne tokens. Third-party source provenance and license records
  * live outside runtime styles in the repository's audited notice ledger.
  */
-@import "./styles/theme.css";
-@import "./styles/foundation.css";
-@import "./styles/tabs.css";
-@import "./styles/launcher.css";
-@import "./styles/transcript.css";
-@import "./styles/activities.css";
-@import "./styles/tool-results.css";
-@import "./styles/blocking.css";
-@import "./styles/composer.css";
-@import "./styles/pickers.css";
-@import "./styles/responsive.css";
+@import "./styles/theme.css" layer(features);
+@import "./styles/foundation.css" layer(features);
+@import "./styles/launcher.css" layer(features);
+@import "./styles/transcript.css" layer(features);
+@import "./styles/activities.css" layer(features);
+@import "./styles/tool-results.css" layer(features);
+@import "./styles/blocking.css" layer(features);
+@import "./styles/composer.css" layer(features);
+@import "./styles/pickers.css" layer(features);
+@import "./styles/responsive.css" layer(features);

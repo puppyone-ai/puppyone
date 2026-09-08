@@ -1,4 +1,7 @@
 {
+  "native.projectClose.quitDetail": "L’application restera ouverte. Essayez de la quitter à nouveau pour arrêter ces tâches.",
+  "native.projectClose.message": "Certaines tâches du projet ne sont pas encore arrêtées.",
+  "native.projectClose.detail": "La fenêtre restera ouverte. Essayez de la fermer à nouveau pour arrêter ces tâches.",
   "native.messageUnavailable": "Ce texte n’est pas disponible.",
   "native.dock.newWindow": "Nouvelle fenêtre",
   "native.menu.file": "Fichier",

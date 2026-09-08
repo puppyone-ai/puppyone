@@ -9,14 +9,15 @@ import {
   discoverExecutable,
   parseSemanticVersion,
   runBounded,
-} from "../../runtime/executable-discovery.mjs";
+} from "../../transports/executable-discovery.mjs";
 
 export function createPiDiscovery(options = {}) {
   const { cache: cacheOptions, ...discoveryOptions } = options;
-  return createCachedRuntimeDiscovery(() => discoverPiExecutable(discoveryOptions), cacheOptions);
+  return createCachedRuntimeDiscovery(({ signal }) => discoverPiExecutable({ ...discoveryOptions, signal }), cacheOptions);
 }
 
 export async function discoverPiExecutable({
+  signal,
   fsModule = fs,
   spawn = nodeSpawn,
   env = process.env,
@@ -26,6 +27,7 @@ export async function discoverPiExecutable({
 } = {}) {
   const executableName = platform === "win32" ? "pi.exe" : "pi";
   const result = await discoverExecutable({
+      signal,
     executableNames: [executableName],
     additionalCandidates: [
       configuredExecutable,
@@ -46,6 +48,7 @@ export async function discoverPiExecutable({
   if (result.status === "ready" && result.executablePath) {
     try {
       const probe = await runBounded(spawn, result.executablePath, ["--help"], {
+        signal,
         env: result.environment,
         timeoutMs: 4_000,
         maxBytes: 64 * 1024,

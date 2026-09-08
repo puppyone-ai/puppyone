@@ -11,11 +11,13 @@
       window.localStorage.getItem(manifest.storage.appearancePreferences),
     );
     const storedInterfaceStyle = window.localStorage.getItem(manifest.storage.interfaceStyle);
-    const requestedStyleId = storedAppearance?.schemaVersion === 4
+    const hasCanonicalAppearance = storedAppearance?.schemaVersion === 5
+      || storedAppearance?.schemaVersion === 4;
+    const requestedStyleId = hasCanonicalAppearance
       ? storedAppearance.activeRootThemeId
       : storedInterfaceStyle;
     const style = styles.get(requestedStyleId) ?? defaultStyle;
-    const rootPreferences = storedAppearance?.schemaVersion === 4
+    const rootPreferences = hasCanonicalAppearance
       ? storedAppearance.byRootTheme?.[style.id]
       : null;
     const storedTheme = rootPreferences?.requestedColorMode

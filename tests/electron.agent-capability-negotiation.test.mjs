@@ -34,6 +34,7 @@ describe("Agent capability negotiation", () => {
       },
       constraints: { modelSwitch: "turn-boundary", forkRequiresIdle: true, unsafe: "drop" },
       history: { discovery: "paged", exactOpen: "supported", hydration: "paged", unsafe: "drop" },
+      recovery: { strategy: "object-reconciliation", activeExecution: "outcome-unknown", atomicHandoff: false, unsafe: true },
       unknownCapability: true,
     })).toMatchObject({
       streamingText: true,
@@ -46,6 +47,7 @@ describe("Agent capability negotiation", () => {
       },
       constraints: { modelSwitch: "turn-boundary", forkRequiresIdle: true },
       history: { discovery: "paged", exactOpen: "supported", hydration: "paged" },
+      recovery: { strategy: "object-reconciliation", activeExecution: "outcome-unknown", atomicHandoff: false },
     });
   });
 
@@ -63,7 +65,7 @@ describe("Agent capability negotiation", () => {
   });
 
   it("represents Pi resume hydration without pretending it can discover sessions", () => {
-    const adapter = Object.create(PiRpcAdapter.prototype);
+    const adapter = Object.assign(Object.create(PiRpcAdapter.prototype), { historySource: { sourceScopeId: "default" } });
     expect(() => assertAgentSessionHistoryCapabilities(adapter, PI_CAPABILITIES, "pi")).not.toThrow();
     expect(PI_CAPABILITIES.history).toEqual({
       discovery: "unsupported",
@@ -92,7 +94,7 @@ describe("Agent capability negotiation", () => {
       protocol: { name: "acp", version: 1 },
     }],
   ])("keeps the %s adapter and advertised operations conformant", (runtimeId, Adapter, capabilities) => {
-    const adapter = Object.create(Adapter.prototype);
+    const adapter = Object.assign(Object.create(Adapter.prototype), { historySource: { sourceScopeId: "default" }, sourceScopeId: "default" });
     expect(() => assertAgentRuntimePort(adapter, runtimeId)).not.toThrow();
     const normalized = assertAgentRuntimeCapabilities(adapter, capabilities, runtimeId);
     expect(() => assertAgentSessionHistoryCapabilities(adapter, normalized, runtimeId)).not.toThrow();

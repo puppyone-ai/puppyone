@@ -92,6 +92,7 @@ function createEvent() {
     eventId: "123e4567-e89b-42d3-a456-426614174000",
     osMajor: "15",
     platform: "darwin",
+    retentionId: `r1_${"b".repeat(43)}`,
   });
 }
 
@@ -100,7 +101,7 @@ function createRequest() {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      schema_version: 1,
+      schema_version: 2,
       sent_at: "2026-08-27T12:00:00.000Z",
       events: [createEvent()],
     }),

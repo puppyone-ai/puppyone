@@ -111,6 +111,15 @@ Rules:
   }
 }
 
+@puppyone typography {
+  :root {
+    --po-text-size-content: 16px;
+    --po-text-size-conversation: 14px;
+    --po-code-font-size: 13px;
+    --po-terminal-font-size: 13px;
+  }
+}
+
 @puppyone markdown {
   :root {
     --po-md-surface-background: #f5f0e8;
@@ -189,7 +198,7 @@ Allowed examples:
 ```css
 :root {
   --po-md-content-color: #342f29;
-  --po-md-h1-size: 2em;
+  --po-md-h1-size: 30px;
 }
 
 .dark .theme-root {
@@ -221,7 +230,7 @@ Application targets accept only the published PuppyOne color tokens, including:
 - text and borders: `--po-text`, `--po-text-muted`, `--po-border`, `--po-divider`;
 - state: `--po-hover`, `--po-selected`, `--po-accent`, `--po-focus-ring`, `--po-danger`, `--po-success`, `--po-warning`.
 
-Markdown targets accept the public `--po-md-*` presentation tokens, such as content, heading, link, quote, inline-code, code-block, and syntax colors. CSV targets accept `--po-csv-*` plus the documented `--po-editable-table-*` presentation tokens.
+Typography targets accept bounded pixel defaults for `--po-text-size-interface`, `--po-text-size-content`, `--po-text-size-conversation`, `--po-text-size-data`, `--po-code-font-size`, and `--po-terminal-font-size`. A user's explicit Appearance setting always takes precedence and never rewrites the theme file. Markdown targets accept the public `--po-md-*` presentation tokens, such as content, heading, link, quote, inline-code, code-block, and syntax colors. CSV targets accept `--po-csv-*` plus the documented `--po-editable-table-*` presentation tokens.
 
 PuppyOne maps these author-facing names to private host-boundary variables during compilation. Do not author `--po-host-*` variables directly.
 

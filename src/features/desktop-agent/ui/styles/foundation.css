@@ -4,7 +4,7 @@
   --agent-inline-inset: var(--desktop-sidebar-row-left-gap, 12px);
   --agent-dock-padding-top: 12px;
   --agent-dock-padding-bottom: 12px;
-  --agent-control-size: 30px;
+  --agent-control-size: var(--po-control-size);
   --agent-primary-action-visual-size: 28px;
   --agent-primary-action-separation: 4px;
   --agent-radius-composer: 8px;
@@ -12,7 +12,7 @@
   --agent-message-content-inset: 12px;
   --agent-message-turn-gap: 24px;
   --agent-work-handoff-gap: 8px;
-  --agent-composer-line-height: 20px;
+  --agent-composer-line-height: var(--agent-conversation-line-height);
   --agent-composer-input-padding-block: 12px;
   --agent-composer-text-inset-inline: 16px;
   --agent-composer-text-max-height: 120px;
@@ -30,22 +30,40 @@
     + var(--agent-dock-padding-bottom)
     + 2px
   );
-  --agent-font-size: var(--desktop-sidebar-font-size, var(--po-text-size-sidebar, 13px));
-  --agent-font-size-meta: var(--desktop-sidebar-font-size-meta, var(--po-text-size-meta, 12px));
-  --agent-font-size-caption: var(--po-text-size-caption, 11px);
-  --agent-font-size-micro: var(--po-text-size-micro, 10px);
-  --agent-code-font-size: var(--po-code-font-size, 13px);
-  /* One-way visual mirror of the existing Data tree row states. */
-  --agent-row-hover-surface: color-mix(in srgb, var(--po-hover) 86%, transparent);
-  --agent-row-selected-surface: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--po-selected) 96%, transparent) 0%,
-    color-mix(in srgb, var(--po-selected) 88%, transparent) calc(100% - 36px),
-    color-mix(in srgb, var(--po-selected) 62%, transparent) 100%
-  );
+  --agent-font-size: var(--po-type-right-sidebar-content, 14px);
+  --agent-control-line-height: var(--po-type-right-sidebar-control-line-height, 19px);
+  /* Conversation copy is a reading surface, one step larger than Sidebar
+   * chrome. Keep prompts, sent messages, and responses on one shared scale. */
+  --agent-conversation-font-size: var(--po-type-right-sidebar-content, 14px);
+  --agent-conversation-line-height: calc(var(--agent-conversation-font-size) + 7px);
+  --agent-response-line-height: calc(var(--agent-conversation-font-size) + 8px);
+  --agent-font-size-meta: var(--po-type-right-sidebar-meta, 13px);
+  --agent-meta-line-height: var(--po-type-right-sidebar-meta-line-height, 19px);
+  --agent-font-size-caption: var(--po-type-right-sidebar-caption, 12px);
+  --agent-caption-line-height: var(--po-type-right-sidebar-caption-line-height, 17px);
+  --agent-font-size-micro: var(--po-type-right-sidebar-micro, 11px);
+  --agent-micro-line-height: var(--po-type-right-sidebar-micro-line-height, 15px);
+  --agent-code-font-size: var(--po-type-right-sidebar-code, 13px);
+  /* Right sidebar role map:
+   * content = primary labels and controls;
+   * meta = search, timestamps, evidence, and supporting copy;
+   * caption = empty/error states and compact annotations;
+   * micro = low-priority pagination and recovery status;
+   * code = commands, diffs, and machine output.
+   * Workbench/page headers intentionally use --po-type-header-* instead. */
   color: var(--agent-text);
   font-family: var(--po-font-sans);
   font-size: var(--agent-font-size);
+  line-height: var(--agent-control-line-height);
+}
+
+/* Native <small> uses a relative UA size that produces fractional pixels at
+ * the 15px Medium preset. Treat it as a semantic supporting-text element at
+ * the Agent boundary; narrower caption roles can still override it. */
+.desktop-agent-boundary small,
+.desktop-agent-overlay small {
+  font-size: var(--agent-font-size-meta);
+  line-height: var(--agent-meta-line-height);
 }
 
 .desktop-agent-boundary {
@@ -76,16 +94,6 @@
   user-select: text;
 }
 
-.dark .desktop-agent-boundary,
-.dark .desktop-agent-overlay {
-  --agent-row-hover-surface: color-mix(in srgb, rgba(211, 208, 197, 0.075) 86%, transparent);
-  --agent-row-selected-surface: linear-gradient(
-    90deg,
-    color-mix(in srgb, rgba(211, 208, 197, 0.14) 96%, transparent) 0%,
-    color-mix(in srgb, rgba(211, 208, 197, 0.14) 88%, transparent) calc(100% - 36px),
-    color-mix(in srgb, rgba(211, 208, 197, 0.14) 62%, transparent) 100%
-  );
-}
 
 .desktop-agent-panel {
   position: relative;
@@ -121,7 +129,7 @@
 .desktop-agent-overlay button:focus-visible,
 .desktop-agent-overlay input:focus-visible,
 .desktop-agent-transcript:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--agent-accent) 68%, transparent);
+  outline: 2px solid var(--agent-focus-ring);
   outline-offset: 2px;
 }
 
@@ -134,7 +142,7 @@
   overflow: hidden;
   border-radius: 5px;
   color: var(--agent-text);
-  font-size: 8px;
+  font-size: var(--po-text-size-glyph, 8px);
   font-weight: 700;
   line-height: 1;
 }
@@ -159,13 +167,13 @@
 .desktop-agent-brand-mark.is-claude { --desktop-agent-brand-mark-scale: 0.84; background: transparent; }
 .desktop-agent-brand-mark.is-cursor { background: transparent; }
 .desktop-agent-brand-mark.is-cursor img { object-fit: contain; }
-.desktop-agent-brand-mark.is-opencode { background: #131010; }
+.desktop-agent-brand-mark.is-opencode { background: var(--po-canvas); }
 .desktop-agent-brand-mark.is-pi { background: transparent; }
 .desktop-agent-brand-mark.is-pi img { object-fit: contain; }
 .desktop-agent-brand-mark.is-fallback { border: 1px solid var(--agent-border-subtle); background: var(--agent-control-surface); color: var(--agent-text-muted); }
 
 .desktop-agent-header-region {
-  --desktop-sidebar-control-size: 26px;
+  --desktop-sidebar-control-size: calc(var(--po-control-size) - 6px);
   --desktop-sidebar-navigation-height: var(--desktop-chrome-height);
   --desktop-sidebar-navigation-padding-outer: 6px;
   --desktop-sidebar-navigation-padding-inner: 6px;
@@ -351,7 +359,7 @@
   border-radius: var(--desktop-control-radius);
   background: transparent;
   color: var(--agent-text-muted);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .desktop-agent-icon-button:hover:not(:disabled) {
@@ -385,9 +393,9 @@
   gap: 12px;
   margin: 0;
   padding: 14px 16px;
-  border: 1px solid color-mix(in srgb, var(--po-warning) 35%, var(--po-divider));
+  border: 1px solid var(--agent-readiness-border);
   border-radius: 14px;
-  background: color-mix(in srgb, var(--po-warning) 7%, var(--po-panel));
+  background: var(--agent-readiness-surface);
   color: var(--po-text);
   font-size: var(--agent-font-size);
 }
@@ -422,7 +430,7 @@
   background: var(--agent-control-surface);
   color: var(--agent-text);
   font: inherit;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .desktop-agent-inline-error {

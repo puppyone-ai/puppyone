@@ -1,50 +1,40 @@
-import { createAgentEventEnvelope, countTextBytes, redactSecretText } from "../agent-events.mjs";
+import { redactSecretText } from "../agent-events.mjs";
 import { normalizeAgentEventWorkspacePaths } from "../domain/agent-event-workspace-paths.mjs";
 
-const MAX_REPLAY_EVENTS = 1_000;
-const MAX_REPLAY_BYTES = 2 * 1024 * 1024;
 const PERSIST_DEBOUNCE_MS = 750;
 
-/** Owns bounded live-event delivery and process-local recovery snapshots. */
+/** Commits canonical facts and schedules process-local recovery snapshots. */
 export function createAgentEventJournal({ sessionCache, logger = console }) {
-  function sendSessionExit(session, reason) {
-    if (session.sender?.isDestroyed?.()) return;
+  function emit(session, adapterEvent) {
+    let envelope;
     try {
-      session.sender.send("agent:session-exit", { sessionId: session.id, reason });
+      const normalizedEvent = normalizeAgentEventWorkspacePaths(adapterEvent, session.workspaceRoot);
+      envelope = session.actor.appendEvent({
+        sessionId: session.id,
+        runtimeId: session.runtimeId,
+        providerSessionId: normalizedEvent.providerSessionId ?? session.providerSessionId,
+        event: normalizedEvent,
+      });
     } catch (error) {
-      logger.warn?.("Unable to deliver Desktop Agent session-exit:", redactSecretText(error?.message || String(error)));
-    }
-  }
-
-  function emit(session, adapterEvent, { deliver = true } = {}) {
-    const normalizedEvent = normalizeAgentEventWorkspacePaths(adapterEvent, session.workspaceRoot);
-    const envelope = createAgentEventEnvelope({
-      sequence: ++session.sequence,
-      sessionId: session.id,
-      runtimeId: session.runtimeId,
-      providerSessionId: normalizedEvent.providerSessionId ?? session.providerSessionId,
-      turnId: normalizedEvent.turnId ?? null,
-      itemId: normalizedEvent.itemId ?? null,
-      type: normalizedEvent.type,
-      payload: normalizedEvent.payload ?? {},
-    });
-    session.events.push(envelope);
-    session.replayBytes += countTextBytes(envelope);
-    while (
-      session.events.length > MAX_REPLAY_EVENTS
-      || (session.replayBytes > MAX_REPLAY_BYTES && session.events.length > 1)
-    ) {
-      const removed = session.events.shift();
-      session.replayBytes -= countTextBytes(removed);
-    }
-    session.updatedAt = envelope.emittedAt;
-    if (deliver && !session.sender.isDestroyed?.()) {
-      try {
-        session.sender.send("agent:event", envelope);
-      } catch (error) {
-        logger.warn?.("Unable to deliver Desktop Agent event:", redactSecretText(error?.message || String(error)));
+      // A bad display item must not terminate the native stream consumer. Keep
+      // the failure visible and let later, valid native objects continue.
+      const type = typeof adapterEvent?.type === "string" ? adapterEvent.type.slice(0, 80) : "unknown";
+      logger.warn?.("Agent display translation rejected an item", { type, stage: "main-commit" });
+      envelope = session.actor.appendEvent({ sessionId: session.id, runtimeId: session.runtimeId,
+        providerSessionId: session.providerSessionId, event: { type: "provider.error", turnId: session.activeTurnId,
+          itemId: null, payload: { code: "AGENT_DISPLAY_ITEM_INVALID", stage: "main-commit", recoverable: true,
+            message: "An Agent content item could not be displayed.", diagnostic: redactSecretText(error?.message || String(error)).slice(0, 1_000) } } });
+      if (["turn.completed", "turn.failed", "turn.interrupted"].includes(type)) {
+        try {
+          session.actor.appendEvent({ sessionId: session.id, runtimeId: session.runtimeId,
+            providerSessionId: session.providerSessionId,
+            event: { type, turnId: adapterEvent.turnId, payload: { status: type.slice(5) } } });
+        } catch { session.actor.dispatch({ type: "recovery.unconfirmed", reason: "invalid-native-terminal-identity" }); }
+      } else if (type === "approval.requested" || type === "question.requested") {
+        session.actor.dispatch({ type: "recovery.unconfirmed", reason: "invalid-native-request-identity" });
       }
     }
+    session.updatedAt = envelope.emittedAt;
     persistSoon(session);
     return envelope;
   }
@@ -66,6 +56,7 @@ export function createAgentEventJournal({ sessionCache, logger = console }) {
       runtimeId: session.runtimeId,
       runtime: session.runtime,
       providerSessionId: session.providerSessionId,
+      sourceScopeId: session.sourceScopeId ?? "default",
       title: session.title,
       createdAt: session.createdAt,
       updatedAt: session.updatedAt,
@@ -78,25 +69,18 @@ export function createAgentEventJournal({ sessionCache, logger = console }) {
       events: session.events,
     };
     return Promise.resolve(sessionCache.save(record, {
-      // Allocation is process-local. A real turn or native resume is the
-      // durable-history checkpoint that promotes this locator to the catalog.
-      promoteCatalog: hasDurableConversationEvidence(session.events),
+      // Only adapter/native-store evidence can make a locator reopenable.
+      promoteCatalog: session.nativePersistenceConfirmed === true,
     })).catch((error) => {
       logger.warn?.("Unable to update the Agent conversation metadata catalog:", redactSecretText(error?.message || String(error)));
     });
   }
 
-  return { emit, persistNow, persistSoon, sendSessionExit };
-}
-
-function hasDurableConversationEvidence(events) {
-  return Array.isArray(events) && events.some((event) => (
-    event?.type === "turn.started" || event?.type === "session.resumed"
-  ));
+  return { emit, persistNow, persistSoon };
 }
 
 export const agentEventJournalLimits = Object.freeze({
-  maxReplayEvents: MAX_REPLAY_EVENTS,
-  maxReplayBytes: MAX_REPLAY_BYTES,
+  maxReplayEvents: 1_000,
+  maxReplayBytes: 2 * 1024 * 1024,
   persistDebounceMs: PERSIST_DEBOUNCE_MS,
 });

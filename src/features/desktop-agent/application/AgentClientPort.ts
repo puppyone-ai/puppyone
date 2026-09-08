@@ -2,7 +2,6 @@ import type {
   AgentAccountReadRequest,
   AgentAccountState,
   AgentApprovalResolution,
-  AgentEvent,
   AgentLocalConnectionsRequest,
   AgentLocalConnectionsSnapshot,
   AgentModel,
@@ -16,12 +15,16 @@ import type {
   AgentRuntimeRequest,
   AgentSessionCloseRequest,
   AgentSessionCreateRequest,
-  AgentSessionExitEvent,
   AgentSessionMutationRequest,
   AgentSessionOpenRequest,
   AgentSessionOpenResult,
   AgentSessionResumeRequest,
   AgentSessionSnapshot,
+  AgentSessionAttachRequest,
+  AgentSessionFeedAckRequest,
+  AgentSessionFeedReceipt,
+  AgentSessionDetachRequest,
+  AgentSessionFrame,
   AgentSessionsListRequest,
   AgentSessionsListResponse,
   AgentTurnInterruptRequest,
@@ -40,6 +43,10 @@ export interface AgentClientPort {
   resumeAgentSession(request: AgentSessionResumeRequest): Promise<AgentSessionSnapshot | null>;
   openAgentSession(request: AgentSessionOpenRequest): Promise<AgentSessionOpenResult>;
   replayAgentSession(request: AgentReplayRequest): Promise<AgentSessionSnapshot>;
+  attachAgentSession?(request: AgentSessionAttachRequest): Promise<AgentSessionFeedReceipt>;
+  acknowledgeAgentSession?(request: AgentSessionFeedAckRequest): Promise<{ subscriptionId: string; streamId: string; revision: number; synchronized: boolean }>;
+  readAgentSessionWatermark?(request: AgentSessionDetachRequest): Promise<{ subscriptionId: string; streamId: string; revision: number; acknowledgedRevision: number; resyncRequired: boolean }>;
+  detachAgentSession?(request: AgentSessionDetachRequest): Promise<{ subscriptionId: string; detached: boolean }>;
   listAgentSessions(request: AgentSessionsListRequest): Promise<AgentSessionsListResponse>;
   forkAgentSession(request: AgentSessionMutationRequest): Promise<AgentSessionSnapshot>;
   archiveAgentSession(request: AgentSessionMutationRequest): Promise<{ sessionId: string; archived: boolean }>;
@@ -59,8 +66,7 @@ export interface AgentClientPort {
     decision: AgentApprovalResolution["decision"];
   }>;
   resolveAgentQuestion(request: AgentQuestionResolution): Promise<{ sessionId: string; requestId: string }>;
-  onAgentEvent(callback: (event: AgentEvent) => void): () => void;
-  onAgentSessionExit(callback: (event: AgentSessionExitEvent) => void): () => void;
+  onAgentSessionFrame?(callback: (frame: AgentSessionFrame) => void): () => void;
 }
 
 export type AgentClientProvider = () => AgentClientPort | undefined;

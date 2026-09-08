@@ -19,9 +19,9 @@
 :root[data-interface-style="default"]
   .desktop-workbench-close-dialog .desktop-dialog-title-row h2 {
   color: var(--po-text-muted);
-  font-size: 13px;
+  font-size: var(--po-type-right-sidebar-content, 14px);
   font-weight: var(--po-text-weight-medium, 500);
-  line-height: 18px;
+  line-height: var(--po-type-right-sidebar-control-line-height, 19px);
 }
 
 :root[data-interface-style="default"] .desktop-workbench-close-dialog-icon {
@@ -42,8 +42,8 @@
   .desktop-workbench-close-dialog .desktop-dialog-body {
   padding: 6px 16px 16px 42px;
   color: var(--po-text-subtle);
-  font-size: 12px;
-  line-height: 18px;
+  font-size: var(--po-type-right-sidebar-meta, 13px);
+  line-height: var(--po-type-right-sidebar-meta-line-height, 19px);
 }
 
 :root[data-interface-style="default"]
@@ -59,9 +59,9 @@
 
 :root[data-interface-style="default"]
   .desktop-workbench-close-dialog-action.po-button {
-  min-height: 28px;
+  min-height: var(--po-control-size-compact);
   padding-inline: 10px;
-  font-size: 12px;
+  font-size: var(--po-type-right-sidebar-meta, 13px);
   font-weight: var(--po-text-weight-medium, 500);
 }
 

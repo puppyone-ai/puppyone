@@ -2,8 +2,9 @@
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it } from "vitest";
-import type { AgentStreamFlushScheduler } from "../src/features/desktop-agent/application/AgentEventSynchronizer";
+import type { AgentStreamFlushScheduler } from "../src/features/desktop-agent/ui/agent-stream-frame-scheduler";
 import { SafeMarkdown } from "../src/features/desktop-agent/ui/SafeMarkdown";
+import { splitStreamingMarkdown } from "../src/features/desktop-agent/domain/agent-stream-presentation";
 import { useAgentStreamPresentation } from "../src/features/desktop-agent/ui/useAgentStreamPresentation";
 import { withTestLocalization } from "./testLocalization";
 
@@ -54,6 +55,46 @@ describe("Agent stream presentation", () => {
     expect(container.querySelector("strong")?.textContent).toBe("done");
     expect(container.querySelector(".desktop-agent-markdown-stream-tail")).toBeNull();
     expect(container.querySelector(".desktop-agent-stream-caret")).toBeNull();
+  });
+
+  it("keeps backtick and tilde fences inert until their matching close fence arrives", () => {
+    expect(splitStreamingMarkdown("Before\n\n~~~mermaid\ngraph TD; A-->B")).toEqual({
+      stable: "Before\n\n",
+      tail: "~~~mermaid\ngraph TD; A-->B",
+    });
+    expect(splitStreamingMarkdown("Before\n\n~~~~mermaid\ngraph TD; A-->B\n~~~\n")).toEqual({
+      stable: "Before\n\n",
+      tail: "~~~~mermaid\ngraph TD; A-->B\n~~~\n",
+    });
+    expect(splitStreamingMarkdown("Before\n\n~~~~mermaid\ngraph TD; A-->B\n~~~~\n")).toEqual({
+      stable: "Before\n\n~~~~mermaid\ngraph TD; A-->B\n~~~~\n",
+      tail: "",
+    });
+  });
+
+  it("streams complete GFM table rows without remounting the table viewport", () => {
+    const first = [
+      "| Tool | State |",
+      "| --- | --- |",
+      "| Read | complete |",
+      "| Bash | run",
+    ].join("\n");
+    const container = mount(withTestLocalization(<SafeMarkdown text={first} streaming />));
+    const viewport = container.querySelector(".desktop-agent-markdown-table-scroll");
+
+    expect(viewport?.querySelectorAll("tbody tr")).toHaveLength(1);
+    expect(container.querySelector(".desktop-agent-markdown-stream-tail")?.textContent).toContain("| Bash | run");
+
+    const second = `${first}ning |\n| Edit | wai`;
+    rerender(withTestLocalization(<SafeMarkdown text={second} streaming />));
+    expect(container.querySelector(".desktop-agent-markdown-table-scroll")).toBe(viewport);
+    expect(viewport?.querySelectorAll("tbody tr")).toHaveLength(2);
+    expect(viewport?.textContent).toContain("running");
+    expect(container.querySelector(".desktop-agent-markdown-stream-tail")?.textContent).toContain("| Edit | wai");
+
+    rerender(withTestLocalization(<SafeMarkdown text={`${second}ting |`} streaming={false} />));
+    expect(container.querySelectorAll(".desktop-agent-markdown-table-scroll tbody tr")).toHaveLength(3);
+    expect(container.querySelector(".desktop-agent-markdown-stream-tail")).toBeNull();
   });
 });
 

@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   setWindowChromeProfile: (request) => (
     ipcRenderer.invoke("window-layout:set-chrome-profile", {
       titlebar: request?.titlebar,
+      leadingRail: request?.leadingRail === true,
     })
   ),
   performWindowAction: (request) => (
@@ -204,13 +205,59 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
     setBounds: (request) => ipcRenderer.invoke("markdown-web-embed:set-bounds", request),
     destroy: (request) => ipcRenderer.invoke("markdown-web-embed:destroy", request),
   },
+  editorSurfaces: {
+    activate: (request) => ipcRenderer.invoke("editor-surface:activate", request),
+    setBounds: (request) => ipcRenderer.invoke("editor-surface:set-bounds", request),
+    updateAppearance: (request) => ipcRenderer.invoke("editor-surface:update-appearance", request),
+    destroy: (request) => ipcRenderer.invoke("editor-surface:destroy", request),
+    onState: (callback) => {
+      if (typeof callback !== "function") return () => {};
+      const listener = (_event, payload) => callback(payload);
+      ipcRenderer.on("editor-surface:state", listener);
+      return () => ipcRenderer.removeListener("editor-surface:state", listener);
+    },
+  },
   getInitialWorkspace: () => ipcRenderer.invoke("window:get-initial-workspace"),
   getLastWorkspace: () => ipcRenderer.invoke("workspace:get-last"),
   getRecentWorkspaces: () => ipcRenderer.invoke("workspace:get-recent"),
   hydrateRecentWorkspaces: () => ipcRenderer.invoke("workspace:hydrate-recent"),
+  projectAppearance: {
+    list: (request) => ipcRenderer.invoke("project-appearance:list", {
+      projectIdentities: Array.isArray(request?.projectIdentities)
+        ? request.projectIdentities
+        : [],
+    }),
+    chooseIcon: (request) => ipcRenderer.invoke("project-appearance:choose-icon", {
+      projectIdentity: request?.projectIdentity,
+    }),
+    resetIcon: (request) => ipcRenderer.invoke("project-appearance:reset-icon", {
+      projectIdentity: request?.projectIdentity,
+    }),
+    setEmoji: (request) => ipcRenderer.invoke("project-appearance:set-emoji", {
+      projectIdentity: request?.projectIdentity,
+      emoji: request?.emoji,
+    }),
+    onChanged: (callback) => {
+      if (typeof callback !== "function") return () => {};
+      const listener = (_event, appearance) => callback(appearance);
+      ipcRenderer.on("project-appearance:changed", listener);
+      return () => ipcRenderer.removeListener("project-appearance:changed", listener);
+    },
+  },
   removeRecentWorkspace: (folderPath) => ipcRenderer.invoke("workspace:remove-recent", folderPath),
   forgetLastWorkspace: () => ipcRenderer.invoke("workspace:forget-last"),
   showHomepage: () => ipcRenderer.invoke("workspace:show-homepage"),
+  readProjectSessions: () => ipcRenderer.invoke("project-sessions:read"),
+  onWorkspaceOpenRequested: (callback) => {
+    const listener = (_event, value) => callback(value);
+    ipcRenderer.on("workspace:open-requested", listener);
+    return () => ipcRenderer.removeListener("workspace:open-requested", listener);
+  },
+  onProjectSessionsChanged: (callback) => {
+    const listener = (_event, snapshot) => callback(snapshot);
+    ipcRenderer.on("project-sessions:changed", listener);
+    return () => ipcRenderer.removeListener("project-sessions:changed", listener);
+  },
   openWorkspaceInCurrentWindow: (folderPath) => ipcRenderer.invoke("workspace:open-current", folderPath),
   openWorkspaceInNewWindow: (folderPath) => ipcRenderer.invoke("workspace:open-new-window", folderPath),
   openDroppedWorkspaceInCurrentWindow: (folder) => {
@@ -229,6 +276,19 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   createLocalProject: (request) => ipcRenderer.invoke("workspace:create-project-current", request),
   cloneRepository: (request) => ipcRenderer.invoke("workspace:clone-repository-current", request),
   getPathForFile: (file) => webUtils.getPathForFile(file),
+  resolveResourceReferences: (request) => ipcRenderer.invoke("resource-transfer:resolve", request),
+  resourceDragSessionSupported: process.platform === "darwin",
+  previewResourceDrag: () => ipcRenderer.invoke("resource-transfer:preview-drag"),
+  claimResourceDrop: (request) => ipcRenderer.invoke("resource-transfer:claim-drop", {
+    intent: request.intent, targetResource: request.targetResource,
+    paths: request.files.map((file) => webUtils.getPathForFile(file)),
+  }),
+  onResourceDragState: (listener) => {
+    const handler = (_event, state) => listener(state);
+    ipcRenderer.on("resource-transfer:state", handler);
+    return () => ipcRenderer.removeListener("resource-transfer:state", handler);
+  },
+  startResourceDrag: (request) => ipcRenderer.invoke("resource-transfer:start-drag", request),
   listFolderChildren: (request) => ipcRenderer.invoke("workspace:list-folder-children", request),
   resolveNode: (request) => ipcRenderer.invoke("workspace:resolve-node", request),
   readFile: (request) => ipcRenderer.invoke("workspace:read-file", request),
@@ -376,6 +436,10 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   resumeAgentSession: (request) => ipcRenderer.invoke("agent:session-resume", request),
   openAgentSession: (request) => ipcRenderer.invoke("agent:session-open", request),
   replayAgentSession: (request) => ipcRenderer.invoke("agent:session-replay", request),
+  attachAgentSession: (request) => ipcRenderer.invoke("agent:session-attach", request),
+  acknowledgeAgentSession: (request) => ipcRenderer.invoke("agent:session-feed-ack", request),
+  readAgentSessionWatermark: (request) => ipcRenderer.invoke("agent:session-feed-watermark", request),
+  detachAgentSession: (request) => ipcRenderer.invoke("agent:session-detach", request),
   listAgentSessions: (request) => ipcRenderer.invoke("agent:sessions-list", request),
   forkAgentSession: (request) => ipcRenderer.invoke("agent:session-fork", request),
   archiveAgentSession: (request) => ipcRenderer.invoke("agent:session-archive", request),
@@ -396,21 +460,16 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   revokeAgentAttachments: (request) => ipcRenderer.invoke("agent:reference-revoke", request),
   resolveAgentWorkspaceReferences: (request) => ipcRenderer.invoke("agent:reference-resolve-workspace", request),
   pickAgentWorkspaceReferences: (request) => ipcRenderer.invoke("agent:reference-pick-workspace", request),
-  startAgentTurn: (request) => ipcRenderer.invoke("agent:turn-start", request),
-  steerAgentTurn: (request) => ipcRenderer.invoke("agent:turn-steer", request),
-  interruptAgentTurn: (request) => ipcRenderer.invoke("agent:turn-interrupt", request),
+  startAgentTurn: (request) => ipcRenderer.invoke("agent:command-dispatch", { ...request, kind: "start" }),
+  steerAgentTurn: (request) => ipcRenderer.invoke("agent:command-dispatch", { ...request, kind: "steer" }),
+  interruptAgentTurn: (request) => ipcRenderer.invoke("agent:command-dispatch", { ...request, kind: "interrupt" }),
   compactAgentSession: (request) => ipcRenderer.invoke("agent:session-compact", request),
-  resolveAgentApproval: (request) => ipcRenderer.invoke("agent:approval-resolve", request),
-  resolveAgentQuestion: (request) => ipcRenderer.invoke("agent:question-resolve", request),
-  onAgentEvent: (callback) => {
+  resolveAgentApproval: (request) => ipcRenderer.invoke("agent:command-dispatch", { ...request, kind: "approval" }),
+  resolveAgentQuestion: (request) => ipcRenderer.invoke("agent:command-dispatch", { ...request, kind: "question" }),
+  onAgentSessionFrame: (callback) => {
     const listener = (_event, payload) => callback(payload);
-    ipcRenderer.on("agent:event", listener);
-    return () => ipcRenderer.removeListener("agent:event", listener);
-  },
-  onAgentSessionExit: (callback) => {
-    const listener = (_event, payload) => callback(payload);
-    ipcRenderer.on("agent:session-exit", listener);
-    return () => ipcRenderer.removeListener("agent:session-exit", listener);
+    ipcRenderer.on("agent:session-frame", listener);
+    return () => ipcRenderer.removeListener("agent:session-frame", listener);
   },
   ...(externalViewerPacksEnabled ? {
     viewerPacks: {

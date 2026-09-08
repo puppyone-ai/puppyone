@@ -2,63 +2,26 @@ import { randomUUID } from "node:crypto";
 import {
   normalizeOptionalId,
   normalizeRequiredId,
-  normalizeRuntimeId,
   requireMatchingWorkspace,
   requireWorkspaceRoot,
 } from "../agent-input-policy.mjs";
 import {
   applyProviderSession,
   createAgentSessionRecord,
-  publicSessionRecord,
   sessionMetadata,
   sessionSnapshot,
 } from "../../domain/agent-session-model.mjs";
-import { resolvePersistedRuntimeId } from "../../migrations/legacy-session-format.mjs";
-import { resolveAgentSessionHistoryPort } from "../../runtime/agent-session-history-port.mjs";
+import { hydrateAgentSession } from "./agent-history-hydration.mjs";
 
-/** Owns bounded History listing and explicit management commands. */
+/** Owns explicit session management commands. */
 export function createAgentSessionCommands({
   runtimeResolutionCoordinator,
-  nativeConversationIndexer,
   sessionStore,
   cache,
   runtimeSession,
   emit,
   persistNow,
 }) {
-  async function listSessions(_sender, request, workspaceRoot) {
-    requireWorkspaceRoot(workspaceRoot);
-    const runtimeId = normalizeRuntimeId(request?.runtimeId);
-    const discovery = request?.discoverNative && runtimeId
-      ? await nativeConversationIndexer.refresh({
-        workspaceRoot,
-        runtimeId,
-        cursor: request?.cursor ?? null,
-        scanId: request?.scanId ?? null,
-        limit: request?.limit,
-      })
-      : {
-        runtimeId: runtimeId ?? null,
-        status: "not-requested",
-        nextCursor: null,
-        scanId: null,
-        indexed: 0,
-        warnings: [],
-      };
-    const records = await cache.list(workspaceRoot, {
-      runtimeId,
-      includeArchived: Boolean(request?.includeArchived),
-    });
-    return {
-      sessions: records.map((record) => publicSessionRecord({
-        ...record,
-        runtimeId: resolvePersistedRuntimeId(record, runtimeId),
-      })),
-      discovery,
-      warnings: discovery.warnings,
-    };
-  }
-
   async function forkSession(sender, request, workspaceRoot = null) {
     const source = runtimeSession.requireOwnedSession(sender, request?.sessionId);
     requireMatchingWorkspace(source, workspaceRoot);
@@ -83,6 +46,7 @@ export function createAgentSessionCommands({
       mode: source.selectedMode,
       title: `${source.title} (fork)`,
     });
+    session.sourceScopeId = source.sourceScopeId;
     sessionStore.add(session);
     try {
       session.adapter = runtimeSession.createAdapterForSession(session, selected.readiness);
@@ -99,11 +63,8 @@ export function createAgentSessionCommands({
         descriptor: selected.descriptor,
         inspection,
       });
-      const history = resolveAgentSessionHistoryPort(session.adapter);
-      const historicalEvents = typeof history?.hydrate === "function"
-        ? await history.hydrate()
-        : [];
-      for (const historicalEvent of historicalEvents) emit(session, historicalEvent, { deliver: false });
+      await hydrateAgentSession(session, emit);
+      runtimeSession.finishNativeSession(session);
       emit(session, {
         type: "session.resumed",
         providerSessionId: session.providerSessionId,
@@ -182,6 +143,5 @@ export function createAgentSessionCommands({
     compactSession,
     deleteSession,
     forkSession,
-    listSessions,
   };
 }

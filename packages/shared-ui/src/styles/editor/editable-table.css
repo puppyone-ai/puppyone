@@ -53,8 +53,12 @@
   );
   --po-editable-table-cell-min-width: 96px;
   --po-editable-table-cell-max-width: 280px;
-  --po-editable-table-cell-padding: 6px 10px;
-  --po-editable-table-font-size: 12.5px;
+  --po-editable-table-cell-padding-block: 6px;
+  --po-editable-table-cell-padding-inline: 10px;
+  --po-editable-table-cell-padding:
+    var(--po-editable-table-cell-padding-block)
+    var(--po-editable-table-cell-padding-inline);
+  --po-editable-table-font-size: var(--po-type-editor-data, var(--po-text-size-data, 13px));
   --po-editable-table-line-height: 1.45;
   --po-editable-table-row-min-height: 31px;
   --po-editable-table-header-font-weight: 650;
@@ -141,7 +145,7 @@
 
 .po-editable-table-row-handle {
   width: 24px;
-  height: 32px;
+  height: var(--po-control-size);
   transform: translate(calc(-1 * var(--po-editable-table-handle-gutter)), -50%);
 }
 
@@ -226,7 +230,7 @@
   padding: 0;
   border: 0;
   background: transparent;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   font: inherit;
   opacity: 0;
   transition: opacity 120ms ease;
@@ -351,7 +355,7 @@
 .po-editable-table-context-menu .desktop-menu-section-label {
   padding: 0 var(--po-menu-item-padding-inline) 4px;
   color: var(--po-text-disabled);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-weight: 650;
   letter-spacing: 0;
   line-height: 15px;
@@ -375,9 +379,9 @@
   border-radius: var(--po-menu-item-radius);
   background: transparent;
   color: var(--po-text-muted);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   font-weight: 500;
   line-height: 18px;
   text-align: start;
@@ -426,7 +430,7 @@
 .po-editable-table-context-menu .desktop-menu-item-trailing {
   flex: 0 0 auto;
   color: var(--po-text-disabled);
-  font-size: 11.5px;
+  font-size: var(--po-text-size-hint, 12px);
   font-weight: 650;
   text-transform: uppercase;
 }

@@ -52,7 +52,7 @@
 .desktop-cloud-create-access-label {
   color: var(--po-text-subtle);
   font-family: var(--po-font-sans);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-weight: 650;
   letter-spacing: 0.04em;
   line-height: 14px;
@@ -62,7 +62,7 @@
 .desktop-cloud-create-access-intent-header strong {
   color: var(--po-text);
   font-family: var(--po-font-sans);
-  font-size: 17px;
+  font-size: var(--po-text-size-heading, 18px);
   font-weight: 650;
   letter-spacing: 0;
   line-height: 22px;
@@ -70,7 +70,7 @@
 
 .desktop-cloud-create-access-intent-header small {
   color: var(--po-text-disabled);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 17px;
   white-space: nowrap;
 }
@@ -92,7 +92,7 @@
   border-radius: 10px;
   background: transparent;
   color: var(--po-text-muted);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   font-family: var(--po-font-sans);
   text-align: start;
   transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
@@ -114,7 +114,7 @@
 .desktop-cloud-create-access-intent-title > span:last-child {
   overflow: hidden;
   color: var(--po-text);
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   font-weight: 650;
   line-height: 17px;
   text-overflow: ellipsis;
@@ -123,9 +123,9 @@
 
 .desktop-cloud-create-access-provider-tile {
   display: inline-flex;
-  width: 28px;
-  height: 28px;
-  flex: 0 0 28px;
+  width: var(--po-control-size-compact);
+  height: var(--po-control-size-compact);
+  flex: 0 0 var(--po-control-size-compact);
   align-items: center;
   justify-content: center;
   border: 1px solid var(--po-border);
@@ -159,9 +159,9 @@
 }
 
 .desktop-cloud-create-access-intent-preview {
-  min-height: 32px;
+  min-height: var(--po-control-size);
   color: var(--po-text-muted);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   line-height: 16px;
 }
 
@@ -184,7 +184,7 @@
   border-radius: 999px;
   background: color-mix(in srgb, var(--po-control) 70%, var(--po-panel) 30%);
   color: var(--po-text-disabled);
-  font-size: 10px;
+  font-size: var(--po-type-ui-micro, 11px);
   font-weight: 650;
   line-height: 14px;
 }
@@ -209,7 +209,7 @@
   border-bottom: 1px solid var(--po-border-subtle);
   color: var(--po-text-subtle);
   font-family: var(--po-font-sans);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-weight: 600;
   letter-spacing: 0.04em;
   line-height: 14px;
@@ -224,7 +224,7 @@
 
 .desktop-cloud-create-access-tree-row-wrap {
   position: relative;
-  height: 30px;
+  height: var(--po-control-size);
   margin: 1px 6px;
 }
 
@@ -233,7 +233,7 @@
   z-index: 1;
   display: flex;
   width: 100%;
-  height: 30px;
+  height: var(--po-control-size);
   align-items: center;
   gap: 6px;
   box-sizing: border-box;
@@ -242,7 +242,7 @@
   background: transparent;
   color: var(--po-text-muted);
   font-family: var(--po-font-sans);
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   line-height: 18px;
   text-align: start;
 }
@@ -253,7 +253,7 @@
 }
 
 .desktop-cloud-create-access-tree-row.folder {
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transition: background 0.12s ease, color 0.12s ease;
 }
 
@@ -296,7 +296,7 @@
 
 .desktop-cloud-create-access-tree-row.file {
   color: var(--po-filetree-rail);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   opacity: 0.82;
 }
 
@@ -304,7 +304,7 @@
   width: 100px;
   flex: 0 0 100px;
   color: var(--po-filetree-rail);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 500;
   line-height: 17px;
   text-align: end;
@@ -318,7 +318,7 @@
   gap: 6px;
   border: 0;
   background: transparent;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   font-family: inherit;
 }
 
@@ -358,10 +358,10 @@
 
 .desktop-cloud-create-access-tree-message {
   display: flex;
-  min-height: 28px;
+  min-height: var(--po-control-size-compact);
   align-items: center;
   color: var(--po-filetree-rail);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
 }
 
 .desktop-cloud-create-access-form {
@@ -394,14 +394,14 @@
 .desktop-cloud-create-access-input,
 .desktop-cloud-create-access-path-box {
   width: 100%;
-  height: 34px;
+  height: var(--po-control-size-large);
   box-sizing: border-box;
   border: 1px solid var(--po-border);
   border-radius: 7px;
   background: var(--po-control);
   color: var(--po-text);
   font-family: var(--po-font-sans);
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   line-height: 18px;
 }
 
@@ -452,7 +452,7 @@
 .desktop-cloud-create-access-field-note {
   margin-top: 6px;
   color: var(--po-text-disabled);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 17px;
 }
 
@@ -518,7 +518,7 @@
 .desktop-cloud-create-access-method-copy span {
   overflow: hidden;
   color: var(--po-text-muted);
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   font-weight: 600;
   line-height: 18px;
   text-overflow: ellipsis;
@@ -537,7 +537,7 @@
   border: 1px solid var(--po-border-subtle);
   border-radius: 999px;
   color: var(--po-filetree-rail);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-style: normal;
   font-weight: 600;
   line-height: 16px;
@@ -547,7 +547,7 @@
   overflow: hidden;
   margin: 2px 0 0;
   color: var(--po-text-disabled);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 17px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -564,7 +564,7 @@
   border: 1px solid var(--po-switch-border-off);
   border-radius: 999px;
   background: var(--po-switch-track-off);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transition: background 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
 }
 
@@ -603,7 +603,7 @@
   border-radius: 7px;
   background: color-mix(in srgb, var(--po-danger) 7%, transparent);
   color: var(--po-danger);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 17px;
 }
 
@@ -612,7 +612,7 @@
 }
 
 .desktop-cloud-create-access-footer .desktop-dialog-button {
-  height: 32px;
+  height: var(--po-control-size);
   padding: 0 12px;
 }
 

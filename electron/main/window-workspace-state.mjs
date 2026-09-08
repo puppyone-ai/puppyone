@@ -10,6 +10,7 @@ export class WindowWorkspaceState {
   #initialWorkspacePaths;
   #workspaceId;
   #workspaceFolders = Object.freeze([]);
+  #compositions = new Map();
 
   constructor({
     initialWorkspaceId = null,
@@ -64,6 +65,25 @@ export class WindowWorkspaceState {
     return this.#workspaceId;
   }
 
+  activateFolders(folders) {
+    this.#workspaceId = this.activationIdentity(folders);
+  }
+
+  activationIdentity(folders) {
+    const key = compositionKey(normalizeFolders(folders));
+    return this.#compositions.get(key)?.id ?? createWorkbenchWorkspaceId();
+  }
+
+  compositionForPath(folderPath) {
+    return [...this.#compositions.values()].reverse().find((entry) => entry.folders.some((folder) => folder.path === folderPath))?.folders ?? null;
+  }
+
+  forgetFolder(folderPath) {
+    for (const [key, entry] of this.#compositions) {
+      if (entry.folders.some((folder) => folder.path === folderPath)) this.#compositions.delete(key);
+    }
+  }
+
   replaceFolders(folders) {
     const nextFolders = normalizeFolders(folders);
     const previousPaths = new Set(this.#workspaceFolders.map((folder) => folder.path));
@@ -75,6 +95,11 @@ export class WindowWorkspaceState {
     });
     this.#workspaceFolders = nextFolders;
     this.#initialWorkspacePaths = Object.freeze(nextFolders.map((folder) => folder.path));
+    if (nextFolders.length) {
+      const key = compositionKey(nextFolders);
+      this.#compositions.delete(key);
+      this.#compositions.set(key, { id: this.#workspaceId, folders: nextFolders });
+    }
     return change;
   }
 
@@ -89,6 +114,8 @@ export class WindowWorkspaceState {
 export function createWorkbenchWorkspaceId() {
   return `workbench:${crypto.randomUUID()}`;
 }
+
+function compositionKey(folders) { return JSON.stringify(folders.map((folder) => folder.path).sort()); }
 
 function normalizeWorkspaceId(value) {
   return typeof value === "string" && value.trim() ? value.trim() : null;

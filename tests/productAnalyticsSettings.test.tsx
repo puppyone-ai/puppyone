@@ -67,6 +67,23 @@ describe("Product analytics setting", () => {
     await vi.waitFor(() => expect(toggle.checked).toBe(true));
   });
 
+  it("presents an outdated privacy notice as off until the user explicitly enables it", async () => {
+    const bridge = installTelemetryBridge(telemetryState({
+      effectiveLevel: "off",
+      enabled: false,
+      disabledReason: "notice-required",
+      noticeSeenVersion: 1,
+      noticeRequired: true,
+    }));
+    await renderProductAnalyticsSetting();
+
+    const toggle = findToggle();
+    expect(toggle.checked).toBe(false);
+    await act(async () => toggle.click());
+    expect(bridge.setTelemetryLevel).toHaveBeenCalledWith({ level: "basic" });
+    await vi.waitFor(() => expect(toggle.checked).toBe(true));
+  });
+
   it("surfaces a quiet inline error without changing the saved choice", async () => {
     const bridge = installTelemetryBridge(telemetryState());
     bridge.setTelemetryLevel.mockRejectedValueOnce(new Error("failed"));
@@ -98,7 +115,7 @@ describe("Product analytics setting", () => {
       .find((link) => link.textContent?.includes("Learn More"));
     await act(async () => learnMore?.click());
     expect(bridge.openExternalUrl).toHaveBeenCalledWith(
-      "https://github.com/puppyone-ai/puppy-issues/blob/main/document/puppyone-desktop/privacy/telemetry-disclosure.md",
+      "https://github.com/puppyone-ai/puppyone-desktop/blob/main/README.md#privacy",
     );
   });
 });
@@ -129,6 +146,8 @@ function installTelemetryBridge(initial: DesktopTelemetryState) {
         disabledReason: current.eligible
           ? (level === "off" ? "level-off" : null)
           : current.disabledReason,
+        noticeSeenVersion: level === "basic" ? current.noticeVersion : current.noticeSeenVersion,
+        noticeRequired: false,
       });
       listeners.forEach((listener) => listener(current));
       return current;
@@ -148,15 +167,15 @@ function installTelemetryBridge(initial: DesktopTelemetryState) {
 
 function telemetryState(overrides: Partial<DesktopTelemetryState> = {}): DesktopTelemetryState {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     defaultLevel: "basic",
     level: "basic",
     effectiveLevel: "basic",
     enabled: true,
     eligible: true,
     disabledReason: null,
-    noticeVersion: 1,
-    noticeSeenVersion: 1,
+    noticeVersion: 2,
+    noticeSeenVersion: 2,
     noticeRequired: false,
     transportConfigured: true,
     queuedEventCount: 0,

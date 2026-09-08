@@ -12,6 +12,18 @@ import {
 import { createWorkspaceRootUri } from "../packages/shared-ui/src/core/resourceUri";
 
 describe("EditorGroupModel", () => {
+  it("closes a detached Project by its root URI without closing another Project", () => {
+    const rootA = createWorkspaceRootUri("folder-a");
+    const rootB = createWorkspaceRootUri("folder-b");
+    const first = createEditorInput({ rootUri: rootA, resourcePath: "note.md" });
+    const second = createEditorInput({ rootUri: rootB, resourcePath: "note.md" });
+    const state = openEditor(openEditor(EMPTY_EDITOR_GROUP, first), second);
+    const closed = closeEditorsUnderResource(state, rootB);
+    expect(closed.editors).toEqual([first]);
+    expect(closed.activeEditorId).toBe(first.id);
+    expect(closeEditorsUnderResource(closed, rootA).editors).toEqual([]);
+  });
+
   it("keeps identical relative paths in different Workspace Folders distinct", () => {
     const rootA = createWorkspaceRootUri("folder-a");
     const rootB = createWorkspaceRootUri("folder-b");

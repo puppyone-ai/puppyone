@@ -1,4 +1,10 @@
 {
+  "projectSessions.sessionCloseFailed": "Impossible de fermer cette session. Réessayez.",
+  "projectSessions.closing": "Fermeture du projet…",
+  "projectSessions.closeFailed": "Certaines tâches du projet n’ont pas pu être arrêtées.",
+  "projectSessions.retryClose": "Réessayer la fermeture",
+  "drag.exportHint": "Faites glisser vers un dossier, le Terminal, Agent ou une autre application.",
+  "drag.exportFailed": "Impossible de terminer le dépôt. Vérifiez que la source et la destination sont disponibles et que la destination prend en charge cette opération.",
   "restoring.ariaLabel": "Ouverture du dernier projet",
   "restoring.message": "Ouverture du dernier projet…",
   "viewerPack.rootUnavailable": "Racine de l’espace de travail indisponible pour l’activation du Viewer Pack.",
