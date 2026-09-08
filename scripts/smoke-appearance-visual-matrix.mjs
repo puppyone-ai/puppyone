@@ -11,6 +11,11 @@ const rendererPath = path.join(repoRoot, "dist", "index.html");
 const dialogOnly = process.argv.includes("--dialog-only");
 const styles = ["default", "windows-xp"];
 const matrixStyles = dialogOnly ? [] : styles;
+const typographyScales = [
+  { id: "small", controlSize: 30, compactControlSize: 26, largeControlSize: 32, sidebarFontSize: 13, virtualRowSize: 32 },
+  { id: "medium", controlSize: 32, compactControlSize: 28, largeControlSize: 34, sidebarFontSize: 14, virtualRowSize: 34 },
+  { id: "large", controlSize: 34, compactControlSize: 30, largeControlSize: 36, sidebarFontSize: 16, virtualRowSize: 36 },
+];
 const expectedFamilies = ["document", "code", "grid", "canvas", "media", "embedded", "fallback"];
 const screenshotDirectory = process.env.PUPPYONE_APPEARANCE_SCREENSHOT_DIR;
 const userDataPath = path.join(os.tmpdir(), `puppyone-appearance-smoke-${process.pid}`);
@@ -55,7 +60,7 @@ async function runSmoke() {
     await new Promise((resolve) => setTimeout(resolve, 180));
 
     const snapshot = await window.webContents.executeJavaScript(`(() => {
-      const root = document.documentElement;
+      const root = document.querySelector('.appearance-visual-smoke[data-po-appearance-root]');
       const titlebar = document.querySelector('.desktop-titlebar');
       const appShell = document.querySelector('.app-shell');
       const navigation = document.querySelector('.desktop-sidebar-top-navigation');
@@ -330,7 +335,7 @@ async function runSmoke() {
         /My Documents[\\\\/]+PuppyOne[\\\\/]+README\.md$/.test(snapshot.locationBarPath ?? ""),
         `XP: address bar lost its active file path (${snapshot.locationBarPath})`,
       );
-      assert(snapshot.locationBarFontSize === "13px", `XP: address text is ${snapshot.locationBarFontSize}, expected 13px`);
+      assert(snapshot.locationBarFontSize === "14px", `XP: address text is ${snapshot.locationBarFontSize}, expected 14px`);
       assert(snapshot.locationBarHasDropdown, "XP: address field lost its dropdown affordance");
       assert(snapshot.locationBarDropdownBackground?.includes("linear-gradient"), "XP: dropdown lost its light-blue treatment");
       assert(snapshot.locationBarDropdownBackgroundSize === "7px 7px, auto", `XP: dropdown arrow is not on the shared 7px grid (${snapshot.locationBarDropdownBackgroundSize})`);
@@ -388,8 +393,8 @@ async function runSmoke() {
         `XP: a toolbar glyph bypassed the native icon pack: ${JSON.stringify(snapshot.toolbarIconBackgrounds)}`,
       );
       assert(
-        snapshot.toolbarFontSizes.every((fontSize) => fontSize === "13px"),
-        `XP: toolbar typography is not 96-DPI Tahoma sizing: ${JSON.stringify(snapshot.toolbarFontSizes)}`,
+        snapshot.toolbarFontSizes.every((fontSize) => fontSize === "14px"),
+        `XP: toolbar typography is not using the Medium application scale: ${JSON.stringify(snapshot.toolbarFontSizes)}`,
       );
       for (const [role, paint] of [
         ["current navigation", snapshot.currentNavigationPaint],
@@ -606,17 +611,88 @@ async function runSmoke() {
     }
     window.hide();
     }
+    if (!dialogOnly) await runTypographyScaleSmoke();
     await runDefaultDialogSmoke();
     await runWindowsXpDialogSmoke();
     console.log(dialogOnly
       ? "appearance dialog visual smoke passed"
-      : `appearance visual smoke passed: ${matrixStyles.length} Styles × ${expectedFamilies.length} Surface Families + Default/XP dialogs`);
+      : `appearance visual smoke passed: ${matrixStyles.length} Styles × ${expectedFamilies.length} Surface Families + ${typographyScales.length} size presets + Default/XP dialogs`);
   } finally {
     for (const window of windows) {
       if (!window.isDestroyed()) window.destroy();
     }
   }
   app.quit();
+}
+
+async function runTypographyScaleSmoke() {
+  for (const scale of typographyScales) {
+    const window = new BrowserWindow({
+      show: true,
+      width: 960,
+      height: 620,
+      frame: false,
+      backgroundColor: "#ffffff",
+      webPreferences: {
+        sandbox: true,
+        contextIsolation: true,
+        nodeIntegration: false,
+        backgroundThrottling: false,
+      },
+    });
+    windows.push(window);
+    const url = pathToFileURL(rendererPath);
+    url.searchParams.set("style", "default");
+    url.searchParams.set("scale", scale.id);
+    url.hash = "appearance-visual-smoke";
+    await window.loadURL(url.href);
+    await waitForReady(window);
+    await window.webContents.executeJavaScript(
+      "new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))",
+      true,
+    );
+
+    const snapshot = await window.webContents.executeJavaScript(`(() => {
+      const root = document.querySelector('.appearance-visual-smoke[data-po-appearance-root]');
+      const rows = [...document.querySelectorAll('.explorer-tree-virtual-row')];
+      const firstTreeRow = rows[0]?.querySelector('.tree-row');
+      const resolvePixel = (propertyName) => {
+        const probe = document.createElement('span');
+        probe.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none;height:var(' + propertyName + ');';
+        root.appendChild(probe);
+        const value = Math.round(probe.getBoundingClientRect().height);
+        probe.remove();
+        return value;
+      };
+      return {
+        scale: root.dataset.typographyScale,
+        rootAttributes: Object.fromEntries([...root.attributes].map((attribute) => [attribute.name, attribute.value])),
+        controlSize: getComputedStyle(root).getPropertyValue('--po-control-size').trim(),
+        compactControlSize: resolvePixel('--po-control-size-compact'),
+        largeControlSize: resolvePixel('--po-control-size-large'),
+        firstTreeRowHeight: firstTreeRow
+          ? Math.round(firstTreeRow.getBoundingClientRect().height)
+          : 0,
+        firstTreeRowFontSize: firstTreeRow ? getComputedStyle(firstTreeRow).fontSize : null,
+        secondVirtualRowTransform: rows[1]?.style.transform ?? null,
+      };
+    })()`, true);
+
+    assert(
+      snapshot.scale === scale.id,
+      `${scale.id}: root typography scale did not resolve (${snapshot.scale}; ${JSON.stringify(snapshot.rootAttributes)})`,
+    );
+    assert(snapshot.controlSize === `${scale.controlSize}px`, `${scale.id}: control token drifted (${snapshot.controlSize})`);
+    assert(snapshot.compactControlSize === scale.compactControlSize, `${scale.id}: compact control token drifted (${snapshot.compactControlSize}px)`);
+    assert(snapshot.largeControlSize === scale.largeControlSize, `${scale.id}: large control token drifted (${snapshot.largeControlSize}px)`);
+    assert(snapshot.firstTreeRowHeight === scale.controlSize, `${scale.id}: Explorer row height drifted (${snapshot.firstTreeRowHeight}px)`);
+    assert(snapshot.firstTreeRowFontSize === `${scale.sidebarFontSize}px`, `${scale.id}: Explorer typography drifted (${snapshot.firstTreeRowFontSize})`);
+    assert(
+      snapshot.secondVirtualRowTransform === `translateY(${scale.virtualRowSize}px)`,
+      `${scale.id}: Explorer virtual stride drifted (${snapshot.secondVirtualRowTransform})`,
+    );
+    window.hide();
+  }
 }
 
 async function openDialogSmokeWindow(style) {
@@ -686,8 +762,8 @@ async function runDefaultDialogSmoke() {
   assert(snapshot.rootStyle === "default", `Default dialog: root Style did not resolve (${snapshot.rootStyle})`);
   assert(snapshot.dialog.width === 380, `Default dialog: width drifted from 380px (${snapshot.dialog.width}px)`);
   assert(snapshot.dialog.borderRadius === "10px", `Default dialog: radius drifted (${snapshot.dialog.borderRadius})`);
-  assert(snapshot.title.fontSize === "13px" && snapshot.title.fontWeight === "500", `Default dialog: title typography drifted (${JSON.stringify(snapshot.title)})`);
-  assert(snapshot.body.fontSize === "12px", `Default dialog: body typography drifted (${snapshot.body.fontSize})`);
+  assert(snapshot.title.fontSize === "14px" && snapshot.title.fontWeight === "500", `Default dialog: title typography drifted (${JSON.stringify(snapshot.title)})`);
+  assert(snapshot.body.fontSize === "13px", `Default dialog: body typography drifted (${snapshot.body.fontSize})`);
   assert(snapshot.actions.every((action) => action.height === 28), `Default dialog: action height drifted (${JSON.stringify(snapshot.actions)})`);
   assert(snapshot.confirmClasses.includes("po-button--danger"), "Default dialog: destructive action lost its semantic tone");
   assert(snapshot.confirmPaint.backgroundColor !== "rgba(0, 0, 0, 0)", "Default dialog: destructive action lost its restrained danger fill");

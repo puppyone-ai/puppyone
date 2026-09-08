@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { formatAuthorizedWorkspaceReferencePrompt } from "../../security/authorized-workspace-reference-prompt.mjs";
+import { authorizedWorkspaceReferencePath, formatAuthorizedWorkspaceReferencePrompt } from "../../security/authorized-workspace-reference-prompt.mjs";
 import {
   AGENT_REFERENCE_ERROR_CODES,
   agentReferenceError,
@@ -26,7 +26,7 @@ export async function buildPiTurnInput({ prompt, references = [], workspaceRoot 
     const filename = resolveReferencePath(reference, workspaceRoot);
     if (!filename || seen.has(filename)) continue;
     seen.add(filename);
-    if (reference.kind === "workspace-entry" && !isSameOrInside(workspaceRoot, filename)) {
+    if (reference.kind === "workspace-entry" && !authorizedWorkspaceReferencePath(reference, workspaceRoot)) {
       throw referenceError(
         AGENT_REFERENCE_ERROR_CODES.unauthorized,
         "Pi received a workspace reference outside the assigned workspace.",
@@ -93,12 +93,6 @@ function resolveReferencePath(reference, workspaceRoot) {
     throw referenceError(AGENT_REFERENCE_ERROR_CODES.unauthorized, "Pi requires an assigned workspace root.");
   }
   return path.resolve(workspaceRoot, reference.path);
-}
-
-function isSameOrInside(workspaceRoot, filename) {
-  if (typeof workspaceRoot !== "string" || !path.isAbsolute(workspaceRoot)) return false;
-  const relative = path.relative(path.resolve(workspaceRoot), filename);
-  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 }
 
 function referenceError(code, message, cause) {

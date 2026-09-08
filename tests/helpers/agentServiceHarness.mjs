@@ -1,3 +1,4 @@
+import { AgentSessionActor } from "../../electron/main/agent/domain/agent-session-actor.mjs";
 import { vi } from "vitest";
 import { createAgentService } from "../../electron/main/agent/agent-service.mjs";
 import { createCodexRuntimeDefinition } from "../../electron/main/agent/runtimes/codex/codex-runtime-definition.mjs";
@@ -94,10 +95,21 @@ export function createServiceHarness({
   const service = createAgentService({
     runtimeRegistry,
     persistence,
+    conversationCatalog: {
+      list: persistence.list,
+      getRevision: async () => 0,
+      getCoverage: async () => ({ truncated: false, capacity: 500, retained: persisted.size }),
+      applyNativePage: async ({ entries, scope, reconcileMissing, guard }) => {
+        guard();
+        await Promise.all(entries.map((entry) => persistence.upsertNative(entry)));
+        if (reconcileMissing) await persistence.reconcileNative(scope);
+        return { indexed: entries.length, truncated: false };
+      },
+    },
     logger: { warn: vi.fn() },
     attachmentStore,
   });
-  return { service, adapters, persistence };
+  return { service, adapters, persistence, runtimeRegistry };
 }
 
 export function createSender(id) {
@@ -110,14 +122,10 @@ export function createSender(id) {
   };
 }
 
-export function sentAgentEvents(sender) {
-  return sender.send.mock.calls
-    .filter(([channel]) => channel === "agent:event")
-    .map(([, event]) => event);
-}
-
 export function ipcSnapshot() {
+  const actor = new AgentSessionActor();
   return {
+    ...actor.snapshot(),
     session: {
       id: "session-1",
       runtimeId: "codex",
@@ -186,11 +194,11 @@ function createFakeAdapter(
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     })),
-    resumeSession: vi.fn(async () => {
+    resumeSession: vi.fn(async ({ threadId }) => {
       if (resumeSessionError) throw resumeSessionError;
       for (const event of resumeEvents) options.onEvent(event);
       return {
-        providerSessionId: "thread-1",
+        providerSessionId: threadId,
         title: "Test session",
         model: "gpt-5",
         createdAt: new Date().toISOString(),
@@ -209,15 +217,19 @@ function createFakeAdapter(
       return { turnId: "turn-1" };
     }),
     referenceMentionDelivery: vi.fn(() => "path"),
+    steerTurn: vi.fn(async () => undefined),
     interruptTurn: vi.fn(async () => undefined),
     resolveApproval: vi.fn(),
     dispose: vi.fn(function dispose() { this.disposed = true; }),
     emit: options.onEvent,
     exit: options.onExit,
+    confirmPersistence: (id = "thread-1") => options.onSessionPersisted({ providerSessionId: id, sourceScopeId: "default" }),
   };
   adapter.getSessionHistoryPort = () => ({
     discover: (request) => adapter.discoverSessions(request),
-    hydrate: () => adapter.readHistory(),
+    sourceScopeId: "default",
+    hydrate: async () => ({ events: await adapter.readHistory(), coverage: "unknown", providerSessionId: adapter.resumeSession.mock.calls.at(-1)?.[0].threadId ?? "thread-1" }),
   });
+  adapter.disposeNative = adapter.dispose;
   return adapter;
 }

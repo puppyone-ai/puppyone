@@ -1,9 +1,10 @@
 /** @vitest-environment happy-dom */
-import React, { act } from "react";
+import React, { act, useLayoutEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { DataNode, DataPort, FileContent } from "@puppyone/shared-ui";
+import { createWorkspaceContentChange, type DataNode, type DataPort, type DocumentPersistedCommit, type FileContent } from "@puppyone/shared-ui";
 import { useEditorPaneSource } from "../src/features/editor-workbench/runtime/useEditorPaneSource";
+import { DocumentEditingSession } from "../packages/shared-ui/src/editor/document-session/DocumentEditingSession";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
@@ -18,6 +19,61 @@ afterEach(() => {
 });
 
 describe("editor pane source switching", () => {
+  it("keeps a late watcher read from replacing a saved pane baseline or conflicting with newer typing", async () => {
+    const markdown = node("notes.md", "markdown", "text/markdown");
+    const base = { ...fileContent(markdown), content: "one", version: "v1" };
+    const stale = deferred<FileContent>();
+    const readFile = vi.fn()
+      .mockResolvedValueOnce(base)
+      .mockReturnValueOnce(stale.promise)
+      .mockResolvedValue({ ...base, content: "two", version: "v2" });
+    const persistence = {
+      kind: "local-fs" as const, storageIdentity: "test:pane-source-save-order",
+      persist: vi.fn(async () => ({ ok: true as const, version: "v2" })),
+    };
+    const dataPort = { ...createDataPort(readFile), documentPersistence: persistence };
+    let applyPersisted: ((commit: DocumentPersistedCommit) => void) | undefined;
+    const session = new DocumentEditingSession({
+      documentId: markdown.path, initialContent: "one", initialVersion: "v1", saveMode: "manual",
+      persistence, onPersisted: (commit) => applyPersisted?.(commit),
+    });
+    let snapshot = { content: "one", revision: "r1" };
+    session.attachSource({
+      readSnapshot: () => snapshot,
+      replaceContent: (content) => (snapshot = { content, revision: `${snapshot.revision}:external` }),
+    });
+    session.reportRevision({ revision: "r1", origin: "model-initialization" });
+    const refresh = createWorkspaceContentChange({ sequence: 1, rootUri: null, paths: [markdown.path] });
+    function Probe({ changed = false }: { changed?: boolean }) {
+      const source = useEditorPaneSource(markdown, dataPort, changed ? refresh : undefined);
+      useLayoutEffect(() => { applyPersisted = source.applyPersistedCommit; }, [source.applyPersistedCommit]);
+      useLayoutEffect(() => {
+        if (source.content) session.reconcileExternalBaseline(source.content.content!, source.content.version);
+      }, [source.content]);
+      return <output data-content={source.content?.content} />;
+    }
+    const container = createContainer();
+    await act(async () => root?.render(<Probe />));
+    await act(async () => root?.render(<Probe changed />));
+    expect(readFile).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      snapshot = { content: "two", revision: "r2" };
+      session.reportRevision({ revision: "r2", origin: "local-edit" });
+      await session.requestSave();
+    });
+    snapshot = { content: "three", revision: "r3" };
+    session.reportRevision({ revision: "r3", origin: "local-edit" });
+    await act(async () => stale.resolve(base));
+
+    expect(readFile).toHaveBeenCalledTimes(3);
+    expect(container.querySelector("output")?.dataset.content).toBe("two");
+    expect(snapshot.content).toBe("three");
+    expect(session.getState()).toMatchObject({ status: "dirty", error: null, storageVersion: "v2" });
+    await act(async () => session.requestSave());
+    expect(persistence.persist).toHaveBeenLastCalledWith(expect.objectContaining({ content: "three", baseVersion: "v2" }));
+    session.dispose();
+  });
+
   it.each([
     {
       label: "spreadsheet -> image -> spreadsheet",

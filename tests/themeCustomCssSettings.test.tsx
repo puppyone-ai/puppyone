@@ -85,6 +85,33 @@ describe("Appearance theme settings", () => {
     expect(onSubThemeChange).toHaveBeenCalledWith("local.user.custom-theme");
     expect(document.getElementById("desktop-theme-add-status")).toBeNull();
   });
+
+  it("makes an active reading-font override visible and lets the user restore theme control", async () => {
+    const onUseThemeContentFont = vi.fn();
+    await act(async () => {
+      root.render(withTestLocalization(
+        <SubThemeSettingsSection
+          catalog={controller({})}
+          rootThemeId="default"
+          requestedSubThemeId="default.newspaper"
+          effectiveSubThemeId="default.newspaper"
+          effectiveColorMode="light"
+          contentFontOverrideActive
+          onSubThemeChange={vi.fn()}
+          onUseThemeContentFont={onUseThemeContentFont}
+        />,
+      ));
+      await Promise.resolve();
+    });
+
+    const notice = document.querySelector<HTMLElement>(".desktop-theme-font-override");
+    expect(notice?.textContent).toContain("Reading font is overridden in Typography settings.");
+    const restore = notice?.querySelector<HTMLButtonElement>("button");
+    expect(restore?.textContent).toBe("Use theme font");
+
+    act(() => restore?.click());
+    expect(onUseThemeContentFont).toHaveBeenCalledOnce();
+  });
 });
 
 function controller(overrides: Partial<SubThemeCatalogController>): SubThemeCatalogController {

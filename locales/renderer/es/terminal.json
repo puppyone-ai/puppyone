@@ -1,4 +1,5 @@
 {
+  "dropFailed": "No se pudieron insertar las rutas. Comprueba que los archivos estén disponibles y la terminal esté en ejecución.",
   "title": "Terminal",
   "actions": "Acciones del terminal",
   "new": "Nuevo terminal",

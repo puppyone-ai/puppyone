@@ -54,6 +54,16 @@ export function useExplorerMotion({
       return;
     }
 
+    // The first filesystem snapshot is hydration, not a user disclosure.
+    // Animating every arriving row makes a Project switch look like the whole
+    // Sidebar collapsed and expanded again.
+    if (previous.rows.length === 0) {
+      if (clearTimerRef.current !== null) window.clearTimeout(clearTimerRef.current);
+      clearTimerRef.current = null;
+      setActivePlan(null);
+      return;
+    }
+
     const plan = createExplorerMotionPlan({
       previousRows: previous.rows,
       nextRows: rows,

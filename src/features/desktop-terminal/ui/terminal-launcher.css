@@ -72,10 +72,10 @@
   background: transparent;
   color: var(--po-text-subtle);
   font-family: var(--po-font-sans);
-  font-size: 12px;
+  font-size: var(--po-type-right-sidebar-meta, 13px);
   font-weight: 500;
   letter-spacing: 0;
-  line-height: 18px;
+  line-height: var(--po-type-right-sidebar-meta-line-height, 19px);
   text-align: start;
   white-space: nowrap;
 }
@@ -96,7 +96,7 @@
   border-radius: 4px;
   background: transparent;
   color: var(--po-text-subtle);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   pointer-events: auto;
 }
 
@@ -158,8 +158,8 @@
   border-radius: 5px;
   background: color-mix(in srgb, var(--po-danger) 8%, transparent);
   color: var(--po-danger);
-  font-size: 11px;
-  line-height: 16px;
+  font-size: var(--po-type-right-sidebar-caption, 12px);
+  line-height: var(--po-type-right-sidebar-caption-line-height, 17px);
 }
 
 .desktop-terminal-launcher-error svg {
@@ -185,7 +185,7 @@
   display: flex;
   width: 100%;
   min-width: 0;
-  min-height: 34px;
+  min-height: var(--po-control-size-large);
   align-items: center;
   gap: 9px;
   padding: 5px 8px;
@@ -193,7 +193,7 @@
   border-radius: 6px;
   background: transparent;
   color: var(--po-text-muted);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   font: inherit;
   text-align: start;
 }
@@ -243,9 +243,9 @@
 .desktop-terminal-launcher-history > span:last-child {
   min-width: 0;
   overflow: hidden;
-  font-size: 12px;
+  font-size: var(--po-type-right-sidebar-content, 14px);
   font-weight: 500;
-  line-height: 18px;
+  line-height: var(--po-type-right-sidebar-control-line-height, 19px);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -335,5 +335,7 @@
 .desktop-terminal-launcher-smoke-output {
   min-height: 20px;
   color: var(--po-text-subtle);
-  font: 11px/16px var(--po-font-ui);
+  font-family: var(--po-font-ui);
+  font-size: var(--po-type-right-sidebar-caption, 12px);
+  line-height: var(--po-type-right-sidebar-caption-line-height, 17px);
 }

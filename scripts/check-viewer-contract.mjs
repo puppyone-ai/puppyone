@@ -10,6 +10,7 @@ const require = createRequire(import.meta.url);
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const formatRegistry = require("../packages/shared-ui/src/core/fileFormats.json");
 const errors = [];
+const mainSource = readFileSync(path.join(repoRoot, "electron/main.mjs"), "utf8");
 
 for (const format of [...(formatRegistry.formats ?? []), formatRegistry.unknownFormat]) {
   try {
@@ -64,19 +65,138 @@ if (
   );
 }
 
-const pdfViewerSource = readFileSync(
-  path.join(repoRoot, "packages/shared-ui/src/editor/viewers/pdf/PdfViewer.tsx"),
+const pdfContributionSource = readFileSync(
+  path.join(repoRoot, "packages/shared-ui/src/editor/viewers/pdf/contribution.ts"),
   "utf8",
 );
 if (
-  !pdfViewerSource.includes("getDocument({")
-  || !pdfViewerSource.includes("await renderTask.promise")
-  || !pdfViewerSource.includes("onFirstPageReady")
-  || /<iframe\b/.test(pdfViewerSource)
+  pdfContributionSource.includes("load:")
+  || pdfContributionSource.includes("render:")
+  || pdfContributionSource.includes("pdfjs")
 ) {
   errors.push(
-    "PDF Viewer must use PDF.js canvas first-frame readiness and cannot regress to an iframe",
+    "Browser-engine PDF Viewer cannot ship an app-owned renderer implementation",
   );
+}
+
+const pdfDefinition = getPresetViewerDefinitionForViewerId("pdf-preview");
+if (
+  pdfDefinition.surfaceIsolation !== "isolated-webcontents"
+  || pdfDefinition.computeIsolation !== "browser-engine"
+  || pdfDefinition.runtime !== "eager"
+  || pdfDefinition.contentSandbox !== "none"
+  || pdfDefinition.resourcePolicy.maxSourceBytes !== 512 * 1024 * 1024
+  || pdfDefinition.resourcePolicy.maxCanvasPixels !== 0
+  || pdfDefinition.resourcePolicy.maxActiveCanvases !== 0
+  || pdfDefinition.resourcePolicy.maxWorkers !== 0
+  || pdfDefinition.recoveryPolicy.maxAutomaticRetries !== 1
+  || pdfDefinition.recoveryPolicy.supportsSafeMode !== false
+) {
+  errors.push("PDF Viewer must delegate to Chromium in an isolated, retryable native surface");
+}
+
+const presetRendererSource = readFileSync(
+  path.join(repoRoot, "packages/shared-ui/src/editor/host/PresetViewerRenderer.tsx"),
+  "utf8",
+);
+if (
+  !presetRendererSource.includes('viewer.surfaceIsolation === "isolated-webcontents"')
+  || !presetRendererSource.includes("runtimeHost.renderIsolatedSurface")
+  || !presetRendererSource.includes('if (viewer.surfaceIsolation === "isolated-webcontents") return Promise.resolve()')
+) {
+  errors.push("Preset Viewer rendering no longer delegates isolated execution through the runtime Host port");
+}
+if (presetRendererSource.includes('viewer.surfaceIsolation === "isolated-webcontents" && runtimeHost')) {
+  errors.push("An isolated Preset Viewer can silently fall back to the shell renderer when its runtime Host is absent");
+}
+
+const editorDocumentHostSource = readFileSync(
+  path.join(repoRoot, "packages/shared-ui/src/editor/host/EditorDocumentHost.tsx"),
+  "utf8",
+);
+for (const token of ["exceedsUtf8ByteLimit", "viewer.resourcePolicy.maxSourceBytes", "editor.unavailable.resourceLimit"]) {
+  if (!editorDocumentHostSource.includes(token)) {
+    errors.push(`Editor Document Host no longer enforces manifest source admission (${token})`);
+  }
+}
+
+const officeViewerSource = readFileSync(
+  path.join(repoRoot, "packages/shared-ui/src/editor/viewers/office/OfficeViewer.tsx"),
+  "utf8",
+);
+if (!officeViewerSource.includes("maxBytes: maxSourceBytes")) {
+  errors.push("Office Preview no longer consumes the canonical source byte budget");
+}
+
+const documentNavigationSource = readFileSync(
+  path.join(repoRoot, "packages/shared-ui/src/editor/navigation/documentNavigation.ts"),
+  "utf8",
+);
+for (const token of [
+  "parseDocumentReferenceIntent",
+  "new WeakSet<object>()",
+  "canOpenReference",
+  '["http:", "https:", "mailto:"]',
+  "openWorkspaceCandidates",
+]) {
+  if (!documentNavigationSource.includes(token)) {
+    errors.push(`Document navigation admission boundary is missing ${token}`);
+  }
+}
+
+const csvCellEditorSource = readFileSync(
+  path.join(repoRoot, "packages/shared-ui/src/editor/viewers/csv/CsvCellEditor.tsx"),
+  "utf8",
+);
+if (!csvCellEditorSource.includes("navigation.openReference(reference)")) {
+  errors.push("CSV references no longer delegate activation through DocumentNavigationPort");
+}
+for (const forbidden of ["window.open", "puppyoneDesktop", "<a "]) {
+  if (csvCellEditorSource.includes(forbidden)) {
+    errors.push(`CSV reference projection bypasses the Host navigation port (${forbidden})`);
+  }
+}
+
+for (const relativePath of [
+  "packages/shared-ui/src/editor/viewers/html/HtmlViewer.tsx",
+  "packages/shared-ui/src/editor/viewers/app/SandboxedAppFrame.tsx",
+]) {
+  if (!readFileSync(path.join(repoRoot, relativePath), "utf8").includes("sandbox=")) {
+    errors.push(`${relativePath} no longer implements its declared sandboxed-frame boundary`);
+  }
+}
+
+const editorSurfaceManagerSource = readFileSync(
+  path.join(repoRoot, "electron/main/editor-surfaces/session-manager.mjs"),
+  "utf8",
+);
+for (const token of [
+  'sandbox: true',
+  'contextIsolation: true',
+  'nodeIntegration: false',
+  'plugins: true',
+  'browserSession,',
+  'session: browserSession',
+  'CHROMIUM_PDF_VIEWER_URL_PREFIX',
+  'waitForChromiumPdfViewer(entry)',
+  'normalizeBrowserEngineNavigationUrl',
+  '"render-process-gone"',
+  '"unresponsive"',
+  'forcefullyCrashRenderer',
+  '"navigation-timeout"',
+]) {
+  if (!editorSurfaceManagerSource.includes(token)) {
+    errors.push(`Built-in Editor Surface fault domain is missing ${token}`);
+  }
+}
+if (editorSurfaceManagerSource.includes("preload:")) {
+  errors.push("Browser-engine Editor Surfaces must not inject an application preload");
+}
+if (editorSurfaceManagerSource.includes("temp:built-in-editor")) {
+  errors.push("Chromium PDF Viewer cannot run in an Electron temporary partition");
+}
+if (!mainSource.includes('"persist:puppyone-pdf-viewer"')) {
+  errors.push("Chromium PDF Viewer must use its dedicated persistent browser partition");
 }
 
 const documentSurfaceConsumers = [
@@ -102,7 +222,6 @@ for (const filePath of documentSurfaceConsumers) {
   }
 }
 
-const mainSource = readFileSync(path.join(repoRoot, "electron/main.mjs"), "utf8");
 if (/from\s+["']\.\/main\/viewer-packs\/index\.mjs["']/.test(mainSource)) {
   errors.push("electron/main.mjs statically imports the dormant Viewer Pack runtime");
 }

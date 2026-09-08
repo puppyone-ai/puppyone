@@ -1,17 +1,26 @@
 import manifestJson from "./presetViewerManifest.json";
 import {
   PRESET_VIEWER_CAPABILITIES,
+  PRESET_VIEWER_COMPUTE_ISOLATIONS,
+  PRESET_VIEWER_CONTENT_SANDBOXES,
   PRESET_VIEWER_CONTRACT_VERSION,
+  PRESET_VIEWER_MEMORY_CLASSES,
   PRESET_VIEWER_RUNTIMES,
   PRESET_VIEWER_SOURCES,
+  PRESET_VIEWER_SURFACE_ISOLATIONS,
   VIEWER_SURFACE_PREPARATIONS,
   VIEWER_SURFACE_READINESS_SIGNALS,
   VIEWER_SURFACE_FAMILIES,
   VIEWER_SURFACE_TRAITS,
   type CoreViewerCapability,
+  type PresetViewerComputeIsolation,
+  type PresetViewerContentSandbox,
   type PresetViewerContractVersion,
+  type PresetViewerRecoveryPolicy,
+  type PresetViewerResourcePolicy,
   type PresetViewerRuntime,
   type PresetViewerSource,
+  type PresetViewerSurfaceIsolation,
   type ViewerSurfacePreparation,
   type ViewerSurfaceReadinessSignal,
   type ViewerSurfaceFamily,
@@ -25,6 +34,11 @@ export type PresetViewerDefinition = Readonly<{
   capability: CoreViewerCapability;
   source: PresetViewerSource;
   runtime: PresetViewerRuntime;
+  surfaceIsolation: PresetViewerSurfaceIsolation;
+  computeIsolation: PresetViewerComputeIsolation;
+  contentSandbox: PresetViewerContentSandbox;
+  resourcePolicy: PresetViewerResourcePolicy;
+  recoveryPolicy: PresetViewerRecoveryPolicy;
   surfacePreparation: ViewerSurfacePreparation;
   readinessSignal: ViewerSurfaceReadinessSignal;
   surfaceFamily: ViewerSurfaceFamily;
@@ -45,6 +59,11 @@ const DEFINITION_KEYS = new Set([
   "capability",
   "source",
   "runtime",
+  "surfaceIsolation",
+  "computeIsolation",
+  "contentSandbox",
+  "resourcePolicy",
+  "recoveryPolicy",
   "surfacePreparation",
   "readinessSignal",
   "surfaceFamily",
@@ -160,6 +179,17 @@ function parseDefinition(input: unknown, index: number): PresetViewerDefinition 
   if (!PRESET_VIEWER_RUNTIMES.includes(record.runtime as never)) {
     throw new TypeError(`Preset viewer ${record.id} has an unsupported runtime boundary.`);
   }
+  if (!PRESET_VIEWER_SURFACE_ISOLATIONS.includes(record.surfaceIsolation as never)) {
+    throw new TypeError(`Preset viewer ${record.id} has an unsupported surface isolation boundary.`);
+  }
+  if (!PRESET_VIEWER_COMPUTE_ISOLATIONS.includes(record.computeIsolation as never)) {
+    throw new TypeError(`Preset viewer ${record.id} has an unsupported compute isolation boundary.`);
+  }
+  if (!PRESET_VIEWER_CONTENT_SANDBOXES.includes(record.contentSandbox as never)) {
+    throw new TypeError(`Preset viewer ${record.id} has an unsupported content sandbox boundary.`);
+  }
+  const resourcePolicy = parseResourcePolicy(record.resourcePolicy, record.id);
+  const recoveryPolicy = parseRecoveryPolicy(record.recoveryPolicy, record.id);
   if (!VIEWER_SURFACE_PREPARATIONS.includes(record.surfacePreparation as never)) {
     throw new TypeError(`Preset viewer ${record.id} has an unsupported surface preparation policy.`);
   }
@@ -189,6 +219,58 @@ function parseDefinition(input: unknown, index: number): PresetViewerDefinition 
   if (capability === "placeholder" && source !== "none") {
     throw new TypeError(`Placeholder preset viewer ${record.id} must use source 'none'.`);
   }
+  if (source === "none" && resourcePolicy.maxSourceBytes !== 0) {
+    throw new TypeError(`Metadata-only preset viewer ${record.id} cannot declare a source byte budget.`);
+  }
+  if (source !== "none" && resourcePolicy.maxSourceBytes === 0) {
+    throw new TypeError(`Preset viewer ${record.id} must declare a positive source byte budget.`);
+  }
+  if (record.computeIsolation === "worker" && resourcePolicy.maxWorkers === 0) {
+    throw new TypeError(`Worker-compute preset viewer ${record.id} must declare at least one worker.`);
+  }
+  if (record.computeIsolation === "main-thread" && resourcePolicy.maxWorkers !== 0) {
+    throw new TypeError(`Main-thread preset viewer ${record.id} cannot declare worker capacity.`);
+  }
+  if (record.computeIsolation === "browser-engine") {
+    if (record.surfaceIsolation !== "isolated-webcontents") {
+      throw new TypeError(`Browser-engine preset viewer ${record.id} must use an isolated surface.`);
+    }
+    if (record.source !== "resource" || record.runtime !== "eager") {
+      throw new TypeError(`Browser-engine preset viewer ${record.id} must eagerly navigate to a resource.`);
+    }
+    if (
+      resourcePolicy.maxWorkers !== 0
+      || resourcePolicy.maxCanvasPixels !== 0
+      || resourcePolicy.maxActiveCanvases !== 0
+    ) {
+      throw new TypeError(`Browser-engine preset viewer ${record.id} cannot declare app-owned worker or Canvas budgets.`);
+    }
+  }
+  if (record.computeIsolation === "worker" && record.runtime !== "lazy") {
+    throw new TypeError(`Worker-compute preset viewer ${record.id} must keep its runtime lazy.`);
+  }
+  if (
+    record.contentSandbox === "sandboxed-frame"
+    && !(record.surfaceTraits as unknown[]).includes("sandboxed")
+  ) {
+    throw new TypeError(`Sandboxed-frame preset viewer ${record.id} must declare the sandboxed trait.`);
+  }
+  if (
+    record.contentSandbox === "none"
+    && (record.surfaceTraits as unknown[]).includes("sandboxed")
+  ) {
+    throw new TypeError(`Preset viewer ${record.id} cannot claim a sandboxed trait without a sandbox boundary.`);
+  }
+  if (recoveryPolicy.supportsSafeMode && record.surfaceIsolation !== "isolated-webcontents") {
+    throw new TypeError(`Safe-mode preset viewer ${record.id} must use an isolated surface.`);
+  }
+  if (
+    record.computeIsolation !== "browser-engine"
+    && (record.surfaceFamily === "canvas" || (record.surfaceTraits as unknown[]).includes("paginated"))
+    && (resourcePolicy.maxCanvasPixels === 0 || resourcePolicy.maxActiveCanvases === 0)
+  ) {
+    throw new TypeError(`Canvas or paginated preset viewer ${record.id} must declare positive Canvas limits.`);
+  }
 
   return Object.freeze({
     contractVersion: PRESET_VIEWER_CONTRACT_VERSION,
@@ -197,10 +279,60 @@ function parseDefinition(input: unknown, index: number): PresetViewerDefinition 
     capability,
     source,
     runtime: record.runtime as PresetViewerRuntime,
+    surfaceIsolation: record.surfaceIsolation as PresetViewerSurfaceIsolation,
+    computeIsolation: record.computeIsolation as PresetViewerComputeIsolation,
+    contentSandbox: record.contentSandbox as PresetViewerContentSandbox,
+    resourcePolicy,
+    recoveryPolicy,
     surfacePreparation: record.surfacePreparation as ViewerSurfacePreparation,
     readinessSignal: record.readinessSignal as ViewerSurfaceReadinessSignal,
     surfaceFamily: record.surfaceFamily as ViewerSurfaceFamily,
     surfaceTraits: Object.freeze([...record.surfaceTraits]) as readonly ViewerSurfaceTrait[],
+  });
+}
+
+function parseResourcePolicy(input: unknown, viewerId: unknown): PresetViewerResourcePolicy {
+  const label = `Preset viewer ${String(viewerId)} resource policy`;
+  const record = assertRecord(input, label);
+  assertExactKeys(
+    record,
+    new Set(["memoryClass", "maxSourceBytes", "maxCanvasPixels", "maxActiveCanvases", "maxWorkers"]),
+    label,
+  );
+  if (!PRESET_VIEWER_MEMORY_CLASSES.includes(record.memoryClass as never)) {
+    throw new TypeError(`${label} has an unsupported memory class.`);
+  }
+  for (const key of ["maxSourceBytes", "maxCanvasPixels", "maxActiveCanvases", "maxWorkers"] as const) {
+    if (!Number.isSafeInteger(record[key]) || (record[key] as number) < 0) {
+      throw new TypeError(`${label} ${key} must be a non-negative safe integer.`);
+    }
+  }
+  return Object.freeze({
+    memoryClass: record.memoryClass as PresetViewerResourcePolicy["memoryClass"],
+    maxSourceBytes: record.maxSourceBytes as number,
+    maxCanvasPixels: record.maxCanvasPixels as number,
+    maxActiveCanvases: record.maxActiveCanvases as number,
+    maxWorkers: record.maxWorkers as number,
+  });
+}
+
+function parseRecoveryPolicy(input: unknown, viewerId: unknown): PresetViewerRecoveryPolicy {
+  const label = `Preset viewer ${String(viewerId)} recovery policy`;
+  const record = assertRecord(input, label);
+  assertExactKeys(record, new Set(["maxAutomaticRetries", "supportsSafeMode"]), label);
+  if (
+    !Number.isSafeInteger(record.maxAutomaticRetries)
+    || (record.maxAutomaticRetries as number) < 0
+    || (record.maxAutomaticRetries as number) > 1
+  ) {
+    throw new TypeError(`${label} maxAutomaticRetries must be zero or one.`);
+  }
+  if (typeof record.supportsSafeMode !== "boolean") {
+    throw new TypeError(`${label} supportsSafeMode must be a boolean.`);
+  }
+  return Object.freeze({
+    maxAutomaticRetries: record.maxAutomaticRetries as number,
+    supportsSafeMode: record.supportsSafeMode,
   });
 }
 

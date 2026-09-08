@@ -1,4 +1,5 @@
 import { assertAgentRuntimePort } from "./agent-runtime-port.mjs";
+import { RuntimeDiscoverySupervisor } from "./runtime-discovery-supervisor.mjs";
 import { sanitizeAgentRuntimeDescriptor } from "../../../../shared/agent-contract/runtime-schema.mjs";
 import {
   defineAgentRuntimeManifest,
@@ -9,8 +10,12 @@ import {
 } from "../../../../shared/agent-contract/schema.mjs";
 
 export class AgentRuntimeRegistry {
-  constructor(definitions, { defaultRuntimeId = null } = {}) {
+  constructor(definitions, { defaultRuntimeId = null, discoveryTimeoutMs } = {}) {
+    this.discoverySupervisor = new RuntimeDiscoverySupervisor({ timeoutMs: discoveryTimeoutMs });
     this.definitions = new Map();
+    this.adapters = new Set();
+    this.disposed = false;
+    this.disposal = null;
     for (const candidate of definitions) {
       validateDefinition(candidate);
       const manifest = defineAgentRuntimeManifest(candidate.manifest);
@@ -38,12 +43,18 @@ export class AgentRuntimeRegistry {
     return this.descriptors().map((descriptor) => this.require(descriptor.id).manifest);
   }
 
-  async discover({ refresh = false } = {}) {
-    const results = await Promise.all(this.descriptors().map(async (descriptor) => {
+  async discover({ refresh = false, runtimeId = null } = {}) {
+    const descriptors = this.descriptors().filter(descriptor => !runtimeId || descriptor.id === runtimeId);
+    const results = await Promise.all(descriptors.map(async (descriptor) => {
       const definition = this.require(descriptor.id);
       try {
-        const readiness = await definition.discovery.discover({ refresh });
-        assertAgentRuntimeReadiness(readiness);
+        const readiness = await this.discoverySupervisor.run(descriptor.id, async (signal) => {
+          const result = await definition.discovery.discover({ refresh, signal });
+          assertAgentRuntimeReadiness(result);
+          const reportedId = result.runtimeId ?? result.provider;
+          if (reportedId && reportedId !== descriptor.id) throw new Error("Discovery returned a different Agent runtime identity.");
+          return result;
+        });
         return { descriptor, readiness };
       } catch (error) {
         return {
@@ -71,8 +82,34 @@ export class AgentRuntimeRegistry {
   }
 
   createAdapter(runtimeId, options) {
+    if (this.disposed) throw new Error("Agent runtime registry has closed.");
     const definition = this.require(runtimeId);
-    return assertAgentRuntimePort(definition.createAdapter(options), runtimeId);
+    const adapter = definition.createAdapter(options);
+    // Track even an invalid port if it allocated resources before validation.
+    if (typeof adapter?.dispose === "function") {
+      const dispose = adapter.dispose.bind(adapter);
+      let disposal = null;
+      let closed = false;
+      adapter.dispose = (...args) => {
+        if (closed) return Promise.resolve();
+        if (disposal) return disposal;
+        let result;
+        try { result = dispose(...args); } catch (error) { result = Promise.reject(error); }
+        disposal = Promise.resolve(result).then(() => {
+          closed = true;
+          this.adapters.delete(adapter);
+        }).finally(() => { disposal = null; });
+        return disposal;
+      };
+      this.adapters.add(adapter);
+    }
+    try {
+      return assertAgentRuntimePort(adapter, runtimeId);
+    } catch (error) {
+      // Failed cleanup stays registered for the next shutdown attempt.
+      if (typeof adapter?.dispose === "function") void adapter.dispose().catch(() => {});
+      throw error;
+    }
   }
 
   require(runtimeId) {
@@ -81,13 +118,23 @@ export class AgentRuntimeRegistry {
     return definition;
   }
 
-  async dispose() {
-    const results = await Promise.allSettled(Array.from(this.definitions.values()).map((definition) => definition.dispose?.()));
-    const failures = results.filter((result) => result.status === "rejected").map((result) => result.reason);
-    if (failures.length) throw new AggregateError(failures, "One or more Agent runtimes failed to dispose cleanly.");
+  dispose() {
+    if (this.disposal) return this.disposal;
+    this.disposed = true;
+    this.discoverySupervisor.dispose();
+    this.disposal = (async () => {
+      const results = await Promise.allSettled([
+        ...Array.from(this.adapters, (adapter) => Promise.resolve().then(() => adapter.dispose())),
+        ...Array.from(this.definitions.values(), (definition) => Promise.resolve().then(() => definition.dispose?.())),
+      ]);
+      const failures = results.filter((result) => result.status === "rejected").map((result) => result.reason);
+      if (failures.length) throw new AggregateError(failures, "One or more Agent runtimes failed to dispose cleanly.");
+    })().finally(() => { this.disposal = null; });
+    return this.disposal;
   }
 
   hasActiveResources() {
+    if (this.adapters.size || this.discoverySupervisor.hasActiveResources()) return true;
     for (const definition of this.definitions.values()) {
       try {
         if (definition.hasActiveResources?.() === true) return true;

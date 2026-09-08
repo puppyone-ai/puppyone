@@ -5,7 +5,6 @@ import type {
   CloudBranchGraphRow,
 } from "./model";
 
-export const HISTORY_GRAPH_ROW_HEIGHT = 32;
 const HISTORY_GRAPH_LANE_WIDTH = 12;
 const HISTORY_GRAPH_LEFT_PAD = 11;
 const HISTORY_GRAPH_RIGHT_PAD = 3;

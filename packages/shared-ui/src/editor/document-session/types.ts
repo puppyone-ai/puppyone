@@ -8,9 +8,9 @@ import type {
 } from "../sourceSnapshot";
 import type { EditorSaveMode } from "../registry/viewerTypes";
 
-export type DocumentSessionStatus = "clean" | "dirty" | "saving" | "saved" | "conflict" | "error";
+export type DocumentSessionStatus = "clean" | "dirty" | "saving" | "saved" | "error";
 
-export type DocumentSessionErrorCode = "external-conflict" | "persistence-failed";
+export type DocumentSessionErrorCode = "persistence-failed";
 
 export type DocumentSessionError = Readonly<{
   code: DocumentSessionErrorCode;
@@ -44,8 +44,7 @@ export type DocumentEditingSessionOptions = {
   onPersisted?: (commit: DocumentPersistedCommit) => void;
 };
 
-export type ExternalBaselineResult = "acknowledged" | "applied" | "conflict";
-export type ExternalConflictResolution = "reload-external" | "keep-local";
+export type ExternalBaselineResult = "acknowledged" | "applied";
 
 export type DocumentSessionDrainReason = Extract<
   DocumentPersistenceReason,
@@ -66,7 +65,6 @@ export type DocumentEditingSessionHandle = EditableDocumentSource & {
   readonly documentId: string;
   reconcileExternalBaseline: (content: string, version?: string | null) => ExternalBaselineResult;
   requestSave: () => Promise<void>;
-  resolveExternalConflict: (resolution: ExternalConflictResolution) => Promise<void>;
   /** Read and durably drain the current source before navigation or host close. */
   flushCurrent: (reason?: DocumentSessionDrainReason) => Promise<void>;
   hasUnpersistedChanges: () => boolean;

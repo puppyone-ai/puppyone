@@ -9,9 +9,10 @@ const MAX_LINE_WINDOW = 100_000;
  *
  * Some ACP agents ask the client to perform text reads/writes. Absolute paths,
  * symlinks and newly-created parent directories all remain constrained to the
- * workspace selected by trusted IPC.
+ * workspace selected by trusted IPC. Reads may additionally use exact files
+ * or directory scopes explicitly referenced in the current turn; writes may not.
  */
-export function createAcpWorkspaceFileSystem({ workspaceRoot, fsModule = fs }) {
+export function createAcpWorkspaceFileSystem({ workspaceRoot, fsModule = fs, getReadReferences = () => [] }) {
   let canonicalRootPromise = null;
   const canonicalRoot = () => {
     canonicalRootPromise ??= fsModule.promises.realpath(path.resolve(workspaceRoot));
@@ -20,7 +21,7 @@ export function createAcpWorkspaceFileSystem({ workspaceRoot, fsModule = fs }) {
 
   async function readTextFile(request) {
     const root = await canonicalRoot();
-    const target = await canonicalExistingFile(root, request?.path, fsModule);
+    const target = await canonicalExistingFile(root, request?.path, fsModule, getReadReferences());
     const flags = fsModule.constants.O_RDONLY | (fsModule.constants.O_NOFOLLOW ?? 0);
     const handle = await fsModule.promises.open(target, flags);
     try {
@@ -92,13 +93,27 @@ function sameFileIdentity(expected, actual) {
     && Math.trunc(expected.mtimeMs) === Math.trunc(actual.mtimeMs);
 }
 
-async function canonicalExistingFile(root, rawPath, fsModule) {
-  const target = resolveWorkspacePath(root, rawPath);
+async function canonicalExistingFile(root, rawPath, fsModule, references) {
+  if (typeof rawPath !== "string" || !rawPath || rawPath.length > 4_096) throw new Error("ACP workspace path is invalid.");
+  const target = path.resolve(root, rawPath);
   const canonical = await fsModule.promises.realpath(target).catch(() => {
     throw new Error("ACP workspace file does not exist.");
   });
-  assertInside(root, canonical);
+  if (!isInside(root, canonical)) {
+    const granted = references.some((reference) => {
+      if (reference?.authorized !== true || reference.kind !== "workspace-entry"
+        || typeof reference.authorizedWorkspaceRoot !== "string" || typeof reference.path !== "string") return false;
+      if (!isInside(reference.authorizedWorkspaceRoot, canonical)) return false;
+      return reference.entryType === "directory" ? isInside(reference.path, canonical) : reference.path === canonical;
+    });
+    if (!granted) throw new Error("ACP file access must stay inside the authorized workspace or a referenced read scope.");
+  }
   return canonical;
+}
+
+function isInside(root, target) {
+  const relative = path.relative(root, target);
+  return relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
 }
 
 async function ensureCanonicalParent(root, parent, fsModule) {

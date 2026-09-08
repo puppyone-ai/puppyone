@@ -12,14 +12,18 @@ describe("appearance surface boundary", () => {
     const assetHome = source("src/components/AssetLibraryHome.tsx");
     const restoring = source("src/features/app-shell/RestoringWorkspaceScreen.tsx");
     const context = source("packages/shared-ui/src/core/appearance/EditorAppearanceContext.tsx");
+    const runtime = source("src/features/appearance/AppearanceRuntime.tsx");
 
-    expect(app).toContain("<EditorAppearanceProvider revision={resolvedAppearance.appearanceRevision}>");
-    expect(app).toContain('data-po-appearance-root="true"');
-    expect(app).toContain("data-root-theme-id={interfaceStyle}");
-    expect(app).toContain("data-sub-theme-id={resolvedAppearance.subThemeId}");
+    expect(app).toContain("<SurfaceAppearanceProvider value={surfaceAppearance}>");
+    expect(app).toContain("...surfaceAppearance.rootProps");
+    expect(runtime).toContain("<EditorAppearanceProvider revision={value.revision}>");
+    expect(runtime).toContain('"data-po-appearance-root": "true"');
+    expect(runtime).toContain('"data-root-theme-id": appearance.rootThemeId');
+    expect(runtime).toContain('"data-sub-theme-id": appearance.subThemeId');
     for (const appearanceRoot of [onboarding, assetHome, restoring]) {
-      expect(appearanceRoot).toContain('data-po-appearance-root="true"');
-      expect(appearanceRoot).toContain("data-sub-theme-id={subThemeId}");
+      expect(appearanceRoot).toContain("appearance.rootProps");
+      expect(appearanceRoot).not.toContain("createTypographyRootProps");
+      expect(appearanceRoot).not.toContain("data-sub-theme-id={subThemeId}");
     }
 
     expect(context).toContain("EditorAppearanceProvider");

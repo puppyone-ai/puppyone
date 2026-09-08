@@ -85,32 +85,124 @@
      supplied by locales.css at the explicit document boundary. */
   --po-content-reading-weight: 450;
   --po-content-reading-letter-spacing: 0;
-  /* One 24px content line across scripts. Live Preview adds 3px per edge,
-     producing a stable 30px editor row for every document language. */
-  --po-content-reading-line-height: 1.7142857143;
+  --po-content-reading-line-height: var(--po-type-editor-line-height, 24px);
 }
 
 :root,
-:where(.app-shell, .onboarding-shell, .desktop-overlay-root, .desktop-theme-preview-surface, .dark) {
-  --po-text-size-micro: 10px;
-  --po-text-size-caption: 11px;
-  --po-text-size-meta: 12px;
-  --po-text-size-sidebar: 13px;
-  --po-text-size-body: 13px;
-  --po-text-size-body-lg: 14px;
-  --po-text-size-content: 14px;
-  --po-text-size-title: 16px;
-  --po-text-size-page-title: 20px;
-  --po-text-size-display: 24px;
-  --po-code-font-size: 13px;
-  --po-terminal-font-size: 13px;
+:where([data-po-appearance-root], .app-shell, .onboarding-shell, .desktop-overlay-root, .desktop-theme-preview-surface, .dark) {
+  /* Standard control geometry and readable product text share one bounded,
+     user-selectable application scale. Compact chrome variants stay semantic. */
+  --po-type-ui-glyph: var(--po-user-ui-glyph-font-size, 8px);
+  --po-type-ui-micro: var(--po-user-ui-micro-font-size, 11px);
+  --po-type-ui-caption: var(--po-user-ui-caption-font-size, 12px);
+  --po-type-ui-hint: var(--po-user-ui-hint-font-size, 13px);
+  --po-type-ui-meta: var(--po-user-ui-meta-font-size, 13px);
+  --po-type-ui-label: var(--po-user-ui-label-font-size, 14px);
+  --po-type-ui-control: var(--po-user-ui-control-font-size, 14px);
+  --po-type-ui-body: var(--po-type-ui-control);
+  --po-type-ui-body-large: var(--po-user-ui-body-large-font-size, 15px);
+  --po-type-ui-section-title: var(--po-user-ui-section-title-font-size, 16px);
+  --po-type-ui-title: var(--po-user-ui-title-font-size, 17px);
+  --po-type-ui-heading: var(--po-user-ui-heading-font-size, 19px);
+  --po-type-ui-page-title: var(--po-user-ui-page-title-font-size, 21px);
+  --po-type-ui-display: var(--po-user-ui-display-font-size, 25px);
+  --po-type-ui-hero: var(--po-user-ui-hero-font-size, 29px);
+
+  --po-type-left-sidebar-content: var(--po-user-left-sidebar-font-size, 14px);
+  --po-type-left-sidebar-meta: var(--po-user-left-sidebar-meta-font-size, 12px);
+  --po-type-left-sidebar-line-height: var(--po-user-left-sidebar-line-height, 19px);
+  --po-type-header-content: var(--po-user-header-font-size, 14px);
+  --po-type-header-line-height: var(--po-user-header-line-height, 19px);
+  --po-type-header-meta: var(--po-user-header-meta-font-size, 13px);
+  --po-type-header-meta-line-height: var(--po-user-header-meta-line-height, 18px);
+
+  /* The user-facing application scale drives every surface as one preset.
+     Editor values move Markdown, data tables, and code together. */
+  --po-type-editor-content: var(
+    --po-user-text-size-content,
+    var(--po-theme-text-size-content, 16px)
+  );
+  --po-type-editor-line-height: var(--po-user-editor-line-height, 24px);
+  --po-type-editor-data: var(
+    --po-user-text-size-data,
+    var(--po-theme-text-size-data, 13px)
+  );
+  --po-type-editor-code: var(
+    --po-user-code-font-size,
+    var(--po-theme-code-font-size, 13px)
+  );
+  --po-type-editor-heading-1: var(--po-user-editor-heading-1-font-size, 30px);
+  --po-type-editor-heading-2: var(--po-user-editor-heading-2-font-size, 23px);
+  --po-type-editor-heading-3: var(--po-user-editor-heading-3-font-size, 19px);
+  --po-type-editor-heading-4: var(--po-user-editor-heading-4-font-size, 17px);
+  --po-type-editor-heading-5: var(--po-user-editor-heading-5-font-size, 16px);
+  --po-type-editor-heading-6: var(--po-user-editor-heading-6-font-size, 15px);
+
+  /* Right Sidebar values move conversation copy, controls, supporting text,
+     tables/tool evidence, code, and terminal cells as one optical family.
+     Workbench tab labels retain their Header role and match the content size. */
+  --po-type-right-sidebar-content: var(
+    --po-user-text-size-conversation,
+    var(--po-theme-text-size-conversation, 14px)
+  );
+  --po-type-right-sidebar-control-line-height: var(
+    --po-user-right-sidebar-control-line-height,
+    19px
+  );
+  --po-type-right-sidebar-meta: var(--po-user-right-sidebar-meta-font-size, 13px);
+  --po-type-right-sidebar-meta-line-height: var(
+    --po-user-right-sidebar-meta-line-height,
+    19px
+  );
+  --po-type-right-sidebar-caption: var(--po-user-right-sidebar-caption-font-size, 12px);
+  --po-type-right-sidebar-caption-line-height: var(
+    --po-user-right-sidebar-caption-line-height,
+    17px
+  );
+  --po-type-right-sidebar-micro: var(--po-user-right-sidebar-micro-font-size, 11px);
+  --po-type-right-sidebar-micro-line-height: var(
+    --po-user-right-sidebar-micro-line-height,
+    15px
+  );
+  --po-type-right-sidebar-code: var(--po-user-right-sidebar-code-font-size, 13px);
+  --po-type-right-sidebar-terminal: var(
+    --po-user-terminal-font-size,
+    var(--po-theme-terminal-font-size, 13px)
+  );
+  --po-type-right-sidebar-heading-1: var(--po-user-right-sidebar-heading-1-font-size, 20px);
+  --po-type-right-sidebar-heading-2: var(--po-user-right-sidebar-heading-2-font-size, 16px);
+
+  /* Compatibility aliases keep existing feature CSS on the semantic system
+     while surfaces migrate to the explicit role names. */
+  --po-text-size-glyph: var(--po-type-ui-glyph);
+  --po-text-size-micro: var(--po-type-ui-micro);
+  --po-text-size-caption: var(--po-type-ui-caption);
+  --po-text-size-hint: var(--po-type-ui-hint);
+  --po-text-size-meta: var(--po-type-ui-meta);
+  --po-text-size-label: var(--po-type-ui-label);
+  --po-text-size-interface: var(--po-type-ui-control);
+  --po-text-size-sidebar: var(--po-type-left-sidebar-content);
+  --po-text-size-body: var(--po-type-ui-body);
+  --po-text-size-body-lg: var(--po-type-ui-body-large);
+  --po-text-size-section-title: var(--po-type-ui-section-title);
+  --po-text-size-heading: var(--po-type-ui-heading);
+  --po-text-size-content: var(--po-type-editor-content);
+  --po-text-size-data: var(--po-type-editor-data);
+  --po-code-font-size: var(--po-type-editor-code);
+  --po-text-size-conversation: var(--po-type-right-sidebar-content);
+  --po-right-sidebar-meta-font-size: var(--po-type-right-sidebar-meta);
+  --po-right-sidebar-code-font-size: var(--po-type-right-sidebar-code);
+  --po-terminal-font-size: var(--po-type-right-sidebar-terminal);
+  --po-text-size-title: var(--po-type-ui-title);
+  --po-text-size-page-title: var(--po-type-ui-page-title);
+  --po-text-size-display: var(--po-type-ui-display);
+  --po-text-size-hero: var(--po-type-ui-hero);
   --po-font-size-chrome: var(--po-text-size-body);
 }
 
-:where(.app-shell, .onboarding-shell, .desktop-overlay-root)[data-content-text-size="small"] {
-  --po-text-size-content: 13px;
-}
-
-:where(.app-shell, .onboarding-shell, .desktop-overlay-root)[data-content-text-size="large"] {
-  --po-text-size-content: 16px;
+/* Never delegate product typography to the browser's relative <small>
+   default (commonly 0.833em). Components may select a more specific semantic
+   token, but an unclassified <small> always resolves to an integer pixel size. */
+small {
+  font-size: var(--po-type-ui-meta, 13px);
 }

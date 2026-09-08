@@ -1,3 +1,4 @@
+import { fakeSessionFeed } from "./helpers/nativeSmokeFeed.mjs";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -280,7 +281,9 @@ describe("native Agent smoke runtime selection", () => {
 });
 
 function fakeService({ sender, runtimeId, capabilities, answer }) {
+  const feed = fakeSessionFeed(sender);
   return {
+    ...feed.methods,
     createSession: vi.fn(async () => ({
       session: {
         id: "product-session",
@@ -295,8 +298,10 @@ function fakeService({ sender, runtimeId, capabilities, answer }) {
         throw new Error("The selected Agent does not accept this reference attachment.");
       }
       queueMicrotask(() => {
-        sender.send("agent:event", event(request.sessionId, "assistant.completed", { text: answer }));
-        sender.send("agent:event", event(request.sessionId, "turn.completed", { status: "completed" }));
+        feed.publish([
+          event(request.sessionId, "assistant.completed", { text: answer }),
+          event(request.sessionId, "turn.completed", { status: "completed" }),
+        ]);
       });
       return { sessionId: request.sessionId, turnId: "turn-visible" };
     }),

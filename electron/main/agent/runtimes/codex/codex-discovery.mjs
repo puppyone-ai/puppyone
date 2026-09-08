@@ -9,7 +9,7 @@ import {
   discoverExecutable,
   parseSemanticVersion,
   readLoginShellEnvironment,
-} from "../../runtime/executable-discovery.mjs";
+} from "../../transports/executable-discovery.mjs";
 
 // This is the oldest app-server schema exercised by the checked-in protocol
 // fixture. Versions below this floor are not advertised as compatible.
@@ -18,12 +18,13 @@ export const MIN_SUPPORTED_CODEX_VERSION = "0.144.1";
 export function createCodexDiscovery(options = {}) {
   const { cache: cacheOptions, ...discoveryOptions } = options;
   return createCachedRuntimeDiscovery(
-    () => discoverCodexExecutable(discoveryOptions),
+    ({ signal }) => discoverCodexExecutable({ ...discoveryOptions, signal }),
     cacheOptions,
   );
 }
 
 export async function discoverCodexExecutable({
+  signal,
   fsModule = fs,
   spawn = nodeSpawn,
   env = process.env,
@@ -31,6 +32,7 @@ export async function discoverCodexExecutable({
   homedir = os.homedir(),
 } = {}) {
   const result = await discoverExecutable({
+      signal,
     executableNames: [platform === "win32" ? "codex.exe" : "codex"],
     fsModule,
     spawn,

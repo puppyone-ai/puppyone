@@ -92,7 +92,7 @@ function spreadsheetMarkup() {
       return `<td
         data-cell-kind="${numeric ? "number" : "text"}"
         ${selected ? 'data-selected="true"' : ""}
-        ${styled ? 'style="background:#0b2545;color:#fff;font-size:18.7px;font-weight:700"' : ""}
+        ${styled ? 'style="background:#0b2545;color:#fff;font-size:19px;font-weight:700"' : ""}
       ><span>${selected ? "0.00%" : numeric ? rowIndex * 100 + columnIndex : `Record ${rowIndex + 1}`}</span></td>`;
     }).join("");
     return `<tr style="--office-sheet-row-height:28px"><th class="office-spreadsheet-grid__row-header" ${rowIndex === 8 ? 'data-selected="true"' : ""}>${rowIndex + 1}</th>${cells}</tr>`;
@@ -101,7 +101,7 @@ function spreadsheetMarkup() {
   return `
     <section class="office-preview" data-office-kind="spreadsheet">
       <div class="office-preview__body">
-        <div class="office-spreadsheet-preview" style="--office-sheet-default-font-family:Arial,sans-serif;--office-sheet-default-font-size:14.7px">
+        <div class="office-spreadsheet-preview" style="--office-sheet-default-font-family:Arial,sans-serif;--office-sheet-default-font-size:15px">
           <div class="office-spreadsheet-formula-bar">
             <output class="office-spreadsheet-formula-bar__name">B9</output>
             <span class="office-spreadsheet-formula-bar__fx">ƒx</span>
@@ -272,7 +272,7 @@ async function run() {
     assert(spreadsheet.numberAlign === "right", `number cells are not right aligned: ${spreadsheet.numberAlign}`);
     assert(spreadsheet.firstRowBackground === spreadsheet.secondRowBackground, "worksheet still uses zebra striping");
     assert(spreadsheet.defaultFontFamily.startsWith("Arial"), "worksheet did not inherit the workbook font family");
-    assert(spreadsheet.defaultFontSize === "14.7px", "worksheet did not inherit the workbook font size");
+    assert(spreadsheet.defaultFontSize === "15px", "worksheet did not inherit the workbook font size");
     assertNear(spreadsheet.rowHeight, 23.8, "worksheet saved zoom did not scale the complete row");
     assertNear(spreadsheet.headerTop, 0, "sticky column header position");
     assertNear(spreadsheet.rowHeaderLeft, 0, "sticky row header position");

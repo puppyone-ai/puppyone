@@ -14,9 +14,9 @@
 
 .po-button {
   gap: 6px;
-  min-height: 30px;
+  min-height: var(--po-control-size);
   padding: 0 10px;
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 650;
 }
 
@@ -42,8 +42,8 @@
 }
 
 .po-icon-button {
-  width: 28px;
-  height: 28px;
+  width: var(--po-control-size-compact);
+  height: var(--po-control-size-compact);
   background: transparent;
   color: var(--po-text-muted);
 }
@@ -58,11 +58,11 @@
 
 .po-empty-state strong {
   color: var(--po-text);
-  font-size: 14px;
+  font-size: var(--po-type-ui-body-large, 15px);
 }
 
 .po-empty-state span {
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
 }
 
 .po-empty-state__icon {
@@ -83,7 +83,7 @@
   height: 20px;
   padding: 0 7px;
   border-radius: 5px;
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-weight: 700;
 }
 

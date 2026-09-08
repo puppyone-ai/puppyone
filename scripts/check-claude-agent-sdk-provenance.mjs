@@ -9,6 +9,7 @@ const version = manifest.dependencies?.["@anthropic-ai/claude-agent-sdk"];
 const locked = lock.packages?.["node_modules/@anthropic-ai/claude-agent-sdk"];
 const discovery = read("electron/main/agent/runtimes/claude/claude-discovery.mjs");
 const adapter = read("electron/main/agent/runtimes/claude/claude-agent-sdk-adapter.mjs");
+const nativeValues = read("electron/main/agent/runtimes/claude/claude-native-values.mjs");
 const notices = read("THIRD_PARTY_NOTICES.md");
 const license = read("vendor/claude-agent-sdk/LICENSE.md");
 
@@ -24,7 +25,7 @@ assert(manifest.build?.files?.includes("!node_modules/@anthropic-ai/claude-agent
 assert(adapter.includes('settingSources: ["user"]'), "Claude adapter must not load repository settings implicitly.");
 assert(adapter.includes(`revision: "claude-agent-sdk:${version}"`), "Claude capability revision must track the pinned SDK version.");
 assert(!adapter.includes("allowDangerouslySkipPermissions: true"), "Claude permission bypass is forbidden.");
-assert(adapter.includes("subscription OAuth cannot be used by a third-party product"), "Claude OAuth product-policy gate is missing.");
+assert(nativeValues.includes("subscription OAuth cannot be used by a third-party product"), "Claude OAuth product-policy gate is missing.");
 assert(notices.includes(`@anthropic-ai/claude-agent-sdk@${version}`), "Claude SDK notice version drifted.");
 assert(notices.includes("does not redistribute"), "Claude SDK distribution boundary is missing from notices.");
 assert(notices.includes("does not permit third-party"), "Claude authentication-policy notice is missing.");

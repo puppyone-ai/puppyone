@@ -1,3 +1,5 @@
+import { resolveAgentSessionHistoryPort } from "../../runtime/agent-session-history-port.mjs";
+import { assertHistorySourceScope } from "../../runtime/history-source-scope.mjs";
 import { redactSecretText } from "../../agent-events.mjs";
 import {
   assertAuthenticated,
@@ -9,7 +11,8 @@ import {
 } from "../agent-reference-policy.mjs";
 import {
   applyInspection,
-  rememberTerminalTurn,
+  applyProviderSession,
+  persistedRecordFromSession,
   requireConnectedSession,
 } from "../../domain/agent-session-model.mjs";
 import { assertAgentRuntimeInspection } from "../../runtime/agent-runtime-port.mjs";
@@ -32,11 +35,14 @@ export function createAgentSessionRuntime({
   logger,
   emit,
   persistNow,
-  sendSessionExit,
 }) {
   const runRuntimeStart = (session, operation, start) => processSupervisor.runStart({
     label: `${session.runtimeId}:${operation}`,
-  }, start);
+  }, () => {
+    session.projectOperation?.assertCurrent();
+    if (session.closing) throw new Error("Agent session closed during startup.");
+    return start();
+  });
 
   async function resolveRuntimeForOperation(value, workspaceRoot, operation) {
     const requested = normalizeRuntimeId(value);
@@ -50,15 +56,29 @@ export function createAgentSessionRuntime({
   }
 
   function createAdapterForSession(session, internalReadiness) {
-    return runtimeRegistry.createAdapter(session.runtimeId, {
+    session.bootstrapEvents = [];
+    const adapterGeneration = session.actor.control.adapterGeneration + 1;
+    const adapter = runtimeRegistry.createAdapter(session.runtimeId, {
       readiness: { ...internalReadiness, workspaceRoot: session.workspaceRoot },
       workspaceRoot: session.workspaceRoot,
-      onEvent: (event) => handleAdapterEvent(session, event),
-      onExit: (info) => handleAdapterExit(session, info),
+      onEvent: (event) => handleAdapterEvent(session, adapterGeneration, event),
+      onExit: (info) => handleAdapterExit(session, adapterGeneration, info),
+      onSessionPersisted: (identity) => {
+        if (!sessionStore.isCurrent(session) || session.closing || session.actor.control.adapterGeneration !== adapterGeneration
+          || identity?.providerSessionId !== session.providerSessionId || identity?.sourceScopeId !== session.sourceScopeId) return;
+        session.nativePersistenceConfirmed = true;
+        void persistNow(session);
+      },
     });
+    session.actor.dispatch({ type: "adapter.attached" });
+    return adapter;
   }
 
   async function bootstrapNativeSession(session, selected, { kind, operation, threadId = null }) {
+    const history = resolveAgentSessionHistoryPort(session.adapter);
+    const sourceScopeId = history?.sourceScopeId ?? "default";
+    if (session.sourceScopeId != null) assertHistorySourceScope(sourceScopeId, session.sourceScopeId);
+    session.sourceScopeId = sourceScopeId;
     const selection = {
       model: session.selectedModel,
       ...(session.selectedEffort ? { effort: session.selectedEffort } : {}),
@@ -88,11 +108,40 @@ export function createAgentSessionRuntime({
         }))
         : await runRuntimeStart(session, operation, () => session.adapter.createSession(selection));
     }
+    if (!sessionStore.isCurrent(session) || session.closing || session.sender.isDestroyed?.()) throw new Error("Agent session closed during startup.");
+    if (kind === "resume" && providerSession?.providerSessionId !== threadId) throw new Error("Agent resumed a different native conversation.");
+    applyProviderSession(session, providerSession);
+    if (session.providerSessionId && typeof cache.bindNative === "function") {
+      const bound = await cache.bindNative(persistedRecordFromSession(session));
+      if (!sessionStore.isCurrent(session) || session.closing) throw new Error("Agent session closed while registering its identity.");
+      sessionStore.adoptIdentity(session, bound.sessionId);
+    }
+    // Exact native resume is provider evidence; merely allocating an id is not.
+    if (kind === "resume") session.nativePersistenceConfirmed = true;
     return { inspection, providerSession };
   }
 
-  function handleAdapterEvent(session, adapterEvent) {
-    if (!sessionStore.isCurrent(session) || session.closing) return;
+  function finishNativeSession(session) {
+    session.projectOperation?.assertCurrent();
+    if (session.bootstrapError) throw session.bootstrapError;
+    if (!sessionStore.isCurrent(session) || session.closing || session.providerExited) throw new Error("Agent session closed during startup.");
+    const events = session.bootstrapEvents ?? [];
+    session.bootstrapEvents = null;
+    for (const event of events) handleAdapterEvent(session, session.actor.control.adapterGeneration, event);
+    session.projectOperation = null;
+  }
+
+  function handleAdapterEvent(session, adapterGeneration, adapterEvent) {
+    if (!sessionStore.isCurrent(session) || session.closing || session.providerExited || session.actor.control.adapterGeneration !== adapterGeneration) return;
+    if (Array.isArray(session.bootstrapEvents)) {
+      if (session.bootstrapEvents.length >= 1000) session.bootstrapError = new Error("Native Agent startup replay exceeded its limit.");
+      else session.bootstrapEvents.push(structuredClone(adapterEvent));
+      return;
+    }
+    if (adapterEvent.providerSessionId && session.providerSessionId && adapterEvent.providerSessionId !== session.providerSessionId) {
+      retireProviderSession(session, { providerMessage: "The native Agent changed conversation identity unexpectedly.", diagnostic: "Native conversation identity mismatch." });
+      return;
+    }
     const event = { ...adapterEvent };
     event.payload = scrubPrivateReferencePaths(event.payload, session.privateReferencePaths);
     if (event.type === "session.started" || event.type === "session.resumed") {
@@ -105,10 +154,6 @@ export function createAgentSessionRuntime({
       session.title = event.payload.title.slice(0, 200);
     }
     if (event.type === "turn.started") {
-      session.activeTurnId = event.turnId;
-      if (!Number.isFinite(session.activeTurnStartedAtMs)) session.activeTurnStartedAtMs = Date.now();
-      session.lastStartedTurnId = event.turnId;
-      session.terminalState = "running";
       if (session.pendingPrompt || session.pendingReferenceDisplays.length > 0) {
         event.payload = {
           ...(event.payload || {}),
@@ -121,16 +166,15 @@ export function createAgentSessionRuntime({
       }
     }
     if (["turn.completed", "turn.failed", "turn.interrupted"].includes(event.type)) {
-      const activeTurnEnded = session.turnStarting || !event.turnId || session.activeTurnId === event.turnId;
+      const execution = session.actor.control.execution;
+      const activeTurnEnded = Boolean(event.turnId) && (
+        execution.activeTurnId === event.turnId
+        || execution.uncertainTurnId === event.turnId
+      );
       event.payload = withTurnDuration(event.payload, activeTurnEnded ? session.activeTurnStartedAtMs : null);
-      rememberTerminalTurn(session, event.turnId);
       failPendingApprovalsForTurn(session, event.turnId, "turn-ended");
       failPendingQuestionsForTurn(session, event.turnId, "turn-ended");
       if (activeTurnEnded) {
-        session.activeTurnId = null;
-        session.activeTurnStartedAtMs = null;
-        session.interruptingTurnId = null;
-        session.terminalState = event.type.slice("turn.".length);
         clearInterruptFallback(session);
         session.privateReferencePaths.clear();
         void revokeActiveAgentReferences(session, attachmentStore);
@@ -139,43 +183,30 @@ export function createAgentSessionRuntime({
     if (event.type === "approval.requested") {
       const requestId = event.payload?.requestId;
       if (typeof requestId !== "string" || session.pendingApprovals.has(requestId)) return;
-      session.pendingApprovals.set(requestId, {
-        requestId,
-        turnId: event.turnId,
-        itemId: event.itemId,
-        runtimeId: session.runtimeId,
-      });
     }
     if (event.type === "approval.resolved") {
       const requestId = event.payload?.requestId;
-      if (!session.pendingApprovals.delete(requestId)) return;
+      if (!session.pendingApprovals.has(requestId)) return;
     }
     if (event.type === "question.requested") {
       const requestId = event.payload?.requestId;
       if (typeof requestId !== "string" || !event.turnId || session.pendingQuestions.has(requestId)) return;
-      session.pendingQuestions.set(requestId, {
-        requestId,
-        turnId: event.turnId,
-        itemId: event.itemId,
-        runtimeId: session.runtimeId,
-        questions: Array.isArray(event.payload?.questions) ? event.payload.questions : [],
-      });
     }
     if (event.type === "question.resolved") {
       const requestId = event.payload?.requestId;
-      if (!session.pendingQuestions.delete(requestId)) return;
+      if (!session.pendingQuestions.has(requestId)) return;
     }
     emit(session, event);
   }
 
-  function handleAdapterExit(session, info) {
+  function handleAdapterExit(session, adapterGeneration, info) {
     if (!sessionStore.isCurrent(session) || session.closing || session.providerExited || info?.expected || !session.providerSessionId) return;
+    if (session.actor.control.adapterGeneration !== adapterGeneration) return;
     runtimeResolutionCoordinator.recordOperationFailure({
       runtimeId: session.runtimeId,
       workspaceRoot: session.workspaceRoot,
     });
     retireProviderSession(session, {
-      turnMessage: `${session.runtime?.displayName || "Agent runtime"} exited before the turn completed.`,
       providerMessage: `${session.runtime?.displayName || "Agent runtime"} exited. Files already changed on disk were not reverted.`,
       diagnostic: info?.diagnostics || info?.error || "",
     });
@@ -184,7 +215,6 @@ export function createAgentSessionRuntime({
   function failPendingApprovalsClosed(session, reason) {
     if (session.pendingApprovals.size === 0) return;
     for (const pending of Array.from(session.pendingApprovals.values())) {
-      session.pendingApprovals.delete(pending.requestId);
       emit(session, {
         type: "approval.resolved",
         providerSessionId: session.providerSessionId,
@@ -199,7 +229,6 @@ export function createAgentSessionRuntime({
     if (!turnId || session.pendingApprovals.size === 0) return;
     for (const pending of Array.from(session.pendingApprovals.values())) {
       if (pending.turnId !== turnId) continue;
-      session.pendingApprovals.delete(pending.requestId);
       emit(session, {
         type: "approval.resolved",
         providerSessionId: session.providerSessionId,
@@ -213,7 +242,6 @@ export function createAgentSessionRuntime({
   function failPendingQuestionsClosed(session, reason) {
     if (session.pendingQuestions.size === 0) return;
     for (const pending of Array.from(session.pendingQuestions.values())) {
-      session.pendingQuestions.delete(pending.requestId);
       emit(session, {
         type: "question.resolved",
         providerSessionId: session.providerSessionId,
@@ -228,7 +256,6 @@ export function createAgentSessionRuntime({
     if (!turnId || session.pendingQuestions.size === 0) return;
     for (const pending of Array.from(session.pendingQuestions.values())) {
       if (pending.turnId !== turnId) continue;
-      session.pendingQuestions.delete(pending.requestId);
       emit(session, {
         type: "question.resolved",
         providerSessionId: session.providerSessionId,
@@ -252,7 +279,6 @@ export function createAgentSessionRuntime({
         logger.warn?.("Unable to force-stop unresponsive Agent runtime:", redactSecretText(error?.message || String(error)));
       });
       retireProviderSession(session, {
-        turnMessage: `${runtimeName} did not confirm the interrupt, so PuppyOne stopped the runtime process. Files already changed were not reverted.`,
         providerMessage: `${runtimeName} was stopped because it did not confirm the interrupt. Refresh to resume the saved session.`,
         diagnostic: "Interrupt confirmation timed out.",
       });
@@ -266,36 +292,31 @@ export function createAgentSessionRuntime({
     session.interruptFallbackTimer = null;
   }
 
-  function retireProviderSession(session, { turnMessage, providerMessage, diagnostic }) {
+  function retireProviderSession(session, { providerMessage, diagnostic }) {
     if (!sessionStore.isCurrent(session) || session.closing || session.providerExited) return;
+    const adapterGeneration = session.actor.control.adapterGeneration;
     clearInterruptFallback(session);
     failPendingApprovalsClosed(session, "provider-exited");
     failPendingQuestionsClosed(session, "provider-exited");
     const activeTurnId = session.activeTurnId;
-    session.activeTurnId = null;
-    session.interruptingTurnId = null;
     void revokeActiveAgentReferences(session, attachmentStore);
-    if (activeTurnId) {
-      rememberTerminalTurn(session, activeTurnId);
-      emit(session, {
-        type: "turn.failed",
-        providerSessionId: session.providerSessionId,
-        turnId: activeTurnId,
-        payload: withTurnDuration({ status: "failed", message: turnMessage }, session.activeTurnStartedAtMs),
-      });
-    }
-    session.activeTurnStartedAtMs = null;
-    session.terminalState = "provider-exited";
+    // Process death proves that the connection ended, not that the native turn
+    // failed. Only a correlated native terminal event may settle execution.
     emit(session, {
       type: "provider.error",
       providerSessionId: session.providerSessionId,
+      turnId: activeTurnId,
       payload: {
         message: providerMessage,
         diagnostic: redactSecretText(diagnostic || ""),
         recoverable: true,
       },
     });
-    sendSessionExit(session, "provider-exited");
+    session.actor.dispatch({
+      type: "adapter.exited",
+      adapterGeneration,
+      reason: "provider-exited",
+    });
     clearTimeout(session.persistTimer);
     session.persistTimer = null;
     void persistNow(session);
@@ -303,35 +324,37 @@ export function createAgentSessionRuntime({
       logger.warn?.("Unable to release exited Agent adapter:", redactSecretText(error?.message || String(error)));
     });
     session.adapter = null;
-    session.providerExited = true;
   }
 
-  async function closeSessionRecord(session, { persist, removePersistence = false }) {
-    if (session.closing) return;
+  function closeSessionRecord(session, { persist, removePersistence = false }) {
+    if (session.closePromise) return session.closePromise;
+    if (session.closed) return Promise.resolve();
     session.closing = true;
     clearTimeout(session.persistTimer);
     session.persistTimer = null;
     clearInterruptFallback(session);
     failPendingApprovalsClosed(session, "session-closed");
     failPendingQuestionsClosed(session, "session-closed");
-    try {
+    session.closePromise = (async () => {
+      // Keep the record on failure so the project can retry actual cleanup.
       await session.adapter?.dispose();
-    } finally {
       await revokeActiveAgentReferences(session, attachmentStore);
+      if (removePersistence) await cache.remove(session.id);
+      else if (persist) await persistNow(session);
       if (sessionStore.isCurrent(session)) {
         session.closing = false;
         emit(session, {
           type: "session.closed",
           providerSessionId: session.providerSessionId,
           payload: { terminalState: session.terminalState },
-        }, { deliver: !session.sender.isDestroyed?.() });
+        });
         session.closing = true;
+        sessionStore.rememberClosed(session);
         sessionStore.remove(session);
       }
-      sendSessionExit(session, "closed");
-      if (removePersistence) await cache.remove(session.id);
-      else if (persist) await persistNow(session);
-    }
+      session.closed = true;
+    })().finally(() => { session.closePromise = null; });
+    return session.closePromise;
   }
 
   function requireOwnedSession(sender, id) {
@@ -358,15 +381,19 @@ export function createAgentSessionRuntime({
 
   return {
     bootstrapNativeSession,
+    finishNativeSession,
     clearInterruptFallback,
     closeSessionRecord,
     createAdapterForSession,
     failPendingApprovalsClosed,
+    failPendingApprovalsForTurn,
     failPendingQuestionsClosed,
+    failPendingQuestionsForTurn,
     requireAvailableEffort,
     requireAvailableModel,
     requireConnectedSession,
     requireOwnedSession,
+    isCurrent: (session) => sessionStore.isCurrent(session),
     resolveRuntimeForOperation,
     scheduleInterruptFallback,
   };

@@ -4,11 +4,12 @@ import { stringifyAgentToolInput } from "./agent-tool-evidence";
 
 export type AgentFileChangeSummary = {
   path: string;
-  additions: number;
-  deletions: number;
+  additions: number | null;
+  deletions: number | null;
+  diff: string;
+  blocks: { removed?: string; added?: string }[];
+  truncated: boolean;
 };
-
-export type AgentDiffLine = { kind: "addition" | "deletion" | "hunk" | "context"; text: string };
 
 export type AgentActivityToolId = "bash" | "read" | "write" | "edit" | "glob" | "grep" | "search" | "list" | "fetch" | "thinking" | "plan" | "tool" | string;
 
@@ -151,10 +152,30 @@ export function outputForActivity(activity: AgentActivity) {
   return firstText(
     activity.output,
     activity.detail.outputPreview,
+    canonicalToolResultText(activity.detail.result),
     activity.detail.content,
     activity.detail.error,
     typeof activity.detail.detail === "string" ? activity.detail.detail : "",
   );
+}
+
+function canonicalToolResultText(value: unknown) {
+  const result = record(value);
+  const content = Array.isArray(result.content) ? result.content : [];
+  const rendered = content.slice(0, 100).flatMap((entry) => {
+    const item = record(entry);
+    if (item.type === "text") return [text(item.text)];
+    if (item.type === "artifact") return [firstText(item.text, item.uri)];
+    if (item.type === "json" && item.value !== undefined) {
+      try {
+        return [JSON.stringify(item.value, null, 2)];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  }).filter(Boolean).join("\n");
+  return firstText(rendered, result.error);
 }
 
 export function commandMetadata(activity: AgentActivity) {
@@ -199,42 +220,27 @@ export function fileChangesForActivity(activity: AgentActivity): AgentFileChange
     if (!path) return [];
     return [{
       path: path.slice(0, 4_096),
-      additions: boundedCount(value.additions),
-      deletions: boundedCount(value.deletions),
+      additions: typeof value.additions === "number" && Number.isFinite(value.additions) ? boundedCount(value.additions) : null,
+      deletions: typeof value.deletions === "number" && Number.isFinite(value.deletions) ? boundedCount(value.deletions) : null,
+      diff: typeof value.diff === "string" ? value.diff : "",
+      blocks: Array.isArray(value.blocks) ? value.blocks.slice(0, 100).flatMap(block => {
+        const item = record(block);
+        return typeof item.removed === "string" || typeof item.added === "string" ? [{
+          ...(typeof item.removed === "string" ? { removed: item.removed } : {}),
+          ...(typeof item.added === "string" ? { added: item.added } : {}),
+        }] : [];
+      }) : [],
+      truncated: value.truncated === true,
     }];
   });
 }
 
-export function diffLinesForActivity(activity: AgentActivity): AgentDiffLine[] {
-  const input = record(activity.detail.input);
-  const oldText = firstText(input.old_string, input.oldString);
-  const newText = firstText(input.new_string, input.newString);
-  if (oldText || newText) {
-    const lines: AgentDiffLine[] = [
-      { kind: "hunk", text: "@@" },
-      ...oldText.split(/\r?\n/u).slice(0, 119).map((line) => ({ kind: "deletion" as const, text: `-${line}` })),
-      ...newText.split(/\r?\n/u).slice(0, 119).map((line) => ({ kind: "addition" as const, text: `+${line}` })),
-    ];
-    return lines.slice(0, 240);
-  }
-  const source = firstText(
-    activity.detail.diff,
-    activity.detail.patch,
-    input.diff,
-    input.patch,
-    input.content,
-  );
-  if (!source || !/(^|\n)(?:@@|\+|-)/.test(source)) return [];
-  return source.split(/\r?\n/).slice(0, 240).map((line) => ({
-    kind: line.startsWith("@@")
-      ? "hunk"
-      : line.startsWith("+") && !line.startsWith("+++")
-        ? "addition"
-        : line.startsWith("-") && !line.startsWith("---")
-          ? "deletion"
-          : "context",
-    text: line.slice(0, 4_096),
-  }));
+export function fileChangeTotals(changes: AgentFileChangeSummary[]) {
+  if (!changes.length || changes.some(change => change.additions === null || change.deletions === null)) return null;
+  return changes.reduce((totals, change) => ({
+    additions: totals.additions + (change.additions ?? 0),
+    deletions: totals.deletions + (change.deletions ?? 0),
+  }), { additions: 0, deletions: 0 });
 }
 
 export function structuredInputForActivity(activity: AgentActivity) {

@@ -1,11 +1,11 @@
 import type { FileIconThemeId, Workspace } from "@puppyone/shared-ui";
 import type { DesktopCloudSession } from "../../lib/cloudApi";
 import type { DesktopUpdateState, GitStatusSnapshot, PuppyoneWorkspaceConfig } from "../../types/electron";
-import type { CreateNewMenuSettings, DarkThemePreset, ExperimentalSettings, FilesVisibilitySettings, GitSidebarLayout, InterfaceStyle, LightThemePreset, LoadingAnimationPreset, LocalAgentsSettings, RightSidebarToolsSettings, SidebarNavigationLayout, SidebarNavigationVisibilitySettings, TextSize, ThemeMode, TitlebarActionsSettings, TypographyPreferences } from "../../preferences";
+import type { CreateNewMenuSettings, DarkThemePreset, ExperimentalSettings, FilesVisibilitySettings, GitSidebarLayout, InterfaceStyle, LightThemePreset, LoadingAnimationPreset, LocalAgentsSettings, RightSidebarToolsSettings, SidebarNavigationLayout, SidebarNavigationVisibilitySettings, ThemeMode, TitlebarActionsSettings, TypographyPreferences } from "../../preferences";
 import type { ResolvedAppearance } from "../appearance/resolveAppearance";
 import type { SubThemeCatalogController } from "../themes/useSubThemeCatalog";
 
-export type SettingsSection = "general" | "privacy" | "local-project" | "appearance" | "local-agents" | "editor" | "new-menu" | "experimental" | "git" | "files" | "account" | "cloud";
+export type SettingsSection = "general" | "privacy" | "local-project" | "appearance" | "typography" | "local-agents" | "new-menu" | "experimental" | "git" | "files" | "account" | "cloud";
 
 export type SettingsViewProps = {
   workspace: Workspace;
@@ -20,7 +20,6 @@ export type SettingsViewProps = {
   darkThemePreset: DarkThemePreset;
   loadingAnimationPreset: LoadingAnimationPreset;
   localAgentsSettings: LocalAgentsSettings;
-  textSize: TextSize;
   typographyPreferences: TypographyPreferences;
   pointerCursors: boolean;
   requestedSubThemeId: string;
@@ -48,7 +47,6 @@ export type SettingsViewProps = {
   onLoadingAnimationPresetChange: (preset: LoadingAnimationPreset) => void;
   onLocalAgentsSettingsChange: (settings: LocalAgentsSettings) => void;
   onAgentFileActivityIndicatorsEnabledChange: (enabled: boolean) => void;
-  onTextSizeChange: (textSize: TextSize) => void;
   onTypographyPreferencesChange: (preferences: TypographyPreferences) => void;
   onPointerCursorsChange: (enabled: boolean) => void;
   onSubThemeChange: (subThemeId: string) => void;

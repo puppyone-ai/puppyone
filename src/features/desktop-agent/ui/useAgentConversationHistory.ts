@@ -16,6 +16,7 @@ type Options = {
   active: boolean;
   controller: ConversationHistoryController;
   excludedSessionIds: readonly string[];
+  retainWhileHidden?: boolean;
 };
 
 /**
@@ -27,6 +28,7 @@ export function useAgentConversationHistory({
   active,
   controller,
   excludedSessionIds,
+  retainWhileHidden = false,
 }: Options) {
   const state = useSyncExternalStore(
     controller.subscribe,
@@ -37,8 +39,8 @@ export function useAgentConversationHistory({
   useEffect(() => {
     if (active) controller.activate();
     else controller.deactivate();
-    return () => controller.deactivate();
-  }, [active, controller]);
+    return () => { if (!retainWhileHidden) controller.deactivate(); };
+  }, [active, controller, retainWhileHidden]);
 
   const excluded = useMemo(() => new Set(excludedSessionIds), [excludedSessionIds]);
   const visibleSessions = useMemo(
@@ -49,7 +51,7 @@ export function useAgentConversationHistory({
   return {
     ...state,
     sessions: visibleSessions,
-    hasMore: Object.keys(state.nextCursors).length > 0,
+    hasMore: Boolean(state.catalogNextCursor) || Object.keys(state.nextCursors).length > 0,
     refreshNative: controller.refresh.bind(controller),
     loadMoreNative: controller.loadMore.bind(controller),
   };

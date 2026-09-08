@@ -58,7 +58,10 @@ describe("resource preview readiness", () => {
       resolveFileUrl: () => fileUrl.promise,
     });
 
-    await waitFor(() => container.querySelector(".document-preview__name")?.textContent === "notes.bin");
+    await waitFor(() => (
+      container.querySelector('[data-surface-key="notes.bin"]')?.getAttribute("data-surface-state")
+        === "committed"
+    ));
     const imageRow = container.querySelector<HTMLElement>('[data-explorer-path="photo.png"]');
     if (!imageRow) throw new Error("Image explorer row did not render.");
 

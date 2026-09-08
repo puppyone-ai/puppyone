@@ -28,6 +28,17 @@ afterEach(() => {
 });
 
 describe("Auxiliary Workbench close coordinator", () => {
+  it("retains a failed close for retry without rejecting the UI event", async () => {
+    const commit = vi.fn().mockRejectedValueOnce(new Error("still running")).mockResolvedValue(true);
+    const onClosed = vi.fn();
+    renderCoordinator({ decide: () => ({ kind: "close" }), commit }, onClosed);
+    await act(async () => current().requestClose(ITEM.id));
+    expect(onClosed).not.toHaveBeenCalled();
+    expect(current().failure).toEqual({ itemId: ITEM.id, detail: "still running" });
+    await act(async () => current().requestClose(ITEM.id));
+    expect(onClosed).toHaveBeenCalledOnce();
+    expect(current().failure).toBeNull();
+  });
   it("commits immediate decisions before removing topology", async () => {
     const events: string[] = [];
     const adapter: AuxiliaryWorkbenchCloseAdapter = {

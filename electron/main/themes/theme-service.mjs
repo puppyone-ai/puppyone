@@ -228,6 +228,15 @@ function createStarterThemeCss({ themeId, themeName }) {
   }
 }
 
+@puppyone typography {
+  :root {
+    --po-text-size-content: 16px;
+    --po-text-size-conversation: 14px;
+    --po-code-font-size: 13px;
+    --po-terminal-font-size: 13px;
+  }
+}
+
 @puppyone markdown {}
 
 @puppyone csv {}

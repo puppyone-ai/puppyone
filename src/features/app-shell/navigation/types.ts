@@ -33,5 +33,6 @@ export type DesktopNavigationRuntime = {
 
 export type DesktopNavigationProps = DesktopNavigationAvailability & DesktopNavigationRuntime & {
   onOpenSettings: () => void;
+  showSettings?: boolean;
   utilitySlot?: ReactNode;
 };

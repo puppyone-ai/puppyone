@@ -22,12 +22,16 @@ import type {
   AgentRuntimeRequest,
   AgentSessionCloseRequest,
   AgentSessionCreateRequest,
-  AgentSessionExitEvent,
   AgentSessionMutationRequest,
   AgentSessionOpenRequest,
   AgentSessionOpenResult,
   AgentSessionResumeRequest,
   AgentSessionSnapshot,
+  AgentSessionAttachRequest,
+  AgentSessionFeedAckRequest,
+  AgentSessionFeedReceipt,
+  AgentSessionDetachRequest,
+  AgentSessionFrame,
   AgentSessionsListRequest,
   AgentSessionsListResponse,
   AgentTurnInterruptRequest,
@@ -381,6 +385,7 @@ export type GitBranchGraphSnapshot = {
 };
 
 export type TerminalCreateRequest = {
+  projectContext?: import("../../shared/project-session-contract/types").ProjectSessionContext;
   id: string;
   /** Explicit Folder capability required when a window has multiple roots. */
   rootPath: string;
@@ -395,6 +400,8 @@ export type TerminalCreateRequest = {
 };
 
 export type TerminalAppearanceRequest = {
+  projectContext?: import("../../shared/project-session-contract/types").ProjectSessionContext;
+  instanceId?: string;
   id: string;
   defaultColors: {
     foreground: [number, number, number];
@@ -418,18 +425,24 @@ export type TerminalAgentLocationProgressEvent = {
 };
 
 export type TerminalCreateResult = {
+  instanceId?: string;
   id: string;
   pid: number | null;
   shell: string;
+  inputShell: string;
   cwd: string;
 };
 
 export type TerminalInputRequest = {
+  projectContext?: import("../../shared/project-session-contract/types").ProjectSessionContext;
+  instanceId?: string;
   id: string;
   data: string;
 };
 
 export type TerminalResizeRequest = {
+  projectContext?: import("../../shared/project-session-contract/types").ProjectSessionContext;
+  instanceId?: string;
   id: string;
   cols: number;
   rows: number;
@@ -437,11 +450,13 @@ export type TerminalResizeRequest = {
 
 export type TerminalDataEvent = {
   id: string;
+  instanceId?: string;
   data: string;
 };
 
 export type TerminalExitEvent = {
   id: string;
+  instanceId?: string;
   code: number | null;
   signal: string | null;
 };
@@ -489,7 +504,7 @@ export type DesktopPlatformCapabilities = {
 export type DesktopTelemetryLevel = "off" | "basic";
 
 export type DesktopTelemetryState = {
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 2;
   readonly defaultLevel: DesktopTelemetryLevel;
   readonly level: DesktopTelemetryLevel;
   readonly effectiveLevel: DesktopTelemetryLevel;
@@ -504,7 +519,7 @@ export type DesktopTelemetryState = {
 };
 
 export type DesktopTelemetryDisclosure = {
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 2;
   readonly noticeVersion: number;
   readonly levels: ReadonlyArray<{
     readonly id: DesktopTelemetryLevel;
@@ -657,11 +672,34 @@ export type RecentWorkspacesResult = {
   hydrated?: boolean;
 };
 
+export type ProjectAppearance = Readonly<{
+  projectIdentity: string;
+  icon: Readonly<{
+    kind: "asset";
+    assetId: string;
+    mediaType: "image/png";
+    updatedAt: string;
+    url: string;
+  }> | Readonly<{
+    kind: "emoji";
+    value: string;
+    updatedAt: string;
+  }> | null;
+}>;
+
+export type ProjectIconSelectionResult = Readonly<{
+  status: "cancelled";
+}> | Readonly<{
+  status: "updated";
+  appearance: ProjectAppearance;
+}>;
+
 export type WorkspaceOpenResult = {
   status: "opened-current" | "opened-new-window" | "focused-existing";
   workspaceId: string | null;
   path: string | null;
   workspace: Workspace | null;
+  workspaces?: Workspace[];
 };
 
 export type WorkspaceAttachResult = {
@@ -848,7 +886,7 @@ export type PuppyoneWorkspaceConfig = {
   updatedAt?: string;
 };
 
-export type DesktopThemeTarget = "application" | "markdown" | "csv";
+export type DesktopThemeTarget = "application" | "typography" | "markdown" | "csv";
 export type DesktopThemeColorMode = "light" | "dark";
 export type DesktopThemeFirstPaint = Readonly<{
   background: string;
@@ -885,11 +923,36 @@ export type DesktopThemeMenuState = Readonly<{
   }>[];
 }>;
 
+export type EditorSurfaceBounds = Readonly<{
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}>;
+
+export type EditorSurfaceAppearance = Readonly<{
+  dark: boolean;
+  direction: "ltr" | "rtl";
+  attributes: Readonly<Record<string, string>>;
+  variables: Readonly<Record<string, string>>;
+}>;
+
+export type EditorSurfaceState = Readonly<{
+  sessionId: string;
+  viewerId: string;
+  status: "loading" | "ready" | "unresponsive" | "crashed" | "error" | "disposed";
+  reason?: string;
+  message?: string;
+  exitCode?: number | null;
+}>;
+
 declare global {
   interface Window {
     puppyoneDesktop?: {
       getWindowChromeState: () => Promise<{ fullScreen: boolean; maximized: boolean }>;
-      setWindowChromeProfile: (request: { titlebar: string }) => Promise<{
+      setWindowChromeProfile: (request: {
+        titlebar: string;
+      }) => Promise<{
         applied: boolean;
         customControls?: boolean;
       }>;
@@ -1080,10 +1143,54 @@ declare global {
         }) => Promise<{ ok?: boolean; visible?: boolean } | void>;
         destroy: (request: { id: string }) => Promise<{ ok?: boolean } | void>;
       };
+      editorSurfaces: {
+        activate: (request: {
+          viewerId: string;
+          documentPath: string;
+          documentRevision?: string | null;
+          resourceUrl: string;
+          title: string;
+          safeMode?: boolean;
+          bounds: EditorSurfaceBounds;
+          geometryRevision: number;
+          visible: boolean;
+          appearance: EditorSurfaceAppearance;
+        }) => Promise<{
+          sessionId: string;
+          viewerId: string;
+          safeMode: boolean;
+          processId: number | null;
+          status: EditorSurfaceState["status"];
+        }>;
+        setBounds: (request: {
+          sessionId: string;
+          bounds: EditorSurfaceBounds;
+          geometryRevision: number;
+          visible: boolean;
+        }) => Promise<{ ok: boolean; applied?: boolean; geometryRevision?: number }>;
+        updateAppearance: (request: {
+          sessionId: string;
+          appearance: EditorSurfaceAppearance;
+        }) => Promise<{ ok: boolean }>;
+        destroy: (request: { sessionId: string }) => Promise<{ ok: boolean }>;
+        onState: (callback: (state: EditorSurfaceState) => void) => () => void;
+      };
       getInitialWorkspace: () => Promise<LastWorkspaceResult>;
       getLastWorkspace: () => Promise<LastWorkspaceResult>;
       getRecentWorkspaces: () => Promise<RecentWorkspacesResult>;
       hydrateRecentWorkspaces: () => Promise<RecentWorkspacesResult>;
+      projectAppearance: {
+        list: (request: { projectIdentities: string[] }) => Promise<ProjectAppearance[]>;
+        chooseIcon: (request: {
+          projectIdentity: string;
+        }) => Promise<ProjectIconSelectionResult>;
+        resetIcon: (request: { projectIdentity: string }) => Promise<ProjectAppearance>;
+        setEmoji: (request: {
+          projectIdentity: string;
+          emoji: string;
+        }) => Promise<ProjectAppearance>;
+        onChanged: (callback: (appearance: ProjectAppearance) => void) => () => void;
+      };
       removeRecentWorkspace: (folderPath: string) => Promise<{
         ok: true;
         removed: true;
@@ -1091,6 +1198,9 @@ declare global {
       }>;
       forgetLastWorkspace: () => Promise<void>;
       showHomepage: () => Promise<{ ok: boolean }>;
+      readProjectSessions: () => Promise<import("../../shared/project-session-contract/types").ProjectSessionSnapshot>;
+      onWorkspaceOpenRequested: (callback: (request: { rootPath: string }) => void) => () => void;
+      onProjectSessionsChanged: (callback: (snapshot: import("../../shared/project-session-contract/types").ProjectSessionSnapshot) => void) => () => void;
       openWorkspaceInCurrentWindow: (folderPath: string) => Promise<WorkspaceOpenResult>;
       openWorkspaceInNewWindow: (folderPath: string) => Promise<WorkspaceOpenResult>;
       openDroppedWorkspaceInCurrentWindow: (folder: File) => Promise<WorkspaceOpenResult>;
@@ -1107,6 +1217,24 @@ declare global {
         request: WorkspaceCloneRepositoryRequest,
       ) => Promise<WorkspaceOpenResult | null>;
       getPathForFile: (file: File) => string;
+      resourceDragSessionSupported: boolean;
+      previewResourceDrag: () => Promise<import("../platform/resourceDragSession").ResourceDragPreview | null>;
+      claimResourceDrop: (request: {
+        files: File[];
+        intent: "explorer-move" | "terminal-path" | "agent-reference";
+        targetResource?: string;
+      }) => Promise<{ entries: import("@puppyone/shared-ui").ExplorerReferenceDragEntry[] } | null>;
+      onResourceDragState: (listener: (state: import("../platform/resourceDragSession").ResourceDragState) => void) => () => void;
+      startResourceDrag: (request: { resources: string[] }) => Promise<boolean>;
+      resolveResourceReferences: (request: { resources: string[]; rootPath?: string; sourceWorkspaceId?: string }) => Promise<Array<{
+        resourceUri: string;
+        folderId: string;
+        workspaceRoot: string;
+        workspaceName: string;
+        relativePath: string;
+        absolutePath: string;
+        entryType: "file" | "directory";
+      }>>;
       stageAgentAttachments: (request: {
         rootPath: string;
         epoch: string;
@@ -1371,6 +1499,10 @@ declare global {
       resumeAgentSession: (request: AgentSessionResumeRequest) => Promise<AgentSessionSnapshot | null>;
       openAgentSession: (request: AgentSessionOpenRequest) => Promise<AgentSessionOpenResult>;
       replayAgentSession: (request: AgentReplayRequest) => Promise<AgentSessionSnapshot>;
+      attachAgentSession: (request: AgentSessionAttachRequest) => Promise<AgentSessionFeedReceipt>;
+      acknowledgeAgentSession: (request: AgentSessionFeedAckRequest) => Promise<{ subscriptionId: string; streamId: string; revision: number; synchronized: boolean }>;
+      readAgentSessionWatermark: (request: AgentSessionDetachRequest) => Promise<{ subscriptionId: string; streamId: string; revision: number; acknowledgedRevision: number; resyncRequired: boolean }>;
+      detachAgentSession: (request: AgentSessionDetachRequest) => Promise<{ subscriptionId: string; detached: boolean }>;
       listAgentSessions: (request: AgentSessionsListRequest) => Promise<AgentSessionsListResponse>;
       forkAgentSession: (request: AgentSessionMutationRequest) => Promise<AgentSessionSnapshot>;
       archiveAgentSession: (request: AgentSessionMutationRequest) => Promise<{ sessionId: string; archived: boolean }>;
@@ -1397,8 +1529,7 @@ declare global {
         sessionId: string;
         requestId: string;
       }>;
-      onAgentEvent: (callback: (event: AgentEvent) => void) => () => void;
-      onAgentSessionExit: (callback: (event: AgentSessionExitEvent) => void) => () => void;
+      onAgentSessionFrame: (callback: (frame: AgentSessionFrame) => void) => () => void;
       viewerPacks?: {
         getSnapshot: () => Promise<import("@puppyone/shared-ui").ViewerPackSnapshot>;
         installLocal: () => Promise<
@@ -1434,11 +1565,11 @@ declare global {
       onTerminalAgentLocationProgress: (
         callback: (event: TerminalAgentLocationProgressEvent) => void,
       ) => () => void;
-      createTerminal: (request: TerminalCreateRequest) => Promise<TerminalCreateResult>;
+      createTerminal: (request: TerminalCreateRequest) => Promise<TerminalCreateResult | import("../../shared/project-session-contract/types").ProjectSessionFailure>;
       writeTerminal: (request: TerminalInputRequest) => void;
       resizeTerminal: (request: TerminalResizeRequest) => void;
       updateTerminalAppearance: (request: TerminalAppearanceRequest) => void;
-      closeTerminal: (id: string) => Promise<void>;
+      closeTerminal: (request: string | { id: string; instanceId?: string; projectContext?: import("../../shared/project-session-contract/types").ProjectSessionContext }) => Promise<boolean | import("../../shared/project-session-contract/types").ProjectSessionFailure>;
       onTerminalData: (callback: (event: TerminalDataEvent) => void) => () => void;
       onTerminalExit: (callback: (event: TerminalExitEvent) => void) => () => void;
       subscribeAgentActivity: () => Promise<AgentActivitySnapshot>;

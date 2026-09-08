@@ -73,7 +73,6 @@ function renderPalette(host: HTMLElement, interfaceStyle: InterfaceStyle) {
     interfaceStyle,
     themeMode: "system",
     sidebarNavigationLayout: "bottom-horizontal",
-    textSize: "medium",
     fileIconTheme: "vscode",
   }).decisions.themeMode;
   act(() => root?.render(withTestLocalization(

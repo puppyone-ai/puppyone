@@ -8,7 +8,7 @@
 }
 
 .desktop-cloud-automation-provider-row {
-  min-height: 30px;
+  min-height: var(--po-control-size);
   padding-inline-start: 9px;
   color: var(--po-text-muted);
 }
@@ -19,13 +19,12 @@
 
 .desktop-cloud-automation-nav-empty {
   display: flex;
-  min-height: 30px;
+  min-height: var(--po-control-size);
   align-items: center;
   margin: 1px var(--desktop-sidebar-row-right-gap) 1px calc(var(--desktop-sidebar-row-left-gap) + 27px);
   padding: 0 var(--desktop-sidebar-row-content-right) 0 9px;
   color: var(--po-text-subtle);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 540;
   line-height: 1.25;
 }
-

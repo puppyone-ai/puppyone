@@ -22,7 +22,8 @@ export function createCachedRuntimeDiscovery(load, {
   let cached = null;
   let inFlight = null;
 
-  async function discover({ refresh = false } = {}) {
+  async function discover({ refresh = false, signal } = {}) {
+    signal?.throwIfAborted();
     if (refresh) {
       generation += 1;
       cached = null;
@@ -35,10 +36,14 @@ export function createCachedRuntimeDiscovery(load, {
     }
     if (inFlight?.generation === requestGeneration) return inFlight.promise;
 
-    const promise = Promise.resolve().then(load);
+    const promise = Promise.resolve().then(() => {
+      signal?.throwIfAborted();
+      return load({ signal });
+    });
     inFlight = { generation: requestGeneration, promise };
     try {
       const value = await promise;
+      signal?.throwIfAborted();
       if (generation === requestGeneration) {
         const ttlMs = isTransient(value) ? transientTtlMs : positiveTtlMs;
         cached = {

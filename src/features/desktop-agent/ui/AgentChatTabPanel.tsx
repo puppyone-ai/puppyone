@@ -1,3 +1,4 @@
+import type { AgentViewportGeometry } from "../domain/agent-ui-state";
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import { bidiIsolate } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
@@ -5,18 +6,19 @@ import type { AgentSessionController } from "../application/AgentSessionControll
 import type { AgentSubmissionStage } from "../application/agent-controller-state";
 import type { AgentPromptReferenceMention } from "../domain/agent-contract";
 import { listAgentRuntimes, listVisibleAgentRuntimes } from "../domain/agent-backend-routing";
-import type { AgentChatTabPresentation } from "../domain/agent-chat-tabs";
+import type { AgentChatTabPresentation } from "../domain/agent-chat-presentation";
 import type { AgentRoutePreference } from "../domain/agent-route-preference";
 import { deriveAgentSessionControls } from "../domain/agent-session-controls";
 import { AgentApprovalDock } from "./AgentApprovalDock";
-import { AgentChangesControl } from "./AgentChangesControl";
 import { AgentComposer, DEFAULT_AGENT_COMPOSER_PLACEHOLDER_ID } from "./AgentComposer";
 import { AgentEmptyState } from "./AgentEmptyState";
 import { AgentPanelLayout } from "./AgentPanelLayout";
 import { AgentPanelStatus } from "./AgentPanelStatus";
 import { AgentQuestionDock } from "./AgentQuestionDock";
 import { AgentRuntimeLauncher } from "./AgentRuntimeLauncher";
+import { useTranscriptScope } from "./transcript/useTranscriptScope";
 import { AgentTranscript } from "./AgentTranscript";
+import { agentHistoryNotice } from "./agent-history-presentation";
 import { readinessStatusCode, sessionStatusCode } from "./agentPanelPresentation";
 import { useAgentReferenceIngestion } from "./useAgentReferenceIngestion";
 import type { AgentWorkspaceReferenceResolver } from "./useAgentReferenceIngestion";
@@ -24,14 +26,11 @@ import { useAgentRoutingPreferences } from "./useAgentRoutingPreferences";
 import { useAgentSessionPreparation } from "./useAgentSessionPreparation";
 
 type AgentChatTabPanelProps = {
-  /** Compatibility alias for the legacy single-Group Agent panel. */
-  active?: boolean;
-  presented?: boolean;
-  commandTarget?: boolean;
+  presented: boolean;
+  commandTarget: boolean;
   controller: AgentSessionController;
   workspaceId: string;
   onPresentationChange: (presentation: AgentChatTabPresentation) => void;
-  onViewChanges?: () => void;
   onOpenFile?: (path: string) => void;
   preferredRuntimeId: string | null;
   onPreferredRuntimeChange?: (runtimeId: string | null) => void;
@@ -44,13 +43,11 @@ type AgentChatTabPanelProps = {
 };
 
 export function AgentChatTabPanel({
-  active = false,
-  presented: presentedProp,
-  commandTarget: commandTargetProp,
+  presented,
+  commandTarget,
   controller,
   workspaceId,
   onPresentationChange,
-  onViewChanges,
   onOpenFile,
   preferredRuntimeId,
   onPreferredRuntimeChange,
@@ -61,8 +58,6 @@ export function AgentChatTabPanel({
   hiddenRuntimeIds,
   resolveWorkspaceReference,
 }: AgentChatTabPanelProps) {
-  const presented = presentedProp ?? active;
-  const commandTarget = commandTargetProp ?? active;
   const { t } = useLocalization();
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot);
   const referenceIngestion = useAgentReferenceIngestion({
@@ -84,7 +79,7 @@ export function AgentChatTabPanel({
   const hasCommittedTranscript = [state.projection.rows, state.projection.parts, state.projection.messages, state.projection.activities]
     .some((entries) => entries.length > 0);
   const startupLoading = presented && (!state.initialized || loading) && !state.pendingPrompt && !hasCommittedTranscript;
-  const sessionKey = state.session?.id || "new-agent-session";
+  const sessionKey = useTranscriptScope(controller, state.session?.id ?? null, state.selectedRuntimeId);
   const viewport = useMemo(() => ({ sessionKey, value: controller.readViewport() }), [controller, sessionKey]).value;
   const agentRuntimes = listVisibleAgentRuntimes(inspection, hiddenRuntimeIds);
   const selectedRuntimeRegistered = listAgentRuntimes(inspection).some((entry) => (
@@ -113,7 +108,10 @@ export function AgentChatTabPanel({
   )) && routingPreferences.preferencesReady);
   const preparingSession = state.sessionPreparation === "preparing";
   const submissionPending = state.submitting || Boolean(state.pendingPrompt);
-  const submissionStage: AgentSubmissionStage = state.pendingPrompt && !state.projection.runningTurnId
+  // Main admission replaces the local preview before the native turn starts.
+  // Keep the submission feedback throughout that interval, including inputs
+  // made only of attachments; preview text is not a lifecycle signal.
+  const submissionStage: AgentSubmissionStage = submissionPending && !state.projection.runningTurnId
     ? !state.session || preparingSession ? "preparing-session" : "starting-turn"
     : null;
   useAgentSessionPreparation(controller, state, commandTarget && routingReady);
@@ -140,7 +138,7 @@ export function AgentChatTabPanel({
     && !loading
     && !hasStatus
     && !hasSubmittedConversation
-    && !state.projection.partialHistory
+    && !agentHistoryNotice(state.projection)
     && !state.projection.connectionStatus;
   useEffect(() => {
     onPresentationChange({
@@ -153,8 +151,8 @@ export function AgentChatTabPanel({
     });
   }, [agentRuntimeSelected, onPresentationChange, runtimeIconKey, runtimeLabel, state.projection.runningTurnId, state.session?.id, statusCode, title]);
 
-  const handleViewportChange = useCallback((scrollTop: number, measurements: Record<string, number>, pinned: boolean) => {
-    controller.rememberViewport(scrollTop, measurements, pinned);
+  const handleViewportChange = useCallback((scrollTop: number, measurements: Record<string, number>, pinned: boolean, geometry: AgentViewportGeometry) => {
+    controller.rememberViewport(scrollTop, measurements, pinned, geometry);
   }, [controller]);
   const handleDraftChange = useCallback((draft: string) => controller.setDraft(draft), [controller]);
   const handleDraftDocumentChange = useCallback((draft: string, mentions: AgentPromptReferenceMention[]) => {
@@ -179,7 +177,7 @@ export function AgentChatTabPanel({
     phase={state.phase} announcement={referenceIngestion.announcement}
     onDragOver={referenceIngestion.onDragOver} onDrop={referenceIngestion.onDrop}
     status={hasStatus ? <AgentPanelStatus
-      unavailable={unavailable} failed={failed} error={state.error}
+      unavailable={unavailable} failed={failed} error={state.error ?? (state.phase === "runtime-exited" ? { code: "runtime-exited", params: { runtime: runtimeLabel } } : null)}
       runtimeLabel={runtimeLabel} readiness={readiness ?? undefined}
       onRetry={() => void controller.initialize(true)}
     /> : null}
@@ -188,26 +186,26 @@ export function AgentChatTabPanel({
       : null}
     conversation={<AgentTranscript
       key={sessionKey} projection={state.projection} loading={startupLoading}
-      pendingPrompt={state.pendingPrompt} pendingReferences={state.pendingIntent?.references ?? []}
+      pendingSubmissionId={state.pendingIntent?.id}
+      pendingPrompt={state.pendingPrompt} pendingReferences={state.pendingPrompt !== null ? state.pendingIntent?.references ?? [] : []}
       pendingPromptMentions={state.pendingIntent?.promptMentions ?? []}
       submissionStage={submissionStage} working={state.submitting || Boolean(state.projection.runningTurnId)}
       runtimeLabel={runtimeLabel} initialScrollTop={viewport.scrollTop}
-      initialMeasurements={viewport.measurements} initialPinned={viewport.pinned}
+      initialMeasurements={viewport.measurements} initialPinned={viewport.pinned} initialGeometry={viewport.geometry}
       onViewportChange={handleViewportChange} onOpenFile={onOpenFile}
     />}
     dock={startupLoading ? null : <>
       {state.projection.approvals[0] && <AgentApprovalDock
         approval={state.projection.approvals[0]} queueLength={state.projection.approvals.length}
-        resolving={state.resolvingBlocker} runtimeLabel={runtimeLabel}
+        resolving={replyInFlight(state.projection.approvals[0]?.replyStatus)} runtimeLabel={runtimeLabel}
         onResolve={(decision) => void controller.resolveApproval(decision)}
       />}
       {state.projection.questions[0] && <AgentQuestionDock
         key={state.projection.questions[0].requestId} request={state.projection.questions[0]}
-        queueLength={state.projection.questions.length} resolving={state.resolvingBlocker}
+        queueLength={state.projection.questions.length} resolving={replyInFlight(state.projection.questions[0]?.replyStatus)}
         onResolve={(resolution) => void controller.resolveQuestion(resolution)}
       />}
       <AgentComposer
-        floatingAccessory={state.projection.approvals.length === 0 && state.projection.questions.length === 0 ? <AgentChangesControl projection={state.projection} onViewChanges={onViewChanges} /> : null}
         draft={state.draft} draftMentions={state.draftMentions} onDraftChange={handleDraftChange}
         onDraftDocumentChange={handleDraftDocumentChange}
         disabled={loading || unavailable || failed || !routingReady || state.projection.approvals.length > 0 || state.projection.questions.length > 0}
@@ -228,4 +226,8 @@ export function AgentChatTabPanel({
       />
     </>}
   />;
+}
+
+function replyInFlight(status: string | null | undefined) {
+  return status != null && ["dispatching", "accepted", "outcome-unknown"].includes(status);
 }

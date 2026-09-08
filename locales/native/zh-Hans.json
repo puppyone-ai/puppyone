@@ -1,4 +1,7 @@
 {
+  "native.projectClose.quitDetail": "应用将保持运行。请再次退出应用，以重试停止这些任务。",
+  "native.projectClose.message": "部分项目任务尚未停止。",
+  "native.projectClose.detail": "窗口将保持打开。请再次关闭窗口，以重试停止这些任务。",
   "native.messageUnavailable": "此文本不可用。",
   "native.dock.newWindow": "新建窗口",
   "native.menu.file": "文件",

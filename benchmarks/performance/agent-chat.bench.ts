@@ -3,6 +3,7 @@ import { createElement, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { bench, describe } from "vitest";
+import { AgentSessionActor } from "../../electron/main/agent/domain/agent-session-actor.mjs";
 import { SessionUiStateStore } from "../../src/features/desktop-agent/application/SessionUiStateStore";
 import { AgentComposer } from "../../src/features/desktop-agent/ui/AgentComposer";
 import { AgentTranscript } from "../../src/features/desktop-agent/ui/AgentTranscript";
@@ -14,7 +15,7 @@ import {
 import { agentPickerLimits } from "../../src/features/desktop-agent/ui/agent-picker-limits";
 import { AgentCommandActivity } from "../../src/features/desktop-agent/ui/activity/AgentCommandActivity";
 import { AgentFileChangeActivity } from "../../src/features/desktop-agent/ui/activity/AgentFileChangeActivity";
-import { applyAgentEvent, applyAgentEvents, createAgentProjection } from "../../src/features/desktop-agent/agentProjection";
+import { applyAgentEvent, applyAgentEvents, createAgentProjection } from "../../electron/main/agent/domain/transcript/transcript-reducer.mjs";
 import type { AgentEvent } from "../../src/features/desktop-agent/agentTypes";
 import type { AgentActivity } from "../../src/features/desktop-agent/domain/agent-projection-types";
 import { agentToolEvidenceLimits } from "../../src/features/desktop-agent/domain/agent-tool-evidence";
@@ -26,6 +27,8 @@ const OPTIONS = { iterations: 5, time: 750, warmupIterations: 2, warmupTime: 150
 const HEAVY_UI_OPTIONS = { iterations: 3, time: 500, warmupIterations: 1, warmupTime: 100 };
 const recordedEvents = createRecordedEvents(1_000);
 const projection = applyAgentEvents(createAgentProjection(), recordedEvents);
+const committedActor = new AgentSessionActor({events: createRecordedEvents(660)});
+const appendToActor = () => committedActor.appendEvent({sessionId:"benchmark",runtimeId:"fixture",providerSessionId:"native",event:{type:"assistant.delta",turnId:"live",itemId:"live-answer",payload:{delta:"next "}}});
 const largeMarkdown = createLargeMarkdown(128 * 1024);
 const pickerGroups = createPickerGroups(500);
 const composerModels = Array.from({ length: 500 }, (_, index) => ({
@@ -39,6 +42,8 @@ const commandActivity = createCommandActivity();
 const fileChangeActivity = createFileChangeActivity();
 
 describe("Desktop Agent long-session projection", () => {
+  bench("Main commit, display validation and structural patch near the window limit", appendToActor, OPTIONS);
+
   bench("4,000 normalized events -> 2,000 stable message rows", () => {
     applyAgentEvents(createAgentProjection(), recordedEvents);
   }, OPTIONS);

@@ -6,6 +6,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DataPort } from "../packages/shared-ui/src/core/types";
 import { DataWorkspace } from "../packages/shared-ui/src/data/DataWorkspace";
+import { DesktopCloudShell } from "../src/components/DesktopCloudShell";
 import { AuxiliaryPanelHost } from "../src/features/app-shell/auxiliary/AuxiliaryPanelHost";
 import { withTestLocalization } from "./testLocalization";
 
@@ -165,6 +166,126 @@ describe("desktop side-pane resize interactions", () => {
     });
 
     expect(container.querySelector(".data-explorer-resizer")).toBeNull();
+  });
+
+  it("previews the expanded Project sidebar width and commits it at gesture end", () => {
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      callback(0);
+      return 1;
+    });
+    const onWidthChange = vi.fn();
+    const container = render(withTestLocalization(
+      <DesktopCloudShell
+        leadingRail={<nav>Projects</nav>}
+        leadingRailWidth={220}
+        leadingRailMinWidth={160}
+        leadingRailMaxWidth={360}
+        leftSidebarPresent={false}
+        resizableLeadingRail
+        onLeadingRailWidthChange={onWidthChange}
+      >
+        <div>Editor</div>
+      </DesktopCloudShell>,
+    ));
+    const handle = requireHandle(container, ".desktop-project-switcher-resizer");
+    const shell = requireHandle(container, ".desktop-shell");
+
+    act(() => {
+      handle.dispatchEvent(pointerEvent("pointerdown", 220, 15));
+      window.dispatchEvent(pointerEvent("pointermove", 300, 15));
+    });
+
+    expect(shell.style.getPropertyValue("--desktop-shell-leading-rail-width")).toBe("300px");
+    expect(onWidthChange).not.toHaveBeenCalled();
+
+    act(() => {
+      window.dispatchEvent(pointerEvent("pointerup", 300, 15));
+    });
+
+    expect(onWidthChange).toHaveBeenCalledExactlyOnceWith(300);
+  });
+
+  it("collapses the Project sidebar by pulling past the same half-minimum threshold", () => {
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      callback(0);
+      return 1;
+    });
+    const onCollapsedChange = vi.fn();
+    const onWidthChange = vi.fn();
+    const container = render(withTestLocalization(
+      <DesktopCloudShell
+        leadingRail={<nav>Projects</nav>}
+        leadingRailWidth={220}
+        leadingRailMinWidth={160}
+        leadingRailMaxWidth={360}
+        leadingRailCollapsedWidth={48}
+        leadingRailCollapseThreshold={80}
+        leftSidebarPresent={false}
+        resizableLeadingRail
+        onLeadingRailCollapsedChange={onCollapsedChange}
+        onLeadingRailWidthChange={onWidthChange}
+      >
+        <div>Editor</div>
+      </DesktopCloudShell>,
+    ));
+    const handle = requireHandle(container, ".desktop-project-switcher-resizer");
+
+    act(() => {
+      handle.dispatchEvent(pointerEvent("pointerdown", 220, 16));
+      window.dispatchEvent(pointerEvent("pointermove", 81, 16));
+    });
+    expect(onCollapsedChange).not.toHaveBeenCalledWith(true);
+
+    act(() => {
+      window.dispatchEvent(pointerEvent("pointermove", 80, 16));
+      window.dispatchEvent(pointerEvent("pointerup", 80, 16));
+    });
+
+    expect(onCollapsedChange).toHaveBeenCalledWith(true);
+    expect(onWidthChange).not.toHaveBeenCalled();
+  });
+
+  it("expands the compact Project rail from its resize edge by click or drag", () => {
+    const onCollapsedChange = vi.fn();
+    const onWidthChange = vi.fn();
+    const container = render(withTestLocalization(
+      <DesktopCloudShell
+        leadingRail={<nav>Projects</nav>}
+        leadingRailWidth={220}
+        leadingRailMinWidth={160}
+        leadingRailMaxWidth={360}
+        leadingRailCollapsed
+        leadingRailCollapsedWidth={48}
+        leadingRailCollapseThreshold={80}
+        leftSidebarPresent={false}
+        resizableLeadingRail
+        onLeadingRailCollapsedChange={onCollapsedChange}
+        onLeadingRailWidthChange={onWidthChange}
+      >
+        <div>Editor</div>
+      </DesktopCloudShell>,
+    ));
+    const handle = requireHandle(container, ".desktop-project-switcher-resizer");
+    const shell = requireHandle(container, ".desktop-shell");
+
+    expect(handle.getAttribute("role")).toBe("button");
+    expect(handle.classList.contains("po-collapsed-pane-edge-handle--inline-start")).toBe(true);
+    expect(shell.style.getPropertyValue("--desktop-shell-leading-rail-width")).toBe("48px");
+
+    act(() => {
+      handle.dispatchEvent(pointerEvent("pointerdown", 48, 17));
+      window.dispatchEvent(pointerEvent("pointerup", 48, 17));
+    });
+    expect(onCollapsedChange).toHaveBeenLastCalledWith(false);
+
+    onCollapsedChange.mockClear();
+    act(() => {
+      handle.dispatchEvent(pointerEvent("pointerdown", 48, 18));
+      window.dispatchEvent(pointerEvent("pointermove", 140, 18));
+      window.dispatchEvent(pointerEvent("pointerup", 140, 18));
+    });
+    expect(onCollapsedChange).toHaveBeenCalledWith(false);
+    expect(onWidthChange).toHaveBeenLastCalledWith(160);
   });
 
   it("collapses the right sidebar after pulling half a minimum width past its minimum", () => {

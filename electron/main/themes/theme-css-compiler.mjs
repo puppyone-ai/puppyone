@@ -127,6 +127,14 @@ const applicationColorTokens = new Set([
   "--po-terminal-bright-cyan",
   "--po-terminal-bright-white",
 ]);
+const typographyTokenMap = new Map([
+  ["--po-text-size-interface", Object.freeze({ host: "--po-theme-text-size-interface", min: 11, max: 18 })],
+  ["--po-text-size-content", Object.freeze({ host: "--po-theme-text-size-content", min: 12, max: 24 })],
+  ["--po-text-size-conversation", Object.freeze({ host: "--po-theme-text-size-conversation", min: 12, max: 20 })],
+  ["--po-text-size-data", Object.freeze({ host: "--po-theme-text-size-data", min: 10, max: 18 })],
+  ["--po-code-font-size", Object.freeze({ host: "--po-theme-code-font-size", min: 10, max: 20 })],
+  ["--po-terminal-font-size", Object.freeze({ host: "--po-theme-terminal-font-size", min: 10, max: 20 })],
+]);
 const markdownTokenMap = new Map([
   ["--po-md-surface-background", "--po-host-md-surface-background"],
   ["--po-md-content-color", "--po-host-md-content-color"],
@@ -172,6 +180,15 @@ const markdownTokenMap = new Map([
   ["--po-md-syntax-operator", "--po-host-md-syntax-operator"],
   ["--po-md-syntax-meta", "--po-host-md-syntax-meta"],
 ]);
+const markdownIntegerSizeTokens = new Set([
+  "--po-md-content-size",
+  "--po-md-h1-size",
+  "--po-md-h2-size",
+  "--po-md-h3-size",
+  "--po-md-h4-size",
+  "--po-md-h5-size",
+  "--po-md-h6-size",
+]);
 const csvTokenMap = new Map([
   ["--po-csv-surface-background", "--po-host-csv-surface-background"],
   ["--po-csv-surface-color", "--po-host-csv-surface-color"],
@@ -213,7 +230,7 @@ export async function compileThemeCss({
   });
   root.walkAtRules("charset", (rule) => rule.remove());
   validateAtRules(root);
-  validateModeContract(root, supportedModes);
+  validateModeContract(root, supportedModes, target);
   validateApplicationModeIsolation(root, { target, supportedModes });
   const firstPaint = extractFirstPaint(root, { target, supportedModes });
   scopeRules(root, { themeId, target });
@@ -264,7 +281,7 @@ function normalizeOpaqueColor(value) {
   return null;
 }
 
-function validateModeContract(root, supportedModes) {
+function validateModeContract(root, supportedModes, target) {
   const modes = supportedModes === undefined ? null : new Set(supportedModes);
   if (modes && (modes.size === 0 || [...modes].some((mode) => mode !== "light" && mode !== "dark"))) {
     throw new TypeError("Theme CSS received an invalid supported Color Mode contract.");
@@ -279,7 +296,13 @@ function validateModeContract(root, supportedModes) {
     rule.selector.split(",").some((selector) => hasDarkSelector(selector))
   ));
   const containsDeclarations = [...collectDeclarations(root)].length > 0;
-  if (modes.has("light") && modes.has("dark") && containsDeclarations && !containsDarkSelector) {
+  if (
+    target !== "typography"
+    && modes.has("light")
+    && modes.has("dark")
+    && containsDeclarations
+    && !containsDarkSelector
+  ) {
     throw new TypeError("A dual-mode Sub Theme target must declare explicit dark root tokens.");
   }
   if (modes.has("dark")) return;
@@ -536,9 +559,25 @@ function validateDeclarations(root, { target }) {
     if (target === "application" && !applicationColorTokens.has(property)) {
       throw new TypeError("Application Sub Themes may only declare public color tokens.");
     }
+    if (target === "typography") {
+      const contract = typographyTokenMap.get(property);
+      if (!contract) {
+        throw new TypeError("Typography Sub Themes may only declare public typography size tokens.");
+      }
+      const size = parseIntegerPixelSize(value);
+      if (size === null || size < contract.min || size > contract.max) {
+        throw new TypeError(
+          `Typography token ${property} must be a plain pixel value between ${contract.min}px and ${contract.max}px.`,
+        );
+      }
+      declaration.prop = contract.host;
+    }
     if (target === "markdown") {
       const mapped = markdownTokenMap.get(property);
       if (!mapped) throw new TypeError("Markdown Sub Themes may only declare public Markdown tokens.");
+      if (markdownIntegerSizeTokens.has(property) && parseIntegerPixelSize(value) === null) {
+        throw new TypeError(`Markdown size token ${property} must be a plain integer pixel value.`);
+      }
       declaration.prop = mapped;
     }
     if (target === "csv") {
@@ -553,6 +592,13 @@ function validateDeclarations(root, { target }) {
       throw new TypeError("Theme CSS contains an unsupported executable value.");
     }
   });
+}
+
+function parseIntegerPixelSize(value) {
+  const match = value.match(/^(\d+)px$/);
+  if (!match) return null;
+  const parsed = Number.parseInt(match[1], 10);
+  return Number.isSafeInteger(parsed) ? parsed : null;
 }
 
 function parseImportSpecifier(params) {

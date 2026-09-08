@@ -6,7 +6,6 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AuxiliaryWorkbenchHistoryTarget } from "../src/features/app-shell/auxiliary-workbench/types";
-import { clearAgentControllerRegistryForTests } from "../src/features/desktop-agent/application/controllerRegistry";
 import {
   AGENT_HISTORY_CATALOG_TIMEOUT_MS,
   AGENT_HISTORY_RUNTIME_TIMEOUT_MS,
@@ -22,13 +21,36 @@ let root: Root | null = null;
 afterEach(() => {
   act(() => root?.unmount());
   vi.useRealTimers();
-  clearAgentControllerRegistryForTests();
   root = null;
   document.body.replaceChildren();
   delete (window as Window & { puppyoneDesktop?: unknown }).puppyoneDesktop;
 });
 
 describe("Agent Chat global history browser", () => {
+  it("shows partial source coverage and unsupported lookup separately from an empty history", async () => {
+    const codex = runtime("codex", "Codex");
+    const cursor = runtime("cursor", "Cursor");
+    const saved = session("saved", codex.descriptor, "Available conversation", "gpt-5.6-sol");
+    Object.defineProperty(window, "puppyoneDesktop", { configurable: true, value: {
+      discoverAgentProviders: vi.fn(async () => ({ ...emptyInspection(), runtimes: [codex, cursor] })),
+      listAgentSessions: vi.fn(async ({ discoverNative, runtimeId }: { discoverNative?: boolean; runtimeId?: string }) => {
+        if (!discoverNative) return emptySessionList();
+        return { ...emptySessionList(), sessions: runtimeId === "codex" ? [saved] : [],
+          catalogCoverage: { truncated: true, capacity: 500, retained: 500 },
+          discovery: { runtimeId, status: runtimeId === "codex" ? "complete" : "unsupported",
+            coverage: "unknown", indexed: 1, nextCursor: null, scanId: null, warnings: [] } };
+      }),
+      onAgentEvent: vi.fn(() => () => undefined), onAgentSessionExit: vi.fn(() => () => undefined),
+    } });
+    const container = mountHistoryBrowser();
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
+    expect(container.textContent).toContain("Available conversation");
+    expect(container.textContent).toContain("Codex: This Agent cannot confirm that its history list is complete.");
+    expect(container.textContent).toContain("Cursor: History lookup is not supported.");
+    expect(container.textContent).toContain("The local history limit was reached.");
+    expect(container.textContent).not.toContain("No chat history");
+  });
+
   it("does not discover history before the user acknowledges local history access", async () => {
     const discoverAgentProviders = vi.fn(async () => emptyInspection());
     const listAgentSessions = vi.fn(async () => emptySessionList());
@@ -124,6 +146,7 @@ describe("Agent Chat global history browser", () => {
     await act(async () => {
       nativePage.resolve({
         ...emptySessionList(),
+        sessions: [saved],
         discovery: {
           runtimeId: "codex",
           status: "complete",

@@ -17,9 +17,9 @@
   border: 0;
   border-radius: var(--desktop-control-radius);
   background: transparent;
-  color: color-mix(in srgb, var(--po-text-subtle) 88%, transparent);
+  color: var(--po-text-muted);
   box-shadow: none;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transition:
     background-color 120ms ease,
     color 120ms ease;
@@ -37,13 +37,13 @@
 }
 
 .desktop-help-launcher:hover {
-  background: transparent;
-  color: var(--po-text-muted);
+  background: var(--po-hover);
+  color: var(--po-text);
 }
 
 .desktop-feedback[data-open="true"] .desktop-help-launcher {
-  background: transparent;
-  color: var(--po-text-muted);
+  background: var(--po-selected);
+  color: var(--po-text);
 }
 
 .desktop-help-launcher:focus-visible {
@@ -116,14 +116,14 @@
 
 .desktop-feedback-required-marker {
   color: var(--po-danger);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: var(--po-text-weight-semibold);
   line-height: 1;
 }
 
 .desktop-feedback-contact-input {
   width: 100%;
-  height: 32px;
+  height: var(--po-control-size);
   box-sizing: border-box;
   padding: 0 9px;
   border: 1px solid var(--po-divider);
@@ -201,7 +201,7 @@
 
 .desktop-feedback-attachment-row {
   display: flex;
-  min-height: 30px;
+  min-height: var(--po-control-size);
   align-items: center;
   justify-content: flex-start;
   margin-block-start: 6px;
@@ -228,13 +228,13 @@
 
 .desktop-feedback-attach {
   display: grid;
-  width: 28px;
-  height: 28px;
+  width: var(--po-control-size-compact);
+  height: var(--po-control-size-compact);
   flex: 0 0 auto;
   place-items: center;
   padding: 0;
   border: 0;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .desktop-feedback-attach {
@@ -255,15 +255,15 @@
 
 .desktop-feedback-screenshot {
   position: relative;
-  width: 30px;
-  height: 30px;
+  width: var(--po-control-size);
+  height: var(--po-control-size);
   flex: 0 0 auto;
   overflow: hidden;
   padding: 0;
   border: 1px solid var(--po-border);
   border-radius: 7px;
   background: var(--po-canvas);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .desktop-feedback-screenshot img {
@@ -303,7 +303,7 @@
 }
 
 .desktop-feedback-footer {
-  min-height: 30px;
+  min-height: var(--po-control-size);
   justify-content: space-between;
 }
 

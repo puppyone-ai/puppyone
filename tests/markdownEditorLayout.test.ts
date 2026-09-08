@@ -81,7 +81,7 @@ describe("Markdown editor layout", () => {
       /\.markdown-codemirror-editor\[data-live-preview="false"\][\s\S]*?\{[\s\S]*?font-family:\s*inherit;/s,
     );
     expect(markdownEditorCss).toMatch(
-      /\.markdown-codemirror-editor\[data-live-preview="false"\][\s\S]*?\{[\s\S]*?font-size:\s*inherit;/s,
+      /\.markdown-codemirror-editor\[data-live-preview="false"\][\s\S]*?\{[\s\S]*?font-size:\s*var\(--po-type-editor-content, 15px\);/s,
     );
     expect(markdownEditorCss).toMatch(
       /\.markdown-codemirror-editor\[data-live-preview="false"\][\s\S]*?\{[\s\S]*?font-style:\s*normal;/s,
@@ -221,7 +221,7 @@ describe("Markdown HTML media layout", () => {
     expect(editorEntryCss).toContain('@import "./editor/markdown-content.css";');
     expect(profileRule).toContain("--po-md-presentation-version: 2;");
     expect(profileRule).toContain(
-      "--po-md-content-size: var(--po-host-md-content-size, var(--po-text-size-content, 14px));",
+      "--po-md-content-size: var(--po-type-editor-content, var(--po-text-size-content, 15px));",
     );
     expect(profileRule).toContain(
       "--po-md-content-weight: var(--po-host-md-content-weight, var(--po-content-reading-weight, 450));",
@@ -230,7 +230,7 @@ describe("Markdown HTML media layout", () => {
       "--po-md-content-letter-spacing: var(--po-host-md-content-letter-spacing, var(--po-content-reading-letter-spacing, 0));",
     );
     expect(profileRule).toContain(
-      "--po-md-content-line-height: var(--po-host-md-content-line-height, var(--po-content-reading-line-height, 1.7142857143));",
+      "--po-md-content-line-height: var(--po-type-editor-line-height, var(--po-content-reading-line-height, 24px));",
     );
     expect(profileRule).toContain("--po-md-content-color: var(--po-host-md-content-color, var(--po-text));");
     expect(darkProfileRule).toContain(
@@ -252,7 +252,7 @@ describe("Markdown HTML media layout", () => {
     expect(profileRule).toContain("--po-md-h3-weight: var(--po-host-md-h3-weight, 600);");
     expect(profileRule).toContain("--po-md-heading-line-height: var(--po-host-md-heading-line-height, 1.25);");
     expect(profileRule).toContain(
-      "--po-md-h1-size: var(--po-user-md-h1-size, var(--po-host-md-h1-size, 2em));",
+      "--po-md-h1-size: var(--po-user-md-h1-size, var(--po-type-editor-heading-1, 30px));",
     );
     expect(profileRule).toContain(
       "--po-md-strong-weight: var(--po-user-md-strong-weight, var(--po-host-md-strong-weight, 600));",
@@ -691,7 +691,7 @@ describe("Markdown table affordance layout", () => {
     expect(columnVisualRule).toContain("width: 26px;");
     expect(columnVisualRule).toContain("height: 13px;");
     expect(rowHandleRule).toContain("width: 24px;");
-    expect(rowHandleRule).toContain("height: 32px;");
+    expect(rowHandleRule).toContain("height: var(--po-control-size);");
     expect(rowVisualRule).toContain("width: 13px;");
     expect(rowVisualRule).toContain("height: 26px;");
     expect(markdownTableCss).not.toContain(

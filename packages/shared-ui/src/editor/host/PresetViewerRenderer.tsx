@@ -14,7 +14,7 @@ import type {
   PresetViewerContribution,
   PresetViewerRenderContext,
 } from "../registry/viewerTypes";
-import type { ViewerSurfaceFamily, ViewerSurfaceTrait } from "../registry/viewerContract";
+import { usePresetViewerRuntimeHost } from "./PresetViewerRuntimeHost";
 
 const lazyRenderers = new WeakMap<
   LazyPresetViewerContribution,
@@ -28,6 +28,7 @@ const rendererModulePromises = new WeakMap<
 /** Starts a lazy viewer download without mounting it. Module evaluation stays
  * deduplicated and the same promise is later consumed by React.lazy. */
 export function preloadPresetViewer(viewer: PresetViewerContribution): Promise<void> {
+  if (viewer.surfaceIsolation === "isolated-webcontents") return Promise.resolve();
   if ("render" in viewer && typeof viewer.render === "function") return Promise.resolve();
   return loadRendererModule(viewer as LazyPresetViewerContribution).then(() => undefined);
 }
@@ -42,13 +43,22 @@ export function PresetViewerRenderer({
   loadingIndicator?: ReactNode;
 }) {
   const { t } = useLocalization();
+  const runtimeHost = usePresetViewerRuntimeHost();
+  if (viewer.surfaceIsolation === "isolated-webcontents") {
+    return (
+      <ViewerSurfaceBoundary viewer={viewer}>
+        {runtimeHost ? runtimeHost.renderIsolatedSurface({ viewer, context }) : (
+          <div className="editor-state editor-state--stacked danger" role="alert">
+            <strong>{t("editor.unavailable.title")}</strong>
+            <span>{t("editor.viewer.noHostSurface")}</span>
+          </div>
+        )}
+      </ViewerSurfaceBoundary>
+    );
+  }
   if ("render" in viewer && typeof viewer.render === "function") {
     return (
-      <ViewerSurfaceBoundary
-        viewerId={viewer.id}
-        family={viewer.surfaceFamily}
-        traits={viewer.surfaceTraits}
-      >
+      <ViewerSurfaceBoundary viewer={viewer}>
         {viewer.render(context)}
       </ViewerSurfaceBoundary>
     );
@@ -56,11 +66,7 @@ export function PresetViewerRenderer({
 
   const LazyRenderer = getLazyRenderer(viewer as LazyPresetViewerContribution);
   return (
-    <ViewerSurfaceBoundary
-      viewerId={viewer.id}
-      family={viewer.surfaceFamily}
-      traits={viewer.surfaceTraits}
-    >
+    <ViewerSurfaceBoundary viewer={viewer}>
       <Suspense fallback={(
         <DocumentSurfacePending label={t("editor.loadingViewer")}>
           {loadingIndicator}
@@ -73,22 +79,22 @@ export function PresetViewerRenderer({
 }
 
 export function ViewerSurfaceBoundary({
-  viewerId,
-  family,
-  traits,
+  viewer,
   children,
 }: {
-  viewerId: string;
-  family: ViewerSurfaceFamily;
-  traits: readonly ViewerSurfaceTrait[];
+  viewer: PresetViewerContribution;
   children: ReactNode;
 }) {
   return (
     <div
       className="po-viewer-surface-boundary"
-      data-viewer-id={viewerId}
-      data-viewer-surface-family={family}
-      data-viewer-surface-traits={traits.join(" ") || undefined}
+      data-viewer-id={viewer.id}
+      data-viewer-surface-family={viewer.surfaceFamily}
+      data-viewer-surface-traits={viewer.surfaceTraits.join(" ") || undefined}
+      data-viewer-surface-isolation={viewer.surfaceIsolation}
+      data-viewer-compute-isolation={viewer.computeIsolation}
+      data-viewer-content-sandbox={viewer.contentSandbox}
+      data-viewer-memory-class={viewer.resourcePolicy.memoryClass}
     >
       {children}
     </div>

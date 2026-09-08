@@ -1,7 +1,2 @@
-export function terminalTabId(sessionId: string) {
-  return `desktop-terminal-tab-${sessionId}`;
-}
-
-export function terminalPanelId(sessionId: string) {
-  return `desktop-terminal-panel-${sessionId}`;
-}
+export { workbenchTabId as terminalTabId } from "../../../app-shell/auxiliary-workbench/layout/workbenchSessionHeaderIds";
+export { workbenchPanelId as terminalPanelId } from "../../../app-shell/auxiliary-workbench/layout/workbenchSessionHeaderIds";

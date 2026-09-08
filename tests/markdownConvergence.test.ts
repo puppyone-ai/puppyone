@@ -5,7 +5,6 @@ import { EditorState } from "@codemirror/state";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { EditorView } from "@codemirror/view";
 import { describe, expect, it, vi } from "vitest";
-import { bindInlineHtmlDomInteractions } from "../packages/shared-ui/src/editor/markdown/features/html/inlineHtmlDomAdapter";
 import { renderMarkdownInlineFromSharedPolicy } from "../packages/shared-ui/src/editor/markdown/composition/preview/markdownInlinePlanAdapter";
 import {
   markdownCodeMirrorBaseExtensions,
@@ -17,6 +16,7 @@ import { createSanitizedBlockHtmlFragment } from "../packages/shared-ui/src/edit
 import { isSafeStyleValue } from "../packages/shared-ui/src/editor/markdown/platform/policy/markdownHtmlSanitizerPolicy";
 import {
   MERMAID_MAX_SOURCE_BYTES,
+  mountSanitizedMermaidSvg,
   renderMermaidDiagram,
   sanitizeMermaidSvg,
 } from "../packages/shared-ui/src/editor/markdown/features/mermaid/mermaidRenderer";
@@ -118,27 +118,25 @@ describe("Markdown HTML profile convergence", () => {
         <foreignObject><div>HTML</div></foreignObject>
       </svg>
     `);
-    const template = document.createElement("template");
-    template.innerHTML = sanitized;
-
-    const uses = template.content.querySelectorAll("use");
+    const host = document.createElement("div");
+    const openHref = vi.fn();
+    const mount = mountSanitizedMermaidSvg(host, sanitized, openHref);
+    const shadowRoot = mount.element.shadowRoot;
+    const uses = shadowRoot?.querySelectorAll("use") ?? [];
     expect(uses[0]?.getAttribute("href")).toBe("#shape");
     expect(uses[1]?.hasAttribute("href")).toBe(false);
-    const anchor = template.content.querySelector("a");
+    const anchor = shadowRoot?.querySelector("a");
     expect(anchor?.hasAttribute("href")).toBe(false);
     expect(anchor?.getAttribute("data-md-href")).toBe("https://example.com/path");
     expect(anchor?.hasAttribute("onclick")).toBe(false);
-    expect(template.content.querySelector("image")?.hasAttribute("href")).toBe(false);
-    expect(template.content.querySelector("image")?.hasAttribute("style")).toBe(false);
-    expect(template.content.querySelector("foreignObject")).toBeNull();
+    expect(shadowRoot?.querySelector("image")?.hasAttribute("href")).toBe(false);
+    expect(shadowRoot?.querySelector("image")?.hasAttribute("style")).toBe(false);
+    expect(shadowRoot?.querySelector("foreignObject")).toBeNull();
 
-    const renderRoot = document.createElement("span");
-    const shadowRoot = renderRoot.attachShadow({ mode: "open" });
-    shadowRoot.append(template.content);
-    const openHref = vi.fn();
-    bindInlineHtmlDomInteractions(shadowRoot, { openHref });
-    shadowRoot.querySelector("a")?.dispatchEvent(new MouseEvent("click", { bubbles: true, composed: true }));
+    anchor?.dispatchEvent(new MouseEvent("click", { bubbles: true, composed: true }));
     expect(openHref).toHaveBeenCalledWith("https://example.com/path");
+    mount.dispose();
+    expect(host.childElementCount).toBe(0);
   });
 
   it("rejects oversized Mermaid source before loading the renderer", async () => {

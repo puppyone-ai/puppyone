@@ -1,5 +1,5 @@
 .desktop-cloud-automation-icon-action {
-  width: 30px;
+  width: var(--po-control-size);
   padding: 0;
 }
 
@@ -27,18 +27,18 @@
 
 .desktop-cloud-automation-delete-confirm strong {
   color: var(--po-text);
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
 }
 
 .desktop-cloud-automation-delete-confirm span {
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 17px;
 }
 
 .desktop-cloud-automation-success {
   color: var(--po-success);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
 }
 
 .desktop-cloud-automation-detail-value {
@@ -48,13 +48,13 @@
 
 .desktop-cloud-automation-detail-value span {
   color: var(--po-text-subtle);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
 }
 
 .desktop-cloud-automation-detail-value strong {
   overflow: hidden;
   color: var(--po-text);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 550;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -93,19 +93,19 @@
 .desktop-cloud-automation-run-history h3 {
   margin: 0;
   color: var(--po-text);
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   font-weight: 600;
   line-height: 18px;
 }
 
 .desktop-cloud-automation-schedule-overview span {
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
 }
 
 .desktop-cloud-automation-schedule-overview small {
   color: var(--po-text-subtle);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   line-height: 16px;
 }
 
@@ -140,7 +140,7 @@
 .desktop-cloud-automation-manage-editor-actions > span {
   margin-inline-end: auto;
   color: var(--po-danger);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
 }
 
 .desktop-cloud-automation-run-history {
@@ -158,7 +158,7 @@
 
 .desktop-cloud-automation-run-history > header > span {
   color: var(--po-text-subtle);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
 }
 
 .desktop-cloud-automation-run-state {
@@ -166,7 +166,7 @@
   border: 1px solid var(--po-border-subtle);
   border-radius: 7px;
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
 }
 
 .desktop-cloud-automation-run-state.error {
@@ -200,19 +200,19 @@
 
 .desktop-cloud-automation-run-list strong {
   color: var(--po-text);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 550;
 }
 
 .desktop-cloud-automation-run-list small {
   color: var(--po-text-subtle);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
 }
 
 .desktop-cloud-automation-run-list p {
   margin: 3px 0 0;
   color: var(--po-danger);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   line-height: 16px;
   white-space: pre-wrap;
 }
@@ -220,7 +220,7 @@
 .desktop-cloud-automation-run-status {
   width: max-content;
   color: var(--po-text-muted);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-weight: 550;
 }
 

@@ -121,6 +121,15 @@ export function createLocalFileCapabilityStore({
     return { rootPath: entry.rootPath, relativePath };
   }
 
+  /** Resolves a capability only for its issuing renderer. Main-process
+   * admission gates use this before delegating the bearer URL to a child. */
+  function inspect({ token, purpose, requestPath, senderId }) {
+    if (!Number.isSafeInteger(senderId)) return null;
+    const entry = typeof token === "string" ? entriesByToken.get(token) : null;
+    if (!entry || entry.senderId !== senderId) return null;
+    return resolve({ token, purpose, requestPath });
+  }
+
   function revoke({ token, senderId }) {
     if (typeof token !== "string" || !Number.isSafeInteger(senderId)) return false;
     const entry = entriesByToken.get(token);
@@ -156,7 +165,7 @@ export function createLocalFileCapabilityStore({
     return revoked;
   }
 
-  return Object.freeze({ issue, validate, resolve, revoke, revokeSender, revokeWorkspaceRoot });
+  return Object.freeze({ issue, validate, resolve, inspect, revoke, revokeSender, revokeWorkspaceRoot });
 }
 
 export function buildLocalFileCapabilityUrl({

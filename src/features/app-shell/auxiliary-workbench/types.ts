@@ -1,4 +1,12 @@
 import type { ReactNode } from "react";
+import type { ProjectSessionContext } from "../../../../shared/project-session-contract/types";
+
+export interface AuxiliaryWorkbenchProject {
+  readonly context: ProjectSessionContext;
+  readonly disposed: boolean;
+  assertOpen(): void;
+  getResource<T extends { dispose(): void }>(key: string, create: () => T): T;
+}
 import type {
   AuxiliaryWorkbenchItem,
   WorkbenchSplitMinimumSize,
@@ -24,6 +32,7 @@ export type AuxiliaryWorkbenchItemSnapshot = Readonly<{
 }>;
 
 export type AuxiliaryWorkbenchItemRenderContext = Readonly<{
+  project: AuxiliaryWorkbenchProject;
   item: AuxiliaryWorkbenchItem;
   presentation: AuxiliaryWorkbenchPresentationState;
   peerSnapshots: ReadonlyMap<string, AuxiliaryWorkbenchItemSnapshot>;
@@ -42,6 +51,7 @@ export type AuxiliaryWorkbenchHistoryTarget = Readonly<{
 }>;
 
 export type AuxiliaryWorkbenchHistoryBrowserContext = Readonly<{
+  project?: AuxiliaryWorkbenchProject;
   instanceId: string;
   rootId: string;
   rootPath: string;
@@ -65,12 +75,22 @@ export type AuxiliaryWorkbenchCreationRecipe = Readonly<{
 }>;
 
 export type AuxiliaryWorkbenchPreparationContext = Readonly<{
+  project: AuxiliaryWorkbenchProject;
   item: AuxiliaryWorkbenchItem;
   recipe: AuxiliaryWorkbenchCreationRecipe | null;
   historyTarget: AuxiliaryWorkbenchHistoryTarget | null;
 }>;
 
+export type AuxiliaryWorkbenchCreationFailure = Readonly<{
+  kind: string;
+  label: string;
+  code: string | null;
+  detail: string | null;
+  retryable: boolean;
+}>;
+
 export type AuxiliaryWorkbenchCloseContext = Readonly<{
+  project: AuxiliaryWorkbenchProject;
   item: AuxiliaryWorkbenchItem;
   snapshot: AuxiliaryWorkbenchItemSnapshot;
 }>;
@@ -113,6 +133,7 @@ export type AuxiliaryWorkbenchContribution = Readonly<{
   initialSnapshot: AuxiliaryWorkbenchItemSnapshot;
   maximumItems?: number;
   minimumSize: WorkbenchSplitMinimumSize;
+  getMinimumSize?: (context: AuxiliaryWorkbenchCloseContext) => WorkbenchSplitMinimumSize | null;
   creationRecipes?: readonly AuxiliaryWorkbenchCreationRecipe[];
   /** Optional feature-owned browser for explicitly restoring durable resources. */
   history?: AuxiliaryWorkbenchHistoryContribution;
@@ -121,5 +142,6 @@ export type AuxiliaryWorkbenchContribution = Readonly<{
   /** Dispose feature state prepared for an Item that admission never committed. */
   discardPreparedItem?: (context: AuxiliaryWorkbenchPreparationContext) => void | Promise<void>;
   renderItem: (context: AuxiliaryWorkbenchItemRenderContext) => ReactNode;
+  renderStatus?: (context: AuxiliaryWorkbenchCloseContext) => ReactNode;
   close: AuxiliaryWorkbenchCloseAdapter;
 }>;

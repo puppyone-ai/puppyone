@@ -2,6 +2,7 @@ import type mermaid from "mermaid";
 import type { MermaidConfig } from "mermaid";
 import { getSafeMarkdownHref } from "../../platform/policy/markdownUrlPolicy";
 import { subscribeTypographyChanges } from "../../../../core/typography";
+import { bindInlineHtmlDomInteractions } from "../html/inlineHtmlDomAdapter";
 
 type MermaidModule = typeof mermaid;
 
@@ -15,6 +16,11 @@ export type MermaidRenderResult = {
   cacheKey: string;
   themeKey: string;
 };
+
+export type MermaidSvgMount = Readonly<{
+  element: HTMLElement;
+  dispose: () => void;
+}>;
 
 export type MermaidRenderRequest = {
   source: string;
@@ -301,6 +307,36 @@ export function sanitizeMermaidSvg(svg: string): string {
     throw new Error("Sanitized Mermaid SVG exceeds the render limit.");
   }
   return sanitized;
+}
+
+/**
+ * Mounts a sanitized Mermaid fragment behind a Shadow DOM boundary.
+ *
+ * This is the shared presentation boundary for every read-only Mermaid
+ * surface. Callers provide the only link-opening capability; the generated SVG
+ * never receives a live external href and cannot inherit host-page CSS.
+ */
+export function mountSanitizedMermaidSvg(
+  host: HTMLElement,
+  svg: string,
+  openHref: (href: string) => void = () => {},
+): MermaidSvgMount {
+  const renderRoot = document.createElement("span");
+  renderRoot.className = "po-safe-mermaid-svg-root";
+  const shadowRoot = renderRoot.attachShadow({ mode: "open" });
+  const style = document.createElement("style");
+  style.textContent = ":host{display:block;max-width:100%}svg{display:block;max-width:100%;height:auto}";
+  const template = document.createElement("template");
+  template.innerHTML = sanitizeMermaidSvg(svg);
+  shadowRoot.append(style, template.content);
+  bindInlineHtmlDomInteractions(shadowRoot, { openHref });
+  host.replaceChildren(renderRoot);
+  return Object.freeze({
+    element: renderRoot,
+    dispose: () => {
+      if (renderRoot.parentNode === host) renderRoot.remove();
+    },
+  });
 }
 
 function isUnsafeMermaidSvgAttribute(attribute: Attr): boolean {

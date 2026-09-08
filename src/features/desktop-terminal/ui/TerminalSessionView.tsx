@@ -13,6 +13,8 @@ import {
   hasFileReferenceDataTransferSource,
 } from "@puppyone/shared-ui";
 import type { TerminalRuntimeHandle } from "../runtime/terminalRuntime";
+import { useLocalization } from "@puppyone/localization";
+import { quoteTerminalPaths, resolveTerminalDropPaths } from "../interactions/terminalResourceDrop";
 
 type TerminalSessionViewProps = {
   focused: boolean;
@@ -36,6 +38,10 @@ export function TerminalSessionView({
   runtime,
   workspacePath,
 }: TerminalSessionViewProps) {
+  const { t } = useLocalization();
+  const [dropFailed, setDropFailed] = useState(false);
+  const dropEpoch = useRef(0);
+  useEffect(() => () => { dropEpoch.current += 1; }, [runtime, workspacePath]);
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollbarTrackRef = useRef<HTMLDivElement>(null);
   const scrollbarDragRef = useRef<{ pointerId: number; offset: number } | null>(null);
@@ -141,13 +147,20 @@ export function TerminalSessionView({
   }, []);
 
   const handleTerminalDrop = useCallback((event: ReactDragEvent<HTMLDivElement>) => {
-    const paths = readTerminalDroppedPaths(event.dataTransfer, workspacePath);
-    if (paths.length === 0) return;
+    const source = classifyReferenceDataTransfer(event.dataTransfer);
+    if (source.kind !== "workspace-entries" && source.kind !== "files") return;
     event.preventDefault();
     event.stopPropagation();
-    runtime.write(paths.map(shellQuotePath).join(" "));
-    onFocus?.();
-    runtime.focus();
+    const epoch = dropEpoch.current;
+    setDropFailed(false);
+    void resolveTerminalDropPaths(source, workspacePath).then((paths) => {
+      if (epoch !== dropEpoch.current || paths.length === 0) return;
+      runtime.write(quoteTerminalPaths(paths, runtime.inputShell ?? ""));
+      onFocus?.();
+      runtime.focus();
+    }).catch(() => {
+      if (epoch === dropEpoch.current) setDropFailed(true);
+    });
   }, [onFocus, runtime, workspacePath]);
 
   return (
@@ -161,6 +174,7 @@ export function TerminalSessionView({
       onFocusCapture={onFocus}
       onPointerDownCapture={onFocus}
     >
+      {dropFailed && <div className="desktop-terminal-drop-error" role="alert">{t("terminal.dropFailed")}</div>}
       <div
         className="desktop-terminal-xterm"
         dir="ltr"
@@ -219,36 +233,4 @@ export function TerminalSessionView({
 
 function hasTerminalDroppablePaths(dataTransfer: DataTransfer) {
   return hasFileReferenceDataTransferSource(dataTransfer);
-}
-
-function readTerminalDroppedPaths(dataTransfer: DataTransfer, rootPath: string) {
-  const source = classifyReferenceDataTransfer(dataTransfer);
-  if (source.kind === "workspace-entries") {
-    return source.entries.map((entry) => joinWorkspacePath(rootPath, entry.path));
-  }
-  if (source.kind === "files") {
-    return source.files
-      .map(readDroppedFilePath)
-      .filter((pathValue): pathValue is string => Boolean(pathValue));
-  }
-  return [];
-}
-
-function readDroppedFilePath(file: File) {
-  const bridgePath = window.puppyoneDesktop?.getPathForFile?.(file);
-  const legacyPath = (file as File & { path?: string }).path;
-  const pathValue = bridgePath || legacyPath || "";
-  return pathValue.trim() || null;
-}
-
-function joinWorkspacePath(rootPath: string, nodePath: string) {
-  const cleanNodePath = nodePath.trim().replace(/^[/\\]+/, "");
-  if (!cleanNodePath) return rootPath;
-  const separator = /[/\\]$/.test(rootPath) ? "" : "/";
-  return `${rootPath}${separator}${cleanNodePath}`;
-}
-
-function shellQuotePath(pathValue: string) {
-  if (/^[A-Za-z0-9_@%+=:,./-]+$/.test(pathValue)) return pathValue;
-  return `'${pathValue.replace(/'/g, "'\\''")}'`;
 }

@@ -56,13 +56,9 @@ function ToolPart({ part, onOpenFile }: AgentPartRendererProps<"tool" | "command
   );
 }
 
-function StatusPart({ part }: AgentPartRendererProps<"usage" | "permission" | "question">) {
-  const { t } = useLocalization();
-  if (part.kind === "usage") return null;
-  return <div className="desktop-agent-inline-part" role="status">
-    {t(`agent.part.${part.kind}`)} {t(`agent.part.state.${part.state}`)}
-  </div>;
-}
+// These kinds remain available to session controls and metadata consumers.
+// Even standalone rendering must not reintroduce duplicate transcript labels.
+function StatusPart() { return null; }
 
 function TurnSummaryPart({ part }: AgentPartRendererProps<"turn-summary">) {
   return <AgentTurnSummary durationMs={part.durationMs} status={part.status} />;
@@ -90,9 +86,9 @@ registerAgentPartRenderer("command", (props) => <ToolPart {...props} />);
 registerAgentPartRenderer("file-change", (props) => <ToolPart {...props} />);
 registerAgentPartRenderer("warning", (props) => <NoticePart {...props} />);
 registerAgentPartRenderer("error", (props) => <NoticePart {...props} />);
-registerAgentPartRenderer("usage", (props) => <StatusPart {...props} />);
-registerAgentPartRenderer("permission", (props) => <StatusPart {...props} />);
-registerAgentPartRenderer("question", (props) => <StatusPart {...props} />);
+registerAgentPartRenderer("usage", StatusPart);
+registerAgentPartRenderer("permission", StatusPart);
+registerAgentPartRenderer("question", StatusPart);
 registerAgentPartRenderer("unknown", UnknownPart);
 
 export { registerAgentPartRenderer } from "./AgentPartRendererRegistry";

@@ -16,7 +16,11 @@ import {
   getArrowResizedSidebarWidth,
   type InlineDirection,
 } from "../../../components/auxiliarySidebarGeometry";
-import { useNativeSurfacePointerPassthroughActivity } from "../../native-surfaces";
+import {
+  useNativeSurfaceLayoutTransition,
+  useNativeSurfacePointerPassthroughActivity,
+  useNativeSurfacePointerRoutingRegion,
+} from "../../native-surfaces";
 
 export type AuxiliaryPanelHostProps = {
   children: ReactNode;
@@ -32,6 +36,7 @@ export type AuxiliaryPanelHostProps = {
 };
 
 const PANE_COLLAPSE_ANIMATION_MS = 260;
+const AUXILIARY_LAYOUT_TRANSITION_PROPERTIES = new Set(["flex-basis", "width"]);
 
 export function AuxiliaryPanelHost({
   children,
@@ -54,8 +59,18 @@ export function AuxiliaryPanelHost({
   ));
   const wasOpenRef = useRef(open);
   const [collapsedEdgeSettled, setCollapsedEdgeSettled] = useState(!open);
+  const [panelElement, setPanelElement] = useState<HTMLElement | null>(null);
+  const [resizerElement, setResizerElement] = useState<HTMLDivElement | null>(null);
   const onResizeActiveChange = useNativeSurfacePointerPassthroughActivity(
     "auxiliary-panel-resize",
+  );
+  useNativeSurfacePointerRoutingRegion("auxiliary-panel-resize", resizerElement);
+  useNativeSurfaceLayoutTransition(
+    "auxiliary-panel-transition",
+    panelElement,
+    open,
+    PANE_COLLAPSE_ANIMATION_MS,
+    AUXILIARY_LAYOUT_TRANSITION_PROPERTIES,
   );
 
   useEffect(() => {
@@ -139,11 +154,13 @@ export function AuxiliaryPanelHost({
 
   return (
     <aside
+      ref={setPanelElement}
       className={`desktop-right-sidebar ${open ? "is-open" : ""}`}
       style={panelStyle}
     >
       {resizable && (open || Boolean(onOpenChange)) && (
         <SidebarResizeHandle
+          ref={setResizerElement}
           className="desktop-right-sidebar-resizer"
           paneEdge
           collapsedEdgeSide={collapsedEdgeVisible ? "inline-end" : undefined}

@@ -1,0 +1,64 @@
+.built-in-editor-surface,
+.built-in-editor-surface-host,
+.built-in-editor-surface-state {
+  position: absolute;
+  inset: 0;
+  min-width: 0;
+  min-height: 0;
+}
+
+.built-in-editor-surface {
+  overflow: hidden;
+  background: var(--po-editor-bg);
+}
+
+.built-in-editor-surface-host {
+  z-index: 0;
+}
+
+.built-in-editor-surface-state {
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  background: var(--po-editor-bg);
+}
+
+.built-in-editor-surface[data-surface-status="ready"] > .built-in-editor-surface-state {
+  display: none;
+}
+
+.built-in-editor-surface-state--failed {
+  align-content: center;
+  gap: 10px;
+  padding: 30px;
+  color: var(--po-text-muted);
+  text-align: center;
+}
+
+.built-in-editor-surface-state--failed strong {
+  color: var(--po-text);
+}
+
+.built-in-editor-surface-state--failed > span {
+  max-width: 560px;
+  font-size: var(--po-text-size-meta);
+}
+
+.built-in-editor-surface-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.built-in-editor-surface-actions button {
+  min-height: var(--po-control-size);
+  padding: 0 12px;
+  border: 1px solid var(--po-border);
+  border-radius: 6px;
+  background: var(--po-control);
+  color: var(--po-text);
+}
+
+.built-in-editor-surface-actions button:hover {
+  background: var(--po-control-hover);
+}

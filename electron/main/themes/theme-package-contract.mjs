@@ -1,4 +1,4 @@
-const THEME_TARGETS = Object.freeze(["application", "markdown", "csv"]);
+const THEME_TARGETS = Object.freeze(["application", "typography", "markdown", "csv"]);
 const THEME_COLOR_MODES = Object.freeze(["light", "dark"]);
 const targetSet = new Set(THEME_TARGETS);
 const colorModeSet = new Set(THEME_COLOR_MODES);

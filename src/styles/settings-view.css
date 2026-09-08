@@ -38,7 +38,7 @@
 .desktop-language-setting-error {
   max-width: 220px;
   color: var(--po-text-muted);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-weight: var(--po-text-weight-regular, 400);
   line-height: 1.35;
 }

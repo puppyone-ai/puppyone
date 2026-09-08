@@ -7,14 +7,14 @@ const controller = vi.hoisted(() => ({
   beginInitializeForRuntime: vi.fn(),
   openSavedSession: vi.fn(),
 }));
-const getAgentSessionController = vi.hoisted(() => vi.fn(() => controller));
-const discardPreparedAgentSessionController = vi.hoisted(() => vi.fn());
+const get = vi.hoisted(() => vi.fn(() => controller));
+const discard = vi.hoisted(() => vi.fn());
 
-vi.mock("../src/features/desktop-agent/application/controllerRegistry", () => ({
-  closeAgentSessionController: vi.fn(),
-  discardPreparedAgentSessionController,
-  getAgentSessionController,
+vi.mock("../src/features/desktop-agent/workbench/projectAgentControllers", () => ({
+  projectAgentControllers: () => ({ get, discard }),
 }));
+import { ProjectWorkbenchStore } from "../src/features/app-shell/auxiliary-workbench/ProjectWorkbenchStore";
+const project = new ProjectWorkbenchStore({ projectId: "project", generation: "open-1", rootPath: "/workspace/project" });
 
 import {
   discardPreparedAgentChatWorkbenchItem,
@@ -25,25 +25,20 @@ import {
 describe("Agent Chat Workbench preparation", () => {
   beforeEach(() => {
     controller.beginInitializeForRuntime.mockClear();
-    getAgentSessionController.mockClear();
+    get.mockClear();
     controller.openSavedSession.mockReset();
-    discardPreparedAgentSessionController.mockReset();
+    discard.mockReset();
   });
 
   it("binds the requested runtime without making topology wait for discovery", () => {
     const preparation = prepareAgentChatWorkbenchItem(
-      "/workspace/project",
+      project,
       "chat-item-1",
       "codex",
     );
 
     expect(preparation).toBeUndefined();
-    expect(getAgentSessionController).toHaveBeenCalledWith(
-      "/workspace/project",
-      expect.any(Function),
-      "chat-item-1",
-      expect.any(Function),
-    );
+    expect(get).toHaveBeenCalledWith("chat-item-1");
     expect(controller.beginInitializeForRuntime).toHaveBeenCalledWith("codex");
   });
 
@@ -51,7 +46,7 @@ describe("Agent Chat Workbench preparation", () => {
     controller.openSavedSession.mockResolvedValueOnce(true);
 
     await expect(restoreAgentChatWorkbenchItem(
-      "/workspace/project",
+      project,
       "chat-item-2",
       "saved-session",
       "codex",
@@ -64,7 +59,7 @@ describe("Agent Chat Workbench preparation", () => {
     });
     controller.openSavedSession.mockRejectedValueOnce(unavailable);
     await expect(restoreAgentChatWorkbenchItem(
-      "/workspace/project",
+      project,
       "chat-item-3",
       "missing-session",
       "codex",
@@ -73,20 +68,17 @@ describe("Agent Chat Workbench preparation", () => {
 
   it("awaits native rollback when a prepared Workbench Item is not committed", async () => {
     const rollback = deferred<void>();
-    discardPreparedAgentSessionController.mockReturnValueOnce(rollback.promise);
+    discard.mockReturnValueOnce(rollback.promise);
 
     let settled = false;
-    const discard = discardPreparedAgentChatWorkbenchItem("/workspace/project", "chat-item-4")
+    const pending = discardPreparedAgentChatWorkbenchItem(project, "chat-item-4")
       .then(() => { settled = true; });
     await Promise.resolve();
     expect(settled).toBe(false);
-    expect(discardPreparedAgentSessionController).toHaveBeenCalledWith(
-      "/workspace/project",
-      "chat-item-4",
-    );
+    expect(discard).toHaveBeenCalledWith("chat-item-4");
 
     rollback.resolve();
-    await discard;
+    await pending;
     expect(settled).toBe(true);
   });
 });

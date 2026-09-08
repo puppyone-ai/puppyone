@@ -34,7 +34,7 @@
 
 .desktop-cloud-history-graph-ref text {
   fill: var(--po-canvas);
-  font-size: 7px;
+  font-size: var(--po-text-size-glyph, 8px);
   font-weight: 800;
   dominant-baseline: central;
   text-anchor: middle;

@@ -168,7 +168,41 @@ describe("Electron document close coordination", () => {
     expect(harness.window.destroyed).toBe(false);
   });
 
-  it("does not touch destroyed BrowserWindow properties when an unready window closes", () => {
+  it("waits for native resources after saving documents and restores editing on close failure", async () => {
+    let resolveClose;
+    const closeResources = vi.fn(() => new Promise((resolve) => { resolveClose = resolve; }));
+    const harness = createHarness({ closeResources });
+    harness.webContents.emit("did-finish-load");
+    harness.window.requestClose();
+    const requestId = harness.webContents.sent[0].payload.requestId;
+    expect(closeResources).not.toHaveBeenCalled();
+    harness.reply(requestId, { ok: true });
+    await nextMicrotask();
+    expect(closeResources).toHaveBeenCalledOnce();
+    expect(harness.window.destroyed).toBe(false);
+    resolveClose(false);
+    await nextMicrotask();
+    expect(harness.window.destroyed).toBe(false);
+    expect(harness.webContents.sent).toContainEqual({ channel: DOCUMENT_SESSION_CLOSE_CANCELLED_CHANNEL, payload: { requestId } });
+    closeResources.mockResolvedValue(true);
+    harness.window.requestClose();
+    harness.reply(harness.webContents.sent.at(-1).payload.requestId, { ok: true });
+    await nextMicrotask();
+    expect(harness.window.destroyed).toBe(true);
+  });
+
+  it("does not begin resource shutdown when saving is cancelled", async () => {
+    const closeResources = vi.fn();
+    const harness = createHarness({ closeResources });
+    harness.webContents.emit("did-finish-load");
+    harness.window.requestClose();
+    harness.reply(harness.webContents.sent[0].payload.requestId, { ok: false, error: "save failed" });
+    await nextMicrotask();
+    expect(closeResources).not.toHaveBeenCalled();
+    expect(harness.window.destroyed).toBe(false);
+  });
+
+  it("drains resources before closing an unready window without touching destroyed properties", async () => {
     const harness = createHarness();
     let event;
 
@@ -176,7 +210,8 @@ describe("Electron document close coordination", () => {
       event = harness.window.requestClose();
     }).not.toThrow();
 
-    expect(event.preventDefault).not.toHaveBeenCalled();
+    expect(event.preventDefault).toHaveBeenCalled();
+    await vi.waitFor(() => expect(harness.window.destroyed).toBe(true));
     expect(harness.window.destroyed).toBe(true);
     expect(harness.webContents.sent).toHaveLength(0);
     expect(() => harness.window.webContents).toThrow("Object has been destroyed");
@@ -187,6 +222,7 @@ function createHarness({
   dialogResponse = 0,
   onCloseCancelled = () => undefined,
   timeoutMs = 1_000,
+  closeResources = async () => true,
 } = {}) {
   let resultListener = null;
   const trustedIpc = {
@@ -203,6 +239,7 @@ function createHarness({
     timeoutMs,
     logger: { error: vi.fn() },
     onCloseCancelled,
+    closeResources,
   });
   coordinator.registerIpc(trustedIpc);
   const window = new FakeWindow();

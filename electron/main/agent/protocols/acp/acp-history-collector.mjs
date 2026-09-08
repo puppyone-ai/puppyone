@@ -8,6 +8,7 @@
 export class AcpHistoryCollector {
   constructor() {
     this.turns = [];
+    this.truncated = false;
     this.current = null;
     this.messageIndex = new Map();
   }
@@ -25,13 +26,14 @@ export class AcpHistoryCollector {
     const messageId = safeId(update.messageId) ?? `${role}-${this.messageIndex.size + 1}`;
     const existing = this.messageIndex.get(messageId);
     if (existing) {
+      if (existing.message.text.length + delta.length > 32 * 1024) this.truncated = true;
       existing.message.text = appendBounded(existing.message.text, delta);
       if (existing.message.role === "user") existing.turn.prompt = existing.message.text;
       return;
     }
-    if (this.messageIndex.size >= 256) return;
+    if (this.messageIndex.size >= 256) { this.truncated = true; return; }
     if (role === "user" || !this.current) {
-      if (this.turns.length >= 128) return;
+      if (this.turns.length >= 128) { this.truncated = true; return; }
       this.current = { id: `history-${safeId(messageId) ?? this.turns.length + 1}`, prompt: "", answers: [] };
       this.turns.push(this.current);
     }
@@ -48,7 +50,7 @@ export class AcpHistoryCollector {
         providerSessionId,
         turnId: turn.id,
         itemId: null,
-        payload: { prompt: turn.prompt },
+        payload: { prompt: turn.prompt, restored: true },
       }];
       for (const answer of turn.answers) events.push({
         type: "assistant.completed",
@@ -56,13 +58,6 @@ export class AcpHistoryCollector {
         turnId: turn.id,
         itemId: answer.id,
         payload: { text: answer.text },
-      });
-      events.push({
-        type: "turn.completed",
-        providerSessionId,
-        turnId: turn.id,
-        itemId: null,
-        payload: { status: "completed" },
       });
       return events;
     });

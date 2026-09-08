@@ -10,17 +10,34 @@ import type {
   AuxiliaryWorkbenchContribution,
   AuxiliaryWorkbenchPreparationContext,
 } from "../src/features/app-shell/auxiliary-workbench/types";
-import { RightTerminalPanel } from "../src/features/desktop-terminal/ui/RightTerminalPanel";
+import { AuxiliaryWorkbenchPanel } from "../src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchPanel";
+import { AuxiliaryWorkbenchLauncher } from "../src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchLauncher";
+import { ProjectWorkbenchStore } from "../src/features/app-shell/auxiliary-workbench/ProjectWorkbenchStore";
+import { createTerminalWorkbenchContribution } from "../src/features/desktop-terminal/workbench/TerminalWorkbenchContribution";
+import { useLocalization } from "@puppyone/localization/react";
 import { withTestLocalization } from "./testLocalization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
 
 let root: Root | null = null;
+const stores = new Map<string, ProjectWorkbenchStore>();
+
+function RightTerminalPanel({ workspace, active, hiddenAgentIds, contributions = [] }: {
+  workspace: Workspace; active: boolean; hiddenAgentIds: readonly string[]; contributions?: readonly AuxiliaryWorkbenchContribution[];
+}) {
+  const { t } = useLocalization();
+  let store = stores.get(workspace.path);
+  if (!store) { store = new ProjectWorkbenchStore({ projectId: workspace.id, rootPath: workspace.path, generation: workspace.id }); stores.set(workspace.path, store); }
+  const all = [createTerminalWorkbenchContribution(t), ...contributions];
+  return <AuxiliaryWorkbenchPanel key={store.context.generation} store={store} active={active} contributions={all}
+    renderLauncher={(context) => <AuxiliaryWorkbenchLauncher {...context} store={store!} contributions={all} hiddenAgentIds={hiddenAgentIds} />} />;
+}
 
 afterEach(() => {
   act(() => root?.unmount());
   root = null;
+  stores.forEach((store) => store.dispose()); stores.clear();
   document.body.replaceChildren();
   delete (window as Window & { puppyoneDesktop?: unknown }).puppyoneDesktop;
 });
@@ -224,6 +241,9 @@ function fakeChatContribution(
 }
 
 async function clickButton(label: string) {
+  await act(async () => {
+    await Promise.resolve();
+  });
   const button = Array.from(document.querySelectorAll<HTMLButtonElement>("button"))
     .find((candidate) => candidate.textContent?.trim() === label);
   expect(button).not.toBeUndefined();

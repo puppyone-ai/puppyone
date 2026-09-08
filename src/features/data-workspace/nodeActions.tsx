@@ -23,9 +23,11 @@ import {
   FileGlyphIcon,
   getMatchedExtension,
   serializePuppyFlowDocument,
+  STANDARD_CONTROL_SIZE,
   type DataNode,
   type FileIconThemeId,
   type PuppyFlowDocumentDefaults,
+  useCssPixelCustomProperty,
 } from "@puppyone/shared-ui";
 import { bidiIsolate, type MessageFormatter } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
@@ -87,11 +89,12 @@ export type DesktopNodeActionError = Readonly<
 
 const CREATE_ENTRY_MENU_MARGIN = 12;
 const CREATE_ENTRY_MENU_WIDTH = 184;
-const CREATE_ENTRY_MENU_ESTIMATED_HEIGHT = 112;
 const CREATE_ENTRY_SUBMENU_WIDTH = 184;
 const CREATE_ENTRY_SUBMENU_GAP = 4;
 const NODE_ACTION_MENU_WIDTH = 224;
-const NODE_ACTION_MENU_ESTIMATED_HEIGHT = 342;
+const MENU_SEPARATOR_BLOCK_SIZE = 9;
+const MENU_ERROR_BLOCK_SIZE = 21;
+const DEFAULT_MENU_PADDING = 4;
 
 export function DesktopExplorerRowActions({
   node,
@@ -170,6 +173,16 @@ export function DesktopCreateEntryMenu({
 }) {
   const { t } = useLocalization();
   const menuRef = useRef<HTMLDivElement>(null);
+  const menuRowHeight = useCssPixelCustomProperty(
+    menuRef,
+    "--po-menu-item-height",
+    STANDARD_CONTROL_SIZE,
+  );
+  const menuPadding = useCssPixelCustomProperty(
+    menuRef,
+    "--po-menu-padding",
+    DEFAULT_MENU_PADDING,
+  );
   const submenuCloseTimerRef = useRef<number | null>(null);
   const suppressSubmenuFocusOpenRef = useRef(false);
   const [submenuOpen, setSubmenuOpen] = useState(false);
@@ -180,7 +193,9 @@ export function DesktopCreateEntryMenu({
     : CREATE_ENTRY_MENU_WIDTH;
   const menuRowCount = 1 + mainEntries.length;
   const separatorCount = Number(mainEntries.length > 0);
-  const estimatedHeight = 8 + (menuRowCount * 30) + (separatorCount * 9);
+  const estimatedHeight = (menuPadding * 2)
+    + (menuRowCount * menuRowHeight)
+    + (separatorCount * MENU_SEPARATOR_BLOCK_SIZE);
   const position = getCreateEntryMenuPosition(draft.anchor, menuWidth, estimatedHeight);
   const documentDirection = document.documentElement.dir === "rtl" ? "rtl" : "ltr";
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
@@ -628,15 +643,40 @@ function DesktopNodeActionPopover({
   const platformCapabilities = useDesktopPlatformCapabilities();
   const primaryModifier = platformCapabilities?.primaryModifier ?? "control";
   const menuRef = useRef<HTMLDivElement>(null);
+  const menuRowHeight = useCssPixelCustomProperty(
+    menuRef,
+    "--po-menu-item-height",
+    STANDARD_CONTROL_SIZE,
+  );
+  const menuPadding = useCssPixelCustomProperty(
+    menuRef,
+    "--po-menu-padding",
+    DEFAULT_MENU_PADDING,
+  );
   const actionCount = Math.max(1, draft.nodes.length);
   const singleNodeAction = actionCount === 1;
-  const position = getNodeActionMenuPosition(draft.anchor, NODE_ACTION_MENU_WIDTH, NODE_ACTION_MENU_ESTIMATED_HEIGHT);
+  const errorMessage = formatDesktopNodeActionError(draft.error, t);
+  const menuRowCount = 4
+    + (draft.node.type === "folder" ? 2 : 0)
+    + Number(singleNodeAction && showOpenInDefaultApp && draft.node.type !== "folder")
+    + Number(singleNodeAction && showRevealInFinder)
+    + Number(singleNodeAction)
+    + Number(singleNodeAction && draft.node.type !== "folder");
+  const separatorCount = 1 + Number(draft.node.type === "folder");
+  const estimatedHeight = (menuPadding * 2)
+    + (menuRowCount * menuRowHeight)
+    + (separatorCount * MENU_SEPARATOR_BLOCK_SIZE)
+    + (errorMessage ? MENU_ERROR_BLOCK_SIZE : 0);
+  const position = getNodeActionMenuPosition(
+    draft.anchor,
+    NODE_ACTION_MENU_WIDTH,
+    estimatedHeight,
+  );
   const menuStyle = {
     "--node-action-menu-left": `${position.left}px`,
     "--node-action-menu-top": `${position.top}px`,
     "--node-action-menu-width": `${NODE_ACTION_MENU_WIDTH}px`,
   } as CSSProperties;
-  const errorMessage = formatDesktopNodeActionError(draft.error, t);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -1242,8 +1282,8 @@ function getNodeActionMenuPosition(anchor: DesktopCreateEntryAnchor, menuWidth: 
 
 function getCreateEntryMenuPosition(
   anchor: DesktopCreateEntryAnchor,
-  menuWidth = CREATE_ENTRY_MENU_WIDTH,
-  estimatedHeight = CREATE_ENTRY_MENU_ESTIMATED_HEIGHT,
+  menuWidth: number,
+  estimatedHeight: number,
 ) {
   const viewportWidth = typeof window === "undefined" ? 1024 : window.innerWidth;
   const viewportHeight = typeof window === "undefined" ? 768 : window.innerHeight;

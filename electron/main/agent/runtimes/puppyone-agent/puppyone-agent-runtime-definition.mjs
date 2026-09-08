@@ -15,29 +15,16 @@ export function createPuppyOneAgentRuntimeDefinition({
   discovery = createOpenCodeDiscovery({ appPath, resourcesPath, managedConfigDir, allowExternal }),
   adapterFactory = (options) => new OpenCodeAcpAdapter(options),
 } = {}) {
-  const adapters = new Set();
   return {
     manifest: PUPPYONE_AGENT_RUNTIME_MANIFEST,
     discovery,
-    createAdapter: ({ readiness, ...options }) => {
-      let adapter;
-      adapter = adapterFactory({
+    createAdapter: ({ readiness, ...options }) => adapterFactory({
         ...options,
         readiness,
         appVersion,
         logger,
         runtimeDescriptor: PUPPYONE_AGENT_RUNTIME_DESCRIPTOR,
         managed: true,
-        onDispose: () => adapters.delete(adapter),
-      });
-      adapters.add(adapter);
-      return adapter;
-    },
-    hasActiveResources: () => Array.from(adapters).some((adapter) => adapter.hasActiveProcess?.() === true),
-    dispose: async () => {
-      const active = Array.from(adapters);
-      adapters.clear();
-      await Promise.allSettled(active.map((adapter) => adapter.dispose?.()));
-    },
+    }),
   };
 }

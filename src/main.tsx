@@ -4,7 +4,10 @@ import "./styles.css";
 
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { flushActiveDocumentSessions } from "@puppyone/shared-ui";
+import {
+  flushActiveDocumentSessions,
+  PresetViewerRuntimeHostProvider,
+} from "@puppyone/shared-ui";
 import { LocalizationProvider } from "@puppyone/localization/react";
 import { App } from "./App";
 import { ScrollbarActivity } from "./components/ScrollbarActivity";
@@ -13,6 +16,7 @@ import { FeatureFlagsProvider } from "./features/flags";
 import { TypographyCatalogProvider } from "./features/typography";
 import { bootstrapRendererLocalization } from "./localization";
 import { startMarkdownFormatShortcutBridge } from "./lib/markdownFormatShortcutBridge";
+import { desktopPresetViewerRuntimeHost } from "./features/editor-surfaces";
 
 const rootElement = document.getElementById("root");
 if (!rootElement) throw new Error("PuppyOne renderer root is unavailable.");
@@ -81,14 +85,12 @@ async function renderApplication() {
       "./features/desktop-terminal/visual-smoke"
     );
     surface = <TerminalSplitVisualSmokeHarness />;
-  } else if (window.location.hash === "#terminal-p0-smoke") {
-    const { TerminalP0SmokeHarness } = await import(
-      "./features/desktop-terminal/visual-smoke"
-    );
-    surface = <TerminalP0SmokeHarness />;
   } else if (window.location.hash === "#agent-visual-smoke") {
     const { AgentVisualSmokeHarness } = await import("./features/desktop-agent/visual-smoke");
     surface = <AgentVisualSmokeHarness />;
+  } else if (window.location.hash === "#agent-render-stability-smoke") {
+    const { AgentRenderStabilitySmokeHarness } = await import("./features/desktop-agent/visual-smoke");
+    surface = <AgentRenderStabilitySmokeHarness />;
   } else if (window.location.hash === "#agent-tool-stability-smoke") {
     const { AgentToolStabilitySmokeHarness } = await import("./features/desktop-agent/visual-smoke");
     surface = <AgentToolStabilitySmokeHarness />;
@@ -101,6 +103,11 @@ async function renderApplication() {
   } else if (window.location.hash === "#markdown-line-geometry-smoke") {
     const { MarkdownLineGeometrySmokeHarness } = await import("./performance/MarkdownLineGeometrySmokeHarness");
     surface = <MarkdownLineGeometrySmokeHarness />;
+  } else if (window.location.hash === "#markdown-theme-inheritance-smoke") {
+    const { MarkdownThemeInheritanceSmokeHarness } = await import(
+      "./features/appearance/MarkdownThemeInheritanceSmokeHarness"
+    );
+    surface = <MarkdownThemeInheritanceSmokeHarness />;
   } else if (window.location.hash === "#appearance-visual-smoke") {
     const { AppearanceVisualSmokeHarness } = await import(
       "./features/appearance/AppearanceVisualSmokeHarness"
@@ -115,7 +122,13 @@ async function renderApplication() {
     surface = (
       <TypographyCatalogProvider>
         <FeatureFlagsProvider>
-          <App />
+          <PresetViewerRuntimeHostProvider
+            adapter={window.puppyoneDesktop?.editorSurfaces
+              ? desktopPresetViewerRuntimeHost
+              : null}
+          >
+            <App />
+          </PresetViewerRuntimeHostProvider>
         </FeatureFlagsProvider>
       </TypographyCatalogProvider>
     );

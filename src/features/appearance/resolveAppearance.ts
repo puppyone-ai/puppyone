@@ -6,7 +6,6 @@ import {
   type SidebarNavigationLayout,
   type SidebarNavigationOrientation,
   type SidebarNavigationPlacement,
-  type TextSize,
   type ThemeMode,
 } from "../../preferences";
 import {
@@ -60,7 +59,6 @@ export type AppearanceResolutionInput = Readonly<{
   requestedSubThemeIds?: Readonly<Partial<Record<ResolvedTheme, string>>>;
   subThemeCatalog?: SubThemeCatalogSnapshot;
   sidebarNavigationLayout: SidebarNavigationLayout;
-  textSize: TextSize;
   fileIconTheme: FileIconThemeId;
 }>;
 
@@ -81,14 +79,12 @@ export type ResolvedAppearance = Readonly<{
     subTheme: AppearanceSettingDecision<string>;
     themeMode: AppearanceSettingDecision<ThemeMode>;
     sidebarNavigationLayout: AppearanceSettingDecision<SidebarNavigationLayout>;
-    textSize: AppearanceSettingDecision<TextSize>;
     fileIconTheme: AppearanceSettingDecision<FileIconThemeId>;
   }>;
   themeMode: ThemeMode;
   sidebarNavigationLayout: SidebarNavigationLayout;
   sidebarNavigationPlacement: SidebarNavigationPlacement;
   sidebarNavigationOrientation: SidebarNavigationOrientation;
-  textSize: TextSize;
   fileIconTheme: FileIconThemeId;
 }>;
 
@@ -119,11 +115,6 @@ export function resolveAppearance(input: AppearanceResolutionInput): ResolvedApp
     rootTheme.policies.sidebarNavigationLayout as AppearancePolicy<SidebarNavigationLayout>,
     input.sidebarNavigationLayout,
   );
-  const textSize = resolveSetting(
-    input.textSize,
-    rootTheme.policies.textSize as AppearancePolicy<TextSize>,
-    input.textSize,
-  );
   const fileIconTheme = resolveSetting(
     input.fileIconTheme,
     rootTheme.policies.fileIconTheme as AppearancePolicy<FileIconThemeId>,
@@ -153,14 +144,12 @@ export function resolveAppearance(input: AppearanceResolutionInput): ResolvedApp
       subTheme: subThemeResolution.decision,
       themeMode,
       sidebarNavigationLayout,
-      textSize,
       fileIconTheme,
     }),
     themeMode: themeMode.effectiveValue,
     sidebarNavigationLayout: sidebarNavigationLayout.effectiveValue,
     sidebarNavigationPlacement: getSidebarNavigationPlacement(sidebarNavigationLayout.effectiveValue),
     sidebarNavigationOrientation: getSidebarNavigationOrientation(sidebarNavigationLayout.effectiveValue),
-    textSize: textSize.effectiveValue,
     fileIconTheme: fileIconTheme.effectiveValue,
   });
 }

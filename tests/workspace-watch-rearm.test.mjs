@@ -50,6 +50,29 @@ describe("workspace content watch re-arm", () => {
     vi.restoreAllMocks();
   });
 
+  it("detaches renderer lifecycle listeners when subscriptions stop", () => {
+    const { fsModule } = createFakeFsWatch();
+    const service = createWorkspaceWatchService({
+      logger: { warn: () => {}, info: () => {} },
+      fsModule,
+    });
+    const sender = new EventEmitter();
+    Object.assign(sender, {
+      id: 9,
+      isDestroyed: () => false,
+      send: () => {},
+    });
+
+    for (let index = 0; index < 12; index += 1) {
+      const subscription = service.start(sender, "/tmp");
+      expect(sender.listenerCount("destroyed")).toBe(1);
+      service.stop(subscription.subscriptionId);
+      expect(sender.listenerCount("destroyed")).toBe(0);
+    }
+
+    service.closeAll();
+  });
+
   it("keeps a Main-owned activity subscription alive without renderer clients", () => {
     const { fsModule, watchers } = createFakeFsWatch();
     const service = createWorkspaceWatchService({

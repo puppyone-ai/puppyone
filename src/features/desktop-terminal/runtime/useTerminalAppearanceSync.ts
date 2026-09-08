@@ -1,4 +1,4 @@
-import { useEffect, type RefObject } from "react";
+import { useLayoutEffect, type RefObject } from "react";
 import { subscribeTypographyChanges } from "@puppyone/shared-ui";
 
 type TerminalAppearanceRegistry = Readonly<{
@@ -9,7 +9,7 @@ export function useTerminalAppearanceSync(
   panelRef: RefObject<HTMLElement | null>,
   runtimeRegistry: TerminalAppearanceRegistry,
 ) {
-  useEffect(() => {
+  useLayoutEffect(() => {
     let disposed = false;
     const applyAppearance = () => {
       if (!disposed) runtimeRegistry.applyAppearance();

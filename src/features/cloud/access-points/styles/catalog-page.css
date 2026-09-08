@@ -75,7 +75,7 @@
 
 .desktop-cloud-access-new-button {
   display: inline-flex;
-  height: 30px;
+  height: var(--po-control-size);
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
@@ -86,10 +86,10 @@
   background: var(--po-text);
   color: var(--po-text-inverse);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 500;
   line-height: 18px;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transition: background 0.12s ease, border-color 0.12s ease, transform 0.12s ease;
 }
 
@@ -124,7 +124,7 @@
 
 .desktop-cloud-access-category-tabs button {
   display: inline-flex;
-  height: 28px;
+  height: var(--po-control-size-compact);
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
@@ -134,11 +134,11 @@
   background: transparent;
   color: var(--po-text-muted);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   font-weight: 400;
   line-height: 18px;
   white-space: nowrap;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transition: background 0.12s ease, color 0.12s ease;
 }
 
@@ -162,7 +162,7 @@
 .desktop-cloud-access-catalog-search {
   display: flex;
   width: clamp(170px, 20vw, 240px);
-  height: 30px;
+  height: var(--po-control-size);
   min-width: 0;
   align-items: center;
   gap: 7px;
@@ -187,7 +187,7 @@
   background: transparent;
   color: var(--po-text);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 18px;
 }
 
@@ -196,7 +196,7 @@
 }
 
 .desktop-cloud-access-status-filter {
-  height: 30px;
+  height: var(--po-control-size);
   box-sizing: border-box;
   padding-block: 0;
   padding-inline: 9px 26px;
@@ -206,9 +206,9 @@
   background-color: transparent;
   color: var(--po-text-muted);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 18px;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .desktop-cloud-access-status-filter:focus {

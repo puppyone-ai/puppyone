@@ -33,7 +33,7 @@
   --onboarding-column-width: 440px;
   --onboarding-section-gap: 30px;
   --onboarding-brand-content-gap: 64px;
-  --onboarding-row-font-size: 13px;
+  --onboarding-row-font-size: var(--po-type-ui-body, 14px);
   --onboarding-row-font-weight: 500;
   --onboarding-row-line-height: 18px;
   display: grid;
@@ -124,7 +124,7 @@
 .onboarding-brand-name,
 .onboarding-brand-prompt {
   font-family: var(--po-font-sans);
-  font-size: 18px;
+  font-size: var(--po-type-ui-heading, 19px);
   font-weight: var(--po-text-weight-medium, 500);
   letter-spacing: -0.035em;
   line-height: 22px;
@@ -173,7 +173,7 @@
   margin: 0;
   color: var(--po-text-subtle);
   font-family: var(--po-font-sans);
-  font-size: 10.5px;
+  font-size: var(--po-text-size-caption, 11px);
   font-weight: var(--po-text-weight-regular, 400);
   line-height: 15px;
   text-align: start;
@@ -281,7 +281,7 @@
   font-weight: var(--onboarding-row-font-weight);
   line-height: var(--onboarding-row-line-height);
   text-align: start;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transition:
     border-color 130ms ease-out,
     background 130ms ease-out,
@@ -489,7 +489,7 @@
   max-width: 112px;
   overflow: hidden;
   color: var(--po-text-subtle);
-  font-size: 11.5px;
+  font-size: var(--po-text-size-hint, 12px);
   font-weight: 500;
   text-overflow: ellipsis;
   text-transform: none;
@@ -512,7 +512,7 @@
   border-radius: 8px;
   background: color-mix(in srgb, var(--po-danger) 6%, transparent);
   color: var(--po-danger);
-  font-size: 12.5px;
+  font-size: var(--po-text-size-label, 13px);
   font-weight: 520;
   line-height: 1.4;
 }

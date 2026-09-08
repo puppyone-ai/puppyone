@@ -1,3 +1,4 @@
+import { historyCursor } from "../../../../../shared/agent-contract/history-schema.mjs";
 const TURN_PAGE_SIZE = 40;
 const ITEM_PAGE_SIZE = 100;
 const MAX_TURNS = 200;
@@ -11,15 +12,17 @@ const MAX_PROJECTED_EVENTS = 900;
 export async function readCodexPaginatedHistory({ request, threadId }) {
   assertRequest(request);
   const id = requiredId(threadId, "Codex history requires a thread id.");
-  const descendingTurns = await readTurnPages(request, id);
+  const turnPage = await readTurnPages(request, id);
+  const descendingTurns = turnPage.turns;
   const hydratedDescending = [];
   for (const turn of descendingTurns) {
     hydratedDescending.push(await hydrateTurnItems(request, id, turn));
   }
-  return {
-    id,
-    turns: selectCompleteTurnWindow(hydratedDescending).reverse(),
-  };
+  const selected = selectCompleteTurnWindow(hydratedDescending);
+  return { id, turns: selected.reverse(),
+    coverage: turnPage.partial || selected.length < hydratedDescending.length || selected.some((turn) => turn.historyPartial)
+      ? "partial" : "complete" };
+
 }
 
 /** Compatibility boundary for Codex releases predating paginated history. */
@@ -29,7 +32,12 @@ export async function readCodexHistory({ request, threadId }) {
   } catch (error) {
     if (!isPaginationMethodUnavailable(error)) throw error;
     const result = await request("thread/read", { threadId, includeTurns: true });
-    return result?.thread ?? { id: threadId, turns: [] };
+    if (result?.thread?.id !== threadId || !Array.isArray(result.thread.turns)) throw new TypeError("Codex returned an invalid history snapshot.");
+    const descending = result.thread.turns.slice(-MAX_TURNS).reverse().map((turn) => ({ ...turn,
+      items: boundedItems(turn.items), historyPartial: Array.isArray(turn.items) && turn.items.length > MAX_ITEMS_PER_TURN }));
+    const selected = selectCompleteTurnWindow(descending);
+    return { ...result.thread, turns: selected.reverse(), coverage: selected.length < result.thread.turns.length
+      || selected.some((turn) => turn.historyPartial) ? "partial" : "complete" };
   }
 }
 
@@ -52,7 +60,10 @@ async function readTurnPages(request, threadId) {
   const turns = [];
   const seenTurnIds = new Set();
   const seenCursors = new Set();
+  let omitted = false;
   let cursor = null;
+  let pages = 0;
+  let partial = false;
   while (turns.length < MAX_TURNS) {
     const result = await request("thread/turns/list", {
       threadId,
@@ -61,14 +72,17 @@ async function readTurnPages(request, threadId) {
       sortDirection: "desc",
       itemsView: "full",
     });
-    for (const turn of Array.isArray(result?.data) ? result.data : []) {
+    if (!Array.isArray(result?.data) || ++pages > 100) throw new TypeError("Codex returned an invalid turn history page.");
+    for (const turn of result.data) {
       const turnId = optionalId(turn?.id);
-      if (!turnId || seenTurnIds.has(turnId)) continue;
+      if (!turnId) throw new TypeError("Codex returned a turn without an identity.");
+      if (seenTurnIds.has(turnId)) continue;
       seenTurnIds.add(turnId);
+      if (turns.length >= MAX_TURNS) { omitted = true; continue; }
       turns.push({ ...turn, id: turnId });
-      if (turns.length >= MAX_TURNS) break;
     }
-    const nextCursor = optionalId(result?.nextCursor);
+    const nextCursor = historyCursor(result?.nextCursor);
+    partial = omitted || Boolean(nextCursor);
     if (!nextCursor) break;
     if (seenCursors.has(nextCursor)) {
       throw new Error("Codex turn history returned a repeated pagination cursor.");
@@ -76,12 +90,13 @@ async function readTurnPages(request, threadId) {
     seenCursors.add(nextCursor);
     cursor = nextCursor;
   }
-  return turns;
+  return { turns, partial };
 }
 
 async function hydrateTurnItems(request, threadId, turn) {
   if (turn.itemsView === "full") {
-    return { ...turn, items: boundedItems(turn.items) };
+    if (!Array.isArray(turn.items)) throw new TypeError("Codex returned invalid turn items.");
+    return { ...turn, items: boundedItems(turn.items), historyPartial: turn.items.length > MAX_ITEMS_PER_TURN };
   }
   const summaryPrompt = Array.isArray(turn.items)
     ? turn.items.find((item) => item?.type === "userMessage") ?? null
@@ -89,7 +104,10 @@ async function hydrateTurnItems(request, threadId, turn) {
   const items = [];
   const seenItemIds = new Set();
   const seenCursors = new Set();
+  let omitted = false;
   let cursor = null;
+  let pages = 0;
+  let partial = false;
   while (items.length < MAX_ITEMS_PER_TURN) {
     const result = await request("thread/items/list", {
       threadId,
@@ -98,15 +116,17 @@ async function hydrateTurnItems(request, threadId, turn) {
       limit: Math.min(ITEM_PAGE_SIZE, MAX_ITEMS_PER_TURN - items.length),
       sortDirection: "desc",
     });
-    for (const entry of Array.isArray(result?.data) ? result.data : []) {
-      if (optionalId(entry?.turnId) !== turn.id || !entry?.item || typeof entry.item !== "object") continue;
+    if (!Array.isArray(result?.data) || ++pages > 100) throw new TypeError("Codex returned an invalid item history page.");
+    for (const entry of result.data) {
+      if (optionalId(entry?.turnId) !== turn.id || !entry?.item || typeof entry.item !== "object") throw new TypeError("Codex returned an invalid item identity.");
       const itemId = optionalId(entry.item.id);
       if (itemId && seenItemIds.has(itemId)) continue;
       if (itemId) seenItemIds.add(itemId);
+      if (items.length >= MAX_ITEMS_PER_TURN) { omitted = true; continue; }
       items.push(entry.item);
-      if (items.length >= MAX_ITEMS_PER_TURN) break;
     }
-    const nextCursor = optionalId(result?.nextCursor);
+    const nextCursor = historyCursor(result?.nextCursor);
+    partial = omitted || Boolean(nextCursor);
     if (!nextCursor) break;
     if (seenCursors.has(nextCursor)) {
       throw new Error("Codex item history returned a repeated pagination cursor.");
@@ -118,7 +138,7 @@ async function hydrateTurnItems(request, threadId, turn) {
   if (summaryPrompt && !chronologicalItems.some((item) => sameItem(item, summaryPrompt))) {
     chronologicalItems.unshift(summaryPrompt);
   }
-  return { ...turn, items: boundedItems(chronologicalItems), itemsView: "full" };
+  return { ...turn, items: boundedItems(chronologicalItems), itemsView: "full", historyPartial: partial || chronologicalItems.length > MAX_ITEMS_PER_TURN };
 }
 
 function boundedItems(value) {
@@ -143,7 +163,7 @@ function selectCompleteTurnWindow(descendingTurns) {
 
 function estimatedProjectedEventCount(turn) {
   return 2 + (Array.isArray(turn?.items) ? turn.items.reduce((count, item) => (
-    count + (item?.type === "userMessage" ? 0 : item?.type === "fileChange" ? 2 : 1)
+    count + (item?.type === "fileChange" ? 2 : 1)
   ), 0) : 0);
 }
 

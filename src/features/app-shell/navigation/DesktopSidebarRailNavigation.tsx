@@ -15,6 +15,7 @@ export function DesktopSidebarRailNavigation({
   workspaceChangeCount,
   onNavigate,
   onOpenSettings,
+  showSettings = true,
   utilitySlot,
 }: DesktopNavigationProps) {
   const { t } = useLocalization();
@@ -42,11 +43,13 @@ export function DesktopSidebarRailNavigation({
         {cloudHubItems.length > 0 && (
           <DesktopNavigationItems {...runtime} buttonClassName="desktop-sidebar-rail-button" items={cloudHubItems} />
         )}
-        <DesktopSidebarSettingsButton
-          activeView={activeView}
-          buttonClassName="desktop-sidebar-rail-button"
-          onOpenSettings={onOpenSettings}
-        />
+        {showSettings && (
+          <DesktopSidebarSettingsButton
+            activeView={activeView}
+            buttonClassName="desktop-sidebar-rail-button"
+            onOpenSettings={onOpenSettings}
+          />
+        )}
         {utilitySlot}
       </div>
     </div>

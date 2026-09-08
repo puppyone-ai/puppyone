@@ -29,7 +29,7 @@
   white-space: pre;
 }
 
-.desktop-agent-search-results > button { cursor: var(--po-clickable-cursor, pointer); }
+.desktop-agent-search-results > button { cursor: var(--po-clickable-cursor, default); }
 .desktop-agent-search-results > button:hover { background: var(--po-hover); color: var(--agent-text); }
 .desktop-agent-search-results > small {
   padding: 5px;

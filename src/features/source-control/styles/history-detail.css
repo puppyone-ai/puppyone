@@ -37,7 +37,7 @@
   overflow: hidden;
   color: var(--po-text);
   font-family: var(--po-font-sans);
-  font-size: 18px;
+  font-size: var(--po-type-ui-heading, 19px);
   font-weight: 650;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -45,7 +45,7 @@
 
 .desktop-commit-summary p {
   color: var(--po-text-muted);
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   font-weight: 500;
   line-height: 1.45;
 }
@@ -55,7 +55,7 @@
   flex-wrap: wrap;
   gap: 10px;
   color: var(--po-text-subtle);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 500;
 }
 
@@ -67,7 +67,7 @@
   padding: 0;
   border: 0;
   color: var(--po-text-subtle);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 600;
 }
 

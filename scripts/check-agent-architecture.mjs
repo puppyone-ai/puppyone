@@ -1,3 +1,4 @@
+import postcss from "postcss";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -32,8 +33,8 @@ const rendererApplicationRoot = path.join(rendererRoot, "application");
 const rendererInfrastructureRoot = path.join(rendererRoot, "infrastructure");
 const rendererUiRoot = path.join(rendererRoot, "ui");
 const rendererComposerRoot = path.join(rendererUiRoot, "composer");
-const rendererCompositionRoot = path.join(rendererUiRoot, "RightAgentPanel.tsx");
 const electronAgentClient = path.join(rendererInfrastructureRoot, "electron", "electronAgentClient.ts");
+const preloadPath = path.join(repoRoot, "electron", "preload.cjs");
 const sharedContractRoot = path.join(repoRoot, "shared", "agent-contract");
 const allowedCompositionRoot = path.join(mainRoot, "bootstrap", "create-agent-runtime-host.mjs");
 const allowedProviderNamedCoreFiles = new Set([
@@ -62,10 +63,58 @@ const errors = [];
 const codexAdapterPath = path.join(codexRuntimeRoot, "codex-app-server-adapter.mjs");
 const codexHistoryReaderPath = path.join(codexRuntimeRoot, "codex-history-reader.mjs");
 const sessionLifecyclePath = path.join(mainRoot, "application", "session", "agent-session-lifecycle.mjs");
+const sessionActorPath = path.join(mainDomainRoot, "agent-session-actor.mjs");
+const sessionControlPath = path.join(mainDomainRoot, "agent-session-control.mjs");
+const sessionFeedPath = path.join(mainApplicationRoot, "session", "agent-session-feed.mjs");
 const sessionHistoryPortPath = path.join(mainRuntimeRoot, "agent-session-history-port.mjs");
 const historyControllerPath = path.join(rendererApplicationRoot, "ConversationHistoryController.ts");
 const historyBrowserPath = path.join(rendererRoot, "workbench", "AgentChatHistoryBrowser.tsx");
-const controllerRegistryPath = path.join(rendererApplicationRoot, "controllerRegistry.ts");
+const controllerRegistryPath = path.join(rendererApplicationRoot, "AgentControllerRegistry.ts");
+for (const retired of [
+  "application/controllerRegistry.ts", "application/agent-chat-tab-state-registry.ts",
+  "ui/RightAgentPanel.tsx", "ui/AgentSessionTabs.tsx", "ui/useAgentChatTabs.ts",
+  "domain/agent-chat-tabs.ts",
+]) {
+  if (existsSync(path.join(rendererRoot, retired))) errors.push(`Retired Agent ownership entrypoint: ${retired}`);
+}
+for (const requiredPath of [sessionActorPath, sessionControlPath, sessionFeedPath]) {
+  if (!existsSync(requiredPath)) errors.push(`${relative(requiredPath)} is required for the Main-owned Agent control plane`);
+}
+if (existsSync(sessionActorPath)) {
+  const actorSource = readFileSync(sessionActorPath, "utf8");
+  for (const requiredText of ["class AgentSessionActor", "appendEvent", "streamId", "baseRevision", "checkpointEvents"]) {
+    if (!actorSource.includes(requiredText)) errors.push(`${relative(sessionActorPath)} is missing ${requiredText}`);
+  }
+}
+if (existsSync(sessionFeedPath)) {
+  const feedSource = readFileSync(sessionFeedPath, "utf8");
+  for (const requiredText of ["resync-required", "baseRevision", "acknowledgedRevision", "MAX_PENDING_FRAMES"]) {
+    if (!feedSource.includes(requiredText)) errors.push(`${relative(sessionFeedPath)} is missing ${requiredText}`);
+  }
+}
+if (readFileSync(preloadPath, "utf8").includes('ipcRenderer.on("agent:event"')) {
+  errors.push("Production preload cannot expose the retired unversioned agent:event feed");
+}
+if (/session\.sender\.send\(["']agent:event["']/.test(readFileSync(path.join(mainApplicationRoot, "agent-event-journal.mjs"), "utf8"))) {
+  errors.push("Main must publish Agent facts through the versioned session feed only");
+}
+if (readFileSync(preloadPath, "utf8").includes('ipcRenderer.on("agent:session-exit"')) {
+  errors.push("Production preload cannot expose session-exit outside the versioned Agent feed");
+}
+
+const retiredMutableSessionFields = [
+  "activeTurnId", "activeTurnStartedAtMs", "lastStartedTurnId", "pendingPrompt", "pendingPromptMentions",
+  "pendingReferenceDisplays", "turnStarting", "interruptingTurnId", "terminalTurnIds", "pendingApprovals",
+  "pendingQuestions", "sequence", "events", "replayBytes", "terminalState", "providerExited",
+].join("|");
+const retiredSessionMutation = new RegExp(`\\bsession\\.(?:${retiredMutableSessionFields})\\s*(?:=(?!=)|\\+\\+|--|\\.(?:set|delete|clear|push|splice)\\s*\\()`, "g");
+for (const filePath of walkSourceFiles(mainApplicationRoot)) {
+  const applicationSource = stripComments(readFileSync(filePath, "utf8"));
+  if (retiredSessionMutation.test(applicationSource)) {
+    errors.push(`${relative(filePath)} mutates SessionActor-owned state directly`);
+  }
+  retiredSessionMutation.lastIndex = 0;
+}
 if (!existsSync(codexHistoryReaderPath)) {
   errors.push(`${relative(codexHistoryReaderPath)} is required; Codex History pagination must not live in the runtime adapter facade`);
 } else {
@@ -85,11 +134,8 @@ if (!existsSync(codexHistoryReaderPath)) {
 }
 
 const sessionLifecycleSource = readFileSync(sessionLifecyclePath, "utf8");
-if (!sessionLifecycleSource.includes("hasConversationReplay(session.events)")) {
-  errors.push("Agent session resume must distinguish conversation replay from lifecycle and diagnostic events");
-}
-if (/session\.events\.length\s*===\s*0/.test(stripComments(sessionLifecycleSource))) {
-  errors.push("Agent session history hydration cannot use an empty-event-array gate; resume diagnostics may arrive first");
+if (/hasConversationReplay\s*\(|session\.events\.length\s*(?:===|>|<)/.test(stripComments(sessionLifecycleSource))) {
+  errors.push("Agent session resume must reconcile native objects regardless of the bounded local event window");
 }
 if (!existsSync(sessionHistoryPortPath)) {
   errors.push(`${relative(sessionHistoryPortPath)} is required; optional native History operations need one explicit method group`);
@@ -98,7 +144,7 @@ if (!existsSync(sessionHistoryPortPath)) {
   for (const requiredText of ["resolveAgentSessionHistoryPort", "assertAgentSessionHistoryCapabilities", "discover", "hydrate"]) {
     if (!historyPortSource.includes(requiredText)) errors.push(`${relative(sessionHistoryPortPath)} is missing ${requiredText}`);
   }
-  if (!sessionLifecycleSource.includes("resolveAgentSessionHistoryPort")) {
+  if (!sessionLifecycleSource.includes("hydrateAgentSession") || !readFileSync(path.join(mainApplicationRoot, "session/agent-history-hydration.mjs"), "utf8").includes("resolveAgentSessionHistoryPort")) {
     errors.push("Agent session lifecycle must hydrate through SessionHistoryPort, not adapter duck typing");
   }
 }
@@ -172,7 +218,7 @@ if (existsSync(semanticPartRenderer)) {
   }
 }
 
-const turnLifecyclePolicy = path.join(rendererDomainRoot, "agent-turn-lifecycle.ts");
+const turnLifecyclePolicy = path.join(mainDomainRoot, "transcript", "turn-lifecycle.mjs");
 if (!existsSync(turnLifecyclePolicy)) {
   errors.push(`${relative(turnLifecyclePolicy)} is required; terminal reconciliation needs one domain authority`);
 } else {
@@ -182,12 +228,12 @@ if (!existsSync(turnLifecyclePolicy)) {
   }
 }
 for (const projectionPath of [
-  path.join(rendererDomainRoot, "agent-projection.ts"),
-  path.join(rendererDomainRoot, "agent-typed-part-projection.ts"),
+  path.join(mainDomainRoot, "transcript", "transcript-reducer.mjs"),
+  path.join(mainDomainRoot, "transcript", "display-projection.mjs"),
 ]) {
   const projectionSource = readFileSync(projectionPath, "utf8");
   if (/function\s+(?:activityTerminalStatus|isLiveActivityStatus|isTerminalTurnEvent)\b|const\s+LIVE_ACTIVITY_STATUSES\b/.test(projectionSource)) {
-    errors.push(`${relative(projectionPath)} duplicates terminal lifecycle policy; use agent-turn-lifecycle.ts`);
+    errors.push(`${relative(projectionPath)} duplicates terminal lifecycle policy; use domain/transcript/turn-lifecycle.mjs`);
   }
 }
 
@@ -257,6 +303,35 @@ for (const filePath of walkSourceFiles(mainRoot)) {
   }
 }
 
+// A Renderer is a disposable display replica; native event reducers live only in Main.
+for (const required of ["display-types.ts", "user-message-types.ts", "display-schema.mjs", "display-state.mjs"]) {
+  if (!existsSync(path.join(sharedContractRoot, required))) errors.push(`Shared Agent contract missing ${required}`);
+}
+for (const filePath of walkSourceFiles(rendererRoot)) {
+  const source = stripComments(readFileSync(filePath, "utf8"));
+  if (filePath !== controllerRegistryPath && /\bnew\s+AgentSessionController\s*\(/.test(source)) {
+    errors.push(`${relative(filePath)} allocates a Controller outside the project-owned AgentControllerRegistry`);
+  }
+  if (filePath !== path.join(rendererRoot, "workbench/projectAgentControllers.ts") && /\bnew\s+AgentControllerRegistry\s*\(/.test(source)) {
+    errors.push(`${relative(filePath)} allocates a Registry outside projectAgentControllers`);
+  }
+  if (filePath.includes(`${path.sep}ui${path.sep}`) && /\bcommand\.(?:intent|targetTurnId|userMessageId)\b|agentStartCommandNeedsTranscriptFallback|queuedSubmissions/.test(source)) {
+    errors.push(`${relative(filePath)} reconstructs transcript input from command internals; render Main-authored user parts`);
+  }
+  if (/\b(?:applyAgentEvent|applyAgentEvents|normalizeCodexNotification|normalizeClaudeMessage|reconcileTerminalAgentTurn|rejectedProviderPatch)\s*\(/.test(source)) {
+    errors.push(`${relative(filePath)} interprets native events; consume Main-authored display JSON`);
+  }
+  for (const specifier of collectSpecifiers(source)) {
+    const target = resolveRelativeModule(filePath, specifier);
+    if (target && isInsideOrSame(target, mainRoot)) errors.push(`${relative(filePath)} imports Main code into Renderer`);
+    if (specifier.includes("agent-contract/event-")) errors.push(`${relative(filePath)} imports an event decoder into Renderer`);
+  }
+}
+const replicaSource = readFileSync(path.join(rendererApplicationRoot, "AgentSessionReplica.ts"), "utf8");
+for (const required of ["assertAgentDisplay", "assertAgentSessionFrame", "applyAgentDisplayPatch", "baseRevision", "readAgentSessionWatermark", "REQUEST_TIMEOUT_MS"]) {
+  if (!replicaSource.includes(required)) errors.push(`AgentSessionReplica is missing ${required}`);
+}
+
 for (const filePath of walkSourceFiles(rendererRoot)) {
   const source = readFileSync(filePath, "utf8");
   if (nativeReferenceTransportPattern.test(stripComments(source))) {
@@ -284,11 +359,10 @@ for (const filePath of walkSourceFiles(rendererRoot)) {
     }
     if (
       isInside(filePath, rendererUiRoot)
-      && filePath !== rendererCompositionRoot
       && target
       && isInsideOrSame(target, rendererInfrastructureRoot)
     ) {
-      errors.push(`${relative(filePath)} imports infrastructure; only RightAgentPanel may compose the Electron adapter`);
+      errors.push(`${relative(filePath)} imports infrastructure; compose the Electron adapter under workbench/`);
     }
     if (isInside(filePath, rendererInfrastructureRoot) && target && isInsideOrSame(target, rendererUiRoot)) {
       errors.push(`${relative(filePath)} imports ${relative(target)}; renderer infrastructure cannot depend on UI`);
@@ -313,7 +387,9 @@ for (const filePath of walkSourceFiles(rendererRoot)) {
     if (/\bstyle=\{\{/.test(source)) {
       errors.push(`${relative(filePath)} contains a literal inline style object; static Agent presentation belongs in feature CSS`);
     }
-    if (/\.style(?:\.|\[)/.test(stripComments(source))) {
+    // Only the isolated visual fixture may simulate external Appearance changes.
+    // It is reachable through visual-smoke.ts, never the Agent production entry.
+    if (!filePath.endsWith("/ui/AgentRenderStabilitySmokeHarness.tsx") && /\.style(?:\.|\[)/.test(stripComments(source))) {
       errors.push(`${relative(filePath)} mutates CSS through the DOM; static Agent presentation belongs in feature CSS`);
     }
     for (const match of source.matchAll(/\bstyle=\{([^}\n]+)\}/g)) {
@@ -352,6 +428,28 @@ const styleEntryBody = styleEntrySource
   .trim();
 if (!styleEntrySource.includes('@import "./styles/') || styleEntryBody !== "") {
   errors.push("src/features/desktop-agent/ui/desktop-agent.css must remain an import-only public style entry");
+}
+// Parse the CSS contract, not import order or a handful of selected colors.
+postcss.parse(styleEntrySource).walkAtRules("import", rule => {
+  if (!/layer\(features\)\s*$/.test(rule.params)) errors.push(`${relative(agentStyleEntry)} must import Agent styles into layer(features)`);
+});
+for (const name of readdirSync(agentStyleRoot).filter(name => name.endsWith(".css"))) {
+  const file = path.join(agentStyleRoot, name);
+  const css = postcss.parse(readFileSync(file, "utf8"), { from: file });
+  css.walkRules(rule => {
+    if (/\.dark\b|data-theme-mode/.test(rule.selector)) errors.push(`${relative(file)} owns a competing theme-mode palette; consume Appearance semantic tokens`);
+  });
+  css.walkDecls(declaration => {
+    if (/#(?:[\da-f]{3,8})\b|\b(?:rgb|rgba|hsl|hsla|oklch|oklab)\(/i.test(declaration.value)) {
+      errors.push(`${relative(file)}:${declaration.source.start.line} contains a literal color; consume semantic tokens`);
+    }
+    if (name !== "theme.css" && /\bcolor-mix\(/.test(declaration.value)) {
+      errors.push(`${relative(file)}:${declaration.source.start.line} derives a component color outside theme.css`);
+    }
+    if (name !== "theme.css" && declaration.prop.startsWith("--agent-") && /var\(--(?:po|agent)-[^)]*(?:text|surface|border|canvas|accent|danger|success|warning|hover|selected)\)/.test(declaration.value)) {
+      errors.push(`${relative(file)}:${declaration.source.start.line} defines a color role outside theme.css`);
+    }
+  });
 }
 const themeStylePath = path.join(agentStyleRoot, "theme.css");
 const foundationStylePath = path.join(agentStyleRoot, "foundation.css");
@@ -532,6 +630,8 @@ const runtimeResolutionSource = readFileSync(
 const agentServiceFacadePath = path.join(mainApplicationRoot, "agent-service.mjs");
 const agentServiceFacadeSource = readFileSync(agentServiceFacadePath, "utf8");
 const agentServiceModules = [
+  ["history/agent-history-queries.mjs", "createAgentHistoryQueries"],
+  ["history/native-conversation-indexer.mjs", "createNativeConversationIndexer"],
   ["session/agent-session-lifecycle.mjs", "createAgentSessionLifecycle"],
   ["session/agent-session-runtime.mjs", "createAgentSessionRuntime"],
   ["session/agent-session-commands.mjs", "createAgentSessionCommands"],
@@ -560,7 +660,17 @@ for (const [relativePath, factoryName] of agentServiceModules) {
     errors.push(`${relative(modulePath)} exceeds the focused application-module budget; split by behavior, not provider`);
   }
 }
-for (const lifecycleFile of ["agent-service.mjs", "native-conversation-indexer.mjs"]) {
+for (const file of ["history/agent-history-queries.mjs", "history/native-conversation-indexer.mjs"]) {
+  const source = stripComments(readFileSync(path.join(mainApplicationRoot, file), "utf8"));
+  if (/agent-session-model|agent-session-actor|\b(?:sessionStore|sessionRepository|sessionCache|eventCache|AgentSessionActor|sessionFeed)\b/.test(source)
+    || /\.\s*(?:startTurn|steerTurn|resumeSession|createSession|recordOperationFailure)\s*\(/.test(source)) {
+    errors.push(`${file} must receive metadata/query capabilities only and cannot mutate live Session state or readiness`);
+  }
+}
+if (/\bfunction\s+listSessions\b/.test(stripComments(readFileSync(path.join(mainApplicationRoot, "session/agent-session-commands.mjs"), "utf8")))) {
+  errors.push("History list queries belong to application/history, outside Session commands");
+}
+for (const lifecycleFile of ["agent-service.mjs", "history/native-conversation-indexer.mjs"]) {
   const lifecycleSource = readFileSync(path.join(mainApplicationRoot, lifecycleFile), "utf8");
   if (/runtimeRegistry\.discover\s*\(/.test(stripComments(lifecycleSource))) {
     errors.push(`${lifecycleFile} bypasses RuntimeResolutionCoordinator with direct Registry discovery`);

@@ -6,6 +6,8 @@ export const DOCUMENT_SESSION_CLOSE_CANCELLED_CHANNEL = "document-session:close-
 
 const DEFAULT_TIMEOUT_MS = 12_000;
 const DEFAULT_DIALOG_MESSAGES = Object.freeze({
+  "native.projectClose.message": "Some project tasks have not stopped yet.",
+  "native.projectClose.detail": "The window will stay open. Try closing it again to finish stopping these tasks.",
   "native.documentClose.keepOpen": "Keep Window Open",
   "native.documentClose.closeAnyway": "Close Anyway",
   "native.documentClose.message": "Some document changes could not be saved.",
@@ -40,6 +42,7 @@ export function createDocumentSessionCloseCoordinator({
   timeoutMs = DEFAULT_TIMEOUT_MS,
   logger = console,
   onCloseCancelled = () => undefined,
+  closeResources = async () => true,
   t = (messageId) => DEFAULT_DIALOG_MESSAGES[messageId] ?? "",
 }) {
   if (!dialog || typeof dialog.showMessageBox !== "function") {
@@ -105,7 +108,7 @@ export function createDocumentSessionCloseCoordinator({
       if (isMainFrame && !isSameDocument) markRendererUnavailable();
     };
     const handleClose = (event) => {
-      if (state.allowClose || !state.rendererReady || webContents.isDestroyed()) return;
+      if (state.allowClose) return;
       event.preventDefault();
       if (state.closeInProgress) return;
 
@@ -150,10 +153,11 @@ export function createDocumentSessionCloseCoordinator({
   }
 
   async function finishInterceptedClose(window, webContents, state) {
-    const result = await requestRendererFlush(webContents, { reason: "app-close", state });
+    const result = state.rendererReady && !webContents.isDestroyed()
+      ? await requestRendererFlush(webContents, { reason: "app-close", state })
+      : { ok: true };
     if (result.ok) {
-      state.allowClose = true;
-      if (!window.isDestroyed()) window.close();
+      await finishResourceClose(window, webContents, state, result.requestId);
       return;
     }
 
@@ -180,13 +184,31 @@ export function createDocumentSessionCloseCoordinator({
       throw error;
     }
     if (choice.response === 1) {
-      state.allowClose = true;
-      if (!window.isDestroyed()) window.close();
+      await finishResourceClose(window, webContents, state, result.requestId);
       return;
     }
     notifyRendererCloseCancelled(window, webContents, result.requestId);
     state.closeInProgress = false;
     onCloseCancelled(window);
+  }
+
+  async function finishResourceClose(window, webContents, state, requestId) {
+    if (window.isDestroyed()) return;
+    let closed = false;
+    try { closed = await closeResources(window); }
+    catch (error) { logger.error?.("Unable to stop project resources before closing:", error); }
+    if (!closed) {
+      state.closeInProgress = false;
+      notifyRendererCloseCancelled(window, webContents, requestId);
+      onCloseCancelled(window);
+      await dialog.showMessageBox(window, {
+        type: "warning", buttons: [t("native.documentClose.keepOpen")],
+        message: t("native.projectClose.message"), detail: t("native.projectClose.detail"),
+      });
+      return;
+    }
+    state.allowClose = true;
+    if (!window.isDestroyed()) window.close();
   }
 
   function requestRendererFlush(webContents, {

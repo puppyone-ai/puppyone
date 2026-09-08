@@ -13,14 +13,14 @@ import {
   type TerminalTabInsertDropIntent,
 } from "../../model/terminalTabMove";
 import type { TerminalTabMoveDragController } from "../../interactions/useTerminalTabMoveDrag";
-import type { TerminalRuntimeRegistry } from "../../runtime/terminalRuntimeRegistry";
+import type { TerminalRuntimeLookup } from "../../runtime/TerminalRuntimeLookup";
 import { TerminalSessionOverflowMenu } from "./TerminalSessionOverflowMenu";
 import { TerminalSessionTab } from "./TerminalSessionTab";
 import { terminalPanelId, terminalTabId } from "./terminalSessionHeaderIds";
 import type { TerminalSessionHeaderItem } from "./types";
 import { useTerminalSessionHeaderController } from "./useTerminalSessionHeaderController";
 import { useTerminalSessionHeaderLayout } from "./useTerminalSessionHeaderLayout";
-import "./terminal-session-header.css";
+import "../../../app-shell/auxiliary-workbench/layout/auxiliary-workbench-header.css";
 
 type TerminalSessionHeaderProps = {
   activeSessionId: string | null;
@@ -31,7 +31,7 @@ type TerminalSessionHeaderProps = {
   onCreate: () => void;
   onMoveByKeyboard?: (sessionId: string, edge: WorkbenchSplitDropEdge) => void;
   presentedSessionIds?: readonly string[];
-  runtimeRegistry?: Pick<TerminalRuntimeRegistry, "require">;
+  runtimeRegistry?: Pick<TerminalRuntimeLookup, "require">;
   sessions: readonly DesktopTerminalSessionSummary[];
   tabMove?: TerminalTabMoveDragController;
   workspacePath: string;

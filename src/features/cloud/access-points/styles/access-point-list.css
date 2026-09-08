@@ -11,7 +11,7 @@
   display: grid;
   min-width: 0;
   min-height: 54px;
-  grid-template-columns: 30px minmax(0, 1fr) minmax(260px, 330px);
+  grid-template-columns: var(--po-control-size) minmax(0, 1fr) minmax(260px, 330px);
   align-items: center;
   gap: 11px;
   box-sizing: border-box;
@@ -22,7 +22,7 @@
   color: inherit;
   font: inherit;
   text-align: start;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transition: border-color 0.12s ease, background 0.12s ease, box-shadow 0.12s ease;
 }
 
@@ -39,8 +39,8 @@
 
 .desktop-cloud-access-point-icon {
   display: inline-flex;
-  width: 30px;
-  height: 30px;
+  width: var(--po-control-size);
+  height: var(--po-control-size);
   align-items: center;
   justify-content: center;
   overflow: hidden;
@@ -78,7 +78,7 @@
   min-width: 0;
   overflow: hidden;
   color: var(--po-text);
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   font-weight: 500;
   line-height: 18px;
   text-overflow: ellipsis;
@@ -91,7 +91,7 @@
   align-items: center;
   gap: 7px;
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 16px;
 }
 
@@ -108,7 +108,7 @@
   overflow: hidden;
   color: var(--po-text-subtle);
   font-family: var(--po-font-mono);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -128,7 +128,7 @@
   justify-content: flex-end;
   gap: 7px;
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 18px;
 }
 
@@ -179,7 +179,7 @@
   border-radius: 6px;
   background: transparent;
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 500;
   white-space: nowrap;
 }
@@ -204,8 +204,8 @@
 }
 
 .desktop-cloud-access-point-row.skeleton > span:first-child {
-  width: 30px;
-  height: 30px;
+  width: var(--po-control-size);
+  height: var(--po-control-size);
   border-radius: 7px;
 }
 
@@ -233,7 +233,7 @@
 
 @media (max-width: 820px) {
   .desktop-cloud-access-point-row {
-    grid-template-columns: 30px minmax(0, 1fr) minmax(210px, 260px);
+    grid-template-columns: var(--po-control-size) minmax(0, 1fr) minmax(210px, 260px);
   }
 
   .desktop-cloud-access-point-meta > span:last-child {
@@ -243,7 +243,7 @@
 
 @media (max-width: 720px) {
   .desktop-cloud-access-point-row {
-    grid-template-columns: 30px minmax(0, 1fr);
+    grid-template-columns: var(--po-control-size) minmax(0, 1fr);
   }
 
   .desktop-cloud-access-point-right {

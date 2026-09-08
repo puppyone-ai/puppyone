@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   applyAgentEvents,
   createAgentProjection,
-} from "../src/features/desktop-agent/agentProjection";
+} from "./helpers/agentDisplayFixture";
 import type { AgentEvent, AgentEventType } from "../src/features/desktop-agent/agentTypes";
-import { LIVE_AGENT_ACTIVITY_STATUSES } from "../src/features/desktop-agent/domain/agent-turn-lifecycle";
-import { buildAgentTimeline } from "../src/features/desktop-agent/ui/agent-timeline-presentation";
+import { LIVE_AGENT_ACTIVITY_STATUSES } from "../electron/main/agent/domain/transcript/turn-lifecycle.mjs";
+import { buildAgentTimeline } from "../src/features/desktop-agent/ui/transcript/transcript-rows";
 
 const harnessFixtures = [
   {

@@ -32,7 +32,6 @@
       "policies": {
         "themeMode": { "mode": "inherit" },
         "sidebarNavigationLayout": { "mode": "inherit" },
-        "textSize": { "mode": "inherit" },
         "fileIconTheme": { "mode": "inherit" }
       },
       "subThemes": {
@@ -81,7 +80,6 @@
           "value": "top-horizontal",
           "reasonKey": "settings.appearance.controlledBy.windowsXpNavigation"
         },
-        "textSize": { "mode": "inherit" },
         "fileIconTheme": { "mode": "inherit" }
       },
       "subThemes": {

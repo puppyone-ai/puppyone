@@ -1,4 +1,6 @@
+import { nativeSessionId } from "../../../../../shared/agent-contract/native-session-id.mjs";
 import { boundRendererValue, redactSecrets, redactSecretText } from "../../agent-events.mjs";
+import { createAgentFileChangeEvidence } from "../../runtime/agent-file-change-evidence.mjs";
 
 const TERMINAL_TOOL_STATUSES = new Set(["completed", "failed"]);
 
@@ -18,7 +20,7 @@ export class AcpEventNormalizer {
   }
 
   normalize(notification) {
-    const sessionId = safeId(notification?.sessionId);
+    const sessionId = nativeSessionId(notification?.sessionId);
     const update = notification?.update;
     if (!update || typeof update !== "object") return [];
     switch (update.sessionUpdate) {
@@ -29,9 +31,9 @@ export class AcpEventNormalizer {
       case "user_message_chunk":
         return [];
       case "tool_call":
-        return this.#toolUpdate(sessionId, update, true);
+        return this.#toolUpdate(sessionId, update);
       case "tool_call_update":
-        return this.#toolUpdate(sessionId, update, false);
+        return this.#toolUpdate(sessionId, update);
       case "plan":
         return [event("plan.updated", sessionId, this.turnId, "current-plan", {
           steps: array(update.entries).slice(0, 100).map((entry) => ({
@@ -58,16 +60,17 @@ export class AcpEventNormalizer {
   completeAssistant(sessionId) {
     return Array.from(this.messages.entries()).flatMap(([itemId, state]) => (
       state.role === "assistant" && state.text
-        ? [event("assistant.completed", safeId(sessionId), this.turnId, itemId, { text: state.text })]
+        ? [event("assistant.completed", nativeSessionId(sessionId), this.turnId, itemId, { text: state.text, ...(state.truncated ? {truncated:true} : {}) })]
         : []
     ));
   }
 
   #messageChunk(role, sessionId, update) {
     const itemId = safeId(update.messageId) ?? `${role}:${this.turnId ?? "turn"}`;
-    const delta = renderContent(update.content);
+    const delta = renderContent(update.content, Infinity);
     if (!delta) return [];
     const current = this.messages.get(itemId) ?? { role, text: "" };
+    current.truncated = current.truncated || current.text.length + delta.length > 512 * 1024;
     current.text = appendBounded(current.text, delta, 512 * 1024);
     this.messages.set(itemId, current);
     return [event(
@@ -92,64 +95,60 @@ export class AcpEventNormalizer {
     })];
   }
 
-  #toolUpdate(sessionId, update, initial) {
+  #toolUpdate(sessionId, update) {
     const itemId = safeId(update.toolCallId) ?? `acp-tool:${this.tools.size + 1}`;
     const previous = this.tools.get(itemId) ?? {
       started: false,
-      completed: false,
       output: "",
+      status: "pending",
+      locations: [],
+      changes: [],
       kind: "tool",
       tool: "tool",
       label: "Tool",
       input: {},
     };
-    const kind = normalizeToolKind(update.kind ?? previous.kind);
-    const label = text(update.title, 300) || previous.label || "Tool";
+    // ACP updates are field-presence patches. Never normalize an already
+    // normalized kind, or treat an empty replacement as an omitted field.
+    const kind = Object.hasOwn(update, "kind") ? normalizeToolKind(update.kind) : previous.kind;
+    const label = Object.hasOwn(update, "title") ? text(update.title, 300) : previous.label;
     const input = update.rawInput === undefined ? previous.input : record(update.rawInput);
     const tool = inferAcpToolName({ kind, label, input, previous: previous.tool });
-    const output = renderToolOutput(update.content, update.rawOutput) || previous.output;
-    const status = text(update.status, 40) || (initial ? "pending" : "in_progress");
+    const output = Object.hasOwn(update, "content") || Object.hasOwn(update, "rawOutput")
+      ? renderToolOutput(update.content, update.rawOutput) : previous.output;
+    const status = Object.hasOwn(update, "status") ? text(update.status, 40) : previous.status;
+    const locations = Object.hasOwn(update, "locations") ? array(update.locations) : previous.locations;
+    const changes = Object.hasOwn(update, "content")
+      ? createAgentFileChangeEvidence(array(update.content).filter(part => part?.type === "diff").slice(0, 100).map(part => ({
+          path: part.path, kind: part.oldText === null ? "add" : "update",
+          before: part.oldText === null ? "" : part.oldText, after: part.newText, basis: "native",
+        })))
+      : previous.changes;
+    const canonicalStatus = status === "failed" ? "failed" : status === "completed" ? "completed" : status === "pending" ? "pending" : "running";
+    const payload = {
+      kind, tool, label, status: canonicalStatus,
+      ...(kind === "file-change" || changes.length ? { changes } : {}),
+      input: boundRendererValue(redactSecrets(input)),
+      path: toolPath({ locations }, input),
+      command: kind === "command" ? text(input.command, 8_192) || null : null,
+      outputPreview: redactSecretText(output).slice(-16 * 1024),
+    };
     const result = [];
-    if (!previous.started) {
-      result.push(event("tool.started", sessionId, this.turnId, itemId, {
-        kind,
-        tool,
-        label,
-        status: "running",
-        input: boundRendererValue(redactSecrets(input)),
-        path: toolPath(update, input),
-        command: kind === "command" ? text(input.command, 8_192) || null : null,
+    if (!TERMINAL_TOOL_STATUSES.has(status)) result.push(event(previous.started ? "tool.progress" : "tool.started", sessionId, this.turnId, itemId, payload));
+    if (kind === "command" && output !== previous.output) {
+      result.push(event("command.output.delta", sessionId, this.turnId, itemId, {
+        delta: redactSecretText(output), updateMode: "replace",
       }));
     }
-    if (output.length > previous.output.length && output.startsWith(previous.output)) {
-      const delta = output.slice(previous.output.length);
-      result.push(event(kind === "command" ? "command.output.delta" : "tool.progress", sessionId, this.turnId, itemId,
-        kind === "command"
-          ? { delta: redactSecretText(delta) }
-          : { kind, tool, label, status: "running", input: boundRendererValue(redactSecrets(input)), outputPreview: redactSecretText(delta).slice(-16 * 1024) }));
-    }
-    if (hasDiff(update.content)) {
+    if (changes.length || previous.changes.length) {
       result.push(event("file.change.updated", sessionId, this.turnId, itemId, {
-        status: TERMINAL_TOOL_STATUSES.has(status) ? "completed" : "running",
-        changes: array(update.content).filter((part) => part?.type === "diff").slice(0, 200).map((part) => ({
-          path: text(part.path, 4_096),
-          kind: "update",
-        })).filter((change) => change.path),
+        status: canonicalStatus, changes,
       }));
     }
-    if (TERMINAL_TOOL_STATUSES.has(status) && !previous.completed) {
-      result.push(event("tool.completed", sessionId, this.turnId, itemId, {
-        kind,
-        tool,
-        label,
-        status: status === "failed" ? "failed" : "completed",
-        input: boundRendererValue(redactSecrets(input)),
-        outputPreview: redactSecretText(output).slice(-16 * 1024),
-      }));
-    }
+    if (TERMINAL_TOOL_STATUSES.has(status)) result.push(event("tool.completed", sessionId, this.turnId, itemId, payload));
     this.tools.set(itemId, {
       started: true,
-      completed: previous.completed || TERMINAL_TOOL_STATUSES.has(status),
+      status, locations, changes,
       output,
       kind,
       tool,
@@ -176,10 +175,10 @@ function event(type, providerSessionId, turnId, itemId, payload) {
   return { type, providerSessionId, turnId: safeId(turnId), itemId: safeId(itemId), payload: payload ?? {} };
 }
 
-function renderContent(content) {
+function renderContent(content, limit = 128 * 1024) {
   if (!content || typeof content !== "object") return "";
-  if (content.type === "text") return text(content.text, 128 * 1024);
-  if (content.type === "resource" && typeof content.resource?.text === "string") return text(content.resource.text, 128 * 1024);
+  if (content.type === "text") return text(content.text, limit);
+  if (content.type === "resource" && typeof content.resource?.text === "string") return text(content.resource.text, limit);
   if (content.type === "resource_link") return text(content.title || content.name || content.uri, 4_096);
   if (content.type === "image") return content.uri ? `[image: ${text(content.uri, 4_096)}]` : `[image: ${text(content.mimeType, 160)}]`;
   if (content.type === "audio") return `[audio: ${text(content.mimeType, 160)}]`;
@@ -189,7 +188,8 @@ function renderContent(content) {
 function renderToolOutput(content, rawOutput) {
   const rendered = array(content).map((part) => {
     if (part?.type === "content") return renderContent(part.content);
-    if (part?.type === "diff") return `Diff: ${text(part.path, 4_096)}`;
+    // File evidence has its own canonical field; don't add a second path-only result.
+    if (part?.type === "diff") return "";
     if (part?.type === "terminal") return `Terminal: ${text(part.terminalId, 512)}`;
     return "";
   }).filter(Boolean).join("\n\n");
@@ -240,10 +240,6 @@ function inferAcpToolName({ kind, label, input, previous }) {
 function toolPath(update, input) {
   const location = array(update.locations)[0]?.path;
   return text(location || input.path || input.file_path || input.filePath || input.filepath, 4_096) || null;
-}
-
-function hasDiff(value) {
-  return array(value).some((entry) => entry?.type === "diff" && text(entry.path, 4_096));
 }
 
 function normalizePlanStatus(value) {

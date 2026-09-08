@@ -23,12 +23,12 @@ describe("Terminal native split architecture", () => {
 
   it("keeps Group geometry outside Runtime and PTY ownership", () => {
     const controller = source(
-      "src/features/desktop-terminal/workbench/useTerminalWorkbench.ts",
+      "src/features/app-shell/auxiliary-workbench/useAuxiliaryWorkbench.ts",
     );
     const model = source("src/features/desktop-terminal/model/terminalSessions.ts");
     const runtime = source("src/features/desktop-terminal/runtime/terminalRuntime.ts");
     const registry = source(
-      "src/features/desktop-terminal/runtime/terminalRuntimeRegistry.ts",
+      "src/features/desktop-terminal/runtime/TerminalRuntimePool.ts",
     );
     const service = source("electron/main/terminal-service.mjs");
 
@@ -45,13 +45,13 @@ describe("Terminal native split architecture", () => {
     expect(runtime).toContain("setPresented(presented: boolean)");
     expect(runtime).toContain("setFocused(focused: boolean)");
     expect(runtime).not.toContain("setActive(active: boolean)");
-    expect(registry).toContain("private readonly runtimes = new Map<string");
+    expect(registry).toContain("private entries = new Map<string");
     expect(service).not.toMatch(/groupId|splitId|split tree/i);
   });
 
   it("moves Tabs between complete Group leaves without taking over file drops", () => {
     const tabMove = source(
-      "src/features/desktop-terminal/interactions/useTerminalTabMoveDrag.ts",
+      "src/features/app-shell/auxiliary-workbench/layout/interactions/useWorkbenchTabMoveDrag.ts",
     );
     const sessionView = source(
       "src/features/desktop-terminal/ui/TerminalSessionView.tsx",
@@ -60,13 +60,13 @@ describe("Terminal native split architecture", () => {
       "src/features/desktop-terminal/layout/TerminalGroupViewport.tsx",
     );
     const groupPane = source(
-      "src/features/desktop-terminal/layout/TerminalGroupPane.tsx",
+      "src/features/app-shell/auxiliary-workbench/layout/WorkbenchGroupPane.tsx",
     );
     const contentDropTarget = source(
-      "src/features/desktop-terminal/interactions/terminalContentDropTarget.ts",
+      "src/features/app-shell/auxiliary-workbench/layout/interactions/workbenchContentDropTarget.ts",
     );
     const hosts = source(
-      "src/features/desktop-terminal/layout/session-host/usePersistentTerminalSessionHosts.ts",
+      "src/features/app-shell/auxiliary-workbench/layout/usePersistentWorkbenchItemHosts.ts",
     );
     expect(tabMove).toContain("setPointerCapture");
     expect(tabMove).toContain('window.addEventListener("pointermove"');
@@ -74,9 +74,9 @@ describe("Terminal native split architecture", () => {
     expect(tabMove).toContain("event.buttons & 1");
     expect(tabMove).toContain("document.elementFromPoint");
     expect(tabMove).toContain('"terminal-tab-move"');
-    expect(tabMove).toContain("resolveTerminalContentDropTarget");
+    expect(tabMove).toContain("resolveWorkbenchContentDropTarget");
     expect(contentDropTarget).toContain("[data-terminal-content-drop-group-id]");
-    expect(tabMove).toContain("resolveTerminalTabBarDropTarget");
+    expect(tabMove).toContain("resolveWorkbenchTabBarDropTarget");
     expect(tabMove).toContain("onInsertSession");
     expect(tabMove).not.toMatch(/DataTransfer|onDragStart|draggable/);
     expect(sessionView).toContain("classifyReferenceDataTransfer");
@@ -91,7 +91,7 @@ describe("Terminal native split architecture", () => {
 
   it("derives capacity from the character grid without tmux or a pane cap", () => {
     const constraints = source(
-      "src/features/desktop-terminal/model/terminalSplitConstraints.ts",
+      "src/features/app-shell/auxiliary-workbench/layout/workbenchSplitConstraints.ts",
     );
     const runtime = source("src/features/desktop-terminal/runtime/terminalRuntime.ts");
     const terminalSources = [
@@ -103,8 +103,8 @@ describe("Terminal native split architecture", () => {
 
     expect(runtime).toContain("TERMINAL_COLUMNS_MIN = 20");
     expect(runtime).toContain("TERMINAL_ROWS_MIN = 8");
-    expect(constraints).toContain("terminalSplitNodeMinimumSize");
-    expect(constraints).toContain("terminalSplitRatioBounds");
+    expect(constraints).toContain("workbenchSplitNodeMinimumSize");
+    expect(constraints).toContain("workbenchSplitRatioBounds");
     expect(terminalSources).not.toMatch(/MAX_(PANE|SPLIT)|paneLimit|tmux/i);
   });
 });

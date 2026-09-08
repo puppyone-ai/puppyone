@@ -227,7 +227,9 @@ function WordPreviewError({
       <strong>{title}</strong>
       <span dir="auto">{message}</span>
       {openExternalFile && (
-        <button type="button" onClick={openExternally}>{t("editor.openDefaultApp")}</button>
+        <button type="button" data-po-interaction="navigation" onClick={openExternally}>
+          {t("editor.openDefaultApp")}
+        </button>
       )}
       {externalOpenError && (
         <span role="alert">
@@ -325,7 +327,7 @@ const WORD_PREVIEW_SHADOW_CSS = `${OFFICE_FONT_COMPATIBILITY_CSS}
   }
 
   [${CONTROLLED_DOCX_EXTERNAL_HREF_ATTRIBUTE}] {
-    cursor: var(--po-clickable-cursor, pointer);
+    cursor: var(--po-clickable-cursor, default);
     text-decoration: underline;
   }
 

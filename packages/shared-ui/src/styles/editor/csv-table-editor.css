@@ -3,6 +3,7 @@
      while the table keeps stable, content-owned tracks like a Notion view. */
   --po-csv-surface-background: var(--po-host-csv-surface-background, var(--po-editor-bg));
   --po-csv-surface-color: var(--po-host-csv-surface-color, var(--po-text));
+  --po-csv-link-color: var(--po-host-csv-link-color, var(--po-accent));
   --po-editable-table-cell-max-width: 560px;
   --po-editable-table-row-min-height: 31px;
   --po-editable-table-radius: 0px;
@@ -47,8 +48,8 @@
 
 .csv-table-editor__settings-button {
   display: grid;
-  width: 28px;
-  height: 28px;
+  width: var(--po-control-size-compact);
+  height: var(--po-control-size-compact);
   place-items: center;
   padding: 0;
   border: 1px solid color-mix(in srgb, var(--po-divider) 88%, var(--po-text-muted) 12%);
@@ -56,7 +57,7 @@
   background: color-mix(in srgb, var(--po-panel) 94%, var(--po-control));
   box-shadow: 0 1px 4px color-mix(in srgb, var(--po-shadow) 12%, transparent);
   color: color-mix(in srgb, var(--po-text-muted) 78%, var(--po-text));
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 
@@ -85,15 +86,15 @@
 }
 
 .csv-table-editor__view-action {
-  min-height: 32px;
+  min-height: var(--po-control-size);
   padding: 7px 8px;
   border: 0;
   border-radius: 5px;
   background: transparent;
   color: color-mix(in srgb, var(--po-text-muted) 78%, var(--po-text));
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   font: inherit;
-  font-size: 11.5px;
+  font-size: var(--po-text-size-hint, 12px);
   font-weight: 600;
   text-align: start;
 }
@@ -116,7 +117,7 @@
   padding: 7px 8px;
   border-radius: 6px;
   color: color-mix(in srgb, var(--po-text-muted) 78%, var(--po-text));
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   user-select: none;
   transition: background-color 120ms ease, color 120ms ease;
 }
@@ -128,7 +129,7 @@
 }
 
 .csv-table-editor__view-toggle-label {
-  font-size: 11.5px;
+  font-size: var(--po-text-size-hint, 12px);
   font-weight: 600;
   line-height: 1;
   white-space: nowrap;
@@ -455,7 +456,7 @@
   align-items: center;
   justify-content: center;
   padding: 0;
-  font-size: inherit;
+  font-size: var(--po-editable-table-font-size, var(--po-type-editor-data, 13px));
   line-height: 1;
   opacity: 0.78;
   transition: opacity 100ms ease;
@@ -488,8 +489,150 @@
 }
 
 .csv-table-editor__body-cell {
+  position: relative;
   background: transparent;
   color: var(--po-editable-table-body-color);
+}
+
+.csv-table-editor__body-cell:has(.csv-table-editor__cell-editor:hover) {
+  z-index: 2;
+}
+
+.csv-table-editor__cell-editor {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+}
+
+.csv-table-editor__cell-editor[data-reference-kind="external"]
+  .csv-table-editor__cell-input,
+.csv-table-editor__cell-editor[data-reference-kind="workspace"]
+  .csv-table-editor__cell-input {
+  padding-inline-end: 29px;
+}
+
+.csv-table-editor__cell-editor[data-reference-kind="external"]:not(:has(.csv-table-editor__cell-input:focus))
+  .csv-table-editor__cell-input,
+.csv-table-editor__cell-editor[data-reference-kind="workspace"]:not(:has(.csv-table-editor__cell-input:focus))
+  .csv-table-editor__cell-input {
+  color: transparent;
+  caret-color: transparent;
+}
+
+.csv-table-editor__reference-label {
+  position: absolute;
+  inset-block: 0;
+  inset-inline: var(--po-editable-table-cell-padding-inline, 10px) 29px;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  overflow: hidden;
+  color: var(--po-csv-link-color);
+  line-height: inherit;
+  pointer-events: none;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--po-csv-link-color) 42%, transparent);
+  text-decoration-thickness: 1px;
+  text-overflow: ellipsis;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+}
+
+.csv-table-editor__cell-editor:has(.csv-table-editor__cell-input:focus)
+  .csv-table-editor__reference-label {
+  opacity: 0;
+}
+
+.csv-table-editor__reference-action {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  inset-inline-end: 4px;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  outline: 0;
+  background: transparent;
+  color: color-mix(in srgb, var(--po-csv-link-color) 76%, var(--po-text-muted));
+  cursor: var(--po-clickable-cursor, default);
+  opacity: 0;
+  transform: translateY(-50%);
+  transition: background-color 100ms ease, color 100ms ease, opacity 100ms ease;
+}
+
+.csv-table-editor__cell-editor:hover .csv-table-editor__reference-action,
+.csv-table-editor__reference-action:focus-visible {
+  opacity: 1;
+}
+
+.csv-table-editor__reference-action:hover,
+.csv-table-editor__reference-action:focus-visible {
+  background: color-mix(in srgb, var(--po-csv-link-color) 12%, transparent);
+  color: var(--po-csv-link-color);
+}
+
+.csv-table-editor__reference-action:disabled {
+  color: var(--po-text-muted);
+  cursor: not-allowed;
+  opacity: 0;
+}
+
+.csv-table-editor__cell-editor:hover .csv-table-editor__reference-action:disabled,
+.csv-table-editor__reference-action:disabled:focus-visible {
+  opacity: 0.62;
+}
+
+.csv-table-editor__reference-preview {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 5px);
+  inset-inline-start: 4px;
+  display: grid;
+  width: max-content;
+  max-width: min(360px, calc(100vw - 48px));
+  gap: 3px;
+  padding: 7px 9px;
+  border: 1px solid color-mix(in srgb, var(--po-divider) 82%, var(--po-text-muted) 18%);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--po-panel) 96%, var(--po-control));
+  box-shadow: 0 5px 18px color-mix(in srgb, var(--po-shadow) 20%, transparent);
+  color: var(--po-text);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-2px);
+  transition: opacity 100ms ease, transform 100ms ease;
+  visibility: hidden;
+}
+
+.csv-table-editor__cell-editor:hover .csv-table-editor__reference-preview,
+.csv-table-editor__cell-editor:has(.csv-table-editor__cell-input:focus-visible)
+  .csv-table-editor__reference-preview,
+.csv-table-editor__cell-editor:has(.csv-table-editor__reference-action:focus-visible)
+  .csv-table-editor__reference-preview {
+  opacity: 1;
+  transform: translateY(0);
+  visibility: visible;
+}
+
+.csv-table-editor__reference-kind {
+  color: var(--po-text-muted);
+  font-size: var(--po-type-ui-micro, 11px);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.csv-table-editor__reference-source {
+  overflow: hidden;
+  font-family: var(--po-font-mono);
+  font-size: var(--po-text-size-caption, 11px);
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .csv-table-editor__table tbody td:hover {
@@ -763,7 +906,7 @@
   border-radius: 3px;
   outline: 0;
   background: color-mix(in srgb, var(--po-control) 38%, transparent);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transition: border-color 80ms ease, background-color 80ms ease, box-shadow 80ms ease;
 }
 

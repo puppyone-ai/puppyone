@@ -121,13 +121,13 @@
 
 .desktop-git-remote-prompt > div:first-child > span {
   color: var(--po-text);
-  font-size: 12.5px;
+  font-size: var(--po-text-size-label, 13px);
   font-weight: 680;
 }
 
 .desktop-git-remote-prompt small {
   color: var(--po-text-subtle);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-weight: 540;
 }
 

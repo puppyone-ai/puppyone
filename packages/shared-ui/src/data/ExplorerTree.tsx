@@ -49,17 +49,19 @@ import { useExplorerMotion } from "./explorer/useExplorerMotion";
 import {
   EXPLORER_REFERENCE_DRAG_TYPE,
   EXPLORER_TREE_NODE_DRAG_TYPE,
+  type ExplorerReferenceDragEntry,
   parseExplorerReferenceDrag,
   serializeExplorerReferenceDrag,
 } from "./explorer/explorerReferenceDrag";
 import {
   EXPLORER_VIRTUAL_MAX_MOUNTED_ROWS,
-  EXPLORER_VIRTUAL_ROW_SIZE,
   useExplorerVirtualWindow,
 } from "./explorer/useExplorerVirtualWindow";
 
+export type ExplorerLoadingPresentation = "dots" | "skeleton" | "none";
+
 export type ExplorerTreeProps = {
-  nodes: DataNode[];
+  nodes: readonly DataNode[];
   activePath: string | null;
   selectedPaths?: ReadonlySet<string>;
   cutPaths?: ReadonlySet<string>;
@@ -72,9 +74,16 @@ export type ExplorerTreeProps = {
   rootLabel?: string;
   showRoot?: boolean;
   loadingLabel?: string;
+  loadingPresentation?: ExplorerLoadingPresentation;
   fileIconTheme?: FileIconThemeId;
   /** Stable workspace identity embedded in outbound reference drags. */
   dragWorkspaceId?: string;
+  /** Host-owned projection for native/text export; internal identity remains intact. */
+  onExportNodes?: (nodes: readonly DataNode[], event: ReactDragEvent<HTMLElement>) => void;
+  dragExportHint?: string;
+  /** Host-authenticated native source preview; never used as drop authority. */
+  resourceDragEntries?: readonly ExplorerReferenceDragEntry[] | null;
+  onResolveFileDrop?: (files: File[], targetFolderPath: string | null) => Promise<readonly ExplorerReferenceDragEntry[] | null>;
   canMoveNodes?: boolean;
   onSelectNode: (node: DataNode | null, intent?: ExplorerSelectionIntent) => void;
   onToggleFolder?: (node: DataNode, expanded: boolean) => void;
@@ -110,6 +119,7 @@ type TreeDropTarget = {
 
 type TreeDragController = {
   enabled: boolean;
+  exportHint?: string;
   onNodeDragStart: (event: ReactDragEvent<HTMLDivElement>, node: DataNode) => void;
   onNodeDragEnd: () => void;
   onRowDragOver: (
@@ -140,8 +150,13 @@ export function ExplorerTree({
   rootLabel,
   showRoot = true,
   loadingLabel,
+  loadingPresentation = "dots",
   fileIconTheme = "default",
   dragWorkspaceId = "",
+  onExportNodes,
+  resourceDragEntries,
+  onResolveFileDrop,
+  dragExportHint,
   canMoveNodes = false,
   onSelectNode,
   onToggleFolder,
@@ -173,6 +188,7 @@ export function ExplorerTree({
   const [dropTarget, setDropTarget] = useState<TreeDropTarget>(null);
   const moveEnabled = Boolean(canMoveNodes && (onMoveNodes || onMoveNode));
   const importEnabled = Boolean(onImportFiles);
+  const fileDropEnabled = importEnabled || Boolean(onResolveFileDrop && moveEnabled);
   const dropEnabled = moveEnabled || importEnabled;
   const resolvedLoadingPaths = useMemo<ReadonlySet<string>>(
     () => loadingPaths ?? (loadingPath ? new Set([loadingPath]) : EMPTY_PATH_SET),
@@ -183,6 +199,7 @@ export function ExplorerTree({
     loadingPaths: resolvedLoadingPaths,
     loadingLabel: resolvedLoadingLabel,
   }), [expandedPaths, nodes, resolvedLoadingLabel, resolvedLoadingPaths]);
+  const initialLoading = rootLoading && nodes.length === 0;
   const softWorkspaceGrouping = useMemo(
     () => nodes.filter((node) => node.workspaceFolderRoot).length > 1,
     [nodes],
@@ -223,7 +240,7 @@ export function ExplorerTree({
     mountedRows: visibleRows,
     startIndex: virtualWindow.startIndex,
     endIndex: virtualWindow.endIndex,
-    rowSize: EXPLORER_VIRTUAL_ROW_SIZE,
+    rowSize: virtualWindow.rowSize,
     maxMountedRows: EXPLORER_VIRTUAL_MAX_MOUNTED_ROWS,
   });
   const scrollEdgeState = useScrollEdgeState(scrollRef, {
@@ -267,8 +284,13 @@ export function ExplorerTree({
   const draggedNodesRef = useRef<DataNode[]>([]);
   selectedPathsRef.current = selectedPaths;
   selectedDragNodesRef.current = selectedDragNodes;
-  const dragCallbacksRef = useRef({ onImportFiles, onMoveNode, onMoveNodes });
-  dragCallbacksRef.current = { onImportFiles, onMoveNode, onMoveNodes };
+  const dragCallbacksRef = useRef({ onImportFiles, onMoveNode, onMoveNodes, onResolveFileDrop });
+  dragCallbacksRef.current = { onImportFiles, onMoveNode, onMoveNodes, onResolveFileDrop };
+  const dropGeneration = useRef(0);
+  useEffect(() => () => { dropGeneration.current += 1; }, []);
+  const nativeDraggedNodes = useMemo(() => resourceDragEntries?.map((entry) => nodeIndex.get(entry.path) ?? {
+    id: entry.path, path: entry.path, name: entry.name, type: entry.entryType === "directory" ? "folder" as const : "file" as const,
+  }) ?? [], [nodeIndex, resourceDragEntries]);
 
   const clearDropTarget = useCallback(() => {
     dragEnterDepthRef.current = 0;
@@ -362,14 +384,17 @@ export function ExplorerTree({
         serializeExplorerReferenceDrag(dragWorkspaceId, movingNodes),
       );
     }
-    event.dataTransfer.setData("text/plain", movingNodes.map((item) => item.path).join("\n"));
+    // Generic consumers receive readable names. A local host supplies real paths.
+    event.dataTransfer.setData("text/plain", movingNodes.map((item) => item.name).join("\n"));
+    onExportNodes?.(movingNodes, event);
+    if (event.defaultPrevented) return;
     // Native drag events are not coupled to React's commit timing. Seed the
     // operation ref synchronously so an immediate dragover/drop cannot observe
     // the previous render's empty state.
     draggedNodesRef.current = movingNodes;
     setDraggedNodes(movingNodes);
     setDropTarget(null);
-  }, [dragWorkspaceId, moveEnabled]);
+  }, [dragWorkspaceId, moveEnabled, onExportNodes]);
 
   const dragOverRow = useCallback((
     event: ReactDragEvent<HTMLElement>,
@@ -377,7 +402,15 @@ export function ExplorerTree({
     targetFolderPath: string | null,
     mode: "folder" | "parent",
   ) => {
-    if (importEnabled && hasDataTransferFiles(event.dataTransfer)) {
+    if (nativeDraggedNodes.length && hasDataTransferFiles(event.dataTransfer)) {
+      const valid = moveEnabled && isValidMoveTargetForNodes(nativeDraggedNodes, targetFolderPath);
+      event.preventDefault();
+      event.stopPropagation();
+      event.dataTransfer.dropEffect = valid ? "move" : "none";
+      setNextDropTarget(rowPath, targetFolderPath, mode, valid);
+      return valid;
+    }
+    if (fileDropEnabled && hasDataTransferFiles(event.dataTransfer)) {
       event.preventDefault();
       event.stopPropagation();
       event.dataTransfer.dropEffect = "copy";
@@ -402,18 +435,18 @@ export function ExplorerTree({
     event.dataTransfer.dropEffect = valid ? "move" : "none";
     setNextDropTarget(rowPath, targetFolderPath, mode, valid);
     return valid;
-  }, [importEnabled, moveEnabled, setNextDropTarget]);
+  }, [fileDropEnabled, moveEnabled, nativeDraggedNodes, setNextDropTarget]);
 
   const enterTree = useCallback((event: ReactDragEvent<HTMLDivElement>) => {
     const transferTypes = Array.from(event.dataTransfer.types);
-    const accepted = (importEnabled && hasDataTransferFiles(event.dataTransfer))
+    const accepted = (fileDropEnabled && hasDataTransferFiles(event.dataTransfer))
       || (moveEnabled && (
         draggedNodesRef.current.length > 0
         || transferTypes.includes(EXPLORER_TREE_NODE_DRAG_TYPE)
       ));
     if (!accepted) return;
     dragEnterDepthRef.current += 1;
-  }, [importEnabled, moveEnabled]);
+  }, [fileDropEnabled, moveEnabled]);
 
   const leaveTree = useCallback(() => {
     dragEnterDepthRef.current = Math.max(0, dragEnterDepthRef.current - 1);
@@ -422,12 +455,28 @@ export function ExplorerTree({
 
   const dropOnRow = useCallback((event: ReactDragEvent<HTMLElement>, targetFolderPath: string | null) => {
     const importedFiles = getDataTransferFiles(event.dataTransfer);
-    if (importEnabled && importedFiles.length > 0) {
+    if (fileDropEnabled && importedFiles.length > 0) {
       event.preventDefault();
       event.stopPropagation();
       clearDragState();
-      void Promise.resolve(dragCallbacksRef.current.onImportFiles?.(importedFiles, targetFolderPath)).catch((error) => {
-        console.error("Unable to import dropped files:", error);
+      const generation = ++dropGeneration.current;
+      const callbacks = dragCallbacksRef.current;
+      void (async () => {
+        const entries = await callbacks.onResolveFileDrop?.(importedFiles, targetFolderPath);
+        if (generation !== dropGeneration.current) return;
+        if (entries) {
+          const nodes = entries.map((entry) => nodeIndex.get(entry.path) ?? {
+            id: entry.path, path: entry.path, name: entry.name,
+            type: entry.entryType === "directory" ? "folder" as const : "file" as const,
+          });
+          if (!moveEnabled || !isValidMoveTargetForNodes(nodes, targetFolderPath)) return;
+          if (callbacks.onMoveNodes) await callbacks.onMoveNodes(nodes, targetFolderPath);
+          else await Promise.all(nodes.map((node) => callbacks.onMoveNode?.(node, targetFolderPath)));
+        } else {
+          await callbacks.onImportFiles?.(importedFiles, targetFolderPath);
+        }
+      })().catch((error) => {
+        console.error("Unable to complete the file drop:", error);
       });
       return;
     }
@@ -450,17 +499,19 @@ export function ExplorerTree({
     void Promise.resolve(moveResult).catch((error) => {
       console.error("Unable to move explorer item:", error);
     });
-  }, [clearDragState, importEnabled, moveEnabled, recoverDraggedNodes]);
+  }, [clearDragState, fileDropEnabled, moveEnabled, nodeIndex, recoverDraggedNodes]);
 
   const dragController = useMemo<TreeDragController>(() => ({
     // Outbound copy/context drag is independent from in-tree move support.
     enabled: true,
+    exportHint: dragExportHint,
     onNodeDragStart: beginNodeDrag,
     onNodeDragEnd: clearDragState,
     onRowDragOver: dragOverRow,
     onRowDrop: dropOnRow,
   }), [
     beginNodeDrag,
+    dragExportHint,
     clearDragState,
     dragOverRow,
     dropOnRow,
@@ -628,15 +679,19 @@ export function ExplorerTree({
         onScroll={virtualWindow.onScroll}
       >
         <div className="explorer-tree-list">
-          {renderListStart && (
+          {!initialLoading && renderListStart && (
             <div className="explorer-tree-list-start">
               {renderListStart()}
             </div>
           )}
-          {rootError && nodes.length === 0 ? (
+          {initialLoading ? (
+            loadingPresentation === "skeleton"
+              ? <ExplorerTreeSkeleton loadingLabel={resolvedLoadingLabel} />
+              : loadingPresentation === "dots"
+                ? <ExplorerTreeMetaRow depth={0} loading>{resolvedLoadingLabel}</ExplorerTreeMetaRow>
+                : null
+          ) : rootError && nodes.length === 0 ? (
             <ExplorerTreeMetaRow depth={0}>{rootError}</ExplorerTreeMetaRow>
-          ) : rootLoading && nodes.length === 0 ? (
-            <ExplorerTreeMetaRow depth={0} loading>{resolvedLoadingLabel}</ExplorerTreeMetaRow>
           ) : nodes.length > 0 ? (
             <div
               className="explorer-tree-virtual-canvas"
@@ -652,7 +707,7 @@ export function ExplorerTree({
                   data-depth={getExplorerPresentationDepth(row.depth, softWorkspaceGrouping)}
                   style={{
                     "--depth": getExplorerPresentationDepth(row.depth, softWorkspaceGrouping),
-                    transform: `translateY(${row.index * EXPLORER_VIRTUAL_ROW_SIZE}px)`,
+                    transform: `translateY(${row.index * virtualWindow.rowSize}px)`,
                   } as CSSProperties}
                 >
                   <ExplorerVirtualMotionShell
@@ -661,12 +716,12 @@ export function ExplorerTree({
                     instruction={motionPlan?.instructions.get(row.key)}
                   >
                     {row.kind === "meta" ? (
-                      <ExplorerTreeMetaRow
+                      <ExplorerTreeLoadingRow
                         depth={getExplorerPresentationDepth(row.depth, softWorkspaceGrouping)}
+                        label={row.label}
                         loading={row.loading}
-                      >
-                        {row.label}
-                      </ExplorerTreeMetaRow>
+                        presentation={loadingPresentation}
+                      />
                     ) : (
                       <TreeNodeRow
                         row={row}
@@ -675,6 +730,7 @@ export function ExplorerTree({
                         isExpanded={row.node.type === "folder" && expandedPaths.has(row.path)}
                         focusable={activePath ? activePath === row.path : row.index === firstNavigableIndex}
                         interaction={selectExplorerRowInteraction(row.path, rowStateSources)}
+                        loadingPresentation={loadingPresentation}
                         fileIconTheme={fileIconTheme}
                         onToggleFolder={toggleFolder}
                         onSelectNode={selectNode}
@@ -709,13 +765,14 @@ export function ExplorerTree({
                       softWorkspaceGrouping={softWorkspaceGrouping}
                       expandedPaths={expandedPaths}
                       fileIconTheme={fileIconTheme}
+                      loadingPresentation={loadingPresentation}
                     />
                   </ExplorerVirtualMotionShell>
                 </div>
               ))}
             </div>
           ) : null}
-          {renderListEnd && (
+          {!initialLoading && renderListEnd && (
             <ExplorerListEndMotionShell
               generation={motionPlan?.generation ?? 0}
               offsetY={motionPlan?.listEndOffsetY ?? 0}
@@ -736,6 +793,7 @@ type TreeNodeRowProps = {
   isExpanded: boolean;
   focusable: boolean;
   interaction: ExplorerRowInteractionState;
+  loadingPresentation: ExplorerLoadingPresentation;
   fileIconTheme: FileIconThemeId;
   onToggleFolder: (node: DataNode, expanded: boolean) => void;
   onSelectNode: ExplorerTreeProps["onSelectNode"];
@@ -752,6 +810,7 @@ const TreeNodeRow = memo(function TreeNodeRow({
   isExpanded,
   focusable,
   interaction,
+  loadingPresentation,
   fileIconTheme,
   onToggleFolder,
   onSelectNode,
@@ -831,7 +890,9 @@ const TreeNodeRow = memo(function TreeNodeRow({
       aria-label={interaction.cut
         ? t("shared-ui.explorer.cutLabel", { name: bidiIsolate(node.name) })
         : node.name}
-      title={displayName.hidden || showExtensionDisambiguator ? node.name : undefined}
+      title={dragController.exportHint && !node.workspaceFolderRoot
+        ? `${node.name}\n${dragController.exportHint}`
+        : displayName.hidden || showExtensionDisambiguator ? node.name : undefined}
       onDragStart={(event) => dragController.onNodeDragStart(event, node)}
       onDragEnd={dragController.onNodeDragEnd}
       onDragEnter={(event) => {
@@ -900,7 +961,7 @@ const TreeNodeRow = memo(function TreeNodeRow({
         {node.status && node.status !== "clean" && (
           <span className={`tree-status ${node.status}`}>{shortStatus(node.status)}</span>
         )}
-        {interaction.loading && (
+        {interaction.loading && loadingPresentation === "dots" && (
           <DotsLoader
             size="sm"
             className="tree-loading-indicator"
@@ -924,6 +985,7 @@ function areTreeNodeRowPropsEqual(left: TreeNodeRowProps, right: TreeNodeRowProp
     && left.isExpanded === right.isExpanded
     && left.focusable === right.focusable
     && equalExplorerRowInteraction(left.interaction, right.interaction)
+    && left.loadingPresentation === right.loadingPresentation
     && left.fileIconTheme === right.fileIconTheme
     && left.onToggleFolder === right.onToggleFolder
     && left.onSelectNode === right.onSelectNode
@@ -1024,15 +1086,24 @@ function ExplorerExitGhostRow({
   softWorkspaceGrouping,
   expandedPaths,
   fileIconTheme,
+  loadingPresentation,
 }: {
   row: ExplorerVisibleRow;
   presentationDepth: number;
   softWorkspaceGrouping: boolean;
   expandedPaths: ReadonlySet<string>;
   fileIconTheme: FileIconThemeId;
+  loadingPresentation: ExplorerLoadingPresentation;
 }) {
   if (row.kind === "meta") {
-    return <ExplorerTreeMetaRow depth={presentationDepth} loading={row.loading}>{row.label}</ExplorerTreeMetaRow>;
+    return (
+      <ExplorerTreeLoadingRow
+        depth={presentationDepth}
+        label={row.label}
+        loading={row.loading}
+        presentation={loadingPresentation}
+      />
+    );
   }
 
   const displayName = getExplorerDisplayName(row.node);
@@ -1120,7 +1191,8 @@ function ExplorerTreeMetaRow({
     <div className={`tree-meta-row ${loading ? "loading" : ""}`} style={{ "--depth": depth } as CSSProperties}>
       {loading ? (
         <InlineLoading
-          label={children}
+          label={null}
+          ariaLabel={typeof children === "string" ? children : undefined}
           size="sm"
           indicator="dots"
           className="tree-meta-loading"
@@ -1128,6 +1200,61 @@ function ExplorerTreeMetaRow({
       ) : (
         <span>{children}</span>
       )}
+    </div>
+  );
+}
+
+function ExplorerTreeLoadingRow({
+  depth,
+  label,
+  loading,
+  presentation,
+}: {
+  depth: number;
+  label: string;
+  loading: boolean;
+  presentation: ExplorerLoadingPresentation;
+}) {
+  if (!loading) return <ExplorerTreeMetaRow depth={depth}>{label}</ExplorerTreeMetaRow>;
+  if (presentation === "none") return null;
+  if (presentation === "dots") {
+    return <ExplorerTreeMetaRow depth={depth} loading>{label}</ExplorerTreeMetaRow>;
+  }
+  return (
+    <div
+      className="explorer-tree-skeleton explorer-tree-branch-skeleton"
+      role="status"
+      aria-label={label}
+    >
+      <ExplorerTreeSkeletonRow />
+    </div>
+  );
+}
+
+function ExplorerTreeSkeleton({ loadingLabel }: { loadingLabel: string }) {
+  return (
+    <div
+      className="explorer-tree-skeleton"
+      role="status"
+      aria-label={loadingLabel}
+      data-testid="explorer-tree-skeleton"
+    >
+      {[0, 1, 1, 0, 1, 1].map((depth, index) => (
+        <ExplorerTreeSkeletonRow depth={depth} key={`${depth}-${index}`} />
+      ))}
+    </div>
+  );
+}
+
+function ExplorerTreeSkeletonRow({ depth }: { depth?: number }) {
+  return (
+    <div
+      className="explorer-tree-skeleton-row"
+      data-depth={depth}
+      aria-hidden="true"
+    >
+      <span className="explorer-tree-skeleton-icon" />
+      <span className="explorer-tree-skeleton-label" />
     </div>
   );
 }

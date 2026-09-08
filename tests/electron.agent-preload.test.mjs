@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 describe("Desktop Agent preload boundary", () => {
-  it("exposes only the README bridge list and one normalized event subscription", async () => {
+  it("exposes the versioned feed and routes user intent through one command channel", async () => {
     const source = await readFile(new URL("../electron/preload.cjs", import.meta.url), "utf8");
     for (const name of [
       "discoverAgentProviders",
@@ -13,6 +13,10 @@ describe("Desktop Agent preload boundary", () => {
       "resumeAgentSession",
       "openAgentSession",
       "replayAgentSession",
+      "attachAgentSession",
+      "acknowledgeAgentSession",
+      "readAgentSessionWatermark",
+      "detachAgentSession",
       "listAgentSessions",
       "forkAgentSession",
       "archiveAgentSession",
@@ -28,8 +32,7 @@ describe("Desktop Agent preload boundary", () => {
       "compactAgentSession",
       "resolveAgentApproval",
       "resolveAgentQuestion",
-      "onAgentEvent",
-      "onAgentSessionExit",
+      "onAgentSessionFrame",
     ]) {
       expect(source).toContain(`${name}:`);
     }
@@ -42,6 +45,10 @@ describe("Desktop Agent preload boundary", () => {
       "agent:session-resume",
       "agent:session-open",
       "agent:session-replay",
+      "agent:session-attach",
+      "agent:session-feed-ack",
+      "agent:session-feed-watermark",
+      "agent:session-detach",
       "agent:sessions-list",
       "agent:session-fork",
       "agent:session-archive",
@@ -51,14 +58,9 @@ describe("Desktop Agent preload boundary", () => {
       "agent:reference-revoke",
       "agent:reference-resolve-workspace",
       "agent:reference-pick-workspace",
-      "agent:turn-start",
-      "agent:turn-steer",
-      "agent:turn-interrupt",
+      "agent:command-dispatch",
       "agent:session-compact",
-      "agent:approval-resolve",
-      "agent:question-resolve",
-      "agent:event",
-      "agent:session-exit",
+      "agent:session-frame",
     ]) {
       expect(source).toContain(channel);
     }
@@ -67,6 +69,8 @@ describe("Desktop Agent preload boundary", () => {
     expect(source).not.toContain("restoreAgentSession:");
     expect(source).not.toContain("agent:provider-discover");
     expect(source).not.toContain("agent:session-restore");
+    expect(source).not.toContain('ipcRenderer.on("agent:event"');
+    expect(source).not.toContain('ipcRenderer.on("agent:session-exit"');
     expect(source).not.toMatch(/spawnAgentProcess|writeAgentStdin|agentEnvironment/);
     expect(source).toMatch(/stageAgentAttachments:[\s\S]*webUtils\.getPathForFile\(file\)[\s\S]*sourcePaths/);
     expect(source).not.toMatch(/agent:reference-stage[^}]*files/);

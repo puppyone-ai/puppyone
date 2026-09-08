@@ -18,7 +18,7 @@ describe("Codex paginated history reader", () => {
       return {};
     });
 
-    await expect(readCodexHistory({ request, threadId: "legacy" })).resolves.toEqual({
+    await expect(readCodexHistory({ request, threadId: "legacy" })).resolves.toMatchObject({
       id: "legacy",
       turns: [{ id: "turn-1", items: [] }],
     });
@@ -62,6 +62,22 @@ describe("Codex paginated history reader", () => {
       ["thread/resume", { threadId: "thread-1", excludeTurns: true }],
       ["thread/resume", { threadId: "thread-1" }],
     ]);
+  });
+
+  it("marks an oversized final native page as partial even without a cursor", async () => {
+    const request = vi.fn(async () => ({ data: Array.from({ length: codexHistoryReaderLimits.maxTurns + 1 }, (_, i) => ({
+      id: `turn-${i}`, items: [], itemsView: "full",
+    })), nextCursor: null }));
+    const result = await readCodexPaginatedHistory({ request, threadId: "thread-1" });
+    expect(result.coverage).toBe("partial");
+    expect(result.turns).toHaveLength(codexHistoryReaderLimits.maxTurns);
+  });
+
+  it("rejects item pages belonging to another turn", async () => {
+    const request = vi.fn(async (method) => method === "thread/turns/list"
+      ? { data: [{ id: "turn-1", itemsView: "summary", items: [] }], nextCursor: null }
+      : { data: [{ turnId: "wrong-turn", item: { id: "message", type: "agentMessage", text: "Wrong" } }], nextCursor: null });
+    await expect(readCodexPaginatedHistory({ request, threadId: "thread-1" })).rejects.toThrow(/item identity/);
   });
 
   it("keeps the native paging window below the renderer replay event budget", () => {

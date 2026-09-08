@@ -1,6 +1,7 @@
 export const AGENT_EVENT_TYPES = Object.freeze([
   "session.started", "session.resumed", "session.updated", "session.closed",
   "turn.started", "turn.completed", "turn.failed", "turn.interrupted",
+  "user.message",
   "assistant.delta", "assistant.completed", "reasoning.summary.delta", "plan.updated",
   "tool.started", "tool.progress", "tool.completed", "command.output.delta",
   "file.change.updated", "usage.updated", "approval.requested", "approval.resolved",
@@ -50,21 +51,25 @@ export const AGENT_READINESS_CODES = Object.freeze(Object.keys(AGENT_READINESS_C
 
 export const AGENT_SESSION_OPEN_ERROR_CODES = Object.freeze([
   "SESSION_NOT_FOUND",
+  "SOURCE_CHANGED",
   "AUTH_REQUIRED",
   "AUTH_EXPIRED",
   "RUNTIME_UNAVAILABLE",
   "RESUME_UNSUPPORTED",
   "RESUME_TIMED_OUT",
+  "HISTORY_READ_FAILED",
   "WORKSPACE_MISMATCH",
   "PROTOCOL_ERROR",
 ]);
 
 export const AGENT_IPC_CHANNELS = Object.freeze([
   "agent:providers-discover", "agent:local-connections-discover", "agent:models-list", "agent:account-read",
-  "agent:session-create", "agent:session-resume", "agent:session-open", "agent:session-replay", "agent:sessions-list",
+  "agent:session-create", "agent:session-resume", "agent:session-open", "agent:session-replay",
+  "agent:session-attach", "agent:session-feed-ack", "agent:session-feed-watermark", "agent:session-detach", "agent:sessions-list",
   "agent:session-fork", "agent:session-archive", "agent:session-delete", "agent:session-close",
   "agent:reference-stage", "agent:reference-revoke", "agent:reference-resolve-workspace",
   "agent:reference-pick-workspace",
+  "agent:command-dispatch",
   "agent:turn-start", "agent:turn-steer", "agent:turn-interrupt", "agent:session-compact",
   "agent:approval-resolve", "agent:question-resolve",
 ]);
@@ -72,6 +77,9 @@ export const AGENT_IPC_CHANNELS = Object.freeze([
 export const agentContractLimits = Object.freeze({
   maxPathLength: 4_096,
   maxMessageLength: 128 * 1024,
+  maxControlReasonLength: 1_000,
+  maxCommandErrorLength: 1_000,
+  maxCommandFingerprintLength: 128,
   maxReferenceCount: 32,
   maxReferenceBytes: 25 * 1024 * 1024,
   maxTotalReferenceBytes: 25 * 1024 * 1024,

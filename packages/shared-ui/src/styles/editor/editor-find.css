@@ -17,7 +17,7 @@
   gap: 2px;
   box-sizing: border-box;
   width: min(304px, calc(100% - 24px));
-  height: 30px;
+  height: var(--po-control-size);
   padding: 2px 3px;
   border: 1px solid color-mix(in srgb, var(--po-border-subtle) 86%, transparent);
   border-radius: 8px;
@@ -36,14 +36,14 @@
   flex: 1;
   min-width: 0;
   box-sizing: border-box;
-  height: 24px;
+  height: var(--po-control-size-tight);
   padding: 0 4px;
   border: 0;
   outline: 0;
   background: transparent;
   color: var(--po-text);
   font: inherit;
-  font-size: 12.5px;
+  font-size: var(--po-text-size-label, 13px);
 }
 
 .editor-find-widget input::placeholder {
@@ -61,7 +61,7 @@
   overflow: hidden;
   border-inline-start: 1px solid var(--po-divider);
   color: var(--po-text-subtle);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-variant-numeric: tabular-nums;
   text-align: center;
   text-overflow: ellipsis;
@@ -77,7 +77,7 @@
   align-items: center;
   justify-content: center;
   width: 24px;
-  height: 24px;
+  height: var(--po-control-size-tight);
   padding: 0;
   border: 0;
   border-radius: 4px;

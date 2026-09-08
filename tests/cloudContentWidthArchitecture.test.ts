@@ -55,9 +55,9 @@ describe("Cloud content width architecture", () => {
     expect(activation).toContain("grid-row: 1;");
     expect(activation).toContain("grid-row: 2;");
     expect(activation).toContain("justify-self: start;");
-    expect(activation).toContain("font-size: clamp(18px, 1.7vw, 20px);");
+    expect(activation).toContain("font-size: var(--po-text-size-page-title, 20px);");
     expect(activation).toContain("font-weight: 600;");
-    expect(activation).not.toContain("font-size: clamp(26px, 2.6vw, 31px);");
+    expect(activation).not.toMatch(/font-size:\s*[^;]*\d+\.\d+(?:px|em|rem|vw)/);
     expect(activation).not.toContain("font-size: 25px;");
     expect(activation).toContain(".desktop-cloud-activation-illustration-frame.is-overview");
     expect(activation).toContain("width: 150px;");

@@ -1,4 +1,5 @@
 {
+  "dropFailed": "Impossible d’insérer les chemins. Vérifiez que les fichiers sont accessibles et que le terminal est actif.",
   "title": "Terminal",
   "actions": "Actions du terminal",
   "new": "Nouveau terminal",

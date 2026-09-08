@@ -208,10 +208,11 @@ export function createDesktopNativeMenuService({
 }
 
 function normalizeThemeState(value) {
-  const validTargets = new Set(["application", "markdown", "csv"]);
+  const validTargets = new Set(["application", "typography", "markdown", "csv"]);
+  const defaultRequiredTargets = ["application", "markdown", "csv"];
   const requiredTargets = Array.isArray(value?.requiredTargets)
     ? value.requiredTargets.filter((target) => validTargets.has(target))
-    : [...validTargets];
+    : defaultRequiredTargets;
   const pack = normalizePackId(value?.pack);
   const themes = Array.isArray(value?.themes)
     ? value.themes.flatMap((theme) => {

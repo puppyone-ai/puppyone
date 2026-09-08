@@ -13,20 +13,20 @@
   color-scheme: light;
 
   --po-font-sans: Tahoma, "Segoe UI", Arial, sans-serif;
-  --po-font-size-chrome: 12px;
   --po-font-weight-chrome: 700;
   --desktop-control-radius: 2px;
   --desktop-toolbar-action-radius: 2px;
   --desktop-chrome-height: 36px;
-  --desktop-chrome-control-size: 26px;
-  --desktop-titlebar-control-height: 26px;
+  --desktop-chrome-control-size: calc(var(--po-control-size) - 6px);
+  --desktop-titlebar-control-height: var(--desktop-chrome-control-size);
   --desktop-titlebar-tool-action-width: 29px;
-  --desktop-sidebar-control-size: 32px;
+  --desktop-sidebar-control-size: var(--po-control-size);
   --desktop-sidebar-nav-gap: 4px;
-  --desktop-sidebar-toolbar-height: 30px;
+  --desktop-sidebar-toolbar-height: calc(var(--po-control-size) - 2px);
   --desktop-sidebar-toolbar-padding-start: 8px;
   --desktop-sidebar-toolbar-padding-end: 5px;
-  --desktop-sidebar-row-height: 25px;
+  --desktop-sidebar-row-height: calc(var(--po-control-size) - 7px);
+  --desktop-sidebar-virtual-row-size: calc(var(--desktop-sidebar-row-height) + 2px);
   --desktop-sidebar-row-radius: 0px;
   --desktop-sidebar-row-left-gap: 5px;
   /* Classic scrollbars consume layout width. Keeping this equal to the XP
@@ -58,7 +58,7 @@
   --po-menu-radius: 0px;
   --po-menu-padding: 2px;
   --po-menu-item-radius: 0px;
-  --po-menu-item-height: 25px;
+  --po-menu-item-height: var(--desktop-sidebar-row-height);
   --po-menu-item-padding-inline: 6px;
   --po-menu-item-gap: 6px;
   --po-scrollbar-size: 17px;
@@ -68,7 +68,7 @@
   --po-scrollbar-thumb-active-inset: 1px;
   --po-scrollbar-radius: 0px;
   --po-scrollbar-transition: 0s;
-  --po-tree-row-height: 25px;
+  --po-tree-row-height: var(--desktop-sidebar-row-height);
   --po-tree-row-radius: 0px;
   --po-tree-row-left-gap: 5px;
   --po-tree-row-right-gap: 17px;

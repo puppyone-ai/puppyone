@@ -3,7 +3,7 @@ import type { DesktopTerminalLauncherId } from "../../model/terminalLaunchers";
 import type { DesktopTerminalSessionSummary } from "../../model/terminalSessions";
 import type { TerminalRuntimeHandle } from "../../runtime/terminalRuntime";
 import { TerminalActivityGrid } from "../TerminalActivityGrid";
-import { TerminalLauncherIcon } from "../TerminalLauncherIcon";
+import { AgentLauncherIcon } from "../../../../components/brand/AgentLauncherIcon";
 
 type TerminalSessionHeaderStatusProps = {
   className: string;
@@ -44,7 +44,7 @@ function TerminalSessionHeaderStatusIcon({
   return active ? (
     <TerminalActivityGrid className="desktop-terminal-tab-activity-indicator" />
   ) : (
-    <TerminalLauncherIcon compact launcherId={launcherId} />
+    <AgentLauncherIcon compact launcherId={launcherId} />
   );
 }
 

@@ -22,7 +22,7 @@
 }
 
 button.desktop-cloud-branch-graph-row {
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .desktop-cloud-branch-graph-row:hover,
@@ -108,7 +108,7 @@ button.desktop-cloud-branch-graph-row {
 .desktop-cloud-branch-graph-ref-count {
   fill: var(--po-canvas);
   font-family: var(--po-font-sans);
-  font-size: 7.5px;
+  font-size: var(--po-text-size-glyph, 8px);
   font-weight: 800;
   dominant-baseline: central;
   text-anchor: middle;
@@ -150,7 +150,7 @@ button.desktop-cloud-branch-graph-row {
   background: color-mix(in srgb, var(--po-control) 45%, transparent);
   color: var(--po-text-disabled);
   font-family: var(--po-font-mono);
-  font-size: 10.5px;
+  font-size: var(--po-text-size-caption, 11px);
   font-weight: 620;
   letter-spacing: 0;
   line-height: 1;
@@ -277,11 +277,11 @@ button.desktop-cloud-branch-graph-row {
 
 .desktop-cloud-branches-page {
   --cloud-branches-content-width: 1120px;
-  --cloud-branches-row-height: 30px;
+  --cloud-branches-row-height: var(--po-control-size);
   --cloud-branches-continuation-height: 8px;
-  --cloud-branches-text-size: 13px;
-  --cloud-branches-meta-size: 11.5px;
-  --cloud-branches-label-size: 11px;
+  --cloud-branches-text-size: var(--po-type-ui-body, 14px);
+  --cloud-branches-meta-size: var(--po-type-ui-meta, 13px);
+  --cloud-branches-label-size: var(--po-type-ui-caption, 12px);
 
   display: flex;
   min-width: 0;
@@ -356,7 +356,7 @@ button.desktop-cloud-branch-graph-row {
   border-radius: 6px;
   background: color-mix(in srgb, var(--po-control) 50%, transparent);
   color: var(--po-text-subtle);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-weight: 640;
   line-height: 1;
   text-overflow: ellipsis;
@@ -405,7 +405,7 @@ button.desktop-cloud-branch-graph-row {
 
 .desktop-cloud-branches-warning {
   width: min(var(--cloud-branches-content-width), calc(100% - 32px));
-  min-height: 32px;
+  min-height: var(--po-control-size);
   box-sizing: border-box;
   margin: 4px 16px 6px 20px;
   padding: 8px 10px;
@@ -413,7 +413,7 @@ button.desktop-cloud-branch-graph-row {
   border-radius: 6px;
   background: color-mix(in srgb, var(--po-warning) 8%, transparent);
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 1.35;
 }
 

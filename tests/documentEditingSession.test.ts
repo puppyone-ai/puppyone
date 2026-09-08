@@ -141,6 +141,95 @@ describe("DocumentEditingSession", () => {
     expect(session.getState()).toMatchObject({ status: "clean", error: null });
   });
 
+  it.each(["auto", "manual"] as const)("accepts external content after an unsaved edit was undone (%s)", async (mode) => {
+    const persist = vi.fn(async () => ({ ok: true as const, version: "unexpected" }));
+    const session = createSession(persist, mode);
+    const source = bindSource(session, { revision: "r1", content: "one" });
+    source.change({ revision: "r2", content: "temporary edit" });
+    source.change({ revision: "r3", content: "one" });
+
+    expect(session.reconcileExternalBaseline("agent edit", "agent-v2")).toBe("applied");
+    await nextMicrotask();
+    expect(source.snapshot().content).toBe("agent edit");
+    expect(session.hasUnpersistedChanges()).toBe(false);
+    expect(persist).not.toHaveBeenCalled();
+  });
+
+  it("accepts an external update after detached edits were undone without restoring the obsolete snapshot", () => {
+    const session = createSession(vi.fn(), "manual");
+    const first = bindSource(session, { revision: "r1", content: "one" });
+    first.change({ revision: "r2", content: "temporary edit" });
+    first.change({ revision: "r3", content: "one" });
+    first.detach();
+    expect(session.reconcileExternalBaseline("agent edit", "agent-v2")).toBe("applied");
+    const remounted = bindSource(session, { revision: "r4", content: "one" });
+    expect(remounted.snapshot().content).toBe("agent edit");
+    expect(session.hasUnpersistedChanges()).toBe(false);
+  });
+
+  it("does not leave a phantom edit when model revisions change during a successful save", async () => {
+    const write = deferred<{ ok: true; version: string }>();
+    const persist = vi.fn(() => write.promise);
+    const session = createSession(persist, "manual");
+    const source = bindSource(session, { revision: "r1", content: "one" });
+    source.change({ revision: "r2", content: "two" });
+    const saved = session.requestSave();
+    source.change({ revision: "remounted:r1", content: "two" }, false);
+    write.resolve({ ok: true, version: "v2" });
+    await saved;
+
+    expect(session.hasUnpersistedChanges()).toBe(false);
+    expect(session.reconcileExternalBaseline("agent edit", "agent-v3")).toBe("applied");
+    expect(source.snapshot().content).toBe("agent edit");
+    expect(persist).toHaveBeenCalledTimes(1);
+  });
+
+  it("acknowledges a conditional write that discovers its candidate already on disk", async () => {
+    const persist = vi.fn(async () => ({
+      ok: false as const, kind: "conflict" as const, content: "two", version: "agent-v2",
+    }));
+    const session = createSession(persist, "manual");
+    const source = bindSource(session, { revision: "r1", content: "one" });
+    source.change({ revision: "r2", content: "two" });
+    await session.requestSave();
+
+    expect(session.hasUnpersistedChanges()).toBe(false);
+    expect(session.getState()).toMatchObject({ error: null, storageVersion: "agent-v2" });
+    expect(persist).toHaveBeenCalledTimes(1);
+  });
+
+  it("settles queued saves when a rejected older write finds the latest edit already on disk", async () => {
+    const write = deferred<{ ok: false; kind: "conflict"; content: string; version: string }>();
+    const persist = vi.fn(() => write.promise);
+    const session = createSession(persist, "manual");
+    const source = bindSource(session, { revision: "r1", content: "one" });
+    source.change({ revision: "r2", content: "two" });
+    const firstSave = session.requestSave();
+    source.change({ revision: "r3", content: "three" });
+    const latestSave = session.requestSave();
+    write.resolve({ ok: false, kind: "conflict", content: "three", version: "agent-v3" });
+    await Promise.all([firstSave, latestSave]);
+
+    expect(session.hasUnpersistedChanges()).toBe(false);
+    expect(source.snapshot().content).toBe("three");
+    expect(session.getState()).toMatchObject({ error: null, storageVersion: "agent-v3" });
+    expect(persist).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores an obsolete conditional-write result after a newer disk snapshot", async () => {
+    const write = deferred<{ ok: false; kind: "conflict"; content: string; version: string }>();
+    const session = createSession(vi.fn(() => write.promise), "manual");
+    const source = bindSource(session, { revision: "r1", content: "one" });
+    source.change({ revision: "r2", content: "two" });
+    const saved = session.requestSave();
+    session.reconcileExternalBaseline("newer external", "agent-v3");
+    write.resolve({ ok: false, kind: "conflict", content: "two", version: "v2" });
+    await saved;
+    await session.flushCurrent("document-switch");
+    expect(session.getState()).toMatchObject({ status: "clean", storageVersion: "agent-v3", error: null });
+    expect(source.snapshot().content).toBe("newer external");
+  });
+
   it("promotes a pending edit to the navigation drain reason", async () => {
     const first = deferred<{ ok: true; version: string }>();
     const second = deferred<{ ok: true; version: string }>();
@@ -260,30 +349,88 @@ describe("DocumentEditingSession", () => {
     });
   });
 
-  it("applies an external baseline only while clean", async () => {
+  it("adopts disk updates over unsaved local edits without writing them back", async () => {
     const persist = vi.fn(async () => ({ ok: true as const, version: "v2" }));
     const session = createSession(persist, "manual");
     const source = bindSource(session, { revision: "r1", content: "one" });
-
     expect(session.reconcileExternalBaseline("external", "external-v1")).toBe("applied");
-    expect(session.getState()).toMatchObject({ status: "clean", storageVersion: "external-v1" });
-
     source.change({ revision: "r2", content: "local" });
-    expect(session.reconcileExternalBaseline("agent edit", "external-v2")).toBe("conflict");
-    expect(session.getState()).toMatchObject({
-      status: "conflict",
-      error: { code: "external-conflict" },
-      storageVersion: "external-v1",
-    });
-    await expect(session.requestSave()).rejects.toThrow("changed outside the editor");
+    expect(session.reconcileExternalBaseline("agent edit", "external-v2")).toBe("applied");
+    expect(source.snapshot().content).toBe("agent edit");
+    expect(session.getState()).toMatchObject({ status: "clean", error: null, storageVersion: "external-v2" });
+    await session.requestSave();
     expect(persist).not.toHaveBeenCalled();
+  });
 
-    await session.resolveExternalConflict("reload-external");
-    expect(source.snapshot()).toMatchObject({ content: "agent edit" });
-    expect(session.getState()).toMatchObject({
-      status: "clean",
-      storageVersion: "external-v2",
-    });
+  it("cancels autosave before it starts when disk replaces unsaved input", async () => {
+    const persist = vi.fn(async () => ({ ok: true as const, version: "unexpected" }));
+    const session = createSession(persist);
+    const source = bindSource(session, { revision: "r1", content: "one" });
+    source.change({ revision: "r2", content: "unsaved input" });
+    session.reconcileExternalBaseline("disk content", "disk-v2");
+    await nextMicrotask();
+    expect(persist).not.toHaveBeenCalled();
+    expect(source.snapshot().content).toBe("disk content");
+    expect(session.hasUnpersistedChanges()).toBe(false);
+  });
+
+  it.each(["success", "failure"])("saves only new typing after adopting disk while an old %s is pending", async (outcome) => {
+    const first = deferred<{ ok: true; version: string }>();
+    const persist = vi.fn()
+      .mockImplementationOnce(() => first.promise)
+      .mockResolvedValueOnce({ ok: true, version: "v4" });
+    const session = createSession(persist);
+    const source = bindSource(session, { revision: "r1", content: "one" });
+    source.change({ revision: "r2", content: "old input" });
+    await nextMicrotask();
+    session.reconcileExternalBaseline("disk content", "disk-v3");
+    source.change({ revision: "r3", content: "disk content plus new typing" });
+    await nextMicrotask();
+    if (outcome === "success") first.resolve({ ok: true, version: "v2" });
+    else first.reject(new Error("obsolete failure"));
+    await session.flushCurrent("app-close");
+    expect(persist).toHaveBeenCalledTimes(2);
+    expect(persist).toHaveBeenLastCalledWith(expect.objectContaining({
+      content: "disk content plus new typing", baseVersion: "disk-v3",
+    }));
+    expect(source.snapshot().content).toBe("disk content plus new typing");
+    expect(session.getState()).toMatchObject({ storageVersion: "v4", error: null });
+    expect(session.hasUnpersistedChanges()).toBe(false);
+  });
+
+  it("initializes a remounted model from adopted disk content while retiring an obsolete save", async () => {
+    const write = deferred<{ ok: true; version: string }>();
+    const persist = vi.fn(() => write.promise);
+    const session = createSession(persist);
+    const first = bindSource(session, { revision: "r1", content: "one" });
+    first.change({ revision: "r2", content: "discarded input" });
+    await nextMicrotask();
+    first.detach();
+    session.reconcileExternalBaseline("disk content", "disk-v3");
+    const remounted = bindSource(session, { revision: "new:r1", content: "obsolete projection" });
+    expect(remounted.snapshot().content).toBe("disk content");
+    write.resolve({ ok: true, version: "v2" });
+    await session.flushCurrent("app-close");
+    expect(persist).toHaveBeenCalledTimes(1);
+    expect(session.getState()).toMatchObject({ status: "clean", storageVersion: "disk-v3", error: null });
+  });
+
+  it("waits for an obsolete dispatched save to retire before completing close without writing disk back", async () => {
+    const write = deferred<{ ok: true; version: string }>();
+    const persist = vi.fn(() => write.promise);
+    const session = createSession(persist);
+    const source = bindSource(session, { revision: "r1", content: "one" });
+    source.change({ revision: "r2", content: "discarded input" });
+    await nextMicrotask();
+    session.reconcileExternalBaseline("disk content", "disk-v3");
+    const closed = vi.fn();
+    const closing = session.flushCurrent("app-close").then(closed);
+    await nextMicrotask();
+    expect(closed).not.toHaveBeenCalled();
+    write.resolve({ ok: true, version: "v2" });
+    await closing;
+    expect(persist).toHaveBeenCalledTimes(1);
+    expect(source.snapshot().content).toBe("disk content");
   });
 
   it.each([
@@ -325,27 +472,26 @@ describe("DocumentEditingSession", () => {
     secondSource.detach();
   });
 
-  it("cancels a queued follow-up write when an external conflict arrives", async () => {
+  it("cancels queued old edits and ignores a late save acknowledgement after adopting disk", async () => {
     const first = deferred<{ ok: true; version: string }>();
     const persist = vi.fn(() => first.promise);
-    const session = createSession(persist);
+    const onPersisted = vi.fn();
+    const session = new DocumentEditingSession({
+      documentId: "notes.md", initialContent: "one", initialVersion: "v1", saveMode: "auto",
+      persistence: { kind: "local-fs", storageIdentity: "test:late-save", persist }, onPersisted,
+    });
     const source = bindSource(session, { revision: "r1", content: "one" });
     source.change({ revision: "r2", content: "two" });
     await nextMicrotask();
     source.change({ revision: "r3", content: "three" });
     await nextMicrotask();
-
-    expect(session.reconcileExternalBaseline("agent update", "agent-v2")).toBe("conflict");
+    expect(session.reconcileExternalBaseline("agent update", "agent-v2")).toBe("applied");
     first.resolve({ ok: true, version: "v2" });
-    await nextMicrotask();
-
+    await session.flushCurrent("document-switch");
     expect(persist).toHaveBeenCalledTimes(1);
-    expect(session.getState()).toMatchObject({
-      status: "conflict",
-      error: { code: "external-conflict" },
-    });
-    await expect(session.flushCurrent("document-switch"))
-      .rejects.toThrow("changed outside the editor");
+    expect(onPersisted).not.toHaveBeenCalled();
+    expect(source.snapshot().content).toBe("agent update");
+    expect(session.getState()).toMatchObject({ status: "clean", error: null, storageVersion: "agent-v2" });
   });
 
   it("surfaces a failed conditional write and keeps the dirty snapshot retryable", async () => {
@@ -368,59 +514,34 @@ describe("DocumentEditingSession", () => {
     expect(persist).toHaveBeenCalledTimes(2);
   });
 
-  it("turns a structured conditional-write conflict into a recoverable external conflict", async () => {
+  it("adopts the disk snapshot returned by a rejected conditional write", async () => {
     const persist = vi.fn(async () => ({
-      ok: false as const,
-      kind: "conflict" as const,
-      content: "agent version",
-      version: "agent-v2",
+      ok: false as const, kind: "conflict" as const, content: "agent version", version: "agent-v2",
     }));
     const session = createSession(persist, "manual");
     const source = bindSource(session, { revision: "r1", content: "one" });
     source.change({ revision: "r2", content: "human version" });
-
-    await expect(session.requestSave()).rejects.toThrow("changed outside the editor");
-    expect(session.getState()).toMatchObject({
-      status: "conflict",
-      error: { code: "external-conflict" },
-      storageVersion: "v1",
-    });
-    expect(source.snapshot().content).toBe("human version");
-
-    await session.resolveExternalConflict("reload-external");
+    await session.requestSave();
     expect(source.snapshot().content).toBe("agent version");
-    expect(session.getState()).toMatchObject({
-      status: "clean",
-      storageVersion: "agent-v2",
-    });
+    expect(session.getState()).toMatchObject({ status: "clean", storageVersion: "agent-v2", error: null });
+    expect(session.hasUnpersistedChanges()).toBe(false);
+    expect(persist).toHaveBeenCalledTimes(1);
   });
 
-  it("retries an explicitly kept local snapshot against the version returned by conditional-write conflict", async () => {
+  it("saves new typing against the adopted disk version without replaying discarded edits", async () => {
     const persist = vi.fn()
-      .mockResolvedValueOnce({
-        ok: false as const,
-        kind: "conflict" as const,
-        content: "agent version",
-        version: "agent-v2",
-      })
-      .mockResolvedValueOnce({ ok: true as const, version: "saved-v3" });
+      .mockResolvedValueOnce({ ok: false, kind: "conflict", content: "agent version", version: "agent-v2" })
+      .mockResolvedValueOnce({ ok: true, version: "saved-v3" });
     const session = createSession(persist, "manual");
     const source = bindSource(session, { revision: "r1", content: "one" });
-    source.change({ revision: "r2", content: "human version" });
-
-    await expect(session.requestSave()).rejects.toThrow("changed outside the editor");
-    await session.resolveExternalConflict("keep-local");
-
+    source.change({ revision: "r2", content: "discarded human version" });
+    await session.requestSave();
+    source.change({ revision: "r3", content: "agent version plus new input" });
+    await session.requestSave();
     expect(persist).toHaveBeenCalledTimes(2);
     expect(persist).toHaveBeenLastCalledWith(expect.objectContaining({
-      content: "human version",
-      baseVersion: "agent-v2",
-      reason: "manual",
+      content: "agent version plus new input", baseVersion: "agent-v2", reason: "manual",
     }));
-    expect(session.getState()).toMatchObject({
-      storageVersion: "saved-v3",
-      error: null,
-    });
     expect(session.hasUnpersistedChanges()).toBe(false);
   });
 

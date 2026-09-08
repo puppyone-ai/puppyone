@@ -17,6 +17,34 @@ afterEach(() => {
 });
 
 describe("Experimental settings", () => {
+  it("offers an off-by-default cross-Project switcher rail", () => {
+    const onChange = vi.fn();
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+
+    act(() => root?.render(withTestLocalization(
+      <ExperimentalSettingsView
+        settings={DEFAULT_EXPERIMENTAL_SETTINGS}
+        agentChatAvailable={false}
+        assetLibraryHomeAvailable={false}
+        onChange={onChange}
+      />,
+    )));
+
+    const toggle = host.querySelector<HTMLInputElement>(
+      'input[aria-label="Project switcher rail"]',
+    );
+    expect(toggle).not.toBeNull();
+    expect(toggle?.checked).toBe(false);
+
+    act(() => toggle?.click());
+    expect(onChange).toHaveBeenCalledWith({
+      ...DEFAULT_EXPERIMENTAL_SETTINGS,
+      enableProjectSwitcherRail: true,
+    });
+  });
+
   it("offers an off-by-default multi-project Workspace opt-in", () => {
     const onChange = vi.fn();
     const host = document.createElement("div");

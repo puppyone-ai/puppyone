@@ -44,7 +44,7 @@
   background: transparent;
   color: var(--po-text-subtle);
   font-family: var(--po-font-sans);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-weight: 650;
   line-height: 20px;
 }
@@ -61,7 +61,7 @@
   overflow: hidden;
   color: var(--po-text-subtle);
   font-family: var(--po-font-sans);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-weight: 650;
   line-height: 20px;
   text-overflow: ellipsis;
@@ -239,9 +239,9 @@
   background: color-mix(in srgb, var(--po-panel-raised) 92%, transparent);
   color: var(--po-text-muted);
   box-shadow: var(--po-shadow-sm);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   font-family: var(--po-font-sans);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-weight: 650;
   line-height: 22px;
 }
@@ -277,7 +277,7 @@
   background: color-mix(in srgb, var(--po-inset) 76%, transparent);
   color: color-mix(in srgb, var(--po-text) 84%, var(--po-text-muted));
   font-family: var(--po-font-mono);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 1.55;
   tab-size: 2;
   white-space: pre;
@@ -301,7 +301,7 @@
 }
 
 .markdown-codemirror-editor[data-readonly="false"] .cm-md-mermaid-preview {
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .markdown-codemirror-editor[data-readonly="false"] .cm-md-mermaid-body.is-editing .cm-md-mermaid-preview {
@@ -320,7 +320,7 @@
 
 .markdown-codemirror-editor .cm-md-mermaid-loading {
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
 }
 
 .markdown-codemirror-editor .cm-md-mermaid-deferred {
@@ -330,7 +330,7 @@
   justify-content: space-between;
   gap: 16px;
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
 }
 
 .markdown-codemirror-editor .cm-md-mermaid-error {
@@ -339,7 +339,7 @@
   border-radius: 5px;
   background: color-mix(in srgb, var(--po-danger) 8%, transparent);
   color: color-mix(in srgb, var(--po-danger) 58%, var(--po-text));
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 1.4;
 }
 
@@ -358,7 +358,7 @@
   background: color-mix(in srgb, var(--po-inset) 72%, transparent);
   color: var(--po-text-muted);
   font-family: var(--po-font-mono);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 1.5;
   text-align: left;
   white-space: pre;

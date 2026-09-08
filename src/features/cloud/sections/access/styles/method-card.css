@@ -53,9 +53,9 @@
 
 .desktop-cloud-access-method-icon {
   display: inline-flex;
-  width: 30px;
-  height: 30px;
-  flex: 0 0 30px;
+  width: var(--po-control-size);
+  height: var(--po-control-size);
+  flex: 0 0 var(--po-control-size);
   align-items: center;
   justify-content: center;
   overflow: hidden;
@@ -131,7 +131,7 @@
   margin: 0;
   color: var(--po-text);
   font-family: var(--po-font-sans);
-  font-size: 14px;
+  font-size: var(--po-type-ui-body-large, 15px);
   font-weight: 500;
   letter-spacing: 0;
   line-height: 18px;
@@ -141,7 +141,7 @@
 
 .desktop-cloud-access-method-title-line > span[aria-hidden="true"] {
   color: var(--po-text-disabled);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 16px;
 }
 
@@ -151,7 +151,7 @@
   align-items: center;
   gap: 6px;
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 500;
   line-height: 16px;
 }
@@ -172,7 +172,7 @@
   margin: 0;
   color: var(--po-text-muted);
   font-family: var(--po-font-sans);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 400;
   line-height: 18px;
 }
@@ -185,7 +185,7 @@
 .desktop-cloud-access-method-outline-button,
 .desktop-cloud-access-method-remote-button {
   display: inline-flex;
-  height: 30px;
+  height: var(--po-control-size);
   min-width: 132px;
   align-items: center;
   justify-content: center;
@@ -196,11 +196,11 @@
   background: transparent;
   color: var(--po-text-muted);
   font-family: var(--po-font-sans);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 500;
   line-height: 16px;
   white-space: nowrap;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
 }
 
@@ -253,7 +253,7 @@
   padding: 9px 10px 30px;
   color: color-mix(in srgb, var(--po-text) 58%, var(--po-text-muted) 42%);
   font-family: var(--po-font-mono);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 1.55;
   white-space: pre-wrap;
   word-break: break-word;
@@ -275,7 +275,7 @@
   top: 50%;
   left: 50%;
   display: inline-flex;
-  height: 32px;
+  height: var(--po-control-size);
   align-items: center;
   justify-content: center;
   gap: 8px;
@@ -285,12 +285,12 @@
   background: var(--po-text);
   color: var(--po-canvas);
   font-family: var(--po-font-sans);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 600;
   line-height: 1;
   white-space: nowrap;
   box-shadow: none;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transform: translate(-50%, -50%);
   transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease, opacity 0.14s ease;
 }
@@ -325,7 +325,7 @@
 .desktop-cloud-access-method-expanded-note {
   margin: 0;
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 18px;
 }
 

@@ -119,18 +119,18 @@ export function AppPreviewViewer({
         </div>
 
         <div className="app-preview-toolbar" aria-label={t("editor.app.controls")}>
-          <ToolbarButton active={mode === "preview"} label={t("editor.app.preview")} onClick={() => setMode("preview")}>
+          <ToolbarButton navigation active={mode === "preview"} label={t("editor.app.preview")} onClick={() => setMode("preview")}>
             <Eye size={14} strokeWidth={2} />
           </ToolbarButton>
-          <ToolbarButton active={mode === "source"} label={t("editor.app.manifestSource")} onClick={() => setMode("source")}>
+          <ToolbarButton navigation active={mode === "source"} label={t("editor.app.manifestSource")} onClick={() => setMode("source")}>
             <Code2 size={14} strokeWidth={2} />
           </ToolbarButton>
           {configured ? (
             <>
-              <ToolbarButton active={mode === "logs"} label={t("editor.app.runtimeLogs")} onClick={() => setMode("logs")}>
+              <ToolbarButton navigation active={mode === "logs"} label={t("editor.app.runtimeLogs")} onClick={() => setMode("logs")}>
                 <TerminalSquare size={14} strokeWidth={2} />
               </ToolbarButton>
-              <ToolbarButton active={mode === "settings"} label={t("editor.app.setup.settingsTitle")} onClick={() => setMode("settings")}>
+              <ToolbarButton navigation active={mode === "settings"} label={t("editor.app.setup.settingsTitle")} onClick={() => setMode("settings")}>
                 <Settings2 size={14} strokeWidth={2} />
               </ToolbarButton>
             </>
@@ -154,7 +154,7 @@ export function AppPreviewViewer({
               <ToolbarButton label={t("editor.app.stop")} disabled={!appPreview?.stop || (state.status !== "running" && state.status !== "starting")} onClick={() => void session.stop()}>
                 <Square size={13} strokeWidth={2} />
               </ToolbarButton>
-              <ToolbarButton label={t("editor.app.openBrowser")} disabled={!appPreview?.openExternal || !runningUrl} onClick={() => void appPreview?.openExternal?.(document.path)}>
+              <ToolbarButton navigation label={t("editor.app.openBrowser")} disabled={!appPreview?.openExternal || !runningUrl} onClick={() => void appPreview?.openExternal?.(document.path)}>
                 <ExternalLink size={14} strokeWidth={2} />
               </ToolbarButton>
             </>
@@ -243,12 +243,14 @@ export function AppPreviewViewer({
 
 function ToolbarButton({
   active = false,
+  navigation = false,
   label,
   disabled = false,
   onClick,
   children,
 }: {
   active?: boolean;
+  navigation?: boolean;
   label: string;
   disabled?: boolean;
   onClick: () => void;
@@ -257,6 +259,7 @@ function ToolbarButton({
   return (
     <button
       className={active ? "active" : ""}
+      data-po-interaction={navigation ? "navigation" : undefined}
       type="button"
       title={label}
       aria-label={label}

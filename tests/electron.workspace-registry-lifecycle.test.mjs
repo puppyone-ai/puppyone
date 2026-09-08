@@ -15,6 +15,16 @@ afterEach(async () => {
 });
 
 describe("workspace registry lifecycle", () => {
+  it("clears the last closed composition without deleting recents or another window's selection", async () => {
+    const store = createStore();
+    const folders = await createFolders("closed", 2);
+    await store.rememberWorkspaceComposition(folders.map(createWorkspace), { workbenchWorkspaceId: "current" });
+    await store.clearActiveWorkspaceComposition("old-window");
+    expect((await store.readLastActiveWorkspaceComposition()).paths).toHaveLength(2);
+    await store.clearActiveWorkspaceComposition("current");
+    expect((await store.readLastActiveWorkspaceComposition()).paths).toEqual([]);
+    expect((await store.getRecentWorkspacesResult()).items).toHaveLength(2);
+  });
   it("serializes concurrent multi-window mutations without losing records", async () => {
     const store = createStore();
     const folders = await Promise.all(Array.from({ length: 12 }, async (_, index) => {

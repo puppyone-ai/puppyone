@@ -1,30 +1,4 @@
-export const TERMINAL_TAB_MOVE_PREVIEW_CLASS = "desktop-terminal-tab-move-preview";
-
-export function createTerminalTabMovePreview(
-  source: HTMLElement,
-  label: string,
-  clientX: number,
-  clientY: number,
-): HTMLElement {
-  const doc = source.ownerDocument;
-  const preview = doc.createElement("div");
-  preview.className = TERMINAL_TAB_MOVE_PREVIEW_CLASS;
-  preview.setAttribute("aria-hidden", "true");
-  preview.textContent = label;
-  const overlayRoot = doc.getElementById("desktop-overlay-root");
-  (overlayRoot instanceof HTMLElement ? overlayRoot : doc.body).append(preview);
-  moveTerminalTabMovePreview(preview, clientX, clientY);
-  return preview;
-}
-
-export function moveTerminalTabMovePreview(
-  preview: HTMLElement,
-  clientX: number,
-  clientY: number,
-): void {
-  preview.style.transform = `translate3d(${clientX}px, ${clientY}px, 0) translate(-18px, 12px)`;
-}
-
-export function destroyTerminalTabMovePreview(preview: HTMLElement | null | undefined): void {
-  preview?.remove();
-}
+export { WORKBENCH_TAB_MOVE_PREVIEW_CLASS as TERMINAL_TAB_MOVE_PREVIEW_CLASS } from "../../app-shell/auxiliary-workbench/layout/interactions/workbenchTabMovePreview";
+export { createWorkbenchTabMovePreview as createTerminalTabMovePreview } from "../../app-shell/auxiliary-workbench/layout/interactions/workbenchTabMovePreview";
+export { moveWorkbenchTabMovePreview as moveTerminalTabMovePreview } from "../../app-shell/auxiliary-workbench/layout/interactions/workbenchTabMovePreview";
+export { destroyWorkbenchTabMovePreview as destroyTerminalTabMovePreview } from "../../app-shell/auxiliary-workbench/layout/interactions/workbenchTabMovePreview";

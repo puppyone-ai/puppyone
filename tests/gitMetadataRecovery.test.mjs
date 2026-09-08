@@ -64,6 +64,31 @@ describe("git metadata watch recovery", () => {
     vi.useRealTimers();
   });
 
+  it("detaches renderer lifecycle listeners when subscriptions stop", async () => {
+    const { fsModule } = createFakeFs();
+    const root = "/pending-root";
+    const service = createGitMetadataWatchService({
+      logger: { warn: () => {}, info: () => {} },
+      fsModule,
+      resolveIdentity: async () => nonRepo(root),
+    });
+    const sender = new EventEmitter();
+    Object.assign(sender, {
+      id: 9,
+      isDestroyed: () => false,
+      send: () => {},
+    });
+
+    for (let index = 0; index < 12; index += 1) {
+      const subscription = await service.start(sender, root);
+      expect(sender.listenerCount("destroyed")).toBe(1);
+      service.stop(subscription.subscriptionId);
+      expect(sender.listenerCount("destroyed")).toBe(0);
+    }
+
+    service.closeAll();
+  });
+
   it("recreates a shared common-dir watcher after error instead of reusing the dead handle", async () => {
     vi.useFakeTimers();
     const { fsModule, watchCalls } = createFakeFs();

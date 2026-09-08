@@ -8,8 +8,6 @@ import type { AgentControllerState } from "./agent-controller-state";
 import { AgentKnownError, createAgentError, formatAgentError } from "./agent-error";
 import type { AgentReferenceDraftManager } from "./AgentReferenceDraftManager";
 
-const MAX_QUEUED_PROMPTS = 20;
-
 type AgentTurnSubmissionCoordinatorOptions = {
   workspaceRoot: string;
   bridgeProvider: AgentClientProvider;
@@ -22,11 +20,24 @@ type AgentTurnSubmissionCoordinatorOptions = {
 
 /** Captures and advances immutable prompt/configuration/reference intents. */
 export class AgentTurnSubmissionCoordinator {
-  private queuedIntents: AgentSubmissionIntent[] = [];
+  private activeIntentId: string | null = null;
+  private disposed = false;
 
   constructor(private readonly options: AgentTurnSubmissionCoordinatorOptions) {}
 
+  /** Detach local receipts when the owning conversation is replaced. */
+  invalidate() {
+    this.activeIntentId = null;
+    this.options.patch({ submitting: false, pendingIntent: null, pendingPrompt: null });
+  }
+
+  dispose() {
+    this.disposed = true;
+    this.activeIntentId = null;
+  }
+
   async submit(prompt: string) {
+    if (this.disposed || this.activeIntentId) return false;
     const bridge = this.requireBridge("startAgentTurn");
     const state = this.options.readState();
     const normalized = normalizeSubmissionDraft(prompt, state.draftMentions);
@@ -57,74 +68,27 @@ export class AgentTurnSubmissionCoordinator {
         this.options.patch({ error: createAgentError("steer-references-unsupported") });
         return false;
       }
-      try {
-        await bridge.steerAgentTurn({
+      return this.dispatchIntent(intent, async (sessionId) => {
+        await bridge.steerAgentTurn!({
           rootPath: this.options.workspaceRoot,
-          sessionId: state.session.id,
+          sessionId,
+          commandId: intent.id,
           turnId: activeTurnId,
+          ...commandPreconditions(state),
           message: text,
           referenceEpoch: intent.referenceEpoch,
           references: intent.references,
           promptMentions: intent.promptMentions,
         });
-        this.options.references.releasePreviews(intent.references);
-        this.options.patch({ draft: "", draftMentions: [], references: [], error: null });
-        this.options.writeDraft("", []);
-        return true;
-      } catch (error) {
-        this.options.patch({ error: formatAgentError(error) });
-        return false;
-      }
+      });
     }
-    if (activeTurnId && state.inspection?.capabilities?.queue) {
-      if (this.queuedIntents.length >= MAX_QUEUED_PROMPTS) {
-        this.options.patch({ error: createAgentError("prompt-queue-full", { limit: MAX_QUEUED_PROMPTS }) });
-        return false;
-      }
-      this.queuedIntents.push(intent);
-      this.options.patch({ draft: "", draftMentions: [], references: [], error: null });
-      this.options.writeDraft("", []);
-      return true;
-    }
-    if (activeTurnId) return false;
-    return this.startIntent(intent, true);
-  }
-
-  drainQueuedIntent = () => {
-    const state = this.options.readState();
-    if (state.projection.runningTurnId || state.pendingIntent || this.queuedIntents.length === 0) return;
-    const intent = this.queuedIntents.shift();
-    if (intent) queueMicrotask(() => { void this.startIntent(intent, false); });
-  };
-
-  ownedReferences() {
-    return this.queuedIntents.flatMap((intent) => intent.references);
-  }
-
-  clearQueue() {
-    this.queuedIntents = [];
-  }
-
-  private async startIntent(intent: AgentSubmissionIntent, captureCurrentDraft: boolean) {
-    const bridge = this.requireBridge("startAgentTurn");
-    this.options.patch({
-      submitting: true,
-      pendingPrompt: intent.prompt,
-      pendingIntent: intent,
-      ...(captureCurrentDraft ? { draft: "", draftMentions: [], references: [] } : {}),
-      error: null,
-    });
-    if (captureCurrentDraft) this.options.writeDraft("", []);
-    try {
-      let session = this.options.readState().session;
-      if (!session) {
-        const prepared = await this.options.prepareSession();
-        session = this.options.readState().session;
-        if (!prepared || !session) return this.restorePreparationFailure(intent, captureCurrentDraft);
-      }
+    if (activeTurnId && !state.inspection?.capabilities?.queue) return false;
+    return this.dispatchIntent(intent, async (sessionId) => {
       await bridge.startAgentTurn({
         rootPath: this.options.workspaceRoot,
-        sessionId: session.id,
+        sessionId,
+        commandId: intent.id,
+        ...commandPreconditions(this.options.readState()),
         prompt: intent.prompt,
         model: intent.model,
         effort: intent.effort,
@@ -133,72 +97,78 @@ export class AgentTurnSubmissionCoordinator {
         references: intent.references,
         promptMentions: intent.promptMentions,
       });
-      this.options.references.releasePreviews(intent.references);
-      this.options.patch({ phase: "running" });
+    });
+  }
+
+  private async dispatchIntent(intent: AgentSubmissionIntent, dispatch: (sessionId: string) => Promise<void>) {
+    this.activeIntentId = intent.id;
+    let sessionId = this.options.readState().session?.id ?? null;
+    const isCurrent = () => !this.disposed && this.activeIntentId === intent.id
+      && this.options.references.referenceEpoch === intent.referenceEpoch
+      && (!sessionId || this.options.readState().session?.id === sessionId);
+    this.options.patch({
+      submitting: true,
+      pendingPrompt: intent.prompt,
+      pendingIntent: intent,
+      draft: "", draftMentions: [], references: [],
+      error: null,
+    });
+    this.options.writeDraft("", []);
+    try {
+      if (!sessionId) {
+        const prepared = await this.options.prepareSession();
+        if (!isCurrent()) return false;
+        sessionId = this.options.readState().session?.id ?? null;
+        if (!prepared || !sessionId) {
+          this.restoreDraft(intent, this.options.readState().error ?? createAgentError("session-prepare-failed"));
+          return false;
+        }
+      }
+      await dispatch(sessionId);
+      if (!isCurrent()) return false;
+      this.releaseSubmittedPreviews(intent);
+      // The request result is a delivery acknowledgement, not execution
+      // authority. turn.started/terminal facts alone drive the visible phase.
       return true;
     } catch (error) {
-      const accepted = Boolean(this.options.readState().projection.runningTurnId);
-      if (accepted) this.options.references.releasePreviews(intent.references);
-      if (!captureCurrentDraft && !accepted) {
-        const state = this.options.readState();
-        const restored = mergeFailedDraft(intent, state.draft, state.draftMentions);
-        this.options.patch({
-          pendingPrompt: null,
-          pendingIntent: null,
-          draft: restored.prompt,
-          draftMentions: restored.mentions,
-          references: this.options.references.mergeAndValidate(intent.references, state.references),
-          error: formatAgentError(error),
-        });
-        this.options.writeDraft(restored.prompt, restored.mentions);
-        return false;
+      if (!isCurrent()) return false;
+      const observed = this.options.readState();
+      const command = observed.control?.commands.find(entry => entry.commandId === intent.id);
+      // A visible input proves local admission, not native delivery. Only Main's
+      // delivery state determines whether a failed request may restore the draft.
+      const accepted = Boolean(command && ["queued", "dispatching", "accepted", "outcome-unknown"].includes(command.status));
+      if (accepted) {
+        this.releaseSubmittedPreviews(intent);
+        this.options.patch({ error: formatAgentError(error) });
+      } else {
+        this.restoreDraft(intent, formatAgentError(error));
       }
-      const state = this.options.readState();
-      const restored = mergeFailedDraft(intent, state.draft, state.draftMentions);
-      this.options.patch({
-        pendingPrompt: null,
-        pendingIntent: null,
-        ...(accepted ? {} : {
-          draft: restored.prompt,
-          draftMentions: restored.mentions,
-          references: this.options.references.mergeAndValidate(intent.references, state.references),
-        }),
-        error: formatAgentError(error),
-      });
-      if (!accepted) this.options.writeDraft(restored.prompt, restored.mentions);
       return false;
     } finally {
-      this.options.patch({ submitting: false });
+      // Local ownership, rather than the optional presentation field, releases
+      // the lock even after preparation fails without creating a Main session.
+      if (!this.disposed && this.activeIntentId === intent.id) {
+        this.activeIntentId = null;
+        this.options.patch({ submitting: false, pendingIntent: null, pendingPrompt: null });
+      }
     }
   }
 
-  private restorePreparationFailure(intent: AgentSubmissionIntent, captureCurrentDraft: boolean) {
+  private releaseSubmittedPreviews(intent: AgentSubmissionIntent) {
+    const retainedIds = new Set(this.options.readState().references.map(reference => reference.id));
+    this.options.references.releasePreviews(intent.references.filter(reference => !retainedIds.has(reference.id)));
+  }
+
+  private restoreDraft(intent: AgentSubmissionIntent, error: AgentControllerState["error"]) {
     const state = this.options.readState();
-    const preparationError = state.error ?? createAgentError("session-prepare-failed");
-    if (!captureCurrentDraft) {
-      const restored = mergeFailedDraft(intent, state.draft, state.draftMentions);
-      this.options.patch({
-        pendingPrompt: null,
-        pendingIntent: null,
-        draft: restored.prompt,
-        draftMentions: restored.mentions,
-        references: this.options.references.mergeAndValidate(intent.references, state.references),
-        error: preparationError,
-      });
-      this.options.writeDraft(restored.prompt, restored.mentions);
-      return false;
-    }
     const restored = mergeFailedDraft(intent, state.draft, state.draftMentions);
     this.options.patch({
-      pendingPrompt: null,
-      pendingIntent: null,
       draft: restored.prompt,
       draftMentions: restored.mentions,
       references: this.options.references.mergeAndValidate(intent.references, state.references),
-      error: preparationError,
+      error,
     });
     this.options.writeDraft(restored.prompt, restored.mentions);
-    return false;
   }
 
   private requireBridge<K extends keyof AgentClientPort>(...methods: K[]): AgentClientPort {
@@ -208,6 +178,16 @@ export class AgentTurnSubmissionCoordinator {
     }
     return bridge;
   }
+}
+
+function commandPreconditions(state: AgentControllerState) {
+  const control = state.control;
+  if (!control) return {};
+  return {
+    expectedSessionEpoch: control.sessionEpoch,
+    expectedAdapterGeneration: control.adapterGeneration,
+    expectedRunGeneration: control.runGeneration,
+  };
 }
 
 function createSubmissionIntent({
@@ -254,6 +234,7 @@ function mergeFailedDraft(
   currentPrompt: string,
   currentMentions: AgentPromptReferenceMention[],
 ) {
+  if (!failed.prompt) return { prompt: currentPrompt, mentions: currentMentions };
   if (!currentPrompt) return { prompt: failed.prompt, mentions: failed.promptMentions.map((mention) => ({ ...mention })) };
   if (currentPrompt === failed.prompt) return { prompt: currentPrompt, mentions: currentMentions };
   const separator = "\n\n";
@@ -270,5 +251,3 @@ function mergeFailedDraft(
     ],
   };
 }
-
-export const agentTurnSubmissionLimits = Object.freeze({ maxQueuedPrompts: MAX_QUEUED_PROMPTS });

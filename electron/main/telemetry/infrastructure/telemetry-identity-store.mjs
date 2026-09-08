@@ -24,16 +24,38 @@ export function createTelemetryIdentityStore({
     return cachedSecret;
   }
 
+  async function readStoredSecret() {
+    if (cachedSecret) return cachedSecret;
+    const stored = await file.read();
+    if (stored?.version !== IDENTITY_VERSION || !SECRET_PATTERN.test(stored.secret ?? "")) {
+      return null;
+    }
+    cachedSecret = stored.secret;
+    return cachedSecret;
+  }
+
+  async function deriveAnonymousId(prefix, scope) {
+    const secret = await readOrCreateSecret();
+    const digest = createHmac("sha256", Buffer.from(secret, "base64url"))
+      .update(scope)
+      .digest("base64url");
+    return `${prefix}_${digest}`;
+  }
+
   return Object.freeze({
+    async hasStoredIdentity() {
+      return Boolean(await readStoredSecret());
+    },
+
     async getMonthlyAnonymousId(value) {
       const date = value instanceof Date ? value : new Date(value);
       if (!Number.isFinite(date.getTime())) throw new TypeError("A valid identity period is required.");
       const period = date.toISOString().slice(0, 7);
-      const secret = await readOrCreateSecret();
-      const digest = createHmac("sha256", Buffer.from(secret, "base64url"))
-        .update(`puppyone-desktop-telemetry:${period}`)
-        .digest("base64url");
-      return `m1_${digest}`;
+      return deriveAnonymousId("m1", `puppyone-desktop-telemetry:${period}`);
+    },
+
+    async getRetentionAnonymousId() {
+      return deriveAnonymousId("r1", "puppyone-desktop-retention:v1");
     },
 
     async clear() {

@@ -1,4 +1,10 @@
 {
+  "projectSessions.sessionCloseFailed": "Não foi possível fechar esta sessão. Tente novamente.",
+  "projectSessions.closing": "Fechando este projeto…",
+  "projectSessions.closeFailed": "Não foi possível parar algumas tarefas do projeto.",
+  "projectSessions.retryClose": "Tentar fechar novamente",
+  "drag.exportHint": "Arraste para uma pasta, Terminal, Agent ou outro aplicativo.",
+  "drag.exportFailed": "Não foi possível concluir a operação. Verifique se a origem e o destino estão disponíveis e se o destino aceita esta operação.",
   "restoring.ariaLabel": "Abrindo o último projeto",
   "restoring.message": "Abrindo o último projeto…",
   "viewerPack.rootUnavailable": "A raiz do espaço de trabalho não está disponível para ativar o Viewer Pack.",

@@ -204,6 +204,15 @@ function createHarness(readiness) {
     service: createAgentService({
       runtimeRegistry: registry,
       persistence,
+      conversationCatalog: {
+        list: async () => [],
+        getRevision: async () => 0,
+        getCoverage: async () => ({ truncated: false, capacity: 500, retained: 0 }),
+        applyNativePage: async ({ entries }) => {
+          await Promise.all(entries.map((entry) => persistence.upsertNative(entry)));
+          return { indexed: entries.length, truncated: false };
+        },
+      },
       logger: { warn: vi.fn() },
     }),
   };
@@ -243,7 +252,8 @@ function fakeAcpAdapter({ onExit = () => {} } = {}) {
   };
   adapter.getSessionHistoryPort = () => ({
     discover: (request) => adapter.discoverSessions(request),
-    hydrate: () => adapter.readHistory(),
+    sourceScopeId: "default",
+    hydrate: async () => ({ events: await adapter.readHistory(), coverage: "unknown", providerSessionId: adapter.bootstrapSession.mock.calls.at(-1)?.[0].threadId ?? "cursor-session" }),
   });
   return adapter;
 }

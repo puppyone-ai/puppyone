@@ -93,7 +93,7 @@
 .desktop-cloud-overview-settings-button {
   display: inline-flex;
   width: 26px;
-  height: 26px;
+  height: var(--po-control-size-small);
   flex: 0 0 26px;
   align-items: center;
   justify-content: center;
@@ -102,7 +102,7 @@
   border-radius: 6px;
   background: transparent;
   color: var(--po-text-muted);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 

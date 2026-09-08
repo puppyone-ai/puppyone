@@ -48,13 +48,27 @@ export function normalizeCapabilitySnapshot(value = {}) {
   const protocol = normalizeCapabilityProtocol(source.protocol);
   const constraints = normalizeCapabilityConstraints(source.constraints);
   const history = normalizeSessionHistoryCapabilities(source.history);
+  const recovery = normalizeNativeRecoveryCapabilities(source.recovery);
   return {
     ...Object.fromEntries(AGENT_RUNTIME_CAPABILITIES.map((capability) => [capability, source[capability] === true])),
     ...(revision ? { revision } : {}),
     ...(protocol ? { protocol } : {}),
     ...(constraints ? { constraints } : {}),
     ...(history ? { history } : {}),
+    ...(recovery ? { recovery } : {}),
     referenceInputs: normalizeReferenceInputCapabilities(source.referenceInputs, source),
+  };
+}
+
+function normalizeNativeRecoveryCapabilities(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const strategies = new Set(["unsupported", "cursor-replay", "snapshot-reload", "object-reconciliation"]);
+  const activeExecution = new Set(["confirmed", "outcome-unknown"]);
+  if (!strategies.has(value.strategy) || !activeExecution.has(value.activeExecution)) return null;
+  return {
+    strategy: value.strategy,
+    activeExecution: value.activeExecution,
+    atomicHandoff: value.atomicHandoff === true,
   };
 }
 
@@ -119,6 +133,7 @@ export function normalizeReferenceInputCapabilities(value, legacy = {}) {
   return {
     schemaVersion: 1,
     workspace: {
+      ...(workspace.crossRoots === true ? { crossRoots: true } : {}),
       files: workspace.files === true
         || (workspace.files === undefined && (source.workspaceFiles === true || (source.workspaceFiles === undefined && legacyContext))),
       directories: workspace.directories === true

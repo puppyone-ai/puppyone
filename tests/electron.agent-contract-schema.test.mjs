@@ -11,12 +11,13 @@ import {
   assertAgentRuntimeCapabilities,
   normalizeReferenceInputCapabilities,
   parseAgentIpcRequest,
+  sanitizeAgentEventEnvelope,
 } from "../shared/agent-contract/schema.mjs";
 
 describe("shared Agent contract", () => {
   it("keeps runtime constants synchronized with the TypeScript contract", () => {
     const source = readFileSync(new URL("../shared/agent-contract/types.ts", import.meta.url), "utf8");
-    expect(typeLiterals(source, "AgentEventType", "AgentEventPayloadBase")).toEqual([...AGENT_EVENT_TYPES]);
+    expect(typeLiterals(source, "AgentEventType", "AgentCanonicalToolResult")).toEqual([...AGENT_EVENT_TYPES]);
     expect(typeLiterals(source, "AgentReadinessCode", "AgentRuntimeDescriptor")).toEqual([...AGENT_READINESS_CODES]);
     expect(typeLiterals(source, "AgentSessionOpenErrorCode", "AgentSessionOpenResult"))
       .toEqual([...AGENT_SESSION_OPEN_ERROR_CODES]);
@@ -96,6 +97,26 @@ describe("shared Agent contract", () => {
       requestId: "r",
       decision: "always-and-never-ask",
     })).toThrow(/Invalid Agent contract.*decision/i);
+    expect(parseAgentIpcRequest("agent:command-dispatch", {
+      kind: "interrupt",
+      rootPath: "/workspace",
+      sessionId: "session-1",
+      turnId: "turn-2",
+      commandId: "command-2",
+      expectedSessionEpoch: "epoch-1",
+      expectedAdapterGeneration: 3,
+      expectedRunGeneration: 7,
+      nativeHandle: "must-not-cross",
+    })).toEqual({
+      kind: "interrupt",
+      rootPath: "/workspace",
+      sessionId: "session-1",
+      turnId: "turn-2",
+      commandId: "command-2",
+      expectedSessionEpoch: "epoch-1",
+      expectedAdapterGeneration: 3,
+      expectedRunGeneration: 7,
+    });
   });
 
   it("rejects malformed main-to-renderer responses and blocking events", () => {
@@ -145,6 +166,16 @@ describe("shared Agent contract", () => {
     })).toThrow(/workspaceRoot/i);
     expect(() => assertAgentEventEnvelope(event("approval.requested", {}))).toThrow(/requestId/i);
     expect(assertAgentEventEnvelope(event("assistant.delta", { delta: "safe" }))).toBeTruthy();
+    expect(assertAgentEventEnvelope(event("user.message", { text: "follow up" }))).toBeTruthy();
+    expect(() => assertAgentEventEnvelope(event("user.message", {}))).toThrow(/user\.message.*text/i);
+    expect(assertAgentEventEnvelope(event("provider.connection.updated", {
+      state: "reconnecting",
+      attempt: 2,
+      maxAttempts: 5,
+    }))).toBeTruthy();
+    expect(() => assertAgentEventEnvelope(event("provider.connection.updated", {
+      state: "maybe",
+    }))).toThrow(/connection\.updated.*state/i);
     const referenceDisplay = { id: "ref-1", kind: "attachment", displayName: "capture.png", mime: "image/png", size: 3 };
     expect(assertAgentEventEnvelope(event("turn.started", { referenceDisplays: [referenceDisplay] }))).toBeTruthy();
     expect(assertAgentEventEnvelope(event("turn.started", {
@@ -176,6 +207,21 @@ describe("shared Agent contract", () => {
       capabilities: {},
       warnings: [],
     })).toThrow(/incompatible with status/i);
+  });
+
+  it("keeps canonical content fields and strips unknown native provenance", () => {
+    const sanitized = sanitizeAgentEventEnvelope(event("tool.completed", {
+      kind: "mcp",
+      result: {
+        content: [{ type: "text", text: "visible result" }],
+        error: null,
+        success: true,
+        truncated: false,
+      },
+      nativePrivateTrace: { token: "must-not-cross" },
+    }));
+    expect(sanitized.payload.result.content[0].text).toBe("visible result");
+    expect(sanitized.payload).not.toHaveProperty("nativePrivateTrace");
   });
 
   it("bounds native history discovery and strips transcript-shaped list fields", () => {

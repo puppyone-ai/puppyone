@@ -1,0 +1,22 @@
+/*
+ * Canonical application control geometry.
+ *
+ * Keep these primitives in shared-ui so editors, file trees, fixtures, and
+ * embedded surfaces receive the same contract even when they are mounted
+ * without the desktop application's stylesheet entry point.
+ */
+:root {
+  /* Product default is the Medium application scale. */
+  --po-control-size: 32px;
+}
+
+:root,
+:where([data-po-appearance-root]) {
+  --po-control-size-micro: calc(var(--po-control-size) - 12px);
+  --po-control-size-mini: calc(var(--po-control-size) - 10px);
+  --po-control-size-tight: calc(var(--po-control-size) - 8px);
+  --po-control-size-small: calc(var(--po-control-size) - 6px);
+  --po-control-size-compact: calc(var(--po-control-size) - 4px);
+  --po-control-size-large: calc(var(--po-control-size) + 2px);
+  --po-control-size-roomy: calc(var(--po-control-size) + 4px);
+}

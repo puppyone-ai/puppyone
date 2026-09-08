@@ -315,7 +315,7 @@
   border-radius: var(--desktop-toolbar-action-radius);
   background: transparent;
   color: var(--desktop-titlebar-text-muted, var(--po-text-muted));
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transition: background 0.1s ease, color 0.1s ease;
 }
 
@@ -355,7 +355,7 @@
   place-items: center;
   background: var(--po-editor-bg);
   color: var(--po-text-subtle);
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   font-weight: 500;
   line-height: 18px;
   text-align: center;

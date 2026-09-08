@@ -20,8 +20,8 @@
 
 .desktop-agent-activity-permission-preview > span {
   display: grid;
-  width: 30px;
-  height: 30px;
+  width: var(--po-control-size);
+  height: var(--po-control-size);
   place-items: center;
   border: 1px solid color-mix(in srgb, var(--po-accent) 28%, var(--po-border));
   border-radius: 999px;
@@ -59,7 +59,7 @@
 
 .desktop-agent-activity-permission-access strong {
   color: var(--po-text);
-  font-size: 12.5px;
+  font-size: var(--po-text-size-label, 13px);
   font-weight: 650;
 }
 

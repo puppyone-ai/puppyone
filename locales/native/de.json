@@ -1,4 +1,7 @@
 {
+  "native.projectClose.quitDetail": "Die App bleibt geöffnet. Versuche erneut, sie zu beenden, um diese Aufgaben zu stoppen.",
+  "native.projectClose.message": "Einige Projektaufgaben wurden noch nicht beendet.",
+  "native.projectClose.detail": "Das Fenster bleibt geöffnet. Versuche erneut, es zu schließen, um diese Aufgaben zu beenden.",
   "native.messageUnavailable": "Dieser Text ist nicht verfügbar.",
   "native.dock.newWindow": "Neues Fenster",
   "native.menu.file": "Datei",

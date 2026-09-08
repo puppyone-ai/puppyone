@@ -1,3 +1,4 @@
+@import "@puppyone/shared-ui/control-geometry.css" layer(tokens);
 @import "./styles/typography/foundations.css" layer(tokens);
 @import "./styles/typography/locales.css" layer(tokens);
 @import "./styles/typography/roles.css" layer(tokens);
@@ -15,6 +16,7 @@
 @import "./styles/window-chrome.css" layer(features);
 @import "./styles/titlebar.css" layer(features);
 @import "./features/app-shell/header-editor-columns.css" layer(features);
+@import "./features/app-shell/project-switcher-rail.css" layer(features);
 @import "./features/editor-workbench/layout/desktop-editor-split-view.css" layer(features);
 @import "./styles/dialogs.css" layer(features);
 @import "./features/app-shell/empty-workspace-onboarding.css" layer(features);

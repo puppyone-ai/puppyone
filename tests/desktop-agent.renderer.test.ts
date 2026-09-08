@@ -1,15 +1,19 @@
+import { finalizeDisplay } from "./helpers/agentDisplayFixture";
+import { agentFileChangeFixture, fileChangeRuntimeIds } from "./helpers/agentFileChangeFixture.mjs";
+import { AgentSessionActor } from "../electron/main/agent/domain/agent-session-actor.mjs";
 /**
  * @vitest-environment happy-dom
  */
 import React from "react";
+import { EditorView } from "@codemirror/view";
 import { readFileSync } from "node:fs";
 import { createRoot, type Root } from "react-dom/client";
 import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AgentApprovalDock } from "../src/features/desktop-agent/ui/AgentApprovalDock";
-import { AgentChangesControl, summarizeAgentChanges } from "../src/features/desktop-agent/ui/AgentChangesControl";
 import { AgentComposer } from "../src/features/desktop-agent/ui/AgentComposer";
 import { AgentEmptyState } from "../src/features/desktop-agent/ui/AgentEmptyState";
+import { AgentMessagePart } from "../src/features/desktop-agent/ui/AgentMessagePart";
 import { AgentPanelLayout } from "../src/features/desktop-agent/ui/AgentPanelLayout";
 import { AgentPanelStatus } from "../src/features/desktop-agent/ui/AgentPanelStatus";
 import { AgentPickerPopover } from "../src/features/desktop-agent/ui/AgentPickerPopover";
@@ -22,11 +26,12 @@ import {
   agentSubmissionStatusLabel,
   shouldShowAgentThinking,
 } from "../src/features/desktop-agent/ui/AgentTranscript";
+import { agentRunActiveElapsedMs } from "../src/features/desktop-agent/ui/useAgentRunActiveElapsed";
 import { registerAgentToolRenderer } from "../src/features/desktop-agent/ui/AgentToolRendererRegistry";
 import { registerAgentPartRenderer } from "../src/features/desktop-agent/ui/AgentPartRenderer";
 import { agentToolEvidenceLimits } from "../src/features/desktop-agent/domain/agent-tool-evidence";
 import { resolveAnchoredOverlayPosition } from "../src/features/app-shell/useAnchoredOverlayPosition";
-import { applyAgentEvents, createAgentProjection } from "../src/features/desktop-agent/agentProjection";
+import { applyAgentEvents, createAgentProjection } from "./helpers/agentDisplayFixture";
 import {
   listAgentRuntimes,
   listEnabledAgentRuntimes,
@@ -42,6 +47,7 @@ let root: Root | null = null;
 afterEach(() => {
   act(() => root?.unmount());
   root = null;
+  vi.useRealTimers();
   document.body.innerHTML = "";
   document.head.querySelectorAll("style[data-agent-layout-test]").forEach((node) => node.remove());
 });
@@ -83,6 +89,47 @@ function modelSessionControl(models: Array<{ model: string; displayName: string;
 }
 
 describe("Desktop Agent renderer surfaces", () => {
+  it.each(["queued", "outcome-unknown", "rejected", "cancelled"] as const)("keeps %s delivery information readable without the old corner footer", (deliveryStatus) => {
+    const container = render(React.createElement(AgentMessagePart, {
+      runtimeLabel: "Codex",
+      part: { id: "user", kind: "user", text: "My prompt", turnId: null, itemId: null,
+        sequence: 1, streaming: false, terminalState: null, deliveryStatus },
+    }));
+    expect(container.querySelector('[role="status"]')?.textContent?.trim()).toBeTruthy();
+    expect(container.querySelector('.desktop-agent-queued-submission-status')).toBeNull();
+    expect(container.textContent).toContain("My prompt");
+    expect(container.textContent).not.toContain("Sending");
+  });
+
+  it('renders the same Main user part through admission, echo and completion without a duplicate bubble', () => {
+    const actor = new AgentSessionActor();
+    actor.dispatch({type:'command.received',command:{commandId:'one',operationId:'operation',kind:'start',status:'dispatching',userMessageId:'client',intentFingerprint:'fingerprint',intent:{prompt:'Hello once',promptMentions:[],referenceDisplays:[],model:null,effort:null,mode:null}}});
+    const container = render(React.createElement(AgentTranscript,{projection:actor.display,loading:false}));
+    expect(container.querySelectorAll('.desktop-agent-message.is-user')).toHaveLength(1);
+    expect(container.textContent).toBe('Hello once');
+    expect(container.querySelector('.desktop-agent-message.is-user [role="status"]')).toBeNull();
+    for (const event of [
+      {type:'turn.started',payload:{userMessageId:'client',submissionId:'one'}},
+      {type:'user.message',itemId:'native',payload:{clientUserMessageId:'client',text:'Native compiled input'}},
+      {type:'turn.completed',payload:{}},
+    ]) {
+      actor.appendEvent({sessionId:'session',runtimeId:'codex',event:{...event,turnId:'turn'}});
+      act(()=>root?.render(withTestLocalization(React.createElement(AgentTranscript,{projection:actor.display,loading:false}))));
+      expect(container.querySelectorAll('.desktop-agent-message.is-user')).toHaveLength(1);
+      expect(container.textContent).toContain('Hello once');
+      expect(container.textContent).not.toContain('Native compiled input');
+      expect(container.querySelector('.desktop-agent-message.is-user [role="status"]')).toBeNull();
+    }
+    expect(container.textContent).not.toContain('Sending');
+  });
+
+  it('discloses partial reply content without pretending the native turn failed', () => {
+    const actor = new AgentSessionActor();
+    actor.appendEvent({sessionId:'session',runtimeId:'codex',event:{type:'assistant.completed',turnId:'turn',itemId:'answer',payload:{text:'Visible prefix',truncated:true}}});
+    const container = render(React.createElement(AgentTranscript,{projection:actor.display,loading:false}));
+    expect(container.textContent).toContain('Only part of this reply is available in this view.');
+    expect(container.querySelector('.desktop-agent-message-state.is-failed')).toBeNull();
+  });
   it.each([
     [
       "explicit sign-out",
@@ -193,9 +240,12 @@ describe("Desktop Agent renderer surfaces", () => {
   it("renders the structural regions and applies the real layout CSS contract", () => {
     const style = document.createElement("style");
     style.dataset.agentLayoutTest = "true";
-    style.textContent = ["theme.css", "foundation.css", "composer.css", "pickers.css"]
-      .map((file) => readFileSync(`${process.cwd()}/src/features/desktop-agent/ui/styles/${file}`, "utf8"))
-      .join("\n");
+    style.textContent = [
+      readFileSync(`${process.cwd()}/packages/shared-ui/src/styles/control-geometry.css`, "utf8"),
+      readFileSync(`${process.cwd()}/src/styles/tokens.css`, "utf8"),
+      ...["theme.css", "foundation.css", "composer.css", "pickers.css"]
+        .map((file) => readFileSync(`${process.cwd()}/src/features/desktop-agent/ui/styles/${file}`, "utf8")),
+    ].join("\n");
     document.head.appendChild(style);
 
     const container = render(React.createElement(AgentPanelLayout, {
@@ -251,10 +301,10 @@ describe("Desktop Agent renderer surfaces", () => {
     const sendControl = container.querySelector('button[aria-label="Send message"]') as HTMLElement;
     const composerSurface = container.querySelector(".desktop-agent-composer") as HTMLElement;
     const promptEditor = container.querySelector(".cm-content") as HTMLElement;
-    expect(window.getComputedStyle(providerControl).height).toBe("26px");
-    expect(window.getComputedStyle(sendControl).width).toBe("30px");
-    expect(window.getComputedStyle(sendControl).height).toBe("30px");
-    expect(window.getComputedStyle(modelControl).height).toBe("30px");
+    expect(window.getComputedStyle(providerControl).height).toBe("calc(32px - 6px)");
+    expect(window.getComputedStyle(sendControl).width).toBe("32px");
+    expect(window.getComputedStyle(sendControl).height).toBe("32px");
+    expect(window.getComputedStyle(modelControl).height).toBe("32px");
     expect(window.getComputedStyle(composerSurface).cursor).not.toBe("text");
     expect(window.getComputedStyle(promptEditor).cursor).toBe("text");
   });
@@ -305,6 +355,64 @@ describe("Desktop Agent renderer surfaces", () => {
 
     act(() => sendControl.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 0 })));
     expect(document.activeElement).toBe(sendControl);
+  });
+
+  it.each([false, true])("leaves early IME Enter to native composition (shift=%s)", (shiftKey) => {
+    const onSubmit = vi.fn(async () => true);
+    const onDraftChange = vi.fn();
+    const container = render(React.createElement(AgentComposer, {
+      draft: "正在输入", onDraftChange, disabled: false, running: false,
+      stopping: false, submitting: false, onSubmit, onStop: vi.fn(),
+    }));
+    const content = container.querySelector<HTMLElement>(".cm-content")!;
+    const view = EditorView.findFromDOM(content)!;
+    const confirm = new KeyboardEvent("keydown", {
+      key: "Enter", code: "Enter", keyCode: 13, isComposing: true, shiftKey, bubbles: true, cancelable: true,
+    });
+    act(() => {
+      content.focus();
+      content.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true, data: "你" }));
+      expect(view.compositionStarted).toBe(true);
+      expect(view.composing).toBe(false); // IME is active before the first text change.
+      content.dispatchEvent(confirm);
+    });
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(onDraftChange).not.toHaveBeenCalled();
+    expect(view.state.doc.toString()).toBe("正在输入");
+    expect(confirm.defaultPrevented).toBe(false);
+    act(() => content.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true })));
+    expect(view.compositionStarted).toBe(false);
+    act(() => content.dispatchEvent(new KeyboardEvent("keydown", {
+      key: "Enter", code: "Enter", keyCode: 13, bubbles: true, cancelable: true,
+    })));
+    expect(onSubmit).toHaveBeenCalledExactlyOnceWith("正在输入");
+  });
+
+  it("uses Shift+Enter for a newline and plain Enter for one submission", () => {
+    const onSubmit = vi.fn(async () => true);
+    function ControlledComposer() {
+      const [draft, setDraft] = React.useState("Draft");
+      return React.createElement(AgentComposer, {
+        draft, onDraftChange: setDraft, disabled: false, running: false,
+        stopping: false, submitting: false, onSubmit, onStop: vi.fn(),
+      });
+    }
+    const container = render(React.createElement(ControlledComposer));
+    const content = container.querySelector<HTMLElement>(".cm-content")!;
+    const view = EditorView.findFromDOM(content)!;
+    act(() => {
+      content.focus();
+      view.dispatch({ selection: { anchor: view.state.doc.length } });
+      content.dispatchEvent(new KeyboardEvent("keydown", {
+        key: "Enter", code: "Enter", keyCode: 13, shiftKey: true, bubbles: true, cancelable: true,
+      }));
+    });
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(view.state.doc.toString()).toBe("Draft\n");
+    act(() => content.dispatchEvent(new KeyboardEvent("keydown", {
+      key: "Enter", code: "Enter", keyCode: 13, bubbles: true, cancelable: true,
+    })));
+    expect(onSubmit).toHaveBeenCalledExactlyOnceWith("Draft\n");
   });
 
   it("removes the Agent header region when Minimal Mode supplies no header", () => {
@@ -423,7 +531,7 @@ describe("Desktop Agent renderer surfaces", () => {
     }];
 
     const container = render(React.createElement(AgentTranscript, {
-      projection,
+      projection: finalizeDisplay(projection),
       loading: false,
       runtimeLabel: "Codex",
     }));
@@ -477,6 +585,82 @@ describe("Desktop Agent renderer surfaces", () => {
     expect(container.querySelector(".desktop-agent-stream-caret")).not.toBeNull();
   });
 
+  it("uses one quiet live-tail indicator and reveals elapsed work after five seconds", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000);
+    const projection = createAgentProjection();
+    projection.runningTurnId = "turn-live";
+    projection.turns = [{
+      id: "turn-live",
+      status: "running",
+      startedAtSequence: 1,
+      startedAtMs: 1_000,
+      completedAtSequence: null,
+      durationMs: null,
+      partIds: [],
+    }];
+
+    const container = render(React.createElement(AgentTranscript, {
+      projection,
+      loading: false,
+      working: true,
+      runtimeLabel: "Codex",
+    }));
+    expect(container.querySelectorAll(".desktop-agent-working-indicator")).toHaveLength(1);
+    expect(container.querySelector(".desktop-agent-working-indicator")?.textContent).toBe("Thinking");
+
+    act(() => vi.advanceTimersByTime(5_000));
+    expect(container.querySelector(".desktop-agent-working-indicator")?.textContent).toBe("Thinking · 5s");
+    expect(container.querySelectorAll("[data-puppy-loader='dots']")).toHaveLength(1);
+  });
+
+  it("excludes approval wait from the active run duration", () => {
+    const projection = applyAgentEvents(createAgentProjection(), [
+      {
+        schemaVersion: 1,
+        sequence: 1,
+        sessionId: "session-wait",
+        provider: "codex",
+        providerSessionId: "native-wait",
+        turnId: "turn-wait",
+        itemId: null,
+        emittedAt: new Date(1_000).toISOString(),
+        type: "turn.started",
+        payload: { prompt: "Inspect" },
+      },
+      {
+        schemaVersion: 1,
+        sequence: 2,
+        sessionId: "session-wait",
+        provider: "codex",
+        providerSessionId: "native-wait",
+        turnId: "turn-wait",
+        itemId: "approval-wait",
+        emittedAt: new Date(4_000).toISOString(),
+        type: "approval.requested",
+        payload: { requestId: "approval-wait", kind: "command", title: "Run" },
+      },
+      {
+        schemaVersion: 1,
+        sequence: 3,
+        sessionId: "session-wait",
+        provider: "codex",
+        providerSessionId: "native-wait",
+        turnId: "turn-wait",
+        itemId: "approval-wait",
+        emittedAt: new Date(9_000).toISOString(),
+        type: "approval.resolved",
+        payload: { requestId: "approval-wait", decision: "accept" },
+      },
+    ]);
+
+    expect(projection.turns[0]).toMatchObject({
+      userWaitStartedAtMs: null,
+      userWaitDurationMs: 5_000,
+    });
+    expect(agentRunActiveElapsedMs(projection.turns[0] ?? null, 12_000)).toBe(6_000);
+  });
+
   it("keeps an official non-transcript working pulse visible around native tool activity", () => {
     const projection = applyAgentEvents(createAgentProjection(), [
       {
@@ -513,9 +697,10 @@ describe("Desktop Agent renderer surfaces", () => {
       runtimeLabel: "Claude Agent",
     }));
     const indicator = container.querySelector(".desktop-agent-working-indicator");
-    expect(indicator?.textContent).toContain("Working through the request");
+    expect(indicator?.textContent).toContain("Working");
+    expect(indicator?.textContent).not.toContain("Working through the request");
     expect(indicator?.querySelector("[data-puppy-loader='dots']")).not.toBeNull();
-    expect(indicator?.querySelector(".desktop-agent-spin")).toBeNull();
+    expect(container.querySelector(".desktop-agent-spin")).toBeNull();
   });
 
   it("renders only the current connection state and removes its animation after recovery", () => {
@@ -984,33 +1169,6 @@ describe("Desktop Agent renderer surfaces", () => {
     expect(document.activeElement).toBe(trigger);
   });
 
-  it("summarizes real file changes in the compact Changes control", () => {
-    const projection = createAgentProjection();
-    projection.activities.push({
-      id: "change-1",
-      turnId: "turn-1",
-      itemId: "tool-1",
-      kind: "file-change",
-      label: "Edited files",
-      status: "completed",
-      output: "",
-      detail: {
-        changes: [
-          { path: "src/a.ts", additions: 86, deletions: 12 },
-          { path: "src/b.ts", additions: 4, deletions: 1 },
-        ],
-      },
-      sequence: 1,
-    });
-    expect(summarizeAgentChanges(projection)).toEqual({ additions: 90, deletions: 13, files: 2 });
-    const onViewChanges = vi.fn();
-    const container = render(React.createElement(AgentChangesControl, { projection, onViewChanges }));
-    const button = container.querySelector(".desktop-agent-changes-control") as HTMLButtonElement;
-    expect(button.textContent).toBe("+90-13");
-    act(() => button.click());
-    expect(onViewChanges).toHaveBeenCalledTimes(1);
-  });
-
   it("renders Bash activity as a compact product row with a bounded expandable transcript", () => {
     const projection = createAgentProjection();
     projection.activities.push({
@@ -1108,7 +1266,22 @@ describe("Desktop Agent renderer surfaces", () => {
     expect(onOpenFile).toHaveBeenCalledWith("src/a.ts");
   });
 
-  it("renders Write/Edit activity with file stats and inline diff lines without row action clutter", () => {
+  it.each(fileChangeRuntimeIds)("uses the same tool detail for %s edits", (runtimeId) => {
+    const { actor } = agentFileChangeFixture(runtimeId);
+    const container = render(React.createElement(AgentTranscript, { projection: actor.display, loading: false }));
+    const row = container.querySelector<HTMLButtonElement>(".desktop-agent-tool-row")!;
+    expect(row.querySelector(".desktop-agent-tool-diff-stats")?.textContent).toBe("+2−1");
+    expect(row.getAttribute("aria-expanded")).toBe("false");
+    act(() => row.click());
+    expect(container.querySelector(".desktop-agent-evidence-node.is-deletion pre")?.textContent).toBe("old");
+    expect(container.querySelector(".desktop-agent-evidence-node.is-addition pre")?.textContent).toBe("new\nextra");
+    expect(container.textContent).not.toContain("@@");
+    expect(container.textContent).not.toContain("source");
+    expect(container.querySelectorAll(".desktop-agent-tool-diff-stats")).toHaveLength(1);
+    expect(container.querySelector(".desktop-agent-inline-diff, .desktop-agent-file-list")).toBeNull();
+  });
+
+  it("renders Write/Edit activity through shared evidence without row action clutter", () => {
     const projection = createAgentProjection();
     projection.activities.push({
       id: "edit-1",
@@ -1121,8 +1294,7 @@ describe("Desktop Agent renderer surfaces", () => {
       detail: {
         tool: "edit",
         path: "src/app.ts",
-        changes: [{ path: "src/app.ts", additions: 2, deletions: 1 }],
-        input: { patch: "@@ -1,2 +1,3 @@\n-old\n+new\n context" },
+        changes: [{ path: "src/app.ts", additions: 2, deletions: 1, blocks: [{ removed: "old", added: "new\nextra" }], diff: "@@ -1,2 +1,3 @@\n-old\n+new\n+extra\n context" }],
       },
       sequence: 1,
     });
@@ -1133,13 +1305,49 @@ describe("Desktop Agent renderer surfaces", () => {
     expect(row.textContent).not.toContain("src/app.ts");
     act(() => row.click());
     expect(row.textContent).not.toContain("src/app.ts");
-    expect(container.querySelector(".desktop-agent-file-list")?.textContent).toContain("src/app.ts");
-    expect(container.querySelectorAll(".desktop-agent-diff-line.is-addition")).toHaveLength(1);
-    expect(container.querySelectorAll(".desktop-agent-diff-line.is-deletion")).toHaveLength(1);
+    expect(container.querySelector(".desktop-agent-tool-file-path")?.textContent).toContain("src/app.ts");
+    expect(container.querySelector(".desktop-agent-evidence-node.is-deletion pre")?.textContent).toBe("old");
+    expect(container.querySelector(".desktop-agent-evidence-node.is-addition pre")?.textContent).toBe("new\nextra");
+    expect(container.textContent).not.toContain("@@");
+    expect(container.querySelector(".desktop-agent-inline-diff, .desktop-agent-file-list")).toBeNull();
+    expect(row.querySelector(".desktop-agent-tool-diff-stats")?.textContent).toBe("+2−1");
     expect(container.textContent).toContain("+2");
     expect(container.querySelector('button[aria-label="Review file changes"]')).toBeNull();
-    act(() => (container.querySelector('.desktop-agent-file-list button[title="src/app.ts"]') as HTMLButtonElement).click());
+    act(() => (container.querySelector('.desktop-agent-tool-file-path button[title="src/app.ts"]') as HTMLButtonElement).click());
     expect(onOpenFile).toHaveBeenCalledWith("src/app.ts");
+  });
+
+  it.each([
+    { label: "added blank line", blocks: [{ added: "" }], expected: [["addition", ""]] },
+    { label: "removed blank line", blocks: [{ removed: "" }], expected: [["deletion", ""]] },
+    { label: "separate replacements", blocks: [{ removed: "first", added: "next" }, { removed: "second", added: "last" }],
+      expected: [["deletion", "first"], ["addition", "next"], ["deletion", "second"], ["addition", "last"]] },
+  ])("preserves $label without inventing an absent side", ({ blocks, expected }) => {
+    const projection = createAgentProjection();
+    projection.activities.push({ id: "edit-blocks", turnId: "turn", itemId: "edit", kind: "file-change",
+      label: "Edit", status: "completed", output: "", sequence: 1,
+      detail: { tool: "edit", changes: [{ path: "src/file.ts", blocks, diff: "raw fallback" }] },
+    });
+    const container = render(React.createElement(AgentTranscript, { projection, loading: false }));
+    act(() => container.querySelector<HTMLButtonElement>(".desktop-agent-tool-row")!.click());
+    const nodes = [...container.querySelectorAll('.desktop-agent-evidence-node[role="group"]')];
+    expect(nodes.map(node => [node.classList.contains("is-deletion") ? "deletion" : "addition", node.querySelector("pre")?.textContent])).toEqual(expected);
+    expect(nodes.every(node => Boolean(node.getAttribute("aria-label")))).toBe(true);
+    expect(container.textContent).not.toContain("raw fallback");
+  });
+
+  it("keeps a failed edit's output visible without inventing zero line counts", () => {
+    const projection = createAgentProjection();
+    projection.activities.push({ id: "failed-edit", turnId: "turn", itemId: "edit", kind: "file-change",
+      label: "Edit", status: "failed", output: "Permission denied", sequence: 1,
+      detail: { tool: "edit", changes: [{ path: "src/file.ts", diff: "-old\n+new", blocks: [{ removed: "old", added: "new" }], basis: "request" }] },
+    });
+    const container = render(React.createElement(AgentTranscript, { projection, loading: false }));
+    act(() => container.querySelector<HTMLButtonElement>(".desktop-agent-tool-row")!.click());
+    expect(container.textContent).toContain("Permission denied");
+    expect(container.querySelector(".desktop-agent-evidence-node.is-deletion pre")?.textContent).toBe("old");
+    expect(container.querySelector(".desktop-agent-evidence-node.is-addition pre")?.textContent).toBe("new");
+    expect(container.querySelector(".desktop-agent-tool-diff-stats")).toBeNull();
   });
 
   it("does not render a generic File Change row or Review action without a real change", () => {
@@ -1331,7 +1539,70 @@ describe("Desktop Agent renderer surfaces", () => {
     expect(container.textContent).toContain("Compared the provider boundaries.");
   });
 
-  it("never renders a live reasoning spinner after the owning turn settles", () => {
+  it("keeps a streaming reasoning summary behind the single live-tail status", () => {
+    const events = [
+      {
+        schemaVersion: 1 as const,
+        sequence: 1,
+        sessionId: "session-reasoning",
+        provider: "codex",
+        providerSessionId: "native-reasoning",
+        turnId: "turn-reasoning",
+        itemId: null,
+        emittedAt: new Date(1_000).toISOString(),
+        type: "turn.started" as const,
+        payload: { prompt: "Inspect" },
+      },
+      {
+        schemaVersion: 1 as const,
+        sequence: 2,
+        sessionId: "session-reasoning",
+        provider: "codex",
+        providerSessionId: "native-reasoning",
+        turnId: "turn-reasoning",
+        itemId: "reasoning-summary",
+        emittedAt: new Date(2_000).toISOString(),
+        type: "reasoning.summary.delta" as const,
+        payload: { delta: "Inspecting the project structure." },
+      },
+    ];
+    const running = applyAgentEvents(createAgentProjection(), events);
+    const container = render(React.createElement(AgentTranscript, {
+      projection: running,
+      loading: false,
+      working: true,
+      runtimeLabel: "Codex",
+    }));
+
+    expect(container.querySelector(".desktop-agent-reasoning")).toBeNull();
+    expect(container.querySelectorAll(".desktop-agent-working-indicator")).toHaveLength(1);
+    expect(container.querySelectorAll("[data-puppy-loader='dots']")).toHaveLength(1);
+    expect(container.textContent).not.toContain("Working through the request");
+    expect(container.textContent).not.toContain("Inspecting the project structure.");
+    expect(container.querySelector(".desktop-agent-run-status-toggle")).not.toBeNull();
+    act(() => (container.querySelector(".desktop-agent-run-status-toggle") as HTMLButtonElement).click());
+    expect(container.textContent).toContain("Inspecting the project structure.");
+
+    const settled = applyAgentEvents(running, [{
+      ...events[0],
+      sequence: 3,
+      itemId: null,
+      emittedAt: new Date(3_000).toISOString(),
+      type: "turn.completed",
+      payload: { status: "completed" },
+    }]);
+    act(() => root?.render(withTestLocalization(React.createElement(AgentTranscript, {
+      projection: settled,
+      loading: false,
+      working: false,
+      runtimeLabel: "Codex",
+    }))));
+    expect(container.querySelector(".desktop-agent-working-indicator")).toBeNull();
+    expect(container.querySelector(".desktop-agent-reasoning")).not.toBeNull();
+    expect(container.querySelector(".desktop-agent-reasoning .desktop-agent-spin")).toBeNull();
+  });
+
+  it("omits empty reasoning boundaries after the owning turn settles", () => {
     const base = {
       schemaVersion: 1 as const,
       sessionId: "session-cursor",
@@ -1353,10 +1624,9 @@ describe("Desktop Agent renderer surfaces", () => {
       runtimeLabel: "Cursor Agent",
     }));
 
-    expect(container.querySelector(".desktop-agent-reasoning")).not.toBeNull();
-    expect(container.querySelector(".desktop-agent-reasoning .desktop-agent-spin")).toBeNull();
+    expect(container.querySelector(".desktop-agent-reasoning")).toBeNull();
     expect(container.querySelector(".desktop-agent-working-indicator")).toBeNull();
-    expect(container.textContent).toContain("Thought briefly");
+    expect(container.textContent).not.toContain("Thought briefly");
     expect(container.textContent).not.toContain("Working through the request");
   });
 
@@ -1436,6 +1706,40 @@ describe("Desktop Agent renderer surfaces", () => {
     const buttons = Array.from(container.querySelectorAll("button"));
     expect(buttons.length).toBeGreaterThan(0);
     expect(buttons.every((button) => button.disabled)).toBe(true);
+  });
+
+  it("keeps approval copy concise and preserves every provider decision", () => {
+    const onResolve = vi.fn();
+    const repeatedCopy = "Web search: Notion launch screenshots";
+    const container = render(React.createElement(AgentApprovalDock, {
+      approval: {
+        requestId: "req-search",
+        turnId: "turn-1",
+        itemId: "item-1",
+        kind: "command",
+        title: repeatedCopy,
+        command: null,
+        cwd: null,
+        commandActions: [],
+        networkApprovalContext: null,
+        grantRoot: null,
+        policyChangeRequested: false,
+        reason: `  ${repeatedCopy}  `,
+        availableDecisions: ["accept", "acceptForSession", "decline", "cancel"],
+        sequence: 1,
+      },
+      queueLength: 1,
+      resolving: false,
+      onResolve,
+    }));
+
+    expect(container.textContent?.split(repeatedCopy)).toHaveLength(2);
+    const buttons = Array.from(container.querySelectorAll<HTMLButtonElement>("button"));
+    expect(buttons.map((button) => button.textContent)).toEqual(["Deny", "Allow for session", "Allow once"]);
+    act(() => buttons[0].click());
+    act(() => buttons[1].click());
+    act(() => buttons[2].click());
+    expect(onResolve.mock.calls.map(([decision]) => decision)).toEqual(["decline", "acceptForSession", "accept"]);
   });
 
   it("renders material network and filesystem approval scope", () => {

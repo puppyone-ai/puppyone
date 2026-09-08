@@ -2,8 +2,8 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 describe("Desktop Agent architecture boundaries", () => {
-  it("keeps RightAgentPanel as composition and the controller framework independent", () => {
-    const panel = source("src/features/desktop-agent/ui/RightAgentPanel.tsx");
+  it("composes Chat Items through the project and keeps the controller framework independent", () => {
+    const panel = source("src/features/desktop-agent/workbench/AgentChatWorkbenchItem.tsx");
     const tabPanel = source("src/features/desktop-agent/ui/AgentChatTabPanel.tsx");
     const workbenchItem = source(
       "src/features/desktop-agent/workbench/AgentChatWorkbenchItem.tsx",
@@ -13,11 +13,11 @@ describe("Desktop Agent architecture boundaries", () => {
     const preparer = source("src/features/desktop-agent/application/AgentSessionPreparer.ts");
     expect(panel.split("\n").length).toBeLessThan(230);
     expect(panel).not.toMatch(/useState|bufferedEvents|replayInFlight|applyAgentEvent/);
-    expect(panel).toContain("<AgentSessionTabs");
+    expect(panel).toContain("projectAgentControllers(project).get(item.id)");
     expect(panel).toContain("<AgentChatTabPanel");
     expect(tabPanel).toContain("<AgentPanelLayout");
-    expect(tabPanel).toContain("const presented = presentedProp ?? active");
-    expect(tabPanel).toContain("const commandTarget = commandTargetProp ?? active");
+    expect(tabPanel).toContain("presented: boolean");
+    expect(tabPanel).toContain("commandTarget: boolean");
     expect(tabPanel).toContain("active: commandTarget, controller");
     expect(workbenchItem).toContain("commandTarget={presentation.commandTarget}");
     expect(workbenchItem).toContain("presented={presentation.presented}");
@@ -41,10 +41,13 @@ describe("Desktop Agent architecture boundaries", () => {
 
   it("enforces virtual, responsive, safe presentation contracts", () => {
     const timeline = source("src/features/desktop-agent/ui/AgentTranscript.tsx");
-    const timelineLayout = source("src/features/desktop-agent/ui/agent-timeline-layout.ts");
-    const timelinePresentation = source("src/features/desktop-agent/ui/agent-timeline-presentation.ts");
+    const timelineLayout = source("src/features/desktop-agent/ui/transcript/transcript-layout.ts");
+    const timelinePresentation = source("src/features/desktop-agent/ui/transcript/transcript-rows.ts");
     const emptyState = source("src/features/desktop-agent/ui/AgentEmptyState.tsx");
     const markdown = source("src/features/desktop-agent/ui/SafeMarkdown.tsx");
+    const markdownDocument = source("src/features/desktop-agent/ui/markdown/AgentMarkdownDocument.tsx");
+    const markdownPolicy = source("src/features/desktop-agent/ui/markdown/agentMarkdownPolicy.ts");
+    const markdownRegistry = source("src/features/desktop-agent/ui/markdown/agentMarkdownBlockRegistry.tsx");
     const composer = source("src/features/desktop-agent/ui/AgentComposer.tsx");
     const promptEditor = source("src/features/desktop-agent/ui/composer/AgentPromptEditor.tsx");
     const composerToolbar = source("src/features/desktop-agent/ui/composer/AgentComposerToolbar.tsx");
@@ -56,7 +59,7 @@ describe("Desktop Agent architecture boundaries", () => {
     const picker = source("src/features/desktop-agent/ui/AgentPickerPopover.tsx");
     const pickerPresentation = source("src/features/desktop-agent/ui/agent-picker-presentation.ts");
     const desktopMenu = source("src/components/DesktopMenu.tsx");
-    const eventSynchronizer = source("src/features/desktop-agent/application/AgentEventSynchronizer.ts");
+    const eventSynchronizer = source("src/features/desktop-agent/application/AgentSessionReplica.ts");
     const streamScheduler = source("src/features/desktop-agent/ui/agent-stream-frame-scheduler.ts");
     const streamPresentation = source("src/features/desktop-agent/ui/useAgentStreamPresentation.ts");
     const streamPolicy = source("src/features/desktop-agent/domain/agent-stream-presentation.ts");
@@ -71,9 +74,12 @@ describe("Desktop Agent architecture boundaries", () => {
     expect(timelineLayout).toContain("buildAgentTimelineLayout");
     expect(timelineLayout).toContain("agentTimelineGapAfter");
     expect(timelinePresentation).toContain("buildAgentTimeline");
-    expect(timelinePresentation).toContain('part.kind !== "usage"');
-    expect(timeline).toContain("buildAgentTimeline(projection)");
-    expect(timeline).toContain("buildAgentTimelineLayout(timeline.rows");
+    expect(timelinePresentation).toContain('part.kind === "usage"');
+    expect(timelinePresentation).toContain('part.kind !== "reasoning"');
+    expect(timelinePresentation).toContain(".includes(part.status)");
+    expect(timeline).toContain("buildAgentTimeline(projection, compactRowHeight,");
+    expect(timeline).toContain("useTranscriptViewport(");
+    expect(source("src/features/desktop-agent/ui/transcript/useTranscriptViewport.ts")).toContain("buildAgentTimelineLayout(rows");
     expect(timeline).not.toContain("function buildLayout(");
     expect(timeline).toContain("emptyState?: ReactNode");
     expect(timeline).toContain("showEmptyState && emptyState");
@@ -83,7 +89,13 @@ describe("Desktop Agent architecture boundaries", () => {
       "const showReadyEmptyState = routingReady",
     );
     expect(markdown).not.toContain("dangerouslySetInnerHTML");
-    expect(markdown).toContain('["https:", "http:", "mailto:"]');
+    expect(markdownDocument).not.toContain("dangerouslySetInnerHTML");
+    expect(markdownDocument).toContain("remarkGfm");
+    expect(markdownDocument).toContain("createAgentMarkdownComponents");
+    expect(markdownPolicy).toContain('new Set(["https:", "http:", "mailto:"])');
+    expect(markdownPolicy).toContain('if (key === "src" || key === "srcSet") return null');
+    expect(markdownRegistry).toContain("createAgentMarkdownBlockRegistry");
+    expect(markdownRegistry).toContain('id: "mermaid"');
     expect(cssEntry).toContain('@import "./styles/theme.css"');
     expect(cssEntry).toContain('@import "./styles/foundation.css"');
     expect(cssEntry.indexOf('styles/theme.css')).toBeLessThan(cssEntry.indexOf('styles/foundation.css'));
@@ -104,7 +116,7 @@ describe("Desktop Agent architecture boundaries", () => {
     expect(theme).not.toContain("--agent-prompt-surface:");
     expect(foundation).not.toMatch(/--agent-(?:composer|user-message)-(?:surface|border):/);
     expect(pickers).toMatch(
-      /\.desktop-agent-picker\.is-header \.desktop-agent-picker-trigger\s*\{[^}]*color:\s*var\(--desktop-titlebar-text-muted, var\(--po-text-muted\)\);[^}]*font-size:\s*var\(--po-font-size-chrome, 13px\);[^}]*font-weight:\s*var\(--po-font-weight-chrome, 500\);[^}]*line-height:\s*18px;/s,
+      /\.desktop-agent-picker\.is-header \.desktop-agent-picker-trigger\s*\{[^}]*color:\s*var\(--desktop-titlebar-text-muted, var\(--po-text-muted\)\);[^}]*font-size:\s*var\(--po-type-header-content, 15px\);[^}]*font-weight:\s*var\(--po-font-weight-chrome, 500\);[^}]*line-height:\s*var\(--po-type-header-line-height, 20px\);/s,
     );
     expect(css).not.toContain("max-width: 759px");
     expect(css).toContain("max-width: 559px");
@@ -125,16 +137,16 @@ describe("Desktop Agent architecture boundaries", () => {
     expect(sessionControls).toContain("deriveAgentSessionControls");
     expect(sessionControls).not.toMatch(/codex|cursor|opencode|claude/i);
     expect(sessionControls).toContain('id: "mode"');
-    expect(markdown).not.toContain("useDeferredValue");
-    expect(markdown).toContain("splitStreamingMarkdown");
+    expect(markdownDocument).not.toContain("useDeferredValue");
+    expect(markdownDocument).toContain("splitStreamingMarkdown");
     expect(streamPresentation).toContain("nextAgentStreamText");
     expect(streamPresentation).not.toContain("useDeferredValue");
     expect(streamPolicy).toContain("TARGET_CATCH_UP_FRAMES");
     expect(eventSynchronizer).not.toMatch(/requestAnimationFrame|document\.|window\./);
-    expect(eventSynchronizer).toContain("AgentStreamFlushScheduler");
+    expect(eventSynchronizer).toContain("applyAgentDisplayPatch");
     expect(streamScheduler).toContain('typeof window.requestAnimationFrame === "function"');
     expect(streamScheduler).toContain("document.visibilityState !== \"hidden\"");
-    expect(eventSynchronizer).toContain("STREAM_FRAME_MS = 16");
+    expect(eventSynchronizer).toContain("assertAgentDisplay");
     expect(composerToolbar.split("\n").length).toBeLessThan(130);
     expect(attachmentButton).not.toMatch(/useState|DesktopOverlayLayer|role="menu"/);
     expect(commandSuggestions).not.toMatch(/useState|AgentSessionController/);
@@ -226,9 +238,9 @@ describe("Desktop Agent architecture boundaries", () => {
   it("separates History queries, prepared-session ownership, and optional Harness History operations", () => {
     const browser = source("src/features/desktop-agent/workbench/AgentChatHistoryBrowser.tsx");
     const historyController = source("src/features/desktop-agent/application/ConversationHistoryController.ts");
-    const registry = source("src/features/desktop-agent/application/controllerRegistry.ts");
+    const registry = source("src/features/desktop-agent/application/AgentControllerRegistry.ts");
     const historyPort = source("electron/main/agent/runtime/agent-session-history-port.mjs");
-    const indexer = source("electron/main/agent/application/native-conversation-indexer.mjs");
+    const indexer = source("electron/main/agent/application/history/native-conversation-indexer.mjs");
     const lifecycle = source("electron/main/agent/application/session/agent-session-lifecycle.mjs");
 
     expect(browser).toContain("new ConversationHistoryController");
@@ -240,14 +252,15 @@ describe("Desktop Agent architecture boundaries", () => {
     expect(registry).toContain("await controller.rollbackPreparation()");
     expect(historyPort).toContain("assertAgentSessionHistoryCapabilities");
     expect(indexer).toContain("resolveAgentSessionHistoryPort(adapter)");
-    expect(lifecycle).toContain("resolveAgentSessionHistoryPort(session.adapter)");
+    expect(lifecycle).toContain("hydrateAgentSession(session, emit)");
+    expect(source("electron/main/agent/application/session/agent-history-hydration.mjs")).toContain("resolveAgentSessionHistoryPort(session.adapter)");
     expect(lifecycle).not.toMatch(/adapter\.readHistory/);
   });
 
   it("keeps native transport internals out of Renderer", () => {
     const preload = source("electron/preload.cjs");
     const renderer = [
-      source("src/features/desktop-agent/ui/RightAgentPanel.tsx"),
+      source("src/features/desktop-agent/workbench/AgentChatWorkbenchItem.tsx"),
       source("src/features/desktop-agent/application/AgentSessionController.ts"),
       source("src/features/desktop-agent/agentTypes.ts"),
     ].join("\n");
@@ -256,11 +269,11 @@ describe("Desktop Agent architecture boundaries", () => {
   });
 
   it("models provider recovery as replaceable live state rather than transcript history", () => {
-    const projection = source("src/features/desktop-agent/domain/agent-projection.ts");
-    const typedProjection = source("src/features/desktop-agent/domain/agent-typed-part-projection.ts");
+    const projection = source("electron/main/agent/domain/transcript/transcript-reducer.mjs");
+    const typedProjection = source("electron/main/agent/domain/transcript/display-projection.mjs");
     const notice = source("src/features/desktop-agent/ui/activity/AgentNoticeActivity.tsx");
     const connection = source("src/features/desktop-agent/ui/AgentConnectionStatus.tsx");
-    const codex = source("electron/main/agent/runtimes/codex/codex-app-server-adapter.mjs");
+    const codex = source("electron/main/agent/runtimes/codex/codex-events.mjs");
     const claude = source("electron/main/agent/runtimes/claude/claude-events.mjs");
     expect(projection).toContain('case "provider.connection.updated"');
     expect(typedProjection).toContain('event.type === "provider.connection.updated"');
@@ -272,9 +285,9 @@ describe("Desktop Agent architecture boundaries", () => {
   });
 
   it("uses one terminal lifecycle authority and a provider-neutral semantic Renderer registry", () => {
-    const lifecycle = source("src/features/desktop-agent/domain/agent-turn-lifecycle.ts");
-    const projection = source("src/features/desktop-agent/domain/agent-projection.ts");
-    const typedProjection = source("src/features/desktop-agent/domain/agent-typed-part-projection.ts");
+    const lifecycle = source("electron/main/agent/domain/transcript/turn-lifecycle.mjs");
+    const projection = source("electron/main/agent/domain/transcript/transcript-reducer.mjs");
+    const typedProjection = source("electron/main/agent/domain/transcript/display-projection.mjs");
     const renderer = source("src/features/desktop-agent/ui/AgentPartRenderer.tsx");
     const registry = source("src/features/desktop-agent/ui/AgentPartRendererRegistry.tsx");
 

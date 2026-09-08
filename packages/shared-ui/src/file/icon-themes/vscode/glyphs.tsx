@@ -182,7 +182,7 @@ const VSCODE_SYMBOL_RENDERERS = {
   ),
   markdown: ({ color }) => <DocumentLinesSymbol color={color} />,
   json: ({ color }) => (
-    <text x="8.75" y="12.15" textAnchor="middle" fontSize="8.2" fontWeight="850" fontFamily="var(--po-font-sans)" fill={color}>
+    <text x="8.75" y="12.15" textAnchor="middle" fontSize="8" fontWeight="850" fontFamily="var(--po-font-sans)" fill={color}>
       {"{}"}
     </text>
   ),
@@ -243,7 +243,7 @@ function renderVsCodeLabelSymbol({
       x="8.75"
       y="11.55"
       textAnchor="middle"
-      fontSize={kind === "pdf" ? "4.2" : "5.5"}
+      fontSize={kind === "pdf" ? "4" : "6"}
       fontWeight="850"
       fontFamily="var(--po-font-sans)"
       fill={color}

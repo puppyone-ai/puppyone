@@ -69,7 +69,7 @@ export function createUpdateService({
   confirmRestartWithBlockers = () => false,
   environment = process.env,
   platform = process.platform,
-  autoUpdater = updaterPackage.autoUpdater,
+  autoUpdater,
 }) {
   const configuration = resolveDesktopUpdateConfiguration({
     buildInfo,
@@ -80,6 +80,9 @@ export function createUpdateService({
   const currentVersion = configuration.currentVersion;
   const disabledReason = getDisabledReason(app, configuration, platform);
   const canUseUpdater = !disabledReason;
+  // Reading electron-updater's getter constructs a platform updater. Disabled
+  // builds must expose update status without initializing that native service.
+  autoUpdater = canUseUpdater ? (autoUpdater ?? updaterPackage.autoUpdater) : null;
 
   let started = false;
   let disposed = false;
@@ -95,9 +98,6 @@ export function createUpdateService({
   function start() {
     if (started) return;
     started = true;
-    configureLogger();
-    configureUpdater();
-    registerUpdaterEvents();
     registerIpcHandlers();
 
     if (!canUseUpdater) {
@@ -108,6 +108,9 @@ export function createUpdateService({
       return;
     }
 
+    configureLogger();
+    configureUpdater();
+    registerUpdaterEvents();
     scheduleBackgroundCheck(BACKGROUND_UPDATE_INITIAL_DELAY_MS);
   }
 

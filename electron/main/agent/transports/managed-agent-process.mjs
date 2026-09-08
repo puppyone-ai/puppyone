@@ -38,3 +38,17 @@ export function terminateManagedAgentProcess(
     return false;
   }
 }
+
+/** Disposal is complete only after the operating system reports process exit. */
+export function waitForManagedAgentExit(connection, { timeoutMs = 3500 } = {}) {
+  if (connection.exitInfo) return Promise.resolve(connection.exitInfo);
+  return new Promise((resolve, reject) => {
+    const done = (info) => { clearTimeout(timer); resolve(info); };
+    const timer = setTimeout(() => {
+      connection.removeListener("exit", done);
+      reject(new Error("Native Agent process exit could not be confirmed."));
+    }, timeoutMs);
+    timer.unref?.();
+    connection.once("exit", done);
+  });
+}

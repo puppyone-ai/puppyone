@@ -57,6 +57,32 @@ export default [
     },
   },
   {
+    files: ["src/features/desktop-agent/ui/**/*.{ts,tsx}"],
+    ignores: [
+      "src/features/desktop-agent/ui/transcript/useTranscriptViewport.ts",
+      "src/features/desktop-agent/ui/AgentRenderStabilitySmokeHarness.tsx",
+    ],
+    rules: {
+      // Transcript children report geometry and user intent to the viewport
+      // owner. Embedded scrollers use shared UI components with their own
+      // local viewport; they cannot reach into the outer conversation.
+      "no-restricted-syntax": ["error",
+        {
+          selector: ":matches(AssignmentExpression > MemberExpression.left, UpdateExpression > MemberExpression.argument):matches([computed=false][property.name='scrollTop'], [computed=true][property.value='scrollTop'])",
+          message: "Chat scrolling belongs to useTranscriptViewport; report intent/size through its callbacks instead of writing scrollTop.",
+        },
+        {
+          selector: "CallExpression > MemberExpression.callee:matches([computed=false][property.name=/^(scroll|scrollTo|scrollBy|scrollIntoView)$/], [computed=true][property.value=/^(scroll|scrollTo|scrollBy|scrollIntoView)$/])",
+          message: "Chat scrolling belongs to useTranscriptViewport; leaf components must not move the conversation or its ancestors.",
+        },
+        {
+          selector: "NewExpression:matches([callee.name='ResizeObserver'], [callee.type='MemberExpression'][callee.property.name='ResizeObserver'])",
+          message: "Chat size observation belongs to useTranscriptViewport; report row elements through the shared measurement callbacks.",
+        },
+      ],
+    },
+  },
+  {
     files: ["tests/**/*.{ts,tsx}"],
     languageOptions: {
       parser: tsParser,

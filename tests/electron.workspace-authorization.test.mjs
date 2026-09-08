@@ -526,7 +526,7 @@ describe("terminal session ownership", () => {
         expect(terminals[index].resize).toHaveBeenCalledWith(100 + index, 40 + index);
       }
 
-      service.closeSessionsForWindow(owner.id);
+      await service.closeSessionsForWindow(owner.id);
       expect(service.getSessionCount()).toBe(0);
       expect(terminals.every(({ kill }) => kill.mock.calls.length === 1)).toBe(true);
     },
@@ -551,12 +551,12 @@ describe("terminal session ownership", () => {
     await service.create(owner, { id: "root-a-2", cwd: root }, root);
     await service.create(owner, { id: "root-b", cwd: otherRoot }, otherRoot);
 
-    expect(service.closeSessionsForWorkspaceRoot(owner.id, root)).toBe(2);
+    expect(await service.closeSessionsForWorkspaceRoot(owner.id, root)).toBe(2);
     expect(terminals[0].kill).toHaveBeenCalledOnce();
     expect(terminals[1].kill).toHaveBeenCalledOnce();
     expect(terminals[2].kill).not.toHaveBeenCalled();
     expect(service.getSessionCount()).toBe(1);
-    service.closeAll();
+    await service.closeAll();
   });
 
   it("requires a workspace and prevents another sender from input, resize, close, or id replacement", async () => {
@@ -584,7 +584,7 @@ describe("terminal session ownership", () => {
 
     expect(service.input(attacker, { id: request.id, data: "rm -rf ~\n" })).toBe(false);
     expect(service.resize(attacker, { id: request.id, cols: 120, rows: 60 })).toBe(false);
-    expect(service.close(attacker, request.id)).toBe(false);
+    await expect(service.close(attacker, request.id)).rejects.toMatchObject({ code: "SESSION_NOT_FOUND" });
     expect(terminals[0].write).not.toHaveBeenCalled();
     expect(terminals[0].resize).not.toHaveBeenCalled();
     expect(terminals[0].kill).not.toHaveBeenCalled();
@@ -592,7 +592,7 @@ describe("terminal session ownership", () => {
 
     expect(service.input(owner, { id: request.id, data: "pwd\n" })).toBe(true);
     expect(service.resize(owner, { id: request.id, cols: 100, rows: 40 })).toBe(true);
-    expect(service.close(owner, request.id)).toBe(true);
+    expect(await service.close(owner, request.id)).toBe(true);
     expect(terminals[0].write).toHaveBeenCalledWith("pwd\n");
     expect(terminals[0].resize).toHaveBeenCalledWith(100, 40);
     expect(terminals[0].kill).toHaveBeenCalledOnce();
@@ -613,13 +613,14 @@ function createIpcHarness() {
 }
 
 function createFakeTerminal() {
+  let exit;
   return {
     pid: 123,
     write: vi.fn(),
     resize: vi.fn(),
-    kill: vi.fn(),
+    kill: vi.fn(() => exit?.({ exitCode: 0, signal: 15 })),
     onData: vi.fn(),
-    onExit: vi.fn(),
+    onExit: vi.fn((listener) => { exit = listener; }),
   };
 }
 

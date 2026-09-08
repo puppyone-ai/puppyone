@@ -50,10 +50,7 @@ export type PendingBranchSwitch = {
 type UseDesktopGitControllerOptions = {
   workspace: Workspace | null;
   gitViewActive: boolean;
-  onWorkspaceContentChanged: (
-    paths?: readonly string[] | string | null,
-    workspaceFolderId?: string | null,
-  ) => void;
+  onWorkspaceContentChanged: (presentation?: "incremental" | "atomic") => void;
   onEnterGitView: () => void;
 };
 
@@ -313,7 +310,10 @@ export function useDesktopGitController({
   const runGitOperation = useCallback(async (
     label: string,
     operation: (rootPath: string) => Promise<GitStatusSnapshot>,
-    options: { showRendererError?: boolean } = {},
+    options: {
+      showRendererError?: boolean;
+      refreshPresentation?: "incremental" | "atomic";
+    } = {},
   ) => {
     if (!workspace) return false;
     const context = captureGitRepositoryContext(workspace.path);
@@ -329,7 +329,7 @@ export function useDesktopGitController({
         createRepositoryRefreshReason(label, "mutation"),
       );
       if (!applied) return false;
-      onWorkspaceContentChanged();
+      onWorkspaceContentChanged(options.refreshPresentation);
       return true;
     } catch (error) {
       if (isGitRepositoryContextCurrent(context) && options.showRendererError !== false) {
@@ -544,7 +544,11 @@ export function useDesktopGitController({
   ]);
 
   const handlePullGit = useCallback(() => {
-    return runGitOperation("pull", (rootPath) => pullWorkspaceGit(rootPath));
+    return runGitOperation(
+      "pull",
+      (rootPath) => pullWorkspaceGit(rootPath),
+      { refreshPresentation: "atomic" },
+    );
   }, [runGitOperation]);
 
   const handlePushGit = useCallback(() => {
@@ -556,11 +560,19 @@ export function useDesktopGitController({
   }, [runGitOperation]);
 
   const handleContinueGitOperation = useCallback(() => {
-    return runGitOperation("continue", (rootPath) => continueWorkspaceGitOperation(rootPath));
+    return runGitOperation(
+      "continue",
+      (rootPath) => continueWorkspaceGitOperation(rootPath),
+      { refreshPresentation: "atomic" },
+    );
   }, [runGitOperation]);
 
   const handleAbortGitOperation = useCallback(() => {
-    return runGitOperation("abort", (rootPath) => abortWorkspaceGitOperation(rootPath));
+    return runGitOperation(
+      "abort",
+      (rootPath) => abortWorkspaceGitOperation(rootPath),
+      { refreshPresentation: "atomic" },
+    );
   }, [runGitOperation]);
 
   const handleCheckoutGitBranch = useCallback(async (branchName: string, remote: boolean) => {
@@ -581,7 +593,7 @@ export function useDesktopGitController({
         context,
         createRepositoryRefreshReason("checkout", "mutation"),
       )) return false;
-      onWorkspaceContentChanged();
+      onWorkspaceContentChanged("atomic");
       clearGitSelection();
       setGitMainPanel("changes");
       return true;
@@ -632,7 +644,7 @@ export function useDesktopGitController({
         context,
         createRepositoryRefreshReason("stash-checkout", "mutation"),
       )) return false;
-      onWorkspaceContentChanged();
+      onWorkspaceContentChanged("atomic");
       clearGitSelection();
       setGitMainPanel("changes");
       setPendingBranchSwitch(null);
@@ -677,7 +689,7 @@ export function useDesktopGitController({
         context,
         createRepositoryRefreshReason("commit-checkout", "mutation"),
       )) return false;
-      onWorkspaceContentChanged();
+      onWorkspaceContentChanged("atomic");
       clearGitSelection();
       setGitMainPanel("changes");
       setPendingBranchSwitch(null);

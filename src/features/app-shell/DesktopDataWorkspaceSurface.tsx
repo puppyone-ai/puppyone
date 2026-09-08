@@ -21,6 +21,9 @@ import {
 } from "@puppyone/shared-ui";
 import { AiResponseChangesCard } from "../../ai-edits/AiResponseChangesCard";
 import { openExternalUrl } from "../../lib/localFiles";
+import { useResourceDragPreview } from "../../platform/useResourceDragPreview";
+import { resolveResourceDropSource } from "../../platform/resourceDragSession";
+import { useResourceDragExport } from "../data-workspace/useResourceDragExport";
 import {
   DesktopExplorerRowActions,
   rectToCreateEntryAnchor,
@@ -55,8 +58,12 @@ import {
   toWorkspaceRelativePath,
 } from "../desktop-agent-presence";
 import { DesktopShellNavigationToolbarPortal } from "./DesktopShellAccessoryContext";
-import { RemoteUpdateNotice } from "../data-workspace/RemoteUpdateNotice";
+import {
+  getRemoteUpdateNoticeModel,
+  RemoteUpdateNotice,
+} from "../data-workspace/RemoteUpdateNotice";
 import type { ResolvedWorkbenchDataResource } from "../data-workspace/workbenchDataPort";
+import { useProjectExplorerSession } from "../data-workspace/useProjectExplorerSession";
 import {
   EmptyWorkspaceOnboardingDialog,
   markFirstProjectStarterCompleted,
@@ -94,6 +101,8 @@ export type DesktopDataWorkspaceSurfaceProps = {
     workspaceChangeCount: number;
     onNavigate: (view: DesktopView) => void;
     onOpenSettings: () => void;
+    showSettings: boolean;
+    showWorkspaceNavigation: boolean;
     onPullGit: () => Promise<boolean>;
   };
   navigationComposition: string;
@@ -116,8 +125,8 @@ export type DesktopDataWorkspaceSurfaceProps = {
   workspace: Workspace;
   workspaceFolders: readonly WorkspaceFolder[];
   resolveWorkspaceResource: (path: string | null) => ResolvedWorkbenchDataResource | null;
-  workspaceKey: string;
   workspaceRefreshToken: WorkspaceContentChange;
+  workspaceAtomicRefreshToken: number;
   workspaceSurfaceError: string | null;
   sidebarCreateMenuOpen: boolean;
 };
@@ -151,11 +160,25 @@ export function DesktopDataWorkspaceSurface({
   workspace,
   workspaceFolders,
   resolveWorkspaceResource,
-  workspaceKey,
   workspaceRefreshToken,
+  workspaceAtomicRefreshToken,
   workspaceSurfaceError,
   sidebarCreateMenuOpen,
 }: DesktopDataWorkspaceSurfaceProps) {
+  const [dragExportFailed, setDragExportFailed] = useState(false);
+  const exportNodes = useResourceDragExport(resolveWorkspaceResource, setDragExportFailed);
+  const resourceDragPreview = useResourceDragPreview();
+  const resolveFileDrop = useCallback<NonNullable<DataWorkspaceProps["onResolveFileDrop"]>>(async (files, target) => {
+    setDragExportFailed(false);
+    try {
+      const targetResource = resolveWorkspaceResource(target)?.resourceUri;
+      const source = await resolveResourceDropSource({ kind: "files", files }, "explorer-move", targetResource);
+      return source.kind === "workspace-entries" ? source.entries : null;
+    } catch (error) {
+      setDragExportFailed(true);
+      throw error;
+    }
+  }, [resolveWorkspaceResource]);
   const onExplorerResizeActiveChange = useNativeSurfacePointerPassthroughActivity(
     "explorer-resize",
   );
@@ -177,6 +200,7 @@ export function DesktopDataWorkspaceSurface({
   const activeWorkspaceRootPath = activeWorkspaceResource?.folder.uri
     ?? workspaceFolders[0]?.uri
     ?? null;
+  const explorerSession = useProjectExplorerSession(workspace, workspaceFolders);
   const defaultExpandedWorkspaceRoots = useMemo(
     () => workspaceFolders.length > 1
       ? workspaceFolders.map((folder) => folder.uri)
@@ -193,7 +217,7 @@ export function DesktopDataWorkspaceSurface({
         : { workspaceKey: nextWorkspaceKey, status }
     ));
   }, []);
-  const currentWorkspaceRootStatus = workspaceRootStatus?.workspaceKey === workspaceKey
+  const currentWorkspaceRootStatus = workspaceRootStatus?.workspaceKey === explorerSession.key
     ? workspaceRootStatus.status
     : null;
   const showEmptyWorkspaceOnboarding = shouldShowFirstProjectStarter({
@@ -253,11 +277,15 @@ export function DesktopDataWorkspaceSurface({
     workspaceChangeCount: navigation.workspaceChangeCount,
     onNavigate: navigation.onNavigate,
     onOpenSettings: navigation.onOpenSettings,
+    showSettings: navigation.showSettings,
     utilitySlot: sidebarUtility,
   } as const;
+  const remoteUpdateNoticeVisible = navigation.showWorkspaceNavigation
+    && getRemoteUpdateNoticeModel(navigation.gitStatus) !== null;
   const shellHostedTopNavigation = navigationComposition === "sidebar-top-toolbar"
     && preferences.sidebarNavigationPlacement === "top";
-  const topNavigation = preferences.sidebarNavigationPlacement === "top" ? (
+  const topNavigation = navigation.showWorkspaceNavigation
+    && preferences.sidebarNavigationPlacement === "top" ? (
     <DesktopSidebarTopNavigation
       {...navigationCommon}
       orientation={preferences.sidebarNavigationOrientation}
@@ -279,6 +307,9 @@ export function DesktopDataWorkspaceSurface({
       {workspaceSurfaceError && (
         <div className="desktop-workspace-surface-alert" role="status">{workspaceSurfaceError}</div>
       )}
+      {dragExportFailed && (
+        <div className="desktop-workspace-surface-alert" role="alert">{t("workspace.drag.exportFailed")}</div>
+      )}
       {fileClipboardController.notice && fileOperationNotice && (
         <div
           className="desktop-file-operation-notice"
@@ -291,11 +322,17 @@ export function DesktopDataWorkspaceSurface({
         </div>
       )}
       <DataWorkspace
-        key={workspaceKey}
+        onExportNodes={exportNodes}
+        resourceDragEntries={resourceDragPreview?.entries}
+        onResolveFileDrop={resolveFileDrop}
+        dragExportHint={t("workspace.drag.exportHint")}
+        key={explorerSession.key}
         workspace={workspace}
         labels={{ root: workspace.name }}
         dataPort={dataPort}
         defaultExpandedPaths={defaultExpandedWorkspaceRoots}
+        initialExplorerSession={explorerSession.initialSession}
+        onExplorerSessionChange={explorerSession.onSessionChange}
         activePath={activeExplorerPath}
         onResourceMove={onResourceMove}
         onActivePathChange={onActiveDataPathChange}
@@ -334,13 +371,7 @@ export function DesktopDataWorkspaceSurface({
         onCutNodes={fileClipboardController.cutNodes}
         onPasteNodes={fileClipboardController.pasteNodes}
         onDuplicateNodes={fileClipboardController.duplicateNodes}
-        explorerListStartSlot={(
-          <RemoteUpdateNotice
-            status={navigation.gitStatus}
-            operationLoading={navigation.gitOperationLoading}
-            onPull={navigation.onPullGit}
-          />
-        )}
+        explorerLoadingPresentation="skeleton"
         explorerListEndSlot={(
           <div
             className="desktop-explorer-list-end-create"
@@ -371,7 +402,8 @@ export function DesktopDataWorkspaceSurface({
         )}
         showExplorerToolbar={!shellHostedTopNavigation && Boolean(topNavigation)}
         explorerToolbarSlot={shellHostedTopNavigation ? undefined : (topNavigation ?? undefined)}
-        explorerRailSlot={preferences.sidebarNavigationPlacement === "left" ? (
+        explorerRailSlot={navigation.showWorkspaceNavigation
+          && preferences.sidebarNavigationPlacement === "left" ? (
           <DesktopSidebarRailNavigation {...navigationCommon} />
         ) : undefined}
         showPreviewHeader={false}
@@ -385,6 +417,7 @@ export function DesktopDataWorkspaceSurface({
         enableMarkdownLinkContentIndexing
         folderExpansionStrategy="load-before-expand"
         refreshKey={workspaceRefreshToken}
+        atomicRefreshKey={workspaceAtomicRefreshToken}
         explorerNodeActionSlot={(state, node) => {
           const agentPresencePath = node.type === "file"
             ? node.workspaceFolderId
@@ -404,7 +437,7 @@ export function DesktopDataWorkspaceSurface({
                 node={node}
                 parentPath={node.type === "folder" ? node.path : null}
                 showMoreActions={!node.workspaceFolderRoot}
-                onRemoveWorkspaceRoot={workspaceFolders.length > 1
+                onRemoveWorkspaceRoot={workspaceFolders.length > 0
                   ? () => {
                       const folder = workspaceFolders.find((item) => item.id === node.workspaceFolderId);
                       if (folder) void onRemoveProject(folder);
@@ -424,9 +457,22 @@ export function DesktopDataWorkspaceSurface({
         explorerSlot={resolvedSurface.id === "data"
           ? undefined
           : <WorkspaceSurfaceOutlet region="sidebar" surface={resolvedSurface} />}
-        explorerFooterSlot={sidebarCompanion || preferences.sidebarNavigationPlacement === "bottom"
+        explorerFooterSlot={navigation.showWorkspaceNavigation && (
+          remoteUpdateNoticeVisible
+          || sidebarCompanion
+          || preferences.sidebarNavigationPlacement === "bottom"
+        )
           ? (
               <div className="desktop-sidebar-companion-host">
+                {remoteUpdateNoticeVisible && (
+                  <div className="desktop-sidebar-lower-notice">
+                    <RemoteUpdateNotice
+                      status={navigation.gitStatus}
+                      operationLoading={navigation.gitOperationLoading}
+                      onPull={navigation.onPullGit}
+                    />
+                  </div>
+                )}
                 {sidebarCompanion}
                 {preferences.sidebarNavigationPlacement === "bottom" && (
                   <DesktopSidebarFooterNavigation {...navigationCommon} />
@@ -438,7 +484,7 @@ export function DesktopDataWorkspaceSurface({
           ? (state) => (
               <>
                 <WorkspaceRootOnboardingStatusReporter
-                  workspaceKey={workspaceKey}
+                  workspaceKey={explorerSession.key}
                   rootLoading={state.rootLoading}
                   loadError={state.loadError}
                   rootEntryCount={state.tree.length}
@@ -454,6 +500,7 @@ export function DesktopDataWorkspaceSurface({
                   fileIconTheme={preferences.fileIconTheme}
                   layout={editorWorkbench.paneLayout}
                   markdownEnvironment={state.markdownEnvironment}
+                  documentNavigation={state.documentNavigation}
                   refreshKey={workspaceRefreshToken}
                   viewerExtensionAdapter={viewerExtensionAdapter}
                   workspace={workspace}

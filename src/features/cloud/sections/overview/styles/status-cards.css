@@ -30,7 +30,7 @@
 
 .desktop-cloud-overview-header-fact--interactive {
   border-radius: 7px;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transition: background 100ms ease;
 }
 
@@ -53,14 +53,14 @@
 
 .desktop-cloud-overview-header-fact-label {
   color: var(--po-text-subtle);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-weight: 400;
   line-height: 14px;
 }
 
 .desktop-cloud-overview-header-fact > strong {
   color: var(--po-text);
-  font-size: 14px;
+  font-size: var(--po-type-ui-body-large, 15px);
   font-variant-numeric: tabular-nums;
   font-weight: 500;
   line-height: 18px;

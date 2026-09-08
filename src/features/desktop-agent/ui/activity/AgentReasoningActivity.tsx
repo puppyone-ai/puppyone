@@ -11,10 +11,14 @@ export function AgentReasoningActivity({ activity }: { activity: AgentActivity }
   const durationMs = commandMetadata(activity).durationMs;
   const duration = durationMs === null ? null : formatAgentDuration(durationMs, t, formatNumber);
   const running = ["running", "pending", "in-progress"].includes(activity.status);
+  // The live tail is the single authority for in-progress feedback. A durable
+  // reasoning row appears only when a Harness has supplied a public summary
+  // and that summary has settled; empty native reasoning boundaries stay out
+  // of the transcript entirely.
+  if (running || !reasoning.trim()) return null;
   return (
     <AgentActivityShell
-      title={running ? t("agent.activity.thinking") : duration ? t("agent.activity.thoughtFor", { duration }) : t("agent.activity.thoughtBriefly")}
-      summary={running ? t("agent.activity.workingThroughRequest") : undefined}
+      title={duration ? t("agent.activity.thoughtFor", { duration }) : t("agent.activity.thoughtBriefly")}
       status={activity.status}
       icon={<Brain size={13} />}
       className="desktop-agent-reasoning"

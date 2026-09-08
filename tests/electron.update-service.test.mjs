@@ -10,7 +10,46 @@ import { resolveDesktopBuildIdentity } from "../shared/desktop-build-identity.mj
 
 const commitSha = "d".repeat(40);
 
+vi.mock("electron-updater", () => ({
+  default: {
+    get autoUpdater() {
+      throw new Error("Native updater construction is unavailable in this host.");
+    },
+  },
+}));
+
 describe("Desktop updater channel isolation", () => {
+  it.each([
+    ["dev", false],
+    ["dev", true],
+    ["internal", false],
+    ["stable", false],
+  ])("keeps disabled %s updates usable without a native updater (packaged: %s)", async (channel, isPackaged) => {
+    const handlers = new Map();
+    const service = createUpdateService({
+      app: { isPackaged },
+      buildInfo: resolveDesktopBuildIdentity({
+        baseVersion: "1.4.0",
+        buildNumber: 74,
+        channel,
+        commitSha,
+      }),
+      environment: {},
+      getWindows: () => [],
+      ipcMain: { handle: (name, handler) => handlers.set(name, handler) },
+      platform: "linux",
+    });
+
+    service.start();
+    service.start();
+    expect(handlers.size).toBe(5);
+    for (const handler of handlers.values()) {
+      await handler();
+      expect(service.getState()).toMatchObject({ status: "disabled", error: null });
+    }
+    service.dispose();
+  });
+
   it("pins Internal builds to the Internal feed and ignores runtime overrides", () => {
     const buildInfo = resolveDesktopBuildIdentity({
       baseVersion: "1.4.0",

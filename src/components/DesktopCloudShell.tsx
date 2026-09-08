@@ -9,10 +9,19 @@ import {
   type RefObject,
 } from "react";
 import { PanelLeft } from "lucide-react";
+import {
+  SidebarResizeHandle,
+  useCollapsiblePaneResize,
+  type SidebarResizeIntent,
+} from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization";
 import { AuxiliaryPanelHost } from "../features/app-shell/auxiliary";
 import { DesktopShellAccessoryProvider } from "../features/app-shell/DesktopShellAccessoryContext";
 import { DesktopPaneLayoutProvider } from "../features/app-shell/layout/DesktopPaneLayoutContext";
+import {
+  useNativeSurfacePointerPassthroughActivity,
+  useNativeSurfacePointerRoutingRegion,
+} from "../features/native-surfaces";
 import {
   DEFAULT_EXPLORER_WIDTH,
   DEFAULT_RIGHT_SIDEBAR_WIDTH,
@@ -31,6 +40,15 @@ export type DesktopView = WorkspaceSurfaceId;
 
 type DesktopCloudShellProps = {
   children: ReactNode;
+  leadingRail?: ReactNode;
+  leadingRailWidth?: number;
+  leadingRailMinWidth?: number;
+  leadingRailMaxWidth?: number;
+  leadingRailCollapsed?: boolean;
+  leadingRailCollapsedWidth?: number;
+  leadingRailCollapsedCssWidth?: string;
+  leadingRailCollapseThreshold?: number;
+  resizableLeadingRail?: boolean;
   titlebarSidebarSlot?: ReactNode;
   titlebarEditorSlot?: ReactNode;
   titlebarActions?: ReactNode;
@@ -49,12 +67,23 @@ type DesktopCloudShellProps = {
   maxRightSidebarWidth?: number;
   resizableRightSidebar?: boolean;
   onLeftSidebarExpand?: () => void;
+  onLeadingRailCollapsedChange?: (collapsed: boolean) => void;
+  onLeadingRailWidthChange?: (width: number) => void;
   onRightSidebarOpenChange?: (open: boolean) => void;
   onRightSidebarWidthChange?: (width: number) => void;
 };
 
 export function DesktopCloudShell({
   children,
+  leadingRail,
+  leadingRailWidth = 0,
+  leadingRailMinWidth = 160,
+  leadingRailMaxWidth = 360,
+  leadingRailCollapsed = false,
+  leadingRailCollapsedWidth = 0,
+  leadingRailCollapsedCssWidth,
+  leadingRailCollapseThreshold,
+  resizableLeadingRail = false,
   titlebarSidebarSlot,
   titlebarEditorSlot,
   titlebarActions,
@@ -73,15 +102,64 @@ export function DesktopCloudShell({
   maxRightSidebarWidth,
   resizableRightSidebar = false,
   onLeftSidebarExpand,
+  onLeadingRailCollapsedChange,
+  onLeadingRailWidthChange,
   onRightSidebarOpenChange,
   onRightSidebarWidthChange,
 }: DesktopCloudShellProps) {
   const { t } = useLocalization();
   const bodyRef = useRef<HTMLDivElement>(null);
   const [navigationToolbarHost, setNavigationToolbarHost] = useState<HTMLDivElement | null>(null);
+  const [leadingRailResizerElement, setLeadingRailResizerElement] = useState<HTMLDivElement | null>(null);
   const bodyWidth = useObservedElementWidth(bodyRef);
+  const resolvedLeadingRailMinWidth = Math.max(0, Math.round(leadingRailMinWidth));
+  const resolvedLeadingRailMaxWidth = Math.max(
+    resolvedLeadingRailMinWidth,
+    Math.round(leadingRailMaxWidth),
+  );
+  const resolvedLeadingRailCollapsedWidth = clamp(
+    Math.round(leadingRailCollapsedWidth),
+    0,
+    resolvedLeadingRailMinWidth,
+  );
+  const resolvedLeadingRailCollapseThreshold = clamp(
+    Math.round(leadingRailCollapseThreshold ?? resolvedLeadingRailMinWidth / 2),
+    0,
+    resolvedLeadingRailMinWidth,
+  );
+  const leadingRailResizable = Boolean(
+    leadingRail && resizableLeadingRail && onLeadingRailWidthChange,
+  );
+  const leadingRailCanCollapse = Boolean(onLeadingRailCollapsedChange);
+  const onLeadingRailResizeActiveChange = useNativeSurfacePointerPassthroughActivity(
+    "explorer-resize",
+  );
+  useNativeSurfacePointerRoutingRegion("explorer-resize", leadingRailResizerElement);
+  const leadingRailResize = useCollapsiblePaneResize({
+    bodyClassName: "desktop-project-switcher-resizing",
+    collapsed: leadingRailCollapsed,
+    collapsedWidth: resolvedLeadingRailCollapsedWidth,
+    collapseThreshold: leadingRailCanCollapse ? resolvedLeadingRailCollapseThreshold : 0,
+    direction: getDocumentDirection(),
+    enabled: leadingRailResizable,
+    maxWidth: resolvedLeadingRailMaxWidth,
+    minWidth: resolvedLeadingRailMinWidth,
+    side: "inline-start",
+    width: leadingRailWidth,
+    widthChangeMode: "end",
+    onCollapsedChange: onLeadingRailCollapsedChange,
+    onDragActiveChange: onLeadingRailResizeActiveChange,
+    onWidthChange: onLeadingRailWidthChange ?? noopWidthChange,
+  });
+  const resolvedLeadingRailWidth = leadingRail
+    ? leadingRailResizable
+      ? leadingRailResize.width
+      : Math.max(0, Math.round(leadingRailWidth))
+    : 0;
   const paneLayout = useMemo(() => resolveDesktopPaneLayout({
-    availableWidth: bodyWidth,
+    // The Project rail sits beside the workspace column below the Header, so
+    // the observed body width is already the exact width available to panes.
+    availableWidth: Math.max(0, bodyWidth),
     explorer: {
       collapsed: leftSidebarCollapsed,
       maxWidth: leftSidebarMaxWidth,
@@ -112,6 +190,9 @@ export function DesktopCloudShell({
     rightSidebarWidth,
   ]);
   const bodyStyle = {
+    minWidth: paneLayout.minimumWidth,
+  } as CSSProperties;
+  const paneGroupStyle = {
     "--desktop-main-pane-min-width": `${paneLayout.main.minWidth}px`,
     minWidth: paneLayout.minimumWidth,
   } as CSSProperties;
@@ -122,95 +203,175 @@ export function DesktopCloudShell({
       : "expanded";
   const shellStyle = {
     "--desktop-shell-explorer-width": `${paneLayout.explorer.width}px`,
+    "--desktop-shell-leading-rail-width": leadingRailCollapsed && leadingRailCollapsedCssWidth
+      ? leadingRailCollapsedCssWidth
+      : `${resolvedLeadingRailWidth}px`,
   } as CSSProperties;
 
   useEffect(() => {
-    publishWindowMinimumWidth(paneLayout.minimumWidth);
-  }, [paneLayout.minimumWidth]);
+    publishWindowMinimumWidth(paneLayout.minimumWidth + resolvedLeadingRailWidth);
+  }, [paneLayout.minimumWidth, resolvedLeadingRailWidth]);
 
   useEffect(() => () => {
     publishWindowMinimumWidth(0);
   }, []);
 
+  const resizeLeadingRailByKeyboard = (
+    intent: SidebarResizeIntent,
+    accelerated: boolean,
+  ) => {
+    if (!leadingRailResizable || !onLeadingRailWidthChange) return;
+    if (intent === "minimum") {
+      if (leadingRailCanCollapse) {
+        onLeadingRailCollapsedChange?.(true);
+        return;
+      }
+      onLeadingRailWidthChange(resolvedLeadingRailMinWidth);
+      return;
+    }
+    if (intent === "maximum") {
+      onLeadingRailCollapsedChange?.(false);
+      onLeadingRailWidthChange(resolvedLeadingRailMaxWidth);
+      return;
+    }
+    const step = accelerated ? 24 : 12;
+    const physicalDirection = intent === "decrease" ? -1 : 1;
+    const directionMultiplier = getDocumentDirection() === "rtl" ? -1 : 1;
+    const nextWidth = resolvedLeadingRailWidth
+      + physicalDirection * directionMultiplier * step;
+    if (leadingRailCollapsed) {
+      if (nextWidth > resolvedLeadingRailCollapsedWidth) {
+        onLeadingRailCollapsedChange?.(false);
+        onLeadingRailWidthChange(resolvedLeadingRailMinWidth);
+      }
+      return;
+    }
+    if (leadingRailCanCollapse && nextWidth < resolvedLeadingRailMinWidth) {
+      onLeadingRailCollapsedChange?.(true);
+      return;
+    }
+    onLeadingRailWidthChange(clamp(
+      nextWidth,
+      resolvedLeadingRailMinWidth,
+      resolvedLeadingRailMaxWidth,
+    ));
+  };
+
   return (
     <div
       className="desktop-shell"
+      data-leading-rail={leadingRail ? "true" : undefined}
       data-titlebar-sidebar-state={sidebarState}
       style={shellStyle}
     >
-      <DesktopWindowChrome
-        context={(
-          <>
-            <div
-              className="desktop-titlebar-sidebar-context"
-              data-sidebar-state={sidebarState}
-            >
-              {paneLayout.explorer.collapsed && leftSidebarPresent && onLeftSidebarExpand && (
-                <button
-                  className="desktop-titlebar-context-icon-button desktop-titlebar-sidebar-expand"
-                  type="button"
-                  aria-label={t("shared-ui.explorer.expandSidebar")}
-                  title={t("shared-ui.explorer.expandSidebar")}
-                  onClick={() => onLeftSidebarExpand()}
-                >
-                  <PanelLeft size={15} strokeWidth={1.8} aria-hidden="true" />
-                </button>
-              )}
-              {titlebarSidebarSlot}
-            </div>
-            {titlebarEditorSlot != null && (
-              <div className="desktop-titlebar-editor-context">
-                {titlebarEditorSlot}
+      <div className="desktop-shell-workbench">
+        <DesktopWindowChrome
+          context={(
+            <>
+              <div
+                className="desktop-titlebar-sidebar-context"
+                data-sidebar-state={sidebarState}
+              >
+                {paneLayout.explorer.collapsed && leftSidebarPresent && onLeftSidebarExpand && (
+                  <button
+                    className="desktop-titlebar-context-icon-button desktop-titlebar-sidebar-expand"
+                    type="button"
+                    aria-label={t("shared-ui.explorer.expandSidebar")}
+                    title={t("shared-ui.explorer.expandSidebar")}
+                    onClick={() => onLeftSidebarExpand()}
+                  >
+                    <PanelLeft size={15} strokeWidth={1.8} aria-hidden="true" />
+                  </button>
+                )}
+                {titlebarSidebarSlot}
               </div>
-            )}
-          </>
-        )}
-        actions={titlebarActions}
-      />
+              {titlebarEditorSlot != null && (
+                <div className="desktop-titlebar-editor-context">
+                  {titlebarEditorSlot}
+                </div>
+              )}
+            </>
+          )}
+          actions={titlebarActions}
+        />
 
-      <DesktopShellAccessoryProvider navigationToolbarHost={navigationToolbarHost}>
-        <div
-          ref={setNavigationToolbarHost}
-          className="desktop-shell-navigation-toolbar-host"
-          data-window-no-drag="true"
-        >
-          {navigationToolbarActions && (
-            <div
-              className="desktop-shell-navigation-toolbar-actions desktop-shell-toolbar-section"
-              data-shell-toolbar-section="actions"
-            >
-              {navigationToolbarActions}
+        <div className="desktop-shell-below-header">
+          {leadingRail && (
+            <div className="desktop-shell-leading-rail">
+              {leadingRail}
+              {leadingRailResizable && (
+                <SidebarResizeHandle
+                  ref={setLeadingRailResizerElement}
+                  className="desktop-project-switcher-resizer"
+                  collapsedEdgeSide={leadingRailCollapsed ? "inline-start" : undefined}
+                  paneEdge
+                  orientation="vertical"
+                  label={t(leadingRailCollapsed
+                    ? "shell.workspaceSwitcher.expandProjects"
+                    : "shell.workspaceSwitcher.resizeProjects")}
+                  min={leadingRailCanCollapse
+                    ? resolvedLeadingRailCollapsedWidth
+                    : resolvedLeadingRailMinWidth}
+                  max={resolvedLeadingRailMaxWidth}
+                  value={resolvedLeadingRailWidth}
+                  onCollapsedActivate={leadingRailCollapsed
+                    ? () => onLeadingRailCollapsedChange?.(false)
+                    : undefined}
+                  onPointerDown={leadingRailResize.onPointerDown}
+                  onKeyboardResize={resizeLeadingRailByKeyboard}
+                />
+              )}
             </div>
           )}
-        </div>
-        {locationBar && (
-          <div className="desktop-shell-location-bar-host" data-window-no-drag="true">
-            {locationBar}
-          </div>
-        )}
-        <DesktopPaneLayoutProvider value={paneLayout}>
-          <div ref={bodyRef} className="desktop-shell-body" style={bodyStyle}>
-            <main className="desktop-surface" style={{ minWidth: paneLayout.surfaceMinWidth }}>
-              {children}
-            </main>
-            {rightSidebar && (
-              <AuxiliaryPanelHost
-                collapseThreshold={RIGHT_SIDEBAR_COLLAPSE_THRESHOLD}
-                open={paneLayout.rightSidebar.open}
-                width={paneLayout.rightSidebar.width}
-                expandedWidth={rightSidebarWidth}
-                minWidth={paneLayout.rightSidebar.minWidth}
-                maxWidth={paneLayout.rightSidebar.maxWidth}
-                resizable={resizableRightSidebar}
-                onOpenChange={onRightSidebarOpenChange}
-                onWidthChange={onRightSidebarWidthChange}
+          <div className="desktop-shell-workspace-column">
+            <DesktopShellAccessoryProvider navigationToolbarHost={navigationToolbarHost}>
+              <div
+                ref={setNavigationToolbarHost}
+                className="desktop-shell-navigation-toolbar-host"
+                data-window-no-drag="true"
               >
-                {rightSidebar}
-              </AuxiliaryPanelHost>
-            )}
+                {navigationToolbarActions && (
+                  <div
+                    className="desktop-shell-navigation-toolbar-actions desktop-shell-toolbar-section"
+                    data-shell-toolbar-section="actions"
+                  >
+                    {navigationToolbarActions}
+                  </div>
+                )}
+              </div>
+              {locationBar && (
+                <div className="desktop-shell-location-bar-host" data-window-no-drag="true">
+                  {locationBar}
+                </div>
+              )}
+              <DesktopPaneLayoutProvider value={paneLayout}>
+                <div ref={bodyRef} className="desktop-shell-body" style={bodyStyle}>
+                  <div className="desktop-shell-pane-group" style={paneGroupStyle}>
+                    <main className="desktop-surface" style={{ minWidth: paneLayout.surfaceMinWidth }}>
+                      {children}
+                    </main>
+                    {rightSidebar && (
+                      <AuxiliaryPanelHost
+                        collapseThreshold={RIGHT_SIDEBAR_COLLAPSE_THRESHOLD}
+                        open={paneLayout.rightSidebar.open}
+                        width={paneLayout.rightSidebar.width}
+                        expandedWidth={rightSidebarWidth}
+                        minWidth={paneLayout.rightSidebar.minWidth}
+                        maxWidth={paneLayout.rightSidebar.maxWidth}
+                        resizable={resizableRightSidebar}
+                        onOpenChange={onRightSidebarOpenChange}
+                        onWidthChange={onRightSidebarWidthChange}
+                      >
+                        {rightSidebar}
+                      </AuxiliaryPanelHost>
+                    )}
+                  </div>
+                </div>
+              </DesktopPaneLayoutProvider>
+            </DesktopShellAccessoryProvider>
           </div>
-        </DesktopPaneLayoutProvider>
-      </DesktopShellAccessoryProvider>
+        </div>
+      </div>
     </div>
   );
 }
@@ -257,3 +418,13 @@ function publishWindowMinimumWidth(width: number) {
     // Browser-only surfaces intentionally have no Electron bridge.
   }
 }
+
+function getDocumentDirection() {
+  return document.documentElement.dir === "rtl" ? "rtl" : "ltr";
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function noopWidthChange() {}

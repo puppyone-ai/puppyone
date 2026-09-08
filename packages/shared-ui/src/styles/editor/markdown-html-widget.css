@@ -40,7 +40,7 @@
   background: color-mix(in srgb, var(--po-panel-raised) 92%, transparent);
   color: var(--po-text-muted);
   box-shadow: var(--po-shadow-sm);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .markdown-codemirror-editor .cm-md-html-source-toggle:hover,
@@ -66,7 +66,7 @@
   border-radius: 6px;
   background: color-mix(in srgb, var(--po-panel) 26%, transparent);
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
 }
 
 .markdown-codemirror-editor .cm-md-html-deferred-load {
@@ -77,7 +77,7 @@
   border-radius: 5px;
   background: var(--po-control);
   color: var(--po-text);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   font: inherit;
 }
 
@@ -173,7 +173,7 @@
   overflow: auto;
   color: inherit;
   font-family: var(--po-font-mono);
-  font-size: inherit;
+  font-size: var(--po-type-editor-code, 13px);
   line-height: 1.45;
   white-space: pre-wrap;
 }

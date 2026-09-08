@@ -35,15 +35,12 @@ button {
   font: inherit;
 }
 
-:where(.app-shell, .onboarding-shell, .desktop-overlay-root)[data-pointer-cursors="false"] {
-  --po-clickable-cursor: default;
+:where([data-po-appearance-root], .app-shell, .onboarding-shell, .desktop-overlay-root)[data-pointer-cursors] {
+  --po-action-cursor: default;
+  --po-clickable-cursor: var(--po-action-cursor);
 }
 
-:where(.app-shell, .onboarding-shell, .desktop-overlay-root)[data-pointer-cursors="true"] {
-  --po-clickable-cursor: pointer;
-}
-
-:where(.app-shell, .onboarding-shell, .desktop-overlay-root)[data-pointer-cursors]
+:where([data-po-appearance-root], .app-shell, .onboarding-shell, .desktop-overlay-root)[data-pointer-cursors]
   :where(
     button:not(:disabled),
     a[href],
@@ -67,17 +64,39 @@ button {
     [role="switch"]:not([aria-disabled="true"]),
     [role="tab"]:not([aria-disabled="true"]),
     [role="treeitem"]:not([aria-disabled="true"]),
+    [data-navigation-item],
+    [data-po-interaction="navigation"]:not(:disabled):not([aria-disabled="true"]),
     .desktop-settings-switch:not(:has(input:disabled))
   ) {
-  cursor: var(--po-clickable-cursor, default);
+  cursor: default;
 }
 
-:where(.app-shell, .onboarding-shell, .desktop-overlay-root)[data-pointer-cursors]
+/*
+ * Linear-style pointer cursors are reserved for destinations and only appear
+ * when the preference is enabled. Native links opt in automatically;
+ * button-backed routes use the public data-po-interaction contract. Rebinding
+ * the legacy component cursor token locally keeps feature CSS compatible
+ * without relying on cascade order.
+ */
+:where([data-po-appearance-root], .app-shell, .onboarding-shell, .desktop-overlay-root)[data-pointer-cursors="true"]
+  :where(
+    a[href],
+    [role="link"]:not([aria-disabled="true"]),
+    [role="tab"]:not([aria-disabled="true"]),
+    [data-navigation-item],
+    [data-po-interaction="navigation"]:not(:disabled):not([aria-disabled="true"])
+  ) {
+  --po-clickable-cursor: pointer;
+  cursor: pointer;
+}
+
+:where([data-po-appearance-root], .app-shell, .onboarding-shell, .desktop-overlay-root)[data-pointer-cursors]
   :where(button, input, select, textarea):disabled,
-:where(.app-shell, .onboarding-shell, .desktop-overlay-root)[data-pointer-cursors]
+:where([data-po-appearance-root], .app-shell, .onboarding-shell, .desktop-overlay-root)[data-pointer-cursors]
   [aria-disabled="true"],
-:where(.app-shell, .onboarding-shell, .desktop-overlay-root)[data-pointer-cursors]
+:where([data-po-appearance-root], .app-shell, .onboarding-shell, .desktop-overlay-root)[data-pointer-cursors]
   .desktop-settings-switch:has(input:disabled) {
+  --po-clickable-cursor: default;
   cursor: default;
 }
 
@@ -88,14 +107,14 @@ p {
 }
 
 h1 {
-  font-size: 20px;
+  font-size: var(--po-type-ui-page-title, 21px);
   line-height: 1.2;
   font-weight: 650;
   letter-spacing: 0;
 }
 
 h2 {
-  font-size: 16px;
+  font-size: var(--po-type-ui-title, 17px);
   line-height: 1.25;
   font-weight: 650;
   letter-spacing: 0;

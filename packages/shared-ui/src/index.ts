@@ -1,4 +1,9 @@
 export * from "./core/types";
+export { STANDARD_CONTROL_SIZE } from "./core/controlGeometry";
+export {
+  resolveCssPixelCustomProperty,
+  useCssPixelCustomProperty,
+} from "./core/useCssPixelCustomProperty";
 export { RENDERER_ASSET_PATHS } from "./core/rendererAssetCatalog";
 export { resolveRendererPublicAssetUrl } from "./core/rendererPublicAsset";
 export {
@@ -78,6 +83,22 @@ export {
   dispatchTypographyChange,
   subscribeTypographyChanges,
 } from "./core/typography";
+export {
+  getMermaidThemeSnapshot,
+  mountSanitizedMermaidSvg,
+  normalizeContentLanguage,
+  renderMermaidDiagram,
+  resolveMarkdownContentLanguage,
+  subscribeMermaidThemeChanges,
+} from "./editor/markdown";
+export type {
+  MarkdownContentLanguageResolution,
+  MarkdownContentLanguageSource,
+  MermaidRenderRequest,
+  MermaidRenderResult,
+  MermaidSvgMount,
+  MermaidThemeSnapshot,
+} from "./editor/markdown";
 export type {
   TypographyChangeDetail,
   TypographyChangePhase,
@@ -114,6 +135,21 @@ export {
 
 export { DataWorkspace } from "./data/DataWorkspace";
 export {
+  createDocumentNavigationPort,
+  parseDocumentReferenceIntent,
+} from "./editor/navigation/documentNavigation";
+export type {
+  DocumentDeniedReference,
+  DocumentExternalReference,
+  DocumentNavigationOptions,
+  DocumentNavigationPort,
+  DocumentReference,
+  DocumentReferenceSyntax,
+  DocumentWorkspaceReference,
+  DocumentWorkspaceReferenceStatus,
+  WorkspaceDocumentReferenceResolution,
+} from "./editor/navigation/documentNavigation";
+export {
   createMarkdownLinkGraphIndex,
   MarkdownLinkIndexCoordinator,
 } from "./editor/markdown/linkIndex";
@@ -124,6 +160,7 @@ export type {
   MarkdownLinkIndexRequest,
 } from "./editor/markdown/linkIndex";
 export type {
+  DataWorkspaceExplorerSession,
   DataWorkspaceFolderExpansionStrategy,
   DataWorkspaceProps,
   DataWorkspaceState,
@@ -172,6 +209,11 @@ export type {
 } from "./editor/host/DataNodeEditorHost";
 export { EditorDocumentHost } from "./editor/host/EditorDocumentHost";
 export type { EditorDocumentHostProps } from "./editor/host/EditorDocumentHost";
+export { PresetViewerRuntimeHostProvider } from "./editor/host/PresetViewerRuntimeHost";
+export type {
+  IsolatedPresetViewerSurfaceRenderer,
+  PresetViewerRuntimeHostAdapter,
+} from "./editor/host/PresetViewerRuntimeHost";
 export {
   closestWorkbenchSplitDropEdge,
   collectWorkbenchSplitLeaves,
@@ -280,6 +322,7 @@ export {
   useEditorFindCommand,
 } from "./editor/find/editorFind";
 export { useFileResourceLease } from "./editor/resource/useFileResourceLease";
+export { readDocumentStorageSnapshot } from "./editor/document-session/documentStorageReads";
 export type {
   EditorFindAdapter,
   EditorFindCommand,
@@ -374,8 +417,12 @@ export type {
 export {
   PRESET_VIEWER_CAPABILITIES,
   PRESET_VIEWER_CONTRACT_VERSION,
+  PRESET_VIEWER_COMPUTE_ISOLATIONS,
+  PRESET_VIEWER_CONTENT_SANDBOXES,
+  PRESET_VIEWER_MEMORY_CLASSES,
   PRESET_VIEWER_RUNTIMES,
   PRESET_VIEWER_SOURCES,
+  PRESET_VIEWER_SURFACE_ISOLATIONS,
   VIEWER_SURFACE_PREPARATIONS,
   VIEWER_SURFACE_READINESS_SIGNALS,
   VIEWER_SURFACE_FAMILIES,
@@ -383,8 +430,14 @@ export {
 } from "./editor/registry/viewerContract";
 export type {
   PresetViewerContractVersion,
+  PresetViewerComputeIsolation,
+  PresetViewerContentSandbox,
+  PresetViewerMemoryClass,
+  PresetViewerRecoveryPolicy,
+  PresetViewerResourcePolicy,
   PresetViewerRuntime,
   PresetViewerSource,
+  PresetViewerSurfaceIsolation,
   ViewerSurfacePreparation,
   ViewerSurfaceReadinessSignal,
   ViewerSurfaceFamily,

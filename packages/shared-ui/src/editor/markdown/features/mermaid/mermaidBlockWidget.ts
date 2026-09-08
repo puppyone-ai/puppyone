@@ -3,7 +3,6 @@ import { EditorView, WidgetType } from "@codemirror/view";
 import { bidiIsolate } from "@puppyone/localization/core";
 import { getMarkdownEmbedHost } from "../../platform/codemirror/embedHost";
 import { disposeWidgetSessionDom } from "../../platform/codemirror/widgetSession";
-import { bindInlineHtmlDomInteractions } from "../html/inlineHtmlDomAdapter";
 import { MARKDOWN_HTML_PROFILE_VERSION } from "../../platform/policy/markdownHtmlProfiles";
 import {
   serializeMarkdownCodeBlock,
@@ -11,6 +10,7 @@ import {
 } from "../code-block/codeBlockModel";
 import {
   getMermaidThemeSnapshot,
+  mountSanitizedMermaidSvg,
   renderMermaidDiagram,
   subscribeMermaidThemeChanges,
   type MermaidRenderResult,
@@ -493,16 +493,8 @@ function mountMermaidPreviewSvg(
   svg: string,
   openHref: (href: string) => void,
 ) {
-  const renderRoot = document.createElement("span");
-  renderRoot.className = "cm-md-mermaid-svg-root";
-  const shadowRoot = renderRoot.attachShadow({ mode: "open" });
-  const style = document.createElement("style");
-  style.textContent = ":host{display:block;max-width:100%}svg{display:block;max-width:100%;height:auto}";
-  const template = document.createElement("template");
-  template.innerHTML = svg;
-  shadowRoot.append(style, template.content);
-  preview.replaceChildren(renderRoot);
-  bindInlineHtmlDomInteractions(shadowRoot, { openHref });
+  const mount = mountSanitizedMermaidSvg(preview, svg, openHref);
+  mount.element.classList.add("cm-md-mermaid-svg-root");
 }
 
 function showMermaidError(

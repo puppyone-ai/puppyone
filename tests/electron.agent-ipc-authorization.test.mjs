@@ -1,3 +1,4 @@
+import { clientHandler } from "./helpers/agentIpcClient.mjs";
 import { describe, expect, it, vi } from "vitest";
 import { registerAgentIpcHandlers } from "../electron/main/ipc/agent-ipc.mjs";
 import {
@@ -18,7 +19,7 @@ describe("Agent IPC workspace authorization", () => {
       discover: vi.fn(async () => ({ connections: [], scannedAt: new Date(0).toISOString(), warnings: [] })),
     };
     registerAgentIpcHandlers({
-      ipcMain: { handle: (channel, listener) => handlers.set(channel, listener) },
+      ipcMain: { handle: (channel, listener) => handlers.set(channel, clientHandler(listener)) },
       agentService,
       localAgentInventory,
       authorizeWorkspaceRoot,
@@ -27,9 +28,9 @@ describe("Agent IPC workspace authorization", () => {
     await expect(handlers.get("agent:session-create")(event, { rootPath: "/other" })).rejects.toThrow(/does not match/i);
     expect(agentService.createSession).not.toHaveBeenCalled();
     await handlers.get("agent:session-create")(event, { rootPath: "/workspace" });
-    expect(agentService.createSession).toHaveBeenCalledWith(event.sender, { rootPath: "/workspace" }, "/canonical/workspace");
+    expect(agentService.createSession).toHaveBeenCalledWith(event.sender, { rootPath: "/workspace" }, "/canonical/workspace", undefined);
     await handlers.get("agent:session-resume")(event, { rootPath: "/workspace" });
-    expect(agentService.resumeSession).toHaveBeenCalledWith(event.sender, { rootPath: "/workspace" }, "/canonical/workspace");
+    expect(agentService.resumeSession).toHaveBeenCalledWith(event.sender, { rootPath: "/workspace" }, "/canonical/workspace", undefined);
     await handlers.get("agent:session-open")(event, {
       rootPath: "/workspace",
       sessionId: "saved-session",
@@ -39,7 +40,7 @@ describe("Agent IPC workspace authorization", () => {
       rootPath: "/workspace",
       sessionId: "saved-session",
       runtimeId: "codex",
-    }, "/canonical/workspace");
+    }, "/canonical/workspace", undefined);
     await handlers.get("agent:local-connections-discover")(event, {
       rootPath: "/workspace",
       refresh: true,
@@ -57,7 +58,7 @@ describe("Agent IPC workspace authorization", () => {
     const handlers = new Map();
     const agentService = createMockAgentService();
     registerAgentIpcHandlers({
-      ipcMain: { handle: (channel, listener) => handlers.set(channel, listener) },
+      ipcMain: { handle: (channel, listener) => handlers.set(channel, clientHandler(listener)) },
       agentService,
       localAgentInventory: {
         discover: vi.fn(async () => ({ connections: [], scannedAt: new Date(0).toISOString(), warnings: [] })),

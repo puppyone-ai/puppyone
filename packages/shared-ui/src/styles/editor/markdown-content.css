@@ -14,10 +14,10 @@
   --po-md-content-font-fallback: var(--po-font-content-fallback, var(--po-font-locale-sans), var(--po-font-emoji), sans-serif);
   --po-md-content-font: var(--po-host-md-content-font, var(--po-md-content-font-primary), var(--po-md-content-font-fallback));
   --po-editor-content-font: var(--po-font-editor-content-user, var(--po-md-content-font));
-  --po-md-content-size: var(--po-host-md-content-size, var(--po-text-size-content, 14px));
+  --po-md-content-size: var(--po-type-editor-content, var(--po-text-size-content, 15px));
   --po-md-content-weight: var(--po-host-md-content-weight, var(--po-content-reading-weight, 450));
   --po-md-content-letter-spacing: var(--po-host-md-content-letter-spacing, var(--po-content-reading-letter-spacing, 0));
-  --po-md-content-line-height: var(--po-host-md-content-line-height, var(--po-content-reading-line-height, 1.7142857143));
+  --po-md-content-line-height: var(--po-type-editor-line-height, var(--po-content-reading-line-height, 24px));
   /* Light surfaces use the full semantic foreground. Regular CJK glyphs need
      contrast, not a theme-specific synthetic weight. */
   --po-md-content-color: var(--po-host-md-content-color, var(--po-text));
@@ -49,12 +49,12 @@
   --po-md-syntax-property: var(--po-host-md-syntax-property, color-mix(in srgb, var(--po-accent) 72%, var(--po-text)));
   --po-md-syntax-operator: var(--po-host-md-syntax-operator, color-mix(in srgb, var(--po-text) 82%, var(--po-accent)));
   --po-md-syntax-meta: var(--po-host-md-syntax-meta, color-mix(in srgb, var(--po-purple, #8250df) 72%, var(--po-text)));
-  --po-md-h1-size: var(--po-user-md-h1-size, var(--po-host-md-h1-size, 2em));
-  --po-md-h2-size: var(--po-user-md-h2-size, var(--po-host-md-h2-size, 1.5em));
-  --po-md-h3-size: var(--po-user-md-h3-size, var(--po-host-md-h3-size, 1.25em));
-  --po-md-h4-size: var(--po-host-md-h4-size, 1.125em);
-  --po-md-h5-size: var(--po-host-md-h5-size, 1.0625em);
-  --po-md-h6-size: var(--po-host-md-h6-size, 1em);
+  --po-md-h1-size: var(--po-user-md-h1-size, var(--po-host-md-h1-size, var(--po-type-editor-heading-1, 2em)));
+  --po-md-h2-size: var(--po-user-md-h2-size, var(--po-host-md-h2-size, var(--po-type-editor-heading-2, 1.5em)));
+  --po-md-h3-size: var(--po-user-md-h3-size, var(--po-host-md-h3-size, var(--po-type-editor-heading-3, 1.25em)));
+  --po-md-h4-size: var(--po-host-md-h4-size, var(--po-type-editor-heading-4, 1.125em));
+  --po-md-h5-size: var(--po-host-md-h5-size, var(--po-type-editor-heading-5, 1.0625em));
+  --po-md-h6-size: var(--po-host-md-h6-size, var(--po-type-editor-heading-6, 1em));
   --po-md-strong-weight: var(--po-user-md-strong-weight, var(--po-host-md-strong-weight, 600));
   --po-md-strong-color: var(--po-user-md-strong-color, var(--po-host-md-strong-color, var(--po-text)));
   background: var(--po-md-surface-background);
@@ -73,7 +73,7 @@
 /* An explicit Editor font is a user override above the selected Markdown
    theme. Keep technical/code surfaces out of this list so their monospace
    contract remains intact. Ordinary theme CSS cannot use !important. */
-:where([data-font-editor-content]:not([data-font-editor-content="theme"]))
+:where([data-font-editor-content-mode="explicit"])
   [data-po-theme-surface="markdown"]
   :where(
     .cm-editor,
@@ -109,30 +109,30 @@
   font-family: var(--po-font-editor-content-user) !important;
 }
 
-:where([data-font-editor-content]:not([data-font-editor-content="theme"]))
+:where([data-font-editor-content-mode="explicit"])
   [data-po-theme-surface="markdown"]
   :where(.cm-line:not(.cm-md-code-block-line))
   *:not(:is(.cm-md-math-inline-widget, .cm-md-math-block-widget, .cm-md-math-inline-widget *, .cm-md-math-block-widget *)) {
   font-family: var(--po-font-editor-content-user) !important;
 }
 
-:where([data-font-editor-content]:not([data-font-editor-content="theme"]))
+:where([data-font-editor-content-mode="explicit"])
   [data-po-theme-surface="markdown"]
   .cm-md-html-rendered-surface
   *:not(:is(.katex, .katex *)) {
   font-family: var(--po-font-editor-content-user) !important;
 }
 
-:where([data-font-editor-content]:not([data-font-editor-content="theme"]))
+:where([data-font-editor-content-mode="explicit"])
   [data-po-theme-surface="markdown"]
   .cm-md-table-cell-content,
-:where([data-font-editor-content]:not([data-font-editor-content="theme"]))
+:where([data-font-editor-content-mode="explicit"])
   [data-po-theme-surface="markdown"]
   .cm-md-table-cell-content *:not(:is(.katex, .katex *)),
-:where([data-font-editor-content]:not([data-font-editor-content="theme"]))
+:where([data-font-editor-content-mode="explicit"])
   [data-po-theme-surface="markdown"]
   .cm-md-mdx-tab-panel,
-:where([data-font-editor-content]:not([data-font-editor-content="theme"]))
+:where([data-font-editor-content-mode="explicit"])
   [data-po-theme-surface="markdown"]
   .cm-md-mdx-tab-panel *:not(:is(.katex, .katex *)) {
   font-family: var(--po-font-editor-content-user) !important;
@@ -177,7 +177,7 @@
 }
 
 .markdown-codemirror-editor .cm-line {
-  min-height: calc(var(--po-md-content-line-height) * 1em);
+  min-height: var(--po-md-content-line-height);
 }
 
 .markdown-codemirror-editor .cm-md-syntax-heading,
@@ -352,7 +352,7 @@
 }
 
 .markdown-codemirror-editor .cm-md-html-rendered-surface summary {
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .markdown-codemirror-editor .cm-md-html-rendered-surface img {
@@ -375,7 +375,7 @@
   border: 1px solid color-mix(in srgb, var(--po-divider) 86%, transparent);
   border-radius: 3px;
   color: var(--po-text-muted);
-  font-size: 0.875em;
+  font-size: var(--po-type-editor-data, var(--po-text-size-data, 13px));
   line-height: 1.35;
 }
 

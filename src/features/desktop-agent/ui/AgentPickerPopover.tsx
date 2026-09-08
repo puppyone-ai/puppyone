@@ -262,6 +262,7 @@ export function AgentPickerPopover({
             className="desktop-agent-overlay desktop-agent-picker-popover"
             elevation="compact"
             tone="quiet"
+            typographySurface={placement === "header" ? "header" : "right-sidebar"}
             role="presentation"
             style={agentPickerOverlayGeometry(
               overlayPosition,

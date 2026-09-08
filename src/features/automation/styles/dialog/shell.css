@@ -10,7 +10,7 @@
 .desktop-cloud-automation-dialog-header .desktop-dialog-title-row h2 {
   margin: 0;
   color: var(--po-text);
-  font-size: 15px;
+  font-size: var(--po-type-ui-section-title, 16px);
   font-weight: 600;
   line-height: 20px;
 }
@@ -18,7 +18,7 @@
 .desktop-cloud-automation-dialog-header .desktop-dialog-title-row p {
   margin: 3px 0 0;
   color: var(--po-text-muted);
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   font-weight: 400;
   line-height: 18px;
 }
@@ -36,7 +36,7 @@
   align-content: center;
   gap: 12px;
   color: var(--po-text-muted);
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   line-height: 18px;
 }
 
@@ -67,7 +67,7 @@
 
 .desktop-cloud-automation-dialog-footer-row > span {
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 18px;
 }
 

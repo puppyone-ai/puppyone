@@ -137,6 +137,7 @@ type OfficeViewerProps = Pick<
   PresetViewerRenderContext,
   | "document"
   | "resolvedExtension"
+  | "resourcePolicy"
   | "fileUrl"
   | "fileUrlLoading"
   | "fileUrlError"
@@ -149,6 +150,7 @@ type OfficeViewerProps = Pick<
 export function OfficeViewer({
   document,
   resolvedExtension,
+  resourcePolicy,
   fileUrl,
   fileUrlLoading,
   fileUrlError,
@@ -191,6 +193,7 @@ export function OfficeViewer({
       filename: document.name,
       extension,
       path: document.path,
+      maxSourceBytes: resourcePolicy.maxSourceBytes,
       convertOfficeDocumentToDocx,
       signal: abortController.signal,
     })
@@ -217,6 +220,7 @@ export function OfficeViewer({
     document.path,
     extension,
     fileUrl,
+    resourcePolicy.maxSourceBytes,
     previewResourceLoading,
     previewResourceUrl,
   ]);
@@ -1511,7 +1515,7 @@ function OfficeEmptyState({
       <strong>{title}</strong>
       <span dir="auto">{message}</span>
       {documentPath && openExternalFile && (
-        <button type="button" onClick={openExternally}>
+        <button type="button" data-po-interaction="navigation" onClick={openExternally}>
           {t("editor.openDefaultApp")}
         </button>
       )}
@@ -1529,6 +1533,7 @@ async function loadOfficePreview({
   filename,
   extension,
   path,
+  maxSourceBytes,
   convertOfficeDocumentToDocx,
   signal,
 }: {
@@ -1536,6 +1541,7 @@ async function loadOfficePreview({
   filename: string;
   extension: string;
   path: string;
+  maxSourceBytes: number;
   convertOfficeDocumentToDocx?: OfficeViewerProps["convertOfficeDocumentToDocx"];
   signal?: AbortSignal;
 }): Promise<OfficePreviewResult> {
@@ -1592,7 +1598,10 @@ async function loadOfficePreview({
 
   let arrayBuffer: ArrayBuffer;
   try {
-    arrayBuffer = await fetchOfficeArrayBuffer(fileUrl, { signal });
+    arrayBuffer = await fetchOfficeArrayBuffer(fileUrl, {
+      signal,
+      maxBytes: maxSourceBytes,
+    });
   } catch (error) {
     if (error instanceof OfficeResourceLimitError) {
       return {

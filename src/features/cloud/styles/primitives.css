@@ -1,7 +1,7 @@
 /* Shared Cloud presentation primitives. Component-specific styles live with their feature. */
 .desktop-cloud-row-action {
   display: inline-flex;
-  height: 28px;
+  height: var(--po-control-size-compact);
   align-items: center;
   justify-content: center;
   gap: 6px;
@@ -10,7 +10,7 @@
   border-radius: 6px;
   background: transparent;
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 700;
   white-space: nowrap;
 }
@@ -47,7 +47,7 @@
 .desktop-cloud-authority-cell span {
   overflow: hidden;
   color: var(--po-text-subtle);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-weight: 620;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -56,7 +56,7 @@
 .desktop-cloud-authority-cell strong {
   overflow: hidden;
   color: var(--po-text);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 680;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -64,7 +64,7 @@
 
 .desktop-cloud-authority-cell.mono strong {
   font-family: var(--po-font-mono);
-  font-size: 12px;
+  font-size: var(--po-type-ui-meta, 13px);
 }
 
 .desktop-cloud-authority-cell.ready strong {
@@ -82,7 +82,7 @@
   border-radius: 8px;
   background: color-mix(in srgb, var(--po-danger) 8%, var(--po-panel));
   color: var(--po-danger);
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   font-weight: 600;
 }
 
@@ -131,7 +131,7 @@
 
 .desktop-cloud-section-card-header {
   display: flex;
-  min-height: 30px;
+  min-height: var(--po-control-size);
   min-width: 0;
   align-items: center;
   justify-content: space-between;
@@ -149,7 +149,7 @@
 .desktop-cloud-section-card-header span {
   overflow: hidden;
   color: var(--po-text);
-  font-size: 13px;
+  font-size: var(--po-type-ui-body, 14px);
   font-weight: 750;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -165,7 +165,7 @@
   border-radius: 999px;
   background: var(--po-control);
   color: var(--po-text-muted);
-  font-size: 11px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-weight: 650;
   line-height: 1;
   white-space: nowrap;

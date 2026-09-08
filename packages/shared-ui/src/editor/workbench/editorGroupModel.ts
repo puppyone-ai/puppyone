@@ -3,7 +3,7 @@ import {
   isSameOrDescendantResourcePath,
   rebaseResourcePath,
 } from "../../core/resourcePath";
-import { rebaseDataResourcePath } from "../../core/dataResourcePath";
+import { isDataResourceUri, rebaseDataResourcePath } from "../../core/dataResourcePath";
 import {
   ResourceUriIdentityService,
   canonicalizeResourceUri,
@@ -104,6 +104,13 @@ export function closeEditorsUnderResource(
   state: EditorGroupState,
   resource: EditorResourceReference,
 ): EditorGroupState {
+  // A Project root has no provider-relative document path. Close by global
+  // resource identity so detaching a Folder also works at its root boundary.
+  if (typeof resource === "string" && isDataResourceUri(resource)) {
+    return state.editors
+      .filter((editor) => editorResourceIdentity.isEqualOrParent(editor.resourceUri, resource))
+      .reduce((next, editor) => closeEditor(next, editor.id), state);
+  }
   const target = resolveEditorResource(resource);
   return state.editors
     .filter((editor) => isEditorWithinResource(editor, target))
