@@ -34,7 +34,8 @@ describe("Typography settings", () => {
     const scale = host.querySelector('[aria-label="Application text size"]');
     expect(scale).not.toBeNull();
     expect(scale?.querySelectorAll("button")).toHaveLength(3);
-    expect(host.textContent).toContain("Entire application");
+    expect(host.textContent).toContain("Adjust text size across PuppyOne.");
+    expect(host.textContent).not.toContain("Entire application");
     expect(host.querySelectorAll('[aria-pressed="true"]')).toHaveLength(1);
     expect(host.textContent).not.toContain("px");
     expect(host.textContent).not.toContain("Follow theme");
@@ -47,7 +48,7 @@ describe("Typography settings", () => {
     expect(host.querySelector("[data-reset-markdown-overrides]")).toBeNull();
   });
 
-  it("previews H1-H3, body, and bold typography with standard labels", () => {
+  it("previews the workspace around H1-H3, body, and bold without interactive controls", () => {
     const host = document.createElement("div");
     host.dataset.poAppearanceRoot = "true";
     document.body.append(host);
@@ -63,9 +64,14 @@ describe("Typography settings", () => {
 
     const preview = host.querySelector<HTMLElement>('[aria-label="Typography preview"]');
     expect(preview).not.toBeNull();
-    expect(preview?.dataset.poThemeSurface).toBe("markdown");
-    expect(preview?.dataset.poThemeId).toBe("default-neutral");
-    expect(preview?.dataset.poTypographyRole).toBe("content");
+    const editor = preview?.querySelector<HTMLElement>('[aria-label="Editor"]');
+    expect(editor?.dataset.poThemeSurface).toBe("markdown");
+    expect(editor?.dataset.poThemeId).toBe("default-neutral");
+    expect(editor?.dataset.poTypographyRole).toBe("content");
+    expect(preview?.hasAttribute("data-po-theme-surface")).toBe(false);
+    expect(preview?.querySelector('[aria-label="Left sidebar"]')?.textContent).toContain("Notes.md");
+    expect(preview?.querySelector('[aria-label="Right sidebar"]')?.textContent).toContain("I can help you organize these notes.");
+    expect(preview?.querySelectorAll("button, input, textarea, [tabindex], [contenteditable=true]")).toHaveLength(0);
     expect(preview?.querySelector('[role="document"]')?.getAttribute("lang")).toBe("en");
     expect(preview?.querySelector("h1")?.textContent).toBe("H1 Title");
     expect(preview?.querySelector("h2")?.textContent).toBe("H2 Title");
