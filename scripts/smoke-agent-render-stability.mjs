@@ -20,7 +20,9 @@ let unresponsive = false;
 async function runSmoke() {
   await fsp.access(indexPath);
   ownerWindow = new BrowserWindow({
-    show: false,
+    // Real-frame and native-input checks need a mapped window. CI presents it
+    // inside Xvfb; a never-shown Linux window can advance rAF at a reduced rate.
+    show: true,
     width: 960,
     height: 800,
     webPreferences: {
@@ -70,8 +72,10 @@ async function pollForResult(window) {
     if (result) return result;
     if (input && Number.isInteger(input.id) && input.id > lastInputId) {
       lastInputId = input.id;
-      // Targets only this hidden test WebContents. It never moves the desktop
-      // pointer or sends input to the user's running application.
+      // Electron requires a focused owner for sendInputEvent. All input still
+      // targets only this isolated test WebContents, never another application.
+      window.focus();
+      window.webContents.focus();
       if (input.type === "wheel") {
         window.webContents.sendInputEvent({ type: "mouseWheel", x: input.x, y: input.y,
           deltaY: input.deltaY, deltaX: 0, hasPreciseScrollingDeltas: true });

@@ -20,7 +20,8 @@ let unresponsive = false;
 async function runSmoke() {
   await fsp.access(indexPath);
   ownerWindow = new BrowserWindow({
-    show: false,
+    // Frame measurements require a mapped compositor surface (Xvfb in CI).
+    show: true,
     width: 960,
     height: 800,
     webPreferences: {

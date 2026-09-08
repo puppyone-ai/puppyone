@@ -94,6 +94,11 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Install fonts for multilingual renderer fixtures
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes fonts-noto-cjk
+
       - name: Test Agent submission and viewport in Electron
         timeout-minutes: 2
         env:
