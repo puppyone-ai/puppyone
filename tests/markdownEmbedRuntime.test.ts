@@ -231,7 +231,9 @@ describe("Markdown embedded runtime", () => {
 
   it("highlights syntax through the end of code beyond CodeMirror's initial parse viewport", async () => {
     const code = `${"let value = 1;\n".repeat(300)}return value;`;
-    const result = await highlightMarkdownCode(code, "ts");
+    const result = await highlightMarkdownCode(code, "ts", {
+      parseTimeoutMs: Number.POSITIVE_INFINITY,
+    });
 
     expect(result).not.toBeNull();
     expect(result?.segments.some((segment) => (
@@ -331,7 +333,19 @@ describe("Markdown embedded runtime", () => {
     const code = Array.from({ length: 500 }, (_, index) => `const value${index} = ${index};`).join("\n");
     const source = `\`\`\`ts\n${code}\n\`\`\``;
     const view = createView(source);
-    const widget = new CodeBlockWidget(code, "ts", 0, source.length);
+    const widget = new CodeBlockWidget(
+      code,
+      "ts",
+      0,
+      source.length,
+      null,
+      undefined,
+      undefined,
+      (sourceCode, sourceLanguage, options) => highlightMarkdownCode(sourceCode, sourceLanguage, {
+        isCurrent: options?.isCurrent,
+        parseTimeoutMs: Number.POSITIVE_INFINITY,
+      }),
+    );
     const dom = widget.toDOM(view);
     view.dom.appendChild(dom);
     const surface = dom.querySelector<HTMLElement>(".cm-md-code-surface")!;
