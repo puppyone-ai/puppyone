@@ -103,6 +103,7 @@ export function createTerminalService({
           platform,
         }),
         ...(activityPreparation?.environment ?? {}),
+        ...spawnConfig.environment,
       };
       terminal = ptyService.spawn(spawnConfig.file, spawnConfig.args, {
         name: "xterm-256color",
@@ -169,10 +170,10 @@ export function createTerminalService({
       finally { session.resolveExit(); }
     });
 
-    if (spawnConfig.agentBootstrapInput) {
+    if (spawnConfig.kind === "agent") {
       try {
         agentRevealGate?.begin();
-        terminal.write(spawnConfig.agentBootstrapInput);
+        if (spawnConfig.agentBootstrapInput) terminal.write(spawnConfig.agentBootstrapInput);
       } catch (error) {
         agentRevealGate?.settle();
         await closeSession(session);

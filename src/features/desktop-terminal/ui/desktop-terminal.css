@@ -242,7 +242,7 @@
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  background: var(--po-editor-bg);
+  background: var(--po-terminal-bg);
 }
 
 .desktop-terminal-contribution-host[aria-hidden="true"] {
@@ -261,6 +261,7 @@
   min-height: 0;
   overflow: hidden;
   padding: 14px 0 16px 16px;
+  background: var(--po-terminal-bg);
   visibility: hidden;
   pointer-events: none;
 }
