@@ -74,40 +74,6 @@
 ) {
   cursor: text;
 }
-/* CodeMirror injects unlayered defaults at runtime. Only these host-scoped
- * text metrics, insets and colors override that authority; values remain shared
- * semantic tokens so Interface Style and Typography still control appearance. */
-.desktop-agent-prompt-editor .cm-editor {
-  min-height: var(--agent-composer-input-min-height);
-  max-height: calc(var(--agent-composer-text-max-height) + var(--agent-composer-input-padding-block) + var(--agent-composer-input-padding-block));
-  overflow: hidden;
-  background: transparent;
-  color: var(--agent-text) !important;
-  font: inherit !important;
-  font-size: var(--agent-conversation-font-size) !important;
-  line-height: var(--agent-composer-line-height) !important;
-}
-.desktop-agent-prompt-editor .cm-editor.cm-focused { outline: 0 !important; }
-.desktop-agent-prompt-editor .cm-scroller {
-  max-height: calc(var(--agent-composer-text-max-height) + var(--agent-composer-input-padding-block) + var(--agent-composer-input-padding-block));
-  overflow-y: auto;
-  font: inherit !important;
-}
-.desktop-agent-prompt-editor .cm-content {
-  min-height: var(--agent-composer-input-min-height);
-  padding-block: var(--agent-composer-input-padding-block) !important;
-  padding-inline: var(--agent-composer-text-inset-inline) !important;
-  caret-color: var(--agent-text) !important;
-  cursor: text;
-}
-.desktop-agent-prompt-editor .cm-content[contenteditable="false"] { cursor: default; }
-.desktop-agent-prompt-editor .cm-line { padding: 0 !important; }
-.desktop-agent-prompt-editor .cm-placeholder { color: var(--agent-text-subtle) !important; }
-.desktop-agent-prompt-editor .cm-cursor { border-inline-start-color: var(--agent-text) !important; }
-.desktop-agent-prompt-editor .cm-selectionBackground,
-.desktop-agent-prompt-editor .cm-content ::selection {
-  background: var(--po-selection, var(--agent-selection-surface)) !important;
-}
 .desktop-agent-prompt-mention {
   display: inline-flex;
   align-items: center;

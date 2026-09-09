@@ -1,0 +1,29 @@
+@layer features {
+  .auxiliary-appearance-smoke {
+    display: grid;
+    width: 100%;
+    min-width: 0;
+    height: 100vh;
+    grid-template-columns: minmax(0, 1fr);
+    place-items: center;
+    background: var(--po-canvas);
+  }
+  .desktop-right-sidebar.auxiliary-appearance-smoke-sidebar {
+    position: relative;
+    flex: none;
+    max-width: 100%;
+    height: 640px;
+    max-height: 100vh;
+  }
+  .auxiliary-smoke-chat {
+    display: flex;
+    height: 100%;
+    min-height: 0;
+    flex-direction: column;
+    gap: 16px;
+    padding: 12px;
+  }
+  .auxiliary-smoke-chat .desktop-agent-composer-shell {
+    margin-top: auto;
+  }
+}

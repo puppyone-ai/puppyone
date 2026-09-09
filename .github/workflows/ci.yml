@@ -132,3 +132,20 @@ jobs:
         env:
           ELECTRON_DISABLE_SANDBOX: "1"
         run: xvfb-run --auto-servernum npm run smoke:appearance-visual
+
+      - name: Test auxiliary workbench appearance and startup colors
+        timeout-minutes: 3
+        env:
+          ELECTRON_DISABLE_SANDBOX: "1"
+          PUPPYONE_AUXILIARY_ARTIFACT_DIR: artifacts/auxiliary-appearance
+        run: xvfb-run --auto-servernum npm run smoke:auxiliary-appearance
+
+      - name: Retain auxiliary appearance evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: auxiliary-appearance
+          path: |
+            artifacts/auxiliary-appearance/*.png
+            artifacts/auxiliary-appearance/*.json
+          if-no-files-found: ignore

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import type { MessageFormatter } from "@puppyone/localization/core";
 import type { AuxiliaryWorkbenchContribution, AuxiliaryWorkbenchItemRenderContext, AuxiliaryWorkbenchProject } from "../../app-shell/auxiliary-workbench/types";
 import { DESKTOP_TERMINAL_LAUNCHERS } from "../model/terminalLaunchers";
@@ -9,7 +9,7 @@ import { TerminalSessionHeaderStatus } from "../ui/session-header/TerminalSessio
 import { getTerminalClosePolicy } from "../model/terminalClosePolicy";
 import { terminalLeafMinimumSize } from "../model/terminalSplitConstraints";
 import { useTerminalAppearanceSync } from "../runtime/useTerminalAppearanceSync";
-import "@xterm/xterm/css/xterm.css";
+import type { TerminalAppearance } from "../runtime/terminalAppearance";
 import "../ui/desktop-terminal.css";
 
 
@@ -18,7 +18,7 @@ function requirePool(project: AuxiliaryWorkbenchProject | undefined, t: MessageF
   return project.getResource("terminal", () => new TerminalRuntimePool(project, t));
 }
 
-export function createTerminalWorkbenchContribution(t: MessageFormatter): AuxiliaryWorkbenchContribution {
+export function createTerminalWorkbenchContribution(t: MessageFormatter, readAppearance: () => TerminalAppearance): AuxiliaryWorkbenchContribution {
   return {
     kind: "terminal", label: t("terminal.title"), createLabel: t("terminal.new"), minimumSize: terminalLeafMinimumSize(null), maximumItems: 32,
     initialSnapshot: { title: t("terminal.title"), accessibleLabel: t("terminal.title"), detail: null, iconKey: null, status: "starting", running: false, resourceId: null },
@@ -27,10 +27,10 @@ export function createTerminalWorkbenchContribution(t: MessageFormatter): Auxili
     prepare: async ({ project, item, recipe }) => {
       const launcher = DESKTOP_TERMINAL_LAUNCHERS.find((entry) => entry.id === recipe?.id);
       if (!launcher) throw new Error("Unknown terminal launcher.");
-      requirePool(project, t).ensure(item.id, launcher.id);
+      requirePool(project, t).ensure(item.id, launcher.id, readAppearance());
     },
     discardPreparedItem: async ({ project, item }) => { if (!project?.disposed) await requirePool(project, t).discard(item.id); },
-    renderItem: (context) => <TerminalWorkbenchItem {...context} t={t} />,
+    renderItem: (context) => <TerminalWorkbenchItem {...context} t={t} readAppearance={readAppearance} />,
     renderStatus: ({ project, item }) => {
       if (project?.disposed) return null;
       const entry = requirePool(project, t).get(item.id);
@@ -45,18 +45,16 @@ export function createTerminalWorkbenchContribution(t: MessageFormatter): Auxili
   };
 }
 
-function TerminalWorkbenchItem({ project, item, presentation, onPresentationChange, t }: AuxiliaryWorkbenchItemRenderContext & { t: MessageFormatter }) {
+function TerminalWorkbenchItem({ project, item, presentation, onPresentationChange, t, readAppearance }: AuxiliaryWorkbenchItemRenderContext & { t: MessageFormatter; readAppearance: () => TerminalAppearance }) {
   const entry = requirePool(project, t).get(item.id);
   if (!entry) throw new Error("Terminal runtime is missing.");
-  const host = useRef<HTMLDivElement>(null);
-  const appearance = useMemo(() => ({ applyAppearance: () => entry.runtime.applyAppearance() }), [entry]);
-  useTerminalAppearanceSync(host, appearance);
+  useTerminalAppearanceSync(entry.runtime, readAppearance);
   const session = useSyncExternalStore((listener) => { entry.listeners.add(listener); return () => { entry.listeners.delete(listener); }; }, () => entry.session);
   useEffect(() => {
     const header = presentTerminalSessionHeader(session, item.rootId, t);
     onPresentationChange({ title: header.pathLabel, accessibleLabel: header.accessibleLabel, detail: header.overflowDetail, iconKey: session.launcherId, status: session.status, running: session.status === "running", resourceId: null });
   }, [item.rootId, onPresentationChange, session, t]);
-  return <div ref={host} className="desktop-terminal-session-host-content">
+  return <div className="desktop-terminal-session-host-content">
     <TerminalSessionView runtime={entry.runtime} workspacePath={item.rootId} presented={presentation.presented} focused={presentation.commandTarget} />
     {session.launchError && <div className="desktop-terminal-drop-error" role="alert">{session.launchError}</div>}
   </div>;

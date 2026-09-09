@@ -75,6 +75,7 @@
     "smoke:native-agents": "node scripts/smoke-native-agent-roundtrip.mjs",
     "smoke:native-agent-references": "node scripts/smoke-native-agent-references.mjs",
     "smoke:terminal-p0": "electron scripts/smoke-terminal-p0.mjs",
+    "smoke:auxiliary-appearance": "electron scripts/smoke-auxiliary-appearance.mjs",
     "smoke:agent-references": "electron scripts/smoke-agent-reference-ingestion.mjs",
     "smoke:agent-render-stability": "npm run build && node scripts/run-agent-render-stability-smoke.mjs",
     "smoke:agent-tool-stability": "npm run build && node scripts/run-agent-tool-stability-smoke.mjs",

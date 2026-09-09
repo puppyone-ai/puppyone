@@ -2,6 +2,20 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 describe("Project-owned auxiliary workbench architecture", () => {
+  it("owns shared geometry independently of Terminal and isolates vendor adapters", () => {
+    const shared = source("src/features/app-shell/auxiliary-workbench/auxiliary-workbench.css");
+    const terminal = source("src/features/desktop-terminal/ui/styles/terminal-surface.css");
+    const entry = source("src/features/desktop-terminal/ui/desktop-terminal.css");
+    expect(source("src/styles.css")).toContain('auxiliary-workbench/auxiliary-workbench.css" layer(features)');
+    expect(shared).toContain(".desktop-terminal-panel {");
+    expect(shared).toContain(".desktop-terminal-contribution-host[aria-hidden");
+    expect(shared).not.toMatch(/\.xterm[\s.-]|\.desktop-terminal-session\s*\{/);
+    expect(terminal).not.toMatch(/\.desktop-terminal-(panel|body|drop-preview|contribution-host)[\s[{]/);
+    expect(terminal).toContain(".desktop-terminal-session:not(.is-ready) .desktop-terminal-xterm");
+    expect(entry).toContain('@import "@xterm/xterm/css/xterm.css" layer(primitives)');
+    expect(entry).toContain('@import "./styles/xterm-adapter.css" layer(features)');
+  });
+
   it("keeps serializable topology independent from feature runtimes", () => {
     const model = source(
       "packages/shared-ui/src/workbench/auxiliary-workbench/auxiliaryWorkbenchModel.ts",
@@ -20,7 +34,7 @@ describe("Project-owned auxiliary workbench architecture", () => {
     const lazyEntry = source("src/features/desktop-agent/lazy.ts");
     expect(app).toContain("lazy(loadAgentChatWorkbenchItem)");
     expect(app).toContain("contributions={auxiliaryWorkbenchContributions}");
-    expect(app).toContain("createTerminalWorkbenchContribution(t)");
+    expect(app).toContain("createTerminalWorkbenchContribution(t, readAuxiliaryTerminalAppearance)");
     expect(app).toContain('className="desktop-right-sidebar-surface is-active"');
     expect(app).not.toContain("<RightAgentPanel");
     expect(app).not.toContain('key={focusedWorkspace?.path ?? workspace.path}');

@@ -29,7 +29,7 @@ function RightTerminalPanel({ workspace, active, hiddenAgentIds, contributions =
   const { t } = useLocalization();
   let store = stores.get(workspace.path);
   if (!store) { store = new ProjectWorkbenchStore({ projectId: workspace.id, rootPath: workspace.path, generation: workspace.id }); stores.set(workspace.path, store); }
-  const all = [createTerminalWorkbenchContribution(t), ...contributions];
+  const all = [createTerminalWorkbenchContribution(t, () => { throw new Error("This fixture does not launch terminals"); }), ...contributions];
   return <AuxiliaryWorkbenchPanel key={store.context.generation} store={store} active={active} contributions={all}
     renderLauncher={(context) => <AuxiliaryWorkbenchLauncher {...context} store={store!} contributions={all} hiddenAgentIds={hiddenAgentIds} />} />;
 }

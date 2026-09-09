@@ -8,6 +8,24 @@ export type TerminalDefaultColors = {
   background: TerminalRgbColor;
 };
 
+export type TerminalAppearance = Readonly<{
+  theme: ITheme;
+  fontFamily: string;
+  fontSize: number;
+  defaultColors: TerminalDefaultColors;
+}>;
+
+/** Read once from the owning surface, before starting a persistent PTY. */
+export function readTerminalAppearance(source: HTMLElement): TerminalAppearance {
+  const theme = readTerminalTheme(source);
+  return Object.freeze({
+    theme,
+    fontFamily: readTerminalFontFamily(source),
+    fontSize: readTerminalFontSize(source),
+    defaultColors: terminalDefaultColorsFromTheme(theme),
+  });
+}
+
 export function readTerminalTheme(element: HTMLElement): ITheme {
   const source = resolveTerminalAppearanceSource(element);
   return {
@@ -50,13 +68,12 @@ export function readTerminalTheme(element: HTMLElement): ITheme {
   };
 }
 
-export function applyTerminalAppearance(terminal: Terminal, element: HTMLElement) {
-  const theme = readTerminalTheme(element);
-  terminal.options.theme = theme;
-  terminal.options.fontFamily = readTerminalFontFamily(element);
-  terminal.options.fontSize = readTerminalFontSize(element);
+export function applyTerminalAppearance(terminal: Terminal, appearance: TerminalAppearance) {
+  terminal.options.theme = appearance.theme;
+  terminal.options.fontFamily = appearance.fontFamily;
+  terminal.options.fontSize = appearance.fontSize;
   terminal.refresh(0, Math.max(0, terminal.rows - 1));
-  return terminalDefaultColorsFromTheme(theme);
+  return appearance.defaultColors;
 }
 
 export function terminalDefaultColorsFromTheme(theme: ITheme): TerminalDefaultColors {
@@ -81,20 +98,10 @@ export function readTerminalFontSize(element: HTMLElement) {
     : TYPOGRAPHY_SCALE_METRICS.medium.rightSidebar.terminal;
 }
 
-/**
- * Persistent terminal hosts may be detached while their tabs are parked. A
- * detached node has no inherited CSS custom properties, so reading from it
- * would silently select the light hardcoded fallbacks and tell the PTY that a
- * dark session is light. Resolve to the live workbench appearance boundary in
- * that case; the runtime container remains the most specific source whenever
- * it is connected.
- */
+/** Detached screens retain their snapshot; they must never guess a global theme. */
 export function resolveTerminalAppearanceSource(element: HTMLElement): HTMLElement {
-  if (element.isConnected) return element;
-  const ownerDocument = element.ownerDocument;
-  return ownerDocument.querySelector<HTMLElement>("[data-terminal-appearance-source]")
-    ?? ownerDocument.querySelector<HTMLElement>("[data-po-appearance-root]")
-    ?? ownerDocument.documentElement;
+  if (!element.isConnected) throw new Error("Terminal appearance requires its connected owning surface.");
+  return element;
 }
 
 function cssColor(element: HTMLElement, name: string, fallback: string) {
@@ -103,7 +110,7 @@ function cssColor(element: HTMLElement, name: string, fallback: string) {
 }
 
 function resolveCssColor(element: HTMLElement, color: string) {
-  const probe = document.createElement("span");
+  const probe = element.ownerDocument.createElement("span");
   probe.style.color = color;
   if (!probe.style.color && !color.includes("var(") && !color.includes("color-mix(")) return color;
 

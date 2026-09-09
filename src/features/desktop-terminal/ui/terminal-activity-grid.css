@@ -1,3 +1,4 @@
+@layer features {
 .desktop-terminal-activity-grid {
   --desktop-terminal-activity-cell-size: 3px;
   --desktop-terminal-activity-gap: 2px;
@@ -51,4 +52,5 @@
   .desktop-terminal-activity-grid > span:first-child {
     opacity: 1;
   }
+}
 }

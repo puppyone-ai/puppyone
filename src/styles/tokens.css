@@ -180,6 +180,8 @@
     transparent
   );
   --po-surface-editor: var(--po-surface-panel);
+  --po-surface-auxiliary: var(--po-header);
+  --po-surface-agent: var(--po-surface-editor);
   --po-surface-terminal: var(--po-surface-editor);
 
   --po-canvas: var(--po-surface-editor);

@@ -10,10 +10,7 @@ import type { DesktopTerminalLauncherId } from "../model/terminalLaunchers";
 import { unwrapProjectSessionResult } from "../../../../shared/project-session-contract/schema.mjs";
 import {
   applyTerminalAppearance,
-  readTerminalFontFamily,
-  readTerminalFontSize,
-  readTerminalTheme,
-  terminalDefaultColorsFromTheme,
+  type TerminalAppearance,
   type TerminalDefaultColors,
 } from "./terminalAppearance";
 import { TerminalActivityController } from "./terminalActivity";
@@ -55,6 +52,7 @@ const INITIAL_SCROLLBAR_STATE: TerminalScrollbarState = {
 };
 
 type TerminalRuntimeOptions = {
+  appearance: TerminalAppearance;
   projectContext?: import("../../../../shared/project-session-contract/types").ProjectSessionContext;
   sessionId: string;
   launcherId: DesktopTerminalLauncherId;
@@ -108,7 +106,7 @@ export interface TerminalRuntimeHandle {
   readonly activity: boolean;
   readonly ready: boolean;
   readonly scrollbarState: TerminalScrollbarState;
-  applyAppearance: () => void;
+  applyAppearance: (appearance?: TerminalAppearance) => void;
   dispose: () => void;
   close?: () => Promise<void>;
   focus: () => void;
@@ -127,6 +125,7 @@ export interface TerminalRuntimeHandle {
 
 export class TerminalRuntime implements TerminalRuntimeHandle {
   inputShell = "";
+  private appearance: TerminalAppearance;
   private readonly projectContext: TerminalRuntimeOptions["projectContext"];
   private instanceId: string | undefined;
   private startPromise: Promise<void> | null = null;
@@ -170,6 +169,7 @@ export class TerminalRuntime implements TerminalRuntimeHandle {
   private measuredCellHeight = 16;
 
   constructor({
+    appearance,
     projectContext,
     sessionId,
     launcherId,
@@ -177,6 +177,7 @@ export class TerminalRuntime implements TerminalRuntimeHandle {
     getMessageFormatter,
     onStatus,
   }: TerminalRuntimeOptions) {
+    this.appearance = appearance;
     this.projectContext = projectContext;
     this.sessionId = sessionId;
     this.launcherId = launcherId;
@@ -304,9 +305,11 @@ export class TerminalRuntime implements TerminalRuntimeHandle {
     return () => this.scrollbarListeners.delete(listener);
   }
 
-  applyAppearance() {
-    if (this.disposed || !this.container || !this.terminal) return;
-    this.defaultColors = applyTerminalAppearance(this.terminal, this.container);
+  applyAppearance(appearance = this.appearance) {
+    if (this.disposed) return;
+    this.appearance = appearance;
+    if (!this.terminal) return;
+    this.defaultColors = applyTerminalAppearance(this.terminal, appearance);
     this.syncDefaultColorsToPty();
     this.syncScrollbarPresentation();
     this.scheduleFit();
@@ -371,15 +374,15 @@ export class TerminalRuntime implements TerminalRuntimeHandle {
   }
 
   private initializeTerminal(container: HTMLDivElement) {
-    const theme = readTerminalTheme(container);
+    const { theme, fontFamily, fontSize, defaultColors } = this.appearance;
     const terminal = new Terminal({
       allowProposedApi: true,
       customGlyphs: true,
       cursorBlink: true,
       cursorStyle: "block",
       convertEol: true,
-      fontFamily: readTerminalFontFamily(container),
-      fontSize: readTerminalFontSize(container),
+      fontFamily,
+      fontSize,
       fontWeight: 450,
       fontWeightBold: 700,
       letterSpacing: 0,
@@ -398,7 +401,7 @@ export class TerminalRuntime implements TerminalRuntimeHandle {
     this.terminal = terminal;
     this.fitAddon = fitAddon;
     this.unicode11Addon = unicode11Addon;
-    this.defaultColors = terminalDefaultColorsFromTheme(theme);
+    this.defaultColors = defaultColors;
 
     terminal.loadAddon(fitAddon);
     terminal.loadAddon(unicode11Addon);

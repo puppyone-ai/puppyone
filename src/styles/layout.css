@@ -307,8 +307,10 @@
 
 .desktop-right-sidebar {
   --desktop-right-sidebar-width: 560px;
-  --desktop-right-sidebar-background: var(--po-header);
-  --po-terminal-bg: var(--desktop-right-sidebar-background);
+  --desktop-right-sidebar-background: var(--po-surface-auxiliary);
+  --po-surface-terminal: var(--po-surface-auxiliary);
+  --po-terminal-bg: var(--po-surface-terminal);
+  --po-surface-agent: var(--po-surface-auxiliary);
 
   position: relative;
   z-index: 25;

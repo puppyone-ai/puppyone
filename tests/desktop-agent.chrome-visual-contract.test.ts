@@ -11,7 +11,7 @@ function source(relativePath: string) {
 
 const launcher = source("src/features/desktop-agent/ui/AgentRuntimeLauncher.tsx");
 const launcherCss = source("src/features/desktop-agent/ui/styles/launcher.css");
-const terminalLauncherCss = source("src/features/desktop-terminal/ui/terminal-launcher.css");
+const terminalLauncherCss = source("src/features/app-shell/auxiliary-workbench/auxiliary-workbench-launcher.css");
 const terminalTabsCss = source("src/features/app-shell/auxiliary-workbench/layout/auxiliary-workbench-header.css");
 
 describe("Desktop Agent and Terminal chrome visual contract", () => {

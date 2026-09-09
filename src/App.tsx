@@ -43,6 +43,7 @@ import {
   isDesktopTerminalEnabled,
 } from "./features/desktop-terminal";
 import { createTerminalWorkbenchContribution } from "./features/desktop-terminal/workbench/TerminalWorkbenchContribution";
+import { readTerminalAppearance } from "./features/desktop-terminal/runtime/terminalAppearance";
 import { AuxiliaryWorkbenchPanel } from "./features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchPanel";
 import { AuxiliaryWorkbenchLauncher } from "./features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchLauncher";
 import { ProjectSessionManager } from "./features/app-shell/project-sessions/ProjectSessionManager";
@@ -1143,9 +1144,15 @@ function AppContent() {
     setLocalAgentsSettings,
     t,
   ]);
+  const auxiliarySurfaceRef = useRef<HTMLDivElement>(null);
+  const readAuxiliaryTerminalAppearance = useCallback(() => {
+    const surface = auxiliarySurfaceRef.current;
+    if (!surface) throw new Error("The auxiliary appearance surface is not mounted.");
+    return readTerminalAppearance(surface);
+  }, []);
   const auxiliaryWorkbenchContributions = useMemo(
-    () => [...(desktopTerminalEnabled ? [createTerminalWorkbenchContribution(t)] : []), ...(agentChatContribution ? [agentChatContribution] : [])],
-    [agentChatContribution, desktopTerminalEnabled, t],
+    () => [...(desktopTerminalEnabled ? [createTerminalWorkbenchContribution(t, readAuxiliaryTerminalAppearance)] : []), ...(agentChatContribution ? [agentChatContribution] : [])],
+    [agentChatContribution, desktopTerminalEnabled, t, readAuxiliaryTerminalAppearance],
   );
   const [projectSessions] = useState(() => new ProjectSessionManager());
   useEffect(() => {
@@ -1322,7 +1329,7 @@ function AppContent() {
           onRightSidebarOpenChange={setRightSidebarOpen}
           onRightSidebarWidthChange={setRightSidebarWidth}
           rightSidebar={desktopRightSidebarEnabled ? (
-            <div className="desktop-right-sidebar-stack">
+            <div ref={auxiliarySurfaceRef} className="desktop-right-sidebar-stack">
               <div className="desktop-right-sidebar-surface is-active">
                 {projectWorkbench && <AuxiliaryWorkbenchPanel
                   key={projectWorkbench.context.generation}

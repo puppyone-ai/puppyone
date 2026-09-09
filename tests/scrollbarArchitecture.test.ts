@@ -12,7 +12,8 @@ const scrollbarActivitySource = readCss("src/components/ScrollbarActivity.tsx");
 const terminalSessionSource = readCss(
   "src/features/desktop-terminal/ui/TerminalSessionView.tsx",
 );
-const terminalCss = readCss("src/features/desktop-terminal/ui/desktop-terminal.css");
+const terminalCss = readCss("src/features/desktop-terminal/ui/styles/terminal-surface.css")
+  + readCss("src/features/desktop-terminal/ui/styles/xterm-adapter.css");
 const interfaceSkinContractCss = readCss("src/styles/interface-skin-contract.css");
 const dataWorkspaceCss = readCss("packages/shared-ui/src/styles/data-workspace.css");
 const dataWorkspaceSource = readCss("packages/shared-ui/src/data/DataWorkspace.tsx");
@@ -131,7 +132,7 @@ describe("scrollbar architecture", () => {
 
   it("restricts scrollbar pseudo-elements to the primitive, skins, and xterm adapter", () => {
     const allowedFiles = new Set([
-      "src/features/desktop-terminal/ui/desktop-terminal.css",
+      "src/features/desktop-terminal/ui/styles/xterm-adapter.css",
       "src/styles/interface-skin-contract.css",
       "src/styles/scrollbars.css",
       "src/styles/interfaces/windows-xp/tokens.css",

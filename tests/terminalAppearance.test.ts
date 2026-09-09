@@ -4,6 +4,8 @@ import {
   readTerminalFontFamily,
   readTerminalFontSize,
   readTerminalTheme,
+  readTerminalAppearance,
+  applyTerminalAppearance,
   resolveTerminalAppearanceSource,
   terminalDefaultColorsFromTheme,
 } from "../src/features/desktop-terminal/runtime/terminalAppearance";
@@ -13,9 +15,8 @@ afterEach(() => {
 });
 
 describe("terminal default-color negotiation", () => {
-  it("reads live workbench tokens while a persistent runtime host is detached", () => {
+  it("captures the explicit owning surface before the runtime is detached", () => {
     const source = document.createElement("section");
-    source.dataset.terminalAppearanceSource = "";
     source.style.setProperty("--po-terminal-bg", "rgb(22, 20, 19)");
     source.style.setProperty("--po-terminal-fg", "rgb(209, 206, 198)");
     source.style.setProperty("--po-font-terminal", '"SF Mono", monospace');
@@ -23,13 +24,29 @@ describe("terminal default-color negotiation", () => {
     document.body.append(source);
     const detachedRuntimeHost = document.createElement("div");
 
-    expect(resolveTerminalAppearanceSource(detachedRuntimeHost)).toBe(source);
-    expect(terminalDefaultColorsFromTheme(readTerminalTheme(detachedRuntimeHost))).toEqual({
+    expect(() => resolveTerminalAppearanceSource(detachedRuntimeHost)).toThrow("connected owning surface");
+    const appearance = readTerminalAppearance(source);
+    expect(appearance.defaultColors).toEqual({
       foreground: [209, 206, 198],
       background: [22, 20, 19],
     });
-    expect(readTerminalFontFamily(detachedRuntimeHost)).toBe('"SF Mono", monospace');
-    expect(readTerminalFontSize(detachedRuntimeHost)).toBe(14);
+    expect(readTerminalFontFamily(source)).toBe('"SF Mono", monospace');
+    expect(readTerminalFontSize(source)).toBe(14);
+    source.remove();
+    const terminal = { options: {}, rows: 24, refresh: () => {} };
+    expect(applyTerminalAppearance(terminal as never, appearance)).toEqual(appearance.defaultColors);
+    expect(terminal.options).toEqual({ theme: appearance.theme, fontFamily: appearance.fontFamily, fontSize: 14 });
+  });
+
+  it("does not choose a different window or root when reading appearance", () => {
+    const otherRoot = document.createElement("div");
+    otherRoot.dataset.poAppearanceRoot = "true";
+    otherRoot.style.setProperty("--po-terminal-bg", "rgb(250, 250, 250)");
+    const owner = document.createElement("div");
+    owner.style.setProperty("--po-terminal-bg", "rgb(235, 235, 235)");
+    document.body.append(otherRoot, owner);
+    expect(readTerminalAppearance(owner).defaultColors.background).toEqual([235, 235, 235]);
+    expect(readTerminalTheme(otherRoot).background).toBe("rgb(250, 250, 250)");
   });
 
   it("converts Chromium CSS Color 4 serialization into OSC-ready RGB", () => {

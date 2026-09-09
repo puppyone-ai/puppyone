@@ -75,7 +75,10 @@ async function renderApplication() {
   const localization = await bootstrapRendererLocalization();
   let surface: React.ReactNode;
 
-  if (window.location.hash === "#terminal-launcher-visual-smoke") {
+  if (window.location.hash === "#auxiliary-appearance-smoke") {
+    const { AuxiliaryAppearanceSmokeHarness } = await import("./features/appearance/AuxiliaryAppearanceSmokeHarness");
+    surface = <AuxiliaryAppearanceSmokeHarness />;
+  } else if (window.location.hash === "#terminal-launcher-visual-smoke") {
     const { TerminalLauncherVisualSmokeHarness } = await import(
       "./features/desktop-terminal/visual-smoke"
     );

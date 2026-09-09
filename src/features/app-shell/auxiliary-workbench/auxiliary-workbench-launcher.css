@@ -1,3 +1,4 @@
+@layer features {
 .desktop-terminal-launcher {
   container-type: size;
   display: grid;
@@ -9,7 +10,7 @@
   overflow: auto;
   place-items: safe center;
   padding: 32px 0;
-  background: var(--po-terminal-bg);
+  background: var(--po-surface-auxiliary);
   color: var(--po-terminal-fg);
 }
 
@@ -55,7 +56,7 @@
   justify-content: flex-start;
   gap: 4px;
   padding: 0 6px;
-  background: var(--po-terminal-bg);
+  background: var(--po-surface-auxiliary);
   pointer-events: none;
   transform: translateY(-50%);
 }
@@ -272,7 +273,7 @@
   bottom: 8px;
   width: 5px;
   height: 5px;
-  border: 1px solid var(--po-terminal-bg);
+  border: 1px solid var(--po-surface-auxiliary);
   border-radius: 50%;
   background: var(--po-text-subtle);
   content: "";
@@ -338,4 +339,5 @@
   font-family: var(--po-font-ui);
   font-size: var(--po-type-right-sidebar-caption, 12px);
   line-height: var(--po-type-right-sidebar-caption-line-height, 17px);
+}
 }

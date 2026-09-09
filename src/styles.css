@@ -11,6 +11,9 @@
    editor authority must share that origin tier or CodeMirror's monospace,
    4px-padding defaults outrank PuppyOne's Markdown presentation contract. */
 @import "@puppyone/shared-ui/editor.css";
+/* The prompt editor uses the same bounded CodeMirror adapter tier. */
+@import "./features/desktop-agent/ui/styles/agent-prompt-editor.css";
+@import "./features/app-shell/auxiliary-workbench/auxiliary-workbench.css" layer(features);
 @import "./styles/animations.css" layer(accessibility);
 @import "./styles/shell.css" layer(features);
 @import "./styles/window-chrome.css" layer(features);
