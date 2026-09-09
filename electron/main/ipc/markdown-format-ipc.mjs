@@ -2,7 +2,7 @@ export const MARKDOWN_FORMAT_ACTIVE_CHANNEL = "editor:markdown-format-active";
 export const MARKDOWN_FORMAT_SHORTCUT_CHANNEL = "editor:markdown-format-shortcut";
 export const MARKDOWN_EDITOR_COMMAND_CHANNEL = "editor:markdown-command";
 
-export const MARKDOWN_FORMAT_COMMANDS = Object.freeze(["strong", "emphasis", "underline", "strike"]);
+export const MARKDOWN_FORMAT_COMMANDS = Object.freeze(["strong", "emphasis", "underline", "strike", "highlight"]);
 export const MARKDOWN_EDITOR_COMMANDS = Object.freeze([
   "paragraph",
   "heading-1",
@@ -23,6 +23,7 @@ export const MARKDOWN_EDITOR_COMMANDS = Object.freeze([
   "emphasis",
   "underline",
   "strike",
+  "highlight",
   "inline-code",
   "inline-math",
   "link",
@@ -51,7 +52,11 @@ export function matchMarkdownFormatInput(input, platform = process.platform) {
   if (!hasMod) return null;
 
   const key = typeof input.key === "string" ? input.key.toLowerCase() : "";
-  if (input.shift) return key === "x" ? "strike" : null;
+  if (input.shift) {
+    if (key === "x") return "strike";
+    if (key === "h") return "highlight";
+    return null;
+  }
   if (key === "b") return "strong";
   if (key === "i") return "emphasis";
   if (key === "u") return "underline";

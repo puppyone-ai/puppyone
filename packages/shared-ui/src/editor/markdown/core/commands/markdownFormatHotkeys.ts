@@ -78,7 +78,11 @@ export function matchMarkdownFormatHotkey(event: KeyboardEvent): MarkdownFormatC
   if (!event.metaKey && !event.ctrlKey) return null;
 
   const key = event.key.length === 1 ? event.key.toLowerCase() : "";
-  if (event.shiftKey) return key === "x" ? "strike" : null;
+  if (event.shiftKey) {
+    if (key === "x") return "strike";
+    if (key === "h") return "highlight";
+    return null;
+  }
   if (key === "b") return "strong";
   if (key === "i") return "emphasis";
   if (key === "u") return "underline";

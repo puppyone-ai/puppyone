@@ -212,7 +212,7 @@ function isSelectableInlineFormat(element: MarkdownElement): boolean {
   return !(element.kind === "inlineHtml" && element.inlineHtml?.status !== "complete");
 }
 
-export type MarkdownInlineFormatKind = "emphasis" | "inlineCode" | "mathInline" | "strike" | "strong" | "underline";
+export type MarkdownInlineFormatKind = "emphasis" | "highlight" | "inlineCode" | "mathInline" | "strike" | "strong" | "underline";
 
 export type MarkdownInlineFormatCoverage = {
   formats: MarkdownElement[];
@@ -247,6 +247,7 @@ export function getInlineFormatCoverage(
 
 function matchesInlineFormatKind(element: MarkdownElement, kind: MarkdownInlineFormatKind): boolean {
   if (kind === "underline") return isCompleteHtmlTag(element, "u");
+  if (kind === "highlight") return isCompleteHtmlTag(element, "mark");
   if (kind === "strong") return (element.kind === "strong" && isSelectableInlineFormat(element)) || isCompleteHtmlTag(element, "strong");
   if (kind === "emphasis") return (element.kind === "emphasis" && isSelectableInlineFormat(element)) || isCompleteHtmlTag(element, "em");
   return element.kind === kind && isSelectableInlineFormat(element);

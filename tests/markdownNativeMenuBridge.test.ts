@@ -8,11 +8,15 @@ describe("native Markdown menu bridge", () => {
     const preload = source("electron/preload.cjs");
     const bridge = source("src/lib/markdownFormatShortcutBridge.ts");
     const main = source("electron/main.mjs");
+    const desktopTypes = source("src/types/electron.d.ts");
 
     expect(preload).toContain('ipcRenderer.on("editor:markdown-command"');
     expect(preload).toContain("isMarkdownEditorCommand");
+    expect(preload).toContain('"strong", "emphasis", "underline", "strike", "highlight"');
+    expect(preload).toContain("isMarkdownFormatCommand(type)");
     expect(bridge).toContain("onMarkdownEditorCommand");
     expect(bridge).toContain("MARKDOWN_EDITOR_COMMAND_EVENT");
+    expect(desktopTypes).toContain('import("@puppyone/shared-ui").MarkdownFormatCommand');
     expect(main).toContain("dispatchMarkdownEditorCommand");
     expect(main).toContain("isMarkdownEditorActive");
     const focusBlock = main.slice(

@@ -13,6 +13,7 @@ import {
   bindMarkdownFormatHotkeys,
   MARKDOWN_FORMAT_ACTIVE_EVENT,
   MARKDOWN_EDITOR_COMMAND_EVENT,
+  matchMarkdownFormatHotkey,
   syncMarkdownEditorCommandAvailability,
 } from "../packages/shared-ui/src/editor/markdown/core/commands/markdownFormatHotkeys";
 import {
@@ -44,6 +45,7 @@ describe("Markdown editor commands", () => {
       "emphasis",
       "underline",
       "strike",
+      "highlight",
       "inline-code",
       "inline-math",
       "link",
@@ -161,13 +163,31 @@ describe("Markdown editor commands", () => {
     expect(link.state.selection.main.empty).toBe(true);
   });
 
+  it("toggles highlighted text with a portable inline mark", () => {
+    const view = createView("important");
+    view.dispatch({ selection: EditorSelection.range(0, view.state.doc.length) });
+
+    expect(applyMarkdownEditorCommand(view, "highlight")).toBe(true);
+    expect(view.state.doc.toString()).toBe("<mark>important</mark>");
+    expect(applyMarkdownEditorCommand(view, "highlight")).toBe(true);
+    expect(view.state.doc.toString()).toBe("important");
+  });
+
+  it("matches Command+Shift+H as the renderer highlight fallback", () => {
+    expect(matchMarkdownFormatHotkey(new KeyboardEvent("keydown", {
+      key: "H",
+      metaKey: true,
+      shiftKey: true,
+    }))).toBe("highlight");
+  });
+
   it("clears supported inline formatting while preserving visible text", () => {
-    const source = "**bold** *italic* <u>under</u> ~~gone~~ `code` $math$ [link](https://example.com)";
+    const source = "**bold** *italic* <u>under</u> ~~gone~~ <mark>bright</mark> `code` $math$ [link](https://example.com)";
     const view = createView(source);
     view.dispatch({ selection: EditorSelection.range(0, source.length) });
 
     expect(applyMarkdownEditorCommand(view, "clear-format")).toBe(true);
-    expect(view.state.doc.toString()).toBe("bold italic under gone code math link");
+    expect(view.state.doc.toString()).toBe("bold italic under gone bright code math link");
   });
 
   it("does not mistake a compact currency range for inline math when clearing formatting", () => {

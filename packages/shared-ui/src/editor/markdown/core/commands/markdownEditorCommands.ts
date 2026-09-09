@@ -40,6 +40,7 @@ export const MARKDOWN_EDITOR_COMMANDS = [
   "emphasis",
   "underline",
   "strike",
+  "highlight",
   "inline-code",
   "inline-math",
   "link",
@@ -73,7 +74,13 @@ export function applyMarkdownEditorCommand(
   if (command === "math-block") return toggleMarkdownMathBlock(view);
   if (command === "indent") return indentMarkdownListItem(view);
   if (command === "outdent") return outdentMarkdownListItem(view);
-  if (command === "strong" || command === "emphasis" || command === "underline" || command === "strike") {
+  if (
+    command === "strong"
+    || command === "emphasis"
+    || command === "underline"
+    || command === "strike"
+    || command === "highlight"
+  ) {
     return applyMarkdownFormatCommand(view, command);
   }
   if (command === "inline-code") return toggleMarkdownInline("`")(view);
@@ -278,7 +285,8 @@ function isClearableInlineElement(element: MarkdownElement): boolean {
     && element.inlineHtml.status === "complete"
     && (element.inlineHtml.tagName === "u"
       || element.inlineHtml.tagName === "strong"
-      || element.inlineHtml.tagName === "em");
+      || element.inlineHtml.tagName === "em"
+      || element.inlineHtml.tagName === "mark");
 }
 
 function mergeRanges(ranges: readonly MarkdownMarkerRange[]): MarkdownMarkerRange[] {

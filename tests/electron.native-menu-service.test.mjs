@@ -17,7 +17,6 @@ function createHarness({ platform = "darwin" } = {}) {
   const labels = {
     "native.menu.file": "File",
     "native.menu.checkForUpdates": "Check for Updates…",
-    "native.menu.paragraph": "Paragraph",
     "native.menu.paragraph.text": "Paragraph",
     "native.menu.paragraph.heading1": "Heading 1",
     "native.menu.paragraph.heading2": "Heading 2",
@@ -34,10 +33,14 @@ function createHarness({ platform = "darwin" } = {}) {
     "native.menu.paragraph.indent": "Indent",
     "native.menu.paragraph.outdent": "Outdent",
     "native.menu.format": "Format",
+    "native.menu.format.textStyle": "Text Style",
+    "native.menu.format.paragraphStyle": "Paragraph Style",
+    "native.menu.format.list": "List",
     "native.menu.format.strong": "Bold",
     "native.menu.format.emphasis": "Italic",
     "native.menu.format.underline": "Underline",
     "native.menu.format.strike": "Strikethrough",
+    "native.menu.format.highlight": "Highlight",
     "native.menu.format.inlineCode": "Inline Code",
     "native.menu.format.inlineMath": "Inline Math",
     "native.menu.format.link": "Link",
@@ -75,7 +78,6 @@ describe("DesktopNativeMenuService", () => {
       "puppyone",
       "File",
       "editMenu",
-      "Paragraph",
       "Format",
       "viewMenu",
       "Theme",
@@ -117,13 +119,34 @@ describe("DesktopNativeMenuService", () => {
     expect(actions.checkForUpdates).toHaveBeenCalledOnce();
   });
 
-  it("builds focused Markdown paragraph and format menus with semantic commands", async () => {
+  it("groups focused Markdown commands under one Format menu", async () => {
     const { actions, service } = createHarness();
     const template = service.createApplicationMenuTemplate();
-    const paragraph = template.find((item) => item.id === "paragraph");
     const format = template.find((item) => item.id === "format");
+    const textStyle = format.submenu.find((item) => item.id === "format.text-style");
+    const paragraphStyle = format.submenu.find((item) => item.id === "format.paragraph-style");
+    const list = format.submenu.find((item) => item.id === "format.list");
 
-    expect(paragraph.submenu.filter((item) => item.id).map((item) => item.id)).toEqual([
+    expect(template.find((item) => item.id === "paragraph")).toBeUndefined();
+    expect(format.submenu.filter((item) => item.id).map((item) => item.id)).toEqual([
+      "format.text-style",
+      "format.paragraph-style",
+      "format.list",
+      "markdown.outdent",
+      "markdown.indent",
+      "markdown.clear-format",
+    ]);
+    expect(textStyle.submenu.filter((item) => item.id).map((item) => item.id)).toEqual([
+      "markdown.strong",
+      "markdown.emphasis",
+      "markdown.underline",
+      "markdown.strike",
+      "markdown.highlight",
+      "markdown.inline-code",
+      "markdown.inline-math",
+      "markdown.link",
+    ]);
+    expect(paragraphStyle.submenu.filter((item) => item.id).map((item) => item.id)).toEqual([
       "markdown.paragraph",
       "markdown.heading-1",
       "markdown.heading-2",
@@ -131,34 +154,36 @@ describe("DesktopNativeMenuService", () => {
       "markdown.heading-4",
       "markdown.heading-5",
       "markdown.heading-6",
-      "markdown.bullet-list",
-      "markdown.ordered-list",
-      "markdown.task-list",
       "markdown.quote",
       "markdown.code-block",
       "markdown.math-block",
-      "markdown.outdent",
-      "markdown.indent",
     ]);
-    expect(format.submenu.filter((item) => item.id).map((item) => item.id)).toEqual([
-      "markdown.strong",
-      "markdown.emphasis",
-      "markdown.underline",
-      "markdown.strike",
-      "markdown.inline-code",
-      "markdown.inline-math",
-      "markdown.link",
-      "markdown.clear-format",
+    expect(list.submenu.filter((item) => item.id).map((item) => item.id)).toEqual([
+      "markdown.bullet-list",
+      "markdown.ordered-list",
+      "markdown.task-list",
     ]);
-    expect(paragraph.submenu.every((item) => item.type === "separator" || item.enabled)).toBe(true);
     expect(format.submenu.every((item) => item.type === "separator" || item.enabled)).toBe(true);
-    expect(paragraph.submenu.find((item) => item.id === "markdown.paragraph")).not.toHaveProperty("accelerator");
+    expect(textStyle.submenu.every((item) => item.type === "separator" || item.enabled)).toBe(true);
+    expect(paragraphStyle.submenu.every((item) => item.type === "separator" || item.enabled)).toBe(true);
+    expect(list.submenu.every((item) => item.type === "separator" || item.enabled)).toBe(true);
+    expect(paragraphStyle.submenu.find((item) => item.id === "markdown.paragraph"))
+      .not.toHaveProperty("accelerator");
+    expect(textStyle.submenu.find((item) => item.id === "markdown.highlight").accelerator)
+      .toBe("CmdOrCtrl+Shift+H");
 
-    paragraph.submenu.find((item) => item.id === "markdown.math-block").click();
-    format.submenu.find((item) => item.id === "markdown.inline-math").click();
+    paragraphStyle.submenu.find((item) => item.id === "markdown.math-block").click();
+    textStyle.submenu.find((item) => item.id === "markdown.inline-math").click();
+    textStyle.submenu.find((item) => item.id === "markdown.highlight").click();
+    list.submenu.find((item) => item.id === "markdown.task-list").click();
     await Promise.resolve();
     await Promise.resolve();
-    expect(actions.markdownCommand.mock.calls).toEqual([["math-block"], ["inline-math"]]);
+    expect(actions.markdownCommand.mock.calls).toEqual([
+      ["math-block"],
+      ["inline-math"],
+      ["highlight"],
+      ["task-list"],
+    ]);
   });
 
   it("disables Markdown menus when no editable Markdown editor is focused", () => {
@@ -172,8 +197,8 @@ describe("DesktopNativeMenuService", () => {
       onNewWindow() {},
       isMarkdownEditorActive: () => false,
     });
-    expect(service.createApplicationMenuTemplate().find((item) => item.id === "paragraph").enabled).toBe(true);
-    expect(inactiveService.createApplicationMenuTemplate().find((item) => item.id === "paragraph").enabled).toBe(false);
+    expect(service.createApplicationMenuTemplate().find((item) => item.id === "paragraph")).toBeUndefined();
+    expect(inactiveService.createApplicationMenuTemplate().find((item) => item.id === "paragraph")).toBeUndefined();
     expect(inactiveService.createApplicationMenuTemplate().find((item) => item.id === "format").enabled).toBe(false);
   });
 
@@ -225,9 +250,7 @@ describe("DesktopNativeMenuService", () => {
 
   it("keeps CmdOrCtrl+0 available for the native View menu reset zoom accelerator", () => {
     const { service } = createHarness();
-    const accelerators = service.createApplicationMenuTemplate().flatMap((item) => (
-      item.submenu?.map((entry) => entry.accelerator).filter(Boolean) ?? []
-    ));
+    const accelerators = collectAccelerators(service.createApplicationMenuTemplate());
 
     expect(accelerators).not.toContain("CmdOrCtrl+0");
   });
@@ -241,3 +264,10 @@ describe("DesktopNativeMenuService", () => {
     expect(app.dock.setMenu).not.toHaveBeenCalled();
   });
 });
+
+function collectAccelerators(items) {
+  return items.flatMap((item) => [
+    ...(item.accelerator ? [item.accelerator] : []),
+    ...(Array.isArray(item.submenu) ? collectAccelerators(item.submenu) : []),
+  ]);
+}

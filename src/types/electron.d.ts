@@ -1009,7 +1009,7 @@ declare global {
       onLocaleChanged: (callback: (state: LocaleState) => void) => () => void;
       setMarkdownFormatShortcutsActive: (request: { active: boolean }) => void;
       onMarkdownFormatShortcut: (
-        callback: (payload: { type: "strong" | "emphasis" | "underline" | "strike" }) => void,
+        callback: (payload: { type: import("@puppyone/shared-ui").MarkdownFormatCommand }) => void,
       ) => () => void;
       onMarkdownEditorCommand: (
         callback: (payload: { type: import("@puppyone/shared-ui").MarkdownEditorCommand }) => void,

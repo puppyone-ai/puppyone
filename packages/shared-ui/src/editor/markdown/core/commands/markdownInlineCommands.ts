@@ -7,7 +7,7 @@ import {
   type MarkdownMarkerRange,
 } from "../syntax/markdownElements";
 
-export type MarkdownFormatCommand = "emphasis" | "strike" | "strong" | "underline";
+export type MarkdownFormatCommand = "emphasis" | "highlight" | "strike" | "strong" | "underline";
 
 type MarkdownFormatSpec = {
   kind: MarkdownInlineFormatKind;
@@ -20,13 +20,18 @@ const MARKDOWN_FORMAT_SPECS: Record<MarkdownFormatCommand, MarkdownFormatSpec> =
   emphasis: { kind: "emphasis", open: "*", close: "*" },
   strike: { kind: "strike", open: "~~", close: "~~" },
   underline: { kind: "underline", open: "<u>", close: "</u>" },
+  highlight: { kind: "highlight", open: "<mark>", close: "</mark>" },
 };
 
 const INLINE_CODE_SPEC: MarkdownFormatSpec = { kind: "inlineCode", open: "`", close: "`" };
 const INLINE_MATH_SPEC: MarkdownFormatSpec = { kind: "mathInline", open: "$", close: "$" };
 
 export function isMarkdownFormatCommand(value: unknown): value is MarkdownFormatCommand {
-  return value === "emphasis" || value === "strike" || value === "strong" || value === "underline";
+  return value === "emphasis"
+    || value === "highlight"
+    || value === "strike"
+    || value === "strong"
+    || value === "underline";
 }
 
 export function applyMarkdownFormatCommand(view: EditorView, type: MarkdownFormatCommand): boolean {

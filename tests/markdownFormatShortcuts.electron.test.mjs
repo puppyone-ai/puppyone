@@ -37,6 +37,12 @@ describe("Markdown format window shortcuts", () => {
       meta: true,
       shift: true,
     }, "darwin")).toBe("strike");
+    expect(matchMarkdownFormatInput({
+      type: "keyDown",
+      key: "h",
+      meta: true,
+      shift: true,
+    }, "darwin")).toBe("highlight");
   });
 
   it.each(["win32", "linux"])("uses Control instead of Command on %s", (platform) => {
@@ -66,6 +72,12 @@ describe("Markdown format window shortcuts", () => {
       control: true,
       shift: true,
     }, platform)).toBe("strike");
+    expect(matchMarkdownFormatInput({
+      type: "keyDown",
+      key: "h",
+      control: true,
+      shift: true,
+    }, platform)).toBe("highlight");
   });
 
   it("rejects repeated, modified, released, and cross-platform modifier inputs", () => {
