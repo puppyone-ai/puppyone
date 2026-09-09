@@ -14,6 +14,10 @@ const errors = [];
 
 for (const filePath of walkTypeScript(sharedEditorRoot)) {
   const source = readFileSync(filePath, "utf8");
+  const workerAdapter = path.join(sharedEditorRoot, "runtime/BrowserEditorWorkerHost.ts");
+  if (filePath !== workerAdapter && /\bnew\s+Worker\s*\(/.test(source)) {
+    errors.push(`${relative(filePath)} allocates an editor Worker outside the platform task adapter`);
+  }
   if (filePath !== sessionKernel && /\b(?:this\.)?persistence\.persist\s*\(/.test(source)) {
     errors.push(`${relative(filePath)} calls a persistence adapter outside DocumentEditingSession`);
   }
@@ -92,7 +96,7 @@ if (/\b(?:queueMicrotask|idleDelayMs|maxDelayMs)\b/.test(sessionSource)) {
 if (/\b(?:normalizePersistenceResult|dirty\?:\s*boolean)\b/.test(sessionSource)) {
   errors.push(`${relative(sessionKernel)} still accepts a legacy persistence or dirty-state protocol`);
 }
-if (!/readSnapshot\(\),\s*this\.strongestDrainReason\(\)\s*\?\?\s*["']edit["']/.test(sessionSource)) {
+if (!/this\.enqueue\(snapshot,\s*this\.strongestDrainReason\(\)\s*\?\?\s*["']edit["']/.test(sessionSource)) {
   errors.push(`${relative(sessionKernel)} does not enqueue the latest editor snapshot with the edit reason`);
 }
 
@@ -201,7 +205,7 @@ for (const relativeAdapterPath of [
   "viewers/puppyflow/PuppyFlowViewer.tsx",
 ]) {
   const adapterPath = path.join(sharedEditorRoot, relativeAdapterPath);
-  if (!/\breplaceContent\s*:/.test(readFileSync(adapterPath, "utf8"))) {
+  if (!/\breplaceContent\s*:|\buseStructuredDocumentModel\b/.test(readFileSync(adapterPath, "utf8"))) {
     errors.push(`${relative(adapterPath)} cannot apply an accepted external version`);
   }
   if (/\breconcileExternalBaseline\b/.test(readFileSync(adapterPath, "utf8"))) {
@@ -217,7 +221,8 @@ const paneSourceSource = readFileSync(paneSourcePath, "utf8");
 if (/\bsetContent\(null\)/.test(paneSourceSource)) {
   errors.push(`${relative(paneSourcePath)} destroys stable editable content during refresh`);
 }
-if (!/workspaceContentChangeMatchesResource\(\s*refreshKey,\s*nodePath,\s*previousRefreshSequence\s*\)/.test(paneSourceSource)) {
+const documentInputRuntimeSource = readFileSync(path.join(sharedEditorRoot, "resource/DocumentInputRuntime.ts"), "utf8");
+if (!/useDocumentInput/.test(paneSourceSource) || !/workspaceContentChangeMatchesResource/.test(documentInputRuntimeSource)) {
   errors.push(`${relative(paneSourcePath)} does not scope external refreshes by resource identity`);
 }
 
@@ -233,9 +238,9 @@ const workbenchWatchPath = path.join(
 );
 const workbenchWatchSource = readFileSync(workbenchWatchPath, "utf8");
 if (
-  !/for \(const folder of folders\)/.test(workbenchWatchSource)
-  || !/bridge\.watchWorkspace\(folder\.workspace\.path/.test(workbenchWatchSource)
-  || !/onWorkspaceContentChanged\([^,]+,\s*folder\.id\)/s.test(workbenchWatchSource)
+  !/for \(const folder of options\.folders\)/.test(workbenchWatchSource)
+  || !/bridge\.watchWorkspace\(path/.test(workbenchWatchSource)
+  || !/onWorkspaceContentChanged\([^,]+,\s*visibleFolder\.id\)/s.test(workbenchWatchSource)
 ) {
   errors.push(`${relative(workbenchWatchPath)} does not centrally own every Workspace Folder watch with root identity`);
 }
@@ -472,15 +477,16 @@ if (!/documentPersistence:[\s\S]*?path:\s*canonicalizeResourcePath\(path\)/.test
 if (/"conflict"|ExternalConflictResolution/.test(readFileSync(path.join(sharedEditorRoot, "document-session/types.ts"), "utf8"))) {
   errors.push("Document Session must adopt disk updates without a user-facing conflict state");
 }
-if (!/readDocumentStorageSnapshot/.test(paneSourceSource) || !/readDocumentStorageSnapshot/.test(dataWorkspaceSource)) {
+if (!/readDocumentStorageSnapshot/.test(documentInputRuntimeSource) || !/useDocumentInput/.test(dataWorkspaceSource)) {
   errors.push("Editable document reads must share storage observation ordering");
 }
 
 const resourceLeasePath = path.join(sharedEditorRoot, "resource/useFileResourceLease.ts");
 const paneSourceSourceForLease = readFileSync(paneSourcePath, "utf8");
 if (
-  !/workspaceContentChangeMatchesResource/.test(readFileSync(resourceLeasePath, "utf8"))
-  || !/useFileResourceLease/.test(paneSourceSourceForLease)
+  !/acquireFileResource/.test(readFileSync(resourceLeasePath, "utf8"))
+  || !/acquireFileResource/.test(documentInputRuntimeSource)
+  || !/useDocumentInput/.test(paneSourceSourceForLease)
 ) {
   errors.push("Editor resources do not use the shared identity-scoped resource lease");
 }
@@ -499,8 +505,8 @@ if (
 ) {
   errors.push(`${relative(desktopAppPath)} does not close the targeted document Working Copy with its Input`);
 }
-if (!/closeAllDocumentWorkingCopies\("workspace-switch"\)/.test(desktopAppSource)) {
-  errors.push(`${relative(desktopAppPath)} does not close all Working Copies before workspace navigation`);
+if (/closeAllDocumentWorkingCopies\("workspace-switch"\)/.test(desktopAppSource)) {
+  errors.push(`${relative(desktopAppPath)} retires open documents during presentation-only navigation`);
 }
 
 const editorGroupModelPath = path.join(sharedEditorRoot, "workbench/editorGroupModel.ts");

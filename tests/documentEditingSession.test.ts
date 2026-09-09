@@ -123,8 +123,8 @@ describe("DocumentEditingSession", () => {
     expect(session.getState()).toMatchObject({
       status: "clean",
       storageVersion: "agent-v2",
-      currentRevision: "r2",
-      persistedRevision: "r2",
+      currentRevision: "r2:external",
+      persistedRevision: "r2:external",
     });
   });
 
@@ -583,6 +583,28 @@ describe("DocumentEditingSession", () => {
       error: { code: "persistence-failed", detail: "Desktop bridge unavailable" },
     });
   });
+});
+
+it("allows a clean externally removed document to close without recreating it", async () => {
+  const persist = vi.fn();
+  const session = createSession(persist, "manual");
+  bindSource(session, { revision: "r1", content: "one" });
+  session.markStorageUnavailable("removed");
+  await session.flushCurrent("document-close");
+  expect(persist).not.toHaveBeenCalled();
+  session.reconcileExternalBaseline("one", "v2");
+  expect(session.getState()).toMatchObject({ status: "clean", error: null, storageVersion: "v2" });
+  session.dispose();
+});
+
+it("retains and blocks an unsaved snapshot when its file disappears", async () => {
+  const session = createSession(vi.fn(), "manual");
+  const source = bindSource(session, { revision: "r1", content: "one" });
+  source.change({ revision: "r2", content: "unsaved" });
+  session.markStorageUnavailable("removed");
+  await expect(session.flushCurrent("document-close")).rejects.toThrow("removed");
+  expect(source.snapshot().content).toBe("unsaved");
+  session.dispose();
 });
 
 function createSession(

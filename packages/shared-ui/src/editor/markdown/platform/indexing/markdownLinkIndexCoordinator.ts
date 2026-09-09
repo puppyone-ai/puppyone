@@ -1,7 +1,7 @@
+import { acquireEditorWorker, type EditorWorkerPort } from "../../../runtime/BrowserEditorWorkerHost";
+import type { EditorTaskOwner } from "../../../runtime/EditorTaskScheduler";
 import {
-  createMarkdownLinkGraphIndexer,
   type MarkdownLinkGraphDocument,
-  type MarkdownLinkGraphIndexer,
   type MarkdownLinkGraphIndexSnapshot,
 } from "../../core/links/markdownLinkGraph";
 import type {
@@ -34,8 +34,8 @@ type WorkerRequestPayload = MarkdownLinkIndexWorkerRequest extends infer Request
 type ActiveSession = {
   revision: number;
   controller: AbortController;
-  worker: Worker | null;
-  fallbackIndexer: MarkdownLinkGraphIndexer | null;
+  worker: EditorWorkerPort | null;
+  closeWorker: (() => Promise<void>) | null;
   pending: Map<number, PendingOperation>;
   operationSequence: number;
   initialized: Promise<void>;
@@ -52,6 +52,8 @@ type ActiveSession = {
 export class MarkdownLinkIndexCoordinator {
   private revision = 0;
   private current: ActiveSession | null = null;
+
+  constructor(private readonly owner?: EditorTaskOwner) {}
 
   build(documents: readonly MarkdownLinkGraphDocument[]): MarkdownLinkIndexRequest {
     const byPath = new Map(documents.map((document) => [document.path, document]));
@@ -104,7 +106,7 @@ export class MarkdownLinkIndexCoordinator {
     this.revision += 1;
     if (!session) return;
     session.controller.abort(createAbortError());
-    session.worker?.terminate();
+    void session.closeWorker?.().catch(() => undefined);
     session.worker = null;
     const error = createAbortError();
     for (const pending of session.pending.values()) pending.reject(error);
@@ -120,7 +122,7 @@ export class MarkdownLinkIndexCoordinator {
       revision,
       controller,
       worker: null,
-      fallbackIndexer: null,
+      closeWorker: null,
       pending: new Map(),
       operationSequence: 0,
       initialized: Promise.resolve(),
@@ -128,47 +130,34 @@ export class MarkdownLinkIndexCoordinator {
       failure: null,
     };
 
-    if (typeof Worker === "function") {
-      try {
-        const worker = new Worker(
-          new URL("./markdownLinkIndex.worker.ts", import.meta.url),
-          { type: "module", name: "puppyone-markdown-link-index" },
-        );
-        session.worker = worker;
-        worker.onmessage = (event: MessageEvent<MarkdownLinkIndexWorkerResponse>) => {
-          const response = event.data;
-          if (response.requestId !== session.revision) return;
-          const pending = session.pending.get(response.operationId);
-          if (!pending) return;
-          session.pending.delete(response.operationId);
-          if (response.type === "error") {
-            pending.reject(new Error(response.error ?? "Markdown link indexing failed."));
-          } else {
-            pending.resolve(response);
-          }
-        };
-        worker.onerror = (event) => {
-          const error = new Error(event.message || "Markdown link indexing worker failed.");
-          session.failure = error;
-          worker.terminate();
-          session.worker = null;
-          for (const pending of session.pending.values()) pending.reject(error);
-          session.pending.clear();
-        };
-      } catch {
+    session.initialized = acquireEditorWorker("markdown-index", {
+      signal: controller.signal, owner: this.owner,
+      inputBytes: JSON.stringify(metadataDocuments).length * 2,
+    }).then(async (lease) => {
+      if (controller.signal.aborted) { await lease.close(); throw createAbortError(); }
+      session.closeWorker = lease.close;
+      const worker = lease.port;
+      session.worker = worker;
+      const fail = (error: Error) => {
+        session.failure = error;
+        void lease.close().catch(() => undefined);
         session.worker = null;
-        session.fallbackIndexer = createMarkdownLinkGraphIndexer(metadataDocuments);
-      }
-    } else {
-      session.fallbackIndexer = createMarkdownLinkGraphIndexer(metadataDocuments);
-    }
-
-    if (session.worker) {
-      session.initialized = this.send(session, {
-        type: "initialize",
-        documents: [...metadataDocuments],
-      }).then(() => undefined);
-    }
+        for (const pending of session.pending.values()) pending.reject(error);
+        session.pending.clear();
+      };
+      worker.onmessage = (event: MessageEvent<MarkdownLinkIndexWorkerResponse>) => {
+        const response = event.data;
+        if (response.requestId !== session.revision) return;
+        const pending = session.pending.get(response.operationId);
+        if (!pending) return;
+        session.pending.delete(response.operationId);
+        if (response.type === "error") pending.reject(new Error(response.error ?? "Markdown link indexing failed."));
+        else pending.resolve(response);
+      };
+      worker.onerror = (event) => fail(new Error(event.message || "Markdown link indexing worker failed."));
+      worker.onmessageerror = () => fail(new Error("Markdown link indexing returned an unreadable response."));
+      await this.send(session, { type: "initialize", documents: [...metadataDocuments] });
+    });
     return session;
   }
 
@@ -195,6 +184,7 @@ export class MarkdownLinkIndexCoordinator {
   }
 
   private async indexDocument(session: ActiveSession, document: MarkdownLinkGraphDocument) {
+    if ((document.content?.length ?? 0) * 2 > 8 * 1024 * 1024) throw new RangeError("Markdown indexing source exceeds its budget.");
     await this.send(session, { type: "index-document", document });
   }
 
@@ -217,40 +207,25 @@ export class MarkdownLinkIndexCoordinator {
       operationId,
     } as MarkdownLinkIndexWorkerRequest;
 
-    if (session.fallbackIndexer) {
-      return new Promise((resolve, reject) => {
-        window.setTimeout(() => {
-          try {
-            this.assertCurrent(session);
-            if (message.type === "index-document") {
-              session.fallbackIndexer?.indexDocument(message.document);
-              resolve({ requestId: session.revision, operationId, type: "ack" });
-            } else if (message.type === "snapshot") {
-              resolve({
-                requestId: session.revision,
-                operationId,
-                type: "snapshot",
-                index: session.fallbackIndexer?.createSnapshot(),
-              });
-            } else {
-              resolve({ requestId: session.revision, operationId, type: "ack" });
-            }
-          } catch (error) {
-            reject(error instanceof Error ? error : new Error(String(error)));
-          }
-        }, 0);
-      });
-    }
-
     if (!session.worker) {
       return Promise.reject(new Error("Markdown link index Worker is unavailable."));
     }
 
     return new Promise((resolve, reject) => {
-      session.pending.set(operationId, { resolve, reject });
+      const timer = setTimeout(() => {
+        session.pending.delete(operationId);
+        session.failure = new DOMException("Markdown indexing timed out.", "TimeoutError");
+        void session.closeWorker?.().catch(() => undefined);
+        reject(session.failure);
+      }, 15_000);
+      session.pending.set(operationId, {
+        resolve: (response) => { clearTimeout(timer); resolve(response); },
+        reject: (error) => { clearTimeout(timer); reject(error); },
+      });
       try {
         session.worker?.postMessage(message);
       } catch (error) {
+        clearTimeout(timer);
         session.pending.delete(operationId);
         reject(error instanceof Error ? error : new Error(String(error)));
       }

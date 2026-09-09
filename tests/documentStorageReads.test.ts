@@ -4,6 +4,15 @@ import { DocumentEditingSession } from "../packages/shared-ui/src/editor/documen
 import { readDocumentStorageSnapshot } from "../packages/shared-ui/src/editor/document-session/documentStorageReads";
 
 describe("document storage observation ordering", () => {
+  it("retries a text/resource version mismatch using a newly read disk version", async () => {
+    const readFile = vi.fn().mockResolvedValueOnce(file("one", "v1")).mockResolvedValue(file("two", "v2"));
+    const prepare = vi.fn().mockRejectedValueOnce(new Error("version changed")).mockResolvedValue(undefined);
+    const accept = vi.fn();
+    await readDocumentStorageSnapshot({ readFile }, "notes.md", { signal: new AbortController().signal, prepare, accept });
+    expect(prepare).toHaveBeenCalledTimes(2);
+    expect(accept).toHaveBeenCalledExactlyOnceWith(file("two", "v2"));
+  });
+
   it.each(["one", "two"])("revalidates a delayed read of %s after a save without conflicting with the next edit", async (oldContent) => {
     const harness = createHarness();
     const stale = deferred<FileContent>();

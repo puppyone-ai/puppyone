@@ -1,3 +1,4 @@
+import { EditorTaskBoundary } from "../runtime/EditorTaskContext";
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { bidiIsolate } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
@@ -154,6 +155,7 @@ export function FilePreview({
               failureTitle={t("shared-ui.preview.crashed")}
               onSurfaceReady={onSurfaceReady}
             >
+              <EditorTaskBoundary storageIdentity={documentPersistence?.storageIdentity || workspaceId || "renderer"} resource={node.path}>
               <DataNodeEditorHost
                 node={node}
                 fileContent={fileContent}
@@ -187,6 +189,7 @@ export function FilePreview({
                 documentSourceKind={documentSourceKind}
                 onSurfaceReady={onSurfaceReady}
               />
+              </EditorTaskBoundary>
             </EditorPreviewBoundary>
           </div>
         </div>

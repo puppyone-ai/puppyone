@@ -2,13 +2,11 @@ import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { promisify } from "node:util";
 import { resolveExistingWorkspacePath } from "../../../../local-api/files/path-policy.mjs";
 
 const MAX_OFFICE_CONVERSION_INPUT_BYTES = 25 * 1024 * 1024;
 const MAX_OFFICE_CONVERSION_OUTPUT_BYTES = 8 * 1024 * 1024;
 const OFFICE_CONVERSION_TIMEOUT_MS = 8000;
-const execFileAsync = promisify(execFile);
 
 export async function convertMacosOfficeDocumentToDocx(rootPath, relativePath, options = undefined) {
   if (options?.signal?.aborted) {
@@ -32,7 +30,7 @@ export async function convertMacosOfficeDocumentToDocx(rootPath, relativePath, o
   const temporaryDirectory = await fs.mkdtemp(path.join(os.tmpdir(), "puppyone-office-"));
   const outputPath = path.join(temporaryDirectory, `${path.basename(filePath, extension)}.docx`);
   try {
-    const result = await execFileAsync("textutil", ["-convert", "docx", filePath, "-output", outputPath], {
+    const result = await execFileUntilClosed("textutil", ["-convert", "docx", filePath, "-output", outputPath], {
       encoding: "utf8",
       maxBuffer: MAX_OFFICE_CONVERSION_OUTPUT_BYTES,
       timeout: OFFICE_CONVERSION_TIMEOUT_MS,
@@ -68,6 +66,38 @@ export async function convertMacosOfficeDocumentToDocx(rootPath, relativePath, o
     };
   } finally {
     await fs.rm(temporaryDirectory, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+// Abort can deliver execFile's callback before its child emits close. Keep the
+// conversion registered and its temporary files alive until the actual exit.
+async function execFileUntilClosed(file, args, options) {
+  let child;
+  let confirmExit;
+  const exited = new Promise((resolve) => { confirmExit = resolve; });
+  const outcome = new Promise((resolve, reject) => {
+    child = execFile(file, args, options, (error, stdout, stderr) => {
+      if (error) reject(error);
+      else resolve({ stdout, stderr });
+    });
+    child.once("close", confirmExit);
+  });
+  // A synchronous spawn failure never allocated a child.
+  if (!child) return outcome;
+  const forceExit = () => {
+    try { child.kill("SIGKILL"); } catch { /* Exit remains unconfirmed until close. */ }
+  };
+  let cancelDeadline;
+  const cancel = () => { cancelDeadline ??= setTimeout(forceExit, 2_000); };
+  const executionDeadline = setTimeout(forceExit, OFFICE_CONVERSION_TIMEOUT_MS + 2_000);
+  options.signal?.addEventListener("abort", cancel, { once: true });
+  if (options.signal?.aborted) cancel();
+  try { return await outcome; }
+  finally {
+    await exited;
+    clearTimeout(executionDeadline);
+    clearTimeout(cancelDeadline);
+    options.signal?.removeEventListener("abort", cancel);
   }
 }
 

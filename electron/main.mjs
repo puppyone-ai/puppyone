@@ -317,7 +317,10 @@ const documentSessionCloseCoordinator = createDocumentSessionCloseCoordinator({
   dialog,
   t: (messageId, values) => localeService.t(messageId, values),
   onCloseCancelled: applicationQuitIntent.cancel,
-  closeResources: (window) => projectSessions.closeWindow(window.webContents.id).then((result) => result.closed),
+  closeResources: async (window) => {
+    await editorSurfaceManager?.destroyForOwner(window.webContents.id);
+    return (await projectSessions.closeWindow(window.webContents.id)).closed;
+  },
 });
 documentSessionCloseCoordinator.registerIpc(trustedIpcMain);
 const authorizeWorkspaceRoot = createSenderWorkspaceAuthorization({
@@ -420,6 +423,7 @@ const projectSessions = createProjectSessionHost({
   terminalService,
   getSender: (id) => webContents.fromId(id),
   closeProjectServices: async (owner, root) => {
+    await editorSurfaceManager?.destroyForResource(owner, root);
     await Promise.all([
       appPreviewRuntime?.closeSessionsForWorkspaceRoot(owner, root),
       workspaceWatchService.stopForWorkspaceRoot(owner, root),
@@ -614,7 +618,7 @@ async function createWindow(options = {}) {
     nativeSurfaceOcclusion.releaseOwner(webContentsId);
     nativeSurfacePointerPassthrough.releaseOwner(webContentsId);
     viewerPackHost?.destroySessionsForOwner(webContentsId);
-    editorSurfaceManager?.destroyForOwner(webContentsId);
+    void editorSurfaceManager?.destroyForOwner(webContentsId).catch((error) => console.error("Editor Surface retirement failed:", error));
     appPreviewRuntime?.closeSessionsForWindow(webContentsId);
   });
 
@@ -638,7 +642,7 @@ async function createWindow(options = {}) {
     }).catch((error) => console.error("Project shutdown failed:", error));
     releaseWindowWorkspaceById(webContentsId, window);
     viewerPackHost?.destroySessionsForOwner(webContentsId);
-    editorSurfaceManager?.destroyForOwner(webContentsId);
+    void editorSurfaceManager?.destroyForOwner(webContentsId).catch((error) => console.error("Editor Surface retirement failed:", error));
     appPreviewRuntime?.closeSessionsForWindow(webContentsId);
     nativeSurfaceOcclusion.releaseOwner(webContentsId);
     nativeSurfacePointerPassthrough.releaseOwner(webContentsId);
@@ -903,7 +907,7 @@ app.on("will-quit", () => {
   cloudAuthService.dispose();
   updateService?.dispose();
   telemetryHost?.dispose();
-  editorSurfaceManager?.destroyAll();
+  void editorSurfaceManager?.destroyAll().catch((error) => console.error("Editor Surface retirement failed:", error));
   viewerPackHost?.destroyAllSessions();
   appPreviewRuntime?.closeAll();
   markdownWebEmbedService?.dispose();
@@ -1053,6 +1057,7 @@ function registerIpcHandlers() {
     shell,
     authorizeWorkspaceRoot,
     convertOfficeDocument: desktopPlatformHost.documents.convertOfficeDocumentToDocx,
+    retireEditorSurfacesForResource: (owner, resource) => editorSurfaceManager?.destroyForResource(owner, resource),
     localFileCapabilities,
     workspaceWatchService,
     workspaceMutationTracker,
@@ -1513,12 +1518,10 @@ function assignWindowWorkspaceComposition(window, folders, options = {}) {
 
   if (replacingComposition && previousPaths.length > 0) {
     viewerPackHost?.destroySessionsForOwner(webContentsId);
-    localFileCapabilities.revokeSender(webContentsId);
-    if (options.cleanupPrevious !== false) {
-      appPreviewRuntime?.closeSessionsForWindow(webContentsId);
-      workspaceWatchService.stopForWindow(webContentsId);
-      gitMetadataWatchService.stopForWindow(webContentsId);
-    }
+    // Project sessions remain authorized while merely changing presentation.
+    // Document input watches and project execution are retired by closeRoot /
+    // closeWindow, never by navigation to another composition.
+    if (options.cleanupPrevious !== false) gitMetadataWatchService.stopForWindow(webContentsId);
   }
 
   projectSessions.assertWindowOpen(webContentsId);
@@ -1542,7 +1545,7 @@ function assignWindowWorkspaceComposition(window, folders, options = {}) {
 function releaseWindowWorkspaceById(webContentsId, window = null) {
   gitAutoCommitHost.releaseWindow(webContentsId);
   viewerPackHost?.destroySessionsForOwner(webContentsId);
-  editorSurfaceManager?.destroyForOwner(webContentsId);
+  void editorSurfaceManager?.destroyForOwner(webContentsId).catch((error) => console.error("Editor Surface retirement failed:", error));
   localFileCapabilities.revokeSender(webContentsId);
   const state = windowStateById.get(webContentsId);
   const workspacePaths = [...new Set([...(state?.folderPaths ?? []), ...projectSessions.snapshot(webContentsId).projects.map((project) => project.rootPath)])];
@@ -1643,7 +1646,6 @@ async function showHomepageForCurrentWindowNow(sender) {
   const window = BrowserWindow.fromWebContents(sender);
   if (!window || window.isDestroyed()) return;
   getOrCreateWindowState(window).releaseFolders();
-  appPreviewRuntime?.closeSessionsForWindow(window.webContents.id);
-  workspaceWatchService.stopForWindow(window.webContents.id);
+  // The homepage hides views; explicit project/window close owns retirement.
   gitMetadataWatchService.stopForWindow(window.webContents.id);
 }

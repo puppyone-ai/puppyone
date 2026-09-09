@@ -82,9 +82,13 @@ const macosOfficeConverter = await readText(
 );
 requireSource(
   macosOfficeConverter,
-  'execFileAsync("textutil"',
+  'execFileUntilClosed("textutil"',
   "The macOS adapter must own the native textutil conversion port",
 );
+requireSource(macosOfficeConverter, 'child.once("close", confirmExit)',
+  "Native Office conversion must wait for child exit before releasing its session");
+requireSource(macosOfficeConverter, "await exited",
+  "Native Office cancellation must retain temporary resources until exit");
 
 for (const filePath of await walkSourceFiles(path.join(repositoryRoot, "src"))) {
   const source = await fs.readFile(filePath, "utf8");

@@ -1266,6 +1266,7 @@ declare global {
         rootPath: string;
         path: string;
         purpose?: "file-preview" | "markdown-asset";
+        expectedVersion?: string;
       }) => Promise<{ url: string }>;
       revokeFileUrl: (request: { url: string }) => Promise<{ revoked: boolean }>;
       convertOfficeDocumentToDocx: (

@@ -9,11 +9,10 @@ import {
   type ReactNode,
 } from "react";
 import {
-  closeAllDocumentWorkingCopies,
   closeDocumentWorkingCopy,
+  withEditorDocumentOperations,
   closeDocumentWorkingCopiesUnderResource,
   createWorkspaceResourceUri,
-  flushActiveDocumentSessions,
   isDataResourceUri,
   isDocumentDataNode,
   qualifyDataResourcePath,
@@ -326,7 +325,7 @@ function AppContent() {
   );
   const dataPort = useMemo(
     () => (workbenchDataService
-      ? createExplorerDataPort(workbenchDataService.dataPort, filesVisibilitySettings)
+      ? withEditorDocumentOperations(createExplorerDataPort(workbenchDataService.dataPort, filesVisibilitySettings))
       : null),
     [filesVisibilitySettings, workbenchDataService],
   );
@@ -377,20 +376,15 @@ function AppContent() {
     dataPort?.resolveNode ?? null,
     workbenchWorkspace?.folders[0]?.uri ?? null,
     resolveEditorResource,
+    workbenchWorkspace?.id ?? null,
   );
   const activeDocumentPath = editorWorkbench.activePath;
   const handleResourceMoved = useCallback(async (previousPath: string, nextPath: string) => {
-    if (documentStorageIdentity) {
-      await closeDocumentWorkingCopiesUnderResource(documentStorageIdentity, previousPath);
-    }
     editorWorkbench.rebaseResource(previousPath, nextPath);
-  }, [documentStorageIdentity, editorWorkbench]);
+  }, [editorWorkbench]);
   const handleResourceDeleted = useCallback(async (path: string) => {
-    if (documentStorageIdentity) {
-      await closeDocumentWorkingCopiesUnderResource(documentStorageIdentity, path);
-    }
     editorWorkbench.closeUnderResource(path);
-  }, [documentStorageIdentity, editorWorkbench]);
+  }, [editorWorkbench]);
   const [activeExplorerNode, setActiveExplorerNode] = useProjectExplorerSelection(workspace);
   const activeDocumentResource = resolveWorkspaceResource(activeDocumentPath);
   const currentActiveDocumentPath = activeDocumentResource ? activeDocumentPath : null;
@@ -418,14 +412,9 @@ function AppContent() {
   const documentNavigationRequestRef = useRef(0);
   const desktopViewNavigationRequestRef = useRef(0);
   const drainWorkspaceNavigation = useCallback(async (): Promise<boolean> => {
-    try {
-      await closeAllDocumentWorkingCopies("workspace-switch");
-      setDocumentNavigationError(null);
-      return true;
-    } catch (error) {
-      setDocumentNavigationError(error instanceof Error ? error.message : String(error));
-      return false;
-    }
+    // Navigation retains document models, outstanding saves, and root watches.
+    setDocumentNavigationError(null);
+    return true;
   }, []);
   const switcherRef = useRef<HTMLDivElement>(null);
   const desktopTerminalEnabled = isDesktopTerminalEnabled({ terminalToolEnabled });
@@ -485,6 +474,7 @@ function AppContent() {
   }, [focusedWorkspace?.path, invalidateGitStatus]);
   useWorkbenchWorkspaceContentWatch({
     folders: workbenchWorkspace?.folders ?? EMPTY_WORKSPACE_FOLDERS,
+    storageIdentity: documentStorageIdentity,
     onWorkspaceContentChanged: refreshWorkspaceContent,
     onWorkspaceActivity: handleWorkspaceActivity,
   });
@@ -694,22 +684,7 @@ function AppContent() {
 
   const navigateDesktopView = useCallback((view: DesktopView) => {
     const requestId = ++desktopViewNavigationRequestRef.current;
-    const routesToData = (
-      (view === "plugins" && !experimentalSettings.enableViewerPlugins)
-      || (view === "cloud" && !cloudEnabled)
-    );
-
-    const commitNavigation = async () => {
-      if (activeView === "data" && view !== "data" && !routesToData) {
-        try {
-          await flushActiveDocumentSessions("document-close");
-        } catch (error) {
-          if (requestId === desktopViewNavigationRequestRef.current) {
-            setDocumentNavigationError(error instanceof Error ? error.message : String(error));
-          }
-          return;
-        }
-      }
+    const commitNavigation = () => {
       if (requestId !== desktopViewNavigationRequestRef.current) return;
       setDocumentNavigationError(null);
 
@@ -742,7 +717,6 @@ function AppContent() {
 
     void commitNavigation();
   }, [
-    activeView,
     cloudEnabled,
     experimentalSettings.enableViewerPlugins,
     setSidebarCollapsed,
@@ -821,7 +795,7 @@ function AppContent() {
   }, [documentStorageIdentity, editorWorkbench]);
   useEffect(() => {
     const handleEditorShortcut = (event: KeyboardEvent) => {
-      if (activeView !== "data" || editorWorkbench.state.editors.length === 0) return;
+      if (event.isComposing || activeView !== "data" || editorWorkbench.state.editors.length === 0) return;
       const platformModifier = event.metaKey || event.ctrlKey;
       if (platformModifier && !event.altKey && event.key.toLowerCase() === "w") {
         if (!editorWorkbench.activeEditorId) return;
@@ -970,14 +944,22 @@ function AppContent() {
   });
 
   const unlinkCurrentWorkspace = useCallback(async () => {
-    if (!await drainWorkspaceNavigation()) return;
+    // Forgetting a project actually retires its authorization and editors.
+    if (documentStorageIdentity && workbenchWorkspace) {
+      for (const folder of workbenchWorkspace.folders) {
+        await closeDocumentWorkingCopiesUnderResource(documentStorageIdentity, folder.uri);
+      }
+    }
+    editorWorkbench.clear();
     await forgetActiveWorkspace();
     setSwitcherOpen(false);
     setBranchSwitcherOpen(false);
     setRightSidebarOpen(false);
     resetDataNodeActions();
   }, [
-    drainWorkspaceNavigation,
+    documentStorageIdentity,
+    workbenchWorkspace,
+    editorWorkbench,
     forgetActiveWorkspace,
     resetDataNodeActions,
     setBranchSwitcherOpen,

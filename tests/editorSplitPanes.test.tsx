@@ -98,7 +98,7 @@ describe("DesktopEditorSplitView", () => {
       .toBe("true");
   });
 
-  it("restarts content reads after Strict Mode replays the Files surface around Settings", async () => {
+  it("retains the document input through Strict Mode and Files/Settings navigation", async () => {
     const path = "return-from-settings.md";
     const node: DataNode = {
       id: path,
@@ -155,12 +155,12 @@ describe("DesktopEditorSplitView", () => {
       && container.querySelector("[data-puppy-loader]") === null
     ));
     const readsAfterFirstMount = readFile.mock.calls.length;
-    expect(readsAfterFirstMount).toBeGreaterThanOrEqual(2);
+    expect(readsAfterFirstMount).toBe(1);
     await renderRoute("settings");
     expect(container.textContent).toContain("Settings");
     await renderRoute("files");
     await waitForCondition(() => (
-      readFile.mock.calls.length > readsAfterFirstMount
+      readFile.mock.calls.length === readsAfterFirstMount + 1
       && container.querySelector(".cm-editor") !== null
       && container.querySelector("[data-puppy-loader]") === null
     ));
@@ -703,13 +703,14 @@ describe("DesktopEditorSplitView", () => {
     root = createRoot(container);
     let updateLayout!: React.Dispatch<React.SetStateAction<EditorPaneLayoutState>>;
 
+    const dataPort = { listChildren: async () => tree, readFile };
     function Harness() {
       const [layout, setLayout] = React.useState(initialLayout);
       updateLayout = setLayout;
       return withTestLocalization(
         <DesktopEditorSplitView
           aiEditRequest={null}
-          dataPort={{ listChildren: async () => tree, readFile }}
+          dataPort={dataPort}
           editorGroup={group}
           editorInteractionPreferences={{ showSaveStatus: false, markdownBlockDragEnabled: false }}
           editorTree={state.tree}

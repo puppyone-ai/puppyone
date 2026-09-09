@@ -232,6 +232,9 @@ export function TextEditorFrame({
     if (port && editingSourceRef.current) {
       fallbackSourceRequestedRef.current = false;
       detachSourceRef.current = editingSourceRef.current.attachSource({
+        retainedSource: port.retainedSource,
+        prepareDetach: port.prepareDetach,
+        setInputEnabled: port.setInputEnabled,
         readSnapshot: port.readSnapshot,
         replaceContent: (nextContent) => {
           const snapshot = port.replaceContent(nextContent);

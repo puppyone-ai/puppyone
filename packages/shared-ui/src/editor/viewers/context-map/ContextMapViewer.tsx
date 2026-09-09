@@ -1,3 +1,4 @@
+import { useEditorDependencies } from "../../runtime/EditorTaskContext";
 import {
   useCallback,
   useEffect,
@@ -19,7 +20,8 @@ import { useLocalization } from "@puppyone/localization/react";
 import type { DataNode, DataPort } from "../../../core/types";
 import { FileGlyphIcon } from "../../../file/fileIcons";
 import type { FileIconThemeId } from "../../../file/fileIconTypes";
-import { useEditableDocumentSource } from "../../document-session/EditableDocumentSourceContext";
+import { useStructuredDocumentModel } from "../../document-session/useStructuredDocumentModel";
+import { useRetainedEditorViewState } from "../../document-session/useRetainedEditorViewState";
 import { useEditorPaneMenuContributionPublisher } from "../../editorPaneMenuContribution";
 import type { PresetViewerRenderContext } from "../../registry/viewerTypes";
 import {
@@ -126,78 +128,19 @@ export function ContextMapViewer({
   contextMapEnvironment,
 }: ContextMapViewerProps) {
   const { t } = useLocalization();
-  const editingSource = useEditableDocumentSource();
-  const parsed = useMemo(() => parseContextMapDocument(sourceContent), [sourceContent]);
-  const [mapDocument, setMapDocument] = useState<ContextMapDocument>(parsed.document);
-  const [parseError, setParseError] = useState<string | null>(parsed.error);
-  const latestDocumentRef = useRef(parsed.document);
-  const sourceContentRef = useRef(sourceContent);
-  const documentPathRef = useRef(sourceDocument.path);
-  const revisionCounterRef = useRef(0);
-  const revisionRef = useRef(createContextMapRevision(sourceDocument.path, 0));
-
-  useLayoutEffect(() => {
-    if (documentPathRef.current === sourceDocument.path) return;
-    documentPathRef.current = sourceDocument.path;
-    revisionCounterRef.current = 0;
-    revisionRef.current = createContextMapRevision(sourceDocument.path, 0);
-    sourceContentRef.current = sourceContent;
-    latestDocumentRef.current = parsed.document;
-    setMapDocument(parsed.document);
-    setParseError(parsed.error);
-  }, [parsed, sourceContent, sourceDocument.path]);
-
-  useLayoutEffect(() => {
-    if (!editingSource) return undefined;
-    const detach = editingSource.attachSource({
-      readSnapshot: () => ({
-        content: sourceContentRef.current,
-        revision: revisionRef.current,
-      }),
-      replaceContent: (content: string) => {
-        const replacement = parseContextMapDocument(content);
-        revisionCounterRef.current += 1;
-        revisionRef.current = createContextMapRevision(
-          sourceDocument.path,
-          revisionCounterRef.current,
-        );
-        sourceContentRef.current = content;
-        latestDocumentRef.current = replacement.document;
-        setMapDocument(replacement.document);
-        setParseError(replacement.error);
-        return { content, revision: revisionRef.current };
-      },
-    });
-    editingSource.reportRevision({
-      revision: revisionRef.current,
-      origin: "model-initialization",
-    });
-    return detach;
-  }, [editingSource, sourceDocument.path]);
-
-  const applyDocumentEdit = useCallback((nextDocument: ContextMapDocument) => {
-    const nextSource = serializeContextMapDocument(nextDocument);
-    latestDocumentRef.current = nextDocument;
-    sourceContentRef.current = nextSource;
-    setMapDocument(nextDocument);
-    setParseError(null);
-    if (!canEdit) return;
-    revisionCounterRef.current += 1;
-    revisionRef.current = createContextMapRevision(
-      sourceDocument.path,
-      revisionCounterRef.current,
-    );
-    editingSource?.reportRevision({
-      revision: revisionRef.current,
-      origin: "local-edit",
-    });
-  }, [canEdit, editingSource, sourceDocument.path]);
-
-  const updateDocument = useCallback((
-    update: (current: ContextMapDocument) => ContextMapDocument,
-  ) => {
-    applyDocumentEdit(update(latestDocumentRef.current));
-  }, [applyDocumentEdit]);
+  const { model, state, edit: applyDocumentEdit, onHistoryKeyDown } = useStructuredDocumentModel({
+    kind: "context-map",
+    documentId: sourceDocument.path,
+    content: sourceContent,
+    canEdit,
+    parse: parseContextMapDocument,
+    serialize: serializeContextMapDocument,
+  });
+  const mapDocument = state.document;
+  const parseError = state.error;
+  const updateDocument = useCallback((update: (current: ContextMapDocument) => ContextMapDocument) => {
+    applyDocumentEdit(update(model.getSnapshot().document));
+  }, [applyDocumentEdit, model]);
 
   const scopePath = useMemo(
     () => getContextMapScopePath(sourceDocument.path),
@@ -271,7 +214,7 @@ export function ContextMapViewer({
   }
 
   return (
-    <div className="context-map-viewer-shell">
+    <div className="context-map-viewer-shell" onKeyDownCapture={onHistoryKeyDown}>
       {parseError && (
         <div className="context-map-parse-error" role="alert">
           <span>{t("workspace.relationships.invalidFile", { detail: parseError })}</span>
@@ -321,10 +264,11 @@ function ContextMapSurface({
   onToggleFolder: (node: DataNode) => void;
 }) {
   const { t } = useLocalization();
+  const { index: dependencyIndex, revision: dependencyRevision } = useEditorDependencies();
   const publishPaneMenuContribution = useEditorPaneMenuContributionPublisher();
   const [graph, setGraph] = useState<FolderRelationshipGraph | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [layoutMode, setLayoutMode] = useState<ContextMapLayoutMode>("radial");
+  const [layoutMode, setLayoutMode] = useRetainedEditorViewState<ContextMapLayoutMode>("context-map:layout", "radial");
   const [lineFilters, setLineFilters] = useState<ContextMapLineFilterState>(
     DEFAULT_CONTEXT_MAP_LINE_FILTERS,
   );
@@ -332,15 +276,26 @@ function ContextMapSurface({
   useEffect(() => {
     const controller = new AbortController();
     let active = true;
+    const dependencies = dependencyIndex.begin();
     setGraph(null);
     setError(null);
     void loadFolderRelationshipGraph({
-      dataPort,
+      dataPort: {
+        ...dataPort,
+        listChildren: async (path) => {
+          dependencies.track("directory", path ?? "");
+          return dataPort.listChildren(path);
+        },
+        ...(dataPort.readFile ? { readFile: async (path: string, options?: { signal?: AbortSignal }) => {
+          dependencies.track("resource", path);
+          return dataPort.readFile!(path, options);
+        } } : {}),
+      },
       folder: initialFolder,
       signal: controller.signal,
     })
       .then((nextGraph) => {
-        if (active) setGraph(nextGraph);
+        if (active && dependencies.commit()) setGraph(nextGraph);
       })
       .catch((reason: unknown) => {
         if (!active || isAbortError(reason)) return;
@@ -348,15 +303,16 @@ function ContextMapSurface({
       });
     return () => {
       active = false;
+      dependencies.abort();
       controller.abort();
     };
-  }, [dataPort, initialFolder, refreshSequence]);
+  }, [dataPort, initialFolder, refreshSequence, dependencyIndex, dependencyRevision]);
 
   const setPaneMenuLayoutMode = useCallback((mode: string) => {
     if (mode === "radial" || mode === "canvas" || mode === "layered") {
       setLayoutMode(mode);
     }
-  }, []);
+  }, [setLayoutMode]);
 
   const setLineFilterVisibility = useCallback((
     key: ContextMapLineFilterKey,
@@ -588,7 +544,7 @@ function RadialRelationshipCanvas({
   const panSessionRef = useRef<RelationshipPanSession | null>(null);
   const [focusedNodePath, setFocusedNodePath] = useState<string | null>(null);
   const [panning, setPanning] = useState(false);
-  const [viewportTransform, setViewportTransform] = useState<RelationshipViewportTransform>({
+  const [viewportTransform, setViewportTransform, restoredViewport] = useRetainedEditorViewState<RelationshipViewportTransform>("context-map:radial", {
     x: 0,
     y: 0,
     scale: 1,
@@ -655,16 +611,20 @@ function RadialRelationshipCanvas({
     const canvas = canvasRef.current;
     if (!canvas) return;
     setViewportTransform(getRadialFitViewport(canvas, layoutRef.current));
-  }, []);
+  }, [setViewportTransform]);
 
   useLayoutEffect(() => {
-    fitCanvas();
+    if (!restoredViewport) fitCanvas();
     const canvas = canvasRef.current;
     if (!canvas) return undefined;
-    const observer = new ResizeObserver(fitCanvas);
+    let initialObservation = true;
+    const observer = new ResizeObserver(() => {
+      if (initialObservation) { initialObservation = false; return; }
+      fitCanvas();
+    });
     observer.observe(canvas);
     return () => observer.disconnect();
-  }, [fitCanvas]);
+  }, [fitCanvas, restoredViewport]);
 
   useLayoutEffect(() => {
     if (previousLayoutRef.current === layout) return;
@@ -676,7 +636,7 @@ function RadialRelationshipCanvas({
       ...current,
       scale: fittedViewport.scale,
     }));
-  }, [layout]);
+  }, [layout, setViewportTransform]);
 
   const startCanvasPan = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button !== 0 || !event.isPrimary || panSessionRef.current) return;
@@ -710,7 +670,7 @@ function RadialRelationshipCanvas({
       y: session.origin.y + event.clientY - session.startY,
     }));
     event.preventDefault();
-  }, []);
+  }, [setViewportTransform]);
 
   const finishCanvasPan = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     const session = panSessionRef.current;
@@ -963,7 +923,7 @@ function LayeredRelationshipCanvas({
   const panSessionRef = useRef<RelationshipPanSession | null>(null);
   const [focusedNodePath, setFocusedNodePath] = useState<string | null>(null);
   const [panning, setPanning] = useState(false);
-  const [viewportTransform, setViewportTransform] = useState<RelationshipViewportTransform>({
+  const [viewportTransform, setViewportTransform, restoredViewport] = useRetainedEditorViewState<RelationshipViewportTransform>("context-map:layered", {
     x: 0,
     y: 0,
     scale: 1,
@@ -1033,16 +993,20 @@ function LayeredRelationshipCanvas({
     const canvas = canvasRef.current;
     if (!canvas) return;
     setViewportTransform(getLayeredFitViewport(canvas, layoutRef.current));
-  }, []);
+  }, [setViewportTransform]);
 
   useLayoutEffect(() => {
-    fitCanvas();
+    if (!restoredViewport) fitCanvas();
     const canvas = canvasRef.current;
     if (!canvas) return undefined;
-    const observer = new ResizeObserver(fitCanvas);
+    let initialObservation = true;
+    const observer = new ResizeObserver(() => {
+      if (initialObservation) { initialObservation = false; return; }
+      fitCanvas();
+    });
     observer.observe(canvas);
     return () => observer.disconnect();
-  }, [fitCanvas]);
+  }, [fitCanvas, restoredViewport]);
 
   useLayoutEffect(() => {
     if (previousLayoutRef.current === layout) return;
@@ -1054,7 +1018,7 @@ function LayeredRelationshipCanvas({
       ...current,
       scale: fittedViewport.scale,
     }));
-  }, [layout]);
+  }, [layout, setViewportTransform]);
 
   const startCanvasPan = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button !== 0 || !event.isPrimary || panSessionRef.current) return;
@@ -1088,7 +1052,7 @@ function LayeredRelationshipCanvas({
       y: session.origin.y + event.clientY - session.startY,
     }));
     event.preventDefault();
-  }, []);
+  }, [setViewportTransform]);
 
   const finishCanvasPan = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     const session = panSessionRef.current;
@@ -1356,7 +1320,7 @@ function RelationshipCanvas({
   const [focusedNodePath, setFocusedNodePath] = useState<string | null>(null);
   const [draggingNodePath, setDraggingNodePath] = useState<string | null>(null);
   const [panning, setPanning] = useState(false);
-  const [viewportTransform, setViewportTransform] = useState<RelationshipViewportTransform>({
+  const [viewportTransform, setViewportTransform] = useRetainedEditorViewState<RelationshipViewportTransform>("context-map:canvas", {
     x: 0,
     y: 0,
     scale: 1,
@@ -1695,7 +1659,7 @@ function RelationshipCanvas({
       y: session.origin.y + event.clientY - session.startY,
     }));
     event.preventDefault();
-  }, []);
+  }, [setViewportTransform]);
 
   const finishCanvasPan = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     const session = panSessionRef.current;
@@ -1721,7 +1685,7 @@ function RelationshipCanvas({
       ".folder-relationship-card, .folder-relationship-group",
     )) return;
     setViewportTransform({ x: 0, y: 0, scale: 1 });
-  }, []);
+  }, [setViewportTransform]);
 
   const registerCard = useCallback((nodePath: string): RefCallback<HTMLElement> => (
     element,
@@ -2119,9 +2083,7 @@ function isAbortError(reason: unknown): boolean {
   return reason instanceof DOMException && reason.name === "AbortError";
 }
 
-function createContextMapRevision(documentPath: string, sequence: number): string {
-  return `context-map:${documentPath}:${sequence}`;
-}
+
 
 function getScopeName(scopePath: string | null): string {
   if (!scopePath) return "Workspace";

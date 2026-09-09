@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import JSZip from "jszip";
+import { retireEditorTasks } from "../packages/shared-ui/src/editor/runtime/retireEditorTasks";
 import * as XLSX from "xlsx";
 import {
   getSpreadsheetCellKind,
@@ -30,6 +31,16 @@ afterEach(() => {
 });
 
 describe("spreadsheet preview parsing", () => {
+  it("settles a waiting client when its owner retires the Worker", async () => {
+    const worker = new FakeWorker(); stubWorker(worker);
+    const parsing = parseSpreadsheetInWorker(new ArrayBuffer(8), { archiveKind: "none" });
+    const rejected = expect(parsing).rejects.toMatchObject({ name: "AbortError" });
+    await vi.waitFor(() => expect(worker.postMessage).toHaveBeenCalled());
+    await retireEditorTasks();
+    await rejected;
+    expect(worker.terminate).toHaveBeenCalledTimes(1);
+  });
+
   it("preserves native cell kinds for familiar worksheet alignment", () => {
     expect(getSpreadsheetCellKind(undefined)).toBe("blank");
     expect(getSpreadsheetCellKind({ t: "z" })).toBe("blank");
@@ -387,6 +398,7 @@ describe("spreadsheet preview worker client", () => {
     });
     const rejection = expect(parsing).rejects.toMatchObject({ name: "AbortError" });
 
+    await vi.waitFor(() => expect(worker.postMessage).toHaveBeenCalledOnce());
     controller.abort();
 
     await rejection;

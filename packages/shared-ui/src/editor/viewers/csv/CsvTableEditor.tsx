@@ -27,6 +27,8 @@ import {
 } from "../../find/useCsvFindAdapter";
 import { useRegisterEditorFindAdapter } from "../../find/editorFind";
 import { useEditorAppearanceRevision } from "../../../core/appearance/EditorAppearanceContext";
+import { useDocumentModelOwner } from "../../document-session/DocumentModelOwner";
+import { useRetainedEditorScroll } from "../../document-session/useRetainedEditorViewState";
 import { CsvTableControls } from "./CsvTableControls";
 import { CsvCellEditor } from "./CsvCellEditor";
 import { CsvColumnResizeLayer } from "./CsvColumnResizeLayer";
@@ -85,6 +87,7 @@ export function CsvTableEditor({
   onSnapshotPortChange,
 }: CsvTableEditorProps) {
   const appearanceRevision = useEditorAppearanceRevision();
+  const documentModels = useDocumentModelOwner();
   const { direction, locale, t } = useLocalization();
   const resolvedDocumentId = documentId ?? (nodeName || "csv-document");
   const resolvedDelimiter = delimiter ?? inferDelimiter(nodeName, content);
@@ -94,7 +97,8 @@ export function CsvTableEditor({
     || modelOwnerRef.current.documentId !== resolvedDocumentId
     || modelOwnerRef.current.delimiter !== resolvedDelimiter
   ) {
-    const documentModel = new CsvDocumentModel(resolvedDocumentId, content, resolvedDelimiter);
+    const createModel = () => new CsvDocumentModel(resolvedDocumentId, content, resolvedDelimiter);
+    const documentModel = documentModels?.getOrCreate(`csv:${resolvedDelimiter}`, createModel) ?? createModel();
     modelOwnerRef.current = {
       columnLayout: new CsvColumnLayoutModel(documentModel, {
         read: (columnCount) => readCsvColumnWidthsPreference(
@@ -140,7 +144,10 @@ export function CsvTableEditor({
   }, [content, model]);
 
   useLayoutEffect(() => {
+    documentModels?.activate(model);
     const snapshotPort: EditorSourceSnapshotPort = {
+      retainedSource: model,
+      setInputEnabled: model.setInputEnabled,
       readSnapshot: model.readSnapshot,
       replaceContent: (nextContent) => {
         acceptedContentRef.current = nextContent;
@@ -158,7 +165,7 @@ export function CsvTableEditor({
       origin: "model-initialization",
     });
     return () => callbacksRef.current.onSnapshotPortChange?.(null);
-  }, [model]);
+  }, [documentModels, model]);
 
   useLayoutEffect(() => () => columnLayout.dispose(), [columnLayout]);
 
@@ -173,6 +180,7 @@ export function CsvTableEditor({
   const surfaceRef = useRef<HTMLDivElement>(null);
   const tableRef = useRef<HTMLTableElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  useRetainedEditorScroll("csv:scroll", scrollRef);
   const pendingFocusRef = useRef<CsvTableFocusTarget | null>(null);
   const revealFindMatchRef = useRef<(match: CsvFindMatch, focus: boolean) => void>(
     () => undefined,
@@ -228,6 +236,7 @@ export function CsvTableEditor({
     ? activeCell.rowIndex - headerRowCount
     : null;
   const viewport = useTabularViewport({
+    initialWindow: documentModels?.readViewState("csv:viewport"),
     columnWidths: columnLayoutSnapshot.widths,
     direction,
     hasHeader: headerEnabled,
@@ -240,6 +249,11 @@ export function CsvTableEditor({
   });
   const revealViewportCell = viewport.revealCell;
   const scheduleViewportUpdate = viewport.handleScroll;
+  useLayoutEffect(() => {
+    // Reattachment starts with the last bounded projection instead of mounting
+    // a guessed 1200px table and replacing half its cells during measurement.
+    documentModels?.writeViewState("csv:viewport", { rowRange: viewport.rowRange, columnRange: viewport.columnRange });
+  }, [documentModels, viewport.rowRange, viewport.columnRange]);
 
   useLayoutEffect(() => {
     scheduleViewportUpdate();
