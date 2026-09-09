@@ -6,13 +6,15 @@ import { fileURLToPath } from "node:url";
 import { resolveDesktopBuildIdentity } from "../shared/desktop-build-identity.mjs";
 import { createDesktopElectronBuilderConfig } from "../tooling/desktop/build/create-builder-config.mjs";
 import { getDesktopTargetDefinition } from "../tooling/desktop/targets/target-manifest.mjs";
+import { resolveDesktopAppIcon } from "../shared/desktop/app-icon-contract.mjs";
+import { decodeAppIconPng } from "../tooling/desktop/build/app-icon-validation.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const nativeBrandDirectory = "assets/brand/puppy";
 const rendererBrandDirectory = "public/assets/brand/puppy";
 const canonicalAssets = Object.freeze({
-  appImage: `${nativeBrandDirectory}/puppy-app-image.png`,
-  appImageDev: `${nativeBrandDirectory}/puppy-app-image-dev.png`,
+  appImage: resolveDesktopAppIcon("stable").source,
+  appImageDev: resolveDesktopAppIcon("dev").source,
   dark: `${rendererBrandDirectory}/puppy-dark.svg`,
   lite: `${rendererBrandDirectory}/puppy-lite.svg`,
 });
@@ -63,9 +65,10 @@ for (const [role, relativePath] of Object.entries(canonicalAssets)) {
   const contents = readFileSync(absolutePath);
   assetBuffers.set(role, contents);
   if (relativePath.endsWith(".png")) {
-    const dimensions = readPngDimensions(contents);
-    if (dimensions?.width !== 1024 || dimensions?.height !== 1024) {
-      errors.push(`${relativePath} must be a 1024 x 1024 PNG`);
+    try {
+      decodeAppIconPng(contents, 1024, relativePath);
+    } catch (error) {
+      errors.push(error.message);
     }
   } else if (!isSafeProductMarkSvg(contents)) {
     errors.push(`${relativePath} must be a self-contained 600 x 600 SVG`);
@@ -106,8 +109,8 @@ const stableMacConfig = createDesktopElectronBuilderConfig({
   }),
   target: getDesktopTargetDefinition("macos-arm64"),
 });
-if (stableMacConfig.mac?.icon !== canonicalAssets.appImage) {
-  errors.push(`electron-builder mac.icon must be ${canonicalAssets.appImage}`);
+if (stableMacConfig.mac?.icon !== resolveDesktopAppIcon("stable").macos) {
+  errors.push(`electron-builder mac.icon must be the generated channel ICNS`);
 }
 const canonicalExtraResource = stableMacConfig.extraResources?.find((entry) => (
   entry?.to === "puppy-app-image.png"
@@ -123,15 +126,6 @@ if (errors.length > 0) {
 }
 
 console.log("Puppy brand asset check passed: two native App Images and two renderer marks.");
-
-function readPngDimensions(contents) {
-  const signature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-  if (contents.length < 24 || !contents.subarray(0, 8).equals(signature)) return null;
-  return {
-    width: contents.readUInt32BE(16),
-    height: contents.readUInt32BE(20),
-  };
-}
 
 function isSafeProductMarkSvg(contents) {
   const source = contents.toString("utf8");

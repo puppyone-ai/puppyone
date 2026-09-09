@@ -157,6 +157,7 @@
     "node-api-headers": "1.9.0",
     "pdfjs-dist": "^6.2.108",
     "plist": "3.1.0",
+    "pngjs": "7.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "saxes": "^6.0.0",

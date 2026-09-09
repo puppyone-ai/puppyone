@@ -147,7 +147,8 @@ describe("target-driven Electron builder configuration", () => {
       target: getDesktopTargetDefinition("macos-arm64"),
     });
     expect(config).toMatchObject({
-      afterPack: "scripts/after-pack-macos-app-image.mjs",
+      beforePack: "scripts/before-pack-macos-icon.mjs",
+      afterPack: "scripts/after-pack-macos-icon.mjs",
       appId: "ai.puppyone.desktop.internal",
       mac: {
         target: ["dmg", "zip"],
@@ -166,6 +167,7 @@ describe("target-driven Electron builder configuration", () => {
       buildInfo,
       target: getDesktopTargetDefinition("windows-x64"),
     });
+    expect(config).not.toHaveProperty("beforePack");
     expect(config).not.toHaveProperty("afterPack");
     expect(config).not.toHaveProperty("mac");
     expect(config).not.toHaveProperty("dmg");
@@ -185,6 +187,7 @@ describe("target-driven Electron builder configuration", () => {
       buildInfo,
       target: getDesktopTargetDefinition("linux-x64"),
     });
+    expect(config).not.toHaveProperty("beforePack");
     expect(config).not.toHaveProperty("afterPack");
     expect(config).not.toHaveProperty("mac");
     expect(config).toMatchObject({

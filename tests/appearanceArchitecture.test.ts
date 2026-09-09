@@ -372,8 +372,8 @@ describe("appearance profile architecture", () => {
     const buildPreparation = source("scripts/release-support/desktop-build-preparation.mjs");
     const packagedVerifier = source("scripts/release-support/packaged-desktop-build-verifier.mjs");
 
-    expect(main).toContain("function setDefaultDockIcon()");
-    expect(main).toContain("setDefaultDockIcon();");
+    expect(main).toContain("setDevelopmentDockIcon({");
+    expect(main).not.toContain("app.dock.setIcon");
     expect(systemIpc).not.toContain("set-dock-icon");
     expect(preload).not.toContain("setDockIcon");
     expect(packageMetadata).not.toContain("dock-icon-light");

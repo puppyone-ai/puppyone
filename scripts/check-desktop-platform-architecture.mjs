@@ -28,7 +28,7 @@ try {
 }
 
 const baseBuild = packageMetadata.build ?? {};
-for (const key of ["afterPack", "publish", "mac", "dmg", "win", "nsis", "linux", "appImage"]) {
+for (const key of ["beforePack", "afterPack", "publish", "mac", "dmg", "win", "nsis", "linux", "appImage"]) {
   if (Object.hasOwn(baseBuild, key)) {
     errors.push(`package.json build config must remain platform-neutral; move ${key} to a target adapter`);
   }
@@ -45,10 +45,10 @@ for (const target of listDesktopTargets()) {
   if (target.platform === "macos" && (!config.mac || config.win || config.linux)) {
     errors.push("macOS target config must contain only macOS platform packaging");
   }
-  if (target.platform === "windows" && (!config.win || config.mac || config.linux || config.afterPack)) {
+  if (target.platform === "windows" && (!config.win || config.mac || config.linux || config.beforePack || config.afterPack)) {
     errors.push("Windows target config must contain only Windows platform packaging");
   }
-  if (target.platform === "linux" && (!config.linux || config.mac || config.win || config.afterPack)) {
+  if (target.platform === "linux" && (!config.linux || config.mac || config.win || config.beforePack || config.afterPack)) {
     errors.push("Linux target config must contain only Linux platform packaging");
   }
 }

@@ -16,6 +16,7 @@ import {
   workspaceFromPath,
 } from "../local-api/workspace.mjs";
 import { initializeWorkspaceEditReview } from "../local-api/edit-review.mjs";
+import { resolveRuntimeAppImage, setDevelopmentDockIcon } from "./main/app-icon.mjs";
 import { createUpdateService } from "./update-service.mjs";
 import { createAppPreviewRuntime } from "./app-preview-runtime.mjs";
 import { createAppPreviewService } from "./main/app-preview-service.mjs";
@@ -458,7 +459,7 @@ async function createWindow(options = {}) {
     : [options.initialWorkspacePath])
     .filter((folderPath) => typeof folderPath === "string" && folderPath.trim())
     .map((folderPath) => path.resolve(folderPath));
-  const appIconPath = resolveAppIconPath();
+  const appIconPath = desktopPlatformHost.windowChrome.supportsDockIcon ? null : resolveAppIconPath();
   const window = new BrowserWindow({
     width: 1280,
     height: 840,
@@ -690,26 +691,12 @@ function getLastFocusedWindow() {
 }
 
 function resolveAppIconPath() {
-  const resourceFilename = "puppy-app-image.png";
-  const sourceFilename = desktopBuildInfo.channel === "dev"
-    ? "puppy-app-image-dev.png"
-    : resourceFilename;
-  const candidates = [
-    path.join(process.resourcesPath ?? projectRoot, resourceFilename),
-    path.join(projectRoot, "assets", "brand", "puppy", sourceFilename),
-  ];
-  return candidates.find((candidate) => fs.existsSync(candidate)) ?? null;
-}
-
-function setDefaultDockIcon() {
-  if (!desktopPlatformHost.windowChrome.supportsDockIcon || !app.dock) return;
-  const iconPath = resolveAppIconPath();
-  if (!iconPath) return;
-  try {
-    app.dock.setIcon(iconPath);
-  } catch (error) {
-    console.warn("Unable to set puppyone dock icon:", error);
-  }
+  return resolveRuntimeAppImage({
+    isPackaged: app.isPackaged,
+    resourcesPath: process.resourcesPath,
+    projectRoot,
+    channel: desktopBuildInfo.channel,
+  });
 }
 
 app.on("second-instance", (_event, argv, workingDirectory, launchIntent) => {
@@ -742,7 +729,11 @@ app.whenReady().then(async () => {
   stopLocaleNativeRefresh = localeService.onDidChange((state) => {
     nativeMenuService.refresh();
   });
-  setDefaultDockIcon();
+  setDevelopmentDockIcon({
+    app,
+    supportsDockIcon: desktopPlatformHost.windowChrome.supportsDockIcon,
+    iconPath: app.isPackaged ? null : resolveAppIconPath(),
+  });
   nativeMenuService.refresh();
 
   registerLocalFileProtocol({

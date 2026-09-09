@@ -218,7 +218,7 @@ describe("desktop build identity", () => {
 
     const development = build("dev");
     const stable = build("stable", 43);
-    expect(development.mac.icon).toBe("assets/brand/puppy/puppy-app-image-dev.png");
+    expect(development.mac.icon).toBe("generated/app-icons/dev/icon.icns");
     expect(development.extraResources).toEqual(expect.arrayContaining([
       {
         from: "assets/brand/puppy/puppy-app-image-dev.png",
@@ -231,7 +231,7 @@ describe("desktop build identity", () => {
         to: "puppy-app-image.png",
       },
     ]));
-    expect(stable.mac.icon).toBe("assets/brand/puppy/puppy-app-image.png");
+    expect(stable.mac.icon).toBe("generated/app-icons/stable/icon.icns");
     expect(stable.extraResources).toEqual(expect.arrayContaining([
       {
         from: "assets/brand/puppy/puppy-app-image.png",
