@@ -4,8 +4,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { app, BrowserWindow } from "electron";
-import pty from "node-pty";
+import { app, BrowserWindow, ipcMain, webContents } from "electron";
 import { workspaceFromPath } from "../local-api/workspace.mjs";
 import { createWorkspaceStateStore } from "../electron/main/workspace-state-store.mjs";
 import { getDesktopBuildChannelPolicy } from "../shared/desktop-build-identity.mjs";
@@ -29,18 +28,34 @@ const registry = createWorkspaceStateStore({ app, filename: "desktop-workspace-s
 for (const workspace of [...workspaces].reverse()) await registry.rememberWorkspaceComposition([workspace]);
 process.argv.push(roots[0]);
 const terminals = [];
-const spawn = pty.spawn.bind(pty);
-pty.spawn = (file, args, options) => {
-  const terminal = spawn(file, args, options);
-  const record = { pid: terminal.pid, cwd: options.cwd, exited: false, kills: 0, output: "", terminal };
-  terminals.push(record);
-  terminal.onData((text) => { record.output = (record.output + text).slice(-32_768); });
-  terminal.onExit(() => { record.exited = true; });
-  const kill = terminal.kill.bind(terminal);
-  terminal.kill = (...values) => { record.kills += 1; return kill(...values); };
-  return terminal;
-};
+const handle = ipcMain.handle.bind(ipcMain);
+// Observe the production IPC receipt: PTYs now live in utility processes.
+ipcMain.handle = (channel, listener) => handle(channel, async (event, ...args) => {
+  const result = await listener(event, ...args);
+  if (channel === "item-display:connect" && result?.pid && !terminals.some((record) => record.pid === result.pid)) {
+    const request = await event.sender.executeJavaScript("window.puppyoneItemHost.bootstrap()");
+    const record = { pid: result.pid, utilityPid: result.hostPid, rendererPid: event.sender.getOSProcessId(), cwd: request.projectContext.rootPath,
+      sender: event.sender, receipt: result, projectContext: request.projectContext };
+    Object.defineProperty(record, "exited", { get: () => {
+      try { process.kill(record.pid, 0); return false; } catch (error) { return error.code === "ESRCH"; }
+    } });
+    record.terminal = {
+      write: (data) => event.sender.executeJavaScript(
+        "window.puppyoneDesktop.writeTerminal(" + JSON.stringify({ ...result, data, projectContext: request.projectContext }) + ")",
+        true,
+      ).catch((error) => errors.push(error.message)),
+      kill: () => { try { process.kill(record.pid, "SIGTERM"); } catch { /* Already closed. */ } },
+    };
+    terminals.push(record);
+  }
+  return result;
+});
 const errors = [];
+app.on("window-all-closed", () => {});
+app.on("web-contents-created", (_event, contents) => contents.on("console-message", (_event, level, message) => {
+  if (level >= 3 && contents.getURL().includes("item-host.html")) errors.push(message);
+}));
+const guard = setTimeout(() => { console.error("Project session smoke exceeded its time budget."); app.exit(1); }, 180_000);
 const localizationDiagnostics = [];
 app.on("browser-window-created", (_event, window) => {
   window.webContents.on("console-message", (_event, level, message) => {
@@ -74,15 +89,16 @@ try {
   await until(() => terminals.length === 1, "A terminal");
   await untilRenderer("document.querySelector('[data-terminal-tab-session-id]')?.dataset.status === 'running'", "A running");
   const a = terminals[0];
+  assert(new Set([process.pid, window.webContents.getOSProcessId(), a.utilityPid, a.rendererPid, a.pid]).size === 5, "Terminal processes share a failure domain");
   const aTabs = await tabIds();
   const aProject = (await evaluate("window.puppyoneDesktop.readProjectSessions()")).projects.find((entry) => entry.rootPath === roots[0]);
   a.terminal.write("echo PROJECT_A_BEFORE_SWITCH\r");
-  await until(() => a.output.includes("PROJECT_A_BEFORE_SWITCH"), "A output");
+  await untilTerminal(a, "PROJECT_A_BEFORE_SWITCH", "A output");
   await selectProject("Project B");
   await untilRenderer("document.querySelectorAll('[data-terminal-tab-session-id]').length === 0", "B own empty tabs");
-  assert(!a.exited && a.kills === 0, "Switching to B closed A's terminal");
+  assert(!a.exited, "Switching to B closed A's terminal");
   a.terminal.write("echo PROJECT_A_WHILE_HIDDEN\r");
-  await until(() => a.output.includes("PROJECT_A_WHILE_HIDDEN"), "background A output");
+  await untilTerminal(a, "PROJECT_A_WHILE_HIDDEN", "background A output");
   await click(".desktop-terminal-launcher-shell");
   await until(() => terminals.length === 2, "B terminal");
   await untilRenderer("document.querySelector('[data-terminal-tab-session-id]')?.dataset.status === 'running'", "B running");
@@ -94,20 +110,21 @@ try {
   const restored = (await evaluate("window.puppyoneDesktop.readProjectSessions()")).projects.find((entry) => entry.rootPath === roots[0]);
   assert(restored.generation === aProject.generation, "Presentation changed project generation");
   // xterm's DOM rows prove the retained screen contains output received while hidden.
-  await untilRenderer("document.querySelector('.xterm-screen')?.textContent.includes('PROJECT_A_WHILE_HIDDEN')", "restored terminal output");
+  await untilTerminal(a, "PROJECT_A_WHILE_HIDDEN", "restored terminal output");
   await fs.writeFile(path.join(temp, "project-a-restored.png"), (await window.webContents.capturePage()).toPNG());
+  await fs.writeFile(path.join(temp, "terminal-a-restored.png"), (await a.sender.capturePage()).toPNG());
   let agentDraftVerified = false;
   if (process.env.PUPPYONE_SMOKE_CODEX_DRAFT === "1") {
     await click(".desktop-terminal-new-button");
     await untilRenderer("[...document.querySelectorAll('.desktop-terminal-launcher-tool')].some(button => button.textContent.trim() === 'Codex')", "Codex launcher");
     await evaluate("[...document.querySelectorAll('.desktop-terminal-launcher-tool')].find(button => button.textContent.trim() === 'Codex').click()");
-    await untilRenderer("Boolean(document.querySelector('.desktop-agent-prompt-editor .cm-content[contenteditable=true]'))", "Codex draft editor");
-    await evaluate("document.querySelector('.desktop-agent-prompt-editor .cm-content').focus()");
-    await window.webContents.insertText("UNSENT PROJECT A DRAFT");
+    await untilAgent("Boolean(document.querySelector('.desktop-agent-prompt-editor .cm-content[contenteditable=true]'))", "Codex draft editor");
+    await (await agentContents()).executeJavaScript("document.querySelector('.desktop-agent-prompt-editor .cm-content').focus()", true);
+    await (await agentContents()).insertText("UNSENT PROJECT A DRAFT");
     await selectProject("Project B");
     await selectProject("Project A");
-    await untilRenderer("document.querySelector('.desktop-agent-prompt-editor .cm-content')?.textContent === 'UNSENT PROJECT A DRAFT'", "Codex draft restoration");
-    assert(!await evaluate("document.body.innerText.includes('Earlier live events are no longer available')"), "False history-loss warning");
+    await untilAgent("document.querySelector('.desktop-agent-prompt-editor .cm-content')?.textContent === 'UNSENT PROJECT A DRAFT'", "Codex draft restoration");
+    assert(!await (await agentContents()).executeJavaScript("document.body.innerText.includes('Earlier live events are no longer available')"), "False history-loss warning");
     agentDraftVerified = true;
     await fs.writeFile(path.join(temp, "agent-draft-restored.png"), (await window.webContents.capturePage()).toPNG());
   }
@@ -121,8 +138,8 @@ try {
     await untilRenderer("document.querySelectorAll('[data-terminal-group-pane-id]').length === 2", "split mixed workbench");
     await dragItem(movingItem, originalGroup, "bar-end");
     await untilRenderer("document.querySelectorAll('[data-terminal-group-pane-id]').length === 1", "reunite mixed workbench");
-    assert(JSON.stringify(terminals.map(({ pid }) => pid)) === JSON.stringify(nativeIdentity) && terminals.every(({ exited, kills }) => !exited && kills === 0), "Layout movement changed native resources");
-    if (agentDraftVerified) await untilRenderer("document.querySelector('.desktop-agent-prompt-editor .cm-content')?.textContent === 'UNSENT PROJECT A DRAFT'", "draft after drag");
+    assert(JSON.stringify(terminals.map(({ pid }) => pid)) === JSON.stringify(nativeIdentity) && terminals.every(({ exited }) => !exited), "Layout movement changed native resources");
+    if (agentDraftVerified) await untilAgent("document.querySelector('.desktop-agent-prompt-editor .cm-content')?.textContent === 'UNSENT PROJECT A DRAFT'", "draft after drag");
   } finally {
     window.webContents.debugger.detach();
   }
@@ -172,7 +189,7 @@ try {
   window = firstWindow;
   await untilRenderer("[...document.querySelectorAll('.desktop-project-switcher-rail-project')].some(button => button.title.includes('Project A') && button.getAttribute('aria-current') === 'page')", "foreign request reveals A");
   await untilRenderer(`[...document.querySelectorAll('[data-terminal-tab-session-id]')].some(x => x.dataset.terminalTabSessionId === ${JSON.stringify(aTabs[0])})`, "foreign request restores A tabs");
-  assert(!d.exited && d.kills === 0, "Focusing A stopped D");
+  assert(!d.exited, "Focusing A stopped D");
   await fs.writeFile(path.join(temp, "separate-window-d.png"), (await secondWindow.webContents.capturePage()).toPNG());
   window.close();
   await until(() => a.exited && window.isDestroyed(), "window close");
@@ -181,7 +198,7 @@ try {
   window.close();
   await until(() => d.exited && window.isDestroyed(), "second window close");
   assert(errors.length === 0, "Renderer reported errors");
-  const report = { ok: true, temp, roots, aTabs, bTabs, agentDraftVerified, splitAndReunionVerified: true, multiRootEditorVerified: true, separateWindowsVerified: true, terminals: terminals.map(({ terminal: _terminal, ...entry }) => entry), rendererErrors: errors, localizationDiagnostics };
+  const report = { ok: true, temp, roots, aTabs, bTabs, agentDraftVerified, splitAndReunionVerified: true, multiRootEditorVerified: true, separateWindowsVerified: true, terminals: terminals.map(({ pid, utilityPid, rendererPid, cwd, exited }) => ({ pid, utilityPid, rendererPid, cwd, exited })), rendererErrors: errors, localizationDiagnostics };
   await fs.writeFile(path.join(temp, "report.json"), JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report, null, 2));
 } catch (error) {
@@ -193,15 +210,32 @@ try {
   process.exitCode = 1;
 } finally {
   for (const openWindow of BrowserWindow.getAllWindows()) if (!openWindow.isDestroyed()) openWindow.close();
-  await until(() => BrowserWindow.getAllWindows().length === 0, "window cleanup").catch(() => {});
+  await until(() => BrowserWindow.getAllWindows().length === 0, "window cleanup").catch((error) => { console.error(error); process.exitCode = 1; });
   for (const record of terminals) if (!record.exited) record.terminal.kill();
-  await until(() => terminals.every((record) => record.exited), "cleanup").catch(() => {});
+  await until(() => terminals.every((record) => record.exited), "cleanup").catch((error) => { console.error(error); process.exitCode = 1; });
+  clearTimeout(guard);
   app.exit(process.exitCode ?? 0);
 }
 }
 
 function assert(value, message) { if (!value) throw new Error(message); }
 function evaluate(code) { return window.webContents.executeJavaScript(code, true); }
+async function untilTerminal(record, text, label) {
+  await until(async () => !record.sender.isDestroyed()
+    && await record.sender.executeJavaScript("document.querySelector('.xterm-screen')?.textContent.includes(" + JSON.stringify(text) + ")"), label);
+}
+async function agentContents() {
+  const ids = await tabIds();
+  for (const contents of webContents.getAllWebContents()) {
+    if (!contents.getURL().includes("item-host.html")) continue;
+    const identity = await contents.executeJavaScript("window.puppyoneItemHost.bootstrap()");
+    if (identity.kind === "agent" && ids.includes(identity.itemId)) return contents;
+  }
+  throw new Error("No Agent display in the current project's workbench.");
+}
+async function untilAgent(code, label) {
+  await until(async () => { try { return await (await agentContents()).executeJavaScript(code, true); } catch { return false; } }, label);
+}
 async function until(check, label, timeoutMs = 20_000) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) { if (await check()) return; await new Promise((resolve) => setTimeout(resolve, 100)); }

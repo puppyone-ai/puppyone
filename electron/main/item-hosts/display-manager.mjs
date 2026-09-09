@@ -46,7 +46,11 @@ export function createItemDisplayManager({ WebContentsView, electronSession, Mes
   };
   const destroyDisplay = async (entry) => {
     if (entry.destroying) return entry.destroying;
-    if (!entry.view) return;
+    if (!entry.view) {
+      entry.displayLease?.release();
+      entry.displayLease = null;
+      return;
+    }
     entry.destroying = (async () => {
     const view = entry.view;
     const wc = view.webContents;
@@ -65,15 +69,21 @@ export function createItemDisplayManager({ WebContentsView, electronSession, Mes
       await new Promise((resolve) => setTimeout(resolve, 25));
     }
     entry.displayLease.release();
+    entry.displayLease = null;
     entry.view = null;
     })().finally(() => { entry.destroying = null; });
     return entry.destroying;
   };
-  async function launch(entry) {
+  function reserveDisplay(entry) {
     const generation = randomUUID();
     const lease = budget.reserve({ key: `renderer:${entry.owner.id}:${entry.itemId}:${generation}`, ownerId: entry.owner.id,
       projectId: entry.projectContext.projectId, kind: entry.kind });
     entry.generation = generation;
+    entry.displayLease = lease;
+  }
+  async function launch(entry) {
+    if (!entry.displayLease) reserveDisplay(entry);
+    const { generation, displayLease: lease } = entry;
     entry.display = "starting";
     entry.message = undefined;
     entry.geometryRevision = -1;
@@ -90,7 +100,7 @@ export function createItemDisplayManager({ WebContentsView, electronSession, Mes
         sandbox: true, contextIsolation: true, nodeIntegration: false, nodeIntegrationInWorker: false,
         nodeIntegrationInSubFrames: false, webSecurity: true, webviewTag: false, spellcheck: false,
         backgroundThrottling: false, additionalArguments: [`--puppyone-item-generation=${generation}`] } });
-    } catch (error) { lease.release(); throw error; }
+    } catch (error) { lease.release(); entry.displayLease = null; throw error; }
     entry.view = view;
     entry.displayLease = lease;
     entry.displayPid = 0;
@@ -110,7 +120,7 @@ export function createItemDisplayManager({ WebContentsView, electronSession, Mes
     });
     wc.on("unresponsive", () => { if (entry.view === view) fail(entry, "The item display stopped responding.", "unresponsive"); });
     wc.on("responsive", () => {
-      if (entry.view !== view || entry.display !== "unresponsive") return;
+      if (entry.view !== view || entry.display !== "unresponsive" || entry.execution === "interrupted") return;
       entry.display = "ready"; entry.message = undefined; entry.attachment.healthy(true); publish(entry);
     });
     entry.attachment = attachNativeSurfaceView({ window: entry.window, view, nativeSurfaceOcclusion, nativeSurfacePointerPassthrough });
@@ -172,6 +182,8 @@ export function createItemDisplayManager({ WebContentsView, electronSession, Mes
         operations: new Set(), referenceTokens: new Set(), draft: null, recoveries: [], configuration: bounded({ appearance: request.appearance, settings: request.settings }) };
       entries.set(keyFor(sender.id, request.itemId), entry);
       try {
+        // Both display and execution admission precede the first PTY side effect.
+        reserveDisplay(entry);
         if (entry.kind === "terminal") {
           entry.startingTerminal = projectSessions.run(sender.id, request.projectContext, (operation) => terminalService.create(sender, {
             id: entry.itemId, launcherId: request.recipeId ?? "shell", cwd: project.rootPath, cols: 80, rows: 24,
