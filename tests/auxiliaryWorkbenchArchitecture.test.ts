@@ -38,7 +38,8 @@ describe("Project-owned auxiliary workbench architecture", () => {
     expect(app).toContain('className="desktop-right-sidebar-surface is-active"');
     expect(app).not.toContain("<RightAgentPanel");
     expect(app).not.toContain('key={focusedWorkspace?.path ?? workspace.path}');
-    expect(lazyEntry).toContain('import("./workbench/AgentChatWorkbenchItem")');
+    expect(lazyEntry).toContain('import("./workbench/HostedAgentWorkbenchItem")');
+    expect(lazyEntry).toContain('import("./renderer/AgentItemRenderer")');
   });
 
   it("preserves Item views across Tab reorder and keeps close feature-authoritative", () => {

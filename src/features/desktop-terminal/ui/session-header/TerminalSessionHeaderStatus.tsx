@@ -7,7 +7,7 @@ import { AgentLauncherIcon } from "../../../../components/brand/AgentLauncherIco
 
 type TerminalSessionHeaderStatusProps = {
   className: string;
-  runtime: TerminalRuntimeHandle | null;
+  runtime: Pick<TerminalRuntimeHandle, "activity" | "subscribeActivity"> | null;
   session: DesktopTerminalSessionSummary;
 };
 
@@ -48,7 +48,7 @@ function TerminalSessionHeaderStatusIcon({
   );
 }
 
-function useTerminalActivity(runtime: TerminalRuntimeHandle | null) {
+function useTerminalActivity(runtime: Pick<TerminalRuntimeHandle, "activity" | "subscribeActivity"> | null) {
   const [active, setActive] = useState(() => runtime?.activity ?? false);
 
   useLayoutEffect(() => {

@@ -19,7 +19,9 @@ describe("Desktop Terminal architecture boundaries", () => {
     expect(pool).toContain("projectContext: this.project.context");
     expect(pool).toContain("await entry.runtime.close()");
     expect(pool).not.toMatch(/retainCount|disposeTimer/);
-    expect(contribution).toContain("<TerminalSessionView");
+    expect(contribution).toContain("<HostedItemView");
+    expect(contribution).not.toContain("TerminalRuntimePool");
+    expect(source("src/features/desktop-terminal/renderer/TerminalItemRenderer.tsx")).toContain("<TerminalSessionView");
     expect(contribution).toContain("getTerminalClosePolicy");
     expect(view).not.toContain("runtime.dispose()");
     expect(view).not.toContain("closeTerminal");

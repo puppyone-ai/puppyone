@@ -4,7 +4,7 @@ import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Terminal, type IDisposable } from "@xterm/xterm";
-import type { TerminalCreateRequest } from "../../../types/electron";
+import type { TerminalCreateRequest, TerminalDataEvent } from "../../../types/electron";
 import type { DesktopTerminalSessionStatus } from "../model/terminalSessions";
 import type { DesktopTerminalLauncherId } from "../model/terminalLaunchers";
 import { unwrapProjectSessionResult } from "../../../../shared/project-session-contract/schema.mjs";
@@ -14,6 +14,7 @@ import {
   type TerminalDefaultColors,
 } from "./terminalAppearance";
 import { TerminalActivityController } from "./terminalActivity";
+import { restoreXtermCheckpoint } from "../../../../shared/terminal-contract/xterm-checkpoint.mjs";
 
 type TerminalSize = {
   cols: number;
@@ -52,6 +53,7 @@ const INITIAL_SCROLLBAR_STATE: TerminalScrollbarState = {
 };
 
 type TerminalRuntimeOptions = {
+  bridge?: TerminalBridge;
   appearance: TerminalAppearance;
   projectContext?: import("../../../../shared/project-session-contract/types").ProjectSessionContext;
   sessionId: string;
@@ -64,6 +66,12 @@ type TerminalRuntimeOptions = {
     shell?: string | null,
     error?: string | null,
   ) => void;
+};
+
+export type TerminalDisplayData = TerminalDataEvent & { reset?: boolean; cols?: number; rows?: number; checkpointState?: unknown; acknowledge?: () => void };
+export type TerminalBridge = Pick<NonNullable<Window["puppyoneDesktop"]>, "createTerminal" | "writeTerminal" | "resizeTerminal" | "updateTerminalAppearance" | "closeTerminal" | "onTerminalExit" | "openExternalUrl"> & {
+  canonicalOutput?: boolean;
+  onTerminalData: (callback: (event: TerminalDisplayData) => void) => () => void;
 };
 
 type TerminalPtyRequestOptions = Readonly<{
@@ -124,6 +132,7 @@ export interface TerminalRuntimeHandle {
 }
 
 export class TerminalRuntime implements TerminalRuntimeHandle {
+  private readonly bridge: TerminalBridge | undefined;
   inputShell = "";
   private appearance: TerminalAppearance;
   private readonly projectContext: TerminalRuntimeOptions["projectContext"];
@@ -169,6 +178,7 @@ export class TerminalRuntime implements TerminalRuntimeHandle {
   private measuredCellHeight = 16;
 
   constructor({
+    bridge = window.puppyoneDesktop,
     appearance,
     projectContext,
     sessionId,
@@ -177,6 +187,7 @@ export class TerminalRuntime implements TerminalRuntimeHandle {
     getMessageFormatter,
     onStatus,
   }: TerminalRuntimeOptions) {
+    this.bridge = bridge;
     this.appearance = appearance;
     this.projectContext = projectContext;
     this.sessionId = sessionId;
@@ -281,7 +292,7 @@ export class TerminalRuntime implements TerminalRuntimeHandle {
 
   write(data: string) {
     if (this.disposed || data.length === 0) return;
-    window.puppyoneDesktop?.writeTerminal?.({
+    this.bridge?.writeTerminal?.({
       ...this.requestIdentity(),
       data,
     });
@@ -324,7 +335,7 @@ export class TerminalRuntime implements TerminalRuntimeHandle {
     this.closePromise = (async () => {
       await this.startPromise;
       if (this.instanceId || (!this.projectContext && this.ptyReady)) {
-        const bridge = window.puppyoneDesktop;
+        const bridge = this.bridge;
         if (!bridge?.closeTerminal) throw new Error(this.message("terminal.bridgeUnavailable"));
         unwrapProjectSessionResult(await bridge.closeTerminal(this.requestIdentity()));
       }
@@ -399,6 +410,7 @@ export class TerminalRuntime implements TerminalRuntimeHandle {
     const unicode11Addon = new Unicode11Addon();
 
     this.terminal = terminal;
+    if (this.bridge?.canonicalOutput) this.disposables.push(...suppressDisplayProtocolResponses(terminal));
     this.fitAddon = fitAddon;
     this.unicode11Addon = unicode11Addon;
     this.defaultColors = defaultColors;
@@ -475,14 +487,21 @@ export class TerminalRuntime implements TerminalRuntimeHandle {
   }
 
   private subscribeBridge() {
-    const bridge = window.puppyoneDesktop;
+    const bridge = this.bridge;
     if (!bridge?.onTerminalData || !bridge.onTerminalExit) return;
 
     this.removeDataListener = bridge.onTerminalData((event) => {
       if (event.id !== this.sessionId || this.disposed) return;
       if (this.instanceId && event.instanceId && event.instanceId !== this.instanceId) return;
       this.activityController.noteOutput(event.data);
-      this.terminal?.write(event.data);
+      const terminal = this.terminal;
+      if (!terminal) return;
+      if (event.reset) terminal.reset();
+      if (event.cols && event.rows) terminal.resize(event.cols, event.rows);
+      terminal.write(event.data, () => {
+        if (event.checkpointState) restoreXtermCheckpoint(terminal, event.checkpointState);
+        event.acknowledge?.();
+      });
     });
     this.removeExitListener = bridge.onTerminalExit((event) => {
       if (event.id !== this.sessionId || this.disposed) return;
@@ -497,7 +516,7 @@ export class TerminalRuntime implements TerminalRuntimeHandle {
   }
 
   private startPty() {
-    const bridge = window.puppyoneDesktop;
+    const bridge = this.bridge;
     this.onStatus(this.sessionId, "starting");
     if (!bridge?.createTerminal || !bridge.writeTerminal || !bridge.resizeTerminal) {
       const errorMessage = this.message("terminal.bridgeUnavailable");
@@ -549,7 +568,7 @@ export class TerminalRuntime implements TerminalRuntimeHandle {
 
   private syncDefaultColorsToPty() {
     if (!this.ptyReady || !this.defaultColors) return;
-    window.puppyoneDesktop?.updateTerminalAppearance?.({
+    this.bridge?.updateTerminalAppearance?.({
       ...this.requestIdentity(),
       defaultColors: this.defaultColors,
     });
@@ -650,7 +669,7 @@ export class TerminalRuntime implements TerminalRuntimeHandle {
     this.pendingPtySize = size;
     if (!this.ptyReady || this.disposed) return;
     if (sameTerminalSize(this.lastPtySize, size)) return;
-    const bridge = window.puppyoneDesktop;
+    const bridge = this.bridge;
     if (!bridge?.resizeTerminal) return;
     const resizingExistingPty = this.lastPtySize !== null;
     this.lastPtySize = size;
@@ -692,7 +711,7 @@ export class TerminalRuntime implements TerminalRuntimeHandle {
   }
 
   private openExternalUrl(href: string) {
-    const bridge = window.puppyoneDesktop;
+    const bridge = this.bridge;
     if (!bridge?.openExternalUrl) {
       this.writeSystemLine(this.message("terminal.bridgeUnavailable"));
       return;
@@ -716,6 +735,16 @@ export class TerminalRuntime implements TerminalRuntimeHandle {
     this.readyListeners.forEach((listener) => listener(ready));
   }
 
+}
+
+/** The utility's canonical parser alone answers device/window/status queries. */
+function suppressDisplayProtocolResponses(terminal: Terminal): IDisposable[] {
+  return [
+    ...["c", "n"].flatMap((final) => [undefined, "?", ">", "="].map((prefix) => terminal.parser.registerCsiHandler({ final, prefix }, () => true))),
+    ...[undefined, "?"].map((prefix) => terminal.parser.registerCsiHandler({ final: "p", intermediates: "$", prefix }, () => true)),
+    terminal.parser.registerCsiHandler({ final: "t" }, () => true),
+    terminal.parser.registerDcsHandler({ final: "q", intermediates: "$" }, () => true),
+  ];
 }
 
 function clampInteger(value: number, minimum: number, maximum: number) {

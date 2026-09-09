@@ -1,3 +1,5 @@
+import { reportNativeProcess } from "../../../native-process-ownership.mjs";
+
 /** Launches one native Agent as an isolated POSIX process group when available. */
 export function createManagedAgentProcess({
   spawn,
@@ -12,6 +14,7 @@ export function createManagedAgentProcess({
     shell: false,
     detached: grouped,
   });
+  reportNativeProcess(child, { grouped });
   return { child, grouped };
 }
 

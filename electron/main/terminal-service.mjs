@@ -36,6 +36,7 @@ export function createTerminalService({
   terminalAgentActivityHost = null,
   agentRevealTimeoutMs = DEFAULT_AGENT_REVEAL_TIMEOUT_MS,
   closeTimeoutMs = 5_000,
+  createOutputTransport = null,
 }) {
   const sessions = new Map();
   const closedInstances = new Map();
@@ -170,6 +171,9 @@ export function createTerminalService({
       finally { session.resolveExit(); }
     });
 
+    try { session.output = createOutputTransport?.(session) ?? null; }
+    catch (error) { await closeSession(session); throw error; }
+
     if (spawnConfig.kind === "agent") {
       try {
         agentRevealGate?.begin();
@@ -209,6 +213,7 @@ export function createTerminalService({
     const rows = normalizeTerminalSize(request?.rows, 24, 8, 120);
     session.cols = cols;
     session.rows = rows;
+    session.output?.resize(cols, rows);
     session.terminal.resize(cols, rows);
     return true;
   }
@@ -623,6 +628,7 @@ function normalizePathEntry(value, platform) {
 }
 
 function sendTerminalData(session, data) {
+  if (session.output) { session.output.write(String(data)); return; }
   if (session.sender.isDestroyed()) return;
   try { session.sender.send("terminal:data", {
     id: session.id,
@@ -632,6 +638,7 @@ function sendTerminalData(session, data) {
 }
 
 function sendTerminalExit(session, code, signal) {
+  if (session.output) { session.output.exit({ id: session.id, instanceId: session.instanceId, code, signal }); return; }
   if (session.sender.isDestroyed()) return;
   try { session.sender.send("terminal:exit", {
     id: session.id,

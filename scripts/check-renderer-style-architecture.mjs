@@ -47,6 +47,9 @@ if (
 ) {
   errors.push("Renderer styles must be the first side-effect imports and load cascade registration, layered Tailwind, then product styles before application modules.");
 }
+if (!read("src/item-main.tsx").startsWith(`${rendererStyleBootstrap}\n`)) {
+  errors.push("Isolated item Renderers must use the same canonical style bootstrap as the App Shell.");
+}
 
 if (!/corePlugins\s*:\s*\{[\s\S]*?preflight\s*:\s*false/.test(tailwindConfig)) {
   errors.push("Tailwind Preflight must remain disabled; PuppyOne's reset layer is the only renderer reset owner.");

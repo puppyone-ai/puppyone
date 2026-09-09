@@ -1,8 +1,8 @@
-import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
+import { memo, useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useLocalization } from "@puppyone/localization/react";
 import type { WorkbenchSplitDropEdge, WorkbenchSplitMinimumSize } from "@puppyone/shared-ui";
-import type { AuxiliaryWorkbenchContribution } from "./types";
+import type { AuxiliaryWorkbenchContribution, AuxiliaryWorkbenchItemRenderContext, AuxiliaryWorkbenchItemSnapshot } from "./types";
 import { LAUNCHER_ITEM_KIND, type ProjectWorkbenchStore } from "./ProjectWorkbenchStore";
 import { useAuxiliaryWorkbench } from "./useAuxiliaryWorkbench";
 import { useAuxiliaryWorkbenchCloseCoordinator } from "./useAuxiliaryWorkbenchCloseCoordinator";
@@ -90,13 +90,21 @@ export function AuxiliaryWorkbenchPanel({ store, contributions, active, renderLa
         const itemPresented = presented && workbench.presentedItemIds.includes(item.id);
         return createPortal(<div className="desktop-terminal-session-host-content desktop-terminal-contribution-host" data-item-kind={item.kind} aria-hidden={!itemPresented}
           onPointerDownCapture={() => workbench.activateItem(item.id)} onFocusCapture={() => { setFocused(item.id); workbench.activateItem(item.id); }}>
-          {item.kind === LAUNCHER_ITEM_KIND ? renderLauncher({ groupId: workbench.groups.find((group) => group.itemIds.includes(item.id))?.id ?? null, itemId: item.id, presented: itemPresented }) : contribution?.renderItem({
-            item, project: store, peerSnapshots: workbench.snapshots, onPresentationChange: (snapshot) => store.updateSnapshot(item.id, snapshot),
-            presentation: { sidebarVisible: active, presented: itemPresented, commandTarget: itemPresented && workbench.activeItemId === item.id, domFocused: itemPresented && focused === item.id },
-          })}
+          {item.kind === LAUNCHER_ITEM_KIND ? renderLauncher({ groupId: workbench.groups.find((group) => group.itemIds.includes(item.id))?.id ?? null, itemId: item.id, presented: itemPresented }) : contribution &&
+            <WorkbenchItemContent item={item} store={store} contribution={contribution} sidebarVisible={active}
+              presented={itemPresented} commandTarget={itemPresented && workbench.activeItemId === item.id} domFocused={itemPresented && focused === item.id} />}
         </div>, hosts.get(item.id)!, item.id);
       })}
     </div>
     {closeCoordinator.pending && <AuxiliaryWorkbenchCloseDialog pending={closeCoordinator.pending} committing={closeCoordinator.committing} onDismiss={closeCoordinator.dismiss} onConfirm={() => { void closeCoordinator.confirm(); }} />}
   </section>;
 }
+
+const WorkbenchItemContent = memo(function WorkbenchItemContent({ item, store, contribution, sidebarVisible, presented, commandTarget, domFocused }: {
+  item: AuxiliaryWorkbenchItemRenderContext["item"]; store: ProjectWorkbenchStore; contribution: AuxiliaryWorkbenchContribution;
+  sidebarVisible: boolean; presented: boolean; commandTarget: boolean; domFocused: boolean;
+}) {
+  const presentation = useMemo(() => ({ sidebarVisible, presented, commandTarget, domFocused }), [sidebarVisible, presented, commandTarget, domFocused]);
+  const onPresentationChange = useCallback((snapshot: AuxiliaryWorkbenchItemSnapshot) => store.updateSnapshot(item.id, snapshot), [item.id, store]);
+  return contribution.renderItem({ item, project: store, presentation, onPresentationChange });
+});

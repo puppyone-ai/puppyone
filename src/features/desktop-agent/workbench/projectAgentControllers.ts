@@ -1,11 +1,15 @@
 import type { AuxiliaryWorkbenchProject } from "../../app-shell/auxiliary-workbench/types";
 import { AgentControllerRegistry } from "../application/AgentControllerRegistry";
 import { createProjectAgentClientProvider } from "../infrastructure/electron/electronAgentClient";
+import type { AgentClientProvider } from "../application/AgentClientPort";
 
-/** One registry per opened project generation, shared by every Chat Item. */
-export function projectAgentControllers(project: AuxiliaryWorkbenchProject) {
+/** A content resource scope owns its controllers; the Shell owns only proxies. */
+export function projectAgentControllers(project: AuxiliaryWorkbenchProject, options: {
+  createClient?: () => AgentClientProvider; preserveDraftOnDispose?: boolean;
+} = {}) {
   return project.getResource("agent", () => new AgentControllerRegistry(
     project.context.rootPath,
-    () => createProjectAgentClientProvider(project.context),
+    options.createClient ?? (() => createProjectAgentClientProvider(project.context)),
+    options.preserveDraftOnDispose ?? false,
   ));
 }

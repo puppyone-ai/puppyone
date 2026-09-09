@@ -7,7 +7,7 @@ export class AgentControllerRegistry {
   private readonly closing = new Map<AgentSessionController, Promise<boolean>>();
   private disposed = false;
 
-  constructor(private readonly root: string, private readonly createClient: () => AgentClientProvider) {}
+  constructor(private readonly root: string, private readonly createClient: () => AgentClientProvider, private readonly preserveDraftOnDispose = false) {}
 
   get(id: string) {
     if (this.disposed) throw new Error("This project's Agent controllers have been released.");
@@ -48,7 +48,7 @@ export class AgentControllerRegistry {
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
-    this.controllers.forEach((controller) => controller.dispose());
+    this.controllers.forEach((controller) => controller.dispose({ preserveDraft: this.preserveDraftOnDispose }));
     this.controllers.clear();
   }
 }
