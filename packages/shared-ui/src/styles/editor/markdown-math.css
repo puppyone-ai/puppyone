@@ -14,7 +14,7 @@
 }
 
 .markdown-codemirror-editor .cm-md-math-inline-widget .katex {
-  font-size: 1.05em;
+  font-size: var(--po-type-editor-content, 16px);
 }
 
 .markdown-codemirror-editor .cm-md-math-block-widget {
@@ -36,7 +36,7 @@
   width: max-content;
   min-width: 100%;
   margin: 0;
-  font-size: 1.18em;
+  font-size: var(--po-type-editor-heading-3, 19px);
   text-align: center;
 }
 
@@ -58,7 +58,7 @@
   display: block;
   color: var(--po-danger);
   font-family: var(--po-font-mono);
-  font-size: 0.9em;
+  font-size: var(--po-code-font-size, 13px);
   line-height: 1.55;
   text-align: left;
   white-space: pre-wrap;

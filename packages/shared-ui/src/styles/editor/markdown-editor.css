@@ -693,7 +693,7 @@
   border: 0;
   border-radius: 3px;
   background: transparent;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   pointer-events: auto;
   transform: translateY(-50%);
 }
@@ -767,7 +767,7 @@
   display: block;
   width: 100%;
   min-width: 0;
-  height: 30px;
+  height: var(--po-control-size-compact, 28px);
   margin: 0;
   padding: 0 10px;
   padding-inline-start: var(--cm-md-heading-indent, 10px);
@@ -776,11 +776,11 @@
   border-radius: 6px;
   background: transparent;
   color: var(--po-text-muted);
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 400;
-  line-height: 30px;
+  line-height: var(--po-control-size-compact, 28px);
   text-align: start;
   text-overflow: ellipsis;
   white-space: nowrap;

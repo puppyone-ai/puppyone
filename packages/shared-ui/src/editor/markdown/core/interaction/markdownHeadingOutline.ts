@@ -206,6 +206,7 @@ class MarkdownHeadingOutlineController {
         const element = doc.createElement("button");
         element.type = "button";
         element.className = "cm-md-heading-outline-tick";
+        element.setAttribute("data-po-interaction", "navigation");
         element.addEventListener("click", (event) => {
           event.preventDefault();
           event.stopPropagation();
@@ -251,6 +252,7 @@ class MarkdownHeadingOutlineController {
         const item = doc.createElement("button");
         item.type = "button";
         item.className = "cm-md-heading-outline-item";
+        item.setAttribute("data-po-interaction", "navigation");
         item.addEventListener("click", (event) => {
           event.preventDefault();
           event.stopPropagation();

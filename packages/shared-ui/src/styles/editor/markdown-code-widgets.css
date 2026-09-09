@@ -104,7 +104,7 @@
   background: transparent;
   color: inherit;
   font-family: var(--po-font-mono);
-  font-size: 13px;
+  font-size: var(--po-code-font-size, 13px);
   font-feature-settings: "liga" 0, "calt" 0;
   font-variant-ligatures: none;
   font-weight: 400;
@@ -129,7 +129,7 @@
   overflow: hidden;
   color: inherit;
   font-family: var(--po-font-mono);
-  font-size: 13px;
+  font-size: var(--po-code-font-size, 13px);
   font-feature-settings: "liga" 0, "calt" 0;
   font-variant-ligatures: none;
   font-weight: 400;

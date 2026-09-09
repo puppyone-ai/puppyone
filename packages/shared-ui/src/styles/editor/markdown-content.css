@@ -49,12 +49,12 @@
   --po-md-syntax-property: var(--po-host-md-syntax-property, color-mix(in srgb, var(--po-accent) 72%, var(--po-text)));
   --po-md-syntax-operator: var(--po-host-md-syntax-operator, color-mix(in srgb, var(--po-text) 82%, var(--po-accent)));
   --po-md-syntax-meta: var(--po-host-md-syntax-meta, color-mix(in srgb, var(--po-purple, #8250df) 72%, var(--po-text)));
-  --po-md-h1-size: var(--po-user-md-h1-size, var(--po-host-md-h1-size, var(--po-type-editor-heading-1, 2em)));
-  --po-md-h2-size: var(--po-user-md-h2-size, var(--po-host-md-h2-size, var(--po-type-editor-heading-2, 1.5em)));
-  --po-md-h3-size: var(--po-user-md-h3-size, var(--po-host-md-h3-size, var(--po-type-editor-heading-3, 1.25em)));
-  --po-md-h4-size: var(--po-host-md-h4-size, var(--po-type-editor-heading-4, 1.125em));
-  --po-md-h5-size: var(--po-host-md-h5-size, var(--po-type-editor-heading-5, 1.0625em));
-  --po-md-h6-size: var(--po-host-md-h6-size, var(--po-type-editor-heading-6, 1em));
+  --po-md-h1-size: var(--po-user-md-h1-size, var(--po-type-editor-heading-1, 30px));
+  --po-md-h2-size: var(--po-user-md-h2-size, var(--po-type-editor-heading-2, 23px));
+  --po-md-h3-size: var(--po-user-md-h3-size, var(--po-type-editor-heading-3, 19px));
+  --po-md-h4-size: var(--po-type-editor-heading-4, 17px);
+  --po-md-h5-size: var(--po-type-editor-heading-5, 16px);
+  --po-md-h6-size: var(--po-type-editor-heading-6, 15px);
   --po-md-strong-weight: var(--po-user-md-strong-weight, var(--po-host-md-strong-weight, 600));
   --po-md-strong-color: var(--po-user-md-strong-color, var(--po-host-md-strong-color, var(--po-text)));
   background: var(--po-md-surface-background);
