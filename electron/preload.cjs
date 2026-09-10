@@ -291,6 +291,7 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   previewResourceDrag: () => ipcRenderer.invoke("resource-transfer:preview-drag"),
   claimResourceDrop: (request) => ipcRenderer.invoke("resource-transfer:claim-drop", {
     intent: request.intent, targetResource: request.targetResource,
+    sessionId: request.sessionId,
     paths: request.files.map((file) => webUtils.getPathForFile(file)),
   }),
   onResourceDragState: (listener) => {

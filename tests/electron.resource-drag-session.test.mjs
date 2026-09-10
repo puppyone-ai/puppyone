@@ -58,6 +58,44 @@ it("accepts an IPC drop arriving just after native completion, but only in the a
   expect(await f.claim()).toMatchObject({ entries: [{ path: uri("docs/file.md") }] });
 });
 
+it("admits an editor split drop without requiring a move destination", async () => {
+  const f = fixture(); await f.start(); f.end();
+  await expect(f.claim("editor-split")).resolves.toMatchObject({
+    entries: [{ path: uri("docs/file.md"), entryType: "file" }],
+  });
+});
+
+it("admits an identified editor split when Chromium omits native file objects", async () => {
+  const f = fixture();
+  await f.start();
+  const preview = await f.service.preview(f.target);
+  const claim = f.service.claim(f.target, {
+    paths: [],
+    intent: "editor-split",
+    sessionId: preview.id,
+  });
+  f.end();
+  await expect(claim).resolves.toMatchObject({
+    entries: [{ path: uri("docs/file.md"), entryType: "file" }],
+  });
+});
+
+it("rejects pathless editor split claims without the authorized preview identity", async () => {
+  const f = fixture();
+  await f.start();
+  await expect(f.service.claim(f.target, {
+    paths: [],
+    intent: "editor-split",
+    sessionId: f.native.inspect(),
+  })).rejects.toThrow(/payload/);
+  await f.service.preview(f.target);
+  await expect(f.service.claim(f.target, {
+    paths: [],
+    intent: "editor-split",
+    sessionId: "forged-session",
+  })).rejects.toThrow(/payload/);
+});
+
 it("clears cancelled sessions and does not misclassify the next external file drag", async () => {
   const f = fixture(); await f.start();
   const claim = f.claim(); f.end(0);

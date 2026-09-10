@@ -67,7 +67,7 @@ export function useInteractionTermination({
     document.addEventListener("visibilitychange", handleVisibilityChange, true);
     if (includeHtmlDragEvents) {
       window.addEventListener("dragend", handleDragEnd, true);
-      window.addEventListener("drop", handleDrop, true);
+      window.addEventListener("drop", handleDrop);
     }
 
     return () => {
@@ -79,7 +79,7 @@ export function useInteractionTermination({
       document.removeEventListener("visibilitychange", handleVisibilityChange, true);
       if (includeHtmlDragEvents) {
         window.removeEventListener("dragend", handleDragEnd, true);
-        window.removeEventListener("drop", handleDrop, true);
+        window.removeEventListener("drop", handleDrop);
       }
       terminate("unmount");
     };

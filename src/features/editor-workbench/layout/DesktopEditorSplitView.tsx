@@ -26,6 +26,7 @@ import {
   type EditorPaneLayoutState,
   type EditorPaneSplitOptions,
   type EditorSplitDirection,
+  type ExplorerReferenceDragEntry,
   type FileIconThemeId,
   type MarkdownWorkspaceEnvironment,
   type ViewerExtensionHostAdapter,
@@ -87,6 +88,12 @@ export type DesktopEditorSplitViewProps = Readonly<{
     direction: EditorSplitDirection,
     placement: NonNullable<EditorPaneSplitOptions["placement"]>,
   ) => void;
+  onResolveResourceDrop?: (
+    files: File[],
+    resourceDragSessionId: string,
+  ) => Promise<readonly ExplorerReferenceDragEntry[] | null>;
+  resourceDragEntries?: readonly ExplorerReferenceDragEntry[] | null;
+  resourceDragSessionId?: string | null;
   onSplitPane: (
     paneId: string,
     direction: EditorSplitDirection,
@@ -113,7 +120,10 @@ export function DesktopEditorSplitView({
   onFocusPane,
   onMovePane,
   onOpenAtPaneEdge,
+  onResolveResourceDrop,
   onResizeSplit,
+  resourceDragEntries = null,
+  resourceDragSessionId = null,
   onSplitPane,
 }: DesktopEditorSplitViewProps) {
   const editorById = useMemo(
@@ -126,7 +136,13 @@ export function DesktopEditorSplitView({
   const paneHosts = usePersistentEditorPaneHosts(panes.map((pane) => pane.id));
   const [openActionsPaneId, setOpenActionsPaneId] = useState<string | null>(null);
   const paneMove = usePaneMoveDrag(onMovePane);
-  const fileDrop = useExplorerFileDrop(workspace.id, onOpenAtPaneEdge);
+  const fileDrop = useExplorerFileDrop(
+    workspace.id,
+    onOpenAtPaneEdge,
+    resourceDragEntries,
+    resourceDragSessionId,
+    onResolveResourceDrop,
+  );
 
   useEffect(() => {
     if (openActionsPaneId && !panes.some((pane) => pane.id === openActionsPaneId)) {

@@ -31,7 +31,10 @@ describe("editor interaction session architecture", () => {
     expect(terminationSource).toContain('window.addEventListener("blur"');
     expect(terminationSource).toContain('window.addEventListener("pagehide"');
     expect(terminationSource).toContain('document.addEventListener("visibilitychange"');
-    expect(terminationSource).toContain('window.addEventListener("drop", handleDrop, true)');
+    expect(terminationSource).toContain('window.addEventListener("drop", handleDrop)');
+    expect(terminationSource).not.toContain(
+      'window.addEventListener("drop", handleDrop, true)',
+    );
     expect(terminationSource).toContain('terminate("unmount")');
     expect(editorTerminationAdapterSource).toContain(
       'from "../../workbench-interactions/useInteractionTermination"',

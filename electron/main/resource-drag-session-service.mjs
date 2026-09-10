@@ -97,12 +97,23 @@ export function createResourceDragSessionService({ native, resolveEntries, getWi
         return null; // Genuine external drops retain their import behavior.
       }
       if (session.claimed) throw new Error("This drag has already been consumed.");
-      if (!["explorer-move", "terminal-path", "agent-reference"].includes(request?.intent)) throw new Error("Unknown drop intent.");
+      if (!["explorer-move", "editor-split", "terminal-path", "agent-reference"].includes(request?.intent)) throw new Error("Unknown drop intent.");
       const files = request.paths;
-      if (!Array.isArray(files) || files.length !== session.entries.length
-        || files.some((file) => typeof file !== "string")) throw new Error("The native drop payload does not match its source.");
-      const expected = session.entries.map((entry) => entry.absolutePath).sort();
-      if ([...files].sort().some((file, index) => file !== expected[index])) throw new Error("The native drop payload does not match its source.");
+      if (!Array.isArray(files) || files.some((file) => typeof file !== "string")) {
+        throw new Error("The native drop payload does not match its source.");
+      }
+      const identifiedEditorSplit = request.intent === "editor-split"
+        && files.length === 0
+        && session.entries.length === 1
+        && request.sessionId === session.id
+        && session.recipients.has(event.sender);
+      if (!identifiedEditorSplit) {
+        const expected = session.entries.map((entry) => entry.absolutePath).sort();
+        if (files.length !== expected.length
+          || [...files].sort().some((file, index) => file !== expected[index])) {
+          throw new Error("The native drop payload does not match its source.");
+        }
+      }
       session.claimed = true; // Reserve synchronously; a second target cannot consume it.
       const targetWindow = getWindow(event.sender);
       try {

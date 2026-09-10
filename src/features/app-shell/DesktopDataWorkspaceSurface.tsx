@@ -179,6 +179,24 @@ export function DesktopDataWorkspaceSurface({
       throw error;
     }
   }, [resolveWorkspaceResource]);
+  const resolveEditorResourceDrop = useCallback(async (
+    files: File[],
+    resourceDragSessionId: string,
+  ) => {
+    setDragExportFailed(false);
+    try {
+      const source = await resolveResourceDropSource(
+        { kind: "files", files },
+        "editor-split",
+        undefined,
+        resourceDragSessionId,
+      );
+      return source.kind === "workspace-entries" ? source.entries : null;
+    } catch (error) {
+      setDragExportFailed(true);
+      throw error;
+    }
+  }, []);
   const onExplorerResizeActiveChange = useNativeSurfacePointerPassthroughActivity(
     "explorer-resize",
   );
@@ -509,7 +527,10 @@ export function DesktopDataWorkspaceSurface({
                   onFocusPane={editorWorkbench.focusPane}
                   onMovePane={editorWorkbench.movePane}
                   onOpenAtPaneEdge={editorWorkbench.openDocumentAtPaneEdge}
+                  onResolveResourceDrop={resolveEditorResourceDrop}
                   onResizeSplit={editorWorkbench.resizeSplit}
+                  resourceDragEntries={resourceDragPreview?.entries}
+                  resourceDragSessionId={resourceDragPreview?.id}
                   onSplitPane={editorWorkbench.splitPane}
                 />
               </>

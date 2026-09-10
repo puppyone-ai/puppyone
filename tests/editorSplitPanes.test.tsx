@@ -253,6 +253,233 @@ describe("DesktopEditorSplitView", () => {
     expect(pane.dataset.dropTarget).toBeUndefined();
   });
 
+  it("opens one native Explorer file at the nearest pane edge on macOS drop", async () => {
+    const onOpenAtPaneEdge = vi.fn();
+    const nativeEntry = {
+      path: "puppyone-local://workspace/workspace/b.md",
+      name: "b.md",
+      entryType: "file" as const,
+    };
+    const onResolveResourceDrop = vi.fn(async () => [nativeEntry]);
+    const group = openEditor(EMPTY_EDITOR_GROUP, createEditorInput("a.md"));
+    const container = renderSplitView(group, createEditorPaneLayout("a.md"), {
+      onOpenAtPaneEdge,
+      onResolveResourceDrop,
+      resourceDragEntries: [nativeEntry],
+      resourceDragSessionId: "native-session",
+    });
+    const pane = container.querySelector<HTMLElement>(".desktop-editor-pane")!;
+    pane.getBoundingClientRect = () => new DOMRect(0, 0, 800, 600);
+    const file = new File(["# B"], "b.md", { type: "text/markdown" });
+    const transfer = new DataTransfer();
+    transfer.items.add(file);
+    Object.defineProperty(transfer, "types", { value: ["Files"] });
+
+    act(() => pane.dispatchEvent(dragEvent("dragover", transfer, 790, 300)));
+    expect(pane.dataset.dropTarget).toBe("right");
+    expect(pane.dataset.dropKind).toBe("file");
+
+    act(() => root?.render(renderSplitViewContents(
+      group,
+      createEditorPaneLayout("a.md"),
+      {
+        onOpenAtPaneEdge,
+        onResolveResourceDrop,
+        resourceDragEntries: null,
+        resourceDragSessionId: null,
+      },
+    )));
+
+    await act(async () => {
+      pane.dispatchEvent(dragEvent("drop", transfer, 790, 300));
+      await Promise.resolve();
+    });
+    expect(onResolveResourceDrop).toHaveBeenCalledWith([file], "native-session");
+    expect(onOpenAtPaneEdge).toHaveBeenCalledWith(
+      {
+        id: nativeEntry.path,
+        name: "b.md",
+        path: nativeEntry.path,
+        type: "markdown",
+      },
+      "editor-pane-1",
+      "horizontal",
+      "second",
+    );
+    expect(pane.dataset.dropTarget).toBeUndefined();
+  });
+
+  it("claims an armed native split when macOS omits renderer file data on drop", async () => {
+    const onOpenAtPaneEdge = vi.fn();
+    const nativeEntry = {
+      path: "puppyone-local://workspace/workspace/b.md",
+      name: "b.md",
+      entryType: "file" as const,
+    };
+    const onResolveResourceDrop = vi.fn(async () => [nativeEntry]);
+    const group = openEditor(EMPTY_EDITOR_GROUP, createEditorInput("a.md"));
+    const container = renderSplitView(group, createEditorPaneLayout("a.md"), {
+      onOpenAtPaneEdge,
+      onResolveResourceDrop,
+      resourceDragEntries: [nativeEntry],
+      resourceDragSessionId: "native-session",
+    });
+    const pane = container.querySelector<HTMLElement>(".desktop-editor-pane")!;
+    pane.getBoundingClientRect = () => new DOMRect(0, 0, 800, 600);
+    const previewTransfer = new DataTransfer();
+    Object.defineProperty(previewTransfer, "types", { value: ["Files"] });
+
+    act(() => pane.dispatchEvent(dragEvent("dragover", previewTransfer, 790, 300)));
+    expect(pane.dataset.dropTarget).toBe("right");
+
+    const drop = dragEvent("drop", new DataTransfer(), 790, 300);
+    await act(async () => {
+      pane.dispatchEvent(drop);
+      await Promise.resolve();
+    });
+
+    expect(drop.defaultPrevented).toBe(true);
+    expect(onResolveResourceDrop).toHaveBeenCalledWith([], "native-session");
+    expect(onOpenAtPaneEdge).toHaveBeenCalledWith(
+      {
+        id: nativeEntry.path,
+        name: "b.md",
+        path: nativeEntry.path,
+        type: "markdown",
+      },
+      "editor-pane-1",
+      "horizontal",
+      "second",
+    );
+  });
+
+  it("handles a native split before global drop cleanup can clear its authorization", async () => {
+    const onOpenAtPaneEdge = vi.fn();
+    const nativeEntry = {
+      path: "puppyone-local://workspace/workspace/b.md",
+      name: "b.md",
+      entryType: "file" as const,
+    };
+    const onResolveResourceDrop = vi.fn(async () => [nativeEntry]);
+    const group = openEditor(EMPTY_EDITOR_GROUP, createEditorInput("a.md"));
+    const container = renderSplitView(group, createEditorPaneLayout("a.md"), {
+      onOpenAtPaneEdge,
+      onResolveResourceDrop,
+      resourceDragEntries: [nativeEntry],
+      resourceDragSessionId: "native-session",
+    });
+    const pane = container.querySelector<HTMLElement>(".desktop-editor-pane")!;
+    pane.getBoundingClientRect = () => new DOMRect(0, 0, 800, 600);
+    const transfer = new DataTransfer();
+    transfer.items.add(new File(["# B"], "b.md", { type: "text/markdown" }));
+    Object.defineProperty(transfer, "types", { value: ["Files"] });
+
+    act(() => pane.dispatchEvent(dragEvent("dragover", transfer, 790, 300)));
+    vi.spyOn(globalThis, "queueMicrotask").mockImplementation((callback) => callback());
+
+    const drop = dragEvent("drop", transfer, 790, 300);
+    await act(async () => {
+      pane.dispatchEvent(drop);
+      await Promise.resolve();
+    });
+
+    expect(drop.defaultPrevented).toBe(true);
+    expect(onResolveResourceDrop).toHaveBeenCalledWith(
+      [expect.objectContaining({ name: "b.md" })],
+      "native-session",
+    );
+    expect(onOpenAtPaneEdge).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "b.md", path: nativeEntry.path }),
+      "editor-pane-1",
+      "horizontal",
+      "second",
+    );
+  });
+
+  it("keeps an armed native Explorer split drop across early macOS termination events", async () => {
+    const onOpenAtPaneEdge = vi.fn();
+    const nativeEntry = {
+      path: "puppyone-local://workspace/workspace/b.md",
+      name: "b.md",
+      entryType: "file" as const,
+    };
+    const onResolveResourceDrop = vi.fn(async () => [nativeEntry]);
+    const group = openEditor(EMPTY_EDITOR_GROUP, createEditorInput("a.md"));
+    const container = renderSplitView(group, createEditorPaneLayout("a.md"), {
+      onOpenAtPaneEdge,
+      onResolveResourceDrop,
+      resourceDragEntries: [nativeEntry],
+      resourceDragSessionId: "native-session",
+    });
+    const pane = container.querySelector<HTMLElement>(".desktop-editor-pane")!;
+    pane.getBoundingClientRect = () => new DOMRect(0, 0, 800, 600);
+    const file = new File(["# B"], "b.md", { type: "text/markdown" });
+    const transfer = new DataTransfer();
+    transfer.items.add(file);
+    Object.defineProperty(transfer, "types", { value: ["Files"] });
+
+    act(() => pane.dispatchEvent(dragEvent("dragover", transfer, 790, 300)));
+    expect(pane.dataset.dropTarget).toBe("right");
+
+    act(() => window.dispatchEvent(new Event("blur")));
+    act(() => window.dispatchEvent(new DragEvent("dragend")));
+
+    await act(async () => {
+      pane.dispatchEvent(dragEvent("drop", transfer, 790, 300));
+      await Promise.resolve();
+    });
+    expect(onResolveResourceDrop).toHaveBeenCalledWith([file], "native-session");
+    expect(onOpenAtPaneEdge).toHaveBeenCalledWith(
+      {
+        id: nativeEntry.path,
+        name: "b.md",
+        path: nativeEntry.path,
+        type: "markdown",
+      },
+      "editor-pane-1",
+      "horizontal",
+      "second",
+    );
+  });
+
+  it("releases a cancelled native Explorer drop before the next external file drop", async () => {
+    const onResolveResourceDrop = vi.fn(async () => null);
+    const nativeEntry = {
+      path: "puppyone-local://workspace/workspace/b.md",
+      name: "b.md",
+      entryType: "file" as const,
+    };
+    const group = openEditor(EMPTY_EDITOR_GROUP, createEditorInput("a.md"));
+    const layout = createEditorPaneLayout("a.md");
+    const container = renderSplitView(group, layout, {
+      onResolveResourceDrop,
+      resourceDragEntries: [nativeEntry],
+      resourceDragSessionId: "native-session",
+    });
+    const pane = container.querySelector<HTMLElement>(".desktop-editor-pane")!;
+    pane.getBoundingClientRect = () => new DOMRect(0, 0, 800, 600);
+    const nativeTransfer = new DataTransfer();
+    nativeTransfer.items.add(new File(["# B"], "b.md", { type: "text/markdown" }));
+    Object.defineProperty(nativeTransfer, "types", { value: ["Files"] });
+
+    act(() => pane.dispatchEvent(dragEvent("dragover", nativeTransfer, 790, 300)));
+    act(() => root?.render(renderSplitViewContents(
+      group,
+      layout,
+      { onResolveResourceDrop, resourceDragEntries: null, resourceDragSessionId: null },
+    )));
+    await act(async () => new Promise((resolve) => window.setTimeout(resolve, 120)));
+
+    const externalTransfer = new DataTransfer();
+    externalTransfer.items.add(new File(["external"], "external.txt", { type: "text/plain" }));
+    Object.defineProperty(externalTransfer, "types", { value: ["Files"] });
+    const externalDrop = dragEvent("drop", externalTransfer, 400, 300);
+    act(() => pane.dispatchEvent(externalDrop));
+
+    expect(externalDrop.defaultPrevented).toBe(false);
+    expect(onResolveResourceDrop).not.toHaveBeenCalled();
+  });
+
   it("clears an Explorer split preview when the window loses the drag session", () => {
     const group = openEditor(EMPTY_EDITOR_GROUP, createEditorInput("a.md"));
     const container = renderSplitView(group, createEditorPaneLayout("a.md"));
@@ -1177,15 +1404,35 @@ function renderSplitView(
   layout: EditorPaneLayoutState,
   callbacks: {
     onMovePane?: React.ComponentProps<typeof DesktopEditorSplitView>["onMovePane"];
-  onOpenAtPaneEdge?: React.ComponentProps<typeof DesktopEditorSplitView>["onOpenAtPaneEdge"];
-  onSplitPane?: React.ComponentProps<typeof DesktopEditorSplitView>["onSplitPane"];
+    onOpenAtPaneEdge?: React.ComponentProps<typeof DesktopEditorSplitView>["onOpenAtPaneEdge"];
+    onResolveResourceDrop?: React.ComponentProps<typeof DesktopEditorSplitView>["onResolveResourceDrop"];
+    onSplitPane?: React.ComponentProps<typeof DesktopEditorSplitView>["onSplitPane"];
     onFocusPane?: React.ComponentProps<typeof DesktopEditorSplitView>["onFocusPane"];
+    resourceDragEntries?: React.ComponentProps<typeof DesktopEditorSplitView>["resourceDragEntries"];
+    resourceDragSessionId?: React.ComponentProps<typeof DesktopEditorSplitView>["resourceDragSessionId"];
   } = {},
 ) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
-  act(() => root?.render(withTestLocalization(
+  act(() => root?.render(renderSplitViewContents(editorGroup, layout, callbacks)));
+  return container;
+}
+
+function renderSplitViewContents(
+  editorGroup: EditorGroupState,
+  layout: EditorPaneLayoutState,
+  callbacks: {
+    onMovePane?: React.ComponentProps<typeof DesktopEditorSplitView>["onMovePane"];
+    onOpenAtPaneEdge?: React.ComponentProps<typeof DesktopEditorSplitView>["onOpenAtPaneEdge"];
+    onResolveResourceDrop?: React.ComponentProps<typeof DesktopEditorSplitView>["onResolveResourceDrop"];
+    onSplitPane?: React.ComponentProps<typeof DesktopEditorSplitView>["onSplitPane"];
+    onFocusPane?: React.ComponentProps<typeof DesktopEditorSplitView>["onFocusPane"];
+    resourceDragEntries?: React.ComponentProps<typeof DesktopEditorSplitView>["resourceDragEntries"];
+    resourceDragSessionId?: React.ComponentProps<typeof DesktopEditorSplitView>["resourceDragSessionId"];
+  } = {},
+) {
+  return withTestLocalization(
     <DesktopEditorSplitView
       aiEditRequest={null}
       dataPort={{ listChildren: async () => [] }}
@@ -1200,11 +1447,13 @@ function renderSplitView(
       onFocusPane={callbacks.onFocusPane ?? vi.fn()}
       onMovePane={callbacks.onMovePane ?? vi.fn()}
       onOpenAtPaneEdge={callbacks.onOpenAtPaneEdge ?? vi.fn()}
+      onResolveResourceDrop={callbacks.onResolveResourceDrop}
       onResizeSplit={vi.fn()}
+      resourceDragEntries={callbacks.resourceDragEntries}
+      resourceDragSessionId={callbacks.resourceDragSessionId}
       onSplitPane={callbacks.onSplitPane ?? vi.fn()}
     />,
-  )));
-  return container;
+  );
 }
 
 function createThreePaneWorkspace(extension = "md") {
