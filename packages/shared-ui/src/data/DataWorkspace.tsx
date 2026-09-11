@@ -8,6 +8,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type CSSProperties,
   type Dispatch,
   type MouseEvent as ReactMouseEvent,
@@ -27,9 +28,7 @@ import type {
 import { defaultDataCapabilities, isDocumentDataNode } from "../core/types";
 import { preloadPresetViewer } from "../editor/host/PresetViewerRenderer";
 import {
-  getEditorSourceRequirement,
   resolveEditorViewer,
-  shouldReadEditorContent,
 } from "../editor/registry/viewerRegistry";
 import {
   createMarkdownLinkGraph,
@@ -45,7 +44,9 @@ import {
   type ExplorerLoadingPresentation,
 } from "./ExplorerTree";
 import { FilePreview, type FilePreviewProps } from "../editor/host/FilePreview";
-import { useFileResourceLease } from "../editor/resource/useFileResourceLease";
+import { acquireFileResource } from "../editor/resource/FileResourcePool";
+import { useDocumentInput } from "../editor/resource/useDocumentInput";
+import { getDocumentInputRuntime, getEditorStorageIdentity, invalidateDocumentInputs } from "../editor/resource/DocumentInputRuntime";
 import { ProjectsHeader } from "./ProjectsHeader";
 import type { EditorSaveMode } from "../editor/host/EditorDocumentHost";
 import type {
@@ -61,8 +62,8 @@ import type { ViewerExtensionHostAdapter } from "../editor/registry/viewerHostAd
 import { getAiEditFileForPath } from "../editor/ai-edits/diff";
 import type { AiEditRequest } from "../editor/ai-edits/types";
 import type { DocumentPersistedCommit } from "../editor/document-session/types";
-import { flushActiveDocumentSessions } from "../editor/document-session/activeDocumentSessions";
-import { readDocumentStorageSnapshot } from "../editor/document-session/documentStorageReads";
+import { withEditorDocumentOperations } from "../editor/document-session/documentResourceOperations";
+import { getEditorRuntimeGeneration, subscribeEditorRuntimeGeneration } from "../editor/runtime/editorRuntimeAdmission";
 import type { FileIconThemeId } from "../file/fileIcons";
 import { useCollapsiblePaneResize } from "../primitives/useCollapsiblePaneResize";
 import {
@@ -70,8 +71,6 @@ import {
   type SidebarResizeIntent,
 } from "../sidebar/SidebarResizeHandle";
 import { getRendererPerformanceTracker } from "../performance/rendererPerformance";
-import { FileOpenRequestCoordinator } from "./file-open/fileOpenRequestCoordinator";
-import { putBoundedFileContent } from "./file-open/fileContentCache";
 import { reconcileFolderChildren } from "./explorer/explorerTreeReconciliation";
 import { useStableEventCallback } from "../primitives/useStableEventCallback";
 import {
@@ -234,7 +233,7 @@ const MARKDOWN_LINK_INDEX_MAX_FILES = 250;
 
 export function DataWorkspace({
   workspace,
-  dataPort,
+  dataPort: rawDataPort,
   capabilities,
   activePath,
   defaultActivePath = null,
@@ -310,6 +309,8 @@ export function DataWorkspace({
   onAccess,
   labels,
 }: DataWorkspaceProps) {
+  const dataPort = useMemo(() => withEditorDocumentOperations(rawDataPort), [rawDataPort]);
+  const runtimeGeneration = useSyncExternalStore(subscribeEditorRuntimeGeneration, getEditorRuntimeGeneration, getEditorRuntimeGeneration);
   const { direction, t } = useLocalization();
   const resolvedCapabilities = { ...defaultDataCapabilities, ...capabilities };
   const resolvedDocumentSourceKind: DocumentSourceKind = documentSourceKind ?? "local";
@@ -334,11 +335,6 @@ export function DataWorkspace({
     ...collectAncestorFolderPaths(defaultActivePath),
   ]));
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [fileContent, setFileContent] = useState<FileContent | null>(null);
-  const [fileContentCache, setFileContentCache] = useState<Record<string, FileContent>>({});
-  const [fileLoading, setFileLoading] = useState(false);
-  const [fileError, setFileError] = useState<string | null>(null);
-  const [fileErrorPath, setFileErrorPath] = useState<string | null>(null);
   const [documentNavigationError, setDocumentNavigationError] = useState<string | null>(null);
   const [unavailableActivePath, setUnavailableActivePath] = useState<string | null>(null);
   const [markdownLinkIndex, setMarkdownLinkIndex] = useState<MarkdownLinkGraphIndexSnapshot>(
@@ -356,12 +352,10 @@ export function DataWorkspace({
     promise: Promise<DataNode[] | null>;
   }>>());
   const fileOpenTraceRef = useRef<{ id: string; documentId: string } | null>(null);
-  const fileOpenCoordinatorRef = useRef<FileOpenRequestCoordinator | null>(null);
-  fileOpenCoordinatorRef.current ??= new FileOpenRequestCoordinator({
-    onStaleCommit: () => rendererPerformance.recordStaleCommit(),
-  });
   const markdownLinkIndexCoordinatorRef = useRef<MarkdownLinkIndexCoordinator | null>(null);
-  markdownLinkIndexCoordinatorRef.current ??= new MarkdownLinkIndexCoordinator();
+  markdownLinkIndexCoordinatorRef.current ??= new MarkdownLinkIndexCoordinator({
+    scope: getEditorStorageIdentity(dataPort), instance: "markdown-link-index", generation: 0,
+  });
   const markdownLinkGraphRevisionRef = useRef(0);
   const markdownAssetResolverRevisionRef = useRef<{
     resolver: MarkdownAssetUrlResolver | null;
@@ -513,7 +507,6 @@ export function DataWorkspace({
     folderLoadRequestsRef.current.clear();
     if (fileOpenTraceRef.current) rendererPerformance.cancel(fileOpenTraceRef.current.id);
     fileOpenTraceRef.current = null;
-    fileOpenCoordinatorRef.current?.cancelCurrent();
     markdownLinkIndexCoordinatorRef.current?.cancel();
     setInternalActivePath(defaultActivePath);
     setSelectedNodePaths(defaultActivePath ? new Set([defaultActivePath]) : new Set());
@@ -532,11 +525,6 @@ export function DataWorkspace({
     failedFolderPathsRef.current = new Set();
     setFailedFolderPathsState(failedFolderPathsRef.current);
     setLoadError(null);
-    setFileContent(null);
-    setFileContentCache({});
-    setFileError(null);
-    setFileErrorPath(null);
-    setFileLoading(false);
     setDocumentNavigationError(null);
     documentNavigationRequestRef.current += 1;
     setMarkdownLinkIndex(EMPTY_MARKDOWN_LINK_GRAPH_INDEX);
@@ -670,34 +658,29 @@ export function DataWorkspace({
         sourceKind: documentSourceKind ?? resolvedDocumentSourceKind,
       }).viewer
     : null, [documentSourceKind, resolvedDocumentSourceKind, selectedFile]);
-  const selectedFileSourceRequirement = selectedFile ? getEditorSourceRequirement(selectedFile) : "none";
-  const selectedFileNeedsFullContent = Boolean(
-    loadActiveFileSource
-    && selectedFile
-    && dataPort.readFile
-    && shouldReadEditorContent(selectedFile),
-  );
-  const selectedFileNeedsResourceUrl = Boolean(
-    loadActiveFileSource &&
-    selectedFile &&
-    dataPort.getFileUrl &&
-    (selectedFileSourceRequirement === "resource" || selectedFileSourceRequirement === "content-and-resource"),
-  );
-  const selectedFileResource = useFileResourceLease({
-    dataPort,
-    enabled: selectedFileNeedsResourceUrl,
-    path: selectedFile?.path ?? null,
-    refresh: refreshKey,
-  });
-  const cachedSelectedFileContent = selectedFile ? fileContentCache[selectedFile.path] ?? null : null;
-  const selectedFileContent = fileContent?.path === selectedFile?.path ? fileContent : cachedSelectedFileContent;
-  const selectedFileError = fileErrorPath === selectedFile?.path ? fileError : null;
-  const selectedFileContentPending = Boolean(
-    selectedFileNeedsFullContent && selectedFile && !selectedFileContent && !selectedFileError,
-  );
-  const selectedFileUrl = selectedFileResource.fileUrl;
-  const selectedFileUrlLoading = selectedFileResource.fileUrlLoading;
-  const selectedFileUrlError = selectedFileResource.fileUrlError;
+  useLayoutEffect(() => {
+    if (!selectedFileViewer) return;
+    // Selection owns route preloading. The currently committed preview may
+    // intentionally remain on screen while a different format is read, so a
+    // preload initiated by the rendered document can target the old viewer.
+    // The loader cache deduplicates this with EditorDocumentHost and React.lazy.
+    void preloadPresetViewer(selectedFileViewer).catch(() => undefined);
+  }, [selectedFileViewer]);
+  const selectedInput = useDocumentInput(loadActiveFileSource ? selectedFile : null, dataPort, refreshKey);
+  const selectedFileContent = selectedInput.content;
+  const selectedFileError = selectedInput.error;
+  const fileLoading = selectedInput.loading;
+  const selectedFileContentPending = fileLoading && !selectedFileContent && !selectedFileError;
+  const selectedFileUrl = selectedInput.fileUrl;
+  const selectedFileUrlLoading = selectedInput.fileUrlLoading;
+  const selectedFileUrlError = selectedInput.fileUrlError;
+  useEffect(() => {
+    if (refreshKey) invalidateDocumentInputs(getEditorStorageIdentity(dataPort), refreshKey);
+  }, [dataPort, refreshKey]);
+  useEffect(() => {
+    const trace = fileOpenTraceRef.current;
+    if (trace && selectedFileContent?.path === trace.documentId) rendererPerformance.mark(trace.id, "content_ready");
+  }, [selectedFileContent]);
   const selectedPreviewAiEditFile = getAiEditFileForPath(aiEditRequest, selectedFile?.path);
   const pathSegments = buildBreadcrumb(workspace.name, currentFolderPath, selectedFile?.name)
     .map((label) => ({ label }));
@@ -710,14 +693,7 @@ export function DataWorkspace({
   );
   const filesExplorerActive = !explorerSlot;
 
-  useEffect(() => {
-    if (!selectedFileViewer) return;
-    // Selection owns route preloading. The currently committed preview may
-    // intentionally remain on screen while a different format is read, so a
-    // preload initiated by the rendered document can target the old viewer.
-    // The loader cache deduplicates this with EditorDocumentHost and React.lazy.
-    void preloadPresetViewer(selectedFileViewer).catch(() => undefined);
-  }, [selectedFileViewer]);
+
 
   useEffect(() => {
     onActiveNodeChange?.(activeNode ?? null);
@@ -970,6 +946,7 @@ export function DataWorkspace({
     enableMarkdownLinkContentIndexing,
     markdownLinkMetadataDocuments,
     markdownLinkWorkspaceIndex.sourcePaths,
+    runtimeGeneration,
   ]);
   const markdownLinkGraph = useMemo(
     () => createMarkdownLinkGraph(
@@ -989,17 +966,7 @@ export function DataWorkspace({
       if (!assetPath) return null;
 
       try {
-        const url = await dataPort.getFileUrl(assetPath, { purpose: "markdown-asset" });
-        if (signal?.aborted) {
-          await dataPort.revokeFileUrl?.(url);
-          return null;
-        }
-        return {
-          url,
-          revoke: dataPort.revokeFileUrl
-            ? () => dataPort.revokeFileUrl?.(url)
-            : undefined,
-        };
+        return await acquireFileResource(dataPort, assetPath, { purpose: "markdown-asset" }, signal);
       } catch {
         return null;
       }
@@ -1069,69 +1036,6 @@ export function DataWorkspace({
     setExpandedFolderPaths((current) => addSetValues(current, ancestorPaths));
   }, [resolvedActivePath]);
 
-  useEffect(() => {
-    if (!loadActiveFileSource || !selectedFile) {
-      fileOpenCoordinatorRef.current?.cancelCurrent();
-      setFileContent(null);
-      setFileError(null);
-      setFileErrorPath(null);
-      setFileLoading(false);
-      return undefined;
-    }
-
-    if (!dataPort.readFile) {
-      fileOpenCoordinatorRef.current?.cancelCurrent();
-      setFileContent(null);
-      setFileError(null);
-      setFileErrorPath(null);
-      setFileLoading(false);
-      return undefined;
-    }
-
-    if (!shouldReadEditorContent(selectedFile)) {
-      fileOpenCoordinatorRef.current?.cancelCurrent();
-      setFileContent(null);
-      setFileError(null);
-      setFileErrorPath(null);
-      setFileLoading(false);
-      return undefined;
-    }
-
-    const request = fileOpenCoordinatorRef.current!.begin(selectedFile.path);
-    const trace = fileOpenTraceRef.current?.documentId === selectedFile.path
-      ? fileOpenTraceRef.current
-      : null;
-    setFileContent(null);
-    setFileLoading(true);
-    setFileError(null);
-    setFileErrorPath(null);
-    readDocumentStorageSnapshot(dataPort, selectedFile.path, {
-      signal: request.signal,
-      accept: (content) => request.commit(() => {
-        if (trace && fileOpenTraceRef.current?.id === trace.id) {
-          rendererPerformance.mark(trace.id, "content_ready");
-        }
-        setFileContent(content);
-        setFileContentCache((current) => putBoundedFileContent(current, content));
-      }),
-    })
-      .catch((error) => {
-        if (!request.isCurrent() || request.signal.aborted) return;
-        request.commit(() => {
-          setFileContent(null);
-          setFileErrorPath(selectedFile.path);
-          setFileError(error instanceof Error ? error.message : String(error));
-        });
-      })
-      .finally(() => {
-        if (request.isCurrent()) setFileLoading(false);
-      });
-
-    return () => {
-      request.cancel();
-    };
-  }, [dataPort, loadActiveFileSource, refreshKey, selectedFile]);
-
   const toggleFolder = useCallback(
     (node: DataNode, expanded: boolean) => {
       if (!expanded) {
@@ -1165,25 +1069,7 @@ export function DataWorkspace({
 
   const applyPersistedFileContent = (node: DocumentDataNode, commit: DocumentPersistedCommit) => {
     if (commit.documentId !== node.path) return;
-    const existingContent = fileContent?.path === node.path
-      ? fileContent
-      : fileContentCache[node.path] ?? null;
-    const nextContent: FileContent = existingContent
-      ? { ...existingContent, content: commit.content, version: commit.version }
-      : {
-          path: node.path,
-          name: node.name,
-          type: node.type,
-          content: commit.content,
-          version: commit.version,
-        };
-
-    setFileContent((current) => (
-      current?.path === node.path
-        ? nextContent
-        : current
-    ));
-    setFileContentCache((current) => putBoundedFileContent(current, nextContent));
+    getDocumentInputRuntime(dataPort, node).applyPersistedCommit(commit);
     if (enableMarkdownLinkContentIndexing && isMarkdownNodeLike(node)) {
       void markdownLinkIndexCoordinatorRef.current
         ?.updateDocument({ path: node.path, name: node.name, content: commit.content })
@@ -1265,38 +1151,31 @@ export function DataWorkspace({
 
       setLoadError(null);
 
-      const nextActivePath = rebasePathByMoveOperations(resolvedActivePath, operations);
-      try {
-        await flushActiveDocumentSessions("document-switch");
-        setDocumentNavigationError(null);
-        for (const operation of operations) {
+      const completed: typeof operations = [];
+      setDocumentNavigationError(null);
+      for (const operation of operations) {
+        try {
           await dataPort.moveNode(operation.previousPath, operation.nextPath);
+          completed.push(operation);
           await onResourceMove?.(operation.previousPath, operation.nextPath);
+        } catch (error) {
+          setLoadError(error instanceof Error ? error.message : String(error));
+          break;
         }
-      } catch (error) {
-        setLoadError(error instanceof Error ? error.message : String(error));
-        return;
       }
+      if (!completed.length) return;
+      const nextActivePath = rebasePathByMoveOperations(resolvedActivePath, completed);
 
-      setTree((current) => operations.reduce(
+      setTree((current) => completed.reduce(
         (nextTree, operation) => moveDataNode(nextTree, operation.previousPath, operation.nextPath, targetFolderPath),
         current,
       ));
-      setFileContentCache((current) => operations.reduce(
-        (nextCache, operation) => rebaseFileContentCache(nextCache, operation.previousPath, operation.nextPath),
-        current,
-      ));
-      setFileContent((current) => operations.reduce(
-        (nextContent, operation) => rebaseFileContent(nextContent, operation.previousPath, operation.nextPath),
-        current,
-      ));
-      setFileErrorPath((current) => rebasePathByMoveOperations(current, operations));
-      setSelectedNodePaths((current) => rebasePathSetByMoveOperations(current, operations));
-      setSelectionAnchorPath((current) => rebasePathByMoveOperations(current, operations));
+      setSelectedNodePaths((current) => rebasePathSetByMoveOperations(current, completed));
+      setSelectionAnchorPath((current) => rebasePathByMoveOperations(current, completed));
 
       if (nextActivePath !== resolvedActivePath) {
         const nextActiveNode = activeNode
-          ? operations.reduce(
+          ? completed.reduce(
             (nextNode, operation) => rebaseDataNode(nextNode, operation.previousPath, operation.nextPath),
             activeNode,
           )
@@ -1304,7 +1183,7 @@ export function DataWorkspace({
         await requestActiveNodeChange(nextActiveNode, nextActivePath);
       }
 
-      const foldersToRefresh = new Set<string | null>(operations.map((operation) => operation.previousParentPath));
+      const foldersToRefresh = new Set<string | null>(completed.map((operation) => operation.previousParentPath));
       foldersToRefresh.add(targetFolderPath);
       for (const folderPath of foldersToRefresh) {
         void loadFolder(folderPath, true);
@@ -1512,6 +1391,7 @@ export function DataWorkspace({
             ref={explorerResizeHandleRef}
             className="data-explorer-resizer"
             paneEdge
+            resizing={explorerResize.dragging}
             orientation="vertical"
             label={t("shared-ui.explorer.resizeSidebar")}
             min={explorerCanCollapse ? collapsedExplorerWidth : minExplorerWidth}
@@ -1801,30 +1681,6 @@ function rebaseDataNode(node: DataNode, previousPath: string, nextPath: string):
       ? node.children.map((child) => rebaseDataNode(child, previousPath, nextPath))
       : node.children,
   };
-}
-
-function rebaseFileContentCache(
-  cache: Record<string, FileContent>,
-  previousPath: string,
-  nextPath: string,
-): Record<string, FileContent> {
-  const nextCache: Record<string, FileContent> = {};
-
-  for (const [path, content] of Object.entries(cache)) {
-    const rebasedPath = rebaseMovedPath(path, previousPath, nextPath) ?? path;
-    nextCache[rebasedPath] = rebaseFileContent(content, previousPath, nextPath) ?? content;
-  }
-
-  return nextCache;
-}
-
-function rebaseFileContent(
-  content: FileContent | null,
-  previousPath: string,
-  nextPath: string,
-): FileContent | null {
-  const rebasedPath = rebaseMovedPath(content?.path ?? null, previousPath, nextPath);
-  return content && rebasedPath ? { ...content, path: rebasedPath } : content;
 }
 
 function rebaseMovedPath(path: string | null, previousPath: string, nextPath: string): string | null {

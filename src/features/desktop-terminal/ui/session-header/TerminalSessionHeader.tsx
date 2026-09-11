@@ -20,6 +20,7 @@ import { terminalPanelId, terminalTabId } from "./terminalSessionHeaderIds";
 import type { TerminalSessionHeaderItem } from "./types";
 import { useTerminalSessionHeaderController } from "./useTerminalSessionHeaderController";
 import { useTerminalSessionHeaderLayout } from "./useTerminalSessionHeaderLayout";
+import { useWorkbenchSessionHeaderMotion } from "../../../app-shell/auxiliary-workbench/layout/useWorkbenchSessionHeaderMotion";
 import "../../../app-shell/auxiliary-workbench/layout/auxiliary-workbench-header.css";
 
 type TerminalSessionHeaderProps = {
@@ -94,14 +95,13 @@ export function TerminalSessionHeader({
     () => new Map(sessionIds.map((sessionId, index) => [sessionId, index])),
     [sessionIds],
   );
-  const { capacityRef, layout } = useTerminalSessionHeaderLayout(
+  const { capacityRef, layout, motionReady } = useTerminalSessionHeaderLayout(
     layoutSessionIds,
     layoutActiveSessionId,
     1,
   );
+  useWorkbenchSessionHeaderMotion(capacityRef, layout, motionReady && !tabMove.dragging && !dropInsertion);
   const controller = useTerminalSessionHeaderController({
-    activeSessionId,
-    motionEligibleSessionIds: layout.visibleSessionIds,
     onActivate,
     sessionIds,
     tabId: terminalTabId,
@@ -127,7 +127,6 @@ export function TerminalSessionHeader({
       data-window-no-drag="true"
       style={{
         "--desktop-terminal-header-gap": `${TERMINAL_SESSION_HEADER_METRICS.gap}px`,
-        "--desktop-terminal-tab-activation-motion": `${TERMINAL_SESSION_HEADER_METRICS.activationMotionMs}ms`,
         "--desktop-terminal-tab-control-height": `${TERMINAL_SESSION_HEADER_METRICS.createControl}px`,
         "--desktop-terminal-tab-width": `${TERMINAL_SESSION_HEADER_METRICS.fullMaximum}px`,
       } as CSSProperties}
@@ -136,7 +135,11 @@ export function TerminalSessionHeader({
         <div
           className="desktop-terminal-tab-rail"
           data-layout={layout.mode}
-          data-activation-motion={controller.activationMotionActive && !tabMove.dragging ? "true" : undefined}
+          data-layout-motion={motionReady && !tabMove.dragging && !dropInsertion ? "true" : undefined}
+          style={{
+            "--desktop-terminal-tabs-resolved-width": `${layout.tabsWidth}px`,
+            "--desktop-terminal-new-inline-start": `${layout.tabsWidth + TERMINAL_SESSION_HEADER_METRICS.gap + (hiddenItems.length ? TERMINAL_SESSION_HEADER_METRICS.overflowControl + TERMINAL_SESSION_HEADER_METRICS.gap : 0)}px`,
+          } as CSSProperties}
           data-tab-dragging={tabMove.dragging ? "true" : undefined}
           data-tab-insertion={dropInsertion ? "true" : undefined}
           data-tab-insertion-allowed={dropInsertion?.allowed ? "true" : undefined}
@@ -150,9 +153,6 @@ export function TerminalSessionHeader({
             className="desktop-terminal-tabs"
             role="listbox"
             aria-label={t("terminal.title")}
-            style={{
-              "--desktop-terminal-tabs-resolved-width": `${layout.tabsWidth}px`,
-            } as CSSProperties}
           >
             {insertionSlots.map((insertionSlot) => (
               <div

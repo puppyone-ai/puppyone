@@ -1,5 +1,9 @@
 "use client";
 
+import { useEditorTaskController } from "../../runtime/EditorTaskContext";
+import { acquireEditorHostLease } from "../../runtime/EditorHostLeases";
+import { getEditorTaskSignalOwner } from "../../runtime/BrowserEditorWorkerHost";
+
 import {
   ChevronLeft,
   ChevronRight,
@@ -159,6 +163,7 @@ export function OfficeViewer({
   markdownEnvironment,
   officeEditorActions = [],
 }: OfficeViewerProps) {
+  const createTaskController = useEditorTaskController();
   const { t } = useLocalization();
   const [state, setState] = useState<OfficeState>({ status: "idle" });
   const [activeSheet, setActiveSheet] = useState(0);
@@ -185,7 +190,7 @@ export function OfficeViewer({
     }
 
     let cancelled = false;
-    const abortController = new AbortController();
+    const abortController = createTaskController();
 
     setState({ status: "loading" });
     loadOfficePreview({
@@ -214,6 +219,7 @@ export function OfficeViewer({
       abortController.abort();
     };
   }, [
+    createTaskController,
     canUseNativeDocxConversion,
     convertOfficeDocumentToDocx,
     document.name,
@@ -604,6 +610,7 @@ function PptxPresentationPreview({
   documentPath: string;
   openExternalFile?: (path: string) => Promise<void>;
 }) {
+  const createTaskController = useEditorTaskController();
   const { t } = useLocalization();
   const hostRef = useRef<HTMLDivElement | null>(null);
   const thumbnailRailRef = useRef<HTMLElement | null>(null);
@@ -628,7 +635,7 @@ function PptxPresentationPreview({
     const host = hostRef.current;
     if (!host) return undefined;
 
-    const abortController = new AbortController();
+    const abortController = createTaskController();
     let cancelled = false;
     let viewer: PptxViewer | null = null;
     let fitFrame = 0;
@@ -754,7 +761,7 @@ function PptxPresentationPreview({
       viewer?.destroy();
       host.replaceChildren();
     };
-  }, [arrayBuffer]);
+  }, [arrayBuffer, createTaskController]);
 
   useEffect(() => {
     if (!thumbnailRailRef.current) return;
@@ -1552,9 +1559,16 @@ async function loadOfficePreview({
 
     let convertedBuffer: ArrayBuffer;
     try {
-      const result = await convertOfficeDocumentToDocx(path, { signal });
-      signal?.throwIfAborted();
-      convertedBuffer = result.arrayBuffer;
+      const lease = acquireEditorHostLease(getEditorTaskSignalOwner(signal)
+        ?? { scope: "renderer", instance: path, generation: 0 }, async (hostSignal) => ({
+          value: await convertOfficeDocumentToDocx(path, { signal: hostSignal }),
+          release: async () => undefined,
+        }), signal);
+      try {
+        const result = await lease.ready;
+        signal?.throwIfAborted();
+        convertedBuffer = result.arrayBuffer;
+      } finally { await lease.close(); }
     } catch (error) {
       if (isAbortError(error)) throw error;
       const reason = error instanceof Error ? error.message : String(error);

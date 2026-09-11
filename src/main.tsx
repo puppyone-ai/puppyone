@@ -6,6 +6,9 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import {
   flushActiveDocumentSessions,
+  retireEditorTasks,
+  holdEditorRuntimeAdmission,
+  reconcilePendingDocumentOperations,
   PresetViewerRuntimeHostProvider,
 } from "@puppyone/shared-ui";
 import { LocalizationProvider } from "@puppyone/localization/react";
@@ -22,9 +25,11 @@ const rootElement = document.getElementById("root");
 if (!rootElement) throw new Error("PuppyOne renderer root is unavailable.");
 
 let activeCloseRequestId: string | null = null;
+let releaseRuntimeAdmission: (() => void) | null = null;
 let previouslyFocusedElement: HTMLElement | null = null;
 const setCloseInteractionBarrier = (locked: boolean) => {
   if (locked) {
+    releaseRuntimeAdmission ??= holdEditorRuntimeAdmission();
     previouslyFocusedElement = document.activeElement instanceof HTMLElement
       ? document.activeElement
       : null;
@@ -33,6 +38,8 @@ const setCloseInteractionBarrier = (locked: boolean) => {
     return;
   }
   rootElement.inert = false;
+  releaseRuntimeAdmission?.();
+  releaseRuntimeAdmission = null;
   rootElement.removeAttribute("aria-busy");
   const focusTarget = previouslyFocusedElement;
   previouslyFocusedElement = null;
@@ -47,7 +54,9 @@ const stopDocumentSessionFlushListener = window.puppyoneDesktop
       setCloseInteractionBarrier(true);
     }
     try {
+      if (closesWindow) await reconcilePendingDocumentOperations();
       await flushActiveDocumentSessions(reason);
+      if (closesWindow) await retireEditorTasks();
     } catch (error) {
       if (closesWindow && activeCloseRequestId === requestId) {
         activeCloseRequestId = null;
@@ -75,7 +84,10 @@ async function renderApplication() {
   const localization = await bootstrapRendererLocalization();
   let surface: React.ReactNode;
 
-  if (window.location.hash === "#terminal-launcher-visual-smoke") {
+  if (window.location.hash === "#auxiliary-appearance-smoke") {
+    const { AuxiliaryAppearanceSmokeHarness } = await import("./features/appearance/AuxiliaryAppearanceSmokeHarness");
+    surface = <AuxiliaryAppearanceSmokeHarness />;
+  } else if (window.location.hash === "#terminal-launcher-visual-smoke") {
     const { TerminalLauncherVisualSmokeHarness } = await import(
       "./features/desktop-terminal/visual-smoke"
     );

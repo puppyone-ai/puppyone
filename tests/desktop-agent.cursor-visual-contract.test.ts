@@ -9,7 +9,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const styleRoot = path.join(root, "src/features/desktop-agent/ui/styles");
 const css = [
   fs.readFileSync(path.join(root, "src/features/desktop-agent/ui/desktop-agent.css"), "utf8"),
-  ...["theme.css", "foundation.css", "transcript.css", "activities.css", "tool-results.css", "blocking.css", "composer.css", "pickers.css", "responsive.css"]
+  ...["theme.css", "foundation.css", "transcript.css", "activities.css", "tool-results.css", "blocking.css", "composer.css", "agent-prompt-editor.css", "pickers.css", "responsive.css"]
     .map((file) => fs.readFileSync(path.join(styleRoot, file), "utf8")),
 ].join("\n");
 const composer = fs.readFileSync(path.join(root, "src/features/desktop-agent/ui/AgentComposer.tsx"), "utf8");
@@ -262,11 +262,14 @@ describe("Desktop Agent Cursor-style sidebar visual contract", () => {
   });
 
   it("uses the same quiet divider as the left sidebar edge", () => {
-    expect(layoutCss).toMatch(/\.desktop-right-sidebar\s*\{[^}]*--desktop-right-sidebar-background:\s*var\(--po-header\)[^}]*--po-terminal-bg:\s*var\(--desktop-right-sidebar-background\)[^}]*overflow:\s*hidden[^}]*background:\s*var\(--desktop-right-sidebar-background\)/s);
+    expect(layoutCss).toContain("--desktop-right-sidebar-background: var(--po-surface-auxiliary)");
+    expect(layoutCss).toContain("--po-surface-agent: var(--po-surface-auxiliary)");
+    expect(layoutCss).toContain("--po-surface-terminal: var(--po-surface-auxiliary)");
     expect(layoutCss).toMatch(/\.desktop-right-sidebar:not\(\.is-open\)\s*\{[^}]*overflow:\s*visible/s);
     expect(layoutCss).toMatch(/\.desktop-right-sidebar-stack\s*\{[^}]*background:\s*var\(--desktop-right-sidebar-background\)/s);
     expect(layoutCss).toMatch(/\.desktop-right-sidebar-surface\s*\{[^}]*background:\s*var\(--desktop-right-sidebar-background\)/s);
-    expect(css).toMatch(/\.desktop-right-sidebar \.desktop-agent-boundary\s*\{[^}]*--agent-canvas:\s*var\(--po-terminal-bg\)/s);
+    expect(css).toContain("--agent-canvas: var(--po-surface-agent)");
+    expect(css).not.toContain("--po-terminal-bg");
     expect(layoutCss).toMatch(/\.desktop-right-sidebar\.is-open\s*\{[^}]*border-inline-start-color:\s*var\(--po-sidebar-divider, var\(--po-divider\)\)/s);
     expect(layoutCss).not.toContain(".desktop-right-sidebar::before");
   });

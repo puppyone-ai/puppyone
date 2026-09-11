@@ -82,21 +82,34 @@ export function useDesktopEditorWorkbench(
   resolveNode: EditorDocumentNodeResolver | null,
   workspaceFolderUri: ResourceUri | null = null,
   resolveEditorResource: EditorResourceResolver | null = null,
+  compositionId: string | null = null,
 ): DesktopEditorWorkbenchController {
-  const storageKey = workspace
-    ? `${EDITOR_WORKBENCH_STORAGE_PREFIX}:${workspace.id}:${workspace.path}`
-    : null;
+  const storageKey = compositionId
+    ? `${EDITOR_WORKBENCH_STORAGE_PREFIX}:composition:${compositionId}`
+    : workspace ? `${EDITOR_WORKBENCH_STORAGE_PREFIX}:${workspace.id}:${workspace.path}` : null;
+  const previousCompositionStorageKey = compositionId && workspace ? `${EDITOR_WORKBENCH_STORAGE_PREFIX}:${workspace.id}:${workspace.path}` : null;
   const legacyWorkbenchStorageKey = workspace
     ? `${LEGACY_EDITOR_WORKBENCH_STORAGE_PREFIX}:${workspace.id}:${workspace.path}`
     : null;
   const legacyGroupStorageKey = workspace
     ? `${LEGACY_EDITOR_GROUP_STORAGE_PREFIX}:${workspace.id}:${workspace.path}`
     : null;
-  const [record, setRecord] = useState<{
-    storageKey: string | null;
-    workbench: DesktopEditorWorkbenchState;
-    hydrated: boolean;
-  }>({ storageKey: null, workbench: EMPTY_EDITOR_WORKBENCH, hydrated: false });
+  type Record = { storageKey: string | null; workbench: DesktopEditorWorkbenchState; hydrated: boolean };
+  const [records, setRecords] = useState(() => new Map<string | null, Record>());
+  const recordsRef = useRef(records);
+  recordsRef.current = records;
+  const record = useMemo(() => records.get(storageKey) ?? { storageKey, workbench: EMPTY_EDITOR_WORKBENCH, hydrated: false }, [records, storageKey]);
+  const setRecord = useCallback((update: Record | ((current: Record) => Record)) => {
+    setRecords((current) => {
+      const previous = current.get(storageKey) ?? { storageKey, workbench: EMPTY_EDITOR_WORKBENCH, hydrated: false };
+      const next = typeof update === "function" ? update(previous) : update;
+      if (previous === next) return current;
+      if (next.storageKey && next.hydrated) persistenceRef.current?.schedule(next.storageKey, next.workbench);
+      const updated = new Map(current);
+      updated.set(storageKey, next);
+      return updated;
+    });
+  }, [storageKey]);
   const persistenceRef = useRef<EditorWorkbenchPersistenceScheduler | null>(null);
   const hydrationGenerationRef = useRef(0);
   const interactionGenerationRef = useRef(0);
@@ -115,11 +128,14 @@ export function useDesktopEditorWorkbench(
       return undefined;
     }
 
+    if (recordsRef.current.get(storageKey)?.hydrated) return undefined;
+
     const stored = readStoredEditorWorkbench(
       storageKey,
       legacyWorkbenchStorageKey,
       legacyGroupStorageKey,
       workspaceFolderUri,
+      previousCompositionStorageKey,
     );
     if (!resolveNode) {
       // A workspace session without a metadata resolver cannot prove that its
@@ -145,7 +161,7 @@ export function useDesktopEditorWorkbench(
     return () => {
       cancelled = true;
     };
-  }, [legacyGroupStorageKey, legacyWorkbenchStorageKey, resolveNode, storageKey, workspaceFolderUri]);
+  }, [legacyGroupStorageKey, legacyWorkbenchStorageKey, previousCompositionStorageKey, resolveNode, setRecord, storageKey, workspaceFolderUri]);
 
   useEffect(() => {
     if (!storageKey || record.storageKey !== storageKey || !record.hydrated) return;
@@ -171,7 +187,7 @@ export function useDesktopEditorWorkbench(
         : EMPTY_EDITOR_WORKBENCH;
       return { storageKey, workbench: update(currentWorkbench), hydrated: true };
     });
-  }, [storageKey]);
+  }, [setRecord, storageKey]);
 
   const toEditorResource = useCallback((path: string) => (
     resolveEditorResource?.(path)

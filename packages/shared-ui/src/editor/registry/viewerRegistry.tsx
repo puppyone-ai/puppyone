@@ -136,3 +136,8 @@ export function classifyEditorViewerCapability(document: EditorDocument): CoreVi
   const { viewer } = resolveEditorViewer(document);
   return viewer.capability;
 }
+
+/** Pane behavior is declared by the resolved contribution. */
+export function getEditorProviderPolicy(document: EditorDocument) {
+  return resolveEditorViewer(document).viewer.providerPolicy!;
+}

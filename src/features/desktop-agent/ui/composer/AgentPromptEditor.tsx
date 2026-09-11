@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
+import { subscribeTypographyChanges, useEditorAppearanceRevision } from "@puppyone/shared-ui";
 import { defaultKeymap, history, historyKeymap, insertNewlineAndIndent } from "@codemirror/commands";
 import { Compartment, EditorState, Prec, StateEffect, StateField } from "@codemirror/state";
 import {
@@ -102,6 +103,7 @@ export function AgentPromptEditor({
   onSubmit,
 }: AgentPromptEditorProps) {
   const hostRef = useRef<HTMLDivElement>(null);
+  const appearanceRevision = useEditorAppearanceRevision();
   const viewRef = useRef<EditorView | null>(null);
   const editableCompartmentRef = useRef(new Compartment());
   const placeholderCompartmentRef = useRef(new Compartment());
@@ -172,15 +174,21 @@ export function AgentPromptEditor({
       ],
     });
     const view = new EditorView({ state, parent: host });
+    const unsubscribeTypography = subscribeTypographyChanges(host.ownerDocument, () => view.requestMeasure());
     viewRef.current = view;
     view.dispatch({ effects: replaceMentionDecorations.of(referenceDecorations(value, mentions, references)) });
     return () => {
+      unsubscribeTypography();
       viewRef.current = null;
       view.destroy();
     };
   // The editor instance is deliberately stable; controlled changes are synced below.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useLayoutEffect(() => {
+    viewRef.current?.requestMeasure();
+  }, [appearanceRevision]);
 
   useEffect(() => {
     const view = viewRef.current;

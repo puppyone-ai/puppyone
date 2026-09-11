@@ -1,50 +1,27 @@
-import { useLayoutEffect, type RefObject } from "react";
-import { subscribeTypographyChanges } from "@puppyone/shared-ui";
-
-type TerminalAppearanceRegistry = Readonly<{
-  applyAppearance: () => void;
-}>;
+import { useLayoutEffect } from "react";
+import { subscribeTypographyChanges, useEditorAppearanceRevision } from "@puppyone/shared-ui";
+import type { TerminalAppearance } from "./terminalAppearance";
+import type { TerminalRuntimeHandle } from "./terminalRuntime";
 
 export function useTerminalAppearanceSync(
-  panelRef: RefObject<HTMLElement | null>,
-  runtimeRegistry: TerminalAppearanceRegistry,
+  runtime: TerminalRuntimeHandle,
+  readAppearance: () => TerminalAppearance,
 ) {
+  const revision = useEditorAppearanceRevision();
   useLayoutEffect(() => {
     let disposed = false;
     const applyAppearance = () => {
-      if (!disposed) runtimeRegistry.applyAppearance();
+      if (!disposed) runtime.applyAppearance(readAppearance());
     };
-    const shell = panelRef.current?.closest(".app-shell");
-    applyAppearance();
-
-    const shellObserver = shell ? new MutationObserver(applyAppearance) : null;
-    shellObserver?.observe(shell as Element, {
-      attributes: true,
-      attributeFilter: [
-        "class",
-        "style",
-        "data-theme-mode",
-        "data-sub-theme-id",
-        "data-light-theme-preset",
-        "data-dark-theme-preset",
-        "data-font-terminal",
-      ],
-    });
-    const styleObserver = new MutationObserver(applyAppearance);
-    styleObserver.observe(document.head, {
-      attributes: true,
-      childList: true,
-      subtree: true,
-      attributeFilter: ["href", "style"],
-    });
+    // Parent layout effects publish window skin attributes. Read after the
+    // complete commit, before paint, rather than observing intermediate DOM.
+    queueMicrotask(applyAppearance);
     const unsubscribeTypography = subscribeTypographyChanges(document, applyAppearance);
     void document.fonts?.ready.then(applyAppearance);
 
     return () => {
       disposed = true;
-      shellObserver?.disconnect();
-      styleObserver.disconnect();
       unsubscribeTypography();
     };
-  }, [panelRef, runtimeRegistry]);
+  }, [revision, runtime, readAppearance]);
 }

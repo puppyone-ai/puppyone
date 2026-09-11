@@ -31,9 +31,11 @@ export function readStoredEditorWorkbench(
   legacyWorkbenchStorageKey: string | null,
   legacyGroupStorageKey: string | null,
   rootUri: ResourceUri | null = null,
+  previousCompositionStorageKey: string | null = null,
 ): DesktopEditorWorkbenchState {
   try {
     const raw = window.localStorage.getItem(storageKey)
+      ?? (previousCompositionStorageKey ? window.localStorage.getItem(previousCompositionStorageKey) : null)
       ?? (legacyWorkbenchStorageKey ? window.localStorage.getItem(legacyWorkbenchStorageKey) : null);
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<DesktopEditorWorkbenchState>;

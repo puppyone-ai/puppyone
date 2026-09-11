@@ -1,6 +1,6 @@
+@layer features {
 .desktop-terminal-subheader {
   --desktop-terminal-header-gap: 3px;
-  --desktop-terminal-tab-activation-motion: 220ms;
   --desktop-terminal-tab-control-height: 28px;
   --desktop-terminal-tab-width: 144px;
 
@@ -10,7 +10,7 @@
   padding: 4px 6px var(--desktop-terminal-tab-bar-padding-end, 6px);
   box-sizing: border-box;
   border-block-end: var(--desktop-terminal-tab-bar-divider, 0);
-  background: var(--desktop-terminal-tab-bar-background, var(--po-terminal-bg));
+  background: var(--desktop-terminal-tab-bar-background, var(--po-surface-auxiliary));
   color: var(--po-text-muted);
 }
 
@@ -24,7 +24,9 @@
 }
 
 .desktop-terminal-tab-rail {
-  display: flex;
+  position: relative;
+  display: block;
+  height: var(--desktop-terminal-tab-control-height);
   min-width: 0;
   flex: 1 1 auto;
   align-items: center;
@@ -33,14 +35,11 @@
 }
 
 .desktop-terminal-tabs {
-  --desktop-terminal-tabs-resolved-width: 0px;
-
   position: relative;
   display: block;
   width: var(--desktop-terminal-tabs-resolved-width);
   height: var(--desktop-terminal-tab-control-height);
   min-width: 0;
-  flex: 0 0 var(--desktop-terminal-tabs-resolved-width);
   overflow: hidden;
 }
 
@@ -96,18 +95,31 @@
   pointer-events: none;
 }
 
-.desktop-terminal-tab-rail[data-activation-motion="true"] .desktop-terminal-tab {
-  will-change: inset-inline-start, width;
+.desktop-terminal-tab-rail[data-layout-motion="true"] .desktop-terminal-tab {
   transition:
-    inset-inline-start var(--desktop-terminal-tab-activation-motion) cubic-bezier(0.2, 0, 0, 1),
-    width var(--desktop-terminal-tab-activation-motion) cubic-bezier(0.2, 0, 0, 1),
+    opacity 120ms ease,
     border-color 120ms ease,
     background-color 120ms ease,
     color 120ms ease;
 }
 
-.desktop-terminal-tab-rail[data-activation-motion="true"] .desktop-terminal-tab-title {
+.desktop-terminal-tab-rail[data-layout-motion="true"] :is(.desktop-terminal-tab-title, .desktop-terminal-tab-status) {
   transition: opacity 120ms ease;
+}
+
+.desktop-terminal-tab-rail[data-layout-motion="true"] :is(.desktop-terminal-new-button, .desktop-terminal-tab-overflow-wrap) {
+  transition:
+    opacity 120ms ease, background-color 100ms ease, color 100ms ease;
+}
+
+@starting-style {
+  .desktop-terminal-tab-rail[data-layout-motion="true"] .desktop-terminal-tab {
+    opacity: 0;
+  }
+
+  .desktop-terminal-tab-rail[data-layout-motion="true"] :is(.desktop-terminal-tab-title, .desktop-terminal-tab-status, .desktop-terminal-tab-overflow-wrap) {
+    opacity: 0;
+  }
 }
 
 .desktop-terminal-tab.is-active {
@@ -211,7 +223,7 @@
   inset-block-end: -1px;
   width: 5px;
   height: 5px;
-  border: 1px solid var(--po-terminal-bg);
+  border: 1px solid var(--po-surface-auxiliary);
   border-radius: 50%;
   background: var(--po-accent);
 }
@@ -301,7 +313,11 @@
 }
 
 .desktop-terminal-tab-overflow-wrap {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: calc(var(--desktop-terminal-tabs-resolved-width) + var(--desktop-terminal-header-gap));
   display: flex;
+  overflow: hidden;
   width: var(--desktop-terminal-tab-control-height);
   height: var(--desktop-terminal-tab-control-height);
   flex: 0 0 var(--desktop-terminal-tab-control-height);
@@ -369,6 +385,12 @@
 }
 
 .desktop-terminal-new-button {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: var(--desktop-terminal-new-inline-start);
+  box-sizing: border-box;
+  min-width: var(--desktop-terminal-tab-control-height);
+  max-width: var(--desktop-terminal-tab-control-height);
   width: var(--desktop-terminal-tab-control-height);
   height: var(--desktop-terminal-tab-control-height);
   flex: 0 0 var(--desktop-terminal-tab-control-height);
@@ -392,11 +414,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .desktop-terminal-tab-rail[data-activation-motion="true"] .desktop-terminal-tab,
-  .desktop-terminal-tab-rail[data-activation-motion="true"] .desktop-terminal-tab-title,
+  .desktop-terminal-tab-rail[data-layout-motion="true"] :is(.desktop-terminal-tab, .desktop-terminal-tab-title, .desktop-terminal-tab-status, .desktop-terminal-tabs, .desktop-terminal-new-button, .desktop-terminal-tab-overflow-wrap),
   .desktop-terminal-tab-rail[data-tab-dragging="true"] .desktop-terminal-tab,
   .desktop-terminal-tab-rail[data-tab-insertion="true"] .desktop-terminal-tab-drop-slot {
     transition: none;
   }
 }
 /* Shared Workbench tab chrome. Selectors remain stable for theme overrides. */
+}

@@ -55,6 +55,14 @@ function parseRoutingRegions(value) {
     ) {
       return null;
     }
+    if (candidate.id !== undefined) {
+      if (!Number.isSafeInteger(candidate.id) || candidate.id <= 0) return null;
+      region.id = candidate.id;
+    }
+    if (candidate.cursor !== undefined) {
+      if (!["col-resize", "row-resize"].includes(candidate.cursor)) return null;
+      region.cursor = candidate.cursor;
+    }
     regions.push(region);
   }
   return regions;

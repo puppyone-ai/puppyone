@@ -231,7 +231,7 @@ for (const relativePath of [
     errors.push(`${relativePath} still routes the Editor through a removed third grid column`);
   }
   for (const token of [
-    "inset-inline-start: var(--data-explorer-width",
+    "inset-inline-start: calc(var(--data-explorer-width",
     "inset-inline-end: auto",
     "background: transparent",
   ]) {

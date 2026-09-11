@@ -1,6 +1,6 @@
 "use client";
 
-import { Annotation, Compartment, EditorState, type Extension } from "@codemirror/state";
+import { Compartment, EditorState, type Extension } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocalization } from "@puppyone/localization/react";
@@ -26,7 +26,6 @@ import {
 } from "../registry/viewerTypes";
 import type {
   EditorSourceRevision,
-  EditorSourceSnapshot,
   EditorSourceSnapshotPort,
 } from "../sourceSnapshot";
 import { getRendererPerformanceTracker } from "../../performance/rendererPerformance";
@@ -41,6 +40,8 @@ import { bindMarkdownFormatHotkeys } from "./core/commands/markdownFormatHotkeys
 import { CodeMirrorFindAdapter } from "../find/codeMirrorFindAdapter";
 import { useRegisterEditorFindAdapter } from "../find/editorFind";
 import { useEditorAppearanceRevision } from "../../core/appearance/EditorAppearanceContext";
+import { useDocumentModelOwner } from "../document-session/DocumentModelOwner";
+import { CodeMirrorDocumentModel, externalDocumentUpdate } from "../document-session/CodeMirrorDocumentModel";
 
 const rendererPerformance = getRendererPerformanceTracker();
 
@@ -69,7 +70,6 @@ export type MarkdownCodeMirrorEditorProps = {
   onPreviewError?: (error: Error) => void;
 };
 
-const externalDocumentUpdate = Annotation.define<boolean>();
 const PREVIEW_PENDING_MESSAGE_DELAY_MS = 150;
 
 export type MarkdownPreviewPresentationState = "source" | "pending" | "ready" | "error";
@@ -131,6 +131,8 @@ export function MarkdownCodeMirrorEditor({
   const initialLocalizationRef = useRef(localization);
   const findAdapter = useMemo(() => new CodeMirrorFindAdapter(), []);
   const hostRef = useRef<HTMLDivElement | null>(null);
+  const modelOwner = useDocumentModelOwner();
+  const modelRef = useRef<CodeMirrorDocumentModel | null>(null);
   const viewRef = useRef<EditorView | null>(null);
   const externalValueRef = useRef(value);
   const documentPathRef = useRef(documentPath);
@@ -223,17 +225,22 @@ export function MarkdownCodeMirrorEditor({
     return () => window.clearTimeout(timeoutId);
   }, [previewState]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const host = hostRef.current;
     if (!host) return undefined;
     const initialConfig = initialEditorConfigRef.current;
+    const model = modelOwner?.getOrCreate("codemirror-markdown", () => new CodeMirrorDocumentModel(initialConfig.value, getDocRevision))
+      ?? new CodeMirrorDocumentModel(initialConfig.value, getDocRevision);
+    modelOwner?.activate(model);
+    modelRef.current = model;
 
     const editorCreateStartedAt = performance.now();
     const view = new EditorView({
+      scrollTo: model.getScrollSnapshot(),
       parent: host,
       dispatchTransactions: (transactions, targetView) => {
         const startedAt = performance.now();
-        targetView.update(transactions);
+        model.acceptTransactions(transactions, targetView);
         if (transactions.some((transaction) => (
           transaction.docChanged
           && !transaction.annotation(externalDocumentUpdate)
@@ -241,10 +248,8 @@ export function MarkdownCodeMirrorEditor({
           rendererPerformance.recordInputTransaction(performance.now() - startedAt);
         }
       },
-      state: EditorState.create({
-        doc: initialConfig.value,
-        extensions: [
-          ...markdownCodeMirrorUrgentExtensions(initialConfig.readOnly),
+      state: model.createViewState([
+          ...markdownCodeMirrorUrgentExtensions(initialConfig.readOnly, false),
           findAdapter.extension,
           localizationCompartmentRef.current.of(
             markdownLocalizationExtension(initialLocalizationRef.current, initialConfig.readOnly),
@@ -266,9 +271,9 @@ export function MarkdownCodeMirrorEditor({
               callbacksRef.current.onChange(update.state.doc.toString());
             }
           }),
-        ],
-      }),
+        ]),
     });
+    model.attachView(view);
     view.scrollDOM.dataset.poScrollbar = "content";
     rendererPerformance.recordOperation(
       "editor_base_create",
@@ -282,15 +287,14 @@ export function MarkdownCodeMirrorEditor({
       view.requestMeasure();
     });
     const snapshotPort: EditorSourceSnapshotPort = {
-      readSnapshot: () => readEditorSnapshot(view),
+      retainedSource: model,
+      prepareDetach: model.prepareDetach,
+      setInputEnabled: model.setInputEnabled,
+      readSnapshot: model.readSnapshot,
       replaceContent: (content) => {
         externalValueRef.current = content;
-        view.dispatch({
-          changes: { from: 0, to: view.state.doc.length, insert: content },
-          effects: markdownRevealedSourceEffect.of(null),
-          annotations: externalDocumentUpdate.of(true),
-        });
-        return readEditorSnapshot(view);
+        const snapshot = model.replaceContentWithEffects(content, [markdownRevealedSourceEffect.of(null)]);
+        return snapshot;
       },
     };
     callbacksRef.current.onSnapshotPortChange?.(snapshotPort);
@@ -313,14 +317,17 @@ export function MarkdownCodeMirrorEditor({
       callbacksRef.current.onSnapshotPortChange?.(null);
       const destroyStartedAt = performance.now();
       findAdapter.dispose();
+      model.detachView(view);
       view.destroy();
       rendererPerformance.recordOperation(
         "editor_destroy",
         performance.now() - destroyStartedAt,
       );
       viewRef.current = null;
+      modelRef.current = null;
+      if (!modelOwner) model.dispose();
     };
-  }, [findAdapter]);
+  }, [findAdapter, modelOwner]);
 
   useEffect(() => {
     const view = viewRef.current;
@@ -555,11 +562,7 @@ export function MarkdownCodeMirrorEditor({
       view.state.doc.length === value.length
       && view.state.doc.toString() === value
     ) return;
-    view.dispatch({
-      changes: { from: 0, to: view.state.doc.length, insert: value },
-      effects: markdownRevealedSourceEffect.of(null),
-      annotations: externalDocumentUpdate.of(true),
-    });
+    modelRef.current?.replaceContentWithEffects(value, [markdownRevealedSourceEffect.of(null)]);
     callbacksRef.current.onSourceRevisionChange?.({
       revision: getDocRevision(view.state.doc),
       origin: "model-initialization",
@@ -602,13 +605,6 @@ export function MarkdownCodeMirrorEditor({
       </span>
     </>
   );
-}
-
-function readEditorSnapshot(view: EditorView): EditorSourceSnapshot {
-  return {
-    content: view.state.doc.toString(),
-    revision: getDocRevision(view.state.doc),
-  };
 }
 
 function getEditableExtensions(readOnly: boolean): Extension[] {

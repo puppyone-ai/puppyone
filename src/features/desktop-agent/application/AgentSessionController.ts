@@ -140,7 +140,7 @@ export class AgentSessionController {
   };
 
   /** Releases renderer subscriptions only; it never sends a runtime stop. */
-  dispose() {
+  dispose({ preserveDraft = false } = {}) {
     if (this.disposed) return;
     this.disposed = true;
     this.submission.dispose();
@@ -148,7 +148,7 @@ export class AgentSessionController {
     this.sessionReplica.dispose();
     this.localConnectionLoader.dispose();
     this.sessionUi.clear();
-    void this.referenceDrafts.revoke([
+    if (!preserveDraft) void this.referenceDrafts.revoke([
       ...this.state.references,
       ...(this.state.pendingIntent?.references ?? []),
     ]);
@@ -163,6 +163,28 @@ export class AgentSessionController {
   /** Discover the runtime catalog without implicitly restoring any conversation. */
   async inspectRuntimes(refresh = false) {
     return this.initializeRuntime(refresh, false);
+  }
+
+  /** Rebuilds only the display replica; never creates/resumes a native session. */
+  async attachLiveSession(sessionId: string, runtimeId: string) {
+    await this.initializeForRuntime(runtimeId);
+    this.sessionReplica.connect();
+    const snapshot = await this.sessionReplica.attachSession(sessionId);
+    if (!snapshot) throw new Error("The live Agent session is unavailable for display recovery.");
+    this.applySnapshotState(snapshot);
+    await this.sessionReplica.activateSessionFeed(sessionId);
+  }
+
+  exportDisplayDraft() {
+    return { text: this.state.draft, mentions: this.state.draftMentions,
+      references: this.state.references.filter((reference) => reference.status === "ready"),
+      referenceEpoch: this.referenceDrafts.referenceEpoch };
+  }
+
+  restoreDisplayDraft(draft: ReturnType<AgentSessionController["exportDisplayDraft"]>) {
+    this.referenceDrafts.restoreEpoch(draft.referenceEpoch);
+    this.setDraftDocument(draft.text, draft.mentions);
+    this.patch({ references: draft.references });
   }
 
   /** Selects a creation recipe before first discovery without restoring history. */
@@ -329,7 +351,12 @@ export class AgentSessionController {
         return;
       }
       this.patch({ phase: "restoring" });
-      const restored = await bridge.resumeAgentSession({ rootPath: this.workspaceRoot, runtimeId });
+      const sessionId = this.state.session?.id;
+      const restored = await bridge.resumeAgentSession({
+        rootPath: this.workspaceRoot, runtimeId,
+        ...(sessionId ? { sessionId } : {}),
+      });
+      if (sessionId && !restored) throw new Error("This Agent conversation is no longer available. Start a new conversation to continue.");
       if (restored) await this.applySnapshot(restored);
       this.patch({
         phase: restored?.session.activeTurnId ? "running" : "ready",

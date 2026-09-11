@@ -488,7 +488,8 @@ describe("Interface style registry", () => {
     const terminalSession = source(
       "src/features/desktop-terminal/ui/TerminalSessionView.tsx",
     );
-    const terminalCss = source("src/features/desktop-terminal/ui/desktop-terminal.css");
+    const terminalCss = source("src/features/desktop-terminal/ui/styles/terminal-surface.css")
+      + source("src/features/desktop-terminal/ui/styles/xterm-adapter.css");
     const fallbackArrows = ["up", "down", "left", "right"].map((direction) => (
       source(`src/styles/interfaces/windows-xp/assets/scrollbar-${direction}.svg`)
     ));

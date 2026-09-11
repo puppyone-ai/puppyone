@@ -5,6 +5,7 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
+  useRef,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from "react";
@@ -17,6 +18,7 @@ import { EditableDocumentSourceProvider } from "./EditableDocumentSourceContext"
 import { formatDocumentSessionError } from "./formatDocumentSessionError";
 import type { DocumentPersistedCommit } from "./types";
 import { useDocumentSessionState } from "./useDocumentSessionState";
+import { DocumentModelProvider } from "./DocumentModelOwner";
 
 export type DocumentSessionBoundaryProps = {
   documentId: string;
@@ -56,6 +58,17 @@ export function DocumentSessionBoundary({
   }, [documentId, persistence]);
   binding.onPersistedRef.current = onPersisted;
   const { session } = binding;
+  const element = useRef<HTMLDivElement>(null);
+  const composing = useRef(false);
+  useLayoutEffect(() => session.registerView({
+    prepare: () => {
+      if (!composing.current) return;
+      const active = element.current?.ownerDocument.activeElement;
+      if (active instanceof HTMLElement && element.current?.contains(active)) active.blur();
+      if (composing.current) throw new Error("Finish the current text composition before closing this document.");
+    },
+    setInputEnabled: (enabled) => element.current?.toggleAttribute("inert", !enabled),
+  }), [session]);
   const sessionState = useDocumentSessionState(session);
   const sessionError = formatDocumentSessionError(sessionState.error, t);
 
@@ -87,8 +100,11 @@ export function DocumentSessionBoundary({
   }, [save]);
 
   return (
+    <DocumentModelProvider owner={binding.models}>
     <EditableDocumentSourceProvider source={session}>
-      <div className="editor-document-session-boundary" onKeyDownCapture={handleKeyDown}>
+      <div ref={element} className="editor-document-session-boundary" onKeyDownCapture={handleKeyDown}
+        onCompositionStartCapture={() => { composing.current = true; }}
+        onCompositionEndCapture={() => { composing.current = false; }}>
         {showSaveChrome && (
           <div className="editor-save-overlay">
             <EditorSaveButton
@@ -106,6 +122,7 @@ export function DocumentSessionBoundary({
         {children}
       </div>
     </EditableDocumentSourceProvider>
+    </DocumentModelProvider>
   );
 }
 

@@ -8,6 +8,7 @@ import { registerWorkspaceFileIpcHandlers } from "../electron/main/ipc/workspace
 import { createLocalFileCapabilityStore } from "../electron/main/local-file-capabilities.mjs";
 import { parseLocalFileUrl } from "../electron/main/local-file-protocol.mjs";
 import { createSenderWorkspaceAuthorization } from "../electron/main/workspace-authorization.mjs";
+import * as editReview from "../local-api/edit-review.mjs";
 
 let root;
 let otherRoot;
@@ -23,6 +24,37 @@ afterEach(async () => {
 });
 
 describe("workspace file IPC authorization", () => {
+  it.each([
+    ["workspace:rename-entry", { path: "note.txt", nextName: "renamed.txt" }],
+    ["workspace:move-entry", { fromPath: "note.txt", toPath: "moved.txt" }],
+    ["workspace:delete-entry", { path: "note.txt" }],
+  ])("does not mutate disk through %s until native editor exit is confirmed", async (channel, request) => {
+    const retireEditorSurfacesForResource = vi.fn().mockRejectedValue(new Error("Native editor exit is unconfirmed"));
+    const { handlers } = createHarness(() => root, { retireEditorSurfacesForResource });
+    await writeFile(path.join(root, "note.txt"), "preserve me");
+    await expect(handlers.get(channel)({ sender: { id: 8 } }, { rootPath: root, ...request }))
+      .rejects.toThrow("Native editor exit is unconfirmed");
+    expect(retireEditorSurfacesForResource).toHaveBeenCalledWith(8, path.join(await fs.promises.realpath(root), "note.txt"));
+    expect(await readFile(path.join(root, "note.txt"), "utf8")).toBe("preserve me");
+  });
+
+  it("acknowledges a committed save and rename even if review bookkeeping fails", async () => {
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const review = vi.spyOn(editReview, "absorbWorkspaceEditReviewPath").mockRejectedValue(new Error("review unavailable"));
+    try {
+      const { handlers } = createHarness(() => root);
+      const event = { sender: { id: 8 } };
+      await writeFile(path.join(root, "note.txt"), "one");
+      const input = await handlers.get("workspace:read-file")(event, { rootPath: root, path: "note.txt" });
+      const saved = await handlers.get("workspace:write-file")(event, { rootPath: root, path: "note.txt", content: "two", expectedVersion: input.version });
+      expect(saved.ok).toBe(true);
+      const renamed = await handlers.get("workspace:rename-entry")(event, { rootPath: root, path: "note.txt", nextName: "renamed.txt" });
+      expect(renamed.path).toBe("renamed.txt");
+      expect(await readFile(path.join(root, "renamed.txt"), "utf8")).toBe("two");
+      expect(warning).toHaveBeenCalled();
+    } finally { warning.mockRestore(); review.mockRestore(); }
+  });
+
   it("rejects a spoofed renderer root for every workspace file handler", async () => {
     const { handlers } = createHarness(() => root);
     const event = { sender: { id: 7 } };
@@ -51,6 +83,17 @@ describe("workspace file IPC authorization", () => {
 
     expect(await readFile(path.join(otherRoot, "secret.txt"), "utf8")).toBe("secret");
     await expect(readFile(path.join(otherRoot, "new.txt"), "utf8")).rejects.toThrow();
+  });
+
+  it("issues a matching immutable HTML snapshot and rejects a stale text version", async () => {
+    const { handlers, localFileCapabilities } = createHarness(() => root);
+    const event = { sender: { id: 8 } };
+    await writeFile(path.join(root, "page.html"), "<h1>one</h1>");
+    const input = await handlers.get("workspace:read-file")(event, { rootPath: root, path: "page.html" });
+    const { url } = await handlers.get("workspace:get-file-url")(event, { rootPath: root, path: "page.html", expectedVersion: input.version });
+    await writeFile(path.join(root, "page.html"), "<h1>two</h1>");
+    expect(localFileCapabilities.resolve(parseLocalFileUrl(url)).snapshot.bytes.toString()).toBe(input.content);
+    await expect(handlers.get("workspace:get-file-url")(event, { rootPath: root, path: "page.html", expectedVersion: input.version })).rejects.toThrow(/version changed/i);
   });
 
   it("uses the sender workspace and accepts a renderer root that resolves to the same directory", async () => {
@@ -439,7 +482,7 @@ describe("workspace file IPC authorization", () => {
 
 function createHarness(
   getWorkspaceRootForSender,
-  { convertOfficeDocument, dialog, gitMetadataWatchService, workspaceWatchService } = {},
+  { convertOfficeDocument, dialog, gitMetadataWatchService, workspaceWatchService, retireEditorSurfacesForResource } = {},
 ) {
   const handlers = new Map();
   const ipcMain = {
@@ -469,6 +512,7 @@ function createHarness(
     gitMetadataWatchService,
     workspaceWatchService,
     convertOfficeDocument,
+    retireEditorSurfacesForResource,
   });
 
   return { handlers, shell, localFileCapabilities };

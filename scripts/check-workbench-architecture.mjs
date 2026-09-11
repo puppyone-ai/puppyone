@@ -59,3 +59,4 @@ if (errors.length) {
   process.exit(1);
 }
 console.log("Shared Workbench chrome and brand dependency check passed.");
+import "./check-item-host-architecture.mjs";

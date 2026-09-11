@@ -10,6 +10,7 @@ import {
   isNativeSurfaceLayoutStable,
   measureNativeSurfaceBounds,
   subscribeNativeSurfaceLayoutActivity,
+  subscribeNativeSurfaceLayoutFrames,
 } from "../src/features/native-surfaces/nativeSurfaceGeometry";
 import { useNativeSurfaceGeometry } from "../src/features/native-surfaces/useNativeSurfaceGeometry";
 import { useNativeSurfaceLayoutTransition } from "../src/features/native-surfaces/useNativeSurfaceLayoutTransition";
@@ -80,20 +81,21 @@ describe("native surface geometry authority", () => {
     expect(isNativeSurfaceElementVisible(element)).toBe(false);
   });
 
-  it("publishes a hidden revision while layout is unstable and a final visible revision", () => {
+  it("keeps visible geometry live across position-only changes and settles without an idle loop", () => {
     vi.spyOn(window, "innerWidth", "get").mockReturnValue(1_000);
     vi.spyOn(window, "innerHeight", "get").mockReturnValue(700);
-    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
-      x: 20,
+    let left = 20;
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(() => ({
+      x: left,
       y: 30,
-      left: 20,
+      left,
       top: 30,
-      right: 820,
+      right: left + 800,
       bottom: 630,
       width: 800,
       height: 600,
       toJSON: () => ({}),
-    });
+    }));
     const frames: FrameRequestCallback[] = [];
     vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
       frames.push(callback);
@@ -116,11 +118,54 @@ describe("native surface geometry authority", () => {
 
     const lease = acquireNativeSurfaceLayoutLease("sidebar");
     act(() => flushAnimationFrames(frames));
-    expect(geometries.at(-1)).toMatchObject({ revision: 2, visible: false });
-
-    lease.release();
+    expect(geometries.at(-1)).toMatchObject({ revision: 1, visible: true });
+    left = 80; // No ResizeObserver event: the slot only moved.
     act(() => flushAnimationFrames(frames));
-    expect(geometries.at(-1)).toMatchObject({ revision: 3, visible: true });
+    expect(geometries.at(-1)).toMatchObject({ revision: 2, visible: true, bounds: { x: 80 } });
+    lease.release();
+    left = 100; // Final React commit can land after lease release.
+    act(() => flushAnimationFrames(frames));
+    act(() => flushAnimationFrames(frames));
+    expect(geometries.at(-1)).toMatchObject({ revision: 3, visible: true, bounds: { x: 100 } });
+    expect(frames).toHaveLength(0);
+  });
+
+  it("clips native content inside nested borders and rounds inward at fractional edges", () => {
+    const frame = document.createElement("aside");
+    frame.style.cssText = "overflow: hidden; border: 1px solid black";
+    const slot = document.createElement("div");
+    frame.append(slot); document.body.append(frame);
+    vi.spyOn(frame, "getBoundingClientRect").mockReturnValue(new DOMRect(100.25, 20.25, 320, 500));
+    vi.spyOn(slot, "getBoundingClientRect").mockReturnValue(new DOMRect(100, 30, 330, 510));
+    expect(measureNativeSurfaceBounds(slot)).toEqual({ x: 102, y: 30, width: 317, height: 489 });
+    vi.spyOn(frame, "getBoundingClientRect").mockReturnValue(new DOMRect(100, 20, 0, 500));
+    expect(isNativeSurfaceElementVisible(slot)).toBe(false);
+  });
+
+  it("scopes transition suspension while sharing one layout frame across consumers", () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation(callback => frames.push(callback));
+    const first = vi.fn(); const second = vi.fn();
+    const unsubscribeFirst = subscribeNativeSurfaceLayoutFrames(first);
+    const unsubscribeSecond = subscribeNativeSurfaceLayoutFrames(second);
+    const panel = document.createElement("aside");
+    const inside = document.createElement("div");
+    const outside = document.createElement("div");
+    panel.append(inside); document.body.append(panel, outside);
+    for (const slot of [inside, outside]) vi.spyOn(slot, "getBoundingClientRect").mockReturnValue(new DOMRect(20, 20, 100, 100));
+    const resize = acquireNativeSurfaceLayoutLease("explorer-resize");
+    const transition = acquireNativeSurfaceLayoutLease("right-enter", { suspendWithin: panel });
+    expect(frames).toHaveLength(1);
+    expect(isNativeSurfaceElementVisible(inside)).toBe(false);
+    expect(isNativeSurfaceElementVisible(outside)).toBe(true);
+    flushAnimationFrames(frames);
+    expect(first).toHaveBeenCalledTimes(1); expect(second).toHaveBeenCalledTimes(1);
+    expect(frames).toHaveLength(1);
+    transition.release();
+    expect(isNativeSurfaceElementVisible(inside)).toBe(true);
+    resize.release(); flushAnimationFrames(frames); flushAnimationFrames(frames);
+    expect(frames).toHaveLength(0);
+    unsubscribeFirst(); unsubscribeSecond();
   });
 
   it("holds a sidebar transition lease until the final reconciliation frame", () => {
@@ -155,6 +200,10 @@ describe("native surface geometry authority", () => {
       expect(isNativeSurfaceLayoutStable()).toBe(true);
 
       act(() => setOpen?.(false));
+      // Chromium can omit transitionend after a style replacement.
+      const run = new Event("transitionrun");
+      Object.defineProperty(run, "propertyName", { value: "width" });
+      container.querySelector("aside")!.dispatchEvent(run);
       expect(isNativeSurfaceLayoutStable()).toBe(false);
       act(() => flushAnimationFrames(frames));
       expect(isNativeSurfaceLayoutStable()).toBe(false);

@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import type { DragEvent as ReactDragEvent, KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 import { bidiIsolate, type MessageFormatter } from "@puppyone/localization/core";
@@ -22,7 +22,7 @@ import {
   type PuppyFlowDocument,
   type PuppyFlowStep,
 } from "./puppyflowModel";
-import { useEditableDocumentSource } from "../../document-session/EditableDocumentSourceContext";
+import { useStructuredDocumentModel } from "../../document-session/useStructuredDocumentModel";
 import type { PresetViewerRenderContext } from "../../registry/viewerTypes";
 import { AgentBrandImage } from "../../../brand/AgentBrandImage";
 import { resolveAgentBrand } from "../../../core/agentBrandCatalog";
@@ -44,7 +44,6 @@ export function PuppyFlowViewer({
   workspaceRoot,
 }: PuppyFlowViewerProps) {
   const { t } = useLocalization();
-  const editingSource = useEditableDocumentSource();
   const fallbackTitle = getTitleFromFilename(
     sourceDocument.name,
     t("editor.puppyflow.untitledFlow"),
@@ -56,12 +55,19 @@ export function PuppyFlowViewer({
       t("editor.puppyflow.defaultPrompt.apply"),
     ] as const,
   }), [fallbackTitle, t]);
-  const parsed = useMemo(
-    () => parsePuppyFlowDocument(sourceContent, defaults),
-    [defaults, sourceContent],
-  );
-  const [document, setDocument] = useState<PuppyFlowDocument>(parsed.document);
-  const [parseError, setParseError] = useState<string | null>(parsed.ok ? null : parsed.error);
+  const { model, state, edit, onHistoryKeyDown } = useStructuredDocumentModel({
+    kind: "puppyflow",
+    documentId: sourceDocument.path,
+    content: sourceContent,
+    canEdit,
+    parse: (content) => {
+      const parsed = parsePuppyFlowDocument(content, defaults);
+      return { document: parsed.document, error: parsed.ok ? null : parsed.error };
+    },
+    serialize: serializePuppyFlowDocument,
+  });
+  const document = state.document;
+  const parseError = state.error;
   const [runMessage, setRunMessage] = useState<"no-enabled-prompts" | null>(null);
   const [draggedStepId, setDraggedStepId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<StepDropTarget>(null);
@@ -70,79 +76,14 @@ export function PuppyFlowViewer({
   const workdirTitle = workdirPath
     ? t("editor.puppyflow.workdir", { path: bidiIsolate(workdirPath) })
     : t("editor.puppyflow.workspaceSandbox");
-  const latestDocumentRef = useRef<PuppyFlowDocument>(parsed.document);
-  const sourceContentRef = useRef(sourceContent);
-  const documentPathRef = useRef(sourceDocument.path);
-  const revisionCounterRef = useRef(0);
-  const revisionRef = useRef(createPuppyFlowRevision(sourceDocument.path, 0));
   const draggedStepIdRef = useRef<string | null>(null);
-
-  useLayoutEffect(() => {
-    const pathChanged = documentPathRef.current !== sourceDocument.path;
-    if (!pathChanged) return;
-
-    documentPathRef.current = sourceDocument.path;
-    revisionCounterRef.current = 0;
-    revisionRef.current = createPuppyFlowRevision(sourceDocument.path, 0);
-    setDocument(parsed.document);
-    latestDocumentRef.current = parsed.document;
-    sourceContentRef.current = sourceContent;
-    setParseError(parsed.ok ? null : parsed.error);
-    setRunMessage(null);
-  }, [parsed, sourceContent, sourceDocument.path]);
-
-  useLayoutEffect(() => {
-    if (!editingSource) return undefined;
-    const source = {
-      readSnapshot: () => ({
-        content: sourceContentRef.current,
-        revision: revisionRef.current,
-      }),
-      replaceContent: (content: string) => {
-        const replacement = parsePuppyFlowDocument(content, defaults);
-        revisionCounterRef.current += 1;
-        revisionRef.current = createPuppyFlowRevision(
-          sourceDocument.path,
-          revisionCounterRef.current,
-        );
-        sourceContentRef.current = content;
-        latestDocumentRef.current = replacement.document;
-        setDocument(replacement.document);
-        setParseError(replacement.ok ? null : replacement.error);
-        setRunMessage(null);
-        return { content, revision: revisionRef.current };
-      },
-    };
-    const detach = editingSource.attachSource(source);
-    editingSource.reportRevision({
-      revision: revisionRef.current,
-      origin: "model-initialization",
-    });
-    return detach;
-  }, [defaults, editingSource, sourceDocument.path]);
-
   const applyDocumentEdit = useCallback((nextDocument: PuppyFlowDocument) => {
-    if (!canEdit) return;
-    const nextSource = serializePuppyFlowDocument(nextDocument);
-    latestDocumentRef.current = nextDocument;
-    sourceContentRef.current = nextSource;
-    setDocument(nextDocument);
-    setParseError(null);
+    edit(nextDocument);
     setRunMessage(null);
-    revisionCounterRef.current += 1;
-    revisionRef.current = createPuppyFlowRevision(
-      sourceDocument.path,
-      revisionCounterRef.current,
-    );
-    editingSource?.reportRevision({
-      revision: revisionRef.current,
-      origin: "local-edit",
-    });
-  }, [canEdit, editingSource, sourceDocument.path]);
-
+  }, [edit]);
   const updateDocument = useCallback((updater: (current: PuppyFlowDocument) => PuppyFlowDocument) => {
-    applyDocumentEdit(updater(latestDocumentRef.current));
-  }, [applyDocumentEdit]);
+    applyDocumentEdit(updater(model.getSnapshot().document));
+  }, [applyDocumentEdit, model]);
 
   const updateStep = useCallback((stepId: string, patch: Partial<PuppyFlowStep>) => {
     updateDocument((current) => ({
@@ -218,14 +159,14 @@ export function PuppyFlowViewer({
   }, []);
 
   const handleRun = useCallback(() => {
-    const compiled = compilePuppyFlowRun(latestDocumentRef.current);
+    const compiled = compilePuppyFlowRun(model.getSnapshot().document);
     if (compiled.enabledSteps === 0) {
       setRunMessage("no-enabled-prompts");
       return;
     }
 
     setRunMessage(null);
-  }, []);
+  }, [model]);
 
   const resetInvalidFile = useCallback(() => {
     const nextDocument = createDefaultPuppyFlowDocument(defaults);
@@ -233,7 +174,7 @@ export function PuppyFlowViewer({
   }, [applyDocumentEdit, defaults]);
 
   return (
-    <section className="puppyflow-editor-shell" aria-label={t("editor.puppyflow.ariaLabel")}>
+    <section className="puppyflow-editor-shell" onKeyDownCapture={onHistoryKeyDown} aria-label={t("editor.puppyflow.ariaLabel")}>
       <button className="puppyflow-run-button" type="button" onClick={handleRun}>
         <Play size={14} fill="currentColor" />
         <span>{t("editor.puppyflow.run")}</span>
@@ -482,9 +423,7 @@ function formatWorkspacePath(workspacePath?: string | null): string | null {
   return workspacePath.replace(/^\/Users\/[^/]+/, "~");
 }
 
-function createPuppyFlowRevision(documentPath: string, sequence: number): string {
-  return `puppyflow:${documentPath}:${sequence}`;
-}
+
 
 function getAgentModelLabel(agentId: PuppyFlowAgentId, t: MessageFormatter): string {
   if (agentId === "codex") return t("editor.puppyflow.agent.codexModel");

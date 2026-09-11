@@ -10,14 +10,11 @@ import { getDesktopTargetDefinition } from "../targets/target-manifest.mjs";
 import { applyLinuxBuilderConfig } from "./platforms/linux.mjs";
 import { applyMacosBuilderConfig } from "./platforms/macos.mjs";
 import { applyWindowsBuilderConfig } from "./platforms/windows.mjs";
+import { resolveDesktopAppIcon } from "../../../shared/desktop/app-icon-contract.mjs";
 
 const DEFAULT_MAC_TARGET = createDesktopTarget({ platform: "macos", arch: "arm64" });
-const APP_IMAGE_SOURCE_BY_CHANNEL = Object.freeze({
-  dev: "assets/brand/puppy/puppy-app-image-dev.png",
-  internal: "assets/brand/puppy/puppy-app-image.png",
-  stable: "assets/brand/puppy/puppy-app-image.png",
-});
 const PLATFORM_CONFIG_KEYS = Object.freeze([
+  "beforePack",
   "afterPack",
   "mac",
   "dmg",
@@ -42,7 +39,7 @@ export function createDesktopElectronBuilderConfig({
   });
   const baseBuild = structuredClone(packageMetadata?.build ?? {});
   const baseConfig = stripPlatformConfig(baseBuild);
-  const appImageSource = APP_IMAGE_SOURCE_BY_CHANNEL[release.channel];
+  const appImageSource = resolveDesktopAppIcon(release.channel).source;
   const extraResources = createManagedExtraResources({
     baseBuild,
     appImageSource,
@@ -71,7 +68,7 @@ export function createDesktopElectronBuilderConfig({
   };
 
   if (targetDefinition.platform === "macos") {
-    return applyMacosBuilderConfig({ config, baseBuild, identity, appImageSource });
+    return applyMacosBuilderConfig({ config, baseBuild, identity });
   }
   if (targetDefinition.platform === "windows") {
     return applyWindowsBuilderConfig({ config, baseBuild, identity });

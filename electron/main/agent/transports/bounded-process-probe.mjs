@@ -1,5 +1,6 @@
 import { spawn as nodeSpawn } from "node:child_process";
 import path from "node:path";
+import { reportNativeProcess } from "../../../native-process-ownership.mjs";
 
 export function runBoundedProcessProbe(executablePath, args, {
   spawn = nodeSpawn,
@@ -70,6 +71,7 @@ export function runBoundedProcessProbe(executablePath, args, {
       reject(new Error(`${label} could not start.`));
       return;
     }
+    reportNativeProcess(child);
     child.stdout?.on("data", (chunk) => { stdout = append(stdout, chunk); });
     child.stderr?.on("data", (chunk) => { stderr = append(stderr, chunk); });
     child.once?.("error", () => finish(() => reject(new Error(`${label} could not start.`))));

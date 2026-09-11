@@ -1,7 +1,7 @@
 "use client";
 
 import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
-import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
+import { defaultKeymap, historyKeymap, indentWithTab } from "@codemirror/commands";
 import {
   foldGutter,
   foldKeymap,
@@ -10,7 +10,7 @@ import {
   syntaxHighlighting,
 } from "@codemirror/language";
 import { highlightSelectionMatches } from "@codemirror/search";
-import { Annotation, Compartment, EditorState, type Extension } from "@codemirror/state";
+import { Compartment, EditorState, type Extension } from "@codemirror/state";
 import {
   crosshairCursor,
   drawSelection,
@@ -24,7 +24,7 @@ import {
   lineNumbers,
   rectangularSelection,
 } from "@codemirror/view";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { subscribeTypographyChanges } from "../../../core/typography";
 import { CodeMirrorFindAdapter } from "../../find/codeMirrorFindAdapter";
 import { useRegisterEditorFindAdapter } from "../../find/editorFind";
@@ -33,17 +33,14 @@ import { codeIndentGuides } from "./codeIndentGuides";
 import {
   loadCodeLanguageExtension,
   resolveCodeLanguageKey,
-  type CodeLanguageKey,
 } from "./codeLanguageSupport";
 import type {
   EditorSourceRevision,
-  EditorSourceSnapshot,
   EditorSourceSnapshotPort,
 } from "../../sourceSnapshot";
 
-const externalDocumentUpdate = Annotation.define<boolean>();
-const revisionByDocument = new WeakMap<object, string>();
-let documentRevisionSequence = 0;
+import { useDocumentModelOwner } from "../../document-session/DocumentModelOwner";
+import { CodeMirrorDocumentModel, externalDocumentUpdate, getCodeMirrorDocumentRevision as getCodeDocumentRevision } from "../../document-session/CodeMirrorDocumentModel";
 
 export type CodeMirrorCodeEditorProps = {
   content: string;
@@ -64,6 +61,8 @@ export function CodeMirrorCodeEditor({
   onSourceRevisionChange,
   onSnapshotPortChange,
 }: CodeMirrorCodeEditorProps) {
+  const modelOwner = useDocumentModelOwner();
+  const modelRef = useRef<CodeMirrorDocumentModel | null>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const languageCompartmentRef = useRef(new Compartment());
@@ -85,19 +84,20 @@ export function CodeMirrorCodeEditor({
     readOnlyRef.current = readOnly;
   }, [readOnly]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const host = hostRef.current;
     if (!host) return undefined;
     const initialConfig = initialEditorConfigRef.current;
 
-    const state = EditorState.create({
-      doc: initialConfig.content,
-      extensions: [
+    const model = modelOwner?.getOrCreate("codemirror-code", () => new CodeMirrorDocumentModel(initialConfig.content))
+      ?? new CodeMirrorDocumentModel(initialConfig.content);
+    modelOwner?.activate(model);
+    modelRef.current = model;
+    const state = model.createViewState([
         lineNumbers(),
         foldGutter({ openText: "⌄", closedText: "›" }),
         highlightSpecialChars(),
         highlightActiveLineGutter(),
-        history(),
         drawSelection(),
         dropCursor(),
         EditorState.allowMultipleSelections.of(true),
@@ -136,10 +136,10 @@ export function CodeMirrorCodeEditor({
         }),
         languageCompartmentRef.current.of([]),
         readOnlyCompartmentRef.current.of(getReadOnlyExtension(initialConfig.readOnly)),
-      ],
-    });
+      ]);
 
-    const view = new EditorView({ state, parent: host });
+    const view = new EditorView({ state, parent: host, scrollTo: model.getScrollSnapshot(), dispatchTransactions: (transactions, target) => model.acceptTransactions(transactions, target) });
+    model.attachView(view);
     view.scrollDOM.dataset.poScrollbar = "content";
     viewRef.current = view;
     findAdapter.attach(view);
@@ -147,11 +147,13 @@ export function CodeMirrorCodeEditor({
       view.requestMeasure();
     });
     const snapshotPort: EditorSourceSnapshotPort = {
-      readSnapshot: () => readCodeEditorSnapshot(view),
+      retainedSource: model,
+      prepareDetach: model.prepareDetach,
+      setInputEnabled: model.setInputEnabled,
+      readSnapshot: model.readSnapshot,
       replaceContent: (nextContent) => {
         externalContentRef.current = nextContent;
-        replaceEditorContent(view, nextContent);
-        return readCodeEditorSnapshot(view);
+        return model.replaceContent(nextContent);
       },
     };
     callbacksRef.current.onSnapshotPortChange?.(snapshotPort);
@@ -164,10 +166,13 @@ export function CodeMirrorCodeEditor({
       unsubscribeTypography();
       callbacksRef.current.onSnapshotPortChange?.(null);
       findAdapter.dispose();
+      model.detachView(view);
       view.destroy();
       viewRef.current = null;
+      modelRef.current = null;
+      if (!modelOwner) model.dispose();
     };
-  }, [findAdapter]);
+  }, [findAdapter, modelOwner]);
 
   useEffect(() => {
     const view = viewRef.current;
@@ -176,7 +181,7 @@ export function CodeMirrorCodeEditor({
     if (Object.is(externalContentRef.current, content)) return;
     externalContentRef.current = content;
     if (view.state.doc.length === content.length && view.state.doc.toString() === content) return;
-    replaceEditorContent(view, content);
+    modelRef.current?.replaceContent(content);
     callbacksRef.current.onSourceRevisionChange?.({
       revision: getCodeDocumentRevision(view.state.doc),
       origin: "model-initialization",
@@ -222,27 +227,4 @@ function getReadOnlyExtension(readOnly: boolean): Extension {
     EditorState.readOnly.of(readOnly),
     EditorView.editable.of(!readOnly),
   ];
-}
-
-function replaceEditorContent(view: EditorView, content: string) {
-  view.dispatch({
-    changes: { from: 0, to: view.state.doc.length, insert: content },
-    annotations: externalDocumentUpdate.of(true),
-  });
-}
-
-function readCodeEditorSnapshot(view: EditorView): EditorSourceSnapshot {
-  return {
-    content: view.state.doc.toString(),
-    revision: getCodeDocumentRevision(view.state.doc),
-  };
-}
-
-function getCodeDocumentRevision(document: object): string {
-  const existing = revisionByDocument.get(document);
-  if (existing) return existing;
-  documentRevisionSequence += 1;
-  const revision = `code-doc-revision:${documentRevisionSequence}`;
-  revisionByDocument.set(document, revision);
-  return revision;
 }

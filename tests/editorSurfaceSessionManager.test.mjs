@@ -31,7 +31,7 @@ class FakeWebContents extends EventEmitter {
   setAudioMuted(muted) { this.audioMuted = muted; }
   getOSProcessId() { return this.id + 1_000; }
   isDestroyed() { return this.destroyed; }
-  destroy() { this.destroyed = true; }
+  close() { this.destroyed = true; this.emit("destroyed"); }
   forcefullyCrashRenderer() { this.emit("render-process-gone", {}, { reason: "killed", exitCode: 137 }); }
 }
 
@@ -114,6 +114,55 @@ describe("browser-engine Editor Surface fault domain", () => {
     nextWebContentsId = 100;
     loadUrlBehavior = null;
     pdfViewerFrameAvailable = true;
+  });
+
+  it("retains the native session until WebContents confirms actual destruction", async () => {
+    const owner = new FakeOwnerWindow(7);
+    const { manager } = createHarness(owner);
+    const session = await manager.activate(request());
+    const contents = createdViews[0].webContents;
+    contents.close = vi.fn();
+    let done = false;
+    const closing = manager.destroy(session.sessionId, owner.webContents.id).then(() => { done = true; });
+    await Promise.resolve();
+    expect(done).toBe(false);
+    expect(manager.values()).toHaveLength(1);
+    contents.destroyed = true; contents.emit("destroyed");
+    await closing;
+    expect(manager.values()).toHaveLength(0);
+  });
+
+  it("enforces the native surface budget after concurrent asynchronous admissions", async () => {
+    const owner = new FakeOwnerWindow(7);
+    const { manager } = createHarness(owner);
+    const results = await Promise.allSettled(Array.from({ length: 10 }, () => manager.activate(request())));
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(8);
+    expect(createdViews).toHaveLength(8);
+    await manager.destroyAll();
+  });
+
+  it("does not allocate a surface if its owner exits during admission", async () => {
+    const owner = new FakeOwnerWindow(7);
+    let completeAdmission;
+    const { manager } = createHarness(owner, { admitResource: () => new Promise((resolve) => { completeAdmission = resolve; }) });
+    const pending = manager.activate(request());
+    owner.destroyed = true;
+    completeAdmission({ navigationUrl: "file:///workspace/reports/large.pdf" });
+    await expect(pending).rejects.toThrow("owner is unavailable");
+    expect(createdViews).toHaveLength(0);
+  });
+
+  it("keeps an unconfirmed native exit registered and allows a later retry", async () => {
+    const owner = new FakeOwnerWindow(7);
+    const { manager } = createHarness(owner);
+    const session = await manager.activate(request());
+    const contents = createdViews[0].webContents;
+    contents.close = vi.fn(() => { throw new Error("native close failed"); });
+    await expect(manager.destroy(session.sessionId, owner.webContents.id)).rejects.toThrow("native close failed");
+    expect(manager.values()).toHaveLength(1);
+    contents.close = () => { contents.destroyed = true; contents.emit("destroyed"); };
+    await manager.destroy(session.sessionId, owner.webContents.id);
+    expect(manager.values()).toHaveLength(0);
   });
 
   it("loads an admitted PDF directly in Chromium's sandboxed native viewer", async () => {
@@ -224,7 +273,7 @@ describe("browser-engine Editor Surface fault domain", () => {
     );
 
     expect(owner.destroyed).toBe(false);
-    expect(manager.values().map(({ sessionId }) => sessionId)).toEqual([second.sessionId]);
+    await vi.waitFor(() => expect(manager.values().map(({ sessionId }) => sessionId)).toEqual([second.sessionId]));
     expect(owner.children).toEqual([createdViews[1]]);
     expect(owner.webContents.sent).toContainEqual([
       "editor-surface:state",

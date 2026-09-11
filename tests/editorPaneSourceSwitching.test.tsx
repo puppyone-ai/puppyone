@@ -1,3 +1,4 @@
+import { retireAllDocumentInputs } from "../packages/shared-ui/src/editor/resource/DocumentInputRuntime";
 /** @vitest-environment happy-dom */
 import React, { act, useLayoutEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -14,6 +15,7 @@ let root: Root | null = null;
 afterEach(() => {
   act(() => root?.unmount());
   root = null;
+  retireAllDocumentInputs();
   document.body.innerHTML = "";
   vi.restoreAllMocks();
 });
@@ -90,7 +92,7 @@ describe("editor pane source switching", () => {
       contentNode: node("worker.ts", "code", "text/typescript"),
       resourceNode: node("demo.mp4", "video", "video/mp4"),
     },
-  ])("re-reads the same content source across $label", async ({ contentNode, resourceNode }) => {
+  ])("revalidates the retained document input across $label", async ({ contentNode, resourceNode }) => {
     const readFile = createReadFile();
     const dataPort = createDataPort(readFile);
     const container = createContainer();
@@ -111,7 +113,7 @@ describe("editor pane source switching", () => {
     expect(paneState(container).loading).toBe("false");
   });
 
-  it("re-reads a document after its pane becomes empty", async () => {
+  it("revalidates a retained document after its pane becomes empty", async () => {
     const readFile = createReadFile();
     const dataPort = createDataPort(readFile);
     const contentNode = node("style-list.csv", "spreadsheet", "text/csv");
@@ -194,7 +196,7 @@ describe("editor pane source switching", () => {
     expect(paneState(container, "lowerRight").contentPath).toBe(nodes.lowerRight.path);
   });
 
-  it("cancels only the pane that changes while sibling pane reads remain active", async () => {
+  it("retains open document reads while a pane switches to another document", async () => {
     const requests = new Map<string, {
       signal: AbortSignal | undefined;
       request: ReturnType<typeof deferred<FileContent>>;
@@ -218,7 +220,7 @@ describe("editor pane source switching", () => {
     await renderPanes(container, { ...first, left: replacement }, dataPort);
     await waitFor(() => requests.size === 4);
 
-    expect(requests.get(first.left.path)?.signal?.aborted).toBe(true);
+    expect(requests.get(first.left.path)?.signal?.aborted).toBe(false);
     expect(requests.get(first.upperRight.path)?.signal?.aborted).toBe(false);
     expect(requests.get(first.lowerRight.path)?.signal?.aborted).toBe(false);
     expect(requests.get(replacement.path)?.signal?.aborted).toBe(false);
@@ -236,7 +238,7 @@ describe("editor pane source switching", () => {
     ));
   });
 
-  it("aborts and ignores a stale read when one pane switches rapidly", async () => {
+  it("keeps a hidden document completion from replacing the active pane", async () => {
     const requests: Array<{
       path: string;
       signal: AbortSignal | undefined;
@@ -256,7 +258,7 @@ describe("editor pane source switching", () => {
     await waitFor(() => requests.length === 1);
     await renderSinglePane(container, second, dataPort);
     await waitFor(() => requests.length === 2);
-    expect(requests[0]!.signal?.aborted).toBe(true);
+    expect(requests[0]!.signal?.aborted).toBe(false);
 
     await act(async () => requests[1]!.request.resolve(fileContent(second)));
     await waitFor(() => paneState(container).contentPath === second.path);

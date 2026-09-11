@@ -219,6 +219,20 @@ export class HtmlBlockWidget extends WidgetType {
               return null;
             }
             activeAssetHandles.add(handle);
+            let previousUrl = handle.url;
+            handle.subscribe?.((url) => {
+              if (!isPreviewVersionCurrent(version)) return;
+              for (const element of content.querySelectorAll("[src], [srcset], [poster]")) {
+                for (const attribute of ["src", "srcset", "poster"]) {
+                  const value = element.getAttribute(attribute);
+                  if (!value?.includes(previousUrl)) continue;
+                  if (url) element.setAttribute(attribute, value.replaceAll(previousUrl, url));
+                  else element.removeAttribute(attribute);
+                }
+              }
+              previousUrl = url ?? previousUrl;
+              measure.schedule();
+            });
             return handle.url;
           });
     };

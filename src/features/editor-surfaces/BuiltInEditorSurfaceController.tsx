@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocalization } from "@puppyone/localization";
-import type { PresetViewerContribution, PresetViewerRenderContext } from "@puppyone/shared-ui";
+import { acquireEditorHostLease, useEditorTaskOwner, type PresetViewerContribution, type PresetViewerRenderContext } from "@puppyone/shared-ui";
 import { PageLoading } from "../../components/loading";
 import {
   measureNativeSurfaceBounds,
@@ -103,6 +103,7 @@ export function BuiltInEditorSurfaceController({
   const [status, setStatus] = useState<SurfaceStatus>("activating");
   const [error, setError] = useState<string | null>(null);
   const bridge = window.puppyoneDesktop?.editorSurfaces ?? null;
+  const taskOwner = useEditorTaskOwner();
   const recoveryIdentity = [
     viewer.id,
     context.document.path,
@@ -193,20 +194,33 @@ export function BuiltInEditorSurfaceController({
     setStatus("activating");
     setError(null);
 
-    void bridge.activate({
-      viewerId: viewer.id,
-      documentPath: context.document.path,
-      documentRevision: context.document.version ?? null,
-      resourceUrl: context.fileUrl,
-      title: context.document.name,
-      safeMode,
-      bounds: measuredGeometry.bounds,
-      geometryRevision: measuredGeometry.revision,
-      visible: measuredGeometry.visible,
-      appearance: collectAppearance(),
-    }).then(async (session) => {
+    const resourceUrl = context.fileUrl;
+    const lease = (() => {
+      try {
+        return acquireEditorHostLease(taskOwner ?? { scope: context.workspaceId || "renderer", instance: context.document.path, generation: 0 }, async () => {
+          const session = await bridge.activate({
+            viewerId: viewer.id,
+            documentPath: context.document.path,
+            documentRevision: context.document.version ?? null,
+            resourceUrl,
+            title: context.document.name,
+            safeMode,
+            bounds: measuredGeometry.bounds,
+            geometryRevision: measuredGeometry.revision,
+            visible: measuredGeometry.visible,
+            appearance: collectAppearance(),
+          });
+          return { value: session, release: async () => { await bridge.destroy({ sessionId: session.sessionId }); } };
+        });
+      } catch (reason) {
+        setStatus("error"); setError(reason instanceof Error ? reason.message : String(reason));
+        return null;
+      }
+    })();
+    if (!lease) return;
+    void lease.ready.then(async (session) => {
       if (cancelled) {
-        await bridge.destroy({ sessionId: session.sessionId });
+        await lease.close();
         return;
       }
       sessionIdRef.current = session.sessionId;
@@ -226,9 +240,8 @@ export function BuiltInEditorSurfaceController({
 
     return () => {
       cancelled = true;
-      const sessionId = sessionIdRef.current;
       sessionIdRef.current = null;
-      if (sessionId) void bridge.destroy({ sessionId }).catch(() => undefined);
+      void lease.close().catch((reason) => console.warn("Editor surface retirement is still pending:", reason));
     };
   }, [
     bridge,
@@ -237,10 +250,12 @@ export function BuiltInEditorSurfaceController({
     context.document.path,
     context.document.version,
     context.fileUrl,
+    context.workspaceId,
     hostElement,
     retryGeneration,
     safeMode,
     viewer.id,
+    taskOwner,
   ]);
 
   useEffect(() => {

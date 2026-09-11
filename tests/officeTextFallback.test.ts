@@ -241,6 +241,7 @@ describe("Office text fallback worker client", () => {
     const extraction = extractOfficeTextFallbackInWorker(arrayBuffer, {
       operation: "extract-presentation-text",
     });
+    await vi.waitFor(() => expect(worker.postMessage).toHaveBeenCalledOnce());
     expect(worker.postMessage).toHaveBeenCalledWith(
       {
         arrayBuffer,
@@ -265,6 +266,7 @@ describe("Office text fallback worker client", () => {
     });
     const rejection = expect(extraction).rejects.toMatchObject({ name: "AbortError" });
 
+    await vi.waitFor(() => expect(worker.postMessage).toHaveBeenCalledOnce());
     controller.abort();
 
     await rejection;
@@ -284,6 +286,7 @@ describe("Office text fallback worker client", () => {
       entryName: "content.xml",
     });
 
+    await vi.waitFor(() => expect(worker.postMessage).toHaveBeenCalledOnce());
     worker.onmessage?.({
       data: {
         ok: false,

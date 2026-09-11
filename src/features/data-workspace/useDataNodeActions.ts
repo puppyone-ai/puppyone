@@ -1,6 +1,6 @@
-import { useCallback, useState, type Dispatch, type SetStateAction } from "react";
+import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import {
-  flushActiveDocumentSessions,
+  withEditorDocumentOperations,
   getDataResourceName,
   getFileSemanticKind,
   type DataNode,
@@ -35,7 +35,7 @@ import { useLocalization } from "@puppyone/localization/react";
 import { bidiIsolate } from "@puppyone/localization/core";
 
 export function useDataNodeActions({
-  dataPort,
+  dataPort: rawDataPort,
   onEnterDataView,
   onLocalWorkspaceContentChanged,
   onWorkspaceContentChanged,
@@ -56,6 +56,7 @@ export function useDataNodeActions({
   workspace: Workspace | null;
 }) {
   const { t } = useLocalization();
+  const dataPort = useMemo(() => rawDataPort ? withEditorDocumentOperations(rawDataPort) : null, [rawDataPort]);
   const [createEntryDraft, setCreateEntryDraft] = useState<DesktopCreateEntryDraft | null>(null);
   const [nodeActionMenu, setNodeActionMenu] = useState<DesktopNodeActionMenuDraft | null>(null);
   const fileClipboardController = useFileClipboard({
@@ -255,7 +256,6 @@ export function useDataNodeActions({
     const nextPath = joinDataPath(getDataParentPath(previousPath), nextName);
 
     try {
-      await flushActiveDocumentSessions("document-switch");
       await dataPort.renameNode(previousPath, nextName);
       await onResourceMoved?.(previousPath, nextPath);
       setNodeActionMenu(null);
@@ -294,16 +294,6 @@ export function useDataNodeActions({
       ? t("workspace.node.confirmDeleteOne", { name: bidiIsolate(nodes[0].name) })
       : t("workspace.node.confirmDeleteMany", { count: nodes.length }));
     if (!confirmed) return;
-
-    try {
-      await flushActiveDocumentSessions("document-switch");
-    } catch (error) {
-      setNodeActionMenu((current) => current ? {
-        ...current,
-        error: toDesktopNodeActionError(error),
-      } : current);
-      return;
-    }
 
     setNodeActionMenu((current) => current ? { ...current, operation: "delete", error: null } : current);
     const deletedNodes: DataNode[] = [];

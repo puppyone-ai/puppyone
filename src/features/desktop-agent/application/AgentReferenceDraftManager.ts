@@ -30,13 +30,18 @@ export class AgentReferenceDraftManager {
   private retryFiles = new Map<string, File>();
   private retryWorkspacePaths = new Map<string, string>();
   private readonly previews = new AgentReferencePreviewStore();
-  private epoch = createReferenceEpoch();
+  private epoch: string = createReferenceEpoch();
   private acquisitionGeneration = 0;
 
   constructor(private readonly options: AgentReferenceDraftManagerOptions) {}
 
   get referenceEpoch() {
     return this.epoch;
+  }
+
+  restoreEpoch(epoch: string) {
+    if (!/^[A-Za-z0-9_-]{1,160}$/.test(epoch)) throw new Error("Invalid retained reference epoch.");
+    this.epoch = epoch;
   }
 
   captureAcquisition() {

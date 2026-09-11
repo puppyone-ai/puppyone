@@ -31,6 +31,7 @@ export const TABULAR_VIEWPORT_MOUNTED_ROW_CAP = 80;
 export const TABULAR_VIEWPORT_MOUNTED_CELL_CAP = 2_000;
 
 type TabularViewportOptions = Readonly<{
+  initialWindow?: Readonly<{ rowRange: TabularWindowRange; columnRange: TabularWindowRange }>;
   columnWidths: readonly number[];
   direction: "ltr" | "rtl";
   hasHeader: boolean;
@@ -61,6 +62,7 @@ export type TabularViewportProjection = Readonly<{
 }>;
 
 export function useTabularViewport({
+  initialWindow,
   columnWidths,
   direction,
   hasHeader,
@@ -76,32 +78,26 @@ export function useTabularViewport({
     1,
     TABULAR_VIEWPORT_MOUNTED_ROW_CAP - (hasHeader ? 1 : 0) - 1,
   );
-  const initialRowRange = calculateFixedTabularWindow({
-    count: rowCount,
-    itemSize: DEFAULT_ROW_SIZE,
-    maximumItems: maximumWindowRows,
-    overscanItems: BASE_ROW_OVERSCAN,
-    scrollOffset: 0,
-    viewportSize: DEFAULT_VIEWPORT_BLOCK_SIZE - (hasHeader ? DEFAULT_ROW_SIZE : 0),
-  });
+  const retainedWindow = initialWindow
+    && initialWindow.rowRange.start >= 0 && initialWindow.rowRange.end <= rowCount
+    && initialWindow.rowRange.end > initialWindow.rowRange.start
+    && initialWindow.columnRange.start >= 0 && initialWindow.columnRange.end <= columnWidths.length
+    && initialWindow.columnRange.end > initialWindow.columnRange.start
+    && initialWindow.rowRange.end - initialWindow.rowRange.start <= maximumWindowRows
+    && (initialWindow.rowRange.end - initialWindow.rowRange.start + 1)
+      * (initialWindow.columnRange.end - initialWindow.columnRange.start + 1) <= TABULAR_VIEWPORT_MOUNTED_CELL_CAP
+    ? initialWindow : undefined;
+  // The first layout effect measures the real host before paint. Mount only a
+  // geometry probe initially, rather than a guessed full viewport that is
+  // immediately restyled/replaced. Returning views use their bounded window.
+  const initialRowRange = retainedWindow?.rowRange ?? { start: 0, end: Math.min(1, rowCount) };
   const initialRowEnd = initialRowRange.end;
-  const initialProjectedRowCount = Math.max(1, initialRowEnd + (hasHeader ? 1 : 0));
-  const initialMaximumColumns = Math.max(
-    1,
-    Math.floor(TABULAR_VIEWPORT_MOUNTED_CELL_CAP / initialProjectedRowCount) - 1,
-  );
   const [rowRange, setRowRange] = useState<TabularWindowRange>(() => ({
-    start: 0,
+    start: initialRowRange.start,
     end: initialRowEnd,
   }));
   const [columnRange, setColumnRange] = useState<TabularWindowRange>(() => (
-    calculateVariableTabularWindow({
-      offsets: columnOffsets,
-      maximumItems: initialMaximumColumns,
-      overscanSize: COLUMN_OVERSCAN_PX,
-      scrollOffset: 0,
-      viewportSize: DEFAULT_VIEWPORT_INLINE_SIZE,
-    })
+    retainedWindow?.columnRange ?? { start: 0, end: Math.min(1, columnWidths.length) }
   ));
   const rowRangeRef = useRef(rowRange);
   const columnRangeRef = useRef(columnRange);

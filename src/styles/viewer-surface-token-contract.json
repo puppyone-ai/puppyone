@@ -8,6 +8,8 @@
     "--po-surface-overlay": { "type": "paint" },
     "--po-surface-inset": { "type": "paint" },
     "--po-surface-editor": { "type": "paint" },
+    "--po-surface-auxiliary": { "type": "paint" },
+    "--po-surface-agent": { "type": "paint" },
     "--po-canvas": { "type": "paint" },
     "--po-panel": { "type": "paint" },
     "--po-panel-raised": { "type": "paint" },

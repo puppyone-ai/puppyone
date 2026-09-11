@@ -9,11 +9,11 @@ import type { ProjectWorkbenchStore } from "./ProjectWorkbenchStore";
 
 export function useAuxiliaryWorkbench(store: ProjectWorkbenchStore) {
   const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
-  return useMemo(() => {
+  const topologyView = useMemo(() => {
     const topology = snapshot.topology;
     const dispatch = store.dispatch;
     return {
-      ...snapshot, items: getOrderedAuxiliaryWorkbenchItems(topology), groups: topology.groups, root: topology.root,
+      items: getOrderedAuxiliaryWorkbenchItems(topology), groups: topology.groups, root: topology.root,
       activeGroup: getActiveAuxiliaryWorkbenchGroup(topology), activeItemId: getActiveAuxiliaryWorkbenchItemId(topology),
       presentedItemIds: getPresentedAuxiliaryWorkbenchItemIds(topology),
       activateItem: (itemId: string) => dispatch({ type: "activate", itemId }),
@@ -28,5 +28,6 @@ export function useAuxiliaryWorkbench(store: ProjectWorkbenchStore) {
       mergeGroup: (sourceGroupId: string, targetGroupId: string, targetIndex: number) => dispatch({ type: "merge-group", sourceGroupId, targetGroupId, targetIndex }),
       resizeSplit: (splitId: string, ratio: number) => dispatch({ type: "resize-split", splitId, ratio }),
     };
-  }, [snapshot, store]);
+  }, [snapshot.topology, store]);
+  return useMemo(() => ({ ...snapshot, ...topologyView }), [snapshot, topologyView]);
 }

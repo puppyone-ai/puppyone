@@ -243,7 +243,7 @@ describe("Desktop Agent renderer surfaces", () => {
     style.textContent = [
       readFileSync(`${process.cwd()}/packages/shared-ui/src/styles/control-geometry.css`, "utf8"),
       readFileSync(`${process.cwd()}/src/styles/tokens.css`, "utf8"),
-      ...["theme.css", "foundation.css", "composer.css", "pickers.css"]
+      ...["theme.css", "foundation.css", "composer.css", "agent-prompt-editor.css", "pickers.css"]
         .map((file) => readFileSync(`${process.cwd()}/src/features/desktop-agent/ui/styles/${file}`, "utf8")),
     ].join("\n");
     document.head.appendChild(style);

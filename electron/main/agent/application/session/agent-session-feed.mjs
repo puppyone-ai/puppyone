@@ -24,6 +24,7 @@ export class AgentSessionFeed {
   }
 
   attach(session) {
+    if ((this.sessionSubscriptions.get(session.id)?.size ?? 0) >= 4) throw new Error("Agent display subscription budget is exhausted.");
     this.#bind(session);
     const subscriptionId = `subscription-${randomUUID()}`;
     const subscription = {

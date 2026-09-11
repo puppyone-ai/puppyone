@@ -12,7 +12,8 @@ const scrollbarActivitySource = readCss("src/components/ScrollbarActivity.tsx");
 const terminalSessionSource = readCss(
   "src/features/desktop-terminal/ui/TerminalSessionView.tsx",
 );
-const terminalCss = readCss("src/features/desktop-terminal/ui/desktop-terminal.css");
+const terminalCss = readCss("src/features/desktop-terminal/ui/styles/terminal-surface.css")
+  + readCss("src/features/desktop-terminal/ui/styles/xterm-adapter.css");
 const interfaceSkinContractCss = readCss("src/styles/interface-skin-contract.css");
 const dataWorkspaceCss = readCss("packages/shared-ui/src/styles/data-workspace.css");
 const dataWorkspaceSource = readCss("packages/shared-ui/src/data/DataWorkspace.tsx");
@@ -131,7 +132,7 @@ describe("scrollbar architecture", () => {
 
   it("restricts scrollbar pseudo-elements to the primitive, skins, and xterm adapter", () => {
     const allowedFiles = new Set([
-      "src/features/desktop-terminal/ui/desktop-terminal.css",
+      "src/features/desktop-terminal/ui/styles/xterm-adapter.css",
       "src/styles/interface-skin-contract.css",
       "src/styles/scrollbars.css",
       "src/styles/interfaces/windows-xp/tokens.css",
@@ -214,7 +215,7 @@ describe("scrollbar architecture", () => {
   it("overlays the Data sash on one shared Sidebar and Editor boundary", () => {
     for (const css of [dataWorkspaceCss, desktopDataShellCss]) {
       const resizerRule = readRule(css, ".data-explorer-resizer");
-      const resizerDividerRule = readRule(css, ".data-explorer-resizer::after");
+
       const explorerColumnRule = readRule(css, ".explorer-column");
       expect(css).toMatch(
         /\.data-content\[data-resizable-explorer="true"\]\s*\{[^}]*grid-template-columns:[^}]*var\(--data-explorer-width[^}]*minmax/s,
@@ -228,17 +229,16 @@ describe("scrollbar architecture", () => {
         /\.data-content\[data-resizable-explorer="true"\]\s*>\s*\.browser-column/,
       );
       expect(resizerRule).toContain(
-        "inset-inline-start: var(--data-explorer-width, clamp(282px, 26vw, 360px));",
+        "inset-inline-start: calc(var(--data-explorer-width, clamp(282px, 26vw, 360px)) - 1px);",
       );
       expect(resizerRule).toContain("inset-inline-end: auto;");
       expect(resizerRule).toContain("background: transparent;");
       expect(resizerRule).not.toContain("transform:");
-      expect(resizerDividerRule).toContain("inset-inline-start: 0;");
-      expect(resizerDividerRule).toContain("inset-inline-end: auto;");
+      expect(css).not.toContain(".data-explorer-resizer::after");
       expect(explorerColumnRule).toContain(
         "border-inline-end: 1px solid var(--po-sidebar-divider, var(--po-divider));",
       );
-      expect(resizerDividerRule).toContain("background: transparent;");
+
     }
 
     expect(dataWorkspaceSource.indexOf('className="data-explorer-resizer"')).toBeGreaterThan(
@@ -276,8 +276,8 @@ describe("scrollbar architecture", () => {
       /className="desktop-right-sidebar-resizer"\s+paneEdge/,
     );
 
-    const rightResizerRule = readRule(layoutCss, ".desktop-right-sidebar-resizer");
-    expect(rightResizerRule).toContain("inset-inline-start: 0;");
+    const rightResizerRule = readRule(layoutCss, ".desktop-right-sidebar-resizer:not(.po-collapsed-pane-edge-handle)");
+    expect(rightResizerRule).toContain("inset-inline-start: calc(-1 * var(--desktop-right-sidebar-border-start));");
     expect(rightResizerRule).not.toContain("transform:");
     expect(rightResizerRule).not.toContain("inset-inline-end:");
     expect(baseCss).not.toContain('[dir="rtl"] .desktop-right-sidebar-resizer');

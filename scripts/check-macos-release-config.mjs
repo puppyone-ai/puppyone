@@ -16,6 +16,7 @@ import { inspectMacReleaseReadiness } from "./release-support/macos-release-poli
 import { resolveDesktopBuildIdentity } from "../shared/desktop-build-identity.mjs";
 import { createDesktopElectronBuilderConfig } from "../tooling/desktop/build/create-builder-config.mjs";
 import { getDesktopTargetDefinition } from "../tooling/desktop/targets/target-manifest.mjs";
+import { resolveDesktopAppIcon } from "../shared/desktop/app-icon-contract.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const require = createRequire(import.meta.url);
@@ -45,15 +46,16 @@ const errors = inspectMacReleaseReadiness({
 });
 
 const scripts = packageMetadata.scripts ?? {};
-if (stableMacConfig.afterPack !== "scripts/after-pack-macos-app-image.mjs") {
-  errors.push("macOS packaging must install the canonical authored App Image");
+if (stableMacConfig.beforePack !== "scripts/before-pack-macos-icon.mjs"
+  || stableMacConfig.afterPack !== "scripts/after-pack-macos-icon.mjs") {
+  errors.push("macOS packaging must prepare and verify the native channel ICNS");
 }
-const canonicalAppImagePath = "assets/brand/puppy/puppy-app-image.png";
-const developmentAppImagePath = "assets/brand/puppy/puppy-app-image-dev.png";
+const canonicalAppImagePath = resolveDesktopAppIcon("stable").source;
+const developmentAppImagePath = resolveDesktopAppIcon("dev").source;
 readFileSync(path.join(repoRoot, canonicalAppImagePath));
 readFileSync(path.join(repoRoot, developmentAppImagePath));
-if (stableMacConfig.mac?.icon !== canonicalAppImagePath) {
-  errors.push("the macOS application icon must use the canonical authored App Image");
+if (stableMacConfig.mac?.icon !== resolveDesktopAppIcon("stable").macos) {
+  errors.push("the macOS application icon must use the generated native ICNS");
 }
 if (!stableMacConfig.extraResources?.some((entry) => (
   entry?.from === canonicalAppImagePath && entry?.to === "puppy-app-image.png"

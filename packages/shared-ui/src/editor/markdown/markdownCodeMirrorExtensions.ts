@@ -67,10 +67,10 @@ export function markdownCodeMirrorBaseExtensions(
  * a document must become focusable/editable before Markdown projection work is
  * allowed onto the renderer's task queue.
  */
-export function markdownCodeMirrorUrgentExtensions(readOnly: boolean): Extension[] {
+export function markdownCodeMirrorUrgentExtensions(readOnly: boolean, includeHistory = true): Extension[] {
   return [
     highlightSpecialChars(),
-    history(),
+    ...(includeHistory ? [history()] : []),
     dropCursor(),
     indentOnInput(),
     bracketMatching(),

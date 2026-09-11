@@ -272,9 +272,14 @@ async function runSmoke(update: (fixture: Fixture) => void, active: () => boolea
         "Edit counts overflowed or shifted off the tool row");
         // Native pointer events target only this isolated WebContents.
         const name = edit.querySelector<HTMLElement>(".desktop-agent-tool-name")!;
+        // A mapped window can open underneath the desktop pointer. Establish
+        // an unhovered baseline instead of inheriting the host cursor state.
+        await nativeScrollInput({ type: "move", x: window.innerWidth - 2, y: 2 });
+        assert(!edit.matches(":hover"), "Tool idle baseline is still hovered");
         const idleColor = getComputedStyle(name).color;
         await nativeScrollInput({ type: "move", x: Math.round(editRect.x + 6), y: Math.round(editRect.y + editRect.height / 2) });
-        assert(edit.matches(":hover") && getComputedStyle(name).color !== idleColor, "Tool hover did not strengthen its neutral text");
+        assert(edit.matches(":hover") && getComputedStyle(name).color !== idleColor,
+          `Tool hover did not strengthen its neutral text: hovered=${edit.matches(":hover")}, idle=${idleColor}, current=${getComputedStyle(name).color}, target=${JSON.stringify(editRect.toJSON())}, currentRect=${JSON.stringify(edit.getBoundingClientRect().toJSON())}, hit=${document.elementFromPoint(Math.round(editRect.x + 6), Math.round(editRect.y + editRect.height / 2))?.className}`);
         assert(getComputedStyle(name).color === getComputedStyle(edit).color, "Tool hover did not use the common text role");
         await nativeScrollInput({ type: "move", x: window.innerWidth - 2, y: 2 });
         assert(getComputedStyle(name).color === idleColor, "Tool hover color did not restore");

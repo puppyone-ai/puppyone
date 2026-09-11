@@ -1,4 +1,5 @@
 {
+  "workbench.newTab": "新しいタブ",
   "projectSessions.sessionCloseFailed": "セッションを閉じられませんでした。再試行してください。",
   "projectSessions.closing": "プロジェクトを閉じています…",
   "projectSessions.closeFailed": "一部のプロジェクトのタスクを停止できませんでした。",

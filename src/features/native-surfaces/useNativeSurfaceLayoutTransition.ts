@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef } from "react";
 import { acquireNativeSurfaceLayoutLease } from "./nativeSurfaceGeometry";
 
-/** Suspends native children across a CSS layout transition and releases only
+/** Suspends only this subtree across a CSS clip/transform transition; releases only
  * after its final layout frame. The timeout is a cancellation fail-safe. */
 export function useNativeSurfaceLayoutTransition(
   owner: string,
@@ -9,13 +9,15 @@ export function useNativeSurfaceLayoutTransition(
   changeKey: unknown,
   durationMs: number,
   properties: ReadonlySet<string>,
+  enabled = true,
 ): void {
   const previousKeyRef = useRef(changeKey);
   useLayoutEffect(() => {
     if (!element) return undefined;
     if (Object.is(previousKeyRef.current, changeKey)) return undefined;
     previousKeyRef.current = changeKey;
-    const lease = acquireNativeSurfaceLayoutLease(owner);
+    if (!enabled) return undefined;
+    const lease = acquireNativeSurfaceLayoutLease(owner, { suspendWithin: element });
     const active = new Set<string>();
     let released = false;
     let settleFrame: number | null = null;
@@ -50,7 +52,10 @@ export function useNativeSurfaceLayoutTransition(
     // Keep the child suspended for the declared layout interval even when
     // Chromium coalesces transitionrun/end events. The timeout converges
     // through the same two-frame final reconciliation as a real transition.
-    timeoutId = window.setTimeout(settle, Math.max(0, durationMs) + 50);
+    timeoutId = window.setTimeout(() => {
+      active.clear(); // A missing transitionend must never strand a lease.
+      settle();
+    }, Math.max(0, durationMs) + 50);
 
     return () => {
       element.removeEventListener("transitionrun", handleRun);
@@ -61,5 +66,5 @@ export function useNativeSurfaceLayoutTransition(
       if (timeoutId !== null) window.clearTimeout(timeoutId);
       release();
     };
-  }, [changeKey, durationMs, element, owner, properties]);
+  }, [changeKey, durationMs, element, enabled, owner, properties]);
 }

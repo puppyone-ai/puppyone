@@ -168,6 +168,7 @@ describe("Office package validation worker client", () => {
     const result = createResult(arrayBuffer);
 
     const validation = validateOfficePackageInWorker(arrayBuffer, { profile: "docx" });
+    await vi.waitFor(() => expect(worker.postMessage).toHaveBeenCalledOnce());
     expect(worker.postMessage).toHaveBeenCalledWith(
       {
         arrayBuffer,
@@ -193,6 +194,7 @@ describe("Office package validation worker client", () => {
       entryName: "word/document.xml",
     });
 
+    await vi.waitFor(() => expect(worker.postMessage).toHaveBeenCalledOnce());
     worker.onmessage?.({
       data: {
         ok: false,
@@ -222,6 +224,7 @@ describe("Office package validation worker client", () => {
     });
     const rejection = expect(validation).rejects.toMatchObject({ name: "AbortError" });
 
+    await vi.waitFor(() => expect(worker.postMessage).toHaveBeenCalledOnce());
     controller.abort();
 
     await rejection;

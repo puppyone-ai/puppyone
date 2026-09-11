@@ -161,8 +161,7 @@ describe("Terminal Group-owned Tab layout", () => {
     expect(rail.contains(preview)).toBe(false);
     expect(content.contains(target.querySelector(".desktop-terminal-pane-interaction-frame")))
       .toBe(true);
-    expect(content.contains(target.querySelector(".desktop-terminal-pane-handle-shell")))
-      .toBe(true);
+    expect(target.querySelector(".desktop-terminal-pane-handle-shell")).toBeNull();
     expect(preview.dataset.operation).toBe("move-group");
     expect(preview.dataset.edge).toBe("left");
     expect(preview.dataset.allowed).toBe("true");
@@ -251,7 +250,7 @@ describe("Terminal Group-owned Tab layout", () => {
     expect(terminalA.style.getPropertyValue("--desktop-terminal-tab-inline-start")).toBe("147px");
   });
 
-  it("reveals one Ghostty-style three-dot handle only from the content viewport", () => {
+  it("renders each Group header without a move handle or reserved grip space", () => {
     const state = splitTab(createThreeTabs(), "terminal-b", "group-a", "right", "group-b");
     const harness = createHarness(state);
     harness.render();
@@ -260,34 +259,11 @@ describe("Terminal Group-owned Tab layout", () => {
     ));
 
     expect(groups).toHaveLength(2);
-    expect(groups.every((group) => (
-      group.querySelectorAll(".desktop-terminal-pane-handle > i").length === 3
-    ))).toBe(true);
-
-    const left = groups[0]!;
-    const header = left.querySelector<HTMLElement>(".desktop-terminal-subheader")!;
-    const content = left.querySelector<HTMLElement>(".desktop-terminal-tab-group-content")!;
-    content.getBoundingClientRect = () => new DOMRect(0, 38, 400, 562);
-    act(() => header.dispatchEvent(new PointerEvent("pointermove", {
-      bubbles: true,
-      clientX: 200,
-      clientY: 20,
-    })));
-    expect(left.dataset.handleHot).toBeUndefined();
-
-    act(() => content.dispatchEvent(new PointerEvent("pointermove", {
-      bubbles: true,
-      clientX: 200,
-      clientY: 100,
-    })));
-    expect(left.dataset.handleHot).toBe("true");
-
-    act(() => content.dispatchEvent(new PointerEvent("pointermove", {
-      bubbles: true,
-      clientX: 200,
-      clientY: 400,
-    })));
-    expect(left.dataset.handleHot).toBeUndefined();
+    for (const group of groups) {
+      expect(group.querySelector(".desktop-terminal-pane-handle")).toBeNull();
+      expect(group.querySelector(".desktop-terminal-group-chrome")).toBeNull();
+      expect(group.querySelector(".desktop-terminal-subheader")?.parentElement).toBe(group);
+    }
   });
 
   it("keeps stable Session host identities while nested Group geometry changes", () => {

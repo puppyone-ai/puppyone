@@ -633,3 +633,16 @@ export type {
   PulseGridSpriteRow,
 } from "./primitives/pulseGridSequence";
 export * from "./sidebar";
+
+export { useDocumentInput } from "./editor/resource/useDocumentInput";
+export { invalidateDocumentInputs, getEditorStorageIdentity, retireDocumentInputs } from "./editor/resource/DocumentInputRuntime";
+
+export { withEditorDocumentOperations, getDocumentResourceOperations } from "./editor/document-session/documentResourceOperations";
+
+export { getEditorProviderPolicy } from "./editor/registry/viewerRegistry";
+export { retireEditorTasks } from "./editor/runtime/retireEditorTasks";
+export { holdEditorRuntimeAdmission } from "./editor/runtime/editorRuntimeAdmission";
+export { acquireEditorHostLease } from "./editor/runtime/EditorHostLeases";
+export { useEditorTaskOwner } from "./editor/runtime/EditorTaskContext";
+export { reconcilePendingDocumentOperations } from "./editor/document-session/documentResourceOperations";
+export { subscribeDocumentRetirements } from "./editor/document-session/documentRetirementEvents";

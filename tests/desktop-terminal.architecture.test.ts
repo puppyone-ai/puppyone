@@ -19,22 +19,28 @@ describe("Desktop Terminal architecture boundaries", () => {
     expect(pool).toContain("projectContext: this.project.context");
     expect(pool).toContain("await entry.runtime.close()");
     expect(pool).not.toMatch(/retainCount|disposeTimer/);
-    expect(contribution).toContain("<TerminalSessionView");
+    expect(contribution).toContain("<HostedItemView");
+    expect(contribution).not.toContain("TerminalRuntimePool");
+    expect(source("src/features/desktop-terminal/renderer/TerminalItemRenderer.tsx")).toContain("<TerminalSessionView");
     expect(contribution).toContain("getTerminalClosePolicy");
     expect(view).not.toContain("runtime.dispose()");
     expect(view).not.toContain("closeTerminal");
     expect(runtime).toContain("unwrapProjectSessionResult(await bridge.closeTerminal(this.requestIdentity()))");
     expect(runtime).toContain("sameTerminalSize(this.lastPtySize, size)");
-    expect(app).toContain("createTerminalWorkbenchContribution(t)");
+    expect(app).toContain("createTerminalWorkbenchContribution(t, readAuxiliaryTerminalAppearance)");
     expect(app).not.toContain("RightTerminalPanel");
   });
 
   it("keeps terminal presentation styles co-located with the feature", () => {
     const panel = source("src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchPanel.tsx");
-    const css = source("src/features/desktop-terminal/ui/desktop-terminal.css");
+    const css = [
+      source("src/features/desktop-terminal/ui/styles/terminal-surface.css"),
+      source("src/features/desktop-terminal/ui/styles/xterm-adapter.css"),
+      source("src/features/app-shell/auxiliary-workbench/auxiliary-workbench.css"),
+    ].join("\n");
     const sessionView = source("src/features/desktop-terminal/ui/TerminalSessionView.tsx");
     const launcher = source("src/features/desktop-terminal/ui/TerminalLauncher.tsx");
-    const launcherCss = source("src/features/desktop-terminal/ui/terminal-launcher.css");
+    const launcherCss = source("src/features/app-shell/auxiliary-workbench/auxiliary-workbench-launcher.css");
     const launcherIconCss = source(
       "src/components/brand/agent-launcher-icon.css",
     );
@@ -65,6 +71,9 @@ describe("Desktop Terminal architecture boundaries", () => {
     const headerLayoutHook = source(
       "src/features/app-shell/auxiliary-workbench/layout/useWorkbenchSessionHeaderLayout.ts",
     );
+    const headerMotion = source(
+      "src/features/app-shell/auxiliary-workbench/layout/useWorkbenchSessionHeaderMotion.ts",
+    );
     const headerCss = source(
       "src/features/app-shell/auxiliary-workbench/layout/auxiliary-workbench-header.css",
     );
@@ -83,11 +92,11 @@ describe("Desktop Terminal architecture boundaries", () => {
     expect(css).toContain(".desktop-terminal-tab-group-content");
     expect(css).toContain(".desktop-terminal-splitter");
     expect(css).toContain(".desktop-terminal-drop-preview");
-    expect(css).toContain(".desktop-terminal-pane-handle-shell");
-    expect(css).toContain(".desktop-terminal-pane-handle");
+    expect(css).not.toContain(".desktop-terminal-pane-handle");
+    expect(css).not.toContain(".desktop-terminal-group-chrome");
     expect(css).toContain(".desktop-terminal-pane-interaction-frame");
     expect(css).not.toContain(".desktop-terminal-launcher");
-    expect(launcher).toContain('import "./terminal-launcher.css"');
+    expect(launcher).toContain('import "../../app-shell/auxiliary-workbench/auxiliary-workbench-launcher.css"');
     expect(launcherCss).toContain(".desktop-terminal-launcher");
     expect(launcherCss).toContain("container-type: size");
     expect(launcherCss).toMatch(
@@ -97,7 +106,7 @@ describe("Desktop Terminal architecture boundaries", () => {
       /\.desktop-terminal-launcher-availability\s*\{[^}]*position:\s*absolute;[^}]*width:\s*1px;[^}]*height:\s*1px;/s,
     );
     expect(launcherCss).not.toContain(".desktop-terminal-launcher-rail");
-    expect(launcherCss).toContain("var(--po-terminal-bg)");
+    expect(launcherCss).toContain("var(--po-surface-auxiliary)");
     expect(launcherCss).toContain("var(--po-focus-ring)");
     expect(launcherIconCss).toMatch(
       /\.desktop-terminal-launcher-icon\.is-compact\s*\{[^}]*width:\s*14px;[^}]*height:\s*14px;/s,
@@ -121,7 +130,7 @@ describe("Desktop Terminal architecture boundaries", () => {
     expect(header).toContain("<TerminalSessionOverflowMenu");
     expect(header).toContain("useTerminalSessionHeaderController");
     expect(header).toContain("useTerminalSessionHeaderLayout");
-    expect(header).toContain("data-activation-motion");
+    expect(header).toContain("data-layout-motion");
     expect(headerTab).toContain("<TerminalSessionHeaderStatus");
     expect(headerPresentation).toContain("terminalPathLabel(workspacePath)");
     expect(headerPresentation).toContain("presentTerminalSessionHeader");
@@ -133,8 +142,10 @@ describe("Desktop Terminal architecture boundaries", () => {
     expect(headerLayout).toContain('"overflow"');
     expect(headerOverflow).toContain("<DesktopMenuSurface");
     expect(headerOverflow).toContain("<TerminalSessionHeaderStatus");
-    expect(headerController).toContain("WORKBENCH_SESSION_HEADER_METRICS.activationMotionMs");
-    expect(headerLayout).toContain("activationMotionMs: 220");
+    expect(headerController).not.toContain("setTimeout");
+    expect(headerLayout).toContain("layoutMotionMs: 200");
+    expect(headerLayoutHook).toContain("setMotionReady(false)");
+    expect(headerLayoutHook).toContain("cancelAnimationFrame");
     expect(headerLayout).toContain("canPreserveVisibleWindow");
     expect(headerLayoutHook).toContain("preferredVisibleSessionIds: visibleWindow");
     expect(headerLayoutHook).toContain("capacityRef");
@@ -176,9 +187,14 @@ describe("Desktop Terminal architecture boundaries", () => {
       /\.desktop-terminal-tab\s*\{[^}]*position:\s*absolute;[^}]*inset-inline-start:\s*var\(--desktop-terminal-tab-inline-start\);/s,
     );
     expect(headerCss).toMatch(/\.desktop-terminal-tab\s*\{(?![^}]*transition:)[^}]*\}/s);
-    expect(headerCss).toMatch(
-      /\.desktop-terminal-tab-rail\[data-activation-motion="true"\] \.desktop-terminal-tab\s*\{[^}]*inset-inline-start var\(--desktop-terminal-tab-activation-motion\)[^}]*width var\(--desktop-terminal-tab-activation-motion\)/s,
-    );
+    expect(headerMotion).toContain("element.animate");
+    expect(headerMotion).toContain("animation?.cancel()");
+    expect(headerMotion).toContain("sameGeometry");
+    expect(headerMotion).toContain("prefers-reduced-motion");
+    expect(headerMotion).not.toContain("setTimeout");
+    expect(headerCss).toContain("@starting-style");
+    expect(headerCss).toContain("inset-inline-start: var(--desktop-terminal-new-inline-start)");
+    expect(headerCss).not.toContain("transition: all");
     expect(headerCss).toMatch(
       /\.desktop-terminal-tab-select\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*var\(--desktop-terminal-tab-control-height\) minmax\(0, 1fr\);/s,
     );
@@ -199,7 +215,7 @@ describe("Desktop Terminal architecture boundaries", () => {
     );
     expect(headerCss).not.toMatch(/\.desktop-terminal-tab-select\s*\{[^}]*font-size:\s*11px;/s);
     expect(headerCss).toMatch(
-      /\.desktop-terminal-subheader\s*\{[^}]*border-block-end:\s*var\(--desktop-terminal-tab-bar-divider, 0\);[^}]*background:\s*var\(--desktop-terminal-tab-bar-background, var\(--po-terminal-bg\)\);/s,
+      /\.desktop-terminal-subheader\s*\{[^}]*border-block-end:\s*var\(--desktop-terminal-tab-bar-divider, 0\);[^}]*background:\s*var\(--desktop-terminal-tab-bar-background, var\(--po-surface-auxiliary\)\);/s,
     );
     expect(headerCss).not.toContain(".desktop-terminal-subheader::after");
     expect(xpTokensCss).toContain("--desktop-terminal-tab-bar-padding-end: 5px;");

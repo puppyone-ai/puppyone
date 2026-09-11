@@ -1,4 +1,7 @@
 {
+  "history.notFound": "このプロジェクトには復元できるチャットがまだ見つかりません",
+  "history.alreadyOpen": "見つかったチャットはすべて開いています",
+  "history.sourceSummary": "履歴の検索範囲は限られています",
   "error.session-ended": "このセッションは終了しました。続けるには履歴から開き直してください。",
   "name": "エージェント",
   "panel.chat": "{agent} チャット",

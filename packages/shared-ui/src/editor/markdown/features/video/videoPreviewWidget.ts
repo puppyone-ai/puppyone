@@ -154,10 +154,16 @@ export class VideoPreviewWidget extends WidgetType {
 
       if (posterHandle && isBrokerSafeResolvedAssetUrl(posterHandle.url, "image")) {
         video.setAttribute("poster", posterHandle.url);
+        posterHandle.subscribe?.((url) => { if (url) video.setAttribute("poster", url); else video.removeAttribute("poster"); });
       }
       video.replaceChildren(...resolvedSources.map(({ handle, authored }) => {
         const source = document.createElement("source");
         source.src = handle.url;
+        handle.subscribe?.((url) => {
+          if (disposed || abort.signal.aborted) return;
+          if (url) source.src = url; else source.removeAttribute("src");
+          video.load();
+        });
         const type = authored.type ?? handle.mimeType;
         if (type?.startsWith("video/")) source.type = type;
         return source;

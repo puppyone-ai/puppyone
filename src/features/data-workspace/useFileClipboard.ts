@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { flushActiveDocumentSessions, type DataNode, type DataPort, type Workspace } from "@puppyone/shared-ui";
+import { withEditorDocumentOperations, type DataNode, type DataPort, type Workspace } from "@puppyone/shared-ui";
 import {
   collapseNestedNodes,
   createFileClipboardState,
@@ -57,7 +57,7 @@ export type FileClipboardController = {
 };
 
 export function useFileClipboard({
-  dataPort,
+  dataPort: rawDataPort,
   onEnterDataView,
   onLocalWorkspaceContentChanged,
   onWorkspaceContentChanged,
@@ -73,6 +73,7 @@ export function useFileClipboard({
   onActivateNode: (node: DataNode) => void;
   workspace: Workspace | null;
 }): FileClipboardController {
+  const dataPort = useMemo(() => rawDataPort ? withEditorDocumentOperations(rawDataPort) : null, [rawDataPort]);
   const [clipboard, setClipboard] = useState<FileClipboardState | null>(null);
   const [operation, setOperation] = useState<FileClipboardOperation>(null);
   const [notice, setNotice] = useState<FileOperationNotice | null>(null);
@@ -172,9 +173,6 @@ export function useFileClipboard({
     onEnterDataView();
 
     try {
-      if (activeClipboard.mode === "cut") {
-        await flushActiveDocumentSessions("document-switch");
-      }
       const result = await executeFileClipboardPaste(dataPort, activeClipboard, targetFolderPath);
       if (
         latestWorkspaceKeyRef.current !== operationToken.workspaceKey

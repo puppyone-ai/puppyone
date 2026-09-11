@@ -1,3 +1,4 @@
+@layer features {
 :root[data-interface-style="default"] .desktop-workbench-close-dialog {
   border-color: var(--po-border-subtle);
   border-radius: 10px;
@@ -86,4 +87,5 @@
   border-color: color-mix(in srgb, var(--po-danger) 30%, transparent);
   background: color-mix(in srgb, var(--po-danger) 15%, transparent);
   color: var(--po-danger);
+}
 }

@@ -65,13 +65,6 @@ export function AuxiliaryPanelHost({
     "auxiliary-panel-resize",
   );
   useNativeSurfacePointerRoutingRegion("auxiliary-panel-resize", resizerElement);
-  useNativeSurfaceLayoutTransition(
-    "auxiliary-panel-transition",
-    panelElement,
-    open,
-    PANE_COLLAPSE_ANIMATION_MS,
-    AUXILIARY_LAYOUT_TRANSITION_PROPERTIES,
-  );
 
   useEffect(() => {
     if (open) {
@@ -104,6 +97,14 @@ export function AuxiliaryPanelHost({
     onDragActiveChange: onResizeActiveChange,
     onWidthChange: onWidthChange ?? noop,
   });
+  useNativeSurfaceLayoutTransition(
+    "auxiliary-panel-transition",
+    panelElement,
+    open,
+    PANE_COLLAPSE_ANIMATION_MS,
+    AUXILIARY_LAYOUT_TRANSITION_PROPERTIES,
+    !resize.dragging,
+  );
   const liveExpandedWidth = clamp(resize.width, minWidth, maxWidth);
   const renderedExpandedWidth = open ? liveExpandedWidth : lastExpandedWidth;
 
@@ -163,6 +164,7 @@ export function AuxiliaryPanelHost({
           ref={setResizerElement}
           className="desktop-right-sidebar-resizer"
           paneEdge
+          resizing={resize.dragging}
           collapsedEdgeSide={collapsedEdgeVisible ? "inline-end" : undefined}
           orientation="vertical"
           label={t(collapsedEdgeVisible

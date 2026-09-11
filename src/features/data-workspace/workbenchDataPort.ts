@@ -175,8 +175,8 @@ export function createWorkbenchDataService(
     },
     revokeFileUrl: async (url) => {
       const provider = fileUrlOwners.get(url);
-      fileUrlOwners.delete(url);
       await provider?.revokeFileUrl?.(url);
+      fileUrlOwners.delete(url);
     },
     openExternalFile: async (path) => {
       const target = resolveResource(path);

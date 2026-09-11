@@ -1,4 +1,5 @@
 import { Readable } from "node:stream";
+import { parseSingleByteRange } from "../../local-api/files/byte-range.mjs";
 
 export function registerLocalFileProtocol({
   protocol,
@@ -40,6 +41,19 @@ export function registerLocalFileProtocol({
         "Cache-Control": "no-store",
         "X-Content-Type-Options": "nosniff",
       };
+      if (capability.snapshot) {
+        const bytes = capability.snapshot.bytes;
+        const range = parseSingleByteRange(request.headers.get("range"), bytes.length);
+        if (range?.unsatisfiable) return new Response(null, { status: 416, headers: { "Content-Range": `bytes */${bytes.length}`, ...securityHeaders, ...corsHeaders } });
+        const body = range ? bytes.subarray(range.start, range.end + 1) : bytes;
+        return new Response(request.method === "HEAD" ? null : body, {
+          status: range ? 206 : 200,
+          headers: { "Content-Type": contentType, "Content-Length": String(body.length), "Accept-Ranges": "bytes",
+            "ETag": `"${capability.snapshot.version}"`,
+            ...(range ? { "Content-Range": `bytes ${range.start}-${range.end}/${bytes.length}` } : {}),
+            ...securityHeaders, ...corsHeaders },
+        });
+      }
       if (request.method === "HEAD") {
         if (typeof statWorkspaceFile !== "function") {
           return new Response("Method not implemented", { status: 501 });

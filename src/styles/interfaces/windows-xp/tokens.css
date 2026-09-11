@@ -88,6 +88,8 @@
   --po-surface-inset: #d4d0c8;
   --po-surface-editor: #ffffff;
   --po-surface-terminal: #ffffff;
+  --po-surface-auxiliary: #ffffff;
+  --po-surface-agent: #ffffff;
 
   --po-canvas: var(--po-surface-editor);
   --po-header: var(--po-surface-chrome);

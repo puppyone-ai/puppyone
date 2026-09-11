@@ -948,7 +948,9 @@ export type EditorSurfaceState = Readonly<{
 
 declare global {
   interface Window {
+    puppyoneItemHost?: import("../../shared/item-host-contract/types").ItemRendererBridge;
     puppyoneDesktop?: {
+      itemHosts?: import("../../shared/item-host-contract/types").ItemHostBridge;
       getWindowChromeState: () => Promise<{ fullScreen: boolean; maximized: boolean }>;
       setWindowChromeProfile: (request: {
         titlebar: string;
@@ -992,8 +994,9 @@ declare global {
       setNativeSurfaceOccluded: (request: { occluded: boolean }) => void;
       setNativeSurfacePointerPassthrough: (request: { active: boolean }) => void;
       setNativeSurfacePointerRoutingRegions: (request: {
-        regions: Array<{ x: number; y: number; width: number; height: number }>;
+        regions: Array<{ id?: number; cursor?: "col-resize" | "row-resize"; x: number; y: number; width: number; height: number }>;
       }) => void;
+      onNativeSurfacePointerHover: (callback: (state: { regionId: number | null }) => void) => () => void;
       getBuildInfo: () => Promise<DesktopBuildInfo>;
       getPlatformCapabilities: () => Promise<DesktopPlatformCapabilities>;
       getTelemetryState: () => Promise<DesktopTelemetryState>;
@@ -1264,6 +1267,7 @@ declare global {
         rootPath: string;
         path: string;
         purpose?: "file-preview" | "markdown-asset";
+        expectedVersion?: string;
       }) => Promise<{ url: string }>;
       revokeFileUrl: (request: { url: string }) => Promise<{ revoked: boolean }>;
       convertOfficeDocumentToDocx: (

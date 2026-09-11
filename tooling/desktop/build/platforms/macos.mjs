@@ -1,7 +1,10 @@
-export function applyMacosBuilderConfig({ config, baseBuild, identity, appImageSource }) {
+import { resolveDesktopAppIcon } from "../../../../shared/desktop/app-icon-contract.mjs";
+
+export function applyMacosBuilderConfig({ config, baseBuild, identity }) {
   return {
     ...config,
-    afterPack: "scripts/after-pack-macos-app-image.mjs",
+    beforePack: "scripts/before-pack-macos-icon.mjs",
+    afterPack: "scripts/after-pack-macos-icon.mjs",
     mac: {
       category: "public.app-category.productivity",
       hardenedRuntime: true,
@@ -9,7 +12,7 @@ export function applyMacosBuilderConfig({ config, baseBuild, identity, appImageS
       strictVerify: true,
       notarize: true,
       ...(baseBuild.mac ?? {}),
-      icon: appImageSource,
+      icon: resolveDesktopAppIcon(identity.release.channel).macos,
       executableName: identity.applicationName,
       bundleShortVersion: identity.release.baseVersion,
       bundleVersion: identity.platformBuildNumber ?? identity.release.baseVersion,

@@ -356,7 +356,8 @@ describe("editor split-pane architecture", () => {
     expect(paneDocumentRuntimeSource).toContain("memo(function EditorPaneDocumentRuntime");
     expect(paneDocumentRuntimeSource).toContain("useEditorPaneSource(sourceNode");
     expect(paneDocumentRuntimeSource).toContain("samePaneEnvironment");
-    expect(paneDocumentRuntimeSource).toContain("isMarkdownDocumentDescriptor");
+    expect(paneDocumentRuntimeSource).toContain("getEditorProviderPolicy");
+    expect(paneDocumentRuntimeSource).not.toContain("isMarkdownDocumentDescriptor");
     expect(dataWorkspaceSource).toContain("useStableEventCallback");
     expect(dataWorkspaceSource).toContain("markdownEnvironment: MarkdownWorkspaceEnvironment");
     expect(viewerTypesSource).toContain("export type MarkdownLinkCommands");
@@ -368,7 +369,7 @@ describe("editor split-pane architecture", () => {
     expect(graphContract).toContain("revision: number");
     expect(graphContract).not.toContain("openWikiLink");
     expect(graphContract).not.toContain("openExternalUrl");
-    expect(paneSourceLifecycle).toContain("new AbortController()");
+    expect(paneSourceLifecycle).toContain("useDocumentInput");
     expect(paneMoveSource).toContain("createPaneMovePreview");
     expect(paneMoveSource).toContain("destroyPaneMovePreview");
     expect(paneMoveSource).toContain("samePaneDropIntent");
@@ -409,18 +410,16 @@ describe("editor split-pane architecture", () => {
   it("keeps one Sidebar and Editor layout boundary under an overlay sash", () => {
     const explorerRule = readCssBlock(dataShellStyles, ".explorer-column");
     const resizerRule = readCssBlock(dataShellStyles, ".data-explorer-resizer");
-    const resizerDividerRule = readCssBlock(dataShellStyles, ".data-explorer-resizer::after");
+
 
     expect(explorerRule).toContain(
       "border-inline-end: 1px solid var(--po-sidebar-divider, var(--po-divider));",
     );
     expect(resizerRule).toContain("background: transparent;");
     expect(resizerRule).toContain(
-      "inset-inline-start: var(--data-explorer-width, clamp(282px, 26vw, 360px));",
+      "inset-inline-start: calc(var(--data-explorer-width, clamp(282px, 26vw, 360px)) - 1px);",
     );
-    expect(resizerDividerRule).toContain("inset-inline-start: 0;");
-    expect(resizerDividerRule).toContain("inset-inline-end: auto;");
-    expect(resizerDividerRule).toContain("background: transparent;");
+    expect(dataShellStyles).not.toContain(".data-explorer-resizer::after");
     expect(dataShellStyles).not.toContain("grid-column: 3;");
     expect(dataShellStyles).not.toMatch(
       /grid-template-columns:[^}]*var\(--po-pane-resizer-hit-size/s,
@@ -472,7 +471,7 @@ describe("editor split-pane architecture", () => {
     expect(tokens).toContain("--po-pane-resizer-active-color:");
     expect(tokens).toContain("--po-pane-resizer-active-ring:");
     expect(tokens).not.toMatch(/--po-pane-resizer-(?:hover-color|active-color|active-ring):[^;]*--po-accent/);
-    for (const styles of [dataShellStyles, splitStyles, layoutStyles]) {
+    for (const styles of [readFileSync(new URL("../packages/shared-ui/src/styles/sidebar-primitives.css", import.meta.url), "utf8"), splitStyles]) {
       expect(styles).toContain("var(--po-pane-resizer-hover-color)");
       expect(styles).toContain("var(--po-pane-resizer-active-color)");
       expect(styles).toContain("var(--po-pane-resizer-active-ring)");

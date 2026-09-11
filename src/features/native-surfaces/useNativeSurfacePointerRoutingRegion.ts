@@ -1,4 +1,6 @@
+import { measureNativeSurfacePaneChrome, setNativeSurfacePaneChrome } from "./nativeSurfacePaneChrome";
 import { useLayoutEffect } from "react";
+import { subscribeNativeSurfaceLayoutFrames } from "./nativeSurfaceGeometry";
 import type { NativeSurfacePointerPassthroughOwner } from "./nativeSurfacePointerPassthrough";
 import { acquireNativeSurfacePointerRoutingRegion } from "./nativeSurfacePointerRoutingRegions";
 
@@ -10,6 +12,9 @@ export function useNativeSurfacePointerRoutingRegion(
   useLayoutEffect(() => {
     if (!element) return undefined;
     const lease = acquireNativeSurfacePointerRoutingRegion(owner);
+    const releaseHover = window.puppyoneDesktop?.onNativeSurfacePointerHover?.(({ regionId }) => {
+      element.toggleAttribute("data-native-hover", regionId === lease.id);
+    });
     const layoutRoot = element.parentElement;
     let frameId: number | null = null;
     let transitionDepth = 0;
@@ -17,6 +22,8 @@ export function useNativeSurfacePointerRoutingRegion(
     const measure = () => {
       frameId = null;
       const rect = element.getBoundingClientRect();
+      const paint = element.querySelector<HTMLElement>("[data-pane-edge-chrome]");
+      setNativeSurfacePaneChrome(lease.id, paint ? measureNativeSurfacePaneChrome(paint) : null, paint ?? undefined);
       const left = Math.max(0, Math.floor(rect.left));
       const top = Math.max(0, Math.floor(rect.top));
       const right = Math.min(window.innerWidth, Math.ceil(rect.right));
@@ -24,7 +31,8 @@ export function useNativeSurfacePointerRoutingRegion(
       if (right <= left || bottom <= top) {
         lease.update(null);
       } else {
-        lease.update({ x: left, y: top, width: right - left, height: bottom - top });
+        lease.update({ x: left, y: top, width: right - left, height: bottom - top,
+          cursor: getComputedStyle(element).cursor === "row-resize" ? "row-resize" : "col-resize" });
       }
       if (transitionDepth > 0) frameId = window.requestAnimationFrame(measure);
     };
@@ -47,20 +55,19 @@ export function useNativeSurfacePointerRoutingRegion(
       scheduleMeasure();
     };
 
+    const unsubscribeFrames = subscribeNativeSurfaceLayoutFrames(() => {
+      if (frameId !== null) window.cancelAnimationFrame(frameId);
+      measure();
+    });
     const resizeObserver = typeof ResizeObserver === "function"
       ? new ResizeObserver(scheduleMeasure)
       : null;
-    resizeObserver?.observe(element);
-    if (layoutRoot) resizeObserver?.observe(layoutRoot);
-
-    const mutationObserver = typeof MutationObserver === "function" && layoutRoot
+    const mutationObserver = typeof MutationObserver === "function"
       ? new MutationObserver(scheduleMeasure)
       : null;
-    if (mutationObserver && layoutRoot) {
-      mutationObserver.observe(layoutRoot, {
-        attributes: true,
-        attributeFilter: ["style", "data-explorer-collapsed", "data-explorer-dragging"],
-      });
+    for (let current: HTMLElement | null = element; current; current = current.parentElement) {
+      resizeObserver?.observe(current);
+      mutationObserver?.observe(current, { attributes: true });
     }
 
     layoutRoot?.addEventListener("transitionrun", handleTransitionRun);
@@ -72,6 +79,7 @@ export function useNativeSurfacePointerRoutingRegion(
 
     return () => {
       if (frameId !== null) window.cancelAnimationFrame(frameId);
+      unsubscribeFrames();
       resizeObserver?.disconnect();
       mutationObserver?.disconnect();
       layoutRoot?.removeEventListener("transitionrun", handleTransitionRun);
@@ -79,6 +87,9 @@ export function useNativeSurfacePointerRoutingRegion(
       layoutRoot?.removeEventListener("transitioncancel", handleTransitionEnd);
       window.removeEventListener("resize", scheduleMeasure);
       document.removeEventListener("scroll", scheduleMeasure, true);
+      releaseHover?.();
+      element.removeAttribute("data-native-hover");
+      setNativeSurfacePaneChrome(lease.id, null);
       lease.release();
     };
   }, [element, owner]);
