@@ -18,6 +18,24 @@ const assert = (condition, message) => { if (!condition) throw new Error(message
 const evaluate = (code) => window.webContents.executeJavaScript(code, true);
 const api = "window.__auxiliaryAppearanceSmoke";
 const animations = "document.querySelector('.desktop-terminal-subheader').getAnimations({ subtree: true }).filter(animation => animation instanceof CSSTransition || animation.id === 'workbench-header-layout')";
+const contentExpression = `(() => {
+  const launcher = [...document.querySelectorAll('.desktop-terminal-launcher')].find(element => element.getClientRects().length);
+  if (!launcher) return null;
+  const elements = [launcher, ...launcher.querySelectorAll('h2, button, .desktop-terminal-launcher-content, .desktop-terminal-launcher-group')];
+  return { history: launcher.classList.contains('is-history'),
+    tools: launcher.querySelectorAll('.desktop-terminal-launcher-tool').length,
+    animations: launcher.getAnimations({ subtree: true }).map(animation => animation.animationName ?? animation.transitionProperty ?? animation.id),
+    opacity: elements.map(element => {
+      let opacity = 1;
+      for (let node = element; node; node = node.parentElement) opacity *= Number(getComputedStyle(node).opacity);
+      return opacity;
+    }) };
+})()`;
+function checkContent(content, label) {
+  assert(content && (content.history || content.tools > 0), `${label}: launcher content missing`);
+  assert(content.animations.length === 0, `${label}: launcher content animated: ${content.animations.join(', ')}`);
+  assert(content.opacity.every(opacity => opacity === 1), `${label}: launcher content faded`);
+}
 async function settle() {
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   await evaluate("Promise.allSettled(document.querySelector('.desktop-right-sidebar').getAnimations({ subtree: true }).filter(animation => animation instanceof CSSTransition || animation.id === 'workbench-header-layout').map(animation => animation.finished))");
@@ -31,7 +49,7 @@ const snapshotExpression = `(() => {
       return { x: document.documentElement.dir === 'rtl' ? box.right - r.right : r.left - box.left,
         y: r.top - box.top, width: r.width, height: r.height, opacity: Number(getComputedStyle(element).opacity) };
     };
-    return { mode: rail.dataset.layout, motion: rail.dataset.layoutMotion, width: box.width,
+    return { content: ${contentExpression}, mode: rail.dataset.layout, motion: rail.dataset.layoutMotion, width: box.width,
       reduced: matchMedia('(prefers-reduced-motion: reduce)').matches,
       transition: getComputedStyle(rail.querySelector('.desktop-terminal-new-button')).transition,
       plus: rect(rail.querySelector('.desktop-terminal-new-button')),
@@ -96,6 +114,7 @@ async function run() {
     const frames = [];
     for (const time of [0, 40, 100, 200]) {
       const frame = await pauseAt(time); checkGeometry(frame, name);
+      checkContent(frame.content, `${name}: ${time}ms`);
       frames.push({ time, ...frame });
       await writeFile(path.join(artifacts, `${name}-${time}.png`), (await window.capturePage()).toPNG());
     }
@@ -117,6 +136,17 @@ async function run() {
     const secondBlankId = await evaluate(`${api}.snapshot().topology.items.filter(item => item.kind === 'launcher').at(-1)?.id`);
     assert(secondBlankId && secondBlankId !== launcherId, "Repeated + reused the first blank tab");
     assert(await evaluate(`document.querySelectorAll('[role="tab"] .lucide-square-dashed').length >= 2`), "Blank tabs did not use neutral icons");
+    await evaluate(`${api}.activateItem('${launcherId}')`);
+    await evaluate("new Promise(resolve => requestAnimationFrame(resolve))");
+    checkContent(await evaluate(contentExpression), `${name}: switch blank tab`);
+    await evaluate("[...document.querySelectorAll('.desktop-terminal-launcher-history')].find(element => element.getClientRects().length).click()");
+    await evaluate("new Promise(resolve => requestAnimationFrame(resolve))");
+    checkContent(await evaluate(contentExpression), `${name}: open history`);
+    await evaluate("document.querySelector('[data-smoke-history-back]').click()");
+    await evaluate("new Promise(resolve => requestAnimationFrame(resolve))");
+    checkContent(await evaluate(contentExpression), `${name}: back to launcher`);
+    await evaluate(`${api}.activateItem('${secondBlankId}')`);
+    await settle();
     await evaluate(`window.__retainedTab = document.querySelector('[data-terminal-tab-session-id="${launcherId}"]')`);
     const position = await snapshot();
     const runtimeId = await evaluate(`${api}.promoteLauncher('${launcherId}')`);
@@ -135,13 +165,16 @@ async function run() {
       }; requestAnimationFrame(capture);
     })`);
     await writeFile(path.join(artifacts, `${name}-rapid.json`), JSON.stringify(rapid, null, 2));
-    rapid.forEach((frame, index) => checkGeometry(frame, `${name}: rapid frame ${index}`));
+    rapid.forEach((frame, index) => {
+      checkGeometry(frame, `${name}: rapid frame ${index}`);
+      checkContent(frame.content, `${name}: rapid frame ${index}`);
+    });
     await settle(); checkGeometry(await snapshot(), `${name}: rapid creation`);
     const toClose = await evaluate(`${api}.snapshot().topology.items.at(-1).id`);
     await evaluate(`${api}.closeItem('${toClose}')`);
     await settle(); checkGeometry(await snapshot(), `${name}: close`);
     await writeFile(path.join(artifacts, `${name}-overflow.png`), (await window.capturePage()).toPNG());
-    report.push({ name, before, frames, promotion: { runtimeId, stableTab: true, otherBlankPreserved: true }, rapid });
+    report.push({ name, before, frames, contentImmediate: true, promotion: { runtimeId, stableTab: true, otherBlankPreserved: true }, rapid });
     window.destroy();
   }
   assert(errors.length === 0, `Renderer errors: ${errors.join("; ")}`);

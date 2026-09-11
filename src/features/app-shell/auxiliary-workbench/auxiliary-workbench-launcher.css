@@ -199,10 +199,6 @@
   text-align: start;
 }
 
-.desktop-terminal-launcher-tool {
-  animation: desktop-terminal-launcher-tool-enter 140ms cubic-bezier(0.2, 0, 0, 1) both;
-}
-
 .desktop-terminal-launcher-shell {
   color: var(--po-text-subtle);
 }
@@ -289,13 +285,6 @@
   }
 }
 
-@keyframes desktop-terminal-launcher-tool-enter {
-  from {
-    opacity: 0;
-    transform: translateY(2px);
-  }
-}
-
 @container (min-width: 460px) {
   .desktop-terminal-launcher-content {
     width: 264px;
@@ -309,8 +298,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .desktop-terminal-launcher-scan.is-scanning svg,
-  .desktop-terminal-launcher-tool {
+  .desktop-terminal-launcher-scan.is-scanning svg {
     animation: none;
   }
 }

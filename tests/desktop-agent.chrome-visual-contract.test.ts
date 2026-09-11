@@ -15,6 +15,15 @@ const terminalLauncherCss = source("src/features/app-shell/auxiliary-workbench/a
 const terminalTabsCss = source("src/features/app-shell/auxiliary-workbench/layout/auxiliary-workbench-header.css");
 
 describe("Desktop Agent and Terminal chrome visual contract", () => {
+  it("shows launcher content immediately while retaining tab and busy-state motion", () => {
+    expect(terminalLauncherCss).not.toContain("desktop-terminal-launcher-tool-enter");
+    expect(launcherCss).not.toContain("desktop-agent-runtime-launcher-option-enter");
+    expect(terminalLauncherCss).toContain("animation: desktop-terminal-launcher-scan");
+    expect(launcherCss).toContain("animation: desktop-agent-runtime-launcher-spin");
+    expect(terminalTabsCss).toContain("@starting-style");
+    expect(terminalTabsCss).toContain("opacity 120ms ease");
+  });
+
   it("keeps the in-chat runtime chooser compact and free of global history navigation", () => {
     expect(launcherCss).toMatch(/place-items:\s*safe center/);
     expect(launcherCss).toMatch(/padding:\s*32px 0/);

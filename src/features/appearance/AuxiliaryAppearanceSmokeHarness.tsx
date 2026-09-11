@@ -8,6 +8,8 @@ import { createTerminalWorkbenchContribution } from "../desktop-terminal/workben
 import { readTerminalAppearance } from "../desktop-terminal/runtime/terminalAppearance";
 import { AgentComposer } from "../desktop-agent/ui/AgentComposer";
 import { AgentPickerPopover } from "../desktop-agent/ui/AgentPickerPopover";
+import { TerminalLauncher } from "../desktop-terminal/ui/TerminalLauncher";
+import { AGENT_CHAT_CREATION_RECIPES } from "../app-shell/auxiliary-workbench/agentChatCreationRecipes";
 import { resolveAppearance } from "./resolveAppearance";
 import { resolveSurfaceAppearance, SurfaceAppearanceProvider } from "./AppearanceRuntime";
 import { DEFAULT_TYPOGRAPHY_PREFERENCES, resolveTypography } from "../typography";
@@ -124,7 +126,13 @@ export function AuxiliaryAppearanceSmokeHarness() {
     <main {...appearance.rootProps} className={theme === "dark" ? "dark desktop-theme-preview-surface auxiliary-appearance-smoke" : "desktop-theme-preview-surface auxiliary-appearance-smoke"}>
       <div className="desktop-right-sidebar is-open auxiliary-appearance-smoke-sidebar" style={{ width }}>
         <div ref={surface} className="desktop-right-sidebar-stack">
-          <AuxiliaryWorkbenchPanel store={store} contributions={contributions} active={active} renderLauncher={() => null} />
+          <AuxiliaryWorkbenchPanel store={store} contributions={contributions} active={active} renderLauncher={({ itemId }) => headerMotion ? <TerminalLauncher
+            titleId={`smoke-launcher-${itemId}`} agentMode="chat" discoveryPhase="ready" availableAgentIds={[]}
+            chatRecipes={AGENT_CHAT_CREATION_RECIPES} onCreateChat={() => { void store.create("agent-chat", null, null, null, itemId); }}
+            onLaunch={() => {}} onRefresh={() => {}}
+            history={{ label: t("agent.history.title"), iconKey: null, renderBrowser: ({ onBack }) => <button data-smoke-history-back onClick={onBack}>{t("agent.history.back")}</button> }}
+            onRestoreHistoryTarget={async () => false}
+          /> : null} />
         </div>
       </div>
       <DesktopOverlayPortal appearance={appearance}>{null}</DesktopOverlayPortal>

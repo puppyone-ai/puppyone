@@ -141,7 +141,6 @@
   cursor: var(--po-clickable-cursor, default);
   font: inherit;
   text-align: start;
-  animation: desktop-agent-runtime-launcher-option-enter 140ms cubic-bezier(0.2, 0, 0, 1) both;
 }
 
 .desktop-agent-runtime-launcher-option:hover {
@@ -539,13 +538,6 @@
   animation: desktop-agent-runtime-launcher-spin 900ms linear infinite;
 }
 
-@keyframes desktop-agent-runtime-launcher-option-enter {
-  from {
-    opacity: 0;
-    transform: translateY(2px);
-  }
-}
-
 @keyframes desktop-agent-runtime-launcher-spin {
   to {
     transform: rotate(360deg);
@@ -565,10 +557,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .desktop-agent-runtime-launcher-option {
-    animation: none;
-  }
-
   .desktop-agent-runtime-launcher .is-spinning {
     animation: none;
   }
