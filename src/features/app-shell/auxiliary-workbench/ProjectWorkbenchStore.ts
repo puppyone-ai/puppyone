@@ -10,7 +10,7 @@ import type {
 
 export const LAUNCHER_ITEM_KIND = "launcher";
 const entityId = () => crypto.randomUUID();
-type CreationIntent = { kind: string; group: string | null; recipe: AuxiliaryWorkbenchCreationRecipe | null; history: AuxiliaryWorkbenchHistoryTarget | null };
+type CreationIntent = { kind: string; group: string | null; recipe: AuxiliaryWorkbenchCreationRecipe | null; history: AuxiliaryWorkbenchHistoryTarget | null; launcherId: string | null };
 type WorkbenchSnapshot = Readonly<{
   topology: AuxiliaryWorkbenchState;
   snapshots: ReadonlyMap<string, AuxiliaryWorkbenchItemSnapshot>;
@@ -26,12 +26,16 @@ export class ProjectWorkbenchStore implements AuxiliaryWorkbenchProject {
   private listeners = new Set<() => void>();
   private resources = new Map<string, { dispose(): void }>();
   private contributions = new Map<string, AuxiliaryWorkbenchContribution>();
+  private preparingLaunchers = new Set<string>();
+  private headerKeys = new Map<string, string>();
   private failedIntent: CreationIntent | null = null;
   private snapshot: WorkbenchSnapshot = {
     topology: createAuxiliaryWorkbenchState(), snapshots: new Map(), preparingKinds: new Set(), creationFailure: null, closing: false, closeFailures: [],
   };
   constructor(readonly context: ProjectSessionContext) {}
   getSnapshot = () => this.snapshot;
+  /** Visual continuity only; never used as an Item, display, or execution identity. */
+  getHeaderKey = (id: string) => this.headerKeys.get(id) ?? id;
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
   private patch(value: Partial<WorkbenchSnapshot>) {
     if (this.disposed) return;
@@ -62,6 +66,7 @@ export class ProjectWorkbenchStore implements AuxiliaryWorkbenchProject {
     this.patch({ snapshots });
   };
   removeItem = (id: string) => {
+    this.headerKeys.delete(id);
     this.resources.get(`launcher:${id}`)?.dispose();
     this.resources.delete(`launcher:${id}`);
     const snapshots = new Map(this.snapshot.snapshots);
@@ -72,9 +77,25 @@ export class ProjectWorkbenchStore implements AuxiliaryWorkbenchProject {
     this.assertOpen();
     return Object.freeze({ id: entityId(), kind, rootId: this.context.rootPath, contextId: this.context.projectId });
   }
-  private commit(item: AuxiliaryWorkbenchItem, group: string | null) {
+  private hasLauncher(id: string) {
+    return this.snapshot.topology.items.some((item) => item.id === id && item.kind === LAUNCHER_ITEM_KIND);
+  }
+  private commit(item: AuxiliaryWorkbenchItem, group: string | null, launcherId: string | null = null) {
     this.assertOpen();
-    this.dispatch({ type: "create", item, groupId: entityId(), targetGroupId: group });
+    if (launcherId && !this.hasLauncher(launcherId)) return null;
+    const topology = auxiliaryWorkbenchReducer(this.snapshot.topology, launcherId
+      ? { type: "replace-item", itemId: launcherId, item }
+      : { type: "create", item, groupId: entityId(), targetGroupId: group });
+    if (topology === this.snapshot.topology) return null;
+    const snapshots = new Map(this.snapshot.snapshots);
+    if (launcherId) {
+      this.headerKeys.set(item.id, this.getHeaderKey(launcherId));
+      this.headerKeys.delete(launcherId);
+      snapshots.delete(launcherId);
+      this.resources.get(`launcher:${launcherId}`)?.dispose();
+      this.resources.delete(`launcher:${launcherId}`);
+    }
+    this.patch({ topology, snapshots });
     return item.id;
   }
   createLauncher(group: string | null, label: string) {
@@ -84,18 +105,26 @@ export class ProjectWorkbenchStore implements AuxiliaryWorkbenchProject {
     if (existing) { this.dispatch({ type: "activate", itemId: existing }); return existing; }
     const item = this.reserve(LAUNCHER_ITEM_KIND);
     this.updateSnapshot(item.id, { title: label, accessibleLabel: label, detail: null, iconKey: null, status: "selecting", running: false, resourceId: null });
-    return this.commit(item, group);
+    const id = this.commit(item, group);
+    if (!id) {
+      const snapshots = new Map(this.snapshot.snapshots);
+      snapshots.delete(item.id);
+      this.patch({ snapshots });
+    }
+    return id;
   }
   canCreate = (kind: string) => {
     const contribution = this.contributions.get(kind);
     return !this.disposed && !this.snapshot.closing && !!contribution && !this.snapshot.preparingKinds.has(kind)
       && this.snapshot.topology.items.filter((item) => item.kind === kind).length < (contribution.maximumItems ?? Infinity);
   };
-  create = async (kind: string, group: string | null, recipe: AuxiliaryWorkbenchCreationRecipe | null = null, history: AuxiliaryWorkbenchHistoryTarget | null = null): Promise<string | null> => {
+  create = async (kind: string, group: string | null, recipe: AuxiliaryWorkbenchCreationRecipe | null = null, history: AuxiliaryWorkbenchHistoryTarget | null = null, launcherId: string | null = null): Promise<string | null> => {
     const contribution = this.contributions.get(kind);
     if (!contribution || !this.canCreate(kind)) return null;
+    if (launcherId && (!this.hasLauncher(launcherId) || this.preparingLaunchers.has(launcherId))) return null;
     if (history ? !contribution.history || recipe : recipe ? !contribution.creationRecipes?.some((entry) => entry.id === recipe.id && entry.status === "available") : contribution.creationRecipes !== undefined) return null;
-    const intent = { kind, group, recipe, history };
+    const intent = { kind, group, recipe, history, launcherId };
+    if (launcherId) this.preparingLaunchers.add(launcherId);
     this.failedIntent = null;
     this.patch({ preparingKinds: new Set([...this.snapshot.preparingKinds, kind]), creationFailure: null });
     const preparation: AuxiliaryWorkbenchPreparationContext = { item: this.reserve(kind), recipe, historyTarget: history, project: this };
@@ -110,10 +139,11 @@ export class ProjectWorkbenchStore implements AuxiliaryWorkbenchProject {
         iconKey: history?.iconKey ?? recipe?.iconKey ?? contribution.initialSnapshot.iconKey,
         resourceId: history?.id ?? contribution.initialSnapshot.resourceId,
       });
-      const id = this.commit(preparation.item, group);
-      committed = true;
+      const id = this.commit(preparation.item, group, launcherId);
+      committed = id !== null;
       return id;
     } catch (error) {
+      if (this.disposed || (launcherId && !this.hasLauncher(launcherId))) return null;
       const value = error as { message?: string; code?: string; retryable?: boolean };
       this.failedIntent = intent;
       this.patch({ creationFailure: { kind, label: contribution.label, code: value.code ?? null, detail: value.message ?? String(error), retryable: value.retryable === true } });
@@ -126,12 +156,13 @@ export class ProjectWorkbenchStore implements AuxiliaryWorkbenchProject {
         try { await contribution.discardPreparedItem?.(preparation); }
         catch (error) { console.error("Unable to release prepared workbench item:", error); }
       }
+      if (launcherId) this.preparingLaunchers.delete(launcherId);
       this.patch({ preparingKinds: new Set([...this.snapshot.preparingKinds].filter((entry) => entry !== kind)) });
     }
   };
   retryCreation = () => {
     const intent = this.failedIntent;
-    return intent && this.snapshot.creationFailure?.retryable ? this.create(intent.kind, intent.group, intent.recipe, intent.history) : Promise.resolve(null);
+    return intent && this.snapshot.creationFailure?.retryable ? this.create(intent.kind, intent.group, intent.recipe, intent.history, intent.launcherId) : Promise.resolve(null);
   };
   dismissCreationFailure = () => { this.failedIntent = null; this.patch({ creationFailure: null }); };
   dispose() {
@@ -141,6 +172,8 @@ export class ProjectWorkbenchStore implements AuxiliaryWorkbenchProject {
       try { resource.dispose(); } catch (error) { console.error("Unable to release project view resources:", error); }
     }
     this.resources.clear();
+    this.headerKeys.clear();
+    this.preparingLaunchers.clear();
     this.listeners.clear();
   }
 }

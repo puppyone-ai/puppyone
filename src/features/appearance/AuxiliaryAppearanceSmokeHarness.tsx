@@ -18,6 +18,7 @@ import "./auxiliary-appearance-smoke.css";
 
 type Theme = "light" | "dark" | "windows-xp";
 const initialTheme = new URLSearchParams(location.search).get("theme") as Theme || "light";
+const headerMotion = new URLSearchParams(location.search).has("header-motion");
 const creations: TerminalCreateRequest[] = [];
 const updates: TerminalAppearanceRequest[] = [];
 const outputs = new Set<(event: TerminalDataEvent) => void>();
@@ -71,11 +72,17 @@ export function AuxiliaryAppearanceSmokeHarness() {
   const contributions = useMemo(() => {
     const chat: AuxiliaryWorkbenchContribution = {
       kind: "agent-chat", label: "Chat", createLabel: "Chat", minimumSize: { width: 280, height: 260 },
-      initialSnapshot: { title: "Chat", accessibleLabel: "Chat", detail: null, iconKey: null, status: "idle", running: false, resourceId: null },
+      initialSnapshot: { title: headerMotion ? "Codex" : "Chat", accessibleLabel: "Chat", detail: null, iconKey: headerMotion ? "codex" : null, status: "idle", running: false, resourceId: null },
       renderItem: () => <ChatFixture />,
       close: { decide: () => ({ kind: "close" }), commit: async () => true },
     };
-    return [createTerminalWorkbenchContribution(t, readAppearance), chat];
+    const terminal: AuxiliaryWorkbenchContribution = headerMotion ? {
+      ...chat, kind: "terminal", label: "Terminal", createLabel: "Terminal",
+      initialSnapshot: { ...chat.initialSnapshot, title: "Terminal", accessibleLabel: "Terminal", iconKey: "shell" },
+      creationRecipes: [{ id: "shell", label: "Terminal", iconKey: "shell", status: "available" }],
+      renderItem: () => <div className="desktop-terminal-session">{t("terminal.title")}</div>,
+    } : createTerminalWorkbenchContribution(t, readAppearance);
+    return [terminal, chat];
   }, [t, readAppearance]);
   useLayoutEffect(() => {
     document.documentElement.dataset.interfaceStyle = theme === "windows-xp" ? "windows-xp" : "default";
@@ -92,6 +99,12 @@ export function AuxiliaryAppearanceSmokeHarness() {
       const group = store.getSnapshot().topology.groups[0].id;
       const api = {
         creations, updates, input, setTheme, setWidth, setActive,
+        snapshot: store.getSnapshot,
+        activateItem: (itemId: string) => store.dispatch({ type: "activate", itemId }),
+        closeItem: store.removeItem,
+        newChat: () => store.create("agent-chat", null),
+        newLauncher: () => store.createLauncher(null, "New terminal"),
+        promoteLauncher: (launcherId: string) => store.create("agent-chat", null, null, null, launcherId),
         activate: (kind: "terminal" | "chat") => store.dispatch({ type: "activate", itemId: kind === "terminal" ? terminal : chat }),
         split: () => store.dispatch({ type: "split-item", sourceItemId: chat, targetGroupId: group, edge: "bottom", groupId: "chat-group", splitId: "appearance-split" }),
         newTerminal: () => store.create("terminal", null, contributions[0].creationRecipes!.find(recipe => recipe.id === "shell")!),

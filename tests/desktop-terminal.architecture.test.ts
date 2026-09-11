@@ -71,6 +71,9 @@ describe("Desktop Terminal architecture boundaries", () => {
     const headerLayoutHook = source(
       "src/features/app-shell/auxiliary-workbench/layout/useWorkbenchSessionHeaderLayout.ts",
     );
+    const headerMotion = source(
+      "src/features/app-shell/auxiliary-workbench/layout/useWorkbenchSessionHeaderMotion.ts",
+    );
     const headerCss = source(
       "src/features/app-shell/auxiliary-workbench/layout/auxiliary-workbench-header.css",
     );
@@ -127,7 +130,7 @@ describe("Desktop Terminal architecture boundaries", () => {
     expect(header).toContain("<TerminalSessionOverflowMenu");
     expect(header).toContain("useTerminalSessionHeaderController");
     expect(header).toContain("useTerminalSessionHeaderLayout");
-    expect(header).toContain("data-activation-motion");
+    expect(header).toContain("data-layout-motion");
     expect(headerTab).toContain("<TerminalSessionHeaderStatus");
     expect(headerPresentation).toContain("terminalPathLabel(workspacePath)");
     expect(headerPresentation).toContain("presentTerminalSessionHeader");
@@ -139,8 +142,10 @@ describe("Desktop Terminal architecture boundaries", () => {
     expect(headerLayout).toContain('"overflow"');
     expect(headerOverflow).toContain("<DesktopMenuSurface");
     expect(headerOverflow).toContain("<TerminalSessionHeaderStatus");
-    expect(headerController).toContain("WORKBENCH_SESSION_HEADER_METRICS.activationMotionMs");
-    expect(headerLayout).toContain("activationMotionMs: 220");
+    expect(headerController).not.toContain("setTimeout");
+    expect(headerLayout).toContain("layoutMotionMs: 200");
+    expect(headerLayoutHook).toContain("setMotionReady(false)");
+    expect(headerLayoutHook).toContain("cancelAnimationFrame");
     expect(headerLayout).toContain("canPreserveVisibleWindow");
     expect(headerLayoutHook).toContain("preferredVisibleSessionIds: visibleWindow");
     expect(headerLayoutHook).toContain("capacityRef");
@@ -182,9 +187,14 @@ describe("Desktop Terminal architecture boundaries", () => {
       /\.desktop-terminal-tab\s*\{[^}]*position:\s*absolute;[^}]*inset-inline-start:\s*var\(--desktop-terminal-tab-inline-start\);/s,
     );
     expect(headerCss).toMatch(/\.desktop-terminal-tab\s*\{(?![^}]*transition:)[^}]*\}/s);
-    expect(headerCss).toMatch(
-      /\.desktop-terminal-tab-rail\[data-activation-motion="true"\] \.desktop-terminal-tab\s*\{[^}]*inset-inline-start var\(--desktop-terminal-tab-activation-motion\)[^}]*width var\(--desktop-terminal-tab-activation-motion\)/s,
-    );
+    expect(headerMotion).toContain("element.animate");
+    expect(headerMotion).toContain("animation?.cancel()");
+    expect(headerMotion).toContain("sameGeometry");
+    expect(headerMotion).toContain("prefers-reduced-motion");
+    expect(headerMotion).not.toContain("setTimeout");
+    expect(headerCss).toContain("@starting-style");
+    expect(headerCss).toContain("inset-inline-start: var(--desktop-terminal-new-inline-start)");
+    expect(headerCss).not.toContain("transition: all");
     expect(headerCss).toMatch(
       /\.desktop-terminal-tab-select\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*var\(--desktop-terminal-tab-control-height\) minmax\(0, 1fr\);/s,
     );

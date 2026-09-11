@@ -24,8 +24,7 @@ export function AuxiliaryWorkbenchLauncher({ store, contributions, hiddenAgentId
     renderBrowser: (context: Parameters<NonNullable<typeof chat.history>["renderBrowser"]>[0]) => chat.history!.renderBrowser({ ...context, project: store }),
   } : null, [chat, store]);
   const create = async (kind: string, recipe: AuxiliaryWorkbenchCreationRecipe | null, target: AuxiliaryWorkbenchHistoryTarget | null = null) => {
-    const result = await store.create(kind, groupId, recipe, target);
-    if (result && itemId) store.removeItem(itemId);
+    const result = await store.create(kind, groupId, recipe, target, itemId);
     if (result) launcherState.patch({ historyOpen: false, openingTargetId: null });
     return Boolean(result);
   };

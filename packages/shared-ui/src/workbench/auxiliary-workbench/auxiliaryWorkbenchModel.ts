@@ -50,6 +50,7 @@ export type AuxiliaryWorkbenchAction =
     targetGroupId?: string | null;
   }
   | { type: "activate"; itemId: string }
+  | { type: "replace-item"; itemId: string; item: AuxiliaryWorkbenchItem }
   | { type: "close"; itemId: string }
   | {
     type: "split-item";
@@ -98,6 +99,20 @@ export function auxiliaryWorkbenchReducer(
     return insertNewItem(state, action.item, action.groupId, action.targetGroupId);
   }
   if (action.type === "activate") return activateItem(state, action.itemId);
+  if (action.type === "replace-item") {
+    const previous = state.items.find((item) => item.id === action.itemId);
+    if (!previous || hasItem(state, action.item.id)
+      || previous.rootId !== action.item.rootId || previous.contextId !== action.item.contextId) return state;
+    return finalize({
+      ...state,
+      items: state.items.map((item) => item.id === previous.id ? action.item : item),
+      groups: state.groups.map((group) => group.itemIds.includes(previous.id) ? freezeGroup({
+        ...group,
+        itemIds: group.itemIds.map((id) => id === previous.id ? action.item.id : id),
+        activeItemId: group.activeItemId === previous.id ? action.item.id : group.activeItemId,
+      }) : group),
+    });
+  }
   if (action.type === "close") return closeItem(state, action.itemId);
   if (action.type === "split-item") return splitItemToNewGroup(state, action);
   if (action.type === "merge-item") {

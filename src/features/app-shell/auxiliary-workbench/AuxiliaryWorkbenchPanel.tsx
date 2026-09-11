@@ -50,7 +50,7 @@ export function AuxiliaryWorkbenchPanel({ store, contributions, active, renderLa
   const headerItems = workbench.items.flatMap((item) => {
     const contribution = byKind.get(item.kind);
     const snapshot = workbench.snapshots.get(item.id) ?? contribution?.initialSnapshot;
-    return snapshot ? [{ id: item.id, kind: item.kind, snapshot, statusIcon: contribution?.renderStatus?.({ project: store, item, snapshot }) }] : [];
+    return snapshot ? [{ id: item.id, headerKey: store.getHeaderKey(item.id), kind: item.kind, snapshot, statusIcon: contribution?.renderStatus?.({ project: store, item, snapshot }) }] : [];
   });
   const closeCoordinator = useAuxiliaryWorkbenchCloseCoordinator({
     resolveTarget: (id) => {

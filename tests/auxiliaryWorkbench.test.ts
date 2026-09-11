@@ -18,6 +18,21 @@ const chat = item("chat-1", "agent-chat", "/workspace-a", "workspace-a");
 const secondRootChat = item("chat-2", "agent-chat", "/workspace-b", "workspace-b");
 
 describe("Auxiliary Workbench topology", () => {
+  it("replaces one identity in place without changing selection, topology, or other Groups", () => {
+    const state = splitState();
+    const replacement = item("replacement", "terminal", chat.rootId, chat.contextId);
+    const next = auxiliaryWorkbenchReducer(state, { type: "replace-item", itemId: chat.id, item: replacement });
+    expect(next.root).toBe(state.root);
+    expect(next.activeGroupId).toBe(state.activeGroupId);
+    expect(next.groups.find((group) => group.id === "group-a")?.itemIds).toEqual([replacement.id]);
+    expect(next.groups.find((group) => group.id === "group-b")).toBe(state.groups.find((group) => group.id === "group-b"));
+    expect(next.items).toHaveLength(state.items.length);
+    expect(() => assertAuxiliaryWorkbenchState(next)).not.toThrow();
+    for (const invalid of [chat, secondRootChat, { ...replacement, rootId: "/other" }, { ...replacement, contextId: "other" }]) {
+      expect(auxiliaryWorkbenchReducer(state, { type: "replace-item", itemId: chat.id, item: invalid })).toBe(state);
+    }
+    expect(auxiliaryWorkbenchReducer(state, { type: "replace-item", itemId: "closed", item: replacement })).toBe(state);
+  });
   it("keeps mixed Terminal and Chat Items in one local Tab stack", () => {
     let state = createAuxiliaryWorkbenchState();
     state = create(state, terminal, "group-a");

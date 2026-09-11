@@ -14,6 +14,7 @@ import type { WorkbenchTabMoveDragController } from "./interactions/useWorkbench
 import { workbenchPanelId, workbenchTabId } from "./workbenchSessionHeaderIds";
 import { useWorkbenchSessionHeaderController } from "./useWorkbenchSessionHeaderController";
 import { useWorkbenchSessionHeaderLayout } from "./useWorkbenchSessionHeaderLayout";
+import { useWorkbenchSessionHeaderMotion } from "./useWorkbenchSessionHeaderMotion";
 import type { AuxiliaryWorkbenchHeaderItem } from "./AuxiliaryWorkbenchHeader.types";
 import { AuxiliaryWorkbenchOverflowMenu } from "./AuxiliaryWorkbenchOverflowMenu";
 import { AuxiliaryWorkbenchTab } from "./AuxiliaryWorkbenchTab";
@@ -67,34 +68,35 @@ export function AuxiliaryWorkbenchHeader({
     () => new Set(presentedItemIds),
     [presentedItemIds],
   );
-  const itemById = useMemo(
-    () => new Map(items.map((item) => [item.id, item])),
+  const itemByHeaderKey = useMemo(
+    () => new Map(items.map((item) => [item.headerKey ?? item.id, item])),
     [items],
   );
+  const headerKeyById = useMemo(() => new Map(items.map((item) => [item.id, item.headerKey ?? item.id])), [items]);
+  const layoutKeys = useMemo(() => layoutItemIds.map((id) => headerKeyById.get(id) ?? id), [layoutItemIds, headerKeyById]);
   const itemIndexById = useMemo(
     () => new Map(itemIds.map((itemId, index) => [itemId, index])),
     [itemIds],
   );
-  const { capacityRef, layout } = useWorkbenchSessionHeaderLayout(
-    layoutItemIds,
-    layoutActiveItemId,
+  const { capacityRef, layout, motionReady } = useWorkbenchSessionHeaderLayout(
+    layoutKeys,
+    layoutActiveItemId ? headerKeyById.get(layoutActiveItemId) ?? layoutActiveItemId : null,
     1,
   );
+  useWorkbenchSessionHeaderMotion(capacityRef, layout, motionReady && !tabMove.dragging && !dropInsertion);
   const controller = useWorkbenchSessionHeaderController({
-    activeSessionId: activeItemId,
-    motionEligibleSessionIds: layout.visibleSessionIds,
     onActivate,
     sessionIds: itemIds,
     tabId: workbenchTabId,
   });
   const visibleItems = layout.tabBounds
     .map((bounds) => {
-      const item = itemById.get(bounds.sessionId);
+      const item = itemByHeaderKey.get(bounds.sessionId);
       return item ? { bounds, item } : null;
     })
     .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
   const hiddenItems = layout.hiddenSessionIds
-    .map((itemId) => itemById.get(itemId))
+    .map((key) => itemByHeaderKey.get(key))
     .filter((item): item is AuxiliaryWorkbenchHeaderItem => Boolean(item));
   const insertionSlots = insertionPreview
     ? layout.tabBounds.filter(({ sessionId }) => (
@@ -108,7 +110,6 @@ export function AuxiliaryWorkbenchHeader({
       data-window-no-drag="true"
       style={{
         "--desktop-terminal-header-gap": `${WORKBENCH_SESSION_HEADER_METRICS.gap}px`,
-        "--desktop-terminal-tab-activation-motion": `${WORKBENCH_SESSION_HEADER_METRICS.activationMotionMs}ms`,
         "--desktop-terminal-tab-control-height": `${WORKBENCH_SESSION_HEADER_METRICS.createControl}px`,
         "--desktop-terminal-tab-width": `${WORKBENCH_SESSION_HEADER_METRICS.fullMaximum}px`,
       } as CSSProperties}
@@ -117,7 +118,11 @@ export function AuxiliaryWorkbenchHeader({
         <div
           className="desktop-terminal-tab-rail"
           data-layout={layout.mode}
-          data-activation-motion={controller.activationMotionActive && !tabMove.dragging ? "true" : undefined}
+          data-layout-motion={motionReady && !tabMove.dragging && !dropInsertion ? "true" : undefined}
+          style={{
+            "--desktop-terminal-tabs-resolved-width": `${layout.tabsWidth}px`,
+            "--desktop-terminal-new-inline-start": `${layout.tabsWidth + WORKBENCH_SESSION_HEADER_METRICS.gap + (hiddenItems.length ? WORKBENCH_SESSION_HEADER_METRICS.overflowControl + WORKBENCH_SESSION_HEADER_METRICS.gap : 0)}px`,
+          } as CSSProperties}
           data-tab-dragging={tabMove.dragging ? "true" : undefined}
           data-tab-insertion={dropInsertion ? "true" : undefined}
           data-tab-insertion-allowed={dropInsertion?.allowed ? "true" : undefined}
@@ -130,9 +135,6 @@ export function AuxiliaryWorkbenchHeader({
             className="desktop-terminal-tabs"
             role="tablist"
             aria-label={t("terminal.title")}
-            style={{
-              "--desktop-terminal-tabs-resolved-width": `${layout.tabsWidth}px`,
-            } as CSSProperties}
           >
             {insertionSlots.map((slot) => (
               <div
@@ -147,7 +149,7 @@ export function AuxiliaryWorkbenchHeader({
             ))}
             {visibleItems.map(({ bounds, item }) => (
               <AuxiliaryWorkbenchTab
-                key={item.id}
+                key={item.headerKey ?? item.id}
                 item={item}
                 index={itemIndexById.get(item.id) ?? 0}
                 active={item.id === activeItemId}

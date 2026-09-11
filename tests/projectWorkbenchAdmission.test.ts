@@ -32,6 +32,88 @@ function owner(feature: AuxiliaryWorkbenchContribution) {
 }
 
 describe("Project Workbench contribution admission", () => {
+  it("publishes an in-place launcher replacement once and retains its visual key", async () => {
+    const store = owner(contribution(async () => {}));
+    const first = (await store.create("agent-chat", null, recipe("codex")))!;
+    const launcher = store.createLauncher(null, "New")!;
+    const last = (await store.create("agent-chat", null, recipe("codex")))!;
+    const before = store.getSnapshot().topology;
+    const group = before.groups[0].id;
+    const resource = store.getResource(`launcher:${launcher}`, () => ({ dispose: vi.fn() }));
+    const changes: typeof before[] = [];
+    store.subscribe(() => { const value = store.getSnapshot().topology; if (changes.at(-1) !== value) changes.push(value); });
+    const result = (await store.create("agent-chat", group, recipe("codex"), null, launcher))!;
+    expect(result).not.toBe(launcher);
+    expect(changes).toHaveLength(2);
+    expect(changes[0]).toBe(before);
+    expect(changes[1].groups[0].itemIds).toEqual([first, result, last]);
+    expect(changes[1].groups[0].activeItemId).toBe(last);
+    expect(changes[1].root).toBe(before.root);
+    expect(store.getHeaderKey(result)).toBe(launcher);
+    expect(store.getSnapshot().snapshots.has(launcher)).toBe(false);
+    expect(resource.dispose).toHaveBeenCalledOnce();
+    store.removeItem(result);
+    expect(store.getHeaderKey(result)).toBe(result);
+  });
+
+  it("follows a pending launcher's current Group without stealing another Group's selection", async () => {
+    const wait = deferred();
+    const feature = contribution(vi.fn().mockResolvedValueOnce(undefined).mockImplementationOnce(() => wait.promise));
+    const store = owner(feature);
+    const first = (await store.create("agent-chat", null, recipe("codex")))!;
+    const launcher = store.createLauncher(null, "New")!;
+    const group = store.getSnapshot().topology.groups[0].id;
+    const pending = store.create("agent-chat", group, recipe("codex"), null, launcher);
+    store.dispatch({ type: "split-item", sourceItemId: launcher, targetGroupId: group, edge: "right", groupId: "new-group", splitId: "split" });
+    store.dispatch({ type: "activate", itemId: first });
+    wait.resolve();
+    const result = await pending;
+    expect(store.getSnapshot().topology.groups.find((entry) => entry.id === "new-group")?.itemIds).toEqual([result]);
+    expect(store.getSnapshot().topology.activeGroupId).toBe(group);
+  });
+
+  it("discards late readiness after the launcher closes, without recreating tabs", async () => {
+    const wait = deferred();
+    const feature = contribution(() => wait.promise);
+    const store = owner(feature);
+    const launcher = store.createLauncher(null, "New")!;
+    const pending = store.create("agent-chat", null, recipe("codex"), null, launcher);
+    store.removeItem(launcher);
+    wait.resolve();
+    expect(await pending).toBeNull();
+    expect(store.getSnapshot().topology.items).toEqual([]);
+    expect(store.getSnapshot().snapshots.size).toBe(0);
+    expect(feature.discardPreparedItem).toHaveBeenCalledOnce();
+  });
+
+  it("does not prepare two different runtimes for the same launcher", async () => {
+    const wait = deferred();
+    const feature = contribution(() => wait.promise);
+    const terminal = { ...contribution(vi.fn()), kind: "terminal" };
+    const store = owner(feature);
+    store.configure([feature, terminal]);
+    const launcher = store.createLauncher(null, "New")!;
+    const pending = store.create("agent-chat", null, recipe("codex"), null, launcher);
+    expect(await store.create("terminal", null, recipe("codex"), null, launcher)).toBeNull();
+    expect(terminal.prepare).not.toHaveBeenCalled();
+    wait.resolve(); await pending;
+    expect(store.getSnapshot().topology.items).toHaveLength(1);
+  });
+
+  it("retries a failed launcher in place, and rejects stale or non-launcher replacements", async () => {
+    const prepare = vi.fn().mockRejectedValueOnce(Object.assign(new Error("Temporary"), { retryable: true })).mockResolvedValue(undefined);
+    const store = owner(contribution(prepare));
+    const launcher = store.createLauncher(null, "New")!;
+    expect(await store.create("agent-chat", null, recipe("codex"), null, launcher)).toBeNull();
+    expect(store.getSnapshot().topology.items[0].id).toBe(launcher);
+    const result = (await store.retryCreation())!;
+    expect(store.getSnapshot().topology.items).toHaveLength(1);
+    expect(store.getHeaderKey(result)).toBe(launcher);
+    expect(await store.create("agent-chat", null, recipe("codex"), null, result)).toBeNull();
+    expect(await store.create("agent-chat", null, recipe("codex"), null, launcher)).toBeNull();
+    expect(prepare).toHaveBeenCalledTimes(2);
+  });
+
   it("reserves project identity, prepares the recipe, then commits the same Item", async () => {
     const wait = deferred();
     const prepare = vi.fn(() => wait.promise);

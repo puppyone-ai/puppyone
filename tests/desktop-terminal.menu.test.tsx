@@ -10,7 +10,6 @@ import { AuxiliaryWorkbenchCloseDialog } from "../src/features/app-shell/auxilia
 import type { TerminalRuntimeHandle } from "../src/features/desktop-terminal/runtime/terminalRuntime";
 import { TerminalSessionHeader } from "../src/features/desktop-terminal/ui/session-header/TerminalSessionHeader";
 import type { TerminalTabMoveDragController } from "../src/features/desktop-terminal/interactions/useTerminalTabMoveDrag";
-import { TERMINAL_SESSION_ACTIVATION_MOTION_MS } from "../src/features/desktop-terminal/ui/session-header/useTerminalSessionHeaderController";
 import { DEFAULT_TITLEBAR_ACTIONS_SETTINGS } from "../src/preferences";
 import { withTestLocalization } from "./testLocalization";
 
@@ -344,7 +343,7 @@ describe("Desktop Terminal tab session manager", () => {
     expect(container.querySelector(".desktop-terminal-tab-overflow-trigger")).toBeNull();
   });
 
-  it("animates an explicit compact-tab activation without animating steady layout", () => {
+  it("enables continuous Header motion after initial measurement, without an activation timer", () => {
     vi.useFakeTimers();
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
       x: 0,
@@ -384,7 +383,8 @@ describe("Desktop Terminal tab session manager", () => {
     const tabs = container.querySelectorAll<HTMLButtonElement>('[role="option"]');
     const tabShells = container.querySelectorAll<HTMLElement>(".desktop-terminal-tab");
     expect(rail?.getAttribute("data-layout")).toBe("compact");
-    expect(rail?.hasAttribute("data-activation-motion")).toBe(false);
+    expect(rail?.hasAttribute("data-layout-motion")).toBe(false);
+    act(() => vi.advanceTimersByTime(20));
     expect(tabShells[0]?.style.getPropertyValue("--desktop-terminal-tab-inline-start")).toBe("0px");
     expect(tabShells[0]?.style.getPropertyValue("--desktop-terminal-tab-resolved-width")).toBe("144px");
     expect(tabShells[1]?.style.getPropertyValue("--desktop-terminal-tab-inline-start")).toBe("147px");
@@ -392,14 +392,14 @@ describe("Desktop Terminal tab session manager", () => {
 
     act(() => tabs[1]?.click());
     expect(tabs[1]?.getAttribute("aria-selected")).toBe("true");
-    expect(rail?.getAttribute("data-activation-motion")).toBe("true");
+    expect(rail?.getAttribute("data-layout-motion")).toBe("true");
     expect(tabShells[0]?.style.getPropertyValue("--desktop-terminal-tab-inline-start")).toBe("0px");
     expect(tabShells[0]?.style.getPropertyValue("--desktop-terminal-tab-resolved-width")).toBe("28px");
     expect(tabShells[1]?.style.getPropertyValue("--desktop-terminal-tab-inline-start")).toBe("31px");
     expect(tabShells[1]?.style.getPropertyValue("--desktop-terminal-tab-resolved-width")).toBe("144px");
 
-    act(() => vi.advanceTimersByTime(TERMINAL_SESSION_ACTIVATION_MOTION_MS));
-    expect(rail?.hasAttribute("data-activation-motion")).toBe(false);
+    act(() => vi.advanceTimersByTime(250));
+    expect(rail?.getAttribute("data-layout-motion")).toBe("true");
   });
 
   it("keeps visible overflow tabs mounted while the active width pushes across the rail", () => {
@@ -443,6 +443,7 @@ describe("Desktop Terminal tab session manager", () => {
 
     act(() => root?.render(withTestLocalization(<Harness />)));
     const before = [...container.querySelectorAll<HTMLElement>(".desktop-terminal-tab")];
+    act(() => vi.advanceTimersByTime(20));
     expect(before.map((tab) => tab.querySelector('[role="option"]')?.id)).toEqual([
       "desktop-terminal-tab-terminal-2",
       "desktop-terminal-tab-terminal-3",
@@ -455,7 +456,7 @@ describe("Desktop Terminal tab session manager", () => {
     expect(after).toEqual(before);
     expect(after[2]?.classList.contains("is-compact")).toBe(true);
     expect(after[3]?.classList.contains("is-active")).toBe(true);
-    expect(container.querySelector(".desktop-terminal-tab-rail")?.getAttribute("data-activation-motion"))
+    expect(container.querySelector(".desktop-terminal-tab-rail")?.getAttribute("data-layout-motion"))
       .toBe("true");
   });
 
