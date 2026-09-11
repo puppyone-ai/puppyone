@@ -173,6 +173,7 @@ describe("Agent history identity and opening boundaries", () => {
     const owner = createSender(1);
     const created = await first.api.createSession(owner, { runtimeId: "codex" }, "/workspace");
     await first.api.startTurn(owner, { sessionId: created.session.id, prompt: "Hello" }, "/workspace");
+    expect((await first.api.listSessions(owner, { discoverNative: false }, "/workspace")).sessions).toEqual([]);
     first.adapters[0].options.onEvent({ type: "turn.completed", providerSessionId: "native-1", turnId: "turn-1", payload: { status: "completed" } });
     first.adapters[0].options.onSessionPersisted({ providerSessionId: "native-1", sourceScopeId: "default" });
     await first.api.closeAll();
@@ -187,6 +188,8 @@ describe("Agent history identity and opening boundaries", () => {
       { type: "assistant.completed", providerSessionId: id, turnId: "turn-1", itemId: "answer", payload: { text: "Hello back" } },
       { type: "turn.completed", providerSessionId: id, turnId: "turn-1", payload: { status: "completed" } },
     ] }) });
+    const listed = await restarted.api.listSessions(createSender(2), { discoverNative: false }, "/workspace");
+    expect(listed.sessions.map((session) => session.id)).toEqual([created.session.id]);
     const opened = await restarted.api.openSession(createSender(2), { sessionId: created.session.id, runtimeId: "codex" }, "/workspace");
     expect(opened.status).toBe("opened");
     expect(opened.snapshot.session.id).toBe(created.session.id);

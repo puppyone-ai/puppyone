@@ -1,4 +1,5 @@
-import { useMemo, useSyncExternalStore } from "react";
+import { useLayoutEffect, useMemo, useSyncExternalStore } from "react";
+import { useLocalization } from "@puppyone/localization/react";
 import type { AuxiliaryWorkbenchContribution, AuxiliaryWorkbenchCreationRecipe, AuxiliaryWorkbenchHistoryTarget } from "./types";
 import type { WorkbenchLauncherContext } from "./AuxiliaryWorkbenchPanel";
 import type { ProjectWorkbenchStore } from "./ProjectWorkbenchStore";
@@ -13,8 +14,17 @@ export function AuxiliaryWorkbenchLauncher({ store, contributions, hiddenAgentId
   contributions: readonly AuxiliaryWorkbenchContribution[];
   hiddenAgentIds: readonly string[];
 }) {
+  const { t } = useLocalization();
   const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot);
   const launcherState = store.getResource(`launcher:${itemId ?? "empty"}`, () => new WorkbenchLauncherState());
+  const { historyOpen } = useSyncExternalStore(launcherState.subscribe, launcherState.getSnapshot);
+  const title = t(historyOpen ? "agent.history.title" : "workspace.workbench.newTab");
+  useLayoutEffect(() => {
+    const currentState = store.getSnapshot();
+    if (!itemId || !currentState.topology.items.some((item) => item.id === itemId && item.kind === "launcher")) return;
+    const current = currentState.snapshots.get(itemId);
+    if (current) store.updateSnapshot(itemId, { ...current, title, accessibleLabel: title, iconKey: historyOpen ? "history" : null });
+  }, [store, itemId, title, historyOpen]);
   const discovery = useTerminalAgentLocator({ enabled: presented });
   const availableAgentIds = discovery.ids.filter((id) => !hiddenAgentIds.includes(id));
   const chat = contributions.find((entry) => entry.kind === "agent-chat");
@@ -42,6 +52,10 @@ export function AuxiliaryWorkbenchLauncher({ store, contributions, hiddenAgentId
     history={history}
     historyRootId={store.context.projectId}
     historyRootPath={store.context.rootPath}
+    onOpenHistory={() => {
+      const targetId = itemId ?? store.createLauncher(groupId, t("agent.history.title"));
+      if (targetId) store.getResource(`launcher:${targetId}`, () => new WorkbenchLauncherState()).patch({ historyOpen: true });
+    }}
     excludedHistoryResourceIds={Array.from(snapshot.snapshots.values()).flatMap((entry) => entry.resourceId ? [entry.resourceId] : [])}
     onRefresh={discovery.refresh}
     onLaunch={(id) => {

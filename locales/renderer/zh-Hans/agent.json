@@ -1,4 +1,7 @@
 {
+  "history.notFound": "当前项目暂未发现可恢复对话",
+  "history.alreadyOpen": "已发现的对话均已打开",
+  "history.sourceSummary": "历史查询范围有限",
   "error.session-ended": "此会话已结束。请从历史对话中重新打开后继续。",
   "name": "智能体",
   "panel.chat": "{agent} 对话",

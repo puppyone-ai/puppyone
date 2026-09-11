@@ -8,7 +8,8 @@ import { createTerminalWorkbenchContribution } from "../desktop-terminal/workben
 import { readTerminalAppearance } from "../desktop-terminal/runtime/terminalAppearance";
 import { AgentComposer } from "../desktop-agent/ui/AgentComposer";
 import { AgentPickerPopover } from "../desktop-agent/ui/AgentPickerPopover";
-import { TerminalLauncher } from "../desktop-terminal/ui/TerminalLauncher";
+import { AuxiliaryWorkbenchLauncher } from "../app-shell/auxiliary-workbench/AuxiliaryWorkbenchLauncher";
+import { AgentConversationHistory } from "../desktop-agent/ui/AgentConversationHistory";
 import { AGENT_CHAT_CREATION_RECIPES } from "../app-shell/auxiliary-workbench/agentChatCreationRecipes";
 import { resolveAppearance } from "./resolveAppearance";
 import { resolveSurfaceAppearance, SurfaceAppearanceProvider } from "./AppearanceRuntime";
@@ -30,6 +31,8 @@ const fixtureResponse = "A response uses the application's text and surface role
 // Deterministic CLI fixture: explicit RGB composer derived from startup colors.
 // It exercises production runtime/contribution code without credentials or a real Agent.
 Object.defineProperty(window, "puppyoneDesktop", { configurable: true, value: {
+  locateTerminalAgents: async () => ({ availableAgentIds: ["codex", "cursor"], scannedAt: "2026-09-11T00:00:00.000Z", source: "scan" }),
+  onTerminalAgentLocationProgress: () => () => {},
   createTerminal: async (request: TerminalCreateRequest) => {
     creations.push(request);
     const bg = request.defaultColors!.background.map(channel => Math.max(0, channel - 10));
@@ -75,6 +78,24 @@ export function AuxiliaryAppearanceSmokeHarness() {
     const chat: AuxiliaryWorkbenchContribution = {
       kind: "agent-chat", label: "Chat", createLabel: "Chat", minimumSize: { width: 280, height: 260 },
       initialSnapshot: { title: headerMotion ? "Codex" : "Chat", accessibleLabel: "Chat", detail: null, iconKey: headerMotion ? "codex" : null, status: "idle", running: false, resourceId: null },
+      creationRecipes: headerMotion ? AGENT_CHAT_CREATION_RECIPES : undefined,
+      history: headerMotion ? {
+        label: t("agent.history.title"), iconKey: "history",
+        renderBrowser: ({ onBack, onOpen }) => <div className="desktop-agent-boundary desktop-agent-runtime-launcher is-history">
+          <AgentConversationHistory
+            sessions={["Review sidebar architecture", "Fix terminal startup", "A longer conversation title to verify narrow history rows"].map((title, index) => ({
+              id: `fixture-history-${index}`, runtimeId: index === 1 ? "cursor" : "codex", provider: index === 1 ? "cursor" : "codex",
+              providerSessionId: `native-${index}`, workspaceRoot: "/fixture/project", title,
+              createdAt: "2026-09-11T10:00:00.000Z", updatedAt: "2026-09-11T10:00:00.000Z",
+              lastSequence: 0, terminalState: "idle" as const, selectedModel: null,
+            }))}
+            runtimes={[]} loading={false} refreshing={false} loadingMore={false} hasMore={false} error={null}
+            sources={{ codex: { runtimeId: "codex", status: "complete", coverage: "unknown", indexed: 3, nextCursor: null, scanId: null, warnings: [] } }}
+            onBack={onBack} onRefresh={() => {}} onLoadMore={() => {}}
+            onOpen={(session) => onOpen({ id: session.id, title: session.title, iconKey: session.runtimeId ?? null, payload: {} })}
+          />
+        </div>,
+      } : undefined,
       renderItem: () => <ChatFixture />,
       close: { decide: () => ({ kind: "close" }), commit: async () => true },
     };
@@ -95,7 +116,8 @@ export function AuxiliaryAppearanceSmokeHarness() {
     const start = async () => {
       const terminal = await store.create("terminal", null, contributions[0].creationRecipes!.find(recipe => recipe.id === "shell")!);
       if (cancelled) return;
-      const chat = await store.create("agent-chat", null);
+      const chatRecipe = contributions[1].creationRecipes?.[0] ?? null;
+      const chat = await store.create("agent-chat", null, chatRecipe);
       if (cancelled) return;
       if (!terminal || !chat) throw new Error("Appearance fixture could not create contributions.");
       const group = store.getSnapshot().topology.groups[0].id;
@@ -104,9 +126,9 @@ export function AuxiliaryAppearanceSmokeHarness() {
         snapshot: store.getSnapshot,
         activateItem: (itemId: string) => store.dispatch({ type: "activate", itemId }),
         closeItem: store.removeItem,
-        newChat: () => store.create("agent-chat", null),
+        newChat: () => store.create("agent-chat", null, chatRecipe),
         newLauncher: () => store.createLauncher(null, t("workspace.workbench.newTab")),
-        promoteLauncher: (launcherId: string) => store.create("agent-chat", null, null, null, launcherId),
+        promoteLauncher: (launcherId: string) => store.create("agent-chat", null, chatRecipe, null, launcherId),
         activate: (kind: "terminal" | "chat") => store.dispatch({ type: "activate", itemId: kind === "terminal" ? terminal : chat }),
         split: () => store.dispatch({ type: "split-item", sourceItemId: chat, targetGroupId: group, edge: "bottom", groupId: "chat-group", splitId: "appearance-split" }),
         newTerminal: () => store.create("terminal", null, contributions[0].creationRecipes!.find(recipe => recipe.id === "shell")!),
@@ -126,12 +148,8 @@ export function AuxiliaryAppearanceSmokeHarness() {
     <main {...appearance.rootProps} className={theme === "dark" ? "dark desktop-theme-preview-surface auxiliary-appearance-smoke" : "desktop-theme-preview-surface auxiliary-appearance-smoke"}>
       <div className="desktop-right-sidebar is-open auxiliary-appearance-smoke-sidebar" style={{ width }}>
         <div ref={surface} className="desktop-right-sidebar-stack">
-          <AuxiliaryWorkbenchPanel store={store} contributions={contributions} active={active} renderLauncher={({ itemId }) => headerMotion ? <TerminalLauncher
-            titleId={`smoke-launcher-${itemId}`} agentMode="chat" discoveryPhase="ready" availableAgentIds={[]}
-            chatRecipes={AGENT_CHAT_CREATION_RECIPES} onCreateChat={() => { void store.create("agent-chat", null, null, null, itemId); }}
-            onLaunch={() => {}} onRefresh={() => {}}
-            history={{ label: t("agent.history.title"), iconKey: null, renderBrowser: ({ onBack }) => <button data-smoke-history-back onClick={onBack}>{t("agent.history.back")}</button> }}
-            onRestoreHistoryTarget={async () => false}
+          <AuxiliaryWorkbenchPanel store={store} contributions={contributions} active={active} renderLauncher={(context) => headerMotion ? <AuxiliaryWorkbenchLauncher
+            {...context} store={store} contributions={contributions} hiddenAgentIds={[]}
           /> : null} />
         </div>
       </div>

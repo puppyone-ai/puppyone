@@ -1,4 +1,7 @@
 {
+  "history.notFound": "No restorable chats found in this project yet",
+  "history.alreadyOpen": "Discovered chats are already open",
+  "history.sourceSummary": "History lookup is limited",
   "error.session-ended": "This session has ended. Open it from History to continue.",
   "name": "Agent",
   "panel.chat": "{agent} Chat",

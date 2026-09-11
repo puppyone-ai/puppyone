@@ -1,4 +1,7 @@
 {
+  "history.notFound": "In diesem Projekt wurden noch keine wiederherstellbaren Chats gefunden",
+  "history.alreadyOpen": "Die gefundenen Chats sind bereits geöffnet",
+  "history.sourceSummary": "Die Verlaufssuche ist eingeschränkt",
   "error.session-ended": "Diese Sitzung wurde beendet. Öffne sie über den Verlauf, um fortzufahren.",
   "name": "Agent",
   "panel.chat": "{agent}-Chat",

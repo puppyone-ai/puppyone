@@ -142,9 +142,35 @@ async function run() {
     await evaluate("[...document.querySelectorAll('.desktop-terminal-launcher-history')].find(element => element.getClientRects().length).click()");
     await evaluate("new Promise(resolve => requestAnimationFrame(resolve))");
     checkContent(await evaluate(contentExpression), `${name}: open history`);
-    await evaluate("document.querySelector('[data-smoke-history-back]').click()");
+    assert(await evaluate(`(() => {
+      const tab = document.querySelector('[data-terminal-tab-session-id="${launcherId}"] [role="tab"]');
+      const view = document.querySelector('.desktop-agent-history-view');
+      return tab?.textContent === 'Chat history' && tab.getAttribute('aria-selected') === 'true' && tab.querySelector('.lucide-history')
+        && !view.querySelector('h2, input') && view.querySelectorAll('.desktop-agent-history-option').length === 3
+        && !view.querySelector('details').open;
+    })()`), `${name}: History tab or compact content header is incorrect`);
+    await settle();
+    await writeFile(path.join(artifacts, `${name}-history.png`), (await window.capturePage()).toPNG());
+    await evaluate("document.querySelector('button[aria-label=\"Search chat history\"]').click()");
+    await evaluate("new Promise(resolve => requestAnimationFrame(resolve))");
+    assert(await evaluate(`(() => {
+      const input = document.querySelector('.desktop-agent-history-toolbar input');
+      const header = input.closest('header').getBoundingClientRect(), box = input.getBoundingClientRect();
+      return document.activeElement === input && box.left >= header.left && box.right <= header.right
+        && box.top >= header.top && box.bottom <= header.bottom;
+    })()`), `${name}: Search is not focused or escaped the toolbar`);
+    window.webContents.insertText("terminal");
+    await evaluate("new Promise(resolve => requestAnimationFrame(resolve))");
+    assert(await evaluate("document.querySelectorAll('.desktop-agent-history-option').length === 1"), `${name}: Search did not filter rows`);
+    await writeFile(path.join(artifacts, `${name}-history-search.png`), (await window.capturePage()).toPNG());
+    window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Escape" });
+    window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Escape" });
+    await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+    assert(await evaluate("!document.querySelector('.desktop-agent-history-view input') && document.querySelectorAll('.desktop-agent-history-option').length === 3 && document.activeElement?.getAttribute('aria-label') === 'Search chat history'"), `${name}: Escape did not reset search and focus`);
+    await evaluate("document.querySelector('button[aria-label=\"Back to Agents\"]').click()");
     await evaluate("new Promise(resolve => requestAnimationFrame(resolve))");
     checkContent(await evaluate(contentExpression), `${name}: back to launcher`);
+    assert(await evaluate(`document.querySelector('[data-terminal-tab-session-id="${launcherId}"] [role="tab"] .lucide-square-dashed') !== null`), `${name}: Back did not restore blank tab identity`);
     await evaluate(`${api}.activateItem('${secondBlankId}')`);
     await settle();
     await evaluate(`window.__retainedTab = document.querySelector('[data-terminal-tab-session-id="${launcherId}"]')`);
@@ -174,7 +200,7 @@ async function run() {
     await evaluate(`${api}.closeItem('${toClose}')`);
     await settle(); checkGeometry(await snapshot(), `${name}: close`);
     await writeFile(path.join(artifacts, `${name}-overflow.png`), (await window.capturePage()).toPNG());
-    report.push({ name, before, frames, contentImmediate: true, promotion: { runtimeId, stableTab: true, otherBlankPreserved: true }, rapid });
+    report.push({ name, before, frames, contentImmediate: true, historyNavigation: true, inlineHistorySearch: true, promotion: { runtimeId, stableTab: true, otherBlankPreserved: true }, rapid });
     window.destroy();
   }
   assert(errors.length === 0, `Renderer errors: ${errors.join("; ")}`);

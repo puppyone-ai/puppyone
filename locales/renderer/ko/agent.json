@@ -1,4 +1,7 @@
 {
+  "history.notFound": "이 프로젝트에서 복원 가능한 채팅을 아직 찾지 못했습니다",
+  "history.alreadyOpen": "발견된 채팅이 모두 열려 있습니다",
+  "history.sourceSummary": "기록 검색 범위가 제한되어 있습니다",
   "error.session-ended": "이 세션이 종료되었습니다. 계속하려면 기록에서 다시 여세요.",
   "name": "에이전트",
   "panel.chat": "{agent} 채팅",

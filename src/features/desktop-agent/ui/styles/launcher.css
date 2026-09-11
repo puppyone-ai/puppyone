@@ -261,7 +261,6 @@
   margin: 0;
   grid-template-rows:
     var(--desktop-chrome-height, 38px)
-    auto
     minmax(0, 1fr)
     auto;
   overflow: hidden;
@@ -282,18 +281,10 @@
     var(--desktop-sidebar-row-right-gap, 12px);
 }
 
-.desktop-agent-history-toolbar h2 {
+.desktop-agent-history-search-slot {
+  display: grid;
   min-width: 0;
-  margin: 0;
-  overflow: hidden;
-  color: var(--agent-text-muted);
-  font-family: var(--po-font-sans);
-  font-size: var(--po-type-header-content, 15px);
-  font-weight: 500;
-  line-height: var(--po-type-header-line-height, 20px);
-  text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  justify-items: center;
 }
 
 .desktop-agent-history-toolbar-button {
@@ -324,18 +315,20 @@
   opacity: 0.5;
 }
 
+.desktop-agent-history-toolbar-button[hidden] {
+  display: none;
+}
+
 .desktop-agent-history-search {
+  box-sizing: border-box;
   display: grid;
+  width: 100%;
   min-width: 0;
-  height: var(--po-control-size);
+  height: var(--po-control-size-compact);
   grid-template-columns: 16px minmax(0, 1fr);
   align-items: center;
   gap: 6px;
-  margin:
-    6px
-    var(--desktop-sidebar-row-right-gap, 12px)
-    8px
-    var(--desktop-sidebar-row-left-gap, 12px);
+  margin: 0;
   padding:
     0
     var(--desktop-sidebar-row-content-right, 6px)
@@ -456,6 +449,7 @@
 }
 
 .desktop-agent-history-title {
+  display: block;
   overflow: hidden;
   font: inherit;
   text-overflow: ellipsis;
@@ -532,6 +526,24 @@
 
 .desktop-agent-history-source-status {
   color: var(--agent-text-subtle);
+}
+
+.desktop-agent-history-source-details {
+  max-width: 100%;
+  max-height: 120px;
+  overflow: auto;
+  color: var(--agent-text-subtle);
+  font-size: var(--agent-font-size-micro);
+  line-height: var(--agent-micro-line-height);
+}
+
+.desktop-agent-history-source-details summary {
+  cursor: var(--po-clickable-cursor, default);
+}
+
+.desktop-agent-history-source-details summary:focus-visible {
+  outline: 1px solid var(--po-focus-ring);
+  outline-offset: -1px;
 }
 
 .desktop-agent-runtime-launcher .is-spinning {
