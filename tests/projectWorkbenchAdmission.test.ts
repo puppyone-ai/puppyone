@@ -32,6 +32,51 @@ function owner(feature: AuxiliaryWorkbenchContribution) {
 }
 
 describe("Project Workbench contribution admission", () => {
+  it("does not reserve runtime resources or consume feature quotas for blank tabs", async () => {
+    const prepare = vi.fn(async () => {});
+    const feature = { ...contribution(prepare), maximumItems: 1 };
+    const store = owner(feature);
+    const blanks = Array.from({ length: 64 }, () => store.createLauncher(null, "New tab")!);
+    expect(new Set(blanks).size).toBe(64);
+    expect(store.getSnapshot().topology.groups).toHaveLength(1);
+    expect(store.getSnapshot().topology.groups[0].itemIds).toEqual(blanks);
+    expect(store.getSnapshot().preparingKinds.size).toBe(0);
+    expect(prepare).not.toHaveBeenCalled();
+    expect([...store.getSnapshot().snapshots.values()].every((snapshot) => snapshot.status === "selecting" && snapshot.resourceId === null && !snapshot.running)).toBe(true);
+    const runtime = await store.create("agent-chat", null, recipe("codex"), null, blanks[0]);
+    expect(runtime).not.toBeNull();
+    expect(store.getSnapshot().topology.groups[0].itemIds).toEqual([runtime, ...blanks.slice(1)]);
+    expect(store.canCreate("agent-chat")).toBe(false);
+    const extra = store.createLauncher(null, "New tab");
+    expect(extra).not.toBeNull();
+    expect(await store.create("agent-chat", null, recipe("codex"), null, extra)).toBeNull();
+    expect(prepare).toHaveBeenCalledOnce();
+    store.removeItem(blanks[1]);
+    expect(store.getSnapshot().topology.items).toHaveLength(64);
+    expect(store.getSnapshot().topology.items.some((item) => item.id === runtime)).toBe(true);
+    const topology = store.getSnapshot().topology;
+    store.setClosing(true);
+    expect(store.createLauncher(null, "New tab")).toBeNull();
+    store.dispose();
+    expect(store.createLauncher(null, "New tab")).toBeNull();
+    expect(store.getSnapshot().topology).toBe(topology);
+  });
+
+  it("allows another blank during preparation without redirecting the result or selection", async () => {
+    const wait = deferred();
+    const store = owner(contribution(() => wait.promise));
+    const source = store.createLauncher(null, "New tab")!;
+    const pending = store.create("agent-chat", null, recipe("codex"), null, source);
+    const next = store.createLauncher(null, "New tab")!;
+    expect(next).not.toBe(source);
+    wait.resolve();
+    const runtime = await pending;
+    expect(store.getSnapshot().topology.groups[0].itemIds).toEqual([runtime, next]);
+    expect(store.getSnapshot().topology.groups[0].activeItemId).toBe(next);
+    expect(store.getHeaderKey(runtime!)).toBe(source);
+    expect(store.getSnapshot().snapshots.get(next)?.status).toBe("selecting");
+  });
+
   it("publishes an in-place launcher replacement once and retains its visual key", async () => {
     const store = owner(contribution(async () => {}));
     const first = (await store.create("agent-chat", null, recipe("codex")))!;

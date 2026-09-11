@@ -176,7 +176,7 @@ export function AuxiliaryWorkbenchHeader({
           )}
           <DesktopMenuIconButton
             className="desktop-terminal-new-button"
-            label={t("terminal.new")}
+            label={t("workspace.workbench.newTab")}
             icon={<Plus size={14} strokeWidth={1.9} aria-hidden="true" />}
             onClick={onCreate}
           />

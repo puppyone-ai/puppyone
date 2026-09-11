@@ -139,7 +139,21 @@ try {
     agentDraftVerified = true;
     await fs.writeFile(path.join(temp, "agent-draft-restored.png"), (await window.webContents.capturePage()).toPNG());
   }
-  if (!agentDraftVerified) await click(".desktop-terminal-new-button");
+  if (!agentDraftVerified) {
+    const displayCount = window.contentView.children.length;
+    for (let index = 0; index < 3; index++) {
+      await click(".desktop-terminal-new-button");
+      await untilRenderer(`document.querySelectorAll('[data-terminal-tab-session-id]').length === ${index + 2}`, "independent blank tabs");
+    }
+    const blanks = (await tabIds()).filter((id) => id !== aTabs[0]);
+    assert(new Set(blanks).size === 3, "Repeated + reused a blank tab");
+    assert(await evaluate("document.querySelectorAll('[role=tab] .lucide-square-dashed').length === 3"), "Blank tab icon is not neutral");
+    assert(terminals.length === 2 && window.contentView.children.length === displayCount, "Blank tabs allocated native runtimes or displays");
+    await evaluate("Promise.allSettled(document.querySelector('.desktop-terminal-subheader').getAnimations({ subtree: true }).filter(animation => animation instanceof CSSTransition || animation.id === 'workbench-header-layout').map(animation => animation.finished))");
+    await fs.writeFile(path.join(temp, "multiple-blank-tabs.png"), (await window.webContents.capturePage()).toPNG());
+    for (const id of blanks.slice(1)) await click(`[data-terminal-tab-session-id="${id}"] .desktop-terminal-tab-close`);
+    await untilRenderer("document.querySelectorAll('[data-terminal-tab-session-id]').length === 2", "close only extra blank tabs");
+  }
   const movingItem = (await tabIds()).find((id) => id !== aTabs[0]);
   const originalGroup = await evaluate("document.querySelector('[data-terminal-group-pane-id]').dataset.terminalGroupPaneId");
   const nativeIdentity = terminals.map(({ pid }) => pid);
@@ -244,7 +258,7 @@ try {
   window.close();
   await until(() => d.exited && window.isDestroyed(), "second window close");
   assert(errors.length === 0, "Renderer reported errors");
-  const report = { ok: true, temp, roots, aTabs, bTabs, agentDraftVerified, nativePresentationRestored: true, nativeFocusActivatesStore: true,
+  const report = { ok: true, temp, roots, aTabs, bTabs, agentDraftVerified, blankTabsVerified: !agentDraftVerified, nativePresentationRestored: true, nativeFocusActivatesStore: true,
     summaryDoesNotStealFocus: true, groupGripRemoved: true, nativeSashRoutingVerified: true, tabMovementVerified: true,
     splitAndReunionVerified: true, multiRootEditorVerified: true, separateWindowsVerified: true, terminals: terminals.map(({ pid, utilityPid, rendererPid, cwd, exited }) => ({ pid, utilityPid, rendererPid, cwd, exited })), rendererErrors: errors, localizationDiagnostics };
   await fs.writeFile(path.join(temp, "report.json"), JSON.stringify(report, null, 2));

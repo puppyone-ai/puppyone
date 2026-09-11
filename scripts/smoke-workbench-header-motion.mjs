@@ -111,6 +111,12 @@ async function run() {
     }
     await evaluate(`${animations}.forEach(animation => animation.finish())`);
     await settle();
+    await clickPlus();
+    await evaluate(`${animations}.forEach(animation => animation.finish())`);
+    await settle();
+    const secondBlankId = await evaluate(`${api}.snapshot().topology.items.filter(item => item.kind === 'launcher').at(-1)?.id`);
+    assert(secondBlankId && secondBlankId !== launcherId, "Repeated + reused the first blank tab");
+    assert(await evaluate(`document.querySelectorAll('[role="tab"] .lucide-square-dashed').length >= 2`), "Blank tabs did not use neutral icons");
     await evaluate(`window.__retainedTab = document.querySelector('[data-terminal-tab-session-id="${launcherId}"]')`);
     const position = await snapshot();
     const runtimeId = await evaluate(`${api}.promoteLauncher('${launcherId}')`);
@@ -118,11 +124,12 @@ async function run() {
     assert(runtimeId !== launcherId && await evaluate(`window.__retainedTab === document.querySelector('[data-terminal-tab-session-id="${runtimeId}"]')`), "Launcher replacement recreated the tab DOM");
     const promoted = await snapshot();
     assert(promoted.tabs.length === position.tabs.length && Math.abs(promoted.plus.x - position.plus.x) < 1, "Promotion changed Header geometry");
+    assert(await evaluate(`${api}.snapshot().topology.groups.some(group => group.activeItemId === '${secondBlankId}')`), "Background promotion stole the blank tab selection");
     // Retarget while prior transitions are still running; there is no animation queue.
     const rapid = await evaluate(`new Promise(resolve => {
       const frames = []; let count = 0;
       const capture = async () => {
-        if ([0, 3, 6, 9].includes(count)) await ${api}.newChat();
+        if ([0, 3, 6, 9].includes(count)) ${api}.newLauncher();
         frames.push(${snapshotExpression});
         if (++count === 24) resolve(frames); else requestAnimationFrame(capture);
       }; requestAnimationFrame(capture);
@@ -134,7 +141,7 @@ async function run() {
     await evaluate(`${api}.closeItem('${toClose}')`);
     await settle(); checkGeometry(await snapshot(), `${name}: close`);
     await writeFile(path.join(artifacts, `${name}-overflow.png`), (await window.capturePage()).toPNG());
-    report.push({ name, before, frames, promotion: { runtimeId, stableTab: true }, rapid });
+    report.push({ name, before, frames, promotion: { runtimeId, stableTab: true, otherBlankPreserved: true }, rapid });
     window.destroy();
   }
   assert(errors.length === 0, `Renderer errors: ${errors.join("; ")}`);

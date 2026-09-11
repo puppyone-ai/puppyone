@@ -99,10 +99,7 @@ export class ProjectWorkbenchStore implements AuxiliaryWorkbenchProject {
     return item.id;
   }
   createLauncher(group: string | null, label: string) {
-    const topology = this.snapshot.topology;
-    const target = group ?? topology.activeGroupId;
-    const existing = topology.groups.find((entry) => entry.id === target)?.itemIds.find((id) => topology.items.some((item) => item.id === id && item.kind === LAUNCHER_ITEM_KIND));
-    if (existing) { this.dispatch({ type: "activate", itemId: existing }); return existing; }
+    if (this.disposed || this.snapshot.closing) return null;
     const item = this.reserve(LAUNCHER_ITEM_KIND);
     this.updateSnapshot(item.id, { title: label, accessibleLabel: label, detail: null, iconKey: null, status: "selecting", running: false, resourceId: null });
     const id = this.commit(item, group);

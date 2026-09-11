@@ -100,7 +100,7 @@ export function AuxiliaryWorkbenchPanel({ store, contributions, active, renderLa
         activeGroupId={workbench.activeGroup?.id ?? null} dropIntent={itemMove.dropIntent} groups={workbench.groups} headerItems={headerItems} hosts={hosts} root={workbench.root} itemMove={itemMove}
         getLeafMinimum={(id) => maximum(workbench.groups.find((group) => group.id === id)?.itemIds.map(itemMinimum) ?? [])}
         onActivateItem={activateAndFocus} onCloseItem={(id) => { void closeCoordinator.requestClose(id); }}
-        onCreateItem={(group) => store.createLauncher(group, t("terminal.new"))} onResizeSplit={workbench.resizeSplit}
+        onCreateItem={(group) => store.createLauncher(group, t("workspace.workbench.newTab"))} onResizeSplit={workbench.resizeSplit}
         onMoveByKeyboard={(id, group, edge) => { const target = panel.current?.querySelector<HTMLElement>(`[data-terminal-content-drop-group-id="${group}"]`); if (target && canDrop(id, group, edge, target)) workbench.splitItem(id, group, edge); }}
       />}
       {workbench.items.map((item) => {

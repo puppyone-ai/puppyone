@@ -1,4 +1,5 @@
 {
+  "workbench.newTab": "Nueva pestaña",
   "projectSessions.sessionCloseFailed": "No se pudo cerrar esta sesión. Inténtalo de nuevo.",
   "projectSessions.closing": "Cerrando este proyecto…",
   "projectSessions.closeFailed": "No se pudieron detener algunas tareas del proyecto.",

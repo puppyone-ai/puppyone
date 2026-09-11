@@ -1,4 +1,5 @@
 {
+  "workbench.newTab": "Nouvel onglet",
   "projectSessions.sessionCloseFailed": "Impossible de fermer cette session. Réessayez.",
   "projectSessions.closing": "Fermeture du projet…",
   "projectSessions.closeFailed": "Certaines tâches du projet n’ont pas pu être arrêtées.",

@@ -103,7 +103,7 @@ export function AuxiliaryAppearanceSmokeHarness() {
         activateItem: (itemId: string) => store.dispatch({ type: "activate", itemId }),
         closeItem: store.removeItem,
         newChat: () => store.create("agent-chat", null),
-        newLauncher: () => store.createLauncher(null, "New terminal"),
+        newLauncher: () => store.createLauncher(null, t("workspace.workbench.newTab")),
         promoteLauncher: (launcherId: string) => store.create("agent-chat", null, null, null, launcherId),
         activate: (kind: "terminal" | "chat") => store.dispatch({ type: "activate", itemId: kind === "terminal" ? terminal : chat }),
         split: () => store.dispatch({ type: "split-item", sourceItemId: chat, targetGroupId: group, edge: "bottom", groupId: "chat-group", splitId: "appearance-split" }),
@@ -119,7 +119,7 @@ export function AuxiliaryAppearanceSmokeHarness() {
       if (started) store.dispose();
       Reflect.deleteProperty(window, "__auxiliaryAppearanceSmoke");
     };
-  }, [store, contributions]);
+  }, [store, contributions, t]);
   return <SurfaceAppearanceProvider value={appearance}>
     <main {...appearance.rootProps} className={theme === "dark" ? "dark desktop-theme-preview-surface auxiliary-appearance-smoke" : "desktop-theme-preview-surface auxiliary-appearance-smoke"}>
       <div className="desktop-right-sidebar is-open auxiliary-appearance-smoke-sidebar" style={{ width }}>
