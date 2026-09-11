@@ -16,6 +16,43 @@ function fixture() {
 }
 
 describe("per-session Agent process ownership", () => {
+  it("releases an unavailable resumed conversation so the item can start a new one", async () => {
+    const { service, hosts, sender, request } = fixture();
+    await service.createSession(sender, request, "/project");
+    hosts[0].call.mockResolvedValueOnce(null);
+    expect(await service.resumeSession(sender, { sessionId: "session", instanceId: "instance" }, "/project")).toBeNull();
+    expect(hosts[0].close).toHaveBeenCalledOnce();
+    await service.closeSession(sender, { sessionId: "session", instanceId: "instance" }, "/project");
+    await service.createSession(sender, request, "/project");
+    expect(hosts).toHaveLength(2);
+    await service.closeItem(1, "item");
+  });
+
+  it("rebinds a resumed runtime instance and rejects commands from before recovery", async () => {
+    const { service, hosts, sender, request } = fixture();
+    await service.createSession(sender, request, "/project");
+    hosts[0].call.mockResolvedValueOnce(snapshot("session", "recovered-instance"));
+    await service.resumeSession(sender, { sessionId: "session", instanceId: "instance" }, "/project");
+    expect(hosts).toHaveLength(1);
+    expect(service.findItemSession(1, "item").instanceId).toBe("recovered-instance");
+    expect(() => service.startTurn(sender, { sessionId: "session", instanceId: "instance" }, "/project")).toThrow(/owned/);
+    await service.startTurn(sender, { sessionId: "session", instanceId: "recovered-instance" }, "/project");
+    await service.closeItem(1, "item");
+  });
+
+  it("does not resurrect an item closed while resume is pending", async () => {
+    const { service, hosts, sender, request } = fixture();
+    await service.createSession(sender, request, "/project");
+    const pending = Promise.withResolvers();
+    hosts[0].call.mockReturnValueOnce(pending.promise);
+    const resumed = service.resumeSession(sender, { sessionId: "session", instanceId: "instance" }, "/project");
+    await service.closeItem(1, "item");
+    pending.resolve(snapshot("session", "recovered-instance"));
+    await expect(resumed).rejects.toThrow(/owned/);
+    expect(service.findItemSession(1, "item")).toBeNull();
+    expect(service.getSessionCount()).toBe(0);
+  });
+
   it("keeps one utility per item and rejects cross-item/session/project commands", async () => {
     const { service, hosts, sender, request } = fixture();
     await service.createSession(sender, request, "/project");
