@@ -120,16 +120,16 @@ describe("Sidebar architecture", () => {
       /\.desktop-right-sidebar\.is-open\s*\{[^}]*flex-basis:\s*var\(--desktop-right-sidebar-width\)[^}]*width:\s*var\(--desktop-right-sidebar-width\)/s,
     );
     expect(layoutCss).toMatch(
-      /\.desktop-right-sidebar-viewport\s*\{[^}]*position:\s*absolute[^}]*inset:\s*0[^}]*width:\s*100%[^}]*overflow:\s*clip[^}]*pointer-events:\s*none/s,
+      /\.desktop-right-sidebar-viewport\s*\{[^}]*position:\s*absolute[^}]*inset:\s*0[^}]*overflow:\s*clip[^}]*pointer-events:\s*none/s,
     );
     expect(layoutCss).toMatch(
-      /\.desktop-right-sidebar-inner\s*\{[^}]*position:\s*absolute[^}]*inset-inline-end:\s*0[^}]*width:\s*var\(--desktop-right-sidebar-width\)[^}]*min-width:\s*var\(--desktop-right-sidebar-width\)[^}]*pointer-events:\s*none/s,
+      /\.desktop-right-sidebar-inner\s*\{[^}]*position:\s*absolute[^}]*inset-inline-end:\s*0[^}]*width:\s*var\(--desktop-right-sidebar-content-width\)[^}]*min-width:\s*var\(--desktop-right-sidebar-content-width\)[^}]*pointer-events:\s*none/s,
     );
     expect(layoutCss).toMatch(
       /\.desktop-right-sidebar\.is-open \.desktop-right-sidebar-inner\s*\{[^}]*pointer-events:\s*auto/s,
     );
     expect(layoutCss).toMatch(
-      /\.desktop-right-sidebar-inner\s*\{[^}]*width:\s*var\(--desktop-right-sidebar-width\)[^}]*transform:\s*translateX\(var\(--desktop-right-sidebar-exit-translate\)\)[^}]*transition:\s*transform 260ms/s,
+      /\.desktop-right-sidebar-inner\s*\{[^}]*width:\s*var\(--desktop-right-sidebar-content-width\)[^}]*transform:\s*translateX\(var\(--desktop-right-sidebar-exit-translate\)\)[^}]*transition:\s*transform 260ms/s,
     );
     expect(layoutCss).not.toMatch(/\.desktop-right-sidebar-inner\s*\{[^}]*transition:[^}]*(?:width|min-width|flex-basis)/s);
     expect(layoutCss).not.toMatch(/\.desktop-right-sidebar-viewport\s*\{[^}]*(?:opacity|visibility|transition):/s);

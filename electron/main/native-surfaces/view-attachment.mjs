@@ -9,8 +9,11 @@ export function attachNativeSurfaceView({ window, view, nativeSurfaceOcclusion, 
   const apply = () => {
     if (disposed || view.webContents.isDestroyed()) return;
     const next = visible && healthy && !occluded && window.isVisible();
-    view.setVisible(next);
-    if (displayed !== next) { displayed = next; onVisibilityChange?.(next); }
+    if (displayed !== next) {
+      view.setVisible(next);
+      displayed = next;
+      onVisibilityChange?.(next);
+    }
   };
   const releaseOcclusion = nativeSurfaceOcclusion?.register({ ownerWebContentsId: window.webContents.id,
     setOccluded(value) { occluded = value; apply(); } });

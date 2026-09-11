@@ -73,6 +73,7 @@ export const SidebarResizeHandle = forwardRef<HTMLDivElement, SidebarResizeHandl
 
     if (collapsedEdgeSide && onCollapsedActivate && event.button === 0) {
       const pointerId = event.pointerId;
+      const handle = event.currentTarget;
       const startX = event.clientX;
       const startY = event.clientY;
       let moved = false;
@@ -82,6 +83,10 @@ export const SidebarResizeHandle = forwardRef<HTMLDivElement, SidebarResizeHandl
         window.removeEventListener("pointerup", handleEnd, true);
         window.removeEventListener("pointercancel", handleCancel, true);
         window.removeEventListener("blur", handleCancel, true);
+        window.removeEventListener("pagehide", handleCancel, true);
+        window.removeEventListener("keydown", handleEscape, true);
+        document.removeEventListener("visibilitychange", handleVisibilityChange, true);
+        handle.removeEventListener("lostpointercapture", handleCancel);
         if (pointerGestureCleanupRef.current === cleanup) {
           pointerGestureCleanupRef.current = null;
         }
@@ -98,11 +103,21 @@ export const SidebarResizeHandle = forwardRef<HTMLDivElement, SidebarResizeHandl
         if (!moved) onCollapsedActivate();
       };
       const handleCancel = () => cleanup();
+      const handleEscape = (keyEvent: globalThis.KeyboardEvent) => {
+        if (keyEvent.key === "Escape") cleanup();
+      };
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === "hidden") cleanup();
+      };
 
       window.addEventListener("pointermove", handleMove, true);
       window.addEventListener("pointerup", handleEnd, true);
       window.addEventListener("pointercancel", handleCancel, true);
       window.addEventListener("blur", handleCancel, true);
+      window.addEventListener("pagehide", handleCancel, true);
+      window.addEventListener("keydown", handleEscape, true);
+      document.addEventListener("visibilitychange", handleVisibilityChange, true);
+      handle.addEventListener("lostpointercapture", handleCancel);
       pointerGestureCleanupRef.current = cleanup;
     }
 

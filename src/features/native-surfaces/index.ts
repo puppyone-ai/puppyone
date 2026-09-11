@@ -24,5 +24,6 @@ export {
   type NativeSurfaceGeometry,
   type NativeSurfaceLayoutLease,
 } from "./nativeSurfaceGeometry";
+export { acquireNativeSurfaceResizeLease } from "./nativeSurfaceResizeLease";
 export { useNativeSurfaceGeometry } from "./useNativeSurfaceGeometry";
 export { useNativeSurfaceLayoutTransition } from "./useNativeSurfaceLayoutTransition";

@@ -1,4 +1,5 @@
 import { useLayoutEffect } from "react";
+import { subscribeNativeSurfaceLayoutFrames } from "./nativeSurfaceGeometry";
 import type { NativeSurfacePointerPassthroughOwner } from "./nativeSurfacePointerPassthrough";
 import { acquireNativeSurfacePointerRoutingRegion } from "./nativeSurfacePointerRoutingRegions";
 
@@ -47,20 +48,19 @@ export function useNativeSurfacePointerRoutingRegion(
       scheduleMeasure();
     };
 
+    const unsubscribeFrames = subscribeNativeSurfaceLayoutFrames(() => {
+      if (frameId !== null) window.cancelAnimationFrame(frameId);
+      measure();
+    });
     const resizeObserver = typeof ResizeObserver === "function"
       ? new ResizeObserver(scheduleMeasure)
       : null;
-    resizeObserver?.observe(element);
-    if (layoutRoot) resizeObserver?.observe(layoutRoot);
-
-    const mutationObserver = typeof MutationObserver === "function" && layoutRoot
+    const mutationObserver = typeof MutationObserver === "function"
       ? new MutationObserver(scheduleMeasure)
       : null;
-    if (mutationObserver && layoutRoot) {
-      mutationObserver.observe(layoutRoot, {
-        attributes: true,
-        attributeFilter: ["style", "data-explorer-collapsed", "data-explorer-dragging"],
-      });
+    for (let current: HTMLElement | null = element; current; current = current.parentElement) {
+      resizeObserver?.observe(current);
+      mutationObserver?.observe(current, { attributes: true });
     }
 
     layoutRoot?.addEventListener("transitionrun", handleTransitionRun);
@@ -72,6 +72,7 @@ export function useNativeSurfacePointerRoutingRegion(
 
     return () => {
       if (frameId !== null) window.cancelAnimationFrame(frameId);
+      unsubscribeFrames();
       resizeObserver?.disconnect();
       mutationObserver?.disconnect();
       layoutRoot?.removeEventListener("transitionrun", handleTransitionRun);

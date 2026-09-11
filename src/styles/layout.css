@@ -307,6 +307,9 @@
 
 .desktop-right-sidebar {
   --desktop-right-sidebar-width: 560px;
+  --desktop-right-sidebar-border-start: 1px;
+  --desktop-right-sidebar-border-end: 0px;
+  --desktop-right-sidebar-content-width: calc(var(--desktop-right-sidebar-width) - var(--desktop-right-sidebar-border-start) - var(--desktop-right-sidebar-border-end));
   --desktop-right-sidebar-background: var(--po-surface-auxiliary);
   --po-surface-terminal: var(--po-surface-auxiliary);
   --po-terminal-bg: var(--po-surface-terminal);
@@ -331,7 +334,7 @@
   flex-shrink: 0;
   flex-basis: var(--desktop-right-sidebar-width);
   width: var(--desktop-right-sidebar-width);
-  border-inline-start-width: 1px;
+  border-inline-start-width: var(--desktop-right-sidebar-border-start);
   border-inline-start-color: var(--po-sidebar-divider, var(--po-divider));
 }
 
@@ -345,6 +348,16 @@
    * auxiliary panel. It must never translate into the editor scrollbar.
    */
   inset-inline-start: 0;
+}
+
+/* The native content cannot cover the frame's own border. */
+.desktop-right-sidebar.is-open:has(.desktop-right-sidebar-resizer:hover),
+.desktop-right-sidebar.is-open:has(.desktop-right-sidebar-resizer:focus-visible) {
+  border-inline-start-color: var(--po-pane-resizer-hover-color);
+}
+
+body.desktop-right-sidebar-resizing .desktop-right-sidebar.is-open {
+  border-inline-start-color: var(--po-pane-resizer-active-color);
 }
 
 .desktop-right-sidebar-resizer::after {
@@ -386,7 +399,6 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar.is-open {
 .desktop-right-sidebar-viewport {
   position: absolute;
   inset: 0;
-  width: 100%;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -400,8 +412,8 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar.is-open {
   position: absolute;
   inset-block: 0;
   inset-inline-end: 0;
-  width: var(--desktop-right-sidebar-width);
-  min-width: var(--desktop-right-sidebar-width);
+  width: var(--desktop-right-sidebar-content-width);
+  min-width: var(--desktop-right-sidebar-content-width);
   min-height: 0;
   overflow: hidden;
   pointer-events: none;

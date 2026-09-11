@@ -13,6 +13,8 @@ export type PaneResizeDragPoint = {
 export type PaneResizeDragSession = {
   onMove: (point: PaneResizeDragPoint) => void;
   onEnd?: () => void;
+  /** Roll back a preview when the gesture is interrupted. */
+  onCancel?: () => void;
 };
 
 export type UsePaneResizeDragOptions = {
@@ -30,10 +32,10 @@ export function usePaneResizeDrag({
 }: UsePaneResizeDragOptions) {
   const cleanupRef = useRef<(() => void) | null>(null);
 
-  useEffect(() => () => {
-    cleanupRef.current?.();
-    cleanupRef.current = null;
-  }, []);
+  useEffect(() => {
+    if (!enabled) cleanupRef.current?.();
+    return () => { cleanupRef.current?.(); cleanupRef.current = null; };
+  }, [enabled]);
 
   return useCallback((event: ReactPointerEvent<HTMLElement>) => {
     if (!enabled || event.button !== 0) return;
@@ -78,18 +80,21 @@ export function usePaneResizeDrag({
       });
     };
 
-    const stop = () => {
+    const stop = (commit: boolean) => {
       if (!active) return;
       active = false;
       cancelScheduledMove();
-      flushMove();
+      if (commit) flushMove();
+      latestPoint = null;
 
       window.removeEventListener("pointermove", handlePointerMove, true);
       window.removeEventListener("pointerup", handlePointerEnd, true);
-      window.removeEventListener("pointercancel", handlePointerEnd, true);
-      window.removeEventListener("blur", stop, true);
+      window.removeEventListener("pointercancel", handlePointerCancel, true);
+      window.removeEventListener("blur", cancel, true);
       document.removeEventListener("visibilitychange", handleVisibilityChange, true);
-      handle.removeEventListener("lostpointercapture", stop);
+      handle.removeEventListener("lostpointercapture", cancel);
+      window.removeEventListener("pagehide", cancel, true);
+      window.removeEventListener("keydown", handleKeyDown, true);
       document.body.classList.remove(bodyClassName);
       onDragActiveChange?.(false);
 
@@ -101,8 +106,9 @@ export function usePaneResizeDrag({
         // Pointer capture may already be released by the browser.
       }
 
-      session.onEnd?.();
-      if (cleanupRef.current === stop) cleanupRef.current = null;
+      if (commit) session.onEnd?.();
+      else (session.onCancel ?? session.onEnd)?.();
+      if (cleanupRef.current === cancel) cleanupRef.current = null;
     };
 
     const handlePointerMove = (pointerEvent: PointerEvent) => {
@@ -115,11 +121,21 @@ export function usePaneResizeDrag({
       if (pointerEvent.pointerId !== pointerId) return;
       pointerEvent.preventDefault();
       scheduleMove(pointerEvent);
-      stop();
+      stop(true);
+    };
+    const cancel = () => stop(false);
+    const handlePointerCancel = (pointerEvent: PointerEvent) => {
+      if (pointerEvent.pointerId === pointerId) cancel();
+    };
+    const handleKeyDown = (keyEvent: KeyboardEvent) => {
+      if (keyEvent.key !== "Escape") return;
+      keyEvent.preventDefault();
+      keyEvent.stopPropagation();
+      cancel();
     };
 
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "hidden") stop();
+      if (document.visibilityState === "hidden") cancel();
     };
 
     document.body.classList.add(bodyClassName);
@@ -131,13 +147,15 @@ export function usePaneResizeDrag({
       // Older or interrupted pointer sessions may not allow capture.
     }
 
-    handle.addEventListener("lostpointercapture", stop);
+    handle.addEventListener("lostpointercapture", cancel);
+    window.addEventListener("pagehide", cancel, true);
+    window.addEventListener("keydown", handleKeyDown, true);
     window.addEventListener("pointermove", handlePointerMove, true);
     window.addEventListener("pointerup", handlePointerEnd, true);
-    window.addEventListener("pointercancel", handlePointerEnd, true);
-    window.addEventListener("blur", stop, true);
+    window.addEventListener("pointercancel", handlePointerCancel, true);
+    window.addEventListener("blur", cancel, true);
     document.addEventListener("visibilitychange", handleVisibilityChange, true);
 
-    cleanupRef.current = stop;
+    cleanupRef.current = cancel;
   }, [bodyClassName, enabled, onDragActiveChange, onDragStart]);
 }

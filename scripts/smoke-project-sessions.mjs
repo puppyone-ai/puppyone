@@ -9,6 +9,9 @@ import { workspaceFromPath } from "../local-api/workspace.mjs";
 import { createWorkspaceStateStore } from "../electron/main/workspace-state-store.mjs";
 import { getDesktopBuildChannelPolicy } from "../shared/desktop-build-identity.mjs";
 
+import { verifySidebarLiveResize } from "./smoke/sidebar-live-resize.mjs";
+
+const resizeObservations = [];
 const temp = await fs.mkdtemp(path.join(os.tmpdir(), "puppyone-project-sessions-"));
 app.setAppPath(path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."));
 const appData = path.join(temp, "app-data");
@@ -59,6 +62,9 @@ const guard = setTimeout(() => { console.error("Project session smoke exceeded i
 const localizationDiagnostics = [];
 const focusEvents = [];
 app.on("browser-window-created", (_event, window) => {
+  // Scripted input owns this disposable window; physical cursor movement must
+  // not add unrelated moves to the held-button regression.
+  window.setIgnoreMouseEvents(true);
   const send = window.webContents.send.bind(window.webContents);
   window.webContents.send = (channel, ...args) => {
     if (channel === "item-host:event" && args[0]?.type === "focus-changed") focusEvents.push(args[0]);
@@ -98,6 +104,7 @@ try {
   const a = terminals[0];
   await until(() => nativeView(a.sender)?.getVisible(), "A native presentation");
   assert(new Set([process.pid, window.webContents.getOSProcessId(), a.utilityPid, a.rendererPid, a.pid]).size === 5, "Terminal processes share a failure domain");
+  resizeObservations.push(await verifySidebarLiveResize({ window, contents: a.sender, temp, label: "terminal-resize", until }));
   const aTabs = await tabIds();
   const aProject = (await evaluate("window.puppyoneDesktop.readProjectSessions()")).projects.find((entry) => entry.rootPath === roots[0]);
   a.terminal.write("echo PROJECT_A_BEFORE_SWITCH\r");
@@ -136,6 +143,8 @@ try {
     await selectProject("Project A");
     await untilAgent("document.querySelector('.desktop-agent-prompt-editor .cm-content')?.textContent === 'UNSENT PROJECT A DRAFT'", "Codex draft restoration");
     assert(!await (await agentContents()).executeJavaScript("document.body.innerText.includes('Earlier live events are no longer available')"), "False history-loss warning");
+    resizeObservations.push(await verifySidebarLiveResize({ window, contents: await agentContents(), temp, label: "agent-resize", until }));
+    await untilAgent("document.querySelector('.desktop-agent-prompt-editor .cm-content')?.textContent === 'UNSENT PROJECT A DRAFT'", "draft survives outer resize");
     agentDraftVerified = true;
     await fs.writeFile(path.join(temp, "agent-draft-restored.png"), (await window.webContents.capturePage()).toPNG());
   }
@@ -203,6 +212,7 @@ try {
     window.webContents.debugger.detach();
   }
   if (!agentDraftVerified) await click(`[data-terminal-tab-session-id="${movingItem}"] .desktop-terminal-tab-close`);
+  else await click(`[data-terminal-tab-session-id="${aTabs[0]}"] .desktop-terminal-tab-select`);
   await until(() => nativeView(a.sender)?.getVisible(), "retained native view after reunion");
   // Open a multi-root Editor composition, then switch away and restore it.
   await evaluate(`window.puppyoneDesktop.attachFolder(${JSON.stringify(roots[1])})`);
@@ -258,7 +268,7 @@ try {
   window.close();
   await until(() => d.exited && window.isDestroyed(), "second window close");
   assert(errors.length === 0, "Renderer reported errors");
-  const report = { ok: true, temp, roots, aTabs, bTabs, agentDraftVerified, blankTabsVerified: !agentDraftVerified, nativePresentationRestored: true, nativeFocusActivatesStore: true,
+  const report = { ok: true, temp, roots, resizeObservations, aTabs, bTabs, agentDraftVerified, blankTabsVerified: !agentDraftVerified, nativePresentationRestored: true, nativeFocusActivatesStore: true,
     summaryDoesNotStealFocus: true, groupGripRemoved: true, nativeSashRoutingVerified: true, tabMovementVerified: true,
     splitAndReunionVerified: true, multiRootEditorVerified: true, separateWindowsVerified: true, terminals: terminals.map(({ pid, utilityPid, rendererPid, cwd, exited }) => ({ pid, utilityPid, rendererPid, cwd, exited })), rendererErrors: errors, localizationDiagnostics };
   await fs.writeFile(path.join(temp, "report.json"), JSON.stringify(report, null, 2));

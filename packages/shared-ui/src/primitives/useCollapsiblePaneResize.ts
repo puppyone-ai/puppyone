@@ -135,6 +135,11 @@ export function useCollapsiblePaneResize({
           // minimum until the collapse boundary is crossed.
           previewWidth(clampWidth(rawWidth, minWidth, maxWidth));
         },
+        onCancel: () => {
+          if (collapsedDuringDrag !== startedCollapsed) onCollapsedChange?.(startedCollapsed);
+          if (widthChangeMode === "continuous" && widthChanged) onWidthChange(resolvedWidth);
+          setGestureWidth(null);
+        },
         onEnd: () => {
           if (startedCollapsed && latestExpansion < resolvedCollapsePullDistance) {
             if (!collapsedDuringDrag) onCollapsedChange?.(true);
