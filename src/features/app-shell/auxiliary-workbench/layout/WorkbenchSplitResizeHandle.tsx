@@ -5,6 +5,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import { useLocalization } from "@puppyone/localization/react";
+import { useNativeSurfacePointerRoutingRegion } from "../../../native-surfaces";
 import {
   clampWorkbenchRatioToBounds,
   type WorkbenchSplitMinimumSize,
@@ -40,6 +41,8 @@ export function WorkbenchSplitResizeHandle({
 }: WorkbenchSplitResizeHandleProps) {
   const { t } = useLocalization();
   const handleRef = useRef<HTMLDivElement>(null);
+  const [hitRegion, setHitRegion] = useState<HTMLSpanElement | null>(null);
+  useNativeSurfacePointerRoutingRegion("terminal-split-resize", hitRegion);
   const [bounds, setBounds] = useState(DEFAULT_BOUNDS);
   const gesture = useWorkbenchSplitResizeGesture({
     direction,
@@ -117,7 +120,7 @@ export function WorkbenchSplitResizeHandle({
       onPointerUp={gesture.end}
       onPointerCancel={gesture.cancel}
       onLostPointerCapture={gesture.lostCapture}
-    />
+    ><span ref={setHitRegion} className="desktop-terminal-splitter-hit-region" aria-hidden="true" /></div>
   );
 }
 

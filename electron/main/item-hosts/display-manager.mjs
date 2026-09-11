@@ -25,6 +25,7 @@ export function createItemDisplayManager({ WebContentsView, electronSession, Mes
   configureSession = () => {}, nativeSurfaceOcclusion, nativeSurfacePointerPassthrough }) {
   const entries = new Map();
   const shellRequests = new Map();
+  let focusSequence = 0;
   const requireEntry = (sender, request, allowClosing = false) => {
     projectSessions.require(sender.id, request.projectContext, { allowClosing });
     const entry = entries.get(keyFor(sender.id, request.itemId));
@@ -36,6 +37,16 @@ export function createItemDisplayManager({ WebContentsView, electronSession, Mes
   const publish = (entry) => {
     if (!entry.owner.isDestroyed()) entry.owner.send("item-host:state", state(entry));
   };
+  const observeFocus = (entry, view, focused, activate = false) => {
+    if (entry.view !== view || entry.closed || entry.closeRequested || entry.owner.isDestroyed()) return;
+    if (focused && (!entry.attachment?.isVisible() || !entry.window.isFocused() || entry.display !== "ready")) return;
+    if (!focused && !entry.focused) return;
+    entry.focused = focused;
+    entry.owner.send("item-host:event", { itemId: entry.itemId, generation: entry.generation, type: "focus-changed",
+      payload: { presentationId: entry.presentationId, sequence: ++focusSequence, focused, activate: focused && activate } });
+  };
+  const acceptsPresentation = (entry, request) => !entry.closeRequested && request.generation === entry.generation
+    && Number.isSafeInteger(request.presentationId) && request.presentationId > 0 && request.presentationId >= entry.presentationId;
   const fail = (entry, message, display = "crashed") => {
     if (entry.closed) return;
     entry.display = display;
@@ -55,6 +66,8 @@ export function createItemDisplayManager({ WebContentsView, electronSession, Mes
     const view = entry.view;
     const wc = view.webContents;
     const pid = entry.displayPid || (!wc.isDestroyed() ? wc.getOSProcessId() : 0);
+    observeFocus(entry, view, false);
+    entry.releaseFocus?.();
     entry.rejectReady?.(hostError("HOST_DISPLAY_DETACHED", "The item display was detached."));
     entry.attachment?.dispose();
     entry.attachment = null;
@@ -86,7 +99,6 @@ export function createItemDisplayManager({ WebContentsView, electronSession, Mes
     const { generation, displayLease: lease } = entry;
     entry.display = "starting";
     entry.message = undefined;
-    entry.geometryRevision = -1;
     const url = new URL("item-host.html", applicationUrl);
     url.hash = generation;
     entry.url = url.href;
@@ -105,6 +117,7 @@ export function createItemDisplayManager({ WebContentsView, electronSession, Mes
     entry.displayLease = lease;
     entry.displayPid = 0;
     entry.processExited = false;
+    entry.focusRequested = false;
     entry.lastHeartbeat = Date.now();
     const wc = view.webContents;
     const ready = new Promise((resolve, reject) => { entry.resolveReady = resolve; entry.rejectReady = reject; });
@@ -123,7 +136,26 @@ export function createItemDisplayManager({ WebContentsView, electronSession, Mes
       if (entry.view !== view || entry.display !== "unresponsive" || entry.execution === "interrupted") return;
       entry.display = "ready"; entry.message = undefined; entry.attachment.healthy(true); publish(entry);
     });
-    entry.attachment = attachNativeSurfaceView({ window: entry.window, view, nativeSurfaceOcclusion, nativeSurfacePointerPassthrough });
+    entry.attachment = attachNativeSurfaceView({ window: entry.window, view, nativeSurfaceOcclusion, nativeSurfacePointerPassthrough,
+      onPointerDown: () => { entry.focusRequested = false; observeFocus(entry, view, true, true); },
+      onVisibilityChange: (visible) => { if (!visible) observeFocus(entry, view, false); },
+    });
+    entry.attachment.healthy(false);
+    const onFocus = () => {
+      const requested = entry.focusRequested;
+      entry.focusRequested = false;
+      observeFocus(entry, view, true, !requested);
+    };
+    const onBlur = () => { entry.focusRequested = false; observeFocus(entry, view, false); };
+    const onWindowFocus = () => { if (wc.isFocused()) observeFocus(entry, view, true); };
+    wc.on("focus", onFocus);
+    wc.on("blur", onBlur);
+    entry.window.on("focus", onWindowFocus);
+    entry.window.on("blur", onBlur);
+    entry.releaseFocus = () => {
+      wc.removeListener("focus", onFocus); wc.removeListener("blur", onBlur);
+      entry.window.removeListener("focus", onWindowFocus); entry.window.removeListener("blur", onBlur);
+    };
     entry.watchdog = setInterval(() => {
       if (entry.display === "ready" && Date.now() - entry.lastHeartbeat > 15_000) fail(entry, "The item display heartbeat expired.", "unresponsive");
     }, 2_000);
@@ -179,6 +211,7 @@ export function createItemDisplayManager({ WebContentsView, electronSession, Mes
       if (!window || window.isDestroyed()) throw hostError("HOST_OWNER_CLOSED", "The item owner window is closed.");
       const entry = { ...bounded(request), owner: sender, window, projectContext: { projectId: project.projectId, generation: project.generation, rootPath: project.rootPath },
         generation: "", display: "starting", execution: "idle", view: null, closed: false, closeRequested: false,
+        presentationId: 0, geometryRevision: -1, focused: false,
         operations: new Set(), referenceTokens: new Set(), draft: null, recoveries: [], configuration: bounded({ appearance: request.appearance, settings: request.settings }) };
       entries.set(keyFor(sender.id, request.itemId), entry);
       try {
@@ -197,13 +230,35 @@ export function createItemDisplayManager({ WebContentsView, electronSession, Mes
       } catch (error) { await closeEntry(entry).catch(() => {}); throw error; }
     },
     configure(sender, request) {
-      const entry = requireEntry(sender, request);
-      entry.configuration = { ...entry.configuration, ...bounded({ appearance: request.appearance, settings: request.settings,
-        presented: request.presented, commandTarget: request.commandTarget }) };
+      let entry;
+      try { entry = requireEntry(sender, request); }
+      catch (error) {
+        // Presentation cleanup can arrive after authoritative project teardown.
+        if (["HOST_STALE", "PROJECT_STALE", "PROJECT_CLOSING", "PROJECT_CLOSED"].includes(error.code)) return;
+        throw error;
+      }
+      if (!acceptsPresentation(entry, request)) return;
+      entry.presentationId = request.presentationId;
+      const configuration = Object.fromEntries(["appearance", "settings", "presented", "commandTarget"]
+        .filter((key) => request[key] !== undefined).map((key) => [key, request[key]]));
+      entry.configuration = { ...entry.configuration, ...bounded(configuration) };
       if (entry.view && !entry.view.webContents.isDestroyed()) entry.view.webContents.send("item-host:configuration", entry.configuration);
     },
-    geometry(sender, request) { requireEntry(sender, request).attachment?.geometry(request); },
-    focus(sender, request) { requireEntry(sender, request).view?.webContents.focus(); },
+    geometry(sender, request) {
+      const entry = requireEntry(sender, request);
+      if (!acceptsPresentation(entry, request) || request.revision <= entry.geometryRevision) return;
+      if (entry.attachment?.geometry(request)) {
+        entry.presentationId = request.presentationId;
+        entry.geometryRevision = request.revision;
+      }
+    },
+    focus(sender, request) {
+      const entry = requireEntry(sender, request);
+      if (!acceptsPresentation(entry, request) || request.presentationId !== entry.presentationId
+        || !entry.attachment?.isVisible() || !entry.window.isFocused() || entry.display !== "ready") return;
+      entry.focusRequested = true;
+      entry.view.webContents.focus();
+    },
     close: (sender, request) => closeEntry(requireEntry(sender, request, true)),
     async recover(sender, request) {
       const entry = requireEntry(sender, request);

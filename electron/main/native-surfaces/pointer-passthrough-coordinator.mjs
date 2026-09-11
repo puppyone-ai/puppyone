@@ -18,7 +18,7 @@ export function createNativeSurfacePointerPassthroughCoordinator({
   const routingRegionsByOwner = new Map();
   let disposed = false;
 
-  function register({ ownerWebContentsId, ownerWebContents, surfaceView }) {
+  function register({ ownerWebContentsId, ownerWebContents, surfaceView, onPointerDown }) {
     assertOwnerWebContentsId(ownerWebContentsId);
     if (disposed) throw new Error("Native surface pointer passthrough coordinator is disposed.");
     if (!ownerWebContents || typeof ownerWebContents.sendInputEvent !== "function") {
@@ -42,18 +42,24 @@ export function createNativeSurfacePointerPassthroughCoordinator({
       handleMouse: null,
     };
     registration.handleMouse = (event, mouse) => {
+      if (!mouse?.type) return;
       const canRouteInitialPress =
         mouse?.type === INITIAL_ROUTED_MOUSE_TYPE &&
         isPrimaryMouseButton(mouse) &&
         routingRegionsByOwner.has(ownerWebContentsId);
       const routesActiveGesture =
         activeOwners.has(ownerWebContentsId) && FORWARDED_MOUSE_TYPES.has(mouse?.type);
-      if (!canRouteInitialPress && !routesActiveGesture) return;
-
+      if (!canRouteInitialPress && !routesActiveGesture) {
+        if (mouse.type === "mouseDown") onPointerDown?.();
+        return;
+      }
       const ownerInput = toOwnerMouseInput(mouse, surfaceView.getBounds());
       const routesInitialPress =
         canRouteInitialPress && pointFallsInsideOwnerRegion(ownerWebContentsId, ownerInput);
-      if (!routesInitialPress && !routesActiveGesture) return;
+      if (!routesInitialPress && !routesActiveGesture) {
+        if (mouse?.type === "mouseDown") onPointerDown?.();
+        return;
+      }
 
       event?.preventDefault?.();
       try {
@@ -172,6 +178,11 @@ function toOwnerMouseInput(mouse, surfaceBounds) {
   if (Number.isFinite(mouse.movementX)) input.movementX = mouse.movementX;
   if (Number.isFinite(mouse.movementY)) input.movementY = mouse.movementY;
   if (Array.isArray(mouse.modifiers)) input.modifiers = [...mouse.modifiers];
+  // before-mouse-event reports the pressed button but can omit modifiers.
+  // sendInputEvent needs its down modifier to preserve DOM pointer capture.
+  if (mouse.type === "mouseMove" && ["left", "middle", "right"].includes(mouse.button)) {
+    input.modifiers = [...new Set([...(input.modifiers ?? []), `${mouse.button}buttondown`])];
+  }
   return input;
 }
 

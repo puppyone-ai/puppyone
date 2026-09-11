@@ -89,8 +89,9 @@ async function run() {
     assert.equal(new Set([owner.getOSProcessId(), a.processId, b.processId, chat.processId]).size, 4);
     const entry = (id) => manager.values().find((value) => value.itemId === id);
     const configure = (id, bounds, revision) => {
-      manager.configure(owner, { itemId: id, projectContext: context, presented: true, commandTarget: true });
-      manager.geometry(owner, { itemId: id, projectContext: context, revision, bounds, visible: true });
+      const identity = { itemId: id, projectContext: context, generation: entry(id).generation, presentationId: 1 };
+      manager.configure(owner, { ...identity, presented: true, commandTarget: true });
+      manager.geometry(owner, { ...identity, revision, bounds, visible: true });
     };
     window.showInactive();
     configure("terminal-a", { x: 0, y: 0, width: 550, height: 700 }, 1);

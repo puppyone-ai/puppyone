@@ -11,6 +11,8 @@ import {
 } from "@puppyone/shared-ui";
 import {
   acquireNativeSurfacePointerPassthroughLease,
+  acquireNativeSurfaceLayoutLease,
+  acquireNativeSurfaceOcclusionLease,
   createNativeSurfacePointerSessionId,
   type NativeSurfacePointerPassthroughLease,
 } from "../../../../native-surfaces";
@@ -88,6 +90,7 @@ type WorkbenchTabMoveSession = {
   id: string;
   label: string;
   nativeLease: NativeSurfacePointerPassthroughLease | null;
+  releasePresentation: (() => void) | null;
   onInsertSession: UseWorkbenchTabMoveDragOptions["onInsertSession"];
   onMergeGroup: UseWorkbenchTabMoveDragOptions["onMergeGroup"];
   onMoveGroup: UseWorkbenchTabMoveDragOptions["onMoveGroup"];
@@ -181,6 +184,7 @@ export function useWorkbenchTabMoveDrag({
     session.sourceElement?.removeAttribute("data-move-source");
     destroyWorkbenchTabMovePreview(session.preview);
     session.nativeLease?.release();
+    session.releasePresentation?.();
     try {
       if (session.handle.hasPointerCapture(session.pointerId)) {
         session.handle.releasePointerCapture(session.pointerId);
@@ -213,6 +217,7 @@ export function useWorkbenchTabMoveDrag({
       id,
       label,
       nativeLease: null,
+      releasePresentation: null,
       onInsertSession,
       onMergeGroup,
       onMoveGroup,
@@ -260,6 +265,9 @@ export function useWorkbenchTabMoveDrag({
         event.clientX,
         event.clientY,
       );
+      const layoutLease = acquireNativeSurfaceLayoutLease(session.id);
+      const releaseOcclusion = acquireNativeSurfaceOcclusionLease();
+      session.releasePresentation = () => { layoutLease.release(); releaseOcclusion(); };
       session.nativeLease = acquireNativeSurfacePointerPassthroughLease(
         "terminal-tab-move",
         session.id,

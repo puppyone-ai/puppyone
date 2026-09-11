@@ -129,4 +129,18 @@ describe("native surface pointer passthrough coordinator", () => {
     coordinator.dispose();
     expect(second.listenerCount("before-mouse-event")).toBe(0);
   });
+
+  it("preserves a native pressed button on forwarded moves even without modifiers", () => {
+    const ownerWebContents = { sendInputEvent: vi.fn() };
+    const surfaceWebContents = new EventEmitter();
+    const coordinator = createNativeSurfacePointerPassthroughCoordinator();
+    coordinator.register({ ownerWebContentsId: 7, ownerWebContents,
+      surfaceView: { getBounds: () => ({ x: 100, y: 0 }), webContents: surfaceWebContents } });
+    coordinator.setOwnerActive(7, true);
+    surfaceWebContents.emit("before-mouse-event", { preventDefault() {} }, { type: "mouseMove", button: "left", x: 20, y: 30 });
+    expect(ownerWebContents.sendInputEvent).toHaveBeenLastCalledWith({ type: "mouseMove", button: "left", x: 120, y: 30, modifiers: ["leftbuttondown"] });
+    surfaceWebContents.emit("before-mouse-event", { preventDefault() {} }, { type: "mouseMove", button: "left", x: 20, y: 30, modifiers: ["shift", "leftbuttondown"] });
+    expect(ownerWebContents.sendInputEvent.mock.lastCall[0].modifiers).toEqual(["shift", "leftbuttondown"]);
+    coordinator.dispose();
+  });
 });

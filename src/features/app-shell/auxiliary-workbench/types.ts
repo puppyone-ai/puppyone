@@ -38,6 +38,10 @@ export type AuxiliaryWorkbenchItemRenderContext = Readonly<{
   item: AuxiliaryWorkbenchItem;
   presentation: AuxiliaryWorkbenchPresentationState;
   onPresentationChange: (snapshot: AuxiliaryWorkbenchItemSnapshot) => void;
+  /** Explicit user focus intent, independent of selection or summary updates. */
+  focusRequest?: number;
+  layoutRevision?: unknown;
+  onContentFocusChange?: (focused: boolean, activate: boolean) => void;
 }>;
 
 /**

@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { GripVertical } from "lucide-react";
 import { useLocalization } from "@puppyone/localization/react";
 import type { WorkbenchTabMoveDragController } from "./interactions/useWorkbenchTabMoveDrag";
 import { useWorkbenchDerivedDragClickSuppression } from "./interactions/useWorkbenchDerivedDragClickSuppression";
@@ -51,7 +52,7 @@ export const AuxiliaryWorkbenchGroupMoveHandle = memo(function AuxiliaryWorkbenc
         onPointerCancel={itemMove.cancel}
         onLostPointerCapture={itemMove.lostCapture}
       >
-        <i /><i /><i />
+        <GripVertical size={14} aria-hidden="true" />
       </button>
     </div>
   );

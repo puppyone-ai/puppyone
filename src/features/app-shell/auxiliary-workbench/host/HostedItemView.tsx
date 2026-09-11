@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { RotateCw } from "lucide-react";
 import { useLocalization } from "@puppyone/localization/react";
-import type { ItemHostAppearance, ItemHostEvent } from "../../../../../shared/item-host-contract/types";
+import type { ItemHostAppearance, ItemHostEvent, ItemHostFocus } from "../../../../../shared/item-host-contract/types";
 import { useNativeSurfaceGeometry, type NativeSurfaceGeometry } from "../../../native-surfaces";
 import type { AuxiliaryWorkbenchItemRenderContext } from "../types";
-import { projectItemHosts } from "./HostedItemPool";
+import { projectItemHosts, type HostedItem } from "./HostedItemPool";
 import "./item-host.css";
 
-export function HostedItemView({ project, item, presentation, onPresentationChange, settings, onEvent }: AuxiliaryWorkbenchItemRenderContext & {
+export function HostedItemView({ project, item, presentation, onPresentationChange, settings, onEvent, focusRequest, layoutRevision, onContentFocusChange }: AuxiliaryWorkbenchItemRenderContext & {
   settings?: Record<string, unknown>;
   onEvent?: (event: ItemHostEvent) => void;
 }) {
@@ -18,24 +18,34 @@ export function HostedItemView({ project, item, presentation, onPresentationChan
   const [element, setElement] = useState<HTMLDivElement | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [recovering, setRecovering] = useState(false);
-  const latest = useRef({ settings, presentation, onEvent });
-  latest.current = { settings, presentation, onEvent };
+  const latest = useRef({ settings, presentation, onEvent, onContentFocusChange });
+  latest.current = { settings, presentation, onEvent, onContentFocusChange };
   const geometry = useRef<NativeSurfaceGeometry | null>(null);
-  const geometrySequence = useRef(0);
+  const binding = useRef<ReturnType<HostedItem["bindPresentation"]> | null>(null);
+  useLayoutEffect(() => {
+    const lease = host.bindPresentation();
+    binding.current = lease;
+    return () => { lease.release(); if (binding.current === lease) binding.current = null; };
+  }, [host]);
   const publishGeometry = useCallback((next: NativeSurfaceGeometry) => {
     geometry.current = next;
-    host.bridge.setGeometry({ ...host.identity, ...next, revision: ++geometrySequence.current,
+    binding.current?.geometry({ ...next,
       visible: next.visible && latest.current.presentation.presented });
-  }, [host]);
-  useNativeSurfaceGeometry(element, publishGeometry);
-  useEffect(() => {
+  }, []);
+  useNativeSurfaceGeometry(element, publishGeometry, layoutRevision);
+  useLayoutEffect(() => {
     if (geometry.current) publishGeometry(geometry.current);
   }, [presentation.presented, state.generation, publishGeometry]);
   useEffect(() => {
-    if (presentation.commandTarget && presentation.presented) host.bridge.focus(host.identity);
-  }, [host, presentation.commandTarget, presentation.presented, state.generation]);
+    if (focusRequest && latest.current.presentation.presented) binding.current?.focus();
+  }, [focusRequest]);
   useEffect(() => {
-    const listener = (event: ItemHostEvent) => latest.current.onEvent?.(event);
+    const listener = (event: ItemHostEvent) => {
+      if (event.type === "focus-changed") {
+        const focus = event.payload as ItemHostFocus;
+        if (latest.current.presentation.presented) latest.current.onContentFocusChange?.(focus.focused, focus.activate);
+      } else latest.current.onEvent?.(event);
+    };
     host.eventListeners.add(listener);
     return () => { host.eventListeners.delete(listener); };
   }, [host]);
@@ -44,10 +54,10 @@ export function HostedItemView({ project, item, presentation, onPresentationChan
   }, [host, state, onPresentationChange]);
   const configure = useCallback(() => {
     const current = latest.current;
-    return host.configure({ settings: current.settings, presented: current.presentation.presented,
-      commandTarget: current.presentation.commandTarget, appearance: readItemAppearance(element, direction) });
-  }, [direction, element, host]);
-  useEffect(() => { void configure().catch((error: Error) => setFailure(error.message)); }, [configure, settings, presentation.presented, presentation.commandTarget]);
+    return binding.current?.configure({ settings: current.settings, presented: current.presentation.presented,
+      commandTarget: current.presentation.commandTarget, appearance: readItemAppearance(element, direction) }) ?? Promise.resolve();
+  }, [direction, element]);
+  useEffect(() => { void configure().catch((error: Error) => setFailure(error.message)); }, [configure, settings, presentation.presented, presentation.commandTarget, state.generation]);
   useEffect(() => {
     let frame: number | null = null;
     const refresh = () => {
@@ -60,13 +70,9 @@ export function HostedItemView({ project, item, presentation, onPresentationChan
     if (sidebar) observer.observe(sidebar, { attributes: true });
     return () => { observer.disconnect(); if (frame !== null) cancelAnimationFrame(frame); };
   }, [configure, element]);
-  useEffect(() => () => {
-    if (geometry.current && !project.disposed) host.bridge.setGeometry({ ...host.identity, ...geometry.current,
-      revision: ++geometrySequence.current, visible: false });
-  }, [host, project]);
   const failed = state.display === "crashed" || state.display === "unresponsive" || state.execution === "interrupted";
   return <div ref={setElement} className="desktop-item-host" data-item-id={item.id}>
-    {(failed || failure) && <div className="desktop-item-host-failure" role="alert">
+    {(failed || failure) && <div className="desktop-item-host-failure" role="alert" data-native-surface-occluder="true">
       <p>{failure ?? state.message}</p>
       {state.execution !== "interrupted" && <button type="button" className="desktop-item-host-retry" disabled={recovering}
         title={t("common.action.retry")} aria-label={t("common.action.retry")} onClick={() => {

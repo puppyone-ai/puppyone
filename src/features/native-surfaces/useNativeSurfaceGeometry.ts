@@ -8,13 +8,14 @@ import {
 } from "./nativeSurfaceGeometry";
 
 /**
- * Publishes one monotonic geometry stream for a renderer-owned native slot.
+ * Measures a renderer-owned native slot; the persistent host owns IPC ordering.
  * Resize/scroll updates are frame-coalesced. While shell layout is unstable,
  * the stream remains current but asks main to keep the native child hidden.
  */
 export function useNativeSurfaceGeometry(
   element: HTMLElement | null,
   onGeometry: (geometry: NativeSurfaceGeometry) => void,
+  layoutRevision?: unknown,
 ): void {
   const callbackRef = useRef(onGeometry);
   callbackRef.current = onGeometry;
@@ -63,5 +64,5 @@ export function useNativeSurfaceGeometry(
       document.removeEventListener("scroll", schedule, true);
       document.removeEventListener("visibilitychange", schedule, true);
     };
-  }, [element]);
+  }, [element, layoutRevision]);
 }
