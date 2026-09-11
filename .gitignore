@@ -3,6 +3,8 @@ dist/
 .*.puppyone-leases/
 /release/
 artifacts/terminal-preview/
+artifacts/auxiliary-appearance/
+artifacts/release-checks/
 generated/
 .vite/
 .vite-temp/

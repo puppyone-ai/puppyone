@@ -1,3 +1,4 @@
+import type { EditorProviderPolicy } from "./editorProviderPolicy";
 import type { ComponentType, ReactNode } from "react";
 import type {
   AppPreviewController,
@@ -128,6 +129,7 @@ export const EMPTY_MARKDOWN_WORKSPACE_ENVIRONMENT: MarkdownWorkspaceEnvironment 
 export type MarkdownResolvedAssetUrl = {
   url: string;
   revoke?: () => void | Promise<void>;
+  subscribe?: (listener: (url: string | null) => void) => () => void;
 };
 
 export type MarkdownAssetUrlResolver = (
@@ -191,6 +193,7 @@ export type PresetViewerRenderContext = EditorViewerMatch & {
 export type EditorViewerContext = PresetViewerRenderContext;
 
 type PresetViewerImplementationBase = Readonly<{
+  providerPolicy?: EditorProviderPolicy;
   id: string;
   match: (match: EditorViewerMatch) => boolean;
   allowPreviewContent?: boolean;

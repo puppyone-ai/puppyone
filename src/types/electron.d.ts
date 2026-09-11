@@ -948,7 +948,9 @@ export type EditorSurfaceState = Readonly<{
 
 declare global {
   interface Window {
+    puppyoneItemHost?: import("../../shared/item-host-contract/types").ItemRendererBridge;
     puppyoneDesktop?: {
+      itemHosts?: import("../../shared/item-host-contract/types").ItemHostBridge;
       getWindowChromeState: () => Promise<{ fullScreen: boolean; maximized: boolean }>;
       setWindowChromeProfile: (request: {
         titlebar: string;
@@ -1268,6 +1270,7 @@ declare global {
         rootPath: string;
         path: string;
         purpose?: "file-preview" | "markdown-asset";
+        expectedVersion?: string;
       }) => Promise<{ url: string }>;
       revokeFileUrl: (request: { url: string }) => Promise<{ revoked: boolean }>;
       convertOfficeDocumentToDocx: (

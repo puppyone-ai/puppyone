@@ -68,7 +68,7 @@ describe("Desktop Agent architecture boundaries", () => {
     const theme = source("src/features/desktop-agent/ui/styles/theme.css");
     const foundation = source("src/features/desktop-agent/ui/styles/foundation.css");
     const pickers = source("src/features/desktop-agent/ui/styles/pickers.css");
-    const css = agentStyles();
+    const css = agentStyles() + source("src/features/desktop-agent/ui/styles/agent-prompt-editor.css");
     const globalLayout = source("src/styles/layout.css");
     expect(timelineLayout).toContain("maxMountedRows: 120");
     expect(timelineLayout).toContain("buildAgentTimelineLayout");
@@ -193,7 +193,7 @@ describe("Desktop Agent architecture boundaries", () => {
     expect(app).toContain("loadAgentChatWorkbenchItem");
     expect(app).toContain("lazy(loadAgentChatWorkbenchItem)");
     expect(source("src/features/desktop-agent/lazy.ts")).toContain(
-      'import("./workbench/AgentChatWorkbenchItem")',
+      'import("./workbench/HostedAgentWorkbenchItem")',
     );
     expect(source("src/features/desktop-agent/workbench/AgentChatWorkbenchItem.tsx"))
       .toContain("<AgentChatTabPanel");

@@ -647,7 +647,7 @@
 
 :root[data-interface-style="windows-xp"] .desktop-right-sidebar.is-open {
   border: 1px solid #2c6fc4;
-  background: #ffffff;
+  background: var(--po-surface-auxiliary);
 }
 
 /* XP pane captions are the second strongest hierarchy after the title bar. */

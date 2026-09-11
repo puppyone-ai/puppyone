@@ -7,7 +7,7 @@
  */
 .desktop-agent-boundary,
 .desktop-agent-overlay {
-  --agent-canvas: var(--po-editor-bg);
+  --agent-canvas: var(--po-surface-agent);
   --agent-report-surface: color-mix(in srgb, var(--po-panel-raised) 90%, var(--po-canvas));
   --agent-composer-surface: var(--po-active);
   --agent-user-message-surface: var(--po-hover);
@@ -76,11 +76,6 @@
   --agent-primary-hover-surface: color-mix(in srgb, var(--agent-text) 88%, var(--agent-canvas));
 }
 
-
-/* Agent Chat becomes application chrome inside the auxiliary sidebar. */
-.desktop-right-sidebar .desktop-agent-boundary {
-  --agent-canvas: var(--po-terminal-bg);
-}
 
 .desktop-agent-workspace {
   --agent-text: var(--po-text);

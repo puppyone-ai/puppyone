@@ -61,7 +61,7 @@ export function registerAgentIpcHandlers({
     : undefined;
   const dispatchSteer = async (event, request) => {
     const workspaceRoot = await authorizeRequiredRoot(event, request);
-    const referenceCapabilities = agentService.getReferenceInputCapabilities(event.sender, request.sessionId, workspaceRoot);
+    const referenceCapabilities = await agentService.getReferenceInputCapabilities(event.sender, request.sessionId, workspaceRoot);
     const { authorized, stagedTokens } = await authorizeTurnReferences({
       attachmentStore,
       ownerId: event.sender.id,
@@ -86,7 +86,7 @@ export function registerAgentIpcHandlers({
   };
   const dispatchStart = async (event, request) => {
     const workspaceRoot = await authorizeRequiredRoot(event, request);
-    const referenceCapabilities = agentService.getReferenceInputCapabilities(event.sender, request.sessionId, workspaceRoot);
+    const referenceCapabilities = await agentService.getReferenceInputCapabilities(event.sender, request.sessionId, workspaceRoot);
     const legacyReferences = [
       ...(Array.isArray(request.contextReferences) ? request.contextReferences : []),
       ...(Array.isArray(request.attachments) ? request.attachments : []),

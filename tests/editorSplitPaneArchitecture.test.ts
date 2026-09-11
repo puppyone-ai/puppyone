@@ -356,7 +356,8 @@ describe("editor split-pane architecture", () => {
     expect(paneDocumentRuntimeSource).toContain("memo(function EditorPaneDocumentRuntime");
     expect(paneDocumentRuntimeSource).toContain("useEditorPaneSource(sourceNode");
     expect(paneDocumentRuntimeSource).toContain("samePaneEnvironment");
-    expect(paneDocumentRuntimeSource).toContain("isMarkdownDocumentDescriptor");
+    expect(paneDocumentRuntimeSource).toContain("getEditorProviderPolicy");
+    expect(paneDocumentRuntimeSource).not.toContain("isMarkdownDocumentDescriptor");
     expect(dataWorkspaceSource).toContain("useStableEventCallback");
     expect(dataWorkspaceSource).toContain("markdownEnvironment: MarkdownWorkspaceEnvironment");
     expect(viewerTypesSource).toContain("export type MarkdownLinkCommands");
@@ -368,7 +369,7 @@ describe("editor split-pane architecture", () => {
     expect(graphContract).toContain("revision: number");
     expect(graphContract).not.toContain("openWikiLink");
     expect(graphContract).not.toContain("openExternalUrl");
-    expect(paneSourceLifecycle).toContain("new AbortController()");
+    expect(paneSourceLifecycle).toContain("useDocumentInput");
     expect(paneMoveSource).toContain("createPaneMovePreview");
     expect(paneMoveSource).toContain("destroyPaneMovePreview");
     expect(paneMoveSource).toContain("samePaneDropIntent");

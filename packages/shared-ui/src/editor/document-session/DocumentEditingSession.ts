@@ -57,7 +57,7 @@ const REASON_PRIORITY: Record<DocumentPersistenceReason, number> = {
  * port; ordering and version invariants stay host-owned.
  */
 export class DocumentEditingSession implements DocumentEditingSessionHandle {
-  readonly documentId: string;
+  documentId: string;
 
   private readonly persistence: DocumentEditingSessionOptions["persistence"];
   private readonly onPersisted?: (commit: DocumentPersistedCommit) => void;
@@ -80,6 +80,54 @@ export class DocumentEditingSession implements DocumentEditingSessionHandle {
   private readonly waiters: CommitWaiter[] = [];
   private readonly activeDrainReasons = new Map<DrainReason, number>();
   private disposed = false;
+  private operationDepth = 0;
+  private unavailable: string | null = null;
+  private readonly views = new Set<{ prepare: () => void; setInputEnabled: (enabled: boolean) => void }>();
+
+  registerView(view: { prepare: () => void; setInputEnabled: (enabled: boolean) => void }): () => void {
+    this.views.add(view);
+    view.setInputEnabled(!this.disposed && this.operationDepth === 0 && !this.unavailable);
+    return () => { this.views.delete(view); };
+  }
+
+  async prepareOperation(): Promise<() => void> {
+    if (this.disposed) throw new Error("The document has already been closed.");
+    for (const view of this.views) view.prepare();
+    if (this.source?.prepareDetach) await this.source.prepareDetach();
+    this.operationDepth++;
+    this.updateInputAvailability();
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      this.operationDepth--;
+      this.updateInputAvailability();
+    };
+  }
+
+  rebindDocument(documentId: string): void {
+    if (this.hasUnpersistedChanges()) throw new Error("Cannot move a document before its writes finish.");
+    invalidateDocumentStorageReads(this.persistence, this.documentId);
+    this.documentId = documentId;
+    this.storageEpoch++;
+    this.publish("clean", null);
+  }
+
+  markStorageUnavailable(detail: string): void {
+    this.unavailable = detail;
+    this.storageEpoch++;
+    this.cancelImmediateCommit();
+    this.pending = null;
+    this.updateInputAvailability();
+    this.rejectWaitersThrough(this.nextSequence, new Error(detail));
+    this.publish("error", { code: "persistence-failed", detail });
+  }
+
+  private updateInputAvailability(): void {
+    const enabled = !this.disposed && this.operationDepth === 0 && !this.unavailable;
+    this.source?.setInputEnabled?.(enabled);
+    for (const view of this.views) view.setInputEnabled(enabled);
+  }
 
   constructor(options: DocumentEditingSessionOptions) {
     this.documentId = options.documentId;
@@ -107,6 +155,7 @@ export class DocumentEditingSession implements DocumentEditingSessionHandle {
   attachSource = (source: EditorSourceSnapshotPort): (() => void) => {
     if (this.disposed) return () => undefined;
     this.source = source;
+    this.updateInputAvailability();
     const hasLocalChanges = this.dirty || this.hasCurrentCommit();
     const retainedSnapshot = this.detachedSnapshot;
     if (retainedSnapshot && source.readSnapshot().content !== retainedSnapshot.content) {
@@ -130,12 +179,12 @@ export class DocumentEditingSession implements DocumentEditingSessionHandle {
         // retiring registry owns the asynchronous durability barrier.
         this.detachedSnapshot = source.readSnapshot();
       }
-      this.source = null;
+      this.source = source.retainedSource ?? null;
     };
   };
 
   reportRevision = (revision: EditorSourceRevision): void => {
-    if (this.disposed) return;
+    if (this.disposed || (revision.origin === "local-edit" && (this.operationDepth > 0 || this.unavailable))) return;
     this.currentRevision = revision.revision;
 
     const localEdit = revision.origin === "local-edit";
@@ -184,6 +233,11 @@ export class DocumentEditingSession implements DocumentEditingSessionHandle {
   ): Promise<void> => {
     this.enterDrain(reason);
     try {
+      if (this.unavailable) {
+        if (this.hasUnpersistedChanges()) throw new Error(this.unavailable);
+        return;
+      }
+      if (this.source?.prepareDetach) await this.source.prepareDetach();
       // A revision may arrive while the first close write is in flight. Keep
       // snapshotting the attached source until the acknowledged revision is
       // the newest one, rather than treating the first completed write as the
@@ -223,11 +277,13 @@ export class DocumentEditingSession implements DocumentEditingSessionHandle {
     content: string,
     version: string | null = null,
   ): ExternalBaselineResult => {
+    const recovering = Boolean(this.unavailable);
+    this.unavailable = null;
+    this.updateInputAvailability();
     if (content === this.persistedContent) {
-      if (version !== null) {
-        this.storageVersion = version;
-        this.publish(this.state.status, this.state.error);
-      }
+      if (version !== null) this.storageVersion = version;
+      if (recovering) this.publish(this.hasUnpersistedChanges() ? "dirty" : "clean", null);
+      else if (version !== null) this.publish(this.state.status, this.state.error);
       return "acknowledged";
     }
 
@@ -250,7 +306,9 @@ export class DocumentEditingSession implements DocumentEditingSessionHandle {
     this.pending = null;
     this.persistedContent = content;
     this.storageVersion = version;
-    const replacement = converged ? currentSnapshot : this.source?.replaceContent(content) ?? null;
+    // A newly accepted disk baseline ends the old undo branch even when its
+    // bytes happen to match an unsaved local candidate. Own echoes return above.
+    const replacement = this.source?.replaceContent(content) ?? (converged ? currentSnapshot : null);
     this.detachedSnapshot = null;
     this.currentRevision = replacement?.revision ?? null;
     this.persistedRevision = replacement?.revision ?? null;
@@ -268,6 +326,8 @@ export class DocumentEditingSession implements DocumentEditingSessionHandle {
 
   getState = (): DocumentSessionState => this.state;
 
+  getPersistedBaseline = () => ({ content: this.persistedContent, version: this.storageVersion });
+
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
@@ -283,6 +343,8 @@ export class DocumentEditingSession implements DocumentEditingSessionHandle {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    this.updateInputAvailability();
+    this.views.clear();
     this.cancelImmediateCommit();
     this.autoSave.dispose();
     this.clearSavedStatusTimer();
@@ -304,8 +366,9 @@ export class DocumentEditingSession implements DocumentEditingSessionHandle {
 
   private async requestAutomaticSave(): Promise<void> {
     const source = this.source;
-    if (!source) return;
-    await this.enqueue(source.readSnapshot(), this.strongestDrainReason() ?? "edit");
+    const snapshot = source?.readSnapshot() ?? this.detachedSnapshot;
+    if (!snapshot) return;
+    await this.enqueue(snapshot, this.strongestDrainReason() ?? "edit");
   }
 
   private enterDrain(reason: DrainReason): void {
@@ -330,6 +393,7 @@ export class DocumentEditingSession implements DocumentEditingSessionHandle {
 
   private enqueue(snapshot: EditorSourceSnapshot, reason: DocumentPersistenceReason): Promise<void> {
     this.cancelImmediateCommit();
+    if (this.unavailable) return Promise.reject(new Error(this.unavailable));
 
     if (snapshot.content === this.persistedContent && this.inFlight
       && this.inFlight.storageEpoch !== this.storageEpoch) {
@@ -431,6 +495,8 @@ export class DocumentEditingSession implements DocumentEditingSessionHandle {
     } finally {
       this.inFlight = null;
     }
+
+    if (this.unavailable || this.disposed) return;
 
     if (failure) {
       const sessionError = createSessionError("persistence-failed", toErrorMessage(failure));
@@ -579,7 +645,8 @@ function createSessionError(
 
 function sameState(left: DocumentSessionState, right: DocumentSessionState): boolean {
   return (
-    left.status === right.status
+    left.documentId === right.documentId
+    && left.status === right.status
     && left.error?.code === right.error?.code
     && left.error?.detail === right.error?.detail
     && left.currentRevision === right.currentRevision

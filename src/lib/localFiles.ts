@@ -65,7 +65,7 @@ export function createLocalDataPort(rootPath: string): DataPort {
       return result;
     },
     getFileUrl: (path, options) => getDesktopBridge()
-      .getFileUrl({ rootPath, path, purpose: options?.purpose ?? "file-preview" })
+      .getFileUrl({ rootPath, path, purpose: options?.purpose ?? "file-preview", expectedVersion: options?.expectedVersion })
       .then((result) => result.url),
     revokeFileUrl: (url) => getDesktopBridge()
       .revokeFileUrl({ url })

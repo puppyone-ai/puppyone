@@ -1,5 +1,5 @@
 import { installBrokenStdioGuards } from "./main/stdio-guard.mjs";
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, nativeTheme, powerMonitor, protocol, safeStorage, session as electronSession, shell, webContents, WebContentsView } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, MessageChannelMain, nativeImage, nativeTheme, powerMonitor, protocol, safeStorage, session as electronSession, shell, utilityProcess, webContents, WebContentsView } from "electron";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import fs from "node:fs";
 import { createRequire } from "node:module";
@@ -16,6 +16,7 @@ import {
   workspaceFromPath,
 } from "../local-api/workspace.mjs";
 import { initializeWorkspaceEditReview } from "../local-api/edit-review.mjs";
+import { resolveRuntimeAppImage, setDevelopmentDockIcon } from "./main/app-icon.mjs";
 import { createUpdateService } from "./update-service.mjs";
 import { createAppPreviewRuntime } from "./app-preview-runtime.mjs";
 import { createAppPreviewService } from "./main/app-preview-service.mjs";
@@ -97,7 +98,12 @@ import { createProjectAppearanceService } from "./main/project-appearance/projec
 import { registerProjectIconProtocol } from "./main/project-appearance/project-icon-protocol.mjs";
 import { createEditorSurfaceResourceAdmission } from "./main/editor-surfaces/resource-admission.mjs";
 import { installWindowNavigationSecurity, requireNonEmptyString } from "./main/security.mjs";
-import { createTerminalService } from "./main/terminal-service.mjs";
+import { createTerminalProcessService } from "./main/item-hosts/terminal-process-service.mjs";
+import { createAgentProcessService } from "./main/item-hosts/agent-process-service.mjs";
+import { createItemHostBudget } from "./main/item-hosts/resource-budget.mjs";
+import { createItemRendererAuthority } from "./main/item-hosts/renderer-authority.mjs";
+import { createItemDisplayManager } from "./main/item-hosts/display-manager.mjs";
+import { registerItemHostIpc } from "./main/item-hosts/ipc.mjs";
 import { createTerminalAgentLocator } from "./main/terminal-agent/terminal-agent-locator.mjs";
 import { createDefaultTerminalAgentActivityHost } from "./main/terminal-agent/activity/bootstrap/create-terminal-agent-activity-host.mjs";
 import { createTrustedIpcMain } from "./main/trusted-ipc.mjs";
@@ -245,6 +251,9 @@ let viewerPackHost = null;
 let viewerPackRuntime = null;
 let markdownWebEmbedService = null;
 let editorSurfaceManager = null;
+let itemDisplayManager = null;
+const itemRendererAuthority = createItemRendererAuthority();
+const itemHostBudget = createItemHostBudget({}, { readMetrics: () => app.getAppMetrics() });
 let stopLocaleNativeRefresh = null;
 const windowsById = new Map();
 const windowStateById = new Map();
@@ -254,6 +263,7 @@ let lastFocusedWindowId = null;
 const trustedIpcMain = createTrustedIpcMain({
   ipcMain,
   applicationUrl: rendererApplicationUrl,
+  itemRendererAuthority,
 });
 const nativeSurfaceOcclusion = createNativeSurfaceOcclusionCoordinator({
   onCallbackError: (error) => {
@@ -318,7 +328,10 @@ const documentSessionCloseCoordinator = createDocumentSessionCloseCoordinator({
   dialog,
   t: (messageId, values) => localeService.t(messageId, values),
   onCloseCancelled: applicationQuitIntent.cancel,
-  closeResources: (window) => projectSessions.closeWindow(window.webContents.id).then((result) => result.closed),
+  closeResources: async (window) => {
+    await editorSurfaceManager?.destroyForOwner(window.webContents.id);
+    return (await projectSessions.closeWindow(window.webContents.id)).closed;
+  },
 });
 documentSessionCloseCoordinator.registerIpc(trustedIpcMain);
 const authorizeWorkspaceRoot = createSenderWorkspaceAuthorization({
@@ -334,10 +347,14 @@ const terminalAgentActivityHost = createDefaultTerminalAgentActivityHost({
   executablePath: process.execPath,
   getWebContents: (webContentsId) => webContents.fromId(webContentsId),
 });
-const terminalService = createTerminalService({
+const terminalService = createTerminalProcessService({
+  utilityProcess,
+  modulePath: path.join(__dirname, "utility", "terminal", "main.mjs"),
+  budget: itemHostBudget,
   appVersion: desktopBuildInfo.version,
   initializeWorkspaceEditReview,
   terminalAgentActivityHost,
+  onHostEvent: (record, event) => itemDisplayManager?.hostEvent(record, event),
 });
 const terminalAgentLocator = createTerminalAgentLocator();
 const agentEventCache = createEphemeralAgentSessionCache({ app });
@@ -358,12 +375,22 @@ const agentAttachmentStore = createAgentAttachmentStore({
 void agentAttachmentStore.initialize().catch((error) => {
   console.error("puppyone failed to initialize Agent attachment staging:", error);
 });
-const agentService = createAgentService({
+const agentCatalogService = createAgentService({
   runtimeRegistry: agentRuntimeRegistry,
   sessionCache: agentSessionRepository,
   conversationCatalog: agentConversationCatalog,
   attachmentStore: agentAttachmentStore,
   processSupervisor: agentProcessSupervisor,
+});
+const agentService = createAgentProcessService({
+  utilityProcess,
+  modulePath: path.join(__dirname, "utility", "agent", "main.mjs"),
+  budget: itemHostBudget,
+  appVersion: desktopBuildInfo.version,
+  catalogService: agentCatalogService,
+  conversationCatalog: agentConversationCatalog,
+  attachmentStore: agentAttachmentStore,
+  onHostEvent: (record, event) => itemDisplayManager?.hostEvent(record, event),
 });
 const localAgentInventory = createLocalAgentInventory({
   appVersion: desktopBuildInfo.version,
@@ -407,11 +434,13 @@ const projectSessions = createProjectSessionHost({
   terminalService,
   getSender: (id) => webContents.fromId(id),
   closeProjectServices: async (owner, root) => {
+    await editorSurfaceManager?.destroyForResource(owner, root);
     await Promise.all([
       appPreviewRuntime?.closeSessionsForWorkspaceRoot(owner, root),
       workspaceWatchService.stopForWorkspaceRoot(owner, root),
       gitMetadataWatchService.stopForWorkspaceRoot(owner, root),
       localFileCapabilities.revokeWorkspaceRoot(owner, root),
+      itemDisplayManager?.closeProject(owner, root),
     ]);
   },
 });
@@ -469,7 +498,7 @@ async function createWindow(options = {}) {
     : [options.initialWorkspacePath])
     .filter((folderPath) => typeof folderPath === "string" && folderPath.trim())
     .map((folderPath) => path.resolve(folderPath));
-  const appIconPath = resolveAppIconPath();
+  const appIconPath = desktopPlatformHost.windowChrome.supportsDockIcon ? null : resolveAppIconPath();
   const window = new BrowserWindow({
     width: 1280,
     height: 840,
@@ -601,7 +630,7 @@ async function createWindow(options = {}) {
     nativeSurfaceOcclusion.releaseOwner(webContentsId);
     nativeSurfacePointerPassthrough.releaseOwner(webContentsId);
     viewerPackHost?.destroySessionsForOwner(webContentsId);
-    editorSurfaceManager?.destroyForOwner(webContentsId);
+    void editorSurfaceManager?.destroyForOwner(webContentsId).catch((error) => console.error("Editor Surface retirement failed:", error));
     appPreviewRuntime?.closeSessionsForWindow(webContentsId);
   });
 
@@ -625,7 +654,7 @@ async function createWindow(options = {}) {
     }).catch((error) => console.error("Project shutdown failed:", error));
     releaseWindowWorkspaceById(webContentsId, window);
     viewerPackHost?.destroySessionsForOwner(webContentsId);
-    editorSurfaceManager?.destroyForOwner(webContentsId);
+    void editorSurfaceManager?.destroyForOwner(webContentsId).catch((error) => console.error("Editor Surface retirement failed:", error));
     appPreviewRuntime?.closeSessionsForWindow(webContentsId);
     nativeSurfaceOcclusion.releaseOwner(webContentsId);
     nativeSurfacePointerPassthrough.releaseOwner(webContentsId);
@@ -703,26 +732,12 @@ function getLastFocusedWindow() {
 }
 
 function resolveAppIconPath() {
-  const resourceFilename = "puppy-app-image.png";
-  const sourceFilename = desktopBuildInfo.channel === "dev"
-    ? "puppy-app-image-dev.png"
-    : resourceFilename;
-  const candidates = [
-    path.join(process.resourcesPath ?? projectRoot, resourceFilename),
-    path.join(projectRoot, "assets", "brand", "puppy", sourceFilename),
-  ];
-  return candidates.find((candidate) => fs.existsSync(candidate)) ?? null;
-}
-
-function setDefaultDockIcon() {
-  if (!desktopPlatformHost.windowChrome.supportsDockIcon || !app.dock) return;
-  const iconPath = resolveAppIconPath();
-  if (!iconPath) return;
-  try {
-    app.dock.setIcon(iconPath);
-  } catch (error) {
-    console.warn("Unable to set puppyone dock icon:", error);
-  }
+  return resolveRuntimeAppImage({
+    isPackaged: app.isPackaged,
+    resourcesPath: process.resourcesPath,
+    projectRoot,
+    channel: desktopBuildInfo.channel,
+  });
 }
 
 app.on("second-instance", (_event, argv, workingDirectory, launchIntent) => {
@@ -754,8 +769,15 @@ app.whenReady().then(async () => {
   });
   stopLocaleNativeRefresh = localeService.onDidChange((state) => {
     nativeMenuService.refresh();
+    for (const entry of itemDisplayManager?.values() ?? []) {
+      if (entry.view && !entry.view.webContents.isDestroyed()) entry.view.webContents.send("localization:changed", state);
+    }
   });
-  setDefaultDockIcon();
+  setDevelopmentDockIcon({
+    app,
+    supportsDockIcon: desktopPlatformHost.windowChrome.supportsDockIcon,
+    iconPath: app.isPackaged ? null : resolveAppIconPath(),
+  });
   nativeMenuService.refresh();
 
   registerLocalFileProtocol({
@@ -795,6 +817,23 @@ app.whenReady().then(async () => {
       canonicalizeWorkspacePath,
       isOpenWorkspaceRoot,
     }),
+  });
+  const configuredItemSessions = new WeakSet();
+  itemDisplayManager = createItemDisplayManager({
+    WebContentsView, electronSession, MessageChannelMain,
+    authority: itemRendererAuthority, budget: itemHostBudget,
+    getOwnerWindow: (ownerId) => windowsById.get(ownerId) ?? null,
+    projectSessions, terminalService, agentService, attachmentStore: agentAttachmentStore,
+    applicationUrl: rendererApplicationUrl, preloadPath: path.join(__dirname, "item-preload.cjs"),
+    nativeSurfaceOcclusion, nativeSurfacePointerPassthrough,
+    configureSession: (session) => {
+      if (configuredItemSessions.has(session)) return;
+      configuredItemSessions.add(session);
+      registerLocalFileProtocol({ protocol: session.protocol, readWorkspaceFile, openWorkspaceFileRangeStream,
+        statWorkspaceFile, getMimeType, canonicalizeWorkspacePath, isOpenWorkspaceRoot,
+        resolveCapability: localFileCapabilities.resolve, applicationUrl: rendererApplicationUrl });
+      registerProjectIconProtocol({ protocol: session.protocol, store: projectAppearanceStore, applicationUrl: rendererApplicationUrl });
+    },
   });
   const appPreviewProcessRuntime = createAppPreviewRuntime({
     app,
@@ -881,7 +920,7 @@ app.on("will-quit", () => {
   cloudAuthService.dispose();
   updateService?.dispose();
   telemetryHost?.dispose();
-  editorSurfaceManager?.destroyAll();
+  void editorSurfaceManager?.destroyAll().catch((error) => console.error("Editor Surface retirement failed:", error));
   viewerPackHost?.destroyAllSessions();
   appPreviewRuntime?.closeAll();
   markdownWebEmbedService?.dispose();
@@ -905,6 +944,7 @@ app.on("before-quit", createApplicationCloseCoordinator({
   getWindows: () => BrowserWindow.getAllWindows(),
   closeResources: async () => {
     await projectSessions.closeAllWindows();
+    await itemDisplayManager?.closeAll();
     await Promise.all([agentService.closeAll(), terminalService.closeAll()]);
   },
   onFailure: async () => {
@@ -915,6 +955,7 @@ app.on("before-quit", createApplicationCloseCoordinator({
 }));
 
 function registerIpcHandlers() {
+  registerItemHostIpc({ ipcMain, trustedIpcMain, authority: itemRendererAuthority, manager: itemDisplayManager, projectSessions });
   registerProjectSessionIpc({ ipcMain: trustedIpcMain, projectSessions });
   const resourceTransfer = registerResourceTransferIpcHandlers({
     ipcMain: trustedIpcMain,
@@ -1030,6 +1071,7 @@ function registerIpcHandlers() {
     shell,
     authorizeWorkspaceRoot,
     convertOfficeDocument: desktopPlatformHost.documents.convertOfficeDocumentToDocx,
+    retireEditorSurfacesForResource: (owner, resource) => editorSurfaceManager?.destroyForResource(owner, resource),
     localFileCapabilities,
     workspaceWatchService,
     workspaceMutationTracker,
@@ -1490,12 +1532,10 @@ function assignWindowWorkspaceComposition(window, folders, options = {}) {
 
   if (replacingComposition && previousPaths.length > 0) {
     viewerPackHost?.destroySessionsForOwner(webContentsId);
-    localFileCapabilities.revokeSender(webContentsId);
-    if (options.cleanupPrevious !== false) {
-      appPreviewRuntime?.closeSessionsForWindow(webContentsId);
-      workspaceWatchService.stopForWindow(webContentsId);
-      gitMetadataWatchService.stopForWindow(webContentsId);
-    }
+    // Project sessions remain authorized while merely changing presentation.
+    // Document input watches and project execution are retired by closeRoot /
+    // closeWindow, never by navigation to another composition.
+    if (options.cleanupPrevious !== false) gitMetadataWatchService.stopForWindow(webContentsId);
   }
 
   projectSessions.assertWindowOpen(webContentsId);
@@ -1519,7 +1559,7 @@ function assignWindowWorkspaceComposition(window, folders, options = {}) {
 function releaseWindowWorkspaceById(webContentsId, window = null) {
   gitAutoCommitHost.releaseWindow(webContentsId);
   viewerPackHost?.destroySessionsForOwner(webContentsId);
-  editorSurfaceManager?.destroyForOwner(webContentsId);
+  void editorSurfaceManager?.destroyForOwner(webContentsId).catch((error) => console.error("Editor Surface retirement failed:", error));
   localFileCapabilities.revokeSender(webContentsId);
   const state = windowStateById.get(webContentsId);
   const workspacePaths = [...new Set([...(state?.folderPaths ?? []), ...projectSessions.snapshot(webContentsId).projects.map((project) => project.rootPath)])];
@@ -1600,6 +1640,8 @@ function getWorkspaceRootsForSender(sender) {
 }
 
 function getDialogOwnerWindow(sender) {
+  const owner = windowsById.get(sender.id);
+  if (owner && !owner.isDestroyed()) return owner;
   const window = BrowserWindow.fromWebContents(sender);
   if (window && !window.isDestroyed()) return window;
   return getLastFocusedWindow() ?? undefined;
@@ -1618,7 +1660,6 @@ async function showHomepageForCurrentWindowNow(sender) {
   const window = BrowserWindow.fromWebContents(sender);
   if (!window || window.isDestroyed()) return;
   getOrCreateWindowState(window).releaseFolders();
-  appPreviewRuntime?.closeSessionsForWindow(window.webContents.id);
-  workspaceWatchService.stopForWindow(window.webContents.id);
+  // The homepage hides views; explicit project/window close owns retirement.
   gitMetadataWatchService.stopForWindow(window.webContents.id);
 }

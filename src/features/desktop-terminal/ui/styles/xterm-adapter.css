@@ -1,0 +1,143 @@
+/* Private xterm DOM/inline-style adapter. No cell color or ANSI rewriting. */
+
+
+.desktop-terminal-xterm:has(.desktop-terminal-classic-scrollbar-controls[data-visible="true"])
+  .xterm-scrollable-element > .scrollbar.vertical {
+  opacity: var(--interface-terminal-native-scrollbar-opacity, 1) !important;
+  pointer-events: var(--interface-terminal-native-scrollbar-pointer-events, auto);
+}
+
+.desktop-terminal-xterm .xterm {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
+  overflow: hidden;
+  padding: 0;
+  background: var(--po-terminal-bg);
+  font-variant-ligatures: none;
+  /* Preserve xterm DOM-renderer measurement parity for CJK punctuation. */
+  text-spacing-trim: space-all;
+}
+
+.desktop-terminal-xterm .xterm-viewport {
+  background: var(--po-terminal-bg) !important;
+}
+
+.desktop-terminal-xterm .xterm-screen,
+.desktop-terminal-xterm .xterm-helpers {
+  background: var(--po-terminal-bg);
+}
+
+.desktop-terminal-xterm .xterm-viewport::-webkit-scrollbar {
+  width: var(--desktop-terminal-scrollbar-track-size);
+  height: var(--desktop-terminal-scrollbar-track-size);
+}
+
+.desktop-terminal-xterm .xterm-viewport::-webkit-scrollbar-track,
+.desktop-terminal-xterm .xterm-viewport::-webkit-scrollbar-track-piece,
+.desktop-terminal-xterm .xterm-viewport::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.desktop-terminal-xterm .xterm-viewport::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.desktop-terminal-xterm .xterm-viewport::-webkit-scrollbar-thumb {
+  min-height: 34px;
+  border: 0 solid transparent;
+  border-inline-width: var(--desktop-terminal-scrollbar-thumb-inset);
+  border-radius: var(--po-scrollbar-radius, 999px);
+  background-color: transparent;
+  background-clip: padding-box;
+  transition:
+    border-inline-width var(--po-scrollbar-transition, 0.16s ease),
+    background-color var(--po-scrollbar-transition, 0.16s ease);
+}
+
+.desktop-terminal-xterm:hover .xterm-viewport::-webkit-scrollbar-thumb,
+.desktop-terminal-xterm.po-scrollbar-active .xterm-viewport::-webkit-scrollbar-thumb,
+.desktop-terminal-xterm .xterm-viewport.po-scrollbar-active::-webkit-scrollbar-thumb {
+  border-inline-width: var(--desktop-terminal-scrollbar-thumb-active-inset);
+  background-color: var(--desktop-terminal-scrollbar-thumb-color);
+}
+
+.desktop-terminal-xterm .xterm-viewport::-webkit-scrollbar-thumb:hover,
+.desktop-terminal-xterm .xterm-viewport.po-scrollbar-active::-webkit-scrollbar-thumb:hover,
+.desktop-terminal-xterm .xterm-viewport:hover::-webkit-scrollbar-thumb:hover {
+  border-inline-width: var(--desktop-terminal-scrollbar-thumb-active-inset);
+  background-color: var(--desktop-terminal-scrollbar-thumb-hover-color);
+  background-clip: padding-box;
+}
+
+.desktop-terminal-xterm .xterm .xterm-scrollable-element {
+  background: transparent !important;
+}
+
+.desktop-terminal-xterm .xterm .xterm-scrollable-element > .scrollbar {
+  background: transparent !important;
+}
+
+.desktop-terminal-xterm .xterm .xterm-scrollable-element > .scrollbar.vertical {
+  width: var(--desktop-terminal-scrollbar-track-size) !important;
+}
+
+.desktop-terminal-xterm .xterm .xterm-scrollable-element > .scrollbar > .slider {
+  right: 0 !important;
+  left: auto !important;
+  width: var(--desktop-terminal-scrollbar-track-size) !important;
+  background: transparent !important;
+}
+
+.desktop-terminal-xterm .xterm .xterm-scrollable-element > .scrollbar > .slider::after {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: var(--desktop-terminal-scrollbar-thumb-inset);
+  width: var(--desktop-terminal-scrollbar-thumb-size);
+  border-radius: var(--po-scrollbar-radius, 999px);
+  background-color: transparent;
+  content: "";
+  pointer-events: none;
+  transition:
+    inset-inline-end var(--po-scrollbar-transition, 0.16s ease),
+    width var(--po-scrollbar-transition, 0.16s ease),
+    background-color var(--po-scrollbar-transition, 0.16s ease);
+}
+
+.desktop-terminal-xterm:hover
+  .xterm
+  .xterm-scrollable-element
+  > .scrollbar.visible
+  > .slider::after,
+.desktop-terminal-xterm.po-scrollbar-active
+  .xterm
+  .xterm-scrollable-element
+  > .scrollbar.visible
+  > .slider::after {
+  inset-inline-end: var(--desktop-terminal-scrollbar-thumb-active-inset);
+  width: var(--desktop-terminal-scrollbar-thumb-active-size);
+  background-color: var(--desktop-terminal-scrollbar-thumb-color);
+}
+
+.desktop-terminal-xterm
+  .xterm
+  .xterm-scrollable-element
+  > .scrollbar.visible
+  > .slider:hover::after,
+.desktop-terminal-xterm
+  .xterm
+  .xterm-scrollable-element
+  > .scrollbar
+  > .slider.active::after {
+  inset-inline-end: var(--desktop-terminal-scrollbar-thumb-active-inset);
+  width: var(--desktop-terminal-scrollbar-thumb-active-size);
+  background-color: var(--desktop-terminal-scrollbar-thumb-hover-color);
+}
+
+.desktop-terminal-xterm .xterm-screen {
+  outline: none;
+}

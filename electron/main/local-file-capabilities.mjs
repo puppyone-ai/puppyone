@@ -27,6 +27,7 @@ export function createLocalFileCapabilityStore({
     scope = "exact",
     purpose = "file-preview",
     reuse = true,
+    snapshot,
   }) {
     const normalizedSenderId = requireSenderId(senderId);
     const normalizedRoot = path.resolve(requireNonEmpty(rootPath, "Capability workspace root is required."));
@@ -43,12 +44,21 @@ export function createLocalFileCapabilityStore({
       entriesBySender.set(normalizedSenderId, senderEntries);
     }
 
-    const baseKey = `${normalizedRoot}\0${normalizedScope}\0${scopePath}\0${normalizedPurpose}`;
+    const baseKey = `${normalizedRoot}\0${normalizedScope}\0${scopePath}\0${normalizedPurpose}\0${snapshot ? `${normalizedRelative}\0${snapshot.version}` : "live"}`;
     const existing = reuse ? senderEntries.get(baseKey) : null;
     if (existing && entriesByToken.has(existing.token)) {
       senderEntries.delete(baseKey);
       senderEntries.set(baseKey, existing);
       return existing.token;
+    }
+    if (senderEntries.size >= maxCapabilitiesPerSender) {
+      throw new Error("Local resource capability limit reached; release unused previews before opening more.");
+    }
+    if (snapshot) {
+      if (!Buffer.isBuffer(snapshot.bytes) || snapshot.bytes.length > 4 * 1024 * 1024
+        || snapshot.relativePath !== normalizedRelative || typeof snapshot.version !== "string") throw new Error("Invalid versioned resource snapshot.");
+      const retainedBytes = [...senderEntries.values()].reduce((sum, entry) => sum + (entry.snapshot?.bytes.length ?? 0), 0);
+      if (retainedBytes + snapshot.bytes.length > 64 * 1024 * 1024) throw new Error("Versioned resource snapshot budget exceeded.");
     }
 
     let token;
@@ -65,15 +75,10 @@ export function createLocalFileCapabilityStore({
       publicPath,
       purpose: normalizedPurpose,
       key,
+      ...(snapshot ? { snapshot: { ...snapshot, bytes: Buffer.from(snapshot.bytes) } } : {}),
     };
     entriesByToken.set(token, entry);
     senderEntries.set(key, entry);
-    while (senderEntries.size > maxCapabilitiesPerSender) {
-      const oldest = senderEntries.values().next().value;
-      if (!oldest) break;
-      senderEntries.delete(oldest.key);
-      entriesByToken.delete(oldest.token);
-    }
     return token;
   }
 
@@ -113,12 +118,13 @@ export function createLocalFileCapabilityStore({
     if (entry.purpose !== normalizedPurpose) return null;
     if (entry.scope === "exact") {
       if (normalizedRequestPath !== entry.publicPath) return null;
-      return { rootPath: entry.rootPath, relativePath: entry.scopePath };
+      return { rootPath: entry.rootPath, relativePath: entry.scopePath, ...(entry.snapshot ? { snapshot: entry.snapshot } : {}) };
     }
     const relativePath = entry.scopePath
       ? `${entry.scopePath}/${normalizedRequestPath}`
       : normalizedRequestPath;
-    return { rootPath: entry.rootPath, relativePath };
+    return { rootPath: entry.rootPath, relativePath,
+      ...(entry.snapshot?.relativePath === relativePath ? { snapshot: entry.snapshot } : {}) };
   }
 
   /** Resolves a capability only for its issuing renderer. Main-process

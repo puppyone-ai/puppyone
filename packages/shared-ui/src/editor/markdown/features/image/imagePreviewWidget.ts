@@ -223,6 +223,15 @@ export class ImagePreviewWidget extends WidgetType {
         if (handle && isBrokerSafeResolvedAssetUrl(handle.url)) {
           const placeholder = createLoadingPlaceholder();
           wrapper.replaceChildren(placeholder, createImage(handle.url, placeholder));
+          handle.subscribe?.((url) => {
+            if (abort.signal.aborted || !wrapper.isConnected) return;
+            if (!url) wrapper.replaceChildren(createPlaceholder(this.alt || this.source));
+            else {
+              const loading = createLoadingPlaceholder();
+              wrapper.replaceChildren(loading, createImage(url, loading));
+            }
+            measure.schedule();
+          });
         } else {
           wrapper.replaceChildren(createPlaceholder(this.alt || this.source));
         }

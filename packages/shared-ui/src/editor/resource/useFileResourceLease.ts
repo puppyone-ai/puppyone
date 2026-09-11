@@ -1,12 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { DataPort, WorkspaceContentChange } from "../../core/types";
-import { workspaceContentChangeMatchesResource } from "../../core/workspaceContentChange";
-
-type ResourceLease = Readonly<{
-  path: string;
-  url: string;
-  revoke: DataPort["revokeFileUrl"];
-}>;
+import { acquireFileResource, invalidateFileResources, type FileResourceHandle } from "./FileResourcePool";
+import { getEditorStorageIdentity } from "./editorStorageIdentity";
 
 export type FileResourceLeaseState = Readonly<{
   fileUrl: string | null;
@@ -14,82 +9,31 @@ export type FileResourceLeaseState = Readonly<{
   fileUrlError: string | null;
 }>;
 
-/**
- * Owns capability-URL acquisition and revocation independently from Viewer
- * components. Matching storage events acquire a new lease while the previous
- * URL remains usable; unrelated events do not disturb the mounted resource.
- */
-export function useFileResourceLease({
-  dataPort,
-  enabled,
-  path,
-  refresh,
-}: Readonly<{
-  dataPort: DataPort;
-  enabled: boolean;
-  path: string | null;
-  refresh?: WorkspaceContentChange;
+export function useFileResourceLease({ dataPort, enabled, path, refresh }: Readonly<{
+  dataPort: DataPort; enabled: boolean; path: string | null; refresh?: WorkspaceContentChange;
 }>): FileResourceLeaseState {
-  const [lease, setLease] = useState<ResourceLease | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [errorPath, setErrorPath] = useState<string | null>(null);
-  const [reloadSequence, setReloadSequence] = useState(0);
-  const lastRefreshSequenceRef = useRef(refresh?.sequence ?? null);
-
+  const identity = getEditorStorageIdentity(dataPort);
+  const [state, setState] = useState<FileResourceLeaseState & { key: string | null }>({
+    key: null, fileUrl: null, fileUrlLoading: false, fileUrlError: null,
+  });
+  const key = enabled && path ? JSON.stringify([identity, path]) : null;
+  useEffect(() => { if (refresh) invalidateFileResources(identity, refresh); }, [identity, refresh]);
   useEffect(() => {
-    if (!refresh || lastRefreshSequenceRef.current === refresh.sequence) return;
-    const previousSequence = lastRefreshSequenceRef.current ?? Number.NEGATIVE_INFINITY;
-    lastRefreshSequenceRef.current = refresh.sequence;
-    if (workspaceContentChangeMatchesResource(refresh, path, previousSequence)) {
-      setReloadSequence((current) => current + 1);
-    }
-  }, [path, refresh]);
-
-  useEffect(() => {
-    if (!enabled || !path || !dataPort.getFileUrl) {
-      setLease(null);
-      setLoading(false);
-      setError(null);
-      setErrorPath(null);
-      return undefined;
-    }
-
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    setErrorPath(null);
-    Promise.resolve(dataPort.getFileUrl(path))
-      .then((url) => {
-        if (cancelled) {
-          void Promise.resolve(dataPort.revokeFileUrl?.(url)).catch(() => undefined);
-          return;
-        }
-        setLease({ path, url, revoke: dataPort.revokeFileUrl });
-      })
-      .catch((nextError) => {
-        if (!cancelled) {
-          setError(nextError instanceof Error ? nextError.message : String(nextError));
-          setErrorPath(path);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [dataPort, enabled, path, reloadSequence]);
-
-  useEffect(() => () => {
-    if (lease) void Promise.resolve(lease.revoke?.(lease.url)).catch(() => undefined);
-  }, [lease]);
-
-  const matchesPath = lease?.path === path;
-  return {
-    fileUrl: matchesPath ? lease.url : null,
-    fileUrlLoading: Boolean(enabled && path && (!matchesPath || loading)),
-    fileUrlError: errorPath === path ? error : null,
-  };
+    if (!key || !path || !dataPort.getFileUrl) return;
+    const controller = new AbortController();
+    let handle: FileResourceHandle | null = null;
+    let unsubscribe: (() => void) | null = null;
+    setState((current) => ({ ...current, key, fileUrl: current.key === key ? current.fileUrl : null, fileUrlLoading: true, fileUrlError: null }));
+    void acquireFileResource(dataPort, path, {}, controller.signal).then((resource) => {
+      if (controller.signal.aborted) { resource.revoke(); return; }
+      handle = resource;
+      const publish = (url: string | null) => setState({ key, fileUrl: url, fileUrlLoading: false, fileUrlError: url ? null : "The resource is no longer available." });
+      unsubscribe = resource.subscribe(publish);
+      publish(resource.url);
+    }).catch((error) => {
+      if (!controller.signal.aborted) setState((current) => ({ ...current, key, fileUrlLoading: false, fileUrlError: error instanceof Error ? error.message : String(error) }));
+    });
+    return () => { controller.abort(); unsubscribe?.(); handle?.revoke(); };
+  }, [dataPort, key, path]);
+  return state.key === key && key ? state : { fileUrl: null, fileUrlLoading: Boolean(key), fileUrlError: null };
 }

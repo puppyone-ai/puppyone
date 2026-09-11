@@ -23,7 +23,12 @@ export function invalidateDocumentStorageReads(
 export async function readDocumentStorageSnapshot(
   dataPort: Pick<DataPort, "readFile" | "documentPersistence">,
   path: string,
-  options: { signal: AbortSignal; accept: (content: FileContent) => void },
+  options: {
+    signal: AbortSignal;
+    accept: (content: FileContent) => void;
+    /** Stage version-bound resources; cleanup is called when this read loses its fence. */
+    prepare?: (content: FileContent) => Promise<(() => void) | void>;
+  },
 ): Promise<void> {
   const { readFile, documentPersistence } = dataPort;
   if (!readFile) throw new Error("Document content reads are unavailable.");
@@ -34,7 +39,7 @@ export async function readDocumentStorageSnapshot(
   fence.readers += 1;
   if (key) activeReads.set(key, fence);
   try {
-    while (true) {
+    for (let attempt = 0; attempt < 8; attempt++) {
       options.signal.throwIfAborted();
       const generation = fence.generation;
       let content: FileContent;
@@ -47,10 +52,28 @@ export async function readDocumentStorageSnapshot(
       }
       options.signal.throwIfAborted();
       if (generation !== fence.generation) continue;
+      let releaseStaging: (() => void) | void;
+      try {
+        releaseStaging = options.prepare ? await options.prepare(content) : undefined;
+      } catch (error) {
+        options.signal.throwIfAborted();
+        if (generation !== fence.generation) continue;
+        // A text/resource pair can straddle an external write before its watch
+        // notification arrives. Retry only with evidence of a newer disk version.
+        const latest = await readFile(path, { signal: options.signal });
+        if (content.version && latest.version && content.version !== latest.version) continue;
+        throw error;
+      }
+      if (options.signal.aborted || generation !== fence.generation) {
+        releaseStaging?.();
+        options.signal.throwIfAborted();
+        continue;
+      }
       fence.generation += 1;
-      options.accept(content);
+      try { options.accept(content); } catch (error) { releaseStaging?.(); throw error; }
       return;
     }
+    throw new Error("The document changed repeatedly while reading. Waiting for a stable file version.");
   } finally {
     fence.readers -= 1;
     if (key && fence.readers === 0) activeReads.delete(key);

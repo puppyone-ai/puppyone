@@ -3,6 +3,8 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import ts from "typescript";
+import { inspectStyleLayers } from "../tooling/styles/style-layer-contract.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const errors = [];
@@ -45,6 +47,9 @@ if (
 ) {
   errors.push("Renderer styles must be the first side-effect imports and load cascade registration, layered Tailwind, then product styles before application modules.");
 }
+if (!read("src/item-main.tsx").startsWith(`${rendererStyleBootstrap}\n`)) {
+  errors.push("Isolated item Renderers must use the same canonical style bootstrap as the App Shell.");
+}
 
 if (!/corePlugins\s*:\s*\{[\s\S]*?preflight\s*:\s*false/.test(tailwindConfig)) {
   errors.push("Tailwind Preflight must remain disabled; PuppyOne's reset layer is the only renderer reset owner.");
@@ -70,6 +75,7 @@ for (const match of productStyles.matchAll(/^@import\s+([^;]+);$/gm)) {
   if (
     match[1].includes("interface-styles.generated.css")
     || match[1].includes("@puppyone/shared-ui/editor.css")
+    || match[1].includes("desktop-agent/ui/styles/agent-prompt-editor.css")
   ) continue;
   if (!match[1].includes("layer(")) {
     errors.push(`Product stylesheet import is outside the named cascade: ${match[0]}`);
@@ -101,6 +107,41 @@ const rendererSourceRoots = [
   path.join(repoRoot, "src"),
   path.join(repoRoot, "packages", "shared-ui", "src"),
 ];
+
+// Check feature-side imports too, including every transitive CSS import edge.
+const auxiliaryStyleRoots = ["src/features/app-shell/auxiliary-workbench", "src/features/desktop-terminal", "src/features/desktop-agent"];
+const checkedStyles = new Set();
+function checkAuxiliaryStyle(filePath, layered = false) {
+  const key = `${filePath}:${layered}`;
+  if (checkedStyles.has(key)) return;
+  checkedStyles.add(key);
+  const contract = inspectStyleLayers(readAbsolute(filePath), layered);
+  for (const selector of contract.unlayeredRules) {
+    errors.push(`${path.relative(repoRoot, filePath)} escapes the named cascade: ${selector}`);
+  }
+  for (const entry of contract.imports) {
+    if (entry.path.startsWith(".")) checkAuxiliaryStyle(path.resolve(path.dirname(filePath), entry.path), entry.layered);
+    else if (!entry.layered) errors.push(`${filePath} imports unlayered vendor CSS: ${entry.path}`);
+  }
+}
+for (const directory of auxiliaryStyleRoots) {
+  for (const filePath of walkRendererSource(path.join(repoRoot, directory)).filter(file => /\.tsx?$/.test(file))) {
+    const parsed = ts.createSourceFile(filePath, readAbsolute(filePath), ts.ScriptTarget.Latest, true);
+    for (const statement of parsed.statements) {
+      if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) continue;
+      const specifier = statement.moduleSpecifier.text;
+      if (!specifier.endsWith(".css")) continue;
+      if (specifier.startsWith(".")) checkAuxiliaryStyle(path.resolve(path.dirname(filePath), specifier));
+      else errors.push(`${path.relative(repoRoot, filePath)} must import vendor CSS through a layered style entry: ${specifier}`);
+    }
+  }
+}
+
+const promptAdapter = read("src/features/desktop-agent/ui/styles/agent-prompt-editor.css");
+if (promptAdapter.includes("!important")) errors.push("Agent prompt adapter must share CodeMirror's unlayered tier without important overrides.");
+if (read("src/features/desktop-agent/ui/styles/theme.css").includes("--po-terminal-")) {
+  errors.push("Agent Chat must consume its own surface role, not Terminal tokens.");
+}
 
 for (const filePath of rendererSourceRoots.flatMap(walkRendererSource)) {
   const relativePath = path.relative(repoRoot, filePath);

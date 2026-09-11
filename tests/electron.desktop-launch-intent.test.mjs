@@ -24,7 +24,7 @@ describe("Desktop launch intent", () => {
     expect(instanceBoundary).toBeGreaterThan(-1);
     expect(mainSource).not.toContain("isCloudAuthCallbackUrl");
     for (const optionalComposition of [
-      "const terminalService = createTerminalService({",
+      "const terminalService = createTerminalProcessService({",
       "const agentRuntimeRegistry = createDefaultAgentRuntimeHost({",
       "const cloudAuthService = createCloudAuthService({",
     ]) {

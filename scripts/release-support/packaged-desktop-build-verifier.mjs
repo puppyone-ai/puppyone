@@ -7,11 +7,10 @@ import {
   getDesktopBuildChannelPolicy,
 } from "../../shared/desktop-build-identity.mjs";
 
+import { verifyMacosAppIcon } from "../../tooling/desktop/build/macos-app-icon.mjs";
+
 const { extractFile } = asarPackage;
 const { parse: parsePlist } = plistPackage;
-const canonicalDockIconAsset = Object.freeze({
-  resourceFilename: "puppy-app-image.png",
-});
 
 export async function verifyPackagedDesktopBuild({
   releaseDirectory,
@@ -51,14 +50,7 @@ export async function verifyPackagedDesktopBuild({
       );
     }
 
-    const { resourceFilename } = canonicalDockIconAsset;
-    const nativeIcon = await fs.readFile(path.join(resourcesDirectory, resourceFilename)).catch((error) => {
-      if (error?.code === "ENOENT") {
-        throw new Error(`${path.basename(application.path)} is missing Dock icon resource ${resourceFilename}.`);
-      }
-      throw error;
-    });
-    assertPng(nativeIcon, `${path.basename(application.path)} ${resourceFilename}`);
+    await verifyMacosAppIcon(application.path);
 
     const plist = parsePlist(
       await fs.readFile(path.join(application.path, "Contents", "Info.plist"), "utf8"),
@@ -131,16 +123,6 @@ export async function verifyPackagedDesktopBuild({
     distributables: distributableFiles.map((entry) => entry.path),
     updaterMetadata: updaterMetadata.map((entry) => entry.path),
   });
-}
-
-function assertPng(contents, label) {
-  const pngSignature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
-  if (
-    contents.length < pngSignature.length
-    || pngSignature.some((byte, index) => contents[index] !== byte)
-  ) {
-    throw new Error(`${label} is not a valid PNG resource.`);
-  }
 }
 
 async function collectReleaseEntries(releaseDirectory) {

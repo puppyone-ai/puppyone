@@ -31,7 +31,7 @@ type CsvStructuralResult = Readonly<{
 
 type CsvPerformanceSmokeResult = Readonly<{
   inputTransactions: Distribution;
-  longTasks: { over50ms: number; total: number };
+  longTasks: { over50ms: number; total: number; entries: readonly { startTime: number; duration: number; phase: string }[] };
   openToProjection: Distribution;
   structural: {
     large: CsvStructuralResult;
@@ -65,7 +65,9 @@ export function CsvEditorPerformanceSmokeHarness() {
     path: "/csv-performance-smoke",
     status: "recording",
   }), []);
-  const dataPort = useMemo<DataPort>(() => ({
+  const dataPort = useMemo<DataPort>(() => {
+    const versions = new Map<string, string>();
+    return {
     listChildren: async (folderPath) => folderPath ? [] : nodes,
     readFile: async (path) => ({
       path,
@@ -73,22 +75,31 @@ export function CsvEditorPerformanceSmokeHarness() {
       type: "spreadsheet",
       mimeType: "text/csv",
       content: fixtures.get(path) ?? "",
-      version: "fixture-v1",
+      version: versions.get(path) ?? "fixture-v1",
     }),
     documentPersistence: {
       kind: "local-fs",
       storageIdentity: "csv-performance-smoke",
-      persist: async (request) => ({ ok: true, version: request.revision }),
+      persist: async (request) => {
+        // The fixture must acknowledge real storage changes: reattachment now
+        // revalidates disk, so returning success without writing simulates an
+        // external revert and measures a second parse instead of retained open.
+        fixtures.set(request.path, request.content);
+        versions.set(request.path, request.revision);
+        return { ok: true, version: request.revision };
+      },
     },
-  }), [fixtures, nodes]);
+    };
+  }, [fixtures, nodes]);
 
   useEffect(() => {
     let stopped = false;
-    const longTasks: number[] = [];
+    const longTasks: { startTime: number; duration: number }[] = [];
+    const phases = [{ at: performance.now(), name: "initialization" }];
     const observer = typeof PerformanceObserver === "undefined"
       ? null
       : new PerformanceObserver((list) => {
-          for (const entry of list.getEntries()) longTasks.push(entry.duration);
+          for (const entry of list.getEntries()) longTasks.push({ startTime: entry.startTime, duration: entry.duration });
         });
     try {
       observer?.observe({ entryTypes: ["longtask"] });
@@ -104,6 +115,7 @@ export function CsvEditorPerformanceSmokeHarness() {
         nextFile = nextFile === FILE_A ? FILE_B : FILE_A;
         const button = await waitForElement<HTMLButtonElement>(`[data-explorer-path="${nextFile}"]`);
         const openedAt = performance.now();
+        phases.push({ at: openedAt, name: `open:${nextFile}` });
         button.click();
         const table = await waitForElement<HTMLTableElement>(
           `.csv-table-editor__table[aria-label="${nextFile}"]`,
@@ -124,14 +136,17 @@ export function CsvEditorPerformanceSmokeHarness() {
         }
       }
 
+      phases.push({ at: performance.now(), name: "large:10000x20" });
       const large = await inspectFixture(LARGE_FILE, "row");
+      phases.push({ at: performance.now(), name: "wide:500x100" });
       const wide = await inspectFixture(WIDE_FILE, "column");
       if (stopped) return;
       window.__PUPPYONE_CSV_PERFORMANCE_SMOKE_RESULT__ = {
         inputTransactions: summarize(inputDurations),
         longTasks: {
-          over50ms: longTasks.filter((duration) => duration > 50).length,
+          over50ms: longTasks.filter(({ duration }) => duration > 50).length,
           total: longTasks.length,
+          entries: longTasks.map((entry) => ({ ...entry, phase: phases.findLast((phase) => phase.at <= entry.startTime)?.name ?? "initialization" })),
         },
         openToProjection: summarize(openDurations),
         structural: { large, wide },

@@ -1,4 +1,5 @@
 import type { EditorSourceSnapshot } from "../../sourceSnapshot";
+import { DOCUMENT_HISTORY_POLICY } from "../../document-session/historyPolicy";
 import {
   normalizeRows,
   parseDelimitedText,
@@ -42,16 +43,18 @@ export type CsvModelTransactionResult = Readonly<{
 
 type CsvModelContent = Omit<CsvDocumentModelSnapshot, "revision">;
 
-const MAX_HISTORY_ENTRIES = 200;
-
 /**
  * Canonical structured CSV/TSV model. React subscribes to immutable snapshots;
  * complete source text is produced only through readSnapshot().
  */
 export class CsvDocumentModel {
+  readonly retainedSource = this;
+  private inputEnabled = true;
+  setInputEnabled = (enabled: boolean): void => { this.inputEnabled = enabled; };
   private readonly listeners = new Set<() => void>();
   private readonly undoStack: CsvModelContent[] = [];
   private readonly redoStack: CsvModelContent[] = [];
+  private readonly historySizes = new WeakMap<readonly CsvModelRow[], number>();
   private identitySequence = 0;
   private revisionSequence = 0;
   private state: CsvDocumentModelSnapshot;
@@ -77,6 +80,13 @@ export class CsvDocumentModel {
     return () => this.listeners.delete(listener);
   };
 
+  dispose = (): void => {
+    this.inputEnabled = false;
+    this.listeners.clear();
+    this.undoStack.length = 0;
+    this.redoStack.length = 0;
+  };
+
   readSnapshot = (): EditorSourceSnapshot => {
     if (this.serializedCache.revision === this.state.revision) return this.serializedCache;
     const content = stringifyDelimitedText(
@@ -99,6 +109,7 @@ export class CsvDocumentModel {
   };
 
   setCell(rowIndex: number, columnIndex: number, value: string): CsvModelTransactionResult {
+    if (!this.inputEnabled) return { changed: false, revision: this.state.revision };
     const row = this.state.rows[rowIndex];
     if (!row || !this.state.columns[columnIndex] || row.cells[columnIndex] === value) {
       return { changed: false, revision: this.state.revision };
@@ -119,6 +130,7 @@ export class CsvDocumentModel {
     headerEnabled: boolean,
     operation: CsvTableStructureOperation,
   ): CsvModelTransactionResult {
+    if (!this.inputEnabled) return { changed: false, revision: this.state.revision };
     const currentMatrix = this.state.rows.map((row) => row.cells);
     const result = applyCsvTableOperation(currentMatrix, headerEnabled, operation);
     if (matricesEqual(currentMatrix, result.rows)) {
@@ -189,6 +201,7 @@ export class CsvDocumentModel {
   }
 
   undo(): CsvModelTransactionResult {
+    if (!this.inputEnabled) return { changed: false, revision: this.state.revision };
     const previous = this.undoStack.pop();
     if (!previous) return { changed: false, revision: this.state.revision };
     this.redoStack.push(this.contentState());
@@ -197,6 +210,7 @@ export class CsvDocumentModel {
   }
 
   redo(): CsvModelTransactionResult {
+    if (!this.inputEnabled) return { changed: false, revision: this.state.revision };
     const next = this.redoStack.pop();
     if (!next) return { changed: false, revision: this.state.revision };
     this.undoStack.push(this.contentState());
@@ -229,9 +243,9 @@ export class CsvDocumentModel {
   private commit(content: CsvModelContent, recordHistory = true): void {
     if (recordHistory) {
       this.undoStack.push(this.contentState());
-      if (this.undoStack.length > MAX_HISTORY_ENTRIES) this.undoStack.shift();
       this.redoStack.length = 0;
     }
+    this.trimHistory();
     this.state = { ...content, revision: this.createRevision() };
     this.serializedCache = { content: "", revision: "" };
     for (const listener of this.listeners) listener();
@@ -240,6 +254,27 @@ export class CsvDocumentModel {
   private contentState(): CsvModelContent {
     const { revision: _revision, ...content } = this.state;
     return content;
+  }
+
+  private trimHistory(): void {
+    let bytes = 0;
+    // Account conservatively for complete snapshots; structural sharing can
+    // only reduce actual retention. Current content is never evicted.
+    for (const stack of [this.undoStack, this.redoStack]) {
+      let retained = 0;
+      for (let index = stack.length - 1; index >= 0; index--) {
+        const rows = stack[index].rows;
+        let size = this.historySizes.get(rows);
+        if (size === undefined) {
+          size = rows.reduce((sum, row) => sum + 64 + row.cells.reduce((cellSum, cell) => cellSum + 16 + cell.length * 2, 0), 0);
+          this.historySizes.set(rows, size);
+        }
+        if (retained >= DOCUMENT_HISTORY_POLICY.maxEntries || bytes + size > DOCUMENT_HISTORY_POLICY.maxBytes) break;
+        bytes += size;
+        retained++;
+      }
+      stack.splice(0, stack.length - retained);
+    }
   }
 
   private createIdentity(kind: "row" | "column"): string {

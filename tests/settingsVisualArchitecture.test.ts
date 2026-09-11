@@ -159,15 +159,17 @@ describe("settings visual architecture", () => {
         "title",
         "detail",
         "textSize.title",
-        "textSize.detail",
-        "textSize.application.title",
         "textSize.ariaLabel",
         "textSize.scale.small",
         "textSize.scale.medium",
         "textSize.scale.large",
         "textSize.useScale",
-        "preview.title",
         "preview.ariaLabel",
+        "preview.leftSidebar",
+        "preview.editor",
+        "preview.rightSidebar",
+        "preview.chat",
+        "preview.message",
       ]) {
         expect(catalog[`typography.${key}`], `${locale}: settings.typography.${key}`).toBeTruthy();
       }

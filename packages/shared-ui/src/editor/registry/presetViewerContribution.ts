@@ -1,3 +1,4 @@
+import { normalizeEditorProviderPolicy } from "./editorProviderPolicy";
 import type {
   PresetViewerContribution,
   PresetViewerImplementation,
@@ -6,6 +7,7 @@ import { getPresetViewerDefinition } from "./presetViewerManifest";
 
 const IMPLEMENTATION_KEYS = new Set([
   "id",
+  "providerPolicy",
   "match",
   "allowPreviewContent",
   "normalizeContent",
@@ -136,6 +138,7 @@ export function normalizePresetViewerContribution(
   }
   return Object.freeze({
     ...contribution,
+    providerPolicy: normalizeEditorProviderPolicy(contribution),
     formatViewerIds: definition.formatViewerIds,
     resourcePolicy: definition.resourcePolicy,
     recoveryPolicy: definition.recoveryPolicy,

@@ -1,3 +1,4 @@
+@layer features {
 .desktop-terminal-subheader {
   --desktop-terminal-header-gap: 3px;
   --desktop-terminal-tab-activation-motion: 220ms;
@@ -10,7 +11,7 @@
   padding: 4px 6px var(--desktop-terminal-tab-bar-padding-end, 6px);
   box-sizing: border-box;
   border-block-end: var(--desktop-terminal-tab-bar-divider, 0);
-  background: var(--desktop-terminal-tab-bar-background, var(--po-terminal-bg));
+  background: var(--desktop-terminal-tab-bar-background, var(--po-surface-auxiliary));
   color: var(--po-text-muted);
 }
 
@@ -211,7 +212,7 @@
   inset-block-end: -1px;
   width: 5px;
   height: 5px;
-  border: 1px solid var(--po-terminal-bg);
+  border: 1px solid var(--po-surface-auxiliary);
   border-radius: 50%;
   background: var(--po-accent);
 }
@@ -400,3 +401,4 @@
   }
 }
 /* Shared Workbench tab chrome. Selectors remain stable for theme overrides. */
+}

@@ -16,6 +16,11 @@ export type EditorSourceRevision = {
  * through the format-specific model.
  */
 export type EditorSourceSnapshotPort = {
+  /** A DOM-free model owned by the open document, used after this view detaches. */
+  readonly retainedSource?: EditorSourceSnapshotPort;
+  /** Complete active input before a destructive lifecycle operation. */
+  prepareDetach?: () => void | Promise<void>;
+  setInputEnabled?: (enabled: boolean) => void;
   readSnapshot: () => EditorSourceSnapshot;
   /** Apply raw canonical file content through the format-specific model. */
   replaceContent: (content: string) => EditorSourceSnapshot;

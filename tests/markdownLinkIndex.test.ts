@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createMarkdownLinkGraph,
   createMarkdownLinkGraphIndex,
+  createMarkdownLinkGraphIndexer,
   type MarkdownLinkGraphDocument,
 } from "../packages/shared-ui/src/editor/markdown/core/links/markdownLinkGraph";
 import { MarkdownLinkIndexCoordinator } from "../packages/shared-ui/src/editor/markdown/platform/indexing/markdownLinkIndexCoordinator";
@@ -40,9 +41,9 @@ describe("Markdown link index boundary", () => {
       .toEqual([1, 2, 3]);
   });
 
-  it("cancels a superseded fallback build and commits only the latest revision", async () => {
+  it("cancels a superseded worker build and commits only the latest revision", async () => {
     vi.useFakeTimers();
-    vi.stubGlobal("Worker", undefined);
+    vi.stubGlobal("Worker", IndexWorker);
     const coordinator = new MarkdownLinkIndexCoordinator();
     const first = coordinator.build([
       { path: "a.md", name: "a.md", content: "[b](b.md)" },
@@ -58,6 +59,8 @@ describe("Markdown link index boundary", () => {
 
     expect((await firstOutcome).name).toBe("AbortError");
     expect((await second.promise).indexedDocumentCount).toBe(2);
+    coordinator.cancel();
+    await Promise.resolve();
   });
 
   it("rejects deterministically when the production Worker fails", async () => {
@@ -91,7 +94,7 @@ describe("Markdown link index boundary", () => {
 
   it("streams one document at a time and can update a saved document incrementally", async () => {
     vi.useFakeTimers();
-    vi.stubGlobal("Worker", undefined);
+    vi.stubGlobal("Worker", IndexWorker);
     const coordinator = new MarkdownLinkIndexCoordinator();
     const metadata = [
       { path: "a.md", name: "a.md", content: null },
@@ -132,6 +135,8 @@ describe("Markdown link index boundary", () => {
     await vi.runAllTimersAsync();
     const next = await updated;
     expect(createMarkdownLinkGraph(metadata, next).getBacklinks("b.md")).toEqual([]);
+    coordinator.cancel();
+    await Promise.resolve();
   });
 
   it("keeps backlink excerpts bounded for a link on a very long line", () => {
@@ -179,3 +184,19 @@ describe("Markdown link index boundary", () => {
     expect(snapshot.truncatedDocumentCount).toBeGreaterThan(0);
   });
 });
+
+class IndexWorker {
+  onmessage: ((event: MessageEvent) => void) | null = null;
+  onerror: ((event: ErrorEvent) => void) | null = null;
+  onmessageerror: ((event: MessageEvent) => void) | null = null;
+  indexer: ReturnType<typeof createMarkdownLinkGraphIndexer> | null = null;
+  postMessage(request: import("../packages/shared-ui/src/editor/markdown/platform/indexing/markdownLinkIndexProtocol").MarkdownLinkIndexWorkerRequest) {
+    if (request.type === "initialize") this.indexer = createMarkdownLinkGraphIndexer(request.documents);
+    if (request.type === "index-document") this.indexer!.indexDocument(request.document);
+    queueMicrotask(() => this.onmessage?.({ data: { requestId: request.requestId, operationId: request.operationId,
+      type: request.type === "snapshot" ? "snapshot" : "ack",
+      ...(request.type === "snapshot" ? { index: this.indexer!.createSnapshot() } : {}),
+    } } as MessageEvent));
+  }
+  terminate() { this.onmessage = null; }
+}

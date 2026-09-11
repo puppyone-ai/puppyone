@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { getPresetViewerDefinitionForViewerId } from "../viewer-packs/preset-viewer-manifest.mjs";
 
 const ALLOWED_RESOURCE_PROTOCOLS = new Set(["puppyone-local:", "https:"]);
@@ -41,51 +43,58 @@ export function createEditorSurfaceSessionManager({
       logger.warn?.("Editor Surface state observer failed:", error);
     }
     if (entry.window?.isDestroyed?.() || entry.window?.webContents?.isDestroyed?.()) return;
-    entry.window.webContents.send("editor-surface:state", event);
+    try { entry.window.webContents.send("editor-surface:state", event); }
+    catch (error) { logger.warn?.("Editor Surface owner notification failed:", error); }
   }
 
   function destroySession(sessionId, { reason = "disposed", publishDisposed = false } = {}) {
     const entry = sessions.get(sessionId);
-    if (!entry) return false;
-    sessions.delete(sessionId);
-    if (entry.unresponsiveTimer) clearTimeout(entry.unresponsiveTimer);
-    if (entry.navigationTimer) clearTimeout(entry.navigationTimer);
-    entry.unresponsiveTimer = null;
-    entry.navigationTimer = null;
-    entry.releaseOcclusion?.();
-    entry.releasePointerPassthrough?.();
-    for (const [emitter, eventName, listener] of entry.listeners) {
+    if (!entry) return Promise.resolve(false);
+    if (entry.retirement) return entry.retirement;
+    entry.retiring = true;
+    entry.retirement = (async () => {
+      if (entry.unresponsiveTimer) clearTimeout(entry.unresponsiveTimer);
+      if (entry.navigationTimer) clearTimeout(entry.navigationTimer);
+      entry.unresponsiveTimer = null;
+      entry.navigationTimer = null;
+      entry.releaseOcclusion?.();
+      entry.releasePointerPassthrough?.();
+      for (const [emitter, eventName, listener] of entry.listeners) {
+        try {
+          emitter.removeListener?.(eventName, listener);
+        } catch {
+          // Native teardown may race process termination.
+        }
+      }
+      entry.listeners = [];
       try {
-        emitter.removeListener?.(eventName, listener);
+        entry.view.setVisible?.(false);
+        entry.view.webContents?.setAudioMuted?.(true);
       } catch {
-        // Native teardown may race process termination.
+        // Ignore a renderer that already exited.
       }
-    }
-    entry.listeners = [];
-    try {
-      entry.view.setVisible?.(false);
-      entry.view.webContents?.setAudioMuted?.(true);
-    } catch {
-      // Ignore a renderer that already exited.
-    }
-    try {
-      if (!entry.window.isDestroyed() && entry.window.contentView) {
-        entry.window.contentView.removeChildView(entry.view);
+      try {
+        if (!entry.window.isDestroyed() && entry.window.contentView) {
+          entry.window.contentView.removeChildView(entry.view);
+        }
+      } catch {
+        // Ignore detach races.
       }
-    } catch {
-      // Ignore detach races.
-    }
-    try {
-      entry.view.webContents?.destroy?.();
-    } catch {
-      // Ignore a renderer that already exited.
-    }
-    if (publishDisposed) publish(entry, "disposed", { reason });
-    return true;
+      await closeEditorWebContents(entry.view.webContents);
+      sessions.delete(sessionId);
+      if (publishDisposed) publish(entry, "disposed", { reason });
+      return true;
+    })().catch((error) => {
+      entry.retirement = null;
+      publish(entry, "error", { reason: "exit-unconfirmed", message: normalizeMessage(error) });
+      throw error;
+    });
+    return entry.retirement;
   }
 
   function applyVisibility(entry) {
     const visible = entry.attached
+      && !entry.retiring
       && entry.visible
       && entry.geometryVisible
       && !entry.occluded
@@ -165,6 +174,12 @@ export function createEditorSurfaceSessionManager({
         ownerWebContentsId,
         resourcePolicy: definition.resourcePolicy,
       });
+      // Admission is asynchronous; both the owner and capacity may have changed.
+      if (window.isDestroyed() || window.webContents.isDestroyed()) throw new Error("Editor Surface owner is unavailable.");
+      if (sessions.size >= MAX_SESSIONS_TOTAL
+        || [...sessions.values()].filter((entry) => entry.ownerWebContentsId === ownerWebContentsId).length >= MAX_SESSIONS_PER_OWNER) {
+        throw new Error("Editor Surface process budget is exhausted.");
+      }
       const admittedNavigationUrl = normalizeBrowserEngineNavigationUrl(admission?.navigationUrl);
       const navigationUrl = viewerId === "pdf-preview"
         ? configureChromiumPdfViewerUrl(admittedNavigationUrl)
@@ -173,6 +188,7 @@ export function createEditorSurfaceSessionManager({
       const bounds = normalizeBounds(request?.bounds, window);
       const geometryRevision = normalizeGeometryRevision(request?.geometryRevision, 0);
       const appearance = normalizeAppearance(request?.appearance);
+      const documentPath = requireString(request?.documentPath, "Document path is required.", 4_096);
       const safeMode = false;
       const sessionId = `bes_${randomUUID()}`;
       // Chromium's built-in PDF extension does not initialize inside an
@@ -200,7 +216,7 @@ export function createEditorSurfaceSessionManager({
       const entry = {
         sessionId,
         viewerId,
-        documentPath: requireString(request?.documentPath, "Document path is required.", 4_096),
+        documentPath,
         documentRevision: typeof request?.documentRevision === "string"
           ? request.documentRevision.slice(0, 500)
           : null,
@@ -229,68 +245,70 @@ export function createEditorSurfaceSessionManager({
         statusBeforeUnresponsive: null,
       };
       sessions.set(sessionId, entry);
-      view.setBounds(bounds);
-      view.setBackgroundColor?.(appearance.dark ? "#202124" : "#f1f3f4");
-      view.setVisible?.(false);
-      view.webContents?.setAudioMuted?.(true);
-      installNavigationGuard(view.webContents, navigationUrl);
-
-      entry.releaseOcclusion = nativeSurfaceOcclusion?.register?.({
-        ownerWebContentsId,
-        setOccluded: (occluded) => {
-          entry.occluded = occluded;
-          if (sessions.get(sessionId) === entry) applyVisibility(entry);
-        },
-      }) ?? null;
-      entry.releasePointerPassthrough = nativeSurfacePointerPassthrough?.register?.({
-        ownerWebContentsId,
-        ownerWebContents: window.webContents,
-        surfaceView: view,
-      }) ?? null;
-      window.contentView.addChildView(view);
-      entry.attached = true;
-      applyVisibility(entry);
-
-      listen(entry, window, "closed", () => destroySession(sessionId, { reason: "owner-closed" }));
-      listen(entry, window, "hide", () => {
-        entry.visible = false;
-        applyVisibility(entry);
-      });
-      listen(entry, window, "show", () => {
-        entry.visible = true;
-        applyVisibility(entry);
-      });
-      listen(entry, view.webContents, "render-process-gone", (_event, details) => {
-        publish(entry, "crashed", {
-          reason: normalizeGoneReason(details?.reason),
-          exitCode: Number.isSafeInteger(details?.exitCode) ? details.exitCode : null,
-        });
-        destroySession(sessionId, { reason: "render-process-gone" });
-      });
-      listen(entry, view.webContents, "unresponsive", () => {
-        if (entry.status !== "unresponsive") entry.statusBeforeUnresponsive = entry.status;
-        publish(entry, "unresponsive");
-        applyVisibility(entry);
-        entry.unresponsiveTimer = setTimeout(() => {
-          if (sessions.get(sessionId) !== entry || entry.status !== "unresponsive") return;
-          try {
-            entry.view.webContents.forcefullyCrashRenderer();
-          } catch (error) {
-            logger.warn?.("Unable to terminate unresponsive Editor Surface:", error);
-          }
-        }, UNRESPONSIVE_TIMEOUT_MS);
-      });
-      listen(entry, view.webContents, "responsive", () => {
-        if (entry.unresponsiveTimer) clearTimeout(entry.unresponsiveTimer);
-        entry.unresponsiveTimer = null;
-        const recoveredStatus = entry.statusBeforeUnresponsive === "ready" ? "ready" : "loading";
-        entry.statusBeforeUnresponsive = null;
-        publish(entry, recoveredStatus);
-        applyVisibility(entry);
-      });
-
-      publish(entry, "loading");
       try {
+        view.setBounds(bounds);
+        view.setBackgroundColor?.(appearance.dark ? "#202124" : "#f1f3f4");
+        view.setVisible?.(false);
+        view.webContents?.setAudioMuted?.(true);
+        installNavigationGuard(view.webContents, navigationUrl);
+
+        entry.releaseOcclusion = nativeSurfaceOcclusion?.register?.({
+          ownerWebContentsId,
+          setOccluded: (occluded) => {
+            entry.occluded = occluded;
+            if (sessions.get(sessionId) === entry) applyVisibility(entry);
+          },
+        }) ?? null;
+        entry.releasePointerPassthrough = nativeSurfacePointerPassthrough?.register?.({
+          ownerWebContentsId,
+          ownerWebContents: window.webContents,
+          surfaceView: view,
+        }) ?? null;
+        window.contentView.addChildView(view);
+        entry.attached = true;
+        applyVisibility(entry);
+
+        listen(entry, window, "closed", () => {
+          void destroySession(sessionId, { reason: "owner-closed" }).catch((error) => console.warn("Editor Surface cleanup failed:", error));
+        });
+        listen(entry, window, "hide", () => {
+          entry.visible = false;
+          applyVisibility(entry);
+        });
+        listen(entry, window, "show", () => {
+          entry.visible = true;
+          applyVisibility(entry);
+        });
+        listen(entry, view.webContents, "render-process-gone", (_event, details) => {
+          publish(entry, "crashed", {
+            reason: normalizeGoneReason(details?.reason),
+            exitCode: Number.isSafeInteger(details?.exitCode) ? details.exitCode : null,
+          });
+          void destroySession(sessionId, { reason: "render-process-gone" }).catch((error) => console.warn("Editor Surface cleanup failed:", error));
+        });
+        listen(entry, view.webContents, "unresponsive", () => {
+          if (entry.status !== "unresponsive") entry.statusBeforeUnresponsive = entry.status;
+          publish(entry, "unresponsive");
+          applyVisibility(entry);
+          entry.unresponsiveTimer = setTimeout(() => {
+            if (sessions.get(sessionId) !== entry || entry.status !== "unresponsive") return;
+            try {
+              entry.view.webContents.forcefullyCrashRenderer();
+            } catch (error) {
+              logger.warn?.("Unable to terminate unresponsive Editor Surface:", error);
+            }
+          }, UNRESPONSIVE_TIMEOUT_MS);
+        });
+        listen(entry, view.webContents, "responsive", () => {
+          if (entry.unresponsiveTimer) clearTimeout(entry.unresponsiveTimer);
+          entry.unresponsiveTimer = null;
+          const recoveredStatus = entry.statusBeforeUnresponsive === "ready" ? "ready" : "loading";
+          entry.statusBeforeUnresponsive = null;
+          publish(entry, recoveredStatus);
+          applyVisibility(entry);
+        });
+
+        publish(entry, "loading");
         await navigate(entry);
         if (sessions.get(sessionId) !== entry) throw new Error("Editor Surface was disposed while loading.");
         await waitForChromiumPdfViewer(entry);
@@ -303,7 +321,7 @@ export function createEditorSurfaceSessionManager({
           reason: timedOut ? error.code : "launch-failed",
           message: normalizeMessage(error),
         });
-        destroySession(sessionId, { reason: "launch-failed" });
+        await destroySession(sessionId, { reason: "launch-failed" });
         throw error;
       }
 
@@ -342,23 +360,36 @@ export function createEditorSurfaceSessionManager({
       return { ok: true };
     },
 
-    destroy(sessionId, ownerWebContentsId) {
+    async destroy(sessionId, ownerWebContentsId) {
       const entry = sessions.get(sessionId);
       if (!entry || entry.ownerWebContentsId !== ownerWebContentsId) return { ok: false };
-      return { ok: destroySession(sessionId) };
+      return { ok: await destroySession(sessionId) };
     },
 
 
-    destroyForOwner(ownerWebContentsId) {
-      for (const [sessionId, entry] of [...sessions.entries()]) {
-        if (entry.ownerWebContentsId === ownerWebContentsId) {
-          destroySession(sessionId, { reason: "owner-released" });
-        }
-      }
+    async destroyForOwner(ownerWebContentsId) {
+      const results = await Promise.allSettled([...sessions].filter(([, entry]) => entry.ownerWebContentsId === ownerWebContentsId)
+        .map(([id]) => destroySession(id, { reason: "owner-released" })));
+      const failures = results.flatMap((result) => result.status === "rejected" ? [result.reason] : []);
+      if (failures.length) throw new AggregateError(failures, "Editor Surface retirement failed.");
     },
 
-    destroyAll() {
-      for (const sessionId of [...sessions.keys()]) destroySession(sessionId);
+    async destroyForResource(ownerWebContentsId, resourcePath) {
+      const matching = [...sessions].filter(([, entry]) => {
+        if (entry.ownerWebContentsId !== ownerWebContentsId) return false;
+        if (new URL(entry.navigationUrl).protocol !== "file:") return false;
+        const relative = path.relative(path.resolve(resourcePath), fileURLToPath(entry.navigationUrl));
+        return relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative));
+      });
+      const results = await Promise.allSettled(matching.map(([id]) => destroySession(id)));
+      const failures = results.flatMap((result) => result.status === "rejected" ? [result.reason] : []);
+      if (failures.length) throw new AggregateError(failures, "Editor resource surfaces have not exited.");
+    },
+
+    async destroyAll() {
+      const results = await Promise.allSettled([...sessions.keys()].map((id) => destroySession(id)));
+      const failures = results.flatMap((result) => result.status === "rejected" ? [result.reason] : []);
+      if (failures.length) throw new AggregateError(failures, "Editor Surface retirement failed.");
     },
 
     values() {
@@ -370,6 +401,26 @@ export function createEditorSurfaceSessionManager({
 function listen(entry, emitter, eventName, listener) {
   emitter.on?.(eventName, listener);
   entry.listeners.push([emitter, eventName, listener]);
+}
+
+function closeEditorWebContents(contents) {
+  if (!contents || contents.isDestroyed()) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const cleanup = () => { clearTimeout(timeout); contents.removeListener("destroyed", destroyed); };
+    const destroyed = () => { cleanup(); resolve(); };
+    const timeout = setTimeout(() => { cleanup(); reject(new Error("Editor WebContents did not confirm destruction.")); }, 4_000);
+    contents.once("destroyed", destroyed);
+    try {
+      // WebContents.close is the public Electron API. Removing a child view
+      // or calling an optional nonexistent destroy method does not release it.
+      contents.close({ waitForBeforeUnload: false });
+      if (contents.isDestroyed()) destroyed();
+    } catch (error) {
+      cleanup();
+      if (contents.isDestroyed()) resolve();
+      else reject(error);
+    }
+  });
 }
 
 function installNavigationGuard(webContents, navigationUrl) {

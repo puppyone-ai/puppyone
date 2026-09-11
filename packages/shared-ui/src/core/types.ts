@@ -209,6 +209,8 @@ export type DataFileUrlPurpose = "file-preview" | "markdown-asset";
 
 export type DataFileUrlOptions = {
   purpose?: DataFileUrlPurpose;
+  /** Request an immutable copy of this source version (used for dual inputs). */
+  expectedVersion?: string;
 };
 
 export type DataReadOptions = {

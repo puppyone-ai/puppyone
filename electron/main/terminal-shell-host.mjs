@@ -23,6 +23,18 @@ export function createTerminalShellHost({
   const args = platform !== "win32" && (shellName === "bash" || shellName === "zsh")
     ? ["-l"]
     : [];
+  let agentBootstrapInput = agentLaunch
+    ? serializeTerminalAgentCommand(agentLaunch, { platform, shellFile: file })
+    : null;
+
+  if (agentBootstrapInput && args.length > 0) {
+    // Startup scripts can read stdin (for example Oh My Zsh's update prompt).
+    // Pass the command through argv so those reads cannot consume launch text.
+    // Keep a shell available after either a normal Agent exit or launch failure.
+    const command = agentBootstrapInput.slice(0, -1);
+    args.push("-i", "-c", `if ${command}; then :; fi; exec ${quotePosixShellArgument(file)} -l`);
+    agentBootstrapInput = null;
+  }
 
   return {
     kind: agentLaunch ? "agent" : "shell",
@@ -31,9 +43,8 @@ export function createTerminalShellHost({
     displayShell: agentLaunch?.displayName ?? shellName,
     loginShell: args.length > 0,
     pathEntries: agentLaunch?.pathEntries ?? [],
-    agentBootstrapInput: agentLaunch
-      ? serializeTerminalAgentCommand(agentLaunch, { platform, shellFile: file })
-      : null,
+    environment: agentLaunch && shellName === "zsh" ? { DISABLE_AUTO_UPDATE: "true" } : {},
+    agentBootstrapInput,
   };
 }
 

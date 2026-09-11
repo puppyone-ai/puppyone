@@ -35,12 +35,12 @@ export function getElectronFilePath(file: File) {
 }
 
 /** A project-owned client captures its generation once, including deferred commands. */
-export function createProjectAgentClientProvider(context: ProjectSessionContext): AgentClientProvider {
+export function createProjectAgentClientProvider(context: ProjectSessionContext, getClient: AgentClientProvider = getElectronAgentClient): AgentClientProvider {
   let source: AgentClientPort | undefined;
   let client: AgentClientPort | undefined;
   const instances = new Map<string, string>();
   return () => {
-    const current = getElectronAgentClient();
+    const current = getClient();
     if (!current) return undefined;
     if (source === current && client) return client;
     source = current;

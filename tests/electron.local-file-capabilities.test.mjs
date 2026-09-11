@@ -50,7 +50,7 @@ describe("local file capability store", () => {
     expect(store.validate({ token: second, rootPath: "/workspace-b", relativePath: "b.md" })).toBe(false);
   });
 
-  it("evicts the least-recently-used path capability per sender", () => {
+  it("refuses admission without revoking a capability still held by a consumer", () => {
     let sequence = 0;
     const store = createLocalFileCapabilityStore({
       createToken: () => `capability_${String(++sequence).padStart(40, "0")}`,
@@ -59,10 +59,12 @@ describe("local file capability store", () => {
     const first = store.issue({ senderId: 1, rootPath: ROOT, relativePath: "a.txt" });
     const second = store.issue({ senderId: 1, rootPath: ROOT, relativePath: "b.txt" });
     store.issue({ senderId: 1, rootPath: ROOT, relativePath: "a.txt" });
-    store.issue({ senderId: 1, rootPath: ROOT, relativePath: "c.txt" });
+    expect(() => store.issue({ senderId: 1, rootPath: ROOT, relativePath: "c.txt" })).toThrow(/limit reached/);
 
     expect(store.validate({ token: first, rootPath: ROOT, relativePath: "a.txt" })).toBe(true);
-    expect(store.validate({ token: second, rootPath: ROOT, relativePath: "b.txt" })).toBe(false);
+    expect(store.validate({ token: second, rootPath: ROOT, relativePath: "b.txt" })).toBe(true);
+    store.revoke({ senderId: 1, token: second });
+    expect(store.issue({ senderId: 1, rootPath: ROOT, relativePath: "c.txt" })).toBeTruthy();
   });
 
   it("can scope an HTML capability to its directory so relative assets keep working", () => {
@@ -156,6 +158,26 @@ describe("puppyone-local protocol capability enforcement", () => {
     changedPurpose.pathname = changedPurpose.pathname.replace("file-preview", "markdown-asset");
     expect((await handler(createRequest(changedPurpose.toString(), "null"))).status).toBe(403);
     expect((await handler(createRequest(url.replace(token, "invalid"), "null"))).status).toBe(403);
+  });
+
+  it("serves the immutable input version, including ranges, without rereading changed disk content", async () => {
+    const store = createLocalFileCapabilityStore();
+    const bytes = Buffer.from("version one");
+    const token = store.issue({ senderId: 9, rootPath: ROOT, relativePath: "index.html", scope: "directory",
+      snapshot: { bytes, version: "v1", relativePath: "index.html" } });
+    bytes.fill(0);
+    const url = buildLocalFileCapabilityUrl({ relativePath: "index.html", token });
+    const { handler, readWorkspaceFile } = createProtocolHarness(store);
+    const response = await handler(createRequest(url, "null"));
+    expect(await response.text()).toBe("version one");
+    expect(response.headers.get("etag")).toBe('"v1"');
+    const range = await handler(createRequest(url, "null", { Range: "bytes=0-6" }));
+    expect(range.status).toBe(206);
+    expect(await range.text()).toBe("version");
+    expect(readWorkspaceFile).not.toHaveBeenCalled();
+    const asset = new URL("image.png", url).toString();
+    await handler(createRequest(asset, "null"));
+    expect(readWorkspaceFile).toHaveBeenCalledWith(ROOT, "image.png", { rangeHeader: null });
   });
 
   it("serves bounded video ranges and metadata-only HEAD requests", async () => {

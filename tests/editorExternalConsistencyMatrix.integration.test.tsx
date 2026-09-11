@@ -1,3 +1,4 @@
+import { undo, redo } from "@codemirror/commands";
 /**
  * @vitest-environment happy-dom
  */
@@ -213,6 +214,28 @@ describe("P0 editor external-consistency matrix", () => {
 
       expect(harness.persist).not.toHaveBeenCalled();
       expect(harness.container.querySelector(".editor-inline-error")).toBeNull();
+    },
+  );
+
+  it.each(FORMAT_CASES)(
+    "$label: retains edits and undo/redo after destroying and recreating its view",
+    async (formatCase) => {
+      const harness = await createEditorHarness(formatCase);
+      await harness.render(formatCase.initial, "v1");
+      await waitForMarker(formatCase.readEditorMarker, harness.container, "alpha");
+      act(() => formatCase.applyLocalEdit(harness.container));
+      await waitForMarker(formatCase.readEditorMarker, harness.container, "human");
+      await harness.save();
+      const saved = harness.persist.mock.calls.length;
+      await harness.hide();
+      await harness.render(formatCase.local, "v3");
+      await waitForMarker(formatCase.readEditorMarker, harness.container, "human");
+      expect(harness.persist).toHaveBeenCalledTimes(saved);
+      const steps = formatCase.viewerId === "context-map" ? 2 : 1;
+      for (let i = 0; i < steps; i++) act(() => historyCommand(harness.container, false));
+      await waitForMarker(formatCase.readEditorMarker, harness.container, "alpha");
+      for (let i = 0; i < steps; i++) act(() => historyCommand(harness.container, true));
+      await waitForMarker(formatCase.readEditorMarker, harness.container, "human");
     },
   );
 
@@ -473,6 +496,7 @@ async function createEditorHarness(formatCase: FormatCase) {
   return {
     container,
     persist,
+    async hide() { await act(async () => root.render(<></>)); },
     async render(content: string, version: string) {
       await act(async () => root.render(withTestLocalization(
         <EditorDocumentHost
@@ -681,4 +705,18 @@ function deferred<T>() {
     reject = rejectPromise;
   });
   return { promise, resolve, reject };
+}
+
+function historyCommand(container: HTMLElement, forward: boolean) {
+  const cm = container.querySelector<HTMLElement>(".cm-editor");
+  if (cm) {
+    const view = EditorView.findFromDOM(cm);
+    expect(forward ? redo(view) : undo(view)).toBe(true);
+    return;
+  }
+  const target = container.querySelector('.csv-table-editor input[data-csv-row="1"][data-csv-column="1"]')
+    ?? container.querySelector(".puppyflow-prompt-cell textarea")
+    ?? container.querySelector(".folder-relationship-view");
+  if (!target) throw new Error("History input is unavailable.");
+  target.dispatchEvent(new KeyboardEvent("keydown", { key: "z", ctrlKey: true, shiftKey: forward, bubbles: true, cancelable: true }));
 }

@@ -24,11 +24,13 @@ export type AssetBrokerHandle = {
   kind: MarkdownAssetKind;
   principal: CapabilityPrincipal;
   revoke(): void;
+  subscribe?: (listener: (url: string | null) => void) => () => void;
 };
 
 export type ResolvedAssetUrl = {
   url: string;
   revoke?: () => void | Promise<void>;
+  subscribe?: (listener: (url: string | null) => void) => () => void;
 };
 
 export type AssetUrlResolverResult = string | ResolvedAssetUrl | null;
@@ -177,6 +179,7 @@ export function createAssetBroker(
             request.principal,
             request.signal,
             typeof resolved === "string" ? undefined : resolved.revoke,
+            typeof resolved === "string" ? undefined : resolved.subscribe,
           );
         } finally {
           globalThis.clearTimeout(timeout);
@@ -221,19 +224,33 @@ export function createAssetBroker(
     principal: CapabilityPrincipal,
     signal?: AbortSignal,
     revokeResolved?: () => void | Promise<void>,
+    subscribeResolved?: ResolvedAssetUrl["subscribe"],
   ): AssetBrokerHandle {
     const id = `asset:${++sequence}`;
     const abortListener = () => handle.revoke();
+    const subscriptions = new Set<() => void>();
     const handle: AssetBrokerHandle = {
       id,
       url,
       mimeType,
       kind,
       principal,
+      subscribe: subscribeResolved ? (listener) => {
+        const stop = subscribeResolved((nextUrl) => {
+          if (!handles.has(id)) return;
+          if (nextUrl && !isBrokerSafeResolvedAssetUrl(nextUrl, kind)) return;
+          handle.url = nextUrl ?? "";
+          listener(nextUrl);
+        });
+        subscriptions.add(stop);
+        return () => { subscriptions.delete(stop); stop(); };
+      } : undefined,
       revoke() {
         if (!handles.has(id)) return;
         handles.delete(id);
         signal?.removeEventListener("abort", abortListener);
+        subscriptions.forEach((stop) => stop());
+        subscriptions.clear();
         if (revokeResolved) {
           try {
             void Promise.resolve(revokeResolved()).catch(() => undefined);

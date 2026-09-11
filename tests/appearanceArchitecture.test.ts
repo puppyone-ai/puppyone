@@ -372,8 +372,8 @@ describe("appearance profile architecture", () => {
     const buildPreparation = source("scripts/release-support/desktop-build-preparation.mjs");
     const packagedVerifier = source("scripts/release-support/packaged-desktop-build-verifier.mjs");
 
-    expect(main).toContain("function setDefaultDockIcon()");
-    expect(main).toContain("setDefaultDockIcon();");
+    expect(main).toContain("setDevelopmentDockIcon({");
+    expect(main).not.toContain("app.dock.setIcon");
     expect(systemIpc).not.toContain("set-dock-icon");
     expect(preload).not.toContain("setDockIcon");
     expect(packageMetadata).not.toContain("dock-icon-light");
@@ -423,7 +423,11 @@ describe("appearance profile architecture", () => {
     expect(packageMetadata.scripts["smoke:appearance-visual"].split(" && ")).toContain(
       "electron scripts/smoke-appearance-visual-matrix.mjs",
     );
-    expect(workflow).toContain("npm run smoke:appearance-visual");
+    const checks = JSON.parse(source("scripts/release-checks/checks.json")).checks;
+    expect(checks.find((check: { id: string }) => check.id === "appearance")).toMatchObject({
+      group: "app", command: ["npm", "run", "smoke:appearance-visual"], dependsOn: ["build"],
+    });
+    expect(workflow).toContain("npm run check:release -- --group app");
     expect(harness).toContain('data-appearance-visual-ready="true"');
     expect(smoke).toContain('const styles = ["default", "windows-xp"]');
     for (const family of VIEWER_SURFACE_FAMILIES) expect(harness).toContain(`"${family}"`);

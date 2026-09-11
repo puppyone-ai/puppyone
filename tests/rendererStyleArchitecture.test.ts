@@ -34,9 +34,11 @@ describe("renderer style architecture", () => {
     expect(styles).toContain('@import "./styles/fallback-theme.generated.css" layer(fallback);');
     expect(styles).toContain('@import "@puppyone/shared-ui/shared-ui-patterns.css" layer(patterns);');
     expect(styles).toContain('@import "@puppyone/shared-ui/editor.css";');
+    expect(styles).toContain('@import "./features/desktop-agent/ui/styles/agent-prompt-editor.css";');
     expect(styles).not.toContain("viewer-product-default");
     expect(styles
       .replace('@import "./styles/interface-styles.generated.css";', "")
+      .replace('@import "./features/desktop-agent/ui/styles/agent-prompt-editor.css";', "")
       .replace('@import "@puppyone/shared-ui/editor.css";', ""))
       .not.toMatch(/^@import(?![^;]*\blayer\()[^;]+;$/m);
     expect(styles).toContain("CodeMirror mounts its base theme as unlayered runtime CSS");

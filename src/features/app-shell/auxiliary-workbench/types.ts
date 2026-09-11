@@ -29,13 +29,14 @@ export type AuxiliaryWorkbenchItemSnapshot = Readonly<{
   running: boolean;
   /** Feature-owned native resource identity, never part of the topology. */
   resourceId: string | null;
+  displayHealth?: import("../../../../shared/item-host-contract/types").ItemHostState["display"];
+  executionHealth?: import("../../../../shared/item-host-contract/types").ItemHostState["execution"];
 }>;
 
 export type AuxiliaryWorkbenchItemRenderContext = Readonly<{
   project: AuxiliaryWorkbenchProject;
   item: AuxiliaryWorkbenchItem;
   presentation: AuxiliaryWorkbenchPresentationState;
-  peerSnapshots: ReadonlyMap<string, AuxiliaryWorkbenchItemSnapshot>;
   onPresentationChange: (snapshot: AuxiliaryWorkbenchItemSnapshot) => void;
 }>;
 

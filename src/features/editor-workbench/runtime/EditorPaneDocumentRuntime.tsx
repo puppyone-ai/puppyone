@@ -3,6 +3,7 @@ import { useLocalization } from "@puppyone/localization";
 import { PageLoading } from "../../../components/loading";
 import {
   FilePreview,
+  getEditorProviderPolicy,
   isDocumentDataNode,
   type AiEditFile,
   type DataNode,
@@ -103,14 +104,11 @@ function RegularEditorPaneDocumentRuntime({
     source.content ? mergeNodeWithContent(sourceNode, source.content) : sourceNode
   ), [source.content, sourceNode]);
   const contextMapEnvironment = useMemo<ContextMapWorkspaceEnvironment>(() => ({
-    revision: refreshKey?.sequence ?? 0,
+    revision: 0,
     listChildren: dataPort.listChildren,
     readFile: dataPort.readFile,
-  }), [dataPort.listChildren, dataPort.readFile, refreshKey?.sequence]);
-  const hideSourceView = !isMarkdownDocumentDescriptor(
-    node,
-    editor?.resource ?? null,
-  );
+  }), [dataPort.listChildren, dataPort.readFile]);
+  const hideSourceView = !providerPolicy(node, editor?.resource ?? null).sourceToggle;
 
   // A directory discovered after an editor was restored is invalid workbench
   // state. Never route it through the unknown-file fallback viewer or reduce
@@ -199,27 +197,21 @@ function samePaneEnvironment(
   resource: string | null,
 ): boolean {
   if (previous === next) return true;
-  // Link and asset revisions are Markdown-only semantic inputs. Other
-  // Viewers may use the stable navigation command port (for example Office
-  // hyperlinks), but must not receive Markdown index broadcasts.
-  if (!isMarkdownDocumentDescriptor(node, resource)) {
+  // Contributions declare which semantic revisions affect their presentation.
+  const inputs = providerPolicy(node, resource).semanticInputs;
+  if (inputs.length === 0) {
     return previous.linkCommands === next.linkCommands;
   }
   return (
-    previous.linkGraph?.revision === next.linkGraph?.revision
+    (!inputs.includes("link-graph") || previous.linkGraph?.revision === next.linkGraph?.revision)
     && previous.linkCommands === next.linkCommands
-    && previous.assetResolverRevision === next.assetResolverRevision
+    && (!inputs.includes("asset-resolver") || previous.assetResolverRevision === next.assetResolverRevision)
   );
 }
 
-function isMarkdownDocumentDescriptor(node: DataNode | null, resource: string | null): boolean {
-  return node?.type === "markdown"
-    || hasMimeType(node, "text/markdown")
-    || /\.(?:md|markdown|mdx)$/i.test(node?.path ?? resource ?? "");
-}
-
-function hasMimeType(node: DataNode | null, expected: string): boolean {
-  return node?.mimeType?.split(";", 1)[0]?.trim().toLowerCase() === expected;
+function providerPolicy(node: DataNode | null, resource: string | null) {
+  return getEditorProviderPolicy({ path: node?.path ?? resource ?? "", name: node?.name ?? resource?.split("/").pop() ?? "",
+    type: isDocumentDataNode(node) ? node.type : "file", mimeType: node?.mimeType });
 }
 
 function sameDocumentRefresh(
@@ -228,20 +220,11 @@ function sameDocumentRefresh(
   resource: string | null,
 ): boolean {
   if (previous === next) return true;
-  if (isContextMapDocumentDescriptor(null, resource)) {
-    return previous?.sequence === next?.sequence;
-  }
   return !workspaceContentChangeMatchesResource(
     next,
     resource,
     previous?.sequence ?? Number.NEGATIVE_INFINITY,
   );
-}
-
-function isContextMapDocumentDescriptor(node: DataNode | null, resource: string | null): boolean {
-  return node?.type === "context-map"
-    || node?.mimeType === "application/vnd.puppyone.context-map+json"
-    || /\.contextmap$/i.test(node?.path ?? resource ?? "");
 }
 
 function sameEditor(

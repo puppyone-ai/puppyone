@@ -95,7 +95,7 @@ describe("Terminal Agent launch boundary", () => {
     expect(ptyService.spawn).not.toHaveBeenCalled();
   });
 
-  it("starts a stable shell host and types the trusted Agent as its first command", async () => {
+  it("starts the trusted Agent after shell initialization without writing launch text to stdin", async () => {
     const workspaceRoot = await makeTemporaryDirectory();
     const terminal = createFakeTerminal();
     const ptyService = { spawn: vi.fn(() => terminal) };
@@ -120,14 +120,16 @@ describe("Terminal Agent launch boundary", () => {
     }, workspaceRoot)).resolves.toMatchObject({ shell: "Cursor Agent" });
     expect(ptyService.spawn).toHaveBeenCalledWith(
       "/bin/zsh",
-      ["-l"],
+      ["-l", "-i", "-c", "if '/verified/cursor' 'agent'; then :; fi; exec '/bin/zsh' -l"],
       expect.objectContaining({
         cwd: await realpath(workspaceRoot),
-        env: expect.objectContaining({ PATH: expect.stringMatching(/^\/verified:/u) }),
+        env: expect.objectContaining({
+          PATH: expect.stringMatching(/^\/verified:/u),
+          DISABLE_AUTO_UPDATE: "true",
+        }),
       }),
     );
-    expect(terminal.write).toHaveBeenCalledOnce();
-    expect(terminal.write).toHaveBeenCalledWith("'/verified/cursor' 'agent'\r");
+    expect(terminal.write).not.toHaveBeenCalled();
   });
 
   it("keeps the shell session writable after bootstrapping an Agent", async () => {
@@ -157,8 +159,7 @@ describe("Terminal Agent launch boundary", () => {
       id: "terminal_broken_agent",
       data: "npm run dev\r",
     })).toBe(true);
-    expect(terminal.write).toHaveBeenNthCalledWith(1, "'/verified/codex'\r");
-    expect(terminal.write).toHaveBeenNthCalledWith(2, "npm run dev\r");
+    expect(terminal.write).toHaveBeenCalledExactlyOnceWith("npm run dev\r");
     expect(service.getSessionCount()).toBe(1);
   });
 
@@ -189,7 +190,7 @@ describe("Terminal Agent launch boundary", () => {
       return result;
     });
 
-    await vi.waitFor(() => expect(terminal.write).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(terminal.onData).toHaveBeenCalledOnce());
     terminal.emitData("shell prompt and echoed command");
     await Promise.resolve();
     expect(resolved).toBe(false);
@@ -227,14 +228,14 @@ describe("Terminal Agent launch boundary", () => {
       },
     }, workspaceRoot);
 
-    await vi.waitFor(() => expect(terminal.write).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(terminal.onData).toHaveBeenCalledOnce());
     terminal.emitData(
       "before\u001b]10;?\u001b\\middle\u001b]11;?\u001b\\after\u001b[?1049h",
     );
     await expect(createPromise).resolves.toMatchObject({ shell: "Codex" });
 
-    expect(terminal.write).toHaveBeenNthCalledWith(2, "\u001b]10;rgb:6d6d/6666/5d5d\u001b\\");
-    expect(terminal.write).toHaveBeenNthCalledWith(3, "\u001b]11;rgb:fbfb/fafa/f7f7\u001b\\");
+    expect(terminal.write).toHaveBeenNthCalledWith(1, "\u001b]10;rgb:6d6d/6666/5d5d\u001b\\");
+    expect(terminal.write).toHaveBeenNthCalledWith(2, "\u001b]11;rgb:fbfb/fafa/f7f7\u001b\\");
     expect(sender.send).toHaveBeenCalledWith("terminal:data", {
       id: "terminal_codex_colors",
       instanceId: expect.any(String),
@@ -249,8 +250,8 @@ describe("Terminal Agent launch boundary", () => {
       },
     })).toBe(true);
     terminal.emitData("\u001b]10;?\u001b\\\u001b]11;?\u001b\\");
-    expect(terminal.write).toHaveBeenNthCalledWith(4, "\u001b]10;rgb:d1d1/cece/c6c6\u001b\\");
-    expect(terminal.write).toHaveBeenNthCalledWith(5, "\u001b]11;rgb:1616/1414/1313\u001b\\");
+    expect(terminal.write).toHaveBeenNthCalledWith(3, "\u001b]10;rgb:d1d1/cece/c6c6\u001b\\");
+    expect(terminal.write).toHaveBeenNthCalledWith(4, "\u001b]11;rgb:1616/1414/1313\u001b\\");
     expect(service.appearance({ ...createSender(), id: 52 }, {
       id: "terminal_codex_colors",
       defaultColors: {
@@ -260,14 +261,14 @@ describe("Terminal Agent launch boundary", () => {
     })).toBe(false);
   });
 
-  it("closes the host shell if the Agent bootstrap cannot be written", async () => {
+  it("closes a fallback host shell if the Agent bootstrap cannot be written", async () => {
     const workspaceRoot = await makeTemporaryDirectory();
     const terminal = createFakeTerminal();
     terminal.write.mockImplementationOnce(() => {
       throw new Error("PTY input failed");
     });
     const service = createService({
-      environment: { PATH: "/usr/bin", SHELL: "/bin/zsh" },
+      environment: { PATH: "/usr/bin", SHELL: "/bin/fish" },
       platform: "darwin",
       ptyService: { spawn: vi.fn(() => terminal) },
       resolveTerminalAgentLaunch: vi.fn(async () => ({

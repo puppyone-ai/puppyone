@@ -5,6 +5,7 @@ import {
   createWorkspaceEntry,
   deleteWorkspaceEntry,
   getMimeType,
+  getWorkspaceTextVersion,
   importWorkspaceEntries,
   listFolderChildren,
   moveWorkspaceEntry,
@@ -15,7 +16,16 @@ import {
   resolveWorkspaceNode,
   writeWorkspaceTextFile,
 } from "../../../local-api/workspace.mjs";
-import { absorbWorkspaceEditReviewPath } from "../../../local-api/edit-review.mjs";
+import { absorbWorkspaceEditReviewPath as updateWorkspaceEditReviewPath } from "../../../local-api/edit-review.mjs";
+
+async function absorbWorkspaceEditReviewPath(rootPath, resource) {
+  try { await updateWorkspaceEditReviewPath(rootPath, resource); }
+  catch (error) {
+    // This records review metadata after a committed filesystem operation.
+    // Failure must not misreport that operation as uncommitted and cause a retry.
+    console.warn("Unable to reconcile edit review after a workspace mutation:", error);
+  }
+}
 import { isPotentiallyExecutableFile } from "../security.mjs";
 import { buildLocalFileCapabilityUrl } from "../local-file-capabilities.mjs";
 import { parseLocalFileUrl } from "../local-file-protocol.mjs";
@@ -64,6 +74,7 @@ export function registerWorkspaceFileIpcHandlers({
   workspaceMutationTracker = null,
   gitMetadataWatchService = null,
   convertOfficeDocument = unsupportedOfficeDocumentConverter,
+  retireEditorSurfacesForResource = null,
   t = defaultTranslate,
 }) {
   const officeConversionSessionsBySender = new Map();
@@ -109,6 +120,26 @@ export function registerWorkspaceFileIpcHandlers({
     if (!metadata.isFile()) throw new Error("Local file resource must be a regular file.");
 
     const relativePath = path.relative(rootPath, canonicalFilePath).split(path.sep).join("/");
+    let snapshot;
+    if (request.expectedVersion !== undefined) {
+      if (typeof request.expectedVersion !== "string" || request.expectedVersion.length > 256) throw new Error("Invalid resource version.");
+      if (purpose !== "file-preview" || metadata.size > 4 * 1024 * 1024) throw new Error("Versioned preview input exceeds its supported scope or size.");
+      // Bound the allocation even if the file grows between stat and read.
+      const handle = await fs.promises.open(canonicalFilePath, "r");
+      let bytes;
+      try {
+        const buffer = Buffer.alloc(Math.min(metadata.size + 1, 4 * 1024 * 1024 + 1));
+        let offset = 0;
+        while (offset < buffer.length) {
+          const result = await handle.read(buffer, offset, buffer.length - offset, offset);
+          if (result.bytesRead === 0) break;
+          offset += result.bytesRead;
+        }
+        bytes = buffer.subarray(0, offset);
+      } finally { await handle.close(); }
+      if (bytes.length > 4 * 1024 * 1024 || getWorkspaceTextVersion(bytes) !== request.expectedVersion) throw new Error("Resource version changed while preparing preview input.");
+      snapshot = { bytes, version: request.expectedVersion, relativePath };
+    }
     const scope = purpose === "file-preview" && getMimeType(canonicalFilePath)?.toLowerCase().startsWith("text/html")
       ? "directory"
       : "exact";
@@ -119,6 +150,7 @@ export function registerWorkspaceFileIpcHandlers({
       scope,
       purpose,
       reuse: false,
+      snapshot,
     });
     return {
       url: buildLocalFileCapabilityUrl({ rootPath, relativePath, token, purpose }),
@@ -268,6 +300,7 @@ export function registerWorkspaceFileIpcHandlers({
     const rootPath = await authorizeWorkspaceRoot(event, request?.rootPath);
     return runWorkspaceMutation(rootPath, async () => {
       const previousPath = request?.path;
+      if (retireEditorSurfacesForResource) await retireEditorSurfacesForResource(requireIpcSenderId(event), await resolveExistingWorkspacePath(rootPath, previousPath));
       const result = await renameWorkspaceEntry(rootPath, request);
       await absorbWorkspaceEditReviewPath(rootPath, previousPath);
       await absorbWorkspaceEditReviewPath(rootPath, result.path);
@@ -279,6 +312,7 @@ export function registerWorkspaceFileIpcHandlers({
     const rootPath = await authorizeWorkspaceRoot(event, request?.rootPath);
     return runWorkspaceMutation(rootPath, async () => {
       const previousPath = request?.fromPath;
+      if (retireEditorSurfacesForResource) await retireEditorSurfacesForResource(requireIpcSenderId(event), await resolveExistingWorkspacePath(rootPath, previousPath));
       const result = await moveWorkspaceEntry(rootPath, request);
       await absorbWorkspaceEditReviewPath(rootPath, previousPath);
       await absorbWorkspaceEditReviewPath(rootPath, result.path);
@@ -317,6 +351,7 @@ export function registerWorkspaceFileIpcHandlers({
   ipcMain.handle("workspace:delete-entry", async (event, request) => {
     const rootPath = await authorizeWorkspaceRoot(event, request?.rootPath);
     return runWorkspaceMutation(rootPath, async () => {
+      if (retireEditorSurfacesForResource) await retireEditorSurfacesForResource(requireIpcSenderId(event), await resolveExistingWorkspacePath(rootPath, request?.path));
       const result = await deleteWorkspaceEntry(rootPath, request);
       await absorbWorkspaceEditReviewPath(rootPath, result.path);
       return result;

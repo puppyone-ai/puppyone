@@ -11,6 +11,25 @@ const markdownEditorCommands = new Set([
 const isMarkdownEditorCommand = (value) => typeof value === "string" && markdownEditorCommands.has(value);
 
 contextBridge.exposeInMainWorld("puppyoneDesktop", {
+  itemHosts: {
+    create: (request) => ipcRenderer.invoke("item-host:create", request),
+    configure: (request) => ipcRenderer.invoke("item-host:configure", request),
+    setGeometry: (request) => ipcRenderer.send("item-host:geometry", request),
+    focus: (request) => ipcRenderer.send("item-host:focus", request),
+    close: (request) => ipcRenderer.invoke("item-host:close", request),
+    recover: (request) => ipcRenderer.invoke("item-host:recover", request),
+    respond: (request) => ipcRenderer.send("item-host:respond", request),
+    onState: (callback) => {
+      const listener = (_event, value) => callback(value);
+      ipcRenderer.on("item-host:state", listener);
+      return () => ipcRenderer.removeListener("item-host:state", listener);
+    },
+    onEvent: (callback) => {
+      const listener = (_event, value) => callback(value);
+      ipcRenderer.on("item-host:event", listener);
+      return () => ipcRenderer.removeListener("item-host:event", listener);
+    },
+  },
   getWindowChromeState: () => ipcRenderer.invoke("window-layout:get-chrome-state"),
   setWindowChromeProfile: (request) => (
     ipcRenderer.invoke("window-layout:set-chrome-profile", {

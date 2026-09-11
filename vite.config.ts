@@ -4,6 +4,7 @@ import react from "@vitejs/plugin-react";
 import { fileURLToPath, URL } from "node:url";
 import path from "node:path";
 import { rendererOutputLeasePlugin } from "./tooling/desktop/build/renderer-output-lease-plugin.mjs";
+import { cascadeBootstrapPlugin } from "./tooling/styles/cascade-bootstrap-plugin.mjs";
 
 const DESKTOP_CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
@@ -42,7 +43,7 @@ const desktopContentSecurityPolicyPlugin: Plugin = {
 
 export default defineConfig({
   base: "./",
-  plugins: [rendererOutputLeasePlugin(), react(), desktopContentSecurityPolicyPlugin],
+  plugins: [rendererOutputLeasePlugin(), react(), cascadeBootstrapPlugin(), desktopContentSecurityPolicyPlugin],
   clearScreen: false,
   resolve: {
     alias: [
@@ -103,6 +104,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         index: path.resolve(fileURLToPath(new URL(".", import.meta.url)), "index.html"),
+        "item-host": path.resolve(fileURLToPath(new URL(".", import.meta.url)), "item-host.html"),
       },
     },
   },
