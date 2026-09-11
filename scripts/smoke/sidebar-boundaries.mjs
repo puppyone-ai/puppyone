@@ -55,7 +55,10 @@ export async function verifySidebarBoundaries({ window, contents, temp, label, u
     for(const offset of [0,2,4,7]) {
       send('mouseDown',edgeX+offset*inward,y);
       await until(async()=>(await inspect(selector)).dragging,`${selector} acquire visible edge +${offset}`);
-      if(offset===0) await pause();
+      if(offset===0) {
+        await pause();
+        await evaluate(`Promise.allSettled(document.querySelector(${JSON.stringify(selector)}).getAnimations({subtree:true}).map(animation=>animation.finished))`);
+      }
       const active=await inspect(selector);
       assert(view.getVisible(),'press hid native content');
       hits.push({offset,active});
@@ -74,7 +77,8 @@ export async function verifySidebarBoundaries({ window, contents, temp, label, u
     }
   }
   const activeLine=JSON.stringify(observations[0].hits[0].active.line);
-  for(const observation of observations.slice(1)) assert(JSON.stringify(observation.hits[0].active.line)===activeLine,'active stroke differs');
+  for(const observation of observations.slice(1)) assert(JSON.stringify(observation.hits[0].active.line)===activeLine,
+    `active stroke differs: ${JSON.stringify(observations.map(item=>({selector:item.selector,active:item.hits[0].active})))}`);
   const right=observations.at(-1).idle;
   const native=view.getBounds();
   assert(right.rtl ? native.x+native.width<=right.paint.x : native.x>=right.paint.x+right.paint.width,
