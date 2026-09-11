@@ -46,6 +46,7 @@ it("keeps native content visible throughout a live outer resize, including the h
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function(this: HTMLElement) {
     const panel=this.closest<HTMLElement>(".desktop-right-sidebar");
     const width=Number.parseFloat(panel?.style.getPropertyValue("--desktop-right-sidebar-width") || "420");
+    if (this.matches("[data-pane-edge-chrome]")) return {x:1200-width,y:40,left:1200-width,top:40,right:1203-width,bottom:740,width:3,height:700,toJSON:()=>({})};
     return { x:1200-width,y:40,left:1200-width,top:40,right:1200,bottom:740,width,height:700,toJSON:()=>({}) };
   });
   const view={webContents:{isDestroyed:()=>false},setVisible:vi.fn(),setBounds:vi.fn()};
@@ -96,6 +97,6 @@ it("keeps native content visible throughout a live outer resize, including the h
   expect(attachment.isVisible()).toBe(true);
   expect(bridge.create).toHaveBeenCalledTimes(1);expect(bridge.close).not.toHaveBeenCalled();
   expect(observations.every(phase => phase.visible)).toBe(true);
-  expect(observations.find(phase => phase.phase === "dragged 100px")?.bounds?.width).toBe(520);
+  expect(observations.find(phase => phase.phase === "dragged 100px")?.bounds?.width).toBe(517);
   expect(view.setVisible.mock.calls.filter(([visible]) => visible === false)).toHaveLength(1);
 });

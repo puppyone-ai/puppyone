@@ -1,3 +1,5 @@
+import { excludeNativeSurfacePaneChrome } from "./nativeSurfacePaneChrome";
+
 export type NativeSurfaceBounds = Readonly<{
   x: number;
   y: number;
@@ -116,7 +118,7 @@ export function measureNativeSurfaceBounds(element: HTMLElement): NativeSurfaceB
   }
   left = clamp(Math.ceil(left), 0, viewportWidth);
   top = clamp(Math.ceil(top), 0, viewportHeight);
-  return Object.freeze({ x: left, y: top,
+  return excludeNativeSurfacePaneChrome({ x: left, y: top,
     width: Math.max(0, Math.floor(right) - left),
     height: Math.max(0, Math.floor(bottom) - top) });
 }

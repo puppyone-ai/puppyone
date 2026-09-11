@@ -16,6 +16,7 @@ export type SidebarResizeHandleProps = Omit<HTMLAttributes<HTMLDivElement>, "onK
   label: string;
   orientation: "horizontal" | "vertical";
   paneEdge?: boolean;
+  resizing?: boolean;
   value?: number;
   min?: number;
   max?: number;
@@ -35,6 +36,7 @@ export const SidebarResizeHandle = forwardRef<HTMLDivElement, SidebarResizeHandl
     onPointerDown,
     orientation,
     paneEdge = false,
+    resizing = false,
     role = "separator",
     tabIndex = 0,
     value,
@@ -136,6 +138,7 @@ export const SidebarResizeHandle = forwardRef<HTMLDivElement, SidebarResizeHandl
         collapsedEdgeSide && `po-collapsed-pane-edge-handle--${collapsedEdgeSide}`,
         className,
       )}
+      data-resizing={resizing || undefined}
       role={resolvedRole}
       tabIndex={tabIndex}
       aria-label={label}
@@ -148,6 +151,9 @@ export const SidebarResizeHandle = forwardRef<HTMLDivElement, SidebarResizeHandl
       onPointerDown={handlePointerDown}
       {...props}
     >
+      {paneEdge && !collapsedEdgeSide && (
+        <span className="po-pane-edge-chrome" data-pane-edge-chrome aria-hidden="true" />
+      )}
       {collapsedEdgeSide && (
         <span className="po-collapsed-pane-edge-glyph" aria-hidden="true">
           <svg viewBox="0 0 8 14" focusable="false">

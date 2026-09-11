@@ -1,3 +1,5 @@
+import { createNativeSurfaceResizeCursor } from "./resize-cursor.mjs";
+
 const FORWARDED_MOUSE_TYPES = new Set(["mouseMove", "mouseUp"]);
 const INITIAL_ROUTED_MOUSE_TYPE = "mouseDown";
 
@@ -5,7 +7,8 @@ const INITIAL_ROUTED_MOUSE_TYPE = "mouseDown";
  * Keeps renderer-owned resize gestures alive across native WebContentsViews.
  *
  * A child view receives OS mouse input before the BrowserWindow renderer.
- * Renderer-published routing regions recover the initial primary press for an
+ * Renderer-published regions provide passive hover/cursor feedback and recover
+ * the initial primary press for an
  * overlay sash; while an owner-scoped drag is active, move/up events are then
  * translated back into owner coordinates. The native view remains attached
  * and visible throughout the gesture.
@@ -16,9 +19,12 @@ export function createNativeSurfacePointerPassthroughCoordinator({
   const registrationsByOwner = new Map();
   const activeOwners = new Set();
   const routingRegionsByOwner = new Map();
+  const hoverByOwner = new Map();
+  const activeCursorByOwner = new Map();
+  const ownerListeners = new Map();
   let disposed = false;
 
-  function register({ ownerWebContentsId, ownerWebContents, surfaceView, onPointerDown }) {
+  function register({ ownerWebContentsId, ownerWebContents, surfaceView, onPointerDown, ownerWindow }) {
     assertOwnerWebContentsId(ownerWebContentsId);
     if (disposed) throw new Error("Native surface pointer passthrough coordinator is disposed.");
     if (!ownerWebContents || typeof ownerWebContents.sendInputEvent !== "function") {
@@ -40,9 +46,15 @@ export function createNativeSurfacePointerPassthroughCoordinator({
       surfaceView,
       surfaceWebContents,
       handleMouse: null,
+      cursor: createNativeSurfaceResizeCursor(surfaceWebContents, reportError),
     };
     registration.handleMouse = (event, mouse) => {
       if (!mouse?.type) return;
+      const point = toOwnerMouseInput(mouse, surfaceView.getBounds());
+      const hovered = mouse.type === "mouseLeave" ? null : regionAt(ownerWebContentsId, point);
+      if (["mouseMove", "mouseDown", "mouseUp", "mouseLeave"].includes(mouse.type)) {
+        setHover(ownerWebContentsId, hovered?.id ? { registration, region: hovered } : null);
+      }
       const canRouteInitialPress =
         mouse?.type === INITIAL_ROUTED_MOUSE_TYPE &&
         isPrimaryMouseButton(mouse) &&
@@ -63,10 +75,13 @@ export function createNativeSurfacePointerPassthroughCoordinator({
 
       event?.preventDefault?.();
       try {
-        if (routesInitialPress) activeOwners.add(ownerWebContentsId);
+        if (routesInitialPress) {
+          activeCursorByOwner.set(ownerWebContentsId, hovered?.cursor ?? "col-resize");
+          setOwnerActive(ownerWebContentsId, true);
+        }
         ownerWebContents.sendInputEvent(ownerInput);
       } catch (error) {
-        if (routesInitialPress) activeOwners.delete(ownerWebContentsId);
+        if (routesInitialPress) setOwnerActive(ownerWebContentsId, false);
         try {
           onForwardError(error);
         } catch {
@@ -75,12 +90,31 @@ export function createNativeSurfacePointerPassthroughCoordinator({
       } finally {
         // The renderer also publishes its normal pointerup cleanup. Releasing
         // here is the main-process fail-safe if that renderer disappears.
-        if (mouse.type === "mouseUp") activeOwners.delete(ownerWebContentsId);
+        if (mouse.type === "mouseUp") setOwnerActive(ownerWebContentsId, false);
       }
     };
 
     const registrations = registrationsByOwner.get(ownerWebContentsId) ?? new Set();
     registrations.add(registration);
+    if (!ownerListeners.has(ownerWebContentsId)) {
+      const handleOwnerMouse = (_event, mouse) => {
+        // DOM hover belongs to the DOM. Leaving a child must clear its explicit
+        // feedback; forwarded active input must not cancel the native hover.
+        if (!activeOwners.has(ownerWebContentsId)) setHover(ownerWebContentsId, null);
+        if (mouse?.type === "mouseDown") {
+          activeCursorByOwner.set(ownerWebContentsId, regionAt(ownerWebContentsId, mouse)?.cursor ?? "col-resize");
+        }
+      };
+      const cancel = () => { setHover(ownerWebContentsId, null); setOwnerActive(ownerWebContentsId, false); };
+      ownerWebContents.on?.("before-mouse-event", handleOwnerMouse);
+      ownerWindow?.on?.("blur", cancel);
+      ownerWindow?.on?.("hide", cancel);
+      ownerListeners.set(ownerWebContentsId, () => {
+        ownerWebContents.removeListener?.("before-mouse-event", handleOwnerMouse);
+        ownerWindow?.removeListener?.("blur", cancel);
+        ownerWindow?.removeListener?.("hide", cancel);
+      });
+    }
     registrationsByOwner.set(ownerWebContentsId, registrations);
     surfaceWebContents.on("before-mouse-event", registration.handleMouse);
 
@@ -88,10 +122,16 @@ export function createNativeSurfacePointerPassthroughCoordinator({
     return () => {
       if (released) return;
       released = true;
+      if (hoverByOwner.get(ownerWebContentsId)?.registration === registration) setHover(ownerWebContentsId, null);
+      registration.cursor.dispose();
       surfaceWebContents.removeListener?.("before-mouse-event", registration.handleMouse);
       const current = registrationsByOwner.get(ownerWebContentsId);
       current?.delete(registration);
-      if (current?.size === 0) registrationsByOwner.delete(ownerWebContentsId);
+      if (current?.size === 0) {
+        registrationsByOwner.delete(ownerWebContentsId);
+        ownerListeners.get(ownerWebContentsId)?.();
+        ownerListeners.delete(ownerWebContentsId);
+      }
     };
   }
 
@@ -105,6 +145,7 @@ export function createNativeSurfacePointerPassthroughCoordinator({
     if (current === active) return false;
     if (active) activeOwners.add(ownerWebContentsId);
     else activeOwners.delete(ownerWebContentsId);
+    updateCursors(ownerWebContentsId);
     return true;
   }
 
@@ -116,12 +157,16 @@ export function createNativeSurfacePointerPassthroughCoordinator({
     if (sameRoutingRegions(current, normalized)) return false;
     if (normalized.length === 0) routingRegionsByOwner.delete(ownerWebContentsId);
     else routingRegionsByOwner.set(ownerWebContentsId, normalized);
+    setHover(ownerWebContentsId, null);
     return true;
   }
 
   function releaseOwner(ownerWebContentsId) {
     assertOwnerWebContentsId(ownerWebContentsId);
+    setHover(ownerWebContentsId, null);
     const releasedActive = activeOwners.delete(ownerWebContentsId);
+    activeCursorByOwner.delete(ownerWebContentsId);
+    updateCursors(ownerWebContentsId);
     const releasedRegions = routingRegionsByOwner.delete(ownerWebContentsId);
     return releasedActive || releasedRegions;
   }
@@ -131,22 +176,48 @@ export function createNativeSurfacePointerPassthroughCoordinator({
     return activeOwners.has(ownerWebContentsId);
   }
 
-  function pointFallsInsideOwnerRegion(ownerWebContentsId, point) {
-    return (routingRegionsByOwner.get(ownerWebContentsId) ?? []).some((region) => (
-      point.x >= region.x &&
-      point.x < region.x + region.width &&
-      point.y >= region.y &&
-      point.y < region.y + region.height
+  function regionAt(ownerWebContentsId, point) {
+    return (routingRegionsByOwner.get(ownerWebContentsId) ?? []).find((region) => (
+      point.x >= region.x && point.x < region.x + region.width &&
+      point.y >= region.y && point.y < region.y + region.height
     ));
+  }
+  function pointFallsInsideOwnerRegion(ownerWebContentsId, point) {
+    return Boolean(regionAt(ownerWebContentsId, point));
+  }
+  function reportError(error) {
+    try { onForwardError(error); } catch { /* Diagnostics cannot break input. */ }
+  }
+  function updateCursors(owner) {
+    const hover = hoverByOwner.get(owner);
+    for (const registration of registrationsByOwner.get(owner) ?? []) {
+      registration.cursor.set(activeOwners.has(owner) ? activeCursorByOwner.get(owner) ?? "col-resize"
+        : hover?.registration === registration ? hover.region.cursor ?? "col-resize" : null);
+    }
+  }
+  function setHover(owner, hover) {
+    const previous = hoverByOwner.get(owner);
+    if (previous?.region.id === hover?.region.id && previous?.registration === hover?.registration) return;
+    if (hover) hoverByOwner.set(owner, hover);
+    else hoverByOwner.delete(owner);
+    const ownerContents = hover?.registration.ownerWebContents ?? previous?.registration.ownerWebContents;
+    try { ownerContents?.send?.("native-surfaces:pointer-hover", { regionId: hover?.region.id ?? null }); }
+    catch (error) { reportError(error); }
+    updateCursors(owner);
   }
 
   function dispose() {
     if (disposed) return;
     disposed = true;
+    for (const owner of hoverByOwner.keys()) setHover(owner, null);
     activeOwners.clear();
+    activeCursorByOwner.clear();
+    for (const release of ownerListeners.values()) release();
+    ownerListeners.clear();
     routingRegionsByOwner.clear();
     for (const registrations of registrationsByOwner.values()) {
       for (const registration of registrations) {
+        registration.cursor.dispose();
         registration.surfaceWebContents.removeListener?.(
           "before-mouse-event",
           registration.handleMouse,
@@ -213,6 +284,14 @@ function normalizeRoutingRegions(regions) {
     ) {
       throw new TypeError("Native surface pointer routing region is invalid.");
     }
+    if (region.id !== undefined) {
+      if (!Number.isSafeInteger(region.id) || region.id <= 0) throw new TypeError("Invalid pointer region id.");
+      normalized.id = region.id;
+    }
+    if (region.cursor !== undefined) {
+      if (!["col-resize", "row-resize"].includes(region.cursor)) throw new TypeError("Invalid pointer region cursor.");
+      normalized.cursor = region.cursor;
+    }
     return Object.freeze(normalized);
   });
 }
@@ -220,7 +299,7 @@ function normalizeRoutingRegions(regions) {
 function sameRoutingRegions(first, second) {
   return first.length === second.length && first.every((region, index) => {
     const candidate = second[index];
-    return region.x === candidate.x &&
+    return region.id === candidate.id && region.cursor === candidate.cursor && region.x === candidate.x &&
       region.y === candidate.y &&
       region.width === candidate.width &&
       region.height === candidate.height;

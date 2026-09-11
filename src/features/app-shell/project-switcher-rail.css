@@ -33,19 +33,8 @@
   inset-inline-end: 0;
 }
 
-.desktop-project-switcher-resizer::after {
-  background: transparent;
-  transition: background 120ms ease, box-shadow 120ms ease;
-}
-
-.desktop-project-switcher-resizer:hover::after,
-.desktop-project-switcher-resizer:focus-visible::after {
-  background: var(--po-pane-resizer-hover-color);
-}
-
-body.desktop-project-switcher-resizing .desktop-project-switcher-resizer::after {
-  background: var(--po-pane-resizer-active-color);
-  box-shadow: 0 0 0 1px var(--po-pane-resizer-active-ring);
+.desktop-shell-leading-rail:has(> .po-pane-edge-resize-handle) .desktop-project-switcher-rail {
+  border-inline-end-color: transparent;
 }
 
 body.desktop-project-switcher-resizing,
@@ -676,7 +665,6 @@ body.desktop-project-switcher-resizing * {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .desktop-project-switcher-resizer::after,
   .desktop-project-switcher-rail-button,
   .desktop-project-switcher-rail-button::after {
     transition: none;

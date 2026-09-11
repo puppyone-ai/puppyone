@@ -1,3 +1,4 @@
+import { measureNativeSurfacePaneChrome, setNativeSurfacePaneChrome } from "./nativeSurfacePaneChrome";
 import { useLayoutEffect } from "react";
 import { subscribeNativeSurfaceLayoutFrames } from "./nativeSurfaceGeometry";
 import type { NativeSurfacePointerPassthroughOwner } from "./nativeSurfacePointerPassthrough";
@@ -11,6 +12,9 @@ export function useNativeSurfacePointerRoutingRegion(
   useLayoutEffect(() => {
     if (!element) return undefined;
     const lease = acquireNativeSurfacePointerRoutingRegion(owner);
+    const releaseHover = window.puppyoneDesktop?.onNativeSurfacePointerHover?.(({ regionId }) => {
+      element.toggleAttribute("data-native-hover", regionId === lease.id);
+    });
     const layoutRoot = element.parentElement;
     let frameId: number | null = null;
     let transitionDepth = 0;
@@ -18,6 +22,8 @@ export function useNativeSurfacePointerRoutingRegion(
     const measure = () => {
       frameId = null;
       const rect = element.getBoundingClientRect();
+      const paint = element.querySelector<HTMLElement>("[data-pane-edge-chrome]");
+      setNativeSurfacePaneChrome(lease.id, paint ? measureNativeSurfacePaneChrome(paint) : null, paint ?? undefined);
       const left = Math.max(0, Math.floor(rect.left));
       const top = Math.max(0, Math.floor(rect.top));
       const right = Math.min(window.innerWidth, Math.ceil(rect.right));
@@ -25,7 +31,8 @@ export function useNativeSurfacePointerRoutingRegion(
       if (right <= left || bottom <= top) {
         lease.update(null);
       } else {
-        lease.update({ x: left, y: top, width: right - left, height: bottom - top });
+        lease.update({ x: left, y: top, width: right - left, height: bottom - top,
+          cursor: getComputedStyle(element).cursor === "row-resize" ? "row-resize" : "col-resize" });
       }
       if (transitionDepth > 0) frameId = window.requestAnimationFrame(measure);
     };
@@ -80,6 +87,9 @@ export function useNativeSurfacePointerRoutingRegion(
       layoutRoot?.removeEventListener("transitioncancel", handleTransitionEnd);
       window.removeEventListener("resize", scheduleMeasure);
       document.removeEventListener("scroll", scheduleMeasure, true);
+      releaseHover?.();
+      element.removeAttribute("data-native-hover");
+      setNativeSurfacePaneChrome(lease.id, null);
       lease.release();
     };
   }, [element, owner]);

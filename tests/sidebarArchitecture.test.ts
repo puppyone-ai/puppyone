@@ -113,7 +113,7 @@ describe("Sidebar architecture", () => {
       /\.data-content\[data-resizable-explorer="true"\]\s*\{[^}]*grid-template-columns:[^}]*var\(--data-explorer-width[^}]*minmax/s,
     );
     expect(dataShellCss).toMatch(
-      /\.data-explorer-resizer\s*\{[^}]*inset-inline-start:\s*var\(--data-explorer-width[^}]*inset-inline-end:\s*auto;[^}]*background:\s*transparent;/s,
+      /\.data-explorer-resizer\s*\{[^}]*inset-inline-start:\s*calc\(var\(--data-explorer-width[^}]*inset-inline-end:\s*auto;[^}]*background:\s*transparent;/s,
     );
     expect(dataShellCss).not.toContain("grid-column: 3;");
     expect(layoutCss).toMatch(

@@ -164,6 +164,7 @@ export function AuxiliaryPanelHost({
           ref={setResizerElement}
           className="desktop-right-sidebar-resizer"
           paneEdge
+          resizing={resize.dragging}
           collapsedEdgeSide={collapsedEdgeVisible ? "inline-end" : undefined}
           orientation="vertical"
           label={t(collapsedEdgeVisible

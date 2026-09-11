@@ -31,7 +31,7 @@ describe("native surface pointer passthrough leases", () => {
 
     region.update({ x: 320.2, y: 38.4, width: 7.7, height: 700.1 });
     expect(publishRegions).toHaveBeenLastCalledWith({
-      regions: [{ x: 320, y: 38, width: 8, height: 700 }],
+      regions: [{ id: region.id, x: 320, y: 38, width: 8, height: 700 }],
     });
     region.release();
     expect(publishRegions).toHaveBeenLastCalledWith({ regions: [] });

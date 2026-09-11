@@ -1,3 +1,4 @@
+import { subscribeNativeSurfacePaneChrome } from "./nativeSurfacePaneChrome";
 import { useLayoutEffect, useRef } from "react";
 import {
   isNativeSurfaceElementVisible,
@@ -40,6 +41,7 @@ export function useNativeSurfaceGeometry(
       if (frameId === null) frameId = window.requestAnimationFrame(measure);
     };
 
+    const releaseChrome = subscribeNativeSurfacePaneChrome(schedule);
     const resizeObserver = typeof ResizeObserver === "function"
       ? new ResizeObserver(schedule)
       : null;
@@ -66,6 +68,7 @@ export function useNativeSurfaceGeometry(
       resizeObserver?.disconnect();
       mutationObserver?.disconnect();
       releaseActivitySubscription();
+      releaseChrome();
       window.removeEventListener("resize", schedule);
       document.removeEventListener("scroll", schedule, true);
       document.removeEventListener("visibilitychange", schedule, true);

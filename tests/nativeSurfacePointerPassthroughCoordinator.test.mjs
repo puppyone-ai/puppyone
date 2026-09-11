@@ -144,3 +144,28 @@ describe("native surface pointer passthrough coordinator", () => {
     coordinator.dispose();
   });
 });
+
+describe("native pane-edge discovery", () => {
+  it("reports passive hover without stealing input or focus, then clears it on leave and DOM entry", () => {
+    const owner = Object.assign(new EventEmitter(), { send: vi.fn(), sendInputEvent: vi.fn(), focus: vi.fn() });
+    const child = new EventEmitter();
+    const coordinator = createNativeSurfacePointerPassthroughCoordinator();
+    const release = coordinator.register({ ownerWebContentsId: 7, ownerWebContents: owner,
+      surfaceView: { webContents: child, getBounds: () => ({ x: 803, y: 76 }) } });
+    coordinator.setOwnerRoutingRegions(7, [{ id: 9, cursor: "col-resize", x: 800, y: 38, width: 8, height: 962 }]);
+    const event = { preventDefault: vi.fn() };
+    child.emit("before-mouse-event", event, { type: "mouseMove", x: 1, y: 60 });
+    expect(owner.send).toHaveBeenLastCalledWith("native-surfaces:pointer-hover", { regionId: 9 });
+    expect(owner.sendInputEvent).not.toHaveBeenCalled();
+    expect(owner.focus).not.toHaveBeenCalled();
+    expect(event.preventDefault).not.toHaveBeenCalled();
+    expect(coordinator.isOwnerActive(7)).toBe(false);
+    child.emit("before-mouse-event", event, { type: "mouseMove", x: 30, y: 60 });
+    expect(owner.send).toHaveBeenLastCalledWith("native-surfaces:pointer-hover", { regionId: null });
+    child.emit("before-mouse-event", event, { type: "mouseMove", x: 1, y: 60 });
+    owner.emit("before-mouse-event", event, { type: "mouseMove", x: 700, y: 50 });
+    expect(owner.send).toHaveBeenLastCalledWith("native-surfaces:pointer-hover", { regionId: null });
+    release(); expect(owner.listenerCount("before-mouse-event")).toBe(0);
+    coordinator.dispose();
+  });
+});

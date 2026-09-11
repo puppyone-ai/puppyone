@@ -9,8 +9,11 @@ import { workspaceFromPath } from "../local-api/workspace.mjs";
 import { createWorkspaceStateStore } from "../electron/main/workspace-state-store.mjs";
 import { getDesktopBuildChannelPolicy } from "../shared/desktop-build-identity.mjs";
 
+import { verifySidebarBoundaries } from "./smoke/sidebar-boundaries.mjs";
+
 import { verifySidebarLiveResize } from "./smoke/sidebar-live-resize.mjs";
 
+process.env.SHELL = "/bin/sh";
 const resizeObservations = [];
 const temp = await fs.mkdtemp(path.join(os.tmpdir(), "puppyone-project-sessions-"));
 app.setAppPath(path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."));
@@ -90,7 +93,8 @@ async function run() {
 try {
   await until(() => BrowserWindow.getAllWindows().length > 0, "Main window");
   window = BrowserWindow.getAllWindows()[0];
-  window.setSize(1600, 1000);
+  window.setSize(2000, 1000);
+  app.focus({ steal: true });
   await untilRenderer("Boolean(document.querySelector('.app-shell'))", "App mount");
   await evaluate(`localStorage.setItem("puppyone.desktop.rightSidebarWidth", "800"); localStorage.setItem("puppyone.desktop.experimental", JSON.stringify({ enableMultiRootWorkspaces: true, enableProjectSwitcherRail: true, enableAgentChat: true })); location.reload();`);
   await untilRenderer("document.querySelectorAll('.desktop-project-switcher-rail-project').length === 4", "Project rail");
@@ -105,6 +109,7 @@ try {
   await until(() => nativeView(a.sender)?.getVisible(), "A native presentation");
   assert(new Set([process.pid, window.webContents.getOSProcessId(), a.utilityPid, a.rendererPid, a.pid]).size === 5, "Terminal processes share a failure domain");
   resizeObservations.push(await verifySidebarLiveResize({ window, contents: a.sender, temp, label: "terminal-resize", until }));
+  resizeObservations.push(await verifySidebarBoundaries({ window, contents: a.sender, temp, label: "terminal", until }));
   const aTabs = await tabIds();
   const aProject = (await evaluate("window.puppyoneDesktop.readProjectSessions()")).projects.find((entry) => entry.rootPath === roots[0]);
   a.terminal.write("echo PROJECT_A_BEFORE_SWITCH\r");
@@ -132,12 +137,12 @@ try {
   await fs.writeFile(path.join(temp, "project-a-restored.png"), (await window.webContents.capturePage()).toPNG());
   await fs.writeFile(path.join(temp, "terminal-a-restored.png"), (await a.sender.capturePage()).toPNG());
   let agentDraftVerified = false;
-  if (process.env.PUPPYONE_SMOKE_CODEX_DRAFT === "1") {
+  if (process.env.PUPPYONE_SMOKE_CODEX_DRAFT === "1" || process.argv.includes("--agent-draft")) {
     await click(".desktop-terminal-new-button");
     await untilRenderer("[...document.querySelectorAll('.desktop-terminal-launcher-tool')].some(button => button.textContent.trim() === 'Codex')", "Codex launcher");
     await evaluate("[...document.querySelectorAll('.desktop-terminal-launcher-tool')].find(button => button.textContent.trim() === 'Codex').click()");
     await untilAgent("Boolean(document.querySelector('.desktop-agent-prompt-editor .cm-content[contenteditable=true]'))", "Codex draft editor");
-    await (await agentContents()).executeJavaScript("document.querySelector('.desktop-agent-prompt-editor .cm-content').focus()", true);
+    await untilAgent("(() => { const editor=document.querySelector('.desktop-agent-prompt-editor .cm-content[contenteditable=true]'); if (!editor) return false; editor.focus(); return document.activeElement===editor; })()", "focus ready Codex draft editor");
     await (await agentContents()).insertText("UNSENT PROJECT A DRAFT");
     await selectProject("Project B");
     await selectProject("Project A");
@@ -145,6 +150,7 @@ try {
     assert(!await (await agentContents()).executeJavaScript("document.body.innerText.includes('Earlier live events are no longer available')"), "False history-loss warning");
     resizeObservations.push(await verifySidebarLiveResize({ window, contents: await agentContents(), temp, label: "agent-resize", until }));
     await untilAgent("document.querySelector('.desktop-agent-prompt-editor .cm-content')?.textContent === 'UNSENT PROJECT A DRAFT'", "draft survives outer resize");
+    resizeObservations.push(await verifySidebarBoundaries({ window, contents: await agentContents(), temp, label: "agent", until }));
     agentDraftVerified = true;
     await fs.writeFile(path.join(temp, "agent-draft-restored.png"), (await window.webContents.capturePage()).toPNG());
   }
@@ -196,7 +202,10 @@ try {
     await until(async () => {
       const slot = await evaluate(`(() => {
         const rect = document.querySelector('.desktop-item-host[data-item-id="${aTabs[0]}"]').getBoundingClientRect();
-        return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+        const paint=document.querySelector('.desktop-right-sidebar [data-pane-edge-chrome]').getBoundingClientRect();
+        const left=paint.left<=rect.left && paint.right>rect.left ? paint.right : rect.left;
+        const right=paint.left<rect.right && paint.right>=rect.right ? paint.left : rect.right;
+        return { x: Math.ceil(left), y: Math.ceil(rect.y), width: Math.floor(right)-Math.ceil(left), height: Math.floor(rect.bottom)-Math.ceil(rect.y) };
       })()`);
       const bounds = nativeView(a.sender).getBounds();
       return Object.keys(bounds).every((key) => Math.abs(bounds[key] - Math.round(slot[key])) <= 1);

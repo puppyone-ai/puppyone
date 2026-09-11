@@ -219,7 +219,7 @@ for (const [label, source] of [
   )?.[1] ?? "";
   const resizer = source.match(/\.data-explorer-resizer\s*\{([^}]*)\}/s)?.[1] ?? "";
   for (const token of [
-    "inset-inline-start: var(--data-explorer-width",
+    "inset-inline-start: calc(var(--data-explorer-width",
     "inset-inline-end: auto",
     "background: transparent",
   ]) {

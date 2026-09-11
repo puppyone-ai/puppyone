@@ -15,7 +15,7 @@ export async function verifySidebarLiveResize({ window, contents, temp, label, u
     const handle = panel.querySelector('.desktop-right-sidebar-resizer');
     const style = getComputedStyle(panel);
     const bounds = el => { const r = el.getBoundingClientRect(); return { x:r.x, y:r.y, width:r.width, height:r.height }; };
-    return { panel:bounds(panel), inner:bounds(inner), viewport:bounds(viewport), handle:bounds(handle),
+    return { panel:bounds(panel), inner:bounds(inner), viewport:bounds(viewport), handle:bounds(handle), paint:bounds(handle.querySelector("[data-pane-edge-chrome]")),
       borderLeft:parseFloat(style.borderLeftWidth), borderRight:parseFloat(style.borderRightWidth),
       borderColor:style.borderInlineStartColor, dragging:document.body.classList.contains('desktop-right-sidebar-resizing'),
       persisted:localStorage.getItem('puppyone.desktop.rightSidebarWidth') };
@@ -30,7 +30,11 @@ export async function verifySidebarLiveResize({ window, contents, temp, label, u
     await until(async () => {
       const state = await snapshot();
       const bounds = view.getBounds();
-      return Math.abs(bounds.width - Math.floor(state.inner.width)) <= 1
+      const paintRight = state.paint.x + state.paint.width;
+      const innerRight = state.inner.x + state.inner.width;
+      const left = state.paint.x <= state.inner.x && paintRight > state.inner.x ? paintRight : state.inner.x;
+      const right = state.paint.x < innerRight && paintRight >= innerRight ? state.paint.x : innerRight;
+      return Math.abs(bounds.width - (Math.floor(right) - Math.ceil(left))) <= 1
         && bounds.x >= Math.ceil(state.panel.x + state.borderLeft)
         && bounds.x + bounds.width <= Math.floor(state.panel.x + state.panel.width - state.borderRight);
     }, `${label} native content stays inside frame`);
@@ -49,8 +53,9 @@ export async function verifySidebarLiveResize({ window, contents, temp, label, u
       ...(type === "mouseMove" ? { modifiers: ["leftbuttondown"] } : { button: "left", clickCount: 1 }) });
   };
   try {
-    window.show(); window.focus(); contents.focus();
-    await until(() => contents.isFocused(), `${label} native focus`);
+    window.show(); window.focus();
+    await frame();
+    await until(() => { contents.focus(); return contents.isFocused(); }, `${label} native focus`);
     await frame(); await assertBounds();
     let state = await snapshot();
     const start = { x: state.handle.x + 3, y: view.getBounds().y + 60 };
@@ -89,7 +94,11 @@ export async function verifySidebarLiveResize({ window, contents, temp, label, u
         const handle = document.querySelector(${JSON.stringify(selector)});
         if (handle?.classList.contains('po-collapsed-pane-edge-handle')) handle.dispatchEvent(new KeyboardEvent('keydown', { key:'Enter', bubbles:true }));
       })()`);
-      await frame();
+      await new Promise(resolve => setTimeout(resolve, 350));
+      if (!await evaluate(`Boolean(document.querySelector(${JSON.stringify(selector)}))`)) {
+        await evaluate("document.querySelector('.desktop-titlebar-sidebar-expand')?.click()");
+        await new Promise(resolve => setTimeout(resolve, 350));
+      }
       const geometry = await evaluate(`(() => {
         const handle = document.querySelector(${JSON.stringify(selector)});
         const rect = handle.getBoundingClientRect();

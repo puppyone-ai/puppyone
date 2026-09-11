@@ -18,7 +18,7 @@ export function attachNativeSurfaceView({ window, view, nativeSurfaceOcclusion, 
   const releaseOcclusion = nativeSurfaceOcclusion?.register({ ownerWebContentsId: window.webContents.id,
     setOccluded(value) { occluded = value; apply(); } });
   const releasePointer = nativeSurfacePointerPassthrough?.register({ ownerWebContentsId: window.webContents.id,
-    ownerWebContents: window.webContents, surfaceView: view, onPointerDown });
+    ownerWebContents: window.webContents, ownerWindow: window, surfaceView: view, onPointerDown });
   window.on("show", apply);
   window.on("hide", apply);
   view.setVisible(false);

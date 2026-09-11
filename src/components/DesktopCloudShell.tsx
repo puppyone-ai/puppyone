@@ -305,6 +305,7 @@ export function DesktopCloudShell({
                   className="desktop-project-switcher-resizer"
                   collapsedEdgeSide={leadingRailCollapsed ? "inline-start" : undefined}
                   paneEdge
+                  resizing={leadingRailResize.dragging}
                   orientation="vertical"
                   label={t(leadingRailCollapsed
                     ? "shell.workspaceSwitcher.expandProjects"
