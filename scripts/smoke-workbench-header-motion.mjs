@@ -149,6 +149,13 @@ async function run() {
         && !view.querySelector('h2, input') && view.querySelectorAll('.desktop-agent-history-option').length === 3
         && !view.querySelector('details').open;
     })()`), `${name}: History tab or compact content header is incorrect`);
+    assert(await evaluate(`(() => {
+      const toolbar = document.querySelector('.desktop-agent-history-toolbar');
+      const search = toolbar.querySelector('button[aria-label="Search chat history"]').getBoundingClientRect();
+      const refresh = toolbar.querySelector('button[aria-label="Refresh chat history"]').getBoundingClientRect();
+      const gap = document.documentElement.dir === 'rtl' ? search.left - refresh.right : refresh.left - search.right;
+      return Math.abs(gap - parseFloat(getComputedStyle(toolbar).columnGap)) < 1 && Math.abs(search.top - refresh.top) < 1;
+    })()`), `${name}: Search must sit immediately before Refresh, not in the center`);
     await settle();
     await writeFile(path.join(artifacts, `${name}-history.png`), (await window.capturePage()).toPNG());
     await evaluate("document.querySelector('button[aria-label=\"Search chat history\"]').click()");

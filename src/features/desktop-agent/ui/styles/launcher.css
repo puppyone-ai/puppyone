@@ -284,7 +284,7 @@
 .desktop-agent-history-search-slot {
   display: grid;
   min-width: 0;
-  justify-items: center;
+  justify-items: end;
 }
 
 .desktop-agent-history-toolbar-button {
