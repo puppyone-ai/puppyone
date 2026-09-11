@@ -169,3 +169,30 @@ describe("native pane-edge discovery", () => {
     coordinator.dispose();
   });
 });
+
+
+describe("native resize termination at the owning window", () => {
+  it("releases native forwarding and cursor when pointerup reaches the owner instead of the child", async () => {
+    const owner = Object.assign(new EventEmitter(), { send: vi.fn(), sendInputEvent: vi.fn() });
+    const child = Object.assign(new EventEmitter(), {
+      insertCSS: vi.fn(async () => "resize-stylesheet"),
+      removeInsertedCSS: vi.fn(async () => {}),
+    });
+    const coordinator = createNativeSurfacePointerPassthroughCoordinator();
+    coordinator.register({ ownerWebContentsId: 7, ownerWebContents: owner,
+      surfaceView: { webContents: child, getBounds: () => ({ x: 300, y: 50 }) } });
+    coordinator.setOwnerRoutingRegions(7, [{ id: 1, cursor: "col-resize", x: 300, y: 50, width: 8, height: 500 }]);
+    child.emit("before-mouse-event", { preventDefault() {} }, { type: "mouseDown", button: "left", x: 2, y: 50 });
+    await vi.waitFor(() => expect(child.insertCSS).toHaveBeenCalledOnce());
+    expect(coordinator.isOwnerActive(7)).toBe(true);
+    // Capture or a changed split layout delivers the release to the Shell.
+    // No renderer lease is assumed: acquiring the forwarded press may fail.
+    owner.emit("before-mouse-event", {}, { type: "mouseUp", button: "left", x: 290, y: 100 });
+    expect(coordinator.isOwnerActive(7)).toBe(false);
+    await vi.waitFor(() => expect(child.removeInsertedCSS).toHaveBeenCalledWith("resize-stylesheet"));
+    const move = { preventDefault: vi.fn() };
+    child.emit("before-mouse-event", move, { type: "mouseMove", x: 100, y: 100 });
+    expect(move.preventDefault).not.toHaveBeenCalled();
+    coordinator.dispose();
+  });
+});

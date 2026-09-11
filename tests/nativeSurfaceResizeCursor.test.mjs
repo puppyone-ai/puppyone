@@ -10,7 +10,7 @@ describe("native resize cursor lifetime", () => {
     cursor.set("col-resize"); await flush();
     cursor.set(null); resolve("late-sheet"); await flush();
     expect(contents.removeInsertedCSS).toHaveBeenCalledWith("late-sheet");
-    expect(contents.insertCSS).toHaveBeenCalledWith(expect.stringContaining("col-resize"), { cssOrigin: "user" });
+    expect(contents.insertCSS).toHaveBeenCalledWith(expect.stringContaining("col-resize"), { cssOrigin: "author" });
   });
   it("deduplicates moves, rejects unsupported values and restores on disposal", async () => {
     const contents = { insertCSS: vi.fn(async () => "sheet"), removeInsertedCSS: vi.fn() };

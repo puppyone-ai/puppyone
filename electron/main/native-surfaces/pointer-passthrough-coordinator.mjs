@@ -98,6 +98,12 @@ export function createNativeSurfacePointerPassthroughCoordinator({
     registrations.add(registration);
     if (!ownerListeners.has(ownerWebContentsId)) {
       const handleOwnerMouse = (_event, mouse) => {
+        // Capture and layout changes can deliver the release to the Shell
+        // instead of a child. The forwarded press may never acquire a renderer
+        // lease, so its cleanup cannot depend on a renderer IPC acknowledgement.
+        if (mouse?.type === "mouseUp" && isPrimaryMouseButton(mouse)) {
+          setOwnerActive(ownerWebContentsId, false);
+        }
         // DOM hover belongs to the DOM. Leaving a child must clear its explicit
         // feedback; forwarded active input must not cancel the native hover.
         if (!activeOwners.has(ownerWebContentsId)) setHover(ownerWebContentsId, null);
