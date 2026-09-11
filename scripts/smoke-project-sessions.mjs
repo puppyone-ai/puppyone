@@ -164,18 +164,12 @@ try {
     a.terminal.write("echo FOCUS_MUST_STAY_IN_SHELL\r");
     await untilTerminal(a, "FOCUS_MUST_STAY_IN_SHELL", "summary update without focus theft");
     assert(window.webContents.isFocused(), "Content summary stole Shell focus");
-    const grip = await evaluate(`(() => {
-      const group = document.querySelector('[data-terminal-group-pane-id="${originalGroup}"]');
-      const handle = group.querySelector('.desktop-terminal-pane-handle').getBoundingClientRect();
-      const content = group.querySelector('.desktop-terminal-tab-group-content').getBoundingClientRect();
-      return { top: handle.top, bottom: handle.bottom, contentTop: content.top, width: handle.width };
-    })()`);
-    assert(grip.width >= 20 && grip.bottom <= grip.contentTop, "Group grip overlaps native content");
+    assert(await evaluate("!document.querySelector('.desktop-terminal-pane-handle, .desktop-terminal-group-chrome')"), "Group grip or reserved chrome remains");
     await resizeFromNative(a);
     const otherGroup = await evaluate(`[...document.querySelectorAll('[data-terminal-group-pane-id]')].find(group => group.dataset.terminalGroupPaneId !== ${JSON.stringify(originalGroup)}).dataset.terminalGroupPaneId`);
-    await dragItem(aTabs[0], otherGroup, "bottom", originalGroup);
-    await untilRenderer(`document.querySelector('[data-terminal-split-id]')?.dataset.direction === "vertical"`, "group grip moves whole group");
-    await until(() => nativeView(a.sender)?.getVisible(), "native presentation after group movement");
+    await dragItem(aTabs[0], otherGroup, "bottom");
+    await untilRenderer(`document.querySelector('[data-terminal-split-id]')?.dataset.direction === "vertical"`, "tab drag changes split direction");
+    await until(() => nativeView(a.sender)?.getVisible(), "native presentation after tab movement");
     await until(async () => {
       const slot = await evaluate(`(() => {
         const rect = document.querySelector('.desktop-item-host[data-item-id="${aTabs[0]}"]').getBoundingClientRect();
@@ -185,8 +179,9 @@ try {
       return Object.keys(bounds).every((key) => Math.abs(bounds[key] - Math.round(slot[key])) <= 1);
     }, "native bounds follow relocated content slot");
     await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
-    await fs.writeFile(path.join(temp, "sidebar-group-moved.png"), (await window.webContents.capturePage()).toPNG());
-    await dragItem(movingItem, originalGroup, "bar-end");
+    await fs.writeFile(path.join(temp, "sidebar-tab-moved.png"), (await window.webContents.capturePage()).toPNG());
+    const retainedGroup = await evaluate(`document.querySelector('[data-terminal-tab-session-id="${aTabs[0]}"]').closest('[data-terminal-group-pane-id]').dataset.terminalGroupPaneId`);
+    await dragItem(movingItem, retainedGroup, "bar-end");
     await untilRenderer("document.querySelectorAll('[data-terminal-group-pane-id]').length === 1", "reunite mixed workbench");
     assert(JSON.stringify(terminals.map(({ pid }) => pid)) === JSON.stringify(nativeIdentity) && terminals.every(({ exited }) => !exited), "Layout movement changed native resources");
     if (agentDraftVerified) await untilAgent("document.querySelector('.desktop-agent-prompt-editor .cm-content')?.textContent === 'UNSENT PROJECT A DRAFT'", "draft after drag");
@@ -250,7 +245,7 @@ try {
   await until(() => d.exited && window.isDestroyed(), "second window close");
   assert(errors.length === 0, "Renderer reported errors");
   const report = { ok: true, temp, roots, aTabs, bTabs, agentDraftVerified, nativePresentationRestored: true, nativeFocusActivatesStore: true,
-    summaryDoesNotStealFocus: true, groupGripOutsideNativeContent: true, nativeSashRoutingVerified: true, groupGripMovementVerified: true,
+    summaryDoesNotStealFocus: true, groupGripRemoved: true, nativeSashRoutingVerified: true, tabMovementVerified: true,
     splitAndReunionVerified: true, multiRootEditorVerified: true, separateWindowsVerified: true, terminals: terminals.map(({ pid, utilityPid, rendererPid, cwd, exited }) => ({ pid, utilityPid, rendererPid, cwd, exited })), rendererErrors: errors, localizationDiagnostics };
   await fs.writeFile(path.join(temp, "report.json"), JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report, null, 2));
@@ -321,9 +316,8 @@ async function resizeFromNative(record) {
   assert(after !== before, "Native sash press did not commit a resize");
 }
 
-async function dragItem(itemId, groupId, destination, sourceGroupId) {
-  const source = sourceGroupId ? `[data-terminal-group-pane-id="${sourceGroupId}"] .desktop-terminal-pane-handle`
-    : `[data-terminal-tab-session-id="${itemId}"] .desktop-terminal-tab-select`;
+async function dragItem(itemId, groupId, destination) {
+  const source = `[data-terminal-tab-session-id="${itemId}"] .desktop-terminal-tab-select`;
   const target = destination === "bar-end" ? `[data-terminal-tab-bar-group-id="${groupId}"]` : `[data-terminal-content-drop-group-id="${groupId}"]`;
   const geometry = await evaluate(`(() => {
     const from = document.querySelector(${JSON.stringify(source)}).getBoundingClientRect();

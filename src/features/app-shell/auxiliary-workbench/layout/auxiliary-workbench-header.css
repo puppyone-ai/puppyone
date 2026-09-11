@@ -1,9 +1,4 @@
 @layer features {
-.desktop-terminal-group-chrome > .desktop-terminal-subheader {
-  flex: 1 1 0;
-  min-width: 0;
-}
-
 .desktop-terminal-subheader {
   --desktop-terminal-header-gap: 3px;
   --desktop-terminal-tab-activation-motion: 220ms;

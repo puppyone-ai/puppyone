@@ -161,10 +161,7 @@ describe("Terminal Group-owned Tab layout", () => {
     expect(rail.contains(preview)).toBe(false);
     expect(content.contains(target.querySelector(".desktop-terminal-pane-interaction-frame")))
       .toBe(true);
-    expect(content.contains(target.querySelector(".desktop-terminal-pane-handle-shell")))
-      .toBe(false);
-    expect(target.querySelector(".desktop-terminal-group-chrome")?.contains(target.querySelector(".desktop-terminal-pane-handle-shell")))
-      .toBe(true);
+    expect(target.querySelector(".desktop-terminal-pane-handle-shell")).toBeNull();
     expect(preview.dataset.operation).toBe("move-group");
     expect(preview.dataset.edge).toBe("left");
     expect(preview.dataset.allowed).toBe("true");
@@ -253,7 +250,7 @@ describe("Terminal Group-owned Tab layout", () => {
     expect(terminalA.style.getPropertyValue("--desktop-terminal-tab-inline-start")).toBe("147px");
   });
 
-  it("keeps each Group handle in Shell chrome outside the native content viewport", () => {
+  it("renders each Group header without a move handle or reserved grip space", () => {
     const state = splitTab(createThreeTabs(), "terminal-b", "group-a", "right", "group-b");
     const harness = createHarness(state);
     harness.render();
@@ -263,11 +260,9 @@ describe("Terminal Group-owned Tab layout", () => {
 
     expect(groups).toHaveLength(2);
     for (const group of groups) {
-      const chrome = group.querySelector(".desktop-terminal-group-chrome")!;
-      const content = group.querySelector(".desktop-terminal-tab-group-content")!;
-      expect(chrome.querySelectorAll(".desktop-terminal-pane-handle")).toHaveLength(1);
-      expect(content.querySelector(".desktop-terminal-pane-handle")).toBeNull();
-      expect(chrome.contains(group.querySelector(".desktop-terminal-subheader"))).toBe(true);
+      expect(group.querySelector(".desktop-terminal-pane-handle")).toBeNull();
+      expect(group.querySelector(".desktop-terminal-group-chrome")).toBeNull();
+      expect(group.querySelector(".desktop-terminal-subheader")?.parentElement).toBe(group);
     }
   });
 

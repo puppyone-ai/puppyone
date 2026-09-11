@@ -49,6 +49,7 @@ it("uses one Store for native activation, while only explicit tab actions reques
   render(false);
   act(() => contexts.get(b)!.onContentFocusChange!(true, true));
   expect(store.getSnapshot().topology.activeGroupId).toBe(first);
-  expect(container.querySelectorAll(".desktop-terminal-group-chrome .desktop-terminal-pane-handle svg")).toHaveLength(2);
+  expect(container.querySelectorAll(".desktop-terminal-pane-handle")).toHaveLength(0);
+  expect(container.querySelectorAll(".desktop-terminal-tab-group > .desktop-terminal-subheader")).toHaveLength(2);
   act(() => root!.unmount()); root = null; store.dispose();
 });

@@ -89,8 +89,8 @@ describe("Desktop Terminal architecture boundaries", () => {
     expect(css).toContain(".desktop-terminal-tab-group-content");
     expect(css).toContain(".desktop-terminal-splitter");
     expect(css).toContain(".desktop-terminal-drop-preview");
-    expect(css).toContain(".desktop-terminal-pane-handle-shell");
-    expect(css).toContain(".desktop-terminal-pane-handle");
+    expect(css).not.toContain(".desktop-terminal-pane-handle");
+    expect(css).not.toContain(".desktop-terminal-group-chrome");
     expect(css).toContain(".desktop-terminal-pane-interaction-frame");
     expect(css).not.toContain(".desktop-terminal-launcher");
     expect(launcher).toContain('import "../../app-shell/auxiliary-workbench/auxiliary-workbench-launcher.css"');

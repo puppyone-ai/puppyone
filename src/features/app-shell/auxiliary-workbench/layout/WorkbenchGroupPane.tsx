@@ -7,7 +7,6 @@ export type WorkbenchGroupPaneProps = Readonly<{
   focused: boolean;
   groupId: string;
   header: ReactNode;
-  moveHandle: ReactNode;
 }>;
 
 /**
@@ -20,7 +19,6 @@ export function WorkbenchGroupPane({
   focused,
   groupId,
   header,
-  moveHandle,
 }: WorkbenchGroupPaneProps) {
   return (
     <section
@@ -28,7 +26,7 @@ export function WorkbenchGroupPane({
       data-terminal-group-pane-id={groupId}
       data-focused={focused ? "true" : undefined}
     >
-      <div className="desktop-terminal-group-chrome">{moveHandle}{header}</div>
+      {header}
       <div
         className="desktop-terminal-tab-group-content"
         data-terminal-content-drop-group-id={groupId}

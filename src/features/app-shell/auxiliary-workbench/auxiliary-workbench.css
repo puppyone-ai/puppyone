@@ -132,51 +132,8 @@
 
 .desktop-terminal-tab-group[data-move-source]
   > .desktop-terminal-tab-group-content
-  > .desktop-terminal-pane-interaction-frame,
-.desktop-terminal-tab-group:has(
-  > .desktop-terminal-group-chrome
-  > .desktop-terminal-pane-handle-shell
-  > .desktop-terminal-pane-handle:active
-) > .desktop-terminal-tab-group-content
   > .desktop-terminal-pane-interaction-frame {
   color: color-mix(in srgb, var(--po-pane-resizer-active-color) 76%, transparent);
-}
-
-.desktop-terminal-group-chrome {
-  display: flex;
-  flex: 0 0 var(--desktop-terminal-group-header-size);
-  min-width: 0;
-  background: var(--desktop-terminal-tab-bar-background, var(--po-surface-auxiliary));
-}
-
-.desktop-terminal-pane-handle-shell {
-  display: flex;
-  flex: 0 0 24px;
-  align-items: center;
-  justify-content: center;
-}
-
-.desktop-terminal-pane-handle {
-  appearance: none;
-  display: flex;
-  width: 24px;
-  height: 28px;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: color-mix(in srgb, var(--po-text-muted) 68%, transparent);
-  outline: 0;
-  cursor: grab;
-  pointer-events: auto;
-  touch-action: none;
-}
-
-.desktop-terminal-pane-handle:hover,
-.desktop-terminal-pane-handle:focus-visible {
-  color: color-mix(in srgb, var(--po-text-muted) 82%, transparent);
 }
 
 .desktop-terminal-tab-group[data-move-source]
