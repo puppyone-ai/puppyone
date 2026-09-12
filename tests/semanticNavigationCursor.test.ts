@@ -65,17 +65,17 @@ describe("semantic navigation cursor contract", () => {
   it("forbids feature CSS from creating pointer cursors outside the policy boundary", () => {
     const violations = ["src", "packages/shared-ui/src"]
       .flatMap((directory) => collectCssFiles(new URL(`../${directory}/`, import.meta.url)))
-      .filter((file) => !file.endsWith("/src/styles/base.css"))
+      .filter((file) => !file.pathname.endsWith("/src/styles/base.css"))
       .filter((file) => /(?:cursor:\s*pointer|var\(--po-clickable-cursor, pointer\))/.test(readFileSync(file, "utf8")));
 
     expect(violations).toEqual([]);
   });
 });
 
-function collectCssFiles(directory: URL): string[] {
+function collectCssFiles(directory: URL): URL[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const child = new URL(entry.name + (entry.isDirectory() ? "/" : ""), directory);
     if (entry.isDirectory()) return collectCssFiles(child);
-    return entry.isFile() && entry.name.endsWith(".css") ? [child.pathname] : [];
+    return entry.isFile() && entry.name.endsWith(".css") ? [child] : [];
   });
 }
