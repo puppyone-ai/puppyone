@@ -82,9 +82,9 @@ jobs:
       - name: Test release transaction and Terminal launcher
         run: >-
           npm test --
-          tests/terminalPreviewLauncher.test.mjs
-          tests/desktopReleaseMetadata.test.mjs
-          tests/macosReleasePolicy.test.mjs
+          tests/integration/terminal/startup/terminalPreviewLauncher.test.mjs
+          tests/integration/release/build-identity/desktopReleaseMetadata.test.mjs
+          tests/architecture/release/build-identity/macosReleasePolicy.test.mjs
 
       - name: Verify exact Internal promotion source
         id: promotion

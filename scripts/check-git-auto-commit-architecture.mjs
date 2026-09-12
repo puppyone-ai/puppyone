@@ -20,7 +20,7 @@ const kernelSource = read("local-api/git/auto-commit.mjs");
 const preferenceSource = read("electron/main/git-auto-commit/preference-store.mjs");
 const preloadSource = read("electron/preload.cjs");
 const settingsSource = read("src/features/settings/main/RepositorySettingsViews.tsx");
-const coverageConfigSource = read("vitest.git-auto-commit.config.mjs");
+const coverageConfigSource = read("tests/config/vitest.git-auto-commit.config.mjs");
 
 for (const [snippet, message] of [
   ["gitAutoCommitFeatureProfile.rendererArguments", "Main must issue the renderer capability argument"],

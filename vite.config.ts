@@ -1,5 +1,5 @@
 import type { Plugin } from "vite";
-import { defineConfig } from "vitest/config";
+import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { fileURLToPath, URL } from "node:url";
 import path from "node:path";
@@ -103,16 +103,13 @@ export default defineConfig({
   build: {
     rollupOptions: {
       input: {
-        index: path.resolve(fileURLToPath(new URL(".", import.meta.url)), "index.html"),
-        "item-host": path.resolve(fileURLToPath(new URL(".", import.meta.url)), "item-host.html"),
+        index: path.resolve(fileURLToPath(new URL("./", import.meta.url)), "index.html"),
+        "item-host": path.resolve(fileURLToPath(new URL("./", import.meta.url)), "item-host.html"),
       },
     },
   },
   server: {
     strictPort: true,
     port: 5173,
-  },
-  test: {
-    exclude: ["archive/**", "node_modules/**", "dist/**", "release/**"],
   },
 });

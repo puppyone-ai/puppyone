@@ -12,7 +12,7 @@ coverage/
 
 .DS_Store
 *.log
-!tests/fixtures/editor-rendering/sample_log.log
+!tests/fixtures/editor/formats/samples/sample_log.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -31,3 +31,6 @@ yarn-error.log*
 *.tsbuildinfo
 
 /electron/main/platform/macos/native/*.node
+
+# Disposable test reports/screenshots; reviewed baselines live under tests/performance.
+/artifacts/tests/

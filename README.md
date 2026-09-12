@@ -35,6 +35,11 @@ puppyone
 - **Puppyone Cloud (optional)** — Hosting, backup, and always-on MCP or CLI access.
 - **Cloud collaboration (optional)** — Invite teammates to hosted projects.
 
+## Development checks
+
+See the [test directory and commands](tests/README.md) for unit, component,
+integration, Electron and performance checks.
+
 ## License
 
 Code is licensed under the [Apache License 2.0](LICENSE).
