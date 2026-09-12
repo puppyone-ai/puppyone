@@ -26,7 +26,6 @@ describe("Experimental settings", () => {
     act(() => root?.render(withTestLocalization(
       <ExperimentalSettingsView
         settings={DEFAULT_EXPERIMENTAL_SETTINGS}
-        agentChatAvailable={false}
         assetLibraryHomeAvailable={false}
         onChange={onChange}
       />,
@@ -37,6 +36,7 @@ describe("Experimental settings", () => {
     );
     expect(toggle).not.toBeNull();
     expect(toggle?.checked).toBe(false);
+    expect(host.querySelector('input[aria-label="Agent Chat"]')).toBeNull();
 
     act(() => toggle?.click());
     expect(onChange).toHaveBeenCalledWith({
@@ -54,7 +54,6 @@ describe("Experimental settings", () => {
     act(() => root?.render(withTestLocalization(
       <ExperimentalSettingsView
         settings={DEFAULT_EXPERIMENTAL_SETTINGS}
-        agentChatAvailable={false}
         assetLibraryHomeAvailable={false}
         onChange={onChange}
       />,
@@ -82,7 +81,6 @@ describe("Experimental settings", () => {
     act(() => root?.render(withTestLocalization(
       <ExperimentalSettingsView
         settings={DEFAULT_EXPERIMENTAL_SETTINGS}
-        agentChatAvailable={false}
         assetLibraryHomeAvailable={false}
         onChange={onChange}
       />,
@@ -110,7 +108,6 @@ describe("Experimental settings", () => {
     act(() => root?.render(withTestLocalization(
       <ExperimentalSettingsView
         settings={DEFAULT_EXPERIMENTAL_SETTINGS}
-        agentChatAvailable={false}
         assetLibraryHomeAvailable={false}
         onChange={onChange}
       />,

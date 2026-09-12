@@ -4,12 +4,10 @@ import { SettingsSectionHeader, SettingsToggle } from "../components";
 
 export function ExperimentalSettingsView({
   settings,
-  agentChatAvailable,
   assetLibraryHomeAvailable,
   onChange,
 }: {
   settings: ExperimentalSettings;
-  agentChatAvailable: boolean;
   assetLibraryHomeAvailable: boolean;
   onChange: (settings: ExperimentalSettings) => void;
 }) {
@@ -30,9 +28,6 @@ export function ExperimentalSettingsView({
       ? [{ messageKey: "projectsHome", settingKey: "enableAssetLibraryHome" as const }]
       : []),
     { messageKey: "firstProjectStarter", settingKey: "enableFirstProjectStarter" },
-    ...(agentChatAvailable
-      ? [{ messageKey: "agentChat", settingKey: "enableAgentChat" as const }]
-      : []),
     { messageKey: "cloudWorkspace", settingKey: "enableCloudWorkspace" },
     { messageKey: "cloudAutomation", settingKey: "enableCloudAutomation" },
     { messageKey: "flowFiles", settingKey: "enablePuppyFlowFiles" },

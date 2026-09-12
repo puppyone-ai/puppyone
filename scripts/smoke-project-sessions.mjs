@@ -96,12 +96,18 @@ try {
   window.setSize(2000, 1000);
   app.focus({ steal: true });
   await untilRenderer("Boolean(document.querySelector('.app-shell'))", "App mount");
-  await evaluate(`localStorage.setItem("puppyone.desktop.rightSidebarWidth", "800"); localStorage.setItem("puppyone.desktop.experimental", JSON.stringify({ enableMultiRootWorkspaces: true, enableProjectSwitcherRail: true, enableAgentChat: true })); location.reload();`);
+  if (!await evaluate("document.querySelector('.desktop-titlebar-terminal, .desktop-shell-toolbar-terminal')?.getAttribute('aria-pressed') === 'true'")) {
+    await click(".desktop-titlebar-terminal, .desktop-shell-toolbar-terminal");
+  }
+  await untilRenderer("Boolean(document.querySelector('[data-agent-mode=chat]'))", "Agent Chat available with fresh preferences");
+  assert(window.contentView.children.length === 0, "Default Chat availability allocated native sessions");
+  await evaluate(`localStorage.setItem("puppyone.desktop.rightSidebarWidth", "800"); localStorage.setItem("puppyone.desktop.experimental", JSON.stringify({ enableMultiRootWorkspaces: true, enableProjectSwitcherRail: true, enableAgentChat: false, enableAgentCompanion: false })); location.reload();`);
   await untilRenderer("document.querySelectorAll('.desktop-project-switcher-rail-project').length === 4", "Project rail");
   await untilRenderer("Boolean(document.querySelector('.desktop-terminal-panel'))", "project workbench");
   if (!await evaluate("document.querySelector('.desktop-titlebar-terminal, .desktop-shell-toolbar-terminal')?.getAttribute('aria-pressed') === 'true'")) {
     await click(".desktop-titlebar-terminal, .desktop-shell-toolbar-terminal");
   }
+  await untilRenderer("Boolean(document.querySelector('[data-agent-mode=chat]'))", "Agent Chat ignores retired opt-out preferences");
   await click(".desktop-terminal-launcher-shell");
   await until(() => terminals.length === 1, "A terminal");
   await untilRenderer("document.querySelector('[data-terminal-tab-session-id]')?.dataset.status === 'running'", "A running");
