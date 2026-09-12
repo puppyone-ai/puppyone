@@ -4,8 +4,11 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { EditorSplitResizeHandle } from "../../../../src/features/editor-workbench/layout/EditorSplitResizeHandle";
+import { acquireNativeSurfaceResizeLease, isNativeSurfaceLayoutStable } from "../../../../src/features/native-surfaces";
+import { installDesktopBridge } from "../../../support/electron/desktopBridge";
 import { withTestLocalization } from "../../../support/react/localization";
 
+(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root | null = null;
 
 afterEach(() => {
@@ -13,6 +16,7 @@ afterEach(() => {
   root = null;
   document.body.innerHTML = "";
   vi.restoreAllMocks();
+  delete window.puppyoneDesktop;
 });
 
 describe("EditorSplitResizeHandle", () => {
@@ -102,7 +106,7 @@ describe("EditorSplitResizeHandle", () => {
   });
 });
 
-function renderResizeHandle(onCommit: (splitId: string, ratio: number) => void, ratio = 0.5) {
+function renderResizeHandle(onCommit: (splitId: string, ratio: number) => void, ratio = 0.5, direction: "horizontal" | "vertical" = "horizontal") {
   const container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
@@ -110,7 +114,7 @@ function renderResizeHandle(onCommit: (splitId: string, ratio: number) => void, 
     <div className="desktop-editor-split">
       <div />
       <EditorSplitResizeHandle
-        direction="horizontal"
+        direction={direction}
         ratio={ratio}
         splitId="editor-split-1"
         onCommit={onCommit}
@@ -145,3 +149,146 @@ function pointerEvent(type: string, clientX: number, pointerId: number) {
     pointerId,
   });
 }
+
+
+describe.each(["horizontal", "vertical"] as const)("%s editor splitter lifecycle", (direction) => {
+  function fixture() {
+    const frames = new Map<number, FrameRequestCallback>();
+    let sequence = 0;
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation(callback => { frames.set(++sequence, callback); return sequence; });
+    vi.spyOn(window, "cancelAnimationFrame").mockImplementation(id => { frames.delete(id); });
+    const publish = vi.fn();
+    installDesktopBridge({ setNativeSurfacePointerPassthrough: publish });
+    const commit = vi.fn();
+    const { container, handle } = renderResizeHandle(commit, 0.5, direction);
+    container.getBoundingClientRect = () => new DOMRect(20, 30, 1001, 1001);
+    handle.getBoundingClientRect = () => direction === "horizontal"
+      ? new DOMRect(520, 30, 1, 1001) : new DOMRect(20, 530, 1001, 1);
+    installPointerCapture(handle);
+    const fire = (type: string, offset = 700.5, pointerId = 7) => act(() => handle.dispatchEvent(new PointerEvent(type, {
+      bubbles: true, button: 0, pointerId,
+      clientX: direction === "horizontal" ? 20 + offset : 80,
+      clientY: direction === "vertical" ? 30 + offset : 90,
+    })));
+    const flush = () => act(() => { const pending = [...frames.values()]; frames.clear(); pending.forEach(callback => callback(performance.now())); });
+    return { container, handle, commit, publish, frames, fire, flush };
+  }
+
+  it.each(["pointercancel", "lostpointercapture", "Escape", "blur", "pagehide", "hidden", "unmount"])(
+    "cancels %s with a queued frame and releases only its gesture", (reason) => {
+      const f = fixture();
+      f.fire("pointerdown", 500.5);
+      f.flush();
+      f.fire("pointermove");
+      expect(f.frames.size).toBe(1);
+      expect(isNativeSurfaceLayoutStable()).toBe(false);
+      expect(f.publish).toHaveBeenLastCalledWith({ active: true });
+      const lateFrames = [...f.frames.values()];
+      if (reason === "pointercancel" || reason === "lostpointercapture") f.fire(reason);
+      else act(() => {
+        if (reason === "unmount") { root?.unmount(); root = null; }
+        else if (reason === "Escape") window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+        else if (reason === "hidden") {
+          vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+          document.dispatchEvent(new Event("visibilitychange"));
+        } else window.dispatchEvent(new Event(reason));
+      });
+      expect(f.commit).not.toHaveBeenCalled();
+      expect(f.handle.dataset.resizing).toBeUndefined();
+      expect(f.handle.hasPointerCapture(7)).toBe(false);
+      expect(f.handle.getAttribute("aria-valuenow")).toBe("50");
+      expect(f.container.style.getPropertyValue("--desktop-editor-first-track")).toBe("0.5fr");
+      expect(f.frames.size).toBe(0);
+      expect(isNativeSurfaceLayoutStable()).toBe(true);
+      expect(f.publish.mock.calls).toEqual([[{ active: true }], [{ active: false }]]);
+      act(() => lateFrames.forEach(callback => callback(performance.now())));
+      f.fire("pointerup");
+      expect(f.commit).not.toHaveBeenCalled();
+      expect(f.container.style.getPropertyValue("--desktop-editor-first-track")).toBe("0.5fr");
+    },
+  );
+
+  it("commits the final pointer coordinate once and ignores late callbacks", () => {
+    const f = fixture();
+    f.fire("pointerdown", 500.5);
+    f.fire("pointermove", 600.5);
+    const lateFrames = [...f.frames.values()];
+    f.fire("pointerup", 800.5);
+    f.fire("pointerup", 900.5);
+    act(() => lateFrames.forEach(callback => callback(performance.now())));
+    expect(f.commit.mock.calls).toEqual([["editor-split-1", 0.8]]);
+    expect(f.handle.hasPointerCapture(7)).toBe(false);
+    expect(isNativeSurfaceLayoutStable()).toBe(true);
+    expect(f.container.style.getPropertyValue("--desktop-editor-first-track")).toBe("0.8fr");
+  });
+
+  it("ignores another pointer's move, release, cancellation and capture loss", () => {
+    const f = fixture();
+    f.fire("pointerdown", 500.5);
+    for (const type of ["pointermove", "pointerup", "pointercancel", "lostpointercapture"]) f.fire(type, 900.5, 99);
+    expect(f.handle.dataset.resizing).toBe("true");
+    expect(isNativeSurfaceLayoutStable()).toBe(false);
+    expect(f.commit).not.toHaveBeenCalled();
+    f.fire("pointerup", 700.5);
+    expect(f.commit.mock.calls).toEqual([["editor-split-1", 0.7]]);
+  });
+
+  it("retains pointer ownership when an element inside the window loses keyboard focus", () => {
+    const f = fixture();
+    f.fire("pointerdown", 500.5);
+    act(() => f.container.dispatchEvent(new FocusEvent("blur", { bubbles: false })));
+    expect(f.handle.dataset.resizing).toBe("true");
+    expect(isNativeSurfaceLayoutStable()).toBe(false);
+    f.fire("pointerup", 700.5);
+    expect(f.commit.mock.calls).toEqual([["editor-split-1", 0.7]]);
+  });
+
+  it("cleans up a failed pointer capture without committing a layout", () => {
+    const f = fixture();
+    f.handle.setPointerCapture = () => { throw new DOMException("Pointer is no longer active"); };
+    f.fire("pointerdown");
+    expect(f.commit).not.toHaveBeenCalled();
+    expect(f.handle.dataset.resizing).toBeUndefined();
+    expect(isNativeSurfaceLayoutStable()).toBe(true);
+    expect(f.publish.mock.calls).toEqual([[{ active: true }], [{ active: false }]]);
+  });
+
+  it("does not release another owner's native layout or pointer lease on cancellation", () => {
+    const f = fixture();
+    const other = acquireNativeSurfaceResizeLease("editor-split-resize", "another-split");
+    try {
+      f.fire("pointerdown");
+      f.fire("pointercancel");
+      expect(f.commit).not.toHaveBeenCalled();
+      expect(isNativeSurfaceLayoutStable()).toBe(false);
+      expect(f.publish.mock.calls).toEqual([[{ active: true }]]);
+    } finally { other.release(); }
+    expect(isNativeSurfaceLayoutStable()).toBe(true);
+    expect(f.publish).toHaveBeenLastCalledWith({ active: false });
+  });
+
+  it.each([{ offset: -1000, ratio: 0.15 }, { offset: 5000, ratio: 0.85 }])(
+    "clamps an out-of-bounds release to $ratio without leaving a live frame", ({ offset, ratio }) => {
+      const f = fixture();
+      f.fire("pointerdown", 500.5);
+      f.fire("pointerup", offset);
+      expect(f.commit.mock.calls).toEqual([["editor-split-1", ratio]]);
+      expect(f.handle.getAttribute("aria-valuenow")).toBe(String(ratio * 100));
+      expect(f.frames.size).toBe(0);
+      expect(isNativeSurfaceLayoutStable()).toBe(true);
+    },
+  );
+
+  it("routes keyboard adjustment on its own axis and equalizes the split", () => {
+    const f = fixture();
+    act(() => {
+      f.handle.dispatchEvent(new KeyboardEvent("keydown", { key: direction === "horizontal" ? "ArrowRight" : "ArrowDown", bubbles: true }));
+      f.handle.dispatchEvent(new KeyboardEvent("keydown", { key: direction === "horizontal" ? "ArrowLeft" : "ArrowUp", bubbles: true }));
+      f.handle.dispatchEvent(new KeyboardEvent("keydown", { key: direction === "horizontal" ? "ArrowDown" : "ArrowRight", bubbles: true }));
+      f.handle.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+    });
+    expect(f.commit.mock.calls).toEqual([["editor-split-1", 0.525], ["editor-split-1", 0.475], ["editor-split-1", 0.5]]);
+    expect(f.handle.getAttribute("aria-orientation")).toBe(direction === "horizontal" ? "vertical" : "horizontal");
+    expect(f.publish).not.toHaveBeenCalled();
+  });
+});

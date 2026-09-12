@@ -44,7 +44,10 @@ export function useInteractionTermination({
     const handleVisibilityChange = () => {
       if (document.visibilityState === "hidden") terminate("hidden");
     };
-    const handleBlur = () => {
+    const handleBlur = (event: FocusEvent) => {
+      // Capture also observes descendant focus changes. Only losing the window
+      // ends a pointer session; moving keyboard focus inside it does not.
+      if (event.target !== event.currentTarget) return;
       if (blurGraceMs <= 0) {
         terminate("blur");
         return;
@@ -55,7 +58,9 @@ export function useInteractionTermination({
         terminate("blur");
       }, blurGraceMs);
     };
-    const handleFocus = () => clearBlurTimer();
+    const handleFocus = (event: FocusEvent) => {
+      if (event.target === event.currentTarget) clearBlurTimer();
+    };
     const handlePageHide = () => terminate("pagehide");
     const handleDragEnd = () => terminate("dragend");
     const handleDrop = () => terminate("drop");

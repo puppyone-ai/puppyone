@@ -165,7 +165,5 @@ export function useSplitResizeGesture({
     finish("cancel");
   }, [finish]);
 
-  const lostCapture = useCallback(() => finish("cancel"), [finish]);
-
-  return { start, move, end, cancel, lostCapture } as const;
+  return { start, move, end, cancel, lostCapture: cancel } as const;
 }

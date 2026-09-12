@@ -326,6 +326,30 @@
       "artifacts": []
     },
     {
+      "id": "editor-panes",
+      "name": "Every preset Viewer: split, resize, move, menu close and retained history",
+      "group": "app",
+      "command": [
+        "npm",
+        "run",
+        "smoke:editor-pane-contracts"
+      ],
+      "platforms": [
+        "linux",
+        "darwin"
+      ],
+      "dependsOn": [],
+      "timeoutSeconds": 300,
+      "runtime": "electron",
+      "environment": {
+        "PUPPYONE_PANE_CONTRACT_ARTIFACT_DIR": "{checkDir}/evidence"
+      },
+      "artifacts": [
+        "{checkDir}/evidence/result.json",
+        "{checkDir}/evidence"
+      ]
+    },
+    {
       "id": "platform-contracts",
       "name": "Native platform contracts",
       "group": "platform",

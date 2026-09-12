@@ -46,7 +46,7 @@ Use `npm run check:release -- --list` to inspect dependencies and
 `npm run test:desktop` runs the app selection, including its build dependency:
 Markdown focus, resize cursor recovery, Agent rendering/tools, project sessions,
 appearance/typography, auxiliary appearance, item utility/renderer isolation,
-and editor runtime lifecycle. These fixture scenarios require no real Agent
+editor runtime lifecycle, and the complete preset Viewer pane matrix. These fixture scenarios require no real Agent
 prompt or paid account. `npm run test:e2e -- --agent-draft` is an additional
 installed-runtime-dependent branch; the default e2e command covers project and
 Terminal sessions. The isolated item-renderer scenario also verifies Agent draft
@@ -57,6 +57,30 @@ Other `smoke:*` commands are explicit focused checks, not implicitly part of CI.
 `RUN_NATIVE_AGENT_SMOKE=1` / `RUN_NATIVE_AGENT_REFERENCE_SMOKE=1`, respectively, and local runtime/account setup; they can execute real
 Agent requests. `smoke:codex-agent` likewise uses a locally installed Codex
 runtime. Keep these opt-in and preserve their completion/status checks.
+
+## Editor pane interactions
+
+Common gestures belong to `component/workbench/layout/`, not to each format.
+`editorSplitResizeInteraction.test.tsx` covers both directions, queued frames,
+commit/cancel, capture loss, window lifecycle and lease ownership.
+`editorPaneActionsMenu.test.tsx` owns generic menu semantics; CSV menu settings
+remain under `editor/formats/csv/`.
+
+`integration/workbench/layout/editorPaneActions.integration.test.tsx` connects
+real menu clicks to the real workbench controller, including active/inactive
+pane closing, keyboard focus, remaining view/history, final-pane close and late
+reads. `integration/editor/runtime/editorPaneContracts.tsx` drives the Electron
+matrix; its registry guard and runner live beside it. Fixtures stay under
+`fixtures/editor/runtime/` and `fixtures/editor/formats/samples/`.
+
+`npm run smoke:editor-pane-contracts` runs every registered built-in Viewer,
+including fallback: 18 file fixtures × two split directions. It exercises real
+renderers, live resize, controller split/move, menu close, native PDF teardown,
+and companion undo/redo through real filesystem IPC. App Preview uses a
+controlled runtime port and a real separate-origin iframe. OS child-surface
+pointer forwarding is tested separately; this matrix injects Chromium input into
+the owner renderer. Its `editor-panes` app gate runs the complete matrix. The
+optional `-- --case pdf` selection is diagnostic and is recorded in its report.
 
 ## Coverage and native acceptance
 
