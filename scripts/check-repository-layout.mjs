@@ -20,7 +20,7 @@ const requiredPaths = [
   "tooling/desktop/build/create-builder-config.mjs",
   "tooling/desktop/release/release-set.mjs",
   "scripts/check-desktop-build-environment.mjs",
-  "tests/fixtures/editor-rendering/README.md",
+  "tests/fixtures/editor/formats/samples/README.md",
 ];
 const retiredPaths = [
   ".tmp-viewer-gpu-audit.mjs",
