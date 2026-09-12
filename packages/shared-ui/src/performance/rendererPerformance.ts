@@ -91,6 +91,10 @@ export class RendererPerformanceTracker {
 
   mark(traceId: string, stage: Exclude<RendererPerformanceStage, "file_select">): boolean {
     const trace = this.traces.get(traceId);
+    // Editing can notify content readiness again after the open has completed.
+    // Repeated observations of an already recorded stage keep its first timing;
+    // cancelled traces and previously unseen late stages remain stale commits.
+    if (trace?.status === "complete" && typeof trace.stages[stage] === "number") return true;
     if (!trace || trace.status !== "active") {
       this.staleCommitCount += 1;
       return false;
