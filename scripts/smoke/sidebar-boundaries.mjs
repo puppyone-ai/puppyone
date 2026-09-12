@@ -98,6 +98,7 @@ export async function verifySidebarBoundaries({ window, contents, temp, label, u
   assert(JSON.stringify(headerPixels)===JSON.stringify(bodyPixels),'Header/body paint differs');
   await evaluate("document.querySelector('.desktop-titlebar-terminal, .desktop-shell-toolbar-terminal').click()");
   await until(async()=>evaluate("Boolean(document.querySelector('.desktop-right-sidebar-resizer.po-collapsed-pane-edge-handle'))"),'collapsed edge settled');
+  assert(!view.getVisible(), `${label} native content remains visible after sidebar collapse`);
   const collapsed=await evaluate(`(() => {const r=document.querySelector('.desktop-right-sidebar-resizer').getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height};})()`);
   assert(collapsed.width===12 && collapsed.x>=0 && collapsed.x+collapsed.width<=window.getContentSize()[0], 'collapsed edge leaves the window');
   send('mouseDown',collapsed.x+6,collapsed.y+60);

@@ -74,15 +74,16 @@ it("replays geometry into a recovered display without replaying focus or executi
   expect(listener).toHaveBeenCalledTimes(1);
 });
 
-it("makes late React cleanup inert after project resource disposal", async () => {
+it("hides the current presentation before disposal and makes late React cleanup inert", async () => {
   const { host, bridge } = fixture();
   const binding = host.bindPresentation();
   binding.geometry(geometry);
   host.dispose();
   binding.release(); binding.geometry(geometry); binding.focus();
   await binding.configure({ presented: true });
-  expect(bridge.setGeometry).toHaveBeenCalledTimes(1);
-  expect(bridge.configure).not.toHaveBeenCalled();
+  expect(bridge.setGeometry).toHaveBeenCalledTimes(2);
+  expect(bridge.setGeometry).toHaveBeenLastCalledWith(expect.objectContaining({ visible: false }));
+  expect(bridge.configure).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ presented: false, commandTarget: false }));
   expect(bridge.focus).not.toHaveBeenCalled();
 });
 

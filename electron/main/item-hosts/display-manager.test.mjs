@@ -6,7 +6,7 @@ import { createNativeSurfacePointerPassthroughCoordinator } from "../native-surf
 
 function fixture({ capacity = 12, createViewFailure = false } = {}) {
   const budget = createItemHostBudget({ project: capacity });
-  const owner = { id: 1, isDestroyed: () => false, getOSProcessId: () => 1, send: vi.fn(), sendInputEvent: vi.fn() };
+  const owner = Object.assign(new EventEmitter(), { id: 1, isDestroyed: () => false, getOSProcessId: () => 1, send: vi.fn(), sendInputEvent: vi.fn() });
   const context = { projectId: "project", generation: "open-1", rootPath: "/fixture" };
   const window = Object.assign(new EventEmitter(), { webContents: owner, isDestroyed: () => false,
     isVisible: () => true, isFocused: vi.fn(() => true), getContentSize: () => [1000, 800], contentView: { addChildView() {}, removeChildView() {} } });
@@ -57,6 +57,96 @@ function fixture({ capacity = 12, createViewFailure = false } = {}) {
 }
 
 describe("item display lifecycle", () => {
+  it("shares one owner subscription across items and releases it after the last display", async () => {
+    const { manager, owner, request } = fixture();
+    const second = { ...request, itemId: "terminal-second" };
+    try {
+      await manager.create(owner, request);
+      await manager.create(owner, second);
+      expect(owner.listenerCount("did-start-navigation")).toBe(1);
+      expect(owner.listenerCount("render-process-gone")).toBe(1);
+      expect(owner.listenerCount("destroyed")).toBe(1);
+      owner.emit("did-start-navigation", { isMainFrame: true, isSameDocument: false });
+      expect(manager.values().every((entry) => entry.presentationDetached)).toBe(true);
+      await manager.recover(owner, request);
+      await manager.close(owner, request);
+      expect(owner.listenerCount("did-start-navigation")).toBe(1);
+    } finally { await manager.closeAll(); }
+    expect(owner.listenerCount("did-start-navigation")).toBe(0);
+    expect(owner.listenerCount("render-process-gone")).toBe(0);
+    expect(owner.listenerCount("destroyed")).toBe(0);
+  });
+
+  it.each(["reload", "crash", "destroy"])("revokes native presentation after owner %s without closing execution", async (reason) => {
+    const { manager, owner, request, terminalService, window } = fixture();
+    try {
+      const initial = await manager.create(owner, request);
+      const entry = manager.values()[0];
+      const wc = entry.view.webContents;
+      const geometry = { ...request, generation: initial.generation, presentationId: 1, revision: 1,
+        visible: true, bounds: { x: 0, y: 0, width: 400, height: 600 } };
+      manager.configure(owner, { ...geometry, presented: true, commandTarget: true });
+      manager.geometry(owner, geometry);
+      owner.emit("did-start-navigation", { isMainFrame: false, isSameDocument: false });
+      owner.emit("did-start-navigation", { isMainFrame: true, isSameDocument: true });
+      expect(entry.attachment.isVisible()).toBe(true);
+      const pendingReference = expect(manager.request(entry, "resolve-reference", {})).rejects.toMatchObject({ code: "HOST_DISPLAY_DETACHED" });
+      wc.emit("focus");
+      owner.send.mockClear();
+      if (reason === "reload") owner.emit("did-start-navigation", { isMainFrame: true, isSameDocument: false });
+      else owner.emit(reason === "crash" ? "render-process-gone" : "destroyed");
+      await pendingReference;
+      expect(entry.attachment.isVisible()).toBe(false);
+      expect(entry.configuration).toMatchObject({ presented: false, commandTarget: false });
+      expect(entry.display).toBe("crashed");
+      expect(wc.isDestroyed()).toBe(false);
+      expect(terminalService.close).not.toHaveBeenCalled();
+      manager.geometry(owner, { ...geometry, revision: 100 });
+      manager.configure(owner, { ...geometry, presented: true, commandTarget: true });
+      manager.ready(entry);
+      window.emit("show");
+      wc.emit("unresponsive");
+      wc.emit("responsive");
+      manager.focus(owner, geometry);
+      manager.publish(entry, "summary", { snapshot: { resourceId: "retained-session" } });
+      expect(owner.send).not.toHaveBeenCalled();
+      expect(() => manager.request(entry, "resolve-reference", {})).toThrow("workspace view is no longer available");
+      expect(entry.attachment.isVisible()).toBe(false);
+      expect(entry.display).toBe("crashed");
+      expect(entry.configuration.presented).toBe(false);
+      expect(wc.focus).not.toHaveBeenCalled();
+      const recovered = await manager.recover(owner, request);
+      manager.configure(owner, { ...geometry, generation: recovered.generation, presented: true });
+      manager.geometry(owner, { ...geometry, generation: recovered.generation, revision: 2 });
+      expect(entry.attachment.isVisible()).toBe(true);
+      expect(terminalService.create).toHaveBeenCalledTimes(1);
+      expect(terminalService.close).not.toHaveBeenCalled();
+      expect(owner.listenerCount("did-start-navigation")).toBe(1);
+    } finally { await manager.closeAll(); }
+    expect(owner.listenerCount("did-start-navigation")).toBe(0);
+    expect(owner.listenerCount("render-process-gone")).toBe(0);
+    expect(owner.listenerCount("destroyed")).toBe(0);
+  });
+
+  it("keeps a collapsed item hidden when stale visible geometry arrives", async () => {
+    const { manager, owner, request, terminalService } = fixture();
+    try {
+      const initial = await manager.create(owner, request);
+      const entry = manager.values()[0];
+      const geometry = { ...request, generation: initial.generation, presentationId: 1, revision: 1,
+        visible: true, bounds: { x: 0, y: 0, width: 400, height: 600 } };
+      manager.configure(owner, { ...geometry, presented: true });
+      manager.geometry(owner, geometry);
+      expect(entry.attachment.isVisible()).toBe(true);
+      manager.configure(owner, { ...geometry, presented: false, commandTarget: false });
+      manager.geometry(owner, { ...geometry, revision: 2 });
+      expect(entry.attachment.isVisible()).toBe(false);
+      manager.configure(owner, { ...geometry, presented: true });
+      expect(entry.attachment.isVisible()).toBe(true);
+      expect(terminalService.close).not.toHaveBeenCalled();
+      expect(terminalService.create).toHaveBeenCalledTimes(1);
+    } finally { await manager.closeAll(); }
+  });
   it("rejects full display capacity before any terminal create request", async () => {
     const { manager, owner, request, terminalService, budget } = fixture({ capacity: 0 });
     await expect(manager.create(owner, request)).rejects.toMatchObject({ code: "HOST_BUDGET_EXHAUSTED" });
@@ -130,6 +220,8 @@ describe("item display lifecycle", () => {
       manager.geometry(owner, { ...geometry, presentationId: 2, revision: 200 });
       expect(entry.attachment.isVisible()).toBe(false);
       manager.geometry(owner, { ...geometry, generation: recovered.generation, presentationId: 2, revision: 4 });
+      expect(entry.attachment.isVisible()).toBe(false);
+      manager.configure(owner, { ...geometry, generation: recovered.generation, presentationId: 2, presented: true });
       expect(entry.attachment.isVisible()).toBe(true);
       expect(terminalService.create).toHaveBeenCalledTimes(1);
     } finally { await manager.closeAll(); }

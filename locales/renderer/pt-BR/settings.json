@@ -144,8 +144,6 @@
   "experimental.projectsHome.detail": "Experimente o layout unificado de cartões para projetos da Cloud e locais.",
   "experimental.firstProjectStarter.title": "Ponto de partida do primeiro projeto",
   "experimental.firstProjectStarter.detail": "Mostra uma vez o seletor experimental Em branco, Primeiros passos, Notas e Tabela de dados após criar um projeto local vazio.",
-  "experimental.agentChat.title": "Chat do agente",
-  "experimental.agentChat.detail": "Mostra o ícone experimental de Chat no cabeçalho. O Terminal continua como um botão separado e disponível quando esta opção está desativada.",
   "experimental.cloudWorkspace.title": "PuppyOne Cloud",
   "experimental.cloudWorkspace.detail": "Mostra a entrada do Cloud na navegação e o lembrete de publicação do Cloud no controle do código-fonte.",
   "experimental.cloudAutomation.title": "Automation",

@@ -144,8 +144,6 @@
   "experimental.projectsHome.detail": "Cloud とローカルプロジェクトを統合した実験的なカードレイアウトを試します。",
   "experimental.firstProjectStarter.title": "最初のプロジェクトの開始方法",
   "experimental.firstProjectStarter.detail": "空のローカルプロジェクトを作成した後に、空白、はじめに、ノート、データ表の実験的な選択画面を一度だけ表示します。",
-  "experimental.agentChat.title": "エージェントチャット",
-  "experimental.agentChat.detail": "ヘッダーに実験的なチャットアイコンを表示します。ターミナルは独立したボタンのままで、この設定がオフでも利用できます。",
   "experimental.cloudWorkspace.title": "PuppyOne Cloud",
   "experimental.cloudWorkspace.detail": "ナビゲーションの Cloud 項目と、ソース管理の Cloud 公開リマインダーを表示します。",
   "experimental.cloudAutomation.title": "Automation",

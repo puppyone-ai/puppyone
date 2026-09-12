@@ -144,8 +144,6 @@
   "experimental.projectsHome.detail": "Cloud 및 로컬 프로젝트를 위한 통합 카드 레이아웃을 사용해 봅니다.",
   "experimental.firstProjectStarter.title": "첫 프로젝트 시작 방식",
   "experimental.firstProjectStarter.detail": "빈 로컬 프로젝트를 만든 후 빈 프로젝트, 시작하기, 메모, 데이터 표 선택 화면을 한 번만 표시합니다.",
-  "experimental.agentChat.title": "에이전트 채팅",
-  "experimental.agentChat.detail": "헤더에 실험적 채팅 아이콘을 표시합니다. 터미널은 별도 버튼으로 유지되며 이 옵션을 꺼도 사용할 수 있습니다.",
   "experimental.cloudWorkspace.title": "PuppyOne Cloud",
   "experimental.cloudWorkspace.detail": "탐색의 Cloud 항목과 소스 제어의 Cloud 게시 알림을 표시합니다.",
   "experimental.cloudAutomation.title": "Automation",

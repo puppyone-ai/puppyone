@@ -32,7 +32,6 @@ import { AssetLibraryHome } from "./components/AssetLibraryHome";
 import {
   closeAgentChatWorkbenchItem,
   discardPreparedAgentChatWorkbenchItem,
-  isDesktopAgentChatEnabled,
   loadAgentChatHistoryBrowser,
   loadAgentChatWorkbenchItem,
   prepareAgentChatWorkbenchItem,
@@ -183,7 +182,6 @@ function AppContent() {
   // the user opts into the experiment in Settings.
   const cloudEnabled = cloudAvailable && preferences.experimentalSettings.enableCloudWorkspace;
   const assetLibraryHomeAvailable = useFeatureFlag("assetLibraryHome");
-  const agentChatAvailable = useFeatureFlag("desktopAgentChat");
   const {
     cloudSession,
     cloudSessionRestoring,
@@ -418,27 +416,13 @@ function AppContent() {
   }, []);
   const switcherRef = useRef<HTMLDivElement>(null);
   const desktopTerminalEnabled = isDesktopTerminalEnabled({ terminalToolEnabled });
-  const desktopAgentChatEnabled = isDesktopAgentChatEnabled({
-    available: agentChatAvailable,
-    optedIn: experimentalSettings.enableAgentChat,
-  });
-  const desktopRightSidebarEnabled = desktopTerminalEnabled || desktopAgentChatEnabled;
 
   useEffect(() => {
-    if (!desktopRightSidebarEnabled) {
-      if (rightSidebarOpen) setRightSidebarOpen(false);
-      return;
-    }
     // Legacy surface selection is retained only as a one-way migration key.
     // The unified Workbench owns Item selection from this point onward.
     if (rightSidebarSurface !== "terminal") setRightSidebarSurface("terminal");
   }, [
-    desktopAgentChatEnabled,
-    desktopRightSidebarEnabled,
-    desktopTerminalEnabled,
-    rightSidebarOpen,
     rightSidebarSurface,
-    setRightSidebarOpen,
     setRightSidebarSurface,
   ]);
   const refreshWorkspaceContent = useCallback((
@@ -1042,8 +1026,7 @@ function AppContent() {
     handleActiveDataPathChange(resource);
     navigateDesktopView("data");
   }, [handleActiveDataPathChange, navigateDesktopView, workbenchWorkspace?.folders]);
-  const agentChatContribution = useMemo<AuxiliaryWorkbenchContribution | null>(() => {
-    if (!desktopAgentChatEnabled) return null;
+  const agentChatContribution = useMemo<AuxiliaryWorkbenchContribution>(() => {
     return Object.freeze({
       kind: "agent-chat",
       label: t("agent.panel.chat", { agent: t("agent.name") }),
@@ -1116,7 +1099,6 @@ function AppContent() {
     agentPreferredRoute,
     agentPreferredRuntime,
     agentChatRuntimeVisibility,
-    desktopAgentChatEnabled,
     handleAgentOpenFile,
     localAgentsSettings,
     resolveAgentWorkspaceReference,
@@ -1133,7 +1115,7 @@ function AppContent() {
     return readTerminalAppearance(surface);
   }, []);
   const auxiliaryWorkbenchContributions = useMemo(
-    () => [...(desktopTerminalEnabled ? [createTerminalWorkbenchContribution(t, readAuxiliaryTerminalAppearance)] : []), ...(agentChatContribution ? [agentChatContribution] : [])],
+    () => [...(desktopTerminalEnabled ? [createTerminalWorkbenchContribution(t, readAuxiliaryTerminalAppearance)] : []), agentChatContribution],
     [agentChatContribution, desktopTerminalEnabled, t, readAuxiliaryTerminalAppearance],
   );
   const [projectSessions] = useState(() => new ProjectSessionManager());
@@ -1218,8 +1200,8 @@ function AppContent() {
   const chromeActionProps = {
     desktopUpdateState: desktopUpdates.state,
     titlebarActionsSettings,
-    terminalSidebarOpen: rightSidebarOpen && desktopRightSidebarEnabled,
-    terminalToolEnabled: desktopRightSidebarEnabled,
+    terminalSidebarOpen: rightSidebarOpen,
+    terminalToolEnabled: true,
     onUpdateNow: () => void desktopUpdates.updateNow(),
     onToggleTerminal: () => {
       setRightSidebarOpen(!rightSidebarOpen);
@@ -1243,16 +1225,13 @@ function AppContent() {
   const feedbackInNavigationToolbar = !projectSwitcherRailVisible
     && toolsInNavigationToolbar
     && sidebarNavigationPlacement === "top";
-  const navigationToolbarActions = toolsInNavigationToolbar
-    && (desktopRightSidebarEnabled || feedbackInNavigationToolbar) ? (
+  const navigationToolbarActions = toolsInNavigationToolbar ? (
       <>
-        {desktopRightSidebarEnabled && (
-          <DesktopTitlebarActions
-            {...chromeActionProps}
-            placement="toolbar"
-            visibleGroups={["right-sidebar"]}
-          />
-        )}
+        <DesktopTitlebarActions
+          {...chromeActionProps}
+          placement="toolbar"
+          visibleGroups={["right-sidebar"]}
+        />
         {feedbackInNavigationToolbar && feedbackLauncher}
       </>
     ) : undefined;
@@ -1304,13 +1283,13 @@ function AppContent() {
               onNavigate={handleLocationBarNavigate}
             />
           ) : undefined}
-          rightSidebarOpen={!settingsWorkspaceActive && rightSidebarOpen && desktopRightSidebarEnabled}
+          rightSidebarOpen={!settingsWorkspaceActive && rightSidebarOpen}
           resizableRightSidebar
           rightSidebarWidth={rightSidebarWidth}
           onLeftSidebarExpand={() => setSidebarCollapsed(false)}
           onRightSidebarOpenChange={setRightSidebarOpen}
           onRightSidebarWidthChange={setRightSidebarWidth}
-          rightSidebar={desktopRightSidebarEnabled ? (
+          rightSidebar={(
             <div ref={auxiliarySurfaceRef} className="desktop-right-sidebar-stack">
               <div className="desktop-right-sidebar-surface is-active">
                 {projectWorkbench && <AuxiliaryWorkbenchPanel
@@ -1326,7 +1305,7 @@ function AppContent() {
                 />}
               </div>
             </div>
-          ) : undefined}
+          )}
         >
           <DesktopWorkspaceContent
           activeAiEditRequest={activeAiEditRequest}

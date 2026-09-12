@@ -233,7 +233,6 @@ function renderSidebar(root: Root, {
       cloudWorkspace: true,
       cloudBilling: true,
       assetLibraryHome: false,
-      desktopAgentChat: false,
     }}>
       <CloudServiceSidebar
         cloudAuthState={authState}

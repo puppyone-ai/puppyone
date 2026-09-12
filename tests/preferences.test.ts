@@ -204,23 +204,18 @@ describe("local Agent preferences", () => {
 });
 
 describe("experimental preferences", () => {
-  it("keeps Agent Chat off unless the user explicitly opts in", () => {
-    expect(parseExperimentalSettings(null).enableAgentChat).toBe(false);
-    expect(parseExperimentalSettings("not-json").enableAgentChat).toBe(false);
-    expect(parseExperimentalSettings(JSON.stringify({ enableAgentChat: true }))).toMatchObject({
-      enableAgentChat: true,
-      enableAssetLibraryHome: false,
-      enableCloudAutomation: false,
-      enableCloudWorkspace: false,
-      enableEditorSaveStatus: false,
-      enableFirstProjectStarter: false,
-      enableMarkdownBlockDrag: false,
-      enableMultiRootWorkspaces: false,
-      enablePuppyFlowFiles: false,
-      enableProjectSwitcherRail: false,
-      enableViewerPlugins: false,
+  it.each([true, false])("ignores retired Agent Chat preferences set to %s without changing other experiments", (enabled) => {
+    const settings = parseExperimentalSettings(JSON.stringify({
+      enableAgentChat: enabled,
+      enableAgentCompanion: enabled,
+      enableMultiRootWorkspaces: true,
+    }));
+    expect(settings).toEqual({
+      ...DEFAULT_EXPERIMENTAL_SETTINGS,
+      enableMultiRootWorkspaces: true,
     });
-    expect(parseExperimentalSettings(JSON.stringify({ enableAgentCompanion: true })).enableAgentChat).toBe(true);
+    expect(settings).not.toHaveProperty("enableAgentChat");
+    expect(settings).not.toHaveProperty("enableAgentCompanion");
   });
 
   it("keeps PuppyOne Cloud off unless the user explicitly opts in", () => {

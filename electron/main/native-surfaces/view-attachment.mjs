@@ -1,6 +1,7 @@
 /** Shared native view geometry/occlusion ownership, independent of content kind. */
 export function attachNativeSurfaceView({ window, view, nativeSurfaceOcclusion, nativeSurfacePointerPassthrough, onPointerDown, onVisibilityChange }) {
   let visible = false;
+  let presented = true;
   let healthy = true;
   let occluded = false;
   let disposed = false;
@@ -8,7 +9,7 @@ export function attachNativeSurfaceView({ window, view, nativeSurfaceOcclusion, 
   let displayed = false;
   const apply = () => {
     if (disposed || view.webContents.isDestroyed()) return;
-    const next = visible && healthy && !occluded && window.isVisible();
+    const next = presented && visible && healthy && !occluded && window.isVisible();
     if (displayed !== next) {
       view.setVisible(next);
       displayed = next;
@@ -40,6 +41,7 @@ export function attachNativeSurfaceView({ window, view, nativeSurfaceOcclusion, 
       return true;
     },
     healthy(value) { healthy = value; apply(); },
+    presented(value) { presented = value === true; apply(); },
     dispose() {
       if (disposed) return;
       disposed = true;
@@ -47,6 +49,7 @@ export function attachNativeSurfaceView({ window, view, nativeSurfaceOcclusion, 
       window.removeListener("hide", apply);
       releaseOcclusion?.(); releasePointer?.();
       try { view.setVisible(false); window.contentView.removeChildView(view); } catch { /* Owner may have closed. */ }
+      if (displayed) { displayed = false; onVisibilityChange?.(false); }
     },
   };
 }

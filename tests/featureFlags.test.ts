@@ -12,8 +12,4 @@ describe("feature flag release gates", () => {
     expect(resolveFeatureFlags({ assetLibraryHome: true }).assetLibraryHome).toBe(true);
   });
 
-  it("keeps Desktop Agent Chat unavailable unless a build opts in", () => {
-    expect(resolveFeatureFlags({}).desktopAgentChat).toBe(false);
-    expect(resolveFeatureFlags({ desktopAgentChat: true }).desktopAgentChat).toBe(true);
-  });
 });
