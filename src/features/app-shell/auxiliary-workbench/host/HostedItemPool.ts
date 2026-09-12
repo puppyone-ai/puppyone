@@ -86,10 +86,7 @@ export class HostedItem {
       },
       release: () => {
         if (!current()) return;
-        this.bound = false;
-        this.focusPending = false;
-        if (this.geometry) { this.geometry = { ...this.geometry, visible: false }; this.publishGeometry(); }
-        void this.configure({ presented: false, commandTarget: false }).catch(() => {});
+        this.releasePresentation();
       },
     };
   }
@@ -103,8 +100,16 @@ export class HostedItem {
   }
   async close() { await this.bridge.close(this.identity); return true; }
   async recover() { this.update(await this.bridge.recover(this.identity)); }
+  private releasePresentation() {
+    if (!this.bound) return;
+    this.bound = false;
+    this.focusPending = false;
+    if (this.geometry) { this.geometry = { ...this.geometry, visible: false }; this.publishGeometry(); }
+    void this.configure({ presented: false, commandTarget: false }).catch(() => {});
+  }
   dispose() {
-    this.bound = false; this.focusPending = false; this.geometry = null;
+    this.releasePresentation();
+    this.focusPending = false; this.geometry = null;
     this.listeners.clear(); this.eventListeners.clear(); this.activityListeners.clear();
   }
 }

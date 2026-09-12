@@ -144,6 +144,30 @@ async function run() {
     await delay(500);
     assert.equal(terminalService.getDisplayReceipt(owner, receipt).pid, receipt.pid);
     await fs.writeFile(path.join(output, "terminal-a-narrow.png"), (await entry("terminal-a").view.webContents.capturePage()).toPNG());
+    console.log("Checking Shell reload and crash revoke native presentation while preserving sessions...");
+    for (const reason of ["reload", "crash"]) {
+      const oldViews = manager.values().map((value) => value.view);
+      if (reason === "crash") {
+        owner.forcefullyCrashRenderer();
+        await until(() => manager.values().every((value) => value.presentationDetached), "owner crash revokes presentation");
+      }
+      await window.loadURL("data:text/html,<body style='background:%23eee'>Reloaded Shell fixture</body>");
+      assert(oldViews.every((view) => !view.getVisible()), `${reason} left native pixels visible`);
+      assert.equal(window.contentView.children.length, 0, `${reason} left orphan native children attached`);
+      for (const value of manager.values()) {
+        const identity = { itemId: value.itemId, projectContext: context, generation: value.generation, presentationId: 1 };
+        manager.configure(owner, { ...identity, presented: true, commandTarget: true });
+        manager.geometry(owner, { ...identity, revision: 1000, visible: true, bounds: { x: 0, y: 0, width: 400, height: 600 } });
+        assert.equal(value.attachment.isVisible(), false, "Retired Shell messages restored native content");
+        await manager.recover(owner, { itemId: value.itemId, projectContext: context });
+      }
+      configure("agent-a", { x: 0, y: 0, width: 360, height: 480 }, reason === "reload" ? 3 : 4);
+      configure("terminal-a", { x: 380, y: 0, width: 360, height: 480 }, reason === "reload" ? 3 : 4);
+      assert.equal(agentService.diagnostics()[0].pid, agentPid);
+      assert.equal(terminalService.getDisplayReceipt(owner, receipt).pid, receipt.pid);
+      assert.equal(entry("agent-a").draft.text, draft.text);
+      assert.equal(nativeCreateAttempts, 1, "Shell recovery allocated a new Agent session");
+    }
     console.log("Checking mixed-instance admission, output pressure and a blocked display...");
     const otherAgent = await agentService.createSession({ id: owner.id, hostItemId: "agent-b" }, { runtimeId: "codex", rootPath: fixture, projectContext: context }, fixture);
     await manager.create(owner, { itemId: "agent-b", kind: "agent", projectContext: context });
@@ -183,6 +207,7 @@ async function run() {
     assert.deepEqual(errors, []);
     const result = { ok: true, rendererPids: [a.processId, b.processId, chat.processId], agentUtilityPid: agentPid,
       displayRecoveryWithoutExecutionRestart: true, draftRestored: true, siblingResponsive: true,
+      ownerReloadAndCrashDetachNativeViews: true, ownerRecoveryRetainsSessions: true,
       admissions, unaffectedDisplayRoundtripP95Ms: p95, blockedRendererRecovery: true, agentUtilityCrashContained: true, warnings, screenshots: output };
     await fs.writeFile(path.join(output, "result.json"), JSON.stringify(result, null, 2));
     console.log(JSON.stringify(result, null, 2));
