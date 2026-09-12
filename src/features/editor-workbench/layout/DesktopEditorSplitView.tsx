@@ -116,6 +116,7 @@ export function DesktopEditorSplitView({
   onResizeSplit,
   onSplitPane,
 }: DesktopEditorSplitViewProps) {
+  const { t } = useLocalization();
   const editorById = useMemo(
     () => new Map(editorGroup.editors.map((editor) => [editor.id, editor])),
     [editorGroup.editors],
@@ -126,7 +127,10 @@ export function DesktopEditorSplitView({
   const paneHosts = usePersistentEditorPaneHosts(panes.map((pane) => pane.id));
   const [openActionsPaneId, setOpenActionsPaneId] = useState<string | null>(null);
   const paneMove = usePaneMoveDrag(onMovePane);
-  const fileDrop = useExplorerFileDrop(workspace.id, onOpenAtPaneEdge);
+  const fileDrop = useExplorerFileDrop(workspace.id, onOpenAtPaneEdge, {
+    workspacePath: workspace.path,
+    paneIds: panes.map((pane) => pane.id),
+  });
 
   useEffect(() => {
     if (openActionsPaneId && !panes.some((pane) => pane.id === openActionsPaneId)) {
@@ -140,6 +144,9 @@ export function DesktopEditorSplitView({
 
   return (
     <div className="desktop-editor-split-view" data-pane-count={paneCount}>
+      {fileDrop.dropFailed && (
+        <div className="desktop-workspace-surface-alert" role="alert">{t("workspace.drag.exportFailed")}</div>
+      )}
       <EditorLayoutNode
         node={layout.root}
         touchesBlockEnd

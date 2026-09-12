@@ -1221,7 +1221,7 @@ declare global {
       previewResourceDrag: () => Promise<import("../platform/resourceDragSession").ResourceDragPreview | null>;
       claimResourceDrop: (request: {
         files: File[];
-        intent: "explorer-move" | "terminal-path" | "agent-reference";
+        intent: import("../platform/resourceDragSession").ResourceDropIntent;
         targetResource?: string;
       }) => Promise<{ entries: import("@puppyone/shared-ui").ExplorerReferenceDragEntry[] } | null>;
       onResourceDragState: (listener: (state: import("../platform/resourceDragSession").ResourceDragState) => void) => () => void;

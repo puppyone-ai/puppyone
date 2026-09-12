@@ -2,7 +2,7 @@ import type { ExplorerReferenceDragEntry, ReferenceDataTransferSource } from "@p
 
 export type ResourceDragPreview = { id: string; entries: ExplorerReferenceDragEntry[] };
 export type ResourceDragState = { id: string; entries: ExplorerReferenceDragEntry[] | null };
-export type ResourceDropIntent = "explorer-move" | "terminal-path" | "agent-reference";
+export type ResourceDropIntent = "explorer-move" | "terminal-path" | "agent-reference" | "editor-open";
 
 /** File objects must be captured during drop, before the HTML data store closes. */
 export async function resolveResourceDropSource(

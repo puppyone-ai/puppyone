@@ -97,7 +97,7 @@ export function createResourceDragSessionService({ native, resolveEntries, getWi
         return null; // Genuine external drops retain their import behavior.
       }
       if (session.claimed) throw new Error("This drag has already been consumed.");
-      if (!["explorer-move", "terminal-path", "agent-reference"].includes(request?.intent)) throw new Error("Unknown drop intent.");
+      if (!["explorer-move", "terminal-path", "agent-reference", "editor-open"].includes(request?.intent)) throw new Error("Unknown drop intent.");
       const files = request.paths;
       if (!Array.isArray(files) || files.length !== session.entries.length
         || files.some((file) => typeof file !== "string")) throw new Error("The native drop payload does not match its source.");
@@ -112,6 +112,9 @@ export function createResourceDragSessionService({ native, resolveEntries, getWi
           throw new Error("The drop did not complete in this window.");
         }
         const entries = await revalidate(session, event);
+        if (request.intent === "editor-open" && (entries.length !== 1 || entries[0].entryType !== "file")) {
+          throw new Error("An Editor drop requires one file.");
+        }
         if (request.intent === "explorer-move") {
           // Reads/export may follow an in-root symlink. A move must never turn
           // a selected alias (or a file replaced by an alias) into its target.

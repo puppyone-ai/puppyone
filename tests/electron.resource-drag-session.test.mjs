@@ -35,12 +35,12 @@ function fixture() {
   };
 }
 
-it("joins a real drop to the native end, reauthorizes both windows and consumes it once", async () => {
+it.each(["agent-reference", "terminal-path", "editor-open"])("joins %s to the native end, reauthorizes both windows and consumes it once", async (intent) => {
   const f = fixture();
   await f.start();
   expect(await f.service.preview(f.target)).toMatchObject({ entries: [{ path: uri("docs/file.md") }] });
   let delivered = false;
-  const result = f.claim().then((value) => { delivered = true; return value; });
+  const result = f.claim(intent).then((value) => { delivered = true; return value; });
   await Promise.resolve();
   expect(delivered).toBe(false);
   await expect(f.claim()).rejects.toThrow(/already/);
@@ -49,6 +49,23 @@ it("joins a real drop to the native end, reauthorizes both windows and consumes 
   expect(f.target.sender.send).toHaveBeenLastCalledWith("resource-transfer:state", { id: expect.any(String), entries: null });
   expect(f.source.sender.listenerCount("destroyed")).toBe(0);
   await expect(f.claim()).rejects.toThrow(/expired/);
+});
+
+it.each([{ resources: [uri("docs")] }, { resources: [uri("docs/file.md"), uri("other.md")] }])("rejects an Editor payload that is not one file: %j", async ({ resources }) => {
+  const f = fixture();
+  await f.service.start(f.source, { resources }); f.end();
+  await expect(f.service.claim(f.target, { paths: resources.map((resource) => `/repo/${resource.slice(uri("").length)}`), intent: "editor-open" }))
+    .rejects.toThrow(/one file/);
+  await expect(f.claim("editor-open")).rejects.toThrow(/expired/);
+});
+
+it.each(["cancel", "target-window", "source-detached", "target-detached"])("rejects an Editor receipt after %s", async (failure) => {
+  const f = fixture(); await f.start();
+  const result = f.claim("editor-open");
+  if (failure === "source-detached") f.allowed.delete(1);
+  if (failure === "target-detached") f.allowed.delete(2);
+  f.end(failure === "cancel" ? 0 : 1, failure === "target-window" ? 1 : 2);
+  await expect(result).rejects.toThrow();
 });
 
 it("accepts an IPC drop arriving just after native completion, but only in the actual target window", async () => {

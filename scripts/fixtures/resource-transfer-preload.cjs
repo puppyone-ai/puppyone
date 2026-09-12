@@ -14,8 +14,10 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   startResourceDrag: (request) => ipcRenderer.invoke("resource-transfer:start-drag", request),
   resolveResourceReferences: (request) => ipcRenderer.invoke("resource-transfer:resolve", request),
   getPathForFile: (file) => webUtils.getPathForFile(file),
+  setNativeSurfacePointerPassthrough: (request) => ipcRenderer.send("resource-smoke:event", { pointerPassthrough: request }),
 });
 contextBridge.exposeInMainWorld("resourceSmoke", {
   config: () => ipcRenderer.invoke("resource-smoke:config"),
+  read: (resource) => ipcRenderer.invoke("resource-smoke:read", resource),
   record: (entry) => ipcRenderer.send("resource-smoke:event", entry),
 });
