@@ -2,21 +2,23 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useLocalization } from "@puppyone/localization/react";
 import { AuxiliaryWorkbenchPanel } from "../app-shell/auxiliary-workbench/AuxiliaryWorkbenchPanel";
 import { ProjectWorkbenchStore } from "../app-shell/auxiliary-workbench/ProjectWorkbenchStore";
-import type { AuxiliaryWorkbenchContribution } from "../app-shell/auxiliary-workbench/types";
+import type { AuxiliaryWorkbenchContribution, AuxiliaryWorkbenchItemRenderContext, AuxiliaryWorkbenchProject } from "../app-shell/auxiliary-workbench/types";
 import { DesktopOverlayPortal } from "../app-shell/DesktopOverlayPortal";
-import { createTerminalWorkbenchContribution } from "../desktop-terminal/workbench/TerminalWorkbenchContribution";
-import { readTerminalAppearance } from "../desktop-terminal/runtime/terminalAppearance";
+import { TerminalRuntimePool } from "../desktop-terminal/runtime/TerminalRuntimePool";
+import { TerminalSessionView } from "../desktop-terminal/ui/TerminalSessionView";
+import { readTerminalAppearance, type TerminalAppearance } from "../desktop-terminal/runtime/terminalAppearance";
 import { AgentComposer } from "../desktop-agent/ui/AgentComposer";
 import { AgentPickerPopover } from "../desktop-agent/ui/AgentPickerPopover";
 import { AuxiliaryWorkbenchLauncher } from "../app-shell/auxiliary-workbench/AuxiliaryWorkbenchLauncher";
 import { AgentConversationHistory } from "../desktop-agent/ui/AgentConversationHistory";
 import { AGENT_CHAT_CREATION_RECIPES } from "../app-shell/auxiliary-workbench/agentChatCreationRecipes";
 import { resolveAppearance } from "./resolveAppearance";
-import { resolveSurfaceAppearance, SurfaceAppearanceProvider } from "./AppearanceRuntime";
+import { resolveSurfaceAppearance, SurfaceAppearanceProvider, useSurfaceAppearance } from "./AppearanceRuntime";
 import { DEFAULT_TYPOGRAPHY_PREFERENCES, resolveTypography } from "../typography";
 import { DEFAULT_MARKDOWN_PRESENTATION_SETTINGS } from "../markdown/markdownPresentation";
 import type { TerminalAppearanceRequest, TerminalCreateRequest, TerminalDataEvent } from "../../types/electron";
 import "../desktop-agent/ui/desktop-agent.css";
+import "../desktop-terminal/ui/desktop-terminal.css";
 import "./auxiliary-appearance-smoke.css";
 
 type Theme = "light" | "dark" | "windows-xp";
@@ -60,6 +62,23 @@ function ChatFixture() {
   </div>;
 }
 
+// This fixture tests renderer appearance with a deterministic CLI transport.
+// Production workbench contributions now create native hosts; their process and
+// presentation lifecycle is covered by the real project-session smoke instead.
+function TerminalFixture({ project, item, presentation, readAppearance }: AuxiliaryWorkbenchItemRenderContext & {
+  readAppearance: () => TerminalAppearance;
+}) {
+  const appearance = useSurfaceAppearance();
+  const pool = project.getResource<TerminalRuntimePool>("appearance-terminals", () => { throw new Error("Terminal fixture was not prepared."); });
+  const entry = pool.get(item.id)!;
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => entry.runtime.applyAppearance(readAppearance()));
+    return () => cancelAnimationFrame(frame);
+  }, [appearance, entry, readAppearance]);
+  return <TerminalSessionView runtime={entry.runtime} workspacePath={project.context.rootPath}
+    presented={presentation.presented} focused={presentation.commandTarget} />;
+}
+
 export function AuxiliaryAppearanceSmokeHarness() {
   const { t } = useLocalization();
   const [theme, setTheme] = useState<Theme>(initialTheme);
@@ -99,12 +118,18 @@ export function AuxiliaryAppearanceSmokeHarness() {
       renderItem: () => <ChatFixture />,
       close: { decide: () => ({ kind: "close" }), commit: async () => true },
     };
-    const terminal: AuxiliaryWorkbenchContribution = headerMotion ? {
+    const terminalPool = (project: AuxiliaryWorkbenchProject) => project.getResource("appearance-terminals", () => new TerminalRuntimePool(project, t));
+    const terminal: AuxiliaryWorkbenchContribution = {
       ...chat, kind: "terminal", label: "Terminal", createLabel: "Terminal",
       initialSnapshot: { ...chat.initialSnapshot, title: "Terminal", accessibleLabel: "Terminal", iconKey: "shell" },
       creationRecipes: [{ id: "shell", label: "Terminal", iconKey: "shell", status: "available" }],
-      renderItem: () => <div className="desktop-terminal-session">{t("terminal.title")}</div>,
-    } : createTerminalWorkbenchContribution(t, readAppearance);
+      history: undefined,
+      prepare: async ({ project, item }) => { if (!headerMotion) terminalPool(project).ensure(item.id, "shell", readAppearance()); },
+      discardPreparedItem: async ({ project, item }) => { if (!headerMotion) await terminalPool(project).close(item.id); },
+      renderItem: context => headerMotion ? <div className="desktop-terminal-session">{t("terminal.title")}</div>
+        : <TerminalFixture {...context} readAppearance={readAppearance} />,
+      close: { decide: () => ({ kind: "close" }), commit: async ({ project, item }) => headerMotion || terminalPool(project).close(item.id) },
+    };
     return [terminal, chat];
   }, [t, readAppearance]);
   useLayoutEffect(() => {

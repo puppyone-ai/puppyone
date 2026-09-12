@@ -181,8 +181,6 @@
   "experimental.projectsHome.detail": "试用面向云端和本地项目的统一卡片布局。",
   "experimental.firstProjectStarter.title": "首次项目起始项",
   "experimental.firstProjectStarter.detail": "创建空白本地项目后，显示一次实验性的“空白、开始使用、笔记和数据表”选择器。",
-  "experimental.agentChat.title": "智能体聊天",
-  "experimental.agentChat.detail": "在标题栏显示实验性聊天图标。终端仍是独立按钮，关闭此选项后仍可使用。",
   "experimental.cloudWorkspace.title": "PuppyOne Cloud",
   "experimental.cloudWorkspace.detail": "在导航中显示 Cloud 入口，并在源代码管理中显示 Cloud 发布提醒。",
   "experimental.cloudAutomation.title": "Automation",

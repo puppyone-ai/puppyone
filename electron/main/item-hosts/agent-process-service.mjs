@@ -41,7 +41,23 @@ export function createAgentProcessService({ utilityProcess, modulePath, budget, 
     operation?.assertCurrent();
     if (method !== "createSession" && request.sessionId && bySession.has(request.sessionId)) {
       const record = requireOwned(sender, request, root);
-      return record.host.call(method, [request, root]);
+      const result = await record.host.call(method, [request, root]);
+      // Resume may replace a retired native runtime while keeping its conversation
+      // ID. Publish the new instance fence before the renderer attaches its feed.
+      if (!records.has(record) || bySession.get(request.sessionId) !== record) {
+        throw hostError("SESSION_STALE", "This Agent instance is no longer owned by this project.");
+      }
+      try { operation?.assertCurrent(); }
+      catch (error) { await shutdown(record).catch(() => {}); throw error; }
+      const snapshot = method === "openSession" ? result?.snapshot : result;
+      if (!snapshot?.session) {
+        if (method === "resumeSession") await shutdown(record);
+        return result;
+      }
+      if (snapshot.session.id !== record.sessionId) throw hostError("SESSION_STALE", "Recovery returned a different Agent conversation.");
+      record.instanceId = snapshot.session.instanceId;
+      record.runtimeId = snapshot.session.runtimeId;
+      return result;
     }
     if (sender.hostItemId && [...records].some((record) => record.ownerId === sender.id && record.itemId === sender.hostItemId)) {
       throw hostError("SESSION_DUPLICATE", "This item already owns a starting or live Agent session.");

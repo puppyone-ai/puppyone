@@ -47,10 +47,10 @@ requirePath("src/features/local-agents/ui/LocalAgentsSettingsView.tsx");
 requirePath("src/features/local-agents/ui/LocalAgentHooksSettingsView.tsx");
 requirePath("electron/main/terminal-agent/activity/registration/cursor-cli-hook-config.mjs");
 requirePath("electron/main/terminal-agent/activity/bridge/shell-file-intent.mjs");
-requirePath("tests/fixtures/agent-activity/codex-0.147.0/pre-tool-use-bash-read.json");
-requirePath("tests/fixtures/agent-activity/codex-0.147.0/pre-tool-use-apply-patch-write.json");
-requirePath("tests/fixtures/agent-activity/README.md");
-const activityFixtureRoot = path.join(root, "tests", "fixtures", "agent-activity");
+requirePath("tests/fixtures/agent/activity/codex-0.147.0/pre-tool-use-bash-read.json");
+requirePath("tests/fixtures/agent/activity/codex-0.147.0/pre-tool-use-apply-patch-write.json");
+requirePath("tests/fixtures/agent/activity/README.md");
+const activityFixtureRoot = path.join(root, "tests", "fixtures", "agent", "activity");
 for (const filePath of files(activityFixtureRoot)) {
   if (path.extname(filePath) !== ".json") continue;
   const source = readFileSync(filePath, "utf8");

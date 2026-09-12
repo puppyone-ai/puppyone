@@ -96,7 +96,6 @@ export function SettingsView({
   onUpdateNow,
 }: SettingsViewProps) {
   const { t } = useLocalization();
-  const agentChatAvailable = useFeatureFlag("desktopAgentChat");
   const assetLibraryHomeAvailable = useFeatureFlag("assetLibraryHome");
   const [copiedRemoteKey, setCopiedRemoteKey] = useState<string | null>(null);
   const [copyError, setCopyError] = useState<string | null>(null);
@@ -227,7 +226,6 @@ export function SettingsView({
     return (
       <ExperimentalSettingsView
         settings={experimentalSettings}
-        agentChatAvailable={agentChatAvailable}
         assetLibraryHomeAvailable={assetLibraryHomeAvailable}
         onChange={onExperimentalSettingsChange}
       />

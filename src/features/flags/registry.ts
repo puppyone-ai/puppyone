@@ -2,7 +2,6 @@ export const FEATURE_FLAG_DEFAULTS = {
   cloudWorkspace: true,
   cloudBilling: false,
   assetLibraryHome: false,
-  desktopAgentChat: false,
 } as const;
 
 export type FeatureFlagKey = keyof typeof FEATURE_FLAG_DEFAULTS;

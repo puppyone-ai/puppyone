@@ -87,7 +87,6 @@ export type LocalAgentsSettings = {
   chatHistoryDiscoveryEnabled: boolean;
 };
 export type ExperimentalSettings = {
-  enableAgentChat: boolean;
   enableAssetLibraryHome: boolean;
   enableCloudAutomation: boolean;
   enableCloudWorkspace: boolean;
@@ -176,7 +175,6 @@ export const DEFAULT_LOCAL_AGENTS_SETTINGS: LocalAgentsSettings = {
 export const DEFAULT_AGENT_FILE_ACTIVITY_INDICATORS_ENABLED = false;
 export const DEFAULT_AI_EDIT_ASSIST_ENABLED = false;
 export const DEFAULT_EXPERIMENTAL_SETTINGS: ExperimentalSettings = {
-  enableAgentChat: false,
   enableAssetLibraryHome: false,
   enableCloudAutomation: false,
   enableCloudWorkspace: false,
@@ -470,11 +468,7 @@ export function parseExperimentalSettings(value: string | null | undefined): Exp
     const parsed = JSON.parse(value) as Partial<ExperimentalSettings> | null;
     if (!parsed || typeof parsed !== "object") return DEFAULT_EXPERIMENTAL_SETTINGS;
 
-    const legacy = parsed as typeof parsed & {
-      enableAgentCompanion?: unknown;
-    };
     return {
-      enableAgentChat: parsed.enableAgentChat === true || legacy.enableAgentCompanion === true,
       enableAssetLibraryHome: parsed.enableAssetLibraryHome === true,
       enableCloudAutomation: parsed.enableCloudAutomation === true,
       enableCloudWorkspace: parsed.enableCloudWorkspace === true,

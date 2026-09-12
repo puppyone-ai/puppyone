@@ -145,7 +145,7 @@ if (/\b(?:idleDelayMs|maxDelayMs)\b/.test(coreTypesSource)) {
   errors.push(`${relative(coreTypesPath)} exposes delayed autosave policy to persistence adapters`);
 }
 
-const markdownSnapshotTestPath = path.join(repoRoot, "tests/markdownSourceSnapshot.test.tsx");
+const markdownSnapshotTestPath = path.join(repoRoot, "tests/component/editor/formats/markdown/rendering/markdownSourceSnapshot.test.tsx");
 const markdownSnapshotTestSource = readFileSync(markdownSnapshotTestPath, "utf8");
 if (!/starts frontend Markdown persistence immediately after an edit transaction/.test(markdownSnapshotTestSource)) {
   errors.push(`${relative(markdownSnapshotTestPath)} does not cover immediate frontend Markdown persistence`);
@@ -406,7 +406,7 @@ for (const filePath of featureIndependentWorkspaceKernelFiles) {
 
 const workspaceFeatureMatrixTestPath = path.join(
   repoRoot,
-  "tests/workspaceLifecycleExperiment.test.tsx",
+  "tests/component/workspace/files/workspaceLifecycleExperiment.test.tsx",
 );
 const workspaceFeatureMatrixTestSource = readFileSync(workspaceFeatureMatrixTestPath, "utf8");
 for (const requiredContract of [
@@ -444,7 +444,7 @@ if (
 
 const multiRootPersistenceTestPath = path.join(
   repoRoot,
-  "tests/multiRootDocumentPersistence.integration.test.ts",
+  "tests/integration/editor/document-session/multiRootDocumentPersistence.integration.test.ts",
 );
 const multiRootPersistenceTestSource = readFileSync(multiRootPersistenceTestPath, "utf8");
 for (const requiredContract of [
@@ -460,7 +460,7 @@ for (const requiredContract of [
     errors.push(`${relative(multiRootPersistenceTestPath)} does not enforce: ${requiredContract}`);
   }
 }
-const workbenchDataPortTestPath = path.join(repoRoot, "tests/workbenchDataPort.test.ts");
+const workbenchDataPortTestPath = path.join(repoRoot, "tests/unit/workspace/files/workbenchDataPort.test.ts");
 if (!/rejects a malformed Resource URI before any Folder provider can write/.test(
   readFileSync(workbenchDataPortTestPath, "utf8"),
 )) {
@@ -538,7 +538,7 @@ if (/\b(?:persistedContent|DocumentPersistencePort|EditableDocumentSource)\b/.te
 
 const localMarkdownPersistenceTestPath = path.join(
   repoRoot,
-  "tests/localMarkdownEditorPersistence.test.tsx",
+  "tests/integration/editor/document-session/localMarkdownEditorPersistence.test.tsx",
 );
 const localMarkdownPersistenceTestSource = readFileSync(localMarkdownPersistenceTestPath, "utf8");
 if (!/persists a real CodeMirror edit through DataWorkspace and the local desktop bridge/.test(localMarkdownPersistenceTestSource)) {
@@ -550,7 +550,7 @@ if (!/keeps failed local edits in their Working Copy across editor navigation/.t
 
 const localCsvPersistenceTestPath = path.join(
   repoRoot,
-  "tests/localCsvEditorPersistence.test.tsx",
+  "tests/integration/editor/document-session/localCsvEditorPersistence.test.tsx",
 );
 const localCsvPersistenceTestSource = readFileSync(localCsvPersistenceTestPath, "utf8");
 if (!/edits a spreadsheet-classified CSV and persists its serialized snapshot/.test(localCsvPersistenceTestSource)) {
@@ -559,7 +559,7 @@ if (!/edits a spreadsheet-classified CSV and persists its serialized snapshot/.t
 
 const externalConsistencyMatrixTestPath = path.join(
   repoRoot,
-  "tests/editorExternalConsistencyMatrix.integration.test.tsx",
+  "tests/integration/editor/document-session/editorExternalConsistencyMatrix.integration.test.tsx",
 );
 const externalConsistencyMatrixTestSource = readFileSync(
   externalConsistencyMatrixTestPath,

@@ -1,4 +1,4 @@
-/** A native child owns its own CSS cursor. Use a removable user stylesheet so
+/** A native child owns its own CSS cursor. Use a removable author stylesheet so
  * content-specific cursors survive the gesture, including async IPC races. */
 export function createNativeSurfaceResizeCursor(contents, onError = () => {}) {
   let desired = null;
@@ -18,7 +18,9 @@ export function createNativeSurfaceResizeCursor(contents, onError = () => {}) {
     await remove(previous);
     if (disposed || revision !== generation || !cursor || !contents.insertCSS) return;
     try {
-      const inserted = await contents.insertCSS(`:root, :root * { cursor: ${cursor} !important; }`, { cssOrigin: "user" });
+      // Electron's removal API does not remove user-origin sheets on the
+      // supported runtime. Keep this temporary override in the author origin.
+      const inserted = await contents.insertCSS(`:root, :root * { cursor: ${cursor} !important; }`, { cssOrigin: "author" });
       if (disposed || revision !== generation) await remove(inserted);
       else key = inserted;
     } catch (error) { onError(error); }

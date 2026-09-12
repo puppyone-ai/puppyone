@@ -25,6 +25,29 @@ export function createItemDisplayManager({ WebContentsView, electronSession, Mes
   configureSession = () => {}, nativeSurfaceOcclusion, nativeSurfacePointerPassthrough }) {
   const entries = new Map();
   const shellRequests = new Map();
+  const ownerPresentations = new Map();
+  const observeOwnerPresentation = (owner, detach) => {
+    let subscription = ownerPresentations.get(owner.id);
+    if (!subscription) {
+      const callbacks = new Set();
+      const revoke = () => { for (const callback of callbacks) callback(); };
+      const navigate = (details) => { if (details.isMainFrame && !details.isSameDocument) revoke(); };
+      owner.on("did-start-navigation", navigate);
+      owner.on("render-process-gone", revoke);
+      owner.on("destroyed", revoke);
+      subscription = { callbacks, release: () => {
+        owner.removeListener("did-start-navigation", navigate);
+        owner.removeListener("render-process-gone", revoke);
+        owner.removeListener("destroyed", revoke);
+        ownerPresentations.delete(owner.id);
+      } };
+      ownerPresentations.set(owner.id, subscription);
+    }
+    subscription.callbacks.add(detach);
+    return () => {
+      if (subscription.callbacks.delete(detach) && !subscription.callbacks.size) subscription.release();
+    };
+  };
   let focusSequence = 0;
   const requireEntry = (sender, request, allowClosing = false) => {
     projectSessions.require(sender.id, request.projectContext, { allowClosing });
@@ -35,20 +58,21 @@ export function createItemDisplayManager({ WebContentsView, electronSession, Mes
   const state = (entry) => ({ itemId: entry.itemId, generation: entry.generation, display: entry.display,
     execution: entry.execution, message: entry.message, processId: entry.view && !entry.view.webContents.isDestroyed() ? entry.view.webContents.getOSProcessId() : null });
   const publish = (entry) => {
-    if (!entry.owner.isDestroyed()) entry.owner.send("item-host:state", state(entry));
+    if (!entry.presentationDetached && !entry.owner.isDestroyed()) entry.owner.send("item-host:state", state(entry));
   };
   const observeFocus = (entry, view, focused, activate = false) => {
     if (entry.view !== view || entry.closed || entry.closeRequested || entry.owner.isDestroyed()) return;
     if (focused && (!entry.attachment?.isVisible() || !entry.window.isFocused() || entry.display !== "ready")) return;
     if (!focused && !entry.focused) return;
     entry.focused = focused;
+    if (entry.presentationDetached) return;
     entry.owner.send("item-host:event", { itemId: entry.itemId, generation: entry.generation, type: "focus-changed",
       payload: { presentationId: entry.presentationId, sequence: ++focusSequence, focused, activate: focused && activate } });
   };
-  const acceptsPresentation = (entry, request) => !entry.closeRequested && request.generation === entry.generation
+  const acceptsPresentation = (entry, request) => !entry.closeRequested && !entry.presentationDetached && request.generation === entry.generation
     && Number.isSafeInteger(request.presentationId) && request.presentationId > 0 && request.presentationId >= entry.presentationId;
   const fail = (entry, message, display = "crashed") => {
-    if (entry.closed) return;
+    if (entry.closed || entry.presentationDetached) return;
     entry.display = display;
     entry.message = message;
     entry.attachment?.healthy(false);
@@ -68,6 +92,7 @@ export function createItemDisplayManager({ WebContentsView, electronSession, Mes
     const pid = entry.displayPid || (!wc.isDestroyed() ? wc.getOSProcessId() : 0);
     observeFocus(entry, view, false);
     entry.releaseFocus?.();
+    entry.releaseOwnerPresentation?.();
     entry.rejectReady?.(hostError("HOST_DISPLAY_DETACHED", "The item display was detached."));
     entry.attachment?.dispose();
     entry.attachment = null;
@@ -118,6 +143,7 @@ export function createItemDisplayManager({ WebContentsView, electronSession, Mes
     entry.displayPid = 0;
     entry.processExited = false;
     entry.focusRequested = false;
+    entry.presentationDetached = false;
     entry.lastHeartbeat = Date.now();
     const wc = view.webContents;
     const ready = new Promise((resolve, reject) => { entry.resolveReady = resolve; entry.rejectReady = reject; });
@@ -141,6 +167,26 @@ export function createItemDisplayManager({ WebContentsView, electronSession, Mes
       onVisibilityChange: (visible) => { if (!visible) observeFocus(entry, view, false); },
     });
     entry.attachment.healthy(false);
+    entry.attachment.presented(entry.configuration.presented !== false);
+    // Native children outlive the Shell document. Revoke their presentation in
+    // Main even when a reload/crash prevents React from sending its cleanup.
+    const detachPresentation = () => {
+      if (entry.closed || entry.view !== view || entry.presentationDetached) return;
+      entry.presentationDetached = true;
+      entry.focusRequested = false;
+      entry.configuration = { ...entry.configuration, presented: false, commandTarget: false };
+      entry.attachment.dispose();
+      for (const [requestId, pending] of shellRequests) {
+        if (pending.entry !== entry) continue;
+        shellRequests.delete(requestId);
+        pending.reject(hostError("HOST_DISPLAY_DETACHED", "The workspace view exited before completing the request."));
+      }
+      if (!wc.isDestroyed()) wc.send("item-host:configuration", entry.configuration);
+      entry.display = "crashed";
+      entry.message = "The workspace view reloaded or exited. Restore this display to continue; its session was retained.";
+      publish(entry);
+    };
+    entry.releaseOwnerPresentation = observeOwnerPresentation(entry.owner, detachPresentation);
     const onFocus = () => {
       const requested = entry.focusRequested;
       entry.focusRequested = false;
@@ -242,6 +288,7 @@ export function createItemDisplayManager({ WebContentsView, electronSession, Mes
       const configuration = Object.fromEntries(["appearance", "settings", "presented", "commandTarget"]
         .filter((key) => request[key] !== undefined).map((key) => [key, request[key]]));
       entry.configuration = { ...entry.configuration, ...bounded(configuration) };
+      if (typeof configuration.presented === "boolean") entry.attachment?.presented(configuration.presented);
       if (entry.view && !entry.view.webContents.isDestroyed()) entry.view.webContents.send("item-host:configuration", entry.configuration);
     },
     geometry(sender, request) {
@@ -279,7 +326,11 @@ export function createItemDisplayManager({ WebContentsView, electronSession, Mes
         recipeId: entry.recipeId, historyTarget: entry.historyTarget, ...entry.configuration, draft: entry.draft,
         session: entry.kind === "agent" ? agentService.findItemSession(entry.owner.id, entry.itemId) : null };
     },
-    ready(entry) { entry.display = "ready"; entry.attachment.healthy(entry.execution !== "interrupted"); entry.resolveReady?.(); publish(entry); },
+    ready(entry) {
+      entry.resolveReady?.();
+      if (entry.presentationDetached) return;
+      entry.display = "ready"; entry.attachment.healthy(entry.execution !== "interrupted"); publish(entry);
+    },
     heartbeat(entry) { entry.lastHeartbeat = Date.now(); },
     async connect(entry, request = {}) {
       const view = entry.view;
@@ -313,9 +364,10 @@ export function createItemDisplayManager({ WebContentsView, electronSession, Mes
       const safe = bounded(payload, 8 * 1024);
       if (type === "display-error") { fail(entry, String(payload).slice(0, 2000)); return; }
       if (type === "summary" && payload?.snapshot?.resourceId && entry.execution !== "interrupted") entry.execution = "ready";
-      entry.owner.send("item-host:event", { itemId: entry.itemId, generation: entry.generation, type, payload: safe });
+      if (!entry.presentationDetached && !entry.owner.isDestroyed()) entry.owner.send("item-host:event", { itemId: entry.itemId, generation: entry.generation, type, payload: safe });
     },
     request(entry, type, payload) {
+      if (entry.presentationDetached || entry.owner.isDestroyed()) throw hostError("HOST_DISPLAY_DETACHED", "The workspace view is no longer available.");
       if (type !== "resolve-reference" || shellRequests.size >= 32) throw hostError("HOST_BUSY", "Item request is unavailable.");
       const requestId = randomUUID();
       const result = new Promise((resolve, reject) => shellRequests.set(requestId, { entry, resolve, reject }));

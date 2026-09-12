@@ -1,6 +1,5 @@
 import type { AuxiliaryWorkbenchPreparationContext, AuxiliaryWorkbenchProject } from "../app-shell/auxiliary-workbench/types";
 import { parseAgentChatHistoryTarget } from "./domain/agent-chat-history-target";
-export { isDesktopAgentChatEnabled } from "./featureGate";
 export { resolveAgentWorkspaceProviderPath } from "./domain/agent-workspace-path";
 
 let workbenchItemModule: ReturnType<typeof importAgentChatWorkbenchItem> | null = null;

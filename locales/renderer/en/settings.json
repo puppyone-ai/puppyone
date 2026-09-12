@@ -181,8 +181,6 @@
   "experimental.projectsHome.detail": "Try the experimental unified card layout for Cloud and local projects.",
   "experimental.firstProjectStarter.title": "First project starting point",
   "experimental.firstProjectStarter.detail": "Show the experimental Blank, Get started, Notes, and Data table chooser once after creating an empty local project.",
-  "experimental.agentChat.title": "Agent Chat",
-  "experimental.agentChat.detail": "Show the experimental Chat icon in the header. Terminal remains a separate button and stays available when this is off.",
   "experimental.cloudWorkspace.title": "PuppyOne Cloud",
   "experimental.cloudWorkspace.detail": "Show the Cloud navigation entry and the Cloud publish reminder in Source Control.",
   "experimental.cloudAutomation.title": "Automation",
