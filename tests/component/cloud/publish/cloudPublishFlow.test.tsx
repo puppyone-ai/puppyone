@@ -1,17 +1,16 @@
 /**
  * @vitest-environment happy-dom
  */
-import React from "react";
-import { act } from "react";
+import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { DesktopCloudSession } from "../../../../src/lib/cloudApi";
 import type { GitRepositoryContext } from "../../../../src/features/source-control/gitRefreshScheduler";
+import type { DesktopCloudSession } from "../../../../src/lib/cloudApi";
 import type {
   CloudInitializationResult,
   CloudInitializationState,
   GitStatusSnapshot,
-} from "../src/types/electron";
+} from "../../../../src/types/electron";
 
 const localFiles = vi.hoisted(() => ({
   cleanupWorkspaceCloudInitialization: vi.fn(),
@@ -22,7 +21,7 @@ const localFiles = vi.hoisted(() => ({
   initializeWorkspaceGitRepository: vi.fn(),
   stageAllWorkspaceGitChanges: vi.fn(),
   startWorkspaceCloudInitialization: vi.fn(),
-  subscribeWorkspaceCloudInitializationProgress: vi.fn(() => () => {}),
+  subscribeWorkspaceCloudInitializationProgress: vi.fn<typeof import("../../../../src/lib/localFiles").subscribeWorkspaceCloudInitializationProgress>(() => () => {}),
 }));
 
 vi.mock("../../../../src/lib/localFiles", () => localFiles);
@@ -136,6 +135,7 @@ function InitializationHarness({ activeSession }: { activeSession: DesktopCloudS
     setSidebarCollapsed: actions.setSidebarCollapsed,
     setSwitcherOpen: actions.setSwitcherOpen,
     workspace: {
+      status: "recording",
       id: "local-notes",
       name: "Local Notes",
       path: repositoryContext.rootPath,

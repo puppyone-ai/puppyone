@@ -14,7 +14,14 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   startResourceDrag: (request) => ipcRenderer.invoke("resource-transfer:start-drag", request),
   resolveResourceReferences: (request) => ipcRenderer.invoke("resource-transfer:resolve", request),
   getPathForFile: (file) => webUtils.getPathForFile(file),
-  setNativeSurfacePointerPassthrough: (request) => ipcRenderer.send("resource-smoke:event", { pointerPassthrough: request }),
+  setNativeSurfacePointerPassthrough: (request) => {
+    ipcRenderer.send("native-surfaces:set-pointer-passthrough", request);
+    ipcRenderer.send("resource-smoke:event", { pointerPassthrough: request });
+  },
+  setNativeSurfaceOccluded: (request) => {
+    ipcRenderer.send("native-surfaces:set-overlay-occluded", request);
+    ipcRenderer.send("resource-smoke:event", { occlusion: request });
+  },
 });
 contextBridge.exposeInMainWorld("resourceSmoke", {
   config: () => ipcRenderer.invoke("resource-smoke:config"),

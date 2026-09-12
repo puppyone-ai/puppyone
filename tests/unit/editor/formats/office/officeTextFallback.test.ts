@@ -336,9 +336,11 @@ function stubWorker(worker: FakeWorker): void {
   vi.stubGlobal("Worker", WorkerStub as unknown as typeof Worker);
 }
 
-async function buildZip(entries: Record<string, string>): Promise<ArrayBuffer> {
+async function buildZip(entries: Record<string, string | undefined>): Promise<ArrayBuffer> {
   const zip = new JSZip();
-  for (const [name, content] of Object.entries(entries)) zip.file(name, content);
+  for (const [name, content] of Object.entries(entries)) {
+    if (content !== undefined) zip.file(name, content);
+  }
   return zip.generateAsync({ type: "arraybuffer", compression: "STORE" });
 }
 

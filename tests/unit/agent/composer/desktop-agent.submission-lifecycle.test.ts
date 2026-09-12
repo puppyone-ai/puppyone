@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { AgentTurnSubmissionCoordinator } from "../../../../src/features/desktop-agent/application/AgentTurnSubmissionCoordinator";
-import { AgentSessionController } from "../../../../src/features/desktop-agent/application/AgentSessionController";
-import { AgentReferenceDraftManager } from "../../../../src/features/desktop-agent/application/AgentReferenceDraftManager";
+import { projectAgentControlView } from "../../../../electron/main/agent/domain/agent-control-view.mjs";
+import { createAgentSessionControl, reduceAgentSessionControl } from "../../../../electron/main/agent/domain/agent-session-control.mjs";
 import type { AgentControllerState } from "../../../../src/features/desktop-agent/application/agent-controller-state";
 import type { AgentClientPort } from "../../../../src/features/desktop-agent/application/AgentClientPort";
-import { createAgentSessionControl, reduceAgentSessionControl } from "../../../../electron/main/agent/domain/agent-session-control.mjs";
-import { projectAgentControlView } from "../../../../electron/main/agent/domain/agent-control-view.mjs";
+import { AgentReferenceDraftManager } from "../../../../src/features/desktop-agent/application/AgentReferenceDraftManager";
+import { AgentSessionController } from "../../../../src/features/desktop-agent/application/AgentSessionController";
+import { AgentTurnSubmissionCoordinator } from "../../../../src/features/desktop-agent/application/AgentTurnSubmissionCoordinator";
 
 describe("Shared Agent submission lifecycle", () => {
   it.each(["queued", "dispatching", "accepted", "outcome-unknown"])("does not restore or redispatch %s input after losing the RPC receipt", async (status) => {
@@ -68,7 +68,7 @@ describe("Shared Agent submission lifecycle", () => {
 });
 
 function harness() {
-  const controller = new AgentSessionController("/workspace", () => null);
+  const controller = new AgentSessionController("/workspace", () => undefined);
   let state = controller.getSnapshot();
   controller.dispose();
   state = { ...state, session: { id: "session" } as NonNullable<AgentControllerState["session"]> };

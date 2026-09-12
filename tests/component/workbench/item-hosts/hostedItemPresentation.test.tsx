@@ -1,13 +1,13 @@
 /** @vitest-environment happy-dom */
-import React, { act, StrictMode } from "react";
-import { createRoot, type Root } from "react-dom/client";
 import { EventEmitter } from "node:events";
+import { act, StrictMode } from "react";
+import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
-import { HostedItemView } from "../../../../src/features/app-shell/auxiliary-workbench/host/HostedItemView";
-import { HostedItem, projectItemHosts } from "../../../../src/features/app-shell/auxiliary-workbench/host/HostedItemPool";
-import { ProjectWorkbenchStore } from "../../../../src/features/app-shell/auxiliary-workbench/ProjectWorkbenchStore";
 import { attachNativeSurfaceView } from "../../../../electron/main/native-surfaces/view-attachment.mjs";
 import type { ItemHostBridge, ItemHostEvent, ItemHostState } from "../../../../shared/item-host-contract/types";
+import { HostedItem, projectItemHosts } from "../../../../src/features/app-shell/auxiliary-workbench/host/HostedItemPool";
+import { HostedItemView } from "../../../../src/features/app-shell/auxiliary-workbench/host/HostedItemView";
+import { ProjectWorkbenchStore } from "../../../../src/features/app-shell/auxiliary-workbench/ProjectWorkbenchStore";
 
 vi.mock("@puppyone/localization/react", () => ({ useLocalization: () => ({ t: (key: string) => key, direction: "ltr" }) }));
 
@@ -99,7 +99,7 @@ it("shows retained native content on remount and same-size relocation, including
     webContents: { id: 1 }, isVisible: () => true, getContentSize: () => [1000, 800],
     contentView: { addChildView() {}, removeChildView() {} },
   });
-  const attachment = attachNativeSurfaceView({ window: windowFixture, view });
+  const attachment = attachNativeSurfaceView({ window: windowFixture, view, nativeSurfaceOcclusion: undefined, nativeSurfacePointerPassthrough: undefined, onPointerDown: undefined, onVisibilityChange: undefined });
   cleanups.push(() => attachment.dispose());
   const { bridge, project } = fixture();
   vi.mocked(bridge.setGeometry).mockImplementation((request) => attachment.geometry(request));

@@ -8,7 +8,7 @@ import {
   OnboardingTelemetryDisclosure,
   shouldShowOnboardingTelemetryDisclosure,
 } from "../../../../src/components/onboarding/OnboardingTelemetryDisclosure";
-import type { DesktopTelemetryState } from "../src/types/electron";
+import type { DesktopTelemetryState } from "../../../../src/types/electron";
 
 vi.mock("@puppyone/localization", () => ({
   useLocalization: () => ({

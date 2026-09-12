@@ -1,7 +1,7 @@
 /**
  * @vitest-environment happy-dom
  */
-import React, { act } from "react";
+import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DesktopShellLocationBar } from "../../../../src/features/app-shell/DesktopShellLocationBar";

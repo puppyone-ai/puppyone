@@ -5,17 +5,17 @@ import {
   UNKNOWN_FORMAT,
 } from "../../../../packages/shared-ui/src/core/fileFormats";
 import {
+  coreViewerCapability,
+  PRESET_VIEWER_MANIFEST,
+} from "../../../../packages/shared-ui/src/editor/registry/presetViewerManifest";
+import { PRESET_VIEWER_CONTRACT_VERSION } from "../../../../packages/shared-ui/src/editor/registry/viewerContract";
+import {
   createPresetViewerRegistry,
   definePresetViewer,
   PRESET_VIEWER_REGISTRY,
   PRESET_VIEWERS,
   resolveEditorViewer,
 } from "../../../../packages/shared-ui/src/editor/registry/viewerRegistry";
-import { PRESET_VIEWER_CONTRACT_VERSION } from "../../../../packages/shared-ui/src/editor/registry/viewerContract";
-import {
-  coreViewerCapability,
-  PRESET_VIEWER_MANIFEST,
-} from "../../../../packages/shared-ui/src/editor/registry/presetViewerManifest";
 import type {
   EditorDocument,
   EditorViewerMatch,
@@ -23,7 +23,7 @@ import type {
   PresetViewerImplementation,
 } from "../../../../packages/shared-ui/src/editor/registry/viewerTypes";
 
-function document(name: string, type = "file", mimeType: string | null = null): EditorDocument {
+function document(name: string, type: EditorDocument["type"] = "file", mimeType: string | null = null): EditorDocument {
   return { path: name, name, type, mimeType };
 }
 

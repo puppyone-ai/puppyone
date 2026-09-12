@@ -1,14 +1,13 @@
 /**
  * @vitest-environment happy-dom
  */
-import React from "react";
 import { act, useLayoutEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   EditorPaneMenuContributionProvider,
-  type EditorPaneMenuContribution,
   useEditorPaneMenuContributionPublisher,
+  type EditorPaneMenuContribution,
 } from "../../../../packages/shared-ui/src/editor/editorPaneMenuContribution";
 import { TextEditorFrame } from "../../../../packages/shared-ui/src/editor/viewers/shared/TextEditorFrame";
 import { testT, withTestLocalization } from "../../../support/react/localization";
@@ -28,12 +27,12 @@ describe("editor mode toggle", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
-    let contribution: EditorPaneMenuContribution | null = null;
+    const contribution: { current: EditorPaneMenuContribution | null } = { current: null };
 
     act(() => root?.render(withTestLocalization(
       <EditorPaneMenuContributionProvider
         onContributionChange={(nextContribution) => {
-          contribution = nextContribution;
+          contribution.current = nextContribution;
         }}
       >
         <TextEditorFrame
@@ -53,7 +52,7 @@ describe("editor mode toggle", () => {
     expect(container.querySelector('[data-editor-mode="live"]')).not.toBeNull();
     expect(container.querySelector('[data-editor-mode="source"]')).toBeNull();
     expect(container.querySelector(".editor-mode-toggle")).toBeNull();
-    expect(contribution).toMatchObject({
+    expect(contribution.current).toMatchObject({
       documentId: "mode.md",
       viewItems: [{
         kind: "segmented",
@@ -67,7 +66,7 @@ describe("editor mode toggle", () => {
       }],
     });
 
-    const modeControl = contribution?.viewItems[0];
+    const modeControl = contribution.current?.viewItems[0];
     expect(modeControl?.kind).toBe("segmented");
     act(() => {
       if (modeControl?.kind === "segmented") modeControl.setValue("source");
@@ -75,7 +74,7 @@ describe("editor mode toggle", () => {
 
     expect(container.querySelector('[data-editor-mode="live"]')).toBeNull();
     expect(container.querySelector('[data-editor-mode="source"]')).not.toBeNull();
-    expect(contribution?.viewItems[0]).toMatchObject({ value: "source" });
+    expect(contribution.current?.viewItems[0]).toMatchObject({ value: "source" });
   });
 
   it.each([
@@ -123,29 +122,29 @@ describe("editor mode toggle", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
-    let contribution: EditorPaneMenuContribution | null = null;
-    let publishFirst: ((value: EditorPaneMenuContribution | null) => void) | null = null;
-    let publishSecond: ((value: EditorPaneMenuContribution | null) => void) | null = null;
+    const contribution: { current: EditorPaneMenuContribution | null } = { current: null };
+    const publishFirst: { current: ((value: EditorPaneMenuContribution | null) => void) | null } = { current: null };
+    const publishSecond: { current: ((value: EditorPaneMenuContribution | null) => void) | null } = { current: null };
 
     act(() => root?.render(
       <EditorPaneMenuContributionProvider
         onContributionChange={(value) => {
-          contribution = value;
+          contribution.current = value;
         }}
       >
-        <PublisherCapture onReady={(publish) => { publishFirst = publish; }} />
-        <PublisherCapture onReady={(publish) => { publishSecond = publish; }} />
+        <PublisherCapture onReady={(publish) => { publishFirst.current = publish; }} />
+        <PublisherCapture onReady={(publish) => { publishSecond.current = publish; }} />
       </EditorPaneMenuContributionProvider>,
     ));
 
     const first = createContribution("first");
     const second = createContribution("second");
-    act(() => publishFirst?.(first));
-    act(() => publishSecond?.(second));
-    act(() => publishFirst?.(null));
-    expect(contribution).toBe(second);
-    act(() => publishSecond?.(null));
-    expect(contribution).toBeNull();
+    act(() => publishFirst.current?.(first));
+    act(() => publishSecond.current?.(second));
+    act(() => publishFirst.current?.(null));
+    expect(contribution.current).toBe(second);
+    act(() => publishSecond.current?.(null));
+    expect(contribution.current).toBeNull();
   });
 });
 

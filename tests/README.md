@@ -21,9 +21,11 @@ for ownership and verification policy.
 
 `npm test` runs **all** `.test.ts`, `.test.tsx` and `.test.mjs` files across the
 four Vitest layers. It never discovers fixtures, smoke entrypoints or benchmarks
-as unit tests. `npm run test:typecheck` preserves the eight tests previously
-covered by the application TypeScript build; it is part of `npm run build`.
-Other legacy cases retain Vitest transpilation and runtime assertions.
+as unit tests. `npm run test:typecheck` strictly checks every TS/TSX test,
+fixture, support module and benchmark, plus tooling configuration separately.
+It is part of both source CI and the production build. Discovery suffixes and
+domains have one definition in `config/discovery.mjs`; unsupported names fail
+layout checks and actual Vitest discovery is regression-tested.
 `npm run test:watch` uses the same selection. A `.tsx` suffix or
 happy-dom environment alone does not determine a test's layer.
 
@@ -56,12 +58,37 @@ Other `smoke:*` commands are explicit focused checks, not implicitly part of CI.
 Agent requests. `smoke:codex-agent` likewise uses a locally installed Codex
 runtime. Keep these opt-in and preserve their completion/status checks.
 
+## Coverage and native acceptance
+
+`npm run test:core:coverage` runs the complete suite with a source-inclusive
+Editor, Agent and Workbench denominator, including unimported runtime files.
+`config/core-coverage-baseline.json` records the measured baseline and each
+individual domain's minimum percentages. Preserve the existing Updater and Git
+auto-commit coverage gates. Coverage is a regression floor, not proof that every
+user workflow is tested. See the canonical contract's behavior matrix for
+concurrency, persistence, recovery and native-window acceptance boundaries.
+
+CI runs on PRs and pushes to both `qubits` and `main`. App checks run on Linux
+and macOS; platform contracts use the declared target matrix.
+`npm run smoke:resource-transfer:acceptance` separately exercises real macOS
+CoreGraphics input: file/directory/multiple payloads, Editor split/repeat/cancel,
+and an actual PDF native surface over the receiving Pane. It needs event-posting
+permission and temporarily controls the pointer. It uses isolated projects,
+restores the pointer and records a unique source-bound report. It does not claim
+Windows/Linux native gesture coverage or all PDF-format application behavior.
+
 ## Evidence and packaging
 
 Disposable reports, coverage, screenshots and timing results go under
 `artifacts/tests/`; the release executor retains its run manifests/logs under
 `artifacts/release-checks/`. Temporary app profiles and workspace copies remain
-separate OS temporary directories. Both report roots are uploaded by CI.
+separate OS temporary directories. Both report roots are uploaded by CI. Each Vitest invocation (and watch cycle)
+owns `artifacts/tests/vitest/<timestamp-scope-random>/`, with JSON results,
+coverage, benchmarks and a source-before/after receipt. Release checks snapshot
+declared outputs with content hashes and reject missing or stale artifacts.
+Source edits during a verification run make that run unsuitable for acceptance.
+Production performance defaults also use unique names and record the source
+fingerprint plus the actual dist tree identity.
 Never overwrite a checked-in performance baseline with routine run output.
 
 `npm run check:test-layout` rejects misplaced test cases and benchmarks and

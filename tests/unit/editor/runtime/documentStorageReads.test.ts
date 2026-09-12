@@ -1,5 +1,5 @@
+import type { DataPort, DocumentPersistencePort, FileContent } from "@puppyone/shared-ui";
 import { describe, expect, it, vi } from "vitest";
-import type { DocumentPersistencePort, FileContent } from "@puppyone/shared-ui";
 import { DocumentEditingSession } from "../../../../packages/shared-ui/src/editor/document-session/DocumentEditingSession";
 import { readDocumentStorageSnapshot } from "../../../../packages/shared-ui/src/editor/document-session/documentStorageReads";
 
@@ -75,7 +75,7 @@ describe("document storage observation ordering", () => {
   it("keeps unrelated resources and storage identities independent", async () => {
     const harness = createHarness();
     const stale = deferred<FileContent>();
-    const readFile = vi.fn(() => stale.promise);
+    const readFile = vi.fn<NonNullable<DataPort["readFile"]>>(() => stale.promise);
     const accept = vi.fn();
     const controller = new AbortController();
     const reads = [
@@ -94,7 +94,7 @@ describe("document storage observation ordering", () => {
   it("does not retry or publish a cancelled pane read", async () => {
     const harness = createHarness();
     const stale = deferred<FileContent>();
-    const readFile = vi.fn(() => stale.promise);
+    const readFile = vi.fn<NonNullable<DataPort["readFile"]>>(() => stale.promise);
     const accept = vi.fn();
     const controller = new AbortController();
     const read = readDocumentStorageSnapshot({ readFile, documentPersistence: harness.persistence }, "notes.md", { signal: controller.signal, accept });
@@ -130,7 +130,7 @@ function createHarness() {
   let snapshot = { content: "one", revision: "r1" };
   const persistence: DocumentPersistencePort = {
     kind: "local-fs", storageIdentity: "test:storage-reads",
-    persist: vi.fn(async () => ({ ok: true, version: "v2" })),
+    persist: vi.fn<NonNullable<DataPort["documentPersistence"]>["persist"]>(async () => ({ ok: true, version: "v2" })),
   };
   const session = new DocumentEditingSession({
     documentId: "notes.md", initialContent: "one", initialVersion: "v1", saveMode: "manual", persistence,

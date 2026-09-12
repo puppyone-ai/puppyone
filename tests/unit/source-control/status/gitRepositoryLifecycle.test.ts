@@ -3,7 +3,7 @@ import {
   isGitStatusContextLoading,
   resolveActiveGitStatus,
 } from "../../../../src/features/source-control/useGitRepositoryLifecycle";
-import type { GitStatusSnapshot } from "../src/types/electron";
+import type { GitStatusSnapshot } from "../../../../src/types/electron";
 
 describe("Git repository presentation lifecycle", () => {
   it("is synchronously pending when the rendered Project outruns the committed Git context", () => {

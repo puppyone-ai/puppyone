@@ -1,21 +1,22 @@
+import { requireEditorView } from "../../../support/editor/editorView";
 /** @vitest-environment happy-dom */
-import React, { act } from "react";
-import { createRoot, type Root } from "react-dom/client";
+import { isolateHistory, redo, undo, undoDepth } from "@codemirror/commands";
 import { EditorView } from "@codemirror/view";
-import { undo, redo, undoDepth, isolateHistory } from "@codemirror/commands";
-import { CodeMirrorDocumentModel } from "../../../../packages/shared-ui/src/editor/document-session/CodeMirrorDocumentModel";
+import { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DocumentSessionBoundary } from "../../../../packages/shared-ui/src/editor/document-session/DocumentSessionBoundary";
-import { TextEditorFrame } from "../../../../packages/shared-ui/src/editor/viewers/shared/TextEditorFrame";
-import { CodeMirrorCodeEditor } from "../../../../packages/shared-ui/src/editor/viewers/code/CodeMirrorCodeEditor";
-import { MarkdownCodeMirrorEditor } from "../../../../packages/shared-ui/src/editor/markdown/MarkdownCodeMirrorEditor";
-import { closeAllDocumentWorkingCopies, getOrCreateDocumentWorkingCopy } from "../../../../packages/shared-ui/src/editor/document-session/documentWorkingCopies";
-import { getDocumentInputRuntime, invalidateDocumentInputs, retireAllDocumentInputs } from "../../../../packages/shared-ui/src/editor/resource/DocumentInputRuntime";
-import { createWorkspaceContentChange } from "../../../../packages/shared-ui/src/core/workspaceContentChange";
 import type { DataPort, DocumentDataNode, DocumentPersistencePort } from "../../../../packages/shared-ui/src/core/types";
-import { withTestLocalization } from "../../../support/react/localization";
+import { createWorkspaceContentChange } from "../../../../packages/shared-ui/src/core/workspaceContentChange";
+import { CodeMirrorDocumentModel } from "../../../../packages/shared-ui/src/editor/document-session/CodeMirrorDocumentModel";
+import { DocumentSessionBoundary } from "../../../../packages/shared-ui/src/editor/document-session/DocumentSessionBoundary";
+import { closeAllDocumentWorkingCopies, getOrCreateDocumentWorkingCopy } from "../../../../packages/shared-ui/src/editor/document-session/documentWorkingCopies";
+import { MarkdownCodeMirrorEditor } from "../../../../packages/shared-ui/src/editor/markdown/MarkdownCodeMirrorEditor";
+import { getDocumentInputRuntime, invalidateDocumentInputs, retireAllDocumentInputs } from "../../../../packages/shared-ui/src/editor/resource/DocumentInputRuntime";
 import { EditorTaskBoundary, useEditorTaskOwner } from "../../../../packages/shared-ui/src/editor/runtime/EditorTaskContext";
 import { holdEditorRuntimeAdmission } from "../../../../packages/shared-ui/src/editor/runtime/editorRuntimeAdmission";
+import { CodeMirrorCodeEditor } from "../../../../packages/shared-ui/src/editor/viewers/code/CodeMirrorCodeEditor";
+import { TextEditorFrame } from "../../../../packages/shared-ui/src/editor/viewers/shared/TextEditorFrame";
+import { withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root | null = null;
@@ -56,12 +57,12 @@ afterEach(async () => {
 describe.each(["code", "markdown"] as const)("%s document lifetime", (kind) => {
   it("retains undo/redo across view destruction without writing on reattach", async () => {
     let disk = "alpha";
-    const persist = vi.fn(async (request) => { disk = request.content; return { ok: true as const, version: disk }; });
+    const persist = vi.fn<NonNullable<DataPort["documentPersistence"]>["persist"]>(async (request) => { disk = request.content; return { ok: true as const, version: disk }; });
     const persistence: DocumentPersistencePort = { kind: "local-fs", storageIdentity: `retention:${kind}`, persist };
     const container = document.createElement("div"); document.body.append(container); root = createRoot(container);
     const render = (visible: boolean) => root!.render(withTestLocalization(visible ? <DocumentSessionBoundary
       documentId={`a.${kind === "markdown" ? "md" : "txt"}`} initialContent={disk} initialVersion={disk} saveMode="auto" persistence={persistence}>
-      <TextEditorFrame documentId="a" content={disk} canEdit hideSourceView sourceSnapshotMode renderLive={(content, controls) => kind === "code"
+      <TextEditorFrame nodeName="a" defaultMode="live" documentId="a" content={disk} canEdit hideSourceView sourceSnapshotMode renderLive={(content, controls) => kind === "code"
         ? <CodeMirrorCodeEditor content={content} readOnly={false} onSnapshotPortChange={controls.onSnapshotPortChange} onSourceRevisionChange={controls.onSourceRevisionChange} />
         : <MarkdownCodeMirrorEditor value={content} readOnly={false} livePreview={false} onSnapshotPortChange={controls.onSnapshotPortChange} onSourceRevisionChange={controls.onSourceRevisionChange} />
       } />
@@ -89,14 +90,14 @@ describe.each(["code", "markdown"] as const)("%s document lifetime", (kind) => {
     const port: DataPort = {
       listChildren: async () => [],
       readFile: async () => ({ path, name: path, type: kind === "markdown" ? "markdown" : "file", content: disk, version: disk }),
-      documentPersistence: { kind: "local-fs", storageIdentity: `hidden:${kind}`, persist: vi.fn(async (request) => { disk = request.content; return { ok: true as const, version: disk }; }) },
+      documentPersistence: { kind: "local-fs", storageIdentity: `hidden:${kind}`, persist: vi.fn<NonNullable<DataPort["documentPersistence"]>["persist"]>(async (request) => { disk = request.content; return { ok: true as const, version: disk }; }) },
     };
     const node: DocumentDataNode = { path, id: path, name: path, type: kind === "markdown" ? "markdown" : "file" };
     const input = getDocumentInputRuntime(port, node); input.start(); await ticks();
     const container = document.createElement("div"); document.body.append(container); root = createRoot(container);
     const render = (visible: boolean) => root!.render(withTestLocalization(visible ? <DocumentSessionBoundary documentId={path}
       initialContent={input.getSnapshot().content?.content ?? ""} initialVersion={disk} saveMode="auto" persistence={port.documentPersistence!}>
-      <TextEditorFrame documentId={path} content={disk} canEdit hideSourceView sourceSnapshotMode renderLive={(content, controls) => kind === "code"
+      <TextEditorFrame nodeName="a" defaultMode="live" documentId={path} content={disk} canEdit hideSourceView sourceSnapshotMode renderLive={(content, controls) => kind === "code"
         ? <CodeMirrorCodeEditor content={content} readOnly={false} onSnapshotPortChange={controls.onSnapshotPortChange} onSourceRevisionChange={controls.onSourceRevisionChange} />
         : <MarkdownCodeMirrorEditor value={content} readOnly={false} livePreview={false} onSnapshotPortChange={controls.onSnapshotPortChange} onSourceRevisionChange={controls.onSourceRevisionChange} />
       } />
@@ -119,6 +120,6 @@ describe.each(["code", "markdown"] as const)("%s document lifetime", (kind) => {
 function view(container: HTMLElement): EditorView {
   const element = container.querySelector<HTMLElement>(".cm-editor");
   if (!element) throw new Error("Editor failed to mount.");
-  return EditorView.findFromDOM(element);
+  return requireEditorView(element);
 }
 async function ticks() { for (let count = 0; count < 12; count++) await Promise.resolve(); }

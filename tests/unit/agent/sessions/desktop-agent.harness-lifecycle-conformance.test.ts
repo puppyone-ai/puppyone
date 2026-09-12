@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { LIVE_AGENT_ACTIVITY_STATUSES } from "../../../../electron/main/agent/domain/transcript/turn-lifecycle.mjs";
+import type { AgentEvent } from "../../../../src/features/desktop-agent/agentTypes";
+import { buildAgentTimeline } from "../../../../src/features/desktop-agent/ui/transcript/transcript-rows";
 import {
   applyAgentEvents,
   createAgentProjection,
 } from "../../../support/agent/agentDisplayFixture";
-import type { AgentEvent, AgentEventType } from "../../../../src/features/desktop-agent/agentTypes";
-import { LIVE_AGENT_ACTIVITY_STATUSES } from "../../../../electron/main/agent/domain/transcript/turn-lifecycle.mjs";
-import { buildAgentTimeline } from "../../../../src/features/desktop-agent/ui/transcript/transcript-rows";
+import { defineAgentEvent, type AgentEventPayloadMap } from "../../../support/agent/agentEventFixture";
 
 const harnessFixtures = [
   {
@@ -159,14 +160,14 @@ describe("Desktop Agent normalized Harness lifecycle conformance", () => {
   });
 });
 
-function event(
+function event<T extends AgentEvent["type"]>(
   provider: string,
   sequence: number,
-  type: AgentEventType,
-  payload: Record<string, unknown>,
+  type: T,
+  payload: AgentEventPayloadMap[T] & Record<string, unknown>,
   itemId: string | null = null,
-): AgentEvent {
-  return {
+): AgentEvent<T> {
+  return defineAgentEvent<T>({
     schemaVersion: 1,
     sequence,
     sessionId: `session-${provider}`,
@@ -177,5 +178,5 @@ function event(
     emittedAt: new Date(sequence * 1000).toISOString(),
     type,
     payload,
-  };
+  });
 }

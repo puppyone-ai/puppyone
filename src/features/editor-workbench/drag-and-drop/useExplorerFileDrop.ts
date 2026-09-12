@@ -16,6 +16,7 @@ import {
 } from "@puppyone/shared-ui";
 import {
   acquireNativeSurfacePointerPassthroughLease,
+  acquireNativeSurfaceOcclusionLease,
   createNativeSurfacePointerSessionId,
   type NativeSurfacePointerPassthroughLease,
 } from "../../native-surfaces";
@@ -49,6 +50,7 @@ export type EditorFileDropController = Readonly<{
 type ExplorerFileDropSession = Readonly<{
   id: string;
   nativeLease: NativeSurfacePointerPassthroughLease;
+  releaseOcclusion: () => void;
 }>;
 
 type ExplorerFileDropPreview = Readonly<{
@@ -86,6 +88,10 @@ export function useExplorerFileDrop(
     const session = {
       id,
       nativeLease: acquireNativeSurfacePointerPassthroughLease("explorer-file-drop", id),
+      // Native child views receive OS file drops before the DOM pane. Hide them
+      // while the pane drop overlay owns the gesture; mouse routing alone only
+      // forwards resize move/up events, never the protected native Files store.
+      releaseOcclusion: acquireNativeSurfaceOcclusionLease(),
     };
     sessionRef.current = session;
     return session;
@@ -96,6 +102,7 @@ export function useExplorerFileDrop(
     if (!session) return false;
     sessionRef.current = null;
     session.nativeLease.release();
+    session.releaseOcclusion();
     if (reason !== "unmount") {
       setPreview((current) => current?.sessionId === session.id ? null : current);
     }

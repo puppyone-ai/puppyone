@@ -1,6 +1,3 @@
-import { createHash } from "node:crypto";
-import { EventEmitter } from "node:events";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createWorkbenchWorkspace,
   createWorkspaceResourceUri,
@@ -9,6 +6,9 @@ import {
   type Workspace,
   type WorkspaceContentChange,
 } from "@puppyone/shared-ui";
+import { createHash } from "node:crypto";
+import { EventEmitter } from "node:events";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   WORKSPACE_WATCH_MAX_PENDING_PATHS,
   createWorkspaceWatchService,
@@ -236,7 +236,7 @@ describe("P0 source-neutral Workspace mutation pipeline", () => {
 });
 
 type FakeWatcher = EventEmitter & {
-  close: ReturnType<typeof vi.fn>;
+  close: ReturnType<typeof vi.fn<() => void>>;
   listener: (eventType: string, filename: string | null) => void;
 };
 

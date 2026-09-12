@@ -1,0 +1,146 @@
+{
+  "schemaVersion": 1,
+  "status": "measured",
+  "policy": "Minimum integer percentages measured with the complete source denominator. Never lower without an explicit coverage review. Raise after sustained improvement.",
+  "measurement": {
+    "date": "2026-09-13",
+    "baseCommit": "4275aba232ad5d1fdda114808036a14f770cf7bd",
+    "sourceFingerprint": "6d58fee26b3ae631aeb68840ee4f879f65574ebd76f1f2eefd3a1dc5b5b60719",
+    "testFiles": 628,
+    "tests": 4280
+  },
+  "thresholds": {
+    "editor": {
+      "statements": 72,
+      "branches": 62,
+      "functions": 75,
+      "lines": 76
+    },
+    "agent": {
+      "statements": 81,
+      "branches": 72,
+      "functions": 82,
+      "lines": 85
+    },
+    "workbench": {
+      "statements": 65,
+      "branches": 61,
+      "functions": 66,
+      "lines": 70
+    }
+  },
+  "measured": {
+    "editor": {
+      "files": 305,
+      "uncoveredFiles": [
+        "packages/shared-ui/src/editor/markdown/MarkdownPresentationPreview.tsx",
+        "packages/shared-ui/src/editor/markdown/core/plans/markdownPlanTypes.ts",
+        "packages/shared-ui/src/editor/markdown/platform/indexing/markdownLinkIndex.worker.ts",
+        "packages/shared-ui/src/editor/markdown/shared/widgets/markdownWidgetMeasure.ts",
+        "packages/shared-ui/src/editor/security/officePackageValidation.worker.ts",
+        "packages/shared-ui/src/editor/viewers/office/OfficeViewer.tsx",
+        "packages/shared-ui/src/editor/viewers/office/officeTextFallback.worker.ts",
+        "packages/shared-ui/src/editor/viewers/office/spreadsheetPreview.worker.ts",
+        "packages/shared-ui/src/editor/viewers/office/word/WordDocumentPreview.tsx"
+      ],
+      "statements": {
+        "covered": 15771,
+        "total": 21736,
+        "pct": 72.56
+      },
+      "branches": {
+        "covered": 9577,
+        "total": 15253,
+        "pct": 62.79
+      },
+      "functions": {
+        "covered": 3000,
+        "total": 3995,
+        "pct": 75.09
+      },
+      "lines": {
+        "covered": 14298,
+        "total": 18719,
+        "pct": 76.38
+      }
+    },
+    "agent": {
+      "files": 284,
+      "uncoveredFiles": [
+        "electron/main/agent/agent-persistence.mjs",
+        "electron/main/agent/runtimes/claude/claude-history-reader.mjs",
+        "electron/main/agent/runtimes/puppyone-agent/puppyone-agent-runtime-definition.mjs",
+        "src/features/desktop-agent/lazy.ts",
+        "src/features/desktop-agent/infrastructure/electron/hostedAgentClient.ts",
+        "src/features/desktop-agent/renderer/AgentItemRenderer.tsx",
+        "src/features/desktop-agent/ui/AgentPlanItem.tsx",
+        "src/features/desktop-agent/ui/AgentQuestionDock.tsx",
+        "src/features/desktop-agent/ui/activity/AgentNoticeActivity.tsx",
+        "src/features/desktop-agent/workbench/HostedAgentWorkbenchItem.tsx",
+        "src/features/desktop-agent/workbench/hostedReferencePreview.ts"
+      ],
+      "statements": {
+        "covered": 11123,
+        "total": 13716,
+        "pct": 81.1
+      },
+      "branches": {
+        "covered": 9878,
+        "total": 13614,
+        "pct": 72.56
+      },
+      "functions": {
+        "covered": 2518,
+        "total": 3066,
+        "pct": 82.13
+      },
+      "lines": {
+        "covered": 9860,
+        "total": 11492,
+        "pct": 85.8
+      }
+    },
+    "workbench": {
+      "files": 160,
+      "uncoveredFiles": [
+        "electron/main/item-hosts/ipc.mjs",
+        "electron/main/item-hosts/terminal-process-service.mjs",
+        "electron/main/item-hosts/utility-host.mjs",
+        "src/features/app-shell/DesktopDataWorkspaceSurface.tsx",
+        "src/features/app-shell/DesktopWorkspaceContent.tsx",
+        "src/features/app-shell/RestoringWorkspaceScreen.tsx",
+        "src/features/app-shell/auxiliary-workbench/host/ItemRendererResources.ts",
+        "src/features/app-shell/auxiliary-workbench/host/displayPorts.ts",
+        "src/features/app-shell/auxiliary-workbench/layout/useWorkbenchPaneContentHandleReveal.ts",
+        "src/features/app-shell/project-sessions/projectSessionClient.ts",
+        "src/features/app-shell/project-sessions/useProjectSession.ts",
+        "src/features/app-shell/workspace-surfaces/WorkspaceSurfaceOutlet.tsx",
+        "src/features/desktop-terminal/featureGate.ts",
+        "src/features/desktop-terminal/index.ts",
+        "src/features/desktop-terminal/renderer/TerminalItemRenderer.tsx",
+        "src/features/desktop-terminal/runtime/hostedTerminalBridge.ts",
+        "src/features/desktop-terminal/runtime/useTerminalAppearanceSync.ts"
+      ],
+      "statements": {
+        "covered": 4156,
+        "total": 6313,
+        "pct": 65.83
+      },
+      "branches": {
+        "covered": 2710,
+        "total": 4410,
+        "pct": 61.45
+      },
+      "functions": {
+        "covered": 1057,
+        "total": 1600,
+        "pct": 66.06
+      },
+      "lines": {
+        "covered": 3595,
+        "total": 5119,
+        "pct": 70.23
+      }
+    }
+  }
+}

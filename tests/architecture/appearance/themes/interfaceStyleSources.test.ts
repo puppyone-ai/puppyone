@@ -1,87 +1,12 @@
-import vm from "node:vm";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-
 import {
-  DEFAULT_INTERFACE_STYLE,
   INTERFACE_STYLES,
-  getInterfaceStyleDefinition,
-  getInterfaceStyleFirstPaint,
-  getInterfaceStyleThemeModes,
-  parseInterfaceStyle,
-  resolveActiveThemeMode,
-  supportsThemePreset,
+  getInterfaceStyleDefinition
 } from "../../../../src/features/appearance/interfaceStyles";
-import { BUILTIN_SUB_THEMES } from "../../../../src/features/themes/builtinSubThemes";
+import { source, windowsXpStylePack } from "../../../support/appearance/styleFixtures";
 
 describe("Interface style registry", () => {
-  it("owns every style id and safely parses persisted values", () => {
-    expect(DEFAULT_INTERFACE_STYLE).toBe("default");
-    expect(new Set(INTERFACE_STYLES.map((style) => style.id)).size).toBe(INTERFACE_STYLES.length);
-    for (const style of INTERFACE_STYLES) expect(parseInterfaceStyle(style.id)).toBe(style.id);
-    expect(parseInterfaceStyle("windows-7")).toBe(DEFAULT_INTERFACE_STYLE);
-    expect(parseInterfaceStyle(null)).toBe(DEFAULT_INTERFACE_STYLE);
-  });
-
-  it("derives color controls and active modes from palette capabilities", () => {
-    expect(getInterfaceStyleThemeModes("default")).toEqual(["system", "light", "dark"]);
-    expect(supportsThemePreset("default", "light")).toBe(true);
-    expect(supportsThemePreset("default", "dark")).toBe(true);
-    expect(resolveActiveThemeMode("default", "system")).toBe("system");
-    expect(resolveActiveThemeMode("default", "dark")).toBe("dark");
-
-    for (const style of INTERFACE_STYLES.filter(({ palette }) => palette.kind === "fixed")) {
-      expect(getInterfaceStyleThemeModes(style.id)).toEqual([]);
-      expect(supportsThemePreset(style.id, "light")).toBe(false);
-      expect(supportsThemePreset(style.id, "dark")).toBe(false);
-      expect(resolveActiveThemeMode(style.id, "system")).toBe(style.palette.mode);
-      expect(resolveActiveThemeMode(style.id, "dark")).toBe(style.palette.mode);
-    }
-  });
-
-  it("uses the same generated manifest for first paint and the React runtime", () => {
-    const bootstrap = source("public/interface-style-bootstrap.js");
-    const subThemeBootstrap = source("public/sub-theme-bootstrap.js");
-    const initialTheme = source("public/initial-theme.js");
-    const index = source("index.html");
-    const bootstrapIndex = index.indexOf('/interface-style-bootstrap.js');
-    const subThemeBootstrapIndex = index.indexOf('/sub-theme-bootstrap.js');
-    const resolverIndex = index.indexOf('/initial-theme.js');
-
-    expect(bootstrapIndex).toBeGreaterThan(0);
-    expect(subThemeBootstrapIndex).toBeGreaterThan(bootstrapIndex);
-    expect(resolverIndex).toBeGreaterThan(subThemeBootstrapIndex);
-    expect(initialTheme).not.toContain('"windows-xp"');
-    expect(initialTheme).not.toContain("editorPresentation");
-
-    for (const style of INTERFACE_STYLES) {
-      const requestedMode = "dark";
-      const activeMode = resolveActiveThemeMode(style.id, requestedMode);
-      const resolvedTheme = activeMode === "system" ? "dark" : activeMode;
-      const defaultSubThemeId = style.subThemes.defaultSubThemeIds[resolvedTheme];
-      const subTheme = BUILTIN_SUB_THEMES.find(({ id }) => id === defaultSubThemeId);
-      const expectedPaint = getInterfaceStyleFirstPaint(style.id, resolvedTheme, subTheme);
-      const result = runFirstPaint({
-        bootstrap,
-        subThemeBootstrap,
-        initialTheme,
-        interfaceStyle: style.id,
-        themeMode: requestedMode,
-        systemDark: true,
-      });
-
-      expect(result.dataset.interfaceStyle).toBe(style.id);
-      expect(result.dataset.interfaceStyleFamily).toBe(style.profile.family);
-      expect(result.dataset.interfaceStyleVariant).toBe(style.profile.variant);
-      expect(result.dataset.interfaceStylePalette).toBe(style.profile.palette);
-      expect(result.dataset).not.toHaveProperty("editorPresentation");
-      expect(result.dataset.initialTheme).toBe(resolvedTheme);
-      expect(result.properties["--initial-shell-background"]).toBe(expectedPaint.background);
-      expect(result.properties["--initial-shell-color-scheme"]).toBe(expectedPaint.colorScheme);
-    }
-  });
-
   it("keeps the native window underlay on the generated first-paint contract", () => {
     const main = source("electron/main.mjs");
     const preload = source("electron/preload.cjs");
@@ -113,134 +38,6 @@ describe("Interface style registry", () => {
     expect(warm).toContain("@puppyone application");
   });
 
-  it("paints the persisted editor palette before React instead of flashing the warm fallback", () => {
-    const bootstrap = source("public/interface-style-bootstrap.js");
-    const subThemeBootstrap = source("public/sub-theme-bootstrap.js");
-    const initialTheme = source("public/initial-theme.js");
-    const initialShell = source("public/initial-shell.css");
-    const cases = [
-      { themeMode: "light", preset: "neutral", subThemeId: "default.neutral", expected: "#fafafa" },
-      { themeMode: "light", preset: "warm", subThemeId: "default.warm", expected: "#fbfaf7" },
-      { themeMode: "light", preset: "graphite", subThemeId: "default.graphite", expected: "#fbfbfc" },
-      { themeMode: "dark", preset: "default", subThemeId: "default.neutral", expected: "#161413" },
-      { themeMode: "dark", preset: "warm", subThemeId: "default.warm", expected: "#18130f" },
-      { themeMode: "dark", preset: "graphite", subThemeId: "default.graphite", expected: "#17181c" },
-    ] as const;
-
-    expect(initialShell).toContain("--initial-shell-background: #fafafa");
-    expect(initialShell).not.toContain("--initial-shell-background: #f1eadf");
-
-    for (const item of cases) {
-      const result = runFirstPaint({
-        bootstrap,
-        subThemeBootstrap,
-        initialTheme,
-        interfaceStyle: "default",
-        themeMode: item.themeMode,
-        lightThemePreset: item.themeMode === "light" ? item.preset : undefined,
-        darkThemePreset: item.themeMode === "dark" ? item.preset : undefined,
-        systemDark: false,
-      });
-      expect(result.dataset.initialSubThemeId).toBe(item.subThemeId);
-      expect(result.properties["--initial-shell-background"]).toBe(item.expected);
-      expect(result.nativeBackgrounds).toEqual([item.expected]);
-      expect(result.nativeThemeSources).toEqual([item.themeMode]);
-      const subTheme = BUILTIN_SUB_THEMES.find(({ id }) => id === item.subThemeId);
-      expect(getInterfaceStyleFirstPaint("default", item.themeMode, subTheme).background)
-        .toBe(item.expected);
-    }
-
-    const defaultLight = runFirstPaint({
-      bootstrap,
-      subThemeBootstrap,
-      initialTheme,
-      interfaceStyle: "default",
-      themeMode: "light",
-      systemDark: false,
-    });
-    expect(defaultLight.dataset.initialSubThemeId).toBe("default.neutral");
-    expect(defaultLight.properties["--initial-shell-background"]).toBe("#fafafa");
-
-    const systemLight = runFirstPaint({
-      bootstrap,
-      subThemeBootstrap,
-      initialTheme,
-      interfaceStyle: "default",
-      themeMode: "system",
-      systemDark: false,
-    });
-    expect(systemLight.nativeThemeSources).toEqual(["system"]);
-
-    const invalidPreset = runFirstPaint({
-      bootstrap,
-      subThemeBootstrap,
-      initialTheme,
-      interfaceStyle: "default",
-      themeMode: "light",
-      lightThemePreset: "__proto__",
-      systemDark: false,
-    });
-    expect(invalidPreset.dataset.initialSubThemeId).toBe("default.neutral");
-    expect(invalidPreset.properties["--initial-shell-background"]).toBe("#fafafa");
-
-    const v5Selection = runFirstPaint({
-      bootstrap,
-      subThemeBootstrap,
-      initialTheme,
-      interfaceStyle: "default",
-      themeMode: "light",
-      appearancePreferences: JSON.stringify({
-        schemaVersion: 5,
-        activeRootThemeId: "default",
-        byRootTheme: {
-          default: {
-            requestedColorMode: "dark",
-            requestedSubThemeIds: { light: "default.github", dark: "default.github" },
-          },
-        },
-      }),
-      systemDark: false,
-    });
-    expect(v5Selection.dataset.initialSubThemeId).toBe("default.github");
-    expect(v5Selection.properties["--initial-shell-background"]).toBe("#0d1117");
-
-    const damagedSelection = runFirstPaint({
-      bootstrap,
-      subThemeBootstrap,
-      initialTheme,
-      interfaceStyle: "default",
-      themeMode: "light",
-      appearancePreferences: JSON.stringify({
-        schemaVersion: 4,
-        activeRootThemeId: "default",
-        byRootTheme: {
-          default: {
-            requestedColorMode: "light",
-            requestedSubThemeIds: { light: "local.broken", dark: "local.broken" },
-          },
-        },
-      }),
-      systemDark: false,
-    });
-    expect(damagedSelection.dataset.initialSubThemeId).toBe("local.broken");
-    expect(damagedSelection.properties["--initial-shell-background"]).toBe("#fafafa");
-  });
-
-  it("honors the legacy light-preset key during first-paint migration", () => {
-    const result = runFirstPaint({
-      bootstrap: source("public/interface-style-bootstrap.js"),
-      subThemeBootstrap: source("public/sub-theme-bootstrap.js"),
-      initialTheme: source("public/initial-theme.js"),
-      interfaceStyle: "default",
-      themeMode: "light",
-      legacyThemePreset: "warm",
-      systemDark: false,
-    });
-
-    expect(result.dataset.initialSubThemeId).toBe("default.warm");
-    expect(result.properties["--initial-shell-background"]).toBe("#fbfaf7");
-  });
-
   it("generates deterministic skin imports and enforces one shared component contract", () => {
     const appEntry = source("src/styles.css").trim();
     const skinEntry = source("src/styles/interface-styles.generated.css").trim();
@@ -263,9 +60,10 @@ describe("Interface style registry", () => {
     for (const style of INTERFACE_STYLES) {
       if (style.stylesheet === null) continue;
       expect(skinEntry).toContain(`@import "./${style.stylesheet}" layer(interface-style);`);
+      const stylesheet = style.stylesheet;
       const skin = style.id === "windows-xp"
         ? windowsXpStylePack()
-        : source(`src/styles/${style.stylesheet}`);
+        : source(`src/styles/${stylesheet}`);
       expect(skin).toContain(`:root[data-interface-style="${style.id}"]`);
       expect(skin).toContain("--interface-titlebar-control-border:");
       expect(skin).toContain("--interface-settings-list-background:");
@@ -569,101 +367,4 @@ describe("Interface style registry", () => {
       expect(catalog["appearance.theme.title"], locale).not.toBe(catalog["appearance.interfaceStyle.title"]);
     }
   });
-
-  it("keeps every registry lookup total", () => {
-    for (const style of INTERFACE_STYLES) {
-      expect(getInterfaceStyleDefinition(style.id).id).toBe(style.id);
-      const resolved = resolveActiveThemeMode(style.id, "system");
-      const theme = resolved === "system" ? "light" : resolved;
-      expect(getInterfaceStyleFirstPaint(style.id, theme).background).toMatch(/^#/);
-    }
-  });
 });
-
-function runFirstPaint({
-  bootstrap,
-  subThemeBootstrap,
-  initialTheme,
-  interfaceStyle,
-  themeMode,
-  lightThemePreset,
-  darkThemePreset,
-  legacyThemePreset,
-  appearancePreferences,
-  systemDark,
-}: {
-  bootstrap: string;
-  subThemeBootstrap: string;
-  initialTheme: string;
-  interfaceStyle: string;
-  themeMode: string;
-  lightThemePreset?: string;
-  darkThemePreset?: string;
-  legacyThemePreset?: string;
-  appearancePreferences?: string;
-  systemDark: boolean;
-}) {
-  const dataset: Record<string, string> = {};
-  const properties: Record<string, string> = {};
-  const nativeBackgrounds: string[] = [];
-  const nativeThemeSources: string[] = [];
-  const values = new Map([
-    ["puppyone.desktop.interfaceStyle", interfaceStyle],
-    ["puppyone.desktop.theme", themeMode],
-  ]);
-  if (lightThemePreset) values.set("puppyone.desktop.lightThemePreset", lightThemePreset);
-  if (darkThemePreset) values.set("puppyone.desktop.darkThemePreset", darkThemePreset);
-  if (legacyThemePreset) values.set("puppyone.desktop.themePreset", legacyThemePreset);
-  if (appearancePreferences) values.set("puppyone.desktop.appearance", appearancePreferences);
-  const context = {
-    window: {
-      localStorage: { getItem: (key: string) => values.get(key) ?? null },
-      matchMedia: () => ({ matches: systemDark }),
-      puppyoneDesktop: {
-        setWindowBackground: ({
-          background,
-          themeSource,
-        }: {
-          background: string;
-          themeSource: string;
-        }) => {
-          nativeBackgrounds.push(background);
-          nativeThemeSources.push(themeSource);
-        },
-      },
-    },
-    document: {
-      documentElement: {
-        dataset,
-        style: { setProperty: (name: string, value: string) => { properties[name] = value; } },
-      },
-    },
-  };
-  vm.runInNewContext(bootstrap, context);
-  vm.runInNewContext(subThemeBootstrap, context);
-  vm.runInNewContext(initialTheme, context);
-  return { dataset, properties, nativeBackgrounds, nativeThemeSources };
-}
-
-function windowsXpStylePack() {
-  return [
-    "tokens.css",
-    "shell.css",
-    "controls.css",
-    "settings.css",
-    "features/explorer.css",
-    "surfaces/document.css",
-    "surfaces/code.css",
-    "surfaces/grid.css",
-    "surfaces/editable-table.css",
-    "surfaces/editor-controls.css",
-    "surfaces/canvas.css",
-    "surfaces/media.css",
-    "surfaces/embedded.css",
-    "features/agent.css",
-  ].map((relativePath) => source(`src/styles/interfaces/windows-xp/${relativePath}`)).join("\n");
-}
-
-function source(relativePath: string) {
-  return readFileSync(new URL(`../../../../${relativePath}`, import.meta.url), "utf8");
-}

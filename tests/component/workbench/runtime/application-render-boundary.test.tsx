@@ -1,9 +1,8 @@
 /**
  * @vitest-environment happy-dom
  */
-import React from "react";
+import React, { act } from "react";
 import { createRoot } from "react-dom/client";
-import { act } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { ApplicationRenderBoundary } from "../../../../src/components/ApplicationRenderBoundary";
 import { withTestLocalization } from "../../../support/react/localization";

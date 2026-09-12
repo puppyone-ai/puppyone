@@ -1,13 +1,13 @@
+import { requireEditorView } from "../../../../support/editor/editorView";
 /**
  * @vitest-environment happy-dom
  */
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { EditorView } from "@codemirror/view";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { HtmlViewer } from "../../../../../packages/shared-ui/src/editor/viewers/html/HtmlViewer";
 import { DocumentSessionBoundary } from "../../../../../packages/shared-ui/src/editor/document-session/DocumentSessionBoundary";
 import { closeDocumentWorkingCopy } from "../../../../../packages/shared-ui/src/editor/document-session/documentWorkingCopies";
+import { HtmlViewer } from "../../../../../packages/shared-ui/src/editor/viewers/html/HtmlViewer";
 import { withTestLocalization } from "../../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -45,7 +45,7 @@ describe("HTML editor and safe preview", () => {
 
     const editorElement = container.querySelector<HTMLElement>(".cm-editor");
     if (!editorElement) throw new Error("HTML CodeMirror editor did not mount.");
-    const editor = EditorView.findFromDOM(editorElement);
+    const editor = requireEditorView(editorElement);
     expect(editor.state.doc.toString()).toContain("Before");
     act(() => editor.dispatch({
       changes: { from: 0, to: editor.state.doc.length, insert: "<!doctype html><h1>After</h1><script>window.bad=true</script>" },
@@ -95,7 +95,7 @@ describe("HTML editor and safe preview", () => {
     });
     const editorElement = container.querySelector<HTMLElement>(".cm-editor");
     if (!editorElement) throw new Error("HTML CodeMirror editor did not mount.");
-    const editor = EditorView.findFromDOM(editorElement);
+    const editor = requireEditorView(editorElement);
     act(() => editor.dispatch({
       changes: { from: 4, to: 10, insert: "After" },
       userEvent: "input.type",

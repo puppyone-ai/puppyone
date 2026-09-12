@@ -25,7 +25,9 @@ const MINIMUM_SCROLL_LEAD_ROWS = 10;
 const MAXIMUM_SCROLL_LEAD_ROWS = 32;
 const SCROLL_PREDICTION_HORIZON_MS = 32;
 const SCROLL_END_DELAY_MS = 150;
-const COLUMN_OVERSCAN_PX = 280;
+// Keep idle columns cheap; horizontal motion temporarily expands the buffer.
+const COLUMN_OVERSCAN_PX = 100;
+const MAXIMUM_COLUMN_OVERSCAN_PX = 900;
 
 export const TABULAR_VIEWPORT_MOUNTED_ROW_CAP = 80;
 export const TABULAR_VIEWPORT_MOUNTED_CELL_CAP = 2_000;
@@ -50,6 +52,7 @@ type TabularViewportMetrics = {
 };
 
 export type TabularViewportProjection = Readonly<{
+  measured: boolean;
   columnItems: readonly TabularProjectionItem[];
   columnRange: TabularWindowRange;
   handleScroll: () => void;
@@ -89,16 +92,19 @@ export function useTabularViewport({
     ? initialWindow : undefined;
   // The first layout effect measures the real host before paint. Mount only a
   // geometry probe initially, rather than a guessed full viewport that is
-  // immediately restyled/replaced. Returning views use their bounded window.
-  const initialRowRange = retainedWindow?.rowRange ?? { start: 0, end: Math.min(1, rowCount) };
+  // immediately restyled/replaced. Returning views probe at their retained origin;
+  // the first measurement expands that probe before paint.
+  const initialRowStart = retainedWindow?.rowRange.start ?? 0;
+  const initialRowRange = { start: initialRowStart, end: Math.min(initialRowStart + 1, rowCount) };
   const initialRowEnd = initialRowRange.end;
   const [rowRange, setRowRange] = useState<TabularWindowRange>(() => ({
     start: initialRowRange.start,
     end: initialRowEnd,
   }));
   const [columnRange, setColumnRange] = useState<TabularWindowRange>(() => (
-    retainedWindow?.columnRange ?? { start: 0, end: Math.min(1, columnWidths.length) }
+    { start: retainedWindow?.columnRange.start ?? 0, end: Math.min((retainedWindow?.columnRange.start ?? 0) + 1, columnWidths.length) }
   ));
+  const [measured, setMeasured] = useState(false);
   const rowRangeRef = useRef(rowRange);
   const columnRangeRef = useRef(columnRange);
   const metricsRef = useRef<TabularViewportMetrics>({
@@ -111,7 +117,8 @@ export function useTabularViewport({
     afterItems: BASE_ROW_OVERSCAN,
     beforeItems: BASE_ROW_OVERSCAN,
   });
-  const scrollSampleRef = useRef<{ offset: number; timestamp: number } | null>(null);
+  const columnOverscanRef = useRef(COLUMN_OVERSCAN_PX);
+  const scrollSampleRef = useRef<{ offset: number; inlineOffset: number; timestamp: number } | null>(null);
   const scrollEndTimerRef = useRef<number | null>(null);
 
   rowRangeRef.current = rowRange;
@@ -119,6 +126,7 @@ export function useTabularViewport({
 
   const updateWindow = useCallback((rowOverscan = rowOverscanRef.current) => {
     const scroll = scrollRef.current;
+    if (scroll && scroll.clientWidth > 0 && scroll.clientHeight > 0) setMeasured(true);
     const metrics = metricsRef.current;
     const viewportBlockSize = scroll?.clientHeight || DEFAULT_VIEWPORT_BLOCK_SIZE;
     const viewportInlineSize = scroll?.clientWidth || DEFAULT_VIEWPORT_INLINE_SIZE;
@@ -160,7 +168,7 @@ export function useTabularViewport({
     const nextColumnRange = calculateVariableTabularWindow({
       offsets: columnOffsets,
       maximumItems: maximumWindowColumns,
-      overscanSize: COLUMN_OVERSCAN_PX,
+      overscanSize: columnOverscanRef.current,
       scrollOffset: columnScrollOffset,
       viewportSize: Math.max(1, viewportInlineSize - recordGutterSize),
     });
@@ -202,6 +210,14 @@ export function useTabularViewport({
     const offset = scroll.scrollTop;
     const previous = scrollSampleRef.current;
     const deltaOffset = previous ? offset - previous.offset : 0;
+    const inlineOffset = Math.abs(scroll.scrollLeft);
+    const inlineDelta = previous ? inlineOffset - previous.inlineOffset : 0;
+    if (inlineDelta !== 0 && previous) {
+      columnOverscanRef.current = Math.min(MAXIMUM_COLUMN_OVERSCAN_PX, Math.max(
+        COLUMN_OVERSCAN_PX,
+        Math.abs(inlineDelta) * SCROLL_PREDICTION_HORIZON_MS / Math.max(1, timestamp - previous.timestamp),
+      ));
+    }
     // Browsers may deliver more than one scroll event for the same position.
     // Keep the active directional lead until the scroll-end timer contracts it;
     // otherwise a duplicate event can discard the buffer before the next paint.
@@ -216,7 +232,7 @@ export function useTabularViewport({
         minimumLeadItems: MINIMUM_SCROLL_LEAD_ROWS,
         predictionHorizonMs: SCROLL_PREDICTION_HORIZON_MS,
       });
-    scrollSampleRef.current = { offset, timestamp };
+    scrollSampleRef.current = { offset, inlineOffset, timestamp };
     rowOverscanRef.current = rowOverscan;
     // Scroll math is sub-millisecond and must run in the native event task so
     // React can commit before paint. Resize work remains frame-coalesced.
@@ -229,12 +245,14 @@ export function useTabularViewport({
       scrollEndTimerRef.current = null;
       scrollSampleRef.current = {
         offset: scroll.scrollTop,
+        inlineOffset: Math.abs(scroll.scrollLeft),
         timestamp: now(),
       };
       const restingOverscan = {
         afterItems: BASE_ROW_OVERSCAN,
         beforeItems: BASE_ROW_OVERSCAN,
       };
+      columnOverscanRef.current = COLUMN_OVERSCAN_PX;
       rowOverscanRef.current = restingOverscan;
       updateWindow(restingOverscan);
     }, SCROLL_END_DELAY_MS);
@@ -260,6 +278,7 @@ export function useTabularViewport({
       };
       scrollSampleRef.current = {
         offset: scroll.scrollTop,
+        inlineOffset: Math.abs(scroll.scrollLeft),
         timestamp: now(),
       };
       updateWindow();
@@ -330,9 +349,11 @@ export function useTabularViewport({
       afterItems: BASE_ROW_OVERSCAN,
       beforeItems: BASE_ROW_OVERSCAN,
     };
+    columnOverscanRef.current = COLUMN_OVERSCAN_PX;
     rowOverscanRef.current = restingOverscan;
     scrollSampleRef.current = {
       offset: scroll.scrollTop,
+      inlineOffset: Math.abs(scroll.scrollLeft),
       timestamp: now(),
     };
     updateWindow(restingOverscan);
@@ -363,6 +384,7 @@ export function useTabularViewport({
   const mountedColumnCount = countProjectionItems(columnItems);
 
   return {
+    measured,
     columnItems,
     columnRange,
     handleScroll,

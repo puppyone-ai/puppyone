@@ -1,12 +1,11 @@
 /**
  * @vitest-environment happy-dom
  */
-import React from "react";
-import { act } from "react";
+import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it } from "vitest";
-import { useAuxiliaryWorkbench } from "../../../../src/features/app-shell/auxiliary-workbench/useAuxiliaryWorkbench";
 import { ProjectWorkbenchStore } from "../../../../src/features/app-shell/auxiliary-workbench/ProjectWorkbenchStore";
+import { useAuxiliaryWorkbench } from "../../../../src/features/app-shell/auxiliary-workbench/useAuxiliaryWorkbench";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
@@ -30,7 +29,7 @@ describe("Terminal Workbench controller", () => {
     let terminalId = "";
     let chatId = "";
     await act(async () => {
-      terminalId = store.createLauncher(null, "New");
+      terminalId = store.createLauncher(null, "New")!;
       chatId = (await store.create("agent-chat", null))!;
     });
 
@@ -65,8 +64,8 @@ describe("Terminal Workbench controller", () => {
     let first = "";
     let second = "";
     act(() => {
-      first = store.createLauncher(null, "New");
-      second = store.createLauncher(null, "New");
+      first = store.createLauncher(null, "New")!;
+      second = store.createLauncher(null, "New")!;
     });
 
     expect(second).not.toBe(first);

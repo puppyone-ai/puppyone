@@ -1,5 +1,5 @@
 /** @vitest-environment happy-dom */
-import React, { act, type ComponentProps } from "react";
+import { act, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
 import { AgentConversationHistory } from "../../../../src/features/desktop-agent/ui/AgentConversationHistory";
@@ -12,7 +12,7 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 type Props = ComponentProps<typeof AgentConversationHistory>;
-const source = { runtimeId: "codex", status: "complete", coverage: "complete", indexed: 0, nextCursor: null, scanId: null, warnings: [] } as const;
+const source = { runtimeId: "codex", status: "complete", coverage: "complete", indexed: 0, nextCursor: null, scanId: null, warnings: [] as string[] } as const;
 function mount(overrides: Partial<Props> = {}) {
   const container = document.createElement("div");
   document.body.append(container);
@@ -54,7 +54,7 @@ it("discloses capability limits without presenting them as a query failure", () 
 
 it("puts search in the toolbar, preserves rows on refresh and scopes Escape to the focused history", () => {
   const sessions = [{ id: "saved", runtimeId: "codex", provider: "codex", providerSessionId: "native", workspaceRoot: "/workspace",
-    title: "Saved design", createdAt: "2026-09-01T00:00:00Z", updatedAt: "2026-09-01T00:00:00Z" }] as Props["sessions"];
+    title: "Saved design", lastSequence: 0, terminalState: "idle", selectedModel: null, createdAt: "2026-09-01T00:00:00Z", updatedAt: "2026-09-01T00:00:00Z" }] as Props["sessions"];
   const first = mount({ sessions });
   const second = mount();
   expect(first.container.querySelector("h2")).toBeNull();

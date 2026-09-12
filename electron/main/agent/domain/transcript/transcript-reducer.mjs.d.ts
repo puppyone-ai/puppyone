@@ -1,4 +1,4 @@
-import type { AgentEvent } from "../../../../../shared/agent-contract/types";
+import type { AgentEvent, AgentSessionControl } from "../../../../../shared/agent-contract/types";
 import type { AgentProjection } from "../../../../../shared/agent-contract/display-types";
 export type * from "../../../../../shared/agent-contract/display-types";
 export declare function createAgentProjection(): AgentProjection;
@@ -13,3 +13,5 @@ export declare const agentProjectionLimits: Readonly<{
     maxCommandOutput: number;
     maxActivityText: number;
 }>;
+
+export declare function projectAgentUserSubmission(previous: AgentProjection, command: AgentSessionControl["commands"][number]): AgentProjection;

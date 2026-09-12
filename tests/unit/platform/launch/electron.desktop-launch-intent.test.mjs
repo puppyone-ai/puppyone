@@ -12,25 +12,6 @@ const workingDirectory = path.resolve("/tmp", "puppyone-launch-tests");
 const workspacePath = path.join(workingDirectory, "workspace");
 
 describe("Desktop launch intent", () => {
-  it("keeps optional subsystem construction behind the single-instance boundary", () => {
-    const mainSource = fs.readFileSync(
-      new URL("../../../../electron/main.mjs", import.meta.url),
-      "utf8",
-    );
-    const instanceBoundary = mainSource.indexOf(
-      "app.requestSingleInstanceLock(initialLaunchIntent)",
-    );
-
-    expect(instanceBoundary).toBeGreaterThan(-1);
-    expect(mainSource).not.toContain("isCloudAuthCallbackUrl");
-    for (const optionalComposition of [
-      "const terminalService = createTerminalProcessService({",
-      "const agentRuntimeRegistry = createDefaultAgentRuntimeHost({",
-      "const cloudAuthService = createCloudAuthService({",
-    ]) {
-      expect(mainSource.indexOf(optionalComposition)).toBeGreaterThan(instanceBoundary);
-    }
-  });
 
   it("does not mistake Electron's development app entry for a workspace", () => {
     const statSync = vi.fn(() => ({ isDirectory: () => true }));

@@ -1,7 +1,6 @@
 /**
  * @vitest-environment happy-dom
  */
-import React from "react";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -24,7 +23,7 @@ describe("simple Cloud publish onboarding", () => {
 
     act(() => root.render(withTestLocalization(
       <CloudLocalOnlyWorkspace
-        workspace={{ id: "local-notes", name: "Local Notes", path: "/tmp/local-notes" }}
+        workspace={{ status: "recording", id: "local-notes", name: "Local Notes", path: "/tmp/local-notes" }}
         accountEmail="dev@example.com"
         branchName="main"
         totalCommits={19}
@@ -79,7 +78,7 @@ describe("simple Cloud publish onboarding", () => {
 
     act(() => root.render(withTestLocalization(
       <CloudLocalOnlyWorkspace
-        workspace={{ id: "local-notes", name: "Local Notes", path: "/tmp/local-notes" }}
+        workspace={{ status: "recording", id: "local-notes", name: "Local Notes", path: "/tmp/local-notes" }}
         accountEmail="dev@example.com"
         branchName="main"
         totalCommits={1}

@@ -1,15 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { GitRevisionPair } from "../src/types/electron";
-import { WeightedTtlLruCache } from "../../../../../src/features/source-control/diff/core/WeightedTtlLruCache";
-import { clearFormatAwareDiffCaches } from "../../../../../src/features/source-control/diff/core/cacheControl";
 import {
   clearDocxRedlineCache,
   createDocxRedlineCacheKey,
   getDocxRedlineCacheUsageForTests,
   writeDocxRedlineCache,
 } from "../../../../../src/features/source-control/diff/contributions/docx-redline/cache";
-import { loadDocxRedline } from "../../../../../src/features/source-control/diff/contributions/docx-redline/provider";
 import type { DocxRedlinePresentation } from "../../../../../src/features/source-control/diff/contributions/docx-redline/model";
+import { loadDocxRedline } from "../../../../../src/features/source-control/diff/contributions/docx-redline/provider";
+import { WeightedTtlLruCache } from "../../../../../src/features/source-control/diff/core/WeightedTtlLruCache";
+import { clearFormatAwareDiffCaches } from "../../../../../src/features/source-control/diff/core/cacheControl";
+import type { GitRevisionPair } from "../../../../../src/types/electron";
 
 afterEach(() => {
   vi.useRealTimers();

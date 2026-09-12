@@ -1,12 +1,12 @@
+import { createMessageFormatter } from "@puppyone/localization/core";
+import { TestLocalizationProvider } from "@puppyone/localization/testing";
 import { createElement, Fragment, type ReactElement, type ReactNode } from "react";
 import type { Root } from "react-dom/client";
-import { TestLocalizationProvider } from "@puppyone/localization/testing";
-import { createMessageFormatter } from "@puppyone/localization/core";
 import englishCatalog from "../../../src/localization/catalog-loaders/en";
 
 /** Mount product components with the same complete English catalog used by the app. */
-export function withTestLocalization(element: ReactElement): ReactElement {
-  return createElement(TestLocalizationProvider, { messages: englishCatalog }, element);
+export function withTestLocalization(element: ReactNode): ReactElement {
+  return createElement(TestLocalizationProvider, { messages: englishCatalog, children: element });
 }
 
 /** Render through the application localization boundary without duplicating provider setup. */

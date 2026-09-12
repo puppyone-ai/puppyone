@@ -1,3 +1,4 @@
+import { installDesktopBridge } from "../../../support/electron/desktopBridge";
 /**
  * @vitest-environment happy-dom
  */
@@ -5,7 +6,6 @@ import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import React from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -50,7 +50,7 @@ describe("local CSV editor persistence", () => {
     }];
     const bridge = createFilesystemBridge(workspaceRoot, nodes);
     originalDesktopBridge = window.puppyoneDesktop;
-    window.puppyoneDesktop = bridge as Window["puppyoneDesktop"];
+    installDesktopBridge(bridge);
 
     const container = await renderWorkspace(workspaceRoot, "Untitled.csv");
     await waitFor(() => container.querySelector(".csv-table-editor") !== null);

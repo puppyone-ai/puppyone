@@ -129,8 +129,10 @@ non-traced cold command for the acceptance budget.
 
 ## Output locations
 
-Vitest writes routine results to `artifacts/tests/performance/benchmarks.json`.
-Electron timing probes default to `artifacts/tests/performance/`; explicit
+Vitest writes benchmark results into the invocation's unique
+`artifacts/tests/vitest/<timestamp-scope-random>/benchmarks.json`.
+Electron timing probes use unique timestamp/UUID names under
+`artifacts/tests/performance/` and include source and built-artifact identity; explicit
 `--outputJson` paths still work. Reviewed reference files live in `baselines/`.
 `renderer-smoke-legacy.json` preserves the formerly tracked
 `artifacts/performance/renderer-smoke-latest.json` unchanged as historical

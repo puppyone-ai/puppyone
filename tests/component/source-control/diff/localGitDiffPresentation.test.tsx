@@ -1,13 +1,12 @@
 /**
  * @vitest-environment happy-dom
  */
-import React from "react";
-import { act } from "react";
+import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { GitFileDiff } from "../src/types/electron";
 import { GitFileDiffSurface } from "../../../../src/features/source-control/diff/GitFileDiffSurface";
 import { WorkingFileDetail } from "../../../../src/features/source-control/WorkingFileDetail";
+import type { GitFileDiff } from "../../../../src/types/electron";
 import { withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

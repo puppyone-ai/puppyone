@@ -1,7 +1,7 @@
 /**
  * @vitest-environment happy-dom
  */
-import React, { act } from "react";
+import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -179,6 +179,21 @@ describe("DocumentSurfaceHost", () => {
 });
 
 describe("DocumentSurfaceReadinessBoundary", () => {
+  it("accepts an explicit measured projection before paint but never bypasses busy content", async () => {
+    const onReady = vi.fn();
+    createContainer();
+    const render = (busy: boolean) => <DocumentSurfaceReadinessBoundary readinessKey="csv" onReady={onReady}>
+      <div data-document-surface-ready="true"><div aria-busy={busy}>measured table</div></div>
+    </DocumentSurfaceReadinessBoundary>;
+    await act(async () => root?.render(render(true)));
+    await flushFrames();
+    expect(onReady).not.toHaveBeenCalled();
+    await act(async () => root?.render(render(false)));
+    await flushOneFrame();
+    expect(onReady).toHaveBeenCalledTimes(1);
+    await flushFrames();
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
   it("waits for aria-busy to clear and for two stable animation frames", async () => {
     const onReady = vi.fn();
     const container = createContainer();

@@ -28,8 +28,7 @@ const desktopContentSecurityPolicyPlugin: Plugin = {
   apply: "build",
   transformIndexHtml: {
     order: "post",
-    handler: () => ({
-      tags: [{
+    handler: () => [{
         tag: "meta",
         attrs: {
           "http-equiv": "Content-Security-Policy",
@@ -37,7 +36,6 @@ const desktopContentSecurityPolicyPlugin: Plugin = {
         },
         injectTo: "head-prepend",
       }],
-    }),
   },
 };
 

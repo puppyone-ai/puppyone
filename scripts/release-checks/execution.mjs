@@ -2,8 +2,9 @@ import { spawn, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createWriteStream } from "node:fs";
 import { finished } from "node:stream/promises";
-import { readFile, mkdir, mkdtemp, open, unlink, writeFile, access } from "node:fs/promises";
+import { readFile, mkdir, mkdtemp, open, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { inspectArtifact, retainArtifact } from "./artifacts.mjs";
 import { createPlan, validateManifest } from "./manifest.mjs";
 
 export async function readSourceIdentity(repositoryRoot) {
@@ -153,6 +154,11 @@ export async function runChecks(manifest, {
       report.checks[resultIndex].status = "running";
       await save();
       output?.write(`\n[release-checks] ${check.id}: ${check.name}\n`);
+      const declaredArtifacts = check.artifacts.map((artifact) => ({
+        artifactPath: path.resolve(repositoryRoot, expand(artifact)),
+        owned: artifact.includes("{checkDir}"),
+      }));
+      const previousArtifacts = await Promise.all(declaredArtifacts.map(({ artifactPath }) => inspectArtifact(artifactPath)));
       let result;
       if (!check.platforms.includes(platform)) result = { status: "unsupported", message: `Not declared for ${platform}`, durationMs: 0 };
       else if (signal?.aborted) result = { status: "cancelled", durationMs: 0 };
@@ -163,15 +169,24 @@ export async function runChecks(manifest, {
         } catch (error) { result = { status: "failed", message: error.message, durationMs: 0 }; }
       }
       const artifacts = [];
-      for (const artifact of check.artifacts) {
-        const artifactPath = path.resolve(repositoryRoot, expand(artifact));
-        const base = artifact.includes("{checkDir}") ? "run" : "repository";
-        artifacts.push({ base,
-          path: path.relative(base === "run" ? runDirectory : repositoryRoot, artifactPath).split(path.sep).join("/"),
-          exists: await access(artifactPath).then(() => true, () => false) });
+      for (const [index, { artifactPath, owned }] of declaredArtifacts.entries()) {
+        const sourceBase = owned ? "run" : "repository";
+        const sourcePath = path.relative(owned ? runDirectory : repositoryRoot, artifactPath).split(path.sep).join("/");
+        try {
+          const retained = await retainArtifact({ artifactPath, checkDir, index, before: previousArtifacts[index] });
+          if (!retained.exists) artifacts.push({ base: sourceBase, path: sourcePath, exists: false });
+          else {
+            const { archive, ...identity } = retained;
+            artifacts.push({ base: "run", path: path.relative(runDirectory, archive).split(path.sep).join("/"),
+              sourceBase, sourcePath, ...identity });
+          }
+        } catch (error) {
+          artifacts.push({ base: sourceBase, path: sourcePath, exists: false, error: error.message });
+          result = { ...result, status: "failed", message: error.message };
+        }
       }
-      if (result.status === "passed" && artifacts.some((artifact) => !artifact.exists)) {
-        result = { ...result, status: "failed", message: "A declared check artifact was not produced." };
+      if (result.status === "passed" && artifacts.some((artifact) => !artifact.exists || !artifact.fresh)) {
+        result = { ...result, status: "failed", message: "A declared check artifact was not freshly produced." };
       }
       const entry = { id: check.id, name: check.name, command: check.command, ...result, artifacts,
         logPath: `${check.id}/output.log`, resultPath: `${check.id}/result.json` };

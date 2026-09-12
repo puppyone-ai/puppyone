@@ -1,9 +1,9 @@
+import { requireEditorView } from "../../../../../support/editor/editorView";
 /**
  * @vitest-environment happy-dom
  */
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { EditorView } from "@codemirror/view";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MarkdownCodeMirrorEditor } from "../../../../../../packages/shared-ui/src/editor/markdown/MarkdownCodeMirrorEditor";
 import { markdownLivePreviewDecorations } from "../../../../../../packages/shared-ui/src/editor/markdown/core/decorations/livePreviewDecorations";
@@ -224,7 +224,7 @@ function getHost(container: HTMLElement) {
 function getEditorView(container: HTMLElement) {
   const editor = container.querySelector<HTMLElement>(".cm-editor");
   if (!editor) throw new Error("CodeMirror editor did not mount.");
-  return EditorView.findFromDOM(editor);
+  return requireEditorView(editor);
 }
 
 async function flushScheduledTasks() {

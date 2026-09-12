@@ -20,19 +20,19 @@ function workspace(id: string, name: string, path: string): Workspace {
 
 function provider(name: string): DataPort {
   return {
-    listChildren: vi.fn(async (path) => path === null ? [{
+    listChildren: vi.fn<NonNullable<DataPort["listChildren"]>>(async (path) => path === null ? [{
       id: "readme",
       name: "README.md",
       path: "README.md",
       type: "markdown",
     }] : []),
-    resolveNode: vi.fn(async (path) => ({
+    resolveNode: vi.fn<NonNullable<DataPort["resolveNode"]>>(async (path) => ({
       id: path,
       name: path.split("/").at(-1)!,
       path,
       type: "markdown",
     })),
-    readFile: vi.fn(async (path) => ({
+    readFile: vi.fn<NonNullable<DataPort["readFile"]>>(async (path) => ({
       path,
       name: path.split("/").at(-1)!,
       type: "markdown",
@@ -41,7 +41,7 @@ function provider(name: string): DataPort {
     documentPersistence: {
       kind: "local-fs",
       storageIdentity: `local-fs:${name}`,
-      persist: vi.fn(async () => ({ ok: true as const, version: "v2" })),
+      persist: vi.fn<NonNullable<DataPort["documentPersistence"]>["persist"]>(async () => ({ ok: true as const, version: "v2" })),
     },
     createFile: vi.fn(async () => undefined),
     moveNode: vi.fn(async () => undefined),
@@ -108,7 +108,7 @@ describe("WorkbenchDataService", () => {
       createProvider(folder) {
         const result = {
           ...provider(folder.name),
-          getFileUrl: vi.fn(async (path: string) => `blob:${folder.id}:${path}`),
+          getFileUrl: vi.fn<NonNullable<DataPort["getFileUrl"]>>(async (path: string) => `blob:${folder.id}:${path}`),
           revokeFileUrl: vi.fn(async () => undefined),
         };
         providers.set(folder.id, result);
@@ -148,12 +148,14 @@ describe("WorkbenchDataService", () => {
       content: "alpha",
       baseVersion: "a-v1",
       reason: "manual",
+      revision: "r1",
     });
     await persistence.persist({
       path: second,
       content: "beta",
       baseVersion: "b-v1",
       reason: "manual",
+      revision: "r1",
     });
 
     expect(providers.get(workbench.folders[0]!.id)?.documentPersistence?.persist)
@@ -189,6 +191,7 @@ describe("WorkbenchDataService", () => {
       content: "must not write",
       baseVersion: "v1",
       reason: "manual",
+      revision: "r1",
     })).rejects.toThrow(/Malformed Resource URI/i);
 
     for (const candidate of providers.values()) {

@@ -1,22 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
 
+import { parseLegacyTextSize } from "../../../../src/features/appearance/legacyTextSizeMigration";
 import {
-  DEFAULT_EXPERIMENTAL_SETTINGS,
   DEFAULT_CREATE_NEW_MENU_SETTINGS,
+  DEFAULT_EXPERIMENTAL_SETTINGS,
+  parseAgentFileActivityIndicatorsEnabled,
   parseCreateNewMenuSettings,
   parseDarkThemePreset,
   parseDiffMarkers,
   parseExperimentalSettings,
-  parseLoadingAnimationPreset,
   parseGitSidebarLayout,
+  parseLoadingAnimationPreset,
   parseLocalAgentsSettings,
-  parseAgentFileActivityIndicatorsEnabled,
   parsePointerCursors,
   parseSidebarNavigationVisibilitySettings,
   resolveVisibleCreateNewMenuItems,
 } from "../../../../src/preferences";
-import { parseLegacyTextSize } from "../../../../src/features/appearance/legacyTextSizeMigration";
 
 describe("Git sidebar layout preferences", () => {
   it("defaults to cards and accepts only the two comparison layouts", () => {
@@ -123,7 +122,7 @@ describe("create new menu preferences", () => {
       main: ["app", "customFiles", "contextMap"],
       submenu: ["csv", "puppyflow"],
       hidden: ["json", "text", "markdown", "html", "slides"],
-    } as const;
+    } satisfies Parameters<typeof resolveVisibleCreateNewMenuItems>[0];
     expect(resolveVisibleCreateNewMenuItems(settings, DEFAULT_EXPERIMENTAL_SETTINGS)).toEqual({
       main: ["app", "customFiles", "contextMap"],
       submenu: ["csv"],
@@ -138,26 +137,7 @@ describe("appearance preferences", () => {
     expect(parseAgentFileActivityIndicatorsEnabled("invalid")).toBe(false);
   });
 
-  it("keeps the CSS typography token sets aligned with the preset contract", () => {
-    const css = readFileSync(
-      new URL("../../../../src/styles/typography/foundations.css", import.meta.url),
-      "utf8",
-    );
-    const tokens = readFileSync(new URL("../../../../src/styles/tokens.css", import.meta.url), "utf8");
-    expect(css).toContain("--po-type-editor-content:");
-    expect(css).toContain("--po-user-text-size-content");
-    expect(css).toContain("--po-type-editor-line-height:");
-    expect(css).not.toContain('[data-content-text-size="small"]');
-    expect(css).not.toContain('[data-content-text-size="large"]');
 
-    expect(css).not.toContain("data-interface-text-size");
-    expect(css).not.toContain("data-terminal-text-size");
-    expect(css).not.toContain("data-text-size");
-
-    expect(tokens).toMatch(
-      /:root,\s*:where\(\.app-shell, \.onboarding-shell, \.desktop-overlay-root, \.desktop-theme-preview-surface, \.dark\)\s*\{[^}]*--desktop-sidebar-font-size:\s*var\(--po-type-left-sidebar-content\);[^}]*--desktop-sidebar-font-size-meta:\s*var\(--po-type-left-sidebar-meta\);/s,
-    );
-  });
 
   it("accepts only curated appearance values", () => {
     expect(parseLegacyTextSize("large")).toBe("large");

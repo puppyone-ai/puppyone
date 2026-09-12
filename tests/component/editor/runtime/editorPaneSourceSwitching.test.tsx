@@ -1,11 +1,11 @@
 import { retireAllDocumentInputs } from "../../../../packages/shared-ui/src/editor/resource/DocumentInputRuntime";
 /** @vitest-environment happy-dom */
-import React, { act, useLayoutEffect } from "react";
+import { createWorkspaceContentChange, type DataPort, type DocumentDataNode, type DocumentPersistedCommit, type FileContent } from "@puppyone/shared-ui";
+import { act, useLayoutEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createWorkspaceContentChange, type DataNode, type DataPort, type DocumentPersistedCommit, type FileContent } from "@puppyone/shared-ui";
-import { useEditorPaneSource } from "../../../../src/features/editor-workbench/runtime/useEditorPaneSource";
 import { DocumentEditingSession } from "../../../../packages/shared-ui/src/editor/document-session/DocumentEditingSession";
+import { useEditorPaneSource } from "../../../../src/features/editor-workbench/runtime/useEditorPaneSource";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
@@ -31,7 +31,7 @@ describe("editor pane source switching", () => {
       .mockResolvedValue({ ...base, content: "two", version: "v2" });
     const persistence = {
       kind: "local-fs" as const, storageIdentity: "test:pane-source-save-order",
-      persist: vi.fn(async () => ({ ok: true as const, version: "v2" })),
+      persist: vi.fn<NonNullable<DataPort["documentPersistence"]>["persist"]>(async () => ({ ok: true as const, version: "v2" })),
     };
     const dataPort = { ...createDataPort(readFile), documentPersistence: persistence };
     let applyPersisted: ((commit: DocumentPersistedCommit) => void) | undefined;
@@ -169,7 +169,7 @@ describe("editor pane source switching", () => {
 
   it("commits concurrent pane reads to the pane that requested them regardless of completion order", async () => {
     const pending = new Map<string, ReturnType<typeof deferred<FileContent>>>();
-    const readFile = vi.fn((path: string) => {
+    const readFile = vi.fn<NonNullable<DataPort["readFile"]>>((path: string) => {
       const request = deferred<FileContent>();
       pending.set(path, request);
       return request.promise;
@@ -201,7 +201,7 @@ describe("editor pane source switching", () => {
       signal: AbortSignal | undefined;
       request: ReturnType<typeof deferred<FileContent>>;
     }>();
-    const readFile = vi.fn((path: string, options?: { signal?: AbortSignal }) => {
+    const readFile = vi.fn<NonNullable<DataPort["readFile"]>>((path: string, options?: { signal?: AbortSignal }) => {
       const request = deferred<FileContent>();
       requests.set(path, { signal: options?.signal, request });
       return request.promise;
@@ -244,7 +244,7 @@ describe("editor pane source switching", () => {
       signal: AbortSignal | undefined;
       request: ReturnType<typeof deferred<FileContent>>;
     }> = [];
-    const readFile = vi.fn((path: string, options?: { signal?: AbortSignal }) => {
+    const readFile = vi.fn<NonNullable<DataPort["readFile"]>>((path: string, options?: { signal?: AbortSignal }) => {
       const request = deferred<FileContent>();
       requests.push({ path, signal: options?.signal, request });
       return request.promise;
@@ -271,7 +271,7 @@ describe("editor pane source switching", () => {
 
 function SourceProbe({ paneId, node: activeNode, dataPort }: {
   paneId: string;
-  node: DataNode | null;
+  node: DocumentDataNode | null;
   dataPort: DataPort;
 }) {
   const source = useEditorPaneSource(activeNode, dataPort);
@@ -286,7 +286,7 @@ function SourceProbe({ paneId, node: activeNode, dataPort }: {
   );
 }
 
-function node(path: string, type: DataNode["type"], mimeType: string): DataNode {
+function node(path: string, type: DocumentDataNode["type"], mimeType: string): DocumentDataNode {
   return {
     id: path,
     path,
@@ -297,7 +297,7 @@ function node(path: string, type: DataNode["type"], mimeType: string): DataNode 
   };
 }
 
-function fileContent(source: DataNode): FileContent {
+function fileContent(source: DocumentDataNode): FileContent {
   return {
     path: source.path,
     name: source.name,
@@ -309,7 +309,7 @@ function fileContent(source: DataNode): FileContent {
 }
 
 function createReadFile() {
-  const readFile = vi.fn(async (path: string) => ({
+  const readFile = vi.fn<NonNullable<DataPort["readFile"]>>(async (path: string): Promise<FileContent> => ({
     path,
     name: path,
     type: path.endsWith(".csv") ? "spreadsheet" as const : "text" as const,
@@ -322,9 +322,9 @@ function createReadFile() {
 function createDataPort(readFile: NonNullable<DataPort["readFile"]>): DataPort {
   return {
     readFile,
-    getFileUrl: vi.fn(async (path: string) => `blob:${path}`),
+    getFileUrl: vi.fn<NonNullable<DataPort["getFileUrl"]>>(async (path: string) => `blob:${path}`),
     revokeFileUrl: vi.fn(async () => undefined),
-    listChildren: vi.fn(async () => []),
+    listChildren: vi.fn<NonNullable<DataPort["listChildren"]>>(async () => []),
   };
 }
 
@@ -337,7 +337,7 @@ function createContainer() {
 
 async function renderSinglePane(
   container: HTMLElement,
-  activeNode: DataNode | null,
+  activeNode: DocumentDataNode | null,
   dataPort: DataPort,
 ) {
   await renderPanes(container, { pane: activeNode }, dataPort);
@@ -345,7 +345,7 @@ async function renderSinglePane(
 
 async function renderPanes(
   _container: HTMLElement,
-  panes: Readonly<Record<string, DataNode | null>>,
+  panes: Readonly<Record<string, DocumentDataNode | null>>,
   dataPort: DataPort,
 ) {
   await act(async () => root?.render(
@@ -384,7 +384,7 @@ function deferred<T>() {
 
 async function resolveRead(
   pending: ReadonlyMap<string, ReturnType<typeof deferred<FileContent>>>,
-  source: DataNode,
+  source: DocumentDataNode,
 ) {
   const request = pending.get(source.path);
   if (!request) throw new Error(`Missing read request for: ${source.path}`);

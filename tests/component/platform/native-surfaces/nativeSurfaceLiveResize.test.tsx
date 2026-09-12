@@ -1,13 +1,13 @@
 /** @vitest-environment happy-dom */
+import { EventEmitter } from "node:events";
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { EventEmitter } from "node:events";
 import { afterEach, expect, it, vi } from "vitest";
-import { HostedItemView } from "../../../../src/features/app-shell/auxiliary-workbench/host/HostedItemView";
-import { projectItemHosts } from "../../../../src/features/app-shell/auxiliary-workbench/host/HostedItemPool";
-import { ProjectWorkbenchStore } from "../../../../src/features/app-shell/auxiliary-workbench/ProjectWorkbenchStore";
 import { attachNativeSurfaceView } from "../../../../electron/main/native-surfaces/view-attachment.mjs";
 import type { ItemHostBridge, ItemHostState } from "../../../../shared/item-host-contract/types";
+import { projectItemHosts } from "../../../../src/features/app-shell/auxiliary-workbench/host/HostedItemPool";
+import { HostedItemView } from "../../../../src/features/app-shell/auxiliary-workbench/host/HostedItemView";
+import { ProjectWorkbenchStore } from "../../../../src/features/app-shell/auxiliary-workbench/ProjectWorkbenchStore";
 
 
 let root: Root | null = null;
@@ -32,8 +32,8 @@ function fixture() {
 }
 
 import { AuxiliaryPanelHost } from "../../../../src/features/app-shell/auxiliary/AuxiliaryPanelHost";
-import { withTestLocalization } from "../../../support/react/localization";
 import { acquireNativeSurfacePointerPassthroughLease, useNativeSurfacePointerPassthroughActivity } from "../../../../src/features/native-surfaces";
+import { withTestLocalization } from "../../../support/react/localization";
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 it("keeps native content visible throughout a live outer resize, including the held-pointer interval", async () => {
@@ -51,7 +51,7 @@ it("keeps native content visible throughout a live outer resize, including the h
   });
   const view={webContents:{isDestroyed:()=>false},setVisible:vi.fn(),setBounds:vi.fn()};
   const windowFixture=Object.assign(new EventEmitter(), {webContents:{id:1},isVisible:()=>true,getContentSize:()=>[1200,800],contentView:{addChildView(){},removeChildView(){}}});
-  const attachment=attachNativeSurfaceView({window:windowFixture,view});
+  const attachment=attachNativeSurfaceView({window:windowFixture,view,nativeSurfaceOcclusion:undefined,nativeSurfacePointerPassthrough:undefined,onPointerDown:undefined,onVisibilityChange:undefined});
   cleanups.push(()=>attachment.dispose());
   const {bridge,project}=fixture();
   vi.mocked(bridge.setGeometry).mockImplementation(request=>attachment.geometry(request));
@@ -80,7 +80,7 @@ it("keeps native content visible throughout a live outer resize, including the h
     bounds?: { x: number; y: number; width: number; height: number };
     published?: boolean;
   }> = [];
-  const record=(phase:string)=>observations.push({phase,visible:attachment.isVisible(),width:container.querySelector<HTMLElement>("aside")!.style.getPropertyValue("--desktop-right-sidebar-width"),bounds:view.setBounds.mock.lastCall?.[0],published:bridge.setGeometry.mock.lastCall?.[0]?.visible});
+  const record=(phase:string)=>observations.push({phase,visible:attachment.isVisible(),width:container.querySelector<HTMLElement>("aside")!.style.getPropertyValue("--desktop-right-sidebar-width"),bounds:view.setBounds.mock.lastCall?.[0],published:vi.mocked(bridge.setGeometry).mock.lastCall?.[0]?.visible});
   await flush();record("before");expect(attachment.isVisible()).toBe(true);
   await fire(handle,"pointerdown",780);await flush();record("held without movement");
   expect.soft(attachment.isVisible(),"pressing the outer sash must not blank a live native view").toBe(true);

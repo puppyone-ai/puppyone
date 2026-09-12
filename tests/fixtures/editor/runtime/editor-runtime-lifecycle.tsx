@@ -1,19 +1,24 @@
+import { redo, undo, undoDepth } from "@codemirror/commands";
+import { TestLocalizationProvider } from "@puppyone/localization/testing";
+import {
+  createWorkspaceContentChange,
+  FilePreview,
+  invalidateDocumentInputs,
+  useDocumentInput,
+  withEditorDocumentOperations, type DataPort, type DocumentDataNode, type DocumentPersistenceRequest,
+  type DocumentPersistenceResult, type FileContent
+} from "@puppyone/shared-ui";
+import "@puppyone/shared-ui/shared-ui.css";
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
-import { EditorView } from "@codemirror/view";
-import { undo, redo, undoDepth } from "@codemirror/commands";
-import { TestLocalizationProvider } from "@puppyone/localization/testing";
-import { FilePreview, useDocumentInput, createWorkspaceContentChange, invalidateDocumentInputs,
-  withEditorDocumentOperations, type DataPort, type DocumentDataNode, type DocumentPersistenceRequest,
-  type DocumentPersistenceResult, type FileContent } from "@puppyone/shared-ui";
 import { closeAllDocumentWorkingCopies, closeDocumentWorkingCopy, getDocumentWorkingCopiesUnderResource } from "../../../../packages/shared-ui/src/editor/document-session/documentWorkingCopies";
-import { parseSpreadsheetInWorker } from "../../../../packages/shared-ui/src/editor/viewers/office/spreadsheetPreviewClient";
 import { editorTaskScheduler } from "../../../../packages/shared-ui/src/editor/runtime/EditorTaskScheduler";
-import englishCatalog from "../../../../src/localization/catalog-loaders/en";
-import "../../../../src/styles/cascade.css";
+import { parseSpreadsheetInWorker } from "../../../../packages/shared-ui/src/editor/viewers/office/spreadsheetPreviewClient";
 import "../../../../src/cloud-globals.css";
-import "@puppyone/shared-ui/shared-ui.css";
+import englishCatalog from "../../../../src/localization/catalog-loaders/en";
 import "../../../../src/styles.css";
+import "../../../../src/styles/cascade.css";
+import { requireEditorView } from "../../../support/editor/editorView";
 
 declare global {
   interface Window {
@@ -45,7 +50,7 @@ function Fixture() {
   select = setPath;
   const node: DocumentDataNode | null = path ? { id: path, path, name: path, type: "markdown", mimeType: "text/markdown" } : null;
   const input = useDocumentInput(node, port);
-  return <TestLocalizationProvider catalog={englishCatalog}><FilePreview node={node} fileContent={input.content}
+  return <TestLocalizationProvider messages={englishCatalog}><FilePreview node={node} fileContent={input.content}
     loading={input.loading} error={input.error} documentPersistence={port.documentPersistence}
     onDocumentPersisted={input.applyPersistedCommit} editorSaveMode="auto" showHeader={false} hideSourceView />
   </TestLocalizationProvider>;
@@ -59,7 +64,7 @@ async function until(check: () => boolean | Promise<boolean>) {
 }
 function currentView() {
   const element = document.querySelector<HTMLElement>(".cm-editor");
-  return element ? EditorView.findFromDOM(element) : null;
+  return element ? requireEditorView(element) : null;
 }
 function assert(condition: unknown, message: string): asserts condition { if (!condition) throw new Error(message); }
 

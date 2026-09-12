@@ -2,9 +2,9 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ProductAnalyticsSettingsRow } from "../../../../src/features/settings/main/ProductAnalyticsSettingsRow";
 import { PrivacySettingsView } from "../../../../src/features/settings/main/PrivacySettingsView";
-import type { DesktopTelemetryState } from "../src/types/electron";
+import { ProductAnalyticsSettingsRow } from "../../../../src/features/settings/main/ProductAnalyticsSettingsRow";
+import type { DesktopTelemetryState } from "../../../../src/types/electron";
 import { withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

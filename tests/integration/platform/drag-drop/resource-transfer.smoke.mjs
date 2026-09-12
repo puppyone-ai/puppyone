@@ -3,20 +3,31 @@ import fs from "node:fs/promises";
 import { mkdtempSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { app, BrowserWindow, ipcMain } from "electron";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { app, BrowserWindow, ipcMain, session, WebContentsView } from "electron";
 import { createServer } from "vite";
 import { createWorkspaceResourceResolver } from "../../../../electron/main/workspace-resource-resolver.mjs";
 import { createSenderWorkspaceAuthorization } from "../../../../electron/main/workspace-authorization.mjs";
 import { loadMacosResourceDrag } from "../../../../electron/main/platform/macos/resource-drag.mjs";
 import { registerResourceTransferIpcHandlers } from "../../../../electron/main/ipc/resource-transfer-ipc.mjs";
 
+import { runNativeResourceAcceptance } from "../../../support/electron/native-resource-acceptance.mjs";
+import { createEditorSurfaceSessionManager } from "../../../../electron/main/editor-surfaces/session-manager.mjs";
+import { createNativeSurfaceOcclusionCoordinator } from "../../../../electron/main/native-surfaces/occlusion-coordinator.mjs";
+import { createNativeSurfacePointerPassthroughCoordinator } from "../../../../electron/main/native-surfaces/pointer-passthrough-coordinator.mjs";
+import { registerNativeSurfaceOcclusionIpcHandlers } from "../../../../electron/main/ipc/native-surface-occlusion-ipc.mjs";
+import { registerNativeSurfacePointerPassthroughIpcHandlers } from "../../../../electron/main/ipc/native-surface-pointer-passthrough-ipc.mjs";
+
 // Manual OS smoke: drag the three source rows to the other native window, Finder
 // or Terminal. The separate receiver records genuine native File objects.
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const temporaryRoot = mkdtempSync(path.join(os.tmpdir(), "puppyone-resource-smoke-"));
-const editorMode = process.argv.includes("--editor");
+const automated = process.argv.includes("--automated");
+const pdfMode = process.argv.includes("--pdf");
+const editorMode = process.argv.includes("--editor") || pdfMode;
 app.setPath("userData", path.join(temporaryRoot, "user-data"));
+if (automated) app.on("window-all-closed", () => {});
+const deadline = automated ? setTimeout(() => { console.error("Native acceptance exceeded 120 seconds"); process.exit(1); }, 120_000) : null;
 app.whenReady().then(async () => {
   await fs.mkdir(path.join(temporaryRoot, "docs"));
   await fs.writeFile(path.join(temporaryRoot, "docs", "中文 file.md"), "native drag fixture\n");
@@ -24,6 +35,18 @@ app.whenReady().then(async () => {
   const workspacePath = await fs.realpath(temporaryRoot);
   const folders = [{ path: workspacePath, workspace: { id: "smoke-root", workspaceInstanceId: "smoke-root", name: "Smoke project" } }];
   const windows = [];
+  const entries = [];
+  const occlusion = createNativeSurfaceOcclusionCoordinator();
+  const pointer = createNativeSurfacePointerPassthroughCoordinator();
+  registerNativeSurfaceOcclusionIpcHandlers({ ipcMain, coordinator: occlusion });
+  registerNativeSurfacePointerPassthroughIpcHandlers({ ipcMain, coordinator: pointer });
+  const pdfPath = path.join(repoRoot, "tests/fixtures/editor/formats/samples/sample_document.pdf");
+  const surfaces = createEditorSurfaceSessionManager({
+    WebContentsView, browserSession: session.fromPartition("native-resource-pdf"),
+    getOwnerWindow: (id) => windows.find((window) => window.webContents.id === id),
+    nativeSurfaceOcclusion: occlusion, nativeSurfacePointerPassthrough: pointer,
+    admitResource: async () => ({ byteLength: (await fs.stat(pdfPath)).size, navigationUrl: pathToFileURL(pdfPath).href }),
+  });
   const authorizeWorkspaceRoot = createSenderWorkspaceAuthorization({ getWorkspaceRootsForSender: () => [workspacePath] });
   const resolver = createWorkspaceResourceResolver({ getFoldersForSender: () => folders, authorizeWorkspaceRoot });
   const nativeApi = loadMacosResourceDrag();
@@ -35,6 +58,7 @@ app.whenReady().then(async () => {
   const transfer = registerResourceTransferIpcHandlers({ ipcMain, resolveWorkspaceResource: resolver, nativeDrag, getWindow: (sender) => BrowserWindow.fromWebContents(sender) });
   app.once("will-quit", () => transfer.dispose());
   const log = async (entry) => {
+    entries.push(entry);
     console.log(JSON.stringify(entry));
     await fs.appendFile(path.join(temporaryRoot, "events.jsonl"), JSON.stringify(entry) + "\n");
   };
@@ -45,8 +69,9 @@ app.whenReady().then(async () => {
       content: await fs.readFile(resolved.absolutePath, "utf8"), version: "smoke" };
   });
   ipcMain.on("resource-smoke:event", (_event, entry) => { void log(entry); });
-  const server = await createServer({ root: repoRoot, cacheDir: path.join(temporaryRoot, "vite-cache"), server: { port: 5187, strictPort: true, host: "127.0.0.1" } });
+  const server = await createServer({ root: repoRoot, cacheDir: path.join(temporaryRoot, "vite-cache"), server: { port: 5187, strictPort: false, host: "127.0.0.1" } });
   await server.listen();
+  const port = server.httpServer.address().port;
   for (const [index, mode] of (editorMode ? ["editor"] : ["source", "receiver"]).entries()) {
     const window = new BrowserWindow({
       title: `Resource transfer smoke — ${mode}`,
@@ -56,9 +81,35 @@ app.whenReady().then(async () => {
     });
     windows.push(window);
     window.webContents.on("console-message", (_event, _level, message) => { console.log(message); });
-    await window.loadURL(`http://127.0.0.1:5187/tests/fixtures/platform/drag-drop/${editorMode ? "editor-resource-drop" : "resource-transfer"}.html?mode=${mode}`);
+    await window.loadURL(`http://127.0.0.1:${port}/tests/fixtures/platform/drag-drop/${editorMode ? "editor-resource-drop" : "resource-transfer"}.html?mode=${mode}`);
   }
   app.focus({ steal: true });
   console.log(`RESOURCE_SMOKE_READY ${temporaryRoot}`);
+  if (automated) {
+    let failed = false;
+    try {
+      await runNativeResourceAcceptance({ windows, entries, temporaryRoot, repoRoot, editorMode,
+        attachPdf: pdfMode ? async (window, rect) => {
+          const activated = await surfaces.activate({ ownerWebContentsId: window.webContents.id,
+            viewerId: "pdf-preview", documentPath: "sample_document.pdf", documentRevision: "native-smoke:1",
+            resourceUrl: "puppyone-local://file/native-smoke/sample_document.pdf", title: "PDF native drop target", safeMode: false,
+            bounds: { x: Math.round(rect.x), y: Math.round(rect.y + 50), width: Math.round(rect.width), height: Math.round(rect.height - 50) },
+            geometryRevision: 1, visible: true, appearance: { dark: false, direction: "ltr", attributes: {}, variables: {} },
+          });
+          return { ...activated, entry: surfaces.values().find((entry) => entry.sessionId === activated.sessionId) };
+        } : undefined,
+      });
+    } catch (error) { console.error(error); failed = true; }
+    finally {
+      await surfaces.destroyAll();
+      transfer.dispose(); pointer.dispose(); occlusion.dispose();
+      for (const window of windows) if (!window.isDestroyed()) window.destroy();
+      await server.close();
+      await fs.rm(temporaryRoot, { recursive: true, force: true });
+      clearTimeout(deadline);
+      process.exit(failed ? 1 : 0);
+    }
+    return;
+  }
   app.on("window-all-closed", () => { void server.close().then(() => app.quit()); });
-}).catch((error) => { console.error(error); app.exit(1); });
+}).catch((error) => { console.error(error); process.exit(1); });

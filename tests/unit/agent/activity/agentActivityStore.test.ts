@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
+import type { AgentActivityEvent } from "../../../../shared/agent-activity-contract/types";
 import type { AgentActivityClient } from "../../../../src/features/desktop-agent-presence/application/agentActivityClient";
 import {
   AGENT_FILE_ACTIVITY_COMPLETION_LINGER_MS,
   AgentActivityStore,
 } from "../../../../src/features/desktop-agent-presence/application/agentActivityStore";
-import type { AgentActivityEvent } from "../../../../shared/agent-activity-contract/types";
 import {
   normalizeWorkspaceRelativePath,
   toWorkspaceRelativePath,
@@ -12,14 +12,14 @@ import {
 
 describe("AgentActivityStore", () => {
   it("uses one native subscription and updates only affected path listeners", async () => {
-    let nativeListener: ((event: AgentActivityEvent) => void) | null = null;
+    let nativeListener: ((event: AgentActivityEvent) => void) | undefined;
     const client: AgentActivityClient = {
-      subscribe: vi.fn(async () => ({ schemaVersion: 1, activities: [] })),
+      subscribe: vi.fn<AgentActivityClient["subscribe"]>(async () => ({ schemaVersion: 1, activities: [] })),
       onEvent: vi.fn((listener) => {
         nativeListener = listener;
         return () => undefined;
       }),
-      unsubscribe: vi.fn(),
+      unsubscribe: vi.fn<AgentActivityClient["subscribe"]>(),
     };
     const store = new AgentActivityStore(client);
     const appListener = vi.fn();

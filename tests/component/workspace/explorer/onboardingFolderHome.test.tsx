@@ -2,8 +2,7 @@
  * @vitest-environment happy-dom
  */
 import { readFileSync } from "node:fs";
-import React from "react";
-import { act } from "react";
+import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MinimalOnboarding, type MinimalOnboardingProps } from "../../../../src/components/MinimalOnboarding";
@@ -11,9 +10,9 @@ import { PUPPY_BRAND_MARK_ASSETS } from "../../../../src/components/brand/PuppyB
 import {
   EMPTY_STATE_INTRO_FALLBACK_TIMEOUT_MS,
 } from "../../../../src/components/onboarding/emptyStateIntro";
+import type { DesktopTelemetryState } from "../../../../src/types/electron";
 import { renderWithTestLocalization } from "../../../support/react/localization";
 import { createTestSurfaceAppearance } from "../../../support/react/surfaceAppearance";
-import type { DesktopTelemetryState } from "../src/types/electron";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -98,7 +97,7 @@ describe("project folder home", () => {
     const disclosure = container.querySelector("[data-onboarding-telemetry-disclosure]");
     expect(disclosure).not.toBeNull();
     expect(actionArea?.lastElementChild).toBe(disclosure);
-    expect(actions?.compareDocumentPosition(disclosure as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(actions!.compareDocumentPosition(disclosure as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(bridge.markTelemetryNoticeSeen).toHaveBeenCalledOnce();
   });
 
@@ -181,8 +180,8 @@ describe("project folder home", () => {
     expect(requireSurface(container).dataset.onboardingState).toBe("projects");
     expect(container.querySelector(".onboarding-recent-projects")?.children).toHaveLength(1);
     expect(container.querySelector(".onboarding-project-list")?.children).toHaveLength(1);
-    expect(brand?.compareDocumentPosition(projects as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(projects?.compareDocumentPosition(launcher as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(brand!.compareDocumentPosition(projects as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(projects!.compareDocumentPosition(launcher as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("uses Puppy Lite only when the resolved theme is light", () => {
@@ -619,7 +618,7 @@ function renderHome(
 function expectBrandLockup(
   container: HTMLElement,
   state: "empty" | "projects" = "empty",
-  expectedMarkAsset = PUPPY_BRAND_MARK_ASSETS.dark,
+  expectedMarkAsset: string = PUPPY_BRAND_MARK_ASSETS.dark,
 ) {
   const lockup = container.querySelector(".onboarding-brand-lockup");
   const mark = lockup?.querySelector<HTMLImageElement>(".onboarding-brand-mark-artwork");

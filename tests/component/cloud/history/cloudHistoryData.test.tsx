@@ -1,8 +1,7 @@
 /**
  * @vitest-environment happy-dom
  */
-import React from "react";
-import { act } from "react";
+import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -57,15 +56,15 @@ describe("Cloud History data lifecycle", () => {
         total: 2,
       }))
       .mockImplementationOnce(() => nextPage.promise);
-    let state: CloudHistoryDataState | null = null;
-    render(<Probe onState={(value) => { state = value; }} />);
+    const state: { current: CloudHistoryDataState | null } = { current: null };
+    render(<Probe onState={(value) => { state.current = value; }} />);
     await flush();
 
     let first: Promise<void> | undefined;
     let second: Promise<void> | undefined;
     await act(async () => {
-      first = state?.loadMore();
-      second = state?.loadMore();
+      first = state.current?.loadMore();
+      second = state.current?.loadMore();
       await Promise.resolve();
     });
     expect(getCloudHistory).toHaveBeenCalledTimes(2);
@@ -82,7 +81,7 @@ describe("Cloud History data lifecycle", () => {
       await second;
     });
 
-    expect(state?.history?.commits.map((commit) => commit.commit_id)).toEqual([head, parent]);
+    expect(state.current?.history?.commits.map((commit) => commit.commit_id)).toEqual([head, parent]);
   });
 
   it("refreshes atomically when a continuation page belongs to another snapshot", async () => {
@@ -109,18 +108,18 @@ describe("Cloud History data lifecycle", () => {
         refs: [{ ref_name: "refs/heads/main", ref_type: "branch", commit_id: refreshedHead }],
         total: 1,
       }));
-    let state: CloudHistoryDataState | null = null;
-    render(<Probe onState={(value) => { state = value; }} />);
+    const state: { current: CloudHistoryDataState | null } = { current: null };
+    render(<Probe onState={(value) => { state.current = value; }} />);
     await flush();
 
     await act(async () => {
-      await state?.loadMore();
+      await state.current?.loadMore();
     });
 
     expect(getCloudHistory).toHaveBeenCalledTimes(3);
-    expect(state?.history?.snapshot_id).toBe("2".repeat(64));
-    expect(state?.history?.head_commit_id).toBe(refreshedHead);
-    expect(state?.error).toBeNull();
+    expect(state.current?.history?.snapshot_id).toBe("2".repeat(64));
+    expect(state.current?.history?.head_commit_id).toBe(refreshedHead);
+    expect(state.current?.error).toBeNull();
   });
 
   it("refreshes instead of merging continuation metadata drift", async () => {
@@ -145,17 +144,17 @@ describe("Cloud History data lifecycle", () => {
         head_commit_id: refreshedHead,
         total: 1,
       }));
-    let state: CloudHistoryDataState | null = null;
-    render(<Probe onState={(value) => { state = value; }} />);
+    const state: { current: CloudHistoryDataState | null } = { current: null };
+    render(<Probe onState={(value) => { state.current = value; }} />);
     await flush();
 
     await act(async () => {
-      await state?.loadMore();
+      await state.current?.loadMore();
     });
 
     expect(getCloudHistory).toHaveBeenCalledTimes(3);
-    expect(state?.history?.head_commit_id).toBe(refreshedHead);
-    expect(state?.error).toBeNull();
+    expect(state.current?.history?.head_commit_id).toBe(refreshedHead);
+    expect(state.current?.error).toBeNull();
   });
 
   it("refreshes after the server reports an unavailable signed snapshot", async () => {
@@ -177,17 +176,17 @@ describe("Cloud History data lifecycle", () => {
         head_commit_id: refreshedHead,
         total: 1,
       }));
-    let state: CloudHistoryDataState | null = null;
-    render(<Probe onState={(value) => { state = value; }} />);
+    const state: { current: CloudHistoryDataState | null } = { current: null };
+    render(<Probe onState={(value) => { state.current = value; }} />);
     await flush();
 
     await act(async () => {
-      await state?.loadMore();
+      await state.current?.loadMore();
     });
 
     expect(getCloudHistory).toHaveBeenCalledTimes(3);
-    expect(state?.history?.head_commit_id).toBe(refreshedHead);
-    expect(state?.error).toBeNull();
+    expect(state.current?.history?.head_commit_id).toBe(refreshedHead);
+    expect(state.current?.error).toBeNull();
   });
 
   it("does not reload when a parent passes an unstable session callback", async () => {

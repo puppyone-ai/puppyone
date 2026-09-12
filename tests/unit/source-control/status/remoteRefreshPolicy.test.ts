@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { GitStatusSnapshot } from "../src/types/electron";
 import {
   getRemoteFetchTarget,
   shouldFetchRemote,
 } from "../../../../src/features/source-control/remoteRefreshPolicy";
+import type { GitStatusSnapshot } from "../../../../src/types/electron";
 
 describe("remote refresh policy", () => {
   it.each(["github", "puppyone-cloud", "generic-git"] as const)(

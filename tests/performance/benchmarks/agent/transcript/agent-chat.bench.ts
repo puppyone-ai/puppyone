@@ -1,24 +1,25 @@
+import { defineAgentEvent, type AgentEventPayloadMap } from "../../../../support/agent/agentEventFixture";
 /** @vitest-environment happy-dom */
 import { createElement, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { bench, describe } from "vitest";
 import { AgentSessionActor } from "../../../../../electron/main/agent/domain/agent-session-actor.mjs";
+import { applyAgentEvent, applyAgentEvents, createAgentProjection } from "../../../../../electron/main/agent/domain/transcript/transcript-reducer.mjs";
+import type { AgentEvent } from "../../../../../src/features/desktop-agent/agentTypes";
 import { SessionUiStateStore } from "../../../../../src/features/desktop-agent/application/SessionUiStateStore";
+import type { AgentActivity } from "../../../../../src/features/desktop-agent/domain/agent-projection-types";
+import { agentToolEvidenceLimits } from "../../../../../src/features/desktop-agent/domain/agent-tool-evidence";
 import { AgentComposer } from "../../../../../src/features/desktop-agent/ui/AgentComposer";
-import { AgentTranscript } from "../../../../../src/features/desktop-agent/ui/AgentTranscript";
-import { SafeMarkdown } from "../../../../../src/features/desktop-agent/ui/SafeMarkdown";
 import {
   AgentPickerPopover,
   type AgentPickerGroup,
 } from "../../../../../src/features/desktop-agent/ui/AgentPickerPopover";
-import { agentPickerLimits } from "../../../../../src/features/desktop-agent/ui/agent-picker-limits";
+import { AgentTranscript } from "../../../../../src/features/desktop-agent/ui/AgentTranscript";
+import { SafeMarkdown } from "../../../../../src/features/desktop-agent/ui/SafeMarkdown";
 import { AgentCommandActivity } from "../../../../../src/features/desktop-agent/ui/activity/AgentCommandActivity";
 import { AgentFileChangeActivity } from "../../../../../src/features/desktop-agent/ui/activity/AgentFileChangeActivity";
-import { applyAgentEvent, applyAgentEvents, createAgentProjection } from "../../../../../electron/main/agent/domain/transcript/transcript-reducer.mjs";
-import type { AgentEvent } from "../../../../../src/features/desktop-agent/agentTypes";
-import type { AgentActivity } from "../../../../../src/features/desktop-agent/domain/agent-projection-types";
-import { agentToolEvidenceLimits } from "../../../../../src/features/desktop-agent/domain/agent-tool-evidence";
+import { agentPickerLimits } from "../../../../../src/features/desktop-agent/ui/agent-picker-limits";
 import { withBenchmarkLocalization } from "../../../../support/performance/localizationHarness";
 
 // Long enough to make this product-critical signal useful in CI while keeping
@@ -28,7 +29,7 @@ const HEAVY_UI_OPTIONS = { iterations: 3, time: 500, warmupIterations: 1, warmup
 const recordedEvents = createRecordedEvents(1_000);
 const projection = applyAgentEvents(createAgentProjection(), recordedEvents);
 const committedActor = new AgentSessionActor({events: createRecordedEvents(660)});
-const appendToActor = () => committedActor.appendEvent({sessionId:"benchmark",runtimeId:"fixture",providerSessionId:"native",event:{type:"assistant.delta",turnId:"live",itemId:"live-answer",payload:{delta:"next "}}});
+const appendToActor = () => { committedActor.appendEvent({sessionId:"benchmark",runtimeId:"fixture",providerSessionId:"native",event:{type:"assistant.delta",turnId:"live",itemId:"live-answer",payload:{delta:"next "}}}); };
 const largeMarkdown = createLargeMarkdown(128 * 1024);
 const pickerGroups = createPickerGroups(500);
 const composerModels = Array.from({ length: 500 }, (_, index) => ({
@@ -232,6 +233,6 @@ function createRecordedEvents(turns: number): AgentEvent[] {
   return events;
 }
 
-function event(sequence: number, type: AgentEvent["type"], payload: Record<string, unknown>, turnId: string, itemId: string | null = null): AgentEvent {
-  return { schemaVersion: 1, sequence, sessionId: "benchmark", runtimeId: "fixture", provider: "fixture", providerSessionId: "native", turnId, itemId, emittedAt: new Date(sequence).toISOString(), type, payload };
+function event<T extends AgentEvent["type"]>(sequence: number, type: T, payload: AgentEventPayloadMap[T] & Record<string, unknown>, turnId: string, itemId: string | null = null): AgentEvent<T> {
+  return defineAgentEvent<T>({ schemaVersion: 1, sequence, sessionId: "benchmark", runtimeId: "fixture", provider: "fixture", providerSessionId: "native", turnId, itemId, emittedAt: new Date(sequence).toISOString(), type, payload });
 }

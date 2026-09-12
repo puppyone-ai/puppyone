@@ -1,19 +1,21 @@
+import type { DesktopBridge } from "../../../support/electron/desktopBridge";
+import { installDesktopBridge } from "../../../support/electron/desktopBridge";
 // @vitest-environment happy-dom
 
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  useSubThemeNativeMenu,
-  useSubThemeCatalog,
-  type SubThemeCatalogController,
-} from "../../../../src/features/themes/useSubThemeCatalog";
-import type { DesktopThemeSnapshot } from "../src/types/electron";
-import {
   createSubThemeCatalogSnapshot,
   getCompatibleSubThemes,
 } from "../../../../src/features/themes/builtinSubThemes";
 import { getSubThemeModes } from "../../../../src/features/themes/themeTypes";
+import {
+  useSubThemeCatalog,
+  useSubThemeNativeMenu,
+  type SubThemeCatalogController,
+} from "../../../../src/features/themes/useSubThemeCatalog";
+import type { DesktopThemeSnapshot } from "../../../../src/types/electron";
 
 let container: HTMLDivElement;
 let root: Root;
@@ -49,13 +51,15 @@ describe("renderer Sub Theme catalog", () => {
     const first = snapshot("com.example.first");
     const second = snapshot("com.example.second");
     const list = vi.fn().mockResolvedValueOnce(first).mockResolvedValue(second);
-    window.puppyoneDesktop = {
+    installDesktopBridge({
       themes: {
+        syncNativeMenu: vi.fn(async () => ({ synced: true as const })),
+        onSelectionRequested: vi.fn(() => () => {}),
         list,
         openDirectory: vi.fn(async () => ({ opened: true as const })),
         create: vi.fn(async () => ({ created: true as const, themeId: "local.user.custom-theme" })),
       },
-    } as typeof window.puppyoneDesktop;
+    });
 
     await act(async () => {
       root.render(<Harness />);
@@ -98,13 +102,15 @@ describe("renderer Sub Theme catalog", () => {
   });
 
   it("surfaces failures while opening the themes directory", async () => {
-    window.puppyoneDesktop = {
+    installDesktopBridge({
       themes: {
+        syncNativeMenu: vi.fn(async () => ({ synced: true as const })),
+        onSelectionRequested: vi.fn(() => () => {}),
         list: vi.fn(async () => ({ themes: [], diagnostics: [] })),
         openDirectory: vi.fn(async () => { throw new Error("Finder unavailable"); }),
         create: vi.fn(async () => ({ created: true as const, themeId: "local.user.custom-theme" })),
       },
-    } as typeof window.puppyoneDesktop;
+    });
     await act(async () => {
       root.render(<Harness />);
       await Promise.resolve();
@@ -129,13 +135,15 @@ describe("renderer Sub Theme catalog", () => {
       created: true as const,
       themeId: "local.user.custom-theme",
     }));
-    window.puppyoneDesktop = {
+    installDesktopBridge({
       themes: {
+        syncNativeMenu: vi.fn(async () => ({ synced: true as const })),
+        onSelectionRequested: vi.fn(() => () => {}),
         list,
         openDirectory: vi.fn(async () => ({ opened: true as const })),
         create,
       },
-    } as typeof window.puppyoneDesktop;
+    });
 
     await act(async () => {
       root.render(<Harness />);
@@ -155,10 +163,10 @@ describe("renderer Sub Theme catalog", () => {
   });
 
   it("syncs only root-compatible variants to the native menu and routes requests", async () => {
-    const syncNativeMenu = vi.fn(async () => ({ synced: true as const }));
+    const syncNativeMenu = vi.fn<DesktopBridge["themes"]["syncNativeMenu"]>(async () => ({ synced: true as const }));
     let requestSelection: ((request: { kind: "pack"; themeId: string }) => void) | undefined;
     const onSubThemeChange = vi.fn();
-    window.puppyoneDesktop = {
+    installDesktopBridge({
       themes: {
         list: vi.fn(async () => ({ themes: [], diagnostics: [] })),
         openDirectory: vi.fn(async () => ({ opened: true as const })),
@@ -169,7 +177,7 @@ describe("renderer Sub Theme catalog", () => {
           return () => undefined;
         }),
       },
-    } as typeof window.puppyoneDesktop;
+    });
 
     await act(async () => {
       root.render(<NativeHarness onSubThemeChange={onSubThemeChange} />);

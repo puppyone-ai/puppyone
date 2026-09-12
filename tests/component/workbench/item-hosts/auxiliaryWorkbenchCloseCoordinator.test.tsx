@@ -1,10 +1,11 @@
+import { ProjectWorkbenchStore } from "../../../../src/features/app-shell/auxiliary-workbench/ProjectWorkbenchStore";
 /**
  * @vitest-environment happy-dom
  */
-import React, { act } from "react";
+import type { AuxiliaryWorkbenchItem } from "@puppyone/shared-ui";
+import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { AuxiliaryWorkbenchItem } from "@puppyone/shared-ui";
 import type {
   AuxiliaryWorkbenchCloseAdapter,
   AuxiliaryWorkbenchItemSnapshot,
@@ -17,6 +18,7 @@ import {
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
 
+const projects: ProjectWorkbenchStore[] = [];
 let root: Root | null = null;
 let coordinator: ReturnType<typeof useAuxiliaryWorkbenchCloseCoordinator> | null = null;
 
@@ -24,6 +26,7 @@ afterEach(() => {
   act(() => root?.unmount());
   root = null;
   coordinator = null;
+  for (const project of projects.splice(0)) project.dispose();
   document.body.replaceChildren();
 });
 
@@ -134,13 +137,15 @@ describe("Auxiliary Workbench close coordinator", () => {
 
 function renderCoordinator(
   adapter: AuxiliaryWorkbenchCloseAdapter,
-  onClosed = vi.fn(),
+  onClosed: (itemId: string) => void = vi.fn(),
 ) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
+  const project = new ProjectWorkbenchStore({ projectId: "fixture", generation: "fixture-generation", rootPath: "/workspace" });
+  projects.push(project);
   const target: AuxiliaryWorkbenchCloseTarget = Object.freeze({
-    context: Object.freeze({ item: ITEM, snapshot: SNAPSHOT }),
+    context: Object.freeze({ project, item: ITEM, snapshot: SNAPSHOT }),
     adapter,
   });
   act(() => root?.render(

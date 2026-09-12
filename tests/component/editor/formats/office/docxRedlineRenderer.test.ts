@@ -1,12 +1,12 @@
 /**
  * @vitest-environment happy-dom
  */
+import { resolveFileFormat } from "@puppyone/shared-ui";
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { resolveFileFormat } from "@puppyone/shared-ui";
-import type { GitFileDiff, GitRevisionPair } from "../src/types/electron";
 import type { DocxRedlinePresentation } from "../../../../../src/features/source-control/diff/contributions/docx-redline/model";
+import type { GitFileDiff, GitRevisionPair } from "../../../../../src/types/electron";
 
 vi.mock("../../../../../src/features/source-control/diff/contributions/docx-redline/provider", () => ({
   loadDocxRedline: vi.fn(),

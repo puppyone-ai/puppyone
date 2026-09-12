@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { GitCommitSummary, GitStatusSnapshot } from "../src/types/electron";
 import {
   createRepositoryRefreshReason,
   mergePreservedHistory,
   shouldInvalidateHistoryForReason,
 } from "../../../../src/features/source-control/repositoryRefreshPolicy";
+import type { GitCommitSummary, GitStatusSnapshot } from "../../../../src/types/electron";
 
 const sampleCommit: GitCommitSummary = {
   commit_id: "abc",

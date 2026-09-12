@@ -1,12 +1,12 @@
 /**
  * @vitest-environment happy-dom
  */
+import { resolveFileFormat } from "@puppyone/shared-ui";
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { resolveFileFormat } from "@puppyone/shared-ui";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { GitFileDiff, GitRevisionPair } from "../src/types/electron";
 import { createAsyncDiffContribution } from "../../../../src/features/source-control/diff/core/createAsyncDiffContribution";
+import type { GitFileDiff, GitRevisionPair } from "../../../../src/types/electron";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

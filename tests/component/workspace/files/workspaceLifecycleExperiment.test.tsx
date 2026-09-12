@@ -1,7 +1,7 @@
 /**
  * @vitest-environment happy-dom
  */
-import React, { act } from "react";
+import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -158,12 +158,14 @@ describe("multi-project Workspace experiment", () => {
       content: "ambiguous write must fail closed",
       baseVersion: "v1",
       reason: "manual",
+      revision: "r1",
     })).rejects.toThrow(/ambiguous.*Resource URI/i);
     await expect(persistence.persist({
       path: `puppyone-local:/workspace/${workbench!.folders[1]!.id}/${routedPath}`,
       content: "must not write",
       baseVersion: "v1",
       reason: "manual",
+      revision: "r1",
     })).rejects.toThrow(/Malformed Resource URI/i);
     expect(providers.get(workbench!.folders[0]!.id)?.documentPersistence?.persist).toHaveBeenCalledOnce();
     expect(providers.get(workbench!.folders[1]!.id)?.documentPersistence?.persist).toHaveBeenCalledOnce();
@@ -291,11 +293,11 @@ function workspace(id: string, name: string, path: string): Workspace {
 
 function persistenceProvider(id: string): DataPort {
   return {
-    listChildren: vi.fn(async () => []),
+    listChildren: vi.fn<NonNullable<DataPort["listChildren"]>>(async () => []),
     documentPersistence: {
       kind: "local-fs",
       storageIdentity: `test:feature-matrix:${id}`,
-      persist: vi.fn(async () => ({ ok: true as const, version: "v2" })),
+      persist: vi.fn<NonNullable<DataPort["documentPersistence"]>["persist"]>(async () => ({ ok: true as const, version: "v2" })),
     },
   };
 }

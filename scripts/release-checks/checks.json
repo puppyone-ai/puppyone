@@ -26,6 +26,25 @@
       "artifacts": []
     },
     {
+      "id": "test-types",
+      "name": "Every test, fixture, support module and benchmark typecheck",
+      "group": "source",
+      "command": [
+        "npm",
+        "run",
+        "test:typecheck"
+      ],
+      "platforms": [
+        "linux",
+        "darwin",
+        "win32"
+      ],
+      "dependsOn": [],
+      "timeoutSeconds": 180,
+      "runtime": "node",
+      "artifacts": []
+    },
+    {
       "id": "updater-p0",
       "name": "Updater monotonicity P0 and coverage",
       "group": "source",
@@ -43,16 +62,22 @@
       "timeoutSeconds": 120,
       "runtime": "node",
       "artifacts": [
-        "artifacts/tests/coverage/updater-p0"
-      ]
+        "{checkDir}/vitest/invocation.json",
+        "{checkDir}/vitest/results.json",
+        "{checkDir}/vitest/coverage/coverage-summary.json"
+      ],
+      "environment": {
+        "PUPPYONE_TEST_ARTIFACT_DIR": "{checkDir}/vitest"
+      }
     },
     {
       "id": "tests",
-      "name": "Unit, component, integration and architecture tests",
+      "name": "All runtime tests and core Editor, Agent, Workbench coverage",
       "group": "source",
       "command": [
         "npm",
-        "test"
+        "run",
+        "test:core:coverage"
       ],
       "platforms": [
         "linux",
@@ -60,11 +85,16 @@
         "win32"
       ],
       "dependsOn": [],
-      "timeoutSeconds": 600,
+      "timeoutSeconds": 900,
       "runtime": "node",
       "artifacts": [
-        "artifacts/tests/vitest/results.json"
-      ]
+        "{checkDir}/vitest/invocation.json",
+        "{checkDir}/vitest/results.json",
+        "{checkDir}/vitest/coverage/coverage-summary.json"
+      ],
+      "environment": {
+        "PUPPYONE_TEST_ARTIFACT_DIR": "{checkDir}/vitest"
+      }
     },
     {
       "id": "markdown-focus",
@@ -312,7 +342,13 @@
       "dependsOn": [],
       "timeoutSeconds": 180,
       "runtime": "node",
-      "artifacts": []
+      "artifacts": [
+        "{checkDir}/vitest/invocation.json",
+        "{checkDir}/vitest/results.json"
+      ],
+      "environment": {
+        "PUPPYONE_TEST_ARTIFACT_DIR": "{checkDir}/vitest"
+      }
     }
   ]
 }

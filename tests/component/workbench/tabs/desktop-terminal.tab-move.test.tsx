@@ -1,12 +1,12 @@
+import { installDesktopBridge } from "../../../support/electron/desktopBridge";
 /** @vitest-environment happy-dom */
-import React from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { resolveTerminalTabBarDropTarget } from "../../../../src/features/desktop-terminal/interactions/terminalTabBarDropTarget";
 import {
   useTerminalTabMoveDrag,
 } from "../../../../src/features/desktop-terminal/interactions/useTerminalTabMoveDrag";
-import { resolveTerminalTabBarDropTarget } from "../../../../src/features/desktop-terminal/interactions/terminalTabBarDropTarget";
 import { isNativeSurfaceLayoutStable } from "../../../../src/features/native-surfaces/nativeSurfaceGeometry";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
@@ -322,9 +322,9 @@ describe("Terminal Session tab movement", () => {
   it("clears preview, body state, and native lease after a sustained window blur", () => {
     vi.useFakeTimers();
     const setPassthrough = vi.fn();
-    window.puppyoneDesktop = {
+    installDesktopBridge({
       setNativeSurfacePointerPassthrough: setPassthrough,
-    } as NonNullable<typeof window.puppyoneDesktop>;
+    });
     const harness = renderHarness();
     installPointerCapture(harness.tab);
     harness.target.getBoundingClientRect = () => new DOMRect(100, 0, 400, 300);

@@ -1,11 +1,10 @@
 /**
  * @vitest-environment happy-dom
  */
-import React, { useState } from "react";
-import { act } from "react";
+import { EXPLORER_REFERENCE_DRAG_TYPE } from "@puppyone/shared-ui";
+import React, { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { EXPLORER_REFERENCE_DRAG_TYPE } from "@puppyone/shared-ui";
 import type {
   AgentDraftReference,
   AgentPromptReferenceMention,
@@ -173,7 +172,7 @@ describe("Desktop Agent reference ingestion", () => {
     await vi.waitFor(() => expect(controller.addWorkspacePaths).toHaveBeenCalled());
     const [paths, previews] = controller.addWorkspacePaths.mock.calls[0]!;
     expect(paths).toEqual([resource]);
-    expect(previews.get(resource)?.url).toBe("puppyone-local://preview/capture");
+    expect(previews?.get(resource)?.url).toBe("puppyone-local://preview/capture");
     expect(loadVisualPreview).toHaveBeenCalledTimes(1);
   });
 

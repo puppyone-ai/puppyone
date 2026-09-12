@@ -1,18 +1,19 @@
+import { requireEditorView } from "../../../support/editor/editorView";
+import { installDesktopBridge } from "../../../support/electron/desktopBridge";
 /**
  * @vitest-environment happy-dom
  */
+import { EditorView } from "@codemirror/view";
 import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import React from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { EditorView } from "@codemirror/view";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { DataNode, FileContent } from "../../../../packages/shared-ui/src/core/types";
 import { DataWorkspace } from "../../../../packages/shared-ui/src/data/DataWorkspace";
 import { flushActiveDocumentSessions } from "../../../../packages/shared-ui/src/editor/document-session/activeDocumentSessions";
-import type { DataNode, FileContent } from "../../../../packages/shared-ui/src/core/types";
 import { createLocalDataPort } from "../../../../src/lib/localFiles";
 import { withTestLocalization } from "../../../support/react/localization";
 
@@ -39,7 +40,7 @@ describe("local Markdown editor persistence", () => {
     const fixture = await createLocalWorkspace({ "note.md": "alpha" });
     const bridge = createFilesystemBridge(fixture.root, fixture.nodes);
     originalDesktopBridge = window.puppyoneDesktop;
-    window.puppyoneDesktop = bridge as Window["puppyoneDesktop"];
+    installDesktopBridge(bridge);
 
     const container = await renderWorkspace(fixture.root, "note.md");
     const editor = await waitForEditor(container);
@@ -65,7 +66,7 @@ describe("local Markdown editor persistence", () => {
     const bridge = createFilesystemBridge(fixture.root, fixture.nodes);
     const persistToDisk = bridge.writeFile.getMockImplementation();
     if (!persistToDisk) throw new Error("Filesystem bridge write implementation is unavailable.");
-    let releaseFirstWrite: (() => void) | null = null;
+    let releaseFirstWrite: (() => void) | undefined;
     const firstWriteGate = new Promise<void>((resolve) => {
       releaseFirstWrite = resolve;
     });
@@ -78,7 +79,7 @@ describe("local Markdown editor persistence", () => {
       return persistToDisk(request);
     });
     originalDesktopBridge = window.puppyoneDesktop;
-    window.puppyoneDesktop = bridge as Window["puppyoneDesktop"];
+    installDesktopBridge(bridge);
 
     const container = await renderWorkspace(fixture.root, "note.md");
     const editor = await waitForEditor(container);
@@ -122,7 +123,7 @@ describe("local Markdown editor persistence", () => {
       return persistToDisk(request);
     });
     originalDesktopBridge = window.puppyoneDesktop;
-    window.puppyoneDesktop = bridge as Window["puppyoneDesktop"];
+    installDesktopBridge(bridge);
 
     const container = await renderWorkspace(fixture.root, "alpha.md");
     const editor = await waitForEditor(container);
@@ -230,7 +231,7 @@ async function waitForEditor(container: HTMLElement): Promise<EditorView> {
     await waitFor(() => {
       const editor = container.querySelector<HTMLElement>(".cm-editor");
       if (!editor) return false;
-      view = EditorView.findFromDOM(editor);
+      view = requireEditorView(editor);
       return true;
     });
   } catch {
@@ -243,12 +244,12 @@ async function waitForEditor(container: HTMLElement): Promise<EditorView> {
 function getMountedEditor(container: HTMLElement): EditorView {
   const editor = container.querySelector<HTMLElement>(".cm-editor");
   if (!editor) throw new Error("CodeMirror editor is not mounted.");
-  return EditorView.findFromDOM(editor);
+  return requireEditorView(editor);
 }
 
 function getMountedEditorContent(container: HTMLElement): string | null {
   const editor = container.querySelector<HTMLElement>(".cm-editor");
-  return editor ? EditorView.findFromDOM(editor).state.doc.toString() : null;
+  return editor ? requireEditorView(editor).state.doc.toString() : null;
 }
 
 async function waitFor(assertion: () => boolean | Promise<boolean>, attempts = 600): Promise<void> {

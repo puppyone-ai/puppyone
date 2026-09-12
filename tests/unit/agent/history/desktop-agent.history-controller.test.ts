@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import type { AgentSessionsListResponse } from "../../../../shared/agent-contract/types";
 import { ConversationHistoryController } from "../../../../src/features/desktop-agent/application/ConversationHistoryController";
 
 describe("ConversationHistoryController", () => {
@@ -340,7 +341,7 @@ function savedSession(id: string) {
   };
 }
 
-function catalog(sessions: ReturnType<typeof savedSession>[] = [], discovery = {
+function catalog(sessions: ReturnType<typeof savedSession>[] = [], discovery: AgentSessionsListResponse["discovery"] = {
   runtimeId: null,
   status: "not-requested",
   nextCursor: null,

@@ -49,7 +49,7 @@ export function createAgentTurnCoordinator({
     }),
   });
 
-  async function startTurn(sender, request, workspaceRoot = null) {
+  async function startTurn(sender, request, workspaceRoot = /** @type {string | null} */ (null)) {
     const session = runtimeSession.requireOwnedSession(sender, request?.sessionId);
     requireMatchingWorkspace(session, workspaceRoot);
     requireCommandPreconditions(session, request);
@@ -120,7 +120,7 @@ export function createAgentTurnCoordinator({
     );
   }
 
-  async function steerTurn(sender, request, workspaceRoot = null) {
+  async function steerTurn(sender, request, workspaceRoot = /** @type {string | null} */ (null)) {
     const session = runtimeSession.requireOwnedSession(sender, request?.sessionId);
     requireMatchingWorkspace(session, workspaceRoot);
     requireCommandPreconditions(session, request);
@@ -172,7 +172,7 @@ export function createAgentTurnCoordinator({
     }
   }
 
-  async function interruptTurn(sender, request, workspaceRoot = null) {
+  async function interruptTurn(sender, request, workspaceRoot = /** @type {string | null} */ (null)) {
     const session = runtimeSession.requireOwnedSession(sender, request?.sessionId);
     requireMatchingWorkspace(session, workspaceRoot);
     requireCommandPreconditions(session, request);
@@ -219,7 +219,7 @@ export function createAgentTurnCoordinator({
     return { sessionId: session.id, commandId, turnId, interruptRequested: true };
   }
 
-  async function resolveQuestion(sender, request, workspaceRoot = null) {
+  async function resolveQuestion(sender, request, workspaceRoot = /** @type {string | null} */ (null)) {
     const session = runtimeSession.requireOwnedSession(sender, request?.sessionId);
     requireMatchingWorkspace(session, workspaceRoot);
     requireCommandPreconditions(session, request);
@@ -276,7 +276,7 @@ export function createAgentTurnCoordinator({
     return { sessionId: session.id, commandId, requestId, resolution: rejected ? "rejected" : "answered" };
   }
 
-  function resolveApproval(sender, request, workspaceRoot = null) {
+  function resolveApproval(sender, request, workspaceRoot = /** @type {string | null} */ (null)) {
     const session = runtimeSession.requireOwnedSession(sender, request?.sessionId);
     requireMatchingWorkspace(session, workspaceRoot);
     requireCommandPreconditions(session, request);
@@ -338,7 +338,7 @@ export function createAgentTurnCoordinator({
       : finalize();
   }
 
-  function replay(sender, request, workspaceRoot = null) {
+  function replay(sender, request, workspaceRoot = /** @type {string | null} */ (null)) {
     const session = runtimeSession.requireOwnedSession(sender, request?.sessionId);
     requireMatchingWorkspace(session, workspaceRoot);
     const afterSequence = normalizeSequence(request?.afterSequence);
@@ -367,7 +367,7 @@ export function createAgentTurnCoordinator({
     };
   }
 
-  function getReferenceInputCapabilities(sender, sessionId, workspaceRoot = null) {
+  function getReferenceInputCapabilities(sender, sessionId, workspaceRoot = /** @type {string | null} */ (null)) {
     const session = runtimeSession.requireOwnedSession(sender, normalizeRequiredId(sessionId, "Agent session id"));
     requireMatchingWorkspace(session, workspaceRoot);
     return session.capabilities?.referenceInputs ? { ...session.capabilities.referenceInputs } : null;

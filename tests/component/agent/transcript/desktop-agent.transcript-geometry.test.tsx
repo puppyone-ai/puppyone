@@ -2,9 +2,9 @@
 import React, { act, useRef } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { useTranscriptViewport } from "../../../../src/features/desktop-agent/ui/transcript/useTranscriptViewport";
-import type { AgentViewportGeometry } from "../../../../src/features/desktop-agent/domain/agent-ui-state";
 import type { TimelineRow } from "../../../../src/features/desktop-agent/domain/agent-projection-types";
+import type { AgentViewportGeometry } from "../../../../src/features/desktop-agent/domain/agent-ui-state";
+import { useTranscriptViewport } from "../../../../src/features/desktop-agent/ui/transcript/useTranscriptViewport";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root | null = null;
@@ -12,7 +12,7 @@ const originalObserver = globalThis.ResizeObserver;
 afterEach(() => { act(() => root?.unmount()); root = null; document.body.replaceChildren(); globalThis.ResizeObserver = originalObserver; });
 const rows: TimelineRow[] = [{ id: "one", partId: "one", kind: "assistant", turnId: null, sequence: 1, estimatedHeight: 40 }];
 
-function Harness({ width, geometry, onChange }: { width: number; geometry?: AgentViewportGeometry; onChange: ReturnType<typeof vi.fn> }) {
+function Harness({ width, geometry, onChange }: { width: number; geometry?: AgentViewportGeometry; onChange: NonNullable<Parameters<typeof useTranscriptViewport>[0]["onViewportChange"]> }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const viewport = useTranscriptViewport({ rows, scrollRef, initialScrollTop: 0, initialPinned: false,
     initialMeasurements: { one: 90 }, initialGeometry: geometry, onViewportChange: onChange });
@@ -24,7 +24,7 @@ function Harness({ width, geometry, onChange }: { width: number; geometry?: Agen
     }
   }}><div ref={viewport.canvasRef} /></div>;
 }
-function render(width: number, onChange: ReturnType<typeof vi.fn>, geometry?: AgentViewportGeometry) {
+function render(width: number, onChange: NonNullable<Parameters<typeof useTranscriptViewport>[0]["onViewportChange"]>, geometry?: AgentViewportGeometry) {
   const host = document.createElement("div"); document.body.appendChild(host); root = createRoot(host);
   act(() => root?.render(<Harness width={width} geometry={geometry} onChange={onChange} />));
 }

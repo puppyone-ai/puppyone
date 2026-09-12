@@ -1,9 +1,7 @@
+import type { EditorDocument } from "@puppyone/shared-ui";
 /**
  * @vitest-environment happy-dom
  */
-import React, { act } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createWorkspaceContentChange,
   PRESET_VIEWERS,
@@ -12,6 +10,9 @@ import {
   type DataPort,
   type WorkspaceContentChange,
 } from "@puppyone/shared-ui";
+import { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
@@ -19,7 +20,7 @@ import {
 type ResourceCase = Readonly<{
   viewerId: string;
   path: string;
-  type: string;
+  type: EditorDocument["type"];
   mimeType: string;
 }>;
 
@@ -58,10 +59,10 @@ describe("file resource lease", () => {
   it.each(RESOURCE_CASES)(
     "$viewerId reacquires only for its own external change and retires the previous lease",
     async (formatCase) => {
-      const getFileUrl = vi.fn(async (path: string) => `blob:${path}:${getFileUrl.mock.calls.length}`);
+      const getFileUrl = vi.fn<NonNullable<DataPort["getFileUrl"]>>(async (path: string): Promise<string> => `blob:${path}:${getFileUrl.mock.calls.length}`);
       const revokeFileUrl = vi.fn(async () => undefined);
       const dataPort: DataPort = {
-        listChildren: vi.fn(async () => []),
+        listChildren: vi.fn<NonNullable<DataPort["listChildren"]>>(async () => []),
         getFileUrl,
         revokeFileUrl,
       };
@@ -105,9 +106,9 @@ describe("file resource lease", () => {
   );
 
   it("treats a null path list as a real bulk resource invalidation", async () => {
-    const getFileUrl = vi.fn(async () => `blob:photo:${getFileUrl.mock.calls.length}`);
+    const getFileUrl = vi.fn<NonNullable<DataPort["getFileUrl"]>>(async (): Promise<string> => `blob:photo:${getFileUrl.mock.calls.length}`);
     const dataPort: DataPort = {
-      listChildren: vi.fn(async () => []),
+      listChildren: vi.fn<NonNullable<DataPort["listChildren"]>>(async () => []),
       getFileUrl,
     };
     const container = document.createElement("div");

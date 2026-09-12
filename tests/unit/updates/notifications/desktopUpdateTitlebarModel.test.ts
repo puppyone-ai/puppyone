@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getDesktopUpdateTitlebarState } from "../../../../src/features/updates";
-import type { DesktopUpdateState, DesktopUpdateStatus } from "../src/types/electron";
+import type { DesktopUpdateState, DesktopUpdateStatus } from "../../../../src/types/electron";
 
 describe("desktop update titlebar presentation", () => {
   it("stays hidden when the app shell does not provide updater capability", () => {

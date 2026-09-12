@@ -1,14 +1,13 @@
+import { unavailableDocumentNavigation } from "../../../support/editor/documentFixtures";
+import { requireEditorView } from "../../../support/editor/editorView";
+import { installDesktopBridge } from "../../../support/electron/desktopBridge";
 /** @vitest-environment happy-dom */
-import React from "react";
-import { act } from "react";
-import { createRoot, type Root } from "react-dom/client";
 import { EditorView } from "@codemirror/view";
-import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  DataWorkspace,
   EMPTY_EDITOR_GROUP,
   EMPTY_MARKDOWN_LINK_COMMANDS,
   EXPLORER_REFERENCE_DRAG_TYPE,
-  DataWorkspace,
   activateEditorPane,
   assignEditorToActivePane,
   assignEditorToPane,
@@ -27,13 +26,16 @@ import {
   type MarkdownLinkCommands,
   type MarkdownWorkspaceEnvironment,
 } from "@puppyone/shared-ui";
+import React, { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { DocumentSurfaceHost } from "../../../../packages/shared-ui/src/editor/host/DocumentSurfaceHost";
 import { DesktopEditorSplitView } from "../../../../src/features/editor-workbench/layout/DesktopEditorSplitView";
 import {
   EditorPaneDocumentRuntime,
   areEditorPaneDocumentRuntimePropsEqual,
   type EditorPaneDocumentRuntimeProps,
 } from "../../../../src/features/editor-workbench/runtime/EditorPaneDocumentRuntime";
-import { DocumentSurfaceHost } from "../../../../packages/shared-ui/src/editor/host/DocumentSurfaceHost";
 import { withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
@@ -69,20 +71,20 @@ describe("DesktopEditorSplitView", () => {
   });
 
   it("uses the official loading animation without visible loading copy", async () => {
-    const markdown: DataNode = {
+    const markdown = {
       id: "loading.md",
       name: "loading.md",
       path: "loading.md",
       type: "markdown",
       mimeType: "text/markdown",
       source: "local",
-    };
+    } satisfies DataNode;
     const container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
     const dataPort: DataPort = {
       listChildren: async () => [],
-      readFile: vi.fn(() => new Promise(() => undefined)),
+      readFile: vi.fn<NonNullable<DataPort["readFile"]>>(() => new Promise(() => undefined)),
     };
 
     await act(async () => root?.render(withTestLocalization(
@@ -100,17 +102,17 @@ describe("DesktopEditorSplitView", () => {
 
   it("retains the document input through Strict Mode and Files/Settings navigation", async () => {
     const path = "return-from-settings.md";
-    const node: DataNode = {
+    const node = {
       id: path,
       name: path,
       path,
       type: "markdown",
       mimeType: "text/markdown",
       source: "local",
-    };
+    } satisfies DataNode;
     const group = openEditor(EMPTY_EDITOR_GROUP, createEditorInput(path));
     const layout = createEditorPaneLayout(path);
-    const readFile = vi.fn(async () => ({
+    const readFile = vi.fn<NonNullable<DataPort["readFile"]>>(async (): Promise<Awaited<ReturnType<NonNullable<DataPort["readFile"]>>>> => ({
       path,
       name: path,
       type: "markdown" as const,
@@ -127,7 +129,7 @@ describe("DesktopEditorSplitView", () => {
       withTestLocalization(
         <React.StrictMode>
           {route === "settings" ? <div>Settings</div> : (
-            <DesktopEditorSplitView
+            <DesktopEditorSplitView documentNavigation={unavailableDocumentNavigation}
               aiEditRequest={null}
               dataPort={dataPort}
               editorGroup={group}
@@ -221,13 +223,13 @@ describe("DesktopEditorSplitView", () => {
     });
     const pane = container.querySelector<HTMLElement>(".desktop-editor-pane")!;
     pane.getBoundingClientRect = () => new DOMRect(0, 0, 800, 600);
-    const node: DataNode = {
+    const node = {
       id: "b.md",
       name: "b.md",
       path: "b.md",
       type: "file",
       source: "local",
-    };
+    } satisfies DataNode;
     const transfer = new DataTransfer();
     transfer.setData(
       EXPLORER_REFERENCE_DRAG_TYPE,
@@ -280,9 +282,9 @@ describe("DesktopEditorSplitView", () => {
 
   it("reveals pane chrome only when the pointer is in the top third of a pane", () => {
     const capturePanePreview = vi.fn(async () => null);
-    window.puppyoneDesktop = {
+    installDesktopBridge({
       capturePanePreview,
-    } as NonNullable<typeof window.puppyoneDesktop>;
+    });
     const { group, layout } = createThreePaneWorkspace();
     const container = renderSplitView(group, layout);
     const pane = container.querySelector<HTMLElement>(".desktop-editor-pane")!;
@@ -333,9 +335,9 @@ describe("DesktopEditorSplitView", () => {
       width: 104,
       height: 156,
     }));
-    window.puppyoneDesktop = {
+    installDesktopBridge({
       capturePanePreview,
-    } as NonNullable<typeof window.puppyoneDesktop>;
+    });
     let group = openEditor(EMPTY_EDITOR_GROUP, createEditorInput("a.md"));
     group = openEditor(group, createEditorInput("b.md"));
     let layout = splitEditorPane(createEditorPaneLayout("a.md"), "editor-pane-1", "horizontal");
@@ -510,7 +512,7 @@ describe("DesktopEditorSplitView", () => {
       { id: image, path: image, name: image, type: "image", mimeType: "image/png", source: "local" },
       { id: markdown, path: markdown, name: markdown, type: "markdown", mimeType: "text/markdown", source: "local" },
     ];
-    const readFile = vi.fn(async (path: string) => ({
+    const readFile = vi.fn<NonNullable<DataPort["readFile"]>>(async (path: string): Promise<Awaited<ReturnType<NonNullable<DataPort["readFile"]>>>> => ({
       path,
       name: path,
       type: path === csv ? "spreadsheet" as const : "markdown" as const,
@@ -518,7 +520,7 @@ describe("DesktopEditorSplitView", () => {
       content: `content:${path}`,
       version: `version:${path}:${readFile.mock.calls.length}`,
     }));
-    const getFileUrl = vi.fn(async (path: string) => `blob:${path}`);
+    const getFileUrl = vi.fn<NonNullable<DataPort["getFileUrl"]>>(async (path: string) => `blob:${path}`);
     const dataPort = { listChildren: async () => tree, readFile, getFileUrl };
     const state = { ...emptyWorkspaceState(), tree };
     const container = document.createElement("div");
@@ -530,7 +532,7 @@ describe("DesktopEditorSplitView", () => {
       const [layout, setLayout] = React.useState(initialLayout);
       updateLayout = setLayout;
       return withTestLocalization(
-        <DesktopEditorSplitView
+        <DesktopEditorSplitView documentNavigation={unavailableDocumentNavigation}
           aiEditRequest={null}
           dataPort={dataPort}
           editorGroup={group}
@@ -560,7 +562,7 @@ describe("DesktopEditorSplitView", () => {
 
     await act(async () => updateLayout((layout) => assignEditorToPane(layout, "editor-pane-1", image)));
     await waitForCondition(() => (
-      container.querySelector('[data-editor-pane-id="editor-pane-1"] img') !== null
+      container.querySelector<HTMLElement>('[data-editor-pane-id="editor-pane-1"] img') !== null
       || getFileUrl.mock.calls.filter(([path]) => path === image).length >= 1
     ));
     await act(async () => updateLayout((layout) => assignEditorToPane(layout, "editor-pane-1", csv)));
@@ -588,7 +590,7 @@ describe("DesktopEditorSplitView", () => {
       type: "text",
       source: "local",
     }));
-    const readFile = vi.fn(async (path: string) => ({
+    const readFile = vi.fn<NonNullable<DataPort["readFile"]>>(async (path: string): Promise<Awaited<ReturnType<NonNullable<DataPort["readFile"]>>>> => ({
       path,
       name: path,
       type: "text" as const,
@@ -600,14 +602,14 @@ describe("DesktopEditorSplitView", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
-    window.puppyoneDesktop = {
+    installDesktopBridge({
       capturePanePreview: vi.fn(async () => null),
-    } as NonNullable<typeof window.puppyoneDesktop>;
+    });
 
     function Harness() {
       const [layout, setLayout] = React.useState(initialLayout);
       return withTestLocalization(
-        <DesktopEditorSplitView
+        <DesktopEditorSplitView documentNavigation={unavailableDocumentNavigation}
           aiEditRequest={null}
           dataPort={dataPort}
           editorGroup={group}
@@ -640,7 +642,7 @@ describe("DesktopEditorSplitView", () => {
     const originalViews = new Map(
       Array.from(container.querySelectorAll<HTMLElement>(".desktop-editor-pane")).map((pane) => [
         pane.dataset.editorPaneId!,
-        EditorView.findFromDOM(pane.querySelector<HTMLElement>(".cm-editor")!),
+        requireEditorView(pane.querySelector<HTMLElement>(".cm-editor")!),
       ]),
     );
     const panes = container.querySelectorAll<HTMLElement>(".desktop-editor-pane");
@@ -675,7 +677,7 @@ describe("DesktopEditorSplitView", () => {
     expect(readFile).toHaveBeenCalledTimes(2);
     for (const [paneId, originalView] of originalViews) {
       const pane = container.querySelector<HTMLElement>(`[data-editor-pane-id="${paneId}"]`)!;
-      expect(EditorView.findFromDOM(pane.querySelector<HTMLElement>(".cm-editor")!))
+      expect(requireEditorView(pane.querySelector<HTMLElement>(".cm-editor")!))
         .toBe(originalView);
     }
   });
@@ -690,7 +692,7 @@ describe("DesktopEditorSplitView", () => {
       type: "text",
       source: "local",
     }));
-    const readFile = vi.fn(async (path: string) => ({
+    const readFile = vi.fn<NonNullable<DataPort["readFile"]>>(async (path: string): Promise<Awaited<ReturnType<NonNullable<DataPort["readFile"]>>>> => ({
       path,
       name: path,
       type: "text" as const,
@@ -708,7 +710,7 @@ describe("DesktopEditorSplitView", () => {
       const [layout, setLayout] = React.useState(initialLayout);
       updateLayout = setLayout;
       return withTestLocalization(
-        <DesktopEditorSplitView
+        <DesktopEditorSplitView documentNavigation={unavailableDocumentNavigation}
           aiEditRequest={null}
           dataPort={dataPort}
           editorGroup={group}
@@ -740,7 +742,7 @@ describe("DesktopEditorSplitView", () => {
     const editorViews = new Map(
       Array.from(paneElements, ([paneId, pane]) => [
         paneId,
-        EditorView.findFromDOM(pane.querySelector<HTMLElement>(".cm-editor")!),
+        requireEditorView(pane.querySelector<HTMLElement>(".cm-editor")!),
       ]),
     );
 
@@ -763,7 +765,7 @@ describe("DesktopEditorSplitView", () => {
         `[data-editor-pane-id="${paneId}"]`,
       )!;
       expect(currentPane).toBe(paneElement);
-      expect(EditorView.findFromDOM(currentPane.querySelector<HTMLElement>(".cm-editor")!))
+      expect(requireEditorView(currentPane.querySelector<HTMLElement>(".cm-editor")!))
         .toBe(editorViews.get(paneId));
     }
     expect(Array.from(editorViews.values()).map(
@@ -795,7 +797,7 @@ describe("DesktopEditorSplitView", () => {
       mimeType: "text/markdown",
       source: "local",
     }));
-    const readFile = vi.fn(async (path: string) => ({
+    const readFile = vi.fn<NonNullable<DataPort["readFile"]>>(async (path: string): Promise<Awaited<ReturnType<NonNullable<DataPort["readFile"]>>>> => ({
       path,
       name: path,
       type: "markdown" as const,
@@ -823,7 +825,7 @@ describe("DesktopEditorSplitView", () => {
     function Harness() {
       const [layout, setLayout] = React.useState(initialLayout);
       return withTestLocalization(
-        <DesktopEditorSplitView
+        <DesktopEditorSplitView documentNavigation={unavailableDocumentNavigation}
           aiEditRequest={null}
           dataPort={dataPort}
           editorGroup={group}
@@ -847,7 +849,7 @@ describe("DesktopEditorSplitView", () => {
     await waitForCondition(() => container.querySelectorAll(".cm-editor").length === 2);
     const panes = Array.from(container.querySelectorAll<HTMLElement>(".desktop-editor-pane"));
     const views = panes.map((pane) => (
-      EditorView.findFromDOM(pane.querySelector<HTMLElement>(".cm-editor")!)
+      requireEditorView(pane.querySelector<HTMLElement>(".cm-editor")!)
     ));
     const leftSnapshot = vi.spyOn(views[0]!, "scrollSnapshot");
     const rightSnapshot = vi.spyOn(views[1]!, "scrollSnapshot");
@@ -878,7 +880,7 @@ describe("DesktopEditorSplitView", () => {
         leftSnapshot.mock.calls.length - beforeRightFocus[0]!,
         rightSnapshot.mock.calls.length - beforeRightFocus[1]!,
       ], `right focus boundary ${cycle + 1}`).toEqual([1, 1]);
-      expect(container.querySelector('[data-editor-pane-id="editor-pane-2"]')?.dataset.active)
+      expect(container.querySelector<HTMLElement>('[data-editor-pane-id="editor-pane-2"]')?.dataset.active)
         .toBe("true");
       expect(views[0]!.scrollDOM.scrollTop).toBe(640);
 
@@ -888,7 +890,7 @@ describe("DesktopEditorSplitView", () => {
         leftSnapshot.mock.calls.length - beforeLeftFocus[0]!,
         rightSnapshot.mock.calls.length - beforeLeftFocus[1]!,
       ], `left focus boundary ${cycle + 1}`).toEqual([1, 1]);
-      expect(container.querySelector('[data-editor-pane-id="editor-pane-1"]')?.dataset.active)
+      expect(container.querySelector<HTMLElement>('[data-editor-pane-id="editor-pane-1"]')?.dataset.active)
         .toBe("true");
       expect(views[1]!.scrollDOM.scrollTop).toBe(960);
     }
@@ -901,7 +903,7 @@ describe("DesktopEditorSplitView", () => {
     expect(Array.from(container.querySelectorAll<HTMLElement>(".desktop-editor-pane")))
       .toEqual(panes);
     expect(Array.from(container.querySelectorAll<HTMLElement>(".cm-editor")).map(
-      (element) => EditorView.findFromDOM(element),
+      (element) => requireEditorView(element),
     )).toEqual(views);
   });
 
@@ -934,7 +936,7 @@ describe("DesktopEditorSplitView", () => {
     function Harness() {
       const [currentLayout, setCurrentLayout] = React.useState(layout);
       return withTestLocalization(
-        <DesktopEditorSplitView
+        <DesktopEditorSplitView documentNavigation={unavailableDocumentNavigation}
           aiEditRequest={null}
           dataPort={dataPort}
           editorGroup={group}
@@ -957,7 +959,7 @@ describe("DesktopEditorSplitView", () => {
     await act(async () => root?.render(<Harness />));
     await waitForCondition(() => container.querySelectorAll(".cm-editor").length === 3);
     const editorElements = Array.from(container.querySelectorAll<HTMLElement>(".cm-editor"));
-    const views = editorElements.map((element) => EditorView.findFromDOM(element));
+    const views = editorElements.map((element) => requireEditorView(element));
 
     act(() => {
       views[0]!.dispatch({ selection: { anchor: 1 } });
@@ -965,17 +967,17 @@ describe("DesktopEditorSplitView", () => {
       views[2]!.dispatch({ selection: { anchor: 3 } });
       views[0]!.focus();
     });
-    expect(container.querySelector('[data-editor-pane-id="editor-pane-1"]')?.dataset.active)
+    expect(container.querySelector<HTMLElement>('[data-editor-pane-id="editor-pane-1"]')?.dataset.active)
       .toBe("true");
     expect(views[0]!.contentDOM.contains(document.activeElement)).toBe(true);
 
     act(() => views[1]!.focus());
-    expect(container.querySelector('[data-editor-pane-id="editor-pane-2"]')?.dataset.active)
+    expect(container.querySelector<HTMLElement>('[data-editor-pane-id="editor-pane-2"]')?.dataset.active)
       .toBe("true");
     expect(views[1]!.contentDOM.contains(document.activeElement)).toBe(true);
     expect(views.map((view) => view.state.selection.main.anchor)).toEqual([1, 2, 3]);
     expect(Array.from(container.querySelectorAll<HTMLElement>(".cm-editor")).map(
-      (element) => EditorView.findFromDOM(element),
+      (element) => requireEditorView(element),
     )).toEqual(views);
 
     const surfaceRender = vi.spyOn(DocumentSurfaceHost.prototype, "render");
@@ -987,7 +989,7 @@ describe("DesktopEditorSplitView", () => {
     expect(surfaceRender).not.toHaveBeenCalled();
 
     act(() => views[0]!.focus());
-    expect(container.querySelector('[data-editor-pane-id="editor-pane-1"]')?.dataset.active)
+    expect(container.querySelector<HTMLElement>('[data-editor-pane-id="editor-pane-1"]')?.dataset.active)
       .toBe("true");
     expect(surfaceRender).not.toHaveBeenCalled();
   });
@@ -1013,7 +1015,7 @@ describe("DesktopEditorSplitView", () => {
       mimeType: "text/markdown",
       source: "local",
     }));
-    const readFile = vi.fn(async (path: string) => ({
+    const readFile = vi.fn<NonNullable<DataPort["readFile"]>>(async (path: string): Promise<Awaited<ReturnType<NonNullable<DataPort["readFile"]>>>> => ({
       path,
       name: path,
       type: "markdown" as const,
@@ -1046,7 +1048,7 @@ describe("DesktopEditorSplitView", () => {
           mainSlot={(state) => {
             if (state.tree.length === tree.length) readyEnvironments.push(state.markdownEnvironment);
             return (
-              <DesktopEditorSplitView
+              <DesktopEditorSplitView documentNavigation={unavailableDocumentNavigation}
                 aiEditRequest={null}
                 dataPort={dataPort}
                 editorGroup={group}
@@ -1076,10 +1078,10 @@ describe("DesktopEditorSplitView", () => {
     await act(async () => root?.render(<Harness />));
     await waitForCondition(() => (
       container.querySelectorAll(".cm-editor").length === 3
-      && container.querySelector('[data-editor-pane-id="editor-pane-1"] .cm-md-table-widget') !== null
+      && container.querySelector<HTMLElement>('[data-editor-pane-id="editor-pane-1"] .cm-md-table-widget') !== null
     ));
     const panes = Array.from(container.querySelectorAll<HTMLElement>(".desktop-editor-pane"));
-    const views = panes.map((pane) => EditorView.findFromDOM(
+    const views = panes.map((pane) => requireEditorView(
       pane.querySelector<HTMLElement>(".cm-editor")!,
     ));
     await focusEditorView(views[0]!);
@@ -1113,27 +1115,27 @@ describe("DesktopEditorSplitView", () => {
     expect(readFile).toHaveBeenCalledTimes(3);
     expect(new Set(readyEnvironments).size).toBe(1);
     expect(Array.from(container.querySelectorAll<HTMLElement>(".cm-editor")).map(
-      (element) => EditorView.findFromDOM(element),
+      (element) => requireEditorView(element),
     )).toEqual(views);
   });
 
   it("routes semantic Markdown revisions only to runtimes that consume them", () => {
-    const image: DataNode = {
+    const image = {
       id: "diagram.png",
       name: "diagram.png",
       path: "diagram.png",
       type: "image",
       mimeType: "image/png",
       source: "local",
-    };
-    const markdown: DataNode = {
+    } satisfies DataNode;
+    const markdown = {
       id: "note.md",
       name: "note.md",
       path: "note.md",
       type: "markdown",
       mimeType: "text/markdown",
       source: "local",
-    };
+    } satisfies DataNode;
 
     expect(areEditorPaneDocumentRuntimePropsEqual(
       runtimeProps(image, runtimeEnvironment(1)),
@@ -1150,13 +1152,13 @@ describe("DesktopEditorSplitView", () => {
   });
 
   it("shows an unavailable state instead of blanking a pane restored as a directory", () => {
-    const folder: DataNode = {
+    const folder = {
       id: "docs",
       name: "docs",
       path: "docs",
       type: "folder",
       children: [],
-    };
+    } satisfies DataNode;
     const container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -1187,7 +1189,7 @@ function renderSplitView(
   document.body.appendChild(container);
   root = createRoot(container);
   act(() => root?.render(withTestLocalization(
-    <DesktopEditorSplitView
+    <DesktopEditorSplitView documentNavigation={unavailableDocumentNavigation}
       aiEditRequest={null}
       dataPort={{ listChildren: async () => [] }}
       editorGroup={editorGroup}
@@ -1270,6 +1272,7 @@ async function focusEditorView(view: EditorView) {
 
 function emptyWorkspaceState(): DataWorkspaceState {
   return {
+    documentNavigation: unavailableDocumentNavigation,
     tree: [],
     activePath: null,
     activeNode: null,
@@ -1310,9 +1313,10 @@ function runtimeProps(
   markdownEnvironment: MarkdownWorkspaceEnvironment,
 ): EditorPaneDocumentRuntimeProps {
   return {
+    documentNavigation: unavailableDocumentNavigation,
     aiEditFile: null,
     dataPort: runtimeDataPort,
-    editor: { id: node.path, resource: node.path, label: node.name },
+    editor: createEditorInput(node.path, node.name),
     editorInteractionPreferences: {
       showSaveStatus: false,
       markdownBlockDragEnabled: false,

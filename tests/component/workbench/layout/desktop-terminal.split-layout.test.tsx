@@ -1,10 +1,9 @@
 /** @vitest-environment happy-dom */
-import React from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { TerminalGroupViewport } from "../../../../src/features/desktop-terminal/layout/TerminalGroupViewport";
 import type { TerminalTabMoveDragController } from "../../../../src/features/desktop-terminal/interactions/useTerminalTabMoveDrag";
+import { TerminalGroupViewport } from "../../../../src/features/desktop-terminal/layout/TerminalGroupViewport";
 import {
   createDesktopTerminalSessionsState,
   desktopTerminalSessionsReducer,
@@ -368,7 +367,7 @@ function createSessionMove(): TerminalTabMoveDragController {
     dropIntent: null,
     start: vi.fn(),
     move: vi.fn(),
-    end: vi.fn(() => "press"),
+    end: vi.fn(() => "press" as const),
     cancel: vi.fn(),
     lostCapture: vi.fn(),
   };

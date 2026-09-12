@@ -1,5 +1,3 @@
-import { useState } from "react";
-import { createRoot } from "react-dom/client";
 import { EditorView } from "@codemirror/view";
 import { TestLocalizationProvider } from "@puppyone/localization/testing";
 import {
@@ -14,12 +12,16 @@ import {
   type DataNode,
   type DataPort,
 } from "@puppyone/shared-ui";
-import englishCatalog from "../../../../src/localization/catalog-loaders/en";
-import { DesktopEditorSplitView } from "../../../../src/features/editor-workbench/layout/DesktopEditorSplitView";
-import "../../../../src/styles/cascade.css";
-import "../../../../src/cloud-globals.css";
 import "@puppyone/shared-ui/shared-ui.css";
+import { useState } from "react";
+import { createRoot } from "react-dom/client";
+import "../../../../src/cloud-globals.css";
+import { DesktopEditorSplitView } from "../../../../src/features/editor-workbench/layout/DesktopEditorSplitView";
+import englishCatalog from "../../../../src/localization/catalog-loaders/en";
 import "../../../../src/styles.css";
+import "../../../../src/styles/cascade.css";
+import { unavailableDocumentNavigation } from "../../../support/editor/documentFixtures";
+import { requireEditorView } from "../../../support/editor/editorView";
 
 declare global {
   interface Window {
@@ -99,7 +101,7 @@ function HorizontalMarkdownSplitFixture() {
   const [layout, setLayout] = useState(initialLayout);
   return (
     <TestLocalizationProvider messages={englishCatalog}>
-      <DesktopEditorSplitView
+      <DesktopEditorSplitView documentNavigation={unavailableDocumentNavigation}
         aiEditRequest={null}
         dataPort={dataPort}
         editorGroup={editorGroup}
@@ -130,7 +132,7 @@ function publishFixtureWhenReady(attempt: number) {
   const editorElements = Array.from(document.querySelectorAll<HTMLElement>(".cm-editor"));
   if (panes.length === 2 && editorElements.length === 2) {
     fixture.panes = panes;
-    fixture.views = editorElements.map((element) => EditorView.findFromDOM(element));
+    fixture.views = editorElements.map((element) => requireEditorView(element));
     requestAnimationFrame(() => requestAnimationFrame(() => {
       fixture.ready = true;
     }));

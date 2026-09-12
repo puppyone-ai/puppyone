@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
+import { appendWorkspaceContentChange, createWorkspaceContentChange } from "../../../../packages/shared-ui/src/core/workspaceContentChange";
+import { DocumentDependencyIndex } from "../../../../packages/shared-ui/src/editor/resource/DocumentDependencyIndex";
 import { acquireFileResource, invalidateFileResources, settleFileResourceReleases } from "../../../../packages/shared-ui/src/editor/resource/FileResourcePool";
 import { getEditorStorageIdentity } from "../../../../packages/shared-ui/src/editor/resource/editorStorageIdentity";
-import { DocumentDependencyIndex } from "../../../../packages/shared-ui/src/editor/resource/DocumentDependencyIndex";
-import { appendWorkspaceContentChange, createWorkspaceContentChange } from "../../../../packages/shared-ui/src/core/workspaceContentChange";
-import { holdEditorRuntimeAdmission } from "../../../../packages/shared-ui/src/editor/runtime/editorRuntimeAdmission";
 import { acquireEditorHostLease, retireEditorHostLeases } from "../../../../packages/shared-ui/src/editor/runtime/EditorHostLeases";
+import { holdEditorRuntimeAdmission } from "../../../../packages/shared-ui/src/editor/runtime/editorRuntimeAdmission";
 
 const change = (sequence: number, paths: string[]) => createWorkspaceContentChange({ sequence, paths, rootUri: null });
 
@@ -13,7 +13,7 @@ describe("native editor host ownership", () => {
     let created!: (value: { value: string; release: () => Promise<void> }) => void;
     const release = vi.fn(async () => undefined);
     const lease = acquireEditorHostLease({ scope: "native-late", instance: "note.pdf", generation: 1 },
-      () => new Promise((resolve) => { created = resolve; }));
+      () => new Promise<{ value: string; release: () => Promise<void> }>((resolve) => { created = resolve; }));
     const rejected = expect(lease.ready).rejects.toMatchObject({ name: "AbortError" });
     await vi.waitFor(() => expect(created).toBeDefined());
     let closed = false;

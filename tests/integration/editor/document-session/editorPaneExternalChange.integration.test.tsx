@@ -1,11 +1,9 @@
+import { createEditorInput } from "@puppyone/shared-ui";
+import { unavailableDocumentNavigation } from "../../../support/editor/documentFixtures";
+import { requireEditorView } from "../../../support/editor/editorView";
 /**
  * @vitest-environment happy-dom
  */
-import React from "react";
-import { act } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { EditorView } from "@codemirror/view";
-import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createWorkspaceContentChange,
   createWorkspaceResourceUri,
@@ -16,6 +14,9 @@ import {
   type FileContent,
   type WorkspaceContentChange,
 } from "@puppyone/shared-ui";
+import { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { closeDocumentWorkingCopy } from "../../../../packages/shared-ui/src/editor/document-session/documentWorkingCopies";
 import { EditorPaneDocumentRuntime } from "../../../../src/features/editor-workbench/runtime/EditorPaneDocumentRuntime";
 import { withTestLocalization } from "../../../support/react/localization";
@@ -46,10 +47,10 @@ describe("split-pane external document change", () => {
       content: "alpha",
       version: "v1",
     };
-    const persist = vi.fn(async () => ({ ok: true as const, version: "unexpected" }));
-    const readFile = vi.fn(async () => storage);
+    const persist = vi.fn<NonNullable<DataPort["documentPersistence"]>["persist"]>(async () => ({ ok: true as const, version: "unexpected" }));
+    const readFile = vi.fn<NonNullable<DataPort["readFile"]>>(async () => storage);
     const dataPort: DataPort = {
-      listChildren: vi.fn(async () => []),
+      listChildren: vi.fn<NonNullable<DataPort["listChildren"]>>(async () => []),
       readFile,
       documentPersistence: {
         kind: "local-fs",
@@ -57,12 +58,12 @@ describe("split-pane external document change", () => {
         persist,
       },
     };
-    const node: DataNode = {
+    const node = {
       id: noteResource,
       path: noteResource,
       name: "note.md",
       type: "markdown",
-    };
+    } satisfies DataNode;
     const container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -70,9 +71,9 @@ describe("split-pane external document change", () => {
     const render = (refreshKey: WorkspaceContentChange) => {
       root?.render(withTestLocalization(
         <EditorPaneDocumentRuntime
-          aiEditFile={null}
+          aiEditFile={null} documentNavigation={unavailableDocumentNavigation}
           dataPort={dataPort}
-          editor={{ id: noteResource, resource: noteResource, label: "note.md" }}
+          editor={createEditorInput({ rootUri: workspaceRootUri, resourcePath: "note.md", hostPath: noteResource }, "note.md")}
           editorInteractionPreferences={{
             showSaveStatus: false,
             markdownBlockDragEnabled: false,
@@ -121,7 +122,7 @@ function change(
 
 function editorContent(container: HTMLElement): string | null {
   const editor = container.querySelector<HTMLElement>(".cm-editor");
-  return editor ? EditorView.findFromDOM(editor).state.doc.toString() : null;
+  return editor ? requireEditorView(editor).state.doc.toString() : null;
 }
 
 async function waitFor(

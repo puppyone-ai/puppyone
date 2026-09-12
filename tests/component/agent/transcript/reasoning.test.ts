@@ -1,3 +1,4 @@
+import { defineAgentEvent } from "../../../support/agent/agentEventFixture";
 /** @vitest-environment happy-dom */
 
 import React from "react";
@@ -9,8 +10,8 @@ import { AgentTranscript } from "../../../../src/features/desktop-agent/ui/Agent
 
 import { applyAgentEvents, createAgentProjection } from "../../../support/agent/agentDisplayFixture";
 
+import { render, root } from "../../../support/agent/rendererHarness";
 import { withTestLocalization } from "../../../support/react/localization";
-import { root, render } from "../../../support/agent/rendererHarness";
 
 describe("Desktop Agent renderer surfaces", () => {
 
@@ -107,7 +108,7 @@ describe("Desktop Agent renderer surfaces", () => {
     };
     const projection = applyAgentEvents(createAgentProjection(), [
       { ...base, sequence: 1, itemId: null, emittedAt: new Date(1_000).toISOString(), type: "turn.started", payload: { prompt: "?" } },
-      { ...base, sequence: 2, itemId: "cursor-thought", emittedAt: new Date(2_000).toISOString(), type: "reasoning.summary.delta", payload: { delta: "", boundary: true, status: "working" } },
+      defineAgentEvent({ ...base, sequence: 2, itemId: "cursor-thought", emittedAt: new Date(2_000).toISOString(), type: "reasoning.summary.delta", payload: { delta: "", boundary: true, status: "working" } }),
       { ...base, sequence: 3, itemId: "cursor-message", emittedAt: new Date(3_000).toISOString(), type: "assistant.completed", payload: { text: "I'm here." } },
       { ...base, sequence: 4, itemId: null, emittedAt: new Date(4_000).toISOString(), type: "turn.completed", payload: { status: "completed" } },
     ]);

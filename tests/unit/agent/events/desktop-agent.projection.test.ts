@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
+import type { AgentEvent } from "../../../../src/features/desktop-agent/agentTypes";
+import { buildAgentTimeline } from "../../../../src/features/desktop-agent/ui/transcript/transcript-rows";
 import {
   agentProjectionLimits,
   applyAgentEvent,
   applyAgentEvents,
   createAgentProjection,
 } from "../../../support/agent/agentDisplayFixture";
-import type { AgentEvent, AgentEventType } from "../../../../src/features/desktop-agent/agentTypes";
-import { buildAgentTimeline } from "../../../../src/features/desktop-agent/ui/transcript/transcript-rows";
+import { defineAgentEvent, type AgentEventPayloadMap } from "../../../support/agent/agentEventFixture";
 
 describe("Desktop Agent transcript projection", () => {
   it("concatenates assistant deltas and lets completed content finalize authoritatively", () => {
@@ -471,14 +472,14 @@ describe("Desktop Agent transcript projection", () => {
   });
 });
 
-function event(
+function event<T extends AgentEvent["type"]>(
   sequence: number,
-  type: AgentEventType,
-  payload: Record<string, unknown>,
+  type: T,
+  payload: AgentEventPayloadMap[T] & Record<string, unknown>,
   turnId: string | null = null,
   itemId: string | null = null,
-): AgentEvent {
-  return {
+): AgentEvent<T> {
+  return defineAgentEvent<T>({
     schemaVersion: 1,
     sequence,
     sessionId: "session-1",
@@ -489,5 +490,5 @@ function event(
     emittedAt: new Date(sequence * 1000).toISOString(),
     type,
     payload,
-  };
+  });
 }

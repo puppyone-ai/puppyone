@@ -930,15 +930,11 @@ body.data-sidebar-resizing .data-content:not([data-explorer-collapsed="true"]) {
   min-height: 0;
 }
 
-.document-surface-slot.is-committed {
-  visibility: visible;
-  pointer-events: auto;
-}
-
 .document-surface-slot.is-staging {
+  /* The host sets inert + aria-hidden to block input and accessibility.
+     Opacity hides the whole surface without toggling inherited visibility or
+     pointer-events on every descendant during handoff. */
   opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
 }
 
 /* The host only owns geometry. Products provide their standard loading

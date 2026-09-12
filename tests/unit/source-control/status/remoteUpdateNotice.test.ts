@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getRemoteUpdateNoticeModel } from "../../../../src/features/data-workspace/RemoteUpdateNotice";
-import type { GitStatusSnapshot } from "../src/types/electron";
+import type { GitStatusSnapshot } from "../../../../src/types/electron";
+import { gitResource } from "../../../support/source-control/gitFixtures";
 
 function incomingStatus(overrides: Partial<GitStatusSnapshot["sourceControl"]["remote"]> = {}) {
   return {
@@ -34,9 +35,9 @@ function incomingStatus(overrides: Partial<GitStatusSnapshot["sourceControl"]["r
           changed: 0,
         },
         incomingPreview: [
-          { path: "docs/brief.md", status: "modified" },
-          { path: "research/notes.md", status: "modified" },
-          { path: "assets/chart.png", status: "added" },
+          gitResource("docs/brief.md", "modified"),
+          gitResource("research/notes.md", "modified"),
+          gitResource("assets/chart.png", "added"),
         ],
         ...overrides,
       },
@@ -65,10 +66,10 @@ describe("remote update notice model", () => {
     const status = incomingStatus({
       incomingFileSummary: undefined,
       incomingPreview: [
-        { path: "one.md", status: "added" },
-        { path: "two.md", status: "modified" },
-        { path: "three.md", status: "deleted" },
-        { path: "four.md", status: "renamed" },
+        gitResource("one.md", "added"),
+        gitResource("two.md", "modified"),
+        gitResource("three.md", "deleted"),
+        gitResource("four.md", "renamed"),
       ],
     });
     expect(getRemoteUpdateNoticeModel(status)?.fileChanges).toEqual({

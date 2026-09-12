@@ -1,9 +1,7 @@
+import { unavailableDocumentNavigation } from "../../../../../support/editor/documentFixtures";
 /**
  * @vitest-environment happy-dom
  */
-import React, { act } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   EMPTY_EDITOR_GROUP,
   createEditorInput,
@@ -12,6 +10,9 @@ import {
   type DataNode,
   type DataWorkspaceState,
 } from "@puppyone/shared-ui";
+import { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { DesktopEditorSplitView } from "../../../../../../src/features/editor-workbench/layout/DesktopEditorSplitView";
 import { withTestLocalization } from "../../../../../support/react/localization";
 
@@ -29,14 +30,14 @@ afterEach(() => {
 describe("Markdown pane mode menu", () => {
   it("switches source mode from the three-dot pane menu without floating editor controls", async () => {
     const path = "20260817";
-    const node: DataNode = {
+    const node = {
       id: path,
       path,
       name: path,
       type: "file",
       mimeType: "text/markdown; charset=utf-8",
       source: "local",
-    };
+    } satisfies DataNode;
     const editorGroup = openEditor(EMPTY_EDITOR_GROUP, createEditorInput(path));
     const container = document.createElement("div");
     document.body.appendChild(container);
@@ -44,7 +45,7 @@ describe("Markdown pane mode menu", () => {
 
     await act(async () => {
       root?.render(withTestLocalization(
-        <DesktopEditorSplitView
+        <DesktopEditorSplitView documentNavigation={unavailableDocumentNavigation}
           aiEditRequest={null}
           dataPort={{
             listChildren: async () => [node],
@@ -162,6 +163,7 @@ async function waitForCondition(condition: () => boolean, attempts = 100) {
 
 function workspaceState(node: DataNode): DataWorkspaceState {
   return {
+    documentNavigation: unavailableDocumentNavigation,
     tree: [node],
     activePath: node.path,
     activeNode: node,

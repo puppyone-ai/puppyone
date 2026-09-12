@@ -16,6 +16,12 @@ const WORKSPACE_INTERNAL_WRITE_TTL_MS = 2_000;
 
 let workspaceWatchSubscriptionSequence = 0;
 
+/**
+ * @typedef {object} WorkspaceWatchFileSystem
+ * @property {(rootPath: string, options: { recursive: boolean }, listener: (eventType: string, filename: string | null) => void) => import("node:events").EventEmitter & { close(): void }} watch
+ * @property {{ readFile(path: string): Promise<Uint8Array> }} promises
+ */
+/** @param {{ logger?: Pick<Console, "warn" | "info">, fsModule?: WorkspaceWatchFileSystem }} [options] */
 export function createWorkspaceWatchService({ logger = console, fsModule = fs } = {}) {
   const watchers = new Map();
   // Token-based subscriptions: cleanup keys on a unique subscriptionId, not on

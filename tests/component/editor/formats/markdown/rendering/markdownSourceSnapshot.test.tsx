@@ -1,19 +1,19 @@
+import { requireEditorView } from "../../../../../support/editor/editorView";
 /**
  * @vitest-environment happy-dom
  */
-import React from "react";
-import { act } from "react";
-import { createRoot, type Root } from "react-dom/client";
 import { EditorView } from "@codemirror/view";
+import React, { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { MarkdownCodeMirrorEditor } from "../../../../../../packages/shared-ui/src/editor/markdown/MarkdownCodeMirrorEditor";
-import { markdownRevealedSourceField } from "../../../../../../packages/shared-ui/src/editor/markdown/core/state/revealedSource";
-import type { EditorSourceSnapshotPort } from "../../../../../../packages/shared-ui/src/editor/sourceSnapshot";
 import { DocumentSessionBoundary } from "../../../../../../packages/shared-ui/src/editor/document-session/DocumentSessionBoundary";
 import {
   closeAllDocumentWorkingCopies,
   closeDocumentWorkingCopy,
 } from "../../../../../../packages/shared-ui/src/editor/document-session/documentWorkingCopies";
+import { MarkdownCodeMirrorEditor } from "../../../../../../packages/shared-ui/src/editor/markdown/MarkdownCodeMirrorEditor";
+import { markdownRevealedSourceField } from "../../../../../../packages/shared-ui/src/editor/markdown/core/state/revealedSource";
+import type { EditorSourceSnapshotPort } from "../../../../../../packages/shared-ui/src/editor/sourceSnapshot";
 import { TextEditorFrame } from "../../../../../../packages/shared-ui/src/editor/viewers/shared/TextEditorFrame";
 import { withTestLocalization } from "../../../../../support/react/localization";
 
@@ -372,7 +372,7 @@ async function renderEditor(element: React.ReactElement) {
 function getEditorView(container: HTMLElement): EditorView {
   const editor = container.querySelector<HTMLElement>(".cm-editor");
   if (!editor) throw new Error("CodeMirror editor did not mount.");
-  return EditorView.findFromDOM(editor);
+  return requireEditorView(editor);
 }
 
 function makeLargeSource(lines: number): string {
