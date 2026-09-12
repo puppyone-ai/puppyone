@@ -2,57 +2,29 @@ import {
   useCallback,
   useEffect,
   useRef,
-  useState,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
-import { WORKBENCH_SESSION_HEADER_METRICS } from "./workbenchSessionHeaderLayout";
-
-export const WORKBENCH_SESSION_ACTIVATION_MOTION_MS =
-  WORKBENCH_SESSION_HEADER_METRICS.activationMotionMs;
-
 type ActivateOptions = {
   focus?: boolean;
 };
 
 type UseWorkbenchSessionHeaderControllerOptions = {
-  activeSessionId: string | null;
-  motionEligibleSessionIds: readonly string[];
   onActivate: (sessionId: string) => void;
   sessionIds: readonly string[];
   tabId: (sessionId: string) => string;
 };
 
-/** Owns roving-tab focus and short-lived, activation-only geometry motion. */
+/** Owns roving-tab focus; layout motion belongs to the measured Header. */
 export function useWorkbenchSessionHeaderController({
-  activeSessionId,
-  motionEligibleSessionIds,
   onActivate,
   sessionIds,
   tabId,
 }: UseWorkbenchSessionHeaderControllerOptions) {
-  const [activationMotionActive, setActivationMotionActive] = useState(false);
-  const motionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const focusFrameRef = useRef<number | null>(null);
-  const activeSessionIdRef = useRef(activeSessionId);
-  const motionEligibleSessionIdsRef = useRef(new Set(motionEligibleSessionIds));
   const onActivateRef = useRef(onActivate);
-  activeSessionIdRef.current = activeSessionId;
-  motionEligibleSessionIdsRef.current = new Set(motionEligibleSessionIds);
   onActivateRef.current = onActivate;
 
   const activate = useCallback((sessionId: string, options: ActivateOptions = {}) => {
-    if (
-      sessionId !== activeSessionIdRef.current
-      && motionEligibleSessionIdsRef.current.has(sessionId)
-    ) {
-      setActivationMotionActive(true);
-      if (motionTimerRef.current !== null) clearTimeout(motionTimerRef.current);
-      motionTimerRef.current = setTimeout(() => {
-        motionTimerRef.current = null;
-        setActivationMotionActive(false);
-      }, WORKBENCH_SESSION_ACTIVATION_MOTION_MS);
-    }
-
     onActivateRef.current(sessionId);
     if (!options.focus) return;
     if (focusFrameRef.current !== null) cancelAnimationFrame(focusFrameRef.current);
@@ -84,9 +56,8 @@ export function useWorkbenchSessionHeaderController({
   }, [activate, sessionIds]);
 
   useEffect(() => () => {
-    if (motionTimerRef.current !== null) clearTimeout(motionTimerRef.current);
     if (focusFrameRef.current !== null) cancelAnimationFrame(focusFrameRef.current);
   }, []);
 
-  return { activate, activationMotionActive, handleKeyDown };
+  return { activate, handleKeyDown };
 }

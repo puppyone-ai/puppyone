@@ -1,6 +1,6 @@
 import { useCallback, useRef, type PointerEvent } from "react";
 import {
-  acquireNativeSurfacePointerPassthroughLease,
+  acquireNativeSurfaceResizeLease,
   createNativeSurfacePointerSessionId,
   type NativeSurfacePointerPassthroughLease,
 } from "../../../../native-surfaces";
@@ -155,7 +155,7 @@ export function useWorkbenchSplitResizeGesture({
       direction,
       frameId: null,
       handle: event.currentTarget,
-      nativeLease: acquireNativeSurfacePointerPassthroughLease("terminal-split-resize", id),
+      nativeLease: acquireNativeSurfaceResizeLease("terminal-split-resize", id),
       onCommit,
       pointerId: event.pointerId,
       previewRatio: committedRatio,

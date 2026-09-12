@@ -195,12 +195,55 @@
   touch-action: none;
 }
 
+/* One painter for all open pane edges. The base stroke reproduces the
+   Explorer border; the adjacent highlight and ring retain its existing weight.
+   Native adapters reserve this fixed paint footprint, never the full hit lane. */
+.po-pane-edge-chrome {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: calc(3 * var(--po-pane-resizer-line-size, 1px));
+  overflow: clip;
+  pointer-events: none;
+}
+
+.po-pane-edge-chrome::before,
+.po-pane-edge-chrome::after {
+  position: absolute;
+  inset-block: 0;
+  width: var(--po-pane-resizer-line-size, 1px);
+  content: "";
+}
+
+.po-pane-edge-chrome::before {
+  inset-inline-start: 0;
+  background: var(--po-sidebar-divider, var(--po-divider));
+}
+
+.po-pane-edge-chrome::after {
+  inset-inline-start: var(--po-pane-resizer-line-size, 1px);
+  background: transparent;
+  transition: background 120ms ease, box-shadow 120ms ease;
+}
+
+.po-pane-edge-resize-handle:is(:hover, :focus-visible, [data-native-hover]) > .po-pane-edge-chrome::after {
+  background: var(--po-pane-resizer-hover-color);
+}
+
+.po-pane-edge-resize-handle[data-resizing="true"] > .po-pane-edge-chrome::after {
+  background: var(--po-pane-resizer-active-color);
+  box-shadow: 0 0 0 var(--po-pane-resizer-line-size, 1px) var(--po-pane-resizer-active-ring);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .po-pane-edge-chrome::after { transition: none; }
+}
+
 .po-pane-edge-resize-handle::after {
   position: absolute;
   inset-block: 0;
   inset-inline-start: 0;
   width: var(--po-pane-resizer-line-size, 1px);
-  background: transparent;
   content: "";
 }
 

@@ -113,7 +113,7 @@ async function run() {
     assert(changed.count === 1, "Theme change restarted the PTY");
     assert(JSON.stringify(changed.background) !== JSON.stringify(results.at(-1).background), "Fixture did not change the actual background");
     assert(changed.draft === "Draft survives theme changes", "Theme change replaced the draft");
-    assert(JSON.stringify(changed.latest) === JSON.stringify(changed.background), "Hidden runtime missed appearance revision");
+    assert(JSON.stringify(changed.latest) === JSON.stringify(changed.background), "Hidden runtime missed appearance revision: " + JSON.stringify(changed));
     assert(await evaluate('document.querySelector("#desktop-overlay-root").dataset.subThemeId === document.querySelector("main").dataset.subThemeId'), "Portal lost owning theme");
     await evaluate('window.__auxiliaryAppearanceSmoke.setActive(true)');
     await settle();

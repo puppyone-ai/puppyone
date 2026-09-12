@@ -1,4 +1,5 @@
 {
+  "workbench.newTab": "新标签页",
   "projectSessions.sessionCloseFailed": "会话还未关闭，请重试。",
   "projectSessions.closing": "正在关闭此项目…",
   "projectSessions.closeFailed": "部分项目任务未能停止。",

@@ -43,6 +43,7 @@ type TerminalLauncherProps = {
   historyRootPath?: string;
   excludedHistoryResourceIds?: readonly string[];
   onCreateChat?: (recipe: AuxiliaryWorkbenchCreationRecipe) => void;
+  onOpenHistory?: () => void;
   onRestoreHistoryTarget?: (target: AuxiliaryWorkbenchHistoryTarget) => Promise<boolean>;
   onLaunch: (launcherId: DesktopTerminalLauncherId) => void;
   onRefresh: () => void;
@@ -69,6 +70,7 @@ export function TerminalLauncher({
   excludedHistoryResourceIds = [],
   onLaunch,
   onCreateChat,
+  onOpenHistory,
   onRestoreHistoryTarget,
   onRefresh,
   terminalEnabled = true,
@@ -222,7 +224,7 @@ export function TerminalLauncher({
               type="button"
               className="desktop-terminal-launcher-history"
               data-po-interaction="navigation"
-              onClick={() => state.patch({ historyOpen: true })}
+              onClick={onOpenHistory ?? (() => state.patch({ historyOpen: true }))}
               disabled={busy}
               aria-label={history.label}
             >

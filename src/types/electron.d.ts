@@ -994,8 +994,9 @@ declare global {
       setNativeSurfaceOccluded: (request: { occluded: boolean }) => void;
       setNativeSurfacePointerPassthrough: (request: { active: boolean }) => void;
       setNativeSurfacePointerRoutingRegions: (request: {
-        regions: Array<{ x: number; y: number; width: number; height: number }>;
+        regions: Array<{ id?: number; cursor?: "col-resize" | "row-resize"; x: number; y: number; width: number; height: number }>;
       }) => void;
+      onNativeSurfacePointerHover: (callback: (state: { regionId: number | null }) => void) => () => void;
       getBuildInfo: () => Promise<DesktopBuildInfo>;
       getPlatformCapabilities: () => Promise<DesktopPlatformCapabilities>;
       getTelemetryState: () => Promise<DesktopTelemetryState>;

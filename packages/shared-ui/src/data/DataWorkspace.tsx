@@ -1391,6 +1391,7 @@ export function DataWorkspace({
             ref={explorerResizeHandleRef}
             className="data-explorer-resizer"
             paneEdge
+            resizing={explorerResize.dragging}
             orientation="vertical"
             label={t("shared-ui.explorer.resizeSidebar")}
             min={explorerCanCollapse ? collapsedExplorerWidth : minExplorerWidth}

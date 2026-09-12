@@ -21,6 +21,7 @@ export function AuxiliaryWorkbenchCreationFailure({
     <div
       className="desktop-terminal-workbench-create-failure"
       role="alert"
+      data-native-surface-occluder="true"
       title={failure.detail || undefined}
     >
       <AlertCircle size={14} strokeWidth={1.8} aria-hidden="true" />

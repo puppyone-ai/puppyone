@@ -56,7 +56,7 @@ describe("Terminal Workbench controller", () => {
     act(() => reactRoot.unmount());
   });
 
-  it("deduplicates an unlaunched Terminal selector within one Group", () => {
+  it("creates independent blank Items within one Group", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const reactRoot = createRoot(container);
@@ -69,9 +69,12 @@ describe("Terminal Workbench controller", () => {
       second = store.createLauncher(null, "New");
     });
 
-    expect(second).toBe(first);
-    expect(current().items).toHaveLength(1);
+    expect(second).not.toBe(first);
+    expect(current().items).toHaveLength(2);
+    expect(current().groups[0].itemIds).toEqual([first, second]);
+    expect(current().activeItemId).toBe(second);
     expect(current().snapshots.get(first)?.status).toBe("selecting");
+    expect(current().snapshots.get(second)?.status).toBe("selecting");
     act(() => reactRoot.unmount());
   });
 });

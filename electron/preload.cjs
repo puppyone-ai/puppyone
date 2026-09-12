@@ -99,6 +99,11 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
       regions: Array.isArray(request?.regions) ? request.regions : [],
     });
   },
+  onNativeSurfacePointerHover: (callback) => {
+    const listener = (_event, state) => callback(state);
+    ipcRenderer.on("native-surfaces:pointer-hover", listener);
+    return () => ipcRenderer.removeListener("native-surfaces:pointer-hover", listener);
+  },
   getBuildInfo: () => ipcRenderer.invoke("build-info:get"),
   getPlatformCapabilities: () => ipcRenderer.invoke("platform:get-capabilities"),
   getTelemetryState: () => ipcRenderer.invoke("telemetry:get-state"),

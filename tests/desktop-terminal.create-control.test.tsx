@@ -36,7 +36,7 @@ describe("Unified Workbench create control", () => {
       />,
     )));
 
-    const trigger = container.querySelector<HTMLButtonElement>('[aria-label="New terminal"]');
+    const trigger = container.querySelector<HTMLButtonElement>('[aria-label="New tab"]');
     expect(trigger?.getAttribute("aria-haspopup")).toBeNull();
     act(() => trigger?.click());
 

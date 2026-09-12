@@ -78,7 +78,7 @@ export class ConversationHistoryController {
     this.catalogLoaded = false;
     this.runtimeInspectionComplete = false;
     this.autoRefreshGeneration = -1;
-    this.patch({ loading: true, loaded: false, error: null, nextCursors: Object.freeze({}), catalogNextCursor: null, sources: Object.freeze({}), catalogCoverage: null });
+    this.patch({ loading: true, loaded: false, refreshing: false, loadingMore: false, error: null, nextCursors: Object.freeze({}), catalogNextCursor: null, sources: Object.freeze({}), catalogCoverage: null });
     void this.loadInitialCatalog(generation);
     void this.inspectRuntimes(generation);
   }
@@ -95,9 +95,12 @@ export class ConversationHistoryController {
 
   refresh() {
     if (!this.active) return Promise.resolve();
+    return this.startRefresh(this.generation, true);
+  }
+
+  private startRefresh(generation: number, refreshMetadata: boolean) {
     if (this.refreshPromise) return this.refreshPromise;
-    const generation = this.generation;
-    const operation = this.runRefresh(generation).finally(() => {
+    const operation = this.runRefresh(generation, refreshMetadata).finally(() => {
       if (this.refreshPromise === operation) this.refreshPromise = null;
     });
     this.refreshPromise = operation;
@@ -130,17 +133,7 @@ export class ConversationHistoryController {
 
   private async inspectRuntimes(generation: number) {
     try {
-      const client = this.requireClient();
-      const inspection = await withDeadline(
-        client.discoverAgentRuntimes({
-          rootPath: this.workspaceRoot,
-          refresh: false,
-        }),
-        AGENT_HISTORY_RUNTIME_TIMEOUT_MS,
-        "Agent runtime discovery",
-      );
-      if (!this.isCurrent(generation)) return;
-      this.patch({ runtimes: Object.freeze(listEnabledAgentRuntimes(inspection, null)) });
+      await this.discoverRuntimes(generation, false);
     } catch (error) {
       if (this.isCurrent(generation)) this.patch({ error: this.state.error ?? messageOf(error) });
     } finally {
@@ -151,6 +144,15 @@ export class ConversationHistoryController {
     }
   }
 
+  private async discoverRuntimes(generation: number, refresh: boolean) {
+    const inspection = await withDeadline(
+      this.requireClient().discoverAgentRuntimes({ rootPath: this.workspaceRoot, refresh }),
+      AGENT_HISTORY_RUNTIME_TIMEOUT_MS,
+      "Agent runtime discovery",
+    );
+    if (this.isCurrent(generation)) this.patch({ runtimes: Object.freeze(listEnabledAgentRuntimes(inspection, null)) });
+  }
+
   private maybeAutoRefresh(generation: number) {
     if (!this.isCurrent(generation) || !this.catalogLoaded || !this.runtimeInspectionComplete) return;
     if (this.autoRefreshGeneration === generation) return;
@@ -159,22 +161,30 @@ export class ConversationHistoryController {
       this.finishInitialLoad(generation);
       return;
     }
-    void this.refresh().finally(() => this.finishInitialLoad(generation));
+    void this.startRefresh(generation, false).finally(() => this.finishInitialLoad(generation));
   }
 
   private finishInitialLoad(generation: number) {
     if (this.isCurrent(generation)) this.patch({ loading: false, loaded: true });
   }
 
-  private async runRefresh(generation: number) {
+  private async runRefresh(generation: number, refreshMetadata: boolean) {
     if (this.loadMorePromise) return;
-    const runtimes = historyRuntimes(this.state.runtimes);
-    if (runtimes.length === 0) return;
+    const metadataErrors: string[] = !refreshMetadata && this.state.error ? [this.state.error] : [];
     this.patch({ refreshing: true, error: null, nextCursors: Object.freeze({}), sources: Object.freeze({}) });
     try {
+      if (refreshMetadata) {
+        const results = await Promise.allSettled([this.loadCatalog(generation), this.discoverRuntimes(generation, true)]);
+        if (!this.isCurrent(generation)) return;
+        for (const result of results) if (result.status === "rejected") metadataErrors.push(messageOf(result.reason));
+      }
+      const runtimes = historyRuntimes(this.state.runtimes);
       await Promise.all(runtimes.map((runtime) => this.loadSource(generation, runtime.descriptor.id)));
     } finally {
-      if (this.isCurrent(generation)) this.patch({ refreshing: false });
+      if (this.isCurrent(generation)) this.patch({
+        refreshing: false,
+        error: [...metadataErrors, sourceWarnings(this.state.sources)].filter(Boolean).join("\n") || null,
+      });
     }
   }
 

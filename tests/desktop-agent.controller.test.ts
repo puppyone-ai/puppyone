@@ -5,6 +5,25 @@ import {
   agentSessionControllerLimits,
 } from "../src/features/desktop-agent/application/AgentSessionController";
 import type { AgentEvent, AgentSessionSnapshot } from "../src/features/desktop-agent/agentTypes";
+import { createAgentProcessService } from "../electron/main/item-hosts/agent-process-service.mjs";
+
+it("retries the owned conversation through Main without allocating another host", async () => {
+  const bridge = bridgeFixture(() => {});
+  const saved = await bridge.createAgentSession({});
+  const createHost = vi.fn(() => ({ call: vi.fn(async () => saved), close: vi.fn(async () => {}), exited: false }));
+  const service = createAgentProcessService({ createHost, catalogService: {}, conversationCatalog: {}, attachmentStore: {} });
+  const sender = { id: 1, hostItemId: "chat-tab" };
+  bridge.resumeAgentSession.mockImplementation(request => service.resumeSession(sender, request, "/workspace"));
+  const controller = new AgentSessionController("/workspace", () => bridge as never);
+  try {
+    await controller.initialize();
+    await controller.initialize(true);
+    expect(controller.getSnapshot().error).toBeNull();
+    expect(bridge.resumeAgentSession).toHaveBeenLastCalledWith(expect.objectContaining({ sessionId: saved.session.id }));
+    expect(createHost).toHaveBeenCalledOnce();
+    expect(controller.getSnapshot().session?.id).toBe(saved.session.id);
+  } finally { controller.dispose(); await service.closeItem(sender.id, sender.hostItemId); }
+});
 
 it("preparation failure releases submission state and allows retry", async () => {
   const bridge = bridgeFixture(() => {});
@@ -18,6 +37,19 @@ it("preparation failure releases submission state and allows retry", async () =>
     expect(controller.getSnapshot().draft).toBe("retry this message");
     expect(controller.getSnapshot().submitting).toBe(false);
     expect(await controller.submit("retry this message")).toBe(true);
+  } finally { controller.dispose(); }
+});
+
+it("reports an unavailable owned conversation without silently creating another", async () => {
+  const bridge = bridgeFixture(() => {});
+  const controller = new AgentSessionController("/workspace", () => bridge as never);
+  try {
+    await controller.initialize();
+    bridge.resumeAgentSession.mockResolvedValueOnce(null);
+    await controller.initialize(true);
+    expect(controller.getSnapshot().sessionPreparation).toBe("failed");
+    expect(controller.getSnapshot().error).not.toBeNull();
+    expect(bridge.createAgentSession).not.toHaveBeenCalled();
   } finally { controller.dispose(); }
 });
 

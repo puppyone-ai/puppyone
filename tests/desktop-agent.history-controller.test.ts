@@ -2,6 +2,63 @@ import { describe, expect, it, vi } from "vitest";
 import { ConversationHistoryController } from "../src/features/desktop-agent/application/ConversationHistoryController";
 
 describe("ConversationHistoryController", () => {
+  it("ignores refreshed metadata after the workspace is deactivated", async () => {
+    const client = historyClient({ listAgentSessions: vi.fn().mockResolvedValue(catalog()) });
+    const controller = new ConversationHistoryController("/workspace", () => client as never);
+    controller.activate();
+    await vi.waitFor(() => expect(controller.getSnapshot().loaded).toBe(true));
+    const discovery = deferred<Awaited<ReturnType<typeof client.discoverAgentRuntimes>>>();
+    client.discoverAgentRuntimes.mockReturnValueOnce(discovery.promise);
+    const pending = controller.refresh();
+    controller.deactivate();
+    controller.activate();
+    await vi.waitFor(() => expect(controller.getSnapshot().loaded).toBe(true));
+    const current = controller.getSnapshot();
+    discovery.resolve({ ...await client.discoverAgentRuntimes(), runtimes: [runtime("codex")] });
+    await pending;
+    expect(controller.getSnapshot()).toBe(current);
+    expect(controller.getSnapshot().refreshing).toBe(false);
+    expect(client.listAgentSessions.mock.calls.some(([request]) => request.discoverNative)).toBe(false);
+    controller.dispose();
+  });
+
+  it("refreshes runtime discovery and the catalog after initial discovery fails", async () => {
+    const listAgentSessions = vi.fn(async (request: { discoverNative?: boolean }) => request.discoverNative
+      ? catalog([savedSession("recovered")], { runtimeId: "codex", status: "complete", indexed: 1, nextCursor: null, scanId: null, warnings: [] })
+      : catalog());
+    const client = historyClient({ listAgentSessions, runtimes: [runtime("codex")] });
+    client.discoverAgentRuntimes.mockRejectedValueOnce(new Error("discovery failed"));
+    const controller = new ConversationHistoryController("/workspace", () => client as never);
+    try {
+      controller.activate();
+      await vi.waitFor(() => expect(controller.getSnapshot().loaded).toBe(true));
+      expect(controller.getSnapshot().error).toContain("discovery failed");
+      const first = controller.refresh();
+      expect(controller.refresh()).toBe(first);
+      await first;
+      expect(client.discoverAgentRuntimes).toHaveBeenLastCalledWith({ rootPath: "/workspace", refresh: true });
+      expect(client.discoverAgentRuntimes).toHaveBeenCalledTimes(2);
+      expect(listAgentSessions.mock.calls.filter(([request]) => !request.discoverNative)).toHaveLength(2);
+      expect(controller.getSnapshot()).toMatchObject({ error: null, refreshing: false });
+      expect(controller.getSnapshot().sessions.map(entry => entry.id)).toEqual(["recovered"]);
+      expect(client.openAgentSession).not.toHaveBeenCalled();
+    } finally { controller.dispose(); }
+  });
+
+  it("refreshes a failed catalog even when no runtime has native history", async () => {
+    const listAgentSessions = vi.fn().mockRejectedValueOnce(new Error("catalog failed"))
+      .mockResolvedValue(catalog([savedSession("catalog-recovered")]));
+    const client = historyClient({ listAgentSessions });
+    const controller = new ConversationHistoryController("/workspace", () => client as never);
+    try {
+      controller.activate();
+      await vi.waitFor(() => expect(controller.getSnapshot().loaded).toBe(true));
+      await controller.refresh();
+      expect(controller.getSnapshot()).toMatchObject({ error: null, refreshing: false });
+      expect(controller.getSnapshot().sessions.map(entry => entry.id)).toEqual(["catalog-recovered"]);
+    } finally { controller.dispose(); }
+  });
+
   it("loads catalog pages beyond the initial window without invoking a live Session", async () => {
     const listAgentSessions = vi.fn().mockResolvedValueOnce({ ...catalog([savedSession("first")]), sessionListKind: "page", catalogNextCursor: "catalog-page-2" })
       .mockResolvedValueOnce({ ...catalog([savedSession("older")]), sessionListKind: "page", catalogNextCursor: null, excludedSessionIds: ["first"] });

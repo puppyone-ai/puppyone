@@ -27,6 +27,24 @@ afterEach(() => {
 });
 
 describe("Agent Chat global history browser", () => {
+  it("reports discovered conversations already open instead of claiming no history", async () => {
+    const codex = runtime("codex", "Codex");
+    const saved = session("already-open", codex.descriptor, "Open conversation", "model");
+    Object.defineProperty(window, "puppyoneDesktop", { configurable: true, value: {
+      discoverAgentProviders: vi.fn(async () => ({ ...emptyInspection(), runtimes: [codex] })),
+      listAgentSessions: vi.fn(async ({ discoverNative }: { discoverNative?: boolean }) => ({
+        ...emptySessionList(), sessions: [saved],
+        discovery: { runtimeId: discoverNative ? "codex" : null, status: discoverNative ? "complete" : "not-requested",
+          coverage: "unknown", indexed: 1, nextCursor: null, scanId: null, warnings: [] },
+      })),
+      onAgentEvent: vi.fn(() => () => undefined), onAgentSessionExit: vi.fn(() => () => undefined),
+    } });
+    const container = mountHistoryBrowser({ excludedResourceIds: [saved.id] });
+    await vi.waitFor(() => expect(container.textContent).toContain("Discovered chats are already open"));
+    expect(container.querySelector(".desktop-agent-history-option")).toBeNull();
+    expect(container.textContent).not.toContain("No chat history");
+  });
+
   it("shows partial source coverage and unsupported lookup separately from an empty history", async () => {
     const codex = runtime("codex", "Codex");
     const cursor = runtime("cursor", "Cursor");
@@ -405,10 +423,12 @@ describe("Agent Chat global history browser", () => {
 
 function mountHistoryBrowser({
   onOpen = () => {},
+  excludedResourceIds = [],
   historyDiscoveryEnabled = true,
   onHistoryDiscoveryEnabledChange = () => {},
 }: {
   onOpen?: (target: AuxiliaryWorkbenchHistoryTarget) => void;
+  excludedResourceIds?: readonly string[];
   historyDiscoveryEnabled?: boolean;
   onHistoryDiscoveryEnabledChange?: (enabled: boolean) => void;
 } = {}) {
@@ -421,7 +441,7 @@ function mountHistoryBrowser({
         instanceId="history-test"
         rootId="workspace-a"
         rootPath="/workspace/a"
-        excludedResourceIds={[]}
+        excludedResourceIds={excludedResourceIds}
         openingTargetId={null}
         historyDiscoveryEnabled={historyDiscoveryEnabled}
         onHistoryDiscoveryEnabledChange={onHistoryDiscoveryEnabledChange}

@@ -134,27 +134,13 @@
    * Native surfaces route initial presses in this registered rectangle back
    * to the renderer before normal drag passthrough takes over.
    */
-  inset-inline-start: var(--data-explorer-width, clamp(282px, 26vw, 360px));
+  inset-inline-start: calc(var(--data-explorer-width, clamp(282px, 26vw, 360px)) - 1px);
   inset-inline-end: auto;
   background: transparent;
 }
 
-.data-explorer-resizer::after {
-  inset-inline-start: 0;
-  inset-inline-end: auto;
-  background: transparent;
-  transition: background 120ms ease, box-shadow 120ms ease;
-}
-
-.data-explorer-resizer:hover::after,
-.data-explorer-resizer:focus-visible::after {
-  background: var(--po-pane-resizer-hover-color);
-}
-
-.data-content[data-explorer-dragging="true"] > .data-explorer-resizer::after,
-body.data-sidebar-resizing .data-explorer-resizer::after {
-  background: var(--po-pane-resizer-active-color);
-  box-shadow: 0 0 0 1px var(--po-pane-resizer-active-ring);
+.data-content[data-resizable-explorer="true"] > .explorer-column {
+  border-inline-end-color: transparent;
 }
 
 body.data-sidebar-resizing,

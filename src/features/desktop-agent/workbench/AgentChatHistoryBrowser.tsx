@@ -56,7 +56,7 @@ export function AgentChatHistoryBrowser({
             >
               <ArrowLeft size={15} strokeWidth={1.7} aria-hidden="true" />
             </button>
-            <h2>{t("agent.history.title")}</h2>
+            <span aria-hidden="true" />
             <span aria-hidden="true" />
           </header>
           <div className="desktop-agent-history-permission-content">
@@ -80,6 +80,7 @@ export function AgentChatHistoryBrowser({
     <div className="desktop-agent-boundary desktop-agent-runtime-launcher is-history">
       <AgentConversationHistory
         sessions={history.sessions}
+        excludedSessionCount={history.excludedSessionCount}
         runtimes={history.runtimes}
         loading={history.sessions.length === 0 && (
           history.loading || !history.loaded || history.refreshing

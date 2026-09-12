@@ -191,7 +191,10 @@ for (const token of [
 }
 for (const token of [
   "width: var(--desktop-right-sidebar-width)",
-  "min-width: var(--desktop-right-sidebar-width)",
+  "width: var(--desktop-right-sidebar-content-width)",
+  "--desktop-right-sidebar-border-start",
+  "--desktop-right-sidebar-border-end",
+  "min-width: var(--desktop-right-sidebar-content-width)",
   "transition: transform 260ms",
 ]) {
   if (!layoutStyle.includes(token)) {
@@ -216,7 +219,7 @@ for (const [label, source] of [
   )?.[1] ?? "";
   const resizer = source.match(/\.data-explorer-resizer\s*\{([^}]*)\}/s)?.[1] ?? "";
   for (const token of [
-    "inset-inline-start: var(--data-explorer-width",
+    "inset-inline-start: calc(var(--data-explorer-width",
     "inset-inline-end: auto",
     "background: transparent",
   ]) {

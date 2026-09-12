@@ -24,6 +24,49 @@ afterEach(() => {
 });
 
 describe("desktop side-pane resize interactions", () => {
+  it.each(["pointercancel", "blur", "pagehide", "lostpointercapture", "Escape", "unmount"])(
+    "cancels a live width preview on %s without persisting it", async (reason) => {
+      const flushFrames = mockAnimationFrames();
+      const onWidthChange = vi.fn();
+      const onResizeActiveChange = vi.fn();
+      const container = await renderWorkspace({ onCollapsedChange: vi.fn(), onWidthChange, onResizeActiveChange });
+      const handle = requireHandle(container, ".data-explorer-resizer");
+      const content = requireHandle(container, ".data-content");
+      act(() => {
+        handle.dispatchEvent(pointerEvent("pointerdown", 320, 80));
+        window.dispatchEvent(pointerEvent("pointermove", 420, 80));
+      });
+      act(flushFrames);
+      expect(content.style.getPropertyValue("--data-explorer-width")).toBe("420px");
+      act(() => {
+        if (reason === "unmount") { root?.unmount(); root = null; }
+        else if (reason === "Escape") window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+        else if (reason === "pointercancel") window.dispatchEvent(pointerEvent(reason, 420, 80));
+        else if (reason === "lostpointercapture") handle.dispatchEvent(pointerEvent(reason, 420, 80));
+        else window.dispatchEvent(new Event(reason));
+      });
+      act(flushFrames);
+      if (reason !== "unmount") expect(content.style.getPropertyValue("--data-explorer-width")).toBe("320px");
+      expect(onWidthChange).not.toHaveBeenCalled();
+      expect(onResizeActiveChange.mock.calls).toEqual([[true], [false]]);
+      expect(document.body.classList.contains("data-explorer-resizing")).toBe(false);
+    },
+  );
+
+  it("does not reopen a collapsed edge after Escape and a late pointer release", () => {
+    const onOpenChange = vi.fn();
+    const container = render(withTestLocalization(
+      <AuxiliaryPanelHost open={false} resizable width={0} onOpenChange={onOpenChange} onWidthChange={vi.fn()}>
+        <div>Terminal</div>
+      </AuxiliaryPanelHost>,
+    ));
+    const handle = requireHandle(container, ".desktop-right-sidebar-resizer");
+    act(() => handle.dispatchEvent(pointerEvent("pointerdown", 500, 81)));
+    act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })));
+    act(() => window.dispatchEvent(pointerEvent("pointerup", 500, 81)));
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
   it("collapses the explorer after pulling half a minimum width past its minimum", async () => {
     const onCollapsedChange = vi.fn();
     const onWidthChange = vi.fn();
@@ -41,10 +84,7 @@ describe("desktop side-pane resize interactions", () => {
   });
 
   it("follows the pointer down to the explorer minimum, then holds while collapse is armed", async () => {
-    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
-      callback(0);
-      return 1;
-    });
+    const flushFrames = mockAnimationFrames();
     const onCollapsedChange = vi.fn();
     const onWidthChange = vi.fn();
     const container = await renderWorkspace({ onCollapsedChange, onWidthChange });
@@ -55,6 +95,7 @@ describe("desktop side-pane resize interactions", () => {
       handle.dispatchEvent(pointerEvent("pointerdown", 320, 2));
       window.dispatchEvent(pointerEvent("pointermove", 250, 2));
     });
+    act(flushFrames);
 
     expect(content.style.getPropertyValue("--data-explorer-width")).toBe("250px");
     expect(onWidthChange).not.toHaveBeenCalled();
@@ -68,6 +109,7 @@ describe("desktop side-pane resize interactions", () => {
       handle.dispatchEvent(pointerEvent("pointerdown", 320, 2));
       window.dispatchEvent(pointerEvent("pointermove", 200, 2));
     });
+    act(flushFrames);
 
     expect(content.style.getPropertyValue("--data-explorer-width")).toBe("240px");
     expect(onWidthChange).not.toHaveBeenCalledWith(240);
@@ -169,10 +211,7 @@ describe("desktop side-pane resize interactions", () => {
   });
 
   it("previews the expanded Project sidebar width and commits it at gesture end", () => {
-    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
-      callback(0);
-      return 1;
-    });
+    const flushFrames = mockAnimationFrames();
     const onWidthChange = vi.fn();
     const container = render(withTestLocalization(
       <DesktopCloudShell
@@ -194,6 +233,7 @@ describe("desktop side-pane resize interactions", () => {
       handle.dispatchEvent(pointerEvent("pointerdown", 220, 15));
       window.dispatchEvent(pointerEvent("pointermove", 300, 15));
     });
+    act(flushFrames);
 
     expect(shell.style.getPropertyValue("--desktop-shell-leading-rail-width")).toBe("300px");
     expect(onWidthChange).not.toHaveBeenCalled();
@@ -201,15 +241,13 @@ describe("desktop side-pane resize interactions", () => {
     act(() => {
       window.dispatchEvent(pointerEvent("pointerup", 300, 15));
     });
+    act(flushFrames);
 
     expect(onWidthChange).toHaveBeenCalledExactlyOnceWith(300);
   });
 
   it("collapses the Project sidebar by pulling past the same half-minimum threshold", () => {
-    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
-      callback(0);
-      return 1;
-    });
+    const flushFrames = mockAnimationFrames();
     const onCollapsedChange = vi.fn();
     const onWidthChange = vi.fn();
     const container = render(withTestLocalization(
@@ -240,6 +278,7 @@ describe("desktop side-pane resize interactions", () => {
       window.dispatchEvent(pointerEvent("pointermove", 80, 16));
       window.dispatchEvent(pointerEvent("pointerup", 80, 16));
     });
+    act(flushFrames);
 
     expect(onCollapsedChange).toHaveBeenCalledWith(true);
     expect(onWidthChange).not.toHaveBeenCalled();
@@ -322,10 +361,7 @@ describe("desktop side-pane resize interactions", () => {
   });
 
   it("previews the right-sidebar width pointer-synchronously and commits it at gesture end", () => {
-    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
-      callback(0);
-      return 1;
-    });
+    const flushFrames = mockAnimationFrames();
     const onWidthChange = vi.fn();
     const container = render(withTestLocalization(
       <AuxiliaryPanelHost
@@ -348,6 +384,7 @@ describe("desktop side-pane resize interactions", () => {
       handle.dispatchEvent(pointerEvent("pointerdown", 0, 8));
       window.dispatchEvent(pointerEvent("pointermove", -300, 8));
     });
+    act(flushFrames);
 
     expect(panel.style.getPropertyValue("--desktop-right-sidebar-width")).toBe("720px");
     expect(onWidthChange).not.toHaveBeenCalled();
@@ -355,15 +392,13 @@ describe("desktop side-pane resize interactions", () => {
     act(() => {
       window.dispatchEvent(pointerEvent("pointerup", -300, 8));
     });
+    act(flushFrames);
 
     expect(onWidthChange).toHaveBeenCalledExactlyOnceWith(720);
   });
 
   it("follows the pointer down to the right-sidebar minimum, then holds while collapse is armed", () => {
-    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
-      callback(0);
-      return 1;
-    });
+    const flushFrames = mockAnimationFrames();
     const onOpenChange = vi.fn();
     const onWidthChange = vi.fn();
     const container = render(withTestLocalization(
@@ -387,6 +422,7 @@ describe("desktop side-pane resize interactions", () => {
       handle.dispatchEvent(pointerEvent("pointerdown", 0, 6));
       window.dispatchEvent(pointerEvent("pointermove", 200, 6));
     });
+    act(flushFrames);
 
     expect(panel.style.getPropertyValue("--desktop-right-sidebar-width")).toBe("500px");
     expect(onWidthChange).not.toHaveBeenCalled();
@@ -394,6 +430,7 @@ describe("desktop side-pane resize interactions", () => {
     act(() => {
       window.dispatchEvent(pointerEvent("pointerup", 200, 6));
     });
+    act(flushFrames);
 
     expect(onWidthChange).toHaveBeenCalledExactlyOnceWith(500);
 
@@ -401,6 +438,7 @@ describe("desktop side-pane resize interactions", () => {
       handle.dispatchEvent(pointerEvent("pointerdown", 0, 6));
       window.dispatchEvent(pointerEvent("pointermove", 300, 6));
     });
+    act(flushFrames);
 
     expect(panel.style.getPropertyValue("--desktop-right-sidebar-width")).toBe("420px");
     expect(onWidthChange).toHaveBeenCalledExactlyOnceWith(500);
@@ -409,6 +447,7 @@ describe("desktop side-pane resize interactions", () => {
     act(() => {
       window.dispatchEvent(pointerEvent("pointerup", 300, 6));
     });
+    act(flushFrames);
 
     expect(onWidthChange).toHaveBeenLastCalledWith(420);
     expect(onWidthChange).toHaveBeenCalledTimes(2);
@@ -544,4 +583,16 @@ function pointerEvent(type: string, clientX: number, pointerId: number) {
     clientX,
     pointerId,
   });
+}
+
+function mockAnimationFrames() {
+  const frames = new Map<number, FrameRequestCallback>();
+  let id = 0;
+  vi.spyOn(window, "requestAnimationFrame").mockImplementation(callback => { frames.set(++id, callback); return id; });
+  vi.spyOn(window, "cancelAnimationFrame").mockImplementation(frame => { frames.delete(frame); });
+  return () => {
+    const pending = [...frames.values()];
+    frames.clear();
+    pending.forEach(callback => callback(0));
+  };
 }

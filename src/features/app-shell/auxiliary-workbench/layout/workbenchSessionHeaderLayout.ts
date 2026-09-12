@@ -6,7 +6,7 @@ export const WORKBENCH_SESSION_HEADER_METRICS = Object.freeze({
   overflowControl: 28,
   createControl: 28,
   absoluteActiveMinimum: 64,
-  activationMotionMs: 220,
+  layoutMotionMs: 200,
 });
 
 export type WorkbenchSessionHeaderLayoutMode = "full" | "compact" | "overflow";

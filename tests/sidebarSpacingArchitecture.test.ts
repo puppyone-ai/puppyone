@@ -66,7 +66,7 @@ describe("sidebar spacing architecture", () => {
   it("shares one visible boundary between the Explorer scrollbar and Editor", () => {
     const explorerColumn = compact(readCssBlock(dataTreeCss, ".explorer-column"));
     const explorerResizer = compact(readCssBlock(dataTreeCss, ".data-explorer-resizer"));
-    const explorerDivider = compact(readCssBlock(dataTreeCss, ".data-explorer-resizer::after"));
+
     const injectedSurface = compact(readCssBlock(layoutCss, ".desktop-view-surface-sidebar"));
     expect(dataWorkspaceSource).toContain('<aside className="explorer-column">');
     expect(dataWorkspaceSource).toContain("renderWorkspaceSlot(explorerSlot, workspaceState)");
@@ -77,9 +77,8 @@ describe("sidebar spacing architecture", () => {
       "border-inline-end: 1px solid var(--po-sidebar-divider, var(--po-divider));",
     );
     expect(explorerResizer).toContain("background: transparent;");
-    expect(explorerDivider).toContain("inset-inline-start: 0;");
-    expect(explorerDivider).toContain("inset-inline-end: auto;");
-    expect(explorerDivider).toContain("background: transparent;");
+    expect(dataTreeCss).not.toContain(".data-explorer-resizer::after");
+    expect(explorerResizer).toContain("- 1px");
     expect(injectedSurface).not.toContain("border-inline-end:");
     expect(cloudSidebarCss).not.toContain("border-inline-end:");
   });

@@ -645,6 +645,10 @@
   background: #ffffff;
 }
 
+:root[data-interface-style="windows-xp"] .desktop-right-sidebar {
+  --desktop-right-sidebar-border-end: 1px;
+}
+
 :root[data-interface-style="windows-xp"] .desktop-right-sidebar.is-open {
   border: 1px solid #2c6fc4;
   background: var(--po-surface-auxiliary);

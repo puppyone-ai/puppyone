@@ -27,7 +27,6 @@ import {
   terminalPanelId,
   terminalTabId,
 } from "../ui/session-header/terminalSessionHeaderIds";
-import { TerminalGroupMoveHandle } from "./TerminalGroupMoveHandle";
 import { TerminalGroupPane } from "./TerminalGroupPane";
 import { TerminalSplitResizeHandle } from "./TerminalSplitResizeHandle";
 import { TerminalSessionHostSlot } from "./session-host/TerminalSessionHostSlot";
@@ -178,15 +177,6 @@ function TerminalTabGroupLeaf({
         tabMove={sessionMove}
         workspacePath={workspacePath}
       />}
-      moveHandle={activeSession ? (
-        <TerminalGroupMoveHandle
-          groupId={group.id}
-          session={activeSession}
-          sessionIds={group.sessionIds}
-          sessionMove={sessionMove}
-          onActivate={onActivateSession}
-        />
-      ) : null}
     >
       {activeSession && host && (
         <TerminalSessionHostSlot

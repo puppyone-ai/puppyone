@@ -307,6 +307,9 @@
 
 .desktop-right-sidebar {
   --desktop-right-sidebar-width: 560px;
+  --desktop-right-sidebar-border-start: 1px;
+  --desktop-right-sidebar-border-end: 0px;
+  --desktop-right-sidebar-content-width: calc(var(--desktop-right-sidebar-width) - var(--desktop-right-sidebar-border-start) - var(--desktop-right-sidebar-border-end));
   --desktop-right-sidebar-background: var(--po-surface-auxiliary);
   --po-surface-terminal: var(--po-surface-auxiliary);
   --po-terminal-bg: var(--po-surface-terminal);
@@ -318,7 +321,8 @@
   width: 0;
   min-width: 0;
   min-height: 0;
-  overflow: hidden;
+  /* The viewport clips content; the frame must expose its border hit area. */
+  overflow: visible;
   border-inline-start: 0 solid transparent;
   background: var(--desktop-right-sidebar-background);
   transition:
@@ -331,7 +335,7 @@
   flex-shrink: 0;
   flex-basis: var(--desktop-right-sidebar-width);
   width: var(--desktop-right-sidebar-width);
-  border-inline-start-width: 1px;
+  border-inline-start-width: var(--desktop-right-sidebar-border-start);
   border-inline-start-color: var(--po-sidebar-divider, var(--po-divider));
 }
 
@@ -339,26 +343,13 @@
   overflow: visible;
 }
 
-.desktop-right-sidebar-resizer {
-  /*
-   * This lane starts at the editor/panel boundary and extends into the
-   * auxiliary panel. It must never translate into the editor scrollbar.
-   */
-  inset-inline-start: 0;
+.desktop-right-sidebar-resizer:not(.po-collapsed-pane-edge-handle) {
+  /* Include the frame's border, without crossing into the Editor scrollbar. */
+  inset-inline-start: calc(-1 * var(--desktop-right-sidebar-border-start));
 }
 
-.desktop-right-sidebar-resizer::after {
-  transition: background 120ms ease, box-shadow 120ms ease;
-}
-
-.desktop-right-sidebar-resizer:hover::after,
-.desktop-right-sidebar-resizer:focus-visible::after {
-  background: var(--po-pane-resizer-hover-color);
-}
-
-body.desktop-right-sidebar-resizing .desktop-right-sidebar-resizer::after {
-  background: var(--po-pane-resizer-active-color);
-  box-shadow: 0 0 0 1px var(--po-pane-resizer-active-ring);
+.desktop-right-sidebar.is-open:has(> .po-pane-edge-resize-handle) {
+  border-inline-start-color: transparent;
 }
 
 body.desktop-right-sidebar-resizing,
@@ -386,7 +377,6 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar.is-open {
 .desktop-right-sidebar-viewport {
   position: absolute;
   inset: 0;
-  width: 100%;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -400,8 +390,8 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar.is-open {
   position: absolute;
   inset-block: 0;
   inset-inline-end: 0;
-  width: var(--desktop-right-sidebar-width);
-  min-width: var(--desktop-right-sidebar-width);
+  width: var(--desktop-right-sidebar-content-width);
+  min-width: var(--desktop-right-sidebar-content-width);
   min-height: 0;
   overflow: hidden;
   pointer-events: none;

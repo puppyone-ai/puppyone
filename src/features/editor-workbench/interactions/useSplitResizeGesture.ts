@@ -4,7 +4,7 @@ import {
   type EditorSplitDirection,
 } from "@puppyone/shared-ui";
 import {
-  acquireNativeSurfacePointerPassthroughLease,
+  acquireNativeSurfaceResizeLease,
   createNativeSurfacePointerSessionId,
   type NativeSurfacePointerPassthroughLease,
 } from "../../native-surfaces";
@@ -129,7 +129,7 @@ export function useSplitResizeGesture({
       frameId: null,
       handle: event.currentTarget,
       id,
-      nativeLease: acquireNativeSurfacePointerPassthroughLease("editor-split-resize", id),
+      nativeLease: acquireNativeSurfaceResizeLease("editor-split-resize", id),
       onCommit,
       pointerId: event.pointerId,
       previewRatio: committedRatio,

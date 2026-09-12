@@ -1,6 +1,5 @@
-import { useRef, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import type { WorkbenchContentDropIntent } from "./workbenchTabMove";
-import { useWorkbenchPaneContentHandleReveal } from "./useWorkbenchPaneContentHandleReveal";
 
 export type WorkbenchGroupPaneProps = Readonly<{
   children: ReactNode;
@@ -8,7 +7,6 @@ export type WorkbenchGroupPaneProps = Readonly<{
   focused: boolean;
   groupId: string;
   header: ReactNode;
-  moveHandle: ReactNode;
 }>;
 
 /**
@@ -21,32 +19,20 @@ export function WorkbenchGroupPane({
   focused,
   groupId,
   header,
-  moveHandle,
 }: WorkbenchGroupPaneProps) {
-  const contentRef = useRef<HTMLDivElement>(null);
-  const handleReveal = useWorkbenchPaneContentHandleReveal(
-    contentRef,
-    Boolean(contentDropIntent),
-  );
-
   return (
     <section
       className="desktop-terminal-tab-group"
       data-terminal-group-pane-id={groupId}
       data-focused={focused ? "true" : undefined}
-      data-handle-hot={handleReveal.revealed ? "true" : undefined}
     >
       {header}
       <div
-        ref={contentRef}
         className="desktop-terminal-tab-group-content"
         data-terminal-content-drop-group-id={groupId}
         data-drop-target={contentDropIntent?.edge}
-        onPointerMove={handleReveal.onPointerMove}
-        onPointerLeave={handleReveal.onPointerLeave}
       >
         {children}
-        {moveHandle}
         {contentDropIntent && (
           <div
             className="desktop-terminal-drop-preview"

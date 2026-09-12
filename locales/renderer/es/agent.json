@@ -1,4 +1,7 @@
 {
+  "history.notFound": "Aún no se encontraron chats recuperables en este proyecto",
+  "history.alreadyOpen": "Los chats encontrados ya están abiertos",
+  "history.sourceSummary": "La búsqueda de historial es limitada",
   "error.session-ended": "Esta sesión ha finalizado. Ábrela desde el historial para continuar.",
   "name": "Agente",
   "panel.chat": "Chat de {agent}",

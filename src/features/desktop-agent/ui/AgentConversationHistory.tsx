@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { ArrowLeft, History, LoaderCircle, RefreshCw, Search } from "lucide-react";
 import { useLocalization } from "@puppyone/localization/react";
 import type {
@@ -18,6 +18,7 @@ type Props = {
   error: string | null;
   sources?: Readonly<Record<string, AgentSessionsListResponse["discovery"]>>;
   catalogTruncated?: boolean;
+  excludedSessionCount?: number;
   openingSessionId?: string | null;
   onOpen: (session: AgentSessionListItem) => void;
   onRefresh: () => void;
@@ -36,6 +37,7 @@ export function AgentConversationHistory({
   error,
   sources = {},
   catalogTruncated = false,
+  excludedSessionCount = 0,
   openingSessionId = null,
   onOpen,
   onRefresh,
@@ -43,7 +45,8 @@ export function AgentConversationHistory({
   onBack,
 }: Props) {
   const { t } = useLocalization();
-  const titleId = useId();
+  const searchButton = useRef<HTMLButtonElement>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const runtimeById = useMemo(
     () => new Map(runtimes.map((entry) => [entry.descriptor.id, entry])),
@@ -61,20 +64,36 @@ export function AgentConversationHistory({
     });
   }, [query, runtimeById, sessions]);
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      onBack();
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onBack]);
+  const sourceEntries = Object.entries(sources);
+  const sourceFailed = sourceEntries.some(([, source]) => source.status === "failed");
+  const complete = sourceEntries.length > 0 && !catalogTruncated && !hasMore
+    && sourceEntries.every(([, source]) => source.status === "complete" && source.coverage === "complete")
+    && runtimes.every((runtime) => sources[runtime.descriptor.id]?.coverage === "complete");
+  // An empty projection is not proof of an empty native history.
+  const emptyMessage = error || sourceFailed ? "agent.history.refreshFailed"
+    : excludedSessionCount > 0 ? "agent.history.alreadyOpen"
+      : complete ? "agent.history.empty" : "agent.history.notFound";
+  const sourceNotes = sourceEntries.flatMap(([runtimeId, source]) => {
+    const message = source.status === "unsupported" ? "agent.history.sourceUnsupported"
+      : source.status === "partial" ? "agent.history.sourcePartial"
+        : source.status !== "failed" && source.coverage !== "complete" ? "agent.history.sourceUnverified" : null;
+    return message ? [{ runtimeId, message }] : [];
+  });
 
   return (
     <section
       className="desktop-agent-history-view"
-      aria-labelledby={titleId}
+      aria-label={t("agent.history.title")}
+      onKeyDown={(event) => {
+        if (event.key !== "Escape") return;
+        event.preventDefault();
+        event.stopPropagation();
+        if (searchOpen) {
+          setQuery("");
+          setSearchOpen(false);
+          requestAnimationFrame(() => searchButton.current?.focus());
+        } else onBack();
+      }}
     >
       <header className="desktop-agent-history-toolbar">
         <button
@@ -87,7 +106,31 @@ export function AgentConversationHistory({
         >
           <ArrowLeft size={15} strokeWidth={1.7} aria-hidden="true" />
         </button>
-        <h2 id={titleId}>{t("agent.history.title")}</h2>
+        <div className="desktop-agent-history-search-slot">
+          <button
+            ref={searchButton}
+            type="button"
+            className="desktop-agent-history-toolbar-button"
+            hidden={searchOpen}
+            aria-label={t("agent.history.search")}
+            title={t("agent.history.search")}
+            aria-expanded={searchOpen}
+            onClick={() => setSearchOpen(true)}
+          >
+            <Search size={15} strokeWidth={1.7} aria-hidden="true" />
+          </button>
+          {searchOpen && <label className="desktop-agent-history-search">
+            <Search size={13} strokeWidth={1.7} aria-hidden="true" />
+            <input
+              autoFocus
+              type="search"
+              value={query}
+              aria-label={t("agent.history.search")}
+              placeholder={t("agent.history.search")}
+              onChange={(event) => setQuery(event.currentTarget.value)}
+            />
+          </label>}
+        </div>
         <button
           type="button"
           className="desktop-agent-history-toolbar-button"
@@ -105,32 +148,15 @@ export function AgentConversationHistory({
         </button>
       </header>
 
-      <label className="desktop-agent-history-search">
-        <Search size={13} strokeWidth={1.7} aria-hidden="true" />
-        <input
-          autoFocus
-          type="search"
-          value={query}
-          aria-label={t("agent.history.search")}
-          placeholder={t("agent.history.search")}
-          onChange={(event) => setQuery(event.currentTarget.value)}
-        />
-      </label>
-
       {loading ? (
         <div className="desktop-agent-history-empty" role="status">
           <LoaderCircle className="is-spinning" size={13} aria-hidden="true" />
           <span>{t("agent.history.loading")}</span>
         </div>
-      ) : sessions.length === 0 && error ? (
-        <div className="desktop-agent-history-empty" role="alert">
-          <RefreshCw size={13} aria-hidden="true" />
-          <span>{t("agent.history.refreshFailed")}</span>
-        </div>
       ) : sessions.length === 0 ? (
-        <div className="desktop-agent-history-empty" role="status">
+        <div className="desktop-agent-history-empty" role={error || sourceFailed ? "alert" : "status"}>
           <History size={13} aria-hidden="true" />
-          <span>{t("agent.history.empty")}</span>
+          <span>{t(emptyMessage)}</span>
         </div>
       ) : matchingSessions.length === 0 ? (
         <div className="desktop-agent-history-empty" role="status">
@@ -174,16 +200,18 @@ export function AgentConversationHistory({
       )}
 
       <footer className="desktop-agent-history-footer">
-        {Object.entries(sources).map(([runtimeId, source]) => {
+        {sourceEntries.filter(([, source]) => source.status === "failed").map(([runtimeId]) => {
           const label = runtimeById.get(runtimeId)?.descriptor.displayName || runtimeId;
-          const message = source.status === "failed" ? t("agent.history.refreshFailed")
-            : source.status === "unsupported" ? t("agent.history.sourceUnsupported")
-              : source.status === "partial" ? t("agent.history.sourcePartial")
-                : source.coverage === "unknown" ? t("agent.history.sourceUnverified") : null;
-          return message ? <p key={runtimeId} className={source.status === "failed" ? "desktop-agent-history-error" : "desktop-agent-history-source-status"} role="status">
-            {label}: {message}
-          </p> : null;
+          return <p key={runtimeId} className="desktop-agent-history-error" role="status">
+            {label}: {t("agent.history.refreshFailed")}
+          </p>;
         })}
+        {sourceNotes.length > 0 && <details className="desktop-agent-history-source-details">
+          <summary>{t("agent.history.sourceSummary")}</summary>
+          {sourceNotes.map(({ runtimeId, message }) => <p key={runtimeId} className="desktop-agent-history-source-status">
+            {runtimeById.get(runtimeId)?.descriptor.displayName || runtimeId}: {t(message)}
+          </p>)}
+        </details>}
         {catalogTruncated && <p className="desktop-agent-history-error" role="status">{t("agent.history.catalogTruncated")}</p>}
         {hasMore && (
           <button
@@ -195,7 +223,7 @@ export function AgentConversationHistory({
             {loadingMore ? t("agent.history.loadingMore") : t("agent.history.loadMore")}
           </button>
         )}
-        {error && sessions.length > 0 && !Object.values(sources).some((source) => source.status === "failed") && (
+        {error && sessions.length > 0 && !sourceFailed && (
           <p className="desktop-agent-history-error" role="status">{t("agent.history.refreshFailed")}</p>
         )}
       </footer>

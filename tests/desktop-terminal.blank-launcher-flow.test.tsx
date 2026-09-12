@@ -96,7 +96,7 @@ describe("Unified Workbench blank launcher flow", () => {
       '[role="tab"] .desktop-terminal-launcher-icon.is-codex',
     )).not.toBeNull();
 
-    const plus = document.querySelector<HTMLButtonElement>('[aria-label="New terminal"]');
+    const plus = document.querySelector<HTMLButtonElement>('[aria-label="New tab"]');
     expect(plus).not.toBeNull();
     act(() => plus?.click());
 
@@ -143,6 +143,51 @@ describe("Unified Workbench blank launcher flow", () => {
     expect(document.querySelector('[role="menu"]')).toBeNull();
   });
 
+  it("keeps multiple blank tabs independent, with neutral icons and in-place promotion", async () => {
+    installTerminalAgentBridge();
+    const prepared = new Map<string, string>();
+    const contribution = fakeChatContribution(prepared);
+    const container = document.createElement("div");
+    document.body.appendChild(container); root = createRoot(container);
+    await act(async () => root?.render(withTestLocalization(<RightTerminalPanel active
+      contributions={[contribution]} hiddenAgentIds={[]} workspace={WORKSPACE} />)));
+    const store = stores.get(WORKSPACE.path)!;
+    act(() => { store.createLauncher(null, "New tab"); });
+    const plus = document.querySelector<HTMLButtonElement>('.desktop-terminal-new-button')!;
+    await act(async () => { plus.click(); plus.click(); });
+    const blanks = store.getSnapshot().topology.items.map((item) => item.id);
+    expect(new Set(blanks).size).toBe(3);
+    expect(prepared.size).toBe(0);
+    expect(document.querySelectorAll('[role="tab"]')).toHaveLength(3);
+    expect(document.querySelectorAll('[role="tab"] .lucide-square-dashed')).toHaveLength(3);
+    expect(document.querySelector('[role="tab"] .lucide-square-terminal')).toBeNull();
+    expect(plus.disabled).toBe(false);
+
+    await clickButton("Chat history");
+    expect(document.querySelector('[data-fake-history="true"]')).not.toBeNull();
+    expect(store.getSnapshot().snapshots.get(blanks[2])).toMatchObject({ title: "Chat history", iconKey: "history" });
+    expect(document.querySelector('[role="tab"][aria-selected="true"] .lucide-history')).not.toBeNull();
+    const select = (id: string) => document.querySelector<HTMLButtonElement>(`[data-terminal-tab-session-id="${id}"] [role="tab"]`)!;
+    await act(async () => select(blanks[0]).click());
+    expect(document.querySelector('[data-fake-history="true"]')).toBeNull();
+    await clickButton("Codex");
+    const items = store.getSnapshot().topology.items;
+    expect(items.map((item) => item.kind)).toEqual(["agent-chat", "launcher", "launcher"]);
+    expect(items.slice(1).map((item) => item.id)).toEqual(blanks.slice(1));
+    expect(prepared.size).toBe(1);
+    expect(store.getHeaderKey(items[0].id)).toBe(blanks[0]);
+    expect(document.querySelectorAll('[role="tab"] .lucide-square-dashed')).toHaveLength(1);
+    expect(document.querySelectorAll('[role="tab"] .lucide-history')).toHaveLength(1);
+    await act(async () => select(blanks[2]).click());
+    expect(document.querySelector('[data-fake-history="true"]')).not.toBeNull();
+    await clickButton("Back");
+    expect(store.getSnapshot().snapshots.get(blanks[2])).toMatchObject({ title: "New tab", iconKey: null });
+    expect(store.getHeaderKey(blanks[2])).toBe(blanks[2]);
+    const close = document.querySelector<HTMLButtonElement>(`[data-terminal-tab-session-id="${blanks[1]}"] .desktop-terminal-tab-close`)!;
+    await act(async () => close.click());
+    expect(store.getSnapshot().topology.items.map((item) => item.id)).toEqual([items[0].id, blanks[2]]);
+  });
+
   it("opens global Chat history explicitly and commits a restored Chat only after preparation", async () => {
     installTerminalAgentBridge();
     const preparedByItemId = new Map<string, string>();
@@ -164,7 +209,9 @@ describe("Unified Workbench blank launcher flow", () => {
     expect(document.querySelector(".desktop-terminal-launcher-group.is-history-entry")).not.toBeNull();
     await clickButton("Chat history");
     expect(document.querySelector('[data-fake-history="true"]')).not.toBeNull();
-    expect(document.querySelectorAll('[role="tab"]')).toHaveLength(0);
+    expect(document.querySelectorAll('[role="tab"]')).toHaveLength(1);
+    expect(document.querySelector('[role="tab"]')?.textContent).toBe("Chat history");
+    expect(document.querySelector('[role="tab"] .lucide-history')).not.toBeNull();
 
     await clickButton("Restore saved chat");
     await vi.waitFor(() => {

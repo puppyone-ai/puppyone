@@ -351,7 +351,12 @@ export class AgentSessionController {
         return;
       }
       this.patch({ phase: "restoring" });
-      const restored = await bridge.resumeAgentSession({ rootPath: this.workspaceRoot, runtimeId });
+      const sessionId = this.state.session?.id;
+      const restored = await bridge.resumeAgentSession({
+        rootPath: this.workspaceRoot, runtimeId,
+        ...(sessionId ? { sessionId } : {}),
+      });
+      if (sessionId && !restored) throw new Error("This Agent conversation is no longer available. Start a new conversation to continue.");
       if (restored) await this.applySnapshot(restored);
       this.patch({
         phase: restored?.session.activeTurnId ? "running" : "ready",

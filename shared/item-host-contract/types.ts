@@ -9,6 +9,8 @@ export type ItemHostAppearance = Readonly<{
   variables: Record<string, string>;
 }>;
 export type ItemHostIdentity = Readonly<{ itemId: string; kind: ItemHostKind; projectContext: ProjectSessionContext }>;
+export type ItemHostPresentationIdentity = Readonly<{ generation: string; presentationId: number }>;
+export type ItemHostFocus = Readonly<{ presentationId: number; sequence: number; focused: boolean; activate: boolean }>;
 export type ItemHostGeometry = Readonly<{
   bounds: { x: number; y: number; width: number; height: number };
   revision: number;
@@ -40,9 +42,9 @@ export type ItemHostState = Readonly<{
 export type ItemHostEvent = Readonly<{ itemId: string; generation: string; type: string; payload: unknown }>;
 export type ItemHostBridge = Readonly<{
   create(request: ItemHostIdentity & ItemHostConfiguration & { recipeId?: string | null; historyTarget?: { sessionId: string; runtimeId: string } | null }): Promise<ItemHostState>;
-  configure(request: ItemHostIdentity & ItemHostConfiguration): Promise<void>;
-  setGeometry(request: ItemHostIdentity & ItemHostGeometry): void;
-  focus(request: ItemHostIdentity): void;
+  configure(request: ItemHostIdentity & ItemHostPresentationIdentity & ItemHostConfiguration): Promise<void>;
+  setGeometry(request: ItemHostIdentity & ItemHostPresentationIdentity & ItemHostGeometry): void;
+  focus(request: ItemHostIdentity & ItemHostPresentationIdentity): void;
   close(request: ItemHostIdentity): Promise<void>;
   recover(request: ItemHostIdentity): Promise<ItemHostState>;
   onState(listener: (state: ItemHostState) => void): () => void;

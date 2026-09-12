@@ -7,6 +7,7 @@ import {
   useTerminalTabMoveDrag,
 } from "../src/features/desktop-terminal/interactions/useTerminalTabMoveDrag";
 import { resolveTerminalTabBarDropTarget } from "../src/features/desktop-terminal/interactions/terminalTabBarDropTarget";
+import { isNativeSurfaceLayoutStable } from "../src/features/native-surfaces/nativeSurfaceGeometry";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
@@ -17,6 +18,7 @@ afterEach(() => {
   vi.useRealTimers();
   act(() => root?.unmount());
   root = null;
+  delete window.puppyoneDesktop;
   document.body.innerHTML = "";
   vi.restoreAllMocks();
 });
@@ -48,7 +50,9 @@ describe("Terminal Session tab movement", () => {
     expect(onActivate).toHaveBeenCalledWith("source");
   });
 
-  it("uses the Ghostty grip as a drag-first Group source after three pixels", () => {
+  it("uses the Ghostty grip as a drag-first Group source after three pixels", async () => {
+    const setOccluded = vi.fn();
+    Object.defineProperty(window, "puppyoneDesktop", { configurable: true, writable: true, value: { setNativeSurfaceOccluded: setOccluded } });
     const harness = renderHarness({ source: "group-handle" });
     installPointerCapture(harness.tab);
 
@@ -59,10 +63,16 @@ describe("Terminal Session tab movement", () => {
     act(() => harness.tab.dispatchEvent(pointer("pointermove", 6, 13, 10)));
     expect(document.body.classList.contains("desktop-terminal-session-dragging")).toBe(true);
     expect(harness.sourceTab.dataset.moveSource).toBe("true");
+    expect(isNativeSurfaceLayoutStable()).toBe(false);
+    expect(setOccluded).toHaveBeenLastCalledWith({ occluded: true });
 
     act(() => harness.tab.dispatchEvent(pointer("pointercancel", 6, 13, 10)));
     expect(document.body.classList.contains("desktop-terminal-session-dragging")).toBe(false);
     expect(harness.sourceTab.dataset.moveSource).toBeUndefined();
+    expect(isNativeSurfaceLayoutStable()).toBe(true);
+    await act(async () => {});
+    expect(setOccluded).toHaveBeenLastCalledWith({ occluded: false });
+    delete window.puppyoneDesktop;
   });
 
   it("moves a whole Group at a content edge without applying Tab split admission", () => {

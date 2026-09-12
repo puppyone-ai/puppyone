@@ -27,6 +27,11 @@
       "dependsOn": [], "timeoutSeconds": 120, "runtime": "electron", "artifacts": []
     },
     {
+      "id": "native-resize-cursor", "name": "Native split resize cursor recovery", "group": "app",
+      "command": ["npm", "run", "smoke:native-resize-cursor"], "platforms": ["linux", "darwin"],
+      "dependsOn": [], "timeoutSeconds": 120, "runtime": "electron", "artifacts": []
+    },
+    {
       "id": "build", "name": "Production build, types, architecture and budgets", "group": "app",
       "command": ["npm", "run", "build"], "platforms": ["linux", "darwin"],
       "dependsOn": [], "timeoutSeconds": 300, "runtime": "node", "artifacts": ["dist"]

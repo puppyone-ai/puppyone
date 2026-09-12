@@ -51,6 +51,7 @@ export function useAgentConversationHistory({
   return {
     ...state,
     sessions: visibleSessions,
+    excludedSessionCount: state.sessions.length - visibleSessions.length,
     hasMore: Boolean(state.catalogNextCursor) || Object.keys(state.nextCursors).length > 0,
     refreshNative: controller.refresh.bind(controller),
     loadMoreNative: controller.loadMore.bind(controller),

@@ -22,7 +22,6 @@ import { WorkbenchGroupPane } from "./WorkbenchGroupPane";
 import { WorkbenchSplitResizeHandle } from "./WorkbenchSplitResizeHandle";
 import { workbenchPanelId, workbenchTabId } from "./workbenchSessionHeaderIds";
 import type { AuxiliaryWorkbenchHeaderItem } from "./AuxiliaryWorkbenchHeader.types";
-import { AuxiliaryWorkbenchGroupMoveHandle } from "./AuxiliaryWorkbenchGroupMoveHandle";
 import { AuxiliaryWorkbenchHeader } from "./AuxiliaryWorkbenchHeader";
 import { AuxiliaryWorkbenchItemHostSlot } from "./AuxiliaryWorkbenchItemHostSlot";
 
@@ -117,16 +116,6 @@ function AuxiliaryWorkbenchGroupLeaf({
         presentedItemIds={[group.activeItemId]}
         tabMove={itemMove}
       />}
-      moveHandle={activeItem ? (
-        <AuxiliaryWorkbenchGroupMoveHandle
-          groupId={group.id}
-          itemId={activeItem.id}
-          itemIds={group.itemIds}
-          label={activeItem.snapshot.title}
-          itemMove={itemMove}
-          onActivate={onActivateItem}
-        />
-      ) : null}
     >
       {activeItem && host && (
         <AuxiliaryWorkbenchItemHostSlot

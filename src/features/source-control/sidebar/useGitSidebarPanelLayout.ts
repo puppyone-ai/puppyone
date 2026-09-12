@@ -97,6 +97,10 @@ export function useGitSidebarPanelLayout(revision: unknown) {
             [next]: Math.round(totalHeight - previousHeight),
           }));
         },
+        onCancel: () => {
+          setPanelHeights((current) => ({ ...current, [previous]: previousStart, [next]: nextStart }));
+          setActiveResizeSplit(null);
+        },
         onEnd: () => setActiveResizeSplit(null),
       };
     },
@@ -121,6 +125,10 @@ export function useGitSidebarPanelLayout(revision: unknown) {
         onMove: (point) => {
           const nextHeight = clampNumber(historyStart - (point.clientY - startY), historyMin, historyMax);
           setHistoryPaneHeight(Math.round(nextHeight));
+        },
+        onCancel: () => {
+          setHistoryPaneHeight(historyStart);
+          setActiveResizeSplit(null);
         },
         onEnd: () => setActiveResizeSplit(null),
       };

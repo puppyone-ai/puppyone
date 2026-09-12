@@ -23,7 +23,7 @@ describe("pre-release check definitions", () => {
   it("retains every existing CI gate and builds UI dependencies once", async () => {
     const actual = await loadManifest();
     expect(actual.checks.map((entry) => entry.id)).toEqual([
-      "lint", "updater-p0", "tests", "markdown-focus", "build", "agent-viewport",
+      "lint", "updater-p0", "tests", "markdown-focus", "native-resize-cursor", "build", "agent-viewport",
       "agent-tools", "project-sessions", "appearance", "auxiliary-appearance", "platform-contracts",
     ]);
     expect(actual.checks.find((entry) => entry.id === "updater-p0").command).toEqual(["npm", "run", "test:updater-p0:coverage"]);
