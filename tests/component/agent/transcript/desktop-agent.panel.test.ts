@@ -12,6 +12,7 @@ import { ProjectWorkbenchStore } from "../../../../src/features/app-shell/auxili
 import type { AuxiliaryWorkbenchContribution } from "../../../../src/features/app-shell/auxiliary-workbench/types";
 import type { AgentEvent, AgentSessionSnapshot } from "../../../../src/features/desktop-agent/agentTypes";
 import { AgentChatWorkbenchItem, requestCloseAgentChatWorkbenchItem } from "../../../../src/features/desktop-agent/workbench/AgentChatWorkbenchItem";
+import { createProjectAgentClientProvider } from "../../../../src/features/desktop-agent/infrastructure/electron/electronAgentClient";
 import { projectAgentControllers } from "../../../../src/features/desktop-agent/workbench/projectAgentControllers";
 import { stripBidiIsolation, withTestLocalization } from "../../../support/react/localization";
 
@@ -349,6 +350,9 @@ function renderPanel(
 ) {
   installDesktopBridge(bridge);
   project = new ProjectWorkbenchStore({ projectId: "workspace", generation: "open-1", rootPath: "/workspace" });
+  // Component assertions use the controlled feed port. Real MessagePorts are
+  // exercised by session transport contracts and the complete Desktop workflow.
+  projectAgentControllers(project, { createClient: () => createProjectAgentClientProvider(project.context) });
   project.dispatch({ type: "create", item: { id: "chat-1", kind: "agent-chat", rootId: "/workspace", contextId: "workspace" }, groupId: "group-1", targetGroupId: null });
   const container = document.createElement("div");
   document.body.appendChild(container);

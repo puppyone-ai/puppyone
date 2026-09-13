@@ -153,7 +153,7 @@ async function selectProject(name) {
 async function launch(kind) {
   await sidebar(true);
   if (!await evaluate("[...document.querySelectorAll('.desktop-terminal-launcher-shell')].some(x=>x.getBoundingClientRect().width>0&&x.closest('[aria-hidden]')?.getAttribute('aria-hidden')!=='true')")) await click(".desktop-terminal-new-button");
-  const before = await evaluate("[...document.querySelectorAll('.desktop-terminal-contribution-host')].map(e=>e.closest('[data-terminal-session-host-id]').dataset.terminalSessionHostId)");
+  const before = await evaluate("[...document.querySelectorAll('.desktop-terminal-contribution-host:not([data-item-kind=launcher])')].map(e=>e.closest('[data-terminal-session-host-id]').dataset.terminalSessionHostId)");
   if (kind === "terminal") await evaluate("[...document.querySelectorAll('.desktop-terminal-launcher-shell')].find(x=>x.getBoundingClientRect().width>0&&x.closest('[aria-hidden]')?.getAttribute('aria-hidden')!=='true').click()");
   else {
     await until(() => evaluate("[...document.querySelectorAll('.desktop-terminal-launcher-tool')].some(x=>x.textContent.trim()==='Codex'&&x.getBoundingClientRect().width>0&&x.closest('[aria-hidden]')?.getAttribute('aria-hidden')!=='true')"), "fixture Agent launcher");
@@ -226,15 +226,21 @@ app.whenReady().then(async () => {
       pendingReply = { channel: kind === "agent" ? "agent:session-create" : "terminal:create",
         promise: new Promise(done => { release = done; }), started: () => { replyStarted = true; } };
       const creating = launch(kind);
-      try { await until(() => replyStarted, `${kind}: delayed startup began`); await sidebar(false); }
+      let late;
+      try {
+        await until(() => replyStarted, `${kind}: delayed startup began`);
+        late = await creating;
+        await opened(late, `${kind}-loading-open`);
+        await sidebar(false);
+      }
       finally { release(); pendingReply = null; }
-      const late = await creating;
       await until(() => evaluate(`document.querySelector('[data-terminal-tab-session-id="${late}"]')?.dataset.status === ${JSON.stringify(kind === "terminal" ? "running" : "idle")}`), `${kind}: startup completed while hidden`);
       await hidden(`${kind}-finished-loading-while-closed`);
       await sidebar(true); await until(() => presented(late), `late ${kind} shown only on reopen`);
     }
     // Keyboard collapse and the collapsed edge use the same content visibility contract.
     await evaluate("document.querySelector('.desktop-right-sidebar-resizer').dispatchEvent(new KeyboardEvent('keydown',{key:'Home',bubbles:true}))");
+    await until(async () => await isOpen() === false, "Home key collapses the sidebar");
     await sidebar(false); await hidden("keyboard-collapsed");
     await click(".desktop-right-sidebar-resizer");
     await until(isOpen, "collapsed edge reopens");
