@@ -107,7 +107,7 @@
     "test:component": "vitest run tests/component",
     "test:integration": "vitest run tests/integration",
     "test:architecture": "vitest run tests/architecture",
-    "test:e2e": "electron tests/e2e/workspace/projects/project-sessions.smoke.mjs",
+    "test:e2e": "node tests/support/runners/run-desktop-e2e.mjs",
     "test:desktop": "node scripts/release-checks/run.mjs --group app",
     "check:test-layout": "node scripts/check-test-layout.mjs",
     "smoke:workbench-header-motion": "electron tests/integration/workbench/tabs/workbench-header-motion.smoke.mjs",
@@ -115,7 +115,9 @@
     "test:typecheck": "tsc -p tests/config/tsconfig.json && tsc -p tests/config/tsconfig.tooling.json",
     "test:core:coverage": "vitest run --config tests/config/vitest.core-coverage.config.ts",
     "smoke:resource-transfer:acceptance": "npm run build:native-drag && electron tests/integration/platform/drag-drop/resource-transfer.smoke.mjs --automated && electron tests/integration/platform/drag-drop/resource-transfer.smoke.mjs --automated --editor && electron tests/integration/platform/drag-drop/resource-transfer.smoke.mjs --automated --pdf",
-    "smoke:editor-pane-contracts": "electron tests/integration/editor/runtime/editor-pane-contracts.smoke.mjs"
+    "smoke:editor-pane-contracts": "electron tests/integration/editor/runtime/editor-pane-contracts.smoke.mjs",
+    "smoke:sidebar-visibility": "electron tests/e2e/workbench/layout/sidebar-visibility.smoke.mjs",
+    "smoke:sidebar-visibility:acceptance": "electron tests/e2e/workbench/layout/sidebar-visibility.smoke.mjs --native"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.159",

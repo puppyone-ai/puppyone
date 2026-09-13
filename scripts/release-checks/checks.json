@@ -223,6 +223,32 @@
       "artifacts": []
     },
     {
+      "id": "sidebar-visibility",
+      "name": "Agent and Terminal collapse, content residue and underlying Editor input",
+      "group": "app",
+      "command": [
+        "npm",
+        "run",
+        "smoke:sidebar-visibility"
+      ],
+      "platforms": [
+        "linux",
+        "darwin"
+      ],
+      "dependsOn": [
+        "build"
+      ],
+      "timeoutSeconds": 240,
+      "runtime": "electron",
+      "environment": {
+        "PUPPYONE_SIDEBAR_VISIBILITY_ARTIFACT_DIR": "{checkDir}/evidence"
+      },
+      "artifacts": [
+        "{checkDir}/evidence/result.json",
+        "{checkDir}/evidence"
+      ]
+    },
+    {
       "id": "appearance",
       "name": "Appearance and typography",
       "group": "app",

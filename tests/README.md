@@ -45,13 +45,12 @@ Use `npm run check:release -- --list` to inspect dependencies and
 
 `npm run test:desktop` runs the app selection, including its build dependency:
 Markdown focus, resize cursor recovery, Agent rendering/tools, project sessions,
-appearance/typography, auxiliary appearance, isolated utility execution,
-editor runtime lifecycle, and the complete preset Viewer pane matrix. These
-fixture scenarios require no real Agent
+appearance/typography, auxiliary appearance, sidebar visibility, isolated utility execution,
+editor runtime lifecycle, and the complete preset Viewer pane matrix. These fixture scenarios require no real Agent
 prompt or paid account. `npm run test:e2e -- --agent-draft` is an additional
-installed-runtime-dependent branch; the default e2e command covers project and
-Terminal sessions, shared DOM pane motion, live window resize, and tab relocation.
-The optional Agent branch checks an unsent draft across these same operations.
+installed-runtime-dependent branch of the project-session scenario; the default
+e2e command runs project sessions followed by the fixture-based Agent/Terminal
+sidebar workflow. Both run without paid requests.
 
 Other `smoke:*` commands are explicit focused checks, not implicitly part of CI.
 `smoke:native-agents` and `smoke:native-agent-references` deliberately require
@@ -82,6 +81,39 @@ controlled runtime port and a real separate-origin iframe. OS child-surface
 pointer forwarding is tested separately; this matrix injects Chromium input into
 the owner renderer. Its `editor-panes` app gate runs the complete matrix. The
 optional `-- --case pdf` selection is diagnostic and is recorded in its report.
+
+## Sidebar visibility and residual content
+
+`integration/workbench/layout/sidebarVisibility.integration.test.tsx` connects
+CollapsiblePaneFrame, AuxiliaryPanelHost, Workbench and its real project Store.
+Agent and Terminal each exercise retained DOM/inert state, late status/focus,
+delayed preparation, repeated transitions, remount and all split panes. Providers
+are controlled at the contribution boundary; project resources stay alive.
+
+`e2e/workbench/layout/sidebar-visibility.smoke.mjs` drives the complete Desktop:
+ordinary and rapid toggles, late transition completion, mixed split panes, project
+switching while closed, Agent/Terminal startup finishing after collapse, keyboard
+collapse and collapsed-edge reopening. It checks all content, the underlying
+Editor's click/focus/scroll and retention of sessions and Agent drafts. Only
+provider discovery/execution uses a synthetic runtime. GPU rendering stays on.
+Agent/Terminal share the window DOM; execution remains in utility processes.
+
+The `sidebar-visibility` app gate and `test:e2e` run this workflow by default.
+`npm run smoke:sidebar-visibility` runs it alone after building.
+`npm run smoke:sidebar-visibility:acceptance` also sends real macOS CoreGraphics
+click/wheel events and requires screen capture/event-posting permission. The
+ordinary command's Chromium input does not prove OS hit testing.
+
+Shared helpers live in `support/electron/`. DOM captures first prove the visible
+paint marker exists, then check its disappearance. OS window captures add checks
+for composited residue. After collapse, actual Editor pixels are compared with
+the owner renderer (inset region; channel tolerance 30, fewer than 0.5% differing
+pixels for caret/raster noise). Both crops and full composites are retained.
+Missing screen permission is explicitly recorded as OS pixel checks not run;
+strict acceptance fails instead of substituting page capture. PDF still uses a
+native WebContentsView, which page screenshots omit: the existing PDF pane matrix
+checks the actual composed window after menu close in both split directions.
+Require this with `npm run smoke:editor-pane-contracts -- --case pdf --require-compositor`.
 
 ## Coverage and native acceptance
 

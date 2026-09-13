@@ -1,6 +1,6 @@
 const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("paneContracts", Object.fromEntries(
-  ["config", "capture", "seed", "read", "persist", "input", "nativeState", "record"].map((method) => [method, (...args) => ipcRenderer.invoke(`pane-contracts:${method}`, ...args)]),
+  ["config", "capture", "verifyClosed", "seed", "read", "persist", "input", "nativeState", "record"].map((method) => [method, (...args) => ipcRenderer.invoke(`pane-contracts:${method}`, ...args)]),
 ));
 contextBridge.exposeInMainWorld("puppyoneDesktop", {
   setNativeSurfacePointerPassthrough: (request) => ipcRenderer.send("native-surfaces:set-pointer-passthrough", request),

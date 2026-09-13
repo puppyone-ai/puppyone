@@ -26,6 +26,7 @@ declare global {
     paneContracts: {
       config(): Promise<{ appUrl: string; caseId: string | null }>;
       capture(id: string): Promise<void>;
+      verifyClosed(id: string): Promise<void>;
       seed(files: Record<string, string>): Promise<void>;
       read(path: string): Promise<FileContent>;
       persist(request: DocumentPersistenceRequest): Promise<DocumentPersistenceResult>;
@@ -218,6 +219,7 @@ async function runCase(testCase: EditorPaneCase, direction: EditorSplitDirection
   assert(redo(view), "Close lost redo");
   await until(async () => (await window.paneContracts.read(sibling.path)).content?.endsWith("User edit"), "Redo did not persist");
   await until(async () => (await window.paneContracts.nativeState()).sessions.length === 0 && appSubscriptions === 0 && editorTaskScheduler.snapshot().length === 0, "Closed Viewer retained native sessions, subscriptions or Worker tasks");
+  if (testCase.id === "pdf") await window.paneContracts.verifyClosed(`pdf-${direction}`);
   assert((await window.paneContracts.read(subject.path)).content === (testCase.content ?? ""), "Pane operations wrote to the unrelated subject document");
   await closeThroughMenu(companion);
   await until(() => document.querySelector('[data-empty="true"]'), "Closing the final pane did not show an empty pane");

@@ -16,6 +16,7 @@ import { registerNativeSurfacePointerPassthroughIpcHandlers } from "../../../../
 import { registerWorkspaceFileIpcHandlers } from "../../../../electron/main/ipc/workspace-files-ipc.mjs";
 import { createLocalFileCapabilityStore } from "../../../../electron/main/local-file-capabilities.mjs";
 import { readSourceIdentity } from "../../../../scripts/release-checks/execution.mjs";
+import { canCaptureNativeWindow, captureNativeWindow, markNativeSurface, countMarkerPixels, compareEditorRegion } from "../../../support/electron/native-window-visibility.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const temporary = await fsp.mkdtemp(path.join(os.tmpdir(), "puppyone-pane-contracts-"));
@@ -33,6 +34,9 @@ const caseArgument = process.argv.indexOf("--case");
 const caseId = caseArgument < 0 ? null : process.argv[caseArgument + 1];
 let window, vite, surfaces, appServer;
 let destroyed = 0;
+let compositeClosed = 0;
+const markers = new Map();
+let nativeCapture = false;
 const occlusion = createNativeSurfaceOcclusionCoordinator();
 const pointer = createNativeSurfacePointerPassthroughCoordinator();
 app.setPath("userData", path.join(temporary, "user-data"));
@@ -62,6 +66,8 @@ const deadline = setTimeout(() => {
     .finally(() => process.exit(1));
 }, 240_000);
 try {
+  nativeCapture = canCaptureNativeWindow();
+  if (process.argv.includes("--require-compositor")) assert(nativeCapture, "Native compositor capture permission is required");
   const appHtml = await fsp.readFile(path.join(repoRoot, "tests/fixtures/editor/runtime/pane-frame.html"));
   appServer = createHttpServer((_request, response) => { response.writeHead(200, { "content-type": "text/html" }); response.end(appHtml); });
   await new Promise(resolve => appServer.listen(0, "127.0.0.1", resolve));
@@ -85,8 +91,32 @@ try {
       for (let offset = 0; offset + 3 < bitmap.length && colors.size < 3; offset += stride) colors.add(bitmap.subarray(offset, offset + 4).toString("hex"));
       assert(colors.size >= 3, "Native PDF frame contains no document detail");
       await fsp.writeFile(path.join(outputDirectory, `${id}-native.png`), image.toPNG());
+      if (nativeCapture) {
+        const color = await markNativeSurface(entry.view.webContents);
+        markers.set(id, color);
+        await wait(100);
+        const composite = await captureNativeWindow(window);
+        await fsp.writeFile(path.join(outputDirectory, `${id}-composite-open.png`), composite.toPNG());
+        assert(countMarkerPixels(composite, color) > 100, "Compositor capture omitted the visible PDF child");
+      }
     }
     await fsp.writeFile(path.join(outputDirectory, `${id}.png`), (await window.webContents.capturePage()).toPNG());
+  });
+  ipcMain.handle("pane-contracts:verifyClosed", async (_event, id) => {
+    assert(/^pdf-(horizontal|vertical)$/.test(id));
+    assert.equal(surfaces.values().length, 0, "Closed PDF retained a native session");
+    if (nativeCapture) {
+      assert(markers.has(id), "PDF close has no positive compositor control");
+      await wait(100);
+      const image = await captureNativeWindow(window);
+      await fsp.writeFile(path.join(outputDirectory, `${id}-composite-closed.png`), image.toPNG());
+      assert.equal(countMarkerPixels(image, markers.get(id)), 0, "PDF paint survived pane close in the composed window");
+      const comparison = await compareEditorRegion(window, image);
+      await fsp.writeFile(path.join(outputDirectory, `${id}-editor-expected.png`), comparison.expected.toPNG());
+      await fsp.writeFile(path.join(outputDirectory, `${id}-editor-actual.png`), comparison.actual.toPNG());
+      assert(comparison.mismatchRatio < 0.005, `Closed PDF occludes the surviving Editor (${comparison.mismatchRatio})`);
+      compositeClosed++;
+    }
   });
   registerNativeSurfaceOcclusionIpcHandlers({ ipcMain, coordinator: occlusion });
   registerNativeSurfacePointerPassthroughIpcHandlers({ ipcMain, coordinator: pointer });
@@ -162,6 +192,7 @@ try {
   assert(result.passed);
   assert.equal(rows.length, result.results.length);
   assert.equal(destroyed, !caseId || caseId === "pdf" ? 2 : 0, "Both PDF directions must confirm native teardown");
+  if (nativeCapture) assert.equal(compositeClosed, destroyed, "A PDF direction omitted compositor close verification");
 } catch (error) {
   failed = true; failure = error?.stack ?? String(error); console.error(failure);
   if (window && !window.isDestroyed()) await fsp.writeFile(path.join(outputDirectory, "failure.png"), (await window.webContents.capturePage()).toPNG());
@@ -174,7 +205,8 @@ try {
   const sourceAfter = await readSourceIdentity(repoRoot);
   if (sourceAfter.fingerprint !== source.fingerprint) { failed = true; failure ??= "Source changed during verification"; }
   await fsp.writeFile(path.join(outputDirectory, "result.json"), JSON.stringify({ passed: !failed, source, sourceAfter, platform: process.platform,
-    electron: process.versions.electron, selection: caseId ?? "all", input: "Chromium sendInputEvent; not OS input injection", results: rows, nativePdfDestroyed: destroyed, failure }, null, 2) + "\n");
+    electron: process.versions.electron, selection: caseId ?? "all", input: "Chromium sendInputEvent; not OS input injection", results: rows, nativePdfDestroyed: destroyed,
+    compositor: nativeCapture ? { verifiedClosed: compositeClosed } : "not-run: screen permission unavailable", failure }, null, 2) + "\n");
   console.log(`Pane contract evidence: ${outputDirectory}`);
   clearTimeout(deadline);
   process.exit(failed ? 1 : 0);
