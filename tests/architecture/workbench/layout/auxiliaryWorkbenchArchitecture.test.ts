@@ -38,8 +38,8 @@ describe("Project-owned auxiliary workbench architecture", () => {
     expect(app).toContain('className="desktop-right-sidebar-surface is-active"');
     expect(app).not.toContain("<RightAgentPanel");
     expect(app).not.toContain('key={focusedWorkspace?.path ?? workspace.path}');
-    expect(lazyEntry).toContain('import("./workbench/HostedAgentWorkbenchItem")');
-    expect(lazyEntry).toContain('import("./renderer/AgentItemRenderer")');
+    expect(lazyEntry).toContain('import("./workbench/AgentChatWorkbenchItem")');
+    expect(lazyEntry).not.toContain("./renderer/");
   });
 
   it("preserves Item views across Tab reorder and keeps close feature-authoritative", () => {
@@ -69,13 +69,13 @@ describe("Project-owned auxiliary workbench architecture", () => {
     expect(hostSlot).toContain("if (host.parentElement === slot) host.remove()");
   });
 
-  it("separates visible, presented, command-target and DOM-focus state", () => {
+  it("separates presentation from command selection and leaves focus in the DOM", () => {
     const contract = source("src/features/app-shell/auxiliary-workbench/types.ts");
     const panel = source("src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchPanel.tsx");
     expect(contract).toContain("sidebarVisible: boolean");
     expect(contract).toContain("presented: boolean");
     expect(contract).toContain("commandTarget: boolean");
-    expect(contract).toContain("domFocused: boolean");
+    expect(contract).not.toContain("domFocused");
     expect(panel).toContain("presented && workbench.presentedItemIds.includes(item.id)");
     expect(panel).toContain("itemPresented && workbench.activeItemId === item.id");
   });

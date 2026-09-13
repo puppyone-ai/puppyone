@@ -270,7 +270,7 @@ describe("Desktop Agent Cursor-style sidebar visual contract", () => {
     expect(layoutCss).toMatch(/\.desktop-right-sidebar-surface\s*\{[^}]*background:\s*var\(--desktop-right-sidebar-background\)/s);
     expect(css).toContain("--agent-canvas: var(--po-surface-agent)");
     expect(css).not.toContain("--po-terminal-bg");
-    expect(layoutCss).toMatch(/\.desktop-right-sidebar\.is-open\s*\{[^}]*border-inline-start-color:\s*var\(--po-sidebar-divider, var\(--po-divider\)\)/s);
+    expect(layoutCss).toMatch(/\.desktop-right-sidebar:not\(\[data-pane-presentation="collapsed"\]\)\s*\{[^}]*border-inline-start-color:\s*var\(--po-sidebar-divider, var\(--po-divider\)\)/s);
     expect(layoutCss).not.toContain(".desktop-right-sidebar::before");
   });
 

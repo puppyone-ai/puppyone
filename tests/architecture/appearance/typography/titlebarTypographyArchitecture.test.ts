@@ -105,7 +105,7 @@ describe("titlebar typography architecture", () => {
     expect(branch).toContain("border-radius: var(--desktop-toolbar-action-radius);");
   });
 
-  it("gives the unified right-sidebar tool a wider normal-titlebar target", () => {
+  it("keeps the unified Agent entry at the compact tool width", () => {
     const toolActions = readCssBlock(
       titlebarCss,
       ".desktop-titlebar-actions .desktop-titlebar-terminal",

@@ -43,12 +43,12 @@ Use `npm run check:release -- --list` to inspect dependencies and
 
 `npm run test:desktop` runs the app selection, including its build dependency:
 Markdown focus, resize cursor recovery, Agent rendering/tools, project sessions,
-appearance/typography, auxiliary appearance, item utility/renderer isolation,
+appearance/typography, auxiliary appearance, isolated utility execution,
 and editor runtime lifecycle. These fixture scenarios require no real Agent
 prompt or paid account. `npm run test:e2e -- --agent-draft` is an additional
 installed-runtime-dependent branch; the default e2e command covers project and
-Terminal sessions. The isolated item-renderer scenario also verifies Agent draft
-retention with a fixture runtime.
+Terminal sessions, shared DOM pane motion, live window resize, and tab relocation.
+The optional Agent branch checks an unsent draft across these same operations.
 
 Other `smoke:*` commands are explicit focused checks, not implicitly part of CI.
 `smoke:native-agents` and `smoke:native-agent-references` deliberately require

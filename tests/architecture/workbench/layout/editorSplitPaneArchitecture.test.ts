@@ -409,22 +409,24 @@ describe("editor split-pane architecture", () => {
   });
 
   it("keeps one Sidebar and Editor layout boundary under an overlay sash", () => {
-    const explorerRule = readCssBlock(dataShellStyles, ".explorer-column");
-    const resizerRule = readCssBlock(dataShellStyles, ".data-explorer-resizer");
+    const explorerRule = readCssBlock(sharedDataWorkspaceStyles, ".explorer-column");
+    const resizerRule = readCssBlock(sharedDataWorkspaceStyles, ".data-explorer-resizer");
 
 
     expect(explorerRule).toContain(
       "border-inline-end: 1px solid var(--po-sidebar-divider, var(--po-divider));",
     );
     expect(resizerRule).toContain("background: transparent;");
+    expect(resizerRule).toContain("inset-inline-start: auto;");
     expect(resizerRule).toContain(
-      "inset-inline-start: calc(var(--data-explorer-width, clamp(282px, 26vw, 360px)) - 1px);",
+      "inset-inline-end: calc(1px - var(--po-pane-resizer-hit-size, 8px));",
     );
-    expect(dataShellStyles).not.toContain(".data-explorer-resizer::after");
-    expect(dataShellStyles).not.toContain("grid-column: 3;");
-    expect(dataShellStyles).not.toMatch(
+    expect(sharedDataWorkspaceStyles).not.toContain(".data-explorer-resizer::after");
+    expect(sharedDataWorkspaceStyles).not.toContain("grid-column: 3;");
+    expect(sharedDataWorkspaceStyles).not.toMatch(
       /grid-template-columns:[^}]*var\(--po-pane-resizer-hit-size/s,
     );
+    expect(dataShellStyles).not.toContain(".data-explorer-resizer");
     expect(splitStyles).not.toContain(
       "inset-inline-start: calc(-1 * var(--po-pane-resizer-hit-size, 8px));",
     );

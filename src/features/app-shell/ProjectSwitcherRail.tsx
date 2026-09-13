@@ -20,6 +20,7 @@ export {
   MAX_PROJECT_SWITCHER_EXPANDED_WIDTH,
   MIN_PROJECT_SWITCHER_EXPANDED_WIDTH,
   PROJECT_SWITCHER_RAIL_COLLAPSED_WIDTH,
+  resolveProjectSwitcherCompactWidth,
   resolveProjectSwitcherRailWidth,
 } from "./projectSwitcherRailGeometry";
 import type { RecentWorkspaceHomeItem } from "./workspaceHomeModel";
@@ -127,8 +128,8 @@ export function ProjectSwitcherRail({
       data-window-no-drag="true"
     >
       <div
-        className={`desktop-project-switcher-rail-list${expanded ? " po-sidebar-list" : ""}`}
-        data-po-scrollbar={expanded ? "sidebar" : "content"}
+        className="desktop-project-switcher-rail-list po-sidebar-list"
+        data-po-scrollbar="sidebar"
       >
         {projects.map(({ workspace, initial, appearanceIdentity }) => {
           const active = activeView !== "settings" && workspace.path === activeWorkspace.path;
@@ -140,7 +141,7 @@ export function ProjectSwitcherRail({
           });
           return (
             <button
-              className={`desktop-project-switcher-rail-button desktop-project-switcher-rail-project${expanded ? ` po-sidebar-row${active ? " active" : ""}` : ""}`}
+              className={`desktop-project-switcher-rail-button desktop-project-switcher-rail-project po-sidebar-row${active ? " active" : ""}`}
               type="button"
               aria-current={active ? "page" : undefined}
               aria-label={label}
@@ -180,16 +181,17 @@ export function ProjectSwitcherRail({
                 emoji={appearance?.icon?.kind === "emoji" ? appearance.icon.value : null}
                 initial={initial}
               />
-              {expanded && (
-                <span className="desktop-project-switcher-rail-label po-sidebar-row__label">
-                  {workspace.name}
-                </span>
-              )}
+              <span
+                className="desktop-project-switcher-rail-label po-sidebar-row__label"
+                aria-hidden={expanded ? undefined : "true"}
+              >
+                {workspace.name}
+              </span>
             </button>
           );
         })}
         <button
-          className={`desktop-project-switcher-rail-button desktop-project-switcher-rail-create${expanded ? " po-sidebar-row" : ""}`}
+          className="desktop-project-switcher-rail-button desktop-project-switcher-rail-create po-sidebar-row"
           type="button"
           aria-label={t("shell.workspaceSwitcher.createNew")}
           disabled={Boolean(pendingPath)}
@@ -202,11 +204,12 @@ export function ProjectSwitcherRail({
           <span className="desktop-project-switcher-rail-avatar" aria-hidden="true">
             <Plus size={16} />
           </span>
-          {expanded && (
-            <span className="desktop-project-switcher-rail-label po-sidebar-row__label">
-              {t("shell.workspaceSwitcher.createNew")}
-            </span>
-          )}
+          <span
+            className="desktop-project-switcher-rail-label po-sidebar-row__label"
+            aria-hidden={expanded ? undefined : "true"}
+          >
+            {t("shell.workspaceSwitcher.createNew")}
+          </span>
         </button>
       </div>
       {(onOpenSettings || utilitySlot) && (

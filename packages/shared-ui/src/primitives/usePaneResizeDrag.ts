@@ -20,6 +20,8 @@ export type PaneResizeDragSession = {
 export type UsePaneResizeDragOptions = {
   enabled?: boolean;
   bodyClassName: string;
+  /** Cancels an active gesture when its controlled pane changes externally. */
+  cancelKey?: string | number | boolean;
   onDragActiveChange?: (active: boolean) => void;
   onDragStart: (event: ReactPointerEvent<HTMLElement>) => PaneResizeDragSession | null | undefined;
 };
@@ -27,6 +29,7 @@ export type UsePaneResizeDragOptions = {
 export function usePaneResizeDrag({
   enabled = true,
   bodyClassName,
+  cancelKey,
   onDragActiveChange,
   onDragStart,
 }: UsePaneResizeDragOptions) {
@@ -35,7 +38,7 @@ export function usePaneResizeDrag({
   useEffect(() => {
     if (!enabled) cleanupRef.current?.();
     return () => { cleanupRef.current?.(); cleanupRef.current = null; };
-  }, [enabled]);
+  }, [cancelKey, enabled]);
 
   return useCallback((event: ReactPointerEvent<HTMLElement>) => {
     if (!enabled || event.button !== 0) return;

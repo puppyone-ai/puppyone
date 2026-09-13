@@ -3,24 +3,12 @@ const externalViewerPacksEnabled = process.argv.includes("--puppyone-external-vi
 const gitAutoCommitAvailable = process.argv.includes("--puppyone-git-auto-commit=1");
 
 contextBridge.exposeInMainWorld("puppyoneDesktop", {
-  itemHosts: {
-    create: (request) => ipcRenderer.invoke("item-host:create", request),
-    configure: (request) => ipcRenderer.invoke("item-host:configure", request),
-    setGeometry: (request) => ipcRenderer.send("item-host:geometry", request),
-    focus: (request) => ipcRenderer.send("item-host:focus", request),
-    close: (request) => ipcRenderer.invoke("item-host:close", request),
-    recover: (request) => ipcRenderer.invoke("item-host:recover", request),
-    respond: (request) => ipcRenderer.send("item-host:respond", request),
-    onState: (callback) => {
-      const listener = (_event, value) => callback(value);
-      ipcRenderer.on("item-host:state", listener);
-      return () => ipcRenderer.removeListener("item-host:state", listener);
-    },
-    onEvent: (callback) => {
-      const listener = (_event, value) => callback(value);
-      ipcRenderer.on("item-host:event", listener);
-      return () => ipcRenderer.removeListener("item-host:event", listener);
-    },
+  connectAgentSession: (request) => ipcRenderer.invoke("agent:session-connect", request),
+  connectTerminalSession: (request) => ipcRenderer.invoke("terminal:connect", request),
+  onSessionRuntimeFailure: (callback) => {
+    const listener = (_event, failure) => callback(failure);
+    ipcRenderer.on("session:failure", listener);
+    return () => ipcRenderer.removeListener("session:failure", listener);
   },
   getWindowChromeState: () => ipcRenderer.invoke("window-layout:get-chrome-state"),
   setWindowChromeProfile: (request) => (
@@ -544,4 +532,9 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   },
   getAgentActivityEnrollment: () => ipcRenderer.invoke("agent-activity:enrollment-snapshot"),
   setAgentActivityEnrollment: (request) => ipcRenderer.invoke("agent-activity:enrollment-set", request),
+});
+
+// Transfer data ports into the application document; session authority stays in Main.
+ipcRenderer.on("session:port", (event, binding) => {
+  window.postMessage({ type: "puppyone-session-port", binding }, "*", event.ports);
 });

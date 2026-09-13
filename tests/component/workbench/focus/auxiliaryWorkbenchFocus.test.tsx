@@ -10,13 +10,13 @@ import { withTestLocalization } from "../../../support/react/localization";
 let root: Root | null = null;
 afterEach(() => { act(() => root?.unmount()); root = null; document.body.replaceChildren(); });
 
-it("uses one Store for native activation, while only explicit tab actions request focus", async () => {
+it("uses one Store for DOM focus activation, while only explicit tab actions request focus", async () => {
   const store = new ProjectWorkbenchStore({ projectId: "fixture", generation: "open-1", rootPath: "/fixture" });
   const contexts = new Map<string, AuxiliaryWorkbenchItemRenderContext>();
   const contribution: AuxiliaryWorkbenchContribution = {
     kind: "fixture", label: "Fixture", createLabel: "Fixture", minimumSize: { width: 100, height: 100 },
     initialSnapshot: { title: "Fixture", accessibleLabel: "Fixture", detail: null, iconKey: null, status: "idle", running: false, resourceId: null },
-    renderItem: (context) => { contexts.set(context.item.id, context); return <div />; },
+    renderItem: (context) => { contexts.set(context.item.id, context); return <input data-test-item={context.item.id} />; },
     close: { decide: () => ({ kind: "close" }), commit: () => true },
   };
   store.configure([contribution]);
@@ -30,7 +30,7 @@ it("uses one Store for native activation, while only explicit tab actions reques
     store={store} contributions={[contribution]} active={active} renderLauncher={() => null} />)));
   render(true);
   expect(contexts.get(a)!.presentation.commandTarget).toBe(true);
-  act(() => contexts.get(b)!.onContentFocusChange!(true, true));
+  act(() => container.querySelector<HTMLInputElement>(`[data-test-item="${b}"]`)!.focus());
   expect(store.getSnapshot().topology.activeGroupId).toBe("second");
   expect(contexts.get(b)!.presentation.commandTarget).toBe(true);
   expect(contexts.get(b)!.focusRequest).toBe(0);
@@ -38,16 +38,13 @@ it("uses one Store for native activation, while only explicit tab actions reques
   act(() => container.querySelector<HTMLButtonElement>(`[data-terminal-tab-session-id="${a}"] [role="tab"]`)!.click());
   expect(store.getSnapshot().topology.activeGroupId).toBe(first);
   expect(contexts.get(a)!.focusRequest).toBe(1);
-  act(() => contexts.get(a)!.onContentFocusChange!(true, true));
+  act(() => container.querySelector<HTMLInputElement>(`[data-test-item="${a}"]`)!.focus());
   act(() => contexts.get(a)!.onPresentationChange({ ...contribution.initialSnapshot, title: "Updated" }));
   expect(contexts.get(a)!.focusRequest).toBe(1);
-  act(() => contexts.get(a)!.onContentFocusChange!(false, false));
-  expect(contexts.get(a)!.presentation.domFocused).toBe(false);
-  expect(store.getSnapshot().topology.activeGroupId).toBe(first);
-  act(() => contexts.get(b)!.onContentFocusChange!(true, false));
+  act(() => container.querySelector<HTMLInputElement>(`[data-test-item="${a}"]`)!.blur());
   expect(store.getSnapshot().topology.activeGroupId).toBe(first);
   render(false);
-  act(() => contexts.get(b)!.onContentFocusChange!(true, true));
+  act(() => container.querySelector<HTMLInputElement>(`[data-test-item="${b}"]`)!.focus());
   expect(store.getSnapshot().topology.activeGroupId).toBe(first);
   expect(container.querySelectorAll(".desktop-terminal-pane-handle")).toHaveLength(0);
   expect(container.querySelectorAll(".desktop-terminal-tab-group > .desktop-terminal-subheader")).toHaveLength(2);

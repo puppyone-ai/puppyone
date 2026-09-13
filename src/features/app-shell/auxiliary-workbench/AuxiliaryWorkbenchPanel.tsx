@@ -23,7 +23,6 @@ export function AuxiliaryWorkbenchPanel({ store, contributions, active, renderLa
 }) {
   const { t } = useLocalization();
   const panel = useRef<HTMLElement>(null);
-  const [focused, setFocused] = useState<string | null>(null);
   store.configure(contributions);
   const workbench = useAuxiliaryWorkbench(store);
   const [focusIntent, setFocusIntent] = useState({ itemId: "", revision: 0 });
@@ -31,19 +30,12 @@ export function AuxiliaryWorkbenchPanel({ store, contributions, active, renderLa
     store.dispatch({ type: "activate", itemId: id });
     setFocusIntent((current) => ({ itemId: id, revision: current.revision + 1 }));
   }, [store]);
-  const onContentFocusChange = useCallback((id: string, focused: boolean, activate: boolean) => {
-    const current = store.getSnapshot();
-    if (!active || current.closing || !current.topology.groups.some((group) => group.activeItemId === id)) return;
-    setFocused((previous) => focused ? id : previous === id ? null : previous);
-    if (focused && activate) store.dispatch({ type: "activate", itemId: id });
-  }, [active, store]);
   const previousItems = useRef(new Set(workbench.items.map((item) => item.id)));
   useEffect(() => {
     const id = workbench.activeItemId;
     if (active && id && !previousItems.current.has(id)) activateAndFocus(id);
     previousItems.current = new Set(workbench.items.map((item) => item.id));
   }, [active, workbench.items, workbench.activeItemId, activateAndFocus]);
-  const layoutRevision = useMemo(() => ({ root: workbench.root, groups: workbench.groups }), [workbench.root, workbench.groups]);
   const byKind = useMemo(() => new Map(contributions.map((entry) => [entry.kind, entry])), [contributions]);
   const itemIds = useMemo(() => workbench.items.map((item) => item.id), [workbench.items]);
   const hosts = usePersistentWorkbenchItemHosts(itemIds);
@@ -107,11 +99,13 @@ export function AuxiliaryWorkbenchPanel({ store, contributions, active, renderLa
         const contribution = byKind.get(item.kind);
         const itemPresented = presented && workbench.presentedItemIds.includes(item.id);
         return createPortal(<div className="desktop-terminal-session-host-content desktop-terminal-contribution-host" data-item-kind={item.kind} aria-hidden={!itemPresented}
-          onPointerDownCapture={() => workbench.activateItem(item.id)} onFocusCapture={() => { setFocused(item.id); workbench.activateItem(item.id); }}>
+          {...(!itemPresented ? { inert: "" } : {})}
+          onPointerDownCapture={() => { if (itemPresented) workbench.activateItem(item.id); }}
+          onFocusCapture={() => { if (itemPresented) workbench.activateItem(item.id); }}>
           {item.kind === LAUNCHER_ITEM_KIND ? renderLauncher({ groupId: workbench.groups.find((group) => group.itemIds.includes(item.id))?.id ?? null, itemId: item.id, presented: itemPresented }) : contribution &&
             <WorkbenchItemContent item={item} store={store} contribution={contribution} sidebarVisible={active}
-              layoutRevision={layoutRevision} focusRequest={focusIntent.itemId === item.id ? focusIntent.revision : 0} onContentFocusChange={onContentFocusChange}
-              presented={itemPresented} commandTarget={itemPresented && workbench.activeItemId === item.id} domFocused={itemPresented && focused === item.id} />}
+              focusRequest={focusIntent.itemId === item.id ? focusIntent.revision : 0}
+              presented={itemPresented} commandTarget={itemPresented && workbench.activeItemId === item.id} />}
         </div>, hosts.get(item.id)!, item.id);
       })}
     </div>
@@ -119,14 +113,12 @@ export function AuxiliaryWorkbenchPanel({ store, contributions, active, renderLa
   </section>;
 }
 
-const WorkbenchItemContent = memo(function WorkbenchItemContent({ item, store, contribution, sidebarVisible, presented, commandTarget, domFocused, layoutRevision, focusRequest, onContentFocusChange }: {
+const WorkbenchItemContent = memo(function WorkbenchItemContent({ item, store, contribution, sidebarVisible, presented, commandTarget, focusRequest }: {
   item: AuxiliaryWorkbenchItemRenderContext["item"]; store: ProjectWorkbenchStore; contribution: AuxiliaryWorkbenchContribution;
-  sidebarVisible: boolean; presented: boolean; commandTarget: boolean; domFocused: boolean;
-  layoutRevision: unknown; focusRequest: number;
-  onContentFocusChange: (id: string, focused: boolean, activate: boolean) => void;
+  sidebarVisible: boolean; presented: boolean; commandTarget: boolean;
+  focusRequest: number;
 }) {
-  const presentation = useMemo(() => ({ sidebarVisible, presented, commandTarget, domFocused }), [sidebarVisible, presented, commandTarget, domFocused]);
+  const presentation = useMemo(() => ({ sidebarVisible, presented, commandTarget }), [sidebarVisible, presented, commandTarget]);
   const onPresentationChange = useCallback((snapshot: AuxiliaryWorkbenchItemSnapshot) => store.updateSnapshot(item.id, snapshot), [item.id, store]);
-  const onFocusChange = useCallback((focused: boolean, activate: boolean) => onContentFocusChange(item.id, focused, activate), [item.id, onContentFocusChange]);
-  return contribution.renderItem({ item, project: store, presentation, onPresentationChange, layoutRevision, focusRequest, onContentFocusChange: onFocusChange });
+  return contribution.renderItem({ item, project: store, presentation, onPresentationChange, focusRequest });
 });

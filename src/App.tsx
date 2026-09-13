@@ -111,6 +111,7 @@ import { createRepositoryRefreshReason } from "./features/source-control/reposit
 import { shouldBlockWorkspaceCloudResolution } from "./features/cloud/workspace/workspaceCloudResolutionKey";
 import { useCloudInitialization } from "./features/cloud/initialization/useCloudInitialization";
 import {
+  TYPOGRAPHY_SCALE_METRICS,
   useTypographyCatalog,
   useTypographyRuntime,
 } from "./features/typography";
@@ -133,6 +134,7 @@ import {
   MAX_PROJECT_SWITCHER_EXPANDED_WIDTH,
   MIN_PROJECT_SWITCHER_EXPANDED_WIDTH,
   ProjectSwitcherRail,
+  resolveProjectSwitcherCompactWidth,
   resolveProjectSwitcherRailWidth,
 } from "./features/app-shell/ProjectSwitcherRail";
 import { ProjectEntryLauncherDialog } from "./features/app-shell/ProjectEntryLauncherDialog";
@@ -168,7 +170,9 @@ function AppContent() {
     fontCatalog,
     locale,
   );
-  const projectSwitcherCompactWidth = resolveProjectSwitcherRailWidth();
+  const projectSwitcherCompactWidth = resolveProjectSwitcherCompactWidth(
+    TYPOGRAPHY_SCALE_METRICS[typography.scale].geometry.controlSize,
+  );
   const projectSwitcherExpandedWidth = resolveProjectSwitcherRailWidth(
     true,
     preferences.projectSwitcherWidth,
@@ -1204,7 +1208,7 @@ function AppContent() {
     terminalToolEnabled: true,
     onUpdateNow: () => void desktopUpdates.updateNow(),
     onToggleTerminal: () => {
-      setRightSidebarOpen(!rightSidebarOpen);
+      setRightSidebarOpen((current) => !current);
       setSwitcherOpen(false);
     },
   };
@@ -1243,11 +1247,11 @@ function AppContent() {
         {...surfaceAppearance.rootProps}
       >
         <DesktopCloudShell
-          leadingRail={projectSwitcherRailVisible ? (
+          renderLeadingRail={projectSwitcherRailVisible ? ({ expanded }) => (
             <ProjectSwitcherRail
               activeView={activeView}
               activeWorkspace={workspace}
-              expanded={preferences.projectSwitcherExpanded}
+              expanded={expanded}
               recentWorkspaces={recentWorkspaceItems}
               onCreateNew={() => setProjectEntryDialog("launcher")}
               onOpenSettings={() => navigateDesktopView("settings")}
@@ -1264,7 +1268,6 @@ function AppContent() {
           leadingRailMaxWidth={MAX_PROJECT_SWITCHER_EXPANDED_WIDTH}
           leadingRailCollapsed={!preferences.projectSwitcherExpanded}
           leadingRailCollapsedWidth={projectSwitcherCompactWidth}
-          leadingRailCollapsedCssWidth="var(--desktop-chrome-height)"
           leadingRailCollapseThreshold={MIN_PROJECT_SWITCHER_EXPANDED_WIDTH / 2}
           resizableLeadingRail
           onLeadingRailCollapsedChange={setProjectSwitcherCollapsed}
@@ -1289,13 +1292,13 @@ function AppContent() {
           onLeftSidebarExpand={() => setSidebarCollapsed(false)}
           onRightSidebarOpenChange={setRightSidebarOpen}
           onRightSidebarWidthChange={setRightSidebarWidth}
-          rightSidebar={(
+          rightSidebar={(presentation) => (
             <div ref={auxiliarySurfaceRef} className="desktop-right-sidebar-stack">
               <div className="desktop-right-sidebar-surface is-active">
                 {projectWorkbench && <AuxiliaryWorkbenchPanel
                   key={projectWorkbench.context.generation}
                   store={projectWorkbench}
-                  active={rightSidebarOpen}
+                  active={presentation.contentVisible}
                   contributions={auxiliaryWorkbenchContributions}
                   onRetryProjectClose={() => {
                     const folder = workbenchWorkspace?.folders.find((entry) => entry.workspace.path === projectWorkbench.context.rootPath);

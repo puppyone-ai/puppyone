@@ -299,7 +299,8 @@ describe("DesktopHelpLauncher", () => {
     expect(appSource).toContain(
       'const settingsWorkspaceActive = projectSwitcherRailEnabled && activeView === "settings";',
     );
-    expect(appSource).toContain("leadingRail={projectSwitcherRailVisible ? (");
+    expect(appSource).toContain("renderLeadingRail={projectSwitcherRailVisible ? ({ expanded }) => (");
+    expect(appSource).toContain("expanded={expanded}");
     expect(appSource).toContain(
       "leftSidebarCollapsed={settingsWorkspaceActive ? false : sidebarCollapsed}",
     );

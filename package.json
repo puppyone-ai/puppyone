@@ -79,7 +79,6 @@
     "smoke:native-agent-references": "node tests/integration/agent/references/native-agent-references.smoke.mjs",
     "smoke:terminal-p0": "electron tests/support/runners/terminal-p0.smoke.mjs",
     "smoke:item-utilities": "electron tests/integration/workbench/item-hosts/item-utility-isolation.smoke.mjs",
-    "smoke:item-renderers": "electron tests/integration/workbench/item-hosts/item-renderer-isolation.smoke.mjs",
     "smoke:auxiliary-appearance": "electron tests/integration/workbench/layout/auxiliary-appearance.smoke.mjs",
     "smoke:agent-references": "electron tests/integration/agent/references/agent-reference-ingestion.smoke.mjs",
     "smoke:agent-render-stability": "npm run build && node tests/support/runners/run-agent-render-stability-smoke.mjs",

@@ -22,6 +22,9 @@ const sidebarPrimitivesCss = readCss("packages/shared-ui/src/styles/sidebar-prim
 const sidebarResizeHandleSource = readCss(
   "packages/shared-ui/src/sidebar/SidebarResizeHandle.tsx",
 );
+const collapsiblePaneFrameSource = readCss(
+  "packages/shared-ui/src/sidebar/CollapsiblePaneFrame.tsx",
+);
 const auxiliaryPanelSource = readCss(
   "src/features/app-shell/auxiliary/AuxiliaryPanelHost.tsx",
 );
@@ -213,41 +216,35 @@ describe("scrollbar architecture", () => {
   });
 
   it("overlays the Data sash on one shared Sidebar and Editor boundary", () => {
-    for (const css of [dataWorkspaceCss, desktopDataShellCss]) {
+    for (const css of [dataWorkspaceCss]) {
       const resizerRule = readRule(css, ".data-explorer-resizer");
 
       const explorerColumnRule = readRule(css, ".explorer-column");
-      expect(css).toMatch(
-        /\.data-content\[data-resizable-explorer="true"\]\s*\{[^}]*grid-template-columns:[^}]*var\(--data-explorer-width[^}]*minmax/s,
-      );
-      const resizableGridRule = readRule(
-        css,
-        '.data-content[data-resizable-explorer="true"]',
-      );
-      expect(resizableGridRule).not.toContain("var(--po-pane-resizer-hit-size");
+      expect(readRule(css, ".data-content")).toContain("display: flex;");
+      expect(readRule(css, ".browser-column")).toContain("flex: 1 1 auto;");
       expect(css).not.toMatch(
         /\.data-content\[data-resizable-explorer="true"\]\s*>\s*\.browser-column/,
       );
       expect(resizerRule).toContain(
-        "inset-inline-start: calc(var(--data-explorer-width, clamp(282px, 26vw, 360px)) - 1px);",
+        "inset-inline-end: calc(1px - var(--po-pane-resizer-hit-size, 8px));",
       );
-      expect(resizerRule).toContain("inset-inline-end: auto;");
+      expect(resizerRule).toContain("inset-inline-start: auto;");
       expect(resizerRule).toContain("background: transparent;");
       expect(resizerRule).not.toContain("transform:");
       expect(css).not.toContain(".data-explorer-resizer::after");
       expect(explorerColumnRule).toContain(
         "border-inline-end: 1px solid var(--po-sidebar-divider, var(--po-divider));",
       );
-
     }
 
-    expect(dataWorkspaceSource.indexOf('className="data-explorer-resizer"')).toBeGreaterThan(
-      dataWorkspaceSource.indexOf("</aside>"),
+    expect(dataWorkspaceSource).toContain('className: "data-explorer-resizer"');
+    expect(dataWorkspaceSource).toContain("resizeHandleRef={explorerResizeHandleRef}");
+    expect(collapsiblePaneFrameSource).toMatch(
+      /<SidebarResizeHandle[\s\S]*paneEdge/,
     );
-    expect(dataWorkspaceSource).toMatch(
-      /className="data-explorer-resizer"\s+paneEdge/,
-    );
-    expect(dataWorkspaceSource).toContain("ref={explorerResizeHandleRef}");
+    expect(desktopDataShellCss).not.toContain(".data-explorer-resizer");
+    expect(desktopDataShellCss).not.toContain('.data-content[data-resizable-explorer="true"]');
+    expect(desktopDataShellCss).not.toContain(".explorer-column");
   });
 
   it("keeps the History divider between the Git changes and history panes", () => {
@@ -272,9 +269,9 @@ describe("scrollbar architecture", () => {
     expect(markdownEditorCss).toMatch(
       /\.markdown-codemirror-editor \.cm-scroller\s*\{[^}]*overflow:\s*auto;/s,
     );
-    expect(auxiliaryPanelSource).toMatch(
-      /className="desktop-right-sidebar-resizer"\s+paneEdge/,
-    );
+    expect(auxiliaryPanelSource).toContain('className: "desktop-right-sidebar-resizer"');
+    expect(auxiliaryPanelSource).toContain("<CollapsiblePaneFrame");
+    expect(collapsiblePaneFrameSource).toContain("paneEdge");
 
     const rightResizerRule = readRule(layoutCss, ".desktop-right-sidebar-resizer:not(.po-collapsed-pane-edge-handle)");
     expect(rightResizerRule).toContain("inset-inline-start: calc(-1 * var(--desktop-right-sidebar-border-start));");

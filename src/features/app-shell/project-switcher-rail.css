@@ -2,12 +2,15 @@
   position: relative;
   z-index: 22;
   display: flex;
-  width: var(--desktop-shell-leading-rail-width, 0px);
-  min-width: var(--desktop-shell-leading-rail-width, 0px);
   min-height: 0;
-  flex: 0 0 var(--desktop-shell-leading-rail-width, 0px);
   align-self: stretch;
   overflow: visible;
+  background: var(--po-sidebar);
+}
+
+.desktop-shell-leading-rail-inner > .desktop-project-switcher-rail {
+  height: 100%;
+  flex: 1;
 }
 
 /* In the Project-switcher experiment, the gray rail owns app-level context.
@@ -45,6 +48,7 @@ body.desktop-project-switcher-resizing * {
 
 .desktop-project-switcher-rail {
   --desktop-project-switcher-button-size: var(--desktop-sidebar-row-height);
+  --desktop-project-switcher-compact-inline-padding: var(--desktop-sidebar-row-left-gap);
   --desktop-project-switcher-avatar-size: 18px;
   --desktop-project-switcher-avatar: color-mix(in srgb, var(--po-sidebar) 86%, var(--po-text));
   --desktop-project-switcher-avatar-hover: color-mix(in srgb, var(--po-sidebar) 80%, var(--po-text));
@@ -69,16 +73,12 @@ body.desktop-project-switcher-resizing * {
   min-width: 0;
   min-height: 0;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   padding: 0;
   border-inline-end: 1px solid var(--po-sidebar-divider, var(--po-divider));
   background: var(--po-sidebar);
   color: var(--po-text-muted);
   user-select: none;
-}
-
-.desktop-project-switcher-rail[data-expanded="true"] {
-  align-items: stretch;
 }
 
 .desktop-project-switcher-rail-list {
@@ -87,21 +87,6 @@ body.desktop-project-switcher-resizing * {
   width: 100%;
   min-height: 0;
   flex: 1 1 auto;
-  align-content: start;
-  align-items: start;
-  justify-items: center;
-  gap: 0;
-  padding-block:
-    var(--desktop-sidebar-row-left-gap)
-    var(--desktop-sidebar-list-padding-block);
-  padding-inline: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-}
-
-.desktop-project-switcher-rail[data-expanded="true"]
-  .desktop-project-switcher-rail-list {
-  display: grid;
   align-content: start;
   align-items: stretch;
   justify-items: stretch;
@@ -112,6 +97,8 @@ body.desktop-project-switcher-resizing * {
   padding-inline:
     var(--desktop-sidebar-row-left-gap)
     var(--desktop-sidebar-scroll-right-gap);
+  overflow-x: hidden;
+  overflow-y: auto;
   scrollbar-gutter: stable;
 }
 
@@ -134,10 +121,10 @@ body.desktop-project-switcher-resizing * {
 
   flex: 0 0 var(--desktop-project-switcher-compact-utilities-height);
   align-items: flex-start;
-  justify-content: center;
+  justify-content: flex-start;
   min-height: var(--desktop-project-switcher-compact-utilities-height);
   padding-block: 0 var(--desktop-sidebar-list-padding-block);
-  padding-inline: 0;
+  padding-inline: var(--desktop-project-switcher-compact-inline-padding);
 }
 
 .desktop-project-switcher-rail:not([data-expanded="true"])
@@ -174,61 +161,61 @@ body.desktop-project-switcher-resizing * {
   appearance: none;
   display: flex;
   box-sizing: border-box;
-  width: var(--desktop-project-switcher-button-size);
-  height: var(--desktop-project-switcher-button-size);
-  min-width: var(--desktop-project-switcher-button-size);
-  min-height: var(--desktop-project-switcher-button-size);
-  flex: 0 0 var(--desktop-project-switcher-button-size);
+  width: 100%;
+  height: var(--desktop-sidebar-row-height);
+  min-width: 0;
+  min-height: var(--desktop-sidebar-row-height);
+  flex: 0 0 var(--desktop-sidebar-row-height);
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+  gap: 6px;
   margin: 1px 0;
-  padding: 0;
+  padding-inline:
+    var(--desktop-sidebar-row-content-left)
+    var(--desktop-sidebar-row-content-right);
   border: 0;
   border-radius: var(--desktop-control-radius);
   outline: 0;
   background: transparent;
   color: var(--po-text-subtle);
-  transition: color 150ms ease;
+  font-size: var(--desktop-sidebar-font-size);
+  font-weight: var(--desktop-sidebar-font-weight);
+  line-height: var(--desktop-sidebar-line-height);
+  text-align: start;
+  overflow: hidden;
+  transition:
+    background-color 120ms ease,
+    color 150ms ease;
 }
 
-.desktop-project-switcher-rail-button::after {
-  position: absolute;
-  inset-block: 50% auto;
-  inset-inline-start: calc(
-    (var(--desktop-project-switcher-button-size) - var(--desktop-chrome-height)) / 2
-  );
-  width: 2px;
-  height: 0;
-  border-radius: 0 2px 2px 0;
-  background: var(--po-text-muted);
-  content: "";
-  opacity: 0;
-  transform: translateY(-50%);
-  transition: height 150ms ease, opacity 150ms ease;
+/* The row keeps expanded geometry behind the viewport. At the settled compact
+   edge this paint/hit clip leaves one square control plus equal outer gutters. */
+.desktop-project-switcher-rail:not([data-expanded="true"])
+  .desktop-project-switcher-rail-button {
+  clip-path: inset(0 calc(100% - var(--desktop-project-switcher-button-size)) 0 0);
+}
+
+[dir="rtl"]
+  .desktop-project-switcher-rail:not([data-expanded="true"])
+  .desktop-project-switcher-rail-button {
+  clip-path: inset(0 0 0 calc(100% - var(--desktop-project-switcher-button-size)));
 }
 
 .desktop-project-switcher-rail-button:hover:not(:disabled) {
-  color: var(--po-text-muted);
+  background: var(--desktop-project-switcher-row-hover);
+  color: var(--po-text);
 }
 
 .desktop-project-switcher-rail-button:hover:not(:disabled) .desktop-project-switcher-rail-avatar {
   background: var(--desktop-project-switcher-avatar-hover);
 }
 
-.desktop-project-switcher-rail-button:hover:not(:disabled)::after {
-  height: 6px;
-  opacity: 0.42;
-}
-
 .desktop-project-switcher-rail-button:focus-visible {
-  box-shadow: none;
+  box-shadow: inset 0 0 0 1px var(--po-focus-ring);
 }
 
-.desktop-project-switcher-rail-button:focus-visible .desktop-project-switcher-rail-avatar {
-  box-shadow: 0 0 0 2px var(--po-focus-ring);
-}
-
-.desktop-project-switcher-rail-button[aria-current="page"] {
+.desktop-project-switcher-rail-project[aria-current="page"] {
+  background: var(--desktop-project-switcher-row-hover);
   color: var(--po-text);
 }
 
@@ -236,9 +223,8 @@ body.desktop-project-switcher-resizing * {
   background: var(--desktop-project-switcher-avatar-active);
 }
 
-.desktop-project-switcher-rail-button[aria-current="page"]::after {
-  height: 16px;
-  opacity: 0.82;
+.desktop-project-switcher-rail-project[aria-current="page"]:hover:not(:disabled) {
+  background: var(--desktop-project-switcher-row-selected);
 }
 
 .desktop-project-switcher-rail-button:disabled {
@@ -252,68 +238,8 @@ body.desktop-project-switcher-resizing * {
 }
 
 .desktop-project-switcher-rail[data-expanded="true"]
-  .desktop-project-switcher-rail-button {
-  display: flex;
-  width: 100%;
-  height: var(--desktop-sidebar-row-height);
-  min-width: 0;
-  min-height: var(--desktop-sidebar-row-height);
-  flex: 0 0 var(--desktop-sidebar-row-height);
-  justify-content: flex-start;
-  /* The Project mark has a filled tile, so it needs the full Sidebar row gap
-     used by the shared row primitive to keep the label optically separate. */
-  gap: 6px;
-  margin: 1px 0;
-  padding-inline:
-    var(--desktop-sidebar-row-content-left)
-    var(--desktop-sidebar-row-content-right);
-  border-radius: var(--desktop-sidebar-row-radius);
-  font-size: var(--desktop-sidebar-font-size);
-  font-weight: var(--desktop-sidebar-font-weight);
-  line-height: var(--desktop-sidebar-line-height);
-  text-align: start;
-}
-
-.desktop-project-switcher-rail[data-expanded="true"]
-  .desktop-project-switcher-rail-button::after {
-  display: none;
-}
-
-.desktop-project-switcher-rail[data-expanded="true"]
   .desktop-project-switcher-rail-project:not([aria-current="page"]) {
   color: var(--po-text-muted);
-}
-
-.desktop-project-switcher-rail[data-expanded="true"]
-  .desktop-project-switcher-rail-button:hover:not(:disabled) {
-  background: var(--desktop-project-switcher-row-hover);
-  color: var(--po-text);
-}
-
-.desktop-project-switcher-rail[data-expanded="true"]
-  .desktop-project-switcher-rail-project.active,
-.desktop-project-switcher-rail[data-expanded="true"]
-  .desktop-project-switcher-rail-project[aria-current="page"] {
-  background: var(--desktop-project-switcher-row-hover);
-  color: var(--po-text);
-}
-
-.desktop-project-switcher-rail[data-expanded="true"]
-  .desktop-project-switcher-rail-project.active:hover:not(:disabled),
-.desktop-project-switcher-rail[data-expanded="true"]
-  .desktop-project-switcher-rail-project[aria-current="page"]:hover:not(:disabled) {
-  background: var(--desktop-project-switcher-row-selected);
-}
-
-.desktop-project-switcher-rail[data-expanded="true"]
-  .desktop-project-switcher-rail-button:focus-visible {
-  box-shadow: inset 0 0 0 1px var(--po-focus-ring);
-}
-
-.desktop-project-switcher-rail[data-expanded="true"]
-  .desktop-project-switcher-rail-button:focus-visible
-  .desktop-project-switcher-rail-avatar {
-  box-shadow: none;
 }
 
 @keyframes desktop-project-switcher-pending {
@@ -370,7 +296,22 @@ body.desktop-project-switcher-resizing * {
 }
 
 .desktop-project-switcher-rail-label {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
   text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-project-switcher-rail:not([data-expanded="true"])
+  .desktop-project-switcher-rail-label {
+  visibility: hidden;
+}
+
+.desktop-project-switcher-rail[data-expanded="true"]
+  .desktop-project-switcher-rail-label {
+  visibility: visible;
 }
 
 .desktop-project-switcher-rail-image {
@@ -665,9 +606,8 @@ body.desktop-project-switcher-resizing * {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .desktop-project-switcher-rail-button,
-  .desktop-project-switcher-rail-button::after {
-    transition: none;
+  .desktop-project-switcher-rail-button {
+    transition-property: background-color, color;
   }
 
   .desktop-project-switcher-rail-button[data-pending="true"]

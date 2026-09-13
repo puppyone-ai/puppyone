@@ -10,8 +10,10 @@ import {
 } from "react";
 import { PanelLeft } from "lucide-react";
 import {
-  SidebarResizeHandle,
+  CollapsiblePaneFrame,
   useCollapsiblePaneResize,
+  type CollapsiblePanePresentation,
+  type CollapsiblePaneGestureCommit,
   type SidebarResizeIntent,
 } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization";
@@ -37,16 +39,17 @@ import { DesktopWindowChrome } from "./DesktopWindowChrome";
 import type { WorkspaceSurfaceId } from "../features/app-shell/workspace-surfaces";
 
 export type DesktopView = WorkspaceSurfaceId;
+export type DesktopLeadingRailRenderState = Readonly<{ expanded: boolean }>;
 
 type DesktopCloudShellProps = {
   children: ReactNode;
   leadingRail?: ReactNode;
+  renderLeadingRail?: (state: DesktopLeadingRailRenderState) => ReactNode;
   leadingRailWidth?: number;
   leadingRailMinWidth?: number;
   leadingRailMaxWidth?: number;
   leadingRailCollapsed?: boolean;
   leadingRailCollapsedWidth?: number;
-  leadingRailCollapsedCssWidth?: string;
   leadingRailCollapseThreshold?: number;
   resizableLeadingRail?: boolean;
   titlebarSidebarSlot?: ReactNode;
@@ -60,7 +63,7 @@ type DesktopCloudShellProps = {
   leftSidebarPresent?: boolean;
   leftSidebarWidth?: number;
   mainPaneMinWidth?: number;
-  rightSidebar?: ReactNode;
+  rightSidebar?: ReactNode | ((presentation: CollapsiblePanePresentation) => ReactNode);
   rightSidebarOpen?: boolean;
   rightSidebarWidth?: number;
   minRightSidebarWidth?: number;
@@ -76,12 +79,12 @@ type DesktopCloudShellProps = {
 export function DesktopCloudShell({
   children,
   leadingRail,
+  renderLeadingRail,
   leadingRailWidth = 0,
   leadingRailMinWidth = 160,
   leadingRailMaxWidth = 360,
   leadingRailCollapsed = false,
   leadingRailCollapsedWidth = 0,
-  leadingRailCollapsedCssWidth,
   leadingRailCollapseThreshold,
   resizableLeadingRail = false,
   titlebarSidebarSlot,
@@ -127,35 +130,60 @@ export function DesktopCloudShell({
     0,
     resolvedLeadingRailMinWidth,
   );
+  const leadingRailPresent = Boolean(leadingRail || renderLeadingRail);
   const leadingRailResizable = Boolean(
-    leadingRail && resizableLeadingRail && onLeadingRailWidthChange,
+    leadingRailPresent && resizableLeadingRail && onLeadingRailWidthChange,
   );
   const leadingRailCanCollapse = Boolean(onLeadingRailCollapsedChange);
   const onLeadingRailResizeActiveChange = useNativeSurfacePointerPassthroughActivity(
     "explorer-resize",
   );
   useNativeSurfacePointerRoutingRegion("explorer-resize", leadingRailResizerElement);
+  const commitLeadingRail = (commit: CollapsiblePaneGestureCommit) => {
+    if (commit.type === "collapse") {
+      onLeadingRailWidthChange?.(commit.restoreWidth);
+      onLeadingRailCollapsedChange?.(true);
+      return;
+    }
+    if (commit.type === "expand") {
+      if (commit.width !== undefined) onLeadingRailWidthChange?.(commit.width);
+      onLeadingRailCollapsedChange?.(false);
+      return;
+    }
+    onLeadingRailWidthChange?.(commit.width);
+  };
   const leadingRailResize = useCollapsiblePaneResize({
     bodyClassName: "desktop-project-switcher-resizing",
     collapsed: leadingRailCollapsed,
     collapsedWidth: resolvedLeadingRailCollapsedWidth,
     collapseThreshold: leadingRailCanCollapse ? resolvedLeadingRailCollapseThreshold : 0,
+    collapsible: leadingRailCanCollapse,
     direction: getDocumentDirection(),
     enabled: leadingRailResizable,
     maxWidth: resolvedLeadingRailMaxWidth,
     minWidth: resolvedLeadingRailMinWidth,
     side: "inline-start",
     width: leadingRailWidth,
-    widthChangeMode: "end",
-    onCollapsedChange: onLeadingRailCollapsedChange,
+    onCommit: commitLeadingRail,
     onDragActiveChange: onLeadingRailResizeActiveChange,
-    onWidthChange: onLeadingRailWidthChange ?? noopWidthChange,
   });
-  const resolvedLeadingRailWidth = leadingRail
+  const leadingRailVisuallyCollapsed = leadingRailResize.collapsed;
+  const resolvedLeadingRailWidth = leadingRailPresent
     ? leadingRailResizable
       ? leadingRailResize.width
       : Math.max(0, Math.round(leadingRailWidth))
     : 0;
+  const retainedLeadingRailExpandedWidth = clamp(
+    Math.round(leadingRailWidth),
+    resolvedLeadingRailMinWidth,
+    resolvedLeadingRailMaxWidth,
+  );
+  // Match the Explorer contract: the frame changes width while its content
+  // plane retains expanded geometry. Rows are clipped instead of reflowing.
+  const renderedLeadingRailContentWidth = Math.max(
+    resolvedLeadingRailWidth,
+    retainedLeadingRailExpandedWidth,
+  );
   const paneLayout = useMemo(() => resolveDesktopPaneLayout({
     // The Project rail sits beside the workspace column below the Header, so
     // the observed body width is already the exact width available to panes.
@@ -203,9 +231,7 @@ export function DesktopCloudShell({
       : "expanded";
   const shellStyle = {
     "--desktop-shell-explorer-width": `${paneLayout.explorer.width}px`,
-    "--desktop-shell-leading-rail-width": leadingRailCollapsed && leadingRailCollapsedCssWidth
-      ? leadingRailCollapsedCssWidth
-      : `${resolvedLeadingRailWidth}px`,
+    "--desktop-shell-leading-rail-width": `${resolvedLeadingRailWidth}px`,
   } as CSSProperties;
 
   useEffect(() => {
@@ -223,15 +249,17 @@ export function DesktopCloudShell({
     if (!leadingRailResizable || !onLeadingRailWidthChange) return;
     if (intent === "minimum") {
       if (leadingRailCanCollapse) {
-        onLeadingRailCollapsedChange?.(true);
+        commitLeadingRail({
+          type: "collapse",
+          restoreWidth: resolvedLeadingRailMinWidth,
+        });
         return;
       }
-      onLeadingRailWidthChange(resolvedLeadingRailMinWidth);
+      commitLeadingRail({ type: "resize", width: resolvedLeadingRailMinWidth });
       return;
     }
     if (intent === "maximum") {
-      onLeadingRailCollapsedChange?.(false);
-      onLeadingRailWidthChange(resolvedLeadingRailMaxWidth);
+      commitLeadingRail({ type: "expand", width: resolvedLeadingRailMaxWidth });
       return;
     }
     const step = accelerated ? 24 : 12;
@@ -241,26 +269,27 @@ export function DesktopCloudShell({
       + physicalDirection * directionMultiplier * step;
     if (leadingRailCollapsed) {
       if (nextWidth > resolvedLeadingRailCollapsedWidth) {
-        onLeadingRailCollapsedChange?.(false);
-        onLeadingRailWidthChange(resolvedLeadingRailMinWidth);
+        commitLeadingRail({ type: "expand", width: resolvedLeadingRailMinWidth });
       }
       return;
     }
     if (leadingRailCanCollapse && nextWidth < resolvedLeadingRailMinWidth) {
-      onLeadingRailCollapsedChange?.(true);
+      commitLeadingRail({
+        type: "collapse",
+        restoreWidth: resolvedLeadingRailMinWidth,
+      });
       return;
     }
-    onLeadingRailWidthChange(clamp(
-      nextWidth,
-      resolvedLeadingRailMinWidth,
-      resolvedLeadingRailMaxWidth,
-    ));
+    commitLeadingRail({
+      type: "resize",
+      width: clamp(nextWidth, resolvedLeadingRailMinWidth, resolvedLeadingRailMaxWidth),
+    });
   };
 
   return (
     <div
       className="desktop-shell"
-      data-leading-rail={leadingRail ? "true" : undefined}
+      data-leading-rail={leadingRailPresent ? "true" : undefined}
       data-titlebar-sidebar-state={sidebarState}
       style={shellStyle}
     >
@@ -296,33 +325,45 @@ export function DesktopCloudShell({
         />
 
         <div className="desktop-shell-below-header">
-          {leadingRail && (
-            <div className="desktop-shell-leading-rail">
-              {leadingRail}
-              {leadingRailResizable && (
-                <SidebarResizeHandle
-                  ref={setLeadingRailResizerElement}
-                  className="desktop-project-switcher-resizer"
-                  collapsedEdgeSide={leadingRailCollapsed ? "inline-start" : undefined}
-                  paneEdge
-                  resizing={leadingRailResize.dragging}
-                  orientation="vertical"
-                  label={t(leadingRailCollapsed
-                    ? "shell.workspaceSwitcher.expandProjects"
-                    : "shell.workspaceSwitcher.resizeProjects")}
-                  min={leadingRailCanCollapse
-                    ? resolvedLeadingRailCollapsedWidth
-                    : resolvedLeadingRailMinWidth}
-                  max={resolvedLeadingRailMaxWidth}
-                  value={resolvedLeadingRailWidth}
-                  onCollapsedActivate={leadingRailCollapsed
-                    ? () => onLeadingRailCollapsedChange?.(false)
-                    : undefined}
-                  onPointerDown={leadingRailResize.onPointerDown}
-                  onKeyboardResize={resizeLeadingRailByKeyboard}
-                />
-              )}
-            </div>
+          {leadingRailPresent && (
+            <CollapsiblePaneFrame
+              as="div"
+              className="desktop-shell-leading-rail"
+              collapsed={leadingRailVisuallyCollapsed}
+              contentWidth={renderedLeadingRailContentWidth}
+              frameWidth={resolvedLeadingRailWidth}
+              gesturePhase={leadingRailResize.phase}
+              retainCollapsedContent
+              side="inline-start"
+              viewportClassName="desktop-shell-leading-rail-viewport"
+              contentClassName="desktop-shell-leading-rail-inner"
+              resizeHandleRef={setLeadingRailResizerElement}
+              resizeHandleProps={(presentation) => leadingRailResizable
+                ? {
+                    className: "desktop-project-switcher-resizer",
+                    collapsedEdgeSide: presentation.settledCollapsed ? "inline-start" : undefined,
+                    resizing: leadingRailResize.dragging,
+                    orientation: "vertical",
+                    label: t(presentation.settledCollapsed
+                      ? "shell.workspaceSwitcher.expandProjects"
+                      : "shell.workspaceSwitcher.resizeProjects"),
+                    min: leadingRailCanCollapse
+                      ? resolvedLeadingRailCollapsedWidth
+                      : resolvedLeadingRailMinWidth,
+                    max: resolvedLeadingRailMaxWidth,
+                    value: resolvedLeadingRailWidth,
+                    onCollapsedActivate: presentation.settledCollapsed
+                      ? () => commitLeadingRail({ type: "expand" })
+                      : undefined,
+                    onPointerDown: leadingRailResize.onPointerDown,
+                    onKeyboardResize: resizeLeadingRailByKeyboard,
+                  }
+                : undefined}
+            >
+              {({ contentExpanded }) => renderLeadingRail
+                ? renderLeadingRail({ expanded: contentExpanded })
+                : leadingRail}
+            </CollapsiblePaneFrame>
           )}
           <div className="desktop-shell-workspace-column">
             <DesktopShellAccessoryProvider navigationToolbarHost={navigationToolbarHost}>
@@ -427,5 +468,3 @@ function getDocumentDirection() {
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
-
-function noopWidthChange() {}

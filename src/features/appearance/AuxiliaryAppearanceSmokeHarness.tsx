@@ -63,8 +63,8 @@ function ChatFixture() {
 }
 
 // This fixture tests renderer appearance with a deterministic CLI transport.
-// Production workbench contributions now create native hosts; their process and
-// presentation lifecycle is covered by the real project-session smoke instead.
+// Production session connections and project lifetime are covered by the full
+// project-session smoke; this fixture keeps appearance checks deterministic.
 function TerminalFixture({ project, item, presentation, readAppearance }: AuxiliaryWorkbenchItemRenderContext & {
   readAppearance: () => TerminalAppearance;
 }) {

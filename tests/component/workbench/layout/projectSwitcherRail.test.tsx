@@ -10,6 +10,7 @@ import {
   getProjectSwitcherInitial,
   mergeProjectSwitcherRailOrder,
   ProjectSwitcherRail,
+  resolveProjectSwitcherCompactWidth,
   resolveProjectSwitcherRailWidth,
   resolveProjectSwitcherRailItems,
 } from "../../../../src/features/app-shell/ProjectSwitcherRail";
@@ -29,12 +30,15 @@ afterEach(() => {
 });
 
 describe("Project switcher rail", () => {
-  it("matches the collapsed rail to the Header height", () => {
-    expect(resolveProjectSwitcherRailWidth()).toBe(38);
+  it("sizes the compact rail from a square control plus stable inline padding", () => {
+    expect(resolveProjectSwitcherRailWidth()).toBe(56);
     expect(resolveProjectSwitcherRailWidth(true)).toBe(220);
     expect(resolveProjectSwitcherRailWidth(true, 284)).toBe(284);
     expect(resolveProjectSwitcherRailWidth(true, 80)).toBe(160);
     expect(resolveProjectSwitcherRailWidth(true, 500)).toBe(360);
+    expect(resolveProjectSwitcherCompactWidth(30)).toBe(54);
+    expect(resolveProjectSwitcherCompactWidth(32)).toBe(56);
+    expect(resolveProjectSwitcherCompactWidth(34)).toBe(58);
   });
 
   it("renders the expanded rail with full Sidebar rows and no collapse button", async () => {
@@ -196,7 +200,12 @@ describe("Project switcher rail", () => {
     const buttons = host.querySelectorAll<HTMLButtonElement>(
       ".desktop-project-switcher-rail-list .desktop-project-switcher-rail-project",
     );
-    expect(Array.from(buttons, ({ textContent }) => textContent)).toEqual(["A", "B"]);
+    expect(Array.from(buttons, (button) => (
+      button.querySelector(".desktop-project-switcher-rail-avatar")?.textContent
+    ))).toEqual(["A", "B"]);
+    expect(Array.from(buttons, (button) => (
+      button.querySelector(".desktop-project-switcher-rail-label")?.getAttribute("aria-hidden")
+    ))).toEqual(["true", "true"]);
     expect(buttons[0]?.hasAttribute("aria-current")).toBe(false);
     expect(buttons[1]?.getAttribute("aria-current")).toBe("page");
   });
@@ -224,8 +233,10 @@ describe("Project switcher rail", () => {
     );
     expect(buttons).toHaveLength(2);
     expect(buttons[0]?.getAttribute("aria-current")).toBe("page");
-    expect(buttons[0]?.textContent).toBe("A");
-    expect(buttons[1]?.textContent).toBe("B");
+    expect(buttons[0]?.querySelector(".desktop-project-switcher-rail-avatar")?.textContent).toBe("A");
+    expect(buttons[1]?.querySelector(".desktop-project-switcher-rail-avatar")?.textContent).toBe("B");
+    expect(buttons[0]?.querySelector(".desktop-project-switcher-rail-label")?.getAttribute("aria-hidden")).toBe("true");
+    expect(buttons[1]?.querySelector(".desktop-project-switcher-rail-label")?.getAttribute("aria-hidden")).toBe("true");
 
     await act(async () => buttons[1]?.click());
     expect(onSelectProject).toHaveBeenCalledOnce();

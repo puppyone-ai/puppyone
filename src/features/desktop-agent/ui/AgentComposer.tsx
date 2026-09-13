@@ -15,6 +15,7 @@ import { isAgentMediaReference } from "../domain/agent-prompt-mentions";
 import type { AgentReferenceDropEvent } from "./agentReferenceDropEvent";
 
 type AgentComposerProps = {
+  focusRequest?: number;
   draft: string;
   draftMentions?: AgentPromptReferenceMention[];
   onDraftChange: (draft: string) => void;
@@ -49,6 +50,7 @@ type AgentComposerProps = {
 export const DEFAULT_AGENT_COMPOSER_PLACEHOLDER_ID = "agent.composer.placeholder.default";
 
 export function AgentComposer({
+  focusRequest,
   draft,
   draftMentions = [],
   onDraftChange,
@@ -123,6 +125,7 @@ export function AgentComposer({
             />
             <div className="desktop-agent-prompt-editor-host">
               <AgentPromptEditor
+                focusRequest={focusRequest}
                 value={draft}
                 mentions={draftMentions}
                 references={references}

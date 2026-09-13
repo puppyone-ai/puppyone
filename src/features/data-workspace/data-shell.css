@@ -1,4 +1,3 @@
-.data-workspace,
 .changes-workspace,
 .utility-workspace {
   display: flex;
@@ -12,64 +11,19 @@
   background: var(--po-canvas);
 }
 
-.data-content {
-  position: relative;
-  display: grid;
-  grid-template-columns:
-    var(--data-explorer-width, clamp(282px, 26vw, 360px))
-    minmax(var(--desktop-main-pane-min-width, 0px), 1fr);
-  flex: 1;
+.data-workspace {
   width: 100%;
+  height: 100%;
   min-width: 0;
-  min-height: 0;
-  overflow: hidden;
   background: var(--po-canvas);
 }
 
-.data-content[data-explorer-collapsed="true"] {
-  grid-template-columns: 0 minmax(var(--desktop-main-pane-min-width, 0px), 1fr);
-}
+.data-content {
+  --po-data-main-pane-min-width: var(--desktop-main-pane-min-width, 0px);
 
-.data-content[data-resizable-explorer="true"] {
-  grid-template-columns:
-    var(--data-explorer-width, clamp(282px, 26vw, 360px))
-    minmax(var(--desktop-main-pane-min-width, 0px), 1fr);
-}
-
-.data-content[data-resizable-explorer="true"][data-explorer-collapsed="true"] {
-  grid-template-columns: 0 minmax(var(--desktop-main-pane-min-width, 0px), 1fr);
-}
-
-.explorer-column {
-  position: relative;
-  display: flex;
-  min-width: 0;
-  min-height: 0;
-  flex-direction: column;
-  overflow: hidden;
-  background: var(--po-sidebar);
-  border-inline-end: 1px solid var(--po-sidebar-divider, var(--po-divider));
-  transition: background-color 260ms ease, border-color 260ms ease;
-}
-
-.data-content[data-explorer-collapsed="true"] .explorer-column {
-  border-inline-end-color: transparent;
-  background: transparent;
-  pointer-events: none;
-}
-
-.data-explorer-view-frame,
-.data-main-view-frame {
-  display: flex;
-  flex: 1;
   width: 100%;
   min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.data-explorer-view-frame {
-  background: var(--po-sidebar);
+  background: var(--po-canvas);
 }
 
 .data-explorer-rail {
@@ -77,59 +31,9 @@
   border-inline-end: 0;
 }
 
-.data-main-view-frame {
-  background: var(--po-canvas);
-}
-
-.data-explorer-fill,
-.data-explorer-collapsed-fill {
-  flex: 1;
-  min-height: 0;
-}
-
 .data-explorer-collapsed-slot {
-  position: absolute;
   inset-inline-start: 8px;
   bottom: 4px;
-  z-index: 40;
-  display: flex;
-  pointer-events: auto;
-}
-
-.data-explorer-resizer {
-  /*
-   * The Sidebar and Editor share one layout boundary. The wide sash is an
-   * overlay extending into the Editor; it never becomes a third grid track.
-   * Native surfaces route initial presses in this registered rectangle back
-   * to the renderer before normal drag passthrough takes over.
-   */
-  inset-inline-start: calc(var(--data-explorer-width, clamp(282px, 26vw, 360px)) - 1px);
-  inset-inline-end: auto;
-  background: transparent;
-}
-
-.data-content[data-resizable-explorer="true"] > .explorer-column {
-  border-inline-end-color: transparent;
-}
-
-body.data-sidebar-resizing,
-body.data-sidebar-resizing * {
-  cursor: col-resize !important;
-  user-select: none !important;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .data-content {
-    transition: none;
-  }
-
-  .explorer-column {
-    transition: none;
-  }
-
-  .data-explorer-resizer {
-    transition: none;
-  }
 }
 
 .desktop-explorer-toolbar {

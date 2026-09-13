@@ -46,6 +46,8 @@
   "titlebar.openWithApp": "앱으로 열기",
   "titlebar.hideTerminal": "터미널 숨기기",
   "titlebar.showTerminal": "터미널 표시",
+  "titlebar.hideAgent": "Agent 숨기기",
+  "titlebar.showAgent": "Agent 표시",
   "windowControls.minimize": "창 최소화",
   "windowControls.maximize": "창 최대화 또는 복원",
   "windowControls.close": "창 닫기",

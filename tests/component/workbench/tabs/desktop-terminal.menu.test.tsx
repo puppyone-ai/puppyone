@@ -26,7 +26,7 @@ afterEach(() => {
 });
 
 describe("Desktop Terminal tab session manager", () => {
-  it("presents one unified Terminal Workbench toggle in the workspace toolbar", () => {
+  it("presents one unified Agent Workbench toggle in the workspace toolbar", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -43,14 +43,14 @@ describe("Desktop Terminal tab session manager", () => {
     )));
 
     const terminal = container.querySelector('[data-toolbar-action="terminal"]');
-    expect(terminal?.textContent).toBe("Terminal");
+    expect(terminal?.textContent).toBe("Agent");
     expect(terminal?.classList.contains("desktop-shell-toolbar-button")).toBe(true);
     expect(terminal?.classList.contains("desktop-titlebar-action")).toBe(false);
-    expect(terminal?.querySelector(".lucide-square-terminal")).not.toBeNull();
+    expect(terminal?.querySelector(".lucide-agent-entry")).not.toBeNull();
     expect(terminal?.querySelector(".desktop-shell-toolbar-button-icon")).not.toBeNull();
     expect(terminal?.querySelector(".desktop-shell-toolbar-button-label")).not.toBeNull();
     expect(Array.from(container.querySelectorAll("[data-toolbar-action]"), (item) => item.textContent))
-      .toEqual(["Terminal"]);
+      .toEqual(["Agent"]);
     expect(container.querySelector('[aria-label="Terminal actions"]')).toBeNull();
   });
 

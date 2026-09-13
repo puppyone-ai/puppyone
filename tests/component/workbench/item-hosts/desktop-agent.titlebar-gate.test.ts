@@ -28,7 +28,7 @@ afterEach(() => {
   window.localStorage.clear();
 });
 
-describe("unified Chat and Terminal titlebar entry", () => {
+describe("unified Agent workbench titlebar entry", () => {
   it("defaults the right sidebar to Terminal until the user opens Chat", () => {
     expect(readInitialRightSidebarSurface()).toBe("terminal");
     window.localStorage.setItem(RIGHT_SIDEBAR_SURFACE_STORAGE_KEY, "chat");
@@ -44,13 +44,13 @@ describe("unified Chat and Terminal titlebar entry", () => {
     expect(readInitialAgentPreferredRuntime()).toBeNull();
   });
 
-  it("keeps the Terminal titlebar control as a stable toggle without a dropdown menu", () => {
+  it("presents the unified workbench as a stable Agent toggle without a dropdown menu", () => {
     const container = renderHeaderActions();
-    const terminalButton = container.querySelector('button[aria-label="Hide Terminal"]');
+    const agentButton = container.querySelector('button[aria-label="Hide Agent"]');
 
-    expect(terminalButton).not.toBeNull();
-    expect(terminalButton?.querySelector(".lucide-terminal")).not.toBeNull();
-    expect(terminalButton?.querySelector(".lucide-square-terminal")).toBeNull();
+    expect(agentButton).not.toBeNull();
+    expect(agentButton?.querySelector(".lucide-agent-entry")).not.toBeNull();
+    expect(agentButton?.textContent).toBe("");
     expect(container.querySelector('button[aria-label="Terminal actions"]')).toBeNull();
     expect(container.textContent).not.toContain("Clear Terminal");
     expect(container.textContent).not.toContain("Reset Terminal");
@@ -59,9 +59,10 @@ describe("unified Chat and Terminal titlebar entry", () => {
 
   it("does not expose a second Chat toggle beside the Workbench entry", () => {
     const container = renderHeaderActions();
-    expect(container.querySelector('button[aria-label="Hide Terminal"]')).not.toBeNull();
+    expect(container.querySelector('button[aria-label="Hide Agent"]')).not.toBeNull();
     expect(container.querySelector('button[aria-label="Show Agent Chat"]')).toBeNull();
     expect(container.querySelectorAll("button.desktop-titlebar-action")).toHaveLength(1);
+    expect(container.querySelector(".desktop-shell-toolbar-button-label")).toBeNull();
   });
 });
 

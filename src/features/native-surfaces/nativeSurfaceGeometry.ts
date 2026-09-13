@@ -18,9 +18,9 @@ export type NativeSurfaceLayoutLease = Readonly<{
   release: () => void;
 }>;
 
-// Sampling is window-local. Visibility suspension is an explicit, subtree-scoped
-// exception for clipped CSS enter/exit transitions, never a resize side effect.
-const activeLayoutLeases = new Map<number, { owner: string; suspendWithin?: HTMLElement }>();
+// Sampling is window-local. Layout motion changes bounds; it never changes the
+// visibility contract of a native surface.
+const activeLayoutLeases = new Map<number, { owner: string }>();
 const listeners = new Set<() => void>();
 let nextLeaseId = 1;
 const frameListeners = new Set<() => void>();
@@ -58,11 +58,10 @@ function scheduleFrame() {
  */
 export function acquireNativeSurfaceLayoutLease(
   owner: string,
-  options: { suspendWithin?: HTMLElement } = {},
 ): NativeSurfaceLayoutLease {
   const id = nextLeaseId++;
   let released = false;
-  activeLayoutLeases.set(id, { owner, ...options });
+  activeLayoutLeases.set(id, { owner });
   notify();
   return {
     owner,
@@ -129,9 +128,6 @@ export function isNativeSurfaceElementVisible(
 ): boolean {
   if (!element.isConnected || bounds.width <= 0 || bounds.height <= 0
     || document.visibilityState === "hidden") return false;
-  for (const { suspendWithin } of activeLayoutLeases.values()) {
-    if (suspendWithin?.contains(element)) return false;
-  }
   for (let current: HTMLElement | null = element; current; current = current.parentElement) {
     const style = getComputedStyle(current);
     if (current.hasAttribute("inert") || style.display === "none"

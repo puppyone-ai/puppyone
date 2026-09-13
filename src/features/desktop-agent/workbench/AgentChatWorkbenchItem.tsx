@@ -39,6 +39,7 @@ export function AgentChatWorkbenchItem({
   preferredRoute,
   preferredRuntimeId,
   presentation,
+  focusRequest,
   resolveWorkspaceReference,
 }: AgentChatWorkbenchItemProps) {
   const { t } = useLocalization();
@@ -54,6 +55,7 @@ export function AgentChatWorkbenchItem({
       <AgentChatTabPanel
         commandTarget={presentation.commandTarget}
         presented={presentation.presented}
+        focusRequest={presentation.presented ? focusRequest : undefined}
         controller={controller}
         workspaceId={item.contextId}
         onPresentationChange={present}

@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { app, BrowserWindow, ipcMain, webContents } from "electron";
+import { app, BrowserWindow, ipcMain, utilityProcess } from "electron";
 import { workspaceFromPath } from "../../../../local-api/workspace.mjs";
 import { createWorkspaceStateStore } from "../../../../electron/main/workspace-state-store.mjs";
 import { getDesktopBuildChannelPolicy } from "../../../../shared/desktop-build-identity.mjs";
@@ -34,13 +34,20 @@ const registry = createWorkspaceStateStore({ app, filename: "desktop-workspace-s
 for (const workspace of [...workspaces].reverse()) await registry.rememberWorkspaceComposition([workspace]);
 process.argv.push(roots[0]);
 const terminals = [];
+const utilities = new Map();
+const fork = utilityProcess.fork.bind(utilityProcess);
+utilityProcess.fork = (modulePath, args, options) => {
+  const child = fork(modulePath, args, options);
+  utilities.set(options.serviceName, child);
+  return child;
+};
 const handle = ipcMain.handle.bind(ipcMain);
 // Observe the production IPC receipt: PTYs now live in utility processes.
 ipcMain.handle = (channel, listener) => handle(channel, async (event, ...args) => {
   const result = await listener(event, ...args);
-  if (channel === "item-display:connect" && result?.pid && !terminals.some((record) => record.pid === result.pid)) {
-    const request = await event.sender.executeJavaScript("window.puppyoneItemHost.bootstrap()");
-    const record = { pid: result.pid, utilityPid: result.hostPid, rendererPid: event.sender.getOSProcessId(), cwd: request.projectContext.rootPath,
+  if (channel === "terminal:create" && result?.pid && !terminals.some((record) => record.pid === result.pid)) {
+    const request = args[0];
+    const record = { pid: result.pid, utilityPid: utilities.get(`PuppyOne terminal ${result.id}`)?.pid, rendererPid: event.sender.getOSProcessId(), cwd: request.projectContext.rootPath,
       sender: event.sender, receipt: result, projectContext: request.projectContext };
     Object.defineProperty(record, "exited", { get: () => {
       try { process.kill(record.pid, 0); return false; } catch (error) { return error.code === "ESRCH"; }
@@ -58,21 +65,12 @@ ipcMain.handle = (channel, listener) => handle(channel, async (event, ...args) =
 });
 const errors = [];
 app.on("window-all-closed", () => {});
-app.on("web-contents-created", (_event, contents) => contents.on("console-message", (_event, level, message) => {
-  if (level >= 3 && contents.getURL().includes("item-host.html")) errors.push(message);
-}));
 const guard = setTimeout(() => { console.error("Project session smoke exceeded its time budget."); app.exit(1); }, 180_000);
 const localizationDiagnostics = [];
-const focusEvents = [];
 app.on("browser-window-created", (_event, window) => {
   // Scripted input owns this disposable window; physical cursor movement must
   // not add unrelated moves to the held-button regression.
   window.setIgnoreMouseEvents(true);
-  const send = window.webContents.send.bind(window.webContents);
-  window.webContents.send = (channel, ...args) => {
-    if (channel === "item-host:event" && args[0]?.type === "focus-changed") focusEvents.push(args[0]);
-    return send(channel, ...args);
-  };
   window.webContents.on("console-message", (_event, level, message) => {
     if (level >= 3) errors.push(message);
     if (message.startsWith("Localization diagnostic JSON ")) localizationDiagnostics.push(message);
@@ -112,8 +110,8 @@ try {
   await until(() => terminals.length === 1, "A terminal");
   await untilRenderer("document.querySelector('[data-terminal-tab-session-id]')?.dataset.status === 'running'", "A running");
   const a = terminals[0];
-  await until(() => nativeView(a.sender)?.getVisible(), "A native presentation");
-  assert(new Set([process.pid, window.webContents.getOSProcessId(), a.utilityPid, a.rendererPid, a.pid]).size === 5, "Terminal processes share a failure domain");
+  await untilPresented(a, "A DOM presentation");
+  assert(new Set([process.pid, window.webContents.getOSProcessId(), a.utilityPid, a.pid]).size === 4 && a.rendererPid === window.webContents.getOSProcessId(), "Terminal execution must be isolated while UI shares the window renderer");
   resizeObservations.push(await verifySidebarLiveResize({ window, contents: a.sender, temp, label: "terminal-resize", until }));
   resizeObservations.push(await verifySidebarBoundaries({ window, contents: a.sender, temp, label: "terminal", until }));
   const aTabs = await tabIds();
@@ -121,11 +119,11 @@ try {
   a.terminal.write("echo PROJECT_A_BEFORE_SWITCH\r");
   await untilTerminal(a, "PROJECT_A_BEFORE_SWITCH", "A output");
   await selectProject("Project B");
-  await until(() => nativeView(a.sender)?.getVisible() === false, "hide A native presentation");
+  await untilRenderer(`!document.querySelector('[data-terminal-session-host-id="${a.receipt.id}"]')`, "detach A DOM presentation");
   await untilRenderer("document.querySelectorAll('[data-terminal-tab-session-id]').length === 0", "B own empty tabs");
   assert(!a.exited, "Switching to B closed A's terminal");
   a.terminal.write("echo PROJECT_A_WHILE_HIDDEN\r");
-  await untilTerminal(a, "PROJECT_A_WHILE_HIDDEN", "background A output");
+  // The retained project runtime continues receiving output while its DOM is detached.
   await click(".desktop-terminal-launcher-shell");
   await until(() => terminals.length === 2, "B terminal");
   await untilRenderer("document.querySelector('[data-terminal-tab-session-id]')?.dataset.status === 'running'", "B running");
@@ -138,8 +136,8 @@ try {
   assert(restored.generation === aProject.generation, "Presentation changed project generation");
   // xterm's DOM rows prove the retained screen contains output received while hidden.
   await untilTerminal(a, "PROJECT_A_WHILE_HIDDEN", "restored terminal output");
-  await until(() => nativeView(a.sender)?.getVisible(), "restore A native presentation");
-  await until(() => nativeView(b.sender)?.getVisible() === false, "hide B native presentation");
+  await untilPresented(a, "restore A DOM presentation");
+  await untilRenderer(`!document.querySelector('[data-terminal-session-host-id="${b.receipt.id}"]')`, "detach B DOM presentation");
   await fs.writeFile(path.join(temp, "project-a-restored.png"), (await window.webContents.capturePage()).toPNG());
   await fs.writeFile(path.join(temp, "terminal-a-restored.png"), (await a.sender.capturePage()).toPNG());
   let agentDraftVerified = false;
@@ -182,40 +180,20 @@ try {
   try {
     await dragItem(movingItem, originalGroup, "right");
     await untilRenderer("document.querySelectorAll('[data-terminal-group-pane-id]').length === 2", "split mixed workbench");
-    await until(() => nativeView(a.sender)?.getVisible(), "native presentation after split");
-    window.show(); window.focus();
-    await until(() => window.isFocused(), "activate owner window");
-    window.webContents.focus();
-    await until(() => window.webContents.isFocused(), "focus Shell before native content");
-    await click(`[data-terminal-tab-session-id="${movingItem}"] .desktop-terminal-tab-select`);
-    await untilRenderer(`document.querySelector('[data-terminal-tab-session-id="${movingItem}"] [role="tab"]')?.getAttribute('aria-selected') === "true"`, "settle tab selection before native focus");
-    a.sender.focus();
-    await until(() => a.sender.isFocused(), "focus native content");
-    a.sender.sendInputEvent({ type: "mouseDown", x: 30, y: 60, button: "left", clickCount: 1 });
-    a.sender.sendInputEvent({ type: "mouseUp", x: 30, y: 60, button: "left", clickCount: 1 });
-    await untilRenderer(`document.querySelector('[data-terminal-group-pane-id="${originalGroup}"]')?.dataset.focused === "true"`, "native content activates shared Store");
-    await until(async () => (await a.sender.executeJavaScript("window.puppyoneItemHost.bootstrap()")).commandTarget === true, "native command target configuration");
-    window.webContents.focus();
+    await untilPresented(a, "DOM presentation after split");
+    await click(`[data-terminal-tab-session-id="${a.receipt.id}"] .desktop-terminal-tab-select`);
+    await untilRenderer(`document.querySelector('[data-terminal-session-host-id="${a.receipt.id}"] .xterm-helper-textarea') === document.activeElement`, "terminal tab focuses its input");
+    await evaluate("document.querySelector('.desktop-terminal-new-button').focus()");
     a.terminal.write("echo FOCUS_MUST_STAY_IN_SHELL\r");
     await untilTerminal(a, "FOCUS_MUST_STAY_IN_SHELL", "summary update without focus theft");
-    assert(window.webContents.isFocused(), "Content summary stole Shell focus");
+    assert(await evaluate("document.activeElement.matches('.desktop-terminal-new-button')"), "Content summary stole DOM focus");
     assert(await evaluate("!document.querySelector('.desktop-terminal-pane-handle, .desktop-terminal-group-chrome')"), "Group grip or reserved chrome remains");
-    await resizeFromNative(a);
+    await resizeSplit();
     const otherGroup = await evaluate(`[...document.querySelectorAll('[data-terminal-group-pane-id]')].find(group => group.dataset.terminalGroupPaneId !== ${JSON.stringify(originalGroup)}).dataset.terminalGroupPaneId`);
     await dragItem(aTabs[0], otherGroup, "bottom");
     await untilRenderer(`document.querySelector('[data-terminal-split-id]')?.dataset.direction === "vertical"`, "tab drag changes split direction");
-    await until(() => nativeView(a.sender)?.getVisible(), "native presentation after tab movement");
-    await until(async () => {
-      const slot = await evaluate(`(() => {
-        const rect = document.querySelector('.desktop-item-host[data-item-id="${aTabs[0]}"]').getBoundingClientRect();
-        const paint=document.querySelector('.desktop-right-sidebar [data-pane-edge-chrome]').getBoundingClientRect();
-        const left=paint.left<=rect.left && paint.right>rect.left ? paint.right : rect.left;
-        const right=paint.left<rect.right && paint.right>=rect.right ? paint.left : rect.right;
-        return { x: Math.ceil(left), y: Math.ceil(rect.y), width: Math.floor(right)-Math.ceil(left), height: Math.floor(rect.bottom)-Math.ceil(rect.y) };
-      })()`);
-      const bounds = nativeView(a.sender).getBounds();
-      return Object.keys(bounds).every((key) => Math.abs(bounds[key] - Math.round(slot[key])) <= 1);
-    }, "native bounds follow relocated content slot");
+    await untilPresented(a, "DOM presentation after tab movement");
+    assert(window.contentView.children.length === 0, "Moving a DOM tab allocated a native view");
     await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
     await fs.writeFile(path.join(temp, "sidebar-tab-moved.png"), (await window.webContents.capturePage()).toPNG());
     const retainedGroup = await evaluate(`document.querySelector('[data-terminal-tab-session-id="${aTabs[0]}"]').closest('[data-terminal-group-pane-id]').dataset.terminalGroupPaneId`);
@@ -228,7 +206,7 @@ try {
   }
   if (!agentDraftVerified) await click(`[data-terminal-tab-session-id="${movingItem}"] .desktop-terminal-tab-close`);
   else await click(`[data-terminal-tab-session-id="${aTabs[0]}"] .desktop-terminal-tab-select`);
-  await until(() => nativeView(a.sender)?.getVisible(), "retained native view after reunion");
+  await untilPresented(a, "retained DOM view after reunion");
   // Open a multi-root Editor composition, then switch away and restore it.
   await evaluate(`window.puppyoneDesktop.attachFolder(${JSON.stringify(roots[1])})`);
   await selectProject("Project C");
@@ -283,8 +261,8 @@ try {
   window.close();
   await until(() => d.exited && window.isDestroyed(), "second window close");
   assert(errors.length === 0, "Renderer reported errors");
-  const report = { ok: true, temp, roots, resizeObservations, aTabs, bTabs, agentDraftVerified, blankTabsVerified: !agentDraftVerified, nativePresentationRestored: true, nativeFocusActivatesStore: true,
-    summaryDoesNotStealFocus: true, groupGripRemoved: true, nativeSashRoutingVerified: true, tabMovementVerified: true,
+  const report = { ok: true, temp, roots, resizeObservations, aTabs, bTabs, agentDraftVerified, blankTabsVerified: !agentDraftVerified, domPresentationRestored: true, domFocusVerified: true,
+    summaryDoesNotStealFocus: true, groupGripRemoved: true, domSplitterVerified: true, tabMovementVerified: true,
     splitAndReunionVerified: true, multiRootEditorVerified: true, separateWindowsVerified: true, terminals: terminals.map(({ pid, utilityPid, rendererPid, cwd, exited }) => ({ pid, utilityPid, rendererPid, cwd, exited })), rendererErrors: errors, localizationDiagnostics };
   await fs.writeFile(path.join(temp, "report.json"), JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report, null, 2));
@@ -293,7 +271,7 @@ try {
     await fs.writeFile(path.join(temp, "failure.png"), (await window.webContents.capturePage()).toPNG());
     console.error(await evaluate("document.body.innerText.slice(0, 8000)"));
   }
-  console.error(JSON.stringify({ ok: false, temp, error: error.stack, rendererErrors: errors, focusEvents,
+  console.error(JSON.stringify({ ok: false, temp, error: error.stack, rendererErrors: errors,
     nativeViews: window && !window.isDestroyed() ? window.contentView.children.map((view) => ({ visible: view.getVisible(), bounds: view.getBounds(), id: view.webContents?.id })) : [] }, null, 2));
   process.exitCode = 1;
 } finally {
@@ -307,21 +285,15 @@ try {
 }
 
 function assert(value, message) { if (!value) throw new Error(message); }
-function nativeView(contents) { return window.contentView.children.find((view) => view.webContents === contents); }
+function untilPresented(record, label) {
+  return untilRenderer(`document.querySelector('[data-terminal-session-host-id="${record.receipt.id}"] .desktop-terminal-contribution-host')?.getAttribute('aria-hidden') === 'false'`, label);
+}
 function evaluate(code) { return window.webContents.executeJavaScript(code, true); }
 async function untilTerminal(record, text, label) {
   await until(async () => !record.sender.isDestroyed()
-    && await record.sender.executeJavaScript("document.querySelector('.xterm-screen')?.textContent.includes(" + JSON.stringify(text) + ")"), label);
+    && await record.sender.executeJavaScript(`document.querySelector('[data-terminal-session-host-id="${record.receipt.id}"] .xterm-screen')?.textContent.includes(${JSON.stringify(text)})`), label);
 }
-async function agentContents() {
-  const ids = await tabIds();
-  for (const contents of webContents.getAllWebContents()) {
-    if (!contents.getURL().includes("item-host.html")) continue;
-    const identity = await contents.executeJavaScript("window.puppyoneItemHost.bootstrap()");
-    if (identity.kind === "agent" && ids.includes(identity.itemId)) return contents;
-  }
-  throw new Error("No Agent display in the current project's workbench.");
-}
+async function agentContents() { return window.webContents; }
 async function untilAgent(code, label) {
   await until(async () => { try { return await (await agentContents()).executeJavaScript(code, true); } catch { return false; } }, label);
 }
@@ -341,18 +313,17 @@ async function selectProject(name) {
 }
 function tabIds() { return evaluate("[...document.querySelectorAll('[data-terminal-tab-session-id]')].map(x => x.dataset.terminalTabSessionId)"); }
 
-async function resizeFromNative(record) {
-  const view = nativeView(record.sender);
-  const bounds = view.getBounds();
+async function resizeSplit() {
+  const rect = await evaluate(`(() => { const r = document.querySelector('.desktop-terminal-splitter').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + 60 }; })()`);
   const before = await evaluate("document.querySelector('[data-terminal-split-id]').style.getPropertyValue('--desktop-terminal-first-track')");
-  record.sender.sendInputEvent({ type: "mouseDown", x: bounds.width - 2, y: 60, button: "left", clickCount: 1 });
-  await untilRenderer("document.querySelector('.desktop-terminal-splitter')?.dataset.resizing === 'true'", "native-covered sash initial press");
-  record.sender.sendInputEvent({ type: "mouseMove", x: bounds.width - 40, y: 60, modifiers: ["leftbuttondown"] });
-  await untilRenderer("Number(document.querySelector('.desktop-terminal-splitter')?.getAttribute('aria-valuenow')) < 48", "native sash drag preview");
-  record.sender.sendInputEvent({ type: "mouseUp", x: bounds.width - 40, y: 60, button: "left", clickCount: 1 });
-  await untilRenderer("!document.querySelector('.desktop-terminal-splitter[data-resizing=true]')", "sash release");
-  const after = await evaluate("document.querySelector('[data-terminal-split-id]').style.getPropertyValue('--desktop-terminal-first-track')");
-  assert(after !== before, "Native sash press did not commit a resize");
+  const send = (type, x, buttons) => window.webContents.debugger.sendCommand("Input.dispatchMouseEvent", {
+    type, x: Math.round(x), y: Math.round(rect.y), buttons, button: "left", clickCount: 1, pointerType: "mouse",
+  });
+  await send("mousePressed", rect.x, 1);
+  await send("mouseMoved", rect.x - 40, 1);
+  await send("mouseReleased", rect.x - 40, 0);
+  await untilRenderer("!document.querySelector('.desktop-terminal-splitter[data-resizing=true]')", "splitter release");
+  assert(await evaluate("document.querySelector('[data-terminal-split-id]').style.getPropertyValue('--desktop-terminal-first-track')") !== before, "DOM splitter did not commit resize");
 }
 
 async function dragItem(itemId, groupId, destination) {
@@ -371,7 +342,6 @@ async function dragItem(itemId, groupId, destination) {
   await dispatch("mousePressed", geometry.from, 1, { button: "left", clickCount: 1 });
   await dispatch("mouseMoved", { x: (geometry.from.x + geometry.to.x) / 2, y: (geometry.from.y + geometry.to.y) / 2 }, 1);
   await dispatch("mouseMoved", geometry.to, 1);
-  await until(() => window.contentView.children.filter((view) => view.webContents?.getURL().includes("item-host.html")).every((view) => !view.getVisible()), "drag preview occludes native content");
   console.log(JSON.stringify({ drag: { itemId, destination, geometry,
     state: await evaluate("({ dragging: document.body.classList.contains('desktop-terminal-session-dragging'), preview: document.querySelector('.desktop-terminal-drop-preview')?.outerHTML, at: document.elementFromPoint(" + Math.round(geometry.to.x) + ", " + Math.round(geometry.to.y) + ")?.className })") } }));
   await dispatch("mouseReleased", geometry.to, 0, { button: "left", clickCount: 1 });

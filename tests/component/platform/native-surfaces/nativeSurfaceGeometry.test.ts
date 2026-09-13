@@ -142,7 +142,7 @@ describe("native surface geometry authority", () => {
     expect(isNativeSurfaceElementVisible(slot)).toBe(false);
   });
 
-  it("scopes transition suspension while sharing one layout frame across consumers", () => {
+  it("shares one layout frame without hiding native content during motion", () => {
     const frames: FrameRequestCallback[] = [];
     vi.spyOn(window, "requestAnimationFrame").mockImplementation(callback => frames.push(callback));
     const first = vi.fn(); const second = vi.fn();
@@ -154,9 +154,9 @@ describe("native surface geometry authority", () => {
     panel.append(inside); document.body.append(panel, outside);
     for (const slot of [inside, outside]) vi.spyOn(slot, "getBoundingClientRect").mockReturnValue(new DOMRect(20, 20, 100, 100));
     const resize = acquireNativeSurfaceLayoutLease("explorer-resize");
-    const transition = acquireNativeSurfaceLayoutLease("right-enter", { suspendWithin: panel });
+    const transition = acquireNativeSurfaceLayoutLease("right-enter");
     expect(frames).toHaveLength(1);
-    expect(isNativeSurfaceElementVisible(inside)).toBe(false);
+    expect(isNativeSurfaceElementVisible(inside)).toBe(true);
     expect(isNativeSurfaceElementVisible(outside)).toBe(true);
     flushAnimationFrames(frames);
     expect(first).toHaveBeenCalledTimes(1); expect(second).toHaveBeenCalledTimes(1);

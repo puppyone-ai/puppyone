@@ -193,7 +193,7 @@ describe("Desktop Agent architecture boundaries", () => {
     expect(app).toContain("loadAgentChatWorkbenchItem");
     expect(app).toContain("lazy(loadAgentChatWorkbenchItem)");
     expect(source("src/features/desktop-agent/lazy.ts")).toContain(
-      'import("./workbench/HostedAgentWorkbenchItem")',
+      'import("./workbench/AgentChatWorkbenchItem")',
     );
     expect(source("src/features/desktop-agent/workbench/AgentChatWorkbenchItem.tsx"))
       .toContain("<AgentChatTabPanel");

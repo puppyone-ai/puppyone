@@ -6,6 +6,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  CollapsiblePaneFrame,
   SidebarIconButton,
   SidebarList,
   SidebarResizeHandle,
@@ -27,6 +28,100 @@ afterEach(() => {
 });
 
 describe("Sidebar primitives", () => {
+  it("owns the frame, viewport, stable content plane, and edge handle as one structure", () => {
+    const container = render(
+      <CollapsiblePaneFrame
+        as="div"
+        collapsed
+        contentWidth={320}
+        side="inline-start"
+        viewportClassName="test-viewport"
+        contentClassName="test-content"
+        resizeHandleProps={{
+          label: "Resize test pane",
+          orientation: "vertical",
+        }}
+      >
+        <nav>Projects</nav>
+      </CollapsiblePaneFrame>,
+    );
+
+    const frame = container.querySelector<HTMLElement>(".po-collapsible-pane-frame");
+    const viewport = frame?.querySelector<HTMLElement>(":scope > .po-collapsible-pane-viewport");
+    const content = viewport?.querySelector<HTMLElement>(":scope > .po-collapsible-pane-content");
+    const handle = frame?.querySelector<HTMLElement>(":scope > .po-pane-edge-resize-handle");
+
+    expect(frame?.getAttribute("data-pane-side")).toBe("inline-start");
+    expect(frame?.getAttribute("data-pane-collapsed")).toBe("true");
+    expect(frame?.getAttribute("data-pane-content-visible")).toBe("false");
+    expect(frame?.style.getPropertyValue("--po-collapsible-pane-content-width")).toBe("320px");
+    expect(viewport?.classList.contains("test-viewport")).toBe(true);
+    expect(content?.classList.contains("test-content")).toBe(true);
+    expect(content?.getAttribute("aria-hidden")).toBe("true");
+    expect(content?.hasAttribute("inert")).toBe(true);
+    expect(handle?.parentElement).toBe(frame);
+  });
+
+  it("keeps content fixed and visible until the shared frame-width transition settles", () => {
+    let setCollapsed: ((collapsed: boolean) => void) | null = null;
+
+    function Harness() {
+      const [collapsed, updateCollapsed] = React.useState(false);
+      setCollapsed = updateCollapsed;
+      return (
+        <CollapsiblePaneFrame
+          as="div"
+          collapsed={collapsed}
+          contentWidth={320}
+          frameWidth={collapsed ? 0 : 320}
+          side="inline-start"
+        >
+          {({ contentExpanded, contentVisible }) => (
+            <nav
+              data-content-expanded={contentExpanded ? "true" : "false"}
+              data-content-visible={contentVisible ? "true" : "false"}
+            >
+              Projects
+            </nav>
+          )}
+        </CollapsiblePaneFrame>
+      );
+    }
+
+    const container = render(<Harness />);
+    const frame = requireElement(container, ".po-collapsible-pane-frame");
+    const content = requireElement(container, ".po-collapsible-pane-content");
+    const contentPlane = content.firstElementChild as HTMLElement;
+    expect(frame.style.getPropertyValue("--po-collapsible-pane-frame-width")).toBe("320px");
+
+    act(() => setCollapsed?.(true));
+    expect(frame.dataset.panePresentation).toBe("collapsing");
+    expect(frame.style.getPropertyValue("--po-collapsible-pane-frame-width")).toBe("0px");
+    expect(content.getAttribute("aria-hidden")).toBeNull();
+    expect(contentPlane.dataset.contentExpanded).toBe("true");
+
+    // Reversing a partly completed transition must not flash the content off.
+    act(() => setCollapsed?.(false));
+    expect(frame.dataset.panePresentation).toBe("expanding");
+    expect(content.getAttribute("aria-hidden")).toBeNull();
+    expect(contentPlane.dataset.contentVisible).toBe("true");
+
+    act(() => setCollapsed?.(true));
+    expect(frame.dataset.panePresentation).toBe("collapsing");
+    expect(content.getAttribute("aria-hidden")).toBeNull();
+
+    act(() => frame.dispatchEvent(transitionEvent("transitionend", "width")));
+    expect(frame.dataset.panePresentation).toBe("collapsed");
+    expect(content.getAttribute("aria-hidden")).toBe("true");
+    expect(content.hasAttribute("inert")).toBe(true);
+    expect(contentPlane.dataset.contentExpanded).toBe("false");
+
+    act(() => setCollapsed?.(false));
+    expect(frame.dataset.panePresentation).toBe("expanding");
+    expect(content.getAttribute("aria-hidden")).toBeNull();
+    expect(contentPlane.dataset.contentExpanded).toBe("true");
+  });
+
   it("provides one semantic row and icon-action contract", () => {
     const container = render(
       <SidebarRoot aria-label="Project navigation">
@@ -96,6 +191,13 @@ describe("Sidebar primitives", () => {
     })));
 
     expect(onCollapsedActivate).toHaveBeenCalledOnce();
+
+    onCollapsedActivate.mockClear();
+    act(() => handle?.dispatchEvent(new MouseEvent("click", {
+      bubbles: true,
+      detail: 0,
+    })));
+    expect(onCollapsedActivate).toHaveBeenCalledOnce();
   });
 
   it("caps mounted rows for scalable lists while keeping native list semantics", () => {
@@ -126,4 +228,16 @@ function render(node: React.ReactNode) {
   root = createRoot(container);
   act(() => root?.render(node));
   return container;
+}
+
+function requireElement(container: ParentNode, selector: string) {
+  const element = container.querySelector<HTMLElement>(selector);
+  if (!element) throw new Error(`Missing ${selector}`);
+  return element;
+}
+
+function transitionEvent(type: string, propertyName: string) {
+  const event = new Event(type, { bubbles: true });
+  Object.defineProperty(event, "propertyName", { value: propertyName });
+  return event;
 }

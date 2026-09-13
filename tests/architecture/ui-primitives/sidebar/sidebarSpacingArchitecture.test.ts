@@ -68,7 +68,8 @@ describe("sidebar spacing architecture", () => {
     const explorerResizer = compact(readCssBlock(dataTreeCss, ".data-explorer-resizer"));
 
     const injectedSurface = compact(readCssBlock(layoutCss, ".desktop-view-surface-sidebar"));
-    expect(dataWorkspaceSource).toContain('<aside className="explorer-column">');
+    expect(dataWorkspaceSource).toContain("<CollapsiblePaneFrame");
+    expect(dataWorkspaceSource).toContain('className="explorer-column"');
     expect(dataWorkspaceSource).toContain("renderWorkspaceSlot(explorerSlot, workspaceState)");
     expect(workspaceSurfaceOutletSource).toContain(
       'className={`desktop-view-surface desktop-view-surface-${region}`}',
@@ -78,7 +79,10 @@ describe("sidebar spacing architecture", () => {
     );
     expect(explorerResizer).toContain("background: transparent;");
     expect(dataTreeCss).not.toContain(".data-explorer-resizer::after");
-    expect(explorerResizer).toContain("- 1px");
+    expect(explorerResizer).toContain("inset-inline-start: auto;");
+    expect(explorerResizer).toContain(
+      "inset-inline-end: calc(1px - var(--po-pane-resizer-hit-size, 8px));",
+    );
     expect(injectedSurface).not.toContain("border-inline-end:");
     expect(cloudSidebarCss).not.toContain("border-inline-end:");
   });
@@ -140,7 +144,10 @@ describe("sidebar spacing architecture", () => {
       ":root,\n:where(.app-shell, .onboarding-shell, .desktop-overlay-root, .desktop-theme-preview-surface, .dark)",
     );
     const titlebar = compact(readCssBlock(titlebarCss, ".desktop-titlebar"));
-    const rightSidebar = compact(readCssBlock(layoutCss, ".desktop-right-sidebar.is-open"));
+    const rightSidebar = compact(readCssBlock(
+      layoutCss,
+      '.desktop-right-sidebar:not([data-pane-presentation="collapsed"])',
+    ));
     const sharedGroupDivider = compact(readCssBlock(
       sidebarPatternsCss,
       ".po-desktop-sidebar-group + .po-desktop-sidebar-group::before",
@@ -275,14 +282,30 @@ describe("sidebar spacing architecture", () => {
     expect(projectRail).toContain(
       "--desktop-project-switcher-button-size: var(--desktop-sidebar-row-height);",
     );
+    expect(projectRail).toContain(
+      "--desktop-project-switcher-compact-inline-padding: var(--desktop-sidebar-row-left-gap);",
+    );
     expect(projectRail).toContain("--desktop-project-switcher-avatar-size: 18px;");
-    expect(projectRailButton).toContain("width: var(--desktop-project-switcher-button-size);");
-    expect(projectRailButton).toContain("height: var(--desktop-project-switcher-button-size);");
+    expect(projectRailButton).toContain("width: 100%;");
+    expect(projectRailButton).toContain("height: var(--desktop-sidebar-row-height);");
     expect(projectRailButton).toContain("margin: 1px 0;");
-    expect(projectRailButton).toContain("justify-content: center;");
-    expect(projectRailButton).toContain("padding: 0;");
-    expect(projectRailList).toContain("justify-items: center;");
-    expect(projectRailList).toContain("padding-inline: 0;");
+    expect(projectRailButton).toContain("justify-content: flex-start;");
+    expect(projectRailButton).toContain("gap: 6px;");
+    expect(projectRailList).toContain("justify-items: stretch;");
+    expect(projectRailList).toContain("var(--desktop-sidebar-row-left-gap)");
+    expect(projectRailList).toContain("var(--desktop-sidebar-scroll-right-gap);");
+    expect(projectSwitcherCss).toContain(
+      "clip-path: inset(0 calc(100% - var(--desktop-project-switcher-button-size)) 0 0);",
+    );
+    expect(projectSwitcherCss).not.toContain("var(--desktop-chrome-height)");
+    expect(projectSwitcherCss).not.toContain(".desktop-project-switcher-rail-button::after");
+    expect(readCssBlock(
+      projectSwitcherCss,
+      ".desktop-project-switcher-rail-label",
+    )).not.toContain("transform:");
+    expect(projectSwitcherCss).toMatch(
+      /\.desktop-project-switcher-rail-project\[aria-current="page"\]\s*\{[^}]*background:\s*var\(--desktop-project-switcher-row-hover\);/s,
+    );
     expect(projectSwitcherCss).toMatch(
       /\.desktop-project-switcher-rail-avatar\s*\{[^}]*width:\s*var\(--desktop-project-switcher-avatar-size\);[^}]*height:\s*var\(--desktop-project-switcher-avatar-size\);/s,
     );
@@ -296,10 +319,10 @@ describe("sidebar spacing architecture", () => {
 
         flex: 0 0 var(--desktop-project-switcher-compact-utilities-height);
         align-items: flex-start;
-        justify-content: center;
+        justify-content: flex-start;
         min-height: var(--desktop-project-switcher-compact-utilities-height);
         padding-block: 0 var(--desktop-sidebar-list-padding-block);
-        padding-inline: 0;
+        padding-inline: var(--desktop-project-switcher-compact-inline-padding);
       }
     `));
     expect(compact(projectSwitcherCss)).toContain(compact(`

@@ -2,8 +2,10 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const sharedSidebarCss = read("../../../../packages/shared-ui/src/styles/sidebar-primitives.css");
+const controlGeometryCss = read("../../../../packages/shared-ui/src/styles/control-geometry.css");
 const sharedDataWorkspaceCss = read("../../../../packages/shared-ui/src/styles/data-workspace.css");
 const dataShellCss = read("../../../../src/features/data-workspace/data-shell.css");
+const projectSwitcherRailCss = read("../../../../src/features/app-shell/project-switcher-rail.css");
 const patternCss = read("../../../../src/styles/sidebar/patterns.css");
 const layoutCss = read("../../../../src/styles/layout.css");
 const dataSurfaceSource = read("../../../../src/features/app-shell/DesktopDataWorkspaceSurface.tsx");
@@ -14,6 +16,9 @@ const workspaceContentSource = read("../../../../src/features/app-shell/DesktopW
 const registrySource = read("../../../../src/features/app-shell/workspace-surfaces/workspaceSurfaceRegistry.ts");
 const auxiliaryHostSource = read("../../../../src/features/app-shell/auxiliary/AuxiliaryPanelHost.tsx");
 const collapsiblePaneResizeSource = read("../../../../packages/shared-ui/src/primitives/useCollapsiblePaneResize.ts");
+const collapsiblePaneGestureSource = read("../../../../packages/shared-ui/src/primitives/collapsiblePaneGesture.ts");
+const collapsiblePaneFrameSource = read("../../../../packages/shared-ui/src/sidebar/CollapsiblePaneFrame.tsx");
+const sidebarResizeHandleSource = read("../../../../packages/shared-ui/src/sidebar/SidebarResizeHandle.tsx");
 const settingsSidebarSource = read("../../../../src/features/settings/sidebar/SettingsSidebar.tsx");
 const settingsModelSource = read("../../../../src/features/settings/sidebar/settingsSidebarModel.ts");
 const sourceControlResourceLists = read("../../../../src/features/source-control/sidebar/SourceControlResourceLists.tsx");
@@ -21,6 +26,7 @@ const sourceControlHistory = read("../../../../src/features/source-control/sideb
 const cloudHistorySidebar = read("../../../../src/features/cloud/history/CloudHistorySidebar.tsx");
 const virtualizationPolicy = read("../../../../packages/shared-ui/src/sidebar/virtualizationPolicy.ts");
 const virtualSidebarList = read("../../../../packages/shared-ui/src/sidebar/VirtualSidebarList.tsx");
+const sidebarBoundarySmoke = read("../../../support/electron/sidebar-boundaries.mjs");
 const tokens = read("../../../../src/styles/tokens.css");
 
 describe("Sidebar architecture", () => {
@@ -62,9 +68,9 @@ describe("Sidebar architecture", () => {
 
   it("keeps Feature composition out of shared layers and Auxiliary routing independent", () => {
     expect(sharedSidebarCss).not.toMatch(/desktop-(?:git|cloud|settings|agent|terminal)/);
-    expect(auxiliaryHostSource).toContain("SidebarResizeHandle");
+    expect(auxiliaryHostSource).toContain("CollapsiblePaneFrame");
     expect(auxiliaryHostSource).toContain("useCollapsiblePaneResize");
-    expect(auxiliaryHostSource).toContain('orientation="vertical"');
+    expect(auxiliaryHostSource).toContain('orientation: "vertical"');
     expect(settingsSidebarSource).toContain("resolveSettingsSidebarGroups({ cloudEnabled })");
     expect(settingsModelSource).toContain("SETTINGS_SIDEBAR_GROUPS");
     expect(settingsModelSource).toContain("requiresCloud: true");
@@ -74,20 +80,36 @@ describe("Sidebar architecture", () => {
     expect(sharedSidebarCss).not.toContain(".po-pane-edge-toggle");
     expect(dataShellCss).not.toContain(".data-explorer-toggle");
     expect(layoutCss).not.toContain(".desktop-right-sidebar-toggle");
-    expect(sharedDataWorkspaceCss).toContain("transition: grid-template-columns 260ms");
-    expect(sharedDataWorkspaceCss).toMatch(
-      /body\.data-sidebar-resizing \.data-content:not\(\[data-explorer-collapsed="true"\]\)\s*\{[^}]*transition:\s*none;/s,
+    expect(sharedSidebarCss).toContain("width var(--po-pane-motion-duration, 360ms)");
+    expect(sharedSidebarCss).toMatch(
+      /\.po-collapsible-pane-frame\[data-pane-gesture="resizing"\]\s*\{[^}]*transition:\s*none;/s,
     );
-    expect(dataShellCss).not.toContain("transition: grid-template-columns 260ms");
-    expect(dataShellCss).not.toContain("transition: inset-inline-start 260ms");
-    expect(layoutCss).toContain("flex-basis 260ms cubic-bezier");
-    expect(collapsiblePaneResizeSource).toContain("minWidth - resolvedCollapsePullDistance");
-    expect(dataWorkspaceSource).toContain('widthChangeMode: "end"');
+    expect(dataShellCss).not.toContain("transition: grid-template-columns 360ms");
+    expect(dataShellCss).not.toContain("transition: inset-inline-start 360ms");
+    expect(sharedSidebarCss).toContain("flex-basis var(--po-pane-motion-duration, 360ms)");
+    expect(projectSwitcherRailCss).not.toContain("width var(--po-pane-motion-duration, 360ms)");
+    expect(controlGeometryCss).toContain("--po-pane-motion-duration: 360ms");
+    expect(controlGeometryCss).toContain("--po-pane-motion-easing: cubic-bezier(0.42, 0, 0.58, 1)");
+    expect(collapsiblePaneGestureSource).toContain("COLLAPSIBLE_PANE_MOTION_MS = 360");
+    expect(collapsiblePaneGestureSource).toContain("config.minWidth - config.collapseThreshold");
+    expect(collapsiblePaneGestureSource).toContain("collapseBoundary + config.collapseHysteresis");
+    expect(collapsiblePaneGestureSource).toContain('phase: "collapse-preview"');
+    expect(collapsiblePaneGestureSource).toMatch(
+      /if \(collapseArmed\)[\s\S]*previewCollapsed:\s*true,[\s\S]*previewWidth:\s*config\.collapsedWidth/,
+    );
+    expect(collapsiblePaneGestureSource).toContain('type: "collapse"; restoreWidth: number');
+    expect(collapsiblePaneGestureSource).toContain("restoreWidth: config.minWidth");
+    expect(dataWorkspaceSource).toContain("onCommit: commitExplorerPane");
+    expect(dataWorkspaceSource).toContain("setExplorerWidth(commit.restoreWidth)");
+    expect(auxiliaryHostSource).toContain("onWidthChange?.(commit.restoreWidth)");
+    expect(desktopShellSource).toContain("onLeadingRailWidthChange?.(commit.restoreWidth)");
   });
 
   it("gives the collapsed explorer one Header-owned expansion action", () => {
-    expect(dataWorkspaceSource).toContain("resizableExplorer && !explorerCollapsed");
+    expect(dataWorkspaceSource).toContain("resizableExplorer && presentation.contentVisible");
+    expect(dataWorkspaceSource).not.toContain("keepExplorerContentMounted");
     expect(dataWorkspaceSource).not.toContain("explorerCollapsedEdgeVisible");
+    expect(dataWorkspaceSource).not.toContain("collapsedEdgeSide=");
     expect(desktopShellSource).toContain("paneLayout.explorer.collapsed && leftSidebarPresent");
     expect(desktopShellSource).toContain("desktop-titlebar-sidebar-expand");
     expect(desktopShellSource).toContain("<PanelLeft size={15}");
@@ -101,48 +123,91 @@ describe("Sidebar architecture", () => {
   it("keeps the minimal collapsed-edge affordance for the auxiliary pane only", () => {
     expect(sharedSidebarCss).toContain(".po-collapsed-pane-edge-handle::after");
     expect(sharedSidebarCss).toContain(".po-collapsed-pane-edge-glyph");
-    expect(auxiliaryHostSource).toContain("!open && collapsedEdgeSettled");
-    expect(auxiliaryHostSource).toContain('collapsedEdgeSide={collapsedEdgeVisible ? "inline-end" : undefined}');
+    expect(auxiliaryHostSource).not.toContain("collapsedEdgeSettled");
+    expect(auxiliaryHostSource).toContain('collapsedEdgeSide: presentation.settledCollapsed ? "inline-end" : undefined');
     expect(layoutCss).toMatch(
       /\.desktop-right-sidebar:not\(\.is-open\)\s*\{[^}]*overflow:\s*visible/s,
     );
   });
 
+  it("gives one controller ownership of pointer gestures across every pane", () => {
+    expect(sidebarResizeHandleSource).not.toContain('window.addEventListener("pointerup"');
+    expect(collapsiblePaneResizeSource).toContain("cancelKey:");
+    expect(collapsiblePaneResizeSource).toContain("onCommit(commit)");
+    expect(collapsiblePaneResizeSource).toContain("PendingPaneCommit");
+    expect(collapsiblePaneResizeSource).toContain("baselineKey");
+    expect(desktopShellSource).toContain("renderLeadingRail");
+    expect(appSource).toContain("renderLeadingRail={projectSwitcherRailVisible");
+  });
+
   it("keeps direct resize canonical while visibility transitions preserve content width", () => {
-    expect(dataShellCss).toMatch(
-      /\.data-content\[data-resizable-explorer="true"\]\s*\{[^}]*grid-template-columns:[^}]*var\(--data-explorer-width[^}]*minmax/s,
+    expect(sharedDataWorkspaceCss).toMatch(/\.data-content\s*\{[^}]*display:\s*flex/s);
+    expect(sharedDataWorkspaceCss).toMatch(
+      /\.data-explorer-resizer\s*\{[^}]*inset-inline-start:\s*auto;[^}]*inset-inline-end:\s*calc\(1px - var\(--po-pane-resizer-hit-size, 8px\)\);[^}]*background:\s*transparent;/s,
     );
-    expect(dataShellCss).toMatch(
-      /\.data-explorer-resizer\s*\{[^}]*inset-inline-start:\s*calc\(var\(--data-explorer-width[^}]*inset-inline-end:\s*auto;[^}]*background:\s*transparent;/s,
+    for (const source of [dataWorkspaceSource, auxiliaryHostSource, desktopShellSource]) {
+      expect(source).toContain("<CollapsiblePaneFrame");
+      expect(source).not.toContain("<SidebarResizeHandle");
+    }
+    expect(collapsiblePaneFrameSource).toMatch(
+      /po-collapsible-pane-viewport[\s\S]*po-collapsible-pane-content[\s\S]*<SidebarResizeHandle/,
     );
+    expect(sharedSidebarCss).toMatch(
+      /\.po-collapsible-pane-viewport\s*\{[^}]*position:\s*absolute[^}]*inset:\s*0[^}]*overflow:\s*clip/s,
+    );
+    expect(sharedSidebarCss).toMatch(
+      /\.po-collapsible-pane-content\s*\{[^}]*width:\s*var\(--po-collapsible-pane-content-width, 100%\)[^}]*min-width:\s*var\(--po-collapsible-pane-content-width, 100%\)/s,
+    );
+    expect(dataWorkspaceSource).toContain("contentWidth={renderedExplorerContentWidth}");
+    expect(dataWorkspaceSource).toContain("frameWidth={explorerResize.width}");
+    expect(desktopShellSource).toContain("contentWidth={renderedLeadingRailContentWidth}");
+    expect(desktopShellSource).toContain("frameWidth={resolvedLeadingRailWidth}");
+    expect(desktopShellSource).toContain("Math.max(");
+    expect(desktopShellSource).toContain("retainedLeadingRailExpandedWidth,");
+    expect(desktopShellSource).not.toContain("leadingRailCollapsedCssWidth");
+    expect(dataWorkspaceSource).not.toContain("data-explorer-collapsed-fill");
+    expect(sharedDataWorkspaceCss).not.toContain(".data-explorer-collapsed-fill");
+    expect(dataWorkspaceSource).toContain("Math.max(");
+    expect(dataWorkspaceSource).toContain("explorerResize.width,");
+    expect(dataSurfaceSource).toContain("paneLayout?.explorer.collapsed");
+    expect(dataSurfaceSource).toContain("? preferences.explorerWidth");
+    expect(sidebarBoundarySmoke).toContain("explorerMotion.maxDividerDelta<=2");
+    expect(sidebarBoundarySmoke).toContain("explorerMotion.contentWidths.length===1");
+    expect(sidebarBoundarySmoke).toContain("collapsePreview.contentWidth");
+    expect(sidebarBoundarySmoke).toContain("collapsePreview.temporarilyCollapsed");
+    expect(sidebarBoundarySmoke).toContain("restoredPreview.expanded");
+    expect(sidebarBoundarySmoke).toContain("previewElementGeometry");
+    expect(sidebarBoundarySmoke).toContain("Explorer reopened at a stale pre-collapse width");
+    expect(dataShellCss).not.toContain(".data-explorer-resizer");
+    expect(dataShellCss).not.toContain('.data-content[data-resizable-explorer="true"]');
+    expect(dataShellCss).not.toContain(".explorer-column");
     expect(dataShellCss).not.toContain("grid-column: 3;");
-    expect(layoutCss).toMatch(
-      /\.desktop-right-sidebar\.is-open\s*\{[^}]*flex-basis:\s*var\(--desktop-right-sidebar-width\)[^}]*width:\s*var\(--desktop-right-sidebar-width\)/s,
-    );
-    expect(layoutCss).toMatch(
-      /\.desktop-right-sidebar-viewport\s*\{[^}]*position:\s*absolute[^}]*inset:\s*0[^}]*overflow:\s*clip[^}]*pointer-events:\s*none/s,
-    );
-    expect(layoutCss).toMatch(
-      /\.desktop-right-sidebar-inner\s*\{[^}]*position:\s*absolute[^}]*inset-inline-end:\s*0[^}]*width:\s*var\(--desktop-right-sidebar-content-width\)[^}]*min-width:\s*var\(--desktop-right-sidebar-content-width\)[^}]*pointer-events:\s*none/s,
-    );
-    expect(layoutCss).toMatch(
-      /\.desktop-right-sidebar\.is-open \.desktop-right-sidebar-inner\s*\{[^}]*pointer-events:\s*auto/s,
-    );
-    expect(layoutCss).toMatch(
-      /\.desktop-right-sidebar-inner\s*\{[^}]*width:\s*var\(--desktop-right-sidebar-content-width\)[^}]*transform:\s*translateX\(var\(--desktop-right-sidebar-exit-translate\)\)[^}]*transition:\s*transform 260ms/s,
-    );
-    expect(layoutCss).not.toMatch(/\.desktop-right-sidebar-inner\s*\{[^}]*transition:[^}]*(?:width|min-width|flex-basis)/s);
-    expect(layoutCss).not.toMatch(/\.desktop-right-sidebar-viewport\s*\{[^}]*(?:opacity|visibility|transition):/s);
+    expect(sharedSidebarCss).toContain("width: var(--po-collapsible-pane-frame-width, auto)");
+    expect(sharedSidebarCss).not.toContain("translateX");
+    expect(sharedSidebarCss).not.toContain("data-pane-content-motion");
+    for (const source of [dataWorkspaceSource, auxiliaryHostSource, desktopShellSource]) {
+      expect(source).not.toContain("contentMotion");
+      expect(source).not.toContain("contentHidden");
+    }
+    expect(layoutCss).not.toMatch(/(?:^|\n)\.desktop-right-sidebar-(?:viewport|inner)\s*\{/s);
+    expect(sharedDataWorkspaceCss).not.toMatch(/(?:^|\n)\.data-explorer-(?:viewport|inner)\s*\{/s);
     expect(layoutCss).not.toContain("--desktop-right-sidebar-visible-width");
     expect(auxiliaryHostSource).not.toContain("desktop-right-sidebar-visible-width");
-    expect(auxiliaryHostSource).toContain('className="desktop-right-sidebar-viewport"');
+    expect(auxiliaryHostSource).toContain('viewportClassName="desktop-right-sidebar-viewport"');
+    expect(auxiliaryHostSource).toContain('contentWidth="var(--desktop-right-sidebar-content-width)"');
+    expect(auxiliaryHostSource).toContain("frameWidth={resize.width}");
     expect(auxiliaryHostSource).toContain("lastExpandedWidth");
-    expect(auxiliaryHostSource).toContain('widthChangeMode: "end"');
+    expect(auxiliaryHostSource).toContain("onCommit: commitPane");
+    expect(auxiliaryHostSource).toContain('typeof children === "function"');
+    expect(appSource).toContain("active={presentation.contentVisible}");
+    expect(appSource).not.toContain("active={rightSidebarOpen}");
     expect(sharedDataWorkspaceCss).not.toContain("--data-explorer-min-width");
     expect(collapsiblePaneResizeSource).toContain("canonical live resize width");
     expect(collapsiblePaneResizeSource).toContain("last-expanded content plane");
-    expect(auxiliaryHostSource).toContain("aria-hidden={open ? undefined : true}");
-    expect(auxiliaryHostSource).toContain('{...(!open ? { inert: "" } : {})}');
+    expect(collapsiblePaneFrameSource).toContain("aria-hidden={contentVisible ? undefined : true}");
+    expect(collapsiblePaneFrameSource).toContain('{...(!contentVisible ? { inert: "" } : {})}');
+    expect(collapsiblePaneResizeSource).toContain("finishCollapsiblePaneGesture");
+    expect(collapsiblePaneResizeSource).not.toContain("onCollapsedChange");
   });
 
   it("enforces one large-list policy with a bounded mounted-row budget", () => {

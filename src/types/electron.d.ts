@@ -948,9 +948,10 @@ export type EditorSurfaceState = Readonly<{
 
 declare global {
   interface Window {
-    puppyoneItemHost?: import("../../shared/item-host-contract/types").ItemRendererBridge;
     puppyoneDesktop?: {
-      itemHosts?: import("../../shared/item-host-contract/types").ItemHostBridge;
+      connectAgentSession: (request: import("../../shared/session-transport/types").AgentConnectionRequest) => Promise<import("../../shared/session-transport/types").SessionConnection>;
+      connectTerminalSession: (request: import("../../shared/session-transport/types").TerminalConnectionRequest) => Promise<import("../../shared/session-transport/types").SessionConnection>;
+      onSessionRuntimeFailure: (listener: (failure: import("../../shared/session-transport/types").SessionRuntimeFailure) => void) => () => void;
       getWindowChromeState: () => Promise<{ fullScreen: boolean; maximized: boolean }>;
       setWindowChromeProfile: (request: {
         titlebar: string;

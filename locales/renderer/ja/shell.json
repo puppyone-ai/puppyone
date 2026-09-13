@@ -46,6 +46,8 @@
   "titlebar.openWithApp": "アプリで開く",
   "titlebar.hideTerminal": "ターミナルを隠す",
   "titlebar.showTerminal": "ターミナルを表示",
+  "titlebar.hideAgent": "Agent を隠す",
+  "titlebar.showAgent": "Agent を表示",
   "windowControls.minimize": "ウインドウを最小化",
   "windowControls.maximize": "ウインドウを最大化または復元",
   "windowControls.close": "ウインドウを閉じる",

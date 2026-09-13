@@ -256,28 +256,6 @@
       "artifacts": []
     },
     {
-      "id": "item-renderers",
-      "name": "Native item host visibility and renderer isolation",
-      "group": "app",
-      "command": [
-        "npm",
-        "run",
-        "smoke:item-renderers"
-      ],
-      "platforms": [
-        "linux",
-        "darwin"
-      ],
-      "dependsOn": [
-        "build"
-      ],
-      "timeoutSeconds": 180,
-      "runtime": "electron",
-      "artifacts": [
-        "artifacts/tests/workbench/item-isolation"
-      ]
-    },
-    {
       "id": "editor-runtime",
       "name": "Editor lifecycle, persisted content and view state",
       "group": "app",

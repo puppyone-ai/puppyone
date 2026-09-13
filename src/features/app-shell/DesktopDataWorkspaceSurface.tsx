@@ -259,7 +259,12 @@ export function DesktopDataWorkspaceSurface({
     t,
     workspaceFolders,
   ]);
-  const resolvedExplorerWidth = paneLayout?.explorer.width ?? preferences.explorerWidth;
+  // DataWorkspace's width input is the expanded content-plane width. The
+  // Shell's resolved width becomes zero while collapsed and must never replace
+  // that retained geometry, or the Explorer children will reflow during exit.
+  const resolvedExplorerWidth = paneLayout?.explorer.collapsed
+    ? preferences.explorerWidth
+    : paneLayout?.explorer.width ?? preferences.explorerWidth;
   const resolvedExplorerMaxWidth = paneLayout?.explorer.maxWidth
     ?? MAX_EXPLORER_WIDTH;
   const resolvedExplorerMinWidth = paneLayout?.explorer.minWidth ?? MIN_EXPLORER_WIDTH;

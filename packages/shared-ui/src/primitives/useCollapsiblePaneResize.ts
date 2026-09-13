@@ -1,174 +1,189 @@
-import { useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useState, type PointerEvent as ReactPointerEvent } from "react";
+import {
+  beginCollapsiblePaneGesture,
+  finishCollapsiblePaneGesture,
+  moveCollapsiblePaneGesture,
+  resolveCollapsiblePaneGestureConfig,
+  type CollapsiblePaneDirection,
+  type CollapsiblePaneGestureConfig,
+  type CollapsiblePaneGestureCommit,
+  type CollapsiblePaneGesturePhase,
+  type CollapsiblePaneGestureState,
+  type CollapsiblePaneSide,
+} from "./collapsiblePaneGesture";
 import { usePaneResizeDrag } from "./usePaneResizeDrag";
-
-export type CollapsiblePaneSide = "inline-start" | "inline-end";
-export type CollapsiblePaneDirection = "ltr" | "rtl";
 
 export type UseCollapsiblePaneResizeOptions = {
   bodyClassName: string;
   collapsed: boolean;
   collapsedWidth?: number;
+  collapseHysteresis?: number;
   /** Additional inward pointer travel after minWidth before collapse. */
   collapseThreshold: number;
+  collapsible: boolean;
   direction: CollapsiblePaneDirection;
   enabled?: boolean;
   maxWidth: number;
   minWidth: number;
   side: CollapsiblePaneSide;
   width: number;
-  /**
-   * `continuous` publishes every animation-frame preview. `end` keeps the
-   * gesture local and publishes once on pointer release, avoiding expensive
-   * application-state and persistence work during direct manipulation.
-   */
-  widthChangeMode?: "continuous" | "end";
-  onCollapsedChange?: (collapsed: boolean) => void;
+  onCommit: (commit: CollapsiblePaneGestureCommit) => void;
   onDragActiveChange?: (active: boolean) => void;
-  onWidthChange: (width: number) => void;
 };
 
+type PaneGesturePreview = Readonly<{
+  collapsed: boolean;
+  phase: CollapsiblePaneGesturePhase;
+  width: number;
+}>;
+
+type PendingPaneCommit = Readonly<{
+  baselineKey: string;
+  collapsed: boolean;
+  targetKey: string;
+  width: number;
+}>;
+
 export type CollapsiblePaneResizeState = {
+  collapsed: boolean;
   dragging: boolean;
   onPointerDown: (event: ReactPointerEvent<HTMLElement>) => void;
+  phase: CollapsiblePaneGesturePhase | "idle";
   width: number;
 };
 
 /**
- * Owns the pointer state machine for a resizable pane with a pull-to-collapse
- * threshold. The returned value is the canonical live resize width. During a
- * direct pointer resize, host and content consume it together. A visibility
- * transition may keep a separate last-expanded content plane while its outer
- * track consumes this value, preventing text reflow during enter and exit.
+ * Adapts one pure pane-gesture state machine to browser pointer capture. The
+ * returned width is the canonical live resize width, while collapsed/width
+ * props remain the last committed application state. Visibility transitions
+ * may retain a separate last-expanded content plane to prevent text reflow.
  */
 export function useCollapsiblePaneResize({
   bodyClassName,
   collapsed,
   collapsedWidth = 0,
+  collapseHysteresis,
   collapseThreshold,
+  collapsible,
   direction,
   enabled = true,
   maxWidth,
   minWidth,
   side,
   width,
-  widthChangeMode = "continuous",
-  onCollapsedChange,
+  onCommit,
   onDragActiveChange,
-  onWidthChange,
 }: UseCollapsiblePaneResizeOptions): CollapsiblePaneResizeState {
-  const [gestureWidth, setGestureWidth] = useState<number | null>(null);
-  const canCollapse = Boolean(onCollapsedChange);
-  const resolvedCollapsedWidth = clampWidth(collapsedWidth, 0, minWidth);
-  const resolvedWidth = clampWidth(width, minWidth, maxWidth);
-  const resolvedCollapsePullDistance = clampWidth(
+  const [preview, setPreview] = useState<PaneGesturePreview | null>(null);
+  const [pendingCommit, setPendingCommit] = useState<PendingPaneCommit | null>(null);
+  const config = resolveCollapsiblePaneGestureConfig({
+    collapsedWidth,
+    collapseHysteresis,
     collapseThreshold,
-    0,
+    collapsible,
+    direction,
+    maxWidth,
     minWidth,
-  );
+    side,
+  });
+  const resolvedWidth = clampWidth(width, config.minWidth, config.maxWidth);
+  const externalKey = paneStateKey(collapsed, resolvedWidth);
+  const committedCollapsed = pendingCommit?.collapsed ?? collapsed;
+  const committedWidth = pendingCommit?.width
+    ?? (collapsed ? config.collapsedWidth : resolvedWidth);
+
+  useEffect(() => {
+    setPendingCommit((current) => {
+      if (!current) return current;
+      // Keep the optimistic commit only while the parent still exposes the
+      // exact pre-commit snapshot. Matching acknowledgement or a different
+      // external command both restore controlled-state authority.
+      if (externalKey === current.baselineKey) return current;
+      return null;
+    });
+  }, [externalKey]);
 
   const onPointerDown = usePaneResizeDrag({
     enabled,
     bodyClassName,
+    cancelKey: pendingCommit?.targetKey ?? externalKey,
     onDragActiveChange,
     onDragStart: (event) => {
-      const startX = event.clientX;
-      const startWidth = collapsed ? resolvedCollapsedWidth : resolvedWidth;
-      const startedCollapsed = collapsed;
-      let collapsedDuringDrag = collapsed;
-      let latestWidth = startWidth;
-      let latestExpansion = 0;
-      let widthChanged = false;
-      setGestureWidth(startWidth);
-
-      const previewWidth = (nextWidth: number, publish = true) => {
-        latestWidth = nextWidth;
-        widthChanged ||= nextWidth !== startWidth;
-        setGestureWidth(nextWidth);
-        if (publish && widthChangeMode === "continuous") onWidthChange(nextWidth);
-      };
+      let gesture = beginCollapsiblePaneGesture(
+        config,
+        event,
+        committedCollapsed,
+        committedWidth,
+      );
+      setPreview(toPreview(gesture));
 
       return {
         onMove: (point) => {
-          const logicalDirection = direction === "rtl" ? -1 : 1;
-          const sideDirection = side === "inline-start" ? 1 : -1;
-          const widthDelta = (point.clientX - startX)
-            * logicalDirection
-            * sideDirection;
-          const rawWidth = startWidth + widthDelta;
-          latestExpansion = Math.max(0, widthDelta);
-
-          if (!canCollapse) {
-            previewWidth(clampWidth(rawWidth, minWidth, maxWidth));
-            return;
-          }
-
-          if (startedCollapsed) {
-            if (latestExpansion <= 0) {
-              setGestureWidth(resolvedCollapsedWidth);
-              return;
-            }
-
-            const nextWidth = clampWidth(rawWidth, minWidth, maxWidth);
-            previewWidth(nextWidth, latestExpansion >= resolvedCollapsePullDistance);
-            if (collapsedDuringDrag) {
-              onCollapsedChange?.(false);
-              collapsedDuringDrag = false;
-            }
-            return;
-          }
-
-          const collapseBoundary = resolvedCollapsePullDistance > 0
-            ? minWidth - resolvedCollapsePullDistance
-            : resolvedCollapsedWidth;
-          if (rawWidth <= collapseBoundary) {
-            setGestureWidth(resolvedCollapsedWidth);
-            if (!collapsedDuringDrag) onCollapsedChange?.(true);
-            collapsedDuringDrag = true;
-            return;
-          }
-
-          if (collapsedDuringDrag) onCollapsedChange?.(false);
-          collapsedDuringDrag = false;
-
-          // Resize normally down to minWidth. Pointer travel beyond minWidth is
-          // an elastic collapse gesture, so the one rendered width stays at the
-          // minimum until the collapse boundary is crossed.
-          previewWidth(clampWidth(rawWidth, minWidth, maxWidth));
+          gesture = moveCollapsiblePaneGesture(gesture, config, point);
+          setPreview(toPreview(gesture));
         },
-        onCancel: () => {
-          if (collapsedDuringDrag !== startedCollapsed) onCollapsedChange?.(startedCollapsed);
-          if (widthChangeMode === "continuous" && widthChanged) onWidthChange(resolvedWidth);
-          setGestureWidth(null);
-        },
+        onCancel: () => setPreview(null),
         onEnd: () => {
-          if (startedCollapsed && latestExpansion < resolvedCollapsePullDistance) {
-            if (!collapsedDuringDrag) onCollapsedChange?.(true);
-            collapsedDuringDrag = true;
+          const commit = finishCollapsiblePaneGesture(gesture, config);
+          if (commit) {
+            setPendingCommit(toPendingCommit(
+              commit,
+              config,
+              resolvedWidth,
+              externalKey,
+            ));
+            onCommit(commit);
           }
-          if (
-            !collapsedDuringDrag
-            && latestWidth >= minWidth
-            && (
-              (startedCollapsed && latestExpansion >= resolvedCollapsePullDistance)
-              || (widthChangeMode === "end" && widthChanged)
-            )
-          ) {
-            onWidthChange(latestWidth);
-          }
-          setGestureWidth(null);
+          setPreview(null);
         },
       };
     },
   });
 
   return {
-    dragging: gestureWidth !== null,
+    collapsed: preview?.collapsed ?? committedCollapsed,
+    dragging: preview !== null,
     onPointerDown,
-    width: collapsed ? resolvedCollapsedWidth : gestureWidth ?? resolvedWidth,
+    phase: preview?.phase ?? "idle",
+    width: preview?.width ?? committedWidth,
+  };
+}
+
+function toPendingCommit(
+  commit: CollapsiblePaneGestureCommit,
+  config: CollapsiblePaneGestureConfig,
+  resolvedWidth: number,
+  baselineKey: string,
+): PendingPaneCommit {
+  const collapsed = commit.type === "collapse";
+  const width = commit.type === "collapse"
+    ? config.collapsedWidth
+    : clampWidth(commit.width ?? resolvedWidth, config.minWidth, config.maxWidth);
+  return {
+    baselineKey,
+    collapsed,
+    targetKey: paneStateKey(collapsed, width),
+    width,
+  };
+}
+
+function toPreview({
+  phase,
+  previewCollapsed,
+  previewWidth,
+}: CollapsiblePaneGestureState): PaneGesturePreview {
+  return {
+    collapsed: previewCollapsed,
+    phase,
+    width: previewWidth,
   };
 }
 
 function clampWidth(value: number, min: number, max: number) {
   const normalized = Number.isFinite(value) ? Math.round(value) : min;
   return Math.min(Math.max(normalized, min), max);
+}
+
+function paneStateKey(collapsed: boolean, width: number) {
+  return `${collapsed}:${width}`;
 }

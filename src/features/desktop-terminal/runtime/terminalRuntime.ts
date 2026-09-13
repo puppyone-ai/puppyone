@@ -71,6 +71,8 @@ type TerminalRuntimeOptions = {
 export type TerminalDisplayData = TerminalDataEvent & { reset?: boolean; cols?: number; rows?: number; checkpointState?: unknown; acknowledge?: () => void };
 export type TerminalBridge = Pick<NonNullable<Window["puppyoneDesktop"]>, "createTerminal" | "writeTerminal" | "resizeTerminal" | "updateTerminalAppearance" | "closeTerminal" | "onTerminalExit" | "openExternalUrl"> & {
   canonicalOutput?: boolean;
+  dispose?: () => void;
+  onTerminalError?: (callback: (message: string) => void) => () => void;
   onTerminalData: (callback: (event: TerminalDisplayData) => void) => () => void;
 };
 
@@ -156,10 +158,9 @@ export class TerminalRuntime implements TerminalRuntimeHandle {
   private webglContextLossDisposable: IDisposable | null = null;
   private container: HTMLDivElement | null = null;
   private resizeObserver: ResizeObserver | null = null;
-  private terminalSidebarElement: Element | null = null;
-  private sidebarTransitionEndListener: ((event: Event) => void) | null = null;
   private removeDataListener: (() => void) | null = null;
   private removeExitListener: (() => void) | null = null;
+  private removeErrorListener: (() => void) | null = null;
   private fitFrame: number | null = null;
   private revealFrame: number | null = null;
   private scrollbarIdleTimer: number | null = null;
@@ -226,7 +227,6 @@ export class TerminalRuntime implements TerminalRuntimeHandle {
         container.appendChild(terminalElement);
       }
       this.observeSize(container);
-      this.observeSidebarTransition(container);
       this.applyAppearance();
       this.syncScrollbarPresentation();
       this.scheduleFit();
@@ -255,13 +255,13 @@ export class TerminalRuntime implements TerminalRuntimeHandle {
     this.hasBeenPresented = true;
     if (reactivating) this.activityController.beginPresentationRefresh();
     this.scheduleFit();
-    if (this.focused) this.requestFocus();
+    if (this.focused) this.focus();
   }
 
   setFocused(focused: boolean) {
     if (this.disposed || this.focused === focused) return;
     this.focused = focused;
-    if (focused && this.presented) this.requestFocus();
+    if (focused && this.presented) this.focus();
   }
 
   focus() {
@@ -334,7 +334,7 @@ export class TerminalRuntime implements TerminalRuntimeHandle {
     if (this.closePromise) return this.closePromise;
     this.closePromise = (async () => {
       await this.startPromise;
-      if (this.instanceId || (!this.projectContext && this.ptyReady)) {
+      if (this.instanceId || this.bridge?.canonicalOutput || (!this.projectContext && this.ptyReady)) {
         const bridge = this.bridge;
         if (!bridge?.closeTerminal) throw new Error(this.message("terminal.bridgeUnavailable"));
         unwrapProjectSessionResult(await bridge.closeTerminal(this.requestIdentity()));
@@ -369,8 +369,11 @@ export class TerminalRuntime implements TerminalRuntimeHandle {
     this.stopObservingContainer();
     this.removeDataListener?.();
     this.removeExitListener?.();
+    this.removeErrorListener?.();
+    this.bridge?.dispose?.();
     this.removeDataListener = null;
     this.removeExitListener = null;
+    this.removeErrorListener = null;
     safeDispose(this.webglContextLossDisposable);
     safeDispose(this.webglAddon);
     safeDispose(this.unicode11Addon);
@@ -437,14 +440,12 @@ export class TerminalRuntime implements TerminalRuntimeHandle {
     this.fitNow();
     this.setReady(true);
     this.observeSize(container);
-    this.observeSidebarTransition(container);
     this.subscribeBridge();
 
     this.revealFrame = requestAnimationFrame(() => {
       this.revealFrame = null;
       if (this.disposed) return;
       this.fitNow();
-      if (this.presented && this.focused) terminal.focus();
     });
 
     void document.fonts?.ready.then(() => {
@@ -489,6 +490,12 @@ export class TerminalRuntime implements TerminalRuntimeHandle {
   private subscribeBridge() {
     const bridge = this.bridge;
     if (!bridge?.onTerminalData || !bridge.onTerminalExit) return;
+    this.removeErrorListener = bridge.onTerminalError?.((message) => {
+      if (this.disposed) return;
+      this.ptyReady = false;
+      this.onStatus(this.sessionId, "error", undefined, message);
+      this.writeSystemLine(message);
+    }) ?? null;
 
     this.removeDataListener = bridge.onTerminalData((event) => {
       if (event.id !== this.sessionId || this.disposed) return;
@@ -554,7 +561,6 @@ export class TerminalRuntime implements TerminalRuntimeHandle {
         this.handleExit(pendingExit);
         return;
       }
-      if (this.presented && this.focused) terminal.focus();
     }).catch((error) => {
       if (this.disposed) return;
       this.pendingExit = null;
@@ -592,40 +598,9 @@ export class TerminalRuntime implements TerminalRuntimeHandle {
     this.resizeObserver.observe(container);
   }
 
-  private observeSidebarTransition(container: HTMLDivElement) {
-    if (this.terminalSidebarElement && this.sidebarTransitionEndListener) {
-      this.terminalSidebarElement.removeEventListener(
-        "transitionend",
-        this.sidebarTransitionEndListener,
-      );
-    }
-    this.terminalSidebarElement = container.closest(".desktop-right-sidebar");
-    if (!this.terminalSidebarElement) return;
-    this.sidebarTransitionEndListener = (event: Event) => {
-      const transitionEvent = event as TransitionEvent;
-      if (transitionEvent.target !== this.terminalSidebarElement) return;
-      if (transitionEvent.propertyName !== "width" && transitionEvent.propertyName !== "flex-basis") {
-        return;
-      }
-      if (this.presented) this.scheduleFit();
-    };
-    this.terminalSidebarElement.addEventListener(
-      "transitionend",
-      this.sidebarTransitionEndListener,
-    );
-  }
-
   private stopObservingContainer() {
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
-    if (this.terminalSidebarElement && this.sidebarTransitionEndListener) {
-      this.terminalSidebarElement.removeEventListener(
-        "transitionend",
-        this.sidebarTransitionEndListener,
-      );
-    }
-    this.terminalSidebarElement = null;
-    this.sidebarTransitionEndListener = null;
   }
 
   private scheduleFit() {
@@ -702,12 +677,6 @@ export class TerminalRuntime implements TerminalRuntimeHandle {
       this.webglContextLossDisposable = null;
       this.webglAddon = null;
     }
-  }
-
-  private requestFocus() {
-    requestAnimationFrame(() => {
-      if (!this.disposed && this.presented && this.focused) this.terminal?.focus();
-    });
   }
 
   private openExternalUrl(href: string) {

@@ -99,9 +99,7 @@ import { installWindowNavigationSecurity, requireNonEmptyString } from "./main/s
 import { createTerminalProcessService } from "./main/item-hosts/terminal-process-service.mjs";
 import { createAgentProcessService } from "./main/item-hosts/agent-process-service.mjs";
 import { createItemHostBudget } from "./main/item-hosts/resource-budget.mjs";
-import { createItemRendererAuthority } from "./main/item-hosts/renderer-authority.mjs";
-import { createItemDisplayManager } from "./main/item-hosts/display-manager.mjs";
-import { registerItemHostIpc } from "./main/item-hosts/ipc.mjs";
+import { registerSessionConnectionIpcHandlers, sendSessionRuntimeFailure } from "./main/ipc/session-connection-ipc.mjs";
 import { createTerminalAgentLocator } from "./main/terminal-agent/terminal-agent-locator.mjs";
 import { createDefaultTerminalAgentActivityHost } from "./main/terminal-agent/activity/bootstrap/create-terminal-agent-activity-host.mjs";
 import { createTrustedIpcMain } from "./main/trusted-ipc.mjs";
@@ -249,8 +247,6 @@ let viewerPackHost = null;
 let viewerPackRuntime = null;
 let markdownWebEmbedService = null;
 let editorSurfaceManager = null;
-let itemDisplayManager = null;
-const itemRendererAuthority = createItemRendererAuthority();
 const itemHostBudget = createItemHostBudget({}, { readMetrics: () => app.getAppMetrics() });
 let stopLocaleNativeRefresh = null;
 const windowsById = new Map();
@@ -261,7 +257,6 @@ let lastFocusedWindowId = null;
 const trustedIpcMain = createTrustedIpcMain({
   ipcMain,
   applicationUrl: rendererApplicationUrl,
-  itemRendererAuthority,
 });
 const nativeSurfaceOcclusion = createNativeSurfaceOcclusionCoordinator({
   onCallbackError: (error) => {
@@ -343,7 +338,7 @@ const terminalService = createTerminalProcessService({
   appVersion: desktopBuildInfo.version,
   initializeWorkspaceEditReview,
   terminalAgentActivityHost,
-  onHostEvent: (record, event) => itemDisplayManager?.hostEvent(record, event),
+  onHostEvent: (record, event) => sendSessionRuntimeFailure(webContents.fromId(record.ownerId), "terminal", record, event),
 });
 const terminalAgentLocator = createTerminalAgentLocator();
 const agentEventCache = createEphemeralAgentSessionCache({ app });
@@ -379,7 +374,7 @@ const agentService = createAgentProcessService({
   catalogService: agentCatalogService,
   conversationCatalog: agentConversationCatalog,
   attachmentStore: agentAttachmentStore,
-  onHostEvent: (record, event) => itemDisplayManager?.hostEvent(record, event),
+  onHostEvent: (record, event) => sendSessionRuntimeFailure(webContents.fromId(record.ownerId), "agent", record, event),
 });
 const localAgentInventory = createLocalAgentInventory({
   appVersion: desktopBuildInfo.version,
@@ -429,7 +424,6 @@ const projectSessions = createProjectSessionHost({
       workspaceWatchService.stopForWorkspaceRoot(owner, root),
       gitMetadataWatchService.stopForWorkspaceRoot(owner, root),
       localFileCapabilities.revokeWorkspaceRoot(owner, root),
-      itemDisplayManager?.closeProject(owner, root),
     ]);
   },
 });
@@ -754,11 +748,8 @@ app.whenReady().then(async () => {
     buildInfo: desktopBuildInfo,
     getWindows: () => BrowserWindow.getAllWindows(),
   });
-  stopLocaleNativeRefresh = localeService.onDidChange((state) => {
+  stopLocaleNativeRefresh = localeService.onDidChange(() => {
     nativeMenuService.refresh();
-    for (const entry of itemDisplayManager?.values() ?? []) {
-      if (entry.view && !entry.view.webContents.isDestroyed()) entry.view.webContents.send("localization:changed", state);
-    }
   });
   setDevelopmentDockIcon({
     app,
@@ -804,23 +795,6 @@ app.whenReady().then(async () => {
       canonicalizeWorkspacePath,
       isOpenWorkspaceRoot,
     }),
-  });
-  const configuredItemSessions = new WeakSet();
-  itemDisplayManager = createItemDisplayManager({
-    WebContentsView, electronSession, MessageChannelMain,
-    authority: itemRendererAuthority, budget: itemHostBudget,
-    getOwnerWindow: (ownerId) => windowsById.get(ownerId) ?? null,
-    projectSessions, terminalService, agentService, attachmentStore: agentAttachmentStore,
-    applicationUrl: rendererApplicationUrl, preloadPath: path.join(__dirname, "item-preload.cjs"),
-    nativeSurfaceOcclusion, nativeSurfacePointerPassthrough,
-    configureSession: (session) => {
-      if (configuredItemSessions.has(session)) return;
-      configuredItemSessions.add(session);
-      registerLocalFileProtocol({ protocol: session.protocol, readWorkspaceFile, openWorkspaceFileRangeStream,
-        statWorkspaceFile, getMimeType, canonicalizeWorkspacePath, isOpenWorkspaceRoot,
-        resolveCapability: localFileCapabilities.resolve, applicationUrl: rendererApplicationUrl });
-      registerProjectIconProtocol({ protocol: session.protocol, store: projectAppearanceStore, applicationUrl: rendererApplicationUrl });
-    },
   });
   const appPreviewProcessRuntime = createAppPreviewRuntime({
     app,
@@ -931,7 +905,6 @@ app.on("before-quit", createApplicationCloseCoordinator({
   getWindows: () => BrowserWindow.getAllWindows(),
   closeResources: async () => {
     await projectSessions.closeAllWindows();
-    await itemDisplayManager?.closeAll();
     await Promise.all([agentService.closeAll(), terminalService.closeAll()]);
   },
   onFailure: async () => {
@@ -942,7 +915,7 @@ app.on("before-quit", createApplicationCloseCoordinator({
 }));
 
 function registerIpcHandlers() {
-  registerItemHostIpc({ ipcMain, trustedIpcMain, authority: itemRendererAuthority, manager: itemDisplayManager, projectSessions });
+  registerSessionConnectionIpcHandlers({ ipcMain: trustedIpcMain, MessageChannelMain, projectSessions, agentService, terminalService });
   registerProjectSessionIpc({ ipcMain: trustedIpcMain, projectSessions });
   const resourceTransfer = registerResourceTransferIpcHandlers({
     ipcMain: trustedIpcMain,

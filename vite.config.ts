@@ -104,7 +104,6 @@ export default defineConfig({
     rollupOptions: {
       input: {
         index: path.resolve(fileURLToPath(new URL("./", import.meta.url)), "index.html"),
-        "item-host": path.resolve(fileURLToPath(new URL("./", import.meta.url)), "item-host.html"),
       },
     },
   },

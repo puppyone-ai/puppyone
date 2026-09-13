@@ -46,6 +46,8 @@
   "titlebar.openWithApp": "Open with app",
   "titlebar.hideTerminal": "Hide Terminal",
   "titlebar.showTerminal": "Show Terminal",
+  "titlebar.hideAgent": "Hide Agent",
+  "titlebar.showAgent": "Show Agent",
   "windowControls.minimize": "Minimize window",
   "windowControls.maximize": "Maximize or restore window",
   "windowControls.close": "Close window",

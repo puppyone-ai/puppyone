@@ -10,9 +10,10 @@ type StatePatch = (patch: Partial<AgentControllerState>) => void;
 const WATERMARK_INTERVAL_MS = 5_000;
 const REQUEST_TIMEOUT_MS = 8_000;
 
-/** A disposable replica of Main's display JSON. It never interprets Harness events. */
+/** A disposable replica of the session service's display JSON. It never interprets Harness events. */
 export class AgentSessionReplica {
   private frameCleanup: (() => void) | null = null;
+  private failureCleanup: (() => void) | null = null;
   private connectedBridge: AgentClientPort | null = null;
   private subscription: { id: string; sessionId: string; instanceId?: string; streamId: string; revision: number; epoch: number } | null = null;
   private epoch = 0;
@@ -33,9 +34,18 @@ export class AgentSessionReplica {
     const bridge = this.bridgeProvider();
     if (!bridge || bridge === this.connectedBridge) return;
     this.frameCleanup?.();
+    this.failureCleanup?.();
     this.invalidate();
     this.connectedBridge = bridge;
     this.frameCleanup = bridge.onAgentSessionFrame?.(frame => this.handleFrame(frame)) ?? null;
+    this.failureCleanup = bridge.onAgentSessionFailure?.(message => {
+      ++this.epoch;
+      this.ended = true;
+      this.subscription = null;
+      if (this.watermarkTimer) clearTimeout(this.watermarkTimer);
+      this.watermarkTimer = null;
+      this.patch({ phase: 'runtime-exited', replicaStatus: 'detached', error: { code: 'unknown', detail: message } });
+    }) ?? null;
   }
 
   dispose() {
@@ -44,6 +54,8 @@ export class AgentSessionReplica {
     this.invalidate();
     this.frameCleanup?.();
     this.frameCleanup = null;
+    this.failureCleanup?.();
+    this.failureCleanup = null;
     this.connectedBridge = null;
   }
 

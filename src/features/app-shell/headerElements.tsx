@@ -1,7 +1,10 @@
 import type { ReactNode } from "react";
-import { SquareTerminal, Terminal, type LucideIcon } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import type { RightSidebarToolId, TitlebarActionId } from "../../preferences";
 import type { MessageFormatter } from "@puppyone/localization";
+import { AgentEntryIcon } from "./AgentEntryIcon";
+
+const AGENT_ENTRY_LABEL = "Agent";
 
 export type HeaderElementDefinition = {
   id: TitlebarActionId;
@@ -25,17 +28,16 @@ export type HeaderElementRenderContext = {
 export const HEADER_ELEMENT_DEFINITIONS: readonly HeaderElementDefinition[] = [
   {
     id: "terminal",
-    label: "Terminal",
-    icon: Terminal,
+    label: AGENT_ENTRY_LABEL,
+    icon: AgentEntryIcon,
     linkedRightSidebarToolId: "terminal",
     isAvailable: (context) => context.terminal.enabled,
     render: (context) => {
       const terminal = context.terminal;
       const toolbarPlacement = context.placement === "toolbar";
-      const TerminalIcon = toolbarPlacement ? SquareTerminal : Terminal;
       const toggleLabel = toolbarPlacement
-        ? context.t("terminal.title")
-        : context.t(terminal.sidebarOpen ? "shell.titlebar.hideTerminal" : "shell.titlebar.showTerminal");
+        ? AGENT_ENTRY_LABEL
+        : context.t(terminal.sidebarOpen ? "shell.titlebar.hideAgent" : "shell.titlebar.showAgent");
       return (
         <button
           className={toolbarPlacement
@@ -53,14 +55,14 @@ export const HEADER_ELEMENT_DEFINITIONS: readonly HeaderElementDefinition[] = [
               className="desktop-shell-toolbar-button-icon"
               aria-hidden="true"
             >
-              <TerminalIcon size={19} strokeWidth={1.8} />
+              <AgentEntryIcon size={19} strokeWidth={1.8} />
             </i>
           ) : (
-            <TerminalIcon size={15} strokeWidth={1.8} />
+            <AgentEntryIcon size={15} strokeWidth={1.8} aria-hidden="true" />
           )}
           {toolbarPlacement && (
             <span className="desktop-shell-toolbar-button-label">
-              {context.t("terminal.title")}
+              {AGENT_ENTRY_LABEL}
             </span>
           )}
         </button>

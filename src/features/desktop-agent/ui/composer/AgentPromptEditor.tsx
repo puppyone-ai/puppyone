@@ -19,6 +19,7 @@ import {
 } from "../../domain/agent-prompt-mentions";
 
 type AgentPromptEditorProps = {
+  focusRequest?: number;
   value: string;
   mentions: AgentPromptReferenceMention[];
   references: AgentDraftReference[];
@@ -90,6 +91,7 @@ const mentionDecorations = StateField.define<DecorationSet>({
  * semantic reference ids and never encodes authorization into DOM text.
  */
 export function AgentPromptEditor({
+  focusRequest,
   value,
   mentions,
   references,
@@ -105,6 +107,7 @@ export function AgentPromptEditor({
   const hostRef = useRef<HTMLDivElement>(null);
   const appearanceRevision = useEditorAppearanceRevision();
   const viewRef = useRef<EditorView | null>(null);
+  const lastFocusRequest = useRef<number | undefined>(undefined);
   const editableCompartmentRef = useRef(new Compartment());
   const placeholderCompartmentRef = useRef(new Compartment());
   const callbacksRef = useRef({ onChange, onRemoveReference, onDrop, onPaste, onSubmit });
@@ -189,6 +192,12 @@ export function AgentPromptEditor({
   useLayoutEffect(() => {
     viewRef.current?.requestMeasure();
   }, [appearanceRevision]);
+
+  useEffect(() => {
+    if (!focusRequest || disabled || focusRequest === lastFocusRequest.current) return;
+    lastFocusRequest.current = focusRequest;
+    viewRef.current?.focus();
+  }, [disabled, focusRequest]);
 
   useEffect(() => {
     const view = viewRef.current;
