@@ -107,9 +107,11 @@ async function editorInput(label) {
     const e=document.querySelector('.desktop-editor-pane .cm-scroller'); const r=e.getBoundingClientRect();
     e.scrollTop=0; return {x:r.right-80,y:r.top+150};
   })()`);
-  await evaluate("window.__visibilityEvents=[]");
+  app.focus({ steal: true });
   window.focus();
-  if (!nativeInput) window.webContents.focus(); // Synthetic input does not perform OS focus routing.
+  if (nativeInput) await until(() => window.isFocused(), `${label}: native window focus`);
+  else window.webContents.focus(); // Synthetic input does not perform OS focus routing.
+  await evaluate("window.__visibilityEvents=[]");
   const send = async kind => {
     if (nativeInput) {
       const bounds = window.getContentBounds();
